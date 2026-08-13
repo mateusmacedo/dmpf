@@ -1,0 +1,25 @@
+# CODEOWNERS — donos de código para revisão automática de PRs.
+# Substitua os placeholders (@owner) pelos times/usuários reais ao adotar o template.
+# Sintaxe: https://docs.github.com/pt/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Dono padrão de tudo
+*                       @owner
+
+# Configuração de workspace e tooling
+/nx.json                @owner
+/pnpm-workspace.yaml     @owner
+/tsconfig.base.json      @owner
+/biome.json              @owner
+/renovate.json           @owner
+
+# CI/CD e infraestrutura
+/.github/                @owner
+/infra/                  @owner
+
+# Bibliotecas por escopo
+/libs/shared/            @owner
+/libs/backend/           @owner
+/libs/frontend/          @owner
+
+# Aplicações
+/apps/                   @owner

@@ -1,0 +1,36 @@
+# Contexto de build Docker (raiz do monorepo). Exclui artefatos e o que não entra no bundle.
+**/node_modules
+**/dist
+**/out-tsc
+**/test-output
+**/coverage
+**/.nx
+**/tmp
+**/.next
+**/*.tsbuildinfo
+**/*.log
+.git
+.github
+plans
+.serena
+.cursor
+.claude
+.vscode
+.idea
+docs
+**/*.md
+# Secrets: nunca copiar .env para a imagem (mantém apenas o .env.example de docs).
+**/.env
+**/.env.*
+!**/.env.example
+# Chaves, certificados e credenciais avulsas. Nenhum destes existe no template —
+# a regra está aqui para que apps criadas a partir dele não vazem material
+# sensível para o contexto de build por descuido.
+**/*.pem
+**/*.key
+**/*.p12
+**/*.pfx
+**/id_rsa*
+**/credentials
+**/.aws/
+**/.ssh/

@@ -1,0 +1,97 @@
+# syntax=docker/dockerfile:1
+
+# Dockerfile de REFERÊNCIA para uma app Node/NestJS deste monorepo.
+#
+# Como usar (ao criar uma app real):
+#   1. Copie este arquivo para a raiz da app (ex: apps/<sua-app>/Dockerfile).
+#   2. Substitua os ARGs APP_NAME e APP_OUTPUT_PATH pelos valores da sua app.
+#   3. Ajuste a porta EXPOSE conforme a app.
+#
+# Build a partir da RAIZ do repositório (o contexto precisa do workspace inteiro):
+#   docker build -f apps/<sua-app>/Dockerfile --build-arg APP_NAME=<projeto-nx> \
+#     --build-arg APP_OUTPUT_PATH=apps/<sua-app>/dist -t <sua-app> .
+#
+# PRÉ-REQUISITO — a app precisa expor os três targets de prune. O generator
+# `@nx/node:application` os cria quando a app nasce com suporte a Docker; se a sua
+# app não os tiver, declare os três (os executors vêm do `@nx/js`):
+#
+#   "prune-lockfile": {
+#     "executor": "@nx/js:prune-lockfile",
+#     "dependsOn": ["build"],
+#     "options": { "buildTarget": "build" }
+#   },
+#   "copy-workspace-modules": {
+#     "executor": "@nx/js:copy-workspace-modules",
+#     "dependsOn": ["build"],
+#     "options": { "buildTarget": "build" }
+#   },
+#   "prune": {
+#     "executor": "nx:noop",
+#     "dependsOn": ["prune-lockfile", "copy-workspace-modules"]
+#   }
+#
+# Confira com `pnpm nx show project <app> --json` se os três existem antes de
+# depender deste Dockerfile.
+#
+# APP_OUTPUT_PATH é o diretório onde o `prune` escreve — `main.js`,
+# `package.json` podado, `pnpm-lock.yaml` e `workspace_modules/`. Confira o
+# `outputPath` real do build no `project.json` da app.
+
+ARG NODE_VERSION=24
+
+# ---- Stage 1: builder — instala deps, compila e poda o lockfile de produção ----
+FROM node:${NODE_VERSION}-alpine AS builder
+ENV PNPM_HOME=/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+RUN corepack enable
+WORKDIR /workspace
+
+ARG APP_NAME
+ARG APP_OUTPUT_PATH
+COPY . .
+RUN pnpm install --frozen-lockfile
+# `prune` já depende de `build` pelo grafo do Nx — não é preciso buildar antes.
+RUN pnpm nx prune "${APP_NAME}"
+# O `prune` deixa `catalog:`/`workspace:` e o placement dep/devDep dessincronizados
+# entre o `package.json` podado e o lockfile podado. O normalizador realinha o
+# manifest ao lockfile para o `install --frozen-lockfile` do runtime funcionar.
+#
+# ATENÇÃO — o normalizador é destrutivo em dois pontos, ambos restritos à saída do
+# prune (nunca ao workspace):
+#   1. Reescreve `dependencies`/`devDependencies`/`optionalDependencies` do
+#      `package.json` podado a partir do importer raiz do lockfile.
+#   2. **Remove o bloco `overrides:` inteiro** do `pnpm-lock.yaml` podado, porque
+#      o pnpm 11 só lê overrides via `pnpm-workspace.yaml`. Se o seu projeto
+#      depender de um `overrides:` para corrigir uma dependência transitiva, essa
+#      correção **não** sobrevive no runtime — declare o pin diretamente ou
+#      valide a imagem antes de promover.
+#
+# DIAGNÓSTICO — o normalizador valida apenas se o argumento foi passado. Se o
+# diretório existir mas não contiver `pnpm-lock.yaml` e `package.json`, ele aborta
+# com um stack trace de `node:fs` em vez de mensagem amigável. Na prática isso
+# significa uma coisa só: `APP_OUTPUT_PATH` não aponta para a saída real do
+# `prune`. Confira o `outputPath` do build no `project.json` da app.
+RUN node tools/normalize-pruned-manifest.mjs "${APP_OUTPUT_PATH}"
+
+# ---- Stage 2: runtime — imagem enxuta, tini como PID 1, usuário não-root ----
+FROM node:${NODE_VERSION}-alpine AS runtime
+RUN apk add --no-cache tini
+ENV PNPM_HOME=/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+ENV NODE_ENV=production
+RUN corepack enable
+WORKDIR /app
+
+ARG APP_OUTPUT_PATH
+# Copia a saída podada e instala apenas as dependências de produção a partir dela.
+COPY --from=builder /workspace/${APP_OUTPUT_PATH} ./
+# --ignore-scripts: não roda postinstall de dependências no runtime, o que mantém
+# o build reprodutível e reduz a superfície de execução na imagem final.
+RUN pnpm install --prod --frozen-lockfile --ignore-scripts
+
+USER node
+EXPOSE 3000
+# tini recolhe processos zumbis e encaminha SIGTERM/SIGINT ao Node, o que dispara
+# o graceful shutdown do Nest (`enableShutdownHooks`).
+ENTRYPOINT ["/sbin/tini", "--"]
+CMD ["node", "main.js"]

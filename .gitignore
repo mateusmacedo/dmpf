@@ -1,0 +1,80 @@
+# See https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files for more about ignoring files.
+
+# compiled output
+dist
+tmp
+out-tsc
+test-output
+
+# dependencies
+node_modules
+
+# IDEs and editors
+/.idea
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+
+# IDE - VSCode
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# misc
+/.sass-cache
+/connect.lock
+/coverage
+/libpeerconnection.log
+npm-debug.log
+yarn-error.log
+testem.log
+newrelic_agent.log
+/typings
+
+# System Files
+.DS_Store
+Thumbs.db
+
+.nx/
+.cursor/rules/nx-rules.mdc
+.cursor/hooks/state/
+.cursor/plans
+
+.claude/worktrees
+.claude/settings.local.json
+
+plans
+.serena
+.tokensave/
+.headroom/
+
+# build info
+*.tsbuildinfo
+
+# logs
+*.log
+
+# local environment (keep example)
+.env
+.env.*
+!.env.example
+
+# Next.js
+.next
+
+# Go build artifacts
+**/bin/
+**/__debug_bin*
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+*.tfplan
+.pnpm-store

@@ -1,0 +1,133 @@
+name: Create Release Branch
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump-type:
+        description: "Semantic version increment type"
+        type: choice
+        options:
+          - auto
+          - minor
+          - patch
+          - major
+        default: auto
+
+concurrency:
+  group: create-release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  create-release:
+    name: Create Release Branch
+    runs-on: gitea-runner
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout master
+        uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Fetch all branches
+        run: git fetch --all
+
+      - name: Resolve bump type
+        id: bump
+        run: |
+          BUMP="${{ inputs.bump-type }}"
+
+          if [[ "$BUMP" == "auto" ]]; then
+            if ! git rev-parse --verify --quiet refs/remotes/origin/develop >/dev/null; then
+              echo "::error::O ciclo de release deriva o incremento de origin/master..origin/develop, mas a branch 'develop' não foi encontrada. Provisione a branch 'develop' antes de disparar a release automática."
+              exit 1
+            fi
+
+            COMMITS=$(git log origin/master..origin/develop --pretty=format:"%s")
+
+            if [[ -z "$COMMITS" ]]; then
+              echo "::error::Não há commits entre origin/master e origin/develop. A release automática precisa de ao menos um commit para derivar o incremento."
+              exit 1
+            fi
+
+            if echo "$COMMITS" | grep -qE "(BREAKING[[:space:]]CHANGE|^[a-z]+(\(.+\))?!:)"; then
+              BUMP="major"
+            elif echo "$COMMITS" | grep -qE "^feat(\(.+\))?:"; then
+              BUMP="minor"
+            else
+              BUMP="patch"
+            fi
+
+            echo "Auto-detected bump type: $BUMP"
+          fi
+
+          echo "value=$BUMP" >> $GITHUB_OUTPUT
+
+      - name: Calculate next version
+        id: version
+        run: |
+          # Find the latest release cycle version from previously merged release/* branches
+          LATEST_CYCLE=$(git branch -r --merged origin/master \
+            | grep -oE 'release/[0-9]+\.[0-9]+\.[0-9]+' \
+            | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' \
+            | sort -V | tail -1 || echo "")
+
+          if [[ -z "$LATEST_CYCLE" ]]; then
+            CURRENT="0.0.0"
+          else
+            CURRENT="$LATEST_CYCLE"
+          fi
+
+          echo "Current release cycle version: $CURRENT"
+
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
+          BUMP="${{ steps.bump.outputs.value }}"
+
+          case "$BUMP" in
+            major) NEXT="$((MAJOR + 1)).0.0" ;;
+            minor) NEXT="${MAJOR}.$((MINOR + 1)).0" ;;
+            patch) NEXT="${MAJOR}.${MINOR}.$((PATCH + 1))" ;;
+          esac
+
+          echo "Next version: $NEXT"
+          echo "value=$NEXT" >> $GITHUB_OUTPUT
+
+      - name: Create and push release branch
+        run: |
+          BRANCH="release/${{ steps.version.outputs.value }}"
+
+          if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
+            echo "::error::Branch $BRANCH already exists on origin."
+            exit 1
+          fi
+
+          git checkout -b "$BRANCH"
+          git push origin "$BRANCH"
+
+      - name: Open pull request (Gitea API)
+        env:
+          GITEA_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ steps.version.outputs.value }}"
+          BUMP="${{ steps.bump.outputs.value }}"
+
+          BODY=$(printf '## Release %s\n\n**Bump type:** %s\n\n### Checklist\n\n- [ ] Features validadas em `develop`\n- [ ] Features mergeadas nesta branch\n- [ ] QA aprovado em homologação\n- [ ] Changelog revisado\n\n---\n> Branch criada automaticamente via workflow *Create Release Branch*\n' "$VERSION" "$BUMP")
+
+          jq -n \
+            --arg base "master" \
+            --arg head "release/${VERSION}" \
+            --arg title "release: ${VERSION}" \
+            --arg body "$BODY" \
+            '{base: $base, head: $head, title: $title, body: $body}' \
+          | curl -fsS -X POST \
+              "${GITHUB_SERVER_URL}/api/v1/repos/${GITHUB_REPOSITORY}/pulls" \
+              -H "Authorization: token ${GITEA_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -H "Accept: application/json" \
+              --data-binary @-

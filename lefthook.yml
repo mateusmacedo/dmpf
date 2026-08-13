@@ -1,0 +1,17 @@
+pre-commit:
+  commands:
+    biome:
+      glob: "*.{js,ts,jsx,tsx,mjs,cjs,json,jsonc,css}"
+      run: pnpm biome check --write --no-errors-on-unmatched {staged_files}
+      stage_fixed: true
+
+pre-push:
+  commands:
+    lint:
+      run: pnpm nx affected -t lint --parallel=3 --exclude=@nx-base-template/source
+    typecheck:
+      run: pnpm nx affected -t typecheck --parallel=3 --exclude=@nx-base-template/source
+    test:
+      run: pnpm nx affected -t test --parallel=3 --exclude=@nx-base-template/source
+    build:
+      run: pnpm nx affected -t build --parallel=3 --exclude=@nx-base-template/source

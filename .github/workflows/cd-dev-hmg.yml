@@ -1,0 +1,65 @@
+# CD EKS monorepo (Modelo A): detect-apps → deploy-eks (um job por app).
+# Consumidor fino dos templates; sem build/push/GitOps inline.
+#
+# ── TEMPLATE, NÃO LIGADO ──────────────────────────────────────────────────────
+# Este workflow vem propositalmente incompleto: o template não tem apps, e um CD
+# ativo aqui faria deploy de nada. Para habilitar no seu projeto:
+#
+#   1. Descomente o bloco `push:` em `on:` quando quiser deploy automático a
+#      partir de `develop`.
+#   2. Copie o bloco de exemplo `deploy-<app>` (comentado abaixo) uma vez por app
+#      deployável, substituindo `<app>` e `<projeto>`.
+#   3. Configure a var `AWS_ACCOUNT_ID` no repositório.
+#   4. Faça o primeiro smoke por `workflow_dispatch` em `dev`, depois em `hmg`.
+#
+# Guia completo: docs/ci-cd/DEPLOY_APPLICATIONS.md
+name: CD Dev/Hmg
+
+on:
+  # Descomente para deploy automático a partir de `develop`:
+  # push:
+  #   branches: [develop]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Ambiente de deploy
+        type: choice
+        default: dev
+        options:
+          - dev
+          - hmg
+      app:
+        description: "Path da app (ex: apps/<app>). Vazio = detectadas"
+        type: string
+        required: false
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  detect:
+    if: inputs.app == ''
+    uses: lidercap-apps/actions-templates/.github/workflows/detect-apps.yaml@main
+    with:
+      app_dirs: "apps"
+      shared_dirs: "libs"
+# Deploy por app em jobs explícitos com `with` literal. O act_runner do Gitea
+# não injeta matriz vinda de expressão em job reutilizável (uses:), então
+# evitamos matriz aqui. Cada app nova entra como um job novo.
+#
+#  deploy-<app>:
+#    needs: [detect]
+#    if: always() && (contains(needs.detect.outputs.apps, 'apps/<app>') || inputs.app == 'apps/<app>')
+#    uses: lidercap-apps/actions-templates/.github/workflows/deploy-eks.yaml@main
+#    with:
+#      version: ${{ github.sha }}
+#      environment: ${{ inputs.environment || 'dev' }}
+#      project: <app>
+#      ecr: <app>
+#      path_project: <projeto>/${{ inputs.environment || 'dev' }}
+#      aws_account_id: ${{ vars.AWS_ACCOUNT_ID }}
+#      docker_context: "."
+#      dockerfile: apps/<app>/Dockerfile
+#      runner: gitea-runner
+#    secrets: inherit

@@ -1,0 +1,50 @@
+name: NX Publish
+
+# Publica as libs no Verdaccio via `nx release publish` usando o template
+# reusable de actions-templates. O executor pula libs sem versão nova e versões
+# já no registry, então releases parciais publicam só o que mudou.
+# Dispara no push das tags do Nx Release (nx-release.yml).
+on:
+  push:
+    tags:
+      - "**@*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Dist-tag de publicação (latest, beta, next)"
+        type: string
+        default: latest
+
+# cancel-in-progress consolida o push de múltiplas tags (versionamento
+# independente) em um único run, que publica todas as libs pendentes do commit
+# já versionado — o nx release publish ignora as que já estão no registry.
+concurrency:
+  group: publish-libs
+  cancel-in-progress: true
+
+# Least-privilege explícito, em vez de herdar o token default do repositório.
+# `contents: read` cobre o checkout do reusable; `id-token: write` cobre a troca
+# OIDC que o template usa para obter a credencial de publicação (ver ADR-004:
+# "role/SSM de auth Verdaccio configurada na org"). Mesmo par usado pelo
+# `cd-dev-hmg.yml`. Se o reusable passar a exigir outra permissão, ela precisa ser
+# declarada aqui — o contrato dele não é versionado neste repositório.
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    uses: lidercap-apps/actions-templates/.github/workflows/publish-libs.yaml@main
+    with:
+      # pnpm_version vazio de propósito: o pnpm/action-setup trata string vazia
+      # como ausência e resolve pelo campo packageManager do package.json
+      # (pnpm@11.14.0). Passar um valor concreto faz a action abortar com
+      # ERR_PNPM_BAD_PM_VERSION, porque ela compara com o packageManager por
+      # igualdade de string. Declarado explicitamente, e não omitido, para não
+      # depender do default do template — ver ARQ-465.
+      pnpm_version: ""
+      node_version: "24"
+      nx_exclude: "@nx-base-template/source"
+      scope: "@lidercap-apps"
+      tag: ${{ inputs.tag || 'latest' }}
+      build_projects_filter: "tag:type:lib"

@@ -1,0 +1,153 @@
+name: NX Release
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - master
+  workflow_dispatch:
+    inputs:
+      release-type:
+        description: "Release type (affects docker versioning)"
+        type: choice
+        options:
+          - production
+          - hotfix
+        default: production
+
+concurrency:
+  group: release-${{ github.workflow }}-${{ github.event.pull_request.base.ref || github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  version:
+    name: Nx Release (version, changelog, tags)
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event.pull_request.merged == true &&
+        (
+          startsWith(github.event.pull_request.head.ref, 'release/') ||
+          startsWith(github.event.pull_request.head.ref, 'hotfix/')
+        )
+      )
+    runs-on: gitea-runner
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout master
+        uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+          fetch-tags: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Validate manual dispatch branch
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          if [[ "${GITHUB_REF_NAME}" != "master" ]]; then
+            echo "::error::Manual release is allowed only from master. Current ref: ${GITHUB_REF_NAME}"
+            exit 1
+          fi
+
+      - name: Setup Node and pnpm
+        uses: ./.github/actions/setup-node-pnpm
+        with:
+          node-version: "24"
+
+      - name: Configure git identity
+        run: |
+          git config user.email "gitea-actions[bot]@noreply.lidercap.com.br"
+          git config user.name "gitea-actions[bot]"
+
+      - name: Resolve docker version scheme
+        id: docker-scheme
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          MANUAL_TYPE: ${{ inputs.release-type }}
+        run: |
+          if [[ "$HEAD_REF" == hotfix/* ]] || [[ "$MANUAL_TYPE" == "hotfix" ]]; then
+            echo "value=hotfix" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=production" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Sem projeto com tag:type:lib o nx release sai com exit 1 ("Release group
+      # __default__ matches no projects"), não vazio. Esta detecção é o que mantém
+      # o pipeline ocioso — mesmo padrão dos candidatos Docker abaixo.
+      - name: Detect lib release candidates
+        id: lib-candidates
+        run: |
+          LIBS_JSON=$(pnpm nx show projects --projects="tag:type:lib" --json)
+          LIBS_COUNT=$(node -e "const projects = JSON.parse(process.argv[1] ?? '[]'); console.log(Array.isArray(projects) ? projects.length : 0);" "$LIBS_JSON")
+
+          if [[ "$LIBS_COUNT" -gt 0 ]]; then
+            echo "has_libs=true" >> "$GITHUB_OUTPUT"
+            echo "Versioning enabled for tag:type:lib projects: $LIBS_JSON"
+          else
+            echo "has_libs=false" >> "$GITHUB_OUTPUT"
+            echo "No projects found for tag:type:lib. Skipping version and push steps."
+          fi
+
+      # Versiona (bump + changelog + commit + tag) SEM publicar e SEM empurrar. A
+      # publicação no Verdaccio roda no nx-publish-libs.yml, disparado pelo push das
+      # tags geradas abaixo. Na primeira release (sem tags {projectName}@{version})
+      # usa --first-release para não exigir um git tag anterior no changelog.
+      # --yes e --skip-publish são mutuamente exclusivos no Nx; usar só skip-publish.
+      # Sem continue-on-error: falha real do nx release NÃO deve empurrar tags.
+      #
+      # O nx.json não declara changelog.projectChangelogs.createRelease: o Nx não
+      # tem provider de release para Gitea, e é essa chave que liga o push
+      # automático do comando agregado. Com ela ausente e release.git.push: false
+      # como guardrail, o push acontece num único ponto — o step abaixo.
+      - name: Nx Release (skip publish)
+        if: steps.lib-candidates.outputs.has_libs == 'true'
+        run: |
+          FIRST_RELEASE=""
+          if [ -z "$(git tag -l '*@*')" ]; then
+            echo 'Nenhuma tag de release existente; usando --first-release.'
+            FIRST_RELEASE="--first-release"
+          fi
+          pnpm nx release --skip-publish $FIRST_RELEASE
+
+      - name: Push version commit and tags
+        if: steps.lib-candidates.outputs.has_libs == 'true'
+        run: git push --follow-tags origin master
+
+      - name: Detect docker release candidates
+        id: docker-candidates
+        run: |
+          APPS_JSON=$(pnpm nx show projects --projects="tag:type:app" --json)
+          APPS_COUNT=$(node -e "const projects = JSON.parse(process.argv[1] ?? '[]'); console.log(Array.isArray(projects) ? projects.length : 0);" "$APPS_JSON")
+          APPS_CSV=$(node -e "const projects = JSON.parse(process.argv[1] ?? '[]'); console.log(Array.isArray(projects) ? projects.join(',') : '');" "$APPS_JSON")
+
+          if [[ "$APPS_COUNT" -gt 0 ]]; then
+            echo "has_docker_apps=true" >> "$GITHUB_OUTPUT"
+            echo "projects_csv=$APPS_CSV" >> "$GITHUB_OUTPUT"
+            echo "Docker release enabled for projects: $APPS_CSV"
+          else
+            echo "has_docker_apps=false" >> "$GITHUB_OUTPUT"
+            echo "projects_csv=" >> "$GITHUB_OUTPUT"
+            echo "No docker release candidates found for tag:type:app. Skipping Docker steps."
+          fi
+
+      - name: Log in to GitHub Container Registry
+        if: steps.docker-candidates.outputs.has_docker_apps == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Release — docker apps
+        if: steps.docker-candidates.outputs.has_docker_apps == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PROJECTS_CSV: ${{ steps.docker-candidates.outputs.projects_csv }}
+          DOCKER_SCHEME: ${{ steps.docker-scheme.outputs.value }}
+        run: pnpm nx release --projects="$PROJECTS_CSV" --dockerVersionScheme="$DOCKER_SCHEME" --yes

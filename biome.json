@@ -1,0 +1,60 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.4.16/schema.json",
+  "assist": { "actions": { "source": { "organizeImports": "on" } } },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 100
+  },
+  "javascript": {
+    "parser": {
+      "unsafeParameterDecoratorsEnabled": true
+    },
+    "formatter": {
+      "quoteStyle": "single",
+      "trailingCommas": "all",
+      "semicolons": "always",
+      "arrowParentheses": "always"
+    }
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true,
+      "correctness": {
+        "noUnusedVariables": "error"
+      },
+      "suspicious": {
+        "noExplicitAny": "warn"
+      },
+      "style": {
+        "useImportType": "error"
+      }
+    }
+  },
+  "files": {
+    "includes": [
+      "**",
+      "!**/dist",
+      "!**/out-tsc",
+      "!**/test-output",
+      "!**/coverage",
+      "!**/.nx",
+      "!**/plans",
+      "!**/tmp",
+      "!**/node_modules",
+      "!**/pnpm-lock.yaml",
+      "!**/*.swcrc",
+      "!**/.agents",
+      "!**/.claude",
+      "!**/.cursor",
+      "!**/.gemini",
+      "!**/.github/skills",
+      "!**/.github/prompts",
+      "!**/.opencode",
+      "!**/.tokensave",
+      "!**/.remember"
+    ]
+  }
+}
