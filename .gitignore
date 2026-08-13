@@ -78,3 +78,5 @@ plans
 crash.log
 *.tfplan
 .pnpm-store
+plans/
+graphify-out/
