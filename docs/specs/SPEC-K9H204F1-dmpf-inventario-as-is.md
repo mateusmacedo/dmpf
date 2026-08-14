@@ -66,8 +66,9 @@ demais sub-specs.
 
 ## Localização de código
 
-| Fase | Caminho |
+| Item | Caminho |
 |------|---------|
+| Asset de execução | [`SPEC-K9H204F1/prompt-inventario-repositorio.md`](./SPEC-K9H204F1/prompt-inventario-repositorio.md) — prompt que o agente executa em cada repositório para produzir o relatório de inventário |
 | Draft de trabalho | `plans/references/inventario-as-is.md` — local, fora do versionamento (`plans/` está no `.gitignore`) |
 | Promoção (ao ser aprovado) | `docs/dmpf/inventario-as-is.md` — versionado e revisável por PR |
 
