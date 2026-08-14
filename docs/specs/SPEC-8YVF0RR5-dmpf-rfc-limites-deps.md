@@ -2,7 +2,7 @@
 id: SPEC-8YVF0RR5
 slug: dmpf-rfc-limites-deps
 title: DMPF — RFC, limites arquiteturais e regra de dependência
-stage: backlog
+stage: building
 priority: P0
 depends_on: [SPEC-K9H204F1]
 ticket_url: https://lider-cap.atlassian.net/browse/ARQ-439
