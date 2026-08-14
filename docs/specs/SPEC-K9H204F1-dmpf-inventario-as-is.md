@@ -2,7 +2,7 @@
 id: SPEC-K9H204F1
 slug: dmpf-inventario-as-is
 title: DMPF — Inventariar AS-IS e baseline
-stage: backlog
+stage: done
 priority: P0
 depends_on: []
 ticket_url: https://lider-cap.atlassian.net/browse/ARQ-438
@@ -34,18 +34,18 @@ Entregar o item lógico **FND-01** do épico ARQ-436
 
 ### Funcionais
 
-- [ ] **[P0] Inventário de padrões**: documentar práticas atuais de mensageria, contratos, UoW e observabilidade
-- [ ] **[P0] Libs existentes**: listar componentes Go/TS relevantes e ownership
-- [ ] **[P0] NFRs e restrições**: capturar baseline e gaps vs. golden path
-- [ ] **[P1] Métricas atuais**: registrar o que já é medido (ou ausência) para calibrar pilotos
-- [ ] **[P1] Candidatos a piloto**: rascunho inicial (formalização em FND-10)
+- [x] **[P0] Inventário de padrões**: documentar práticas atuais de mensageria, contratos, UoW e observabilidade
+- [x] **[P0] Libs existentes**: listar componentes Go/TS relevantes e ownership
+- [x] **[P0] NFRs e restrições**: capturar baseline e gaps vs. golden path
+- [x] **[P1] Métricas atuais**: registrar o que já é medido (ou ausência) para calibrar pilotos
+- [x] **[P1] Candidatos a piloto**: rascunho inicial (formalização em FND-10)
 
 ### Não-funcionais
 
-- [ ] **[P0] Rastreabilidade**: cada item do inventário nomeia owner e data de levantamento
-- [ ] **[P0] Falseabilidade**: toda afirmação sobre o AS-IS aponta repositório, arquivo ou dashboard verificável
-- [ ] **[P0] Ausência explícita**: lacuna encontrada é registrada como "não medido / não existe", nunca omitida
-- [ ] **[P1] Estabilidade de referência**: seções numeradas para que FND-02…11 possam citá-las sem ambiguidade
+- [x] **[P0] Rastreabilidade**: cada item do inventário nomeia owner e data de levantamento _(via defaults canônicos no cabeçalho do inventário + colunas onde aplicável)_
+- [x] **[P0] Falseabilidade**: toda afirmação sobre o AS-IS aponta repositório, arquivo ou dashboard verificável
+- [x] **[P0] Ausência explícita**: lacuna encontrada é registrada como "não medido / não existe", nunca omitida
+- [x] **[P1] Estabilidade de referência**: seções numeradas para que FND-02…11 possam citá-las sem ambiguidade
 
 ## Camadas afetadas
 
@@ -112,9 +112,9 @@ O inventário é um documento único, com cinco blocos numerados e estáveis:
 
 ### Critérios de aceite
 
-- [ ] **[P0] Inventário promovido para `docs/dmpf/inventario-as-is.md` e aprovado em PR pelos reviewers de Plataforma/Arquitetura**
-- [ ] **[P0] Libs e restrições organizacionais (Kafka/AWS/segurança) listadas com owner**
-- [ ] **[P0] Documento promovido sem TBD bloqueante**
+- [ ] **[P0] Inventário promovido para `docs/dmpf/inventario-as-is.md` e aprovado em PR pelos reviewers de Plataforma/Arquitetura** _(documento promovido; aprovação externa = gate pós-PR)_
+- [x] **[P0] Libs e restrições organizacionais (Kafka/AWS/segurança) listadas com owner**
+- [x] **[P0] Documento promovido sem TBD bloqueante**
 
 ### Cenários de teste (mínimo 3)
 

@@ -80,3 +80,4 @@ crash.log
 .pnpm-store
 plans/
 graphify-out/
+draft/
