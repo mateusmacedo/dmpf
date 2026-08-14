@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |-------|-------|
-| **Status** | `draft normativo` |
+| **Status** | `normativo` — aceito em 2026-08-14 |
 | **Versão** | 0.1 |
 | **Owner** | Mateus Macedo Dos Anjos (assignee de [ARQ-439](https://lider-cap.atlassian.net/browse/ARQ-439)) |
 | **Épico** | [ARQ-436](https://lider-cap.atlassian.net/browse/ARQ-436) — Golden Path para Sistemas Orientados a Domínio e Mensagens |
@@ -11,12 +11,12 @@
 | **Data** | 2026-08-14 |
 | **Revisão** | Arquitetura, Segurança, Plataforma e um representante por stack (Go, TypeScript) — aberta em §14 |
 
-> **O que significa `draft normativo`.** O documento já obriga: as regras aqui
-> escritas valem para trabalho novo a partir da sua aceitação em PR. O status
-> `draft` registra que ele ainda não passou pela revisão formal das quatro áreas
-> e que o baseline factual em que se apoia — o inventário AS-IS — é ele próprio
-> um candidato (ver §1.5). Promover para `normativo` exige as duas condições
-> fechadas.
+> **O que significa `normativo`.** O documento obriga: as regras aqui escritas
+> valem para todo trabalho novo do DMPF. A v0.1 foi **aceita** em 2026-08-14 e
+> promovida de `draft normativo` para `normativo` por decisão, com as duas
+> condições de §14.3 tratadas como aceitas — inclusive a reconciliação com a
+> versão aprovada do inventário AS-IS, que **não** ocorreu, porque o artefato do
+> FND-01 permanece `baseline candidato`. §1.5 registra a consequência disso.
 
 ---
 
@@ -107,14 +107,24 @@ Esta RFC é lastreada no inventário AS-IS produzido pelo FND-01
 | Cobertura | 13 relatórios, 10 repositórios únicos, em [`docs/specs/SPEC-K9H204F1/`](../specs/SPEC-K9H204F1/) |
 | **Status do artefato** | **`baseline candidato`** — aprovação de Plataforma/Arquitetura pendente em PR |
 
-**Precondição registrada.** O inventário não é um baseline aprovado. Enquanto
-permanecer candidato, esta RFC o cita como **snapshot datado**, sempre por
-`repo@commit` acrescido de `caminho:linha`. Disso decorre uma obrigação:
+**Condição registrada, e como ela foi tratada.** O inventário não é um baseline
+aprovado. Enquanto permanecer candidato, esta RFC o cita como **snapshot
+datado**, sempre por `repo@commit` acrescido de `caminho:linha`.
 
-> `normativo` — A promoção desta RFC de `draft normativo` para `normativo`
-> exige reconciliação com a versão aprovada do inventário. Se a revisão do
-> FND-01 alterar denominadores, inferências ou conclusões, cada decisão desta
-> RFC que cite a evidência afetada deve ser revisitada antes da promoção.
+A versão original desta seção condicionava a promoção de status à reconciliação
+com a versão aprovada do inventário. Essa condição **não foi satisfeita**: a RFC
+foi promovida a `normativo` em 2026-08-14 por decisão, com o inventário ainda em
+`baseline candidato`. A obrigação não desaparece — ela muda de momento:
+
+> `normativo` — Se a aprovação do inventário AS-IS alterar denominadores,
+> inferências ou conclusões, cada decisão desta RFC que cite a evidência afetada
+> **deve ser revisitada**, e a divergência tratada como mudança normativa
+> (§14.2). O que a promoção antecipou foi o status, não a verificação.
+
+`rationale` — Registrar isso em vez de apagar a condição é deliberado. Uma norma
+que se apoia em evidência não aprovada continua se apoiando nela depois de
+promovida; esconder o fato tornaria impossível saber, no futuro, quais decisões
+precisam de nova checagem se o baseline mudar.
 
 ### §1.6 A evidência lastreia; ela não cria a norma
 
@@ -1762,17 +1772,24 @@ altere §7.4 revisa os diagramas na mesma alteração (§8.6 G3).
 
 ### §14.3 Promoção de status
 
-`normativo` — A RFC promove de `draft normativo` para `normativo` quando as duas
-condições estiverem satisfeitas:
+`evidência` — A v0.1 previa duas condições de promoção. Ambas foram **tratadas
+como aceitas** por decisão em 2026-08-14, e o documento foi promovido a
+`normativo`.
 
-| # | Condição |
-|---|----------|
-| PR1 | Revisão formal concluída pelas quatro áreas, com pendências resolvidas ou externalizadas com owner e prazo |
-| PR2 | Reconciliação com a versão **aprovada** do inventário AS-IS, hoje `baseline candidato` (§1.5) |
+| # | Condição prevista | Como foi tratada |
+|---|-------------------|------------------|
+| PR1 | Revisão formal pelas quatro áreas, com pendências resolvidas ou externalizadas | **Aceita por decisão** — a revisão por área não ocorreu (§14.6) |
+| PR2 | Reconciliação com a versão **aprovada** do inventário AS-IS | **Aceita por decisão** — o inventário permanece `baseline candidato` (§1.5) |
 
-`normativo` — Enquanto qualquer uma faltar, o status permanece `draft normativo`
-e o documento é citado como tal. Promover sem PR2 significaria fixar como norma
-decisões lastreadas em evidência que ainda pode mudar.
+`normativo` — Para as versões seguintes, as duas condições voltam a valer como
+originalmente escritas: promoção de `0.2` em diante exige revisão por área e
+reconciliação com baseline aprovado. O aceite de 2026-08-14 vale para a `0.1`.
+
+`rationale` — A distinção entre *aceitar* e *satisfazer* fica registrada porque
+ela tem consequência prática. Satisfazer PR2 seria atestar que a evidência
+citada resistiu à aprovação do inventário; aceitar PR2 é decidir seguir sem esse
+atestado. As decisões continuam válidas e obrigatórias — mas se o baseline mudar
+na aprovação, §1.5 manda revisitar as que citam a evidência afetada.
 
 ### §14.4 Sucessão por escopo
 
@@ -1807,29 +1824,44 @@ constraint P0 / Parte-1 / decisão nova
 `normativo` — Um elo quebrado é defeito do documento: regra sem fonte, regra sem
 diagnóstico quando `import-verifiable`, ou diagnóstico sem vetor.
 
-### §14.6 Abertura da revisão formal
+### §14.6 Aceite da v0.1
 
-`registro de extensão`
+`evidência`
 
-A revisão desta RFC está **aberta**. Ela ocorre no PR que introduz este documento
-em `docs/dmpf/`.
+A **v0.1 foi aceita em 2026-08-14**. O documento foi integrado em `develop` pelo
+PR #4 (merge commit `8732c8d`) e aceito na mesma data.
 
-| Área | Escopo da revisão | Prazo |
-|------|-------------------|-------|
-| **Arquitetura** | §4, §5, §7 — blocos, ownership de portas e regra de dependência | 48h |
-| **Segurança** | §6, §10.2 — capabilities externas e trust model | 48h |
-| **Plataforma** | §3, §10, §11 — unidade, contrato do verificador e vetores | 48h |
-| **Representante Go** | §3.3, §11.4 — binding e pareamento de vetores em Go | 48h |
-| **Representante TypeScript** | §3.4, §11.4 — manifesto de roots e pareamento em TS | 48h |
+A revisão por área que esta seção previa **não chegou a ocorrer** — nenhum
+parecer foi registrado no PR. O aceite se deu por decisão, não por conclusão do
+rito previsto:
 
-`normativo` — Critério de fechamento da revisão: cada área registra parecer, e
-toda pendência é **resolvida** ou **externalizada** com owner e prazo. Divergência
-sem consenso vira pendência registrada, com owner — não bloqueia FND-03, que
-depende da RFC e não do aceite dos ADRs (§13.1).
+| Área | Escopo que estava previsto | Parecer registrado |
+|------|---------------------------|--------------------|
+| Arquitetura | §4, §5, §7 — blocos, ownership de portas e regra de dependência | nenhum |
+| Segurança | §6, §10.2 — capabilities externas e trust model | nenhum |
+| Plataforma | §3, §10, §11 — unidade, contrato do verificador e vetores | nenhum |
+| Representante Go | §3.3, §11.4 — binding e pareamento de vetores em Go | nenhum |
+| Representante TypeScript | §3.4, §11.4 — manifesto de roots e pareamento em TS | nenhum |
 
-`normativo` — Abrir a revisão **não** satisfaz o critério de aceite da
-`SPEC-8YVF0RR5`, que exige matriz e diagramas *revisados* em PR. O aceite se
-cumpre no fechamento, não na abertura.
+`normativo` — O aceite vale para a **v0.1**. A revisão por área volta a ser
+exigida em qualquer mudança que altere §7.4, o schema de §10.1 ou uma invariante
+de âncora (§14.2), e continua exigida para relaxar constraint P0.
+
+`rationale` — Manter esta seção em vez de apagá-la é deliberado. As cinco
+decisões abaixo foram aceitas sem contraditório técnico e permanecem as de maior
+risco do documento — quem as encontrar depois precisa saber que elas obrigam,
+mas não foram contestadas por ninguém:
+
+1. **§5.2** — `domain → port` proibida sem condicional; a alternativa `port_kind`
+   foi avaliada e descartada em §5.3. Reverter muda a matriz e o schema juntos
+2. **§10.2** — o trust model define requisito, não processo. O risco de
+   reclassificação oportunista está declarado **parcialmente mitigado**, com a
+   lacuna nomeada em ANC-08 (FND-10)
+3. **§3.4** — o manifesto de roots é adoção nova em TypeScript; nenhum dos dez
+   repositórios inventariados o tem hoje
+4. **§7.5** — a atribuição de blocos do outbox é decisão normativa, não leitura
+   direta do código
+5. **§1.5** — a RFC apoia-se em inventário que se declara `baseline candidato`
 
 #### Pontos que merecem atenção específica dos revisores
 

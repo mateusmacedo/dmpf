@@ -2,7 +2,7 @@
 id: SPEC-8YVF0RR5
 slug: dmpf-rfc-limites-deps
 title: DMPF — RFC, limites arquiteturais e regra de dependência
-stage: building
+stage: done
 priority: P0
 depends_on: [SPEC-K9H204F1]
 ticket_url: https://lider-cap.atlassian.net/browse/ARQ-439
@@ -137,9 +137,18 @@ arestas P0 proibidas — `domain → provider`, `domain → contract`,
 
 ### Critérios de aceite
 
-- [ ] **[P0] RFC promovida para `docs/dmpf/rfc-dmpf-foundation-v0.1.md` — repositório canônico, versionada e com owner**
-- [ ] **[P0] Matriz de dependências e diagramas revisados em PR**
-- [ ] **[P0] Revisão Arquitetura/Segurança/Plataforma/Go/TS iniciada ou concluída (per AC-01)**
+- [x] **[P0] RFC promovida para `docs/dmpf/rfc-dmpf-foundation-v0.1.md` — repositório canônico, versionada e com owner** — 14 seções, status `draft normativo`, integrada em `develop` pelo PR #4 (merge `8732c8d`)
+- [x] **[P0] Matriz de dependências e diagramas revisados em PR** — aceito em 2026-08-14 (PR #4, merge `8732c8d`)
+- [x] **[P0] Revisão Arquitetura/Segurança/Plataforma/Go/TS iniciada ou concluída (per AC-01)** — aceito em 2026-08-14, registrado em §14.6 da RFC
+
+> **Nota de encerramento.** Os três critérios foram **aceitos por decisão** em
+> 2026-08-14, e a RFC foi promovida de `draft normativo` para `normativo`. Duas
+> ressalvas ficam registradas para quem consultar esta spec depois: a revisão por
+> área não chegou a produzir parecer (§14.6 da RFC lista as cinco áreas com
+> "nenhum"), e a promoção ocorreu com o inventário AS-IS ainda em `baseline
+> candidato` (§1.5). Se a aprovação do inventário alterar denominadores ou
+> conclusões, as decisões da RFC que citam a evidência afetada devem ser
+> revisitadas.
 
 ### Cenários de teste (mínimo 3)
 
