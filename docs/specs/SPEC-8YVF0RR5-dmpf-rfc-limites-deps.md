@@ -2,7 +2,7 @@
 id: SPEC-8YVF0RR5
 slug: dmpf-rfc-limites-deps
 title: DMPF — RFC, limites arquiteturais e regra de dependência
-stage: backlog
+stage: building
 priority: P0
 depends_on: [SPEC-K9H204F1]
 ticket_url: https://lider-cap.atlassian.net/browse/ARQ-439
@@ -13,8 +13,10 @@ created: 2026-08-13
 
 ## Resumo
 
-Entregar o item lógico **FND-02** do épico ARQ-436
-(ARQ-439): produzir a evidência «RFC revisada, diagramas, matriz de responsabilidades e ADRs estruturais aceitos».
+Entregar o item lógico **FND-02** do épico ARQ-436 (ARQ-439): RFC revisada,
+diagramas e matriz de responsabilidades, com os ADRs estruturais **acionados** —
+nomeados, com assunto definido e encaminhados a FND-11, que responde pela
+redação e pelo aceite.
 
 ## Contexto
 
@@ -22,6 +24,9 @@ Entregar o item lógico **FND-02** do épico ARQ-436
 - **Issue**: [ARQ-439](https://lider-cap.atlassian.net/browse/ARQ-439)
 - **ACs do épico**: AC-01, AC-02
 - **Evidência §11**: RFC revisada, diagramas, matriz de responsabilidades e ADRs estruturais aceitos
+- **Divisão do «aceitos»**: FND-02 aciona os ADRs estruturais; a redação e o
+  aceite pertencem a FND-11 ([SPEC-DBTRMM3X](./SPEC-DBTRMM3X-dmpf-adrs-minimos.md)).
+  A evidência §11 só fecha quando as duas sub-specs concluírem.
 
 <constraints>
 - [P0] Domínio sem I/O: domínio NÃO importa Protobuf, ORM, broker, SDK cloud, HTTP, logger ou framework
@@ -115,11 +120,14 @@ arestas P0 proibidas — `domain → provider`, `domain → contract`,
   do modelo interno. Alternativa descartada: tipos gerados de Protobuf como
   modelo de domínio, porque acopla o domínio ao formato de serialização e é
   proibido pelas constraints P0.
-- **ADRs estruturais junto com a RFC**: os ADRs estruturais são emitidos por
-  FND-11 acompanhando esta entrega e promovidos para `docs/adr/` na faixa
-  `010`–`024`. Alternativa descartada: emitir todos os ADRs ao final do épico,
-  porque decisões estruturais precisam estar aceitas antes de FND-03…09
-  dependerem delas.
+- **ADRs estruturais acionados aqui, redigidos em FND-11**: esta entrega nomeia
+  os ADRs estruturais e define o assunto de cada um enquanto o contexto da
+  decisão está vivo; FND-11 responde pela redação, pela promoção para
+  `docs/adr/` na faixa `010`–`024` e pelo aceite. Alternativa descartada: emitir
+  todos os ADRs ao final do épico, porque as alternativas consideradas se perdem
+  e o registro vira arqueologia. FND-03…09 dependem da RFC produzida aqui, não
+  do aceite dos ADRs — condicionar o avanço ao aceite converteria FND-11 em
+  gargalo de nove histórias.
 - **Promoção como gatilho de canonicidade**: a RFC só é "publicada" quando sai
   de `plans/` (local, ignorado pelo git) para `docs/dmpf/`. Alternativa
   descartada: tratar o draft local como publicação, porque as sub-specs
