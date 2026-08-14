@@ -36,7 +36,7 @@ Entregar o item lógico **FND-11** do épico ARQ-436
 
 - [ ] **[P0] ADR-001…015**: criar drafts cobrindo a tabela ARQ-436 §8
 - [ ] **[P0] Formato**: contexto, decisão, alternativas, trade-offs, consequências
-- [ ] **[P0] ADRs estruturais com a RFC**: limites, UPR, contratos, Protobuf (acompanham FND-02/03)
+- [ ] **[P0] ADRs estruturais com a RFC**: limites, UPR, contratos, Protobuf — acionados por FND-02/03 (que os nomeia e define o assunto) e redigidos aqui
 - [ ] **[P1] Demais ADRs**: acompanham a história temática correspondente (UoW, transportes, etc.)
 - [ ] **[P0] Numeração contínua**: promover para `docs/adr/` na faixa `010`–`024`, dando sequência aos `001`–`009` do template
 
@@ -86,9 +86,11 @@ Cinco seções obrigatórias:
 
 ### Cadência de emissão
 
-Os ADRs não saem todos ao final. Cada um acompanha a sub-spec que o origina:
+Os ADRs não saem todos ao final. Cada um é acionado pela sub-spec que o origina,
+enquanto o contexto da decisão está vivo: a sub-spec de origem nomeia o ADR e
+define seu assunto; a redação, a promoção e o aceite são desta sub-spec (FND-11).
 
-| Grupo | Emitido com |
+| Grupo | Acionado por |
 |-------|-------------|
 | estruturais (limites, regra de dependência) | FND-02 |
 | UPR, Decision, contratos | FND-03 |
@@ -125,9 +127,13 @@ owner e prazo. É o mecanismo previsto no cenário de edge da umbrella.
 - **Numeração atribuída na promoção, não no draft**: evita disputa de número
   entre drafts em revisão simultânea. Alternativa descartada: reservar o número
   ao criar o draft, porque um draft abandonado deixaria buraco na sequência.
-- **ADR emitido junto da sub-spec de origem**: a decisão é registrada enquanto
-  o contexto está vivo. Alternativa descartada: escrever os 15 ao final, porque
-  vira exercício de arqueologia e as alternativas consideradas se perdem.
+- **ADR acionado pela sub-spec de origem, redigido aqui**: a sub-spec de origem
+  nomeia o ADR e define seu assunto enquanto o contexto da decisão está vivo; a
+  redação fica concentrada nesta sub-spec, que responde pelo formato e pela
+  promoção. Alternativa descartada: escrever os 15 ao final sem acionamento
+  prévio, porque vira exercício de arqueologia e as alternativas consideradas se
+  perdem. Alternativa também descartada: cada sub-spec redigir os próprios ADRs,
+  porque dispersa o formato e a numeração por onze histórias.
 - **Alternativa genuína obrigatória**: ADR sem alternativa real é decisão
   narrada, não registrada. Alternativa descartada: aceitar a seção preenchida
   com opções nunca consideradas, porque destrói o valor do documento para quem
@@ -147,7 +153,7 @@ owner e prazo. É o mecanismo previsto no cenário de edge da umbrella.
 ### Cenários de teste (mínimo 3)
 
 ```
-DADO um ADR estrutural emitido junto com a RFC de FND-02
+DADO um ADR estrutural acionado por FND-02 e redigido nesta sub-spec
 QUANDO submetido à revisão
 ENTÃO apresenta as cinco seções, com ao menos uma alternativa real descartada
      e o custo aceito declarado
