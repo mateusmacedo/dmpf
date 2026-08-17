@@ -2,7 +2,7 @@
 id: SPEC-8MNDEWDP
 slug: dmpf-upr-decision-mensagens
 title: DMPF — UPR, Decision, application services e modelo de mensagens
-stage: backlog
+stage: done
 priority: P0
 depends_on: [SPEC-8YVF0RR5]
 ticket_url: https://lider-cap.atlassian.net/browse/ARQ-440
@@ -22,6 +22,20 @@ Entregar o item lógico **FND-03** do épico ARQ-436
 - **Issue**: [ARQ-440](https://lider-cap.atlassian.net/browse/ARQ-440)
 - **ACs do épico**: AC-03, AC-04
 - **Evidência §11**: Contratos conceituais, exemplos e separação domínio/aplicação/wire aceitos
+- **Artefato produzido**: [`docs/dmpf/upr-decision-mensagens.md`](../dmpf/upr-decision-mensagens.md)
+
+### Adaptação do entregável de ADRs
+
+A story ARQ-440 pedia originalmente "ADR-002 e ADR-003 **aceitos**". A RFC
+`docs/dmpf/rfc-dmpf-foundation-v0.1.md` §13.1 atribui a redação, a promoção e o
+aceite dos ADRs estruturais ao FND-11
+([ARQ-448](https://lider-cap.atlassian.net/browse/ARQ-448)), na faixa
+`docs/adr/010`–`024`. Esta entrega, portanto, **aciona** `ADR-DMPF-I` (forma do
+desfecho da UPR) e `ADR-DMPF-J` (evento de domínio distinto do de integração) no
+formato da RFC §13.2 — nomeando, definindo assunto, registrando origem e
+alternativas descartadas, e encaminhando —, sem redigir nem aceitar nenhum dos
+dois. O registro está em §9 do artefato. O critério original não é reescrito
+aqui: fica registrado que o aceite formal é critério do FND-11.
 
 <constraints>
 - [P0] Domínio sem I/O: domínio NÃO importa Protobuf, ORM, broker, SDK cloud, HTTP, logger ou framework
