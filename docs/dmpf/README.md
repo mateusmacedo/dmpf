@@ -15,6 +15,7 @@ ocorre no PR (reviewers de Plataforma/Arquitetura). Specs permanecem em
 | [inventario-as-is.md](./inventario-as-is.md) | **baseline candidato** (promovido para revisão; AC externo aberto) | [SPEC-K9H204F1](../specs/SPEC-K9H204F1-dmpf-inventario-as-is.md) / [ARQ-438](https://lider-cap.atlassian.net/browse/ARQ-438) |
 | [rfc-dmpf-foundation-v0.1.md](./rfc-dmpf-foundation-v0.1.md) | **`normativo`** (aceito em 2026-08-14) | [SPEC-8YVF0RR5](../specs/SPEC-8YVF0RR5-dmpf-rfc-limites-deps.md) / [ARQ-439](https://lider-cap.atlassian.net/browse/ARQ-439) |
 | [upr-decision-mensagens.md](./upr-decision-mensagens.md) | **promovido para revisão** (adição à RFC pela âncora ANC-01, sem editá-la) | [SPEC-8MNDEWDP](../specs/SPEC-8MNDEWDP-dmpf-upr-decision-mensagens.md) / [ARQ-440](https://lider-cap.atlassian.net/browse/ARQ-440) |
+| [uow-inbox-outbox.md](./uow-inbox-outbox.md) | **promovido para revisão** (adição à RFC pela âncora ANC-02, sem editá-la) | [SPEC-7PJ5WVCS](../specs/SPEC-7PJ5WVCS-dmpf-uow-inbox-outbox.md) / [ARQ-441](https://lider-cap.atlassian.net/browse/ARQ-441) |
 
 A RFC obriga: as regras nela escritas valem para todo trabalho novo do DMPF.
 
@@ -37,6 +38,34 @@ incremento de versão. Três pendências ficam registradas no próprio artefato:
   encaminhados a FND-09 e ainda inexistentes (§10.4);
 - a marcação de Parte-1 §§5 e 6 como consolidados na tabela de RFC §14.4, que o
   artefato não pode fazer sozinho (§1.5).
+
+### Sobre `uow-inbox-outbox.md`
+
+Adiciona à RFC pela âncora ANC-02 (RFC §12.3), sob as mesmas regras de
+monotonicidade M1–M4. Diferente da ANC-01, que recorta um bloco, a ANC-02
+recorta um **mecanismo** que atravessa `application service`, `provider` e `app`
+— por isso cada regra do artefato declara o bloco a que se aplica (§1.3), e a
+tabela de sucessão da Parte-1 §§9–10 é por subseção, com coluna de ressalva
+(§1.5).
+
+O artefato aciona **dois** ADRs, sem redigir nem aceitar nenhum: `ADR-DMPF-K`
+(mecanismo de relay, polling × CDC), exigido pelo próprio registro da ANC-02, e
+`ADR-DMPF-L` (bloco do mapeamento e momento da serialização), que responde à
+obrigação delegada por escrito em `upr-decision-mensagens.md` §6.3. Os
+identificadores são provisórios: a numeração definitiva é do FND-11.
+
+As 64 regras `normativo` substantivas têm **ID estável** (`BLK`, `UOW`, `OBX`,
+`INB`, `GAR`), marcado no bloco que enuncia cada uma e indexado em §11.2 — é
+por esse ID que o FND-09 vai nomear o cenário que a verifica.
+
+Três pendências ficam registradas no próprio artefato (§11.5):
+
+- refletir na tabela de RFC §14.4 a sucessão de Parte-1 §§9–10, preservando
+  §10.7 e §10.8 como vigentes sob ANC-04;
+- recolher no glossário de RFC §14.1 os vinte termos que o artefato introduz
+  (§11.4);
+- converter os doze failure modes de §7.3 em cenários executáveis, com
+  diagnóstico estável e par de vetores por regra, encaminhado a FND-09.
 
 ## Evidências do inventário
 
