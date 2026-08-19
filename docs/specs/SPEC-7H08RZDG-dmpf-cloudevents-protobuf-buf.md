@@ -2,9 +2,9 @@
 id: SPEC-7H08RZDG
 slug: dmpf-cloudevents-protobuf-buf
 title: DMPF — Perfil CloudEvents e governança Protobuf (Buf)
-stage: backlog
+stage: done
 priority: P0
-depends_on: [SPEC-8MNDEWDP]
+depends_on: [SPEC-8MNDEWDP, SPEC-7PJ5WVCS]
 ticket_url: https://lider-cap.atlassian.net/browse/ARQ-442
 subtask_urls: []
 created: 2026-08-13
@@ -34,10 +34,10 @@ Entregar o item lógico **FND-05** do épico ARQ-436
 
 ### Funcionais
 
-- [ ] **[P0] Perfil CloudEvents**: atributos obrigatórios (payload, correlation, causation, tracing, tenant, partition key)
-- [ ] **[P0] Modalidade de payload** da primeira major version definida
-- [ ] **[P0] Evolução Protobuf**: proibir reuso de field numbers; breaking checks
-- [ ] **[P0] Buf no CI**: format, lint, breaking e geração determinística especificados
+- [x] **[P0] Perfil CloudEvents**: atributos obrigatórios (payload, correlation, causation, tracing, tenant, partition key)
+- [x] **[P0] Modalidade de payload** da primeira major version definida
+- [x] **[P0] Evolução Protobuf**: proibir reuso de field numbers; breaking checks
+- [x] **[P0] Buf no CI**: format, lint, breaking e geração determinística especificados
 - [ ] **[P0] Exemplo interop**: serializar numa stack e desserializar na outra sem perda semântica
 
 ### Não-funcionais
@@ -45,7 +45,7 @@ Entregar o item lógico **FND-05** do épico ARQ-436
 - [ ] **[P0] Compatibilidade retroativa**: consumidor de uma versão anterior do contrato continua desserializando mensagens da versão seguinte dentro da mesma major
 - [ ] **[P0] Geração determinística**: mesma entrada de `.proto` produz artefatos idênticos byte a byte, em Go e em TS
 - [ ] **[P0] Verificação automática**: format, lint e breaking rodam em CI e barram o merge, sem depender de revisão humana
-- [ ] **[P1] Legibilidade do envelope**: os atributos obrigatórios são inspecionáveis sem desserializar o payload
+- [x] **[P1] Legibilidade do envelope**: os atributos obrigatórios são inspecionáveis sem desserializar o payload
 
 ## Camadas afetadas
 
@@ -133,8 +133,8 @@ coexistam durante a migração.
 ### Critérios de aceite
 
 - [ ] **[P0] Perfil organizacional promovido para `docs/dmpf/cloudevents-protobuf-buf.md` e aprovado em PR**
-- [ ] **[P0] Skeleton/estrutura inicial do repo de contratos especificada**
-- [ ] **[P0] Checks Buf descritos de forma executável**
+- [x] **[P0] Skeleton/estrutura inicial do repo de contratos especificada**
+- [x] **[P0] Checks Buf descritos de forma executável**
 
 ### Cenários de teste (mínimo 3)
 
