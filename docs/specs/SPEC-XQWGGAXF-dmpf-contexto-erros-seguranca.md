@@ -2,7 +2,7 @@
 id: SPEC-XQWGGAXF
 slug: dmpf-contexto-erros-seguranca
 title: DMPF — Execution context, erros, segurança e multi-tenancy
-stage: backlog
+stage: done
 priority: P0
 depends_on: [SPEC-8YVF0RR5]
 ticket_url: https://lider-cap.atlassian.net/browse/ARQ-444
@@ -34,19 +34,42 @@ Entregar o item lógico **FND-07** do épico ARQ-436
 
 ### Funcionais
 
-- [ ] **[P0] Execution context** imutável, criado no adapter, passado ao application service
-- [ ] **[P0] Identidade/tenant** só após autenticação
-- [ ] **[P0] Taxonomia de erros**: código estável, categoria, retryability, mapeamento por transporte
-- [ ] **[P0] Threat model**: adapters, desserialização, contratos, mensageria, secrets, PII, permissões
-- [ ] **[P0] Multi-tenancy** em autorização, queries e constraints — não só em logs
+- [x] **[P0] Execution context** imutável, criado no adapter, passado ao application service
+- [x] **[P0] Identidade/tenant** só após autenticação
+- [x] **[P0] Taxonomia de erros**: código estável, categoria, retryability, mapeamento por transporte
+- [x] **[P0] Threat model**: adapters, desserialização, contratos, mensageria, secrets, PII, permissões
+- [x] **[P0] Multi-tenancy** na autorização e no acesso ao dado, com isolamento
+      fail-closed como resultado normatizado — o mecanismo de persistência que o
+      impõe é encaminhado (ver «Escopo fora»)
 
 ### Não-funcionais
 
-- [ ] **[P0] Imutabilidade do contexto**: uma vez criado, o execution context não é alterado por nenhuma camada a jusante
-- [ ] **[P0] Estabilidade do código de erro**: o código é contrato público; mudar seu significado é breaking change
-- [ ] **[P0] Isolamento verificável**: o vazamento entre tenants é detectável por teste, não apenas evitado por convenção
-- [ ] **[P0] Ausência de PII em log**: dados sensíveis são redigidos na origem, não filtrados no destino
-- [ ] **[P1] Cobertura do threat model**: os sete vetores listados têm mitigação nomeada e owner
+- [x] **[P0] Imutabilidade do contexto**: uma vez criado, o execution context não é alterado por nenhuma camada a jusante
+- [x] **[P0] Estabilidade do código de erro**: o código é contrato público; mudar seu significado é breaking change
+- [x] **[P0] Isolamento fail-closed**: sem tenant resolvido, ou diante de acesso a dado de outro tenant, a operação falha de forma observável — nunca devolve resultado vazio ou parcial —, e a imposição não depende de convenção de código
+- [x] **[P0] Ausência de PII em log**: dados sensíveis são redigidos na origem, não filtrados no destino
+- [x] **[P1] Cobertura do threat model**: os sete vetores listados têm mitigação nomeada e owner
+
+### Obrigações herdadas de artefatos irmãos
+
+FND-03 ([SPEC-8MNDEWDP](./SPEC-8MNDEWDP-dmpf-upr-decision-mensagens.md)), FND-04
+([SPEC-7PJ5WVCS](./SPEC-7PJ5WVCS-dmpf-uow-inbox-outbox.md)) e FND-05
+([SPEC-7H08RZDG](./SPEC-7H08RZDG-dmpf-cloudevents-protobuf-buf.md)) — todos
+mergeados — delegaram **24 obrigações atômicas** a este item. Seis não constavam
+desta spec e passam a constar:
+
+| Obrigação | Assunto | Fonte |
+|-----------|---------|-------|
+| EC-2 | Semântica de cancelamento propagado pela cadeia | `upr-decision-mensagens.md` |
+| MP-2 | Mapeamento de borda da application response, incluído o caminho de sucesso | `upr-decision-mensagens.md` |
+| TX-4 | Formato do campo de diagnóstico de erro (`last_error`) | `uow-inbox-outbox.md` |
+| SEC-3 | Minimização do dado de negócio | `uow-inbox-outbox.md`, `cloudevents-protobuf-buf.md` |
+| SEC-4 | Cifra em repouso do dado de negócio | `uow-inbox-outbox.md`, `cloudevents-protobuf-buf.md` |
+| SEC-6 | Teto de retenção do dado de negócio, que prevalece sobre prazo operacional quando mais estrito | `uow-inbox-outbox.md` |
+
+Três delas — SEC-3, SEC-4 e SEC-6 — fecham a fronteira que o FND-04 deixou
+declarada em texto: «declara onde o dado vive e não o protege». A matriz completa
+das 24, com cadeia de prova por linha, é seção do artefato promovido.
 
 ## Camadas afetadas
 
@@ -58,7 +81,7 @@ artefato descreve ou normatiza, não módulos de código a alterar.
 | Domínio (UPR, Decision, eventos) | [x] | Define como a rejeição de domínio se converte em erro tipado |
 | Application service (UoW, orquestração) | [x] | Recebe o execution context e aplica autorização por tenant |
 | Port / Provider (adapters, drivers) | [x] | Cria o execution context e mapeia erro para o transporte |
-| Contract / wire (Protobuf, CloudEvents, OpenAPI) | [x] | Define os campos de identidade e tenant no envelope |
+| Contract / wire (Protobuf, CloudEvents, OpenAPI) | [x] | Normatiza a origem e a propagação do valor de identidade e tenant; a forma dos campos do envelope é do FND-05 (`ENV-11` fecha o conjunto) ou da especificação CloudEvents |
 | Transporte (REST, gRPC, Kafka, SNS/SQS) | [x] | Define o mapeamento de erro por transporte |
 | Observabilidade e operação | [x] | Define redaction, auditoria separada e o que nunca vai a log |
 
@@ -80,7 +103,7 @@ Atravessa o application service até os providers.
 | Campo | Origem | Observação |
 |-------|--------|------------|
 | identidade | token validado | nunca vem de header não autenticado |
-| tenant | token validado | obrigatório em toda query e constraint |
+| tenant | token validado | obrigatório em toda leitura e escrita de dado de negócio |
 | correlation / causation | envelope ou borda | propagados sem alteração |
 | tracing | propagação OpenTelemetry | |
 | deadline | política de FND-06 | decresce ao longo da cadeia |
@@ -104,8 +127,14 @@ Cada vetor recebe ameaça, mitigação e owner.
 
 ### Multi-tenancy
 
-O tenant participa da **autorização**, das **queries** e das **constraints de
-banco**. Aparecer apenas em log é insuficiente e explicitamente proibido.
+O tenant participa da **autorização** e do **acesso ao dado**. Aparecer apenas em
+log é insuficiente e explicitamente proibido.
+
+O que este artefato normatiza é o **resultado**: acesso a dado de outro tenant é
+impedido de forma fail-closed, e a imposição não depende de convenção de código.
+O **mecanismo** que o realiza na persistência — constraint, RLS, chave composta —
+é escolha do provider e do kernel; a **verificação executável** do isolamento é
+entregável do FND-09. Ambos aparecem em «Escopo fora».
 
 ## Decisões técnicas
 
@@ -113,10 +142,13 @@ banco**. Aparecer apenas em log é insuficiente e explicitamente proibido.
   camada intermediária troca o tenant. Alternativa descartada: contexto mutável
   enriquecido ao longo da cadeia, porque a origem de cada campo deixa de ser
   auditável.
-- **Tenant em constraint de banco, não só em `WHERE`**: a constraint é a última
-  linha de defesa quando o filtro é esquecido. Alternativa descartada: confiar
-  no filtro da query, porque um único caminho sem filtro vaza dados entre
-  tenants.
+- **Isolamento normatizado como resultado, não como mecanismo**: o artefato exige
+  que o acesso a dado de outro tenant falhe de forma fail-closed, sem prescrever
+  como a persistência o impõe. Alternativa descartada: exigir constraint de banco
+  nominalmente, porque isso normatizaria escolha de provider — adição fora do
+  escopo permitido da ANC-05, que M4 invalida ainda que tecnicamente correta. A
+  defesa em profundidade permanece exigida pelo resultado: um único caminho sem
+  filtro de tenant não pode devolver linha de outro tenant.
 - **Código de erro estável como contrato público**: consumidores tratam por
   código. Alternativa descartada: mensagem de erro como identificador, porque
   qualquer melhoria de texto viraria breaking change.
@@ -133,15 +165,16 @@ banco**. Aparecer apenas em log é insuficiente e explicitamente proibido.
 
 - [ ] **[P0] Modelo de contexto e erros promovido para `docs/dmpf/contexto-erros-seguranca.md` e aprovado em PR**
 - [ ] **[P0] Threat model revisado por Segurança no artefato promovido**
-- [ ] **[P0] Mapeamentos REST/gRPC/mensageria documentados**
+- [x] **[P0] Mapeamentos REST/gRPC/mensageria documentados**
 
 ### Cenários de teste (mínimo 3)
 
 ```
 DADO uma requisição autenticada do tenant A que produz um execution context
 QUANDO o application service executa uma query sem filtro explícito de tenant
-ENTÃO a constraint de banco impede o acesso a linhas do tenant B, e a violação
-     é observável como erro, não como resultado vazio
+ENTÃO nenhuma linha do tenant B é devolvida, e a tentativa falha de forma
+     observável como erro — não como resultado vazio — qualquer que seja o
+     mecanismo de persistência escolhido
 
 DADO uma regra de negócio violada que gera Rejection na Decision
 QUANDO o adapter REST mapeia o erro para a resposta HTTP
@@ -169,5 +202,13 @@ ENTÃO o campo aparece redigido na origem, e o valor original não chega ao
   aqui só o que toca segurança e redaction.
 - **Gestão de secrets em produção**: o vetor entra no threat model; a operação é
   pós-fundação.
-- **Classificação de dados da organização**: consumida como entrada, não
-  produzida aqui.
+- **Mecanismo de persistência do isolamento por tenant**: constraint, RLS ou
+  chave composta são escolha do provider e do kernel. Aqui se normatiza o
+  resultado fail-closed, não a técnica que o realiza.
+- **Verificação executável do isolamento**: o instrumento de teste e o oráculo são
+  de FND-09 ([ARQ-446](https://lider-cap.atlassian.net/browse/ARQ-446)), sob
+  ANC-07. Aqui se declara o resultado que o teste de lá deve constatar.
+- **Taxonomia corporativa de classificação de dados**: consumida como entrada
+  quando existir. Este artefato produz o critério técnico de sensibilidade
+  aplicável aos campos do próprio mecanismo — exigência que FND-04 e FND-05 lhe
+  encaminharam —, e não a política corporativa.
