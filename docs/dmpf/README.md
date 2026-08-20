@@ -17,6 +17,7 @@ ocorre no PR (reviewers de Plataforma/Arquitetura). Specs permanecem em
 | [upr-decision-mensagens.md](./upr-decision-mensagens.md) | **promovido para revisão** (adição à RFC pela âncora ANC-01, sem editá-la) | [SPEC-8MNDEWDP](../specs/SPEC-8MNDEWDP-dmpf-upr-decision-mensagens.md) / [ARQ-440](https://lider-cap.atlassian.net/browse/ARQ-440) |
 | [uow-inbox-outbox.md](./uow-inbox-outbox.md) | **promovido para revisão** (adição à RFC pela âncora ANC-02, sem editá-la) | [SPEC-7PJ5WVCS](../specs/SPEC-7PJ5WVCS-dmpf-uow-inbox-outbox.md) / [ARQ-441](https://lider-cap.atlassian.net/browse/ARQ-441) |
 | [cloudevents-protobuf-buf.md](./cloudevents-protobuf-buf.md) | **promovido para revisão** (adição à RFC pela âncora ANC-03, sem editá-la) | [SPEC-7H08RZDG](../specs/SPEC-7H08RZDG-dmpf-cloudevents-protobuf-buf.md) / [ARQ-442](https://lider-cap.atlassian.net/browse/ARQ-442) |
+| [contexto-erros-seguranca.md](./contexto-erros-seguranca.md) | **promovido para revisão** (adição à RFC pela âncora ANC-05, sem editá-la) | [SPEC-XQWGGAXF](../specs/SPEC-XQWGGAXF-dmpf-contexto-erros-seguranca.md) / [ARQ-444](https://lider-cap.atlassian.net/browse/ARQ-444) |
 
 A RFC obriga: as regras nela escritas valem para todo trabalho novo do DMPF.
 
@@ -133,6 +134,89 @@ exige «mesmo byte» como critério geral do round-trip e reivindica o ownership
 fixture (§8.5); e a ausência de campo dedicado, no schema mínimo da outbox de
 FND-04 §4.1, para três atributos que o envelope torna obrigatórios —
 `correlationid`, `causationid` e `traceparent` (§4.1).
+
+### Sobre `contexto-erros-seguranca.md`
+
+Adiciona à RFC pela âncora ANC-05 (RFC §12.3), sob as mesmas regras de
+monotonicidade M1–M4. A diferença de forma em relação aos três precedentes
+condiciona o artefato inteiro: a ANC-01 recortou um **bloco**, a ANC-02 um
+**mecanismo** que atravessa três blocos, a ANC-03 um bloco cujo assunto era maior
+que a entrega — e a ANC-05 recorta **três assuntos transversais** (propagação de
+contexto, taxonomia de erros e controles de segurança) que incidem sobre todos os
+blocos e sobre quase todas as demais âncoras, sem possuir nenhum deles.
+
+Por isso cada regra declara **dois** eixos, e não um: o bloco a que se aplica, como
+no FND-04, e o **sujeito** que ela obriga (§1.3). O segundo eixo existe porque sete
+das obrigações desta entrega não têm bloco — classificação de dado é decisão de
+negócio, cifra em repouso é capacidade de plataforma, teto de retenção costuma ser
+externo à engenharia. Sem declarar o sujeito, essas sete pareceriam obrigações de
+squad e seriam cobradas de quem não as pode cumprir.
+
+Três particularidades diferenciam esta adição das anteriores.
+
+A primeira é que o artefato é o **maior devedor** da cadeia: FND-03, FND-04 e FND-05
+lhe delegaram, por escrito, **24 obrigações atômicas**. A matriz de §2 as trata em
+duas passadas — atribuição (§2.2) e prova (§2.3) —, e a passada de prova exige, por
+linha, o ID normativo, o predicado ou diagnóstico e o **par de vetores**: o caso que
+satisfaz e o caso que viola. Nenhuma obrigação ficou `bloqueada`; duas têm porção
+`encaminhada` com dona nomeada. Seis das 24 não constavam da spec original — eram
+trabalho invisível — e a spec foi reconciliada antes da redação.
+
+A segunda é que duas obrigações **fecham lacuna já aberta** em artefato mergeado. O
+FND-04 opera hoje com placeholder explícito de retryability, «até que FND-07 a fixe»,
+que `ERR-11` encerra com um default fechado: categoria condicional sem predicado
+decidível resolve para não retentável. E o FND-04 declara textualmente que «declara
+onde o dado vive e **não o protege**» — a §8 é a metade que faltava, com cifra em
+repouso como **pós-condição** verificável e teto de retenção como **desigualdade**
+(`retenção efetiva ≤ teto externo aplicável`), em vez de prescrição de mecanismo.
+
+A terceira é que este artefato **não aciona ADR**, ao contrário do FND-04 e do
+FND-05, que acionaram dois cada. A conclusão tem duas fontes convergentes: o registro
+da ANC-05 diz «ADR exigido: não, salvo alteração de invariante», e RFC §13.3, ao
+enumerar quem aciona, não lista o FND-07. §10.3 testa cada decisão substantiva contra
+o gatilho e nenhuma o satisfaz. A afirmação é condicional, não absoluta — §10.2
+declara o caminho de M3 como **conjuntivo**: nova versão da RFC **acompanhada de** ADR
+aceito, os dois. A story ARQ-444, que lista ADR-012 e ADR-013 como entregáveis, fica
+registrada como pendência nomeada em vez de resolvida por texto.
+
+A sucessão de Parte-1 §§11–14 é declarada **por cláusula**, e não por subseção como no
+FND-04 (§1.5). A granularidade é imposta pela fonte: Parte-1 §12.1 é um pipeline de
+nove estágios, dos quais quatro pertencem a esta âncora, e Parte-1 §11 é uma lista de
+nove regras cujo ownership varia de linha para linha — uma delas pedia mecanismo de
+persistência que M4 põe fora daqui.
+
+O **threat model** de §7 usa STRIDE como lente de varredura, com saída tabulada por
+vetor nos sete vetores nomeados pela spec: adapters, desserialização, contratos,
+mensageria, secrets, PII e permissões. Cada tabela traz a linha de **exclusões
+justificadas** — categoria ausente sem justificativa é indistinguível de categoria
+não avaliada — e nenhuma linha fica sem owner. O eixo *Denial of service* é avaliado
+nos sete vetores e **não gera norma** aqui: resiliência é o assunto declarado da
+ANC-06. STRIDE é metodologia nova nesta cadeia; RFC §10.2 trata de trust model sobre
+classificação autodeclarada e não é precedente disto.
+
+Duas decisões merecem leitura atenta na revisão:
+
+- `CTX-25` — no consumo assíncrono, o sujeito que originou a cadeia é **proveniência,
+  não autorização**. Reconstruí-lo do envelope e autorizar com ele parece a
+  continuação natural da cadeia e é uma elevação de privilégio diferida: quem
+  consegue publicar no tópico passa a escolher a identidade com que o consumidor age;
+- `IDN-14` — o isolamento por tenant é normatizado como **resultado** fail-closed, e a
+  imposição não pode depender de convenção de código. O mecanismo (constraint, RLS,
+  chave particionada) é encaminhado ao provider e ao kernel, e a verificação executável
+  a FND-09 sob ANC-07. É a única fronteira em que o artefato **reduz** o que a própria
+  spec pedia, e a redução está justificada por M4.
+
+As 112 regras `normativo` têm **ID estável** (`CTX`, `IDN`, `ERR`, `MAP`, `THR`,
+`DAT`), contíguo por prefixo e indexado em §11.1 — é por esse ID que o FND-09 vai
+nomear o cenário que verifica cada uma. §11.2 declara o modo de verificação por grupo,
+distinguindo o que se confere por inspeção do que exige execução.
+
+Cinco pendências ficam registradas no próprio artefato (§11.4), entre elas: o
+**owner nomeado** da revisão de Segurança, sem o qual o gate de `THR-03` não é
+acionável; a forma de persistir os três atributos obrigatórios sem coluna no schema
+da outbox, que este artefato resolveu pelo lado do conteúdo e permanece aberta pelo
+lado do schema; e a sugestão de consolidar numa única passagem as quatro pendências
+já acumuladas sobre a tabela de RFC §14.4.
 
 ## Evidências do inventário
 
