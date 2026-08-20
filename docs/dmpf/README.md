@@ -17,6 +17,7 @@ ocorre no PR (reviewers de Plataforma/Arquitetura). Specs permanecem em
 | [upr-decision-mensagens.md](./upr-decision-mensagens.md) | **promovido para revisão** (adição à RFC pela âncora ANC-01, sem editá-la) | [SPEC-8MNDEWDP](../specs/SPEC-8MNDEWDP-dmpf-upr-decision-mensagens.md) / [ARQ-440](https://lider-cap.atlassian.net/browse/ARQ-440) |
 | [uow-inbox-outbox.md](./uow-inbox-outbox.md) | **promovido para revisão** (adição à RFC pela âncora ANC-02, sem editá-la) | [SPEC-7PJ5WVCS](../specs/SPEC-7PJ5WVCS-dmpf-uow-inbox-outbox.md) / [ARQ-441](https://lider-cap.atlassian.net/browse/ARQ-441) |
 | [cloudevents-protobuf-buf.md](./cloudevents-protobuf-buf.md) | **promovido para revisão** (adição à RFC pela âncora ANC-03, sem editá-la) | [SPEC-7H08RZDG](../specs/SPEC-7H08RZDG-dmpf-cloudevents-protobuf-buf.md) / [ARQ-442](https://lider-cap.atlassian.net/browse/ARQ-442) |
+| [politicas-transporte.md](./politicas-transporte.md) | **promovido para revisão** (adição à RFC pela âncora ANC-04, sem editá-la) | [SPEC-YWFGNPG5](../specs/SPEC-YWFGNPG5-dmpf-politicas-transporte.md) / [ARQ-443](https://lider-cap.atlassian.net/browse/ARQ-443) |
 | [contexto-erros-seguranca.md](./contexto-erros-seguranca.md) | **promovido para revisão** (adição à RFC pela âncora ANC-05, sem editá-la) | [SPEC-XQWGGAXF](../specs/SPEC-XQWGGAXF-dmpf-contexto-erros-seguranca.md) / [ARQ-444](https://lider-cap.atlassian.net/browse/ARQ-444) |
 
 A RFC obriga: as regras nela escritas valem para todo trabalho novo do DMPF.
@@ -135,6 +136,67 @@ fixture (§8.5); e a ausência de campo dedicado, no schema mínimo da outbox de
 FND-04 §4.1, para três atributos que o envelope torna obrigatórios —
 `correlationid`, `causationid` e `traceparent` (§4.1).
 
+### Sobre `politicas-transporte.md`
+
+Adiciona à RFC pela âncora ANC-04 (RFC §12.3), sob as mesmas regras de
+monotonicidade M1–M4. A ANC-04 recorta um bloco — `provider` —, mas com a
+dificuldade inversa da ANC-03: os precedentes encaminharam a este artefato, por
+escrito, obrigações cujo sujeito é o bloco `app` (gesto de ACK do adapter,
+validação do envelope na recepção, destino do envelope inválido, nack e extensão de
+visibilidade). Ler a âncora ao pé da letra deixaria o gesto de ACK sem dona em toda
+a fundação, porque não existe âncora que o receba.
+
+Por isso §1.3 declara o sujeito admissível: `TRP-01` fixa o `provider` como sujeito
+da regra; `TRP-02` admite a extensão a `app` **apenas** no conjunto fechado das
+quatro obrigações recebidas nominalmente, cada uma com a origem citada; e `TRP-03`
+invalida por M4 o que estiver fora — em particular a superfície de uma API REST, que
+é contrato e adapter de entrada. A tensão entre o escopo literal da âncora e as
+obrigações recebidas fica registrada como a **primeira** das nove pendências (§18.3),
+e a sua correção definitiva exige rito de versão da RFC.
+
+Este artefato consolida Parte-1 §7.1 (usos por transporte), §10.5 (ACK do adapter),
+§10.7 (Kafka), §10.8 (SNS e SQS) e §10.9 (retry por transporte) — as subseções que o
+FND-04 preservou vigentes sob ANC-04. Parte-1 §7.6 (REST e OpenAPI) **não** é
+sucedida, por `TRP-03`, e §7.7 (AsyncAPI) é parcial: a catalogação por transporte vem
+para cá, e a fonte de verdade documental permanece a pendência 2 da ANC-03.
+
+Três entregas merecem leitura atenta na revisão:
+
+- **A pendência 10 do FND-05 está quitada.** Ela pedia a byte-preservação do payload
+  pelos transportes, de que depende a hipótese H1 da fórmula do `payload_hash`. §5 a
+  fecha com uma **matriz de hops** que classifica cada caminho e nomeia quatro como
+  `não conforme` para mensagem que alimente inbox: SNS sem modo bruto, transform que
+  reserializa, Connect em `application/json` e transcodificação gRPC-JSON. Cada linha
+  é vetor negativo para o FND-09.
+- **Os três relógios.** O escopo da story pedia a relação entre «visibility timeout e
+  lease do inbox», expressão sem referente: no FND-04 o lease é do relay e da outbox,
+  e a inbox não tem lease — tem `INB-14`. §6.1 separa lease de claim, intervalo entre
+  tentativas e horizonte de redelivery, e é o terceiro que alimenta `INB-14`.
+- **Kafka é o transporte-alvo declarado, sem base as-is.** O inventário registra zero
+  clientes Kafka versionados; a política de §11 é prospectiva, o que a RFC §1.6
+  autoriza e este artefato declara em vez de simular. `TRP-41` limita a política a
+  norma de desenho até a revisão de infraestrutura de mensageria. §15 normatiza a
+  coexistência com SNS/SQS; o cronograma de migração é de ANC-09.
+
+O artefato aciona **dois** ADRs, sem redigir nem aceitar nenhum: `ADR-DMPF-O`
+(divisão dos transportes síncronos e o governo do tempo) e `ADR-DMPF-P` (Kafka como
+alvo do assíncrono, com SNS/SQS no acervo). §17.3 demonstra, transporte por
+transporte, como dois ADRs satisfazem a exigência de «ADR por transporte adotado» da
+âncora. Os identificadores continuam a série que o FND-05 deixou em `ADR-DMPF-N`, e
+são provisórios: a numeração definitiva é do FND-11.
+
+As 131 regras `normativo` têm **ID estável** em sete prefixos (`TRP`, `RST`, `GRP`,
+`KFK`, `SQS`, `ASY`, `COE`), indexadas em §18.5. O artefato também recebeu, já em
+revisão, seis obrigações do FND-07 (ARQ-444) — o valor do prazo por transporte, o
+cabeçalho de tentativa, os limites de tamanho e profundidade antes do decode, a
+proteção contra expansão abusiva, os valores de erro por broker e a assinatura em
+fronteira não confiável —, e cinco delas ficam quitadas nesta entrega (§18.2).
+
+Nove pendências ficam registradas (§18.3). Duas são de natureza distinta das outras:
+não descrevem trabalho que falta, e sim **autoridade que falta** — o escopo literal da
+ANC-04 não cobre quatro obrigações que os precedentes encaminharam a esta âncora, e a
+tabela de RFC §14.4 ainda não reflete a sucessão que §1.5 propõe. Ambas exigem rito de
+versão da RFC, e a segunda vem acumulando desde o FND-04.
 ### Sobre `contexto-erros-seguranca.md`
 
 Adiciona à RFC pela âncora ANC-05 (RFC §12.3), sob as mesmas regras de

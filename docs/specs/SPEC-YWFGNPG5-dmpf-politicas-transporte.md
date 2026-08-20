@@ -2,7 +2,7 @@
 id: SPEC-YWFGNPG5
 slug: dmpf-politicas-transporte
 title: DMPF — Políticas REST, gRPC, Kafka, SNS/SQS e AsyncAPI
-stage: backlog
+stage: done
 priority: P0
 depends_on: [SPEC-7H08RZDG]
 ticket_url: https://lider-cap.atlassian.net/browse/ARQ-443
@@ -34,17 +34,17 @@ Entregar o item lógico **FND-06** do épico ARQ-436
 
 ### Funcionais
 
-- [ ] **[P0] REST/JSON/OpenAPI** como contrato externo
-- [ ] **[P0] gRPC/Protobuf** síncrono interno com deadline e cancelamento
-- [ ] **[P0] Kafka / SNS / SQS**: envelope, partition key, ordenação, ACK, retry
-- [ ] **[P0] AsyncAPI** para canais e bindings assíncronos
-- [ ] **[P0] Sem exactly-once E2E** na matriz de transporte
+- [x] **[P0] REST/JSON/OpenAPI** como contrato externo
+- [x] **[P0] gRPC/Protobuf** síncrono interno com deadline e cancelamento
+- [x] **[P0] Kafka / SNS / SQS**: envelope, partition key, ordenação, ACK, retry
+- [x] **[P0] AsyncAPI** para canais e bindings assíncronos
+- [x] **[P0] Sem exactly-once E2E** na matriz de transporte
 
 ### Não-funcionais
 
-- [ ] **[P0] Deadline obrigatório**: toda chamada síncrona interna carrega deadline propagado; chamada sem deadline é violação da política
-- [ ] **[P0] Ordenação declarada**: cada canal declara se garante ordem e sob qual chave; "ordem global" nunca é prometida
-- [ ] **[P0] Coerência com FND-05**: o envelope trafegado é exatamente o perfil CloudEvents definido, sem campos ad hoc por transporte
+- [x] **[P0] Deadline obrigatório**: toda chamada síncrona interna carrega deadline propagado; chamada sem deadline é violação da política
+- [x] **[P0] Ordenação declarada**: cada canal declara se garante ordem e sob qual chave; "ordem global" nunca é prometida
+- [x] **[P0] Coerência com FND-05**: o envelope trafegado é exatamente o perfil CloudEvents definido, sem campos ad hoc por transporte
 - [ ] **[P1] Documentação executável**: contratos publicados em OpenAPI e AsyncAPI, versionados junto ao código do adapter
 
 ## Camadas afetadas
@@ -124,8 +124,8 @@ Ambos versionados junto ao adapter que os implementa.
 ### Critérios de aceite
 
 - [ ] **[P0] Matriz de transporte promovida para `docs/dmpf/politicas-transporte.md` e aprovada em PR**
-- [ ] **[P0] Convenções por broker documentadas no artefato promovido**
-- [ ] **[P0] Alinhamento com perfil CloudEvents/Protobuf de FND-05**
+- [x] **[P0] Convenções por broker documentadas no artefato promovido**
+- [x] **[P0] Alinhamento com perfil CloudEvents/Protobuf de FND-05**
 
 ### Cenários de teste (mínimo 3)
 
