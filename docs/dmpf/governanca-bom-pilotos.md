@@ -42,9 +42,10 @@ evidência. Um assunto é de gestão de produto; o outro é de controle de integ
 §1.1 as trata separadamente, e nenhuma regra deste artefato invoca as duas ao mesmo
 tempo como se fossem uma licença só.
 
-A segunda é de **impacto na RFC**. Das dez âncoras do registro de RFC §12.3, nove
-declaram impacto de versão «Nenhum, se dentro do escopo». A ANC-08 é a única que
-declara **«Menor — esta RFC passa a citar o processo definido»**. Definir o
+A segunda é de **impacto na RFC**. Das dez âncoras do registro de RFC §12.3, nove não
+exigem incremento de versão: oito declaram «Nenhum, se dentro do escopo» e a ANC-10
+declara «Nenhum», sem a condicional. A ANC-08 é a única que declara **«Menor — esta
+RFC passa a citar o processo definido»**. Definir o
 processo, aqui, cria uma pendência na RFC que este PR **não** resolve: §14.3 exige,
 para `0.2` em diante, revisão pelas quatro áreas e reconciliação com baseline
 aprovado, e o aceite de 2026-08-14 que dispensou ambos vale apenas para a `0.1`.
@@ -266,7 +267,7 @@ mecanismo mínimo continua sendo a norma aplicável, por invariante da própria 
 | Escape hatch: requisitos, universo positivo, regra de negação, ciclo de vida | §5.1 | `vigente` | — |
 | Processo de autorização da classificação: autoridade, rito, evidência | §5.2 | `definido` | `AUT-09` — titular aceito para a função de autoridade |
 | Mecanismo mínimo de RFC §10.2 | §5.2 | `vigente` por invariante de ANC-08 | Permanece até `AUT-09` ser satisfeita |
-| Roadmaps de adoção: critérios, decisão por canal, rollback | §6.1 | `vigente` | — |
+| Roadmaps de adoção: critérios, decisão por canal, rollback | §6.1 | `definido` | `ADO-00` — ampliação do escopo da ANC-09 por RFC §14.2 (P13); a força normativa está suspensa até lá |
 | Charter dos dois pilotos: fluxo, cadeia, critérios de entrada | §6.2 | `definido` | Aceite formal das squads — `gate externo` |
 | Matriz de métricas dos pilotos: campos, instrumento, prazo | §6.2 | `vigente` como instrumento | — |
 | Valores de baseline das métricas | §6.2 | ausentes | Coleta pelo instrumento declarado, com owner e prazo |
@@ -360,8 +361,8 @@ como obrigação inflaria o ledger e faria uma única delegação parecer duas.
 
 | # | Obrigação | Fontes | Âncora | Destino | Estado |
 |---|-----------|--------|--------|---------|--------|
-| O1 | Cronograma, faseamento e plano de migração da adoção de **Kafka** na organização | FND-06 `politicas-transporte.md` §15, §1.4 e §17 — três citações concordantes | ANC-09 | §6.1 | `atendida` — critérios e rito definidos; a execução é de outra dona |
-| O2 | Cronograma e faseamento da adoção da **baseline de resiliência e observabilidade** no acervo | FND-08 `resiliencia-observabilidade.md` §13 | ANC-09 | §6.1 | `atendida` |
+| O1 | Cronograma, faseamento e plano de migração da adoção de **Kafka** na organização | FND-06 `politicas-transporte.md` §15, §1.4 e §17 — três citações concordantes | ANC-09 | §6.1 | `especificada, força suspensa` — critérios e rito definidos; vigência depende de `ADO-00` (P13) |
+| O2 | Cronograma e faseamento da adoção da **baseline de resiliência e observabilidade** no acervo | FND-08 `resiliencia-observabilidade.md` §13 | ANC-09 | §6.1 | `especificada, força suspensa` — ver `ADO-00` (P13) |
 | O3 | Fixação da **versão das *semantic conventions* de mensageria** do OpenTelemetry no BOM, **com owner da primeira instância real** | FND-08 §5 (`resiliencia-observabilidade.md`, três citações) | ANC-09, via `Parte-1 §17.2` | §4.4 | `atendida com pendência de titular` — slot e owner definidos; o valor acompanha a primeira instância |
 | O4 | Definir **autoridade, rito e artefato de evidência** que satisfaçam T4–T6 de §10.2 | RFC §10.2 | **ANC-08** | §5.2 | `definida, não vigente` — depende de **G2** |
 | O5 | **Acionar o ADR** do processo de autorização da classificação | RFC §13.3 | **ANC-08** | §8.1 | `atendida` — acionado; redação é de FND-11 |
@@ -370,7 +371,7 @@ como obrigação inflaria o ledger e faria uma única delegação parecer duas.
 | O8 | Os **quatro instrumentos de governança** que a base conceitual prescreve e a spec não recolheu: owners por pacote, codemods e generators junto de breaking changes, office hours e canal de suporte, métricas de adoção e fricção | `Parte-1 §17.3`, vigente por RFC §14.4 | ANC-09 | §3.6 | `atendida` — cada um normatizado ou `encaminhado` individualmente |
 | O9 | **Certificação da toolchain do FND-05** no BOM — pins de Buf e plugins, predicados de runtime, autoridade do registro de stacks: **referenciar, não duplicar** | FND-05 `cloudevents-protobuf-buf.md`, registro autoritativo | ANC-09 | §4.3 | `atendida` |
 | O10 | Pré-requisito de **mais de um aprovador**: autor e autorizador coincidentes reprovam | FND-05 (rito de bootstrap); T4 de RFC §10.2 | **ANC-08** | §5.2 | `atendida` — incorporada em `AUT-04` |
-| O11 | **Regras normativas da migração de canal**: decisão por canal, revisão de infraestrutura, drenagem de backlog, identidade e `consumer_name` estável | FND-06 `politicas-transporte.md` §15 e correlatas | ANC-09 | §6.1 | `atendida` — recepcionadas e compostas com o rito de adoção |
+| O11 | **Regras normativas da migração de canal**: decisão por canal, revisão de infraestrutura, drenagem de backlog, identidade e `consumer_name` estável | FND-06 `politicas-transporte.md` §15 e correlatas | ANC-09 | §6.1 | `atendida` — `COE-01`..`COE-06` e `TRP-10` são **recepcionadas** e seguem vigentes por suas próprias âncoras, independentemente de `ADO-00` |
 | O12 | **Reconciliação de cardinalidade** da série de ADRs — não apenas a omissão de FND-10 na tabela de cadência | Aritmética de `SPEC-DBTRMM3X` contra o acervo (§8.2) | ANC-09 | §8.2 | `encaminhada` com dona **FND-11** e mapa proposto como insumo |
 
 `normativo` `GOV-07` — **Nenhuma obrigação deste ledger permanece no estado «em
@@ -994,18 +995,41 @@ quatro atos abaixo**, e por nenhum outro:
 | A3 | Criar unidade nova | T6 |
 | A4 | Remover unidade existente | T6 |
 
-`normativo` — **Alterar `include` sem alterar `block` nem `bounded_context` não
-dispara este rito, mas alterar `include` de modo que o conjunto de código de uma
-unidade mude de bloco efetivo dispara A1.** O ato regulado é a reclassificação do
-código, não a edição do campo: mover um diretório de `src/domain/**` para dentro do
-`include` de uma unidade `app` reclassifica aquele código, e o rito se aplica ainda
-que nenhum campo `block` tenha sido tocado.
+`normativo` — **O ato regulado é o delta efetivo `arquivo → (canonical_key, block,
+bounded_context)`, não a edição de um campo.** Qualquer alteração de `include`, de
+root ou de caminho que mude o `block` **ou** o `bounded_context` efetivo de um trecho
+de código dispara A1 ou A2, ainda que nenhum campo `block` ou `bounded_context` seja
+tocado e nenhuma unidade seja criada ou removida. Alterar `include` sem mudar nenhum
+dos dois efetivos não dispara este rito.
+
+| Movimento de código por `include` | Efetivo que muda | Ato |
+|-----------------------------------|------------------|-----|
+| De `src/domain/**` para o `include` de uma unidade `app` | `block` | **A1** |
+| Entre duas unidades de **`bounded_context` distintos**, ainda que ambas do mesmo `block` | `bounded_context` | **A2** |
+| Entre duas unidades do mesmo `block` **e** do mesmo `bounded_context` | nenhum | não dispara |
 
 `rationale` — Sem esta regra, o rito seria evitável por construção: bastaria não
-tocar em `block` e obter o mesmo efeito reorganizando `include`. A RFC prevê o caso
-adjacente em T3, ao exigir que o baseline cubra `block` e `bounded_context` de cada
-`canonical_key` com digest do conjunto — o digest é o que torna a mudança de
-composição detectável. Esta regra declara a consequência normativa daquela detecção.
+tocar em `block` nem em `bounded_context` e obter o mesmo efeito reorganizando
+`include`. **A segunda linha da tabela é a que fecha o caminho menos óbvio, e ela
+foi acrescentada por revisão adversarial** — a formulação anterior desta regra falava
+apenas de «bloco efetivo» e deixava passar o movimento entre contextos. O caminho
+concreto que ela agora barra: duas unidades ambas `domain`, em `bounded_context`
+distintos `A` e `B`; um arquivo de `B` importa domínio de `A`, o que é aresta
+inter-context; o commit altera apenas os `include`, atribuindo esse arquivo à unidade
+de `A`, e atualiza manifesto e baseline juntos. Nenhum campo `block` ou
+`bounded_context` muda de valor, nenhuma unidade nasce ou morre, e o `block` efetivo
+continua `domain` — mas a aresta que RFC §7.1 reprovava por **C2**
+(`same_bounded_context` **ou** `public_integration_surface(destino)`), emitindo
+`DMPF-D002`, passa a ser permitida sem que T4 tenha sido acionado.
+
+`recepcionado` — O fundamento de que o ato existe está na própria RFC: a
+`verification_unit` é «o menor conjunto **de código** a que uma classificação de
+bloco se aplica integralmente», e em TypeScript esse conjunto é determinado pelos
+roots declarados. Reatribuir o código entre unidades é, portanto, reclassificá-lo. A
+RFC prevê o caso adjacente em T3, ao exigir que o baseline cubra `block` **e**
+`bounded_context` de cada `canonical_key` com digest do conjunto — o digest é o que
+torna a mudança de composição detectável. Esta regra declara a consequência normativa
+daquela detecção.
 
 #### A autoridade
 
@@ -1066,6 +1090,7 @@ depois — o que não satisfaz T5, cuja verificação é posterior ao merge.
 | `act` | Um dos quatro de `AUT-01` |
 | `canonical_key` | A unidade afetada |
 | `from` / `to` | Valor anterior e novo de `block` e `bounded_context` |
+| `moved_paths` | Quando o ato é remapeamento por `include`, root ou caminho: os caminhos movidos, com a `canonical_key` de **origem** e de **destino** de cada um. Sem este campo, um remapeamento é indistinguível de uma edição de campo na auditoria posterior |
 | `justification` | O texto de R3 |
 | `newly_permitted_edges` | A enumeração de R5 |
 | `authority` | A função, e o titular que a exerceu |
@@ -1110,7 +1135,8 @@ tentativa que o rito **rejeita**, com o fundamento:
 |---|-----------|-----------|------------|
 | V1 | Alterar `block` e baseline no mesmo commit, junto de mudança de código | Reprova | R1 |
 | V2 | Alterar `block` com aprovação do próprio autor | Reprova | T4, `AUT-04` |
-| V3 | Alterar `include` para mudar o bloco efetivo do código, sem tocar em `block` | Reprova | `AUT-01`, parágrafo do ato regulado |
+| V3 | Alterar `include` para mudar o **bloco** efetivo do código, sem tocar em `block` | Reprova | `AUT-01`, delta efetivo, linha 1 da tabela |
+| V3a | Remapear código por `include` entre duas unidades **ambas `domain`** de `bounded_context` distintos, liberando aresta que C2 reprovava, sem tocar em nenhum campo | Reprova | `AUT-01`, delta efetivo, linha 2 — é A2, e exige o rito completo mais `moved_paths` em `AUT-05` |
 | V4 | Pedir **escape hatch** para obter a dependência que a reclassificação permitiria | Negado na admissão | `GOV-32` N5, `GOV-26` |
 | V5 | **Reclassificar** para dispensar escape hatch que seria necessário | Passa pelo rito, e a manobra fica visível | Espelho de V4: o ato é `AUT-01`, então o rito se aplica; R5 obriga a enumerar as arestas que a reclassificação libera, e `GOV-26` impede que o resultado dispense o escape hatch que a classificação nova ainda exija |
 | V6 | Reclassificar com justificativa que apenas descreve a mudança | Reprova | R3 |
@@ -1123,13 +1149,26 @@ tentativa que o rito **rejeita**, com o fundamento:
 subseção passa a viger quando, cumulativamente:
 
 1. a função de `AUT-02` tiver **titular aceito**, com a evidência de aceite
-   registrada em `AUT-07`; e
-2. Segurança tiver revisado a indicação, conforme `AUT-02`.
+   registrada em `AUT-07` (gate **G2**);
+2. Segurança tiver revisado a indicação, conforme `AUT-02`; **e**
+3. a **ANC-08 estiver fechada** — o que exige, além de G2, a citação do processo em
+   RFC §10.2 com o incremento `0.2` (gate **G5**) e a conclusão e revisão formal
+   desta sub-spec, conforme a condição de fechamento do registro da âncora.
 
-Quem constata: a área indicante, registrando o aceite. Até que as duas condições
-sejam satisfeitas, **o mecanismo mínimo de RFC §10.2 permanece vigente** — commit
-próprio, separado de mudanças de código, com aprovação por revisor distinto do autor
-— por invariante literal da ANC-08, que declara que ele «vale até o fechamento».
+Quem constata: a área indicante quanto a G2, e o owner da RFC quanto a G5. Até que as
+**três** condições sejam satisfeitas, **o mecanismo mínimo de RFC §10.2 permanece
+vigente** — commit próprio, separado de mudanças de código, com aprovação por revisor
+distinto do autor.
+
+`rationale` — **A terceira condição foi acrescentada por revisão adversarial, e ela
+corrige uma violação de M2.** A formulação anterior condicionava a transição apenas a
+G2 e à revisão de Segurança. Como §8.4 declara a ANC-08 aberta por **G2 e G5**, havia
+uma janela — depois de G2, antes de G5 — em que o rito de `AUT-03` passaria a viger e
+o mecanismo mínimo seria desligado **enquanto a âncora continuasse aberta**. Isso
+reinterpreta a invariante literal da ANC-08, que diz que o mecanismo mínimo «vale até
+o fechamento» e fixa o fechamento em «FND-10 concluída e revisada» — e reinterpretar
+invariante de âncora é o que M2 veda. Amarrar a transição ao fechamento efetivo
+elimina a janela: enquanto houver gate de fechamento aberto, o piso da RFC vale.
 
 `normativo` — **Enquanto `AUT-09` não é satisfeita, não há duas normas concorrentes.**
 A norma aplicável é o mecanismo mínimo; o rito de `AUT-03` está `definido` e não se
@@ -1163,7 +1202,42 @@ a RFC declarou o alcance parcial dela.
 
 ### §6.1 Adoção e faseamento
 
-`normativo` `ADO-01` — **Esta subseção normatiza o planejamento da adoção; ela não
+`normativo` `ADO-00` — **A força das regras desta subseção está condicionada à
+ampliação do escopo da ANC-09, e até então elas valem como especificação
+`encaminhada`, não como norma vigente.** O escopo permitido da ANC-09 é fechado em
+«Matriz de versões certificadas, escape hatches e seleção de pilotos». Adoção
+organizacional, faseamento e plano de migração **não** estão entre os três, e um
+encaminhamento feito por sub-spec não amplia o escopo registrado de uma âncora — só a
+RFC o faz, pelo rito de RFC §14.2. Por M4, adição fora do escopo é inválida ainda que
+tecnicamente correta.
+
+`registro` — **A tensão de autoridade, declarada em vez de resolvida por silêncio.**
+Dois artefatos publicados endereçam este assunto nominalmente a FND-10 **sob
+ANC-09**: o FND-06 §15 declara que não define «cronograma, faseamento nem ordem de
+migração — isso é adoção organizacional, `encaminhada` a ANC-09 / FND-10», e o FND-08
+encaminha «cronograma e faseamento da adoção da baseline nos serviços do acervo» ao
+mesmo destino. A delegação existe e é dos irmãos; o que falta é escopo na âncora para
+recebê-la. É defeito de fronteira da RFC, não invenção desta sub-spec — e resolvê-lo é
+mudança de fronteira, que exige nova versão da RFC.
+
+| Item | Estado |
+|------|--------|
+| Conteúdo de `ADO-01` a `ADO-08` | `definido` — escrito, aprovado em PR, e pronto para viger |
+| Força normativa | **suspensa** até a ampliação do escopo da ANC-09 |
+| Norma aplicável no intervalo | As regras do FND-06 e do FND-08 que já valem por suas próprias âncoras (`COE-01`..`COE-06`, `TRP-10`, catálogo de sinais) |
+| Condição para viger | Ampliação do escopo registrado da ANC-09, ou âncora nova, por RFC §14.2 |
+| Dona | **Owner da RFC** — pendência P13 |
+
+`rationale` — A alternativa era manter `ADO-01` a `ADO-08` como `normativo` pleno,
+apoiando-se em que os irmãos delegaram o assunto. Foi descartada por revisão
+adversarial: se um encaminhamento de sub-spec pudesse ampliar o escopo de uma âncora,
+o registro de RFC §12.3 deixaria de recortar, e M4 viraria formalidade — exatamente o
+raciocínio que o FND-08 usou em `RES-02` ao mandar o excedente da própria âncora sair
+`encaminhado`. A alternativa oposta, apagar §6.1 desta entrega, também foi descartada:
+o conteúdo é o que dois irmãos pediram e ele fica escrito e endereçável, apenas com a
+força suspensa e a condição nomeada, em vez de perdido.
+
+`normativo` `ADO-01` — **Esta subseção especifica o planejamento da adoção; ela não
 executa migração.** A fronteira é declarada porque duas fontes parecem divergir e não
 divergem:
 
@@ -1677,18 +1751,27 @@ ANC-08 declara «ADR exigido: **Sim**». Dona da correção: FND-11.
 | `GOV` | `GOV-30` a `GOV-36` | §5.1 | Escape hatch: requisitos, universo positivo, negação, nominalidade, ciclo de vida, evidência, métrica | ANC-09 |
 | `BOM` | `BOM-01` a `BOM-10` | §4 | Conteúdo, schema, autoridade, referência sem duplicação, máquina de estados, validade, CVE, slot das convenções | ANC-09 |
 | `AUT` | `AUT-01` a `AUT-10` | §5.2 | Ato regulado, autoridade, rito, pluralidade, evidência, fail-closed, titular, vetores negativos, vigência, alcance de R1 | **ANC-08** |
-| `ADO` | `ADO-01` a `ADO-08` | §6.1 | Fronteira planejamento × execução, critérios por canal, pré-condição de infraestrutura, plano de migração, rollback, faseamento da baseline | ANC-09 |
+| `ADO` | `ADO-00` a `ADO-08` | §6.1 | Fronteira planejamento × execução, critérios por canal, pré-condição de infraestrutura, plano de migração, rollback, faseamento da baseline | ANC-09, **com força suspensa** por `ADO-00` até P13 |
 | `PIL` | `PIL-01` a `PIL-09` | §6.2 | Piloto como fluxo, justificativa, os dois charters, matriz de métricas, campos separados, formalização | ANC-09 |
 | `RDY` | `RDY-01` a `RDY-07` | §7 | Definição de Ready, D6 e G2, dependências dos épicos, métricas de §16.1, instrumento de continuidade | ANC-09 |
 
-`registro` — **77 regras com identificador**: 76 `normativo` e uma `encaminhado`
-(`GOV-24`, office hours e canal de suporte, cuja dona é o épico 5 de `ARQ-436 §20`).
-A contagem exclui os 27 parágrafos `normativo` sem ID, que qualificam ou compõem uma
+`registro` — **78 regras com identificador**: 77 `normativo` e uma `encaminhado`
+(`GOV-24`, office hours e canal de suporte, encaminhada ao **owner do épico 5** de
+`ARQ-436 §20`, conforme a regra declara).
+A contagem exclui os parágrafos `normativo` sem ID, que qualificam ou compõem uma
 regra identificada em vez de estabelecer regra nova — e exclui os blocos
-`recepcionado`, cuja força permanece da fonte. Nenhum ID recebe sufixo de letra: a
-faixa `GOV-27`–`29` foi reservada e deixada vazia justamente para não precisar
-renumerar nem sufixar caso §5 cresça, que é a convenção que o FND-06 e o FND-08
-adotaram com `SQS-08b`, `MET-05a`, `RUN-11a` e `RUN-18a`.
+`recepcionado`, cuja força permanece da fonte.
+
+`registro` — **Duas irregularidades de numeração, ambas declaradas.** A primeira é
+`ADO-00`, que abre a faixa em zero em vez de um: ela foi acrescentada por revisão
+adversarial **depois** de `ADO-01` a `ADO-08` estarem escritas, e precisa preceder
+todas elas porque suspende a força do conjunto. Renumerar a faixa inteira invalidaria
+referência cruzada, que é o que a estabilidade de ID existe para evitar. A segunda é o
+vetor **`V3a`** em `AUT-08`, acrescentado entre `V3` e `V4` pela mesma revisão — é a
+convenção que o FND-06 e o FND-08 já usam com `SQS-08b`, `MET-05a`, `RUN-11a` e
+`RUN-18a`, e ela vale para os vetores enumerados de uma tabela, não para IDs de regra.
+Nenhum **ID de regra** deste artefato recebe sufixo de letra; a faixa `GOV-27`–`29`
+segue reservada e vazia para que §5 possa crescer sem sufixar.
 
 `registro` — Cadeia `obrigação → regra → verificação → estado` para as doze
 obrigações do ledger de §2.1:
@@ -1739,6 +1822,7 @@ proíbe.
 | P10 | Valor da periodicidade do release train | Owner do épico de kernel | `GOV-16`: primeira release publicada |
 | P11 | Office hours e canal de suporte | Owner do épico 5 de `§20` | `GOV-24`: canal declarado e cadência das office hours |
 | P12 | Instalação do verificador de RFC §10, de que a métrica 4 depende | Épicos de kernel, sob **ANC-10** | Verificador conforme passando nos 32 vetores de RFC §11 (`PIL-08`) |
+| P13 | **Ampliação do escopo da ANC-09 para receber adoção e faseamento**, ou âncora nova para o assunto | **Owner da RFC** | RFC §14.2. Enquanto aberta, `ADO-01` a `ADO-08` permanecem `definido` com força suspensa (`ADO-00`). Os irmãos FND-06 §15 e FND-08 §13 já delegaram o assunto a FND-10, mas o escopo registrado da âncora não o cobre |
 
 `registro` — **Estado dos critérios de aceite que este artefato serve:**
 
@@ -1750,7 +1834,7 @@ proíbe.
 | AC-11 | 4 — Dois fluxos-piloto selecionados com participação formal das squads | **parcial** — selecionados e justificados; sem participação formal | G1 |
 | AC-11 | 5 — Métricas de baseline e critérios de sucesso acordados | **parcial** — instrumento e critérios definidos; sem baseline e sem aceite | G1, P6 |
 | AC-12 | 1 — Cinco épicos criados e vinculados | **aberto** | G3 |
-| AC-12 | 2 — Dependências, responsáveis e critérios de entrada explícitos | **satisfeito** quanto a dependências e critérios (`RDY-03`); responsáveis pendentes | G3 |
+| AC-12 | 2 — Dependências, responsáveis e critérios de entrada explícitos | **parcial** — dependências e critérios de entrada definidos (`RDY-03`); **responsáveis pendentes** | G3 |
 | AC-12 | 3 — Nenhum risco arquitetural crítico sem owner | **aberto** — a autoridade de classificação é decisão estrutural sem titular | G2 |
 | AC-12 | 4 — Revisão final registra a decisão de continuidade | **aberto** — instrumento definido, registro pendente | G4 |
 | ARQ-447 | 10 — ADR do BOM registrado com contexto, alternativas, trade-offs e consequências | **parcial** — acionado com assunto e alternativas descartadas (§8.1); contexto, trade-offs e consequências são conteúdo da redação | P8 |

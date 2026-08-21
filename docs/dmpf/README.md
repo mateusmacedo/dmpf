@@ -462,8 +462,9 @@ Três traços distinguem este artefato dos sete precedentes:
   `âncora fechada` e `AC fechado`. A construção nasceu de uma ambiguidade real: RFC
   §10.2 diz «até que o FND-10 **defina** o processo» no corpo, «até o FND-10
   **concluir**» no título do mesmo bloco, e ANC-08 fixa o fechamento em «FND-10
-  concluída e revisada». O artefato registra a ambiguidade e amarra a transição a uma
-  condição explícita (`AUT-09`) em vez de escolher a leitura mais favorável — que
+  concluída e revisada». O artefato registra a ambiguidade e amarra a transição a
+  **três condições cumulativas** (`AUT-09`) — titular aceito, revisão de Segurança e
+  **fechamento efetivo da ANC-08** — em vez de escolher a leitura mais favorável, que
   faria o rito viger com uma função sem titular, trocando um controle mínimo operante
   por um controle inoperante.
 - **O rótulo `gate externo`**, novo no acervo (§1.2). Cinco atos de terceiro (`G1` a
@@ -508,6 +509,27 @@ promoção como erro de rastreabilidade —, e a reconciliação vai para o FND-
 mapa de consolidação oferecido como insumo. A mesma seção registra que a tabela de
 cadência de `SPEC-DBTRMM3X` **omite FND-10** por omissão, não por decisão: ANC-08
 declara «ADR exigido: Sim».
+
+Duas correções vieram de revisão adversarial externa e mudam o que o artefato
+obriga, então ficam registradas:
+
+- **`AUT-01` cobria só o `block` efetivo.** A regra fazia o rito de autorização
+  disparar quando uma mudança de `include` alterasse o *bloco* efetivo de um trecho de
+  código, e deixava passar a alteração do *`bounded_context`* efetivo. O caminho que
+  isso abria: duas unidades ambas `domain`, em contextos distintos; mover um arquivo de
+  uma para a outra por `include`, sem tocar em nenhum campo, libera uma aresta que RFC
+  §7.1 reprovava por **C2** (`DMPF-D002`) — sem T4, sem autorização. O ato regulado
+  passou a ser o **delta efetivo** `arquivo → (canonical_key, block, bounded_context)`,
+  com tabela de três casos, o campo `moved_paths` em `AUT-05` e o vetor negativo `V3a`.
+- **§6.1 excedia o escopo da ANC-09.** O escopo registrado é «Matriz de versões
+  certificadas, escape hatches e seleção de pilotos»; adoção organizacional e
+  faseamento não estão entre os três. O FND-06 §15 e o FND-08 §13 delegam o assunto a
+  FND-10 «sob ANC-09», mas **encaminhamento de sub-spec não amplia escopo de âncora** —
+  só a RFC o faz, e M4 invalida adição fora do escopo ainda que correta. `ADO-00`
+  passou a **suspender a força normativa** de `ADO-01` a `ADO-08`, que ficam `definido`
+  até a ampliação da fronteira (pendência **P13**, dona: owner da RFC). No intervalo, a
+  norma aplicável é a dos irmãos, que vale por âncora própria (`COE-01`..`COE-06`,
+  `TRP-10`). É o mesmo mecanismo que o FND-08 aplicou a si mesmo em `RES-02`.
 
 Fronteira com o FND-09: este artefato **não cita conteúdo** do `testes-interop.md`
 (`GOV-06`). A razão original — o FND-09 não estava no histórico versionado durante a
