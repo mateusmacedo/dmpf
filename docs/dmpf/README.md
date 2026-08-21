@@ -20,6 +20,7 @@ ocorre no PR (reviewers de Plataforma/Arquitetura). Specs permanecem em
 | [politicas-transporte.md](./politicas-transporte.md) | **promovido para revisão** (adição à RFC pela âncora ANC-04, sem editá-la) | [SPEC-YWFGNPG5](../specs/SPEC-YWFGNPG5-dmpf-politicas-transporte.md) / [ARQ-443](https://lider-cap.atlassian.net/browse/ARQ-443) |
 | [contexto-erros-seguranca.md](./contexto-erros-seguranca.md) | **promovido para revisão** (adição à RFC pela âncora ANC-05, sem editá-la) | [SPEC-XQWGGAXF](../specs/SPEC-XQWGGAXF-dmpf-contexto-erros-seguranca.md) / [ARQ-444](https://lider-cap.atlassian.net/browse/ARQ-444) |
 | [resiliencia-observabilidade.md](./resiliencia-observabilidade.md) | **promovido para revisão** (adição à RFC pela âncora ANC-06, sem editá-la) | [SPEC-E15TBHCD](../specs/SPEC-E15TBHCD-dmpf-resiliencia-observabilidade.md) / [ARQ-445](https://lider-cap.atlassian.net/browse/ARQ-445) |
+| [testes-interop.md](./testes-interop.md) | **promovido para revisão** (adição à RFC pela âncora ANC-07, sem editá-la) | [SPEC-6RQBN98G](../specs/SPEC-6RQBN98G-dmpf-testes-interop.md) / [ARQ-446](https://lider-cap.atlassian.net/browse/ARQ-446) |
 | [governanca-bom-pilotos.md](./governanca-bom-pilotos.md) | **promovido para revisão** (adição à RFC pelas âncoras **ANC-08 e ANC-09**, sem editá-la) | [SPEC-VVR1X71Q](../specs/SPEC-VVR1X71Q-dmpf-governanca-bom-pilotos.md) / [ARQ-447](https://lider-cap.atlassian.net/browse/ARQ-447) |
 
 A RFC obriga: as regras nela escritas valem para todo trabalho novo do DMPF.
@@ -353,6 +354,90 @@ ARQ-445: a validação do runbook por SRE, ainda **sem owner nomeado** — mesmo
 tratamento que o FND-07 deu ao gate de Segurança em `THR-03` —, e o aceite de
 `ADR-DMPF-Q` pelo FND-11. A terceira é a atualização de RFC §14.4, agora a quarta
 da série a acumular.
+### Sobre `testes-interop.md`
+
+Adiciona à RFC pela âncora ANC-07 (RFC §12.3), sob as mesmas regras de
+monotonicidade M1–M4. A diferença em relação a todos os precedentes não é de recorte,
+e sim de natureza: as seis adições anteriores normatizaram **matéria** — o que a UPR
+é, como a outbox drena, que atributo o envelope carrega —, e esta normatiza **prova**.
+É a única sub-spec cuja obrigação central não é decidir um assunto próprio, e sim dar
+a cada regra já decidida um mecanismo que a torne conferível.
+
+Três consequências decorrem disso, e cada uma tem efeito visível no artefato.
+
+A primeira é que **o acervo é o escopo**. O artefato herda de **seis** fontes — a RFC
+e os cinco irmãos promovidos —, e a matriz de §3 trata **25 obrigações atômicas**
+(contra as 24 de FND-07, que herdou de três). A §13 fecha a cadeia de RFC §14.5 por
+**identificador**: o acervo enumera 551 identificadores estáveis e 533 recebem linha,
+com o modo de verificação de cada um calibrando o que a linha exige. Os 18 restantes
+são as âncoras `ANC-01`..`ANC-10` e os `ADR-DMPF-A`..`H` — índice de encaminhamento,
+não regra verificável —, e a ausência é declarada em vez de omitida. A distinção entre
+535 cláusulas `normativo` e 551 identificadores está registrada em §1.4: as duas
+métricas medem coisas diferentes e a divergência está inteira na RFC.
+
+A segunda é que **a calibração por modo é o que torna a cobertura viável e honesta**.
+Exigir vetor de execução de regra que só se confere por inspeção produz teatro de
+rastreabilidade; exigir inspeção de regra que só a execução decide produz falso
+verde. A §10 fixa a forma — diagnóstico estável reusado de RFC §10.3 quando o defeito
+já tem código, critério de inspeção decidível, ou oráculo com par de vetores e o
+cenário que o exercita — e a §11 aplica essa régua às regras herdadas, inclusive
+declarando o modo das **42 regras de FND-03** publicadas sem modo. Onde a fonte rotula
+uma regra `runtime-testable` qualificando «por inspeção de superfície» — o caso de
+`DAT-08`, `DAT-10` e `DAT-14` —, a recalibração é explícita e argumentada, nunca
+silenciosa.
+
+A terceira é que **fronteira declarada não conta como cobertura** — e a história
+desse ponto é instrutiva. Backpressure está ausente de todo o FND-04: é matéria de
+resiliência, portanto de ANC-06 e de FND-08. Enquanto FND-08 não tinha artefato
+publicado, o artefato declarou o item correspondente do AC-10 **bloqueado, não
+satisfeito**, em vez de contar um slot vazio como cenário coberto — que seria o risco
+de «decisões apenas documentais» que o épico nomeia.
+
+FND-08 foi publicado durante a redação e fixou o desfecho observável sob saturação:
+`RES-14` («a saturação é rejeição rápida»), `RES-08` (o estouro do teto da porta de
+inbox resolvendo na disposição que `INB-17` já fixava), `RES-16`/`RES-17` (recusa
+categorizada, antes de decode e validação, com sinal por rota e por tenant) e
+`MET-11`/`MET-12` (o sinal que separa «recusou por política» de «falhou»). A condição
+de fechamento que a própria fronteira declarava foi satisfeita, e o item passou a
+coberto por `CEN-44`: **os seis itens do AC-10 ficam cobertos**, com a proveniência
+citada por cenário. A fronteira era temporal, não de matéria — o assunto continua
+sendo de ANC-06, e o que mudou é que a dona o decidiu.
+
+As demais fronteiras a FND-08 permanecem, por motivo diferente: timing de retry,
+cadência de replay e catálogo de métricas se verificam por inspeção ou por evidência
+de execução operacional, não por cenário distribuído, e nenhuma é item do AC-10.
+
+Duas particularidades de forma merecem registro. O artefato define uma **classe
+distinta de oráculo** para o desfecho de domínio (§7): como `UPR-I11` mantém o
+`Decision` fora do wire, o aparato de fixture serializada não o alcança, e a prova de
+equivalência entre as stacks se faz por **projeção observável** em codificação neutra,
+sem `payload_hash` e sem fixar largura de tipo numérico — respeitando a recusa
+deliberada de FND-03 §8.1. E o prefixo dos testes de arquitetura é **`FIT`**, não
+`ARQ`: o nome natural da matéria colidiria com a chave do projeto que hospeda o épico,
+fazendo `FIT-01` conviver com `ARQ-446` no mesmo parágrafo. O registro da escolha está
+em §1.2.
+
+Este artefato **não aciona ADR**, e o fundamento é mais forte que o do FND-07: o
+registro da ANC-07 diz «ADR exigido: **Não**», sem a condicional «salvo alteração de
+invariante» que ANC-05 e ANC-06 carregam. As duas invariantes que a âncora lista —
+RFC §9 (domínio executável em memória) e RFC §4.5 regra 3 (o teste não reclassifica o
+código sob teste) — são respeitadas e, no caso da segunda, **restauradas**: a regra em
+dois passos de §2 separa o acoplamento no código sob teste, que se repara removendo a
+dependência, do teste mal categorizado, que se move de camada.
+
+A spec foi **reconciliada em quatro pontos** antes da redação, cada um citando o irmão
+que o força: o critério do round-trip (que não é «mesmo byte» em geral, e sim os três
+oráculos, cada um no seu escopo — FND-05 §8.3), o ownership da golden fixture (do
+arquivo, do oráculo, do pipeline e do diagnóstico, não do conteúdo — §8.4), a
+proveniência dos cenários e o escopo herdado de FND-07. Uma quinta edição foi proposta
+e **retirada**: alegava contradição com RFC §4.5 regra 3 onde não havia, porque a
+regra fala do código sob teste e a spec reclassificava o teste. O motivo da retirada
+está registrado em §3.3.
+
+As pendências ficam em §14, cada uma com dona e condição de fechamento — entre elas a
+implementação dos kits e das fixtures pelos épicos de kernel, a localização do
+validador do perfil de envelope a co-decidir com FND-06, e o gate de revisão por um
+representante de cada stack, que a story pede e que não bloqueia a promoção.
 
 ### Sobre `governanca-bom-pilotos.md`
 
