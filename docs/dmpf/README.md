@@ -21,6 +21,7 @@ ocorre no PR (reviewers de Plataforma/Arquitetura). Specs permanecem em
 | [contexto-erros-seguranca.md](./contexto-erros-seguranca.md) | **promovido para revisão** (adição à RFC pela âncora ANC-05, sem editá-la) | [SPEC-XQWGGAXF](../specs/SPEC-XQWGGAXF-dmpf-contexto-erros-seguranca.md) / [ARQ-444](https://lider-cap.atlassian.net/browse/ARQ-444) |
 | [resiliencia-observabilidade.md](./resiliencia-observabilidade.md) | **promovido para revisão** (adição à RFC pela âncora ANC-06, sem editá-la) | [SPEC-E15TBHCD](../specs/SPEC-E15TBHCD-dmpf-resiliencia-observabilidade.md) / [ARQ-445](https://lider-cap.atlassian.net/browse/ARQ-445) |
 | [testes-interop.md](./testes-interop.md) | **promovido para revisão** (adição à RFC pela âncora ANC-07, sem editá-la) | [SPEC-6RQBN98G](../specs/SPEC-6RQBN98G-dmpf-testes-interop.md) / [ARQ-446](https://lider-cap.atlassian.net/browse/ARQ-446) |
+| [governanca-bom-pilotos.md](./governanca-bom-pilotos.md) | **promovido para revisão** (adição à RFC pelas âncoras **ANC-08 e ANC-09**, sem editá-la) | [SPEC-VVR1X71Q](../specs/SPEC-VVR1X71Q-dmpf-governanca-bom-pilotos.md) / [ARQ-447](https://lider-cap.atlassian.net/browse/ARQ-447) |
 
 A RFC obriga: as regras nela escritas valem para todo trabalho novo do DMPF.
 
@@ -437,6 +438,109 @@ As pendências ficam em §14, cada uma com dona e condição de fechamento — e
 implementação dos kits e das fixtures pelos épicos de kernel, a localização do
 validador do perfil de envelope a co-decidir com FND-06, e o gate de revisão por um
 representante de cada stack, que a story pede e que não bloqueia a promoção.
+
+### Sobre `governanca-bom-pilotos.md`
+
+O artefato do FND-10 (ARQ-447) é o **primeiro do acervo a operar sob duas âncoras**:
+a ANC-09 («Governança, BOM e pilotos») e a ANC-08 («Processo de autorização da
+classificação»). Os assuntos são disjuntos — um é gestão de produto, o outro é
+controle de integridade do metadado de classificação —, e `GOV-02` proíbe que uma
+regra invoque as duas como se fossem uma licença só.
+
+A ANC-08 também é a única das dez âncoras do registro de RFC §12.3 com **impacto de
+versão «Menor»**: definir o processo faz a RFC precisar citá-lo, o que abre a `0.2`.
+Esse incremento **não** foi realizado nesta entrega, porque RFC §14.3 exige, de `0.2`
+em diante, revisão pelas quatro áreas e reconciliação com baseline aprovado — e o
+aceite de 2026-08-14 que dispensou as duas condições vale só para a `0.1`. A pendência
+está registrada como gate `G5`.
+
+Três traços distinguem este artefato dos sete precedentes:
+
+- **Os quatro estados observáveis** (§1.3). Ele é o primeiro cujo conteúdo depende de
+  atos que só pessoas praticam — assinatura de squad, aceite de titular, criação de
+  épico, registro de decisão. Por isso separa `definido` de `vigente`, e ambos de
+  `âncora fechada` e `AC fechado`. A construção nasceu de uma ambiguidade real: RFC
+  §10.2 diz «até que o FND-10 **defina** o processo» no corpo, «até o FND-10
+  **concluir**» no título do mesmo bloco, e ANC-08 fixa o fechamento em «FND-10
+  concluída e revisada». O artefato registra a ambiguidade e amarra a transição a
+  **três condições cumulativas** (`AUT-09`) — titular aceito, revisão de Segurança e
+  **fechamento efetivo da ANC-08** — em vez de escolher a leitura mais favorável, que
+  faria o rito viger com uma função sem titular, trocando um controle mínimo operante
+  por um controle inoperante.
+- **O rótulo `gate externo`**, novo no acervo (§1.2). Cinco atos de terceiro (`G1` a
+  `G5`) são endereçáveis por identificador, e `GOV-05` proíbe tratá-los como
+  satisfeitos por declaração ou por ausência de menção. §8.4 declara AC-11 item 4 e 5
+  como **parciais** e AC-12 itens 1, 3 e 4 como **abertos**, e `RDY-05` reporta as
+  três métricas de `ARQ-436 §16.1` que recaem sobre FND-10 como `0`, `≥ 1` e `0 de 5`
+  — o oposto do que um artefato de fechamento é tentado a reportar.
+- **Os dois ritos mutuamente fechados** (§5). Escape hatch e autorização da
+  classificação são instrumentos distintos, e `GOV-26` impede que um produza o efeito
+  do outro. O motivo é assimétrico e está declarado: reclassificar é o caminho **mais
+  barato** para o efeito de um escape hatch — em vez de exceção nominal com prazo e
+  plano de convergência, basta declarar que a unidade pertence a outro bloco. É o
+  risco R1 da RFC visto do lado da governança de produto, e `GOV-32` N5 mais `AUT-08`
+  V4 e V5 fecham os dois sentidos.
+
+Três correções de fundo que a revisão externa do plano forçou, e que ficam
+registradas porque mudam o que o artefato afirma:
+
+- `shared-titulos-services` **não é um piloto Go** — o inventário o registra como
+  híbrido (`Stack: ambas — TypeScript/NestJS + Go`). O charter de `PIL-03` nomeia o
+  **trecho** Go e coloca os deployables TypeScript do mesmo repositório fora do
+  escopo, porque piloto é fluxo e não repositório (`PIL-01`).
+- A justificativa do par de pilotos é **cobertura dual-stack**, não
+  interoperabilidade (`PIL-02`). Dois pilotos independentes provam adoção em cada
+  stack; não provam que bytes de uma são consumidos pela outra. Essa evidência exige
+  fluxo equivalente com fixtures cruzadas e é do FND-09, sob ANC-07. A justificativa
+  anterior faria o charter parecer satisfazer o item 7 do DoD do épico, que ele não
+  satisfaz.
+- **`não medido` é estado da coleta, nunca valor de partida** (`PIL-06`). A matriz de
+  §6.2 separa `baseline_status` de `baseline_value`, e nenhuma das nove métricas traz
+  valor ou alvo. O DoD do épico item 9 admite «registradas **ou** com plano de
+  coleta»; o requisito não-funcional da spec pede «valor de partida e alvo». Os dois
+  são declarados separadamente, e nenhum é apresentado como o outro.
+
+O artefato registra ainda uma **contradição pré-existente** que não cria e agrava
+(§8.2): `SPEC-DBTRMM3X` reserva 15 slots em `docs/adr/010`–`024` e cobra «15 ADRs
+mínimos», mas o acervo já tem 17 acionamentos (`ADR-DMPF-A`..`Q`); com
+`ADR-DMPF-R` e `ADR-DMPF-S` passa a 19. Os dois são declarados **provisórios e sem
+promessa de número final** — RFC §13.2 trata citar número definitivo antes da
+promoção como erro de rastreabilidade —, e a reconciliação vai para o FND-11 com um
+mapa de consolidação oferecido como insumo. A mesma seção registra que a tabela de
+cadência de `SPEC-DBTRMM3X` **omite FND-10** por omissão, não por decisão: ANC-08
+declara «ADR exigido: Sim».
+
+Duas correções vieram de revisão adversarial externa e mudam o que o artefato
+obriga, então ficam registradas:
+
+- **`AUT-01` cobria só o `block` efetivo.** A regra fazia o rito de autorização
+  disparar quando uma mudança de `include` alterasse o *bloco* efetivo de um trecho de
+  código, e deixava passar a alteração do *`bounded_context`* efetivo. O caminho que
+  isso abria: duas unidades ambas `domain`, em contextos distintos; mover um arquivo de
+  uma para a outra por `include`, sem tocar em nenhum campo, libera uma aresta que RFC
+  §7.1 reprovava por **C2** (`DMPF-D002`) — sem T4, sem autorização. O ato regulado
+  passou a ser o **delta efetivo** `arquivo → (canonical_key, block, bounded_context)`,
+  com tabela de três casos, o campo `moved_paths` em `AUT-05` e o vetor negativo `V3a`.
+- **§6.1 excedia o escopo da ANC-09.** O escopo registrado é «Matriz de versões
+  certificadas, escape hatches e seleção de pilotos»; adoção organizacional e
+  faseamento não estão entre os três. O FND-06 §15 e o FND-08 §13 delegam o assunto a
+  FND-10 «sob ANC-09», mas **encaminhamento de sub-spec não amplia escopo de âncora** —
+  só a RFC o faz, e M4 invalida adição fora do escopo ainda que correta. `ADO-00`
+  passou a **suspender a força normativa** de `ADO-01` a `ADO-08`, que ficam `definido`
+  até a ampliação da fronteira (pendência **P13**, dona: owner da RFC). No intervalo, a
+  norma aplicável é a dos irmãos, que vale por âncora própria (`COE-01`..`COE-06`,
+  `TRP-10`). É o mesmo mecanismo que o FND-08 aplicou a si mesmo em `RES-02`.
+
+Fronteira com o FND-09: este artefato **não cita conteúdo** do `testes-interop.md`
+(`GOV-06`). A razão original — o FND-09 não estava no histórico versionado durante a
+redação — **caducou durante a própria entrega**, porque o PR #14 do FND-09 foi
+mergeado em `develop` antes deste PR. A decisão é mantida por **escopo**: incorporar
+as regras do FND-09 exigiria revisitar `PIL-02`, que é justamente a fronteira entre
+cobertura dual-stack e evidência de interoperabilidade, e isso é reabrir §6.2 em vez
+de acrescentar uma citação. A reconciliação fica registrada como pendência P9. O
+merge foi verificado: o FND-09 usa `PIR`, `CEN`, `FIX`, `ORA`, `KIT`, `FIT` e `RAS`,
+**sem colisão** com os seis prefixos deste artefato, e não endereça obrigação nova a
+FND-10 — o ledger de doze permanece completo.
 
 ## Evidências do inventário
 
