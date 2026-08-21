@@ -2,9 +2,9 @@
 id: SPEC-E15TBHCD
 slug: dmpf-resiliencia-observabilidade
 title: DMPF — Resiliência, observabilidade e operação
-stage: backlog
+stage: done
 priority: P0
-depends_on: [SPEC-XQWGGAXF]
+depends_on: [SPEC-7PJ5WVCS, SPEC-7H08RZDG, SPEC-YWFGNPG5, SPEC-XQWGGAXF]
 ticket_url: https://lider-cap.atlassian.net/browse/ARQ-445
 subtask_urls: []
 created: 2026-08-13
@@ -22,6 +22,12 @@ Entregar o item lógico **FND-08** do épico ARQ-436
 - **Issue**: [ARQ-445](https://lider-cap.atlassian.net/browse/ARQ-445)
 - **ACs do épico**: AC-09
 - **Evidência §11**: Políticas, fluxos de tracing, métricas, logs, DLQ/replay e runbook mínimo definidos
+- **Obrigações herdadas**: 30 predicados encaminhados a esta spec por cinco
+  artefatos já promovidos em `develop` — FND-03 (2), FND-04 (12), FND-05 (4),
+  FND-06 (4) e FND-07 (8). O critério de fronteira que governa todas é o
+  enunciado por FND-04: **capacidade é do artefato de origem, catálogo é de
+  FND-08** (`uow-inbox-outbox.md:167`). As quatro de FND-06 resolvem em
+  `politicas-transporte.md:156`, `:189`, `:269` e `:1186`.
 
 <constraints>
 - [P0] Domínio sem I/O: domínio NÃO importa Protobuf, ORM, broker, SDK cloud, HTTP, logger ou framework
@@ -39,6 +45,15 @@ Entregar o item lógico **FND-08** do épico ARQ-436
 - [ ] **[P0] Tracing**: fluxos e atributos mínimos OpenTelemetry
 - [ ] **[P0] Métricas**: services, inbox, outbox, relay, consumers, DLQ, pools
 - [ ] **[P0] Logging**: estruturado, redaction, sampling, auditoria separada
+- [ ] **[P0] Decorators de saída**: os nove decorators de Parte-1 §12.2, cuja
+  subseção inteira FND-07 encaminhou a esta âncora
+  (`contexto-erros-seguranca.md:316`), com o sujeito declarado por bloco
+- [ ] **[P0] Política de retryability**: quantas vezes se tenta, com que
+  espaçamento, sob qual orçamento, com qual limiar de alarme e qual runbook
+  (`contexto-erros-seguranca.md:231`)
+- [ ] **[P0] Contenção de carga**: emitir a norma de mitigação do eixo *Denial of
+  service* que FND-07 avaliou nos sete vetores e deixou de emitir
+  (`THR-01`, `contexto-erros-seguranca.md:1380`)
 
 ### Não-funcionais
 
@@ -58,7 +73,7 @@ artefato descreve ou normatiza, não módulos de código a alterar.
 | Application service (UoW, orquestração) | [x] | Define a distinção entre retry remoto e reexecução do caso de uso |
 | Port / Provider (adapters, drivers) | [x] | Define onde vivem timeout, circuit breaker e bulkhead |
 | Contract / wire (Protobuf, CloudEvents, OpenAPI) | [ ] | Consome os atributos de tracing definidos em FND-05 |
-| Transporte (REST, gRPC, Kafka, SNS/SQS) | [x] | Define retry e backoff por transporte |
+| Transporte (REST, gRPC, Kafka, SNS/SQS) | [x] | Define o orçamento transversal de retry e backoff; os valores por transporte são de ANC-04 / FND-06 |
 | Observabilidade e operação | [x] | Núcleo desta spec: métricas, tracing, logging e runbook |
 
 ## Localização de código
@@ -87,13 +102,35 @@ artefato descreve ou normatiza, não módulos de código a alterar.
 Retry de uma chamada a provider é retentativa **daquela chamada**, dentro da
 mesma execução. Não reexecuta o caso de uso nem reabre a UoW. Reexecução do
 caso de uso só ocorre por redelivery da mensagem, com a inbox de FND-04
-garantindo idempotência.
+garantindo idempotência. A base normativa é Parte-1 §12.2, que proíbe
+reexecutar o service inteiro sem idempotência comprovada.
+
+### Autorização de retry como conjunção
+
+Retentar não é consequência da retryability. A autorização exige a conjunção de
+quatro fatores: **erro retentável × operação idempotente ou com efeito
+conhecidamente ausente × orçamento suficiente para a tentativa e o seu backoff ×
+prazo remanescente**, verificados antes de **cada** tentativa. `ERR-12` é explícito ao separar
+os dois atos — a classificação «não autoriza, ordena nem dimensiona a
+repetição» (`contexto-erros-seguranca.md:1035`) —, e `ERR-11` fixa o default
+fail-closed que esta spec apenas parametriza, sem substituir (`:1034`).
+
+### Fronteira do rate limiting
+
+O decorator de saída de Parte-1 §12.2 protege a dependência e é normatizado
+aqui por sucessão da subseção. O lado de **entrada** — admissão e contenção de
+pressão — é normatizado por outra via: `THR-01` encaminhou a mitigação do eixo
+*Denial of service* a esta âncora. O estágio `rate limit/idempotency` de
+Parte-1 §12.1 permanece **vigente**, não consolidado: `idempotency` é de FND-04
+e a spec não o absorve.
 
 ### Tracing
 
 Span na borda, propagação por todos os saltos síncronos e continuidade no salto
-assíncrono via atributos do envelope (FND-05). O trace liga produtor e
-consumidor mesmo separados por broker.
+assíncrono via atributos do envelope (FND-05). O trace liga produtor e consumidor
+através do broker **sob fronteira confiável**, no critério de `CTX-27` do FND-07;
+fora dela o consumidor inicia trace novo e registra o valor recebido como
+proveniência, nunca como parentesco.
 
 ### Catálogo de métricas
 
@@ -114,6 +151,12 @@ consumidor mesmo separados por broker.
 Logging estruturado, redaction na origem (FND-07), sampling por classe de
 tráfego e trilha de auditoria em canal separado do log operacional. O runbook
 mínimo cobre inspeção de DLQ, decisão de replay e execução do replay.
+
+Backlog de outbox, poison message, graceful shutdown e backpressure entram como
+procedimentos **derivados** desse núcleo, cada um apontando a métrica ou o trace
+que o dispara. Não são normas operacionais novas: graceful shutdown, em
+particular, é propriedade do mecanismo em `OBX-13` e aqui é observado e tratado,
+nunca redefinido.
 
 ## Decisões técnicas
 
@@ -145,15 +188,21 @@ mínimo cobre inspeção de DLQ, decisão de replay e execução do replay.
 
 ### Cenários de teste (mínimo 3)
 
-```
+```text
 DADO um caso de uso cuja chamada a um provider falha de forma transitória
 QUANDO o retry da chamada tem sucesso na segunda tentativa
 ENTÃO o caso de uso conclui uma única vez, sem reabrir a UoW e sem duplicar
      efeitos já aplicados
 
-DADO um evento publicado por um serviço e consumido por outro através do broker
+DADO um evento publicado por um serviço e consumido por outro através do broker,
+     sob fronteira confiável
 QUANDO o trace é consultado pelo correlation id
 ENTÃO produtor e consumidor aparecem no mesmo trace, apesar do salto assíncrono
+
+DADO o mesmo evento entregue por fronteira NÃO confiável
+QUANDO o consumidor o recebe
+ENTÃO um trace novo é iniciado e o `traceparent` recebido é registrado como
+     atributo de proveniência, não como parentesco
 
 DADO o relay parado por falha de conectividade com o broker
 QUANDO a idade da linha mais antiga da outbox ultrapassa o limite definido
@@ -177,4 +226,10 @@ ENTÃO a métrica dispara o alarme e o runbook indica a inspeção do relay
   kernel e providers.
 - **SLOs por serviço**: dependem do serviço concreto; a fundação define o que
   medir, não a meta.
-- **Runbook completo de operação**: aqui só o mínimo de DLQ e replay.
+- **Runbook completo de operação**: aqui só o mínimo de DLQ e replay, mais os
+  derivados que se apoiam nele.
+- **Redação, promoção e aceite de ADR**: esta spec aciona e nomeia a decisão
+  arquitetural; redigir, promover e aceitar é de FND-11 (ARQ-448), conforme
+  [SPEC-DBTRMM3X](./SPEC-DBTRMM3X-dmpf-adrs-minimos.md).
+- **Valores de retry e backoff por transporte**: são de ANC-04 / FND-06; aqui
+  fica o orçamento transversal.
