@@ -182,11 +182,14 @@ continua valendo no que lá está declarado, e onde as duas divergirem prevalece
 que este artefato normatiza dentro da ANC-06, por autorização da própria âncora.
 
 `registro` — Este artefato propõe a sucessão das subseções abaixo da base
-conceitual (`plans/references/Parte-1-conceitual.md`, documento de trabalho não
-versionado).
-<!-- ephemeral-ref-ok: a base conceitual é a fonte que este artefato sucede; nomear a origem é requisito de rastreabilidade da sucessão -->
-Onde a coluna diz `consolidação proposta`, o conteúdo daqui prevalece; onde diz
-`vigente`, a Parte-1 segue valendo e este artefato não a substituiu.
+conceitual — a `Parte-1-conceitual.md` que a RFC recepciona em §1.3, cuja convenção
+de citação (`Parte-1 §N`) ela fixa ali mesmo, e cujos capítulos já substituídos ela
+enumera em §1.4 (`rfc-dmpf-foundation-v0.1.md:59-68`, `:152-156`). A base não é
+versionada neste repositório, e por isso **a referência estável a ela é a própria
+RFC**: é lá que se lê o que a Parte-1 é, o que dela já foi consolidado e a regra de
+que «não há revogação implícita». Onde a coluna diz `consolidação proposta`, o
+conteúdo daqui prevalece; onde diz `vigente`, a Parte-1 segue valendo e este
+artefato não a substituiu.
 
 | Subseção da Parte-1 | Estado | Observação |
 |---------------------|--------|------------|
