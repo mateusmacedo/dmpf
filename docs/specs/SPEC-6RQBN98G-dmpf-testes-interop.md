@@ -2,7 +2,7 @@
 id: SPEC-6RQBN98G
 slug: dmpf-testes-interop
 title: DMPF — Estratégia de testes e interoperabilidade Go ↔ TypeScript
-stage: backlog
+stage: done
 priority: P0
 depends_on: [SPEC-7PJ5WVCS, SPEC-7H08RZDG]
 ticket_url: https://lider-cap.atlassian.net/browse/ARQ-446
@@ -34,17 +34,18 @@ Entregar o item lógico **FND-09** do épico ARQ-436
 
 ### Funcionais
 
-- [ ] **[P0] Pirâmide**: domínio, services, providers, apps, fluxos distribuídos
-- [ ] **[P0] Catálogo de cenários**: commit antes do ACK, redelivery, duplicata, poison, backpressure, graceful shutdown
-- [ ] **[P0] Golden fixtures** Go ↔ TS: formato, ownership e pipeline
-- [ ] **[P0] Verificações**: campos desconhecidos, versões suportadas, payload hash
+- [x] **[P0] Pirâmide**: domínio, services, providers, apps, fluxos distribuídos
+- [x] **[P0] Catálogo de cenários**: commit antes do ACK, redelivery, duplicata concorrente, poison, graceful shutdown e **backpressure** — cada um com a proveniência citada. O backpressure fechou quando FND-08 (ARQ-445) publicou a regra de resultado sob saturação, durante esta entrega
+- [x] **[P0] Golden fixtures** Go ↔ TS: formato de arquivo, oráculo executável, pipeline e diagnóstico — o conteúdo da fixture e a definição dos oráculos permanecem de FND-05 §8.4
+- [x] **[P0] Verificações**: campos desconhecidos, versões suportadas, payload hash
+- [x] **[P0] Verificações herdadas de FND-07**: isolamento por tenant (`IDN-11`..`IDN-14`, fail-closed), ciclo de vida e reuso do contexto (`CTX-15`..`CTX-17`), respeito a cancelamento e deadline (`CTX-21`, `CTX-22`), cifra em repouso (`DAT-08`, `DAT-10`) e teto de retenção (`DAT-14`) — roteadas a ANC-07 por FND-07 §4.4 e §11.2
 
 ### Não-funcionais
 
-- [ ] **[P0] Fixture como fonte única**: o mesmo arquivo de fixture alimenta as suítes Go e TS; nenhuma stack mantém cópia própria
-- [ ] **[P0] Determinismo**: nenhum cenário do catálogo depende de relógio de parede, ordem de map ou porta aleatória
-- [ ] **[P0] Falha informativa**: divergência de interop aponta o campo divergente, não apenas hashes diferentes
-- [ ] **[P1] Custo de execução**: a camada de fluxos distribuídos roda em pipeline separado, sem penalizar o feedback do domínio
+- [x] **[P0] Fixture como fonte única**: o mesmo arquivo de fixture alimenta as suítes Go e TS; nenhuma stack mantém cópia própria
+- [x] **[P0] Determinismo**: nenhum cenário do catálogo depende de relógio de parede, ordem de map ou porta aleatória
+- [x] **[P0] Falha informativa**: divergência de interop aponta o campo divergente, não apenas hashes diferentes
+- [x] **[P1] Custo de execução**: a camada de fluxos distribuídos roda em pipeline separado, sem penalizar o feedback do domínio
 
 ## Camadas afetadas
 
@@ -58,7 +59,8 @@ artefato descreve ou normatiza, não módulos de código a alterar.
 | Port / Provider (adapters, drivers) | [x] | Define teste de contrato do provider contra o port |
 | Contract / wire (Protobuf, CloudEvents, OpenAPI) | [x] | Núcleo da interop: golden fixtures e payload hash |
 | Transporte (REST, gRPC, Kafka, SNS/SQS) | [x] | Define os cenários de fluxo distribuído |
-| Observabilidade e operação | [ ] | Fora do escopo de teste desta spec |
+| Contexto, identidade e dado (FND-07) | [x] | Verificação executável das regras roteadas a ANC-07: isolamento por tenant, ciclo de vida do contexto, cifra em repouso e teto de retenção |
+| Observabilidade e operação | [ ] | Fora do escopo de teste desta spec. O que dependia de resiliência foi destravado pela publicação de FND-08 no caso do backpressure; catálogo de métricas e cadência de replay seguem de ANC-06, por inspeção ou evidência operacional |
 
 ## Localização de código
 
@@ -70,7 +72,9 @@ artefato descreve ou normatiza, não módulos de código a alterar.
 
 As **golden fixtures** em si não são documentação: ao saírem de draft, vivem no
 repositório de contratos (FND-05), consumidas pelas suítes Go e TS. Aqui se
-especifica formato, ownership e pipeline delas.
+especificam o formato de arquivo, o oráculo executável, o pipeline que o roda e o
+diagnóstico que ele emite; o conteúdo obrigatório da fixture e a definição dos
+três oráculos permanecem de FND-05 §8.4.
 
 ## Design
 
@@ -89,14 +93,22 @@ limite de FND-02.
 
 ### Catálogo de cenários obrigatórios
 
-Derivados das sequências de FND-04:
+A proveniência é declarada **por cenário**: cinco derivam de FND-04, cada um de
+uma seção distinta, e o sexto não tem base no acervo.
 
-1. **Commit antes do ACK** — estado commitado, processo cai antes do ACK.
-2. **Redelivery** — mesma mensagem entregue de novo.
-3. **Duplicata** — chave já presente na inbox.
-4. **Poison** — mensagem que falha sempre, até quarantine.
-5. **Backpressure** — produção acima da capacidade de consumo.
-6. **Graceful shutdown** — encerrar sem perder trabalho em curso nem ACK indevido.
+| # | Cenário | Proveniência |
+|---|---------|--------------|
+| 1 | **Commit antes do ACK** — estado commitado, processo cai antes do ACK | FND-04 §7.3, failure modes 1 e 6 |
+| 2 | **Redelivery** — mesma mensagem entregue de novo | FND-04 §7.3, failure mode 12 |
+| 3 | **Duplicata concorrente** — duas transações disputando a mesma chave de inbox | FND-04 §7.3, failure mode 7 |
+| 4 | **Poison** — mensagem que falha sempre, até quarantine | FND-04 §7.3, failure mode 9 |
+| 5 | **Graceful shutdown** — encerrar sem perder trabalho em curso nem ACK indevido | FND-04 §5.3 e `OBX-13` |
+| 6 | **Backpressure** — produção acima da capacidade de consumo | Ausente de FND-04; a regra de resultado vem de FND-08 §3.2/§3.4/§3.5 (`RES-08`, `RES-14`, `RES-16`, `RES-17`) |
+
+O item 6 ficou **bloqueado** enquanto FND-08 não publicava a regra de resultado —
+declarar o critério satisfeito por um slot vazio seria o próprio risco de «decisões
+apenas documentais» que o épico nomeia. FND-08 foi publicado durante esta entrega e
+fixou o desfecho sob saturação, então o item passou a **coberto**, por `CEN-44`.
 
 ### Golden fixtures Go ↔ TS
 
@@ -118,10 +130,14 @@ Arquivo de fixture como **fonte única**, consumido pelas duas stacks:
 
 ## Decisões técnicas
 
-- **Fixture como fonte única para as duas stacks**: garante que Go e TS
-  concordem sobre o mesmo byte. Alternativa descartada: cada stack manter suas
-  fixtures, porque as duas passam verdes enquanto divergem entre si — que é
-  exatamente a falha que o teste deveria pegar.
+- **Fixture como fonte única para as duas stacks**: garante que Go e TS concordem
+  sobre o **conteúdo** — equivalência semântica campo a campo e igualdade do
+  `payload_hash`, sempre e nas duas direções. Identidade de bytes é exigida apenas
+  onde `ENV-24` a exige (publicação sem reserialização, contenção e replay),
+  conforme FND-05 §8.3; `INT-05` restringe a comparação de bytes entre produtores
+  independentes, não os outros dois oráculos. Alternativa descartada: cada stack
+  manter suas fixtures, porque as duas passam verdes enquanto divergem entre si —
+  que é exatamente a falha que o teste deveria pegar.
 - **Interop testada nas duas direções**: Go→TS e TS→Go. Alternativa descartada:
   testar só uma direção, porque assimetrias de serialização de campo opcional e
   default aparecem apenas no sentido não testado.
@@ -140,8 +156,10 @@ Arquivo de fixture como **fonte única**, consumido pelas duas stacks:
 ### Critérios de aceite
 
 - [ ] **[P0] Estratégia de testes promovida para `docs/dmpf/testes-interop.md` e aprovada em PR**
-- [ ] **[P0] Conjunto inicial de golden fixtures especificado (formato, ownership e pipeline)**
-- [ ] **[P0] Cenários AC-10 cobertos no catálogo**
+      — o artefato está escrito e em `draft normativo`; este critério fecha no **aceite do PR**, não antes
+- [x] **[P0] Conjunto inicial de golden fixtures especificado (formato de arquivo, oráculo executável, pipeline e diagnóstico; ownership conforme FND-05 §8.4)**
+- [x] **[P0] Os seis cenários do AC-10 cobertos no catálogo, com proveniência citada** (o backpressure fechou com a publicação de FND-08)
+- [x] **[P0] Verificações herdadas de FND-07 instanciadas** (isolamento por tenant, ciclo de vida do contexto, cifra em repouso e teto de retenção)
 
 ### Cenários de teste (mínimo 3)
 
@@ -170,6 +188,20 @@ ENTÃO é sinalizado como violação do limite de FND-02, e o teste é reclassif
 - [P0] Semântica oficial at-least-once com efeitos idempotentes — NUNCA prometer exactly-once E2E
 - [P0] Kernels Go/TS, adapters e providers de produção ficam FORA deste épico (só fundação normativa)
 </critical_constraints>
+
+## Reconciliações aplicadas
+
+Quatro afirmações desta spec não sobreviveram ao confronto com o acervo mergeado
+e foram corrigidas na mesma branch da entrega, cada uma citando o artefato irmão
+que a força. O registro completo, com a afirmação original e o desfecho, está na
+§3 de [`docs/dmpf/testes-interop.md`](../dmpf/testes-interop.md).
+
+| # | O que mudou | Forçada por |
+|---|-------------|-------------|
+| 1 | Critério do round-trip: de «mesmo byte» como propriedade geral para os três oráculos, cada um no seu escopo | FND-05 §8.3, `INT-05` |
+| 2 | Ownership da fixture: do arquivo, do oráculo executável, do pipeline e do diagnóstico — não do conteúdo | FND-05 §8.4 |
+| 3 | Proveniência por cenário; «duplicata concorrente»; backpressure inicialmente bloqueado, fechado com a publicação de FND-08 | FND-04 §7.3, §5.3; FND-08 §3.2/§3.4/§3.5 |
+| 4 | Escopo passa a carregar as verificações herdadas de FND-07 | FND-07 §4.4, §11.2 |
 
 ## Escopo fora
 
