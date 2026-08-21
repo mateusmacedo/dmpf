@@ -2,7 +2,7 @@
 id: SPEC-VVR1X71Q
 slug: dmpf-governanca-bom-pilotos
 title: DMPF — Governança, BOM, pilotos e backlog das próximas fases
-stage: backlog
+stage: done
 priority: P0
 depends_on: [SPEC-K9H204F1]
 ticket_url: https://lider-cap.atlassian.net/browse/ARQ-447
@@ -21,6 +21,13 @@ Entregar o item lógico **FND-10** do épico ARQ-436
 - **Umbrella**: [SPEC-QG2N8STY](./SPEC-QG2N8STY-dmpf-foundation.md)
 - **Issue**: [ARQ-447](https://lider-cap.atlassian.net/browse/ARQ-447)
 - **ACs do épico**: AC-11, AC-12
+- **Âncoras da RFC**: **ANC-09** (governança, BOM e pilotos) e **ANC-08** (processo
+  de autorização da classificação). Esta spec opera sob **duas** âncoras — é a única
+  do épico nessa condição. A ANC-08 foi acrescentada na reconciliação: o registro de
+  RFC §12.3 a atribui nominalmente a FND-10, e ela é a única das dez com **impacto
+  de versão «Menor»** e **ADR exigido: Sim**. Omiti-la deixaria a âncora sem dona
+  ativa e perpetuaria o «mecanismo mínimo» provisório de RFC §10.2, mantendo o risco
+  R1 (reclassificação oportunista) apenas parcialmente mitigado.
 - **Evidência §11**: Política de produto, template BOM, charter dos pilotos e épicos dependentes prontos
 
 <constraints>
@@ -35,7 +42,24 @@ Entregar o item lógico **FND-10** do épico ARQ-436
 ### Funcionais
 
 - [ ] **[P0] Governança**: SemVer, RFCs, release train, depreciação, suporte
+- [ ] **[P0] Matriz de compatibilidade por sujeito versionado**: produto, kernel,
+      contrato, runtime e ferramenta de geração, cada um com direção da
+      compatibilidade, piso, classe de criticidade e autoridade. Acrescentado na
+      reconciliação: o Jira cobra «política de compatibilidade entre minors» e
+      «janela de suporte por major», e a base conceitual (`Parte-1 §17.3`) só oferece
+      «pelo menos N e N−1 conforme criticidade», sem nomear sujeito, direção nem
+      autoridade — o que é indecidível como escrito, e o FND-05 já usa `N−1` com
+      outro sujeito
 - [ ] **[P0] BOM template**: runtimes, generators, drivers, SDKs, CVEs, combinações certificadas
+- [ ] **[P0] Processo de autorização da classificação (ANC-08)**: autoridade, rito e
+      artefato de evidência que satisfaçam T4–T6 de RFC §10.2. Acrescentado na
+      reconciliação, pelo mesmo motivo do Contexto
+- [ ] **[P0] ADR acionado para governança, BOM, compatibilidade e depreciação**:
+      corresponde ao assunto da linha `ADR-015` da tabela §8 do épico, cobrado como
+      entregável 5 e item de DoD da ARQ-447, e ausente desta spec antes da
+      reconciliação. Acionado como **provisório, sem número definitivo** — RFC §13.2
+      trata citar número antes da promoção como erro de rastreabilidade; a redação e
+      a numeração são de FND-11 (ARQ-448)
 - [ ] **[P0] Escape hatches**: exigem ADR, owner, justificativa e plano de convergência
 - [ ] **[P0] Dois pilotos** reais com owners e métricas de sucesso
 - [ ] **[P0] Épicos subsequentes** (kernel Go/TS, contratos, golden path, piloto) criados/vinculados e Ready
@@ -44,7 +68,15 @@ Entregar o item lógico **FND-10** do épico ARQ-436
 ### Não-funcionais
 
 - [ ] **[P0] Escape hatch rastreável**: toda exceção concedida tem ADR, owner nomeado e prazo de convergência — exceção sem prazo é negada
-- [ ] **[P0] Piloto mensurável**: cada piloto declara métrica de sucesso com valor de partida e alvo, não apenas intenção
+- [ ] **[P0] Piloto mensurável**: cada piloto declara métrica de sucesso com estado
+      de partida, instrumento, owner e prazo de coleta. **Reconciliado**: a redação
+      anterior exigia «valor de partida e alvo», e o inventário AS-IS (FND-01 §4.2)
+      registra as lacunas como `não medido` / `não existe` — `não medido` é estado da
+      coleta, não valor da métrica. O artefato separa `baseline_status` de
+      `baseline_value` e mantém o gate de baseline **aberto** enquanto o valor
+      estiver ausente, em vez de o satisfazer com um estado. O DoD do épico item 9
+      admite métrica «registrada **ou** com plano de coleta»; este requisito e aquele
+      são declarados separadamente, e nenhum é apresentado como o outro
 - [ ] **[P0] Combinação certificada verificável**: o BOM declara versões testadas em conjunto, não faixas abertas
 - [ ] **[P1] Cadência previsível**: o release train tem periodicidade declarada e política de depreciação com janela mínima
 
@@ -167,4 +199,11 @@ ENTÃO o caso é tratado como fora do suporte, e a convergência para uma
 - **Portal do desenvolvedor e generators**: pertencem aos épicos de tooling.
 - **Preenchimento do BOM com versões reais**: aqui o template e a política; a
   primeira instância acompanha o kernel.
-- **Migração dos serviços existentes**: pós-fundação.
+- **Execução da migração dos serviços existentes**: pós-fundação.
+  **Reconciliado**: o FND-06 §15 delega a FND-10 «cronograma, faseamento e ordem de
+  migração», e o FND-08 delega o «cronograma e faseamento da adoção da baseline» —
+  o que parecia contradizer este item. A distinção é entre **planejamento da adoção**
+  (critérios de decisão por canal, pré-condições, ordem das fases, rito de corte e
+  rollback), que está no escopo e é entregue no artefato, e a **execução da
+  migração**, que segue fora. Datas de calendário e alocação de equipe também ficam
+  fora: pertencem aos épicos de kernel e ao épico 5 de ARQ-436 §20.
