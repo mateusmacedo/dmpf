@@ -19,6 +19,7 @@ ocorre no PR (reviewers de Plataforma/Arquitetura). Specs permanecem em
 | [cloudevents-protobuf-buf.md](./cloudevents-protobuf-buf.md) | **promovido para revisão** (adição à RFC pela âncora ANC-03, sem editá-la) | [SPEC-7H08RZDG](../specs/SPEC-7H08RZDG-dmpf-cloudevents-protobuf-buf.md) / [ARQ-442](https://lider-cap.atlassian.net/browse/ARQ-442) |
 | [politicas-transporte.md](./politicas-transporte.md) | **promovido para revisão** (adição à RFC pela âncora ANC-04, sem editá-la) | [SPEC-YWFGNPG5](../specs/SPEC-YWFGNPG5-dmpf-politicas-transporte.md) / [ARQ-443](https://lider-cap.atlassian.net/browse/ARQ-443) |
 | [contexto-erros-seguranca.md](./contexto-erros-seguranca.md) | **promovido para revisão** (adição à RFC pela âncora ANC-05, sem editá-la) | [SPEC-XQWGGAXF](../specs/SPEC-XQWGGAXF-dmpf-contexto-erros-seguranca.md) / [ARQ-444](https://lider-cap.atlassian.net/browse/ARQ-444) |
+| [resiliencia-observabilidade.md](./resiliencia-observabilidade.md) | **promovido para revisão** (adição à RFC pela âncora ANC-06, sem editá-la) | [SPEC-E15TBHCD](../specs/SPEC-E15TBHCD-dmpf-resiliencia-observabilidade.md) / [ARQ-445](https://lider-cap.atlassian.net/browse/ARQ-445) |
 
 A RFC obriga: as regras nela escritas valem para todo trabalho novo do DMPF.
 
@@ -279,6 +280,78 @@ acionável; a forma de persistir os três atributos obrigatórios sem coluna no 
 da outbox, que este artefato resolveu pelo lado do conteúdo e permanece aberta pelo
 lado do schema; e a sugestão de consolidar numa única passagem as quatro pendências
 já acumuladas sobre a tabela de RFC §14.4.
+
+### Sobre `resiliencia-observabilidade.md`
+
+Adiciona à RFC pela âncora ANC-06 (RFC §12.3), sob as mesmas regras de
+monotonicidade M1–M4. Duas assimetrias em relação aos precedentes condicionam o
+artefato.
+
+A primeira é de **volume**: são **30 obrigações herdadas**, o maior conjunto da
+cadeia — o FND-07 recebeu 24. Não é acidente. Toda vez que um precedente fixou um
+mecanismo, ele precisou declarar que o mecanismo é observável e parou antes de
+nomear a métrica, e essa parada tem um só destinatário. O critério que decide a
+fronteira foi enunciado pelo FND-04 e é citado literalmente em §2.1: «capacidade é
+deste artefato; catálogo é de FND-08».
+
+A segunda é de **recorte**: a ANC-06 registra um assunto («resiliência e
+observabilidade») mais amplo que o escopo permitido («baselines de telemetria,
+políticas de retry e degradação»). Por M4, o excedente sai `encaminhado` com dona
+nomeada — `RES-02` fixa a regra e §1.4 é a lista. É por isso que SLO por serviço,
+dashboards, alertas em produção e modelagem de cache **não** estão aqui, embora
+sejam o que um leitor esperaria encontrar.
+
+Três entregas merecem leitura atenta na revisão:
+
+- **A matriz de obrigações fecha sem nenhuma pendente.** É a primeira vez na
+  cadeia: as 30 saem `quitada`, nenhuma `encaminhada` nem `condicionada` (§2.2). A
+  razão é estrutural — obrigação de catálogo não depende de decisão de terceiro
+  para existir. As duas que estiveram perto de ficar condicionadas vinham do
+  FND-06 e se resolveram quando a ARQ-443 entrou em `develop`.
+- **A autorização de retry é uma conjunção, não uma consequência.** `RES-27` exige
+  quatro fatores simultâneos — erro retentável, operação idempotente ou efeito
+  conhecidamente ausente, orçamento **suficiente para a tentativa e o seu backoff**,
+  e prazo remanescente —, verificados **por tentativa**. O orçamento entra no mínimo
+  que `RES-06` calcula, de modo que nenhuma tentativa isolada o exceda. É a leitura direta de `ERR-12` do FND-07, que declara que a
+  retryability «não autoriza, ordena nem dimensiona a repetição», e o orçamento de
+  `RES-30` é por execução justamente para impedir o efeito multiplicativo entre
+  dependências.
+- **O limiar do catálogo é condicional.** `MET-05` fixa valor de limiar apenas
+  onde ele é derivado de invariante já normatizada; nos demais casos declara owner
+  e parâmetro local. `MET-05a` separa disso a condição de **forma** — a persistência
+  de uma tendência ao longo de janelas —, que é critério de detecção com parâmetro
+  local, não limiar de valor. Exigir valor universal produziria número inventado e
+  invadiria o SLO por serviço, que o escopo da spec exclui; não fixar nenhum
+  esvaziaria a obrigação de limiares recebida do FND-04.
+
+O artefato aciona **um** ADR, sem redigir nem aceitar: `ADR-DMPF-Q` (baseline de
+resiliência e observabilidade, com OpenTelemetry como convenção). O identificador
+continua a série que o FND-06 deixou em `ADR-DMPF-P` e é provisório — a numeração
+definitiva é do FND-11. §12.2 registra por que o campo «ADR exigido: não» da
+âncora **não** dispensa o acionamento: ele diz que o ADR não é requisito de
+validade da adição, e a tabela de cadência de `SPEC-DBTRMM3X` atribui o grupo
+«resiliência, observabilidade» a esta sub-spec. §12.4 testa cada decisão
+substantiva contra o gatilho de invariante e nenhuma o satisfaz, o que confirma a
+adição dentro do escopo, sem incremento de versão.
+
+As 118 regras `normativo` têm **ID estável** em cinco prefixos (`RES`, `TRC`,
+`MET`, `LOG`, `RUN`), indexadas em §13.1. Nenhuma tem `domain` ou `port` como
+sujeito — o que é a verificação direta da invariante da âncora, e a razão pela
+qual `RES-01` abre o artefato em vez de aparecer como observação.
+
+§9 faz a rastreabilidade **1:1** que a story exige: os 12 failure modes do FND-04
+com o sinal que os torna observáveis. Onze têm gauge ou contador; o failure mode 1
+— a UoW que não commita — é o único cujo pendente não é materializado em lugar
+nenhum, e por isso o sinal ali é a categoria do erro devolvido. Declará-lo
+observável por gauge exigiria inventar estado durável que o mecanismo de FND-04
+não tem.
+
+Quatro pendências ficam registradas no próprio artefato (§13.4). Duas são **gates
+externos** que a entrega não pode satisfazer por si e que impedem o fechamento da
+ARQ-445: a validação do runbook por SRE, ainda **sem owner nomeado** — mesmo
+tratamento que o FND-07 deu ao gate de Segurança em `THR-03` —, e o aceite de
+`ADR-DMPF-Q` pelo FND-11. A terceira é a atualização de RFC §14.4, agora a quarta
+da série a acumular.
 
 ## Evidências do inventário
 
