@@ -1,6 +1,6 @@
 {
   "base": "f46ced2",
-  "count": 123,
+  "count": 120,
   "references": [
     {
       "source": "cloudevents-protobuf-buf.md",
@@ -1247,28 +1247,6 @@
     },
     {
       "source": "resiliencia-observabilidade.md",
-      "sourceLine": 1823,
-      "raw": "SPEC-DBTRMM3X-dmpf-adrs-minimos.md:93-101",
-      "form": "completa",
-      "target": "SPEC-DBTRMM3X-dmpf-adrs-minimos.md",
-      "resolved": "docs/specs/SPEC-DBTRMM3X-dmpf-adrs-minimos.md",
-      "from": 93,
-      "to": 101,
-      "excerpt": "| Grupo | Acionado por |"
-    },
-    {
-      "source": "resiliencia-observabilidade.md",
-      "sourceLine": 1841,
-      "raw": "SPEC-DBTRMM3X:93-101",
-      "form": "abreviada",
-      "target": "SPEC-DBTRMM3X",
-      "resolved": "docs/specs/SPEC-DBTRMM3X-dmpf-adrs-minimos.md",
-      "from": 93,
-      "to": 101,
-      "excerpt": "| Grupo | Acionado por |"
-    },
-    {
-      "source": "resiliencia-observabilidade.md",
       "sourceLine": 1846,
       "raw": "docs/adr/README.md:7-15",
       "form": "completa",
@@ -1288,17 +1266,6 @@
       "from": 1756,
       "to": 1756,
       "excerpt": "### §10.4 A divergência com a story, como pendência nomeada"
-    },
-    {
-      "source": "resiliencia-observabilidade.md",
-      "sourceLine": 1862,
-      "raw": "SPEC-DBTRMM3X:93-101",
-      "form": "abreviada",
-      "target": "SPEC-DBTRMM3X",
-      "resolved": "docs/specs/SPEC-DBTRMM3X-dmpf-adrs-minimos.md",
-      "from": 93,
-      "to": 101,
-      "excerpt": "| Grupo | Acionado por |"
     },
     {
       "source": "resiliencia-observabilidade.md",

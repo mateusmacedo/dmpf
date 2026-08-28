@@ -1819,8 +1819,8 @@ aceite.
 
 `recepcionado` — A tabela de cadência de
 [SPEC-DBTRMM3X](../specs/SPEC-DBTRMM3X-dmpf-adrs-minimos.md) atribui o grupo
-«resiliência, observabilidade» a **FND-08**
-(`SPEC-DBTRMM3X-dmpf-adrs-minimos.md:93-101`). O acionamento é, portanto, desta
+«resiliência, observabilidade» a **FND-08**, na seção
+«Cadência de emissão». O acionamento é, portanto, desta
 sub-spec; a redação não é.
 
 `normativo` — **Nenhum ADR é redigido, promovido ou aceito aqui.** O registro de
@@ -1838,10 +1838,10 @@ A primeira é de leitura do campo. Ele diz que o ADR **não é requisito de vali
 da adição por âncora**: sem ele, esta sub-spec ainda é uma adição válida, e não há
 incremento de versão da RFC. Não diz que a sub-spec não aciona.
 
-A segunda é a atribuição expressa de `SPEC-DBTRMM3X:93-101`, que nomeia FND-08
-como acionador do grupo desta âncora. Onde a lista da RFC §13.3 e a tabela de
-cadência divergem, a divergência é de abrangência — a primeira enumera o que era
-conhecido quando foi escrita — e não de sentido.
+A segunda é a atribuição expressa de `SPEC-DBTRMM3X`, em «Cadência de
+emissão», que nomeia FND-08 como acionador do grupo desta âncora. Onde a lista
+da RFC §13.3 e a tabela de cadência divergem, a divergência é de abrangência —
+a primeira enumera o que era conhecido quando foi escrita — e não de sentido.
 
 A terceira é o critério local de abertura de ADR (`docs/adr/README.md:7-15`):
 padrão arquitetural que afeta múltiplos módulos, e alternativas descartadas que
@@ -1859,7 +1859,7 @@ e nomeando.
 
 | ID provisório | Nome | Assunto | Origem | Destino | Owner | Estado |
 |---------------|------|---------|--------|---------|-------|--------|
-| `ADR-DMPF-Q` | Baseline de resiliência e observabilidade, com OpenTelemetry como convenção | Adotar OpenTelemetry como convenção de tracing, métricas e correlação, com a versão das *semantic conventions* fixada no BOM; fixar a autorização de retry como conjunção verificada por tentativa, com orçamento por execução; adotar limiar condicional no catálogo de métricas, fixando valor apenas onde derivado de invariante; e separar auditoria de observabilidade em canais próprios | §3, §4, §5, §6, §7; exigido pela tabela de cadência de `SPEC-DBTRMM3X:93-101` e pelo critério de `docs/adr/README.md:7-15` | ARQ-448 | FND-11 | `acionado` |
+| `ADR-DMPF-Q` | Baseline de resiliência e observabilidade, com OpenTelemetry como convenção | Adotar OpenTelemetry como convenção de tracing, métricas e correlação, com a versão das *semantic conventions* fixada no BOM; fixar a autorização de retry como conjunção verificada por tentativa, com orçamento por execução; adotar limiar condicional no catálogo de métricas, fixando valor apenas onde derivado de invariante; e separar auditoria de observabilidade em canais próprios | §3, §4, §5, §6, §7; exigido pela tabela de cadência de `SPEC-DBTRMM3X` e pelo critério de `docs/adr/README.md:7-15` | ARQ-448 | FND-11 | `acionado` |
 
 `normativo` — O identificador `ADR-DMPF-Q` é **provisório**, pela regra de RFC
 §13.2: «a numeração definitiva na faixa `docs/adr/010`–`024` é atribuída pelo
