@@ -251,7 +251,7 @@ Ao escrever textos visíveis (labels, placeholders, mensagens), use a ortografia
 Antes de implementar algo novo:
 
 1. Identificar a categoria da tarefa.
-2. Ler as skills relacionadas em `.claude/skills/` (domínio) e `.agents/skills/` (Nx/workspace).
+2. Ler as skills relacionadas em `.claude/skills/` (domínio), `.claude/agents` e `.agents/skills/` (Nx/workspace).
 3. Verificar documentação interna em `docs/` e ADRs.
 4. Buscar implementações similares no próprio código.
 
@@ -367,6 +367,5 @@ Antes de criar algo novo, considere:
 - USE for: advanced config options, unfamiliar flags, migration guides, plugin configuration, edge cases
 - DON'T USE for: basic generator syntax (`nx g @nx/react:app`), standard commands, things you already know
 - The `nx-generate` skill handles generator discovery internally - don't call nx_docs just to look up generator syntax
-
 
 <!-- nx configuration end-->

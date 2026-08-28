@@ -29,7 +29,7 @@ O workflow `Release` versiona as libs compartilhadas corretamente, mas não cons
   - `docs/adr/004-workflows-verdaccio-release.md` — separação entre versionamento e publicação no Verdaccio
   - `docs/adr/005-plataforma-gitea.md` — decisão de plataforma e suas implicações
   - `AGENTS.md` — seção "Git e release" (branches protegidas, fluxo git-flow)
-  - `plans/references/ANALISE-RELEASE-4803.md` — relatório técnico da investigação (não versionado; `plans/` está no `.gitignore`)
+  - `ANALISE-RELEASE-4803.md` — relatório técnico da investigação; rascunho local, fora do versionamento
 - **Referências externas**:
   - Run que falhou: https://gitea.lidercap.com.br/lidercap-apps/nx-base-template/actions/runs/4803
   - Ticket de trabalho: https://lider-cap.atlassian.net/browse/ARQ-462

@@ -65,8 +65,8 @@ artefato descreve ou normatiza, não módulos de código a alterar.
 
 | Fase | Caminho |
 |------|---------|
-| Fontes | `plans/references/Parte-1-conceitual.md` §§8,10; docx Kafka Schema Registry |
-| Draft de trabalho | `plans/references/` — local, fora do versionamento |
+| Fontes | `Parte-1 §§8,10`, na convenção que a RFC fixa em §1.3; a referência versionada é `docs/dmpf/rfc-dmpf-foundation-v0.1.md`; docx Kafka Schema Registry — rascunho local, fora do versionamento |
+| Draft de trabalho | área local — fora do versionamento, não citável como fonte |
 | Promoção (ao ser aprovada) | `docs/dmpf/politicas-transporte.md` — versionado e revisável por PR |
 
 ## Design

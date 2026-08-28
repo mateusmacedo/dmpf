@@ -33,7 +33,7 @@ consistente e completa.
 - **Inspiração**: monorepo `jusdocs` (`/home/mateus/work/jusdocs/repositories/jusdocs`),
   fonte de dados declarada no doc de origem.
 - **Links relevantes**:
-  - `plans/references/nx-base-template-improves.md` — doc de origem (11 melhorias)
+  - `nx-base-template-improves.md` — doc de origem (11 melhorias); rascunho local, fora do versionamento e não citável como fonte
   - `docs/adr/001-baseline-monorepo.md` — baseline do monorepo
   - `docs/adr/002-nx-task-configuration.md` — config de tasks e cache
   - `docs/nx-reference/tasks.md` — referência de tasks

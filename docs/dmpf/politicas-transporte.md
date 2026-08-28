@@ -174,9 +174,9 @@ RFC; até que ela seja alterada pelo rito de §14.2, a Parte-1 continua valendo 
 lá está declarado, e onde as duas divergirem prevalece o que este artefato normatiza
 dentro da ANC-04, por autorização da própria âncora.
 
-`registro` — Este artefato propõe a sucessão das subseções abaixo da base conceitual
-(`plans/references/Parte-1-conceitual.md`, documento de trabalho não versionado).
-<!-- ephemeral-ref-ok: a base conceitual é a fonte que este artefato sucede; nomear a origem é requisito de rastreabilidade da sucessão -->
+`registro` — Este artefato propõe a sucessão das subseções abaixo da base
+conceitual — a Parte-1, cuja referência estável é `rfc-dmpf-foundation-v0.1.md`.
+A RFC a recepciona em §1.3, fixa ali `Parte-1 §N` e enumera em §1.4 o já substituído.
 Onde a coluna diz `consolidado`, o conteúdo daqui prevalece; onde diz `vigente`, a
 Parte-1 segue valendo e este artefato não a substituiu.
 

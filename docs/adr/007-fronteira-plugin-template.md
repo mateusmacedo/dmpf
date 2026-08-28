@@ -68,7 +68,7 @@ Três skills existem dos dois lados; a tabela define quem vale em cada caso:
 
 ### `plans/` permanece fora do versionamento
 
-`plans/` continua inteiro no `.gitignore` (linha 51). Os planos são artefatos
+`plans/` continua inteiro no `.gitignore` (linha 81). Os planos são artefatos
 locais e não versionados. A decisão apoia-se em dois pontos: coerência com a rule
 `ephemeral-refs` que o template passa a documentar — artefato efêmero não entra
 no histórico durável — e custo de migração zero, já que esse é o estado atual do

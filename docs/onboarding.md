@@ -184,7 +184,7 @@ placeholder, para você preencher com a infraestrutura do seu projeto:
 
 ## Planos e checkpoints locais
 
-O diretório `plans` está listado no `.gitignore` (linha 51). Planos e
+O diretório `plans` está listado no `.gitignore` (linha 81). Planos e
 checkpoints são artefatos **locais e não versionados**: descrevem trabalho em
 andamento e não seguem no clone do repositório.
 
