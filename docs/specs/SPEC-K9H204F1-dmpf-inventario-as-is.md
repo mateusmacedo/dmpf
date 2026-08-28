@@ -69,7 +69,7 @@ demais sub-specs.
 | Item | Caminho |
 |------|---------|
 | Asset de execução | [`SPEC-K9H204F1/prompt-inventario-repositorio.md`](./SPEC-K9H204F1/prompt-inventario-repositorio.md) — prompt que o agente executa em cada repositório para produzir o relatório de inventário |
-| Draft de trabalho | `plans/references/inventario-as-is.md` — local, fora do versionamento (`plans/` está no `.gitignore`) |
+| Draft de trabalho | rascunho local homônimo — fora do versionamento, não citável como fonte |
 | Promoção (ao ser aprovado) | `docs/dmpf/inventario-as-is.md` — versionado e revisável por PR |
 
 ## Design
@@ -93,14 +93,13 @@ O inventário é um documento único, com cinco blocos numerados e estáveis:
 
 ## Decisões técnicas
 
-- **Draft local, promoção ao ser aprovado**: o inventário nasce em
-  `plans/references/inventario-as-is.md`, que é área local e **não versionada**
-  (`plans/` está no `.gitignore`), e é promovido para `docs/dmpf/` quando
-  aprovado. FND-02…11 citam seções numeradas dele, então a referência estável
-  passa a existir a partir da promoção — é o artefato promovido que serve de
-  baseline, não o draft. Alternativa descartada: manter o baseline apenas em
-  `plans/`, porque um artefato não versionado não pode ser revisado por PR nem
-  citado de forma estável pelas dependentes.
+- **Draft local, promoção ao ser aprovado**: o inventário nasce em um rascunho
+  local homônimo, em área **não versionada**, e é promovido para `docs/dmpf/`
+  quando aprovado. FND-02…11 citam seções numeradas dele, então a referência
+  estável passa a existir a partir da promoção — é o artefato promovido que
+  serve de baseline, não o draft. Alternativa descartada: manter o baseline
+  apenas em área local, porque um artefato não versionado não pode ser revisado
+  por PR nem citado de forma estável pelas dependentes.
 - **Ausência é dado**: lacunas entram como item explícito com owner. Alternativa
   descartada: omitir o não medido, porque produziria um baseline otimista e
   calibraria mal os pilotos de FND-10.

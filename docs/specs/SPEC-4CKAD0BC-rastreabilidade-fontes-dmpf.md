@@ -2,7 +2,7 @@
 id: SPEC-4CKAD0BC
 slug: rastreabilidade-fontes-dmpf
 title: DMPF — Substituir caminhos efêmeros por âncora versionada nas fontes
-stage: backlog
+stage: done
 priority: P2
 depends_on: [SPEC-4W1BQK93]
 ticket_url: https://lider-cap.atlassian.net/browse/ARQ-490
@@ -14,7 +14,7 @@ created: 2026-08-21
 ## Resumo
 
 Trinta e nove referências espalhadas por dezenove arquivos de `docs/` apontam
-para caminhos sob `plans/`, que está inteiro no `.gitignore` (linha 51). Onde a
+para caminhos sob `plans/`, que está inteiro no `.gitignore` (linha 81). Onde a
 referência é decorativa isso é inofensivo; onde ela declara a **fonte** de um
 conteúdo normativo, produz rastreabilidade aparente — o leitor não consegue abrir
 aquilo de que o texto diz derivar, e quem clona o repositório nunca terá o

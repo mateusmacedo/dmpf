@@ -70,8 +70,8 @@ artefato descreve ou normatiza, não módulos de código a alterar.
 
 | Fase | Caminho |
 |------|---------|
-| Fontes | `plans/references/Parte-1-conceitual.md` (baixado do Jira) |
-| Draft de trabalho | `plans/references/rfc-dmpf-foundation-v0.1.md` — local, fora do versionamento |
+| Fontes | `Parte-1` (obtida do Jira), na convenção que a RFC fixa em §1.3; a referência versionada é `docs/dmpf/rfc-dmpf-foundation-v0.1.md` |
+| Draft de trabalho | rascunho local da RFC — fora do versionamento; promovido para `docs/dmpf/` |
 | Promoção (ao ser aprovada) | `docs/dmpf/rfc-dmpf-foundation-v0.1.md` — repositório canônico, revisável por PR |
 
 ## Design
@@ -129,7 +129,7 @@ arestas P0 proibidas — `domain → provider`, `domain → contract`,
   do aceite dos ADRs — condicionar o avanço ao aceite converteria FND-11 em
   gargalo de nove histórias.
 - **Promoção como gatilho de canonicidade**: a RFC só é "publicada" quando sai
-  de `plans/` (local, ignorado pelo git) para `docs/dmpf/`. Alternativa
+  de área local, ignorada pelo git, para `docs/dmpf/`. Alternativa
   descartada: tratar o draft local como publicação, porque as sub-specs
   dependentes citam seções da RFC e precisam de um alvo versionado.
 

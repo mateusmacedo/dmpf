@@ -66,8 +66,8 @@ artefato descreve ou normatiza, não módulos de código a alterar.
 
 | Fase | Caminho |
 |------|---------|
-| Fontes | `plans/references/Parte-1-conceitual.md` |
-| Draft de trabalho | `plans/references/` (fixtures a definir) — local, fora do versionamento |
+| Fontes | `Parte-1`, na convenção que a RFC fixa em §1.3; a referência versionada é `docs/dmpf/rfc-dmpf-foundation-v0.1.md` |
+| Draft de trabalho | área local (fixtures a definir) — fora do versionamento, não citável como fonte |
 | Promoção (ao ser aprovada) | `docs/dmpf/testes-interop.md` — versionado e revisável por PR |
 
 As **golden fixtures** em si não são documentação: ao saírem de draft, vivem no

@@ -288,4 +288,4 @@ Justificativa: repositório de libs, sem topologia de produção nem métricas E
 
 ---
 
-*Gerado para SPEC-K9H204F1 / ARQ-438. Sem TO-BE. Artefato de trabalho em `plans/references/` (fora do versionamento do inventário consolidado).*
+*Gerado para SPEC-K9H204F1 / ARQ-438. Sem TO-BE. Artefato de trabalho em área local (fora do versionamento do inventário consolidado).*

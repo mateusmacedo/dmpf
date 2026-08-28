@@ -99,7 +99,7 @@ artefato descreve ou normatiza, não módulos de código a alterar.
 | Fase | Caminho |
 |------|---------|
 | Fontes | epic ARQ-436 §§11,20 |
-| Draft de trabalho | `plans/references/` (charter e BOM) — local, fora do versionamento |
+| Draft de trabalho | área local (charter e BOM) — fora do versionamento, não citável como fonte |
 | Promoção (ao ser aprovado) | `docs/dmpf/governanca-bom-pilotos.md` — versionado e revisável por PR |
 
 ## Design

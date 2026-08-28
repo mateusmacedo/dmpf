@@ -27,8 +27,9 @@ implementar kernels, adapters ou providers de produção.
   de cada bounded context; kernels futuros assentam sobre limites estáveis.
 - **Épico**: [ARQ-436](https://lider-cap.atlassian.net/browse/ARQ-436) — Em Desenvolvimento; escopo = fundação
   normativa (RFC/ADRs), sem kernels Go/TS.
-- **Fontes**: `plans/references/Parte-1-conceitual.md` e anexos em
-  `plans/references/` (índice no README).
+- **Fontes**: `Parte-1`, na convenção que a RFC fixa em §1.3 — a referência
+  versionada é `docs/dmpf/rfc-dmpf-foundation-v0.1.md`; os anexos ficam em
+  área local, fora do versionamento (índice no README).
 
 <constraints>
 - [P0] Domínio sem I/O: domínio NÃO importa Protobuf, ORM, broker, SDK cloud, HTTP, logger ou framework
@@ -87,10 +88,10 @@ camada.
 Fundação documental — **sem** código de kernel neste épico:
 
 - SPECs: `docs/specs/SPEC-QG2N8STY-dmpf-foundation.md` + 11 sub-specs
-- Drafts (local, não versionado): `plans/references/` (ver README)
+- Drafts: área local, fora do versionamento (ver README)
 - Promoção — artefatos normativos: `docs/dmpf/`
 - Promoção — ADRs: `docs/adr/010-*.md` … `docs/adr/024-*.md`, indexados em `docs/adr/README.md`
-- Pipeline: `plans/dmpf-foundation/.state/pipeline.md`
+- Pipeline: estado local do pipeline, fora do versionamento
 
 ## Design
 
@@ -117,10 +118,10 @@ FND-04+FND-05 → FND-09; FND-01 → FND-10 (fecha após demais); FND-02 → FND
 
 ## Decisões técnicas
 
-- Artefatos de trabalho nascem em `plans/references/` (flat) — área local,
-  **fora do versionamento** (`plans/` está no `.gitignore`). Ao serem aprovados,
-  promovem para área versionada: artefatos normativos para `docs/dmpf/`, ADRs
-  para `docs/adr/` na faixa `010`–`024`, em sequência contínua aos `001`–`009`
+- Artefatos de trabalho nascem em área local (flat), **fora do versionamento**.
+  Ao serem aprovados, promovem para área versionada: artefatos normativos para
+  `docs/dmpf/`, ADRs para `docs/adr/` na faixa `010`–`024`, em sequência
+  contínua aos `001`–`009`
   do template. A revisão formal acontece sobre o artefato promovido, via PR.
 - Paridade conceitual Go/TS; APIs idiomáticas distintas.
 - REST externo; gRPC/Protobuf síncrono interno; Kafka/SNS/SQS com Protobuf.

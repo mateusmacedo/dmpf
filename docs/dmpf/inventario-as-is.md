@@ -3,7 +3,7 @@
 
 > **Status:** promovido para revisão (**baseline candidato** — aprovação
 > Plataforma/Arquitetura em PR ainda pendente)
-> **Draft de origem:** `plans/references/inventario-as-is.md` (local)
+> **Draft de origem:** rascunho local homônimo, fora do versionamento — não citável como fonte
 > **Spec:** [SPEC-K9H204F1](../specs/SPEC-K9H204F1-dmpf-inventario-as-is.md) /
 > [ARQ-438](https://lider-cap.atlassian.net/browse/ARQ-438)
 > **Data da consolidação:** 2026-08-14

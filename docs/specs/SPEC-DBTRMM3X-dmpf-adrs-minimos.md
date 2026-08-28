@@ -68,7 +68,7 @@ sub-specs.
 
 | Fase | Caminho |
 |------|---------|
-| Draft de trabalho | `plans/references/` (flat) — local, fora do versionamento |
+| Draft de trabalho | área local (flat) — fora do versionamento, não citável como fonte |
 | Promoção (ao ser aceito) | `docs/adr/010-*.md` … `docs/adr/024-*.md` — versionado e revisável por PR |
 | Índice | `docs/adr/README.md` — recebe as 15 entradas na promoção |
 
@@ -102,7 +102,7 @@ define seu assunto; a redação, a promoção e o aceite são desta sub-spec (FN
 
 ### Numeração e promoção
 
-Os drafts ficam **flat** em `plans/references/` enquanto são escritos. Ao serem
+Os drafts ficam **flat** em área local enquanto são escritos. Ao serem
 aceitos, promovem para `docs/adr/` na faixa **`010`–`024`**, dando sequência
 contínua aos `001`–`009` já ocupados pelo template. Não há prefixo dedicado nem
 índice paralelo: os ADRs do DMPF e os do template convivem no mesmo diretório e

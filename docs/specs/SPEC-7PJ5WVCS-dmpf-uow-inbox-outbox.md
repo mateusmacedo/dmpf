@@ -115,13 +115,13 @@ artefato descreve ou normatiza, não módulos de código a alterar.
 
 | Fase | Caminho |
 |------|---------|
-| Fonte conceitual | `plans/references/Parte-1-conceitual.md` §§9–10 |
+| Fonte conceitual | `Parte-1 §§9–10`, na convenção que a RFC fixa em §1.3; a referência versionada é `docs/dmpf/rfc-dmpf-foundation-v0.1.md` |
 | Autorização e invariantes | `docs/dmpf/rfc-dmpf-foundation-v0.1.md` — §7.5 (blocos do outbox), §12.3 (ANC-02), §13.3 (ADR de relay encaminhado a FND-04), §14.4 (sucessão) |
 | Continuidade | `docs/dmpf/upr-decision-mensagens.md` (FND-03) — UPR, `Decision` e taxonomia que a UoW orquestra |
 | Obrigação delegada | `docs/dmpf/upr-decision-mensagens.md` §6.3 — «ficam com FND-04 [...] o bloco em que o mapeamento reside» |
 | Fronteiras a respeitar | `docs/specs/SPEC-E15TBHCD-dmpf-resiliencia-observabilidade.md` (FND-08, catálogo de métricas e runbook); `docs/specs/SPEC-7H08RZDG-dmpf-cloudevents-protobuf-buf.md` (FND-05, serialização e envelope) |
 | Artefatos auxiliares (C4) | [`SPEC-7PJ5WVCS/`](./SPEC-7PJ5WVCS/) — diagramas C4 Mermaid derivados (Context, Container, Component, Dynamic); se divergirem do texto, prevalece o texto |
-| Draft de trabalho | `plans/references/` — local, fora do versionamento |
+| Draft de trabalho | área local — fora do versionamento, não citável como fonte |
 | Promoção (ao ser aprovado) | `docs/dmpf/uow-inbox-outbox.md` — versionado e revisável por PR |
 
 ## Design
