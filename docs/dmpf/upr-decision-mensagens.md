@@ -1012,7 +1012,7 @@ comando produzindo eventos —, e o tipo de retorno é o desfecho de §3.
 | Taxonomia (§5) | Permanece. O evento gravado no fluxo é `Domain event`, não `Integration event` |
 | Três níveis de contrato (§6) | Permanecem. `CTR-02` e `CTR-03` valem sem alteração |
 
-`normativo` — `ESC-04`: a rejeição **não** se expressa como sequência vazia de
+`normativo` `ESC-04` — a rejeição **não** se expressa como sequência vazia de
 eventos. Por `DEC-06`, uma sequência vazia é um `Accepted` que nada mudou; a
 rejeição é a outra variante do desfecho e carrega a rejeição tipada de `DEC-09`.
 
@@ -1044,14 +1044,14 @@ camada de aplicação e da infraestrutura, e não é normatizada aqui; a parte
 transacional é de FND-04
 ([ARQ-441](https://lider-cap.atlassian.net/browse/ARQ-441)).
 
-`normativo` — `ESC-05`: a durabilidade do evento não o promove a contrato
+`normativo` `ESC-05` — a durabilidade do evento não o promove a contrato
 público. Um contexto que adota Event Sourcing não abre o próprio fluxo para
 leitura por outro contexto; a integração continua acontecendo pela conversão de
 §6.3, para `Integration event`. Ler o fluxo alheio é `CTR-03` violada na sua
 forma mais direta, porque acopla o consumidor ao modelo interno **e** à história
 dele.
 
-`normativo` — `ESC-06`: manter eventos antigos legíveis não converte o evento de
+`normativo` `ESC-06` — manter eventos antigos legíveis não converte o evento de
 domínio em tipo versionado no sentido de §6.4. O que §6.4 recusa é expor versão
 de tipo de domínio como contrato público — e adotar Event Sourcing não cria essa
 exposição.

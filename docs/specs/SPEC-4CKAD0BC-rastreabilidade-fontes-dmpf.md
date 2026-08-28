@@ -4,7 +4,7 @@ slug: rastreabilidade-fontes-dmpf
 title: DMPF — Substituir caminhos efêmeros por âncora versionada nas fontes
 stage: backlog
 priority: P2
-depends_on: []
+depends_on: [SPEC-4W1BQK93]
 ticket_url: https://lider-cap.atlassian.net/browse/ARQ-490
 subtask_urls: []
 created: 2026-08-21
@@ -193,6 +193,25 @@ classe C —, e inadequado onde a citação pretende ser fonte.
 - [ ] Nenhum marcador `ephemeral-ref-ok` sobra sem objeto
 - [ ] As citações novas a `rfc-dmpf-foundation-v0.1.md:N` resolvem para o
   conteúdo afirmado
+- [ ] **Integridade das referências físicas de terceiros** (obrigação herdada de
+  SPEC-4W1BQK93, RF5-C4): esta entrega altera `inventario-as-is.md:6` e
+  `politicas-transporte.md:178`, e os dois arquivos são alvo de referência física
+  a partir de linhas **posteriores** a essas. Sete grupos estão em risco de
+  deslocamento — no inventário, as linhas 77, 146 e 175-183, todas citadas pela
+  RFC; em políticas, as linhas 189, 269, 1186-1188 e **1757**, todas citadas por
+  `resiliencia-observabilidade.md`, esta última pelo shorthand `:1757` da linha
+  295. O PR satisfaz **uma** das duas condições abaixo, e declara qual:
+  - **(a) preservação**: a contagem de linhas dos dois arquivos não muda, e cada
+    um dos sete grupos é comparado com o preimage do commit base, linha a linha,
+    com zero divergências; ou
+  - **(b) atualização explícita**: todo lexema de origem afetado é atualizado
+    **antes** de o manifesto ser regenerado, com diff allowlisted e prova
+    antes/depois por referência. Regenerar `line-refs.json` sobre um alvo
+    deslocado devolveria C4 ao verde com a referência já tendo perdido o
+    significado — o manifesto abençoaria o defeito em vez de acusá-lo.
+
+  "Revisar os deltas" não satisfaz nenhuma das duas: não é condição decidível e
+  não produz evidência conferível no PR.
 
 ### Cenários de teste
 

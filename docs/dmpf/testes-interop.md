@@ -2157,17 +2157,17 @@ matriz de §3.
 
 ### §11.1 Os quatro modos de verificação
 
-`normativo`
 
-A calibração de que a cadeia se instancia **por regra, calibrada pelo modo** é a
-chave de leitura desta seção e da §13. Tratar as 682 regras do acervo como iguais
+
+`normativo` — **`RAS-30`. A calibração de que a cadeia se instancia por regra, calibrada pelo modo é a
+chave de leitura desta seção e da §13.** Tratar as 682 regras do acervo como iguais
 produziria vetor de execução para regra que só se confere por inspeção, e critério
 de inspeção para regra cuja garantia só a execução demonstra — os dois são
 defeito. Os modos são os três canônicos de RFC §2.2, usados sem alteração de
 sentido, mais o caso da regra publicada sem modo, que esta seção resolve antes de
 instanciar.
 
-| `RAS-30` — Modo | O que a linha da cadeia instancia |
+| Modo | O que a linha da cadeia instancia |
 |-----------------|-----------------------------------|
 | `import-verifiable` | ID → diagnóstico **reusado** de `DMPF-D001`/`DMPF-D002` ou `DMPF-E001`..`DMPF-E004` (RFC §10.3) → aresta positiva e negativa. Linha curta: o diagnóstico já existe |
 | `structurally reviewable` | ID → critério de inspeção decidível → o que caracteriza conformidade e o que a viola. **Sem** vetor de execução |
@@ -2663,7 +2663,7 @@ deste artefato.
 | `RAS` | Forma do diagnóstico estável e do par de vetores | `RAS-01`..`RAS-16` | 16 | §10 |
 | `RAS` | Verificação das regras herdadas e calibração por modo | `RAS-30`..`RAS-41` | 12 | §11 |
 
-**Total: 142 regras próprias.**
+**Total: 142 regras próprias: 141 `normativo` e uma `encaminhado`, `RAS-41`.**
 
 `normativo` — **Duas faixas ficam reservadas e não são reutilizadas.** `ORA-14` a
 `ORA-29` e `RAS-17` a `RAS-29` não estão atribuídos. A reserva é deliberada: os dois
