@@ -22,6 +22,8 @@ ocorre no PR (reviewers de Plataforma/Arquitetura). Specs permanecem em
 | [resiliencia-observabilidade.md](./resiliencia-observabilidade.md) | **promovido para revisão** (adição à RFC pela âncora ANC-06, sem editá-la) | [SPEC-E15TBHCD](../specs/SPEC-E15TBHCD-dmpf-resiliencia-observabilidade.md) / [ARQ-445](https://lider-cap.atlassian.net/browse/ARQ-445) |
 | [testes-interop.md](./testes-interop.md) | **promovido para revisão** (adição à RFC pela âncora ANC-07, sem editá-la) | [SPEC-6RQBN98G](../specs/SPEC-6RQBN98G-dmpf-testes-interop.md) / [ARQ-446](https://lider-cap.atlassian.net/browse/ARQ-446) |
 | [governanca-bom-pilotos.md](./governanca-bom-pilotos.md) | **promovido para revisão** (adição à RFC pelas âncoras **ANC-08 e ANC-09**, sem editá-la) | [SPEC-VVR1X71Q](../specs/SPEC-VVR1X71Q-dmpf-governanca-bom-pilotos.md) / [ARQ-447](https://lider-cap.atlassian.net/browse/ARQ-447) |
+| [reconciliacao.md](./reconciliacao.md) | **registro vivo** (não promovido; fora de M1–M4 — estado das pendências cruzadas, atualizável) | [SPEC-4W1BQK93](../specs/SPEC-4W1BQK93-dmpf-consolidacao-horizontal.md) / [ARQ-492](https://lider-cap.atlassian.net/browse/ARQ-492) |
+| [navegacao.md](./navegacao.md) | **registro vivo** (não promovido; fora de M1–M4 — mapa de entrada por prefixo, documento e pergunta) | [SPEC-4W1BQK93](../specs/SPEC-4W1BQK93-dmpf-consolidacao-horizontal.md) / [ARQ-492](https://lider-cap.atlassian.net/browse/ARQ-492) |
 
 A RFC obriga: as regras nela escritas valem para todo trabalho novo do DMPF.
 
@@ -41,7 +43,9 @@ incremento de versão. Três pendências ficam registradas no próprio artefato:
 - a revisão dos exemplos por um representante de cada stack, gate externo não
   bloqueante (§10.3);
 - os vetores de equivalência do desfecho e o diagnóstico estável por regra,
-  encaminhados a FND-09 e ainda inexistentes (§10.4);
+  encaminhados a FND-09 (§10.4) e **quitados** por ele — matriz de §3.2, obrigações
+  `H3-5` e `H3-6`, com as 54 regras instanciadas em §13.4; ver `REC-001` no
+  [ledger de reconciliação](./reconciliacao.md);
 - a marcação de Parte-1 §§5 e 6 como consolidados na tabela de RFC §14.4, que o
   artefato não pode fazer sozinho (§1.5).
 
@@ -133,9 +137,11 @@ Três decisões deste artefato merecem leitura atenta na revisão:
   negativos — remoção, renomeação e falsificação do marcador (§6.4).
 
 Dez pendências ficam registradas no próprio artefato (§10.4), entre elas: o
-recorte incompleto da ANC-03 acima; o realinhamento com FND-09, cuja spec hoje
-exige «mesmo byte» como critério geral do round-trip e reivindica o ownership da
-fixture (§8.5); e a ausência de campo dedicado, no schema mínimo da outbox de
+recorte incompleto da ANC-03 acima; o realinhamento com FND-09 (§8.5), **já
+reconciliado** antes da redação daquele artefato — o critério do round-trip são os
+três oráculos, não «mesmo byte» em geral, e o ownership da fixture está declarado em
+FND-09 §8.4; ver `REC-004` no [ledger de reconciliação](./reconciliacao.md); e a
+ausência de campo dedicado, no schema mínimo da outbox de
 FND-04 §4.1, para três atributos que o envelope torna obrigatórios —
 `correlationid`, `causationid` e `traceparent` (§4.1).
 
@@ -336,7 +342,8 @@ validade da adição, e a tabela de cadência de `SPEC-DBTRMM3X` atribui o grupo
 substantiva contra o gatilho de invariante e nenhuma o satisfaz, o que confirma a
 adição dentro do escopo, sem incremento de versão.
 
-As 118 regras `normativo` têm **ID estável** em cinco prefixos (`RES`, `TRC`,
+As 121 regras `normativo` — incluídos os sufixos `MET-05a`, `RUN-11a` e `RUN-18a`
+— têm **ID estável** em cinco prefixos (`RES`, `TRC`,
 `MET`, `LOG`, `RUN`), indexadas em §13.1. Nenhuma tem `domain` ou `port` como
 sujeito — o que é a verificação direta da invariante da âncora, e a razão pela
 qual `RES-01` abre o artefato em vez de aparecer como observação.
@@ -365,15 +372,19 @@ a cada regra já decidida um mecanismo que a torne conferível.
 
 Três consequências decorrem disso, e cada uma tem efeito visível no artefato.
 
-A primeira é que **o acervo é o escopo**. O artefato herda de **seis** fontes — a RFC
-e os cinco irmãos promovidos —, e a matriz de §3 trata **25 obrigações atômicas**
-(contra as 24 de FND-07, que herdou de três). A §13 fecha a cadeia de RFC §14.5 por
-**identificador**: o acervo enumera 551 identificadores estáveis e 533 recebem linha,
-com o modo de verificação de cada um calibrando o que a linha exige. Os 18 restantes
-são as âncoras `ANC-01`..`ANC-10` e os `ADR-DMPF-A`..`H` — índice de encaminhamento,
-não regra verificável —, e a ausência é declarada em vez de omitida. A distinção entre
-535 cláusulas `normativo` e 551 identificadores está registrada em §1.4: as duas
-métricas medem coisas diferentes e a divergência está inteira na RFC.
+A primeira é que **o acervo é o escopo**. O artefato herda de **sete** fontes — a
+RFC e os seis irmãos promovidos (FND-03 a FND-08) —, e a matriz de §3 trata
+**31 obrigações atômicas** (`H2-1`..`H8-6`; contra as 24 de FND-07, que herdou de
+três). A §13 fecha a cadeia de RFC §14.5 por **identificador**: o acervo enumera
+672 identificadores, dos quais **664 são estáveis** — os oito `ADR-DMPF-A`..`H` são
+provisórios e ficam fora desse universo. Das 664, **654 recebem linha** e **650 têm
+mecanismo de prova**, com o modo de verificação de cada uma calibrando o que a linha
+exige. As dez âncoras `ANC-01`..`ANC-10` são índice de encaminhamento, não regra
+verificável, e as quatro exceções de mecanismo estão nomeadas em §13.1 — a ausência
+é declarada em vez de omitida. A distinção entre 682 cláusulas `normativo` e 672
+identificadores está registrada em §1.4: as duas métricas medem coisas diferentes, e
+a divergência está na RFC — 110 cláusulas frente a 126 identificadores — e também no
+FND-08, com 147 cláusulas em 121 regras.
 
 A segunda é que **a calibração por modo é o que torna a cobertura viável e honesta**.
 Exigir vetor de execução de regra que só se confere por inspeção produz teatro de
