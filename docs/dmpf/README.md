@@ -24,6 +24,7 @@ ocorre no PR (reviewers de Plataforma/Arquitetura). Specs permanecem em
 | [governanca-bom-pilotos.md](./governanca-bom-pilotos.md) | **promovido para revisão** (adição à RFC pelas âncoras **ANC-08 e ANC-09**, sem editá-la) | [SPEC-VVR1X71Q](../specs/SPEC-VVR1X71Q-dmpf-governanca-bom-pilotos.md) / [ARQ-447](https://lider-cap.atlassian.net/browse/ARQ-447) |
 | [reconciliacao.md](./reconciliacao.md) | **registro vivo** (não promovido; fora de M1–M4 — estado das pendências cruzadas, atualizável) | [SPEC-4W1BQK93](../specs/SPEC-4W1BQK93-dmpf-consolidacao-horizontal.md) / [ARQ-492](https://lider-cap.atlassian.net/browse/ARQ-492) |
 | [navegacao.md](./navegacao.md) | **registro vivo** (não promovido; fora de M1–M4 — mapa de entrada por prefixo, documento e pergunta) | [SPEC-4W1BQK93](../specs/SPEC-4W1BQK93-dmpf-consolidacao-horizontal.md) / [ARQ-492](https://lider-cap.atlassian.net/browse/ARQ-492) |
+| [diagramas-metodologia.md](./diagramas-metodologia.md) | **guia visual derivado** (não normativo — metodologia, runtime, estados, prova e governança) | Derivado dos artefatos promovidos e dos registros vivos |
 
 A RFC obriga: as regras nela escritas valem para todo trabalho novo do DMPF.
 
