@@ -6,7 +6,7 @@ stage: building
 priority: P0
 depends_on: []
 ticket_url: https://lider-cap.atlassian.net/browse/ARQ-436
-subtask_urls: [https://lider-cap.atlassian.net/browse/ARQ-438, https://lider-cap.atlassian.net/browse/ARQ-439, https://lider-cap.atlassian.net/browse/ARQ-440, https://lider-cap.atlassian.net/browse/ARQ-441, https://lider-cap.atlassian.net/browse/ARQ-442, https://lider-cap.atlassian.net/browse/ARQ-443, https://lider-cap.atlassian.net/browse/ARQ-444, https://lider-cap.atlassian.net/browse/ARQ-445, https://lider-cap.atlassian.net/browse/ARQ-446, https://lider-cap.atlassian.net/browse/ARQ-447, https://lider-cap.atlassian.net/browse/ARQ-448]
+subtask_urls: [https://lider-cap.atlassian.net/browse/ARQ-438, https://lider-cap.atlassian.net/browse/ARQ-439, https://lider-cap.atlassian.net/browse/ARQ-440, https://lider-cap.atlassian.net/browse/ARQ-441, https://lider-cap.atlassian.net/browse/ARQ-442, https://lider-cap.atlassian.net/browse/ARQ-443, https://lider-cap.atlassian.net/browse/ARQ-444, https://lider-cap.atlassian.net/browse/ARQ-445, https://lider-cap.atlassian.net/browse/ARQ-446, https://lider-cap.atlassian.net/browse/ARQ-447, https://lider-cap.atlassian.net/browse/ARQ-448, https://lider-cap.atlassian.net/browse/ARQ-488, https://lider-cap.atlassian.net/browse/ARQ-490, https://lider-cap.atlassian.net/browse/ARQ-492]
 created: 2026-08-13
 ---
 # SPEC-QG2N8STY: DMPF Foundation — Golden Path orientado a domínio e mensagens
