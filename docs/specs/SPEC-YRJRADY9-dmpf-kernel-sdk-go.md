@@ -6,7 +6,7 @@ stage: backlog
 priority: P0
 depends_on: [SPEC-QG2N8STY]
 ticket_url: https://lider-cap.atlassian.net/browse/ARQ-519
-subtask_urls: []
+subtask_urls: [https://lider-cap.atlassian.net/browse/ARQ-520, https://lider-cap.atlassian.net/browse/ARQ-521, https://lider-cap.atlassian.net/browse/ARQ-522, https://lider-cap.atlassian.net/browse/ARQ-523, https://lider-cap.atlassian.net/browse/ARQ-524, https://lider-cap.atlassian.net/browse/ARQ-525, https://lider-cap.atlassian.net/browse/ARQ-526, https://lider-cap.atlassian.net/browse/ARQ-527, https://lider-cap.atlassian.net/browse/ARQ-528, https://lider-cap.atlassian.net/browse/ARQ-529, https://lider-cap.atlassian.net/browse/ARQ-530, https://lider-cap.atlassian.net/browse/ARQ-531]
 created: 2026-08-30
 ---
 
