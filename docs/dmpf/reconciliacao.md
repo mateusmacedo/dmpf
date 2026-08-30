@@ -36,6 +36,7 @@ partição declarada na própria célula.
 | `REC-006` | Localização do validador do perfil de envelope | FND-09 §14 (`RAS-41`) | `parcial` | instrumento **quitado** em FND-09 §11.6; localização **encaminhada**, por depender de co-decisão com FND-06 | FND-06 §18.2, obrigação 15 |
 | `REC-007` | Atualização da tabela de sucessão de RFC §14.4 | FND-04 §11.5, FND-06 §18.3, FND-07 §11.4 e FND-08 §13.4 | `aberta` | owner da RFC — consolidar as quatro numa passagem única | proposta de consolidação em FND-07 §11.4 |
 | `REC-008` | Reconciliação FND-10 × FND-09 (pendência `P9`) | FND-10 §8 | `quitada` | verificação registrada no README do acervo | sem colisão de prefixo e sem obrigação nova |
+| `REC-009` | Ampliação da faixa reservada de ADRs de `010`–`024` para `010`–`028` | FND-10 §8.2 (obrigação `O12`) | `parcial` | faixa **ampliada** na RFC §13.1 e §13.2 pelo FND-11, sob a competência que a §13.2 lhe delega; **ratificação encaminhada** ao owner da RFC | RFC §13.1 e §13.2 passam a declarar `docs/adr/010`–`028`, faixa de 19 IDs — um por acionamento `ADR-DMPF-A`..`ADR-DMPF-S`. Três irmãos — `uow-inbox-outbox.md`, `resiliencia-observabilidade.md` e `cloudevents-protobuf-buf.md` — transcrevem a norma com a faixa antiga e seguem preservados |
 
 ## Histórico
 
@@ -47,6 +48,27 @@ Seção **append-only**: uma entrada datada por mudança de estado. Nenhuma entr
   como `quitada`, duas como `aberta` e uma como `parcial`. As duas pontas de cada
   registro — a pendência de origem e a quitação que a fechou — foram conferidas
   contra o acervo antes desta entrada.
+
+- 2026-08-28 — `REC-009`: registro novo, sem estado anterior, entra como
+  `parcial`. Motivo: os 19 acionamentos `ADR-DMPF-A`..`ADR-DMPF-S` do acervo não
+  cabem nos 15 slots que a faixa `010`–`024` reservava, e a obrigação `O12` de
+  FND-10 §8.2 encaminhou a reconciliação de cardinalidade ao FND-11. A ampliação
+  para `010`–`028` foi executada nas duas linhas normativas da RFC (§13.1 e
+  §13.2), sob a competência que a própria §13.2 delega ao FND-11, e classificada
+  pela §14.2 como correção de redação — portanto sem incremento de versão, já que
+  a §14.3, que o tornaria bloqueante, não é acionada. Fica `parcial` porque a
+  ratificação é do owner da RFC.
+
+  Efeito colateral aceito: três artefatos irmãos — `uow-inbox-outbox.md`,
+  `resiliencia-observabilidade.md` e `cloudevents-protobuf-buf.md` — transcrevem
+  a norma da §13.2 com a faixa antiga, cada um no bloco `normativo` que declara
+  provisório o seu identificador `ADR-DMPF-*`. O de `resiliencia-observabilidade`
+  transcreve entre aspas e endereça a RFC §13.2 por número de linha, então a
+  transcrição passa a divergir da fonte. Nenhum foi editado: artefato promovido
+  não se corrige retroativamente, e é este ledger que carrega o estado vigente.
+  O verificador de referências não acusa a divergência porque sua âncora é a
+  primeira linha do bloco citado, que a edição não tocou — o que envelheceu é o
+  conteúdo transcrito, não o endereço.
 
 ## Regras do ledger
 

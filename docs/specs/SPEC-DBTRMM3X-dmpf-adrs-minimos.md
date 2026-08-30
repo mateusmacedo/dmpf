@@ -2,7 +2,7 @@
 id: SPEC-DBTRMM3X
 slug: dmpf-adrs-minimos
 title: DMPF — ADRs mínimos (tabela ARQ-436 §8)
-stage: planning
+stage: building
 priority: P0
 depends_on: [SPEC-8YVF0RR5]
 ticket_url: https://lider-cap.atlassian.net/browse/ARQ-448
@@ -50,7 +50,7 @@ sub-spec responde por essas três coisas: redigir os dezenove, promovê-los para
 ### Funcionais
 
 - [ ] **[P0] Redigir os 19 acionamentos**: um ADR para cada identificador provisório `ADR-DMPF-A`…`ADR-DMPF-S` acionado pelo acervo, cobrindo a tabela ARQ-436 §8 pela correspondência de assunto
-- [ ] **[P0] Formato**: contexto, decisão, alternativas, trade-offs, consequências
+- [ ] **[P0] Formato**: contexto, decisão, alternativas descartadas e consequências, estas separadas em positivas e negativas — é no bloco das negativas que o trade-off e o custo aceito ficam declarados
 - [ ] **[P0] ADRs estruturais com a RFC**: limites, UPR, contratos, Protobuf — acionados por FND-02/03 (que os nomeia e define o assunto) e redigidos aqui
 - [ ] **[P0] Demais ADRs**: acionados pela história temática correspondente (UoW, transportes, governança) e igualmente redigidos aqui
 - [ ] **[P0] Numeração contínua**: promover para `docs/adr/` na faixa `010`–`028`, dando sequência aos `001`–`009` do template
@@ -97,13 +97,21 @@ provisórios saíram nos artefatos normativos, não em área local. O que resta 
 
 ### Formato do ADR
 
-Cinco seções obrigatórias:
+Quatro seções obrigatórias, na ordem do guia de escrita do repositório
+(`docs/adr/README.md`), mais o bloco `## Status`, que o guia declara opcional e
+que, quando presente, abre o arquivo:
 
 1. **Contexto** — a situação que força a decisão.
 2. **Decisão** — o que foi decidido, em linguagem imperativa.
-3. **Alternativas** — o que mais foi considerado.
-4. **Trade-offs** — o que se ganha e o que se perde.
-5. **Consequências** — o que passa a ser verdade depois da decisão.
+3. **Alternativas descartadas** — o que mais foi considerado, em tabela de duas
+   colunas (`Alternativa` / `Por que foi rejeitada`).
+4. **Consequências** — o que passa a ser verdade depois da decisão, separado em
+   **Positivas** e **Negativas**.
+
+Os **trade-offs** não recebem seção autônoma. O guia os aloca no bloco
+«Consequências → Negativas», cujo placeholder no template é literalmente
+`- Trade-off 1`; é ali que o custo aceito da decisão fica declarado. Exigir uma
+quinta seção divergiria do guia que os nove ADRs existentes já seguem.
 
 ### Cadência de emissão
 

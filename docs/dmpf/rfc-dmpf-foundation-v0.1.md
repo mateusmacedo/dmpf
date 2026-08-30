@@ -1679,7 +1679,7 @@ não adiciona conteúdo a esta RFC; ela abre nova versão, com ADR.
 Esta RFC **aciona** os ADRs estruturais: nomeia cada um, define o seu assunto,
 registra a origem da decisão e encaminha ao FND-11
 ([ARQ-448](https://lider-cap.atlassian.net/browse/ARQ-448)), que responde pela
-**redação**, pela promoção para `docs/adr/` na faixa `010`–`024` e pelo
+**redação**, pela promoção para `docs/adr/` na faixa `010`–`028` e pelo
 **aceite**.
 
 `rationale` — A separação existe porque o contexto de uma decisão se perde
@@ -1710,7 +1710,7 @@ encaminhado. Nenhum destes ADRs está redigido ou aceito.
 | `ADR-DMPF-H` | Identidade de bounded context | Adotar `bounded_context` declarado e obrigatório, com interação entre contexts apenas por superfície pública | §5.4, §5.5, §7.2 | ARQ-448 | FND-11 | `acionado` |
 
 `normativo` — Os IDs acima são **provisórios**. A numeração definitiva na faixa
-`docs/adr/010`–`024` é atribuída pelo FND-11 na promoção. Referenciar um ADR
+`docs/adr/010`–`028` é atribuída pelo FND-11 na promoção. Referenciar um ADR
 desta tabela por número definitivo antes da promoção é erro de rastreabilidade.
 
 `normativo` — A alternativa descartada de cada decisão está registrada na seção

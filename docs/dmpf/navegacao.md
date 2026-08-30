@@ -132,6 +132,6 @@ regras que existem.
 
 Pendência registrada num artefato promovido não pode ser riscada nele — o
 artefato não é editado retroativamente. Quem carrega o estado vigente é o
-[ledger de reconciliação](./reconciliacao.md), com `REC-001` a `REC-008`.
+[ledger de reconciliação](./reconciliacao.md), uma linha por pendência.
 Consulte-o antes de tratar como aberta uma pendência que um irmão posterior já
 quitou.

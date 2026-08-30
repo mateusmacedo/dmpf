@@ -30,8 +30,8 @@ Um arquivo por decisão, numeração sequencial e slug em kebab-case:
 00N-slug-em-kebab-case.md
 ```
 
-O número é o próximo livre na sequência (o último registrado abaixo é o
-`009`). O título dentro do arquivo repete o número: `# ADR-00N: <título>`.
+O número é o próximo livre na sequência, um a mais que o último registrado
+na tabela abaixo. O título dentro do arquivo repete o número: `# ADR-00N: <título>`.
 
 ## Template
 
