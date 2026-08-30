@@ -13,6 +13,10 @@ O [README](./README.md) continua sendo o índice versionado, com o estado de
 promoção de cada artefato e a carta de leitura. Este mapa é a camada de busca:
 por prefixo, por tema e por pergunta.
 
+Para uma leitura por fluxos, processos e estados, consulte o
+[guia visual da metodologia](./diagramas-metodologia.md). Ele é derivado e não
+normativo: cada vista aponta de volta para o artefato dono da regra.
+
 ## Por prefixo
 
 Todo identificador de regra tem a forma `PREFIXO-NN`. O prefixo diz o documento
@@ -132,6 +136,6 @@ regras que existem.
 
 Pendência registrada num artefato promovido não pode ser riscada nele — o
 artefato não é editado retroativamente. Quem carrega o estado vigente é o
-[ledger de reconciliação](./reconciliacao.md), com `REC-001` a `REC-008`.
+[ledger de reconciliação](./reconciliacao.md), uma linha por pendência.
 Consulte-o antes de tratar como aberta uma pendência que um irmão posterior já
 quitou.

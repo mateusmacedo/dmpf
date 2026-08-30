@@ -36,6 +36,8 @@ partição declarada na própria célula.
 | `REC-006` | Localização do validador do perfil de envelope | FND-09 §14 (`RAS-41`) | `parcial` | instrumento **quitado** em FND-09 §11.6; localização **encaminhada**, por depender de co-decisão com FND-06 | FND-06 §18.2, obrigação 15 |
 | `REC-007` | Atualização da tabela de sucessão de RFC §14.4 | FND-04 §11.5, FND-06 §18.3, FND-07 §11.4 e FND-08 §13.4 | `aberta` | owner da RFC — consolidar as quatro numa passagem única | proposta de consolidação em FND-07 §11.4 |
 | `REC-008` | Reconciliação FND-10 × FND-09 (pendência `P9`) | FND-10 §8 | `quitada` | verificação registrada no README do acervo | sem colisão de prefixo e sem obrigação nova |
+| `REC-009` | Ampliação da faixa reservada de ADRs de `010`–`024` para `010`–`028` | FND-10 §8.2 (obrigação `O12`) | `parcial` | faixa **ampliada** na RFC §13.1 e §13.2 pelo FND-11, sob a competência que a §13.2 lhe delega; **ratificação encaminhada** ao owner da RFC | RFC §13.1 e §13.2 passam a declarar `docs/adr/010`–`028`, faixa de 19 IDs — um por acionamento `ADR-DMPF-A`..`ADR-DMPF-S`. Três irmãos — `uow-inbox-outbox.md`, `resiliencia-observabilidade.md` e `cloudevents-protobuf-buf.md` — transcrevem a norma com a faixa antiga e seguem preservados |
+| `REC-010` | Reconciliação de cardinalidade da série de ADRs, com a redação e a numeração dos acionamentos que faltavam | FND-10 §8.2 (obrigação `O12`), desdobrada em `P7` e `P8` na tabela de §8.4 | `quitada` | FND-11 (ARQ-448), a dona que §8.4 nomeia para as duas pendências | os 19 acionamentos `ADR-DMPF-A`..`ADR-DMPF-S` promovidos para `docs/adr/010`–`028`, um por acionamento; mapa das 15 linhas da tabela §8 do épico publicado em `docs/adr/README.md`, com as cinco sem ADR próprio e os seis acionamentos adicionais nomeados; FND-10 na tabela de cadência da `SPEC-DBTRMM3X`. As condições de fechamento seguem na tabela viva de FND-10 §8.4 |
 
 ## Histórico
 
@@ -47,6 +49,54 @@ Seção **append-only**: uma entrada datada por mudança de estado. Nenhuma entr
   como `quitada`, duas como `aberta` e uma como `parcial`. As duas pontas de cada
   registro — a pendência de origem e a quitação que a fechou — foram conferidas
   contra o acervo antes desta entrada.
+
+- 2026-08-28 — `REC-009`: registro novo, sem estado anterior, entra como
+  `parcial`. Motivo: os 19 acionamentos `ADR-DMPF-A`..`ADR-DMPF-S` do acervo não
+  cabem nos 15 slots que a faixa `010`–`024` reservava, e a obrigação `O12` de
+  FND-10 §8.2 encaminhou a reconciliação de cardinalidade ao FND-11. A ampliação
+  para `010`–`028` foi executada nas duas linhas normativas da RFC (§13.1 e
+  §13.2), sob a competência que a própria §13.2 delega ao FND-11, e classificada
+  pela §14.2 como correção de redação — portanto sem incremento de versão, já que
+  a §14.3, que o tornaria bloqueante, não é acionada. Fica `parcial` porque a
+  ratificação é do owner da RFC.
+
+  Efeito colateral aceito: três artefatos irmãos — `uow-inbox-outbox.md`,
+  `resiliencia-observabilidade.md` e `cloudevents-protobuf-buf.md` — transcrevem
+  a norma da §13.2 com a faixa antiga, cada um no bloco `normativo` que declara
+  provisório o seu identificador `ADR-DMPF-*`. O de `resiliencia-observabilidade`
+  transcreve entre aspas e endereça a RFC §13.2 por número de linha, então a
+  transcrição passa a divergir da fonte. Nenhum foi editado: artefato promovido
+  não se corrige retroativamente, e é este ledger que carrega o estado vigente.
+  O verificador de referências não acusa a divergência porque sua âncora é a
+  primeira linha do bloco citado, que a edição não tocou — o que envelheceu é o
+  conteúdo transcrito, não o endereço.
+
+- 2026-08-30 — `REC-010`: registro novo, sem estado anterior, entra como
+  `quitada`. Motivo: a obrigação `O12` de FND-10 §8.2 encaminhou ao FND-11 a
+  reconciliação de cardinalidade da série de ADRs, e a tabela de §8.4 a desdobra
+  em duas pendências com a mesma dona — `P7`, cuja condição é mapa de
+  consolidação decidido e faixa reservada compatível com o número de
+  acionamentos, mais a inclusão de FND-10 na tabela de cadência; e `P8`, cuja
+  condição é a promoção de `ADR-DMPF-R` e `ADR-DMPF-S` para `docs/adr/` com as
+  alternativas descartadas de §8.1. As duas condições foram conferidas contra a
+  entrega antes desta linha: a faixa `010`–`028` reserva 19 IDs para os 19
+  acionamentos; o mapa está publicado no índice de `docs/adr/`, endereçando as 15
+  linhas do épico e os 6 acionamentos sem linha correspondente; FND-10 consta da
+  tabela de cadência; `R` e `S` saíram como `027` e `028`, e as tabelas de
+  alternativas dos dois conferem uma a uma com o registro de acionamento de §8.1.
+
+  Uma linha, não quatro. `O12`, `C7`, `P7` e `P8` são a mesma obrigação vista de
+  quatro tabelas do FND-10: §8.2 a enuncia, a tabela de condições a lista como
+  `C7`, e §8.4 a desdobra no par `P7`/`P8`. Pela regra 6 deste ledger, pendência
+  que já tem tabela viva em artefato promovido é referenciada como fonte, não
+  duplicada — quatro linhas aqui criariam quatro verdades para um estado só,
+  envelhecendo em ritmos diferentes.
+
+  O que esta entrada **não** quita: a ratificação da ampliação da faixa, que
+  segue com o owner da RFC em `REC-009`; e as âncoras `ANC-08` e `ANC-09`, que
+  §8.4 mantém abertas por gates alheios a esta entrega. `C7` deixa de ser
+  condição pendente de `ANC-09`, mas a âncora permanece aberta por `C1`, `C3`,
+  `C4` e `C6`.
 
 ## Regras do ledger
 
