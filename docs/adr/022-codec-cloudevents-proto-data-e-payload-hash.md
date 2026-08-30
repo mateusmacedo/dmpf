@@ -87,10 +87,10 @@ Fixar as três formas, no escopo do bloco `contract package`:
   reescrever os bytes publicados. A byte-preservação por transporte não é
   garantida aqui — é dependência declarada sobre FND-06 (ARQ-443). Se um gateway,
   proxy ou re-emissor reserializar o corpo, o hash recomputado diverge e uma
-  redelivery legítima é classificada R4 pela inbox, contida e nunca aplicada. É o
-  custo aceito de escolher a fórmula sobre bytes em vez da projeção canônica: uma
-  condição falsificável no lugar de uma garantia incondicional que exigiria manter
-  um segundo formato de wire.
+  redelivery legítima é classificada R4 pela inbox, contida e nunca aplicada.
+- **Custo aceito:** escolher a fórmula sobre bytes, em vez da projeção canônica,
+  entrega uma condição falsificável no lugar de uma garantia incondicional — e essa
+  garantia exigiria manter um segundo formato de wire.
 - Fixar uma modalidade única transfere o atrito para quem tem toolchain
   divergente: uma stack sem suporte a `Any` precisa resolvê-lo no bootstrap, sem a
   saída de usar `binary_data`. O custo é assumido conscientemente para não

@@ -96,16 +96,26 @@ métrica por igual, cumprida na origem e não no agregador.
 
 **Positivas:**
 
-- Toda a telemetria fica com sujeito declarado e fora do centro: nenhuma regra
-  obriga `domain` ou `port`, e o invariante de RFC §6.2 é implementado em vez de
-  contornado (`RES-01`, contraprova 10).
-- As trinta obrigações herdadas de catálogo ficam quitadas com sinal nomeado,
-  unidade e fórmula, e cada uma tem par de vetores verificável.
-- O retry deixa de ser um decorator solto: a conjunção de quatro fatores fecha a
-  duplicação de efeito na operação não idempotente, e o orçamento por execução
-  fecha o efeito multiplicativo entre dependências.
-- Trace, log e métrica do mesmo evento cruzam pelo `correlation_id` e pelas
-  classes de amostragem alinhadas, e o diagnóstico dispensa dado do titular.
+- Instrumentar segundo esta baseline não acrescenta nenhum import de
+  observabilidade a `domain` nem a `port`: o decorator fica no `provider`
+  (`RES-24`), o span da regra de negócio é aberto pelo `application service` que a
+  invoca (`TRC-16`) e a trilha do que a regra decidiu é registrada por ele
+  (`LOG-11`) — o tipo de domínio segue sem logger, sem tracer e sem meter
+  (exemplo 10). Uma porta que declare `retryPolicy` na assinatura reprova ainda
+  que nenhuma biblioteca de observabilidade seja importada (contraprova 10).
+- Das trinta obrigações herdadas dos cinco artefatos promovidos, nenhuma sai
+  `encaminhada` nem `condicionada` — a primeira vez na cadeia em que isso ocorre
+  — e cada uma ganha, na matriz de prova, o par de vetores que a torna
+  verificável: o caso que satisfaz e o caso que viola (§2.2, §2.3).
+- Um `POST` sem chave de idempotência que estoura o prazo deixa de ser repetido,
+  ainda que a taxonomia o classifique como retentável (exemplo 2), e a execução
+  que acessa três dependências aborta a repetição na terceira em vez de somar
+  nove tentativas e oito esperas dentro de um prazo dimensionado para uma
+  passagem (exemplo 3, contraprova 3).
+- Trace, log e métrica do mesmo evento cruzam pelo `correlation_id` (`TRC-06`) e
+  pelas classes de amostragem alinhadas entre trace e log (`LOG-12`), e o
+  diagnóstico dispensa dado do titular, porque identificador de mensagem, de
+  correlação e de usuário não são labels de métrica (`MET-07`).
 
 **Negativas:**
 
@@ -131,16 +141,19 @@ métrica por igual, cumprida na origem e não no agregador.
   Sustenta que a porta declara a operação e não a sua telemetria e que o domínio
   nada emite: é onde `RES-24`, `TRC-16` e `LOG-11` ancoram a proibição.
 - ADR-015 — capabilities externas por bloco, com default deny e allowlist por
-  entrypoint. `observability` é uma dessas capabilities; é por ela ser negada por
-  default fora de `app` e `provider` que a instrumentação só pode ser composta no
-  composition root, nunca numa porta de assinatura tecnicamente pura.
+  entrypoint. `observability` é uma dessas capabilities, e ela tem regra própria
+  naquele ADR: é proibida em `domain` e em `port` ainda que a biblioteca de
+  logging seja tecnicamente pura, ficando com adapters, pipelines e providers. É
+  essa proibição que impede satisfazer qualquer regra desta baseline
+  instrumentando uma porta de assinatura tecnicamente pura.
 - ADR-025 — Kafka como transporte-alvo do assíncrono e SNS/SQS normatizado. O
   teto de tentativas desta baseline compõe com o gesto de cada canal
   (`maxReceiveCount` no SQS, política do canal em Kafka) sem o reabrir, e a
   reexecução por redelivery se apoia nesse transporte (`RES-33`, `RES-26`).
 - Artefato de origem — `docs/dmpf/resiliencia-observabilidade.md` (FND-08): §3
   (limites por dependência), §4 (retry, orçamento, backoff e degradação), §5
-  (tracing), §6 (métricas), §7 (logging e auditoria); acionamento em §12.3
+  (tracing), §6 (métricas), §7 (logging e auditoria), sob a regra de sujeito de
+  §1.3 (`RES-01`), que incide sobre todas elas; acionamento em §12.3
   (`ADR-DMPF-Q`).
 - SPEC-DBTRMM3X — especificação da série de ADRs do DMPF, que este ADR implementa.
 - ARQ-448 — https://lider-cap.atlassian.net/browse/ARQ-448 (FND-11, redação,

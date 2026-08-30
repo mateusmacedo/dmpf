@@ -25,11 +25,12 @@ Duas forças adicionais moldam a decisão. A primeira: «combinação certificad
 faixa de versão» só tem conteúdo se `certificada` significar evidência exercitada — a
 combinação específica que quebra é justamente a que nunca foi exercitada em conjunto,
 não a que está fora de uma faixa nominal. A segunda: o escape hatch é o único
-instrumento capaz de furar a governança, e reclassificar é o caminho **mais barato**
-para o mesmo efeito — em vez de pedir exceção nominal com prazo, basta declarar que a
-unidade pertence a outro bloco. É o risco R1 (reclassificação oportunista) visto do
-lado da governança de produto. Definir o escape hatch sem fechar essa porta dos
-fundos entregaria a fechadura junto com a chave reserva.
+instrumento que a governança oferece para divergir do golden path, e reclassificar é
+o caminho **mais barato** para o mesmo efeito — em vez de pedir exceção nominal com
+prazo, basta declarar que a unidade pertence a outro bloco. É o risco R1
+(reclassificação oportunista) visto do lado da governança de produto. Definir o
+escape hatch sem fechar essa porta dos fundos entregaria a fechadura junto com a
+chave reserva.
 
 ## Decisão
 
@@ -48,11 +49,12 @@ telemetria — sem duplicá-lo (`BOM-06`).
 **Compatibilidade por sujeito versionado (§3.2, §3.3).** Toda regra de compatibilidade
 declara o seu sujeito: uma regra sem sujeito é inaplicável (`GOV-10`). Os cinco
 sujeitos — produto, kernel, contrato de wire, runtime certificado e ferramenta de
-geração — têm cada um direção, piso, autoridade e evidência próprios na matriz de
-§3.3 (`GOV-11`). O piso é `N` e `N−1`, com duas ressalvas fixas: a ferramenta de
-geração tem pin exato e **não** admite `N−1` (`GOV-12`, sobre `BUF-06`), e a classe de
-criticidade é declarada — a ausência é lida como `crítica`, o piso mais estrito
-(`GOV-13`).
+geração — têm cada um a sua linha na matriz de §3.3, que declara direção, piso,
+autoridade e evidência; a linha do contrato de wire remete integralmente ao FND-05,
+que este artefato não redefine (`GOV-11`). O piso é `N` e `N−1`, com duas ressalvas
+fixas: a ferramenta de geração tem pin exato e **não** admite `N−1` (`GOV-12`, sobre
+`BUF-06`), e a classe de criticidade é declarada — a ausência é lida como `crítica`,
+o piso mais estrito (`GOV-13`).
 
 **Depreciação de produto (§3.5).** Este artefato governa a depreciação de release,
 major de kernel, runtime e combinação; a de contrato de wire permanece no FND-05.
@@ -88,14 +90,23 @@ reclassificar, e reclassificar não o dispensa (`GOV-26`).
 - Suporte deixa de ser afirmação e passa a ser verificável: uma combinação
   `certificada` carrega evidência exercitada, digest não substituível em silêncio,
   aprovador e validade, e a máquina de estados de §4.4 impede transição por omissão.
-- «N e N−1» torna-se decidível: cada sujeito declara direção, piso, autoridade e
-  evidência, e o default `crítica` faz a omissão custar a quem quer remover suporte.
+- A pergunta «suporta `N−1`?» passa a ter resposta única e conferível: para o
+  kernel, a matriz responde com a direção (código escrito contra a major anterior
+  compila e executa contra a corrente), a evidência (suite de compatibilidade
+  executada contra as duas majors) e a autoridade que decide; para a ferramenta de
+  geração, responde «não há `N−1`» em vez de herdar o piso genérico (`GOV-11`,
+  `GOV-12`). E a entrada que deixe a criticidade em branco cai no piso mais
+  estrito, de modo que a omissão passa a custar a quem quer remover suporte
+  (`GOV-13`).
 - A janela única de 180 dias evita dois calendários de depreciação correndo sobre o
   mesmo repositório, sem reabrir nenhuma regra do FND-05, que mantém a depreciação de
   contrato.
-- O escape hatch é completo por construção: o universo positivo diz o que se pode
-  excepcionar e a regra de negação fecha, na admissão, o que nenhuma exceção alcança —
-  inclusive a reclassificação como atalho para o mesmo efeito.
+- O pedido que não caiba em E1–E3 é recusado na admissão, sem exame de mérito, e o
+  avaliador deixa de ter de deduzir a negação da ausência de autorização — dedução
+  que não sobrevive à pressão de um caso urgente (`GOV-31`). Pedir escape hatch
+  para obter a dependência que a reclassificação permitiria encontra o mesmo
+  desfecho, e a manobra inversa — reclassificar para dispensar o escape hatch — não
+  o dispensa (`GOV-26`, `GOV-32` N5).
 
 **Negativas:**
 
@@ -130,7 +141,8 @@ reclassificar, e reclassificar não o dispensa (`GOV-26`).
   (sujeitos versionados e matriz de compatibilidade), §3.4 (release train), §3.5
   (depreciação de produto), §4.2 (`compatible_with` exercitado, `BOM-04`), §4.3
   (referência sem duplicação), §4.4 (máquina de estados da certificação) e §5.1
-  (escape hatch, universo positivo e regra de negação).
+  (escape hatch, universo positivo e regra de negação); acionado em §8.1 como
+  `ADR-DMPF-R`.
 - SPEC-DBTRMM3X — spec que esta série de ADRs implementa.
 - ARQ-448 — https://lider-cap.atlassian.net/browse/ARQ-448 (FND-11: redação,
   promoção e aceite da série de ADRs do DMPF).

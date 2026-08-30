@@ -90,7 +90,7 @@ fora dos seis valores e manifesto ausente em módulo de produção — todos rep
 
 **Negativas:**
 
-- Custo aceito: cada `ownership_module` de produção passa a manter à mão um
+- **Custo aceito:** cada `ownership_module` de produção passa a manter à mão um
   manifesto e a mantê-lo em dia — trabalho declarativo recorrente que não existia
   antes, e cuja ausência reprova o módulo. É o preço deliberado de trocar
   inferência automática por declaração revisável (RFC §10.1, §3.6).

@@ -85,7 +85,7 @@ decidido aqui: é de FND-05, sob a âncora ANC-03.
 
 **Negativas:**
 
-- Custo aceito: uma correção do contrato de wire **não alcança** o que já está
+- **Custo aceito:** uma correção do contrato de wire **não alcança** o que já está
   gravado na outbox. Um evento serializado sob um schema antigo é publicado como
   está, mesmo que o mapeamento tenha sido corrigido entre a escrita e a
   drenagem — e o que já está na outbox é justamente o que não deveria mudar.

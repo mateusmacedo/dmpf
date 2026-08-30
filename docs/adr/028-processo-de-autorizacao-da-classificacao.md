@@ -85,9 +85,12 @@ as duas normas nunca se aplicam ao mesmo tempo sobre o mesmo ato.
 
 **Positivas:**
 
-- Fecha a lacuna entre o requisito do ADR-013 e a sua execução: o fail-closed
-  que aquele ADR exige, e que sozinho não se executa, passa a ter um processo
-  definido que o cumpre.
+- O que o ADR-013 deixava sem executor passa a ter desfecho nomeado por
+  tentativa: alterar `block` no mesmo commit da mudança de código, aprovar a
+  própria alteração, justificar apenas descrevendo o que mudou, omitir as arestas
+  liberadas ou aprovar somente na interface da forge reprovam, cada qual por uma
+  regra citável, em vez de dependerem do julgamento de quem revisa (`AUT-08`,
+  vetores V1 a V8).
 - A tentativa de liberar uma aresta inter-context remapeando `include` entre
   `bounded_context` distintos, sem tocar em nenhum campo, passa a reprovar como
   uma alteração de `bounded_context` sujeita ao rito completo: o caminho de

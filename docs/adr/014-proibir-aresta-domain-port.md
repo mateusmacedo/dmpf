@@ -89,7 +89,7 @@ necessidade legítima de o domínio importar `port`.
 
 **Negativas:**
 
-- Custo aceito: interfaces hoje colocadas em unidades `port` que sejam puramente
+- **Custo aceito:** interfaces hoje colocadas em unidades `port` que sejam puramente
   computacionais ficam retroativamente mal classificadas e precisam ser
   reclassificadas como `domain`; unidades que misturam computação com I/O — como
   `golibs/packages/goservice`, que declara `EventPublisher` em uma unidade

@@ -116,8 +116,9 @@ nomeia.
   `GRP-18`) é trabalho de desenho método a método — não há valor global que sirva:
   um prazo único ou é frouxo para o método rápido ou aperta o lento. O custo é pago
   na configuração de cliente, e a má calibração aparece como `DEADLINE_EXCEEDED`
-  prematuro. É o custo aceito de governar o tempo pela borda em vez de deixar cada
-  cliente com o seu timeout isolado.
+  prematuro.
+- **Custo aceito:** governar o tempo pela borda, em vez de deixar cada cliente com
+  o seu timeout isolado, é o que cobra esse desenho método a método.
 - Manter dois transportes síncronos significa duas superfícies de contrato — o
   `.proto` versionado no interno e o OpenAPI na borda externa, cuja superfície este
   ADR deixa deliberadamente fora de escopo (`TRP-03`) —, e uma capability exposta

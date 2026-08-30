@@ -100,7 +100,7 @@ como alternativa considerada.
 
 **Negativas:**
 
-- Custo aceito: manter a allowlist é curadoria recorrente e explícita. Cada
+- **Custo aceito:** manter a allowlist é curadoria recorrente e explícita. Cada
   dependência externa usada por um bloco default deny exige uma entrada com pacote,
   faixa de versões, entrypoints e capability, e todo bump que altere o fechamento
   força revisão da entrada antes de o verificador voltar ao verde. Aceita-se esse

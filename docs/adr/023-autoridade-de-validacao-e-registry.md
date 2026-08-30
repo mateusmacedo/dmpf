@@ -119,7 +119,7 @@ Listá-la como rejeitada anteciparia a pendência que este ADR preserva em abert
 
 **Negativas:**
 
-- Custo aceito: a única autoridade de validação decidida por este ADR atua **antes
+- **Custo aceito:** a única autoridade de validação decidida por este ADR atua **antes
   da publicação**, no repositório, e não sobre a mensagem em trânsito. Enquanto a
   decisão de registry não for tomada, o payload já publicado não tem segunda
   autoridade que o valide em runtime — aceita-se essa lacuna de runtime, que só
