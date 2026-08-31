@@ -138,9 +138,15 @@ Nenhuma. `apps/backend`, `apps/frontend` e `apps/serverless` são diretórios de
 
 ### Libs
 
-Nenhuma. `libs/backend`, `libs/frontend` e `libs/shared` são diretórios de destino, sem projeto Nx registrado. Para criar a primeira lib compartilhada, use o generator do Nx (`pnpm nx g @nx/js:lib libs/shared/<name>`), com as três tags 3D e `--linter=none`; o passo a passo com todas as flags está em `docs/nx-reference/tasks.md`. O `go.work` declara `go 1.25`, mas não há módulos nem arquivos `.go` no workspace.
+Uma: **`dmpf-domain-go`** (`libs/backend/go/dmpf-domain`), o primeiro módulo Go do workspace, criado por `KRN-01`. Carrega as três tags 3D (`type:lib`, `scope:backend`, `stack:go`), um `dmpf-units.json` (o `metadata_container` da RFC DMPF) e um `package.json` com `private: true` — este último existe porque o Nx Release aborta o versionamento de um `tag:type:lib` sem manifesto npm (ver `docs/adr/030-granularidade-modulo-go-e-bom.md`).
 
-Sem nenhum projeto com a tag `type:lib`, o `nx release` sai com erro (`Release group "__default__" matches no projects`) em vez de concluir vazio. Por isso o `nx-release.yml` tem o step `Detect lib release candidates`, que pula o versionamento e o push enquanto não houver lib — mesmo padrão do step de candidatos Docker. O pipeline fica armado e ocioso, não vermelho.
+`libs/frontend` e `libs/shared` seguem sendo diretórios de destino, sem projeto Nx registrado. Para criar uma lib TypeScript, use o generator do Nx (`pnpm nx g @nx/js:lib libs/shared/<name>`), com as três tags 3D e `--linter=none`; o passo a passo com todas as flags está em `docs/nx-reference/tasks.md`.
+
+**Caminho por scope e stack.** Módulos ficam em `libs/<scope>/<stack>/<módulo>`, e o nome do projeto Nx leva o sufixo da stack (`dmpf-domain-go`). O motivo é que o kernel DMPF terá contrapartes Go e TypeScript com os mesmos nomes conceituais, e o nome de projeto é chave única no Nx. Como em Go o import path é a chave canônica da unidade — e a RFC a exige estável —, a convenção foi fixada antes do segundo módulo nascer.
+
+O `nx-release.yml` tem o step `Detect lib release candidates`, que pula o versionamento e o push enquanto não houver nenhum projeto com a tag `type:lib` — mesmo padrão do step de candidatos Docker. Ele existe porque, sem nenhuma lib, o `nx release` sai com erro (`Release group "__default__" matches no projects`) em vez de concluir vazio. Com o `dmpf-domain-go` presente, a guarda deixa de ser acionada e o versionamento passa a rodar de fato.
+
+O módulo Go participa do versionamento, mas **não** da publicação: o `private: true` do `package.json` já o exclui, e o `build_projects_filter` do `nx-publish-libs.yml` (`tag:type:lib,!tag:stack:go`) o exclui de novo, por redundância deliberada.
 
 O prefixo dos pacotes é `@lidercap-apps/`, tudo em minúsculas — o mesmo escopo usado no Verdaccio, no `nx-publish-libs.yml` e nos demais repositórios da organização. O casing precisa bater exatamente entre o `name` de cada `package.json`, o `tsconfig.base.json` e o `scope` passado ao template de publicação: o Nx resolve o registry pelo escopo do pacote, e qualquer divergência faz o `pnpm publish` cair no registry público e falhar.
 
@@ -170,6 +176,13 @@ pnpm nx build @lidercap-apps/minha-lib
 # Um único arquivo de teste (passthrough p/ Jest)
 pnpm nx test @lidercap-apps/minha-lib --testPathPatterns="string"
 
+# Cadeia Go (os 4 passos que lint/test/build não cobrem)
+pnpm nx run dmpf-domain-go:fmt-check   # gofmt, read-only (reprova, não reescreve)
+pnpm nx run dmpf-domain-go:vet
+pnpm nx run dmpf-domain-go:test-race
+pnpm nx run dmpf-domain-go:govulncheck # sem cache: consulta base remota
+bash tools/dmpf-gate-check.sh          # prova o gate de dependência do bloco domain
+
 # Formatação (Biome — não Prettier)
 pnpm biome format --write . # aplica
 pnpm biome ci . # checa (CI)
@@ -184,6 +197,7 @@ Scripts raiz (`pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, `pnpm fo
 
 ## Tooling
 
+- **Go:** piso e toolchain `1.26.4`, declarados no `go.work` e em cada `go.mod`. O CI lê o piso por `go-version-file: go.work` (composite `.github/actions/setup-go`), nunca por versão literal no workflow. Ferramentas entram por `go run <pacote>@<versão>` inline nos targets: `golangci-lint v2.13.2` e `govulncheck v1.7.0`. A política de dependências do bloco `domain` vive no `.golangci.yml`, e `tools/dmpf-gate-check.sh` prova em cada CI que ela reprova o que deve reprovar.
 - **Runtime:** Node.js `^24`; `pnpm@11.14.0` (campo `packageManager`). O CI não fixa a versão do pnpm: o `pnpm/action-setup` infere do `packageManager`, e passar ambos causa `ERR_PNPM_BAD_PM_VERSION`.
 - **Package manager:** pnpm (obrigatório). Versões de dependências são centralizadas no `catalog:` do `pnpm-workspace.yaml` — cada `package.json` referencia `"catalog:"`. O mesmo arquivo tem `allowBuilds`, que é a allowlist de scripts de postinstall: pacotes marcados `false` estão bloqueados deliberadamente.
 - **Nx:** `23.1.0`. NestJS `11.1.28` disponível via catalog.
@@ -369,3 +383,4 @@ Antes de criar algo novo, considere:
 - The `nx-generate` skill handles generator discovery internally - don't call nx_docs just to look up generator syntax
 
 <!-- nx configuration end-->
+

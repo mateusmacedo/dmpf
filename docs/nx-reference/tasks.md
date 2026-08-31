@@ -137,6 +137,73 @@ TypeScript Project References da raiz.
 do workspace, quando houver. Registre a coleção em `nx.generators` do
 `package.json` ao criar o primeiro.
 
+### Lib Go
+
+```bash
+pnpm nx g @nx-go/nx-go:library libs/backend/go/<name> \
+  --tags=type:lib,scope:backend,stack:go \
+  --skipFormat
+```
+
+`--skipFormat` não é opcional: sem ele o generator chama `formatFiles()`, que
+roda Prettier com largura 80 e reformata o `nx.json` inteiro — e o `biome ci`
+do CI, que usa largura 100, reprova em seguida.
+
+Módulos Go ficam em `libs/<scope>/go/<name>` e o **nome do projeto leva o sufixo
+da stack** (`<name>-go`). O motivo está no `docs/adr/030-granularidade-modulo-go-e-bom.md`:
+o kernel DMPF terá contrapartes Go e TypeScript com os mesmos nomes conceituais,
+e o nome de projeto é chave única no Nx.
+
+O comando acima **não** passa `--name` de propósito. O generator usa esse valor
+para dois fins ao mesmo tempo: o nome do projeto Nx e o `package` Go
+(`moduleName = names(projectName).propertyName.toLowerCase()`, em
+`src/utils/normalize-options.js:18`). Passar `--name=<name>-go` geraria
+`package <name>go` — redundante e fora do idioma. Gere sem a flag e renomeie
+apenas o projeto, no passo 1; o `package` Go continua sem o sufixo.
+
+Depois de gerar, cinco ajustes que o generator não faz:
+
+1. **Nome do projeto** — o generator o deriva do diretório, então nasce `<name>`,
+   sem o sufixo da stack. Troque o `name` no `project.json` para `<name>-go`.
+
+2. **Module path** — o generator emite `module libs/backend/go/<name>` literal,
+   que não resolve em consumo remoto. Corrija para o host Gitea (a flag `-C` é
+   obrigatória: na raiz do workspace `GOMOD` aponta para `/dev/null` e o
+   `go mod edit` falha):
+
+   ```bash
+   go -C libs/backend/go/<name> mod edit \
+     -module gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/<name>
+   go -C libs/backend/go/<name> mod edit -go=1.26.4   # o generator descarta o patch
+   ```
+
+3. **`package.json` privado** — `{"name": "@lidercap-apps/<name>-go", "version": "0.0.0", "private": true}`.
+   Sem ele o `nx release` **aborta** o versionamento do projeto: o `@nx/js` só
+   reconhece `package.json` como manifesto, e o `nx.json` resolve a versão do disco.
+
+4. **`dmpf-units.json`** — o `metadata_container` da RFC DMPF, obrigatório em
+   todo módulo de produção desde a criação. Em Go o `include` usa **import
+   paths**, não globs.
+
+5. **Targets que o plugin não infere** — o `@nx-go/nx-go` infere `test`, `lint`,
+   `tidy` e `generate`, mas **não** `build`. Declare `fmt-check`, `vet`, `build`,
+   `test-race` e `govulncheck` com `cwd: "{projectRoot}"` e
+   `inputs: ["go", "^go"]` (`govulncheck` com `cache: false`, porque consulta
+   base remota).
+
+   O `lint` e o `test` **não** entram no `project.json`: vêm de `targetDefaults`
+   chaveado por executor (`@nx-go/nx-go:lint` e `@nx-go/nx-go:test`, em
+   `nx.json`), então todo módulo Go novo já nasce com o golangci-lint no lugar do
+   `go fmt` e com o `.golangci.yml` nos inputs — mudar a política invalida o
+   cache em vez de devolver o verde anterior. Copiar o bloco por projeto foi o
+   desenho anterior e tinha um modo de falha silencioso: um módulo sem ele roda
+   `go fmt ./...`, que **reescreve** os arquivos e sai 0, ficando verde sem
+   lintar nada.
+
+   Ao mexer nesses defaults por executor, repita `dependsOn` e `cache`: o default
+   por executor **substitui** o default por nome, e omiti-los faz o `test` do Go
+   perder o `^build` e o cache que `targetDefaults.test` fornece.
+
 ### Manualmente
 
 1. Crie o diretório `libs/<scope>/<name>/`
