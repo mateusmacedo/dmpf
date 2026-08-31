@@ -25,6 +25,7 @@ ocorre no PR (reviewers de Plataforma/Arquitetura). Specs permanecem em
 | [reconciliacao.md](./reconciliacao.md) | **registro vivo** (não promovido; fora de M1–M4 — estado das pendências cruzadas, atualizável) | [SPEC-4W1BQK93](../specs/SPEC-4W1BQK93-dmpf-consolidacao-horizontal.md) / [ARQ-492](https://lider-cap.atlassian.net/browse/ARQ-492) |
 | [navegacao.md](./navegacao.md) | **registro vivo** (não promovido; fora de M1–M4 — mapa de entrada por prefixo, documento e pergunta) | [SPEC-4W1BQK93](../specs/SPEC-4W1BQK93-dmpf-consolidacao-horizontal.md) / [ARQ-492](https://lider-cap.atlassian.net/browse/ARQ-492) |
 | [diagramas-metodologia.md](./diagramas-metodologia.md) | **guia visual derivado** (não normativo — metodologia, runtime, estados, prova e governança) | Derivado dos artefatos promovidos e dos registros vivos |
+| [revisao-seguranca-fnd-07.md](./revisao-seguranca-fnd-07.md) | **parecer de revisão** (não normativo — evidência do gate `THR-03` sobre FND-07 §7 e §8; estado em `REC-011`) | [SPEC-DK8QQSDQ](../specs/SPEC-DK8QQSDQ-revisao-seguranca-fnd-07.md) / [ARQ-488](https://lider-cap.atlassian.net/browse/ARQ-488) |
 
 A RFC obriga: as regras nela escritas valem para todo trabalho novo do DMPF.
 
@@ -285,10 +286,12 @@ distinguindo o que se confere por inspeção do que exige execução.
 
 Cinco pendências ficam registradas no próprio artefato (§11.4), entre elas: o
 **owner nomeado** da revisão de Segurança, sem o qual o gate de `THR-03` não é
-acionável; a forma de persistir os três atributos obrigatórios sem coluna no schema
-da outbox, que este artefato resolveu pelo lado do conteúdo e permanece aberta pelo
-lado do schema; e a sugestão de consolidar numa única passagem as quatro pendências
-já acumuladas sobre a tabela de RFC §14.4.
+acionável — cujo estado vigente é `REC-011` no
+[ledger de reconciliação](./reconciliacao.md), `parcial` desde 2026-08-30; a
+forma de persistir os três atributos obrigatórios sem coluna no schema da
+outbox, que este artefato resolveu pelo lado do conteúdo e permanece aberta pelo
+lado do schema; e a sugestão de consolidar numa única passagem as quatro
+pendências já acumuladas sobre a tabela de RFC §14.4.
 
 ### Sobre `resiliencia-observabilidade.md`
 
