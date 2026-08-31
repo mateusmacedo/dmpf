@@ -47,4 +47,4 @@ jobs:
       nx_exclude: "@nx-base-template/source"
       scope: "@lidercap-apps"
       tag: ${{ inputs.tag || 'latest' }}
-      build_projects_filter: "tag:type:lib"
+      build_projects_filter: "tag:type:lib,!tag:stack:go"

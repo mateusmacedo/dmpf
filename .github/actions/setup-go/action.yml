@@ -1,0 +1,48 @@
+name: Setup Go
+description: Setup Go from the workspace BOM and check the prerequisites of the race detector
+runs:
+  using: composite
+  steps:
+    # Sem `go-version` literal: o `go-version-file` lê a diretiva do go.work,
+    # que é a fonte única do piso (BOM). Passar a versão aqui abriria uma
+    # segunda fonte, que sairia do lugar no primeiro bump.
+    # `cache: false` é deliberado. O default do setup-go@v5 é `true`, e ele
+    # procura um go.sum na RAIZ do workspace para montar a chave; não há nenhum
+    # (a raiz não é módulo, e o domínio não tem dependência externa). O efeito
+    # não seria um erro visível: o restore falha em try/catch e vira warning,
+    # e nada é restaurado NEM salvo. Melhor declarar a ausência do que fingir
+    # um cache que não existe. Quando houver go.sum, trocar por um actions/cache
+    # sobre GOMODCACHE e GOCACHE, chaveado por go.work e pelas versões das
+    # ferramentas.
+    - name: Setup Go
+      uses: actions/setup-go@v5
+      with:
+        go-version-file: go.work
+        cache: false
+
+    # O module path fica em host privado. Localmente isso funciona porque o
+    # `go env` do desenvolvedor traz GOPRIVATE; o runner não tem nada disso, e
+    # sem a variável o Go consultaria proxy.golang.org e sum.golang.org com um
+    # caminho interno — vazando o nome do repositório e falhando a resolução.
+    # GOPRIVATE já implica GONOPROXY e GONOSUMDB, então basta ela.
+    - name: Configure private module path
+      shell: bash
+      run: echo "GOPRIVATE=gitea.lidercap.com.br" >> "$GITHUB_ENV"
+
+    # `go test -race` exige CGO e um compilador C, que o setup-go não instala.
+    # Sem este preflight a falha aparece adiante, como erro obscuro de link.
+    - name: Check race detector prerequisites
+      shell: bash
+      run: |
+        set -euo pipefail
+        go version
+        if [ "$(go env CGO_ENABLED)" != "1" ]; then
+          echo "CGO_ENABLED=$(go env CGO_ENABLED); go test -race exige CGO_ENABLED=1" >&2
+          exit 1
+        fi
+        if ! command -v cc >/dev/null 2>&1; then
+          echo "compilador C ausente (cc); go test -race nao roda sem ele" >&2
+          exit 1
+        fi
+        echo "GOPRIVATE=$(go env GOPRIVATE)"
+        echo "pre-requisitos do -race: CGO_ENABLED=1 e cc presentes"
