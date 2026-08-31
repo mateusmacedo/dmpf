@@ -2,7 +2,7 @@
 id: SPEC-YRJRADY9
 slug: dmpf-kernel-sdk-go
 title: DMPF — Kernel e SDK de Referência Go
-stage: backlog
+stage: building
 priority: P0
 depends_on: [SPEC-QG2N8STY]
 ticket_url: https://lider-cap.atlassian.net/browse/ARQ-519
