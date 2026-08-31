@@ -19,7 +19,8 @@
       "{workspaceRoot}/biome.json",
       "{workspaceRoot}/pnpm-workspace.yaml",
       "{workspaceRoot}/pnpm-lock.yaml"
-    ]
+    ],
+    "go": ["{projectRoot}/**/*", "{workspaceRoot}/go.work", "{workspaceRoot}/go.work.sum"]
   },
   "plugins": [
     {
@@ -101,6 +102,19 @@
     "applyChanges": true
   },
   "targetDefaults": {
+    "@nx-go/nx-go:lint": {
+      "inputs": ["go", "^go", "{workspaceRoot}/.golangci.yml"],
+      "options": {
+        "linter": "go",
+        "args": ["run", "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.2", "run"]
+      }
+    },
+    "@nx-go/nx-go:test": {
+      "dependsOn": ["^build"],
+      "cache": true,
+      "inputs": ["go", "^go"],
+      "options": { "cover": true }
+    },
     "build": {
       "dependsOn": ["^build"],
       "cache": true
