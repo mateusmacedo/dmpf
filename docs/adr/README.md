@@ -125,6 +125,7 @@ por série.
 | ADR-026 | Adotar a baseline de resiliência e observabilidade com OpenTelemetry, retry por conjunção e auditoria separada | Restringe a baseline a `app`, `provider` e `application service`, adota OpenTelemetry com a versão das convenções fixada no BOM, autoriza retry apenas pela conjunção de quatro fatores e separa a auditoria da observabilidade. |
 | ADR-027 | Governar o produto por BOM de combinação certificada, compatibilidade por sujeito versionado e escape hatch de universo fechado | Governa cada release por um BOM de combinação certificada com evidência exercitada e validade declarada, exige sujeito em toda regra de compatibilidade e fecha o escape hatch em universo positivo com regra de negação. |
 | ADR-028 | Instituir o processo de autorização da classificação com autoridade fechada e evidência persistida | Cria a Autoridade de Classificação Arquitetural como função fechada, define o ato regulado pelo delta efetivo de classificação e exige commit próprio, mais de um aprovador distinto do autor e evidência persistida no repositório. |
+| ADR-029 | Atribuir a revisão de Segurança do FND-07 ao owner do artefato, com divergência declarada e re-revisão condicionada | Torna o gate `THR-03` acionável nomeando o titular do papel na ausência de área de Segurança constituída, declara a perda de independência em vez de contorná-la e condiciona a re-revisão à constituição da área. |
 
 ## Reconciliação com a tabela §8 do épico ARQ-436
 

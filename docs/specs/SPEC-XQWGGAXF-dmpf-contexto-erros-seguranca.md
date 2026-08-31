@@ -163,8 +163,8 @@ entregável do FND-09. Ambos aparecem em «Escopo fora».
 
 ### Critérios de aceite
 
-- [ ] **[P0] Modelo de contexto e erros promovido para `docs/dmpf/contexto-erros-seguranca.md` e aprovado em PR**
-- [ ] **[P0] Threat model revisado por Segurança no artefato promovido**
+- [x] **[P0] Modelo de contexto e erros promovido para `docs/dmpf/contexto-erros-seguranca.md` e aprovado em PR** — PR #10, mergeado em `develop`
+- [x] **[P0] Threat model revisado por Segurança no artefato promovido** — revisão executada em [ARQ-488](https://lider-cap.atlassian.net/browse/ARQ-488), sob [SPEC-DK8QQSDQ](./SPEC-DK8QQSDQ-revisao-seguranca-fnd-07.md). Titular do papel atribuído pelo [ADR-029](../adr/029-titular-da-revisao-de-seguranca-fnd-07.md), sem independência entre autor e revisor e com re-revisão condicionada à constituição da área de Segurança. Parecer em [`revisao-seguranca-fnd-07.md`](../dmpf/revisao-seguranca-fnd-07.md), desfecho **aprovado com ressalvas**
 - [x] **[P0] Mapeamentos REST/gRPC/mensageria documentados**
 
 ### Cenários de teste (mínimo 3)

@@ -38,6 +38,7 @@ partição declarada na própria célula.
 | `REC-008` | Reconciliação FND-10 × FND-09 (pendência `P9`) | FND-10 §8 | `quitada` | verificação registrada no README do acervo | sem colisão de prefixo e sem obrigação nova |
 | `REC-009` | Ampliação da faixa reservada de ADRs de `010`–`024` para `010`–`028` | FND-10 §8.2 (obrigação `O12`) | `parcial` | faixa **ampliada** na RFC §13.1 e §13.2 pelo FND-11, sob a competência que a §13.2 lhe delega; **ratificação encaminhada** ao owner da RFC | RFC §13.1 e §13.2 passam a declarar `docs/adr/010`–`028`, faixa de 19 IDs — um por acionamento `ADR-DMPF-A`..`ADR-DMPF-S`. Três irmãos — `uow-inbox-outbox.md`, `resiliencia-observabilidade.md` e `cloudevents-protobuf-buf.md` — transcrevem a norma com a faixa antiga e seguem preservados |
 | `REC-010` | Reconciliação de cardinalidade da série de ADRs, com a redação e a numeração dos acionamentos que faltavam | FND-10 §8.2 (obrigação `O12`), desdobrada em `P7` e `P8` na tabela de §8.4 | `quitada` | FND-11 (ARQ-448), a dona que §8.4 nomeia para as duas pendências | os 19 acionamentos `ADR-DMPF-A`..`ADR-DMPF-S` promovidos para `docs/adr/010`–`028`, um por acionamento; mapa das 15 linhas da tabela §8 do épico publicado em `docs/adr/README.md`, com as cinco sem ADR próprio e os seis acionamentos adicionais nomeados; FND-10 na tabela de cadência da `SPEC-DBTRMM3X`. As condições de fechamento seguem na tabela viva de FND-10 §8.4 |
+| `REC-011` | Owner nomeado da revisão de Segurança, sem o qual o gate de `THR-03` não era acionável e o critério de aceite do threat model não podia ser marcado | FND-07 §7.10 e §11.4 (pendência 4); referenciada em FND-09 §14 (pendência 10) | `parcial` | ADR-029 ([ARQ-488](https://lider-cap.atlassian.net/browse/ARQ-488)) — **quitado**: papel atribuído ao owner do artefato na ausência de área de Segurança constituída, e revisão de §7 e §8 executada. **Encaminhada**: a re-revisão por titular independente, condicionada à constituição da área | parecer em `revisao-seguranca-fnd-07.md`, desfecho `aprovado com ressalvas` — seis categorias conferidas nos sete vetores sem lacuna, sete exclusões com motivo e remissão verificada, 40 de 40 linhas com owner; as duas ressalvas são de insumo organizacional que o próprio FND-07 encaminha para fora das suas âncoras |
 
 ## Histórico
 
@@ -97,6 +98,41 @@ Seção **append-only**: uma entrada datada por mudança de estado. Nenhuma entr
   §8.4 mantém abertas por gates alheios a esta entrega. `C7` deixa de ser
   condição pendente de `ANC-09`, mas a âncora permanece aberta por `C1`, `C3`,
   `C4` e `C6`.
+
+- 2026-08-30 — `REC-011`: registro novo, sem estado anterior, entra como
+  `parcial`. Motivo: a pendência 4 de FND-07 §11.4 registrava que o cabeçalho do
+  artefato declara o **papel** do revisor de Segurança — «um representante de
+  Segurança para §7 e §8, obrigatório» — e não a pessoa, e que sem ela o gate de
+  `THR-03` não era acionável nem o critério de aceite do threat model podia ser
+  marcado. A ARQ-488 migrou o gate para fora do FND-07 e o tornou entregável.
+
+  O que foi **quitado**. O ADR-029 atribuiu o papel ao owner do artefato, na
+  ausência de área de Segurança constituída na organização — condição conferida
+  contra o acervo: nenhum documento nomeia titular, e o `CODEOWNERS` deste
+  repositório segue com o placeholder do template, mesma ausência que o ADR-028
+  já registrara em 10 dos 10 repositórios do inventário AS-IS. As vias
+  alternativas foram examinadas e estão fechadas por norma: `GOV-31` limita o
+  escape hatch a `E1`, `E2` e `E3`, nenhum dos quais alcança `THR-03`, e
+  `GOV-32` `N1` veda exceção sobre constraint P0. A revisão foi então executada
+  sobre §7 e §8, e o parecer está em `revisao-seguranca-fnd-07.md`.
+
+  O que segue **encaminhado**: a re-revisão por titular independente da autoria,
+  condicionada à constituição da área de Segurança. É por isso que a entrada é
+  `parcial` e não `quitada` — o ADR-029 registra a condição, e o parecer nasce
+  com validade limitada por ela.
+
+  Divergência declarada, não contornada. A descrição da ARQ-488 separa os dois
+  papéis — «o assignee atual responde pelo encaminhamento, não pela revisão» — e
+  a atribuição escolhida contraria esse texto. A perda de independência entre
+  autor e revisor está registrada no ADR-029, no cabeçalho do parecer e na §1.3
+  dele, com as garantias compensatórias que a limitam sem a eliminar: a camada
+  mecânica da conferência é reproduzível por terceiros, e a camada de julgamento
+  fica isolada em seção própria.
+
+  Nenhum artefato promovido foi editado. O FND-07 continua registrando a
+  pendência onde ela nasceu, e o FND-09 §14 continua listando a pendência 10 que
+  a referencia — é esta linha que carrega o estado vigente das duas, pela mesma
+  regra que `REC-009` aplicou aos três irmãos que transcrevem a faixa antiga.
 
 ## Regras do ledger
 

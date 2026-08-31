@@ -2,19 +2,11 @@
 id: SPEC-DBTRMM3X
 slug: dmpf-adrs-minimos
 title: DMPF — ADRs mínimos (tabela ARQ-436 §8)
-stage: building
+stage: done
 priority: P0
 depends_on: [SPEC-8YVF0RR5]
 ticket_url: https://lider-cap.atlassian.net/browse/ARQ-448
-subtask_urls:
-  - https://lider-cap.atlassian.net/browse/ARQ-511
-  - https://lider-cap.atlassian.net/browse/ARQ-512
-  - https://lider-cap.atlassian.net/browse/ARQ-513
-  - https://lider-cap.atlassian.net/browse/ARQ-514
-  - https://lider-cap.atlassian.net/browse/ARQ-515
-  - https://lider-cap.atlassian.net/browse/ARQ-516
-  - https://lider-cap.atlassian.net/browse/ARQ-517
-  - https://lider-cap.atlassian.net/browse/ARQ-518
+subtask_urls: [https://lider-cap.atlassian.net/browse/ARQ-511, https://lider-cap.atlassian.net/browse/ARQ-512, https://lider-cap.atlassian.net/browse/ARQ-513, https://lider-cap.atlassian.net/browse/ARQ-514, https://lider-cap.atlassian.net/browse/ARQ-515, https://lider-cap.atlassian.net/browse/ARQ-516, https://lider-cap.atlassian.net/browse/ARQ-517, https://lider-cap.atlassian.net/browse/ARQ-518]
 created: 2026-08-13
 ---
 # SPEC-DBTRMM3X: DMPF — ADRs mínimos (tabela ARQ-436 §8)
