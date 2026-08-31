@@ -2,7 +2,7 @@
 id: SPEC-QG2N8STY
 slug: dmpf-foundation
 title: DMPF Foundation — Golden Path orientado a domínio e mensagens
-stage: building
+stage: done
 priority: P0
 depends_on: []
 ticket_url: https://lider-cap.atlassian.net/browse/ARQ-436
