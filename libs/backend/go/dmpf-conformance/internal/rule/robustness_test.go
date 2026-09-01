@@ -1,0 +1,145 @@
+package rule_test
+
+import (
+	"testing"
+
+	"strings"
+
+	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/internal/manifest"
+	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/internal/rule"
+)
+
+// Robustez: entrada degenerada não pode entrar em pânico nem devolver "conforme".
+func TestEntradaDegeneradaNaoEntraEmPanicoNemAprova(t *testing.T) {
+	casos := []struct {
+		nome  string
+		units []rule.Unit
+		pkgs  []rule.Package
+		mods  []rule.Module
+	}{
+		{"tudo nil", nil, nil, nil},
+		{"tudo vazio", []rule.Unit{}, []rule.Package{}, []rule.Module{}},
+		{"unidade sem include", []rule.Unit{{ID: "a", Block: rule.BlockDomain, Module: "m"}}, []rule.Package{{CanonicalKey: "m/p", Module: "m"}}, nil},
+		{"unidade com include nil", []rule.Unit{{ID: "a", Block: rule.BlockDomain, Module: "m", Include: nil}}, nil, nil},
+		{"package com canonical_key vazia", nil, []rule.Package{{CanonicalKey: "", Module: "m"}}, nil},
+		{"unidade com Module vazio", []rule.Unit{{ID: "a", Block: rule.BlockDomain, Include: []string{"m/p"}}}, []rule.Package{{CanonicalKey: "m/p", Module: "m"}}, nil},
+		{"bloco inválido", []rule.Unit{{ID: "a", Block: rule.Block("core"), Module: "m", Include: []string{"m/p"}}}, []rule.Package{{CanonicalKey: "m/p", Module: "m"}}, nil},
+	}
+	for _, c := range casos {
+		t.Run(c.nome, func(t *testing.T) {
+			u, ds := rule.BuildUniverse(c.units, c.pkgs, c.mods)
+			if u == nil {
+				t.Fatal("universo nil")
+			}
+			_ = u.Membership()
+			_, _ = u.Lookup("qualquer")
+			_, _ = u.Endpoint("qualquer")
+			t.Logf("diagnósticos: %v", ds)
+		})
+	}
+}
+
+// Fail-closed: bloco desconhecido nunca pode produzir aresta permitida.
+func TestBlocoDesconhecidoNuncaPermiteAresta(t *testing.T) {
+	desconhecidos := []rule.Block{"", "core", "DOMAIN", "domain ", "infra"}
+	for _, b := range desconhecidos {
+		for _, conhecido := range rule.Blocks() {
+			if rule.AllowedByMatrix(b, conhecido) {
+				t.Errorf("origem desconhecida %q -> %s permitida", b, conhecido)
+			}
+			if rule.AllowedByMatrix(conhecido, b) {
+				t.Errorf("%s -> destino desconhecido %q permitida", conhecido, b)
+			}
+		}
+		if d := rule.Decide(rule.Endpoint{Block: b, BoundedContext: "a"}, rule.Endpoint{Block: b, BoundedContext: "a"}); d.Allowed() {
+			t.Errorf("aresta entre blocos desconhecidos %q permitida", b)
+		}
+	}
+}
+
+// Anti-bypass RFC §4.5 r4: nome de bloco com variação de caixa ou espaço não
+// pode ser aceito como o bloco válido — rotular oportunisticamente é o caminho
+// mais barato de burla, e a RFC o fecha declarando-o violação.
+func TestRotulagemOportunistaReprova(t *testing.T) {
+	for _, v := range []string{"Domain", "DOMAIN", " domain", "domain ", "dom ain", "contract\t"} {
+		u := manifest.Unit{
+			ID: "a", Block: v, BoundedContext: "a", Include: []string{"m/p"},
+			PresentID: true, PresentBlock: true, PresentBoundedContext: true, PresentInclude: true,
+		}
+		ds := manifest.Validate(manifest.Document{Path: "m/dmpf-units.json", Module: "m", Schema: manifest.SchemaID, Units: []manifest.Unit{u}})
+		if len(ds) == 0 {
+			t.Errorf("block %q aceito sem diagnóstico", v)
+		}
+	}
+}
+
+// Anti-bypass: superfície pública declarada em domain com caixa diferente.
+func TestSuperficiePublicaEmDomainEmiteExatamenteM002(t *testing.T) {
+	u := manifest.Unit{
+		ID: "a", Block: "domain", BoundedContext: "a", Include: []string{"m/p"},
+		PublicIntegrationSurface: true,
+		PresentID:                true, PresentBlock: true, PresentBoundedContext: true, PresentInclude: true,
+	}
+	ds := manifest.Validate(manifest.Document{Path: "m/u.json", Module: "m", Schema: manifest.SchemaID, Units: []manifest.Unit{u}})
+	if len(ds) != 1 || ds[0].Code != rule.CodeM002 {
+		t.Errorf("esperado exatamente M002, got %v", ds)
+	}
+}
+
+// A saída do gate é lida por humano no log do CI e por ferramenta linha a linha.
+// Todo campo do diagnóstico deriva de entrada não confiável: o manifesto é
+// escrito por quem abre o PR. Um `bounded_context` ou `id` com quebra de linha
+// forjaria uma linha inteira — "DMPF-D001: ... conforme" — e o gate passaria a
+// mentir para quem o lê.
+//
+// Os vetores atravessam os três caminhos em que texto do manifesto entra no
+// `Detail` por concatenação, SEM passar por `%q`. O caminho do `manifest`
+// entra como defesa em profundidade: lá o `%q` já escapa, e o vetor trava esse
+// comportamento contra regressão.
+func TestManifestoNaoForjaLinhaDeDiagnostico(t *testing.T) {
+	const forja = "a\nDMPF-D001: forjado -> tudo ok [RFC §7.3]"
+
+	t.Run("bounded_context na aresta (D002)", func(t *testing.T) {
+		exigeUmaLinha(t, rule.DiagnoseEdge(
+			rule.Endpoint{CanonicalKey: "m/a", Block: rule.BlockDomain, BoundedContext: forja},
+			rule.Endpoint{CanonicalKey: "m/b", Block: rule.BlockDomain, BoundedContext: "outro"},
+			"m/a/x.go",
+		))
+	})
+
+	t.Run("id da unidade na sobreposição (U002)", func(t *testing.T) {
+		units := []rule.Unit{
+			{ID: forja, Block: rule.BlockDomain, BoundedContext: "a", Include: []string{"m/p"}, Module: "m"},
+			{ID: "outra", Block: rule.BlockApp, BoundedContext: "a", Include: []string{"m/p"}, Module: "m"},
+		}
+		_, ds := rule.BuildUniverse(units, []rule.Package{{CanonicalKey: "m/p", Module: "m"}}, nil)
+		exigeUmaLinha(t, ds)
+	})
+
+	t.Run("canonical_key não coberta (U001)", func(t *testing.T) {
+		_, ds := rule.BuildUniverse(nil, []rule.Package{{CanonicalKey: forja, Module: "m"}}, nil)
+		exigeUmaLinha(t, ds)
+	})
+
+	t.Run("id no manifesto (defesa em profundidade)", func(t *testing.T) {
+		u := manifest.Unit{
+			ID: forja, Block: "core", Include: []string{"m/p"},
+			PresentID: true, PresentBlock: true, PresentBoundedContext: true, PresentInclude: true,
+		}
+		exigeUmaLinha(t, manifest.Validate(manifest.Document{
+			Path: "m/u.json", Module: "m", Schema: manifest.SchemaID, Units: []manifest.Unit{u},
+		}))
+	})
+}
+
+func exigeUmaLinha(t *testing.T, ds []rule.Diagnostic) {
+	t.Helper()
+	if len(ds) == 0 {
+		t.Fatal("entrada inválida não gerou diagnóstico: o vetor perdeu a força")
+	}
+	for _, d := range ds {
+		if strings.ContainsAny(d.String(), "\n\r") {
+			t.Errorf("diagnóstico com quebra de linha embutida, permite forjar linha no log:\n%s", d.String())
+		}
+	}
+}
