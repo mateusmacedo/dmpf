@@ -126,6 +126,7 @@ por série.
 | ADR-027 | Governar o produto por BOM de combinação certificada, compatibilidade por sujeito versionado e escape hatch de universo fechado | Governa cada release por um BOM de combinação certificada com evidência exercitada e validade declarada, exige sujeito em toda regra de compatibilidade e fecha o escape hatch em universo positivo com regra de negação. |
 | ADR-028 | Instituir o processo de autorização da classificação com autoridade fechada e evidência persistida | Cria a Autoridade de Classificação Arquitetural como função fechada, define o ato regulado pelo delta efetivo de classificação e exige commit próprio, mais de um aprovador distinto do autor e evidência persistida no repositório. |
 | ADR-029 | Atribuir a revisão de Segurança do FND-07 ao owner do artefato, com divergência declarada e re-revisão condicionada | Torna o gate `THR-03` acionável nomeando o titular do papel na ausência de área de Segurança constituída, declara a perda de independência em vez de contorná-la e condiciona a re-revisão à constituição da área. |
+| ADR-030 | Fixar um módulo Go por lib, com BOM declarado e segregação de stack no caminho | Faz módulo Go e projeto Nx coincidirem, fixa o caminho `libs/<scope>/<stack>/<módulo>` antes do segundo módulo nascer, declara o BOM de Go, golangci-lint e govulncheck em um lugar só por item, e explica o `package.json` privado que destrava o Nx Release. |
 
 ## Reconciliação com a tabela §8 do épico ARQ-436
 

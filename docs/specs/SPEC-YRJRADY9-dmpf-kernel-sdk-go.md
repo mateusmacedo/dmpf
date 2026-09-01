@@ -2,7 +2,7 @@
 id: SPEC-YRJRADY9
 slug: dmpf-kernel-sdk-go
 title: DMPF — Kernel e SDK de Referência Go
-stage: backlog
+stage: building
 priority: P0
 depends_on: [SPEC-QG2N8STY]
 ticket_url: https://lider-cap.atlassian.net/browse/ARQ-519
@@ -250,7 +250,7 @@ sub-spec; `KRN-01` fixa a convenção antes de qualquer outro módulo nascer.
 ```text
 lidercap-platform/
 ├── go.work                              — passa a declarar os módulos DMPF
-├── libs/backend/
+├── libs/backend/go/                     — nível de stack; o kernel TS entra em libs/backend/ts/
 │   ├── dmpf-domain/                     — bloco domain: UPR, Decision, Rejection
 │   ├── dmpf-application/                — bloco application: UoW, sequência canônica
 │   ├── dmpf-ports/                      — bloco port: outbox, inbox, repositório, relógio
@@ -260,7 +260,7 @@ lidercap-platform/
 │   ├── dmpf-provider-grpc/              — bloco provider: governo do tempo
 │   ├── dmpf-provider-http/              — bloco provider: borda externa
 │   └── dmpf-observability/              — bloco provider: OTel, resiliência
-├── libs/shared/
+├── libs/shared/go/                      — nível de stack, mesma convenção
 │   ├── dmpf-contracts/                  — bloco contract: tipos gerados de Protobuf
 │   └── dmpf-testkit/                    — test kits de conformidade e fixtures
 ├── apps/backend/
@@ -269,6 +269,14 @@ lidercap-platform/
 └── tools/
     └── dmpf-verify/                     — verificador de conformidade (CLI Go)
 ```
+
+> **Convenção de path fixada por `KRN-01`**: módulos ficam sob
+> `libs/<scope>/<stack>/<módulo>`, e o nome do projeto Nx leva o sufixo da stack
+> (`dmpf-domain-go`). Motivo: o épico de ordem 2 do ARQ-436 entrega o kernel
+> TypeScript com os mesmos nomes conceituais, e no Nx o nome de projeto é chave
+> única. Como a `canonical_key` é o import path e a RFC §5.4 a exige estável,
+> a convenção é fixada antes do segundo módulo nascer. Detalhes e alternativas
+> descartadas em [SPEC-MQA5HAXF](./SPEC-MQA5HAXF-dmpf-fundacao-nx-go.md).
 
 **Arquivos a modificar**:
 

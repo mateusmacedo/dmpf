@@ -37,6 +37,9 @@ jobs:
         with:
           node-version: "24"
 
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
       - name: Set Nx SHAs for affected (base/head)
         uses: nrwl/nx-set-shas@v5
 
@@ -54,6 +57,30 @@ jobs:
 
       - name: Build (affected)
         run: pnpm nx affected -t build --base=$NX_BASE --head=$NX_HEAD --parallel=3 --exclude=$NX_EXCLUDE
+
+      # lint, test e build já passam pelos steps acima; aqui ficam os quatro
+      # passos da cadeia Go que nenhum deles cobre.
+      - name: Go gates (affected)
+        run: pnpm nx affected -t fmt-check,vet,test-race,govulncheck --base=$NX_BASE --head=$NX_HEAD --parallel=3 --exclude=$NX_EXCLUDE
+
+      # O gate roda o golangci-lint uma vez por vetor, então fica sob o mesmo
+      # regime de `affected` do resto do pipeline: um PR só de TypeScript não
+      # paga por ele.
+      - name: Detect affected Go projects
+        id: go_affected
+        run: |
+          lista="$(pnpm nx show projects --affected --base=$NX_BASE --head=$NX_HEAD --projects=tag:stack:go | tr -d '[:space:]')"
+          if [ -n "$lista" ] && [ "$lista" != "[]" ]; then
+            echo "any=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "any=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Prova que o gate de dependência do bloco domain continua reprovando o
+      # que deve reprovar; sem rodar, o vetor negativo não protege de regressão.
+      - name: DMPF dependency gate
+        if: steps.go_affected.outputs.any == 'true'
+        run: bash tools/dmpf-gate-check.sh
 
       - name: E2E (affected)
         run: pnpm nx affected -t e2e --base=$NX_BASE --head=$NX_HEAD --parallel=1 --exclude=$NX_EXCLUDE

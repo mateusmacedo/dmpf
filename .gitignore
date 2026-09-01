@@ -81,3 +81,7 @@ crash.log
 plans/
 graphify-out/
 draft/
+
+# fixture efêmero do tools/dmpf-gate-check.sh; o trap o retira, mas um
+# SIGKILL não é capturável e deixaria resíduo no módulo
+zz_gate_*.go
