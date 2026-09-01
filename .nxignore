@@ -1,0 +1,6 @@
+# Fixtures de teste com go.mod próprio. Sem esta exclusão o @nx-go/nx-go as
+# infere como projetos Nx e o `nx affected` tenta rodar targets nelas, que
+# falham por não estarem no go.work — e não devem estar: são módulos sintéticos
+# que existem para o verificador reprovar, não para o workspace construir.
+# RFC §10.3 já lista testdata/ como exclusão fechada do universo verificável.
+**/testdata/**

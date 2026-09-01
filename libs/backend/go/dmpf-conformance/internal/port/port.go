@@ -24,6 +24,7 @@ type Edge struct {
 	To         string
 	SourceFile string
 	Unresolved bool
+	Detail     string
 }
 
 // ManifestSource entrega os manifestos já decodificados. A decodificação é

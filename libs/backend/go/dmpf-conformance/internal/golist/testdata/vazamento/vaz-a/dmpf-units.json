@@ -1,0 +1,21 @@
+{
+  "schema": "dmpf/units@1",
+  "units": [
+    {
+      "id": "domain",
+      "block": "domain",
+      "bounded_context": "vaz",
+      "include": ["exemplo.test/vaz-a/domain"]
+    }
+  ],
+  "external": [],
+  "exceptions": [
+    {
+      "unit": "domain",
+      "dependency": "net/http",
+      "reason": "adapter legado do mod-a em migracao",
+      "owner": "plataforma",
+      "review_by": "2026-12-31"
+    }
+  ]
+}

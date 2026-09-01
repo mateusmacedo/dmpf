@@ -1,0 +1,155 @@
+package conformance_test
+
+import (
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/internal/conformance"
+	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/internal/fsstore"
+	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/internal/golist"
+)
+
+// TestVerificadorPassaNoProprioGate é o DoD do KRN-02, e é um teste real
+// porque o módulo é decomposto na arquitetura que ele verifica.
+//
+// Um verificador de pacote único passaria trivialmente: sem duas unidades, não
+// há aresta a decidir. Com `rule`/`manifest` em `domain`, `port` em `port`,
+// `conformance` em `application`, `fsstore`/`golist` em `provider` e `cmd` em
+// `app`, ele exercita as células 1, 7, 10, 14, 17, 19, 25, 28 e 29 da matriz —
+// e a suite falha se alguém introduzir uma aresta proibida entre elas.
+func TestVerificadorPassaNoProprioGate(t *testing.T) {
+	raiz := raizDoWorkspace(t)
+
+	perfis, err := fsstore.LoadBuildProfiles(
+		filepath.Join(raiz, "libs", "backend", "go", "dmpf-conformance", "build-profiles.json"))
+	if err != nil {
+		t.Fatalf("perfis de produção: %v", err)
+	}
+
+	modules, err := fsstore.NewInventory(raiz).Modules()
+	if err != nil {
+		t.Fatalf("inventário: %v", err)
+	}
+	if len(modules) < 2 {
+		t.Fatalf("inventário devolveu %d módulo(s); o workspace tem ao menos dmpf-conformance e dmpf-domain", len(modules))
+	}
+
+	grafo := golist.New(raiz, modules, perfis)
+	rel, err := conformance.Check(conformance.Input{
+		Modules:   modules,
+		Manifests: fsstore.NewManifestStore(fsstore.ModuleDirs(modules)),
+		Graph:     grafo,
+		Closure:   grafo.Closure,
+		Standard:  grafo.IsStandard,
+	})
+	if err != nil {
+		t.Fatalf("Check: %v", err)
+	}
+	if len(rel.Diagnostics) != 0 {
+		for _, d := range rel.Diagnostics {
+			t.Errorf("%s", d)
+		}
+		t.Fatalf("o verificador NÃO passa no próprio gate: %d diagnóstico(s)", len(rel.Diagnostics))
+	}
+}
+
+// TestInventarioEncontraOsModulosDoWorkspace protege a descoberta: se o
+// inventário parar de achar os módulos, o teste acima passaria por vacuidade —
+// verificar zero módulo é sempre conforme.
+func TestInventarioEncontraOsModulosDoWorkspace(t *testing.T) {
+	modules, err := fsstore.NewInventory(raizDoWorkspace(t)).Modules()
+	if err != nil {
+		t.Fatalf("inventário: %v", err)
+	}
+	exigidos := []string{
+		"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance",
+		"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-domain",
+	}
+	for _, e := range exigidos {
+		var achou bool
+		for _, m := range modules {
+			if m.Path == e {
+				achou = true
+				if !m.HasManifest {
+					t.Errorf("%s sem manifesto no inventário", e)
+				}
+				if !m.HasProduction {
+					t.Errorf("%s sem código de produção no inventário", e)
+				}
+			}
+		}
+		if !achou {
+			t.Errorf("módulo %s ausente do inventário", e)
+		}
+	}
+}
+
+func raizDoWorkspace(t *testing.T) string {
+	t.Helper()
+	out, err := exec.Command("git", "rev-parse", "--show-toplevel").Output()
+	if err != nil {
+		t.Skipf("fora de um repositório git: %v", err)
+	}
+	return strings.TrimSpace(string(out))
+}
+
+// TestAutoverificacaoExercitaAsCelulasQuePromete fecha o falso verde do
+// DoD: "zero diagnósticos" também é o resultado de não ter olhado aresta
+// nenhuma. Este vetor exige que as arestas citadas existam MESMO no grafo do
+// próprio módulo — se alguém colapsar as camadas, o teste anterior continuaria
+// verde e este falha.
+func TestAutoverificacaoExercitaAsCelulasQuePromete(t *testing.T) {
+	raiz := raizDoWorkspace(t)
+	const m = "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance"
+
+	perfis, err := fsstore.LoadBuildProfiles(
+		filepath.Join(raiz, "libs", "backend", "go", "dmpf-conformance", "build-profiles.json"))
+	if err != nil {
+		t.Fatalf("perfis: %v", err)
+	}
+	modules, err := fsstore.NewInventory(raiz).Modules()
+	if err != nil {
+		t.Fatalf("inventário: %v", err)
+	}
+	edges, err := golist.New(raiz, modules, perfis).Edges()
+	if err != nil {
+		t.Fatalf("Edges: %v", err)
+	}
+
+	presente := map[[2]string]bool{}
+	for _, e := range edges {
+		presente[[2]string{e.From, e.To}] = true
+	}
+
+	exigidas := []struct {
+		celula   int
+		de, para string
+		aresta   [2]string
+	}{
+		{1, "domain", "domain", [2]string{m + "/internal/manifest", m + "/internal/rule"}},
+		{7, "application", "domain", [2]string{m + "/internal/conformance", m + "/internal/rule"}},
+		{10, "application", "port", [2]string{m + "/internal/conformance", m + "/internal/port"}},
+		{14, "app", "application", [2]string{m + "/cmd/dmpf-conformance", m + "/internal/conformance"}},
+		{17, "app", "provider", [2]string{m + "/cmd/dmpf-conformance", m + "/internal/golist"}},
+		{19, "port", "domain", [2]string{m + "/internal/port", m + "/internal/rule"}},
+		{25, "provider", "domain", [2]string{m + "/internal/golist", m + "/internal/rule"}},
+		{28, "provider", "port", [2]string{m + "/internal/golist", m + "/internal/port"}},
+		{29, "provider", "provider", [2]string{m + "/internal/golist", m + "/internal/fsstore"}},
+	}
+	for _, e := range exigidas {
+		if !presente[e.aresta] {
+			t.Errorf("célula %d (%s -> %s) não é exercitada: aresta %s -> %s ausente do grafo",
+				e.celula, e.de, e.para, e.aresta[0], e.aresta[1])
+		}
+	}
+
+	// A aresta que o desenho torna impossível: domain -> port (célula 4,
+	// ADR-014). Em Go ela é ciclo de import, então nem compila — mas o vetor
+	// fica para o dia em que a estrutura mudar.
+	if presente[[2]string{m + "/internal/rule", m + "/internal/port"}] ||
+		presente[[2]string{m + "/internal/manifest", m + "/internal/port"}] {
+		t.Error("aresta domain -> port presente no grafo do próprio módulo (ADR-014)")
+	}
+}
