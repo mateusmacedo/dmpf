@@ -2,7 +2,7 @@
 id: SPEC-MQA5HAXF
 slug: dmpf-fundacao-nx-go
 title: DMPF KRN-01 — Fundação Nx-Go: workspace, módulos, tags e cadeia de validação
-stage: building
+stage: done
 priority: P0
 depends_on: []
 ticket_url: https://lider-cap.atlassian.net/browse/ARQ-520
@@ -154,7 +154,7 @@ valida e é verificado pela regra de dependência no CI".
   quanto localmente.
   - `.golangci.yml` versionado na raiz, com os linters habilitados declarados.
 
-- [ ] **[P0] Gates de CI**: `.github/workflows/ci.yml` passa a instalar o  <!-- pendente: só exercível no PR: o `ci.yml` foi escrito e valida como YAML, mas o `gitea-runner` nunca o rodou -->
+- [x] **[P0] Gates de CI**: `.github/workflows/ci.yml` passa a instalar o
   toolchain Go e a rodar os targets Go em `nx affected`.
   - O `ci.yml` roda em `gitea-runner` e hoje só tem o composite
     `./.github/actions/setup-node-pnpm`; não há `actions/setup-go`, cache de
@@ -463,13 +463,18 @@ senão:
 
 ## Verificação e testes
 
-> **Por que esta spec segue em `building` com a implementação completa**: cinco
-> critérios não são verificáveis fora do PR — três deles P0. O `ci.yml` e o
-> `pre-push` só são exercidos quando o CI e o push rodarem de fato, e a
-> reprovação do `govulncheck` exigiria uma dependência com CVE conhecida. A
-> decisão de validar no PR está registrada no plano desta task. O `stage` passa
-> a `done` quando o CI fechar verde; cada pendência traz o motivo em comentário
-> na própria linha.
+> **Verificação no CI**: os critérios que dependiam do runner foram provados
+> pelo PR [#20](https://gitea.lidercap.com.br/lidercap-apps/lidercap-platform/pulls/20)
+> (run 5817), com os treze steps em `success` — `Setup Go`, `Go gates (affected)`
+> e `DMPF dependency gate` incluídos. O risco declarado no ADR-030, de o
+> `gitea-runner` não resolver `actions/setup-go@v5` ou não ter egress a
+> `proxy.golang.org`, não se materializou.
+>
+> Dois critérios seguem abertos, ambos **caminhos de reprovação** que exigiriam
+> injetar falha deliberada: o `govulncheck` diante de uma CVE real e o bloqueio
+> do `pre-push` quando a cadeia Go reprova. O caminho de aprovação de ambos foi
+> exercido — o `govulncheck` roda e reporta zero vulnerabilidades, e o `pre-push`
+> executou os cinco comandos, `go-gates` incluído, antes deste PR.
 
 ### Critérios de aceite
 
@@ -499,7 +504,7 @@ senão:
 - [x] `libs/backend/go/dmpf-domain/dmpf-units.json` existe, valida contra o schema
   `dmpf/units@1`, declara `block` e `bounded_context`, e usa import paths em
   `include`.
-- [ ] O `ci.yml` instala o toolchain Go na versão do BOM e roda os targets Go em  <!-- pendente: só exercível no PR, como o requisito de gates de CI -->
+- [x] O `ci.yml` instala o toolchain Go na versão do BOM e roda os targets Go em
   `nx affected`, reprovando o PR quando qualquer passo falha.
 - [ ] O `pre-push` do `lefthook.yml` bloqueia o push quando a cadeia Go reprova.  <!-- pendente: não exercido: sem commits pendentes o `lefthook run pre-push` dá skip em todos os comandos; os comandos foram validados isoladamente -->
 - [x] `pnpm nx release --dry-run` conclui sem erro com o primeiro projeto
@@ -509,7 +514,7 @@ senão:
   exclui.
 - [x] As versões de `golangci-lint` e `govulncheck` estão declaradas em um único
   lugar, e a mesma versão é usada localmente e no CI.
-- [ ] `pnpm biome ci .` e `pnpm nx affected -t lint,typecheck,test,build` passam.  <!-- pendente: `pnpm nx affected` passa; `pnpm biome ci .` reprova 23 arquivos em `docs/dmpf/graphify-out/`, artefato local do graphify que o `.gitignore` cobre e que não existe no checkout do CI. Falha pré-existente, alheia a esta entrega -->
+- [x] `pnpm biome ci .` e `pnpm nx affected -t lint,typecheck,test,build` passam.
 - [x] O ADR-030 existe com status "Aceito", a alternativa descartada e as
   consequências.
 - [x] `AGENTS.md` não diz mais "Nenhuma" no inventário de libs, e
