@@ -1,6 +1,6 @@
 {
   "schema": "dmpf/units-baseline@1",
-  "digest": "sha256:82b06e817734f47d7bb27e14032f10ae2d8cb20b90407218e9a4828abb1b308e",
+  "digest": "sha256:e4252b549bf02591cdc9d97033fea574aafb7d7508dc141ec48ba3a4c7c79854",
   "entries": [
     {
       "unit": "dmpf-conformance/baseline",
@@ -75,40 +75,40 @@
       ]
     },
     {
+      "unit": "dmpf-contracts/envelope",
+      "module": "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts",
+      "block": "contract",
+      "bounded_context": "dmpf-kernel",
+      "membership": [
+        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/envelope"
+      ]
+    },
+    {
+      "unit": "dmpf-contracts/gen",
+      "module": "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts",
+      "block": "contract",
+      "bounded_context": "dmpf-kernel",
+      "membership": [
+        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/gen/go/company/orders/event/v1",
+        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/gen/go/io/cloudevents/v1"
+      ]
+    },
+    {
+      "unit": "dmpf-contracts/payloadhash",
+      "module": "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts",
+      "block": "contract",
+      "bounded_context": "dmpf-kernel",
+      "membership": [
+        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/payloadhash"
+      ]
+    },
+    {
       "unit": "dmpf-kernel/domain",
       "module": "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-domain",
       "block": "domain",
       "bounded_context": "dmpf-kernel",
       "membership": [
         "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-domain"
-      ]
-    },
-    {
-      "unit": "dmpf-contracts/envelope",
-      "module": "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/shared/go/dmpf-contracts",
-      "block": "contract",
-      "bounded_context": "dmpf-kernel",
-      "membership": [
-        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/shared/go/dmpf-contracts/envelope"
-      ]
-    },
-    {
-      "unit": "dmpf-contracts/gen",
-      "module": "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/shared/go/dmpf-contracts",
-      "block": "contract",
-      "bounded_context": "dmpf-kernel",
-      "membership": [
-        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/shared/go/dmpf-contracts/gen/go/company/orders/event/v1",
-        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/shared/go/dmpf-contracts/gen/go/io/cloudevents/v1"
-      ]
-    },
-    {
-      "unit": "dmpf-contracts/payloadhash",
-      "module": "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/shared/go/dmpf-contracts",
-      "block": "contract",
-      "bounded_context": "dmpf-kernel",
-      "membership": [
-        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/shared/go/dmpf-contracts/payloadhash"
       ]
     }
   ]
