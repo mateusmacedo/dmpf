@@ -2,7 +2,7 @@
 id: SPEC-XF9TF9A0
 slug: dmpf-kernel-dominio-go
 title: DMPF KRN-03 — Kernel de domínio Go: UPR, Decision e Rejection
-stage: building
+stage: done
 priority: P0
 depends_on: [SPEC-MQA5HAXF, SPEC-WTAXFV8B]
 ticket_url: https://lider-cap.atlassian.net/browse/ARQ-522
@@ -155,7 +155,7 @@ fixados aqui, sem reabrir decisão alguma:
 
 ### Funcionais
 
-- [ ] **[P0] Tipo `Rejection` no package raiz `dmpfdomain`** (`DEC-03`, `DEC-09`,
+- [x] **[P0] Tipo `Rejection` no package raiz `dmpfdomain`** (`DEC-03`, `DEC-09`,
   FND-03 §3.3): valor imutável com três campos não exportados — `code` do tipo
   `Code`, `message` string e `details` como sequência ordenada de `Detail{Key,
   Value string}` —, acessíveis por `Code()`, `Message()` e `Details()` (este
@@ -172,7 +172,7 @@ fixados aqui, sem reabrir decisão alguma:
     política de retry ou `error` encadeado. Edge case: `Details()` de rejeição
     sem detalhes devolve slice vazio, nunca `nil` — o chamador não distingue
     ausência de detalhe por nulidade.
-- [ ] **[P0] Tipo `Accepted[R any]` no package raiz** (`DEC-05`..`DEC-08`,
+- [x] **[P0] Tipo `Accepted[R any]` no package raiz** (`DEC-05`..`DEC-08`,
   `DEC-12`, `DEC-13`): valor imutável com `response R` e `events []DomainEvent`
   não exportados; construtor `Accept[R any](response R, events ...DomainEvent)
   Accepted[R]` que CLONA a sequência recebida; `Response() R`; `Events()
@@ -182,12 +182,12 @@ fixados aqui, sem reabrir decisão alguma:
     decisão sem resposta útil carrega resposta explicitamente vazia, nunca
     resposta ausente".
   - Nenhum método adiciona, remove, reordena ou filtra eventos após a construção.
-- [ ] **[P0] Contrato `DomainEvent` no package raiz** (`UPR-I06`, `DEC-06`,
+- [x] **[P0] Contrato `DomainEvent` no package raiz** (`UPR-I06`, `DEC-06`,
   FND-03 §5.3): interface mínima `EventName() string`, em que o nome é um fato no
   passado (`MSG-N01`), sem versão (`MSG-N02`) e sem transporte, formato ou
   tecnologia (`MSG-N03`). Nenhum tipo de wire, contexto ou porta aparece na
   superfície do package (`UPR-I11`, `UPR-I12`).
-- [ ] **[P0] Forma da UPR em Go** (FND-03 §2.1, §3.4; ADR-018): método do
+- [x] **[P0] Forma da UPR em Go** (FND-03 §2.1, §3.4; ADR-018): método do
   agregado, ou função pura sobre ele, com a assinatura
   `func (a *Aggregate) Verb(cmd Command) (dmpfdomain.Accepted[Response],
   *dmpfdomain.Rejection)`. Exatamente um dos dois retornos é não zero: em
@@ -200,7 +200,7 @@ fixados aqui, sem reabrir decisão alguma:
     desfecho é `Accepted`. Recusa nunca toca o receptor (`DEC-10`).
   - O agregado NÃO mantém coleção de eventos pendentes nem método que a
     exponha; eventos existem apenas no `Accepted` (`DEC-07`, `DEC-08`).
-- [ ] **[P0] Agregado de exemplo `Order`** no package
+- [x] **[P0] Agregado de exemplo `Order`** no package
   `libs/backend/go/dmpf-domain/example/orders`, unidade `dmpf-kernel/example-orders`,
   transcrição em Go dos exemplos §8.2 e §8.3 do FND-03:
   - Estado: `id OrderID`, `status Status` (`Open`, `Placed`), `items []Item`
@@ -229,12 +229,12 @@ fixados aqui, sem reabrir decisão alguma:
   - Nomes das mensagens seguem §5.3: commands no imperativo (`AddItem`,
     `PlaceOrder`), eventos no passado (`ItemAdded`, `OrderPlaced`), códigos
     `orders/<motivo>`.
-- [ ] **[P0] Remoção do placeholder do `KRN-01`**: `dmpf-domain.go`
+- [x] **[P0] Remoção do placeholder do `KRN-01`**: `dmpf-domain.go`
   (`DmpfDomain`) e `dmpf-domain_test.go` saem do módulo. A SPEC-MQA5HAXF:128 os
   define como "conteúdo mínimo" a ser preenchido por esta história; nenhum
   outro `.go` ou `.json` os referencia (verificar com
   `grep -rln DmpfDomain --include='*.go' --include='*.json'` antes de remover).
-- [ ] **[P0] Manifesto e baseline**: `dmpf-units.json` do módulo passa a
+- [x] **[P0] Manifesto e baseline**: `dmpf-units.json` do módulo passa a
   declarar duas unidades, ambas `block: domain`, `bounded_context: dmpf-kernel`,
   `public_integration_surface: false`, `include` por import path exato —
   `dmpf-kernel/domain` (raiz, inalterada) e `dmpf-kernel/example-orders`
@@ -247,7 +247,7 @@ fixados aqui, sem reabrir decisão alguma:
     (`VerificarAutorizacao`). Precedente: commit `92fcd4d` do ARQ-521.
   - Sem esse commit, o gate reprova com `DMPF-T001` (divergência) ou `DMPF-T002`
     (mudança sem commit próprio); com o código no mesmo commit, também `T002`.
-- [ ] **[P0] Suíte de domínio** em `*_test.go` dos dois packages, executável com
+- [x] **[P0] Suíte de domínio** em `*_test.go` dos dois packages, executável com
   `go test -race -count=2 -shuffle=on ./...`, cobrindo:
   - Determinismo (§2.4, §8.2): dois agregados construídos do mesmo snapshot
     recebem o mesmo command e produzem `Accepted` com respostas iguais e
@@ -266,7 +266,7 @@ fixados aqui, sem reabrir decisão alguma:
   - `*Rejection` como `error`: `errors.As(err, &rej)` recupera a rejeição
     quando o chamador a embrulha.
   - Ambos os ramos de ambas as UPRs (aceite com evento; recusa por cada código).
-- [ ] **[P1] `forbidigo` na regra `domain` do `.golangci.yml`**, restrito a
+- [x] **[P1] `forbidigo` na regra `domain` do `.golangci.yml`**, restrito a
   `**/*-domain/**` como o `depguard`, proibindo os símbolos que o import não
   distingue e que o verificador declara não cobrir (`stdlib.go:67-73`):
   `time\.(Now|Since|Until|Tick|After|AfterFunc|NewTimer|NewTicker|Sleep)`,
@@ -279,7 +279,7 @@ fixados aqui, sem reabrir decisão alguma:
   - `errors.New` e `fmt.Errorf` ficam proibidos porque o domínio não fabrica
     erro não tipado: só `Rejection` trafega. `Rejection.Error()` usa
     `fmt.Sprintf`, que permanece permitido.
-- [ ] **[P1] ADR-032** em `docs/adr/032-realizacao-go-do-desfecho-da-upr.md`,
+- [x] **[P1] ADR-032** em `docs/adr/032-realizacao-go-do-desfecho-da-upr.md`,
   indexado em `docs/adr/README.md`, registrando: o mecanismo escolhido
   (`(Accepted[R], *Rejection)` com tipo concreto, e não `error`); a tabela de
   equivalência observável de FND-03 §3.4 preenchida linha a linha com o que o
@@ -288,26 +288,26 @@ fixados aqui, sem reabrir decisão alguma:
   razão (classificação `io.clock` do verificador); `forbidigo` como complemento
   de símbolo; e a pendência de adoção entre bounded contexts (ver "Escopo fora")
   como consequência declarada, não decidida.
-- [ ] **[P1] Documentação do workspace**: `AGENTS.md` deixa de dizer "Uma:" em
+- [x] **[P1] Documentação do workspace**: `AGENTS.md` deixa de dizer "Uma:" em
   Libs (linha 141) e passa a inventariar `dmpf-domain-go` (com o exemplo) e
   `dmpf-conformance-go`, e registra na cadeia Go que a regra `domain` do lint
   tem `depguard` e `forbidigo`.
 
 ### Não-funcionais
 
-- [ ] Sem I/O em teste: `go test ./...` do módulo termina em menos de 2 s a
+- [x] Sem I/O em teste: `go test ./...` do módulo termina em menos de 2 s a
   frio e não cria arquivo, socket ou processo — verificável por `strace -f -e
   trace=network,file` devolvendo apenas o acesso do próprio `go test` aos
   binários de teste, ou pela simples ausência de `os`, `net`, `os/exec` e
   `testing.T.TempDir` no fechamento (a metade estática já o garante).
-- [ ] Superfície mínima do package raiz: exatamente estes identificadores
+- [x] Superfície mínima do package raiz: exatamente estes identificadores
   exportados — `DomainEvent`, `Accepted`, `Accept`, `Empty`, `Rejection`,
   `Reject`, `Code`, `Detail`. Qualquer acréscimo é decisão de spec, não de
   implementação.
-- [ ] `go.mod` do módulo sem `require`; `go.sum` ausente.
-- [ ] `go test -race -count=2 -shuffle=on ./...` verde: nenhuma corrida e nenhum
+- [x] `go.mod` do módulo sem `require`; `go.sum` ausente.
+- [x] `go test -race -count=2 -shuffle=on ./...` verde: nenhuma corrida e nenhum
   teste dependente de ordem.
-- [ ] Cadeia Go verde por `pnpm nx`: `fmt-check`, `vet`, `lint`, `build`, `test`,
+- [x] Cadeia Go verde por `pnpm nx`: `fmt-check`, `vet`, `lint`, `build`, `test`,
   `test-race`, `govulncheck` do projeto `dmpf-domain-go`.
 
 ## Camadas afetadas
@@ -343,7 +343,7 @@ lidercap-platform/
 │   ├── rejection_test.go                        # CRIAR — Code.Valid, Details cópia, errors.As
 │   └── example/orders/                          # CRIAR — unidade dmpf-kernel/example-orders
 │       ├── order.go                             # Order, NewOrder, Snapshot, clone
-│       ├── messages.go                          # AddItem, PlaceOrder, ItemAdded, OrderPlaced, ItemAccepted, Placed, Instant
+│       ├── messages.go                          # AddItem, PlaceOrder, ItemAdded, OrderPlaced, ItemAccepted, PlacedResponse, Instant
 │       ├── rejections.go                        # constantes Code orders/*
 │       ├── add_item.go                          # UPR 1
 │       ├── place.go                             # UPR 2
@@ -530,73 +530,73 @@ quebrar teste algum que só olhasse `len`.
 
 ### Critérios de aceite
 
-- [ ] `go run ./libs/backend/go/dmpf-conformance/cmd/dmpf-conformance --root .
+- [x] `go run ./libs/backend/go/dmpf-conformance/cmd/dmpf-conformance --root .
   --base origin/develop` sai com código 0 e nenhum diagnóstico `DMPF-D001`,
   `DMPF-E001`, `DMPF-E002`, `DMPF-M002`, `DMPF-U001`, `DMPF-T001` ou `DMPF-T002`
   para as unidades do módulo.
-- [ ] `go list -deps ./...` executado em `libs/backend/go/dmpf-domain` não lista
+- [x] `go list -deps ./...` executado em `libs/backend/go/dmpf-domain` não lista
   `time`, `context`, `os`, `net`, `net/http`, `math/rand`, `crypto/rand`,
   `encoding/json`, `log`, `log/slog`, `reflect` nem package fora da stdlib.
-- [ ] Vetor `net/http`: cópia temporária do módulo com `import _ "net/http"` em
+- [x] Vetor `net/http`: cópia temporária do módulo com `import _ "net/http"` em
   `example/orders` reprova no verificador com `DMPF-E001` (`Target: net/http`) e
   em `bash tools/dmpf-gate-check.sh` pelo `depguard`. Evidência anexada ao PR;
   a fixture permanente vive na suíte do `KRN-02`
   (`integration_test.go` `TestArestaTransitivaEntreModulos`).
-- [ ] Vetor V07: cópia temporária do manifesto com `public_integration_surface:
+- [x] Vetor V07: cópia temporária do manifesto com `public_integration_surface:
   true` na unidade `dmpf-kernel/example-orders` reprova no verificador com
   `DMPF-M002`. Evidência anexada ao PR; a fixture permanente é
   `rule/vectors_test.go:244`.
-- [ ] Vetor V13 propriamente dito (`domain → provider`, `DMPF-D001`) segue
+- [x] Vetor V13 propriamente dito (`domain → provider`, `DMPF-D001`) segue
   coberto por `rule/vectors_test.go:292` e
   `TestArestaInternaEntreModulosProduzD001`; nenhuma unidade `provider` existe no
   módulo para exercitá-lo aqui.
-- [ ] Teste de determinismo: para cada UPR, dois `*Order` construídos do mesmo
+- [x] Teste de determinismo: para cada UPR, dois `*Order` construídos do mesmo
   snapshot e o mesmo command produzem `Accepted` com `Response()` iguais e
   `Events()` de mesmo comprimento, mesmos tipos, mesmos campos e mesma ordem.
-- [ ] Teste `DEC-10`: para cada código de rejeição de cada UPR, `Snapshot()`
+- [x] Teste `DEC-10`: para cada código de rejeição de cada UPR, `Snapshot()`
   antes e depois da chamada são `Equal`.
-- [ ] Teste `DEC-11`: para cada recusa, `len(acc.Events()) == 0` e `acc` é o
+- [x] Teste `DEC-11`: para cada recusa, `len(acc.Events()) == 0` e `acc` é o
   valor zero.
-- [ ] Teste `DEC-12`/`DEC-13`: mutar o slice devolvido por `Events()` (e por
+- [x] Teste `DEC-12`/`DEC-13`: mutar o slice devolvido por `Events()` (e por
   `Details()`) não altera uma segunda chamada.
-- [ ] Nenhuma assinatura exportada dos dois packages recebe `context.Context`,
+- [x] Nenhuma assinatura exportada dos dois packages recebe `context.Context`,
   relógio, gerador de identificador ou aleatoriedade, e nenhuma devolve `error`:
   saída de `go doc -all` dos dois packages anexada ao PR e conferida na revisão;
   `context` ausente da allowlist faz o `lint` reprovar qualquer tentativa.
-- [ ] O agregado não expõe método que devolva eventos pendentes; eventos aparecem
+- [x] O agregado não expõe método que devolva eventos pendentes; eventos aparecem
   apenas em `Accepted` (conferido na mesma saída de `go doc -all`).
-- [ ] `grep -rniE 'exactly.once' libs/backend/go/dmpf-domain docs/adr/032-*.md`
+- [x] `grep -rniE 'exactly.once' libs/backend/go/dmpf-domain docs/adr/032-*.md`
   devolve zero ocorrências.
-- [ ] Todas as constantes `Code` do exemplo passam em `Code.Valid()`; os
+- [x] Todas as constantes `Code` do exemplo passam em `Code.Valid()`; os
   negativos listados nos requisitos falham.
-- [ ] `pnpm nx run dmpf-domain-go:lint` reprova, num arquivo temporário sob o
+- [x] `pnpm nx run dmpf-domain-go:lint` reprova, num arquivo temporário sob o
   módulo, `time.Now()`, `errors.New("x")`, `fmt.Errorf("x")` e `panic("x")`, e
   `bash tools/dmpf-gate-check.sh` prova o vetor `time.Now()` em cada execução.
-- [ ] `dmpf-units.json` declara exatamente 2 unidades; `--write-baseline`
+- [x] `dmpf-units.json` declara exatamente 2 unidades; `--write-baseline`
   executado uma segunda vez não produz diff.
-- [ ] `git log origin/develop..HEAD -- libs/backend/go/dmpf-domain/dmpf-units.json
+- [x] `git log origin/develop..HEAD -- libs/backend/go/dmpf-domain/dmpf-units.json
   tools/dmpf-baseline/units-baseline.json` mostra um único commit, e esse commit
   não toca arquivo `.go`.
-- [ ] `DmpfDomain` não existe mais em código nem em manifesto
+- [x] `DmpfDomain` não existe mais em código nem em manifesto
   (`grep -rn DmpfDomain --include='*.go' --include='*.json'` vazio); esta spec e
   o ADR-032 continuam citando o nome como histórico.
-- [ ] Cadeia Go verde: `pnpm nx run-many -t fmt-check,vet,lint,build,test,test-race,govulncheck
+- [x] Cadeia Go verde: `pnpm nx run-many -t fmt-check,vet,lint,build,test,test-race,govulncheck
   -p dmpf-domain-go`; `pnpm nx affected -t lint,typecheck,test,build
   --exclude=@nx-base-template/source` verde; `pnpm biome ci .` verde nos arquivos
   desta entrega.
-- [ ] `docs/adr/032-realizacao-go-do-desfecho-da-upr.md` existe, indexado em
+- [x] `docs/adr/032-realizacao-go-do-desfecho-da-upr.md` existe, indexado em
   `docs/adr/README.md`, com a tabela de §3.4 preenchida.
-- [ ] `AGENTS.md` inventaria as duas libs Go e a segunda camada do lint.
-- [ ] Revisão PT-BR da spec, do ADR e do `AGENTS.md` sem erros.
+- [x] `AGENTS.md` inventaria as duas libs Go e a segunda camada do lint.
+- [x] Revisão PT-BR da spec, do ADR e do `AGENTS.md` sem erros.
 
 ### Cenários de teste
 
 ```text
 DADO um Order aberto com limite 3 e 2 itens, construído com NewOrder e dois AddItem
-QUANDO AddItem{SKU: "ABC", Quantity: 1, At: InstantOf(1755432000)} é executado
+QUANDO AddItem{SKU: "ABC", Quantity: 1, At: orders.Instant(1755432000)} é executado
 ENTÃO rej é nil, acc.Response() é ItemAccepted{Order: "P-100", Items: 3},
       acc.Events() tem exatamente 1 elemento ItemAdded{Order: "P-100", SKU: "ABC",
-      Quantity: 1, At: InstantOf(1755432000)} e Snapshot().Items tem 3 itens
+      Quantity: 1, At: orders.Instant(1755432000)} e Snapshot().Items tem 3 itens
 
 DADO um Order aberto com limite 3 e 3 itens
 QUANDO AddItem{SKU: "XYZ", Quantity: 1, At: ...} é executado
@@ -625,7 +625,7 @@ DADO um Accepted produzido por Accept(resp, e1, e2)
 QUANDO o chamador faz evs := acc.Events(); evs[0], evs[1] = evs[1], evs[0]; evs = append(evs, e3)
 ENTÃO acc.Events() devolve [e1, e2], na ordem original, com comprimento 2
 
-DADO um *Rejection devolvido por uma UPR e embrulhado pelo chamador com fmt.Errorf("%w", rej)
+DADO um *Rejection devolvido por uma UPR e embrulhado pelo chamador com errors.Join(rej)
 QUANDO errors.As(err, &target) é executado com target *dmpfdomain.Rejection
 ENTÃO target.Code() é o código original
 
