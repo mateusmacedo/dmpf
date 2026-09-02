@@ -154,6 +154,15 @@ da stack** (`<name>-go`). O motivo está no `docs/adr/030-granularidade-modulo-g
 o kernel DMPF terá contrapartes Go e TypeScript com os mesmos nomes conceituais,
 e o nome de projeto é chave única no Nx.
 
+A receita vale para qualquer `scope`: `libs/shared/go/dmpf-contracts` (projeto
+`dmpf-contracts-go`) foi criada com `libs/shared/go/<name>` e
+`--tags=type:lib,scope:shared,stack:go`, e os cinco ajustes abaixo são os
+mesmos. Esse módulo é também o único com targets
+além da cadeia Go — `buf-lint`, `buf-pins`, `buf-generate-check`, `buf-breaking`
+e `buf-gate-selftest` chamam `tools/buf-gate.sh` e têm `contracts/**` nos
+`inputs`, para que uma mudança só em `.proto` o torne afetado (o gerado vive em
+`gen/go/` dentro do módulo, mas a fonte vive em `contracts/`, na raiz).
+
 O comando acima **não** passa `--name` de propósito. O generator usa esse valor
 para dois fins ao mesmo tempo: o nome do projeto Nx e o `package` Go
 (`moduleName = names(projectName).propertyName.toLowerCase()`, em
