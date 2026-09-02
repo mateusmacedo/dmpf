@@ -1,6 +1,7 @@
 package conformance_test
 
 import (
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -10,6 +11,17 @@ import (
 	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/internal/fsstore"
 	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/internal/golist"
 )
+
+// Dentro de um hook o git exporta GIT_DIR sem GIT_WORK_TREE, e `rev-parse
+// --show-toplevel` passa a devolver o cwd em vez da raiz do workspace.
+func TestMain(m *testing.M) {
+	for _, kv := range os.Environ() {
+		if nome, _, _ := strings.Cut(kv, "="); strings.HasPrefix(nome, "GIT_") {
+			_ = os.Unsetenv(nome)
+		}
+	}
+	os.Exit(m.Run())
+}
 
 // A promessa central do verificador, e um teste real porque ele é decomposto na
 // arquitetura
