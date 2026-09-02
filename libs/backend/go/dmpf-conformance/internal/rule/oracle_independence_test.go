@@ -10,24 +10,16 @@ import (
 
 const arquivoOraculo = "matrix_oracle_test.go"
 
-// simbolosDeProducao são os identificadores pelos quais o oráculo poderia
-// derivar da matriz de produção, direta ou indiretamente.
 var simbolosDeProducao = []string{
 	"matrix", "matrixRow", "AllowedByMatrix", "blockIndex",
 	"blocks", "Blocks", "Decide", "DiagnoseEdge", "permitida", "proibida",
 }
 
-// TestOraculoNaoDerivaDaProducao é o controle ESTRUTURAL da independência.
+// Controle ESTRUTURAL da independência.
 //
-// O red control em runtime (matrix_redcontrol_test.go) não basta: ele muta
-// `matrix` depois da inicialização do package, então um oráculo derivado —
-// `var oracle = buildOracleFromMatrix()` — snapshotaria os valores no init,
-// divergiria da matriz mutada e PASSARIA no controle. Ele prova que o oráculo é
-// um snapshot, não que a origem é independente.
-//
-// Este teste prova a origem: lê o AST da declaração de `oracle` e exige que ela
-// seja literal em toda a extensão, sem referência a símbolo de produção. Um
-// oráculo derivado não compila essa exigência.
+// O red control em runtime não basta: ele muta `matrix` DEPOIS do init, então
+// um `var oracle = buildOracleFromMatrix()` snapshotaria no init, divergiria da
+// matriz mutada e passaria. Aqui a origem é lida no AST.
 func TestOraculoNaoDerivaDaProducao(t *testing.T) {
 	fset := token.NewFileSet()
 	arquivo, err := parser.ParseFile(fset, arquivoOraculo, nil, 0)
@@ -64,8 +56,7 @@ func TestOraculoNaoDerivaDaProducao(t *testing.T) {
 	}
 }
 
-// exigeBooleanoLiteral garante que a decisão da célula é `true` ou `false`
-// escrito à mão, nunca uma expressão que possa consultar a produção.
+// A decisão precisa ser literal, nunca expressão que consulte a produção.
 func exigeBooleanoLiteral(t *testing.T, fset *token.FileSet, e ast.Expr) {
 	t.Helper()
 	id, ok := e.(*ast.Ident)
@@ -97,9 +88,8 @@ func declaracaoDeOraculo(t *testing.T, arquivo *ast.File) ast.Node {
 	return nil
 }
 
-// TestArquivoDoOraculoNaoImportaProducao fecha a última via: o oráculo vive em
-// `package rule` e enxerga os símbolos internos sem import. Se um dia migrar
-// para package externo, um import de produção reabriria a derivação.
+// O oráculo vive em `package rule` e vê os internos sem import; migrando para
+// package externo, um import de produção reabriria a derivação.
 func TestArquivoDoOraculoNaoImportaProducao(t *testing.T) {
 	fset := token.NewFileSet()
 	arquivo, err := parser.ParseFile(fset, arquivoOraculo, nil, parser.ImportsOnly)

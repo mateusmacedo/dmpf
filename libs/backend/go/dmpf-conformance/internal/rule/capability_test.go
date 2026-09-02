@@ -7,16 +7,8 @@ import (
 	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/internal/rule"
 )
 
-// politicaNormativa é a transcrição À MÃO da tabela de RFC §6.2, célula a
-// célula. Como o oráculo da matriz, NÃO deriva de capabilityPolicy: derivá-la
-// faria o teste comparar o dado consigo mesmo.
-//
-//	domain       default deny -> apenas pure
-//	port         default deny -> apenas pure
-//	application  default deny -> pure e observability; nenhuma io.*, runtime.framework nem wire.codec
-//	contract     restrita     -> pure e wire.codec
-//	provider     permissiva   -> qualquer
-//	app          permissiva   -> qualquer
+// Transcrição À MÃO da norma. Como o oráculo da matriz, NÃO deriva de
+// capabilityPolicy: derivá-la faria o teste comparar o dado consigo mesmo.
 var politicaNormativa = map[rule.Block][]rule.Capability{
 	rule.BlockDomain:      {rule.CapPure},
 	rule.BlockPort:        {rule.CapPure},
@@ -38,9 +30,7 @@ func TestPoliticaDeCapabilityConfereComRFC62(t *testing.T) {
 	}
 }
 
-// TestObservabilidadeVedadaNoDominioENaPorta isola o princípio 11: telemetria
-// não entra no domínio nem na porta ainda que a biblioteca seja tecnicamente
-// pura. É a exceção que mais se pede, por isso tem vetor próprio.
+// Princípio 11, e a exceção que mais se pede — por isso tem vetor próprio.
 func TestObservabilidadeVedadaNoDominioENaPorta(t *testing.T) {
 	for _, b := range []rule.Block{rule.BlockDomain, rule.BlockPort} {
 		if rule.CapabilityAllowed(b, rule.CapObservability) {
@@ -66,7 +56,7 @@ func TestBlocoOuCapabilityForaDoConjuntoFechadoReprova(t *testing.T) {
 }
 
 func TestConjuntoFechadoDeCapabilities(t *testing.T) {
-	// Literais de RFC §6.1, transcritos à mão e não derivados das constantes.
+	// Transcritos à mão da norma, não derivados das constantes de produção.
 	normativas := []string{
 		"io.storage", "io.messaging", "io.network", "io.filesystem",
 		"io.clock", "io.random", "runtime.framework", "wire.codec",
@@ -109,7 +99,6 @@ func TestCapabilityDaStdlib(t *testing.T) {
 		}
 	}
 
-	// Builtin fora da tabela não vira `pure` por omissão: não saber reprova.
 	if _, ok := rule.StdlibCapability("pacote/que/nao/existe"); ok {
 		t.Error("package desconhecido resolvido: a tabela não é fail-closed")
 	}
@@ -165,15 +154,14 @@ func TestVetorE001(t *testing.T) {
 	})
 
 	t.Run("positivo: mesma dependência em bloco permissivo", func(t *testing.T) {
-		// Bloco permissivo aceita qualquer capability, então não saber qual é
-		// não muda o veredicto.
+		// Aceita qualquer capability, então não saber qual é não muda nada.
 		ds := rule.EvaluateExternal(endpoint(rule.BlockApp), "u",
 			"github.com/desconhecido/x", "u/a.go", semAllowlist, nil, stdlib())
 		exigeCodigos(t, ds)
 	})
 
 	t.Run("negativo: entrypoint fora da allowlist", func(t *testing.T) {
-		// A entrada declara só o subpath puro; o subpath impuro não é coberto.
+
 		policy := rule.ExternalPolicy{Allowlist: []rule.AllowlistEntry{
 			{Package: "github.com/exemplo/lib", Versions: "v1",
 				Entrypoints: []string{"github.com/exemplo/lib/puro"}, Capability: rule.CapPure},
@@ -218,8 +206,7 @@ func TestVetorE002(t *testing.T) {
 	})
 
 	t.Run("negativo: fechamento com dependência não classificada", func(t *testing.T) {
-		// Não conseguir classificar uma dependência do fechamento impede
-		// afirmar pureza — e não afirmar pureza reprova.
+
 		fechamento := func(p string) ([]string, bool) {
 			return []string{"github.com/opaco/x"}, p == "github.com/exemplo/puro"
 		}
@@ -229,9 +216,8 @@ func TestVetorE002(t *testing.T) {
 	})
 
 	t.Run("builtin não sofre pureza transitiva", func(t *testing.T) {
-		// RFC §6.3 atribui capability ao builtin diretamente. Descer o
-		// fechamento da stdlib chegaria em internal/abi e tornaria todo package
-		// puro impuro por construção.
+		// Builtin recebe capability atribuída: descer o fechamento chegaria
+		// em internal/abi e tornaria todo package puro impuro.
 		fechamento := func(string) ([]string, bool) { return []string{"internal/abi"}, true }
 		ds := rule.EvaluateExternal(endpoint(rule.BlockDomain), "u", "errors", "u/a.go",
 			rule.ExternalPolicy{}, fechamento, stdlib("errors"))
@@ -281,12 +267,10 @@ func TestExcecaoNominal(t *testing.T) {
 	})
 }
 
-// ------------------------------------------ allowlist: RFC §6.3 completa ---
+// ------------------------------------------------- allowlist completa ---
 
-// TestEntrypointsVazioNaoAutorizaARaiz: a raiz precisa ser DECLARADA como ".",
-// como no exemplo canônico de RFC §10.1. Um default implícito para a raiz
-// devolveria exatamente a autorização que a regra dos entrypoints retira — o
-// pacote grande com subpath impuro voltaria a entrar inteiro.
+// Um default implícito para a raiz devolveria a autorização que a regra dos
+// entrypoints retira do pacote com subpath impuro.
 func TestEntrypointsVazioNaoAutorizaARaiz(t *testing.T) {
 	semEntrypoints := rule.ExternalPolicy{Allowlist: []rule.AllowlistEntry{
 		{Package: "github.com/exemplo/lib", Versions: "v1", Capability: rule.CapPure},
@@ -303,9 +287,7 @@ func TestEntrypointsVazioNaoAutorizaARaiz(t *testing.T) {
 		"github.com/exemplo/lib", "u/a.go", comRaiz, nil, stdlib()))
 }
 
-// TestEntradaIncompletaNaoAutoriza: RFC §6.3 exige os quatro elementos por
-// entrada. Sem eles a entrada não descreve o que autoriza, e autorizar assim
-// seria autorizar por omissão.
+// Sem os quatro elementos, autorizar seria autorizar por omissão.
 func TestEntradaIncompletaNaoAutoriza(t *testing.T) {
 	completa := rule.AllowlistEntry{
 		Package: "github.com/exemplo/lib", Versions: "v1",
@@ -339,9 +321,9 @@ func TestEntradaIncompletaNaoAutoriza(t *testing.T) {
 				exigeCodigos(t, policy.Validate("m/dmpf-units.json"))
 				return
 			}
-			// Entrada incompleta não autoriza o uso...
+
 			exigeCodigos(t, ds, rule.CodeE001)
-			// ...e não passa calada na validação do manifesto.
+
 			exigeCodigos(t, policy.Validate("m/dmpf-units.json"), rule.CodeM001)
 		})
 	}

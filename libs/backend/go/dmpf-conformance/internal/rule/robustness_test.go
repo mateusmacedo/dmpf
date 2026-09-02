@@ -9,7 +9,6 @@ import (
 	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/internal/rule"
 )
 
-// Robustez: entrada degenerada não pode entrar em pânico nem devolver "conforme".
 func TestEntradaDegeneradaNaoEntraEmPanicoNemAprova(t *testing.T) {
 	casos := []struct {
 		nome  string
@@ -39,7 +38,6 @@ func TestEntradaDegeneradaNaoEntraEmPanicoNemAprova(t *testing.T) {
 	}
 }
 
-// Fail-closed: bloco desconhecido nunca pode produzir aresta permitida.
 func TestBlocoDesconhecidoNuncaPermiteAresta(t *testing.T) {
 	desconhecidos := []rule.Block{"", "core", "DOMAIN", "domain ", "infra"}
 	for _, b := range desconhecidos {
@@ -57,9 +55,8 @@ func TestBlocoDesconhecidoNuncaPermiteAresta(t *testing.T) {
 	}
 }
 
-// Anti-bypass RFC §4.5 r4: nome de bloco com variação de caixa ou espaço não
-// pode ser aceito como o bloco válido — rotular oportunisticamente é o caminho
-// mais barato de burla, e a RFC o fecha declarando-o violação.
+// Rotular o código de forma conveniente é o caminho mais barato de burla, e a
+// norma o declara violação mesmo quando nenhuma ferramenta o detecta.
 func TestRotulagemOportunistaReprova(t *testing.T) {
 	for _, v := range []string{"Domain", "DOMAIN", " domain", "domain ", "dom ain", "contract\t"} {
 		u := manifest.Unit{
@@ -73,7 +70,6 @@ func TestRotulagemOportunistaReprova(t *testing.T) {
 	}
 }
 
-// Anti-bypass: superfície pública declarada em domain com caixa diferente.
 func TestSuperficiePublicaEmDomainEmiteExatamenteM002(t *testing.T) {
 	u := manifest.Unit{
 		ID: "a", Block: "domain", BoundedContext: "a", Include: []string{"m/p"},
@@ -86,16 +82,11 @@ func TestSuperficiePublicaEmDomainEmiteExatamenteM002(t *testing.T) {
 	}
 }
 
-// A saída do gate é lida por humano no log do CI e por ferramenta linha a linha.
-// Todo campo do diagnóstico deriva de entrada não confiável: o manifesto é
-// escrito por quem abre o PR. Um `bounded_context` ou `id` com quebra de linha
-// forjaria uma linha inteira — "DMPF-D001: ... conforme" — e o gate passaria a
-// mentir para quem o lê.
+// O manifesto é escrito por quem abre o PR: um `id` com quebra de linha forja
+// uma linha inteira no log e o gate passa a mentir para quem o lê.
 //
-// Os vetores atravessam os três caminhos em que texto do manifesto entra no
-// `Detail` por concatenação, SEM passar por `%q`. O caminho do `manifest`
-// entra como defesa em profundidade: lá o `%q` já escapa, e o vetor trava esse
-// comportamento contra regressão.
+// Os três primeiros vetores atravessam os caminhos SEM `%q`; o do manifesto
+// entra como defesa em profundidade.
 func TestManifestoNaoForjaLinhaDeDiagnostico(t *testing.T) {
 	const forja = "a\nDMPF-D001: forjado -> tudo ok [RFC §7.3]"
 

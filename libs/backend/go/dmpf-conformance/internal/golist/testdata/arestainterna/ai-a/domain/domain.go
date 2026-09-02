@@ -2,7 +2,7 @@ package domain
 
 import "exemplo.test/ai-b/provider"
 
-// Usar cria a aresta domain -> provider entre módulos: célula 5 da matriz,
-// proibida por P0-1. É aresta INTERNA (os dois lados são unidades declaradas),
-// então tem de sair D001 — não E001.
+// Aresta domain -> provider entre módulos, proibida pela matriz. Os dois lados
+// são unidades declaradas, então tem de sair diagnóstico de aresta, não de
+// dependência externa.
 func Usar() string { return provider.P() }

@@ -7,10 +7,8 @@ import (
 	"strings"
 )
 
-// Unit é a verification_unit já classificada e validada: em Go, um conjunto de
-// packages capturados por `include`, que casa por import path EXATO (ADR-011).
-// Module é o ownership_module que declara a unidade — uma unidade só pode
-// possuir packages do próprio módulo.
+// Unit é o que a classificação recai sobre. Em Go, os packages que o `include`
+// captura por import path EXATO, dentro do próprio Module.
 type Unit struct {
 	ID                       string
 	Block                    Block
@@ -21,9 +19,8 @@ type Unit struct {
 	ManifestPath             string
 }
 
-// UnitKey identifica uma unidade no universo. O `id` só é único DENTRO de um
-// manifesto (§10.1 o exige por documento), então dois módulos podem declarar
-// `id: "domain"` legitimamente. A identidade do proprietário é o par.
+// Qualificado por módulo porque o `id` só é único dentro de um manifesto: dois
+// módulos podem declarar `id: "domain"` legitimamente.
 type UnitKey struct {
 	Module string
 	ID     string
@@ -33,55 +30,43 @@ func (u Unit) Key() UnitKey { return UnitKey{Module: u.Module, ID: u.ID} }
 
 func (k UnitKey) String() string { return k.Module + "#" + k.ID }
 
-// Package é um package de produção descoberto no inventário. CanonicalKey é o
-// import path completo (ADR-011; RFC §3.3); Module é o módulo que o contém.
+// CanonicalKey é o import path completo — em Go, a identidade do package.
 type Package struct {
 	CanonicalKey string
 	Module       string
 }
 
-// Module é um módulo do inventário independente — reconciliação de go.mod
-// rastreados, projetos Nx `stack:go` e membros do go.work. Módulo presente em
-// QUALQUER fonte entra no universo: a omissão do go.work não o tira do alcance
-// de DMPF-U004.
+// Descoberto por mais de uma fonte, e presente em qualquer uma delas já entra:
+// omitir o módulo do go.work não o tira do alcance do DMPF-U004.
 type Module struct {
 	Path          string
 	Dir           string
 	HasManifest   bool
 	HasProduction bool
 
-	// WorkspaceMember indica que o módulo é `use` do go.work. A resolução dele
-	// tem de acontecer NO workspace: fora dele, um require sem `replace` local
-	// cairia na versão publicada, e o verificador analisaria um grafo que não é
-	// o que o build produz.
+	// Membro do go.work resolve NO workspace: fora dele, um require sem
+	// `replace` local cairia na versão publicada, e o grafo analisado deixaria
+	// de ser o que o build produz.
 	WorkspaceMember bool
 }
 
-// Universe é o mapeamento de cada package de produção à sua unidade. As
-// unidades são armazenadas em cópia própria, com os slices clonados: o
-// veredicto não pode mudar depois da construção porque o chamador mexeu no
-// slice que passou.
+// Universe guarda as unidades em cópia própria: o veredicto não pode mudar
+// depois da construção porque o chamador mexeu no slice que passou.
 type Universe struct {
 	units       []Unit
 	byKey       map[string]int
 	descobertos map[string]bool
 }
 
-// Discovered reporta se o package foi descoberto como código de produção,
-// mesmo que nenhuma unidade o classifique.
-//
-// A distinção importa: um package descoberto e não classificado já reprovou em
-// U001, e tratá-lo como dependência externa por não estar em `byKey` emitiria
-// um E001 espúrio sobre código que é do universo — trocando a causa real por
-// um sintoma inventado.
+// Discovered separa "package do universo sem classificação" de "dependência
+// externa": o primeiro já reprovou em U001, e avaliá-lo como externo emitiria
+// um E001 espúrio sobre código do próprio universo.
 func (u *Universe) Discovered(canonicalKey string) bool {
 	return u.descobertos[canonicalKey]
 }
 
-// Membership devolve, por unidade, as canonical_keys que o `include` capturou.
-// É o delta efetivo que o baseline precisa registrar (ADR-028): remapear
-// `include` muda a classificação efetiva sem tocar em campo algum. A chave é
-// qualificada por módulo — `id` homônimo em módulos distintos é legítimo.
+// Quais packages cada unidade acabou capturando. É isso que o baseline precisa
+// registrar: remapear o `include` muda a classificação sem tocar em campo algum.
 func (u *Universe) Membership() map[UnitKey][]string {
 	out := map[UnitKey][]string{}
 	for key, i := range u.byKey {
@@ -94,7 +79,8 @@ func (u *Universe) Membership() map[UnitKey][]string {
 	return out
 }
 
-// Lookup devolve a unidade que contém o package, em cópia profunda.
+// Lookup devolve cópia profunda: expor o Include interno deixaria o consumidor
+// alterar a classificação já construída.
 func (u *Universe) Lookup(canonicalKey string) (Unit, bool) {
 	i, ok := u.byKey[canonicalKey]
 	if !ok {
@@ -103,7 +89,6 @@ func (u *Universe) Lookup(canonicalKey string) (Unit, bool) {
 	return cloneUnit(u.units[i]), true
 }
 
-// Endpoint devolve o lado de aresta já classificado para um package do universo.
 func (u *Universe) Endpoint(canonicalKey string) (Endpoint, bool) {
 	i, ok := u.byKey[canonicalKey]
 	if !ok {
@@ -123,36 +108,24 @@ func cloneUnit(u Unit) Unit {
 	return u
 }
 
-// NormalizeInclude tira a barra final de um import path declarado. É a única
-// tolerância de forma: `x/domain/` e `x/domain` designam o mesmo package.
+// NormalizeInclude: a barra final é a única tolerância de forma no `include`.
 func NormalizeInclude(include string) string {
 	return strings.TrimSuffix(include, "/")
 }
 
-// covers reporta se o include designa EXATAMENTE o package.
-//
-// O casamento é exato, não por prefixo: em Go a verification_unit é o package e
-// a canonical_key é o import path completo (ADR-011; RFC §3.3). Casar por
-// prefixo faria `x/domain/infra` herdar a classificação de `x/domain` pelo lugar
-// em que o diretório está — inferência por convenção, que ADR-012 e RFC §4.4
-// proíbem, e um caminho para classificar package novo sem edição revisável do
-// manifesto. O binding com glob é o de TypeScript (RFC §10.1); o de Go é import
-// path.
+// O casamento é exato, não por prefixo: por prefixo, `x/domain/infra` herdaria
+// a classificação de `x/domain` só por estar embaixo dele. Classificar pelo
+// lugar do diretório é o que a norma recusa, e abriria caminho para código novo
+// entrar sem edição revisável do manifesto. Glob é o binding de TypeScript.
 func covers(include, canonicalKey string) bool {
 	return NormalizeInclude(include) == canonicalKey
 }
 
-// BuildUniverse mapeia os packages de produção às unidades e emite os
-// diagnósticos de cobertura de RFC §3.6: U001 (não coberto), U002 (coberto mais
-// de uma vez), U003 (canonical_key duplicada) e U004 (módulo de produção sem
-// manifesto).
-//
 // O default de toda ramificação ausente é reprovar: package sem unidade não é
-// ignorado, é U001.
+// ignorado, é DMPF-U001.
 func BuildUniverse(units []Unit, packages []Package, modules []Module) (*Universe, []Diagnostic) {
 	var diags []Diagnostic
 
-	// U003 — canonical_key duplicada no universo.
 	count := map[string]int{}
 	for _, p := range packages {
 		count[p.CanonicalKey]++

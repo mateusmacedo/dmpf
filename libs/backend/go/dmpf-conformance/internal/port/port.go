@@ -1,40 +1,51 @@
-// Package port é bloco `port`: as capacidades de fronteira que o verificador
-// consome. Nenhuma unidade `domain` (rule, manifest, baseline) importa este
-// package — a aresta domain → port é proibida sem exceção (ADR-014), e o
-// desenho a torna impossível em vez de apenas proibida.
+// Package port reúne as capacidades de fronteira do verificador.
+//
+// Nenhuma unidade `domain` importa este package. A aresta é proibida sem
+// exceção, e como `port` importa `manifest`, que importa `rule`, tentá-la vira
+// ciclo de import: o compilador recusa antes de o gate opinar.
 package port
 
 import (
+	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/internal/baseline"
 	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/internal/manifest"
 	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/internal/rule"
 )
 
-// GraphSource entrega o grafo de packages resolvido pelo toolchain — nunca o
-// texto do import (RFC §3.5). Edges são as arestas diretas; Deps é o fechamento
-// transitivo, usado apenas na avaliação de pureza.
+// GraphSource entrega o grafo como o compilador o resolve, nunca o texto que
+// está escrito no import.
 type GraphSource interface {
 	Packages() ([]rule.Package, error)
 	Edges() ([]Edge, error)
 }
 
-// Edge é uma aresta package → package. SourceFile nomeia o arquivo que a
-// introduz e serve apenas à mensagem do diagnóstico, nunca à decisão.
 type Edge struct {
-	From       string
-	To         string
+	From string
+	To   string
+	// SourceFile e Detail alimentam só a mensagem: a decisão é sobre o package
+	// que o compilador resolveu, nunca sobre o texto do arquivo.
 	SourceFile string
 	Unresolved bool
 	Detail     string
 }
 
-// ManifestSource entrega os manifestos já decodificados. A decodificação é
-// wire.codec e pertence ao provider; o domínio recebe modelo puro.
+// ManifestSource entrega manifestos já decodificados: ler formato de wire é
+// acesso vedado nos blocos que consomem esta porta.
 type ManifestSource interface {
 	Documents() ([]manifest.Document, error)
 }
 
-// InventorySource entrega o inventário independente de módulos, reconciliando
-// go.mod rastreados, projetos Nx `stack:go` e membros do go.work.
 type InventorySource interface {
 	Modules() ([]rule.Module, error)
+}
+
+type BaselineStore interface {
+	// O bool distingue ausência de erro: repositório sem baseline ainda não o
+	// adotou, e o que fazer com isso é decisão do domínio.
+	Baseline() (baseline.Document, bool, error)
+
+	// BaselineEm lê o baseline como ele estava no ref: é comparando o de antes
+	// com o de agora que se descobre o que mudou de classificação.
+	BaselineEm(ref string) (baseline.Document, bool, error)
+
+	CommitsQueTocaram(base string) ([]baseline.Commit, error)
 }

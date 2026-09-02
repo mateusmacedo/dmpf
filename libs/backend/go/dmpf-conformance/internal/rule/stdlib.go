@@ -1,16 +1,9 @@
 package rule
 
-// stdlibCapability atribui capability aos packages da biblioteca padrão.
-//
-// RFC §6.3 é explícita: builtins recebem capability como qualquer outra
-// dependência — `net/http` é `io.network`, `crypto` é `pure`. Sem esta tabela o
-// bloco `domain` poderia importar `os` e `net/http` livremente, porque a
-// allowlist do manifesto só cobre dependência de terceiro.
-//
-// A chave é o prefixo do import path; o casamento é do prefixo mais específico.
-// Package de stdlib ausente da tabela NÃO é tratado como puro: cai em
-// `pure` apenas quando declarado aqui, e o default de ausência está em
-// StdlibCapability.
+// Os builtins são tratados como qualquer outra dependência: `net/http` dá
+// acesso à rede, `crypto` é computação. Sem esta tabela o bloco `domain`
+// importaria `os` livremente, porque a allowlist do manifesto só cobre
+// dependência de terceiro.
 var stdlibCapability = map[string]Capability{
 	// io.filesystem
 	"io/ioutil":     CapIOFilesystem, // ReadFile/WriteFile: nunca herdou `pure` de `io` por acidente
@@ -71,19 +64,13 @@ var stdlibCapability = map[string]Capability{
 	"reflect": CapRuntimeFramework,
 	"unsafe":  CapRuntimeFramework,
 
-	// LIMITAÇÃO DECLARADA — packages de símbolo misto.
+	// `fmt` e `time` misturam símbolo puro e de I/O: `Sprintf` e `Errorf`
+	// computam, `Println` escreve na saída; `Duration` é tipo, `Now()` lê o
+	// relógio. A verificação é por package, e nessa granularidade não dá para
+	// separar — marcá-los impuros proibiria `fmt.Errorf` no domínio.
 	//
-	// `fmt` e `time` misturam símbolos puros e de I/O: `fmt.Sprintf` e
-	// `fmt.Errorf` são computação, `fmt.Println` escreve em os.Stdout;
-	// `time.Duration` é tipo, `time.Now()` é io.clock. RFC §3.3 fixa o PACKAGE
-	// como unidade de verificação em Go, então a granularidade disponível aqui
-	// não distingue os dois casos, e classificar o package inteiro como impuro
-	// proibiria `fmt.Errorf` no domínio.
-	//
-	// A escolha é `pure`, alinhada ao `.golangci.yml` do KRN-01, que já permite
-	// `fmt` e `time` no bloco `domain`. O custo é conhecido: `fmt.Println` em
-	// unidade `domain` não é detectado. Distinguir por símbolo exigiria
-	// type-check de cada call site, escopo que esta entrega não abre.
+	// Ficam como puros, o que o lint local já permitia. O custo é conhecido:
+	// `fmt.Println` numa unidade de domínio passa sem detecção.
 
 	// pure — computação determinística
 	"errors":          CapPure,
@@ -126,31 +113,20 @@ var stdlibCapability = map[string]Capability{
 	"sync/atomic":     CapPure,
 	"structs":         CapPure,
 
-	// Toolchain de análise: parsear e formatar código é computação
-	// determinística. `go/build` fica de fora porque consulta o disco.
-	"go/ast":    CapPure,
-	"go/token":  CapPure,
-	"go/parser": CapPure,
-	"go/format": CapPure,
-	"go/types":  CapPure,
-	// `go/build` consulta o disco para resolver packages; o subpacote
-	// `constraint` só parseia expressões de build tag.
+	// Parsear e formatar código é determinístico; `go/build` consulta o disco.
+	"go/ast":              CapPure,
+	"go/token":            CapPure,
+	"go/parser":           CapPure,
+	"go/format":           CapPure,
+	"go/types":            CapPure,
 	"go/build":            CapIOFilesystem,
 	"go/build/constraint": CapPure,
 }
 
-// StdlibCapability devolve a capability de um package da biblioteca padrão.
-//
-// O casamento é EXATO. Herdar por prefixo é inseguro sempre que uma subárvore
-// amplia a capability do prefixo — `io` é `pure` e `io/ioutil` expõe `ReadFile`
-// e `WriteFile`, que são `io.filesystem`. Um prefixo permissivo classificaria a
-// subárvore inteira errado, e a única forma de errar para o lado seguro é
-// exigir entrada declarada.
-//
-// O segundo retorno é false quando o package não está na tabela: nesse caso o
-// verificador NÃO sabe classificá-lo, e não saber reprova (RFC §3.6) em bloco
-// default deny. Tratar desconhecido como `pure` seria a porta de entrada
-// silenciosa que a política existe para fechar.
+// StdlibCapability casa por import path EXATO: herdar por prefixo classifica
+// errado sempre que a subárvore amplia a capability do prefixo — `io` é `pure`
+// e `io/ioutil` expõe `ReadFile`. Ausência devolve false, e não saber reprova
+// em bloco que nega por padrão.
 func StdlibCapability(importPath string) (Capability, bool) {
 	c, ok := stdlibCapability[importPath]
 	return c, ok

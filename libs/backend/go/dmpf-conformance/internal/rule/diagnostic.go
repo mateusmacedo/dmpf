@@ -7,8 +7,8 @@ import (
 	"strings"
 )
 
-// Code é um dos quinze códigos estáveis de RFC §10.3. O conjunto é fechado:
-// classe não implementada é ausência declarada de verificação, nunca "conforme".
+// Conjunto fechado de quinze. Classe não implementada é ausência declarada de
+// verificação, nunca "conforme".
 type Code string
 
 const (
@@ -29,7 +29,6 @@ const (
 	CodeE004 Code = "DMPF-E004"
 )
 
-// CodeSpec descreve um código e o amarra à seção normativa que o institui.
 type CodeSpec struct {
 	Code       Code
 	Summary    string
@@ -37,8 +36,7 @@ type CodeSpec struct {
 	Applicable bool
 }
 
-// codeSpecs é a transcrição da tabela de RFC §10.3, na ordem em que a RFC a
-// apresenta. É a fonte de verdade do conjunto fechado.
+// A ordem é a da tabela normativa, e é a que a documentação usa.
 var codeSpecs = []CodeSpec{
 	{CodeU001, "Arquivo de produção não coberto por nenhuma unidade", "RFC §3.6", true},
 	{CodeU002, "Arquivo coberto por mais de uma unidade", "RFC §3.6", true},
@@ -54,14 +52,11 @@ var codeSpecs = []CodeSpec{
 	{CodeE001, "Capability externa não permitida para o bloco", "RFC §6.2", true},
 	{CodeE002, "Dependência declarada pure com fechamento impuro", "RFC §6.3", true},
 	{CodeE003, "Import não resolvido", "RFC §10.3", true},
-	// DMPF-E004 permanece reservado e estável no conjunto dos quinze, sem
-	// ocorrência possível neste binding: a gramática de Go exige
-	// `ImportPath = string_lit`, e carregamento dinâmico via API (plugin.Open e
-	// afins) já é capturado pela política de capabilities (E001/E002).
+	// Reservado e sem ocorrência possível em Go: a gramática exige
+	// `ImportPath = string_lit`, e `plugin.Open` já cai em E001/E002.
 	{CodeE004, "Import dinâmico com alvo não determinável", "RFC §10.3", false},
 }
 
-// CodeSpecs devolve a tabela de RFC §10.3 na ordem normativa.
 func CodeSpecs() []CodeSpec {
 	out := make([]CodeSpec, len(codeSpecs))
 	copy(out, codeSpecs)
@@ -77,8 +72,7 @@ func LookupCode(c Code) (CodeSpec, bool) {
 	return CodeSpec{}, false
 }
 
-// Diagnostic é uma reprovação individual. CanonicalKey é o import path completo
-// da unidade de origem (ADR-011); Target, quando presente, é o destino da aresta.
+// CanonicalKey é o import path completo da origem.
 type Diagnostic struct {
 	Code         Code
 	CanonicalKey string
@@ -87,7 +81,6 @@ type Diagnostic struct {
 	Detail       string
 }
 
-// Section devolve a seção normativa que institui o código do diagnóstico.
 func (d Diagnostic) Section() string {
 	if s, ok := LookupCode(d.Code); ok {
 		return s.Section
@@ -95,13 +88,9 @@ func (d Diagnostic) Section() string {
 	return ""
 }
 
-// umaLinha neutraliza caracteres de controle no texto renderizado.
-//
-// Todo campo do diagnóstico deriva de entrada não confiável: o manifesto é
-// escrito por quem abre o PR, e o import path vem do módulo que ele controla.
-// Sem isto, um `id` com quebra de linha forja uma linha inteira no log do CI —
-// "DMPF-D001: ... conforme" — e o gate passa a mentir para quem o lê. A saída é
-// um diagnóstico por linha, e essa invariante é parte do contrato.
+// Todo campo deriva de entrada não confiável: o manifesto é escrito por quem
+// abre o PR. Sem isto, um `id` com quebra de linha forja uma linha inteira no
+// log e o gate passa a mentir para quem o lê.
 func umaLinha(v string) string {
 	return strings.Map(func(r rune) rune {
 		if r == '\n' || r == '\r' || r == '\t' || (r < 0x20) || r == 0x7f {
@@ -132,8 +121,8 @@ func (d Diagnostic) String() string {
 	return b.String()
 }
 
-// SortDiagnostics impõe a ordem determinística exigida como requisito não
-// funcional: por canonical_key, depois código, depois destino e detalhe.
+// Ordem total sobre os campos de saída: parcial deixaria diagnósticos de mesma
+// chave e código oscilarem entre execuções.
 func SortDiagnostics(ds []Diagnostic) {
 	slices.SortStableFunc(ds, func(a, b Diagnostic) int {
 		return cmp.Or(
