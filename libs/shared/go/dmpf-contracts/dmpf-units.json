@@ -1,0 +1,63 @@
+{
+  "schema": "dmpf/units@1",
+  "units": [
+    {
+      "id": "dmpf-contracts/gen",
+      "block": "contract",
+      "bounded_context": "dmpf-kernel",
+      "public_integration_surface": true,
+      "include": [
+        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/shared/go/dmpf-contracts/gen/go/io/cloudevents/v1",
+        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/shared/go/dmpf-contracts/gen/go/company/orders/event/v1"
+      ]
+    },
+    {
+      "id": "dmpf-contracts/envelope",
+      "block": "contract",
+      "bounded_context": "dmpf-kernel",
+      "public_integration_surface": true,
+      "include": [
+        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/shared/go/dmpf-contracts/envelope"
+      ]
+    },
+    {
+      "id": "dmpf-contracts/payloadhash",
+      "block": "contract",
+      "bounded_context": "dmpf-kernel",
+      "public_integration_surface": true,
+      "include": [
+        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/shared/go/dmpf-contracts/payloadhash"
+      ]
+    }
+  ],
+  "external": [
+    {
+      "package": "google.golang.org/protobuf",
+      "versions": ">=1.36.12 <2",
+      "entrypoints": [
+        "google.golang.org/protobuf/proto",
+        "google.golang.org/protobuf/types/known/anypb",
+        "google.golang.org/protobuf/types/known/timestamppb",
+        "google.golang.org/protobuf/reflect/protoreflect",
+        "google.golang.org/protobuf/runtime/protoimpl"
+      ],
+      "capability": "wire.codec"
+    }
+  ],
+  "exceptions": [
+    {
+      "unit": "dmpf-contracts/gen",
+      "dependency": "reflect",
+      "reason": "import emitido pelo protoc-gen-go v1.36.12 em todo arquivo gerado; plumbing do runtime Protobuf, não uso de framework (RFC 6.4)",
+      "owner": "tech-leads",
+      "review_by": "2027-03-02"
+    },
+    {
+      "unit": "dmpf-contracts/gen",
+      "dependency": "unsafe",
+      "reason": "import emitido pelo protoc-gen-go v1.36.12 em todo arquivo gerado; plumbing do runtime Protobuf, não uso de framework (RFC 6.4)",
+      "owner": "tech-leads",
+      "review_by": "2027-03-02"
+    }
+  ]
+}
