@@ -238,6 +238,8 @@ importers:
 
   libs/backend/go/dmpf-domain: {}
 
+  libs/shared/go/dmpf-contracts: {}
+
 packages:
 
   '@angular-devkit/core@19.2.24':
