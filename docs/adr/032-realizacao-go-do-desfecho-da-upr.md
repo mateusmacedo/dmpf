@@ -62,11 +62,36 @@ invariantes.
 **Imutabilidade, com limite declarado.** `Accept`, `Events()`, `Reject` e
 `Details()` copiam as sequências que recebem e devolvem, o que realiza
 `DEC-13` sobre a **sequência**. O **conteúdo** da resposta `R` e de cada
-`DomainEvent` é contrato dos tipos do agregado: valores comparáveis, sem slice,
-map ou ponteiro, provado no exemplo por teste de compilação
-(`mustBeComparable[T comparable]`). O kernel não garante `DEC-12` sobre um `R`
-mutável — sem `reflect`, a cópia profunda de `any` não é realizável — e o FND-03
-§3.5 admite a imutabilidade como convenção sustentada por cópia.
+`DomainEvent` é contrato dos tipos do agregado: valores comparáveis cujos campos
+não carregam ponteiro, slice, map nem função. O que a máquina prova é parcial e
+fica dito como tal: o teste de compilação do exemplo
+(`mustBeComparable[T comparable]`) exclui slice, map e função, mas **não**
+exclui ponteiro — `struct{ C *int }` satisfaz `comparable` pela especificação
+da linguagem — e `slices.Clone` copia elementos por atribuição, portanto é raso.
+A ausência de ponteiro é item de revisão estrutural de cada agregado
+(`structurally reviewable`, FND-03 §2.2). O kernel não garante `DEC-12` sobre um
+`R` mutável — sem `reflect`, a cópia profunda de `any` não é realizável — e o
+FND-03 §3.5 admite a imutabilidade como convenção sustentada por cópia. Uma
+verificação mecânica desse contrato (inspeção de tipos das respostas e eventos
+pelo verificador, com `go/types`) é evolução do `KRN-02`, fora desta história.
+
+**Equivalência observável (FND-03 §3.4), linha a linha.** A tabela abaixo é a
+condição necessária que a norma impõe a qualquer realização; cada linha aponta
+o que o código faz e o que prova.
+
+| Observação na fronteira | Realização em Go | Evidência |
+| --- | --- | --- |
+| Ramo distinguível sem inspecionar texto | `rej != nil` decide o ramo | testes dos dois ramos de `AddItem` e `Place` |
+| Resposta de domínio acessível em `Accepted` | `acc.Response()` | `TestAddItemAccepts`, `TestPlaceAccepts` |
+| Sequência ordenada de eventos acessível; vazia em `Rejected` | `acc.Events()`; o valor zero devolve slice vazio, não `nil` | `TestZeroAcceptedHasNoEvents`, `requireRejected` |
+| Rejeição tipada com código estável acessível | `rej.Code()` do tipo `Code`, formato `contexto/motivo` | `TestCodeValid`, `TestDeclaredCodesAreValid` |
+| Estado observável do alvo inalterado em `Rejected` | decide-sobre-cópia: `*o = next` só após o último invariante | `requireUnchanged` via `Snapshot().Equal` em cada recusa |
+| Chegada por canal indistinguível de falha técnica: proibido | segundo retorno é `*Rejection`, não `error`; `forbidigo` barra `errors.New` e `fmt.Errorf` no módulo | compilação; `gate-check` (família "erro não tipado") |
+| Chegada por lançamento que interrompe o chamador: proibido | nenhum `panic` no módulo | `forbidigo`; `gate-check` (família "lançamento") |
+| Mesmo evento acessível por um segundo caminho: proibido | `Order` não tem coleção de eventos pendentes; eventos existem só em `Accepted` | superfície exportada (`go doc -all`) |
+| Coleção pendente retendo evento após o retorno: proibido | idem | idem |
+| Meio de alterar o desfecho depois de produzido: proibido | campos não exportados; `Events()` e `Details()` devolvem cópia; entrada de `Accept` e `Reject` clonada | `TestEventsReturnedSliceIsNotAliased`, `TestAcceptInputSliceIsNotAliased`, `TestDetailsReturnedSliceIsNotAliased`, `TestRejectInputSliceIsNotAliased` |
+| Exaustividade verificável no chamador | dois valores, exatamente um não zero | `requireRejected` checa resposta zero e zero eventos em toda recusa |
 
 **Tempo como valor.** O instante entra como tipo de domínio próprio (`Instant`,
 inteiro de segundos) e o módulo não importa `time`, porque o verificador o
@@ -113,7 +138,8 @@ baseline, em commit separado do código (RFC §10.2).
   `fmt.Println`, `fmt.Scanln`, `println`, `fmt.Errorf` e `panic` reprovam no
   lint, com vetor persistente por família.
 - Os módulos `KRN-04`..`KRN-12` herdam a forma de referência de UPR em Go e o
-  contrato de tipos comparáveis para respostas e eventos.
+  contrato de conteúdo imutável para respostas e eventos (valores comparáveis
+  sem ponteiro), com a parte mecanizável já provada no exemplo.
 
 **Negativas:**
 
