@@ -20,6 +20,7 @@ func Accept[R any](response R, events ...DomainEvent) Accepted[R] {
 	return Accepted[R]{response: response, events: slices.Clone(events)}
 }
 
+// Response is the explicit domain response of the accepting branch (DEC-05).
 func (a Accepted[R]) Response() R { return a.response }
 
 // Events returns a fresh copy of the sequence, empty rather than nil when the

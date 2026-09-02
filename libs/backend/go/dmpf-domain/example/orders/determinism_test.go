@@ -61,8 +61,8 @@ func TestPlaceIsDeterministic(t *testing.T) {
 
 func mustBeComparable[T comparable]() {}
 
-// Responses and events are comparable value types: the immutability contract
-// of dmpfdomain (doc.go) is checked here at compile time.
+// Responses and events are comparable value types (no slice, map or func); the
+// absence of pointers is a review item, as dmpfdomain documents (DEC-12).
 var (
 	_ = mustBeComparable[orders.ItemAccepted]
 	_ = mustBeComparable[orders.PlacedResponse]

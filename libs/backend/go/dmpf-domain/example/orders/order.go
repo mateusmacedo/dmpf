@@ -11,6 +11,7 @@ type Order struct {
 	itemLimit int
 }
 
+// NewOrder creates an open order with no items and the given item limit.
 func NewOrder(id OrderID, itemLimit int) *Order {
 	return &Order{id: id, status: Open, items: []Item{}, itemLimit: itemLimit}
 }
@@ -23,6 +24,7 @@ type Snapshot struct {
 	Items     []Item
 }
 
+// Snapshot copies the observable state; mutating the result never reaches the order.
 func (o *Order) Snapshot() Snapshot {
 	return Snapshot{ID: o.id, Status: o.status, ItemLimit: o.itemLimit, Items: slices.Clone(o.items)}
 }

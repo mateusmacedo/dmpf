@@ -36,8 +36,10 @@ func Reject(code Code, message string, details ...Detail) *Rejection {
 	return &Rejection{code: code, message: message, details: slices.Clone(details)}
 }
 
+// Code is the stable "context/reason" identifier of the refusal (DEC-09).
 func (r *Rejection) Code() Code { return r.code }
 
+// Message is addressed to the domain: no technical detail, no sensitive data.
 func (r *Rejection) Message() string { return r.message }
 
 // Details returns a fresh copy, empty rather than nil when there are none.

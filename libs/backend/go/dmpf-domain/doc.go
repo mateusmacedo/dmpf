@@ -6,7 +6,10 @@
 // port, clock, identifier generator, context or wire type lives here.
 //
 // Immutability contract: Accepted and Rejection copy the sequences they hold
-// (DEC-12, DEC-13); the content of R and of each DomainEvent is the aggregate's
-// contract — comparable value types, without slice, map or pointer — because a
-// deep copy of an arbitrary R is not realizable without reflection (FND-03 §3.5).
+// (DEC-13), so the outcome cannot be reordered or extended after it is produced.
+// The content of R and of each DomainEvent is the aggregate's contract (DEC-12):
+// comparable value types whose fields hold no pointer, slice, map or function.
+// The kernel cannot deep-copy an arbitrary R without reflection, and comparable
+// alone does not exclude pointers — it excludes slices, maps and functions;
+// absence of pointers is a structural review item of each aggregate. See ADR-032.
 package dmpfdomain
