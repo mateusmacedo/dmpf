@@ -1,0 +1,19 @@
+{
+  "schema": "dmpf/units@1",
+  "units": [
+    {
+      "id": "al-a/consumidor",
+      "block": "app",
+      "bounded_context": "al",
+      "include": ["exemplo.test/al-a/consumidor"]
+    },
+    {
+      "id": "al-a/alvo",
+      "block": "domain",
+      "bounded_context": "al",
+      "include": ["exemplo.test/al-a/alvo"]
+    }
+  ],
+  "external": [],
+  "exceptions": []
+}

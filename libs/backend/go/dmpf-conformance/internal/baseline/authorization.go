@@ -80,8 +80,24 @@ func Detectar(anterior, novo Document) []MudancaNormativa {
 }
 
 // Editar qualquer um destes é mudar a classificação.
+//
+// Manifesto sob `testdata/` fica de fora: é dado de teste, e o módulo sintético
+// que ele descreve não entra no universo. Contá-lo faria um commit que só ajusta
+// fixture ser lido como ato de classificação misturado com código.
 func arquivoNormativo(p string) bool {
+	if ehDadoDeTeste(p) {
+		return false
+	}
 	return p == Path || strings.HasSuffix(p, "/dmpf-units.json") || p == "dmpf-units.json"
+}
+
+func ehDadoDeTeste(p string) bool {
+	for _, seg := range strings.Split(p, "/") {
+		if seg == "testdata" || seg == "vendor" {
+			return true
+		}
+	}
+	return false
 }
 
 // Mudar a classificação exige duas coisas: vir num commit separado do código, e

@@ -1,0 +1,19 @@
+{
+  "schema": "dmpf/units@1",
+  "units": [
+    {
+      "id": "ex-a/domain",
+      "block": "domain",
+      "bounded_context": "ex",
+      "include": ["exemplo.test/ex-a/domain"]
+    },
+    {
+      "id": "ex-a/gerado",
+      "block": "domain",
+      "bounded_context": "ex",
+      "include": ["exemplo.test/ex-a/gerado"]
+    }
+  ],
+  "external": [],
+  "exceptions": []
+}
