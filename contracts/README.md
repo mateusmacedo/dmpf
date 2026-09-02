@@ -73,6 +73,46 @@ sha256sum contracts/proto/io/cloudevents/v1/cloudevents.proto
 O arquivo oficial carrega `option go_package` e opções de outras linguagens; o
 managed mode as sobrescreve na geração, e por isso o arquivo não é editado.
 
+## Gates e baseline
+
+Os quatro gates de `tools/buf-gate.sh` rodam como targets Nx do projeto
+`dmpf-contracts-go` e no passo `Contracts gates (affected)` do CI; nenhum é
+advisory e nenhum tem bypass (`BUF-12`):
+
+| Subcomando | O que prova |
+|------------|-------------|
+| `lint` | `buf format --diff --exit-code`, `buf lint` em `STANDARD` e varredura textual de P0-3 (nenhum artefato promete entrega única fim a fim) |
+| `pins` | pin exato da CLI em `tools/buf.sh`, do plugin em `buf.gen.yaml`, igualdade plugin × runtime no `go.mod` e `buf.lock` presente quando há `deps` |
+| `generate-check` | duas gerações idênticas byte a byte e ausência de drift entre gerado e versionado (`BUF-11`) |
+| `breaking` | `buf breaking` em `FILE` contra `NX_BASE`, sob a máquina de estados de `BUF-08` |
+
+`buf breaking` segue `BUF-08`: cada módulo do workspace está em um de dois
+estados, reconhecidos pela **marca de baseline** — a tag anotada
+`contracts-baseline/<módulo>` (para o módulo `proto`, `contracts-baseline/proto`).
+
+- **`sem baseline`** — a marca não existe e o módulo também não existe em
+  `NX_BASE`: é o primeiro conteúdo do módulo; `breaking` é dispensado só para
+  ele, com aviso na saída. `lint`, `format`, `generate-check` e `pins` seguem
+  obrigatórios. É o estado deste repositório enquanto a marca não for criada.
+- **`baseline estabelecido`** — a marca existe: `breaking` é obrigatório;
+  `NX_BASE` vazio, irresolvível ou sem `contracts/` reprova.
+
+Três situações reprovam por construção: marca ausente em módulo que já existe em
+`NX_BASE`; diretório de pacote publicado que mude de caminho; e marca cujo
+`tagger` seja o autor do primeiro commit do módulo — a autorização precisa vir
+de outra pessoa. Para criar a marca, alguém que **não** seja o autor do módulo
+executa, após o merge:
+
+```bash
+git tag -a contracts-baseline/proto -m "baseline estabelecido" <commit-na-branch-principal>
+git push origin contracts-baseline/proto
+```
+
+No Gitea, a tag protegida `contracts-baseline/*` (Settings → Tags) deve permitir
+criação apenas às equipes `tech-leads` e `Owners`. Um repositório com um único
+aprovador não consegue sair de `sem baseline`; a norma trata isso como
+pré-requisito organizacional, não como defeito do gate.
+
 ## O que é e o que não é normatizado
 
 - `proto/` e `fixtures/` seguem a norma integralmente: caminho espelha o pacote
