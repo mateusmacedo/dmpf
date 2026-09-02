@@ -27,7 +27,7 @@ contracts/
 ```
 
 O código gerado **não** fica aqui: `buf.gen.yaml` escreve em
-`libs/shared/go/dmpf-contracts/gen/go/`, dentro do módulo Go do bloco
+`libs/backend/go/dmpf-contracts/gen/go/`, dentro do módulo Go do bloco
 `contract`, porque é esse módulo que o verificador de conformidade classifica.
 A semântica de `REP-02` é preservada: o gerado é versionado, nunca editado à
 mão, e a divergência entre gerado e versionado reprova o PR.
@@ -121,6 +121,6 @@ pré-requisito organizacional, não como defeito do gate.
   (`PTB-06`).
 - `openapi/` e `asyncapi/` existem porque a norma os registra (`REP-06`); nada
   aqui obriga sobre o seu conteúdo, versionamento ou gates.
-- A semântica de entrega dos eventos é at-least-once com efeitos idempotentes
-  (RFC DMPF §2.3, P0-3); nenhum artefato deste diretório promete mais do que
-  isso.
+- Semântica de entrega não é assunto deste diretório: ela é fixada pela RFC
+  DMPF §2.3 e pelos artefatos de mensageria, e o gate `lint` só garante que
+  nenhum arquivo daqui a contradiga.

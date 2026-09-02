@@ -2,6 +2,6 @@ go 1.26.4
 
 use (
 	./libs/backend/go/dmpf-conformance
+	./libs/backend/go/dmpf-contracts
 	./libs/backend/go/dmpf-domain
-	./libs/shared/go/dmpf-contracts
 )

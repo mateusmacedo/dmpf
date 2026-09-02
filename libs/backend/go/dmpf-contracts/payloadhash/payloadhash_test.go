@@ -4,7 +4,7 @@ import (
 	"regexp"
 	"testing"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/shared/go/dmpf-contracts/payloadhash"
+	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/payloadhash"
 )
 
 var lowerHex64 = regexp.MustCompile(`^[0-9a-f]{64}$`)
@@ -46,7 +46,7 @@ func TestSum(t *testing.T) {
 			if !lowerHex64.MatchString(got) {
 				t.Fatalf("Sum() = %q, want 64 lowercase hex characters", got)
 			}
-			if tc.want != "" && got != tc.want {
+			if got != tc.want {
 				t.Fatalf("Sum() = %q, want %q", got, tc.want)
 			}
 		})

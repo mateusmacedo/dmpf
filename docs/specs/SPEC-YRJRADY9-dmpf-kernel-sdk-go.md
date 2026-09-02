@@ -259,9 +259,9 @@ lidercap-platform/
 │   ├── dmpf-provider-sqs/               — bloco provider: acervo normatizado
 │   ├── dmpf-provider-grpc/              — bloco provider: governo do tempo
 │   ├── dmpf-provider-http/              — bloco provider: borda externa
-│   └── dmpf-observability/              — bloco provider: OTel, resiliência
+│   ├── dmpf-observability/              — bloco provider: OTel, resiliência
+│   └── dmpf-contracts/                  — bloco contract: tipos gerados de Protobuf (KRN-05 fixou scope:backend)
 ├── libs/shared/go/                      — nível de stack, mesma convenção
-│   ├── dmpf-contracts/                  — bloco contract: tipos gerados de Protobuf
 │   └── dmpf-testkit/                    — test kits de conformidade e fixtures
 ├── apps/backend/
 │   └── dmpf-reference/                  — bloco app: composition root e relay de exemplo

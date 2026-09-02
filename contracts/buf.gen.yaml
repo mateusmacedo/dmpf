@@ -4,15 +4,15 @@ managed:
   enabled: true
   override:
     - file_option: go_package_prefix
-      value: gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/shared/go/dmpf-contracts/gen/go
+      value: gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/gen/go
 plugins:
   # Pin do plugin (BUF-06): a versão precisa ser igual à de google.golang.org/protobuf
-  # no go.mod de libs/shared/go/dmpf-contracts; tools/buf-gate.sh pins confere.
+  # no go.mod de libs/backend/go/dmpf-contracts; tools/buf-gate.sh pins confere.
   - local:
       - go
       - run
       - google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.12
-    out: ../libs/shared/go/dmpf-contracts/gen/go
+    out: ../libs/backend/go/dmpf-contracts/gen/go
     opt: paths=source_relative
 inputs:
   - directory: proto

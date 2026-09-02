@@ -63,10 +63,9 @@ jobs:
       - name: Go gates (affected)
         run: pnpm nx affected -t fmt-check,vet,test-race,govulncheck --base=$NX_BASE --head=$NX_HEAD --parallel=3 --exclude=$NX_EXCLUDE
 
-      # Gates Buf do repositório de contratos (BUF-03..BUF-12), fail-closed. Só o
-      # projeto dmpf-contracts-go declara esses targets, e os inputs dele cobrem
-      # contracts/**, então um PR que toque só um .proto entra no affected.
-      # `buf-breaking` lê NX_BASE como identidade do baseline (BUF-05).
+      # Gates Buf dos contratos (contracts/README.md, "Gates e baseline"): só o
+      # dmpf-contracts-go os declara, com contracts/** nos inputs, então um PR que
+      # toque só um .proto entra no affected; buf-breaking lê NX_BASE como baseline.
       - name: Contracts gates (affected)
         run: pnpm nx affected -t buf-lint,buf-pins,buf-generate-check,buf-breaking,buf-gate-selftest --base=$NX_BASE --head=$NX_HEAD --parallel=3 --exclude=$NX_EXCLUDE
 

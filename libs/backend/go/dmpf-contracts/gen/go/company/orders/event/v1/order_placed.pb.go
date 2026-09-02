@@ -155,8 +155,8 @@ const file_company_orders_event_v1_order_placed_proto_rawDesc = "" +
 	"\fOrderChannel\x12\x1d\n" +
 	"\x19ORDER_CHANNEL_UNSPECIFIED\x10\x00\x12\x15\n" +
 	"\x11ORDER_CHANNEL_WEB\x10\x01\x12\x15\n" +
-	"\x11ORDER_CHANNEL_APP\x10\x02B\xaa\x02\n" +
-	"\x1bcom.company.orders.event.v1B\x10OrderPlacedProtoP\x01Zzgitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/shared/go/dmpf-contracts/gen/go/company/orders/event/v1;eventv1\xa2\x02\x03COE\xaa\x02\x17Company.Orders.Event.V1\xca\x02\x17Company\\Orders\\Event\\V1\xe2\x02#Company\\Orders\\Event\\V1\\GPBMetadata\xea\x02\x1aCompany::Orders::Event::V1b\x06proto3"
+	"\x11ORDER_CHANNEL_APP\x10\x02B\xab\x02\n" +
+	"\x1bcom.company.orders.event.v1B\x10OrderPlacedProtoP\x01Z{gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/gen/go/company/orders/event/v1;eventv1\xa2\x02\x03COE\xaa\x02\x17Company.Orders.Event.V1\xca\x02\x17Company\\Orders\\Event\\V1\xe2\x02#Company\\Orders\\Event\\V1\\GPBMetadata\xea\x02\x1aCompany::Orders::Event::V1b\x06proto3"
 
 var (
 	file_company_orders_event_v1_order_placed_proto_rawDescOnce sync.Once

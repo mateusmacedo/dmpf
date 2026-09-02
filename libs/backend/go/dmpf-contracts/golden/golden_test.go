@@ -11,10 +11,10 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/shared/go/dmpf-contracts/envelope"
-	eventv1 "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/shared/go/dmpf-contracts/gen/go/company/orders/event/v1"
-	cloudeventsv1 "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/shared/go/dmpf-contracts/gen/go/io/cloudevents/v1"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/shared/go/dmpf-contracts/payloadhash"
+	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/envelope"
+	eventv1 "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/gen/go/company/orders/event/v1"
+	cloudeventsv1 "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/gen/go/io/cloudevents/v1"
+	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/payloadhash"
 )
 
 var errFormatVersion = errors.New("golden: unsupported format_version")
@@ -151,11 +151,13 @@ func TestGoldenCases(t *testing.T) {
 			if payloadhash.Sum(out.Payload) != c.PayloadHash {
 				t.Fatal("payload_hash changed across Encode/Decode")
 			}
-			if out.ID != in.ID || out.Type != in.Type || out.DataSchema != in.DataSchema ||
-				!out.Time.AsTime().Equal(in.Time.AsTime()) ||
-				(out.TenantID == nil) != (in.TenantID == nil) ||
-				(out.TraceState == nil) != (in.TraceState == nil) ||
-				(out.AggregateVersion == nil) != (in.AggregateVersion == nil) {
+			if out.ID != in.ID || out.Source != in.Source || out.SpecVersion != in.SpecVersion ||
+				out.Type != in.Type || out.Subject != in.Subject || out.DataSchema != in.DataSchema ||
+				out.DataContentType != in.DataContentType || out.CorrelationID != in.CorrelationID ||
+				out.CausationID != in.CausationID || out.PartitionKey != in.PartitionKey ||
+				out.TraceParent != in.TraceParent || !out.Time.AsTime().Equal(in.Time.AsTime()) ||
+				!sameInt32(out.AggregateVersion, in.AggregateVersion) ||
+				!sameString(out.TenantID, in.TenantID) || !sameString(out.TraceState, in.TraceState) {
 				t.Fatalf("envelope changed across Encode/Decode:\n in=%+v\nout=%+v", in, out)
 			}
 
@@ -236,6 +238,14 @@ func TestHashOverBytesNotOverStructure(t *testing.T) {
 	if payloadhash.Sum(reserialized) == c.PayloadHash {
 		t.Fatal("hash of the reserialized structure must differ from the transported hash; the oracle would not catch ENV-18 violations")
 	}
+}
+
+func sameString(a, b *string) bool {
+	return (a == nil && b == nil) || (a != nil && b != nil && *a == *b)
+}
+
+func sameInt32(a, b *int32) bool {
+	return (a == nil && b == nil) || (a != nil && b != nil && *a == *b)
 }
 
 func allCases(doc fixtureDoc) []fixtureCase {

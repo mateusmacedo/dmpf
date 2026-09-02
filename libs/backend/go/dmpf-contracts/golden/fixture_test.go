@@ -12,9 +12,9 @@ import (
 	"google.golang.org/protobuf/encoding/protowire"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/shared/go/dmpf-contracts/envelope"
-	eventv1 "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/shared/go/dmpf-contracts/gen/go/company/orders/event/v1"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/shared/go/dmpf-contracts/payloadhash"
+	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/envelope"
+	eventv1 "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/gen/go/company/orders/event/v1"
+	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/payloadhash"
 )
 
 // The fixture lives in the contracts tree (FIX-10), five directories above this package.
@@ -210,13 +210,14 @@ func appendVarint(b []byte, num protowire.Number, v uint64) []byte {
 
 // Fields emitted in descending number order: valid wire, same decoded message,
 // but never what a Go reserialization produces — the ENV-18 discriminator.
-func nonCanonicalPayload(fields map[string]string) []byte {
+func nonCanonicalPayload(t *testing.T, fields map[string]string) []byte {
+	t.Helper()
+	msg := messageFromFields(t, fields)
 	var b []byte
-	b = appendVarint(b, fieldChannel, uint64(eventv1.OrderChannel_value[fields["channel"]]))
-	total, _ := strconv.ParseInt(fields["total_cents"], 10, 64)
-	b = appendVarint(b, fieldTotalCents, uint64(total))
-	b = appendString(b, fieldCustomerID, fields["customer_id"])
-	b = appendString(b, fieldOrderID, fields["order_id"])
+	b = appendVarint(b, fieldChannel, uint64(msg.GetChannel()))
+	b = appendVarint(b, fieldTotalCents, uint64(msg.GetTotalCents()))
+	b = appendString(b, fieldCustomerID, msg.GetCustomerId())
+	b = appendString(b, fieldOrderID, msg.GetOrderId())
 	return b
 }
 
@@ -277,7 +278,7 @@ func buildFixture(t *testing.T) fixtureDoc {
 	nonCanonicalEnv["id"] = "evt-2003"
 	nonCanonical := rawCase("non-canonical-field-order",
 		"Campos em ordem decrescente de número: decodifica no mesmo valor, mas o hash é o dos bytes transportados e difere do hash de uma reserialização (ENV-18).",
-		nonCanonicalEnv, nonCanonicalFields, nonCanonicalPayload(nonCanonicalFields))
+		nonCanonicalEnv, nonCanonicalFields, nonCanonicalPayload(t, nonCanonicalFields))
 
 	return fixtureDoc{
 		FormatVersion: formatVersion,

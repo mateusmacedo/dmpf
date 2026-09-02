@@ -10,7 +10,7 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	cloudeventsv1 "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/shared/go/dmpf-contracts/gen/go/io/cloudevents/v1"
+	cloudeventsv1 "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/gen/go/io/cloudevents/v1"
 )
 
 const (
@@ -69,7 +69,16 @@ func Pack(msg proto.Message) (payload []byte, typeURL string, err error) {
 	return payload, typeURLPrefix + string(msg.ProtoReflect().Descriptor().FullName()), nil
 }
 
+// Validate applies the profile in the order the norm lists it: presence
+// (ENV-08, ENV-12) before the value rules (specversion, content type, ENV-16 b).
 func (e Envelope) Validate() error {
+	if err := e.validatePresence(); err != nil {
+		return err
+	}
+	return e.validateProfile()
+}
+
+func (e Envelope) validatePresence() error {
 	required := []struct{ name, value string }{
 		{"id", e.ID}, {"source", e.Source}, {"specversion", e.SpecVersion}, {"type", e.Type},
 		{attrSubject, e.Subject}, {attrDataSchema, e.DataSchema}, {attrDataContentType, e.DataContentType},
@@ -90,11 +99,18 @@ func (e Envelope) Validate() error {
 	if e.TraceState != nil && *e.TraceState == "" {
 		return attributeError(ErrEmptyConditional, attrTraceState)
 	}
+	return nil
+}
+
+func (e Envelope) validateProfile() error {
 	if e.SpecVersion != SpecVersion {
 		return ErrSpecVersion
 	}
 	if e.DataContentType != ContentType {
 		return ErrContentType
+	}
+	if !strings.HasPrefix(e.DataSchema, typeURLPrefix) || len(e.DataSchema) == len(typeURLPrefix) {
+		return ErrDataSchemaForm
 	}
 	if majorOfSchema(e.DataSchema) == "" || majorOfSchema(e.DataSchema) != majorOfType(e.Type) {
 		return ErrMajorMismatch
@@ -188,11 +204,16 @@ func Decode(ce *cloudeventsv1.CloudEvent) (Envelope, error) {
 	if e.TraceState, err = optionalString(attrs, attrTraceState); err != nil {
 		return e, err
 	}
-	if err := e.Validate(); err != nil {
+	if err := e.validatePresence(); err != nil {
 		return e, err
 	}
+	// ENV-16 (a) before (b): the norm lists the literal comparison first, so a
+	// doubly wrong event reports the schema, not the major.
 	if protoData.ProtoData.GetTypeUrl() != e.DataSchema {
 		return e, ErrSchemaMismatch
+	}
+	if err := e.validateProfile(); err != nil {
+		return e, err
 	}
 	e.Payload = protoData.ProtoData.GetValue()
 	return e, nil
@@ -280,5 +301,9 @@ func majorOfSchema(dataSchema string) string {
 // majorOfType reads the trailing major of the envelope type (PTB-03 form):
 // "com.company.orders.order-placed.v1" → "v1".
 func majorOfType(eventType string) string {
-	return eventType[strings.LastIndex(eventType, ".")+1:]
+	dot := strings.LastIndex(eventType, ".")
+	if dot < 0 {
+		return ""
+	}
+	return eventType[dot+1:]
 }

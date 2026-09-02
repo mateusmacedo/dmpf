@@ -151,7 +151,7 @@ homônima de outro manifesto.
 
 O bloco `contract` admite só `pure` e `wire.codec` (RFC §6.2), e é o único
 lugar do código gerado de Protobuf. O primeiro manifesto real desse bloco é o de
-`libs/shared/go/dmpf-contracts`, e ele mostra os dois pontos que todo módulo
+`libs/backend/go/dmpf-contracts`, e ele mostra os dois pontos que todo módulo
 `contract` vai repetir.
 
 O runtime Protobuf entra pela allowlist, declarado `wire.codec` e restrito aos

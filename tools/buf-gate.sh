@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # Gates Buf do repositório de contratos: lint | pins | generate-check | breaking.
 # Fail-closed (BUF-12): condição que o gate não consegue avaliar reprova; não há bypass.
-# Diretórios temporários ficam em /tmp (runner e boot os descartam), como em
-# tools/dmpf-gate-check.sh, para não depender de utilitário de lixeira.
+# Temporários ficam em /tmp (como em tools/dmpf-gate-check.sh), sem utilitário de lixeira.
 set -uo pipefail
 
 ROOT="$(git rev-parse --show-toplevel)" || { echo "REPROVADO: fora de um repositorio git" >&2; exit 2; }
@@ -12,7 +11,7 @@ CONTRACTS=contracts
 BUF_YAML="$CONTRACTS/buf.yaml"
 BUF_GEN="$CONTRACTS/buf.gen.yaml"
 BUF_SH="$ROOT/tools/buf.sh"
-LIB=libs/shared/go/dmpf-contracts
+LIB=libs/backend/go/dmpf-contracts
 GEN_DIR="$LIB/gen/go"
 MARK_PREFIX=contracts-baseline
 
@@ -27,7 +26,7 @@ modulos() {
 gate_lint() {
   buf format --diff --exit-code "$CONTRACTS" || reprovar "buf format encontrou diferencas em $CONTRACTS"
   buf lint "$CONTRACTS" || reprovar "buf lint (STANDARD) reprovou"
-  # P0-3 e structurally reviewable: a vedacao vale para qualquer texto do artefato.
+  # P0-3 é structurally reviewable: a vedação vale para qualquer texto do artefato.
   if grep -rIliE 'exactly[ -]once' "$CONTRACTS" "$LIB" 2>/dev/null | grep -q .; then
     grep -rIliE 'exactly[ -]once' "$CONTRACTS" "$LIB" >&2
     reprovar "artefato declara ou sugere exactly-once (RFC 2.3, P0-3)"
@@ -43,7 +42,7 @@ gate_pins() {
     reprovar "$BUF_SH usa pin nao exato (latest, faixa ou major/minor) (BUF-06)"
   fi
 
-  plugin_pin="$(grep -oE 'protoc-gen-[a-z0-9-]+@[^[:space:]"]+' "$BUF_GEN" || true)"
+  plugin_pin="$(grep -oE "protoc-gen-[a-z0-9-]+@[^][:space:]\"',]+" "$BUF_GEN" || true)"
   [ -n "$plugin_pin" ] || reprovar "$BUF_GEN sem plugin local pinado (BUF-06)"
   while IFS= read -r pin; do
     echo "$pin" | grep -qE '@v[0-9]+\.[0-9]+\.[0-9]+$' || reprovar "plugin sem pin exato: $pin (BUF-06)"
@@ -56,7 +55,7 @@ gate_pins() {
   runtime_ver="$(grep -oE 'google\.golang\.org/protobuf v[0-9]+\.[0-9]+\.[0-9]+' "$LIB/go.mod" | awk '{print $2}')"
   [ -n "$plugin_ver" ] || reprovar "protoc-gen-go sem versao em $BUF_GEN"
   [ -n "$runtime_ver" ] || reprovar "google.golang.org/protobuf ausente de $LIB/go.mod"
-  # O gerado exige runtime >= versao do plugin; igualar os dois e o unico estado sem drift silencioso.
+  # O gerado exige runtime >= versão do plugin; igualar os dois é o único estado sem drift silencioso.
   [ "$plugin_ver" = "$runtime_ver" ] || reprovar "protoc-gen-go $plugin_ver difere de google.golang.org/protobuf $runtime_ver no go.mod"
 
   deps_line="$(grep -E '^deps:' "$BUF_YAML" || true)"
@@ -80,12 +79,16 @@ gate_generate_check() {
 }
 
 gate_breaking() {
-  local base modulo marca tagger primeiro_autor base_dir
+  local base modulo marca tagger primeiro_autor base_dir lista
   base="${NX_BASE:-}"
   [ -n "$base" ] || reprovar "baseline nao declarado: NX_BASE vazio (BUF-05)"
   git rev-parse --verify --quiet "${base}^{commit}" >/dev/null || reprovar "baseline irresolvivel: $base (BUF-05)"
+  [ -f "$BUF_YAML" ] || reprovar "$BUF_YAML ausente: sem workspace nao ha modulo a verificar (BUF-01)"
+  lista="$(modulos)"
+  # Lista vazia deixaria o laço sem iterar e o gate sairia 0 sem olhar nada.
+  [ -n "$lista" ] || reprovar "$BUF_YAML sem modulos declarados em 'modules[].path' (BUF-01)"
 
-  for modulo in $(modulos); do
+  while IFS= read -r modulo; do
     marca="refs/tags/$MARK_PREFIX/$modulo"
     if git rev-parse --verify --quiet "$marca" >/dev/null; then
       tagger="$(git for-each-ref --format='%(taggeremail)' "$marca")"
@@ -105,12 +108,14 @@ gate_breaking() {
       fi
       aviso "modulo $modulo em estado 'sem baseline': buf breaking dispensado ate a marca $marca existir (BUF-08)"
     fi
-  done
+  done <<<"$lista"
 
-  # Um pacote publicado nao muda de modulo nem de caminho para renascer 'sem baseline'.
+  # Um pacote publicado não muda de módulo nem de caminho para renascer 'sem baseline';
+  # a conferência é no que HEAD rastreia, não na árvore de trabalho.
   while IFS= read -r dir; do
-    [ -z "$dir" ] && continue
-    [ -d "$dir" ] || reprovar "diretorio de pacote publicado em $base ausente em HEAD: $dir (BUF-08)"
+    if [ -n "$dir" ]; then
+      git ls-tree HEAD -- "$dir" | grep -q . || reprovar "diretorio de pacote publicado em $base ausente em HEAD: $dir (BUF-08)"
+    fi
   done < <(git ls-tree -r --name-only "$base" -- "$CONTRACTS" 2>/dev/null | grep -E '\.proto$' | xargs -rn1 dirname | sort -u)
 }
 

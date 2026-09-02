@@ -10,6 +10,7 @@ var (
 	ErrSpecVersion      = errors.New("envelope: specversion must be 1.0")
 	ErrContentType      = errors.New("envelope: datacontenttype must be application/protobuf")
 	ErrSchemaMismatch   = errors.New("envelope: Any type URL differs from dataschema")
+	ErrDataSchemaForm   = errors.New("envelope: dataschema must be the Any type URL of the payload message")
 	ErrMajorMismatch    = errors.New("envelope: dataschema and type disagree on the contract major")
 )
 

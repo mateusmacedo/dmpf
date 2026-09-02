@@ -9,10 +9,10 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/shared/go/dmpf-contracts/envelope"
-	eventv1 "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/shared/go/dmpf-contracts/gen/go/company/orders/event/v1"
-	cloudeventsv1 "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/shared/go/dmpf-contracts/gen/go/io/cloudevents/v1"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/shared/go/dmpf-contracts/payloadhash"
+	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/envelope"
+	eventv1 "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/gen/go/company/orders/event/v1"
+	cloudeventsv1 "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/gen/go/io/cloudevents/v1"
+	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/payloadhash"
 )
 
 const (
@@ -209,15 +209,21 @@ func TestRequiredAttributeMissing(t *testing.T) {
 			_, err := envelope.Decode(ce)
 			assertAttributeError(t, err, envelope.ErrMissingAttribute, name)
 
-			ce, _ = envelope.Encode(validEnvelope(t))
+			// A timestamp has no empty form; the string-typed attributes and the
+			// URI-typed dataschema do, and "present but empty" counts as missing.
 			if name == "time" {
 				return
 			}
-			ce.Attributes[name] = stringAttr("")
-			_, err = envelope.Decode(ce)
-			if !errors.Is(err, envelope.ErrMissingAttribute) && !errors.Is(err, envelope.ErrAttributeType) {
-				t.Fatalf("empty %q: err = %v", name, err)
+			ce, _ = envelope.Encode(validEnvelope(t))
+			if name == "dataschema" {
+				ce.Attributes[name] = &cloudeventsv1.CloudEvent_CloudEventAttributeValue{
+					Attr: &cloudeventsv1.CloudEvent_CloudEventAttributeValue_CeUri{CeUri: ""},
+				}
+			} else {
+				ce.Attributes[name] = stringAttr("")
 			}
+			_, err = envelope.Decode(ce)
+			assertAttributeError(t, err, envelope.ErrMissingAttribute, name)
 		})
 	}
 }
@@ -256,6 +262,61 @@ func TestSchemaAndTypeURLMustMatchLiterally(t *testing.T) {
 	ce.GetProtoData().TypeUrl = wantTypeURL + "X"
 	if _, err := envelope.Decode(ce); !errors.Is(err, envelope.ErrSchemaMismatch) {
 		t.Fatalf("err = %v, want ErrSchemaMismatch", err)
+	}
+
+	// Both ENV-16 checks violated: (a) is reported first.
+	ce, _ = envelope.Encode(validEnvelope(t))
+	ce.GetProtoData().TypeUrl = wantTypeURL + "X"
+	ce.Type = "com.company.orders.order-placed.v2"
+	if _, err := envelope.Decode(ce); !errors.Is(err, envelope.ErrSchemaMismatch) {
+		t.Fatalf("err = %v, want ErrSchemaMismatch before ErrMajorMismatch", err)
+	}
+}
+
+func TestMalformedMajorsAreRejected(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]struct {
+		mutate func(*envelope.Envelope)
+		want   error
+	}{
+		"type without dots":          {func(e *envelope.Envelope) { e.Type = "v1" }, envelope.ErrMajorMismatch},
+		"dataschema without package": {func(e *envelope.Envelope) { e.DataSchema = "type.googleapis.com/OrderPlaced" }, envelope.ErrMajorMismatch},
+		"dataschema without type URL prefix": {func(e *envelope.Envelope) {
+			e.DataSchema = "https://schemas.local/company.orders.event.v1.OrderPlaced"
+		}, envelope.ErrDataSchemaForm},
+		"dataschema is only the prefix": {func(e *envelope.Envelope) { e.DataSchema = "type.googleapis.com/" }, envelope.ErrDataSchemaForm},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			in := validEnvelope(t)
+			tc.mutate(&in)
+			if _, err := envelope.Encode(in); !errors.Is(err, tc.want) {
+				t.Fatalf("err = %v, want %v", err, tc.want)
+			}
+		})
+	}
+}
+
+// aggregateversion is an integer: zero is a legitimate value, so it has no
+// "empty" form and the ENV-12 rule only applies to the string conditionals.
+func TestAggregateVersionZeroIsCarried(t *testing.T) {
+	t.Parallel()
+
+	in := validEnvelope(t)
+	zero := int32(0)
+	in.AggregateVersion = &zero
+	ce, err := envelope.Encode(in)
+	if err != nil {
+		t.Fatalf("Encode: %v", err)
+	}
+	out, err := envelope.Decode(roundTrip(t, ce))
+	if err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
+	if out.AggregateVersion == nil || *out.AggregateVersion != 0 {
+		t.Fatalf("aggregateversion = %v, want present with 0", out.AggregateVersion)
 	}
 }
 
@@ -334,6 +395,13 @@ func TestPayloadHashIgnoresEnvelope(t *testing.T) {
 		"aggregateversion": func(e *envelope.Envelope) { v := int32(8); e.AggregateVersion = &v },
 		"tenantid":         func(e *envelope.Envelope) { e.TenantID = nil },
 		"tracestate":       func(e *envelope.Envelope) { e.TraceState = nil },
+		// dataschema points at another message of the same major; Encode does not
+		// decode the payload, so the bytes stay the same and only the URL varies.
+		"dataschema": func(e *envelope.Envelope) {
+			e.DataSchema = "type.googleapis.com/company.orders.event.v1.OrderCancelled"
+		},
+		// specversion and datacontenttype are fixed by the profile: the only value
+		// Validate accepts is the one already in place, so they cannot vary alone.
 	}
 	for name, mutate := range variants {
 		t.Run(name, func(t *testing.T) {
