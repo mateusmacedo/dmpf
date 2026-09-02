@@ -138,7 +138,10 @@ Nenhuma. `apps/backend`, `apps/frontend` e `apps/serverless` são diretórios de
 
 ### Libs
 
-Uma: **`dmpf-domain-go`** (`libs/backend/go/dmpf-domain`), o primeiro módulo Go do workspace, criado por `KRN-01`. Carrega as três tags 3D (`type:lib`, `scope:backend`, `stack:go`), um `dmpf-units.json` (o `metadata_container` da RFC DMPF) e um `package.json` com `private: true` — este último existe porque o Nx Release aborta o versionamento de um `tag:type:lib` sem manifesto npm (ver `docs/adr/030-granularidade-modulo-go-e-bom.md`).
+Duas, ambas Go, com as três tags 3D (`type:lib`, `scope:backend`, `stack:go`), um `dmpf-units.json` (o `metadata_container` da RFC DMPF) e um `package.json` com `private: true` — este último existe porque o Nx Release aborta o versionamento de um `tag:type:lib` sem manifesto npm (ver `docs/adr/030-granularidade-modulo-go-e-bom.md`):
+
+- **`dmpf-domain-go`** (`libs/backend/go/dmpf-domain`), o kernel de domínio do DMPF, criado por `KRN-01` e preenchido por `KRN-03`. O package raiz `dmpfdomain` realiza o desfecho da UPR como par `(Accepted[R], *Rejection)`; o package `example/orders` é o agregado de exemplo com duas UPRs. São duas unidades `domain` no manifesto, `dmpf-kernel/domain` e `dmpf-kernel/example-orders`, no `bounded_context` `dmpf-kernel` (ver `docs/adr/032-realizacao-go-do-desfecho-da-upr.md`).
+- **`dmpf-conformance-go`** (`libs/backend/go/dmpf-conformance`), o verificador de conformidade do DMPF, criado por `KRN-02`. Decide a regra de dependência sobre o grafo real de imports e roda no CI como gate fail-closed; o binário fica em `cmd/dmpf-conformance` e o baseline em `tools/dmpf-baseline/units-baseline.json` (ver `docs/adr/031-verificador-de-conformidade-dmpf-em-go.md`).
 
 `libs/frontend` e `libs/shared` seguem sendo diretórios de destino, sem projeto Nx registrado. Para criar uma lib TypeScript, use o generator do Nx (`pnpm nx g @nx/js:lib libs/shared/<name>`), com as três tags 3D e `--linter=none`; o passo a passo com todas as flags está em `docs/nx-reference/tasks.md`.
 
@@ -181,7 +184,7 @@ pnpm nx run dmpf-domain-go:fmt-check   # gofmt, read-only (reprova, não reescre
 pnpm nx run dmpf-domain-go:vet
 pnpm nx run dmpf-domain-go:test-race
 pnpm nx run dmpf-domain-go:govulncheck # sem cache: consulta base remota
-bash tools/dmpf-gate-check.sh          # prova o gate de dependência do bloco domain
+bash tools/dmpf-gate-check.sh          # prova o gate do bloco domain: depguard (por package) e forbidigo (por símbolo)
 
 # Formatação (Biome — não Prettier)
 pnpm biome format --write . # aplica
@@ -197,7 +200,7 @@ Scripts raiz (`pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, `pnpm fo
 
 ## Tooling
 
-- **Go:** piso e toolchain `1.26.4`, declarados no `go.work` e em cada `go.mod`. O CI lê o piso por `go-version-file: go.work` (composite `.github/actions/setup-go`), nunca por versão literal no workflow. Ferramentas entram por `go run <pacote>@<versão>` inline nos targets: `golangci-lint v2.13.2` e `govulncheck v1.7.0`. A política de dependências do bloco `domain` vive no `.golangci.yml`, e `tools/dmpf-gate-check.sh` prova em cada CI que ela reprova o que deve reprovar.
+- **Go:** piso e toolchain `1.26.4`, declarados no `go.work` e em cada `go.mod`. O CI lê o piso por `go-version-file: go.work` (composite `.github/actions/setup-go`), nunca por versão literal no workflow. Ferramentas entram por `go run <pacote>@<versão>` inline nos targets: `golangci-lint v2.13.2` e `govulncheck v1.7.0`. A política de dependências do bloco `domain` vive no `.golangci.yml` em duas camadas — `depguard` por package e `forbidigo` por símbolo (`time.Now`, `fmt.Print*`, `fmt.*Scan*`, `print`/`println`, `errors.New`/`fmt.Errorf`, `panic`), ambas restritas a `-domain/` —, e `tools/dmpf-gate-check.sh` prova em cada CI que cada camada reprova o que deve reprovar. O gate autoritativo entre módulos é o verificador `dmpf-conformance`.
 - **Runtime:** Node.js `^24`; `pnpm@11.14.0` (campo `packageManager`). O CI não fixa a versão do pnpm: o `pnpm/action-setup` infere do `packageManager`, e passar ambos causa `ERR_PNPM_BAD_PM_VERSION`.
 - **Package manager:** pnpm (obrigatório). Versões de dependências são centralizadas no `catalog:` do `pnpm-workspace.yaml` — cada `package.json` referencia `"catalog:"`. O mesmo arquivo tem `allowBuilds`, que é a allowlist de scripts de postinstall: pacotes marcados `false` estão bloqueados deliberadamente.
 - **Nx:** `23.1.0`. NestJS `11.1.28` disponível via catalog.
