@@ -44,15 +44,45 @@ VETORES=(
 
 falhas=0
 modulos=0
+fora_de_alcance=0
+
+# Alcance da regra `domain` do .golangci.yml, espelhado aqui como o VETORES
+# espelha a `deny`: a regra seleciona por `**/*-domain/**`, isto e, por nome de
+# diretorio. Modulo `domain` cujo caminho nao casa NAO e coberto pelo depguard,
+# e provar o gate nele seria provar o que nao existe.
+#
+# Isso nao e o modulo ficar sem protecao: e a limitacao que o proprio
+# .golangci.yml declara e que o verificador do KRN-02 fecha, lendo a
+# classificacao autoritativa em vez do nome do diretorio.
+depguard_cobre() {
+  case "/$1/" in
+    */-domain/*) return 0 ;;
+    *-domain/*)  return 0 ;;
+    *)           return 1 ;;
+  esac
+}
 
 while IFS= read -r manifesto; do
   module_dir="$(dirname "$manifesto")"
+
+  # Exclusoes fechadas de RFC 10.3. Modulo sintetico sob testdata/ existe para
+  # o verificador reprovar; trata-lo como producao faria o gate falhar pela
+  # violacao que a fixture demonstra.
+  case "/$module_dir/" in
+    */testdata/*|*/vendor/*) continue ;;
+  esac
 
   # só blocos `domain`; a política do .golangci.yml é específica deste bloco
   node -e '
     const m = require(process.argv[1]);
     process.exit((m.units ?? []).some((u) => u.block === "domain") ? 0 : 1);
   ' "$ROOT/$manifesto" 2>/dev/null || continue
+
+  if ! depguard_cobre "$module_dir"; then
+    echo "-- $module_dir: fora do alcance do depguard (**/*-domain/**); coberto pelo verificador do KRN-02"
+    fora_de_alcance=$((fora_de_alcance + 1))
+    continue
+  fi
 
   project="$(node -p 'require(process.argv[1]).name' "$ROOT/$module_dir/project.json" 2>/dev/null)"
   if [ -z "$project" ]; then
@@ -123,3 +153,8 @@ fi
 
 echo
 echo "Gate do bloco domain: $modulos modulo(s), ${#VETORES[@]} vetores negativos e 1 positivo cada, todos conformes."
+if [ "$fora_de_alcance" -gt 0 ]; then
+  # Declarado, nunca silencioso: um gate que esconde o proprio alcance passa a
+  # informar cobertura que nao tem.
+  echo "$fora_de_alcance modulo(s) domain fora do alcance do depguard, cobertos pelo verificador do KRN-02."
+fi

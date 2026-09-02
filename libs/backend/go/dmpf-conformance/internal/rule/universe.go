@@ -49,6 +49,12 @@ type Module struct {
 	Dir           string
 	HasManifest   bool
 	HasProduction bool
+
+	// WorkspaceMember indica que o módulo é `use` do go.work. A resolução dele
+	// tem de acontecer NO workspace: fora dele, um require sem `replace` local
+	// cairia na versão publicada, e o verificador analisaria um grafo que não é
+	// o que o build produz.
+	WorkspaceMember bool
 }
 
 // Universe é o mapeamento de cada package de produção à sua unidade. As
@@ -56,8 +62,20 @@ type Module struct {
 // veredicto não pode mudar depois da construção porque o chamador mexeu no
 // slice que passou.
 type Universe struct {
-	units []Unit
-	byKey map[string]int
+	units       []Unit
+	byKey       map[string]int
+	descobertos map[string]bool
+}
+
+// Discovered reporta se o package foi descoberto como código de produção,
+// mesmo que nenhuma unidade o classifique.
+//
+// A distinção importa: um package descoberto e não classificado já reprovou em
+// U001, e tratá-lo como dependência externa por não estar em `byKey` emitiria
+// um E001 espúrio sobre código que é do universo — trocando a causa real por
+// um sintoma inventado.
+func (u *Universe) Discovered(canonicalKey string) bool {
+	return u.descobertos[canonicalKey]
 }
 
 // Membership devolve, por unidade, as canonical_keys que o `include` capturou.
@@ -165,7 +183,7 @@ func BuildUniverse(units []Unit, packages []Package, modules []Module) (*Univers
 	for i := range units {
 		own[i] = cloneUnit(units[i])
 	}
-	u := &Universe{units: own, byKey: map[string]int{}}
+	u := &Universe{units: own, byKey: map[string]int{}, descobertos: map[string]bool{}}
 
 	seen := map[string]bool{}
 	for _, pkg := range packages {
@@ -173,6 +191,7 @@ func BuildUniverse(units []Unit, packages []Package, modules []Module) (*Univers
 			continue
 		}
 		seen[pkg.CanonicalKey] = true
+		u.descobertos[pkg.CanonicalKey] = true
 
 		var owners []string
 		owner := -1

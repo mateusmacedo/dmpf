@@ -82,5 +82,16 @@ jobs:
         if: steps.go_affected.outputs.any == 'true'
         run: bash tools/dmpf-gate-check.sh
 
+      # SHADOW, NÃO É GATE. Roda o verificador do KRN-02 em modo report-only
+      # para acumular evidência de comportamento sobre PRs reais antes de a
+      # ativação valer. O `|| true` é deliberado: ligar o gate agora reprovaria
+      # por classes de diagnóstico que ainda não são decidíveis — o baseline
+      # chega no PR3. Este passo é REMOVIDO no mesmo commit que liga o gate
+      # fail-closed, para que não exista estado em que os dois convivam.
+      - name: DMPF conformance (shadow, report-only)
+        if: steps.go_affected.outputs.any == 'true'
+        run: |
+          go run ./libs/backend/go/dmpf-conformance/cmd/dmpf-conformance --root . || true
+
       - name: E2E (affected)
         run: pnpm nx affected -t e2e --base=$NX_BASE --head=$NX_HEAD --parallel=1 --exclude=$NX_EXCLUDE

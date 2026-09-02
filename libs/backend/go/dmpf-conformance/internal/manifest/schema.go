@@ -44,12 +44,13 @@ type External struct {
 }
 
 // Exception é uma exceção NOMINAL à política de um bloco (RFC §6.4): o par
-// (unidade, dependência), com justificativa, owner e data de revisão. Exceção
+// (unidade, dependência), com razão, owner e data de revisão. Os nomes seguem o
+// exemplo canônico de RFC §10.1: `dependency` e `reason`. Exceção
 // por categoria, prefixo ou diretório é proibida pela própria forma do registro.
 type Exception struct {
-	Unit          string
-	Package       string
-	Justification string
-	Owner         string
-	ReviewBy      string
+	Unit       string
+	Dependency string
+	Reason     string
+	Owner      string
+	ReviewBy   string
 }

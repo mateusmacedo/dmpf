@@ -1,0 +1,13 @@
+{
+  "schema": "dmpf/units@1",
+  "units": [
+    {
+      "id": "b/provider",
+      "block": "provider",
+      "bounded_context": "ai",
+      "include": ["exemplo.test/ai-b/provider"]
+    }
+  ],
+  "external": [],
+  "exceptions": []
+}
