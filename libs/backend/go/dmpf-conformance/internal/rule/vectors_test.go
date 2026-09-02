@@ -1,7 +1,6 @@
-// Os vetores desta suite vivem em `rule_test` — package externo — porque
-// alimentam o domínio a partir de um port.GraphSource em memória. Arquivo
-// `_test.go` é exclusão fechada de RFC §10.3 e não produz aresta no universo:
-// a proibição de domain → port (ADR-014) segue intacta no código de produção.
+// Package externo porque estes vetores alimentam o domínio a partir de um
+// port.GraphSource. Em `package rule` isso seria domain → port no texto, ainda
+// que arquivo de teste seja excluído do universo verificado.
 package rule_test
 
 import (
@@ -15,8 +14,6 @@ import (
 	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/internal/rule"
 )
 
-// memGraph é um port.GraphSource em memória: o grafo já resolvido, como o
-// toolchain o entregaria, sem tocar o disco nem invocar `go list`.
 type memGraph struct {
 	packages []rule.Package
 	edges    []port.Edge
@@ -27,8 +24,7 @@ func (g memGraph) Edges() ([]port.Edge, error)       { return g.edges, nil }
 
 var _ port.GraphSource = memGraph{}
 
-// decideGrafo é o harness dos vetores: constrói o universo e decide cada aresta.
-// A composição de produção vive no composition root (cmd/), não aqui.
+// Harness dos vetores; a composição de produção vive no cmd/.
 func decideGrafo(t *testing.T, units []rule.Unit, mods []rule.Module, g port.GraphSource) []rule.Diagnostic {
 	t.Helper()
 
@@ -56,8 +52,8 @@ func decideGrafo(t *testing.T, units []rule.Unit, mods []rule.Module, g port.Gra
 		src, okS := universe.Endpoint(e.From)
 		tgt, okT := universe.Endpoint(e.To)
 		if !okS || !okT {
-			// Destino fora do universo é capability externa (§6), avaliada no
-			// PR2. Origem fora do universo já reprovou em U001.
+			// Destino fora do universo é dependência externa, avaliada por
+			// capability e não pela matriz de blocos.
 			continue
 		}
 		diags = append(diags, rule.DiagnoseEdge(src, tgt, e.SourceFile)...)
@@ -74,9 +70,8 @@ func codigos(ds []rule.Diagnostic) []rule.Code {
 	return out
 }
 
-// exigeCodigos compara o conjunto EXATO de códigos emitidos. Aceitar "contém"
-// deixaria um vetor negativo verde mesmo com diagnóstico espúrio junto — e um
-// diagnóstico a mais é tão errado quanto um a menos.
+// Conjunto EXATO: "contém" deixaria o vetor verde com diagnóstico espúrio
+// junto, e um a mais é tão errado quanto um a menos.
 func exigeCodigos(t *testing.T, ds []rule.Diagnostic, want ...rule.Code) {
 	t.Helper()
 	got := codigos(ds)
@@ -87,8 +82,7 @@ func exigeCodigos(t *testing.T, ds []rule.Diagnostic, want ...rule.Code) {
 	}
 }
 
-// exigeDiagnostico exige o conjunto exato E confere os campos do diagnóstico
-// apontado, para que a mensagem também fique sob contrato.
+// Põe a mensagem sob contrato, não só o código.
 func exigeDiagnostico(t *testing.T, ds []rule.Diagnostic, want rule.Diagnostic) {
 	t.Helper()
 	for _, d := range ds {
@@ -231,8 +225,7 @@ func TestVetorM001(t *testing.T) {
 	})
 
 	t.Run("negativo: herança não supre campo omitido", func(t *testing.T) {
-		// A unidade omite `block` "porque o módulo pai já diz". Herança não
-		// existe (RFC §10.1): a omissão é M001, não valor derivado.
+		// Não há herança: a omissão é DMPF-M001, não valor derivado do pai.
 		u := unidadeManifesto("a/filha", "", "a", pkgDom)
 		u.PresentBlock = false
 		exigeCodigos(t, manifest.Validate(doc(u)), rule.CodeM001)
@@ -249,8 +242,7 @@ func TestVetorM002(t *testing.T) {
 	})
 
 	t.Run("negativo: public_integration_surface true em domain", func(t *testing.T) {
-		// RFC §7.2 e ADR-017: sem esta cláusula, marcar o domínio como público
-		// seria o caminho trivial para burlar a proibição de §5.5.
+
 		u := unidadeManifesto("a/domain", "domain", "a", pkgDom)
 		u.PublicIntegrationSurface = true
 		u.PresentPublicIntegrationSurface = true
@@ -354,7 +346,8 @@ func TestVetorD002(t *testing.T) {
 			unidade("a/domain", rule.BlockDomain, "a", pkgDom),
 			unidade("b/outro", rule.BlockDomain, "b", pkgB),
 		}
-		// Exatamente D002: domain -> domain é P na matriz (célula 1), então C1 passa.
+		// Exatamente D002: domain -> domain é permitido na matriz, então só o
+		// contexto reprova.
 		exigeCodigos(t, decideGrafo(t, units, mods, g), rule.CodeD002)
 	})
 
@@ -363,9 +356,7 @@ func TestVetorD002(t *testing.T) {
 			unidade("a/domain", rule.BlockDomain, "a", pkgDom),
 			{ID: "b/contract", Block: rule.BlockContract, BoundedContext: "b", Include: []string{pkgB}, Module: modA},
 		}
-		// Célula 6 (domain -> contract) é ✗ na matriz: C2 passa por superfície
-		// pública, C1 reprova. `P` na matriz não é autorização final, e a
-		// recíproca também vale: superfície pública não substitui a matriz.
+		// Célula 6: superfície pública não substitui a matriz.
 		// Exatamente D001: C2 passa por superfície pública e C1 reprova sozinha.
 		exigeCodigos(t, decideGrafo(t, units, mods, g), rule.CodeD001)
 	})
@@ -390,10 +381,8 @@ func TestVetorE003(t *testing.T) {
 	})
 }
 
-// TestE004NaoEmitidoNoBindingGo é o teste de não-emissão da classe declarada sem
-// ocorrência possível: a gramática de Go exige `ImportPath = string_lit`, e
-// import dinâmico não existe na linguagem. O código permanece reservado no
-// conjunto dos quinze — ausência declarada de verificação, nunca "conforme".
+// Não-emissão da classe reservada: a gramática exige `ImportPath = string_lit`,
+// e o código segue no conjunto dos quinze como ausência declarada.
 func TestE004NaoEmitidoNoBindingGo(t *testing.T) {
 	spec, ok := rule.LookupCode(rule.CodeE004)
 	if !ok {
@@ -413,10 +402,8 @@ func TestE004NaoEmitidoNoBindingGo(t *testing.T) {
 
 // ------------------------------------------------------ conjunto e ordem ---
 
-// codigosNormativos são os quinze literais de RFC §10.3, transcritos à mão na
-// ordem da tabela. NÃO derivam de rule.Code*: usar as constantes de produção
-// como expectativa faria o teste passar mesmo se alguém renomeasse DMPF-U001
-// para DMPF-U999, porque os dois lados mudariam juntos.
+// Literais transcritos à mão. Usar as constantes de produção como expectativa
+// deixaria renomear DMPF-U001 para DMPF-U999 passar verde.
 var codigosNormativos = []string{
 	"DMPF-U001", "DMPF-U002", "DMPF-U003", "DMPF-U004",
 	"DMPF-M001", "DMPF-M002", "DMPF-M003",
@@ -448,8 +435,6 @@ func TestConjuntoFechadoDeQuinzeCodigos(t *testing.T) {
 	}
 }
 
-// TestLookupCodeCobreOsQuinze prova que a tabela é consultável por todos os
-// literais normativos, sem passar pelas constantes de produção.
 func TestLookupCodeCobreOsQuinze(t *testing.T) {
 	for _, c := range codigosNormativos {
 		if _, ok := rule.LookupCode(rule.Code(c)); !ok {
@@ -468,9 +453,8 @@ func TestSaidaEDeterministica(t *testing.T) {
 		unidade("a/outro-port", rule.BlockPort, "a", "exemplo/mod-a/port2"),
 	}
 	mods := moduloOK()
-	// Duas arestas proibidas partindo do MESMO package: mesma CanonicalKey e
-	// mesmo código, diferindo só em Target e SourceFile. É o par que uma
-	// ordenação incompleta deixaria oscilar.
+	// Mesma CanonicalKey e mesmo código, diferindo só em Target e SourceFile:
+	// o par que uma ordenação incompleta deixaria oscilar.
 	entrada := memGraph{
 		packages: []rule.Package{
 			{CanonicalKey: pkgPort, Module: modA},
@@ -489,8 +473,7 @@ func TestSaidaEDeterministica(t *testing.T) {
 		t.Fatalf("cenário perdeu força: esperados 3 diagnósticos (1 U001 + 2 D001), got %v", esperado)
 	}
 
-	// Embaralha a ordem de entrada: o veredicto e a ordem da saída não podem
-	// depender da ordem em que packages e arestas chegaram.
+	// A saída não pode depender da ordem em que packages e arestas chegaram.
 	for i := range 8 {
 		embaralhado := memGraph{
 			packages: slices.Clone(entrada.packages),
@@ -525,11 +508,8 @@ func TestSaidaEDeterministica(t *testing.T) {
 
 // ------------------------------------------------- casamento de `include` ---
 
-// TestIncludeCasaImportPathExato fixa a semântica do binding Go: `include`
-// designa o package, não a subárvore. Prefixo faria `x/domain/infra` herdar a
-// classificação de `x/domain` pelo lugar do diretório — inferência que ADR-012 e
-// RFC §4.4 proíbem, e caminho para classificar package novo sem tocar no
-// manifesto.
+// `include` designa o package, não a subárvore: prefixo faria `x/domain/infra`
+// herdar a classificação só por estar embaixo dele.
 func TestIncludeCasaImportPathExato(t *testing.T) {
 	const sub = pkgDom + "/infra"
 	units := []rule.Unit{unidade("a/domain", rule.BlockDomain, "a", pkgDom)}
@@ -571,10 +551,8 @@ func TestIncludeCasaImportPathExato(t *testing.T) {
 	})
 }
 
-// TestUnidadeSoPossuiPackageDoProprioModulo impede que unidade de módulo pai
-// capture package de módulo aninhado cujo import path compartilhe o prefixo — o
-// package seria classificado pelo módulo errado, e o U004 do aninhado não
-// apareceria.
+// Sem isso, unidade de módulo pai captura package de módulo aninhado e o
+// classifica pelo módulo errado, escondendo o U004 do aninhado.
 func TestUnidadeSoPossuiPackageDoProprioModulo(t *testing.T) {
 	const aninhado = "exemplo/mod-a/nested"
 	units := []rule.Unit{unidade("a/tudo", rule.BlockApp, "a", aninhado)}
@@ -625,10 +603,8 @@ func TestVetorIncludeInvalido(t *testing.T) {
 
 // ------------------------------------------- identidade e imutabilidade ---
 
-// TestMembershipQualificadoPorModulo: `id` só é único DENTRO de um manifesto
-// (§10.1), então dois módulos podem declarar `id: "domain"`. Chavear o
-// membership só pelo id fundiria os dois e o delta efetivo do ADR-028 deixaria
-// de enxergar movimentação entre unidades homônimas.
+// O `id` só é único dentro de um manifesto: chavear só por ele fundiria
+// unidades homônimas de módulos distintos e cegaria a movimentação entre elas.
 func TestMembershipQualificadoPorModulo(t *testing.T) {
 	const modB, pkgB = "exemplo/mod-b", "exemplo/mod-b/domain"
 	units := []rule.Unit{
@@ -655,8 +631,7 @@ func TestMembershipQualificadoPorModulo(t *testing.T) {
 	}
 }
 
-// TestUniverseNaoAliasaEntradaDoChamador: o veredicto não pode mudar depois da
-// construção porque o chamador mexeu no slice que passou.
+// O veredicto não pode mudar porque o chamador mexeu no slice que passou.
 func TestUniverseNaoAliasaEntradaDoChamador(t *testing.T) {
 	units := []rule.Unit{unidade("a/domain", rule.BlockDomain, "a", pkgDom)}
 	pkgs := []rule.Package{{CanonicalKey: pkgDom, Module: modA}}

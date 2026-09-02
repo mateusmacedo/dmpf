@@ -1,7 +1,5 @@
 package rule
 
-// Endpoint é o lado de uma aresta já classificado: o bloco, o bounded context e
-// a superfície pública da unidade que contém o package.
 type Endpoint struct {
 	CanonicalKey             string
 	Block                    Block
@@ -9,32 +7,28 @@ type Endpoint struct {
 	PublicIntegrationSurface bool
 }
 
-// Decision é o resultado de decide(): C1 e C2 avaliadas de forma INDEPENDENTE,
-// como exige RFC §7.1. Uma aresta pode reprovar nas duas ao mesmo tempo.
+// As duas condições são independentes: uma aresta pode reprovar nas duas.
 type Decision struct {
 	C1 bool
 	C2 bool
 }
 
-// Allowed reporta a conjunção. `P` na matriz não é autorização final: a aresta
-// permitida por C1 continua sujeita a C2 e à política de capabilities (§6).
+// Estar permitido na matriz não é autorização final: a aresta segue sujeita ao
+// contexto e à política de dependências externas.
 func (d Decision) Allowed() bool { return d.C1 && d.C2 }
 
-// SameBoundedContext é o predicado de RFC §7.2: comparação exata de strings.
+// Comparação exata de strings, sem normalização.
 func SameBoundedContext(source, target Endpoint) bool {
 	return source.BoundedContext == target.BoundedContext
 }
 
-// PublicIntegrationSurface é o segundo termo de C2 (RFC §7.2). Um contract
-// package é superfície pública por construção; qualquer unidade pode declará-la,
-// exceto `domain` — o manifesto reprova essa declaração com M002 antes daqui.
+// Um contract é superfície pública por construção. Em `domain` a declaração é
+// inválida, e o manifesto já a reprovou antes de chegar aqui.
 func PublicIntegrationSurface(target Endpoint) bool {
 	return target.Block == BlockContract || target.PublicIntegrationSurface
 }
 
-// Decide é a função de RFC §7.1:
-// decide(source_block, target_block, source_bc, target_bc, target_surface).
-// C1 é a matriz de §7.3; C2 é `same_bounded_context OR public_integration_surface`.
+// A aresta passa se o par de blocos é permitido E os dois lados podem se falar.
 func Decide(source, target Endpoint) Decision {
 	return Decision{
 		C1: AllowedByMatrix(source.Block, target.Block),
@@ -42,8 +36,7 @@ func Decide(source, target Endpoint) Decision {
 	}
 }
 
-// DiagnoseEdge traduz a decisão nos diagnósticos de RFC §10.3. C1 falsa emite
-// DMPF-D001; C2 falsa emite DMPF-D002; as duas falsas emitem os dois.
+// C1 falsa emite D001, C2 falsa emite D002, as duas falsas emitem os dois.
 func DiagnoseEdge(source, target Endpoint, sourceFile string) []Diagnostic {
 	d := Decide(source, target)
 	var out []Diagnostic

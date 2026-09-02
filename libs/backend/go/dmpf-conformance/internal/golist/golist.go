@@ -1,9 +1,7 @@
-// Package golist é bloco `provider`: extrai o grafo de packages pelo toolchain.
+// Package golist extrai o grafo pelo toolchain.
 //
-// A aresta canônica em Go é package → package (RFC §3.3), e a resolução é a do
-// compilador, nunca o texto do import (RFC §3.5). Por isso `go list` e não
-// `go/parser`: parsear daria o que está escrito no arquivo, que é exatamente o
-// que a RFC proíbe como base da decisão.
+// `go list` e não `go/parser`: parsear daria o texto escrito no import, e a
+// decisão tem de ser sobre o package que o compilador de fato resolveu.
 package golist
 
 import (
@@ -22,7 +20,6 @@ import (
 	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/internal/rule"
 )
 
-// listPackage é o subconjunto do `go list -json` que o verificador consome.
 type listPackage struct {
 	ImportPath     string            `json:"ImportPath"`
 	Standard       bool              `json:"Standard"`
@@ -47,9 +44,9 @@ type listModule struct {
 	Path string `json:"Path"`
 }
 
-// Source extrai o grafo por perfil de produção e devolve a união das arestas.
-// Arquivo sob build tag que nenhum perfil ativa fica de fora — é a definição
-// operacional de "build tag não usada em produção" (RFC §10.3).
+// Source une as arestas por perfil de produção. Arquivo sob build tag que
+// nenhum perfil ativa fica de fora — é assim que "tag não usada em produção"
+// deixa de ser expressão vaga e vira algo decidível.
 type Source struct {
 	root     string
 	modules  []rule.Module
@@ -68,7 +65,6 @@ func New(root string, modules []rule.Module, profiles []fsstore.BuildProfile) *S
 
 var _ port.GraphSource = (*Source)(nil)
 
-// Packages devolve os packages de produção dos módulos do inventário.
 func (s *Source) Packages() ([]rule.Package, error) {
 	if err := s.carregar(); err != nil {
 		return nil, err
@@ -78,10 +74,9 @@ func (s *Source) Packages() ([]rule.Package, error) {
 		if p.Standard || p.Module == nil || !s.moduloDoInventario(p.Module.Path) {
 			continue
 		}
-		// `go list` separa GoFiles de CgoFiles: um package composto só de
-		// arquivos que importam "C" tem GoFiles vazio e continua sendo produção
-		// num perfil com CGO_ENABLED=1. Olhar só GoFiles o faria sumir do
-		// universo — e sumir é a única forma de escapar do U001.
+		// Package só de arquivos que importam "C" tem GoFiles vazio e continua
+		// sendo produção com CGO_ENABLED=1. Sumir do universo é a única forma
+		// de escapar do U001.
 		if len(p.arquivosDeProducao()) == 0 {
 			continue
 		}
@@ -91,7 +86,6 @@ func (s *Source) Packages() ([]rule.Package, error) {
 	return out, nil
 }
 
-// Edges devolve as arestas diretas, já resolvidas pelo toolchain.
 func (s *Source) Edges() ([]port.Edge, error) {
 	if err := s.carregar(); err != nil {
 		return nil, err
@@ -99,22 +93,19 @@ func (s *Source) Edges() ([]port.Edge, error) {
 	return s.arestas, nil
 }
 
-// Closure devolve o fechamento transitivo de um package (o campo Deps do
-// `go list`). Serve APENAS à avaliação de pureza (DMPF-E002) — nunca à decisão
-// de aresta, que é sempre sobre a aresta direta.
+// Closure serve APENAS à pureza (DMPF-E002): decidir aresta é sempre sobre a
+// aresta direta.
 func (s *Source) Closure(canonicalKey string) ([]string, bool) {
 	deps, ok := s.closure[canonicalKey]
 	return deps, ok
 }
 
-// IsStandard reporta se o package é da biblioteca padrão. Builtins recebem
-// capability como qualquer outra dependência (RFC §6.3).
+// Builtins são classificados como qualquer outra dependência.
 func (s *Source) IsStandard(canonicalKey string) bool {
 	p, ok := s.pacotes[canonicalKey]
 	return ok && p.Standard
 }
 
-// gowork devolve o valor de GOWORK para o módulo, conforme a origem dele.
 func (s *Source) gowork(m rule.Module) string {
 	if m.WorkspaceMember && s.root != "" {
 		return filepath.Join(s.root, "go.work")
@@ -151,8 +142,7 @@ func (s *Source) carregar() error {
 		}
 	}
 
-	// As arestas são montadas depois de absorver TODOS os perfis, para que a
-	// união seja sobre o conjunto completo de packages.
+	// Depois de TODOS os perfis, para que a união cubra o conjunto completo.
 	for _, p := range s.pacotes {
 		if p.Standard || p.Module == nil || !s.moduloDoInventario(p.Module.Path) {
 			continue
@@ -160,9 +150,8 @@ func (s *Source) carregar() error {
 		for _, imp := range p.Imports {
 			alvo := imp
 			if mapeado, ok := p.ImportMap[imp]; ok && mapeado != "" {
-				// ImportMap é a reescrita do toolchain (vendor, replace). O
-				// destino real é o mapeado — alias e caminhos distintos para o
-				// mesmo package produzem a MESMA aresta (RFC §3.5).
+				// ImportMap é a reescrita do toolchain (vendor, replace): alias
+				// e caminhos distintos produzem a MESMA aresta.
 				alvo = mapeado
 			}
 			e := port.Edge{
@@ -193,12 +182,9 @@ func (s *Source) carregar() error {
 	return nil
 }
 
-// naoResolvido reporta a condição que emite DMPF-E003.
-//
-// `Incomplete` OU `Error`, como a spec exige — sem a conjunção com "nenhum
-// arquivo", que deixava passar o package que tem fonte E tem erro. O `-e` é
-// transporte estruturado de erro, não aceitação de universo parcial: o import
-// nunca é tratado como ausente, e a política fail-closed é do consumidor.
+// `Incomplete` OU `Error`: a conjunção com "nenhum arquivo" deixava passar o
+// package que tem fonte E tem erro. O `-e` é transporte estruturado de erro,
+// não aceitação de universo parcial.
 func (s *Source) naoResolvido(canonicalKey string) bool {
 	p, ok := s.pacotes[canonicalKey]
 	if !ok {
@@ -207,9 +193,8 @@ func (s *Source) naoResolvido(canonicalKey string) bool {
 	return p.Error != nil || p.Incomplete
 }
 
-// arquivosDeProducao são os arquivos que compõem o package no perfil, com as
-// exclusões fechadas de RFC §10.3 já aplicadas pelo próprio toolchain
-// (`_test.go`, `testdata/`, `vendor/` e tags não ativadas ficam de fora).
+// O toolchain já aplica as exclusões: `_test.go`, `testdata/`, `vendor/` e
+// arquivos sob tag não ativada ficam de fora.
 func (p listPackage) arquivosDeProducao() []string {
 	out := make([]string, 0, len(p.GoFiles)+len(p.CgoFiles))
 	out = append(out, p.GoFiles...)
@@ -217,7 +202,6 @@ func (p listPackage) arquivosDeProducao() []string {
 	return out
 }
 
-// motivoDoErro devolve o texto do erro do toolchain, para a mensagem.
 func (s *Source) motivoDoErro(canonicalKey string) string {
 	p, ok := s.pacotes[canonicalKey]
 	switch {
@@ -232,8 +216,7 @@ func (s *Source) motivoDoErro(canonicalKey string) string {
 	}
 }
 
-// absorver acumula o package na união dos perfis. Um package visto em mais de
-// um perfil tem os GoFiles e Imports unidos — o grafo é a união das arestas.
+// absorver une o package entre perfis; o grafo é a união das arestas.
 func (s *Source) absorver(p listPackage) {
 	ja, existe := s.pacotes[p.ImportPath]
 	if !existe {
@@ -247,8 +230,7 @@ func (s *Source) absorver(p listPackage) {
 	ja.CgoFiles = unir(ja.CgoFiles, p.CgoFiles)
 	ja.Imports = unir(ja.Imports, p.Imports)
 	ja.Deps = unir(ja.Deps, p.Deps)
-	// Clonar, não aliasar: `ja.ImportMap = p.ImportMap` faria a união do
-	// perfil seguinte mutar o map que pertence ao listPackage de outro perfil.
+	// Clonar, não aliasar: aliasar faria o perfil seguinte mutar o map de outro.
 	if ja.ImportMap == nil {
 		ja.ImportMap = maps.Clone(p.ImportMap)
 	} else {
@@ -256,7 +238,7 @@ func (s *Source) absorver(p listPackage) {
 			ja.ImportMap[k] = v
 		}
 	}
-	// Erro em qualquer perfil reprova: fail-closed não é média entre perfis.
+	// Erro em qualquer perfil reprova: não há média entre perfis.
 	if p.Error != nil {
 		ja.Error = p.Error
 	}
@@ -270,10 +252,8 @@ func (s *Source) listar(perfil fsstore.BuildProfile, m rule.Module) ([]listPacka
 	if len(perfil.Tags) > 0 {
 		args = append(args, "-tags", strings.Join(perfil.Tags, ","))
 	}
-	// O `--` separa flags de padrões. Sem ele, um `go.mod` com `module -version`
-	// faz o `go list` interpretar o padrão como flag e responder "flag provided
-	// but not defined" — erro real, mas ilegível. Com o separador, o próprio Go
-	// responde "malformed module path: leading dash", que diz o que corrigir.
+	// Sem o `--`, um `go.mod` com `module -version` faz o padrão ser lido como
+	// flag e o erro sai ilegível; com ele, o Go diz "malformed module path".
 	args = append(args, "--", m.Path+"/...")
 
 	cmd := exec.Command("go", args...)
@@ -282,14 +262,8 @@ func (s *Source) listar(perfil fsstore.BuildProfile, m rule.Module) ([]listPacka
 		"GOOS="+perfil.GOOS,
 		"GOARCH="+perfil.GOARCH,
 		"CGO_ENABLED="+booleanoDeAmbiente(perfil.CGOEnabled),
-		// GOWORK é resolvido pela ORIGEM do módulo, nunca herdado do ambiente.
-		//
-		// Membro do go.work resolve NO workspace: é assim que o build o compila,
-		// e um `require` sem `replace` local cairia na versão publicada — o
-		// verificador analisaria um grafo que não é o que se constrói. Módulo
-		// fora do go.work resolve isolado, pelo próprio go.mod. Nos dois casos o
-		// valor é explícito, então o veredicto não depende de onde o binário foi
-		// invocado.
+		// GOWORK vem da ORIGEM do módulo, nunca do ambiente: herdá-lo faria o
+		// veredicto depender de onde o binário foi invocado.
 		"GOWORK="+s.gowork(m),
 	)
 	var stdout, stderr bytes.Buffer
@@ -302,8 +276,7 @@ func (s *Source) listar(perfil fsstore.BuildProfile, m rule.Module) ([]listPacka
 	return decodificar(&stdout)
 }
 
-// decodificar lê o fluxo de objetos JSON concatenados que o `go list -json`
-// emite — não é um array.
+// O `go list -json` emite objetos concatenados, não um array.
 func decodificar(r io.Reader) ([]listPackage, error) {
 	dec := json.NewDecoder(r)
 	var out []listPackage

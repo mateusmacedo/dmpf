@@ -2,9 +2,8 @@ package rule
 
 import "testing"
 
-// oracleCell é uma célula de RFC §7.4, transcrita À MÃO da tabela normativa,
-// célula a célula. Esta tabela NUNCA é derivada de matrix.go: derivá-la faria o
-// teste comparar o dado consigo mesmo e passar por qualquer valor.
+// Transcrita À MÃO da norma. Derivá-la de matrix.go faria o teste comparar
+// o dado consigo mesmo e passar por qualquer valor.
 type oracleCell struct {
 	n      int
 	source Block
@@ -12,8 +11,8 @@ type oracleCell struct {
 	allow  bool
 }
 
-// oracle são as 36 células de RFC §7.4, na numeração da própria RFC. O número da
-// célula é o que dá rastreabilidade aos vetores de §11.2.
+// A numeração é a da norma, e é por ela que a documentação referencia cada
+// decisão.
 var oracle = []oracleCell{
 	{1, BlockDomain, BlockDomain, true},
 	{2, BlockDomain, BlockApplication, false},
@@ -74,8 +73,6 @@ func TestOracleCobreAsTrintaESeisCelulas(t *testing.T) {
 	}
 }
 
-// TestMatrizConfereComRFC74 é o vetor positivo e negativo de cada célula: o dado
-// de produção precisa reproduzir a decisão da RFC nas 36 posições.
 func TestMatrizConfereComRFC74(t *testing.T) {
 	for _, c := range oracle {
 		got := AllowedByMatrix(c.source, c.target)
@@ -86,8 +83,7 @@ func TestMatrizConfereComRFC74(t *testing.T) {
 	}
 }
 
-// TestC1NaoDependeDeContexto fixa a independência das duas condições: C1 é só a
-// matriz, e não olha bounded context nem superfície pública.
+// C1 é só a matriz: não olha bounded context nem superfície pública.
 func TestC1NaoDependeDeContexto(t *testing.T) {
 	for _, c := range oracle {
 		for _, bc := range []struct{ src, tgt string }{{"a", "a"}, {"a", "b"}} {
@@ -105,8 +101,6 @@ func TestC1NaoDependeDeContexto(t *testing.T) {
 	}
 }
 
-// TestC2TabelaVerdade é a tabela verdade própria de C2 (RFC §7.1, §7.2):
-// same_bounded_context OU public_integration_surface(destino).
 func TestC2TabelaVerdade(t *testing.T) {
 	casos := []struct {
 		nome     string
@@ -136,8 +130,6 @@ func TestC2TabelaVerdade(t *testing.T) {
 	}
 }
 
-// TestConjuncaoEIndependente prova que uma aresta pode reprovar nas duas
-// condições ao mesmo tempo e emitir os dois diagnósticos (RFC §7.1).
 func TestConjuncaoEIndependente(t *testing.T) {
 	src := Endpoint{CanonicalKey: "x/domain", Block: BlockDomain, BoundedContext: "a"}
 	tgt := Endpoint{CanonicalKey: "y/provider", Block: BlockProvider, BoundedContext: "b"}
@@ -156,8 +148,8 @@ func TestConjuncaoEIndependente(t *testing.T) {
 	}
 }
 
-// TestDomainPortProibidaSemExcecao é a célula 4 isolada: ADR-014 a proíbe sem
-// condicional. Nenhum bounded context, superfície pública ou flag a relaxa.
+// domain -> port é proibida sem condicional: nenhum contexto, superfície
+// pública ou flag a relaxa.
 func TestDomainPortProibidaSemExcecao(t *testing.T) {
 	for _, bc := range []string{"mesmo", "outro"} {
 		for _, surface := range []bool{false, true} {

@@ -6,19 +6,15 @@ import (
 	"strings"
 )
 
-// ExternalPolicy reúne o que o manifesto declara sobre dependência externa: a
-// allowlist e as exceções nominais.
 type ExternalPolicy struct {
 	Allowlist  []AllowlistEntry
 	Exceptions []ExceptionEntry
 }
 
-// Closure devolve o fechamento transitivo de um import path. É fornecido pelo
-// provider (o campo Deps do `go list`) e serve APENAS à pureza transitiva —
-// nunca à decisão de aresta, que é sempre sobre a aresta direta.
+// Closure vem do campo Deps do `go list` e serve APENAS à pureza transitiva:
+// decidir aresta é sempre sobre a aresta direta.
 type Closure func(importPath string) ([]string, bool)
 
-// lookup resolve a entrada da allowlist que cobre o import path.
 func (p ExternalPolicy) lookup(importPath string) (AllowlistEntry, bool) {
 	for _, e := range p.Allowlist {
 		if e.Complete() && e.Covers(importPath) {
@@ -28,9 +24,7 @@ func (p ExternalPolicy) lookup(importPath string) (AllowlistEntry, bool) {
 	return AllowlistEntry{}, false
 }
 
-// exceptionFor resolve a exceção nominal para o par (unidade, dependência).
-// Exceção inválida não autoriza: a forma incompleta é recusada em silêncio aqui
-// e reportada por Validate.
+// Exceção inválida não autoriza; a forma incompleta é reportada por Validate.
 func (p ExternalPolicy) exceptionFor(unitID, importPath string) bool {
 	for _, x := range p.Exceptions {
 		if x.Unit == unitID && x.Dependency == importPath && x.Valid() {
@@ -40,8 +34,8 @@ func (p ExternalPolicy) exceptionFor(unitID, importPath string) bool {
 	return false
 }
 
-// Validate reprova entrada de allowlist incompleta (RFC §6.3) e exceção que não
-// seja nominal (RFC §6.4).
+// Validate reprova entrada de allowlist incompleta e exceção que não nomeie o
+// par (unidade, dependência).
 //
 // Sem os quatro elementos, a entrada da allowlist não descreve o que autoriza;
 // sem os cinco, a exceção deixa de ser nominal e vira política paralela não
@@ -72,11 +66,8 @@ func (p ExternalPolicy) Validate(manifestPath string) []Diagnostic {
 	return out
 }
 
-// EvaluateExternal decide um import que resolve FORA do universo (RFC §6).
-//
-// A matriz de §7 governa arestas entre unidades classificadas; ela não alcança
-// um import de driver, SDK ou framework. Sem esta avaliação, a regra mais
-// consequente do DMPF ficaria sem cobertura.
+// EvaluateExternal cobre o que a matriz de blocos não alcança: import de
+// driver, SDK ou framework, que não são unidades classificadas.
 func EvaluateExternal(
 	source Endpoint,
 	sourceUnitID string,
@@ -88,11 +79,11 @@ func EvaluateExternal(
 ) []Diagnostic {
 	cap, conhecida := resolveCapability(target, policy, isStandard)
 	if !conhecida {
-		// Bloco permissivo aceita QUALQUER capability (RFC §6.2), então não
+		// Bloco permissivo aceita qualquer capability, então não
 		// saber qual é não muda o veredicto — e fail-closed protege contra
 		// afirmar conformidade sem decidir, não contra decidir com folga.
 		// Fora deles, dependência que o verificador não consegue classificar
-		// reprova (RFC §3.6, §10.2).
+		// reprova.
 		if isPermissiveBlock(source.Block) {
 			return nil
 		}
@@ -116,8 +107,8 @@ func EvaluateExternal(
 		})
 	}
 
-	// A pureza transitiva de RFC §6.3 vale para ENTRADA DA ALLOWLIST, computada
-	// a partir dos entrypoints declarados. Não vale para builtin: §6.3 atribui
+	// A pureza transitiva vale para ENTRADA DA ALLOWLIST, computada a partir dos
+	// entrypoints declarados. Não vale para builtin: a norma atribui
 	// capability ao builtin diretamente ("net/http é io.network; crypto é
 	// pure"), e descer o fechamento da stdlib chegaria sempre em internal/abi e
 	// internal/runtime/*, tornando todo package puro impuro por construção.
@@ -137,8 +128,7 @@ func EvaluateExternal(
 	return out
 }
 
-// resolveCapability atribui a capability do import path. A allowlist do
-// manifesto tem precedência sobre a tabela da stdlib: um projeto pode declarar
+// A allowlist tem precedência sobre a tabela da stdlib: o projeto pode declarar
 // um builtin de forma mais estrita, nunca mais permissiva por omissão.
 func resolveCapability(importPath string, policy ExternalPolicy, isStandard func(string) bool) (Capability, bool) {
 	if e, ok := policy.lookup(importPath); ok {
@@ -158,14 +148,9 @@ type impureza struct {
 	capability Capability
 }
 
-// impurezaNoFechamento computa a pureza transitiva de RFC §6.3: um pacote
-// declarado `pure` que introduza, por qualquer caminho do seu fechamento, uma
-// capability diferente de `pure`, DEIXA DE SER pure.
-//
-// O fechamento parte dos entrypoints declarados, não do pacote inteiro — sem
-// essa regra, qualquer pacote grande o bastante seria impuro por conter um
-// acesso a I/O em algum subpath, e a política viraria proibição total de
-// biblioteca externa no domínio.
+// Parte dos ENTRYPOINTS declarados, não do pacote inteiro: sem isso, qualquer
+// pacote grande seria impuro por conter I/O em algum subpath, e a política
+// viraria proibição total de biblioteca externa no domínio.
 func impurezaNoFechamento(entrypoint string, policy ExternalPolicy, closure Closure, isStandard func(string) bool) (impureza, bool) {
 	if closure == nil {
 		return impureza{}, false
@@ -181,8 +166,7 @@ func impurezaNoFechamento(entrypoint string, policy ExternalPolicy, closure Clos
 		}
 		cap, conhecida := resolveCapability(d, policy, isStandard)
 		if !conhecida {
-			// Dependência do fechamento sem classificação impede afirmar
-			// pureza. Fail-closed: reporta como impureza não verificada.
+			// Não classificar impede afirmar pureza, e não afirmar reprova.
 			achados[d] = ""
 			continue
 		}
@@ -193,7 +177,7 @@ func impurezaNoFechamento(entrypoint string, policy ExternalPolicy, closure Clos
 	if len(achados) == 0 {
 		return impureza{}, false
 	}
-	// Determinismo: entre vários caminhos impuros, reporta o menor import path.
+	// Entre vários caminhos impuros, o menor import path mantém a saída estável.
 	vias := make([]string, 0, len(achados))
 	for d := range achados {
 		vias = append(vias, d)

@@ -1,6 +1,5 @@
-// Package fsstore é bloco `provider`: lê o disco e decodifica JSON. A
-// decodificação é capability `wire.codec`, vedada em `domain` e em `port`
-// (RFC §6.2) — por isso o domínio recebe modelo puro e nunca bytes.
+// Package fsstore lê o disco e decodifica JSON — `wire.codec`, vedado em
+// `domain` e `port`. Por isso o domínio recebe modelo, nunca bytes.
 package fsstore
 
 import (
@@ -10,10 +9,8 @@ import (
 	"path/filepath"
 )
 
-// BuildProfile é um alvo de produção: a combinação que define o que "build tag
-// usada em produção" significa operacionalmente (RFC §10.3). Sem esse conjunto
-// declarado, "produção" seria o perfil implícito do runner, e trocar o runner
-// mudaria o veredicto em silêncio.
+// Define o que conta como "produção" ao decidir quais arquivos entram. Sem o
+// conjunto declarado, trocar o runner mudaria o veredicto em silêncio.
 type BuildProfile struct {
 	ID         string   `json:"id"`
 	GOOS       string   `json:"goos"`
@@ -29,9 +26,8 @@ type buildProfilesDoc struct {
 	Profiles []BuildProfile `json:"profiles"`
 }
 
-// LoadBuildProfiles lê o conjunto de perfis de produção. Conjunto vazio ou
-// arquivo ausente é erro, não default silencioso: sem perfil declarado o
-// verificador não sabe o que excluir por build tag, e não saber reprova.
+// Conjunto vazio ou arquivo ausente é erro, não default: sem perfil declarado
+// o verificador não sabe o que excluir por build tag, e não saber reprova.
 func LoadBuildProfiles(path string) ([]BuildProfile, error) {
 	raw, err := os.ReadFile(filepath.Clean(path))
 	if err != nil {

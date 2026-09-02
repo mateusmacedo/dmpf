@@ -10,8 +10,7 @@ import (
 	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/internal/fsstore"
 )
 
-// repoTemporario monta um repositório git mínimo, porque o inventário descobre
-// módulos a partir do que o git rastreia — sem commit não há fonte.
+// O inventário descobre a partir do que o git rastreia: sem commit, não há fonte.
 func repoTemporario(t *testing.T, arquivos map[string]string) string {
 	t.Helper()
 	raiz := t.TempDir()
@@ -62,12 +61,8 @@ func TestInventarioAceitaModuloValido(t *testing.T) {
 	}
 }
 
-// TestGoModSemDiretivaTornaExecucaoNaoVerificavel: um `go.mod` presente e
-// ilegível não pode fazer o módulo SUMIR do inventário.
-//
-// Sumir esconde ao mesmo tempo o DMPF-U004 do módulo e os DMPF-U001 dos
-// packages dele — o verificador ficaria verde por não ter olhado, que é o
-// oposto de fail-closed.
+// Sumir esconderia o U004 do módulo e os U001 dos packages dele: o verificador
+// ficaria verde por não ter olhado.
 func TestGoModSemDiretivaTornaExecucaoNaoVerificavel(t *testing.T) {
 	raiz := repoTemporario(t, map[string]string{
 		"m/go.mod": "go 1.26.4\n", // sem a diretiva `module`
@@ -93,10 +88,8 @@ func TestProjectJsonInvalidoTornaExecucaoNaoVerificavel(t *testing.T) {
 	}
 }
 
-// TestModuloDeTestdataFicaForaDoInventario: `testdata/` é exclusão fechada de
-// RFC §10.3. Um módulo sintético de fixture não é produção, e tratá-lo como tal
-// faria o verificador reprovar o repositório pela violação que a fixture existe
-// para demonstrar.
+// Tratar fixture como produção faria o verificador reprovar o repositório pela
+// violação que ela existe para demonstrar.
 func TestModuloDeTestdataFicaForaDoInventario(t *testing.T) {
 	raiz := repoTemporario(t, map[string]string{
 		"m/go.mod":            goModValido,
@@ -118,8 +111,8 @@ func TestModuloDeTestdataFicaForaDoInventario(t *testing.T) {
 	}
 }
 
-// TestMembroDoGoWorkEMarcado: a marca decide o GOWORK da extração, e com ela a
-// resolução de um require entre membros sem `replace` local.
+// A marca decide o GOWORK da extração, e com ele a resolução de um require
+// entre membros sem `replace` local.
 func TestMembroDoGoWorkEMarcado(t *testing.T) {
 	raiz := repoTemporario(t, map[string]string{
 		"go.work":  "go 1.26.4\n\nuse ./m\n",
@@ -144,9 +137,8 @@ func TestMembroDoGoWorkEMarcado(t *testing.T) {
 	}
 }
 
-// TestRaizInexistenteNaoPassaPorVazio: raiz que não existe faz `git ls-files`
-// falhar, e falhar tem de interromper. Devolver inventário vazio seria o pior
-// resultado possível — verificar zero módulo é sempre conforme.
+// Devolver inventário vazio seria o pior resultado: verificar zero módulo é
+// sempre conforme.
 func TestRaizInexistenteNaoPassaPorVazio(t *testing.T) {
 	mods, err := fsstore.NewInventory(filepath.Join(t.TempDir(), "nao-existe")).Modules()
 	if err == nil {
@@ -154,9 +146,8 @@ func TestRaizInexistenteNaoPassaPorVazio(t *testing.T) {
 	}
 }
 
-// TestDiretorioSemRepositorioGitInterrompe: fora de um repositório, a fonte que
-// não depende de configuração nenhuma (`go.mod` rastreado) some. Seguir com as
-// outras duas daria um universo parcial apresentado como completo.
+// Sem git, a fonte que não depende de configuração some: seguir com as outras
+// daria universo parcial apresentado como completo.
 func TestDiretorioSemRepositorioGitInterrompe(t *testing.T) {
 	raiz := t.TempDir()
 	if err := os.WriteFile(filepath.Join(raiz, "go.mod"), []byte(goModValido), 0o644); err != nil {

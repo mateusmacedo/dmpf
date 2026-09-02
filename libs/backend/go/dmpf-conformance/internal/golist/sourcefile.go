@@ -7,12 +7,9 @@ import (
 	"strconv"
 )
 
-// arquivoDoImport devolve o arquivo que introduz o import, para a mensagem do
-// diagnóstico.
-//
-// Este é o ÚNICO uso de go/parser no verificador, e ele nunca decide nada: a
-// decisão é sempre sobre o package resolvido pelo toolchain (RFC §3.5). Aqui o
-// texto do import serve apenas para apontar ao humano onde a aresta nasce.
+// Único uso de go/parser no verificador, e ele nunca decide: a decisão é sobre
+// o package que o compilador resolveu. Aqui o texto só aponta onde a aresta
+// nasce, para quem for ler o diagnóstico.
 func (s *Source) arquivoDoImport(p listPackage, importPath string) string {
 	if p.Dir == "" {
 		return ""
@@ -25,10 +22,8 @@ func (s *Source) arquivoDoImport(p listPackage, importPath string) string {
 	return ""
 }
 
-// importaPath consulta o cache de imports do próprio Source. O cache vive na
-// instância, não no package: como global, ele sobreviveria entre execuções no
-// mesmo processo e faria o resultado depender do histórico — em teste, de qual
-// caso rodou antes.
+// O cache vive na instância, não no package: como global, faria o resultado
+// depender do histórico do processo — em teste, de qual caso rodou antes.
 func (s *Source) importaPath(arquivo, importPath string) bool {
 	if s.imports == nil {
 		s.imports = map[string]map[string]bool{}

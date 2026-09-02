@@ -17,9 +17,8 @@ var perfilLinuxAmd64 = []fsstore.BuildProfile{
 	{ID: "linux-amd64", GOOS: "linux", GOARCH: "amd64", CGOEnabled: false},
 }
 
-// rodar monta a cadeia real de providers sobre um workspace sintético. O
-// inventário é montado à mão porque a fixture não é um repositório git: o que
-// está sob teste aqui é a extração e a decisão, não a descoberta de módulos.
+// Inventário montado à mão porque a fixture não é um repositório git: sob teste
+// aqui estão a extração e a decisão, não a descoberta.
 func rodar(t *testing.T, cenario string, mods ...string) conformance.Report {
 	t.Helper()
 
@@ -56,13 +55,9 @@ func codigos(ds []rule.Diagnostic) []rule.Code {
 	return out
 }
 
-// TestArestaTransitivaEntreModulos é o vetor que justifica o KRN-02 existir.
-//
-// O `domain` do mod-a alcança `net/http` por dentro do mod-b. O `depguard` do
-// KRN-01 analisa um módulo por vez e seleciona por nome de diretório: ele vê
-// mod-a sem I/O e mod-b sem o nome `*-domain`, e passa verde nos dois. O
-// verificador atravessa a fronteira porque lê a classificação declarada e
-// resolve o grafo pelo toolchain.
+// O vetor que justifica este verificador existir: o `domain` do mod-a alcança
+// `net/http` por dentro do mod-b, e o `depguard` passa verde nos dois porque
+// analisa um módulo por vez e seleciona por nome de diretório.
 func TestArestaTransitivaEntreModulos(t *testing.T) {
 	rel := rodar(t, "transitivo", "exemplo.test/mod-a", "exemplo.test/mod-b")
 
@@ -88,13 +83,8 @@ func TestArestaTransitivaEntreModulos(t *testing.T) {
 	}
 }
 
-// TestArestaInternaEntreModulosProduzD001 exige que a aresta interna seja
-// DECIDIDA, não apenas que ela não reprove.
-//
-// A versão anterior deste vetor só afirmava ausência de diagnóstico para
-// A -> B, e passava também quando a extração deixava de produzir arestas
-// internas — falso verde. Aqui a aresta é proibida por construção (célula 5,
-// domain -> provider), então o teste falha se ela sumir.
+// A aresta interna precisa ser DECIDIDA, não só não reprovar: afirmar ausência
+// passaria também quando a extração parasse de produzir arestas internas.
 func TestArestaInternaEntreModulosProduzD001(t *testing.T) {
 	rel := rodar(t, "arestainterna", "exemplo.test/ai-a", "exemplo.test/ai-b")
 
@@ -114,9 +104,7 @@ func TestArestaInternaEntreModulosProduzD001(t *testing.T) {
 	}
 }
 
-// TestArestaInternaPermitidaNaoReprova é o positivo do par: no cenário
-// transitivo a aresta A -> B é domain -> domain no mesmo bounded context
-// (célula 1, P), e precisa passar.
+// O positivo do par: domain -> domain no mesmo contexto é permitido.
 func TestArestaInternaPermitidaNaoReprova(t *testing.T) {
 	rel := rodar(t, "transitivo", "exemplo.test/mod-a", "exemplo.test/mod-b")
 	for _, d := range rel.Diagnostics {
@@ -126,10 +114,8 @@ func TestArestaInternaPermitidaNaoReprova(t *testing.T) {
 	}
 }
 
-// TestModuloSozinhoNaoVeATransitividade documenta o limite do gate anterior:
-// verificando SÓ o mod-a, o alcance de net/http fica invisível — é exatamente
-// o que o golangci-lint por módulo faz, e o motivo de o gate do KRN-01 ser
-// declaradamente parcial.
+// Com um módulo só, o alcance fica invisível — é o que o golangci-lint por
+// módulo faz, e o motivo de o lint sozinho ser declaradamente parcial.
 func TestModuloSozinhoNaoVeATransitividade(t *testing.T) {
 	rel := rodar(t, "transitivo", "exemplo.test/mod-a")
 	for _, d := range rel.Diagnostics {

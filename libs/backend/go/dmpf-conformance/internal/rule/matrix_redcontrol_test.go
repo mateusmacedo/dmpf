@@ -2,15 +2,11 @@ package rule
 
 import "testing"
 
-// TestRedControlOraculoNaoETautologico é a guarda contra o oráculo derivado.
-//
-// Se a tabela de RFC §7.4 fosse computada a partir de matrix.go, corromper o
-// dado de produção não faria a suite falhar — os dois lados mudariam juntos e o
-// teste passaria com qualquer matriz. Este controle corrompe uma célula e exige
-// que a comparação REPROVE.
+// Se o oráculo fosse computado de matrix.go, corromper a produção não faria a
+// suite falhar: os dois lados mudariam juntos. Prova comportamental — a
+// estrutural, que pega o oráculo derivado, está em oracle_independence_test.go.
 func TestRedControlOraculoNaoETautologico(t *testing.T) {
-	// Célula 4 (domain → port): proibida sem exceção por ADR-014. Se a suite
-	// aceitar a matriz corrompida, o oráculo é tautológico.
+	// Célula 4: se a suite aceitar a matriz corrompida, o oráculo é tautológico.
 	original := matrix[BlockDomain]
 	t.Cleanup(func() { matrix[BlockDomain] = original })
 
@@ -38,8 +34,7 @@ func TestRedControlOraculoNaoETautologico(t *testing.T) {
 	}
 }
 
-// TestRedControlCobreTodasAsCelulas estende o controle: corromper QUALQUER uma
-// das 36 posições precisa ser detectado, não só a célula 4.
+// Corromper QUALQUER uma das 36 posições precisa ser detectado.
 func TestRedControlCobreTodasAsCelulas(t *testing.T) {
 	for _, c := range oracle {
 		original := matrix[c.source]

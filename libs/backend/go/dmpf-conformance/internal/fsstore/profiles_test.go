@@ -17,9 +17,8 @@ func escrever(t *testing.T, conteudo string) string {
 	return p
 }
 
-// Sem perfil declarado o verificador não sabe o que excluir por build tag, e
-// não saber reprova: nenhum destes casos pode devolver um conjunto vazio como
-// se fosse configuração válida.
+// Sem perfil declarado não se sabe o que excluir por build tag, e não saber
+// reprova: nenhum destes casos vira conjunto vazio válido.
 func TestPerfisInvalidosInterrompem(t *testing.T) {
 	casos := map[string]string{
 		"json inválido":     "{ isto nao e json",

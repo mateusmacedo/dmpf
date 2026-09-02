@@ -6,11 +6,8 @@ import (
 	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/internal/rule"
 )
 
-// TestExcecaoNaoVazaEntreModulos: `id` de unidade só é único DENTRO de um
-// manifesto (RFC §10.1), então dois módulos podem declarar `id: "domain"`
-// legitimamente. Se a exceção nominal for casada só pelo `id`, a exceção que o
-// mod-a declarou para si autoriza o mod-b — e a exceção deixa de ser nominal,
-// virando a política paralela que RFC §6.4 proíbe.
+// O `id` só é único dentro de um manifesto: casar a exceção só por ele faz a do
+// mod-a autorizar o mod-b, e ela deixa de nomear o par que autoriza.
 func TestExcecaoNaoVazaEntreModulos(t *testing.T) {
 	rel := rodar(t, "vazamento", "exemplo.test/vaz-a", "exemplo.test/vaz-b")
 
@@ -35,11 +32,8 @@ func TestExcecaoNaoVazaEntreModulos(t *testing.T) {
 	}
 }
 
-// TestPackageNaoClassificadoNaoViraDependenciaExterna: um package descoberto
-// como produção mas fora de todo `include` já reprova em U001. Ao ser DESTINO
-// de uma aresta, ele não pode ser confundido com dependência externa — isso
-// emitiria um E001 sobre código do próprio universo e trocaria a causa real
-// (falta de declaração) por um sintoma inventado (capability ausente).
+// Package fora de todo `include` já reprova em U001: como DESTINO, tratá-lo
+// como externo trocaria a causa real por um sintoma inventado.
 func TestPackageNaoClassificadoNaoViraDependenciaExterna(t *testing.T) {
 	rel := rodar(t, "naoclassificado", "exemplo.test/nc-a")
 
@@ -64,10 +58,8 @@ func TestPackageNaoClassificadoNaoViraDependenciaExterna(t *testing.T) {
 	}
 }
 
-// TestCoberturaNaoEncerraAntesDasArestas: a spec fixa UM ponto de parada — o
-// passo 2, manifesto e U004. U001 acumulando com os diagnósticos de aresta é o
-// que faz um mesmo CI mostrar cobertura e dependência de uma vez, em vez de
-// exigir uma rodada por classe.
+// Um ponto de parada só (passo 2): acumular deixa o mesmo CI mostrar cobertura
+// e dependência de uma vez, em vez de uma rodada por classe.
 func TestCoberturaNaoEncerraAntesDasArestas(t *testing.T) {
 	rel := rodar(t, "naoclassificado", "exemplo.test/nc-a")
 	if rel.PhaseHalted != "" {
@@ -75,9 +67,7 @@ func TestCoberturaNaoEncerraAntesDasArestas(t *testing.T) {
 	}
 }
 
-// TestImportNaoResolvidoEmiteE003: o `-e` do `go list` é transporte
-// estruturado de erro, não aceitação de universo parcial. Um import que não
-// resolve reprova com E003 e nunca é tratado como ausente (RFC §10.3).
+// O `-e` é transporte estruturado de erro, não aceitação de universo parcial.
 func TestImportNaoResolvidoEmiteE003(t *testing.T) {
 	rel := rodar(t, "naoresolvido", "exemplo.test/nr-a")
 

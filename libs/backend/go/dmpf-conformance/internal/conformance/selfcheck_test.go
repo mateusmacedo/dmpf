@@ -11,14 +11,10 @@ import (
 	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/internal/golist"
 )
 
-// TestVerificadorPassaNoProprioGate é o DoD do KRN-02, e é um teste real
-// porque o módulo é decomposto na arquitetura que ele verifica.
-//
-// Um verificador de pacote único passaria trivialmente: sem duas unidades, não
-// há aresta a decidir. Com `rule`/`manifest` em `domain`, `port` em `port`,
-// `conformance` em `application`, `fsstore`/`golist` em `provider` e `cmd` em
-// `app`, ele exercita as células 1, 7, 10, 14, 17, 19, 25, 28 e 29 da matriz —
-// e a suite falha se alguém introduzir uma aresta proibida entre elas.
+// A promessa central do verificador, e um teste real porque ele é decomposto na
+// arquitetura
+// que verifica: um verificador de pacote único passaria trivialmente, sem duas
+// unidades não há aresta a decidir.
 func TestVerificadorPassaNoProprioGate(t *testing.T) {
 	raiz := raizDoWorkspace(t)
 
@@ -55,8 +51,7 @@ func TestVerificadorPassaNoProprioGate(t *testing.T) {
 	}
 }
 
-// TestInventarioEncontraOsModulosDoWorkspace protege a descoberta: se o
-// inventário parar de achar os módulos, o teste acima passaria por vacuidade —
+// Se o inventário parar de achar módulos, o teste acima passa por vacuidade:
 // verificar zero módulo é sempre conforme.
 func TestInventarioEncontraOsModulosDoWorkspace(t *testing.T) {
 	modules, err := fsstore.NewInventory(raizDoWorkspace(t)).Modules()
@@ -95,11 +90,8 @@ func raizDoWorkspace(t *testing.T) string {
 	return strings.TrimSpace(string(out))
 }
 
-// TestAutoverificacaoExercitaAsCelulasQuePromete fecha o falso verde do
-// DoD: "zero diagnósticos" também é o resultado de não ter olhado aresta
-// nenhuma. Este vetor exige que as arestas citadas existam MESMO no grafo do
-// próprio módulo — se alguém colapsar as camadas, o teste anterior continuaria
-// verde e este falha.
+// "Zero diagnósticos" também é o resultado de não ter olhado aresta nenhuma:
+// aqui as arestas citadas precisam existir MESMO no grafo do módulo.
 func TestAutoverificacaoExercitaAsCelulasQuePromete(t *testing.T) {
 	raiz := raizDoWorkspace(t)
 	const m = "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance"
@@ -145,9 +137,8 @@ func TestAutoverificacaoExercitaAsCelulasQuePromete(t *testing.T) {
 		}
 	}
 
-	// A aresta que o desenho torna impossível: domain -> port (célula 4,
-	// ADR-014). Em Go ela é ciclo de import, então nem compila — mas o vetor
-	// fica para o dia em que a estrutura mudar.
+	// Célula 4 é ciclo de import em Go, então nem compila — o vetor fica para o
+	// dia em que a estrutura mudar.
 	if presente[[2]string{m + "/internal/rule", m + "/internal/port"}] ||
 		presente[[2]string{m + "/internal/manifest", m + "/internal/port"}] {
 		t.Error("aresta domain -> port presente no grafo do próprio módulo (ADR-014)")

@@ -5,13 +5,10 @@ import (
 	"testing"
 )
 
-// TestArquivosDeProducaoIncluiCgo: `go list` separa GoFiles de CgoFiles, e um
-// package composto só de arquivos que importam "C" tem GoFiles vazio. Olhar só
-// GoFiles o faria sumir do universo num perfil com CGO_ENABLED=1 — e sumir é a
-// única forma de escapar do DMPF-U001.
+// Package só de arquivos que importam "C" tem GoFiles vazio: olhar só GoFiles
+// o faria sumir do universo, e sumir é a única forma de escapar do U001.
 //
-// O teste é sobre a projeção, não sobre um build cgo real: o perfil inicial tem
-// cgo desligado, e exigir toolchain C aqui amarraria a suite ao ambiente.
+// Testa a projeção, não um build cgo real, que amarraria a suite ao ambiente.
 func TestArquivosDeProducaoIncluiCgo(t *testing.T) {
 	casos := []struct {
 		nome string
@@ -37,8 +34,7 @@ func TestArquivosDeProducaoIncluiCgo(t *testing.T) {
 	}
 }
 
-// TestPackageSoComCgoEProducao fecha a consequência: o filtro que decide se o
-// package entra no universo precisa enxergar o package só-cgo.
+// O filtro que decide a entrada no universo precisa enxergar o só-cgo.
 func TestPackageSoComCgoEProducao(t *testing.T) {
 	if len(listPackage{CgoFiles: []string{"c.go"}}.arquivosDeProducao()) == 0 {
 		t.Error("package só-cgo tratado como sem código de produção: ele sumiria do universo")
