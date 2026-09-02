@@ -1,6 +1,6 @@
 {
   "schema": "dmpf/units-baseline@1",
-  "digest": "sha256:a3718401d8852d0b33ede707466036ec0428d537e576b4d2593420385f118c93",
+  "digest": "sha256:ff37da1c5c89bde1954560e992fdf0de0a488be70afeb3d8b0b7b5724e4d2edc",
   "entries": [
     {
       "unit": "dmpf-conformance/baseline",
@@ -81,6 +81,15 @@
       "bounded_context": "dmpf-kernel",
       "membership": [
         "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-domain"
+      ]
+    },
+    {
+      "unit": "dmpf-kernel/example-orders",
+      "module": "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-domain",
+      "block": "domain",
+      "bounded_context": "dmpf-kernel",
+      "membership": [
+        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-domain/example/orders"
       ]
     }
   ]
