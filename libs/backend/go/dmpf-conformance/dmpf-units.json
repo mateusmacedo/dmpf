@@ -20,6 +20,15 @@
       ]
     },
     {
+      "id": "dmpf-conformance/baseline",
+      "block": "domain",
+      "bounded_context": "dmpf-conformance",
+      "public_integration_surface": false,
+      "include": [
+        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/internal/baseline"
+      ]
+    },
+    {
       "id": "dmpf-conformance/port",
       "block": "port",
       "bounded_context": "dmpf-conformance",
