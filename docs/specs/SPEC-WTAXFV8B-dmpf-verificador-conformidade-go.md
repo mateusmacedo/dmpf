@@ -2,7 +2,7 @@
 id: SPEC-WTAXFV8B
 slug: dmpf-verificador-conformidade-go
 title: DMPF KRN-02 — Verificador de conformidade DMPF em Go
-stage: building
+stage: done
 priority: P0
 depends_on: [SPEC-MQA5HAXF]
 ticket_url: https://lider-cap.atlassian.net/browse/ARQ-521
@@ -125,7 +125,7 @@ vetores negativos e um positivo por módulo.
 
 ### Funcionais
 
-- [ ] **[P0] Leitura e validação dos manifestos.** Descobrir todo
+- [x] **[P0] Leitura e validação dos manifestos.** Descobrir todo
   `dmpf-units.json` versionado, validar contra o schema `dmpf/units@1` e reprovar
   antes de decidir qualquer aresta.
   - `block`, `bounded_context` e `include` são obrigatórios por unidade; ausência
@@ -138,7 +138,7 @@ vetores negativos e um positivo por módulo.
   - `id` duplicado no mesmo manifesto emite `DMPF-M003`.
   - Herança não é implementada: nenhum campo é derivado de diretório pai, de
     módulo ou de outra unidade.
-- [ ] **[P0] Construção do universo.** A `verification_unit` é o **package** Go e
+- [x] **[P0] Construção do universo.** A `verification_unit` é o **package** Go e
   a `canonical_key` é o **import path completo** (ADR-011; RFC §3.3).
   - A descoberta de módulos usa um **inventário independente**, reconciliando
     três fontes: arquivos `go.mod` rastreados no repositório, projetos Nx com
@@ -173,7 +173,7 @@ vetores negativos e um positivo por módulo.
   - Arquivo de produção não coberto por nenhuma unidade emite `DMPF-U001`;
     coberto por mais de uma, `DMPF-U002`; `canonical_key` duplicada no universo,
     `DMPF-U003`; módulo de produção com código e sem manifesto, `DMPF-U004`.
-- [ ] **[P0] Resolução de arestas sobre o package resolvido.** Extrair o grafo
+- [x] **[P0] Resolução de arestas sobre o package resolvido.** Extrair o grafo
   com `go list -e -deps -json` sobre os módulos do inventário. A aresta
   canônica em Go é **package → package** (RFC §3.3): as arestas diretas vêm de
   `Imports`/`ImportMap` — a resolução do toolchain, nunca o texto do import
@@ -186,7 +186,7 @@ vetores negativos e um positivo por módulo.
     package com `Incomplete: true` ou `Error` preenchido emite `DMPF-E003` e
     reprova — a política fail-closed é do consumidor, e o import nunca é
     tratado como ausente.
-- [ ] **[P0] A função `decide`.** Implementar
+- [x] **[P0] A função `decide`.** Implementar
   `decide(source_block, target_block, source_bc, target_bc, target_surface)`
   como conjunção de C1 e C2, com a matriz 6×6 da RFC §7.3 como **dado
   versionado**, revisável em PR, e não como `switch` espalhado no código.
@@ -194,7 +194,7 @@ vetores negativos e um positivo por módulo.
   - As duas são avaliadas de forma independente: uma aresta pode emitir ambas.
   - `P` na matriz não é autorização final — a aresta permitida continua sujeita a
     C2 e à política de capabilities.
-- [ ] **[P0] Capabilities externas.** Todo import fora do universo é avaliado
+- [x] **[P0] Capabilities externas.** Todo import fora do universo é avaliado
   contra a política do bloco de origem (RFC §6.2) e a allowlist do manifesto
   (§6.3).
   - Blocos `domain` e `port` aceitam apenas `pure`; `application` é default deny
@@ -209,7 +209,7 @@ vetores negativos e um positivo por módulo.
     `DMPF-E002`.
   - A pureza é computada a partir dos **entrypoints declarados**, na faixa de
     versões declarada — não do pacote inteiro.
-- [ ] **[P0] Baseline e autorização.** Manter o baseline como cópia independente
+- [x] **[P0] Baseline e autorização.** Manter o baseline como cópia independente
   fora do `ownership_module` que descreve (ADR-013, T1).
   - Cobre `block` e `bounded_context` de cada `canonical_key`, mais o
     **membership resolvido** (os packages que o `include` de cada unidade
@@ -231,7 +231,7 @@ vetores negativos e um positivo por módulo.
     próprio, separado de mudanças de código — e as duas normas nunca se
     aplicam ao mesmo tempo. O verificador que não consiga avaliar a condição
     reporta "não verificado", nunca "conforme" — e "não verificado" reprova.
-- [ ] **[P0] Diagnósticos estáveis.** Emitir os **quinze** códigos de RFC §10.3,
+- [x] **[P0] Diagnósticos estáveis.** Emitir os **quinze** códigos de RFC §10.3,
   cada um rastreável até a seção que o institui, com saída diferente de zero em
   toda reprovação.
   - `DMPF-E004` (import dinâmico com alvo não determinável) é **declarado sem
@@ -242,30 +242,30 @@ vetores negativos e um positivo por módulo.
     capabilities (`DMPF-E001`/`DMPF-E002`). O vetor da classe vira teste de
     não-emissão documentado; `E004` volta a ter vetor executável no binding TS
     (`KRN-11`).
-- [ ] **[P0] Suite de vetores.** Cobertura por classe, não por contagem
+- [x] **[P0] Suite de vetores.** Cobertura por classe, não por contagem
   (RFC §11.1): cada uma das 36 células com vetor positivo e negativo, e um vetor
   por classe de diagnóstico. A suite falha se um negativo passar.
-- [ ] **[P0] Gate de CI.** Ligar o verificador ao `ci.yml` sem
+- [x] **[P0] Gate de CI.** Ligar o verificador ao `ci.yml` sem
   `continue-on-error`, no mesmo ponto em que hoje roda `tools/dmpf-gate-check.sh`.
-- [ ] **[P0] O verificador passa no próprio gate.** O módulo declara o próprio
+- [x] **[P0] O verificador passa no próprio gate.** O módulo declara o próprio
   `dmpf-units.json` e é verificado por ele mesmo.
-- [ ] **[P1] Guia de escrita do manifesto**, para que `KRN-03`..`KRN-12` declarem
+- [x] **[P1] Guia de escrita do manifesto**, para que `KRN-03`..`KRN-12` declarem
   as suas unidades sem reabrir a RFC.
-- [ ] **[P1] ADR** registrando a decisão, as alternativas descartadas e as
+- [x] **[P1] ADR** registrando a decisão, as alternativas descartadas e as
   limitações declaradas.
 
 ### Não-funcionais
 
-- [ ] **[P0] Determinismo.** Mesma árvore, mesmo veredicto e mesma ordem de
+- [x] **[P0] Determinismo.** Mesma árvore, mesmo veredicto e mesma ordem de
   diagnósticos. A saída é ordenada por `canonical_key` e por código.
-- [ ] **[P0] Zero dependência externa impura no núcleo de decisão.** A unidade
+- [x] **[P0] Zero dependência externa impura no núcleo de decisão.** A unidade
   que implementa `decide`, a matriz e a validação de schema é `pure` — ela mesma
   reprovaria se importasse I/O.
-- [ ] **[P1] Mensagem acionável.** Cada diagnóstico nomeia a aresta
+- [x] **[P1] Mensagem acionável.** Cada diagnóstico nomeia a aresta
   (`origem → destino`), o arquivo de origem que a introduz (nomeado via
   `go/parser`, apenas para a mensagem — nunca para decidir), o código e a
   seção normativa.
-- [ ] **[P1] Tempo de execução compatível com CI** no workspace atual, sem
+- [x] **[P1] Tempo de execução compatível com CI** no workspace atual, sem
   paralelismo especulativo; o custo dominante é o `go list`.
 
 ## Camadas afetadas
@@ -388,21 +388,21 @@ seriam ruído que esconde a causa real.
 ```text
 para cada aresta (package_origem -> package_destino) do grafo:   // Imports/ImportMap, por perfil
     unidade_origem = unidade_que_contem(package_origem)           // senão: DMPF-U001, reprova
-    se package_destino nao resolveu:                              // Incomplete/Error do go list -e
+    se package_destino não resolveu:                              // Incomplete/Error do go list -e
         emite DMPF-E003                                           // reprova, nunca "ausente"
         continua
-    se package_destino nao pertence ao universo:
-        avalia_capability_externa(unidade_origem, package_destino)  // politica do bloco (§6)
+    se package_destino não pertence ao universo:
+        avalia_capability_externa(unidade_origem, package_destino)  // política do bloco (§6)
         continua
     unidade_destino = unidade_que_contem(package_destino)         // senão: DMPF-U001, reprova
 
     C1 = matriz[unidade_origem.block][unidade_destino.block] == PERMITIDA
     C2 = unidade_origem.bounded_context == unidade_destino.bounded_context
-         ou unidade_destino.block == contract          // contract package e superficie por construcao
+         ou unidade_destino.block == contract          // contract é superfície por construção
          ou unidade_destino.public_integration_surface
 
-    se nao C1: emite DMPF-D001
-    se nao C2: emite DMPF-D002
+    se não C1: emite DMPF-D001
+    se não C2: emite DMPF-D002
 ```
 
 O default de toda ramificação ausente é **reprovar**. Um verificador que não
@@ -458,50 +458,53 @@ derivados de RFC §7.4, célula a célula, e não de código observado.
 
 ### Critérios de aceite
 
-- [ ] Um package `domain` que importa um package `port` reprova com `DMPF-D001`,
+- [x] Um package `domain` que importa um package `port` reprova com `DMPF-D001`,
       sem exceção e sem flag que relaxe (ADR-014).
-- [ ] Dois packages `domain` em bounded contexts diferentes, um importando o
+- [x] Dois packages `domain` em bounded contexts diferentes, um importando o
       outro, reprovam com `DMPF-D002`.
-- [ ] Um package de produção fora de todo `include` reprova com `DMPF-U001`; um
+- [x] Um package de produção fora de todo `include` reprova com `DMPF-U001`; um
       módulo de produção sem manifesto reprova com `DMPF-U004`; um `block` fora
       dos seis valores reprova com `DMPF-M002`.
-- [ ] `public_integration_surface: true` em unidade de bloco `domain` reprova com
+- [x] `public_integration_surface: true` em unidade de bloco `domain` reprova com
       `DMPF-M002` (RFC §7.2; ADR-017).
-- [ ] Uma unidade `domain` cujo fechamento de imports alcança `net/http` reprova —
+- [x] Uma unidade `domain` cujo fechamento de imports alcança `net/http` reprova —
       por `DMPF-D001` se via unidade do universo, por `DMPF-E001` se via
       dependência externa —, **inclusive quando o alcance é transitivo por outro
       módulo do `go.work`**, que é precisamente o que o gate do `KRN-01` não vê.
-- [ ] Uma entrada da allowlist declarada `pure` cujo fechamento transitivo, a
+- [x] Uma entrada da allowlist declarada `pure` cujo fechamento transitivo, a
       partir dos entrypoints declarados, introduz capability diferente reprova com
       `DMPF-E002`.
-- [ ] Cada uma das 36 células tem vetor positivo e negativo, e a suite falha se um
+- [x] Cada uma das 36 células tem vetor positivo e negativo, e a suite falha se um
       negativo passar.
-- [ ] Alterar o `block` sem atualizar o baseline reprova com `DMPF-T001`; alterar
+- [x] Alterar o `block` sem atualizar o baseline reprova com `DMPF-T001`; alterar
       os dois no mesmo commit, sem autorização distinta da autoria, reprova com
       `DMPF-T002`.
-- [ ] Import não resolvido reprova com `DMPF-E003`; `DMPF-E004` é declarado sem
+- [x] Import não resolvido reprova com `DMPF-E003`; `DMPF-E004` é declarado sem
       ocorrência possível no binding Go (gramática: `ImportPath = string_lit`),
       com código reservado e teste de não-emissão; nenhuma condição não avaliada
       é reportada como conforme.
-- [ ] Remapear `include` movendo packages entre unidades, sem tocar nenhum campo,
+- [x] Remapear `include` movendo packages entre unidades, sem tocar nenhum campo,
       é mudança normativa detectada pelo membership do baseline: sem evidência de
       autorização, reprova com `DMPF-T002` (ADR-028).
-- [ ] Um módulo `stack:go` com código de produção, omitido do `go.work` e sem
+- [x] Um módulo `stack:go` com código de produção, omitido do `go.work` e sem
       manifesto, reprova com `DMPF-U004` — o inventário independente o alcança.
-- [ ] Um PR que altere apenas `tools/dmpf-baseline/units-baseline.json` dispara o
+- [x] Um PR que altere apenas `tools/dmpf-baseline/units-baseline.json` dispara o
       gate do verificador (inputs Nx cobrem o baseline).
-- [ ] O mesmo arquivo importado por caminhos diferentes produz **uma** aresta, e o
+- [x] O mesmo arquivo importado por caminhos diferentes produz **uma** aresta, e o
       veredicto não muda com a forma do import.
-- [ ] Um arquivo `_test.go` que importa `net/http` dentro de uma unidade `domain`
+- [x] Um arquivo `_test.go` que importa `net/http` dentro de uma unidade `domain`
       **não** reprova — a exclusão é fechada e teste não altera classificação
-      (RFC §4.5, regra 3).
-- [ ] Código gerado consumido em runtime **reprova** pelas regras do bloco que o
+      (RFC §4.5, regra 3). O vetor existe, mas **não é falseável por mutação do
+      verificador**: o `go list` separa os arquivos de teste em `TestGoFiles` e
+      devolve `Imports` vazio, então o import nunca chega ao código. Ele guarda
+      contra uma mudança futura que passasse a ler `TestGoFiles` no grafo.
+- [x] Código gerado consumido em runtime **reprova** pelas regras do bloco que o
       consome (RFC §4.5, regra 2).
-- [ ] O módulo `dmpf-conformance-go` é verificado por si mesmo e passa.
-- [ ] `pnpm biome ci .` e
+- [x] O módulo `dmpf-conformance-go` é verificado por si mesmo e passa.
+- [x] `pnpm biome ci .` e
       `pnpm nx affected -t lint,typecheck,test,build --exclude=@nx-base-template/source`
       passam.
-- [ ] `pnpm nx run dmpf-conformance-go:fmt-check,vet,test-race,govulncheck` passam.
+- [x] `pnpm nx run dmpf-conformance-go:fmt-check,vet,test-race,govulncheck` passam.
 
 ### Cenários de teste
 

@@ -221,3 +221,40 @@ func TestFromUniverseOrdenaEFechaODigest(t *testing.T) {
 		}
 	}
 }
+
+// TestManifestoDeFixtureNaoEAtoDeClassificacao: o manifesto de um módulo
+// sintético descreve dado de teste, e o módulo que ele classifica nem entra no
+// universo.
+//
+// Contá-lo faria um commit que só ajusta fixture ser lido como mudança de
+// classificação misturada com código — e o falso positivo ensina o time a
+// ignorar o diagnóstico.
+func TestManifestoDeFixtureNaoEAtoDeClassificacao(t *testing.T) {
+	mudanca := []baseline.MudancaNormativa{{
+		Ato: baseline.AtoAlterarBlock, Unidade: rule.UnitKey{Module: "m", ID: "u"},
+	}}
+
+	t.Run("fixture junto de código não cobra aval", func(t *testing.T) {
+		commits := []baseline.Commit{{
+			SHA: "aaa",
+			Arquivos: []string{
+				"libs/x/internal/golist/testdata/alias/al-a/dmpf-units.json",
+				"libs/x/internal/golist/golist.go",
+			},
+		}}
+		if ds := baseline.VerificarAutorizacao(mudanca, commits); len(ds) != 0 {
+			t.Fatalf("manifesto de fixture tratado como ato de classificação: %v", ds)
+		}
+	})
+
+	t.Run("manifesto real junto de código cobra", func(t *testing.T) {
+		commits := []baseline.Commit{{
+			SHA:      "aaa",
+			Arquivos: []string{"libs/x/dmpf-units.json", "libs/x/p/p.go"},
+		}}
+		ds := baseline.VerificarAutorizacao(mudanca, commits)
+		if len(ds) != 1 || ds[0].Code != rule.CodeT002 {
+			t.Fatalf("manifesto real misturado com código não cobrou aval: %v", ds)
+		}
+	})
+}
