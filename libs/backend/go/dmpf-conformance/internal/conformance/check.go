@@ -1,38 +1,52 @@
-// Package conformance é bloco `application`: orquestra o caso de uso da
-// verificação sobre as portas, sem conhecer driver, arquivo nem processo.
+// Package conformance orquestra o caso de uso sobre as portas.
 //
-// A ordem dos passos é normativa, não conveniência: o manifesto é validado
-// ANTES de qualquer aresta ser decidida. Universo derivado de manifesto
-// inválido produziria diagnósticos de aresta calculados sobre classificação que
-// não vale — ruído que esconde a causa real.
+// A ordem dos passos é normativa: o manifesto é validado ANTES de qualquer
+// aresta. Decidir aresta sobre classificação que não vale produz ruído que
+// esconde a causa real.
 package conformance
 
 import (
 	"fmt"
 
+	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/internal/baseline"
 	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/internal/manifest"
 	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/internal/port"
 	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/internal/rule"
 )
 
-// Input reúne as portas e o inventário que o caso de uso consome.
 type Input struct {
 	Modules   []rule.Module
 	Manifests port.ManifestSource
 	Graph     port.GraphSource
 	Closure   rule.Closure
 	Standard  func(string) bool
+
+	// Opcional, mas a ausência é DECLARADA: pular a conferência da autoridade
+	// sobre a classificação e dizer "conforme" mentiria por omissão.
+	Baseline port.BaselineStore
+
+	// Base delimita o intervalo em revisão, para julgar se a mudança de
+	// classificação veio isolada do código.
+	Base string
 }
 
-// Report é o veredicto: os diagnósticos ordenados e a fase em que a verificação
-// parou.
 type Report struct {
 	Diagnostics []rule.Diagnostic
 	PhaseHalted string
+
+	// Condição não avaliada nunca vira conforme: entrada aqui reprova.
+	NaoVerificado []string
 }
 
-// Resumo descreve o veredicto em uma linha.
+func (r Report) Reprovado() bool {
+	return len(r.Diagnostics) > 0 || len(r.NaoVerificado) > 0
+}
+
 func (r Report) Resumo() string {
+	if len(r.NaoVerificado) > 0 {
+		return fmt.Sprintf("dmpf-conformance: REPROVADO com %d diagnóstico(s) e %d condição(oes) não verificada(s)",
+			len(r.Diagnostics), len(r.NaoVerificado))
+	}
 	if len(r.Diagnostics) == 0 {
 		return "dmpf-conformance: conforme"
 	}
@@ -43,25 +57,19 @@ func (r Report) Resumo() string {
 	return fmt.Sprintf("dmpf-conformance: REPROVADO com %d diagnóstico(s)", len(r.Diagnostics))
 }
 
-// Check executa a verificação completa.
 func Check(in Input) (Report, error) {
 	docs, err := in.Manifests.Documents()
 	if err != nil {
 		return Report{}, err
 	}
 
-	// Passo 1-2 — validar os manifestos. Qualquer DMPF-M* aqui ENCERRA: sem
-	// classificação válida não há decisão possível, e prosseguir seria adivinhar.
+	// Qualquer DMPF-M* ENCERRA: sem classificação válida, prosseguir é adivinhar.
 	var diags []rule.Diagnostic
 	var units []rule.Unit
 
-	// A allowlist e as exceções são POR MÓDULO, nunca unificadas: cada
-	// `dmpf-units.json` declara a política do seu próprio ownership_module.
-	// Unir tudo faria a exceção que o módulo A declarou para si autorizar o
-	// módulo B — e como o `id` de unidade só é único DENTRO de um manifesto
-	// (RFC §10.1), dois módulos podem declarar `id: "domain"` legitimamente.
-	// A exceção deixaria de ser nominal e viraria a política paralela que
-	// RFC §6.4 proíbe.
+	// Política POR MÓDULO, nunca unificada: como o `id` só é único dentro de um
+	// manifesto, unir faria a exceção de um módulo autorizar outro — deixaria de
+	// nomear o par que autoriza, virando política paralela não revisada.
 	politicaPorModulo := map[string]rule.ExternalPolicy{}
 	unidadeDoPackage := map[string]rule.UnitKey{}
 
@@ -70,24 +78,22 @@ func Check(in Input) (Report, error) {
 		p := politicaDoDocumento(doc)
 		diags = append(diags, p.Validate(doc.Path)...)
 		politicaPorModulo[doc.Module] = p
-		units = append(units, unidadesDoDocumento(doc)...)
+		units = append(units, UnidadesDoDocumento(doc)...)
 	}
 	if len(diags) > 0 {
 		rule.SortDiagnostics(diags)
 		return Report{Diagnostics: diags, PhaseHalted: "validação de manifesto"}, nil
 	}
 
-	// Passo 3 — construir o universo.
 	pkgs, err := in.Graph.Packages()
 	if err != nil {
 		return Report{}, err
 	}
 	universo, cobertura := rule.BuildUniverse(units, pkgs, in.Modules)
 
-	// U004 encerra junto com os DMPF-M*: módulo de produção sem manifesto não
-	// tem classificação nenhuma, e decidir arestas sobre ele seria adivinhar.
-	// U001/U002/U003 NÃO encerram — a spec fixa um único ponto de parada, e
-	// acumular deixa o mesmo CI mostrar cobertura e dependência de uma vez.
+	// U004 encerra junto com os M*: módulo sem manifesto não tem classificação
+	// nenhuma. U001/U002/U003 acumulam, para o mesmo CI mostrar cobertura e
+	// dependência de uma vez.
 	var semManifesto []rule.Diagnostic
 	for _, d := range cobertura {
 		if d.Code == rule.CodeU004 {
@@ -105,16 +111,14 @@ func Check(in Input) (Report, error) {
 			unidadeDoPackage[rule.NormalizeInclude(inc)] = u.Key()
 		}
 	}
-	// Passo 4-6 — extrair, particionar e decidir.
 	edges, err := in.Graph.Edges()
 	if err != nil {
 		return Report{}, err
 	}
 	for _, e := range edges {
-		// E003 é avaliado ANTES da classificação da origem: um import que não
-		// resolve não depende de bloco nenhum para reprovar, e exigir a
-		// classificação primeiro esconderia o erro sempre que a origem também
-		// estivesse em U001.
+		// E003 vem ANTES da classificação: import não resolvido não depende de
+		// bloco para reprovar, e a ordem inversa o esconderia quando a origem
+		// também estivesse em U001.
 		if e.Unresolved {
 			diags = append(diags, rule.Diagnostic{
 				Code:         rule.CodeE003,
@@ -128,8 +132,7 @@ func Check(in Input) (Report, error) {
 
 		origem, classificada := universo.Endpoint(e.From)
 		if !classificada {
-			// Origem descoberta e não classificada já reprovou em U001 ou U002;
-			// decidir a aresta exigiria a classificação que falta.
+			// Já reprovou em U001 ou U002; decidir exigiria a classificação que falta.
 			continue
 		}
 		if destino, classificado := universo.Endpoint(e.To); classificado {
@@ -137,9 +140,7 @@ func Check(in Input) (Report, error) {
 			continue
 		}
 		if universo.Discovered(e.To) {
-			// Descoberto e não classificado: já reprovou em U001 ou U002.
-			// Avaliá-lo como dependência externa emitiria E001 sobre código do
-			// próprio universo.
+			// Avaliar como externo emitiria E001 sobre código do próprio universo.
 			continue
 		}
 
@@ -150,11 +151,74 @@ func Check(in Input) (Report, error) {
 		)...)
 	}
 
-	rule.SortDiagnostics(diags)
-	return Report{Diagnostics: diags}, nil
+	relatorio := Report{Diagnostics: diags}
+	conferirBaseline(in, units, universo, &relatorio)
+
+	rule.SortDiagnostics(relatorio.Diagnostics)
+	return relatorio, nil
 }
 
-func unidadesDoDocumento(doc manifest.Document) []rule.Unit {
+func conferirBaseline(in Input, units []rule.Unit, universo *rule.Universe, rel *Report) {
+	if in.Baseline == nil {
+		rel.NaoVerificado = append(rel.NaoVerificado,
+			"autoridade sobre a classificação (RFC §10.2, T1-T6): nenhum BaselineStore fornecido")
+		return
+	}
+
+	versionado, existe, err := in.Baseline.Baseline()
+	if err != nil {
+		rel.NaoVerificado = append(rel.NaoVerificado,
+			"baseline ilegível ("+baseline.Path+"): "+err.Error())
+		return
+	}
+	derivado := baseline.FromUniverse(units, universo.Membership())
+	if !existe {
+		rel.NaoVerificado = append(rel.NaoVerificado,
+			"baseline ausente em "+baseline.Path+": a divergência de T3 não pode ser avaliada")
+		return
+	}
+
+	rel.Diagnostics = append(rel.Diagnostics, baseline.Compare(versionado, derivado)...)
+
+	// A comparação é entre o baseline de ANTES e o de agora, ao longo do
+	// intervalo em revisão. Confrontar baseline e manifesto no mesmo ponto só
+	// acha quem esqueceu de atualizar um dos dois; quem altera os dois de forma
+	// coerente deixa a comparação verde, e é exatamente esse o caso que a
+	// exigência de aval existe para pegar.
+	if in.Base == "" {
+		rel.NaoVerificado = append(rel.NaoVerificado,
+			"sem base para ler o intervalo em revisão: mudança de classificação não pode ser avaliada")
+		return
+	}
+	anterior, tinha, err := in.Baseline.BaselineEm(in.Base)
+	if err != nil {
+		rel.NaoVerificado = append(rel.NaoVerificado,
+			"baseline anterior ilegível: "+err.Error())
+		return
+	}
+	if !tinha {
+		// Sem baseline no ponto de partida, tudo o que existe agora é criação
+		// de unidade — e criar unidade também exige aval.
+		anterior = baseline.Document{Schema: baseline.SchemaID}
+	}
+
+	mudancas := baseline.Detectar(anterior, versionado)
+	if len(mudancas) == 0 {
+		return
+	}
+	commits, err := in.Baseline.CommitsQueTocaram(in.Base)
+	if err != nil {
+		rel.NaoVerificado = append(rel.NaoVerificado,
+			"mudança de classificação ("+baseline.Descrever(mudancas)+") e histórico ilegível: "+err.Error())
+		return
+	}
+	rel.Diagnostics = append(rel.Diagnostics, baseline.VerificarAutorizacao(mudancas, commits)...)
+}
+
+// Exportada porque a regravação do baseline precisa da MESMA projeção que a
+// verificação: derivá-la duas vezes deixaria o baseline descrever algo que o
+// gate não confere.
+func UnidadesDoDocumento(doc manifest.Document) []rule.Unit {
 	out := make([]rule.Unit, 0, len(doc.Units))
 	for _, u := range doc.Units {
 		out = append(out, rule.Unit{
