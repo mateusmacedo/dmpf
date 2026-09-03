@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# Prova que o gate de dependência do bloco `domain` reprova o que deve reprovar.
+# Prova que o gate de dependência do bloco `domain` reprova o que deve reprovar:
+# a camada por package (depguard, VETORES) e a camada por símbolo (forbidigo,
+# SIMBOLOS), uma família de proibição por vetor.
 #
 # Descobre os módulos pelo `dmpf-units.json` (a classificação autoritativa da
 # RFC), e não por caminho fixo: quando o segundo módulo `domain` nascer, ele
@@ -40,6 +42,17 @@ VETORES=(
   "log|observability|dentro"
   "syscall|io.*|fora"
   "encoding/xml|wire.codec|fora"
+)
+
+# import|corpo|familia. O import é permitido pelo depguard; só o símbolo cai.
+# Uma família por vetor: remover um padrão do .golangci.yml reprova aqui.
+SIMBOLOS=(
+  'time|var _ = time.Now()|io.clock'
+  'fmt|func init() { fmt.Println("x") }|io.stdout'
+  '|func init() { println("x") }|builtin'
+  'fmt|var s string; func init() { _, _ = fmt.Scanln(&s) }|io.stdin'
+  'fmt|var _ = fmt.Errorf("x")|erro nao tipado'
+  '|func init() { panic("x") }|lancamento'
 )
 
 falhas=0
@@ -131,6 +144,79 @@ while IFS= read -r manifesto; do
     fi
   done
 
+  for simbolo in "${SIMBOLOS[@]}"; do
+    imp="${simbolo%%|*}"
+    resto="${simbolo#*|}"
+    corpo="${resto%%|*}"
+    familia="${resto##*|}"
+
+    FIXTURE="$(mktemp "$module_dir/zz_gate_XXXXXX.go")" || {
+      echo "FALHA  $project: nao consegui criar o fixture"
+      falhas=$((falhas + 1))
+      break
+    }
+    if [ -n "$imp" ]; then
+      printf '%s\n\nimport "%s"\n\n%s\n' "$pkg_clause" "$imp" "$corpo" > "$FIXTURE"
+    else
+      printf '%s\n\n%s\n' "$pkg_clause" "$corpo" > "$FIXTURE"
+    fi
+
+    saida="$(pnpm nx run "$project":lint --skip-nx-cache 2>&1)"
+    status=$?
+    retirar_fixture
+
+    if [ "$status" -eq 0 ]; then
+      echo "  FALHA  $corpo ($familia): o lint passou, mas deveria reprovar"
+      falhas=$((falhas + 1))
+    elif ! grep -qi "forbidigo" <<<"$saida"; then
+      echo "  FALHA  $corpo ($familia): reprovou por outro motivo que nao o forbidigo"
+      falhas=$((falhas + 1))
+    else
+      echo "  ok     $corpo ($familia, forbidigo)"
+    fi
+  done
+
+  # Cada `include` fora da raiz do modulo e uma unidade propria (RFC 3.3). Um
+  # fixture de simbolo em cada uma prova que o alcance `**/*-domain/**` chega
+  # ao subpackage, em vez de presumi-lo a partir da raiz.
+  module_path="$(awk '/^module /{print $2; exit}' "$module_dir/go.mod" 2>/dev/null)"
+  while IFS= read -r inc; do
+    rel="${inc#"$module_path"}"
+    rel="${rel#/}"
+    [ -z "$rel" ] && continue
+    sub_dir="$module_dir/$rel"
+    sub_clause="$(awk '/^package /{print; exit}' "$sub_dir"/*.go 2>/dev/null)"
+    if [ -z "$sub_clause" ]; then
+      echo "  FALHA  $rel: nenhum .go com clausula de package no include"
+      falhas=$((falhas + 1))
+      continue
+    fi
+
+    FIXTURE="$(mktemp "$sub_dir/zz_gate_XXXXXX.go")" || {
+      echo "FALHA  $project: nao consegui criar o fixture em $rel"
+      falhas=$((falhas + 1))
+      break
+    }
+    printf '%s\n\nimport "time"\n\nvar _ = time.Now()\n' "$sub_clause" > "$FIXTURE"
+
+    saida="$(pnpm nx run "$project":lint --skip-nx-cache 2>&1)"
+    status=$?
+    retirar_fixture
+
+    if [ "$status" -eq 0 ]; then
+      echo "  FALHA  $rel: time.Now() passou no subpackage, mas deveria reprovar"
+      falhas=$((falhas + 1))
+    elif ! grep -qi "forbidigo" <<<"$saida"; then
+      echo "  FALHA  $rel: reprovou por outro motivo que nao o forbidigo"
+      falhas=$((falhas + 1))
+    else
+      echo "  ok     $rel: time.Now() (io.clock, forbidigo, subpackage)"
+    fi
+  done < <(node -e '
+    const m = require(process.argv[1]);
+    for (const u of m.units ?? []) if (u.block === "domain") for (const i of u.include ?? []) console.log(i);
+  ' "$ROOT/$manifesto" 2>/dev/null)
+
   # Vetor positivo: a árvore limpa precisa passar, senão o gate só sabe dizer não.
   if pnpm nx run "$project":lint --skip-nx-cache >/dev/null 2>&1; then
     echo "  ok     arvore limpa: aprovada"
@@ -152,7 +238,7 @@ if [ "$falhas" -gt 0 ]; then
 fi
 
 echo
-echo "Gate do bloco domain: $modulos modulo(s), ${#VETORES[@]} vetores negativos e 1 positivo cada, todos conformes."
+echo "Gate do bloco domain: $modulos modulo(s), ${#VETORES[@]} vetores de package, ${#SIMBOLOS[@]} de simbolo e 1 positivo cada, todos conformes."
 if [ "$fora_de_alcance" -gt 0 ]; then
   # Declarado, nunca silencioso: um gate que esconde o proprio alcance passa a
   # informar cobertura que nao tem.

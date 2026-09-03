@@ -4,8 +4,38 @@ linters:
   default: standard
   enable:
     - depguard
+    - forbidigo
+
+  # A regra `forbidigo` abaixo vale SÓ para o bloco `domain` (`-domain/`), como a
+  # regra `depguard`: fora dele, `cmd/` e providers escrevem e leem à vontade.
+  exclusions:
+    rules:
+      - path-except: '-domain/'
+        linters:
+          - forbidigo
 
   settings:
+    # Segunda camada do bloco `domain`, por SÍMBOLO. O depguard e o verificador
+    # do KRN-02 decidem por package e declaram não distinguir `time.Now()` de
+    # `time.Duration` nem `fmt.Println` de `fmt.Sprintf`; aqui a distinção é
+    # feita. Lista própria descarta os defaults do forbidigo, por isso `print`
+    # e `println` aparecem explicitamente.
+    forbidigo:
+      analyze-types: true
+      forbid:
+        - pattern: '^time\.(Now|Since|Until|Tick|After|AfterFunc|NewTimer|NewTicker|Sleep)$'
+          msg: 'io.clock: o instante chega ao dominio como valor (RFC 9.3)'
+        - pattern: '^fmt\.(Print|Println|Printf|Fprint|Fprintln|Fprintf)$'
+          msg: 'saida e I/O; o dominio nao escreve (RFC 6.2)'
+        - pattern: '^fmt\.(Scan|Scanln|Scanf|Fscan|Fscanln|Fscanf|Sscan|Sscanln|Sscanf)$'
+          msg: 'entrada e I/O; o dominio nao le (RFC 6.2)'
+        - pattern: '^(print|println)$'
+          msg: 'saida e I/O; o dominio nao escreve (RFC 6.2)'
+        - pattern: '^(errors\.New|fmt\.Errorf)$'
+          msg: 'o dominio nao fabrica erro nao tipado; so Rejection trafega (ADR-018)'
+        - pattern: '^panic$'
+          msg: 'rejeicao e valor devolvido, nunca lancamento (DEC-04)'
+
     depguard:
       rules:
         # Bloco `domain` da RFC DMPF: capability `pure` apenas (RFC §6.2).

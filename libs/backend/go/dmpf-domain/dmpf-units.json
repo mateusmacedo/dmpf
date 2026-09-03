@@ -9,6 +9,15 @@
       "include": [
         "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-domain"
       ]
+    },
+    {
+      "id": "dmpf-kernel/example-orders",
+      "block": "domain",
+      "bounded_context": "dmpf-kernel",
+      "public_integration_surface": false,
+      "include": [
+        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-domain/example/orders"
+      ]
     }
   ],
   "external": [],
