@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Gates Buf do repositório de contratos: lint | pins | generate-check | breaking.
+# Gates Buf do repositório de contratos: lint | pins | generate-check | breaking (+ warmup).
 # Fail-closed (BUF-12): condição que o gate não consegue avaliar reprova; não há bypass.
 # Temporários ficam em /tmp (como em tools/dmpf-gate-check.sh), sem utilitário de lixeira.
 set -uo pipefail
@@ -119,10 +119,22 @@ gate_breaking() {
   done < <(git ls-tree -r --name-only "$base" -- "$CONTRACTS" 2>/dev/null | grep -E '\.proto$' | xargs -rn1 dirname | sort -u)
 }
 
+# Compila a CLI e o plugin uma vez, antes das tasks paralelas: três `go run` a frio
+# simultâneos estouraram o timeout de 30 min do job no gitea-runner (buf a frio custa ~2x o golangci-lint).
+gate_warmup() {
+  local plugin_pin
+  buf --version >/dev/null || reprovar "CLI Buf indisponivel pelo pin de $BUF_SH"
+  plugin_pin="$(grep -oE 'protoc-gen-go@v[0-9]+\.[0-9]+\.[0-9]+' "$BUF_GEN" | head -1)"
+  [ -n "$plugin_pin" ] || reprovar "$BUF_GEN sem pin exato de protoc-gen-go (BUF-06)"
+  go run "google.golang.org/protobuf/cmd/$plugin_pin" --version >/dev/null || reprovar "plugin $plugin_pin indisponivel"
+  echo "warmup: OK (buf $(grep -oE '@v[0-9.]+' "$BUF_SH"), $plugin_pin)"
+}
+
 case "${1:-}" in
   lint) gate_lint ;;
   pins) gate_pins ;;
   generate-check) gate_generate_check ;;
   breaking) gate_breaking ;;
-  *) echo "uso: tools/buf-gate.sh lint | pins | generate-check | breaking" >&2; exit 2 ;;
+  warmup) gate_warmup ;;
+  *) echo "uso: tools/buf-gate.sh lint | pins | generate-check | breaking | warmup" >&2; exit 2 ;;
 esac

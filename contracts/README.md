@@ -86,6 +86,11 @@ advisory e nenhum tem bypass (`BUF-12`):
 | `generate-check` | duas gerações idênticas byte a byte e ausência de drift entre gerado e versionado (`BUF-11`) |
 | `breaking` | `buf breaking` em `FILE` contra `NX_BASE`, sob a máquina de estados de `BUF-08` |
 
+O subcomando `warmup` não é gate: compila a CLI e o plugin uma única vez, e os
+targets `buf-lint`, `buf-generate-check` e `buf-gate-selftest` dependem dele
+(`dependsOn`). Sem isso, os três `go run` a frio em paralelo estouravam o
+timeout do job no runner.
+
 `buf breaking` segue `BUF-08`: cada módulo do workspace está em um de dois
 estados, reconhecidos pela **marca de baseline** — a tag anotada
 `contracts-baseline/<módulo>` (para o módulo `proto`, `contracts-baseline/proto`).

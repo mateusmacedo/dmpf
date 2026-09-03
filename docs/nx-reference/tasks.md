@@ -158,8 +158,10 @@ Go é `scope:backend` neste workspace: os três módulos existentes vivem em
 `libs/backend/go/`. O módulo `dmpf-contracts` (projeto `dmpf-contracts-go`) é o
 único com targets além da cadeia Go — `buf-lint`, `buf-pins`,
 `buf-generate-check` e `buf-breaking` chamam os subcomandos de
-`tools/buf-gate.sh`, e `buf-gate-selftest` roda
-`tools/tests/buf-gate/buf-gate.test.sh`; todos têm `contracts/**` nos `inputs`,
+`tools/buf-gate.sh`, `buf-gate-selftest` roda
+`tools/tests/buf-gate/buf-gate.test.sh`, e `buf-warmup` compila a CLI e o
+plugin uma vez antes dos três mais pesados (`dependsOn`); todos têm
+`contracts/**` nos `inputs`,
 para que uma mudança só em `.proto` torne o módulo afetado (o gerado vive em
 `gen/go/` dentro do módulo, mas a fonte vive em `contracts/`, na raiz).
 

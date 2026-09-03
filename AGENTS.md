@@ -188,6 +188,7 @@ pnpm nx run dmpf-domain-go:govulncheck # sem cache: consulta base remota
 bash tools/dmpf-gate-check.sh          # prova o gate do bloco domain: depguard (por package) e forbidigo (por símbolo)
 
 # Gates Buf dos contratos (fail-closed; só o projeto dmpf-contracts-go os declara)
+pnpm nx run dmpf-contracts-go:buf-warmup          # compila buf e protoc-gen-go uma vez (dependsOn dos três abaixo)
 pnpm nx run dmpf-contracts-go:buf-lint            # buf format + buf lint STANDARD + varredura de P0-3
 pnpm nx run dmpf-contracts-go:buf-pins            # pins exatos de CLI e plugin; plugin = runtime do go.mod
 pnpm nx run dmpf-contracts-go:buf-generate-check  # geração dupla idêntica e sem drift em gen/go

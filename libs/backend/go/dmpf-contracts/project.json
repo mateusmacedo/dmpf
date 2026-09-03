@@ -48,9 +48,15 @@
         "cwd": "{projectRoot}"
       }
     },
+    "buf-warmup": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": { "command": "bash tools/buf-gate.sh warmup" }
+    },
     "buf-lint": {
       "executor": "nx:run-commands",
       "cache": true,
+      "dependsOn": ["buf-warmup"],
       "inputs": [
         "{workspaceRoot}/contracts/**",
         "{workspaceRoot}/tools/buf.sh",
@@ -73,6 +79,7 @@
     "buf-generate-check": {
       "executor": "nx:run-commands",
       "cache": true,
+      "dependsOn": ["buf-warmup"],
       "inputs": [
         "{workspaceRoot}/contracts/**",
         "{workspaceRoot}/tools/buf.sh",
@@ -95,6 +102,7 @@
     "buf-gate-selftest": {
       "executor": "nx:run-commands",
       "cache": false,
+      "dependsOn": ["buf-warmup"],
       "inputs": [
         "{workspaceRoot}/contracts/**",
         "{workspaceRoot}/tools/buf.sh",
