@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
-# Prova que o gate de dependência do bloco `domain` reprova o que deve reprovar:
-# a camada por package (depguard, VETORES) e a camada por símbolo (forbidigo,
-# SIMBOLOS), uma família de proibição por vetor.
+# Prova que o gate de dependência reprova o que deve reprovar, nos três blocos
+# que o `.golangci.yml` conhece: `domain`, `port` e `application`. A camada por
+# package (depguard, VETORES_*) vale para os três; a camada por símbolo
+# (forbidigo, SIMBOLOS) só para `domain`, porque fora dele `errors.New`,
+# `fmt.Errorf` e `panic` são legítimos.
 #
 # Descobre os módulos pelo `dmpf-units.json` (a classificação autoritativa da
-# RFC), e não por caminho fixo: quando o segundo módulo `domain` nascer, ele
-# entra aqui sozinho. Sem isso o gate seguiria verde sem nunca ter sido exercido
-# no módulo novo.
+# RFC), e não por caminho fixo: quando um módulo novo nascer, ele entra aqui
+# sozinho. Sem isso o gate seguiria verde sem nunca ter sido exercido nele.
 #
 # Os fixtures .go são artefatos de runtime deste script: nascem e morrem dentro
 # de uma execução. Para retirá-los do módulo o script os MOVE para um diretório
@@ -35,7 +36,13 @@ trap retirar_fixture EXIT INT TERM
 # a mensagem por capability. `fora` = ausente da `deny`, prova que a regra é
 # fechada (`list-mode: strict`) e não uma mera denylist — sem estes dois, um
 # `list-mode` removido por engano passaria despercebido.
-VETORES=(
+#
+# Um array por bloco porque as `allow` divergem, e um vetor aplicado ao bloco
+# errado inverteria o resultado: `time` é permitido como import no `domain` (a
+# distinção de símbolo fica com o forbidigo) e negado em `port` e `application`;
+# `log` é negado em `domain` e `port` e PERMITIDO em `application`, cuja
+# capability inclui observability (`capability.go:47`).
+VETORES_DOMAIN=(
   "net/http|io.network|dentro"
   "os|io.filesystem|dentro"
   "encoding/json|wire.codec|dentro"
@@ -44,8 +51,23 @@ VETORES=(
   "encoding/xml|wire.codec|fora"
 )
 
+VETORES_PORT=(
+  "time|io.clock|dentro"
+  "net/http|io.network|dentro"
+  "log|observability|dentro"
+  "syscall|io.*|fora"
+)
+
+VETORES_APPLICATION=(
+  "time|io.clock|dentro"
+  "net/http|io.network|dentro"
+  "syscall|io.*|fora"
+)
+
 # import|corpo|familia. O import é permitido pelo depguard; só o símbolo cai.
-# Uma família por vetor: remover um padrão do .golangci.yml reprova aqui.
+# Uma família por vetor: remover um padrão do .golangci.yml reprova aqui. Só
+# `domain`: o `exclusions.rules` do .golangci.yml restringe o forbidigo a
+# `-domain/`.
 SIMBOLOS=(
   'time|var _ = time.Now()|io.clock'
   'fmt|func init() { fmt.Println("x") }|io.stdout'
@@ -57,21 +79,32 @@ SIMBOLOS=(
 
 falhas=0
 modulos=0
+modulos_domain=0
+modulos_port=0
+modulos_application=0
 fora_de_alcance=0
 
-# Alcance da regra `domain` do .golangci.yml, espelhado aqui como o VETORES
-# espelha a `deny`: a regra seleciona por `**/*-domain/**`, isto e, por nome de
-# diretorio. Modulo `domain` cujo caminho nao casa NAO e coberto pelo depguard,
-# e provar o gate nele seria provar o que nao existe.
+# Alcance das regras do .golangci.yml, espelhado aqui como os VETORES_*
+# espelham as `deny`: as regras selecionam por `**/*-domain/**`,
+# `**/*-ports/**` e `**/*-application/**`, isto e, por nome de diretorio.
+# Modulo cujo caminho nao casa nenhum dos tres NAO e coberto pelo depguard, e
+# provar o gate nele seria provar o que nao existe.
 #
 # Isso nao e o modulo ficar sem protecao: e a limitacao que o proprio
 # .golangci.yml declara e que o verificador do KRN-02 fecha, lendo a
 # classificacao autoritativa em vez do nome do diretorio.
-depguard_cobre() {
+#
+# A escolha do array vem DESTE caminho, e nao do bloco declarado no manifesto,
+# porque e o caminho que o depguard usa para decidir qual regra aplicar. Num
+# modulo multi-bloco a leitura pelo manifesto seria ambigua: o
+# `dmpf-application` declara unidades `application` e `provider`, e a regra que
+# de fato incide sobre as duas e a `application`.
+bloco_do_caminho() {
   case "/$1/" in
-    */-domain/*) return 0 ;;
-    *-domain/*)  return 0 ;;
-    *)           return 1 ;;
+    *-domain/*)      echo "domain" ;;
+    *-ports/*)       echo "port" ;;
+    *-application/*) echo "application" ;;
+    *)               echo "" ;;
   esac
 }
 
@@ -85,17 +118,26 @@ while IFS= read -r manifesto; do
     */testdata/*|*/vendor/*) continue ;;
   esac
 
-  # só blocos `domain`; a política do .golangci.yml é específica deste bloco
+  # só os blocos que o .golangci.yml conhece; um modulo que declare apenas
+  # `provider`, `contract` ou `app` nao tem politica local a provar
   node -e '
     const m = require(process.argv[1]);
-    process.exit((m.units ?? []).some((u) => u.block === "domain") ? 0 : 1);
+    const alvos = new Set(["domain", "port", "application"]);
+    process.exit((m.units ?? []).some((u) => alvos.has(u.block)) ? 0 : 1);
   ' "$ROOT/$manifesto" 2>/dev/null || continue
 
-  if ! depguard_cobre "$module_dir"; then
-    echo "-- $module_dir: fora do alcance do depguard (**/*-domain/**); coberto pelo verificador do KRN-02"
+  bloco="$(bloco_do_caminho "$module_dir")"
+  if [ -z "$bloco" ]; then
+    echo "-- $module_dir: fora do alcance do depguard (**/*-domain/**, **/*-ports/**, **/*-application/**); coberto pelo verificador do KRN-02"
     fora_de_alcance=$((fora_de_alcance + 1))
     continue
   fi
+
+  case "$bloco" in
+    domain)      vetores=("${VETORES_DOMAIN[@]}") ;;
+    port)        vetores=("${VETORES_PORT[@]}") ;;
+    application) vetores=("${VETORES_APPLICATION[@]}") ;;
+  esac
 
   project="$(node -p 'require(process.argv[1]).name' "$ROOT/$module_dir/project.json" 2>/dev/null)"
   if [ -z "$project" ]; then
@@ -114,9 +156,14 @@ while IFS= read -r manifesto; do
   fi
 
   modulos=$((modulos + 1))
-  echo "== $project ($module_dir)"
+  case "$bloco" in
+    domain)      modulos_domain=$((modulos_domain + 1)) ;;
+    port)        modulos_port=$((modulos_port + 1)) ;;
+    application) modulos_application=$((modulos_application + 1)) ;;
+  esac
+  echo "== $project ($module_dir) [bloco $bloco]"
 
-  for vetor in "${VETORES[@]}"; do
+  for vetor in "${vetores[@]}"; do
     pkg="${vetor%%|*}"
     resto="${vetor#*|}"
     cap="${resto%%|*}"
@@ -144,41 +191,50 @@ while IFS= read -r manifesto; do
     fi
   done
 
-  for simbolo in "${SIMBOLOS[@]}"; do
-    imp="${simbolo%%|*}"
-    resto="${simbolo#*|}"
-    corpo="${resto%%|*}"
-    familia="${resto##*|}"
+  if [ "$bloco" = "domain" ]; then
+    for simbolo in "${SIMBOLOS[@]}"; do
+      imp="${simbolo%%|*}"
+      resto="${simbolo#*|}"
+      corpo="${resto%%|*}"
+      familia="${resto##*|}"
 
-    FIXTURE="$(mktemp "$module_dir/zz_gate_XXXXXX.go")" || {
-      echo "FALHA  $project: nao consegui criar o fixture"
-      falhas=$((falhas + 1))
-      break
-    }
-    if [ -n "$imp" ]; then
-      printf '%s\n\nimport "%s"\n\n%s\n' "$pkg_clause" "$imp" "$corpo" > "$FIXTURE"
-    else
-      printf '%s\n\n%s\n' "$pkg_clause" "$corpo" > "$FIXTURE"
-    fi
+      FIXTURE="$(mktemp "$module_dir/zz_gate_XXXXXX.go")" || {
+        echo "FALHA  $project: nao consegui criar o fixture"
+        falhas=$((falhas + 1))
+        break
+      }
+      if [ -n "$imp" ]; then
+        printf '%s\n\nimport "%s"\n\n%s\n' "$pkg_clause" "$imp" "$corpo" > "$FIXTURE"
+      else
+        printf '%s\n\n%s\n' "$pkg_clause" "$corpo" > "$FIXTURE"
+      fi
 
-    saida="$(pnpm nx run "$project":lint --skip-nx-cache 2>&1)"
-    status=$?
-    retirar_fixture
+      saida="$(pnpm nx run "$project":lint --skip-nx-cache 2>&1)"
+      status=$?
+      retirar_fixture
 
-    if [ "$status" -eq 0 ]; then
-      echo "  FALHA  $corpo ($familia): o lint passou, mas deveria reprovar"
-      falhas=$((falhas + 1))
-    elif ! grep -qi "forbidigo" <<<"$saida"; then
-      echo "  FALHA  $corpo ($familia): reprovou por outro motivo que nao o forbidigo"
-      falhas=$((falhas + 1))
-    else
-      echo "  ok     $corpo ($familia, forbidigo)"
-    fi
-  done
+      if [ "$status" -eq 0 ]; then
+        echo "  FALHA  $corpo ($familia): o lint passou, mas deveria reprovar"
+        falhas=$((falhas + 1))
+      elif ! grep -qi "forbidigo" <<<"$saida"; then
+        echo "  FALHA  $corpo ($familia): reprovou por outro motivo que nao o forbidigo"
+        falhas=$((falhas + 1))
+      else
+        echo "  ok     $corpo ($familia, forbidigo)"
+      fi
+    done
+  fi
 
   # Cada `include` fora da raiz do modulo e uma unidade propria (RFC 3.3). Um
-  # fixture de simbolo em cada uma prova que o alcance `**/*-domain/**` chega
-  # ao subpackage, em vez de presumi-lo a partir da raiz.
+  # fixture em cada uma prova que o glob do depguard chega ao subpackage, em vez
+  # de presumi-lo a partir da raiz. Em `domain` o fixture e de simbolo
+  # (forbidigo); nos outros blocos e de package, porque o forbidigo esta
+  # restrito a `-domain/`.
+  #
+  # Os includes NAO sao filtrados por bloco: o que se prova aqui e o alcance do
+  # glob, que e por caminho. E por isso que `example/memory`, unidade
+  # `provider`, aparece sob a regra `application` — a divergencia declarada
+  # entre o gate local e o verificador, que deixa `provider` irrestrito.
   module_path="$(awk '/^module /{print $2; exit}' "$module_dir/go.mod" 2>/dev/null)"
   while IFS= read -r inc; do
     rel="${inc#"$module_path"}"
@@ -197,24 +253,32 @@ while IFS= read -r manifesto; do
       falhas=$((falhas + 1))
       break
     }
-    printf '%s\n\nimport "time"\n\nvar _ = time.Now()\n' "$sub_clause" > "$FIXTURE"
+    if [ "$bloco" = "domain" ]; then
+      printf '%s\n\nimport "time"\n\nvar _ = time.Now()\n' "$sub_clause" > "$FIXTURE"
+      esperado="forbidigo"
+      rotulo="time.Now() (io.clock, forbidigo, subpackage)"
+    else
+      printf '%s\n\nimport _ "time"\n' "$sub_clause" > "$FIXTURE"
+      esperado="depguard"
+      rotulo="import time (io.clock, depguard, subpackage)"
+    fi
 
     saida="$(pnpm nx run "$project":lint --skip-nx-cache 2>&1)"
     status=$?
     retirar_fixture
 
     if [ "$status" -eq 0 ]; then
-      echo "  FALHA  $rel: time.Now() passou no subpackage, mas deveria reprovar"
+      echo "  FALHA  $rel: o fixture passou no subpackage, mas deveria reprovar"
       falhas=$((falhas + 1))
-    elif ! grep -qi "forbidigo" <<<"$saida"; then
-      echo "  FALHA  $rel: reprovou por outro motivo que nao o forbidigo"
+    elif ! grep -qi "$esperado" <<<"$saida"; then
+      echo "  FALHA  $rel: reprovou por outro motivo que nao o $esperado"
       falhas=$((falhas + 1))
     else
-      echo "  ok     $rel: time.Now() (io.clock, forbidigo, subpackage)"
+      echo "  ok     $rel: $rotulo"
     fi
   done < <(node -e '
     const m = require(process.argv[1]);
-    for (const u of m.units ?? []) if (u.block === "domain") for (const i of u.include ?? []) console.log(i);
+    for (const u of m.units ?? []) for (const i of u.include ?? []) console.log(i);
   ' "$ROOT/$manifesto" 2>/dev/null)
 
   # Vetor positivo: a árvore limpa precisa passar, senão o gate só sabe dizer não.
@@ -227,20 +291,21 @@ while IFS= read -r manifesto; do
 done < <(git ls-files '*dmpf-units.json')
 
 if [ "$modulos" -eq 0 ]; then
-  echo "FALHA: nenhum modulo com bloco domain encontrado; o gate nao exercitou nada." >&2
+  echo "FALHA: nenhum modulo com bloco domain, port ou application encontrado; o gate nao exercitou nada." >&2
   exit 1
 fi
 
 if [ "$falhas" -gt 0 ]; then
   echo
-  echo "$falhas verificacao(oes) falharam: o gate nao esta protegendo o bloco domain."
+  echo "$falhas verificacao(oes) falharam: o gate nao esta protegendo os blocos domain, port e application."
   exit 1
 fi
 
 echo
-echo "Gate do bloco domain: $modulos modulo(s), ${#VETORES[@]} vetores de package, ${#SIMBOLOS[@]} de simbolo e 1 positivo cada, todos conformes."
+echo "Gate de dependencia: $modulos modulo(s) — domain: $modulos_domain, port: $modulos_port, application: $modulos_application."
+echo "Vetores de package por bloco: domain ${#VETORES_DOMAIN[@]}, port ${#VETORES_PORT[@]}, application ${#VETORES_APPLICATION[@]}; ${#SIMBOLOS[@]} de simbolo em domain; 1 positivo por modulo. Todos conformes."
 if [ "$fora_de_alcance" -gt 0 ]; then
   # Declarado, nunca silencioso: um gate que esconde o proprio alcance passa a
   # informar cobertura que nao tem.
-  echo "$fora_de_alcance modulo(s) domain fora do alcance do depguard, cobertos pelo verificador do KRN-02."
+  echo "$fora_de_alcance modulo(s) fora do alcance do depguard, cobertos pelo verificador do KRN-02."
 fi
