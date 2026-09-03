@@ -104,6 +104,27 @@ func TestArestaInternaEntreModulosProduzD001(t *testing.T) {
 	}
 }
 
+// Célula 6: contract é superfície pública (C2 verdadeira), então só C1 pode
+// reprovar — e precisa reprovar, senão o tipo de wire vira modelo de domínio.
+func TestDomainNaoDependeDeContract(t *testing.T) {
+	rel := rodar(t, "domaincontract", "exemplo.test/dc-a", "exemplo.test/dc-b")
+
+	var achou bool
+	for _, d := range rel.Diagnostics {
+		if d.Code == rule.CodeD001 &&
+			d.CanonicalKey == "exemplo.test/dc-a/domain" &&
+			d.Target == "exemplo.test/dc-b/wire" {
+			achou = true
+		}
+		if d.Code == rule.CodeD002 && d.Target == "exemplo.test/dc-b/wire" {
+			t.Error("contract reprovado por C2: superfície pública por construção deveria satisfazê-la")
+		}
+	}
+	if !achou {
+		t.Fatalf("aresta domain -> contract não produziu D001: %v", rel.Diagnostics)
+	}
+}
+
 // O positivo do par: domain -> domain no mesmo contexto é permitido.
 func TestArestaInternaPermitidaNaoReprova(t *testing.T) {
 	rel := rodar(t, "transitivo", "exemplo.test/mod-a", "exemplo.test/mod-b")

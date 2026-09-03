@@ -147,6 +147,56 @@ de ser exceção e viraria política paralela não revisada.
 A exceção vale só para o **próprio módulo**. Ela não autoriza uma unidade
 homônima de outro manifesto.
 
+## Bloco `contract` e código gerado
+
+O bloco `contract` admite só `pure` e `wire.codec` (RFC §6.2), e é o único
+lugar do código gerado de Protobuf. O primeiro manifesto real desse bloco é o de
+`libs/backend/go/dmpf-contracts`, e ele mostra os dois pontos que todo módulo
+`contract` vai repetir.
+
+O runtime Protobuf entra pela allowlist, declarado `wire.codec` e restrito aos
+subpacotes que o gerado e o codec importam de fato — a raiz do módulo ninguém
+importa, então `entrypoints: ["."]` não autorizaria nada:
+
+```json
+"external": [
+  {
+    "package": "google.golang.org/protobuf",
+    "versions": ">=1.36.12 <2",
+    "entrypoints": [
+      "google.golang.org/protobuf/proto",
+      "google.golang.org/protobuf/types/known/anypb",
+      "google.golang.org/protobuf/types/known/timestamppb",
+      "google.golang.org/protobuf/reflect/protoreflect",
+      "google.golang.org/protobuf/runtime/protoimpl"
+    ],
+    "capability": "wire.codec"
+  }
+]
+```
+
+O `protoc-gen-go` emite `reflect` e `unsafe` em todo arquivo gerado, e a tabela
+do verificador classifica os dois como `runtime.framework` — capability que o
+bloco `contract` não admite. A saída não é reclassificar a stdlib nem excluir
+arquivos gerados da análise: é a exceção nominal da RFC §6.4, um par (unidade,
+dependência) por vez, com razão, owner e data de revisão amarrada à versão do
+plugin:
+
+```json
+"exceptions": [
+  {
+    "unit": "dmpf-contracts/gen",
+    "dependency": "reflect",
+    "reason": "import emitido pelo protoc-gen-go v1.36.12 em todo arquivo gerado; plumbing do runtime Protobuf, não uso de framework (RFC 6.4)",
+    "owner": "tech-leads",
+    "review_by": "2027-03-02"
+  }
+]
+```
+
+A mesma entrada se repete para `unsafe`. Um módulo `contract` que troque a
+versão do plugin revisa as duas exceções no mesmo commit normativo.
+
 ## Mudar a classificação depois
 
 Alterar `block` ou `bounded_context`, criar unidade, remover unidade **e

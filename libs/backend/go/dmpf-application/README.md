@@ -189,7 +189,7 @@ misturar os dois reprova no CI com `DMPF-T002`.
 ## Referências
 
 - `docs/specs/SPEC-ZHE7DN1H-dmpf-kernel-aplicacao-go.md` — spec do `KRN-04`
-- `docs/adr/033-fronteira-de-uow-em-go.md` — decisões desta realização
+- `docs/adr/034-fronteira-de-uow-em-go.md` — decisões desta realização
 - `docs/adr/018-forma-do-desfecho-da-upr.md` — por que `Outcome` e não `(R, error)`
 - `docs/adr/021-mapeamento-no-provider-serializacao-na-escrita.md` — a outbox recebe evento de domínio
 - `docs/dmpf/uow-inbox-outbox.md` — FND-04: UoW, sequência canônica, outbox

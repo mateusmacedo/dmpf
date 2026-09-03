@@ -1,0 +1,14 @@
+{
+  "schema": "dmpf/units@1",
+  "units": [
+    {
+      "id": "b/contract",
+      "block": "contract",
+      "bounded_context": "dc",
+      "public_integration_surface": true,
+      "include": ["exemplo.test/dc-b/wire"]
+    }
+  ],
+  "external": [],
+  "exceptions": []
+}

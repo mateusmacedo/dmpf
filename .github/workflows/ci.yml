@@ -63,6 +63,12 @@ jobs:
       - name: Go gates (affected)
         run: pnpm nx affected -t fmt-check,vet,test-race,govulncheck --base=$NX_BASE --head=$NX_HEAD --parallel=3 --exclude=$NX_EXCLUDE
 
+      # Gates Buf dos contratos (contracts/README.md, "Gates e baseline"): só o
+      # dmpf-contracts-go os declara, com contracts/** nos inputs, então um PR que
+      # toque só um .proto entra no affected; buf-breaking lê NX_BASE como baseline.
+      - name: Contracts gates (affected)
+        run: pnpm nx affected -t buf-lint,buf-pins,buf-generate-check,buf-breaking,buf-gate-selftest --base=$NX_BASE --head=$NX_HEAD --parallel=3 --exclude=$NX_EXCLUDE
+
       # O gate roda o golangci-lint uma vez por vetor, então fica sob o mesmo
       # regime de `affected` do resto do pipeline: um PR só de TypeScript não
       # paga por ele.

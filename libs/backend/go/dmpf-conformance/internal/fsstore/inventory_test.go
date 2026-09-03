@@ -39,6 +39,18 @@ func repoTemporario(t *testing.T, arquivos map[string]string) string {
 	return raiz
 }
 
+// Dentro de um hook o git exporta GIT_DIR e GIT_INDEX_FILE; herdá-los faz o
+// `git init` do fixture gravar na branch real e o `git ls-files` sob teste ler o
+// repositório errado (aconteceu no pre-push do Lefthook).
+func TestMain(m *testing.M) {
+	for _, kv := range os.Environ() {
+		if nome, _, _ := strings.Cut(kv, "="); strings.HasPrefix(nome, "GIT_") {
+			_ = os.Unsetenv(nome)
+		}
+	}
+	os.Exit(m.Run())
+}
+
 const goModValido = "module exemplo.test/m\n\ngo 1.26.4\n"
 
 func TestInventarioAceitaModuloValido(t *testing.T) {

@@ -462,7 +462,7 @@ Regras que esta spec realiza, com a força que cada fonte declara:
     por ciclo de imports antes de o verificador avaliar o bloco, e o diagnóstico é
     `DMPF-E003`. As três células seguem provadas, e com módulos sintéticos sem
     aresta contrária, pelo oráculo de 36 células do `KRN-02`
-    (`internal/rule/matrix_oracle_test.go:20,36,39`). Registrado no ADR-033.
+    (`internal/rule/matrix_oracle_test.go:20,36,39`). Registrado no ADR-034.
 
 #### Documentação
 
@@ -477,7 +477,7 @@ Regras que esta spec realiza, com a força que cada fonte declara:
   novo no molde dos existentes; o bloco "Cadeia Go" cita
   `tools/dmpf-gate-check.sh` como prova dos blocos `domain`, `port` e
   `application`.
-- [x] **[P1] ADR-033** em `docs/adr/033-fronteira-de-uow-em-go.md`, indexado
+- [x] **[P1] ADR-034** em `docs/adr/034-fronteira-de-uow-em-go.md`, indexado
   em `docs/adr/README.md` no formato das linhas 129–131, registrando: UoW
   genérica sobre o tipo de recursos com vínculo por `bind` no composition
   root; `Outcome[R]` como separação dos canais; identidade resolvida antes da
@@ -590,7 +590,7 @@ lidercap-platform/
 ├── tools/dmpf-baseline/units-baseline.json          # MODIFICAR — +4 entradas, digest (commit próprio)
 ├── tools/dmpf-gate-check.sh                         # MODIFICAR — blocos port e application, vetor time
 ├── .golangci.yml                                    # MODIFICAR — regras port e application
-├── docs/adr/033-fronteira-de-uow-em-go.md           # CRIAR — Etapa 6
+├── docs/adr/034-fronteira-de-uow-em-go.md           # CRIAR — Etapa 6
 ├── docs/adr/README.md                               # MODIFICAR — linha do ADR-033
 ├── AGENTS.md                                        # MODIFICAR — inventário de libs e cadeia Go
 ├── libs/backend/go/dmpf-conformance/                # INTOCADO — instrumento, não objeto

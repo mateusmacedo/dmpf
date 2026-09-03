@@ -138,7 +138,7 @@ misturar os dois reprova no CI com `DMPF-T002`.
 ## Referências
 
 - `docs/specs/SPEC-ZHE7DN1H-dmpf-kernel-aplicacao-go.md` — spec do `KRN-04`
-- `docs/adr/033-fronteira-de-uow-em-go.md` — decisões desta realização
+- `docs/adr/034-fronteira-de-uow-em-go.md` — decisões desta realização
 - `docs/adr/014-proibir-aresta-domain-port.md` — por que o relógio não vive no domínio
 - `docs/adr/021-mapeamento-no-provider-serializacao-na-escrita.md` — a outbox recebe evento de domínio, e o mapeamento é do provider
 - `docs/dmpf/uow-inbox-outbox.md` — FND-04: UoW, sequência canônica, outbox
