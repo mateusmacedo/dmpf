@@ -1,0 +1,72 @@
+package ordersapp
+
+import (
+	"context"
+	"errors"
+
+	dmpfapplication "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-application"
+	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-domain/example/orders"
+	dmpfports "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-ports"
+)
+
+// AddItem walks the nine steps of FND-04 §3.2. Identity is resolved before the
+// transaction opens, because a re-execution would mint new identity for the
+// same fact (UOW-09).
+func (s Service) AddItem(ctx context.Context, cmd AddItem) (dmpfapplication.Outcome[orders.ItemAccepted], error) {
+	var zero dmpfapplication.Outcome[orders.ItemAccepted]
+
+	if err := s.Authorize(ctx, cmd); err != nil {
+		return zero, err
+	}
+
+	identity := dmpfapplication.ResolveIdentity(s.Clock, s.IDs, maxEventsPerCommand)
+
+	outcome := zero
+	err := s.UoW.Within(ctx, func(ctx context.Context, res Resources) error {
+		order, stored, err := s.loadOrCreate(ctx, res, cmd.Order)
+		if err != nil {
+			return err
+		}
+
+		accepted, rejection := order.AddItem(orders.AddItem{
+			SKU:      cmd.SKU,
+			Quantity: cmd.Quantity,
+			At:       orders.Instant(identity.OccurredAt.Unix()),
+		})
+		if rejection != nil {
+			// Returning nil commits a transaction with no effect, on purpose:
+			// aborting would make a refusal indistinguishable from a technical
+			// failure, which DEC-04 forbids (FND-04 §3.2).
+			outcome = dmpfapplication.Rejected[orders.ItemAccepted](rejection)
+			return nil
+		}
+
+		if err := res.Orders.Save(ctx, cmd.Order, order.Snapshot(), stored); err != nil {
+			return err
+		}
+		if err := enqueueAll(ctx, res.Outbox, identity, cmd.Order, stored+1, accepted.Events()); err != nil {
+			return err
+		}
+
+		outcome = dmpfapplication.Accepted(accepted.Response())
+		return nil
+	})
+	if err != nil {
+		return zero, err
+	}
+	return outcome, nil
+}
+
+// loadOrCreate is the "load or create" branch: ErrNotFound is not a failure
+// here, it means the order does not exist yet and starts at version zero.
+func (s Service) loadOrCreate(ctx context.Context, res Resources, id orders.OrderID) (*orders.Order, dmpfports.Version, error) {
+	snapshot, stored, err := res.Orders.Load(ctx, id)
+	switch {
+	case errors.Is(err, dmpfports.ErrNotFound):
+		return orders.NewOrder(id, s.ItemLimit), 0, nil
+	case err != nil:
+		return nil, 0, err
+	default:
+		return orders.FromSnapshot(snapshot), stored, nil
+	}
+}
