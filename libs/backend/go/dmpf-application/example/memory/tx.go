@@ -36,31 +36,54 @@ type unitOfWork[R any] struct {
 	bind  func(tx *Tx) R
 }
 
-// Within holds the store's mutex for the whole callback, which serializes
-// transactions and is why this realization proves atomicity but not isolation.
-// A panic in fn unwinds without touching the store, so the discarded Tx is the
-// rollback (ERR-22).
+// Within holds txMu for the whole callback, which serializes transactions and
+// is why this realization proves atomicity but not isolation. It holds dataMu
+// only to snapshot the state and to commit, so a Reader() call from inside the
+// callback reads instead of deadlocking. A panic in fn unwinds without touching
+// the store, so the discarded Tx is the rollback (ERR-22).
 func (u unitOfWork[R]) Within(ctx context.Context, fn func(context.Context, R) error) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 
-	u.store.mu.Lock()
-	defer u.store.mu.Unlock()
-	u.store.withinCalls++
+	u.store.txMu.Lock()
+	defer u.store.txMu.Unlock()
 
-	tx := &Tx{orders: cloneRecords(u.store.orders)}
+	// Revalidado depois da espera pelo mutex: quem ficou na fila pode ter tido o
+	// contexto cancelado enquanto esperava, e é aqui que a transação abre.
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	tx := u.open()
 	if err := fn(ctx, u.bind(tx)); err != nil {
 		return err
 	}
+	return u.commit(tx)
+}
+
+func (u unitOfWork[R]) open() *Tx {
+	u.store.dataMu.Lock()
+	defer u.store.dataMu.Unlock()
+	u.store.withinCalls++
+	return &Tx{orders: cloneRecords(u.store.orders)}
+}
+
+func (u unitOfWork[R]) commit(tx *Tx) error {
+	u.store.dataMu.Lock()
+	defer u.store.dataMu.Unlock()
 
 	if err := u.store.failNextCommit; err != nil {
 		u.store.failNextCommit = nil
 		return err
 	}
 
-	u.store.orders = tx.orders
+	// Clona em vez de instalar o mapa da Tx: uma porta transacional que escape do
+	// callback continua escrevendo na cópia descartada, e não no estado do Store,
+	// fora de qualquer transação e sem o dataMu.
+	u.store.orders = cloneRecords(tx.orders)
 	u.store.outbox = append(u.store.outbox, tx.outbox...)
+	u.store.commits++
 	return nil
 }
 

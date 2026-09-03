@@ -121,15 +121,18 @@ juntos, o rollback por erro e por panic, uma falha de commit injetável
 que não compartilham array com o `Store`.
 
 Não prova **isolamento** nem conflito de serialização entre transações
-concorrentes: `Within` retém um mutex durante todo o callback, então as
-transações são serializadas, e `Load` e `Save` da mesma `Tx` sempre veem o mesmo
-estado. Um conflito de versão tem de ser injetado pelo chamador — é o que
+concorrentes: `Within` retém `txMu` durante todo o callback, então as transações
+são serializadas, e `Load` e `Save` da mesma `Tx` sempre veem o mesmo estado. Um
+conflito de versão tem de ser injetado pelo chamador — é o que
 `doubles_test.go` faz, embrulhando `tx.Orders()` em um repositório instrumentado.
 Isolamento real é do `KRN-06`.
 
-Uma consequência do mutex: chamar `Store.Reader()` de dentro de `Within` no
-mesmo `Store` causa deadlock. O caso de uso de referência lê fora da unidade de
-trabalho (`UOW-11`), que é exatamente a forma pretendida.
+O `Store` guarda **dois** mutexes para que essa serialização não vire armadilha:
+`txMu` é o que faz uma transação excluir a outra, e `dataMu` protege o estado,
+adquirido por operação. Assim `Store.Reader()` chamado de dentro do callback lê
+o estado já commitado — o que um leitor fora da transação veria — em vez de
+travar. Com um mutex único fazendo os dois papéis, essa leitura seria deadlock;
+`store_test.go` tem um teste que fixa o comportamento.
 
 O `bind` que liga a transação ao tipo de recursos do caso de uso é escrito pelo
 composition root — nos testes, o próprio arquivo de teste — porque
@@ -162,13 +165,14 @@ go run ./libs/backend/go/dmpf-conformance/cmd/dmpf-conformance --root . --base o
 ```
 
 O `lint` aplica ao bloco a regra `application` do `.golangci.yml`, com
-`list-mode: strict`. Uma divergência declarada: o `files` dessa regra é
-`**/*-application/**`, então ela também alcança `example/memory`, que é
-`provider` e cuja capability o verificador deixa irrestrita
-(`capability.go:51`). O gate local é, ali, mais estrito que o autoritativo. Sem
-efeito prático nesta entrega, porque todos os imports daquele subpackage são
-`pure`; se um dia o `memory` precisar de I/O real, é a regra local que precisa
-ganhar uma exceção, não o verificador.
+`list-mode: strict`. O `files` dessa regra seleciona por caminho
+(`**/*-application/**`) e por isso alcançaria `example/memory`, que é `provider`
+e cuja capability o verificador deixa irrestrita (`capability.go:51`) — quem
+realiza a porta precisa do I/O que os blocos de cima não podem ter. O
+subpackage é portanto excluído do `depguard` em `linters.exclusions.rules`,
+alinhando o gate local ao autoritativo em vez de manter uma restrição que o
+provider teria de burlar ao trocar memória por banco. O `gate-check.sh` declara
+essa unidade como fora do gate local, em vez de exercitá-la.
 
 O `go.mod` não tem `require` nem `replace`, e não há `go.sum`: a resolução dos
 módulos irmãos é do `go.work`. Por isso o target `tidy`, que o plugin do Nx

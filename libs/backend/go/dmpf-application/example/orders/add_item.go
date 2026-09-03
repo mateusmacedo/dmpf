@@ -3,6 +3,7 @@ package ordersapp
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	dmpfapplication "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-application"
 	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-domain/example/orders"
@@ -65,7 +66,7 @@ func (s Service) loadOrCreate(ctx context.Context, res Resources, id orders.Orde
 	case errors.Is(err, dmpfports.ErrNotFound):
 		return orders.NewOrder(id, s.ItemLimit), 0, nil
 	case err != nil:
-		return nil, 0, err
+		return nil, 0, fmt.Errorf("ordersapp: add item to %s: %w", id, err)
 	default:
 		return orders.FromSnapshot(snapshot), stored, nil
 	}

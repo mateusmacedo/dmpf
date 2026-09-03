@@ -8,11 +8,14 @@ import (
 	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-application/example/memory"
 )
 
-// The five clauses below duplicate dmpfports.RunUnitOfWorkContract on purpose:
+// The six clauses below duplicate dmpfports.RunUnitOfWorkContract on purpose:
 // a _test.go file is never importable, so the suite that lives in dmpf-ports
 // cannot be reused here. A test kit exported as a package is KRN-11's.
 
-var errContractCallbackFailed = errors.New("memory_test: contract callback failed")
+var (
+	errContractCallbackFailed = errors.New("memory_test: contract callback failed")
+	errContractCommitRefused  = errors.New("memory_test: contract commit refused")
+)
 
 func TestNewUnitOfWorkHonoursTheWithinContract(t *testing.T) {
 	t.Run("commits every write of the single transaction it opens", func(t *testing.T) {
@@ -34,6 +37,9 @@ func TestNewUnitOfWorkHonoursTheWithinContract(t *testing.T) {
 		}
 		if got := store.WithinCalls(); got != 1 {
 			t.Fatalf("WithinCalls() = %d, want 1", got)
+		}
+		if got := store.Commits(); got != 1 {
+			t.Fatalf("Commits() = %d, want 1", got)
 		}
 	})
 
@@ -93,6 +99,26 @@ func TestNewUnitOfWorkHonoursTheWithinContract(t *testing.T) {
 		}
 		if got := len(store.Entries()); got != 0 {
 			t.Fatalf("kept %d writes, want 0", got)
+		}
+	})
+
+	t.Run("returns the commit error and keeps nothing", func(t *testing.T) {
+		store := memory.New()
+		store.FailNextCommit(errContractCommitRefused)
+		uow := memory.NewUnitOfWork(store, bind)
+
+		err := uow.Within(context.Background(), func(ctx context.Context, res resources) error {
+			return res.Outbox.Enqueue(ctx, entry("m-000001"))
+		})
+
+		if !errors.Is(err, errContractCommitRefused) {
+			t.Fatalf("Within() = %v, want the commit error as the provider produced it", err)
+		}
+		if got := len(store.Entries()); got != 0 {
+			t.Fatalf("kept %d writes, want 0 — a failed commit persists nothing", got)
+		}
+		if got := store.Commits(); got != 0 {
+			t.Fatalf("Commits() = %d, want 0 — the commit did not install state", got)
 		}
 	})
 

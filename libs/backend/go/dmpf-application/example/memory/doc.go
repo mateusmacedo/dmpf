@@ -16,13 +16,15 @@
 // same Tx always see the same state — a version conflict has to be injected by
 // the caller. Real isolation belongs to KRN-06.
 //
-// One consequence of the mutex: calling Store.Reader() from inside Within on
-// the same store deadlocks. The reference use case reads outside the unit of
-// work (UOW-11), which is exactly the intended shape.
+// Store keeps two mutexes so that this serialization does not become a trap:
+// txMu is held for the whole callback and is what makes one transaction exclude
+// another, while dataMu is held per read or write. A Store.Reader() call from
+// inside a callback therefore returns the committed state — what a reader
+// outside the transaction would see — instead of deadlocking.
 //
 // This subpackage is a provider, whose capability budget the verifier leaves
-// unrestricted (capability.go:51), but the local depguard rule matches
-// **/*-application/** and therefore reaches it under the stricter application
-// budget. The divergence has no practical effect here, because every import is
-// pure capability; the verifier remains the authoritative gate.
+// unrestricted (capability.go:51), because realizing a port needs the I/O the
+// blocks above cannot have. The local depguard rule matches by path and would
+// reach it, so it is excluded in linters.exclusions.rules; the verifier is the
+// authoritative gate either way.
 package memory

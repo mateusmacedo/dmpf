@@ -2,6 +2,7 @@ package ordersapp
 
 import (
 	"context"
+	"fmt"
 
 	dmpfapplication "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-application"
 	dmpfdomain "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-domain"
@@ -73,6 +74,16 @@ func enqueueAll(
 	written dmpfports.Version,
 	events []dmpfdomain.DomainEvent,
 ) error {
+	// A identidade é resolvida antes da transação, com a contagem que o caso de
+	// uso declara. Produzir mais eventos do que isso é defeito de programação, e
+	// sem esta guarda ele apareceria como "index out of range" dentro da
+	// transação, sem dizer a causa.
+	if len(events) > len(identity.MessageIDs) {
+		panic(fmt.Sprintf(
+			"ordersapp: the decision produced %d events but only %d identifiers were resolved; raise maxEventsPerCommand",
+			len(events), len(identity.MessageIDs)))
+	}
+
 	for i, event := range events {
 		entry := dmpfports.OutboxEntry{
 			MessageID:        identity.MessageIDs[i],

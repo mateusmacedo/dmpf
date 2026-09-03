@@ -48,6 +48,14 @@ func (h *harness) serviceWithinCalls() int {
 	return h.store.WithinCalls() - h.seedCalls
 }
 
+// serviceCommits is the number of commits that actually installed state during
+// the service call. It is asserted apart from serviceWithinCalls because the
+// recording wrapper can only observe that Within returned nil, which a
+// realization that rolled back would also do.
+func (h *harness) serviceCommits() int {
+	return h.store.Commits() - h.seedCalls
+}
+
 type recordingClock struct {
 	inner dmpfports.Clock
 	rec   *recorder
@@ -70,7 +78,7 @@ func (g recordingIDs) NewMessageID() dmpfports.MessageID {
 
 // recordingRepository counts through the harness and can inject a Save error,
 // which is how a version conflict reaches the use case: the in-memory store
-// never produces one on its own, because one mutex serializes transactions.
+// never produces one on its own, because txMu serializes every transaction.
 type recordingRepository struct {
 	inner   dmpfports.Repository[orders.OrderID, orders.Snapshot]
 	h       *harness

@@ -114,7 +114,10 @@ func TestAddItemRejectedCommitsWithoutWriting(t *testing.T) {
 		t.Fatalf("Entries() = %+v, want empty", got)
 	}
 	if got := h.serviceWithinCalls(); got != 1 {
-		t.Fatalf("transactions opened = %d, want 1 — the commit occurs under a refusal (UOW-05, UOW-06)", got)
+		t.Fatalf("transactions opened = %d, want 1", got)
+	}
+	if got := h.serviceCommits(); got != 1 {
+		t.Fatalf("commits = %d, want 1 — the commit occurs under a refusal (UOW-05, UOW-06)", got)
 	}
 	if h.saves != 0 || h.enqueues != 0 {
 		t.Fatalf("a refusal wrote: saves = %d, enqueues = %d, want 0 and 0", h.saves, h.enqueues)

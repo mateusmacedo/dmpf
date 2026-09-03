@@ -14,12 +14,18 @@ type record struct {
 	version  dmpfports.Version
 }
 
-// Store is the single resource this realization transacts over.
+// Store is the single resource this realization transacts over. Two mutexes:
+// txMu serializes transactions and is held for the whole callback, dataMu
+// protects the state and is held per read or write. One mutex doing both jobs
+// would deadlock a Reader() call made from inside a callback.
 type Store struct {
-	mu             sync.Mutex
+	txMu   sync.Mutex
+	dataMu sync.Mutex
+
 	orders         map[orders.OrderID]record
 	outbox         []dmpfports.OutboxEntry
 	withinCalls    int
+	commits        int
 	failNextCommit error
 }
 
@@ -29,41 +35,51 @@ func New() *Store {
 }
 
 // Reader is the read-only view outside any transaction, for the query of
-// UOW-11. Calling it from inside Within on the same store deadlocks: the mutex
-// that serializes transactions is held for the whole callback.
+// UOW-11. Called from inside a callback it returns the committed state, which
+// is the state a reader outside the transaction would see.
 func (s *Store) Reader() dmpfports.Reader[orders.OrderID, orders.Snapshot] {
 	return storeReader{store: s}
 }
 
 // Entries copies the committed outbox, for inspection by tests.
 func (s *Store) Entries() []dmpfports.OutboxEntry {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.dataMu.Lock()
+	defer s.dataMu.Unlock()
 	return slices.Clone(s.outbox)
 }
 
 // FailNextCommit arms one commit to fail with err, which is how a test proves
 // that neither business state nor outbox survives a failed commit (UOW-07).
-// The injection is consumed by that commit; call it outside Within.
+// The injection is consumed by that commit.
 func (s *Store) FailNextCommit(err error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.dataMu.Lock()
+	defer s.dataMu.Unlock()
 	s.failNextCommit = err
 }
 
 // WithinCalls counts the transactions actually opened, which is how a test
 // distinguishes "one transaction" from "none" (UOW-01, UOW-02, UOW-11).
 func (s *Store) WithinCalls() int {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.dataMu.Lock()
+	defer s.dataMu.Unlock()
 	return s.withinCalls
+}
+
+// Commits counts the commits that actually installed state. A test needs it
+// apart from WithinCalls because under a refusal the commit still happens
+// (UOW-05, UOW-06), and inferring that from a nil error would also accept a
+// realization that rolled back and returned nil.
+func (s *Store) Commits() int {
+	s.dataMu.Lock()
+	defer s.dataMu.Unlock()
+	return s.commits
 }
 
 type storeReader struct{ store *Store }
 
 func (r storeReader) Load(_ context.Context, id orders.OrderID) (orders.Snapshot, dmpfports.Version, error) {
-	r.store.mu.Lock()
-	defer r.store.mu.Unlock()
+	r.store.dataMu.Lock()
+	defer r.store.dataMu.Unlock()
 	return load(r.store.orders, id)
 }
 

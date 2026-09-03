@@ -214,6 +214,113 @@ func TestSaveSharesNoSliceWithTheCaller(t *testing.T) {
 	}
 }
 
+// TestReaderInsideWithinReadsTheCommittedState pins the reason Store keeps two
+// mutexes: with a single one serializing transactions and guarding the state,
+// this read would deadlock instead of returning.
+func TestReaderInsideWithinReadsTheCommittedState(t *testing.T) {
+	store := memory.New()
+	seed(t, store, openSnapshot(1), 0)
+	uow := memory.NewUnitOfWork(store, bind)
+
+	var seenQuantity int
+	var seenVersion dmpfports.Version
+
+	err := uow.Within(context.Background(), func(ctx context.Context, res resources) error {
+		if err := res.Orders.Save(ctx, orderID, openSnapshot(7), 1); err != nil {
+			return err
+		}
+		snapshot, version, err := store.Reader().Load(ctx, orderID)
+		if err != nil {
+			return err
+		}
+		seenQuantity = snapshot.Items[0].Quantity
+		seenVersion = version
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("Within() = %v, want nil", err)
+	}
+
+	if seenQuantity != 1 || seenVersion != 1 {
+		t.Fatalf("Reader() inside the callback saw quantity %d at v%d, want the uncommitted 1 at v1",
+			seenQuantity, seenVersion)
+	}
+
+	after, version, _ := store.Reader().Load(context.Background(), orderID)
+	if after.Items[0].Quantity != 7 || version != 2 {
+		t.Fatalf("after the commit: quantity %d at v%d, want 7 at v2", after.Items[0].Quantity, version)
+	}
+}
+
+// Without the clone in commit, a port kept past the callback would write
+// straight into the committed state, outside any transaction and without dataMu.
+func TestAPortThatEscapesTheCallbackCannotReachTheStore(t *testing.T) {
+	store := memory.New()
+	uow := memory.NewUnitOfWork(store, bind)
+
+	var escaped resources
+	err := uow.Within(context.Background(), func(ctx context.Context, res resources) error {
+		escaped = res
+		return res.Orders.Save(ctx, orderID, openSnapshot(1), 0)
+	})
+	if err != nil {
+		t.Fatalf("Within() = %v, want nil", err)
+	}
+
+	if err := escaped.Orders.Save(context.Background(), orderID, openSnapshot(9), 1); err != nil {
+		t.Fatalf("Save through the escaped port = %v, want nil (it writes the discarded copy)", err)
+	}
+	if err := escaped.Outbox.Enqueue(context.Background(), entry("m-999999")); err != nil {
+		t.Fatalf("Enqueue through the escaped port = %v, want nil", err)
+	}
+
+	snapshot, version, _ := store.Reader().Load(context.Background(), orderID)
+	if snapshot.Items[0].Quantity != 1 || version != 1 {
+		t.Fatalf("the escaped port reached the store: quantity %d at v%d, want 1 at v1",
+			snapshot.Items[0].Quantity, version)
+	}
+	if got := store.Entries(); len(got) != 0 {
+		t.Fatalf("the escaped port reached the outbox: %+v, want empty", got)
+	}
+}
+
+// The first ctx.Err() check happens before waiting for txMu, so a caller whose
+// context dies while queued has to be refused again when its turn comes.
+func TestAContextCancelledWhileWaitingNeverOpensATransaction(t *testing.T) {
+	store := memory.New()
+	uow := memory.NewUnitOfWork(store, bind)
+	ctx, cancel := context.WithCancel(context.Background())
+
+	holding := make(chan struct{})
+	release := make(chan struct{})
+	go func() {
+		_ = uow.Within(context.Background(), func(context.Context, resources) error {
+			close(holding)
+			<-release
+			return nil
+		})
+	}()
+	<-holding
+
+	queued := make(chan error, 1)
+	go func() {
+		queued <- uow.Within(ctx, func(context.Context, resources) error {
+			t.Error("the callback ran with a context cancelled while queued")
+			return nil
+		})
+	}()
+
+	cancel()
+	close(release)
+
+	if err := <-queued; !errors.Is(err, context.Canceled) {
+		t.Fatalf("the queued Within() = %v, want context.Canceled", err)
+	}
+	if got := store.Commits(); got != 1 {
+		t.Fatalf("Commits() = %d, want 1 — only the first transaction committed", got)
+	}
+}
+
 func TestSaveRejectsADivergentExpectedVersion(t *testing.T) {
 	store := memory.New()
 	seed(t, store, openSnapshot(1), 0)
