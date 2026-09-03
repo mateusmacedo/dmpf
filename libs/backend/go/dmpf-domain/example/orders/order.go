@@ -16,6 +16,13 @@ func NewOrder(id OrderID, itemLimit int) *Order {
 	return &Order{id: id, status: Open, items: []Item{}, itemLimit: itemLimit}
 }
 
+// FromSnapshot reconstitutes the order from persisted state, cloning Items so
+// aggregate and snapshot never share the backing array (DEC-12). It is pure
+// computation: no UPR, no event, no clock.
+func FromSnapshot(s Snapshot) *Order {
+	return &Order{id: s.ID, status: s.Status, items: slices.Clone(s.Items), itemLimit: s.ItemLimit}
+}
+
 // Snapshot is the observable state of the order, used by tests to prove DEC-10.
 type Snapshot struct {
 	ID        OrderID
