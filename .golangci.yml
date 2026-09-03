@@ -20,6 +20,14 @@ linters:
       - path: 'dmpf-application/example/memory/'
         linters:
           - depguard
+      # Código emitido pelo protoc-gen-go. As dependências que ele traz
+      # (`reflect`, `unsafe`) são exceções NOMINAIS no `dmpf-units.json` do
+      # módulo, com owner e `review_by`; o verificador é quem as honra.
+      # Repeti-las aqui poria a mesma norma em dois lugares, e o daqui não tem
+      # prazo de revisão.
+      - path: 'dmpf-contracts/gen/'
+        linters:
+          - depguard
 
   settings:
     # Segunda camada do bloco `domain`, por SÍMBOLO. O depguard e o verificador
@@ -308,3 +316,101 @@ linters:
               desc: 'application e default deny (RFC 6.2); serializacao e wire.codec e vive no contract package'
             - pkg: encoding/json
               desc: 'application e default deny (RFC 6.2); serializacao e wire.codec e vive no contract package'
+
+        # Bloco `contract`: `pure` mais `wire.codec` (`capability.go:48`) — o
+        # único que pode serializar, e é isso que o distingue dos três acima.
+        # `time` segue negado: gerar o instante é `io.clock`. O subpackage de
+        # código gerado é excluído do depguard no topo deste arquivo, porque as
+        # dependências dele são exceções nominais do `dmpf-units.json`.
+        #
+        # `!$test` restringe a regra à PRODUÇÃO, que é o que a política de
+        # capabilities governa (RFC §6.2) e o que o verificador considera: os
+        # testes deste bloco leem golden files do disco, e o package `golden`
+        # existe só como teste, fora do manifesto. As outras três regras não
+        # precisam do filtro porque os testes delas não fazem I/O.
+        contract:
+          list-mode: strict
+          files:
+            - '**/*-contracts/**'
+            - '!$test'
+          allow:
+            # o próprio universo verificável do repositório
+            - gitea.lidercap.com.br/lidercap-apps/lidercap-platform/
+            # stdlib de computação determinística (RFC §7: capability `pure`)
+            - errors
+            - fmt
+            - strconv
+            - strings
+            - bytes
+            - sort
+            - math
+            - unicode
+            - unicode/utf8
+            - regexp
+            - slices
+            - maps
+            - cmp
+            - iter
+            - context
+            - sync
+            # `pure` por package, não pela família: `crypto` inteiro liberaria
+            # `crypto/rand`, que é `io.random` (`stdlib.go:94-95,105`)
+            - crypto/sha256
+            - encoding/hex
+            - hash
+            # capability `wire.codec`, que só este bloco tem. Um por package:
+            # `encoding` na lista não cobre `encoding/json`, porque o depguard
+            # não casa por prefixo de caminho
+            - encoding
+            - encoding/json
+            - encoding/binary
+            - google.golang.org/protobuf
+          deny:
+            # io.clock
+            - pkg: time
+              desc: 'io.clock (RFC 6.2); o instante do envelope chega resolvido, nao e gerado aqui'
+            # io.random
+            - pkg: math/rand
+              desc: 'io.random (RFC 6.2); a identidade da mensagem entra por porta'
+            - pkg: crypto/rand
+              desc: 'io.random (RFC 6.2); a identidade da mensagem entra por porta'
+            # io.storage
+            - pkg: database/sql
+              desc: 'contract descreve o formato, nao o transporte (RFC 6.2); banco e io.storage'
+            - pkg: gorm.io/gorm
+              desc: 'contract descreve o formato, nao o transporte (RFC 6.2); ORM e io.storage'
+            - pkg: github.com/jackc/pgx
+              desc: 'contract descreve o formato, nao o transporte (RFC 6.2); driver e io.storage'
+            # io.messaging
+            - pkg: github.com/segmentio/kafka-go
+              desc: 'contract descreve o formato, nao o transporte (RFC 6.2); SDK de broker e io.messaging'
+            - pkg: github.com/twmb/franz-go
+              desc: 'contract descreve o formato, nao o transporte (RFC 6.2); SDK de broker e io.messaging'
+            - pkg: github.com/aws/aws-sdk-go-v2
+              desc: 'contract descreve o formato, nao o transporte (RFC 6.2); SDK de nuvem e io.*'
+            # io.network
+            - pkg: net/http
+              desc: 'contract descreve o formato, nao o transporte (RFC 6.2); HTTP e io.network'
+            - pkg: net
+              desc: 'contract descreve o formato, nao o transporte (RFC 6.2); rede e io.network'
+            - pkg: google.golang.org/grpc
+              desc: 'contract descreve o formato, nao o transporte (RFC 6.2); gRPC e io.network'
+            # io.filesystem
+            - pkg: os
+              desc: 'contract e default deny (RFC 6.2); disco e ambiente e io.filesystem'
+            - pkg: path/filepath
+              desc: 'contract e default deny (RFC 6.2); disco e io.filesystem'
+            # runtime.framework
+            - pkg: github.com/gin-gonic/gin
+              desc: 'contract e default deny (RFC 6.2); framework de servidor e runtime.framework'
+            - pkg: go.uber.org/fx
+              desc: 'contract e default deny (RFC 6.2); injecao de dependencia e runtime.framework'
+            - pkg: github.com/google/wire
+              desc: 'contract e default deny (RFC 6.2); injecao de dependencia e runtime.framework'
+            # observability — o bloco tem `pure` e `wire.codec`, nao telemetria
+            - pkg: go.opentelemetry.io/otel
+              desc: 'observabilidade nao entra no contract (RFC 6.2); vive em adapters e providers'
+            - pkg: log
+              desc: 'observabilidade nao entra no contract (RFC 6.2); vive em adapters e providers'
+            - pkg: log/slog
+              desc: 'observabilidade nao entra no contract (RFC 6.2); vive em adapters e providers'
