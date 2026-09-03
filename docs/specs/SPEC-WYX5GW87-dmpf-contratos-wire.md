@@ -2,7 +2,7 @@
 id: SPEC-WYX5GW87
 slug: dmpf-contratos-wire
 title: DMPF KRN-05 — Contratos wire: CloudEvents, Buf e payload_hash
-stage: building
+stage: done
 priority: P0
 depends_on: [SPEC-MQA5HAXF]
 ticket_url: https://lider-cap.atlassian.net/browse/ARQ-524
