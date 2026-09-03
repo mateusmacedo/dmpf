@@ -15,13 +15,21 @@ type UnitOfWorkSubject[R any] struct {
 	UoW   dmpfports.UnitOfWork[R]
 	Write func(resources R)
 	Kept  func() int
+
+	// ArmCommitFailure makes the next commit fail with err. A realization that
+	// cannot inject one leaves it nil, and the clause is skipped out loud rather
+	// than quietly absent from the contract.
+	ArmCommitFailure func(err error)
 }
 
-var errCallbackFailed = errors.New("contract: callback failed")
+var (
+	errCallbackFailed = errors.New("contract: callback failed")
+	errCommitRefused  = errors.New("contract: commit refused")
+)
 
-// RunUnitOfWorkContract exercises the five observable clauses of the Within
+// RunUnitOfWorkContract exercises the six observable clauses of the Within
 // contract over any realization. newSubject must return a unit of work over a
-// fresh resource on every call. The sixth clause — R is the only path by which
+// fresh resource on every call. The seventh clause — R is the only path by which
 // transactional ports reach the callback (UOW-03, UOW-04) — is structural and
 // proven by the compiler, not here.
 func RunUnitOfWorkContract[R any](t *testing.T, newSubject func() UnitOfWorkSubject[R]) {
@@ -99,6 +107,26 @@ func RunUnitOfWorkContract[R any](t *testing.T, newSubject func() UnitOfWorkSubj
 		}
 	})
 
+	t.Run("returns the commit error and keeps nothing", func(t *testing.T) {
+		s := newSubject()
+		if s.ArmCommitFailure == nil {
+			t.Skip("the realization cannot inject a commit failure; clause not exercised here")
+		}
+		s.ArmCommitFailure(errCommitRefused)
+
+		err := s.UoW.Within(context.Background(), func(_ context.Context, resources R) error {
+			s.Write(resources)
+			return nil
+		})
+
+		if !errors.Is(err, errCommitRefused) {
+			t.Fatalf("Within() = %v, want the commit error as the provider produced it", err)
+		}
+		if got := s.Kept(); got != 0 {
+			t.Fatalf("kept %d writes, want 0 — a failed commit persists nothing", got)
+		}
+	})
+
 	t.Run("propagates a panic and discards the transaction", func(t *testing.T) {
 		s := newSubject()
 
@@ -129,7 +157,10 @@ type fakeResources struct{ tx *fakeTx }
 
 type fakeTx struct{ writes int }
 
-type fakeUnitOfWork struct{ kept int }
+type fakeUnitOfWork struct {
+	kept           int
+	failNextCommit error
+}
 
 func (u *fakeUnitOfWork) Within(ctx context.Context, fn func(context.Context, fakeResources) error) error {
 	if err := ctx.Err(); err != nil {
@@ -137,6 +168,10 @@ func (u *fakeUnitOfWork) Within(ctx context.Context, fn func(context.Context, fa
 	}
 	tx := &fakeTx{}
 	if err := fn(ctx, fakeResources{tx: tx}); err != nil {
+		return err
+	}
+	if err := u.failNextCommit; err != nil {
+		u.failNextCommit = nil
 		return err
 	}
 	u.kept += tx.writes
@@ -149,9 +184,10 @@ func TestUnitOfWorkContract(t *testing.T) {
 	RunUnitOfWorkContract(t, func() UnitOfWorkSubject[fakeResources] {
 		uow := &fakeUnitOfWork{}
 		return UnitOfWorkSubject[fakeResources]{
-			UoW:   uow,
-			Write: func(resources fakeResources) { resources.tx.writes++ },
-			Kept:  func() int { return uow.kept },
+			UoW:              uow,
+			Write:            func(resources fakeResources) { resources.tx.writes++ },
+			Kept:             func() int { return uow.kept },
+			ArmCommitFailure: func(err error) { uow.failNextCommit = err },
 		}
 	})
 }

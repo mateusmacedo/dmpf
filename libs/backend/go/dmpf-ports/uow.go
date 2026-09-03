@@ -9,17 +9,18 @@ import "context"
 // only the bound ones, so the composition root binds the transaction to R.
 type UnitOfWork[R any] interface {
 	// Within opens exactly one local transaction over one resource (UOW-01,
-	// UOW-02), and every realization honours the same five clauses:
+	// UOW-02), and every realization honours the same six clauses:
 	//
 	//   - if ctx.Err() is non-nil before the transaction opens, it returns that
 	//     error and never invokes fn — CTX-21 read by analogy, from the remote
 	//     I/O provider to the local transaction;
 	//   - it invokes fn exactly once and never repeats it, under any error
 	//     (UOW-09, UOW-10);
-	//   - fn returning nil commits, and a commit error is returned as the
-	//     provider produced it;
+	//   - fn returning nil commits;
 	//   - fn returning an error rolls back and returns that same error, without
 	//     wrapping that would break errors.Is;
+	//   - a commit error is returned as the provider produced it, and nothing
+	//     persists;
 	//   - a panic in fn rolls back and propagates, never swallowed and never
 	//     converted into a rejection (ERR-22).
 	//

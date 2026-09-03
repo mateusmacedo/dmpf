@@ -56,7 +56,7 @@ composition root, por uma função `bind`. Passar recursos em `context.Context` 
 vedado por `CTX-05`, e um `tx.Repository("nome")` dentro da fronteira é o
 service locator que `UOW-03` recusa nominalmente.
 
-Toda realização cumpre as cinco cláusulas abaixo, e a suíte reutilizável
+Toda realização cumpre as seis cláusulas abaixo, e a suíte reutilizável
 `RunUnitOfWorkContract` (em `contract_test.go`) as executa:
 
 1. Abre exatamente **uma** transação local sobre **um** recurso (`UOW-01`,
@@ -67,13 +67,16 @@ Toda realização cumpre as cinco cláusulas abaixo, e a suíte reutilizável
 3. Invoca `fn` **exatamente uma vez** e nunca a repete, sob nenhum erro
    (`UOW-09`, `UOW-10`). Não há parâmetro de retry em lugar algum deste módulo:
    a política, quando existir, é do caso de uso e do `KRN-09`.
-4. `fn` devolvendo `nil` commita, e um erro de commit é devolvido como o
-   provider o produziu; `fn` devolvendo erro faz rollback e devolve o mesmo
-   erro, sem embrulho que quebre `errors.Is`.
-5. Panic em `fn` faz rollback e propaga, nunca engolido nem convertido em
+4. `fn` devolvendo `nil` commita; `fn` devolvendo erro faz rollback e devolve o
+   mesmo erro, sem embrulho que quebre `errors.Is`.
+5. Um erro de commit é devolvido como o provider o produziu, e nada persiste. A
+   suíte pede um seam para armar essa falha; a realização que não puder
+   oferecê-lo declara a cláusula como não exercitada, em vez de omiti-la em
+   silêncio.
+6. Panic em `fn` faz rollback e propaga, nunca engolido nem convertido em
    rejeição (`ERR-22`).
 
-A sexta cláusula — `R` como único caminho até as portas transacionais — é
+A sétima cláusula — `R` como único caminho até as portas transacionais — é
 estrutural: quem a garante é o compilador, não um teste.
 
 ## Garantias de entrega
