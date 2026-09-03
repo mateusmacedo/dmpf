@@ -1,0 +1,13 @@
+{
+  "schema": "dmpf/units@1",
+  "units": [
+    {
+      "id": "a/domain",
+      "block": "domain",
+      "bounded_context": "dc",
+      "include": ["exemplo.test/dc-a/domain"]
+    }
+  ],
+  "external": [],
+  "exceptions": []
+}

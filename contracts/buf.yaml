@@ -1,0 +1,12 @@
+version: v2
+modules:
+  - path: proto
+    name: buf.build/lidercap/contracts
+lint:
+  use:
+    - STANDARD
+  enum_zero_value_suffix: _UNSPECIFIED
+breaking:
+  use:
+    - FILE
+deps: []

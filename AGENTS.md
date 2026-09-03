@@ -138,12 +138,13 @@ Nenhuma. `apps/backend`, `apps/frontend` e `apps/serverless` são diretórios de
 
 ### Libs
 
-Duas, ambas Go, com as três tags 3D (`type:lib`, `scope:backend`, `stack:go`), um `dmpf-units.json` (o `metadata_container` da RFC DMPF) e um `package.json` com `private: true` — este último existe porque o Nx Release aborta o versionamento de um `tag:type:lib` sem manifesto npm (ver `docs/adr/030-granularidade-modulo-go-e-bom.md`):
+Três, todas Go, com as três tags 3D (`type:lib`, `scope:backend`, `stack:go`), um `dmpf-units.json` (o `metadata_container` da RFC DMPF) e um `package.json` com `private: true` — este último existe porque o Nx Release aborta o versionamento de um `tag:type:lib` sem manifesto npm (ver `docs/adr/030-granularidade-modulo-go-e-bom.md`):
 
 - **`dmpf-domain-go`** (`libs/backend/go/dmpf-domain`), o kernel de domínio do DMPF, criado por `KRN-01` e preenchido por `KRN-03`. O package raiz `dmpfdomain` realiza o desfecho da UPR como par `(Accepted[R], *Rejection)`; o package `example/orders` é o agregado de exemplo com duas UPRs. São duas unidades `domain` no manifesto, `dmpf-kernel/domain` e `dmpf-kernel/example-orders`, no `bounded_context` `dmpf-kernel` (ver `docs/adr/032-realizacao-go-do-desfecho-da-upr.md`).
-- **`dmpf-conformance-go`** (`libs/backend/go/dmpf-conformance`), o verificador de conformidade do DMPF, criado por `KRN-02`. Decide a regra de dependência sobre o grafo real de imports e roda no CI como gate fail-closed; o binário fica em `cmd/dmpf-conformance` e o baseline em `tools/dmpf-baseline/units-baseline.json` (ver `docs/adr/031-verificador-de-conformidade-dmpf-em-go.md`).
+- **`dmpf-conformance-go`** (`libs/backend/go/dmpf-conformance`), o verificador de conformidade do DMPF, criado por `KRN-02`. Decide a regra de dependência sobre o grafo real de imports e roda no CI como gate fail-closed; o binário fica em `cmd/dmpf-conformance` e o baseline em `tools/dmpf-baseline/units-baseline.json` (ver `docs/adr/031-verificador-de-conformidade-dmpf-em-go.md` e `docs/guides/dmpf-manifesto.md`).
+- **`dmpf-contracts-go`** (`libs/backend/go/dmpf-contracts`), o bloco `contract` do kernel criado por `KRN-05`: código gerado de Protobuf em `gen/go/` (nunca editado à mão), o codec do envelope CloudEvents (`envelope`) e a fórmula do `payload_hash` (`payloadhash`). A **fonte** dos contratos — `.proto`, configuração Buf e golden fixtures — vive em `contracts/`, na raiz, e é neutra de stack; `contracts/README.md` explica a árvore, a proveniência do envelope oficial e a máquina de estados do baseline (`BUF-08`).
 
-`libs/frontend` e `libs/shared` seguem sendo diretórios de destino, sem projeto Nx registrado. Para criar uma lib TypeScript, use o generator do Nx (`pnpm nx g @nx/js:lib libs/shared/<name>`), com as três tags 3D e `--linter=none`; o passo a passo com todas as flags está em `docs/nx-reference/tasks.md`.
+`libs/frontend` segue sendo diretório de destino, sem projeto Nx registrado. Para criar uma lib TypeScript, use o generator do Nx (`pnpm nx g @nx/js:lib libs/shared/<name>`), com as três tags 3D e `--linter=none`; o passo a passo com todas as flags está em `docs/nx-reference/tasks.md`.
 
 **Caminho por scope e stack.** Módulos ficam em `libs/<scope>/<stack>/<módulo>`, e o nome do projeto Nx leva o sufixo da stack (`dmpf-domain-go`). O motivo é que o kernel DMPF terá contrapartes Go e TypeScript com os mesmos nomes conceituais, e o nome de projeto é chave única no Nx. Como em Go o import path é a chave canônica da unidade — e a RFC a exige estável —, a convenção foi fixada antes do segundo módulo nascer.
 
@@ -185,6 +186,15 @@ pnpm nx run dmpf-domain-go:vet
 pnpm nx run dmpf-domain-go:test-race
 pnpm nx run dmpf-domain-go:govulncheck # sem cache: consulta base remota
 bash tools/dmpf-gate-check.sh          # prova o gate do bloco domain: depguard (por package) e forbidigo (por símbolo)
+
+# Gates Buf dos contratos (fail-closed; só o projeto dmpf-contracts-go os declara)
+pnpm nx run dmpf-contracts-go:buf-warmup          # compila buf e protoc-gen-go uma vez (dependsOn dos três abaixo)
+pnpm nx run dmpf-contracts-go:buf-lint            # buf format + buf lint STANDARD + varredura de P0-3
+pnpm nx run dmpf-contracts-go:buf-pins            # pins exatos de CLI e plugin; plugin = runtime do go.mod
+pnpm nx run dmpf-contracts-go:buf-generate-check  # geração dupla idêntica e sem drift em gen/go
+NX_BASE=develop pnpm nx run dmpf-contracts-go:buf-breaking  # buf breaking FILE sob a máquina BUF-08
+pnpm nx run dmpf-contracts-go:buf-gate-selftest   # vetores negativos do gate em repositórios descartáveis
+bash tools/buf.sh lint contracts                  # a CLI Buf, sempre por go run (pin em tools/buf.sh)
 
 # Formatação (Biome — não Prettier)
 pnpm biome format --write . # aplica
