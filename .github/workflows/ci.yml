@@ -63,12 +63,6 @@ jobs:
       - name: Go gates (affected)
         run: pnpm nx affected -t fmt-check,vet,test-race,govulncheck --base=$NX_BASE --head=$NX_HEAD --parallel=3 --exclude=$NX_EXCLUDE
 
-      # Gates Buf dos contratos (contracts/README.md, "Gates e baseline"): só o
-      # dmpf-contracts-go os declara, com contracts/** nos inputs, então um PR que
-      # toque só um .proto entra no affected; buf-breaking lê NX_BASE como baseline.
-      - name: Contracts gates (affected)
-        run: pnpm nx affected -t buf-lint,buf-pins,buf-generate-check,buf-breaking,buf-gate-selftest --base=$NX_BASE --head=$NX_HEAD --parallel=3 --exclude=$NX_EXCLUDE
-
       # O gate roda o golangci-lint uma vez por vetor, então fica sob o mesmo
       # regime de `affected` do resto do pipeline: um PR só de TypeScript não
       # paga por ele.
@@ -101,6 +95,17 @@ jobs:
         if: steps.go_affected.outputs.any == 'true'
         run: |
           go run ./libs/backend/go/dmpf-conformance/cmd/dmpf-conformance --root . --base "$NX_BASE"
+
+      # Gates Buf dos contratos (contracts/README.md, "Gates e baseline"): só o
+      # dmpf-contracts-go os declara, com contracts/** nos inputs, então um PR que
+      # toque só um .proto entra no affected; buf-breaking lê NX_BASE como baseline.
+      #
+      # Roda DEPOIS dos gates DMPF: a falha deste step abortava o job e deixava os
+      # dois em skipped, suprimindo o gate autoritativo da regra de dependência
+      # justamente nos PRs que classificam unidade nova. Segue fail-closed e sem
+      # bypass, como BUF-12 exige — só deixou de sequestrar a execução dos outros.
+      - name: Contracts gates (affected)
+        run: pnpm nx affected -t buf-lint,buf-pins,buf-generate-check,buf-breaking,buf-gate-selftest --base=$NX_BASE --head=$NX_HEAD --parallel=3 --exclude=$NX_EXCLUDE
 
       - name: E2E (affected)
         run: pnpm nx affected -t e2e --base=$NX_BASE --head=$NX_HEAD --parallel=1 --exclude=$NX_EXCLUDE
