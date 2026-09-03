@@ -1,4 +1,4 @@
-// comment-discipline-ok-file: godoc de portas; a autoria dos campos e o que NÃO entra no tipo são normativos (FND-04 §2.3, BLK-01/03/04/05, ADR-021).
+// comment-discipline-ok-file: arquivo de declarações; cada godoc é contrato de API pública com referência normativa (FND-04 §2.3, BLK-01/04/05, ADR-021), dentro do limite de 3 linhas.
 
 package dmpfports
 
@@ -10,25 +10,19 @@ import (
 
 // PublishIntent is the routing the application service authors (BLK-04).
 type PublishIntent struct {
-	// Destination names the integration flow logically. It is never a topic,
-	// queue, ARN or broker address: choosing the physical target is the
-	// provider's, and the relay's, business (BLK-04).
+	// Destination names the integration flow logically: never a topic, queue,
+	// ARN or broker address, because choosing the physical target belongs to
+	// the provider and to the relay (BLK-04).
 	Destination string
 
-	// PartitionKey preserves ordering among events of the same aggregate. It is
-	// empty when there is no order to preserve.
+	// PartitionKey preserves ordering among events of the same aggregate, and
+	// is empty when there is no order to preserve.
 	PartitionKey string
 }
 
-// OutboxEntry is what the application service hands to the outbox: the three
-// authorship groups of FND-04 §2.3 — identity and time, routing, business
-// origin — plus the event itself.
-//
-// Wire fields (message_type, schema_version, payload) belong to the provider,
-// and drain state (status, available_at, attempt_count, locked_by,
-// locked_until, published_at, last_error) belongs to the schema and to the
-// relay. Neither group exists here, and adding one would move the boundary
-// (BLK-04, BLK-05, ADR-021).
+// OutboxEntry is what the application service authors and hands to the outbox:
+// the three groups of FND-04 §2.3 plus the event. Wire fields and drain state
+// are absent by design — they belong to the provider and to the relay (BLK-05).
 type OutboxEntry struct {
 	MessageID        MessageID
 	OccurredAt       Instant
@@ -40,8 +34,8 @@ type OutboxEntry struct {
 }
 
 // Outbox is the single sink of publish intent inside the transaction (UOW-08):
-// this block declares no publishing port at all, because publishing happens
-// after the commit and outside the unit of work.
+// this block declares no publishing port, because publishing happens after the
+// commit and outside the unit of work.
 type Outbox interface {
 	// Enqueue takes a context only for cancellation and deadline (CTX-20,
 	// CTX-21); it carries no execution context of its own.

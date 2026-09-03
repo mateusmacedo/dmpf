@@ -1,4 +1,4 @@
-// comment-discipline-ok-file: godoc de portas; o contrato de optimistic locking e a separação Reader/Repository vêm de FND-04 §3.3 e UOW-11, não do código.
+// comment-discipline-ok-file: arquivo de declarações; cada godoc é contrato de API pública com referência normativa (FND-04 §3.3, UOW-09/11), dentro do limite de 3 linhas.
 
 package dmpfports
 
@@ -22,10 +22,9 @@ type Reader[ID comparable, S any] interface {
 	Load(ctx context.Context, id ID) (S, Version, error)
 }
 
-// Repository adds optimistic-locking writes to Reader (FND-04 §3.3). It is
-// typed over the persisted state S, not over the aggregate, because a UPR
-// mutates its receiver on acceptance: sharing a pointer with the store would
-// leak that mutation before the commit and void the atomicity proof.
+// Repository adds optimistic-locking writes to Reader (FND-04 §3.3), typed over
+// the persisted state S rather than the aggregate: a UPR mutates its receiver on
+// acceptance, and a shared pointer would leak that before the commit.
 type Repository[ID comparable, S any] interface {
 	Reader[ID, S]
 
