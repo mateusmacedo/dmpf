@@ -6,19 +6,19 @@ runs:
     # Sem `go-version` literal: o `go-version-file` lê a diretiva do go.work,
     # que é a fonte única do piso (BOM). Passar a versão aqui abriria uma
     # segunda fonte, que sairia do lugar no primeiro bump.
-    # `cache: false` é deliberado. O default do setup-go@v5 é `true`, e ele
-    # procura um go.sum na RAIZ do workspace para montar a chave; não há nenhum
-    # (a raiz não é módulo, e o domínio não tem dependência externa). O efeito
-    # não seria um erro visível: o restore falha em try/catch e vira warning,
-    # e nada é restaurado NEM salvo. Melhor declarar a ausência do que fingir
-    # um cache que não existe. Quando houver go.sum, trocar por um actions/cache
-    # sobre GOMODCACHE e GOCACHE, chaveado por go.work e pelas versões das
-    # ferramentas.
+    # Cache de GOMODCACHE e GOCACHE chaveado pelos arquivos que carregam os pins:
+    # sem ele cada job recompila golangci-lint, govulncheck, buf e protoc-gen-go por `go run` (~10 min).
     - name: Setup Go
       uses: actions/setup-go@v5
       with:
         go-version-file: go.work
-        cache: false
+        cache: true
+        cache-dependency-path: |
+          go.work
+          **/go.sum
+          nx.json
+          tools/buf.sh
+          contracts/buf.gen.yaml
 
     # O module path fica em host privado. Localmente isso funciona porque o
     # `go env` do desenvolvedor traz GOPRIVATE; o runner não tem nada disso, e
