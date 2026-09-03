@@ -231,15 +231,26 @@ while IFS= read -r manifesto; do
   # (forbidigo); nos outros blocos e de package, porque o forbidigo esta
   # restrito a `-domain/`.
   #
-  # Os includes NAO sao filtrados por bloco: o que se prova aqui e o alcance do
-  # glob, que e por caminho. E por isso que `example/memory`, unidade
-  # `provider`, aparece sob a regra `application` — a divergencia declarada
-  # entre o gate local e o verificador, que deixa `provider` irrestrito.
+  # Subpackage cujo bloco declarado nao tem politica local — `provider` e `app`,
+  # que o verificador deixa irrestritos — e DECLARADO como fora do gate, nunca
+  # exercitado: ele esta excluido do depguard em `linters.exclusions.rules`, e
+  # exigir reprovacao ali seria exigir o que a config deliberadamente nao faz.
   module_path="$(awk '/^module /{print $2; exit}' "$module_dir/go.mod" 2>/dev/null)"
-  while IFS= read -r inc; do
+  while IFS= read -r linha; do
+    inc="${linha%%|*}"
+    inc_bloco="${linha##*|}"
     rel="${inc#"$module_path"}"
     rel="${rel#/}"
     [ -z "$rel" ] && continue
+
+    case "$inc_bloco" in
+      domain|port|application) ;;
+      *)
+        echo "  --     $rel: unidade $inc_bloco, sem politica local; coberta pelo verificador do KRN-02"
+        continue
+        ;;
+    esac
+
     sub_dir="$module_dir/$rel"
     sub_clause="$(awk '/^package /{print; exit}' "$sub_dir"/*.go 2>/dev/null)"
     if [ -z "$sub_clause" ]; then
@@ -278,7 +289,7 @@ while IFS= read -r manifesto; do
     fi
   done < <(node -e '
     const m = require(process.argv[1]);
-    for (const u of m.units ?? []) for (const i of u.include ?? []) console.log(i);
+    for (const u of m.units ?? []) for (const i of u.include ?? []) console.log(i + "|" + u.block);
   ' "$ROOT/$manifesto" 2>/dev/null)
 
   # Vetor positivo: a árvore limpa precisa passar, senão o gate só sabe dizer não.

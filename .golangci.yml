@@ -13,6 +13,13 @@ linters:
       - path-except: '-domain/'
         linters:
           - forbidigo
+      # O `files` da regra `application` seleciona por caminho e alcançaria este
+      # subpackage, que é unidade `provider`. O verificador, gate autoritativo,
+      # deixa `provider` irrestrito (`capability.go:51`) porque quem realiza a
+      # porta precisa do I/O que o bloco de cima não pode ter.
+      - path: 'dmpf-application/example/memory/'
+        linters:
+          - depguard
 
   settings:
     # Segunda camada do bloco `domain`, por SÍMBOLO. O depguard e o verificador
@@ -222,10 +229,9 @@ linters:
 
         # Bloco `application`: `pure` mais `observability` (`capability.go:47`)
         # — a norma nega io, framework e wire, e nada diz sobre telemetria
-        # (leitura do complemento registrada no ADR-031). O glob também alcança
-        # `example/memory`, unidade `provider` de capability irrestrita
-        # (`capability.go:51`): ali a regra local é mais estrita que o gate, sem
-        # efeito prático porque seus imports são `pure` (ver o `doc.go` dele).
+        # (leitura do complemento registrada no ADR-031). O glob alcançaria
+        # também os subpackages `provider` dentro do módulo; cada um deles é
+        # excluído em `linters.exclusions.rules`, no topo deste arquivo.
         application:
           list-mode: strict
           files:
