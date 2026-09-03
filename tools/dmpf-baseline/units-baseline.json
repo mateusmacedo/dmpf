@@ -1,7 +1,34 @@
 {
   "schema": "dmpf/units-baseline@1",
-  "digest": "sha256:ab1beb5eb935fd562c8a5763aedd95ed73b70a44f9ffd813874c7d419c1d2dc0",
+  "digest": "sha256:78ea945f63934c8be1da68e993fca8ed76340003e36aed8a62e0ffd91222fbb7",
   "entries": [
+    {
+      "unit": "dmpf-kernel/application",
+      "module": "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-application",
+      "block": "application",
+      "bounded_context": "dmpf-kernel",
+      "membership": [
+        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-application"
+      ]
+    },
+    {
+      "unit": "dmpf-kernel/example-memory",
+      "module": "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-application",
+      "block": "provider",
+      "bounded_context": "dmpf-kernel",
+      "membership": [
+        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-application/example/memory"
+      ]
+    },
+    {
+      "unit": "dmpf-kernel/example-orders-application",
+      "module": "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-application",
+      "block": "application",
+      "bounded_context": "dmpf-kernel",
+      "membership": [
+        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-application/example/orders"
+      ]
+    },
     {
       "unit": "dmpf-conformance/baseline",
       "module": "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance",
@@ -118,6 +145,15 @@
       "bounded_context": "dmpf-kernel",
       "membership": [
         "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-domain/example/orders"
+      ]
+    },
+    {
+      "unit": "dmpf-kernel/port",
+      "module": "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-ports",
+      "block": "port",
+      "bounded_context": "dmpf-kernel",
+      "membership": [
+        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-ports"
       ]
     }
   ]
