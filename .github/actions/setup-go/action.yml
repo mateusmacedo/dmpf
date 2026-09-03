@@ -9,6 +9,7 @@ runs:
     # Cache de GOMODCACHE e GOCACHE chaveado pelos arquivos que carregam os pins:
     # sem ele cada job recompila golangci-lint, govulncheck, buf e protoc-gen-go por `go run` (~10 min).
     - name: Setup Go
+      id: setup_go
       uses: actions/setup-go@v5
       with:
         go-version-file: go.work
@@ -19,6 +20,7 @@ runs:
           nx.json
           tools/buf.sh
           contracts/buf.gen.yaml
+          .github/actions/setup-go/action.yml
 
     # O module path fica em host privado. Localmente isso funciona porque o
     # `go env` do desenvolvedor traz GOPRIVATE; o runner não tem nada disso, e
@@ -28,6 +30,27 @@ runs:
     - name: Configure private module path
       shell: bash
       run: echo "GOPRIVATE=gitea.lidercap.com.br" >> "$GITHUB_ENV"
+
+    # O post-step do setup-go só salva em cache miss e salva o que houver: um PR sem
+    # projeto Go afetado semearia um GOCACHE vazio que os hits seguintes nunca substituem.
+    # Por isso, em miss, cada ferramenta pinada é compilada aqui (pins lidos da origem).
+    - name: Warm Go tools on cache miss
+      if: steps.setup_go.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        set -euo pipefail
+        pins=(
+          "$(grep -oE 'github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v[0-9.]+' nx.json | head -1)"
+          "$(grep -ohE 'golang.org/x/vuln/cmd/govulncheck@v[0-9.]+' libs/backend/go/*/project.json | sort -u | head -1)"
+          "$(grep -oE 'github.com/bufbuild/buf/cmd/buf@v[0-9.]+' tools/buf.sh | head -1)"
+          "google.golang.org/protobuf/cmd/$(grep -oE 'protoc-gen-go@v[0-9.]+' contracts/buf.gen.yaml | head -1)"
+        )
+        for pkg in "${pins[@]}"; do
+          case "$pkg" in *@v[0-9]*) ;; *) echo "pin nao encontrado: $pkg" >&2; exit 1 ;; esac
+          echo "::group::go run $pkg --version"
+          go run "$pkg" --version
+          echo "::endgroup::"
+        done
 
     # `go test -race` exige CGO e um compilador C, que o setup-go não instala.
     # Sem este preflight a falha aparece adiante, como erro obscuro de link.
