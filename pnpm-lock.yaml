@@ -234,11 +234,15 @@ importers:
         specifier: 'catalog:'
         version: 7.2.1(js-yaml@4.3.0)(json5@2.2.3)(webpack@5.105.2)
 
+  libs/backend/go/dmpf-application: {}
+
   libs/backend/go/dmpf-conformance: {}
 
   libs/backend/go/dmpf-contracts: {}
 
   libs/backend/go/dmpf-domain: {}
+
+  libs/backend/go/dmpf-ports: {}
 
 packages:
 

@@ -1,0 +1,34 @@
+{
+  "schema": "dmpf/units@1",
+  "units": [
+    {
+      "id": "dmpf-kernel/application",
+      "block": "application",
+      "bounded_context": "dmpf-kernel",
+      "public_integration_surface": false,
+      "include": [
+        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-application"
+      ]
+    },
+    {
+      "id": "dmpf-kernel/example-memory",
+      "block": "provider",
+      "bounded_context": "dmpf-kernel",
+      "public_integration_surface": false,
+      "include": [
+        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-application/example/memory"
+      ]
+    },
+    {
+      "id": "dmpf-kernel/example-orders-application",
+      "block": "application",
+      "bounded_context": "dmpf-kernel",
+      "public_integration_surface": false,
+      "include": [
+        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-application/example/orders"
+      ]
+    }
+  ],
+  "external": [],
+  "exceptions": []
+}
