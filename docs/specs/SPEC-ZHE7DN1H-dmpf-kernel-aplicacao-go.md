@@ -2,7 +2,7 @@
 id: SPEC-ZHE7DN1H
 slug: dmpf-kernel-aplicacao-go
 title: DMPF KRN-04 — Kernel de aplicação Go: Unit of Work e sequência canônica
-stage: building
+stage: done
 priority: P0
 depends_on: [SPEC-MQA5HAXF, SPEC-WTAXFV8B, SPEC-XF9TF9A0]
 ticket_url: https://lider-cap.atlassian.net/browse/ARQ-523
@@ -179,7 +179,7 @@ Regras que esta spec realiza, com a força que cada fonte declara:
 
 #### Módulo `dmpf-ports-go` — bloco `port`
 
-- [ ] **[P0] Módulo criado por `@nx-go/nx-go:library` em
+- [x] **[P0] Módulo criado por `@nx-go/nx-go:library` em
   `libs/backend/go/dmpf-ports`**, package raiz `dmpfports`, projeto Nx
   `dmpf-ports-go`, tags exatamente `type:lib`, `scope:backend`, `stack:go`,
   `package.json` `{"name": "@lidercap-apps/dmpf-ports-go", "version":
@@ -194,7 +194,7 @@ Regras que esta spec realiza, com a força que cada fonte declara:
   (`node_modules/@nx-go/nx-go/src/graph/create-dependencies.js`), sem
   depender de `require` no `go.mod`; o `affected` do CI enxerga
   `dmpf-ports-go → dmpf-domain-go` pelo próprio código.
-- [ ] **[P0] Valores de fronteira, sem `time` nem `rand`** (RFC §9.3; ADR-016):
+- [x] **[P0] Valores de fronteira, sem `time` nem `rand`** (RFC §9.3; ADR-016):
   - `type Instant int64` — nanossegundos desde a época Unix, comparável e
     ordenável; método `Unix() int64` devolvendo segundos. É o tipo compartilhado
     que a `SPEC-XF9TF9A0` delegou; o domínio de cada contexto mantém o seu
@@ -203,13 +203,13 @@ Regras que esta spec realiza, com a força que cada fonte declara:
     (`message_id`, FND-04 §4.1). Vazio é inválido.
   - `type Version uint64` — versão do agregado para optimistic locking; `0`
     significa "ainda não persistido".
-- [ ] **[P0] Portas de tempo e identidade**, ambas I/O por RFC §6.2 (`io.clock`,
+- [x] **[P0] Portas de tempo e identidade**, ambas I/O por RFC §6.2 (`io.clock`,
   `io.random`) e por isso `port`, nunca `domain` (ADR-014):
   ```go
   type Clock interface { Now() Instant }
   type IDGenerator interface { NewMessageID() MessageID }
   ```
-- [ ] **[P0] Repositório com optimistic locking** (FND-04 §3.3), genérico sobre
+- [x] **[P0] Repositório com optimistic locking** (FND-04 §3.3), genérico sobre
   identidade e estado persistido, em tipos do consumidor:
   ```go
   type Reader[ID comparable, S any] interface {
@@ -228,7 +228,7 @@ Regras que esta spec realiza, com a força que cada fonte declara:
     devolve `ErrVersionConflict` **sem** gravar. Os sentinelas são comparáveis
     com `errors.Is` através de qualquer embrulho.
   - `Reader` existe separado para que a query de `UOW-11` receba só leitura.
-- [ ] **[P0] Porta da outbox em tipos de domínio** (`BLK-01`, `BLK-03`,
+- [x] **[P0] Porta da outbox em tipos de domínio** (`BLK-01`, `BLK-03`,
   `BLK-04`, `BLK-05`; ADR-021):
   ```go
   type PublishIntent struct {
@@ -253,7 +253,7 @@ Regras que esta spec realiza, com a força que cada fonte declara:
     (`status`, `available_at`, `attempt_count`, `locked_by`, `locked_until`,
     `published_at`, `last_error`) são do schema e do relay e NÃO existem aqui.
   - `Enqueue` recebe `context.Context` só para cancelamento (`CTX-21`).
-- [ ] **[P0] Fronteira de Unit of Work** (FND-04 §3.1), genérica sobre o tipo
+- [x] **[P0] Fronteira de Unit of Work** (FND-04 §3.1), genérica sobre o tipo
   de recursos que o caso de uso declara:
   ```go
   type UnitOfWork[R any] interface {
@@ -273,27 +273,27 @@ Regras que esta spec realiza, com a força que cada fonte declara:
     nunca engolida nem convertida em rejeição);
   - `R` é montado pela realização a partir da transação aberta, e é o ÚNICO
     caminho pelo qual portas transacionais alcançam `fn` (`UOW-03`, `UOW-04`).
-- [ ] **[P0] Superfície mínima do package raiz `dmpfports`**: exatamente estes
+- [x] **[P0] Superfície mínima do package raiz `dmpfports`**: exatamente estes
   identificadores exportados — `Instant`, `MessageID`, `Version`, `Clock`,
   `IDGenerator`, `Reader`, `Repository`, `ErrNotFound`, `ErrVersionConflict`,
   `PublishIntent`, `OutboxEntry`, `Outbox`, `UnitOfWork`. Inbox, relay,
   cache, publicação e contexto de execução NÃO entram aqui (são de `KRN-07`,
   `KRN-08`, FND-07). Qualquer acréscimo é decisão de spec.
-- [ ] **[P0] Manifesto**: `dmpf-units.json` com uma unidade
+- [x] **[P0] Manifesto**: `dmpf-units.json` com uma unidade
   `dmpf-kernel/port`, `block: port`, `bounded_context: dmpf-kernel`,
   `public_integration_surface: false`, `include` =
   `[".../libs/backend/go/dmpf-ports"]`; `external: []`, `exceptions: []`.
 
 #### Módulo `dmpf-application-go` — bloco `application`
 
-- [ ] **[P0] Módulo criado por `@nx-go/nx-go:library` em
+- [x] **[P0] Módulo criado por `@nx-go/nx-go:library` em
   `libs/backend/go/dmpf-application`**, package raiz `dmpfapplication`,
   projeto Nx `dmpf-application-go`, mesmas tags, `package.json`
   `@lidercap-apps/dmpf-application-go` privado, module path
   `.../libs/backend/go/dmpf-application`, `go 1.26.4`, entrada no `go.work`,
   cinco targets idênticos, sem `implicitDependencies` (mesma razão do
   `dmpf-ports-go`).
-- [ ] **[P0] Desfecho de aplicação `Outcome[R]`** (`DEC-01`..`DEC-04`; FND-03
+- [x] **[P0] Desfecho de aplicação `Outcome[R]`** (`DEC-01`..`DEC-04`; FND-03
   §6): valor imutável que separa o canal de negócio do canal técnico:
   ```go
   type Outcome[R any] struct { response R; rejection *dmpfdomain.Rejection }
@@ -307,7 +307,7 @@ Regras que esta spec realiza, com a força que cada fonte declara:
   rejeição de negócio viaja no `Outcome` com `error == nil`. `Rejected(nil)` é
   defeito de programação e produz panic no construtor — ausência de rejeição
   não é um terceiro desfecho (`DEC-01`).
-- [ ] **[P0] Resolução de identidade — passo 2** (`UOW-09` rationale; FND-04
+- [x] **[P0] Resolução de identidade — passo 2** (`UOW-09` rationale; FND-04
   §2.3 "por que a identidade nasce no application service"):
   ```go
   type Identity struct { OccurredAt dmpfports.Instant; MessageIDs []dmpfports.MessageID }
@@ -317,7 +317,7 @@ Regras que esta spec realiza, com a força que cada fonte declara:
   número máximo de eventos que o comando pode produzir, declarado pelo caso de
   uso. Chamada ANTES de `Within`. Identificador vazio ou repetido dentro da
   mesma resolução produz panic — é defeito do provider, não caso de uso.
-- [ ] **[P0] Gancho de autorização — passo 1** (`encaminhado` a FND-07):
+- [x] **[P0] Gancho de autorização — passo 1** (`encaminhado` a FND-07):
   ```go
   type AuthorizeFunc[C any] func(ctx context.Context, cmd C) error
   func AllowAll[C any]() AuthorizeFunc[C]
@@ -325,7 +325,7 @@ Regras que esta spec realiza, com a força que cada fonte declara:
   O caso de uso recebe a função e a invoca como primeiro passo; erro devolvido
   interrompe a sequência ANTES do passo 2 e é devolvido como `error` técnico.
   A taxonomia do erro de autorização é de FND-07 e não é modelada aqui.
-- [ ] **[P0] Caso de uso de escrita de referência em `example/orders`**
+- [x] **[P0] Caso de uso de escrita de referência em `example/orders`**
   (package `ordersapp`, unidade `dmpf-kernel/example-orders-application`),
   sobre `dmpf-domain/example/orders`:
   ```go
@@ -362,14 +362,14 @@ Regras que esta spec realiza, com a força que cada fonte declara:
     chamada com `events = 1` e o `message_id` excedente não existe.
   - `Command` é a união `AddItem | PlaceOrder` via interface marcadora não
     exportada, para que um único `AuthorizeFunc` cubra o service.
-- [ ] **[P0] `FromSnapshot` no domínio** (`dmpf-domain/example/orders/order.go`):
+- [x] **[P0] `FromSnapshot` no domínio** (`dmpf-domain/example/orders/order.go`):
   `func FromSnapshot(s Snapshot) *Order` reconstitui o agregado a partir do
   estado persistido, copiando `Items` com `slices.Clone` — a mesma disciplina
   de `Snapshot()` —, para que agregado e snapshot nunca compartilhem o slice
   (`DEC-12`). É computação pura sobre tipos do próprio package; não altera a
   superfície do raiz `dmpfdomain`, o manifesto nem o baseline. Commit com
   scope `dmpf-domain-go`.
-- [ ] **[P0] Realização em memória em `example/memory`** (package `memory`,
+- [x] **[P0] Realização em memória em `example/memory`** (package `memory`,
   unidade **`provider`** `dmpf-kernel/example-memory`):
   ```go
   type Store struct { /* mutex, orders map[orders.OrderID]record, outbox []dmpfports.OutboxEntry, ... */ }
@@ -405,13 +405,13 @@ Regras que esta spec realiza, com a força que cada fonte declara:
   - Não exercita isolamento nem conflito de serialização entre transações
     concorrentes: o mutex serializa `Within`. Isso é declarado no `doc.go` e
     pertence ao `KRN-06`.
-- [ ] **[P0] Manifesto**: `dmpf-units.json` com três unidades, todas
+- [x] **[P0] Manifesto**: `dmpf-units.json` com três unidades, todas
   `bounded_context: dmpf-kernel`, `public_integration_surface: false`:
   `dmpf-kernel/application` (`block: application`, raiz),
   `dmpf-kernel/example-orders-application` (`block: application`,
   `example/orders`), `dmpf-kernel/example-memory` (`block: provider`,
   `example/memory`); `external: []`, `exceptions: []`.
-- [ ] **[P0] Baseline**: `tools/dmpf-baseline/units-baseline.json` regravado
+- [x] **[P0] Baseline**: `tools/dmpf-baseline/units-baseline.json` regravado
   com `--write-baseline` e passa a ter **quatro** entradas novas (uma de
   `dmpf-ports`, três de `dmpf-application`), digest recalculado. Os dois
   manifestos e o baseline vêm em **um commit próprio**, sem código Go, com o
@@ -423,7 +423,7 @@ Regras que esta spec realiza, com a força que cada fonte declara:
 
 #### Gate local e vetores
 
-- [ ] **[P0] Regras `port` e `application` no `.golangci.yml`**, espelhando a
+- [x] **[P0] Regras `port` e `application` no `.golangci.yml`**, espelhando a
   regra `domain` (`list-mode: strict`), com `files` `**/*-ports/**` e
   `**/*-application/**`. A `allow` de ambas é a de `domain` **sem `time`** (o
   verificador o classifica `io.clock` e é o gate autoritativo) e com o
@@ -432,7 +432,7 @@ Regras que esta spec realiza, com a força que cada fonte declara:
   a `deny` de ambas acrescenta `time` com `desc` "io.clock; o instante entra
   por porta". `forbidigo` permanece restrito a `-domain/`: fora do domínio,
   `errors.New`, `fmt.Errorf` e `panic` são legítimos.
-- [ ] **[P0] `tools/dmpf-gate-check.sh` cobre os três blocos**: o filtro de
+- [x] **[P0] `tools/dmpf-gate-check.sh` cobre os três blocos**: o filtro de
   `block === "domain"` passa a aceitar `domain`, `port` e `application`;
   `depguard_cobre()` reconhece `-ports/` e `-application/`; o array de
   vetores de package ganha `time|io.clock|dentro`, aplicado aos módulos
@@ -454,21 +454,30 @@ Regras que esta spec realiza, com a força que cada fonte declara:
     `DMPF-E001` com `Target time`.
   - Positivo: a árvore entregue passa no verificador com zero diagnósticos e
     zero `NAO VERIFICADO` novos.
+  - **Parcial.** V16 (c.11) e V21 (nos dois módulos) emitiram `DMPF-D001` e
+    `DMPF-E001` como especificado, e o positivo passou. V17 (c.23), a célula 20 e
+    a célula 4 são inexequíveis como `DMPF-D001` sobre os módulos reais: a aresta
+    proibida aponta na direção contrária a uma aresta de produção que já existe
+    (`memory → ports`, `application → ports`, `ports → domain`), então o Go recusa
+    por ciclo de imports antes de o verificador avaliar o bloco, e o diagnóstico é
+    `DMPF-E003`. As três células seguem provadas, e com módulos sintéticos sem
+    aresta contrária, pelo oráculo de 36 células do `KRN-02`
+    (`internal/rule/matrix_oracle_test.go:20,36,39`). Registrado no ADR-033.
 
 #### Documentação
 
-- [ ] **[P1] `README.md` em cada módulo**, no molde do `dmpf-domain-go`: o que
+- [x] **[P1] `README.md` em cada módulo**, no molde do `dmpf-domain-go`: o que
   o bloco é e não é, tabela package → unidade, o contrato de `Within`, os nove
   passos apontando para o código, "o que o módulo não contém" (Postgres, wire,
   inbox, relay, retry, telemetria, contexto de execução), validação e
   governança. A seção de garantias declara **at-least-once com efeitos
   idempotentes** e nomeia a vedação a exactly-once (P0-3).
-- [ ] **[P1] `AGENTS.md`**: a seção "### Libs" passa a listar quatro módulos
+- [x] **[P1] `AGENTS.md`**: a seção "### Libs" passa a listar quatro módulos
   ("Duas, ambas Go" → "Quatro, todos Go"), com um parágrafo para cada módulo
   novo no molde dos existentes; o bloco "Cadeia Go" cita
   `tools/dmpf-gate-check.sh` como prova dos blocos `domain`, `port` e
   `application`.
-- [ ] **[P1] ADR-033** em `docs/adr/033-fronteira-de-uow-em-go.md`, indexado
+- [x] **[P1] ADR-033** em `docs/adr/033-fronteira-de-uow-em-go.md`, indexado
   em `docs/adr/README.md` no formato das linhas 129–131, registrando: UoW
   genérica sobre o tipo de recursos com vínculo por `bind` no composition
   root; `Outcome[R]` como separação dos canais; identidade resolvida antes da
@@ -479,26 +488,34 @@ Regras que esta spec realiza, com a força que cada fonte declara:
 
 ### Não-funcionais
 
-- [ ] Sem I/O em teste: `go test ./...` de cada módulo termina em menos de 2 s
+- [x] Sem I/O em teste: `go test ./...` de cada módulo termina em menos de 2 s
   a frio e não cria arquivo, socket ou processo; o fechamento de imports de
   produção não contém `os`, `net`, `os/exec`, `time` nem `testing`.
-- [ ] `go test -race -count=2 -shuffle=on ./...` verde nos dois módulos:
+- [x] `go test -race -count=2 -shuffle=on ./...` verde nos dois módulos:
   nenhuma corrida no `Store` sob `Within` concorrente e nenhum teste
   dependente de ordem.
-- [ ] `go.mod` dos dois módulos sem `require` e sem `replace`; `go.sum`
+- [x] `go.mod` dos dois módulos sem `require` e sem `replace`; `go.sum`
   ausente. Verificado empiricamente (2026-09-03) que, em modo workspace, `go
   vet`/`go build`/`go test` resolvem o módulo irmão pelo `go.work` sem
   `require`, e que `go mod tidy` tenta a rede para resolvê-lo — por isso o
   target `tidy` inferido pelo plugin NÃO faz parte da cadeia e não é invocado
   pelo CI.
-- [ ] Cadeia Go verde por `pnpm nx` nos dois módulos: `fmt-check`, `vet`,
+- [x] Cadeia Go verde por `pnpm nx` nos dois módulos: `fmt-check`, `vet`,
   `lint`, `build`, `test`, `test-race`, `govulncheck`; `bash
   tools/dmpf-gate-check.sh` verde; `go run
   ./libs/backend/go/dmpf-conformance/cmd/dmpf-conformance --root . --base
   origin/develop` com saída `0`.
 - [ ] `pnpm biome ci .` e `pnpm nx affected -t lint,typecheck,test,build
   --exclude=@nx-base-template/source` verdes.
-- [ ] Nenhum comentário em código que reafirme assinatura ou corpo adjacente;
+  - **Parcial.** O `nx affected` passou (4 projetos, `0 issues`). O `pnpm biome ci .`
+    devolve `Checked 0 files` e exit 1, com "These paths were provided but ignored:
+    - ." — achado **pré-existente**, não desta entrega: o `biome.json` não foi
+    tocado na branch e o comportamento se reproduz num clone limpo fora do
+    worktree. `pnpm biome ci libs tools` processa 35 arquivos e passa, e o
+    `pre-commit` do lefthook rodou `biome check --write` em cada commit. O comando
+    é o mesmo do `ci.yml:47`, então merece correção própria, fora do escopo desta
+    história.
+- [x] Nenhum comentário em código que reafirme assinatura ou corpo adjacente;
   os `doc.go` explicam o que cada bloco não contém e por quê, com referência
   à regra (mesma disciplina do `dmpf-domain-go`).
 
@@ -812,25 +829,25 @@ de qualquer `Tx`.
 
 ### Critérios de aceite
 
-- [ ] `AddItem` e `PlaceOrder` executam os nove passos de FND-04 §3.2 na ordem,
+- [x] `AddItem` e `PlaceOrder` executam os nove passos de FND-04 §3.2 na ordem,
   observável por portas instrumentadas que registram `[authorize, clock, ids,
   within, load, save, enqueue, commit]` nessa sequência; somente o passo 5
   ocorre no bloco `domain` (`sequence_test`).
-- [ ] Um teste que arma `FailNextCommit(err)` sobre um `Store` vazio prova que,
+- [x] Um teste que arma `FailNextCommit(err)` sobre um `Store` vazio prova que,
   após `AddItem` aceito (ramo "cria"), `Reader().Load` devolve `ErrNotFound` e
   `Entries()` está vazio; o caso de uso devolve `(Outcome{}, err)` com
   `errors.Is(err, injetado)`.
-- [ ] Um teste que arma `FailNextCommit(err)` sobre um `Store` com `P-100` na
+- [x] Um teste que arma `FailNextCommit(err)` sobre um `Store` com `P-100` na
   versão 1 prova que, após `PlaceOrder` aceito (ramo "carrega"),
   `Reader().Load` devolve o snapshot anterior com `Status Open` e `Version 1`,
   e `Entries()` está vazio.
-- [ ] Sob `Rejected` (`orders/item-limit-exceeded`), o repositório e a outbox
+- [x] Sob `Rejected` (`orders/item-limit-exceeded`), o repositório e a outbox
   não recebem escrita, `WithinCalls() == 1` (o commit ocorreu), e o chamador
   recebe `Outcome` com `Rejection()` igual à rejeição da UPR e `err == nil`.
-- [ ] Um segundo `Store`, gravado por `B.Within` de dentro do callback de `A`,
+- [x] Um segundo `Store`, gravado por `B.Within` de dentro do callback de `A`,
   mantém a escrita quando o callback de `A` devolve erro — a prova de que porta
   não recebida está fora da fronteira de `A` (`UOW-04`).
-- [ ] Versão divergente (`Save` com `expected` desatualizado) devolve
+- [x] Versão divergente (`Save` com `expected` desatualizado) devolve
   `ErrVersionConflict`, `Enqueue` não é chamado, o callback executou
   exatamente uma vez e nenhuma repetição ocorre (`UOW-09`).
 - [ ] Nenhuma assinatura exportada de `dmpfports` menciona `database/sql`,
@@ -838,28 +855,34 @@ de qualquer `Tx`.
   `dmpfapplication` e `ordersapp` não importam `example/memory`: os vetores
   V16 (c.11), V17 (c.23), c.20 e c.4 reprovam com `DMPF-D001` e o vetor V21
   com `DMPF-E001`.
-- [ ] Após `AddItem` aceito, `Entries()[0]` tem `MessageID == "m-000001"`,
+  - **Parcial.** A primeira metade está plena: `go doc -all` do `dmpfports` não tem
+    nenhuma assinatura citando `database/sql`, driver, `time`, `encoding/*`,
+    Protobuf ou tipo do `dmpf-conformance` — as duas únicas menções no arquivo
+    estão no texto do godoc de package que declara **não** usá-los. A segunda
+    metade, dos vetores, é a mesma ressalva do requisito funcional acima: V17,
+    c.20 e c.4 caem por `DMPF-E003` (ciclo de imports) em vez de `DMPF-D001`.
+- [x] Após `AddItem` aceito, `Entries()[0]` tem `MessageID == "m-000001"`,
   `OccurredAt` igual ao `FixedClock`, `Intent.Destination ==
   "orders.events"`, `Intent.PartitionKey == "P-100"`, `AggregateType ==
   "orders.Order"`, `AggregateID == "P-100"`, `AggregateVersion == 1`,
   `Event.EventName() == "orders.item-added"`; o tipo `OutboxEntry` não tem
   campo de estado de drenagem (`BLK-04`, `BLK-05`).
-- [ ] `FindOrder` devolve o snapshot sem abrir UoW (`WithinCalls() == 0`) e
+- [x] `FindOrder` devolve o snapshot sem abrir UoW (`WithinCalls() == 0`) e
   sem gravar outbox (`Entries()` vazio) (`UOW-11`); `Store` tem um único
   recurso e `Within` abre uma única `Tx` (`UOW-01`, `UOW-02`).
-- [ ] Nenhum artefato declara exactly-once fim a fim: `grep -ri
+- [x] Nenhum artefato declara exactly-once fim a fim: `grep -ri
   "exactly-once" libs/backend/go/dmpf-ports libs/backend/go/dmpf-application`
   encontra apenas a vedação nos `README.md`; os `README.md` declaram
   at-least-once com efeitos idempotentes (P0-3, `GAR-02`).
-- [ ] `Within` com contexto cancelado devolve `context.Canceled` sem invocar
+- [x] `Within` com contexto cancelado devolve `context.Canceled` sem invocar
   `fn` e sem incrementar `WithinCalls()`; panic em `fn` é propagado e a `Tx`
   é descartada (`CTX-21`, `ERR-22`).
-- [ ] `FromSnapshot(o.Snapshot()).Snapshot()` é `Equal` ao original e mutar o
+- [x] `FromSnapshot(o.Snapshot()).Snapshot()` é `Equal` ao original e mutar o
   resultado não altera o snapshot de origem.
-- [ ] Manifestos e baseline em commit próprio: o gate com `--base
+- [x] Manifestos e baseline em commit próprio: o gate com `--base
   origin/develop` sai `0`; movê-los para o commit do código faz o gate emitir
   `DMPF-T002` (provado uma vez, sobre cópia, e registrado no PR).
-- [ ] Cadeia Go verde nos dois módulos: `fmt-check`, `vet`, `lint`, `build`,
+- [x] Cadeia Go verde nos dois módulos: `fmt-check`, `vet`, `lint`, `build`,
   `test`, `test-race`, `govulncheck`; `bash tools/dmpf-gate-check.sh` verde
   contando três blocos; `pnpm biome ci .` e `pnpm nx affected -t
   lint,typecheck,test,build --exclude=@nx-base-template/source` verdes.
