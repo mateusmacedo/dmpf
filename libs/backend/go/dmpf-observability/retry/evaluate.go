@@ -89,7 +89,9 @@ type Verdict struct {
 // named in Denied. It is a pure function of Input, so the decision is testable
 // without a clock, a network or a transaction.
 func Evaluate(in Input) Verdict {
-	if in.Attempt >= in.MaxAttempts {
+	// The ceiling counts the original call, so the attempt that just failed
+	// already spent one of the allowance (RES-33).
+	if in.Attempt+1 >= in.MaxAttempts {
 		return Verdict{Denied: FactorAttempts}
 	}
 

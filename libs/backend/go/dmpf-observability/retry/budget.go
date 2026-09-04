@@ -91,12 +91,27 @@ func (b *Budget) Remaining() time.Duration {
 	return time.Duration(b.remaining.Load())
 }
 
-// Exhausted reports the exhaustion once. It latches: the first call after the
-// balance reaches zero returns true and every later call returns false, so the
-// caller increments dmpf_dependency_budget_exhausted_total exactly once per
-// execution instead of once per attempt.
+// Exhausted reports a balance that reached zero, once. It latches: the first
+// call after the balance is gone returns true and every later call returns
+// false, so the caller counts the exhaustion once per execution instead of once
+// per attempt.
 func (b *Budget) Exhausted() bool {
 	if !b.armed.Load() || b.remaining.Load() > 0 {
+		return false
+	}
+	return b.reported.CompareAndSwap(false, true)
+}
+
+// ReportExhaustion latches the same report for a caller that already knows the
+// budget ran out. It exists because a balance above zero can still be too small
+// for another attempt, and only the caller knows what an attempt costs: the
+// budget would report nothing while the retry was already denied for lack of
+// funds (RES-36).
+//
+// It shares the latch with Exhausted, so an execution reports at most once
+// whichever of the two observes it first.
+func (b *Budget) ReportExhaustion() bool {
+	if !b.armed.Load() {
 		return false
 	}
 	return b.reported.CompareAndSwap(false, true)

@@ -165,3 +165,73 @@ func TestExhaustedLatchesOnceUnderConcurrency(t *testing.T) {
 		t.Fatalf("Exhausted() reported %d times under concurrency, want exactly 1", reports)
 	}
 }
+
+func TestReportExhaustionLatchesWithABalanceStillAboveZero(t *testing.T) {
+	budget := armedBudget(t, time.Second)
+
+	if !budget.ReportExhaustion() {
+		t.Fatal("ReportExhaustion() = false on the first call, want true: a balance above zero can still be too small for another attempt")
+	}
+	if budget.ReportExhaustion() {
+		t.Fatal("ReportExhaustion() = true twice, want the report to latch")
+	}
+}
+
+func TestReportExhaustionSharesTheLatchWithExhausted(t *testing.T) {
+	t.Run("report first", func(t *testing.T) {
+		budget := armedBudget(t, time.Second)
+
+		if !budget.ReportExhaustion() {
+			t.Fatal("ReportExhaustion() = false on the first call")
+		}
+		budget.Debit(time.Second)
+		if budget.Exhausted() {
+			t.Fatal("Exhausted() = true after ReportExhaustion already reported: an execution must report at most once")
+		}
+	})
+
+	t.Run("exhausted first", func(t *testing.T) {
+		budget := armedBudget(t, time.Second)
+		budget.Debit(time.Second)
+
+		if !budget.Exhausted() {
+			t.Fatal("Exhausted() = false with the balance gone")
+		}
+		if budget.ReportExhaustion() {
+			t.Fatal("ReportExhaustion() = true after Exhausted already reported")
+		}
+	})
+}
+
+func TestAnUnarmedBudgetReportsNoExhaustion(t *testing.T) {
+	ctx := retry.WithBudget(context.Background())
+	budget, _ := retry.BudgetFrom(ctx)
+
+	if budget.ReportExhaustion() {
+		t.Fatal("ReportExhaustion() = true on an unsized budget: nothing was spent")
+	}
+}
+
+func TestReportExhaustionLatchesOnceUnderConcurrency(t *testing.T) {
+	budget := armedBudget(t, time.Second)
+
+	var reports int64
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	for range 64 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if budget.ReportExhaustion() {
+				mu.Lock()
+				reports++
+				mu.Unlock()
+			}
+		}()
+	}
+	wg.Wait()
+
+	if reports != 1 {
+		t.Fatalf("ReportExhaustion() reported %d times under concurrency, want exactly 1", reports)
+	}
+}

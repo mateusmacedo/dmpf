@@ -78,6 +78,13 @@ func TestEvaluateNamesTheFirstFalseFactor(t *testing.T) {
 			want:  retry.FactorAttempts,
 		},
 		{
+			// The ceiling counts the original: with three allowed, the attempt
+			// at index 2 is the third and buys nothing more.
+			name:  "the last allowed attempt buys no further one",
+			mutar: func(in *retry.Input) { in.Attempt = 2 },
+			want:  retry.FactorAttempts,
+		},
+		{
 			name:  "classifier says not retryable",
 			mutar: func(in *retry.Input) { in.Classifier = always(retry.NotRetryable) },
 			want:  retry.FactorRetryable,
@@ -134,6 +141,33 @@ func TestEvaluateNamesTheFirstFalseFactor(t *testing.T) {
 				t.Fatalf("Denied = %v, want %v", got.Denied, caso.want)
 			}
 		})
+	}
+}
+
+func TestTheAttemptBeforeTheLastIsStillAllowed(t *testing.T) {
+	in := allowingInput(t)
+	in.Attempt = 1
+
+	if got := retry.Evaluate(in); !got.Allowed {
+		t.Fatalf("Verdict = %+v at attempt 1 of a ceiling of 3, want allowed", got)
+	}
+}
+
+func TestTheBackoffExponentFollowsTheAttemptIndex(t *testing.T) {
+	in := allowingInput(t)
+	in.Rand = func() float64 { return 1 }
+	in.Remaining = time.Hour
+	in.Budget = armedBudget(t, time.Hour)
+
+	first := retry.Evaluate(in)
+	in.Attempt = 1
+	second := retry.Evaluate(in)
+
+	if first.Wait != retry.DefaultBase {
+		t.Fatalf("the first wait = %v, want the base %v: the first failure is attempt 0", first.Wait, retry.DefaultBase)
+	}
+	if second.Wait != 2*retry.DefaultBase {
+		t.Fatalf("the second wait = %v, want %v", second.Wait, 2*retry.DefaultBase)
 	}
 }
 
