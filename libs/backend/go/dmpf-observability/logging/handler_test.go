@@ -236,3 +236,134 @@ func TestWithAttrsAndWithGroupKeepTheMandatoryFields(t *testing.T) {
 		t.Fatalf("dependency = %v, want \"payments\"", got["dependency"])
 	}
 }
+
+// countKey is how many times a key appears at the root of the rendered line.
+// It counts on the raw JSON, not on a decoded map, because a decoded map keeps
+// only the last value of a duplicated key — which is exactly the failure these
+// tests guard against.
+func countKey(line, key string) int {
+	needle := `"` + key + `":`
+	found, from := 0, 0
+	for {
+		at := strings.Index(line[from:], needle)
+		if at < 0 {
+			return found
+		}
+		found++
+		from += at + len(needle)
+	}
+}
+
+func renderRaw(t *testing.T, config logging.Config, emit func(logger *slog.Logger)) []string {
+	t.Helper()
+
+	var out bytes.Buffer
+	emit(slog.New(logging.NewHandler(&out, config)))
+
+	written := strings.TrimSpace(out.String())
+	if written == "" {
+		return nil
+	}
+	return strings.Split(written, "\n")
+}
+
+func TestAnAuthorAttributeCannotOccupyAMandatoryKey(t *testing.T) {
+	rendered := renderRaw(t, baseConfig(), func(logger *slog.Logger) {
+		logger.With(slog.String(logging.KeyService, "impostor")).Info("order accepted")
+	})
+
+	record := rendered[len(rendered)-1]
+	if got := countKey(record, logging.KeyService); got != 1 {
+		t.Fatalf("service appears %d times in %s, want exactly 1 — a duplicated key lets the author's value win", got, record)
+	}
+	if !strings.Contains(record, `"service":"orders"`) {
+		t.Errorf("record = %s, want the platform service to survive", record)
+	}
+	if !strings.Contains(record, `"`+logging.AuthorPrefix+`service":"impostor"`) {
+		t.Errorf("record = %s, want the author's value kept under the %q prefix", record, logging.AuthorPrefix)
+	}
+}
+
+func TestAnAuthorGroupCannotOccupyAMandatoryKey(t *testing.T) {
+	rendered := renderRaw(t, baseConfig(), func(logger *slog.Logger) {
+		logger.WithGroup(logging.KeyService).Info("order accepted", slog.String("inner", "1"))
+	})
+
+	record := rendered[len(rendered)-1]
+	if got := countKey(record, logging.KeyService); got != 1 {
+		t.Fatalf("service appears %d times in %s, want exactly 1", got, record)
+	}
+	if !strings.Contains(record, `"`+logging.AuthorPrefix+`service":{"inner":"1"}`) {
+		t.Errorf("record = %s, want the author's group under the %q prefix", record, logging.AuthorPrefix)
+	}
+}
+
+func TestARecordAttributeCannotOccupyAMandatoryKey(t *testing.T) {
+	rendered := renderRaw(t, baseConfig(), func(logger *slog.Logger) {
+		logger.Info("order accepted", slog.String(logging.KeyTraceID, "forjado"))
+	})
+
+	record := rendered[len(rendered)-1]
+	if got := countKey(record, logging.KeyTraceID); got != 1 {
+		t.Fatalf("trace_id appears %d times in %s, want exactly 1", got, record)
+	}
+	if !strings.Contains(record, `"`+logging.AuthorPrefix+`trace_id":"forjado"`) {
+		t.Errorf("record = %s, want the author's value under the %q prefix", record, logging.AuthorPrefix)
+	}
+}
+
+func TestEveryMandatoryKeyIsProtected(t *testing.T) {
+	protected := []string{
+		logging.KeyTraceID, logging.KeySpanID, logging.KeyService, logging.KeyVersion,
+		logging.KeyInstance, logging.KeyCorrelationID, logging.KeyRequestID, logging.KeyTenantID,
+	}
+
+	for _, key := range protected {
+		t.Run(key, func(t *testing.T) {
+			rendered := renderRaw(t, baseConfig(), func(logger *slog.Logger) {
+				logger.Info("order accepted", slog.String(key, "impostor"))
+			})
+
+			record := rendered[len(rendered)-1]
+			if got := countKey(record, key); got != 1 {
+				t.Fatalf("%s appears %d times in %s, want exactly 1", key, got, record)
+			}
+		})
+	}
+}
+
+func TestInsideAnAuthorGroupTheKeysAreFreeAgain(t *testing.T) {
+	rendered := renderRaw(t, baseConfig(), func(logger *slog.Logger) {
+		logger.WithGroup("payload").Info("order accepted", slog.String(logging.KeyService, "inner"))
+	})
+
+	record := rendered[len(rendered)-1]
+	if !strings.Contains(record, `"payload":{"service":"inner"}`) {
+		t.Fatalf("record = %s, want service kept inside the group: payload.service collides with nothing", record)
+	}
+	if !strings.Contains(record, `"service":"orders"`) {
+		t.Errorf("record = %s, want the platform service at the root", record)
+	}
+}
+
+func TestTheRenamingIsWarnedOnce(t *testing.T) {
+	rendered := renderRaw(t, baseConfig(), func(logger *slog.Logger) {
+		guarded := logger.With(slog.String(logging.KeyService, "impostor"))
+		guarded.Info("first")
+		guarded.Info("second")
+		guarded.Info("third")
+	})
+
+	warnings := 0
+	for _, line := range rendered {
+		if strings.Contains(line, `"level":"WARN"`) && strings.Contains(line, "renamed_keys") {
+			warnings++
+			if !strings.Contains(line, logging.KeyService) {
+				t.Errorf("warning = %s, want it to name the renamed key", line)
+			}
+		}
+	}
+	if warnings != 1 {
+		t.Fatalf("warnings = %d, want exactly 1 — one bad call site must not flood the log", warnings)
+	}
+}

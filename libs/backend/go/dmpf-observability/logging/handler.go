@@ -30,6 +30,34 @@ const (
 // is ignored: the field set of a record is a contract, not a free-form map.
 var correlationKeys = []string{KeyCorrelationID, KeyRequestID, KeyTenantID}
 
+// reservedKeys are the keys the platform writes at the root of every record.
+// They are reserved because JSON tolerates a duplicated key and readers keep
+// the last one: an author attribute named service would silently take the place
+// of the service the record is about (LOG-01).
+var reservedKeys = []string{
+	KeyTraceID, KeySpanID, KeyService, KeyVersion, KeyInstance,
+	KeyCorrelationID, KeyRequestID, KeyTenantID,
+}
+
+// AuthorPrefix renames what the author put on a reserved key. Renaming keeps
+// the author's value in the record, which dropping it would not, and still
+// leaves the reserved key to the platform.
+const AuthorPrefix = "app."
+
+func isReserved(key string) bool { return slices.Contains(reservedKeys, key) }
+
+// rename moves a reserved key out of the way, recursively for a group, so a
+// nested attribute cannot re-enter through it.
+func rename(attr slog.Attr) slog.Attr {
+	if attr.Value.Kind() == slog.KindGroup && isReserved(attr.Key) {
+		return slog.Attr{Key: AuthorPrefix + attr.Key, Value: attr.Value}
+	}
+	if isReserved(attr.Key) {
+		return slog.Attr{Key: AuthorPrefix + attr.Key, Value: attr.Value}
+	}
+	return attr
+}
+
 // Fields is what the edge extracts from the context. It is a map and not a
 // struct because the extractor is injected and may return whatever it likes;
 // the handler is what enforces the allowlist.
@@ -74,11 +102,28 @@ type Config struct {
 // author's group and a query for them would stop finding them (LOG-01).
 type handler struct {
 	base     slog.Handler
-	steps    []func(slog.Handler) slog.Handler
+	steps    []step
+	grouped  bool
 	config   Config
 	sampler  sampler
 	redactor redact.Redactor
 	warnOnce *sync.Once
+	clashes  *sync.Once
+}
+
+// step is one call the author made. The group is tracked apart from the
+// attributes because only the root of the record has reserved keys: inside an
+// author group, service is payload.service and collides with nothing.
+type step struct {
+	group string
+	attrs []slog.Attr
+}
+
+func (s step) apply(inner slog.Handler) slog.Handler {
+	if s.group != "" {
+		return inner.WithGroup(s.group)
+	}
+	return inner.WithAttrs(s.attrs)
 }
 
 // NewHandler builds the platform handler over w.
@@ -98,6 +143,7 @@ func NewHandler(w io.Writer, config Config) slog.Handler {
 		sampler:  sampler{class: class, rates: rates, rand: config.Rand},
 		redactor: redact.New(config.AllowedFields...),
 		warnOnce: &sync.Once{},
+		clashes:  &sync.Once{},
 	}
 }
 
@@ -116,15 +162,44 @@ func (h *handler) Enabled(ctx context.Context, level slog.Level) bool {
 }
 
 func (h *handler) Handle(ctx context.Context, record slog.Record) error {
-	return h.effective(ctx).Handle(ctx, record)
+	return h.effective(ctx).Handle(ctx, h.guard(ctx, record))
+}
+
+// guard renames the attributes of the record that would land on a reserved key.
+// It only acts at the root: under an author group the keys are already prefixed
+// by the group and cannot collide.
+func (h *handler) guard(ctx context.Context, record slog.Record) slog.Record {
+	if h.grouped {
+		return record
+	}
+
+	clashing := make([]string, 0, record.NumAttrs())
+	record.Attrs(func(attr slog.Attr) bool {
+		if isReserved(attr.Key) {
+			clashing = append(clashing, attr.Key)
+		}
+		return true
+	})
+	if len(clashing) == 0 {
+		return record
+	}
+
+	h.reportClashes(ctx, clashing)
+
+	guarded := slog.NewRecord(record.Time, record.Level, record.Message, record.PC)
+	record.Attrs(func(attr slog.Attr) bool {
+		guarded.AddAttrs(rename(attr))
+		return true
+	})
+	return guarded
 }
 
 // effective is the base handler carrying the mandatory fields, with the
 // author's steps replayed on top of them.
 func (h *handler) effective(ctx context.Context) slog.Handler {
 	built := h.base.WithAttrs(h.mandatory(ctx))
-	for _, step := range h.steps {
-		built = step(built)
+	for _, applied := range h.steps {
+		built = applied.apply(built)
 	}
 	return built
 }
@@ -134,10 +209,23 @@ func (h *handler) WithAttrs(attrs []slog.Attr) slog.Handler {
 		return h
 	}
 
+	kept := attrs
+	if !h.grouped {
+		clashing := make([]string, 0, len(attrs))
+		kept = make([]slog.Attr, 0, len(attrs))
+		for _, attr := range attrs {
+			if isReserved(attr.Key) {
+				clashing = append(clashing, attr.Key)
+			}
+			kept = append(kept, rename(attr))
+		}
+		if len(clashing) > 0 {
+			h.reportClashes(context.Background(), clashing)
+		}
+	}
+
 	next := *h
-	next.steps = append(slices.Clone(h.steps), func(inner slog.Handler) slog.Handler {
-		return inner.WithAttrs(attrs)
-	})
+	next.steps = append(slices.Clone(h.steps), step{attrs: kept})
 	return &next
 }
 
@@ -146,11 +234,36 @@ func (h *handler) WithGroup(name string) slog.Handler {
 		return h
 	}
 
+	opened := name
+	if !h.grouped && isReserved(name) {
+		h.reportClashes(context.Background(), []string{name})
+		opened = AuthorPrefix + name
+	}
+
 	next := *h
-	next.steps = append(slices.Clone(h.steps), func(inner slog.Handler) slog.Handler {
-		return inner.WithGroup(name)
-	})
+	next.steps = append(slices.Clone(h.steps), step{group: opened})
+	next.grouped = true
 	return &next
+}
+
+// reportClashes warns once per handler that reserved keys were renamed. One
+// warning per record would turn a single bad call site into a flood.
+func (h *handler) reportClashes(ctx context.Context, clashing []string) {
+	h.clashes.Do(func() {
+		if !h.base.Enabled(ctx, slog.LevelWarn) {
+			return
+		}
+
+		slices.Sort(clashing)
+		warning := slog.NewRecord(time.Now(), slog.LevelWarn,
+			"dmpf: keys reserved by the platform were renamed to keep the mandatory fields", 0)
+		warning.AddAttrs(
+			slog.String(KeyService, h.config.Service),
+			slog.Any("renamed_keys", slices.Compact(clashing)),
+			slog.String("prefix", AuthorPrefix),
+		)
+		_ = h.base.Handle(ctx, warning)
+	})
 }
 
 func (h *handler) mandatory(ctx context.Context) []slog.Attr {
