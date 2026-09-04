@@ -39,3 +39,19 @@ func AttemptEvent(span trace.Span, attempt int, previousCategory string) {
 	}
 	span.AddEvent(EventAttempt, trace.WithAttributes(recorded...))
 }
+
+// EventBulkheadSaturated is the event a refused call leaves on the span when
+// the pool and its queue are full (RES-23).
+const EventBulkheadSaturated = "dmpf.bulkhead.saturated"
+
+// BulkheadSaturated records the refusal on the span. It is a named function
+// rather than a generic AddEvent so the set of events the platform emits stays
+// closed, like the attribute builder.
+func BulkheadSaturated(span trace.Span, dependency string) {
+	if span == nil {
+		return
+	}
+	span.AddEvent(EventBulkheadSaturated, trace.WithAttributes(
+		attribute.String(KeyDependency, dependency),
+	))
+}
