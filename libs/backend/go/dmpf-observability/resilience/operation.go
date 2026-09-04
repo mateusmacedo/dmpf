@@ -1,6 +1,7 @@
 package resilience
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -41,6 +42,19 @@ type Operation struct {
 	// EstimatedDuration is how long one attempt is expected to take. Zero is
 	// invalid: the budget and deadline factors cannot be decided without it.
 	EstimatedDuration time.Duration
+}
+
+// Call is a decorated call. Every decorator has this shape, so the composition
+// is a chain of the same type and the order is the only thing that varies.
+type Call func(ctx context.Context, op Operation, do func(context.Context) error) error
+
+// Decorator wraps a call. It is applied from the outside in, so the first
+// decorator of the canonical order is the outermost one.
+type Decorator func(next Call) Call
+
+// Direct is the innermost call: it invokes the work and nothing else.
+func Direct(ctx context.Context, _ Operation, do func(context.Context) error) error {
+	return do(ctx)
 }
 
 // ForRetry is the view the retry evaluator reads. The conversion lives here,

@@ -73,6 +73,22 @@ var (
 		message:  "resilience: an order other than the canonical one requires a declared reason",
 	}
 
+	// ErrDeadlineExceeded is a call that ran out of its effective deadline. It
+	// is a category of its own, told apart from a cancellation, because one is
+	// the platform running late and the other is the caller giving up (CTX-28).
+	ErrDeadlineExceeded = &Error{
+		category: CategoryDeadlineExceeded,
+		code:     "RES-06",
+		message:  "resilience: the effective deadline of the call was exceeded",
+	}
+
+	// ErrCancelled is a call the caller gave up on.
+	ErrCancelled = &Error{
+		category: CategoryCancelled,
+		code:     "CTX-28",
+		message:  "resilience: the caller cancelled the call",
+	}
+
 	// ErrBlankField refuses a sheet with a field that declares neither a value
 	// nor a reason: a blank is a policy nobody decided (RES-21).
 	ErrBlankField = &Error{
