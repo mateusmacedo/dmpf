@@ -185,7 +185,7 @@ Depois de gerar, cinco ajustes que o generator não faz:
    ```bash
    go -C libs/backend/go/<name> mod edit \
      -module gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/<name>
-   go -C libs/backend/go/<name> mod edit -go=1.26.4   # o generator descarta o patch
+   go -C libs/backend/go/<name> mod edit -go=1.26.8   # o generator descarta o patch
    ```
 
 3. **`package.json` privado** — `{"name": "@lidercap-apps/<name>-go", "version": "0.0.0", "private": true}`.

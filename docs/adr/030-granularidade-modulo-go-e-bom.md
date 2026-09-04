@@ -49,6 +49,13 @@ fica idêntica local e no CI, sem poluir o `go.mod` do domínio com dependência
 ferramenta. O CI lê o piso do `go.work` por `go-version-file`, e não de uma
 versão literal no workflow, para não abrir uma segunda fonte da verdade.
 
+> **Addendum (2026-09-04)** — o piso e o toolchain Go passaram a `1.26.8`
+> (ARQ-528, KRN-09). No piso `1.26.4` o `govulncheck v1.7.0` reprova assim que
+> os exportadores OTLP entram no grafo: GO-2026-6090 e GO-2026-5856 em
+> `crypto/tls`, GO-2026-5972 em `encoding/asn1`. O `1.26.8` remove a
+> alcançabilidade. Os três lugares de declaração da tabela continuam os mesmos, e
+> a decisão de fonte única não muda — só o valor da primeira linha.
+
 **`package.json` privado no módulo Go.** O módulo carrega um manifesto npm
 mínimo — `name`, `version: 0.0.0` e `private: true`. Ele existe por uma razão
 mecânica verificada no código instalado: o `JsVersionActions` do `@nx/js` declara
