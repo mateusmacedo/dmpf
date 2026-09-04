@@ -242,6 +242,8 @@ importers:
 
   libs/backend/go/dmpf-domain: {}
 
+  libs/backend/go/dmpf-observability: {}
+
   libs/backend/go/dmpf-ports: {}
 
 packages:

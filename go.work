@@ -5,5 +5,6 @@ use (
 	./libs/backend/go/dmpf-conformance
 	./libs/backend/go/dmpf-contracts
 	./libs/backend/go/dmpf-domain
+	./libs/backend/go/dmpf-observability
 	./libs/backend/go/dmpf-ports
 )
