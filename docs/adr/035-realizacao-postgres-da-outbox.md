@@ -82,6 +82,20 @@ type `v2`, publicando uma inconsistência que só o consumidor descobriria
 Um skip silencioso no CI deixaria a UoW e a outbox sem prova executável, que é
 exatamente o que esta entrega existe para dar.
 
+**No CI, o Postgres sobe por `docker run` compartilhando o namespace de rede do
+job, não pelo bloco `services:`.** A primeira tentativa usou `services:`, e o
+primeiro push mostrou por que ele não serve aqui: o `act_runner` cria o serviço e
+o job na **bridge default** do Docker, que não faz resolução DNS por nome de
+container, e o próprio log declara que ignora rede customizada
+(`--network and --net in the options will be ignored`). O serviço subia, mas
+`lookup postgres` falhava. Publicar a porta e mirar o gateway da bridge
+resolveria, ao custo de um IP que varia por runner. Como o job monta
+`/var/run/docker.sock`, subir o container com `--network container:$(hostname)`
+o coloca no mesmo namespace de rede do job: alcançável em `localhost:5432`, sem
+DNS, sem IP fixo e sem porta publicada. O nome do container carrega o id do job
+pelo mesmo motivo de o socket vir do host: um nome fixo colidiria entre jobs
+concorrentes na mesma máquina, ou com o resíduo de um job morto sem limpeza.
+
 **O target `test-race` roda com `cache: false` no Nx e `-count=1` no `go test`.**
 São dois caches distintos e ambos devolvem resultado antigo para teste de banco:
 o do Nx ignora que o banco mudou, e o do `go test` também — ele indexa binário,
@@ -117,7 +131,8 @@ inventariação.
 | Mapeador no bloco `application`, injetado no provider | Faria o application service importar `contract` — célula 12, a mesma aresta que este ADR manda o gate reprovar. |
 | Detectar duplicata por `SELECT` antes do `INSERT` | Duas transações concorrentes passariam no `SELECT` e colidiriam no `INSERT`: a unicidade tem de ser do schema, como `OBX-01` determina, e o SQLSTATE `23505` é a prova. |
 | Testes de banco sem build tag, como a spec original previa | Colocaria teste que exige Postgres no `go test ./...` comum, contrariando `.claude/rules/testing-conventions.md` e quebrando o `pre-push` de quem não tem o compose no ar. |
-| `testcontainers-go` no lugar de `services.postgres` do CI | Exige Docker dentro do runner — condição não confirmada no `gitea-runner` — e acrescenta dependência pesada a um módulo cujo `go.mod` tem duas entradas. |
+| `testcontainers-go` no lugar do Postgres do CI | Acrescenta dependência pesada a um módulo cujo `go.mod` tem duas entradas. O primeiro push confirmou que o `gitea-runner` tem Docker, então o impedimento restante é o peso, não a capacidade. |
+| Manter `services:` e mirar o gateway da bridge com a porta publicada | Funcionaria, mas amarra o DSN a um IP de gateway que varia por runner e por configuração de rede do host. |
 | Vetores de célula como fixtures sintéticas sob `testdata/` | Tocaria o `dmpf-conformance`, fora do escopo desta história, e provaria a regra genérica que o verificador já cobre em vez das células que este módulo torna alcançáveis. |
 | Provar as células com fixture na árvore de trabalho, como o `dmpf-gate-check.sh` faz | Lá o fixture só precisa sobreviver ao `depguard`; aqui ele precisa sobreviver a um `go list` sobre o módulo inteiro, e um `.go` proibido visível na árvore real quebraria o build de quem trabalha em paralelo. |
 | Confiar só no `cache: false` do Nx para o `test-race` | São dois caches: o do `go test` também devolveria resultado antigo, porque indexa binário e variáveis consultadas, nunca o estado do banco. |
