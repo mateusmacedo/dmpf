@@ -2,7 +2,8 @@
 
 // Package memory realizes the unit of work and the ports in memory, as the
 // provider unit dmpf-kernel/example-memory. It closes the reference use case
-// end to end without a database, and KRN-06 replaces it with Postgres.
+// end to end without a database; dmpf-provider-postgres is the counterpart that
+// runs it against a real one (KRN-06).
 //
 // What it proves: one transaction per Within over one resource, the callback
 // invoked exactly once, commit applying business state and outbox together,
@@ -14,7 +15,7 @@
 // concurrent transactions. Within holds one mutex for the whole callback, so
 // transactions are serialized rather than isolated, and Load and Save of the
 // same Tx always see the same state — a version conflict has to be injected by
-// the caller. Real isolation belongs to KRN-06.
+// the caller. Real isolation is dmpf-provider-postgres's (KRN-06).
 //
 // Store keeps two mutexes so that this serialization does not become a trap:
 // txMu is held for the whole callback and is what makes one transaction exclude

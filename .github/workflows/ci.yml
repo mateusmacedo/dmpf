@@ -25,6 +25,22 @@ jobs:
     timeout-minutes: 30
     env:
       NX_EXCLUDE: "@nx-base-template/source"
+      DMPF_PG_DSN: "postgres://dmpf:dmpf@postgres:5432/dmpf?sslmode=disable"
+
+    # Sem este serviço os testes do dmpf-provider-postgres-go FALHAM em CI em vez
+    # de pular: um skip silencioso deixaria a UoW e a outbox sem prova executável.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: dmpf
+          POSTGRES_PASSWORD: dmpf
+          POSTGRES_DB: dmpf
+        options: >-
+          --health-cmd "pg_isready -U dmpf"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
       - name: Checkout
@@ -81,6 +97,12 @@ jobs:
       - name: DMPF dependency gate
         if: steps.go_affected.outputs.any == 'true'
         run: bash tools/dmpf-gate-check.sh
+
+      # Complementa o step acima onde o depguard não alcança: ele decide por nome
+      # de diretório, e célula é aresta entre unidades, que só o verificador vê.
+      - name: DMPF cell gate
+        if: steps.go_affected.outputs.any == 'true'
+        run: bash tools/dmpf-cell-check.sh
 
       # GATE, fail-closed. Sem `continue-on-error` e sem `|| true`: a partir
       # daqui o verificador reprova o PR. O passo shadow que existia aqui foi
