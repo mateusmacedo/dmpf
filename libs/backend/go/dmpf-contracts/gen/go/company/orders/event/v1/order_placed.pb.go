@@ -78,6 +78,7 @@ type OrderPlaced struct {
 	CustomerId    string                 `protobuf:"bytes,2,opt,name=customer_id,json=customerId,proto3" json:"customer_id,omitempty"`
 	TotalCents    int64                  `protobuf:"varint,3,opt,name=total_cents,json=totalCents,proto3" json:"total_cents,omitempty"`
 	Channel       OrderChannel           `protobuf:"varint,4,opt,name=channel,proto3,enum=company.orders.event.v1.OrderChannel" json:"channel,omitempty"`
+	ItemCount     int32                  `protobuf:"varint,6,opt,name=item_count,json=itemCount,proto3" json:"item_count,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -140,18 +141,27 @@ func (x *OrderPlaced) GetChannel() OrderChannel {
 	return OrderChannel_ORDER_CHANNEL_UNSPECIFIED
 }
 
+func (x *OrderPlaced) GetItemCount() int32 {
+	if x != nil {
+		return x.ItemCount
+	}
+	return 0
+}
+
 var File_company_orders_event_v1_order_placed_proto protoreflect.FileDescriptor
 
 const file_company_orders_event_v1_order_placed_proto_rawDesc = "" +
 	"\n" +
-	"*company/orders/event/v1/order_placed.proto\x12\x17company.orders.event.v1\"\xc4\x01\n" +
+	"*company/orders/event/v1/order_placed.proto\x12\x17company.orders.event.v1\"\xe3\x01\n" +
 	"\vOrderPlaced\x12\x19\n" +
 	"\border_id\x18\x01 \x01(\tR\aorderId\x12\x1f\n" +
 	"\vcustomer_id\x18\x02 \x01(\tR\n" +
 	"customerId\x12\x1f\n" +
 	"\vtotal_cents\x18\x03 \x01(\x03R\n" +
 	"totalCents\x12?\n" +
-	"\achannel\x18\x04 \x01(\x0e2%.company.orders.event.v1.OrderChannelR\achannelJ\x04\b\x05\x10\x06R\x11legacy_promo_code*[\n" +
+	"\achannel\x18\x04 \x01(\x0e2%.company.orders.event.v1.OrderChannelR\achannel\x12\x1d\n" +
+	"\n" +
+	"item_count\x18\x06 \x01(\x05R\titemCountJ\x04\b\x05\x10\x06R\x11legacy_promo_code*[\n" +
 	"\fOrderChannel\x12\x1d\n" +
 	"\x19ORDER_CHANNEL_UNSPECIFIED\x10\x00\x12\x15\n" +
 	"\x11ORDER_CHANNEL_WEB\x10\x01\x12\x15\n" +

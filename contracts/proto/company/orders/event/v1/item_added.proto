@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package company.orders.event.v1;
+
+// An item was added to an order in the orders bounded context.
+// Envelope type: com.company.orders.item-added.v1 (PTB-03).
+message ItemAdded {
+  string order_id = 1;
+  string sku = 2;
+  int32 quantity = 3;
+}
