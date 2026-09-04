@@ -1,6 +1,7 @@
 package resilience
 
 import (
+	"fmt"
 	"time"
 
 	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/retry"
@@ -52,5 +53,25 @@ func (o Operation) ForRetry() retry.Operation {
 		Idempotent:        o.Idempotent,
 		EffectAbsent:      o.EffectAbsent,
 		EstimatedDuration: o.EstimatedDuration,
+	}
+}
+
+// Validate refuses an operation the decorators cannot decide about. A call
+// without a deadline does not exist (RES-05), and without an estimate the
+// budget and deadline factors of the retry conjunction have nothing to compare.
+func (o Operation) Validate() error {
+	switch {
+	case o.Dependency == "":
+		return fmt.Errorf("resilience: operation declares no dependency")
+	case o.Method == "":
+		return fmt.Errorf("resilience: %s: operation declares no method", o.Dependency)
+	case o.Kind == "":
+		return fmt.Errorf("resilience: %s.%s: operation declares no kind", o.Dependency, o.Method)
+	case o.Deadline <= 0:
+		return fmt.Errorf("resilience: %s.%s: operation declares no deadline (RES-05)", o.Dependency, o.Method)
+	case o.EstimatedDuration <= 0:
+		return fmt.Errorf("resilience: %s.%s: operation declares no estimated duration", o.Dependency, o.Method)
+	default:
+		return nil
 	}
 }
