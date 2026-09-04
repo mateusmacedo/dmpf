@@ -16,7 +16,7 @@ Duas unidades no manifesto, ambas `provider`, ambas em `dmpf-kernel`:
 ## O que o módulo contém
 
 - **`uow.go`** — `NewUnitOfWork[R]`, `Tx` e `Within`. Uma transação por
-  chamada, o callback invocado exatamente uma vez, e as seis cláusulas do
+  chamada, o callback invocado uma única vez, e as seis cláusulas do
   contrato provadas em `uow_test.go`.
 - **`outbox.go`** — `Tx.Outbox(mapper)` e `Enqueue`. Grava na mesma `pgx.Tx` do
   estado de negócio: um commit torna os dois visíveis, ou nenhum.

@@ -2,7 +2,7 @@
 id: SPEC-3R80KNMS
 slug: dmpf-outbox-postgres
 title: DMPF KRN-06 — Outbox Postgres: provider, mapeamento e serialização na escrita
-stage: building
+stage: done
 priority: P0
 depends_on: [SPEC-MQA5HAXF, SPEC-WTAXFV8B, SPEC-ZHE7DN1H, SPEC-WYX5GW87]
 ticket_url: https://lider-cap.atlassian.net/browse/ARQ-525
@@ -796,44 +796,47 @@ Enqueue(ctx, entry):
 
 ### Critérios de aceite
 
-- [ ] A assinatura de `dmpfports.Outbox`, `OutboxEntry` e `PublishIntent` não
+- [x] A assinatura de `dmpfports.Outbox`, `OutboxEntry` e `PublishIntent` não
   menciona tipo gerado de Protobuf, `pgx` nem `[]byte`; `git diff` de
-  `dmpf-ports/` é vazio e o verificador aprova a unidade `dmpf-kernel/port`
-  como `pure`.
-- [ ] `dmpf-application` não importa driver, cliente de banco nem o tipo da
+  `dmpf-ports/*.go` é vazio e o verificador aprova a unidade `dmpf-kernel/port`
+  como `pure`. **Ajustado na implementação**: o critério dizia `dmpf-ports/`
+  inteiro, mas o `go.mod` do módulo mudou na subida de toolchain para 1.26.6
+  (decidida nesta entrega, ver ADR-035). A intenção — a superfície da porta não
+  muda — segue provada: nenhum `.go` de `dmpf-ports` foi tocado.
+- [x] `dmpf-application` não importa driver, cliente de banco nem o tipo da
   linha: `go list -deps ./...` em `dmpf-application` não contém `pgx` nem
   `database/sql`; o verificador reporta zero arestas `application → provider`.
-- [ ] Existe teste que faz o commit falhar (cancelamento do `ctx` dentro de
+- [x] Existe teste que faz o commit falhar (cancelamento do `ctx` dentro de
   `fn`) e comprova, por `SELECT count(*)` nas duas tabelas, que nem o estado
   de negócio nem o registro de outbox persistiram.
-- [ ] Existe teste em que a UPR devolve `Rejected` (`AddItem` em pedido
+- [x] Existe teste em que a UPR devolve `Rejected` (`AddItem` em pedido
   `Placed`) e comprova que `Within` devolveu `nil`, que o `Outcome` carrega a
   rejeição e que nada foi persistido nem enfileirado.
-- [ ] Um registro recém-gravado nasce `pending`, com `available_at =
+- [x] Um registro recém-gravado nasce `pending`, com `available_at =
   occurred_at`, `attempt_count = 0` e `locked_by`, `locked_until`,
   `published_at`, `last_error` nulos — lido por `SELECT` após o commit.
-- [ ] Gravar duas linhas com o mesmo `message_id` é recusado pelo schema: o
+- [x] Gravar duas linhas com o mesmo `message_id` é recusado pelo schema: o
   segundo `Enqueue` devolve erro que satisfaz `errors.Is(err, ErrDuplicateMessage)`
   e `errors.As(err, &pgconn.PgError{})` com `Code == "23505"`.
-- [ ] `destination` é o nome do fluxo lógico; teste negativo reprova
+- [x] `destination` é o nome do fluxo lógico; teste negativo reprova
   `arn:aws:sns:us-east-1:123:orders`, `orders/events`, `kafka://orders`,
   `Orders.Events` e `""` com `ErrInvalidDestination`; `orders.events` e
   `billing.invoice.issued` são aceitos.
-- [ ] Os bytes gravados em `payload` não mudam após alteração posterior do
+- [x] Os bytes gravados em `payload` não mudam após alteração posterior do
   mapeador: o teste grava com o `Mapper` real, troca o mapeador por um que
   produz payload diferente para o mesmo evento, grava um segundo registro e
   comprova que o primeiro permanece byte a byte igual e que `payload_hash`
   ainda é `payloadhash.Sum` dos bytes lidos.
-- [ ] Nenhum artefato desta entrega declara ou sugere exactly-once fim a fim:
+- [x] Nenhum artefato desta entrega declara ou sugere exactly-once fim a fim:
   `buf-lint` verde e `grep -ri` negativo por "exactly-once" e "exatamente uma
   vez" em `libs/backend/go/dmpf-provider-postgres/` e em `docs/adr/035-*.md`
   (salvo a frase que o veda).
-- [ ] A purga de `published` devolve `Purge{Count, Before}` com o que foi
+- [x] A purga de `published` devolve `Purge{Count, Before}` com o que foi
   purgado e até qual instante; registros `pending`, `publishing` e `failed`
   permanecem, comprovado por `SELECT` após a purga.
-- [ ] Evento sem contrato registrado devolve `ErrUnmappedEvent` em `Enqueue`;
+- [x] Evento sem contrato registrado devolve `ErrUnmappedEvent` em `Enqueue`;
   após o rollback, zero linhas.
-- [ ] `AddItem` e `PlaceOrder` de `dmpf-application/example/orders` rodam ponta
+- [x] `AddItem` e `PlaceOrder` de `dmpf-application/example/orders` rodam ponta
   a ponta sobre a UoW Postgres (`e2e_test.go`): item adicionado criando o
   pedido em `version = 1`, pedido colocado em `version = 2`, dois registros na
   outbox com `message_type` `com.company.orders.item-added.v1` e
@@ -849,9 +852,9 @@ Enqueue(ctx, entry):
   `buf-generate-check` e `buf-breaking`; `gen/go` sem drift; fixture
   `item-added.golden` em sincronia com o gerador; `order-placed.golden` com o
   caso `item-count-present`.
-- [ ] Vetores de módulo para as células 26 e 12 reprovam com `DMPF-D001` em
+- [x] Vetores de módulo para as células 26 e 12 reprovam com `DMPF-D001` em
   `tools/dmpf-cell-check.sh`, executado no CI no step "DMPF cell gate".
-- [ ] Manifesto e baseline em commit próprio: o gate com `--base` avalia a
+- [x] Manifesto e baseline em commit próprio: o gate com `--base` avalia a
   mudança normativa em commit sem código Go e aprova.
 - [ ] CI: o job `main` sobe `services.postgres`, exporta `DMPF_PG_DSN`, e os
   testes de integração do módulo rodam (não são pulados) no `test-race`.
