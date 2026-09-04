@@ -29,6 +29,12 @@ Duas unidades no manifesto, ambas `provider`, ambas em `dmpf-kernel`:
   idempotente e não há tabela de versão: não existe ferramenta de migração aqui.
 - **`purge.go`** — `PurgePublished`, que devolve o que purgou e até quando.
 
+O que `example/memory` declara não provar — isolamento e conflito de serialização
+entre transações concorrentes — é provado aqui, em
+`example/orders/concurrency_test.go`: dois escritores leem a mesma versão, e
+exatamente um passa; o outro recebe `ErrVersionConflict` em vez de sobrescrever
+em silêncio.
+
 ## O que o módulo não contém
 
 Claim, lease, `SKIP LOCKED`, transição de `status` e publicação são do `KRN-08`;

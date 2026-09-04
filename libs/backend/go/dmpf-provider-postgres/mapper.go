@@ -30,6 +30,9 @@ type Mapped struct {
 // mapper, the package by the generated code — so a mapper pointing a v1 message
 // at a v2 type would publish a lie that only this comparison catches (ENV-16).
 func checkMajor(mapped Mapped) error {
+	if mapped.Message == nil {
+		return ErrEmptyMapping
+	}
 	contract := majorOfDotted(string(mapped.Message.ProtoReflect().Descriptor().ParentFile().Package()))
 	declared := majorOfDotted(mapped.Type)
 	if contract == "" || contract != declared {

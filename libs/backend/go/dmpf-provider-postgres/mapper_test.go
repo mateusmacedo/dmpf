@@ -65,6 +65,16 @@ func TestCheckMajor(t *testing.T) {
 		},
 	}
 
+	t.Run("a mapper that returns no message is reported, not dereferenced", func(t *testing.T) {
+		t.Parallel()
+
+		err := checkMajor(Mapped{Type: "com.company.orders.order-placed.v1"})
+
+		if !errors.Is(err, ErrEmptyMapping) {
+			t.Fatalf("checkMajor() = %v, want ErrEmptyMapping", err)
+		}
+	})
+
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

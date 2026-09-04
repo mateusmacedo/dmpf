@@ -19,6 +19,11 @@ var (
 	// the outbox: the transaction rolls back instead.
 	ErrUnmappedEvent = errors.New("dmpfpostgres: no contract registered for the domain event")
 
+	// ErrEmptyMapping is a defect in the mapper, not in the event: it returned
+	// success with no Message. Reported rather than dereferenced, so the fault
+	// names its owner instead of surfacing as a nil pointer inside the provider.
+	ErrEmptyMapping = errors.New("dmpfpostgres: mapper returned no contract message")
+
 	// ErrDuplicateMessage is what Enqueue reports when the unique constraint on
 	// message_id rejects the row. It always wraps the driver error, so
 	// errors.As still reaches *pgconn.PgError and its SQLSTATE (OBX-01).
