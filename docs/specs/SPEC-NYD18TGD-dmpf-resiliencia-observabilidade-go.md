@@ -126,6 +126,46 @@ contratos que não compilavam ou contradiziam o SDK:
    `EstimatedDuration` e durações; o cenário de amostragem usa `TraceID`s
    construídos.
 
+### Errata de 2026-09-04 (execução — o gancho é porta, não tipo de aplicação)
+
+Aprovada pelo dono da spec durante a Fase 1, após medição em código. Corrige uma
+premissa que a linguagem não sustenta.
+
+7. **O gancho de instrumentação vive em `dmpf-ports`, não em `dmpf-application`.**
+   Esta spec afirmava que o provider "satisfaz a interface estruturalmente, sem
+   importar `dmpf-application`". Go satisfaz interface por assinaturas
+   **idênticas**, nunca por estrutura: um provider que declarasse o seu próprio
+   `Result` não satisfaria a interface, e `provider → application` é célula
+   proibida (`matrix.go:58,61`). Medido em módulo descartável:
+
+   ```text
+   cannot use prov.Provider{} as app.Instrumentation value:
+     have BeginOperation(context.Context, string) (context.Context, prov.EndOperation)
+     want BeginOperation(context.Context, string) (context.Context, app.EndOperation)
+   ```
+
+   `Instrumentation`, `EndOperation`, `Result`, `OutcomeCategory`, `AuditEvent`
+   e `ErrDenied` passam a viver em `dmpfports`. Ambos os blocos já importam
+   ports (`application → port` e `provider → port` são células permitidas), então
+   a satisfação é direta, com tipos nomeados, sem shim e sem alargar a matriz —
+   o mesmo arranjo que o kernel já usa para `UnitOfWork`, `Repository`, `Outbox`
+   e `Clock`: necessidade declarada acima, realizada abaixo.
+
+   Consequências: onde esta spec escreve `dmpfapplication.<símbolo do gancho>`,
+   leia-se `dmpfports.<símbolo>`; o item 5 desta errata deixa de valer quanto a
+   "`dmpf-ports` intocado" — o módulo ganha `instrumentation.go` e
+   `instrumentation_test.go`. O `dmpf-units.json` e o baseline de `dmpf-ports`
+   **não** mudam: o `include` é por import path do package, e o package raiz
+   `dmpfports` já está declarado. O `clock` do provider segue em
+   `dmpf-observability`, porque `dmpf-ports` não pode importar `time`.
+
+8. **`version_test.go` não usa `debug.ReadBuildInfo`.** Sob o `go.work` deste
+   repositório, `ReadBuildInfo()` devolve `Deps` vazio no binário de teste
+   (medido: `deps=0`) — em workspace mode o Go não grava o grafo de módulos no
+   build info. A prova do pin lê o `go.mod` do módulo, que é a fonte declarativa
+   do BOM (ADR-030), e a do semconv compara `semconv.SchemaURL` do package
+   importado com `SemconvVersion`.
+
 ### Divergências entre o ticket e o repositório
 
 O ticket ARQ-528 foi escrito em 30/08, antes de `KRN-04` e `KRN-05` serem
