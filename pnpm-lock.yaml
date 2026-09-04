@@ -244,6 +244,8 @@ importers:
 
   libs/backend/go/dmpf-ports: {}
 
+  libs/backend/go/dmpf-provider-postgres: {}
+
 packages:
 
   '@angular-devkit/core@19.2.24':
