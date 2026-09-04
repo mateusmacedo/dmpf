@@ -14,6 +14,10 @@ cd "$ROOT" || exit 1
 
 BASE="gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go"
 
+# O verificador exige a base para avaliar mudança de classificação; sem ela
+# reprova como "não verificado", e o vetor positivo nunca passaria.
+NX_BASE="${NX_BASE:-develop}"
+
 WORKTREE=""
 descartar_worktree() {
   local status=$?
@@ -26,10 +30,14 @@ descartar_worktree() {
 }
 trap descartar_worktree EXIT INT TERM
 
-# célula|diretório do fixture|import proibido|chave canônica de origem|alvo
+# célula|diretório do fixture|import proibido|package de origem|package alvo
+#
+# Origem e alvo são import paths de package, não a chave `módulo#unidade`: o
+# D001 é diagnóstico de ARESTA, e aresta liga packages. A chave por unidade
+# aparece nos diagnósticos de classificação (T001), que são outra coisa.
 VETORES=(
-  "26|libs/backend/go/dmpf-provider-postgres|$BASE/dmpf-application|$BASE/dmpf-provider-postgres#dmpf-kernel/provider-postgres|$BASE/dmpf-application#dmpf-kernel/application"
-  "12|libs/backend/go/dmpf-application|$BASE/dmpf-contracts/envelope|$BASE/dmpf-application#dmpf-kernel/application|$BASE/dmpf-contracts#dmpf-contracts/envelope"
+  "26|libs/backend/go/dmpf-provider-postgres|$BASE/dmpf-application|$BASE/dmpf-provider-postgres|$BASE/dmpf-application"
+  "12|libs/backend/go/dmpf-application|$BASE/dmpf-contracts/envelope|$BASE/dmpf-application|$BASE/dmpf-contracts/envelope"
 )
 
 abrir_worktree() {
@@ -46,7 +54,8 @@ abrir_worktree() {
 }
 
 verificar() {
-  go run ./libs/backend/go/dmpf-conformance/cmd/dmpf-conformance --root "$WORKTREE" 2>&1
+  go run ./libs/backend/go/dmpf-conformance/cmd/dmpf-conformance \
+    --root "$WORKTREE" --base "$NX_BASE" 2>&1
 }
 
 falhas=0
