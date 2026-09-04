@@ -2,6 +2,7 @@ package ordersapp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	dmpfapplication "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-application"
@@ -17,6 +18,13 @@ const (
 	// Destination names the integration flow logically: never a topic, queue or
 	// broker address, which are the provider's and the relay's choice (BLK-04).
 	Destination = "orders.events"
+
+	// OperationAddItem, OperationPlaceOrder and OperationFindOrder name the
+	// operations for BeginOperation and for the audit action. They are exported
+	// so the composition root can declare which of them is a read (TRC-16).
+	OperationAddItem    = "orders.AddItem"
+	OperationPlaceOrder = "orders.PlaceOrder"
+	OperationFindOrder  = "orders.FindOrder"
 )
 
 // maxEventsPerCommand is what this use case declares to ResolveIdentity: each
@@ -61,6 +69,36 @@ type Service struct {
 	IDs       dmpfports.IDGenerator
 	Authorize dmpfapplication.AuthorizeFunc[Command]
 	ItemLimit int
+
+	Instrumentation dmpfports.Instrumentation
+}
+
+// instrumentation resolves the nil hook to the inert realization, so every
+// operation calls BeginOperation unconditionally.
+func (s Service) instrumentation() dmpfports.Instrumentation {
+	if s.Instrumentation == nil {
+		return dmpfports.NoInstrumentation()
+	}
+	return s.Instrumentation
+}
+
+// authorizationResult categorises a step 1 error. Only a declared denial is
+// Denied; anything else is technical failure, because inferring a refusal from
+// an unrelated error would report a false negative of access.
+func authorizationResult(err error) dmpfports.Result {
+	if errors.Is(err, dmpfports.ErrDenied) {
+		return dmpfports.Result{Outcome: dmpfports.OutcomeDenied}
+	}
+	return dmpfports.Result{Outcome: dmpfports.OutcomeFailed, Err: err}
+}
+
+// outcomeCategory reads the terminal category off the outcome, which is the
+// only place that knows which branch of the UPR was taken.
+func outcomeCategory[R any](outcome dmpfapplication.Outcome[R]) dmpfports.OutcomeCategory {
+	if _, refused := outcome.Rejection(); refused {
+		return dmpfports.OutcomeRejected
+	}
+	return dmpfports.OutcomeAccepted
 }
 
 // enqueueAll authors the seven fields the application service owns (FND-04

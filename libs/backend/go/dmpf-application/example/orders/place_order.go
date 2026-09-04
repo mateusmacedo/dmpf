@@ -6,6 +6,7 @@ import (
 
 	dmpfapplication "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-application"
 	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-domain/example/orders"
+	dmpfports "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-ports"
 )
 
 // PlaceOrder walks the same nine steps as AddItem, but only loads: an absent
@@ -14,7 +15,11 @@ import (
 func (s Service) PlaceOrder(ctx context.Context, cmd PlaceOrder) (dmpfapplication.Outcome[orders.PlacedResponse], error) {
 	var zero dmpfapplication.Outcome[orders.PlacedResponse]
 
+	instrumentation := s.instrumentation()
+	ctx, end := instrumentation.BeginOperation(ctx, OperationPlaceOrder)
+
 	if err := s.Authorize(ctx, cmd); err != nil {
+		end(authorizationResult(err))
 		return zero, err
 	}
 
@@ -45,7 +50,17 @@ func (s Service) PlaceOrder(ctx context.Context, cmd PlaceOrder) (dmpfapplicatio
 		return nil
 	})
 	if err != nil {
+		end(dmpfports.Result{Outcome: dmpfports.OutcomeFailed, Err: err})
 		return zero, err
 	}
+
+	category := outcomeCategory(outcome)
+	end(dmpfports.Result{Outcome: category})
+	instrumentation.Audit(ctx, dmpfports.AuditEvent{
+		Object:  string(cmd.Order),
+		Action:  OperationPlaceOrder,
+		Outcome: category,
+		At:      identity.OccurredAt,
+	})
 	return outcome, nil
 }
