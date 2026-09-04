@@ -1,6 +1,10 @@
 package resilience
 
-import "time"
+import (
+	"time"
+
+	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/retry"
+)
 
 // Kind separates what may be retried from what may not: a unit of work is never
 // wrapped by a retry decorator, because repeating a transaction is the caller's
@@ -36,4 +40,17 @@ type Operation struct {
 	// EstimatedDuration is how long one attempt is expected to take. Zero is
 	// invalid: the budget and deadline factors cannot be decided without it.
 	EstimatedDuration time.Duration
+}
+
+// ForRetry is the view the retry evaluator reads. The conversion lives here,
+// and not in retry, because that package must not import this one: the retry
+// decorator is in this package and the cycle would not compile.
+func (o Operation) ForRetry() retry.Operation {
+	return retry.Operation{
+		Dependency:        o.Dependency,
+		Method:            o.Method,
+		Idempotent:        o.Idempotent,
+		EffectAbsent:      o.EffectAbsent,
+		EstimatedDuration: o.EstimatedDuration,
+	}
 }

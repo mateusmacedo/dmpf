@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/resilience"
 	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/retry"
 )
 
@@ -30,13 +29,11 @@ func armedBudget(t *testing.T, total time.Duration) *retry.Budget {
 	return budget
 }
 
-func idempotentRemote() resilience.Operation {
-	return resilience.Operation{
+func idempotentRemote() retry.Operation {
+	return retry.Operation{
 		Dependency:        "payments",
 		Method:            "Authorize",
-		Kind:              resilience.Remote,
 		Idempotent:        true,
-		Deadline:          2 * time.Second,
 		EstimatedDuration: estimate,
 	}
 }
@@ -227,13 +224,11 @@ func TestEvaluateCompilesWithEveryFieldSet(t *testing.T) {
 	verdict := retry.Evaluate(retry.Input{
 		Err:        errTransient,
 		Classifier: always(retry.Retryable),
-		Operation: resilience.Operation{
+		Operation: retry.Operation{
 			Dependency:        "payments",
 			Method:            "Authorize",
-			Kind:              resilience.Remote,
 			Idempotent:        true,
 			EffectAbsent:      func(error) bool { return false },
-			Deadline:          2 * time.Second,
 			EstimatedDuration: estimate,
 		},
 		Attempt:     1,

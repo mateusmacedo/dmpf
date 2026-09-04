@@ -1,10 +1,29 @@
 package retry
 
-import (
-	"time"
+import "time"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/resilience"
-)
+// Operation is what the evaluator needs to know about the call: whether
+// repeating it is safe and how long one attempt takes.
+//
+// It is declared here instead of read from the resilience sheet because the
+// decorator that applies this verdict lives in resilience, and importing that
+// package back would close a cycle the compiler refuses. resilience.Operation
+// converts into this view.
+type Operation struct {
+	Dependency string
+	Method     string
+
+	// Idempotent says the method may be repeated safely.
+	Idempotent bool
+
+	// EffectAbsent decides, for a given error, that the attempt left no effect.
+	// A nil function is false for every error, never an implicit yes.
+	EffectAbsent func(error) bool
+
+	// EstimatedDuration is how long one attempt is expected to take, and is
+	// what the budget and deadline factors measure against.
+	EstimatedDuration time.Duration
+}
 
 // Factor names the condition that denied the retry. The zero value means none
 // denied, which pairs with Verdict.Allowed being true.
@@ -48,7 +67,7 @@ func (f Factor) String() string {
 type Input struct {
 	Err         error
 	Classifier  Classifier
-	Operation   resilience.Operation
+	Operation   Operation
 	Attempt     int
 	MaxAttempts int
 	Budget      *Budget
@@ -93,7 +112,7 @@ func Evaluate(in Input) Verdict {
 	return Verdict{Allowed: true, Wait: wait}
 }
 
-func repeatable(operation resilience.Operation, err error) bool {
+func repeatable(operation Operation, err error) bool {
 	if operation.Idempotent {
 		return true
 	}
