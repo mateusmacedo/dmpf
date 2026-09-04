@@ -15,6 +15,11 @@ type metric64Counter interface {
 	Add(ctx context.Context, incr int64, options ...metric.AddOption)
 }
 
+// metric64Gauge is the same for a gauge, which the breaker records its state on.
+type metric64Gauge interface {
+	Record(ctx context.Context, value int64, options ...metric.RecordOption)
+}
+
 func metricAttributes(labels metrics.Labels) metric.MeasurementOption {
 	return metric.WithAttributes(labels.Attributes()...)
 }

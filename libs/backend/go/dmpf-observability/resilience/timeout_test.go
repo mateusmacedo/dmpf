@@ -46,25 +46,36 @@ func meter(t *testing.T) (*metrics.Instruments, func(name string) int64) {
 		t.Fatalf("metrics.New() = %v, want nil", err)
 	}
 
+	// The reader is returned as a lookup that handles both shapes: a counter
+	// arrives as a Sum and the breaker state as a Gauge, and a lookup that knew
+	// only Sum would silently report zero for the gauge.
 	return instruments, func(name string) int64 {
 		var collected metricdata.ResourceMetrics
 		if err := reader.Collect(context.Background(), &collected); err != nil {
 			t.Fatalf("Collect() = %v, want nil", err)
 		}
-		var total int64
+
+		var value int64
 		for _, scope := range collected.ScopeMetrics {
 			for _, series := range scope.Metrics {
 				if series.Name != name {
 					continue
 				}
-				if sum, ok := series.Data.(metricdata.Sum[int64]); ok {
-					for _, point := range sum.DataPoints {
-						total += point.Value
+				switch data := series.Data.(type) {
+				case metricdata.Sum[int64]:
+					for _, point := range data.DataPoints {
+						value += point.Value
 					}
+				case metricdata.Gauge[int64]:
+					for _, point := range data.DataPoints {
+						value = point.Value
+					}
+				default:
+					t.Fatalf("series %q has an unexpected shape %T", name, series.Data)
 				}
 			}
 		}
-		return total
+		return value
 	}
 }
 
