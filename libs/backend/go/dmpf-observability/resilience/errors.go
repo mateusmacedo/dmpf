@@ -9,6 +9,7 @@ const (
 	CategoryDeadlineExceeded  = "deadline_exceeded"
 	CategoryCancelled         = "cancelled"
 	CategoryConfiguration     = "configuration"
+	CategoryDegraded          = "degraded"
 )
 
 // Error is a failure of a decorator. It carries a category and a code so
