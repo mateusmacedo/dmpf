@@ -141,9 +141,10 @@ composition root — nos testes, o próprio arquivo de teste — porque
 
 ## O que o módulo não contém
 
-Provider Postgres, schema de outbox, `SKIP LOCKED` e isolamento real (`KRN-06`);
-mapeamento para evento de integração, serialização e wire (`KRN-05`); relay e
-publicação (`KRN-08`); inbox e deduplicação (`KRN-07`); retry por conjunção,
+Provider Postgres, schema de outbox e isolamento real (`KRN-06`, entregue em
+`dmpf-provider-postgres`); claim, lease, `SKIP LOCKED`, relay e publicação
+(`KRN-08`); mapeamento para evento de integração, serialização e wire
+(`KRN-05`); inbox e deduplicação (`KRN-07`); retry por conjunção,
 orçamento e telemetria (`KRN-09`); transportes (`KRN-10`). A autorização real, o
 contexto de execução de nove campos e a taxonomia de erros de borda são do
 FND-07 — `AuthorizeFunc` é só o gancho que eles preencherão. Validar a forma da
