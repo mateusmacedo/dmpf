@@ -1,6 +1,6 @@
 {
   "schema": "dmpf/units-baseline@1",
-  "digest": "sha256:78ea945f63934c8be1da68e993fca8ed76340003e36aed8a62e0ffd91222fbb7",
+  "digest": "sha256:69270cb9dfef62c9ca6b68b7097545560a51c2653b1157004b5ec984043e09ea",
   "entries": [
     {
       "unit": "dmpf-kernel/application",
@@ -154,6 +154,24 @@
       "bounded_context": "dmpf-kernel",
       "membership": [
         "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-ports"
+      ]
+    },
+    {
+      "unit": "dmpf-kernel/example-orders-postgres",
+      "module": "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-provider-postgres",
+      "block": "provider",
+      "bounded_context": "dmpf-kernel",
+      "membership": [
+        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-provider-postgres/example/orders"
+      ]
+    },
+    {
+      "unit": "dmpf-kernel/provider-postgres",
+      "module": "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-provider-postgres",
+      "block": "provider",
+      "bounded_context": "dmpf-kernel",
+      "membership": [
+        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-provider-postgres"
       ]
     }
   ]
