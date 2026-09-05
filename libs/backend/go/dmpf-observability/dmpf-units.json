@@ -62,6 +62,24 @@
       "versions": ">=1.46.0 <2",
       "entrypoints": ["go.opentelemetry.io/otel/sdk/metric"],
       "capability": "observability"
+    },
+    {
+      "package": "go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc",
+      "versions": ">=1.46.0 <2",
+      "entrypoints": ["go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"],
+      "capability": "io.network"
+    },
+    {
+      "package": "go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc",
+      "versions": ">=1.46.0 <2",
+      "entrypoints": ["go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"],
+      "capability": "io.network"
+    },
+    {
+      "package": "google.golang.org/grpc",
+      "versions": ">=1.83.1 <2",
+      "entrypoints": ["google.golang.org/grpc/credentials"],
+      "capability": "io.network"
     }
   ],
   "exceptions": []
