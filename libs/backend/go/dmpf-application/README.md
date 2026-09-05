@@ -19,14 +19,36 @@ Import path do módulo:
 
 | Package | Unidade DMPF | Bloco | Conteúdo |
 | --- | --- | --- | --- |
-| `dmpfapplication` (raiz) | `dmpf-kernel/application` | `application` | `Outcome[R]`, `Accepted`, `Rejected`; `Identity`, `ResolveIdentity`; `AuthorizeFunc`, `AllowAll` |
-| `example/orders` | `dmpf-kernel/example-orders-application` | `application` | `Service`, `Resources`, `Command`, `AddItem`, `PlaceOrder`, `FindOrder`, `AggregateType`, `Destination` |
-| `example/memory` | `dmpf-kernel/example-memory` | `provider` | `Store`, `New`, `Tx`, `NewUnitOfWork`, `Reader`, `Entries`, `FailNextCommit`, `WithinCalls`, `FixedClock`, `SequenceIDs` |
+| `dmpfapplication` (raiz) | `dmpf-kernel/application` | `application` | `Outcome[R]`, `Accepted`, `Rejected`; `Identity`, `ResolveIdentity`; `AuthorizeFunc`, `AllowAll`; `Disposition` (as sete de FND-04 §6.4), `Category`, `Failure`, `Classify` |
+| `example/orders` | `dmpf-kernel/example-orders-application` | `application` | `Service`, `Resources`, `Command`, `AddItem`, `PlaceOrder`, `FindOrder`, `AggregateType`, `Destination` — o lado da **escrita** |
+| `example/reservations` | `dmpf-kernel/example-reservations-application` | `application` | `Service`, `Resources` (com `Inbox`), `ConsumeOrderPlaced`, `Consume` — o lado do **consumo** (`KRN-07`) |
+| `example/memory` | `dmpf-kernel/example-memory` | `provider` | `Store`, `New`, `Tx`, `NewUnitOfWork`, `Reader`, `Entries`, `FailNextCommit`, `WithinCalls`, `FixedClock`, `SequenceIDs`; `Tx.Inbox`, `Tx.Reservations` |
 
-Três unidades, todas com `bounded_context: dmpf-kernel`. Cada package é uma
+Quatro unidades, todas com `bounded_context: dmpf-kernel`. Cada package é uma
 unidade porque, em Go, a unidade de verificação é o package (RFC §3.3), e a do
 `example/memory` é `provider` — não `application` — porque ela **realiza** as
 portas em vez de orquestrá-las.
+
+## O consumo: as sete disposições
+
+`reservationsapp.Consume` percorre o lado do service da sequência de FND-04
+§6.3: abre a UoW, chama `Inbox.Register(Receipt)` e ramifica **uma única vez**,
+no `Reception.Match` (`INB-11`). Sob R1 decide entre aplicar (`Save` + outbox
+derivada + `Complete(processed)`), rejeitar por negócio (`Complete(rejected)`
+com o código da rejeição em `last_error`) ou devolver o erro técnico, que
+desfaz a transação; sob R2, R3 e R4 curto-circuita sem escrever nada — e R3
+**não** reemite o rejection event (`INB-12`). Fora do `Within`, um erro é
+classificado por `Classify` em R1×D3 ou R1×D4: `Failure` pela retryability já
+resolvida (`MAP-07`), `ErrRegisterTimeout` como transitório (`INB-17`),
+`context.DeadlineExceeded`/`Canceled` e qualquer erro sem categoria como
+terminal (`CTX-23`, `ERR-11`, `ERR-24`). O único predicado declarado aqui é o do
+`Conflict`: `ErrVersionConflict` no consumo é retentável porque a reexecução
+relê o estado antes de decidir.
+
+O efeito de broker **não** acontece neste bloco: quem confirma, libera ou contém
+é o adapter em `dmpf-app`, sempre depois do retorno da transação (`INB-08`). A
+taxonomia de erros é a de FND-07 §5.3, consumida — este módulo não cria
+categoria (`ERR-08`).
 
 ## O desfecho: `Outcome` e `error` são canais distintos
 
@@ -144,11 +166,14 @@ composition root — nos testes, o próprio arquivo de teste — porque
 Provider Postgres, schema de outbox e isolamento real (`KRN-06`, entregue em
 `dmpf-provider-postgres`); claim, lease, `SKIP LOCKED`, relay e publicação
 (`KRN-08`); mapeamento para evento de integração, serialização e wire
-(`KRN-05`); inbox e deduplicação (`KRN-07`); retry por conjunção,
-orçamento e telemetria (`KRN-09`); transportes (`KRN-10`). A autorização real, o
-contexto de execução de nove campos e a taxonomia de erros de borda são do
-FND-07 — `AuthorizeFunc` é só o gancho que eles preencherão. Validar a forma da
-entrada (`Quantity <= 0`, `SKU` vazio) é do bloco `app` (RFC §4.1).
+(`KRN-05`); a realização da inbox e a quarantine (`KRN-07`, em
+`dmpf-provider-postgres`) e o adapter que aplica o efeito de broker (`KRN-07`,
+em `dmpf-app`); retry por conjunção, orçamento e telemetria (`KRN-09`);
+transportes (`KRN-10`). A autorização real e o contexto de execução de nove
+campos são do FND-07 — `AuthorizeFunc` é só o gancho que eles preencherão; da
+taxonomia de erros do FND-07 este módulo realiza apenas o subconjunto que o
+consumo precisa (`Category`, `Failure`, `Classify`). Validar a forma da entrada
+(`Quantity <= 0`, `SKU` vazio) é do bloco `app` (RFC §4.1).
 
 Os imports de produção são `context`, `errors`, `fmt`, `slices`, `sync`, o
 `dmpf-domain` e o `dmpf-ports` — todos capability `pure`. Sem `time`, sem
