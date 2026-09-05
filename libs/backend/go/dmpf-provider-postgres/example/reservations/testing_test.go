@@ -1,6 +1,6 @@
 //go:build integration
 
-package dmpfpostgres_test
+package reservationspg_test
 
 import (
 	"context"
@@ -12,10 +12,9 @@ import (
 	dmpfpostgres "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-provider-postgres"
 )
 
-// openPool fails the run in CI when DMPF_PG_DSN is unset (fail-closed: an
-// integration suite must never pass by skipping) and skips with setup
-// instructions everywhere else. Tables are truncated before and after so
-// package tests, forced to -p 1 (R10), never observe another test's rows.
+// Duplicated from the parent package's harness on purpose: a _test.go file is
+// never importable, so reservationspg_test cannot reuse dmpfpostgres_test's
+// openPool. An exported test kit is KRN-11's.
 func openPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 
@@ -38,24 +37,16 @@ func openPool(t *testing.T) *pgxpool.Pool {
 		t.Fatalf("Migrate() = %v, want nil", err)
 	}
 
-	truncate(t, ctx, pool)
-	t.Cleanup(func() { truncate(t, ctx, pool) })
+	truncate(t, pool)
+	t.Cleanup(func() { truncate(t, pool) })
 
 	return pool
 }
 
-func truncate(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
+func truncate(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 
-	if _, err := pool.Exec(ctx, "TRUNCATE dmpf_outbox, dmpf_inbox, dmpf_quarantine, dmpf_example_orders, dmpf_example_reservations"); err != nil {
+	if _, err := pool.Exec(context.Background(), "TRUNCATE dmpf_outbox, dmpf_inbox, dmpf_quarantine, dmpf_example_orders, dmpf_example_reservations"); err != nil {
 		t.Fatalf("TRUNCATE = %v, want nil", err)
-	}
-}
-
-func TestPing(t *testing.T) {
-	pool := openPool(t)
-
-	if err := pool.Ping(context.Background()); err != nil {
-		t.Fatalf("Ping() = %v, want nil", err)
 	}
 }

@@ -25,25 +25,58 @@ Duas unidades no manifesto, ambas `provider`, ambas em `dmpf-kernel`:
 - **`destination.go`** — a forma de `BLK-04`: nome de fluxo lógico em segmentos
   minúsculos separados por ponto. ARN, URL, caminho e maiúscula são recusados.
 - **`schema.sql` / `migrate.go`** — os dezoito campos de FND-04 §4.1 mais
-  `payload_hash`, com `UNIQUE (message_id)` e três `CHECK`. `Migrate` é
-  idempotente e não há tabela de versão: não existe ferramenta de migração aqui.
-- **`purge.go`** — `PurgePublished`, que devolve o que purgou e até quando.
+  `payload_hash`, com `UNIQUE (message_id)` e três `CHECK`; a `dmpf_inbox` de
+  §6.1 com `UNIQUE (consumer_name, message_id)` e `CHECK` de dois valores
+  terminais (`INB-01`, `INB-02`); a `dmpf_quarantine` com o envelope em `bytea`;
+  e as tabelas dos agregados de exemplo. `Migrate` é idempotente e não há tabela
+  de versão: não existe ferramenta de migração aqui.
+- **`inbox.go`** — `Tx.Inbox(consumer, wait)`, `Register` e `Pending.Complete`
+  (`KRN-07`). `Register` é `INSERT … ON CONFLICT DO NOTHING` seguido de leitura:
+  devolve a classificação (R1, R2, R3 ou R4), nunca erro de constraint, e a
+  transação segue viva (`INB-04`). Sob concorrência a inserção aguarda a
+  transação concorrente e a classificação é sempre de commit (`INB-06`,
+  `INB-18`). `wait > 0` vira `SET LOCAL lock_timeout`; o estouro chega como
+  `dmpfports.ErrRegisterTimeout` (`55P03`), que o service classifica R1×D3
+  (`INB-17`). Entre `Register` e `Complete` a linha existe com `status`
+  provisório dentro da transação — ninguém a observa (ver
+  `docs/adr/036-classificacao-de-recepcao-e-fronteira-pending.md`).
+- **`quarantine.go`** — `NewQuarantine(pool)`, a realização de
+  `dmpfports.Containment` fora de qualquer UoW: grava o envelope byte a byte
+  como foi publicado (`GAR-07`) e o erro sanitizado (`ERR-20`, `ERR-21`).
+- **`signals.go`** — `InboxSignals(pool, consumer)`: profundidade da quarantine
+  e contagens por motivo (`terminal-failure`, `collision`,
+  `attempts-exhausted`, `invalid-envelope`), lidas da própria tabela (`GAR-12`).
+- **`purge.go`** — `PurgePublished` e `PurgeInbox`, que devolvem o que purgaram,
+  de qual consumidor e até quando (`OBX-17`, `INB-16`). A invariante
+  `retenção_inbox ≥ janela_redelivery` (`INB-14`) é do operador.
 
 O que `example/memory` declara não provar — isolamento e conflito de serialização
 entre transações concorrentes — é provado aqui, em
 `example/orders/concurrency_test.go`: dois escritores leem a mesma versão, e
 exatamente um passa; o outro recebe `ErrVersionConflict` em vez de sobrescrever
-em silêncio.
+em silêncio. `inbox_concurrency_test.go` faz o mesmo para a inbox: duas
+transações registram a mesma chave, a segunda bloqueia até o desfecho da
+primeira e recebe R2, R3 ou R1 conforme ela commitou `processed`, commitou
+`rejected` ou desfez; e o teto de espera é interrompido pelo servidor.
+
+`example/reservations` é o lado do consumo do agregado de exemplo: o repositório
+com chave natural (`order_id`, `ON CONFLICT DO NOTHING` — a convergência de
+`GAR-10`) e o mapeador de `ReservationConfirmed`. A composition root que liga
+tudo vive em `dmpf-app/example/reservations`, no bloco `app`.
 
 ## O que o módulo não contém
 
 Claim, lease, `SKIP LOCKED`, transição de `status` e publicação são do `KRN-08`;
-inbox e deduplicação, do `KRN-07`; o codec do envelope e a fórmula do
-`payload_hash`, do `KRN-05` — este módulo os chama, não os define; a tradução de
-destino lógico para alvo físico, do `KRN-10`; o conteúdo de `metadata`, de
-FND-07; métricas e prazos, de FND-08; um test kit exportado, do `KRN-11`.
+o codec do envelope e a fórmula do `payload_hash`, do `KRN-05` — este módulo os
+chama, não os define; a tradução de destino lógico para alvo físico, o gesto de
+ACK e a DLQ, do `KRN-10`; o conteúdo de `metadata`, de FND-07; métricas, o
+valor do teto de espera e os prazos de retenção, de FND-08; um test kit
+exportado, do `KRN-11`. O application service de consumo e as sete disposições
+são do bloco `application` (`dmpf-application/example/reservations`); o adapter
+que aplica o efeito de broker é do bloco `app` (`dmpf-app`).
 
-A garantia é **at-least-once**. A deduplicação é do consumidor, via inbox.
+A garantia é **at-least-once**. A deduplicação por identidade de mensagem é da
+inbox; a idempotência do efeito é do domínio, por chave natural (`GAR-03`).
 
 ## Como rodar os testes localmente
 
@@ -63,6 +96,11 @@ segue verde: os testes unitários (destino, mapeador) não têm a tag.
 O `test-race` deste módulo roda com `cache: false` no Nx **e** `-count=1` no
 `go test`. São dois caches distintos, e os dois devolveriam resultado antigo
 para teste de banco: nenhum deles enxerga o estado do Postgres.
+
+Desde o `KRN-07`, `dmpf-app-go` também tem testes de banco, sobre as mesmas
+tabelas. Os dois `test-race` não podem correr em paralelo — cada harness faz
+`TRUNCATE` — e por isso o do `dmpf-app` declara `dependsOn` sobre o deste
+módulo: o Nx os sequencia mesmo com `--parallel=3`, que é como o CI roda.
 
 ## Validação
 

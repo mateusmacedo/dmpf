@@ -29,3 +29,27 @@ func PurgePublished(ctx context.Context, pool *pgxpool.Pool, before dmpfports.In
 	}
 	return Purge{Count: tag.RowsAffected(), Before: before}, nil
 }
+
+const deleteInbox = `DELETE FROM dmpf_inbox WHERE consumer_name = $1 AND processed_at < $2`
+
+// InboxPurge is the evidence an inbox purge leaves behind, scoped to one
+// consumer (INB-16).
+type InboxPurge struct {
+	Consumer string
+	Removed  int64
+	Before   dmpfports.Instant
+}
+
+// PurgeInbox removes processed inbox rows older than before for one consumer.
+// The retention invariant is the operator's responsibility (INB-14); this
+// function provides the evidence for audit (INB-16).
+func PurgeInbox(ctx context.Context, pool *pgxpool.Pool, consumer string, before dmpfports.Instant) (InboxPurge, error) {
+	if consumer == "" {
+		return InboxPurge{}, ErrInboxConsumerRequired
+	}
+	tag, err := pool.Exec(ctx, deleteInbox, consumer, int64(before))
+	if err != nil {
+		return InboxPurge{}, err
+	}
+	return InboxPurge{Consumer: consumer, Removed: tag.RowsAffected(), Before: before}, nil
+}
