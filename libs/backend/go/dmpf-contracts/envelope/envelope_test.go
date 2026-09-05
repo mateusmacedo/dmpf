@@ -1,6 +1,7 @@
 package envelope_test
 
 import (
+	"bytes"
 	"errors"
 	"testing"
 	"time"
@@ -437,5 +438,70 @@ func assertAttributeError(t *testing.T, err, sentinel error, attribute string) {
 	var attrErr *envelope.AttributeError
 	if !errors.As(err, &attrErr) || attrErr.Attribute != attribute {
 		t.Fatalf("err = %v, want attribute %q", err, attribute)
+	}
+}
+
+func TestUnmarshalRejectsInvalidBytes(t *testing.T) {
+	t.Parallel()
+
+	_, err := envelope.Unmarshal([]byte{0xff, 0xff, 0xff})
+	if !errors.Is(err, envelope.ErrMalformed) {
+		t.Fatalf("err = %v, want %v", err, envelope.ErrMalformed)
+	}
+}
+
+func TestUnmarshalRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	in := validEnvelope(t)
+	ce, err := envelope.Encode(in)
+	if err != nil {
+		t.Fatalf("Encode: %v", err)
+	}
+	wire, err := proto.Marshal(ce)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+	out, err := envelope.Unmarshal(wire)
+	if err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	if out.ID != in.ID || out.Source != in.Source || out.Type != in.Type {
+		t.Fatalf("attributes changed across the round trip:\n in=%+v\nout=%+v", in, out)
+	}
+	if !bytes.Equal(out.Payload, in.Payload) {
+		t.Fatalf("payload bytes changed across the round trip: in=%x out=%x", in.Payload, out.Payload)
+	}
+}
+
+func TestUnpackDecodesThePayloadNamedByDataschema(t *testing.T) {
+	env := validEnvelope(t)
+
+	var got eventv1.OrderPlaced
+	if err := envelope.Unpack(env, &got); err != nil {
+		t.Fatalf("Unpack: %v", err)
+	}
+	if !proto.Equal(&got, orderPlaced()) {
+		t.Fatalf("Unpack = %v, want %v", &got, orderPlaced())
+	}
+}
+
+func TestUnpackRefusesAMessageOfAnotherContract(t *testing.T) {
+	env := validEnvelope(t)
+
+	var wrong eventv1.ItemAdded
+	err := envelope.Unpack(env, &wrong)
+	if !errors.Is(err, envelope.ErrSchemaMismatch) {
+		t.Fatalf("Unpack into another contract = %v, want ErrSchemaMismatch", err)
+	}
+}
+
+func TestUnpackRefusesBytesThatDoNotDecode(t *testing.T) {
+	env := validEnvelope(t)
+	env.Payload = []byte{0xff, 0xff, 0xff}
+
+	var got eventv1.OrderPlaced
+	if err := envelope.Unpack(env, &got); !errors.Is(err, envelope.ErrMalformed) {
+		t.Fatalf("Unpack of garbage = %v, want ErrMalformed", err)
 	}
 }

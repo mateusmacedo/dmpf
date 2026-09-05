@@ -84,7 +84,7 @@ type enumDiscriminator struct {
 	values []string
 }
 
-var specs = []fixtureSpec{orderPlacedSpec, itemAddedSpec}
+var specs = []fixtureSpec{orderPlacedSpec, itemAddedSpec, reservationConfirmedSpec}
 
 func parseInt(t *testing.T, fields map[string]string, name string, bitSize int) int64 {
 	t.Helper()
