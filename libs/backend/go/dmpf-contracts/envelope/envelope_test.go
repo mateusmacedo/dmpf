@@ -505,3 +505,70 @@ func TestUnpackRefusesBytesThatDoNotDecode(t *testing.T) {
 		t.Fatalf("Unpack of garbage = %v, want ErrMalformed", err)
 	}
 }
+
+func TestMarshalRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	in := validEnvelope(t)
+	wire, err := envelope.Marshal(in)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+	out, err := envelope.Unmarshal(wire)
+	if err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	if out.ID != in.ID || out.Source != in.Source || out.Type != in.Type || out.Subject != in.Subject {
+		t.Fatalf("attributes changed across the round trip:\n in=%+v\nout=%+v", in, out)
+	}
+	if out.AggregateVersion == nil || *out.AggregateVersion != *in.AggregateVersion {
+		t.Fatalf("aggregateversion = %v, want %d", out.AggregateVersion, *in.AggregateVersion)
+	}
+	if out.TenantID == nil || *out.TenantID != *in.TenantID {
+		t.Fatalf("tenantid = %v, want %q", out.TenantID, *in.TenantID)
+	}
+	if !bytes.Equal(out.Payload, in.Payload) {
+		t.Fatalf("payload bytes changed across the round trip: in=%x out=%x", in.Payload, out.Payload)
+	}
+}
+
+func TestMarshalMatchesEncodePlusProtoMarshal(t *testing.T) {
+	t.Parallel()
+
+	in := validEnvelope(t)
+	ce, err := envelope.Encode(in)
+	if err != nil {
+		t.Fatalf("Encode: %v", err)
+	}
+	want, err := proto.Marshal(ce)
+	if err != nil {
+		t.Fatalf("proto.Marshal: %v", err)
+	}
+	got, err := envelope.Marshal(in)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+	var backGot, backWant cloudeventsv1.CloudEvent
+	if err := proto.Unmarshal(got, &backGot); err != nil {
+		t.Fatalf("Unmarshal(got): %v", err)
+	}
+	if err := proto.Unmarshal(want, &backWant); err != nil {
+		t.Fatalf("Unmarshal(want): %v", err)
+	}
+	if !proto.Equal(&backGot, &backWant) {
+		t.Fatalf("Marshal produced a different CloudEvent:\n got=%v\nwant=%v", &backGot, &backWant)
+	}
+}
+
+func TestMarshalRejectsAnInvalidEnvelopeBeforeSerializing(t *testing.T) {
+	t.Parallel()
+
+	in := validEnvelope(t)
+	in.Subject = ""
+
+	wire, err := envelope.Marshal(in)
+	assertAttributeError(t, err, envelope.ErrMissingAttribute, "subject")
+	if wire != nil {
+		t.Fatalf("Marshal returned %d bytes for an invalid envelope, want nil", len(wire))
+	}
+}

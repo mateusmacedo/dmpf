@@ -220,6 +220,17 @@ func Decode(ce *cloudeventsv1.CloudEvent) (Envelope, error) {
 	return e, nil
 }
 
+// Marshal is the inverse of Unmarshal: it applies the profile (Encode) and
+// serializes, so a publisher that hands raw transport bytes to a broker never
+// imports the CloudEvent generated type directly.
+func Marshal(e Envelope) ([]byte, error) {
+	ce, err := Encode(e)
+	if err != nil {
+		return nil, err
+	}
+	return proto.Marshal(ce)
+}
+
 // Unmarshal decodes the wire bytes of a CloudEvent and applies the profile
 // (Decode), so adapters that receive raw transport bytes never import the
 // CloudEvent generated type directly.

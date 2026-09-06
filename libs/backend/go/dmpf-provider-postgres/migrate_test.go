@@ -61,7 +61,7 @@ func TestMigrateCreatesTheOutboxSchema(t *testing.T) {
 	})
 
 	t.Run("indexes", func(t *testing.T) {
-		for _, idx := range []string{"dmpf_outbox_published_at_idx", "dmpf_inbox_retention_idx", "dmpf_quarantine_reason_idx"} {
+		for _, idx := range []string{"dmpf_outbox_published_at_idx", "dmpf_outbox_claim_idx", "dmpf_inbox_retention_idx", "dmpf_quarantine_reason_idx"} {
 			if !exists(t, ctx, pool, indexExistsQuery, idx) {
 				t.Errorf("index %s does not exist", idx)
 			}
