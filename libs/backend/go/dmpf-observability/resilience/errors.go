@@ -57,9 +57,9 @@ var (
 		message:  "resilience: the defer degradation mode is realized by the outbox and is not available here",
 	}
 
-	// ErrWrapsUnitOfWork refuses, at construction, a retry decorator around a
-	// unit of work: repeating a transaction is the caller's decision, never a
-	// policy the composition takes on its own (RES-25, RES-34).
+	// ErrWrapsUnitOfWork refuses a retry decorator around a unit of work:
+	// repeating a transaction is the caller's decision, never a policy the
+	// composition takes on its own (RES-25, RES-34).
 	ErrWrapsUnitOfWork = &Error{
 		category: CategoryConfiguration,
 		code:     "RES-25",
