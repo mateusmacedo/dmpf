@@ -17,6 +17,12 @@ import (
 // caller's declaration (FND-08 catalogues them, this block only demands them).
 var ErrIncompleteConsumer = errors.New("dmpfapp: consumer requires name, handler, containment and clock")
 
+// ErrUnknownDisposition is what Consume reports when the handler returns a value
+// outside the seven of §6.4. It is a defect, but the adapter is the border
+// (ERR-23): it surfaces the error and leaves the message unconfirmed, it never
+// panics a consumer loop.
+var ErrUnknownDisposition = errors.New("dmpfapp: handler returned a disposition outside the seven of FND-04 §6.4")
+
 // Delivery is one message as the transport handed it over: Raw is kept byte for
 // byte because quarantine must preserve what was published, never a re-marshal
 // (GAR-07); Attempt is the transport's delivery count, starting at 1.
@@ -65,7 +71,7 @@ func (c Consumer) Consume(ctx context.Context, d Delivery, ack dmpfports.Acknowl
 			Consumer: c.Name,
 			Reason:   dmpfports.ReasonInvalidEnvelope,
 			Envelope: d.Raw,
-			Error:    err.Error(),
+			Error:    sanitizedEnvelopeError(err),
 			At:       c.Clock.Now(),
 		}, nil)
 	}
@@ -94,8 +100,18 @@ func (c Consumer) Consume(ctx context.Context, d Delivery, ack dmpfports.Acknowl
 	case dmpfapplication.R4:
 		return c.contain(ctx, ack, withReason(outcome, dmpfports.ReasonCollision), c.contained(receipt, d.Raw, dmpfports.ReasonCollision, disposition, handleErr), handleErr)
 	default:
-		panic("dmpfapp: handler returned a disposition outside the seven of FND-04 §6.4")
+		return Outcome{}, errors.Join(handleErr, ErrUnknownDisposition)
 	}
+}
+
+// sanitizedEnvelopeError keeps the quarantine free of transported bytes (ERR-20,
+// ERR-21): the envelope package's own messages name only sentinels and attribute
+// names, but ErrMalformed wraps the wire decoder's error, which is dropped.
+func sanitizedEnvelopeError(err error) string {
+	if errors.Is(err, envelope.ErrMalformed) {
+		return envelope.ErrMalformed.Error()
+	}
+	return err.Error()
 }
 
 // contain quarantines first and confirms only afterwards: a message that could

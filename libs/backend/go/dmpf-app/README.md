@@ -2,7 +2,7 @@
 
 Bloco `app` do kernel DMPF: o consumer adapter que fica entre a entrega do transporte e o application service de consumo (FND-04 §6.3, passos 1, 2 e 7). Primeiro módulo do bloco `app` no workspace.
 
-Criado por `KRN-07` (ARQ-526, `docs/specs/SPEC-ANZX2WPG-dmpf-inbox-consumo.md`). O conteúdo deste README é completado ao fim da entrega.
+Criado por `KRN-07` (ARQ-526, `docs/specs/SPEC-ANZX2WPG-dmpf-inbox-consumo.md`; decisões em `docs/adr/036-classificacao-de-recepcao-e-fronteira-pending.md`).
 
 ## Por que um módulo próprio
 

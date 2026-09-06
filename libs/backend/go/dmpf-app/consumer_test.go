@@ -397,3 +397,37 @@ func TestConsumerRequiresItsCollaborators(t *testing.T) {
 		})
 	}
 }
+
+func TestInvalidEnvelopeErrorIsSanitized(t *testing.T) {
+	t.Parallel()
+	containment := &fakeContainment{}
+
+	if _, err := newConsumer(&fakeHandler{}, containment, 3).Consume(context.Background(), dmpfapp.Delivery{Raw: []byte{0xff, 0xfe, 0xfd}, Attempt: 1}, &fakeAck{}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(containment.contained) != 1 {
+		t.Fatalf("contained = %d", len(containment.contained))
+	}
+	if got := containment.contained[0].Error; got != envelope.ErrMalformed.Error() {
+		t.Fatalf("Error = %q, want the sentinel alone, without the wire decoder's message (ERR-20)", got)
+	}
+}
+
+func TestUnknownDispositionIsAnErrorNotAPanic(t *testing.T) {
+	t.Parallel()
+	raw, _ := validRaw(t)
+	handler := &fakeHandler{disposition: dmpfapplication.Disposition(99), err: errHandler}
+	containment := &fakeContainment{}
+	ack := &fakeAck{}
+
+	outcome, err := newConsumer(handler, containment, 3).Consume(context.Background(), dmpfapp.Delivery{Raw: raw, Attempt: 1}, ack)
+	if !errors.Is(err, dmpfapp.ErrUnknownDisposition) || !errors.Is(err, errHandler) {
+		t.Fatalf("err = %v, want ErrUnknownDisposition joined with the handler's error", err)
+	}
+	if outcome != (dmpfapp.Outcome{}) {
+		t.Fatalf("outcome = %+v, want the zero value", outcome)
+	}
+	if ack.acks != 0 || ack.releases != 0 || len(containment.contained) != 0 {
+		t.Fatal("a defective disposition must leave the message untouched: no ack, no release, no containment")
+	}
+}

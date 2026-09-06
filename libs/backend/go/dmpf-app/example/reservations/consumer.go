@@ -61,6 +61,7 @@ func Handler(service reservationsapp.Service) dmpfapp.Handler {
 			MessageID:   receipt.MessageID,
 			MessageType: receipt.MessageType,
 			PayloadHash: receipt.PayloadHash,
+			ReceivedAt:  receipt.ReceivedAt,
 			Order:       reservations.OrderID(placed.GetOrderId()),
 			Items:       int(placed.GetItemCount()),
 		})
