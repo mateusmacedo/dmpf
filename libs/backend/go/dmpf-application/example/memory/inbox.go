@@ -4,7 +4,6 @@ package memory
 
 import (
 	"context"
-	"errors"
 
 	dmpfports "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-ports"
 )
@@ -29,8 +28,11 @@ type txInbox struct {
 }
 
 func (i txInbox) Register(_ context.Context, r dmpfports.Receipt) (dmpfports.Reception, error) {
-	if r.Consumer == "" {
-		return dmpfports.Reception{}, errors.New("memory: Receipt.Consumer must not be empty")
+	if i.consumer == "" || r.Consumer == "" {
+		return dmpfports.Reception{}, ErrInboxConsumerRequired
+	}
+	if r.Consumer != i.consumer {
+		return dmpfports.Reception{}, ErrInboxConsumerMismatch
 	}
 
 	key := inboxKey{consumer: i.consumer, id: r.MessageID}
@@ -59,7 +61,10 @@ type memoryPending struct {
 
 func (p *memoryPending) Complete(_ context.Context, c dmpfports.Completion) error {
 	if p.completed {
-		return errors.New("memory: Pending already completed")
+		return ErrAlreadyCompleted
+	}
+	if c.Status != dmpfports.StatusProcessed && c.Status != dmpfports.StatusRejected {
+		return ErrInvalidCompletion
 	}
 	p.tx.inbox[p.key] = inboxRow{hash: p.hash, status: c.Status, lastError: c.LastError}
 	p.completed = true

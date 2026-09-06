@@ -34,7 +34,8 @@ func newService(store *memory.Store) reservationsapp.Service {
 
 func consumeOrderPlaced(id dmpfports.MessageID, hash string, order reservations.OrderID, items int) reservationsapp.ConsumeOrderPlaced {
 	return reservationsapp.ConsumeOrderPlaced{
-		MessageID: id, MessageType: "orders.order-placed", PayloadHash: hash, Order: order, Items: items,
+		MessageID: id, MessageType: "orders.order-placed", PayloadHash: hash, ReceivedAt: 1_755_431_000_000_000_000,
+		Order: order, Items: items,
 	}
 }
 
@@ -308,12 +309,35 @@ func TestConsumeAuthorizeDenyingNeverOpensATransaction(t *testing.T) {
 		return errors.New("consume_test: not authorized")
 	}
 
-	_, err := svc.Consume(context.Background(), consumeOrderPlaced("m-ext-1", "h1", "P-100", 3))
+	disposition, err := svc.Consume(context.Background(), consumeOrderPlaced("m-ext-1", "h1", "P-100", 3))
 
 	if err == nil {
 		t.Fatal("Consume() error = nil, want the authorization failure")
 	}
+	// A refusal without category is Unexpected and terminal (ERR-11): the
+	// adapter must receive one of the seven, never the zero value.
+	if disposition != dmpfapplication.R1D4 {
+		t.Fatalf("disposition = %v, want %v", disposition, dmpfapplication.R1D4)
+	}
 	if got := store.WithinCalls(); got != 0 {
 		t.Fatalf("WithinCalls() = %d, want 0", got)
+	}
+}
+
+func TestConsumeAuthorizeDenyingWithACategoryKeepsIt(t *testing.T) {
+	store := memory.New()
+	svc := newService(store)
+	svc.Authorize = func(context.Context, reservationsapp.Command) error {
+		return dmpfapplication.NewFailure(dmpfapplication.Forbidden, false, errors.New("consume_test: forbidden"))
+	}
+
+	disposition, err := svc.Consume(context.Background(), consumeOrderPlaced("m-ext-2", "h1", "P-100", 3))
+
+	var failure *dmpfapplication.Failure
+	if !errors.As(err, &failure) || failure.Category() != dmpfapplication.Forbidden {
+		t.Fatalf("err = %v, want the Forbidden failure", err)
+	}
+	if disposition != dmpfapplication.R1D4 {
+		t.Fatalf("disposition = %v, want %v (FND-07 §6.2: Forbidden is terminal)", disposition, dmpfapplication.R1D4)
 	}
 }

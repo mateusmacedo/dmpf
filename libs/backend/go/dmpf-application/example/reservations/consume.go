@@ -17,7 +17,7 @@ import (
 // method's (INB-08).
 func (s Service) Consume(ctx context.Context, cmd ConsumeOrderPlaced) (dmpfapplication.Disposition, error) {
 	if err := s.Authorize(ctx, cmd); err != nil {
-		return 0, err
+		return dmpfapplication.Classify(err), err
 	}
 
 	identity := dmpfapplication.ResolveIdentity(s.Clock, s.IDs, maxEventsPerCommand)
@@ -29,7 +29,7 @@ func (s Service) Consume(ctx context.Context, cmd ConsumeOrderPlaced) (dmpfappli
 			MessageID:   cmd.MessageID,
 			MessageType: cmd.MessageType,
 			PayloadHash: cmd.PayloadHash,
-			ReceivedAt:  identity.OccurredAt,
+			ReceivedAt:  cmd.ReceivedAt,
 		})
 		if err != nil {
 			return err

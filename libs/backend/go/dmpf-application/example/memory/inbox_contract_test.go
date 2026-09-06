@@ -187,6 +187,21 @@ func TestMemoryInboxContract(t *testing.T) {
 		}
 	})
 
+	t.Run("a receipt naming another consumer is refused", func(t *testing.T) {
+		store := memory.New()
+		uow := memory.NewUnitOfWork(store, func(tx *memory.Tx) dmpfports.Inbox { return tx.Inbox("orders") })
+
+		err := uow.Within(context.Background(), func(ctx context.Context, inbox dmpfports.Inbox) error {
+			_, err := inbox.Register(ctx, dmpfports.Receipt{
+				Consumer: "billing", MessageID: "m-1", MessageType: "example", PayloadHash: "h1",
+			})
+			return err
+		})
+		if !errors.Is(err, memory.ErrInboxConsumerMismatch) {
+			t.Fatalf("Register() = %v, want ErrInboxConsumerMismatch — the bound consumer is the key's owner", err)
+		}
+	})
+
 	t.Run("registering a present key leaves the transaction usable", func(t *testing.T) {
 		store := memory.New()
 		registerAndCommitInbox(t, store, "orders", "m-1", "h1", dmpfports.StatusProcessed)

@@ -39,6 +39,7 @@ type ConsumeOrderPlaced struct {
 	MessageID   dmpfports.MessageID
 	MessageType string
 	PayloadHash string
+	ReceivedAt  dmpfports.Instant
 	Order       reservations.OrderID
 	Items       int
 }
