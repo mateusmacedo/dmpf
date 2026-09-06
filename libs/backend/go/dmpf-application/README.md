@@ -126,6 +126,42 @@ mesmo agregado preservem ordem.
 Campos de wire e de estado de drenagem não existem no tipo entregue à porta: os
 primeiros são do provider e do contrato, os segundos do schema e do relay.
 
+## Instrumentação do caso de uso
+
+O serviço de aplicação tem o campo `Instrumentation dmpfports.Instrumentation`.
+A ordem é fixa: abre a operação **antes** do passo 1 (autorização), o commit
+acontece, a operação é fechada com a categoria do desfecho, e só então sai a
+auditoria — com `Object`, `Action`, `Outcome` e o `OccurredAt` que a identidade
+da mensagem já resolveu. Um campo nulo vira `NoInstrumentation()`, e o serviço
+roda sem telemetria em vez de falhar.
+
+O span nasce aqui, no serviço de aplicação, e não no provider (`TRC-16`). O
+motivo é que só este bloco conhece a fronteira da operação de negócio: um span
+aberto pelo provider mediria a chamada de saída, não o caso de uso.
+
+A porta vive em `dmpf-ports` e não neste módulo, apesar de ser este quem a usa.
+Go satisfaz interface por assinatura idêntica, não por estrutura: um provider
+que declarasse o próprio `Result` não satisfaria a interface daqui, e a seta
+provider → application é célula proibida da matriz. Declarada acima, realizada
+abaixo, como toda porta.
+
+Quem realiza é o `usecase` do `dmpf-observability-go`, que traduz cada desfecho
+em span, nas três séries de serviço (`MET-08` a `MET-10`) e na trilha de
+auditoria. Nada disso aparece nas assinaturas deste módulo — o bloco
+`application` continua importando só `context`, `errors` e `dmpfports`.
+
+Dois desfechos merecem atenção porque é fácil confundi-los:
+
+- **Negado** (`errors.Is(err, dmpfports.ErrDenied)`) fecha a operação como
+  `Denied` e **não** emite auditoria: nada foi acessado. Qualquer outro erro do
+  autorizador é falha técnica e fecha como `Failed` — uma negação nunca é
+  inferida a partir de um erro que não a declarou.
+- **Rejeitado** é o ramo recusante da UPR, e não é falha (`DEC-04`). Conta como
+  requisição, nunca como erro, e a transação commita normalmente.
+
+Uma consulta (`FindOrder`) abre e fecha operação com classe de leitura e não
+deixa trilha: consultar não acessa nada auditável.
+
 ## Garantias de entrega
 
 A outbox entrega **at-least-once com efeitos idempotentes** (`GAR-02`). Entrega

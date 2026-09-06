@@ -402,14 +402,16 @@ func setupDB(t *testing.T) *sqlx.DB {
     t.Helper()
     ctx := context.Background()
 
-    pg, err := tcpostgres.RunContainer(ctx,
-        testcontainers.WithImage("postgres:16-alpine"),
+    // testcontainers-go >= v0.32: a imagem é argumento posicional de Run;
+    // RunContainer + WithImage estão deprecated (modules/postgres/postgres.go:139).
+    pg, err := tcpostgres.Run(ctx, "postgres:16-alpine",
         tcpostgres.WithDatabase("test"),
         tcpostgres.WithUsername("test"),
         tcpostgres.WithPassword("test"),
+        tcpostgres.BasicWaitStrategies(),
     )
+    testcontainers.CleanupContainer(t, pg) // registra o Terminate mesmo quando err != nil
     require.NoError(t, err)
-    t.Cleanup(func() { _ = pg.Terminate(ctx) })
 
     dsn, err := pg.ConnectionString(ctx, "sslmode=disable")
     require.NoError(t, err)

@@ -16,7 +16,11 @@ import (
 func (s Service) AddItem(ctx context.Context, cmd AddItem) (dmpfapplication.Outcome[orders.ItemAccepted], error) {
 	var zero dmpfapplication.Outcome[orders.ItemAccepted]
 
+	instrumentation := s.instrumentation()
+	ctx, end := instrumentation.BeginOperation(ctx, OperationAddItem)
+
 	if err := s.Authorize(ctx, cmd); err != nil {
+		end(authorizationResult(err))
 		return zero, err
 	}
 
@@ -53,8 +57,18 @@ func (s Service) AddItem(ctx context.Context, cmd AddItem) (dmpfapplication.Outc
 		return nil
 	})
 	if err != nil {
+		end(dmpfports.Result{Outcome: dmpfports.OutcomeFailed, Err: err})
 		return zero, err
 	}
+
+	category := outcomeCategory(outcome)
+	end(dmpfports.Result{Outcome: category})
+	instrumentation.Audit(ctx, dmpfports.AuditEvent{
+		Object:  string(cmd.Order),
+		Action:  OperationAddItem,
+		Outcome: category,
+		At:      identity.OccurredAt,
+	})
 	return outcome, nil
 }
 
