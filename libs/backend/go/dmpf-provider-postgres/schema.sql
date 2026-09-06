@@ -29,6 +29,9 @@ CREATE TABLE IF NOT EXISTS dmpf_outbox (
 CREATE INDEX IF NOT EXISTS dmpf_outbox_published_at_idx
   ON dmpf_outbox (published_at) WHERE status = 'published';
 
+CREATE INDEX IF NOT EXISTS dmpf_outbox_claim_idx
+  ON dmpf_outbox (available_at, id) WHERE status IN ('pending', 'publishing');
+
 CREATE TABLE IF NOT EXISTS dmpf_inbox (
   consumer_name text   NOT NULL,
   message_id    text   NOT NULL,

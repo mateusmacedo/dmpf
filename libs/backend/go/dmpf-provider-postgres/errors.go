@@ -49,4 +49,21 @@ var (
 	// ErrInvalidContainment is what Quarantine reports when a required field
 	// of Contained is empty (GAR-07).
 	ErrInvalidContainment = errors.New("dmpfpostgres: invalid containment: consumer, reason and envelope are required")
+
+	// ErrIncompleteStore is what OutboxStore reports when it was built without
+	// a pool or without a clock, rather than dereferencing either.
+	ErrIncompleteStore = errors.New("dmpfpostgres: outbox store requires a pool and a clock")
+
+	// ErrClaimIdentityRequired is what the claim and the three transitions
+	// report for an empty identity: OBX-08 makes it the identity of one
+	// acquisition, and OBX-10 conditions every later write on it.
+	ErrClaimIdentityRequired = errors.New("dmpfpostgres: claim identity is required")
+
+	// ErrInvalidBatchSize is what Claim reports for a non-positive limit; the
+	// value belongs to the caller (FND-08), its positivity to the statement.
+	ErrInvalidBatchSize = errors.New("dmpfpostgres: claim batch size must be positive")
+
+	// ErrInvalidLease is what Claim reports for a non-positive lease, which
+	// would be born expired and hand the record to the next claim at once.
+	ErrInvalidLease = errors.New("dmpfpostgres: claim lease must be positive")
 )
