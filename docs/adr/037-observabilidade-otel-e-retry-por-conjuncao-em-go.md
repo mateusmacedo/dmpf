@@ -110,6 +110,42 @@ O `usecase` recebe um segundo classificador, `func(error) string`, que dá a
 `error_category` de `MET-10`. Categoria ausente **ou vazia** vira
 `"unclassified"`; a mensagem do erro nunca vira label.
 
+### O orçamento é reservado, não apenas lido
+
+`Evaluate` é uma função pura, e essa é também a sua fronteira: o orçamento que
+ela lê é compartilhado com todas as outras dependências da execução, e **ler um
+saldo não é reservá-lo**. Duas dependências que falham ao mesmo tempo veriam a
+mesma folga e ambas seguiriam adiante, gastando o dobro do que `RES-30` permite.
+
+O veredito passa a declarar `Need` — a espera mais a duração estimada — e quem
+age sobre a autorização chama `Budget.Reserve(need)`, que decide e gasta em um
+único compare-and-swap. Uma reserva recusada é negação pelo fator de orçamento,
+e conta como esgotamento.
+
+Como `RES-30` limita o tempo **realmente** gasto, a reserva é só uma pretensão
+sobre o saldo: quando a tentativa retorna, `Budget.Settle(reservado, real)`
+devolve o que sobrou ou cobra o excedente.
+
+Isto não se prova por teste. A janela entre uma leitura e uma escrita posterior
+tem poucas instruções — medida em cerca de uma rodada em cem — e o detector de
+corrida não a enxerga, porque os atomics a tornam corrida lógica e não corrida de
+dados. O que a elimina é a construção, não a suíte; o teste declara o invariante
+e diz isso de si mesmo.
+
+### O breaker decide pelo ciclo em que a chamada entrou
+
+Uma chamada admitida com o breaker **fechado** pode continuar em voo enquanto ele
+abre, esfria e passa a meia-aberto. Decidindo pelo estado no instante do retorno,
+essa chamada caía no ramo da sonda: decrementava um contador que nunca
+incrementou e, se tivesse tido sucesso, **fechava o breaker** sobre uma
+dependência que nunca se recuperou.
+
+A admissão passa a devolver um bilhete com duas informações — se a chamada
+entrou como sonda, e em que geração. Toda transição incrementa a geração. No
+registro, só a sonda da geração corrente decide a meia-abertura; uma chamada
+comum que aterrisse nela não é contada nem fecha nada, porque a resposta que ela
+traz é sobre uma dependência que já não é a que está sendo testada.
+
 ### `guardUnitOfWork` verifica por chamada, não em construção
 
 A spec descreve a recusa de retry sobre unidade de trabalho como um gate de
