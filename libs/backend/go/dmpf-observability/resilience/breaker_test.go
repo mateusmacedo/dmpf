@@ -262,3 +262,177 @@ func TestTheBreakerIsSafeUnderConcurrentCalls(t *testing.T) {
 		t.Fatalf("State() = %v after 64 concurrent failures, want open", got)
 	}
 }
+
+// A call admitted while the breaker was closed can still be in flight when the
+// breaker opens, cools down and goes half-open. Its outcome belongs to the cycle
+// it started in, and must not be taken for the probe's: a stale success would
+// close the breaker over a dependency that never recovered.
+func TestACallFromBeforeTheCycleDoesNotDecideTheHalfOpenOutcome(t *testing.T) {
+	fake := clock.NewFake(start)
+	policy := breakerPolicy()
+	breaker := resilience.NewBreaker("payments", policy, fake, nil)
+
+	entered := make(chan struct{})
+	release := make(chan struct{})
+
+	// The straggler: admitted while closed, held until the test says otherwise.
+	straggler := breaker.Decorate()(func(context.Context, resilience.Operation, func(context.Context) error) error {
+		close(entered)
+		<-release
+		return nil // it succeeds, which is what would wrongly close the breaker
+	})
+
+	var inFlight sync.WaitGroup
+	inFlight.Add(1)
+	go func() {
+		defer inFlight.Done()
+		_ = straggler(context.Background(), remoteOp(time.Second), nil)
+	}()
+	<-entered
+
+	// Meanwhile the dependency fails enough to open the breaker.
+	failing := breaker.Decorate()(func(context.Context, resilience.Operation, func(context.Context) error) error {
+		return errDependency
+	})
+	for range policy.MinSamples {
+		_ = failing(context.Background(), remoteOp(time.Second), nil)
+	}
+	if got := breaker.State(); got != resilience.BreakerOpen {
+		t.Fatalf("State() = %v, want open before the cooldown", got)
+	}
+
+	// The cooldown elapses and a probe is admitted, which is what moves the
+	// breaker to half-openness.
+	fake.Advance(policy.Cooldown + time.Second)
+	probeEntered := make(chan struct{})
+	probeRelease := make(chan struct{})
+	probe := breaker.Decorate()(func(context.Context, resilience.Operation, func(context.Context) error) error {
+		close(probeEntered)
+		<-probeRelease
+		return errDependency
+	})
+	var probing sync.WaitGroup
+	probing.Add(1)
+	go func() {
+		defer probing.Done()
+		_ = probe(context.Background(), remoteOp(time.Second), nil)
+	}()
+	<-probeEntered
+
+	if got := breaker.State(); got != resilience.BreakerHalfOpen {
+		t.Fatalf("State() = %v, want half-open once a probe is in flight", got)
+	}
+
+	// Now the straggler finishes, successfully. It started two cycles ago.
+	close(release)
+	inFlight.Wait()
+
+	if got := breaker.State(); got != resilience.BreakerHalfOpen {
+		t.Errorf("State() = %v, want it to stay half-open: a success from before the cycle closed the breaker", got)
+	}
+
+	// The real probe fails, and that is what decides.
+	close(probeRelease)
+	probing.Wait()
+
+	if got := breaker.State(); got != resilience.BreakerOpen {
+		t.Errorf("State() = %v, want open: the probe failed, and the probe is what decides", got)
+	}
+}
+
+// A cancelled call releases a probe slot only if it held one. A call admitted
+// while the breaker was closed never incremented the counter, and decrementing
+// it on the way out would leave the half-open cycle admitting more probes than
+// the policy allows.
+func TestACancelledCallReleasesOnlyTheProbeSlotItHeld(t *testing.T) {
+	fake := clock.NewFake(start)
+	policy := breakerPolicy()
+	breaker := resilience.NewBreaker("payments", policy, fake, nil)
+
+	cancelled := breaker.Decorate()(func(context.Context, resilience.Operation, func(context.Context) error) error {
+		return resilience.ErrCancelled
+	})
+
+	// Closed breaker: these calls never held a probe slot.
+	for range 4 {
+		_ = cancelled(context.Background(), remoteOp(time.Second), nil)
+	}
+
+	// A cancellation is not held against the dependency, so the breaker is still
+	// closed and no probe accounting happened at all.
+	if got := breaker.State(); got != resilience.BreakerClosed {
+		t.Fatalf("State() = %v, want closed — a caller giving up is not a dependency failing", got)
+	}
+
+	// Open it, cool it down, and check the half-open cycle still admits exactly
+	// the declared number of probes.
+	failing := breaker.Decorate()(func(context.Context, resilience.Operation, func(context.Context) error) error {
+		return errDependency
+	})
+	for range policy.MinSamples {
+		_ = failing(context.Background(), remoteOp(time.Second), nil)
+	}
+	fake.Advance(policy.Cooldown + time.Second)
+
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	probe := breaker.Decorate()(func(context.Context, resilience.Operation, func(context.Context) error) error {
+		close(entered)
+		<-release
+		return errDependency
+	})
+	var probing sync.WaitGroup
+	probing.Add(1)
+	go func() {
+		defer probing.Done()
+		_ = probe(context.Background(), remoteOp(time.Second), nil)
+	}()
+	<-entered
+
+	// With the single declared probe in flight, the next call is refused.
+	if err := failing(context.Background(), remoteOp(time.Second), nil); !errors.Is(err, resilience.ErrBreakerOpen) {
+		t.Errorf("second call during half-openness = %v, want ErrBreakerOpen: the probe slot is taken", err)
+	}
+
+	close(release)
+	probing.Wait()
+}
+
+// A probe that is cancelled gives its slot back, so the half-open cycle can
+// still be decided by a probe that actually reaches the dependency.
+func TestACancelledProbeGivesItsSlotBack(t *testing.T) {
+	fake := clock.NewFake(start)
+	policy := breakerPolicy()
+	breaker := resilience.NewBreaker("payments", policy, fake, nil)
+
+	failing := breaker.Decorate()(func(context.Context, resilience.Operation, func(context.Context) error) error {
+		return errDependency
+	})
+	for range policy.MinSamples {
+		_ = failing(context.Background(), remoteOp(time.Second), nil)
+	}
+	fake.Advance(policy.Cooldown + time.Second)
+
+	// The first probe is cancelled by its caller, which is not the dependency
+	// failing: it releases the slot and decides nothing.
+	cancelledProbe := breaker.Decorate()(func(context.Context, resilience.Operation, func(context.Context) error) error {
+		return resilience.ErrCancelled
+	})
+	if err := cancelledProbe(context.Background(), remoteOp(time.Second), nil); !errors.Is(err, resilience.ErrCancelled) {
+		t.Fatalf("probe = %v, want the cancellation", err)
+	}
+	if got := breaker.State(); got != resilience.BreakerHalfOpen {
+		t.Fatalf("State() = %v, want half-open: a cancelled probe decides nothing", got)
+	}
+
+	// The slot is free, so a real probe gets through and closes the breaker.
+	succeeding := breaker.Decorate()(func(context.Context, resilience.Operation, func(context.Context) error) error {
+		return nil
+	})
+	if err := succeeding(context.Background(), remoteOp(time.Second), nil); err != nil {
+		t.Fatalf("second probe = %v, want nil: the cancelled probe freed its slot", err)
+	}
+	if got := breaker.State(); got != resilience.BreakerClosed {
+		t.Errorf("State() = %v, want closed: the probe succeeded", got)
+	}
+}

@@ -56,14 +56,22 @@ func NewRetry(config RetryConfig, c clock.Clock, sleeper clock.Sleeper, instrume
 			span := trace.SpanFromContext(ctx)
 			budget, carried := retry.BudgetFrom(ctx)
 
+			// What the previous round claimed from the budget for the attempt
+			// now running, and the wait it already paid for: together they are
+			// settled against the real cost when that attempt returns.
+			var claimed, waited time.Duration
+
 			for attempt := 0; ; attempt++ {
 				startedAt := c.Now()
 				err := next(ctx, op, do)
 
-				// Only a repeated attempt is debited: the budget pays for what
-				// the retry added, not for the call the caller asked for.
+				// Only a repeated attempt is settled: the budget pays for what
+				// the retry added, not for the call the caller asked for. The
+				// real cost is the wait that was served plus how long the
+				// attempt took (RES-31).
 				if attempt > 0 && carried {
-					budget.Debit(c.Now().Sub(startedAt))
+					budget.Settle(claimed, waited+c.Now().Sub(startedAt))
+					claimed, waited = 0, 0
 				}
 				if err == nil {
 					return nil
@@ -95,11 +103,19 @@ func NewRetry(config RetryConfig, c clock.Clock, sleeper clock.Sleeper, instrume
 					return err
 				}
 
-				// The wait is debited before sleeping, so a budget that cannot
-				// afford the wait is exhausted now and not after the process
-				// already spent the time (RES-32).
+				// The claim is taken before sleeping, so a budget that cannot
+				// afford the attempt is exhausted now and not after the process
+				// already spent the time (RES-32). Reserving rather than reading
+				// is what keeps two dependencies of the same execution from
+				// both spending the same balance (RES-30).
 				if carried {
-					budget.Debit(verdict.Wait)
+					if !budget.Reserve(verdict.Need) {
+						if budget.ReportExhaustion() {
+							reportExhaustion(ctx, span, exhausted, config.Dependency)
+						}
+						return err
+					}
+					claimed, waited = verdict.Need, verdict.Wait
 				}
 
 				tracing.AttemptEvent(span, attempt+1, categoryOf(err))

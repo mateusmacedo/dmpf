@@ -82,6 +82,49 @@ func (b *Budget) Debit(spent time.Duration) {
 	}
 }
 
+// Reserve takes the funds for one attempt if the balance covers them, and
+// reports whether it did. It is the only safe way for concurrent dependencies to
+// spend a shared budget: reading Remaining and debiting afterwards lets two of
+// them see the same balance and both go ahead, spending twice what the execution
+// was allowed (RES-30).
+//
+// A refused reservation leaves the balance untouched, and an unarmed budget
+// grants nothing.
+func (b *Budget) Reserve(need time.Duration) bool {
+	if need <= 0 || !b.armed.Load() {
+		return false
+	}
+
+	for {
+		current := b.remaining.Load()
+		if current < int64(need) {
+			return false
+		}
+		if b.remaining.CompareAndSwap(current, current-int64(need)) {
+			return true
+		}
+	}
+}
+
+// Settle reconciles a reservation with what the attempt really cost. RES-30
+// limits the time an execution actually spends, so a reservation is only a claim
+// on the balance: an attempt that ran short gives the difference back, and one
+// that ran long is debited for it.
+func (b *Budget) Settle(reserved, actual time.Duration) {
+	switch {
+	case actual > reserved:
+		b.Debit(actual - reserved)
+	case actual < reserved:
+		b.refund(reserved - actual)
+	}
+}
+
+// refund returns unspent funds. Settle is its only caller and reaches it only
+// with a positive difference, so the balance never grows past what Arm sized.
+func (b *Budget) refund(unspent time.Duration) {
+	b.remaining.Add(int64(unspent))
+}
+
 // Remaining is the balance. An unarmed budget reports zero, which denies the
 // retry rather than allowing one against a balance nobody sized.
 func (b *Budget) Remaining() time.Duration {

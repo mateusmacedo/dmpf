@@ -194,15 +194,25 @@ func TestTheWaitIsDebitedBeforeSleeping(t *testing.T) {
 	op.EstimatedDuration = 50 * time.Millisecond
 	_ = call(ctx, op, nil)
 
-	// A budget of 1s, waits of 100ms and 200ms, and a ceiling of 3 attempts.
-	want := []time.Duration{900 * time.Millisecond, 700 * time.Millisecond}
+	// A budget of 1s, waits of 100ms and 200ms, an estimate of 50ms and a ceiling
+	// of 3 attempts. What is claimed before each sleep is the whole attempt —
+	// the wait plus the estimate — because reserving is what stops two
+	// dependencies from spending the same balance (RES-30). The 50ms of estimate
+	// comes back when the attempt returns faster than that, which is why the
+	// second balance starts from 900ms and not from 850ms.
+	want := []time.Duration{850 * time.Millisecond, 650 * time.Millisecond}
 	if len(balances) != len(want) {
 		t.Fatalf("slept %d times with balances %v, want %d", len(balances), balances, len(want))
 	}
 	for i := range want {
 		if balances[i] != want[i] {
-			t.Fatalf("balances = %v, want %v — each wait is debited before sleeping for it (RES-32)", balances, want)
+			t.Fatalf("balances = %v, want %v — the attempt is claimed before sleeping for its wait (RES-31, RES-32)", balances, want)
 		}
+	}
+
+	// And the settlement gave back what the attempts did not spend.
+	if got := budget.Remaining(); got != 700*time.Millisecond {
+		t.Errorf("Remaining() = %v, want 700ms: each attempt returned 50ms of unspent estimate", got)
 	}
 }
 

@@ -46,11 +46,22 @@ type Breaker struct {
 	clock      clock.Clock
 	gauge      metric64Gauge
 
-	mu       sync.Mutex
-	window   []observation
-	state    BreakerState
-	openedAt time.Time
-	probing  int
+	mu         sync.Mutex
+	window     []observation
+	state      BreakerState
+	openedAt   time.Time
+	probing    int
+	generation uint64
+}
+
+// admission is what a call carries from admit to record: whether it was let
+// through as a probe, and which cycle of the state machine it belongs to. A
+// breaker that decided by the state at record time would hand the outcome of a
+// call started two cycles ago to whichever cycle happened to be running when it
+// returned — closing over a dependency that never recovered.
+type admission struct {
+	probe      bool
+	generation uint64
 }
 
 type observation struct {
@@ -81,20 +92,22 @@ func (b *Breaker) State() BreakerState {
 func (b *Breaker) Decorate() Decorator {
 	return func(next Call) Call {
 		return func(ctx context.Context, op Operation, do func(context.Context) error) error {
-			if err := b.admit(ctx); err != nil {
+			granted, err := b.admit(ctx)
+			if err != nil {
 				return err
 			}
 
-			err := next(ctx, op, do)
-			b.record(ctx, err)
+			err = next(ctx, op, do)
+			b.record(ctx, granted, err)
 			return err
 		}
 	}
 }
 
 // admit decides whether the call goes through, moving the breaker to
-// half-openness when the cooldown has elapsed.
-func (b *Breaker) admit(ctx context.Context) error {
+// half-openness when the cooldown has elapsed. It returns the ticket the call
+// hands back to record.
+func (b *Breaker) admit(ctx context.Context) (admission, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -102,27 +115,28 @@ func (b *Breaker) admit(ctx context.Context) error {
 
 	if b.state == BreakerOpen {
 		if now.Sub(b.openedAt) < b.policy.Cooldown {
-			return fmt.Errorf("%w: %s is open", ErrBreakerOpen, b.dependency)
+			return admission{}, fmt.Errorf("%w: %s is open", ErrBreakerOpen, b.dependency)
 		}
 		b.transition(ctx, BreakerHalfOpen, now)
 	}
 
 	if b.state == BreakerHalfOpen {
 		if b.probing >= b.probes() {
-			return fmt.Errorf("%w: %s is half-open and its probes are in flight", ErrBreakerOpen, b.dependency)
+			return admission{}, fmt.Errorf("%w: %s is half-open and its probes are in flight", ErrBreakerOpen, b.dependency)
 		}
 		b.probing++
+		return admission{probe: true, generation: b.generation}, nil
 	}
 
-	return nil
+	return admission{generation: b.generation}, nil
 }
 
 // record accounts for the outcome. A cancellation by the caller is not counted:
 // the dependency was never given the chance to answer, and holding it against
 // the dependency would open the breaker on a client that gave up.
-func (b *Breaker) record(ctx context.Context, err error) {
+func (b *Breaker) record(ctx context.Context, granted admission, err error) {
 	if errors.Is(err, ErrCancelled) {
-		b.releaseProbe()
+		b.releaseProbe(granted)
 		return
 	}
 
@@ -132,15 +146,26 @@ func (b *Breaker) record(ctx context.Context, err error) {
 	now := b.clock.Now()
 	failed := err != nil
 
-	if b.state == BreakerHalfOpen {
+	if granted.probe {
+		// A probe from a cycle that already ended decides nothing, and its slot
+		// was released when the cycle turned over.
+		if granted.generation != b.generation || b.state != BreakerHalfOpen {
+			return
+		}
 		b.probing--
+		b.window = nil
 		if failed {
-			b.window = nil
 			b.transition(ctx, BreakerOpen, now)
 			return
 		}
-		b.window = nil
 		b.transition(ctx, BreakerClosed, now)
+		return
+	}
+
+	// Half-openness belongs to the probe. A call admitted before the cycle
+	// began carries an answer about a dependency that may no longer be the one
+	// being tested, so it is neither counted nor allowed to close the breaker.
+	if b.state == BreakerHalfOpen {
 		return
 	}
 
@@ -150,10 +175,14 @@ func (b *Breaker) record(ctx context.Context, err error) {
 	}
 }
 
-func (b *Breaker) releaseProbe() {
+func (b *Breaker) releaseProbe(granted admission) {
+	if !granted.probe {
+		return
+	}
+
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	if b.state == BreakerHalfOpen && b.probing > 0 {
+	if granted.generation == b.generation && b.state == BreakerHalfOpen && b.probing > 0 {
 		b.probing--
 	}
 }
@@ -200,7 +229,12 @@ func (b *Breaker) probes() int {
 // transition records the new state on the gauge. It runs under the lock, so the
 // value recorded and the state held never disagree.
 func (b *Breaker) transition(ctx context.Context, to BreakerState, now time.Time) {
+	// Every transition starts a cycle. A call admitted in an earlier one still
+	// carries the generation it was granted, which is how record tells a current
+	// answer from a stale one.
+	b.generation++
 	b.state = to
+
 	if to == BreakerOpen {
 		b.openedAt = now
 		b.probing = 0

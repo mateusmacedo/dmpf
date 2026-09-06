@@ -82,12 +82,22 @@ type Verdict struct {
 	Allowed bool
 	Denied  Factor
 	Wait    time.Duration
+
+	// Need is what the attempt is expected to cost — the backoff wait plus the
+	// estimated duration of the call. The caller reserves exactly this from the
+	// budget, and settles it against what the attempt really took.
+	Need time.Duration
 }
 
 // Evaluate is the conjunction of RES-27: every factor must hold for one more
 // attempt to be allowed, and the first false one ends the evaluation and is
 // named in Denied. It is a pure function of Input, so the decision is testable
 // without a clock, a network or a transaction.
+//
+// Being pure is also its limit: the budget it reads is shared with every other
+// dependency of the execution, and reading a balance is not claiming it. The
+// caller reserves Verdict.Need before acting on an allowance, and treats a
+// refused reservation as denial by the budget factor.
 func Evaluate(in Input) Verdict {
 	// The ceiling counts the original call, so the attempt that just failed
 	// already spent one of the allowance (RES-33).
@@ -111,7 +121,7 @@ func Evaluate(in Input) Verdict {
 		return Verdict{Denied: FactorDeadline}
 	}
 
-	return Verdict{Allowed: true, Wait: wait}
+	return Verdict{Allowed: true, Wait: wait, Need: need}
 }
 
 func repeatable(operation Operation, err error) bool {
