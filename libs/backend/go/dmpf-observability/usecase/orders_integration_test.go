@@ -1,11 +1,14 @@
 package usecase_test
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
 	dmpfapplication "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-application"
@@ -13,7 +16,9 @@ import (
 	ordersapp "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-application/example/orders"
 	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-domain/example/orders"
 	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/audit"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/usecase"
+	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/metrics"
+	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/otelboot"
+	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/retry"
 	dmpfports "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-ports"
 )
 
@@ -27,24 +32,24 @@ const (
 // of the application block to the provider realization, which neither block may
 // do for itself.
 type wiring struct {
-	service  ordersapp.Service
-	store    *memory.Store
-	recorder *tracetest.SpanRecorder
-	trail    *audit.Recording
+	service ordersapp.Service
+	store   *memory.Store
+	trail   *audit.Recording
+
+	runtime  *otelboot.Runtime
+	exporter *tracetest.InMemoryExporter
+	reader   *sdkmetric.ManualReader
+	log      *bytes.Buffer
 }
 
 func wire(t *testing.T, authorize dmpfapplication.AuthorizeFunc[ordersapp.Command]) *wiring {
 	t.Helper()
 
-	recorder := tracetest.NewSpanRecorder()
-	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
-	t.Cleanup(func() {
-		if err := provider.Shutdown(context.Background()); err != nil {
-			t.Errorf("Shutdown() = %v, want nil", err)
-		}
+	fixture := boot(t, options{
+		subject:    func(context.Context) string { return "svc-a" },
+		classifier: func(error) string { return "storage" },
 	})
-
-	trail := &audit.Recording{}
+	trail := fixture.recording
 	store := memory.New()
 	bind := func(tx *memory.Tx) ordersapp.Resources {
 		return ordersapp.Resources{Orders: tx.Orders(), Outbox: tx.Outbox()}
@@ -52,22 +57,20 @@ func wire(t *testing.T, authorize dmpfapplication.AuthorizeFunc[ordersapp.Comman
 
 	return &wiring{
 		service: ordersapp.Service{
-			UoW:       memory.NewUnitOfWork(store, bind),
-			Reader:    store.Reader(),
-			Clock:     memory.FixedClock{At: occurred},
-			IDs:       &memory.SequenceIDs{Prefix: "m-"},
-			Authorize: authorize,
-			ItemLimit: itemLimit,
-			Instrumentation: usecase.New(
-				provider.Tracer("dmpf-observability"),
-				trail,
-				func(context.Context) string { return "svc-a" },
-				ordersapp.OperationFindOrder,
-			),
+			UoW:             memory.NewUnitOfWork(store, bind),
+			Reader:          store.Reader(),
+			Clock:           memory.FixedClock{At: occurred},
+			IDs:             &memory.SequenceIDs{Prefix: "m-"},
+			Authorize:       authorize,
+			ItemLimit:       itemLimit,
+			Instrumentation: fixture.instrumentation,
 		},
 		store:    store,
-		recorder: recorder,
 		trail:    trail,
+		runtime:  fixture.runtime,
+		exporter: fixture.exporter,
+		reader:   fixture.reader,
+		log:      fixture.log,
 	}
 }
 
@@ -90,9 +93,13 @@ func openSnapshot(items int) orders.Snapshot {
 	return orders.Snapshot{ID: orderID, Status: orders.Open, ItemLimit: itemLimit, Items: built}
 }
 
-func (w *wiring) endedSpan(t *testing.T) sdktrace.ReadOnlySpan {
+func (w *wiring) endedSpan(t *testing.T) tracetest.SpanStub {
 	t.Helper()
-	ended := w.recorder.Ended()
+
+	if err := w.runtime.ForceFlush(context.Background()); err != nil {
+		t.Fatalf("ForceFlush() = %v", err)
+	}
+	ended := w.exporter.GetSpans()
 	if len(ended) != 1 {
 		t.Fatalf("ended spans = %d, want 1 — the span is born in the application service", len(ended))
 	}
@@ -101,6 +108,49 @@ func (w *wiring) endedSpan(t *testing.T) sdktrace.ReadOnlySpan {
 
 func allowAll() dmpfapplication.AuthorizeFunc[ordersapp.Command] {
 	return dmpfapplication.AllowAll[ordersapp.Command]()
+}
+
+// budgeted is the context the platform hands a use case: the retry budget of
+// RES-24 travels in it, and nothing else does.
+func budgeted(t *testing.T) context.Context {
+	t.Helper()
+
+	ctx := retry.WithBudget(context.Background())
+	if _, armed := retry.BudgetFrom(ctx); !armed {
+		t.Fatal("BudgetFrom() found no budget in the context the test just built")
+	}
+	return ctx
+}
+
+// requestSeries indexes dmpf_service_requests_total by operation and outcome.
+func (w *wiring) requestSeries(t *testing.T) map[string]int64 {
+	t.Helper()
+
+	byKey := make(map[string]int64)
+	for _, point := range collect(t, w.reader)[metrics.RequestsTotal] {
+		labels := labelsOf(point)
+		byKey[labels[metrics.KeyOperation]+"/"+labels[metrics.KeyOutcomeCategory]] = point.Value
+	}
+	return byKey
+}
+
+func (w *wiring) records(t *testing.T) []map[string]any {
+	t.Helper()
+
+	text := strings.TrimSpace(w.log.String())
+	if text == "" {
+		return nil
+	}
+
+	parsed := make([]map[string]any, 0, 4)
+	for line := range strings.SplitSeq(text, "\n") {
+		var record map[string]any
+		if err := json.Unmarshal([]byte(line), &record); err != nil {
+			t.Fatalf("a log record is not JSON: %v (line %q)", err, line)
+		}
+		parsed = append(parsed, record)
+	}
+	return parsed
 }
 
 func TestAcceptedProducesOneSpanOneAuditAndOneTransaction(t *testing.T) {
@@ -116,7 +166,7 @@ func TestAcceptedProducesOneSpanOneAuditAndOneTransaction(t *testing.T) {
 	}
 
 	span := w.endedSpan(t)
-	if got := span.Name(); got != "dmpf.usecase.orders.AddItem" {
+	if got := span.Name; got != "dmpf.usecase.orders.AddItem" {
 		t.Fatalf("span name = %q, want %q", got, "dmpf.usecase.orders.AddItem")
 	}
 	if got, ok := attributeOf(span, "dmpf.outcome_category"); !ok || got != "accepted" {
@@ -216,7 +266,7 @@ func TestFindOrderIsReadTrafficAndLeavesNoAuditTrail(t *testing.T) {
 	}
 
 	span := w.endedSpan(t)
-	if got := span.Name(); got != "dmpf.usecase.orders.FindOrder" {
+	if got := span.Name; got != "dmpf.usecase.orders.FindOrder" {
 		t.Fatalf("span name = %q, want %q", got, "dmpf.usecase.orders.FindOrder")
 	}
 	if got, ok := attributeOf(span, "dmpf.traffic_class"); !ok || got != "read" {

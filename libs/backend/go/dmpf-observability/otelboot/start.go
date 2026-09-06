@@ -42,6 +42,7 @@ type Runtime struct {
 	processor      *ClassAwareProcessor
 	instruments    *metrics.Instruments
 	logger         *slog.Logger
+	service        string
 
 	shutdownOnce sync.Once
 	shutdownErr  error
@@ -114,6 +115,7 @@ func build(config Config) (*Runtime, error) {
 		processor:     processor,
 		instruments:   instruments,
 		logger:        logger,
+		service:       config.Resource.ServiceName,
 	}, nil
 }
 
@@ -141,6 +143,11 @@ func (r *Runtime) Meter() metric.Meter {
 	return r.meterProvider.Meter(instrumentationName,
 		metric.WithInstrumentationVersion(dmpfobservability.OTelVersion))
 }
+
+// ServiceName is the service the runtime booted for. The label of the same name
+// is on three of the platform series (MET-04), and reading it here keeps the
+// caller from restating what the configuration already said.
+func (r *Runtime) ServiceName() string { return r.service }
 
 // Instruments is the platform catalogue, built once at boot.
 func (r *Runtime) Instruments() *metrics.Instruments { return r.instruments }
