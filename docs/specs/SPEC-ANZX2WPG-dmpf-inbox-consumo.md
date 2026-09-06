@@ -2,7 +2,7 @@
 id: SPEC-ANZX2WPG
 slug: dmpf-inbox-consumo
 title: DMPF KRN-07 — Inbox e consumo: deduplicação, disposições e contenção
-stage: building
+stage: done
 priority: P0
 depends_on: [SPEC-ZHE7DN1H, SPEC-WYX5GW87, SPEC-3R80KNMS]
 ticket_url: https://lider-cap.atlassian.net/browse/ARQ-526
@@ -592,7 +592,7 @@ requisitos desta spec.
       qual instante.
 - [x] `InboxSignals` expõe profundidade da quarantine e as contagens de R1×D4 e
       R4.
-- [ ] O verificador `dmpf-conformance` aprova o grafo com o módulo `app`, e o
+- [x] O verificador `dmpf-conformance` aprova o grafo com o módulo `app`, e o
       baseline registra as unidades novas.
 - [x] Cadeia Go completa verde, e `pnpm nx affected -t lint,typecheck,test,build`
       verde.

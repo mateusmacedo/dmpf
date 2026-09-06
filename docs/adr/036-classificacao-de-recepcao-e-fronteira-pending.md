@@ -132,7 +132,10 @@ distintos, e misturá-los no mesmo `Resources` faria o KRN-07 alterar o exemplo
 do KRN-04. A `Reservation` tem chave natural permanente — o identificador do
 pedido — realizada por `ON CONFLICT (order_id) DO NOTHING` no repositório, e é
 isso que torna o vetor V32 executável: reentrega com `message_id` novo é R1 pela
-inbox, e só a chave natural impede o efeito de dobrar (`GAR-04`, `GAR-10`).
+inbox, e são duas defesas do domínio que impedem o efeito de dobrar: a regra do
+agregado (`already-reserved`, que o teste exerce e devolve R1×D2) e o `ON
+CONFLICT (order_id) DO NOTHING` do repositório, que só atua sob concorrência
+real (`GAR-04`, `GAR-10`).
 
 **Dois módulos com teste de banco não rodam `test-race` em paralelo.** O CI usa
 `--parallel=3`, e cada harness faz `TRUNCATE` das mesmas tabelas; isolados, os
