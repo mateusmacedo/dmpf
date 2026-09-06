@@ -9,18 +9,21 @@ import (
 // Instruments is the platform catalogue realized over a meter. It is built once
 // at boot: an instrument created per call would re-register the same series.
 type Instruments struct {
-	Retries            metric.Int64Counter
-	BudgetExhausted    metric.Int64Counter
-	BreakerState       metric.Int64Gauge
-	DeadlineExceeded   metric.Int64Counter
-	Cancellations      metric.Int64Counter
-	RequestDuration    metric.Float64Histogram
-	Requests           metric.Int64Counter
-	Errors             metric.Int64Counter
-	Degraded           metric.Int64Counter
-	Omitted            metric.Int64Counter
-	BulkheadRejections metric.Int64Counter
-	SpansDropped       metric.Int64Counter
+	Retries             metric.Int64Counter
+	BudgetExhausted     metric.Int64Counter
+	BreakerState        metric.Int64Gauge
+	DeadlineExceeded    metric.Int64Counter
+	Cancellations       metric.Int64Counter
+	RequestDuration     metric.Float64Histogram
+	Requests            metric.Int64Counter
+	Errors              metric.Int64Counter
+	Degraded            metric.Int64Counter
+	Omitted             metric.Int64Counter
+	BulkheadRejections  metric.Int64Counter
+	SpansDropped        metric.Int64Counter
+	PoolUtilization     metric.Float64Gauge
+	QueueDepth          metric.Int64Gauge
+	AdmissionRejections metric.Int64Counter
 }
 
 // New builds every series of Catalog on the meter. It fails as a whole: a
@@ -48,16 +51,17 @@ func New(meter metric.Meter) (*Instruments, error) {
 	}
 
 	instruments := &Instruments{
-		Retries:            counter(RetriesTotal),
-		BudgetExhausted:    counter(BudgetExhaustedTotal),
-		DeadlineExceeded:   counter(DeadlineExceededTotal),
-		Cancellations:      counter(CancellationsTotal),
-		Requests:           counter(RequestsTotal),
-		Errors:             counter(ErrorsTotal),
-		Degraded:           counter(DegradedTotal),
-		Omitted:            counter(OmittedTotal),
-		BulkheadRejections: counter(BulkheadRejectionsTotal),
-		SpansDropped:       counter(SpansDroppedTotal),
+		Retries:             counter(RetriesTotal),
+		BudgetExhausted:     counter(BudgetExhaustedTotal),
+		DeadlineExceeded:    counter(DeadlineExceededTotal),
+		Cancellations:       counter(CancellationsTotal),
+		Requests:            counter(RequestsTotal),
+		Errors:              counter(ErrorsTotal),
+		Degraded:            counter(DegradedTotal),
+		Omitted:             counter(OmittedTotal),
+		BulkheadRejections:  counter(BulkheadRejectionsTotal),
+		SpansDropped:        counter(SpansDroppedTotal),
+		AdmissionRejections: counter(AdmissionRejectionsTotal),
 	}
 
 	gauge := byName[BreakerState]
@@ -77,6 +81,24 @@ func New(meter metric.Meter) (*Instruments, error) {
 		failure = fmt.Errorf("metrics: %s: %w", RequestDurationSeconds, err)
 	}
 	instruments.RequestDuration = histogram
+
+	utilization := byName[PoolUtilization]
+	pool, err := meter.Float64Gauge(PoolUtilization,
+		metric.WithUnit(utilization.Unit),
+		metric.WithDescription(utilization.Formula))
+	if err != nil && failure == nil {
+		failure = fmt.Errorf("metrics: %s: %w", PoolUtilization, err)
+	}
+	instruments.PoolUtilization = pool
+
+	depth := byName[QueueDepth]
+	queue, err := meter.Int64Gauge(QueueDepth,
+		metric.WithUnit(depth.Unit),
+		metric.WithDescription(depth.Formula))
+	if err != nil && failure == nil {
+		failure = fmt.Errorf("metrics: %s: %w", QueueDepth, err)
+	}
+	instruments.QueueDepth = queue
 
 	if failure != nil {
 		return nil, failure

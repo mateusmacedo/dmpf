@@ -38,25 +38,28 @@ type Metric struct {
 // Names of the platform series (MET-02). They are constants because a
 // dashboard, an alert and a test all reference the same string.
 const (
-	RetriesTotal            = "dmpf_dependency_retries_total"
-	BudgetExhaustedTotal    = "dmpf_dependency_budget_exhausted_total"
-	BreakerState            = "dmpf_dependency_breaker_state"
-	DeadlineExceededTotal   = "dmpf_dependency_deadline_exceeded_total"
-	CancellationsTotal      = "dmpf_dependency_cancellations_total"
-	RequestDurationSeconds  = "dmpf_service_request_duration_seconds"
-	RequestsTotal           = "dmpf_service_requests_total"
-	ErrorsTotal             = "dmpf_service_errors_total"
-	DegradedTotal           = "dmpf_service_degraded_total"
-	OmittedTotal            = "dmpf_service_omitted_total"
-	BulkheadRejectionsTotal = "dmpf_dependency_bulkhead_rejections_total"
-	SpansDroppedTotal       = "dmpf_otel_spans_dropped_total"
+	RetriesTotal             = "dmpf_dependency_retries_total"
+	BudgetExhaustedTotal     = "dmpf_dependency_budget_exhausted_total"
+	BreakerState             = "dmpf_dependency_breaker_state"
+	DeadlineExceededTotal    = "dmpf_dependency_deadline_exceeded_total"
+	CancellationsTotal       = "dmpf_dependency_cancellations_total"
+	RequestDurationSeconds   = "dmpf_service_request_duration_seconds"
+	RequestsTotal            = "dmpf_service_requests_total"
+	ErrorsTotal              = "dmpf_service_errors_total"
+	DegradedTotal            = "dmpf_service_degraded_total"
+	OmittedTotal             = "dmpf_service_omitted_total"
+	BulkheadRejectionsTotal  = "dmpf_dependency_bulkhead_rejections_total"
+	SpansDroppedTotal        = "dmpf_otel_spans_dropped_total"
+	PoolUtilization          = "dmpf_service_pool_utilization"
+	QueueDepth               = "dmpf_service_queue_depth"
+	AdmissionRejectionsTotal = "dmpf_service_admission_rejections_total"
 )
 
 const ownerService = "serviço"
 
-// Catalog is the ten mandatory series of MET-02 plus the two local ones: the
-// bulkhead rejections and the spans the processor had to drop. Returning a copy
-// keeps a caller from rewriting the catalogue it is reading.
+// Catalog is the ten mandatory series of MET-02, the two local ones (bulkhead
+// rejections, dropped spans) and the three of MET-11 and MET-12 the transport
+// providers record. Returning a copy keeps a caller from rewriting the catalogue.
 func Catalog() []Metric {
 	catalogue := []Metric{
 		{
@@ -154,6 +157,30 @@ func Catalog() []Metric {
 			Kind:    Counter,
 			Formula: "soma dos spans descartados pelo processador por fila cheia",
 			Labels:  []string{KeyService},
+			Owner:   ownerService,
+		},
+		{
+			Name:    PoolUtilization,
+			Unit:    UnitDimensionless,
+			Kind:    Gauge,
+			Formula: "ocupação média do pool de trabalho na janela dividida pela capacidade declarada (razão)",
+			Labels:  []string{KeyService},
+			Owner:   ownerService,
+		},
+		{
+			Name:    QueueDepth,
+			Unit:    UnitDimensionless,
+			Kind:    Gauge,
+			Formula: "profundidade atual da fila interna de trabalho (contagem)",
+			Labels:  []string{KeyService},
+			Owner:   ownerService,
+		},
+		{
+			Name:    AdmissionRejectionsTotal,
+			Unit:    UnitDimensionless,
+			Kind:    Counter,
+			Formula: "soma das recusas por admissão, por rota e por tenant declarado na allowlist",
+			Labels:  []string{KeyRoute, KeyTenant},
 			Owner:   ownerService,
 		},
 	}
