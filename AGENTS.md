@@ -102,11 +102,11 @@ Fonte de verdade dos projetos: `pnpm nx show projects`.
 ```text
 nx-base-template/
 ├── apps/
-│   ├── backend/go/                 # 5 módulos Go: dmpf-domain, dmpf-conformance, dmpf-contracts, dmpf-ports, dmpf-application
+│   ├── backend/go/                 # placeholder — sem projeto Nx
 │   ├── frontend/                   # placeholder — sem projeto Nx
 │   └── serverless/                 # placeholder — sem projeto Nx
 ├── libs/
-│   ├── backend/go/                 # 5 módulos Go: dmpf-domain, dmpf-conformance, dmpf-contracts, dmpf-ports, dmpf-application
+│   ├── backend/go/                 # 6 módulos Go: dmpf-domain, dmpf-conformance, dmpf-contracts, dmpf-ports, dmpf-application, dmpf-observability
 │   ├── frontend/                   # placeholder — sem projeto Nx
 │   └── shared/                     # placeholder — sem projeto Nx
 ├── docs/
@@ -138,13 +138,15 @@ Nenhuma. `apps/backend`, `apps/frontend` e `apps/serverless` são diretórios de
 
 ### Libs
 
-Cinco, todos Go, com as três tags 3D (`type:lib`, `scope:backend`, `stack:go`), um `dmpf-units.json` (o `metadata_container` da RFC DMPF) e um `package.json` com `private: true` — este último existe porque o Nx Release aborta o versionamento de um `tag:type:lib` sem manifesto npm (ver `docs/adr/030-granularidade-modulo-go-e-bom.md`):
+Seis, todos Go, com as três tags 3D (`type:lib`, `scope:backend`, `stack:go`), um `dmpf-units.json` (o `metadata_container` da RFC DMPF) e um `package.json` com `private: true` — este último existe porque o Nx Release aborta o versionamento de um `tag:type:lib` sem manifesto npm (ver `docs/adr/030-granularidade-modulo-go-e-bom.md`):
 
 - **`dmpf-domain-go`** (`libs/backend/go/dmpf-domain`), o kernel de domínio do DMPF, criado por `KRN-01` e preenchido por `KRN-03`. O package raiz `dmpfdomain` realiza o desfecho da UPR como par `(Accepted[R], *Rejection)`; o package `example/orders` é o agregado de exemplo com duas UPRs. São duas unidades `domain` no manifesto, `dmpf-kernel/domain` e `dmpf-kernel/example-orders`, no `bounded_context` `dmpf-kernel` (ver `docs/adr/032-realizacao-go-do-desfecho-da-upr.md`).
 - **`dmpf-conformance-go`** (`libs/backend/go/dmpf-conformance`), o verificador de conformidade do DMPF, criado por `KRN-02`. Decide a regra de dependência sobre o grafo real de imports e roda no CI como gate fail-closed; o binário fica em `cmd/dmpf-conformance` e o baseline em `tools/dmpf-baseline/units-baseline.json` (ver `docs/adr/031-verificador-de-conformidade-dmpf-em-go.md` e `docs/guides/dmpf-manifesto.md`).
 - **`dmpf-contracts-go`** (`libs/backend/go/dmpf-contracts`), o bloco `contract` do kernel criado por `KRN-05`: código gerado de Protobuf em `gen/go/` (nunca editado à mão), o codec do envelope CloudEvents (`envelope`) e a fórmula do `payload_hash` (`payloadhash`). A **fonte** dos contratos — `.proto`, configuração Buf e golden fixtures — vive em `contracts/`, na raiz, e é neutra de stack; `contracts/README.md` explica a árvore, a proveniência do envelope oficial e a máquina de estados do baseline (`BUF-08`).
 - **`dmpf-ports-go`** (`libs/backend/go/dmpf-ports`), o bloco `port` do kernel, criado por `KRN-04`. Declara a fronteira de Unit of Work (`UnitOfWork[R]`), o repositório com optimistic locking, a porta da outbox em tipos de domínio, o relógio e o gerador de identificador — treze identificadores exportados, superfície fechada, nenhuma realização. É uma unidade `port`, `dmpf-kernel/port`. `Instant` é inteiro de nanossegundos e não `time.Time`, porque o verificador classifica o package `time` inteiro como `io.clock` (ver `docs/adr/034-fronteira-de-uow-em-go.md`).
 - **`dmpf-application-go`** (`libs/backend/go/dmpf-application`), o bloco `application` do kernel, também de `KRN-04`. O package raiz `dmpfapplication` traz o desfecho de aplicação `Outcome[R]`, que separa o canal de negócio do técnico, a resolução de identidade anterior à transação e o gancho de autorização; `example/orders` é o caso de uso de referência que percorre os nove passos da sequência canônica de FND-04 §3.2. São três unidades: `dmpf-kernel/application` e `dmpf-kernel/example-orders-application` no bloco `application`, e `dmpf-kernel/example-memory` no bloco **`provider`** — a realização em memória da UoW, que fecha o caso de uso sem banco e será substituída pelo Postgres no `KRN-06`.
+
+- **`dmpf-observability-go`** (`libs/backend/go/dmpf-observability`), o bloco `provider` do kernel, criado por `KRN-09`. Realiza o `FND-08` sobre OpenTelemetry `v1.46.0` e `semconv/v1.43.0`: a ficha de resiliência e os decorators (`resilience`), o retry por conjunção com orçamento (`retry`), o bootstrap do SDK com sampler e processor próprios (`otelboot`), os exportadores OTLP/gRPC (`otelboot/otlp`), o catálogo de métricas (`metrics`), os atributos e a taxonomia de classes (`tracing`), o handler de log com redação (`logging`), a trilha de auditoria (`audit`), o relógio injetável (`clock`) e a realização do gancho de instrumentação (`usecase`). É uma unidade `provider`, `dmpf-kernel/observability`, com doze packages. O `TRC-14` — erro sempre amostrado — é realizado por regra equivalente em processo, porque os samplers de fábrica do SDK devolvem `Drop` no ramo negativo; a suíte **exige Docker**, porque o teste do Collector roda sem build tag (ver `docs/adr/035-observabilidade-otel-e-retry-por-conjuncao-em-go.md` e o `README.md` do módulo).
 
 `libs/frontend` segue sendo diretório de destino, sem projeto Nx registrado. Para criar uma lib TypeScript, use o generator do Nx (`pnpm nx g @nx/js:lib libs/shared/<name>`), com as três tags 3D e `--linter=none`; o passo a passo com todas as flags está em `docs/nx-reference/tasks.md`.
 
