@@ -86,18 +86,27 @@ func build(config Config) (*Runtime, error) {
 	}
 	meterProvider := sdkmetric.NewMeterProvider(meterOptions...)
 
+	// Anything that fails from here on has to put the meter provider down. A
+	// periodic reader — which is what the OTLP metric pipeline is — runs a
+	// collection goroutine of its own (sdk/metric/periodic_reader.go:135), and a
+	// build that just returned an error would leave it collecting for the life
+	// of the process, against a runtime the caller never received.
+	abort := func(cause error) (*Runtime, error) {
+		return nil, errors.Join(cause, meterProvider.Shutdown(context.Background()))
+	}
+
 	meter := meterProvider.Meter(instrumentationName,
 		metric.WithInstrumentationVersion(dmpfobservability.OTelVersion))
 	instruments, err := metrics.New(meter)
 	if err != nil {
-		return nil, err
+		return abort(err)
 	}
 
 	processor, err := NewClassAwareProcessor(config.TraceExporter, ProcessorOptions{
 		Dropped: instruments.SpansDropped,
 	})
 	if err != nil {
-		return nil, err
+		return abort(err)
 	}
 
 	logger := config.Logger

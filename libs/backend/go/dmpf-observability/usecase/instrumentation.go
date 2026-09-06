@@ -113,8 +113,11 @@ func (i *Instrumentation) record(ctx context.Context, operation string, result d
 		Operation(operation).
 		OutcomeCategory(string(result.Outcome))
 
-	i.instruments.RequestDuration.Record(ctx, elapsed.Seconds(), metric.WithAttributes(labels.Attributes()...))
-	i.instruments.Requests.Add(ctx, 1, metric.WithAttributes(labels.Attributes()...))
+	// Both series carry the same labels, so the attribute set is built once: it
+	// is on the path of every instrumented operation.
+	measured := metric.WithAttributes(labels.Attributes()...)
+	i.instruments.RequestDuration.Record(ctx, elapsed.Seconds(), measured)
+	i.instruments.Requests.Add(ctx, 1, measured)
 
 	if result.Outcome != dmpfports.OutcomeFailed {
 		return
