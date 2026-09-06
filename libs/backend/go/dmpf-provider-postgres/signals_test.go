@@ -4,6 +4,7 @@ package dmpfpostgres_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	dmpfports "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-ports"
@@ -60,5 +61,70 @@ func TestInboxSignalsEmptyQuarantine(t *testing.T) {
 	}
 	if s.QuarantineDepth != 0 {
 		t.Errorf("QuarantineDepth = %d, want 0", s.QuarantineDepth)
+	}
+}
+
+func TestOutboxSignalsCountOnlyWhatTheCycleStillOwes(t *testing.T) {
+	pool := openPool(t)
+	ctx := context.Background()
+	now := dmpfports.Instant(10_000)
+
+	// Two rows are still owed, one gave up and one is done. The oldest of the
+	// two owed is what lag has to reflect.
+	pendingRow := defaultRow("m-pending")
+	pendingRow.occurredAt, pendingRow.availableAt, pendingRow.attempts = 4_000, 4_000, 2
+	insert(t, ctx, pool, pendingRow)
+
+	publishingRow := defaultRow("m-publishing")
+	publishingRow.occurredAt, publishingRow.availableAt = 6_000, 6_000
+	publishingRow.status, publishingRow.attempts = "publishing", 3
+	insert(t, ctx, pool, publishingRow)
+
+	failedRow := defaultRow("m-failed")
+	failedRow.occurredAt, failedRow.availableAt = 1_000, 1_000
+	failedRow.status, failedRow.attempts = "failed", 9
+	insert(t, ctx, pool, failedRow)
+
+	publishedRow := defaultRow("m-published")
+	publishedRow.occurredAt, publishedRow.availableAt = 2_000, 2_000
+	publishedRow.status = "published"
+	insert(t, ctx, pool, publishedRow)
+
+	health, err := dmpfpostgres.OutboxSignals(ctx, pool, fixedClock(now))
+	if err != nil {
+		t.Fatalf("OutboxSignals() = %v, want nil", err)
+	}
+
+	want := dmpfpostgres.OutboxHealth{
+		Pending:  2,
+		Lag:      int64(now) - pendingRow.occurredAt,
+		Attempts: 5,
+		Failures: 1,
+	}
+	if health != want {
+		t.Fatalf("OutboxSignals() = %+v, want %+v", health, want)
+	}
+}
+
+func TestOutboxSignalsReportNoLagWithNothingPending(t *testing.T) {
+	pool := openPool(t)
+	ctx := context.Background()
+
+	failedRow := defaultRow("m-failed")
+	failedRow.status = "failed"
+	insert(t, ctx, pool, failedRow)
+
+	health, err := dmpfpostgres.OutboxSignals(ctx, pool, fixedClock(10_000))
+	if err != nil {
+		t.Fatalf("OutboxSignals() = %v, want nil", err)
+	}
+	if health.Pending != 0 || health.Lag != 0 {
+		t.Fatalf("OutboxSignals() = %+v, want no pending and no lag", health)
+	}
+}
+
+func TestOutboxSignalsRefuseAnIncompleteStore(t *testing.T) {
+	if _, err := dmpfpostgres.OutboxSignals(context.Background(), nil, fixedClock(0)); !errors.Is(err, dmpfpostgres.ErrIncompleteStore) {
+		t.Fatalf("OutboxSignals() with no pool = %v, want ErrIncompleteStore", err)
 	}
 }
