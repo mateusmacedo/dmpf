@@ -6,6 +6,7 @@ package dmpfports_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	dmpfports "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-ports"
@@ -177,6 +178,18 @@ func RunInboxContract(t *testing.T, newSubject func() InboxSubject) {
 		s.Commit()
 	})
 
+	t.Run("a receipt naming another consumer is refused", func(t *testing.T) {
+		s := newSubject()
+		s.Begin()
+		defer s.Rollback()
+		_, err := s.Inbox("orders").Register(context.Background(), dmpfports.Receipt{
+			Consumer: "billing", MessageID: "m-1", MessageType: "example", PayloadHash: "h1",
+		})
+		if err == nil {
+			t.Fatal("Register() = nil, want an error — the bound consumer is the key's owner, the receipt cannot rename it")
+		}
+	})
+
 	t.Run("registering a present key leaves the transaction usable", func(t *testing.T) {
 		s := newSubject()
 		registerAndCommit(t, s, "orders", "m-1", "h1", dmpfports.StatusProcessed)
@@ -256,6 +269,9 @@ type memoryInbox struct {
 }
 
 func (i *memoryInbox) Register(_ context.Context, r dmpfports.Receipt) (dmpfports.Reception, error) {
+	if r.Consumer != i.consumer {
+		return dmpfports.Reception{}, errConsumerMismatch
+	}
 	key := memoryInboxRowKey{consumer: i.consumer, id: r.MessageID}
 	if existing, ok := i.store.committed[key]; ok {
 		if existing.hash != r.PayloadHash {
@@ -268,6 +284,8 @@ func (i *memoryInbox) Register(_ context.Context, r dmpfports.Receipt) (dmpfport
 	}
 	return dmpfports.FirstReception(&memoryPending{store: i.store, key: key, hash: r.PayloadHash}), nil
 }
+
+var errConsumerMismatch = errors.New("inbox_contract_test: receipt consumer does not match inbox consumer")
 
 var _ dmpfports.Inbox = (*memoryInbox)(nil)
 
