@@ -26,6 +26,11 @@ jobs:
     env:
       NX_EXCLUDE: "@nx-base-template/source"
       DMPF_PG_DSN: "postgres://dmpf:dmpf@localhost:5432/dmpf?sslmode=disable"
+      DMPF_KAFKA_BROKERS: "localhost:9092"
+      DMPF_SQS_ENDPOINT: "http://localhost:4566"
+      AWS_REGION: "us-east-1"
+      AWS_ACCESS_KEY_ID: "test"
+      AWS_SECRET_ACCESS_KEY: "test"
 
     steps:
       - name: Checkout
@@ -68,6 +73,51 @@ jobs:
             sleep 2
           done
           echo "postgres nao respondeu em 60s" >&2
+          docker logs "$nome" >&2
+          exit 1
+
+      # Mesmo gesto do Postgres (ADR-035). `--mode dev-container` agrupa as flags
+      # de desenvolvimento e `--smp 1` é repassado ao binário (confirmado em
+      # v26.2.2 pelo exec logado); sem ele o broker toma todos os cores do runner.
+      - name: Subir Redpanda para os testes de integração
+        run: |
+          set -euo pipefail
+          nome="dmpf-redpanda-$(hostname)"
+          docker rm -f "$nome" >/dev/null 2>&1 || true
+          docker run -d --name "$nome" \
+            --network "container:$(hostname)" \
+            redpandadata/redpanda:v26.2.2 \
+            redpanda start --mode dev-container --smp 1
+          for _ in $(seq 1 30); do
+            if docker exec "$nome" rpk cluster info >/dev/null 2>&1; then
+              echo "redpanda pronto em localhost:9092 ($nome)"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "redpanda nao respondeu em 60s" >&2
+          docker logs "$nome" >&2
+          exit 1
+
+      # SQS e SNS no mesmo emulador, para o hop SNS → SQS com raw delivery. As
+      # filas e tópicos são criados pelo próprio teste de integração; o floci
+      # aceita qualquer credencial não vazia, e /_floci/health lista os serviços.
+      - name: Subir floci (SQS e SNS) para os testes de integração
+        run: |
+          set -euo pipefail
+          nome="dmpf-floci-$(hostname)"
+          docker rm -f "$nome" >/dev/null 2>&1 || true
+          docker run -d --name "$nome" \
+            --network "container:$(hostname)" \
+            floci/floci:2.0.1
+          for _ in $(seq 1 30); do
+            if curl -sf -o /dev/null "http://localhost:4566/_floci/health"; then
+              echo "floci pronto em localhost:4566 ($nome)"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "floci nao respondeu em 60s" >&2
           docker logs "$nome" >&2
           exit 1
 
