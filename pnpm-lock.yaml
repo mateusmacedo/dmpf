@@ -248,7 +248,17 @@ importers:
 
   libs/backend/go/dmpf-ports: {}
 
+  libs/backend/go/dmpf-provider-grpc: {}
+
+  libs/backend/go/dmpf-provider-http: {}
+
+  libs/backend/go/dmpf-provider-kafka: {}
+
   libs/backend/go/dmpf-provider-postgres: {}
+
+  libs/backend/go/dmpf-provider-sqs: {}
+
+  libs/backend/go/dmpf-transport: {}
 
 packages:
 
