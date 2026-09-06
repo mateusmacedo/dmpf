@@ -15,13 +15,13 @@ func measurement(l metrics.Labels) metric.MeasurementOption {
 	return metric.WithAttributes(l.Attributes()...)
 }
 
-// forbidden are the substrings MET-07 keeps out of a label key: an identifier
-// or a message is unbounded, and a correlation, request, user or tenant is
-// personal or high cardinality.
+// forbidden are the substrings MET-07 keeps out of a label key (unbounded or
+// personal). TenantWithin is the nominal exception of MET-07/MET-12, not a
+// one-string builder, covered by TestTenantEntersOnlyThroughADeclaredAllowlist.
 var forbidden = []string{"id", "message", "correlation", "request", "user", "tenant"}
 
 // builderMethods are the methods of Labels that take one string and return
-// Labels — that is, every way a key can enter a series.
+// Labels — that is, every way a key can enter a series without an allowlist.
 func builderMethods() []reflect.Method {
 	labels := reflect.TypeOf(metrics.Labels{})
 	stringType := reflect.TypeOf("")
@@ -90,7 +90,7 @@ func TestEveryPermittedKeyHasABuilderMethod(t *testing.T) {
 
 	for _, key := range []string{
 		metrics.KeyDependency, metrics.KeyOperation, metrics.KeyService,
-		metrics.KeyErrorCategory, metrics.KeyOutcomeCategory,
+		metrics.KeyErrorCategory, metrics.KeyOutcomeCategory, metrics.KeyRoute,
 	} {
 		if !produced[key] {
 			t.Errorf("no builder method produces the permitted key %q", key)
@@ -152,5 +152,60 @@ func TestAttributesReturnsACopy(t *testing.T) {
 
 	if got := string(labels.Attributes()[0].Key); got != metrics.KeyDependency {
 		t.Fatalf("key = %q after rewriting the returned slice, want %q", got, metrics.KeyDependency)
+	}
+}
+
+func TestTenantEntersOnlyThroughADeclaredAllowlist(t *testing.T) {
+	allowlist, err := metrics.DeclareTenants("acme", "globex")
+	if err != nil {
+		t.Fatalf("DeclareTenants() = %v, want nil", err)
+	}
+
+	t.Run("a declared tenant is recorded as itself", func(t *testing.T) {
+		got := metrics.Labels{}.TenantWithin(allowlist, "acme").Attributes()
+		if len(got) != 1 || string(got[0].Key) != metrics.KeyTenant || got[0].Value.AsString() != "acme" {
+			t.Fatalf("Attributes() = %v, want tenant=acme", got)
+		}
+	})
+
+	t.Run("an undeclared tenant collapses into other", func(t *testing.T) {
+		got := metrics.Labels{}.TenantWithin(allowlist, "initech").Attributes()
+		if got[0].Value.AsString() != metrics.OtherTenant {
+			t.Fatalf("Attributes() = %v, want tenant=%s (MET-07)", got, metrics.OtherTenant)
+		}
+	})
+
+	t.Run("an empty tenant is other, never omitted", func(t *testing.T) {
+		got := metrics.Labels{}.TenantWithin(allowlist, "").Attributes()
+		if len(got) != 1 || got[0].Value.AsString() != metrics.OtherTenant {
+			t.Fatalf("Attributes() = %v, want tenant=%s", got, metrics.OtherTenant)
+		}
+	})
+
+	t.Run("the zero allowlist declares nobody", func(t *testing.T) {
+		got := metrics.Labels{}.TenantWithin(metrics.Tenants{}, "acme").Attributes()
+		if got[0].Value.AsString() != metrics.OtherTenant {
+			t.Fatalf("Attributes() = %v, want tenant=%s", got, metrics.OtherTenant)
+		}
+	})
+
+	t.Run("no builder takes a tenant without an allowlist", func(t *testing.T) {
+		for _, method := range builderMethods() {
+			out := method.Func.Call([]reflect.Value{reflect.ValueOf(metrics.Labels{}), reflect.ValueOf("v")})
+			for _, kv := range out[0].Interface().(metrics.Labels).Attributes() {
+				if string(kv.Key) == metrics.KeyTenant {
+					t.Fatalf("%s produces the tenant key without an allowlist (MET-07)", method.Name)
+				}
+			}
+		}
+	})
+}
+
+func TestDeclareTenantsRefusesAnEmptyDeclaration(t *testing.T) {
+	if _, err := metrics.DeclareTenants(); err == nil {
+		t.Fatal("DeclareTenants() = nil error, want a refusal: an empty set is not a declared set")
+	}
+	if _, err := metrics.DeclareTenants("acme", ""); err == nil {
+		t.Fatal("DeclareTenants(\"acme\", \"\") = nil error, want a refusal of the empty name")
 	}
 }

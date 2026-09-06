@@ -1,0 +1,35 @@
+{
+  "schema": "dmpf/units@1",
+  "units": [
+    {
+      "id": "dmpf-kernel/provider-kafka",
+      "block": "provider",
+      "bounded_context": "dmpf-kernel",
+      "public_integration_surface": false,
+      "include": [
+        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-provider-kafka"
+      ]
+    }
+  ],
+  "external": [
+    {
+      "package": "github.com/twmb/franz-go",
+      "versions": ">=1.21.6 <2",
+      "entrypoints": ["github.com/twmb/franz-go/pkg/kgo", "github.com/twmb/franz-go/pkg/kerr"],
+      "capability": "io.messaging"
+    },
+    {
+      "package": "go.opentelemetry.io/otel/trace",
+      "versions": ">=1.46.0 <2",
+      "entrypoints": ["."],
+      "capability": "observability"
+    },
+    {
+      "package": "go.opentelemetry.io/otel/metric",
+      "versions": ">=1.46.0 <2",
+      "entrypoints": ["."],
+      "capability": "observability"
+    }
+  ],
+  "exceptions": []
+}

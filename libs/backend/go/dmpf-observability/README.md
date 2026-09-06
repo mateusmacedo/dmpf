@@ -27,7 +27,7 @@ Uma unidade DMPF, `dmpf-kernel/observability`, com `block: provider` e
 | `audit` | `Sink`, `Event`, `NewJSONSink`, `Recording` — a trilha de auditoria, canal separado do log |
 | `clock` | `Clock`, `System()`, `Fake` avançável com `Advance`, `WithTimeout`, `NewTimer` |
 | `logging` | `NewHandler` sobre `slog`: campos obrigatórios, allowlist de redação, amostragem por classe |
-| `metrics` | `Catalog()` com as doze séries, `Labels` fechado, `Instruments` construído uma vez |
+| `metrics` | `Catalog()` com as quinze séries (dez de MET-02, duas locais e as três de MET-11/MET-12 que os providers de transporte gravam), `Labels` fechado — `tenant` só por `TenantWithin` com allowlist declarada —, `Instruments` construído uma vez |
 | `otelboot` | `Config`, `Start`, `Runtime`, o `classSampler` e o `classAwareProcessor` |
 | `otelboot/otlp` | os exportadores OTLP/gRPC de traces e métricas |
 | `redact` | `Attr`, `Error` — o que sai de um erro é categoria e código, nunca a mensagem |

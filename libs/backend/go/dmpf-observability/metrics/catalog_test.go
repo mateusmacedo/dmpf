@@ -12,7 +12,7 @@ import (
 	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/metrics"
 )
 
-func TestTheCatalogueDeclaresTheTenMandatorySeriesPlusTheTwoLocalOnes(t *testing.T) {
+func TestTheCatalogueDeclaresTheMandatorySeriesTheLocalOnesAndTheServiceOnes(t *testing.T) {
 	want := []string{
 		metrics.RetriesTotal,
 		metrics.BudgetExhaustedTotal,
@@ -26,6 +26,9 @@ func TestTheCatalogueDeclaresTheTenMandatorySeriesPlusTheTwoLocalOnes(t *testing
 		metrics.OmittedTotal,
 		metrics.BulkheadRejectionsTotal,
 		metrics.SpansDroppedTotal,
+		metrics.PoolUtilization,
+		metrics.QueueDepth,
+		metrics.AdmissionRejectionsTotal,
 	}
 
 	catalogue := metrics.Catalog()
@@ -100,12 +103,26 @@ func TestTheDurationSeriesIsAHistogramInSeconds(t *testing.T) {
 	t.Fatalf("series %q is missing from the catalogue", metrics.RequestDurationSeconds)
 }
 
-func TestTheBreakerStateIsAGauge(t *testing.T) {
+func TestTheStateAndSaturationSeriesAreGauges(t *testing.T) {
+	gauges := []string{metrics.BreakerState, metrics.PoolUtilization, metrics.QueueDepth}
 	for _, m := range metrics.Catalog() {
-		if m.Name == metrics.BreakerState && m.Kind != metrics.Gauge {
-			t.Fatalf("Kind of %q = %q, want gauge", m.Name, m.Kind)
+		if slices.Contains(gauges, m.Name) && m.Kind != metrics.Gauge {
+			t.Errorf("Kind of %q = %q, want gauge (MET-11)", m.Name, m.Kind)
 		}
 	}
+}
+
+func TestTheAdmissionSeriesCarriesRouteAndTenantOnly(t *testing.T) {
+	for _, m := range metrics.Catalog() {
+		if m.Name != metrics.AdmissionRejectionsTotal {
+			continue
+		}
+		if !slices.Equal(m.Labels, []string{metrics.KeyRoute, metrics.KeyTenant}) {
+			t.Fatalf("Labels = %v, want [route tenant] (MET-12)", m.Labels)
+		}
+		return
+	}
+	t.Fatalf("series %q is missing from the catalogue", metrics.AdmissionRejectionsTotal)
 }
 
 func TestCatalogReturnsACopy(t *testing.T) {
@@ -120,6 +137,7 @@ func TestEveryLabelOfEverySeriesIsAPermittedKey(t *testing.T) {
 	permitted := []string{
 		metrics.KeyDependency, metrics.KeyOperation, metrics.KeyService,
 		metrics.KeyErrorCategory, metrics.KeyOutcomeCategory,
+		metrics.KeyRoute, metrics.KeyTenant,
 	}
 
 	for _, m := range metrics.Catalog() {
@@ -149,6 +167,9 @@ func TestNewBuildsEverySeriesOnTheMeter(t *testing.T) {
 	instruments.Retries.Add(context.Background(), 1, measurement(labels))
 	instruments.BreakerState.Record(context.Background(), 2, measurement(labels))
 	instruments.RequestDuration.Record(context.Background(), 0.25, measurement(labels))
+	instruments.PoolUtilization.Record(context.Background(), 0.5, measurement(labels))
+	instruments.QueueDepth.Record(context.Background(), 3, measurement(labels))
+	instruments.AdmissionRejections.Add(context.Background(), 1, measurement(labels))
 
 	var collected metricdata.ResourceMetrics
 	if err := reader.Collect(context.Background(), &collected); err != nil {
@@ -161,7 +182,10 @@ func TestNewBuildsEverySeriesOnTheMeter(t *testing.T) {
 			recorded[m.Name] = true
 		}
 	}
-	for _, name := range []string{metrics.RetriesTotal, metrics.BreakerState, metrics.RequestDurationSeconds} {
+	for _, name := range []string{
+		metrics.RetriesTotal, metrics.BreakerState, metrics.RequestDurationSeconds,
+		metrics.PoolUtilization, metrics.QueueDepth, metrics.AdmissionRejectionsTotal,
+	} {
 		if !recorded[name] {
 			t.Errorf("series %q did not reach the reader", name)
 		}
