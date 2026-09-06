@@ -15,6 +15,10 @@ import (
 // callers only through Conn.
 type Tx struct{ conn pgx.Tx }
 
+// NewTx wraps a pgx.Tx so tests and composition roots outside this package can
+// construct the same Tx that NewUnitOfWork passes to its bind callback.
+func NewTx(conn pgx.Tx) *Tx { return &Tx{conn: conn} }
+
 // Conn exposes the open transaction so a repository in another package can run
 // its own statements on it. Everything a Tx offers has to run here: opening a
 // second transaction would break the single transaction of UOW-01.

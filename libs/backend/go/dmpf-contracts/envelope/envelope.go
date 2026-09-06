@@ -4,6 +4,7 @@
 package envelope
 
 import (
+	"fmt"
 	"strings"
 
 	"google.golang.org/protobuf/proto"
@@ -217,6 +218,31 @@ func Decode(ce *cloudeventsv1.CloudEvent) (Envelope, error) {
 	}
 	e.Payload = protoData.ProtoData.GetValue()
 	return e, nil
+}
+
+// Unmarshal decodes the wire bytes of a CloudEvent and applies the profile
+// (Decode), so adapters that receive raw transport bytes never import the
+// CloudEvent generated type directly.
+func Unmarshal(raw []byte) (Envelope, error) {
+	var ce cloudeventsv1.CloudEvent
+	if err := proto.Unmarshal(raw, &ce); err != nil {
+		return Envelope{}, fmt.Errorf("%w: %w", ErrMalformed, err)
+	}
+	return Decode(&ce)
+}
+
+// Unpack is the inverse of Pack: it decodes Payload into msg only when
+// dataschema names msg's own type (ENV-16 a), so a consumer never has to guess
+// which contract the transported bytes carry.
+func Unpack(e Envelope, msg proto.Message) error {
+	want := typeURLPrefix + string(msg.ProtoReflect().Descriptor().FullName())
+	if e.DataSchema != want {
+		return fmt.Errorf("%w: %s is not %s", ErrSchemaMismatch, e.DataSchema, want)
+	}
+	if err := proto.Unmarshal(e.Payload, msg); err != nil {
+		return fmt.Errorf("%w: %w", ErrMalformed, err)
+	}
+	return nil
 }
 
 func ceString(v string) *cloudeventsv1.CloudEvent_CloudEventAttributeValue {

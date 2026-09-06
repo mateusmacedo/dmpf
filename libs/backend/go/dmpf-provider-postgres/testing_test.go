@@ -47,8 +47,8 @@ func openPool(t *testing.T) *pgxpool.Pool {
 func truncate(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
 	t.Helper()
 
-	if _, err := pool.Exec(ctx, "TRUNCATE dmpf_outbox, dmpf_example_orders"); err != nil {
-		t.Fatalf("TRUNCATE dmpf_outbox, dmpf_example_orders = %v, want nil", err)
+	if _, err := pool.Exec(ctx, "TRUNCATE dmpf_outbox, dmpf_inbox, dmpf_quarantine, dmpf_example_orders, dmpf_example_reservations"); err != nil {
+		t.Fatalf("TRUNCATE = %v, want nil", err)
 	}
 }
 

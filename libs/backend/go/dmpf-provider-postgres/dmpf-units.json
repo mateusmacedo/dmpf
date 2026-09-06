@@ -18,6 +18,15 @@
       "include": [
         "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-provider-postgres/example/orders"
       ]
+    },
+    {
+      "id": "dmpf-kernel/example-reservations-postgres",
+      "block": "provider",
+      "bounded_context": "dmpf-kernel",
+      "public_integration_surface": false,
+      "include": [
+        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-provider-postgres/example/reservations"
+      ]
     }
   ],
   "external": [

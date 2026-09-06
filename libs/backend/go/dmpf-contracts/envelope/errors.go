@@ -12,6 +12,7 @@ var (
 	ErrSchemaMismatch   = errors.New("envelope: Any type URL differs from dataschema")
 	ErrDataSchemaForm   = errors.New("envelope: dataschema must be the Any type URL of the payload message")
 	ErrMajorMismatch    = errors.New("envelope: dataschema and type disagree on the contract major")
+	ErrMalformed        = errors.New("envelope: raw bytes do not decode as a CloudEvent")
 )
 
 // AttributeError names the attribute behind a sentinel so callers can keep errors.Is.

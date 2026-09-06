@@ -29,7 +29,41 @@ CREATE TABLE IF NOT EXISTS dmpf_outbox (
 CREATE INDEX IF NOT EXISTS dmpf_outbox_published_at_idx
   ON dmpf_outbox (published_at) WHERE status = 'published';
 
+CREATE TABLE IF NOT EXISTS dmpf_inbox (
+  consumer_name text   NOT NULL,
+  message_id    text   NOT NULL,
+  message_type  text   NOT NULL,
+  payload_hash  text   NOT NULL,
+  received_at   bigint NOT NULL,
+  processed_at  bigint NOT NULL,
+  status        text   NOT NULL,
+  last_error    text,
+  CONSTRAINT dmpf_inbox_key UNIQUE (consumer_name, message_id),
+  CONSTRAINT dmpf_inbox_status_check CHECK (status IN ('processed', 'rejected'))
+);
+
+CREATE INDEX IF NOT EXISTS dmpf_inbox_retention_idx ON dmpf_inbox (consumer_name, processed_at);
+
+CREATE TABLE IF NOT EXISTS dmpf_quarantine (
+  id            bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  consumer_name text   NOT NULL,
+  message_id    text   NOT NULL,
+  reason        text   NOT NULL,
+  envelope      bytea  NOT NULL,
+  last_error    text,
+  contained_at  bigint NOT NULL,
+  CONSTRAINT dmpf_quarantine_envelope_not_empty CHECK (octet_length(envelope) > 0)
+);
+
+CREATE INDEX IF NOT EXISTS dmpf_quarantine_reason_idx ON dmpf_quarantine (consumer_name, reason);
+
 CREATE TABLE IF NOT EXISTS dmpf_example_orders (
+  order_id text   PRIMARY KEY,
+  version  bigint NOT NULL,
+  snapshot jsonb  NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS dmpf_example_reservations (
   order_id text   PRIMARY KEY,
   version  bigint NOT NULL,
   snapshot jsonb  NOT NULL

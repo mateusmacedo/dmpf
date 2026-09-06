@@ -81,6 +81,69 @@ func TestPurgePublishedReportsAnEmptyPurge(t *testing.T) {
 	}
 }
 
+func seedInboxRow(t *testing.T, pool *pgxpool.Pool, consumer, id, status string, processedAt int64) {
+	t.Helper()
+	_, err := pool.Exec(context.Background(), `
+		INSERT INTO dmpf_inbox (consumer_name, message_id, message_type, payload_hash, received_at, processed_at, status)
+		VALUES ($1, $2, 'example', 'h1', 100, $3, $4)`, consumer, id, processedAt, status)
+	if err != nil {
+		t.Fatalf("seedInboxRow %s/%s: %v", consumer, id, err)
+	}
+}
+
+func inboxCount(t *testing.T, pool *pgxpool.Pool, consumer string) int {
+	t.Helper()
+	var count int
+	if err := pool.QueryRow(context.Background(),
+		`SELECT count(*) FROM dmpf_inbox WHERE consumer_name = $1`, consumer).Scan(&count); err != nil {
+		t.Fatalf("count inbox = %v", err)
+	}
+	return count
+}
+
+func TestPurgeInboxRemovesOnlyScopedRowsBelowCutoff(t *testing.T) {
+	pool := openPool(t)
+
+	seedInboxRow(t, pool, "orders", "m-1", "processed", 100)
+	seedInboxRow(t, pool, "orders", "m-2", "rejected", 200)
+	seedInboxRow(t, pool, "orders", "m-3", "processed", 400)
+	seedInboxRow(t, pool, "billing", "m-1", "processed", 100)
+
+	purge, err := dmpfpostgres.PurgeInbox(context.Background(), pool, "orders", dmpfports.Instant(300))
+	if err != nil {
+		t.Fatalf("PurgeInbox() = %v, want nil", err)
+	}
+
+	if purge.Consumer != "orders" {
+		t.Errorf("Consumer = %q, want %q", purge.Consumer, "orders")
+	}
+	if purge.Removed != 2 {
+		t.Errorf("Removed = %d, want 2", purge.Removed)
+	}
+	if purge.Before != dmpfports.Instant(300) {
+		t.Errorf("Before = %d, want 300", purge.Before)
+	}
+	if got := inboxCount(t, pool, "orders"); got != 1 {
+		t.Errorf("orders remaining = %d, want 1", got)
+	}
+	if got := inboxCount(t, pool, "billing"); got != 1 {
+		t.Errorf("billing remaining = %d, want 1 — billing must be untouched", got)
+	}
+}
+
+func TestPurgeInboxEmptyPurge(t *testing.T) {
+	pool := openPool(t)
+	seedInboxRow(t, pool, "orders", "m-1", "processed", 500)
+
+	purge, err := dmpfpostgres.PurgeInbox(context.Background(), pool, "orders", dmpfports.Instant(100))
+	if err != nil {
+		t.Fatalf("PurgeInbox() = %v, want nil", err)
+	}
+	if purge.Removed != 0 {
+		t.Errorf("Removed = %d, want 0", purge.Removed)
+	}
+}
+
 func survived(t *testing.T, pool *pgxpool.Pool, id string) bool {
 	t.Helper()
 

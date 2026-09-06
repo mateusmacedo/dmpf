@@ -1,0 +1,23 @@
+{
+  "schema": "dmpf/units@1",
+  "units": [
+    {
+      "id": "dmpf-kernel/app-consumer",
+      "block": "app",
+      "bounded_context": "dmpf-kernel",
+      "public_integration_surface": false,
+      "include": ["gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-app"]
+    },
+    {
+      "id": "dmpf-kernel/example-reservations-app",
+      "block": "app",
+      "bounded_context": "dmpf-kernel",
+      "public_integration_surface": false,
+      "include": [
+        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-app/example/reservations"
+      ]
+    }
+  ],
+  "external": [],
+  "exceptions": []
+}

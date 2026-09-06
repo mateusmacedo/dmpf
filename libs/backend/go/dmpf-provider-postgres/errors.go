@@ -28,4 +28,25 @@ var (
 	// message_id rejects the row. It always wraps the driver error, so
 	// errors.As still reaches *pgconn.PgError and its SQLSTATE (OBX-01).
 	ErrDuplicateMessage = errors.New("dmpfpostgres: message id already enqueued")
+
+	// ErrInboxConsumerRequired is what Register reports when the consumer name
+	// bound to the inbox is empty (INB-01).
+	ErrInboxConsumerRequired = errors.New("dmpfpostgres: inbox consumer name is required")
+
+	// ErrInboxConsumerMismatch is what Register reports when Receipt.Consumer
+	// differs from the consumer bound to the inbox at Tx.Inbox time.
+	ErrInboxConsumerMismatch = errors.New("dmpfpostgres: receipt consumer does not match inbox consumer")
+
+	// ErrAlreadyCompleted is what Pending.Complete reports when called more
+	// than once on the same first reception.
+	ErrAlreadyCompleted = errors.New("dmpfpostgres: pending already completed")
+
+	// ErrInvalidCompletion is what Pending.Complete reports for a Status outside
+	// processed and rejected (INB-02), named here rather than surfacing as the
+	// schema's CHECK violation.
+	ErrInvalidCompletion = errors.New("dmpfpostgres: completion status must be processed or rejected")
+
+	// ErrInvalidContainment is what Quarantine reports when a required field
+	// of Contained is empty (GAR-07).
+	ErrInvalidContainment = errors.New("dmpfpostgres: invalid containment: consumer, reason and envelope are required")
 )
