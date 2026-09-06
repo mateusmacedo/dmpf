@@ -18,6 +18,9 @@ type Signals struct {
 	Collisions        int64
 	AttemptsExhausted int64
 	InvalidEnvelopes  int64
+	// Other keeps the depth auditable: a reason the port does not enumerate is
+	// counted here instead of vanishing from the breakdown.
+	Other int64
 }
 
 // InboxSignals returns the current quarantine signals for one consumer.
@@ -51,6 +54,8 @@ func InboxSignals(ctx context.Context, pool *pgxpool.Pool, consumer string) (Sig
 			s.AttemptsExhausted = count
 		case dmpfports.ReasonInvalidEnvelope:
 			s.InvalidEnvelopes = count
+		default:
+			s.Other += count
 		}
 	}
 	return s, rows.Err()

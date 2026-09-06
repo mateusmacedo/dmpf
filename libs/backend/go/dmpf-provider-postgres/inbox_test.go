@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 
@@ -450,5 +451,52 @@ func readStatus(t *testing.T, pool interface {
 	}
 	if status != want {
 		t.Fatalf("status = %q, want %q", status, want)
+	}
+}
+
+func TestRegisterRestoresLockTimeoutForTheRestOfTheTransaction(t *testing.T) {
+	pool := openPool(t)
+	ctx := context.Background()
+
+	pgxTx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("Begin() = %v", err)
+	}
+	defer func() { _ = pgxTx.Rollback(ctx) }()
+
+	var before string
+	if err := pgxTx.QueryRow(ctx, "SELECT current_setting('lock_timeout')").Scan(&before); err != nil {
+		t.Fatalf("current_setting before = %v", err)
+	}
+
+	inbox := dmpfpostgres.NewTx(pgxTx).Inbox("orders", 300*time.Millisecond)
+	if _, err := inbox.Register(ctx, receipt("orders", "m-lt", "h1")); err != nil {
+		t.Fatalf("Register() = %v", err)
+	}
+
+	var after string
+	if err := pgxTx.QueryRow(ctx, "SELECT current_setting('lock_timeout')").Scan(&after); err != nil {
+		t.Fatalf("current_setting after = %v", err)
+	}
+	if after != before {
+		t.Fatalf("lock_timeout after Register = %q, want %q: the ceiling of INB-17 belongs to Register alone, not to Save or Enqueue", after, before)
+	}
+}
+
+func TestCompleteRefusesAStatusOutsideTheTwoTerminalValues(t *testing.T) {
+	pool := openPool(t)
+
+	err := withInbox(t, pool, "orders", func(ctx context.Context, inbox dmpfports.Inbox) error {
+		r, err := inbox.Register(ctx, receipt("orders", "m-zero", "h1"))
+		if err != nil {
+			return err
+		}
+		return r.Match(
+			func(p dmpfports.Pending) error { return p.Complete(ctx, dmpfports.Completion{At: 200}) },
+			func() error { return nil }, func() error { return nil }, func() error { return nil },
+		)
+	})
+	if !errors.Is(err, dmpfpostgres.ErrInvalidCompletion) {
+		t.Fatalf("Complete(zero Status) = %v, want ErrInvalidCompletion (INB-02), not the schema's CHECK", err)
 	}
 }

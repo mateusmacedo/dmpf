@@ -68,6 +68,15 @@ func (i *txInbox) Register(ctx context.Context, r dmpfports.Receipt) (dmpfports.
 		return dmpfports.Reception{}, err
 	}
 
+	if i.wait > 0 {
+		// INB-17 is a ceiling on registering, not on the statements that follow
+		// in the same transaction: a row lock in Save or Enqueue must not turn
+		// into a 55P03 that Classify cannot recognise.
+		if _, err := i.tx.conn.Exec(ctx, "SET LOCAL lock_timeout = DEFAULT"); err != nil {
+			return dmpfports.Reception{}, err
+		}
+	}
+
 	if tag.RowsAffected() == 1 {
 		return dmpfports.FirstReception(&pending{tx: i.tx, consumer: i.consumer, messageID: r.MessageID}), nil
 	}
@@ -102,6 +111,9 @@ type pending struct {
 func (p *pending) Complete(ctx context.Context, c dmpfports.Completion) error {
 	if p.completed {
 		return ErrAlreadyCompleted
+	}
+	if c.Status != dmpfports.StatusProcessed && c.Status != dmpfports.StatusRejected {
+		return ErrInvalidCompletion
 	}
 
 	var lastError *string

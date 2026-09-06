@@ -87,6 +87,9 @@ func TestConcurrentRegisterProcessedUnblocksWithR2(t *testing.T) {
 			func() error { return nil },
 		)
 		close(aRegistered)
+		// B needs to be blocked on the key before A commits, or the assertion
+		// below would pass without ever exercising INB-06.
+		time.Sleep(100 * time.Millisecond)
 		if err := pgxTx.Commit(ctx); err != nil {
 			t.Errorf("A: Commit() = %v", err)
 		}
@@ -100,6 +103,7 @@ func TestConcurrentRegisterProcessedUnblocksWithR2(t *testing.T) {
 		// but before A commits, so B blocks on the unique constraint lock.
 		time.Sleep(50 * time.Millisecond)
 
+		start := time.Now()
 		pgxTx, err := pool.Begin(ctx)
 		if err != nil {
 			t.Errorf("B: Begin() = %v", err)
@@ -113,6 +117,9 @@ func TestConcurrentRegisterProcessedUnblocksWithR2(t *testing.T) {
 			t.Errorf("B: Register() = %v", err)
 			_ = pgxTx.Rollback(ctx)
 			return
+		}
+		if waited := time.Since(start); waited < 40*time.Millisecond {
+			t.Errorf("B: Register() returned after %v, want it blocked on A's open transaction (INB-06)", waited)
 		}
 
 		var branch string
@@ -172,6 +179,9 @@ func TestConcurrentRegisterRejectedUnblocksWithR3(t *testing.T) {
 			func() error { return nil },
 		)
 		close(aRegistered)
+		// B needs to be blocked on the key before A commits, or the assertion
+		// below would pass without ever exercising INB-06.
+		time.Sleep(100 * time.Millisecond)
 		if err := pgxTx.Commit(ctx); err != nil {
 			t.Errorf("A: Commit() = %v", err)
 		}
@@ -182,6 +192,7 @@ func TestConcurrentRegisterRejectedUnblocksWithR3(t *testing.T) {
 		<-aRegistered
 		time.Sleep(50 * time.Millisecond)
 
+		start := time.Now()
 		pgxTx, err := pool.Begin(ctx)
 		if err != nil {
 			t.Errorf("B: Begin() = %v", err)
@@ -195,6 +206,9 @@ func TestConcurrentRegisterRejectedUnblocksWithR3(t *testing.T) {
 			t.Errorf("B: Register() = %v", err)
 			_ = pgxTx.Rollback(ctx)
 			return
+		}
+		if waited := time.Since(start); waited < 40*time.Millisecond {
+			t.Errorf("B: Register() returned after %v, want it blocked on A's open transaction (INB-06)", waited)
 		}
 
 		var branch string
@@ -263,6 +277,7 @@ func TestConcurrentRegisterRollbackUnblocksWithR1(t *testing.T) {
 		<-aRegistered
 		time.Sleep(50 * time.Millisecond)
 
+		start := time.Now()
 		pgxTx, err := pool.Begin(ctx)
 		if err != nil {
 			t.Errorf("B: Begin() = %v", err)
@@ -276,6 +291,9 @@ func TestConcurrentRegisterRollbackUnblocksWithR1(t *testing.T) {
 			t.Errorf("B: Register() = %v", err)
 			_ = pgxTx.Rollback(ctx)
 			return
+		}
+		if waited := time.Since(start); waited < 40*time.Millisecond {
+			t.Errorf("B: Register() returned after %v, want it blocked on A's open transaction (INB-06)", waited)
 		}
 
 		var branch string
@@ -363,14 +381,11 @@ func TestConcurrentRegisterLockTimeoutReturnsErrRegisterTimeout(t *testing.T) {
 	}
 
 	var pgErr *pgconn.PgError
-	if errors.As(bErr, &pgErr) {
-		t.Logf("SPIKE RESULT: SQLSTATE = %s (%s), elapsed = %v", pgErr.Code, pgErr.Message, bElapsed)
-	} else {
-		t.Logf("SPIKE RESULT: no pgconn.PgError unwrapped, elapsed = %v", bElapsed)
+	if !errors.As(bErr, &pgErr) || pgErr.Code != "55P03" {
+		t.Fatalf("B Register() = %v, want the driver error with SQLSTATE 55P03 (lock_not_available) reachable through errors.As", bErr)
 	}
-
 	if bElapsed < 200*time.Millisecond {
-		t.Logf("WARNING: B returned in %v, faster than 300ms lock_timeout — lock_timeout may not have fired", bElapsed)
+		t.Fatalf("B returned in %v, faster than the 300ms lock_timeout: the server did not interrupt the wait", bElapsed)
 	}
 	if bElapsed > 2*time.Second {
 		t.Fatalf("B waited %v, much longer than 300ms lock_timeout — lock_timeout did not work", bElapsed)

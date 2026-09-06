@@ -40,7 +40,8 @@ type InboxPurge struct {
 	Before   dmpfports.Instant
 }
 
-// PurgeInbox removes processed inbox rows older than before for one consumer.
+// PurgeInbox removes terminal inbox rows — processed and rejected alike — older
+// than before, for one consumer.
 // The retention invariant is the operator's responsibility (INB-14); this
 // function provides the evidence for audit (INB-16).
 func PurgeInbox(ctx context.Context, pool *pgxpool.Pool, consumer string, before dmpfports.Instant) (InboxPurge, error) {

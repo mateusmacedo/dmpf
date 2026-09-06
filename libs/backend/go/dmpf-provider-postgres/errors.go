@@ -41,6 +41,11 @@ var (
 	// than once on the same first reception.
 	ErrAlreadyCompleted = errors.New("dmpfpostgres: pending already completed")
 
+	// ErrInvalidCompletion is what Pending.Complete reports for a Status outside
+	// processed and rejected (INB-02), named here rather than surfacing as the
+	// schema's CHECK violation.
+	ErrInvalidCompletion = errors.New("dmpfpostgres: completion status must be processed or rejected")
+
 	// ErrInvalidContainment is what Quarantine reports when a required field
 	// of Contained is empty (GAR-07).
 	ErrInvalidContainment = errors.New("dmpfpostgres: invalid containment: consumer, reason and envelope are required")

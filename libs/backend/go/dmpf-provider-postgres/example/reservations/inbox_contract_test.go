@@ -8,6 +8,7 @@ package reservationspg_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/jackc/pgx/v5"
@@ -208,6 +209,18 @@ func TestInboxContractOverPostgres(t *testing.T) {
 			t.Fatalf("branch = %q, want %q", branch, "first")
 		}
 		s.commit(t)
+	})
+
+	t.Run("a receipt naming another consumer is refused", func(t *testing.T) {
+		s := newContractSubject(t)
+		s.begin(t)
+		defer s.rollback()
+		_, err := s.inbox("orders").Register(context.Background(), dmpfports.Receipt{
+			Consumer: "billing", MessageID: "m-1", MessageType: "example", PayloadHash: "h1",
+		})
+		if !errors.Is(err, dmpfpostgres.ErrInboxConsumerMismatch) {
+			t.Fatalf("Register() = %v, want ErrInboxConsumerMismatch — the bound consumer is the key's owner", err)
+		}
 	})
 
 	t.Run("registering a present key leaves the transaction usable", func(t *testing.T) {
