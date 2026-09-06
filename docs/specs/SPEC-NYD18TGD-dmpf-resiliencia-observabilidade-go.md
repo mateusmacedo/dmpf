@@ -2,7 +2,7 @@
 id: SPEC-NYD18TGD
 slug: dmpf-resiliencia-observabilidade-go
 title: DMPF KRN-09 — Resiliência e observabilidade Go: OpenTelemetry e retry por conjunção
-stage: planning
+stage: done
 priority: P1
 depends_on: [SPEC-MQA5HAXF, SPEC-WTAXFV8B, SPEC-ZHE7DN1H]
 ticket_url: https://lider-cap.atlassian.net/browse/ARQ-528
@@ -1058,59 +1058,59 @@ func Compose(sheet Sheet, s Slots) (Call, error) {
 
 ### Critérios de aceite
 
-- [ ] O fechamento de imports de toda unidade `domain` e `port` do workspace não
+- [x] O fechamento de imports de toda unidade `domain` e `port` do workspace não
   alcança biblioteca de trace, log ou métrica: o verificador do `KRN-02` não
   emite `DMPF-E001` para essas unidades, e `go list -deps` de `dmpf-domain` e
   `dmpf-ports` não contém `go.opentelemetry.io` nem `log/slog`.
-- [ ] Uma porta que declare política de retry na assinatura reprova: fixture em
+- [x] Uma porta que declare política de retry na assinatura reprova: fixture em
   `testdata/` do verificador (`KRN-02`) já cobre `DMPF-E001` por capability;
   esta spec acrescenta o vetor de forma em `compose_test.go` — `Operation.Kind
   == UnitOfWork` reprova em `Compose` — e documenta no README que `dmpfports`
   segue sem parâmetro de política.
-- [ ] Removida a configuração do propagador, `otelboot.Start` devolve
+- [x] Removida a configuração do propagador, `otelboot.Start` devolve
   `ErrPropagatorRequired` e `otel.GetTextMapPropagator()` permanece o valor
   anterior — nunca um default silencioso.
-- [ ] Erro retentável em operação sem semântica idempotente comprovada não
+- [x] Erro retentável em operação sem semântica idempotente comprovada não
   autoriza tentativa, e `Verdict.Denied == FactorIdempotent`.
-- [ ] Execução que acessa três dependências, cada uma falhando, aborta a
+- [x] Execução que acessa três dependências, cada uma falhando, aborta a
   repetição quando o orçamento por execução se esgota: com prazo remanescente
   de 2 s na primeira falha (orçamento 1 s) e backoff base 100 ms, a terceira
   dependência recebe `Denied = FactorBudget` sem retentar, e
   `dmpf_dependency_budget_exhausted_total == 1`.
-- [ ] A espera de backoff é debitada do orçamento, comprovado com relógio fake:
+- [x] A espera de backoff é debitada do orçamento, comprovado com relógio fake:
   após uma espera de 200 ms, `Budget.Remaining()` diminuiu exatamente 200 ms
   antes de a tentativa seguinte começar.
-- [ ] Nenhuma métrica usa identificador de mensagem, correlação, requisição,
+- [x] Nenhuma métrica usa identificador de mensagem, correlação, requisição,
   agregado ou usuário como label (teste de reflexão sobre `metrics.Labels`), e
   trace de erro é sempre exportado (span `RecordOnly` com `codes.Error` chega
   ao `InMemoryExporter`).
-- [ ] O span do caso de uso é aberto pelo application service (`TRC-16`):
+- [x] O span do caso de uso é aberto pelo application service (`TRC-16`):
   `orders_integration_test.go` observa `dmpf.usecase.orders.AddItem` como pai
   do span da dependência e nenhum span criado por `dmpf-domain` ou
   `dmpf-ports`.
-- [ ] O evento de auditoria é emitido pelo application service após o commit,
+- [x] O evento de auditoria é emitido pelo application service após o commit,
   com sujeito, objeto, ação, desfecho e instante, e **não** passa pelo handler
   de log: `audit.Recording` recebe 1 evento em `Accepted` e `Rejected`, 0 em
   `Denied`, e o `slog` em memória não contém o evento.
-- [ ] `WithinCalls() == 1` na realização em memória sob retry de uma
+- [x] `WithinCalls() == 1` na realização em memória sob retry de uma
   dependência interna: o retry não reabre a UoW.
-- [ ] Todo override de default está na `Sheet` com valor, motivo e data, e o
+- [x] Todo override de default está na `Sheet` com valor, motivo e data, e o
   valor efetivo aparece como atributo de recurso `dmpf.sheet.<dep>.<field>`.
-- [ ] Um erro cujo `Error()` contém `"cpf=123.456.789-00"` não aparece em nenhum
+- [x] Um erro cujo `Error()` contém `"cpf=123.456.789-00"` não aparece em nenhum
   registro de log, atributo de span ou label de métrica dos três pipelines em
   memória; o campo aparece como `error_category` e `error_code`.
-- [ ] `dmpfobservability.SemconvVersion == "1.43.0"` e o único import `semconv`
+- [x] `dmpfobservability.SemconvVersion == "1.43.0"` e o único import `semconv`
   do módulo é `go.opentelemetry.io/otel/semconv/v1.43.0`; todos os `require`
   `go.opentelemetry.io/otel*` são `v1.46.0`.
-- [ ] Manifesto e baseline vêm em commit próprio, sem código Go; o verificador
+- [x] Manifesto e baseline vêm em commit próprio, sem código Go; o verificador
   aprova a unidade nova e as sete entradas `external` com
   `capability: observability`.
-- [ ] Nenhum artefato desta história declara ou sugere exactly-once fim a fim
+- [x] Nenhum artefato desta história declara ou sugere exactly-once fim a fim
   (`grep -ri "exactly.once"` só encontra negações).
-- [ ] Testes unitários para `otelboot`, `resilience`, `retry`, `metrics`,
+- [x] Testes unitários para `otelboot`, `resilience`, `retry`, `metrics`,
   `tracing`, `logging`, `redact`, `audit`, `usecase` e para o gancho em
   `dmpfapplication` e `ordersapp`.
-- [ ] Validação do projeto passando: cadeia Go completa nos módulos tocados,
+- [x] Validação do projeto passando: cadeia Go completa nos módulos tocados,
   `dmpf-gate-check.sh`, verificador de conformidade, `biome ci` e
   `nx affected` de lint, typecheck, test e build.
 

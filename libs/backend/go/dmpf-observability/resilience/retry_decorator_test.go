@@ -388,3 +388,51 @@ func TestNewRetryRefusesAnAbsentCeilingOrClock(t *testing.T) {
 		t.Errorf("NewRetry() with no sleeper = %v, want a refusal", err)
 	}
 }
+
+// The budget belongs to the execution, not to the call: three dependencies
+// failing in turn draw on the same balance, and the one that finds it spent is
+// denied without attempting again. The exhaustion is counted once for the
+// execution, not once per dependency (RES-30, RES-36).
+//
+// The scenario is the one the spec states: a remaining deadline of 2s at the
+// first failure, which sizes the budget at 1s, and a backoff base of 100ms.
+func TestThreeDependenciesShareOneBudgetUntilItIsSpent(t *testing.T) {
+	fake := clock.NewFake(start)
+	instruments, read := meter(t)
+
+	config := retryConfig()
+	config.MaxAttempts = 10 // high enough that the budget, not the ceiling, decides
+	config.Rand = func() float64 { return 1 }
+
+	// A deadline of 2s on the context is what arms the budget at half of it.
+	ctx, cancel := fake.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	ctx = retry.WithBudget(ctx)
+	budget, _ := retry.BudgetFrom(ctx)
+
+	op := idempotent(time.Hour)
+	op.EstimatedDuration = 300 * time.Millisecond
+
+	attempts := make([]int, 3)
+	for dependency := range attempts {
+		config.Dependency = "dep-" + string(rune('a'+dependency))
+		call := retrying(t, config, fake, instant, instruments,
+			func(context.Context, resilience.Operation, func(context.Context) error) error {
+				attempts[dependency]++
+				return errDependency
+			})
+		_ = call(ctx, op, nil)
+	}
+
+	if got := budget.Remaining(); got >= 400*time.Millisecond {
+		t.Errorf("Remaining() = %v, want less than one attempt's claim of 400ms", got)
+	}
+	if attempts[2] != 1 {
+		t.Errorf("attempts per dependency = %v; the third one attempted %d times, want 1 — "+
+			"the balance the first two spent is the same balance it draws on",
+			attempts, attempts[2])
+	}
+	if got := read(metrics.BudgetExhaustedTotal); got != 1 {
+		t.Errorf("%s = %d, want exactly 1 for the execution (RES-36)", metrics.BudgetExhaustedTotal, got)
+	}
+}
