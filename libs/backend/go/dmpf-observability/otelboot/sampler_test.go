@@ -3,6 +3,7 @@ package otelboot_test
 import (
 	"context"
 	"encoding/binary"
+	"math"
 	"strings"
 	"testing"
 
@@ -226,5 +227,20 @@ func TestASamplerBuiltWithoutRatesStillDecides(t *testing.T) {
 
 	if decision := sample(sampler, traceIDOutside(), tracing.ClassError).Decision; decision != sdktrace.RecordOnly {
 		t.Errorf("Decision = %v, want RecordOnly at the most restrictive rate", decision)
+	}
+}
+
+// A rate that is not a number reaches the sampler from a configuration computed
+// at boot — a ratio whose denominator turned out to be zero, say. It must not
+// resolve to sampling everything: NaN fails every comparison, so a bound
+// computed from it would let every trace through.
+func TestARateThatIsNotANumberFallsBackToTheMostRestrictiveRate(t *testing.T) {
+	sampler := otelboot.NewClassSampler(tracing.Rates{tracing.ClassWrite: math.NaN()})
+
+	if decision := sample(sampler, traceIDOutside(), tracing.ClassWrite).Decision; decision != sdktrace.RecordOnly {
+		t.Errorf("Decision = %v, want RecordOnly: NaN is not a rate, and must not mean 'sample everything'", decision)
+	}
+	if decision := sample(sampler, traceIDWithin(), tracing.ClassWrite).Decision; decision != sdktrace.RecordAndSample {
+		t.Errorf("Decision = %v, want RecordAndSample: the fallback is the restrictive rate, not zero", decision)
 	}
 }

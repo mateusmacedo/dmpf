@@ -49,7 +49,12 @@ func TestStartRefusesAConfigurationItCannotValidate(t *testing.T) {
 	config.Propagator = nil
 	config.TraceExporter = tracetest.NewInMemoryExporter()
 
-	before := otel.GetTextMapPropagator()
+	// The test installs what it will look for, instead of reading whatever the
+	// previous test left behind: comparing two TextMapPropagator values with !=
+	// panics when the dynamic type is not comparable, and the composite one is a
+	// slice.
+	sentinel := propagation.TraceContext{}
+	otel.SetTextMapPropagator(sentinel)
 
 	runtime, err := otelboot.Start(context.Background(), config)
 	if !errors.Is(err, otelboot.ErrPropagatorRequired) {
@@ -58,7 +63,7 @@ func TestStartRefusesAConfigurationItCannotValidate(t *testing.T) {
 	if runtime != nil {
 		t.Error("Start() returned a runtime along with the failure")
 	}
-	if otel.GetTextMapPropagator() != before {
+	if _, untouched := otel.GetTextMapPropagator().(propagation.TraceContext); !untouched {
 		t.Error("a refused Start replaced the global propagator")
 	}
 }

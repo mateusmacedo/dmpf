@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"maps"
+	"math"
 	"slices"
 	"strings"
 
@@ -46,7 +47,15 @@ func NewClassSampler(rates tracing.Rates) sdktrace.Sampler {
 // upperBound is the threshold of TraceIDRatioBased, kept bit for bit
 // (sdk/trace/sampling.go:114) so a trace sampled here would be sampled the same
 // way by any other service running the SDK sampler at the same rate.
+//
+// A rate that is not a number is refused before the arithmetic: NaN fails every
+// comparison, so it would fall through to a bound of 2^63 — above any value the
+// trace ID can produce — and quietly sample everything. It resolves to the most
+// restrictive rate instead, which is what an undeclared class already does.
 func upperBound(rate float64) uint64 {
+	if math.IsNaN(rate) {
+		rate = tracing.RateMostRestrictive
+	}
 	if rate >= 1 {
 		return ^uint64(0)
 	}

@@ -248,3 +248,65 @@ func TestShutdownHonoursACancelledContext(t *testing.T) {
 		t.Errorf("Shutdown() = %v, want the deadline of the caller to be honoured", err)
 	}
 }
+
+// countingExporter records how many times it was closed, which is what an
+// idempotent Shutdown has to keep at one.
+type countingExporter struct {
+	mu        sync.Mutex
+	shutdowns int
+}
+
+func (e *countingExporter) ExportSpans(context.Context, []sdktrace.ReadOnlySpan) error { return nil }
+
+func (e *countingExporter) Shutdown(context.Context) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.shutdowns++
+	return nil
+}
+
+func (e *countingExporter) closed() int {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.shutdowns
+}
+
+func TestShutdownClosesTheExporterOnlyOnce(t *testing.T) {
+	exporter := &countingExporter{}
+	processor, err := otelboot.NewClassAwareProcessor(exporter, otelboot.ProcessorOptions{})
+	if err != nil {
+		t.Fatalf("NewClassAwareProcessor() = %v", err)
+	}
+
+	for range 3 {
+		if err := processor.Shutdown(context.Background()); err != nil {
+			t.Errorf("Shutdown() = %v, want nil", err)
+		}
+	}
+
+	if got := exporter.closed(); got != 1 {
+		t.Errorf("the exporter was closed %d times, want 1: an exporter is not required to tolerate a second Shutdown", got)
+	}
+}
+
+func TestShutdownConcurrentlyClosesTheExporterOnlyOnce(t *testing.T) {
+	exporter := &countingExporter{}
+	processor, err := otelboot.NewClassAwareProcessor(exporter, otelboot.ProcessorOptions{})
+	if err != nil {
+		t.Fatalf("NewClassAwareProcessor() = %v", err)
+	}
+
+	var callers sync.WaitGroup
+	for range 8 {
+		callers.Add(1)
+		go func() {
+			defer callers.Done()
+			_ = processor.Shutdown(context.Background())
+		}()
+	}
+	callers.Wait()
+
+	if got := exporter.closed(); got != 1 {
+		t.Errorf("the exporter was closed %d times under concurrent shutdown, want 1", got)
+	}
+}

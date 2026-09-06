@@ -55,8 +55,10 @@ type ClassAwareProcessor struct {
 	stop  chan struct{}
 	done  chan struct{}
 
-	stopOnce sync.Once
-	stopped  chan struct{}
+	stopOnce     sync.Once
+	stopped      chan struct{}
+	shutdownOnce sync.Once
+	shutdownErr  error
 }
 
 // NewClassAwareProcessor starts the worker that owns the exporter. The caller
@@ -278,6 +280,12 @@ func (p *ClassAwareProcessor) ForceFlush(ctx context.Context) error {
 // Shutdown stops the worker, drains what is left and closes the exporter, in
 // that order. It is idempotent, and a span that arrives afterwards is ignored
 // instead of queued into a processor nobody will read.
+//
+// Closing the exporter is guarded on its own: SpanExporter.Shutdown carries no
+// promise of being safe to call twice (sdk/trace/span_exporter.go:28-32), and a
+// caller that shuts the processor down after the TracerProvider already did
+// would otherwise close it again. A call that gives up on its context leaves
+// the guard unspent, so a later call still closes the exporter.
 func (p *ClassAwareProcessor) Shutdown(ctx context.Context) error {
 	p.stopOnce.Do(func() {
 		close(p.stopped)
@@ -289,5 +297,9 @@ func (p *ClassAwareProcessor) Shutdown(ctx context.Context) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	}
-	return errors.Join(p.takePending(), p.exporter.Shutdown(ctx))
+
+	p.shutdownOnce.Do(func() {
+		p.shutdownErr = errors.Join(p.takePending(), p.exporter.Shutdown(ctx))
+	})
+	return p.shutdownErr
 }
