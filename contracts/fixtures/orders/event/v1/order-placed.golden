@@ -150,6 +150,33 @@
       },
       "payload_bytes_hex": "0a066f2d313030351203632d3918b9602002",
       "payload_hash": "c43b4679d17c06d918724f9cbbc4f9c308749a5aa686a122ca75476537e489ed"
+    },
+    {
+      "name": "item-count-present",
+      "doc": "Campo aditivo item_count no número 6, acrescentado depois do 5 reservado (PTB-06): os casos anteriores, que o omitem, mantêm os mesmos bytes.",
+      "envelope": {
+        "causationid": "evt-0001",
+        "correlationid": "corr-0001",
+        "datacontenttype": "application/protobuf",
+        "dataschema": "type.googleapis.com/company.orders.event.v1.OrderPlaced",
+        "id": "evt-0006",
+        "partitionkey": "c-42",
+        "source": "urn:lidercap:orders",
+        "specversion": "1.0",
+        "subject": "order/o-1001",
+        "time": "2026-09-02T12:00:00Z",
+        "traceparent": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+        "type": "com.company.orders.order-placed.v1"
+      },
+      "payload": {
+        "channel": "ORDER_CHANNEL_WEB",
+        "customer_id": "c-42",
+        "item_count": "3",
+        "order_id": "o-1006",
+        "total_cents": "4500"
+      },
+      "payload_bytes_hex": "0a066f2d313030361204632d343218942320013003",
+      "payload_hash": "4bb733c186d697b765ac018f01e5edd32da09399be38fd9747b33473863c2fe4"
     }
   ],
   "discriminators": [

@@ -21,6 +21,15 @@ cd "$ROOT" || exit 1
 DESCARTE="$(mktemp -d)" || { echo "falha ao criar diretorio temporario" >&2; exit 1; }
 
 FIXTURE=""
+clausula_de_package() {
+  local f
+  for f in "$1"/*.go; do
+    case "$f" in *_test.go) continue ;; esac
+    awk '/^package /{print; exit}' "$f" 2>/dev/null
+    return
+  done
+}
+
 retirar_fixture() {
   local status=$?
   if [ -n "$FIXTURE" ] && [ -e "$FIXTURE" ]; then
@@ -203,7 +212,7 @@ while IFS= read -r manifesto; do
   pkg_clause=""
   for candidato in "$module_dir" $(includes_do_modulo "$manifesto" "$module_dir"); do
     fora_do_depguard "$candidato" && continue
-    clausula="$(awk '/^package /{print; exit}' "$candidato"/*.go 2>/dev/null)"
+    clausula="$(clausula_de_package "$candidato")"
     if [ -n "$clausula" ]; then
       fixture_dir="$candidato"
       pkg_clause="$clausula"
@@ -324,7 +333,7 @@ while IFS= read -r manifesto; do
     fi
 
     sub_dir="$module_dir/$rel"
-    sub_clause="$(awk '/^package /{print; exit}' "$sub_dir"/*.go 2>/dev/null)"
+    sub_clause="$(clausula_de_package "$sub_dir")"
     if [ -z "$sub_clause" ]; then
       echo "  FALHA  $rel: nenhum .go com clausula de package no include"
       falhas=$((falhas + 1))

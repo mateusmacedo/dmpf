@@ -18,6 +18,15 @@
       "include": [
         "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-domain/example/orders"
       ]
+    },
+    {
+      "id": "dmpf-kernel/example-reservations",
+      "block": "domain",
+      "bounded_context": "dmpf-kernel",
+      "public_integration_surface": false,
+      "include": [
+        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-domain/example/reservations"
+      ]
     }
   ],
   "external": [],

@@ -262,7 +262,7 @@ mão do bloco `// indirect` para o `require` principal.
 ## Referências
 
 - `docs/specs/SPEC-NYD18TGD-dmpf-resiliencia-observabilidade-go.md` — spec do `KRN-09`
-- `docs/adr/035-observabilidade-otel-e-retry-por-conjuncao-em-go.md` — decisões desta realização
+- `docs/adr/037-observabilidade-otel-e-retry-por-conjuncao-em-go.md` — decisões desta realização
 - `docs/adr/034-fronteira-de-uow-em-go.md` — a fronteira que este módulo instrumenta
 - `docs/adr/026-baseline-resiliencia-observabilidade-opentelemetry.md` — a decisão de plataforma que originou o `FND-08`
 - `docs/dmpf/resiliencia-observabilidade.md` — FND-08: as regras `RES-*`, `TRC-*`, `MET-*` e `LOG-*`

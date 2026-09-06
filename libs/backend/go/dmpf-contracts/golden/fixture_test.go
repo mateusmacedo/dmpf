@@ -5,29 +5,21 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"testing"
 	"time"
 
 	"google.golang.org/protobuf/encoding/protowire"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/envelope"
-	eventv1 "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/gen/go/company/orders/event/v1"
 	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/payloadhash"
 )
 
-// The fixture lives in the contracts tree (FIX-10), five directories above this package.
-const fixturePath = "../../../../../contracts/fixtures/orders/event/v1/order-placed.golden"
-
-const (
-	formatVersion = "1"
-	fixtureID     = "orders/event/v1/order-placed"
-	contractPkg   = "company.orders.event.v1"
-	contractMsg   = "OrderPlaced"
-	envelopeType  = "com.company.orders.order-placed.v1"
-	dataSchema    = "type.googleapis.com/company.orders.event.v1.OrderPlaced"
-)
+const formatVersion = "1"
 
 // Every scalar is a JSON string (FIX-07): int64 and timestamps must survive a
 // TypeScript reader without going through a double.
@@ -65,15 +57,53 @@ type fixtureCase struct {
 	PayloadHash     string            `json:"payload_hash"`
 }
 
-func baseEnvelope() map[string]string {
+// fixtureSpec is one contract in the suite: where its fixture lives, what it
+// declares, and how the shared oracles read its string-typed payload back.
+type fixtureSpec struct {
+	path               string
+	identity           identity
+	fieldNumbers       fieldNumbers
+	enum               enumDiscriminator
+	newMessage         func() proto.Message
+	messageFromFields  func(t *testing.T, fields map[string]string) proto.Message
+	build              func(t *testing.T, s fixtureSpec) fixtureDoc
+	wantCases          int
+	wantDiscriminators int
+}
+
+// unknown must be a number the contract never declares, so the discriminator
+// stays unknown to the decoder no matter how the message grows (PTB-10).
+type fieldNumbers struct {
+	unknown protowire.Number
+}
+
+// enumDiscriminator names the payload field whose values cover the ORA-08
+// oracle. A contract without an enum leaves it zero and the check is skipped.
+type enumDiscriminator struct {
+	field  string
+	values []string
+}
+
+var specs = []fixtureSpec{orderPlacedSpec, itemAddedSpec, reservationConfirmedSpec}
+
+func parseInt(t *testing.T, fields map[string]string, name string, bitSize int) int64 {
+	t.Helper()
+	v, err := strconv.ParseInt(fields[name], 10, bitSize)
+	if err != nil {
+		t.Fatalf("%s %q: %v", name, fields[name], err)
+	}
+	return v
+}
+
+func (s fixtureSpec) baseEnvelope() map[string]string {
 	return map[string]string{
 		"id":              "evt-0001",
 		"source":          "urn:lidercap:orders",
 		"specversion":     envelope.SpecVersion,
-		"type":            envelopeType,
+		"type":            s.identity.Type,
 		"subject":         "order/o-1001",
 		"time":            "2026-09-02T12:00:00Z",
-		"dataschema":      dataSchema,
+		"dataschema":      s.identity.DataSchema,
 		"datacontenttype": envelope.ContentType,
 		"correlationid":   "corr-0001",
 		"causationid":     "evt-0001",
@@ -87,43 +117,6 @@ func withConditionals(env map[string]string) map[string]string {
 	env["tenantid"] = "tenant-a"
 	env["tracestate"] = "vendor=1"
 	return env
-}
-
-func payloadFields(orderID, customerID, totalCents, channel string) map[string]string {
-	return map[string]string{
-		"order_id":    orderID,
-		"customer_id": customerID,
-		"total_cents": totalCents,
-		"channel":     channel,
-	}
-}
-
-// messageFromFields is the single reader of the string-typed payload; the
-// generator and the oracles share it so the two never disagree on parsing.
-func messageFromFields(t *testing.T, fields map[string]string) *eventv1.OrderPlaced {
-	t.Helper()
-	total, err := strconv.ParseInt(fields["total_cents"], 10, 64)
-	if err != nil {
-		t.Fatalf("total_cents %q: %v", fields["total_cents"], err)
-	}
-	return &eventv1.OrderPlaced{
-		OrderId:    fields["order_id"],
-		CustomerId: fields["customer_id"],
-		TotalCents: total,
-		Channel:    channelFromString(t, fields["channel"]),
-	}
-}
-
-func channelFromString(t *testing.T, s string) eventv1.OrderChannel {
-	t.Helper()
-	if v, ok := eventv1.OrderChannel_value[s]; ok {
-		return eventv1.OrderChannel(v)
-	}
-	n, err := strconv.ParseInt(s, 10, 32)
-	if err != nil {
-		t.Fatalf("channel %q is neither an enum name nor a number", s)
-	}
-	return eventv1.OrderChannel(n)
 }
 
 func envelopeFromFields(t *testing.T, fields map[string]string, payload []byte) envelope.Envelope {
@@ -166,16 +159,31 @@ func envelopeFromFields(t *testing.T, fields map[string]string, payload []byte) 
 	return e
 }
 
-func packedCase(t *testing.T, name, doc string, env, fields map[string]string) fixtureCase {
+func (s fixtureSpec) packedCase(t *testing.T, name, doc string, env, fields map[string]string) fixtureCase {
 	t.Helper()
-	payload, typeURL, err := envelope.Pack(messageFromFields(t, fields))
+	payload, typeURL, err := envelope.Pack(s.messageFromFields(t, fields))
 	if err != nil {
 		t.Fatalf("Pack: %v", err)
 	}
-	if typeURL != dataSchema {
-		t.Fatalf("Pack type URL = %q, want %q", typeURL, dataSchema)
+	if typeURL != s.identity.DataSchema {
+		t.Fatalf("Pack type URL = %q, want %q", typeURL, s.identity.DataSchema)
 	}
 	return rawCase(name, doc, env, fields, payload)
+}
+
+func (s fixtureSpec) unknownFieldCase(t *testing.T, name, doc string, env, fields map[string]string) fixtureCase {
+	t.Helper()
+	canonical, _, err := envelope.Pack(s.messageFromFields(t, fields))
+	if err != nil {
+		t.Fatalf("Pack: %v", err)
+	}
+	payload := appendVarint(append([]byte(nil), canonical...), s.fieldNumbers.unknown, 42)
+	return rawCase(name, doc, env, fields, payload)
+}
+
+func (s fixtureSpec) nonCanonicalCase(t *testing.T, name, doc string, env, fields map[string]string) fixtureCase {
+	t.Helper()
+	return rawCase(name, doc, env, fields, nonCanonicalPayload(t, s.messageFromFields(t, fields)))
 }
 
 func rawCase(name, doc string, env, fields map[string]string, payload []byte) fixtureCase {
@@ -189,15 +197,6 @@ func rawCase(name, doc string, env, fields map[string]string, payload []byte) fi
 	}
 }
 
-// Field numbers of company.orders.event.v1.OrderPlaced, as declared in the .proto.
-const (
-	fieldOrderID    = 1
-	fieldCustomerID = 2
-	fieldTotalCents = 3
-	fieldChannel    = 4
-	fieldUnknown    = 7
-)
-
 func appendString(b []byte, num protowire.Number, v string) []byte {
 	b = protowire.AppendTag(b, num, protowire.BytesType)
 	return protowire.AppendString(b, v)
@@ -210,107 +209,65 @@ func appendVarint(b []byte, num protowire.Number, v uint64) []byte {
 
 // Fields emitted in descending number order: valid wire, same decoded message,
 // but never what a Go reserialization produces — the ENV-18 discriminator.
-func nonCanonicalPayload(t *testing.T, fields map[string]string) []byte {
+func nonCanonicalPayload(t *testing.T, msg proto.Message) []byte {
 	t.Helper()
-	msg := messageFromFields(t, fields)
+	type populated struct {
+		descriptor protoreflect.FieldDescriptor
+		value      protoreflect.Value
+	}
+	var fields []populated
+	msg.ProtoReflect().Range(func(fd protoreflect.FieldDescriptor, v protoreflect.Value) bool {
+		fields = append(fields, populated{fd, v})
+		return true
+	})
+	sort.Slice(fields, func(i, j int) bool {
+		return fields[i].descriptor.Number() > fields[j].descriptor.Number()
+	})
+	if len(fields) < 2 {
+		t.Fatalf("non-canonical order needs at least two populated fields, got %d", len(fields))
+	}
 	var b []byte
-	b = appendVarint(b, fieldChannel, uint64(msg.GetChannel()))
-	b = appendVarint(b, fieldTotalCents, uint64(msg.GetTotalCents()))
-	b = appendString(b, fieldCustomerID, msg.GetCustomerId())
-	b = appendString(b, fieldOrderID, msg.GetOrderId())
+	for _, f := range fields {
+		num := f.descriptor.Number()
+		switch f.descriptor.Kind() {
+		case protoreflect.StringKind:
+			b = appendString(b, num, f.value.String())
+		case protoreflect.Int32Kind, protoreflect.Int64Kind:
+			b = appendVarint(b, num, uint64(f.value.Int()))
+		case protoreflect.EnumKind:
+			b = appendVarint(b, num, uint64(f.value.Enum()))
+		default:
+			t.Fatalf("field %d: kind %v is not handled by the non-canonical builder", num, f.descriptor.Kind())
+		}
+	}
 	return b
 }
 
-func buildFixture(t *testing.T) fixtureDoc {
+func buildFixture(t *testing.T, s fixtureSpec) fixtureDoc {
 	t.Helper()
-
-	allPresent := packedCase(t, "all-conditionals-present",
-		"Caminho típico com os três atributos condicionais presentes (aggregateversion, tenantid, tracestate).",
-		withConditionals(baseEnvelope()), payloadFields("o-1001", "c-42", "1999", "ORDER_CHANNEL_WEB"))
-
-	absentEnv := baseEnvelope()
-	absentEnv["id"] = "evt-0002"
-	absentEnv["causationid"] = "evt-0001"
-	allAbsent := packedCase(t, "all-conditionals-absent",
-		"Os três condicionais ausentes: nenhum entra no mapa de atributos (ENV-12, sem valor de preenchimento).",
-		absentEnv, payloadFields("o-1002", "c-42", "250", "ORDER_CHANNEL_APP"))
-
-	unspecEnv := baseEnvelope()
-	unspecEnv["id"] = "evt-0003"
-	unspecified := packedCase(t, "channel-unspecified",
-		"Enum no valor zero (ORDER_CHANNEL_UNSPECIFIED, PTB-09): o campo não aparece no wire.",
-		unspecEnv, payloadFields("o-1003", "c-7", "0", "ORDER_CHANNEL_UNSPECIFIED"))
-
-	bigEnv := withConditionals(baseEnvelope())
-	bigEnv["id"] = "evt-0004"
-	bigEnv["aggregateversion"] = "2147483647"
-	beyondDouble := packedCase(t, "total-cents-beyond-double",
-		"total_cents = 2^53 + 1: um leitor que passar por double perde o último dígito (FIX-07).",
-		bigEnv, payloadFields("o-1004", "c-42", "9007199254740993", "ORDER_CHANNEL_WEB"))
-
-	nanosEnv := baseEnvelope()
-	nanosEnv["id"] = "evt-0005"
-	nanosEnv["time"] = "2026-09-02T12:00:00.123456789Z"
-	nanosEnv["tracestate"] = "vendor=1,other=2"
-	withNanos := packedCase(t, "time-with-nanos",
-		"Instante do fato com nanossegundos não nulos; tracestate presente sem os outros condicionais.",
-		nanosEnv, payloadFields("o-1005", "c-9", "12345", "ORDER_CHANNEL_APP"))
-
-	unknownFields := payloadFields("o-2001", "c-42", "1999", "ORDER_CHANNEL_WEB")
-	canonical, _, err := envelope.Pack(messageFromFields(t, unknownFields))
-	if err != nil {
-		t.Fatalf("Pack: %v", err)
-	}
-	unknownEnv := baseEnvelope()
-	unknownEnv["id"] = "evt-2001"
-	unknownField := rawCase("unknown-field",
-		"Bytes canônicos mais um campo de número 7 (varint 42) que o contrato não conhece: a desserialização o preserva (PTB-10) e o hash o cobre (ENV-17).",
-		unknownEnv, unknownFields, appendVarint(append([]byte(nil), canonical...), fieldUnknown, 42))
-
-	unknownEnumEnv := baseEnvelope()
-	unknownEnumEnv["id"] = "evt-2002"
-	unknownEnum := packedCase(t, "enum-unknown-value",
-		"channel = 99, valor que o enum não declara: decodifica sem erro e é preservado numericamente.",
-		unknownEnumEnv, payloadFields("o-2002", "c-42", "1999", "99"))
-
-	nonCanonicalFields := payloadFields("o-2003", "c-42", "1999", "ORDER_CHANNEL_WEB")
-	nonCanonicalEnv := baseEnvelope()
-	nonCanonicalEnv["id"] = "evt-2003"
-	nonCanonical := rawCase("non-canonical-field-order",
-		"Campos em ordem decrescente de número: decodifica no mesmo valor, mas o hash é o dos bytes transportados e difere do hash de uma reserialização (ENV-18).",
-		nonCanonicalEnv, nonCanonicalFields, nonCanonicalPayload(t, nonCanonicalFields))
-
-	return fixtureDoc{
-		FormatVersion: formatVersion,
-		Identity: identity{
-			Fixture:    fixtureID,
-			Contract:   contract{Package: contractPkg, Message: contractMsg},
-			Type:       envelopeType,
-			DataSchema: dataSchema,
-		},
-		Covers:         covers{ProfileMajor: "1", ContractMajor: "v1"},
-		Cases:          []fixtureCase{allPresent, allAbsent, unspecified, beyondDouble, withNanos},
-		Discriminators: []fixtureCase{unknownField, unknownEnum, nonCanonical},
-	}
+	return s.build(t, s)
 }
 
-// TestUpdateGolden rewrites the fixture from code; it only runs with GOLDEN_UPDATE=1
-// so the committed file stays the reviewed oracle, never a side effect of `go test`.
+// TestUpdateGolden rewrites the fixtures from code; it only runs with GOLDEN_UPDATE=1
+// so the committed files stay the reviewed oracle, never a side effect of `go test`.
 func TestUpdateGolden(t *testing.T) {
 	if os.Getenv("GOLDEN_UPDATE") != "1" {
-		t.Skip("set GOLDEN_UPDATE=1 to regenerate the golden fixture")
+		t.Skip("set GOLDEN_UPDATE=1 to regenerate the golden fixtures")
 	}
-	doc := buildFixture(t)
-	data, err := json.MarshalIndent(doc, "", "  ")
-	if err != nil {
-		t.Fatal(err)
+	for _, s := range specs {
+		t.Run(s.identity.Fixture, func(t *testing.T) {
+			data, err := json.MarshalIndent(buildFixture(t, s), "", "  ")
+			if err != nil {
+				t.Fatal(err)
+			}
+			data = append(data, '\n')
+			if err := os.MkdirAll(filepath.Dir(s.path), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(s.path, data, 0o644); err != nil {
+				t.Fatal(err)
+			}
+			t.Logf("golden fixture written to %s (%d bytes)", s.path, len(data))
+		})
 	}
-	data = append(data, '\n')
-	if err := os.MkdirAll(filepath.Dir(fixturePath), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(fixturePath, data, 0o644); err != nil {
-		t.Fatal(err)
-	}
-	t.Logf("golden fixture written to %s (%d bytes)", fixturePath, len(data))
 }

@@ -4,19 +4,34 @@ import (
 	"context"
 
 	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-domain/example/orders"
+	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-domain/example/reservations"
 	dmpfports "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-ports"
 )
 
 // Tx is the working copy of one transaction: writes land here and reach the
 // store only at commit.
 type Tx struct {
-	orders map[orders.OrderID]record
-	outbox []dmpfports.OutboxEntry
+	orders       map[orders.OrderID]record
+	reservations map[reservations.OrderID]reservationRecord
+	inbox        map[inboxKey]inboxRow
+	outbox       []dmpfports.OutboxEntry
 }
 
 // Orders is the transactional repository of the open transaction.
 func (t *Tx) Orders() dmpfports.Repository[orders.OrderID, orders.Snapshot] {
 	return txOrders{tx: t}
+}
+
+// Reservations is the transactional repository of the open transaction,
+// mirroring Orders for the reservations aggregate.
+func (t *Tx) Reservations() dmpfports.Repository[reservations.OrderID, reservations.Snapshot] {
+	return txReservations{tx: t}
+}
+
+// Inbox is the transactional Inbox bound to consumer, the deduplication
+// boundary of the open transaction.
+func (t *Tx) Inbox(consumer string) dmpfports.Inbox {
+	return txInbox{tx: t, consumer: consumer}
 }
 
 // Outbox is the transactional outbox of the open transaction.
@@ -66,7 +81,11 @@ func (u unitOfWork[R]) open() *Tx {
 	u.store.dataMu.Lock()
 	defer u.store.dataMu.Unlock()
 	u.store.withinCalls++
-	return &Tx{orders: cloneRecords(u.store.orders)}
+	return &Tx{
+		orders:       cloneRecords(u.store.orders),
+		reservations: cloneReservationRecords(u.store.reservations),
+		inbox:        cloneInboxRows(u.store.inbox),
+	}
 }
 
 func (u unitOfWork[R]) commit(tx *Tx) error {
@@ -82,6 +101,8 @@ func (u unitOfWork[R]) commit(tx *Tx) error {
 	// callback continua escrevendo na cópia descartada, e não no estado do Store,
 	// fora de qualquer transação e sem o dataMu.
 	u.store.orders = cloneRecords(tx.orders)
+	u.store.reservations = cloneReservationRecords(tx.reservations)
+	u.store.inbox = cloneInboxRows(tx.inbox)
 	u.store.outbox = append(u.store.outbox, tx.outbox...)
 	u.store.commits++
 	return nil
@@ -102,6 +123,24 @@ func (r txOrders) Save(_ context.Context, id orders.OrderID, state orders.Snapsh
 		return dmpfports.ErrVersionConflict
 	}
 	r.tx.orders[id] = record{snapshot: cloneSnapshot(state), version: expected + 1}
+	return nil
+}
+
+type txReservations struct{ tx *Tx }
+
+func (r txReservations) Load(_ context.Context, id reservations.OrderID) (reservations.Snapshot, dmpfports.Version, error) {
+	return loadReservation(r.tx.reservations, id)
+}
+
+func (r txReservations) Save(_ context.Context, id reservations.OrderID, state reservations.Snapshot, expected dmpfports.Version) error {
+	current := dmpfports.Version(0)
+	if rec, ok := r.tx.reservations[id]; ok {
+		current = rec.version
+	}
+	if current != expected {
+		return dmpfports.ErrVersionConflict
+	}
+	r.tx.reservations[id] = reservationRecord{snapshot: state, version: expected + 1}
 	return nil
 }
 

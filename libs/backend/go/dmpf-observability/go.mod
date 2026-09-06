@@ -1,6 +1,6 @@
 module gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability
 
-go 1.26.8
+go 1.26.6
 
 require (
 	github.com/testcontainers/testcontainers-go v0.44.0

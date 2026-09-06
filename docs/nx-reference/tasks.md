@@ -154,7 +154,7 @@ da stack** (`<name>-go`). O motivo está no `docs/adr/030-granularidade-modulo-g
 o kernel DMPF terá contrapartes Go e TypeScript com os mesmos nomes conceituais,
 e o nome de projeto é chave única no Nx.
 
-Go é `scope:backend` neste workspace: os seis módulos existentes vivem em
+Go é `scope:backend` neste workspace: os oito módulos existentes vivem em
 `libs/backend/go/`. O módulo `dmpf-contracts` (projeto `dmpf-contracts-go`) é o
 único com targets além da cadeia Go — `buf-lint`, `buf-pins`,
 `buf-generate-check` e `buf-breaking` chamam os subcomandos de
@@ -185,7 +185,7 @@ Depois de gerar, cinco ajustes que o generator não faz:
    ```bash
    go -C libs/backend/go/<name> mod edit \
      -module gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/<name>
-   go -C libs/backend/go/<name> mod edit -go=1.26.8   # o generator descarta o patch
+   go -C libs/backend/go/<name> mod edit -go=1.26.6   # o generator descarta o patch
    ```
 
 3. **`package.json` privado** — `{"name": "@lidercap-apps/<name>-go", "version": "0.0.0", "private": true}`.

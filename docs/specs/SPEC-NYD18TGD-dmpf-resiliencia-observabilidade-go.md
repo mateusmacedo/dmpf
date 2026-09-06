@@ -275,6 +275,26 @@ Regras que esta spec realiza, com a força que cada fonte declara:
   permanece intocado.
 </constraints>
 
+### Errata de 2026-09-05 (execução — a numeração do ADR e o piso Go)
+
+9. **O ADR desta entrega é o 037, não o 035.** Onde a spec cita
+   `docs/adr/035-observabilidade-otel-e-retry-por-conjuncao-em-go.md`, leia-se
+   `docs/adr/037-...`. Enquanto esta entrega corria, o `ARQ-525` (KRN-06) mergeou
+   com o ADR-035 e o `ARQ-526` (KRN-07) com o ADR-036. A pergunta aberta do plano
+   previa a colisão e apostava em `036`, que também foi tomado.
+
+10. **O piso Go é `1.26.6`, não `1.26.8`.** Onde a spec fixa `1.26.8` — no
+    Resumo, na Compatibilidade, na Localização de código e na Fase 0 — leia-se
+    `1.26.6`. A escolha original mediu `1.26.4` reprovando no `govulncheck` e
+    `1.26.8` passando, e **nunca mediu o `1.26.6` que estava entre os dois**; a
+    própria spec já registrava que as três vulnerabilidades da stdlib estão
+    corrigidas em `1.26.5`/`1.26.6`. Medido em 2026-09-05, `1.26.6` passa
+    inclusive com `testcontainers-go`, desde que `github.com/moby/go-archive`
+    esteja em `v0.3.0` ou superior — a vulnerabilidade que resta é dessa
+    dependência, não do toolchain. Como o `develop` já havia ido a `1.26.6` por
+    conta própria, o piso final coincide com o dele e nenhum módulo precisou
+    subir por causa desta entrega.
+
 ## Requisitos
 
 ### Funcionais

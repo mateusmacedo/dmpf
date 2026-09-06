@@ -1,4 +1,4 @@
-# ADR-035: Realizar observabilidade e resiliência em Go sobre OpenTelemetry, com sampler e processor próprios e retry por conjunção
+# ADR-037: Realizar observabilidade e resiliência em Go sobre OpenTelemetry, com sampler e processor próprios e retry por conjunção
 
 ## Status
 
@@ -120,10 +120,20 @@ decorar. O comportamento — recusar — é o mesmo; o momento é outro.
 ### Pins e piso
 
 OpenTelemetry `v1.46.0` em todos os packages, `semconv/v1.43.0`, e piso Go
-`1.26.8`. O bump do piso (de `1.26.4`) foi **pré-requisito**, não conveniência:
-o `govulncheck v1.7.0` reprova o módulo no piso anterior assim que os
-exportadores OTLP entram, por três vulnerabilidades alcançáveis da stdlib
-(`crypto/tls`, `encoding/asn1`), e o target é obrigatório no CI.
+`1.26.6` — o mesmo do `develop`, e o **menor** que serve.
+
+O piso importa aqui porque o `govulncheck v1.7.0` é obrigatório no CI e reprova
+o módulo em `1.26.4` assim que os exportadores OTLP entram no grafo, por três
+vulnerabilidades alcançáveis da stdlib (GO-2026-6090 e GO-2026-5856 em
+`crypto/tls`, GO-2026-5972 em `encoding/asn1`). As três estão corrigidas em
+`1.26.5`/`1.26.6`.
+
+Esta entrega chegou a subir o piso a `1.26.8` antes de fechar essa conta: a
+pesquisa mediu `1.26.4` reprovando e `1.26.8` passando, e nunca mediu o
+`1.26.6` que estava entre os dois. Medido depois, `1.26.6` passa — inclusive com
+`testcontainers-go`, desde que `github.com/moby/go-archive` esteja em `v0.3.0`
+ou superior. A vulnerabilidade que resta em `1.26.6` é dessa dependência, e se
+corrige por ela, não pelo toolchain. O piso ficou em `1.26.6`.
 
 ### Testcontainers fora da allowlist
 
@@ -168,8 +178,11 @@ caminho silencioso de não execução. O Docker no runner foi confirmado.
 
 ## Consequências
 
-O kernel passa a ter observabilidade e resiliência executáveis, e o `KRN-06`
-(outbox Postgres), o `KRN-07` (inbox) e o `KRN-10` (admissão) têm o que estender.
+O kernel passa a ter observabilidade e resiliência executáveis. O `KRN-06`
+(outbox Postgres, ADR-035) e o `KRN-07` (inbox, ADR-036) mergearam em paralelo a
+esta entrega e ainda não são instrumentados por ela: ligá-los ao gancho e às
+fichas de resiliência é trabalho de quem os consumir. O `KRN-10` (admissão)
+encontra pronta a posição de rate limit que a ficha declara não aplicável aqui.
 
 A suíte do módulo passa a **exigir Docker**: sem daemon acessível, o package
 `otelboot/otlp` falha. É o preço declarado de não ter caminho silencioso.

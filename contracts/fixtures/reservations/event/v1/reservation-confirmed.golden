@@ -1,0 +1,143 @@
+{
+  "format_version": "1",
+  "identity": {
+    "fixture": "reservations/event/v1/reservation-confirmed",
+    "contract": {
+      "package": "company.reservations.event.v1",
+      "message": "ReservationConfirmed"
+    },
+    "type": "com.company.reservations.reservation-confirmed.v1",
+    "dataschema": "type.googleapis.com/company.reservations.event.v1.ReservationConfirmed"
+  },
+  "covers": {
+    "profile_major": "1",
+    "contract_major": "v1"
+  },
+  "cases": [
+    {
+      "name": "all-conditionals-present",
+      "doc": "Caminho típico com os três atributos condicionais presentes (aggregateversion, tenantid, tracestate).",
+      "envelope": {
+        "aggregateversion": "7",
+        "causationid": "evt-0001",
+        "correlationid": "corr-0001",
+        "datacontenttype": "application/protobuf",
+        "dataschema": "type.googleapis.com/company.reservations.event.v1.ReservationConfirmed",
+        "id": "evt-0001",
+        "partitionkey": "c-42",
+        "source": "urn:lidercap:orders",
+        "specversion": "1.0",
+        "subject": "order/o-1001",
+        "tenantid": "tenant-a",
+        "time": "2026-09-02T12:00:00Z",
+        "traceparent": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+        "tracestate": "vendor=1",
+        "type": "com.company.reservations.reservation-confirmed.v1"
+      },
+      "payload": {
+        "item_count": "2",
+        "order_id": "o-1001"
+      },
+      "payload_bytes_hex": "0a066f2d313030311002",
+      "payload_hash": "925d6656bf2428dcdcdce2d0b0e6ebaf5bf686c964c160c37ac80b8fc98b3f4b"
+    },
+    {
+      "name": "all-conditionals-absent",
+      "doc": "Os três condicionais ausentes: nenhum entra no mapa de atributos (ENV-12, sem valor de preenchimento).",
+      "envelope": {
+        "causationid": "evt-0001",
+        "correlationid": "corr-0001",
+        "datacontenttype": "application/protobuf",
+        "dataschema": "type.googleapis.com/company.reservations.event.v1.ReservationConfirmed",
+        "id": "evt-0002",
+        "partitionkey": "c-42",
+        "source": "urn:lidercap:orders",
+        "specversion": "1.0",
+        "subject": "order/o-1001",
+        "time": "2026-09-02T12:00:00Z",
+        "traceparent": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+        "type": "com.company.reservations.reservation-confirmed.v1"
+      },
+      "payload": {
+        "item_count": "1",
+        "order_id": "o-1002"
+      },
+      "payload_bytes_hex": "0a066f2d313030321001",
+      "payload_hash": "690affbb6e7978a106864ab5a4f8a6f8f75e131f8672fae2fece6c695985d4cd"
+    },
+    {
+      "name": "item-count-zero",
+      "doc": "item_count no valor zero: o campo não aparece no wire, e o leitor precisa distinguir ausência de zero pelo contrato.",
+      "envelope": {
+        "causationid": "evt-0001",
+        "correlationid": "corr-0001",
+        "datacontenttype": "application/protobuf",
+        "dataschema": "type.googleapis.com/company.reservations.event.v1.ReservationConfirmed",
+        "id": "evt-0003",
+        "partitionkey": "c-42",
+        "source": "urn:lidercap:orders",
+        "specversion": "1.0",
+        "subject": "order/o-1001",
+        "time": "2026-09-02T12:00:00Z",
+        "traceparent": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+        "type": "com.company.reservations.reservation-confirmed.v1"
+      },
+      "payload": {
+        "item_count": "0",
+        "order_id": "o-1003"
+      },
+      "payload_bytes_hex": "0a066f2d31303033",
+      "payload_hash": "cd12b009671e52e98fbad1f96ad43db112f1c402d9cd48c3685543e1484da52c"
+    }
+  ],
+  "discriminators": [
+    {
+      "name": "unknown-field",
+      "doc": "Bytes canônicos mais um campo de número 7 (varint 42) que o contrato não conhece: a desserialização o preserva (PTB-10) e o hash o cobre (ENV-17).",
+      "envelope": {
+        "causationid": "evt-0001",
+        "correlationid": "corr-0001",
+        "datacontenttype": "application/protobuf",
+        "dataschema": "type.googleapis.com/company.reservations.event.v1.ReservationConfirmed",
+        "id": "evt-2001",
+        "partitionkey": "c-42",
+        "source": "urn:lidercap:orders",
+        "specversion": "1.0",
+        "subject": "order/o-1001",
+        "time": "2026-09-02T12:00:00Z",
+        "traceparent": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+        "type": "com.company.reservations.reservation-confirmed.v1"
+      },
+      "payload": {
+        "item_count": "2",
+        "order_id": "o-2001"
+      },
+      "payload_bytes_hex": "0a066f2d323030311002382a",
+      "payload_hash": "003f62fe6152dc4e7822363165d9f05d35c674aadd9817a6678806d7cc84ba63"
+    },
+    {
+      "name": "non-canonical-field-order",
+      "doc": "Campos em ordem decrescente de número: decodifica no mesmo valor, mas o hash é o dos bytes transportados e difere do hash de uma reserialização (ENV-18).",
+      "envelope": {
+        "causationid": "evt-0001",
+        "correlationid": "corr-0001",
+        "datacontenttype": "application/protobuf",
+        "dataschema": "type.googleapis.com/company.reservations.event.v1.ReservationConfirmed",
+        "id": "evt-2002",
+        "partitionkey": "c-42",
+        "source": "urn:lidercap:orders",
+        "specversion": "1.0",
+        "subject": "order/o-1001",
+        "time": "2026-09-02T12:00:00Z",
+        "traceparent": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+        "type": "com.company.reservations.reservation-confirmed.v1"
+      },
+      "payload": {
+        "item_count": "5",
+        "order_id": "o-2002"
+      },
+      "payload_bytes_hex": "10050a066f2d32303032",
+      "payload_hash": "1c62550d097a1b11a712b010eb45eb1c410c443628ef83ddf588e3af4df944f0"
+    }
+  ]
+}

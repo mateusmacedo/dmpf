@@ -25,6 +25,7 @@ jobs:
     timeout-minutes: 30
     env:
       NX_EXCLUDE: "@nx-base-template/source"
+      DMPF_PG_DSN: "postgres://dmpf:dmpf@localhost:5432/dmpf?sslmode=disable"
 
     steps:
       - name: Checkout
@@ -42,6 +43,33 @@ jobs:
 
       - name: Set Nx SHAs for affected (base/head)
         uses: nrwl/nx-set-shas@v5
+
+      # O bloco `services:` não serve aqui: o act_runner põe serviço e job na
+      # bridge default do Docker, que não resolve nome de container, e declara
+      # ignorar rede customizada. Compartilhar o namespace de rede do próprio job
+      # dispensa DNS, IP de gateway e porta publicada — ver ADR-035.
+      - name: Subir Postgres para os testes de integração
+        run: |
+          set -euo pipefail
+          # O nome carrega o id do container do job porque o socket do Docker vem
+          # do host: um nome fixo colidiria entre jobs concorrentes, ou com o
+          # resíduo de um job morto sem limpeza.
+          nome="dmpf-postgres-$(hostname)"
+          docker rm -f "$nome" >/dev/null 2>&1 || true
+          docker run -d --name "$nome" \
+            --network "container:$(hostname)" \
+            -e POSTGRES_USER=dmpf -e POSTGRES_PASSWORD=dmpf -e POSTGRES_DB=dmpf \
+            postgres:16-alpine
+          for _ in $(seq 1 30); do
+            if docker exec "$nome" pg_isready -U dmpf -q; then
+              echo "postgres pronto em localhost:5432 ($nome)"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "postgres nao respondeu em 60s" >&2
+          docker logs "$nome" >&2
+          exit 1
 
       - name: Check formatting and linting
         run: pnpm biome ci .
@@ -81,6 +109,12 @@ jobs:
       - name: DMPF dependency gate
         if: steps.go_affected.outputs.any == 'true'
         run: bash tools/dmpf-gate-check.sh
+
+      # Complementa o step acima onde o depguard não alcança: ele decide por nome
+      # de diretório, e célula é aresta entre unidades, que só o verificador vê.
+      - name: DMPF cell gate
+        if: steps.go_affected.outputs.any == 'true'
+        run: bash tools/dmpf-cell-check.sh
 
       # GATE, fail-closed. Sem `continue-on-error` e sem `|| true`: a partir
       # daqui o verificador reprova o PR. O passo shadow que existia aqui foi

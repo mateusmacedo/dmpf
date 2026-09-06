@@ -1,7 +1,25 @@
 {
   "schema": "dmpf/units-baseline@1",
-  "digest": "sha256:1cd3533aa1a9955b138d835d48cd2839346f3beb3025cdd03e650343b3811297",
+  "digest": "sha256:c4e1010450551bc244f28625cfe071f16bb7abe92b196213034210c59d822476",
   "entries": [
+    {
+      "unit": "dmpf-kernel/app-consumer",
+      "module": "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-app",
+      "block": "app",
+      "bounded_context": "dmpf-kernel",
+      "membership": [
+        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-app"
+      ]
+    },
+    {
+      "unit": "dmpf-kernel/example-reservations-app",
+      "module": "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-app",
+      "block": "app",
+      "bounded_context": "dmpf-kernel",
+      "membership": [
+        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-app/example/reservations"
+      ]
+    },
     {
       "unit": "dmpf-kernel/application",
       "module": "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-application",
@@ -27,6 +45,15 @@
       "bounded_context": "dmpf-kernel",
       "membership": [
         "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-application/example/orders"
+      ]
+    },
+    {
+      "unit": "dmpf-kernel/example-reservations-application",
+      "module": "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-application",
+      "block": "application",
+      "bounded_context": "dmpf-kernel",
+      "membership": [
+        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-application/example/reservations"
       ]
     },
     {
@@ -117,6 +144,7 @@
       "bounded_context": "dmpf-kernel",
       "membership": [
         "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/gen/go/company/orders/event/v1",
+        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/gen/go/company/reservations/event/v1",
         "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/gen/go/io/cloudevents/v1"
       ]
     },
@@ -148,6 +176,15 @@
       ]
     },
     {
+      "unit": "dmpf-kernel/example-reservations",
+      "module": "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-domain",
+      "block": "domain",
+      "bounded_context": "dmpf-kernel",
+      "membership": [
+        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-domain/example/reservations"
+      ]
+    },
+    {
       "unit": "dmpf-kernel/observability",
       "module": "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability",
       "block": "provider",
@@ -174,6 +211,33 @@
       "bounded_context": "dmpf-kernel",
       "membership": [
         "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-ports"
+      ]
+    },
+    {
+      "unit": "dmpf-kernel/example-orders-postgres",
+      "module": "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-provider-postgres",
+      "block": "provider",
+      "bounded_context": "dmpf-kernel",
+      "membership": [
+        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-provider-postgres/example/orders"
+      ]
+    },
+    {
+      "unit": "dmpf-kernel/example-reservations-postgres",
+      "module": "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-provider-postgres",
+      "block": "provider",
+      "bounded_context": "dmpf-kernel",
+      "membership": [
+        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-provider-postgres/example/reservations"
+      ]
+    },
+    {
+      "unit": "dmpf-kernel/provider-postgres",
+      "module": "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-provider-postgres",
+      "block": "provider",
+      "bounded_context": "dmpf-kernel",
+      "membership": [
+        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-provider-postgres"
       ]
     }
   ]
