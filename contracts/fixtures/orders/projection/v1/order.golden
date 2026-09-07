@@ -1,0 +1,195 @@
+{
+  "format_version": "1",
+  "identity": {
+    "context": "orders",
+    "aggregate": "order"
+  },
+  "cases": [
+    {
+      "name": "add-item-accepted",
+      "doc": "Ramo Accepted de AddItem (FND-03 §8.2): pedido aberto com um item recebe o segundo; resposta com a contagem e um item-added na sequência.",
+      "state_before": {
+        "id": "o-1",
+        "status": "open",
+        "item_limit": "3",
+        "items.count": "1",
+        "items.0.sku": "A",
+        "items.0.quantity": "1"
+      },
+      "command": {
+        "upr": "add-item",
+        "sku": "B",
+        "quantity": "2",
+        "at": "1755432000"
+      },
+      "expected": {
+        "branch": "accepted",
+        "response": {
+          "order": "o-1",
+          "items": "2"
+        },
+        "events": [
+          {
+            "name": "orders.item-added",
+            "fields": {
+              "order": "o-1",
+              "sku": "B",
+              "quantity": "2",
+              "at": "1755432000"
+            }
+          }
+        ],
+        "state_after": {
+          "id": "o-1",
+          "status": "open",
+          "item_limit": "3",
+          "items.count": "2",
+          "items.0.sku": "A",
+          "items.0.quantity": "1",
+          "items.1.sku": "B",
+          "items.1.quantity": "2"
+        }
+      }
+    },
+    {
+      "name": "add-item-limit-exceeded",
+      "doc": "Ramo Rejected de AddItem (FND-03 §8.3): limite de itens excedido; sequência vazia e estado idêntico ao anterior (ORA-38).",
+      "state_before": {
+        "id": "o-1",
+        "status": "open",
+        "item_limit": "1",
+        "items.count": "1",
+        "items.0.sku": "A",
+        "items.0.quantity": "1"
+      },
+      "command": {
+        "upr": "add-item",
+        "sku": "B",
+        "quantity": "1",
+        "at": "1755432000"
+      },
+      "expected": {
+        "branch": "rejected",
+        "rejection": {
+          "code": "orders/item-limit-exceeded",
+          "message": "item limit exceeded",
+          "details": {
+            "limit": "1",
+            "attempted": "2"
+          }
+        },
+        "events": [],
+        "state_after": {
+          "id": "o-1",
+          "status": "open",
+          "item_limit": "1",
+          "items.count": "1",
+          "items.0.sku": "A",
+          "items.0.quantity": "1"
+        }
+      }
+    },
+    {
+      "name": "place-accepted",
+      "doc": "Ramo Accepted de Place: pedido aberto com item é colocado; um order-placed na sequência e status placed.",
+      "state_before": {
+        "id": "o-1",
+        "status": "open",
+        "item_limit": "3",
+        "items.count": "1",
+        "items.0.sku": "A",
+        "items.0.quantity": "1"
+      },
+      "command": {
+        "upr": "place",
+        "at": "1755432000"
+      },
+      "expected": {
+        "branch": "accepted",
+        "response": {
+          "order": "o-1"
+        },
+        "events": [
+          {
+            "name": "orders.order-placed",
+            "fields": {
+              "order": "o-1",
+              "items": "1",
+              "at": "1755432000"
+            }
+          }
+        ],
+        "state_after": {
+          "id": "o-1",
+          "status": "placed",
+          "item_limit": "3",
+          "items.count": "1",
+          "items.0.sku": "A",
+          "items.0.quantity": "1"
+        }
+      }
+    },
+    {
+      "name": "place-empty-order",
+      "doc": "Ramo Rejected de Place: pedido sem itens não pode ser colocado.",
+      "state_before": {
+        "id": "o-1",
+        "status": "open",
+        "item_limit": "3",
+        "items.count": "0"
+      },
+      "command": {
+        "upr": "place",
+        "at": "1755432000"
+      },
+      "expected": {
+        "branch": "rejected",
+        "rejection": {
+          "code": "orders/empty-order",
+          "message": "order has no items",
+          "details": {}
+        },
+        "events": [],
+        "state_after": {
+          "id": "o-1",
+          "status": "open",
+          "item_limit": "3",
+          "items.count": "0"
+        }
+      }
+    },
+    {
+      "name": "place-order-not-open",
+      "doc": "Ramo Rejected de Place: pedido já colocado não aceita a operação.",
+      "state_before": {
+        "id": "o-1",
+        "status": "placed",
+        "item_limit": "3",
+        "items.count": "1",
+        "items.0.sku": "A",
+        "items.0.quantity": "1"
+      },
+      "command": {
+        "upr": "place",
+        "at": "1755432000"
+      },
+      "expected": {
+        "branch": "rejected",
+        "rejection": {
+          "code": "orders/order-not-open",
+          "message": "order is not open",
+          "details": {}
+        },
+        "events": [],
+        "state_after": {
+          "id": "o-1",
+          "status": "placed",
+          "item_limit": "3",
+          "items.count": "1",
+          "items.0.sku": "A",
+          "items.0.quantity": "1"
+        }
+      }
+    }
+  ]
+}
