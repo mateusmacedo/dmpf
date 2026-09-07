@@ -1,0 +1,64 @@
+package clock
+
+import (
+	"context"
+	"sync"
+	"time"
+
+	obsclock "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/clock"
+	dmpfports "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-ports"
+)
+
+// Fake realizes dmpfports.Clock over one obsclock.Fake, so the kernel's instant
+// and the transport's timers never disagree: Advance moves both at once.
+type Fake struct {
+	mu  sync.Mutex
+	obs *obsclock.Fake
+}
+
+// New starts the fake at the given instant. Zero is accepted: a deterministic
+// test cares about differences, not about the date.
+func New(at dmpfports.Instant) *Fake {
+	return &Fake{obs: obsclock.NewFake(time.Unix(0, int64(at)))}
+}
+
+func (f *Fake) Now() dmpfports.Instant {
+	return dmpfports.Instant(f.current().Now().UnixNano())
+}
+
+// Advance moves the clock forward and fires every observability timer due at
+// the new instant. Non-positive durations do nothing.
+func (f *Fake) Advance(d time.Duration) { f.current().Advance(d) }
+
+// Set moves the clock to an absolute instant. Forward it behaves as Advance;
+// backward it replaces the underlying fake, dropping pending timers — a timer
+// scheduled in a future that no longer exists has nothing to fire against.
+func (f *Fake) Set(at dmpfports.Instant) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	now := f.obs.Now().UnixNano()
+	if delta := int64(at) - now; delta >= 0 {
+		f.obs.Advance(time.Duration(delta))
+		return
+	}
+	f.obs = obsclock.NewFake(time.Unix(0, int64(at)))
+}
+
+// Observability is the same instant seen as obsclock.Clock, for the providers
+// of KRN-09/KRN-10 that wait on timers and contexts rather than read a value.
+func (f *Fake) Observability() obsclock.Clock { return view{f} }
+
+func (f *Fake) current() *obsclock.Fake {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.obs
+}
+
+type view struct{ f *Fake }
+
+func (v view) Now() time.Time                          { return v.f.current().Now() }
+func (v view) After(d time.Duration) <-chan time.Time  { return v.f.current().After(d) }
+func (v view) NewTimer(d time.Duration) obsclock.Timer { return v.f.current().NewTimer(d) }
+func (v view) WithTimeout(ctx context.Context, d time.Duration) (context.Context, context.CancelFunc) {
+	return v.f.current().WithTimeout(ctx, d)
+}
