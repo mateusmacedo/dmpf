@@ -1,0 +1,94 @@
+name: DMPF Distributed
+
+# Camada distribuída da pirâmide (FND-09 KIT-06): dois processos OS sobre
+# Redpanda e Postgres, com reentrega deliberada (V32). Pipeline separado do
+# ciclo curto por exigência de KIT-11. Sem `paths`: o efeito sob reentrega
+# depende do kernel inteiro, e um filtro por caminho esconderia a regressão
+# que vier de fora do `distkit`.
+
+on:
+  pull_request:
+    branches:
+      - master
+      - develop
+      - "release/**"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  distributed:
+    name: Reentrega deliberada sobre o broker (V32)
+    runs-on: gitea-runner
+    timeout-minutes: 20
+    env:
+      DMPF_PG_DSN: "postgres://dmpf:dmpf@localhost:5432/dmpf?sslmode=disable"
+      DMPF_KAFKA_BROKERS: "localhost:9092"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node and pnpm
+        uses: ./.github/actions/setup-node-pnpm
+        with:
+          node-version: "24"
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      # Mesmo gesto do ci.yml (ADR-035): o act_runner não resolve nome de
+      # container no bloco `services:`, então o serviço compartilha o namespace
+      # de rede do próprio job.
+      - name: Subir Postgres para o harness distribuído
+        run: |
+          set -euo pipefail
+          nome="dmpf-dist-postgres-$(hostname)"
+          docker rm -f "$nome" >/dev/null 2>&1 || true
+          docker run -d --name "$nome" \
+            --network "container:$(hostname)" \
+            -e POSTGRES_USER=dmpf -e POSTGRES_PASSWORD=dmpf -e POSTGRES_DB=dmpf \
+            postgres:16-alpine
+          for _ in $(seq 1 30); do
+            if docker exec "$nome" pg_isready -U dmpf -q; then
+              echo "postgres pronto em localhost:5432 ($nome)"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "postgres nao respondeu em 60s" >&2
+          docker logs "$nome" >&2
+          exit 1
+
+      - name: Subir Redpanda para o harness distribuído
+        run: |
+          set -euo pipefail
+          nome="dmpf-dist-redpanda-$(hostname)"
+          docker rm -f "$nome" >/dev/null 2>&1 || true
+          docker run -d --name "$nome" \
+            --network "container:$(hostname)" \
+            redpandadata/redpanda:v26.2.2 \
+            redpanda start --mode dev-container --smp 1
+          for _ in $(seq 1 30); do
+            if docker exec "$nome" rpk cluster info >/dev/null 2>&1; then
+              echo "redpanda pronto em localhost:9092 ($nome)"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "redpanda nao respondeu em 60s" >&2
+          docker logs "$nome" >&2
+          exit 1
+
+      # O target declara `dependsOn` no `test-race` do provider Postgres e do
+      # dmpf-app, então o harness só roda depois que as duas camadas de que
+      # depende passaram sobre a mesma infra.
+      - name: Harness distribuído (KIT-06)
+        run: pnpm nx run dmpf-testkit-go:test-distributed

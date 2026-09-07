@@ -3,7 +3,7 @@
   "$schema": "../../../../node_modules/nx/schemas/project-schema.json",
   "projectType": "library",
   "sourceRoot": "libs/backend/go/dmpf-contracts",
-  "tags": ["type:lib", "scope:backend", "stack:go"],
+  "tags": ["type:lib", "scope:backend", "stack:go", "layer:contract"],
   "targets": {
     "fmt-check": {
       "executor": "nx:run-commands",
@@ -51,7 +51,9 @@
     "buf-warmup": {
       "executor": "nx:run-commands",
       "cache": false,
-      "options": { "command": "bash tools/buf-gate.sh warmup" }
+      "options": {
+        "command": "bash tools/buf-gate.sh warmup"
+      }
     },
     "buf-lint": {
       "executor": "nx:run-commands",
@@ -63,7 +65,9 @@
         "{workspaceRoot}/tools/buf-gate.sh",
         "{projectRoot}/**/*"
       ],
-      "options": { "command": "bash tools/buf-gate.sh lint" }
+      "options": {
+        "command": "bash tools/buf-gate.sh lint"
+      }
     },
     "buf-pins": {
       "executor": "nx:run-commands",
@@ -74,7 +78,9 @@
         "{workspaceRoot}/tools/buf-gate.sh",
         "{projectRoot}/go.mod"
       ],
-      "options": { "command": "bash tools/buf-gate.sh pins" }
+      "options": {
+        "command": "bash tools/buf-gate.sh pins"
+      }
     },
     "buf-generate-check": {
       "executor": "nx:run-commands",
@@ -87,7 +93,9 @@
         "{projectRoot}/gen/**/*",
         "{projectRoot}/go.mod"
       ],
-      "options": { "command": "bash tools/buf-gate.sh generate-check" }
+      "options": {
+        "command": "bash tools/buf-gate.sh generate-check"
+      }
     },
     "buf-breaking": {
       "executor": "nx:run-commands",
@@ -97,7 +105,9 @@
         "{workspaceRoot}/tools/buf.sh",
         "{workspaceRoot}/tools/buf-gate.sh"
       ],
-      "options": { "command": "bash tools/buf-gate.sh breaking" }
+      "options": {
+        "command": "bash tools/buf-gate.sh breaking"
+      }
     },
     "buf-gate-selftest": {
       "executor": "nx:run-commands",
@@ -111,7 +121,9 @@
         "{projectRoot}/gen/**/*",
         "{projectRoot}/go.mod"
       ],
-      "options": { "command": "bash tools/tests/buf-gate/buf-gate.test.sh" }
+      "options": {
+        "command": "bash tools/tests/buf-gate/buf-gate.test.sh"
+      }
     }
   }
 }

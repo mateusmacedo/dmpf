@@ -49,6 +49,45 @@ jobs:
       - name: Set Nx SHAs for affected (base/head)
         uses: nrwl/nx-set-shas@v5
 
+      - name: Check formatting and linting
+        run: pnpm biome ci .
+
+      - name: Lint (affected)
+        run: pnpm nx affected -t lint --base=$NX_BASE --head=$NX_HEAD --parallel=3 --exclude=$NX_EXCLUDE
+
+      - name: Typecheck (affected)
+        run: pnpm nx affected -t typecheck --base=$NX_BASE --head=$NX_HEAD --parallel=3 --exclude=$NX_EXCLUDE
+
+      - name: Test (affected)
+        run: pnpm nx affected -t test --base=$NX_BASE --head=$NX_HEAD --parallel=3 --ci --coverage --exclude=$NX_EXCLUDE
+
+      - name: Build (affected)
+        run: pnpm nx affected -t build --base=$NX_BASE --head=$NX_HEAD --parallel=3 --exclude=$NX_EXCLUDE
+
+      # A cadeia Go corre por estágio da pirâmide (FND-09 KIT-09..KIT-11): cada
+      # estágio é gate do seguinte, e a infraestrutura só sobe depois que as
+      # camadas que não precisam dela passaram. A seleção é pela tag `layer:*`
+      # dos project.json; `--affected` mantém o regime do resto do pipeline.
+      - name: Estágio 1 — domínio (layer:domain)
+        run: |
+          set -euo pipefail
+          lista="$(pnpm nx show projects --affected --base=$NX_BASE --head=$NX_HEAD --projects=tag:layer:domain | tr -d '[]" [:space:]')"
+          if [ -z "$lista" ]; then
+            echo "estágio 1 (domain): nenhum projeto afetado"
+            exit 0
+          fi
+          pnpm nx run-many -t fmt-check,vet,test-race -p "$lista" --parallel=3
+
+      - name: Estágio 2 — services (layer:services)
+        run: |
+          set -euo pipefail
+          lista="$(pnpm nx show projects --affected --base=$NX_BASE --head=$NX_HEAD --projects=tag:layer:services | tr -d '[]" [:space:]')"
+          if [ -z "$lista" ]; then
+            echo "estágio 2 (services): nenhum projeto afetado"
+            exit 0
+          fi
+          pnpm nx run-many -t fmt-check,vet,test-race -p "$lista" --parallel=3
+
       # O bloco `services:` não serve aqui: o act_runner põe serviço e job na
       # bridge default do Docker, que não resolve nome de container, e declara
       # ignorar rede customizada. Compartilhar o namespace de rede do próprio job
@@ -121,25 +160,42 @@ jobs:
           docker logs "$nome" >&2
           exit 1
 
-      - name: Check formatting and linting
-        run: pnpm biome ci .
+      - name: Estágio 3 — contrato (layer:contract)
+        run: |
+          set -euo pipefail
+          lista="$(pnpm nx show projects --affected --base=$NX_BASE --head=$NX_HEAD --projects=tag:layer:contract | tr -d '[]" [:space:]')"
+          if [ -z "$lista" ]; then
+            echo "estágio 3 (contract): nenhum projeto afetado"
+            exit 0
+          fi
+          pnpm nx run-many -t fmt-check,vet,test-race -p "$lista" --parallel=3
 
-      - name: Lint (affected)
-        run: pnpm nx affected -t lint --base=$NX_BASE --head=$NX_HEAD --parallel=3 --exclude=$NX_EXCLUDE
+      # `--parallel=1`: os providers compartilham o Postgres, o Redpanda e o
+      # floci do job, e cada harness reinicia as tabelas ou cria tópicos e filas.
+      - name: Estágio 4 — providers (layer:providers)
+        run: |
+          set -euo pipefail
+          lista="$(pnpm nx show projects --affected --base=$NX_BASE --head=$NX_HEAD --projects=tag:layer:providers | tr -d '[]" [:space:]')"
+          if [ -z "$lista" ]; then
+            echo "estágio 4 (providers): nenhum projeto afetado"
+            exit 0
+          fi
+          pnpm nx run-many -t fmt-check,vet,test-race -p "$lista" --parallel=1
 
-      - name: Typecheck (affected)
-        run: pnpm nx affected -t typecheck --base=$NX_BASE --head=$NX_HEAD --parallel=3 --exclude=$NX_EXCLUDE
+      - name: Estágio 5 — apps (layer:apps)
+        run: |
+          set -euo pipefail
+          lista="$(pnpm nx show projects --affected --base=$NX_BASE --head=$NX_HEAD --projects=tag:layer:apps | tr -d '[]" [:space:]')"
+          if [ -z "$lista" ]; then
+            echo "estágio 5 (apps): nenhum projeto afetado"
+            exit 0
+          fi
+          pnpm nx run-many -t fmt-check,vet,test-race -p "$lista" --parallel=1
 
-      - name: Test (affected)
-        run: pnpm nx affected -t test --base=$NX_BASE --head=$NX_HEAD --parallel=3 --ci --coverage --exclude=$NX_EXCLUDE
-
-      - name: Build (affected)
-        run: pnpm nx affected -t build --base=$NX_BASE --head=$NX_HEAD --parallel=3 --exclude=$NX_EXCLUDE
-
-      # lint, test e build já passam pelos steps acima; aqui ficam os quatro
-      # passos da cadeia Go que nenhum deles cobre.
-      - name: Go gates (affected)
-        run: pnpm nx affected -t fmt-check,vet,test-race,govulncheck --base=$NX_BASE --head=$NX_HEAD --parallel=3 --exclude=$NX_EXCLUDE
+      # govulncheck consulta base remota e não tem cache; corre uma vez sobre
+      # todo o Go afetado, fora dos estágios.
+      - name: Go vulnerabilities (affected)
+        run: pnpm nx affected -t govulncheck --base=$NX_BASE --head=$NX_HEAD --parallel=3 --exclude=$NX_EXCLUDE
 
       # O gate roda o golangci-lint uma vez por vetor, então fica sob o mesmo
       # regime de `affected` do resto do pipeline: um PR só de TypeScript não

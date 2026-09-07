@@ -3,7 +3,7 @@
   "$schema": "../../../../node_modules/nx/schemas/project-schema.json",
   "projectType": "library",
   "sourceRoot": "libs/backend/go/dmpf-provider-grpc",
-  "tags": ["type:lib", "scope:backend", "stack:go"],
+  "tags": ["type:lib", "scope:backend", "stack:go", "layer:providers"],
   "targets": {
     "fmt-check": {
       "executor": "nx:run-commands",
