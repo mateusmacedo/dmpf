@@ -1,0 +1,120 @@
+{
+  "schema": "dmpf/units@1",
+  "units": [
+    {
+      "id": "dmpf-kernel/testkit-domain",
+      "block": "domain",
+      "bounded_context": "dmpf-kernel",
+      "public_integration_surface": false,
+      "include": [
+        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-testkit/domainkit"
+      ]
+    },
+    {
+      "id": "dmpf-kernel/testkit-golden",
+      "block": "contract",
+      "bounded_context": "dmpf-kernel",
+      "public_integration_surface": false,
+      "include": [
+        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-testkit/golden"
+      ]
+    },
+    {
+      "id": "dmpf-kernel/testkit-services",
+      "block": "provider",
+      "bounded_context": "dmpf-kernel",
+      "public_integration_surface": false,
+      "include": [
+        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-testkit/serviceskit"
+      ]
+    },
+    {
+      "id": "dmpf-kernel/testkit-provider",
+      "block": "provider",
+      "bounded_context": "dmpf-kernel",
+      "public_integration_surface": false,
+      "include": [
+        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-testkit/providerkit"
+      ]
+    },
+    {
+      "id": "dmpf-kernel/testkit-clock",
+      "block": "provider",
+      "bounded_context": "dmpf-kernel",
+      "public_integration_surface": false,
+      "include": [
+        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-testkit/clock"
+      ]
+    },
+    {
+      "id": "dmpf-kernel/testkit-ids",
+      "block": "provider",
+      "bounded_context": "dmpf-kernel",
+      "public_integration_surface": false,
+      "include": [
+        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-testkit/ids"
+      ]
+    },
+    {
+      "id": "dmpf-kernel/testkit-stable",
+      "block": "provider",
+      "bounded_context": "dmpf-kernel",
+      "public_integration_surface": false,
+      "include": [
+        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-testkit/stable"
+      ]
+    },
+    {
+      "id": "dmpf-kernel/testkit-app",
+      "block": "app",
+      "bounded_context": "dmpf-kernel",
+      "public_integration_surface": false,
+      "include": [
+        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-testkit/appkit"
+      ]
+    },
+    {
+      "id": "dmpf-kernel/testkit-dist",
+      "block": "app",
+      "bounded_context": "dmpf-kernel",
+      "public_integration_surface": false,
+      "include": [
+        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-testkit/distkit"
+      ]
+    },
+    {
+      "id": "dmpf-kernel/testkit-fitness",
+      "block": "app",
+      "bounded_context": "dmpf-kernel",
+      "public_integration_surface": false,
+      "include": [
+        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-testkit/fitness"
+      ]
+    },
+    {
+      "id": "dmpf-kernel/testkit-tb",
+      "block": "app",
+      "bounded_context": "dmpf-kernel",
+      "public_integration_surface": false,
+      "include": [
+        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-testkit",
+        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-testkit/tb",
+        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-testkit/tb/pg"
+      ]
+    }
+  ],
+  "external": [
+    {
+      "package": "google.golang.org/protobuf",
+      "versions": ">=1.36.12 <2",
+      "entrypoints": [
+        "google.golang.org/protobuf/proto",
+        "google.golang.org/protobuf/encoding/protojson",
+        "google.golang.org/protobuf/reflect/protoreflect",
+        "google.golang.org/protobuf/types/known/timestamppb"
+      ],
+      "capability": "wire.codec"
+    }
+  ],
+  "exceptions": []
+}
