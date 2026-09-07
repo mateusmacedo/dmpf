@@ -1,4 +1,4 @@
-package baseline_test
+package fsstore_test
 
 import (
 	"encoding/json"
@@ -11,17 +11,9 @@ import (
 	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/internal/baseline"
 )
 
-// Dentro de um hook o git exporta GIT_DIR sem GIT_WORK_TREE, e `rev-parse
-// --show-toplevel` passa a devolver o cwd em vez da raiz do repositório.
-func TestMain(m *testing.M) {
-	for _, kv := range os.Environ() {
-		if nome, _, _ := strings.Cut(kv, "="); strings.HasPrefix(nome, "GIT_") {
-			_ = os.Unsetenv(nome)
-		}
-	}
-	os.Exit(m.Run())
-}
-
+// Vive no provider porque lê project.json e roda git (FND-09 PIR-17): o que
+// afirma sobre a cópia versionada é do repositório, não do domínio baseline.
+//
 // TestMudancaNoBaselineMarcaOProjetoComoAfetado: editar a cópia versionada
 // precisa fazer o projeto entrar na lista de afetados.
 //
