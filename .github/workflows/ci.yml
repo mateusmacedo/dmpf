@@ -24,6 +24,9 @@ jobs:
     runs-on: gitea-runner
     timeout-minutes: 30
     env:
+      # Declarado aqui, e não herdado do runner: é o que faz tb.Env reprovar
+      # em vez de pular quando uma variável de integração falta.
+      CI: "true"
       NX_EXCLUDE: "@nx-base-template/source"
       DMPF_PG_DSN: "postgres://dmpf:dmpf@localhost:5432/dmpf?sslmode=disable"
       DMPF_KAFKA_BROKERS: "localhost:9092"
@@ -34,7 +37,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
 
@@ -47,7 +50,7 @@ jobs:
         uses: ./.github/actions/setup-go
 
       - name: Set Nx SHAs for affected (base/head)
-        uses: nrwl/nx-set-shas@v5
+        uses: nrwl/nx-set-shas@afb73a62d26e41464e9254689e1fd6122ee683c1 # v5
 
       - name: Check formatting and linting
         run: pnpm biome ci .
@@ -68,10 +71,29 @@ jobs:
       # estágio é gate do seguinte, e a infraestrutura só sobe depois que as
       # camadas que não precisam dela passaram. A seleção é pela tag `layer:*`
       # dos project.json; `--affected` mantém o regime do resto do pipeline.
+      # Os estágios selecionam por `layer:*`; um módulo Go sem a tag perderia
+      # fmt-check, vet e test-race sem ninguém reclamar. A diferença entre
+      # `stack:go` e a união das cinco camadas tem de ser vazia.
+      - name: Toda lib Go declara exatamente uma camada
+        run: |
+          set -euo pipefail
+          go_all="$(pnpm nx show projects --projects=tag:stack:go --json | jq -r '.[]' | sort)"
+          layered="$(for l in domain services contract providers apps; do pnpm nx show projects --projects=tag:layer:$l --json | jq -r '.[]'; done | sort)"
+          if [ -n "$(comm -23 <(echo "$go_all") <(echo "$layered"))" ]; then
+            echo "módulos Go sem tag layer:*:" >&2
+            comm -23 <(echo "$go_all") <(echo "$layered") >&2
+            exit 1
+          fi
+          if [ -n "$(echo "$layered" | uniq -d)" ]; then
+            echo "módulos em mais de uma camada:" >&2
+            echo "$layered" | uniq -d >&2
+            exit 1
+          fi
+
       - name: Estágio 1 — domínio (layer:domain)
         run: |
           set -euo pipefail
-          lista="$(pnpm nx show projects --affected --base=$NX_BASE --head=$NX_HEAD --projects=tag:layer:domain | tr -d '[]" [:space:]')"
+          lista="$(pnpm nx show projects --affected --base=$NX_BASE --head=$NX_HEAD --projects=tag:layer:domain --json | jq -r 'join(",")')"
           if [ -z "$lista" ]; then
             echo "estágio 1 (domain): nenhum projeto afetado"
             exit 0
@@ -81,130 +103,23 @@ jobs:
       - name: Estágio 2 — services (layer:services)
         run: |
           set -euo pipefail
-          lista="$(pnpm nx show projects --affected --base=$NX_BASE --head=$NX_HEAD --projects=tag:layer:services | tr -d '[]" [:space:]')"
+          lista="$(pnpm nx show projects --affected --base=$NX_BASE --head=$NX_HEAD --projects=tag:layer:services --json | jq -r 'join(",")')"
           if [ -z "$lista" ]; then
             echo "estágio 2 (services): nenhum projeto afetado"
             exit 0
           fi
           pnpm nx run-many -t fmt-check,vet,test-race -p "$lista" --parallel=3
 
-      # O bloco `services:` não serve aqui: o act_runner põe serviço e job na
-      # bridge default do Docker, que não resolve nome de container, e declara
-      # ignorar rede customizada. Compartilhar o namespace de rede do próprio job
-      # dispensa DNS, IP de gateway e porta publicada — ver ADR-035.
-      - name: Subir Postgres para os testes de integração
-        run: |
-          set -euo pipefail
-          # O nome carrega o id do container do job porque o socket do Docker vem
-          # do host: um nome fixo colidiria entre jobs concorrentes, ou com o
-          # resíduo de um job morto sem limpeza.
-          nome="dmpf-postgres-$(hostname)"
-          docker rm -f "$nome" >/dev/null 2>&1 || true
-          docker run -d --name "$nome" \
-            --network "container:$(hostname)" \
-            -e POSTGRES_USER=dmpf -e POSTGRES_PASSWORD=dmpf -e POSTGRES_DB=dmpf \
-            postgres:16-alpine
-          for _ in $(seq 1 30); do
-            if docker exec "$nome" pg_isready -U dmpf -q; then
-              echo "postgres pronto em localhost:5432 ($nome)"
-              exit 0
-            fi
-            sleep 2
-          done
-          echo "postgres nao respondeu em 60s" >&2
-          docker logs "$nome" >&2
-          exit 1
-
-      # Mesmo gesto do Postgres (ADR-035). `--mode dev-container` agrupa as flags
-      # de desenvolvimento e `--smp 1` é repassado ao binário (confirmado em
-      # v26.2.2 pelo exec logado); sem ele o broker toma todos os cores do runner.
-      - name: Subir Redpanda para os testes de integração
-        run: |
-          set -euo pipefail
-          nome="dmpf-redpanda-$(hostname)"
-          docker rm -f "$nome" >/dev/null 2>&1 || true
-          docker run -d --name "$nome" \
-            --network "container:$(hostname)" \
-            redpandadata/redpanda:v26.2.2 \
-            redpanda start --mode dev-container --smp 1
-          for _ in $(seq 1 30); do
-            if docker exec "$nome" rpk cluster info >/dev/null 2>&1; then
-              echo "redpanda pronto em localhost:9092 ($nome)"
-              exit 0
-            fi
-            sleep 2
-          done
-          echo "redpanda nao respondeu em 60s" >&2
-          docker logs "$nome" >&2
-          exit 1
-
-      # SQS e SNS no mesmo emulador, para o hop SNS → SQS com raw delivery. As
-      # filas e tópicos são criados pelo próprio teste de integração; o floci
-      # aceita qualquer credencial não vazia, e /_floci/health lista os serviços.
-      - name: Subir floci (SQS e SNS) para os testes de integração
-        run: |
-          set -euo pipefail
-          nome="dmpf-floci-$(hostname)"
-          docker rm -f "$nome" >/dev/null 2>&1 || true
-          docker run -d --name "$nome" \
-            --network "container:$(hostname)" \
-            floci/floci:2.0.1
-          for _ in $(seq 1 30); do
-            if curl -sf -o /dev/null "http://localhost:4566/_floci/health"; then
-              echo "floci pronto em localhost:4566 ($nome)"
-              exit 0
-            fi
-            sleep 2
-          done
-          echo "floci nao respondeu em 60s" >&2
-          docker logs "$nome" >&2
-          exit 1
-
-      - name: Estágio 3 — contrato (layer:contract)
-        run: |
-          set -euo pipefail
-          lista="$(pnpm nx show projects --affected --base=$NX_BASE --head=$NX_HEAD --projects=tag:layer:contract | tr -d '[]" [:space:]')"
-          if [ -z "$lista" ]; then
-            echo "estágio 3 (contract): nenhum projeto afetado"
-            exit 0
-          fi
-          pnpm nx run-many -t fmt-check,vet,test-race -p "$lista" --parallel=3
-
-      # `--parallel=1`: os providers compartilham o Postgres, o Redpanda e o
-      # floci do job, e cada harness reinicia as tabelas ou cria tópicos e filas.
-      - name: Estágio 4 — providers (layer:providers)
-        run: |
-          set -euo pipefail
-          lista="$(pnpm nx show projects --affected --base=$NX_BASE --head=$NX_HEAD --projects=tag:layer:providers | tr -d '[]" [:space:]')"
-          if [ -z "$lista" ]; then
-            echo "estágio 4 (providers): nenhum projeto afetado"
-            exit 0
-          fi
-          pnpm nx run-many -t fmt-check,vet,test-race -p "$lista" --parallel=1
-
-      - name: Estágio 5 — apps (layer:apps)
-        run: |
-          set -euo pipefail
-          lista="$(pnpm nx show projects --affected --base=$NX_BASE --head=$NX_HEAD --projects=tag:layer:apps | tr -d '[]" [:space:]')"
-          if [ -z "$lista" ]; then
-            echo "estágio 5 (apps): nenhum projeto afetado"
-            exit 0
-          fi
-          pnpm nx run-many -t fmt-check,vet,test-race -p "$lista" --parallel=1
-
-      # govulncheck consulta base remota e não tem cache; corre uma vez sobre
-      # todo o Go afetado, fora dos estágios.
-      - name: Go vulnerabilities (affected)
-        run: pnpm nx affected -t govulncheck --base=$NX_BASE --head=$NX_HEAD --parallel=3 --exclude=$NX_EXCLUDE
-
-      # O gate roda o golangci-lint uma vez por vetor, então fica sob o mesmo
-      # regime de `affected` do resto do pipeline: um PR só de TypeScript não
-      # paga por ele.
+      # Os gates DMPF correm depois dos estágios 1 e 2 e antes de qualquer
+      # infraestrutura: decidem sobre a árvore, não sobre um banco. O gate roda
+      # o golangci-lint uma vez por vetor, então fica sob o mesmo regime de
+      # `affected` do resto do pipeline: um PR só de TypeScript não paga por ele.
       - name: Detect affected Go projects
         id: go_affected
         run: |
-          lista="$(pnpm nx show projects --affected --base=$NX_BASE --head=$NX_HEAD --projects=tag:stack:go | tr -d '[:space:]')"
-          if [ -n "$lista" ] && [ "$lista" != "[]" ]; then
+          set -euo pipefail
+          lista="$(pnpm nx show projects --affected --base=$NX_BASE --head=$NX_HEAD --projects=tag:stack:go --json | jq -r 'join(",")')"
+          if [ -n "$lista" ]; then
             echo "any=true" >> "$GITHUB_OUTPUT"
           else
             echo "any=false" >> "$GITHUB_OUTPUT"
@@ -236,16 +151,144 @@ jobs:
         run: |
           go run ./libs/backend/go/dmpf-conformance/cmd/dmpf-conformance --root . --base "$NX_BASE"
 
+      # O bloco `services:` não serve aqui: o act_runner põe serviço e job na
+      # bridge default do Docker, que não resolve nome de container, e declara
+      # ignorar rede customizada. Compartilhar o namespace de rede do próprio job
+      # dispensa DNS, IP de gateway e porta publicada — ver ADR-035.
+      - name: Subir Postgres para os testes de integração
+        run: |
+          set -euo pipefail
+          # O nome carrega o id do container do job porque o socket do Docker vem
+          # do host: um nome fixo colidiria entre jobs concorrentes, ou com o
+          # resíduo de um job morto sem limpeza.
+          nome="dmpf-postgres-$(hostname)"
+          docker rm -f "$nome" >/dev/null 2>&1 || true
+          docker run -d --name "$nome" \
+            --network "container:$(hostname)" \
+            -e POSTGRES_USER=dmpf -e POSTGRES_PASSWORD=dmpf -e POSTGRES_DB=dmpf \
+            postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+          for _ in $(seq 1 30); do
+            if docker exec "$nome" pg_isready -U dmpf -q; then
+              echo "postgres pronto em localhost:5432 ($nome)"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "postgres nao respondeu em 60s" >&2
+          docker logs "$nome" >&2
+          exit 1
+
+      # Mesmo gesto do Postgres (ADR-035). `--mode dev-container` agrupa as flags
+      # de desenvolvimento e `--smp 1` é repassado ao binário (confirmado em
+      # v26.2.2 pelo exec logado); sem ele o broker toma todos os cores do runner.
+      - name: Subir Redpanda para os testes de integração
+        run: |
+          set -euo pipefail
+          nome="dmpf-redpanda-$(hostname)"
+          docker rm -f "$nome" >/dev/null 2>&1 || true
+          docker run -d --name "$nome" \
+            --network "container:$(hostname)" \
+            redpandadata/redpanda:v26.2.2@sha256:468bd13a9f2bd24794cb7fddc867c767fb1008b9a07b297b89fde48c564d7d96 \
+            redpanda start --mode dev-container --smp 1
+          for _ in $(seq 1 30); do
+            if docker exec "$nome" rpk cluster info >/dev/null 2>&1; then
+              echo "redpanda pronto em localhost:9092 ($nome)"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "redpanda nao respondeu em 60s" >&2
+          docker logs "$nome" >&2
+          exit 1
+
+      # SQS e SNS no mesmo emulador, para o hop SNS → SQS com raw delivery. As
+      # filas e tópicos são criados pelo próprio teste de integração; o floci
+      # aceita qualquer credencial não vazia, e /_floci/health lista os serviços.
+      - name: Subir floci (SQS e SNS) para os testes de integração
+        run: |
+          set -euo pipefail
+          nome="dmpf-floci-$(hostname)"
+          docker rm -f "$nome" >/dev/null 2>&1 || true
+          docker run -d --name "$nome" \
+            --network "container:$(hostname)" \
+            floci/floci:2.0.1@sha256:4e451c39c7bb88e3cd4f87e8fc0c25d5b47695a51185d521e2241fa00486e8eb
+          for _ in $(seq 1 30); do
+            if curl -sf -o /dev/null "http://localhost:4566/_floci/health"; then
+              echo "floci pronto em localhost:4566 ($nome)"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "floci nao respondeu em 60s" >&2
+          docker logs "$nome" >&2
+          exit 1
+
+      - name: Estágio 3 — contrato (layer:contract)
+        run: |
+          set -euo pipefail
+          lista="$(pnpm nx show projects --affected --base=$NX_BASE --head=$NX_HEAD --projects=tag:layer:contract --json | jq -r 'join(",")')"
+          if [ -z "$lista" ]; then
+            echo "estágio 3 (contract): nenhum projeto afetado"
+            exit 0
+          fi
+          pnpm nx run-many -t fmt-check,vet,test-race -p "$lista" --parallel=3
+
       # Gates Buf dos contratos (contracts/README.md, "Gates e baseline"): só o
       # dmpf-contracts-go os declara, com contracts/** nos inputs, então um PR que
       # toque só um .proto entra no affected; buf-breaking lê NX_BASE como baseline.
-      #
-      # Roda DEPOIS dos gates DMPF: a falha deste step abortava o job e deixava os
-      # dois em skipped, suprimindo o gate autoritativo da regra de dependência
-      # justamente nos PRs que classificam unidade nova. Segue fail-closed e sem
-      # bypass, como BUF-12 exige — só deixou de sequestrar a execução dos outros.
-      - name: Contracts gates (affected)
+      # Fecham o estágio 3 (KIT-09: uma quebra contratual barra providers e apps)
+      # e correm DEPOIS dos gates DMPF, que já passaram antes da infra — a falha
+      # aqui não suprime mais o gate autoritativo da regra de dependência.
+      - name: Estágio 3 — gates Buf do contrato (affected)
         run: pnpm nx affected -t buf-lint,buf-pins,buf-generate-check,buf-breaking,buf-gate-selftest --base=$NX_BASE --head=$NX_HEAD --parallel=3 --exclude=$NX_EXCLUDE
+
+      # `--parallel=1` só para quem compartilha o Postgres, o Redpanda e o floci
+      # do job — cada um desses harnesses reinicia tabelas ou cria tópicos e
+      # filas. O discriminador é o próprio target: `test-race` com `cache: false`
+      # é o que exige a infra do job; o resto do estágio corre em paralelo.
+      - name: Estágio 4 — providers (layer:providers)
+        run: |
+          set -euo pipefail
+          lista="$(pnpm nx show projects --affected --base=$NX_BASE --head=$NX_HEAD --projects=tag:layer:providers --json | jq -r '.[]')"
+          if [ -z "$lista" ]; then
+            echo "estágio 4 (providers): nenhum projeto afetado"
+            exit 0
+          fi
+          stateful=""; stateless=""
+          for p in $lista; do
+            if [ "$(pnpm nx show project "$p" --json | jq -r '.targets["test-race"].cache')" = "false" ]; then
+              stateful="$stateful,$p"
+            else
+              stateless="$stateless,$p"
+            fi
+          done
+          if [ -n "$stateless" ]; then
+            pnpm nx run-many -t fmt-check,vet,test-race -p "${stateless#,}" --parallel=3
+          fi
+          if [ -n "$stateful" ]; then
+            pnpm nx run-many -t fmt-check,vet,test-race -p "${stateful#,}" --parallel=1
+          fi
+
+      - name: Estágio 5 — apps (layer:apps)
+        run: |
+          set -euo pipefail
+          lista="$(pnpm nx show projects --affected --base=$NX_BASE --head=$NX_HEAD --projects=tag:layer:apps --json | jq -r 'join(",")')"
+          if [ -z "$lista" ]; then
+            echo "estágio 5 (apps): nenhum projeto afetado"
+            exit 0
+          fi
+          pnpm nx run-many -t fmt-check,vet,test-race -p "$lista" --parallel=1
+
+      # govulncheck consulta base remota e não tem cache; corre uma vez sobre
+      # todo o Go afetado, fora dos estágios.
+      - name: Go vulnerabilities (affected)
+        run: pnpm nx affected -t govulncheck --base=$NX_BASE --head=$NX_HEAD --parallel=3 --exclude=$NX_EXCLUDE
 
       - name: E2E (affected)
         run: pnpm nx affected -t e2e --base=$NX_BASE --head=$NX_HEAD --parallel=1 --exclude=$NX_EXCLUDE
+
+      # O nome dos containers leva o id do job, então o `docker rm -f` do início
+      # de cada step nunca alcança o resíduo de um job anterior; quem limpa é este.
+      - name: Derrubar a infraestrutura do job
+        if: always()
+        run: docker rm -f "dmpf-postgres-$(hostname)" "dmpf-redpanda-$(hostname)" "dmpf-floci-$(hostname)" >/dev/null 2>&1 || true
