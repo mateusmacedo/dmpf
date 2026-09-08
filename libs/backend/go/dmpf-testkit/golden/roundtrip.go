@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"encoding/hex"
 	"fmt"
+	"sort"
 	"strconv"
+	"strings"
 
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
@@ -64,11 +66,13 @@ func (Consumer) Run(f Fixture, c Case, s Subject) []Outcome {
 	in, attr, err := envelopeFromFields(c.Envelope, transported)
 	if err != nil {
 		r.fail(OracleSemantic, "envelope."+attr, "well-formed attribute", err.Error())
+		r.skipped(OracleBytes, "payload", "Any.value identity across the envelope trip", "envelope."+attr+" is not well-formed")
 		return r.outcomes()
 	}
 	out, err := envelopeRoundTrip(in)
 	if err != nil {
 		r.fail(OracleSemantic, "envelope", "survives Encode/Marshal/Unmarshal/Decode", err.Error())
+		r.skipped(OracleBytes, "payload", "Any.value identity across the envelope trip", "the envelope did not survive the trip")
 		return r.outcomes()
 	}
 	if attr, expected, got, same := sameEnvelope(in, out); !same {
@@ -252,16 +256,51 @@ func firstDivergence(want, got proto.Message) (field, expected, actual string) {
 			return string(fd.Name()), w, g
 		}
 	}
-	return "(message)", wr.Interface().(fmt.Stringer).String(), gr.Interface().(fmt.Stringer).String()
+	return "(message)", string(protojson.MarshalOptions{}.Format(want)), string(protojson.MarshalOptions{}.Format(got))
 }
 
 func valueString(fd protoreflect.FieldDescriptor, m protoreflect.Message) string {
 	if !m.Has(fd) && fd.HasPresence() {
 		return "<absent>"
 	}
-	v := m.Get(fd)
-	if fd.Kind() == protoreflect.MessageKind || fd.IsList() || fd.IsMap() {
-		return fmt.Sprint(v.Interface())
+	return describeValue(fd, m.Get(fd))
+}
+
+// describeValue renders a field value deterministically: lists element by
+// element, maps by sorted key, messages through protojson, scalars as is.
+func describeValue(fd protoreflect.FieldDescriptor, v protoreflect.Value) string {
+	switch {
+	case fd.IsList():
+		list := v.List()
+		parts := make([]string, 0, list.Len())
+		for i := 0; i < list.Len(); i++ {
+			parts = append(parts, describeScalar(fd, list.Get(i)))
+		}
+		return "[" + strings.Join(parts, ", ") + "]"
+	case fd.IsMap():
+		mp := v.Map()
+		keys := make([]string, 0, mp.Len())
+		entries := map[string]string{}
+		mp.Range(func(k protoreflect.MapKey, val protoreflect.Value) bool {
+			ks := k.String()
+			keys = append(keys, ks)
+			entries[ks] = describeScalar(fd.MapValue(), val)
+			return true
+		})
+		sort.Strings(keys)
+		parts := make([]string, 0, len(keys))
+		for _, k := range keys {
+			parts = append(parts, k+"="+entries[k])
+		}
+		return "{" + strings.Join(parts, ", ") + "}"
+	default:
+		return describeScalar(fd, v)
+	}
+}
+
+func describeScalar(fd protoreflect.FieldDescriptor, v protoreflect.Value) string {
+	if fd.Kind() == protoreflect.MessageKind || fd.Kind() == protoreflect.GroupKind {
+		return string(protojson.MarshalOptions{}.Format(v.Message().Interface()))
 	}
 	return v.String()
 }

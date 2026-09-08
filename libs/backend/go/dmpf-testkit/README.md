@@ -47,8 +47,8 @@ adaptador é um package `app` à parte.
 | Kit | Exige do candidato | Exercita | Aprova quando |
 | --- | --- | --- | --- |
 | `domainkit` | `Subject[S,R]`: a UPR, a projeção da resposta, do evento e do estado, e um clone do alvo — tudo **por valor**, sem duplo (`ORA-36`) | `Run` executa a UPR e lê o desfecho duas vezes; `ReadTwice` compara duas execuções | `Equal(got, want)` sem diagnóstico: ramo, resposta ou rejeição, sequência ordenada de eventos e estado antes/depois iguais aos da fixture (`ORA-31`, `ORA-34`); sob `Rejected`, sequência vazia e estado idêntico (`ORA-38`); nenhum segundo acessor de eventos (`ORA-37`) |
-| `serviceskit` | Um service composto sobre `Fakes.UnitOfWork` — os fakes envolvem `dmpf-application/example/memory` e registram cada gesto no `Ledger` | O caso de uso real, aceito e recusado | `Decide` sem diagnóstico: escrita e enfileiramento entre o mesmo `begin` e `commit` (`UOW-07`); nenhum `publish` (`UOW-08`); sob recusa nada persiste (`UOW-06`); uma transação por caso de uso (`UOW-01`) |
-| `providerkit` | `UnitOfWorkSubject` (UoW, uma escrita, contagem do que persistiu), `InboxSubject` (`Within`, leitura do status), `OutboxSubject` (store, enfileirar, relógio fake, status) — com uma função que devolve o candidato **limpo** | As cláusulas de `Within` (UOW-01/02/06/07/09, CTX-21, ERR-22), as recepções R1-R4 e a corrida de duas inserções (`INB-06`), o lease e as três transições condicionadas ao claimant (`OBX-09/10/11/18/06`) | Sem diagnóstico. Cláusula que o candidato não consegue exercitar (Postgres não injeta falha de commit; `memory` serializa e não corre) vai para `Skipped`, nunca fica ausente em silêncio |
+| `serviceskit` | Um service composto sobre `Fakes.UnitOfWork` — os fakes envolvem `dmpf-application/example/memory` e registram cada gesto no `Ledger` com a identidade da transação que o fez | O caso de uso real, aceito e recusado | `Decide` sem diagnóstico: em cada transação commitada, escrita e enfileiramento vêm juntos e a outbox ganhou o que foi enfileirado (`UOW-07`); uma porta escapada de outra transação é nomeada; nenhum `publish` (`UOW-08`); exatamente um commit, vazio sob recusa (`UOW-06`); uma transação por caso de uso (`UOW-01`) |
+| `providerkit` | `UnitOfWorkSubject` (UoW, uma escrita, contagem do que persistiu, commits), `InboxSubject` (`Within` sob o `context.Context` da suíte, leitura do status, linhas, erro de consumer divergente), `OutboxSubject` (store, enfileirar, relógio fake, estado inteiro do registro, `Pending`, `Purge`) — com uma função que devolve o candidato **limpo** | As cláusulas de `Within` (UOW-01/02/06/07/09, CTX-21, ERR-22), as recepções R1-R4 e a corrida de duas inserções com sobreposição garantida no retorno do `Register` (`INB-06`), o lease e as três transições condicionadas ao claimant (`OBX-09/10/11/18/06`), a purga (`OBX-17`) e o sinal `Pending` (`OBX-12`) | Sem diagnóstico. Cláusula que o candidato não consegue exercitar (Postgres não injeta falha de commit; `memory` serializa e não corre) vai para `Skipped`, nunca fica ausente em silêncio |
 | `appkit` | Postgres (`DMPF_PG_DSN`) | `dmpfapp.Consumer` real composto sobre as realizações, alimentado com bytes na borda de protocolo | `Effects` mostra o desfecho esperado nas quatro tabelas; `Ack` prova que o gesto veio depois do commit (`INB-08`) |
 | `distkit` | Redpanda (`DMPF_KAFKA_BROKERS`) e Postgres | Dois processos OS — `producer` publica `evt-1`, `evt-1`, `evt-9`; `consumer` consome pelo adapter — sobre um tópico único por execução | `Decide` sem `DMPF-R004`: uma reserva, com os itens de uma única entrega, escrita uma vez (`V32`). O papel `consumer-naive`, que aplica o efeito a cada entrega, reprova nomeando o `message_id` reentregue |
 
@@ -56,13 +56,15 @@ Cada kit tem, no próprio módulo, o **par de vetores** que `ORA-39` exige: o
 positivo contra o exemplo do kernel (`orders`, `reservations`, `memory`,
 Postgres) e o negativo contra uma realização de fixture não conforme — domínio
 com segundo acessor de eventos, service que enfileira fora da transação, store
-que aceita claim vencido, consumidor que duplica o efeito.
+que aceita claim substituído, consumidor que duplica o efeito.
 
 ## Determinismo (`KIT-07`, `KIT-08`)
 
 - `clock.Fake` realiza `dmpfports.Clock` e expõe `Observability()` como
   `clock.Clock` do `dmpf-observability` sobre o **mesmo instante**: `Advance`
-  move os dois e dispara os timers pendentes. `Set` para trás descarta timers.
+  move os dois e dispara os timers pendentes. `Set` para trás só é aceito sem
+  timer pendente; com um, entra em `panic` nomeando a violação — descartar o
+  timer deixaria quem espera por ele pendurado sem diagnóstico.
 - `ids.Sequence` emite `prefixo + contador de seis dígitos`; `ids.Seeded` emite
   32 hex a partir de um PCG fixado pela seed; `ids.NewClaimIDs()` satisfaz
   `relay.ClaimIDs` por forma, sem importar `dmpf-app`.
@@ -85,8 +87,12 @@ Toda suíte do kit passa em `go test -race -count=3`.
   `DMPF-R003` bytes. O oráculo 3 **reprova** na direção produtor (`ENV-24`).
   `Evaluate` roda o consumidor sobre casos e discriminadores e o produtor só
   sobre os casos canônicos — um discriminador é não-canônico por construção.
+- Um oráculo que a direção não conseguiu alcançar (envelope malformado, viagem
+  que falha) é reportado como `not evaluated` e **reprova** — nunca um passe
+  fabricado por omissão (`ORA-06`).
 - `Report` serializa em ordem estável (`FIX-13`); `tb.RequireReport` falha o
-  teste uma vez por `Outcome` reprovado.
+  teste uma vez por `Outcome` reprovado e registra no log as cláusulas que o
+  candidato não exercitou (`Skipped`).
 
 O `dmpf-contracts/golden` continua dono das fixtures de wire e do gerador
 (`GOLDEN_UPDATE=1`); só delega o carregador e os oráculos ao kit (FND-05 §8.4).
@@ -110,11 +116,13 @@ As fixtures de **projeção observável** (`ORA-30`) vivem em
 - `TestDomainTestsNeedNoInfrastructureDouble` (`V29`/`V30`, `PIR-17`): o
   fechamento dos packages de teste de toda unidade `domain` não alcança unidade
   `port` ou `provider`, e os imports diretos não trazem capability fora de
-  `pure` — o `testing` é o instrumento e fica isento.
+  `pure` nem dependência de terceiro (default deny, como `DMPF-E001`) — o
+  `testing` é o instrumento e fica isento.
 - `TestKitPackagesRespectBlockCapabilities` prova que `domainkit` e `golden`
   não importam `testing`, `os`, `time` (nem `encoding/json`, no domínio).
 - `TestV31NoArtifactPromisesExactlyOnce` (`P0-3`, `RAS-12`) varre contratos,
-  READMEs e manifestos por promessa de *exactly-once* sem frase de vedação.
+  READMEs e manifestos por promessa de *exactly-once* sem frase de vedação;
+  `docs/` fica fora porque cada menção ali é negação em prosa livre.
 
 ## Tabela regra → vetor (`RAS-01`)
 
@@ -147,11 +155,19 @@ DMPF_PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' DMPF_KAFKA_B
 ```
 
 Sem a variável, os testes de integração fazem `t.Skip` nomeando-a; com `CI`
-definido, falham (`tb.Env`, fail-closed). O `test-distributed` depende do
-`test-race` de `dmpf-provider-postgres-go` e `dmpf-app-go`, porque os três
-compartilham o Postgres do job. No CI, o `ci.yml` roda a cadeia por estágio
-(`layer:domain` → `services` → infra → `contract` → `providers` → `apps`) e o
-`dmpf-distributed.yml` roda o `distkit` em pipeline próprio (`KIT-11`).
+definido — os dois workflows o declaram no `env:` do job, sem depender do
+runner —, falham (`tb.Env`, fail-closed). `tb/pg.OpenPool` só aceita DSN de
+host loopback (`localhost`, `127.0.0.1`, `::1` ou socket Unix): o reset das
+tabelas é destrutivo, e um Postgres compartilhado nunca é fixture de teste. O
+erro de conexão do pgx que chega ao log traz host, usuário e nome do banco —
+nunca a senha, que o pgx redige. O `test-distributed` depende do `test-race` de
+`dmpf-provider-postgres-go` e `dmpf-app-go`, porque os três compartilham o
+Postgres do job. No CI, o `ci.yml` roda a cadeia por estágio (`layer:domain` →
+`services` → infra → `contract` → `providers` → `apps`); dentro do estágio 4,
+os providers cujo `test-race` tem `cache: false` — os que exigem a infra do
+job — correm em `--parallel=1`, e os demais em `--parallel=3`. O
+`dmpf-distributed.yml` roda o `distkit` em pipeline próprio (`KIT-11`), e os
+dois workflows derrubam os containers do job num step `if: always()`.
 
 ## Limitação conhecida
 

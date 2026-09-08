@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 	"testing"
 
 	"google.golang.org/protobuf/proto"
@@ -213,4 +214,14 @@ func decodeHex(t *testing.T, s string) []byte {
 		t.Fatal(err)
 	}
 	return b
+}
+
+// An oracle the consumer could not reach is a failure, never a fabricated pass.
+func TestAnUnreachableOracleIsReportedAsNotEvaluated(t *testing.T) {
+	f, c := conformingCase(t)
+	c.Envelope["time"] = "not-a-timestamp"
+	consumer := byOracle(golden.Consumer{}.Run(f, c, itemAdded))
+	if o := consumer[golden.OracleBytes]; o.OK || !strings.Contains(o.Got, "not evaluated") {
+		t.Fatalf("oracle 3 = %+v, want a failure marked as not evaluated", o)
+	}
 }

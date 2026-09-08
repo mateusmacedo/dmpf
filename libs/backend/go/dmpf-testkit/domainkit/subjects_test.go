@@ -115,8 +115,12 @@ func reserveSubject(cmd reservations.Reserve) domainkit.Subject[*reservations.Re
 			return domainkit.Fields{"order": string(r.Order), "items": strconv.Itoa(r.Items)}
 		},
 		Event: func(e dmpfdomain.DomainEvent) (string, domainkit.Fields) {
-			ev := e.(reservations.ReservationConfirmed)
-			return ev.EventName(), domainkit.Fields{"order": string(ev.Order), "items": strconv.Itoa(ev.Items), "at": strconv.FormatInt(int64(ev.At), 10)}
+			switch ev := e.(type) {
+			case reservations.ReservationConfirmed:
+				return ev.EventName(), domainkit.Fields{"order": string(ev.Order), "items": strconv.Itoa(ev.Items), "at": strconv.FormatInt(int64(ev.At), 10)}
+			default:
+				return e.EventName(), domainkit.Fields{}
+			}
 		},
 		Snapshot: reservationState,
 		Clone: func(r *reservations.Reservation) *reservations.Reservation {

@@ -2,6 +2,7 @@ package fitness_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -17,16 +18,14 @@ import (
 
 // V29/V30 (PIR-17): a test of a domain unit that needs an infrastructure double
 // names the coupling of the SUT. The closure of the unit's test packages may
-// not reach a port or provider unit, and their direct imports may not carry a
-// capability the domain block lacks; testing itself is the instrument and is
-// exempt. Test files are outside the checked universe, which is exactly why the
-// suite, not the gate, has to look at them.
+// not reach a port or provider unit; their direct imports may not carry a
+// capability the domain block lacks, nor be a third-party package at all
+// (default deny, as DMPF-E001 does for production); testing itself is the
+// instrument and is exempt. Test files are outside the checked universe, which
+// is exactly why the suite, not the gate, has to look at them.
 func TestDomainTestsNeedNoInfrastructureDouble(t *testing.T) {
 	root := tb.RepoRoot(t)
-	in, err := conffit.Workspace(root, "")
-	if err != nil {
-		t.Fatalf("Workspace: %v", err)
-	}
+	in := workspace(t)
 	units, err := conffit.Units(in)
 	if err != nil {
 		t.Fatalf("Units: %v", err)
@@ -80,7 +79,7 @@ func domainTestViolations(t *testing.T, dir string, env []string, units []conffi
 	blockOf := map[string]conffit.Unit{}
 	for _, u := range units {
 		for _, inc := range u.Include {
-			blockOf[inc] = u
+			blockOf[strings.TrimSuffix(inc, "/")] = u
 		}
 	}
 	var out []violation
@@ -103,8 +102,18 @@ func domainTestViolations(t *testing.T, dir string, env []string, units []conffi
 					}
 					continue
 				}
-				if c, known := conffit.StandardCapability(imp); known && c != conffit.CapPure {
-					out = append(out, violation{u.ID, pkg.ForTest, imp, "capability " + string(c) + " fora do bloco domain"})
+				if c, known := conffit.StandardCapability(imp); known {
+					if c != conffit.CapPure {
+						out = append(out, violation{u.ID, pkg.ForTest, imp, "capability " + string(c) + " fora do bloco domain"})
+					}
+					continue
+				}
+				// Neither a unit of the universe nor a classified standard package:
+				// a third-party dependency, which the domain block denies by default
+				// as the checker does for production (DMPF-E001); the tests of a
+				// domain unit get no allowlist of their own.
+				if strings.Contains(strings.SplitN(imp, "/", 2)[0], ".") {
+					out = append(out, violation{u.ID, pkg.ForTest, imp, "dependência externa em teste de domínio (default deny)"})
 				}
 			}
 			for _, dep := range pkg.Deps {
@@ -137,8 +146,10 @@ func canonical(importPath string) string {
 // Imports are what the test files add; Deps is the transitive closure.
 func goListTest(t *testing.T, dir string, env []string, patterns []string) []listedPackage {
 	t.Helper()
-	args := append([]string{"list", "-test", "-json=ImportPath,ForTest,Imports,Deps"}, patterns...)
-	cmd := exec.Command("go", args...)
+	ctx, cancel := context.WithTimeout(context.Background(), goListTimeout)
+	defer cancel()
+	args := append([]string{"list", "-test", "-json=ImportPath,ForTest,Imports,Deps", "--"}, patterns...)
+	cmd := exec.CommandContext(ctx, "go", args...)
 	cmd.Dir = dir
 	if env != nil {
 		cmd.Env = append(cmd.Environ(), env...)

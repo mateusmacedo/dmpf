@@ -105,6 +105,24 @@
   ],
   "external": [
     {
+      "package": "github.com/jackc/pgx/v5",
+      "versions": ">=5.10 <6",
+      "entrypoints": [".", "github.com/jackc/pgx/v5/pgxpool"],
+      "capability": "io.storage"
+    },
+    {
+      "package": "github.com/twmb/franz-go",
+      "versions": ">=1.21.6 <2",
+      "entrypoints": ["github.com/twmb/franz-go/pkg/kgo"],
+      "capability": "io.messaging"
+    },
+    {
+      "package": "github.com/twmb/franz-go/pkg/kadm",
+      "versions": ">=1.18 <2",
+      "entrypoints": ["github.com/twmb/franz-go/pkg/kadm"],
+      "capability": "io.messaging"
+    },
+    {
       "package": "google.golang.org/protobuf",
       "versions": ">=1.36.12 <2",
       "entrypoints": [

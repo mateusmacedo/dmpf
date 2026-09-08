@@ -2,6 +2,7 @@ package clock
 
 import (
 	"context"
+	"strconv"
 	"sync"
 	"time"
 
@@ -28,11 +29,16 @@ func (f *Fake) Now() dmpfports.Instant {
 
 // Advance moves the clock forward and fires every observability timer due at
 // the new instant. Non-positive durations do nothing.
-func (f *Fake) Advance(d time.Duration) { f.current().Advance(d) }
+func (f *Fake) Advance(d time.Duration) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.obs.Advance(d)
+}
 
-// Set moves the clock to an absolute instant. Forward it behaves as Advance;
-// backward it replaces the underlying fake, dropping pending timers — a timer
-// scheduled in a future that no longer exists has nothing to fire against.
+// Set moves the clock to an absolute instant. Moving forward, it behaves as
+// Advance; moving backward, it replaces the underlying fake, which is only possible while no
+// timer is pending — a timer scheduled in a future that no longer exists would
+// never fire, and whoever waits on it would hang without a diagnosis.
 func (f *Fake) Set(at dmpfports.Instant) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -40,6 +46,9 @@ func (f *Fake) Set(at dmpfports.Instant) {
 	if delta := int64(at) - now; delta >= 0 {
 		f.obs.Advance(time.Duration(delta))
 		return
+	}
+	if n := f.obs.Pending(); n != 0 {
+		panic("clock: Set backward with " + strconv.Itoa(n) + " pending timers; fire or stop them first")
 	}
 	f.obs = obsclock.NewFake(time.Unix(0, int64(at)))
 }

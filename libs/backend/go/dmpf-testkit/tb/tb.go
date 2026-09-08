@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-testkit/golden"
@@ -32,10 +33,15 @@ func RepoRoot(t testing.TB) string {
 }
 
 // ReadFixture reads a file by its path relative to the repository root, which
-// is where contracts/ keeps every golden fixture (FIX-10).
+// is where contracts/ keeps every golden fixture (FIX-10). A path that leaves
+// the repository is refused: fixtures are versioned content, nothing else.
 func ReadFixture(t testing.TB, rel string) []byte {
 	t.Helper()
-	raw, err := os.ReadFile(filepath.Join(RepoRoot(t), filepath.FromSlash(rel)))
+	clean := filepath.Clean(filepath.FromSlash(rel))
+	if filepath.IsAbs(clean) || clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
+		t.Fatalf("tb.ReadFixture: %q escapes the repository", rel)
+	}
+	raw, err := os.ReadFile(filepath.Join(RepoRoot(t), clean))
 	if err != nil {
 		t.Fatalf("tb.ReadFixture: %v", err)
 	}
@@ -62,10 +68,19 @@ func Env(t testing.TB, name string) string {
 // kits keep their own verdict types; this is the shape tb needs to fail a test.
 type Verdict interface{ Failures() []string }
 
+// Skipper is what a verdict with clauses it could not exercise also offers;
+// Require logs them so a skip is never silent.
+type Skipper interface{ Skips() []string }
+
 func Require(t testing.TB, v Verdict) {
 	t.Helper()
 	for _, f := range v.Failures() {
 		t.Errorf("%s", f)
+	}
+	if s, ok := v.(Skipper); ok {
+		for _, clause := range s.Skips() {
+			t.Logf("clause not exercised by this candidate: %s", clause)
+		}
 	}
 }
 

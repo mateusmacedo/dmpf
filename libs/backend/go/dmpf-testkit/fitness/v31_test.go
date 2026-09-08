@@ -17,7 +17,7 @@ import (
 var (
 	exactlyOnce = regexp.MustCompile(`(?i)exactly[- ]once`)
 	// A line that names exactly-once only to forbid it is the positive of V31.
-	forbidsIt = regexp.MustCompile(`(?i)veda|não promete|at-least-once|at least once|nunca promet`)
+	forbidsIt = regexp.MustCompile(`(?i)veda|não promete|nunca promet|nenhum|nenhuma|sem exactly|at-least-once|at least once|not exactly[- ]once|never exactly[- ]once|no exactly[- ]once|forbid|prohibit|proib`)
 )
 
 // V31 (P0-3, RAS-12): no document, contract or configuration promises
@@ -31,6 +31,10 @@ func TestV31NoArtifactPromisesExactlyOnce(t *testing.T) {
 		base := filepath.Base(p)
 		return base == "README.md" || base == "dmpf-units.json"
 	})...)
+	// docs/ stays out on purpose: every mention there is a negation in free
+	// prose ("não entrega exactly-once", "nada aqui declara ou sugere…") and a
+	// regex sweep over prose would become an ever-growing allowlist. RAS-12 names
+	// contracts, READMEs and configuration, which is what is swept.
 	for _, f := range files {
 		for _, hit := range promises(t, f) {
 			t.Errorf("%s: promete exactly-once fim a fim: %s", hit.where, hit.line)

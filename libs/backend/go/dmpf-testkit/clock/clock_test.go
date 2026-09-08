@@ -2,6 +2,8 @@ package clock_test
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -103,15 +105,24 @@ func TestObservabilityTimersFireOnAdvance(t *testing.T) {
 	}
 }
 
-func TestSetBackwardDropsPendingTimers(t *testing.T) {
+func TestSetBackwardRefusesPendingTimers(t *testing.T) {
 	c := clock.New(start)
 	view := c.Observability()
 	after := view.After(time.Second)
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Fatal("Set backward with a pending timer did not panic")
+		}
+		if got := fmt.Sprint(r); !strings.Contains(got, "1 pending timer") {
+			t.Fatalf("panic = %q, want it to count the pending timer", got)
+		}
+		c.Advance(2 * time.Second)
+		select {
+		case <-after:
+		default:
+			t.Fatal("the refused Set must leave the timer intact; it did not fire")
+		}
+	}()
 	c.Set(start - 1)
-	c.Advance(2 * time.Second)
-	select {
-	case <-after:
-		t.Fatal("a timer scheduled before Set backward fired after it")
-	default:
-	}
 }

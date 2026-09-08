@@ -18,6 +18,11 @@ type UnitOfWorkSubject[R any] struct {
 	// ArmCommitFailure makes the next commit fail with err. A realization that
 	// cannot inject one leaves it nil and the clause is reported as skipped.
 	ArmCommitFailure func(err error)
+
+	// Commits counts the commits that installed state, when the realization
+	// can tell; nil leaves the count unchecked. A nil error from Within would
+	// also come from a realization that rolled back and said nothing.
+	Commits func() int
 }
 
 var (
@@ -47,6 +52,8 @@ func UnitOfWork[R any](newSubject func() UnitOfWorkSubject[R]) Verdict {
 			v.fail(clause, "UOW-01", "Within() = %v, want nil", err)
 		} else if got := s.Kept(); got != 2 {
 			v.fail(clause, "UOW-02", "kept %d writes, want 2 — both must land in one transaction", got)
+		} else if s.Commits != nil && s.Commits() != 1 {
+			v.fail(clause, "UOW-01", "%d commits installed state, want exactly 1", s.Commits())
 		}
 	}
 
@@ -82,7 +89,7 @@ func UnitOfWork[R any](newSubject func() UnitOfWorkSubject[R]) Verdict {
 	}
 
 	{
-		const clause = "rolls back and returns the callback error unwrapped"
+		const clause = "rolls back and returns the callback error, reachable by errors.Is"
 		s := newSubject()
 		err := s.UoW.Within(ctx, func(ctx context.Context, res R) error {
 			if err := s.Write(ctx, res); err != nil {
@@ -111,6 +118,8 @@ func UnitOfWork[R any](newSubject func() UnitOfWorkSubject[R]) Verdict {
 				v.fail(clause, "UOW-07", "Within() = %v, want the commit error as the provider produced it", err)
 			case s.Kept() != 0:
 				v.fail(clause, "UOW-07", "kept %d writes, want 0 — a failed commit persists nothing", s.Kept())
+			case s.Commits != nil && s.Commits() != 0:
+				v.fail(clause, "UOW-07", "%d commits installed state after a failed commit, want 0", s.Commits())
 			}
 		}
 	}

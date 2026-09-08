@@ -31,7 +31,8 @@ func (g *Sequence) next() string {
 
 // Seeded issues 128-bit hex identifiers from a PCG stream fixed by the seed
 // (KIT-07): two runs with the same seed see the same identifiers in the same
-// order, which is what a golden comparison across stacks needs.
+// order, which is what a golden comparison across stacks needs. The stream is
+// predictable by design — a test double, never a production generator.
 type Seeded struct {
 	mu  sync.Mutex
 	rng *rand.Rand

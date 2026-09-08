@@ -3,6 +3,9 @@ package providerkit_test
 import (
 	"context"
 	"errors"
+	"strconv"
+	"strings"
+	"sync"
 	"testing"
 
 	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-application/example/memory"
@@ -27,10 +30,11 @@ func memoryUoW() providerkit.UnitOfWorkSubject[outboxResources] {
 		UoW: memory.NewUnitOfWork(store, func(tx *memory.Tx) outboxResources { return outboxResources{Outbox: tx.Outbox()} }),
 		Write: func(ctx context.Context, res outboxResources) error {
 			n++
-			return res.Outbox.Enqueue(ctx, entry(dmpfports.MessageID("m-"+string(rune('0'+n)))))
+			return res.Outbox.Enqueue(ctx, entry(dmpfports.MessageID("m-"+strconv.Itoa(n))))
 		},
 		Kept:             func() int { return len(store.Entries()) },
 		ArmCommitFailure: store.FailNextCommit,
+		Commits:          store.Commits,
 	}
 }
 
@@ -47,14 +51,16 @@ type inboxResources struct{ Inbox dmpfports.Inbox }
 func memoryInbox() providerkit.InboxSubject {
 	store := memory.New()
 	return providerkit.InboxSubject{
-		Within: func(consumer string, fn func(ctx context.Context, inbox dmpfports.Inbox) error) error {
+		Within: func(ctx context.Context, consumer string, fn func(ctx context.Context, inbox dmpfports.Inbox) error) error {
 			uow := memory.NewUnitOfWork(store, func(tx *memory.Tx) inboxResources { return inboxResources{Inbox: tx.Inbox(consumer)} })
-			return uow.Within(context.Background(), func(ctx context.Context, res inboxResources) error { return fn(ctx, res.Inbox) })
+			return uow.Within(ctx, func(ctx context.Context, res inboxResources) error { return fn(ctx, res.Inbox) })
 		},
 		ReadStatus: store.InboxStatus,
 		// memory serializes every transaction on one mutex, so the race clause
 		// has nothing to observe here; Postgres runs it.
-		Concurrent: false,
+		Concurrent:       false,
+		ConsumerMismatch: memory.ErrInboxConsumerMismatch,
+		Rows:             store.InboxRows,
 	}
 }
 
@@ -102,5 +108,82 @@ func TestALenientUnitOfWorkIsReproved(t *testing.T) {
 	}
 	if !named {
 		t.Fatalf("UOW-06 not named: %v", v.Failures())
+	}
+}
+
+// racyInbox is the negative vector of INB-06: it checks the key and then
+// inserts without holding anything in between, so two concurrent first
+// receptions both see the first branch. The suite must name INB-06.
+type racyInbox struct {
+	mu        sync.Mutex
+	committed map[string]dmpfports.Status
+}
+
+type racyPending struct {
+	inbox *racyInbox
+	key   string
+	done  bool
+}
+
+func (p *racyPending) Complete(_ context.Context, c dmpfports.Completion) error {
+	p.inbox.mu.Lock()
+	defer p.inbox.mu.Unlock()
+	p.inbox.committed[p.key] = c.Status
+	p.done = true
+	return nil
+}
+
+func (p *racyPending) Completed() bool { return p.done }
+
+type racyBound struct {
+	inbox    *racyInbox
+	consumer string
+}
+
+func (b racyBound) Register(_ context.Context, r dmpfports.Receipt) (dmpfports.Reception, error) {
+	if r.Consumer != b.consumer {
+		return dmpfports.Reception{}, errors.New("racy: consumer mismatch")
+	}
+	key := b.consumer + "/" + string(r.MessageID)
+	b.inbox.mu.Lock()
+	status, present := b.inbox.committed[key]
+	b.inbox.mu.Unlock()
+	// The check is done and the lock released before the insert: this is the
+	// window INB-06 forbids.
+	if present {
+		if status == dmpfports.StatusProcessed {
+			return dmpfports.ProcessedReception(), nil
+		}
+		return dmpfports.RejectedReception(), nil
+	}
+	return dmpfports.FirstReception(&racyPending{inbox: b.inbox, key: key}), nil
+}
+
+func racyInboxSubject() providerkit.InboxSubject {
+	in := &racyInbox{committed: map[string]dmpfports.Status{}}
+	return providerkit.InboxSubject{
+		Within: func(ctx context.Context, consumer string, fn func(ctx context.Context, inbox dmpfports.Inbox) error) error {
+			return fn(ctx, racyBound{inbox: in, consumer: consumer})
+		},
+		ReadStatus: func(consumer string, id dmpfports.MessageID) (dmpfports.Status, bool) {
+			in.mu.Lock()
+			defer in.mu.Unlock()
+			s, ok := in.committed[consumer+"/"+string(id)]
+			return s, ok
+		},
+		Concurrent: true,
+	}
+}
+
+func TestACheckThenInsertInboxIsReprovedOnINB06(t *testing.T) {
+	v := providerkit.Inbox(racyInboxSubject)
+	var named bool
+	for _, d := range v.Diagnostics {
+		if d.Rule == "INB-06" && strings.Contains(d.Detail, "saw the first branch") {
+			named = true
+		}
+	}
+	if !named {
+		t.Fatalf("a check-then-insert inbox was not reproved on INB-06: %v", v.Failures())
 	}
 }

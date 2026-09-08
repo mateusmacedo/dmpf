@@ -97,18 +97,18 @@ func (c Cell) Negative() []conffit.Diagnostic {
 // behave as the norm says (RAS-06: a negative that passes fails the suite).
 func (c Cell) Verify() error {
 	if ds := c.Positive(); len(ds) != 0 {
-		return fmt.Errorf("célula %d (%s -> %s): positivo reprovou: %v", c.N, c.Source, c.Target, ds)
+		return fmt.Errorf("cell %d (%s -> %s): positive vector failed: %v", c.N, c.Source, c.Target, ds)
 	}
 	ds := c.Negative()
 	want := c.NegativeCode()
 	if want == "" {
 		if len(ds) != 0 {
-			return fmt.Errorf("célula %d (%s -> %s): contract é superfície pública por construção e mesmo assim reprovou: %v", c.N, c.Source, c.Target, ds)
+			return fmt.Errorf("cell %d (%s -> %s): a contract is a public surface by construction and still failed: %v", c.N, c.Source, c.Target, ds)
 		}
 		return nil
 	}
 	if len(ds) != 1 || ds[0].Code != want || ds[0].CanonicalKey != cellSource || ds[0].Target != cellTarget {
-		return fmt.Errorf("célula %d (%s -> %s): negativo deveria emitir exatamente um %s %s -> %s, emitiu %v", c.N, c.Source, c.Target, want, cellSource, cellTarget, ds)
+		return fmt.Errorf("cell %d (%s -> %s): negative vector must emit exactly one %s %s -> %s, emitted %v", c.N, c.Source, c.Target, want, cellSource, cellTarget, ds)
 	}
 	return nil
 }

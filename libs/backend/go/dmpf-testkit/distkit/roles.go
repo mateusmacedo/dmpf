@@ -46,11 +46,12 @@ func RunRole(t *testing.T) {
 		t.Skip(EnvRole + " unset: this test only runs as a re-executed child of distkit.Harness")
 	}
 	cfg, ch := childConfig(t)
+	plan := childPlan(t)
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
 	switch role {
 	case RoleProducer:
-		produce(t, ctx, cfg)
+		produce(t, ctx, cfg, plan)
 	case RoleConsumer:
 		pool := openPool(t)
 		consume(t, ctx, cfg, ch, adapterSink{consumer: reservationsconsumer.NewConsumer(pool, clock.New(at), &ids.Sequence{Prefix: "m-"}, appkit.Wait, appkit.MaxAttempts)})
@@ -110,7 +111,18 @@ func childConfig(t *testing.T) (dmpfkafka.Config, channel.Channel) {
 	return cfg, ch
 }
 
-func produce(t *testing.T, ctx context.Context, cfg dmpfkafka.Config) {
+// childPlan is the plan the parent serialized into the environment: the child
+// never falls back to Default, so the two sides cannot disagree.
+func childPlan(t *testing.T) Plan {
+	t.Helper()
+	var plan Plan
+	if err := json.Unmarshal([]byte(tb.Env(t, EnvPlan)), &plan); err != nil {
+		t.Fatalf("distkit: decode %s: %v", EnvPlan, err)
+	}
+	return plan
+}
+
+func produce(t *testing.T, ctx context.Context, cfg dmpfkafka.Config, plan Plan) {
 	t.Helper()
 	pub, err := dmpfkafka.NewPublisher(cfg, nil)
 	if err != nil {
@@ -119,8 +131,8 @@ func produce(t *testing.T, ctx context.Context, cfg dmpfkafka.Config) {
 	defer pub.Close()
 	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
-	for _, id := range Default.Deliveries {
-		if err := pub.Publish(ctx, destination, appkit.RawOrderPlaced(t, id, Default.Order, Default.Items)); err != nil {
+	for _, id := range plan.Deliveries {
+		if err := pub.Publish(ctx, destination, appkit.RawOrderPlaced(t, id, plan.Order, plan.Items)); err != nil {
 			t.Fatalf("distkit: Publish %s: %v", id, err)
 		}
 	}
@@ -139,18 +151,15 @@ func consume(t *testing.T, ctx context.Context, cfg dmpfkafka.Config, ch channel
 }
 
 // adapterSink is the bridge of FND-06 §11 between the transport and the
-// consumer adapter: the adapter records its gesture on the acknowledger after
+// consumer adapter. The adapter records its gesture on the acknowledger after
 // its transaction (TRP-26), and that gesture — not the error — is what the
-// worker applies; the error only reports a delivery the adapter could not
-// dispose of at all.
+// worker applies; the error goes back whole so the worker can log the cause of
+// an acknowledged failure or of a delivery left without a gesture.
 type adapterSink struct{ consumer dmpfapp.Consumer }
 
 func (s adapterSink) Handle(ctx context.Context, raw []byte, attempt int, ack dmpfports.Acknowledger) error {
-	outcome, err := s.consumer.Consume(ctx, dmpfapp.Delivery{Raw: raw, Attempt: attempt}, ack)
-	if err != nil && !outcome.Classified && !outcome.Contained {
-		return err
-	}
-	return nil
+	_, err := s.consumer.Consume(ctx, dmpfapp.Delivery{Raw: raw, Attempt: attempt}, ack)
+	return err
 }
 
 // naiveSink is the negative vector of V32: it applies the effect on every

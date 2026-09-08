@@ -73,13 +73,13 @@ func TestATamperedCellIsNamedByVerify(t *testing.T) {
 	if err == nil {
 		t.Fatal("a negative that passes went unnoticed")
 	}
-	if !strings.Contains(err.Error(), "célula 1") || !strings.Contains(err.Error(), "negativo") {
+	if !strings.Contains(err.Error(), "cell 1") || !strings.Contains(err.Error(), "negative") {
 		t.Fatalf("error does not name the cell and the failing side: %v", err)
 	}
 
 	inverted := fitness.Cell{N: 4, Source: conffit.BlockDomain, Target: conffit.BlockPort, Allowed: true}
 	err = inverted.Verify()
-	if err == nil || !strings.Contains(err.Error(), "célula 4") || !strings.Contains(err.Error(), "positivo") {
+	if err == nil || !strings.Contains(err.Error(), "cell 4") || !strings.Contains(err.Error(), "positive") {
 		t.Fatalf("a positive that fails was not named: %v", err)
 	}
 }

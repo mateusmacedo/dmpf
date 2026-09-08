@@ -75,6 +75,12 @@ func (r *recorder) fail(o Oracle, field, expected, got string) {
 	}
 }
 
+// skipped marks an oracle the run could not reach: an oracle that was never
+// evaluated is a failure, never a pass fabricated by omission (ORA-06).
+func (r *recorder) skipped(o Oracle, field, expected, cause string) {
+	r.fail(o, field, expected, "not evaluated: "+cause)
+}
+
 func (r *recorder) outcomes() []Outcome {
 	out := make([]Outcome, 0, 3)
 	for _, o := range []Oracle{OracleSemantic, OracleHash, OracleBytes} {

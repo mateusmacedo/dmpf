@@ -29,10 +29,27 @@ type eventsAccessor interface {
 	Events() []dmpfdomain.DomainEvent
 }
 
+// complete panics naming the first function the Subject left nil: an
+// incomplete subject is a mistake in the test, not a property of the domain,
+// and a nil dereference deep in Run would not say which field it was.
+func (s Subject[S, R]) complete() {
+	switch {
+	case s.Decide == nil:
+		panic("domainkit: Subject.Decide is nil")
+	case s.Response == nil:
+		panic("domainkit: Subject.Response is nil")
+	case s.Event == nil:
+		panic("domainkit: Subject.Event is nil")
+	case s.Snapshot == nil:
+		panic("domainkit: Subject.Snapshot is nil")
+	}
+}
+
 // Run executes the UPR once and returns the projection, reading the outcome
 // twice on the way (ORA-38): a second read that differs is a violation the
 // projection carries, since no fixture can expect it.
 func Run[S, R any](target S, s Subject[S, R]) Projection {
+	s.complete()
 	p := Projection{StateBefore: s.Snapshot(target)}
 	acc, rej := s.Decide(target)
 	p.StateAfter = s.Snapshot(target)
@@ -71,11 +88,18 @@ func Run[S, R any](target S, s Subject[S, R]) Projection {
 // ReadTwice runs the same UPR over two clones of the target and decides
 // whether the two projections are observationally equal (ORA-34).
 func ReadTwice[S, R any](target S, s Subject[S, R]) Verdict {
+	if s.Clone == nil {
+		panic("domainkit: Subject.Clone is nil")
+	}
 	first := Run(s.Clone(target), s)
 	second := Run(s.Clone(target), s)
 	v := Equal(first, second)
 	for i := range v.Diagnostics {
-		v.Diagnostics[i].Code = CodeDeterminism
+		// Only what Equal decided is about determinism; the violations Run
+		// observed (ORA-37, ORA-38) keep the rule they name.
+		if v.Diagnostics[i].Code == CodeProjection {
+			v.Diagnostics[i].Code = CodeDeterminism
+		}
 	}
 	return v
 }

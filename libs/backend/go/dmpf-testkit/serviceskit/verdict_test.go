@@ -151,3 +151,40 @@ func TestPublishingInsideTheSequenceIsReproved(t *testing.T) {
 		t.Fatalf("UOW-08 at position 1 not named: %v", v.Failures())
 	}
 }
+
+// A port that escaped an earlier transaction and is used inside a later one
+// lands in a discarded copy (memory/tx.go): the ledger names it by its
+// transaction number, not by its position between begin and commit.
+func TestAPortOfAnotherTransactionIsNamed(t *testing.T) {
+	f := serviceskit.NewFakes()
+	var stray dmpfports.Outbox
+	// bind runs on every Within: capture the port of the first transaction only.
+	uow := f.UnitOfWork(func(tx serviceskit.Tx) any {
+		if stray == nil {
+			stray = tx.Outbox()
+		}
+		return tx
+	})
+	ctx := context.Background()
+	if err := uow.Within(ctx, func(context.Context, any) error { return nil }); err != nil {
+		t.Fatal(err)
+	}
+	f.Ledger.Reset()
+	f.Baseline()
+	err := uow.Within(ctx, func(ctx context.Context, res any) error {
+		return stray.Enqueue(ctx, dmpfports.OutboxEntry{MessageID: "m-stray", OccurredAt: 1, Intent: dmpfports.PublishIntent{Destination: "x", PartitionKey: "k"}, AggregateType: "t", AggregateID: "a"})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	v := serviceskit.Decide(f, serviceskit.Expect{Accepted: true})
+	var named bool
+	for _, d := range v.Diagnostics {
+		if d.Rule == "UOW-07" && strings.Contains(d.Detail, "port of transaction 1 while transaction 2 is open") {
+			named = true
+		}
+	}
+	if !named {
+		t.Fatalf("the escaped port was not named: %v", v.Failures())
+	}
+}

@@ -5,6 +5,8 @@ package distkit
 import (
 	"bytes"
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -13,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kgo"
@@ -29,6 +32,7 @@ const (
 	EnvTopic   = "DMPF_TESTKIT_TOPIC"
 	EnvGroup   = "DMPF_TESTKIT_GROUP"
 	EnvDLQ     = "DMPF_TESTKIT_DLQ"
+	EnvPlan    = "DMPF_TESTKIT_PLAN"
 	EnvBrokers = "DMPF_KAFKA_BROKERS"
 )
 
@@ -80,6 +84,7 @@ func createTopics(t testing.TB, seeds []string, topics ...string) {
 	if err != nil {
 		t.Fatalf("distkit: kgo.NewClient: %v", err)
 	}
+	t.Cleanup(cl.Close)
 	admin := kadm.NewClient(cl)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -90,7 +95,6 @@ func createTopics(t testing.TB, seeds []string, topics ...string) {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		_, _ = admin.DeleteTopics(ctx, topics...)
-		cl.Close()
 	})
 }
 
@@ -100,18 +104,28 @@ type Process struct {
 	Role   Role
 	cmd    *exec.Cmd
 	output bytes.Buffer
-	done   chan error
+
+	// finished closes once cmd.Wait returned; err is that result. Only after
+	// finished is output safe to read: the copy goroutines of os/exec are joined
+	// by Wait, and ProcessState is written by it.
+	finished chan struct{}
+	err      error
 }
 
 // Start re-executes os.Executable() with explicit arguments — never the
 // parent's os.Args — and an environment rebuilt from the parent's plus the
-// role variables. The child cannot start a harness of its own: RunRole reads
-// the role before anything else and the parent never sets it for itself.
+// role variables and the plan, so the child publishes exactly what the parent
+// judges. The child cannot start a harness of its own: RunRole reads the role
+// before anything else and the parent never sets it for itself.
 func (h Harness) Start(t testing.TB, role Role) *Process {
 	t.Helper()
 	exe, err := os.Executable()
 	if err != nil {
 		t.Fatalf("distkit: os.Executable: %v", err)
+	}
+	plan, err := json.Marshal(h.Plan)
+	if err != nil {
+		t.Fatalf("distkit: encode plan: %v", err)
 	}
 	cmd := exec.Command(exe, "-test.run=^TestDistkitRole$", "-test.v", "-test.count=1")
 	cmd.Env = append(os.Environ(),
@@ -119,17 +133,24 @@ func (h Harness) Start(t testing.TB, role Role) *Process {
 		EnvTopic+"="+h.Topic,
 		EnvGroup+"="+h.Group,
 		EnvDLQ+"="+h.DLQ,
+		EnvPlan+"="+string(plan),
+		EnvBrokers+"="+strings.Join(h.Brokers, ","),
 	)
-	p := &Process{Role: role, cmd: cmd, done: make(chan error, 1)}
+	p := &Process{Role: role, cmd: cmd, finished: make(chan struct{})}
 	cmd.Stdout, cmd.Stderr = &p.output, &p.output
 	if err := cmd.Start(); err != nil {
 		t.Fatalf("distkit: start %s: %v", role, err)
 	}
-	go func() { p.done <- cmd.Wait() }()
+	go func() {
+		p.err = cmd.Wait()
+		close(p.finished)
+	}()
 	t.Cleanup(func() {
-		if cmd.ProcessState == nil {
+		select {
+		case <-p.finished:
+		default:
 			_ = cmd.Process.Kill()
-			<-p.done
+			<-p.finished
 		}
 	})
 	return p
@@ -140,12 +161,13 @@ func (h Harness) Start(t testing.TB, role Role) *Process {
 func (p *Process) Wait(t testing.TB, timeout time.Duration) {
 	t.Helper()
 	select {
-	case err := <-p.done:
-		if err != nil {
-			t.Fatalf("distkit: %s exited with %v\n%s", p.Role, err, p.output.String())
+	case <-p.finished:
+		if p.err != nil {
+			t.Fatalf("distkit: %s exited with %v\n%s", p.Role, p.err, p.output.String())
 		}
 	case <-time.After(timeout):
 		_ = p.cmd.Process.Kill()
+		<-p.finished
 		t.Fatalf("distkit: %s did not exit within %v\n%s", p.Role, timeout, p.output.String())
 	}
 }
@@ -158,8 +180,16 @@ func (p *Process) Stop(t testing.TB, timeout time.Duration) {
 	p.Wait(t, timeout)
 }
 
-// Output is what the child wrote so far.
-func (p *Process) Output() string { return p.output.String() }
+// Output is what the child wrote. It is meaningful only after Wait or Stop
+// returned: before that the child may still be writing.
+func (p *Process) Output() string {
+	select {
+	case <-p.finished:
+		return p.output.String()
+	default:
+		return "(process still running)"
+	}
+}
 
 // Effects reads the effect edge: the four tables and the reservation of the
 // plan's order as it stands.
@@ -171,17 +201,22 @@ func (h Harness) Effects(t testing.TB) Effects {
 		(SELECT count(*) FROM dmpf_example_reservations),
 		(SELECT count(*) FROM dmpf_outbox),
 		(SELECT count(*) FROM dmpf_quarantine)`
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), queryTimeout)
+	defer cancel()
 	if err := h.Pool.QueryRow(ctx, counts).Scan(&e.Inbox, &e.Reservations, &e.Outbox, &e.Quarantine); err != nil {
 		t.Fatalf("distkit: effects: %v", err)
 	}
 	row := h.Pool.QueryRow(ctx,
 		`SELECT version, (snapshot->>'Items')::int FROM dmpf_example_reservations WHERE order_id = $1`, h.Plan.Order)
-	if err := row.Scan(&e.Version, &e.Items); err != nil && !strings.Contains(err.Error(), "no rows") {
+	if err := row.Scan(&e.Version, &e.Items); err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		t.Fatalf("distkit: reservation of %s: %v", h.Plan.Order, err)
 	}
 	return e
 }
+
+// queryTimeout bounds each read of the effect edge, so a Postgres that stops
+// answering fails the test by name instead of hanging in WaitFor's loop.
+const queryTimeout = 10 * time.Second
 
 // WaitFor polls until cond holds or the timeout passes.
 func WaitFor(t testing.TB, what string, timeout time.Duration, cond func() bool) {

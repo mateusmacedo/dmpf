@@ -33,68 +33,99 @@ func (v Verdict) Failures() []string {
 type Expect struct{ Accepted bool }
 
 // Decide reads the ledger against UOW-06..UOW-08 and the fakes' committed
-// state. Every write, enqueue and registration must sit between a begin and
-// its commit (UOW-07); nothing may publish (UOW-08); and under a refusal the
-// store must hold no state and no outbox entry (UOW-06).
+// outbox. Every gesture belongs to the transaction whose port made it; in every
+// committed transaction state writes and outbox entries come together or not
+// at all, and the outbox gained exactly what was enqueued (UOW-07); nothing
+// may publish (UOW-08); a use case commits exactly once, and under a refusal
+// that commit carries no write, no enqueue and no new outbox entry (UOW-06).
 func Decide(f *Fakes, e Expect) Verdict {
 	var v Verdict
 	add := func(rule string, seq int, format string, args ...any) {
 		v.Diagnostics = append(v.Diagnostics, Diagnostic{Rule: rule, Seq: seq, Detail: fmt.Sprintf(format, args...)})
 	}
 
-	entries := f.Ledger.Entries()
-	open := false
-	var writes, enqueues, begins, commits int
+	type tx struct {
+		id               int
+		begin            int
+		writes, enqueues int
+		committed        bool
+	}
+	var (
+		entries = f.Ledger.Entries()
+		txs     []tx
+		cur     *tx
+	)
 	for _, en := range entries {
 		switch en.Gesture {
 		case Begin:
-			if open {
+			if cur != nil {
 				add("UOW-01", en.Seq, "a second begin before the first transaction closed")
 			}
-			open = true
-			begins++
+			txs = append(txs, tx{id: en.Tx, begin: en.Seq})
+			cur = &txs[len(txs)-1]
 		case Commit, Rollback:
-			if !open {
+			if cur == nil {
 				add("UOW-07", en.Seq, "%s without an open transaction", en.Gesture)
+				continue
 			}
-			open = false
-			if en.Gesture == Commit {
-				commits++
-			}
+			cur.committed = en.Gesture == Commit
+			cur = nil
 		case Write, Enqueue, Register:
-			if !open {
+			switch {
+			case cur == nil:
 				add("UOW-07", en.Seq, "%s outside any transaction", en)
+				continue
+			case en.Tx != cur.id:
+				add("UOW-07", en.Seq, "%s through a port of transaction %d while transaction %d is open — the write lands in a discarded copy", en, en.Tx, cur.id)
+				continue
 			}
 			switch en.Gesture {
 			case Write:
-				writes++
+				cur.writes++
 			case Enqueue:
-				enqueues++
+				cur.enqueues++
 			}
 		case Publish:
 			add("UOW-08", en.Seq, "the use case published to the broker (%s); publication is the relay's, after the commit", en.Detail)
 		}
 	}
-	if open {
+	if cur != nil {
 		add("UOW-07", len(entries)-1, "the transaction was never closed")
 	}
-	if begins > 1 {
-		add("UOW-01", -1, "%d transactions opened, want exactly one per use case", begins)
+	if len(txs) > 1 {
+		add("UOW-01", -1, "%d transactions opened, want exactly one per use case", len(txs))
+	}
+
+	var committed, effects, enqueued int
+	for _, t := range txs {
+		if !t.committed {
+			continue
+		}
+		committed++
+		enqueued += t.enqueues
+		if t.writes > 0 || t.enqueues > 0 {
+			effects++
+		}
+		switch {
+		case t.writes > 0 && t.enqueues == 0:
+			add("UOW-07", t.begin, "the transaction wrote state but enqueued no outbox entry")
+		case t.enqueues > 0 && t.writes == 0:
+			add("UOW-07", t.begin, "the transaction enqueued an outbox entry but wrote no state")
+		}
+	}
+	// A refusal still commits, empty of effects (UOW-06 rationale): no begin,
+	// or a rollback, would make it indistinguishable from a technical failure.
+	if committed != 1 {
+		add("UOW-06", -1, "%d committed transaction(s), want exactly one — a use case commits once, effect-free under a refusal", committed)
 	}
 
 	if e.Accepted {
-		if writes > 0 && enqueues == 0 {
-			add("UOW-07", -1, "state was written but no outbox entry was enqueued in the same transaction")
-		}
-		if enqueues > 0 && writes == 0 {
-			add("UOW-07", -1, "an outbox entry was enqueued but no state was written in the same transaction")
-		}
-		if commits != 1 {
-			add("UOW-07", -1, "%d commits, want exactly one carrying steps 6 and 7 together", commits)
+		if n := f.EntriesSinceBaseline(); n != enqueued {
+			add("UOW-07", -1, "the outbox gained %d entr(y/ies) but the ledger enqueued %d — the commit did not carry what the use case wrote", n, enqueued)
 		}
 	} else {
-		if writes > 0 || enqueues > 0 {
-			add("UOW-06", -1, "%d write(s) and %d enqueue(s) under a refusal, want none", writes, enqueues)
+		if effects != 0 {
+			add("UOW-06", -1, "%d committed transaction(s) carried a write or an enqueue under a refusal, want none", effects)
 		}
 		if n := f.EntriesSinceBaseline(); n != 0 {
 			add("UOW-06", -1, "the outbox gained %d entr(y/ies) under a refusal, want none", n)

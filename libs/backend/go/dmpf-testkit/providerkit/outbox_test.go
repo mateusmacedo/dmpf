@@ -29,6 +29,9 @@ type memRow struct {
 	lockedBy    string
 	lockedUntil dmpfports.Instant
 	availableAt dmpfports.Instant
+	attempts    int
+	publishedAt dmpfports.Instant
+	lastError   string
 }
 
 type claimed struct{ id int64 }
@@ -51,12 +54,16 @@ func (s *memStore) Claim(_ context.Context, claimID string, limit int, lease tim
 	now := s.clock.Now()
 	var out []claimed
 	for id := int64(1); id <= s.next && len(out) < limit; id++ {
-		r := s.rows[id]
+		r, ok := s.rows[id]
+		if !ok {
+			continue
+		}
 		eligible := r.availableAt <= now && (r.status == "pending" || (r.status == "publishing" && (r.lockedUntil == 0 || r.lockedUntil <= now)))
 		if !eligible {
 			continue
 		}
 		r.status, r.lockedBy, r.lockedUntil = "publishing", claimID, now+dmpfports.Instant(lease)
+		r.attempts++
 		out = append(out, claimed{id: id})
 	}
 	return out, nil
@@ -77,25 +84,47 @@ func (s *memStore) transition(id int64, claimID string, apply func(*memRow)) (in
 }
 
 func (s *memStore) MarkPublished(_ context.Context, id int64, claimID string) (int64, error) {
-	return s.transition(id, claimID, func(r *memRow) { r.status, r.lockedUntil = "published", 0 })
+	now := s.clock.Now()
+	return s.transition(id, claimID, func(r *memRow) { r.status, r.lockedUntil, r.publishedAt, r.lastError = "published", 0, now, "" })
 }
 
-func (s *memStore) Reschedule(_ context.Context, id int64, claimID string, availableAt dmpfports.Instant, _ string) (int64, error) {
-	return s.transition(id, claimID, func(r *memRow) { r.availableAt, r.lockedUntil = availableAt, 0 })
+func (s *memStore) Reschedule(_ context.Context, id int64, claimID string, availableAt dmpfports.Instant, lastError string) (int64, error) {
+	return s.transition(id, claimID, func(r *memRow) {
+		r.availableAt, r.lockedUntil = availableAt, 0
+		if lastError != "" {
+			r.lastError = lastError
+		}
+	})
 }
 
-func (s *memStore) Fail(_ context.Context, id int64, claimID string, _ string) (int64, error) {
-	return s.transition(id, claimID, func(r *memRow) { r.status, r.lockedUntil = "failed", 0 })
+func (s *memStore) Fail(_ context.Context, id int64, claimID string, lastError string) (int64, error) {
+	return s.transition(id, claimID, func(r *memRow) { r.status, r.lockedUntil, r.lastError = "failed", 0, lastError })
 }
 
-func (s *memStore) status(id int64) (string, string, error) {
+func (s *memStore) state(id int64) (providerkit.RecordState, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	r, ok := s.rows[id]
 	if !ok {
-		return "", "", errNoRow
+		return providerkit.RecordState{}, errNoRow
 	}
-	return r.status, r.lockedBy, nil
+	return providerkit.RecordState{
+		Status: r.status, LockedBy: r.lockedBy, LockedUntil: r.lockedUntil, AvailableAt: r.availableAt,
+		Attempts: r.attempts, PublishedAt: r.publishedAt, LastError: r.lastError,
+	}, nil
+}
+
+func (s *memStore) purge(before dmpfports.Instant) (int64, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var n int64
+	for id, r := range s.rows {
+		if r.status == "published" && r.publishedAt < before {
+			delete(s.rows, id)
+			n++
+		}
+	}
+	return n, nil
 }
 
 func (s *memStore) pending() (int64, error) {
@@ -119,8 +148,9 @@ func memOutbox(lenient bool) func() providerkit.OutboxSubject[claimed] {
 			Enqueue: s.enqueue,
 			ID:      func(c claimed) int64 { return c.id },
 			Clock:   c,
-			Status:  s.status,
+			State:   s.state,
 			Pending: s.pending,
+			Purge:   s.purge,
 		}
 	}
 }

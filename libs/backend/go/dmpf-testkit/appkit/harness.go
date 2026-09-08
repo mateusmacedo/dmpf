@@ -60,7 +60,9 @@ type Ack struct {
 
 func (a *Ack) Ack(ctx context.Context) error {
 	a.Acks++
-	return a.pool.QueryRow(ctx, "SELECT count(*) FROM dmpf_inbox WHERE message_id = $1", a.messageID).Scan(&a.InboxAtAck)
+	return a.pool.QueryRow(ctx,
+		"SELECT count(*) FROM dmpf_inbox WHERE consumer_name = $1 AND message_id = $2",
+		reservationsconsumer.ConsumerName, a.messageID).Scan(&a.InboxAtAck)
 }
 
 func (a *Ack) Release(context.Context) error {
@@ -82,6 +84,10 @@ type Effects struct {
 	Inbox, Reservations, Outbox, Quarantine int64
 }
 
+// queryTimeout bounds each read of the effect edge; a Postgres that stops
+// answering fails the test by name instead of letting it hang.
+const queryTimeout = 10 * time.Second
+
 func (h Harness) Effects(t testing.TB) Effects {
 	t.Helper()
 	var e Effects
@@ -90,7 +96,9 @@ func (h Harness) Effects(t testing.TB) Effects {
 		(SELECT count(*) FROM dmpf_example_reservations),
 		(SELECT count(*) FROM dmpf_outbox),
 		(SELECT count(*) FROM dmpf_quarantine)`
-	if err := h.Pool.QueryRow(context.Background(), stmt).Scan(&e.Inbox, &e.Reservations, &e.Outbox, &e.Quarantine); err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), queryTimeout)
+	defer cancel()
+	if err := h.Pool.QueryRow(ctx, stmt).Scan(&e.Inbox, &e.Reservations, &e.Outbox, &e.Quarantine); err != nil {
 		t.Fatalf("appkit.Effects: %v", err)
 	}
 	return e
@@ -100,7 +108,9 @@ func (h Harness) Effects(t testing.TB) Effects {
 // reservations consumer.
 func (h Harness) InboxRow(t testing.TB, messageID string) (status string, lastError *string) {
 	t.Helper()
-	err := h.Pool.QueryRow(context.Background(),
+	ctx, cancel := context.WithTimeout(context.Background(), queryTimeout)
+	defer cancel()
+	err := h.Pool.QueryRow(ctx,
 		"SELECT status, last_error FROM dmpf_inbox WHERE consumer_name = $1 AND message_id = $2",
 		reservationsconsumer.ConsumerName, messageID).Scan(&status, &lastError)
 	if err != nil {

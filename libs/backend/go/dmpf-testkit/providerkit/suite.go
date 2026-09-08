@@ -24,6 +24,10 @@ type Verdict struct {
 
 func (v Verdict) OK() bool { return len(v.Diagnostics) == 0 }
 
+// Skips names the clauses the candidate did not exercise, for tb.Require to
+// put on the log next to the failures.
+func (v Verdict) Skips() []string { return v.Skipped }
+
 func (v Verdict) Failures() []string {
 	out := make([]string, 0, len(v.Diagnostics))
 	for _, d := range v.Diagnostics {

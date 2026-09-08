@@ -1,6 +1,8 @@
 package fitness_test
 
 import (
+	"bytes"
+	"context"
 	"os/exec"
 	"slices"
 	"strings"
@@ -36,9 +38,14 @@ func TestKitPackagesRespectBlockCapabilities(t *testing.T) {
 
 func directImports(t *testing.T, pkg string) []string {
 	t.Helper()
-	out, err := exec.Command("go", "list", "-f", `{{join .Imports "\n"}}`, pkg).CombinedOutput()
+	ctx, cancel := context.WithTimeout(context.Background(), goListTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "go", "list", "-f", `{{join .Imports "\n"}}`, "--", pkg)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
 	if err != nil {
-		t.Fatalf("go list %s: %v\n%s", pkg, err, out)
+		t.Fatalf("go list %s: %v\n%s", pkg, err, stderr.String())
 	}
 	return strings.Fields(string(out))
 }
