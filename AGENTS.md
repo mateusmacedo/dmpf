@@ -205,7 +205,7 @@ DMPF_SQS_ENDPOINT=http://localhost:4566 AWS_REGION=us-east-1 AWS_ACCESS_KEY_ID=t
 DMPF_PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' pnpm nx run dmpf-testkit-go:test-race
 DMPF_PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' DMPF_KAFKA_BROKERS=localhost:9092 pnpm nx run dmpf-testkit-go:test-distributed  # distkit: dois processos sobre Redpanda (V32)
 # Seleção por camada da pirâmide (é como o ci.yml monta os estágios; a saída é um array JSON)
-pnpm nx show projects --projects=tag:layer:domain | tr -d '[]" [:space:]'   # domain | services | contract | providers | apps
+pnpm nx show projects --projects=tag:layer:domain --json | jq -r 'join(",")'   # domain | services | contract | providers | apps
 bash tools/dmpf-gate-check.sh          # prova o gate nos blocos domain, port e application: depguard (por package, vetores por bloco) e forbidigo (por símbolo, só domain)
 
 # Gates Buf dos contratos (fail-closed; só o projeto dmpf-contracts-go os declara)

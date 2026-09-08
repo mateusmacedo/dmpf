@@ -108,6 +108,38 @@ tags de taxonomia; a lista de projetos afetados por camada é lida de
 `nx show projects --affected --projects=tag:layer:<x>`, que emite um array
 JSON.
 
+**O code review em duas frentes mudou o instrumento em seis pontos.** (1) Um
+oráculo que o consumidor não consegue alcançar — envelope malformado, viagem
+que falha — é reportado como `not evaluated` e reprova; antes o `Report` o
+fabricava como passe por omissão. (2) A corrida de duas inserções da suíte de
+inbox sinaliza quando o `Register` **retorna** e o vencedor só completa depois
+dos dois retornarem: é a única forma de garantir a sobreposição que `INB-06`
+prova, e uma realização *check-then-insert* de fixture é reprovada por ela;
+uma realização sem teto de espera nunca devolve o perdedor, e um prazo de
+sessenta segundos nomeia isso em vez de travar. (3) O ledger do `serviceskit`
+carrega a identidade da transação em cada gesto, então uma porta que escapou de
+uma transação e é usada em outra é nomeada — ela escreve numa cópia descartada
+(`memory/tx.go`); um caso de uso commita exatamente uma vez, vazio sob recusa,
+porque rollback ou ausência de `begin` seriam indistinguíveis de falha técnica
+(`UOW-06`, rationale). (4) A suíte de outbox compara o estado **inteiro** do
+registro antes e depois de cada transição por claim substituído (`OBX-11`), e
+`Pending` e `Purge` são obrigatórios — purga e sinais são parte do contrato que
+`KIT-04` certifica, não capacidade opcional. (5) `OBX-11` é sobre
+**substituição**, não expiração: um claim vencido sem sucessor ainda escreve
+(`docs/dmpf/uow-inbox-outbox.md`), e a spec, o README e o godoc dizem isso.
+(6) No verificador, o segundo perfil de build declara as tags `integration` e
+`distributed`, porque os harnesses do kit são os primeiros arquivos de
+produção atrás de build tag do workspace e sem o perfil ficavam fora do
+universo; e o `V29`/`V30` nega por omissão qualquer dependência de terceiro em
+teste de unidade `domain`, como `DMPF-E001` faz para produção.
+
+**O CI ganhou uma guarda e mudou a ordem dos gates.** Um step compara
+`tag:stack:go` com a união das cinco camadas e falha se algum módulo Go ficar
+sem `layer:*` ou em duas camadas; os gates DMPF correm depois dos estágios 1 e
+2 e antes da infraestrutura, porque decidem sobre a árvore; os gates Buf fecham
+o estágio 3, como `KIT-09` pede, sem mais suprimir o gate de dependência quando
+falham.
+
 ## Alternativas descartadas
 
 - **Um módulo por camada** (`dmpf-testkit-domain`, …): cinco `go.mod` sem
@@ -127,6 +159,15 @@ JSON.
   os módulos.
 - **Exceções declaradas no vetor `V29`/`V30`** para as unidades do verificador
   que reprovaram: registraria a violação em vez de repará-la pelo `PIR-17`.
+- **Estender a varredura de `V31` a `docs/`**: cada menção ao termo no acervo e
+  nos ADRs é uma negação em prosa livre («não entrega exactly-once», «nada aqui
+  declara ou sugere…»), e uma varredura por expressão regular sobre prosa
+  viraria uma lista de exceções sem fim. `RAS-12` nomeia contratos, READMEs e
+  configuração, e é isso que a varredura cobre.
+- **Um package de apoio para os helpers de teste do verificador** (`codigos`,
+  `exigeCodigos`, duplicados entre `rule_test` e `conformance_test`): seria uma
+  unidade do universo com bloco e baseline próprios, só para dois helpers de
+  quinze linhas. A duplicação fica, declarada.
 
 ## Consequências
 
@@ -146,10 +187,31 @@ JSON.
 
 **Negativas:**
 
-- **Custo aceito:** o kit depende de `google.golang.org/protobuf` (declarado no
-  manifesto como `wire.codec`), `pgx` e `franz-go`/`kadm`; o `go.mod` os lista
-  e o manifesto não declara os dois últimos, porque só os packages `app` os
-  alcançam.
+- **Custo aceito:** o kit depende de `google.golang.org/protobuf` (`wire.codec`),
+  `pgx` (`io.storage`) e `franz-go`/`kadm` (`io.messaging`), todos declarados
+  em `external[]` do manifesto com faixa de versão, embora só os packages `app`
+  alcancem os dois últimos e o verificador não exija a declaração em bloco
+  permissivo: sem ela, a dependência entraria no workspace sem capability nem
+  faixa, ao contrário dos módulos irmãos.
+- **Custo aceito:** o `test-race` do `dmpf-provider-postgres-go` roda duas vezes
+  no `ci.yml` — no estágio 4, junto do kit, e de novo no estágio 5, porque o
+  `dependsOn` do `dmpf-app-go` o arrasta e o Nx não deduplica entre invocações
+  distintas de um target sem cache (~20 s). Fundir os dois estágios numa só
+  invocação eliminaria a repetição, mas apagaria a fronteira que `KIT-09` exige
+  entre providers e apps; remover o `dependsOn` reabriria a decisão do KRN-07
+  sobre o Postgres compartilhado. O estágio 4 separa quem exige a infra do job
+  (`test-race` com `cache: false`, `--parallel=1`) de quem não exige
+  (`--parallel=3`), que é onde o paralelismo perdido realmente estava.
+- `InboxSubject.Within` recebe o `context.Context` da suíte: a corrida de duas
+  inserções passa o contexto do seu próprio prazo, para que uma realização sem
+  teto de espera tenha a transação cancelada quando o prazo vence, em vez de
+  deixar goroutines e um lock na chave vivos depois do veredicto. `clock.Fake.Set`
+  para trás com timer pendente entra em `panic` nomeando a violação: descartar o
+  timer em silêncio deixava quem esperava por ele pendurado sem diagnóstico.
+- `tb/pg.OpenPool` só aceita DSN de host loopback: o reset das tabelas é
+  destrutivo, e um Postgres compartilhado nunca é fixture de teste. As actions
+  dos workflows e as imagens dos serviços do CI ficam presas por SHA e digest,
+  porque os steps alcançam o socket do Docker do host.
 - O `depguard` não alcança `dmpf-testkit/domainkit` (a regra `domain` seleciona
   por `**/*-domain/**`); o verificador e o teste de capability do kit são as
   linhas de defesa. Estender o glob fica registrado, não incluído.

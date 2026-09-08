@@ -2,7 +2,7 @@
 id: SPEC-SJ66880S
 slug: dmpf-testes-interop-go
 title: DMPF KRN-11 — Testes, test kits e interoperabilidade Go ↔ TypeScript
-stage: building
+stage: done
 priority: P1
 depends_on: [SPEC-WTAXFV8B, SPEC-XF9TF9A0, SPEC-ZHE7DN1H, SPEC-WYX5GW87, SPEC-3R80KNMS, SPEC-ANZX2WPG, SPEC-CGPX20NP, SPEC-NYD18TGD, SPEC-EAGAXQN1]
 ticket_url: https://lider-cap.atlassian.net/browse/ARQ-530
@@ -193,7 +193,7 @@ ticket em todos.
   §8.1.1)**: suíte parametrizada pela porta, invocada com a implementação
   candidata e uma função de reset.
   - `OutboxStore`: claim sob lease, `MarkPublished` só pelo claimant
-    corrente, claim vencido ou substituído não muta o registro
+    corrente, claim substituído não muta o registro (`OBX-11` é sobre substituição, não expiração: um claim vencido sem sucessor ainda escreve)
     (`OBX-10`/`OBX-11`), purga e sinais.
   - `Inbox`: `insert-if-absent` serializando na chave (`INB-06`), com a
     corrida de duas inserções concorrentes resolvendo em exatamente um
@@ -203,7 +203,7 @@ ticket em todos.
   - Roda contra `dmpf-provider-postgres` (build tag `integration`,
     `DMPF_PG_DSN`) e contra `dmpf-application/example/memory` (sem infra);
     as duas aprovam. Vetor negativo: uma realização de fixture que permite
-    `MarkPublished` com claim vencido reprova, nomeando a regra.
+    `MarkPublished` com claim substituído reprova, nomeando a regra.
 - [ ] **[P1] `appkit` — kit de app borda a borda (`KIT-05`)**: harness que
   compõe `dmpfapp.Consumer` com as realizações concretas e aceita bytes na
   borda de protocolo; aprova quando a borda de efeito exibe o desfecho
@@ -495,12 +495,12 @@ provados pelo próprio módulo.
    via `tb.Env` — ausente, `t.Skip("DMPF_PG_DSN")`.
 2. `providerkit.Run(Candidate{Outbox: store, Reset: truncate})` executa a
    suíte: enfileira, reivindica sob lease, avança o relógio fake além do
-   lease, tenta `MarkPublished` com o claim vencido (deve ser rejeitado),
+   lease, tenta `MarkPublished` com o claim substituído (deve ser rejeitado),
    reivindica de novo, marca com o claim corrente (deve transitar).
 3. A mesma suíte roda contra `example/memory` sem tag; as duas produzem
    `Verdict{OK: true}`.
 4. Uma realização de fixture no próprio kit, que aceita `MarkPublished` com
-   claim vencido, produz `Verdict` reprovado nomeando `OBX-11`.
+   claim substituído, produz `Verdict` reprovado nomeando `OBX-11`.
 
 ### Fluxo 3 — reentrega deliberada sobre o broker (`KIT-06`, `V32`)
 
@@ -699,7 +699,7 @@ das fontes normativas e das divergências reconciliadas acima.
   `UOW-08` e a posição no ledger.
 - [ ] `providerkit` aprova `example/memory` sem infra e
   `dmpf-provider-postgres` com `DMPF_PG_DSN`; a realização de fixture com
-  claim vencido aceito reprova nomeando `OBX-11`; sem a variável, `t.Skip`
+  claim substituído aceito reprova nomeando `OBX-11`; sem a variável, `t.Skip`
   nomeando-a.
 - [ ] `distkit` roda dois processos sobre `DMPF_KAFKA_BROKERS`; `V32`
   positivo aprova; `consumer-naive` reprova com `DMPF-R004`; sem a variável,
@@ -809,7 +809,7 @@ das fontes normativas e das divergências reconciliadas acima.
 - Dado `Candidate{Outbox: memory}` e `Candidate{Outbox: postgres}`, quando a
   suíte roda, então ambas devolvem `Verdict{OK: true}` com o mesmo número de
   verificações.
-- Dado `Candidate{Outbox: fixtureLenient}` (aceita claim vencido), quando a
+- Dado `Candidate{Outbox: fixtureLenient}` (aceita claim substituído), quando a
   suíte roda, então o `Verdict` reprova nomeando `OBX-11` e a verificação.
 - Dado `DMPF_PG_DSN` ausente, quando `conformance_test.go` roda, então
   `t.Skip` com a mensagem contendo `DMPF_PG_DSN`.
