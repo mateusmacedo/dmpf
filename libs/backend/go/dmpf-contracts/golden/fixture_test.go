@@ -3,6 +3,7 @@ package golden
 import (
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -38,7 +39,7 @@ type fixtureSpec struct {
 	fieldNumbers       fieldNumbers
 	enum               enumDiscriminator
 	newMessage         func() proto.Message
-	messageFromFields  func(t *testing.T, fields map[string]string) proto.Message
+	messageFromFields  func(fields map[string]string) (proto.Message, error)
 	build              func(t *testing.T, s fixtureSpec) fixtureDoc
 	wantCases          int
 	wantDiscriminators int
@@ -59,13 +60,24 @@ type enumDiscriminator struct {
 
 var specs = []fixtureSpec{orderPlacedSpec, itemAddedSpec, reservationConfirmedSpec}
 
-func parseInt(t *testing.T, fields map[string]string, name string, bitSize int) int64 {
-	t.Helper()
+func parseInt(fields map[string]string, name string, bitSize int) (int64, error) {
 	v, err := strconv.ParseInt(fields[name], 10, bitSize)
 	if err != nil {
-		t.Fatalf("%s %q: %v", name, fields[name], err)
+		return 0, fmt.Errorf("%s %q: %w", name, fields[name], err)
 	}
-	return v
+	return v, nil
+}
+
+// read is the generator's reading of the string-typed payload: a fixture the
+// generator cannot build is a defect of the spec, so it fails the test. The
+// oracles use the same reader through golden.Subject and get the error instead.
+func (s fixtureSpec) read(t *testing.T, fields map[string]string) proto.Message {
+	t.Helper()
+	msg, err := s.messageFromFields(fields)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return msg
 }
 
 func (s fixtureSpec) baseEnvelope() map[string]string {
@@ -94,7 +106,7 @@ func withConditionals(env map[string]string) map[string]string {
 
 func (s fixtureSpec) packedCase(t *testing.T, name, doc string, env, fields map[string]string) fixtureCase {
 	t.Helper()
-	payload, typeURL, err := envelope.Pack(s.messageFromFields(t, fields))
+	payload, typeURL, err := envelope.Pack(s.read(t, fields))
 	if err != nil {
 		t.Fatalf("Pack: %v", err)
 	}
@@ -106,7 +118,7 @@ func (s fixtureSpec) packedCase(t *testing.T, name, doc string, env, fields map[
 
 func (s fixtureSpec) unknownFieldCase(t *testing.T, name, doc string, env, fields map[string]string) fixtureCase {
 	t.Helper()
-	canonical, _, err := envelope.Pack(s.messageFromFields(t, fields))
+	canonical, _, err := envelope.Pack(s.read(t, fields))
 	if err != nil {
 		t.Fatalf("Pack: %v", err)
 	}
@@ -116,7 +128,7 @@ func (s fixtureSpec) unknownFieldCase(t *testing.T, name, doc string, env, field
 
 func (s fixtureSpec) nonCanonicalCase(t *testing.T, name, doc string, env, fields map[string]string) fixtureCase {
 	t.Helper()
-	return rawCase(name, doc, env, fields, nonCanonicalPayload(t, s.messageFromFields(t, fields)))
+	return rawCase(name, doc, env, fields, nonCanonicalPayload(t, s.read(t, fields)))
 }
 
 func rawCase(name, doc string, env, fields map[string]string, payload []byte) fixtureCase {

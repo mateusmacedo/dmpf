@@ -21,22 +21,21 @@ const repoRootPrefix = "../../../../../"
 
 func loadFixture(t *testing.T, s fixtureSpec) fixtureDoc {
 	t.Helper()
-	doc, err := golden.Decode(tb.ReadFixture(t, strings.TrimPrefix(s.path, repoRootPrefix)))
+	rel, ok := strings.CutPrefix(s.path, repoRootPrefix)
+	if !ok {
+		t.Fatalf("fixture path %q does not climb to the repository root with %q", s.path, repoRootPrefix)
+	}
+	doc, err := golden.Decode(tb.ReadFixture(t, rel))
 	if err != nil {
 		t.Fatalf("decode fixture: %v", err)
 	}
 	return doc
 }
 
-// subject hands the kit the same reader the generator uses (FIX-02).
-func subject(t *testing.T, s fixtureSpec) golden.Subject {
-	t.Helper()
-	return golden.Subject{
-		NewMessage: s.newMessage,
-		MessageFromFields: func(fields map[string]string) (proto.Message, error) {
-			return s.messageFromFields(t, fields), nil
-		},
-	}
+// subject hands the kit the same reader the generator uses (FIX-02); a payload
+// the reader cannot parse reaches the oracle as DMPF-R001, not as a dead test.
+func subject(s fixtureSpec) golden.Subject {
+	return golden.Subject{NewMessage: s.newMessage, MessageFromFields: s.messageFromFields}
 }
 
 // eachSpec runs body once per contract, so a fixture added to specs is covered
@@ -134,7 +133,7 @@ func TestFixtureShape(t *testing.T) {
 func TestGoldenRoundTrip(t *testing.T) {
 	eachSpec(t, func(t *testing.T, s fixtureSpec) {
 		doc := loadFixture(t, s)
-		report := golden.Evaluate(doc, subject(t, s))
+		report := golden.Evaluate(doc, subject(s))
 		if want := 3*len(doc.AllCases()) + 3*len(doc.Cases); len(report.Outcomes) != want {
 			t.Fatalf("%d outcomes, want %d (three oracles per direction)", len(report.Outcomes), want)
 		}
@@ -166,7 +165,7 @@ func TestHashOverBytesNotOverStructure(t *testing.T) {
 			t.Fatal("Sum(transported) must equal the declared payload_hash")
 		}
 		decoded := unmarshalCase(t, s, transported)
-		if !proto.Equal(decoded, s.messageFromFields(t, c.Payload)) {
+		if !proto.Equal(decoded, s.read(t, c.Payload)) {
 			t.Fatalf("non-canonical bytes decoded to %v", decoded)
 		}
 		reserialized, err := proto.Marshal(decoded)

@@ -20,7 +20,7 @@ var reservationConfirmedSpec = fixtureSpec{
 	},
 	fieldNumbers:       fieldNumbers{unknown: 7},
 	newMessage:         func() proto.Message { return &eventv1.ReservationConfirmed{} },
-	messageFromFields:  func(t *testing.T, fields map[string]string) proto.Message { return reservationConfirmed(t, fields) },
+	messageFromFields:  func(fields map[string]string) (proto.Message, error) { return reservationConfirmed(fields) },
 	build:              buildReservationConfirmed,
 	wantCases:          3,
 	wantDiscriminators: 2,
@@ -33,12 +33,15 @@ func reservationConfirmedFields(orderID, itemCount string) map[string]string {
 	}
 }
 
-func reservationConfirmed(t *testing.T, fields map[string]string) *eventv1.ReservationConfirmed {
-	t.Helper()
+func reservationConfirmed(fields map[string]string) (*eventv1.ReservationConfirmed, error) {
+	count, err := parseInt(fields, "item_count", 32)
+	if err != nil {
+		return nil, err
+	}
 	return &eventv1.ReservationConfirmed{
 		OrderId:   fields["order_id"],
-		ItemCount: int32(parseInt(t, fields, "item_count", 32)),
-	}
+		ItemCount: int32(count),
+	}, nil
 }
 
 func buildReservationConfirmed(t *testing.T, s fixtureSpec) fixtureDoc {

@@ -20,7 +20,7 @@ var itemAddedSpec = fixtureSpec{
 	},
 	fieldNumbers:       fieldNumbers{unknown: 7},
 	newMessage:         func() proto.Message { return &eventv1.ItemAdded{} },
-	messageFromFields:  func(t *testing.T, fields map[string]string) proto.Message { return itemAdded(t, fields) },
+	messageFromFields:  func(fields map[string]string) (proto.Message, error) { return itemAdded(fields) },
 	build:              buildItemAdded,
 	wantCases:          3,
 	wantDiscriminators: 2,
@@ -34,13 +34,16 @@ func itemAddedFields(orderID, sku, quantity string) map[string]string {
 	}
 }
 
-func itemAdded(t *testing.T, fields map[string]string) *eventv1.ItemAdded {
-	t.Helper()
+func itemAdded(fields map[string]string) (*eventv1.ItemAdded, error) {
+	quantity, err := parseInt(fields, "quantity", 32)
+	if err != nil {
+		return nil, err
+	}
 	return &eventv1.ItemAdded{
 		OrderId:  fields["order_id"],
 		Sku:      fields["sku"],
-		Quantity: int32(parseInt(t, fields, "quantity", 32)),
-	}
+		Quantity: int32(quantity),
+	}, nil
 }
 
 func buildItemAdded(t *testing.T, s fixtureSpec) fixtureDoc {
