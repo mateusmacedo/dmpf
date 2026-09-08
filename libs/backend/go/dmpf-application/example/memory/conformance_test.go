@@ -2,6 +2,7 @@ package memory_test
 
 import (
 	"context"
+	"strconv"
 	"testing"
 
 	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-application/example/memory"
@@ -31,10 +32,11 @@ func TestUnitOfWorkConformsToTheKit(t *testing.T) {
 			UoW: memory.NewUnitOfWork(store, func(tx *memory.Tx) outboxResources { return outboxResources{Outbox: tx.Outbox()} }),
 			Write: func(ctx context.Context, res outboxResources) error {
 				n++
-				return res.Outbox.Enqueue(ctx, kitEntry(dmpfports.MessageID("m-"+string(rune('0'+n)))))
+				return res.Outbox.Enqueue(ctx, kitEntry(dmpfports.MessageID("m-"+strconv.Itoa(n))))
 			},
 			Kept:             func() int { return len(store.Entries()) },
 			ArmCommitFailure: store.FailNextCommit,
+			Commits:          store.Commits,
 		}
 	})
 	tb.Require(t, v)
@@ -49,14 +51,16 @@ func TestInboxConformsToTheKit(t *testing.T) {
 	v := providerkit.Inbox(func() providerkit.InboxSubject {
 		store := memory.New()
 		return providerkit.InboxSubject{
-			Within: func(consumer string, fn func(ctx context.Context, inbox dmpfports.Inbox) error) error {
+			Within: func(ctx context.Context, consumer string, fn func(ctx context.Context, inbox dmpfports.Inbox) error) error {
 				uow := memory.NewUnitOfWork(store, func(tx *memory.Tx) inboxResources { return inboxResources{Inbox: tx.Inbox(consumer)} })
-				return uow.Within(context.Background(), func(ctx context.Context, res inboxResources) error { return fn(ctx, res.Inbox) })
+				return uow.Within(ctx, func(ctx context.Context, res inboxResources) error { return fn(ctx, res.Inbox) })
 			},
 			ReadStatus: store.InboxStatus,
 			// Store.txMu serializes every transaction (tx.go), so the two-insert
 			// race has nothing to observe here; the Postgres realization runs it.
-			Concurrent: false,
+			Concurrent:       false,
+			ConsumerMismatch: memory.ErrInboxConsumerMismatch,
+			Rows:             store.InboxRows,
 		}
 	})
 	tb.Require(t, v)
