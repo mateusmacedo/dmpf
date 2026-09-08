@@ -4,6 +4,7 @@ package dmpfpostgres_test
 
 import (
 	"context"
+	"strconv"
 	"testing"
 	"time"
 
@@ -30,7 +31,7 @@ func TestUnitOfWorkConformsToTheKit(t *testing.T) {
 			UoW: dmpfpostgres.NewUnitOfWork(pool, bindWriter),
 			Write: func(ctx context.Context, w writer) error {
 				n++
-				return w.write(ctx, "o-"+string(rune('0'+n)))
+				return w.write(ctx, "o-"+strconv.Itoa(n))
 			},
 			Kept: func() int { return kept(t, pool) },
 			// A commit failure cannot be injected into pgx from outside; the
@@ -49,16 +50,24 @@ func TestInboxConformsToTheKit(t *testing.T) {
 	v := providerkit.Inbox(func() providerkit.InboxSubject {
 		pg.ResetTables(t, pool)
 		return providerkit.InboxSubject{
-			Within: func(consumer string, fn func(ctx context.Context, inbox dmpfports.Inbox) error) error {
+			Within: func(ctx context.Context, consumer string, fn func(ctx context.Context, inbox dmpfports.Inbox) error) error {
 				uow := dmpfpostgres.NewUnitOfWork(pool, func(tx *dmpfpostgres.Tx) dmpfports.Inbox {
 					return tx.Inbox(consumer, 2*time.Second)
 				})
-				return uow.Within(context.Background(), fn)
+				return uow.Within(ctx, fn)
 			},
 			ReadStatus: func(consumer string, id dmpfports.MessageID) (dmpfports.Status, bool) {
 				return committedStatus(t, pool, consumer, id)
 			},
-			Concurrent: true,
+			Concurrent:       true,
+			ConsumerMismatch: dmpfpostgres.ErrInboxConsumerMismatch,
+			Rows: func() int {
+				var n int
+				if err := pool.QueryRow(context.Background(), "SELECT count(*) FROM dmpf_inbox").Scan(&n); err != nil {
+					t.Fatalf("inbox rows: %v", err)
+				}
+				return n
+			},
 		}
 	})
 	tb.Require(t, v)
@@ -77,7 +86,7 @@ func TestOutboxStoreConformsToTheKit(t *testing.T) {
 			Store: store,
 			Enqueue: func(n int) error {
 				for i := range n {
-					r := defaultRow("m-kit-" + string(rune('a'+i)))
+					r := defaultRow("m-kit-" + strconv.Itoa(i))
 					r.occurredAt, r.availableAt = int64(fake.Now()), int64(fake.Now())
 					insert(t, context.Background(), pool, r)
 				}
@@ -85,18 +94,39 @@ func TestOutboxStoreConformsToTheKit(t *testing.T) {
 			},
 			ID:    func(c dmpfpostgres.Claimed) int64 { return c.ID },
 			Clock: fake,
-			Status: func(id int64) (string, string, error) {
-				var status string
-				var lockedBy *string
-				err := pool.QueryRow(context.Background(), `SELECT status, locked_by FROM dmpf_outbox WHERE id = $1`, id).Scan(&status, &lockedBy)
-				if lockedBy == nil {
-					return status, "", err
+			State: func(id int64) (providerkit.RecordState, error) {
+				var (
+					st                       providerkit.RecordState
+					lockedBy, lastError      *string
+					lockedUntil, publishedAt *int64
+					availableAt              int64
+				)
+				err := pool.QueryRow(context.Background(), `
+					SELECT status, locked_by, locked_until, available_at, attempt_count, published_at, last_error
+					  FROM dmpf_outbox WHERE id = $1`, id).
+					Scan(&st.Status, &lockedBy, &lockedUntil, &availableAt, &st.Attempts, &publishedAt, &lastError)
+				st.AvailableAt = dmpfports.Instant(availableAt)
+				if lockedBy != nil {
+					st.LockedBy = *lockedBy
 				}
-				return status, *lockedBy, err
+				if lastError != nil {
+					st.LastError = *lastError
+				}
+				if lockedUntil != nil {
+					st.LockedUntil = dmpfports.Instant(*lockedUntil)
+				}
+				if publishedAt != nil {
+					st.PublishedAt = dmpfports.Instant(*publishedAt)
+				}
+				return st, err
 			},
 			Pending: func() (int64, error) {
 				health, err := dmpfpostgres.OutboxSignals(context.Background(), pool, fake)
 				return health.Pending, err
+			},
+			Purge: func(before dmpfports.Instant) (int64, error) {
+				purge, err := dmpfpostgres.PurgePublished(context.Background(), pool, before)
+				return purge.Count, err
 			},
 		}
 	})
