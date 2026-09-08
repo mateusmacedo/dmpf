@@ -7,6 +7,13 @@
       "goarch": "amd64",
       "cgo_enabled": false,
       "tags": []
+    },
+    {
+      "id": "linux-amd64-integration",
+      "goos": "linux",
+      "goarch": "amd64",
+      "cgo_enabled": false,
+      "tags": ["integration", "distributed"]
     }
   ]
 }

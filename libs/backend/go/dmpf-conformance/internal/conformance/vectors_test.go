@@ -10,6 +10,7 @@ import (
 	"slices"
 	"testing"
 
+	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/fitness"
 	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/internal/port"
 	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/internal/rule"
 )
@@ -25,42 +26,12 @@ func (g memGraph) Edges() ([]port.Edge, error) { return g.edges, nil }
 
 var _ port.GraphSource = memGraph{}
 
-// Harness dos vetores; a composição de produção vive no cmd/.
+// Harness dos vetores: a mesma decisão que o package público `fitness`
+// exporta para a suíte (FIT-02), para que os vetores provem o pipeline
+// publicado e não uma cópia dele.
 func decideGrafo(t *testing.T, units []rule.Unit, mods []rule.Module, g port.GraphSource) []rule.Diagnostic {
 	t.Helper()
-
-	pkgs, err := g.Packages()
-	if err != nil {
-		t.Fatalf("Packages: %v", err)
-	}
-	universe, diags := rule.BuildUniverse(units, pkgs, mods)
-
-	edges, err := g.Edges()
-	if err != nil {
-		t.Fatalf("Edges: %v", err)
-	}
-	for _, e := range edges {
-		if e.Unresolved {
-			diags = append(diags, rule.Diagnostic{
-				Code:         rule.CodeE003,
-				CanonicalKey: e.From,
-				Target:       e.To,
-				SourceFile:   e.SourceFile,
-				Detail:       "import não resolvido pelo toolchain",
-			})
-			continue
-		}
-		src, okS := universe.Endpoint(e.From)
-		tgt, okT := universe.Endpoint(e.To)
-		if !okS || !okT {
-			// Destino fora do universo é dependência externa, avaliada por
-			// capability e não pela matriz de blocos.
-			continue
-		}
-		diags = append(diags, rule.DiagnoseEdge(src, tgt, e.SourceFile)...)
-	}
-	rule.SortDiagnostics(diags)
-	return diags
+	return fitness.Diagnose(units, mods, g)
 }
 
 // Conjunto EXATO: "contém" deixaria o vetor verde com diagnóstico espúrio
