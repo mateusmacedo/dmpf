@@ -24,6 +24,7 @@ import (
 	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-domain/example/reservations"
 	dmpfports "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-ports"
 	dmpfpostgres "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-provider-postgres"
+	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-testkit/appkit"
 )
 
 const (
@@ -68,37 +69,6 @@ func (a *recordingAck) Ack(ctx context.Context) error {
 func (a *recordingAck) Release(context.Context) error {
 	a.releases++
 	return nil
-}
-
-func rawOrderPlaced(t *testing.T, messageID string, orderID string, items int32) []byte {
-	t.Helper()
-	payload, typeURL, err := envelope.Pack(&eventv1.OrderPlaced{OrderId: orderID, ItemCount: items})
-	if err != nil {
-		t.Fatalf("Pack: %v", err)
-	}
-	ce, err := envelope.Encode(envelope.Envelope{
-		ID:              messageID,
-		Source:          "urn:lidercap:orders",
-		SpecVersion:     envelope.SpecVersion,
-		Type:            "com.company.orders.order-placed.v1",
-		Subject:         "order/" + orderID,
-		Time:            timestamppb.New(time.Date(2026, 9, 5, 12, 0, 0, 0, time.UTC)),
-		DataSchema:      typeURL,
-		DataContentType: envelope.ContentType,
-		CorrelationID:   "corr-" + messageID,
-		CausationID:     messageID,
-		PartitionKey:    orderID,
-		TraceParent:     "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
-		Payload:         payload,
-	})
-	if err != nil {
-		t.Fatalf("Encode: %v", err)
-	}
-	raw, err := proto.MarshalOptions{Deterministic: true}.Marshal(ce)
-	if err != nil {
-		t.Fatalf("Marshal: %v", err)
-	}
-	return raw
 }
 
 type tableCounts struct{ inbox, reservations, outbox, quarantine int64 }
@@ -187,7 +157,7 @@ func TestFirstReceptionAppliesConfirmsAndDerivesTheOutbox(t *testing.T) {
 	pool := openPool(t)
 	consumer := reservationsconsumer.NewConsumer(pool, fixedClock{}, &sequenceIDs{}, e2eWait, e2eAttempts)
 
-	outcome, err, ack := consume(t, pool, consumer, "evt-1", rawOrderPlaced(t, "evt-1", "o-1", 2), 1)
+	outcome, err, ack := consume(t, pool, consumer, "evt-1", appkit.RawOrderPlaced(t, "evt-1", "o-1", 2), 1)
 	if err != nil {
 		t.Fatalf("Consume: %v", err)
 	}
@@ -216,7 +186,7 @@ func TestBusinessRejectionCommitsRejectedAndConfirms(t *testing.T) {
 	pool := openPool(t)
 	consumer := reservationsconsumer.NewConsumer(pool, fixedClock{}, &sequenceIDs{}, e2eWait, e2eAttempts)
 
-	outcome, err, ack := consume(t, pool, consumer, "evt-2", rawOrderPlaced(t, "evt-2", "o-2", 0), 1)
+	outcome, err, ack := consume(t, pool, consumer, "evt-2", appkit.RawOrderPlaced(t, "evt-2", "o-2", 0), 1)
 	if err != nil {
 		t.Fatalf("Consume: %v", err)
 	}
@@ -238,8 +208,8 @@ func TestBusinessRejectionCommitsRejectedAndConfirms(t *testing.T) {
 func TestRedeliveriesShortCircuit(t *testing.T) {
 	pool := openPool(t)
 	consumer := reservationsconsumer.NewConsumer(pool, fixedClock{}, &sequenceIDs{}, e2eWait, e2eAttempts)
-	applied := rawOrderPlaced(t, "evt-1", "o-1", 2)
-	rejected := rawOrderPlaced(t, "evt-2", "o-2", 0)
+	applied := appkit.RawOrderPlaced(t, "evt-1", "o-1", 2)
+	rejected := appkit.RawOrderPlaced(t, "evt-2", "o-2", 0)
 	for _, raw := range [][]byte{applied, rejected} {
 		if _, err, _ := consume(t, pool, consumer, "seed", raw, 1); err != nil {
 			t.Fatalf("seed: %v", err)
@@ -268,7 +238,7 @@ func TestRedeliveriesShortCircuit(t *testing.T) {
 	})
 
 	t.Run("R4 contains the collision byte for byte", func(t *testing.T) {
-		collision := rawOrderPlaced(t, "evt-1", "o-1", 3)
+		collision := appkit.RawOrderPlaced(t, "evt-1", "o-1", 3)
 		outcome, err, ack := consume(t, pool, consumer, "evt-1", collision, 1)
 		if err != nil || outcome.Disposition != dmpfapplication.R4 || !outcome.Contained || outcome.Reason != dmpfports.ReasonCollision {
 			t.Fatalf("outcome = %+v, err = %v", outcome, err)
@@ -294,7 +264,7 @@ func TestTransientFailureRollsBackAndReleases(t *testing.T) {
 		return r
 	})
 
-	outcome, err, ack := consume(t, pool, consumer, "evt-3", rawOrderPlaced(t, "evt-3", "o-3", 1), 1)
+	outcome, err, ack := consume(t, pool, consumer, "evt-3", appkit.RawOrderPlaced(t, "evt-3", "o-3", 1), 1)
 	if !errors.Is(err, errBoom) || outcome.Disposition != dmpfapplication.R1D3 || outcome.Contained {
 		t.Fatalf("outcome = %+v, err = %v", outcome, err)
 	}
@@ -312,7 +282,7 @@ func TestExhaustedAttemptsContainThePoisonMessage(t *testing.T) {
 		r.Reservations = failingReservations{r.Reservations, dmpfapplication.NewFailure(dmpfapplication.TransientDependency, true, errBoom)}
 		return r
 	})
-	poison := rawOrderPlaced(t, "evt-4", "o-4", 1)
+	poison := appkit.RawOrderPlaced(t, "evt-4", "o-4", 1)
 
 	outcome, err, ack := consume(t, pool, consumer, "evt-4", poison, e2eAttempts)
 	if !errors.Is(err, errBoom) || !outcome.Contained || outcome.Reason != dmpfports.ReasonAttemptsExhausted {
@@ -327,7 +297,7 @@ func TestExhaustedAttemptsContainThePoisonMessage(t *testing.T) {
 
 	// The next message of the same partition is not blocked by the poison one.
 	healthy := reservationsconsumer.NewConsumer(pool, fixedClock{}, &sequenceIDs{}, e2eWait, e2eAttempts)
-	outcome, err, _ = consume(t, pool, healthy, "evt-5", rawOrderPlaced(t, "evt-5", "o-4", 1), 1)
+	outcome, err, _ = consume(t, pool, healthy, "evt-5", appkit.RawOrderPlaced(t, "evt-5", "o-4", 1), 1)
 	if err != nil || outcome.Disposition != dmpfapplication.R1D1 {
 		t.Fatalf("the partition stayed blocked: outcome = %+v, err = %v", outcome, err)
 	}
@@ -340,7 +310,7 @@ func TestTerminalFailureIsContained(t *testing.T) {
 		return r
 	})
 
-	outcome, err, ack := consume(t, pool, consumer, "evt-6", rawOrderPlaced(t, "evt-6", "o-6", 1), 1)
+	outcome, err, ack := consume(t, pool, consumer, "evt-6", appkit.RawOrderPlaced(t, "evt-6", "o-6", 1), 1)
 	if !errors.Is(err, errBoom) || outcome.Disposition != dmpfapplication.R1D4 || outcome.Reason != dmpfports.ReasonTerminalFailure {
 		t.Fatalf("outcome = %+v, err = %v", outcome, err)
 	}
@@ -359,7 +329,7 @@ func TestOutboxFailureRollsBackDeduplicationAndState(t *testing.T) {
 		return r
 	})
 
-	_, err, _ := consume(t, pool, consumer, "evt-7", rawOrderPlaced(t, "evt-7", "o-7", 1), 1)
+	_, err, _ := consume(t, pool, consumer, "evt-7", appkit.RawOrderPlaced(t, "evt-7", "o-7", 1), 1)
 	if !errors.Is(err, errBoom) {
 		t.Fatalf("err = %v", err)
 	}
@@ -421,13 +391,13 @@ func TestPayloadOfAnotherContractIsTerminal(t *testing.T) {
 func TestRedeliveryWithANewMessageIDDoesNotDuplicateTheEffect(t *testing.T) {
 	pool := openPool(t)
 	consumer := reservationsconsumer.NewConsumer(pool, fixedClock{}, &sequenceIDs{}, e2eWait, e2eAttempts)
-	if _, err, _ := consume(t, pool, consumer, "evt-1", rawOrderPlaced(t, "evt-1", "o-1", 2), 1); err != nil {
+	if _, err, _ := consume(t, pool, consumer, "evt-1", appkit.RawOrderPlaced(t, "evt-1", "o-1", 2), 1); err != nil {
 		t.Fatalf("first: %v", err)
 	}
 
 	// V32: the inbox sees a new identity and classifies R1; only the natural
 	// key of the effect (the order) keeps the reservation from doubling (GAR-04, GAR-10).
-	outcome, err, ack := consume(t, pool, consumer, "evt-9", rawOrderPlaced(t, "evt-9", "o-1", 2), 1)
+	outcome, err, ack := consume(t, pool, consumer, "evt-9", appkit.RawOrderPlaced(t, "evt-9", "o-1", 2), 1)
 	if err != nil || outcome.Disposition != dmpfapplication.R1D2 {
 		t.Fatalf("outcome = %+v, err = %v, want R1×D2 from the already-reserved rule", outcome, err)
 	}
@@ -445,10 +415,10 @@ func TestRedeliveryWithANewMessageIDDoesNotDuplicateTheEffect(t *testing.T) {
 func TestSignalsExposeTheConsumerSide(t *testing.T) {
 	pool := openPool(t)
 	consumer := reservationsconsumer.NewConsumer(pool, fixedClock{}, &sequenceIDs{}, e2eWait, e2eAttempts)
-	if _, err, _ := consume(t, pool, consumer, "evt-1", rawOrderPlaced(t, "evt-1", "o-1", 2), 1); err != nil {
+	if _, err, _ := consume(t, pool, consumer, "evt-1", appkit.RawOrderPlaced(t, "evt-1", "o-1", 2), 1); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
-	if _, err, _ := consume(t, pool, consumer, "evt-1", rawOrderPlaced(t, "evt-1", "o-1", 5), 1); err != nil {
+	if _, err, _ := consume(t, pool, consumer, "evt-1", appkit.RawOrderPlaced(t, "evt-1", "o-1", 5), 1); err != nil {
 		t.Fatalf("collision: %v", err)
 	}
 	if _, err, _ := consume(t, pool, consumer, "", []byte("garbage"), 1); err != nil {

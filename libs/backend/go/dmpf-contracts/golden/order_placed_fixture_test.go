@@ -1,6 +1,7 @@
 package golden
 
 import (
+	"fmt"
 	"strconv"
 	"testing"
 
@@ -26,7 +27,7 @@ var orderPlacedSpec = fixtureSpec{
 		values: []string{"ORDER_CHANNEL_UNSPECIFIED", "ORDER_CHANNEL_WEB", "99"},
 	},
 	newMessage:         func() proto.Message { return &eventv1.OrderPlaced{} },
-	messageFromFields:  func(t *testing.T, fields map[string]string) proto.Message { return orderPlaced(t, fields) },
+	messageFromFields:  func(fields map[string]string) (proto.Message, error) { return orderPlaced(fields) },
 	build:              buildOrderPlaced,
 	wantCases:          6,
 	wantDiscriminators: 3,
@@ -43,30 +44,40 @@ func orderPlacedFields(orderID, customerID, totalCents, channel string) map[stri
 
 // orderPlaced is the single reader of the string-typed payload; the generator
 // and the oracles share it so the two never disagree on parsing.
-func orderPlaced(t *testing.T, fields map[string]string) *eventv1.OrderPlaced {
-	t.Helper()
+func orderPlaced(fields map[string]string) (*eventv1.OrderPlaced, error) {
+	total, err := parseInt(fields, "total_cents", 64)
+	if err != nil {
+		return nil, err
+	}
+	channel, err := channelFromString(fields["channel"])
+	if err != nil {
+		return nil, err
+	}
 	msg := &eventv1.OrderPlaced{
 		OrderId:    fields["order_id"],
 		CustomerId: fields["customer_id"],
-		TotalCents: parseInt(t, fields, "total_cents", 64),
-		Channel:    channelFromString(t, fields["channel"]),
+		TotalCents: total,
+		Channel:    channel,
 	}
 	if _, ok := fields["item_count"]; ok {
-		msg.ItemCount = int32(parseInt(t, fields, "item_count", 32))
+		count, err := parseInt(fields, "item_count", 32)
+		if err != nil {
+			return nil, err
+		}
+		msg.ItemCount = int32(count)
 	}
-	return msg
+	return msg, nil
 }
 
-func channelFromString(t *testing.T, s string) eventv1.OrderChannel {
-	t.Helper()
+func channelFromString(s string) (eventv1.OrderChannel, error) {
 	if v, ok := eventv1.OrderChannel_value[s]; ok {
-		return eventv1.OrderChannel(v)
+		return eventv1.OrderChannel(v), nil
 	}
 	n, err := strconv.ParseInt(s, 10, 32)
 	if err != nil {
-		t.Fatalf("channel %q is neither an enum name nor a number", s)
+		return 0, fmt.Errorf("channel %q is neither an enum name nor a number", s)
 	}
-	return eventv1.OrderChannel(n)
+	return eventv1.OrderChannel(n), nil
 }
 
 func buildOrderPlaced(t *testing.T, s fixtureSpec) fixtureDoc {

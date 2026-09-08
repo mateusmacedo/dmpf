@@ -12,10 +12,10 @@ import (
 	dmpfpostgres "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-provider-postgres"
 )
 
-// The six clauses below are the ones dmpfports.UnitOfWork.Within enumerates,
-// with the same names memory/contract_test.go gives them: two realizations of
-// one contract have to be readable side by side. A _test.go file is never
-// importable, so the suite cannot be shared — a test kit is KRN-11's.
+// The six clauses below are the ones dmpfports.UnitOfWork.Within enumerates.
+// The shared contract now runs from dmpf-testkit/providerkit
+// (conformance_test.go); these keep the Postgres-specific readings — a SELECT
+// over the table, the cancelled-commit path — that the kit cannot see.
 
 var errContractCallbackFailed = errors.New("dmpfpostgres_test: contract callback failed")
 

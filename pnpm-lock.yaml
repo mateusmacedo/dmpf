@@ -258,6 +258,8 @@ importers:
 
   libs/backend/go/dmpf-provider-sqs: {}
 
+  libs/backend/go/dmpf-testkit: {}
+
   libs/backend/go/dmpf-transport: {}
 
 packages:

@@ -19,6 +19,7 @@ import (
 	dmpfports "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-ports"
 	dmpfpostgres "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-provider-postgres"
 	orderspg "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-provider-postgres/example/orders"
+	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-testkit/appkit"
 )
 
 const (
@@ -237,7 +238,7 @@ func TestAFailureBetweenPublishingAndMarkingRepublishesAndTheInboxAbsorbsIt(t *t
 	// the second is absorbed by the inbox, which is what makes the duplicate
 	// harmless rather than a second reservation.
 	consumer := reservationsconsumer.NewConsumer(pool, fixedClock{}, &sequenceIDs{}, e2eWait, e2eAttempts)
-	raw := rawOrderPlaced(t, relayMessageID, relayOrderID, relayItems)
+	raw := appkit.RawOrderPlaced(t, relayMessageID, relayOrderID, relayItems)
 
 	for delivery := 1; delivery <= 2; delivery++ {
 		ack := &recordingAck{pool: pool, messageIDSeen: relayMessageID}

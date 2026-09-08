@@ -5,44 +5,37 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"fmt"
-	"os"
+	"strings"
 	"testing"
 
 	"google.golang.org/protobuf/proto"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/envelope"
 	eventv1 "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/gen/go/company/orders/event/v1"
-	cloudeventsv1 "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/gen/go/io/cloudevents/v1"
 	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/payloadhash"
+	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-testkit/golden"
+	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-testkit/tb"
 )
 
-var errFormatVersion = errors.New("golden: unsupported format_version")
-
-// parseFixture fails on any format_version it does not know (FIX-09): reading a
-// newer fixture with an older loader would report a conformance nobody checked.
-func parseFixture(data []byte) (fixtureDoc, error) {
-	var doc fixtureDoc
-	if err := json.Unmarshal(data, &doc); err != nil {
-		return doc, err
-	}
-	if doc.FormatVersion != formatVersion {
-		return doc, fmt.Errorf("%w: %q", errFormatVersion, doc.FormatVersion)
-	}
-	return doc, nil
-}
+// The spec paths climb to the repository root; tb.ReadFixture wants them from it.
+const repoRootPrefix = "../../../../../"
 
 func loadFixture(t *testing.T, s fixtureSpec) fixtureDoc {
 	t.Helper()
-	data, err := os.ReadFile(s.path)
-	if err != nil {
-		t.Fatalf("read fixture: %v", err)
+	rel, ok := strings.CutPrefix(s.path, repoRootPrefix)
+	if !ok {
+		t.Fatalf("fixture path %q does not climb to the repository root with %q", s.path, repoRootPrefix)
 	}
-	doc, err := parseFixture(data)
+	doc, err := golden.Decode(tb.ReadFixture(t, rel))
 	if err != nil {
-		t.Fatalf("parse fixture: %v", err)
+		t.Fatalf("decode fixture: %v", err)
 	}
 	return doc
+}
+
+// subject hands the kit the same reader the generator uses (FIX-02); a payload
+// the reader cannot parse reaches the oracle as DMPF-R001, not as a dead test.
+func subject(s fixtureSpec) golden.Subject {
+	return golden.Subject{NewMessage: s.newMessage, MessageFromFields: s.messageFromFields}
 }
 
 // eachSpec runs body once per contract, so a fixture added to specs is covered
@@ -69,10 +62,23 @@ func TestFixtureRejectsUnknownFormatVersion(t *testing.T) {
 		doc := buildFixture(t, s)
 		doc.FormatVersion = "2"
 		data, _ := json.Marshal(doc)
-		if _, err := parseFixture(data); !errors.Is(err, errFormatVersion) {
-			t.Fatalf("err = %v, want errFormatVersion", err)
+		if _, err := golden.Decode(data); !errors.Is(err, golden.ErrFormatVersion) {
+			t.Fatalf("err = %v, want golden.ErrFormatVersion", err)
 		}
 	})
+}
+
+// FIX-11 over the real set: one canonical fixture per contract major.
+func TestOneFixturePerContractMajor(t *testing.T) {
+	var catalog golden.Catalog
+	for _, s := range specs {
+		if err := catalog.Add(s.path, loadFixture(t, s)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if catalog.Len() != len(specs) {
+		t.Fatalf("catalog holds %d fixtures, want %d", catalog.Len(), len(specs))
+	}
 }
 
 func TestFixtureShape(t *testing.T) {
@@ -91,7 +97,7 @@ func TestFixtureShape(t *testing.T) {
 
 		present := map[string]int{}
 		absent := map[string]int{}
-		for _, c := range allCases(doc) {
+		for _, c := range doc.AllCases() {
 			for _, name := range []string{"aggregateversion", "tenantid", "tracestate"} {
 				if _, ok := c.Envelope[name]; ok {
 					present[name]++
@@ -110,7 +116,7 @@ func TestFixtureShape(t *testing.T) {
 			return
 		}
 		values := map[string]bool{}
-		for _, c := range allCases(doc) {
+		for _, c := range doc.AllCases() {
 			values[c.Payload[s.enum.field]] = true
 		}
 		for _, want := range s.enum.values {
@@ -121,69 +127,17 @@ func TestFixtureShape(t *testing.T) {
 	})
 }
 
-func TestGoldenCases(t *testing.T) {
+// Both directions, three oracles apart (ORA-01..ORA-07): every case and
+// discriminator as a consumer, every canonical case as a producer, and oracle 3
+// reproves — the producer's bytes must be the fixture's (ENV-24).
+func TestGoldenRoundTrip(t *testing.T) {
 	eachSpec(t, func(t *testing.T, s fixtureSpec) {
-		for _, c := range allCases(loadFixture(t, s)) {
-			t.Run(c.Name, func(t *testing.T) {
-				transported := decodeHex(t, c.PayloadBytesHex)
-
-				if got := payloadhash.Sum(transported); got != c.PayloadHash {
-					t.Fatalf("payload_hash: Go computed %s, fixture declares %s", got, c.PayloadHash)
-				}
-
-				decoded := unmarshalCase(t, s, transported)
-				// The unknown-field discriminator carries bytes the contract does not
-				// declare, while the payload map describes only the known fields.
-				known := proto.Clone(decoded)
-				known.ProtoReflect().SetUnknown(nil)
-				if want := s.messageFromFields(t, c.Payload); !proto.Equal(known, want) {
-					t.Fatalf("decoded payload %v differs from declared fields %v", known, want)
-				}
-
-				in := envelopeFromFields(t, c.Envelope, transported)
-				ce, err := envelope.Encode(in)
-				if err != nil {
-					t.Fatalf("Encode: %v", err)
-				}
-				wire, err := proto.Marshal(ce)
-				if err != nil {
-					t.Fatalf("Marshal envelope: %v", err)
-				}
-				var back cloudeventsv1.CloudEvent
-				if err := proto.Unmarshal(wire, &back); err != nil {
-					t.Fatalf("Unmarshal envelope: %v", err)
-				}
-				out, err := envelope.Decode(&back)
-				if err != nil {
-					t.Fatalf("Decode: %v", err)
-				}
-				if !bytes.Equal(out.Payload, transported) {
-					t.Fatal("Any.value changed across Encode/Decode")
-				}
-				if payloadhash.Sum(out.Payload) != c.PayloadHash {
-					t.Fatal("payload_hash changed across Encode/Decode")
-				}
-				if out.ID != in.ID || out.Source != in.Source || out.SpecVersion != in.SpecVersion ||
-					out.Type != in.Type || out.Subject != in.Subject || out.DataSchema != in.DataSchema ||
-					out.DataContentType != in.DataContentType || out.CorrelationID != in.CorrelationID ||
-					out.CausationID != in.CausationID || out.PartitionKey != in.PartitionKey ||
-					out.TraceParent != in.TraceParent || !out.Time.AsTime().Equal(in.Time.AsTime()) ||
-					!sameInt32(out.AggregateVersion, in.AggregateVersion) ||
-					!sameString(out.TenantID, in.TenantID) || !sameString(out.TraceState, in.TraceState) {
-					t.Fatalf("envelope changed across Encode/Decode:\n in=%+v\nout=%+v", in, out)
-				}
-
-				reserialized, err := proto.MarshalOptions{Deterministic: true}.Marshal(decoded)
-				if err != nil {
-					t.Fatal(err)
-				}
-				if bytes.Equal(reserialized, transported) {
-					t.Logf("oracle 3 (byte identity): reserialization matches the transported bytes")
-				} else {
-					t.Logf("oracle 3 (byte identity): reserialization differs from the transported bytes (informative, §8.3)")
-				}
-			})
+		doc := loadFixture(t, s)
+		report := golden.Evaluate(doc, subject(s))
+		if want := 3*len(doc.AllCases()) + 3*len(doc.Cases); len(report.Outcomes) != want {
+			t.Fatalf("%d outcomes, want %d (three oracles per direction)", len(report.Outcomes), want)
 		}
+		tb.RequireReport(t, report)
 	})
 }
 
@@ -211,7 +165,7 @@ func TestHashOverBytesNotOverStructure(t *testing.T) {
 			t.Fatal("Sum(transported) must equal the declared payload_hash")
 		}
 		decoded := unmarshalCase(t, s, transported)
-		if !proto.Equal(decoded, s.messageFromFields(t, c.Payload)) {
+		if !proto.Equal(decoded, s.read(t, c.Payload)) {
 			t.Fatalf("non-canonical bytes decoded to %v", decoded)
 		}
 		reserialized, err := proto.Marshal(decoded)
@@ -267,25 +221,11 @@ func unmarshalCase(t *testing.T, s fixtureSpec, transported []byte) proto.Messag
 	return msg
 }
 
-func sameString(a, b *string) bool {
-	return (a == nil && b == nil) || (a != nil && b != nil && *a == *b)
-}
-
-func sameInt32(a, b *int32) bool {
-	return (a == nil && b == nil) || (a != nil && b != nil && *a == *b)
-}
-
-func allCases(doc fixtureDoc) []fixtureCase {
-	return append(append([]fixtureCase(nil), doc.Cases...), doc.Discriminators...)
-}
-
 func findCase(t *testing.T, doc fixtureDoc, name string) fixtureCase {
 	t.Helper()
-	for _, c := range allCases(doc) {
-		if c.Name == name {
-			return c
-		}
+	c, ok := doc.FindCase(name)
+	if !ok {
+		t.Fatalf("case %q not in fixture", name)
 	}
-	t.Fatalf("case %q not in fixture", name)
-	return fixtureCase{}
+	return c
 }

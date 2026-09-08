@@ -1,4 +1,4 @@
-package baseline_test
+package fsstore_test
 
 import (
 	"encoding/json"
@@ -11,17 +11,9 @@ import (
 	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/internal/baseline"
 )
 
-// Dentro de um hook o git exporta GIT_DIR sem GIT_WORK_TREE, e `rev-parse
-// --show-toplevel` passa a devolver o cwd em vez da raiz do repositório.
-func TestMain(m *testing.M) {
-	for _, kv := range os.Environ() {
-		if nome, _, _ := strings.Cut(kv, "="); strings.HasPrefix(nome, "GIT_") {
-			_ = os.Unsetenv(nome)
-		}
-	}
-	os.Exit(m.Run())
-}
-
+// Vive no provider porque lê project.json e roda git (FND-09 PIR-17): o que
+// afirma sobre a cópia versionada é do repositório, não do domínio baseline.
+//
 // TestMudancaNoBaselineMarcaOProjetoComoAfetado: editar a cópia versionada
 // precisa fazer o projeto entrar na lista de afetados.
 //
@@ -46,7 +38,7 @@ func inputsDoProjeto(t *testing.T, raiz string) string {
 	p := filepath.Join(raiz, "libs", "backend", "go", "dmpf-conformance", "project.json")
 	raw, err := os.ReadFile(p) //nolint:gosec // caminho fixo do próprio repositório
 	if err != nil {
-		t.Skipf("project.json ilegível: %v", err)
+		pularOuFalhar(t, "project.json ilegível: %v", err)
 	}
 	var doc struct {
 		Targets map[string]struct {
@@ -63,11 +55,21 @@ func inputsDoProjeto(t *testing.T, raiz string) string {
 	return strings.Join(todos, " ")
 }
 
+// pularOuFalhar pula fora do CI e falha dentro dele: o gate do baseline não
+// pode ficar verde por não ter conseguido olhar o repositório.
+func pularOuFalhar(t *testing.T, format string, args ...any) {
+	t.Helper()
+	if os.Getenv("CI") != "" {
+		t.Fatalf(format, args...)
+	}
+	t.Skipf(format, args...)
+}
+
 func raizDoRepo(t *testing.T) string {
 	t.Helper()
 	out, err := exec.Command("git", "rev-parse", "--show-toplevel").Output()
 	if err != nil {
-		t.Skipf("fora de um repositório git: %v", err)
+		pularOuFalhar(t, "fora de um repositório git: %v", err)
 	}
 	return strings.TrimSpace(string(out))
 }
@@ -81,7 +83,7 @@ func TestBaselineViveForaDeTodoModulo(t *testing.T) {
 	raiz := raizDoRepo(t)
 	out, err := exec.Command("git", "-C", raiz, "ls-files", "--", "*go.mod", "go.mod").Output()
 	if err != nil {
-		t.Skipf("git ls-files: %v", err)
+		pularOuFalhar(t, "git ls-files: %v", err)
 	}
 
 	for _, linha := range strings.Split(string(out), "\n") {

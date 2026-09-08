@@ -57,7 +57,8 @@ vedado por `CTX-05`, e um `tx.Repository("nome")` dentro da fronteira é o
 service locator que `UOW-03` recusa nominalmente.
 
 Toda realização cumpre as seis cláusulas abaixo, e a suíte reutilizável
-`RunUnitOfWorkContract` (em `contract_test.go`) as executa:
+`providerkit.UnitOfWork` (em `dmpf-testkit`, `KRN-11`) as executa contra cada
+realização — `dmpf-application/example/memory` e `dmpf-provider-postgres`:
 
 1. Abre exatamente **uma** transação local sobre **um** recurso (`UOW-01`,
    `UOW-02`).

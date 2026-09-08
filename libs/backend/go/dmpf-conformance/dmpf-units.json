@@ -72,6 +72,15 @@
       "include": [
         "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/cmd/dmpf-conformance"
       ]
+    },
+    {
+      "id": "dmpf-conformance/fitness",
+      "block": "app",
+      "bounded_context": "dmpf-conformance",
+      "public_integration_surface": true,
+      "include": [
+        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/fitness"
+      ]
     }
   ],
   "external": [],

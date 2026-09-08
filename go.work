@@ -13,5 +13,6 @@ use (
 	./libs/backend/go/dmpf-provider-kafka
 	./libs/backend/go/dmpf-provider-postgres
 	./libs/backend/go/dmpf-provider-sqs
+	./libs/backend/go/dmpf-testkit
 	./libs/backend/go/dmpf-transport
 )

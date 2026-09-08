@@ -3,59 +3,33 @@ package golden
 import (
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"testing"
-	"time"
 
 	"google.golang.org/protobuf/encoding/protowire"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/envelope"
 	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/payloadhash"
+	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-testkit/golden"
 )
 
-const formatVersion = "1"
+// The fixture shape is the kit's (FIX-02): the generator writes exactly what
+// golden.Decode reads, so the committed file stays the single source.
+const formatVersion = golden.FormatVersion
 
-// Every scalar is a JSON string (FIX-07): int64 and timestamps must survive a
-// TypeScript reader without going through a double.
-type fixtureDoc struct {
-	FormatVersion  string        `json:"format_version"`
-	Identity       identity      `json:"identity"`
-	Covers         covers        `json:"covers"`
-	Cases          []fixtureCase `json:"cases"`
-	Discriminators []fixtureCase `json:"discriminators"`
-}
-
-type identity struct {
-	Fixture    string   `json:"fixture"`
-	Contract   contract `json:"contract"`
-	Type       string   `json:"type"`
-	DataSchema string   `json:"dataschema"`
-}
-
-type contract struct {
-	Package string `json:"package"`
-	Message string `json:"message"`
-}
-
-type covers struct {
-	ProfileMajor  string `json:"profile_major"`
-	ContractMajor string `json:"contract_major"`
-}
-
-type fixtureCase struct {
-	Name            string            `json:"name"`
-	Doc             string            `json:"doc"`
-	Envelope        map[string]string `json:"envelope"`
-	Payload         map[string]string `json:"payload"`
-	PayloadBytesHex string            `json:"payload_bytes_hex"`
-	PayloadHash     string            `json:"payload_hash"`
-}
+type (
+	fixtureDoc  = golden.Fixture
+	identity    = golden.Identity
+	contract    = golden.Contract
+	covers      = golden.Covers
+	fixtureCase = golden.Case
+)
 
 // fixtureSpec is one contract in the suite: where its fixture lives, what it
 // declares, and how the shared oracles read its string-typed payload back.
@@ -65,7 +39,7 @@ type fixtureSpec struct {
 	fieldNumbers       fieldNumbers
 	enum               enumDiscriminator
 	newMessage         func() proto.Message
-	messageFromFields  func(t *testing.T, fields map[string]string) proto.Message
+	messageFromFields  func(fields map[string]string) (proto.Message, error)
 	build              func(t *testing.T, s fixtureSpec) fixtureDoc
 	wantCases          int
 	wantDiscriminators int
@@ -86,13 +60,24 @@ type enumDiscriminator struct {
 
 var specs = []fixtureSpec{orderPlacedSpec, itemAddedSpec, reservationConfirmedSpec}
 
-func parseInt(t *testing.T, fields map[string]string, name string, bitSize int) int64 {
-	t.Helper()
+func parseInt(fields map[string]string, name string, bitSize int) (int64, error) {
 	v, err := strconv.ParseInt(fields[name], 10, bitSize)
 	if err != nil {
-		t.Fatalf("%s %q: %v", name, fields[name], err)
+		return 0, fmt.Errorf("%s %q: %w", name, fields[name], err)
 	}
-	return v
+	return v, nil
+}
+
+// read is the generator's reading of the string-typed payload: a fixture the
+// generator cannot build is a defect of the spec, so it fails the test. The
+// oracles use the same reader through golden.Subject and get the error instead.
+func (s fixtureSpec) read(t *testing.T, fields map[string]string) proto.Message {
+	t.Helper()
+	msg, err := s.messageFromFields(fields)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return msg
 }
 
 func (s fixtureSpec) baseEnvelope() map[string]string {
@@ -119,49 +104,9 @@ func withConditionals(env map[string]string) map[string]string {
 	return env
 }
 
-func envelopeFromFields(t *testing.T, fields map[string]string, payload []byte) envelope.Envelope {
-	t.Helper()
-	ts, err := time.Parse(time.RFC3339Nano, fields["time"])
-	if err != nil {
-		t.Fatalf("time %q: %v", fields["time"], err)
-	}
-	e := envelope.Envelope{
-		ID:              fields["id"],
-		Source:          fields["source"],
-		SpecVersion:     fields["specversion"],
-		Type:            fields["type"],
-		Subject:         fields["subject"],
-		Time:            timestamppb.New(ts),
-		DataSchema:      fields["dataschema"],
-		DataContentType: fields["datacontenttype"],
-		CorrelationID:   fields["correlationid"],
-		CausationID:     fields["causationid"],
-		PartitionKey:    fields["partitionkey"],
-		TraceParent:     fields["traceparent"],
-		Payload:         payload,
-	}
-	if v, ok := fields["aggregateversion"]; ok {
-		n, err := strconv.ParseInt(v, 10, 32)
-		if err != nil {
-			t.Fatalf("aggregateversion %q: %v", v, err)
-		}
-		av := int32(n)
-		e.AggregateVersion = &av
-	}
-	if v, ok := fields["tenantid"]; ok {
-		tenant := v
-		e.TenantID = &tenant
-	}
-	if v, ok := fields["tracestate"]; ok {
-		state := v
-		e.TraceState = &state
-	}
-	return e
-}
-
 func (s fixtureSpec) packedCase(t *testing.T, name, doc string, env, fields map[string]string) fixtureCase {
 	t.Helper()
-	payload, typeURL, err := envelope.Pack(s.messageFromFields(t, fields))
+	payload, typeURL, err := envelope.Pack(s.read(t, fields))
 	if err != nil {
 		t.Fatalf("Pack: %v", err)
 	}
@@ -173,7 +118,7 @@ func (s fixtureSpec) packedCase(t *testing.T, name, doc string, env, fields map[
 
 func (s fixtureSpec) unknownFieldCase(t *testing.T, name, doc string, env, fields map[string]string) fixtureCase {
 	t.Helper()
-	canonical, _, err := envelope.Pack(s.messageFromFields(t, fields))
+	canonical, _, err := envelope.Pack(s.read(t, fields))
 	if err != nil {
 		t.Fatalf("Pack: %v", err)
 	}
@@ -183,7 +128,7 @@ func (s fixtureSpec) unknownFieldCase(t *testing.T, name, doc string, env, field
 
 func (s fixtureSpec) nonCanonicalCase(t *testing.T, name, doc string, env, fields map[string]string) fixtureCase {
 	t.Helper()
-	return rawCase(name, doc, env, fields, nonCanonicalPayload(t, s.messageFromFields(t, fields)))
+	return rawCase(name, doc, env, fields, nonCanonicalPayload(t, s.read(t, fields)))
 }
 
 func rawCase(name, doc string, env, fields map[string]string, payload []byte) fixtureCase {
