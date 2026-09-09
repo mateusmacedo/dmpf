@@ -1,0 +1,20 @@
+# Sem shell na imagem, como o Loki: sem healthcheck por CMD. `user: root`
+# porque o volume nomeado nasce do root e o Tempo escreve WAL e blocos nele.
+services:
+  tempo:
+    image: grafana/tempo:3.0.0
+    profiles: [tempo, observability, dmpf, all]
+    command: ['-config.file=/etc/tempo/tempo.yaml']
+    user: root
+    ports:
+      - '${TEMPO_HTTP_PORT:-3200}:3200'
+    volumes:
+      - ../../observability/tempo/tempo.yaml:/etc/tempo/tempo.yaml:ro
+      - tempo-data:/var/tempo
+    deploy:
+      resources:
+        limits: { cpus: '0.75', memory: 768M }
+        reservations: { cpus: '0.10', memory: 128M }
+
+volumes:
+  tempo-data:

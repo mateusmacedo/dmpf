@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Loki em binário único com volume próprio, igual ao do Compose: a mesma
+# loki.yaml serve aos dois. Em produção o object store é externo e o deploy
+# vira o chart distribuído.
+
+labels:
+  - includeSelectors: true
+    pairs:
+      app.kubernetes.io/name: loki
+      app.kubernetes.io/part-of: observability
+
+resources:
+  - statefulset.yaml
+  - service.yaml
+
+configMapGenerator:
+  - name: loki
+    files:
+      - loki.yaml
