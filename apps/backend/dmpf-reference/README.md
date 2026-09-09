@@ -10,6 +10,81 @@ Composition root de referência do kernel DMPF: o primeiro projeto Nx sob `apps/
 
 Criado por `KRN-12` (ARQ-545, `docs/specs/SPEC-6QT9SBAS-dmpf-reference-composition-root.md`; guarda-chuva em `docs/specs/SPEC-8HWBWJCB-dmpf-sdk-referencia-bom.md`).
 
+## Estrutura
+
+Um binário (`cmd/dmpf-reference`), três processos. Providers concretos só nesta composition root (ADR-015, BLK-02).
+
+Contexto — quem chama, o que a app alcança:
+
+```mermaid
+flowchart LR
+  client["Cliente HTTP<br/>opera o contrato OpenAPI de orders"]
+  ref["dmpf-reference<br/>api, relay ou consumer"]
+  pg[("Postgres<br/>estado, outbox e inbox")]
+  kafka[/"Kafka / Redpanda<br/>orders.events e contenção"/]
+  otel["Collector OTLP<br/>opcional: ausente, telemetria em memória"]
+
+  client -->|"POST/GET orders (HTTP JSON)"| ref
+  ref -->|"UoW, outbox, inbox"| pg
+  ref -->|"publica e consome envelopes"| kafka
+  ref -->|"traces e métricas (OTLP/gRPC)"| otel
+```
+
+Containers — um processo por papel, todos do mesmo binário:
+
+```mermaid
+flowchart TB
+  client["Cliente HTTP"]
+
+  subgraph ref["dmpf-reference (--role)"]
+    api["api<br/>net/http, borda REST de orders"]
+    relay["relay<br/>dmpf-app/relay, drena a outbox"]
+    consumer["consumer<br/>dmpf-app + Sink, assina OrderPlaced"]
+  end
+
+  pg[("Postgres<br/>pedidos, reservas, outbox, inbox")]
+  ordersTopic[/"orders.events<br/>ItemAdded e OrderPlaced"/]
+  ordersDlq[/"orders.events.dlq<br/>contenção do canal"/]
+  resTopic[/"reservations.events<br/>ReservationConfirmed"/]
+
+  client -->|"POST items, POST place, GET order"| api
+  api -->|"pedido + linha de outbox na mesma Tx"| pg
+  relay -->|"claim por lease, marca published"| pg
+  relay -->|"publica envelope CloudEvents"| ordersTopic
+  relay -->|"drena Destination de reservations"| resTopic
+  ordersTopic -->|"lê pelo group do canal"| consumer
+  consumer -->|"inbox + Reserve na mesma Tx"| pg
+  consumer -->|"contenção após o teto de tentativas"| ordersDlq
+```
+
+Packages do módulo — as libs do kernel entram só como dependência, não como processo:
+
+```mermaid
+flowchart LR
+  subgraph bin["cmd/dmpf-reference"]
+    main["main --role"]
+  end
+  subgraph root["package dmpfreference"]
+    run["Run / RunWith"]
+    cfg["FromEnv"]
+    wire["serveAPI / runRelay / runConsumer"]
+    cat["NewCatalog"]
+    sink["Sink"]
+    ports["Clock, IDs"]
+  end
+  subgraph edge["package api"]
+    routes["Routes + NewHandler"]
+    mw["admissão, Idempotency-Key, message context"]
+    h["handlers"]
+  end
+  main --> cfg --> run --> wire
+  wire --> routes
+  routes --> mw --> h
+  wire --> cat
+  wire --> sink
+  wire --> ports
+```
+
 ## Unidade do manifesto
 
 | Unidade | Bloco | Packages |
@@ -23,6 +98,89 @@ O `external` do manifesto é a união do que os providers cabeados declaram (pgx
 O canal Kafka chama-se `ordersapp.Destination` (`orders.events`), porque o publisher resolve pelo destino que o caso de uso autorou; só o endereço físico, o grupo e o tópico de contenção vêm do ambiente. Esse destino carrega os **dois** eventos do agregado `orders` — `ItemAdded` e `OrderPlaced` — e o consumer de `reservations` só entende o segundo. O `Sink` da app (a ponte transporte→adapter de FND-06 §11) é também a assinatura: uma entrega de tipo diferente do assinado é confirmada sem passar pelo adapter nem pela inbox; o tipo assinado e os bytes que não decodificam vão ao adapter como sempre (envelope inválido continua indo para a quarentena, INB-10). Um canal por tipo de evento é matéria do generator (SPEC-H1A190Y8), não desta app.
 
 O contexto de mensagem (`correlationid`, `causationid`, `traceparent`) nasce na borda: o `api` abre o span de servidor, injeta o `traceparent` W3C, usa `X-Correlation-ID` do cliente ou cunha um, e o application service copia tudo para cada linha da outbox — a causação de quem inicia a cadeia é o próprio `message_id` (FND-05). Sem isso o relay não drenaria nada (ADR-038).
+
+## Fluxos
+
+Cadeia que o e2e prova: escrita na mesma transação, dreno at-least-once, consumo idempotente pela inbox. Nenhum artefato afirma exactly-once.
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant C as Cliente
+  participant API as api
+  participant Svc as ordersapp.Service
+  participant PG as Postgres
+  participant Rel as relay
+  participant K as Kafka orders.events
+  participant Snk as Sink
+  participant Adp as dmpf-app Consumer
+  participant Rsv as reservationsapp
+
+  C->>API: POST /orders/{id}/items<br/>Idempotency-Key, X-Correlation-ID
+  API->>API: admissão, span, message context
+  API->>Svc: AddItem
+  Svc->>PG: UoW: estado + outbox ItemAdded
+  API-->>C: 201
+
+  C->>API: POST /orders/{id}/place
+  API->>Svc: PlaceOrder
+  Svc->>PG: UoW: estado + outbox OrderPlaced
+  API-->>C: 200
+
+  Rel->>PG: claim por lease
+  Rel->>K: publica envelope
+  Rel->>PG: marca published
+
+  K->>Snk: Delivery Raw
+  alt type ≠ OrderPlaced.v1
+    Snk->>K: Ack sem inbox
+  else type assinado ou bytes ilegíveis
+    Snk->>Adp: Consume
+    Adp->>Rsv: Reserve via inbox
+    Rsv->>PG: inbox + reserva na mesma Tx
+    Adp-->>K: Ack / Release / contenção
+  end
+```
+
+Borda HTTP, da recusa mais barata ao caso de uso:
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant C as Cliente
+  participant CORS as withCORS
+  participant Adm as Admission
+  participant Idem as Idempotency-Key
+  participant Ctx as withMessageContext
+  participant H as handler
+  participant Svc as ordersapp
+
+  C->>CORS: POST /orders/{id}/items
+  CORS->>Adm: 429 antes de ler o corpo
+  Adm->>Idem: POST sem chave → 400
+  Idem->>Ctx: span + correlationid + traceparent
+  Ctx->>H: decode do contrato
+  H->>Svc: AddItem / PlaceOrder / FindOrder
+  Svc-->>H: Outcome ou Failure
+  H-->>C: JSON do contrato
+```
+
+Relay (processo separado do caminho de requisição):
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant Rel as relay.Relay
+  participant Store as OutboxStore Postgres
+  participant Pub as Kafka Publisher
+  participant Cat as channel.Catalog
+
+  Rel->>Store: claim por lease
+  Store-->>Rel: linha pending
+  Rel->>Cat: resolve Destination
+  Rel->>Pub: publica bytes do envelope
+  Rel->>Store: marca published
+```
 
 ## Rodar localmente
 
