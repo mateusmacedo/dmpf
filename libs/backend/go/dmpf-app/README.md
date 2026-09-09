@@ -13,7 +13,10 @@ O adapter precisa de duas arestas ao mesmo tempo: `contract` (decodificar o enve
 | Unidade | Bloco | Package |
 | --- | --- | --- |
 | `dmpf-kernel/app-consumer` | `app` | raiz do módulo |
+| `dmpf-kernel/app-relay` | `app` | `relay` — o relay da outbox de `KRN-08` (ADR-038) |
 | `dmpf-kernel/example-reservations-app` | `app` | `example/reservations` |
+
+Desde o `KRN-12` (ADR-041), `Consumer.Consume` põe no contexto do `Handler` o contexto de mensagem do envelope — `correlationid`, o `id` recebido como `causationid` e `traceparent` — por `dmpfports.WithMessageContext`, para que o application service de consumo o copie em cada `OutboxEntry` que autorar (FND-07 §8.6 item 3). O composition root que cabeia este adapter num processo real é `apps/backend/dmpf-reference`.
 
 O módulo não declara dependência externa (`external: []`): só importa módulos irmãos do workspace. O código de produção não importa `google.golang.org/protobuf` — a decodificação de wire fica em `dmpf-contracts/envelope.Unmarshal`, e o adapter recebe os bytes brutos em `Delivery.Raw`.
 

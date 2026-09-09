@@ -12,7 +12,9 @@
 // lives in its own module instead of either of them.
 //
 // What this block does not contain: the concrete ACK, nack or offset commit
-// of a transport, and the dead-letter queue, both KRN-10; the relay, KRN-08;
-// and every operational value — wait ceiling, attempt limit, retention — which
-// the caller declares and FND-08 catalogues.
+// of a transport, and the dead-letter queue, both KRN-10; and every
+// operational value — wait ceiling, attempt limit, retention — which the
+// caller declares and FND-08 catalogues. The relay of the outbox (KRN-08)
+// lives in the relay package of this module, and the composition root that
+// wires both into real processes is apps/backend/dmpf-reference (KRN-12).
 package dmpfapp

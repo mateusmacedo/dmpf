@@ -35,13 +35,16 @@ type fakeHandler struct {
 	calls       int
 	receipt     dmpfports.Receipt
 	env         envelope.Envelope
+	mc          dmpfports.MessageContext
+	mcPresent   bool
 	trace       *[]string
 }
 
-func (h *fakeHandler) handle(_ context.Context, r dmpfports.Receipt, env envelope.Envelope) (dmpfapplication.Disposition, error) {
+func (h *fakeHandler) handle(ctx context.Context, r dmpfports.Receipt, env envelope.Envelope) (dmpfapplication.Disposition, error) {
 	h.calls++
 	h.receipt = r
 	h.env = env
+	h.mc, h.mcPresent = dmpfports.MessageContextFrom(ctx)
 	if h.trace != nil {
 		*h.trace = append(*h.trace, "handle")
 	}
@@ -183,6 +186,26 @@ func TestHandlerReceivesTheReceiptDerivedFromTheEnvelope(t *testing.T) {
 	}
 	if ack.acks != 1 || ack.releases != 0 || len(containment.contained) != 0 {
 		t.Fatalf("R1×D1 must only ack: ack=%d release=%d contained=%d", ack.acks, ack.releases, len(containment.contained))
+	}
+}
+
+// The adapter is where the consumed message becomes the cause of whatever the
+// handler emits (FND-07 §8.6 item 3): the three ENV-08 attributes travel from
+// the envelope to the context before the handler runs.
+func TestHandlerReceivesTheMessageContextOfTheEnvelope(t *testing.T) {
+	t.Parallel()
+	raw, env := validRaw(t)
+	handler := &fakeHandler{disposition: dmpfapplication.R1D1}
+
+	if _, err := newConsumer(handler, &fakeContainment{}, 3).Consume(context.Background(), dmpfapp.Delivery{Raw: raw, Attempt: 1}, &fakeAck{}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !handler.mcPresent {
+		t.Fatal("the handler received no message context (FND-07 §8.6 item 3)")
+	}
+	want := dmpfports.MessageContext{CorrelationID: env.CorrelationID, CausationID: env.ID, Traceparent: env.TraceParent}
+	if handler.mc != want {
+		t.Fatalf("message context = %+v, want %+v — causation is the consumed message, not its own cause", handler.mc, want)
 	}
 }
 
