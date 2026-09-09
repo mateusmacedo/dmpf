@@ -9,7 +9,7 @@ remover arquivos, atualize a tabela correspondente.
 
 | Diretório | Itens | Conteúdo |
 | --- | --- | --- |
-| `rules/` | 12 | Regras de conduta e de qualidade |
+| `rules/` | 13 | Regras de conduta e de qualidade |
 | `skills/` | 26 | Skills de domínio (mais 11 arquivos em `references/`) |
 | `agents/` | 49 | Agentes especializados |
 | `commands/` | 8 | Comandos de workspace (Nx e utilitários) |
@@ -35,6 +35,7 @@ Carregadas como contexto de conduta. Descrevem o que é esperado em cada área.
 | Segurança Git | `rules/git-safety.md` | Hooks, force push seguro, revisão pré-commit e proteção das branches compartilhadas. |
 | Performance | `rules/performance.md` | Banco de dados, cache, filas, N+1 e otimizações comuns. |
 | Processo e qualidade | `rules/process-enforcement.md` | Quando exigir especificação e plano antes de implementar. |
+| Revisão de idioma | `rules/language-review.md` | Revisão PT-BR/EN uma vez, ao final da entrega — não após cada escrita. |
 | Segurança | `rules/security.md` | Autenticação, autorização, sanitização e variáveis sensíveis. |
 | Convenções de teste | `rules/testing-conventions.md` | Estrutura, nomenclatura e cobertura dos testes. |
 
