@@ -1,7 +1,18 @@
 {
   "schema": "dmpf/units-baseline@1",
-  "digest": "sha256:6171d911285669441e5b8ea4741cf504680e45ad043c62aa38a9bfa5c1394aa4",
+  "digest": "sha256:cb3de5c5792c96331443ed16e27d5dc7e869069db87d2c993c71c5fed1d9ab8b",
   "entries": [
+    {
+      "unit": "dmpf-kernel/reference-app",
+      "module": "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/apps/backend/dmpf-reference",
+      "block": "app",
+      "bounded_context": "dmpf-kernel",
+      "membership": [
+        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/apps/backend/dmpf-reference",
+        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/apps/backend/dmpf-reference/api",
+        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/apps/backend/dmpf-reference/cmd/dmpf-reference"
+      ]
+    },
     {
       "unit": "dmpf-kernel/app-consumer",
       "module": "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-app",
