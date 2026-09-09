@@ -31,6 +31,7 @@ type OutboxEntry struct {
 	AggregateID      string
 	AggregateVersion Version
 	Event            dmpfdomain.DomainEvent
+	Context          MessageContext
 }
 
 // Outbox is the single sink of publish intent inside the transaction (UOW-08):
