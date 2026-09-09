@@ -1,0 +1,4 @@
+// Package <%- goPackage %> is the <%- block %> block of the <%- boundedContext %> bounded
+// context: <%- blockRole %>.
+// Its unit and its bounded context are stated in dmpf-units.json (ADR-012).
+package <%- goPackage %>
