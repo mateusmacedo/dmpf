@@ -52,12 +52,35 @@ func TestAddItemCreatesTheAggregateAndAuthorsTheOutboxEntry(t *testing.T) {
 		AggregateID:      string(orderID),
 		AggregateVersion: 1,
 		Event:            orders.ItemAdded{Order: orderID, SKU: "ABC", Quantity: 1, At: orders.Instant(occurred.Unix())},
+		Context:          dmpfports.MessageContext{CausationID: "m-000001"},
 	}
 	if got != want {
 		t.Fatalf("OutboxEntry mismatch\ngot:  %+v\nwant: %+v", got, want)
 	}
 	if got.Event.EventName() != "orders.item-added" {
 		t.Fatalf("EventName() = %q, want %q", got.Event.EventName(), "orders.item-added")
+	}
+}
+
+// The adapter authors correlation and trace at the edge (FND-07 §8.6 item 3);
+// the service copies them and, as the origin of the chain, names itself as the
+// cause (FND-05 ENV-08).
+func TestAddItemCopiesTheMessageContextIntoTheOutboxEntry(t *testing.T) {
+	h := newHarness(t)
+	const traceparent = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01"
+	ctx := dmpfports.WithMessageContext(context.Background(), dmpfports.MessageContext{CorrelationID: "corr-1", Traceparent: traceparent})
+
+	if _, err := h.service.AddItem(ctx, ordersapp.AddItem{Order: orderID, SKU: "ABC", Quantity: 1}); err != nil {
+		t.Fatalf("AddItem() error = %v, want nil", err)
+	}
+
+	entries := h.store.Entries()
+	if len(entries) != 1 {
+		t.Fatalf("Entries() has %d entries, want 1", len(entries))
+	}
+	want := dmpfports.MessageContext{CorrelationID: "corr-1", CausationID: "m-000001", Traceparent: traceparent}
+	if entries[0].Context != want {
+		t.Fatalf("Context = %+v, want %+v", entries[0].Context, want)
 	}
 }
 

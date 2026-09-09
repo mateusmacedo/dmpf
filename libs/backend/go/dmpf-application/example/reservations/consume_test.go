@@ -125,6 +125,47 @@ func TestConsumeFirstReceptionAppliesAndConfirms(t *testing.T) {
 	}
 }
 
+// A consumer continues a chain: the adapter authored the consumed message as
+// the cause (FND-07 §8.6 item 3) and the service copies it as is; only when
+// nobody authored anything does the fact name itself (FND-05 ENV-08).
+func TestConsumeCopiesTheMessageContextIntoTheOutboxEntry(t *testing.T) {
+	const traceparent = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01"
+	tests := []struct {
+		name string
+		ctx  context.Context
+		want dmpfports.MessageContext
+	}{
+		{
+			name: "authored by the adapter",
+			ctx:  dmpfports.WithMessageContext(context.Background(), dmpfports.MessageContext{CorrelationID: "corr-1", CausationID: "m-ext-1", Traceparent: traceparent}),
+			want: dmpfports.MessageContext{CorrelationID: "corr-1", CausationID: "m-ext-1", Traceparent: traceparent},
+		},
+		{
+			name: "nothing authored",
+			ctx:  context.Background(),
+			want: dmpfports.MessageContext{CausationID: "m-000001"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store := memory.New()
+			svc := newService(store)
+
+			if _, err := svc.Consume(tt.ctx, consumeOrderPlaced("m-ext-1", "h1", "P-100", 3)); err != nil {
+				t.Fatalf("Consume() error = %v, want nil", err)
+			}
+
+			entries := store.Entries()
+			if len(entries) != 1 {
+				t.Fatalf("Entries() has %d elements, want 1", len(entries))
+			}
+			if entries[0].Context != tt.want {
+				t.Fatalf("Context = %+v, want %+v", entries[0].Context, tt.want)
+			}
+		})
+	}
+}
+
 func TestConsumeZeroItemsRejects(t *testing.T) {
 	store := memory.New()
 	svc := newService(store)
