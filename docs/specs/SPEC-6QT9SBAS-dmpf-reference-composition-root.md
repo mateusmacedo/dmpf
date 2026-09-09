@@ -2,7 +2,7 @@
 id: SPEC-6QT9SBAS
 slug: dmpf-reference-composition-root
 title: DMPF KRN-12.1 — Composition root de referência dmpf-reference
-stage: backlog
+stage: done
 priority: P2
 depends_on: [SPEC-MQA5HAXF, SPEC-WTAXFV8B, SPEC-XF9TF9A0, SPEC-ZHE7DN1H, SPEC-WYX5GW87, SPEC-3R80KNMS, SPEC-ANZX2WPG, SPEC-CGPX20NP, SPEC-NYD18TGD, SPEC-EAGAXQN1, SPEC-SJ66880S]
 ticket_url: https://lider-cap.atlassian.net/browse/ARQ-545
@@ -56,7 +56,7 @@ arquivo, como os blocos do kernel se cabeiam num processo real — e copiar.
 | "escrita" via `PlaceOrder` | `Service.PlaceOrder` só **carrega** (`place_order.go:32-35`) — ordem ausente é erro técnico; `Order.Place` rejeita ordem sem itens (`domain/orders/place.go:11-13`). `AddItem` faz `loadOrCreate` (`add_item.go:31`) | Rotas: `POST /orders/{id}/items` (cria ou carrega e adiciona), `POST /orders/{id}/place` (coloca) e `GET /orders/{id}` |
 | idempotência de POST | `dmpfhttp.Route` é **outbound** (`route.go:31-33`): `IdempotencyKey` só torna o POST elegível a retry e o `Client` gera o header quando falta (`client.go:149-151`); `Validate` não recusa request de entrada | O handler de entrada exige o header `Idempotency-Key` (400 sem ele) e o propaga ao contexto; `Route` é usado para declarar o contrato (RST-04) e o orçamento. Replay persistido de resposta é escopo fora |
 | `GET /orders/{id}` | `FindOrder` lê por `Service.Reader` fora da UoW (`find_order.go:11-16`, `UOW-11`); `orderspg` só tem `NewRepository(tx *dmpfpostgres.Tx)` (`repository.go:36`) | Esta spec adiciona `orderspg.NewReader(pool *pgxpool.Pool) dmpfports.Reader[...]` ao provider Postgres, com teste; a leitura roda em `pool.Query`, sem transação |
-| targets para subir os papéis | `@nx-go/nx-go` só infere `serve` quando acha `cmd/<projectName>/main.go` (`has-main-package.js:38-41`); o projeto se chama `dmpf-reference-go` | Targets declarados `serve-api`, `serve-relay`, `serve-consumer` (`nx:run-commands`, `go run ./cmd/dmpf-reference --role <papel>`); `serve` inferido não existe e não é redeclarado |
+| targets para subir os papéis | `@nx-go/nx-go` deriva o nome do projeto do último segmento do diretório (`create-nodes-v2.js:34-36`), então `cmd/dmpf-reference/main.go` ativa a inferência de `build` e `serve` mesmo com o projeto chamado `dmpf-reference-go` (confirmado na implementação: o `serve` inferido aparece assim que `cmd/` existe) | Targets declarados `serve-api`, `serve-relay`, `serve-consumer` (`nx:run-commands`, `go run ./cmd/dmpf-reference --role <papel>`); o `build` explícito sobrescreve o inferido (merge do Nx) e o `serve` inferido existe, fica sem uso e não é redeclarado |
 | `type:app` | `nx-release.yml` trata todo `tag:type:app` como candidato Docker | Filtro passa a `tag:type:app,!tag:stack:go`, precedente do `build_projects_filter` de `nx-publish-libs.yml` |
 
 ### Fontes normativas
@@ -110,9 +110,12 @@ arquivo, como os blocos do kernel se cabeiam num processo real — e copiar.
 - [ ] **[P0] Binário e papéis**: `cmd/dmpf-reference/main.go` lê `--role
   api|relay|consumer`; ausente ou desconhecido → exit 2 com mensagem listando os
   três. `config.go` lê `DMPF_PG_DSN`, `DMPF_KAFKA_BROKERS`, `DMPF_HTTP_ADDR`
-  (default `:8080`), `DMPF_SERVICE` (default `dmpf-reference`), `DMPF_CHANNEL`
-  (default `orders.order-placed.v1`); variável obrigatória ausente para o papel
-  → exit 2 nomeando-a. Todo papel chama `otelboot.Start` e faz graceful
+  (default `:8080`), `DMPF_SERVICE` (default `dmpf-reference`) e, para o
+  canal, `DMPF_KAFKA_TOPIC`, `DMPF_KAFKA_GROUP` e `DMPF_KAFKA_DLQ` — o **nome**
+  do canal não é configurável: é `ordersapp.Destination` (`orders.events`),
+  porque o publisher resolve pelo destino que o caso de uso autorou (achado B
+  da revisão do plano; `DMPF_CHANNEL` foi descartada); variável obrigatória
+  ausente para o papel → exit 2 nomeando-a. Todo papel chama `otelboot.Start` e faz graceful
   shutdown por `SIGTERM`/`SIGINT` com prazo de 10 s.
 - [ ] **[P0] Papel `api`**: `wiring.NewOrdersService(pool, clock, ids)` monta
   `ordersapp.Service{UoW: dmpfpostgres.NewUnitOfWork(pool, bindOrders),
@@ -303,11 +306,11 @@ lacuna preexistente do `dmpf-app` e registra a app.
   retry do cliente e `Route` é outbound; replay de resposta é store próprio,
   fora do escopo. Alternativa descartada: reusar `Route.IdempotencyKey` como
   validação de entrada, porque o tipo não tem essa semântica.
-- **Targets `serve-*` declarados** porque `nx-go` só infere `serve` em
-  `cmd/<projectName>/main.go` e o nome do projeto leva sufixo `-go`; renomear
-  o diretório do comando para `cmd/dmpf-reference-go` daria um binário com nome
-  errado. Alternativa descartada: um `cmd/` por papel, porque `BLK-02` pede
-  processo, não binário.
+- **Targets `serve-*` declarados** porque o papel entra por `--role`, e o
+  `serve` que o `nx-go` infere (a partir de `cmd/dmpf-reference/main.go`, pelo
+  nome do diretório) não recebe flag; ele existe, fica sem uso e não é
+  redeclarado, e o `build` explícito sobrescreve o inferido. Alternativa
+  descartada: um `cmd/` por papel, porque `BLK-02` pede processo, não binário.
 - **Um transporte assíncrono (Kafka)** — decisão da guarda-chuva.
 - **`type:app` com exclusão do release Docker** — taxonomia canônica é regra
   dura; imagem é matéria do golden path.

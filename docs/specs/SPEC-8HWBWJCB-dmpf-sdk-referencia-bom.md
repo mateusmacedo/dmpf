@@ -2,7 +2,7 @@
 id: SPEC-8HWBWJCB
 slug: dmpf-sdk-referencia-bom
 title: DMPF KRN-12 — SDK de referência, generator Nx e BOM certificado (guarda-chuva)
-stage: backlog
+stage: planning
 priority: P2
 depends_on: [SPEC-MQA5HAXF, SPEC-WTAXFV8B, SPEC-XF9TF9A0, SPEC-ZHE7DN1H, SPEC-WYX5GW87, SPEC-3R80KNMS, SPEC-ANZX2WPG, SPEC-CGPX20NP, SPEC-NYD18TGD, SPEC-EAGAXQN1, SPEC-SJ66880S]
 ticket_url: https://lider-cap.atlassian.net/browse/ARQ-531
