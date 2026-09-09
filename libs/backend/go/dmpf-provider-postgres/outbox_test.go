@@ -4,6 +4,7 @@ package dmpfpostgres_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 
@@ -350,6 +351,64 @@ func TestEnqueueIsDeterministic(t *testing.T) {
 func withDestination(entry dmpfports.OutboxEntry, destination string) dmpfports.OutboxEntry {
 	entry.Intent.Destination = destination
 	return entry
+}
+
+const testTraceparent = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01"
+
+func withContext(entry dmpfports.OutboxEntry) dmpfports.OutboxEntry {
+	entry.Context = dmpfports.MessageContext{CorrelationID: "corr-1", CausationID: "caus-1", Traceparent: testTraceparent}
+	return entry
+}
+
+func metadataOf(t *testing.T, pool *pgxpool.Pool, id dmpfports.MessageID) map[string]string {
+	t.Helper()
+
+	var raw []byte
+	if err := pool.QueryRow(context.Background(),
+		"SELECT metadata FROM dmpf_outbox WHERE message_id = $1", string(id)).Scan(&raw); err != nil {
+		t.Fatalf("SELECT metadata = %v, want nil", err)
+	}
+	metadata := map[string]string{}
+	if err := json.Unmarshal(raw, &metadata); err != nil {
+		t.Fatalf("metadata %s is not a flat JSON object of strings: %v", raw, err)
+	}
+	return metadata
+}
+
+// The three ENV-08 attributes land in metadata exactly as the adapter authored
+// them (FND-07 §8.6 item 3): the writer copies, it never invents (OBX-02).
+func TestEnqueueWritesTheMessageContextAsMetadata(t *testing.T) {
+	pool := openPool(t)
+
+	if err := enqueueOne(t, pool, testMapper{}, withContext(outboxEntry("m-000001", placedEvent(3)))); err != nil {
+		t.Fatalf("Within() = %v, want nil", err)
+	}
+
+	got := metadataOf(t, pool, "m-000001")
+	want := map[string]string{"correlationid": "corr-1", "causationid": "caus-1", "traceparent": testTraceparent}
+	if len(got) != len(want) {
+		t.Fatalf("metadata = %v, want exactly %v", got, want)
+	}
+	for key, value := range want {
+		if got[key] != value {
+			t.Errorf("metadata[%q] = %q, want %q", key, got[key], value)
+		}
+	}
+}
+
+func TestEnqueueWritesOnlyTheAuthoredAttributes(t *testing.T) {
+	pool := openPool(t)
+	entry := outboxEntry("m-000001", placedEvent(3))
+	entry.Context = dmpfports.MessageContext{CorrelationID: "corr-1"}
+
+	if err := enqueueOne(t, pool, testMapper{}, entry); err != nil {
+		t.Fatalf("Within() = %v, want nil", err)
+	}
+
+	got := metadataOf(t, pool, "m-000001")
+	if len(got) != 1 || got["correlationid"] != "corr-1" {
+		t.Fatalf("metadata = %v, want only {correlationid: corr-1} — an absent attribute is absent, not empty", got)
+	}
 }
 
 func payloadOf(t *testing.T, pool *pgxpool.Pool, id dmpfports.MessageID) []byte {
