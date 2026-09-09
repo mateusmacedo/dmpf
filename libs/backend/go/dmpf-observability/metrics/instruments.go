@@ -26,6 +26,12 @@ type Instruments struct {
 	AdmissionRejections metric.Int64Counter
 }
 
+// durationBoundaries are the histogram buckets of RequestDurationSeconds, in
+// seconds. The SDK default (5, 10, 25 … 10000) was drawn for milliseconds: with
+// it every request of a healthy service lands in the first bucket and
+// histogram_quantile answers seconds for a millisecond call.
+var durationBoundaries = []float64{0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10}
+
 // New builds every series of Catalog on the meter. It fails as a whole: a
 // partially built set would leave a decorator recording into a nil instrument.
 func New(meter metric.Meter) (*Instruments, error) {
@@ -76,7 +82,8 @@ func New(meter metric.Meter) (*Instruments, error) {
 	duration := byName[RequestDurationSeconds]
 	histogram, err := meter.Float64Histogram(RequestDurationSeconds,
 		metric.WithUnit(duration.Unit),
-		metric.WithDescription(duration.Formula))
+		metric.WithDescription(duration.Formula),
+		metric.WithExplicitBucketBoundaries(durationBoundaries...))
 	if err != nil && failure == nil {
 		failure = fmt.Errorf("metrics: %s: %w", RequestDurationSeconds, err)
 	}
