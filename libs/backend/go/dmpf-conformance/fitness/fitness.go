@@ -20,6 +20,9 @@ import (
 )
 
 type (
+	// Input.SharedKernelUnits is the caller's own designation, used only when
+	// Input.Baseline is nil (FIT-03): the fitness function never reads a
+	// baseline itself.
 	Input       = conformance.Input
 	Diagnostic  = rule.Diagnostic
 	Code        = rule.Code
@@ -41,6 +44,7 @@ const (
 	CodeM001 = rule.CodeM001
 	CodeM002 = rule.CodeM002
 	CodeM003 = rule.CodeM003
+	CodeM004 = rule.CodeM004
 	CodeT001 = rule.CodeT001
 	CodeT002 = rule.CodeT002
 	CodeD001 = rule.CodeD001

@@ -148,13 +148,13 @@ func TestDefaultDeSurfaceEFalse(t *testing.T) {
 // deixaria renomear DMPF-U001 para DMPF-U999 passar verde.
 var codigosNormativos = []string{
 	"DMPF-U001", "DMPF-U002", "DMPF-U003", "DMPF-U004",
-	"DMPF-M001", "DMPF-M002", "DMPF-M003",
+	"DMPF-M001", "DMPF-M002", "DMPF-M003", "DMPF-M004",
 	"DMPF-T001", "DMPF-T002",
 	"DMPF-D001", "DMPF-D002",
 	"DMPF-E001", "DMPF-E002", "DMPF-E003", "DMPF-E004",
 }
 
-func TestConjuntoFechadoDeQuinzeCodigos(t *testing.T) {
+func TestConjuntoFechadoDeDezesseisCodigos(t *testing.T) {
 	specs := rule.CodeSpecs()
 
 	got := make([]string, 0, len(specs))
@@ -177,7 +177,7 @@ func TestConjuntoFechadoDeQuinzeCodigos(t *testing.T) {
 	}
 }
 
-func TestLookupCodeCobreOsQuinze(t *testing.T) {
+func TestLookupCodeCobreOsDezesseis(t *testing.T) {
 	for _, c := range codigosNormativos {
 		if _, ok := rule.LookupCode(rule.Code(c)); !ok {
 			t.Errorf("literal normativo %s ausente da tabela de §10.3", c)
@@ -274,5 +274,37 @@ func TestUniverseNaoAliasaEntradaDoChamador(t *testing.T) {
 	unit.Include[0] = "mutado pelo consumidor"
 	if again, _ := universe.Lookup(pkgDom); again.Include[0] != pkgDom {
 		t.Errorf("Lookup devolve alias mutável: %q", again.Include[0])
+	}
+}
+
+// A designação vive na Unit, e só alcança C2 se o Universe a repassar: sem
+// esta cópia a exceção existiria no baseline e nunca decidiria aresta alguma.
+func TestSharedKernelChegaAoEndpoint(t *testing.T) {
+	designada := unidade("a/domain", rule.BlockDomain, "a", pkgDom)
+	designada.SharedKernel = true
+	privada := unidade("a/port", rule.BlockPort, "a", pkgPort)
+
+	universe, ds := rule.BuildUniverse(
+		[]rule.Unit{designada, privada},
+		[]rule.Package{{CanonicalKey: pkgDom, Module: modA}, {CanonicalKey: pkgPort, Module: modA}},
+		moduloOK(),
+	)
+	exigeLimpo(t, ds)
+
+	casos := []struct {
+		pkg  string
+		quer bool
+	}{
+		{pkgDom, true},
+		{pkgPort, false},
+	}
+	for _, c := range casos {
+		got, ok := universe.Endpoint(c.pkg)
+		if !ok {
+			t.Fatalf("%s ausente do universo", c.pkg)
+		}
+		if got.SharedKernel != c.quer {
+			t.Errorf("Endpoint(%s).SharedKernel=%v, esperado %v", c.pkg, got.SharedKernel, c.quer)
+		}
 	}
 }

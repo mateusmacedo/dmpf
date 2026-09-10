@@ -6,15 +6,17 @@ description: >
   correção ou regressão. Cobre: isolamento de escopo, correção mínima, teste de regressão e
   validação pós-fix. Para debugging/investigação inicial, ver o agente `debug`; para refatoração,
   ver `skill-clean-code`; para testes em geral, ver `skill-unit-integration-testing`.
-model: sonnet
+model: opus
 ---
 
 # Bug Fix
 
 ## Objetivo
+
 Oferecer um processo sistemático para correção de bugs: isolamento de escopo, correção mínima, teste de regressão e validação.
 
 ## Quando usar
+
 - Ao investigar e isolar um bug reproduzível.
 - Ao aplicar correção mínima com teste de regressão.
 - Ao validar que o fix não quebrou fluxos.
@@ -87,6 +89,7 @@ Mesmo com testes automatizados:
 ## Checklist de qualidade
 
 ### Antes do commit
+
 - [ ] Teste de regressão escrito e passando.
 - [ ] Toda a suíte de testes passa.
 - [ ] Typecheck passa.
@@ -114,6 +117,7 @@ Solução: aguardar refresh antes de redirecionar
 ## Categorias comuns
 
 ### Bugs de lógica
+
 - Condicionais incorretas.
 - Edge cases não tratados.
 - Ordem de operações errada.
@@ -121,6 +125,7 @@ Solução: aguardar refresh antes de redirecionar
 Recomendação: adicionar teste para cada edge case descoberto.
 
 ### Bugs de estado
+
 - Race conditions.
 - Estado stale.
 - Sincronização incorreta.
@@ -128,6 +133,7 @@ Recomendação: adicionar teste para cada edge case descoberto.
 Recomendação: logs estruturados ajudam a observar transições de estado.
 
 ### Bugs de infraestrutura
+
 - Conexão com banco (pool, timeout, deadlock).
 - Timeout em serviços externos.
 - Falhas de fila.
@@ -136,6 +142,7 @@ Recomendação: logs estruturados ajudam a observar transições de estado.
 Recomendação: verificar logs de conexão, health checks e métricas.
 
 ### Bugs de integração
+
 - APIs retornando formato inesperado.
 - Timeout ou erro de rede.
 - Dados inconsistentes.

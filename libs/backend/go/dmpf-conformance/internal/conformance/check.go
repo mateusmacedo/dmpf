@@ -25,6 +25,10 @@ type Input struct {
 	// sobre a classificação e dizer "conforme" mentiria por omissão.
 	Baseline port.BaselineStore
 
+	// Só vale quando Baseline é nil: havendo store, ele é a única fonte
+	// autoritativa sobre shared kernel, e esta lista é ignorada.
+	SharedKernelUnits []string
+
 	// Base delimita o intervalo em revisão, para julgar se a mudança de
 	// classificação veio isolada do código.
 	Base string
@@ -83,6 +87,29 @@ func Check(in Input) (Report, error) {
 	if len(diags) > 0 {
 		rule.SortDiagnostics(diags)
 		return Report{Diagnostics: diags, PhaseHalted: "validação de manifesto"}, nil
+	}
+
+	// Shared kernel é decidido ANTES do universo: decidir aresta sobre
+	// designação que não vale produz D002 em massa e esconde a causa real.
+	var baselineDoc baseline.Document
+	var baselineExiste bool
+	if in.Baseline != nil {
+		var err error
+		baselineDoc, baselineExiste, err = in.Baseline.Baseline()
+		if err != nil {
+			return Report{
+				NaoVerificado: []string{"baseline ilegível (" + baseline.Path + "): " + err.Error()},
+				PhaseHalted:   "designação de shared kernel",
+			}, nil
+		}
+	}
+	if in.Baseline == nil {
+		baselineDoc = documentoSinteticoDeUnits(units, in.SharedKernelUnits)
+	}
+	units, m004 := baseline.Designar(baselineDoc, units)
+	if len(m004) > 0 {
+		rule.SortDiagnostics(m004)
+		return Report{Diagnostics: m004, PhaseHalted: "designação de shared kernel"}, nil
 	}
 
 	pkgs, err := in.Graph.Packages()
@@ -152,27 +179,23 @@ func Check(in Input) (Report, error) {
 	}
 
 	relatorio := Report{Diagnostics: diags}
-	conferirBaseline(in, units, universo, &relatorio)
+	conferirBaseline(in, units, universo, baselineDoc, baselineExiste, &relatorio)
 
 	rule.SortDiagnostics(relatorio.Diagnostics)
 	return relatorio, nil
 }
 
-func conferirBaseline(in Input, units []rule.Unit, universo *rule.Universe, rel *Report) {
+// versionado e existeBaseline vêm da leitura única feita em Check: reler aqui
+// duplicaria o acesso ao store para o mesmo baseline dentro da mesma chamada.
+func conferirBaseline(in Input, units []rule.Unit, universo *rule.Universe, versionado baseline.Document, existeBaseline bool, rel *Report) {
 	if in.Baseline == nil {
 		rel.NaoVerificado = append(rel.NaoVerificado,
 			"autoridade sobre a classificação (RFC §10.2, T1-T6): nenhum BaselineStore fornecido")
 		return
 	}
 
-	versionado, existe, err := in.Baseline.Baseline()
-	if err != nil {
-		rel.NaoVerificado = append(rel.NaoVerificado,
-			"baseline ilegível ("+baseline.Path+"): "+err.Error())
-		return
-	}
 	derivado := baseline.FromUniverse(units, universo.Membership())
-	if !existe {
+	if !existeBaseline {
 		rel.NaoVerificado = append(rel.NaoVerificado,
 			"baseline ausente em "+baseline.Path+": a divergência de T3 não pode ser avaliada")
 		return
@@ -232,6 +255,20 @@ func UnidadesDoDocumento(doc manifest.Document) []rule.Unit {
 		})
 	}
 	return out
+}
+
+// Mesma trilha do baseline real: só assim M004 (chave inexistente/ambígua)
+// vale igual nos dois caminhos, sem duas engines de designação divergindo.
+func documentoSinteticoDeUnits(units []rule.Unit, chaves []string) baseline.Document {
+	entries := make([]baseline.Entry, 0, len(units))
+	for _, u := range units {
+		entries = append(entries, baseline.Entry{Unit: u.ID, Module: u.Module})
+	}
+	return baseline.Document{
+		Entries:              entries,
+		SharedKernelUnits:    chaves,
+		HasSharedKernelUnits: true,
+	}
 }
 
 func politicaDoDocumento(doc manifest.Document) rule.ExternalPolicy {

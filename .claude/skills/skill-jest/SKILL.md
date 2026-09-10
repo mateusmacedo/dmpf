@@ -9,15 +9,17 @@ description: >
   controllers e repositórios (pg-mem), mock patterns (jest-mock-extended, manual mocks,
   module mocking) e async testing.
   Para testes E2E de API, ver uso direto de supertest.
-model: sonnet
+model: opus
 ---
 
 # Jest (backend)
 
 ## Objetivo
+
 Testes com Jest no backend: setup, APIs, testes de use cases/controllers/repositórios e padrões de mock.
 
 ## Quando usar
+
 - Ao configurar Jest em um projeto backend.
 - Ao testar use cases, controllers ou repositórios.
 - Ao criar mocks para dependências (repos, serviços externos, filas).
@@ -459,7 +461,7 @@ it('should rollback on error', async () => {
 ## Nomenclatura sugerida
 
 | Tipo de teste | describe | Exemplo de it |
-|--------------|----------|---------------|
+| -------------- | ---------- | --------------- |
 | Use case | `[use-case] CreateUser` | `should create user with valid data` |
 | Controller | `[controller] UserController` | `should return 201 on success` |
 | Repositório | `[repo] TypeOrmUserRepo` | `should find user by email` |

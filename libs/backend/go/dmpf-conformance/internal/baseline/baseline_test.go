@@ -16,6 +16,13 @@ func doc(entries ...baseline.Entry) baseline.Document {
 	return baseline.Document{Schema: baseline.SchemaID, Digest: baseline.Digest(entries), Entries: entries}
 }
 
+func comSharedKernelUnits(d baseline.Document, chaves ...string) baseline.Document {
+	d.SharedKernelUnits = chaves
+	d.HasSharedKernelUnits = true
+	d.Digest = baseline.DigestOf(d)
+	return d
+}
+
 func codigos(ds []rule.Diagnostic) []rule.Code {
 	out := make([]rule.Code, 0, len(ds))
 	for _, d := range ds {
@@ -94,6 +101,26 @@ func TestVetorT001(t *testing.T) {
 		outro.Schema = "dmpf/units-baseline@2"
 		exigeT001(t, baseline.Compare(outro, doc(entrada("u", "domain", "bc", "m/a", "m/b"))), 1)
 	})
+
+	t.Run("negativo: shared_kernel_units declarado e digest não recalculado", func(t *testing.T) {
+		comSharedKernel := versionado
+		comSharedKernel.SharedKernelUnits = []string{"u"}
+		comSharedKernel.HasSharedKernelUnits = true
+		// Digest continua o legado: não fecha com DigestOf porque a lista entrou no cálculo.
+		exigeT001(t, baseline.Compare(comSharedKernel, doc(entrada("u", "domain", "bc", "m/a", "m/b"))), 1)
+	})
+
+	t.Run("positivo: shared_kernel_units declarado e digest recalculado com DigestOf", func(t *testing.T) {
+		comSharedKernel := versionado
+		comSharedKernel.SharedKernelUnits = []string{"u"}
+		comSharedKernel.HasSharedKernelUnits = true
+		comSharedKernel.Digest = baseline.DigestOf(comSharedKernel)
+		exigeT001(t, baseline.Compare(comSharedKernel, doc(entrada("u", "domain", "bc", "m/a", "m/b"))), 0)
+	})
+
+	t.Run("positivo: baseline sem a chave segue verificando pelo legado", func(t *testing.T) {
+		exigeT001(t, baseline.Compare(versionado, doc(entrada("u", "domain", "bc", "m/a", "m/b"))), 0)
+	})
 }
 
 // Se o digest não reagir a alguma dimensão, alterá-la e manter o digest
@@ -135,6 +162,8 @@ func TestDetectarAtosRegulados(t *testing.T) {
 		{"remapear membership", doc(entrada("u", "domain", "bc", "m/b")), []baseline.Ato{baseline.AtoRemapearMembership}},
 		{"criar unidade", doc(entrada("u", "domain", "bc", "m/a"), entrada("n", "app", "bc", "m/b")), []baseline.Ato{baseline.AtoCriarUnidade}},
 		{"remover unidade", doc(), []baseline.Ato{baseline.AtoRemoverUnidade}},
+		{"designar shared kernel", comSharedKernelUnits(doc(entrada("u", "domain", "bc", "m/a")), "u"),
+			[]baseline.Ato{baseline.AtoDesignarSharedKernel}},
 	}
 	for _, c := range casos {
 		t.Run(c.nome, func(t *testing.T) {
@@ -222,6 +251,92 @@ func TestFromUniverseOrdenaEFechaODigest(t *testing.T) {
 	}
 }
 
+func TestDesignarChaveResolvidaMarcaAUnidade(t *testing.T) {
+	d := doc(entrada("shared", "domain", "bc", "m/a"))
+	d.SharedKernelUnits = []string{"shared"}
+	d.HasSharedKernelUnits = true
+
+	units := []rule.Unit{{ID: "shared", Module: "m", Block: rule.BlockDomain, BoundedContext: "bc"}}
+	out, diags := baseline.Designar(d, units)
+
+	exigeT001(t, diags, 0)
+	if !out[0].SharedKernel {
+		t.Fatal("unidade resolvida não foi marcada como shared kernel")
+	}
+	if units[0].SharedKernel {
+		t.Error("Designar mutou a entrada do chamador")
+	}
+}
+
+func TestDesignarChaveInexistenteNoBaselineEmiteM004(t *testing.T) {
+	d := doc(entrada("u", "domain", "bc", "m/a"))
+	d.SharedKernelUnits = []string{"fantasma"}
+	d.HasSharedKernelUnits = true
+
+	units := []rule.Unit{{ID: "u", Module: "m", Block: rule.BlockDomain, BoundedContext: "bc"}}
+	_, diags := baseline.Designar(d, units)
+
+	if len(diags) != 1 || diags[0].Code != rule.CodeM004 {
+		t.Fatalf("esperado exatamente 1 DMPF-M004, got %v", diags)
+	}
+}
+
+func TestDesignarChaveAmbiguaEmDoisModulosEmiteM004(t *testing.T) {
+	d := baseline.Document{
+		Schema: baseline.SchemaID,
+		Entries: []baseline.Entry{
+			{Unit: "shared", Module: "m1", Block: "domain", BoundedContext: "bc1"},
+			{Unit: "shared", Module: "m2", Block: "domain", BoundedContext: "bc2"},
+		},
+		SharedKernelUnits:    []string{"shared"},
+		HasSharedKernelUnits: true,
+	}
+	units := []rule.Unit{
+		{ID: "shared", Module: "m1", Block: rule.BlockDomain, BoundedContext: "bc1"},
+		{ID: "shared", Module: "m2", Block: rule.BlockDomain, BoundedContext: "bc2"},
+	}
+	_, diags := baseline.Designar(d, units)
+
+	if len(diags) != 1 || diags[0].Code != rule.CodeM004 {
+		t.Fatalf("esperado exatamente 1 DMPF-M004 (ambígua), got %v", diags)
+	}
+	if units[0].SharedKernel || units[1].SharedKernel {
+		t.Error("chave ambígua não pode marcar nenhuma unidade")
+	}
+}
+
+// Sem M004 aqui a designação falharia em silêncio: a chave resolve para uma
+// entry do baseline que já não existe em `units`, e a aresta seria decidida
+// sobre um shared kernel fora do universo.
+func TestDesignarChaveResolvidaEAusenteDoUniversoEmiteM004(t *testing.T) {
+	d := doc(entrada("orfa", "domain", "bc", "m/a"))
+	d.SharedKernelUnits = []string{"orfa"}
+	d.HasSharedKernelUnits = true
+
+	units := []rule.Unit{{ID: "outra", Module: "m", Block: rule.BlockDomain, BoundedContext: "bc"}}
+	out, diags := baseline.Designar(d, units)
+
+	if len(diags) != 1 || diags[0].Code != rule.CodeM004 {
+		t.Fatalf("esperado exatamente 1 DMPF-M004 (ausente do universo), got %v", diags)
+	}
+	if out[0].SharedKernel {
+		t.Error("unidade sem relação com a chave não pode ser marcada")
+	}
+}
+
+func TestDesignarOrdemDeSaidaEstavel(t *testing.T) {
+	d := doc(entrada("u", "domain", "bc", "m/a"))
+	d.SharedKernelUnits = []string{"z-fantasma", "a-fantasma"}
+	d.HasSharedKernelUnits = true
+
+	units := []rule.Unit{{ID: "u", Module: "m", Block: rule.BlockDomain, BoundedContext: "bc"}}
+	_, diags := baseline.Designar(d, units)
+
+	if len(diags) != 2 || diags[0].CanonicalKey != "a-fantasma" || diags[1].CanonicalKey != "z-fantasma" {
+		t.Fatalf("ordem de saída não é estável por chave: %v", diags)
+	}
+}
+
 // TestManifestoDeFixtureNaoEAtoDeClassificacao: o manifesto de um módulo
 // sintético descreve dado de teste, e o módulo que ele classifica nem entra no
 // universo.
@@ -257,4 +372,118 @@ func TestManifestoDeFixtureNaoEAtoDeClassificacao(t *testing.T) {
 			t.Fatalf("manifesto real misturado com código não cobrou aval: %v", ds)
 		}
 	})
+}
+
+func TestT002ParaDesignarSharedKernel(t *testing.T) {
+	antes := comSharedKernelUnits(doc(entrada("u", "domain", "bc", "m/a")))
+	novo := comSharedKernelUnits(doc(entrada("u", "domain", "bc", "m/a")), "u")
+	mudancas := baseline.Detectar(antes, novo)
+
+	t.Run("shared kernel e código no mesmo commit exige aval", func(t *testing.T) {
+		commits := []baseline.Commit{{SHA: "aaa", Arquivos: []string{baseline.Path, "m/p/p.go"}}}
+		ds := baseline.VerificarAutorizacao(mudancas, commits)
+		if len(ds) != 1 || ds[0].Code != rule.CodeT002 {
+			t.Fatalf("esperado exatamente DMPF-T002, got %v", ds)
+		}
+	})
+
+	t.Run("shared kernel em commit próprio não exige nada", func(t *testing.T) {
+		commits := []baseline.Commit{
+			{SHA: "aaa", Arquivos: []string{baseline.Path}},
+			{SHA: "bbb", Arquivos: []string{"m/p/p.go"}},
+		}
+		if ds := baseline.VerificarAutorizacao(mudancas, commits); len(ds) != 0 {
+			t.Fatalf("commit próprio reprovou: %v", ds)
+		}
+	})
+}
+
+func TestDetectarDesignarSharedKernelResolveUnidade(t *testing.T) {
+	semDesignacao := comSharedKernelUnits(doc(entrada("u", "domain", "bc", "m/a")))
+	comDesignacao := comSharedKernelUnits(doc(entrada("u", "domain", "bc", "m/a")), "u")
+
+	t.Run("adição resolve pela entry do novo", func(t *testing.T) {
+		got := baseline.Detectar(semDesignacao, comDesignacao)
+		if len(got) != 1 || got[0].Ato != baseline.AtoDesignarSharedKernel {
+			t.Fatalf("esperado 1 ato de designação, got %v", got)
+		}
+		if got[0].Unidade != (rule.UnitKey{Module: "m", ID: "u"}) || got[0].Anterior != "ausente" || got[0].Novo != "designada" {
+			t.Errorf("mudança incorreta: %+v", got[0])
+		}
+	})
+
+	t.Run("remoção resolve pela entry do anterior", func(t *testing.T) {
+		got := baseline.Detectar(comDesignacao, semDesignacao)
+		if len(got) != 1 || got[0].Ato != baseline.AtoDesignarSharedKernel {
+			t.Fatalf("esperado 1 ato de designação, got %v", got)
+		}
+		if got[0].Unidade != (rule.UnitKey{Module: "m", ID: "u"}) || got[0].Anterior != "designada" || got[0].Novo != "ausente" {
+			t.Errorf("mudança incorreta: %+v", got[0])
+		}
+	})
+
+	t.Run("chave sem entry correspondente cai para UnitKey só com ID", func(t *testing.T) {
+		comFantasma := comSharedKernelUnits(doc(entrada("u", "domain", "bc", "m/a")), "u", "fantasma")
+		got := baseline.Detectar(comDesignacao, comFantasma)
+		if len(got) != 1 {
+			t.Fatalf("esperado 1 ato de designação, got %v", got)
+		}
+		if got[0].Unidade != (rule.UnitKey{ID: "fantasma"}) {
+			t.Errorf("chave não resolvida deveria cair para UnitKey{ID: chave}: %+v", got[0])
+		}
+	})
+}
+
+func TestRegravarPreservaSharedKernelUnits(t *testing.T) {
+	atual := comSharedKernelUnits(doc(entrada("u", "domain", "bc", "m/a")), "u")
+	units := []rule.Unit{{ID: "u", Module: "m", Block: rule.BlockDomain, BoundedContext: "bc"}}
+	membership := map[rule.UnitKey][]string{{Module: "m", ID: "u"}: {"m/a"}}
+
+	regravado := baseline.Regravar(atual, true, units, membership)
+
+	if !regravado.HasSharedKernelUnits {
+		t.Fatal("Has virou false ao regravar")
+	}
+	if !slices.Equal(regravado.SharedKernelUnits, []string{"u"}) {
+		t.Errorf("lista de shared kernel apagada: %v", regravado.SharedKernelUnits)
+	}
+	if regravado.Digest != baseline.DigestOf(regravado) {
+		t.Error("digest não fecha após regravar")
+	}
+}
+
+func TestRegravarSemAtualDeclaraListaVazia(t *testing.T) {
+	units := []rule.Unit{{ID: "u", Module: "m", Block: rule.BlockDomain, BoundedContext: "bc"}}
+	membership := map[rule.UnitKey][]string{{Module: "m", ID: "u"}: {"m/a"}}
+
+	regravado := baseline.Regravar(baseline.Document{}, false, units, membership)
+
+	if !regravado.HasSharedKernelUnits {
+		t.Fatal("Has deveria ser true mesmo sem atual")
+	}
+	if len(regravado.SharedKernelUnits) != 0 {
+		t.Errorf("lista deveria ser vazia, got %v", regravado.SharedKernelUnits)
+	}
+}
+
+func TestRegravarIgnoraAtualQuandoNaoExistia(t *testing.T) {
+	atual := comSharedKernelUnits(doc(entrada("u", "domain", "bc", "m/a")), "u")
+	units := []rule.Unit{{ID: "u", Module: "m", Block: rule.BlockDomain, BoundedContext: "bc"}}
+	membership := map[rule.UnitKey][]string{{Module: "m", ID: "u"}: {"m/a"}}
+
+	regravado := baseline.Regravar(atual, false, units, membership)
+
+	if len(regravado.SharedKernelUnits) != 0 {
+		t.Errorf("existia=false deveria ignorar a lista do atual: %v", regravado.SharedKernelUnits)
+	}
+}
+
+func TestDescreverCobreDesignarSharedKernel(t *testing.T) {
+	mudancas := []baseline.MudancaNormativa{{
+		Ato: baseline.AtoDesignarSharedKernel, Unidade: rule.UnitKey{Module: "m", ID: "u"},
+		Anterior: "ausente", Novo: "designada",
+	}}
+	if got, want := baseline.Descrever(mudancas), "designar shared kernel em m#u (ausente -> designada)"; got != want {
+		t.Errorf("Descrever = %q, want %q", got, want)
+	}
 }

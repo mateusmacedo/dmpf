@@ -5,15 +5,17 @@ description: |
   "value object", "agregado", "bounded context", "linguagem ubíqua" ou mencionar
   Domain-Driven Design, modelagem de domínio ou regras de negócio complexas.
   Cobre entidades, value objects, agregados, repositórios, domain services, use cases e bounded contexts.
-model: sonnet
+model: opus
 ---
 
 # Domain-Driven Design (DDD)
 
 ## Objetivo
+
 Fornecer vocabulário e padrões de DDD: entidades, value objects, agregados, repositórios, domain services, use cases e bounded contexts. DDD é uma abordagem útil em domínios com regras complexas; nem todo projeto precisa aplicar todos os building blocks.
 
 ## Quando usar
+
 - Ao modelar domínios com regras complexas.
 - Ao definir entidades, VOs, agregados e repositórios.
 - Ao separar bounded contexts e linguagem ubíqua.
@@ -264,7 +266,7 @@ class TransferCreditsUseCase {
 ## Mapeamento para estrutura backend
 
 | Conceito DDD | Camada | Diretório típico |
-|--------------|--------|------------------|
+| -------------- | -------- | ------------------ |
 | Entity | Domain | `domain/entities/` |
 | Value Object | Domain | `domain/value-objects/` |
 | Domain Error | Domain | `domain/errors/` |
@@ -398,6 +400,7 @@ func (p *Permission) Equals(other *Permission) bool {
 ```
 
 Convenções:
+
 - Campos privados (lowercase) + getters quando necessário — encapsula invariantes.
 - Construtor `New` (ou `NewX`) retorna `(*T, error)`.
 - Pointer receiver para métodos que mutam; value receiver para os que apenas leem (mantenha consistência por tipo).
@@ -442,6 +445,7 @@ func (m Money) Equals(other Money) bool {
 ```
 
 Convenções:
+
 - Value receivers (sem `*`) — VO é copiado, não compartilhado.
 - Sem mutadores; operações retornam novo valor.
 - Construtor garante invariantes; campos privados impedem construção inválida fora do pacote.
@@ -573,6 +577,7 @@ func (r *UserRepository) FindByID(ctx context.Context, id string) (*user.User, e
 ```
 
 Pontos:
+
 - A interface vive onde é consumida (domínio), não onde é implementada (infra) — implementação é implícita em Go.
 - A struct concreta (`*UserRepository`) é o que infra exporta.
 - Mappers (`toDomain`/`toRow`) ficam no pacote de infra.
@@ -652,7 +657,7 @@ func (uc *UseCase) Execute(ctx context.Context, in Input) error {
 ### Mapeamento para estrutura backend (Go)
 
 | Conceito DDD | Pacote típico |
-|--------------|---------------|
+| -------------- | --------------- |
 | Entity | `internal/<contexto>/<entidade>.go` |
 | Value Object | `internal/<contexto>/<vo>.go` ou subpacote |
 | Domain Error | `internal/<contexto>/errors.go` (sentinelas) |

@@ -6,15 +6,17 @@ description: |
   ou mencionar arquitetura, dependências entre camadas, limites de módulos e trade-offs.
   Cobre estrutura de pastas, separação de responsabilidades, dependências e modularização.
   Para evolução de arquitetura existente, ver `skill-evolutionary-architecture`.
-model: sonnet
+model: opus
 ---
 
 # Architecture Patterns (Backend)
 
 ## Objetivo
+
 Consolidar padrões de arquitetura backend: estrutura de pastas, separação de responsabilidades, dependências entre camadas e trade-offs frequentes.
 
 ## Quando usar
+
 - Ao definir estrutura de pastas, camadas e módulos de um serviço backend.
 - Ao refatorar dependências e limites entre contextos.
 - Ao avaliar trade-offs (DI, modularização, padrões de dados).
@@ -63,7 +65,7 @@ Variações por framework são comuns. Em Express, `main/` costuma ter factories
 ## Regras de dependência
 
 | Camada | Pode importar de | Evita importar de |
-|--------|-------------------|-------------------|
+| -------- | ------------------- | ------------------- |
 | `domain/` | tipos próprios | `application/`, `infra/`, `main/`, libs externas |
 | `application/` | `domain/` | `infra/`, `main/` |
 | `infra/` | `domain/`, `application/` | `main/` |
@@ -130,7 +132,7 @@ src/modules/user/
 ### Colocalização vs. compartilhamento
 
 | Código | Onde colocar |
-|--------|-------------|
+| -------- | ------------- |
 | Usado em apenas um módulo | Dentro do módulo |
 | Usado por dois ou mais módulos | `shared/` |
 | Contrato de domínio | `domain/` do módulo dono |
@@ -172,7 +174,7 @@ Controllers cuidam de HTTP; casos de uso cuidam de regras de negócio.
 ### Monolito modular vs. microserviços
 
 | Aspecto | Monolito modular | Microserviços |
-|---------|-----------------|---------------|
+| --------- | ----------------- | --------------- |
 | Complexidade operacional | Baixa | Alta (deploy, rede, observabilidade) |
 | Comunicação | Chamadas in-process | HTTP/gRPC/filas |
 | Consistência | Transações ACID fáceis | Consistência eventual |
@@ -181,7 +183,7 @@ Controllers cuidam de HTTP; casos de uso cuidam de regras de negócio.
 ### DI manual vs. container IoC
 
 | Aspecto | Manual | Container |
-|---------|--------|-----------|
+| --------- | -------- | ----------- |
 | Rastreabilidade | Explícita | Indireta via decorators |
 | Boilerplate | Maior | Menor |
 | Testabilidade | Boa em ambos | Boa em ambos |
@@ -189,7 +191,7 @@ Controllers cuidam de HTTP; casos de uso cuidam de regras de negócio.
 ### Controller "gordo" vs. controller fino + caso de uso
 
 | Aspecto | Controller gordo | Controller fino + caso de uso |
-|---------|-----------------|-------------------------------|
+| --------- | ----------------- | ------------------------------- |
 | Simplicidade | Tudo em um lugar | Separação clara |
 | Testabilidade | Requer HTTP para testar | Caso de uso testável isolado |
 | Reúso | Lógica presa ao HTTP | Reutilizável em filas, CLI, etc. |
@@ -197,7 +199,7 @@ Controllers cuidam de HTTP; casos de uso cuidam de regras de negócio.
 ### ORM: Active Record vs. Data Mapper
 
 | Aspecto | Active Record | Data Mapper |
-|---------|--------------|-------------|
+| --------- | -------------- | ------------- |
 | Acoplamento | Entidade conhece o banco | Entidade pura; repositório à parte |
 | Testabilidade | Mais difícil mockar | Mais fácil mockar repositório |
 | Clean Architecture | Tende a violar | Compatível |
@@ -312,7 +314,7 @@ projeto/
 A regra é a mesma: domain core sem dependência externa. **Diferencial Go**: imports cíclicos são *erro de compilação*, não warning. Estrutura arquitetural ruim quebra build cedo.
 
 | Pacote | Pode importar | Não importa |
-|--------|---------------|-------------|
+| -------- | --------------- | ------------- |
 | `internal/<ctx>/domain.go` (entities/contracts) | stdlib, libs puras (uuid, time) | qualquer outro pacote interno |
 | `internal/<ctx>/usecase.go` | `domain` do mesmo contexto | `infra`, `cmd` |
 | `internal/<ctx>/*` (infra) | `domain`, `usecase` (interfaces) | `cmd` |
@@ -380,7 +382,7 @@ internal/user/      # bounded context user
 #### Compartilhamento
 
 | Código | Onde colocar |
-|--------|-------------|
+| -------- | ------------- |
 | Usado em apenas um pacote | Próprio pacote (privado) |
 | Usado por dois ou mais pacotes do módulo | `internal/shared/<área>/` |
 | API pública para outros módulos | `pkg/<área>/` |
@@ -428,7 +430,7 @@ Igual ao TS. Em Go, monoliths modulares se beneficiam especialmente de `internal
 #### Wire vs. Fx vs. wiring manual
 
 | Aspecto | Manual | Wire | Fx |
-|---------|--------|------|-----|
+| --------- | -------- | ------ | ----- |
 | Boilerplate | Alto em apps grandes | Médio (gera código) | Baixo |
 | Magia | Nenhuma | Geração explícita | Reflection runtime |
 | Testabilidade | Alta | Alta | Alta |
@@ -437,7 +439,7 @@ Igual ao TS. Em Go, monoliths modulares se beneficiam especialmente de `internal
 #### ORM vs. SQL puro vs. sqlc
 
 | Aspecto | ORM (gorm, ent) | SQL puro (database/sql) | sqlc |
-|---------|-----------------|------------------------|------|
+| --------- | ----------------- | ------------------------ | ------ |
 | Boilerplate | Baixo | Alto | Médio |
 | Type safety | Médio | Baixo (scan manual) | Alto (geração estática) |
 | Performance | Variável | Alta | Alta |

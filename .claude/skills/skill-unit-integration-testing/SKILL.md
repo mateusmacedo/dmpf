@@ -4,7 +4,7 @@ description: |
   Orientação para testes unitários e de integração: estrutura, nomenclatura,
   escolha entre tipos, isolamento e boas práticas. Framework-agnóstica.
   Referências específicas de Jest/RTL ficam em skill-jest.
-model: sonnet
+model: opus
 ---
 
 # Testes Unitários e de Integração
@@ -29,7 +29,7 @@ Conceitos gerais de testes unitários e de integração. Aborda estrutura, nomen
 ### Critérios para escolha
 
 | Cenário | Tipo sugerido |
-|---------|---------------|
+| --------- | --------------- |
 | Função pura com lógica de negócio | Unitário |
 | Transformação de dados | Unitário |
 | Validação de inputs | Unitário |
@@ -54,7 +54,7 @@ describe('[categoria:subcategoria] nome', () => {})
 Categorias comuns:
 
 | Categoria | Uso |
-|-----------|-----|
+| ----------- | ----- |
 | `[utils]` | Funções utilitárias |
 | `[service]` | Services de aplicação |
 | `[use-case]` | Use cases |
@@ -213,7 +213,7 @@ Conceitos (escopo, AAA, isolamento) são universais. Em Go o framework de testes
 ### Tipos de teste em Go
 
 | Tipo | Convenção | Exemplo |
-|------|-----------|---------|
+| ------ | ----------- | --------- |
 | Unitário | `_test.go` no mesmo pacote | `service_test.go` |
 | Integração | Build tag (`//go:build integration`) | `repository_integration_test.go` |
 | Black-box | Sufixo `_test` no package | `package user_test` |
@@ -223,7 +223,7 @@ Conceitos (escopo, AAA, isolamento) são universais. Em Go o framework de testes
 ### Critérios para escolha
 
 | Cenário | Tipo sugerido |
-|---------|---------------|
+| --------- | --------------- |
 | Função pura | Unitário |
 | Use case com mocks dos repositórios | Unitário |
 | Repositório com Postgres real (testcontainers) | Integração |

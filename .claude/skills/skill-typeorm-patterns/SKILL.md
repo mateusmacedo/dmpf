@@ -3,7 +3,7 @@ name: skill-typeorm-patterns
 description: |
   Use esta skill ao trabalhar com TypeORM: entities, repositories, migrations,
   query builder e relations.
-model: sonnet
+model: opus
 ---
 
 # TypeORM — padrões
@@ -116,7 +116,7 @@ O contrato do repositório vive no domínio; a implementação com TypeORM fica 
 ## Query Builder vs Find
 
 | Cenário | Usar |
-|---------|------|
+| --------- | ------ |
 | Busca simples por campo | `find()` / `findOne()` |
 | Filtros combinados simples | `find({ where: { ... } })` |
 | JOINs complexos | QueryBuilder |
@@ -158,7 +158,7 @@ npx typeorm migration:run -d src/infra/database/data-source.ts
 ### Práticas seguras
 
 | Recomendação | Motivo |
-|--------------|--------|
+| -------------- | -------- |
 | Evitar `synchronize: true` em produção | Risco de perda de dados |
 | Evitar dropar colunas sem backfill | Dados podem ser perdidos |
 | Criar migration reversível (`up` + `down`) | Rollback seguro |
@@ -234,7 +234,7 @@ const [items, total] = await repo.findAndCount({
 ## Anti-patterns
 
 | Anti-pattern | Preferir |
-|--------------|----------|
+| -------------- | ---------- |
 | `synchronize: true` em produção | Migrations |
 | SQL sem parametrização | `:param` ou `$1` |
 | `save()` sem validação prévia | Validar com Zod/class-validator antes |

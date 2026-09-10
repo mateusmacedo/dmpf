@@ -2,7 +2,7 @@
 id: SPEC-XMNBMY50
 slug: dmpf-shared-kernel
 title: DMPF — Shared kernel, o consumo do kernel por outros bounded contexts
-stage: backlog
+stage: done
 priority: P1
 depends_on: [SPEC-WTAXFV8B]
 ticket_url: https://lider-cap.atlassian.net/browse/ARQ-553
@@ -19,7 +19,7 @@ consumir o kernel de runtime: a condição C2 da regra de dependência só liber
 uma aresta entre contextos quando o destino é `contract` ou declara
 `public_integration_surface: true`, e essa declaração é inválida em bloco
 `domain` (`DMPF-M002`). Como `dmpfapplication.Outcome[R]` e
-`dmpfports.OutboxRecord` expõem tipos de `dmpfdomain`, importar qualquer bloco
+`dmpfports.OutboxEntry` expõem tipos de `dmpfdomain`, importar qualquer bloco
 do kernel obriga a importar o seu `domain` — e o verificador emite `DMPF-D002`.
 Esta spec introduz a noção de **shared kernel**: um conjunto nominal de
 unidades do kernel — inclusive as de `domain` — designado por ato de
@@ -75,7 +75,7 @@ verificador sem declarar meu contexto como `dmpf-kernel`.
 - [P0] NUNCA designar shared kernel no mesmo commit que altera código de unidade: a designação é ato de classificação (`AUT-01`), sujeita a `DMPF-T001`/`T002` como o baseline.
 - [P0] A matriz de blocos (C1) não muda: shared kernel relaxa apenas a condição de contexto (C2).
 - [P1] A designação nomeia unidades, nunca o bounded context inteiro: agregados de exemplo e composition roots do kernel ficam privados (ADR-017, interior privado por default).
-- [P1] Todo diagnóstico novo entra no catálogo do verificador com código, título, referência normativa e severidade, como os existentes.
+- [P1] Todo diagnóstico novo entra no catálogo do verificador com código, título, referência normativa e aplicabilidade, como os existentes.
 </constraints>
 
 ## Requisitos
@@ -276,7 +276,7 @@ ENTÃO a lista é tratada como vazia, o digest legado (só entries) é aceito e 
 - [P0] NUNCA designar shared kernel no mesmo commit que altera código de unidade: a designação é ato de classificação (`AUT-01`), sujeita a `DMPF-T001`/`T002` como o baseline.
 - [P0] A matriz de blocos (C1) não muda: shared kernel relaxa apenas a condição de contexto (C2).
 - [P1] A designação nomeia unidades, nunca o bounded context inteiro: exemplos e composition roots do kernel ficam privados.
-- [P1] Todo diagnóstico novo entra no catálogo do verificador com código, título, referência normativa e severidade.
+- [P1] Todo diagnóstico novo entra no catálogo do verificador com código, título, referência normativa e aplicabilidade.
 </critical_constraints>
 
 ## Escopo fora

@@ -164,5 +164,11 @@ func regravarBaseline(o opcoes) error {
 	if len(diags) > 0 {
 		return fmt.Errorf("universo inválido: %s", diags[0])
 	}
-	return fsstore.NewBaselineStore(abs).Escrever(baseline.FromUniverse(units, universo.Membership()))
+
+	store := fsstore.NewBaselineStore(abs)
+	atual, existia, err := store.Baseline()
+	if err != nil {
+		return fmt.Errorf("ler baseline atual: %w", err)
+	}
+	return store.Escrever(baseline.Regravar(atual, existia, units, universo.Membership()))
 }

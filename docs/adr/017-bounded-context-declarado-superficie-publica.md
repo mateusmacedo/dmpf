@@ -4,6 +4,11 @@
 
 Aceito — 2026-08-28. Implementa SPEC-DBTRMM3X.
 
+Estendido pelo [ADR-042](./042-shared-kernel.md) — 2026-09-09: a condição de
+contexto C2 passa a aceitar também o destino designado como shared kernel no
+baseline governado. O interior privado por default e a invalidade de
+`public_integration_surface: true` em bloco `domain` seguem intactos.
+
 ## Contexto
 
 O DMPF classifica todo código de produção em seis blocos e governa as arestas

@@ -14,6 +14,7 @@ type Unit struct {
 	Block                    Block
 	BoundedContext           string
 	PublicIntegrationSurface bool
+	SharedKernel             bool
 	Include                  []string
 	Module                   string
 	ManifestPath             string
@@ -100,6 +101,7 @@ func (u *Universe) Endpoint(canonicalKey string) (Endpoint, bool) {
 		Block:                    unit.Block,
 		BoundedContext:           unit.BoundedContext,
 		PublicIntegrationSurface: unit.PublicIntegrationSurface,
+		SharedKernel:             unit.SharedKernel,
 	}, true
 }
 
