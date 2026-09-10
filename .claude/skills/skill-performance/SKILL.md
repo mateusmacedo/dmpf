@@ -7,15 +7,17 @@ description: |
   Cobre queries ORM, cache Redis, filas, connection pooling, operações assíncronas,
   memória/event loop e monitoramento.
   Para padrões de arquitetura, ver `skill-architecture-patterns`.
-model: sonnet
+model: opus
 ---
 
 # Performance (backend)
 
 ## Objetivo
+
 Otimização de performance no backend: queries, cache, filas, pooling, operações assíncronas, memória e monitoramento.
 
 ## Quando usar
+
 - Ao otimizar queries lentas ou resolver N+1.
 - Ao implementar ou revisar estratégia de cache.
 - Ao ajustar filas, pooling ou processos de longa duração.
@@ -115,7 +117,7 @@ async getUser(id: string): Promise<User> {
 ### TTL por tipo de dado (sugestões)
 
 | Tipo | TTL sugerido | Motivo |
-|------|-------------|--------|
+| ------ | ------------- | -------- |
 | Sessão / token | 15-30 min | Segurança |
 | Dados do usuário | 5-15 min | Mudança moderada |
 | Dados de referência | 1-24h | Raramente muda |
@@ -133,7 +135,7 @@ async updateUser(id: string, data: UpdateUserDto) {
 ### Armadilhas comuns
 
 | Problema | Causa | Mitigação |
-|----------|-------|-----------|
+| ---------- | ------- | ----------- |
 | Cache stampede | Muitos requests simultâneos em miss | Mutex/locking no rebuild |
 | Dados stale | Cache sem TTL | Sempre definir TTL |
 | Memória | Chaves sem expiração acumulam | Monitorar uso de memória |
@@ -278,7 +280,7 @@ stream.pipe(new Transform({ /* formatar */ })).pipe(res)
 ### Memory leaks comuns
 
 | Causa | Exemplo | Mitigação |
-|-------|---------|-----------|
+| ------- | --------- | ----------- |
 | Listeners não removidos | `emitter.on()` sem `off()` | Remover no cleanup / usar `once()` |
 | Streams não fechados | ReadStream sem `.destroy()` | Fechar em `finally` |
 | Closures retendo referências | Callbacks capturando objetos grandes | Capturar só o necessário |
@@ -305,7 +307,7 @@ const hash = await new Promise((resolve, reject) => {
 ### Métricas essenciais
 
 | Métrica | O que observar | Alertar quando |
-|---------|---------------|----------------|
+| --------- | --------------- | ---------------- |
 | Response time (p95) | Latência das rotas | Acima do SLA definido |
 | Slow queries | Queries acima de threshold | > ~200ms |
 | Queue backlog | Jobs pendentes | Crescendo por muito tempo |
@@ -631,7 +633,7 @@ Acessar via `go tool pprof http://localhost:6060/debug/pprof/heap` ou `/profile`
 #### Memory leaks comuns
 
 | Causa | Mitigação |
-|-------|-----------|
+| ------- | ----------- |
 | Goroutine sem `context` para cancelar | Sempre passar `context.Context` |
 | Map crescendo sem limite | LRU (`hashicorp/golang-lru`) |
 | `time.Tick` sem `Stop()` em short-lived | Usar `time.NewTicker` + `defer t.Stop()` |
@@ -696,7 +698,7 @@ var requestDuration = prometheus.NewHistogramVec(
 #### Métricas essenciais (Go)
 
 | Métrica | Fonte |
-|---------|-------|
+| --------- | ------- |
 | Response time (p95, p99) | histograma Prometheus por rota |
 | Slow queries | log de `database/sql` ou interceptor |
 | Goroutine count | `runtime.NumGoroutine()` exportado |

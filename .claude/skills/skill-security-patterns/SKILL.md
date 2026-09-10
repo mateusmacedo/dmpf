@@ -5,15 +5,17 @@ description: |
   "validar input", "configurar CSP", "headers de segurança", "autenticação segura",
   ou mencionar vulnerabilidades, XSS, CSRF, SQL injection ou proteção de dados.
   Cobre OWASP Top 10, validação de input, autenticação, headers de segurança, CSP.
-model: sonnet
+model: opus
 ---
 
 # Padrões de segurança
 
 ## Objetivo
+
 Padrões de segurança web: OWASP Top 10, validação de input, autenticação, headers, CSP e proteção de dados.
 
 ## Quando usar
+
 - Ao aplicar práticas OWASP Top 10.
 - Ao configurar headers de segurança e CSP.
 - Ao revisar autenticação e autorização.
@@ -21,7 +23,7 @@ Padrões de segurança web: OWASP Top 10, validação de input, autenticação, 
 ## OWASP Top 10 (2021)
 
 | # | Vulnerabilidade | Prevenção |
-|---|-----------------|-----------|
+| --- | ----------------- | ----------- |
 | 1 | Broken Access Control | Verificar autorização em cada request |
 | 2 | Cryptographic Failures | Criptografar dados sensíveis, TLS |
 | 3 | Injection | Parametrizar queries, validar input |
@@ -183,7 +185,7 @@ form-action 'self';
 ### Diretivas importantes
 
 | Diretiva | Propósito |
-|----------|-----------|
+| ---------- | ----------- |
 | `default-src` | Fallback para as demais |
 | `script-src` | Fontes de JavaScript |
 | `style-src` | Fontes de CSS |
@@ -295,23 +297,27 @@ Evite `origin: '*'` combinado com `credentials: true`.
 ## Checklist de segurança
 
 ### Input/Output
+
 - [ ] Todos os inputs validados no servidor.
 - [ ] Queries parametrizadas (SQL injection).
 - [ ] Output escapado por contexto (XSS).
 - [ ] Uploads validados (tipo, tamanho).
 
 ### Autenticação
+
 - [ ] Senhas com hash seguro (bcrypt/argon2).
 - [ ] Tokens com expiração curta.
 - [ ] Rate limiting em login.
 - [ ] MFA disponível quando fizer sentido.
 
 ### Autorização
+
 - [ ] Verificação em cada endpoint.
 - [ ] Sem IDOR.
 - [ ] Princípio do menor privilégio.
 
 ### Infraestrutura
+
 - [ ] HTTPS obrigatório.
 - [ ] Headers de segurança configurados.
 - [ ] CSP implementado.
@@ -319,6 +325,7 @@ Evite `origin: '*'` combinado com `credentials: true`.
 - [ ] CORS restrito.
 
 ### Dados
+
 - [ ] Dados sensíveis criptografados.
 - [ ] Secrets em variáveis de ambiente.
 - [ ] Logs sem dados sensíveis.

@@ -8,7 +8,7 @@ description: |
   - Refatorar código entre camadas (domain → infra, service → controller)
   - Alterar schemas de banco (entities de ORM, migrations)
   Faz sentido ser sugerida automaticamente quando for detectada alteração que afeta múltiplas camadas.
-model: sonnet
+model: opus
 user-invocable: true
 argument-hint: <descrição da alteração planejada>
 ---
@@ -47,7 +47,7 @@ Antes de:
 ### 1. Camadas afetadas
 
 | Camada | Diretórios típicos | Afetada? |
-|--------|--------------------|----------|
+| -------- | -------------------- | ---------- |
 | Controllers/Routes | `controllers/`, `routes/`, `*.controller.ts` | [ ] |
 | Services/Use Cases | `services/`, `application/`, `use-cases/` | [ ] |
 | Domain | `domain/entities/`, `domain/errors/`, `domain/contracts/` | [ ] |
@@ -182,7 +182,7 @@ Os checklists são os mesmos. As ferramentas e os pontos de atenção em Go dife
 ### Camadas afetadas (Go)
 
 | Camada | Diretórios típicos |
-|--------|--------------------|
+| -------- | -------------------- |
 | Handlers HTTP | `internal/<ctx>/http.go`, `internal/<ctx>/handler.go` |
 | Usecases | `internal/<ctx>/usecase.go` |
 | Domain | `internal/<ctx>/domain.go` (entities, interfaces) |

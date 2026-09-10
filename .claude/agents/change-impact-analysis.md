@@ -19,7 +19,7 @@ description: |
   user: "Quero reestruturar a entidade Document e suas relações."
   assistant: "Posso usar o agente change-impact-analysis para mapear todos os consumidores."
   </example>
-model: sonnet
+model: opus
 color: yellow
 skills:
   - skill-change-impact-analysis

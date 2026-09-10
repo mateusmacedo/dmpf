@@ -5,7 +5,7 @@ description: |
   Cobre setup de queues, workers, tipagem de jobs, retry, dead-letter, monitoramento e
   graceful shutdown. Os padrões aplicam-se a sistemas baseados em Redis (asynq), Postgres
   (river) ou message brokers genéricos (watermill).
-model: sonnet
+model: opus
 ---
 
 # Go queues — padrões
@@ -25,7 +25,7 @@ Compilar padrões comuns ao usar filas em Go: setup, workers, tipagem de jobs, e
 ## Escolha de biblioteca
 
 | Biblioteca | Backend | Característica |
-|------------|---------|----------------|
+| ------------ | --------- | ---------------- |
 | `hibiken/asynq` | Redis | Idiomático Go, dashboard web, similar a BullMQ |
 | `riverqueue/river` | Postgres | Sem Redis, transacional com seu DB |
 | `RichardKnop/machinery` | Redis/AMQP | Multi-broker, mais antigo |
@@ -67,7 +67,7 @@ srv := asynq.NewServer(redisOpt, asynq.Config{
 ### Convenção de nomes
 
 | Padrão | Exemplo | Uso |
-|--------|---------|-----|
+| -------- | --------- | ----- |
 | `recurso:acao` | `documents:generate` | Task type principal |
 | `recurso:acao:subtipo` | `documents:generate:pdf` | Especialização |
 | `scheduled:recurso` | `scheduled:cleanup` | Tasks recorrentes |
@@ -488,7 +488,7 @@ Configure `ShutdownTimeout` na config do servidor (default 8s).
 ## Anti-patterns
 
 | Anti-pattern | Preferir |
-|--------------|----------|
+| -------------- | ---------- |
 | Operação síncrona bloqueante sem `context` | Sempre propagar `ctx` para I/O |
 | Job sem tipagem de payload | Struct + JSON |
 | Retry infinito | `MaxRetry` + dead letter (`archived`) |

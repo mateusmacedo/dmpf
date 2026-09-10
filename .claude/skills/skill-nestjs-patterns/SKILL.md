@@ -3,7 +3,7 @@ name: skill-nestjs-patterns
 description: |
   Use esta skill ao trabalhar com NestJS: modules, DI, decorators, pipes,
   guards, interceptors e exception filters.
-model: sonnet
+model: opus
 ---
 
 # NestJS — padrões
@@ -49,7 +49,7 @@ Prefira exportar apenas o necessário — não exponha providers internos que ou
 ### Regras de imports
 
 | Regra | Motivo |
-|-------|--------|
+| ------- | -------- |
 | Feature module importa SharedModule | Reutilizar serviços comuns |
 | Evitar imports circulares | Usar `forwardRef()` apenas como último recurso |
 | `forFeature()` no feature module | Registrar entities/repos por módulo |
@@ -290,7 +290,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
 ### Exceções built-in mais comuns
 
 | Exceção | Status | Quando usar |
-|---------|--------|-------------|
+| --------- | -------- | ------------- |
 | `BadRequestException` | 400 | Validação falhou |
 | `UnauthorizedException` | 401 | Token inválido/ausente |
 | `ForbiddenException` | 403 | Sem permissão |
@@ -301,7 +301,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
 ## Anti-patterns
 
 | Anti-pattern | Preferir |
-|--------------|----------|
+| -------------- | ---------- |
 | Service com muitas dependências | Dividir em services menores |
 | `@Res()` no controller | Retornar valor, deixar o framework serializar |
 | Dependência circular | Extrair para module compartilhado |
