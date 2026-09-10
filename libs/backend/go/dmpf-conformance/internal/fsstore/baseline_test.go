@@ -24,8 +24,6 @@ func escreverBaselineBruto(t *testing.T, raiz, conteudo string) {
 	}
 }
 
-// ---------------------------------------- presença de shared_kernel_units ---
-
 func TestBaselineSharedKernelUnitsAusente(t *testing.T) {
 	raiz := t.TempDir()
 	escreverBaselineBruto(t, raiz, `{"schema":"dmpf/units-baseline@1","digest":"x","entries":[]}`)
@@ -94,8 +92,6 @@ func TestBaselineSharedKernelUnitsNullReprova(t *testing.T) {
 	}
 }
 
-// ------------------------------------------------------ round-trip Escrever ---
-
 func TestEscreverNormalizaListaVaziaParaColchetes(t *testing.T) {
 	raiz := t.TempDir()
 	store := fsstore.NewBaselineStore(raiz)
@@ -146,8 +142,6 @@ func TestEscreverPreservaListaComItens(t *testing.T) {
 		t.Errorf("round-trip alterou a lista: %v", relido.SharedKernelUnits)
 	}
 }
-
-// ------------------------------------------------------------- BaselineEm ---
 
 func rodarGit(t *testing.T, dir string, args ...string) {
 	t.Helper()

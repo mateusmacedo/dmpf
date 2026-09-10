@@ -251,8 +251,6 @@ func TestFromUniverseOrdenaEFechaODigest(t *testing.T) {
 	}
 }
 
-// -------------------------------------------------- designar shared kernel ---
-
 func TestDesignarChaveResolvidaMarcaAUnidade(t *testing.T) {
 	d := doc(entrada("shared", "domain", "bc", "m/a"))
 	d.SharedKernelUnits = []string{"shared"}

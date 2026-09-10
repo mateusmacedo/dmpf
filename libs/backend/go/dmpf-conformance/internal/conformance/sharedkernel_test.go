@@ -112,7 +112,6 @@ func docSK(chaves ...string) baseline.Document {
 	return d
 }
 
-// 1. X -> kernel/domain, com a chave designada: shared kernel libera C2.
 func TestSharedKernelDesignadaAprovaAEdgeParaDentro(t *testing.T) {
 	in := entradaSK([]port.Edge{{From: "x/domain", To: "kernel/domain", SourceFile: "x/domain/d.go"}})
 	in.Baseline = storeSK{doc: docSK("kernel-domain"), existe: true, antes: docSK("kernel-domain"), tinha: true}
@@ -127,7 +126,6 @@ func TestSharedKernelDesignadaAprovaAEdgeParaDentro(t *testing.T) {
 	}
 }
 
-// 2. A mesma edge sem designação nenhuma reprova por C2.
 func TestSharedKernelNaoDesignadaReprovaAEdge(t *testing.T) {
 	in := entradaSK([]port.Edge{{From: "x/domain", To: "kernel/domain", SourceFile: "x/domain/d.go"}})
 	in.Baseline = storeSK{doc: docSK(), existe: true, antes: docSK(), tinha: true}
@@ -142,7 +140,6 @@ func TestSharedKernelNaoDesignadaReprovaAEdge(t *testing.T) {
 	}
 }
 
-// 3. Designar kernel-domain não libera a unidade irmã kernel-example.
 func TestSharedKernelNaoAlcancaUnidadeIrmaNaoDesignada(t *testing.T) {
 	in := entradaSK([]port.Edge{{From: "x/domain", To: "kernel/example", SourceFile: "x/domain/d.go"}})
 	in.Baseline = storeSK{doc: docSK("kernel-domain"), existe: true, antes: docSK("kernel-domain"), tinha: true}
@@ -157,7 +154,6 @@ func TestSharedKernelNaoAlcancaUnidadeIrmaNaoDesignada(t *testing.T) {
 	}
 }
 
-// 4. Sem designação nenhuma, edge entre contextos distintos reprova.
 func TestSemSharedKernelEdgeEntreContextosReprova(t *testing.T) {
 	in := entradaSK([]port.Edge{{From: "x/domain", To: "y/domain", SourceFile: "x/domain/d.go"}})
 	in.Baseline = storeSK{doc: docSK(), existe: true, antes: docSK(), tinha: true}
@@ -188,8 +184,6 @@ func TestSharedKernelEUnidirecional(t *testing.T) {
 	}
 }
 
-// 6. Chave sem entry correspondente no baseline: M004 halta a designação
-// antes de qualquer aresta ser decidida.
 func TestSharedKernelChaveInexistenteEmiteM004EHaltaFase(t *testing.T) {
 	in := entradaSK(nil)
 	in.Baseline = storeSK{doc: docSK("kernel-fantasma"), existe: true}
@@ -224,7 +218,6 @@ func TestSharedKernelBaselineIlegivelHaltaAntesDoUniverso(t *testing.T) {
 	}
 }
 
-// 7. Baseline legado (chave shared_kernel_units ausente) é aceito sem M004.
 func TestSharedKernelBaselineLegadoSemAChaveNaoEmiteM004(t *testing.T) {
 	in := entradaSK(nil)
 	in.Baseline = storeSK{doc: docSK(), existe: true, antes: docSK(), tinha: true}
@@ -242,7 +235,6 @@ func TestSharedKernelBaselineLegadoSemAChaveNaoEmiteM004(t *testing.T) {
 	}
 }
 
-// 8. Chave designada, mas o digest do baseline não foi recalculado: T001.
 func TestSharedKernelChaveComDigestAntigoEmiteT001(t *testing.T) {
 	desatualizado := docSK("kernel-domain")
 	desatualizado.Digest = baseline.Digest(desatualizado.Entries)
@@ -259,8 +251,6 @@ func TestSharedKernelChaveComDigestAntigoEmiteT001(t *testing.T) {
 	}
 }
 
-// 9. Só a lista de shared kernel mudando, misturada com código no mesmo
-// commit: exige aval (T002), igual a qualquer outro ato normativo.
 func TestSharedKernelSoAListaMudandoComCodigoNoMesmoCommitExigeAval(t *testing.T) {
 	in := entradaSK(nil)
 	in.Baseline = storeSK{
@@ -279,7 +269,6 @@ func TestSharedKernelSoAListaMudandoComCodigoNoMesmoCommitExigeAval(t *testing.T
 	}
 }
 
-// 10a. Sem BaselineStore, Input.SharedKernelUnits é a fonte da designação.
 func TestSharedKernelUnitsDaInputSemStoreAprova(t *testing.T) {
 	in := entradaSK([]port.Edge{{From: "x/domain", To: "kernel/domain", SourceFile: "x/domain/d.go"}})
 	in.SharedKernelUnits = []string{"kernel-domain"}
@@ -293,8 +282,6 @@ func TestSharedKernelUnitsDaInputSemStoreAprova(t *testing.T) {
 	}
 }
 
-// 10b. Com BaselineStore presente, Input.SharedKernelUnits é ignorada: o
-// baseline é a única fonte autoritativa.
 func TestSharedKernelUnitsDaInputComStoreEIgnorada(t *testing.T) {
 	in := entradaSK([]port.Edge{{From: "x/domain", To: "kernel/domain", SourceFile: "x/domain/d.go"}})
 	in.Baseline = storeSK{doc: docSK(), existe: true, antes: docSK(), tinha: true}
