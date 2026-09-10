@@ -46,9 +46,9 @@ func NewTelemetry(ctx context.Context, cfg Config, out io.Writer) (*otelboot.Run
 	}))
 
 	config := otelboot.Config{
-		// W3C declarado: Trace Context leva traceparent e tracestate — os dois
-		// campos que otelboot exige (ErrPropagatorNotW3C) — e Baggage completa
-		// o par de recomendações W3C do OpenTelemetry.
+		// W3C declared: Trace Context carries traceparent and tracestate — the
+		// two fields otelboot requires (ErrPropagatorNotW3C) — and Baggage
+		// completes the W3C pair OpenTelemetry recommends.
 		Propagator: propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}),
 		Resource: otelboot.Resource{
 			ServiceName:       cfg.Service,
