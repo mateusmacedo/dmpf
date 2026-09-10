@@ -2,6 +2,7 @@ package baseline
 
 import (
 	"slices"
+	"sort"
 	"strings"
 
 	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/internal/rule"
@@ -15,6 +16,7 @@ const (
 	AtoCriarUnidade          Ato = "criar unidade"
 	AtoRemoverUnidade        Ato = "remover unidade"
 	AtoRemapearMembership    Ato = "remapear membership"
+	AtoDesignarSharedKernel  Ato = "designar shared kernel"
 )
 
 type MudancaNormativa struct {
@@ -76,7 +78,72 @@ func Detectar(anterior, novo Document) []MudancaNormativa {
 			}
 		}
 	}
+	out = append(out, detectarSharedKernel(anterior, novo)...)
 	return out
+}
+
+// detectarSharedKernel resolve Unidade pela entry cujo Unit casa com a chave:
+// no `novo` para adição (a unidade está lá), no `anterior` para remoção. Sem
+// resolução única, cai em UnitKey{ID: chave} — M004 é quem cobra a resolução.
+func detectarSharedKernel(anterior, novo Document) []MudancaNormativa {
+	antes := paraConjunto(anterior.SharedKernelUnits)
+	depois := paraConjunto(novo.SharedKernelUnits)
+
+	chaves := make([]string, 0, len(antes)+len(depois))
+	for k := range antes {
+		chaves = append(chaves, k)
+	}
+	for k := range depois {
+		if _, ja := antes[k]; !ja {
+			chaves = append(chaves, k)
+		}
+	}
+	sort.Strings(chaves)
+
+	var out []MudancaNormativa
+	for _, chave := range chaves {
+		_, tinha := antes[chave]
+		_, tem := depois[chave]
+		switch {
+		case !tinha && tem:
+			out = append(out, MudancaNormativa{
+				Ato: AtoDesignarSharedKernel, Unidade: resolverUnidadePorChave(novo.Entries, chave),
+				Anterior: "ausente", Novo: "designada",
+			})
+		case tinha && !tem:
+			out = append(out, MudancaNormativa{
+				Ato: AtoDesignarSharedKernel, Unidade: resolverUnidadePorChave(anterior.Entries, chave),
+				Anterior: "designada", Novo: "ausente",
+			})
+		}
+	}
+	return out
+}
+
+func paraConjunto(v []string) map[string]struct{} {
+	out := make(map[string]struct{}, len(v))
+	for _, s := range v {
+		out[s] = struct{}{}
+	}
+	return out
+}
+
+// resolverUnidadePorChave exige exatamente uma entry com o Unit pedido: 0 ou
+// 2+ é ambiguidade que Detectar não resolve sozinho, por isso cai no UnitKey
+// parcial em vez de arriscar apontar para o módulo errado.
+func resolverUnidadePorChave(entries []Entry, chave string) rule.UnitKey {
+	var achada rule.UnitKey
+	achadas := 0
+	for _, e := range entries {
+		if e.Unit == chave {
+			achada = rule.UnitKey{Module: e.Module, ID: e.Unit}
+			achadas++
+		}
+	}
+	if achadas == 1 {
+		return achada
+	}
+	return rule.UnitKey{ID: chave}
 }
 
 // Editar qualquer um destes é mudar a classificação.

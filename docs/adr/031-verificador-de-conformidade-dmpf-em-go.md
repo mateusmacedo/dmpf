@@ -151,7 +151,7 @@ decidíveis.
 ### `DMPF-E004` não é aplicável ao binding Go
 
 A gramática exige `ImportPath = string_lit`, e import dinâmico não existe na
-linguagem. O código permanece **reservado e estável** no conjunto dos quinze —
+linguagem. O código permanece **reservado e estável** no conjunto dos dezesseis —
 classe não implementada é ausência declarada de verificação, nunca "conforme" —
 com teste de não-emissão. Carregamento dinâmico por API (`plugin.Open` e afins)
 já cai na política de capabilities. `E004` volta a ter vetor executável no

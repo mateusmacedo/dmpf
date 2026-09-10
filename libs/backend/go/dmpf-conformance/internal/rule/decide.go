@@ -5,6 +5,7 @@ type Endpoint struct {
 	Block                    Block
 	BoundedContext           string
 	PublicIntegrationSurface bool
+	SharedKernel             bool
 }
 
 // As duas condições são independentes: uma aresta pode reprovar nas duas.
@@ -29,10 +30,11 @@ func PublicIntegrationSurface(target Endpoint) bool {
 }
 
 // A aresta passa se o par de blocos é permitido E os dois lados podem se falar.
+// A exceção de shared kernel olha só o destino: é unidirecional, e não relaxa C1.
 func Decide(source, target Endpoint) Decision {
 	return Decision{
 		C1: AllowedByMatrix(source.Block, target.Block),
-		C2: SameBoundedContext(source, target) || PublicIntegrationSurface(target),
+		C2: SameBoundedContext(source, target) || PublicIntegrationSurface(target) || target.SharedKernel,
 	}
 }
 

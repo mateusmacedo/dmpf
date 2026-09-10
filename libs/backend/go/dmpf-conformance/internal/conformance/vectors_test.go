@@ -254,11 +254,11 @@ func TestVetorE003(t *testing.T) {
 }
 
 // Não-emissão da classe reservada: a gramática exige `ImportPath = string_lit`,
-// e o código segue no conjunto dos quinze como ausência declarada.
+// e o código segue no conjunto dos dezesseis como ausência declarada.
 func TestE004NaoEmitidoNoBindingGo(t *testing.T) {
 	spec, ok := rule.LookupCode(rule.CodeE004)
 	if !ok {
-		t.Fatal("DMPF-E004 ausente do conjunto fechado dos quinze")
+		t.Fatal("DMPF-E004 ausente do conjunto fechado dos dezesseis")
 	}
 	if spec.Applicable {
 		t.Error("DMPF-E004 marcado como aplicável no binding Go")
