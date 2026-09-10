@@ -6,6 +6,14 @@ validação local. É a referência prática que complementa `AGENTS.md`
 Quando algum detalhe divergir, `AGENTS.md` e os arquivos de configuração do
 projeto prevalecem.
 
+## Da especificação à implementação DMPF
+
+Depois de consolidar requisitos na spec e as decisões arquiteturais aplicáveis,
+use o [guia prático de implementação DMPF](./dmpf-implementation.md) para
+estruturar o bounded context e avançar para a implementação. O guia é derivado
+e não normativo; as obrigações pertencem às fontes em
+[`docs/dmpf/`](../dmpf/).
+
 ## Regra principal
 
 A base padrão de todo pull request de trabalho é `develop`. Abra o PR contra

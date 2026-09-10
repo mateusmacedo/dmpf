@@ -83,6 +83,14 @@ pnpm nx sync
 Todo projeto novo nasce com as três tags obrigatórias (`type:`, `scope:`,
 `stack:`) — o Nx Release seleciona o que publicar por `tag:type:lib`.
 
+## Próximo passo para bounded contexts DMPF
+
+Após o setup e a criação inicial, use o
+[guia prático de implementação DMPF](./guides/dmpf-implementation.md) para
+estruturar o novo bounded context e implementar os blocos na ordem recomendada.
+O guia é derivado e não normativo; as obrigações pertencem às fontes em
+[`docs/dmpf/`](./dmpf/).
+
 ## Comandos de validação
 
 Os scripts raiz existem para conveniência:

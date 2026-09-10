@@ -26,6 +26,13 @@ ocorre no PR (reviewers de Plataforma/Arquitetura). Specs permanecem em
 | [navegacao.md](./navegacao.md) | **registro vivo** (não promovido; fora de M1–M4 — mapa de entrada por prefixo, documento e pergunta) | [SPEC-4W1BQK93](../specs/SPEC-4W1BQK93-dmpf-consolidacao-horizontal.md) / [ARQ-492](https://lider-cap.atlassian.net/browse/ARQ-492) |
 | [diagramas-metodologia.md](./diagramas-metodologia.md) | **guia visual derivado** (não normativo — metodologia, runtime, estados, prova e governança) | Derivado dos artefatos promovidos e dos registros vivos |
 | [revisao-seguranca-fnd-07.md](./revisao-seguranca-fnd-07.md) | **parecer de revisão** (não normativo — evidência do gate `THR-03` sobre FND-07 §7 e §8; estado em `REC-011`) | [SPEC-DK8QQSDQ](../specs/SPEC-DK8QQSDQ-revisao-seguranca-fnd-07.md) / [ARQ-488](https://lider-cap.atlassian.net/browse/ARQ-488) |
+| **[resume/](./resume/)** | **Guia derivado em leitura humana** (não normativo — resumos 15–25% do volume, legendas obrigatórias, PT-BR formal) | Entrada de leitura rápida; veja `resume/README.md` |
+
+## Guia prático derivado
+
+Para começar a implementar um novo bounded context, consulte o
+[guia prático de implementação DMPF](../guides/dmpf-implementation.md). Ele é
+derivado e não normativo; as obrigações continuam nos artefatos acima.
 
 A RFC obriga: as regras nela escritas valem para todo trabalho novo do DMPF.
 
@@ -561,3 +568,7 @@ FND-10 — o ledger de doze permanece completo.
 
 Há **13 relatórios** cobrindo **10 repositórios** (alguns monorepos têm mais de
 um corte) em [`docs/specs/SPEC-K9H204F1/`](../specs/SPEC-K9H204F1/).
+
+## Leitura humana — resumos em `resume/`
+
+Para entrada rápida sem abrir os 15 artefatos, consulte [`resume/README.md`](./resume/README.md). A pasta contém resumos derivados (15–25% do volume) de cada artefato, com legendas obrigatórias em toda ocorrência (`ANC-02` (âncora de UoW), `UoW` (Unit of Work), etc.). **Não normativo** — norma continua nos arquivos desta pasta. Em conflito, vale a fonte aqui.

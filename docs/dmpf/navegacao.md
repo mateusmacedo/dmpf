@@ -98,6 +98,7 @@ declara, e cada um declara apenas o próprio total.
 
 | Se a sua pergunta é… | Comece por |
 |----------------------|------------|
+| "Como começo a implementar um novo bounded context DMPF?" | [Guia prático de implementação DMPF](../guides/dmpf-implementation.md) — derivado e não normativo |
 | "Quem pode depender de quem?" | RFC, a regra de dependência |
 | "O que a minha função de decisão pode receber e devolver?" | FND-03, `UPR-I` e `UPR-L` |
 | "Como nomeio um evento ou um comando?" | FND-03, `MSG-N` |
@@ -115,6 +116,8 @@ declara, e cada um declara apenas o próprio total.
 | "Como configuro timeout e retry?" | FND-08, `RES` |
 | "O que vai no runbook?" | FND-08, `RUN` |
 | "Que teste preciso escrever para esta regra?" | FND-09, `PIR`, `RAS` e `KIT` |
+| "Como o QA entrega aceite automatizado ao Dev?" | [Playbook QA → Dev](../guides/dmpf-qa-playbook.md) — derivado; norma em FND-09 |
+| "Onde vejo um exemplo de fixture de ponta a ponta?" | [Workshop orders/reservations](../guides/dmpf-qa-workshop-orders-reservations.md) |
 | "O que faz o round-trip passar?" | FND-09, `ORA` |
 | "Como um artefato vira norma?" | FND-10, `GOV` e `AUT` |
 | "Estou pronto para começar?" | FND-10, `RDY` |
@@ -139,3 +142,7 @@ artefato não é editado retroativamente. Quem carrega o estado vigente é o
 [ledger de reconciliação](./reconciliacao.md), uma linha por pendência.
 Consulte-o antes de tratar como aberta uma pendência que um irmão posterior já
 quitou.
+
+## Entrada rápida: resumos
+
+Para início rápido sem abrir os 15 artefatos, consulte [`resume/README.md`](./resume/) — resumos de 15–25% do volume com legendas obrigatórias em toda ocorrência. **Não normativo.** Mapa de busca por pergunta ali também.
