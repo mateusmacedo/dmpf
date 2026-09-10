@@ -49,9 +49,7 @@ const validatedName = (name: string | undefined): string => {
 
 const validatedBoundedContext = (boundedContext: string | undefined): string => {
   if (boundedContext === undefined || boundedContext.trim().length === 0) {
-    return refuse(
-      'bounded_context é declarado, nunca inferido (ADR-012). Informe --bounded-context.',
-    );
+    return refuse('bounded_context is declared, never inferred (ADR-012): pass --bounded-context');
   }
   if (!isIdentifier(boundedContext)) {
     return refuse(
