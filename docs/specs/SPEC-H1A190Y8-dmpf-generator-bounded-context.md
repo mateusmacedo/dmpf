@@ -2,7 +2,7 @@
 id: SPEC-H1A190Y8
 slug: dmpf-generator-bounded-context
 title: DMPF KRN-12.2 — Plugin local e generator bounded-context (guarda-chuva)
-stage: planning
+stage: building
 priority: P2
 depends_on: [SPEC-MQA5HAXF, SPEC-WTAXFV8B, SPEC-SJ66880S, SPEC-XMNBMY50]
 ticket_url: https://lider-cap.atlassian.net/browse/ARQ-546
@@ -83,7 +83,7 @@ negócio escrita — restando a mim o rito de classificação e a revisão do PR
 | "um módulo por bloco" | `.golangci.yml` seleciona por sufixo `*-domain`, `*-ports`, `*-application` | `<ctx>-{domain,ports,application,provider-postgres,app}`; `contract` só como fonte `.proto` (sub-spec c), nunca `gen/go` |
 | "esqueleto de testes dos kits" | kits de `KRN-11` prontos | Testes gerados por agregado e por invariante declarada (sub-spec b), rodando de fato |
 | "aprovado pelo verificador, sem edição manual" | sem `--base` → "não verificado"; autorização lida em `base..HEAD`; `DMPF-T002` se classificação e código no mesmo commit; **C2 reprova todo contexto fora de `dmpf-kernel` que importe o kernel** | A prova commita duas vezes e verifica com `--base`; a aprovação depende do shared kernel (`SPEC-XMNBMY50`) |
-| — | `CI`, `DMPF_PG_DSN`, `DMPF_KAFKA_BROKERS` no `env` do job; `tb.Env` falha sob `CI` sem infra | Prova em três fases: `structural` (antes da infra), `integration` (depois), `self-test` (sempre) |
+| — | `CI`, `DMPF_PG_DSN`, `DMPF_KAFKA_BROKERS` no `env` do job; `tb.Env` falha sob `CI` sem infra | Prova em duas fases, as duas antes da infra: `structural` e `self-test`. O esqueleto não tem código de negócio para integrar; a integração com infra é do golden `bookings` (`SPEC-VDP9XX65`) |
 | `private: true` exclui do release | ADR-030: `private` exclui **publicação**, não versionamento | O plugin é `type:lib`, **versionado** pelo `nx release` e não publicado — `@nx/js` nem cria o target `nx-release-publish` para pacote privado |
 
 ### Fontes normativas
@@ -158,7 +158,7 @@ negócio escrita — restando a mim o rito de classificação e a revisão do PR
     `tree.write`.
   - O **conteúdo Go por agregado** desses módulos é das sub-specs a, b e c.
 - [x] **[P0] Base da prova mecânica** `tools/dmpf-generator-check.sh`, padrão de
-  `dmpf-cell-check.sh`, com `--phase structural|integration|self-test`:
+  `dmpf-cell-check.sh`, com `--phase structural|self-test`:
   1. `git worktree add --detach` descartável em `HEAD` — nunca em `develop`;
      `ln -s` do `node_modules` da raiz e do plugin; `NX_DAEMON=false`;
      `HEAD0=$(git -C "$WT" rev-parse HEAD)`. Com `node_modules` compartilhado
@@ -190,22 +190,26 @@ negócio escrita — restando a mim o rito de classificação e a revisão do PR
 - [ ] **[P0] Harness de agentes** (`SPEC-VDP9XX65`): template de spec de
   bounded context, agente, skill, rules, command e golden `bookings`. Esta
   spec fecha quando ela fechar.
-- [ ] **[P1] CI e documentação**: `structural` e `self-test` no bloco Gates
-  DMPF do `ci.yml` (esta spec); guia, `AGENTS.md`, `tasks.md`, README e
-  addendum do ADR-041 pela `SPEC-VDP9XX65`, única dona desses arquivos.
+- [x] **[P1] CI**: `structural` e `self-test` no bloco Gates DMPF do `ci.yml`,
+  os dois **sem** `if: steps.go_affected` — o artefato que a prova mede é escrito
+  pelo generator, e mudança só no TypeScript do plugin não toca projeto
+  `stack:go`.
+- [ ] **[P1] Documentação**: guia, `AGENTS.md`, `tasks.md`, README e addendum do
+  ADR-041 pela `SPEC-VDP9XX65`, única dona desses arquivos.
 
 ### Não-funcionais
 
-- [ ] Determinismo do esqueleto: mesmas opções → bytes idênticos; sem
+- [x] Determinismo do esqueleto: mesmas opções → bytes idênticos; sem
   `formatFiles`; `JSON.stringify` em JSON. O código de negócio (harness) não
   promete bytes idênticos — promete passar nos gates.
 - [ ] Feedback rápido: generator em menos de 5 s; fase `structural` em menos
-  de 3 min no runner.
-- [ ] Conformidade: os módulos gerados passam pelo verificador com `--base`
+  de 3 min no runner. Medido local: `structural` com os cinco blocos entre 31 s
+  e 1 min 04 s conforme o cache do Nx; falta a medição no runner.
+- [x] Conformidade: os módulos gerados passam pelo verificador com `--base`
   (com o shared kernel); o plugin não é unidade DMPF.
-- [ ] Cadeia verde do workspace com o plugin incluído; `biome ci` passa.
-- [ ] Dependências npm novas: só `@nx/plugin` e `@nx/devkit`, na versão de
-  `nx`; o harness é Markdown.
+- [x] Cadeia verde do workspace com o plugin incluído; `biome ci` passa.
+- [x] Dependências npm novas: só `@nx/plugin` e `@nx/devkit`, na versão de
+  `nx` (`23.1.0` no `catalog:`); o harness é Markdown.
 
 ## Camadas afetadas
 
@@ -226,7 +230,7 @@ tools/dmpf-plugin/                                    — plugin local (@liderca
   src/generators/bounded-context/{identifiers,blocks,go-work,manifest}.ts
   src/generators/bounded-context/generator.spec.ts
     src/generators/bounded-context/files/**             — templates __tmpl__ do esqueleto (metadados por bloco; os de domain da 1ª iteração ficam como referência de forma)
-tools/dmpf-generator-check.sh                         — --phase structural|integration|self-test
+tools/dmpf-generator-check.sh                         — --phase structural|self-test
 package.json, pnpm-workspace.yaml, pnpm-lock.yaml     — @nx/plugin, @nx/devkit (catalog:)
 tsconfig.json                                         — references
 .github/workflows/ci.yml                              — structural + self-test no bloco Gates DMPF
@@ -268,7 +272,7 @@ docs/** e AGENTS.md                                    — SPEC-VDP9XX65
 | Regra | Instrumento | Onde |
 | --- | --- | --- |
 | ADR-012 | `generator.spec.ts`: recusa sem `boundedContext`; manifesto leva o valor da opção | plugin `test` |
-| C2 / shared kernel | prova com `--base`; vetor negativo sem shared kernel → `D002` | CI (sub-spec b) |
+| C2 / shared kernel | prova com `--base`, com o kernel já designado no baseline — o contexto gerado importa o kernel e é aprovado; o vetor negativo (unidade não designada e outro bounded context → `D002`) é do `dmpf-shared-kernel-check.sh` | CI (esta spec + `SPEC-XMNBMY50`) |
 | `AUT-01`, `T001`/`T002` | dois commits na prova; `self-test` mistura e reprova | CI |
 | "Sem edição manual" | manifesto SHA-256 + `git diff --exit-code` + `status --porcelain`; `self-test` | CI |
 | Tags 3D + `layer:*`, cinco targets, sem `lint` | `generator.spec.ts` compara com `dmpf-domain/project.json` | plugin `test` |
@@ -329,14 +333,19 @@ docs/** e AGENTS.md                                    — SPEC-VDP9XX65
   redeclara `lint`; `go.mod` sem `require`; `go.work` em ordem.
 - [x] A saída termina com a instrução do `--write-baseline` e "ato de
   classificação (AUT-01)".
-- [x] Fase `structural` da prova chega ao commit 2 com hooks ativos, cadeia
-  Go verde e reprova só no verificador por `D002` enquanto o shared kernel não
-  existe.
+- [x] Fase `structural` da prova chega ao commit 2 com hooks ativos e cadeia Go
+  verde. Enquanto o shared kernel não existia, ela reprovava só no verificador,
+  por `D002`; com `SPEC-XMNBMY50` designada no baseline, passa.
 - [ ] O golden `bookings`, produzido pelo harness a partir da spec de
   bounded context, compila, passa na cadeia Go e é **aprovado** pelo
   verificador (critério 1 de ARQ-531) — `SPEC-VDP9XX65` + `SPEC-XMNBMY50`.
-- [ ] `structural` e `self-test` verdes no CI; guia, `AGENTS.md`, `tasks.md`,
-  README e addendum do ADR-041 atualizados — `SPEC-VDP9XX65`.
+- [x] `structural` e `self-test` passam: `structural` com os cinco blocos gera
+  31 arquivos, `dmpf-conformance` devolve `conforme`, o manifesto confere e `git
+  diff`/`status --porcelain` saem vazios; `self-test` reprova nos quatro vetores
+  pelo motivo esperado. Os dois passos estão no `ci.yml`; o verde no runner sai
+  no PR.
+- [ ] Guia, `AGENTS.md`, `tasks.md`, README e addendum do ADR-041 atualizados —
+  `SPEC-VDP9XX65`.
 
 ### Cenários de teste
 
