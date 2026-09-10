@@ -84,6 +84,11 @@ func (c Consumer) Consume(ctx context.Context, d Delivery, ack dmpfports.Acknowl
 		ReceivedAt:  c.Clock.Now(),
 	}
 
+	ctx = dmpfports.WithMessageContext(ctx, dmpfports.MessageContext{
+		CorrelationID: env.CorrelationID,
+		CausationID:   env.ID,
+		Traceparent:   env.TraceParent,
+	})
 	disposition, handleErr := c.Handle(ctx, receipt, env)
 	outcome := Outcome{Disposition: disposition, Classified: true}
 

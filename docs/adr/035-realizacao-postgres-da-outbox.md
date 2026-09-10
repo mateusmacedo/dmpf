@@ -184,3 +184,7 @@ at-least-once, e a deduplicação é do consumidor, via inbox (KRN-07).
 - `docs/adr/033-*.md` — marca de baseline dos contratos (`BUF-08`).
 - `docs/guides/dmpf-manifesto.md` — `external[]` e classificação de unidades.
 - `libs/backend/go/dmpf-provider-postgres/README.md` — como rodar localmente.
+
+## Addendum — 2026-09-08
+
+O KRN-12 (ADR-041, SPEC-6QT9SBAS) realizou o contexto de mensagem que esta decisão deixou ao FND-07: `dmpfports.OutboxEntry` ganhou o campo `Context MessageContext` (`correlationid`, `causationid`, `traceparent`), e `Enqueue` serializa em `metadata` **exatamente o que o adapter autorou** — chave ausente é ausente, nunca `""`, porque o predicado de claim exige string não vazia e uma chave vazia produziria linha que nunca drena. `metadata` continua a nascer `'{}'` quando ninguém autora; o provider segue sem inventar (OBX-02). A prova fim a fim está em `claim_test.go`: uma linha escrita por `Enqueue` com contexto é a que `Claim` seleciona, sem SQL à mão.

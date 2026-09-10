@@ -1,6 +1,7 @@
 go 1.26.6
 
 use (
+	./apps/backend/dmpf-reference
 	./libs/backend/go/dmpf-app
 	./libs/backend/go/dmpf-application
 	./libs/backend/go/dmpf-conformance

@@ -125,6 +125,7 @@ func enqueueAll(
 			AggregateID:      string(order),
 			AggregateVersion: written,
 			Event:            event,
+			Context:          dmpfapplication.MessageContextFor(ctx, identity.MessageIDs[i]),
 		}
 		if err := outbox.Enqueue(ctx, entry); err != nil {
 			return err

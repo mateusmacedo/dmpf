@@ -144,6 +144,17 @@ jobs:
         if: steps.go_affected.outputs.any == 'true'
         run: bash tools/dmpf-shared-kernel-check.sh
 
+      # Sem `if: steps.go_affected`, ao contrário dos gates acima: o artefato que
+      # esta prova mede é escrito pelo generator, e uma mudança só no TypeScript do
+      # plugin altera o artefato sem tocar em nenhum projeto `stack:go`.
+      - name: DMPF generator check (structural)
+        run: bash tools/dmpf-generator-check.sh --phase structural
+
+      # Os quatro vetores negativos. Sem eles, um guard que pare de reprovar passa
+      # a não acusar nada em silêncio e a fase `structural` viraria carimbo.
+      - name: DMPF generator check (self-test)
+        run: bash tools/dmpf-generator-check.sh --phase self-test
+
       # GATE, fail-closed. Sem `continue-on-error` e sem `|| true`: a partir
       # daqui o verificador reprova o PR. O passo shadow que existia aqui foi
       # removido NESTE MESMO COMMIT, para que não exista estado em que os dois

@@ -4,6 +4,7 @@ package dmpfpostgres_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"regexp"
@@ -206,6 +207,39 @@ func TestClaimEligibility(t *testing.T) {
 				t.Fatalf("claimed = %v (%d rows), want %v", got, len(claimed), c.want)
 			}
 		})
+	}
+}
+
+// End to end on the provider alone: what Enqueue writes with a message context
+// is what Claim selects, with no hand-written row in between. The negative
+// case is the state ADR-038 documented — a record nobody contextualized never
+// drains — and it stays true by design (D5).
+func TestClaimSelectsWhatEnqueueWroteWithAMessageContext(t *testing.T) {
+	pool := openPool(t)
+	ctx := context.Background()
+
+	if err := enqueueOne(t, pool, testMapper{}, withContext(outboxEntry("m-000001", placedEvent(3)))); err != nil {
+		t.Fatalf("Within(with context) = %v, want nil", err)
+	}
+	if err := enqueueOne(t, pool, testMapper{}, outboxEntry("m-000002", placedEvent(3))); err != nil {
+		t.Fatalf("Within(without context) = %v, want nil", err)
+	}
+
+	store := dmpfpostgres.NewOutboxStore(pool, systemClock{})
+	claimed, err := store.Claim(ctx, claimA, 10, testLease)
+	if err != nil {
+		t.Fatalf("Claim() = %v, want nil", err)
+	}
+	if len(claimed) != 1 || claimed[0].MessageID != "m-000001" {
+		t.Fatalf("Claim() = %+v, want only the record enqueued with a message context", claimed)
+	}
+
+	got := map[string]string{}
+	if err := json.Unmarshal(claimed[0].Metadata, &got); err != nil {
+		t.Fatalf("claimed metadata %s is not a JSON object of strings: %v", claimed[0].Metadata, err)
+	}
+	if got["correlationid"] != "corr-1" || got["causationid"] != "caus-1" || got["traceparent"] != testTraceparent {
+		t.Fatalf("claimed metadata = %v, want the three attributes Enqueue wrote", got)
 	}
 }
 

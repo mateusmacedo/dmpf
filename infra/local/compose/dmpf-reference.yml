@@ -1,0 +1,92 @@
+# Os três papéis do dmpf-reference (apps/backend/dmpf-reference), uma imagem
+# só, construída a partir da raiz do repositório. O papel api aplica o schema
+# (DMPF_MIGRATE=true); relay e consumer reiniciam até as tabelas existirem.
+# Os tópicos do canal são criados pelo redpanda-init, como o e2e faz por kadm.
+x-dmpf-reference: &dmpf-reference
+  build:
+    context: ../../..
+    dockerfile: apps/backend/dmpf-reference/Dockerfile
+  image: ${DMPF_REFERENCE_IMAGE:-dmpf-reference:local}
+  profiles: [dmpf]
+  restart: on-failure
+  deploy:
+    resources:
+      limits: { cpus: '0.25', memory: 192M }
+      reservations: { cpus: '0.05', memory: 32M }
+
+x-dmpf-env: &dmpf-env
+  DMPF_PG_DSN: postgres://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-app}@postgres:5432/${POSTGRES_DB:-app}?sslmode=disable
+  DMPF_KAFKA_BROKERS: redpanda:29092
+  DMPF_KAFKA_INSECURE: 'true'
+  DMPF_KAFKA_TOPIC: ${DMPF_KAFKA_TOPIC:-orders.events}
+  DMPF_KAFKA_DLQ: ${DMPF_KAFKA_DLQ:-orders.events.dlq}
+  DMPF_KAFKA_GROUP: ${DMPF_KAFKA_GROUP:-reservations}
+  DMPF_KAFKA_RESERVATIONS_TOPIC: ${DMPF_KAFKA_RESERVATIONS_TOPIC:-reservations.events}
+  DMPF_KAFKA_RESERVATIONS_DLQ: ${DMPF_KAFKA_RESERVATIONS_DLQ:-reservations.events.dlq}
+  DMPF_OTLP_ENDPOINT: otel-collector:4317
+  DMPF_OTLP_INSECURE: 'true'
+  DMPF_SERVICE_VERSION: ${DMPF_SERVICE_VERSION:-local}
+
+services:
+  redpanda-init:
+    image: redpandadata/redpanda:v26.2.2
+    profiles: [dmpf]
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    entrypoint: ['/bin/sh', '-c']
+    command:
+      - >-
+        rpk topic create ${DMPF_KAFKA_TOPIC:-orders.events} ${DMPF_KAFKA_DLQ:-orders.events.dlq}
+        ${DMPF_KAFKA_RESERVATIONS_TOPIC:-reservations.events} ${DMPF_KAFKA_RESERVATIONS_DLQ:-reservations.events.dlq}
+        -X brokers=redpanda:29092 -p 1 -r 1 || true
+    deploy:
+      resources:
+        limits: { cpus: '0.10', memory: 64M }
+        reservations: { cpus: '0.02', memory: 16M }
+
+  dmpf-api:
+    <<: *dmpf-reference
+    command: ['--role', 'api']
+    environment:
+      <<: *dmpf-env
+      DMPF_MIGRATE: 'true'
+      DMPF_INSTANCE_ID: api
+      # Só o Swagger UI local pode chamar a api de outro origin; fora do
+      # desenvolvimento a variável fica vazia e a borda é same-origin.
+      DMPF_CORS_ORIGINS: http://localhost:${SWAGGER_PORT:-8082},http://127.0.0.1:${SWAGGER_PORT:-8082}
+    ports:
+      - '${DMPF_HTTP_PORT:-8080}:8080'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
+
+  dmpf-relay:
+    <<: *dmpf-reference
+    command: ['--role', 'relay']
+    environment:
+      <<: *dmpf-env
+      DMPF_INSTANCE_ID: relay
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redpanda-init:
+        condition: service_completed_successfully
+      dmpf-api:
+        condition: service_started
+
+  dmpf-consumer:
+    <<: *dmpf-reference
+    command: ['--role', 'consumer']
+    environment:
+      <<: *dmpf-env
+      DMPF_INSTANCE_ID: consumer
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redpanda-init:
+        condition: service_completed_successfully
+      dmpf-api:
+        condition: service_started

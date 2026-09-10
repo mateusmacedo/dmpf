@@ -1,0 +1,80 @@
+# Prometheus recebe as métricas do kernel por OTLP nativo (o Collector as
+# encaminha) e as séries derivadas de spans do Tempo por remote write; ambos os
+# receptores são ligados por flag no comando, não aqui. O que vem por scrape é
+# a infraestrutura: os recursos sistêmicos abaixo.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+otlp:
+  # Sem promover a identidade do serviço, toda série do kernel chegaria sem
+  # como distinguir papel, versão e instância (MET-07 vale dos dois lados).
+  promote_resource_attributes:
+    - service.name
+    - service.namespace
+    - service.version
+    - service.instance.id
+  keep_identifying_resource_attributes: true
+
+storage:
+  tsdb:
+    # A entrega OTLP é em lote e pode chegar fora de ordem entre instâncias.
+    out_of_order_time_window: 30m
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # O Redpanda não precisa de exporter: /public_metrics é o conjunto curado
+  # (o /metrics interno do Seastar tem cardinalidade alta demais para dev).
+  - job_name: redpanda
+    metrics_path: /public_metrics
+    static_configs:
+      - targets: ['redpanda:9644']
+
+  - job_name: postgres
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+
+  - job_name: redis
+    static_configs:
+      - targets: ['redis-exporter:9121']
+
+  # Uso de CPU, memória, rede e disco por container, incluindo os três papéis.
+  - job_name: cadvisor
+    static_configs:
+      - targets: ['cadvisor:8080']
+
+  - job_name: grafana
+    static_configs:
+      - targets: ['grafana:3000']
+
+  - job_name: loki
+    static_configs:
+      - targets: ['loki:3100']
+
+  - job_name: tempo
+    static_configs:
+      - targets: ['tempo:3200']
+
+  - job_name: otel-collector
+    static_configs:
+      - targets: ['otel-collector:8888']
+
+  # floci não expõe métricas: o probe mede disponibilidade e latência do
+  # endpoint de saúde, e o relabel preserva o alvo real no label instance.
+  - job_name: blackbox-http
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+          - http://floci:4566/_floci/health
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115

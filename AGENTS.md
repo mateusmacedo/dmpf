@@ -102,7 +102,7 @@ Fonte de verdade dos projetos: `pnpm nx show projects`.
 ```text
 nx-base-template/
 ├── apps/
-│   ├── backend/                    # placeholder — sem projeto Nx
+│   ├── backend/dmpf-reference/     # composition root de referência do kernel DMPF (dmpf-reference-go)
 │   ├── frontend/                   # placeholder — sem projeto Nx
 │   └── serverless/                 # placeholder — sem projeto Nx
 ├── libs/
@@ -120,7 +120,7 @@ nx-base-template/
 │   ├── nx-reference/               # guia prático de tasks Nx
 │   ├── ci-cd/                      # adoção de CI/CD e deploy
 │   └── onboarding.md               # setup local e primeiro PR
-├── infra/docker/                   # Dockerfile de referência
+├── infra/                          # local/ (Compose modular por recurso), observability/ (Grafana, Prometheus, Loki, Tempo, Alloy, Collector: config + manifestos), k8s/ (Kustomize base + overlays dev/hmg), docker/ (Dockerfile de referência Node)
 ├── tools/                          # generators, executors e scripts do workspace
 ├── .agents/skills/                 # skills de workspace (Nx)
 ├── .claude/                        # agents, skills e rules para assistentes
@@ -134,7 +134,11 @@ Apps Nest criadas a partir daqui seguem tipicamente `src/app/<feature>/` (contro
 
 ### Apps
 
-Nenhuma. `apps/backend`, `apps/frontend` e `apps/serverless` são diretórios de destino, sem projeto Nx registrado. Para criar a primeira app, invoque a skill `nx-generate` antes de qualquer exploração.
+Uma, Go, com as três tags de taxonomia (`type:app`, `scope:backend`, `stack:go`), a tag `layer:apps` e um `dmpf-units.json`:
+
+- **`dmpf-reference-go`** (`apps/backend/dmpf-reference`), a composition root de referência do kernel DMPF, criada por `KRN-12` (ARQ-545). É o único lugar do workspace onde instanciar provider concreto é permissivo (ADR-015): um binário cujo `--role api|relay|consumer` escolhe o processo — `api` serve a borda HTTP de `orders` (`POST /orders/{id}/items`, `POST /orders/{id}/place`, `GET /orders/{id}`, cada rota um `dmpfhttp.Route` com `ContractRef` para `contracts/openapi/orders/v1/openapi.yaml`), `relay` drena a outbox para o Kafka e `consumer` lê do Kafka e alimenta `reservations` pela inbox. Configuração só por variável de ambiente, validada por papel na partida (exit 2 nomeando a ausente); um runtime OTel por processo, em memória sem `DMPF_OTLP_ENDPOINT`. É uma unidade `app`, `dmpf-kernel/reference-app`, com três packages (raiz, `api`, `cmd/dmpf-reference`) e o `external` de todos os providers cabeados. O e2e (build tag `integration`) hospeda os três papéis num processo sobre Postgres e Redpanda e reentrega a mesma mensagem; o `test-race` declara `dependsOn` sobre os de `dmpf-provider-postgres-go` e `dmpf-app-go`. O `@nx-go/nx-go` infere `build` e `serve` para o módulo (o nome vem do diretório): o `build` explícito sobrescreve o inferido e o `serve` inferido não é usado — os papéis sobem por `serve-api`, `serve-relay` e `serve-consumer`. Fica fora do release Docker (`nx-release.yml` filtra `tag:type:app,!tag:stack:go`). Decisões em `docs/adr/041-sdk-de-referencia-generator-e-bom-certificado.md`.
+
+`apps/frontend` e `apps/serverless` seguem sendo diretórios de destino, sem projeto Nx registrado. Para criar uma app nova, invoque a skill `nx-generate` antes de qualquer exploração.
 
 ### Libs
 
@@ -146,7 +150,7 @@ Quatorze, todos Go, com as três tags de taxonomia (`type:lib`, `scope:backend`,
 - **`dmpf-ports-go`** (`libs/backend/go/dmpf-ports`), o bloco `port` do kernel, criado por `KRN-04`. Declara a fronteira de Unit of Work (`UnitOfWork[R]`), o repositório com optimistic locking, a porta da outbox em tipos de domínio, o relógio e o gerador de identificador — treze identificadores exportados, superfície fechada, nenhuma realização. É uma unidade `port`, `dmpf-kernel/port`. `Instant` é inteiro de nanossegundos e não `time.Time`, porque o verificador classifica o package `time` inteiro como `io.clock` (ver `docs/adr/034-fronteira-de-uow-em-go.md`).
 - **`dmpf-application-go`** (`libs/backend/go/dmpf-application`), o bloco `application` do kernel, também de `KRN-04`. O package raiz `dmpfapplication` traz o desfecho de aplicação `Outcome[R]`, que separa o canal de negócio do técnico, a resolução de identidade anterior à transação e o gancho de autorização; `example/orders` é o caso de uso de referência que percorre os nove passos da sequência canônica de FND-04 §3.2; `example/reservations` (de `KRN-07`) é o caso de uso de **consumo**, que ramifica pelas sete disposições de FND-04 §6.4 sobre a porta de inbox, e o package raiz traz `Disposition`, `Failure` e `Classify` — o subconjunto da taxonomia de FND-07 que o consumo precisa. São quatro unidades: `dmpf-kernel/application`, `dmpf-kernel/example-orders-application` e `dmpf-kernel/example-reservations-application` no bloco `application`, e `dmpf-kernel/example-memory` no bloco **`provider`** — a realização em memória da UoW e da inbox, que fecha os casos de uso sem banco e é complementada pelo Postgres desde o `KRN-06`.
 - **`dmpf-provider-postgres-go`** (`libs/backend/go/dmpf-provider-postgres`), o bloco `provider` do kernel, criado por `KRN-06`. Realiza `UnitOfWork[R]`, `Repository[ID, S]` e `Outbox` sobre `pgx/v5`: uma `pgx.Tx` por `Within`, o registro de outbox gravado na mesma transação do estado de negócio, e a serialização acontecendo **na escrita** — `payload` guarda os bytes do `Any` do integration event, não o CloudEvent inteiro (ver `docs/adr/035-realizacao-postgres-da-outbox.md`). Desde o `KRN-07` realiza também a porta de inbox (`Tx.Inbox`, `INSERT … ON CONFLICT DO NOTHING` com teto por `SET LOCAL lock_timeout`), a quarantine, a purga da inbox e os sinais do consumo (ver `docs/adr/036-classificacao-de-recepcao-e-fronteira-pending.md`). São três unidades, todas `provider`: `dmpf-kernel/provider-postgres` na raiz, `dmpf-kernel/example-orders-postgres` em `example/orders` e `dmpf-kernel/example-reservations-postgres` em `example/reservations`, com repositório e mapeador de cada agregado de exemplo. Foi o primeiro módulo do workspace cujo teste exige infraestrutura: os testes de banco levam a build tag `integration`, rodam só no `test-race` (com `cache: false` no Nx e `-count=1` no `go test`) e o job `main` do CI sobe o Postgres por `docker run` na rede do job — o bloco `services:` não resolve DNS no `act_runner`. Fora do alcance do `depguard`, que seleciona por nome de diretório; quem prova as células 26 e 12 aqui é o `tools/dmpf-cell-check.sh`.
-- **`dmpf-app-go`** (`libs/backend/go/dmpf-app`), o primeiro módulo do bloco `app` do workspace, criado por `KRN-07`. É o consumer adapter de FND-04 §6.3: recebe os bytes brutos da entrega (`Delivery.Raw`), decodifica o envelope por `envelope.Unmarshal`, calcula o `payload_hash`, invoca o application service e aplica o efeito de broker — `Ack`, `Release` ou contenção — sempre depois do retorno da transação (`INB-08`). Vive em módulo próprio porque só a linha `app` da matriz de blocos alcança `contract` e `application` ao mesmo tempo (células 12 e 26 são proibidas); `example/reservations` é a composition root do consumidor de exemplo, com o e2e sobre Postgres que exerce as sete disposições e o vetor V32. São duas unidades `app`, `dmpf-kernel/app-consumer` e `dmpf-kernel/example-reservations-app`, sem dependência externa declarada — o código de produção não importa protobuf. O `test-race` declara `dependsOn` sobre o do `dmpf-provider-postgres-go`, porque os dois compartilham o Postgres do job e cada harness faz `TRUNCATE`.
+- **`dmpf-app-go`** (`libs/backend/go/dmpf-app`), o primeiro módulo do bloco `app` do workspace, criado por `KRN-07`. É o consumer adapter de FND-04 §6.3: recebe os bytes brutos da entrega (`Delivery.Raw`), decodifica o envelope por `envelope.Unmarshal`, calcula o `payload_hash`, invoca o application service e aplica o efeito de broker — `Ack`, `Release` ou contenção — sempre depois do retorno da transação (`INB-08`). Vive em módulo próprio porque só a linha `app` da matriz de blocos alcança `contract` e `application` ao mesmo tempo (células 12 e 26 são proibidas); `example/reservations` é a composition root do consumidor de exemplo, com o e2e sobre Postgres que exerce as sete disposições e o vetor V32; `relay` é o relay da outbox de `KRN-08` (claim por lease, envelope montado na publicação, `payload_hash` divergente terminal — ADR-038). São três unidades `app`, `dmpf-kernel/app-consumer`, `dmpf-kernel/app-relay` e `dmpf-kernel/example-reservations-app`, sem dependência externa declarada — o código de produção não importa protobuf. Desde o `KRN-12` o `Consumer` propaga o contexto de mensagem do envelope ao handler (`correlationid`, `id` recebido como causação, `traceparent`). O `test-race` declara `dependsOn` sobre o do `dmpf-provider-postgres-go`, porque os dois compartilham o Postgres do job e cada harness faz `TRUNCATE`.
 
 - **`dmpf-observability-go`** (`libs/backend/go/dmpf-observability`), o bloco `provider` do kernel, criado por `KRN-09`. Realiza o `FND-08` sobre OpenTelemetry `v1.46.0` e `semconv/v1.43.0`: a ficha de resiliência e os decorators (`resilience`), o retry por conjunção com orçamento (`retry`), o bootstrap do SDK com sampler e processor próprios (`otelboot`), os exportadores OTLP/gRPC (`otelboot/otlp`), o catálogo de métricas (`metrics`), os atributos e a taxonomia de classes (`tracing`), o handler de log com redação (`logging`), a trilha de auditoria (`audit`), o relógio injetável (`clock`) e a realização do gancho de instrumentação (`usecase`). É uma unidade `provider`, `dmpf-kernel/observability`, com doze packages. O `TRC-14` — erro sempre amostrado — é realizado por regra equivalente em processo, porque os samplers de fábrica do SDK devolvem `Drop` no ramo negativo; a suíte **exige Docker**, porque o teste do Collector roda sem build tag (ver `docs/adr/037-observabilidade-otel-e-retry-por-conjuncao-em-go.md` e o `README.md` do módulo).
 
@@ -204,6 +208,18 @@ DMPF_SQS_ENDPOINT=http://localhost:4566 AWS_REGION=us-east-1 AWS_ACCESS_KEY_ID=t
 # Test kit (KRN-11): test-race cobre os kits em memória e, com DMPF_PG_DSN, appkit e providerkit sobre Postgres
 DMPF_PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' pnpm nx run dmpf-testkit-go:test-race
 DMPF_PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' DMPF_KAFKA_BROKERS=localhost:9092 pnpm nx run dmpf-testkit-go:test-distributed  # distkit: dois processos sobre Redpanda (V32)
+# Composition root de referência (KRN-12): os três papéis por flag, config só por ambiente
+DMPF_PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' DMPF_MIGRATE=true pnpm nx run dmpf-reference-go:serve-api
+DMPF_PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' DMPF_KAFKA_BROKERS=localhost:9092 DMPF_KAFKA_INSECURE=true DMPF_KAFKA_TOPIC=orders.events DMPF_KAFKA_DLQ=orders.events.dlq pnpm nx run dmpf-reference-go:serve-relay
+DMPF_PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' DMPF_KAFKA_BROKERS=localhost:9092 DMPF_KAFKA_INSECURE=true DMPF_KAFKA_TOPIC=orders.events DMPF_KAFKA_DLQ=orders.events.dlq DMPF_KAFKA_GROUP=reservations pnpm nx run dmpf-reference-go:serve-consumer
+DMPF_PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' DMPF_KAFKA_BROKERS=localhost:9092 pnpm nx run dmpf-reference-go:test-race  # e2e dos três papéis num processo (+ provider e dmpf-app por dependsOn)
+# Infra local e manifestos (infra/README.md): Compose modular por profile e Kustomize por overlay
+pnpm nx run dmpf-reference-go:infra-up          # Postgres, Redpanda e floci por docker compose (--wait)
+pnpm nx run dmpf-reference-go:observability-up  # Grafana, Prometheus, Loki, Tempo, Alloy, Collector e exporters
+pnpm nx run dmpf-reference-go:infra-down
+pnpm nx run dmpf-reference-go:infra-budget      # soma dos tetos do compose ≤ 60% do host (reprova se passar)
+docker compose -f infra/local/docker-compose.yml --profile dmpf up -d --build   # os três papéis + tudo o que observam; Swagger UI em :8082, Console do Redpanda em :8083, Grafana em :3000
+pnpm nx run dmpf-reference-go:k8s-render        # kubectl kustomize dos overlays dev e hmg, sem cluster
 # Seleção por camada da pirâmide (é como o ci.yml monta os estágios; a saída é um array JSON)
 pnpm nx show projects --projects=tag:layer:domain --json | jq -r 'join(",")'   # domain | services | contract | providers | apps
 bash tools/dmpf-gate-check.sh          # prova o gate nos blocos domain, port e application: depguard (por package, vetores por bloco) e forbidigo (por símbolo, só domain)
@@ -261,7 +277,7 @@ Scripts raiz (`pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, `pnpm fo
   | `services` | `dmpf-application-go`, `dmpf-transport-go` |
   | `contract` | `dmpf-contracts-go` |
   | `providers` | `dmpf-provider-postgres-go`, `dmpf-provider-kafka-go`, `dmpf-provider-sqs-go`, `dmpf-provider-grpc-go`, `dmpf-provider-http-go`, `dmpf-observability-go`, `dmpf-testkit-go` |
-  | `apps` | `dmpf-app-go` |
+  | `apps` | `dmpf-app-go`, `dmpf-reference-go` |
 
   A camada é a do **estágio** em que o módulo precisa rodar, não a do bloco DMPF de cada unidade: o `dmpf-testkit-go` tem unidades nos quatro blocos e é `layer:providers` porque a maior parte das suas suítes exige a infraestrutura que só sobe a partir do estágio 3.
 - **Não redeclarar targets** que um plugin ou `targetDefaults` (em `nx.json`) já fornece. Redeclarar quebra o cache silenciosamente (ver `docs/adr/002-nx-task-configuration.md`).

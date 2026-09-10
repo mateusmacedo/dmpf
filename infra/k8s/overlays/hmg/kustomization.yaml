@@ -1,0 +1,27 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# hmg: Postgres e Kafka são serviços fora do cluster; só a app e a plataforma
+# de observabilidade sobem daqui. Dois Secrets vêm de fora — `dmpf-reference`
+# (DSN e brokers) e `grafana-admin` (senha do administrador) — por
+# ExternalSecret/SealedSecret com esses nomes; secret.dmpf-reference.example.yaml.tmpl
+# mostra a forma e não é aplicado. Sem eles os pods ficam em
+# CreateContainerConfigError, que é a falha certa.
+
+namespace: dmpf-hmg
+
+resources:
+  - ../../../observability
+  - ../../base/dmpf-reference
+
+images:
+  - name: ghcr.io/lidercap-apps/dmpf-reference
+    newTag: hmg
+
+replicas:
+  - name: dmpf-reference-api
+    count: 2
+
+patches:
+  - path: configmap-patch.yaml
+  - path: resources-patch.yaml

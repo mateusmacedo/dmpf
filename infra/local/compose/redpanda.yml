@@ -1,0 +1,34 @@
+# Redpanda no mesmo modo do CI (ci.yml: --mode dev-container --smp 1). Dois
+# listeners: `internal` para os containers do projeto (redpanda:29092) e
+# `external` publicado no host em ${REDPANDA_PORT:-9092}, que é o endereço que
+# a documentação dos módulos Go usa (DMPF_KAFKA_BROKERS=localhost:9092).
+# A porta 9644 serve as métricas Prometheus nativas, que o scrape lê.
+services:
+  redpanda:
+    image: redpandadata/redpanda:v26.2.2
+    profiles: [redpanda, dmpf, all]
+    command:
+      - redpanda
+      - start
+      - --mode=dev-container
+      - --smp=1
+      - --memory=1G
+      - --kafka-addr=internal://0.0.0.0:29092,external://0.0.0.0:9092
+      - --advertise-kafka-addr=internal://redpanda:29092,external://localhost:${REDPANDA_PORT:-9092}
+    ports:
+      - '${REDPANDA_PORT:-9092}:9092'
+      - '${REDPANDA_ADMIN_PORT:-9644}:9644'
+    volumes:
+      - redpanda-data:/var/lib/redpanda/data
+    healthcheck:
+      test: ['CMD-SHELL', 'rpk cluster info -X brokers=localhost:29092 >/dev/null 2>&1']
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    deploy:
+      resources:
+        limits: { cpus: '1.25', memory: 1536M }
+        reservations: { cpus: '0.25', memory: 512M }
+
+volumes:
+  redpanda-data:

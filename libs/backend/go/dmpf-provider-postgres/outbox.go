@@ -2,6 +2,7 @@ package dmpfpostgres
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -63,13 +64,16 @@ func (o txOutbox) Enqueue(ctx context.Context, entry dmpfports.OutboxEntry) erro
 		return err
 	}
 
-	// metadata vazio, nunca nulo: o conteúdo do contexto de mensagem é de FND-07,
-	// e inventá-lo aqui seria o provider autorando o que não lhe pertence (OBX-02).
+	metadata, err := encodeMetadata(entry.Context)
+	if err != nil {
+		return err
+	}
+
 	_, err = o.tx.conn.Exec(ctx, insertOutbox,
 		string(entry.MessageID), mapped.Type, typeURL,
 		entry.AggregateType, entry.AggregateID, int64(entry.AggregateVersion),
 		entry.Intent.PartitionKey, entry.Intent.Destination,
-		payload, payloadhash.Sum(payload), "{}",
+		payload, payloadhash.Sum(payload), metadata,
 		int64(entry.OccurredAt), int64(entry.OccurredAt))
 
 	if isUniqueViolation(err) {
@@ -78,6 +82,26 @@ func (o txOutbox) Enqueue(ctx context.Context, entry dmpfports.OutboxEntry) erro
 		return fmt.Errorf("%w: %w", ErrDuplicateMessage, err)
 	}
 	return err
+}
+
+// metadataKeys are the ENV-08 attribute names the relay reads back
+// (dmpf-app/relay/record.go); the writer copies what the adapter authored and
+// never fills a gap (OBX-02) — an absent attribute is absent, not "".
+type metadataKeys struct {
+	CorrelationID string `json:"correlationid,omitempty"`
+	CausationID   string `json:"causationid,omitempty"`
+	Traceparent   string `json:"traceparent,omitempty"`
+}
+
+func encodeMetadata(mc dmpfports.MessageContext) (string, error) {
+	if mc.IsZero() {
+		return "{}", nil
+	}
+	encoded, err := json.Marshal(metadataKeys(mc))
+	if err != nil {
+		return "", err
+	}
+	return string(encoded), nil
 }
 
 func isUniqueViolation(err error) bool {

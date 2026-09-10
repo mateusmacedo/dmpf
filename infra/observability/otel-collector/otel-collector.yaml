@@ -1,0 +1,51 @@
+# O Collector é o único destino que a app conhece (DMPF_OTLP_ENDPOINT): daqui
+# os traces seguem para o Tempo e as métricas para o receptor OTLP nativo do
+# Prometheus. Os logs não passam por aqui — o kernel os escreve em stdout e o
+# Alloy os coleta.
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+
+processors:
+  batch: {}
+
+exporters:
+  otlp/tempo:
+    endpoint: tempo:4317
+    tls:
+      insecure: true
+  otlphttp/prometheus:
+    endpoint: http://prometheus:9090/api/v1/otlp
+    tls:
+      insecure: true
+  debug:
+    verbosity: normal
+
+service:
+  telemetry:
+    logs:
+      level: warn
+    metrics:
+      # As métricas do próprio Collector em :8888, que o Prometheus raspa.
+      readers:
+        - pull:
+            exporter:
+              prometheus:
+                host: 0.0.0.0
+                port: 8888
+    traces:
+      # W3C explícito, o mesmo modelo que o kernel exige de quem o instrumenta:
+      # otelboot reprova propagador que não injete traceparent e tracestate
+      # (ErrPropagatorNotW3C). B3 e Jaeger ficam de fora por declaração.
+      propagators: [tracecontext, baggage]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlp/tempo]
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlphttp/prometheus]

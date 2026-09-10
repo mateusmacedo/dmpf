@@ -1,0 +1,22 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Base do dmpf-reference: os três papéis como Deployments de uma mesma imagem.
+# O Secret `dmpf-reference` (DMPF_PG_DSN, DMPF_KAFKA_BROKERS) vem do overlay —
+# a base não conhece credencial nenhuma.
+
+labels:
+  - includeSelectors: true
+    pairs:
+      app.kubernetes.io/name: dmpf-reference
+      app.kubernetes.io/part-of: dmpf
+
+resources:
+  - serviceaccount.yaml
+  - configmap.yaml
+  - deployment-api.yaml
+  - deployment-relay.yaml
+  - deployment-consumer.yaml
+  - service-api.yaml
+  - pdb-api.yaml
+  - networkpolicy.yaml

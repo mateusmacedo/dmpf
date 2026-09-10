@@ -156,3 +156,8 @@ claim.
 - `docs/adr/035-realizacao-postgres-da-outbox.md` — o schema e a conferência de `payload_hash`.
 - `docs/adr/036-classificacao-de-recepcao-e-fronteira-pending.md` — o consumo que absorve a republicação.
 - `docs/adr/037-observabilidade-otel-e-retry-por-conjuncao-em-go.md` — o `KRN-09`, que mergeou em paralelo a esta entrega e deixou a lacuna de `ENV-08` aberta.
+
+## Addendum — 2026-09-08
+
+A lacuna de `ENV-08` fechou no KRN-12 (ADR-041, SPEC-6QT9SBAS): a produção dos três atributos passou a ter dono. A borda HTTP de `dmpf-reference` autora `correlationid` (do cliente ou cunhado) e `traceparent` (do span de servidor) e os põe no contexto por `dmpfports.WithMessageContext`; `dmpfapplication.MessageContextFor` os copia para cada `OutboxEntry` e preenche a causação de quem inicia a cadeia com o próprio `message_id` (FND-05); no consumo, `dmpf-app.Consumer` propaga o `correlationid`, o `id` recebido como causação e o `traceparent` do envelope antes de chamar o handler. O predicado de claim desta decisão fica como está — e passa a selecionar as linhas que o `api` escreve. O sinal `pending` alto deixa de ser o estado normal.
+

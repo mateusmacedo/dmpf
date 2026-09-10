@@ -1,0 +1,15 @@
+# Provider de dashboards: tudo o que estiver no diretório é carregado na
+# partida e recarregado a cada 30 s. `foldersFromFilesStructure` mantém no
+# Grafana a mesma organização de pastas do repositório.
+apiVersion: 1
+
+providers:
+  - name: dmpf
+    orgId: 1
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false
