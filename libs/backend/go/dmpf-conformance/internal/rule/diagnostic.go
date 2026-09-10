@@ -7,8 +7,8 @@ import (
 	"strings"
 )
 
-// Conjunto fechado de quinze. Classe não implementada é ausência declarada de
-// verificação, nunca "conforme".
+// Conjunto fechado de dezesseis. Classe não implementada é ausência declarada
+// de verificação, nunca "conforme".
 type Code string
 
 const (
@@ -19,6 +19,7 @@ const (
 	CodeM001 Code = "DMPF-M001"
 	CodeM002 Code = "DMPF-M002"
 	CodeM003 Code = "DMPF-M003"
+	CodeM004 Code = "DMPF-M004"
 	CodeT001 Code = "DMPF-T001"
 	CodeT002 Code = "DMPF-T002"
 	CodeD001 Code = "DMPF-D001"
@@ -45,6 +46,7 @@ var codeSpecs = []CodeSpec{
 	{CodeM001, "Campo obrigatório ausente no manifesto", "RFC §10.1", true},
 	{CodeM002, "Valor fora do conjunto fechado", "RFC §10.1, §7.2", true},
 	{CodeM003, "Unidade duplicada no manifesto", "RFC §10.1", true},
+	{CodeM004, "Unidade de shared kernel não resolvida", "ADR-042; RFC §7.2 estendida", true},
 	{CodeT001, "Divergência entre manifesto e baseline", "RFC §10.2 T3", true},
 	{CodeT002, "Mudança normativa sem evidência de autorização", "RFC §10.2 T5", true},
 	{CodeD001, "Aresta proibida entre blocos", "RFC §7.1 C1, §7.3", true},

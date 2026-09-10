@@ -137,6 +137,13 @@ jobs:
         if: steps.go_affected.outputs.any == 'true'
         run: bash tools/dmpf-cell-check.sh
 
+      # Nem os gates acima nem o `--root .` exercitam shared kernel: não há
+      # aresta de outro contexto para o kernel enquanto o consumidor não existe,
+      # e mudar a designação é raro. Sem este gate, C2 e DMPF-T002 ficam sem prova.
+      - name: DMPF shared kernel gate
+        if: steps.go_affected.outputs.any == 'true'
+        run: bash tools/dmpf-shared-kernel-check.sh
+
       # GATE, fail-closed. Sem `continue-on-error` e sem `|| true`: a partir
       # daqui o verificador reprova o PR. O passo shadow que existia aqui foi
       # removido NESTE MESMO COMMIT, para que não exista estado em que os dois

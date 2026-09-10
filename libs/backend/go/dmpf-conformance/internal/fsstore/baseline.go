@@ -17,6 +17,44 @@ type BaselineStore struct {
 
 func NewBaselineStore(root string) *BaselineStore { return &BaselineStore{root: root} }
 
+// documentoWire isola a chave opcional em RawMessage: só assim dá para
+// distinguir chave ausente (nil) de `null` (bytes "null") de lista, já que
+// `[]string` sozinho colapsa ausente e `null` no mesmo `nil`.
+type documentoWire struct {
+	Schema            string           `json:"schema"`
+	Digest            string           `json:"digest"`
+	Entries           []baseline.Entry `json:"entries"`
+	SharedKernelUnits json.RawMessage  `json:"shared_kernel_units"`
+}
+
+// Único ponto de Unmarshal de baseline.Document: Baseline() e BaselineEm() o
+// compartilham para que a leitura do ref base nunca divirja da do arquivo atual.
+// `null` é inválido — fail-closed, em vez de virar "ausente" em silêncio.
+func decodificarBaseline(raw []byte) (baseline.Document, error) {
+	var wire documentoWire
+	if err := json.Unmarshal(raw, &wire); err != nil {
+		return baseline.Document{}, err
+	}
+	doc := baseline.Document{Schema: wire.Schema, Digest: wire.Digest, Entries: wire.Entries}
+
+	if wire.SharedKernelUnits == nil {
+		return doc, nil
+	}
+	if string(wire.SharedKernelUnits) == "null" {
+		return baseline.Document{}, fmt.Errorf("shared_kernel_units: null não é permitido (omita a chave ou use [])")
+	}
+	var units []string
+	if err := json.Unmarshal(wire.SharedKernelUnits, &units); err != nil {
+		return baseline.Document{}, fmt.Errorf("decodificar shared_kernel_units: %w", err)
+	}
+	if units == nil {
+		units = []string{}
+	}
+	doc.SharedKernelUnits = units
+	doc.HasSharedKernelUnits = true
+	return doc, nil
+}
+
 // Ausência devolve `false` sem erro: repositório que ainda não adotou o
 // baseline não está quebrado, e o que fazer com isso é decisão do domínio.
 func (s *BaselineStore) Baseline() (baseline.Document, bool, error) {
@@ -28,8 +66,8 @@ func (s *BaselineStore) Baseline() (baseline.Document, bool, error) {
 		}
 		return baseline.Document{}, false, fmt.Errorf("ler %s: %w", baseline.Path, err)
 	}
-	var doc baseline.Document
-	if err := json.Unmarshal(raw, &doc); err != nil {
+	doc, err := decodificarBaseline(raw)
+	if err != nil {
 		return baseline.Document{}, false, fmt.Errorf("decodificar %s: %w", baseline.Path, err)
 	}
 	return doc, true, nil
@@ -41,6 +79,9 @@ func (s *BaselineStore) Escrever(doc baseline.Document) error {
 	p := filepath.Join(s.root, baseline.Path)
 	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 		return err
+	}
+	if doc.SharedKernelUnits == nil {
+		doc.SharedKernelUnits = []string{}
 	}
 	raw, err := json.MarshalIndent(doc, "", "  ")
 	if err != nil {
@@ -72,8 +113,8 @@ func (s *BaselineStore) BaselineEm(ref string) (baseline.Document, bool, error) 
 		}
 		return baseline.Document{}, false, nil
 	}
-	var doc baseline.Document
-	if err := json.Unmarshal([]byte(saida), &doc); err != nil {
+	doc, err := decodificarBaseline([]byte(saida))
+	if err != nil {
 		return baseline.Document{}, false, fmt.Errorf("decodificar o baseline em %s: %w", ref, err)
 	}
 	return doc, true, nil

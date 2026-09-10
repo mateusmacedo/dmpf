@@ -5,8 +5,11 @@ import (
 	"testing"
 
 	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/fitness"
+	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/internal/baseline"
 	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/internal/fsstore"
 	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/internal/golist"
+	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/internal/manifest"
+	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/internal/port"
 )
 
 const (
@@ -176,6 +179,96 @@ func TestUnitsListsEveryManifestUnit(t *testing.T) {
 	}
 	if !domain {
 		t.Fatalf("unit a/domain (domain, exemplo.test/dc-a) missing from %+v", units)
+	}
+}
+
+type manifestoFixo struct{ docs []manifest.Document }
+
+func (m manifestoFixo) Documents() ([]manifest.Document, error) { return m.docs, nil }
+
+type grafoFixo struct {
+	pkgs  []fitness.Package
+	edges []fitness.Edge
+}
+
+func (g grafoFixo) Packages() ([]fitness.Package, error) { return g.pkgs, nil }
+func (g grafoFixo) Edges() ([]fitness.Edge, error)       { return g.edges, nil }
+
+type storeFixo struct {
+	doc    baseline.Document
+	existe bool
+}
+
+func (s storeFixo) Baseline() (baseline.Document, bool, error) { return s.doc, s.existe, nil }
+func (s storeFixo) BaselineEm(string) (baseline.Document, bool, error) {
+	return baseline.Document{}, false, nil
+}
+func (s storeFixo) CommitsQueTocaram(string) ([]baseline.Commit, error) { return nil, nil }
+
+var _ port.BaselineStore = storeFixo{}
+
+func documentoFixo(modulo, id, bc, include string) manifest.Document {
+	return manifest.Document{
+		Path: modulo + "/dmpf-units.json", Module: modulo, Schema: manifest.SchemaID,
+		Units: []manifest.Unit{{
+			ID: id, Block: string(fitness.BlockDomain), BoundedContext: bc, Include: []string{include},
+			PresentID: true, PresentBlock: true, PresentBoundedContext: true, PresentInclude: true,
+		}},
+	}
+}
+
+func inputComEdgeEntreAeB() fitness.Input {
+	return fitness.Input{
+		Modules: []fitness.Module{
+			{Path: "a", HasManifest: true, HasProduction: true},
+			{Path: "b", HasManifest: true, HasProduction: true},
+		},
+		Manifests: manifestoFixo{docs: []manifest.Document{
+			documentoFixo("a", "a-domain", "a", "a/domain"),
+			documentoFixo("b", "b-domain", "b", "b/domain"),
+		}},
+		Graph: grafoFixo{
+			pkgs:  []fitness.Package{{CanonicalKey: "a/domain", Module: "a"}, {CanonicalKey: "b/domain", Module: "b"}},
+			edges: []fitness.Edge{{From: "a/domain", To: "b/domain", SourceFile: "a/domain/d.go"}},
+		},
+	}
+}
+
+// Without a baseline, Input.SharedKernelUnits is the only source of the
+// designation, and it must be enough to approve the edge.
+func TestSharedKernelUnitsAppliedWithoutBaseline(t *testing.T) {
+	in := inputComEdgeEntreAeB()
+	in.SharedKernelUnits = []string{"b-domain"}
+
+	ds, err := fitness.Diagnostics(in)
+	if err != nil {
+		t.Fatalf("Diagnostics: %v", err)
+	}
+	if len(ds) != 0 {
+		t.Fatalf("SharedKernelUnits without a baseline should approve the edge: %v", ds)
+	}
+}
+
+// With a baseline present, Input.SharedKernelUnits must never leak into the
+// decision: only the store's own designation counts (here, none).
+func TestSharedKernelUnitsIgnoredWithBaseline(t *testing.T) {
+	entries := []baseline.Entry{
+		{Unit: "a-domain", Module: "a", Block: "domain", BoundedContext: "a", Membership: []string{"a/domain"}},
+		{Unit: "b-domain", Module: "b", Block: "domain", BoundedContext: "b", Membership: []string{"b/domain"}},
+	}
+	doc := baseline.Document{Schema: baseline.SchemaID, Entries: entries}
+	doc.Digest = baseline.DigestOf(doc)
+
+	in := inputComEdgeEntreAeB()
+	in.Baseline = storeFixo{doc: doc, existe: true}
+	in.SharedKernelUnits = []string{"b-domain"}
+
+	ds, err := fitness.Diagnostics(in)
+	if err != nil {
+		t.Fatalf("Diagnostics: %v", err)
+	}
+	if len(ds) != 1 || ds[0].Code != fitness.CodeD002 {
+		t.Fatalf("diagnostics = %v, want exactly one D002 (the input list must be ignored when a baseline is present)", ds)
 	}
 }
 

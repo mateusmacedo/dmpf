@@ -30,9 +30,11 @@ type Entry struct {
 // O Digest fecha o conjunto: alterar entrada sem recalcular reprova, e
 // recalcular obriga a tocar o arquivo, tornando a mudança visível em revisão.
 type Document struct {
-	Schema  string  `json:"schema"`
-	Digest  string  `json:"digest"`
-	Entries []Entry `json:"entries"`
+	Schema               string   `json:"schema"`
+	Digest               string   `json:"digest"`
+	Entries              []Entry  `json:"entries"`
+	SharedKernelUnits    []string `json:"shared_kernel_units"`
+	HasSharedKernelUnits bool     `json:"-"`
 }
 
 // Fica fora de qualquer módulo que ele descreva: dentro de um, o mesmo commit
@@ -55,6 +57,20 @@ func FromUniverse(units []rule.Unit, membership map[rule.UnitKey][]string) Docum
 	}
 	ordenar(entries)
 	return Document{Schema: SchemaID, Digest: Digest(entries), Entries: entries}
+}
+
+// Regravar preserva a designação de shared kernel através da regeneração: sem
+// isso, `Regravar` apagaria em silêncio o que `Designar` levou um PR à parte
+// para aprovar.
+func Regravar(atual Document, existia bool, units []rule.Unit, membership map[rule.UnitKey][]string) Document {
+	d := FromUniverse(units, membership)
+	d.SharedKernelUnits = []string{}
+	if existia && atual.HasSharedKernelUnits {
+		d.SharedKernelUnits = slices.Clone(atual.SharedKernelUnits)
+	}
+	d.HasSharedKernelUnits = true
+	d.Digest = DigestOf(d)
+	return d
 }
 
 func ordenar(entries []Entry) {
@@ -82,7 +98,7 @@ func Compare(versionado, derivado Document) []rule.Diagnostic {
 
 	// Contra as entradas do PRÓPRIO arquivo: se não fecha, comparar adiante
 	// seria comparar com um documento que já não descreve a si mesmo.
-	if esperado := Digest(versionado.Entries); versionado.Digest != esperado {
+	if esperado := DigestOf(versionado); versionado.Digest != esperado {
 		out = append(out, rule.Diagnostic{
 			Code:         rule.CodeT001,
 			CanonicalKey: Path,
@@ -145,6 +161,60 @@ func divergencias(chave rule.UnitKey, versionado, derivado Entry) []rule.Diagnos
 		})
 	}
 	return out
+}
+
+// Designar casa cada chave com Entry.Unit no PRÓPRIO baseline, não em `units`:
+// só a entry sabe o Module da chave, já que Entry.Unit é único por módulo, não
+// no arquivo inteiro.
+func Designar(doc Document, units []rule.Unit) ([]rule.Unit, []rule.Diagnostic) {
+	out := make([]rule.Unit, len(units))
+	copy(out, units)
+
+	porChave := map[string][]Entry{}
+	for _, e := range doc.Entries {
+		porChave[e.Unit] = append(porChave[e.Unit], e)
+	}
+	porUnitKey := make(map[rule.UnitKey]int, len(out))
+	for i, u := range out {
+		porUnitKey[u.Key()] = i
+	}
+
+	chaves := slices.Clone(doc.SharedKernelUnits)
+	sort.Strings(chaves)
+
+	var diags []rule.Diagnostic
+	for _, chave := range chaves {
+		achadas := porChave[chave]
+		switch len(achadas) {
+		case 0:
+			diags = append(diags, rule.Diagnostic{
+				Code:         rule.CodeM004,
+				CanonicalKey: chave,
+				Detail:       "shared_kernel_units referencia unidade inexistente no baseline",
+			})
+		case 1:
+			key := rule.UnitKey{Module: achadas[0].Module, ID: achadas[0].Unit}
+			i, existe := porUnitKey[key]
+			if !existe {
+				diags = append(diags, rule.Diagnostic{
+					Code:         rule.CodeM004,
+					CanonicalKey: chave,
+					Detail:       "shared_kernel_units resolvida no baseline (" + key.String() + ") e ausente do universo",
+				})
+				continue
+			}
+			out[i].SharedKernel = true
+		default:
+			diags = append(diags, rule.Diagnostic{
+				Code:         rule.CodeM004,
+				CanonicalKey: chave,
+				Detail:       "shared_kernel_units referencia unidade ambígua no baseline (presente em múltiplos módulos)",
+			})
+		}
+	}
+
+	rule.SortDiagnostics(diags)
+	return out, diags
 }
 
 func indexar(entries []Entry) map[rule.UnitKey]Entry {

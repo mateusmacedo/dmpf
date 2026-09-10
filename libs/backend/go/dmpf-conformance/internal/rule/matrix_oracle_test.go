@@ -83,18 +83,22 @@ func TestMatrizConfereComRFC74(t *testing.T) {
 	}
 }
 
-// C1 é só a matriz: não olha bounded context nem superfície pública.
+// C1 é só a matriz: não olha bounded context, superfície pública nem shared kernel.
 func TestC1NaoDependeDeContexto(t *testing.T) {
 	for _, c := range oracle {
 		for _, bc := range []struct{ src, tgt string }{{"a", "a"}, {"a", "b"}} {
 			for _, surface := range []bool{false, true} {
-				d := Decide(
-					Endpoint{Block: c.source, BoundedContext: bc.src},
-					Endpoint{Block: c.target, BoundedContext: bc.tgt, PublicIntegrationSurface: surface},
-				)
-				if d.C1 != c.allow {
-					t.Errorf("célula %d (%s -> %s) com bc=%v/%v surface=%v: C1=%v, esperado %v",
-						c.n, c.source, c.target, bc.src, bc.tgt, surface, d.C1, c.allow)
+				for _, srcKernel := range []bool{false, true} {
+					for _, tgtKernel := range []bool{false, true} {
+						d := Decide(
+							Endpoint{Block: c.source, BoundedContext: bc.src, SharedKernel: srcKernel},
+							Endpoint{Block: c.target, BoundedContext: bc.tgt, PublicIntegrationSurface: surface, SharedKernel: tgtKernel},
+						)
+						if d.C1 != c.allow {
+							t.Errorf("célula %d (%s -> %s) com bc=%v/%v surface=%v srcKernel=%v tgtKernel=%v: C1=%v, esperado %v",
+								c.n, c.source, c.target, bc.src, bc.tgt, surface, srcKernel, tgtKernel, d.C1, c.allow)
+						}
+					}
 				}
 			}
 		}
@@ -103,31 +107,54 @@ func TestC1NaoDependeDeContexto(t *testing.T) {
 
 func TestC2TabelaVerdade(t *testing.T) {
 	casos := []struct {
-		nome     string
-		srcBC    string
-		tgtBC    string
-		tgtBlock Block
-		surface  bool
-		querC2   bool
+		nome      string
+		srcBC     string
+		tgtBC     string
+		tgtBlock  Block
+		surface   bool
+		srcKernel bool
+		tgtKernel bool
+		querC2    bool
 	}{
-		{"mesmo contexto, sem superfície", "a", "a", BlockDomain, false, true},
-		{"mesmo contexto, com superfície", "a", "a", BlockApplication, true, true},
-		{"contextos distintos, sem superfície", "a", "b", BlockDomain, false, false},
-		{"contextos distintos, com superfície", "a", "b", BlockApplication, true, true},
-		{"contextos distintos, destino contract", "a", "b", BlockContract, false, true},
-		{"mesmo contexto, destino contract", "a", "a", BlockContract, false, true},
+		{"mesmo contexto, sem superfície", "a", "a", BlockDomain, false, false, false, true},
+		{"mesmo contexto, com superfície", "a", "a", BlockApplication, true, false, false, true},
+		{"contextos distintos, sem superfície", "a", "b", BlockDomain, false, false, false, false},
+		{"contextos distintos, com superfície", "a", "b", BlockApplication, true, false, false, true},
+		{"contextos distintos, destino contract", "a", "b", BlockContract, false, false, false, true},
+		{"mesmo contexto, destino contract", "a", "a", BlockContract, false, false, false, true},
+		{"contextos distintos, destino no shared kernel", "a", "b", BlockDomain, false, false, true, true},
+		{"contextos distintos, origem no shared kernel não propaga", "a", "b", BlockDomain, false, true, false, false},
+		{"contextos distintos, nenhum designado shared kernel", "a", "b", BlockApplication, false, false, false, false},
 	}
 	for _, c := range casos {
 		t.Run(c.nome, func(t *testing.T) {
 			d := Decide(
-				Endpoint{Block: BlockApp, BoundedContext: c.srcBC},
-				Endpoint{Block: c.tgtBlock, BoundedContext: c.tgtBC, PublicIntegrationSurface: c.surface},
+				Endpoint{Block: BlockApp, BoundedContext: c.srcBC, SharedKernel: c.srcKernel},
+				Endpoint{Block: c.tgtBlock, BoundedContext: c.tgtBC, PublicIntegrationSurface: c.surface, SharedKernel: c.tgtKernel},
 			)
 			if d.C2 != c.querC2 {
 				t.Errorf("C2=%v, esperado %v", d.C2, c.querC2)
 			}
 		})
 	}
+
+	t.Run("destino no shared kernel com C1 reprovando (célula 4)", func(t *testing.T) {
+		src := Endpoint{CanonicalKey: "x/domain", Block: BlockDomain, BoundedContext: "a"}
+		tgt := Endpoint{CanonicalKey: "y/port", Block: BlockPort, BoundedContext: "b", SharedKernel: true}
+
+		d := Decide(src, tgt)
+		if !d.C2 {
+			t.Fatalf("C2=%v, esperado true (destino no shared kernel)", d.C2)
+		}
+		if d.Allowed() {
+			t.Fatalf("Allowed()=true, esperado false (célula 4 reprova C1)")
+		}
+
+		ds := DiagnoseEdge(src, tgt, "x/domain/a.go")
+		if len(ds) != 1 || ds[0].Code != CodeD001 {
+			t.Fatalf("esperado só D001, got %v", ds)
+		}
+	})
 }
 
 func TestConjuncaoEIndependente(t *testing.T) {

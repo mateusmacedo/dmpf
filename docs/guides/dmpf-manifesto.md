@@ -220,6 +220,84 @@ go run ./libs/backend/go/dmpf-conformance/cmd/dmpf-conformance --root . --write-
 O comando é separado da verificação de propósito: um gate que conserta o próprio
 insumo deixa de detectar a divergência que existe para detectar.
 
+## Shared kernel
+
+Uma unidade designada como **shared kernel** pode ser importada por qualquer
+bounded context. É a exceção que torna o kernel DMPF consumível como SDK: sem
+ela, importar qualquer bloco do kernel de outro contexto emite `DMPF-D002`,
+porque `dmpfapplication.Outcome[R]` e `dmpfports.OutboxEntry` expõem tipos de
+`dmpfdomain` e arrastam o `domain` do kernel junto (ADR-042).
+
+A designação **não fica no manifesto**. Ela vive na chave `shared_kernel_units`
+do baseline, e lista chaves canônicas de unidade — o mesmo valor do campo `unit`
+de cada entrada:
+
+```json
+{
+  "schema": "dmpf/units-baseline@1",
+  "digest": "sha256:…",
+  "shared_kernel_units": [
+    "dmpf-kernel/domain",
+    "dmpf-kernel/port"
+  ],
+  "entries": [ … ]
+}
+```
+
+O manifesto do módulo não muda: não existe campo de shared kernel em
+`dmpf-units.json`. A razão é de autoridade — designar é decisão de arquitetura
+sobre o repositório inteiro, e o manifesto é escrito por quem desenvolve o
+módulo.
+
+### O que a designação libera, e o que não
+
+Libera **apenas o destino**. Outro contexto passa a poder importar a unidade
+designada; a unidade designada **não** ganha licença para importar de fora do
+seu próprio contexto. A exceção é unidirecional.
+
+Continua valendo tudo o mais:
+
+- A matriz de blocos (C1) é idêntica. Uma aresta que viola a matriz segue
+  emitindo `DMPF-D001` mesmo com o destino designado — shared kernel relaxa a
+  condição de contexto, nunca a de bloco.
+- `public_integration_surface: true` em bloco `domain` segue inválido
+  (`DMPF-M002`). Designar não é declarar superfície pública, e uma coisa não
+  substitui a outra.
+- O interior do contexto segue privado por default (ADR-017). Designa-se
+  unidade nominal, nunca o bounded context inteiro: os agregados de exemplo e as
+  composition roots do kernel permanecem privados.
+
+### Como designar
+
+Designar é **ato de classificação**, com o mesmo rito da seção anterior: commit
+próprio, separado de código, aprovado por revisor distinto do autor. Alterar
+`shared_kernel_units` junto com um `.go` emite `DMPF-T002`.
+
+1. Acrescente a chave ao baseline, com as chaves canônicas das unidades.
+2. Regrave o baseline, porque o digest incorpora a lista:
+
+```bash
+go run ./libs/backend/go/dmpf-conformance/cmd/dmpf-conformance --root . --write-baseline
+```
+
+Editar a chave sem regravar deixa o digest sem fechar, e toda verificação
+seguinte reprova com `DMPF-T001`.
+
+3. Commite **apenas** o baseline.
+
+### Chave que não resolve reprova
+
+`DMPF-M004` cobre a designação malformada, em três casos: chave sem nenhuma
+entrada correspondente, chave com duas ou mais, e chave que resolve para uma
+entrada fora do universo. O diagnóstico **interrompe a verificação** em vez de
+seguir decidindo arestas — decidir sobre designação inválida produziria um
+veredicto com aparência de conformidade.
+
+Não confunda ausência com lista vazia. A chave ausente significa que o
+repositório não adotou a designação, e mantém o digest legado byte a byte;
+`[]` significa que adotou e não designou ninguém. `null` explícito é **recusado**
+por ser ambíguo entre as duas intenções.
+
 ## Rodar o verificador localmente
 
 ```bash
@@ -231,7 +309,7 @@ de execução — e a distinção importa, porque falha de execução nunca pode
 como conformidade.
 
 Cada diagnóstico nomeia a aresta, o arquivo que a introduz, o código e a seção
-normativa. A tabela completa dos quinze códigos está em RFC §10.3.
+normativa. A tabela completa dos dezesseis códigos está em RFC §10.3.
 
 ## Referências
 
@@ -240,3 +318,5 @@ normativa. A tabela completa dos quinze códigos está em RFC §10.3.
 - `docs/adr/012-classificacao-por-metadado-declarado.md` — por que não há inferência
 - `docs/adr/014-proibir-aresta-domain-port.md` — a aresta proibida sem exceção
 - `docs/adr/028-processo-de-autorizacao-da-classificacao.md` — o rito, quando viger
+- `docs/adr/017-bounded-context-declarado-superficie-publica.md` — a condição de contexto C2 e o interior privado por default
+- `docs/adr/042-shared-kernel.md` — a designação de shared kernel e a extensão de C2

@@ -8,7 +8,12 @@
     "fmt-check": {
       "executor": "nx:run-commands",
       "cache": true,
-      "inputs": ["go", "^go", "{workspaceRoot}/tools/dmpf-baseline/**"],
+      "inputs": [
+        "go",
+        "^go",
+        "{workspaceRoot}/tools/dmpf-baseline/**",
+        "{workspaceRoot}/tools/dmpf-shared-kernel-check.sh"
+      ],
       "options": {
         "command": "saida=\"$(gofmt -l . 2>&1)\"; status=$?; [ $status -eq 0 ] || { printf '%s\\n' \"$saida\" >&2; exit $status; }; [ -z \"$saida\" ] || { printf '%s\\n' \"$saida\" >&2; exit 1; }",
         "cwd": "{projectRoot}"
@@ -17,7 +22,12 @@
     "vet": {
       "executor": "nx:run-commands",
       "cache": true,
-      "inputs": ["go", "^go", "{workspaceRoot}/tools/dmpf-baseline/**"],
+      "inputs": [
+        "go",
+        "^go",
+        "{workspaceRoot}/tools/dmpf-baseline/**",
+        "{workspaceRoot}/tools/dmpf-shared-kernel-check.sh"
+      ],
       "options": {
         "command": "go vet ./...",
         "cwd": "{projectRoot}"
@@ -25,7 +35,12 @@
     },
     "build": {
       "executor": "nx:run-commands",
-      "inputs": ["go", "^go", "{workspaceRoot}/tools/dmpf-baseline/**"],
+      "inputs": [
+        "go",
+        "^go",
+        "{workspaceRoot}/tools/dmpf-baseline/**",
+        "{workspaceRoot}/tools/dmpf-shared-kernel-check.sh"
+      ],
       "options": {
         "command": "go build ./...",
         "cwd": "{projectRoot}"
@@ -34,7 +49,12 @@
     "test-race": {
       "executor": "nx:run-commands",
       "cache": true,
-      "inputs": ["go", "^go", "{workspaceRoot}/tools/dmpf-baseline/**"],
+      "inputs": [
+        "go",
+        "^go",
+        "{workspaceRoot}/tools/dmpf-baseline/**",
+        "{workspaceRoot}/tools/dmpf-shared-kernel-check.sh"
+      ],
       "options": {
         "command": "go test -race ./...",
         "cwd": "{projectRoot}"

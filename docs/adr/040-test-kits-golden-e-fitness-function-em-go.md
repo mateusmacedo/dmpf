@@ -54,7 +54,7 @@ pode importar `tb` (domain → app) e `golden` não pode importar `domainkit`
 
 **Package exportado `fitness` no `dmpf-conformance`, sem mover `internal/`.**
 Expõe `Workspace`, `Units`, `Diagnostics`, `Diagnose`, `Graph` e
-`StandardCapability`, com aliases dos tipos e dos quinze códigos, e omite o
+`StandardCapability`, com aliases dos tipos e dos dezesseis códigos, e omite o
 baseline e o `--base` — a fronteira de `FIT-03`. É unidade `app` com
 `public_integration_surface: true`, porque o kit é `bounded_context:
 dmpf-kernel` e o verificador é `dmpf-conformance`: sem a superfície pública a

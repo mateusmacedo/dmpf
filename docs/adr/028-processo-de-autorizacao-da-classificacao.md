@@ -4,6 +4,10 @@
 
 Aceito — 2026-08-29. Implementa SPEC-DBTRMM3X.
 
+Estendido pelo [ADR-042](./042-shared-kernel.md) — 2026-09-09: a designação de
+shared kernel no baseline governado passa a ser ato de classificação sujeito a
+este processo, e `DMPF-T002` reprova o commit que a altera junto com código.
+
 ## Contexto
 
 A classificação de cada unidade arquitetural — o `block` e o `bounded_context`

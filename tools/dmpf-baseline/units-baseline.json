@@ -1,6 +1,6 @@
 {
   "schema": "dmpf/units-baseline@1",
-  "digest": "sha256:6171d911285669441e5b8ea4741cf504680e45ad043c62aa38a9bfa5c1394aa4",
+  "digest": "sha256:9afc1d60fb8d1fbbd0ed1e8dd6dfc3aa70ebc8b318fa32a4ea8cd727471d0f2e",
   "entries": [
     {
       "unit": "dmpf-kernel/app-consumer",
@@ -410,5 +410,22 @@
         "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-transport/observe"
       ]
     }
+  ],
+  "shared_kernel_units": [
+    "dmpf-kernel/domain",
+    "dmpf-kernel/port",
+    "dmpf-kernel/application",
+    "dmpf-kernel/provider-postgres",
+    "dmpf-kernel/provider-grpc",
+    "dmpf-kernel/provider-http",
+    "dmpf-kernel/provider-kafka",
+    "dmpf-kernel/provider-sqs",
+    "dmpf-kernel/app-consumer",
+    "dmpf-kernel/app-relay",
+    "dmpf-kernel/observability",
+    "dmpf-kernel/transport",
+    "dmpf-contracts/envelope",
+    "dmpf-contracts/gen",
+    "dmpf-contracts/payloadhash"
   ]
 }
