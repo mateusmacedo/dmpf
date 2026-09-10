@@ -2,7 +2,7 @@
 id: SPEC-XMNBMY50
 slug: dmpf-shared-kernel
 title: DMPF — Shared kernel, o consumo do kernel por outros bounded contexts
-stage: building
+stage: done
 priority: P1
 depends_on: [SPEC-WTAXFV8B]
 ticket_url: https://lider-cap.atlassian.net/browse/ARQ-553
