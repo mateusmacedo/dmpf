@@ -12,7 +12,7 @@ entrega, e o Postgres no `KRN-06`.
 
 Projeto Nx `dmpf-ports-go`, tags `type:lib`, `scope:backend`, `stack:go`.
 Import path do módulo:
-`gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-ports`.
+`github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-ports`.
 
 ## O que o módulo contém
 

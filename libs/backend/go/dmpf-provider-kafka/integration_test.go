@@ -12,13 +12,13 @@ import (
 
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/envelope"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/payloadhash"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/clock"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/retry"
-	dmpfports "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-ports"
-	dmpfkafka "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-provider-kafka"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-transport/channel"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/envelope"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/payloadhash"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/clock"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/retry"
+	dmpfports "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-ports"
+	dmpfkafka "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-kafka"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-transport/channel"
 )
 
 const (
@@ -33,7 +33,7 @@ func message(t *testing.T, key string, n int) ([]byte, string) {
 	payload := make([]byte, 8)
 	binary.BigEndian.PutUint64(payload, uint64(n))
 	env := envelope.Envelope{
-		ID: fmt.Sprintf("evt-%s-%d", key, n), Source: "urn:lidercap:sales", SpecVersion: envelope.SpecVersion,
+		ID: fmt.Sprintf("evt-%s-%d", key, n), Source: "urn:dmpf:sales", SpecVersion: envelope.SpecVersion,
 		Type: "sales.order.placed.v1", Subject: "order/" + key, Time: timestamppb.New(time.Now()),
 		DataSchema: "type.googleapis.com/sales.order.v1.OrderPlaced", DataContentType: envelope.ContentType,
 		CorrelationID: "corr", CausationID: "evt-0", PartitionKey: key,

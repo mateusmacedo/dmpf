@@ -20,7 +20,7 @@ classificação não há decisão possível, e prosseguir seria adivinhar.
       "block": "domain",
       "bounded_context": "meu-contexto",
       "public_integration_surface": false,
-      "include": ["gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/meu-modulo/internal/domain"]
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/meu-modulo/internal/domain"]
     }
   ],
   "external": [],

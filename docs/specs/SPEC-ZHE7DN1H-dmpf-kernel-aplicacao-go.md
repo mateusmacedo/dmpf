@@ -5,7 +5,7 @@ title: DMPF KRN-04 — Kernel de aplicação Go: Unit of Work e sequência canô
 stage: done
 priority: P0
 depends_on: [SPEC-MQA5HAXF, SPEC-WTAXFV8B, SPEC-XF9TF9A0]
-ticket_url: https://lider-cap.atlassian.net/browse/ARQ-523
+ticket_url: null
 subtask_urls: []
 created: 2026-09-03
 ---
@@ -58,7 +58,7 @@ realização em memória pelo provider Postgres.
 - **Inspiração**: a forma canônica `UnitOfWork.within(contexto, recursos ->
   { recursos.pedidos.save(...); recursos.outbox.enqueue(...) })` de FND-04
   §3.1; o exemplo conforme de FND-04 §9.2 e a contraprova de §9.4; a decisão
-  real de `shared-titulos-services` (RFC §7.5, evidência), única no universo
+  real de `legado-titulos-shared-services` (RFC §7.5, evidência), única no universo
   inventariado que grava `backoffice_outbox` na mesma transação do caso de uso
   e drena em app dedicado; o `Outcome` como valor explícito em vez de `error`
   compartilhado, pela mesma razão que o ADR-032 escolheu `*Rejection` concreto.
@@ -182,9 +182,9 @@ Regras que esta spec realiza, com a força que cada fonte declara:
 - [x] **[P0] Módulo criado por `@nx-go/nx-go:library` em
   `libs/backend/go/dmpf-ports`**, package raiz `dmpfports`, projeto Nx
   `dmpf-ports-go`, tags exatamente `type:lib`, `scope:backend`, `stack:go`,
-  `package.json` `{"name": "@lidercap-apps/dmpf-ports-go", "version":
+  `package.json` `{"name": "@mateusmacedo/dmpf-ports-go", "version":
   "0.0.0", "private": true}`, module path
-  `gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-ports`,
+  `github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-ports`,
   `go 1.26.4`, entrada `./libs/backend/go/dmpf-ports` no bloco `use` do
   `go.work` em ordem alfabética. Cinco targets declarados com os mesmos
   comandos do `dmpf-domain` (`fmt-check`, `vet`, `build`, `test-race`,
@@ -289,7 +289,7 @@ Regras que esta spec realiza, com a força que cada fonte declara:
 - [x] **[P0] Módulo criado por `@nx-go/nx-go:library` em
   `libs/backend/go/dmpf-application`**, package raiz `dmpfapplication`,
   projeto Nx `dmpf-application-go`, mesmas tags, `package.json`
-  `@lidercap-apps/dmpf-application-go` privado, module path
+  `@mateusmacedo/dmpf-application-go` privado, module path
   `.../libs/backend/go/dmpf-application`, `go 1.26.4`, entrada no `go.work`,
   cinco targets idênticos, sem `implicitDependencies` (mesma razão do
   `dmpf-ports-go`).
@@ -506,7 +506,7 @@ Regras que esta spec realiza, com a força que cada fonte declara:
   ./libs/backend/go/dmpf-conformance/cmd/dmpf-conformance --root . --base
   origin/develop` com saída `0`.
 - [ ] `pnpm biome ci .` e `pnpm nx affected -t lint,typecheck,test,build
-  --exclude=@nx-base-template/source` verdes.
+  --exclude=@mateusmacedo/dmpf-source` verdes.
   - **Parcial.** O `nx affected` passou (4 projetos, `0 issues`). O `pnpm biome ci .`
     devolve `Checked 0 files` e exit 1, com "These paths were provided but ignored:
     - ." — achado **pré-existente**, não desta entrega: o `biome.json` não foi
@@ -539,11 +539,11 @@ broker nesta entrega. A realização em memória não é infraestrutura.
 ## Localização de código
 
 ```text
-lidercap-platform/
+dmpf/
 ├── go.work                                          # MODIFICAR — use ./libs/backend/go/dmpf-application e ./libs/backend/go/dmpf-ports
 ├── libs/backend/go/dmpf-ports/                      # CRIAR — projeto Nx dmpf-ports-go, bloco port
 │   ├── go.mod                                       # module .../libs/backend/go/dmpf-ports, go 1.26.4, sem require
-│   ├── package.json                                 # @lidercap-apps/dmpf-ports-go, private: true
+│   ├── package.json                                 # @mateusmacedo/dmpf-ports-go, private: true
 │   ├── project.json                                 # tags 3D, 5 targets
 │   ├── dmpf-units.json                              # unidade dmpf-kernel/port (commit próprio)
 │   ├── README.md                                    # o que o bloco port é e não é
@@ -557,7 +557,7 @@ lidercap-platform/
 │   └── contract_test.go                             # o contrato de Within enunciado como suíte reutilizável (func RunUnitOfWorkContract)
 ├── libs/backend/go/dmpf-application/                # CRIAR — projeto Nx dmpf-application-go
 │   ├── go.mod                                       # module .../libs/backend/go/dmpf-application, go 1.26.4, sem require
-│   ├── package.json                                 # @lidercap-apps/dmpf-application-go, private: true
+│   ├── package.json                                 # @mateusmacedo/dmpf-application-go, private: true
 │   ├── project.json                                 # tags 3D, 5 targets
 │   ├── dmpf-units.json                              # 3 unidades: application, example-orders-application, example-memory (commit próprio)
 │   ├── README.md                                    # os nove passos apontando para o código; at-least-once declarado
@@ -599,10 +599,10 @@ lidercap-platform/
 
 Import paths canônicos (as `canonical_key` das quatro unidades novas):
 
-- `gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-ports`
-- `gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-application`
-- `gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-application/example/orders`
-- `gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-application/example/memory`
+- `github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-ports`
+- `github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application`
+- `github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application/example/orders`
+- `github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application/example/memory`
 
 `RunUnitOfWorkContract` vive em arquivo `_test.go` de `dmpfports` e, como
 arquivo de teste nunca é importável por outro módulo, a
@@ -885,7 +885,7 @@ de qualquer `Tx`.
 - [x] Cadeia Go verde nos dois módulos: `fmt-check`, `vet`, `lint`, `build`,
   `test`, `test-race`, `govulncheck`; `bash tools/dmpf-gate-check.sh` verde
   contando três blocos; `pnpm biome ci .` e `pnpm nx affected -t
-  lint,typecheck,test,build --exclude=@nx-base-template/source` verdes.
+  lint,typecheck,test,build --exclude=@mateusmacedo/dmpf-source` verdes.
 
 ### Cenários de teste
 

@@ -6,7 +6,7 @@ import (
 	"context"
 	"errors"
 
-	dmpfports "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-ports"
+	dmpfports "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-ports"
 )
 
 // Disposition is one of FND-04 §6.4's seven consumption outcomes: axis 1

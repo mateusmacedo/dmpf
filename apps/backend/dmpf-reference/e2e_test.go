@@ -8,10 +8,10 @@ import (
 	"net/http"
 	"testing"
 
-	dmpfreference "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/apps/backend/dmpf-reference"
-	ordersapp "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-application/example/orders"
-	dmpfkafka "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-provider-kafka"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-testkit/appkit"
+	dmpfreference "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference"
+	ordersapp "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application/example/orders"
+	dmpfkafka "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-kafka"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/appkit"
 )
 
 // e2eItems is the ItemCount of the OrderPlaced event: the number of lines of

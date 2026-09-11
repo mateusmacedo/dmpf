@@ -5,7 +5,7 @@ title: DMPF KRN-11 — Testes, test kits e interoperabilidade Go ↔ TypeScript
 stage: done
 priority: P1
 depends_on: [SPEC-WTAXFV8B, SPEC-XF9TF9A0, SPEC-ZHE7DN1H, SPEC-WYX5GW87, SPEC-3R80KNMS, SPEC-ANZX2WPG, SPEC-CGPX20NP, SPEC-NYD18TGD, SPEC-EAGAXQN1]
-ticket_url: https://lider-cap.atlassian.net/browse/ARQ-530
+ticket_url: null
 subtask_urls: []
 created: 2026-09-06
 ---
@@ -839,7 +839,7 @@ das fontes normativas e das divergências reconciliadas acima.
   quando o metateste roda, então reprova nomeando a célula (`RAS-06`).
 - Dado um package de teste de unidade `domain` que importa `dmpf-ports`,
   quando `domaintest_test.go` roda, então reprova nomeando
-  `gitea.lidercap.com.br/.../dmpf-ports` como a dependência (`V29`/`V30`).
+  `github.com/.../dmpf-ports` como a dependência (`V29`/`V30`).
 - Dado a tabela de vetores, quando `v27_test.go` roda, então a entrada
   `V27` tem `SingleStack == "typescript"` e motivo não vazio, e a contagem
   de lacunas Go é zero.

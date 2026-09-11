@@ -1,3 +1,0 @@
-# Owner por bounded context dos contratos de wire (REP-03 de docs/dmpf/cloudevents-protobuf-buf.md).
-contracts/proto/company/orders/.* @lidercap-apps/tech-leads
-contracts/fixtures/orders/.* @lidercap-apps/tech-leads

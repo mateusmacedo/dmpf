@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-testkit/fitness"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/fitness"
 )
 
 func TestV27IsRegisteredAsTypeScriptOnly(t *testing.T) {

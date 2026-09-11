@@ -5,7 +5,7 @@ title: DMPF KRN-09 — Resiliência e observabilidade Go: OpenTelemetry e retry 
 stage: done
 priority: P1
 depends_on: [SPEC-MQA5HAXF, SPEC-WTAXFV8B, SPEC-ZHE7DN1H]
-ticket_url: https://lider-cap.atlassian.net/browse/ARQ-528
+ticket_url: null
 subtask_urls: []
 created: 2026-09-04
 ---
@@ -302,8 +302,8 @@ Regras que esta spec realiza, com a força que cada fonte declara:
 #### Módulo e governança
 
 - [ ] **[P0] Módulo `dmpf-observability-go`**: criar `libs/backend/go/dmpf-observability`
-  com `go.mod` (`module gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability`,
-  `go 1.26.8`), `package.json` (`@lidercap-apps/dmpf-observability-go`,
+  com `go.mod` (`module github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability`,
+  `go 1.26.8`), `package.json` (`@mateusmacedo/dmpf-observability-go`,
   `private: true`), `project.json` (tags `type:lib`, `scope:backend`,
   `stack:go`; os cinco targets `fmt-check`, `vet`, `build`, `test-race`,
   `govulncheck` idênticos aos de `dmpf-application`) e entrada
@@ -644,7 +644,7 @@ Regras que esta spec realiza, com a força que cada fonte declara:
 - [ ] `bash tools/dmpf-gate-check.sh` e
   `go run ./libs/backend/go/dmpf-conformance/cmd/dmpf-conformance --root . --base develop`
   aprovam: nenhum `DMPF-D001`, `DMPF-D002`, `DMPF-E001` ou `DMPF-E002`.
-- [ ] `pnpm biome ci .` e `pnpm nx affected -t lint,typecheck,test,build --exclude=@nx-base-template/source` verdes.
+- [ ] `pnpm biome ci .` e `pnpm nx affected -t lint,typecheck,test,build --exclude=@mateusmacedo/dmpf-source` verdes.
 - [ ] Determinismo: nenhum teste usa `time.Now()`, `time.Sleep()` nem `math/rand`
   sem semente; a suíte completa do módulo roda em menos de 5 s de tempo de
   parede.
@@ -682,7 +682,7 @@ do `KRN-12`.
 ## Localização de código
 
 ```text
-lidercap-platform/
+dmpf/
 ├── go.work                                              # MODIFICAR — use ./libs/backend/go/dmpf-observability
 ├── go.work.sum                                          # MODIFICAR — somas dos módulos OTel
 ├── go.work                                              # MODIFICAR (Fase 0) — go 1.26.8
@@ -692,7 +692,7 @@ lidercap-platform/
 ├── libs/backend/go/dmpf-observability/                  # CRIAR — projeto Nx dmpf-observability-go, bloco provider
 │   ├── go.mod                                           # module .../dmpf-observability, go 1.26.8, require otel* v1.46.0 (+ testcontainers-go v0.44.0 e moby/go-archive v0.3.3 para testes)
 │   ├── go.sum                                           # CRIAR — commitado
-│   ├── package.json                                     # @lidercap-apps/dmpf-observability-go, private: true
+│   ├── package.json                                     # @mateusmacedo/dmpf-observability-go, private: true
 │   ├── project.json                                     # tags 3D, 5 targets
 │   ├── dmpf-units.json                                  # unidade dmpf-kernel/observability + external[] (commit próprio)
 │   ├── README.md                                        # regra → código; defaults; at-least-once
@@ -789,7 +789,7 @@ lidercap-platform/
 
 Import path canônico da unidade nova (a `canonical_key`):
 
-- `gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability`
+- `github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability`
   e cada subpackage de produção listado acima em `include`.
 
 ## Design

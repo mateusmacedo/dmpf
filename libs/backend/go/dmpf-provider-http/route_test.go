@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	dmpfhttp "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-provider-http"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-transport/deadline"
+	dmpfhttp "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-http"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-transport/deadline"
 )
 
 var start = time.Date(2026, 9, 6, 12, 0, 0, 0, time.UTC)

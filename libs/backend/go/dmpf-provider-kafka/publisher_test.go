@@ -9,10 +9,10 @@ import (
 
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/envelope"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/payloadhash"
-	dmpfkafka "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-provider-kafka"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-transport/channel"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/envelope"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/payloadhash"
+	dmpfkafka "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-kafka"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-transport/channel"
 )
 
 var _ interface {
@@ -25,7 +25,7 @@ func validRaw(t *testing.T, partitionKey string) ([]byte, envelope.Envelope) {
 	t.Helper()
 	env := envelope.Envelope{
 		ID:              "evt-1",
-		Source:          "urn:lidercap:sales",
+		Source:          "urn:dmpf:sales",
 		SpecVersion:     envelope.SpecVersion,
 		Type:            "sales.order.placed.v1",
 		Subject:         "order/" + partitionKey,

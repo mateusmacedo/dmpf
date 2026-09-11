@@ -23,7 +23,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: relay
-          image: ghcr.io/lidercap-apps/dmpf-reference:latest
+          image: ghcr.io/mateusmacedo/dmpf-reference:latest
           args: ['--role', 'relay']
           envFrom:
             - configMapRef:

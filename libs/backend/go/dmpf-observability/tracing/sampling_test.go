@@ -3,7 +3,7 @@ package tracing_test
 import (
 	"testing"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/tracing"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/tracing"
 )
 
 func TestTheDefaultRatesAreTheBaselineOfTRC13(t *testing.T) {

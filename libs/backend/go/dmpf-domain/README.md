@@ -8,7 +8,7 @@ memória que o `KRN-04` orquestra.
 
 Projeto Nx `dmpf-domain-go`, tags `type:lib`, `scope:backend`, `stack:go`.
 Import path do módulo:
-`gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-domain`.
+`github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-domain`.
 
 ## O que o módulo contém
 

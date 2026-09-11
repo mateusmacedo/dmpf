@@ -122,5 +122,5 @@ necessidade legítima de o domínio importar `port`.
   `port`), §5.2 (origem: a proibição da aresta `domain → port`), §5.3 (por que não
   uma subclasse de porta) e §9.3 (o que o domínio recebe em vez de buscar).
 - SPEC-DBTRMM3X — spec que esta série de ADRs implementa.
-- ARQ-448 — https://lider-cap.atlassian.net/browse/ARQ-448 (destino da série de
+- ARQ-448 — ARQ-448 (destino da série de
   ADRs do DMPF).

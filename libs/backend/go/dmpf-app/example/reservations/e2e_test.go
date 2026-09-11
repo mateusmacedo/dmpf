@@ -15,16 +15,16 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	dmpfapp "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-app"
-	reservationsconsumer "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-app/example/reservations"
-	dmpfapplication "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-application"
-	reservationsapp "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-application/example/reservations"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/envelope"
-	eventv1 "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/gen/go/company/orders/event/v1"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-domain/example/reservations"
-	dmpfports "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-ports"
-	dmpfpostgres "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-provider-postgres"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-testkit/appkit"
+	dmpfapp "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-app"
+	reservationsconsumer "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-app/example/reservations"
+	dmpfapplication "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application"
+	reservationsapp "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application/example/reservations"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/envelope"
+	eventv1 "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/gen/go/company/orders/event/v1"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-domain/example/reservations"
+	dmpfports "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-ports"
+	dmpfpostgres "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/appkit"
 )
 
 const (
@@ -363,7 +363,7 @@ func TestPayloadOfAnotherContractIsTerminal(t *testing.T) {
 		t.Fatalf("Pack: %v", err)
 	}
 	ce, err := envelope.Encode(envelope.Envelope{
-		ID: "evt-8", Source: "urn:lidercap:orders", SpecVersion: envelope.SpecVersion,
+		ID: "evt-8", Source: "urn:dmpf:orders", SpecVersion: envelope.SpecVersion,
 		Type: "com.company.orders.item-added.v1", Subject: "order/o-8",
 		Time:       timestamppb.New(time.Date(2026, 9, 5, 12, 0, 0, 0, time.UTC)),
 		DataSchema: typeURL, DataContentType: envelope.ContentType,

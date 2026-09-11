@@ -46,7 +46,7 @@
     "pnpm": "^11"
   },
   "license": "MIT",
-  "name": "@nx-base-template/source",
+  "name": "@mateusmacedo/dmpf-source",
   "packageManager": "pnpm@11.14.0",
   "private": true,
   "scripts": {
@@ -61,5 +61,10 @@
     "affected:test": "nx affected -t test",
     "affected:build": "nx affected -t build"
   },
-  "version": "0.0.0"
+  "version": "0.0.0",
+  "author": "Mateus Macedo Dos Anjos <macedodosanjosmateus@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mateusmacedo/dmpf.git"
+  }
 }

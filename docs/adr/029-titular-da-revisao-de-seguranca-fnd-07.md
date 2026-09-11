@@ -13,9 +13,9 @@ satisfeito** enquanto não for revisado por Segurança, e nomeia os três objeto
 dessa revisão: a varredura das seis categorias STRIDE em cada um dos sete
 vetores, as exclusões justificadas e a atribuição de owner de cada linha.
 
-A story do FND-07 ([ARQ-444](https://lider-cap.atlassian.net/browse/ARQ-444))
+A story do FND-07 (ARQ-444)
 fechou; o gate não. Ele é hoje a última pendência que mantém o épico
-[ARQ-436](https://lider-cap.atlassian.net/browse/ARQ-436) em desenvolvimento.
+ARQ-436 em desenvolvimento.
 
 O motivo de o gate nunca ter sido acionável é preciso e está registrado no
 próprio artefato, em §7.10: o cabeçalho declara o **papel** do revisor — «um
@@ -42,13 +42,13 @@ Quatro forças condicionam o desenho desta decisão:
 
 - **A pendência bloqueia o que a resolveria.** O ARQ-436 permanece em
   desenvolvimento por causa deste gate, e o épico subsequente do kernel
-  ([ARQ-519](https://lider-cap.atlassian.net/browse/ARQ-519)) está bloqueado
+  (ARQ-519) está bloqueado
   pelo ARQ-436. Aguardar a constituição de uma área de Segurança para destravar
   a fundação inverte a ordem: a plataforma que instituiria esse controle é
   justamente a que não pode ser construída enquanto ele não existir.
 
 - **A divergência é explícita na origem.** A descrição da
-  [ARQ-488](https://lider-cap.atlassian.net/browse/ARQ-488) separa os dois
+  ARQ-488 separa os dois
   papéis sem ambiguidade — «o assignee atual responde pelo encaminhamento, não
   pela revisão». Atribuir a revisão ao assignee contraria esse texto, e a
   separação entre quem redige e quem revisa é precisamente o que dá valor a uma

@@ -6,7 +6,7 @@ import (
 
 	"google.golang.org/grpc/codes"
 
-	dmpfgrpc "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-provider-grpc"
+	dmpfgrpc "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-grpc"
 )
 
 func TestHTTPStatusFollowsTheCanonicalTable(t *testing.T) {

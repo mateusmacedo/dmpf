@@ -17,7 +17,7 @@ o `depguard` do `.golangci.yml` seleciona por nome de diretório, analisa um
 módulo por vez e não vê a aresta entre módulos. Um `domain` que importe outro
 módulo do workspace que por sua vez use I/O passa verde.
 
-O inventário mostra onde isso custa: `goservice/domain` do `golibs` declara
+O inventário mostra onde isso custa: `goservice/domain` do `legado-golibs` declara
 `EventPublisher` — a unidade mal dimensionada que o ADR-014 cita —, e
 `goweb/domain/http_request.go:6` importa `net/http`, violando P0-1. Sem
 execução, cada módulo que `KRN-03`..`KRN-12` criar nasceria sob revisão manual.

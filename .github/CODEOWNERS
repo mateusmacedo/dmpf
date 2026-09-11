@@ -1,25 +1,31 @@
 # CODEOWNERS — donos de código para revisão automática de PRs.
-# Substitua os placeholders (@owner) pelos times/usuários reais ao adotar o template.
+# Dono único do repositório. Ao derivar este template, substitua pelo seu usuário ou time.
 # Sintaxe: https://docs.github.com/pt/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
 
 # Dono padrão de tudo
-*                       @owner
+*                       @mateusmacedo
 
 # Configuração de workspace e tooling
-/nx.json                @owner
-/pnpm-workspace.yaml     @owner
-/tsconfig.base.json      @owner
-/biome.json              @owner
-/renovate.json           @owner
+/nx.json                @mateusmacedo
+/pnpm-workspace.yaml     @mateusmacedo
+/tsconfig.base.json      @mateusmacedo
+/biome.json              @mateusmacedo
+/renovate.json           @mateusmacedo
 
 # CI/CD e infraestrutura
-/.github/                @owner
-/infra/                  @owner
+/.github/                @mateusmacedo
+/infra/                  @mateusmacedo
 
 # Bibliotecas por escopo
-/libs/shared/            @owner
-/libs/backend/           @owner
-/libs/frontend/          @owner
+/libs/shared/            @mateusmacedo
+/libs/backend/           @mateusmacedo
+/libs/frontend/          @mateusmacedo
 
 # Aplicações
-/apps/                   @owner
+/apps/                   @mateusmacedo
+
+# Contratos de wire, por bounded context (REP-03 de docs/dmpf/cloudevents-protobuf-buf.md).
+# Regra migrada de .gitea/CODEOWNERS na troca de plataforma: o GitHub lê
+# CODEOWNERS em .github/, na raiz ou em docs/ — nunca em .gitea/.
+contracts/proto/company/orders/.*     @mateusmacedo
+contracts/fixtures/orders/.*          @mateusmacedo

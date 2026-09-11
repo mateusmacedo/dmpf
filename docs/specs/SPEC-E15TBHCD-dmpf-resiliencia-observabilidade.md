@@ -5,7 +5,7 @@ title: DMPF — Resiliência, observabilidade e operação
 stage: done
 priority: P0
 depends_on: [SPEC-7PJ5WVCS, SPEC-7H08RZDG, SPEC-YWFGNPG5, SPEC-XQWGGAXF]
-ticket_url: https://lider-cap.atlassian.net/browse/ARQ-445
+ticket_url: null
 subtask_urls: []
 created: 2026-08-13
 ---
@@ -19,7 +19,7 @@ Entregar o item lógico **FND-08** do épico ARQ-436
 ## Contexto
 
 - **Umbrella**: [SPEC-QG2N8STY](./SPEC-QG2N8STY-dmpf-foundation.md)
-- **Issue**: [ARQ-445](https://lider-cap.atlassian.net/browse/ARQ-445)
+- **Issue**: ARQ-445
 - **ACs do épico**: AC-09
 - **Evidência §11**: Políticas, fluxos de tracing, métricas, logs, DLQ/replay e runbook mínimo definidos
 - **Obrigações herdadas**: 30 predicados encaminhados a esta spec por cinco

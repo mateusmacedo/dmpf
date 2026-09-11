@@ -5,8 +5,8 @@ title: DMPF Foundation — Golden Path orientado a domínio e mensagens
 stage: done
 priority: P0
 depends_on: []
-ticket_url: https://lider-cap.atlassian.net/browse/ARQ-436
-subtask_urls: [https://lider-cap.atlassian.net/browse/ARQ-438, https://lider-cap.atlassian.net/browse/ARQ-439, https://lider-cap.atlassian.net/browse/ARQ-440, https://lider-cap.atlassian.net/browse/ARQ-441, https://lider-cap.atlassian.net/browse/ARQ-442, https://lider-cap.atlassian.net/browse/ARQ-443, https://lider-cap.atlassian.net/browse/ARQ-444, https://lider-cap.atlassian.net/browse/ARQ-445, https://lider-cap.atlassian.net/browse/ARQ-446, https://lider-cap.atlassian.net/browse/ARQ-447, https://lider-cap.atlassian.net/browse/ARQ-448, https://lider-cap.atlassian.net/browse/ARQ-488, https://lider-cap.atlassian.net/browse/ARQ-490, https://lider-cap.atlassian.net/browse/ARQ-492]
+ticket_url: null
+subtask_urls: [ARQ-438, ARQ-439, ARQ-440, ARQ-441, ARQ-442, ARQ-443, ARQ-444, ARQ-445, ARQ-446, ARQ-447, ARQ-448, ARQ-488, ARQ-490, ARQ-492]
 created: 2026-08-13
 ---
 # SPEC-QG2N8STY: DMPF Foundation — Golden Path orientado a domínio e mensagens
@@ -25,7 +25,7 @@ implementar kernels, adapters ou providers de produção.
   a frameworks e falhas recorrentes em commit/ACK/redelivery.
 - **Impacto**: golden path prescritivo nas fronteiras e flexível na modelagem
   de cada bounded context; kernels futuros assentam sobre limites estáveis.
-- **Épico**: [ARQ-436](https://lider-cap.atlassian.net/browse/ARQ-436) — Em Desenvolvimento; escopo = fundação
+- **Épico**: ARQ-436 — Em Desenvolvimento; escopo = fundação
   normativa (RFC/ADRs), sem kernels Go/TS.
 - **Fontes**: `Parte-1`, na convenção que a RFC fixa em §1.3 — a referência
   versionada é `docs/dmpf/rfc-dmpf-foundation-v0.1.md`; os anexos ficam em
@@ -99,8 +99,8 @@ Fundação documental — **sem** código de kernel neste épico:
 
 | Issue | SPEC | Slug | depends_on |
 | --- | --- | --- | --- |
-| ARQ-438 | SPEC-K9H204F1 | dmpf-inventario-as-is | [] |
-| ARQ-439 | SPEC-8YVF0RR5 | dmpf-rfc-limites-deps | [SPEC-K9H204F1] |
+| ARQ-438 | a análise AS-IS de sistemas legados | dmpf-inventario-as-is | [] |
+| ARQ-439 | SPEC-8YVF0RR5 | dmpf-rfc-limites-deps | [a análise AS-IS de sistemas legados] |
 | ARQ-440 | SPEC-8MNDEWDP | dmpf-upr-decision-mensagens | [SPEC-8YVF0RR5] |
 | ARQ-441 | SPEC-7PJ5WVCS | dmpf-uow-inbox-outbox | [SPEC-8MNDEWDP] |
 | ARQ-442 | SPEC-7H08RZDG | dmpf-cloudevents-protobuf-buf | [SPEC-8MNDEWDP] |
@@ -108,7 +108,7 @@ Fundação documental — **sem** código de kernel neste épico:
 | ARQ-444 | SPEC-XQWGGAXF | dmpf-contexto-erros-seguranca | [SPEC-8YVF0RR5] |
 | ARQ-445 | SPEC-E15TBHCD | dmpf-resiliencia-observabilidade | [SPEC-XQWGGAXF] |
 | ARQ-446 | SPEC-6RQBN98G | dmpf-testes-interop | [SPEC-7PJ5WVCS, SPEC-7H08RZDG] |
-| ARQ-447 | SPEC-VVR1X71Q | dmpf-governanca-bom-pilotos | [SPEC-K9H204F1] |
+| ARQ-447 | SPEC-VVR1X71Q | dmpf-governanca-bom-pilotos | [a análise AS-IS de sistemas legados] |
 | ARQ-448 | SPEC-DBTRMM3X | dmpf-adrs-minimos | [SPEC-8YVF0RR5] |
 
 ### Grafo (resumo)

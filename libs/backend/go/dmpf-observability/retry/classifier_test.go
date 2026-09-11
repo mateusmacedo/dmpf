@@ -3,7 +3,7 @@ package retry_test
 import (
 	"testing"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/retry"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/retry"
 )
 
 func TestRetryabilityNamesEveryVerdict(t *testing.T) {

@@ -144,5 +144,5 @@ reclassificar, e reclassificar não o dispensa (`GOV-26`).
   (escape hatch, universo positivo e regra de negação); acionado em §8.1 como
   `ADR-DMPF-R`.
 - SPEC-DBTRMM3X — spec que esta série de ADRs implementa.
-- ARQ-448 — https://lider-cap.atlassian.net/browse/ARQ-448 (FND-11: redação,
+- ARQ-448 — ARQ-448 (FND-11: redação,
   promoção e aceite da série de ADRs do DMPF).

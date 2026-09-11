@@ -4,9 +4,9 @@
 |-------|-------|
 | **Status** | `draft normativo` — promovido para revisão em PR |
 | **Adiciona a** | RFC DMPF Foundation v0.1, pela âncora ANC-05 (RFC §12.3) |
-| **Owner** | Mateus Macedo Dos Anjos (assignee de [ARQ-444](https://lider-cap.atlassian.net/browse/ARQ-444)) |
-| **Épico** | [ARQ-436](https://lider-cap.atlassian.net/browse/ARQ-436) — Golden Path para Sistemas Orientados a Domínio e Mensagens |
-| **Story** | [ARQ-444](https://lider-cap.atlassian.net/browse/ARQ-444) (DMPF-FND-07) |
+| **Owner** | Mateus Macedo Dos Anjos (assignee de ARQ-444) |
+| **Épico** | ARQ-436 — Golden Path para Sistemas Orientados a Domínio e Mensagens |
+| **Story** | ARQ-444 (DMPF-FND-07) |
 | **Spec** | [SPEC-XQWGGAXF](../specs/SPEC-XQWGGAXF-dmpf-contexto-erros-seguranca.md) |
 | **Data** | 2026-08-19 |
 | **Revisão** | Plataforma e Arquitetura no PR; **um representante de Segurança para §7 e §8, obrigatório** — sem ele o critério de aceite do threat model não é satisfeito; um representante de operação para o baseline de §8 |
@@ -217,13 +217,13 @@ controle fazem até a fronteira, e para: o outro lado é da dona.
 
 | Tema | Dona | Fronteira aparece em |
 |------|------|----------------------|
-| Forma dos atributos e extensões do envelope — nome, tipo, semântica e o conjunto fechado por `ENV-11`; correspondência de campos de wire; `payload_hash` | FND-05 ([ARQ-442](https://lider-cap.atlassian.net/browse/ARQ-442)), sob ANC-03 | §3, §4, §8 |
-| Mecanismo de atomicidade, deduplicação e drenagem; schema da outbox e da inbox; disposição do envelope contido e da DLQ | FND-04 ([ARQ-441](https://lider-cap.atlassian.net/browse/ARQ-441)), sob ANC-02 | §5, §6, §8 |
-| Forma da `Decision` e da `Rejection`; conteúdo da application response, inclusive no caminho de sucesso | FND-03 ([ARQ-440](https://lider-cap.atlassian.net/browse/ARQ-440)), sob ANC-01 | §5, §6 |
-| Timeout por transporte, binding, comportamento de ACK e convenções de cada broker | FND-06 ([ARQ-443](https://lider-cap.atlassian.net/browse/ARQ-443)), sob ANC-04 | §3, §6 |
-| Orçamento de retry, backoff, limiares, políticas de degradação, catálogo de métricas, alarmes e runbook | FND-08 ([ARQ-445](https://lider-cap.atlassian.net/browse/ARQ-445)), sob ANC-06 | §5, §6, §7 |
-| Instrumento de teste e oráculo executável, incluída a verificação do isolamento por tenant | FND-09 ([ARQ-446](https://lider-cap.atlassian.net/browse/ARQ-446)), sob ANC-07 | §4, §11 |
-| Redação, promoção e aceite de ADR, e a reconciliação da faixa `docs/adr/010`–`024` | FND-11 ([ARQ-448](https://lider-cap.atlassian.net/browse/ARQ-448)) | §10 |
+| Forma dos atributos e extensões do envelope — nome, tipo, semântica e o conjunto fechado por `ENV-11`; correspondência de campos de wire; `payload_hash` | FND-05 (ARQ-442), sob ANC-03 | §3, §4, §8 |
+| Mecanismo de atomicidade, deduplicação e drenagem; schema da outbox e da inbox; disposição do envelope contido e da DLQ | FND-04 (ARQ-441), sob ANC-02 | §5, §6, §8 |
+| Forma da `Decision` e da `Rejection`; conteúdo da application response, inclusive no caminho de sucesso | FND-03 (ARQ-440), sob ANC-01 | §5, §6 |
+| Timeout por transporte, binding, comportamento de ACK e convenções de cada broker | FND-06 (ARQ-443), sob ANC-04 | §3, §6 |
+| Orçamento de retry, backoff, limiares, políticas de degradação, catálogo de métricas, alarmes e runbook | FND-08 (ARQ-445), sob ANC-06 | §5, §6, §7 |
+| Instrumento de teste e oráculo executável, incluída a verificação do isolamento por tenant | FND-09 (ARQ-446), sob ANC-07 | §4, §11 |
+| Redação, promoção e aceite de ADR, e a reconciliação da faixa `docs/adr/010`–`024` | FND-11 (ARQ-448) | §10 |
 
 `normativo` — Três fronteiras são fáceis de atravessar por descuido, e por isso
 cada uma é enunciada aqui no critério que a decide.
@@ -1755,14 +1755,14 @@ ANC-05. Nenhuma o satisfaz.
 
 ### §10.4 A divergência com a story, como pendência nomeada
 
-`registro` — A story [ARQ-444](https://lider-cap.atlassian.net/browse/ARQ-444) lista
+`registro` — A story ARQ-444 lista
 **ADR-012 e ADR-013** entre os entregáveis desta iteração. A análise acima conclui
 que o artefato não os aciona. A divergência não é resolvida por este documento: ela
 fica **nomeada**, com destino declarado.
 
 | Item | Estado | Destino |
 |------|--------|---------|
-| A story pede dois ADRs que a ANC-05 dispensa e que RFC §13.3 não previu para esta âncora. Reconciliar o entregável da story com a análise de §10.3 | pendente | Revisores desta entrega, no PR. Se a conclusão for que os ADRs devem existir, o assunto e a numeração são de FND-11 ([ARQ-448](https://lider-cap.atlassian.net/browse/ARQ-448)), dono da faixa `docs/adr/010`–`024` |
+| A story pede dois ADRs que a ANC-05 dispensa e que RFC §13.3 não previu para esta âncora. Reconciliar o entregável da story com a análise de §10.3 | pendente | Revisores desta entrega, no PR. Se a conclusão for que os ADRs devem existir, o assunto e a numeração são de FND-11 (ARQ-448), dono da faixa `docs/adr/010`–`024` |
 
 `registro` — **Sobre a numeração e as letras.** Este artefato não redige, não numera
 e não reserva letra de ADR. As letras `ADR-DMPF-A` a `N` estão consumidas — a RFC
@@ -1853,9 +1853,9 @@ a promoção do artefato; todas têm destino nomeado.
 |---|-----------|------------|---------|
 | 1 | Refletir na tabela de RFC §14.4 a sucessão de Parte-1 §§11–14, preservando §12.2 e §12.3 como vigentes e §14 como parcialmente consolidado | §1.5 | Revisores desta entrega, no PR; se exigir rito de versão, vira alteração própria da RFC |
 | 2 | Consolidar numa única passagem as quatro pendências acumuladas de RFC §14.4 — FND-03, FND-04, FND-05 e esta — em vez de quatro edições sucessivas da mesma tabela | §1.5 | Revisores desta entrega; candidato natural a acompanhar o fechamento do épico |
-| 3 | A **forma** de persistir `correlationid`, `causationid` e `traceparent` no schema mínimo da outbox. Este artefato resolveu o lado do conteúdo (`DAT-21`); a coluna permanece aberta | §8.6 | FND-04 ([ARQ-441](https://lider-cap.atlassian.net/browse/ARQ-441)), sob ANC-02. A lacuna também está registrada em FND-05 §4.1 |
+| 3 | A **forma** de persistir `correlationid`, `causationid` e `traceparent` no schema mínimo da outbox. Este artefato resolveu o lado do conteúdo (`DAT-21`); a coluna permanece aberta | §8.6 | FND-04 (ARQ-441), sob ANC-02. A lacuna também está registrada em FND-05 §4.1 |
 | 4 | O **owner nomeado** da revisão de Segurança. O cabeçalho declara o papel; sem a pessoa, o gate de `THR-03` não é acionável e o critério de aceite correspondente da spec não pode ser marcado | §7.10 | Revisores desta entrega, no PR |
-| 5 | A divergência entre a story ARQ-444, que lista ADR-012 e ADR-013 como entregáveis, e a análise de §10.3, que conclui que o artefato não aciona ADR | §10.4 | Revisores desta entrega; se os ADRs devem existir, assunto e numeração são de FND-11 ([ARQ-448](https://lider-cap.atlassian.net/browse/ARQ-448)) |
+| 5 | A divergência entre a story ARQ-444, que lista ADR-012 e ADR-013 como entregáveis, e a análise de §10.3, que conclui que o artefato não aciona ADR | §10.4 | Revisores desta entrega; se os ADRs devem existir, assunto e numeração são de FND-11 (ARQ-448) |
 
 ### §11.5 Termos deste artefato
 

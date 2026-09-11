@@ -1,6 +1,6 @@
 package reservations
 
-import dmpfdomain "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-domain"
+import dmpfdomain "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-domain"
 
 // OrderID is the permanent natural key of the reservation (FND-04 §7.2, GAR-10).
 type OrderID string

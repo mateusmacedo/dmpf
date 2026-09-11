@@ -24,8 +24,8 @@ módulo com uma camada, mas um app é um módulo com todas as camadas — e a
 classificação nunca se aplica ao `ownership_module`.
 
 O inventário confirma que fronteira de camada não é fronteira de projeto:
-`telesena-titulos-services/apps/api` é um único projeto Nx que contém
-`src/{domain,application,infra}`, e `rendafacil-bff` sequer usa Nx (RFC §3.4).
+`legado-titulos-services/apps/api` é um único projeto Nx que contém
+`src/{domain,application,infra}`, e `legado-rendas-bff` sequer usa Nx (RFC §3.4).
 Um binding que dependesse do projeto agruparia três blocos em uma unidade só; um
 binding derivado da posição do arquivo transformaria um `git mv` em
 reclassificação normativa silenciosa.

@@ -3,7 +3,7 @@ package orders_test
 import (
 	"testing"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-domain/example/orders"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-domain/example/orders"
 )
 
 func TestFromSnapshotRoundTripsTheObservableState(t *testing.T) {

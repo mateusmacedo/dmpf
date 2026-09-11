@@ -7,13 +7,13 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/envelope"
-	eventv1 "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/gen/go/company/orders/event/v1"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/payloadhash"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/envelope"
+	eventv1 "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/gen/go/company/orders/event/v1"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/payloadhash"
 )
 
 const (
-	testSource      = "urn:lidercap:orders"
+	testSource      = "urn:dmpf:orders"
 	testCorrelation = "corr-1"
 	testCausation   = "caus-1"
 	testTraceParent = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01"

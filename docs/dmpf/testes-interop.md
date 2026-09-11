@@ -4,9 +4,9 @@
 |-------|-------|
 | **Status** | `draft normativo` — promovido para revisão em PR |
 | **Adiciona a** | RFC DMPF Foundation v0.1, pela âncora ANC-07 (RFC §12.3) |
-| **Owner** | Mateus Macedo Dos Anjos (assignee de [ARQ-446](https://lider-cap.atlassian.net/browse/ARQ-446)) |
-| **Épico** | [ARQ-436](https://lider-cap.atlassian.net/browse/ARQ-436) — Golden Path para Sistemas Orientados a Domínio e Mensagens |
-| **Story** | [ARQ-446](https://lider-cap.atlassian.net/browse/ARQ-446) (DMPF-FND-09) |
+| **Owner** | Mateus Macedo Dos Anjos (assignee de ARQ-446) |
+| **Épico** | ARQ-436 — Golden Path para Sistemas Orientados a Domínio e Mensagens |
+| **Story** | ARQ-446 (DMPF-FND-09) |
 | **Spec** | [SPEC-6RQBN98G](../specs/SPEC-6RQBN98G-dmpf-testes-interop.md) |
 | **Data** | 2026-08-20 |
 | **Revisão** | Plataforma e Arquitetura no PR; o ARQ-446 pede **um representante de cada stack — Go e TypeScript**, e esse gate é **externo e não bloqueante** para a promoção deste artefato: ele afere a exequibilidade dos instrumentos nas duas stacks, não a força normativa do texto |
@@ -1180,7 +1180,7 @@ dispunha da **regra de resultado** que permitiria escrever o teste, e por isso
 declarou o item do AC-10 bloqueado, com a condição de fechamento «FND-08 publicar a
 regra de resultado do controle de fluxo».
 
-`registro` — **A condição foi satisfeita.** FND-08 ([ARQ-445](https://lider-cap.atlassian.net/browse/ARQ-445))
+`registro` — **A condição foi satisfeita.** FND-08 (ARQ-445)
 foi publicado e fixa o desfecho observável sob saturação, e não apenas limiar,
 telemetria e política:
 
@@ -1650,13 +1650,13 @@ desta seção e é bloqueante.
 `normativo` — esta seção decide a **classe de oráculo** e a **cobertura**. Ela não
 decide o conteúdo do desfecho, a forma concreta do arquivo, nem a implementação e a
 execução nas duas stacks. A divisão de propriedade segue o princípio que FND-05
-§8.4 ([ARQ-442](https://lider-cap.atlassian.net/browse/ARQ-442)) fixa para as golden
+§8.4 (ARQ-442) fixa para as golden
 fixtures, aplicado aqui à fixture de projeção:
 
 | Owner | Responsabilidade nesta seção |
 |-------|------------------------------|
 | **FND-03** (`upr-decision-mensagens.md`) | O **conteúdo** do desfecho: a forma de `Decision`, as regras `DEC`, a tabela de observações de §3.4, os quatro exemplos de §8. É a fonte; onde esta seção divergir dela, prevalece FND-03 |
-| **FND-09** (este artefato, [ARQ-446](https://lider-cap.atlassian.net/browse/ARQ-446)) | A **classe de oráculo** (fixture de projeção observável), a cobertura de §7.3 e o formato do arquivo — que **pode reusar** o formato definido em §5, sem herdar sua serialização de wire |
+| **FND-09** (este artefato, ARQ-446) | A **classe de oráculo** (fixture de projeção observável), a cobertura de §7.3 e o formato do arquivo — que **pode reusar** o formato definido em §5, sem herdar sua serialização de wire |
 | Épicos de kernel (Go e TypeScript) | A **implementação** do oráculo e a **execução** efetiva das fixtures nas duas stacks, com a evidência registrada. Um artefato normativo não produz evidência de runtime |
 
 `encaminhado` — **Handoff nomeado.** O oráculo executável de projeção e a execução
@@ -1671,7 +1671,7 @@ verificada mecanicamente**, exatamente como FND-03 §10.4 registra para o própr
 `Decision`.
 
 `normativo` — **Fronteiras.** Esta seção não decide matéria de FND-08
-([ARQ-445](https://lider-cap.atlassian.net/browse/ARQ-445)): resiliência,
+(ARQ-445): resiliência,
 observabilidade de entrega e comportamento sob carga ficam com aquele artefato. Não
 usa `payload_hash` nem serialização de wire — isso é de §6. E não fixa largura nem
 codificação de tipo numérico: se a implementação em alguma stack precisar de uma
@@ -2490,7 +2490,7 @@ assunto continua sendo de ANC-06, e o que mudou é que a dona o decidiu.
 ### §12.1 A fronteira a FND-08
 
 `normativo` — Quatro assuntos que tocam o caminho de uma mensagem, mas que FND-09 não
-pode transformar em teste, pertencem a FND-08 ([ARQ-445](https://lider-cap.atlassian.net/browse/ARQ-445)),
+pode transformar em teste, pertencem a FND-08 (ARQ-445),
 sob a âncora **ANC-06**. O fundamento é o registro literal da ANC-06 em RFC §12.3, que
 reserva a FND-08 o *«Escopo permitido: Baselines de telemetria, políticas de retry e
 degradação»*, com owner *«FND-08 — ARQ-445»* e condição de fechamento *«FND-08 concluída
@@ -2509,7 +2509,7 @@ consumo dispara ação. Essa política é baseline de telemetria e de degradaç�
 
 | Assunto (fronteira) | Dona | Fundamento | Condição de fechamento |
 |---------------------|------|------------|------------------------|
-| **Backpressure** — produção acima da capacidade de consumo | FND-08 ([ARQ-445](https://lider-cap.atlassian.net/browse/ARQ-445)), sob ANC-06 | Ausente de todo o FND-04; matéria de resiliência, reservada à ANC-06 (RFC §12.3) | FND-08 publicar, sob ANC-06, a regra de resultado (limiar e desfecho), e ser revisada; então FND-09 instrumenta o vetor |
+| **Backpressure** — produção acima da capacidade de consumo | FND-08 (ARQ-445), sob ANC-06 | Ausente de todo o FND-04; matéria de resiliência, reservada à ANC-06 (RFC §12.3) | FND-08 publicar, sob ANC-06, a regra de resultado (limiar e desfecho), e ser revisada; então FND-09 instrumenta o vetor |
 | **Timing de retry, DLQ e quarantine** | FND-08, sob ANC-06 | FND-04 §7.4 define os estados; os limiares e a política de tempo são baseline de retry/telemetria da ANC-06 | idem — a regra de resultado publicada por FND-08 |
 | **Replay operacional** | FND-08, sob ANC-06 | FND-04 §7.4 nomeia o replay como estado; a política de quando e como reprocessar é resiliência | idem |
 | **Observabilidade de entrega** — consumer lag, profundidade de DLQ, depth/age da outbox | FND-08, sob ANC-06 | Lacunas já registradas em FND-01 §4.2: *«Métricas de lag/DLQ/consumer lag Kafka»* (`não existe` no código inventariado) e *«Métricas padronizadas de outbox (depth, age)»* (`Lacuna`) — catálogo de métricas e limiares é de FND-08 | idem |
@@ -2564,8 +2564,8 @@ sobre o que a dona fixar, não sobre uma escolha própria.
 
 | # | Dependência | Dona | Estado / condição |
 |---|-------------|------|-------------------|
-| 1 | **Codificação de tipo** — a escolha de codec de wire e de registry, ainda não fechada por FND-05 | FND-05 ([ARQ-442](https://lider-cap.atlassian.net/browse/ARQ-442)), sob ANC-03 | RFC §13.3 reserva a FND-05 «escolha de codec de wire e registry»; `ADR-DMPF-M`/`ADR-DMPF-N` acionados, ainda não redigidos. O round-trip de FND-09 verifica a fórmula que FND-05 fixar |
-| 2 | **Base as-is prospectiva de Kafka** — a política de transporte não passou por revisão de infraestrutura de mensageria | FND-06 ([ARQ-443](https://lider-cap.atlassian.net/browse/ARQ-443)) e a revisão nomeada | FND-06 §18.3 pendência 3; `TRP-41` limita a política de Kafka a **norma de desenho**, não autorização de operação. Os vetores de transporte encaminhados por FND-06 §18.4 herdam essa limitação até a revisão |
+| 1 | **Codificação de tipo** — a escolha de codec de wire e de registry, ainda não fechada por FND-05 | FND-05 (ARQ-442), sob ANC-03 | RFC §13.3 reserva a FND-05 «escolha de codec de wire e registry»; `ADR-DMPF-M`/`ADR-DMPF-N` acionados, ainda não redigidos. O round-trip de FND-09 verifica a fórmula que FND-05 fixar |
+| 2 | **Base as-is prospectiva de Kafka** — a política de transporte não passou por revisão de infraestrutura de mensageria | FND-06 (ARQ-443) e a revisão nomeada | FND-06 §18.3 pendência 3; `TRP-41` limita a política de Kafka a **norma de desenho**, não autorização de operação. Os vetores de transporte encaminhados por FND-06 §18.4 herdam essa limitação até a revisão |
 | 3 | **Localização e forma executável do validador do perfil de envelope** | Co-decisão FND-06 × FND-09 | FND-05 §10.4 pendência 9 e FND-06 §7.2 / obrigação 15: FND-06 fixa **onde** a validação ocorre, o gesto e o destino, e o **instrumento** é de FND-09; o que resta co-decidir é a forma de expressão e onde ela vive no repositório de contratos. FND-09 não a decide sozinho |
 | 4 | **Linter de produção** | Épicos de kernel, sob ANC-10 | RFC §12.3 ANC-10 defere a implementação dos linters Go e TS aos épicos de kernel, com condição de fechamento «verificador conforme passando nos 32 vetores de §11». FND-09 define os vetores de conformidade; a ferramenta que os roda em produção é de ANC-10 |
 

@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/internal/baseline"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/internal/baseline"
 )
 
 type BaselineStore struct {

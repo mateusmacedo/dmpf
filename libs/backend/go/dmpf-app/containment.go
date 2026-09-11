@@ -5,7 +5,7 @@ package dmpfapp
 import (
 	"errors"
 
-	dmpfports "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-ports"
+	dmpfports "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-ports"
 )
 
 // Mechanism is where a contained message goes. Quarantine holds it for

@@ -5,7 +5,7 @@ title: DMPF KRN-05 — Contratos wire: CloudEvents, Buf e payload_hash
 stage: done
 priority: P0
 depends_on: [SPEC-MQA5HAXF]
-ticket_url: https://lider-cap.atlassian.net/browse/ARQ-524
+ticket_url: null
 subtask_urls: []
 created: 2026-09-02
 ---
@@ -199,7 +199,7 @@ abaixo diz de onde vem cada exigência:
 - [ ] **[P0] Geração determinística em managed mode** (`BUF-06`, `BUF-10`,
   `BUF-11`, `REP-02`): `contracts/buf.gen.yaml` v2 com `managed.enabled: true`,
   `override` de `go_package_prefix` para
-  `gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/gen/go`,
+  `github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/gen/go`,
   plugin `protoc-gen-go` invocado como `local: [go, run,
   google.golang.org/protobuf/cmd/protoc-gen-go@v<X.Y.Z>]` com `opt:
   paths=source_relative`, `out: ../libs/backend/go/dmpf-contracts/gen/go` e
@@ -215,10 +215,10 @@ abaixo diz de onde vem cada exigência:
     e `.../gen/go/company/orders/event/v1/order_placed.pb.go`.
 - [ ] **[P0] Lib `dmpf-contracts-go`** (`KRN-01`; ADR-030): criar
   `libs/backend/go/dmpf-contracts/` como módulo Go
-  `gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts`,
+  `github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts`,
   `go 1.26.4`, registrado no `go.work`, projeto Nx `dmpf-contracts-go` com tags
   `["type:lib", "scope:backend", "stack:go"]`, `package.json`
-  `{"name": "@lidercap-apps/dmpf-contracts-go", "version": "0.0.0", "private": true}`,
+  `{"name": "@mateusmacedo/dmpf-contracts-go", "version": "0.0.0", "private": true}`,
   targets `fmt-check`, `vet`, `build`, `test-race`, `govulncheck` declarados
   como nos dois módulos existentes, e `lint`/`test` herdados dos `targetDefaults`.
   - Os `inputs` de todos os targets incluem `{workspaceRoot}/contracts/**` e
@@ -378,11 +378,11 @@ abaixo diz de onde vem cada exigência:
   `tools/tests/buf-gate/**`, incluído no mesmo passo do CI.
 - [ ] **[P0] `CODEOWNERS` com owner de equipe** (`REP-03`): o diretório
   `contracts/proto/company/orders/` e `contracts/fixtures/orders/` têm como
-  owner uma equipe da organização `lidercap-apps` no arquivo `CODEOWNERS` que
+  owner uma equipe da organização `mateusmacedo` no arquivo `CODEOWNERS` que
   a forge lê. O `.github/CODEOWNERS` atual é herança do template com placeholder
   `@owner`; o caminho que o Gitea efetivamente lê (raiz, `.gitea/` ou `docs/`) e
   o handle da equipe são confirmados no plano pela documentação e pela API do
-  Gitea (`/orgs/lidercap-apps/teams`), e o arquivo lido pela forge é o que recebe
+  Gitea (`/orgs/mateusmacedo/teams`), e o arquivo lido pela forge é o que recebe
   a entrada. Owner pessoa física REPROVA na revisão.
 - [ ] **[P1] Documentação de apoio**: `docs/guides/dmpf-manifesto.md` ganha uma
   seção curta "Bloco `contract` e código gerado" com o exemplo de `external[]`
@@ -430,7 +430,7 @@ abaixo diz de onde vem cada exigência:
 ## Localização de código
 
 ```text
-lidercap-platform/
+dmpf/
 ├── go.work                                   — MODIFICAR: use ./libs/backend/go/dmpf-contracts
 ├── go.work.sum                               — CRIAR (gerado pelo toolchain ao resolver a dependência)
 ├── contracts/                                — CRIAR (fonte e governança; neutro de stack)
@@ -446,7 +446,7 @@ lidercap-platform/
 ├── libs/backend/go/dmpf-contracts/            — CRIAR (bloco contract; projeto Nx dmpf-contracts-go)
 │   ├── go.mod                                — module .../libs/backend/go/dmpf-contracts; go 1.26.4; require google.golang.org/protobuf
 │   ├── go.sum
-│   ├── package.json                          — @lidercap-apps/dmpf-contracts-go, private
+│   ├── package.json                          — @mateusmacedo/dmpf-contracts-go, private
 │   ├── project.json                          — tags [type:lib, scope:backend, stack:go]; targets Go + buf-* + buf-gate-selftest
 │   ├── dmpf-units.json                       — 3 unidades contract; external[protobuf]; exceptions[reflect, unsafe]
 │   ├── gen/go/                               — GERADO, nunca editado (REP-02)
@@ -474,7 +474,7 @@ lidercap-platform/
 ```
 
 Import path canônico do módulo:
-`gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts`.
+`github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts`.
 
 **Arquivos a modificar**:
 - `go.work` — adicionar `./libs/backend/go/dmpf-contracts` ao bloco `use`.
@@ -695,12 +695,12 @@ diferentes.
   verificador, e removido em seguida.
 - [ ] Cadeia Go verde na lib: `pnpm nx run-many -t fmt-check,vet,lint,build,test,test-race,govulncheck -p dmpf-contracts-go`.
 - [ ] `pnpm biome ci .` e `pnpm nx affected -t lint,typecheck,test,build
-  --exclude=@nx-base-template/source` verdes.
+  --exclude=@mateusmacedo/dmpf-source` verdes.
 - [ ] `tools/dmpf-baseline/units-baseline.json` atualizado em commit próprio;
   `bash tools/dmpf-gate-check.sh` continua verde (o módulo novo não é `domain`
   e é reportado fora do alcance do depguard, sem reprovar).
 - [ ] `CODEOWNERS` lido pela forge tem owner de equipe para `orders`; o handle é
-  uma equipe existente em `lidercap-apps`.
+  uma equipe existente em `mateusmacedo`.
 - [ ] `docs/guides/dmpf-manifesto.md`, `docs/nx-reference/tasks.md` e
   `AGENTS.md` atualizados; ADR-033 criado na finalização.
 

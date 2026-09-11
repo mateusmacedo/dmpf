@@ -794,12 +794,12 @@ libs/backend/go/delivery/
       "bounded_context": "delivery",
       "public_integration_surface": false,
       "include": [
-        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/delivery/internal/domain",
-        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/delivery/internal/domain/order",
-        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/delivery/internal/domain/payment",
-        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/delivery/internal/domain/preparation",
-        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/delivery/internal/domain/collection",
-        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/delivery/internal/domain/delivery"
+        "github.com/mateusmacedo/dmpf/libs/backend/go/delivery/internal/domain",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/delivery/internal/domain/order",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/delivery/internal/domain/payment",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/delivery/internal/domain/preparation",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/delivery/internal/domain/collection",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/delivery/internal/domain/delivery"
       ]
     },
     {
@@ -808,7 +808,7 @@ libs/backend/go/delivery/
       "bounded_context": "delivery",
       "public_integration_surface": false,
       "include": [
-        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/delivery/internal/port"
+        "github.com/mateusmacedo/dmpf/libs/backend/go/delivery/internal/port"
       ]
     },
     {
@@ -817,7 +817,7 @@ libs/backend/go/delivery/
       "bounded_context": "delivery",
       "public_integration_surface": false,
       "include": [
-        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/delivery/internal/application"
+        "github.com/mateusmacedo/dmpf/libs/backend/go/delivery/internal/application"
       ]
     },
     {
@@ -826,7 +826,7 @@ libs/backend/go/delivery/
       "bounded_context": "delivery",
       "public_integration_surface": false,
       "include": [
-        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/delivery/internal/provider"
+        "github.com/mateusmacedo/dmpf/libs/backend/go/delivery/internal/provider"
       ]
     },
     {
@@ -835,7 +835,7 @@ libs/backend/go/delivery/
       "bounded_context": "delivery",
       "public_integration_surface": false,
       "include": [
-        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/delivery/contracts/delivery"
+        "github.com/mateusmacedo/dmpf/libs/backend/go/delivery/contracts/delivery"
       ]
     },
     {
@@ -844,7 +844,7 @@ libs/backend/go/delivery/
       "bounded_context": "delivery",
       "public_integration_surface": false,
       "include": [
-        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/delivery/cmd/delivery-api"
+        "github.com/mateusmacedo/dmpf/libs/backend/go/delivery/cmd/delivery-api"
       ]
     },
     {
@@ -853,7 +853,7 @@ libs/backend/go/delivery/
       "bounded_context": "delivery",
       "public_integration_surface": false,
       "include": [
-        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/delivery/cmd/delivery-relay"
+        "github.com/mateusmacedo/dmpf/libs/backend/go/delivery/cmd/delivery-relay"
       ]
     }
   ],

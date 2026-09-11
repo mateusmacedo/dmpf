@@ -28,7 +28,7 @@ permissions:
 jobs:
   distributed:
     name: Reentrega deliberada sobre o broker (V32)
-    runs-on: gitea-runner
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
       CI: "true"

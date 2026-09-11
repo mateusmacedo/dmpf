@@ -1,7 +1,7 @@
 ---
 id: SPEC-W4RWD02M
-slug: evoluir-workflows-com-lidercap
-title: Evoluir workflows do template a partir do lidercap-platform (Verdaccio)
+slug: evoluir-workflows-com-monorepo-referencia
+title: Evoluir workflows do template a partir do dmpf (Verdaccio)
 stage: done
 priority: P1
 depends_on: [SPEC-YWAWQHPX]
@@ -10,15 +10,15 @@ subtask_urls: []
 created: 2026-07-20
 ---
 
-# SPEC-W4RWD02M: Evoluir workflows do template a partir do lidercap-platform (Verdaccio)
+# SPEC-W4RWD02M: Evoluir workflows do template a partir do dmpf (Verdaccio)
 
 ## Resumo
 
-Fazer diff completo dos workflows de `lidercap-platform` contra
-`nx-base-template`, portar o que eleva o template (release com
+Fazer diff completo dos workflows de `dmpf` contra
+`dmpf`, portar o que eleva o template (release com
 `--skip-publish`, publish separado no Verdaccio, first-release, push de
 tags) e documentar explicitamente o que NÃO portar. Como mantenedor do
-template, quero o mesmo fluxo de versionamento + publish do lidercap,
+template, quero o mesmo fluxo de versionamento + publish do monorepo de referência,
 adaptado ao runner/`Node`/`pnpm` do template, para que projetos derivados
 publiquem libs no Verdaccio sem misturar versionamento e publicação.
 
@@ -26,31 +26,31 @@ publiquem libs no Verdaccio sem misturar versionamento e publicação.
 
 - **Problema**: o template já reativou CI/release (SPEC-YWAWQHPX), mas o
   `release.yml` ainda versiona e publica no mesmo job (GitHub Packages),
-  sem o desacoplamento `version → tag push → publish-libs` do lidercap, e
+  sem o desacoplamento `version → tag push → publish-libs` do monorepo de referência, e
   sem workflow de publish no Verdaccio.
 - **Impacto**: release previsível (versionamento idempotente sem publish),
   publish consolidado por tags (`**@*`) no Verdaccio, parity documentada
   com o monorepo de referência da org.
-- **Inspiração**: `lidercap-platform/.github/workflows/*` + reusable
+- **Inspiração**: `dmpf/.github/workflows/*` + reusable
   Verdaccio em `actions-templates`.
 - **Links relevantes**:
   - SPEC-YWAWQHPX — reativação inicial de CI/CD (done)
   - ADR-003 — hardening do template (runner/registry como follow-up)
-  - `lidercap-platform/.github/workflows/{ci,release,create-release,publish-libs}.yml`
+  - `dmpf/.github/workflows/{ci,release,create-release,publish-libs}.yml`
   - `actions-templates/.github/workflows/publish-lib.yaml` (auth Verdaccio/SSM)
 - **Referências externas**: nenhuma busca extra na org (contexto local
   suficiente, decisão do discovery).
 
 ### Matriz de diff (fonte da verdade do escopo)
 
-| Arquivo | Template hoje | Lidercap | Decisão |
+| Arquivo | Template hoje | Monorepo de referência | Decisão |
 |---------|---------------|----------|---------|
-| `ci.yml` | `gitea-runner`, Node 24 / pnpm 11, `NX_EXCLUDE=@nx-base-template/source` | `gitea-runner`, Node 22 / pnpm 9, exclude lidercap | **Manter template** (parity estrutural já existe) |
+| `ci.yml` | `gitea-runner`, Node 24 / pnpm 11, `NX_EXCLUDE=@mateusmacedo/dmpf-source` | `gitea-runner`, Node 22 / pnpm 9, exclude monorepo de referência | **Manter template** (parity estrutural já existe) |
 | `create-release.yml` | `gh pr create` | Gitea API (`curl` + `jq`) | **Manter `gh`** (template é GitHub) |
 | `release.yml` | version+publish GH Packages + docker no mesmo job; input `release-type`; checkout sem `ref: master` forçado | só version (`--skip-publish`), `--first-release`, checkout `ref: master`, push `--follow-tags`; sem docker | **Portar split + first-release + push**; **manter** docker scheme / `release-type` / bot GitHub |
 | `publish-libs.yml` | ausente | tag `**@*` → reusable Verdaccio | **Criar**, alvo Verdaccio |
 | Runner / Node / pnpm | `gitea-runner` + 24/11 (após alinhamento org) | gitea + 22/9 | **Adotar** `gitea-runner`; **NÃO portar** Node 22 / pnpm 9 |
-| Auth npm no release | `npm.pkg.github.com` + `@lidercap-apps` | ausente (publish separado) | **Remover** do release; auth fica no publish Verdaccio |
+| Auth npm no release | `npm.pkg.github.com` + `@mateusmacedo` | ausente (publish separado) | **Remover** do release; auth fica no publish Verdaccio |
 
 <constraints>
 - [P0] NUNCA portar Node 22, pnpm 9 ou API Gitea (`curl`/`jq`) para o template
@@ -82,7 +82,7 @@ publiquem libs no Verdaccio sem misturar versionamento e publicação.
   equivalente). Edge case: múltiplas tags no mesmo commit consolidam em
   um run; o executor DEVE ignorar versões já no registry.
 - [x] **[P0] Resolver reusable vs inline**: preferir
-  `lidercap-apps/actions-templates/.github/workflows/publish-libs.yaml@main`
+  `mateusmacedo/actions-templates/.github/workflows/publish-libs.yaml@main`
   se existir com contrato Nx (`nx_exclude`, `scope`, `build_projects_filter`).
   Se só existir `publish-lib.yaml` (estado atual do repo local), a
   implementação DEVE inlinear um job no template que: assume role AWS /
@@ -92,7 +92,7 @@ publiquem libs no Verdaccio sem misturar versionamento e publicação.
   `tag:type:lib` e executa `pnpm nx release publish` com dist-tag
   configurável — sem copiar o loop `npm publish` por pasta do
   `publish-lib.yaml` legado.
-  *(Resolvido no plano aprovado: caller reusable como lidercap; clone local
+  *(Resolvido no plano aprovado: caller reusable como monorepo de referência; clone local
   de actions-templates só tem `publish-lib.yaml` — risco aceito de
   resolução em `@main` / follow-up.)*
 - [ ] **[P1] Alinhar `publishConfig` das libs publicáveis**: libs
@@ -100,13 +100,13 @@ publiquem libs no Verdaccio sem misturar versionamento e publicação.
   Verdaccio usado pela org; remover/substituir referências a
   `npm.pkg.github.com` se ainda existirem em package.json/CHANGELOG
   histórico não precisa ser reescrito.
-  *(Deferido no plano: parity lidercap — sem publishConfig; registry via
+  *(Deferido no plano: parity monorepo de referência — sem publishConfig; registry via
   auth do reusable. Ver ADR-004.)*
 - [x] **[P1] Ajustar `nx.json` release**: manter
   `projects: ["tag:type:lib"]` e pattern `{projectName}@{version}`;
   revisar `git.commitMessage` (manter `[skip ci]` do template) e
   `changelog.projectChangelogs.createRelease` (`github` no template —
-  manter, NÃO copiar `false` do lidercap).
+  manter, NÃO copiar `false` do monorepo de referência).
   *(Sem mudança necessária — já alinhado.)*
 - [x] **[P1] `ci.yml` e `create-release.yml`**: NÃO alterar estrutura
   além do estritamente necessário para consistência de comentários/docs;
@@ -126,7 +126,7 @@ publiquem libs no Verdaccio sem misturar versionamento e publicação.
   *(actionlint ausente; YAML parse + review manual OK.)*
 - [x] Portabilidade do template: URL do Verdaccio e role/SSM DEVEM ser
   inputs/defaults documentados para o consumidor ajustar.
-  *(Documentado no ADR-004 / caller espelha lidercap.)*
+  *(Documentado no ADR-004 / caller espelha monorepo de referência.)*
 
 ## Camadas afetadas
 
@@ -141,7 +141,7 @@ publiquem libs no Verdaccio sem misturar versionamento e publicação.
 ## Localização de código
 
 ```
-nx-base-template/
+dmpf/
   .github/workflows/ci.yml              — manter (parity)
   .github/workflows/create-release.yml  — manter gh
   .github/workflows/release.yml         — refatorar version-only + docker
@@ -161,7 +161,7 @@ nx-base-template/
 
 **Referência (somente leitura)**:
 
-- `lidercap-platform/.github/workflows/*`
+- `dmpf/.github/workflows/*`
 - `actions-templates/.github/workflows/publish-lib.yaml`
 
 ## Design
@@ -205,20 +205,20 @@ pnpm nx release publish --tag=$DIST_TAG
 
 ## Decisões técnicas
 
-- **Publish no Verdaccio (não GitHub Packages)**: alinhamento com lidercap e
+- **Publish no Verdaccio (não GitHub Packages)**: alinhamento com o monorepo de referência e
   registry interno da org. Alternativa descartada: manter `npm.pkg.github.com`
   — pedido explícito do discovery.
-- **Split version / publish**: mesmo modelo do lidercap; tags disparam publish
+- **Split version / publish**: mesmo modelo do monorepo de referência; tags disparam publish
   com concurrency cancel-in-progress. Alternativa descartada: publish inline —
   acopla falha de registry ao versionamento.
 - **Manter Docker no `release.yml`**: template já tem scheme produção/hotfix e
-  GHCR; lidercap ainda não espelha isso no release — NÃO remover.
+  GHCR; monorepo de referência ainda não espelha isso no release — NÃO remover.
 - **Manter `gh` no create-release**: template hospedado no GitHub; API Gitea
   fica fora.
 - **Runner `gitea-runner`**: alinhamento deliberado com a org (mesmo label do
-  lidercap). Não implica migrar a plataforma para Gitea nem adotar a API
+  monorepo de referência). Não implica migrar a plataforma para Gitea nem adotar a API
   Gitea no create-release. Pins Node 24 / pnpm 11 permanecem (ADR-003).
-- **Reusable preferido, inline se ausente**: o lidercap referencia
+- **Reusable preferido, inline se ausente**: o monorepo de referência referencia
   `publish-libs.yaml`, mas o clone local de `actions-templates` só tem
   `publish-lib.yaml` (loop npm legado). A implementação valida a existência
   do reusable Nx; se ausente, inline com `nx release publish` + auth SSM.
@@ -287,6 +287,6 @@ ENTÃO abre PR via gh contra master (não via API Gitea)
 - **Criar/alterar o reusable `publish-libs.yaml` no actions-templates**: pode
   ser follow-up; esta spec aceita inline no template se o reusable Nx não
   existir.
-- **Semgrep / renovate / actionlint workflows novos**: fora do diff lidercap→
+- **Semgrep / renovate / actionlint workflows novos**: fora do diff do monorepo de referência →
   template desta rodada (renovate/actionlint já eram P2 da SPEC-YWAWQHPX).
 - **Infra de deploy do Verdaccio**: assume registry já existente na org.

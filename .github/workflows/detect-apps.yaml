@@ -1,0 +1,86 @@
+name: Detect Apps
+
+# Detecta as apps deployáveis afetadas pelo push, comparando o diff contra o
+# commit anterior. Internalizado a partir do template de actions externo: o
+# repositório que o hospedava saiu do alcance deste projeto, e um reusable que
+# não se pode versionar nem auditar quebra sem aviso.
+on:
+  workflow_call:
+    inputs:
+      app_dirs:
+        description: "Diretórios de apps separados por vírgula (ex: 'apps,services,workers')"
+        required: false
+        type: string
+        default: "apps"
+      shared_dirs:
+        description: "Diretórios compartilhados que trigam deploy de tudo (ex: 'libs,packages')"
+        required: false
+        type: string
+        default: "libs"
+      marker_file:
+        description: "Arquivo que identifica uma app deployável (ex: 'Dockerfile')"
+        required: false
+        type: string
+        default: "Dockerfile"
+      runner:
+        description: "Runner para execução"
+        required: false
+        type: string
+        default: "ubuntu-latest"
+    outputs:
+      apps:
+        description: "JSON array de apps detectadas"
+        value: ${{ jobs.detect.outputs.apps }}
+
+permissions:
+  contents: read
+
+jobs:
+  detect:
+    runs-on: ${{ inputs.runner }}
+    outputs:
+      apps: ${{ steps.set.outputs.apps }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - id: set
+        shell: bash
+        run: |
+          IFS=',' read -ra APP_DIRS <<< "${{ inputs.app_dirs }}"
+          IFS=',' read -ra SHARED_DIRS <<< "${{ inputs.shared_dirs }}"
+
+          BEFORE="${{ github.event.before }}"
+          if [ -n "$BEFORE" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ] && git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
+            CHANGED=$(git diff --name-only "$BEFORE" "${{ github.sha }}")
+          else
+            CHANGED=$(git diff-tree --no-commit-id --name-only -r "${{ github.sha }}")
+          fi
+
+          SHARED_CHANGED=false
+          for dir in "${SHARED_DIRS[@]}"; do
+            if echo "$CHANGED" | grep -q "^${dir}/"; then
+              SHARED_CHANGED=true
+              break
+            fi
+          done
+
+          APPS=()
+          for dir in "${APP_DIRS[@]}"; do
+            if [ "$SHARED_CHANGED" = "true" ]; then
+              for app in $(ls -d ${dir}/*/${{ inputs.marker_file }} 2>/dev/null | cut -d/ -f2 | sort -u); do
+                APPS+=("${dir}/${app}")
+              done
+            else
+              for app in $(echo "$CHANGED" | grep -oP "^${dir}/\K[^/]+" | sort -u); do
+                [ -f "${dir}/${app}/${{ inputs.marker_file }}" ] && APPS+=("${dir}/${app}")
+              done
+            fi
+          done
+
+          if [ ${#APPS[@]} -eq 0 ]; then
+            echo "apps=[]" >> "$GITHUB_OUTPUT"
+          else
+            echo "apps=$(printf '%s\n' "${APPS[@]}" | jq -R . | jq -cs .)" >> "$GITHUB_OUTPUT"
+          fi

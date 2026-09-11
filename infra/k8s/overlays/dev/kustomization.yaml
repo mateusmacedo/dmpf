@@ -14,7 +14,7 @@ resources:
   - ../../base/dmpf-reference
 
 images:
-  - name: ghcr.io/lidercap-apps/dmpf-reference
+  - name: ghcr.io/mateusmacedo/dmpf-reference
     newTag: dev
 
 secretGenerator:

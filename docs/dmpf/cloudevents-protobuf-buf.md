@@ -4,9 +4,9 @@
 |-------|-------|
 | **Status** | `draft normativo` — promovido para revisão em PR |
 | **Adiciona a** | RFC DMPF Foundation v0.1, pela âncora ANC-03 (RFC §12.3) |
-| **Owner** | Mateus Macedo Dos Anjos (assignee de [ARQ-442](https://lider-cap.atlassian.net/browse/ARQ-442)) |
-| **Épico** | [ARQ-436](https://lider-cap.atlassian.net/browse/ARQ-436) — Golden Path para Sistemas Orientados a Domínio e Mensagens |
-| **Story** | [ARQ-442](https://lider-cap.atlassian.net/browse/ARQ-442) (DMPF-FND-05) |
+| **Owner** | Mateus Macedo Dos Anjos (assignee de ARQ-442) |
+| **Épico** | ARQ-436 — Golden Path para Sistemas Orientados a Domínio e Mensagens |
+| **Story** | ARQ-442 (DMPF-FND-05) |
 | **Spec** | [SPEC-7H08RZDG](../specs/SPEC-7H08RZDG-dmpf-cloudevents-protobuf-buf.md) |
 | **Data** | 2026-08-19 |
 | **Revisão** | Plataforma e Arquitetura no PR; um representante de cada stack (Go e TypeScript) para §5, §6 e §8; um representante de operação para a máquina de estados de §6.4 |
@@ -172,12 +172,12 @@ fronteira, e para: o outro lado é da dona.
 
 | Tema | Dona | Fronteira aparece em |
 |------|------|----------------------|
-| Bloco em que o mapeamento reside, momento da serialização, atomicidade da escrita e autoria dos campos da outbox | FND-04 ([ARQ-441](https://lider-cap.atlassian.net/browse/ARQ-441)), sob ANC-02 | §2.2, §4.1, §4.3 |
-| Endereço concreto do transporte, binding por protocolo, convenção de tópico e de fila, gesto de ACK, operação de Schema Registry e retry por transporte | FND-06 ([ARQ-443](https://lider-cap.atlassian.net/browse/ARQ-443)), sob ANC-04 | §3.5, §6.5, §7.3, §9.2 |
-| Classificação, minimização, cifra em repouso e controle de acesso ao dado de negócio carregado no `data` do envelope; taxonomia de erros; autorização que resolve o `tenantid` | FND-07 ([ARQ-444](https://lider-cap.atlassian.net/browse/ARQ-444)) | §3.4, §4.2 |
-| Catálogo de métricas, limiares e alarmes sobre falha de validação, drift de código gerado e reprovação de gate | FND-08 ([ARQ-445](https://lider-cap.atlassian.net/browse/ARQ-445)), sob ANC-06 | §6.6 |
-| Instrumento de teste, oráculo executável, pipeline das golden fixtures e verificação cross-stack do `payload_hash` | FND-09 ([ARQ-446](https://lider-cap.atlassian.net/browse/ARQ-446)), sob ANC-07 | §8.3, §8.5, §10.4 |
-| Redação, promoção e aceite dos ADRs acionados | FND-11 ([ARQ-448](https://lider-cap.atlassian.net/browse/ARQ-448)) | §9 |
+| Bloco em que o mapeamento reside, momento da serialização, atomicidade da escrita e autoria dos campos da outbox | FND-04 (ARQ-441), sob ANC-02 | §2.2, §4.1, §4.3 |
+| Endereço concreto do transporte, binding por protocolo, convenção de tópico e de fila, gesto de ACK, operação de Schema Registry e retry por transporte | FND-06 (ARQ-443), sob ANC-04 | §3.5, §6.5, §7.3, §9.2 |
+| Classificação, minimização, cifra em repouso e controle de acesso ao dado de negócio carregado no `data` do envelope; taxonomia de erros; autorização que resolve o `tenantid` | FND-07 (ARQ-444) | §3.4, §4.2 |
+| Catálogo de métricas, limiares e alarmes sobre falha de validação, drift de código gerado e reprovação de gate | FND-08 (ARQ-445), sob ANC-06 | §6.6 |
+| Instrumento de teste, oráculo executável, pipeline das golden fixtures e verificação cross-stack do `payload_hash` | FND-09 (ARQ-446), sob ANC-07 | §8.3, §8.5, §10.4 |
+| Redação, promoção e aceite dos ADRs acionados | FND-11 (ARQ-448) | §9 |
 
 `normativo` — A fronteira com FND-09 é a mais fácil de atravessar por descuido,
 e por isso é enunciada uma vez, aqui, no critério que a decide: **a fixture e o
@@ -598,7 +598,7 @@ resolvida.
 
 `encaminhado` — Como a autenticação resolve a identidade de tenant, o que conta
 como requisição autenticada e o controle de acesso ao dado por tenant são de
-FND-07 ([ARQ-444](https://lider-cap.atlassian.net/browse/ARQ-444)). Este artefato
+FND-07 (ARQ-444). Este artefato
 fixa a obrigatoriedade condicional e a vedação ao valor de preenchimento; não
 fixa o mecanismo.
 
@@ -632,7 +632,7 @@ a validação roda.
 `encaminhado` — **Onde** a validação roda — no adapter de entrada, no consumidor,
 num gateway ou no broker —, qual é o gesto de rejeição em cada transporte e o que
 acontece com um envelope inválido são de FND-06
-([ARQ-443](https://lider-cap.atlassian.net/browse/ARQ-443)), sob ANC-04. FND-04
+(ARQ-443), sob ANC-04. FND-04
 §6.4 já registra que o envelope inválido é recusado **antes** do espaço das sete
 disposições de consumo; este artefato define o que torna um envelope inválido, e
 não o que se faz com ele.
@@ -1251,7 +1251,7 @@ verificar depois, numa condição de estado que qualquer revisor confere.
 
 `encaminhado` — **Se existe uma segunda autoridade em runtime — um Schema
 Registry — e qual — é decisão de `ADR-DMPF-N` (§9.2), e a sua operação é de
-FND-06** ([ARQ-443](https://lider-cap.atlassian.net/browse/ARQ-443)), sob ANC-04.
+FND-06** (ARQ-443), sob ANC-04.
 Este artefato não escolhe registry: a ANC-03 exige ADR para essa escolha
 (RFC §12.3, confirmado por RFC §13.3), e antecipá-la aqui esvaziaria o ADR que a
 própria âncora manda acionar. É a obrigação 3 da matriz de §2.3, e é a única
@@ -1337,7 +1337,7 @@ transporte do plugin.
 
 `encaminhado` — Nomes de métrica, limiares e alarmes sobre reprovação de gate,
 frequência de drift e falha de validação são de FND-08
-([ARQ-445](https://lider-cap.atlassian.net/browse/ARQ-445)), sob ANC-06. Este
+(ARQ-445), sob ANC-06. Este
 artefato exige que o gate exista, reprove e seja fail-closed; não define o que se
 observa sobre ele. O critério é o mesmo que FND-04 §1.4 enunciou: **capacidade é
 deste artefato; catálogo é de FND-08.**
@@ -1549,7 +1549,7 @@ entre eles é a de §1.4:
 | Owner | Responsabilidade |
 |-------|------------------|
 | **FND-05** (este artefato) | O contrato de exemplo, o conteúdo obrigatório da fixture (§8.2) e a definição dos três oráculos e do seu escopo (§8.3) |
-| **FND-09** ([ARQ-446](https://lider-cap.atlassian.net/browse/ARQ-446)) | O oráculo executável, o formato de arquivo da fixture, o pipeline que a roda e o diagnóstico que ela emite |
+| **FND-09** (ARQ-446) | O oráculo executável, o formato de arquivo da fixture, o pipeline que a roda e o diagnóstico que ela emite |
 | Épicos de kernel e de contratos | A implementação nas duas stacks e a execução efetiva do cenário, com a evidência registrada |
 
 `normativo` — Este artefato **não** declara o round-trip executado. A spec desta
@@ -1594,7 +1594,7 @@ cuja violação desliga a deduplicação da inbox (FND-04 §6.5, H2). O caminho 
 `recepcionado` — RFC §13.1 define o gesto e este artefato o repete sem alteração:
 acionar é **nomear** o ADR, **definir o seu assunto**, **registrar a origem** e
 **encaminhar** ao FND-11
-([ARQ-448](https://lider-cap.atlassian.net/browse/ARQ-448)), a quem cabem a
+(ARQ-448), a quem cabem a
 redação, a promoção para `docs/adr/` na faixa `010`–`024` e o aceite.
 
 `normativo` — Nenhum ADR é redigido nem aceito aqui. Os dois registros de §9.2
@@ -1863,14 +1863,14 @@ texto; todos são escalados.
 |---|-----------|--------|---------|
 | 1 | Refletir na tabela de RFC §14.4 a sucessão de Parte-1 §7 declarada em §1.5, preservando §7.6 e §7.7 como vigentes e as parciais de §7.1 e §7.2 | pendente | Revisores desta entrega, no PR; se exigir rito de versão, vira alteração própria da RFC |
 | 2 | **O assunto da ANC-03 não é esgotado por esta entrega**: OpenAPI e AsyncAPI constam do registro da âncora e não são normatizados aqui (§1.5, `REP-06`). A condição de fechamento «FND-05 concluída e revisada» é satisfeita no recorte de Protobuf e CloudEvents, e não no de OpenAPI e AsyncAPI | pendente | Decisão de quem fecha a ANC-03: abrir sub-spec própria, alargar o escopo de outra âncora por rito de versão da RFC, ou registrar o recorte como definitivo |
-| 3 | Realinhamento com FND-09: «mesmo byte» como critério geral do round-trip, e ownership da fixture (§8.5) | pendente | FND-09 ([ARQ-446](https://lider-cap.atlassian.net/browse/ARQ-446)), com a posição deste artefato declarada em §8.5 |
-| 4 | `correlationid`, `causationid` e `traceparent` são obrigatórios no envelope (`ENV-08`) e não têm campo dedicado no schema mínimo da outbox de FND-04 §4.1 (§4.1) | pendente | FND-04 ([ARQ-441](https://lider-cap.atlassian.net/browse/ARQ-441)), sob ANC-02 — normatizar coluna de outbox excederia esta âncora |
+| 3 | Realinhamento com FND-09: «mesmo byte» como critério geral do round-trip, e ownership da fixture (§8.5) | pendente | FND-09 (ARQ-446), com a posição deste artefato declarada em §8.5 |
+| 4 | `correlationid`, `causationid` e `traceparent` são obrigatórios no envelope (`ENV-08`) e não têm campo dedicado no schema mínimo da outbox de FND-04 §4.1 (§4.1) | pendente | FND-04 (ARQ-441), sob ANC-02 — normatizar coluna de outbox excederia esta âncora |
 | 5 | Transição da inbox quando a fórmula do `payload_hash` mudar de versão (`ENV-20`) | pendente | FND-04, sob ANC-02 — incide sobre retenção e comparação da inbox |
 | 6 | Recolher no glossário de RFC §14.1 os termos de §10.5 | pendente | Próxima versão da RFC que abrir o glossário; até lá, §10.5 é a fonte |
-| 7 | Numeração definitiva de `ADR-DMPF-M` e `ADR-DMPF-N` na faixa `docs/adr/010`–`024`, e a redação de ambos | pendente | FND-11 ([ARQ-448](https://lider-cap.atlassian.net/browse/ARQ-448)) |
+| 7 | Numeração definitiva de `ADR-DMPF-M` e `ADR-DMPF-N` na faixa `docs/adr/010`–`024`, e a redação de ambos | pendente | FND-11 (ARQ-448) |
 | 8 | Execução do round-trip nas duas stacks, com evidência registrada, e existência do pipeline que roda os gates de §6.6 | pendente | Épicos de kernel e de contratos (§8.4); instrumento e oráculo executável são de FND-09 |
 | 9 | Forma de expressão executável do perfil de validação do envelope, e onde ela vive no repositório de contratos (§3.5) | pendente | Decisão a tomar entre FND-06 (validação por transporte) e FND-09 (instrumento de verificação); este artefato define o conteúdo do perfil, não o seu artefato |
-| 10 | Byte-preservação do payload pelos transportes, da qual H1 depende sob a fórmula de §4.3 (`ENV-17`, `ENV-18`) | pendente | FND-06 ([ARQ-443](https://lider-cap.atlassian.net/browse/ARQ-443)), sob ANC-04 — é dependência declarada, não propriedade que este artefato garanta |
+| 10 | Byte-preservação do payload pelos transportes, da qual H1 depende sob a fórmula de §4.3 (`ENV-17`, `ENV-18`) | pendente | FND-06 (ARQ-443), sob ANC-04 — é dependência declarada, não propriedade que este artefato garanta |
 
 `normativo` — Enquanto a pendência 1 não for resolvida, a sucessão de §1.5 vale por
 autorização da ANC-03, e a divergência com a tabela da RFC é conhecida. A pendência

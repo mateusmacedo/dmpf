@@ -5,8 +5,8 @@ title: DMPF KRN-12 — SDK de referência, generator Nx e BOM certificado (guard
 stage: planning
 priority: P2
 depends_on: [SPEC-MQA5HAXF, SPEC-WTAXFV8B, SPEC-XF9TF9A0, SPEC-ZHE7DN1H, SPEC-WYX5GW87, SPEC-3R80KNMS, SPEC-ANZX2WPG, SPEC-CGPX20NP, SPEC-NYD18TGD, SPEC-EAGAXQN1, SPEC-SJ66880S]
-ticket_url: https://lider-cap.atlassian.net/browse/ARQ-531
-subtask_urls: [https://lider-cap.atlassian.net/browse/ARQ-545, https://lider-cap.atlassian.net/browse/ARQ-546, https://lider-cap.atlassian.net/browse/ARQ-547, https://lider-cap.atlassian.net/browse/ARQ-548]
+ticket_url: null
+subtask_urls: [ARQ-545, ARQ-546, ARQ-547, ARQ-548]
 created: 2026-09-08
 ---
 
@@ -308,7 +308,7 @@ integração entre elas:
 - **Consumo dos módulos fora do workspace com tag de módulo Go**: task
   sucessora; addendum no ADR-034.
 - **Imagem Docker do `dmpf-reference`**: golden path.
-- **Migração do `golibs`, pilotos e métricas de adoção**: épico de ordem 5.
+- **Migração do `legado-golibs`, pilotos e métricas de adoção**: épico de ordem 5.
 - **Kernel TypeScript e repositório de contratos separado**: ordens 2 e 3.
 - **Alteração de FND-10**: a tensão entre `BOM-07` (transição só por ato) e
   `BOM-08` (vencida volta a `candidata`) é resolvida no validador da sub-spec 3

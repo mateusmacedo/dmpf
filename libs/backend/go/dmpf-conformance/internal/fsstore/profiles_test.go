@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/internal/fsstore"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/internal/fsstore"
 )
 
 func escrever(t *testing.T, conteudo string) string {

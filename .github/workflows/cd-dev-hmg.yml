@@ -40,18 +40,18 @@ permissions:
 jobs:
   detect:
     if: inputs.app == ''
-    uses: lidercap-apps/actions-templates/.github/workflows/detect-apps.yaml@main
+    uses: ./.github/workflows/detect-apps.yaml
     with:
       app_dirs: "apps"
       shared_dirs: "libs"
-# Deploy por app em jobs explícitos com `with` literal. O act_runner do Gitea
-# não injeta matriz vinda de expressão em job reutilizável (uses:), então
-# evitamos matriz aqui. Cada app nova entra como um job novo.
+# Deploy por app em jobs explícitos com `with` literal. A restrição que motivou
+# evitar matriz aqui era do runner da plataforma anterior; o modelo foi mantido
+# por ser mais legível. Cada app nova entra como um job novo.
 #
 #  deploy-<app>:
 #    needs: [detect]
 #    if: always() && (contains(needs.detect.outputs.apps, 'apps/<app>') || inputs.app == 'apps/<app>')
-#    uses: lidercap-apps/actions-templates/.github/workflows/deploy-eks.yaml@main
+#    uses: ./.github/workflows/deploy-eks.yaml   # reusable a internalizar quando o CD for ligado
 #    with:
 #      version: ${{ github.sha }}
 #      environment: ${{ inputs.environment || 'dev' }}
@@ -61,5 +61,5 @@ jobs:
 #      aws_account_id: ${{ vars.AWS_ACCOUNT_ID }}
 #      docker_context: "."
 #      dockerfile: apps/<app>/Dockerfile
-#      runner: gitea-runner
+#      runner: ubuntu-latest
 #    secrets: inherit

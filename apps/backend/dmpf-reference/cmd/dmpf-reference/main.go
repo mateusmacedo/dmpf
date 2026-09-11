@@ -12,7 +12,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	dmpfreference "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/apps/backend/dmpf-reference"
+	dmpfreference "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference"
 )
 
 // Three distinct codes: a refused start (usage or configuration) must never

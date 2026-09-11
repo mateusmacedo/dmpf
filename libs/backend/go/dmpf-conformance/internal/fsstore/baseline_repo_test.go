@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/internal/baseline"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/internal/baseline"
 )
 
 // Vive no provider porque lê project.json e roda git (FND-09 PIR-17): o que

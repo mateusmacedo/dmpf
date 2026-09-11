@@ -1,6 +1,6 @@
 package orders
 
-import dmpfdomain "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-domain"
+import dmpfdomain "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-domain"
 
 // Place is a UPR: same decide-over-copy shape as AddItem.
 func (o *Order) Place(cmd PlaceOrder) (dmpfdomain.Accepted[PlacedResponse], *dmpfdomain.Rejection) {

@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/metrics"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/metrics"
 )
 
 // DegradedResult marks an answer delivered in degraded mode. It is an error and

@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/internal/rule"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/internal/rule"
 )
 
 // Validate aplica o schema dmpf/units@1 a um documento JÁ decodificado.

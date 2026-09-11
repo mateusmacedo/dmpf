@@ -5,7 +5,7 @@ title: DMPF — Estratégia de testes e interoperabilidade Go ↔ TypeScript
 stage: done
 priority: P0
 depends_on: [SPEC-7PJ5WVCS, SPEC-7H08RZDG]
-ticket_url: https://lider-cap.atlassian.net/browse/ARQ-446
+ticket_url: null
 subtask_urls: []
 created: 2026-08-13
 ---
@@ -19,7 +19,7 @@ Entregar o item lógico **FND-09** do épico ARQ-436
 ## Contexto
 
 - **Umbrella**: [SPEC-QG2N8STY](./SPEC-QG2N8STY-dmpf-foundation.md)
-- **Issue**: [ARQ-446](https://lider-cap.atlassian.net/browse/ARQ-446)
+- **Issue**: ARQ-446
 - **ACs do épico**: AC-10
 - **Evidência §11**: Pirâmide de testes, test kits e golden fixtures Go ↔ TypeScript especificados
 

@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"testing"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-testkit/domainkit"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-testkit/golden"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/domainkit"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/golden"
 )
 
 // ProjectionFormatVersion is the format the projection fixtures carry; an

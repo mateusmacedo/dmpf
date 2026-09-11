@@ -9,7 +9,7 @@ import (
 	"sort"
 	"strings"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/internal/rule"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/internal/rule"
 )
 
 // Inventory reconcilia go.mod rastreados, projetos Nx `stack:go` e membros do

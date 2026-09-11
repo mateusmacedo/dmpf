@@ -6,7 +6,7 @@ import (
 	"slices"
 	"testing"
 
-	ordersapp "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-application/example/orders"
+	ordersapp "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application/example/orders"
 )
 
 var errDenied = errors.New("ordersapp_test: denied")

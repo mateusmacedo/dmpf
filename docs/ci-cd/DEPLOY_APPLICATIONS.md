@@ -167,7 +167,7 @@ não são duplicadas no recurso da app.
 
 ## Referências
 
-- Templates reutilizáveis: https://gitea.lidercap.com.br/lidercap-apps/actions-templates
-- Repositório de infraestrutura: https://gitea.lidercap.com.br/lidercap-apps/lidercap-infra
+- Templates reutilizáveis: https://github.com/mateusmacedo/actions-templates
+- Repositório de infraestrutura: https://github.com/mateusmacedo/infra-reference
 - Expansões: [EXPANSION_MODELS.md](./EXPANSION_MODELS.md)
 - Dockerfile de referência: `infra/docker/Dockerfile.node.example`

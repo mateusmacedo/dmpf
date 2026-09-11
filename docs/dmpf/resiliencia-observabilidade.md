@@ -4,9 +4,9 @@
 |-------|-------|
 | **Status** | `draft normativo` — promovido para revisão em PR |
 | **Adiciona a** | RFC DMPF Foundation v0.1, pela âncora ANC-06 (RFC §12.3) |
-| **Owner** | Mateus Macedo Dos Anjos (assignee de [ARQ-445](https://lider-cap.atlassian.net/browse/ARQ-445)) |
-| **Épico** | [ARQ-436](https://lider-cap.atlassian.net/browse/ARQ-436) — Golden Path para Sistemas Orientados a Domínio e Mensagens |
-| **Story** | [ARQ-445](https://lider-cap.atlassian.net/browse/ARQ-445) (DMPF-FND-08) |
+| **Owner** | Mateus Macedo Dos Anjos (assignee de ARQ-445) |
+| **Épico** | ARQ-436 — Golden Path para Sistemas Orientados a Domínio e Mensagens |
+| **Story** | ARQ-445 (DMPF-FND-08) |
 | **Spec** | [SPEC-E15TBHCD](../specs/SPEC-E15TBHCD-dmpf-resiliencia-observabilidade.md) |
 | **Data** | 2026-08-20 |
 | **Revisão** | Plataforma e Arquitetura no PR; **SRE/Cloud** para §6 e §8, sem cuja validação o runbook e os limiares não passam de proposta — a story o exige em §7 e §10; o owner da ARQ-441 para a revisão cruzada de §4 com a semântica transacional |
@@ -152,14 +152,14 @@ de ser revogado por rito de RFC quando a dona real o normatizasse.
 | Campo do prazo no contexto, monotonicidade da propagação e sinal de cancelamento | FND-07, **publicado** (`CTX-18` a `CTX-23`) | §3, §5 — aqui só o que se mede sobre eles |
 | Forma do `trace_context` no envelope: `traceparent` e `tracestate` | FND-05 — `cloudevents-protobuf-buf.md`, **publicado** (`ENV-08`) | §5 — aqui a instrumentação derivada, não a forma |
 | Existência dos mecanismos de outbox, inbox, relay, quarantine e DLQ, e a disposição que os aciona | FND-04 — `uow-inbox-outbox.md`, **publicado** | §6, §8 — aqui o catálogo e o procedimento |
-| Instrumento executável de verificação dos critérios desta baseline, e o oráculo cross-stack | FND-09 ([ARQ-446](https://lider-cap.atlassian.net/browse/ARQ-446)), sob ANC-07 | §13 — os critérios daqui são encaminhados como verificáveis |
-| Redação, numeração definitiva e aceite do ADR acionado | FND-11 ([ARQ-448](https://lider-cap.atlassian.net/browse/ARQ-448)) | §12 |
+| Instrumento executável de verificação dos critérios desta baseline, e o oráculo cross-stack | FND-09 (ARQ-446), sob ANC-07 | §13 — os critérios daqui são encaminhados como verificáveis |
+| Redação, numeração definitiva e aceite do ADR acionado | FND-11 (ARQ-448) | §12 |
 | **SLO por serviço**, e a meta de cada indicador | Serviço concreto, com a plataforma no método | §6 — aqui o que se mede, não a meta |
 | **Dashboards, alertas em ambiente produtivo e escolha de vendor de telemetria** | Épicos de kernel e providers, com plataforma e SRE | §6, §8 — excluídos pelo §6.2 do épico |
 | **Modelagem de cache**: consistência, invalidação e coerência entre réplicas | Épicos de kernel e providers | §3 — aqui o cache aparece só como redução de pressão em degradação |
 | **Instrumentação**: bibliotecas, SDK, exportador, agente e o mapeamento para o backend | Épicos de kernel e providers | todo o artefato |
 | Fixação da versão das *semantic conventions* de mensageria no BOM | Plataforma, no BOM (Parte-1 §17.2) | §5 — a convenção é adotada, a versão é governada lá |
-| Cronograma e faseamento da adoção da baseline nos serviços do acervo | FND-10 ([ARQ-447](https://lider-cap.atlassian.net/browse/ARQ-447)), sob ANC-09 | §13 |
+| Cronograma e faseamento da adoção da baseline nos serviços do acervo | FND-10 (ARQ-447), sob ANC-09 | §13 |
 
 `rationale` — Os quatro itens em negrito são o excedente de `RES-02`, e são
 exatamente aqueles que um leitor esperaria encontrar aqui. Definir SLO exigiria
@@ -1813,7 +1813,7 @@ declara proibida «ainda que a biblioteca de logging seja tecnicamente pura».
 
 `recepcionado` — RFC §13.1 define o gesto, e este artefato o repete sem alteração:
 acionar é **nomear** o ADR, **definir o seu assunto**, **registrar a origem** e
-**encaminhar** ao FND-11 ([ARQ-448](https://lider-cap.atlassian.net/browse/ARQ-448)),
+**encaminhar** ao FND-11 (ARQ-448),
 a quem cabem a redação, a promoção para a faixa reservada em `docs/adr/` e o
 aceite.
 
@@ -1976,7 +1976,7 @@ consolidar as quatro numa passagem única, em vez de por sub-spec.
 
 `registro` — Os critérios abaixo são verificáveis por instrumento e ficam
 encaminhados ao catálogo de testes de FND-09
-([ARQ-446](https://lider-cap.atlassian.net/browse/ARQ-446)), conforme o DoD da
+(ARQ-446), conforme o DoD da
 story: nome, unidade e fórmula presentes em toda métrica obrigatória; ausência de
 label de alta cardinalidade; presença dos atributos comuns de `TRC-04` nos três
 fluxos; continuidade do trace no salto assíncrono sob fronteira confiável;

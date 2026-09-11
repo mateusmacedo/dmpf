@@ -102,7 +102,7 @@ trap descartar EXIT INT TERM
 git_gate() {
   git -C "$WT" \
     -c user.name=dmpf-generator-check \
-    -c user.email=dmpf-generator-check@lidercap.local "$@"
+    -c user.email=dmpf-generator-check@dmpf.local "$@"
 }
 
 # A corrupção observada (ADR-041) reescreveu 39 links de uma vez, entre eles
@@ -188,7 +188,7 @@ gerar() {
   done
   [ "$BLOCOS_PEDIDOS" -gt 0 ] || falha "DMPF_GENERATOR_CHECK_BLOCKS não nomeou nenhum bloco"
 
-  saida="$(cd "$WT" && pnpm nx g @lidercap-apps/dmpf-plugin:bounded-context "$NOME" \
+  saida="$(cd "$WT" && pnpm nx g @mateusmacedo/dmpf-plugin:bounded-context "$NOME" \
     --bounded-context "$CONTEXTO" "${args[@]}" --no-interactive 2>&1)"
   status=$?
   if [ "$status" -ne 0 ]; then

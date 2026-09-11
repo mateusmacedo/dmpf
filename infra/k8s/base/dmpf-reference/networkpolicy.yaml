@@ -14,7 +14,7 @@ spec:
     - from:
         - podSelector:
             matchLabels:
-              dmpf.lidercap.com.br/api-client: 'true'
+              dmpf/api-client: 'true'
       ports:
         - port: http
           protocol: TCP

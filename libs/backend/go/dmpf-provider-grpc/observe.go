@@ -3,7 +3,7 @@
 package dmpfgrpc
 
 import (
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-transport/compose"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-transport/compose"
 )
 
 const spanPrefix = "dmpf.grpc.client "

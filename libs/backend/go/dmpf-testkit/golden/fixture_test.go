@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-testkit/golden"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/golden"
 )
 
 const itemAddedPath = "../../../../../contracts/fixtures/orders/event/v1/item-added.golden"

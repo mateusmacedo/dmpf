@@ -5,7 +5,7 @@ title: DMPF — Unit of Work, inbox, outbox e garantias de entrega
 stage: done
 priority: P0
 depends_on: [SPEC-8MNDEWDP]
-ticket_url: https://lider-cap.atlassian.net/browse/ARQ-441
+ticket_url: null
 subtask_urls: []
 created: 2026-08-13
 ---
@@ -22,7 +22,7 @@ nomeia FND-04 como autoridade sobre Unit of Work, inbox, outbox e relay.
 ## Contexto
 
 - **Umbrella**: [SPEC-QG2N8STY](./SPEC-QG2N8STY-dmpf-foundation.md)
-- **Issue**: [ARQ-441](https://lider-cap.atlassian.net/browse/ARQ-441)
+- **Issue**: ARQ-441
 - **ACs do épico**: AC-07
 - **Evidência §11**: Sequências transacionais, failure modes, idempotência, relay e disposições de consumo
 - **Dependência satisfeita**: [SPEC-8MNDEWDP](./SPEC-8MNDEWDP-dmpf-upr-decision-mensagens.md) (FND-03) está `done`; o artefato `docs/dmpf/upr-decision-mensagens.md` é a fonte da UPR, da `Decision` e da taxonomia de mensagens que esta spec orquestra
@@ -372,7 +372,7 @@ sinais de `pending`, `lag`, `attempts` e `failures`, e graceful shutdown.
 A **exposição** dos sinais é capacidade do mecanismo e é normatizada aqui,
 conforme Parte-1 §10.4. Os nomes das métricas, os limiares, os alarmes, o
 catálogo por componente e o runbook de DLQ e replay são de FND-08
-([ARQ-445](https://lider-cap.atlassian.net/browse/ARQ-445)) e aparecem neste
+(ARQ-445) e aparecem neste
 artefato apenas como fronteira `encaminhado`.
 
 Polling com leasing é o mecanismo padrão. CDC é extensão para alto volume ou
@@ -416,9 +416,9 @@ O artefato normatiza duas propriedades e nenhuma fórmula:
    contadores de tentativa ficam fora
 
 O algoritmo, a canonicalização, o escopo dos bytes e o versionamento são
-`encaminhado` a FND-05 ([ARQ-442](https://lider-cap.atlassian.net/browse/ARQ-442)).
+`encaminhado` a FND-05 (ARQ-442).
 A verificação cross-stack é `encaminhado` a FND-09
-([ARQ-446](https://lider-cap.atlassian.net/browse/ARQ-446)), que já usa o payload
+(ARQ-446), que já usa o payload
 hash como detector de divergência de serialização.
 
 ### Retry, DLQ, quarantine e replay
@@ -552,7 +552,7 @@ ANC-02 registra «ADR exigido: Sim — escolha de mecanismo de relay (polling ×
 CDC)», e RFC §13.3 confirma que o mecanismo de relay da outbox é acionado por
 esta sub-spec. O artefato aciona no formato de RFC §13.2 — nomear, definir
 assunto, registrar origem e encaminhar ao FND-11
-([ARQ-448](https://lider-cap.atlassian.net/browse/ARQ-448)) —, sem redigir nem
+(ARQ-448) —, sem redigir nem
 aceitar.
 
 São **dois** acionamentos. O segundo responde à obrigação que o FND-03 §6.3

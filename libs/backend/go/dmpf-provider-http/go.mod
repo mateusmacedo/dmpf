@@ -1,4 +1,4 @@
-module gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-provider-http
+module github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-http
 
 go 1.26.6
 

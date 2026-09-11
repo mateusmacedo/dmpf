@@ -13,7 +13,7 @@ substitui pelo Postgres.
 
 Projeto Nx `dmpf-application-go`, tags `type:lib`, `scope:backend`, `stack:go`.
 Import path do módulo:
-`gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-application`.
+`github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application`.
 
 ## O que o módulo contém
 

@@ -1,4 +1,4 @@
-module gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-testkit
+module github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit
 
 go 1.26.6
 

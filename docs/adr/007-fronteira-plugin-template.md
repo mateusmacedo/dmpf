@@ -15,7 +15,7 @@ vigia naquela data.
 O marketplace `plugins-claude` (plugin `mmda-flow`, canônico em
 `https://github.com/mateusmacedo/plugins-claude`) concentra convenções,
 artefatos de estrutura e uma pipeline madura de desenvolvimento assistido por
-IA. O `nx-base-template` já adotava parcialmente o formato de specs do plugin,
+IA. O `dmpf` já adotava parcialmente o formato de specs do plugin,
 mas faltavam duas coisas:
 
 - o scaffold de engenharia que o plugin provisiona (catálogo de specs, regras de

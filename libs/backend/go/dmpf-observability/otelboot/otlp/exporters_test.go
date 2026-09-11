@@ -8,8 +8,8 @@ import (
 
 	"go.opentelemetry.io/otel/propagation"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/otelboot"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/otelboot/otlp"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/otelboot"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/otelboot/otlp"
 )
 
 func transportConfig(transport otelboot.Transport, allowInsecure bool) otelboot.Config {

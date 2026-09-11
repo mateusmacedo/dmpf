@@ -4,9 +4,9 @@
 |-------|-------|
 | **Status** | `draft normativo` — promovido para revisão em PR |
 | **Adiciona a** | RFC DMPF Foundation v0.1, pelas âncoras **ANC-08** e **ANC-09** (RFC §12.3) |
-| **Owner** | Mateus Macedo Dos Anjos (assignee de [ARQ-447](https://lider-cap.atlassian.net/browse/ARQ-447)) |
-| **Épico** | [ARQ-436](https://lider-cap.atlassian.net/browse/ARQ-436) — Golden Path para Sistemas Orientados a Domínio e Mensagens |
-| **Story** | [ARQ-447](https://lider-cap.atlassian.net/browse/ARQ-447) (DMPF-FND-10) |
+| **Owner** | Mateus Macedo Dos Anjos (assignee de ARQ-447) |
+| **Épico** | ARQ-436 — Golden Path para Sistemas Orientados a Domínio e Mensagens |
+| **Story** | ARQ-447 (DMPF-FND-10) |
 | **Spec** | [SPEC-VVR1X71Q](../specs/SPEC-VVR1X71Q-dmpf-governanca-bom-pilotos.md) |
 | **Data** | 2026-08-21 |
 | **Revisão** | Plataforma e Arquitetura no PR; **Segurança** para §5.2, porque a autoridade sobre a classificação é controle de integridade e não formalidade de processo; os owners das duas squads nomeadas em §6.2, sem cujo aceite o charter permanece proposta — o AC-11 item 4 exige participação formal |
@@ -77,7 +77,7 @@ condição de fechamento explícita.
 | Campo | Valor |
 |-------|-------|
 | Assunto | Governança, BOM e pilotos |
-| Owner / autoridade | FND-10 — [ARQ-447](https://lider-cap.atlassian.net/browse/ARQ-447) |
+| Owner / autoridade | FND-10 — ARQ-447 |
 | Escopo permitido | Matriz de versões certificadas, escape hatches e seleção de pilotos |
 | Invariantes | §12.2 M1–M4; **escape hatch não pode contornar constraint P0** |
 | Artefato sucessor | Spec e seção própria |
@@ -90,7 +90,7 @@ condição de fechamento explícita.
 | Campo | Valor |
 |-------|-------|
 | Assunto | **Processo de autorização da classificação** — quem aprova mudança de `block` e `bounded_context`, por qual rito, e o que constitui evidência de autorização |
-| Owner / autoridade | FND-10 — [ARQ-447](https://lider-cap.atlassian.net/browse/ARQ-447) |
+| Owner / autoridade | FND-10 — ARQ-447 |
 | Escopo permitido | Definir autoridade, rito e artefato de evidência que satisfaçam **T4–T6 de §10.2** |
 | Invariantes | **T1–T6 de §10.2 permanecem**; o mecanismo mínimo de §10.2 vale **até o fechamento** |
 | Artefato sucessor | Spec de governança e seção própria |
@@ -316,7 +316,7 @@ duplicata ou contradição, e ambas violam M1.
 | **Registro autoritativo de stacks, pins de Buf e predicados de runtime** | FND-05, **publicado**, sob ANC-03 | O registro é de lá; o BOM o **referencia** por coordenada, sem duplicar valor | §4.3 |
 | **Gesto** da repetição e do retry em cada transporte | FND-06 — `politicas-transporte.md`, **publicado**, sob ANC-04 | Políticas por transporte, incluindo as regras normativas da migração de canal | §6.1 — aqui o planejamento da adoção, não a execução |
 | Baseline de telemetria e limiares de resiliência | FND-08 — `resiliencia-observabilidade.md`, **publicado**, sob ANC-06 | Catálogo de sinais e políticas de retry e degradação | §6.1, §6.2 — aqui o faseamento da adoção e a métrica do piloto |
-| **Redação e numeração definitiva dos ADRs** | FND-11 — [ARQ-448](https://lider-cap.atlassian.net/browse/ARQ-448), `backlog` | Promoção para `docs/adr/` na faixa `010`–`024` | §8.1, §8.2 |
+| **Redação e numeração definitiva dos ADRs** | FND-11 — ARQ-448, `backlog` | Promoção para `docs/adr/` na faixa `010`–`024` | §8.1, §8.2 |
 | **Reconciliação de cardinalidade** da série de ADRs | FND-11 | — | §8.2 |
 | Evidência de interoperabilidade Go ↔ TypeScript | FND-09 — ARQ-446, **mergeado em `develop` durante esta entrega** (PR #14) | Fixtures cruzadas e critérios de interoperabilidade, sob ANC-07 | §6.2 — este artefato **não** cita conteúdo do FND-09; ver `GOV-06` |
 | Execução dos pilotos | Épico 5 de ARQ-436 §20 | — | §6.2, §7 |
@@ -366,7 +366,7 @@ como obrigação inflaria o ledger e faria uma única delegação parecer duas.
 | O3 | Fixação da **versão das *semantic conventions* de mensageria** do OpenTelemetry no BOM, **com owner da primeira instância real** | FND-08 §5 (`resiliencia-observabilidade.md`, três citações) | ANC-09, via `Parte-1 §17.2` | §4.4 | `atendida com pendência de titular` — slot e owner definidos; o valor acompanha a primeira instância |
 | O4 | Definir **autoridade, rito e artefato de evidência** que satisfaçam T4–T6 de §10.2 | RFC §10.2 | **ANC-08** | §5.2 | `definida, não vigente` — depende de **G2** |
 | O5 | **Acionar o ADR** do processo de autorização da classificação | RFC §13.3 | **ANC-08** | §8.1 | `atendida` — acionado; redação é de FND-11 |
-| O6 | **Selecionar e formalizar os dois fluxos-piloto** | FND-01 `inventario-as-is.md` §5 **e** o §10 dos inventários de `shared-titulos-services` e `telesena-ativavel-services` — fontes comprobatórias da mesma delegação | ANC-09 | §6.2 | `selecionada, não formalizada` — depende de **G1** |
+| O6 | **Selecionar e formalizar os dois fluxos-piloto** | FND-01 `inventario-as-is.md` §5 **e** o §10 dos inventários de `legado-titulos-shared-services` e `legado-ativavel-services` — fontes comprobatórias da mesma delegação | ANC-09 | §6.2 | `selecionada, não formalizada` — depende de **G1** |
 | O7 | ADR de **BOM, compatibilidade, versionamento e depreciação** (ADR-015 da tabela §8 do épico) | Épico ARQ-436 §8; ARQ-447 entregável 5 e DoD | ANC-09, por exigência do épico — a âncora em si diz «ADR exigido: Não» | §8.1 | `atendida` — acionado como provisório, sem número definitivo |
 | O8 | Os **quatro instrumentos de governança** que a base conceitual prescreve e a spec não recolheu: owners por pacote, codemods e generators junto de breaking changes, office hours e canal de suporte, métricas de adoção e fricção | `Parte-1 §17.3`, vigente por RFC §14.4 | ANC-09 | §3.6 | `atendida` — cada um normatizado ou `encaminhado` individualmente |
 | O9 | **Certificação da toolchain do FND-05** no BOM — pins de Buf e plugins, predicados de runtime, autoridade do registro de stacks: **referenciar, não duplicar** | FND-05 `cloudevents-protobuf-buf.md`, registro autoritativo | ANC-09 | §4.3 | `atendida` |
@@ -1366,7 +1366,7 @@ não é piloto: ele contém código que a fundação não alcança, e declarar o
 como piloto tornaria a métrica inauditável — não se saberia sobre qual código o
 número foi medido.
 
-`rationale` — A distinção não é formal. `shared-titulos-services` é um repositório
+`rationale` — A distinção não é formal. `legado-titulos-shared-services` é um repositório
 **híbrido** — o inventário registra `Stack: ambas — TypeScript/NestJS + Go` —, e
 declarar «o repositório» como piloto Go seria factualmente errado. O que é Go é um
 trecho dele, e é esse trecho que o charter nomeia.
@@ -1392,8 +1392,8 @@ repositório:
 
 | Piloto | Classificação FND-01 | Base registrada |
 |--------|----------------------|-----------------|
-| `shared-titulos-services` | **`Forte`** | «cobre os quatro eixos DMPF em runtime real (SQS, outbox/inbox, OpenAPI, New Relic/Prometheus) com domínio de produto e dual-stack… melhor laboratório E2E de at-least-once + UoW do que libs isoladas» |
-| `telesena-ativavel-services` | **`Sim c/ ressalvas`** | «candidatos naturais AS-IS = `api-v2` (CI ativo, Swagger, producer SQS) + `delivery-worker` (consumer isolado, New Relic)»; ressalvas: domínio com I/O, ausência de outbox, idempotência frágil |
+| `legado-titulos-shared-services` | **`Forte`** | «cobre os quatro eixos DMPF em runtime real (SQS, outbox/inbox, OpenAPI, New Relic/Prometheus) com domínio de produto e dual-stack… melhor laboratório E2E de at-least-once + UoW do que libs isoladas» |
+| `legado-ativavel-services` | **`Sim c/ ressalvas`** | «candidatos naturais AS-IS = `api-v2` (CI ativo, Swagger, producer SQS) + `delivery-worker` (consumer isolado, New Relic)»; ressalvas: domínio com I/O, ausência de outbox, idempotência frágil |
 
 `normativo` — **As ressalvas do lado TypeScript são o delta a medir, não defeito de
 seleção.** Domínio com I/O, ausência de outbox e idempotência frágil são exatamente
@@ -1409,12 +1409,12 @@ pode ser: a seleção está feita e justificada; a **formalização** com as squ
 #### Charter do piloto Go
 
 `normativo` `PIL-03` — **Piloto A — cadeia de títulos, trecho Go de
-`shared-titulos-services`.**
+`legado-titulos-shared-services`.**
 
 | Campo | Valor |
 |-------|-------|
 | Stack do piloto | **Go** |
-| Repositório | `shared-titulos-services` — **híbrido**, `Stack: ambas — TypeScript/NestJS + Go` conforme o inventário |
+| Repositório | `legado-titulos-shared-services` — **híbrido**, `Stack: ambas — TypeScript/NestJS + Go` conforme o inventário |
 | Trecho em escopo | Os deployables **Go** de títulos, e o worker de entrega que expõe `/metrics` Prometheus |
 | Trecho **fora** de escopo | Os deployables TypeScript/NestJS do mesmo repositório |
 | Entrada | Requisição de operação de título pela superfície OpenAPI |
@@ -1435,7 +1435,7 @@ nova.
 
 #### Charter do piloto TypeScript
 
-`normativo` `PIL-04` — **Piloto B — cadeia de ativação, `telesena-ativavel-services`.**
+`normativo` `PIL-04` — **Piloto B — cadeia de ativação, `legado-ativavel-services`.**
 
 | Campo | Valor |
 |-------|-------|
@@ -1660,7 +1660,7 @@ verificação, e lista o que fica aberto com dona e condição.
 
 `normativo` — Estado `acionado` significa, conforme RFC §13.1: nomeado, com assunto
 definido e encaminhado. **Nenhum destes ADRs está redigido ou aceito.** A redação e a
-numeração definitiva são do FND-11 ([ARQ-448](https://lider-cap.atlassian.net/browse/ARQ-448)).
+numeração definitiva são do FND-11 (ARQ-448).
 
 | ID provisório | Nome | Assunto | Origem | Destino | Owner | Estado |
 |---------------|------|---------|--------|---------|-------|--------|

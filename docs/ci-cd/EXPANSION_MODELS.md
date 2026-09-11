@@ -162,6 +162,6 @@ por tags do Nx Release (`**@*`). Mantenha separado do `cd-dev-hmg.yml`.
 
 | Fonte | URL / uso |
 | --- | --- |
-| actions-templates (examples) | https://gitea.lidercap.com.br/lidercap-apps/actions-templates/src/branch/main/examples |
-| lidercap-infra | https://gitea.lidercap.com.br/lidercap-apps/lidercap-infra |
-| Exemplo de CD monorepo | https://gitea.lidercap.com.br/lidercap-apps/actions-templates/src/branch/main/examples/eks-dev-hmg-monorepo.yaml |
+| actions-templates (examples) | https://github.com/mateusmacedo/actions-templates/src/branch/main/examples |
+| infra-reference | https://github.com/mateusmacedo/infra-reference |
+| Exemplo de CD monorepo | https://github.com/mateusmacedo/actions-templates/src/branch/main/examples/eks-dev-hmg-monorepo.yaml |

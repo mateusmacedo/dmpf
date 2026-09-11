@@ -5,7 +5,7 @@ title: DMPF KRN-02 — Verificador de conformidade DMPF em Go
 stage: done
 priority: P0
 depends_on: [SPEC-MQA5HAXF]
-ticket_url: https://lider-cap.atlassian.net/browse/ARQ-521
+ticket_url: null
 subtask_urls: []
 created: 2026-09-01
 ---
@@ -63,11 +63,11 @@ São três lacunas concretas, e cada uma tem um caminho de burla hoje aberto:
 | Nenhuma noção de `bounded_context` | C2 não é avaliada em lugar nenhum; a proibição de import entre contexts (RFC §5.5) é hoje só prosa |
 
 Sem execução, a conformidade depende de revisão manual, e o inventário mostra
-onde isso falha: o `goservice/domain` do `golibs` declara `EventPublisher` — o
+onde isso falha: o `goservice/domain` do `legado-golibs` declara `EventPublisher` — o
 caso que o ADR-014 cita como unidade mal dimensionada — e
 `goweb/domain/http_request.go:6` importa `net/http`, violando P0-1. Por isso o
 verificador está no Incremento 1: sem ele, cada módulo de `KRN-03` em diante
-nasceria sem gate, e a dívida do `golibs` se reproduziria em terreno novo.
+nasceria sem gate, e a dívida do `legado-golibs` se reproduziria em terreno novo.
 
 O terreno herdado do `KRN-01` é mínimo e conhecido: um `go.work` com `go 1.26.4`
 declarando um único módulo (`libs/backend/go/dmpf-domain`), com manifesto
@@ -285,7 +285,7 @@ entrega.
 ## Localização de código
 
 ```text
-lidercap-platform/
+dmpf/
 ├── libs/backend/go/dmpf-conformance/          # CRIAR — módulo Go, projeto dmpf-conformance-go
 │   ├── go.mod                                 # module .../libs/backend/go/dmpf-conformance
 │   ├── package.json                           # private: true (Nx Release exige manifesto npm)
@@ -320,7 +320,7 @@ lidercap-platform/
 ```
 
 Import path canônico do módulo:
-`gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance`
+`github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance`
 
 ## Design
 
@@ -502,7 +502,7 @@ derivados de RFC §7.4, célula a célula, e não de código observado.
       consome (RFC §4.5, regra 2).
 - [x] O módulo `dmpf-conformance-go` é verificado por si mesmo e passa.
 - [x] `pnpm biome ci .` e
-      `pnpm nx affected -t lint,typecheck,test,build --exclude=@nx-base-template/source`
+      `pnpm nx affected -t lint,typecheck,test,build --exclude=@mateusmacedo/dmpf-source`
       passam.
 - [x] `pnpm nx run dmpf-conformance-go:fmt-check,vet,test-race,govulncheck` passam.
 
@@ -597,7 +597,7 @@ derivados de RFC §7.4, célula a célula, e não de código observado.
 - **Nomear o titular da Autoridade de Classificação Arquitetural.** O processo
   já está definido pelo ADR-028 (função, rito e evidência); a nomeação do
   titular (G2), a revisão por Segurança e o fechamento da ANC-08 (G5) pertencem
-  ao FND-10 ([ARQ-447](https://lider-cap.atlassian.net/browse/ARQ-447)). Até a
+  ao FND-10 (ARQ-447). Até a
   vigência, este verificador aplica o mecanismo mínimo de RFC §10.2.
 - **Provar que a classificação corresponde à responsabilidade real do código.**
   Limitação declarada em RFC §10.4, item 1: o verificador prova compatibilidade

@@ -83,8 +83,8 @@ const file_company_reservations_event_v1_reservation_confirmed_proto_rawDesc = "
 	"\x14ReservationConfirmed\x12\x19\n" +
 	"\border_id\x18\x01 \x01(\tR\aorderId\x12\x1d\n" +
 	"\n" +
-	"item_count\x18\x02 \x01(\x05R\titemCountB\xd9\x02\n" +
-	"!com.company.reservations.event.v1B\x19ReservationConfirmedProtoP\x01Z\x81\x01gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/gen/go/company/reservations/event/v1;eventv1\xa2\x02\x03CRE\xaa\x02\x1dCompany.Reservations.Event.V1\xca\x02\x1dCompany\\Reservations\\Event\\V1\xe2\x02)Company\\Reservations\\Event\\V1\\GPBMetadata\xea\x02 Company::Reservations::Event::V1b\x06proto3"
+	"item_count\x18\x02 \x01(\x05R\titemCountB\xbf\x02\n" +
+	"!com.company.reservations.event.v1B\x19ReservationConfirmedProtoP\x01Zhgithub.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/gen/go/company/reservations/event/v1;eventv1\xa2\x02\x03CRE\xaa\x02\x1dCompany.Reservations.Event.V1\xca\x02\x1dCompany\\Reservations\\Event\\V1\xe2\x02)Company\\Reservations\\Event\\V1\\GPBMetadata\xea\x02 Company::Reservations::Event::V1b\x06proto3"
 
 var (
 	file_company_reservations_event_v1_reservation_confirmed_proto_rawDescOnce sync.Once

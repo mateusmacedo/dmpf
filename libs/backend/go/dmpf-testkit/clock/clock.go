@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	obsclock "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/clock"
-	dmpfports "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-ports"
+	obsclock "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/clock"
+	dmpfports "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-ports"
 )
 
 // Fake realizes dmpfports.Clock over one obsclock.Fake, so the kernel's instant

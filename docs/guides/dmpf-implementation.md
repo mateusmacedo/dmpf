@@ -175,7 +175,7 @@ aceite. O QA versiona o aceite como fixture — [playbook](./dmpf-qa-playbook.md
 `dmpf-units.json` e entrada no `go.work`:
 
 ```bash
-pnpm nx g @lidercap-apps/dmpf-plugin:bounded-context ordering \
+pnpm nx g @mateusmacedo/dmpf-plugin:bounded-context ordering \
   --bounded-context ordering \
   --dry-run
 ```

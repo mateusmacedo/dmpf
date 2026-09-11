@@ -15,9 +15,9 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
 	"go.opentelemetry.io/otel/trace"
 
-	dmpfobservability "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/metrics"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/resilience"
+	dmpfobservability "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/metrics"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/resilience"
 )
 
 // ErrAlreadyStarted is a second bootstrap in a process that already has one.
@@ -27,7 +27,7 @@ var ErrAlreadyStarted = errors.New("otelboot: the OpenTelemetry runtime is alrea
 
 // instrumentationName names this module as the instrumentation scope, so a
 // reader of the telemetry knows which library produced it.
-const instrumentationName = "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability"
+const instrumentationName = "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability"
 
 // running guards the process against a second bootstrap. Shutdown releases it,
 // so a test — or a service that restarts its telemetry — can start again.

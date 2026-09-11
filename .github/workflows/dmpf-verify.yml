@@ -29,7 +29,7 @@ permissions:
 jobs:
   verify:
     name: Congruência horizontal do acervo
-    runs-on: gitea-runner
+    runs-on: ubuntu-latest
     timeout-minutes: 10
 
     steps:

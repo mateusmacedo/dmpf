@@ -1,6 +1,6 @@
 # DMPF — artefatos promovidos
 
-Índice versionado da fundação **DMPF** (épico [ARQ-436](https://lider-cap.atlassian.net/browse/ARQ-436)).
+Índice versionado da fundação **DMPF** (épico ARQ-436).
 
 Os drafts de trabalho continuam em área local, fora do versionamento. Quando
 estão prontos para revisão, são **promovidos** para cá; a aprovação formal
@@ -12,20 +12,20 @@ ocorre no PR (reviewers de Plataforma/Arquitetura). Specs permanecem em
 
 | Artefato | Status | Spec / Issue |
 |----------|--------|--------------|
-| [inventario-as-is.md](./inventario-as-is.md) | **baseline candidato** (promovido para revisão; AC externo aberto) | [SPEC-K9H204F1](../specs/SPEC-K9H204F1-dmpf-inventario-as-is.md) / [ARQ-438](https://lider-cap.atlassian.net/browse/ARQ-438) |
-| [rfc-dmpf-foundation-v0.1.md](./rfc-dmpf-foundation-v0.1.md) | **`normativo`** (aceito em 2026-08-14) | [SPEC-8YVF0RR5](../specs/SPEC-8YVF0RR5-dmpf-rfc-limites-deps.md) / [ARQ-439](https://lider-cap.atlassian.net/browse/ARQ-439) |
-| [upr-decision-mensagens.md](./upr-decision-mensagens.md) | **promovido para revisão** (adição à RFC pela âncora ANC-01, sem editá-la) | [SPEC-8MNDEWDP](../specs/SPEC-8MNDEWDP-dmpf-upr-decision-mensagens.md) / [ARQ-440](https://lider-cap.atlassian.net/browse/ARQ-440) |
-| [uow-inbox-outbox.md](./uow-inbox-outbox.md) | **promovido para revisão** (adição à RFC pela âncora ANC-02, sem editá-la) | [SPEC-7PJ5WVCS](../specs/SPEC-7PJ5WVCS-dmpf-uow-inbox-outbox.md) / [ARQ-441](https://lider-cap.atlassian.net/browse/ARQ-441) |
-| [cloudevents-protobuf-buf.md](./cloudevents-protobuf-buf.md) | **promovido para revisão** (adição à RFC pela âncora ANC-03, sem editá-la) | [SPEC-7H08RZDG](../specs/SPEC-7H08RZDG-dmpf-cloudevents-protobuf-buf.md) / [ARQ-442](https://lider-cap.atlassian.net/browse/ARQ-442) |
-| [politicas-transporte.md](./politicas-transporte.md) | **promovido para revisão** (adição à RFC pela âncora ANC-04, sem editá-la) | [SPEC-YWFGNPG5](../specs/SPEC-YWFGNPG5-dmpf-politicas-transporte.md) / [ARQ-443](https://lider-cap.atlassian.net/browse/ARQ-443) |
-| [contexto-erros-seguranca.md](./contexto-erros-seguranca.md) | **promovido para revisão** (adição à RFC pela âncora ANC-05, sem editá-la) | [SPEC-XQWGGAXF](../specs/SPEC-XQWGGAXF-dmpf-contexto-erros-seguranca.md) / [ARQ-444](https://lider-cap.atlassian.net/browse/ARQ-444) |
-| [resiliencia-observabilidade.md](./resiliencia-observabilidade.md) | **promovido para revisão** (adição à RFC pela âncora ANC-06, sem editá-la) | [SPEC-E15TBHCD](../specs/SPEC-E15TBHCD-dmpf-resiliencia-observabilidade.md) / [ARQ-445](https://lider-cap.atlassian.net/browse/ARQ-445) |
-| [testes-interop.md](./testes-interop.md) | **promovido para revisão** (adição à RFC pela âncora ANC-07, sem editá-la) | [SPEC-6RQBN98G](../specs/SPEC-6RQBN98G-dmpf-testes-interop.md) / [ARQ-446](https://lider-cap.atlassian.net/browse/ARQ-446) |
-| [governanca-bom-pilotos.md](./governanca-bom-pilotos.md) | **promovido para revisão** (adição à RFC pelas âncoras **ANC-08 e ANC-09**, sem editá-la) | [SPEC-VVR1X71Q](../specs/SPEC-VVR1X71Q-dmpf-governanca-bom-pilotos.md) / [ARQ-447](https://lider-cap.atlassian.net/browse/ARQ-447) |
-| [reconciliacao.md](./reconciliacao.md) | **registro vivo** (não promovido; fora de M1–M4 — estado das pendências cruzadas, atualizável) | [SPEC-4W1BQK93](../specs/SPEC-4W1BQK93-dmpf-consolidacao-horizontal.md) / [ARQ-492](https://lider-cap.atlassian.net/browse/ARQ-492) |
-| [navegacao.md](./navegacao.md) | **registro vivo** (não promovido; fora de M1–M4 — mapa de entrada por prefixo, documento e pergunta) | [SPEC-4W1BQK93](../specs/SPEC-4W1BQK93-dmpf-consolidacao-horizontal.md) / [ARQ-492](https://lider-cap.atlassian.net/browse/ARQ-492) |
+| [inventario-as-is.md](./inventario-as-is.md) | **baseline candidato** (promovido para revisão; AC externo aberto) | a análise AS-IS de sistemas legados / ARQ-438 |
+| [rfc-dmpf-foundation-v0.1.md](./rfc-dmpf-foundation-v0.1.md) | **`normativo`** (aceito em 2026-08-14) | [SPEC-8YVF0RR5](../specs/SPEC-8YVF0RR5-dmpf-rfc-limites-deps.md) / ARQ-439 |
+| [upr-decision-mensagens.md](./upr-decision-mensagens.md) | **promovido para revisão** (adição à RFC pela âncora ANC-01, sem editá-la) | [SPEC-8MNDEWDP](../specs/SPEC-8MNDEWDP-dmpf-upr-decision-mensagens.md) / ARQ-440 |
+| [uow-inbox-outbox.md](./uow-inbox-outbox.md) | **promovido para revisão** (adição à RFC pela âncora ANC-02, sem editá-la) | [SPEC-7PJ5WVCS](../specs/SPEC-7PJ5WVCS-dmpf-uow-inbox-outbox.md) / ARQ-441 |
+| [cloudevents-protobuf-buf.md](./cloudevents-protobuf-buf.md) | **promovido para revisão** (adição à RFC pela âncora ANC-03, sem editá-la) | [SPEC-7H08RZDG](../specs/SPEC-7H08RZDG-dmpf-cloudevents-protobuf-buf.md) / ARQ-442 |
+| [politicas-transporte.md](./politicas-transporte.md) | **promovido para revisão** (adição à RFC pela âncora ANC-04, sem editá-la) | [SPEC-YWFGNPG5](../specs/SPEC-YWFGNPG5-dmpf-politicas-transporte.md) / ARQ-443 |
+| [contexto-erros-seguranca.md](./contexto-erros-seguranca.md) | **promovido para revisão** (adição à RFC pela âncora ANC-05, sem editá-la) | [SPEC-XQWGGAXF](../specs/SPEC-XQWGGAXF-dmpf-contexto-erros-seguranca.md) / ARQ-444 |
+| [resiliencia-observabilidade.md](./resiliencia-observabilidade.md) | **promovido para revisão** (adição à RFC pela âncora ANC-06, sem editá-la) | [SPEC-E15TBHCD](../specs/SPEC-E15TBHCD-dmpf-resiliencia-observabilidade.md) / ARQ-445 |
+| [testes-interop.md](./testes-interop.md) | **promovido para revisão** (adição à RFC pela âncora ANC-07, sem editá-la) | [SPEC-6RQBN98G](../specs/SPEC-6RQBN98G-dmpf-testes-interop.md) / ARQ-446 |
+| [governanca-bom-pilotos.md](./governanca-bom-pilotos.md) | **promovido para revisão** (adição à RFC pelas âncoras **ANC-08 e ANC-09**, sem editá-la) | [SPEC-VVR1X71Q](../specs/SPEC-VVR1X71Q-dmpf-governanca-bom-pilotos.md) / ARQ-447 |
+| [reconciliacao.md](./reconciliacao.md) | **registro vivo** (não promovido; fora de M1–M4 — estado das pendências cruzadas, atualizável) | [SPEC-4W1BQK93](../specs/SPEC-4W1BQK93-dmpf-consolidacao-horizontal.md) / ARQ-492 |
+| [navegacao.md](./navegacao.md) | **registro vivo** (não promovido; fora de M1–M4 — mapa de entrada por prefixo, documento e pergunta) | [SPEC-4W1BQK93](../specs/SPEC-4W1BQK93-dmpf-consolidacao-horizontal.md) / ARQ-492 |
 | [diagramas-metodologia.md](./diagramas-metodologia.md) | **guia visual derivado** (não normativo — metodologia, runtime, estados, prova e governança) | Derivado dos artefatos promovidos e dos registros vivos |
-| [revisao-seguranca-fnd-07.md](./revisao-seguranca-fnd-07.md) | **parecer de revisão** (não normativo — evidência do gate `THR-03` sobre FND-07 §7 e §8; estado em `REC-011`) | [SPEC-DK8QQSDQ](../specs/SPEC-DK8QQSDQ-revisao-seguranca-fnd-07.md) / [ARQ-488](https://lider-cap.atlassian.net/browse/ARQ-488) |
+| [revisao-seguranca-fnd-07.md](./revisao-seguranca-fnd-07.md) | **parecer de revisão** (não normativo — evidência do gate `THR-03` sobre FND-07 §7 e §8; estado em `REC-011`) | [SPEC-DK8QQSDQ](../specs/SPEC-DK8QQSDQ-revisao-seguranca-fnd-07.md) / ARQ-488 |
 | **[resume/](./resume/)** | **Guia derivado em leitura humana** (não normativo — resumos 15–25% do volume, legendas obrigatórias, PT-BR formal) | Entrada de leitura rápida; veja `resume/README.md` |
 
 ## Guia prático derivado
@@ -506,7 +506,7 @@ Três traços distinguem este artefato dos sete precedentes:
 Três correções de fundo que a revisão externa do plano forçou, e que ficam
 registradas porque mudam o que o artefato afirma:
 
-- `shared-titulos-services` **não é um piloto Go** — o inventário o registra como
+- `legado-titulos-shared-services` **não é um piloto Go** — o inventário o registra como
   híbrido (`Stack: ambas — TypeScript/NestJS + Go`). O charter de `PIL-03` nomeia o
   **trecho** Go e coloca os deployables TypeScript do mesmo repositório fora do
   escopo, porque piloto é fluxo e não repositório (`PIL-01`).
@@ -567,7 +567,7 @@ FND-10 — o ledger de doze permanece completo.
 ## Evidências do inventário
 
 Há **13 relatórios** cobrindo **10 repositórios** (alguns monorepos têm mais de
-um corte) em [`docs/specs/SPEC-K9H204F1/`](../specs/SPEC-K9H204F1/).
+um corte) em `docs/specs/a análise AS-IS de sistemas legados/`.
 
 ## Leitura humana — resumos em `resume/`
 

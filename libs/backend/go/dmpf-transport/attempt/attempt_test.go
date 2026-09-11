@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-transport/attempt"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-transport/attempt"
 )
 
 func TestHeader(t *testing.T) {

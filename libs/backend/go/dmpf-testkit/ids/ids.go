@@ -5,7 +5,7 @@ import (
 	"math/rand/v2"
 	"sync"
 
-	dmpfports "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-ports"
+	dmpfports "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-ports"
 )
 
 // Sequence issues Prefix plus a six-digit counter ("m-000001"), the format the

@@ -4,9 +4,9 @@
 |-------|-------|
 | **Status** | `draft normativo` — promovido para revisão em PR |
 | **Adiciona a** | RFC DMPF Foundation v0.1, pela âncora ANC-02 (RFC §12.3) |
-| **Owner** | Mateus Macedo Dos Anjos (assignee de [ARQ-441](https://lider-cap.atlassian.net/browse/ARQ-441)) |
-| **Épico** | [ARQ-436](https://lider-cap.atlassian.net/browse/ARQ-436) — Golden Path para Sistemas Orientados a Domínio e Mensagens |
-| **Story** | [ARQ-441](https://lider-cap.atlassian.net/browse/ARQ-441) (DMPF-FND-04) |
+| **Owner** | Mateus Macedo Dos Anjos (assignee de ARQ-441) |
+| **Épico** | ARQ-436 — Golden Path para Sistemas Orientados a Domínio e Mensagens |
+| **Story** | ARQ-441 (DMPF-FND-04) |
 | **Spec** | [SPEC-7PJ5WVCS](../specs/SPEC-7PJ5WVCS-dmpf-uow-inbox-outbox.md) |
 | **Data** | 2026-08-18 |
 | **Revisão** | Plataforma e Arquitetura no PR; um representante de dados para os schemas mínimos de §4 e §6; um representante de operação para §7.4 |
@@ -156,13 +156,13 @@ fronteira, e para: o outro lado é da dona.
 
 | Tema | Dona | Fronteira aparece em |
 |------|------|----------------------|
-| Formato do envelope publicado; codec, registry e versionamento de wire; algoritmo e canonicalização do `payload_hash` | FND-05 ([ARQ-442](https://lider-cap.atlassian.net/browse/ARQ-442)), sob ANC-03 | §2.3, §4, §6.5 |
-| Políticas por transporte: convenções de Kafka, SNS e SQS, e o retry específico de cada | FND-06 ([ARQ-443](https://lider-cap.atlassian.net/browse/ARQ-443)), sob ANC-04 | §6.4, §7.4 |
-| Contexto de execução, taxonomia de erros e autorização | FND-07 ([ARQ-444](https://lider-cap.atlassian.net/browse/ARQ-444)) | §3.2, §6.4, §7.3 |
-| Classificação, minimização, cifra em repouso, controle de acesso e teto de retenção do dado de negócio — no `payload` da outbox, no envelope preservado na DLQ e em qualquer campo de conteúdo | FND-07 ([ARQ-444](https://lider-cap.atlassian.net/browse/ARQ-444)) | §4.1, §4.3, §7.4 |
-| Catálogo de métricas, limiares, alarmes e runbook de DLQ e replay | FND-08 ([ARQ-445](https://lider-cap.atlassian.net/browse/ARQ-445)), sob ANC-06 | §5.3, §7.4 |
-| Testes e interoperabilidade entre stacks, incluindo a verificação cross-stack do `payload_hash` | FND-09 ([ARQ-446](https://lider-cap.atlassian.net/browse/ARQ-446)) | §6.5, §7.3, §11.5 |
-| Redação, promoção e aceite dos ADRs acionados | FND-11 ([ARQ-448](https://lider-cap.atlassian.net/browse/ARQ-448)) | §10 |
+| Formato do envelope publicado; codec, registry e versionamento de wire; algoritmo e canonicalização do `payload_hash` | FND-05 (ARQ-442), sob ANC-03 | §2.3, §4, §6.5 |
+| Políticas por transporte: convenções de Kafka, SNS e SQS, e o retry específico de cada | FND-06 (ARQ-443), sob ANC-04 | §6.4, §7.4 |
+| Contexto de execução, taxonomia de erros e autorização | FND-07 (ARQ-444) | §3.2, §6.4, §7.3 |
+| Classificação, minimização, cifra em repouso, controle de acesso e teto de retenção do dado de negócio — no `payload` da outbox, no envelope preservado na DLQ e em qualquer campo de conteúdo | FND-07 (ARQ-444) | §4.1, §4.3, §7.4 |
+| Catálogo de métricas, limiares, alarmes e runbook de DLQ e replay | FND-08 (ARQ-445), sob ANC-06 | §5.3, §7.4 |
+| Testes e interoperabilidade entre stacks, incluindo a verificação cross-stack do `payload_hash` | FND-09 (ARQ-446) | §6.5, §7.3, §11.5 |
+| Redação, promoção e aceite dos ADRs acionados | FND-11 (ARQ-448) | §10 |
 
 `normativo` — A fronteira com FND-08 é a mais fácil de atravessar por descuido,
 e por isso é enunciada uma vez, aqui, no critério que a decide: **capacidade é
@@ -1257,7 +1257,7 @@ de erro não satisfaz esta subseção.
 
 `encaminhado` — A **taxonomia de erros** que produz a classificação
 retentável × não retentável é de FND-07
-([ARQ-444](https://lider-cap.atlassian.net/browse/ARQ-444)). Este artefato exige
+(ARQ-444). Este artefato exige
 que a classificação exista e que a disposição derive dela; não a define. Até que
 FND-07 a fixe, cada contexto declara a sua, e a declaração é parte da conformidade
 com esta subseção.
@@ -2045,7 +2045,7 @@ e quem conhece tabela e contrato é o provider que a implementa.
 ### §9.5 Contraprova 2 — publicar dentro da transação
 
 Ilustra §7.1 e §5.4. É contraprova **real**: o inventário registra, para
-`rendafacil-services` (SQS), «`delete-on-error` pode perder mensagem» e
+`legado-rendas-services` (SQS), «`delete-on-error` pode perder mensagem» e
 «publish-in-TX documentado; idempotência não garantida E2E»
 (`docs/dmpf/inventario-as-is.md` §3.3.1).
 
@@ -2077,7 +2077,7 @@ commit.
 ### §9.6 Contraprova 3 — consumo sem idempotência
 
 Ilustra §6 e §7.2. É contraprova **real**: o inventário registra, para
-`telesena-ativavel-services` (SQS), o padrão `poll → process → delete` e que «a
+`legado-ativavel-services` (SQS), o padrão `poll → process → delete` e que «a
 evidência registra lacuna de idempotência no consumer»
 (`docs/dmpf/inventario-as-is.md` §3.3.1). O mesmo serviço não aparece na linha
 de «idempotência pontual» de §1.3 do inventário.
@@ -2102,7 +2102,7 @@ código pode aprová-lo. É a razão de RFC §11.3 classificar V32 como
 
 ### §9.7 O caso conforme no universo inventariado
 
-`evidência` — `shared-titulos-services` é o único serviço do universo
+`evidência` — `legado-titulos-shared-services` é o único serviço do universo
 inventariado com outbox e inbox nomeados: as tabelas `backoffice_outbox` e
 `inbound_event` (`docs/dmpf/inventario-as-is.md` §1.3). Em §3.3.1 o inventário
 registra, para o mesmo serviço, «worker lê outbox após commit» e
@@ -2137,7 +2137,7 @@ de conformidade — a evidência calibra a norma, não a revoga.
 `recepcionado` — RFC §13.1 define o gesto e este artefato o repete sem
 alteração: acionar é **nomear** o ADR, **definir o seu assunto**, **registrar a
 origem** e **encaminhar** ao FND-11
-([ARQ-448](https://lider-cap.atlassian.net/browse/ARQ-448)), a quem cabem a
+(ARQ-448), a quem cabem a
 redação, a promoção para `docs/adr/` na faixa `010`–`024` e o aceite.
 
 `normativo` — Nenhum ADR é redigido nem aceito aqui. Os dois registros de §10.2
@@ -2438,7 +2438,7 @@ no texto; todos são escalados.
 |---|-----------|--------|---------|
 | 1 | Refletir na tabela de RFC §14.4 a sucessão de Parte-1 §§9–10 declarada em §1.5, preservando Parte-1 §10.7 e §10.8 como vigentes | pendente | Revisores desta entrega, no PR; se exigir rito de versão, vira alteração própria da RFC |
 | 2 | Recolher os vinte termos de §11.4 no glossário de RFC §14.1 | pendente | Próxima versão da RFC que abrir o glossário; até lá, §11.4 é a fonte |
-| 3 | Converter os doze cenários de §7.3 em catálogo de cenários executáveis, com diagnóstico estável e par de vetores por regra de §11.2 | pendente | FND-09 ([ARQ-446](https://lider-cap.atlassian.net/browse/ARQ-446)), que já declara dependência desta spec |
+| 3 | Converter os doze cenários de §7.3 em catálogo de cenários executáveis, com diagnóstico estável e par de vetores por regra de §11.2 | pendente | FND-09 (ARQ-446), que já declara dependência desta spec |
 
 `normativo` — Enquanto a pendência 1 não for resolvida, a sucessão de §1.5 vale
 por autorização da ANC-02, e a divergência com a tabela da RFC é conhecida.

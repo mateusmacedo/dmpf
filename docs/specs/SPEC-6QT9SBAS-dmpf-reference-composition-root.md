@@ -5,7 +5,7 @@ title: DMPF KRN-12.1 — Composition root de referência dmpf-reference
 stage: done
 priority: P2
 depends_on: [SPEC-MQA5HAXF, SPEC-WTAXFV8B, SPEC-XF9TF9A0, SPEC-ZHE7DN1H, SPEC-WYX5GW87, SPEC-3R80KNMS, SPEC-ANZX2WPG, SPEC-CGPX20NP, SPEC-NYD18TGD, SPEC-EAGAXQN1, SPEC-SJ66880S]
-ticket_url: https://lider-cap.atlassian.net/browse/ARQ-545
+ticket_url: null
 subtask_urls: []
 created: 2026-09-08
 ---
@@ -88,14 +88,14 @@ arquivo, como os blocos do kernel se cabeiam num processo real — e copiar.
 ### Funcionais
 
 - [ ] **[P0] Módulo e projeto**: `apps/backend/dmpf-reference` com `go.mod`
-  (`module gitea.lidercap.com.br/lidercap-apps/lidercap-platform/apps/backend/dmpf-reference`,
+  (`module github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference`,
   `go 1.26.6`, sem `require` de irmão — ADR-034), entrada `use
   ./apps/backend/dmpf-reference` no `go.work`, `project.json` `dmpf-reference-go`
   com tags `["type:app", "scope:backend", "stack:go", "layer:apps"]` e targets
   `fmt-check`, `vet`, `build`, `test-race` (`cache: false`, `dependsOn`
   `dmpf-provider-postgres-go:test-race` e `dmpf-app-go:test-race` — partilham
   o Postgres do job), `govulncheck`, `serve-api`, `serve-relay`,
-  `serve-consumer`; `package.json` `@lidercap-apps/dmpf-reference-go` `0.0.0`
+  `serve-consumer`; `package.json` `@mateusmacedo/dmpf-reference-go` `0.0.0`
   `private: true`; `dmpf-units.json` com a unidade `dmpf-kernel/reference-app`,
   bloco `app`, `bounded_context` `dmpf-kernel`, `external` com `pgx/v5`
   (`io.storage`), `franz-go` (`io.messaging`), `go.opentelemetry.io/otel`

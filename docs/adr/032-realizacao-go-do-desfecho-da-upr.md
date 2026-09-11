@@ -184,4 +184,4 @@ baseline, em commit separado do código (RFC §10.2).
 - `docs/dmpf/rfc-dmpf-foundation-v0.1.md` — §6.2 (`domain` default deny), §9.1–§9.3
   (duas metades; o domínio recebe em vez de buscar), §10.2 (commit próprio).
 - SPEC-XF9TF9A0 — spec que este ADR implementa.
-- ARQ-522 — https://lider-cap.atlassian.net/browse/ARQ-522.
+- ARQ-522 — ARQ-522.

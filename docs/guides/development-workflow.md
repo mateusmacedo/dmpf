@@ -128,7 +128,7 @@ em PT-BR:
 
 - A descrição é imperativa e o assunto tem no máximo **72 caracteres**.
 - O **escopo** é o nome do projeto Nx afetado, **sem** o prefixo da org: use
-  `minha-lib`, não `@lidercap-apps/minha-lib`. Use `workspace` para
+  `minha-lib`, não `@mateusmacedo/minha-lib`. Use `workspace` para
   mudanças na raiz do repositório.
 - Projetos distintos vão em **commits separados** — mantenha um commit por
   projeto Nx em vez de misturar libs no mesmo commit, para que o versionamento
@@ -151,7 +151,7 @@ versionamento independente por projeto marcado com `type:lib`.
 
 - **Base padrão: `develop`.** As bases `release/**` e `master` são exceções
   declaradas explicitamente por quem abre o PR.
-- **Plataforma: Gitea** (`gitea.lidercap.com.br`, organização `lidercap-apps`).
+- **Plataforma: Gitea** (`github.com`, organização `mateusmacedo`).
   Automação que fala com a plataforma usa a API do Gitea em `/api/v1/...`. O
   binário `gh` **não** opera contra este servidor — para operar a plataforma,
   chame a API do Gitea diretamente.
@@ -167,10 +167,10 @@ pelo formatter e depois valide apenas o que foi afetado:
 
 ```bash
 pnpm biome check --write .
-pnpm nx affected -t lint,typecheck,test,build --exclude=@nx-base-template/source
+pnpm nx affected -t lint,typecheck,test,build --exclude=@mateusmacedo/dmpf-source
 ```
 
-O `--exclude=@nx-base-template/source` retira o projeto raiz (targets `nx:noop`)
+O `--exclude=@mateusmacedo/dmpf-source` retira o projeto raiz (targets `nx:noop`)
 das operações em lote. Os hooks reforçam a mesma validação: `pre-commit` roda
 `biome check --write` nos arquivos em stage e `pre-push` roda lint, typecheck,
 test e build nos projetos afetados. Confie nos hooks — mantenha-os ativos em vez

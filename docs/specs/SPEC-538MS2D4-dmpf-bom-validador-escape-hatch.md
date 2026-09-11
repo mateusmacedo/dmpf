@@ -5,7 +5,7 @@ title: DMPF KRN-12.3 — Modelo do BOM, validador dmpf-bom e escape hatch instru
 stage: backlog
 priority: P2
 depends_on: [SPEC-WTAXFV8B, SPEC-VVR1X71Q]
-ticket_url: https://lider-cap.atlassian.net/browse/ARQ-547
+ticket_url: null
 subtask_urls: []
 created: 2026-09-08
 ---

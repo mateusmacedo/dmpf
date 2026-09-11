@@ -4,9 +4,9 @@
 |-------|-------|
 | **Status** | `normativo` — aceito em 2026-08-14 |
 | **Versão** | 0.1 |
-| **Owner** | Mateus Macedo Dos Anjos (assignee de [ARQ-439](https://lider-cap.atlassian.net/browse/ARQ-439)) |
-| **Épico** | [ARQ-436](https://lider-cap.atlassian.net/browse/ARQ-436) — Golden Path para Sistemas Orientados a Domínio e Mensagens |
-| **Story** | [ARQ-439](https://lider-cap.atlassian.net/browse/ARQ-439) (DMPF-FND-02) |
+| **Owner** | Mateus Macedo Dos Anjos (assignee de ARQ-439) |
+| **Épico** | ARQ-436 — Golden Path para Sistemas Orientados a Domínio e Mensagens |
+| **Story** | ARQ-439 (DMPF-FND-02) |
 | **Spec** | [SPEC-8YVF0RR5](../specs/SPEC-8YVF0RR5-dmpf-rfc-limites-deps.md) |
 | **Data** | 2026-08-14 |
 | **Revisão** | Arquitetura, Segurança, Plataforma e um representante por stack (Go, TypeScript) — aberta em §14 |
@@ -77,15 +77,15 @@ correspondente adiciona conteúdo quando concluir.
 
 | Tema | Dona |
 |------|------|
-| UPR, `Decision` e taxonomia de mensagens | FND-03 ([ARQ-440](https://lider-cap.atlassian.net/browse/ARQ-440)) |
-| Unit of Work, inbox, outbox e relay | FND-04 ([ARQ-441](https://lider-cap.atlassian.net/browse/ARQ-441)) |
-| Protobuf, CloudEvents, OpenAPI e AsyncAPI | FND-05 ([ARQ-442](https://lider-cap.atlassian.net/browse/ARQ-442)) |
-| Políticas por transporte | FND-06 ([ARQ-443](https://lider-cap.atlassian.net/browse/ARQ-443)) |
-| Contexto de execução, erros e segurança | FND-07 ([ARQ-444](https://lider-cap.atlassian.net/browse/ARQ-444)) |
-| Resiliência e observabilidade | FND-08 ([ARQ-445](https://lider-cap.atlassian.net/browse/ARQ-445)) |
-| Testes e interoperabilidade | FND-09 ([ARQ-446](https://lider-cap.atlassian.net/browse/ARQ-446)) |
-| Governança, BOM e pilotos | FND-10 ([ARQ-447](https://lider-cap.atlassian.net/browse/ARQ-447)) |
-| Redação, promoção e aceite dos ADRs | FND-11 ([ARQ-448](https://lider-cap.atlassian.net/browse/ARQ-448)) |
+| UPR, `Decision` e taxonomia de mensagens | FND-03 (ARQ-440) |
+| Unit of Work, inbox, outbox e relay | FND-04 (ARQ-441) |
+| Protobuf, CloudEvents, OpenAPI e AsyncAPI | FND-05 (ARQ-442) |
+| Políticas por transporte | FND-06 (ARQ-443) |
+| Contexto de execução, erros e segurança | FND-07 (ARQ-444) |
+| Resiliência e observabilidade | FND-08 (ARQ-445) |
+| Testes e interoperabilidade | FND-09 (ARQ-446) |
+| Governança, BOM e pilotos | FND-10 (ARQ-447) |
+| Redação, promoção e aceite dos ADRs | FND-11 (ARQ-448) |
 
 Fora do épico inteiro: a **implementação** dos linters, o arquivo real de
 baseline, a proteção de branch, o workflow de aprovação e a adoção do metadado
@@ -97,14 +97,14 @@ nos repositórios existentes. Esta RFC especifica o contrato; construí-lo é do
 `evidência`
 
 Esta RFC é lastreada no inventário AS-IS produzido pelo FND-01
-([ARQ-438](https://lider-cap.atlassian.net/browse/ARQ-438)):
+(ARQ-438):
 
 | Item | Valor |
 |------|-------|
 | Artefato consolidado | [`inventario-as-is.md`](./inventario-as-is.md) |
 | Commit de promoção | `54f48aa` |
 | Data da consolidação | 2026-08-13 (levantamento dos cortes) / 2026-08-14 (consolidação) |
-| Cobertura | 13 relatórios, 10 repositórios únicos, em [`docs/specs/SPEC-K9H204F1/`](../specs/SPEC-K9H204F1/) |
+| Cobertura | 13 relatórios, 10 repositórios únicos, em `docs/specs/a análise AS-IS de sistemas legados/` |
 | **Status do artefato** | **`baseline candidato`** — aprovação de Plataforma/Arquitetura pendente em PR |
 
 **Condição registrada, e como ela foi tratada.** O inventário não é um baseline
@@ -240,9 +240,9 @@ sem responsável.
 | Modo | `structurally reviewable` para a vedação — nenhum documento, README, contrato ou configuração do DMPF pode declarar ou sugerir exactly-once E2E; `runtime-testable` para o efeito idempotente sob redelivery |
 | Nota | Esta é a única constraint P0 que **não** é `import-verifiable`. Um linter de imports não a prova, e §11 registra vetores que a exercitam pelos modos corretos, sem fingir o contrário |
 
-`evidência` — a prática atual é heterogênea: `shared-titulos-services` tem outbox
-transacional e inbox com chave única; `rendafacil-services` tem delete-on-error
-que pode perder mensagem; `telesena-ativavel-services` registra lacuna de
+`evidência` — a prática atual é heterogênea: `legado-titulos-shared-services` tem outbox
+transacional e inbox com chave única; `legado-rendas-services` tem delete-on-error
+que pode perder mensagem; `legado-ativavel-services` registra lacuna de
 idempotência no consumer ([`inventario-as-is.md:175-183`](./inventario-as-is.md)).
 A distância até a norma é material e conhecida.
 
@@ -344,8 +344,8 @@ junto e o compilador recusa a incoerência.
 
 `evidência` — O binding é compatível com os quatro repositórios Go inventariados,
 inclusive nos dois layouts que convivem: hexagonal com
-`internal/{domain,application,ports,infra}` (`shared-ro-sync-services`) e camadas
-sob `src/` (`backoffice-procap-services`). Em `rendafacil-services`, que não tem
+`internal/{domain,application,ports,infra}` (`legado-sync-services`) e camadas
+sob `src/` (`legado-backoffice-services`). Em `legado-rendas-services`, que não tem
 camada `domain` alguma, o binding continua aplicável — os packages existem e são
 classificáveis; o que falta lá é a classificação, não a unidade.
 
@@ -353,9 +353,9 @@ classificáveis; o que falta lá é a classificação, não a unidade.
 
 O projeto **não** serve como `verification_unit` em TypeScript.
 
-`evidência` — `telesena-titulos-services/apps/api` é um único projeto Nx que
+`evidência` — `legado-titulos-services/apps/api` é um único projeto Nx que
 contém `src/{domain,application,infra}`: a fronteira de camada não é fronteira de
-projeto. E `rendafacil-bff` não usa Nx — é projeto único, sem `domain/`. Um
+projeto. E `legado-rendas-bff` não usa Nx — é projeto único, sem `domain/`. Um
 binding que dependesse do projeto violaria I1 no primeiro caso (a unidade
 conteria três blocos) e I3 no segundo.
 
@@ -545,15 +545,15 @@ coisas diferentes**:
 
 | Repositório | O que `domain/` contém | Bloco correto |
 |-------------|------------------------|---------------|
-| `backoffice-procap-services` (`apps/api/src/domain/**`) | Entidades e invariantes de negócio, sem gin/pgx/aws/otel | `domain library` |
-| `golibs` (`packages/goauth/domain`, `gocache/domain`) | Modelo da *capability técnica* da própria biblioteca | não é `domain library` de negócio |
-| `telesena-live-services` (`apps/api/src/domain/**/types`) | DTOs com `@nestjs/swagger` e `class-validator` | `contract package` ou `app` |
+| `legado-backoffice-services` (`apps/api/src/domain/**`) | Entidades e invariantes de negócio, sem gin/pgx/aws/otel | `domain library` |
+| `legado-golibs` (`packages/goauth/domain`, `gocache/domain`) | Modelo da *capability técnica* da própria biblioteca | não é `domain library` de negócio |
+| `legado-live-services` (`apps/api/src/domain/**/types`) | DTOs com `@nestjs/swagger` e `class-validator` | `contract package` ou `app` |
 
 Um classificador que lesse o nome do diretório marcaria os três como
 `domain library`, e erraria em dois. É por isso que a classificação é declarada
 e revisada, nunca inferida do layout.
 
-`evidência` — O caso inverso também ocorre: `rendafacil-services` não tem
+`evidência` — O caso inverso também ocorre: `legado-rendas-services` não tem
 diretório `domain` algum, e ainda assim contém regra de negócio — distribuída em
 `apps/*/modules/**` junto de GORM, SQS e HTTP. A ausência do nome não prova
 ausência do bloco; prova que o bloco não está isolado.
@@ -603,7 +603,7 @@ verificador não olha.
 | **Outbox** | Ver §7 | A escrita e a drenagem têm donos distintos; decidido na regra de dependência |
 
 `evidência` — O caso do outbox foi deferido a §7 por ter estrutura real
-observada: em `shared-titulos-services`, a tabela `backoffice_outbox` é escrita
+observada: em `legado-titulos-shared-services`, a tabela `backoffice_outbox` é escrita
 dentro da transação do caso de uso, e drenada por apps dispatcher dedicados
 (`premiacao-dispatch`, `pedido-site-dispatch`). Escrita e drenagem são
 responsabilidades distintas e não podem receber o mesmo bloco por conveniência.
@@ -701,10 +701,10 @@ universo**, e obedece a:
 
 `evidência` — Nenhum dos dez repositórios inventariados nomeia bounded contexts à
 moda DDD. As aproximações existentes são heterogêneas e nenhuma serve como fonte
-canônica: `shared-ro-sync-services` separa por `entity_type` (clientes, títulos,
+canônica: `legado-sync-services` separa por `entity_type` (clientes, títulos,
 pedidos), materializado no `FilterPolicy` de SNS→SQS e em um worker por tipo;
-`telesena-titulos-services` tem subpastas `domain/{combination,promocoes,quiz,titulos}`;
-`rendafacil-bff` e `rendafacil-services` usam feature folders sem contrato que os
+`legado-titulos-services` tem subpastas `domain/{combination,promocoes,quiz,titulos}`;
+`legado-rendas-bff` e `legado-rendas-services` usam feature folders sem contrato que os
 sustente. Declarar o campo é, portanto, adoção nova — e é por isso que §1.4 deixa
 a implantação para os épicos de kernel.
 
@@ -775,9 +775,9 @@ inferida do nome do pacote.
 observada e a que menos admite flexibilização: um caso de uso não conhece broker,
 driver, tabela, tópico ou fila. Precisar de I/O significa precisar de uma porta.
 
-`evidência` — Violação observada: `shared-titulos-services`, em
+`evidência` — Violação observada: `legado-titulos-shared-services`, em
 `admin-api-go/.../virar_campanha.usecase.go`, importa GORM na camada de
-aplicação. Conformidade observada: os workers Go de `shared-ro-sync-services`
+aplicação. Conformidade observada: os workers Go de `legado-sync-services`
 declaram `internal/ports/{inbound,outbound}` e mantêm o acesso concreto em
 `internal/infra/*`.
 
@@ -901,38 +901,38 @@ decisão nova tomada neste documento.
 | 2 | domain → application | ✗ | Parte-1 §4.2 | Não observado | Dependência apontaria para fora |
 | 3 | domain → app | ✗ | Parte-1 §4.2 | Não observado | Idem |
 | 4 | domain → port | ✗ | RFC §5.2 | Violação: `golibs/goservice/domain` declara `EventPublisher` | Interface computacional é `domain`; porta é fronteira |
-| 5 | domain → provider | ✗ | **P0-1** | Violação: `telesena-ativavel shared/core/src/domain/order.ts:1` importa broker; `domain/types/*.ts` importam `@prisma/client`; `golibs/goweb/domain/http_request.go:6` importa `net/http` | Aresta P0 — domínio sem I/O |
-| 6 | domain → contract | ✗ | **P0-2** | Violação: `telesena-live apps/api/src/domain/**/types` importam `@nestjs/swagger`; `telesena-titulos domain/**` idem, em 12 arquivos | Aresta P0 — wire nunca é modelo interno |
-| 7 | application → domain | **P** + C2 | Parte-1 §4.1 | Conformidade: workers de `shared-ro-sync` orquestram sobre domínio puro | O caso de uso opera sobre o domínio |
+| 5 | domain → provider | ✗ | **P0-1** | Violação: `legado-ativavel shared/core/src/domain/order.ts:1` importa broker; `domain/types/*.ts` importam `@prisma/client`; `golibs/goweb/domain/http_request.go:6` importa `net/http` | Aresta P0 — domínio sem I/O |
+| 6 | domain → contract | ✗ | **P0-2** | Violação: `legado-live apps/api/src/domain/**/types` importam `@nestjs/swagger`; `legado-titulos domain/**` idem, em 12 arquivos | Aresta P0 — wire nunca é modelo interno |
+| 7 | application → domain | **P** + C2 | Parte-1 §4.1 | Conformidade: workers de `legado-sync` orquestram sobre domínio puro | O caso de uso opera sobre o domínio |
 | 8 | application → application | **P** + C2 | RFC | Não observado | Composição de casos de uso no mesmo context |
 | 9 | application → app | ✗ | Parte-1 §4.2 | Não observado | Apontaria para fora |
-| 10 | application → port | **P** + C2 | Parte-1 §4.1 | Conformidade: `telesena-ativavel shared/core/src/ports/queue/IQueue.client.ts:3-8` | O caso de uso pede I/O por porta |
+| 10 | application → port | **P** + C2 | Parte-1 §4.1 | Conformidade: `legado-ativavel shared/core/src/ports/queue/IQueue.client.ts:3-8` | O caso de uso pede I/O por porta |
 | 11 | application → provider | ✗ | Parte-1 §4.2 | Violação: `shared-titulos admin-api-go/.../virar_campanha.usecase.go` importa GORM | Caso de uso não conhece driver, tabela nem fila |
 | 12 | application → contract | ✗ | **P0-2** | Não observado | Contrato de wire é do adapter; contrato de aplicação é outro artefato |
 | 13 | app → domain | **P** + C2 | Parte-1 §4.1 | Conformidade: `backoffice apps/api` mapeia sobre domínio isolado | O adapter mapeia entrada para o domínio |
 | 14 | app → application | **P** + C2 | Parte-1 §4.1 | Conformidade generalizada nos repos com camada de aplicação | O app invoca o caso de uso |
 | 15 | app → app | **P** + C2 | RFC | Não observado | Composição interna do adapter |
-| 16 | app → port | **P** + C2 | Parte-1 §4.2 | Conformidade: composition roots dos workers Go de `shared-ro-sync` | Composition root conhece as portas que liga |
+| 16 | app → port | **P** + C2 | Parte-1 §4.2 | Conformidade: composition roots dos workers Go de `legado-sync` | Composition root conhece as portas que liga |
 | 17 | app → provider | **P** + C2 | Parte-1 §4.2 | Conformidade: `golibs/gocqrs` liga porta a 4 providers | Instanciação concreta ocorre no composition root |
-| 18 | app → contract | **P** + C2 | Parte-1 §4.1 | Conformidade: `@telesena-monorepo/backend-contracts` consumido pelo BFF | O adapter fala o protocolo |
+| 18 | app → contract | **P** + C2 | Parte-1 §4.1 | Conformidade: `@legado-monorepo/backend-contracts` consumido pelo BFF | O adapter fala o protocolo |
 | 19 | port → domain | **P** + C2 | RFC §4.1 | Não observado | A assinatura da porta usa tipos do consumidor |
 | 20 | port → application | ✗ | RFC | Não observado | Porta não conhece quem a orquestra |
 | 21 | port → app | ✗ | RFC | Não observado | Idem |
 | 22 | port → port | **P** + C2 | RFC | Não observado | Composição de contratos de saída |
-| 23 | port → provider | ✗ | Parte-1 §4.2 | Violação: `telesena-titulos domain/quiz/ports/quiz-repository.port.ts:8` importa `IResult, Request` de `mssql` | A porta é a abstração; conhecer o driver a anula |
+| 23 | port → provider | ✗ | Parte-1 §4.2 | Violação: `legado-titulos domain/quiz/ports/quiz-repository.port.ts:8` importa `IResult, Request` de `mssql` | A porta é a abstração; conhecer o driver a anula |
 | 24 | port → contract | ✗ | **P0-2** | Não observado | Assinatura de porta não expõe tipo de wire |
-| 25 | provider → domain | **P** + C2 | RFC | Conformidade: repositórios de `shared-ro-sync/internal/infra` sobre domínio próprio | Implementar a porta exige os tipos que ela expõe |
+| 25 | provider → domain | **P** + C2 | RFC | Conformidade: repositórios de `legado-sync/internal/infra` sobre domínio próprio | Implementar a porta exige os tipos que ela expõe |
 | 26 | provider → application | ✗ | Parte-1 §4.2 | Não observado | Provider não decide caso de uso |
 | 27 | provider → app | ✗ | Parte-1 §4.2 | Não observado | Apontaria para fora |
-| 28 | provider → port | **P** + C2 | Parte-1 §4.1 | Conformidade: `golibs/gocqrs infra/watermill/{amqp,sqs,sql,inmemory}`; `telesena-monorepo ObservabilityPort → NewRelic\|Noop` | Provider implementa a porta |
+| 28 | provider → port | **P** + C2 | Parte-1 §4.1 | Conformidade: `golibs/gocqrs infra/watermill/{amqp,sqs,sql,inmemory}`; `legado-monorepo ObservabilityPort → NewRelic\|Noop` | Provider implementa a porta |
 | 29 | provider → provider | **P** + C2 | RFC | Não observado | Composição de adapters |
-| 30 | provider → contract | **P** + C2 | Parte-1 §4.1 | Conformidade: `shared-ro-sync node-web` recebe `.proto` no adapter de infra | Serializar é papel do provider |
+| 30 | provider → contract | **P** + C2 | Parte-1 §4.1 | Conformidade: `legado-sync node-web` recebe `.proto` no adapter de infra | Serializar é papel do provider |
 | 31 | contract → domain | ✗ | **P0-2** | Não observado | Contrato não conhece modelo interno |
 | 32 | contract → application | ✗ | RFC | Não observado | Idem |
 | 33 | contract → app | ✗ | RFC | Não observado | Idem |
 | 34 | contract → port | ✗ | RFC | Não observado | Idem |
 | 35 | contract → provider | ✗ | RFC | Não observado | Contrato é declaração, não implementação |
-| 36 | contract → contract | **P** + C2 | RFC | Conformidade: `@telesena-monorepo/backend-contracts` compõe envelopes e registries | Composição e versionamento de contratos |
+| 36 | contract → contract | **P** + C2 | RFC | Conformidade: `@legado-monorepo/backend-contracts` compõe envelopes e registries | Composição e versionamento de contratos |
 
 `normativo` — Nenhuma célula fica sem decisão e sem fonte. As células marcadas
 `Não observado` **não** têm lastro no universo inventariado, e isso é registrado
@@ -964,7 +964,7 @@ distintos:
 tocando a tabela: a célula 11 (`application → provider`) permanece proibida, e a
 gravação da outbox não é exceção a ela.
 
-`evidência` — `shared-titulos-services` é o único caso real do universo e
+`evidência` — `legado-titulos-shared-services` é o único caso real do universo e
 corresponde a esta decomposição: a tabela `backoffice_outbox` e o inbox
 `inbound_event` são escritos na mesma transação do caso de uso, com HTTP 201
 emitido só após o commit, e a drenagem ocorre em apps dispatcher dedicados
@@ -1188,12 +1188,12 @@ precise de uma porta. Cada linha aqui é uma porta que não precisa existir.
 
 | Repositório | Observação |
 |-------------|------------|
-| `backoffice-procap-services` | `apps/api/src/domain/**` verificado sem gin, pgx, aws ou otel — apenas `uuid` e stdlib. Conformidade com a metade estática |
-| `telesena-monorepo` | `libs/shared/money` — VO `Money` dependendo apenas de `decimal.js`. Conformidade |
-| `shared-titulos-services` | `worker/internal/domain/entities/pedido.go` — apenas stdlib. Conformidade |
-| `telesena-ativavel-services` | `shared/core/src/domain/types/*.ts` importam `@prisma/client`; `domain/order.ts:1` importa `Payload` do message-broker. Violação da metade estática |
-| `telesena-live-services` | `apps/api/src/domain/**/types/*.ts` importam `@nestjs/swagger` e `class-validator`. Violação |
-| `telesena-titulos-services` | `domain/**` importa `@nestjs/swagger` em 12 arquivos; `domain/quiz/ports/quiz-repository.port.ts:8` importa `IResult, Request` de `mssql`. Violação, e a mais grave: atinge a assinatura de uma porta |
+| `legado-backoffice-services` | `apps/api/src/domain/**` verificado sem gin, pgx, aws ou otel — apenas `uuid` e stdlib. Conformidade com a metade estática |
+| `legado-monorepo` | `libs/shared/money` — VO `Money` dependendo apenas de `decimal.js`. Conformidade |
+| `legado-titulos-shared-services` | `worker/internal/domain/entities/pedido.go` — apenas stdlib. Conformidade |
+| `legado-ativavel-services` | `shared/core/src/domain/types/*.ts` importam `@prisma/client`; `domain/order.ts:1` importa `Payload` do message-broker. Violação da metade estática |
+| `legado-live-services` | `apps/api/src/domain/**/types/*.ts` importam `@nestjs/swagger` e `class-validator`. Violação |
+| `legado-titulos-services` | `domain/**` importa `@nestjs/swagger` em 12 arquivos; `domain/quiz/ports/quiz-repository.port.ts:8` importa `IResult, Request` de `mssql`. Violação, e a mais grave: atinge a assinatura de uma porta |
 
 A distância entre a norma e o parque é material e está medida. A RFC não a
 dissimula: §1.4 deixa a adoção para os épicos de kernel, e esta tabela é o
@@ -1274,7 +1274,7 @@ de `include` (import paths em Go, globs em TS, conforme §3.3 e §3.4), não o
 schema. Um
 verificador por stack, um contrato só.
 
-`evidência` — As tags Nx de `shared-ro-sync-services/libs/node`
+`evidência` — As tags Nx de `legado-sync-services/libs/node`
 (`layer:domain|application|infrastructure`, mais `type`, `scope` e `runtime`) são
 o precedente interno de que declarar papel arquitetural em metadado é exequível —
 o padrão roda hoje em 17 pacotes. Elas **não** são o `metadata_container` desta
@@ -1304,7 +1304,7 @@ proibidos.
 `normativo` — **O que esta RFC não define, e por quê.** Quem detém a autoridade
 aprovadora, por qual processo ela se manifesta e qual artefato constitui
 "evidência de autorização" são questões de governança, atribuídas ao **FND-10**
-([ARQ-447](https://lider-cap.atlassian.net/browse/ARQ-447)). Esta RFC fixa o
+(ARQ-447). Esta RFC fixa o
 **requisito** (T4–T6) e deixa o **processo** para lá, com registro em §12.
 
 `normativo` — **Comportamento até o FND-10 concluir.** O requisito não fica
@@ -1521,14 +1521,14 @@ podem ser instanciados a partir dele:
 
 | Vetor | Caso real |
 |-------|-----------|
-| V13 | `telesena-ativavel shared/core/src/domain/order.ts:1` importa `Payload` do message-broker |
+| V13 | `legado-ativavel shared/core/src/domain/order.ts:1` importa `Payload` do message-broker |
 | V13 | `golibs/packages/goweb/domain/http_request.go:6` importa `net/http` |
-| V14 | `telesena-live apps/api/src/domain/**/types/*.ts` importam `@nestjs/swagger` |
-| V14 | `telesena-titulos apps/api/src/domain/**` importa `@nestjs/swagger` em 12 arquivos |
+| V14 | `legado-live apps/api/src/domain/**/types/*.ts` importam `@nestjs/swagger` |
+| V14 | `legado-titulos apps/api/src/domain/**` importa `@nestjs/swagger` em 12 arquivos |
 | V15 | `golibs/packages/goservice/domain` declara a porta `EventPublisher` |
 | V16 | `shared-titulos admin-api-go/.../virar_campanha.usecase.go` importa GORM |
-| V17 | `telesena-titulos .../domain/quiz/ports/quiz-repository.port.ts:8` importa `IResult, Request` de `mssql` |
-| V27 | `telesena-ativavel shared/core/src/domain/types/*.ts` importam `@prisma/client` |
+| V17 | `legado-titulos .../domain/quiz/ports/quiz-repository.port.ts:8` importa `IResult, Request` de `mssql` |
+| V27 | `legado-ativavel shared/core/src/domain/types/*.ts` importam `@prisma/client` |
 
 `rationale` — Vetor derivado de violação real tem uma vantagem sobre o
 sintético: se o verificador não o reprova, existe prova imediata de que ele
@@ -1578,7 +1578,7 @@ passar por versionamento nem por ADR.
 |-------|----------|
 | **ANC-01** | |
 | Assunto | UPR, `Decision` e taxonomia de mensagens |
-| Owner / autoridade | FND-03 — [ARQ-440](https://lider-cap.atlassian.net/browse/ARQ-440) |
+| Owner / autoridade | FND-03 — ARQ-440 |
 | Escopo permitido | Definir a unidade de processamento, a forma da decisão e a taxonomia de mensagens **dentro** do bloco `domain library` |
 | Invariantes | P0-1 (domínio sem I/O); célula 5 e célula 6 de §7.4; §9 |
 | Artefato sucessor | Spec e seção própria em `docs/dmpf/` |
@@ -1587,7 +1587,7 @@ passar por versionamento nem por ADR.
 | ADR exigido | Não, salvo se propuser alteração de invariante |
 | **ANC-02** | |
 | Assunto | Unit of Work, inbox, outbox e relay |
-| Owner / autoridade | FND-04 — [ARQ-441](https://lider-cap.atlassian.net/browse/ARQ-441) |
+| Owner / autoridade | FND-04 — ARQ-441 |
 | Escopo permitido | Mecanismos de atomicidade, deduplicação e drenagem, respeitando a atribuição de blocos de §7.5 |
 | Invariantes | §7.5 (escrita é `application service`, persistência é `provider`, drenagem é `app`); célula 11; **P0-3** |
 | Artefato sucessor | Spec e seção própria |
@@ -1596,7 +1596,7 @@ passar por versionamento nem por ADR.
 | ADR exigido | Sim — escolha de mecanismo de relay (polling × CDC) |
 | **ANC-03** | |
 | Assunto | Protobuf, CloudEvents, OpenAPI e AsyncAPI |
-| Owner / autoridade | FND-05 — [ARQ-442](https://lider-cap.atlassian.net/browse/ARQ-442) |
+| Owner / autoridade | FND-05 — ARQ-442 |
 | Escopo permitido | Formato, versionamento e evolução dos contratos **dentro** do bloco `contract package` |
 | Invariantes | **P0-2**; células 6, 12, 24, 31; §6.2 (contract limitado a `wire.codec`) |
 | Artefato sucessor | Spec e seção própria |
@@ -1605,7 +1605,7 @@ passar por versionamento nem por ADR.
 | ADR exigido | Sim — escolha de codec e de registry |
 | **ANC-04** | |
 | Assunto | Políticas por transporte |
-| Owner / autoridade | FND-06 — [ARQ-443](https://lider-cap.atlassian.net/browse/ARQ-443) |
+| Owner / autoridade | FND-06 — ARQ-443 |
 | Escopo permitido | Políticas específicas de cada transporte, no bloco `provider` |
 | Invariantes | **P0-3** (a vedação a exactly-once E2E não é relaxável por transporte); §6.2 |
 | Artefato sucessor | Spec e seção própria |
@@ -1614,7 +1614,7 @@ passar por versionamento nem por ADR.
 | ADR exigido | Sim — por transporte adotado |
 | **ANC-05** | |
 | Assunto | Contexto de execução, erros e segurança |
-| Owner / autoridade | FND-07 — [ARQ-444](https://lider-cap.atlassian.net/browse/ARQ-444) |
+| Owner / autoridade | FND-07 — ARQ-444 |
 | Escopo permitido | Propagação de contexto, taxonomia de erros e controles de segurança |
 | Invariantes | §9.3 (o domínio recebe valores resolvidos); P0-1 |
 | Artefato sucessor | Spec e seção própria |
@@ -1623,7 +1623,7 @@ passar por versionamento nem por ADR.
 | ADR exigido | Não, salvo alteração de invariante |
 | **ANC-06** | |
 | Assunto | Resiliência e observabilidade |
-| Owner / autoridade | FND-08 — [ARQ-445](https://lider-cap.atlassian.net/browse/ARQ-445) |
+| Owner / autoridade | FND-08 — ARQ-445 |
 | Escopo permitido | Baselines de telemetria, políticas de retry e degradação |
 | Invariantes | §6.2 (`observability` proibida em `domain` e `port`); princípio 11 |
 | Artefato sucessor | Spec e seção própria |
@@ -1632,7 +1632,7 @@ passar por versionamento nem por ADR.
 | ADR exigido | Não, salvo alteração de invariante |
 | **ANC-07** | |
 | Assunto | Testes e interoperabilidade |
-| Owner / autoridade | FND-09 — [ARQ-446](https://lider-cap.atlassian.net/browse/ARQ-446) |
+| Owner / autoridade | FND-09 — ARQ-446 |
 | Escopo permitido | Estratégia de testes e critérios de interoperabilidade entre stacks |
 | Invariantes | §9 (domínio em memória); §4.5 regra 3 (teste não reclassifica o SUT) |
 | Artefato sucessor | Spec e seção própria |
@@ -1641,7 +1641,7 @@ passar por versionamento nem por ADR.
 | ADR exigido | Não |
 | **ANC-08** | |
 | Assunto | **Processo de autorização da classificação** — quem aprova mudança de `block` e `bounded_context`, por qual rito, e o que constitui evidência de autorização |
-| Owner / autoridade | FND-10 — [ARQ-447](https://lider-cap.atlassian.net/browse/ARQ-447) |
+| Owner / autoridade | FND-10 — ARQ-447 |
 | Escopo permitido | Definir autoridade, rito e artefato de evidência que satisfaçam T4–T6 de §10.2 |
 | Invariantes | T1–T6 de §10.2 permanecem; o mecanismo mínimo de §10.2 vale até o fechamento |
 | Artefato sucessor | Spec de governança e seção própria |
@@ -1650,7 +1650,7 @@ passar por versionamento nem por ADR.
 | ADR exigido | **Sim** — a autoridade de classificação é decisão estrutural |
 | **ANC-09** | |
 | Assunto | Governança, BOM e pilotos |
-| Owner / autoridade | FND-10 — [ARQ-447](https://lider-cap.atlassian.net/browse/ARQ-447) |
+| Owner / autoridade | FND-10 — ARQ-447 |
 | Escopo permitido | Matriz de versões certificadas, escape hatches e seleção de pilotos |
 | Invariantes | §12.2 M1–M4; escape hatch não pode contornar constraint P0 |
 | Artefato sucessor | Spec e seção própria |
@@ -1678,7 +1678,7 @@ não adiciona conteúdo a esta RFC; ela abre nova versão, com ADR.
 
 Esta RFC **aciona** os ADRs estruturais: nomeia cada um, define o seu assunto,
 registra a origem da decisão e encaminha ao FND-11
-([ARQ-448](https://lider-cap.atlassian.net/browse/ARQ-448)), que responde pela
+(ARQ-448), que responde pela
 **redação**, pela promoção para `docs/adr/` na faixa `010`–`028` e pelo
 **aceite**.
 
@@ -1876,7 +1876,7 @@ viável descartada:
 3. **§3.4** — o manifesto de roots é adoção nova em TypeScript; nenhum dos
    repositórios inventariados o tem hoje
 4. **§7.5** — a atribuição de blocos do outbox é decisão normativa, não leitura
-   direta do código; `shared-titulos-services` corresponde a ela, mas não a
+   direta do código; `legado-titulos-shared-services` corresponde a ela, mas não a
    determina
 5. **§1.5** — a RFC apoia-se em baseline candidato, e a promoção de status exige
    reconciliação

@@ -4,7 +4,7 @@ import (
 	"regexp"
 	"testing"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/payloadhash"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/payloadhash"
 )
 
 var lowerHex64 = regexp.MustCompile(`^[0-9a-f]{64}$`)

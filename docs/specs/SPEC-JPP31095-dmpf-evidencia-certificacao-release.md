@@ -5,7 +5,7 @@ title: DMPF KRN-12.4 — Evidência de execução e certificação da release dm
 stage: backlog
 priority: P2
 depends_on: [SPEC-6QT9SBAS, SPEC-H1A190Y8, SPEC-538MS2D4, SPEC-SJ66880S]
-ticket_url: https://lider-cap.atlassian.net/browse/ARQ-548
+ticket_url: null
 subtask_urls: []
 created: 2026-09-08
 ---
@@ -132,7 +132,7 @@ que estou prestes a usar.
     `govulncheck` (`candidata`, ferramentas), os 14 módulos do kernel
     (`version` `0.0.0`, `certificada` pela suíte que os cobre),
     `dmpf-reference` (`version` SHA curto, `certificada` por `app` +
-    e2e), `@lidercap-apps/dmpf-plugin` (`candidata`, exercitado por
+    e2e), `@mateusmacedo/dmpf-plugin` (`candidata`, exercitado por
     `dmpf-generator-check.sh` — `reason`).
   - `compatible_combinations`: a combinação Go × pgx × protobuf × otel ×
     módulos (`certificada`, evidência `provider`+`golden`+`app`) e a mesma
@@ -142,7 +142,7 @@ que estou prestes a usar.
     `semantic_conventions_messaging`: `semconv/v1.43.0`, `registry_ref`
     `otelboot/start.go`, owner `team:plataforma`, `certificada` por `app`.
   - Cada `certificada`: `evidence_uri`
-    `https://gitea.lidercap.com.br/lidercap-apps/lidercap-platform/src/commit/<sha>/bom/evidence/0.1.0/<subject>.json`,
+    `https://github.com/mateusmacedo/dmpf/src/commit/<sha>/bom/evidence/0.1.0/<subject>.json`,
     `evidence_digest` do `index.json`, `approved_by: "team:plataforma"`,
     `certified_at` (data do merge), `valid_until` (+90 d), `promoted: {by,
     reviewed_by, pr}` — o ato de `BOM-05`; `history[]` é campo da exceção,

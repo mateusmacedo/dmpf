@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	dmpfobservability "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability"
+	dmpfobservability "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability"
 
 	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
 

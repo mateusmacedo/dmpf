@@ -5,7 +5,7 @@ title: DMPF — Consolidação horizontal do acervo (sincronização, ledger de 
 stage: done
 priority: P2
 depends_on: []
-ticket_url: https://lider-cap.atlassian.net/browse/ARQ-492
+ticket_url: null
 subtask_urls: []
 created: 2026-08-22
 ---

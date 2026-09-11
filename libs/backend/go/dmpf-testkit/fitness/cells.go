@@ -3,7 +3,7 @@ package fitness
 import (
 	"fmt"
 
-	conffit "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/fitness"
+	conffit "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/fitness"
 )
 
 // Cell is one of the 36 cells of RFC §7.4, numbered as the norm numbers them.

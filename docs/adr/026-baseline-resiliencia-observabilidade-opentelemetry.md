@@ -156,5 +156,5 @@ métrica por igual, cumprida na origem e não no agregador.
   §1.3 (`RES-01`), que incide sobre todas elas; acionamento em §12.3
   (`ADR-DMPF-Q`).
 - SPEC-DBTRMM3X — especificação da série de ADRs do DMPF, que este ADR implementa.
-- ARQ-448 — https://lider-cap.atlassian.net/browse/ARQ-448 (FND-11, redação,
+- ARQ-448 — ARQ-448 (FND-11, redação,
   promoção e aceite da série de ADRs do DMPF).

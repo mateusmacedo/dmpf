@@ -14,13 +14,13 @@ essa prova: de onde o verificador tira a classificação de cada unidade.
 
 A resposta óbvia — ler o nome do diretório — não sobrevive ao acervo real. No
 inventário de dez repositórios em Go e TypeScript, o diretório `domain/` designa
-três coisas incompatíveis (RFC §4.4): em `backoffice-procap-services` guarda
+três coisas incompatíveis (RFC §4.4): em `legado-backoffice-services` guarda
 entidades e invariantes de negócio, sem framework nenhum, e é de fato uma domain
-library; em `golibs` guarda o modelo da capability técnica da própria biblioteca,
-que não é domain library de negócio; em `telesena-live-services` guarda DTOs
+library; em `legado-golibs` guarda o modelo da capability técnica da própria biblioteca,
+que não é domain library de negócio; em `legado-live-services` guarda DTOs
 anotados com `@nestjs/swagger` e `class-validator`, que são contract package ou
 app. Um classificador que lesse o nome marcaria os três como domain library e
-erraria em dois. O caso inverso também ocorre: `rendafacil-services` não tem
+erraria em dois. O caso inverso também ocorre: `legado-rendas-services` não tem
 diretório `domain/` algum e ainda assim carrega regra de negócio, espalhada por
 `apps/*/modules/**` junto de GORM, SQS e HTTP. A ausência do nome não prova a
 ausência do bloco.
@@ -130,5 +130,5 @@ fora dos seis valores e manifesto ausente em módulo de produção — todos rep
   ADR-010), §4.4 (o nome não classifica), §10.1 (schema do metadado) e §10.2
   (trust model).
 - SPEC-DBTRMM3X — spec que esta série de ADRs implementa.
-- ARQ-448 — https://lider-cap.atlassian.net/browse/ARQ-448 (destino da série de
+- ARQ-448 — ARQ-448 (destino da série de
   ADRs do DMPF).

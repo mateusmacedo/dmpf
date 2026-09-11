@@ -5,7 +5,7 @@ title: DMPF — Políticas REST, gRPC, Kafka, SNS/SQS e AsyncAPI
 stage: done
 priority: P0
 depends_on: [SPEC-7H08RZDG]
-ticket_url: https://lider-cap.atlassian.net/browse/ARQ-443
+ticket_url: null
 subtask_urls: []
 created: 2026-08-13
 ---
@@ -19,7 +19,7 @@ Entregar o item lógico **FND-06** do épico ARQ-436
 ## Contexto
 
 - **Umbrella**: [SPEC-QG2N8STY](./SPEC-QG2N8STY-dmpf-foundation.md)
-- **Issue**: [ARQ-443](https://lider-cap.atlassian.net/browse/ARQ-443)
+- **Issue**: ARQ-443
 - **ACs do épico**: AC-06
 - **Evidência §11**: Matriz de transporte, contratos, deadlines, ordering, ACK, retry e documentação aprovada
 

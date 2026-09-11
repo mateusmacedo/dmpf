@@ -126,5 +126,5 @@ emite `DMPF-M002` (RFC §7.2).
     §7.1 (a decisão é uma função, não uma célula — dona no ADR-010) e §10
     (mudança normativa exige autorização; renomear um `bounded_context` recai
     aqui).
-- ARQ-448 — https://lider-cap.atlassian.net/browse/ARQ-448 (FND-11, redação,
+- ARQ-448 — ARQ-448 (FND-11, redação,
   promoção e aceite da série de ADRs do DMPF).

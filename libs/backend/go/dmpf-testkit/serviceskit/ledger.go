@@ -3,7 +3,7 @@ package serviceskit
 import (
 	"strings"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-testkit/stable"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/stable"
 )
 
 // Gesture is one thing the service did to a port, as the fakes observe it.
