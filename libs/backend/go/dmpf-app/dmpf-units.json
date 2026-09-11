@@ -6,25 +6,21 @@
       "block": "app",
       "bounded_context": "dmpf-kernel",
       "public_integration_surface": false,
-      "include": ["gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-app"]
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-app"]
     },
     {
       "id": "dmpf-kernel/app-relay",
       "block": "app",
       "bounded_context": "dmpf-kernel",
       "public_integration_surface": false,
-      "include": [
-        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-app/relay"
-      ]
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-app/relay"]
     },
     {
       "id": "dmpf-kernel/example-reservations-app",
       "block": "app",
       "bounded_context": "dmpf-kernel",
       "public_integration_surface": false,
-      "include": [
-        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-app/example/reservations"
-      ]
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-app/example/reservations"]
     }
   ],
   "external": [],

@@ -6,36 +6,28 @@
       "block": "domain",
       "bounded_context": "dmpf-conformance",
       "public_integration_surface": false,
-      "include": [
-        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/internal/rule"
-      ]
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/internal/rule"]
     },
     {
       "id": "dmpf-conformance/manifest",
       "block": "domain",
       "bounded_context": "dmpf-conformance",
       "public_integration_surface": false,
-      "include": [
-        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/internal/manifest"
-      ]
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/internal/manifest"]
     },
     {
       "id": "dmpf-conformance/baseline",
       "block": "domain",
       "bounded_context": "dmpf-conformance",
       "public_integration_surface": false,
-      "include": [
-        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/internal/baseline"
-      ]
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/internal/baseline"]
     },
     {
       "id": "dmpf-conformance/port",
       "block": "port",
       "bounded_context": "dmpf-conformance",
       "public_integration_surface": false,
-      "include": [
-        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/internal/port"
-      ]
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/internal/port"]
     },
     {
       "id": "dmpf-conformance/conformance",
@@ -43,7 +35,7 @@
       "bounded_context": "dmpf-conformance",
       "public_integration_surface": false,
       "include": [
-        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/internal/conformance"
+        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/internal/conformance"
       ]
     },
     {
@@ -51,18 +43,14 @@
       "block": "provider",
       "bounded_context": "dmpf-conformance",
       "public_integration_surface": false,
-      "include": [
-        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/internal/fsstore"
-      ]
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/internal/fsstore"]
     },
     {
       "id": "dmpf-conformance/golist",
       "block": "provider",
       "bounded_context": "dmpf-conformance",
       "public_integration_surface": false,
-      "include": [
-        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/internal/golist"
-      ]
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/internal/golist"]
     },
     {
       "id": "dmpf-conformance/cmd",
@@ -70,7 +58,7 @@
       "bounded_context": "dmpf-conformance",
       "public_integration_surface": false,
       "include": [
-        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/cmd/dmpf-conformance"
+        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/cmd/dmpf-conformance"
       ]
     },
     {
@@ -78,9 +66,7 @@
       "block": "app",
       "bounded_context": "dmpf-conformance",
       "public_integration_surface": true,
-      "include": [
-        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/fitness"
-      ]
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/fitness"]
     }
   ],
   "external": [],

@@ -1,0 +1,27 @@
+{
+  "schema": "dmpf/units@1",
+  "units": [
+    {
+      "id": "resource-scheduling/provider-postgres",
+      "block": "provider",
+      "bounded_context": "resource-scheduling",
+      "public_integration_surface": false,
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/bookings/provider"]
+    }
+  ],
+  "external": [
+    {
+      "package": "github.com/jackc/pgx/v5",
+      "versions": ">=5.10 <6",
+      "entrypoints": [".", "github.com/jackc/pgx/v5/pgxpool", "github.com/jackc/pgx/v5/pgconn"],
+      "capability": "io.storage"
+    },
+    {
+      "package": "google.golang.org/protobuf",
+      "versions": ">=1.36.12 <2",
+      "entrypoints": ["google.golang.org/protobuf/proto"],
+      "capability": "wire.codec"
+    }
+  ],
+  "exceptions": []
+}

@@ -1,0 +1,14 @@
+{
+  "schema": "dmpf/units@1",
+  "units": [
+    {
+      "id": "resource-scheduling/application",
+      "block": "application",
+      "bounded_context": "resource-scheduling",
+      "public_integration_surface": false,
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/bookings/application"]
+    }
+  ],
+  "external": [],
+  "exceptions": []
+}
