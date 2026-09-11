@@ -7,7 +7,7 @@
   "properties": {
     "name": {
       "type": "string",
-      "description": "Nome do contexto em kebab-case; prefixo dos diretórios (<name>-domain, <name>-ports, ...) e origem dos identificadores Go e SQL.",
+      "description": "Nome do contexto em kebab-case; pasta dos módulos (<name>/domain, <name>/ports, ...), prefixo dos projetos Nx e origem dos identificadores Go e SQL.",
       "pattern": "^[a-z][a-z0-9-]*$",
       "$default": {
         "$source": "argv",

@@ -10,6 +10,7 @@ export type ExternalDependency = {
 export type BlockLayout = {
   block: Block;
   suffix: string;
+  dirName: string;
   layer: string;
   packageSuffix: string;
   requires: readonly Block[];
@@ -43,6 +44,7 @@ export const LAYOUTS: readonly BlockLayout[] = [
   {
     block: 'domain',
     suffix: 'domain',
+    dirName: 'domain',
     layer: 'domain',
     packageSuffix: 'domain',
     requires: [],
@@ -56,6 +58,7 @@ export const LAYOUTS: readonly BlockLayout[] = [
   {
     block: 'port',
     suffix: 'ports',
+    dirName: 'ports',
     layer: 'domain',
     packageSuffix: 'ports',
     requires: ['domain'],
@@ -69,6 +72,7 @@ export const LAYOUTS: readonly BlockLayout[] = [
   {
     block: 'application',
     suffix: 'application',
+    dirName: 'application',
     layer: 'services',
     packageSuffix: 'application',
     requires: ['domain', 'port'],
@@ -82,6 +86,7 @@ export const LAYOUTS: readonly BlockLayout[] = [
   {
     block: 'provider',
     suffix: 'provider-postgres',
+    dirName: 'provider',
     layer: 'providers',
     packageSuffix: 'postgres',
     requires: ['domain', 'port', 'application'],
@@ -95,6 +100,7 @@ export const LAYOUTS: readonly BlockLayout[] = [
   {
     block: 'app',
     suffix: 'app',
+    dirName: 'app',
     layer: 'apps',
     packageSuffix: 'app',
     requires: ['domain', 'port', 'application', 'provider'],

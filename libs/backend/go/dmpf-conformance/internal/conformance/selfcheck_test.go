@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/internal/conformance"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/internal/fsstore"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/internal/golist"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/internal/conformance"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/internal/fsstore"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/internal/golist"
 )
 
 // Dentro de um hook o git exporta GIT_DIR sem GIT_WORK_TREE, e `rev-parse
@@ -44,13 +44,27 @@ func TestVerificadorPassaNoProprioGate(t *testing.T) {
 		t.Fatalf("inventário devolveu %d módulo(s); o workspace tem ao menos dmpf-conformance e dmpf-domain", len(modules))
 	}
 
+	// Só a designação de shared kernel é lida do baseline; o store não entra na
+	// Input de propósito. Passá-lo faria o teste julgar também a autoridade
+	// sobre a classificação (T001/T002), quando o que ele promete é a regra de
+	// dependência sobre o universo real.
+	doc, ok, err := fsstore.NewBaselineStore(raiz).Baseline()
+	if err != nil {
+		t.Fatalf("baseline: %v", err)
+	}
+	var sharedKernel []string
+	if ok {
+		sharedKernel = doc.SharedKernelUnits
+	}
+
 	grafo := golist.New(raiz, modules, perfis)
 	rel, err := conformance.Check(conformance.Input{
-		Modules:   modules,
-		Manifests: fsstore.NewManifestStore(fsstore.ModuleDirs(modules)),
-		Graph:     grafo,
-		Closure:   grafo.Closure,
-		Standard:  grafo.IsStandard,
+		Modules:           modules,
+		Manifests:         fsstore.NewManifestStore(fsstore.ModuleDirs(modules)),
+		Graph:             grafo,
+		Closure:           grafo.Closure,
+		Standard:          grafo.IsStandard,
+		SharedKernelUnits: sharedKernel,
 	})
 	if err != nil {
 		t.Fatalf("Check: %v", err)
@@ -71,8 +85,8 @@ func TestInventarioEncontraOsModulosDoWorkspace(t *testing.T) {
 		t.Fatalf("inventário: %v", err)
 	}
 	exigidos := []string{
-		"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance",
-		"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-domain",
+		"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance",
+		"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-domain",
 	}
 	for _, e := range exigidos {
 		var achou bool
@@ -106,7 +120,7 @@ func raizDoWorkspace(t *testing.T) string {
 // aqui as arestas citadas precisam existir MESMO no grafo do módulo.
 func TestAutoverificacaoExercitaAsCelulasQuePromete(t *testing.T) {
 	raiz := raizDoWorkspace(t)
-	const m = "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance"
+	const m = "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance"
 
 	perfis, err := fsstore.LoadBuildProfiles(
 		filepath.Join(raiz, "libs", "backend", "go", "dmpf-conformance", "build-profiles.json"))

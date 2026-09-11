@@ -246,6 +246,16 @@ importers:
         specifier: 'catalog:'
         version: 7.2.1(js-yaml@4.3.0)(json5@2.2.3)(webpack@5.105.2)
 
+  libs/backend/go/bookings/app: {}
+
+  libs/backend/go/bookings/application: {}
+
+  libs/backend/go/bookings/domain: {}
+
+  libs/backend/go/bookings/ports: {}
+
+  libs/backend/go/bookings/provider: {}
+
   libs/backend/go/dmpf-app: {}
 
   libs/backend/go/dmpf-application: {}

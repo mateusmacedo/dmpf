@@ -110,7 +110,7 @@ seja lida como restrição vigente.
 | `versionActions` customizado para Go | Conceitualmente mais correto — versionaria a partir do `go.mod`, sem manifesto npm em módulo Go —, mas é código de release novo a escrever e manter dentro de uma tarefa de terreno. Reavaliar quando houver mais de uma lib Go |
 | Tirar Go do `release.projects` | Sem risco, mas desfaria o versionamento independente que motivou um `go.mod` por lib, e contraria o critério de aceite da ARQ-520 |
 | Sufixo de stack no módulo (`dmpf-domain-go/`) | Levaria a stack para dentro da `canonical_key` de cada package, e não apenas para a fronteira de ownership |
-| `libs/<stack>/<scope>/` | Segue o precedente de `shared-ro-sync-services/libs/node` (RFC §10.1), mas inverteria a hierarquia por `scope` já documentada no `AGENTS.md` |
+| `libs/<stack>/<scope>/` | Segue o precedente de `legado-sync-services/libs/node` (RFC §10.1), mas inverteria a hierarquia por `scope` já documentada no `AGENTS.md` |
 | Binário do golangci-lint instalado no CI | Duplicaria a versão entre o target e o instalador, abrindo divergência entre o que roda local e o que roda no CI |
 | Formatar no `pre-commit` com `gofmt -w` | Simétrico ao `biome`, mas reescreveria o código sem o autor ver. O gancho reprova e mostra os arquivos fora do formato |
 
@@ -170,3 +170,32 @@ seja lida como restrição vigente.
   resolver `actions/setup-go@v5` ou não tiver egress a `proxy.golang.org`, o
   plano B é pré-instalar o toolchain na imagem do runner ou versionar um cache
   de módulos, mantendo o `go-version-file` como fonte do piso.
+
+## Addendum — 2026-09-10
+
+Este addendum **não altera** o status nem a decisão acima; registra uma
+segunda forma de caminho, decidida no ARQ-554 (harness de bounded contexts).
+
+**Contexto de negócio em pasta própria.** Os módulos de um bounded context de
+negócio ficam em `libs/<scope>/<stack>/<contexto>/<bloco>` — `domain`, `ports`,
+`application`, `provider`, `app` —, e não como cinco irmãos com prefixo
+(`<contexto>-domain`, …). O primeiro é `libs/backend/go/bookings/domain`,
+projeto `bookings-domain-go`. O nome do projeto Nx, a unidade do manifesto
+(`<bounded_context>/<bloco>`) e o package Go raiz (`bookingsdomain`) seguem como
+antes: o que muda é só o diretório. O motivo é a leitura: um contexto é uma
+coisa só, e a árvore deve dizê-lo; cinco pastas irmãs espalham o contexto entre
+os módulos do kernel.
+
+**O kernel permanece plano.** `dmpf-domain`, `dmpf-ports`, … não são gerados
+pelo generator e não mudam de lugar: o import path é a chave canônica da
+unidade e a RFC a exige estável.
+
+**Gates por diretório acompanham.** O `depguard` e o `forbidigo` do
+`.golangci.yml` selecionam por nome de diretório; passam a alcançar também
+`**/domain/**`, `**/ports/**` e `**/application/**` (e `/domain/` no
+`forbidigo`), e o `tools/dmpf-gate-check.sh` classifica os dois formatos. O gate
+autoritativo continua sendo o verificador, que lê o manifesto e não o caminho.
+
+**Quem gera.** O generator `bounded-context` (`tools/dmpf-plugin`) compõe o
+diretório como `<directory>/<name>/<bloco>` (`blocks.ts` `dirName`,
+`generator.ts` `planModule`), sem modo legado.

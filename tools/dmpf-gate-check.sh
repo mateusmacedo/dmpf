@@ -141,7 +141,9 @@ fora_de_alcance=0
 
 # Alcance das regras do .golangci.yml, espelhado aqui como os VETORES_*
 # espelham as `deny`: as regras selecionam por `**/*-domain/**`,
-# `**/*-ports/**` e `**/*-application/**`, isto e, por nome de diretorio.
+# `**/*-ports/**` e `**/*-application/**` (kernel) e `**/domain/**`, `**/ports/**`,
+# `**/application/**` (contextos em pasta propria, ADR-030), isto e, por nome de
+# diretorio.
 # Modulo cujo caminho nao casa nenhum dos tres NAO e coberto pelo depguard, e
 # provar o gate nele seria provar o que nao existe.
 #
@@ -156,10 +158,10 @@ fora_de_alcance=0
 # de fato incide sobre as duas e a `application`.
 bloco_do_caminho() {
   case "/$1/" in
-    *-domain/*)      echo "domain" ;;
-    *-ports/*)       echo "port" ;;
-    *-application/*) echo "application" ;;
-    *-contracts/*)   echo "contract" ;;
+    *-domain/* | */domain/*)           echo "domain" ;;
+    *-ports/* | */ports/*)             echo "port" ;;
+    *-application/* | */application/*) echo "application" ;;
+    *-contracts/*)                     echo "contract" ;;
     *)               echo "" ;;
   esac
 }
