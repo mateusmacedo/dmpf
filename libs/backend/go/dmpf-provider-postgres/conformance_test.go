@@ -10,12 +10,12 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	dmpfports "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-ports"
-	dmpfpostgres "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-provider-postgres"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-testkit/clock"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-testkit/providerkit"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-testkit/tb"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-testkit/tb/pg"
+	dmpfports "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-ports"
+	dmpfpostgres "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/clock"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/providerkit"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/tb"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/tb/pg"
 )
 
 // KIT-04 over the real dependency: the same suites the in-memory realization

@@ -8,15 +8,15 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	dmpfapp "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-app"
-	dmpfapplication "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-application"
-	reservationsapp "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-application/example/reservations"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/envelope"
-	eventv1 "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/gen/go/company/orders/event/v1"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-domain/example/reservations"
-	dmpfports "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-ports"
-	dmpfpostgres "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-provider-postgres"
-	reservationspg "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-provider-postgres/example/reservations"
+	dmpfapp "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-app"
+	dmpfapplication "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application"
+	reservationsapp "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application/example/reservations"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/envelope"
+	eventv1 "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/gen/go/company/orders/event/v1"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-domain/example/reservations"
+	dmpfports "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-ports"
+	dmpfpostgres "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres"
+	reservationspg "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres/example/reservations"
 )
 
 // ConsumerName is the logical, stable identity of INB-01: shared by every

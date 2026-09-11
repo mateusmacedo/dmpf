@@ -35,7 +35,7 @@ jobs:
           startsWith(github.event.pull_request.head.ref, 'hotfix/')
         )
       )
-    runs-on: gitea-runner
+    runs-on: ubuntu-latest
     timeout-minutes: 30
 
     steps:
@@ -62,7 +62,7 @@ jobs:
 
       - name: Configure git identity
         run: |
-          git config user.email "gitea-actions[bot]@noreply.lidercap.com.br"
+          git config user.email "gitea-actions[bot]@noreply.github.com"
           git config user.name "gitea-actions[bot]"
 
       - name: Resolve docker version scheme

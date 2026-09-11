@@ -8,10 +8,10 @@ import { IDENTIFIER_PATTERN, identifiersOf, isIdentifier } from './identifiers';
 import { externalFragment, includeFragment } from './manifest';
 import type { Block, BoundedContextGeneratorSchema } from './schema';
 
-const MODULE_PREFIX = 'gitea.lidercap.com.br/lidercap-apps/lidercap-platform';
+const MODULE_PREFIX = 'github.com/mateusmacedo/dmpf';
 const DEFAULT_DIRECTORY = 'libs/backend/go';
 const GO_WORK = 'go.work';
-const NPM_SCOPE = '@lidercap-apps';
+const NPM_SCOPE = '@mateusmacedo';
 
 const BASELINE_INSTRUCTION = [
   'Unidades novas são ato de classificação (AUT-01). Regrave o baseline em commit próprio:',
@@ -39,7 +39,9 @@ const refuse = (reason: string): never => {
 
 const validatedName = (name: string | undefined): string => {
   if (name === undefined || name.trim().length === 0) {
-    return refuse('option name is required: it prefixes every generated module directory');
+    return refuse(
+      'option name is required: it names the context directory that holds every generated module',
+    );
   }
   if (!isIdentifier(name)) {
     return refuse(`option name ${JSON.stringify(name)} must match ${IDENTIFIER_PATTERN.source}`);
@@ -116,7 +118,7 @@ const planModule = ({
   goVersion: string;
 }): PlannedModule => {
   const identifiers = identifiersOf(name);
-  const moduleDirectory = `${directory}/${name}-${layout.suffix}`;
+  const moduleDirectory = `${directory}/${name}/${layout.dirName}`;
   const projectName = `${name}-${layout.suffix}-go`;
   const modulePath = `${MODULE_PREFIX}/${moduleDirectory}`;
   const depth = moduleDirectory.split('/').length;

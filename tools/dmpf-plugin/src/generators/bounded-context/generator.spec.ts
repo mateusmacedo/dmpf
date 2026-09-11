@@ -6,8 +6,8 @@ import type { BoundedContextGeneratorSchema } from './schema';
 
 const GO_VERSION = '1.26.6';
 const DIRECTORY = 'libs/backend/go';
-const MODULE_PREFIX = 'gitea.lidercap.com.br/lidercap-apps/lidercap-platform';
-const NX_PROJECT_SCHEMA = '../../../../node_modules/nx/schemas/project-schema.json';
+const MODULE_PREFIX = 'github.com/mateusmacedo/dmpf';
+const NX_PROJECT_SCHEMA = '../../../../../node_modules/nx/schemas/project-schema.json';
 const GOFMT_COMMAND = String.raw`saida="$(gofmt -l . 2>&1)"; status=$?; [ $status -eq 0 ] || { printf '%s\n' "$saida" >&2; exit $status; }; [ -z "$saida" ] || { printf '%s\n' "$saida" >&2; exit 1; }`;
 
 const GO_WORK = [
@@ -24,16 +24,29 @@ const GO_WORK = [
 type BlockLayout = {
   block: string;
   suffix: string;
+  dirName: string;
   layer: string;
   integration: boolean;
 };
 
 const LAYOUT: readonly BlockLayout[] = [
-  { block: 'domain', suffix: 'domain', layer: 'domain', integration: false },
-  { block: 'port', suffix: 'ports', layer: 'domain', integration: false },
-  { block: 'application', suffix: 'application', layer: 'services', integration: false },
-  { block: 'provider', suffix: 'provider-postgres', layer: 'providers', integration: true },
-  { block: 'app', suffix: 'app', layer: 'apps', integration: true },
+  { block: 'domain', suffix: 'domain', dirName: 'domain', layer: 'domain', integration: false },
+  { block: 'port', suffix: 'ports', dirName: 'ports', layer: 'domain', integration: false },
+  {
+    block: 'application',
+    suffix: 'application',
+    dirName: 'application',
+    layer: 'services',
+    integration: false,
+  },
+  {
+    block: 'provider',
+    suffix: 'provider-postgres',
+    dirName: 'provider',
+    layer: 'providers',
+    integration: true,
+  },
+  { block: 'app', suffix: 'app', dirName: 'app', layer: 'apps', integration: true },
 ];
 
 const ALL_BLOCKS: readonly string[] = LAYOUT.map((entry) => entry.block);
@@ -112,6 +125,12 @@ const readText = (tree: Tree, path: string): string => {
 
 const readJsonFile = <T>(tree: Tree, path: string): T => JSON.parse(readText(tree, path)) as T;
 
+const dirNameOf = (suffix: string): string =>
+  LAYOUT.find((layout) => layout.suffix === suffix)?.dirName ??
+  (() => {
+    throw new Error(`unknown suffix ${suffix}`);
+  })();
+
 const moduleDir = ({
   suffix,
   name = FULL_OPTIONS.name,
@@ -120,7 +139,7 @@ const moduleDir = ({
   suffix: string;
   name?: string;
   directory?: string;
-}): string => `${directory}/${name}-${suffix}`;
+}): string => `${directory}/${name}/${dirNameOf(suffix)}`;
 
 const dirOf = (suffix: string): string => moduleDir({ suffix });
 
@@ -228,12 +247,12 @@ describe('[generator] bounded-context — generation', () => {
   it('should create one Go module directory per requested block', async () => {
     const tree = await generate();
 
-    expect(tree.children(DIRECTORY).sort()).toEqual([
-      'checkout-app',
-      'checkout-application',
-      'checkout-domain',
-      'checkout-ports',
-      'checkout-provider-postgres',
+    expect(tree.children(`${DIRECTORY}/checkout`).sort()).toEqual([
+      'app',
+      'application',
+      'domain',
+      'ports',
+      'provider',
     ]);
   });
 
@@ -362,11 +381,11 @@ describe('[generator] bounded-context — generation', () => {
     const tree = await generate();
 
     expect(useEntries(readText(tree, 'go.work'))).toEqual([
-      './libs/backend/go/checkout-app',
-      './libs/backend/go/checkout-application',
-      './libs/backend/go/checkout-domain',
-      './libs/backend/go/checkout-ports',
-      './libs/backend/go/checkout-provider-postgres',
+      './libs/backend/go/checkout/app',
+      './libs/backend/go/checkout/application',
+      './libs/backend/go/checkout/domain',
+      './libs/backend/go/checkout/ports',
+      './libs/backend/go/checkout/provider',
       './libs/backend/go/dmpf-app',
       './libs/backend/go/dmpf-domain',
       './libs/backend/go/dmpf-ports',
@@ -381,7 +400,7 @@ describe('[generator] bounded-context — generation', () => {
       const manifest = readJsonFile<PackageManifest>(tree, `${dirOf(suffix)}/package.json`);
 
       expect(manifest).toEqual({
-        name: `@lidercap-apps/checkout-${suffix}-go`,
+        name: `@mateusmacedo/checkout-${suffix}-go`,
         version: '0.0.0',
         private: true,
       });
@@ -393,11 +412,11 @@ describe('[generator] bounded-context — generation', () => {
       blocks: ['domain', 'port', 'application', 'provider'],
     });
 
-    expect(withoutApp.children(DIRECTORY).sort()).toEqual([
-      'checkout-application',
-      'checkout-domain',
-      'checkout-ports',
-      'checkout-provider-postgres',
+    expect(withoutApp.children(`${DIRECTORY}/checkout`).sort()).toEqual([
+      'application',
+      'domain',
+      'ports',
+      'provider',
     ]);
   });
 
@@ -409,12 +428,12 @@ describe('[generator] bounded-context — generation', () => {
       boundedContext: FULL_OPTIONS.boundedContext,
     });
 
-    expect(tree.children(DIRECTORY).sort()).toEqual([
-      'checkout-app',
-      'checkout-application',
-      'checkout-domain',
-      'checkout-ports',
-      'checkout-provider-postgres',
+    expect(tree.children(`${DIRECTORY}/checkout`).sort()).toEqual([
+      'app',
+      'application',
+      'domain',
+      'ports',
+      'provider',
     ]);
   });
 });
@@ -425,12 +444,13 @@ describe('[generator] bounded-context — identifiers', () => {
   it('should slug the module directories from the name', async () => {
     const tree = await generate({ name });
 
-    expect(tree.children(DIRECTORY).sort()).toEqual([
-      'order-fulfillment-app',
-      'order-fulfillment-application',
-      'order-fulfillment-domain',
-      'order-fulfillment-ports',
-      'order-fulfillment-provider-postgres',
+    expect(tree.children(DIRECTORY)).toEqual(['order-fulfillment']);
+    expect(tree.children(`${DIRECTORY}/order-fulfillment`).sort()).toEqual([
+      'app',
+      'application',
+      'domain',
+      'ports',
+      'provider',
     ]);
   });
 
@@ -522,7 +542,7 @@ describe('[generator] bounded-context — refusals', () => {
   it('should refuse an existing module directory', async () => {
     await expectRefusal({
       overrides: {},
-      message: /checkout-domain/,
+      message: /checkout\/domain/,
       prepare: (tree) => {
         tree.write(`${dirOf('domain')}/go.mod`, `module ${MODULE_PREFIX}/${dirOf('domain')}\n`);
       },
@@ -538,7 +558,7 @@ describe('[generator] bounded-context — refusals', () => {
           'go.work',
           GO_WORK.replace(
             '\t./libs/backend/go/dmpf-app\n',
-            '\t./libs/backend/go/checkout-domain\n\t./libs/backend/go/dmpf-app\n',
+            '\t./libs/backend/go/checkout/domain\n\t./libs/backend/go/dmpf-app\n',
           ),
         );
       },

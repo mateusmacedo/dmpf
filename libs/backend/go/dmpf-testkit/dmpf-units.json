@@ -6,90 +6,70 @@
       "block": "domain",
       "bounded_context": "dmpf-kernel",
       "public_integration_surface": false,
-      "include": [
-        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-testkit/domainkit"
-      ]
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/domainkit"]
     },
     {
       "id": "dmpf-kernel/testkit-golden",
       "block": "contract",
       "bounded_context": "dmpf-kernel",
       "public_integration_surface": false,
-      "include": [
-        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-testkit/golden"
-      ]
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/golden"]
     },
     {
       "id": "dmpf-kernel/testkit-services",
       "block": "provider",
       "bounded_context": "dmpf-kernel",
       "public_integration_surface": false,
-      "include": [
-        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-testkit/serviceskit"
-      ]
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/serviceskit"]
     },
     {
       "id": "dmpf-kernel/testkit-provider",
       "block": "provider",
       "bounded_context": "dmpf-kernel",
       "public_integration_surface": false,
-      "include": [
-        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-testkit/providerkit"
-      ]
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/providerkit"]
     },
     {
       "id": "dmpf-kernel/testkit-clock",
       "block": "provider",
       "bounded_context": "dmpf-kernel",
       "public_integration_surface": false,
-      "include": [
-        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-testkit/clock"
-      ]
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/clock"]
     },
     {
       "id": "dmpf-kernel/testkit-ids",
       "block": "provider",
       "bounded_context": "dmpf-kernel",
       "public_integration_surface": false,
-      "include": [
-        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-testkit/ids"
-      ]
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/ids"]
     },
     {
       "id": "dmpf-kernel/testkit-stable",
       "block": "provider",
       "bounded_context": "dmpf-kernel",
       "public_integration_surface": false,
-      "include": [
-        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-testkit/stable"
-      ]
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/stable"]
     },
     {
       "id": "dmpf-kernel/testkit-app",
       "block": "app",
       "bounded_context": "dmpf-kernel",
       "public_integration_surface": false,
-      "include": [
-        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-testkit/appkit"
-      ]
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/appkit"]
     },
     {
       "id": "dmpf-kernel/testkit-dist",
       "block": "app",
       "bounded_context": "dmpf-kernel",
       "public_integration_surface": false,
-      "include": [
-        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-testkit/distkit"
-      ]
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/distkit"]
     },
     {
       "id": "dmpf-kernel/testkit-fitness",
       "block": "app",
       "bounded_context": "dmpf-kernel",
       "public_integration_surface": false,
-      "include": [
-        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-testkit/fitness"
-      ]
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/fitness"]
     },
     {
       "id": "dmpf-kernel/testkit-tb",
@@ -97,9 +77,9 @@
       "bounded_context": "dmpf-kernel",
       "public_integration_surface": false,
       "include": [
-        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-testkit",
-        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-testkit/tb",
-        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-testkit/tb/pg"
+        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/tb",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/tb/pg"
       ]
     }
   ],

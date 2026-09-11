@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-testkit/golden"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-testkit/tb"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/golden"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/tb"
 )
 
 // spy records what a kit helper reports without failing the real test.

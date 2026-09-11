@@ -16,10 +16,10 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.opentelemetry.io/otel/trace/noop"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/clock"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/metrics"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/resilience"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/tracing"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/clock"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/metrics"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/resilience"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/tracing"
 )
 
 // CategoryOK is the outcome category of a call that returned no error.

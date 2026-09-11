@@ -12,7 +12,7 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/tracing"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/tracing"
 )
 
 // classSampler decides by traffic class and never drops a span (TRC-13,

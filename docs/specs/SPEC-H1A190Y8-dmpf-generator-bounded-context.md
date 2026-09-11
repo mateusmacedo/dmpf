@@ -5,7 +5,7 @@ title: DMPF KRN-12.2 — Plugin local e generator bounded-context (guarda-chuva)
 stage: building
 priority: P2
 depends_on: [SPEC-MQA5HAXF, SPEC-WTAXFV8B, SPEC-SJ66880S, SPEC-XMNBMY50]
-ticket_url: https://lider-cap.atlassian.net/browse/ARQ-546
+ticket_url: null
 subtask_urls: []
 created: 2026-09-08
 ---
@@ -114,8 +114,8 @@ negócio escrita — restando a mim o rito de classificação e a revisão do PR
 
 - [x] **[P0] Bootstrap do plugin**: `@nx/plugin` e `@nx/devkit` 23.1.0 no
   `catalog:` e no `package.json` raiz (`allowBuilds` inalterado); `pnpm nx g
-  @nx/plugin:plugin tools/dmpf-plugin --name @lidercap-apps/dmpf-plugin
-  --importPath @lidercap-apps/dmpf-plugin --linter none --unitTestRunner jest
+  @nx/plugin:plugin tools/dmpf-plugin --name @mateusmacedo/dmpf-plugin
+  --importPath @mateusmacedo/dmpf-plugin --linter none --unitTestRunner jest
   --e2eTestRunner none --tags type:lib,scope:shared,stack:node`. Resultado:
   `tools/dmpf-plugin/{package.json,generators.json,tsconfig*.json,
   jest.config.cts,.spec.swcrc,README.md,src/}`, `private: true`, `version
@@ -124,16 +124,16 @@ negócio escrita — restando a mim o rito de classificação e a revisão do PR
   nenhum redeclarado. `generators.json` aponta `factory`/`schema` para
   `./src/…`: o Nx carrega o generator do fonte, sem `build`.
   - Edge case: `pnpm nx run-many -t lint,typecheck,test,build
-    --exclude=@nx-base-template/source` verde; `biome ci .` verde.
+    --exclude=@mateusmacedo/dmpf-source` verde; `biome ci .` verde.
 - [x] **[P0] Esqueleto dos módulos por bloco**: para cada bloco pedido, o
   generator produz `<directory>/<name>-<sufixo>` com `go.mod` (`module
-  gitea.lidercap.com.br/lidercap-apps/lidercap-platform/<directory>/<ctx>-<sufixo>`,
+  github.com/mateusmacedo/dmpf/<directory>/<ctx>-<sufixo>`,
   `go <versão lida do go.work>`, sem `require` — workspace-only),
   `project.json` (`name` `<ctx>-<sufixo>-go`, quatro tags, cinco targets
   `fmt-check`, `vet`, `build`, `test-race`, `govulncheck` no formato dos
   módulos existentes; `test-race` com `cache: false` e `-count=1 -p 1
   -tags=integration` só em `provider-postgres` e `app`; `dependsOn` do provider
-  no `app`), `package.json` (`@lidercap-apps/<ctx>-<sufixo>-go`, `0.0.0`,
+  no `app`), `package.json` (`@mateusmacedo/<ctx>-<sufixo>-go`, `0.0.0`,
   `private`), `dmpf-units.json` (`schema: dmpf/units@1`; unidade
   `<ctx>/<sufixo>` com `block`, `bounded_context`, `include` de todos os
   packages, `public_integration_surface: false`, `external`, `exceptions:
@@ -223,7 +223,7 @@ negócio escrita — restando a mim o rito de classificação e a revisão do PR
 ## Localização de código
 
 ```text
-tools/dmpf-plugin/                                    — plugin local (@lidercap-apps/dmpf-plugin); type:lib scope:shared stack:node
+tools/dmpf-plugin/                                    — plugin local (@mateusmacedo/dmpf-plugin); type:lib scope:shared stack:node
   package.json, generators.json, tsconfig.json, tsconfig.lib.json, tsconfig.spec.json, jest.config.cts, .spec.swcrc, README.md
     src/generators/bounded-context/schema.json          — name, boundedContext, blocks, directory
   src/generators/bounded-context/generator.ts         — validate → generateFiles por bloco → go.work → instrução do baseline
@@ -242,7 +242,7 @@ docs/** e AGENTS.md                                    — SPEC-VDP9XX65
 ### Arquitetura
 
 ```text
-  pnpm nx g @lidercap-apps/dmpf-plugin:bounded-context bookings --bounded-context resource-scheduling
+  pnpm nx g @mateusmacedo/dmpf-plugin:bounded-context bookings --bounded-context resource-scheduling
    │ validate(options)  ── abort sem escrever ──►  recusa
    ▼
  blocks.ts ──► generateFiles por bloco (esqueleto) ──► go-work.ts ──► instrução do baseline

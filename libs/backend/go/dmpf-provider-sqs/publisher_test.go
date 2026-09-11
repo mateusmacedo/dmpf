@@ -9,10 +9,10 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/envelope"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/payloadhash"
-	dmpfsqs "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-provider-sqs"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-transport/channel"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/envelope"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/payloadhash"
+	dmpfsqs "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-sqs"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-transport/channel"
 )
 
 var _ interface {

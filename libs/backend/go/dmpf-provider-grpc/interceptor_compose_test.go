@@ -14,11 +14,11 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/clock"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/metrics"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/resilience"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/retry"
-	dmpfgrpc "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-provider-grpc"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/clock"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/metrics"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/resilience"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/retry"
+	dmpfgrpc "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-grpc"
 )
 
 // composeConfig is a client whose sheet retries with a deterministic 100ms

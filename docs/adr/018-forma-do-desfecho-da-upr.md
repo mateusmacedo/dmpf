@@ -122,5 +122,5 @@ acima.
   estado) e §3.4 (realização por kernel e equivalência observável): origem desta
   decisão.
 - SPEC-DBTRMM3X — spec que esta série de ADRs implementa.
-- ARQ-448 — https://lider-cap.atlassian.net/browse/ARQ-448 (destino da série de
+- ARQ-448 — ARQ-448 (destino da série de
   ADRs do DMPF).

@@ -5,10 +5,10 @@ import (
 	"errors"
 	"testing"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-application/example/memory"
-	ordersapp "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-application/example/orders"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-domain/example/orders"
-	dmpfports "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-ports"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application/example/memory"
+	ordersapp "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application/example/orders"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-domain/example/orders"
+	dmpfports "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-ports"
 )
 
 var errCommitFailed = errors.New("ordersapp_test: commit failed")

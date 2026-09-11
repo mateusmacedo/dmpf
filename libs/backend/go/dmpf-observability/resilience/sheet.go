@@ -5,7 +5,7 @@ import (
 	"slices"
 	"time"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/retry"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/retry"
 )
 
 // NotApplicable is the declared absence of a policy: the reason is mandatory,

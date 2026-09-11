@@ -6,7 +6,7 @@ import (
 	"math/rand/v2"
 	"time"
 
-	dmpfports "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-ports"
+	dmpfports "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-ports"
 )
 
 // ErrInvalidConfig is what New reports for a value the relay cannot run with.

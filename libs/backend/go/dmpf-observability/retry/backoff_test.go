@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/retry"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/retry"
 )
 
 func TestTheIntervalDoublesPerAttempt(t *testing.T) {

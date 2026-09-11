@@ -8,10 +8,10 @@ import (
 
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
-	ordersapp "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-application/example/orders"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/audit"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/metrics"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/usecase"
+	ordersapp "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application/example/orders"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/audit"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/metrics"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/usecase"
 )
 
 func TestTheServiceSeriesCountByOperationAndOutcome(t *testing.T) {

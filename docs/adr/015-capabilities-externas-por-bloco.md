@@ -15,7 +15,7 @@ regra mais consequente do modelo ficaria descoberta: um `application service`
 poderia importar um driver concreto e ainda assim sair verde na verificação.
 
 A lacuna não é hipotética. Ela já se materializou em produção — a evidência
-registrada em RFC §6.2 mostra `shared-titulos-services` importando GORM dentro de
+registrada em RFC §6.2 mostra `legado-titulos-shared-services` importando GORM dentro de
 um caso de uso (`virar_campanha.usecase.go`), exatamente o acesso a I/O que a
 camada de aplicação não deveria conhecer.
 
@@ -135,5 +135,5 @@ como alternativa considerada.
   §7 (regra de dependência, a matriz que esta política complementa), RFC §4.1 (os
   seis blocos) e RFC §13.2 (acionamento `ADR-DMPF-F`).
 - SPEC-DBTRMM3X — spec que esta série de ADRs implementa.
-- ARQ-448 — https://lider-cap.atlassian.net/browse/ARQ-448 (FND-11, redação,
+- ARQ-448 — ARQ-448 (FND-11, redação,
   promoção e aceite da série de ADRs do DMPF).

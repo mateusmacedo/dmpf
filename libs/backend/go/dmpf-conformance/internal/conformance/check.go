@@ -8,10 +8,10 @@ package conformance
 import (
 	"fmt"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/internal/baseline"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/internal/manifest"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/internal/port"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/internal/rule"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/internal/baseline"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/internal/manifest"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/internal/port"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/internal/rule"
 )
 
 type Input struct {

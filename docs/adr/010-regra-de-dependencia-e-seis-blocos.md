@@ -142,5 +142,5 @@ permanecendo proibida (RFC §7.5).
     bloco dono do outbox §7.5).
   - **Apoio:** §10.1 (schema do metadado com `block` e `bounded_context`) e §10.3
     (diagnósticos `DMPF-D001` e `DMPF-D002`).
-- ARQ-448 — https://lider-cap.atlassian.net/browse/ARQ-448 (destino da série de
+- ARQ-448 — ARQ-448 (destino da série de
   ADRs do DMPF).

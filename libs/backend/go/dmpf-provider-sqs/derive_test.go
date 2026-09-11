@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	dmpfsqs "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-provider-sqs"
+	dmpfsqs "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-sqs"
 )
 
 var hex64 = regexp.MustCompile(`^[0-9a-f]{64}$`)

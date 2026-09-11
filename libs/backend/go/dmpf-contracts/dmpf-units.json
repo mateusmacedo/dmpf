@@ -7,9 +7,18 @@
       "bounded_context": "dmpf-kernel",
       "public_integration_surface": true,
       "include": [
-        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/gen/go/io/cloudevents/v1",
-        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/gen/go/company/orders/event/v1",
-        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/gen/go/company/reservations/event/v1"
+        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/gen/go/io/cloudevents/v1",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/gen/go/company/orders/event/v1",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/gen/go/company/reservations/event/v1"
+      ]
+    },
+    {
+      "id": "resource-scheduling/contract",
+      "block": "contract",
+      "bounded_context": "resource-scheduling",
+      "public_integration_surface": true,
+      "include": [
+        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/gen/go/company/bookings/event/v1"
       ]
     },
     {
@@ -17,18 +26,14 @@
       "block": "contract",
       "bounded_context": "dmpf-kernel",
       "public_integration_surface": true,
-      "include": [
-        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/envelope"
-      ]
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/envelope"]
     },
     {
       "id": "dmpf-contracts/payloadhash",
       "block": "contract",
       "bounded_context": "dmpf-kernel",
       "public_integration_surface": true,
-      "include": [
-        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/payloadhash"
-      ]
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/payloadhash"]
     }
   ],
   "external": [
@@ -55,6 +60,20 @@
     },
     {
       "unit": "dmpf-contracts/gen",
+      "dependency": "unsafe",
+      "reason": "import emitido pelo protoc-gen-go v1.36.12 em todo arquivo gerado; plumbing do runtime Protobuf, não uso de framework (RFC 6.4)",
+      "owner": "tech-leads",
+      "review_by": "2027-03-02"
+    },
+    {
+      "unit": "resource-scheduling/contract",
+      "dependency": "reflect",
+      "reason": "import emitido pelo protoc-gen-go v1.36.12 em todo arquivo gerado; plumbing do runtime Protobuf, não uso de framework (RFC 6.4)",
+      "owner": "tech-leads",
+      "review_by": "2027-03-02"
+    },
+    {
+      "unit": "resource-scheduling/contract",
       "dependency": "unsafe",
       "reason": "import emitido pelo protoc-gen-go v1.36.12 em todo arquivo gerado; plumbing do runtime Protobuf, não uso de framework (RFC 6.4)",
       "owner": "tech-leads",

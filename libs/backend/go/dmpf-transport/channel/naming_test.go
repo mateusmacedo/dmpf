@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-transport/channel"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-transport/channel"
 )
 
 func TestValidateAddress(t *testing.T) {

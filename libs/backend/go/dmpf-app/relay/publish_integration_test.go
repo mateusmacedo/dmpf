@@ -10,8 +10,8 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	dmpfports "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-ports"
-	dmpfpostgres "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-provider-postgres"
+	dmpfports "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-ports"
+	dmpfpostgres "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres"
 )
 
 // Duplicated from the provider's harness on purpose: a _test.go file is never
@@ -131,7 +131,7 @@ func relayOver(pool *pgxpool.Pool, publisher Publisher) Relay {
 		Store:       dmpfpostgres.NewOutboxStore(pool, clock),
 		Publisher:   publisher,
 		Clock:       clock,
-		Source:      "urn:lidercap:orders",
+		Source:      "urn:dmpf:orders",
 		MaxAttempts: 3,
 		Lease:       time.Minute,
 		Backoff:     func(int) time.Duration { return time.Second },

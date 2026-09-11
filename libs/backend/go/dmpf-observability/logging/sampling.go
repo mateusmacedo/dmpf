@@ -6,7 +6,7 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/tracing"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/tracing"
 )
 
 // sampler decides whether a record is written. It follows LOG-12 — the log is

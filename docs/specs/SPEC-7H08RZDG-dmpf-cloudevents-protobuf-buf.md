@@ -5,7 +5,7 @@ title: DMPF — Perfil CloudEvents e governança Protobuf (Buf)
 stage: done
 priority: P0
 depends_on: [SPEC-8MNDEWDP, SPEC-7PJ5WVCS]
-ticket_url: https://lider-cap.atlassian.net/browse/ARQ-442
+ticket_url: null
 subtask_urls: []
 created: 2026-08-13
 ---
@@ -19,7 +19,7 @@ Entregar o item lógico **FND-05** do épico ARQ-436
 ## Contexto
 
 - **Umbrella**: [SPEC-QG2N8STY](./SPEC-QG2N8STY-dmpf-foundation.md)
-- **Issue**: [ARQ-442](https://lider-cap.atlassian.net/browse/ARQ-442)
+- **Issue**: ARQ-442
 - **ACs do épico**: AC-05
 - **Evidência §11**: Perfil, nomenclatura, evolução, skeleton do repositório e checks Buf validados
 

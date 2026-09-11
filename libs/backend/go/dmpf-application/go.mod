@@ -1,3 +1,3 @@
-module gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-application
+module github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application
 
 go 1.26.6

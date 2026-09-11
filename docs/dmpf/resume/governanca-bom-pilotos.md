@@ -43,7 +43,7 @@ Bill of Materials do DMPF — o que está pronto e o que falta:
 | **Norma** | ✓ Completa | RFC + 9 sub-specs (FND-03 a FND-10) |
 | **Kernels** | ◐ Parcial | Go ~80%, TypeScript ~20% |
 | **Verificador** | ✗ Ausente | Linter de dependências (FND-11) |
-| **Pilotos** | ◐ 2/3 | Go (`shared-titulos`), TypeScript (`telesena-live`) |
+| **Pilotos** | ◐ 2/3 | Go (`shared-titulos`), TypeScript (`legado-live`) |
 | **Métrica de adoção** | ◐ Parcial | Cobertura em 3/10 repos do baseline |
 | **Runbooks operacionais** | ✗ Ausente | Delegada a operação |
 
@@ -53,9 +53,9 @@ Bill of Materials do DMPF — o que está pronto e o que falta:
 
 | Piloto | Stack | Escopo | Status |
 |--|--|--|--|
-| **`shared-titulos-services`** | Go (híbrido) | Domínio + transação + outbox + Kafka | Ativo |
-| **`telesena-live-services`** | TypeScript (Nest) | Domínio + SQS | Ativo |
-| **`shared-ro-sync-services`** | Go | Sync + SNS/SQS + Postgres | Ativo |
+| **`legado-titulos-shared-services`** | Go (híbrido) | Domínio + transação + outbox + Kafka | Ativo |
+| **`legado-live-services`** | TypeScript (Nest) | Domínio + SQS | Ativo |
+| **`legado-sync-services`** | Go | Sync + SNS/SQS + Postgres | Ativo |
 
 **Métricas coletadas:**
 - Tempo de implementação por camada

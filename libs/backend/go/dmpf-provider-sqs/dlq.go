@@ -11,13 +11,13 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/envelope"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/payloadhash"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/resilience"
-	dmpfports "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-ports"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-transport/attempt"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-transport/channel"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-transport/compose"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/envelope"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/payloadhash"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/resilience"
+	dmpfports "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-ports"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-transport/attempt"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-transport/channel"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-transport/compose"
 )
 
 // Operational attributes the dead letter carries beside the envelope, so a

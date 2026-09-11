@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/clock"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/resilience"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/retry"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-transport/compose"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/clock"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/resilience"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/retry"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-transport/compose"
 )
 
 var start = time.Date(2026, 9, 6, 12, 0, 0, 0, time.UTC)

@@ -3,8 +3,8 @@ package dmpfapp_test
 import (
 	"testing"
 
-	dmpfapp "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-app"
-	dmpfports "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-ports"
+	dmpfapp "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-app"
+	dmpfports "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-ports"
 )
 
 func TestEveryReasonHasADeclaredMechanism(t *testing.T) {

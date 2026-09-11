@@ -10,20 +10,20 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	dmpfapp "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-app"
-	reservationsconsumer "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-app/example/reservations"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-app/relay"
-	dmpfapplication "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-application"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/envelope"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-domain/example/orders"
-	dmpfports "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-ports"
-	dmpfpostgres "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-provider-postgres"
-	orderspg "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-provider-postgres/example/orders"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-testkit/appkit"
+	dmpfapp "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-app"
+	reservationsconsumer "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-app/example/reservations"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-app/relay"
+	dmpfapplication "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/envelope"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-domain/example/orders"
+	dmpfports "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-ports"
+	dmpfpostgres "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres"
+	orderspg "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres/example/orders"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/appkit"
 )
 
 const (
-	relaySource      = "urn:lidercap:orders"
+	relaySource      = "urn:dmpf:orders"
 	relayMessageID   = "m-relay-0001"
 	relayOrderID     = "o-relay-1"
 	relayItems       = 4

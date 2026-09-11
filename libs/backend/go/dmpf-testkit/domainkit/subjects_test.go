@@ -3,10 +3,10 @@ package domainkit_test
 import (
 	"strconv"
 
-	dmpfdomain "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-domain"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-domain/example/orders"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-domain/example/reservations"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-testkit/domainkit"
+	dmpfdomain "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-domain"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-domain/example/orders"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-domain/example/reservations"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/domainkit"
 )
 
 // The projections of the two example aggregates: how their state, responses

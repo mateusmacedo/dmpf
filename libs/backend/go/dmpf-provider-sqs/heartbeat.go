@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/clock"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/clock"
 )
 
 // heartbeat extends the visibility of one message while it is processed

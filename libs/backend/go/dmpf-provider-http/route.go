@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-transport/deadline"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-transport/deadline"
 )
 
 var (

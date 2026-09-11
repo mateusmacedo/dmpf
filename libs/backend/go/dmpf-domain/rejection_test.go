@@ -5,7 +5,7 @@ import (
 	"slices"
 	"testing"
 
-	dmpfdomain "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-domain"
+	dmpfdomain "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-domain"
 )
 
 func TestCodeValid(t *testing.T) {

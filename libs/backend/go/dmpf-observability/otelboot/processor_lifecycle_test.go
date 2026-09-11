@@ -12,8 +12,8 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/clock"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/otelboot"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/clock"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/otelboot"
 )
 
 type failingExporter struct{ err error }

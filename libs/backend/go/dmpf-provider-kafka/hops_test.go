@@ -7,9 +7,9 @@ import (
 
 	"github.com/twmb/franz-go/pkg/kgo"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/envelope"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/payloadhash"
-	dmpfkafka "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-provider-kafka"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/envelope"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/payloadhash"
+	dmpfkafka "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-kafka"
 )
 
 // The Kafka rows of the hop matrix of FND-06 §5.2, each as a positive and a

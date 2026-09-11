@@ -10,7 +10,7 @@
 
 | Item | Valor |
 |--|--|
-| **Repositórios únicos** | 10: backoffice-procap-services, golibs, rendafacil-bff, rendafacil-services, telesena-monorepo, shared-ro-sync-services, shared-titulos-services, telesena-ativavel-services, telesena-live-services, telesena-titulos-services |
+| **Repositórios únicos** | 10: legado-backoffice-services, golibs, legado-rendas-bff, legado-rendas-services, legado-monorepo, legado-sync-services, legado-titulos-shared-services, legado-ativavel-services, legado-live-services, legado-titulos-services |
 | **Cortes** | 13 (alguns repos com dois cortes: apps+libs, apps, shared) |
 | **Levantamento** | 2026-08-13 |
 | **Formato** | Convenção: `Fato` (observado) / `Inferência` / `Lacuna` (ausência) |
@@ -20,9 +20,9 @@
 ## Mensageria: estado observado
 
 - **SQS-cêntrico:** 5/9 serviços implantáveis usam SQS runtime; Kafka **ausente** em todas as versões versionadas
-- **SNS → SQS:** FilterPolicy observado (`shared-ro-sync-services`)
-- **Outbox/inbox nomeados:** só 1/10 (`shared-titulos-services` com `backoffice_outbox` e `inbound_event`)
-- **Kernel Watermill:** `golibs` (AMQP/SQS/SQL/in-memory); dois caminhos SQS paralelos em alguns repos
+- **SNS → SQS:** FilterPolicy observado (`legado-sync-services`)
+- **Outbox/inbox nomeados:** só 1/10 (`legado-titulos-shared-services` com `backoffice_outbox` e `inbound_event`)
+- **Kernel Watermill:** `legado-golibs` (AMQP/SQS/SQL/in-memory); dois caminhos SQS paralelos em alguns repos
 
 ---
 
@@ -30,7 +30,7 @@
 
 - **OpenAPI/Swagger:** HTTP em 8/10 repos (padrão observado)
 - **Protobuf / Buf / Schema Registry / AsyncAPI:** 0/10 — lacuna total
-- **Contract tests:** exceção em `telesena-monorepo`
+- **Contract tests:** exceção em `legado-monorepo`
 - **Envelope assíncrono:** JSON ad hoc (não schema-first)
 
 ---
@@ -38,14 +38,14 @@
 ## Transação local
 
 - **Drivers:** GORM, pgx, Prisma, TypeORM, MSSQL (cada repo seu)
-- **TX + outbox:** só `shared-titulos-services`; demais sem padrão
+- **TX + outbox:** só `legado-titulos-shared-services`; demais sem padrão
 - **Idempotência pontual:** observada em 3 repos (guards, unique constraints)
 
 ---
 
 ## Observabilidade
 
-- **OpenTelemetry:** 3 repos (`golibs`, procap, shared-ro-sync libs)
+- **OpenTelemetry:** 3 repos (`legado-golibs`, legado-backoffice, legado-sync libs)
 - **New Relic / Elastic APM:** padrão em 6+ repos Nest/Go de produto
 - **Log:** Pino/nestjs-pino ou go-logger
 - **Métricas:** Prometheus `/metrics` em 2 repos (falta padronização OTel)

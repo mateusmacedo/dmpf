@@ -12,7 +12,7 @@ set -uo pipefail
 ROOT="$(git rev-parse --show-toplevel)" || { echo "fora de um repositorio git" >&2; exit 1; }
 cd "$ROOT" || exit 1
 
-BASE="gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go"
+BASE="github.com/mateusmacedo/dmpf/libs/backend/go"
 
 # O verificador exige a base para avaliar mudança de classificação; sem ela
 # reprova como "não verificado", e o vetor positivo nunca passaria.

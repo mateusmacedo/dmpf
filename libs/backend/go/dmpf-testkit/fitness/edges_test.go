@@ -3,7 +3,7 @@ package fitness_test
 import (
 	"testing"
 
-	conffit "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/fitness"
+	conffit "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/fitness"
 )
 
 // FIT-01: the assertion is over the production universe of the workspace as

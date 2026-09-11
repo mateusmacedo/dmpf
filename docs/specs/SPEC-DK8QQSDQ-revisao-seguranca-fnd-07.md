@@ -5,7 +5,7 @@ title: DMPF FND-07 — Revisão de Segurança do threat model e da governança d
 stage: done
 priority: P0
 depends_on: [SPEC-XQWGGAXF]
-ticket_url: https://lider-cap.atlassian.net/browse/ARQ-488
+ticket_url: null
 subtask_urls: []
 created: 2026-08-30
 ---
@@ -16,10 +16,10 @@ created: 2026-08-30
 O artefato `docs/dmpf/contexto-erros-seguranca.md` foi mergeado em `develop` pelo
 PR #10, e a regra `THR-03` dele declara, com todas as letras, que o threat model
 **não está satisfeito** enquanto não for revisado por Segurança. A story do FND-07
-([ARQ-444](https://lider-cap.atlassian.net/browse/ARQ-444)) foi fechada; este gate
+(ARQ-444) foi fechada; este gate
 não. Esta spec executa a revisão de §7 e §8, registra o parecer como evidência
 versionada e nomeia o titular do papel — fechando o último gate aberto do épico
-[ARQ-436](https://lider-cap.atlassian.net/browse/ARQ-436).
+ARQ-436.
 
 Como responsável pela plataforma, quero o threat model do FND-07 revisado e o
 parecer registrado, para que o épico da fundação possa ser concluído e os épicos
@@ -33,7 +33,7 @@ subsequentes deixem de herdar um gate aberto.
   cumprido de fato pelo PR #10, e o CA2, que é este gate. O primeiro é
   inconsistência de registro; o segundo é pendência real.
 - **Impacto**: com o gate fechado, a `SPEC-YRJRADY9` (Kernel e SDK Go,
-  [ARQ-519](https://lider-cap.atlassian.net/browse/ARQ-519)) deixa de estar
+  ARQ-519) deixa de estar
   bloqueada, e a cadeia de rastreabilidade do acervo passa a declarar o estado
   verdadeiro em vez de uma pendência que sobreviveu à entrega que a criou.
 - **Causa da pendência**: o cabeçalho do artefato declara o **papel** do revisor —
@@ -46,7 +46,7 @@ subsequentes deixem de herdar um gate aberto.
   cinco gates externos do FND-10 cita «Arquitetura, com Segurança como revisora»,
   também sem pessoa.
 - **Umbrella**: [SPEC-QG2N8STY](./SPEC-QG2N8STY-dmpf-foundation.md)
-- **Issue**: [ARQ-488](https://lider-cap.atlassian.net/browse/ARQ-488)
+- **Issue**: ARQ-488
 - **Artefato revisado**: `docs/dmpf/contexto-erros-seguranca.md` (1878 linhas,
   `draft normativo`), sob a âncora ANC-05 da RFC v0.1
 - **Spec de origem**: [SPEC-XQWGGAXF](./SPEC-XQWGGAXF-dmpf-contexto-erros-seguranca.md)
@@ -397,7 +397,7 @@ ENTÃO node tools/dmpf-verify.mjs acusa violação nos manifestos versionados de
 - **Pendência 2 do FND-08** — validação do runbook por SRE, também sem owner
   nomeado. Usa o mesmo tratamento de `THR-03` como precedente
   (`resiliencia-observabilidade.md:1967`), mas é gate próprio, de outra story
-  ([ARQ-445](https://lider-cap.atlassian.net/browse/ARQ-445)).
+  (ARQ-445).
 - **Pendências 1, 2, 3 e 5 de §11.4 do FND-07**: RFC §14.4, a consolidação das
   quatro pendências acumuladas, a forma de persistir os três atributos e a
   divergência sobre ADR-012/ADR-013. Nenhuma é gate de `THR-03`, e cada uma tem

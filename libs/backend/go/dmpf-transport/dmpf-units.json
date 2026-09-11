@@ -7,13 +7,13 @@
       "bounded_context": "dmpf-kernel",
       "public_integration_surface": false,
       "include": [
-        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-transport",
-        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-transport/admission",
-        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-transport/attempt",
-        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-transport/channel",
-        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-transport/compose",
-        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-transport/deadline",
-        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-transport/observe"
+        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-transport",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-transport/admission",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-transport/attempt",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-transport/channel",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-transport/compose",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-transport/deadline",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-transport/observe"
       ]
     }
   ],

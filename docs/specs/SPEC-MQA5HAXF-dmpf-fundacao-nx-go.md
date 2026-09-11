@@ -5,7 +5,7 @@ title: DMPF KRN-01 — Fundação Nx-Go: workspace, módulos, tags e cadeia de v
 stage: done
 priority: P0
 depends_on: []
-ticket_url: https://lider-cap.atlassian.net/browse/ARQ-520
+ticket_url: null
 subtask_urls: []
 created: 2026-08-31
 ---
@@ -19,8 +19,8 @@ import path, tags 3D, cadeia de validação de sete passos, gates de CI e gancho
 locais — para que todo módulo criado a partir de `KRN-02` nasça já verificado.
 Como time de plataforma, queremos um workspace Go em que a regra de dependência
 e a conformidade DMPF sejam exercidas por máquina, e não por revisão manual,
-para que o kernel Go do épico [ARQ-519](https://lider-cap.atlassian.net/browse/ARQ-519)
-não repita as violações que o `golibs` acumulou.
+para que o kernel Go do épico ARQ-519
+não repita as violações que o `legado-golibs` acumulou.
 
 Esta é a primeira metade do Incremento 1 da spec guarda-chuva
 [SPEC-YRJRADY9](./SPEC-YRJRADY9-dmpf-kernel-sdk-go.md): "Módulo Go compila,
@@ -34,7 +34,7 @@ valida e é verificado pela regra de dependência no CI".
   0 bytes. O `ci.yml` não tem nenhum passo de toolchain Go, e o `lefthook.yml`
   não cobre `*.go` em nenhum gancho. Sem isso, cada módulo do kernel nasceria
   sem gate, e a conformidade voltaria a depender de revisão humana — exatamente
-  o modo de falha que o `golibs` demonstra, com `EventPublisher` em
+  o modo de falha que o `legado-golibs` demonstra, com `EventPublisher` em
   `goservice/domain` e `net/http` em `goweb/domain`.
 
 - **Impacto**: a partir desta entrega, um módulo Go criado no workspace é
@@ -42,7 +42,7 @@ valida e é verificado pela regra de dependência no CI".
   validação e reprova o PR quando qualquer um deles falha. O desenvolvedor
   deixa de precisar saber a cadeia de cor: `pnpm nx` a executa.
 
-- **Inspiração**: o repositório `golibs` (`gitea.lidercap.com.br/lidercap-apps/golibs`)
+- **Inspiração**: o repositório `legado-golibs` (`github.com/mateusmacedo/golibs`)
   é referência de **forma** — 15 módulos, um `go.mod` por package, `go.work`
   com bloco `use` de 15 entradas — e não base a herdar: ele não pina nenhuma
   ferramenta Go, não usa gancho local para Go, redeclara targets que o plugin
@@ -112,15 +112,15 @@ valida e é verificado pela regra de dependência no CI".
   - Consequência declarada: quem tiver `go1.26.0`–`go1.26.3` baixa o toolchain
     automaticamente por `GOTOOLCHAIN=auto`. Isso é comportamento esperado, não
     falha.
-  - Divergência com o `golibs` (`go 1.25.0`) é aceita e registrada: um módulo de
+  - Divergência com o `legado-golibs` (`go 1.25.0`) é aceita e registrada: um módulo de
     piso maior consome um de piso menor sem impedimento.
 
 - [x] **[P0] Primeiro módulo Go criado**: `libs/backend/go/dmpf-domain`, gerado por
   `@nx-go/nx-go:library`, declarado no `go.work` via `use ./libs/backend/go/dmpf-domain`.
   - Module path reescrito para
-    `gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-domain`.
+    `github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-domain`.
     O generator emite `module libs/backend/go/dmpf-domain` literal, que não resolve
-    remotamente. `GOPRIVATE=gitea.lidercap.com.br` cobre o host, mas isso vale
+    remotamente. `GOPRIVATE=github.com` cobre o host, mas isso vale
     no ambiente local, onde vem do `go env` do desenvolvedor — no CI a variável
     é declarada pelo composite `setup-go`, senão o runner sai sem ela.
   - Tags exatamente `type:lib`, `scope:backend`, `stack:go`.
@@ -178,7 +178,7 @@ valida e é verificado pela regra de dependência no CI".
   DEVE ser enviado ao Verdaccio.
   - `nx-publish-libs.yml` passa `build_projects_filter: "tag:type:lib,!tag:stack:go"`.
     Esse é um input deste repositório; o reusable
-    `lidercap-apps/actions-templates/.github/workflows/publish-libs.yaml@main`
+    `mateusmacedo/actions-templates/.github/workflows/publish-libs.yaml@main`
     permanece intocado — seu contrato não é versionado aqui.
   - A sintaxe de negação foi verificada como válida no Nx 23.1.0.
 
@@ -231,12 +231,12 @@ valida e é verificado pela regra de dependência no CI".
 ## Localização de código
 
 ```text
-lidercap-platform/
+dmpf/
 ├── go.work                                  — piso go 1.26.4 + use ./libs/backend/go/dmpf-domain
 ├── .golangci.yml                            — NOVO: linters habilitados, versionado
 ├── libs/backend/go/                          — NOVO: nível de stack (o TS entra em libs/backend/ts/)
 │   └── dmpf-domain/                         — NOVO: 1º módulo Go (projeto Nx: dmpf-domain-go)
-│       ├── go.mod                           — module gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-domain
+│       ├── go.mod                           — module github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-domain
 │       ├── project.json                     — nome dmpf-domain-go, tags e os targets não inferidos
 │       ├── package.json                     — private: true, apenas para o Nx Release resolver a versão
 │       ├── dmpf-units.json                  — metadata_container, schema dmpf/units@1
@@ -286,8 +286,8 @@ esta entrega acrescenta é a materialização em Go, com o import path como
 ```text
 ownership_module            = diretório com go.mod   → libs/backend/go/dmpf-domain
   └── verification_unit     = package Go             → cada diretório de package
-        canonical_key       = import path completo   → gitea.lidercap.com.br/lidercap-apps/
-                                                        lidercap-platform/libs/backend/go/dmpf-domain
+        canonical_key       = import path completo   → github.com/mateusmacedo/
+                                                        dmpf/libs/backend/go/dmpf-domain
         metadata_container  = dmpf-units.json        → na raiz do ownership_module
 ```
 
@@ -353,7 +353,7 @@ senão:
   porque colapsaria todo o kernel Go em um único `ownership_module`, com um
   manifesto só, e removeria o versionamento por lib.
   Custo aceito: cada lib exige entrada no `go.work` e, entre libs locais,
-  diretivas `replace` — o `golibs` precisou de um script de sincronização para
+  diretivas `replace` — o `legado-golibs` precisou de um script de sincronização para
   administrar isso com 15 módulos.
 
 - **Piso e toolchain — ambos `1.26.4`**: o `go.work` passa a declarar
@@ -363,8 +363,8 @@ senão:
   Consequência: sem folga N-1, um bump de minor do Go passa a exigir decisão
   explícita de BOM — o que é o comportamento desejado.
 
-- **Module path com host Gitea**: `gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/<nome>`,
-  espelhando o padrão do `golibs`. Alternativa descartada: aceitar o
+- **Module path com host Gitea**: `github.com/mateusmacedo/dmpf/libs/backend/<nome>`,
+  espelhando o padrão do `legado-golibs`. Alternativa descartada: aceitar o
   `module libs/backend/<nome>` literal que o generator emite, porque não resolve
   em consumo remoto e tornaria a `canonical_key` dependente do layout de
   diretórios em vez do endereço público.
@@ -384,7 +384,7 @@ senão:
   stack para dentro da `canonical_key` de cada package, e não apenas para a
   fronteira de ownership.
   Alternativa descartada: `libs/<stack>/<scope>/`, que segue o precedente de
-  `shared-ro-sync-services/libs/node` (RFC §10.1) mas inverteria a hierarquia já
+  `legado-sync-services/libs/node` (RFC §10.1) mas inverteria a hierarquia já
   documentada no `AGENTS.md`.
 
 - **Primeiro módulo — `libs/backend/go/dmpf-domain`**: é o primeiro da ordem de
@@ -464,7 +464,7 @@ senão:
 ## Verificação e testes
 
 > **Verificação no CI**: os critérios que dependiam do runner foram provados
-> pelo PR [#20](https://gitea.lidercap.com.br/lidercap-apps/lidercap-platform/pulls/20)
+> pelo PR [#20](https://github.com/mateusmacedo/dmpf/pulls/20)
 > (run 5817), com os treze steps em `success` — `Setup Go`, `Go gates (affected)`
 > e `DMPF dependency gate` incluídos. O risco declarado no ADR-030, de o
 > `gitea-runner` não resolver `actions/setup-go@v5` ou não ter egress a
@@ -491,7 +491,7 @@ senão:
   é como os targets rodam, com `cwd` no `projectRoot`.
 - [x] O `go.work` declara `go 1.26.4` e contém `use ./libs/backend/go/dmpf-domain`.
 - [x] O `go.mod` do módulo declara
-  `module gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-domain`.
+  `module github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-domain`.
 - [x] Os sete passos rodam por `pnpm nx` e reprovam diante de arquivo mal
   formatado, achado do `vet`, achado do `golangci-lint` ou teste falhando.
 - [x] `pnpm nx show project dmpf-domain-go --json` mostra os targets inferidos
@@ -624,7 +624,7 @@ ENTÃO o projeto é descoberto pelo plugin (que usa o glob **/go.mod), mas o
   `pnpm-workspace.yaml` só entra em escopo se a geração introduzir dependência
   Node, o que não acontece nesta entrega.
 
-- **Correção das violações do `golibs`** (`EventPublisher` em `goservice/domain`,
+- **Correção das violações do `legado-golibs`** (`EventPublisher` em `goservice/domain`,
   `net/http` em `goweb/domain`): são de outro repositório. Aqui elas servem
   como motivação do gate, não como trabalho a executar.
 
@@ -632,6 +632,6 @@ ENTÃO o projeto é descoberto pelo plugin (que usa o glob **/go.mod), mas o
   apenas garante que o módulo Go não seja empurrado ao Verdaccio, que é
   npm-only.
 
-- **Renomear o pacote raiz** de `@nx-base-template/source` para um nome da
+- **Renomear o pacote raiz** de `@mateusmacedo/dmpf-source` para um nome da
   organização: mudança transversal que afeta `--exclude` em `lefthook.yml`, CI e
   workflows. Merece decisão própria, fora do escopo de `KRN-01`.

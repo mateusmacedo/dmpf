@@ -5,8 +5,8 @@ title: DMPF — Kernel e SDK de Referência Go
 stage: building
 priority: P0
 depends_on: [SPEC-QG2N8STY]
-ticket_url: https://lider-cap.atlassian.net/browse/ARQ-519
-subtask_urls: [https://lider-cap.atlassian.net/browse/ARQ-520, https://lider-cap.atlassian.net/browse/ARQ-521, https://lider-cap.atlassian.net/browse/ARQ-522, https://lider-cap.atlassian.net/browse/ARQ-523, https://lider-cap.atlassian.net/browse/ARQ-524, https://lider-cap.atlassian.net/browse/ARQ-525, https://lider-cap.atlassian.net/browse/ARQ-526, https://lider-cap.atlassian.net/browse/ARQ-527, https://lider-cap.atlassian.net/browse/ARQ-528, https://lider-cap.atlassian.net/browse/ARQ-529, https://lider-cap.atlassian.net/browse/ARQ-530, https://lider-cap.atlassian.net/browse/ARQ-531]
+ticket_url: null
+subtask_urls: [ARQ-520, ARQ-521, ARQ-522, ARQ-523, ARQ-524, ARQ-525, ARQ-526, ARQ-527, ARQ-528, ARQ-529, ARQ-530, ARQ-531]
 created: 2026-08-30
 ---
 
@@ -16,7 +16,7 @@ created: 2026-08-30
 
 Implementar em Go, dentro deste monorepo Nx, o kernel e o SDK de referência do
 **Domain Message Processing Framework (DMPF)**, realizando em código executável a
-fundação normativa que o épico [ARQ-436](https://lider-cap.atlassian.net/browse/ARQ-436)
+fundação normativa que o épico ARQ-436
 entregou como RFC e ADRs. Como time de plataforma, queremos um kernel Go
 idiomático e verificável para que as squads construam serviços orientados a
 domínio e mensagens sobre limites estáveis, em vez de reinventar transação,
@@ -82,13 +82,13 @@ declarado no acervo:
 
 ### Referências internas
 
-- **`golibs`** (`gitea.lidercap.com.br/lidercap-apps/golibs`, commit `9106941`) —
+- **`legado-golibs`** (`github.com/mateusmacedo/golibs`, commit `9106941`) —
   monorepo Nx + `go.work` com 15 pacotes Go, `@nx-go/nx-go` 4.0.0, Go 1.25,
   release por Nx independent versioning com tag `packages/<nome>/v*`. É o
   **precedente de forma** para o monorepo Go desta organização e a fonte de
   referências idiomáticas (`goresilience`, `gotelemetry`, `godata`). Inventário
-  em `docs/specs/SPEC-K9H204F1/inventario-as-is-golibs.md`.
-- **Gap medido do `golibs` contra o DMPF**: não existe outbox, inbox nem relay;
+  em `docs/specs/a análise AS-IS de sistemas legados/inventario-as-is-golibs.md`.
+- **Gap medido do `legado-golibs` contra o DMPF**: não existe outbox, inbox nem relay;
   o wire é JSON ad hoc sem `.proto`, Buf ou CloudEvents; a UoW de `godata` não
   amarra a publicação ao commit; não há `Decision`, UPR, manifesto nem
   verificador. Duas violações estão nomeadas pela própria fundação:
@@ -96,7 +96,7 @@ declarado no acervo:
   textualmente como unidade mal dimensionada — e `goweb/domain/http_request.go:6`
   importa `net/http`, violando P0-1.
 - **Decisão de destino**: o kernel nasce **neste repositório**, em terreno limpo.
-  O `golibs` é referência de forma e fonte de padrões idiomáticos, não base de
+  O `legado-golibs` é referência de forma e fonte de padrões idiomáticos, não base de
   código a herdar — herdar traria junto a dívida que a fundação nomeia.
 
 <constraints>
@@ -216,7 +216,7 @@ declarado no acervo:
   `domain` contém apenas capability `pure`, e executar seus testes não inicia
   processo, não abre socket, não toca disco e não depende de horário.
 - [ ] **Compatibilidade**: Go 1.25 como piso declarado no `go.work`;
-  `@nx-go/nx-go` 4.0.0; módulos publicados sob `gitea.lidercap.com.br/lidercap-apps`
+  `@nx-go/nx-go` 4.0.0; módulos publicados sob `github.com/mateusmacedo`
   com `GOPRIVATE` já configurado.
 - [ ] **Interoperabilidade**: um contrato serializado em Go é desserializado em
   TypeScript sem perda semântica, com `payload_hash` idêntico nas duas stacks.
@@ -248,7 +248,7 @@ Estrutura pretendida. Os caminhos exatos de cada módulo são fixados pela sua
 sub-spec; `KRN-01` fixa a convenção antes de qualquer outro módulo nascer.
 
 ```text
-lidercap-platform/
+dmpf/
 ├── go.work                              — passa a declarar os módulos DMPF
 ├── libs/backend/go/                     — nível de stack; o kernel TS entra em libs/backend/ts/
 │   ├── dmpf-domain/                     — bloco domain: UPR, Decision, Rejection
@@ -412,14 +412,14 @@ manual.
 
 ## Decisões técnicas
 
-- **O kernel nasce neste repositório, não no `golibs`**, porque o `golibs`
+- **O kernel nasce neste repositório, não no `legado-golibs`**, porque o `legado-golibs`
   carrega duas violações que a própria fundação nomeia (`EventPublisher` em
   `goservice/domain`, `net/http` em `goweb/domain`) e um wire JSON ad hoc
   incompatível com o perfil CloudEvents. Alternativa descartada: estender o
-  `golibs` — traria a dívida junto e obrigaria a conviver com escape hatch desde
-  o primeiro commit. O `golibs` permanece como referência de forma do monorepo Go
+  `legado-golibs` — traria a dívida junto e obrigaria a conviver com escape hatch desde
+  o primeiro commit. O `legado-golibs` permanece como referência de forma do monorepo Go
   e fonte de padrões idiomáticos.
-- **Um módulo Go (`go.mod`) por lib Nx**, seguindo o precedente do `golibs` (15
+- **Um módulo Go (`go.mod`) por lib Nx**, seguindo o precedente do `legado-golibs` (15
   módulos sob `go.work`), porque o `ownership_module` da RFC é o diretório com
   `go.mod` e é ele que carrega o `metadata_container` e o versionamento
   independente do Nx Release. Alternativa a avaliar em `KRN-01`: módulo único com
@@ -436,7 +436,7 @@ manual.
   o chamador as distingue por tipo. Alternativa descartada: struct com campo
   discriminante — menos idiomática em Go e não melhora a exaustividade.
 - **A divergência de versão do Go é resolvida em `KRN-01`**: `go.work` declara
-  `go 1.25`, o `golibs` usa `1.25.0` e o toolchain local é `go1.26.4`. A escolha
+  `go 1.25`, o `legado-golibs` usa `1.25.0` e o toolchain local é `go1.26.4`. A escolha
   do piso é decisão de BOM, não preferência local.
 - **Toda decisão estrutural nova vira ADR a partir de `029`**, continuando a
   numeração do acervo. Divergência com a fundação vira ADR ou escape hatch
@@ -453,7 +453,7 @@ manual.
 - `.claude/rules/git-safety.md` — branches protegidas e revisão antes do commit
 - `docs/nx-reference/tasks.md` — configuração de tasks, tags e generators
 - `SPEC-QG2N8STY` — fundação DMPF; esta spec é a sua sucessora de implementação
-- `SPEC-K9H204F1` — inventário AS-IS, incluindo o levantamento do `golibs`
+- a análise AS-IS de sistemas legados — inventário AS-IS, incluindo o levantamento do `legado-golibs`
 - `SPEC-6RQBN98G` — estratégia de testes e interoperabilidade que `KRN-11` realiza
 
 ## Verificação e testes
@@ -552,7 +552,7 @@ ENTÃO nenhuma tentativa adicional é autorizada, porque a conjunção
 - **Kernel e SDK TypeScript**: é o épico subsequente de ordem 2 do ARQ-436. Esta
   spec entrega apenas a stack Go; o pareamento de vetores em `KRN-11` consome os
   fixtures, não implementa o lado TypeScript.
-- **Migração do `golibs` e dos serviços existentes**: pertence ao épico de ordem
+- **Migração do `legado-golibs` e dos serviços existentes**: pertence ao épico de ordem
   5 (piloto, estabilização e adoção). Aqui o acervo é referência, não alvo de
   refatoração.
 - **Aplicação vertical de referência completa**: é o épico de ordem 4 (golden

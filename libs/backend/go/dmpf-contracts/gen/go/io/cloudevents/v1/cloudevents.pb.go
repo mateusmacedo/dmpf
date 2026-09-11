@@ -415,8 +415,8 @@ const file_io_cloudevents_v1_cloudevents_proto_rawDesc = "" +
 	"\x04attrB\x06\n" +
 	"\x04data\"H\n" +
 	"\x0fCloudEventBatch\x125\n" +
-	"\x06events\x18\x01 \x03(\v2\x1d.io.cloudevents.v1.CloudEventR\x06eventsB\x8c\x02\n" +
-	"\x15com.io.cloudevents.v1B\x10CloudeventsProtoP\x01Z{gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/gen/go/io/cloudevents/v1;cloudeventsv1\xa2\x02\x03ICX\xaa\x02\x11Io.Cloudevents.V1\xca\x02\x11Io\\Cloudevents\\V1\xe2\x02\x1dIo\\Cloudevents\\V1\\GPBMetadata\xea\x02\x13Io::Cloudevents::V1b\x06proto3"
+	"\x06events\x18\x01 \x03(\v2\x1d.io.cloudevents.v1.CloudEventR\x06eventsB\xf3\x01\n" +
+	"\x15com.io.cloudevents.v1B\x10CloudeventsProtoP\x01Zbgithub.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/gen/go/io/cloudevents/v1;cloudeventsv1\xa2\x02\x03ICX\xaa\x02\x11Io.Cloudevents.V1\xca\x02\x11Io\\Cloudevents\\V1\xe2\x02\x1dIo\\Cloudevents\\V1\\GPBMetadata\xea\x02\x13Io::Cloudevents::V1b\x06proto3"
 
 var (
 	file_io_cloudevents_v1_cloudevents_proto_rawDescOnce sync.Once

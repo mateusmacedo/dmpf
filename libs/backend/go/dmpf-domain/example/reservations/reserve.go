@@ -1,6 +1,6 @@
 package reservations
 
-import dmpfdomain "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-domain"
+import dmpfdomain "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-domain"
 
 // Reserve is a UPR: it decides over a copy and commits only on Accepted, so a
 // rejection leaves the reservation untouched (DEC-10) and carries no event (DEC-11).

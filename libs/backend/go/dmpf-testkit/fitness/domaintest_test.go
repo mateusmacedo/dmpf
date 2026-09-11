@@ -12,8 +12,8 @@ import (
 	"strings"
 	"testing"
 
-	conffit "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/fitness"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-testkit/tb"
+	conffit "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/fitness"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/tb"
 )
 
 // V29/V30 (PIR-17): a test of a domain unit that needs an infrastructure double

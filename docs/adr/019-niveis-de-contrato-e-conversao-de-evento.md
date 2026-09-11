@@ -117,5 +117,5 @@ e de wire dentro do que a matriz permite.
   três níveis de contrato), §6.2 (não existe DTO universal — `CTR-01` a `CTR-03`)
   e §6.3 (conversão de domain event para integration event — `CTR-04` a `CTR-07`).
 - SPEC-DBTRMM3X — especificação da série de ADRs do DMPF, que este ADR implementa.
-- ARQ-448 — https://lider-cap.atlassian.net/browse/ARQ-448 (FND-11, redação,
+- ARQ-448 — ARQ-448 (FND-11, redação,
   promoção e aceite da série de ADRs do DMPF).

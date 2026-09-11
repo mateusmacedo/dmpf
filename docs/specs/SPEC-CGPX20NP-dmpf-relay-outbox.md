@@ -5,7 +5,7 @@ title: DMPF KRN-08 — Relay da outbox: claim por lease, publicação e sinais
 stage: done
 priority: P0
 depends_on: [SPEC-ZHE7DN1H, SPEC-WYX5GW87, SPEC-3R80KNMS]
-ticket_url: https://lider-cap.atlassian.net/browse/ARQ-527
+ticket_url: null
 subtask_urls: []
 created: 2026-09-05
 ---
@@ -44,7 +44,7 @@ inbox.
   a `SPEC-YRJRADY9` lhe atribui: "Mensagem publicada atomicamente e consumida
   com deduplicação".
 - **Inspiração**: o próprio acervo. A RFC registra em `§7.5` que
-  `shared-titulos-services` é o único caso real do universo inventariado, com
+  `legado-titulos-shared-services` é o único caso real do universo inventariado, com
   drenagem em apps dispatcher dedicados e claim por `FOR UPDATE SKIP LOCKED`.
   O desenho aqui é a normatização desse caso, não uma invenção.
 - **Links relevantes**:

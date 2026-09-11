@@ -4,9 +4,9 @@ import (
 	"context"
 	"log/slog"
 
-	dmpfapp "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-app"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/envelope"
-	dmpfports "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-ports"
+	dmpfapp "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-app"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/envelope"
+	dmpfports "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-ports"
 )
 
 // Sink is the bridge of FND-06 §11 between the transport and the consumer

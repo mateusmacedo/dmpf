@@ -11,11 +11,11 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	sqstypes "github.com/aws/aws-sdk-go-v2/service/sqs/types"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/envelope"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/payloadhash"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/resilience"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-transport/channel"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-transport/compose"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/envelope"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/payloadhash"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/resilience"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-transport/channel"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-transport/compose"
 )
 
 // Limits of the transport the publisher checks before any send.

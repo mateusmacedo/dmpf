@@ -8,7 +8,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/metrics"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/metrics"
 )
 
 func measurement(l metrics.Labels) metric.MeasurementOption {

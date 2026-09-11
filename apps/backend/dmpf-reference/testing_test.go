@@ -19,11 +19,11 @@ import (
 	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kgo"
 
-	dmpfreference "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/apps/backend/dmpf-reference"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/apps/backend/dmpf-reference/api"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/otelboot"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-testkit/tb"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-testkit/tb/pg"
+	dmpfreference "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference"
+	"github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference/api"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/otelboot"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/tb"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/tb/pg"
 )
 
 const (

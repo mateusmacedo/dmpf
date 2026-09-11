@@ -1,6 +1,6 @@
 package orders
 
-import dmpfdomain "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-domain"
+import dmpfdomain "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-domain"
 
 // OrderID identifies the aggregate; it arrives already generated (RFC §9.3).
 type OrderID string

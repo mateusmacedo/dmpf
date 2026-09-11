@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/redact"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/redact"
 )
 
 type categorizedError struct {

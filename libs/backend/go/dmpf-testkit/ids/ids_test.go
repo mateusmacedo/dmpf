@@ -4,8 +4,8 @@ import (
 	"sync"
 	"testing"
 
-	dmpfports "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-ports"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-testkit/ids"
+	dmpfports "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-ports"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/ids"
 )
 
 // claimIDs mirrors relay.ClaimIDs of dmpf-app structurally: the kit must

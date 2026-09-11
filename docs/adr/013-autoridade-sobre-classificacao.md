@@ -43,7 +43,7 @@ fail-closed** (T5).
 
 A RFC fixa o **requisito** (T4-T6) e delega o **processo** — quem aprova, por qual
 rito, qual artefato constitui evidência — ao **FND-10**, via ANC-08 /
-[ARQ-447](https://lider-cap.atlassian.net/browse/ARQ-447), com ADR marcado como
+ARQ-447, com ADR marcado como
 exigido (RFC §12). Até o FND-10 concluir, vale o **mecanismo mínimo**: toda
 mudança que satisfaça T4 é apresentada em commit próprio, separado de mudanças de
 código, e a evidência de autorização é a aprovação desse commit por revisor
@@ -126,7 +126,7 @@ registrada nas observações desta entrega.
     (ANC-08, delegação do processo ao FND-10) e §14.6 (riscos aceitos). A §13.2
     declara §10.2 como origem única deste ADR; estas seções são apoio que §10.2
     aciona, não origens independentes.
-- ARQ-447 — https://lider-cap.atlassian.net/browse/ARQ-447 (FND-10, processo de
+- ARQ-447 — ARQ-447 (FND-10, processo de
   autorização da classificação).
-- ARQ-448 — https://lider-cap.atlassian.net/browse/ARQ-448 (destino da série de
+- ARQ-448 — ARQ-448 (destino da série de
   ADRs do DMPF).

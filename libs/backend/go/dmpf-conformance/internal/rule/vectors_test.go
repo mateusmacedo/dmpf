@@ -4,8 +4,8 @@ import (
 	"slices"
 	"testing"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/internal/manifest"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/internal/rule"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/internal/manifest"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/internal/rule"
 )
 
 func codigos(ds []rule.Diagnostic) []rule.Code {

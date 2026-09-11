@@ -93,14 +93,14 @@ Ao mover arquivos ou pastas, verifique todos os imports afetados — inclusive o
 
 ## Visão geral e estrutura
 
-`nx-base-template` (workspace npm `@nx-base-template/source`) é o baseline de monorepo **Nx + pnpm** multistack da organização. O workspace já vem preparado para Express, Fastify, NestJS, Next.js, Angular e Go (`go.work` / `@nx-go/nx-go`), mas **não contém apps** — quem parte deste template cria as suas.
+`dmpf` (workspace npm `@mateusmacedo/dmpf-source`) é o baseline de monorepo **Nx + pnpm** multistack da organização. O workspace já vem preparado para Express, Fastify, NestJS, Next.js, Angular e Go (`go.work` / `@nx-go/nx-go`), mas **não contém apps** — quem parte deste template cria as suas.
 
 Fonte de verdade dos projetos: `pnpm nx show projects`.
 
 ### Diretórios principais
 
 ```text
-nx-base-template/
+dmpf/
 ├── apps/
 │   ├── backend/dmpf-reference/     # composition root de referência do kernel DMPF (dmpf-reference-go)
 │   ├── frontend/                   # placeholder — sem projeto Nx
@@ -163,19 +163,19 @@ Quatorze, todos Go, com as três tags de taxonomia (`type:lib`, `scope:backend`,
 
 `libs/frontend` segue sendo diretório de destino, sem projeto Nx registrado. Para criar uma lib TypeScript, use o generator do Nx (`pnpm nx g @nx/js:lib libs/shared/<name>`), com as três tags 3D e `--linter=none`; o passo a passo com todas as flags está em `docs/nx-reference/tasks.md`.
 
-**Caminho por scope e stack.** Módulos ficam em `libs/<scope>/<stack>/<módulo>`, e o nome do projeto Nx leva o sufixo da stack (`dmpf-domain-go`). O motivo é que o kernel DMPF terá contrapartes Go e TypeScript com os mesmos nomes conceituais, e o nome de projeto é chave única no Nx. Como em Go o import path é a chave canônica da unidade — e a RFC a exige estável —, a convenção foi fixada antes do segundo módulo nascer.
+**Caminho por scope e stack.** Módulos do kernel ficam em `libs/<scope>/<stack>/<módulo>`, e o nome do projeto Nx leva o sufixo da stack (`dmpf-domain-go`). Contextos de negócio ficam em pasta própria, `libs/<scope>/<stack>/<contexto>/<bloco>` (`libs/backend/go/bookings/domain`, projeto `bookings-domain-go`), como o generator `bounded-context` gera — ver o addendum do ADR-030. O motivo é que o kernel DMPF terá contrapartes Go e TypeScript com os mesmos nomes conceituais, e o nome de projeto é chave única no Nx. Como em Go o import path é a chave canônica da unidade — e a RFC a exige estável —, a convenção foi fixada antes do segundo módulo nascer.
 
 O `nx-release.yml` tem o step `Detect lib release candidates`, que pula o versionamento e o push enquanto não houver nenhum projeto com a tag `type:lib` — mesmo padrão do step de candidatos Docker. Ele existe porque, sem nenhuma lib, o `nx release` sai com erro (`Release group "__default__" matches no projects`) em vez de concluir vazio. Com o `dmpf-domain-go` presente, a guarda deixa de ser acionada e o versionamento passa a rodar de fato.
 
 O módulo Go participa do versionamento, mas **não** da publicação: o `private: true` do `package.json` já o exclui, e o `build_projects_filter` do `nx-publish-libs.yml` (`tag:type:lib,!tag:stack:go`) o exclui de novo, por redundância deliberada.
 
-O prefixo dos pacotes é `@lidercap-apps/`, tudo em minúsculas — o mesmo escopo usado no Verdaccio, no `nx-publish-libs.yml` e nos demais repositórios da organização. O casing precisa bater exatamente entre o `name` de cada `package.json`, o `tsconfig.base.json` e o `scope` passado ao template de publicação: o Nx resolve o registry pelo escopo do pacote, e qualquer divergência faz o `pnpm publish` cair no registry público e falhar.
+O prefixo dos pacotes é `@mateusmacedo/`, tudo em minúsculas. No GitHub Packages o escopo **precisa ser o owner do repositório** — não é convenção, é requisito do registry. O casing precisa bater exatamente entre o `name` de cada `package.json`, o `tsconfig.base.json` e o `scope` passado ao reusable de publicação: o Nx resolve o registry pelo escopo do pacote, e qualquer divergência faz o `pnpm publish` cair no registry público e falhar.
 
 ---
 
 ## Comandos
 
-Sempre via `pnpm nx` — nunca o `nx` global. O root `@nx-base-template/source` tem targets `nx:noop`; exclua-o de operações em lote com `--exclude=@nx-base-template/source` (como no `lefthook` / CI).
+Sempre via `pnpm nx` — nunca o `nx` global. O root `@mateusmacedo/dmpf-source` tem targets `nx:noop`; exclua-o de operações em lote com `--exclude=@mateusmacedo/dmpf-source` (como no `lefthook` / CI).
 
 ```bash
 # Em lote (todos os projetos com o target)
@@ -191,11 +191,11 @@ pnpm nx affected -t test
 pnpm nx affected -t build
 
 # Um único projeto
-pnpm nx test @lidercap-apps/minha-lib
-pnpm nx build @lidercap-apps/minha-lib
+pnpm nx test @mateusmacedo/minha-lib
+pnpm nx build @mateusmacedo/minha-lib
 
 # Um único arquivo de teste (passthrough p/ Jest)
-pnpm nx test @lidercap-apps/minha-lib --testPathPatterns="string"
+pnpm nx test @mateusmacedo/minha-lib --testPathPatterns="string"
 
 # Cadeia Go (os 4 passos que lint/test/build não cobrem)
 pnpm nx run dmpf-domain-go:fmt-check   # gofmt, read-only (reprova, não reescreve)
@@ -254,13 +254,13 @@ Scripts raiz (`pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, `pnpm fo
 - **Lint + format:** **Biome 2.4.16** é a ferramenta principal de format/lint. Estilo: 2 espaços, `lineWidth` 100, aspas simples, trailing commas `all`, semicolons sempre, arrow parens sempre. Regras notáveis: `noUnusedVariables: error`, `noExplicitAny: warn` e `useImportType: error` — neste workspace `import type` é obrigatório, não preferência. O parser tem `unsafeParameterDecoratorsEnabled: true` para suportar decorators de parâmetro do NestJS.
 - **Testes:** Jest 30 transpilado por **SWC** (`@swc/jest`), config em `.spec.swcrc` (decorators + `keepClassNames` para DI do NestJS). O preset em `jest.preset.js` usa `passWithNoTests: true`, então projeto sem teste não quebra o lote.
 - **TypeScript:** `strict: true`, `module`/`moduleResolution: nodenext`, `target: es2022`, Project References (`composite: true`, `emitDeclarationOnly: true`). O `tsconfig.base.json` tem `paths` vazio e o `tsconfig.json` tem `references` vazio: cada lib nova acrescenta a própria entrada nos dois.
-- **Git hooks:** Lefthook (não husky), instalado via `pnpm prepare`. O script é tolerante a falha (`lefthook install || true`), para não quebrar `pnpm install` em ambiente sem o binário. `pre-commit` roda `biome check --write` nos arquivos staged; `pre-push` roda `nx affected` de lint/typecheck/test/build com `--parallel=3`, excluindo `@nx-base-template/source`.
+- **Git hooks:** Lefthook (não husky), instalado via `pnpm prepare`. O script é tolerante a falha (`lefthook install || true`), para não quebrar `pnpm install` em ambiente sem o binário. `pre-commit` roda `biome check --write` nos arquivos staged; `pre-push` roda `nx affected` de lint/typecheck/test/build com `--parallel=3`, excluindo `@mateusmacedo/dmpf-source`.
 
 ---
 
 ## Convenções obrigatórias
 
-- **Tags 3D em todo app/lib de produção:** uma de cada dimensão, conforme a taxonomia canônica abaixo. Ex.: `["type:lib", "scope:shared", "stack:node"]`. O Nx Release publica apenas projetos com `type:lib` (`release.projects: tag:type:lib`). Exceção conhecida: `@nx-base-template/source` (metadado raiz).
+- **Tags 3D em todo app/lib de produção:** uma de cada dimensão, conforme a taxonomia canônica abaixo. Ex.: `["type:lib", "scope:shared", "stack:node"]`. O Nx Release publica apenas projetos com `type:lib` (`release.projects: tag:type:lib`). Exceção conhecida: `@mateusmacedo/dmpf-source` (metadado raiz).
 
   | Dimensão | Valores válidos |
   | --- | --- |
@@ -281,18 +281,18 @@ Scripts raiz (`pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, `pnpm fo
 
   A camada é a do **estágio** em que o módulo precisa rodar, não a do bloco DMPF de cada unidade: o `dmpf-testkit-go` tem unidades nos quatro blocos e é `layer:providers` porque a maior parte das suas suítes exige a infraestrutura que só sobe a partir do estágio 3.
 - **Não redeclarar targets** que um plugin ou `targetDefaults` (em `nx.json`) já fornece. Redeclarar quebra o cache silenciosamente (ver `docs/adr/002-nx-task-configuration.md`).
-- **Commits (Conventional Commits, em PT-BR):** formato `<tipo>(<scope>): <descrição imperativa>`, máx. 72 chars no assunto. `scope` = nome do projeto Nx **sem** o prefixo da org (`minha-lib`, não `@lidercap-apps/minha-lib`). Projetos distintos vão em commits separados (nunca misture libs). Tipos: `feat`, `fix`, `refactor`, `chore`, `docs`, `ci`. Body só quando o motivo não é óbvio. Detalhes na skill `.agents/skills/nx-commit/`.
+- **Commits (Conventional Commits, em PT-BR):** formato `<tipo>(<scope>): <descrição imperativa>`, máx. 72 chars no assunto. `scope` = nome do projeto Nx **sem** o prefixo da org (`minha-lib`, não `@mateusmacedo/minha-lib`). Projetos distintos vão em commits separados (nunca misture libs). Tipos: `feat`, `fix`, `refactor`, `chore`, `docs`, `ci`. Body só quando o motivo não é óbvio. Detalhes na skill `.agents/skills/nx-commit/`.
 
 ---
 
 ## Git e release
 
-- **Plataforma:** **Gitea** (`gitea.lidercap.com.br`, organização `lidercap-apps`). O binário `gh` **não** opera contra este servidor — automação que fale com a plataforma usa a API do Gitea (`/api/v1/...`). Ver `docs/adr/005-plataforma-gitea.md`.
+- **Plataforma:** **GitHub** (`github.com/mateusmacedo/dmpf`). O binário `gh` é o caminho padrão para automação que fale com a plataforma. A decisão está em `docs/adr/043-migracao-para-github-licenca-e-autoria.md`, que supersede `005-plataforma-gitea.md`.
 - **Branches protegidas:** `master` e `develop`. `defaultBase` do Nx é `master`.
 - **Fluxo (git-flow):** trabalho → `develop` (validação) → `release/X.Y.Z` (após validar) → `master`. Antes do PR para `develop`, a branch de trabalho mergeia `release/X.Y.Z` (updates já aprovados). PRs de feature comparam contra `origin/develop` por padrão.
 - **Anti-drift (duro):** ao promover para `release`, usar a **mesma árvore** já mergeada em `develop` (mesmo tip da feature). Não abrir promoção paralela com resolução/conteúdo diferente — isso faz o merge `release` → branch de trabalho reabrir os mesmos conflitos. Detalhe em `CONTRIBUTING.md`.
-- **Release:** Nx Release com versionamento **independente** por projeto (`type:lib`), baseado em Conventional Commits; tag pattern `{projectName}@{version}`. O versionamento (`release.yml`) é separado da publicação no Verdaccio (`publish-libs.yml`) — ver `docs/adr/004-workflows-verdaccio-release.md`.
-- **CI:** `.github/workflows/ci.yml` roda em PRs para `master`, `develop` e `release/**` (ignora mudanças só em `**/*.md` e em `.github/ISSUE_TEMPLATE/**`), no runner `gitea-runner`: `biome ci`, depois `nx affected` de lint, typecheck, test (com `--ci --coverage`), build e e2e. Os demais workflows são `release.yml`, `publish-libs.yml`, `create-release.yml` e `cd-dev-hmg.yml` — este último é um **template de CD desligado**, com apenas `workflow_dispatch` e o job de deploy comentado (ver `docs/ci-cd/`).
+- **Release:** Nx Release com versionamento **independente** por projeto (`type:lib`), baseado em Conventional Commits; tag pattern `{projectName}@{version}`. O versionamento (`nx-release.yml`) é separado da publicação no GitHub Packages (`nx-publish-libs.yml`, que chama o reusable interno `publish-libs.yaml`) — ver `docs/adr/043-migracao-para-github-licenca-e-autoria.md`, que supersede `004-workflows-verdaccio-release.md`.
+- **CI:** `.github/workflows/ci.yml` roda em PRs para `master`, `develop` e `release/**` (ignora mudanças só em `**/*.md` e em `.github/ISSUE_TEMPLATE/**`), no runner `ubuntu-latest`: `biome ci`, depois `nx affected` de lint, typecheck, test (com `--ci --coverage`), build e e2e. Os demais workflows são `nx-release.yml`, `nx-publish-libs.yml`, `create-release.yml`, `dmpf-verify.yml`, `dmpf-distributed.yml` e `cd-dev-hmg.yml` — este último é um **template de CD desligado**, com apenas `workflow_dispatch` e o job de deploy comentado (ver `docs/ci-cd/`). Os reusables `detect-apps.yaml` e `publish-libs.yaml` vivem no próprio repositório: o template de actions que os hospedava saiu do alcance do projeto na migração.
 
 ---
 
@@ -345,7 +345,7 @@ Utilize Biome, typecheck, Jest e os hooks Lefthook configurados. O princípio �
 
 ```bash
 pnpm biome check --write .
-pnpm nx affected -t lint,typecheck,test,build --exclude=@nx-base-template/source
+pnpm nx affected -t lint,typecheck,test,build --exclude=@mateusmacedo/dmpf-source
 ```
 
 (Ajuste o conjunto de targets ao impacto da mudança.)

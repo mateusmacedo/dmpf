@@ -9,8 +9,8 @@ import (
 	"net"
 	"net/http"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/retry"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-transport/observe"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/retry"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-transport/observe"
 )
 
 // RetryableStatusError is a response whose status the route declared

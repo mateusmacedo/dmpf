@@ -3,7 +3,7 @@ package dmpfapplication
 import (
 	"context"
 
-	dmpfports "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-ports"
+	dmpfports "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-ports"
 )
 
 // MessageContextFor is what an application service writes into every

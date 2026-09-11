@@ -7,9 +7,9 @@
       "bounded_context": "dmpf-kernel",
       "public_integration_surface": false,
       "include": [
-        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/apps/backend/dmpf-reference",
-        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/apps/backend/dmpf-reference/api",
-        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/apps/backend/dmpf-reference/cmd/dmpf-reference"
+        "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference",
+        "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference/api",
+        "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference/cmd/dmpf-reference"
       ]
     }
   ],

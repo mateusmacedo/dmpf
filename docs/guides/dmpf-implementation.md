@@ -175,7 +175,7 @@ aceite. O QA versiona o aceite como fixture — [playbook](./dmpf-qa-playbook.md
 `dmpf-units.json` e entrada no `go.work`:
 
 ```bash
-pnpm nx g @lidercap-apps/dmpf-plugin:bounded-context ordering \
+pnpm nx g @mateusmacedo/dmpf-plugin:bounded-context ordering \
   --bounded-context ordering \
   --dry-run
 ```
@@ -301,10 +301,15 @@ flowchart TD
   port --> domain
 ```
 
-As arestas ausentes são as proibidas. Duas explicam a topologia dos módulos do
-kernel: `application → contract` (célula 12) e `provider → application`
-(célula 26). É por elas que o consumer adapter — que precisa decodificar o
-envelope **e** invocar o caso de uso — vive num módulo `app` próprio.
+Toda aresta **entre blocos distintos** que não aparece no diagrama é proibida por
+C1; as relações **reflexivas** — um bloco dependendo de outra unidade do mesmo
+bloco — ficaram de fora do desenho por outro motivo: elas não são recusadas por
+C1, e o que decide cada uma é C2 — como no `domain → domain` acima.
+
+Duas arestas proibidas explicam a topologia dos módulos do kernel:
+`application → contract` (célula 12) e `provider → application` (célula 26). É
+por elas que o consumer adapter — que precisa decodificar o envelope **e**
+invocar o caso de uso — vive num módulo `app` próprio.
 
 ### 4.3 A outbox atravessa três blocos
 

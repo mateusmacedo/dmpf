@@ -5,7 +5,7 @@ import (
 
 	"go.opentelemetry.io/otel/metric"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/metrics"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/metrics"
 )
 
 // metric64Counter is the slice of metric.Int64Counter the decorators use. It is

@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	dmpfpostgres "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-provider-postgres"
+	dmpfpostgres "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres"
 )
 
 // releaseReason is empty on purpose: a released claim did not fail, and the

@@ -7,8 +7,8 @@
 | **Gate** | `THR-03` — «este threat model não está satisfeito enquanto não for revisado por Segurança» |
 | **Revisor** | Mateus Macedo Dos Anjos, por [ADR-029](../adr/029-titular-da-revisao-de-seguranca-fnd-07.md) |
 | **Independência** | **Ausente.** O revisor é o autor do artefato. A limitação é declarada, não contornada — ver §1.3 e o ADR-029 |
-| **Épico** | [ARQ-436](https://lider-cap.atlassian.net/browse/ARQ-436) — Golden Path para Sistemas Orientados a Domínio e Mensagens |
-| **Story** | [ARQ-488](https://lider-cap.atlassian.net/browse/ARQ-488) |
+| **Épico** | ARQ-436 — Golden Path para Sistemas Orientados a Domínio e Mensagens |
+| **Story** | ARQ-488 |
 | **Spec** | [SPEC-DK8QQSDQ](../specs/SPEC-DK8QQSDQ-revisao-seguranca-fnd-07.md) |
 | **Data** | 2026-08-30 |
 | **Desfecho** | **Aprovado com ressalvas** — duas, ambas de insumo externo ausente; ver §7 e §8 |

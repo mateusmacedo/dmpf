@@ -8,9 +8,9 @@ import (
 
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 
-	dmpfreference "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/apps/backend/dmpf-reference"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/audit"
-	dmpfports "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-ports"
+	dmpfreference "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/audit"
+	dmpfports "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-ports"
 )
 
 // The audit trail and the application log share one destination in the local

@@ -12,10 +12,10 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/clock"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/metrics"
-	dmpfhttp "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-provider-http"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-transport/admission"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/clock"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/metrics"
+	dmpfhttp "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-http"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-transport/admission"
 )
 
 // countingBody counts the bytes the handler side reads, so a refusal proves it

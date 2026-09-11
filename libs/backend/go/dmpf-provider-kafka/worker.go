@@ -12,8 +12,8 @@ import (
 
 	"github.com/twmb/franz-go/pkg/kgo"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/clock"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-transport/attempt"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/clock"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-transport/attempt"
 )
 
 // partitionWorker processes the records of one partition in order (KFK-09):

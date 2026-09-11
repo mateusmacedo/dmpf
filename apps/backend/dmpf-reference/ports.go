@@ -7,7 +7,7 @@ import (
 	"encoding/hex"
 	"time"
 
-	dmpfports "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-ports"
+	dmpfports "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-ports"
 )
 
 // identityBytes is the width of a minted identity: 128 bits of entropy settle

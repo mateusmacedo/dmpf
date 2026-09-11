@@ -5,7 +5,7 @@ title: DMPF — Substituir caminhos efêmeros por âncora versionada nas fontes
 stage: done
 priority: P2
 depends_on: [SPEC-4W1BQK93]
-ticket_url: https://lider-cap.atlassian.net/browse/ARQ-490
+ticket_url: null
 subtask_urls: []
 created: 2026-08-21
 ---
@@ -97,7 +97,7 @@ Esta spec toca documentação; não há camada de código envolvida.
 |--------|-------|------------|
 | Domain / Application / Infra | [ ] | Nenhuma |
 | Documentação normativa (`docs/dmpf/`) | [x] | Três arquivos: `politicas-transporte.md` e `inventario-as-is.md` na classe A, `README.md` na B |
-| Specs (`docs/specs/`) | [x] | Treze specs, entre `done` e `backlog`, mais dois auxiliares em `SPEC-K9H204F1/` |
+| Specs (`docs/specs/`) | [x] | Treze specs, entre `done` e `backlog`, mais dois auxiliares em a análise AS-IS de sistemas legados |
 | ADR (`docs/adr/`) | [ ] | ADR-007 é isento: descrever `plans/` é a função dele |
 
 ## Localização de código

@@ -38,11 +38,11 @@
 <!-- Rode a cadeia localmente e marque cada passo. Reflete o que o CI executa. -->
 
 - [ ] `pnpm biome ci .`
-- [ ] `pnpm nx affected -t lint --exclude=@nx-base-template/source`
-- [ ] `pnpm nx affected -t typecheck --exclude=@nx-base-template/source`
-- [ ] `pnpm nx affected -t test --exclude=@nx-base-template/source`
-- [ ] `pnpm nx affected -t build --exclude=@nx-base-template/source`
-- [ ] `pnpm nx affected -t e2e --exclude=@nx-base-template/source`
+- [ ] `pnpm nx affected -t lint --exclude=@mateusmacedo/dmpf-source`
+- [ ] `pnpm nx affected -t typecheck --exclude=@mateusmacedo/dmpf-source`
+- [ ] `pnpm nx affected -t test --exclude=@mateusmacedo/dmpf-source`
+- [ ] `pnpm nx affected -t build --exclude=@mateusmacedo/dmpf-source`
+- [ ] `pnpm nx affected -t e2e --exclude=@mateusmacedo/dmpf-source`
 
 ## Checklist de revisão
 

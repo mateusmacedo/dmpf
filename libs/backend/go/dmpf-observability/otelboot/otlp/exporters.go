@@ -10,7 +10,7 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"google.golang.org/grpc/credentials"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/otelboot"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/otelboot"
 )
 
 // ErrEndpointRequired is a transport with nowhere to send. The address of the

@@ -7,7 +7,7 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/tracing"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/tracing"
 )
 
 func TestTenantIDIsOmittedWhenAbsent(t *testing.T) {

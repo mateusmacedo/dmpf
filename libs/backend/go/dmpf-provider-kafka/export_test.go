@@ -7,7 +7,7 @@ import (
 
 	"github.com/twmb/franz-go/pkg/kgo"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-transport/channel"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-transport/channel"
 )
 
 // The internal surface the tests in this package exercise directly.

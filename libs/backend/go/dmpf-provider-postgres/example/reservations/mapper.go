@@ -3,10 +3,10 @@ package reservationspg
 import (
 	"fmt"
 
-	reservationsv1 "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/gen/go/company/reservations/event/v1"
-	dmpfdomain "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-domain"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-domain/example/reservations"
-	dmpfpostgres "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-provider-postgres"
+	reservationsv1 "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/gen/go/company/reservations/event/v1"
+	dmpfdomain "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-domain"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-domain/example/reservations"
+	dmpfpostgres "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres"
 )
 
 const reservationConfirmedType = "com.company.reservations.reservation-confirmed.v1"

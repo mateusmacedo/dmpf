@@ -12,9 +12,9 @@ import (
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/status"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/retry"
-	dmpfgrpc "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-provider-grpc"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-transport/deadline"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/retry"
+	dmpfgrpc "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-grpc"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-transport/deadline"
 )
 
 func TestServiceConfigDeclaresRoundRobinAndHealthCheck(t *testing.T) {

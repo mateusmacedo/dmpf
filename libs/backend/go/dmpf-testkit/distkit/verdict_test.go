@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-testkit/distkit"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/distkit"
 )
 
 func TestDecideAcceptsTheSingleDeliveryEffect(t *testing.T) {

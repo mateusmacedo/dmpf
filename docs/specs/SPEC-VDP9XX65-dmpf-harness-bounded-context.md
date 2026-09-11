@@ -2,10 +2,10 @@
 id: SPEC-VDP9XX65
 slug: dmpf-harness-bounded-context
 title: DMPF KRN-12.2h — Harness de agentes para criar bounded contexts (AI SDD)
-stage: backlog
+stage: building
 priority: P2
 depends_on: [SPEC-H1A190Y8, SPEC-XMNBMY50]
-ticket_url: https://lider-cap.atlassian.net/browse/ARQ-554
+ticket_url: null
 subtask_urls: []
 created: 2026-09-09
 ---
@@ -109,7 +109,7 @@ regra de negócio escrita, não como `TODO`.
 - [ ] **[P0] Skill `dmpf-bounded-context`** em `.agents/skills/` (ao lado de
   `dmpf-testkit`): o golden path passo a passo, cada passo com a norma que o
   rege e o arquivo que o exemplifica — (1) validar a spec contra o template;
-  (2) `pnpm nx g @lidercap-apps/dmpf-plugin:bounded-context <name>
+  (2) `pnpm nx g @mateusmacedo/dmpf-plugin:bounded-context <name>
   --bounded-context <ctx>`; (3) `domain` por agregado (forma de
   `example/orders`; desfecho `(Accepted[R], *Rejection)`; sem `time`, sem
   porta; `Instant` como inteiro); (4) `port` (`Resources`, `Reader`, `Bind`);
@@ -142,7 +142,7 @@ regra de negócio escrita, não como `TODO`.
 - [ ] **[P0] Golden `bookings` commitado**: a partir de uma spec de exemplo
   (`SPEC-<id>-bookings.md`, "Bounded context — bookings", contexto
   `resource-scheduling`; agregados `Booking` e `Resource` como nas sub-specs
-  deferidas), o harness gera os cinco módulos `libs/backend/go/bookings-*`, o
+  deferidas), o harness gera os cinco módulos `libs/backend/go/bookings/{domain,ports,application,provider,app}`, o
   contrato `contracts/proto/company/bookings/event/v1/booking_reserved.proto`
   com `gen/go` pelo rito, e a unidade `resource-scheduling/contract`. Entram no
   workspace como módulos reais: tags, `layer:*`, `go.work`, baseline,
@@ -194,7 +194,10 @@ docs/specs/SPEC-<id>-bookings.md                  — NOVO: spec de exemplo (ent
 .claude/rules/dmpf-bounded-context.md             — NOVO
 .claude/commands/dmpf-new-context.md              — NOVO
 .claude/README.md                                 — MODIFICAR: índice
-libs/backend/go/bookings-{domain,ports,application,provider-postgres,app}/ — NOVO (golden, pelo harness)
+libs/backend/go/bookings/{domain,ports,application,provider,app}/ — NOVO (golden, pelo harness; uma pasta por contexto — ADR-030)
+tools/dmpf-plugin/src/generators/bounded-context/{blocks,generator}.ts — MODIFICAR: módulos em <directory>/<name>/<bloco>
+.golangci.yml, tools/dmpf-gate-check.sh                      — MODIFICAR: depguard/forbidigo alcançam **/domain/**, **/ports/**, **/application/**
+docs/adr/030-granularidade-modulo-go-e-bom.md      — MODIFICAR: addendum (contexto de negócio em pasta própria)
 contracts/proto/company/bookings/event/v1/*.proto — NOVO (golden); gen/go pelo rito Buf
 libs/backend/go/dmpf-contracts/dmpf-units.json    — MODIFICAR: unidade resource-scheduling/contract
 tools/dmpf-baseline/units-baseline.json           — MODIFICAR: classificação do golden (commit próprio)

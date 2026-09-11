@@ -85,8 +85,8 @@ prático porque o ADR-014 proíbe a aresta.
 **Negativas:**
 
 - **Custo aceito:** a distância entre a norma e o parque é material e já está
-  medida — `telesena-ativavel-services`, `telesena-live-services` e
-  `telesena-titulos-services` violam a metade estática hoje, o último na
+  medida — `legado-ativavel-services`, `legado-live-services` e
+  `legado-titulos-services` violam a metade estática hoje, o último na
   assinatura de uma porta (`mssql`). A decisão assume esse débito de migração; a
   adoção fica para os épicos de kernel (RFC §1.4) e não é resolvida por este ADR
   (RFC §9.4).

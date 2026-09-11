@@ -1,4 +1,4 @@
-module gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts
+module github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts
 
 go 1.26.6
 

@@ -2,7 +2,7 @@
 
 ## Status
 
-Aceito — 2026-07-30. Implementa e fecha SPEC-4NR9KKS8.
+Aceito — 2026-07-30. Implementa e fecha a spec de port do monorepo de origem.
 
 Este ADR existe por exigência da própria spec, que pede em `critical_constraints`
 (P1) o registro da regra de desempate, a justificativa de cada exceção preservada
@@ -163,7 +163,7 @@ da realidade medida deste workspace:
 
 ## Referências
 
-- Spec: `SPEC-4NR9KKS8` (em `docs/specs/`)
+- Spec: a spec de port do monorepo de origem (em `docs/specs/`)
 - [ADR-001](./001-baseline-monorepo.md) — baseline, com addendum de estado real
 - [ADR-004](./004-workflows-verdaccio-release.md) — parcialmente superseded
 - [ADR-005](./005-plataforma-gitea.md) — a plataforma é Gitea

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/retry"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/retry"
 )
 
 // Kind separates what may be retried from what may not: a unit of work is never

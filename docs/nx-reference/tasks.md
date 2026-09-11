@@ -57,7 +57,7 @@ não cria novos):
 
 ```json
 {
-  "name": "@lidercap-apps/minha-lib",
+  "name": "@mateusmacedo/minha-lib",
   "$schema": "../../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "libs/minha-lib/src",
   "projectType": "library",
@@ -114,13 +114,13 @@ nível sob `libs/` ou `apps/` (`shared`, `backend`, `frontend`).
 ```bash
 # lib compartilhada (TypeScript puro, buildable via tsc)
 pnpm nx g @nx/js:lib libs/shared/<name> \
-  --importPath=@lidercap-apps/shared-<name> \
+  --importPath=@mateusmacedo/shared-<name> \
   --bundler=tsc --unitTestRunner=jest --linter=none \
   --tags=type:lib,scope:shared,stack:node
 
 # lib backend (NestJS)
 pnpm nx g @nx/nest:lib libs/backend/<name> \
-  --importPath=@lidercap-apps/backend-<name> \
+  --importPath=@mateusmacedo/backend-<name> \
   --unitTestRunner=jest --linter=none \
   --tags=type:lib,scope:backend,stack:node
 ```
@@ -184,11 +184,11 @@ Depois de gerar, cinco ajustes que o generator não faz:
 
    ```bash
    go -C libs/backend/go/<name> mod edit \
-     -module gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/<name>
+     -module github.com/mateusmacedo/dmpf/libs/backend/go/<name>
    go -C libs/backend/go/<name> mod edit -go=1.26.6   # o generator descarta o patch
    ```
 
-3. **`package.json` privado** — `{"name": "@lidercap-apps/<name>-go", "version": "0.0.0", "private": true}`.
+3. **`package.json` privado** — `{"name": "@mateusmacedo/<name>-go", "version": "0.0.0", "private": true}`.
    Sem ele o `nx release` **aborta** o versionamento do projeto: o `@nx/js` só
    reconhece `package.json` como manifesto, e o `nx.json` resolve a versão do disco.
 
@@ -247,10 +247,10 @@ invalidam o cache desta task.
 
 ```bash
 # Ver a configuração completa resolvida de um projeto
-pnpm nx show project @lidercap-apps/minha-lib
+pnpm nx show project @mateusmacedo/minha-lib
 
 # Versão visual no browser
-pnpm nx show project @lidercap-apps/minha-lib --web
+pnpm nx show project @mateusmacedo/minha-lib --web
 
 # Limpar o cache local
 pnpm nx reset

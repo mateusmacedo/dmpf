@@ -8,10 +8,10 @@ import (
 	"sync"
 	"testing"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-application/example/memory"
-	dmpfports "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-ports"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-testkit/providerkit"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-testkit/tb"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application/example/memory"
+	dmpfports "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-ports"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/providerkit"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/tb"
 )
 
 // The in-memory realization of dmpf-application is the first candidate of the

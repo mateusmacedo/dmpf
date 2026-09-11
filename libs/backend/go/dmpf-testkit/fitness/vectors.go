@@ -1,6 +1,6 @@
 package fitness
 
-import conffit "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/fitness"
+import conffit "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/fitness"
 
 // Vector is one row of RFC §11.3, the map every normative rule has to an
 // executable pair (RAS-01). Cell is the matrix cell the pair exercises, zero

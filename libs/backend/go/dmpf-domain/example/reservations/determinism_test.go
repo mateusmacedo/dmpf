@@ -3,8 +3,8 @@ package reservations_test
 import (
 	"testing"
 
-	dmpfdomain "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-domain"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-domain/example/reservations"
+	dmpfdomain "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-domain"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-domain/example/reservations"
 )
 
 func sameSequence(t *testing.T, a, b []dmpfdomain.DomainEvent) {

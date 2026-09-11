@@ -11,7 +11,7 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	cloudeventsv1 "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/gen/go/io/cloudevents/v1"
+	cloudeventsv1 "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/gen/go/io/cloudevents/v1"
 )
 
 const (

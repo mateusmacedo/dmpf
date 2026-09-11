@@ -5,14 +5,14 @@ import (
 	"strings"
 	"testing"
 
-	dmpfapplication "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-application"
-	ordersapp "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-application/example/orders"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-domain/example/orders"
-	dmpfports "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-ports"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-testkit/clock"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-testkit/ids"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-testkit/serviceskit"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-testkit/tb"
+	dmpfapplication "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application"
+	ordersapp "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application/example/orders"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-domain/example/orders"
+	dmpfports "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-ports"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/clock"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/ids"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/serviceskit"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/tb"
 )
 
 const at = dmpfports.Instant(1_755_432_000_000_000_000)

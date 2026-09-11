@@ -7,15 +7,15 @@ import (
 
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/envelope"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/payloadhash"
-	dmpfsqs "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-provider-sqs"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/envelope"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/payloadhash"
+	dmpfsqs "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-sqs"
 )
 
 func validRaw(t *testing.T, partitionKey string) ([]byte, envelope.Envelope) {
 	t.Helper()
 	env := envelope.Envelope{
-		ID: "evt-1", Source: "urn:lidercap:stock", SpecVersion: envelope.SpecVersion,
+		ID: "evt-1", Source: "urn:dmpf:stock", SpecVersion: envelope.SpecVersion,
 		Type: "stock.reservation.requested.v1", Subject: "reservation/" + partitionKey, Time: timestamppb.New(start),
 		DataSchema: "type.googleapis.com/stock.v1.ReservationRequested", DataContentType: envelope.ContentType,
 		CorrelationID: "corr-1", CausationID: "evt-0", PartitionKey: partitionKey,

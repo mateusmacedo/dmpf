@@ -5,8 +5,8 @@ title: DMPF — ADRs mínimos (tabela ARQ-436 §8)
 stage: done
 priority: P0
 depends_on: [SPEC-8YVF0RR5]
-ticket_url: https://lider-cap.atlassian.net/browse/ARQ-448
-subtask_urls: [https://lider-cap.atlassian.net/browse/ARQ-511, https://lider-cap.atlassian.net/browse/ARQ-512, https://lider-cap.atlassian.net/browse/ARQ-513, https://lider-cap.atlassian.net/browse/ARQ-514, https://lider-cap.atlassian.net/browse/ARQ-515, https://lider-cap.atlassian.net/browse/ARQ-516, https://lider-cap.atlassian.net/browse/ARQ-517, https://lider-cap.atlassian.net/browse/ARQ-518]
+ticket_url: null
+subtask_urls: [ARQ-511, ARQ-512, ARQ-513, ARQ-514, ARQ-515, ARQ-516, ARQ-517, ARQ-518]
 created: 2026-08-13
 ---
 # SPEC-DBTRMM3X: DMPF — ADRs mínimos (tabela ARQ-436 §8)
@@ -26,7 +26,7 @@ sub-spec responde por essas três coisas: redigir os dezenove, promovê-los para
 ## Contexto
 
 - **Umbrella**: [SPEC-QG2N8STY](./SPEC-QG2N8STY-dmpf-foundation.md)
-- **Issue**: [ARQ-448](https://lider-cap.atlassian.net/browse/ARQ-448)
+- **Issue**: ARQ-448
 - **ACs do épico**: AC-01 (ADRs)
 - **Evidência §11**: Escrita das ADRs que estabelecem as decisões de arquitetura que norteiam o projeto
 
@@ -181,7 +181,7 @@ caso a caso e não é antecipada aqui.
 
 ### Divergência de escopo com a story
 
-A story [ARQ-448](https://lider-cap.atlassian.net/browse/ARQ-448) declara, em
+A story ARQ-448 declara, em
 «Escopo», que escrever o conteúdo técnico dos ADRs é responsabilidade das stories
 de origem, reduzindo esta sub-spec a padrão, índice, consistência cruzada e ciclo
 de vida. A RFC §13.1 declara o oposto: a redação, a promoção e o aceite são do

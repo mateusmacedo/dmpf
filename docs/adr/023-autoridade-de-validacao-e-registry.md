@@ -72,14 +72,14 @@ Se existe uma segunda autoridade em runtime — um Schema Registry — e qual, *
 é decidido aqui. Essa é a matéria residual de `ADR-DMPF-N`, e permanece **aberta**:
 
 - **Quem decide (owner):** a série de ADRs estruturais do DMPF, sob FND-11
-  ([ARQ-448](https://lider-cap.atlassian.net/browse/ARQ-448)), que detém a redação,
+  (ARQ-448), que detém a redação,
   a promoção e o aceite de `ADR-DMPF-N`. A escolha é **deferida**, não delegada a
   outrem.
 - **Insumo obrigatório:** o estudo interno de Kafka Schema Registry e validação de
-  esquemas anexado ao épico [ARQ-436](https://lider-cap.atlassian.net/browse/ARQ-436),
+  esquemas anexado ao épico ARQ-436,
   do qual a redação de `ADR-DMPF-N` depende materialmente.
 - **Consumidor condicionado:** FND-06
-  ([ARQ-443](https://lider-cap.atlassian.net/browse/ARQ-443), sob ANC-04), a quem
+  (ARQ-443, sob ANC-04), a quem
   cabe a **operação** de qualquer registry adotado, e cuja operação está
   condicionada a esta decisão.
 - **Prazo:** a fonte de origem **não fixa prazo nem data** para essa decisão — o
@@ -147,5 +147,5 @@ Listá-la como rejeitada anteciparia a pendência que este ADR preserva em abert
   (`ENV-05`); fundamentos correlatos do invariante em §2.1 (`ENV-02`) e §4.4
   (`ENV-23`).
 - SPEC-DBTRMM3X — spec que esta série de ADRs implementa.
-- ARQ-448 — https://lider-cap.atlassian.net/browse/ARQ-448 (FND-11: redação,
+- ARQ-448 — ARQ-448 (FND-11: redação,
   promoção e aceite da série de ADRs do DMPF).

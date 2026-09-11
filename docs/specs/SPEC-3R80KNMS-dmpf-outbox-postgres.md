@@ -5,7 +5,7 @@ title: DMPF KRN-06 — Outbox Postgres: provider, mapeamento e serialização na
 stage: done
 priority: P0
 depends_on: [SPEC-MQA5HAXF, SPEC-WTAXFV8B, SPEC-ZHE7DN1H, SPEC-WYX5GW87]
-ticket_url: https://lider-cap.atlassian.net/browse/ARQ-525
+ticket_url: null
 subtask_urls: []
 created: 2026-09-04
 ---
@@ -60,7 +60,7 @@ realização em memória continua sendo o duplo de teste do `application`.
   célula 12 — dívida declarada na
   [SPEC-ZHE7DN1H](./SPEC-ZHE7DN1H-dmpf-kernel-aplicacao-go.md) (linha 98).
 - **Inspiração**: o exemplo conforme de FND-04 §9.2 e a contraprova de §9.5
-  (publicar dentro da transação); a decisão real de `shared-titulos-services`
+  (publicar dentro da transação); a decisão real de `legado-titulos-shared-services`
   (RFC §7.5), que grava `backoffice_outbox` na transação do caso de uso; a
   cadeia `application → port ← provider → contract` de ADR-021, que mantém as
   células 11, 12 e 24 intocadas; o `Pack` determinístico do `KRN-05`
@@ -234,7 +234,7 @@ exigência abaixo tem origem:
   com `project.json` (nome `dmpf-provider-postgres-go`, tags `type:lib`,
   `scope:backend`, `stack:go`, os cinco targets `fmt-check`, `vet`, `build`,
   `test-race`, `govulncheck` copiados de `dmpf-application`), `package.json`
-  (`@lidercap-apps/dmpf-provider-postgres-go`, `private: true`), `go.mod`
+  (`@mateusmacedo/dmpf-provider-postgres-go`, `private: true`), `go.mod`
   (`go 1.26.4`, `require github.com/jackc/pgx/v5` e
   `google.golang.org/protobuf v1.36.12`), `go.sum`, e entrada `use` no
   `go.work`. Package raiz `dmpfpostgres`.
@@ -429,7 +429,7 @@ exigência abaixo tem origem:
   medido com `-cpu 1` em 15 execuções, falha 5/15 no HEAD limpo de `develop`
   contra 4/15 com estas mudanças. Merece ticket próprio.
 - [x] **Workspace verde**: `pnpm biome ci .` e
-  `pnpm nx affected -t lint,typecheck,test,build --exclude=@nx-base-template/source`.
+  `pnpm nx affected -t lint,typecheck,test,build --exclude=@mateusmacedo/dmpf-source`.
 - [ ] **Gates fail-closed** (em aberto: `buf-breaking`): `dmpf-conformance` e os cinco targets Buf sem
   `continue-on-error`, sem `|| true`.
 - [x] **Determinismo**: duas execuções de `Enqueue` sobre entradas iguais
@@ -457,7 +457,7 @@ exigência abaixo tem origem:
 ## Localização de código
 
 ```text
-lidercap-platform/
+dmpf/
 ├── go.work                                                  # MODIFICAR — use ./libs/backend/go/dmpf-provider-postgres
 ├── .github/workflows/ci.yml                                 # MODIFICAR — services.postgres + env.DMPF_PG_DSN no job main
 ├── contracts/
@@ -478,7 +478,7 @@ lidercap-platform/
 │   ├── go.mod                                               # module .../libs/backend/go/dmpf-provider-postgres, go 1.26.4, require pgx/v5 + protobuf
 │   ├── go.sum                                               # presente: há dependência externa real
 │   ├── project.json                                         # 5 targets copiados de dmpf-application; tags 3D
-│   ├── package.json                                         # @lidercap-apps/dmpf-provider-postgres-go, private
+│   ├── package.json                                         # @mateusmacedo/dmpf-provider-postgres-go, private
 │   ├── dmpf-units.json                                      # 2 unidades provider + 2 external (commit próprio)
 │   ├── README.md                                            # o que o módulo é, como subir o Postgres local, o que fica com KRN-07/08
 │   ├── doc.go                                               # godoc de package: bloco provider, células 25/28/30, o que não contém
@@ -515,8 +515,8 @@ lidercap-platform/
 
 Import paths canônicos (as `canonical_key` das duas unidades novas):
 
-- `gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-provider-postgres`
-- `gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-provider-postgres/example/orders`
+- `github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres`
+- `github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres/example/orders`
 
 **Arquivos a modificar**, em prosa: `go.work` (sexto `use`); `ci.yml`
 (serviço e variável); `order_placed.proto` (campo 6); `order-placed.golden`,

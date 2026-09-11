@@ -5,7 +5,7 @@ import (
 	"sync"
 	"testing"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-testkit/stable"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/stable"
 )
 
 func TestSortStringsReturnsASortedCopy(t *testing.T) {

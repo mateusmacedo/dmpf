@@ -25,7 +25,7 @@ ROOT="$(git rev-parse --show-toplevel)" || { echo "fora de um repositorio git" >
 cd "$ROOT" || exit 2
 
 VERIFICADOR="./libs/backend/go/dmpf-conformance/cmd/dmpf-conformance"
-BASE_IMPORT="gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go"
+BASE_IMPORT="github.com/mateusmacedo/dmpf/libs/backend/go"
 
 PROBE_X_DIR="libs/backend/go/probe-x"
 PROBE_Y_DIR="libs/backend/go/probe-y"

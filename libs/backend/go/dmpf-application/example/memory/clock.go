@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sync"
 
-	dmpfports "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-ports"
+	dmpfports "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-ports"
 )
 
 // FixedClock is a clock that never moves, so a test can assert occurred_at.

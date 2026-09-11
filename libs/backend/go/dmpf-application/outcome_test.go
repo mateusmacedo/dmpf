@@ -3,8 +3,8 @@ package dmpfapplication_test
 import (
 	"testing"
 
-	dmpfapplication "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-application"
-	dmpfdomain "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-domain"
+	dmpfapplication "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application"
+	dmpfdomain "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-domain"
 )
 
 type response struct {

@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/clock"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/clock"
 )
 
 var epoch = time.Date(2026, 9, 4, 12, 0, 0, 0, time.UTC)

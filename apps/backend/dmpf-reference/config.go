@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-app/relay"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-transport/admission"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-transport/deadline"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-app/relay"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-transport/admission"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-transport/deadline"
 )
 
 // Role selects which of the three processes the binary becomes (BLK-02: the

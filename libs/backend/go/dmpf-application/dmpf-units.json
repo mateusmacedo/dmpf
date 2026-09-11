@@ -6,27 +6,21 @@
       "block": "application",
       "bounded_context": "dmpf-kernel",
       "public_integration_surface": false,
-      "include": [
-        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-application"
-      ]
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application"]
     },
     {
       "id": "dmpf-kernel/example-memory",
       "block": "provider",
       "bounded_context": "dmpf-kernel",
       "public_integration_surface": false,
-      "include": [
-        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-application/example/memory"
-      ]
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application/example/memory"]
     },
     {
       "id": "dmpf-kernel/example-orders-application",
       "block": "application",
       "bounded_context": "dmpf-kernel",
       "public_integration_surface": false,
-      "include": [
-        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-application/example/orders"
-      ]
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application/example/orders"]
     },
     {
       "id": "dmpf-kernel/example-reservations-application",
@@ -34,7 +28,7 @@
       "bounded_context": "dmpf-kernel",
       "public_integration_surface": false,
       "include": [
-        "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-application/example/reservations"
+        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application/example/reservations"
       ]
     }
   ],

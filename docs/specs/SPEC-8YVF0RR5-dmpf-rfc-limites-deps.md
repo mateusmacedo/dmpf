@@ -4,8 +4,8 @@ slug: dmpf-rfc-limites-deps
 title: DMPF — RFC, limites arquiteturais e regra de dependência
 stage: done
 priority: P0
-depends_on: [SPEC-K9H204F1]
-ticket_url: https://lider-cap.atlassian.net/browse/ARQ-439
+depends_on: []
+ticket_url: null
 subtask_urls: []
 created: 2026-08-13
 ---
@@ -21,7 +21,7 @@ redação e pelo aceite.
 ## Contexto
 
 - **Umbrella**: [SPEC-QG2N8STY](./SPEC-QG2N8STY-dmpf-foundation.md)
-- **Issue**: [ARQ-439](https://lider-cap.atlassian.net/browse/ARQ-439)
+- **Issue**: ARQ-439
 - **ACs do épico**: AC-01, AC-02
 - **Evidência §11**: RFC revisada, diagramas, matriz de responsabilidades e ADRs estruturais aceitos
 - **Divisão do «aceitos»**: FND-02 aciona os ADRs estruturais; a redação e o

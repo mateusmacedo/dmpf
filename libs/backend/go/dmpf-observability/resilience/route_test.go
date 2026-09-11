@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/resilience"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/resilience"
 )
 
 func hop(dependency string, deadline time.Duration) resilience.Operation {

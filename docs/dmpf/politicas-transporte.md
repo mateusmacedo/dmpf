@@ -4,9 +4,9 @@
 |-------|-------|
 | **Status** | `draft normativo` — promovido para revisão em PR |
 | **Adiciona a** | RFC DMPF Foundation v0.1, pela âncora ANC-04 (RFC §12.3) |
-| **Owner** | Mateus Macedo Dos Anjos (assignee de [ARQ-443](https://lider-cap.atlassian.net/browse/ARQ-443)) |
-| **Épico** | [ARQ-436](https://lider-cap.atlassian.net/browse/ARQ-436) — Golden Path para Sistemas Orientados a Domínio e Mensagens |
-| **Story** | [ARQ-443](https://lider-cap.atlassian.net/browse/ARQ-443) (DMPF-FND-06) |
+| **Owner** | Mateus Macedo Dos Anjos (assignee de ARQ-443) |
+| **Épico** | ARQ-436 — Golden Path para Sistemas Orientados a Domínio e Mensagens |
+| **Story** | ARQ-443 (DMPF-FND-06) |
 | **Spec** | [SPEC-YWFGNPG5](../specs/SPEC-YWFGNPG5-dmpf-politicas-transporte.md) |
 | **Data** | 2026-08-19 |
 | **Revisão** | Plataforma e Arquitetura no PR; **infraestrutura de mensageria** para §11 e §12, sem cuja participação as políticas de broker não passam de proposta; um representante de cada stack (Go e TypeScript) para §10 |
@@ -153,10 +153,10 @@ Registrado como pendência em §18, com dona.
 | Taxonomia de erros de domínio, a sua retryability e o mapeamento semântico | FND-07 — `contexto-erros-seguranca.md`, **publicado**, sob ANC-05 | §10 e §12.4 — aqui só o mapeamento **estrutural** de código de protocolo, e o gesto que a disposição já implica (`TRP-53`) |
 | Contexto de execução: campo do prazo, monotonicidade da propagação, sinal de cancelamento e categoria do estouro | FND-07, **publicado** (`CTX-18` a `CTX-23`) | §10.2 — aqui só o **valor** do prazo, que aquele artefato encaminhou (`GRP-16` a `GRP-18`) |
 | Mecanismo de assinatura e verificação em fronteira não confiável | ANC-03 no contrato, plataforma no mecanismo; o critério de fronteira é `IDN-03` do FND-07 | §18.3, pendência 9 |
-| Circuit breaker, bulkhead, degradação e o runbook de operação de DLQ | FND-08 ([ARQ-445](https://lider-cap.atlassian.net/browse/ARQ-445)), sob ANC-06 | §11, §12 |
-| Instrumento executável de verificação dos vetores, e o oráculo do round-trip | FND-09 ([ARQ-446](https://lider-cap.atlassian.net/browse/ARQ-446)), sob ANC-07 | §5, §18 |
-| Cronograma, faseamento e plano de migração da adoção de Kafka na organização | FND-10 ([ARQ-447](https://lider-cap.atlassian.net/browse/ARQ-447)), sob ANC-09 | §15 |
-| Redação, numeração definitiva e aceite dos ADRs acionados | FND-11 ([ARQ-448](https://lider-cap.atlassian.net/browse/ARQ-448)) | §17 |
+| Circuit breaker, bulkhead, degradação e o runbook de operação de DLQ | FND-08 (ARQ-445), sob ANC-06 | §11, §12 |
+| Instrumento executável de verificação dos vetores, e o oráculo do round-trip | FND-09 (ARQ-446), sob ANC-07 | §5, §18 |
+| Cronograma, faseamento e plano de migração da adoção de Kafka na organização | FND-10 (ARQ-447), sob ANC-09 | §15 |
+| Redação, numeração definitiva e aceite dos ADRs acionados | FND-11 (ARQ-448) | §17 |
 | Escolha de registry de schemas em runtime — se existe, e qual é | `ADR-DMPF-N`, acionado por FND-05 §9.2, pendente no FND-11 | §11 — aqui só a operação, e condicionada |
 | Fonte de verdade documental de OpenAPI e AsyncAPI: onde o arquivo vive, quem o mantém, como versiona | Pendência 2 da ANC-03 (FND-05 §10.4), sem dona declarada | §9, §16 |
 | Dimensionamento de partições, retenção, IAM e topologia de broker em produção | Épicos de kernel e providers, com infraestrutura | §11, §12 |
@@ -323,7 +323,7 @@ encaminhamento não é aceite, e o rastreio não converte um no outro.
 | 1 | Capítulo da RFC: políticas de transporte (matriz e política por transporte) | este artefato | previsto satisfeito |
 | 2 | Tabela comparativa Kafka × SNS/SQS nas dimensões normativas | §14 | previsto satisfeito |
 | 3 | Diretriz AsyncAPI com exemplo de documento de canal | §16 | previsto satisfeito |
-| 4 | ADR-010 e ADR-011 **aceitos** | §17 | **fora do alcance deste artefato** — a redação e o aceite são do FND-11 ([ARQ-448](https://lider-cap.atlassian.net/browse/ARQ-448)); aqui os dois ficam no estado `acionado` |
+| 4 | ADR-010 e ADR-011 **aceitos** | §17 | **fora do alcance deste artefato** — a redação e o aceite são do FND-11 (ARQ-448); aqui os dois ficam no estado `acionado` |
 
 ### §3.3 Definition of Done da ARQ-443
 
@@ -768,7 +768,7 @@ divisão é a mesma que o FND-07 registrou ao encaminhar o assunto às duas ânc
 os predicados de modo verificável, e onde ele vive no repositório de contratos —
 permanece a pendência 9 do FND-05 §10.4. Este artefato fixa **onde** a validação
 ocorre, o seu gesto e o seu destino; o instrumento que a executa é de FND-09
-([ARQ-446](https://lider-cap.atlassian.net/browse/ARQ-446)), sob ANC-07.
+(ARQ-446), sob ANC-07.
 
 ---
 
@@ -841,24 +841,24 @@ política Kafka, que não tem caso observado.
 
 | Caso do inventário | Como está hoje | Linha da matriz | Escolha de transporte |
 |--------------------|----------------|-----------------|-----------|
-| `shared-ro-sync-services` — sync de read-only de Postgres para MSSQL | SNS → SQS com `FilterPolicy`; consumidores idempotentes por upsert | fan-out com filtro por atributo | **conforme e permanece**: é o caso em que SNS/SQS é superior, não legado |
-| `shared-titulos-services` | SQS com outbox e inbox; worker lê a outbox depois do commit | evento de domínio, acervo existente | **conforme**: a sequência já é a de FND-04; a migração para Kafka é opcional |
-| `telesena-live-services` | SQS; delete depois do sucesso; retry por visibility timeout; unique index e guards parciais | evento de domínio, acervo existente | **conforme com ressalva**: o gesto de ACK satisfaz `TRP-26`, mas a idempotência por unique index é de negócio, não a inbox de FND-04 — §13 separa as duas camadas |
-| `rendafacil-services` — API Fiber com `pkg/sqs` | REST na borda e SQS internamente | duas linhas: interface externa e evento interno | **classificada**: a separação REST na borda e mensageria dentro é o que a matriz prescreve |
-| `telesena-ativavel-services` | SQS via cliente compartilhado | evento de domínio, acervo existente | **classificada**: o cliente compartilhado favorece a convergência de §12 |
+| `legado-sync-services` — sync de read-only de Postgres para MSSQL | SNS → SQS com `FilterPolicy`; consumidores idempotentes por upsert | fan-out com filtro por atributo | **conforme e permanece**: é o caso em que SNS/SQS é superior, não legado |
+| `legado-titulos-shared-services` | SQS com outbox e inbox; worker lê a outbox depois do commit | evento de domínio, acervo existente | **conforme**: a sequência já é a de FND-04; a migração para Kafka é opcional |
+| `legado-live-services` | SQS; delete depois do sucesso; retry por visibility timeout; unique index e guards parciais | evento de domínio, acervo existente | **conforme com ressalva**: o gesto de ACK satisfaz `TRP-26`, mas a idempotência por unique index é de negócio, não a inbox de FND-04 — §13 separa as duas camadas |
+| `legado-rendas-services` — API Fiber com `pkg/sqs` | REST na borda e SQS internamente | duas linhas: interface externa e evento interno | **classificada**: a separação REST na borda e mensageria dentro é o que a matriz prescreve |
+| `legado-ativavel-services` | SQS via cliente compartilhado | evento de domínio, acervo existente | **classificada**: o cliente compartilhado favorece a convergência de §12 |
 
 `registro` — **Classificar a escolha de transporte não é atestar conformidade da
 implementação.** O inventário registra, para dois dos casos acima, lacuna que este
-artefato não pode declarar resolvida: em `rendafacil-services`, delete em erro que pode
+artefato não pode declarar resolvida: em `legado-rendas-services`, delete em erro que pode
 perder mensagem, com idempotência ponta a ponta não garantida; em
-`telesena-ativavel-services`, lacuna de idempotência no consumidor. Ambas violam a
+`legado-ativavel-services`, lacuna de idempotência no consumidor. Ambas violam a
 ordem de ACK de `TRP-26` ou a semântica que P0-3 fixa. A coluna acima diz que a matriz
 **classifica** o caso; o veredicto de conformidade da implementação é do épico que a
 corrigir, e CA-6 não o usa como validação.
 
 `registro` — Duas observações do inventário que a matriz não resolve, e que ficam
 nomeadas: os repositórios com SQS em runtime usam **envelope JSON ad hoc**, que o
-FND-05 substitui; e `golibs` mantém **dois caminhos SQS paralelos**, um sobre
+FND-05 substitui; e `legado-golibs` mantém **dois caminhos SQS paralelos**, um sobre
 Watermill e outro com SDK v1. Convergir os dois é trabalho dos épicos de kernel, não
 deste artefato.
 
@@ -1184,7 +1184,7 @@ suficiente para um replay conforme —, com o erro sanitizado conforme a regra a
 daquela subseção.
 
 `encaminhado` — Limiar de tentativas, prazos de backoff, retenção da DLQ e o runbook
-de operação são de FND-08 ([ARQ-445](https://lider-cap.atlassian.net/browse/ARQ-445)),
+de operação são de FND-08 (ARQ-445),
 sob ANC-06, como o FND-04 §7.4 já havia encaminhado.
 
 ### §11.4 Operação de registry de schemas
@@ -1661,7 +1661,7 @@ fonte de verdade documental é a pendência da ANC-03.
 
 `recepcionado` — RFC §13.1 define o gesto, e este artefato o repete sem alteração:
 acionar é **nomear** o ADR, **definir o seu assunto**, **registrar a origem** e
-**encaminhar** ao FND-11 ([ARQ-448](https://lider-cap.atlassian.net/browse/ARQ-448)), a
+**encaminhar** ao FND-11 (ARQ-448), a
 quem cabem a redação, a promoção para a faixa reservada em `docs/adr/` e o aceite.
 
 `normativo` — Nenhum ADR é redigido nem aceito aqui. Os dois registros de §17.2
@@ -1792,7 +1792,7 @@ texto; todos são escalados.
 | 4 | **Modalidade de referência no envelope**, sem a qual o claim-check de `TRP-21` não é caminho conforme e payload acima do limite do transporte não tem solução declarada | pendente | ANC-03 / FND-05, por nova major do perfil (`ENV-20`) |
 | 5 | Fonte de verdade documental de OpenAPI e AsyncAPI — onde vive, quem mantém, como versiona | pendente | Pendência 2 da ANC-03, herdada do FND-05 §10.4, ainda sem dona |
 | 6 | Superfície de API REST: desenho de recurso, paginação, forma do corpo de erro, versionamento | pendente | Sem dona; a base conceitual §7.6 segue vigente |
-| 7 | Numeração definitiva de `ADR-DMPF-O` e `ADR-DMPF-P`, e a redação de ambos | pendente | FND-11 ([ARQ-448](https://lider-cap.atlassian.net/browse/ARQ-448)) |
+| 7 | Numeração definitiva de `ADR-DMPF-O` e `ADR-DMPF-P`, e a redação de ambos | pendente | FND-11 (ARQ-448) |
 | 8 | Escolha de registry de schemas em runtime, de que `KFK-13` a `KFK-18` dependem | pendente | `ADR-DMPF-N`, acionado pelo FND-05, no FND-11 |
 | 9 | Mecanismo de assinatura e verificação em fronteira não confiável — obrigação 24 | pendente | ANC-03 no contrato, plataforma no mecanismo; o critério de fronteira confiável já é `IDN-03` do FND-07 |
 
@@ -1807,7 +1807,7 @@ obrigações.
 
 `registro` — O Definition of Done da story pede que os cenários por transporte sejam
 encaminhados ao catálogo de testes. Encaminhados a FND-09
-([ARQ-446](https://lider-cap.atlassian.net/browse/ARQ-446)), sob ANC-07:
+(ARQ-446), sob ANC-07:
 
 | Grupo | Origem | O que verifica |
 |-------|--------|----------------|

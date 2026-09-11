@@ -3,7 +3,7 @@ package conformance_test
 import (
 	"testing"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/internal/rule"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/internal/rule"
 )
 
 // O `id` só é único dentro de um manifesto: casar a exceção só por ele faz a do

@@ -3,7 +3,7 @@ package domainkit
 import (
 	"strconv"
 
-	dmpfdomain "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-domain"
+	dmpfdomain "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-domain"
 )
 
 // Subject is how the kit observes one UPR of an aggregate, everything by value

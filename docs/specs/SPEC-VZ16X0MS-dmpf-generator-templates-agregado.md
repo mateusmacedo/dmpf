@@ -279,7 +279,7 @@ func Reserve(b Booking, cmd ReserveCommand, at Instant) (Accepted[ReserveRespons
   igual.
 - [ ] Nenhum arquivo de negócio está no inventário; todo arquivo mecânico está
   e leva o cabeçalho na sintaxe própria (JSON só pelo inventário).
-- [ ] `pnpm nx test @lidercap-apps/dmpf-plugin` verde.
+- [ ] `pnpm nx test @mateusmacedo/dmpf-plugin` verde.
 
 ### Cenários de teste
 

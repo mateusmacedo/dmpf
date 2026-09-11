@@ -7,8 +7,8 @@ import (
 
 	"go.opentelemetry.io/otel/metric"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/metrics"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-transport/admission"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/metrics"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-transport/admission"
 )
 
 // TenantFunc resolves the tenant of a request. The identity of FND-07 has no

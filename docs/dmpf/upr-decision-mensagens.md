@@ -4,9 +4,9 @@
 |-------|-------|
 | **Status** | `draft normativo` — promovido para revisão em PR |
 | **Adiciona a** | RFC DMPF Foundation v0.1, pela âncora ANC-01 (RFC §12.3) |
-| **Owner** | Mateus Macedo Dos Anjos (assignee de [ARQ-440](https://lider-cap.atlassian.net/browse/ARQ-440)) |
-| **Épico** | [ARQ-436](https://lider-cap.atlassian.net/browse/ARQ-436) — Golden Path para Sistemas Orientados a Domínio e Mensagens |
-| **Story** | [ARQ-440](https://lider-cap.atlassian.net/browse/ARQ-440) (DMPF-FND-03) |
+| **Owner** | Mateus Macedo Dos Anjos (assignee de ARQ-440) |
+| **Épico** | ARQ-436 — Golden Path para Sistemas Orientados a Domínio e Mensagens |
+| **Story** | ARQ-440 (DMPF-FND-03) |
 | **Spec** | [SPEC-8MNDEWDP](../specs/SPEC-8MNDEWDP-dmpf-upr-decision-mensagens.md) |
 | **Data** | 2026-08-17 |
 | **Revisão** | Plataforma e Arquitetura no PR; um representante por stack (Go, TypeScript) para os exemplos de §8 |
@@ -126,13 +126,13 @@ fronteira, e para: o outro lado é da dona.
 
 | Tema | Dona | Fronteira aparece em |
 |------|------|----------------------|
-| Unit of Work, inbox, outbox e relay | FND-04 ([ARQ-441](https://lider-cap.atlassian.net/browse/ARQ-441)) | §4, §8 |
-| Protobuf, CloudEvents, OpenAPI e AsyncAPI; codec, registry e versionamento de wire | FND-05 ([ARQ-442](https://lider-cap.atlassian.net/browse/ARQ-442)) | §5, §6 |
-| Políticas por transporte | FND-06 ([ARQ-443](https://lider-cap.atlassian.net/browse/ARQ-443)) | §6 |
-| Contexto de execução, taxonomia de erros e segurança | FND-07 ([ARQ-444](https://lider-cap.atlassian.net/browse/ARQ-444)) | §2, §4 |
-| Resiliência e observabilidade | FND-08 ([ARQ-445](https://lider-cap.atlassian.net/browse/ARQ-445)) | §2 |
-| Testes e interoperabilidade entre stacks | FND-09 ([ARQ-446](https://lider-cap.atlassian.net/browse/ARQ-446)) | §3, §10 |
-| Redação, promoção e aceite dos ADRs | FND-11 ([ARQ-448](https://lider-cap.atlassian.net/browse/ARQ-448)) | §9 |
+| Unit of Work, inbox, outbox e relay | FND-04 (ARQ-441) | §4, §8 |
+| Protobuf, CloudEvents, OpenAPI e AsyncAPI; codec, registry e versionamento de wire | FND-05 (ARQ-442) | §5, §6 |
+| Políticas por transporte | FND-06 (ARQ-443) | §6 |
+| Contexto de execução, taxonomia de erros e segurança | FND-07 (ARQ-444) | §2, §4 |
+| Resiliência e observabilidade | FND-08 (ARQ-445) | §2 |
+| Testes e interoperabilidade entre stacks | FND-09 (ARQ-446) | §3, §10 |
+| Redação, promoção e aceite dos ADRs | FND-11 (ARQ-448) | §9 |
 
 Fora do épico inteiro, por P0-4: kernels Go e TypeScript, adapters e providers
 de produção. Este artefato especifica a forma da unidade de processamento e das
@@ -301,7 +301,7 @@ revisão.
 `encaminhado` — Os códigos de diagnóstico que um verificador emite para cada
 invariante `import-verifiable`, e os vetores positivos e negativos pareados
 Go/TypeScript que a cadeia de RFC §14.5 exige, pertencem a FND-09
-([ARQ-446](https://lider-cap.atlassian.net/browse/ARQ-446)). §10 registra a
+(ARQ-446). §10 registra a
 pendência.
 
 ### §2.3 Ciclo de vida
@@ -332,9 +332,9 @@ o ciclo de vida é normatizado aqui em vez de deixado por implicação.
 
 `encaminhado` — O ciclo de vida do **application service** — escopo por
 requisição, delimitação da Unit of Work, propagação de contexto e cancelamento —
-é de FND-04 ([ARQ-441](https://lider-cap.atlassian.net/browse/ARQ-441)) na parte
+é de FND-04 (ARQ-441) na parte
 transacional e de FND-07
-([ARQ-444](https://lider-cap.atlassian.net/browse/ARQ-444)) na parte de
+(ARQ-444) na parte de
 contexto. §4 apresenta a fronteira entre os dois sem normatizar o outro lado.
 
 ### §2.4 Determinismo
@@ -382,7 +382,7 @@ ordenada; o benefício é que "mesmo desfecho" passa a ter significado
 comparável entre Go e TypeScript.
 
 `encaminhado` — Os vetores que exercitam determinismo em ambas as stacks são de
-FND-09 ([ARQ-446](https://lider-cap.atlassian.net/browse/ARQ-446)). §8 traz o
+FND-09 (ARQ-446). §8 traz o
 exemplo de dupla execução em pseudocódigo; §10 registra a pendência de handoff.
 
 ---
@@ -544,7 +544,7 @@ foi descartada por contradizer as decisões técnicas da spec aprovada.
 
 `encaminhado` — Os vetores que exercitam os dois ramos em Go e TypeScript,
 comprovando que as duas realizações produzem observações equivalentes, são de
-FND-09 ([ARQ-446](https://lider-cap.atlassian.net/browse/ARQ-446)). Esse
+FND-09 (ARQ-446). Esse
 contrato **ainda não existe** naquela sub-spec: §10 registra a pendência de
 handoff em vez de pressupor a cobertura.
 
@@ -569,7 +569,7 @@ o que ele é e o que ele não oferece. Elas não obrigam quem o recebe.
 
 `encaminhado` — O que o chamador faz com o desfecho — ler, converter, encaminhar,
 persistir — é da camada que o consome, e a parte transacional disso é de FND-04
-([ARQ-441](https://lider-cap.atlassian.net/browse/ARQ-441)). Este artefato fixa
+(ARQ-441). Este artefato fixa
 que o desfecho **não dá meios** de ser adulterado; não pode obrigar o consumidor
 a se comportar de determinada forma, porque isso está fora da ANC-01.
 
@@ -582,7 +582,7 @@ de implementação, e os três aparecem no mesmo caso de uso.
 |------|---------|-----------|------|
 | `Rejected` | Variante do desfecho da UPR | Domínio, no retorno da UPR | §3 |
 | `Rejection` | Tipo de mensagem: resultado negativo esperado e tipado | Domínio e fronteira de aplicação | §5 |
-| `DomainRejection` | Categoria na taxonomia de erros, com mapeamento de protocolo | Borda de aplicação | FND-07 ([ARQ-444](https://lider-cap.atlassian.net/browse/ARQ-444)) |
+| `DomainRejection` | Categoria na taxonomia de erros, com mapeamento de protocolo | Borda de aplicação | FND-07 (ARQ-444) |
 
 Como os três se encadeiam: a UPR devolve `Rejected`, carregando uma `Rejection`.
 Quando o caso de uso precisa comunicar esse desfecho para fora do processo, a
@@ -757,7 +757,7 @@ processá-la, e a coluna deixaria de significar a mesma coisa em todas as linhas
 `encaminhado` — Emissor, consumidor e ciclo de vida do `Integration event`
 aparecem acima para completar o quadro; a norma sobre eles — formato,
 versionamento, compatibilidade e depreciação — é de FND-05
-([ARQ-442](https://lider-cap.atlassian.net/browse/ARQ-442)). O agendamento de
+(ARQ-442). O agendamento de
 `Job`, incluindo periodicidade, reentrância e garantias de execução, não é
 normatizado aqui.
 
@@ -905,10 +905,10 @@ implementação, e uma refatoração interna que renomeie ou divida um evento qu
 consumidores externos que ninguém sabia existir.
 
 `encaminhado` — Ficam com FND-05
-([ARQ-442](https://lider-cap.atlassian.net/browse/ARQ-442)) o formato do
+(ARQ-442) o formato do
 integration event, o codec, o registry, o namespacing, a política de
 compatibilidade e a assinatura concreta do mapeamento. Ficam com FND-04
-([ARQ-441](https://lider-cap.atlassian.net/browse/ARQ-441)) a gravação na outbox
+(ARQ-441) a gravação na outbox
 dentro da mesma transação e **o bloco em que o mapeamento reside**, escolhido
 dentro do que a matriz de RFC §7.4 permite.
 
@@ -1042,7 +1042,7 @@ sequência vazia apagaria a razão da recusa, que é justamente o ganho de `DEC-
 de estado, controle de versão, leitura de eventos gravados sob forma antiga) é da
 camada de aplicação e da infraestrutura, e não é normatizada aqui; a parte
 transacional é de FND-04
-([ARQ-441](https://lider-cap.atlassian.net/browse/ARQ-441)).
+(ARQ-441).
 
 `normativo` `ESC-05` — a durabilidade do evento não o promove a contrato
 público. Um contexto que adota Event Sourcing não abre o próprio fluxo para
@@ -1163,7 +1163,7 @@ entrada nas duas execuções; ele não afirma que aplicar o comando duas vezes a
 mesmo pedido real deixaria três itens. Determinismo é propriedade da função —
 mesma entrada, mesmo desfecho. Idempotência é propriedade do efeito acumulado, e
 depende de deduplicação na aplicação, que é de FND-04
-([ARQ-441](https://lider-cap.atlassian.net/browse/ARQ-441)).
+(ARQ-441).
 
 ### §8.3 Exemplo 2 — rejeição tipada, sem exceção e sem evento
 
@@ -1260,10 +1260,10 @@ camada de aplicação e infraestrutura — não normatizado aqui (FND-04)
 
 | Trecho | Força | Dona |
 |--------|-------|------|
-| Recepção, deduplicação e confirmação da mensagem consumida | `encaminhado` | FND-04 ([ARQ-441](https://lider-cap.atlassian.net/browse/ARQ-441)) |
+| Recepção, deduplicação e confirmação da mensagem consumida | `encaminhado` | FND-04 (ARQ-441) |
 | Tradução da entrada e carga do estado | `encaminhado` — o resultado é que importa: a UPR recebe domínio, por `UPR-I11`, e recebe o estado pronto, por `UPR-I07` | FND-04 |
 | A decisão | `normativo` | §2, §3 |
-| Conversão dos eventos de domínio para integração | `normativo` quanto à regra de conversão (§6.3); `encaminhado` quanto ao mecanismo | §6.3; FND-04 e FND-05 ([ARQ-442](https://lider-cap.atlassian.net/browse/ARQ-442)) |
+| Conversão dos eventos de domínio para integração | `normativo` quanto à regra de conversão (§6.3); `encaminhado` quanto ao mecanismo | §6.3; FND-04 e FND-05 (ARQ-442) |
 
 `normativo` — um consumidor de mensageria **não** é uma UPR (§2.1). Ele orquestra
 uma: recebe do transporte, traduz, carrega estado, chama a decisão e cuida do
@@ -1280,7 +1280,7 @@ definição.
 `recepcionado` — RFC §13.1 define o gesto e este artefato o repete sem alteração:
 acionar é **nomear** o ADR, **definir o seu assunto**, **registrar a origem** e
 **encaminhar** ao FND-11
-([ARQ-448](https://lider-cap.atlassian.net/browse/ARQ-448)), a quem cabem a
+(ARQ-448), a quem cabem a
 redação, a promoção para `docs/adr/` na faixa `010`–`024` e o aceite.
 
 `normativo` — Nenhum ADR é redigido nem aceito aqui. Os dois registros de §9.2
@@ -1433,7 +1433,7 @@ equivalência, pendentes em §10.4. Nenhum dos três é satisfeito por este arqu
 
 `encaminhado` — §3.4 normatiza que duas realizações do desfecho são conformes
 quando produzem observações equivalentes na fronteira, e delega a FND-09
-([ARQ-446](https://lider-cap.atlassian.net/browse/ARQ-446)) os vetores que
+(ARQ-446) os vetores que
 comprovam essa equivalência. **Esse contrato ainda não existe naquela sub-spec.**
 
 O que o handoff precisa cobrir, para que o elo final da cadeia de §10.1 feche:

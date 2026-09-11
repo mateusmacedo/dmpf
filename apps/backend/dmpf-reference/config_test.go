@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	dmpfreference "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/apps/backend/dmpf-reference"
+	dmpfreference "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference"
 )
 
 const testDSN = "postgres://app:app@localhost:5432/app?sslmode=disable"

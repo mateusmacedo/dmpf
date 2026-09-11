@@ -21,7 +21,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: api
-          image: ghcr.io/lidercap-apps/dmpf-reference:latest
+          image: ghcr.io/mateusmacedo/dmpf-reference:latest
           args: ['--role', 'api']
           ports:
             - name: http

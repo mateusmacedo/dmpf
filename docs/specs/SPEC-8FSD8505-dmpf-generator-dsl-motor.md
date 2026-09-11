@@ -273,7 +273,7 @@ tools/dmpf-plugin/README.md   — MODIFICAR: seção da definição
 
 ### Fluxo principal
 
-1. `pnpm nx g @lidercap-apps/dmpf-plugin:bounded-context bookings
+1. `pnpm nx g @mateusmacedo/dmpf-plugin:bounded-context bookings
    --bounded-context resource-scheduling --definition
    tools/dmpf-plugin/examples/bookings.jsonc`.
 2. Validação de opções (como hoje) e da definição (schema + semântica); recusa
@@ -347,7 +347,7 @@ report(writer.created, writer.rewritten, writer.preserved, orphans(model, tree))
   (identificadores, códigos de rejeição, messages).
 - [ ] Duas execuções → bytes idênticos; `git status --porcelain` idêntico após
   `--dry-run`.
-- [ ] `pnpm nx test @lidercap-apps/dmpf-plugin`, `typecheck` e `biome ci`
+- [ ] `pnpm nx test @mateusmacedo/dmpf-plugin`, `typecheck` e `biome ci`
   verdes; nenhuma dependência nova no `package.json`.
 
 ### Cenários de teste

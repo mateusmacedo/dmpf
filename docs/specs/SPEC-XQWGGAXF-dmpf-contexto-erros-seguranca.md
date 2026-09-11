@@ -5,7 +5,7 @@ title: DMPF — Execution context, erros, segurança e multi-tenancy
 stage: done
 priority: P0
 depends_on: [SPEC-8YVF0RR5]
-ticket_url: https://lider-cap.atlassian.net/browse/ARQ-444
+ticket_url: null
 subtask_urls: []
 created: 2026-08-13
 ---
@@ -19,7 +19,7 @@ Entregar o item lógico **FND-07** do épico ARQ-436
 ## Contexto
 
 - **Umbrella**: [SPEC-QG2N8STY](./SPEC-QG2N8STY-dmpf-foundation.md)
-- **Issue**: [ARQ-444](https://lider-cap.atlassian.net/browse/ARQ-444)
+- **Issue**: ARQ-444
 - **ACs do épico**: AC-08
 - **Evidência §11**: Modelos comuns, mapeamentos de erro e threat model aprovados
 
@@ -164,7 +164,7 @@ entregável do FND-09. Ambos aparecem em «Escopo fora».
 ### Critérios de aceite
 
 - [x] **[P0] Modelo de contexto e erros promovido para `docs/dmpf/contexto-erros-seguranca.md` e aprovado em PR** — PR #10, mergeado em `develop`
-- [x] **[P0] Threat model revisado por Segurança no artefato promovido** — revisão executada em [ARQ-488](https://lider-cap.atlassian.net/browse/ARQ-488), sob [SPEC-DK8QQSDQ](./SPEC-DK8QQSDQ-revisao-seguranca-fnd-07.md). Titular do papel atribuído pelo [ADR-029](../adr/029-titular-da-revisao-de-seguranca-fnd-07.md), sem independência entre autor e revisor e com re-revisão condicionada à constituição da área de Segurança. Parecer em [`revisao-seguranca-fnd-07.md`](../dmpf/revisao-seguranca-fnd-07.md), desfecho **aprovado com ressalvas**
+- [x] **[P0] Threat model revisado por Segurança no artefato promovido** — revisão executada em ARQ-488, sob [SPEC-DK8QQSDQ](./SPEC-DK8QQSDQ-revisao-seguranca-fnd-07.md). Titular do papel atribuído pelo [ADR-029](../adr/029-titular-da-revisao-de-seguranca-fnd-07.md), sem independência entre autor e revisor e com re-revisão condicionada à constituição da área de Segurança. Parecer em [`revisao-seguranca-fnd-07.md`](../dmpf/revisao-seguranca-fnd-07.md), desfecho **aprovado com ressalvas**
 - [x] **[P0] Mapeamentos REST/gRPC/mensageria documentados**
 
 ### Cenários de teste (mínimo 3)
@@ -206,7 +206,7 @@ ENTÃO o campo aparece redigido na origem, e o valor original não chega ao
   chave composta são escolha do provider e do kernel. Aqui se normatiza o
   resultado fail-closed, não a técnica que o realiza.
 - **Verificação executável do isolamento**: o instrumento de teste e o oráculo são
-  de FND-09 ([ARQ-446](https://lider-cap.atlassian.net/browse/ARQ-446)), sob
+  de FND-09 (ARQ-446), sob
   ANC-07. Aqui se declara o resultado que o teste de lá deve constatar.
 - **Taxonomia corporativa de classificação de dados**: consumida como entrada
   quando existir. Este artefato produz o critério técnico de sensibilidade

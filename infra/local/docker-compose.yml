@@ -5,7 +5,7 @@
 # eles precisam) ou `--profile all`. Valores sensíveis vêm de .env (ignorado
 # pelo git; ver .env.example); os defaults servem apenas ao desenvolvimento local.
 
-name: nx-base-template-local
+name: dmpf-local
 
 include:
   - compose/postgres.yml

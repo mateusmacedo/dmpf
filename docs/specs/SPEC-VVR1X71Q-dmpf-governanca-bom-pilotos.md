@@ -4,8 +4,8 @@ slug: dmpf-governanca-bom-pilotos
 title: DMPF — Governança, BOM, pilotos e backlog das próximas fases
 stage: done
 priority: P0
-depends_on: [SPEC-K9H204F1]
-ticket_url: https://lider-cap.atlassian.net/browse/ARQ-447
+depends_on: []
+ticket_url: null
 subtask_urls: []
 created: 2026-08-13
 ---
@@ -19,7 +19,7 @@ Entregar o item lógico **FND-10** do épico ARQ-436
 ## Contexto
 
 - **Umbrella**: [SPEC-QG2N8STY](./SPEC-QG2N8STY-dmpf-foundation.md)
-- **Issue**: [ARQ-447](https://lider-cap.atlassian.net/browse/ARQ-447)
+- **Issue**: ARQ-447
 - **ACs do épico**: AC-11, AC-12
 - **Âncoras da RFC**: **ANC-09** (governança, BOM e pilotos) e **ANC-08** (processo
   de autorização da classificação). Esta spec opera sob **duas** âncoras — é a única

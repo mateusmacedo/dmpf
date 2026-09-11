@@ -29,7 +29,7 @@ runs:
     # GOPRIVATE já implica GONOPROXY e GONOSUMDB, então basta ela.
     - name: Configure private module path
       shell: bash
-      run: echo "GOPRIVATE=gitea.lidercap.com.br" >> "$GITHUB_ENV"
+      run: echo "GOPRIVATE=github.com" >> "$GITHUB_ENV"
 
     # O post-step do setup-go só salva em cache miss e salva o que houver: um PR sem
     # projeto Go afetado semearia um GOCACHE vazio que os hits seguintes nunca substituem.

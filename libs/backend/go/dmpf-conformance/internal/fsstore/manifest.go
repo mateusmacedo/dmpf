@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/internal/manifest"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/internal/manifest"
 )
 
 const ManifestFileName = "dmpf-units.json"

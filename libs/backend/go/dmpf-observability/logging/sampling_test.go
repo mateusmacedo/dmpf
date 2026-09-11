@@ -9,8 +9,8 @@ import (
 
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/logging"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/tracing"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/logging"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/tracing"
 )
 
 func lines(t *testing.T, config logging.Config, emit func(logger *slog.Logger)) int {

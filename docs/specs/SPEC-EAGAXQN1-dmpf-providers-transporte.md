@@ -5,7 +5,7 @@ title: DMPF KRN-10 — Providers de transporte: gRPC, REST, Kafka e SNS/SQS
 stage: done
 priority: P1
 depends_on: [SPEC-WYX5GW87, SPEC-NYD18TGD, SPEC-ANZX2WPG, SPEC-CGPX20NP]
-ticket_url: https://lider-cap.atlassian.net/browse/ARQ-529
+ticket_url: null
 subtask_urls: []
 created: 2026-09-06
 ---
@@ -619,7 +619,7 @@ Run(ctx):
   prevê.
 
 - **`aws-sdk-go-v2` para SQS e SNS**: é o SDK oficial e o já presente no
-  acervo (`SPEC-K9H204F1`, inventário de `golibs` e `rendafacil-services`).
+  acervo (a análise AS-IS de sistemas legados, inventário de `legado-golibs` e `legado-rendas-services`).
   Versões pinadas por módulo de serviço, como o SDK é publicado.
 
 - **Publisher decodifica o envelope para ler a chave**: `relay.Publisher`

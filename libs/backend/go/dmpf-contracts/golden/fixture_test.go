@@ -14,9 +14,9 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/envelope"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-contracts/payloadhash"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-testkit/golden"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/envelope"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/payloadhash"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/golden"
 )
 
 // The fixture shape is the kit's (FIX-02): the generator writes exactly what
@@ -83,7 +83,7 @@ func (s fixtureSpec) read(t *testing.T, fields map[string]string) proto.Message 
 func (s fixtureSpec) baseEnvelope() map[string]string {
 	return map[string]string{
 		"id":              "evt-0001",
-		"source":          "urn:lidercap:orders",
+		"source":          "urn:dmpf:orders",
 		"specversion":     envelope.SpecVersion,
 		"type":            s.identity.Type,
 		"subject":         "order/o-1001",

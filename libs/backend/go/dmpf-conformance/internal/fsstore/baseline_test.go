@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/internal/baseline"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/internal/fsstore"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/internal/rule"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/internal/baseline"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/internal/fsstore"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/internal/rule"
 )
 
 func escreverBaselineBruto(t *testing.T, raiz, conteudo string) {

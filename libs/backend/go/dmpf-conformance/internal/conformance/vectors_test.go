@@ -10,9 +10,9 @@ import (
 	"slices"
 	"testing"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/fitness"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/internal/port"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-conformance/internal/rule"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/fitness"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/internal/port"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/internal/rule"
 )
 
 type memGraph struct {

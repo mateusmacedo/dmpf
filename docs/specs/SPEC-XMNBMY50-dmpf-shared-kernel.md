@@ -5,7 +5,7 @@ title: DMPF — Shared kernel, o consumo do kernel por outros bounded contexts
 stage: done
 priority: P1
 depends_on: [SPEC-WTAXFV8B]
-ticket_url: https://lider-cap.atlassian.net/browse/ARQ-553
+ticket_url: null
 subtask_urls: []
 created: 2026-09-09
 ---

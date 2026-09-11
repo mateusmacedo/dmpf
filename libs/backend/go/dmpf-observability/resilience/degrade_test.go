@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/metrics"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/redact"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability/resilience"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/metrics"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/redact"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/resilience"
 )
 
 func degrading(t *testing.T, mode resilience.Degradation, instruments *metrics.Instruments, outcome error) resilience.Call {

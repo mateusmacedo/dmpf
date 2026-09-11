@@ -138,5 +138,5 @@ blocos `registro` e `normativo` além do `rationale` de §13, não num único `r
   escopos de deduplicação), §14 (Kafka e SNS/SQS lado a lado) e §15
   (coexistência dos dois transportes).
 - SPEC-DBTRMM3X — especificação da série de ADRs do DMPF, que este ADR implementa.
-- ARQ-448 — https://lider-cap.atlassian.net/browse/ARQ-448 (FND-11, redação,
+- ARQ-448 — ARQ-448 (FND-11, redação,
   promoção e aceite da série de ADRs do DMPF).

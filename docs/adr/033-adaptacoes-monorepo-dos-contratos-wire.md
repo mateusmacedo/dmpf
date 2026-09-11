@@ -132,7 +132,7 @@ evolução é externa.
 `REP-03` pede owner efetivo. O Gitea não lê um `CODEOWNERS` aninhado em
 `contracts/`; o arquivo lido é `.gitea/CODEOWNERS`, e é lá que os padrões de
 `contracts/proto/company/orders/` e `contracts/fixtures/orders/` apontam para
-`@lidercap-apps/tech-leads`. Criar `contracts/CODEOWNERS` satisfaria a figura
+`@mateusmacedo/tech-leads`. Criar `contracts/CODEOWNERS` satisfaria a figura
 da norma, não a regra.
 
 ### Código gerado no verificador é história futura

@@ -5,7 +5,7 @@ title: DMPF KRN-03 — Kernel de domínio Go: UPR, Decision e Rejection
 stage: done
 priority: P0
 depends_on: [SPEC-MQA5HAXF, SPEC-WTAXFV8B]
-ticket_url: https://lider-cap.atlassian.net/browse/ARQ-522
+ticket_url: null
 subtask_urls: []
 created: 2026-09-02
 ---
@@ -327,7 +327,7 @@ provider nesta entrega.
 ## Localização de código
 
 ```text
-lidercap-platform/
+dmpf/
 ├── libs/backend/go/dmpf-domain/                 # projeto Nx dmpf-domain-go — EXISTE
 │   ├── go.mod                                   # INTOCADO — module .../libs/backend/go/dmpf-domain, go 1.26.4
 │   ├── package.json                             # INTOCADO — private: true
@@ -363,8 +363,8 @@ lidercap-platform/
 
 Import paths canônicos (as `canonical_key` das duas unidades):
 
-- `gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-domain`
-- `gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-domain/example/orders`
+- `github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-domain`
+- `github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-domain/example/orders`
 
 **Arquivos a modificar**:
 
@@ -582,7 +582,7 @@ quebrar teste algum que só olhasse `len`.
   o ADR-032 continuam citando o nome como histórico.
 - [x] Cadeia Go verde: `pnpm nx run-many -t fmt-check,vet,lint,build,test,test-race,govulncheck
   -p dmpf-domain-go`; `pnpm nx affected -t lint,typecheck,test,build
-  --exclude=@nx-base-template/source` verde; `pnpm biome ci .` verde nos arquivos
+  --exclude=@mateusmacedo/dmpf-source` verde; `pnpm biome ci .` verde nos arquivos
   desta entrega.
 - [x] `docs/adr/032-realizacao-go-do-desfecho-da-upr.md` existe, indexado em
   `docs/adr/README.md`, com a tabela de §3.4 preenchida.

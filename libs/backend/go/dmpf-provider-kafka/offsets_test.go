@@ -5,7 +5,7 @@ import (
 
 	"github.com/twmb/franz-go/pkg/kgo"
 
-	dmpfkafka "gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-provider-kafka"
+	dmpfkafka "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-kafka"
 )
 
 func records(offsets ...int64) []*kgo.Record {

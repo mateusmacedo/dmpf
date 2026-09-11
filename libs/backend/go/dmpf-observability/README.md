@@ -13,7 +13,7 @@ módulo que o realiza.
 
 Projeto Nx `dmpf-observability-go`, tags `type:lib`, `scope:backend`,
 `stack:go`. Import path do módulo:
-`gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-observability`.
+`github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability`.
 
 ## O que o módulo contém
 

@@ -23,7 +23,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: consumer
-          image: ghcr.io/lidercap-apps/dmpf-reference:latest
+          image: ghcr.io/mateusmacedo/dmpf-reference:latest
           args: ['--role', 'consumer']
           envFrom:
             - configMapRef:

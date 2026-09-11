@@ -1,4 +1,4 @@
-module gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-transport
+module github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-transport
 
 go 1.26.6
 

@@ -3,7 +3,7 @@ package reservations_test
 import (
 	"testing"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-domain/example/reservations"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-domain/example/reservations"
 )
 
 func TestFromSnapshotRoundTripsTheObservableState(t *testing.T) {

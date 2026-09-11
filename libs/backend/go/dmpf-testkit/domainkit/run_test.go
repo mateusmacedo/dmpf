@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-domain/example/orders"
-	"gitea.lidercap.com.br/lidercap-apps/lidercap-platform/libs/backend/go/dmpf-testkit/domainkit"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-domain/example/orders"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/domainkit"
 )
 
 const at = orders.Instant(1755432000)

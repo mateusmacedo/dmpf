@@ -6,11 +6,11 @@ linters:
     - depguard
     - forbidigo
 
-  # A regra `forbidigo` abaixo vale SÓ para o bloco `domain` (`-domain/`), como a
-  # regra `depguard`: fora dele, `cmd/` e providers escrevem e leem à vontade.
+  # A regra `forbidigo` abaixo vale SÓ para o bloco `domain` (`-domain/` no kernel,
+  # `/domain/` nos contextos em pasta própria — ADR-030), como a regra `depguard`: fora dele, `cmd/` e providers escrevem e leem à vontade.
   exclusions:
     rules:
-      - path-except: '-domain/'
+      - path-except: '(-domain|/domain)/'
         linters:
           - forbidigo
       # O `files` da regra `application` seleciona por caminho e alcançaria este
@@ -72,9 +72,10 @@ linters:
           list-mode: strict
           files:
             - '**/*-domain/**'
+            - '**/domain/**'
           allow:
             # o próprio universo verificável do repositório
-            - gitea.lidercap.com.br/lidercap-apps/lidercap-platform/
+            - github.com/mateusmacedo/dmpf/
             # stdlib de computação determinística (RFC §7: capability `pure`)
             - errors
             - fmt
@@ -158,9 +159,10 @@ linters:
           list-mode: strict
           files:
             - '**/*-ports/**'
+            - '**/ports/**'
           allow:
             # o próprio universo verificável do repositório
-            - gitea.lidercap.com.br/lidercap-apps/lidercap-platform/
+            - github.com/mateusmacedo/dmpf/
             # stdlib de computação determinística (RFC §7: capability `pure`)
             - errors
             - fmt
@@ -244,9 +246,10 @@ linters:
           list-mode: strict
           files:
             - '**/*-application/**'
+            - '**/application/**'
           allow:
             # o próprio universo verificável do repositório
-            - gitea.lidercap.com.br/lidercap-apps/lidercap-platform/
+            - github.com/mateusmacedo/dmpf/
             # stdlib de computação determinística (RFC §7: capability `pure`)
             - errors
             - fmt
@@ -335,7 +338,7 @@ linters:
             - '!$test'
           allow:
             # o próprio universo verificável do repositório
-            - gitea.lidercap.com.br/lidercap-apps/lidercap-platform/
+            - github.com/mateusmacedo/dmpf/
             # stdlib de computação determinística (RFC §7: capability `pure`)
             - errors
             - fmt
