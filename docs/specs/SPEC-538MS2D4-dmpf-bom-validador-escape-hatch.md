@@ -2,7 +2,7 @@
 id: SPEC-538MS2D4
 slug: dmpf-bom-validador-escape-hatch
 title: DMPF KRN-12.3 — Modelo do BOM, validador dmpf-bom e escape hatch instrumentado
-stage: backlog
+stage: planning
 priority: P2
 depends_on: [SPEC-WTAXFV8B, SPEC-VVR1X71Q]
 ticket_url: null
