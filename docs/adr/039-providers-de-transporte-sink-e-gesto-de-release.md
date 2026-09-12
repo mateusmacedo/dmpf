@@ -186,3 +186,24 @@ coexistem no mesmo processo e o binding por mensagem passa a importar.
 - `docs/adr/037-observabilidade-otel-e-retry-por-conjuncao-em-go.md` — o que este ADR compõe.
 - `docs/adr/038-drenagem-da-outbox-lease-e-envelope-na-publicacao.md` — o relay que estes providers servem.
 - READMEs de `libs/backend/go/dmpf-transport`, `dmpf-provider-grpc`, `dmpf-provider-http`, `dmpf-provider-kafka`, `dmpf-provider-sqs`.
+
+## Addendum — 2026-09-12
+
+A pendência `TRP-09`/`TRP-46` registrada na `## Decisão` tinha prazo declarado:
+"antes do `KRN-12` (composition root de exemplo)". O prazo venceu com a sub-spec
+1 do `KRN-12` (`SPEC-6QT9SBAS`), e o desfecho foi outro. O `dmpf-reference` sobe
+**um transporte assíncrono por processo** — Kafka —, decisão do usuário fixada
+na guarda-chuva `SPEC-8HWBWJCB`. Com um só canal assíncrono por processo, o
+binding segue resolvido pelo catálogo de `dmpf-transport/channel`, e o binding
+persistido por mensagem nunca é exercido: deixa de ser pré-requisito da release.
+
+A pendência não foi resolvida — foi empurrada com endereço. Vira a task
+sucessora **ARQ-549** (`KRN-13`), no épico ARQ-519.
+
+- **Owner**: o time de arquitetura DMPF (épico ARQ-519), como já declarado acima.
+- **Dependência**: um processo que hospede dois canais assíncronos ao mesmo
+  tempo. É a primeira composição em que a resolução por processo deixa de bastar,
+  e não existe nenhuma no workspace até aqui.
+- **Aceite**: o binding de canal é decidido por mensagem, não por processo — um
+  processo com dois canais assíncronos entrega cada mensagem ao canal que o
+  vínculo persistido declara, e a reentrega da mesma mensagem cai no mesmo canal.
