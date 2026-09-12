@@ -77,7 +77,7 @@ func EvaluateExternal(
 	closure Closure,
 	isStandard func(string) bool,
 ) []Diagnostic {
-	cap, conhecida := resolveCapability(target, policy, isStandard)
+	cap, conhecida := ResolveCapability(target, policy, isStandard)
 	if !conhecida {
 		// Bloco permissivo aceita qualquer capability, então não
 		// saber qual é não muda o veredicto — e fail-closed protege contra
@@ -130,7 +130,7 @@ func EvaluateExternal(
 
 // A allowlist tem precedência sobre a tabela da stdlib: o projeto pode declarar
 // um builtin de forma mais estrita, nunca mais permissiva por omissão.
-func resolveCapability(importPath string, policy ExternalPolicy, isStandard func(string) bool) (Capability, bool) {
+func ResolveCapability(importPath string, policy ExternalPolicy, isStandard func(string) bool) (Capability, bool) {
 	if e, ok := policy.lookup(importPath); ok {
 		if IsCapability(e.Capability) {
 			return e.Capability, true
@@ -164,7 +164,7 @@ func impurezaNoFechamento(entrypoint string, policy ExternalPolicy, closure Clos
 		if d == entrypoint {
 			continue
 		}
-		cap, conhecida := resolveCapability(d, policy, isStandard)
+		cap, conhecida := ResolveCapability(d, policy, isStandard)
 		if !conhecida {
 			// Não classificar impede afirmar pureza, e não afirmar reprova.
 			achados[d] = ""
