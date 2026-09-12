@@ -50,11 +50,57 @@ golden for regenerado e algo novo morder, a entrada nova vem para cá.
     serializa por estágio (`.github/workflows/ci.yml`, `--parallel=1` nos
     `test-race` com `cache: false`); localmente, `nx run-many -t test-race`
     sem `--parallel=1` faz duas suítes truncarem a outbox uma da outra. O
-    `dependsOn` inter-contexto (`<name>-provider-postgres-go` →
+    `dependsOn` inter-contexto (`<ctx>-provider-postgres-go` →
     `dmpf-provider-postgres-go`) dá paridade parcial; `--parallel=1` é a
     garantia.
 14. **D002 sem shared kernel.** Sem `dmpf-kernel/*` em `shared_kernel_units`
-    do baseline, `bookings-domain → dmpf-kernel/domain` reprova com
+    do baseline, `bookings/domain → dmpf-kernel/domain` reprova com
     `DMPF-D002`. Hoje a designação existe (ARQ-553, quinze unidades); o
     `self-test` do `tools/dmpf-harness-check.sh` sabota a lista para provar
     que o gate ainda morde.
+15. **Um package por bloco, na raiz do módulo.** O agente tende a criar
+    subpackages por agregado (`bookings/`, `resources/`) dentro do bloco. A
+    unidade do manifesto aponta o import path do módulo, então subpackage vira
+    unidade não declarada e o verificador reprova com `DMPF-U*`. Um agregado é
+    um par de arquivos na raiz (`booking.go`, `resource.go`), não um diretório.
+16. **O contexto mora em uma pasta; cada bloco é um subdiretório dela.**
+    `libs/<scope>/<stack>/<ctx>/<bloco>` — não `<ctx>-<bloco>` como módulo
+    irmão. O `dirName` de cada bloco está em
+    `tools/dmpf-plugin/src/generators/bounded-context/blocks.ts` (`LAYOUTS`), e
+    é o generator que decide o caminho. O nome do **projeto Nx** continua
+    composto e com sufixo de stack (`bookings-domain-go`), porque nome de
+    projeto é chave única no workspace; só o caminho mudou.
+17. **`gofmt` reprova import fora de ordem alfabética dentro do grupo.** O
+    agente agrupa por origem (kernel primeiro, contexto depois), o que é
+    legítimo, mas erra a ordem dentro do grupo — `dmpf-domain` antes de
+    `bookings/domain` parece certo pela leitura e é errado pelo alfabeto. Foi
+    a única reprovação de `fmt-check` em toda a entrega, e em seis arquivos de
+    uma vez. `gofmt -w` resolve; rodá-lo antes do `fmt-check` evita o ciclo.
+18. **Bloco `port` sem superfície é bloco morto.** Os genéricos do kernel
+    (`dmpfports.Repository[ID,S]`, `Outbox`, `Reader[ID,S]`, `UnitOfWork[R]`)
+    expressam quase toda a fronteira por instanciação, sem tipo novo. O que
+    eles não expressam é a consulta que atravessa uma relação — e ela tende a
+    ser declarada onde é consumida, no `application`. O resultado compila, passa
+    nos gates e deixa a unidade `<ctx>/ports` declarada e vazia. A porta de
+    consulta pertence ao bloco `port`, com o nome da consulta declarada na spec.
+19. **Código gerado não sobrevive a substituição de texto.** O `rawDesc` de um
+    `.pb.go` é o descritor do arquivo `.proto` serializado, com prefixos de
+    comprimento: trocar um import path por outro de tamanho diferente sem
+    recalcular o varint corrompe o descritor, e o pacote entra em
+    `panic: slice bounds out of range` já no `init()`. Qualquer renomeação que
+    alcance `gen/go` se conclui **regerando** pelo rito Buf, nunca editando.
+20. **Suíte sem `BaselineStore` precisa declarar o shared kernel.**
+    `Input.SharedKernelUnits` só vale quando `Baseline` é nil
+    (`libs/backend/go/dmpf-conformance/internal/conformance/check.go:30`) — que
+    é exatamente o caso do `fitness` e do `selfcheck`, por desenho (`FIT-03`:
+    a suíte julga a regra de dependência, não a autoridade sobre a
+    classificação). Enquanto só existe o kernel, a omissão não aparece; o
+    primeiro contexto de negócio a consumi-lo faz brotar um `DMPF-D002` por
+    aresta. A correção é ler a designação do baseline governado e passá-la na
+    `Input`, sem adotar o store — restar a lista no teste a faria divergir.
+21. **A prova de regressão também envelhece.** O `tools/dmpf-harness-check.sh`
+    carrega o layout do golden em `MODULOS` e nos globs de comparação. Depois
+    da virada para pasta por contexto, ele seguiu procurando
+    `libs/backend/go/<ctx>-<bloco>` e casando o diagnóstico por `<ctx>-domain`,
+    quando o verificador imprime `<ctx>/domain`. Rodar o `self-test` a cada
+    mudança de forma é o que expõe isso — foi ele que apontou os dois.

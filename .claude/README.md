@@ -9,10 +9,10 @@ remover arquivos, atualize a tabela correspondente.
 
 | Diretório | Itens | Conteúdo |
 | --- | --- | --- |
-| `rules/` | 13 | Regras de conduta e de qualidade |
+| `rules/` | 14 | Regras de conduta e de qualidade |
 | `skills/` | 26 | Skills de domínio (mais 11 arquivos em `references/`) |
-| `agents/` | 49 | Agentes especializados |
-| `commands/` | 8 | Comandos de workspace (Nx e utilitários) |
+| `agents/` | 50 | Agentes especializados |
+| `commands/` | 9 | Comandos de workspace (Nx e utilitários) |
 
 Convenções gerais do repositório ficam em `AGENTS.md`, na raiz. Skills de
 workspace específicas de Nx ficam em `.agents/skills/`.
@@ -33,6 +33,7 @@ Carregadas como contexto de conduta. Descrevem o que é esperado em cada área.
 | Organização de arquivos | `rules/file-organization.md` | Colocalização e separação em camadas. |
 | Limites de tamanho | `rules/file-size-limits.md` | Heurísticas de tamanho para arquivos e funções. |
 | Segurança Git | `rules/git-safety.md` | Hooks, force push seguro, revisão pré-commit e proteção das branches compartilhadas. |
+| Bounded context DMPF | `rules/dmpf-bounded-context.md` | Normas para escrever um contexto sobre o kernel: matriz de blocos, condição C2 e classificação por manifesto declarado. |
 | Performance | `rules/performance.md` | Banco de dados, cache, filas, N+1 e otimizações comuns. |
 | Processo e qualidade | `rules/process-enforcement.md` | Quando exigir especificação e plano antes de implementar. |
 | Revisão de idioma | `rules/language-review.md` | Revisão PT-BR/EN uma vez, ao final da entrega — não após cada escrita. |
@@ -201,6 +202,7 @@ dos arquivos no disco.
 | context-manager | `agents/context-manager.md` | Estado compartilhado e sincronização de contexto. |
 | knowledge-synthesizer | `agents/knowledge-synthesizer.md` | Extração de padrões a partir de interações anteriores. |
 | legacy-modernizer | `agents/legacy-modernizer.md` | Migração incremental de sistemas legados. |
+| dmpf-context-author | `agents/dmpf-context-author.md` | Escreve um bounded context completo sobre o kernel DMPF a partir da spec, e para em qualquer gate normativo. |
 
 ---
 
@@ -208,6 +210,7 @@ dos arquivos no disco.
 
 | Comando | Arquivo |
 | --- | --- |
+| `dmpf-new-context` | `commands/dmpf-new-context.md` |
 | `fill-pr-template-from-diff` | `commands/fill-pr-template-from-diff.md` |
 | `link-workspace-packages` | `commands/link-workspace-packages.md` |
 | `monitor-ci` | `commands/monitor-ci.md` |

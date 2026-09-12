@@ -271,20 +271,20 @@ docs/guides/dmpf-composicao.md, AGENTS.md, docs/nx-reference/tasks.md, tools/dmp
 
 ### Critérios de aceite
 
-- [ ] `.agents/skills/dmpf-bounded-context/references/template-bounded-context.md`
+- [x] `.agents/skills/dmpf-bounded-context/references/template-bounded-context.md`
   existe com as dez seções obrigatórias; `SPEC-<id>-bookings.md` o preenche; `spec-query.sh` lista
   ambas as specs (a de `bookings` com o título prefixado).
-- [ ] `/dmpf-new-context` recusa spec sem uma seção obrigatória, nomeando-a.
-- [ ] O golden `bookings` está no workspace: cinco módulos com tags e
+- [x] `/dmpf-new-context` recusa spec sem uma seção obrigatória, nomeando-a.
+- [x] O golden `bookings` está no workspace: cinco módulos com tags e
   `layer:*`, `go.work`, unidade `contract`, baseline; `pnpm nx run-many -t
   fmt-check,vet,build,lint -p bookings-*` verde; `DMPF_PG_DSN=… test-race`
   dos cinco verde, inclusive e2e; `dmpf-conformance --base` aprova o
   workspace.
 - [ ] `tools/dmpf-harness-check.sh` regenera `bookings` num worktree e reporta
   os gates; uma execução documentada no CHECKPOINT com o resultado.
-- [ ] `.claude/README.md` regenerado lista agente, rule e command novos;
+- [x] `.claude/README.md` regenerado lista agente, rule e command novos;
   `pt-reviewer`/`en-reviewer` ✓ em tudo que tem prosa.
-- [ ] Cadeia completa do workspace verde; `biome ci .` verde.
+- [x] Cadeia completa do workspace verde; `biome ci .` verde.
 
 ### Cenários de teste
 

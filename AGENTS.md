@@ -106,7 +106,7 @@ dmpf/
 │   ├── frontend/                   # placeholder — sem projeto Nx
 │   └── serverless/                 # placeholder — sem projeto Nx
 ├── libs/
-│   ├── backend/go/                 # 8 módulos Go: dmpf-domain, dmpf-conformance, dmpf-contracts, dmpf-ports, dmpf-application, dmpf-provider-postgres, dmpf-app, dmpf-observability
+│   ├── backend/go/                 # 14 módulos do kernel (dmpf-*) e o contexto de exemplo bookings/, um subdiretório por bloco
 │   ├── frontend/                   # placeholder — sem projeto Nx
 │   └── shared/                     # placeholder — sem projeto Nx
 ├── docs/
@@ -122,7 +122,7 @@ dmpf/
 │   └── onboarding.md               # setup local e primeiro PR
 ├── infra/                          # local/ (Compose modular por recurso), observability/ (Grafana, Prometheus, Loki, Tempo, Alloy, Collector: config + manifestos), k8s/ (Kustomize base + overlays dev/hmg), docker/ (Dockerfile de referência Node)
 ├── tools/                          # generators, executors e scripts do workspace
-├── .agents/skills/                 # skills de workspace (Nx)
+├── .agents/skills/                 # skills de workspace (Nx e dmpf-bounded-context)
 ├── .claude/                        # agents, skills e rules para assistentes
 ├── lefthook.yml
 ├── nx.json
@@ -142,7 +142,7 @@ Uma, Go, com as três tags de taxonomia (`type:app`, `scope:backend`, `stack:go`
 
 ### Libs
 
-Quatorze, todos Go, com as três tags de taxonomia (`type:lib`, `scope:backend`, `stack:go`), a tag de camada `layer:*` (ver [Convenções obrigatórias](#convenções-obrigatórias)), um `dmpf-units.json` (o `metadata_container` da RFC DMPF) e um `package.json` com `private: true` — este último existe porque o Nx Release aborta o versionamento de um `tag:type:lib` sem manifesto npm (ver `docs/adr/030-granularidade-modulo-go-e-bom.md`):
+Vinte, todas Go, com as três tags de taxonomia (`type:lib`, `scope:backend`, `stack:go`), a tag de camada `layer:*` (ver [Convenções obrigatórias](#convenções-obrigatórias)), um `dmpf-units.json` (o `metadata_container` da RFC DMPF) e um `package.json` com `private: true` — este último existe porque o Nx Release aborta o versionamento de um `tag:type:lib` sem manifesto npm (ver `docs/adr/030-granularidade-modulo-go-e-bom.md`):
 
 - **`dmpf-domain-go`** (`libs/backend/go/dmpf-domain`), o kernel de domínio do DMPF, criado por `KRN-01` e preenchido por `KRN-03`. O package raiz `dmpfdomain` realiza o desfecho da UPR como par `(Accepted[R], *Rejection)`; o package `example/orders` é o agregado de exemplo com duas UPRs, e `example/reservations` (de `KRN-07`) é o agregado consumidor, com chave natural permanente — o identificador do pedido — e a UPR `Reserve`. São três unidades `domain` no manifesto, `dmpf-kernel/domain`, `dmpf-kernel/example-orders` e `dmpf-kernel/example-reservations`, no `bounded_context` `dmpf-kernel` (ver `docs/adr/032-realizacao-go-do-desfecho-da-upr.md`).
 - **`dmpf-conformance-go`** (`libs/backend/go/dmpf-conformance`), o verificador de conformidade do DMPF, criado por `KRN-02`. Decide a regra de dependência sobre o grafo real de imports e roda no CI como gate fail-closed; o binário fica em `cmd/dmpf-conformance` e o baseline em `tools/dmpf-baseline/units-baseline.json` (ver `docs/adr/031-verificador-de-conformidade-dmpf-em-go.md` e `docs/guides/dmpf-manifesto.md`).
@@ -160,6 +160,8 @@ Quatorze, todos Go, com as três tags de taxonomia (`type:lib`, `scope:backend`,
 - **`dmpf-provider-kafka-go`** (`libs/backend/go/dmpf-provider-kafka`), o transporte-alvo do evento de domínio de FND-06 §11, criado por `KRN-10` sobre `franz-go`. `Publisher` escreve a chave de partição do envelope e os bytes recebidos, com `Observer` só-leitura (TRP-17); `Consumer` tem um worker persistente por partição (KFK-09), commit só do prefixo contíguo por `CommitRecords` (TRP-29), retry inline com partição pausada até o limite do canal (TRP-47) e cancelamento cooperativo na revogação (TRP-48); `DLQ` realiza `dmpfports.Containment` com o envelope intacto. A ponte com o adapter é a interface `Sink`, e os tetos de tentativas do adapter e do canal precisam ser iguais. Os testes de integração levam a build tag `integration` e exigem `DMPF_KAFKA_BROKERS` (Redpanda no CI). Unidade `provider`, `dmpf-kernel/provider-kafka`.
 - **`dmpf-provider-sqs-go`** (`libs/backend/go/dmpf-provider-sqs`), o transporte normatizado em SNS/SQS de FND-06 §12, criado por `KRN-10` sobre `aws-sdk-go-v2`. Envelope em Base64 uma única vez (TRP-19) com a envoltória do SNS sem raw delivery recusada (SQS-02); grupo e deduplicação FIFO derivados do envelope por SHA-256 (SQS-05/06); `Consumer` com heartbeat de visibilidade parado antes de qualquer gesto e teto de doze horas (SQS-08/08b), `attempt` pelo `ApproximateReceiveCount`, sem retry inline (SQS-11b); `Ack` deleta pelo receipt handle depois do commit, `Release` encurta a visibilidade (SQS-09/10); `SNSPublisher` recusa assinatura sem raw delivery na construção. Os testes de integração exigem `DMPF_SQS_ENDPOINT` e credenciais `AWS_*` (floci no CI, SQS e SNS no mesmo endpoint). Unidade `provider`, `dmpf-kernel/provider-sqs`.
 - **`dmpf-testkit-go`** (`libs/backend/go/dmpf-testkit`), o instrumento de teste de FND-09, criado por `KRN-11`. Onze unidades em quatro blocos, uma por package: `domainkit` (`domain`) executa a UPR por valor e devolve a projeção observável (`ORA-30`..`ORA-39`); `golden` (`contract`) carrega a fixture com todo escalar como string, roda as duas direções e reporta os três oráculos em separado (`DMPF-R001`..`R003`, oráculo 3 reprovando na direção produtor); `serviceskit` e `providerkit` (`provider`) são os fakes com ledger (`UOW-06`..`08`) e as suítes de conformidade de `UnitOfWork`, `Inbox` e outbox store (`OBX-10`/`11`, `INB-06`) que `memory` e Postgres rodam; `clock`, `ids` e `stable` (`provider`) são o determinismo (`KIT-07`, `KIT-08`); `appkit` e `distkit` (`app`) são o harness borda a borda e o harness de dois processos OS sobre Redpanda com reentrega deliberada (`V32`, `DMPF-R004`, build tag `distributed`); `fitness` (`app`) é a regra de dependência na suíte — universo real, 36 células por par de vetores, `V29`/`V30` e `V27` registrado como single-stack; `tb` e `tb/pg` (`app`) são o adaptador de `testing.TB`, o codec de projeção e o pool Postgres. Todo kit devolve veredicto por valor. As fixtures de projeção vivem em `contracts/fixtures/<ctx>/projection/v1/`. O `dmpf-conformance` ganhou o package exportado `fitness` (unidade `app`, superfície pública) e `dmpf-contracts/golden` delega o carregador ao kit. Dependências declaradas: `protobuf` (`wire.codec`); `pgx` e `franz-go` entram só pelos packages `app`. `test-race` cobre tudo menos o `distkit`, que roda no target `test-distributed` (ver `docs/adr/040-test-kits-golden-e-fitness-function-em-go.md` e o `README.md` do módulo).
+
+- **`bookings-*`** (`libs/backend/go/bookings/{domain,ports,application,provider,app}`), o contexto de exemplo do harness de bounded contexts, criado por `ARQ-554` a partir de `docs/specs/SPEC-AHPRBZCT-bookings.md`. É o **golden** contra o qual a prova de regressão compara: cinco módulos, um por bloco, com dois agregados (`Booking` e `Resource`), três UPRs, a consulta por relação declarada no bloco `port` — a única que os genéricos do kernel não expressam —, provider sobre Postgres com harness de teste próprio e borda HTTP até a outbox. Seis unidades no `bounded_context` `resource-scheduling`, contando a `contract` declarada no manifesto do `dmpf-contracts`. O `test-race` do provider e do app declara `dependsOn` sobre o do kernel: os dois compartilham o Postgres do job e cada harness trunca as mesmas tabelas. Como criar um contexto novo está em `docs/guides/dmpf-composicao.md`.
 
 `libs/frontend` segue sendo diretório de destino, sem projeto Nx registrado. Para criar uma lib TypeScript, use o generator do Nx (`pnpm nx g @nx/js:lib libs/shared/<name>`), com as três tags 3D e `--linter=none`; o passo a passo com todas as flags está em `docs/nx-reference/tasks.md`.
 
@@ -224,6 +226,11 @@ pnpm nx run dmpf-reference-go:k8s-render        # kubectl kustomize dos overlays
 pnpm nx show projects --projects=tag:layer:domain --json | jq -r 'join(",")'   # domain | services | contract | providers | apps
 bash tools/dmpf-gate-check.sh          # prova o gate nos blocos domain, port e application: depguard (por package, vetores por bloco) e forbidigo (por símbolo, só domain)
 
+# Harness de bounded context (ARQ-554): criar um contexto novo a partir da spec
+/dmpf-new-context SPEC-<id>            # valida as dez seções e o stage da spec, depois invoca o agente
+bash tools/dmpf-harness-check.sh --phase self-test  # sem LLM: sabota o shared kernel e exige DMPF-D002 no golden
+bash tools/dmpf-harness-check.sh --phase regen      # com LLM: regenera bookings num worktree e roda os gates (não roda no CI)
+
 # Gates Buf dos contratos (fail-closed; só o projeto dmpf-contracts-go os declara)
 pnpm nx run dmpf-contracts-go:buf-warmup          # compila buf e protoc-gen-go uma vez (dependsOn dos três abaixo)
 pnpm nx run dmpf-contracts-go:buf-lint            # buf format + buf lint STANDARD + varredura de P0-3
@@ -273,11 +280,11 @@ Scripts raiz (`pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, `pnpm fo
 
   | `layer:` | Módulos |
   | --- | --- |
-  | `domain` | `dmpf-domain-go`, `dmpf-ports-go`, `dmpf-conformance-go` |
-  | `services` | `dmpf-application-go`, `dmpf-transport-go` |
+  | `domain` | `dmpf-domain-go`, `dmpf-ports-go`, `dmpf-conformance-go`, `bookings-domain-go`, `bookings-ports-go` |
+  | `services` | `dmpf-application-go`, `dmpf-transport-go`, `bookings-application-go` |
   | `contract` | `dmpf-contracts-go` |
-  | `providers` | `dmpf-provider-postgres-go`, `dmpf-provider-kafka-go`, `dmpf-provider-sqs-go`, `dmpf-provider-grpc-go`, `dmpf-provider-http-go`, `dmpf-observability-go`, `dmpf-testkit-go` |
-  | `apps` | `dmpf-app-go`, `dmpf-reference-go` |
+  | `providers` | `dmpf-provider-postgres-go`, `dmpf-provider-kafka-go`, `dmpf-provider-sqs-go`, `dmpf-provider-grpc-go`, `dmpf-provider-http-go`, `dmpf-observability-go`, `dmpf-testkit-go`, `bookings-provider-postgres-go` |
+  | `apps` | `dmpf-app-go`, `dmpf-reference-go`, `bookings-app-go` |
 
   A camada é a do **estágio** em que o módulo precisa rodar, não a do bloco DMPF de cada unidade: o `dmpf-testkit-go` tem unidades nos quatro blocos e é `layer:providers` porque a maior parte das suas suítes exige a infraestrutura que só sobe a partir do estágio 3.
 - **Não redeclarar targets** que um plugin ou `targetDefaults` (em `nx.json`) já fornece. Redeclarar quebra o cache silenciosamente (ver `docs/adr/002-nx-task-configuration.md`).
@@ -401,6 +408,7 @@ Antes de criar algo novo, considere:
 - `docs/specs/README.md` — catálogo e template de specs.
 - `docs/rules/README.md` — índice das regras de domínio (negócio, aplicação, produto).
 - `docs/guides/development-workflow.md` — guia detalhado do fluxo de trabalho.
+- `docs/guides/dmpf-composicao.md` — compor um bounded context sobre o kernel pelo harness.
 - `docs/ci-cd/` — guia de adoção de CI/CD e deploy.
 - `infra/docker/Dockerfile.node.example` — Dockerfile de referência para apps Node.
 - `.agents/skills/` — skills de workspace (`nx-workspace`, `nx-generate`, `nx-commit`, `monitor-ci`, entre outras).

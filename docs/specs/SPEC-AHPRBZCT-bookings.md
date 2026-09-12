@@ -2,7 +2,7 @@
 id: SPEC-AHPRBZCT
 slug: bookings
 title: Bounded context — bookings
-stage: planning
+stage: building
 priority: P2
 depends_on: [SPEC-XMNBMY50]
 ticket_url: null
@@ -147,11 +147,11 @@ created: 2026-09-10
 
 ## Critérios de aceite
 
-- [ ] Os gates do workspace verdes para `bookings-domain-go`,
+- [x] Os gates do workspace verdes para `bookings-domain-go`,
   `bookings-ports-go`, `bookings-application-go`,
   `bookings-provider-postgres-go` e `bookings-app-go` (`fmt-check`, `vet`,
   `build`, `lint`, `test-race` com Postgres, verificador com `--base`).
-- [ ] Cenários:
+- [x] Cenários:
 
 ```text
 DADO um recurso registrado
