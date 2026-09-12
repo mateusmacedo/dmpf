@@ -1,6 +1,6 @@
 {
   "schema": "dmpf/units-baseline@1",
-  "digest": "sha256:de8283a54a0705a885cb78543d8b5b264d1d9dd25cf902415c990a6909e741b3",
+  "digest": "sha256:900df358c3e7fd8275a25aa973a35d39921c2133500cf8f2ba0fdbce9a201f2e",
   "entries": [
     {
       "unit": "dmpf-kernel/reference-app",
@@ -124,6 +124,15 @@
       "bounded_context": "dmpf-conformance",
       "membership": [
         "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/internal/conformance"
+      ]
+    },
+    {
+      "unit": "dmpf-conformance/exception",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance",
+      "block": "domain",
+      "bounded_context": "dmpf-conformance",
+      "membership": [
+        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/internal/exception"
       ]
     },
     {
