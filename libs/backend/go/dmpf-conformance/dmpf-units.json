@@ -23,6 +23,15 @@
       "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/internal/baseline"]
     },
     {
+      "id": "dmpf-conformance/exception",
+      "block": "domain",
+      "bounded_context": "dmpf-conformance",
+      "public_integration_surface": false,
+      "include": [
+        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/internal/exception"
+      ]
+    },
+    {
       "id": "dmpf-conformance/port",
       "block": "port",
       "bounded_context": "dmpf-conformance",

@@ -30,6 +30,18 @@ const (
 	CodeE004 Code = "DMPF-E004"
 )
 
+// GOV-30..GOV-36 decidem a admissão de um pedido de exceção, não a aresta:
+// ficam fora do conjunto fechado de §10.3, que é sobre a regra de dependência.
+const (
+	CodeX001 Code = "DMPF-X001"
+	CodeX002 Code = "DMPF-X002"
+	CodeX003 Code = "DMPF-X003"
+	CodeX004 Code = "DMPF-X004"
+	CodeX005 Code = "DMPF-X005"
+	CodeX006 Code = "DMPF-X006"
+	CodeX007 Code = "DMPF-X007"
+)
+
 type CodeSpec struct {
 	Code       Code
 	Summary    string
@@ -59,14 +71,38 @@ var codeSpecs = []CodeSpec{
 	{CodeE004, "Import dinâmico com alvo não determinável", "RFC §10.3", false},
 }
 
+// A ordem é a do catálogo fechado N1–N7 de GOV-32.
+var governanceSpecs = []CodeSpec{
+	{CodeX001, "Pedido de exceção sem os itens obrigatórios", "GOV-30, GOV-33", true},
+	{CodeX002, "Objeto da exceção fora das classes E1–E3", "GOV-31", true},
+	{CodeX003, "Objeto que nenhuma exceção alcança: aresta, célula ou política de bloco", "GOV-32 N1, N2", true},
+	{CodeX004, "Objeto sob identidade reservada do catálogo fechado", "GOV-32 N1, N3–N7", true},
+	{CodeX005, "Ciclo de vida da exceção inconsistente", "GOV-34", true},
+	{CodeX006, "Exceção vencida sem renovação posterior", "GOV-34", true},
+	{CodeX007, "Exceção declarada fora do registro que a comporta", "GOV-35", true},
+}
+
+// CodeSpecs devolve só as dezesseis de §10.3: é o conjunto que a RFC fixa, e
+// quem o consome espera a tabela normativa da regra de dependência.
 func CodeSpecs() []CodeSpec {
 	out := make([]CodeSpec, len(codeSpecs))
 	copy(out, codeSpecs)
 	return out
 }
 
+func GovernanceCodeSpecs() []CodeSpec {
+	out := make([]CodeSpec, len(governanceSpecs))
+	copy(out, governanceSpecs)
+	return out
+}
+
 func LookupCode(c Code) (CodeSpec, bool) {
 	for _, s := range codeSpecs {
+		if s.Code == c {
+			return s, true
+		}
+	}
+	for _, s := range governanceSpecs {
 		if s.Code == c {
 			return s, true
 		}

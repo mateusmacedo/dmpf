@@ -207,3 +207,27 @@ promete o contrário.
 - `docs/adr/014-proibir-aresta-domain-port.md` — por que o relógio não vive no domínio
 - `docs/dmpf/uow-inbox-outbox.md` — FND-04: UoW, sequência canônica, outbox
 - `docs/dmpf/rfc-dmpf-foundation-v0.1.md` — §3.3, §4.1, §6.2, §7.3, §9.3, §10.2
+
+## Addendum — 2026-09-12
+
+A `## Decisão` afirma que consumo fora do workspace, com tag por módulo e
+`require` versionado, "é matéria do `KRN-12`". Isso não se confirmou. A
+guarda-chuva `SPEC-8HWBWJCB` manteve o tema **fora** do escopo do `KRN-12`:
+as tags do `nx release` (`<projeto>@<versão>`) não são tags de módulo Go
+(`<path>/vX.Y.Z`), e nenhuma das quatro sub-specs produz as segundas.
+
+O que a decisão original fixou segue valendo, e vale para todos os módulos do
+workspace, não só para os dois do `KRN-04`: nenhum `go.mod` tem `require` nem
+`replace` apontando para um irmão, e a resolução continua sendo do `go.work`.
+Os `go.sum` que existem hoje cobrem dependência externa — `pgx`, `franz-go`,
+OpenTelemetry, AWS SDK —, nunca aresta interna.
+
+O tema vira a task sucessora **ARQ-550** (`KRN-14`), no épico ARQ-519.
+
+- **Owner**: o time de arquitetura DMPF (épico ARQ-519).
+- **Dependência**: a release `dmpf@0.1.0` (`SPEC-JPP31095`) cunhada. Só a partir
+  de um BOM certificado existe combinação de versões que faça sentido publicar
+  para fora do workspace.
+- **Aceite**: um repositório fora deste workspace consome um módulo do kernel
+  por `require` versionado, resolvido por tag de módulo Go própria, com `go.sum`
+  cobrindo a aresta interna e o target `tidy` de volta à cadeia de validação.
