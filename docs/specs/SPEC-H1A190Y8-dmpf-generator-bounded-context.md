@@ -2,7 +2,7 @@
 id: SPEC-H1A190Y8
 slug: dmpf-generator-bounded-context
 title: DMPF KRN-12.2 — Plugin local e generator bounded-context (guarda-chuva)
-stage: building
+stage: done
 priority: P2
 depends_on: [SPEC-MQA5HAXF, SPEC-WTAXFV8B, SPEC-SJ66880S, SPEC-XMNBMY50]
 ticket_url: null
@@ -336,16 +336,23 @@ docs/** e AGENTS.md                                    — SPEC-VDP9XX65
 - [x] Fase `structural` da prova chega ao commit 2 com hooks ativos e cadeia Go
   verde. Enquanto o shared kernel não existia, ela reprovava só no verificador,
   por `D002`; com `SPEC-XMNBMY50` designada no baseline, passa.
-- [ ] O golden `bookings`, produzido pelo harness a partir da spec de
+- [x] O golden `bookings`, produzido pelo harness a partir da spec de
   bounded context, compila, passa na cadeia Go e é **aprovado** pelo
   verificador (critério 1 de ARQ-531) — `SPEC-VDP9XX65` + `SPEC-XMNBMY50`.
+  Provado em 2026-09-12 pela execução de `--phase regen`: o contexto regenerado
+  do zero passou a cadeia `fmt-check,vet,build,lint` nos cinco módulos, o
+  `test-race` do provider e do app, e o verificador devolveu `conforme`.
 - [x] `structural` e `self-test` passam: `structural` com os cinco blocos gera
   31 arquivos, `dmpf-conformance` devolve `conforme`, o manifesto confere e `git
   diff`/`status --porcelain` saem vazios; `self-test` reprova nos quatro vetores
   pelo motivo esperado. Os dois passos estão no `ci.yml`; o verde no runner sai
   no PR.
-- [ ] Guia, `AGENTS.md`, `tasks.md`, README e addendum do ADR-041 atualizados —
-  `SPEC-VDP9XX65`.
+- [x] Guia, `AGENTS.md`, `tasks.md`, README e addendum do ADR-041 atualizados —
+  `SPEC-VDP9XX65`. `docs/guides/dmpf-composicao.md` com o fluxo AI SDD em nove
+  seções; `AGENTS.md` com a árvore, o contexto de exemplo, os comandos do
+  harness e a tabela `layer:*`; `docs/nx-reference/tasks.md` com a seção da
+  quarta tag; `.claude/README.md` com agente, rule e command; addendum de
+  2026-09-12 no ADR-041.
 
 ### Cenários de teste
 

@@ -2,7 +2,7 @@
 id: SPEC-AHPRBZCT
 slug: bookings
 title: Bounded context — bookings
-stage: building
+stage: done
 priority: P2
 depends_on: [SPEC-XMNBMY50]
 ticket_url: null

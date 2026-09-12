@@ -2,7 +2,7 @@
 id: SPEC-VDP9XX65
 slug: dmpf-harness-bounded-context
 title: DMPF KRN-12.2h — Harness de agentes para criar bounded contexts (AI SDD)
-stage: building
+stage: done
 priority: P2
 depends_on: [SPEC-H1A190Y8, SPEC-XMNBMY50]
 ticket_url: null
@@ -280,8 +280,15 @@ docs/guides/dmpf-composicao.md, AGENTS.md, docs/nx-reference/tasks.md, tools/dmp
   fmt-check,vet,build,lint -p bookings-*` verde; `DMPF_PG_DSN=… test-race`
   dos cinco verde, inclusive e2e; `dmpf-conformance --base` aprova o
   workspace.
-- [ ] `tools/dmpf-harness-check.sh` regenera `bookings` num worktree e reporta
-  os gates; uma execução documentada no CHECKPOINT com o resultado.
+- [x] `tools/dmpf-harness-check.sh` regenera `bookings` num worktree e reporta
+  os gates; uma execução documentada no CHECKPOINT com o resultado. Executada em
+  2026-09-12: o agente reescreveu o contexto em 80 arquivos a partir da mesma
+  spec, e passaram `biome ci`/`gofmt -l`, o rito Buf, os dois commits, a cadeia
+  `fmt-check,vet,build,lint` nos cinco módulos, o `test-race` do provider e do
+  app e o verificador (`conforme`). **Ressalva:** o script abortou no `test-race`
+  por ambiente, não por defeito do contexto regenerado — ver a armadilha do
+  schema residual no CHECKPOINT; os dois passos finais foram concluídos à mão
+  sobre o mesmo commit (`refs/regen/bookings`).
 - [x] `.claude/README.md` regenerado lista agente, rule e command novos;
   `pt-reviewer`/`en-reviewer` ✓ em tudo que tem prosa.
 - [x] Cadeia completa do workspace verde; `biome ci .` verde.
