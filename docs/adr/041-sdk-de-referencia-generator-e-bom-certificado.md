@@ -106,6 +106,56 @@ A implementação da SPEC-H1A190Y8 mudou de desenho duas vezes no mesmo dia, e o
 - Geração do composition root: `cmd/` com `--role api|relay|consumer` continua fora, e cabear processo segue sendo copiar `dmpf-reference` à mão. É matéria do golden path (sub-spec 3).
 - `require` externos quando um módulo gerado sair do workspace (publicação independente); hoje a ausência de `require` presume `go.work`.
 
+## Addendum — 2026-09-12 (harness de bounded contexts da sub-spec 2h)
+
+O addendum anterior decidiu que o generator entrega só o esqueleto e o código de
+negócio vem de um agente. A `SPEC-VDP9XX65` realizou esse harness e o exercitou
+produzindo `bookings`, o primeiro contexto fora de `dmpf-kernel`. O que o
+exercício decidiu, além do que já estava escrito:
+
+- **A prova do harness tem duas fases, e só uma roda sem LLM.** `self-test`
+  sabota `shared_kernel_units` sobre o golden commitado, num worktree
+  descartável, e exige que o verificador reprove com `DMPF-D002` apontando
+  `<ctx>/domain` — prova que o gate normativo ainda morde, sem custo de agente.
+  `regen` apaga o golden, aciona o agente sobre a mesma spec e roda os gates
+  sobre o resultado; exige LLM, credenciais e tempo, e por isso **não roda no
+  CI**. O CI prova o golden como qualquer outro módulo.
+- **A garantia é pelos gates, nunca por bytes.** Dois runs do agente divergem em
+  forma sobre a mesma spec, e isso é aceito: a prova reporta a divergência como
+  informação e reprova só quando um gate reprova. Exigir bytes idênticos tornaria
+  o harness inútil na primeira mudança de estilo do modelo.
+- **A porta de consulta pertence ao bloco `port`, mesmo quando os genéricos
+  bastam para o resto.** Os genéricos do kernel (`Repository[ID,S]`, `Outbox`,
+  `Reader[ID,S]`, `UnitOfWork[R]`) expressam quase toda a fronteira por
+  instanciação; o que não expressam é a consulta que atravessa uma relação. O
+  agente a declarou no `application`, onde é consumida — idiomático em Go,
+  incoerente com a matriz de blocos: o resultado compila, passa nos gates e
+  deixa a unidade `<ctx>/ports` declarada e sem superfície. Bloco vazio num
+  golden que serve para ensinar é o pior tipo de exemplo.
+- **Suíte sem `BaselineStore` declara o shared kernel na `Input`.** `FIT-03` põe
+  o `fitness` e o `selfcheck` fora do modelo de confiança do baseline, o que
+  também os deixa sem a designação de shared kernel. Enquanto só existia o
+  kernel, a omissão não aparecia; o primeiro contexto a consumi-lo faz brotar um
+  `DMPF-D002` por aresta. As duas suítes passam a ler **apenas a designação** do
+  baseline governado, sem adotar o store — a promessa de `FIT-03` fica intacta e
+  a lista não é duplicada em teste, onde sairia do lugar.
+- **Código gerado não se conserta por edição.** O `rawDesc` de um `.pb.go` é o
+  descritor do `.proto` serializado, com prefixos de comprimento: alteração
+  textual que mude o tamanho de um campo corrompe o descritor e o pacote entra
+  em `panic` no `init()`. Qualquer renomeação que alcance `gen/go` se conclui
+  regerando pelo rito Buf. A regra já existia como norma; agora tem a razão
+  mecânica registrada.
+- **A prova envelhece com o golden.** O `dmpf-harness-check.sh` carrega o layout
+  do contexto em `MODULOS` e nos globs de comparação. Depois da virada para
+  pasta por contexto (addendum do ADR-030), ele seguiu procurando
+  `<ctx>-<bloco>` e casando o diagnóstico por `<ctx>-domain`, quando o
+  verificador imprime `<ctx>/domain`. Foi o próprio `self-test` que apontou os
+  dois — o que é o argumento para rodá-lo a cada mudança de forma.
+
+O guia operacional do fluxo está em `docs/guides/dmpf-composicao.md`; o catálogo
+do que já deu errado, em
+`.agents/skills/dmpf-bounded-context/references/armadilhas.md`.
+
 ## Referências
 
 - `docs/specs/SPEC-8HWBWJCB-dmpf-sdk-referencia-bom.md` — guarda-chuva do KRN-12.

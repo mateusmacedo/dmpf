@@ -21,7 +21,7 @@
 #
 # A fase `self-test` não usa LLM: sobre o golden commitado, retira
 # dmpf-kernel/domain de shared_kernel_units e exige que o verificador reprove
-# com DMPF-D002 apontando bookings-domain — o cenário 4 da spec do harness.
+# com DMPF-D002 apontando bookings/domain — o cenário 4 da spec do harness.
 set -uo pipefail
 
 ORIGEM="$(readlink -f "${BASH_SOURCE[0]}")" \
@@ -33,7 +33,9 @@ cd "$ROOT" || exit 2
 SPEC=SPEC-AHPRBZCT # ephemeral-ref-ok: a prova regenera o golden a partir da sua spec, por natureza
 NOME=bookings
 CONTEXTO=resource-scheduling
-MODULOS=(bookings-domain bookings-ports bookings-application bookings-provider-postgres bookings-app)
+# Um dirName por bloco (ADR-030, addendum): o contexto mora em uma pasta e
+# cada bloco é um subdiretório dela, não um módulo irmão de nome composto.
+MODULOS=(domain ports application provider app)
 PROJETOS=(bookings-domain-go bookings-ports-go bookings-application-go bookings-provider-postgres-go bookings-app-go)
 PROJETOS_POSTGRES=(bookings-provider-postgres-go bookings-app-go)
 CAMINHOS_GOLDEN=(
@@ -141,8 +143,8 @@ abrir_worktree() {
 conferir_golden_presente() {
   local modulo
   for modulo in "${MODULOS[@]}"; do
-    [ -d "$ROOT/libs/backend/go/$modulo" ] \
-      || falha "o golden não está no HEAD: libs/backend/go/$modulo ausente — a prova compara contra ele"
+    [ -d "$ROOT/libs/backend/go/$NOME/$modulo" ] \
+      || falha "o golden não está no HEAD: libs/backend/go/$NOME/$modulo ausente — a prova compara contra ele"
   done
   jq -e --arg u "$UNIDADE_CONTRATO" '.units[] | select(.id == $u)' "$ROOT/$MANIFESTO_CONTRATOS" >/dev/null \
     || falha "a unidade $UNIDADE_CONTRATO não está em $MANIFESTO_CONTRATOS"
@@ -155,8 +157,8 @@ conferir_golden_presente() {
 remover_golden() {
   local modulo caminho tmp
   for modulo in "${MODULOS[@]}"; do
-    git -C "$WT" rm -rq -- "libs/backend/go/$modulo" || falha "não consegui remover $modulo do worktree"
-    sed -i "\#^\t./libs/backend/go/$modulo\$#d" "$WT/go.work" || falha "não consegui editar o go.work"
+    git -C "$WT" rm -rq -- "libs/backend/go/$NOME/$modulo" || falha "não consegui remover $modulo do worktree"
+    sed -i "\#^\t./libs/backend/go/$NOME/$modulo\$#d" "$WT/go.work" || falha "não consegui editar o go.work"
   done
   for caminho in "${CAMINHOS_GOLDEN[@]}"; do
     [ -e "$WT/$caminho" ] || continue
@@ -207,9 +209,9 @@ coletar_gerados() {
   done < <(git -C "$WT" status --porcelain -z --untracked-files=all)
   [ "${#ARQUIVOS_GERADOS[@]}" -gt 0 ] || falha "o agente não deixou nenhum arquivo no worktree"
   for modulo in "${MODULOS[@]}"; do
-    [ -d "$WT/libs/backend/go/$modulo" ] || falha "o agente não produziu libs/backend/go/$modulo"
+    [ -d "$WT/libs/backend/go/$NOME/$modulo" ] || falha "o agente não produziu libs/backend/go/$NOME/$modulo"
   done
-  grep -q "$NOME" "$WT/go.work" || falha "go.work não registra os módulos $NOME-*: o esqueleto não passou pelo generator"
+  grep -q "$NOME" "$WT/go.work" || falha "go.work não registra os módulos de $NOME: o esqueleto não passou pelo generator"
   [ -d "$WT/contracts/proto/company/$NOME" ] || falha "o agente não escreveu contracts/proto/company/$NOME"
   ok "${#ARQUIVOS_GERADOS[@]} arquivo(s) tocado(s); cinco módulos, go.work e .proto presentes"
 }
@@ -300,11 +302,11 @@ conferir_arvore_limpa() {
 relatar_divergencia() {
   local so_golden so_regen
   so_golden="$(comm -23 \
-    <(git -C "$ROOT" ls-tree -r --name-only HEAD -- "libs/backend/go/$NOME-"* "${CAMINHOS_GOLDEN[@]}" 2>/dev/null | sort) \
-    <(git -C "$WT" ls-tree -r --name-only HEAD -- "libs/backend/go/$NOME-"* "${CAMINHOS_GOLDEN[@]}" 2>/dev/null | sort))"
+    <(git -C "$ROOT" ls-tree -r --name-only HEAD -- "libs/backend/go/$NOME" "${CAMINHOS_GOLDEN[@]}" 2>/dev/null | sort) \
+    <(git -C "$WT" ls-tree -r --name-only HEAD -- "libs/backend/go/$NOME" "${CAMINHOS_GOLDEN[@]}" 2>/dev/null | sort))"
   so_regen="$(comm -13 \
-    <(git -C "$ROOT" ls-tree -r --name-only HEAD -- "libs/backend/go/$NOME-"* "${CAMINHOS_GOLDEN[@]}" 2>/dev/null | sort) \
-    <(git -C "$WT" ls-tree -r --name-only HEAD -- "libs/backend/go/$NOME-"* "${CAMINHOS_GOLDEN[@]}" 2>/dev/null | sort))"
+    <(git -C "$ROOT" ls-tree -r --name-only HEAD -- "libs/backend/go/$NOME" "${CAMINHOS_GOLDEN[@]}" 2>/dev/null | sort) \
+    <(git -C "$WT" ls-tree -r --name-only HEAD -- "libs/backend/go/$NOME" "${CAMINHOS_GOLDEN[@]}" 2>/dev/null | sort))"
   printf '\nDivergência de forma contra o golden commitado (informativo):\n'
   printf '  só no golden:      %s\n' "${so_golden:-nenhum}"
   printf '  só no regenerado:  %s\n' "${so_regen:-nenhum}"
@@ -378,7 +380,7 @@ fase_self_test() {
     || falha "o --write-baseline restaurou $UNIDADE_SABOTADA: a sabotagem não pegou"
   ok "baseline sem $UNIDADE_SABOTADA, digest fechado"
 
-  passo "o verificador precisa reprovar com DMPF-D002 em $NOME-domain"
+  passo "o verificador precisa reprovar com DMPF-D002 em $NOME/domain"
   saida="$(go run ./libs/backend/go/dmpf-conformance/cmd/dmpf-conformance --root "$WT" 2>&1)"
   status=$?
   if [ "$status" -eq 0 ]; then
@@ -387,9 +389,9 @@ fase_self_test() {
   fi
   grep -qF 'DMPF-D002' <<<"$saida" \
     || { printf '%s\n' "$saida" >&2; falha "reprovou por outro motivo — esperado DMPF-D002 (saída acima)"; }
-  grep -qF "$NOME-domain" <<<"$saida" \
-    || { printf '%s\n' "$saida" >&2; falha "DMPF-D002 não aponta $NOME-domain (saída acima)"; }
-  ok "DMPF-D002 em $NOME-domain, como esperado"
+  grep -qF "$NOME/domain" <<<"$saida" \
+    || { printf '%s\n' "$saida" >&2; falha "DMPF-D002 não aponta $NOME/domain (saída acima)"; }
+  ok "DMPF-D002 em $NOME/domain, como esperado"
 
   printf '\nProva do harness (self-test): OK — o gate normativo ainda morde sem o shared kernel.\n'
 }

@@ -105,6 +105,41 @@ deve divergir dele.
 Libs sem dependência de runtime usam `stack:universal`; as que tocam APIs de Node ou frameworks de servidor usam `stack:node`. `scope:` acompanha a pasta de primeiro
 nível sob `libs/` ou `apps/` (`shared`, `backend`, `frontend`).
 
+### A quarta tag: `layer:` em módulos Go
+
+Todo projeto `stack:go` declara **também** uma tag `layer:`, aditiva às três
+acima. Ela não altera `release.projects` nem os `targetDefaults` — a taxonomia
+canônica continua sendo a de três dimensões. O que ela decide é o **estágio do
+CI** em que o módulo roda: o `ci.yml` seleciona os projetos de cada estágio da
+pirâmide de testes por essa tag. Um módulo `stack:go` sem ela não entra em
+nenhum estágio e passaria despercebido, então o CI tem um guard que compara os
+dois conjuntos e reprova quando algum projeto Go fica de fora
+(`.github/workflows/ci.yml`).
+
+| Valor | Estágio |
+|-------|---------|
+| `layer:domain` | Domínio e portas — sem infraestrutura |
+| `layer:services` | Casos de uso e primitivas de transporte |
+| `layer:contract` | Contratos de wire |
+| `layer:providers` | Realizações que exigem infraestrutura (Postgres, Kafka, SQS) |
+| `layer:apps` | Composition roots e bordas |
+
+A camada é a do **estágio em que o módulo precisa rodar**, não a do bloco DMPF
+de cada unidade que ele declara. Um módulo com unidades em quatro blocos, cujas
+suítes exigem Postgres, é `layer:providers` — quem manda é a infraestrutura que
+o teste pede.
+
+```bash
+# Os projetos de um estágio, como o ci.yml os seleciona
+pnpm nx show projects --projects=tag:layer:domain --json | jq -r 'join(",")'
+```
+
+Um bounded context distribui seus cinco módulos pelas camadas conforme o bloco:
+`domain` e `ports` em `layer:domain`, `application` em `layer:services`,
+`provider` em `layer:providers` e `app` em `layer:apps`. O generator
+`bounded-context` já emite a tag correta em cada `project.json`; ver
+`docs/guides/dmpf-composicao.md`.
+
 ---
 
 ## Como criar uma nova lib
