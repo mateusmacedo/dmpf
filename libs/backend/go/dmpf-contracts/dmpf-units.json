@@ -55,29 +55,121 @@
       "unit": "dmpf-contracts/gen",
       "dependency": "reflect",
       "reason": "import emitido pelo protoc-gen-go v1.36.12 em todo arquivo gerado; plumbing do runtime Protobuf, não uso de framework (RFC 6.4)",
-      "owner": "tech-leads",
-      "review_by": "2027-03-02"
+      "owner": "team:tech-leads",
+      "review_by": "2027-03-02",
+
+      "id": "dmpf-contracts-gen:reflect",
+      "object": {
+        "kind": "external-dependency",
+        "unit": "dmpf-contracts/gen",
+        "identity": "reflect"
+      },
+      "adr": "ADR-033",
+      "justification": "import emitido pelo protoc-gen-go v1.36.12 em todo arquivo gerado; plumbing do runtime Protobuf, não uso de framework (RFC 6.4)",
+      "convergence": {
+        "kind": "review",
+        "review_by": "2027-03-02",
+        "approved_by": ["arquitetura", "plataforma"],
+        "replanning_condition": "elimination of reflect and unsafe imports from protoc-gen-go output"
+      },
+      "valid_from": "2026-09-12T00:00:00Z",
+      "history": [
+        {
+          "event": "granted",
+          "at": "2026-09-12T00:00:00Z",
+          "by": "team:tech-leads"
+        }
+      ]
     },
     {
       "unit": "dmpf-contracts/gen",
       "dependency": "unsafe",
       "reason": "import emitido pelo protoc-gen-go v1.36.12 em todo arquivo gerado; plumbing do runtime Protobuf, não uso de framework (RFC 6.4)",
-      "owner": "tech-leads",
-      "review_by": "2027-03-02"
+      "owner": "team:tech-leads",
+      "review_by": "2027-03-02",
+
+      "id": "dmpf-contracts-gen:unsafe",
+      "object": {
+        "kind": "external-dependency",
+        "unit": "dmpf-contracts/gen",
+        "identity": "unsafe"
+      },
+      "adr": "ADR-033",
+      "justification": "import emitido pelo protoc-gen-go v1.36.12 em todo arquivo gerado; plumbing do runtime Protobuf, não uso de framework (RFC 6.4)",
+      "convergence": {
+        "kind": "review",
+        "review_by": "2027-03-02",
+        "approved_by": ["arquitetura", "plataforma"],
+        "replanning_condition": "elimination of reflect and unsafe imports from protoc-gen-go output"
+      },
+      "valid_from": "2026-09-12T00:00:00Z",
+      "history": [
+        {
+          "event": "granted",
+          "at": "2026-09-12T00:00:00Z",
+          "by": "team:tech-leads"
+        }
+      ]
     },
     {
       "unit": "resource-scheduling/contract",
       "dependency": "reflect",
       "reason": "import emitido pelo protoc-gen-go v1.36.12 em todo arquivo gerado; plumbing do runtime Protobuf, não uso de framework (RFC 6.4)",
-      "owner": "tech-leads",
-      "review_by": "2027-03-02"
+      "owner": "team:tech-leads",
+      "review_by": "2027-03-02",
+
+      "id": "resource-scheduling-contract:reflect",
+      "object": {
+        "kind": "external-dependency",
+        "unit": "resource-scheduling/contract",
+        "identity": "reflect"
+      },
+      "adr": "ADR-033",
+      "justification": "import emitido pelo protoc-gen-go v1.36.12 em todo arquivo gerado; plumbing do runtime Protobuf, não uso de framework (RFC 6.4)",
+      "convergence": {
+        "kind": "review",
+        "review_by": "2027-03-02",
+        "approved_by": ["arquitetura", "plataforma"],
+        "replanning_condition": "elimination of reflect and unsafe imports from protoc-gen-go output"
+      },
+      "valid_from": "2026-09-12T00:00:00Z",
+      "history": [
+        {
+          "event": "granted",
+          "at": "2026-09-12T00:00:00Z",
+          "by": "team:tech-leads"
+        }
+      ]
     },
     {
       "unit": "resource-scheduling/contract",
       "dependency": "unsafe",
       "reason": "import emitido pelo protoc-gen-go v1.36.12 em todo arquivo gerado; plumbing do runtime Protobuf, não uso de framework (RFC 6.4)",
-      "owner": "tech-leads",
-      "review_by": "2027-03-02"
+      "owner": "team:tech-leads",
+      "review_by": "2027-03-02",
+
+      "id": "resource-scheduling-contract:unsafe",
+      "object": {
+        "kind": "external-dependency",
+        "unit": "resource-scheduling/contract",
+        "identity": "unsafe"
+      },
+      "adr": "ADR-033",
+      "justification": "import emitido pelo protoc-gen-go v1.36.12 em todo arquivo gerado; plumbing do runtime Protobuf, não uso de framework (RFC 6.4)",
+      "convergence": {
+        "kind": "review",
+        "review_by": "2027-03-02",
+        "approved_by": ["arquitetura", "plataforma"],
+        "replanning_condition": "elimination of reflect and unsafe imports from protoc-gen-go output"
+      },
+      "valid_from": "2026-09-12T00:00:00Z",
+      "history": [
+        {
+          "event": "granted",
+          "at": "2026-09-12T00:00:00Z",
+          "by": "team:tech-leads"
+        }
+      ]
     }
   ]
 }

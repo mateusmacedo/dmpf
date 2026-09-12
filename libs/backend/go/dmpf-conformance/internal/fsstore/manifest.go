@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/internal/exception"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/internal/manifest"
 )
 
@@ -28,12 +30,43 @@ type wireExternal struct {
 	Versions    string   `json:"versions"`
 }
 
+type wireExceptionObject struct {
+	Kind     *string `json:"kind"`
+	Unit     *string `json:"unit"`
+	Identity *string `json:"identity"`
+}
+
+type wireExceptionConvergence struct {
+	Kind                *string  `json:"kind"`
+	Deadline            *string  `json:"deadline"`
+	Condition           *string  `json:"condition"`
+	ReviewBy            *string  `json:"review_by"`
+	ApprovedBy          []string `json:"approved_by"`
+	ReplanningCondition *string  `json:"replanning_condition"`
+}
+
+type wireExceptionHistoryEntry struct {
+	Event  string `json:"event"`
+	At     string `json:"at"`
+	By     string `json:"by"`
+	Reason string `json:"reason"`
+}
+
 type wireException struct {
 	Unit       string `json:"unit"`
 	Dependency string `json:"dependency"`
 	Reason     string `json:"reason"`
 	Owner      string `json:"owner"`
 	ReviewBy   string `json:"review_by"`
+
+	ID            *string                     `json:"id"`
+	Object        *wireExceptionObject        `json:"object"`
+	ADR           *string                     `json:"adr"`
+	Justification *string                     `json:"justification"`
+	Convergence   *wireExceptionConvergence   `json:"convergence"`
+	ValidFrom     *string                     `json:"valid_from"`
+	ValidUntil    *string                     `json:"valid_until"`
+	History       []wireExceptionHistoryEntry `json:"history"`
 }
 
 type wireDocument struct {
@@ -73,12 +106,92 @@ func DecodeManifest(path, module string, raw []byte) (manifest.Document, error) 
 		})
 	}
 	for _, x := range w.Exceptions {
-		doc.Exceptions = append(doc.Exceptions, manifest.Exception{
+		exc := manifest.Exception{
 			Unit: x.Unit, Dependency: x.Dependency, Reason: x.Reason,
 			Owner: x.Owner, ReviewBy: x.ReviewBy,
-		})
+			ReviewByAt: parseInstant(x.ReviewBy),
+		}
+		if x.ID != nil {
+			exc.ID = *x.ID
+			exc.PresentID = true
+		}
+		if x.Object != nil {
+			exc.Object = manifest.ExceptionObject{
+				Kind:            deref(x.Object.Kind),
+				Unit:            deref(x.Object.Unit),
+				Identity:        deref(x.Object.Identity),
+				PresentKind:     x.Object.Kind != nil,
+				PresentUnit:     x.Object.Unit != nil,
+				PresentIdentity: x.Object.Identity != nil,
+			}
+			exc.PresentObject = true
+		}
+		if x.ADR != nil {
+			exc.ADR = *x.ADR
+			exc.PresentADR = true
+		}
+		if x.Justification != nil {
+			exc.Justification = *x.Justification
+			exc.PresentJustification = true
+		}
+		if x.Convergence != nil {
+			exc.Convergence = manifest.ExceptionConvergence{
+				Kind:                deref(x.Convergence.Kind),
+				Deadline:            parseInstant(deref(x.Convergence.Deadline)),
+				Condition:           deref(x.Convergence.Condition),
+				ReviewBy:            parseInstant(deref(x.Convergence.ReviewBy)),
+				ApprovedBy:          x.Convergence.ApprovedBy,
+				ReplanningCondition: deref(x.Convergence.ReplanningCondition),
+				PresentKind:         x.Convergence.Kind != nil,
+			}
+			exc.PresentConvergence = true
+		}
+		if x.ValidFrom != nil {
+			exc.ValidFrom = parseInstant(*x.ValidFrom)
+			exc.PresentValidFrom = true
+		}
+		if x.ValidUntil != nil {
+			exc.ValidUntil = parseInstant(*x.ValidUntil)
+			exc.PresentValidUntil = true
+		}
+		if x.History != nil {
+			for _, h := range x.History {
+				exc.History = append(exc.History, manifest.ExceptionHistoryEntry{
+					Event: h.Event, At: parseInstant(h.At), By: h.By, Reason: h.Reason,
+				})
+			}
+			exc.PresentHistory = true
+		}
+		if !exc.PresentObject {
+			exc.Object = manifest.ExceptionObject{
+				Unit:            x.Unit,
+				Identity:        x.Dependency,
+				PresentUnit:     x.Unit != "",
+				PresentIdentity: x.Dependency != "",
+			}
+		}
+		if !exc.PresentJustification && x.Reason != "" {
+			exc.Justification = x.Reason
+			exc.PresentJustification = true
+		}
+		doc.Exceptions = append(doc.Exceptions, exc)
 	}
 	return doc, nil
+}
+
+// RFC3339 primeiro, data simples depois: as duas formas aparecem nos manifestos
+// e o bloco domain recebe o instante pronto.
+func parseInstant(s string) exception.Instant {
+	if s == "" {
+		return 0
+	}
+	if t, err := time.Parse(time.RFC3339, s); err == nil {
+		return exception.Instant(t.UnixNano())
+	}
+	if t, err := time.Parse(time.DateOnly, s); err == nil {
+		return exception.Instant(t.UnixNano())
+	}
+	return 0
 }
 
 func deref(p *string) string {
