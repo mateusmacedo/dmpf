@@ -11,9 +11,11 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/internal/baseline"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/internal/conformance"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/internal/exception"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/internal/fsstore"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/internal/golist"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/internal/manifest"
@@ -32,11 +34,12 @@ func main() {
 	raiz := flag.String("root", ".", "raiz do workspace")
 	perfis := flag.String("profiles", "", "caminho do build-profiles.json (default: <root>/libs/backend/go/dmpf-conformance/build-profiles.json)")
 	base := flag.String("base", "", "ref base do intervalo em revisão, para avaliar o commit próprio de RFC §10.2")
+	agora := flag.String("now", "", "instante RFC3339 contra o qual as exceções vencem (default: relógio)")
 	regravar := flag.Bool("write-baseline", false, "regrava o baseline a partir da classificação declarada; NUNCA usar no gate")
 	flag.Parse()
 
 	os.Exit(run(opcoes{
-		raiz: *raiz, perfis: *perfis, base: *base, regravar: *regravar,
+		raiz: *raiz, perfis: *perfis, base: *base, agora: *agora, regravar: *regravar,
 	}, os.Stdout, os.Stderr))
 }
 
@@ -44,12 +47,19 @@ type opcoes struct {
 	raiz     string
 	perfis   string
 	base     string
+	agora    string
 	regravar bool
 }
 
 func run(o opcoes, saida, erros io.Writer) int {
+	now, err := instanteDe(o.agora)
+	if err != nil {
+		_, _ = fmt.Fprintf(erros, "dmpf-conformance: %v\n", err)
+		return exitFalha
+	}
+
 	if o.regravar {
-		if err := regravarBaseline(o); err != nil {
+		if err := regravarBaseline(o, now); err != nil {
 			_, _ = fmt.Fprintf(erros, "dmpf-conformance: %v\n", err)
 			return exitFalha
 		}
@@ -57,7 +67,7 @@ func run(o opcoes, saida, erros io.Writer) int {
 		return exitConforme
 	}
 
-	relatorio, err := verificar(o)
+	relatorio, err := verificar(o, now)
 	if err != nil {
 		_, _ = fmt.Fprintf(erros, "dmpf-conformance: %v\n", err)
 		return exitFalha
@@ -86,7 +96,18 @@ func run(o opcoes, saida, erros io.Writer) int {
 	return exitConforme
 }
 
-func verificar(o opcoes) (conformance.Report, error) {
+func instanteDe(v string) (exception.Instant, error) {
+	if v == "" {
+		return exception.Instant(time.Now().UnixNano()), nil
+	}
+	t, err := time.Parse(time.RFC3339, v)
+	if err != nil {
+		return 0, fmt.Errorf("--now %q não é RFC3339: %w", v, err)
+	}
+	return exception.Instant(t.UnixNano()), nil
+}
+
+func verificar(o opcoes, now exception.Instant) (conformance.Report, error) {
 	abs, perfis, err := preparar(o)
 	if err != nil {
 		return conformance.Report{}, err
@@ -103,6 +124,7 @@ func verificar(o opcoes) (conformance.Report, error) {
 		Standard:  grafo.IsStandard,
 		Baseline:  fsstore.NewBaselineStore(abs),
 		Base:      o.base,
+		Now:       now,
 	})
 }
 
@@ -135,7 +157,7 @@ func montar(abs, perfis string) ([]rule.Module, *golist.Source, error) {
 
 // Comando SEPARADO, que nunca roda no gate: um gate que conserta o próprio
 // insumo deixa de detectar a divergência que existe para detectar.
-func regravarBaseline(o opcoes) error {
+func regravarBaseline(o opcoes, now exception.Instant) error {
 	abs, perfis, err := preparar(o)
 	if err != nil {
 		return err
@@ -155,8 +177,8 @@ func regravarBaseline(o opcoes) error {
 
 	var units []rule.Unit
 	for _, doc := range docs {
-		if d := manifest.Validate(doc); len(d) > 0 {
-			return fmt.Errorf("manifesto inválido em %s: %s", doc.Path, d[0])
+		if err := admitido(doc, grafo.IsStandard, now); err != nil {
+			return err
 		}
 		units = append(units, conformance.UnidadesDoDocumento(doc)...)
 	}
@@ -171,4 +193,17 @@ func regravarBaseline(o opcoes) error {
 		return fmt.Errorf("ler baseline atual: %w", err)
 	}
 	return store.Escrever(baseline.Regravar(atual, existia, units, universo.Membership()))
+}
+
+// Regravar é ato de classificação sobre o manifesto inteiro: passar por cima de
+// exceção recusada daria aval ao que o gate reprova na execução seguinte.
+func admitido(doc manifest.Document, standard func(string) bool, now exception.Instant) error {
+	v := manifest.Validate(doc, manifest.Admission{IsStandard: standard, Now: now})
+	if len(v.Manifest) > 0 {
+		return fmt.Errorf("manifesto inválido em %s: %s", doc.Path, v.Manifest[0])
+	}
+	if len(v.Exceptions) > 0 {
+		return fmt.Errorf("exceção não admitida em %s: %s", doc.Path, v.Exceptions[0])
+	}
+	return nil
 }

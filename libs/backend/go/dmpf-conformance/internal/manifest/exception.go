@@ -1,6 +1,8 @@
 package manifest
 
 import (
+	"strings"
+
 	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/internal/exception"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/internal/rule"
 )
@@ -8,6 +10,7 @@ import (
 type Admitted struct {
 	Exc     exception.Exception
 	Subject exception.Subject
+	Source  Exception
 }
 
 func Admitidas(doc Document, policy rule.ExternalPolicy, isStandard func(string) bool, now exception.Instant) ([]Admitted, []rule.Diagnostic) {
@@ -17,14 +20,41 @@ func Admitidas(doc Document, policy rule.ExternalPolicy, isStandard func(string)
 	for _, mx := range doc.Exceptions {
 		exc := ToException(mx)
 		subj := resolveSubject(mx, doc, policy, isStandard)
-		diags := exception.AdmitIn(exc, exception.RegistryManifest, subj, now)
+		diags := conflictDiagnostics(mx)
+		diags = append(diags, exception.AdmitIn(exc, exception.RegistryManifest, subj, now)...)
 		if len(diags) == 0 {
-			admitted = append(admitted, Admitted{Exc: exc, Subject: subj})
+			admitted = append(admitted, Admitted{Exc: exc, Subject: subj, Source: mx})
 		} else {
 			xDiags = append(xDiags, diags...)
 		}
 	}
 	return admitted, xDiags
+}
+
+// Quem revisa o PR lê um dos dois pares: divergentes, aprova-se um objeto e
+// admite-se outro.
+func conflictDiagnostics(mx Exception) []rule.Diagnostic {
+	pairs := mx.ConflictPairs()
+	if len(pairs) == 0 {
+		return nil
+	}
+	return []rule.Diagnostic{{
+		Code:         rule.CodeX001,
+		CanonicalKey: mx.Object.Unit,
+		Target:       mx.ID,
+		Detail:       "representação legada diverge da nova: " + strings.Join(pairs, ", "),
+	}}
+}
+
+// A autorização sai do objeto que a admissão conferiu, não dos campos legados.
+func (a Admitted) entry() rule.ExceptionEntry {
+	return rule.ExceptionEntry{
+		Unit:       a.Exc.Object.Unit,
+		Dependency: a.Exc.Object.Identity,
+		Reason:     a.Exc.Justification,
+		Owner:      a.Exc.Owner,
+		ReviewBy:   a.Source.ReviewBy,
+	}
 }
 
 func ToException(x Exception) exception.Exception {

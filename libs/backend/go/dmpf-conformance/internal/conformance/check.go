@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/internal/baseline"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/internal/exception"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/internal/manifest"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/internal/port"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/internal/rule"
@@ -32,6 +33,9 @@ type Input struct {
 	// Base delimita o intervalo em revisão, para julgar se a mudança de
 	// classificação veio isolada do código.
 	Base string
+
+	// Zero desliga o vencimento (X006): nenhuma exceção vence antes do epoch.
+	Now exception.Instant
 }
 
 type Report struct {
@@ -71,6 +75,10 @@ func Check(in Input) (Report, error) {
 	var diags []rule.Diagnostic
 	var units []rule.Unit
 
+	// X* NÃO encerram: a exceção recusada só retira a autorização, e o E001 que
+	// isso produz na aresta precisa aparecer no mesmo relatório.
+	var recusas []rule.Diagnostic
+
 	// Política POR MÓDULO, nunca unificada: como o `id` só é único dentro de um
 	// manifesto, unir faria a exceção de um módulo autorizar outro — deixaria de
 	// nomear o par que autoriza, virando política paralela não revisada.
@@ -78,16 +86,18 @@ func Check(in Input) (Report, error) {
 	unidadeDoPackage := map[string]rule.UnitKey{}
 
 	for _, doc := range docs {
-		diags = append(diags, manifest.Validate(doc)...)
-		p := politicaDoDocumento(doc)
-		diags = append(diags, p.Validate(doc.Path)...)
-		politicaPorModulo[doc.Module] = p
+		v := manifest.Validate(doc, manifest.Admission{IsStandard: in.Standard, Now: in.Now})
+		diags = append(diags, v.Manifest...)
+		recusas = append(recusas, v.Exceptions...)
+		politicaPorModulo[doc.Module] = v.Policy
 		units = append(units, UnidadesDoDocumento(doc)...)
 	}
 	if len(diags) > 0 {
+		diags = append(diags, recusas...)
 		rule.SortDiagnostics(diags)
 		return Report{Diagnostics: diags, PhaseHalted: "validação de manifesto"}, nil
 	}
+	diags = recusas
 
 	// Shared kernel é decidido ANTES do universo: decidir aresta sobre
 	// designação que não vale produz D002 em massa e esconde a causa real.
@@ -97,7 +107,9 @@ func Check(in Input) (Report, error) {
 		var err error
 		baselineDoc, baselineExiste, err = in.Baseline.Baseline()
 		if err != nil {
+			rule.SortDiagnostics(diags)
 			return Report{
+				Diagnostics:   diags,
 				NaoVerificado: []string{"baseline ilegível (" + baseline.Path + "): " + err.Error()},
 				PhaseHalted:   "designação de shared kernel",
 			}, nil
@@ -108,8 +120,9 @@ func Check(in Input) (Report, error) {
 	}
 	units, m004 := baseline.Designar(baselineDoc, units)
 	if len(m004) > 0 {
-		rule.SortDiagnostics(m004)
-		return Report{Diagnostics: m004, PhaseHalted: "designação de shared kernel"}, nil
+		diags = append(diags, m004...)
+		rule.SortDiagnostics(diags)
+		return Report{Diagnostics: diags, PhaseHalted: "designação de shared kernel"}, nil
 	}
 
 	pkgs, err := in.Graph.Packages()
@@ -269,23 +282,6 @@ func documentoSinteticoDeUnits(units []rule.Unit, chaves []string) baseline.Docu
 		SharedKernelUnits:    chaves,
 		HasSharedKernelUnits: true,
 	}
-}
-
-func politicaDoDocumento(doc manifest.Document) rule.ExternalPolicy {
-	var p rule.ExternalPolicy
-	for _, e := range doc.External {
-		p.Allowlist = append(p.Allowlist, rule.AllowlistEntry{
-			Package: e.Package, Entrypoints: e.Entrypoints,
-			Capability: rule.Capability(e.Capability), Versions: e.Versions,
-		})
-	}
-	for _, x := range doc.Exceptions {
-		p.Exceptions = append(p.Exceptions, rule.ExceptionEntry{
-			Unit: x.Unit, Dependency: x.Dependency, Reason: x.Reason,
-			Owner: x.Owner, ReviewBy: x.ReviewBy,
-		})
-	}
-	return p
 }
 
 func detalheOuPadrao(d string) string {

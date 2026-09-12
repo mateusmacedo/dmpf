@@ -5,11 +5,60 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/internal/exception"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/internal/rule"
 )
 
-// Validate aplica o schema dmpf/units@1 a um documento JÁ decodificado.
-func Validate(doc Document) []rule.Diagnostic {
+type Admission struct {
+	IsStandard func(string) bool
+	Now        exception.Instant
+}
+
+// Só Manifest encerra a fase de validação: exceção recusada deixa o import sem
+// autorização, e quem reprova é a aresta, não o manifesto.
+type Validation struct {
+	Manifest   []rule.Diagnostic
+	Exceptions []rule.Diagnostic
+	Admitted   []Admitted
+	Policy     rule.ExternalPolicy
+}
+
+// Admissão única: o gate e a regravação do baseline consomem a mesma Policy,
+// que carrega só as exceções admitidas.
+func Validate(doc Document, a Admission) Validation {
+	allowlist := allowlistOf(doc)
+	admitted, recusas := Admitidas(doc, allowlist, a.IsStandard, a.Now)
+
+	policy := allowlist
+	for _, ad := range admitted {
+		policy.Exceptions = append(policy.Exceptions, ad.entry())
+	}
+
+	manifestDiags := validateSchema(doc)
+	manifestDiags = append(manifestDiags, policy.Validate(doc.Path)...)
+	rule.SortDiagnostics(manifestDiags)
+	rule.SortDiagnostics(recusas)
+
+	return Validation{
+		Manifest:   manifestDiags,
+		Exceptions: recusas,
+		Admitted:   admitted,
+		Policy:     policy,
+	}
+}
+
+func allowlistOf(doc Document) rule.ExternalPolicy {
+	var p rule.ExternalPolicy
+	for _, e := range doc.External {
+		p.Allowlist = append(p.Allowlist, rule.AllowlistEntry{
+			Package: e.Package, Entrypoints: e.Entrypoints,
+			Capability: rule.Capability(e.Capability), Versions: e.Versions,
+		})
+	}
+	return p
+}
+
+func validateSchema(doc Document) []rule.Diagnostic {
 	var out []rule.Diagnostic
 	key := doc.Path
 
