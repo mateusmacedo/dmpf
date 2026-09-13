@@ -35,6 +35,8 @@ arestas permitem: um `domainkit` só é kit de domínio se ele próprio for
 | `dmpf-kernel/testkit-dist` | `app` | `distkit` | `KIT-06` — dois processos sobre o broker, `DMPF-R004` |
 | `dmpf-kernel/testkit-fitness` | `app` | `fitness` | `FIT-01..FIT-04` — regra de dependência na suíte |
 | `dmpf-kernel/testkit-tb` | `app` | `tb`, `tb/pg` | adaptador de `testing.TB`, fixtures, codec de projeção, pool Postgres |
+| `dmpf-kernel/testkit-evidence` | `app` | `evidence` | gravação dos veredictos e montagem da evidência da release (`BOM-03`) |
+| `dmpf-kernel/testkit-cmd-evidence` | `app` | `cmd/dmpf-evidence` | comando que publica `bom/evidence/<release>/` |
 
 ## Os cinco kits — o que exigem, o que exercitam, o que aprovam
 
@@ -124,6 +126,46 @@ As fixtures de **projeção observável** (`ORA-30`) vivem em
   READMEs e manifestos por promessa de *exactly-once* sem frase de vedação;
   `docs/` fica fora porque cada menção ali é negação em prosa livre.
 
+## `evidence` — evidência da release
+
+- Os testes que decidem um veredicto gravam-no quando `DMPF_EVIDENCE_DIR` está
+  definido: `evidence.RecordReport` no round-trip golden e `evidence.RecordVerdict`
+  nas suítes de domínio, serviços e provider. Sem a variável, não gravam nada;
+  o mesmo nome gravado duas vezes na mesma execução reprova.
+- `cmd/dmpf-evidence` roda `go test -json -count=1 -p 1` por subject, com a
+  variável apontando para um diretório temporário, filtra o stream para
+  `{package, test, action}` e publica `<out>/<subject>.json` (`{header, body}`)
+  e `index.json` (`[{subject, sha256}]`).
+- O header de cada subject nomeia release, commit, `goversion` (igual à linha
+  `go` do `go.work`, senão exit 2), tags, pacotes, módulos e externos que os
+  binários de teste alcançam (`go list -deps -test`), a infra usada (versão do
+  Postgres e do Redpanda) e, no `golden`, as ferramentas pinadas (buf e
+  protoc-gen-go). Não há campo temporal: duas execuções sobre o mesmo commit
+  publicam os mesmos bytes.
+
+| Subject | Pacotes | Tags | Variáveis |
+| --- | --- | --- | --- |
+| `golden` | `dmpf-contracts/golden` | — | — |
+| `provider` | `dmpf-provider-postgres`, `dmpf-application/example/memory` | `integration` | `DMPF_PG_DSN` |
+| `domain` | `dmpf-testkit/domainkit` | — | — |
+| `services` | `dmpf-testkit/serviceskit` | — | — |
+| `app` | `dmpf-testkit/appkit` | `integration` | `DMPF_PG_DSN` |
+| `dist` | `dmpf-testkit/distkit` | `integration`, `distributed` | `DMPF_PG_DSN`, `DMPF_KAFKA_BROKERS`, `DMPF_REDPANDA_ADMIN` |
+| `reference` | `apps/backend/dmpf-reference/...` | `integration` | `DMPF_PG_DSN`, `DMPF_KAFKA_BROKERS`, `DMPF_REDPANDA_ADMIN` |
+
+- Variável ausente: sob `CI`, exit 1 nomeando-a antes de rodar qualquer subject;
+  fora de `CI`, o subject é gravado como `{skipped}`, sem corpo e sem alcance, e
+  fica fora do `index.json` — não conta como evidência.
+- Saída: exit 0 quando publica; 1 quando a evidência reprova ou não é produzida
+  (teste falhou, `skip` sob `CI`, infra inacessível); 2 em pré-condição (flag,
+  toolchain, árvore com mudanças sem `--allow-dirty`, `--out` existente).
+  `--allow-dirty` grava `<sha>-dirty` no `commit` e não serve para release.
+- `--out` não pode existir: o comando monta e confere o conjunto em memória e só
+  então renomeia um diretório temporário para o destino; evidência publicada
+  nunca é substituída pelo comando.
+- `bom/evidence/` fica fora do Biome (`biome.json`): o contrato do arquivo são
+  os bytes que o `evidence_digest` do BOM prende (`DMPF-B005`).
+
 ## Tabela regra → vetor (`RAS-01`)
 
 `fitness.Vectors` transcreve `V13`..`V32` de RFC §11.3 com a célula, o código e
@@ -142,7 +184,7 @@ ganho de decidibilidade.
 ## Como rodar
 
 ```bash
-# unitário (sem infra): clock, ids, stable, domainkit, golden, serviceskit, providerkit (memória), fitness, tb
+# unitário (sem infra): clock, ids, stable, domainkit, golden, serviceskit, providerkit (memória), fitness, tb, evidence
 pnpm nx run dmpf-testkit-go:test-race
 
 # com Postgres (appkit, providerkit sobre Postgres via dmpf-provider-postgres, tb/pg)
@@ -152,6 +194,11 @@ DMPF_PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' pnpm nx run 
 # distribuído (distkit; build tag `distributed`, fora do test-race)
 DMPF_PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' DMPF_KAFKA_BROKERS=localhost:9092 \
   pnpm nx run dmpf-testkit-go:test-distributed
+
+# evidência da release (infra de pé; --out não pode existir)
+pnpm nx run dmpf-reference-go:infra-up
+DMPF_PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' DMPF_KAFKA_BROKERS=localhost:9092 \
+  DMPF_REDPANDA_ADMIN=http://localhost:9644 pnpm nx run dmpf-testkit-go:evidence --out="$(mktemp -d)/0.1.0"
 ```
 
 Sem a variável, os testes de integração fazem `t.Skip` nomeando-a; com `CI`

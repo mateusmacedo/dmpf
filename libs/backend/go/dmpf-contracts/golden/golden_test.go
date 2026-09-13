@@ -12,6 +12,7 @@ import (
 
 	eventv1 "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/gen/go/company/orders/event/v1"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/payloadhash"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/evidence"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/golden"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/tb"
 )
@@ -138,6 +139,7 @@ func TestGoldenRoundTrip(t *testing.T) {
 			t.Fatalf("%d outcomes, want %d (three oracles per direction)", len(report.Outcomes), want)
 		}
 		tb.RequireReport(t, report)
+		evidence.RecordReport(t, "golden", strings.ReplaceAll(s.identity.Fixture, "/", "-"), report)
 	})
 }
 

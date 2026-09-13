@@ -69,6 +69,21 @@
         "command": "go test -race -count=1 -p 1 -tags=integration,distributed ./distkit/...",
         "cwd": "{projectRoot}"
       }
+    },
+    "evidence": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "inputs": ["go", "^go"],
+      "dependsOn": [
+        {
+          "projects": ["dmpf-provider-postgres-go", "dmpf-app-go", "dmpf-reference-go"],
+          "target": "test-race"
+        }
+      ],
+      "options": {
+        "command": "GOTOOLCHAIN=go1.26.6 go run ./libs/backend/go/dmpf-testkit/cmd/dmpf-evidence --root . --release latest",
+        "cwd": "{workspaceRoot}"
+      }
     }
   }
 }

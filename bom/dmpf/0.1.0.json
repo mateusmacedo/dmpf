@@ -63,6 +63,24 @@
         "compatible_with": [],
         "registry_ref": { "file": "contracts/buf.gen.yaml", "selector": "plugin:protoc-gen-go" },
         "cve": []
+      },
+      {
+        "subject": "generator",
+        "identity": "github.com/golangci/golangci-lint/v2/cmd/golangci-lint",
+        "version": "v2.13.2",
+        "state": "candidata",
+        "compatible_with": [],
+        "registry_ref": { "file": "nx.json", "selector": "golangci-lint" },
+        "cve": []
+      },
+      {
+        "subject": "generator",
+        "identity": "@mateusmacedo/dmpf-plugin",
+        "version": "0.0.0",
+        "state": "candidata",
+        "compatible_with": [],
+        "registry_ref": { "file": "tools/dmpf-plugin/package.json", "selector": "version" },
+        "cve": []
       }
     ]
   },
@@ -139,6 +157,126 @@
           "selector": "require:google.golang.org/protobuf"
         },
         "cve": []
+      },
+      {
+        "subject": "kernel",
+        "identity": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-app",
+        "version": "0.0.0",
+        "state": "candidata",
+        "compatible_with": [],
+        "cve": []
+      },
+      {
+        "subject": "kernel",
+        "identity": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application",
+        "version": "0.0.0",
+        "state": "candidata",
+        "compatible_with": [],
+        "cve": []
+      },
+      {
+        "subject": "kernel",
+        "identity": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance",
+        "version": "0.0.0",
+        "state": "candidata",
+        "compatible_with": [],
+        "cve": []
+      },
+      {
+        "subject": "kernel",
+        "identity": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts",
+        "version": "0.0.0",
+        "state": "candidata",
+        "compatible_with": [],
+        "cve": []
+      },
+      {
+        "subject": "kernel",
+        "identity": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-domain",
+        "version": "0.0.0",
+        "state": "candidata",
+        "compatible_with": [],
+        "cve": []
+      },
+      {
+        "subject": "kernel",
+        "identity": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability",
+        "version": "0.0.0",
+        "state": "candidata",
+        "compatible_with": [],
+        "cve": []
+      },
+      {
+        "subject": "kernel",
+        "identity": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-ports",
+        "version": "0.0.0",
+        "state": "candidata",
+        "compatible_with": [],
+        "cve": []
+      },
+      {
+        "subject": "kernel",
+        "identity": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-grpc",
+        "version": "0.0.0",
+        "state": "candidata",
+        "compatible_with": [],
+        "cve": []
+      },
+      {
+        "subject": "kernel",
+        "identity": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-http",
+        "version": "0.0.0",
+        "state": "candidata",
+        "compatible_with": [],
+        "cve": []
+      },
+      {
+        "subject": "kernel",
+        "identity": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-kafka",
+        "version": "0.0.0",
+        "state": "candidata",
+        "compatible_with": [],
+        "cve": []
+      },
+      {
+        "subject": "kernel",
+        "identity": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "version": "0.0.0",
+        "state": "candidata",
+        "compatible_with": [],
+        "cve": []
+      },
+      {
+        "subject": "kernel",
+        "identity": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-sqs",
+        "version": "0.0.0",
+        "state": "candidata",
+        "compatible_with": [],
+        "cve": []
+      },
+      {
+        "subject": "kernel",
+        "identity": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit",
+        "version": "0.0.0",
+        "state": "candidata",
+        "compatible_with": [],
+        "cve": []
+      },
+      {
+        "subject": "kernel",
+        "identity": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-transport",
+        "version": "0.0.0",
+        "state": "candidata",
+        "compatible_with": [],
+        "cve": []
+      },
+      {
+        "subject": "product",
+        "identity": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference",
+        "version": "560ae8e",
+        "state": "candidata",
+        "compatible_with": [],
+        "cve": []
       }
     ]
   },
@@ -158,7 +296,7 @@
     "subject": "semantic_conventions_messaging",
     "identity": "go.opentelemetry.io/otel/semconv",
     "version": "v1.43.0",
-    "state": "proposta",
+    "state": "candidata",
     "owner": "team:plataforma",
     "compatible_with": [],
     "registry_ref": {
