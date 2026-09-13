@@ -7,6 +7,7 @@ import (
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application/example/memory"
 	dmpfports "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-ports"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/evidence"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/providerkit"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/tb"
 )
@@ -43,6 +44,7 @@ func TestUnitOfWorkConformsToTheKit(t *testing.T) {
 	if len(v.Skipped) != 0 {
 		t.Fatalf("skipped: %v", v.Skipped)
 	}
+	evidence.RecordVerdict(t, "provider", "memory-unit-of-work", v)
 }
 
 type inboxResources struct{ Inbox dmpfports.Inbox }
@@ -67,4 +69,5 @@ func TestInboxConformsToTheKit(t *testing.T) {
 	if len(v.Skipped) != 1 {
 		t.Fatalf("skipped = %v, want exactly the concurrency clause", v.Skipped)
 	}
+	evidence.RecordVerdict(t, "provider", "memory-inbox", v)
 }
