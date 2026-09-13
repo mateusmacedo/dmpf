@@ -81,6 +81,20 @@
         "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/tb",
         "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/tb/pg"
       ]
+    },
+    {
+      "id": "dmpf-kernel/testkit-evidence",
+      "block": "app",
+      "bounded_context": "dmpf-kernel",
+      "public_integration_surface": false,
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/evidence"]
+    },
+    {
+      "id": "dmpf-kernel/testkit-cmd-evidence",
+      "block": "app",
+      "bounded_context": "dmpf-kernel",
+      "public_integration_surface": false,
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/cmd/dmpf-evidence"]
     }
   ],
   "external": [

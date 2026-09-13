@@ -1,6 +1,6 @@
 {
   "schema": "dmpf/units-baseline@1",
-  "digest": "sha256:2c5b4798c6be0ae144c7b6a41e3c0420e06d046c28f646bdf1e497b36ea3b2fa",
+  "digest": "sha256:f6f1e76ddb6f7cb2310305cd39ffdc91293e75922707c9519fc590def3588906",
   "entries": [
     {
       "unit": "dmpf-kernel/reference-app",
@@ -349,6 +349,13 @@
       "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/clock"]
     },
     {
+      "unit": "dmpf-kernel/testkit-cmd-evidence",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit",
+      "block": "app",
+      "bounded_context": "dmpf-kernel",
+      "membership": null
+    },
+    {
       "unit": "dmpf-kernel/testkit-dist",
       "module": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit",
       "block": "app",
@@ -361,6 +368,13 @@
       "block": "domain",
       "bounded_context": "dmpf-kernel",
       "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/domainkit"]
+    },
+    {
+      "unit": "dmpf-kernel/testkit-evidence",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit",
+      "block": "app",
+      "bounded_context": "dmpf-kernel",
+      "membership": null
     },
     {
       "unit": "dmpf-kernel/testkit-fitness",
