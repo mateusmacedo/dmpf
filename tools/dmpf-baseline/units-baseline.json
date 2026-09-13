@@ -1,6 +1,6 @@
 {
   "schema": "dmpf/units-baseline@1",
-  "digest": "sha256:872c8799618bd638429dbb8d0fb5f33a9bf67ea7891795432fb315efe2348e0a",
+  "digest": "sha256:2c5b4798c6be0ae144c7b6a41e3c0420e06d046c28f646bdf1e497b36ea3b2fa",
   "entries": [
     {
       "unit": "dmpf-kernel/reference-app",
@@ -113,7 +113,7 @@
       "module": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance",
       "block": "app",
       "bounded_context": "dmpf-conformance",
-      "membership": null
+      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/bom"]
     },
     {
       "unit": "dmpf-conformance/cmd",
@@ -129,7 +129,7 @@
       "module": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance",
       "block": "app",
       "bounded_context": "dmpf-conformance",
-      "membership": null
+      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/cmd/dmpf-bom"]
     },
     {
       "unit": "dmpf-conformance/conformance",
