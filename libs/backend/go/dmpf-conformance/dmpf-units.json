@@ -76,6 +76,20 @@
       "bounded_context": "dmpf-conformance",
       "public_integration_surface": true,
       "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/fitness"]
+    },
+    {
+      "id": "dmpf-conformance/bom",
+      "block": "app",
+      "bounded_context": "dmpf-conformance",
+      "public_integration_surface": false,
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/bom"]
+    },
+    {
+      "id": "dmpf-conformance/cmd-bom",
+      "block": "app",
+      "bounded_context": "dmpf-conformance",
+      "public_integration_surface": false,
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/cmd/dmpf-bom"]
     }
   ],
   "external": [],

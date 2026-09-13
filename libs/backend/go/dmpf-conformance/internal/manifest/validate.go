@@ -5,11 +5,60 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/internal/exception"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/internal/rule"
 )
 
-// Validate aplica o schema dmpf/units@1 a um documento JÁ decodificado.
-func Validate(doc Document) []rule.Diagnostic {
+type Admission struct {
+	IsStandard func(string) bool
+	Now        exception.Instant
+}
+
+// Só Manifest encerra a fase de validação: exceção recusada deixa o import sem
+// autorização, e quem reprova é a aresta, não o manifesto.
+type Validation struct {
+	Manifest   []rule.Diagnostic
+	Exceptions []rule.Diagnostic
+	Admitted   []Admitted
+	Policy     rule.ExternalPolicy
+}
+
+// Admissão única: o gate e a regravação do baseline consomem a mesma Policy,
+// que carrega só as exceções admitidas.
+func Validate(doc Document, a Admission) Validation {
+	allowlist := allowlistOf(doc)
+	admitted, recusas := Admitidas(doc, allowlist, a.IsStandard, a.Now)
+
+	policy := allowlist
+	for _, ad := range admitted {
+		policy.Exceptions = append(policy.Exceptions, ad.entry())
+	}
+
+	manifestDiags := validateSchema(doc)
+	manifestDiags = append(manifestDiags, policy.Validate(doc.Path)...)
+	rule.SortDiagnostics(manifestDiags)
+	rule.SortDiagnostics(recusas)
+
+	return Validation{
+		Manifest:   manifestDiags,
+		Exceptions: recusas,
+		Admitted:   admitted,
+		Policy:     policy,
+	}
+}
+
+func allowlistOf(doc Document) rule.ExternalPolicy {
+	var p rule.ExternalPolicy
+	for _, e := range doc.External {
+		p.Allowlist = append(p.Allowlist, rule.AllowlistEntry{
+			Package: e.Package, Entrypoints: e.Entrypoints,
+			Capability: rule.Capability(e.Capability), Versions: e.Versions,
+		})
+	}
+	return p
+}
+
+func validateSchema(doc Document) []rule.Diagnostic {
 	var out []rule.Diagnostic
 	key := doc.Path
 
@@ -23,7 +72,7 @@ func Validate(doc Document) []rule.Diagnostic {
 
 	seen := map[string]int{}
 	for i, u := range doc.Units {
-		out = append(out, validateUnit(key, i, u)...)
+		out = append(out, validateUnit(key, doc.Module, i, u)...)
 		if u.PresentID && u.ID != "" {
 			seen[u.ID]++
 		}
@@ -44,7 +93,7 @@ func Validate(doc Document) []rule.Diagnostic {
 
 // Não há herança: a ausência é avaliada na própria unidade, sem consultar
 // módulo pai nem unidade irmã.
-func validateUnit(key string, i int, u Unit) []rule.Diagnostic {
+func validateUnit(key, module string, i int, u Unit) []rule.Diagnostic {
 	var out []rule.Diagnostic
 	where := fmt.Sprintf("units[%d]", i)
 	if u.PresentID && u.ID != "" {
@@ -79,6 +128,16 @@ func validateUnit(key string, i int, u Unit) []rule.Diagnostic {
 				CanonicalKey: key,
 				Detail:       fmt.Sprintf("%s: include[%d] %q não é import path válido: %s", where, k, inc, motivo),
 			})
+			continue
+		}
+		// O universo ignora package de outro módulo em silêncio; sem esta
+		// cláusula, a unidade que o declara passaria por dona dele na aresta.
+		if module != "" && !insideModule(module, inc) {
+			out = append(out, rule.Diagnostic{
+				Code:         rule.CodeM002,
+				CanonicalKey: key,
+				Detail:       fmt.Sprintf("%s: include[%d] %q fora do módulo %q", where, k, inc, module),
+			})
 		}
 	}
 
@@ -101,6 +160,11 @@ func validateUnit(key string, i int, u Unit) []rule.Diagnostic {
 	}
 
 	return out
+}
+
+func insideModule(module, include string) bool {
+	norm := rule.NormalizeInclude(include)
+	return norm == module || strings.HasPrefix(norm, module+"/")
 }
 
 // Glob é o binding de TypeScript; aqui `**`, `.` e `..` são valores inválidos,

@@ -70,30 +70,30 @@ func unidadeManifesto(id, block, bc string, include ...string) manifest.Unit {
 
 func TestVetorM001(t *testing.T) {
 	t.Run("positivo: unidade com todos os obrigatórios", func(t *testing.T) {
-		exigeLimpo(t, manifest.Validate(doc(unidadeManifesto("a/domain", "domain", "a", pkgDom))))
+		exigeLimpo(t, validar(doc(unidadeManifesto("a/domain", "domain", "a", pkgDom))))
 	})
 
 	t.Run("negativo: bounded_context ausente", func(t *testing.T) {
 		u := unidadeManifesto("a/domain", "domain", "", pkgDom)
 		u.PresentBoundedContext = false
-		exigeCodigos(t, manifest.Validate(doc(u)), rule.CodeM001)
+		exigeCodigos(t, validar(doc(u)), rule.CodeM001)
 	})
 
 	t.Run("negativo: herança não supre campo omitido", func(t *testing.T) {
 		// Não há herança: a omissão é DMPF-M001, não valor derivado do pai.
 		u := unidadeManifesto("a/filha", "", "a", pkgDom)
 		u.PresentBlock = false
-		exigeCodigos(t, manifest.Validate(doc(u)), rule.CodeM001)
+		exigeCodigos(t, validar(doc(u)), rule.CodeM001)
 	})
 }
 
 func TestVetorM002(t *testing.T) {
 	t.Run("positivo: block entre os seis valores", func(t *testing.T) {
-		exigeLimpo(t, manifest.Validate(doc(unidadeManifesto("a/contract", "contract", "a", pkgDom))))
+		exigeLimpo(t, validar(doc(unidadeManifesto("a/contract", "contract", "a", pkgDom))))
 	})
 
 	t.Run("negativo: block fora do conjunto fechado", func(t *testing.T) {
-		exigeCodigos(t, manifest.Validate(doc(unidadeManifesto("a/core", "core", "a", pkgDom))), rule.CodeM002)
+		exigeCodigos(t, validar(doc(unidadeManifesto("a/core", "core", "a", pkgDom))), rule.CodeM002)
 	})
 
 	t.Run("negativo: public_integration_surface true em domain", func(t *testing.T) {
@@ -101,33 +101,33 @@ func TestVetorM002(t *testing.T) {
 		u := unidadeManifesto("a/domain", "domain", "a", pkgDom)
 		u.PublicIntegrationSurface = true
 		u.PresentPublicIntegrationSurface = true
-		exigeCodigos(t, manifest.Validate(doc(u)), rule.CodeM002)
+		exigeCodigos(t, validar(doc(u)), rule.CodeM002)
 	})
 
 	t.Run("positivo: public_integration_surface true em contract", func(t *testing.T) {
 		u := unidadeManifesto("a/contract", "contract", "a", pkgDom)
 		u.PublicIntegrationSurface = true
 		u.PresentPublicIntegrationSurface = true
-		exigeLimpo(t, manifest.Validate(doc(u)))
+		exigeLimpo(t, validar(doc(u)))
 	})
 
 	t.Run("negativo: schema fora do conjunto fechado", func(t *testing.T) {
 		d := doc(unidadeManifesto("a/domain", "domain", "a", pkgDom))
 		d.Schema = "dmpf/units@2"
-		exigeCodigos(t, manifest.Validate(d), rule.CodeM002)
+		exigeCodigos(t, validar(d), rule.CodeM002)
 	})
 }
 
 func TestVetorM003(t *testing.T) {
 	t.Run("positivo: ids únicos", func(t *testing.T) {
-		exigeLimpo(t, manifest.Validate(doc(
+		exigeLimpo(t, validar(doc(
 			unidadeManifesto("a/domain", "domain", "a", pkgDom),
 			unidadeManifesto("a/port", "port", "a", pkgPort),
 		)))
 	})
 
 	t.Run("negativo: id duplicado no mesmo manifesto", func(t *testing.T) {
-		exigeCodigos(t, manifest.Validate(doc(
+		exigeCodigos(t, validar(doc(
 			unidadeManifesto("a/domain", "domain", "a", pkgDom),
 			unidadeManifesto("a/domain", "port", "a", pkgPort),
 		)), rule.CodeM003)
@@ -139,7 +139,7 @@ func TestDefaultDeSurfaceEFalse(t *testing.T) {
 	if u.PublicIntegrationSurface || u.PresentPublicIntegrationSurface {
 		t.Fatal("public_integration_surface ausente deve ter default false")
 	}
-	exigeLimpo(t, manifest.Validate(doc(u)))
+	exigeLimpo(t, validar(doc(u)))
 }
 
 // ---------------------------------------------------------------- classe D ---
@@ -207,7 +207,7 @@ func TestVetorIncludeInvalido(t *testing.T) {
 	for _, c := range casos {
 		t.Run(c.nome, func(t *testing.T) {
 			u := unidadeManifesto("a/domain", "domain", "a", c.include...)
-			ds := manifest.Validate(doc(u))
+			ds := validar(doc(u))
 			if c.limpo {
 				exigeLimpo(t, ds)
 				return
@@ -305,6 +305,35 @@ func TestSharedKernelChegaAoEndpoint(t *testing.T) {
 		}
 		if got.SharedKernel != c.quer {
 			t.Errorf("Endpoint(%s).SharedKernel=%v, esperado %v", c.pkg, got.SharedKernel, c.quer)
+		}
+	}
+}
+
+func validar(d manifest.Document) []rule.Diagnostic {
+	return manifest.Validate(d, manifest.Admission{}).Manifest
+}
+
+var codigosDoBOM = []string{
+	"DMPF-B001", "DMPF-B002", "DMPF-B003", "DMPF-B004", "DMPF-B005", "DMPF-B006",
+	"DMPF-B007", "DMPF-B008", "DMPF-B009", "DMPF-B010", "DMPF-B011",
+}
+
+func TestConjuntoFechadoDosOnzeCodigosDoBOM(t *testing.T) {
+	specs := rule.BOMCodeSpecs()
+
+	got := make([]string, 0, len(specs))
+	for _, s := range specs {
+		got = append(got, string(s.Code))
+		if s.Section == "" {
+			t.Errorf("código %s sem seção normativa rastreável", s.Code)
+		}
+	}
+	if !slices.Equal(got, codigosDoBOM) {
+		t.Fatalf("literais emitidos\n  %v\na tabela do BOM fixa\n  %v", got, codigosDoBOM)
+	}
+	for _, c := range codigosDoBOM {
+		if _, ok := rule.LookupCode(rule.Code(c)); !ok {
+			t.Errorf("literal %s ausente da busca de códigos", c)
 		}
 	}
 }

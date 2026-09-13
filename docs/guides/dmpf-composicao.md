@@ -19,7 +19,8 @@ em [`docs/dmpf/`](../dmpf/) e nos ADRs; este guia é operacional e não normativ
 6. [Passo 5 — validar](#6-passo-5--validar)
 7. [O que o agente nunca toca](#7-o-que-o-agente-nunca-toca)
 8. [A prova de regressão](#8-a-prova-de-regressão)
-9. [Fontes normativas](#9-fontes-normativas)
+9. [Divergir do golden path](#9-divergir-do-golden-path)
+10. [Fontes normativas](#10-fontes-normativas)
 
 ---
 
@@ -203,7 +204,89 @@ como qualquer outro módulo. Rode-o depois de mudar a skill, a rule ou o agente.
 Vale rodar o `self-test` a cada mudança de forma do golden: a prova carrega o
 layout em `MODULOS` e nos globs de comparação, e envelhece junto com ele.
 
-## 9. Fontes normativas
+## 9. Divergir do golden path
+
+Quando o contexto precisa de algo que a regra de dependência nega, o caminho é a
+exceção nominal de `GOV-30` a `GOV-36` — nunca afrouxar o gate, nem reclassificar
+a unidade para o bloco que a permitiria (`GOV-26`). A exceção vive onde o objeto
+vive: dependência externa de uma unidade (E1) no `dmpf-units.json` do módulo;
+combinação fora do BOM (E2) e instrumento de governança (E3) no BOM da release,
+`bom/dmpf/<semver>.json`.
+
+O pedido só é examinado se trouxer os quatro itens de `GOV-30` — ADR, equipe
+dona, justificativa e plano de convergência com data — e cair fora do catálogo
+fechado N1–N7 de `GOV-32`. A admissão é mecânica: o verificador emite
+`DMPF-X001` a `DMPF-X007`, e só a exceção admitida autoriza o import. O schema
+completo está em [`bom/README.md`](../../bom/README.md#pedir-exceção).
+
+### Um pedido admitido
+
+Uma unidade `contract` gerada pelo `protoc-gen-go` importa `reflect`, que o
+verificador classifica como `runtime.framework` — capability que o bloco
+`contract` não tem. O plugin emite esse import em todo arquivo gerado, então não
+há prazo de convergência planejável, e o pedido usa o ramo de revisão, com
+aprovação de Arquitetura e Plataforma (`GOV-34`):
+
+```json
+{
+  "id": "X-orders-contract-reflect",
+  "object": { "kind": "external-dependency", "unit": "orders/contract", "identity": "reflect" },
+  "adr": "ADR-033",
+  "owner": "team:tech-leads",
+  "justification": "import emitido pelo protoc-gen-go em todo arquivo gerado; plumbing do runtime Protobuf",
+  "convergence": {
+    "kind": "review",
+    "review_by": "2027-03-02",
+    "approved_by": ["arquitetura", "plataforma"],
+    "replanning_condition": "protoc-gen-go deixar de emitir reflect no código gerado"
+  },
+  "valid_from": "2026-09-12",
+  "valid_until": "2027-03-02",
+  "review_by": "2027-03-02",
+  "history": [{ "event": "granted", "at": "2026-09-12", "by": "team:tech-leads" }]
+}
+```
+
+`approved_by` é declaração: o verificador confere que as duas autoridades
+constam do array, não que aprovaram. A aprovação precisa existir de fato na
+revisão do PR que introduz a exceção. As exceções reais de `dmpf-contracts` são
+desse tipo (ADR-033).
+
+### Um pedido recusado
+
+A mesma forma, completa, para uma unidade `domain` que peça `net/http`:
+
+```json
+{
+  "id": "X-orders-domain-net-http",
+  "object": { "kind": "external-dependency", "unit": "orders/domain", "identity": "net/http" }
+}
+```
+
+é recusada na admissão, sem exame de mérito. `net/http` é `io.network`, e o bloco
+`domain` só admite `pure`: é constraint P0, item N1 de `GOV-32`, e nenhuma
+exceção o alcança.
+
+```text
+DMPF-X003: orders/domain -> net/http: N1: o bloco domain admite apenas pure (RFC §6.2, constraint P0), e a dependência é de capability io.network [GOV-32 N1, N2]
+```
+
+A exceção recusada não autoriza nada, e o import continua reprovando em
+`DMPF-E001` no mesmo relatório. `DMPF-X*` não encerra a verificação justamente
+para que as duas causas apareçam juntas.
+
+### Vencimento e renovação
+
+Depois de `valid_until`, a exceção deixa de autorizar e a unidade fica não
+conforme (`DMPF-X006`). Renovar é conceder de novo, pelo mesmo rito: um
+`valid_until` novo e um evento `renewed` no `history`, com `reason` que explique
+o atraso. `renewed` sem vigência nova reprova em `DMPF-X005`, porque renovação
+automática não existe (`GOV-34`). Um evento `revoked` ou `converged` encerra a
+exceção: ela para de autorizar, não vence mais e fica como histórico para as
+métricas de `GOV-36`. `--now` fixa o instante do vencimento quando é preciso
+reproduzir um relatório.
+
+## 10. Fontes normativas
 
 - [`docs/dmpf/rfc-dmpf-foundation-v0.1.md`](../dmpf/rfc-dmpf-foundation-v0.1.md) — a RFC
 - [`.claude/rules/dmpf-bounded-context.md`](../../.claude/rules/dmpf-bounded-context.md) — as normas do contexto
@@ -213,7 +296,10 @@ layout em `MODULOS` e nos globs de comparação, e envelhece junto com ele.
 - ADR-030 — granularidade de módulo e o layout de pasta por contexto
 - ADR-041 — a virada do generator orientado ao domínio para o híbrido generator + agente
 - ADR-042 — shared kernel
+- ADR-015 — política de capabilities por bloco, que decide N1 para E1
+- ADR-033 — as exceções de `reflect` e `unsafe` do código gerado
+- [`docs/dmpf/governanca-bom-pilotos.md`](../dmpf/governanca-bom-pilotos.md) — §5.1, o escape hatch (`GOV-30` a `GOV-36`)
 
-<!-- As seções "Divergir do golden path", "Como certificar" e "Contrato próprio"
-     pertencem às specs SPEC-538MS2D4, SPEC-JPP31095 e SPEC-F7S5B6KV, que ainda
-     não foram implementadas. Quando forem, entram aqui. -->
+<!-- As seções "Como certificar" e "Contrato próprio" pertencem às specs
+     SPEC-JPP31095 e SPEC-F7S5B6KV, que ainda não foram implementadas. Quando
+     forem, entram aqui. -->

@@ -125,22 +125,37 @@ tabela **reprova** em bloco `default deny` — não saber reprova.
 
 ## Exceção nominal: `exceptions[]`
 
-Exceção à política de um bloco só vale se for **nominal** (RFC §6.4): o par
-(unidade, dependência), com razão, owner e data de revisão.
+Exceção à política de um bloco só vale se for **nominal** (RFC §6.4) e passar
+pela admissão de `GOV-30` a `GOV-36`: o par (unidade, dependência), com ADR,
+equipe dona, justificativa, plano de convergência, vigência, revisão e histórico.
 
 ```json
 "exceptions": [
   {
-    "unit": "meu-modulo/application",
-    "dependency": "github.com/legado/sdk",
-    "reason": "migração para porta em curso, ARQ-999",
-    "owner": "time-plataforma",
-    "review_by": "2026-12-31"
+    "id": "X-meu-modulo-application-legado-sdk",
+    "object": {
+      "kind": "external-dependency",
+      "unit": "meu-modulo/application",
+      "identity": "github.com/legado/sdk"
+    },
+    "adr": "ADR-099",
+    "owner": "team:plataforma",
+    "justification": "migração para porta em curso",
+    "convergence": { "kind": "plan", "deadline": "2026-12-31", "condition": "porta publicada no kernel" },
+    "valid_from": "2026-09-01",
+    "valid_until": "2026-12-31",
+    "review_by": "2026-11-30",
+    "history": [{ "event": "granted", "at": "2026-09-01", "by": "team:plataforma" }]
   }
 ]
 ```
 
-Faltando qualquer um dos cinco, a exceção não autoriza nada e emite `DMPF-M001`.
+A admissão recusa o pedido incompleto ou fora do universo de `GOV-31` com
+`DMPF-X001` a `DMPF-X007`, sem encerrar a verificação, e a exceção recusada não
+autoriza nada: o import continua reprovando em `DMPF-E001`. Os cinco campos
+legados (`unit`, `dependency`, `reason`, `owner`, `review_by`) ainda são aceitos
+ao lado dos novos, desde que coincidam com eles. O schema completo e os códigos
+estão em [`bom/README.md`](../../bom/README.md#pedir-exceção).
 Exceção por categoria, prefixo de pacote ou diretório é proibida — ela deixaria
 de ser exceção e viraria política paralela não revisada.
 
@@ -179,17 +194,28 @@ O `protoc-gen-go` emite `reflect` e `unsafe` em todo arquivo gerado, e a tabela
 do verificador classifica os dois como `runtime.framework` — capability que o
 bloco `contract` não admite. A saída não é reclassificar a stdlib nem excluir
 arquivos gerados da análise: é a exceção nominal da RFC §6.4, um par (unidade,
-dependência) por vez, com razão, owner e data de revisão amarrada à versão do
-plugin:
+dependência) por vez. Como o plugin emite esses imports em todo arquivo, não há
+prazo de convergência planejável, e o pedido usa o ramo de revisão, com
+aprovação de Arquitetura e Plataforma e a condição amarrada ao plugin:
 
 ```json
 "exceptions": [
   {
-    "unit": "dmpf-contracts/gen",
-    "dependency": "reflect",
-    "reason": "import emitido pelo protoc-gen-go v1.36.12 em todo arquivo gerado; plumbing do runtime Protobuf, não uso de framework (RFC 6.4)",
-    "owner": "tech-leads",
-    "review_by": "2027-03-02"
+    "id": "X-dmpf-contracts-gen-reflect",
+    "object": { "kind": "external-dependency", "unit": "dmpf-contracts/gen", "identity": "reflect" },
+    "adr": "ADR-033",
+    "owner": "team:tech-leads",
+    "justification": "import emitido pelo protoc-gen-go v1.36.12 em todo arquivo gerado; plumbing do runtime Protobuf, não uso de framework (RFC 6.4)",
+    "convergence": {
+      "kind": "review",
+      "review_by": "2027-03-02",
+      "approved_by": ["arquitetura", "plataforma"],
+      "replanning_condition": "elimination of reflect and unsafe imports from protoc-gen-go output"
+    },
+    "valid_from": "2026-09-12T00:00:00Z",
+    "valid_until": "2027-03-02",
+    "review_by": "2027-03-02",
+    "history": [{ "event": "granted", "at": "2026-09-12T00:00:00Z", "by": "team:tech-leads" }]
   }
 ]
 ```
@@ -215,10 +241,15 @@ Para regravar o baseline depois de uma mudança legítima:
 
 ```bash
 go run ./libs/backend/go/dmpf-conformance/cmd/dmpf-conformance --root . --write-baseline
+pnpm biome format --write tools/dmpf-baseline/units-baseline.json
 ```
 
 O comando é separado da verificação de propósito: um gate que conserta o próprio
 insumo deixa de detectar a divergência que existe para detectar.
+
+O `--write-baseline` grava o JSON fora do formato do Biome, e o `biome ci` do CI
+reprovaria o arquivo. Formate no mesmo commit do baseline; o `pre-commit` do
+Lefthook faz o mesmo nos arquivos em stage.
 
 ## Shared kernel
 
@@ -278,6 +309,7 @@ próprio, separado de código, aprovado por revisor distinto do autor. Alterar
 
 ```bash
 go run ./libs/backend/go/dmpf-conformance/cmd/dmpf-conformance --root . --write-baseline
+pnpm biome format --write tools/dmpf-baseline/units-baseline.json
 ```
 
 Editar a chave sem regravar deixa o digest sem fechar, e toda verificação

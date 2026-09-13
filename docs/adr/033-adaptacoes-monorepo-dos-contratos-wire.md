@@ -176,3 +176,29 @@ heurística textual, contra o ADR-012.
   abrir a história no `KRN-02`.
 - O pin do plugin e a versão do runtime Protobuf mudam juntos, ou o gate `pins`
   reprova.
+
+## Addendum — 2026-09-12 (as exceções do gerado pelo rito de governança)
+
+A seção «`reflect` e `unsafe` do gerado entram por exceção nominal» registrou
+duas entradas, ambas de `dmpf-contracts/gen`. O manifesto tem quatro:
+`resource-scheduling/contract`, a unidade de contrato de `bookings` declarada no
+mesmo `dmpf-units.json`, é gerada pelo mesmo `protoc-gen-go` e recebe as mesmas
+duas exceções, pela mesma razão. Esta decisão é a proveniência das quatro.
+
+Com a `SPEC-538MS2D4`, a exceção deixou de ser só a forma de RFC §6.4 e passou
+pela admissão de `GOV-30` a `GOV-35`. As quatro migraram para o schema novo,
+mantendo os campos legados ao lado:
+
+- `id` nominal, `X-<unidade>-<dependência>` (`GOV-33`);
+- `adr: ADR-033` e `owner: team:tech-leads` — a equipe, com o prefixo que
+  `GOV-30` exige;
+- `convergence` no ramo de revisão, com `review_by: 2027-03-02`,
+  `approved_by: [arquitetura, plataforma]` e `replanning_condition` amarrada ao
+  `protoc-gen-go`. O ramo de prazo não cabe: o plugin emite esses imports em todo
+  arquivo, e não há data de convergência planejável;
+- `history[0]: granted`.
+
+**Ressalva.** A admissão confere que as duas autoridades constam de
+`approved_by`, não que aprovaram. A aprovação dual é declaração no manifesto e
+só vale se existir de fato na revisão do PR que a introduz; sem isso, o array é
+autoatestação.

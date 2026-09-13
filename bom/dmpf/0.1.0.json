@@ -1,0 +1,176 @@
+{
+  "schema": "dmpf/bom@1",
+  "product": "dmpf",
+  "release": "0.1.0",
+  "tag": "dmpf@0.1.0",
+  "runtimes": {
+    "entries": [
+      {
+        "subject": "runtime",
+        "identity": "go",
+        "version": "1.26.6",
+        "state": "candidata",
+        "compatible_with": [],
+        "registry_ref": { "file": "go.work", "selector": "go" },
+        "cve": []
+      },
+      {
+        "subject": "runtime",
+        "identity": "typescript",
+        "version": "6.0.3",
+        "state": "candidata",
+        "compatible_with": [],
+        "registry_ref": { "file": "pnpm-workspace.yaml", "selector": "catalog:typescript" },
+        "cve": []
+      },
+      {
+        "subject": "runtime",
+        "identity": "pnpm",
+        "version": "11.14.0",
+        "state": "candidata",
+        "compatible_with": [],
+        "registry_ref": { "file": "package.json", "selector": "packageManager" },
+        "cve": []
+      },
+      {
+        "subject": "runtime",
+        "identity": "nx",
+        "version": "23.1.0",
+        "state": "candidata",
+        "compatible_with": [],
+        "registry_ref": { "file": "pnpm-workspace.yaml", "selector": "catalog:nx" },
+        "cve": []
+      }
+    ],
+    "reason": "Node.js fica de fora: o repositório fixa só a major (engines.node ^24, .nvmrc 24), sem versão exata exercitada; a certificação da release a fixa"
+  },
+  "generators": {
+    "entries": [
+      {
+        "subject": "generator",
+        "identity": "github.com/bufbuild/buf/cmd/buf",
+        "version": "v1.72.0",
+        "state": "candidata",
+        "compatible_with": [],
+        "registry_ref": { "file": "tools/buf.sh", "selector": "buf" },
+        "cve": []
+      },
+      {
+        "subject": "generator",
+        "identity": "google.golang.org/protobuf/cmd/protoc-gen-go",
+        "version": "v1.36.12",
+        "state": "candidata",
+        "compatible_with": [],
+        "registry_ref": { "file": "contracts/buf.gen.yaml", "selector": "plugin:protoc-gen-go" },
+        "cve": []
+      }
+    ]
+  },
+  "drivers_clients_sdks": {
+    "entries": [
+      {
+        "subject": "driver",
+        "identity": "github.com/jackc/pgx/v5",
+        "version": "v5.10.0",
+        "state": "candidata",
+        "compatible_with": [],
+        "registry_ref": {
+          "file": "libs/backend/go/dmpf-provider-postgres/go.mod",
+          "selector": "require:github.com/jackc/pgx/v5"
+        },
+        "cve": []
+      },
+      {
+        "subject": "client",
+        "identity": "github.com/twmb/franz-go",
+        "version": "v1.21.6",
+        "state": "candidata",
+        "compatible_with": [],
+        "registry_ref": {
+          "file": "libs/backend/go/dmpf-provider-kafka/go.mod",
+          "selector": "require:github.com/twmb/franz-go"
+        },
+        "cve": []
+      },
+      {
+        "subject": "client",
+        "identity": "google.golang.org/grpc",
+        "version": "v1.83.1",
+        "state": "candidata",
+        "compatible_with": [],
+        "registry_ref": {
+          "file": "libs/backend/go/dmpf-provider-grpc/go.mod",
+          "selector": "require:google.golang.org/grpc"
+        },
+        "cve": []
+      },
+      {
+        "subject": "sdk",
+        "identity": "github.com/aws/aws-sdk-go-v2",
+        "version": "v1.46.0",
+        "state": "candidata",
+        "compatible_with": [],
+        "registry_ref": {
+          "file": "libs/backend/go/dmpf-provider-sqs/go.mod",
+          "selector": "require:github.com/aws/aws-sdk-go-v2"
+        },
+        "cve": []
+      },
+      {
+        "subject": "sdk",
+        "identity": "go.opentelemetry.io/otel",
+        "version": "v1.46.0",
+        "state": "candidata",
+        "compatible_with": [],
+        "registry_ref": {
+          "file": "libs/backend/go/dmpf-observability/go.mod",
+          "selector": "require:go.opentelemetry.io/otel"
+        },
+        "cve": []
+      },
+      {
+        "subject": "sdk",
+        "identity": "google.golang.org/protobuf",
+        "version": "v1.36.12",
+        "state": "candidata",
+        "compatible_with": [],
+        "registry_ref": {
+          "file": "libs/backend/go/dmpf-contracts/go.mod",
+          "selector": "require:google.golang.org/protobuf"
+        },
+        "cve": []
+      }
+    ]
+  },
+  "compatible_combinations": {
+    "entries": [],
+    "reason": "nenhuma combinação exercitada com evidência nesta release; a certificação grava a primeira"
+  },
+  "deprecations": {
+    "entries": [],
+    "reason": "nenhuma entrada depreciada na primeira release"
+  },
+  "cves": {
+    "entries": [],
+    "reason": "nenhuma CVE registrada; a varredura govulncheck da release entra com a certificação"
+  },
+  "semantic_conventions_messaging": {
+    "subject": "semantic_conventions_messaging",
+    "identity": "go.opentelemetry.io/otel/semconv",
+    "version": "v1.43.0",
+    "state": "proposta",
+    "owner": "team:plataforma",
+    "compatible_with": [],
+    "registry_ref": {
+      "file": "libs/backend/go/dmpf-observability/otelboot/start.go",
+      "selector": "semconv"
+    },
+    "cve": []
+  },
+  "exceptions": [],
+  "metrics": {
+    "vigentes": 0,
+    "renovacoes": {},
+    "vencidas_sem_convergencia": 0
+  }
+}

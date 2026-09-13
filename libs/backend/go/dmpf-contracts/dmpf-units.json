@@ -58,7 +58,7 @@
       "owner": "team:tech-leads",
       "review_by": "2027-03-02",
 
-      "id": "dmpf-contracts-gen:reflect",
+      "id": "X-dmpf-contracts-gen-reflect",
       "object": {
         "kind": "external-dependency",
         "unit": "dmpf-contracts/gen",
@@ -73,6 +73,7 @@
         "replanning_condition": "elimination of reflect and unsafe imports from protoc-gen-go output"
       },
       "valid_from": "2026-09-12T00:00:00Z",
+      "valid_until": "2027-03-02",
       "history": [
         {
           "event": "granted",
@@ -88,7 +89,7 @@
       "owner": "team:tech-leads",
       "review_by": "2027-03-02",
 
-      "id": "dmpf-contracts-gen:unsafe",
+      "id": "X-dmpf-contracts-gen-unsafe",
       "object": {
         "kind": "external-dependency",
         "unit": "dmpf-contracts/gen",
@@ -103,6 +104,7 @@
         "replanning_condition": "elimination of reflect and unsafe imports from protoc-gen-go output"
       },
       "valid_from": "2026-09-12T00:00:00Z",
+      "valid_until": "2027-03-02",
       "history": [
         {
           "event": "granted",
@@ -118,7 +120,7 @@
       "owner": "team:tech-leads",
       "review_by": "2027-03-02",
 
-      "id": "resource-scheduling-contract:reflect",
+      "id": "X-resource-scheduling-contract-reflect",
       "object": {
         "kind": "external-dependency",
         "unit": "resource-scheduling/contract",
@@ -133,6 +135,7 @@
         "replanning_condition": "elimination of reflect and unsafe imports from protoc-gen-go output"
       },
       "valid_from": "2026-09-12T00:00:00Z",
+      "valid_until": "2027-03-02",
       "history": [
         {
           "event": "granted",
@@ -148,7 +151,7 @@
       "owner": "team:tech-leads",
       "review_by": "2027-03-02",
 
-      "id": "resource-scheduling-contract:unsafe",
+      "id": "X-resource-scheduling-contract-unsafe",
       "object": {
         "kind": "external-dependency",
         "unit": "resource-scheduling/contract",
@@ -163,6 +166,7 @@
         "replanning_condition": "elimination of reflect and unsafe imports from protoc-gen-go output"
       },
       "valid_from": "2026-09-12T00:00:00Z",
+      "valid_until": "2027-03-02",
       "history": [
         {
           "event": "granted",

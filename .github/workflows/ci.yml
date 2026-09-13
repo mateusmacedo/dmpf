@@ -164,10 +164,19 @@ jobs:
       # RFC §10.2 precisa para avaliar se a mudança normativa veio em commit
       # próprio. Sem ele, a condição fica "não verificada" — e não verificada
       # reprova.
+      #
+      # Sem `if: steps.go_affected`: o vencimento de exceção (DMPF-X006) muda com
+      # o tempo, sem mudança de código, e precisa reprovar em qualquer PR.
       - name: DMPF conformance gate
-        if: steps.go_affected.outputs.any == 'true'
         run: |
           go run ./libs/backend/go/dmpf-conformance/cmd/dmpf-conformance --root . --base "$NX_BASE"
+
+      # Sem `if: steps.go_affected`, como o generator check: um PR que só toca
+      # `bom/` não afeta projeto Go nenhum e pularia o gate. Os BOMs antigos ficam
+      # no diretório; o gate valida a maior release e a compara com a do base.
+      - name: DMPF BOM gate
+        run: |
+          go run ./libs/backend/go/dmpf-conformance/cmd/dmpf-bom --root . --release latest --base "$NX_BASE"
 
       # O bloco `services:` não serve aqui: o act_runner põe serviço e job na
       # bridge default do Docker, que não resolve nome de container, e declara

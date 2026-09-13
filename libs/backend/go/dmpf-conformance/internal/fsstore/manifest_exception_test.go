@@ -1,6 +1,7 @@
 package fsstore
 
 import (
+	"slices"
 	"testing"
 	"time"
 
@@ -107,5 +108,42 @@ func TestDecodeExceptionDual(t *testing.T) {
 	}
 	if x.Object != want {
 		t.Fatalf("object: got %+v, want %+v", x.Object, want)
+	}
+}
+
+func TestDecodeMarcaDataInvalidaSemVirarAusente(t *testing.T) {
+	raw := []byte(`{"schema":"dmpf/units@1","units":[],"exceptions":[{
+		"unit":"u","dependency":"d","reason":"r","owner":"team:o","review_by":"amanhã",
+		"valid_until":"31/12/2026",
+		"history":[{"event":"granted","at":"ontem","by":"team:o"}]
+	}]}`)
+	doc, err := DecodeManifest("test.json", "mod", raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"review_by", "valid_until", "history[0].at"}
+	if got := doc.Exceptions[0].InvalidDates; !slices.Equal(got, want) {
+		t.Fatalf("datas inválidas marcadas %v, esperado %v", got, want)
+	}
+}
+
+func TestDecodeRecusaChaveRepetida(t *testing.T) {
+	casos := map[string]string{
+		"mesma chave":     `{"schema":"dmpf/units@1","exceptions":[{"object":{"identity":"reflect","identity":"unsafe"}}]}`,
+		"só a caixa muda": `{"schema":"dmpf/units@1","exceptions":[{"object":{"identity":"reflect"},"OBJECT":{"identity":"unsafe"}}]}`,
+	}
+	for nome, raw := range casos {
+		t.Run(nome, func(t *testing.T) {
+			if _, err := DecodeManifest("test.json", "mod", []byte(raw)); err == nil {
+				t.Fatal("chave repetida decodificada sem erro")
+			}
+		})
+	}
+}
+
+func TestDecodeAceitaMesmaChaveEmObjetosIrmaos(t *testing.T) {
+	raw := []byte(`{"schema":"dmpf/units@1","units":[{"id":"a","include":["m/a"]},{"id":"b","include":[]}],"exceptions":[]}`)
+	if _, err := DecodeManifest("test.json", "mod", raw); err != nil {
+		t.Fatalf("objetos irmãos com as mesmas chaves recusados: %v", err)
 	}
 }

@@ -1,0 +1,11 @@
+{
+  "header": {
+    "schema": "dmpf/evidence@1",
+    "release": "0.1.0",
+    "commit": "0000000000000000000000000000000000000000",
+    "goversion": "go1.26.6",
+    "modules": [],
+    "externals": [{ "package": "github.com/jackc/pgx/v5", "version": "v5.10.0" }],
+    "subjects": ["provider"]
+  }
+}

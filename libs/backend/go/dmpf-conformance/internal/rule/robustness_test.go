@@ -63,7 +63,7 @@ func TestRotulagemOportunistaReprova(t *testing.T) {
 			ID: "a", Block: v, BoundedContext: "a", Include: []string{"m/p"},
 			PresentID: true, PresentBlock: true, PresentBoundedContext: true, PresentInclude: true,
 		}
-		ds := manifest.Validate(manifest.Document{Path: "m/dmpf-units.json", Module: "m", Schema: manifest.SchemaID, Units: []manifest.Unit{u}})
+		ds := validar(manifest.Document{Path: "m/dmpf-units.json", Module: "m", Schema: manifest.SchemaID, Units: []manifest.Unit{u}})
 		if len(ds) == 0 {
 			t.Errorf("block %q aceito sem diagnóstico", v)
 		}
@@ -76,7 +76,7 @@ func TestSuperficiePublicaEmDomainEmiteExatamenteM002(t *testing.T) {
 		PublicIntegrationSurface: true,
 		PresentID:                true, PresentBlock: true, PresentBoundedContext: true, PresentInclude: true,
 	}
-	ds := manifest.Validate(manifest.Document{Path: "m/u.json", Module: "m", Schema: manifest.SchemaID, Units: []manifest.Unit{u}})
+	ds := validar(manifest.Document{Path: "m/u.json", Module: "m", Schema: manifest.SchemaID, Units: []manifest.Unit{u}})
 	if len(ds) != 1 || ds[0].Code != rule.CodeM002 {
 		t.Errorf("esperado exatamente M002, got %v", ds)
 	}
@@ -117,7 +117,7 @@ func TestManifestoNaoForjaLinhaDeDiagnostico(t *testing.T) {
 			ID: forja, Block: "core", Include: []string{"m/p"},
 			PresentID: true, PresentBlock: true, PresentBoundedContext: true, PresentInclude: true,
 		}
-		exigeUmaLinha(t, manifest.Validate(manifest.Document{
+		exigeUmaLinha(t, validar(manifest.Document{
 			Path: "m/u.json", Module: "m", Schema: manifest.SchemaID, Units: []manifest.Unit{u},
 		}))
 	})

@@ -313,16 +313,73 @@ func TestX006QuandoExcecaoVenceSemRenovacao(t *testing.T) {
 	exigeCodigo(t, exception.Admit(x, x.ValidUntil+dia), rule.CodeX006)
 }
 
-// A renovação precisa ser POSTERIOR ao vencimento: registrada antes, ela já
-// estava coberta pela vigência e não reabre nada.
-func TestRenovacaoPosteriorAoVencimentoReabreAExcecao(t *testing.T) {
+// GOV-34: renovação automática não existe. Um renewed sem valid_until novo não
+// reabre a exceção vencida.
+func TestRenovacaoSemVigenciaNovaNaoReabre(t *testing.T) {
 	x := admissivel()
 	depois := x.ValidUntil + dia
 	x.History = append(x.History, exception.HistoryEntry{
 		Event: exception.EventRenewed, At: depois, By: "team:plataforma", Reason: "porta pura ainda não existe",
 	})
+	ds := exception.Admit(x, depois+dia)
+	exigeCodigo(t, ds, rule.CodeX005)
+	exigeCodigo(t, ds, rule.CodeX006)
+}
+
+func TestRenovacaoComVigenciaNovaEAdmitida(t *testing.T) {
+	x := admissivel()
+	depois := x.ValidUntil + dia
+	x.ValidUntil = depois + 90*dia
+	x.History = append(x.History, exception.HistoryEntry{
+		Event: exception.EventRenewed, At: depois, By: "team:plataforma", Reason: "porta pura ainda não existe",
+	})
 	if ds := exception.Admit(x, depois+dia); len(ds) != 0 {
-		t.Fatalf("exceção renovada recusada por %v", codigos(ds))
+		t.Fatalf("renovação com valid_until novo recusada por %v", codigos(ds))
+	}
+}
+
+func TestExcecaoEncerradaNaoVence(t *testing.T) {
+	for _, evento := range []exception.Event{exception.EventConverged, exception.EventRevoked} {
+		t.Run(string(evento), func(t *testing.T) {
+			x := admissivel()
+			x.History = append(x.History, exception.HistoryEntry{Event: evento, At: agora, By: "team:plataforma"})
+			if !exception.Closed(x) {
+				t.Fatalf("%s não encerrou a exceção", evento)
+			}
+			for _, d := range exception.Admit(x, x.ValidUntil+dia) {
+				if d.Code == rule.CodeX006 {
+					t.Fatalf("exceção %s recebeu X006: %s", evento, d.Detail)
+				}
+			}
+		})
+	}
+}
+
+func TestX001SemParNominalVigenciaOuRevisao(t *testing.T) {
+	casos := map[string]func(*exception.Exception){
+		"sem object.unit":     func(x *exception.Exception) { x.Object.Unit = "" },
+		"sem object.identity": func(x *exception.Exception) { x.Object.Identity = " " },
+		"sem valid_until":     func(x *exception.Exception) { x.ValidUntil, x.PresentValidUntil = 0, false },
+		"sem review_by":       func(x *exception.Exception) { x.ReviewBy, x.PresentReviewBy = 0, false },
+	}
+	for nome, estraga := range casos {
+		t.Run(nome, func(t *testing.T) {
+			x := admissivel()
+			estraga(&x)
+			exigeCodigo(t, exception.Admit(x, agora), rule.CodeX001)
+		})
+	}
+}
+
+func TestX005QuandoDataNaoParseia(t *testing.T) {
+	x := admissivel()
+	x.ValidUntil, x.InvalidDates = 0, []string{"valid_until"}
+	ds := exception.Admit(x, agora)
+	exigeCodigo(t, ds, rule.CodeX005)
+	for _, d := range ds {
+		if d.Code == rule.CodeX001 {
+			t.Fatalf("data inválida lida como ausente: %s", d.Detail)
+		}
 	}
 }
 
