@@ -1,0 +1,613 @@
+{
+  "header": {
+    "schema": "dmpf/evidence@1",
+    "release": "0.1.0",
+    "subject": "reference",
+    "commit": "4b491e1633aef7b70385bb64322f85e34b2044bf",
+    "goversion": "1.26.6",
+    "tags": [
+      "integration"
+    ],
+    "packages": [
+      "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference/..."
+    ],
+    "modules": [
+      {
+        "path": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference",
+        "version": "0.0.0"
+      },
+      {
+        "path": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-app",
+        "version": "0.0.0"
+      },
+      {
+        "path": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application",
+        "version": "0.0.0"
+      },
+      {
+        "path": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts",
+        "version": "0.0.0"
+      },
+      {
+        "path": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-domain",
+        "version": "0.0.0"
+      },
+      {
+        "path": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability",
+        "version": "0.0.0"
+      },
+      {
+        "path": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-ports",
+        "version": "0.0.0"
+      },
+      {
+        "path": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-http",
+        "version": "0.0.0"
+      },
+      {
+        "path": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-kafka",
+        "version": "0.0.0"
+      },
+      {
+        "path": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "version": "0.0.0"
+      },
+      {
+        "path": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit",
+        "version": "0.0.0"
+      },
+      {
+        "path": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-transport",
+        "version": "0.0.0"
+      }
+    ],
+    "externals": [
+      {
+        "package": "github.com/cenkalti/backoff/v5",
+        "version": "v5.0.3"
+      },
+      {
+        "package": "github.com/cespare/xxhash/v2",
+        "version": "v2.3.0"
+      },
+      {
+        "package": "github.com/go-logr/logr",
+        "version": "v1.4.4"
+      },
+      {
+        "package": "github.com/go-logr/stdr",
+        "version": "v1.2.2"
+      },
+      {
+        "package": "github.com/google/uuid",
+        "version": "v1.6.0"
+      },
+      {
+        "package": "github.com/grpc-ecosystem/grpc-gateway/v2",
+        "version": "v2.30.0"
+      },
+      {
+        "package": "github.com/jackc/pgpassfile",
+        "version": "v1.0.0"
+      },
+      {
+        "package": "github.com/jackc/pgservicefile",
+        "version": "v0.0.0-20240606120523-5a60cdf6a761"
+      },
+      {
+        "package": "github.com/jackc/pgx/v5",
+        "version": "v5.10.0"
+      },
+      {
+        "package": "github.com/jackc/puddle/v2",
+        "version": "v2.2.2"
+      },
+      {
+        "package": "github.com/klauspost/compress",
+        "version": "v1.18.7"
+      },
+      {
+        "package": "github.com/pierrec/lz4/v4",
+        "version": "v4.1.26"
+      },
+      {
+        "package": "github.com/twmb/franz-go",
+        "version": "v1.21.6"
+      },
+      {
+        "package": "github.com/twmb/franz-go/pkg/kadm",
+        "version": "v1.18.0"
+      },
+      {
+        "package": "github.com/twmb/franz-go/pkg/kmsg",
+        "version": "v1.13.1"
+      },
+      {
+        "package": "go.opentelemetry.io/auto/sdk",
+        "version": "v1.2.1"
+      },
+      {
+        "package": "go.opentelemetry.io/otel",
+        "version": "v1.46.0"
+      },
+      {
+        "package": "go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc",
+        "version": "v1.46.0"
+      },
+      {
+        "package": "go.opentelemetry.io/otel/exporters/otlp/otlptrace",
+        "version": "v1.46.0"
+      },
+      {
+        "package": "go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc",
+        "version": "v1.46.0"
+      },
+      {
+        "package": "go.opentelemetry.io/otel/metric",
+        "version": "v1.46.0"
+      },
+      {
+        "package": "go.opentelemetry.io/otel/sdk",
+        "version": "v1.46.0"
+      },
+      {
+        "package": "go.opentelemetry.io/otel/sdk/metric",
+        "version": "v1.46.0"
+      },
+      {
+        "package": "go.opentelemetry.io/otel/trace",
+        "version": "v1.46.0"
+      },
+      {
+        "package": "go.opentelemetry.io/proto/otlp",
+        "version": "v1.11.0"
+      },
+      {
+        "package": "golang.org/x/crypto",
+        "version": "v0.55.0"
+      },
+      {
+        "package": "golang.org/x/net",
+        "version": "v0.58.0"
+      },
+      {
+        "package": "golang.org/x/sync",
+        "version": "v0.22.0"
+      },
+      {
+        "package": "golang.org/x/sys",
+        "version": "v0.47.0"
+      },
+      {
+        "package": "golang.org/x/text",
+        "version": "v0.41.0"
+      },
+      {
+        "package": "google.golang.org/genproto/googleapis/api",
+        "version": "v0.0.0-20260819154853-08b0e4226688"
+      },
+      {
+        "package": "google.golang.org/genproto/googleapis/rpc",
+        "version": "v0.0.0-20260819154853-08b0e4226688"
+      },
+      {
+        "package": "google.golang.org/grpc",
+        "version": "v1.83.1"
+      },
+      {
+        "package": "google.golang.org/protobuf",
+        "version": "v1.36.12"
+      }
+    ],
+    "infra": {
+      "postgres": "16.15",
+      "redpanda": "v26.2.2"
+    }
+  },
+  "body": {
+    "tests": [
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference",
+        "test": "TestAuditRecordsOutsideARequestHaveNoTrace",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference",
+        "test": "TestAuditRecordsShareTheLogEnvelopeAndCarryTheTrace",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference",
+        "test": "TestCatalogDeclaresOneChannelPerDestinationTheUseCasesAuthor",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference",
+        "test": "TestCatalogRefusesAChannelWithoutContainment",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference",
+        "test": "TestCatalogRefusesAChannelWithoutContainment/orders",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference",
+        "test": "TestCatalogRefusesAChannelWithoutContainment/reservations",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference",
+        "test": "TestConfigAPIDefaults",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference",
+        "test": "TestConfigNamesTheVariableItCannotParse",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference",
+        "test": "TestConfigNamesTheVariableItCannotParse/DMPF_ITEM_LIMIT=-1",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference",
+        "test": "TestConfigNamesTheVariableItCannotParse/DMPF_ITEM_LIMIT=0",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference",
+        "test": "TestConfigNamesTheVariableItCannotParse/DMPF_ITEM_LIMIT=many",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference",
+        "test": "TestConfigNamesTheVariableItCannotParse/DMPF_KAFKA_INSECURE=maybe",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference",
+        "test": "TestConfigNamesTheVariableItCannotParse/DMPF_MIGRATE=yes-please",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference",
+        "test": "TestConfigNamesTheVariableItCannotParse/DMPF_OTLP_INSECURE=2",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference",
+        "test": "TestConfigOverridesFromTheEnvironment",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference",
+        "test": "TestConfigRefusesAnUnknownRole",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference",
+        "test": "TestConfigRequiresTheVariablesOfEachRole",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference",
+        "test": "TestConfigRequiresTheVariablesOfEachRole/api_without_DMPF_KAFKA_BROKERS",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference",
+        "test": "TestConfigRequiresTheVariablesOfEachRole/api_without_DMPF_KAFKA_RESERVATIONS_TOPIC",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference",
+        "test": "TestConfigRequiresTheVariablesOfEachRole/api_without_DMPF_KAFKA_TOPIC",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference",
+        "test": "TestConfigRequiresTheVariablesOfEachRole/api_without_DMPF_PG_DSN",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference",
+        "test": "TestConfigRequiresTheVariablesOfEachRole/consumer_without_DMPF_KAFKA_BROKERS",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference",
+        "test": "TestConfigRequiresTheVariablesOfEachRole/consumer_without_DMPF_KAFKA_DLQ",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference",
+        "test": "TestConfigRequiresTheVariablesOfEachRole/consumer_without_DMPF_KAFKA_GROUP",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference",
+        "test": "TestConfigRequiresTheVariablesOfEachRole/consumer_without_DMPF_KAFKA_RESERVATIONS_DLQ",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference",
+        "test": "TestConfigRequiresTheVariablesOfEachRole/consumer_without_DMPF_KAFKA_RESERVATIONS_TOPIC",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference",
+        "test": "TestConfigRequiresTheVariablesOfEachRole/consumer_without_DMPF_KAFKA_TOPIC",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference",
+        "test": "TestConfigRequiresTheVariablesOfEachRole/consumer_without_DMPF_PG_DSN",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference",
+        "test": "TestConfigRequiresTheVariablesOfEachRole/relay_without_DMPF_KAFKA_BROKERS",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference",
+        "test": "TestConfigRequiresTheVariablesOfEachRole/relay_without_DMPF_KAFKA_DLQ",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference",
+        "test": "TestConfigRequiresTheVariablesOfEachRole/relay_without_DMPF_KAFKA_GROUP",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference",
+        "test": "TestConfigRequiresTheVariablesOfEachRole/relay_without_DMPF_KAFKA_RESERVATIONS_DLQ",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference",
+        "test": "TestConfigRequiresTheVariablesOfEachRole/relay_without_DMPF_KAFKA_RESERVATIONS_TOPIC",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference",
+        "test": "TestConfigRequiresTheVariablesOfEachRole/relay_without_DMPF_KAFKA_TOPIC",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference",
+        "test": "TestConfigRequiresTheVariablesOfEachRole/relay_without_DMPF_PG_DSN",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference",
+        "test": "TestEndToEndWriteDrainConsumeAndRedeliver",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference",
+        "test": "TestSinkAcknowledgesAnotherTypeWithoutTheAdapter",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference",
+        "test": "TestSinkHandsTheSubscribedTypeToTheAdapter",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference",
+        "test": "TestSinkLeavesAnInvalidEnvelopeToTheAdapter",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference",
+        "test": "TestValidateRefusesAConfigAssembledByHand",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference/api",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference/api",
+        "test": "TestACorrelationIsMintedWhenTheClientSendsNone",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference/api",
+        "test": "TestAMalformedCorrelationIsReplacedNotPropagated",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference/api",
+        "test": "TestAMalformedCorrelationIsReplacedNotPropagated/bad_character",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference/api",
+        "test": "TestAMalformedCorrelationIsReplacedNotPropagated/control_byte",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference/api",
+        "test": "TestAMalformedCorrelationIsReplacedNotPropagated/too_long",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference/api",
+        "test": "TestARequestOutsideTheContractIs400",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference/api",
+        "test": "TestARequestOutsideTheContractIs400/empty_sku",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference/api",
+        "test": "TestARequestOutsideTheContractIs400/quantity_negative",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference/api",
+        "test": "TestARequestOutsideTheContractIs400/quantity_zero",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference/api",
+        "test": "TestARequestOutsideTheContractIs400/sku_too_long",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference/api",
+        "test": "TestARequestOutsideTheContractIs400/trailing_data",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference/api",
+        "test": "TestARequestOutsideTheContractIs400/two_objects",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference/api",
+        "test": "TestARequestOutsideTheContractIs400/unknown_field",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference/api",
+        "test": "TestAddItemAcceptedIs201",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference/api",
+        "test": "TestAddItemRejectedByTheDomainIs422",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference/api",
+        "test": "TestAdmissionRefusesWith429BeforeReadingTheBody",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference/api",
+        "test": "TestAnOrderIDOutsideTheContractIs400",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference/api",
+        "test": "TestAnOrderIDOutsideTheContractIs400/slash",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference/api",
+        "test": "TestAnOrderIDOutsideTheContractIs400/space",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference/api",
+        "test": "TestAnOrderIDOutsideTheContractIs400/too_long",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference/api",
+        "test": "TestCORSIsOffByDefaultAndScopedToTheDeclaredOrigins",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference/api",
+        "test": "TestFindOrderReadsTheSnapshot",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference/api",
+        "test": "TestJSONResponsesForbidSniffing",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference/api",
+        "test": "TestLimitsCoverEveryRouteByItsPattern",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference/api",
+        "test": "TestMalformedBodyIs400",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference/api",
+        "test": "TestPlaceOrderIs200ThenNotOpenIs422",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference/api",
+        "test": "TestPostWithoutIdempotencyKeyIsRefusedBeforeTheService",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference/api",
+        "test": "TestRoutesReferenceTheContractAndDeclareIdempotencyOnPosts",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference/api",
+        "test": "TestTheContractIsServedOnlyWhenProvided",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference/api",
+        "test": "TestTheServiceReceivesAMessageContextAuthoredAtTheEdge",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference/api",
+        "test": "TestUnknownOrderIs404",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference/api",
+        "test": "TestVersionConflictIs409",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference/cmd/dmpf-reference",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference/cmd/dmpf-reference",
+        "test": "TestRunNamesTheMissingVariable",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference/cmd/dmpf-reference",
+        "test": "TestRunNamesTheMissingVariable/api_without_DMPF_PG_DSN",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference/cmd/dmpf-reference",
+        "test": "TestRunNamesTheMissingVariable/consumer_without_DMPF_KAFKA_GROUP",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference/cmd/dmpf-reference",
+        "test": "TestRunNamesTheMissingVariable/relay_without_DMPF_KAFKA_BROKERS",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference/cmd/dmpf-reference",
+        "test": "TestRunRefusesAnUnknownRole",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference/cmd/dmpf-reference",
+        "test": "TestRunRefusesToStartWithoutARole",
+        "action": "pass"
+      }
+    ]
+  }
+}

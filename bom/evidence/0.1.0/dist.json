@@ -1,0 +1,160 @@
+{
+  "header": {
+    "schema": "dmpf/evidence@1",
+    "release": "0.1.0",
+    "subject": "dist",
+    "commit": "4b491e1633aef7b70385bb64322f85e34b2044bf",
+    "goversion": "1.26.6",
+    "tags": [
+      "integration",
+      "distributed"
+    ],
+    "packages": [
+      "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/distkit"
+    ],
+    "modules": [
+      {
+        "path": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-app",
+        "version": "0.0.0"
+      },
+      {
+        "path": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application",
+        "version": "0.0.0"
+      },
+      {
+        "path": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts",
+        "version": "0.0.0"
+      },
+      {
+        "path": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-domain",
+        "version": "0.0.0"
+      },
+      {
+        "path": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability",
+        "version": "0.0.0"
+      },
+      {
+        "path": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-ports",
+        "version": "0.0.0"
+      },
+      {
+        "path": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-kafka",
+        "version": "0.0.0"
+      },
+      {
+        "path": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "version": "0.0.0"
+      },
+      {
+        "path": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit",
+        "version": "0.0.0"
+      },
+      {
+        "path": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-transport",
+        "version": "0.0.0"
+      }
+    ],
+    "externals": [
+      {
+        "package": "github.com/cespare/xxhash/v2",
+        "version": "v2.3.0"
+      },
+      {
+        "package": "github.com/jackc/pgpassfile",
+        "version": "v1.0.0"
+      },
+      {
+        "package": "github.com/jackc/pgservicefile",
+        "version": "v0.0.0-20240606120523-5a60cdf6a761"
+      },
+      {
+        "package": "github.com/jackc/pgx/v5",
+        "version": "v5.10.0"
+      },
+      {
+        "package": "github.com/jackc/puddle/v2",
+        "version": "v2.2.2"
+      },
+      {
+        "package": "github.com/klauspost/compress",
+        "version": "v1.18.7"
+      },
+      {
+        "package": "github.com/pierrec/lz4/v4",
+        "version": "v4.1.26"
+      },
+      {
+        "package": "github.com/twmb/franz-go",
+        "version": "v1.21.6"
+      },
+      {
+        "package": "github.com/twmb/franz-go/pkg/kadm",
+        "version": "v1.18.0"
+      },
+      {
+        "package": "github.com/twmb/franz-go/pkg/kmsg",
+        "version": "v1.13.1"
+      },
+      {
+        "package": "go.opentelemetry.io/otel",
+        "version": "v1.46.0"
+      },
+      {
+        "package": "go.opentelemetry.io/otel/metric",
+        "version": "v1.46.0"
+      },
+      {
+        "package": "go.opentelemetry.io/otel/trace",
+        "version": "v1.46.0"
+      },
+      {
+        "package": "golang.org/x/crypto",
+        "version": "v0.55.0"
+      },
+      {
+        "package": "golang.org/x/sync",
+        "version": "v0.22.0"
+      },
+      {
+        "package": "golang.org/x/text",
+        "version": "v0.41.0"
+      },
+      {
+        "package": "google.golang.org/protobuf",
+        "version": "v1.36.12"
+      }
+    ],
+    "infra": {
+      "postgres": "16.15",
+      "redpanda": "v26.2.2"
+    }
+  },
+  "body": {
+    "tests": [
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/distkit",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/distkit",
+        "test": "TestDecideAcceptsTheSingleDeliveryEffect",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/distkit",
+        "test": "TestDecideNamesTheRedeliveredIdentity",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/distkit",
+        "test": "TestV32NaiveConsumerIsReprovedWithR004",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/distkit",
+        "test": "TestV32RedeliveryDoesNotDuplicateTheEffect",
+        "action": "pass"
+      }
+    ]
+  }
+}

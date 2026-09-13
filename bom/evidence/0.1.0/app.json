@@ -1,0 +1,110 @@
+{
+  "header": {
+    "schema": "dmpf/evidence@1",
+    "release": "0.1.0",
+    "subject": "app",
+    "commit": "4b491e1633aef7b70385bb64322f85e34b2044bf",
+    "goversion": "1.26.6",
+    "tags": [
+      "integration"
+    ],
+    "packages": [
+      "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/appkit"
+    ],
+    "modules": [
+      {
+        "path": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-app",
+        "version": "0.0.0"
+      },
+      {
+        "path": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application",
+        "version": "0.0.0"
+      },
+      {
+        "path": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts",
+        "version": "0.0.0"
+      },
+      {
+        "path": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-domain",
+        "version": "0.0.0"
+      },
+      {
+        "path": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability",
+        "version": "0.0.0"
+      },
+      {
+        "path": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-ports",
+        "version": "0.0.0"
+      },
+      {
+        "path": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "version": "0.0.0"
+      },
+      {
+        "path": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit",
+        "version": "0.0.0"
+      }
+    ],
+    "externals": [
+      {
+        "package": "github.com/jackc/pgpassfile",
+        "version": "v1.0.0"
+      },
+      {
+        "package": "github.com/jackc/pgservicefile",
+        "version": "v0.0.0-20240606120523-5a60cdf6a761"
+      },
+      {
+        "package": "github.com/jackc/pgx/v5",
+        "version": "v5.10.0"
+      },
+      {
+        "package": "github.com/jackc/puddle/v2",
+        "version": "v2.2.2"
+      },
+      {
+        "package": "golang.org/x/sync",
+        "version": "v0.22.0"
+      },
+      {
+        "package": "golang.org/x/text",
+        "version": "v0.41.0"
+      },
+      {
+        "package": "google.golang.org/protobuf",
+        "version": "v1.36.12"
+      }
+    ],
+    "infra": {
+      "postgres": "16.15"
+    }
+  },
+  "body": {
+    "tests": [
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/appkit",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/appkit",
+        "test": "TestFirstReceptionShowsTheOutcomeAtTheEffectEdge",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/appkit",
+        "test": "TestInvalidBytesAreContainedWithoutTouchingTheInbox",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/appkit",
+        "test": "TestRedeliveryWithANewMessageIDDoesNotDuplicateTheEffect",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/appkit",
+        "test": "TestRejectedShowsNothingButTheInboxRow",
+        "action": "pass"
+      }
+    ]
+  }
+}

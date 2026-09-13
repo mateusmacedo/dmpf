@@ -1,0 +1,30 @@
+[
+  {
+    "subject": "app",
+    "sha256": "sha256:cde7b24571a3b4d7e5aa98a69b95c48a0db3323956d34ac5b662a2544fd3b789"
+  },
+  {
+    "subject": "dist",
+    "sha256": "sha256:68d28ab150e6dae40ba8fe79eb748258bc4761149b580cc347cc3f5aeaf0c9d8"
+  },
+  {
+    "subject": "domain",
+    "sha256": "sha256:c3b9bab29d5dabbfab280681c0469a4fb77f5463514e8796c1a82541985a706a"
+  },
+  {
+    "subject": "golden",
+    "sha256": "sha256:bf01eb1a1664f983dac9a0d3ccaf7f75ea1cec711cb6d8d1ad23a26b4aacd76e"
+  },
+  {
+    "subject": "provider",
+    "sha256": "sha256:189255a1030f5e2dbe9dd7571afdb16b0a7929acf7a4643762468ed8906c6fbc"
+  },
+  {
+    "subject": "reference",
+    "sha256": "sha256:33d95317456c2d518cc59cb45b2fdbc32d0bbe7233dcb384ac1cf1eb54985e2e"
+  },
+  {
+    "subject": "services",
+    "sha256": "sha256:76e401e92206adf3975ade8cd0b8056f32ed6a61a6bb2a0827d6cd693ac0e3eb"
+  }
+]
