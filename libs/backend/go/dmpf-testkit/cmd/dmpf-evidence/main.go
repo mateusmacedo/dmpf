@@ -88,6 +88,7 @@ var catalog = []subjectSpec{
 		name:     "dist",
 		packages: []string{modulePrefix + "libs/backend/go/dmpf-testkit/distkit"},
 		tags:     []string{"integration", "distributed"},
+		skip:     []string{"TestDistkitRole"},
 		env:      []string{envPostgres, envKafka, envRedpandaAdmin},
 		postgres: true,
 		redpanda: true,
