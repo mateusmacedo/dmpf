@@ -1,0 +1,143 @@
+{
+  "header": {
+    "schema": "dmpf/evidence@1",
+    "release": "0.1.0",
+    "subject": "domain",
+    "commit": "4b491e1633aef7b70385bb64322f85e34b2044bf",
+    "goversion": "1.26.6",
+    "tags": [],
+    "packages": [
+      "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/domainkit"
+    ],
+    "modules": [
+      {
+        "path": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts",
+        "version": "0.0.0"
+      },
+      {
+        "path": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-domain",
+        "version": "0.0.0"
+      },
+      {
+        "path": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit",
+        "version": "0.0.0"
+      }
+    ],
+    "externals": [
+      {
+        "package": "google.golang.org/protobuf",
+        "version": "v1.36.12"
+      }
+    ]
+  },
+  "body": {
+    "tests": [
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/domainkit",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/domainkit",
+        "test": "TestAPendingCollectionAfterRejectedIsReproved",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/domainkit",
+        "test": "TestASecondAccessorOfEventsIsReproved",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/domainkit",
+        "test": "TestAStateMutatedUnderRejectedIsReproved",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/domainkit",
+        "test": "TestEqualNamesTheFirstDivergentField",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/domainkit",
+        "test": "TestEqualReprovesABranchMismatchBeforeAnythingElse",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/domainkit",
+        "test": "TestOrdersMatchTheProjectionFixture",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/domainkit",
+        "test": "TestOrdersMatchTheProjectionFixture/add-item-accepted",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/domainkit",
+        "test": "TestOrdersMatchTheProjectionFixture/add-item-limit-exceeded",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/domainkit",
+        "test": "TestOrdersMatchTheProjectionFixture/place-accepted",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/domainkit",
+        "test": "TestOrdersMatchTheProjectionFixture/place-empty-order",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/domainkit",
+        "test": "TestOrdersMatchTheProjectionFixture/place-order-not-open",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/domainkit",
+        "test": "TestReadTwiceIsObservationallyEqual",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/domainkit",
+        "test": "TestReservationsMatchTheProjectionFixture",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/domainkit",
+        "test": "TestReservationsMatchTheProjectionFixture/reserve-accepted",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/domainkit",
+        "test": "TestReservationsMatchTheProjectionFixture/reserve-already-reserved",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/domainkit",
+        "test": "TestReservationsMatchTheProjectionFixture/reserve-nothing",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/domainkit",
+        "test": "TestRunProjectsTheAcceptingBranch",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/domainkit",
+        "test": "TestRunProjectsTheRejectingBranchWithStateUntouched",
+        "action": "pass"
+      }
+    ],
+    "records": {
+      "orders": {
+        "ok": true,
+        "failures": [],
+        "skipped": []
+      },
+      "reservations": {
+        "ok": true,
+        "failures": [],
+        "skipped": []
+      }
+    }
+  }
+}

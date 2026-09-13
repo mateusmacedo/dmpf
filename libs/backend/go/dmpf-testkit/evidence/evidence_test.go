@@ -243,6 +243,42 @@ func TestJudgeResultsReprovesFailuresAlwaysAndSkipsOnlyInCI(t *testing.T) {
 	}
 }
 
+func TestRunGoTestLeavesOnlyTheExactlyNamedTestsOutOfTheStream(t *testing.T) {
+	dir := t.TempDir()
+	files := map[string]string{
+		"go.mod": "module example.com/skip\n\ngo 1.26\n",
+		"skip_test.go": "package skip\n\nimport \"testing\"\n\n" +
+			"func TestKept(t *testing.T) {}\n\n" +
+			"func TestMaintenance(t *testing.T) { t.Skip(\"maintenance only\") }\n\n" +
+			"func TestMaintenanceAll(t *testing.T) { t.Skip(\"maintenance only\") }\n",
+	}
+	for name, content := range files {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	results, err := evidence.RunGoTest(context.Background(), evidence.GoTest{
+		Dir:      dir,
+		Packages: []string{"."},
+		Skip:     []string{"TestMaintenance"},
+		Env:      []string{"GOWORK=off"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if slices.ContainsFunc(results, func(r evidence.TestResult) bool { return r.Test == "TestMaintenance" }) {
+		t.Fatalf("the excluded test reached the stream: %+v", results)
+	}
+	if !slices.Contains(results, evidence.TestResult{Package: "example.com/skip", Test: "TestKept", Action: "pass"}) {
+		t.Fatalf("TestKept did not pass: %+v", results)
+	}
+	if got := evidence.JudgeResults(results, true); len(got) != 1 || !strings.Contains(got[0], "TestMaintenanceAll") {
+		t.Fatalf("in CI only TestMaintenanceAll should reprove, got %v", got)
+	}
+}
+
 func TestGoVersionRefusesAToolchainOtherThanTheWorkspaces(t *testing.T) {
 	work := []byte("go 1.26.6\n\nuse (\n\t./a\n)\n")
 	if got, err := evidence.GoVersion(work, "go1.26.6"); err != nil || got != "1.26.6" {

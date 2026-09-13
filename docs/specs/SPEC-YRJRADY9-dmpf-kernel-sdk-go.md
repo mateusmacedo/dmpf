@@ -201,7 +201,7 @@ declarado no acervo:
   - Cada classe normativa tem ao menos um vetor **positivo** e um **negativo**.
   - Vetores pareados com o kernel TypeScript, com a assimetria de `V27`
     registrada (Go não tem `import type`).
-- [ ] **[P2] SDK de referência, generator e BOM** (`KRN-12`): composition root de
+- [x] **[P2] SDK de referência, generator e BOM** (`KRN-12`): composition root de
   exemplo, generator Nx que scaffolda um bounded context conforme e BOM com
   combinação certificada.
   - Cada entrada certificada do BOM carrega `evidence_uri`, `evidence_digest`,

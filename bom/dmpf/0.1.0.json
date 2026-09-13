@@ -9,9 +9,24 @@
         "subject": "runtime",
         "identity": "go",
         "version": "1.26.6",
-        "state": "candidata",
-        "compatible_with": [],
+        "state": "certificada",
+        "compatible_with": [
+          { "identity": "github.com/jackc/pgx/v5", "version": "v5.10.0", "evidence": "provider" },
+          { "identity": "google.golang.org/protobuf", "version": "v1.36.12", "evidence": "golden" },
+          { "identity": "go.opentelemetry.io/otel", "version": "v1.46.0", "evidence": "reference" },
+          { "identity": "github.com/twmb/franz-go", "version": "v1.21.6", "evidence": "dist" }
+        ],
         "registry_ref": { "file": "go.work", "selector": "go" },
+        "evidence_uri": "https://github.com/mateusmacedo/dmpf/blob/8e171d31eb903a6b2153da53bc4aa05d058a1263/bom/evidence/0.1.0/provider.json",
+        "evidence_digest": "sha256:189255a1030f5e2dbe9dd7571afdb16b0a7929acf7a4643762468ed8906c6fbc",
+        "approved_by": "team:plataforma",
+        "certified_at": "2026-09-13",
+        "valid_until": "2026-12-12",
+        "promoted": {
+          "by": "mateusmacedo",
+          "reviewed_by": "mateusmacedo",
+          "pr": "local-merge:feat/ARQ-548-evidencia-certificacao-release"
+        },
         "cve": []
       },
       {
@@ -42,7 +57,7 @@
         "cve": []
       }
     ],
-    "reason": "Node.js fica de fora: o repositório fixa só a major (engines.node ^24, .nvmrc 24), sem versão exata exercitada; a certificação da release a fixa"
+    "reason": "Node.js fica de fora: o repositório fixa só a major (engines.node ^24, .nvmrc 24), sem versão exata exercitada. TypeScript, pnpm e Nx ficam no estado candidata: nenhum subject do dmpf-evidence da 0.1.0 os exercita"
   },
   "generators": {
     "entries": [
@@ -50,18 +65,38 @@
         "subject": "generator",
         "identity": "github.com/bufbuild/buf/cmd/buf",
         "version": "v1.72.0",
-        "state": "candidata",
+        "state": "certificada",
         "compatible_with": [],
         "registry_ref": { "file": "tools/buf.sh", "selector": "buf" },
+        "evidence_uri": "https://github.com/mateusmacedo/dmpf/blob/8e171d31eb903a6b2153da53bc4aa05d058a1263/bom/evidence/0.1.0/golden.json",
+        "evidence_digest": "sha256:bf01eb1a1664f983dac9a0d3ccaf7f75ea1cec711cb6d8d1ad23a26b4aacd76e",
+        "approved_by": "team:plataforma",
+        "certified_at": "2026-09-13",
+        "valid_until": "2026-12-12",
+        "promoted": {
+          "by": "mateusmacedo",
+          "reviewed_by": "mateusmacedo",
+          "pr": "local-merge:feat/ARQ-548-evidencia-certificacao-release"
+        },
         "cve": []
       },
       {
         "subject": "generator",
         "identity": "google.golang.org/protobuf/cmd/protoc-gen-go",
         "version": "v1.36.12",
-        "state": "candidata",
+        "state": "certificada",
         "compatible_with": [],
         "registry_ref": { "file": "contracts/buf.gen.yaml", "selector": "plugin:protoc-gen-go" },
+        "evidence_uri": "https://github.com/mateusmacedo/dmpf/blob/8e171d31eb903a6b2153da53bc4aa05d058a1263/bom/evidence/0.1.0/golden.json",
+        "evidence_digest": "sha256:bf01eb1a1664f983dac9a0d3ccaf7f75ea1cec711cb6d8d1ad23a26b4aacd76e",
+        "approved_by": "team:plataforma",
+        "certified_at": "2026-09-13",
+        "valid_until": "2026-12-12",
+        "promoted": {
+          "by": "mateusmacedo",
+          "reviewed_by": "mateusmacedo",
+          "pr": "local-merge:feat/ARQ-548-evidencia-certificacao-release"
+        },
         "cve": []
       },
       {
@@ -82,7 +117,8 @@
         "registry_ref": { "file": "tools/dmpf-plugin/package.json", "selector": "version" },
         "cve": []
       }
-    ]
+    ],
+    "reason": "golangci-lint e o plugin ficam no estado candidata: o CI os exercita (lint dos módulos Go e tools/dmpf-generator-check.sh), mas nenhum subject do dmpf-evidence da 0.1.0"
   },
   "drivers_clients_sdks": {
     "entries": [
@@ -90,11 +126,21 @@
         "subject": "driver",
         "identity": "github.com/jackc/pgx/v5",
         "version": "v5.10.0",
-        "state": "candidata",
+        "state": "certificada",
         "compatible_with": [],
         "registry_ref": {
           "file": "libs/backend/go/dmpf-provider-postgres/go.mod",
           "selector": "require:github.com/jackc/pgx/v5"
+        },
+        "evidence_uri": "https://github.com/mateusmacedo/dmpf/blob/8e171d31eb903a6b2153da53bc4aa05d058a1263/bom/evidence/0.1.0/provider.json",
+        "evidence_digest": "sha256:189255a1030f5e2dbe9dd7571afdb16b0a7929acf7a4643762468ed8906c6fbc",
+        "approved_by": "team:plataforma",
+        "certified_at": "2026-09-13",
+        "valid_until": "2026-12-12",
+        "promoted": {
+          "by": "mateusmacedo",
+          "reviewed_by": "mateusmacedo",
+          "pr": "local-merge:feat/ARQ-548-evidencia-certificacao-release"
         },
         "cve": []
       },
@@ -102,11 +148,21 @@
         "subject": "client",
         "identity": "github.com/twmb/franz-go",
         "version": "v1.21.6",
-        "state": "candidata",
+        "state": "certificada",
         "compatible_with": [],
         "registry_ref": {
           "file": "libs/backend/go/dmpf-provider-kafka/go.mod",
           "selector": "require:github.com/twmb/franz-go"
+        },
+        "evidence_uri": "https://github.com/mateusmacedo/dmpf/blob/8e171d31eb903a6b2153da53bc4aa05d058a1263/bom/evidence/0.1.0/dist.json",
+        "evidence_digest": "sha256:68d28ab150e6dae40ba8fe79eb748258bc4761149b580cc347cc3f5aeaf0c9d8",
+        "approved_by": "team:plataforma",
+        "certified_at": "2026-09-13",
+        "valid_until": "2026-12-12",
+        "promoted": {
+          "by": "mateusmacedo",
+          "reviewed_by": "mateusmacedo",
+          "pr": "local-merge:feat/ARQ-548-evidencia-certificacao-release"
         },
         "cve": []
       },
@@ -138,11 +194,21 @@
         "subject": "sdk",
         "identity": "go.opentelemetry.io/otel",
         "version": "v1.46.0",
-        "state": "candidata",
+        "state": "certificada",
         "compatible_with": [],
         "registry_ref": {
           "file": "libs/backend/go/dmpf-observability/go.mod",
           "selector": "require:go.opentelemetry.io/otel"
+        },
+        "evidence_uri": "https://github.com/mateusmacedo/dmpf/blob/8e171d31eb903a6b2153da53bc4aa05d058a1263/bom/evidence/0.1.0/reference.json",
+        "evidence_digest": "sha256:33d95317456c2d518cc59cb45b2fdbc32d0bbe7233dcb384ac1cf1eb54985e2e",
+        "approved_by": "team:plataforma",
+        "certified_at": "2026-09-13",
+        "valid_until": "2026-12-12",
+        "promoted": {
+          "by": "mateusmacedo",
+          "reviewed_by": "mateusmacedo",
+          "pr": "local-merge:feat/ARQ-548-evidencia-certificacao-release"
         },
         "cve": []
       },
@@ -150,28 +216,76 @@
         "subject": "sdk",
         "identity": "google.golang.org/protobuf",
         "version": "v1.36.12",
-        "state": "candidata",
+        "state": "certificada",
         "compatible_with": [],
         "registry_ref": {
           "file": "libs/backend/go/dmpf-contracts/go.mod",
           "selector": "require:google.golang.org/protobuf"
         },
+        "evidence_uri": "https://github.com/mateusmacedo/dmpf/blob/8e171d31eb903a6b2153da53bc4aa05d058a1263/bom/evidence/0.1.0/golden.json",
+        "evidence_digest": "sha256:bf01eb1a1664f983dac9a0d3ccaf7f75ea1cec711cb6d8d1ad23a26b4aacd76e",
+        "approved_by": "team:plataforma",
+        "certified_at": "2026-09-13",
+        "valid_until": "2026-12-12",
+        "promoted": {
+          "by": "mateusmacedo",
+          "reviewed_by": "mateusmacedo",
+          "pr": "local-merge:feat/ARQ-548-evidencia-certificacao-release"
+        },
+        "cve": []
+      },
+      {
+        "subject": "sdk",
+        "identity": "@nx/devkit",
+        "version": "23.1.0",
+        "state": "candidata",
+        "compatible_with": [],
+        "registry_ref": { "file": "pnpm-workspace.yaml", "selector": "catalog:@nx/devkit" },
+        "cve": []
+      },
+      {
+        "subject": "sdk",
+        "identity": "@nx/plugin",
+        "version": "23.1.0",
+        "state": "candidata",
+        "compatible_with": [],
+        "registry_ref": { "file": "pnpm-workspace.yaml", "selector": "catalog:@nx/plugin" },
         "cve": []
       },
       {
         "subject": "kernel",
         "identity": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-app",
         "version": "0.0.0",
-        "state": "candidata",
+        "state": "certificada",
         "compatible_with": [],
+        "evidence_uri": "https://github.com/mateusmacedo/dmpf/blob/8e171d31eb903a6b2153da53bc4aa05d058a1263/bom/evidence/0.1.0/app.json",
+        "evidence_digest": "sha256:cde7b24571a3b4d7e5aa98a69b95c48a0db3323956d34ac5b662a2544fd3b789",
+        "approved_by": "team:plataforma",
+        "certified_at": "2026-09-13",
+        "valid_until": "2026-12-12",
+        "promoted": {
+          "by": "mateusmacedo",
+          "reviewed_by": "mateusmacedo",
+          "pr": "local-merge:feat/ARQ-548-evidencia-certificacao-release"
+        },
         "cve": []
       },
       {
         "subject": "kernel",
         "identity": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application",
         "version": "0.0.0",
-        "state": "candidata",
+        "state": "certificada",
         "compatible_with": [],
+        "evidence_uri": "https://github.com/mateusmacedo/dmpf/blob/8e171d31eb903a6b2153da53bc4aa05d058a1263/bom/evidence/0.1.0/services.json",
+        "evidence_digest": "sha256:76e401e92206adf3975ade8cd0b8056f32ed6a61a6bb2a0827d6cd693ac0e3eb",
+        "approved_by": "team:plataforma",
+        "certified_at": "2026-09-13",
+        "valid_until": "2026-12-12",
+        "promoted": {
+          "by": "mateusmacedo",
+          "reviewed_by": "mateusmacedo",
+          "pr": "local-merge:feat/ARQ-548-evidencia-certificacao-release"
+        },
         "cve": []
       },
       {
@@ -186,32 +300,72 @@
         "subject": "kernel",
         "identity": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts",
         "version": "0.0.0",
-        "state": "candidata",
+        "state": "certificada",
         "compatible_with": [],
+        "evidence_uri": "https://github.com/mateusmacedo/dmpf/blob/8e171d31eb903a6b2153da53bc4aa05d058a1263/bom/evidence/0.1.0/golden.json",
+        "evidence_digest": "sha256:bf01eb1a1664f983dac9a0d3ccaf7f75ea1cec711cb6d8d1ad23a26b4aacd76e",
+        "approved_by": "team:plataforma",
+        "certified_at": "2026-09-13",
+        "valid_until": "2026-12-12",
+        "promoted": {
+          "by": "mateusmacedo",
+          "reviewed_by": "mateusmacedo",
+          "pr": "local-merge:feat/ARQ-548-evidencia-certificacao-release"
+        },
         "cve": []
       },
       {
         "subject": "kernel",
         "identity": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-domain",
         "version": "0.0.0",
-        "state": "candidata",
+        "state": "certificada",
         "compatible_with": [],
+        "evidence_uri": "https://github.com/mateusmacedo/dmpf/blob/8e171d31eb903a6b2153da53bc4aa05d058a1263/bom/evidence/0.1.0/domain.json",
+        "evidence_digest": "sha256:c3b9bab29d5dabbfab280681c0469a4fb77f5463514e8796c1a82541985a706a",
+        "approved_by": "team:plataforma",
+        "certified_at": "2026-09-13",
+        "valid_until": "2026-12-12",
+        "promoted": {
+          "by": "mateusmacedo",
+          "reviewed_by": "mateusmacedo",
+          "pr": "local-merge:feat/ARQ-548-evidencia-certificacao-release"
+        },
         "cve": []
       },
       {
         "subject": "kernel",
         "identity": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability",
         "version": "0.0.0",
-        "state": "candidata",
+        "state": "certificada",
         "compatible_with": [],
+        "evidence_uri": "https://github.com/mateusmacedo/dmpf/blob/8e171d31eb903a6b2153da53bc4aa05d058a1263/bom/evidence/0.1.0/provider.json",
+        "evidence_digest": "sha256:189255a1030f5e2dbe9dd7571afdb16b0a7929acf7a4643762468ed8906c6fbc",
+        "approved_by": "team:plataforma",
+        "certified_at": "2026-09-13",
+        "valid_until": "2026-12-12",
+        "promoted": {
+          "by": "mateusmacedo",
+          "reviewed_by": "mateusmacedo",
+          "pr": "local-merge:feat/ARQ-548-evidencia-certificacao-release"
+        },
         "cve": []
       },
       {
         "subject": "kernel",
         "identity": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-ports",
         "version": "0.0.0",
-        "state": "candidata",
+        "state": "certificada",
         "compatible_with": [],
+        "evidence_uri": "https://github.com/mateusmacedo/dmpf/blob/8e171d31eb903a6b2153da53bc4aa05d058a1263/bom/evidence/0.1.0/services.json",
+        "evidence_digest": "sha256:76e401e92206adf3975ade8cd0b8056f32ed6a61a6bb2a0827d6cd693ac0e3eb",
+        "approved_by": "team:plataforma",
+        "certified_at": "2026-09-13",
+        "valid_until": "2026-12-12",
+        "promoted": {
+          "by": "mateusmacedo",
+          "reviewed_by": "mateusmacedo",
+          "pr": "local-merge:feat/ARQ-548-evidencia-certificacao-release"
+        },
         "cve": []
       },
       {
@@ -226,24 +380,54 @@
         "subject": "kernel",
         "identity": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-http",
         "version": "0.0.0",
-        "state": "candidata",
+        "state": "certificada",
         "compatible_with": [],
+        "evidence_uri": "https://github.com/mateusmacedo/dmpf/blob/8e171d31eb903a6b2153da53bc4aa05d058a1263/bom/evidence/0.1.0/reference.json",
+        "evidence_digest": "sha256:33d95317456c2d518cc59cb45b2fdbc32d0bbe7233dcb384ac1cf1eb54985e2e",
+        "approved_by": "team:plataforma",
+        "certified_at": "2026-09-13",
+        "valid_until": "2026-12-12",
+        "promoted": {
+          "by": "mateusmacedo",
+          "reviewed_by": "mateusmacedo",
+          "pr": "local-merge:feat/ARQ-548-evidencia-certificacao-release"
+        },
         "cve": []
       },
       {
         "subject": "kernel",
         "identity": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-kafka",
         "version": "0.0.0",
-        "state": "candidata",
+        "state": "certificada",
         "compatible_with": [],
+        "evidence_uri": "https://github.com/mateusmacedo/dmpf/blob/8e171d31eb903a6b2153da53bc4aa05d058a1263/bom/evidence/0.1.0/dist.json",
+        "evidence_digest": "sha256:68d28ab150e6dae40ba8fe79eb748258bc4761149b580cc347cc3f5aeaf0c9d8",
+        "approved_by": "team:plataforma",
+        "certified_at": "2026-09-13",
+        "valid_until": "2026-12-12",
+        "promoted": {
+          "by": "mateusmacedo",
+          "reviewed_by": "mateusmacedo",
+          "pr": "local-merge:feat/ARQ-548-evidencia-certificacao-release"
+        },
         "cve": []
       },
       {
         "subject": "kernel",
         "identity": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
         "version": "0.0.0",
-        "state": "candidata",
+        "state": "certificada",
         "compatible_with": [],
+        "evidence_uri": "https://github.com/mateusmacedo/dmpf/blob/8e171d31eb903a6b2153da53bc4aa05d058a1263/bom/evidence/0.1.0/provider.json",
+        "evidence_digest": "sha256:189255a1030f5e2dbe9dd7571afdb16b0a7929acf7a4643762468ed8906c6fbc",
+        "approved_by": "team:plataforma",
+        "certified_at": "2026-09-13",
+        "valid_until": "2026-12-12",
+        "promoted": {
+          "by": "mateusmacedo",
+          "reviewed_by": "mateusmacedo",
+          "pr": "local-merge:feat/ARQ-548-evidencia-certificacao-release"
+        },
         "cve": []
       },
       {
@@ -258,31 +442,62 @@
         "subject": "kernel",
         "identity": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit",
         "version": "0.0.0",
-        "state": "candidata",
+        "state": "certificada",
         "compatible_with": [],
+        "evidence_uri": "https://github.com/mateusmacedo/dmpf/blob/8e171d31eb903a6b2153da53bc4aa05d058a1263/bom/evidence/0.1.0/services.json",
+        "evidence_digest": "sha256:76e401e92206adf3975ade8cd0b8056f32ed6a61a6bb2a0827d6cd693ac0e3eb",
+        "approved_by": "team:plataforma",
+        "certified_at": "2026-09-13",
+        "valid_until": "2026-12-12",
+        "promoted": {
+          "by": "mateusmacedo",
+          "reviewed_by": "mateusmacedo",
+          "pr": "local-merge:feat/ARQ-548-evidencia-certificacao-release"
+        },
         "cve": []
       },
       {
         "subject": "kernel",
         "identity": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-transport",
         "version": "0.0.0",
-        "state": "candidata",
+        "state": "certificada",
         "compatible_with": [],
+        "evidence_uri": "https://github.com/mateusmacedo/dmpf/blob/8e171d31eb903a6b2153da53bc4aa05d058a1263/bom/evidence/0.1.0/dist.json",
+        "evidence_digest": "sha256:68d28ab150e6dae40ba8fe79eb748258bc4761149b580cc347cc3f5aeaf0c9d8",
+        "approved_by": "team:plataforma",
+        "certified_at": "2026-09-13",
+        "valid_until": "2026-12-12",
+        "promoted": {
+          "by": "mateusmacedo",
+          "reviewed_by": "mateusmacedo",
+          "pr": "local-merge:feat/ARQ-548-evidencia-certificacao-release"
+        },
         "cve": []
       },
       {
         "subject": "product",
         "identity": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference",
         "version": "560ae8e",
-        "state": "candidata",
+        "state": "certificada",
         "compatible_with": [],
+        "evidence_uri": "https://github.com/mateusmacedo/dmpf/blob/8e171d31eb903a6b2153da53bc4aa05d058a1263/bom/evidence/0.1.0/reference.json",
+        "evidence_digest": "sha256:33d95317456c2d518cc59cb45b2fdbc32d0bbe7233dcb384ac1cf1eb54985e2e",
+        "approved_by": "team:plataforma",
+        "certified_at": "2026-09-13",
+        "valid_until": "2026-12-12",
+        "promoted": {
+          "by": "mateusmacedo",
+          "reviewed_by": "mateusmacedo",
+          "pr": "local-merge:feat/ARQ-548-evidencia-certificacao-release"
+        },
         "cve": []
       }
-    ]
+    ],
+    "reason": "grpc, aws-sdk-go-v2, @nx/devkit, @nx/plugin, dmpf-conformance, dmpf-provider-grpc e dmpf-provider-sqs ficam no estado candidata: nenhum subject do dmpf-evidence da 0.1.0 os exercita (o grpc aparece no header do reference só transitivamente; @nx/devkit e @nx/plugin sustentam o plugin dmpf)"
   },
   "compatible_combinations": {
     "entries": [],
-    "reason": "nenhuma combinação exercitada com evidência nesta release; a certificação grava a primeira"
+    "reason": "a combinação certificada da 0.1.0 vive no compatible_with da entrada do runtime go: pgx pelo provider, protobuf pelo golden, otel pelo reference e franz-go pelo dist"
   },
   "deprecations": {
     "entries": [],
@@ -290,18 +505,28 @@
   },
   "cves": {
     "entries": [],
-    "reason": "nenhuma CVE registrada; a varredura govulncheck da release entra com a certificação"
+    "reason": "govulncheck v1.7.0 sobre os 20 projetos Go do workspace, no código do commit da evidência: nenhuma vulnerabilidade encontrada"
   },
   "semantic_conventions_messaging": {
     "subject": "semantic_conventions_messaging",
     "identity": "go.opentelemetry.io/otel/semconv",
     "version": "v1.43.0",
-    "state": "candidata",
+    "state": "certificada",
     "owner": "team:plataforma",
     "compatible_with": [],
     "registry_ref": {
       "file": "libs/backend/go/dmpf-observability/otelboot/start.go",
       "selector": "semconv"
+    },
+    "evidence_uri": "https://github.com/mateusmacedo/dmpf/blob/8e171d31eb903a6b2153da53bc4aa05d058a1263/bom/evidence/0.1.0/reference.json",
+    "evidence_digest": "sha256:33d95317456c2d518cc59cb45b2fdbc32d0bbe7233dcb384ac1cf1eb54985e2e",
+    "approved_by": "team:plataforma",
+    "certified_at": "2026-09-13",
+    "valid_until": "2026-12-12",
+    "promoted": {
+      "by": "mateusmacedo",
+      "reviewed_by": "mateusmacedo",
+      "pr": "local-merge:feat/ARQ-548-evidencia-certificacao-release"
     },
     "cve": []
   },

@@ -40,6 +40,7 @@ type subjectSpec struct {
 	name     string
 	packages []string
 	tags     []string
+	skip     []string
 	env      []string
 	postgres bool
 	redpanda bool
@@ -51,6 +52,7 @@ var catalog = []subjectSpec{
 	{
 		name:     "golden",
 		packages: []string{modulePrefix + "libs/backend/go/dmpf-contracts/golden"},
+		skip:     []string{"TestUpdateGolden"},
 		records:  true,
 		tools:    true,
 	},
@@ -86,6 +88,7 @@ var catalog = []subjectSpec{
 		name:     "dist",
 		packages: []string{modulePrefix + "libs/backend/go/dmpf-testkit/distkit"},
 		tags:     []string{"integration", "distributed"},
+		skip:     []string{"TestDistkitRole"},
 		env:      []string{envPostgres, envKafka, envRedpandaAdmin},
 		postgres: true,
 		redpanda: true,
@@ -363,6 +366,7 @@ func collect(ctx context.Context, opts options, s subjectSpec, header evidence.H
 		Dir:      opts.root,
 		Tags:     s.tags,
 		Packages: s.packages,
+		Skip:     s.skip,
 		Env:      []string{evidence.DirEnv + "=" + records},
 	})
 	if err != nil {

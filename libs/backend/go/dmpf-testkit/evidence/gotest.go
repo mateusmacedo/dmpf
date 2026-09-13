@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"regexp"
 	"slices"
 	"strings"
 )
@@ -80,6 +81,7 @@ type GoTest struct {
 	Dir      string
 	Tags     []string
 	Packages []string
+	Skip     []string
 	Env      []string
 }
 
@@ -89,6 +91,13 @@ func RunGoTest(ctx context.Context, spec GoTest) ([]TestResult, error) {
 	args := []string{"test", "-json", "-count=1", "-p", "1"}
 	if len(spec.Tags) > 0 {
 		args = append(args, "-tags="+strings.Join(spec.Tags, ","))
+	}
+	if len(spec.Skip) > 0 {
+		quoted := make([]string, len(spec.Skip))
+		for i, name := range spec.Skip {
+			quoted[i] = regexp.QuoteMeta(name)
+		}
+		args = append(args, "-skip=^("+strings.Join(quoted, "|")+")$")
 	}
 	args = append(args, spec.Packages...)
 	cmd := exec.CommandContext(ctx, "go", args...)

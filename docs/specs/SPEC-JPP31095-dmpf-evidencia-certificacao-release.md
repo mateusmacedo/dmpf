@@ -2,7 +2,7 @@
 id: SPEC-JPP31095
 slug: dmpf-evidencia-certificacao-release
 title: DMPF KRN-12.4 — Evidência de execução e certificação da release dmpf@0.1.0
-stage: backlog
+stage: done
 priority: P2
 depends_on: [SPEC-6QT9SBAS, SPEC-H1A190Y8, SPEC-538MS2D4, SPEC-SJ66880S]
 ticket_url: null
@@ -16,8 +16,9 @@ created: 2026-09-08
 
 Quarta e última sub-spec de `SPEC-8HWBWJCB` (`KRN-12`). Entrega o instrumento
 que transforma uma execução da suíte de `KRN-11` em **evidência endereçável e
-hasheável** — `cmd/dmpf-evidence`, que invoca os kits por API e grava um
-envelope canônico em `bom/evidence/<release>/` —, promove as entradas do BOM com
+hasheável** — `cmd/dmpf-evidence`, que roda a suíte por subject, junta os
+veredictos que os testes gravam e publica um envelope canônico em
+`bom/evidence/<release>/` —, promove as entradas do BOM com
 execução real a `certificada`, cunha a tag `dmpf@0.1.0`, consolida o ADR-041 e o
 `AGENTS.md`, e fecha `KRN-12`.
 
@@ -51,10 +52,11 @@ que estou prestes a usar.
 
 | O ticket diz | O repositório tem | O que esta spec adota |
 | --- | --- | --- |
-| "promovendo só as entradas com evidência da suíte de `KRN-11`" | nenhum kit grava relatório; `go test -json` não carrega o `Report` | `cmd/dmpf-evidence` invoca `golden.Evaluate`, `providerkit.UnitOfWork/Inbox/Outbox`, `serviceskit.Decide`, `domainkit.Run/ReadTwice` **por API** e grava envelope canônico; para `appkit` e `distkit` (exigem `testing.TB`), consome `go test -json` do package **filtrando** `Time`/`Elapsed` e guardando `Action`/`Test`/`Package` |
+| "promovendo só as entradas com evidência da suíte de `KRN-11`" | nenhum kit grava relatório; `go test -json` não carrega o `Report` | os testes dos kits gravam o `Report` e o `Verdict` sob `DMPF_EVIDENCE_DIR` (`evidence.RecordReport` e `RecordVerdict`); `cmd/dmpf-evidence` roda `go test -json` por subject, junta os registros e grava envelope canônico, **filtrando** `Time`/`Elapsed` do stream e guardando `Action`/`Test`/`Package` |
 | — | `test-race` do testkit não cobre `distkit`; `test-distributed` é target próprio com `integration,distributed` | A evidência de Kafka/`franz-go` só existe se `test-distributed` rodou; a combinação que o inclui só entra em `compatible_with` com essa evidência |
 | "BOM da release" | `package.json` em `0.0.0`; app não versiona | `version` efetiva (guarda-chuva): módulos `0.0.0`, app = SHA curto, externas do `go.mod` |
-| "aprovador" | `BOM-05`: Plataforma com revisão de Arquitetura | `approved_by: "team:plataforma"` + revisor do PR de Arquitetura registrado no `history` da promoção |
+| "aprovador" | `BOM-05`: Plataforma com revisão de Arquitetura | `approved_by: "team:plataforma"` + `promoted: {by, reviewed_by, pr}` na entrada (`DMPF-B002`) |
+| "PR que preenche o BOM" | repositório sem remote nesta release, por decisão do dono | promoção da `0.1.0` por merge local `--no-ff` em `develop`, com `promoted.pr` = `local-merge:feat/ARQ-548-evidencia-certificacao-release`; tag no merge local em `master` (ADR-041) |
 
 ### Fontes normativas
 
@@ -82,27 +84,30 @@ que estou prestes a usar.
 
 ### Funcionais
 
-- [ ] **[P0] Package `evidence` e `cmd/dmpf-evidence`** no `dmpf-testkit`
+- [x] **[P0] Package `evidence` e `cmd/dmpf-evidence`** no `dmpf-testkit`
   (unidades `dmpf-kernel/testkit-evidence` e `dmpf-kernel/testkit-cmd-evidence`,
   bloco `app`). Invocação: `go run
   ./libs/backend/go/dmpf-testkit/cmd/dmpf-evidence --root . --release 0.1.0
-  --out bom/evidence/0.1.0 [--subjects golden,provider,domain,services,app,dist]`.
-  - `header`: `{schema: "dmpf/evidence@1", release, commit (SHA completo),
-    goversion, modules: [{path, version do package.json}], externals:
-    [{package, version do go.mod resolvido}], infra: {postgres: <versão via
-    SELECT version()>, redpanda: <versão via admin API>}, subjects: [...]}` —
-    sem `Time`, sem `Elapsed`, sem hostname.
-  - `golden`: para cada fixture do catálogo em `contracts/fixtures/*/event/v1/`,
-    `golden.Evaluate(f, subject)` → `Report` com `MarshalJSON`.
-  - `provider`: `providerkit.UnitOfWork/Inbox/Outbox` sobre Postgres
-    (`DMPF_PG_DSN`) e memória → `Verdict` por suíte.
-  - `domain`, `services`: `domainkit.Run/ReadTwice` sobre `orders` e
-    `reservations` contra as fixtures de projeção; `serviceskit.Decide` sobre
-    os casos de uso de exemplo → `Verdict`.
-  - `app`, `dist`: `go test -json -count=1 -tags=integration ./appkit/...` e
-    `-tags=integration,distributed ./distkit/...` (`DMPF_KAFKA_BROKERS`),
-    filtrados para `{Package, Test, Action}` com `Action ∈ {pass, fail, skip}`
-    ordenados; `skip` sob `CI` reprova (`tb.Env`).
+  --out bom/evidence/0.1.0 [--subjects golden,provider,domain,services,app,dist,reference]`.
+  - `header`: `{schema: "dmpf/evidence@1", release, subject, commit (SHA
+    completo), goversion, tags, packages, modules: [{path, version do
+    package.json}], externals: [{package, version do go.mod resolvido}], infra:
+    {postgres: <SHOW server_version>, redpanda: <Admin API em
+    DMPF_REDPANDA_ADMIN>}, tools}` — `infra` só no subject que usa a
+    infraestrutura e `tools` (buf e protoc-gen-go) só no `golden`; sem `Time`,
+    sem `Elapsed`, sem hostname.
+  - Os testes gravam e o comando orquestra: o `golden` grava o `Report` por
+    `evidence.RecordReport`; `provider` (`providerkit` sobre Postgres e
+    memória), `domain` e `services` gravam o `Verdict` por
+    `evidence.RecordVerdict`, sempre sob `DMPF_EVIDENCE_DIR`. O comando roda
+    `go test -json -count=1 -p 1` por subject, com a variável apontando para um
+    diretório temporário, e junta os registros ao stream.
+  - `app`, `dist` e `reference`: só o stream do `go test -json`
+    (`-tags=integration`; o `dist` com `integration,distributed`).
+  - Stream filtrado para `{Package, Test, Action}` com `Action ∈ {pass, fail,
+    skip}`, ordenado; `skip` sob `CI` reprova (`tb.Env`). Teste que pula por
+    construção fica fora do subject por `-skip` com o nome exato:
+    `TestUpdateGolden` no `golden` e `TestDistkitRole` no `dist`.
   - Saída: um arquivo por subject em `<out>/<subject>.json`, cada um com o
     `header` e o corpo; `index.json` com `{subject, sha256}` de cada; exit 1 se
     qualquer `Verdict`/`Report`/`Action` reprovar.
@@ -113,10 +118,10 @@ que estou prestes a usar.
   - Edge case: `--subjects dist` sem `DMPF_KAFKA_BROKERS` sob `CI` → exit 1
     nomeando a variável; fora de `CI`, o subject é gravado como
     `{skipped: "DMPF_KAFKA_BROKERS"}` e **não** conta como evidência.
-- [ ] **[P0] Determinismo**: `evidence_test.go` roda `Write` duas vezes sobre o
+- [x] **[P0] Determinismo**: `evidence_test.go` roda `Write` duas vezes sobre o
   mesmo `Report`/`Verdict` → mesmo digest; `cmd_test.go` (integration) roda o
   comando inteiro duas vezes sobre o mesmo commit → `index.json` idêntico.
-- [ ] **[P0] Certificação da release `0.1.0`**: PR que preenche
+- [x] **[P0] Certificação da release `0.1.0`**: PR que preenche
   `bom/dmpf/0.1.0.json`:
   - `runtimes`: Go (`registry_ref` `go.work`), Node.js, TypeScript, pnpm, Nx —
     `certificada` os que a suíte exercita (Go); `candidata` os demais, com
@@ -142,35 +147,43 @@ que estou prestes a usar.
     `semantic_conventions_messaging`: `semconv/v1.43.0`, `registry_ref`
     `otelboot/start.go`, owner `team:plataforma`, `certificada` por `app`.
   - Cada `certificada`: `evidence_uri`
-    `https://github.com/mateusmacedo/dmpf/src/commit/<sha>/bom/evidence/0.1.0/<subject>.json`,
-    `evidence_digest` do `index.json`, `approved_by: "team:plataforma"`,
-    `certified_at` (data do merge), `valid_until` (+90 d), `promoted: {by,
+    `https://github.com/mateusmacedo/dmpf/blob/<sha>/bom/evidence/0.1.0/<subject>.json`,
+    no SHA do commit que publica a evidência, `evidence_digest` do `index.json`,
+    `approved_by: "team:plataforma"`, `certified_at` (data do commit de
+    certificação), `valid_until` (+90 d), `promoted: {by,
     reviewed_by, pr}` — o ato de `BOM-05`; `history[]` é campo da exceção,
     não da entrada.
   - `exceptions: []`; `metrics` zeradas.
   - `dmpf-bom` passa no CI do PR.
-- [ ] **[P0] Tag `dmpf@0.1.0`**: anotada, no merge commit do PR do BOM em
+- [x] **[P0] Tag `dmpf@0.1.0`**: anotada, no merge commit do PR do BOM em
   `master`, mensagem "DMPF release 0.1.0 — BOM bom/dmpf/0.1.0.json". Documentada
   em `bom/README.md` e no `CONTRIBUTING.md` como parte do rito de release.
-- [ ] **[P1] Consolidação**: ADR-041 final (decisões das quatro sub-specs,
+- [x] **[P1] Consolidação**: ADR-041 final (decisões das quatro sub-specs,
   `valid_until` default, reconciliações); addenda em ADR-039 (`TRP-09`/
   `TRP-46` → task sucessora com ID) e ADR-034 (consumo externo → task
   sucessora); `AGENTS.md` consolidado (Apps, Libs, `tools/`, `bom/`,
   Comandos com `evidence`, `dmpf-bom`, generator, `serve-*`); `README.md` da
   raiz; `docs/guides/dmpf-composicao.md` seção "Como certificar";
   `docs/dmpf/README.md` aponta `bom/`.
-- [ ] **[P1] `SPEC-8HWBWJCB` → `done`** e `SPEC-YRJRADY9` (guarda-chuva do
+- [x] **[P1] `SPEC-8HWBWJCB` → `done`** e `SPEC-YRJRADY9` (guarda-chuva do
   épico) com `KRN-12` marcado.
 
 ### Não-funcionais
 
-- [ ] Determinismo provado por execução dupla do comando completo.
-- [ ] Conformidade: `evidence` e `cmd-evidence` aprovados; baseline em commit
+- [x] Determinismo provado por execução dupla do comando completo.
+- [x] Conformidade: `evidence` e `cmd-evidence` aprovados; baseline em commit
   próprio.
 - [ ] Cadeia verde; `adr-verify`; `dmpf-verify`; `biome ci`.
-- [ ] Sem dependência nova (stdlib `crypto/sha256`, `encoding/json`,
+  Pendente fora do escopo desta sub-spec: `biome ci`, `dmpf-conformance` e
+  `dmpf-bom` passam; `adr-verify` reprova com 50 violações (49 já na `develop`
+  e 1 da regra que só admite um addendum por ADR, no ADR-041); `dmpf-verify`
+  reprova no `C4` e o harness dele num teste histórico, ambos já na `develop`;
+  `fitness/TestDomainTestsNeedNoInfrastructureDouble` já reprovava na `develop`.
+- [x] Sem dependência nova (stdlib `crypto/sha256`, `encoding/json`,
   `os/exec` para `go test -json`).
 - [ ] Prazo: `evidence` completo em menos de 10 min no runner com infra.
+  Medido localmente com as imagens pinadas: 73 s e 64 s. O `dmpf-evidence.yml`
+  ainda não rodou no runner, porque o repositório segue sem remote.
 
 ## Camadas afetadas
 
@@ -178,23 +191,24 @@ que estou prestes a usar.
 | --- | --- | --- |
 | `domain` … `provider` | [ ] | — |
 | `app` | [x] | `dmpf-testkit/evidence`, `cmd/dmpf-evidence` |
-| Workspace | [x] | `bom/dmpf/0.1.0.json` (promoção), `bom/evidence/0.1.0/`, tag, `ci.yml` (target `evidence` no estágio 5, opcional por `workflow_dispatch`), docs, ADRs |
+| Workspace | [x] | `bom/dmpf/0.1.0.json` (promoção), `bom/evidence/0.1.0/`, tag, `dmpf-evidence.yml` (reprodução por `workflow_dispatch`), `ci.yml` (gate do BOM nos PRs de promoção), docs, ADRs |
 
 ## Localização de código
 
 ```text
 libs/backend/go/dmpf-testkit/
   evidence/                                            — NOVO; unidade dmpf-kernel/testkit-evidence (app)
-    header.go, envelope.go, golden.go, provider.go, domain.go, services.go, gotest.go, write.go, evidence_test.go
+    doc.go, header.go, record.go, gotest.go, write.go, evidence_test.go
   cmd/dmpf-evidence/main.go, cmd_test.go               — NOVO; unidade dmpf-kernel/testkit-cmd-evidence (app)
   project.json                                         — MODIFICAR: target evidence
   dmpf-units.json                                      — MODIFICAR: 2 unidades
   README.md                                            — MODIFICAR
 bom/dmpf/0.1.0.json                                    — MODIFICAR: promoção
-bom/evidence/0.1.0/{header,golden,provider,domain,services,app,dist}.json, index.json — NOVO (commitados)
+bom/evidence/0.1.0/{golden,provider,domain,services,app,dist,reference}.json, index.json — NOVO (commitados)
 bom/README.md, CONTRIBUTING.md                         — MODIFICAR: rito de release e tag
 tools/dmpf-baseline/units-baseline.json                — MODIFICAR em commit próprio
-.github/workflows/ci.yml                               — MODIFICAR: evidence sob workflow_dispatch (input release)
+.github/workflows/dmpf-evidence.yml                    — NOVO: regenera a evidência no header.commit sob workflow_dispatch (input release) e compara com diff -r
+.github/workflows/ci.yml                               — MODIFICAR: dmpf-bom com --base develop nos PRs de promoção
 docs/adr/041-*.md, 039-*.md, 034-*.md                  — MODIFICAR
 AGENTS.md, README.md, docs/guides/dmpf-composicao.md, docs/dmpf/README.md — MODIFICAR
 docs/specs/SPEC-8HWBWJCB-*.md, SPEC-YRJRADY9-*.md      — MODIFICAR: stage/checklist
@@ -206,15 +220,15 @@ docs/specs/SPEC-8HWBWJCB-*.md, SPEC-YRJRADY9-*.md      — MODIFICAR: stage/chec
 
 ```text
  dmpf-evidence --release 0.1.0 --out bom/evidence/0.1.0
-   header ── commit, goversion, modules(package.json), externals(go.mod), infra
-   golden ── golden.Evaluate × fixtures ─────────────► golden.json  (Report.MarshalJSON)
-   provider ── providerkit.{UnitOfWork,Inbox,Outbox} ► provider.json (Verdict)
-   domain/services ── domainkit / serviceskit ───────► domain.json, services.json
-   app/dist ── go test -json (filtrado: Package,Test,Action) ► app.json, dist.json
+   header ── commit, goversion, tags, packages, modules(package.json), externals(go.mod), infra, tools
+   go test -json por subject, DMPF_EVIDENCE_DIR num diretório temporário
+   golden ── RecordReport (Report.MarshalJSON) + stream ──────► golden.json
+   provider/domain/services ── RecordVerdict + stream ─────────► provider.json, domain.json, services.json
+   app/dist/reference ── stream (Package, Test, Action) ───────► app.json, dist.json, reference.json
    index.json ── {subject, sha256}
         │
         ▼
- bom/dmpf/0.1.0.json ── evidence_uri (Gitea src/commit/<sha>/…), evidence_digest (index) ── dmpf-bom ✓ ── PR ── merge ── tag dmpf@0.1.0
+ bom/dmpf/0.1.0.json ── evidence_uri (GitHub blob/<sha>/…), evidence_digest (index) ── dmpf-bom ✓ ── PR ── merge ── tag dmpf@0.1.0
 ```
 
 ### Fluxo — da suíte à tag
@@ -272,22 +286,24 @@ docs/specs/SPEC-8HWBWJCB-*.md, SPEC-YRJRADY9-*.md      — MODIFICAR: stage/chec
 
 ### Critérios de aceite
 
-- [ ] O BOM está versionado e é revisável por PR; nenhum dos seis itens está
+- [x] O BOM está versionado e é revisável por PR; nenhum dos seis itens está
   ausente, e item sem instância aparece declarado vazio (critério 3 do ticket,
   instância real).
-- [ ] Nenhuma entrada `certificada` existe sem `evidence_uri`, `evidence_digest`,
+- [x] Nenhuma entrada `certificada` existe sem `evidence_uri`, `evidence_digest`,
   `approved_by`, `certified_at` e `valid_until`; toda versão em
   `compatible_with` tem execução na suíte de `KRN-11` (critério 4, instância
   real).
 - [ ] O `AGENTS.md` reflete o inventário real, nenhum artefato declara
   exactly-once, e a validação do workspace passa (critério 6).
-- [ ] Duas execuções de `dmpf-evidence` sobre o mesmo commit produzem
+  Inventário e varredura de exactly-once atendidos; a validação do workspace
+  carrega as falhas preexistentes listadas nos requisitos não-funcionais.
+- [x] Duas execuções de `dmpf-evidence` sobre o mesmo commit produzem
   `index.json` idêntico.
-- [ ] A combinação com `franz-go` só está `certificada` se `dist.json` existe
+- [x] A combinação com `franz-go` só está `certificada` se `dist.json` existe
   e passou.
-- [ ] Tag `dmpf@0.1.0` existe, anotada, no merge commit do PR do BOM;
+- [x] Tag `dmpf@0.1.0` existe, anotada, no merge commit do PR do BOM;
   `dmpf-bom` sem `--release` passa.
-- [ ] ADR-041 final; addenda ADR-039 e ADR-034 citam as tasks sucessoras
+- [x] ADR-041 final; addenda ADR-039 e ADR-034 citam as tasks sucessoras
   ARQ-549 (`KRN-13`) e ARQ-550 (`KRN-14`); `SPEC-8HWBWJCB` `done`;
   `SPEC-YRJRADY9` com `KRN-12` marcado.
 
