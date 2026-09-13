@@ -13,6 +13,7 @@ import (
 	dmpfports "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-ports"
 	dmpfpostgres "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/clock"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/evidence"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/providerkit"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/tb"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/tb/pg"
@@ -43,6 +44,7 @@ func TestUnitOfWorkConformsToTheKit(t *testing.T) {
 	if len(v.Skipped) != 1 {
 		t.Fatalf("skipped = %v, want exactly the commit-failure clause", v.Skipped)
 	}
+	evidence.RecordVerdict(t, "provider", "postgres-unit-of-work", v)
 }
 
 func TestInboxConformsToTheKit(t *testing.T) {
@@ -74,6 +76,7 @@ func TestInboxConformsToTheKit(t *testing.T) {
 	if len(v.Skipped) != 0 {
 		t.Fatalf("Postgres serializes on the key; nothing should be skipped: %v", v.Skipped)
 	}
+	evidence.RecordVerdict(t, "provider", "postgres-inbox", v)
 }
 
 func TestOutboxStoreConformsToTheKit(t *testing.T) {
@@ -134,6 +137,7 @@ func TestOutboxStoreConformsToTheKit(t *testing.T) {
 	if len(v.Skipped) != 0 {
 		t.Fatalf("skipped: %v", v.Skipped)
 	}
+	evidence.RecordVerdict(t, "provider", "postgres-outbox", v)
 }
 
 func committedStatus(t *testing.T, pool *pgxpool.Pool, consumer string, id dmpfports.MessageID) (dmpfports.Status, bool) {
