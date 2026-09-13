@@ -7,6 +7,7 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-domain/example/orders"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-domain/example/reservations"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/domainkit"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/evidence"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/tb"
 )
 
@@ -19,13 +20,17 @@ func TestOrdersMatchTheProjectionFixture(t *testing.T) {
 	if f.Identity.Aggregate != "order" || len(f.Cases) != 5 {
 		t.Fatalf("fixture identity/cases = %+v/%d", f.Identity, len(f.Cases))
 	}
+	var decided domainkit.Verdict
 	for _, c := range f.Cases {
 		t.Run(c.Name, func(t *testing.T) {
 			got, twice := runOrder(t, c)
-			tb.Require(t, domainkit.Equal(got, c.Expected.Projection()))
+			equal := domainkit.Equal(got, c.Expected.Projection())
+			tb.Require(t, equal)
 			tb.Require(t, twice)
+			collect(&decided, equal, twice)
 		})
 	}
+	evidence.RecordVerdict(t, "domain", "orders", decided)
 }
 
 func TestReservationsMatchTheProjectionFixture(t *testing.T) {
@@ -33,13 +38,24 @@ func TestReservationsMatchTheProjectionFixture(t *testing.T) {
 	if f.Identity.Aggregate != "reservation" || len(f.Cases) != 3 {
 		t.Fatalf("fixture identity/cases = %+v/%d", f.Identity, len(f.Cases))
 	}
+	var decided domainkit.Verdict
 	for _, c := range f.Cases {
 		t.Run(c.Name, func(t *testing.T) {
 			items, _ := strconv.Atoi(c.Command["items"])
 			s := reserveSubject(reservations.Reserve{Items: items, At: reservations.Instant(instant(t, c.Command["at"]))})
-			tb.Require(t, domainkit.Equal(domainkit.Run(reservationFromState(c.StateBefore), s), c.Expected.Projection()))
-			tb.Require(t, domainkit.ReadTwice(reservationFromState(c.StateBefore), s))
+			equal := domainkit.Equal(domainkit.Run(reservationFromState(c.StateBefore), s), c.Expected.Projection())
+			twice := domainkit.ReadTwice(reservationFromState(c.StateBefore), s)
+			tb.Require(t, equal)
+			tb.Require(t, twice)
+			collect(&decided, equal, twice)
 		})
+	}
+	evidence.RecordVerdict(t, "domain", "reservations", decided)
+}
+
+func collect(into *domainkit.Verdict, verdicts ...domainkit.Verdict) {
+	for _, v := range verdicts {
+		into.Diagnostics = append(into.Diagnostics, v.Diagnostics...)
 	}
 }
 

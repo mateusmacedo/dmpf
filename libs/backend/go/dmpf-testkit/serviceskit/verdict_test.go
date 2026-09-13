@@ -10,6 +10,7 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-domain/example/orders"
 	dmpfports "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/clock"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/evidence"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/ids"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/serviceskit"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/tb"
@@ -55,7 +56,9 @@ func TestAcceptedCommitsStateAndOutboxTogether(t *testing.T) {
 	if got := f.Ledger.String(); got != "[begin write(o-1) enqueue(m-000001) commit]" {
 		t.Fatalf("ledger = %s", got)
 	}
-	tb.Require(t, serviceskit.Decide(f, serviceskit.Expect{Accepted: true}))
+	v := serviceskit.Decide(f, serviceskit.Expect{Accepted: true})
+	tb.Require(t, v)
+	evidence.RecordVerdict(t, "services", "accepted", v)
 }
 
 func TestRejectedLeavesNothingBehind(t *testing.T) {
@@ -100,7 +103,9 @@ func TestRejectedLeavesNothingBehind(t *testing.T) {
 	if _, err := svc.AddItem(ctx, ordersapp.AddItem{Order: "o-1", SKU: "C", Quantity: 1}); err != nil {
 		t.Fatal(err)
 	}
-	tb.Require(t, serviceskit.Decide(fresh, serviceskit.Expect{Accepted: false}))
+	v := serviceskit.Decide(fresh, serviceskit.Expect{Accepted: false})
+	tb.Require(t, v)
+	evidence.RecordVerdict(t, "services", "rejected", v)
 }
 
 // The negative vector: a service that enqueues outside the transaction.
