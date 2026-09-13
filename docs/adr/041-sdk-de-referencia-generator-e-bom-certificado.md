@@ -159,6 +159,8 @@ do que já deu errado, em
 ## Referências
 
 - `docs/specs/SPEC-8HWBWJCB-dmpf-sdk-referencia-bom.md` — guarda-chuva do KRN-12.
+- `docs/specs/SPEC-538MS2D4-dmpf-bom-validador-escape-hatch.md` — sub-spec 3: BOM, validador e escape hatch.
+- `docs/dmpf/governanca-bom-pilotos.md` (FND-10) — §4 (`BOM-01` a `BOM-10`), §5.1 (`GOV-30` a `GOV-36`).
 - `docs/specs/SPEC-6QT9SBAS-dmpf-reference-composition-root.md` — spec desta entrega.
 - `docs/dmpf/cloudevents-protobuf-buf.md` (FND-05) — ENV-08, `causationid` = `id` quando a mensagem inicia a cadeia.
 - `docs/dmpf/uow-inbox-outbox.md` (FND-04) — §3.2, §5.4, §6.3, UOW-11, INB-08.
@@ -167,3 +169,65 @@ do que já deu errado, em
 - `docs/adr/035-realizacao-postgres-da-outbox.md` e `docs/adr/038-*.md` — os ADRs cuja lacuna de `metadata` esta entrega fecha (ver os addenda).
 - `docs/adr/039-*.md` — ponte por `Sink`, catálogo de canal, admissão.
 - `apps/backend/dmpf-reference/README.md` — como rodar os três papéis localmente.
+
+## Addendum — 2026-09-12 (BOM, validador e escape hatch da sub-spec 3)
+
+A `SPEC-538MS2D4` entregou o modelo `dmpf/bom@1`, o validador `dmpf-bom` e a
+admissão mecânica das exceções, comum ao verificador (E1) e ao BOM (E2/E3). O
+que a execução decidiu:
+
+- **`BOM-03` e `BOM-06` coexistem pela referência resolvida.** `BOM-03` exige
+  `version` exata em toda entrada; `BOM-06` proíbe duplicar o registro
+  autoritativo — lida isolada, cada regra anula a outra. A entrada declara as
+  duas coisas, `version` e `registry_ref {file, selector}`, e o validador resolve
+  a referência e reprova divergência (`DMPF-B007`). A duplicação continua
+  existindo, mas deixa de poder divergir em silêncio, que é o dano que `BOM-06`
+  nomeia. A referência é obrigatória para `runtime`, `generator` e o slot de
+  `BOM-10`. Essa é uma leitura desta entrega para as matérias da tabela de
+  `BOM-06`, cujo registro de stacks (`BUF-07`) ainda não existe como arquivo. A
+  referência precisa ser o registro da própria `identity`, e o `go.mod` citado
+  precisa ser módulo do `go.work`; faixa no registro só é aceita como `^`.
+- **Certificação vencida é erro até o ato que a rebaixa.** `BOM-07` proíbe
+  transição por decurso de prazo; `BOM-08` diz que certificação vencida não é
+  certificação. A leitura que honra as duas: o validador não rebaixa sozinho e
+  não aceita a vencida — `DMPF-B008` reprova até o commit que declara
+  `candidata`. Por isso `certificada → candidata` é transição válida na máquina
+  do `DMPF-B003`, que só se avalia com `--base`.
+- **O contrato da evidência é o `header`.** O validador lê de
+  `bom/evidence/<release>/<subject>.json` só `goversion`, `modules` e
+  `externals`, e confere o `evidence_digest` contra a cópia commitada, mesmo
+  quando o `evidence_uri` aponta para o forge. `compatible_with[].evidence` nomeia
+  o subject; o par `{identity, version}` ausente do header é combinação presumida
+  (`BOM-04`). É o mínimo que a sub-spec 4 precisa emitir.
+- **Exceção recusada não encerra a verificação.** `DMPF-M*` continuam encerrando
+  a fase de manifesto; `DMPF-X*` não, porque a recusa só retira a autorização, e
+  o `DMPF-E001` que isso produz na aresta precisa aparecer no mesmo relatório. A
+  admissão roda uma vez, em `manifest.Validate`, e o `--write-baseline` consome a
+  mesma projeção: regravar sobre exceção recusada daria aval ao que o gate
+  reprova.
+- **Unidade declarada antes do package volta ao baseline depois.** Classificar em
+  commit próprio antes do código mantém a história verde commit a commit, mas
+  grava `membership` vazio: quando os packages aparecem, o verificador acusa
+  `DMPF-T001` e pede uma segunda regravação, também isolada. A ordem é
+  normativo, código, normativo.
+- **As métricas de `GOV-36` são conferidas, não declaradas.** `vigentes`,
+  `renovacoes` e `vencidas_sem_convergencia` derivam de `exceptions[].history`;
+  valor declarado divergente reprova (`DMPF-B010`).
+- **O code review endureceu a admissão.** A exceção passou a exigir
+  `valid_until`, `review_by` e o par `object.unit`/`object.identity`. Data que
+  não parseia reprova em `DMPF-X005`, em vez de valer como ausente. Renovar
+  exige vigência nova, e `revoked` ou `converged` encerram a exceção. No
+  verificador, o dono de um package passou a sair do universo, e `include` de
+  outro módulo reprova em `DMPF-M002`: antes, a exceção de uma unidade podia
+  autorizar import numa unidade de outro módulo.
+- **A evidência de uma combinação é ancorada.** `compatible_with[].evidence` só
+  conta quando alguma entrada do BOM prende o subject por `evidence_digest`, e
+  os dois lados da combinação precisam constar do mesmo `header`.
+- **Um BOM por release, todos no diretório.** Os BOMs antigos ficam em
+  `bom/dmpf/`. O gate valida a maior release (`--release latest`) e a compara
+  com o mesmo arquivo no base ou, na release nova, com a maior semver de lá; sem
+  BOM no base, toda entrada cai na regra de estado inicial. O custo é que um BOM
+  antigo não volta a ser validado.
+
+O schema e os códigos estão em `bom/README.md`; o rito de pedir exceção, em
+`docs/guides/dmpf-composicao.md` §9.
