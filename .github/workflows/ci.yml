@@ -175,8 +175,14 @@ jobs:
       # `bom/` não afeta projeto Go nenhum e pularia o gate. Os BOMs antigos ficam
       # no diretório; o gate valida a maior release e a compara com a do base.
       - name: DMPF BOM gate
+        env:
+          BASE_REF: ${{ github.base_ref }}
         run: |
-          go run ./libs/backend/go/dmpf-conformance/cmd/dmpf-bom --root . --release latest --base "$NX_BASE"
+          base="$NX_BASE"
+          case "$BASE_REF" in
+            master | release/*) base="origin/develop" ;;
+          esac
+          go run ./libs/backend/go/dmpf-conformance/cmd/dmpf-bom --root . --release latest --base "$base"
 
       # O bloco `services:` não serve aqui: o act_runner põe serviço e job na
       # bridge default do Docker, que não resolve nome de container, e declara
