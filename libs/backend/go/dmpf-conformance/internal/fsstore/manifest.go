@@ -1,10 +1,12 @@
 package fsstore
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/internal/exception"
@@ -83,6 +85,9 @@ func DecodeManifest(path, module string, raw []byte) (manifest.Document, error) 
 	if err := json.Unmarshal(raw, &w); err != nil {
 		return manifest.Document{}, fmt.Errorf("decodificar %s: %w", path, err)
 	}
+	if chave, repetida := DuplicateKey(raw); repetida {
+		return manifest.Document{}, fmt.Errorf("decodificar %s: chave %q repetida no mesmo objeto", path, chave)
+	}
 
 	doc := manifest.Document{Path: path, Module: module, Schema: w.Schema}
 	for _, u := range w.Units {
@@ -106,10 +111,25 @@ func DecodeManifest(path, module string, raw []byte) (manifest.Document, error) 
 		})
 	}
 	for _, x := range w.Exceptions {
+		var invalid []string
+		instante := func(campo, valor string) exception.Instant {
+			at, ok := parseInstant(valor)
+			if valor != "" && !ok {
+				invalid = append(invalid, campo)
+			}
+			return at
+		}
+		ate := func(campo, valor string) exception.Instant {
+			at, ok := parseUntil(valor)
+			if valor != "" && !ok {
+				invalid = append(invalid, campo)
+			}
+			return at
+		}
 		exc := manifest.Exception{
 			Unit: x.Unit, Dependency: x.Dependency, Reason: x.Reason,
 			Owner: x.Owner, ReviewBy: x.ReviewBy,
-			ReviewByAt: parseInstant(x.ReviewBy),
+			ReviewByAt: instante("review_by", x.ReviewBy),
 		}
 		if x.ID != nil {
 			exc.ID = *x.ID
@@ -137,9 +157,9 @@ func DecodeManifest(path, module string, raw []byte) (manifest.Document, error) 
 		if x.Convergence != nil {
 			exc.Convergence = manifest.ExceptionConvergence{
 				Kind:                deref(x.Convergence.Kind),
-				Deadline:            parseInstant(deref(x.Convergence.Deadline)),
+				Deadline:            instante("convergence.deadline", deref(x.Convergence.Deadline)),
 				Condition:           deref(x.Convergence.Condition),
-				ReviewBy:            parseInstant(deref(x.Convergence.ReviewBy)),
+				ReviewBy:            instante("convergence.review_by", deref(x.Convergence.ReviewBy)),
 				ApprovedBy:          x.Convergence.ApprovedBy,
 				ReplanningCondition: deref(x.Convergence.ReplanningCondition),
 				PresentKind:         x.Convergence.Kind != nil,
@@ -147,17 +167,17 @@ func DecodeManifest(path, module string, raw []byte) (manifest.Document, error) 
 			exc.PresentConvergence = true
 		}
 		if x.ValidFrom != nil {
-			exc.ValidFrom = parseInstant(*x.ValidFrom)
+			exc.ValidFrom = instante("valid_from", *x.ValidFrom)
 			exc.PresentValidFrom = true
 		}
 		if x.ValidUntil != nil {
-			exc.ValidUntil = parseInstant(*x.ValidUntil)
+			exc.ValidUntil = ate("valid_until", *x.ValidUntil)
 			exc.PresentValidUntil = true
 		}
 		if x.History != nil {
-			for _, h := range x.History {
+			for i, h := range x.History {
 				exc.History = append(exc.History, manifest.ExceptionHistoryEntry{
-					Event: h.Event, At: parseInstant(h.At), By: h.By, Reason: h.Reason,
+					Event: h.Event, At: instante(fmt.Sprintf("history[%d].at", i), h.At), By: h.By, Reason: h.Reason,
 				})
 			}
 			exc.PresentHistory = true
@@ -174,6 +194,7 @@ func DecodeManifest(path, module string, raw []byte) (manifest.Document, error) 
 			exc.Justification = x.Reason
 			exc.PresentJustification = true
 		}
+		exc.InvalidDates = invalid
 		doc.Exceptions = append(doc.Exceptions, exc)
 	}
 	return doc, nil
@@ -181,17 +202,81 @@ func DecodeManifest(path, module string, raw []byte) (manifest.Document, error) 
 
 // RFC3339 primeiro, data simples depois: as duas formas aparecem nos manifestos
 // e o bloco domain recebe o instante pronto.
-func parseInstant(s string) exception.Instant {
+func parseInstant(s string) (exception.Instant, bool) {
 	if s == "" {
-		return 0
+		return 0, false
 	}
 	if t, err := time.Parse(time.RFC3339, s); err == nil {
-		return exception.Instant(t.UnixNano())
+		return exception.Instant(t.UnixNano()), true
 	}
 	if t, err := time.Parse(time.DateOnly, s); err == nil {
-		return exception.Instant(t.UnixNano())
+		return exception.Instant(t.UnixNano()), true
 	}
-	return 0
+	return 0, false
+}
+
+// Data sem hora vale o dia inteiro: `valid_until: 2027-03-02` ainda vale ao
+// meio-dia do dia 2.
+func parseUntil(s string) (exception.Instant, bool) {
+	at, ok := parseInstant(s)
+	if ok && len(s) == len(time.DateOnly) {
+		at += exception.Instant(24*time.Hour - time.Nanosecond)
+	}
+	return at, ok
+}
+
+// DuplicateKey acha chave repetida num mesmo objeto, sem distinguir
+// maiúsculas: o encoding/json casa assim e fica com a última, enquanto quem
+// revisa o PR lê a primeira.
+func DuplicateKey(raw []byte) (string, bool) {
+	type frame struct {
+		keys      map[string]bool
+		expectKey bool
+	}
+	var stack []*frame
+	valueDone := func() {
+		if n := len(stack); n > 0 && stack[n-1].keys != nil {
+			stack[n-1].expectKey = true
+		}
+	}
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	for {
+		tok, err := dec.Token()
+		if err != nil {
+			return "", false
+		}
+		if n := len(stack); n > 0 && stack[n-1].keys != nil && stack[n-1].expectKey {
+			if d, ok := tok.(json.Delim); ok && d == '}' {
+				stack = stack[:n-1]
+				valueDone()
+				continue
+			}
+			key, ok := tok.(string)
+			if !ok {
+				return "", false
+			}
+			if stack[n-1].keys[strings.ToLower(key)] {
+				return key, true
+			}
+			stack[n-1].keys[strings.ToLower(key)] = true
+			stack[n-1].expectKey = false
+			continue
+		}
+		switch d := tok.(type) {
+		case json.Delim:
+			switch d {
+			case '{':
+				stack = append(stack, &frame{keys: map[string]bool{}, expectKey: true})
+			case '[':
+				stack = append(stack, &frame{})
+			default:
+				stack = stack[:len(stack)-1]
+				valueDone()
+			}
+		default:
+			valueDone()
+		}
+	}
 }
 
 func deref(p *string) string {

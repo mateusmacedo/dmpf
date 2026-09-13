@@ -34,7 +34,8 @@ type Input struct {
 	// classificação veio isolada do código.
 	Base string
 
-	// Zero desliga o vencimento (X006): nenhuma exceção vence antes do epoch.
+	// Zero não avalia o vencimento (X006), e o relatório declara a condição
+	// como não verificada.
 	Now exception.Instant
 }
 
@@ -78,18 +79,19 @@ func Check(in Input) (Report, error) {
 	// X* NÃO encerram: a exceção recusada só retira a autorização, e o E001 que
 	// isso produz na aresta precisa aparecer no mesmo relatório.
 	var recusas []rule.Diagnostic
+	var admitidas int
 
 	// Política POR MÓDULO, nunca unificada: como o `id` só é único dentro de um
 	// manifesto, unir faria a exceção de um módulo autorizar outro — deixaria de
 	// nomear o par que autoriza, virando política paralela não revisada.
 	politicaPorModulo := map[string]rule.ExternalPolicy{}
-	unidadeDoPackage := map[string]rule.UnitKey{}
 
 	for _, doc := range docs {
 		v := manifest.Validate(doc, manifest.Admission{IsStandard: in.Standard, Now: in.Now})
 		diags = append(diags, v.Manifest...)
 		recusas = append(recusas, v.Exceptions...)
 		politicaPorModulo[doc.Module] = v.Policy
+		admitidas += len(v.Admitted)
 		units = append(units, UnidadesDoDocumento(doc)...)
 	}
 	if len(diags) > 0 {
@@ -146,11 +148,6 @@ func Check(in Input) (Report, error) {
 		return Report{Diagnostics: diags, PhaseHalted: "módulo sem manifesto"}, nil
 	}
 	diags = append(diags, cobertura...)
-	for _, u := range units {
-		for _, inc := range u.Include {
-			unidadeDoPackage[rule.NormalizeInclude(inc)] = u.Key()
-		}
-	}
 	edges, err := in.Graph.Edges()
 	if err != nil {
 		return Report{}, err
@@ -184,7 +181,7 @@ func Check(in Input) (Report, error) {
 			continue
 		}
 
-		dono := unidadeDoPackage[e.From]
+		dono, _ := universo.Lookup(e.From)
 		diags = append(diags, rule.EvaluateExternal(
 			origem, dono.ID, e.To, e.SourceFile,
 			politicaPorModulo[dono.Module], in.Closure, in.Standard,
@@ -192,6 +189,10 @@ func Check(in Input) (Report, error) {
 	}
 
 	relatorio := Report{Diagnostics: diags}
+	if in.Now == 0 && admitidas > 0 {
+		relatorio.NaoVerificado = append(relatorio.NaoVerificado,
+			fmt.Sprintf("vencimento de %d exceção(ões) admitida(s) (GOV-34, DMPF-X006): Input.Now ausente", admitidas))
+	}
 	conferirBaseline(in, units, universo, baselineDoc, baselineExiste, &relatorio)
 
 	rule.SortDiagnostics(relatorio.Diagnostics)

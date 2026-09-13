@@ -72,7 +72,7 @@ func validateSchema(doc Document) []rule.Diagnostic {
 
 	seen := map[string]int{}
 	for i, u := range doc.Units {
-		out = append(out, validateUnit(key, i, u)...)
+		out = append(out, validateUnit(key, doc.Module, i, u)...)
 		if u.PresentID && u.ID != "" {
 			seen[u.ID]++
 		}
@@ -93,7 +93,7 @@ func validateSchema(doc Document) []rule.Diagnostic {
 
 // Não há herança: a ausência é avaliada na própria unidade, sem consultar
 // módulo pai nem unidade irmã.
-func validateUnit(key string, i int, u Unit) []rule.Diagnostic {
+func validateUnit(key, module string, i int, u Unit) []rule.Diagnostic {
 	var out []rule.Diagnostic
 	where := fmt.Sprintf("units[%d]", i)
 	if u.PresentID && u.ID != "" {
@@ -128,6 +128,16 @@ func validateUnit(key string, i int, u Unit) []rule.Diagnostic {
 				CanonicalKey: key,
 				Detail:       fmt.Sprintf("%s: include[%d] %q não é import path válido: %s", where, k, inc, motivo),
 			})
+			continue
+		}
+		// O universo ignora package de outro módulo em silêncio; sem esta
+		// cláusula, a unidade que o declara passaria por dona dele na aresta.
+		if module != "" && !insideModule(module, inc) {
+			out = append(out, rule.Diagnostic{
+				Code:         rule.CodeM002,
+				CanonicalKey: key,
+				Detail:       fmt.Sprintf("%s: include[%d] %q fora do módulo %q", where, k, inc, module),
+			})
 		}
 	}
 
@@ -150,6 +160,11 @@ func validateUnit(key string, i int, u Unit) []rule.Diagnostic {
 	}
 
 	return out
+}
+
+func insideModule(module, include string) bool {
+	norm := rule.NormalizeInclude(include)
+	return norm == module || strings.HasPrefix(norm, module+"/")
 }
 
 // Glob é o binding de TypeScript; aqui `**`, `.` e `..` são valores inválidos,

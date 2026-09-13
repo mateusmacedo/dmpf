@@ -78,6 +78,15 @@ func requiredDiagnostics(x Exception) []rule.Diagnostic {
 	if strings.TrimSpace(x.Justification) == "" {
 		add("justification vazia")
 	}
+	if strings.TrimSpace(x.Object.Unit) == "" || strings.TrimSpace(x.Object.Identity) == "" {
+		add("object sem unit ou identity: a exceção nomeia o par (unidade, objeto), GOV-33")
+	}
+	if x.ValidUntil == 0 && !slices.Contains(x.InvalidDates, "valid_until") {
+		add("valid_until ausente: sem data de fim a exceção é inválida (GOV-34)")
+	}
+	if x.ReviewBy == 0 && !slices.Contains(x.InvalidDates, "review_by") {
+		add("review_by ausente: a revisão tem data obrigatória (GOV-34)")
+	}
 	out = append(out, convergenceDiagnostics(x)...)
 	return out
 }

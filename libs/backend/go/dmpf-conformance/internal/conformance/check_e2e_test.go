@@ -70,13 +70,14 @@ func excecaoE1(identity string) manifest.Exception {
 			ReplanningCondition: "protoc-gen-go deixar de emitir o import",
 			PresentKind:         true,
 		},
-		ValidFrom: diaUTC("2026-09-12"),
+		ValidFrom:  diaUTC("2026-09-12"),
+		ValidUntil: diaUTC("2027-03-02"),
 		History: []manifest.ExceptionHistoryEntry{
 			{Event: "granted", At: diaUTC("2026-09-12"), By: "team:tech-leads"},
 		},
 
 		PresentID: true, PresentObject: true, PresentADR: true, PresentJustification: true,
-		PresentConvergence: true, PresentValidFrom: true, PresentHistory: true,
+		PresentConvergence: true, PresentValidFrom: true, PresentValidUntil: true, PresentHistory: true,
 	}
 }
 
@@ -188,6 +189,9 @@ func TestFronteiraEntreMEX(t *testing.T) {
 		if reprovaImport(rel, "reflect") {
 			t.Errorf("aresta decidida sobre classificação inválida: %v", rel.Diagnostics)
 		}
+		if !temCodigo(rel, rule.CodeX001) {
+			t.Errorf("X001 sumiu do relatório que parou em M*: %v", rel.Diagnostics)
+		}
 	})
 
 	t.Run("X* não encerra a fase", func(t *testing.T) {
@@ -204,4 +208,139 @@ func TestFronteiraEntreMEX(t *testing.T) {
 			t.Errorf("a verificação parou antes das arestas: %v", rel.Diagnostics)
 		}
 	})
+}
+
+func ehStdlib(p string) bool {
+	_, ok := rule.StdlibCapability(p)
+	return ok
+}
+
+type manifestosDeDoisModulos struct{ includeDeU2 []string }
+
+func (m manifestosDeDoisModulos) Documents() ([]manifest.Document, error) {
+	x := excecaoE1("reflect")
+	x.Unit, x.Object.Unit, x.ID = "u2", "u2", "X-u2-reflect"
+	unidade := func(id, block string, include ...string) manifest.Unit {
+		return manifest.Unit{
+			ID: id, Block: block, BoundedContext: "bc", Include: include,
+			PresentID: true, PresentBlock: true, PresentBoundedContext: true, PresentInclude: true,
+		}
+	}
+	return []manifest.Document{
+		{Path: "m1/dmpf-units.json", Module: "m1", Schema: manifest.SchemaID, Units: []manifest.Unit{unidade("u", "domain", "m1/p")}},
+		{
+			Path: "m2/dmpf-units.json", Module: "m2", Schema: manifest.SchemaID,
+			Units:      []manifest.Unit{unidade("u2", "contract", m.includeDeU2...)},
+			Exceptions: []manifest.Exception{x},
+		},
+	}, nil
+}
+
+type grafoDeDoisModulos struct{}
+
+func (grafoDeDoisModulos) Packages() ([]rule.Package, error) {
+	return []rule.Package{{CanonicalKey: "m1/p", Module: "m1"}, {CanonicalKey: "m2/q", Module: "m2"}}, nil
+}
+
+func (grafoDeDoisModulos) Edges() ([]port.Edge, error) {
+	return []port.Edge{{From: "m1/p", To: "reflect", SourceFile: "m1/p/p.go"}}, nil
+}
+
+func verificarDoisModulos(t *testing.T, includeDeU2 ...string) conformance.Report {
+	t.Helper()
+	rel, err := conformance.Check(conformance.Input{
+		Modules: []rule.Module{
+			{Path: "m1", HasManifest: true, HasProduction: true},
+			{Path: "m2", HasManifest: true, HasProduction: true},
+		},
+		Manifests: manifestosDeDoisModulos{includeDeU2: includeDeU2},
+		Graph:     grafoDeDoisModulos{},
+		Standard:  ehStdlib,
+	})
+	if err != nil {
+		t.Fatalf("Check: %v", err)
+	}
+	return rel
+}
+
+func TestIncludeDeOutroModuloReprovaEmM002(t *testing.T) {
+	rel := verificarDoisModulos(t, "m2/q", "m1/p")
+	if !temCodigo(rel, rule.CodeM002) || rel.PhaseHalted != "validação de manifesto" {
+		t.Fatalf("include de outro módulo não reprovou em M002: PhaseHalted=%q %v", rel.PhaseHalted, rel.Diagnostics)
+	}
+}
+
+func TestE1DeOutroModuloNaoAutorizaOImport(t *testing.T) {
+	rel := verificarDoisModulos(t, "m2/q")
+	if !reprovaImport(rel, "reflect") {
+		t.Fatalf("a E1 de m2 autorizou reflect na unidade domain de m1: %v", rel.Diagnostics)
+	}
+}
+
+func TestE1EncerradaNaoAutorizaNemVence(t *testing.T) {
+	x := excecaoE1("reflect")
+	x.History = append(x.History, manifest.ExceptionHistoryEntry{Event: "converged", At: diaUTC("2026-10-01"), By: "team:tech-leads"})
+	rel := verificarComExcecoes(t, manifestoComExcecoes{block: "contract", exceptions: []manifest.Exception{x}}, diaUTC("2028-01-01"), "reflect")
+
+	if r := recusas(rel); len(r) > 0 {
+		t.Fatalf("exceção encerrada recusada: %v", r)
+	}
+	if !reprovaImport(rel, "reflect") {
+		t.Fatalf("exceção encerrada ainda autorizou o import: %v", rel.Diagnostics)
+	}
+}
+
+func TestE1ParaUnidadeForaDoManifestoRecusadaPorX007(t *testing.T) {
+	x := excecaoE1("reflect")
+	x.Unit, x.Object.Unit = "fantasma", "fantasma"
+	rel := verificarComExcecoes(t, manifestoComExcecoes{block: "contract", exceptions: []manifest.Exception{x}}, 0, "reflect")
+	if !temCodigo(rel, rule.CodeX007) || !reprovaImport(rel, "reflect") {
+		t.Fatalf("E1 de unidade inexistente sem X007 ou autorizando: %v", rel.Diagnostics)
+	}
+}
+
+func TestDivergenciaEntreLegadoENovoRecusaPorX001(t *testing.T) {
+	x := excecaoE1("reflect")
+	x.Dependency = "unsafe"
+	rel := verificarComExcecoes(t, manifestoComExcecoes{block: "contract", exceptions: []manifest.Exception{x}}, 0, "reflect", "unsafe")
+	if !temCodigo(rel, rule.CodeX001) || !reprovaImport(rel, "reflect") || !reprovaImport(rel, "unsafe") {
+		t.Fatalf("divergência entre legado e novo sem X001 ou autorizando: %v", rel.Diagnostics)
+	}
+}
+
+func TestIDRepetidoRecusaPorX001(t *testing.T) {
+	a, b := excecaoE1("reflect"), excecaoE1("unsafe")
+	b.ID = a.ID
+	rel := verificarComExcecoes(t, manifestoComExcecoes{block: "contract", exceptions: []manifest.Exception{a, b}}, 0, "reflect", "unsafe")
+	if !temCodigo(rel, rule.CodeX001) {
+		t.Fatalf("id repetido sem X001: %v", rel.Diagnostics)
+	}
+}
+
+func TestE1IncompletaRecusadaSemEncerrarAFase(t *testing.T) {
+	casos := map[string]func(*manifest.Exception){
+		"sem valid_until": func(x *manifest.Exception) { x.ValidUntil, x.PresentValidUntil = 0, false },
+		"sem review_by":   func(x *manifest.Exception) { x.ReviewBy, x.ReviewByAt = "", 0 },
+		"review_by inválido": func(x *manifest.Exception) {
+			x.ReviewBy, x.ReviewByAt, x.InvalidDates = "amanhã", 0, []string{"review_by"}
+		},
+		"sem object.unit": func(x *manifest.Exception) { x.Unit, x.Object.Unit, x.Object.PresentUnit = "", "", false },
+	}
+	for nome, estraga := range casos {
+		t.Run(nome, func(t *testing.T) {
+			x := excecaoE1("reflect")
+			estraga(&x)
+			rel := verificarComExcecoes(t, manifestoComExcecoes{block: "contract", exceptions: []manifest.Exception{x}}, 0, "reflect")
+			if rel.PhaseHalted != "" || len(recusas(rel)) == 0 || !reprovaImport(rel, "reflect") {
+				t.Fatalf("PhaseHalted=%q, recusas=%v, E001=%v", rel.PhaseHalted, recusas(rel), reprovaImport(rel, "reflect"))
+			}
+		})
+	}
+}
+
+func TestNowAusenteDeclaraVencimentoNaoVerificado(t *testing.T) {
+	rel := verificarComExcecoes(t, manifestoComExcecoes{block: "contract", exceptions: []manifest.Exception{excecaoE1("reflect")}}, 0, "reflect")
+	if !slices.ContainsFunc(rel.NaoVerificado, func(s string) bool { return strings.Contains(s, "Input.Now ausente") }) {
+		t.Fatalf("vencimento sem Now não declarado: %v", rel.NaoVerificado)
+	}
 }

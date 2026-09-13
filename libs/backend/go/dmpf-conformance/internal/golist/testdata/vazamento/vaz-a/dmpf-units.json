@@ -30,6 +30,7 @@
         "condition": "adapter do mod-a migrado para uma unidade provider"
       },
       "valid_from": "2026-01-01T00:00:00Z",
+      "valid_until": "2026-12-31",
       "history": [{ "event": "granted", "at": "2026-01-01T00:00:00Z", "by": "team:plataforma" }]
     }
   ]

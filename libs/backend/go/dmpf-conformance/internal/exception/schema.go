@@ -114,6 +114,10 @@ type Exception struct {
 	ReviewBy      Instant
 	History       []HistoryEntry
 
+	// Campos de data presentes que não parsearam: sem isto, data inválida vira
+	// zero, zero significa ausente, e a exceção deixaria de vencer em silêncio.
+	InvalidDates []string
+
 	PresentID            bool
 	PresentADR           bool
 	PresentOwner         bool

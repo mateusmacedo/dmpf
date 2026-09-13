@@ -88,7 +88,8 @@ type Exception struct {
 	// A data em texto é `review_by` do schema legado, que alimenta
 	// rule.ExceptionEntry; ReviewByAt é o mesmo valor já resolvido pelo
 	// decoder, porque o bloco domain não alcança io.clock para parseá-lo.
-	ReviewByAt exception.Instant
+	ReviewByAt   exception.Instant
+	InvalidDates []string
 
 	PresentID            bool
 	PresentObject        bool

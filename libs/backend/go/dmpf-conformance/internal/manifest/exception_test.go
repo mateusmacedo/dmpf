@@ -1,7 +1,7 @@
 package manifest
 
 import (
-	"go/build"
+	"strings"
 	"testing"
 	"time"
 
@@ -21,8 +21,8 @@ func instant(s string) exception.Instant {
 }
 
 func isStdlib(path string) bool {
-	pkg, err := build.Default.Import(path, "", build.FindOnly)
-	return err == nil && pkg.Goroot
+	_, ok := rule.StdlibCapability(path)
+	return ok
 }
 
 func TestAdmitidasDomainIORecusadaPorN1(t *testing.T) {
@@ -32,9 +32,11 @@ func TestAdmitidasDomainIORecusadaPorN1(t *testing.T) {
 		},
 		Exceptions: []Exception{
 			{
-				Owner:    "team:eng",
-				ReviewBy: "2027-01-01",
-				ID:       "X-test-time",
+				Owner:      "team:eng",
+				ReviewBy:   "2027-01-01",
+				ReviewByAt: instant("2027-01-01"),
+				ValidUntil: instant("2027-01-01"),
+				ID:         "X-test-time",
 				Object: ExceptionObject{
 					Kind: "external-dependency", Unit: "u", Identity: "time",
 					PresentKind: true, PresentUnit: true, PresentIdentity: true,
@@ -52,6 +54,7 @@ func TestAdmitidasDomainIORecusadaPorN1(t *testing.T) {
 
 				PresentID: true, PresentObject: true, PresentADR: true,
 				PresentJustification: true, PresentConvergence: true, PresentHistory: true,
+				PresentValidUntil: true,
 			},
 		},
 	}
@@ -62,7 +65,7 @@ func TestAdmitidasDomainIORecusadaPorN1(t *testing.T) {
 	}
 	found := false
 	for _, d := range xDiags {
-		if d.Code == rule.CodeX003 {
+		if d.Code == rule.CodeX003 && strings.Contains(d.Detail, "io.clock") {
 			found = true
 		}
 	}
@@ -78,9 +81,11 @@ func TestAdmitidasReflectAdmitida(t *testing.T) {
 		},
 		Exceptions: []Exception{
 			{
-				Owner:    "team:eng",
-				ReviewBy: "2027-01-01",
-				ID:       "X-test-reflect",
+				Owner:      "team:eng",
+				ReviewBy:   "2027-01-01",
+				ReviewByAt: instant("2027-01-01"),
+				ValidUntil: instant("2027-01-01"),
+				ID:         "X-test-reflect",
 				Object: ExceptionObject{
 					Kind: "external-dependency", Unit: "u", Identity: "reflect",
 					PresentKind: true, PresentUnit: true, PresentIdentity: true,
@@ -98,6 +103,7 @@ func TestAdmitidasReflectAdmitida(t *testing.T) {
 
 				PresentID: true, PresentObject: true, PresentADR: true,
 				PresentJustification: true, PresentConvergence: true, PresentHistory: true,
+				PresentValidUntil: true,
 			},
 		},
 	}
