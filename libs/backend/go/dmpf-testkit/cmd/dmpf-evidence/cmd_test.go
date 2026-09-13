@@ -83,6 +83,23 @@ func TestTwoRunsOverTheSameCommitPublishTheSameBytes(t *testing.T) {
 	}
 }
 
+func TestGoldenInCIIsNotReprovedByTheFixtureMaintenanceTest(t *testing.T) {
+	t.Setenv("CI", "true")
+	out := filepath.Join(t.TempDir(), "0.1.0")
+
+	if code, stderr := runCommand(t, "--release", "latest", "--subjects", "golden", "--out", out); code != exitOK {
+		t.Fatalf("exit %d: %s", code, stderr)
+	}
+
+	var subject evidence.Subject
+	if err := json.Unmarshal(readTree(t, out)["golden.json"], &subject); err != nil {
+		t.Fatal(err)
+	}
+	if subject.Body == nil || slices.ContainsFunc(subject.Body.Tests, func(r evidence.TestResult) bool { return r.Test == "TestUpdateGolden" }) {
+		t.Fatalf("golden body = %+v, want the tests without TestUpdateGolden", subject.Body)
+	}
+}
+
 func TestProviderEvidenceNamesThePostgresItRanAgainst(t *testing.T) {
 	tb.Env(t, "DMPF_PG_DSN")
 	out := filepath.Join(t.TempDir(), "0.1.0")

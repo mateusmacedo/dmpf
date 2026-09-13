@@ -153,6 +153,9 @@ As fixtures de **projeção observável** (`ORA-30`) vivem em
 | `dist` | `dmpf-testkit/distkit` | `integration`, `distributed` | `DMPF_PG_DSN`, `DMPF_KAFKA_BROKERS`, `DMPF_REDPANDA_ADMIN` |
 | `reference` | `apps/backend/dmpf-reference/...` | `integration` | `DMPF_PG_DSN`, `DMPF_KAFKA_BROKERS`, `DMPF_REDPANDA_ADMIN` |
 
+- O `golden` roda com `-skip '^TestUpdateGolden$'`: esse teste só regrava as
+  fixtures com `GOLDEN_UPDATE=1` e pula em qualquer outro `go test`, o que sob
+  `CI` reprovaria o subject.
 - Variável ausente: sob `CI`, exit 1 nomeando-a antes de rodar qualquer subject;
   fora de `CI`, o subject é gravado como `{skipped}`, sem corpo e sem alcance, e
   fica fora do `index.json` — não conta como evidência.
