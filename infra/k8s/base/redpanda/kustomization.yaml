@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Redpanda de desenvolvimento/homologação em modo dev-container, um broker,
+# sem TLS — por isso o overlay que o usa liga DMPF_KAFKA_INSECURE. Em produção
+# o Kafka é serviço gerenciado (ou o operador do Redpanda) e esta base sai.
+
+labels:
+  - includeSelectors: true
+    pairs:
+      app.kubernetes.io/name: redpanda
+      app.kubernetes.io/part-of: dmpf
+
+resources:
+  - statefulset.yaml
+  - service.yaml

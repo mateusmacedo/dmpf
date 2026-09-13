@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package company.orders.event.v1;
+
+// An order was confirmed in the orders bounded context.
+// Envelope type: com.company.orders.order-placed.v1 (PTB-03).
+message OrderPlaced {
+  string order_id = 1;
+  string customer_id = 2;
+  int64 total_cents = 3;
+  OrderChannel channel = 4;
+  int32 item_count = 6;
+
+  reserved 5;
+  reserved "legacy_promo_code";
+}
+
+enum OrderChannel {
+  ORDER_CHANNEL_UNSPECIFIED = 0;
+  ORDER_CHANNEL_WEB = 1;
+  ORDER_CHANNEL_APP = 2;
+}

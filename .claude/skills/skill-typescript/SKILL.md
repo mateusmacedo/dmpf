@@ -8,7 +8,7 @@ description: >-
   tipagem, discriminated union, type guard, utility types (Record, Partial, Omit, Pick, Extract,
   Exclude), keyof, typeof, satisfies, readonly, z.infer, ReturnType ou `as const`, ou ao tipar
   entities, repositories, DTOs, use cases ou respostas de API.
-model: sonnet
+model: opus
 ---
 
 # TypeScript — padrões e convenções
@@ -27,7 +27,7 @@ Guia de referência com padrões TypeScript comuns em backend. Adapte ao padrão
 ## Regras comuns (ajustáveis)
 
 | Regra | Enforcement típico |
-|-------|--------------------|
+| ------- | -------------------- |
 | `type` sobre `interface` | Convenção / Biome |
 | `import type` / `export type` para tipos | `verbatimModuleSyntax` + linter |
 | Sem `enum` — union types ou `as const` | Linter (`noEnum`) |
@@ -46,7 +46,7 @@ Guia de referência com padrões TypeScript comuns em backend. Adapte ao padrão
 ## Naming sugerido
 
 | Categoria | Convenção | Exemplo |
-|-----------|-----------|---------|
+| ----------- | ----------- | --------- |
 | Domínio | `PascalCase` | `CourtDocument`, `Profile` |
 | DTO | `<Ação><Domínio>Dto` | `CreateUserDto` |
 | Entity | `<Domínio>Entity` | `UserEntity` |
@@ -59,7 +59,7 @@ Guia de referência com padrões TypeScript comuns em backend. Adapte ao padrão
 ## Utility types — referência rápida
 
 | Tipo | Uso |
-|------|-----|
+| ------ | ----- |
 | `Record<K, V>` | Mapear union a valores |
 | `Partial<T>` | Todos opcionais |
 | `Pick<T, K>` / `Omit<T, K>` | Selecionar/remover propriedades |
@@ -78,7 +78,7 @@ Guia de referência com padrões TypeScript comuns em backend. Adapte ao padrão
 ## Referências detalhadas (carregar sob demanda)
 
 | Arquivo | Conteúdo |
-|---------|----------|
+| --------- | ---------- |
 | `references/core-rules.md` | type vs interface, enums, funções, imports/exports |
 | `references/advanced-types.md` | Discriminated unions, type guards, generics |
 | `references/data-patterns.md` | Zod, async, erros, services, DTOs, use cases, jobs |

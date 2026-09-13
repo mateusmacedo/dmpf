@@ -57,7 +57,7 @@ não cria novos):
 
 ```json
 {
-  "name": "@lidercap-apps/minha-lib",
+  "name": "@mateusmacedo/minha-lib",
   "$schema": "../../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "libs/minha-lib/src",
   "projectType": "library",
@@ -105,6 +105,41 @@ deve divergir dele.
 Libs sem dependência de runtime usam `stack:universal`; as que tocam APIs de Node ou frameworks de servidor usam `stack:node`. `scope:` acompanha a pasta de primeiro
 nível sob `libs/` ou `apps/` (`shared`, `backend`, `frontend`).
 
+### A quarta tag: `layer:` em módulos Go
+
+Todo projeto `stack:go` declara **também** uma tag `layer:`, aditiva às três
+acima. Ela não altera `release.projects` nem os `targetDefaults` — a taxonomia
+canônica continua sendo a de três dimensões. O que ela decide é o **estágio do
+CI** em que o módulo roda: o `ci.yml` seleciona os projetos de cada estágio da
+pirâmide de testes por essa tag. Um módulo `stack:go` sem ela não entra em
+nenhum estágio e passaria despercebido, então o CI tem um guard que compara os
+dois conjuntos e reprova quando algum projeto Go fica de fora
+(`.github/workflows/ci.yml`).
+
+| Valor | Estágio |
+|-------|---------|
+| `layer:domain` | Domínio e portas — sem infraestrutura |
+| `layer:services` | Casos de uso e primitivas de transporte |
+| `layer:contract` | Contratos de wire |
+| `layer:providers` | Realizações que exigem infraestrutura (Postgres, Kafka, SQS) |
+| `layer:apps` | Composition roots e bordas |
+
+A camada é a do **estágio em que o módulo precisa rodar**, não a do bloco DMPF
+de cada unidade que ele declara. Um módulo com unidades em quatro blocos, cujas
+suítes exigem Postgres, é `layer:providers` — quem manda é a infraestrutura que
+o teste pede.
+
+```bash
+# Os projetos de um estágio, como o ci.yml os seleciona
+pnpm nx show projects --projects=tag:layer:domain --json | jq -r 'join(",")'
+```
+
+Um bounded context distribui seus cinco módulos pelas camadas conforme o bloco:
+`domain` e `ports` em `layer:domain`, `application` em `layer:services`,
+`provider` em `layer:providers` e `app` em `layer:apps`. O generator
+`bounded-context` já emite a tag correta em cada `project.json`; ver
+`docs/guides/dmpf-composicao.md`.
+
 ---
 
 ## Como criar uma nova lib
@@ -114,13 +149,13 @@ nível sob `libs/` ou `apps/` (`shared`, `backend`, `frontend`).
 ```bash
 # lib compartilhada (TypeScript puro, buildable via tsc)
 pnpm nx g @nx/js:lib libs/shared/<name> \
-  --importPath=@lidercap-apps/shared-<name> \
+  --importPath=@mateusmacedo/shared-<name> \
   --bundler=tsc --unitTestRunner=jest --linter=none \
   --tags=type:lib,scope:shared,stack:node
 
 # lib backend (NestJS)
 pnpm nx g @nx/nest:lib libs/backend/<name> \
-  --importPath=@lidercap-apps/backend-<name> \
+  --importPath=@mateusmacedo/backend-<name> \
   --unitTestRunner=jest --linter=none \
   --tags=type:lib,scope:backend,stack:node
 ```
@@ -136,6 +171,84 @@ TypeScript Project References da raiz.
 `tools/generators/` fica vazio de propósito: é o destino de generators próprios
 do workspace, quando houver. Registre a coleção em `nx.generators` do
 `package.json` ao criar o primeiro.
+
+### Lib Go
+
+```bash
+pnpm nx g @nx-go/nx-go:library libs/backend/go/<name> \
+  --tags=type:lib,scope:backend,stack:go \
+  --skipFormat
+```
+
+`--skipFormat` não é opcional: sem ele o generator chama `formatFiles()`, que
+roda Prettier com largura 80 e reformata o `nx.json` inteiro — e o `biome ci`
+do CI, que usa largura 100, reprova em seguida.
+
+Módulos Go ficam em `libs/<scope>/go/<name>` e o **nome do projeto leva o sufixo
+da stack** (`<name>-go`). O motivo está no `docs/adr/030-granularidade-modulo-go-e-bom.md`:
+o kernel DMPF terá contrapartes Go e TypeScript com os mesmos nomes conceituais,
+e o nome de projeto é chave única no Nx.
+
+Go é `scope:backend` neste workspace: os oito módulos existentes vivem em
+`libs/backend/go/`. O módulo `dmpf-contracts` (projeto `dmpf-contracts-go`) é o
+único com targets além da cadeia Go — `buf-lint`, `buf-pins`,
+`buf-generate-check` e `buf-breaking` chamam os subcomandos de
+`tools/buf-gate.sh`, `buf-gate-selftest` roda
+`tools/tests/buf-gate/buf-gate.test.sh`, e `buf-warmup` compila a CLI e o
+plugin uma vez antes dos três mais pesados (`dependsOn`); todos têm
+`contracts/**` nos `inputs`,
+para que uma mudança só em `.proto` torne o módulo afetado (o gerado vive em
+`gen/go/` dentro do módulo, mas a fonte vive em `contracts/`, na raiz).
+
+O comando acima **não** passa `--name` de propósito. O generator usa esse valor
+para dois fins ao mesmo tempo: o nome do projeto Nx e o `package` Go
+(`moduleName = names(projectName).propertyName.toLowerCase()`, em
+`src/utils/normalize-options.js:18`). Passar `--name=<name>-go` geraria
+`package <name>go` — redundante e fora do idioma. Gere sem a flag e renomeie
+apenas o projeto, no passo 1; o `package` Go continua sem o sufixo.
+
+Depois de gerar, cinco ajustes que o generator não faz:
+
+1. **Nome do projeto** — o generator o deriva do diretório, então nasce `<name>`,
+   sem o sufixo da stack. Troque o `name` no `project.json` para `<name>-go`.
+
+2. **Module path** — o generator emite `module libs/backend/go/<name>` literal,
+   que não resolve em consumo remoto. Corrija para o host Gitea (a flag `-C` é
+   obrigatória: na raiz do workspace `GOMOD` aponta para `/dev/null` e o
+   `go mod edit` falha):
+
+   ```bash
+   go -C libs/backend/go/<name> mod edit \
+     -module github.com/mateusmacedo/dmpf/libs/backend/go/<name>
+   go -C libs/backend/go/<name> mod edit -go=1.26.6   # o generator descarta o patch
+   ```
+
+3. **`package.json` privado** — `{"name": "@mateusmacedo/<name>-go", "version": "0.0.0", "private": true}`.
+   Sem ele o `nx release` **aborta** o versionamento do projeto: o `@nx/js` só
+   reconhece `package.json` como manifesto, e o `nx.json` resolve a versão do disco.
+
+4. **`dmpf-units.json`** — o `metadata_container` da RFC DMPF, obrigatório em
+   todo módulo de produção desde a criação. Em Go o `include` usa **import
+   paths**, não globs.
+
+5. **Targets que o plugin não infere** — o `@nx-go/nx-go` infere `test`, `lint`,
+   `tidy` e `generate`, mas **não** `build`. Declare `fmt-check`, `vet`, `build`,
+   `test-race` e `govulncheck` com `cwd: "{projectRoot}"` e
+   `inputs: ["go", "^go"]` (`govulncheck` com `cache: false`, porque consulta
+   base remota).
+
+   O `lint` e o `test` **não** entram no `project.json`: vêm de `targetDefaults`
+   chaveado por executor (`@nx-go/nx-go:lint` e `@nx-go/nx-go:test`, em
+   `nx.json`), então todo módulo Go novo já nasce com o golangci-lint no lugar do
+   `go fmt` e com o `.golangci.yml` nos inputs — mudar a política invalida o
+   cache em vez de devolver o verde anterior. Copiar o bloco por projeto foi o
+   desenho anterior e tinha um modo de falha silencioso: um módulo sem ele roda
+   `go fmt ./...`, que **reescreve** os arquivos e sai 0, ficando verde sem
+   lintar nada.
+
+   Ao mexer nesses defaults por executor, repita `dependsOn` e `cache`: o default
+   por executor **substitui** o default por nome, e omiti-los faz o `test` do Go
+   perder o `^build` e o cache que `targetDefaults.test` fornece.
 
 ### Manualmente
 
@@ -169,10 +282,10 @@ invalidam o cache desta task.
 
 ```bash
 # Ver a configuração completa resolvida de um projeto
-pnpm nx show project @lidercap-apps/minha-lib
+pnpm nx show project @mateusmacedo/minha-lib
 
 # Versão visual no browser
-pnpm nx show project @lidercap-apps/minha-lib --web
+pnpm nx show project @mateusmacedo/minha-lib --web
 
 # Limpar o cache local
 pnpm nx reset

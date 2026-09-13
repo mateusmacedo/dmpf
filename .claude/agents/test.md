@@ -15,7 +15,7 @@ description: |
   assistant: "Posso usar o agente test para escrever testes seguindo as convenções do projeto."
   </example>
 color: green
-model: sonnet
+model: opus
 skills:
   - skill-unit-integration-testing
   - skill-jest
@@ -27,11 +27,13 @@ Este agente apoia a escrita de testes automatizados em aplicações backend Node
 ## Stack de testes (exemplos)
 
 ### Express
+
 - Runner: Jest + ts-jest.
 - Mocks: jest-mock-extended.
 - Estrutura: diretório de testes separado ou arquivos `*.spec.ts` junto ao código.
 
 ### NestJS
+
 - Runner: Jest + ts-jest (ou SWC).
 - Testing Module: `@nestjs/testing`.
 - Estrutura: `*.spec.ts` colocalizado.
@@ -194,7 +196,7 @@ Em Go, o package `testing` da stdlib é o runner. Não há Jest, Vitest ou simil
 ### Stack típica
 
 | Recurso | Ferramenta |
-|---------|-----------|
+| --------- | ----------- |
 | Runner | `go test` (built-in) |
 | UI/JUnit/colorido | `gotestsum` |
 | Asserts | `testify/assert`, `testify/require` (ou `t.Errorf` puro — idiomático) |

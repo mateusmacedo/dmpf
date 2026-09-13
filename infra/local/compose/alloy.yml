@@ -1,0 +1,28 @@
+# O Alloy lê o socket do Docker para descobrir e seguir os logs dos containers.
+# É o único serviço com acesso ao socket; em produção a coleta é do cluster.
+services:
+  alloy:
+    image: grafana/alloy:v1.19.2
+    profiles: [alloy, observability, dmpf, all]
+    command:
+      - run
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy/config.alloy
+    user: root
+    ports:
+      - '${ALLOY_PORT:-12345}:12345'
+    volumes:
+      - ../../observability/alloy/alloy-docker.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - alloy-data:/var/lib/alloy/data
+    depends_on:
+      loki:
+        condition: service_started
+    deploy:
+      resources:
+        limits: { cpus: '0.25', memory: 256M }
+        reservations: { cpus: '0.05', memory: 64M }
+
+volumes:
+  alloy-data:

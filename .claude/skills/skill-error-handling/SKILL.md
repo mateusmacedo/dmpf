@@ -7,15 +7,17 @@ description: >
   Cobre hierarquia de erros customizados, middleware de erro (Express), exception filters (NestJS),
   HTTP response helpers, Result pattern, logging estruturado e timeouts em chamadas externas.
   Para validação de input, ver `skill-validation`.
-model: sonnet
+model: opus
 ---
 
 # Error Handling
 
 ## Objetivo
+
 Tratamento de erros: hierarquia de erros customizados, middlewares, exception filters, HTTP helpers e logging.
 
 ## Quando usar
+
 - Ao definir hierarquia de erros de domínio.
 - Ao configurar middleware de erro (Express) ou exception filter (NestJS).
 - Ao integrar logging e monitoramento.

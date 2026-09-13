@@ -15,7 +15,7 @@ vigia naquela data.
 O marketplace `plugins-claude` (plugin `mmda-flow`, canônico em
 `https://github.com/mateusmacedo/plugins-claude`) concentra convenções,
 artefatos de estrutura e uma pipeline madura de desenvolvimento assistido por
-IA. O `nx-base-template` já adotava parcialmente o formato de specs do plugin,
+IA. O `dmpf` já adotava parcialmente o formato de specs do plugin,
 mas faltavam duas coisas:
 
 - o scaffold de engenharia que o plugin provisiona (catálogo de specs, regras de
@@ -68,7 +68,7 @@ Três skills existem dos dois lados; a tabela define quem vale em cada caso:
 
 ### `plans/` permanece fora do versionamento
 
-`plans/` continua inteiro no `.gitignore` (linha 51). Os planos são artefatos
+`plans/` continua inteiro no `.gitignore` (linha 81). Os planos são artefatos
 locais e não versionados. A decisão apoia-se em dois pontos: coerência com a rule
 `ephemeral-refs` que o template passa a documentar — artefato efêmero não entra
 no histórico durável — e custo de migração zero, já que esse é o estado atual do

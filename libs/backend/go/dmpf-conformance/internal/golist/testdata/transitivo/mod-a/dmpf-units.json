@@ -1,0 +1,13 @@
+{
+  "schema": "dmpf/units@1",
+  "units": [
+    {
+      "id": "mod-a/domain",
+      "block": "domain",
+      "bounded_context": "exemplo",
+      "include": ["exemplo.test/mod-a/domain"]
+    }
+  ],
+  "external": [],
+  "exceptions": []
+}

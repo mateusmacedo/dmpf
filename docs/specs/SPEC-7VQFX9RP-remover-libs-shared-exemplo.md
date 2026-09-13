@@ -5,7 +5,7 @@ title: Remover as libs compartilhadas e o generator shared-lib do template
 stage: done
 priority: P2
 depends_on: []
-ticket_url: https://lider-cap.atlassian.net/browse/ARQ-470
+ticket_url: null
 subtask_urls: []
 created: 2026-08-12
 ---
@@ -14,7 +14,7 @@ created: 2026-08-12
 
 ## Resumo
 
-Remover `@lidercap-apps/shared-types` e `@lidercap-apps/shared-utils` do
+Remover `@mateusmacedo/shared-types` e `@mateusmacedo/shared-utils` do
 workspace, deixando `libs/shared/` como diretório de destino vazio, no mesmo
 padrão de `libs/backend/` e `libs/frontend/`. Como mantenedor do template, quero
 que quem parte deste repositório não herde bibliotecas que não pediu, para que o
@@ -49,7 +49,7 @@ resolve e duplica o que `@nx/js:lib` já faz.
     baseline
   - `docs/adr/004-workflows-verdaccio-release.md` — split entre versionamento e
     publicação, que esta spec preserva
-  - SPEC-4NR9KKS8 — portou o monorepo de origem e decidiu manter `types` e
+  - a spec de port do monorepo de origem — portou o monorepo de origem e decidiu manter `types` e
     `utils` enquanto descartava `libs/shared/money`
   - `docs/nx-reference/tasks.md` — já registra o generator `shared-lib` como
     débito não resolvível e indica `@nx/js:lib` como caminho recomendado
@@ -64,7 +64,7 @@ resolve e duplica o que `@nx/js:lib` já faz.
   algum — não conclui vazio.
 - [P0] O generator `tools/generators/shared-lib/` DEVE ser removido junto com as
   libs. Ele está obsoleto: a coleção não resolve (`Cannot find module
-  '@nx-base-template/tools/package.json'`, débito já registrado em
+  '@dmpf/tools/package.json'`, débito já registrado em
   `docs/nx-reference/tasks.md`) e duplica o que `@nx/js:lib` faz. O caminho
   documentado para criar libs passa a ser o generator do Nx, que a própria
   referência de tasks já indica como recomendado.
@@ -120,13 +120,13 @@ resolve e duplica o que `@nx/js:lib` já faz.
 ### Não-funcionais
 
 - [x] Integridade do build: `pnpm nx show projects` retorna apenas
-  `@nx-base-template/source` após a remoção.
+  `@mateusmacedo/dmpf-source` após a remoção.
 - [x] Compatibilidade: nenhuma alteração em versões de Node (`^24`) ou pnpm
   (`11.14.0`); nenhuma dependência adicionada ou removida do `catalog:`.
 - [x] Reversibilidade: a remoção DEVE ser revertível por um único `git revert`
   do commit, sem passos manuais fora do repositório.
 - [x] Rastreabilidade: as tags git já publicadas
-  (`@lidercap-apps/shared-types@0.0.3`, `@lidercap-apps/shared-utils@0.0.3` e
+  (`@mateusmacedo/shared-types@0.0.3`, `@mateusmacedo/shared-utils@0.0.3` e
   anteriores) e os pacotes no Verdaccio permanecem intocados. Esta spec não
   despublica nada.
 
@@ -147,7 +147,7 @@ resolve e duplica o que `@nx/js:lib` já faz.
 ## Localização de código
 
 ```text
-nx-base-template/
+dmpf/
   tools/generators/         — destino de generators; fica vazio com .gitkeep
     shared-lib/             — REMOVER (8 arquivos)
   libs/shared/              — destino das libs; fica vazio com .gitkeep
@@ -163,14 +163,14 @@ nx-base-template/
 - `libs/shared/types/` — remover o diretório inteiro (via `trash`)
 - `libs/shared/utils/` — remover o diretório inteiro (via `trash`)
 - `libs/shared/.gitkeep` — criar, para manter o diretório versionado
-- `tsconfig.base.json` — remover as chaves `@lidercap-apps/shared-utils` e
-  `@lidercap-apps/shared-types` de `compilerOptions.paths`
+- `tsconfig.base.json` — remover as chaves `@mateusmacedo/shared-utils` e
+  `@mateusmacedo/shared-types` de `compilerOptions.paths`
 - `tsconfig.json` — esvaziar o array `references` (as duas entradas apontam para
   as libs removidas)
 - `pnpm-lock.yaml` — regenerado por `pnpm install`
 - `AGENTS.md` — a árvore de diretórios, a tabela de libs, os exemplos de comando
   e o exemplo de escopo de commit
-- `README.md` — os dois exemplos `pnpm nx test @lidercap-apps/shared-utils`
+- `README.md` — os dois exemplos `pnpm nx test @mateusmacedo/shared-utils`
 - `CONTRIBUTING.md` — o exemplo de escopo de commit e o exemplo de nome de
   branch que cita `shared-utils`
 - `docs/onboarding.md` — a tabela de libs e os exemplos de comando
@@ -222,7 +222,7 @@ projeto com `tag:type:app`.
 4. Limpar `tsconfig.base.json` e `tsconfig.json`.
 5. Rodar `pnpm install` para regenerar o `pnpm-lock.yaml`.
 6. Verificar que `pnpm nx show projects` retorna apenas
-   `@nx-base-template/source`.
+   `@mateusmacedo/dmpf-source`.
 7. Sincronizar a documentação viva.
 8. Escrever o ADR que substitui o item 9 do ADR-006.
 9. Rodar a cadeia de validação do projeto.
@@ -265,17 +265,17 @@ projeto com `tag:type:app`.
 - `.claude/rules/git-safety.md` § Renomeação e movimentação de arquivos — buscar
   todas as referências antes de remover
 - `docs/adr/README.md` — índice de ADRs, a ser atualizado com o ADR novo
-- SPEC-4NR9KKS8 — decidiu manter as duas libs ao portar do monorepo de origem;
+- a spec de port do monorepo de origem — decidiu manter as duas libs ao portar do monorepo de origem;
   esta spec reverte aquela decisão para `types` e `utils`
 
 ## Verificação e testes
 
 ### Critérios de aceite
 
-- [x] `pnpm nx show projects` retorna exatamente `["@nx-base-template/source"]`
+- [x] `pnpm nx show projects` retorna exatamente `["@mateusmacedo/dmpf-source"]`
 - [x] `libs/shared/` existe, contém apenas `.gitkeep` e está versionado
 - [x] `tsconfig.base.json` não contém nenhuma ocorrência de
-  `@lidercap-apps/shared-`
+  `@mateusmacedo/shared-`
 - [x] `tsconfig.json` não referencia `libs/shared/utils` nem `libs/shared/types`
 - [x] `.github/workflows/nx-publish-libs.yml` e `nx.json` estão byte a byte
   idênticos aos do commit anterior
@@ -285,21 +285,21 @@ projeto com `tag:type:app`.
 - [x] `tools/generators/shared-lib/` e `tools/generators.json` não existem mais;
   `tools/generators/` contém apenas `.gitkeep`
 - [x] `package.json` não contém a chave `nx.generators`
-- [x] Nenhum documento vivo cita `@nx-base-template/tools:shared-lib`
+- [x] Nenhum documento vivo cita `@dmpf/tools:shared-lib`
 - [x] Nenhum arquivo em `docs/adr/` ou `docs/specs/` existente foi modificado,
   com a única exceção de `docs/adr/README.md` (índice) e desta spec
 - [x] Uma busca por `shared-types|shared-utils` fora de `docs/adr/`,
   `docs/specs/` e `libs/shared/*/CHANGELOG.md` não retorna nenhuma citação a
   projeto existente
 - [x] `pnpm biome ci .` passa
-- [x] Validação do projeto passando: `pnpm nx affected -t lint,typecheck,test,build --exclude=@nx-base-template/source`
+- [x] Validação do projeto passando: `pnpm nx affected -t lint,typecheck,test,build --exclude=@mateusmacedo/dmpf-source`
 
 ### Cenários de teste (mínimo 3)
 
 ```text
 DADO o workspace com as duas libs removidas e libs/shared/.gitkeep criado
 QUANDO o desenvolvedor roda `pnpm install && pnpm nx show projects`
-ENTÃO a saída é exatamente ["@nx-base-template/source"], sem erro de
+ENTÃO a saída é exatamente ["@mateusmacedo/dmpf-source"], sem erro de
       resolução de path no TypeScript
 
 DADO o workspace sem nenhum projeto com a tag type:lib
@@ -351,7 +351,7 @@ ENTÃO a mudança DEVE ser bloqueada pela constraint P0, porque o versionamento
 ## Escopo fora
 
 - **Despublicar os pacotes do Verdaccio**: as versões
-  `@lidercap-apps/shared-types@0.0.3` e `@lidercap-apps/shared-utils@0.0.3` (e
+  `@mateusmacedo/shared-types@0.0.3` e `@mateusmacedo/shared-utils@0.0.3` (e
   anteriores) permanecem no registry. Despublicar é operação de plataforma, fora
   do repositório, e quebraria qualquer consumidor que já as tenha instalado.
 - **Remover as tags git de versão**: as tags `{projectName}@{version}` já

@@ -16,11 +16,11 @@ recebe apenas um guard novo, descrito abaixo.
 
 O `AGENTS.md` declara que o workspace "não contém apps — quem parte deste
 template cria as suas". Para as bibliotecas, porém, a promessa era outra: o
-repositório entregava `@lidercap-apps/shared-types` (tipos de API, paginação e
-ordenação) e `@lidercap-apps/shared-utils` (utilitários de string e objeto), com
+repositório entregava `@mateusmacedo/shared-types` (tipos de API, paginação e
+ordenação) e `@mateusmacedo/shared-utils` (utilitários de string e objeto), com
 23 arquivos versionados, README, CHANGELOG e histórico de versões próprio.
 
-As duas nasceram no port do monorepo de origem, decidido pela SPEC-4NR9KKS8. O
+As duas nasceram no port do monorepo de origem, decidido pela a spec de port do monorepo de origem. O
 critério aplicado ali separava domínio de genérico: `libs/shared/money` foi
 descartada por ser lógica financeira do produto de origem, enquanto `types` e
 `utils` foram mantidas por serem utilitários neutros. O item 9 da matriz do
@@ -64,7 +64,7 @@ chave `nx.generators` do `package.json`. `tools/generators/` fica como destino
 vazio, ao lado de `tools/executors/`, que já era assim.
 
 Ele estava obsoleto por dois motivos independentes. A coleção não resolvia —
-`Cannot find module '@nx-base-template/tools/package.json'`, porque o mapeamento
+`Cannot find module '@dmpf/tools/package.json'`, porque o mapeamento
 vivia em `nx.generators` e o Nx procura uma chave `generators` de topo; o
 `docs/nx-reference/tasks.md` já registrava essa falha como débito conhecido e
 mandava usar os generators do Nx no lugar. E o template
@@ -77,7 +77,7 @@ generator do Nx**, com as flags e as três tags 3D documentadas em
 `docs/nx-reference/tasks.md` — que já o indicava como recomendado.
 
 **Nada é despublicado.** As tags git `{projectName}@{version}` já criadas e os
-pacotes `@lidercap-apps/shared-types` e `@lidercap-apps/shared-utils` no Verdaccio
+pacotes `@mateusmacedo/shared-types` e `@mateusmacedo/shared-utils` no Verdaccio
 permanecem onde estão. Removê-los quebraria qualquer consumidor que já os tenha
 instalado, e reescreveria histórico publicado.
 
@@ -104,7 +104,7 @@ Os demais itens da matriz do ADR-006 não são afetados.
 
 - Quem adota o template recebe estrutura e tooling, sem nenhuma biblioteca a
   avaliar ou apagar. `pnpm nx show projects` retorna apenas
-  `@nx-base-template/source`.
+  `@mateusmacedo/dmpf-source`.
 - O pipeline de release fica ocioso até a primeira lib do consumidor, graças ao
   guard. Um `nx release` chamado à mão nesse intervalo continua abortando com
   exit 1 — quem o invocar fora do workflow precisa saber disso.
@@ -122,7 +122,7 @@ Os demais itens da matriz do ADR-006 não são afetados.
 ## Referências
 
 - SPEC-7VQFX9RP — especificação da remoção
-- ARQ-470 — https://lider-cap.atlassian.net/browse/ARQ-470
+- ARQ-470 — ARQ-470
 - [ADR-006](./006-fechamento-port-melhorias.md) — item 9 da matriz, substituído
   por este ADR
 - [ADR-001](./001-baseline-monorepo.md) — descrevia as duas libs como parte do

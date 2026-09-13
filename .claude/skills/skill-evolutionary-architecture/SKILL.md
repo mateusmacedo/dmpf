@@ -8,12 +8,13 @@ description: >
   Cobre refatoração incremental, fitness functions (lint/typecheck/test), migração local→compartilhada,
   trade-offs, YAGNI e Last Responsible Moment.
   Para estrutura de pastas, ver `skill-architecture-patterns`; para refatoração de código limpo, ver `skill-clean-code`.
-model: sonnet
+model: opus
 ---
 
 # Arquitetura evolutiva
 
 ## Quando usar
+
 - Ao planejar mudanças incrementais de arquitetura.
 - Ao migrar código entre camadas (local → compartilhado, módulo → serviço).
 - Ao avaliar trade-offs antes de decidir.
@@ -117,7 +118,7 @@ Passo 4: Validar com testes
 ### Exemplo: onde colocar um novo serviço
 
 | Opção | Prós | Contras |
-|-------|------|---------|
+| ------- | ------ | --------- |
 | Local (`domain/contexto/`) | Coeso, fácil de encontrar | Não reutilizável |
 | Aplicação (`application/`) | Reutilizável entre módulos | Pode ser prematuro |
 | Infra (`infra/`) | Compartilhado, próximo da implementação | Acoplado à infra |
@@ -260,6 +261,7 @@ internal/order/
 ```
 
 Cuidados:
+
 - Evitar import cíclico — se `order` importa `pricing` e vice-versa, há acoplamento mal modelado.
 - Mover testes (`*_test.go`) junto com o código.
 
@@ -284,7 +286,7 @@ Cada fase mantém `go test -race` verde.
 ### Decisões: onde colocar um novo pacote
 
 | Opção | Prós | Contras |
-|-------|------|---------|
+| ------- | ------ | --------- |
 | `internal/<contexto>/` | Encapsulado por bounded context | Não compartilhável entre contextos |
 | `internal/shared/` | Reutilizável internamente | Pode virar dumping ground se não disciplinado |
 | `pkg/` | Exportável fora do módulo | Compromisso público — API estável |

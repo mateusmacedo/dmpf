@@ -1,0 +1,63 @@
+# Exporters dos recursos sistêmicos. O Redpanda não aparece aqui porque expõe
+# métricas Prometheus nativamente em :9644/public_metrics; o floci não expõe
+# nenhuma, então o blackbox mede o que dá — disponibilidade e latência do
+# endpoint de saúde. cAdvisor cobre CPU, memória e rede de todos os containers.
+services:
+  postgres-exporter:
+    image: quay.io/prometheuscommunity/postgres-exporter:v0.20.1
+    profiles: [exporters, observability, dmpf, all]
+    environment:
+      DATA_SOURCE_NAME: postgresql://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-app}@postgres:5432/${POSTGRES_DB:-app}?sslmode=disable
+    ports:
+      - '${POSTGRES_EXPORTER_PORT:-9187}:9187'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits: { cpus: '0.10', memory: 64M }
+        reservations: { cpus: '0.02', memory: 16M }
+
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.91.1
+    profiles: [exporters, observability, all]
+    command: ['--redis.addr=redis://redis:6379']
+    ports:
+      - '${REDIS_EXPORTER_PORT:-9121}:9121'
+    deploy:
+      resources:
+        limits: { cpus: '0.10', memory: 64M }
+        reservations: { cpus: '0.02', memory: 16M }
+
+  blackbox-exporter:
+    image: prom/blackbox-exporter:v0.28.0
+    profiles: [exporters, observability, dmpf, all]
+    command: ['--config.file=/etc/blackbox/blackbox.yaml']
+    ports:
+      - '${BLACKBOX_PORT:-9115}:9115'
+    volumes:
+      - ../../observability/prometheus/blackbox.yaml:/etc/blackbox/blackbox.yaml:ro
+    deploy:
+      resources:
+        limits: { cpus: '0.10', memory: 64M }
+        reservations: { cpus: '0.02', memory: 16M }
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.52.1
+    profiles: [exporters, observability, dmpf, all]
+    privileged: true
+    # 8081 no host porque 8080 é do papel api; dentro da rede continua 8080.
+    ports:
+      - '${CADVISOR_PORT:-8081}:8080'
+    devices:
+      - /dev/kmsg
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    deploy:
+      resources:
+        limits: { cpus: '0.25', memory: 256M }
+        reservations: { cpus: '0.05', memory: 64M }

@@ -1,41 +1,24 @@
-# Ambiente de desenvolvimento local.
-# Suba serviços por profile, ex: `docker compose --profile postgres up -d`.
-# Valores sensíveis vêm de variáveis de ambiente (arquivo .env, ignorado pelo git);
-# os defaults abaixo servem apenas para desenvolvimento local.
+# Ambiente de desenvolvimento local: um recurso por arquivo em compose/, todos
+# incluídos aqui. Suba por profile — `docker compose --profile postgres up -d`,
+# `--profile observability` (Grafana, Loki, Tempo, Prometheus, Alloy e o
+# Collector), `--profile dmpf` (os três papéis do dmpf-reference com tudo o que
+# eles precisam) ou `--profile all`. Valores sensíveis vêm de .env (ignorado
+# pelo git; ver .env.example); os defaults servem apenas ao desenvolvimento local.
 
-name: nx-base-template-local
+name: dmpf-local
 
-services:
-  postgres:
-    image: postgres:16-alpine
-    profiles: [postgres, all]
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-app}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-app}
-      POSTGRES_DB: ${POSTGRES_DB:-app}
-    ports:
-      - '${POSTGRES_PORT:-5432}:5432'
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-app}']
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  redis:
-    image: redis:7-alpine
-    profiles: [redis, all]
-    ports:
-      - '${REDIS_PORT:-6379}:6379'
-    volumes:
-      - redis-data:/data
-    healthcheck:
-      test: ['CMD', 'redis-cli', 'ping']
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-volumes:
-  postgres-data:
-  redis-data:
+include:
+  - compose/postgres.yml
+  - compose/redis.yml
+  - compose/redpanda.yml
+  - compose/redpanda-console.yml
+  - compose/floci.yml
+  - compose/otel-collector.yml
+  - compose/prometheus.yml
+  - compose/exporters.yml
+  - compose/loki.yml
+  - compose/tempo.yml
+  - compose/alloy.yml
+  - compose/grafana.yml
+  - compose/dmpf-reference.yml
+  - compose/swagger-ui.yml

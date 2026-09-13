@@ -1,0 +1,123 @@
+name: Publish Libs
+
+# Publica as libs no GitHub Packages via `nx release publish`. O executor pula
+# libs sem versão nova e versões já no registry, então releases parciais
+# publicam só o que mudou.
+#
+# Internalizado a partir do template de actions externo, que publicava num
+# Verdaccio privado autenticado por OIDC/SSM da AWS. Nada disso sobreviveu à
+# troca de plataforma: o registry sai do ar junto com a conta que o hospedava,
+# enquanto o GitHub Packages autentica com o GITHUB_TOKEN do próprio run.
+on:
+  workflow_call:
+    inputs:
+      node_version:
+        description: "Versão do Node.js"
+        required: false
+        type: string
+        default: "24"
+      pnpm_version:
+        description: "Versão do pnpm. Vazio (padrão) usa o campo packageManager do package.json do repo chamador."
+        required: false
+        type: string
+        default: ""
+      nx_exclude:
+        description: "Projetos a excluir do build/publish (ex: @mateusmacedo/dmpf-source)"
+        required: false
+        type: string
+        default: ""
+      registry_url:
+        description: "URL do registry npm"
+        required: false
+        type: string
+        default: "https://npm.pkg.github.com"
+      tag:
+        description: "Dist-tag de publicação (latest, beta, next)"
+        required: false
+        type: string
+        default: "latest"
+      scope:
+        description: "Escopo npm para o registry. No GitHub Packages precisa ser o owner do repositório."
+        required: false
+        type: string
+        default: "@mateusmacedo"
+      runner:
+        description: "Runner para execução"
+        required: false
+        type: string
+        default: "ubuntu-latest"
+      build_target:
+        description: "Target do Nx para build (ex: build)"
+        required: false
+        type: string
+        default: "build"
+      build_projects_filter:
+        description: "Filtro de projetos para build (ex: tag:type:lib)"
+        required: false
+        type: string
+        default: "tag:type:lib"
+      timeout_minutes:
+        description: "Timeout em minutos"
+        required: false
+        type: number
+        default: 30
+
+concurrency:
+  group: publish-libs-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    name: Publish libs (nx release publish)
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: ${{ inputs.timeout_minutes }}
+
+    steps:
+      - name: Checkout (commit versionado da tag)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ inputs.pnpm_version }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node_version }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # .npmrc escrito à mão, e não pelo registry-url do setup-node: o
+      # `nx release publish` delega ao pnpm, que lê o .npmrc do projeto — não o
+      # userconfig temporário que a action exporta.
+      - name: Configurar .npmrc do GitHub Packages
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          REGISTRY_HOST=$(echo "${{ inputs.registry_url }}" | sed 's|https\?://||')
+          echo "${{ inputs.scope }}:registry=${{ inputs.registry_url }}/" >> .npmrc
+          echo "//${REGISTRY_HOST}/:_authToken=${NODE_AUTH_TOKEN}" >> .npmrc
+          echo "fetch-timeout=180000" >> .npmrc
+          echo "network-timeout=180000" >> .npmrc
+          echo "fetch-retries=10" >> .npmrc
+
+      - name: Build libs
+        run: |
+          EXCLUDE_FLAG=""
+          if [ -n "${{ inputs.nx_exclude }}" ]; then
+            EXCLUDE_FLAG="--exclude=${{ inputs.nx_exclude }}"
+          fi
+          pnpm nx run-many -t ${{ inputs.build_target }} --projects=${{ inputs.build_projects_filter }} $EXCLUDE_FLAG
+
+      - name: Publish libs no GitHub Packages
+        run: pnpm nx release publish --tag ${{ inputs.tag }}

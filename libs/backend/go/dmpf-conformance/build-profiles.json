@@ -1,0 +1,19 @@
+{
+  "schema": "dmpf/build-profiles@1",
+  "profiles": [
+    {
+      "id": "linux-amd64",
+      "goos": "linux",
+      "goarch": "amd64",
+      "cgo_enabled": false,
+      "tags": []
+    },
+    {
+      "id": "linux-amd64-integration",
+      "goos": "linux",
+      "goarch": "amd64",
+      "cgo_enabled": false,
+      "tags": ["integration", "distributed"]
+    }
+  ]
+}

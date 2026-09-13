@@ -61,8 +61,8 @@ autorizado — foi o que motivou a tentativa, depois revertida, de usar um PAT d
 
 **As proteções de branch e de tag do repositório foram removidas.** Sem
 whitelist a satisfazer, o push do release passa com o token efêmero das Actions
-e nenhuma credencial adicional é necessária. Isso alinha o `nx-base-template` ao
-`lidercap-platform-legacy`, que roda o mesmo fluxo sem proteção alguma e sem
+e nenhuma credencial adicional é necessária. Isso alinha o `dmpf` ao
+`dmpf-legacy`, que roda o mesmo fluxo sem proteção alguma e sem
 secret dedicado. A verificação usou o mesmo teste que havia falhado: no run
 4831, já sem as proteções, a tag descartável subiu (`* [new tag]`) e foi
 removida em seguida.
@@ -81,9 +81,9 @@ workflow do repositório dispara em `push` para `master` — o `release.yml`
 dispara em `pull_request` e `workflow_dispatch`, e o `ci.yml` em
 `pull_request`.
 
-**O `release.yml` adota o `lidercap-platform-legacy` como workflow de
+**O `release.yml` adota o `dmpf-legacy` como workflow de
 referência da organização**: mesmo nome de job, mesma identidade git
-(`gitea-actions[bot]@noreply.lidercap.com.br`, no lugar do domínio do GitHub
+(`gitea-actions[bot]@noreply.github.com`, no lugar do domínio do GitHub
 que estava configurado), mesmo comando de push e o mesmo `secrets.GITHUB_TOKEN`
 no checkout. As únicas divergências mantidas têm causa declarada: as versões de
 Node e pnpm (fixadas pelo ADR-003) e os steps de release Docker (previstos pelo
@@ -107,7 +107,7 @@ ADR-004).
 | Manter o push dentro do `nx release` | Não é possível sem release remota: o comando agregado deriva `shouldPush` de `createRelease`, então preservar o push exigiria manter a chave — e com ela o provider incompatível e a chamada a `api.github.com`. |
 | Trocar o provider de `createRelease` em vez de removê-lo | Nenhum dos providers suportados aponta para o servidor correto; não há troca possível. |
 | Criar releases via API do Gitea (`POST /api/v1/repos/{owner}/{repo}/releases`) | É capacidade nova, não correção do push. Fica para uma spec própria, depois que o pipeline estiver verde. |
-| Usar `--atomic` no push, ou neutralizar o `pre-push` do Lefthook com `LEFTHOOK: "0"` | Ambas divergiriam do workflow de referência sem problema comprovado: o `lidercap-platform-legacy` tem o mesmo `pre-push` e o mesmo `prepare: lefthook install`, roda o release sem nenhuma das duas e conclui. |
+| Usar `--atomic` no push, ou neutralizar o `pre-push` do Lefthook com `LEFTHOOK: "0"` | Ambas divergiriam do workflow de referência sem problema comprovado: o `dmpf-legacy` tem o mesmo `pre-push` e o mesmo `prepare: lefthook install`, roda o release sem nenhuma das duas e conclui. |
 
 ## Consequências
 
@@ -132,7 +132,7 @@ ADR-004).
   colaborador com acesso de escrita; qualquer tag pode ser criada ou removida
   sem restrição. O fluxo git-flow do `AGENTS.md` e o gate de revisão passam a
   depender de disciplina do time, e não de imposição do servidor. O
-  `lidercap-infra`, por contraste, mantém whitelist por time em `master`.
+  `infra-reference`, por contraste, mantém whitelist por time em `master`.
 - **A condição não é reproduzível a partir de um clone.** A ausência de
   proteção é estado do servidor, não código versionado. Um repositório criado a
   partir deste template herda os workflows, mas não herda essa condição — e

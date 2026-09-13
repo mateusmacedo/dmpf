@@ -1,0 +1,30 @@
+services:
+  prometheus:
+    image: prom/prometheus:v3.14.0
+    profiles: [prometheus, observability, dmpf, all]
+    # OTLP para as métricas do kernel (via Collector) e remote write para as
+    # séries que o metrics_generator do Tempo deriva dos spans.
+    command:
+      - --config.file=/etc/prometheus/prometheus.yaml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=7d
+      - --web.enable-otlp-receiver
+      - --web.enable-remote-write-receiver
+      - --web.enable-lifecycle
+    ports:
+      - '${PROMETHEUS_PORT:-9090}:9090'
+    volumes:
+      - ../../observability/prometheus/prometheus.yaml:/etc/prometheus/prometheus.yaml:ro
+      - prometheus-data:/prometheus
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -q -O- http://localhost:9090/-/ready | grep -q Ready']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    deploy:
+      resources:
+        limits: { cpus: '0.75', memory: 1024M }
+        reservations: { cpus: '0.10', memory: 256M }
+
+volumes:
+  prometheus-data:

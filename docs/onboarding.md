@@ -1,6 +1,6 @@
 # Onboarding
 
-Este guia leva um clone novo do `nx-base-template` até o primeiro PR.
+Este guia leva um clone novo do `dmpf` até o primeiro PR.
 
 Este repositório é um **template**: ele não traz apps prontas. O caminho normal é
 clonar, validar o ambiente e então gerar a primeira app ou lib do seu projeto.
@@ -20,7 +20,7 @@ Para o dia a dia com o workspace, tenha também estas ferramentas de linha de co
   com `yq --version`, cuja saída menciona `mikefarah/yq`.
 
 O binário `gh` (GitHub CLI) só é necessário quando o fluxo do desenvolvedor
-envolve GitHub. A plataforma deste projeto é **Gitea** (`gitea.lidercap.com.br`)
+envolve GitHub. A plataforma deste projeto é **Gitea** (`github.com`)
 e não depende do `gh` — a automação que fala com a plataforma usa a API do
 Gitea (`/api/v1/...`).
 
@@ -59,7 +59,7 @@ Hoje isso retorna apenas o metadado raiz:
 
 | Projeto Nx | Caminho |
 | --- | --- |
-| `@nx-base-template/source` | raiz (metadado, sem código) |
+| `@mateusmacedo/dmpf-source` | raiz (metadado, sem código) |
 
 O template não traz apps nem libs — `apps/*` e `libs/*` são diretórios de
 destino. Os projetos aparecem aqui conforme você os cria.
@@ -72,7 +72,7 @@ cria, está em `docs/nx-reference/tasks.md`.
 ```bash
 # lib compartilhada
 pnpm nx g @nx/js:lib libs/shared/<name> \
-  --importPath=@lidercap-apps/shared-<name> \
+  --importPath=@mateusmacedo/shared-<name> \
   --bundler=tsc --unitTestRunner=jest --linter=none \
   --tags=type:lib,scope:shared,stack:node
 
@@ -82,6 +82,14 @@ pnpm nx sync
 
 Todo projeto novo nasce com as três tags obrigatórias (`type:`, `scope:`,
 `stack:`) — o Nx Release seleciona o que publicar por `tag:type:lib`.
+
+## Próximo passo para bounded contexts DMPF
+
+Após o setup e a criação inicial, use o
+[guia prático de implementação DMPF](./guides/dmpf-implementation.md) para
+estruturar o novo bounded context e implementar os blocos na ordem recomendada.
+O guia é derivado e não normativo; as obrigações pertencem às fontes em
+[`docs/dmpf/`](./dmpf/).
 
 ## Comandos de validação
 
@@ -102,15 +110,15 @@ pnpm nx run-many -t lint
 pnpm nx run-many -t typecheck
 pnpm nx run-many -t test
 pnpm nx run-many -t build
-pnpm nx test @lidercap-apps/minha-lib
-pnpm nx build @lidercap-apps/minha-lib
+pnpm nx test @mateusmacedo/minha-lib
+pnpm nx build @mateusmacedo/minha-lib
 ```
 
 Para rodar um único arquivo de teste, o passthrough vai direto ao Jest 30 — a flag
 é `--testPathPatterns`, no plural:
 
 ```bash
-pnpm nx test @lidercap-apps/minha-lib --testPathPatterns="string"
+pnpm nx test @mateusmacedo/minha-lib --testPathPatterns="string"
 ```
 
 ## Projetos afetados
@@ -124,7 +132,7 @@ pnpm nx affected -t test
 pnpm nx affected -t build
 ```
 
-O pre-push usa esse padrão e exclui `@nx-base-template/source`.
+O pre-push usa esse padrão e exclui `@mateusmacedo/dmpf-source`.
 
 ## Hooks locais
 
@@ -133,7 +141,7 @@ O `lefthook.yml` define:
 - Pre-commit: `pnpm biome check --write` nos arquivos staged compatíveis, com
   `stage_fixed: true`.
 - Pre-push: `pnpm nx affected -t lint`, `typecheck`, `test` e `build`, com
-  `--parallel=3` e `--exclude=@nx-base-template/source`.
+  `--parallel=3` e `--exclude=@mateusmacedo/dmpf-source`.
 
 Se um hook alterar arquivos no pre-commit, revise o diff antes de concluir o
 commit.
@@ -151,7 +159,7 @@ o pipeline e precisam de revisão humana.
 
 ## Release e plataforma
 
-- A plataforma é **Gitea** (`gitea.lidercap.com.br`). O binário `gh` não opera
+- A plataforma é **Gitea** (`github.com`). O binário `gh` não opera
   contra este servidor — ver `docs/adr/005-plataforma-gitea.md`.
 - O versionamento (`release.yml`) é separado da publicação de libs
   (`publish-libs.yml`) — ver `docs/adr/004-workflows-verdaccio-release.md`.
@@ -184,7 +192,7 @@ placeholder, para você preencher com a infraestrutura do seu projeto:
 
 ## Planos e checkpoints locais
 
-O diretório `plans` está listado no `.gitignore` (linha 51). Planos e
+O diretório `plans` está listado no `.gitignore` (linha 81). Planos e
 checkpoints são artefatos **locais e não versionados**: descrevem trabalho em
 andamento e não seguem no clone do repositório.
 

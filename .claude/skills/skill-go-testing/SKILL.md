@@ -9,7 +9,7 @@ description: >
   table-driven tests, testes de use cases, handlers e repositórios (testcontainers-go),
   mock patterns (gomock, mockery, fakes manuais) e async/concurrent testing.
   Para padrões agnósticos, ver skill-unit-integration-testing.
-model: sonnet
+model: opus
 ---
 
 # Go testing (backend)
@@ -46,6 +46,7 @@ internal/user/
 ```
 
 Convenções:
+
 - Mesmo pacote (`package user`) → testa também detalhes internos.
 - Pacote `_test` (`package user_test`) → testa só a API pública (preferível para validar contrato).
 
@@ -136,6 +137,7 @@ func TestParseEmail(t *testing.T) {
 ```
 
 Cada caso vira um subtest via `t.Run`. Vantagens:
+
 - `go test -run TestParseEmail/empty` roda só 1.
 - Output mostra qual caso falhou.
 - Adicionar caso = adicionar linha.
@@ -265,7 +267,7 @@ repo.On("FindByID", mock.Anything, "u1").Return(makeUser(t), nil)
 ### Quando usar mock vs fake
 
 | | Fake manual | gomock/mockery |
-|---|---|---|
+| --- | --- | --- |
 | Boilerplate | médio (escreve uma vez) | baixo (gerado) |
 | Verificar chamadas | manual (contadores) | EXPECT() builtin |
 | Comportamento complexo | ✅ natural | ⚠️ verboso |
@@ -402,14 +404,16 @@ func setupDB(t *testing.T) *sqlx.DB {
     t.Helper()
     ctx := context.Background()
 
-    pg, err := tcpostgres.RunContainer(ctx,
-        testcontainers.WithImage("postgres:16-alpine"),
+    // testcontainers-go >= v0.32: a imagem é argumento posicional de Run;
+    // RunContainer + WithImage estão deprecated (modules/postgres/postgres.go:139).
+    pg, err := tcpostgres.Run(ctx, "postgres:16-alpine",
         tcpostgres.WithDatabase("test"),
         tcpostgres.WithUsername("test"),
         tcpostgres.WithPassword("test"),
+        tcpostgres.BasicWaitStrategies(),
     )
+    testcontainers.CleanupContainer(t, pg) // registra o Terminate mesmo quando err != nil
     require.NoError(t, err)
-    t.Cleanup(func() { _ = pg.Terminate(ctx) })
 
     dsn, err := pg.ConnectionString(ctx, "sslmode=disable")
     require.NoError(t, err)
@@ -637,7 +641,7 @@ Sem `-coverpkg`, só conta cobertura do pacote sob teste. `-coverpkg=./...` cont
 ## Nomenclatura sugerida
 
 | Tipo | Função | Exemplo |
-|------|--------|---------|
+| ------ | -------- | --------- |
 | Use case | `Test[UseCase]_[scenario]` | `TestCreateUser_validData` |
 | Handler | `Test[Handler]_[Action]` | `TestUserHandler_Create` |
 | Repositório | `Test[Repo]_[Method]` | `TestUserRepository_FindByEmail` |

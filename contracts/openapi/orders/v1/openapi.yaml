@@ -1,0 +1,232 @@
+openapi: 3.1.0
+info:
+  title: Orders — reference API of the DMPF kernel
+  version: 1.0.0
+  description: >-
+    HTTP edge of the orders example served by apps/backend/dmpf-reference.
+    Every route of the service references one operation of this document
+    (RST-04). Writes are idempotent by Idempotency-Key (RST-02); reads run
+    outside any transaction (UOW-11). The contract is registered under
+    contracts/openapi/ (REP-06) and is not covered by the Buf gates.
+servers:
+  - url: http://localhost:8080
+    description: local dmpf-reference --role api
+paths:
+  /orders/{id}/items:
+    post:
+      operationId: addItem
+      summary: Add one item to the order, creating it on the first item
+      parameters:
+        - $ref: '#/components/parameters/OrderID'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/CorrelationID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddItemRequest'
+      responses:
+        '201':
+          description: Item accepted; the order and its item count
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ItemAccepted'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/VersionConflict'
+        '422':
+          $ref: '#/components/responses/Rejected'
+        '429':
+          $ref: '#/components/responses/AdmissionRefused'
+        default:
+          $ref: '#/components/responses/Failure'
+  /orders/{id}/place:
+    post:
+      operationId: placeOrder
+      summary: Place the order
+      parameters:
+        - $ref: '#/components/parameters/OrderID'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/CorrelationID'
+      responses:
+        '200':
+          description: Order placed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlacedResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/Rejected'
+        '429':
+          $ref: '#/components/responses/AdmissionRefused'
+        default:
+          $ref: '#/components/responses/Failure'
+  /orders/{id}:
+    get:
+      operationId: findOrder
+      summary: Read the observable state of the order
+      parameters:
+        - $ref: '#/components/parameters/OrderID'
+        - $ref: '#/components/parameters/CorrelationID'
+      responses:
+        '200':
+          description: Current snapshot of the order
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/AdmissionRefused'
+        default:
+          $ref: '#/components/responses/Failure'
+components:
+  parameters:
+    OrderID:
+      name: id
+      in: path
+      required: true
+      description: Identifier of the order aggregate; the client mints it (RFC §9.3)
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+        pattern: '^[A-Za-z0-9._:-]+$'
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: >-
+        Client-chosen key that makes the POST idempotent (RST-02). A POST
+        without it is refused with 400 before the service runs.
+      schema:
+        type: string
+        minLength: 1
+    CorrelationID:
+      name: X-Correlation-ID
+      in: header
+      required: false
+      description: >-
+        Correlation of the whole chain the request starts (ENV-08). When absent
+        or outside this shape the edge mints one; the value used is echoed back
+        in the same header and written to the outbox as correlationid.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+        pattern: '^[A-Za-z0-9._-]+$'
+  schemas:
+    AddItemRequest:
+      type: object
+      required: [sku, quantity]
+      additionalProperties: false
+      properties:
+        sku:
+          type: string
+          minLength: 1
+          maxLength: 128
+        quantity:
+          type: integer
+          minimum: 1
+    ItemAccepted:
+      type: object
+      required: [order, items]
+      properties:
+        order:
+          type: string
+        items:
+          type: integer
+          description: Item count after the addition
+    PlacedResponse:
+      type: object
+      required: [order]
+      properties:
+        order:
+          type: string
+    Item:
+      type: object
+      required: [sku, quantity]
+      properties:
+        sku:
+          type: string
+        quantity:
+          type: integer
+    Order:
+      type: object
+      required: [id, status, itemLimit, items]
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+          enum: [open, placed]
+        itemLimit:
+          type: integer
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Item'
+    Rejection:
+      type: object
+      required: [code, message]
+      description: >-
+        A refusal the domain or the edge declared. Domain codes take the
+        "context/reason" form (FND-03 §5.3); the edge adds its own for
+        requests it refuses before the service runs.
+      properties:
+        code:
+          type: string
+          examples:
+            - orders/item-limit-exceeded
+            - orders/empty-order
+            - orders/order-not-open
+            - missing-idempotency-key
+            - invalid-request
+            - malformed-body
+        message:
+          type: string
+  responses:
+    BadRequest:
+      description: The request is malformed or misses Idempotency-Key
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Rejection'
+    NotFound:
+      description: No order with this id
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Rejection'
+    VersionConflict:
+      description: A concurrent write advanced the order; replay the request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Rejection'
+    Rejected:
+      description: The domain refused the command (a business rejection, not a failure)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Rejection'
+    AdmissionRefused:
+      description: Admission control refused the request before reading the body (RES-17)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Rejection'
+    Failure:
+      description: Technical failure; the body carries no internal detail (ERR-20)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Rejection'

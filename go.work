@@ -1,1 +1,24 @@
-go 1.25
+go 1.26.6
+
+use (
+	./apps/backend/dmpf-reference
+	./libs/backend/go/bookings/app
+	./libs/backend/go/bookings/application
+	./libs/backend/go/bookings/domain
+	./libs/backend/go/bookings/ports
+	./libs/backend/go/bookings/provider
+	./libs/backend/go/dmpf-app
+	./libs/backend/go/dmpf-application
+	./libs/backend/go/dmpf-conformance
+	./libs/backend/go/dmpf-contracts
+	./libs/backend/go/dmpf-domain
+	./libs/backend/go/dmpf-observability
+	./libs/backend/go/dmpf-ports
+	./libs/backend/go/dmpf-provider-grpc
+	./libs/backend/go/dmpf-provider-http
+	./libs/backend/go/dmpf-provider-kafka
+	./libs/backend/go/dmpf-provider-postgres
+	./libs/backend/go/dmpf-provider-sqs
+	./libs/backend/go/dmpf-testkit
+	./libs/backend/go/dmpf-transport
+)

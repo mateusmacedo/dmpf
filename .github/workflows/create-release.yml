@@ -24,7 +24,7 @@ permissions:
 jobs:
   create-release:
     name: Create Release Branch
-    runs-on: gitea-runner
+    runs-on: ubuntu-latest
     timeout-minutes: 10
 
     steps:
@@ -110,24 +110,18 @@ jobs:
           git checkout -b "$BRANCH"
           git push origin "$BRANCH"
 
-      - name: Open pull request (Gitea API)
+      - name: Open pull request
         env:
-          GITEA_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION="${{ steps.version.outputs.value }}"
           BUMP="${{ steps.bump.outputs.value }}"
 
           BODY=$(printf '## Release %s\n\n**Bump type:** %s\n\n### Checklist\n\n- [ ] Features validadas em `develop`\n- [ ] Features mergeadas nesta branch\n- [ ] QA aprovado em homologação\n- [ ] Changelog revisado\n\n---\n> Branch criada automaticamente via workflow *Create Release Branch*\n' "$VERSION" "$BUMP")
 
-          jq -n \
-            --arg base "master" \
-            --arg head "release/${VERSION}" \
-            --arg title "release: ${VERSION}" \
-            --arg body "$BODY" \
-            '{base: $base, head: $head, title: $title, body: $body}' \
-          | curl -fsS -X POST \
-              "${GITHUB_SERVER_URL}/api/v1/repos/${GITHUB_REPOSITORY}/pulls" \
-              -H "Authorization: token ${GITEA_TOKEN}" \
-              -H "Content-Type: application/json" \
-              -H "Accept: application/json" \
-              --data-binary @-
+          gh pr create \
+            --base master \
+            --head "release/${VERSION}" \
+            --title "release: ${VERSION}" \
+            --body "$BODY" \
+            --assignee "${{ github.actor }}"

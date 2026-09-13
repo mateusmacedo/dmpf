@@ -1,0 +1,944 @@
+{
+  "header": {
+    "schema": "dmpf/evidence@1",
+    "release": "0.1.0",
+    "subject": "golden",
+    "commit": "4b491e1633aef7b70385bb64322f85e34b2044bf",
+    "goversion": "1.26.6",
+    "tags": [],
+    "packages": [
+      "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/golden"
+    ],
+    "modules": [
+      {
+        "path": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts",
+        "version": "0.0.0"
+      },
+      {
+        "path": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-domain",
+        "version": "0.0.0"
+      },
+      {
+        "path": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit",
+        "version": "0.0.0"
+      }
+    ],
+    "externals": [
+      {
+        "package": "google.golang.org/protobuf",
+        "version": "v1.36.12"
+      }
+    ],
+    "tools": [
+      {
+        "identity": "github.com/bufbuild/buf/cmd/buf",
+        "version": "v1.72.0"
+      },
+      {
+        "identity": "google.golang.org/protobuf/cmd/protoc-gen-go",
+        "version": "v1.36.12"
+      }
+    ]
+  },
+  "body": {
+    "tests": [
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/golden",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/golden",
+        "test": "TestFixtureIsInSyncWithGenerator",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/golden",
+        "test": "TestFixtureIsInSyncWithGenerator/orders/event/v1/item-added",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/golden",
+        "test": "TestFixtureIsInSyncWithGenerator/orders/event/v1/order-placed",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/golden",
+        "test": "TestFixtureIsInSyncWithGenerator/reservations/event/v1/reservation-confirmed",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/golden",
+        "test": "TestFixtureRejectsUnknownFormatVersion",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/golden",
+        "test": "TestFixtureRejectsUnknownFormatVersion/orders/event/v1/item-added",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/golden",
+        "test": "TestFixtureRejectsUnknownFormatVersion/orders/event/v1/order-placed",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/golden",
+        "test": "TestFixtureRejectsUnknownFormatVersion/reservations/event/v1/reservation-confirmed",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/golden",
+        "test": "TestFixtureShape",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/golden",
+        "test": "TestFixtureShape/orders/event/v1/item-added",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/golden",
+        "test": "TestFixtureShape/orders/event/v1/order-placed",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/golden",
+        "test": "TestFixtureShape/reservations/event/v1/reservation-confirmed",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/golden",
+        "test": "TestGoldenRoundTrip",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/golden",
+        "test": "TestGoldenRoundTrip/orders/event/v1/item-added",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/golden",
+        "test": "TestGoldenRoundTrip/orders/event/v1/order-placed",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/golden",
+        "test": "TestGoldenRoundTrip/reservations/event/v1/reservation-confirmed",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/golden",
+        "test": "TestHashOverBytesNotOverStructure",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/golden",
+        "test": "TestHashOverBytesNotOverStructure/orders/event/v1/item-added",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/golden",
+        "test": "TestHashOverBytesNotOverStructure/orders/event/v1/order-placed",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/golden",
+        "test": "TestHashOverBytesNotOverStructure/reservations/event/v1/reservation-confirmed",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/golden",
+        "test": "TestInt64BeyondDoublePrecision",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/golden",
+        "test": "TestOneFixturePerContractMajor",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/golden",
+        "test": "TestUnknownEnumValueDecodes",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/golden",
+        "test": "TestUnknownFieldIsPreservedAndHashed",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/golden",
+        "test": "TestUnknownFieldIsPreservedAndHashed/orders/event/v1/item-added",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/golden",
+        "test": "TestUnknownFieldIsPreservedAndHashed/orders/event/v1/order-placed",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/golden",
+        "test": "TestUnknownFieldIsPreservedAndHashed/reservations/event/v1/reservation-confirmed",
+        "action": "pass"
+      }
+    ],
+    "records": {
+      "orders-event-v1-item-added": {
+        "outcomes": [
+          {
+            "fixture": "orders/event/v1/item-added",
+            "case": "all-conditionals-absent",
+            "direction": "consumer",
+            "oracle": 1,
+            "code": "DMPF-R001",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/item-added",
+            "case": "all-conditionals-absent",
+            "direction": "consumer",
+            "oracle": 2,
+            "code": "DMPF-R002",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/item-added",
+            "case": "all-conditionals-absent",
+            "direction": "consumer",
+            "oracle": 3,
+            "code": "DMPF-R003",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/item-added",
+            "case": "all-conditionals-absent",
+            "direction": "producer",
+            "oracle": 1,
+            "code": "DMPF-R001",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/item-added",
+            "case": "all-conditionals-absent",
+            "direction": "producer",
+            "oracle": 2,
+            "code": "DMPF-R002",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/item-added",
+            "case": "all-conditionals-absent",
+            "direction": "producer",
+            "oracle": 3,
+            "code": "DMPF-R003",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/item-added",
+            "case": "all-conditionals-present",
+            "direction": "consumer",
+            "oracle": 1,
+            "code": "DMPF-R001",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/item-added",
+            "case": "all-conditionals-present",
+            "direction": "consumer",
+            "oracle": 2,
+            "code": "DMPF-R002",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/item-added",
+            "case": "all-conditionals-present",
+            "direction": "consumer",
+            "oracle": 3,
+            "code": "DMPF-R003",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/item-added",
+            "case": "all-conditionals-present",
+            "direction": "producer",
+            "oracle": 1,
+            "code": "DMPF-R001",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/item-added",
+            "case": "all-conditionals-present",
+            "direction": "producer",
+            "oracle": 2,
+            "code": "DMPF-R002",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/item-added",
+            "case": "all-conditionals-present",
+            "direction": "producer",
+            "oracle": 3,
+            "code": "DMPF-R003",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/item-added",
+            "case": "non-canonical-field-order",
+            "direction": "consumer",
+            "oracle": 1,
+            "code": "DMPF-R001",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/item-added",
+            "case": "non-canonical-field-order",
+            "direction": "consumer",
+            "oracle": 2,
+            "code": "DMPF-R002",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/item-added",
+            "case": "non-canonical-field-order",
+            "direction": "consumer",
+            "oracle": 3,
+            "code": "DMPF-R003",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/item-added",
+            "case": "quantity-zero",
+            "direction": "consumer",
+            "oracle": 1,
+            "code": "DMPF-R001",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/item-added",
+            "case": "quantity-zero",
+            "direction": "consumer",
+            "oracle": 2,
+            "code": "DMPF-R002",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/item-added",
+            "case": "quantity-zero",
+            "direction": "consumer",
+            "oracle": 3,
+            "code": "DMPF-R003",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/item-added",
+            "case": "quantity-zero",
+            "direction": "producer",
+            "oracle": 1,
+            "code": "DMPF-R001",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/item-added",
+            "case": "quantity-zero",
+            "direction": "producer",
+            "oracle": 2,
+            "code": "DMPF-R002",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/item-added",
+            "case": "quantity-zero",
+            "direction": "producer",
+            "oracle": 3,
+            "code": "DMPF-R003",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/item-added",
+            "case": "unknown-field",
+            "direction": "consumer",
+            "oracle": 1,
+            "code": "DMPF-R001",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/item-added",
+            "case": "unknown-field",
+            "direction": "consumer",
+            "oracle": 2,
+            "code": "DMPF-R002",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/item-added",
+            "case": "unknown-field",
+            "direction": "consumer",
+            "oracle": 3,
+            "code": "DMPF-R003",
+            "ok": true
+          }
+        ]
+      },
+      "orders-event-v1-order-placed": {
+        "outcomes": [
+          {
+            "fixture": "orders/event/v1/order-placed",
+            "case": "all-conditionals-absent",
+            "direction": "consumer",
+            "oracle": 1,
+            "code": "DMPF-R001",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/order-placed",
+            "case": "all-conditionals-absent",
+            "direction": "consumer",
+            "oracle": 2,
+            "code": "DMPF-R002",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/order-placed",
+            "case": "all-conditionals-absent",
+            "direction": "consumer",
+            "oracle": 3,
+            "code": "DMPF-R003",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/order-placed",
+            "case": "all-conditionals-absent",
+            "direction": "producer",
+            "oracle": 1,
+            "code": "DMPF-R001",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/order-placed",
+            "case": "all-conditionals-absent",
+            "direction": "producer",
+            "oracle": 2,
+            "code": "DMPF-R002",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/order-placed",
+            "case": "all-conditionals-absent",
+            "direction": "producer",
+            "oracle": 3,
+            "code": "DMPF-R003",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/order-placed",
+            "case": "all-conditionals-present",
+            "direction": "consumer",
+            "oracle": 1,
+            "code": "DMPF-R001",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/order-placed",
+            "case": "all-conditionals-present",
+            "direction": "consumer",
+            "oracle": 2,
+            "code": "DMPF-R002",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/order-placed",
+            "case": "all-conditionals-present",
+            "direction": "consumer",
+            "oracle": 3,
+            "code": "DMPF-R003",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/order-placed",
+            "case": "all-conditionals-present",
+            "direction": "producer",
+            "oracle": 1,
+            "code": "DMPF-R001",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/order-placed",
+            "case": "all-conditionals-present",
+            "direction": "producer",
+            "oracle": 2,
+            "code": "DMPF-R002",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/order-placed",
+            "case": "all-conditionals-present",
+            "direction": "producer",
+            "oracle": 3,
+            "code": "DMPF-R003",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/order-placed",
+            "case": "channel-unspecified",
+            "direction": "consumer",
+            "oracle": 1,
+            "code": "DMPF-R001",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/order-placed",
+            "case": "channel-unspecified",
+            "direction": "consumer",
+            "oracle": 2,
+            "code": "DMPF-R002",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/order-placed",
+            "case": "channel-unspecified",
+            "direction": "consumer",
+            "oracle": 3,
+            "code": "DMPF-R003",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/order-placed",
+            "case": "channel-unspecified",
+            "direction": "producer",
+            "oracle": 1,
+            "code": "DMPF-R001",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/order-placed",
+            "case": "channel-unspecified",
+            "direction": "producer",
+            "oracle": 2,
+            "code": "DMPF-R002",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/order-placed",
+            "case": "channel-unspecified",
+            "direction": "producer",
+            "oracle": 3,
+            "code": "DMPF-R003",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/order-placed",
+            "case": "enum-unknown-value",
+            "direction": "consumer",
+            "oracle": 1,
+            "code": "DMPF-R001",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/order-placed",
+            "case": "enum-unknown-value",
+            "direction": "consumer",
+            "oracle": 2,
+            "code": "DMPF-R002",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/order-placed",
+            "case": "enum-unknown-value",
+            "direction": "consumer",
+            "oracle": 3,
+            "code": "DMPF-R003",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/order-placed",
+            "case": "item-count-present",
+            "direction": "consumer",
+            "oracle": 1,
+            "code": "DMPF-R001",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/order-placed",
+            "case": "item-count-present",
+            "direction": "consumer",
+            "oracle": 2,
+            "code": "DMPF-R002",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/order-placed",
+            "case": "item-count-present",
+            "direction": "consumer",
+            "oracle": 3,
+            "code": "DMPF-R003",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/order-placed",
+            "case": "item-count-present",
+            "direction": "producer",
+            "oracle": 1,
+            "code": "DMPF-R001",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/order-placed",
+            "case": "item-count-present",
+            "direction": "producer",
+            "oracle": 2,
+            "code": "DMPF-R002",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/order-placed",
+            "case": "item-count-present",
+            "direction": "producer",
+            "oracle": 3,
+            "code": "DMPF-R003",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/order-placed",
+            "case": "non-canonical-field-order",
+            "direction": "consumer",
+            "oracle": 1,
+            "code": "DMPF-R001",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/order-placed",
+            "case": "non-canonical-field-order",
+            "direction": "consumer",
+            "oracle": 2,
+            "code": "DMPF-R002",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/order-placed",
+            "case": "non-canonical-field-order",
+            "direction": "consumer",
+            "oracle": 3,
+            "code": "DMPF-R003",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/order-placed",
+            "case": "time-with-nanos",
+            "direction": "consumer",
+            "oracle": 1,
+            "code": "DMPF-R001",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/order-placed",
+            "case": "time-with-nanos",
+            "direction": "consumer",
+            "oracle": 2,
+            "code": "DMPF-R002",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/order-placed",
+            "case": "time-with-nanos",
+            "direction": "consumer",
+            "oracle": 3,
+            "code": "DMPF-R003",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/order-placed",
+            "case": "time-with-nanos",
+            "direction": "producer",
+            "oracle": 1,
+            "code": "DMPF-R001",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/order-placed",
+            "case": "time-with-nanos",
+            "direction": "producer",
+            "oracle": 2,
+            "code": "DMPF-R002",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/order-placed",
+            "case": "time-with-nanos",
+            "direction": "producer",
+            "oracle": 3,
+            "code": "DMPF-R003",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/order-placed",
+            "case": "total-cents-beyond-double",
+            "direction": "consumer",
+            "oracle": 1,
+            "code": "DMPF-R001",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/order-placed",
+            "case": "total-cents-beyond-double",
+            "direction": "consumer",
+            "oracle": 2,
+            "code": "DMPF-R002",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/order-placed",
+            "case": "total-cents-beyond-double",
+            "direction": "consumer",
+            "oracle": 3,
+            "code": "DMPF-R003",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/order-placed",
+            "case": "total-cents-beyond-double",
+            "direction": "producer",
+            "oracle": 1,
+            "code": "DMPF-R001",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/order-placed",
+            "case": "total-cents-beyond-double",
+            "direction": "producer",
+            "oracle": 2,
+            "code": "DMPF-R002",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/order-placed",
+            "case": "total-cents-beyond-double",
+            "direction": "producer",
+            "oracle": 3,
+            "code": "DMPF-R003",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/order-placed",
+            "case": "unknown-field",
+            "direction": "consumer",
+            "oracle": 1,
+            "code": "DMPF-R001",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/order-placed",
+            "case": "unknown-field",
+            "direction": "consumer",
+            "oracle": 2,
+            "code": "DMPF-R002",
+            "ok": true
+          },
+          {
+            "fixture": "orders/event/v1/order-placed",
+            "case": "unknown-field",
+            "direction": "consumer",
+            "oracle": 3,
+            "code": "DMPF-R003",
+            "ok": true
+          }
+        ]
+      },
+      "reservations-event-v1-reservation-confirmed": {
+        "outcomes": [
+          {
+            "fixture": "reservations/event/v1/reservation-confirmed",
+            "case": "all-conditionals-absent",
+            "direction": "consumer",
+            "oracle": 1,
+            "code": "DMPF-R001",
+            "ok": true
+          },
+          {
+            "fixture": "reservations/event/v1/reservation-confirmed",
+            "case": "all-conditionals-absent",
+            "direction": "consumer",
+            "oracle": 2,
+            "code": "DMPF-R002",
+            "ok": true
+          },
+          {
+            "fixture": "reservations/event/v1/reservation-confirmed",
+            "case": "all-conditionals-absent",
+            "direction": "consumer",
+            "oracle": 3,
+            "code": "DMPF-R003",
+            "ok": true
+          },
+          {
+            "fixture": "reservations/event/v1/reservation-confirmed",
+            "case": "all-conditionals-absent",
+            "direction": "producer",
+            "oracle": 1,
+            "code": "DMPF-R001",
+            "ok": true
+          },
+          {
+            "fixture": "reservations/event/v1/reservation-confirmed",
+            "case": "all-conditionals-absent",
+            "direction": "producer",
+            "oracle": 2,
+            "code": "DMPF-R002",
+            "ok": true
+          },
+          {
+            "fixture": "reservations/event/v1/reservation-confirmed",
+            "case": "all-conditionals-absent",
+            "direction": "producer",
+            "oracle": 3,
+            "code": "DMPF-R003",
+            "ok": true
+          },
+          {
+            "fixture": "reservations/event/v1/reservation-confirmed",
+            "case": "all-conditionals-present",
+            "direction": "consumer",
+            "oracle": 1,
+            "code": "DMPF-R001",
+            "ok": true
+          },
+          {
+            "fixture": "reservations/event/v1/reservation-confirmed",
+            "case": "all-conditionals-present",
+            "direction": "consumer",
+            "oracle": 2,
+            "code": "DMPF-R002",
+            "ok": true
+          },
+          {
+            "fixture": "reservations/event/v1/reservation-confirmed",
+            "case": "all-conditionals-present",
+            "direction": "consumer",
+            "oracle": 3,
+            "code": "DMPF-R003",
+            "ok": true
+          },
+          {
+            "fixture": "reservations/event/v1/reservation-confirmed",
+            "case": "all-conditionals-present",
+            "direction": "producer",
+            "oracle": 1,
+            "code": "DMPF-R001",
+            "ok": true
+          },
+          {
+            "fixture": "reservations/event/v1/reservation-confirmed",
+            "case": "all-conditionals-present",
+            "direction": "producer",
+            "oracle": 2,
+            "code": "DMPF-R002",
+            "ok": true
+          },
+          {
+            "fixture": "reservations/event/v1/reservation-confirmed",
+            "case": "all-conditionals-present",
+            "direction": "producer",
+            "oracle": 3,
+            "code": "DMPF-R003",
+            "ok": true
+          },
+          {
+            "fixture": "reservations/event/v1/reservation-confirmed",
+            "case": "item-count-zero",
+            "direction": "consumer",
+            "oracle": 1,
+            "code": "DMPF-R001",
+            "ok": true
+          },
+          {
+            "fixture": "reservations/event/v1/reservation-confirmed",
+            "case": "item-count-zero",
+            "direction": "consumer",
+            "oracle": 2,
+            "code": "DMPF-R002",
+            "ok": true
+          },
+          {
+            "fixture": "reservations/event/v1/reservation-confirmed",
+            "case": "item-count-zero",
+            "direction": "consumer",
+            "oracle": 3,
+            "code": "DMPF-R003",
+            "ok": true
+          },
+          {
+            "fixture": "reservations/event/v1/reservation-confirmed",
+            "case": "item-count-zero",
+            "direction": "producer",
+            "oracle": 1,
+            "code": "DMPF-R001",
+            "ok": true
+          },
+          {
+            "fixture": "reservations/event/v1/reservation-confirmed",
+            "case": "item-count-zero",
+            "direction": "producer",
+            "oracle": 2,
+            "code": "DMPF-R002",
+            "ok": true
+          },
+          {
+            "fixture": "reservations/event/v1/reservation-confirmed",
+            "case": "item-count-zero",
+            "direction": "producer",
+            "oracle": 3,
+            "code": "DMPF-R003",
+            "ok": true
+          },
+          {
+            "fixture": "reservations/event/v1/reservation-confirmed",
+            "case": "non-canonical-field-order",
+            "direction": "consumer",
+            "oracle": 1,
+            "code": "DMPF-R001",
+            "ok": true
+          },
+          {
+            "fixture": "reservations/event/v1/reservation-confirmed",
+            "case": "non-canonical-field-order",
+            "direction": "consumer",
+            "oracle": 2,
+            "code": "DMPF-R002",
+            "ok": true
+          },
+          {
+            "fixture": "reservations/event/v1/reservation-confirmed",
+            "case": "non-canonical-field-order",
+            "direction": "consumer",
+            "oracle": 3,
+            "code": "DMPF-R003",
+            "ok": true
+          },
+          {
+            "fixture": "reservations/event/v1/reservation-confirmed",
+            "case": "unknown-field",
+            "direction": "consumer",
+            "oracle": 1,
+            "code": "DMPF-R001",
+            "ok": true
+          },
+          {
+            "fixture": "reservations/event/v1/reservation-confirmed",
+            "case": "unknown-field",
+            "direction": "consumer",
+            "oracle": 2,
+            "code": "DMPF-R002",
+            "ok": true
+          },
+          {
+            "fixture": "reservations/event/v1/reservation-confirmed",
+            "case": "unknown-field",
+            "direction": "consumer",
+            "oracle": 3,
+            "code": "DMPF-R003",
+            "ok": true
+          }
+        ]
+      }
+    }
+  }
+}

@@ -78,8 +78,8 @@ formato `SPEC-NNN-...` continuam válidas — mantenha o nome como está.
 Exemplos deste repositório:
 
 - `SPEC-YWAWQHPX-melhorias-template-base-nx.md`
-- `SPEC-W4RWD02M-evoluir-workflows-com-lidercap.md`
-- `SPEC-4NR9KKS8-portar-melhorias-telesena-monorepo.md`
+- `SPEC-W4RWD02M-evoluir-workflows-com-monorepo-referencia.md`
+- `a spec de port do monorepo de origem.md`
 
 ### Formato de requisitos (checklist com prioridade)
 
@@ -176,6 +176,22 @@ DADO / QUANDO / ENTÃO
 ## Escopo fora
 - **[Feature X]**: justificativa
 ```
+
+## Specs de bounded context
+
+Uma spec de bounded context descreve **um modelo** (agregados, comandos,
+eventos, integração), não uma mudança. Ela segue um template próprio, guardado
+na skill que a consome:
+`.agents/skills/dmpf-bounded-context/references/template-bounded-context.md`.
+
+- O frontmatter é o mesmo de qualquer spec (nove campos), então
+  `spec-query.sh` a lista normalmente.
+- O catálogo a distingue pelo título, que começa com `Bounded context —`, e
+  pela seção **Identidade**, obrigatória.
+- O corpo tem dez seções fixas; `/dmpf-new-context SPEC-<id>` valida todas e
+  recusa a spec nomeando a que faltar.
+- A spec preenchida vive aqui, em `docs/specs/`, como as demais. Exemplo:
+  `SPEC-AHPRBZCT-bookings.md`, o golden do harness.
 
 ## Checklist de qualidade
 

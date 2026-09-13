@@ -1,0 +1,101 @@
+{
+  "format_version": "1",
+  "identity": {
+    "context": "reservations",
+    "aggregate": "reservation"
+  },
+  "cases": [
+    {
+      "name": "reserve-accepted",
+      "doc": "Ramo Accepted de Reserve: reserva pendente confirma dois itens; um reservation-confirmed na sequência.",
+      "state_before": {
+        "order": "r-1",
+        "items": "0",
+        "status": "pending"
+      },
+      "command": {
+        "upr": "reserve",
+        "items": "2",
+        "at": "1755432000"
+      },
+      "expected": {
+        "branch": "accepted",
+        "response": {
+          "order": "r-1",
+          "items": "2"
+        },
+        "events": [
+          {
+            "name": "reservations.reservation-confirmed",
+            "fields": {
+              "order": "r-1",
+              "items": "2",
+              "at": "1755432000"
+            }
+          }
+        ],
+        "state_after": {
+          "order": "r-1",
+          "items": "2",
+          "status": "confirmed"
+        }
+      }
+    },
+    {
+      "name": "reserve-nothing",
+      "doc": "Ramo Rejected de Reserve: zero itens não reservam nada; estado inalterado.",
+      "state_before": {
+        "order": "r-1",
+        "items": "0",
+        "status": "pending"
+      },
+      "command": {
+        "upr": "reserve",
+        "items": "0",
+        "at": "1755432000"
+      },
+      "expected": {
+        "branch": "rejected",
+        "rejection": {
+          "code": "reservations/nothing-to-reserve",
+          "message": "nothing to reserve",
+          "details": {}
+        },
+        "events": [],
+        "state_after": {
+          "order": "r-1",
+          "items": "0",
+          "status": "pending"
+        }
+      }
+    },
+    {
+      "name": "reserve-already-reserved",
+      "doc": "Ramo Rejected de Reserve: reserva confirmada não aceita nova confirmação.",
+      "state_before": {
+        "order": "r-1",
+        "items": "2",
+        "status": "confirmed"
+      },
+      "command": {
+        "upr": "reserve",
+        "items": "1",
+        "at": "1755432000"
+      },
+      "expected": {
+        "branch": "rejected",
+        "rejection": {
+          "code": "reservations/already-reserved",
+          "message": "reservation is already confirmed",
+          "details": {}
+        },
+        "events": [],
+        "state_after": {
+          "order": "r-1",
+          "items": "2",
+          "status": "confirmed"
+        }
+      }
+    }
+  ]
+}

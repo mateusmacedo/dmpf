@@ -1,0 +1,129 @@
+{
+  "name": "dmpf-contracts-go",
+  "$schema": "../../../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "library",
+  "sourceRoot": "libs/backend/go/dmpf-contracts",
+  "tags": ["type:lib", "scope:backend", "stack:go", "layer:contract"],
+  "targets": {
+    "fmt-check": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "inputs": ["go", "^go", "{workspaceRoot}/contracts/**", "{workspaceRoot}/tools/buf.sh"],
+      "options": {
+        "command": "saida=\"$(gofmt -l . 2>&1)\"; status=$?; [ $status -eq 0 ] || { printf '%s\\n' \"$saida\" >&2; exit $status; }; [ -z \"$saida\" ] || { printf '%s\\n' \"$saida\" >&2; exit 1; }",
+        "cwd": "{projectRoot}"
+      }
+    },
+    "vet": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "inputs": ["go", "^go", "{workspaceRoot}/contracts/**", "{workspaceRoot}/tools/buf.sh"],
+      "options": {
+        "command": "go vet ./...",
+        "cwd": "{projectRoot}"
+      }
+    },
+    "build": {
+      "executor": "nx:run-commands",
+      "inputs": ["go", "^go", "{workspaceRoot}/contracts/**", "{workspaceRoot}/tools/buf.sh"],
+      "options": {
+        "command": "go build ./...",
+        "cwd": "{projectRoot}"
+      }
+    },
+    "test-race": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "inputs": ["go", "^go", "{workspaceRoot}/contracts/**", "{workspaceRoot}/tools/buf.sh"],
+      "options": {
+        "command": "go test -race ./...",
+        "cwd": "{projectRoot}"
+      }
+    },
+    "govulncheck": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 ./...",
+        "cwd": "{projectRoot}"
+      }
+    },
+    "buf-warmup": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bash tools/buf-gate.sh warmup"
+      }
+    },
+    "buf-lint": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "dependsOn": ["buf-warmup"],
+      "inputs": [
+        "{workspaceRoot}/contracts/**",
+        "{workspaceRoot}/tools/buf.sh",
+        "{workspaceRoot}/tools/buf-gate.sh",
+        "{projectRoot}/**/*"
+      ],
+      "options": {
+        "command": "bash tools/buf-gate.sh lint"
+      }
+    },
+    "buf-pins": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "inputs": [
+        "{workspaceRoot}/contracts/**",
+        "{workspaceRoot}/tools/buf.sh",
+        "{workspaceRoot}/tools/buf-gate.sh",
+        "{projectRoot}/go.mod"
+      ],
+      "options": {
+        "command": "bash tools/buf-gate.sh pins"
+      }
+    },
+    "buf-generate-check": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "dependsOn": ["buf-warmup"],
+      "inputs": [
+        "{workspaceRoot}/contracts/**",
+        "{workspaceRoot}/tools/buf.sh",
+        "{workspaceRoot}/tools/buf-gate.sh",
+        "{projectRoot}/gen/**/*",
+        "{projectRoot}/go.mod"
+      ],
+      "options": {
+        "command": "bash tools/buf-gate.sh generate-check"
+      }
+    },
+    "buf-breaking": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "inputs": [
+        "{workspaceRoot}/contracts/**",
+        "{workspaceRoot}/tools/buf.sh",
+        "{workspaceRoot}/tools/buf-gate.sh"
+      ],
+      "options": {
+        "command": "bash tools/buf-gate.sh breaking"
+      }
+    },
+    "buf-gate-selftest": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "dependsOn": ["buf-warmup"],
+      "inputs": [
+        "{workspaceRoot}/contracts/**",
+        "{workspaceRoot}/tools/buf.sh",
+        "{workspaceRoot}/tools/buf-gate.sh",
+        "{workspaceRoot}/tools/tests/buf-gate/**",
+        "{projectRoot}/gen/**/*",
+        "{projectRoot}/go.mod"
+      ],
+      "options": {
+        "command": "bash tools/tests/buf-gate/buf-gate.test.sh"
+      }
+    }
+  }
+}

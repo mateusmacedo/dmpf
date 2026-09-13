@@ -1,5 +1,5 @@
 {
-  "name": "@nx-base-template/source",
+  "name": "@mateusmacedo/dmpf-source",
   "targets": {
     "lint": {
       "executor": "nx:noop"

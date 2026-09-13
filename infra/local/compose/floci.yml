@@ -1,0 +1,23 @@
+# floci emula SQS e SNS num único endpoint (dmpf-provider-sqs). Aceita qualquer
+# credencial não vazia; /_floci/health lista os serviços — mesmo gesto do CI.
+# Não expõe métricas Prometheus: quem o observa é o blackbox, por probe.
+services:
+  floci:
+    image: floci/floci:2.0.1
+    profiles: [floci, all]
+    ports:
+      - '${FLOCI_PORT:-4566}:4566'
+    volumes:
+      - floci-data:/app/data
+    healthcheck:
+      test: ['CMD', 'curl', '-sf', '-o', '/dev/null', 'http://localhost:4566/_floci/health']
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    deploy:
+      resources:
+        limits: { cpus: '0.50', memory: 512M }
+        reservations: { cpus: '0.10', memory: 128M }
+
+volumes:
+  floci-data:

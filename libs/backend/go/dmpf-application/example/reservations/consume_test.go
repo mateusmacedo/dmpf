@@ -1,0 +1,384 @@
+package reservationsapp_test
+
+import (
+	"context"
+	"errors"
+	"testing"
+
+	dmpfapplication "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application/example/memory"
+	reservationsapp "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application/example/reservations"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-domain/example/reservations"
+	dmpfports "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-ports"
+)
+
+const consumer = "reservations"
+
+func bind(tx *memory.Tx) reservationsapp.Resources {
+	return reservationsapp.Resources{
+		Inbox:        tx.Inbox(consumer),
+		Reservations: tx.Reservations(),
+		Outbox:       tx.Outbox(),
+	}
+}
+
+func newService(store *memory.Store) reservationsapp.Service {
+	return reservationsapp.Service{
+		UoW:       memory.NewUnitOfWork(store, bind),
+		Clock:     memory.FixedClock{At: 1_755_432_000_000_000_000},
+		IDs:       &memory.SequenceIDs{Prefix: "m-"},
+		Authorize: dmpfapplication.AllowAll[reservationsapp.Command](),
+		Consumer:  consumer,
+	}
+}
+
+func consumeOrderPlaced(id dmpfports.MessageID, hash string, order reservations.OrderID, items int) reservationsapp.ConsumeOrderPlaced {
+	return reservationsapp.ConsumeOrderPlaced{
+		MessageID: id, MessageType: "orders.order-placed", PayloadHash: hash, ReceivedAt: 1_755_431_000_000_000_000,
+		Order: order, Items: items,
+	}
+}
+
+// failingReservations wraps a real repository and fails every Save with
+// failure, which is how tests 3 and 4 reach D3/D4 without a broken aggregate.
+type failingReservations struct {
+	dmpfports.Repository[reservations.OrderID, reservations.Snapshot]
+	failure error
+}
+
+func (f failingReservations) Save(context.Context, reservations.OrderID, reservations.Snapshot, dmpfports.Version) error {
+	return f.failure
+}
+
+func newServiceWithFailingSave(store *memory.Store, failure error) reservationsapp.Service {
+	svc := newService(store)
+	svc.UoW = memory.NewUnitOfWork(store, func(tx *memory.Tx) reservationsapp.Resources {
+		res := bind(tx)
+		res.Reservations = failingReservations{Repository: res.Reservations, failure: failure}
+		return res
+	})
+	return svc
+}
+
+// neverCompletingInbox always returns a first reception whose Pending never
+// reports itself completed — the defect achado 3 of the external review covers.
+type neverCompletingInbox struct{}
+
+func (neverCompletingInbox) Register(context.Context, dmpfports.Receipt) (dmpfports.Reception, error) {
+	return dmpfports.FirstReception(brokenPending{}), nil
+}
+
+type brokenPending struct{}
+
+func (brokenPending) Complete(context.Context, dmpfports.Completion) error { return nil }
+func (brokenPending) Completed() bool                                      { return false }
+
+func newServiceWithBrokenInbox(store *memory.Store) reservationsapp.Service {
+	svc := newService(store)
+	svc.UoW = memory.NewUnitOfWork(store, func(tx *memory.Tx) reservationsapp.Resources {
+		res := bind(tx)
+		res.Inbox = neverCompletingInbox{}
+		return res
+	})
+	return svc
+}
+
+func requireNothingPersisted(t *testing.T, store *memory.Store) {
+	t.Helper()
+	if got := store.InboxRows(); got != 0 {
+		t.Fatalf("InboxRows() = %d, want 0", got)
+	}
+	if got := len(store.Entries()); got != 0 {
+		t.Fatalf("Entries() has %d elements, want 0", got)
+	}
+}
+
+func TestConsumeFirstReceptionAppliesAndConfirms(t *testing.T) {
+	store := memory.New()
+	svc := newService(store)
+
+	disp, err := svc.Consume(context.Background(), consumeOrderPlaced("m-ext-1", "h1", "P-100", 3))
+
+	if err != nil {
+		t.Fatalf("Consume() error = %v, want nil", err)
+	}
+	if disp != dmpfapplication.R1D1 {
+		t.Fatalf("Consume() disposition = %v, want %v", disp, dmpfapplication.R1D1)
+	}
+	snapshot, _, err := store.ReservationsReader().Load(context.Background(), "P-100")
+	if err != nil {
+		t.Fatalf("Load() = %v, want nil", err)
+	}
+	if snapshot.Status != reservations.Confirmed || snapshot.Items != 3 {
+		t.Fatalf("Snapshot = %+v, want Confirmed with 3 items", snapshot)
+	}
+	entries := store.Entries()
+	if len(entries) != 1 {
+		t.Fatalf("Entries() has %d elements, want 1", len(entries))
+	}
+	if _, ok := entries[0].Event.(reservations.ReservationConfirmed); !ok {
+		t.Fatalf("Entries()[0].Event = %T, want ReservationConfirmed", entries[0].Event)
+	}
+	status, ok := store.InboxStatus(consumer, "m-ext-1")
+	if !ok || status != dmpfports.StatusProcessed {
+		t.Fatalf("InboxStatus() = (%v, %v), want (processed, true)", status, ok)
+	}
+}
+
+// A consumer continues a chain: the adapter authored the consumed message as
+// the cause (FND-07 §8.6 item 3) and the service copies it as is; only when
+// nobody authored anything does the fact name itself (FND-05 ENV-08).
+func TestConsumeCopiesTheMessageContextIntoTheOutboxEntry(t *testing.T) {
+	const traceparent = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01"
+	tests := []struct {
+		name string
+		ctx  context.Context
+		want dmpfports.MessageContext
+	}{
+		{
+			name: "authored by the adapter",
+			ctx:  dmpfports.WithMessageContext(context.Background(), dmpfports.MessageContext{CorrelationID: "corr-1", CausationID: "m-ext-1", Traceparent: traceparent}),
+			want: dmpfports.MessageContext{CorrelationID: "corr-1", CausationID: "m-ext-1", Traceparent: traceparent},
+		},
+		{
+			name: "nothing authored",
+			ctx:  context.Background(),
+			want: dmpfports.MessageContext{CausationID: "m-000001"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store := memory.New()
+			svc := newService(store)
+
+			if _, err := svc.Consume(tt.ctx, consumeOrderPlaced("m-ext-1", "h1", "P-100", 3)); err != nil {
+				t.Fatalf("Consume() error = %v, want nil", err)
+			}
+
+			entries := store.Entries()
+			if len(entries) != 1 {
+				t.Fatalf("Entries() has %d elements, want 1", len(entries))
+			}
+			if entries[0].Context != tt.want {
+				t.Fatalf("Context = %+v, want %+v", entries[0].Context, tt.want)
+			}
+		})
+	}
+}
+
+func TestConsumeZeroItemsRejects(t *testing.T) {
+	store := memory.New()
+	svc := newService(store)
+
+	disp, err := svc.Consume(context.Background(), consumeOrderPlaced("m-ext-1", "h1", "P-100", 0))
+
+	if err != nil {
+		t.Fatalf("Consume() error = %v, want nil", err)
+	}
+	if disp != dmpfapplication.R1D2 {
+		t.Fatalf("Consume() disposition = %v, want %v", disp, dmpfapplication.R1D2)
+	}
+	status, ok := store.InboxStatus(consumer, "m-ext-1")
+	if !ok || status != dmpfports.StatusRejected {
+		t.Fatalf("InboxStatus() = (%v, %v), want (rejected, true)", status, ok)
+	}
+	if got, _ := store.InboxLastError(consumer, "m-ext-1"); got != string(reservations.CodeNothingToReserve) {
+		t.Fatalf("InboxLastError() = %q, want %q", got, reservations.CodeNothingToReserve)
+	}
+	if got := len(store.Entries()); got != 0 {
+		t.Fatalf("Entries() has %d elements, want 0", got)
+	}
+	if _, _, err := store.ReservationsReader().Load(context.Background(), "P-100"); !errors.Is(err, dmpfports.ErrNotFound) {
+		t.Fatalf("Load() = %v, want ErrNotFound — a rejection persists no reservation", err)
+	}
+}
+
+func TestConsumeATransientSaveFailureIsD3AndPersistsNothing(t *testing.T) {
+	store := memory.New()
+	failure := dmpfapplication.NewFailure(dmpfapplication.TransientDependency, true, errors.New("consume_test: dependency down"))
+	svc := newServiceWithFailingSave(store, failure)
+
+	disp, err := svc.Consume(context.Background(), consumeOrderPlaced("m-ext-1", "h1", "P-100", 3))
+
+	if !errors.Is(err, failure) {
+		t.Fatalf("Consume() error = %v, want the injected failure", err)
+	}
+	if disp != dmpfapplication.R1D3 {
+		t.Fatalf("Consume() disposition = %v, want %v", disp, dmpfapplication.R1D3)
+	}
+	requireNothingPersisted(t, store)
+}
+
+func TestConsumeATerminalSaveFailureIsD4AndPersistsNothing(t *testing.T) {
+	store := memory.New()
+	failure := dmpfapplication.NewFailure(dmpfapplication.Unexpected, false, errors.New("consume_test: boom"))
+	svc := newServiceWithFailingSave(store, failure)
+
+	disp, err := svc.Consume(context.Background(), consumeOrderPlaced("m-ext-1", "h1", "P-100", 3))
+
+	if !errors.Is(err, failure) {
+		t.Fatalf("Consume() error = %v, want the injected failure", err)
+	}
+	if disp != dmpfapplication.R1D4 {
+		t.Fatalf("Consume() disposition = %v, want %v", disp, dmpfapplication.R1D4)
+	}
+	requireNothingPersisted(t, store)
+}
+
+func TestConsumeRedeliveryOfAProcessedMessageIsR2(t *testing.T) {
+	store := memory.New()
+	svc := newService(store)
+	if _, err := svc.Consume(context.Background(), consumeOrderPlaced("m-ext-1", "h1", "P-100", 3)); err != nil {
+		t.Fatalf("setup Consume() = %v, want nil", err)
+	}
+
+	disp, err := svc.Consume(context.Background(), consumeOrderPlaced("m-ext-1", "h1", "P-100", 3))
+
+	if err != nil {
+		t.Fatalf("Consume() error = %v, want nil", err)
+	}
+	if disp != dmpfapplication.R2 {
+		t.Fatalf("Consume() disposition = %v, want %v", disp, dmpfapplication.R2)
+	}
+	if got := len(store.Entries()); got != 1 {
+		t.Fatalf("Entries() has %d elements, want 1 — no new outbox write", got)
+	}
+}
+
+func TestConsumeRedeliveryOfARejectedMessageIsR3(t *testing.T) {
+	store := memory.New()
+	svc := newService(store)
+	if _, err := svc.Consume(context.Background(), consumeOrderPlaced("m-ext-1", "h1", "P-100", 0)); err != nil {
+		t.Fatalf("setup Consume() = %v, want nil", err)
+	}
+
+	disp, err := svc.Consume(context.Background(), consumeOrderPlaced("m-ext-1", "h1", "P-100", 0))
+
+	if err != nil {
+		t.Fatalf("Consume() error = %v, want nil", err)
+	}
+	if disp != dmpfapplication.R3 {
+		t.Fatalf("Consume() disposition = %v, want %v", disp, dmpfapplication.R3)
+	}
+	if got := len(store.Entries()); got != 0 {
+		t.Fatalf("Entries() has %d elements, want 0 (INB-12): a rejection never reemits", got)
+	}
+}
+
+func TestConsumeADivergentHashOnAPresentKeyIsR4(t *testing.T) {
+	store := memory.New()
+	svc := newService(store)
+	if _, err := svc.Consume(context.Background(), consumeOrderPlaced("m-ext-1", "h1", "P-100", 3)); err != nil {
+		t.Fatalf("setup Consume() = %v, want nil", err)
+	}
+
+	disp, err := svc.Consume(context.Background(), consumeOrderPlaced("m-ext-1", "h2", "P-100", 3))
+
+	if err != nil {
+		t.Fatalf("Consume() error = %v, want nil", err)
+	}
+	if disp != dmpfapplication.R4 {
+		t.Fatalf("Consume() disposition = %v, want %v", disp, dmpfapplication.R4)
+	}
+	if got := len(store.Entries()); got != 1 {
+		t.Fatalf("Entries() has %d elements, want 1 — nothing written by the collision", got)
+	}
+}
+
+func TestConsumeAFailedCommitClassifiesToR1D4AndPersistsNothing(t *testing.T) {
+	store := memory.New()
+	store.FailNextCommit(errors.New("consume_test: commit refused"))
+	svc := newService(store)
+
+	disp, err := svc.Consume(context.Background(), consumeOrderPlaced("m-ext-1", "h1", "P-100", 3))
+
+	if err == nil {
+		t.Fatal("Consume() error = nil, want the commit failure")
+	}
+	if disp != dmpfapplication.R1D4 {
+		t.Fatalf("Consume() disposition = %v, want %v (INB-07)", disp, dmpfapplication.R1D4)
+	}
+	requireNothingPersisted(t, store)
+}
+
+func TestConsumeAPendingLeftUncompletedIsR1D4AndPersistsNothing(t *testing.T) {
+	store := memory.New()
+	svc := newServiceWithBrokenInbox(store)
+
+	disp, err := svc.Consume(context.Background(), consumeOrderPlaced("m-ext-1", "h1", "P-100", 3))
+
+	if !errors.Is(err, dmpfports.ErrPendingNotCompleted) {
+		t.Fatalf("Consume() error = %v, want ErrPendingNotCompleted", err)
+	}
+	if disp != dmpfapplication.R1D4 {
+		t.Fatalf("Consume() disposition = %v, want %v", disp, dmpfapplication.R1D4)
+	}
+	requireNothingPersisted(t, store)
+}
+
+func TestConsumeTwoMessagesForTheSameOrderReserveOnlyOnce(t *testing.T) {
+	store := memory.New()
+	svc := newService(store)
+	if _, err := svc.Consume(context.Background(), consumeOrderPlaced("m-ext-1", "h1", "P-100", 3)); err != nil {
+		t.Fatalf("first Consume() = %v, want nil", err)
+	}
+
+	disp, err := svc.Consume(context.Background(), consumeOrderPlaced("m-ext-2", "h2", "P-100", 5))
+
+	if err != nil {
+		t.Fatalf("second Consume() error = %v, want nil", err)
+	}
+	if disp != dmpfapplication.R1D2 {
+		t.Fatalf("second Consume() disposition = %v, want %v (GAR-10)", disp, dmpfapplication.R1D2)
+	}
+	if got, _ := store.InboxLastError(consumer, "m-ext-2"); got != string(reservations.CodeAlreadyReserved) {
+		t.Fatalf("InboxLastError() = %q, want %q", got, reservations.CodeAlreadyReserved)
+	}
+	snapshot, _, err := store.ReservationsReader().Load(context.Background(), "P-100")
+	if err != nil {
+		t.Fatalf("Load() = %v, want nil", err)
+	}
+	if snapshot.Items != 3 {
+		t.Fatalf("Snapshot.Items = %d, want 3 — the second command must not have reserved again", snapshot.Items)
+	}
+}
+
+func TestConsumeAuthorizeDenyingNeverOpensATransaction(t *testing.T) {
+	store := memory.New()
+	svc := newService(store)
+	svc.Authorize = func(context.Context, reservationsapp.Command) error {
+		return errors.New("consume_test: not authorized")
+	}
+
+	disposition, err := svc.Consume(context.Background(), consumeOrderPlaced("m-ext-1", "h1", "P-100", 3))
+
+	if err == nil {
+		t.Fatal("Consume() error = nil, want the authorization failure")
+	}
+	// A refusal without category is Unexpected and terminal (ERR-11): the
+	// adapter must receive one of the seven, never the zero value.
+	if disposition != dmpfapplication.R1D4 {
+		t.Fatalf("disposition = %v, want %v", disposition, dmpfapplication.R1D4)
+	}
+	if got := store.WithinCalls(); got != 0 {
+		t.Fatalf("WithinCalls() = %d, want 0", got)
+	}
+}
+
+func TestConsumeAuthorizeDenyingWithACategoryKeepsIt(t *testing.T) {
+	store := memory.New()
+	svc := newService(store)
+	svc.Authorize = func(context.Context, reservationsapp.Command) error {
+		return dmpfapplication.NewFailure(dmpfapplication.Forbidden, false, errors.New("consume_test: forbidden"))
+	}
+
+	disposition, err := svc.Consume(context.Background(), consumeOrderPlaced("m-ext-2", "h1", "P-100", 3))
+
+	var failure *dmpfapplication.Failure
+	if !errors.As(err, &failure) || failure.Category() != dmpfapplication.Forbidden {
+		t.Fatalf("err = %v, want the Forbidden failure", err)
+	}
+	if disposition != dmpfapplication.R1D4 {
+		t.Fatalf("disposition = %v, want %v (FND-07 §6.2: Forbidden is terminal)", disposition, dmpfapplication.R1D4)
+	}
+}

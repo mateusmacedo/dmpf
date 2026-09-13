@@ -5,7 +5,7 @@ description: |
   schemas, inferência de tipos, validação de request, tratamento de erros
   de validação e classes de erro tipadas. Exemplos usam Zod como referência;
   o princípio se aplica a qualquer biblioteca de validação equivalente.
-model: sonnet
+model: opus
 ---
 
 # Validação
@@ -319,7 +319,7 @@ Go não tem schemas declarativos como Zod. As bibliotecas mais comuns são basea
 ### Bibliotecas
 
 | Biblioteca | Estilo | Quando usar |
-|------------|--------|-------------|
+| ------------ | -------- | ------------- |
 | `go-playground/validator` | Tags em struct (`validate:"..."`) | Padrão de fato em projetos web |
 | `ozzo-validation` | DSL programática | Quando regras dinâmicas |
 | `go-ozzo/ozzo-validation/is` | Helpers (Email, URL, UUID) | Complementa ozzo |

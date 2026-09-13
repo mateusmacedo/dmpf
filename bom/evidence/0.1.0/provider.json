@@ -1,0 +1,887 @@
+{
+  "header": {
+    "schema": "dmpf/evidence@1",
+    "release": "0.1.0",
+    "subject": "provider",
+    "commit": "4b491e1633aef7b70385bb64322f85e34b2044bf",
+    "goversion": "1.26.6",
+    "tags": [
+      "integration"
+    ],
+    "packages": [
+      "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+      "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application/example/memory"
+    ],
+    "modules": [
+      {
+        "path": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application",
+        "version": "0.0.0"
+      },
+      {
+        "path": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts",
+        "version": "0.0.0"
+      },
+      {
+        "path": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-domain",
+        "version": "0.0.0"
+      },
+      {
+        "path": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability",
+        "version": "0.0.0"
+      },
+      {
+        "path": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-ports",
+        "version": "0.0.0"
+      },
+      {
+        "path": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "version": "0.0.0"
+      },
+      {
+        "path": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit",
+        "version": "0.0.0"
+      }
+    ],
+    "externals": [
+      {
+        "package": "github.com/jackc/pgpassfile",
+        "version": "v1.0.0"
+      },
+      {
+        "package": "github.com/jackc/pgservicefile",
+        "version": "v0.0.0-20240606120523-5a60cdf6a761"
+      },
+      {
+        "package": "github.com/jackc/pgx/v5",
+        "version": "v5.10.0"
+      },
+      {
+        "package": "github.com/jackc/puddle/v2",
+        "version": "v2.2.2"
+      },
+      {
+        "package": "golang.org/x/sync",
+        "version": "v0.22.0"
+      },
+      {
+        "package": "golang.org/x/text",
+        "version": "v0.41.0"
+      },
+      {
+        "package": "google.golang.org/protobuf",
+        "version": "v1.36.12"
+      }
+    ],
+    "infra": {
+      "postgres": "16.15"
+    }
+  },
+  "body": {
+    "tests": [
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application/example/memory",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application/example/memory",
+        "test": "TestACancelledContextNeverOpensATransaction",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application/example/memory",
+        "test": "TestAContextCancelledWhileWaitingNeverOpensATransaction",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application/example/memory",
+        "test": "TestAFailingCallbackKeepsNothing",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application/example/memory",
+        "test": "TestAPanickingCallbackPropagatesAndKeepsNothing",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application/example/memory",
+        "test": "TestAPortThatEscapesTheCallbackCannotReachTheStore",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application/example/memory",
+        "test": "TestCommitAppliesBothWritesToTheStore",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application/example/memory",
+        "test": "TestConcurrentWithinIsSerialized",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application/example/memory",
+        "test": "TestFailNextCommitArmsOnlyTheNextCommit",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application/example/memory",
+        "test": "TestFailNextCommitDiscardsTheTransactionAndReturnsTheError",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application/example/memory",
+        "test": "TestInboxConformsToTheKit",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application/example/memory",
+        "test": "TestLoadReportsErrNotFoundForAnAbsentAggregate",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application/example/memory",
+        "test": "TestReaderInsideWithinReadsTheCommittedState",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application/example/memory",
+        "test": "TestReaderSharesNoSliceWithTheStore",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application/example/memory",
+        "test": "TestSaveRejectsADivergentExpectedVersion",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application/example/memory",
+        "test": "TestSaveSharesNoSliceWithTheCaller",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application/example/memory",
+        "test": "TestUnitOfWorkConformsToTheKit",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestALateWriteFromAnExpiredClaimChangesNothing",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestALateWriteFromAnExpiredClaimChangesNothing/A_writes_late_with_Fail",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestALateWriteFromAnExpiredClaimChangesNothing/A_writes_late_with_MarkPublished",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestALateWriteFromAnExpiredClaimChangesNothing/A_writes_late_with_Reschedule",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestBackoffShorterThanTheLeaseGovernsTheNextClaim",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestCheckDestination",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestCheckDestination/ARN_names_a_physical_target",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestCheckDestination/broker_URL",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestCheckDestination/digits_after_the_first_letter",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestCheckDestination/empty",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestCheckDestination/empty_segment",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestCheckDestination/leading_dot",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestCheckDestination/logical_flow",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestCheckDestination/path_separator",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestCheckDestination/segment_starting_with_a_digit",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestCheckDestination/single_segment",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestCheckDestination/three_segments",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestCheckDestination/trailing_dot",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestCheckDestination/underscore",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestCheckDestination/uppercase",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestCheckMajor",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestCheckMajor/a_mapper_that_returns_no_message_is_reported,_not_dereferenced",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestCheckMajor/envelope_type_without_a_major",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestCheckMajor/v1_contract_under_a_v1_envelope_type",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestCheckMajor/v1_contract_under_a_v2_envelope_type",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestClaimEligibility",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestClaimEligibility/failed",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestClaimEligibility/pending_due",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestClaimEligibility/pending_due_exactly_now",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestClaimEligibility/pending_not_due_yet",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestClaimEligibility/published",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestClaimEligibility/publishing_with_a_live_lease",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestClaimEligibility/publishing_with_an_expired_lease",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestClaimEligibility/publishing_with_no_lease_at_all",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestClaimIndexIsApplicableToTheEligibilityPredicate",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestClaimNeverLeavesPublishingWithoutALease",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestClaimReadsTheLeaseInstantAfterAcquiringTheConnection",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestClaimReturnsThePostIncrementAttemptCount",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestClaimReturnsThePostIncrementAttemptCount/first_acquisition",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestClaimReturnsThePostIncrementAttemptCount/nth_acquisition",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestClaimReturnsThePostIncrementAttemptCount/second_acquisition",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestClaimSelectsWhatEnqueueWroteWithAMessageContext",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestClaimSkipsRecordsWithoutTheContextAttributes",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestClaimSkipsRecordsWithoutTheContextAttributes/causationid_carried_as_a_number",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestClaimSkipsRecordsWithoutTheContextAttributes/correlationid_present_but_empty",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestClaimSkipsRecordsWithoutTheContextAttributes/empty_metadata",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestClaimSkipsRecordsWithoutTheContextAttributes/missing_traceparent",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestClaimSkipsRecordsWithoutTheContextAttributes/only_correlationid",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestClaimSkipsRecordsWithoutTheContextAttributes/traceparent_carried_as_an_object",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestClaimSkipsRecordsWithoutTheContextAttributes/traceparent_carried_as_null",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestClaimWritesTheFourFieldsInOneCommit",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestCompleteRefusesAStatusOutsideTheTwoTerminalValues",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestConcurrentRegisterLockTimeoutReturnsErrRegisterTimeout",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestConcurrentRegisterProcessedUnblocksWithR2",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestConcurrentRegisterRejectedUnblocksWithR3",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestConcurrentRegisterRollbackUnblocksWithR1",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestEnqueueAcceptsALogicalDestination",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestEnqueueFreezesThePayloadBytes",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestEnqueueIsDeterministic",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestEnqueueRefusesBeforeTouchingTheTable",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestEnqueueRefusesBeforeTouchingTheTable/ARN_as_destination",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestEnqueueRefusesBeforeTouchingTheTable/broker_URL_as_destination",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestEnqueueRefusesBeforeTouchingTheTable/empty_destination",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestEnqueueRefusesBeforeTouchingTheTable/empty_message_id",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestEnqueueRefusesBeforeTouchingTheTable/major_mismatch",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestEnqueueRefusesBeforeTouchingTheTable/path_as_destination",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestEnqueueRefusesBeforeTouchingTheTable/unmapped_event",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestEnqueueRefusesBeforeTouchingTheTable/uppercase_destination",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestEnqueueRejectsADuplicateMessageID",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestEnqueueWritesOnlyTheAuthoredAttributes",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestEnqueueWritesTheInitialValues",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestEnqueueWritesTheInitialValues/drain_state_starts_idle",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestEnqueueWritesTheInitialValues/payload_is_the_serialized_contract_and_metadata_is_empty",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestEnqueueWritesTheInitialValues/routing_and_identity_come_from_the_entry",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestEnqueueWritesTheMessageContextAsMetadata",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestInboxCollision",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestInboxCompleteTwice",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestInboxConformsToTheKit",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestInboxConsumerMismatch",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestInboxConsumerRequired",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestInboxDistinctConsumers",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestInboxFirstAgainAfterRollback",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestInboxFirstReception",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestInboxLastErrorNullOnProcessed",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestInboxLastErrorStoredOnRejected",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestInboxPresentKeyLeavesTransactionUsable",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestInboxRedeliveryProcessed",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestInboxRedeliveryRejected",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestInboxSignalsAggregatesByReason",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestInboxSignalsEmptyQuarantine",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestInboxStatusCheckRejectsDirectUpdate",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestMapperReportsAnUnmappedEvent",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestMarkPublishedLeavesNoLiveLeaseBehind",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestMigrateCreatesTheOutboxSchema",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestMigrateCreatesTheOutboxSchema/constraints",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestMigrateCreatesTheOutboxSchema/indexes",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestMigrateCreatesTheOutboxSchema/tables",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestMigrateInboxStatusCheckRejectsInvalidStatus",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestMigrateIsIdempotent",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestNoStatementWritesPendingOverAClaimedRecord",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestOutboxSignalsCountOnlyWhatTheCycleStillOwes",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestOutboxSignalsRefuseAnIncompleteStore",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestOutboxSignalsReportNoLagWithNothingPending",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestOutboxStoreConformsToTheKit",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestOverlappingClaimsSkipTheLockedRecord",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestOverlappingClaimsSkipTheLockedRecord/a_second_record_is_available",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestOverlappingClaimsSkipTheLockedRecord/the_locked_record_is_the_only_one",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestPing",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestPurgeInboxEmptyPurge",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestPurgeInboxRemovesOnlyScopedRowsBelowCutoff",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestPurgePublishedRemovesOnlyPublishedRowsBefore",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestPurgePublishedReportsAnEmptyPurge",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestQuarantineNullLastErrorWhenEmpty",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestQuarantinePreservesEnvelopeByteIdentical",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestQuarantineRejectsEmptyFields",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestQuarantineRejectsEmptyFields/empty_consumer",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestQuarantineRejectsEmptyFields/empty_envelope",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestQuarantineRejectsEmptyFields/empty_reason",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestQuarantineStoresLastError",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestReclaimingTheSameRecordProducesADifferentClaimIdentity",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestRegisterRestoresLockTimeoutForTheRestOfTheTransaction",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestRescheduleNeverWritesAvailableAtBeforeOccurredAt",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestTransitionsRequireTheCurrentClaim",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestTransitionsRequireTheCurrentClaim/Fail_with_a_replaced_claim",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestTransitionsRequireTheCurrentClaim/Fail_with_the_current_claim",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestTransitionsRequireTheCurrentClaim/MarkPublished_with_a_replaced_claim",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestTransitionsRequireTheCurrentClaim/MarkPublished_with_the_current_claim",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestTransitionsRequireTheCurrentClaim/Reschedule_with_a_replaced_claim",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestTransitionsRequireTheCurrentClaim/Reschedule_with_the_current_claim",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestUnitOfWorkConformsToTheKit",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestWithinHonoursTheContract",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestWithinHonoursTheContract/commits_every_write_of_the_single_transaction_it_opens",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestWithinHonoursTheContract/invokes_the_callback_exactly_once",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestWithinHonoursTheContract/propagates_a_panic_and_discards_the_transaction",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestWithinHonoursTheContract/returns_ctx.Err()_without_invoking_the_callback",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestWithinHonoursTheContract/returns_the_commit_error_and_keeps_nothing",
+        "action": "pass"
+      },
+      {
+        "package": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+        "test": "TestWithinHonoursTheContract/rolls_back_and_returns_the_callback_error_unwrapped",
+        "action": "pass"
+      }
+    ],
+    "records": {
+      "memory-inbox": {
+        "ok": true,
+        "failures": [],
+        "skipped": [
+          "two concurrent first receptions resolve in exactly one winner"
+        ]
+      },
+      "memory-unit-of-work": {
+        "ok": true,
+        "failures": [],
+        "skipped": []
+      },
+      "postgres-inbox": {
+        "ok": true,
+        "failures": [],
+        "skipped": []
+      },
+      "postgres-outbox": {
+        "ok": true,
+        "failures": [],
+        "skipped": []
+      },
+      "postgres-unit-of-work": {
+        "ok": true,
+        "failures": [],
+        "skipped": [
+          "returns the commit error and keeps nothing"
+        ]
+      }
+    }
+  }
+}
