@@ -231,3 +231,72 @@ que a execução decidiu:
 
 O schema e os códigos estão em `bom/README.md`; o rito de pedir exceção, em
 `docs/guides/dmpf-composicao.md` §9.
+
+## Addendum — 2026-09-13 (evidência e certificação da sub-spec 4)
+
+A `SPEC-JPP31095` entregou o instrumento que transforma uma execução da suíte em
+evidência endereçável e hasheável — `dmpf-testkit/evidence` e
+`cmd/dmpf-evidence` — e publicou a evidência da release `0.1.0`. O que a
+execução decidiu:
+
+- **Os testes gravam, o comando orquestra.** A spec previa invocar os kits por
+  API. Na execução, os testes que decidem um veredicto gravam o `Report`
+  (`evidence.RecordReport`) ou o `Verdict` (`evidence.RecordVerdict`) sob
+  `DMPF_EVIDENCE_DIR`, e o `dmpf-evidence` roda `go test -json -count=1 -p 1` por
+  subject e junta os registros ao stream filtrado. A evidência vem, assim, da
+  mesma execução `go test` que o CI roda. Sem a variável, nenhum teste grava.
+- **Sete subjects, um arquivo cada.** `golden`, `provider`, `domain`, `services`,
+  `app`, `dist` e `reference`, com o `index.json` guardando o SHA-256 de cada
+  arquivo, que é o `evidence_digest`. O header nomeia `schema`, `release`,
+  `subject`, `commit`, `goversion`, `tags`, `packages`, `modules`, `externals`,
+  `infra` e `tools`; sem campo temporal, duas execuções sobre o mesmo commit
+  publicam os mesmos bytes, o que a publicação da `0.1.0` e o `cmd_test` provam.
+- **Skip sob `CI` reprova; teste que pula por construção sai pelo nome.** A
+  primeira geração sob `CI` reprovou no `golden` e no `dist`: `TestUpdateGolden`
+  só regrava as fixtures com `GOLDEN_UPDATE=1`, e `TestDistkitRole` é o corpo
+  dos processos filhos do harness. Em vez de afrouxar a regra, o catálogo exclui
+  os dois por `-skip` com o nome exato. O filho do `distkit` não herda a
+  exclusão, porque o harness o relança com argumentos próprios.
+- **A infraestrutura da evidência é a pinada.** O header grava a versão real do
+  Postgres (`SHOW server_version`) e do Redpanda (Admin API em
+  `DMPF_REDPANDA_ADMIN`). O Postgres do compose local responde `16.13`, e o
+  pinado no CI, `16.15`: evidência gerada contra o compose não se reproduz. A
+  publicação usa os digests do `dmpf-evidence.yml`, e o workflow regenera no
+  `header.commit` e compara com `diff -r`.
+- **Pré-condição antes de gastar tempo de suíte.** Toolchain diferente da linha
+  `go` do `go.work`, árvore com mudanças sem `--allow-dirty` e `--out` existente
+  saem com exit 2. `--allow-dirty` grava `<sha>-dirty` no `commit`, visível e
+  recusado pelo workflow. O comando monta o conjunto num diretório temporário e
+  só então o renomeia para o destino; evidência publicada nunca é substituída.
+- **A `version` do `product` é o SHA do último commit que tocou a app.** A chave
+  da entrada é `subject`, `identity` e `version`; um SHA que mudasse a cada
+  commit criaria entrada nova a cada PR, e entrada nova não nasce `certificada`.
+- **O gate do BOM compara com `develop` nos PRs de promoção.** Nos PRs para
+  `master` e `release/**`, o `dmpf-bom` roda com `--base origin/develop`.
+- **A promoção da `0.1.0` foi por merge local.** `BOM-05` descreve a promoção
+  como PR no repositório canônico, e o `DMPF-B002` exige `promoted {by,
+  reviewed_by, pr}` em toda `certificada`. Nesta release o repositório seguiu
+  sem remote e sem PR, por decisão do dono: a promoção é o merge local
+  `--no-ff` da branch de trabalho em `develop`, e `pr` registra
+  `local-merge:<branch>`, porque o SHA desse merge só existe depois do commit
+  que o citaria. Com remote, `pr` volta a ser o PR da promoção.
+- **A tag anotada vai no merge commit de `master`, e o validador não a confere.**
+  `DMPF-B011` compara o campo `tag` do BOM com a release; existência e alvo da
+  tag git são conferidos no rito, com `git cat-file` e `git rev-list`.
+- **`valid_until` = `certified_at` + 90 dias.** É o default da primeira release,
+  revisável a cada release.
+- **Certificação pelo alcance, com duas leituras declaradas.** Vai a
+  `certificada` a entrada cuja `identity` e `version` constam do header de um
+  subject aprovado; o `dmpf-bom` confere o digest, não o alcance. Duas entradas
+  pedem leitura. O `product` `dmpf-reference@560ae8e` aparece no header como
+  módulo `0.0.0`, mas `560ae8e` é o último commit que tocou a app, e a árvore
+  dela é idêntica no commit da evidência. O semconv `v1.43.0` é package do módulo
+  otel `v1.46.0` que o `reference` alcança, importado por `otelboot/start.go`.
+  Ficam `candidata` o que nenhum subject exercita — `dmpf-conformance`,
+  `dmpf-provider-grpc`, `dmpf-provider-sqs`, aws-sdk-go-v2, golangci-lint, o
+  plugin, TypeScript, pnpm e Nx — e o grpc, que aparece no header do `reference`
+  só transitivamente.
+- **A combinação vive na entrada do runtime.** `compatible_combinations` fica
+  vazia com `reason`; o `compatible_with` do `go` nomeia pgx (`provider`),
+  protobuf (`golden`), otel (`reference`) e franz-go (`dist`), cada par presente
+  no header do subject citado.

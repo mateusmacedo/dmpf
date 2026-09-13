@@ -20,7 +20,8 @@ em [`docs/dmpf/`](../dmpf/) e nos ADRs; este guia é operacional e não normativ
 7. [O que o agente nunca toca](#7-o-que-o-agente-nunca-toca)
 8. [A prova de regressão](#8-a-prova-de-regressão)
 9. [Divergir do golden path](#9-divergir-do-golden-path)
-10. [Fontes normativas](#10-fontes-normativas)
+10. [Como certificar](#10-como-certificar)
+11. [Fontes normativas](#11-fontes-normativas)
 
 ---
 
@@ -286,7 +287,55 @@ exceção: ela para de autorizar, não vence mais e fica como histórico para as
 métricas de `GOV-36`. `--now` fixa o instante do vencimento quando é preciso
 reproduzir um relatório.
 
-## 10. Fontes normativas
+## 10. Como certificar
+
+A certificação promove a `certificada`, no BOM da release, as entradas que uma
+execução real da suíte alcançou. O instrumento é o `dmpf-evidence` do
+`dmpf-testkit`; as normas são `BOM-03` a `BOM-08` de
+[`governanca-bom-pilotos.md`](../dmpf/governanca-bom-pilotos.md) §4, e o schema
+está em [`bom/README.md`](../../bom/README.md).
+
+1. **Gerar a evidência.** Num commit com árvore limpa, suba o Postgres e o
+   Redpanda com as imagens pinadas do `dmpf-evidence.yml` e rode o comando duas
+   vezes, em diretórios distintos: `diff -r` vazio prova o determinismo. Publique
+   uma das execuções em `bom/evidence/<semver>/` e commite só esse diretório.
+
+   ```bash
+   CI=true GOTOOLCHAIN=go1.26.6 \
+     DMPF_PG_DSN='postgres://dmpf:dmpf@localhost:5432/dmpf?sslmode=disable' \
+     DMPF_KAFKA_BROKERS=localhost:9092 DMPF_REDPANDA_ADMIN=http://localhost:9644 \
+     go run ./libs/backend/go/dmpf-testkit/cmd/dmpf-evidence --root . --release <semver> --out /tmp/evidence-a/<semver>
+   ```
+
+2. **Promover só o que o header alcança.** Uma entrada vai a `certificada`
+   quando a sua `identity` e a sua `version` constam do header de um subject
+   aprovado — em `goversion`, `modules`, `externals` ou `tools`. O validador
+   confere o digest, não o alcance: essa é regra de quem promove. O que nenhum
+   subject exercita fica `candidata`, com `reason` nomeando onde é exercitado.
+   Cada `certificada` recebe:
+
+   | Campo | Valor |
+   | --- | --- |
+   | `evidence_uri` | `https://github.com/mateusmacedo/dmpf/blob/<sha>/bom/evidence/<semver>/<subject>.json`, no SHA do commit da evidência |
+   | `evidence_digest` | o `sha256` do subject no `index.json` |
+   | `approved_by` | `team:plataforma` (`BOM-05`) |
+   | `certified_at` | a data do commit de certificação |
+   | `valid_until` | `certified_at` + 90 dias, o default do ADR-041 |
+   | `promoted` | `{by, reviewed_by, pr}`: quem promove, quem revisou por Arquitetura e o PR da promoção |
+
+   `compatible_with` só nomeia combinação cujos dois lados constam do mesmo
+   header, com `evidence` igual ao subject.
+
+3. **Validar.** `dmpf-bom --release <semver> --base develop` sai com `0`. Um
+   digest alterado reprova em `DMPF-B005`; uma combinação sem o subject que a
+   exercita, em `DMPF-B006`.
+
+4. **Revisar e cunhar a tag.** A promoção é um PR para `develop` revisado por
+   Arquitetura e mergeado por Plataforma (`BOM-05`). A mesma árvore segue por
+   `release/<semver>` até `master`, e a tag anotada `dmpf@<semver>` vai no merge
+   commit; o rito está no [`CONTRIBUTING.md`](../../CONTRIBUTING.md).
+
+## 11. Fontes normativas
 
 - [`docs/dmpf/rfc-dmpf-foundation-v0.1.md`](../dmpf/rfc-dmpf-foundation-v0.1.md) — a RFC
 - [`.claude/rules/dmpf-bounded-context.md`](../../.claude/rules/dmpf-bounded-context.md) — as normas do contexto
@@ -300,6 +349,5 @@ reproduzir um relatório.
 - ADR-033 — as exceções de `reflect` e `unsafe` do código gerado
 - [`docs/dmpf/governanca-bom-pilotos.md`](../dmpf/governanca-bom-pilotos.md) — §5.1, o escape hatch (`GOV-30` a `GOV-36`)
 
-<!-- As seções "Como certificar" e "Contrato próprio" pertencem às specs
-     SPEC-JPP31095 e SPEC-F7S5B6KV, que ainda não foram implementadas. Quando
-     forem, entram aqui. -->
+<!-- A seção "Contrato próprio" pertence à SPEC-F7S5B6KV, que ainda não foi
+     implementada. Quando for, entra aqui. -->

@@ -61,7 +61,31 @@ foi validado em `develop`, sem reeditar os mesmos arquivos "de outro jeito".
 O `create-release.yml` automatiza a criação da branch `release/X.Y.Z`: ele calcula
 o próximo número a partir das releases já mergeadas em `master`, deriva o
 incremento dos commits em `origin/master..origin/develop` e abre o PR de release
-pela API do Gitea.
+com `gh pr create`.
+
+### Release do produto DMPF
+
+Além das tags por projeto do Nx Release, o produto DMPF tem release própria: a
+tag anotada `dmpf@<semver>`, com o BOM em `bom/dmpf/<semver>.json`.
+
+1. A certificação — evidência em `bom/evidence/<semver>/` e entradas promovidas
+   no BOM — entra em `develop` por PR revisado por Arquitetura e mergeado por
+   Plataforma (`BOM-05`). O passo a passo está em
+   `docs/guides/dmpf-composicao.md` §10.
+2. A mesma árvore segue por `release/<semver>` e é mergeada em `master` com
+   `--no-ff`, sem squash.
+3. A tag vai no merge commit de `master`, depois do merge:
+
+   ```bash
+   git tag -a dmpf@<semver> -m "DMPF release <semver> — BOM bom/dmpf/<semver>.json" <merge-commit>
+   git cat-file -t dmpf@<semver>        # tag: anotada
+   git rev-list -n1 dmpf@<semver>       # o merge commit
+   go run ./libs/backend/go/dmpf-conformance/cmd/dmpf-bom --root . --release <semver>
+   git push origin master dmpf@<semver>
+   ```
+
+Na `0.1.0`, a promoção não passou por PR: foi o merge local da branch de trabalho
+em `develop`, e `promoted.pr` registra essa branch (ADR-041).
 
 ## Conventional Commits
 

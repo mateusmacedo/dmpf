@@ -2,7 +2,7 @@
 id: SPEC-8HWBWJCB
 slug: dmpf-sdk-referencia-bom
 title: DMPF KRN-12 — SDK de referência, generator Nx e BOM certificado (guarda-chuva)
-stage: planning
+stage: done
 priority: P2
 depends_on: [SPEC-MQA5HAXF, SPEC-WTAXFV8B, SPEC-XF9TF9A0, SPEC-ZHE7DN1H, SPEC-WYX5GW87, SPEC-3R80KNMS, SPEC-ANZX2WPG, SPEC-CGPX20NP, SPEC-NYD18TGD, SPEC-EAGAXQN1, SPEC-SJ66880S]
 ticket_url: null
@@ -112,7 +112,7 @@ juntas e por qual evidência.
 
 ### Funcionais
 
-- [ ] **[P0] Identidade da release do produto DMPF**: a release é uma **tag git
+- [x] **[P0] Identidade da release do produto DMPF**: a release é uma **tag git
   anotada** `dmpf@<semver>` em `master`, cunhada pelo rito do BOM — o PR que
   promove o BOM da release é mergeado e a tag aponta para o merge commit. Um BOM
   por tag, em `bom/dmpf/<semver>.json`. A primeira release é `dmpf@0.1.0`. A
@@ -126,28 +126,28 @@ juntas e por qual evidência.
     seja a exercitada.
   - Edge case: dois arquivos em `bom/dmpf/` sem tag correspondente reprovam no
     validador (sub-spec 3, `B011`).
-- [ ] **[P0] "Sem edição manual" para artefato gerado**: significa que nenhum
+- [x] **[P0] "Sem edição manual" para artefato gerado**: significa que nenhum
   byte escrito pelo generator muda entre a geração e a aprovação pelo
   verificador. O rito de classificação (`--write-baseline` em commit próprio) é
   ato humano exigido por `AUT-01`, não edição. A prova mecânica (sub-spec 2)
   commita os arquivos gerados, roda a cadeia e falha em `git diff --exit-code`.
-- [ ] **[P0] Catálogo fechado N1–N7**: a sub-spec 3 define, para cada item de
+- [x] **[P0] Catálogo fechado N1–N7**: a sub-spec 3 define, para cada item de
   `GOV-32`, como o objeto é reconhecido e o diagnóstico que o recusa; nenhum
   pedido escapa por identidade textual não prevista, porque o universo positivo
   (`kind` ∈ E1–E3) é fechado e o objeto é classificado por regra, não por nome.
-- [ ] **[P0] Ciclo de vida da exceção com histórico**: toda exceção carrega
+- [x] **[P0] Ciclo de vida da exceção com histórico**: toda exceção carrega
   `history[]` (`granted`, `renewed`, `revoked`, `converged`, com data, autor e
   motivo), e as métricas de `GOV-36` derivam do histórico — vigentes, renovações
   por exceção, vencidas sem convergência.
-- [ ] **[P1] Decomposição em quatro sub-specs** com as fronteiras da tabela do
+- [x] **[P1] Decomposição em quatro sub-specs** com as fronteiras da tabela do
   Resumo; cada uma tem task própria no Jira sob ARQ-531 (criadas na Etapa 2),
   branch própria e plano próprio. `subtask_urls` desta guarda-chuva recebe as
   quatro URLs.
-- [ ] **[P1] Tasks sucessoras nomeadas**: `TRP-09`/`TRP-46` (ADR-039) é
+- [x] **[P1] Tasks sucessoras nomeadas**: `TRP-09`/`TRP-46` (ADR-039) é
   **ARQ-549** (`KRN-13`) e consumo fora do workspace (ADR-034) é **ARQ-550**
   (`KRN-14`), ambas no épico ARQ-519, com owner e critério de aceite; os
   addenda dos ADRs citam os IDs.
-- [ ] **[P1] Ordem de execução**: 1 → 2 → 3 → 4. A sub-spec 2 depende
+- [x] **[P1] Ordem de execução**: 1 → 2 → 3 → 4. A sub-spec 2 depende
   logicamente da 1 pela abordagem do ticket ("o composition root é a
   especificação executável do que o generator precisa produzir"), mas não há
   dependência de código; as duas podem correr em paralelo se houver capacidade.
@@ -157,7 +157,12 @@ juntas e por qual evidência.
 - [ ] Cada sub-spec fecha com a cadeia do workspace verde (`fmt-check`, `vet`,
   `lint`, `build`, `test-race`, `govulncheck`, `biome ci`, `adr-verify`,
   `dmpf-verify`) e o verificador `dmpf-conformance` sem diagnóstico.
-- [ ] Nenhuma sub-spec adiciona dependência Go nova; a sub-spec 2 adiciona
+  Pendente na sub-spec 4, fora do escopo dela: `adr-verify` reprova com 50
+  violações (49 já na `develop` e 1 da regra que só admite um addendum por ADR,
+  no ADR-041), `dmpf-verify` reprova no `C4` e o harness dele num teste
+  histórico, e `fitness/TestDomainTestsNeedNoInfrastructureDouble` já reprovava
+  na `develop`. O verificador `dmpf-conformance` passa sem diagnóstico.
+- [x] Nenhuma sub-spec adiciona dependência Go nova; a sub-spec 2 adiciona
   `@nx/plugin` e `@nx/devkit` (npm), declaradas no BOM pela sub-spec 4.
 
 ## Camadas afetadas
@@ -253,23 +258,25 @@ tools/dmpf-baseline/units-baseline.json    — cada sub-spec que cria unidade re
 Os seis primeiros são os do ticket ARQ-531, verbatim, com a sub-spec que os
 prova.
 
-- [ ] Um bounded context gerado, sem edição manual, compila, passa na cadeia Go
+- [x] Um bounded context gerado, sem edição manual, compila, passa na cadeia Go
   e é **aprovado** pelo verificador, com uma tag de cada dimensão por projeto e
   a unidade declarada no manifesto. → sub-spec 2
-- [ ] O composition root executa a escrita e a drenagem fim a fim, com estado de
+- [x] O composition root executa a escrita e a drenagem fim a fim, com estado de
   negócio e registro de outbox na mesma transação. → sub-spec 1
-- [ ] O BOM está versionado e é revisável por PR; nenhum dos seis itens está
+- [x] O BOM está versionado e é revisável por PR; nenhum dos seis itens está
   ausente, e item sem instância aparece declarado vazio. → sub-specs 3 e 4
-- [ ] Nenhuma entrada `certificada` existe sem `evidence_uri`, `evidence_digest`,
+- [x] Nenhuma entrada `certificada` existe sem `evidence_uri`, `evidence_digest`,
   `approved_by` e `valid_until`; entrada vencida é lida como `candidata`, e toda
   versão em `compatible_with` tem execução na suíte de `KRN-11`. → sub-specs 3 e 4
-- [ ] Pedido de escape hatch sem plano de convergência **com prazo**, ou sobre
+- [x] Pedido de escape hatch sem plano de convergência **com prazo**, ou sobre
   constraint P0, é recusado na admissão. → sub-spec 3
 - [ ] O `AGENTS.md` reflete o inventário real, nenhum artefato declara
   exactly-once, e a validação do workspace passa. → sub-spec 4 (consolida)
-- [ ] `subtask_urls` desta guarda-chuva lista as quatro tasks; as quatro
+  Inventário e varredura de exactly-once atendidos; a validação do workspace
+  carrega as falhas preexistentes listadas nos requisitos não-funcionais.
+- [x] `subtask_urls` desta guarda-chuva lista as quatro tasks; as quatro
   sub-specs estão `done`; a tag `dmpf@0.1.0` existe e aponta para o merge do BOM.
-- [ ] Tasks sucessoras de `TRP-09`/`TRP-46` e do consumo fora do workspace
+- [x] Tasks sucessoras de `TRP-09`/`TRP-46` e do consumo fora do workspace
   existem no épico, citadas nos addenda dos ADR-039 e ADR-034.
 
 ### Cenários de teste

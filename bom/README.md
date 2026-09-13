@@ -110,13 +110,35 @@ decurso de prazo: `certificada` com `valid_until` no passado reprova em
 
 ## Evidência
 
-A evidência da certificação é commitada em `bom/evidence/<release>/<subject>.json`.
-Do arquivo, o validador lê só o `header`:
+A evidência da certificação é commitada em `bom/evidence/<release>/<subject>.json`
+e gerada pelo `dmpf-evidence` do `dmpf-testkit`, sobre um commit com árvore limpa
+e com o Postgres e o Redpanda das imagens pinadas no `dmpf-evidence.yml` — o
+header grava a versão real de cada um, e outra imagem não reproduz no workflow:
+
+```bash
+CI=true GOTOOLCHAIN=go1.26.6 \
+  DMPF_PG_DSN='postgres://dmpf:dmpf@localhost:5432/dmpf?sslmode=disable' \
+  DMPF_KAFKA_BROKERS=localhost:9092 DMPF_REDPANDA_ADMIN=http://localhost:9644 \
+  go run ./libs/backend/go/dmpf-testkit/cmd/dmpf-evidence --root . --release 0.1.0 --out bom/evidence/0.1.0
+```
+
+O comando publica um arquivo por subject (`golden`, `provider`, `domain`,
+`services`, `app`, `dist` e `reference`) e o `index.json`, com o SHA-256 de cada
+arquivo — o `evidence_digest` das entradas que o subject certifica. Duas
+execuções sobre o mesmo commit publicam os mesmos bytes, e o workflow
+`dmpf-evidence.yml` regenera a evidência no `header.commit` e a compara com
+`diff -r`. Subjects, variáveis e códigos de saída estão na seção `evidence` do
+[README do `dmpf-testkit`](../libs/backend/go/dmpf-testkit/README.md).
+
+O header de cada subject nomeia `schema`, `release`, `subject`, `commit`,
+`goversion`, `tags`, `packages`, `modules`, `externals`, `infra` (quando o subject
+usa Postgres ou Redpanda) e, no `golden`, `tools`. O validador lê só `goversion`,
+`modules` e `externals`:
 
 ```json
 {
   "header": {
-    "goversion": "go1.26.6",
+    "goversion": "1.26.6",
     "modules": [{ "path": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-domain", "version": "0.0.0" }],
     "externals": [{ "package": "github.com/jackc/pgx/v5", "version": "v5.10.0" }]
   }
@@ -132,6 +154,20 @@ Do arquivo, o validador lê só o `header`:
 - Os dois lados da combinação precisam constar do mesmo `header`: a própria
   entrada e o par de `compatible_with` (em `goversion` quando `identity` é `go`).
   Combinação que não consta é presumida, não exercitada (`BOM-04`, `DMPF-B006`).
+
+## Rito da release
+
+1. Gerar e commitar a evidência (ver [Evidência](#evidência)).
+2. Promover as entradas que os headers alcançam, preencher os campos da
+   `certificada` e validar com `--base develop`. O passo a passo está em
+   [`docs/guides/dmpf-composicao.md`](../docs/guides/dmpf-composicao.md) §10.
+3. Mergear em `develop` pela promoção de `BOM-05` e seguir por `release/<semver>`
+   até `master`.
+4. Cunhar a tag anotada `dmpf@<semver>` no merge commit de `master`, com a
+   mensagem `DMPF release <semver> — BOM bom/dmpf/<semver>.json`. O
+   `DMPF-B011` compara o campo `tag` do BOM com a release, e não a tag git:
+   existência e alvo da tag são conferidos no rito, com `git cat-file` e
+   `git rev-list` (ver [`CONTRIBUTING.md`](../CONTRIBUTING.md)).
 
 ## Pedir exceção
 

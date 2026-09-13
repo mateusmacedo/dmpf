@@ -28,6 +28,13 @@ ocorre no PR (reviewers de Plataforma/Arquitetura). Specs permanecem em
 | [revisao-seguranca-fnd-07.md](./revisao-seguranca-fnd-07.md) | **parecer de revisão** (não normativo — evidência do gate `THR-03` sobre FND-07 §7 e §8; estado em `REC-011`) | [SPEC-DK8QQSDQ](../specs/SPEC-DK8QQSDQ-revisao-seguranca-fnd-07.md) / ARQ-488 |
 | **[resume/](./resume/)** | **Guia derivado em leitura humana** (não normativo — resumos 15–25% do volume, legendas obrigatórias, PT-BR formal) | Entrada de leitura rápida; veja `resume/README.md` |
 
+## BOM da release
+
+O BOM de cada release do produto — combinações certificadas, evidência de
+execução e exceções vigentes — vive em [`bom/`](../../bom/README.md), na raiz do
+repositório, e realiza o §4 e o §5.1 de
+[governanca-bom-pilotos.md](./governanca-bom-pilotos.md).
+
 ## Guia prático derivado
 
 Para começar a implementar um novo bounded context, consulte o

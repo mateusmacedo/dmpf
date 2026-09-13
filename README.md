@@ -161,6 +161,14 @@ pnpm nx run-many -t test
 - **Erro de dependência no lockfile**: rode `pnpm install` e confira o diff de
   `pnpm-lock.yaml`; para CI use `pnpm install --frozen-lockfile`.
 
+## Release do produto DMPF
+
+O kernel DMPF é liberado como produto por uma tag anotada `dmpf@<semver>`, com
+o BOM em `bom/dmpf/<semver>.json` e a evidência de execução que o certifica em
+`bom/evidence/<semver>/`. O schema, o validador `dmpf-bom` e a geração da
+evidência estão em [`bom/README.md`](bom/README.md); o rito da tag, em
+[`CONTRIBUTING.md`](CONTRIBUTING.md).
+
 ## Decisões arquiteturais
 
 Consulte `docs/adr/` para o registro de decisões.
