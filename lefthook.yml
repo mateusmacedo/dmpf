@@ -5,13 +5,33 @@ pre-commit:
       run: pnpm biome check --write --no-errors-on-unmatched {staged_files}
       stage_fixed: true
 
+    # gofmt -l lista os arquivos fora do padrão mas sai com 0; e, diante de erro
+    # de sintaxe, escreve em stderr e sai 2 com stdout VAZIO — um `test -z` no
+    # lugar daria sucesso justamente no arquivo que nem compila. Por isso saída e
+    # status são guardados em separado. Reprova em vez de reescrever: o autor vê
+    # o que está fora do formato antes de o commit entrar.
+    gofmt:
+      glob: "*.go"
+      run: saida="$(gofmt -l {staged_files} 2>&1)"; status=$?; [ $status -eq 0 ] || { printf '%s\n' "$saida" >&2; exit $status; }; [ -z "$saida" ] || { printf '%s\n' "$saida" >&2; exit 1; }
+
 pre-push:
   commands:
     lint:
-      run: pnpm nx affected -t lint --parallel=3 --exclude=@nx-base-template/source
+      run: pnpm nx affected -t lint --parallel=3 --exclude=@mateusmacedo/dmpf-source
     typecheck:
-      run: pnpm nx affected -t typecheck --parallel=3 --exclude=@nx-base-template/source
+      run: pnpm nx affected -t typecheck --parallel=3 --exclude=@mateusmacedo/dmpf-source
     test:
-      run: pnpm nx affected -t test --parallel=3 --exclude=@nx-base-template/source
+      run: pnpm nx affected -t test --parallel=3 --exclude=@mateusmacedo/dmpf-source
     build:
-      run: pnpm nx affected -t build --parallel=3 --exclude=@nx-base-template/source
+      run: pnpm nx affected -t build --parallel=3 --exclude=@mateusmacedo/dmpf-source
+    # govulncheck fica só no CI: consulta base remota e não pode ser cacheado,
+    # então pesaria em todo push sem dar garantia adicional local.
+    # O preflight repete o do composite setup-go: sem CGO e sem compilador C o
+    # `-race` falha com erro de link, que não diz o que fazer.
+    go-gates:
+      run: |
+        if [ "$(go env CGO_ENABLED)" != "1" ] || ! command -v cc >/dev/null 2>&1; then
+          echo "go test -race exige CGO_ENABLED=1 e um compilador C (cc)" >&2
+          exit 1
+        fi
+        pnpm nx affected -t fmt-check,vet,test-race --parallel=3 --exclude=@mateusmacedo/dmpf-source

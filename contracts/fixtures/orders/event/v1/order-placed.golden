@@ -1,0 +1,262 @@
+{
+  "format_version": "1",
+  "identity": {
+    "fixture": "orders/event/v1/order-placed",
+    "contract": {
+      "package": "company.orders.event.v1",
+      "message": "OrderPlaced"
+    },
+    "type": "com.company.orders.order-placed.v1",
+    "dataschema": "type.googleapis.com/company.orders.event.v1.OrderPlaced"
+  },
+  "covers": {
+    "profile_major": "1",
+    "contract_major": "v1"
+  },
+  "cases": [
+    {
+      "name": "all-conditionals-present",
+      "doc": "Caminho típico com os três atributos condicionais presentes (aggregateversion, tenantid, tracestate).",
+      "envelope": {
+        "aggregateversion": "7",
+        "causationid": "evt-0001",
+        "correlationid": "corr-0001",
+        "datacontenttype": "application/protobuf",
+        "dataschema": "type.googleapis.com/company.orders.event.v1.OrderPlaced",
+        "id": "evt-0001",
+        "partitionkey": "c-42",
+        "source": "urn:dmpf:orders",
+        "specversion": "1.0",
+        "subject": "order/o-1001",
+        "tenantid": "tenant-a",
+        "time": "2026-09-02T12:00:00Z",
+        "traceparent": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+        "tracestate": "vendor=1",
+        "type": "com.company.orders.order-placed.v1"
+      },
+      "payload": {
+        "channel": "ORDER_CHANNEL_WEB",
+        "customer_id": "c-42",
+        "order_id": "o-1001",
+        "total_cents": "1999"
+      },
+      "payload_bytes_hex": "0a066f2d313030311204632d343218cf0f2001",
+      "payload_hash": "a60a0d29d21df741d73553acb5d4c80e221b4c4dfe9d5373c1f5287c55a3abe7"
+    },
+    {
+      "name": "all-conditionals-absent",
+      "doc": "Os três condicionais ausentes: nenhum entra no mapa de atributos (ENV-12, sem valor de preenchimento).",
+      "envelope": {
+        "causationid": "evt-0001",
+        "correlationid": "corr-0001",
+        "datacontenttype": "application/protobuf",
+        "dataschema": "type.googleapis.com/company.orders.event.v1.OrderPlaced",
+        "id": "evt-0002",
+        "partitionkey": "c-42",
+        "source": "urn:dmpf:orders",
+        "specversion": "1.0",
+        "subject": "order/o-1001",
+        "time": "2026-09-02T12:00:00Z",
+        "traceparent": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+        "type": "com.company.orders.order-placed.v1"
+      },
+      "payload": {
+        "channel": "ORDER_CHANNEL_APP",
+        "customer_id": "c-42",
+        "order_id": "o-1002",
+        "total_cents": "250"
+      },
+      "payload_bytes_hex": "0a066f2d313030321204632d343218fa012002",
+      "payload_hash": "48fa0d15481bce434e689643298b113fa787d8f7e3d306c8ea7deb8bc89807a5"
+    },
+    {
+      "name": "channel-unspecified",
+      "doc": "Enum no valor zero (ORDER_CHANNEL_UNSPECIFIED, PTB-09): o campo não aparece no wire.",
+      "envelope": {
+        "causationid": "evt-0001",
+        "correlationid": "corr-0001",
+        "datacontenttype": "application/protobuf",
+        "dataschema": "type.googleapis.com/company.orders.event.v1.OrderPlaced",
+        "id": "evt-0003",
+        "partitionkey": "c-42",
+        "source": "urn:dmpf:orders",
+        "specversion": "1.0",
+        "subject": "order/o-1001",
+        "time": "2026-09-02T12:00:00Z",
+        "traceparent": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+        "type": "com.company.orders.order-placed.v1"
+      },
+      "payload": {
+        "channel": "ORDER_CHANNEL_UNSPECIFIED",
+        "customer_id": "c-7",
+        "order_id": "o-1003",
+        "total_cents": "0"
+      },
+      "payload_bytes_hex": "0a066f2d313030331203632d37",
+      "payload_hash": "c89d2d3a8303384298012c33bdff4732f391b589a15d09a8d759eab0b2158b77"
+    },
+    {
+      "name": "total-cents-beyond-double",
+      "doc": "total_cents = 2^53 + 1: um leitor que passar por double perde o último dígito (FIX-07).",
+      "envelope": {
+        "aggregateversion": "2147483647",
+        "causationid": "evt-0001",
+        "correlationid": "corr-0001",
+        "datacontenttype": "application/protobuf",
+        "dataschema": "type.googleapis.com/company.orders.event.v1.OrderPlaced",
+        "id": "evt-0004",
+        "partitionkey": "c-42",
+        "source": "urn:dmpf:orders",
+        "specversion": "1.0",
+        "subject": "order/o-1001",
+        "tenantid": "tenant-a",
+        "time": "2026-09-02T12:00:00Z",
+        "traceparent": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+        "tracestate": "vendor=1",
+        "type": "com.company.orders.order-placed.v1"
+      },
+      "payload": {
+        "channel": "ORDER_CHANNEL_WEB",
+        "customer_id": "c-42",
+        "order_id": "o-1004",
+        "total_cents": "9007199254740993"
+      },
+      "payload_bytes_hex": "0a066f2d313030341204632d34321881808080808080102001",
+      "payload_hash": "3e1c095e4c004dfc65961ba7c0f61379a3646c0220f6fc11d3530380f73ab939"
+    },
+    {
+      "name": "time-with-nanos",
+      "doc": "Instante do fato com nanossegundos não nulos; tracestate presente sem os outros condicionais.",
+      "envelope": {
+        "causationid": "evt-0001",
+        "correlationid": "corr-0001",
+        "datacontenttype": "application/protobuf",
+        "dataschema": "type.googleapis.com/company.orders.event.v1.OrderPlaced",
+        "id": "evt-0005",
+        "partitionkey": "c-42",
+        "source": "urn:dmpf:orders",
+        "specversion": "1.0",
+        "subject": "order/o-1001",
+        "time": "2026-09-02T12:00:00.123456789Z",
+        "traceparent": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+        "tracestate": "vendor=1,other=2",
+        "type": "com.company.orders.order-placed.v1"
+      },
+      "payload": {
+        "channel": "ORDER_CHANNEL_APP",
+        "customer_id": "c-9",
+        "order_id": "o-1005",
+        "total_cents": "12345"
+      },
+      "payload_bytes_hex": "0a066f2d313030351203632d3918b9602002",
+      "payload_hash": "c43b4679d17c06d918724f9cbbc4f9c308749a5aa686a122ca75476537e489ed"
+    },
+    {
+      "name": "item-count-present",
+      "doc": "Campo aditivo item_count no número 6, acrescentado depois do 5 reservado (PTB-06): os casos anteriores, que o omitem, mantêm os mesmos bytes.",
+      "envelope": {
+        "causationid": "evt-0001",
+        "correlationid": "corr-0001",
+        "datacontenttype": "application/protobuf",
+        "dataschema": "type.googleapis.com/company.orders.event.v1.OrderPlaced",
+        "id": "evt-0006",
+        "partitionkey": "c-42",
+        "source": "urn:dmpf:orders",
+        "specversion": "1.0",
+        "subject": "order/o-1001",
+        "time": "2026-09-02T12:00:00Z",
+        "traceparent": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+        "type": "com.company.orders.order-placed.v1"
+      },
+      "payload": {
+        "channel": "ORDER_CHANNEL_WEB",
+        "customer_id": "c-42",
+        "item_count": "3",
+        "order_id": "o-1006",
+        "total_cents": "4500"
+      },
+      "payload_bytes_hex": "0a066f2d313030361204632d343218942320013003",
+      "payload_hash": "4bb733c186d697b765ac018f01e5edd32da09399be38fd9747b33473863c2fe4"
+    }
+  ],
+  "discriminators": [
+    {
+      "name": "unknown-field",
+      "doc": "Bytes canônicos mais um campo de número 7 (varint 42) que o contrato não conhece: a desserialização o preserva (PTB-10) e o hash o cobre (ENV-17).",
+      "envelope": {
+        "causationid": "evt-0001",
+        "correlationid": "corr-0001",
+        "datacontenttype": "application/protobuf",
+        "dataschema": "type.googleapis.com/company.orders.event.v1.OrderPlaced",
+        "id": "evt-2001",
+        "partitionkey": "c-42",
+        "source": "urn:dmpf:orders",
+        "specversion": "1.0",
+        "subject": "order/o-1001",
+        "time": "2026-09-02T12:00:00Z",
+        "traceparent": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+        "type": "com.company.orders.order-placed.v1"
+      },
+      "payload": {
+        "channel": "ORDER_CHANNEL_WEB",
+        "customer_id": "c-42",
+        "order_id": "o-2001",
+        "total_cents": "1999"
+      },
+      "payload_bytes_hex": "0a066f2d323030311204632d343218cf0f2001382a",
+      "payload_hash": "8cb328704dc868c1b0d614871a438cb499f9ba74b81b28b2803a843ccb0d84fb"
+    },
+    {
+      "name": "enum-unknown-value",
+      "doc": "channel = 99, valor que o enum não declara: decodifica sem erro e é preservado numericamente.",
+      "envelope": {
+        "causationid": "evt-0001",
+        "correlationid": "corr-0001",
+        "datacontenttype": "application/protobuf",
+        "dataschema": "type.googleapis.com/company.orders.event.v1.OrderPlaced",
+        "id": "evt-2002",
+        "partitionkey": "c-42",
+        "source": "urn:dmpf:orders",
+        "specversion": "1.0",
+        "subject": "order/o-1001",
+        "time": "2026-09-02T12:00:00Z",
+        "traceparent": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+        "type": "com.company.orders.order-placed.v1"
+      },
+      "payload": {
+        "channel": "99",
+        "customer_id": "c-42",
+        "order_id": "o-2002",
+        "total_cents": "1999"
+      },
+      "payload_bytes_hex": "0a066f2d323030321204632d343218cf0f2063",
+      "payload_hash": "83cda1ba19986f6fe7bd9a37d03e168997d84fb1b1abfe0a4aa3b370f8a59fdb"
+    },
+    {
+      "name": "non-canonical-field-order",
+      "doc": "Campos em ordem decrescente de número: decodifica no mesmo valor, mas o hash é o dos bytes transportados e difere do hash de uma reserialização (ENV-18).",
+      "envelope": {
+        "causationid": "evt-0001",
+        "correlationid": "corr-0001",
+        "datacontenttype": "application/protobuf",
+        "dataschema": "type.googleapis.com/company.orders.event.v1.OrderPlaced",
+        "id": "evt-2003",
+        "partitionkey": "c-42",
+        "source": "urn:dmpf:orders",
+        "specversion": "1.0",
+        "subject": "order/o-1001",
+        "time": "2026-09-02T12:00:00Z",
+        "traceparent": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+        "type": "com.company.orders.order-placed.v1"
+      },
+      "payload": {
+        "channel": "ORDER_CHANNEL_WEB",
+        "customer_id": "c-42",
+        "order_id": "o-2003",
+        "total_cents": "1999"
+      },
+      "payload_bytes_hex": "200118cf0f1204632d34320a066f2d32303033",
+      "payload_hash": "9115bdb1b95f11ddfa02419589171d2d91e51821387de990944fbcf2b5fcbd6f"
+    }
+  ]
+}

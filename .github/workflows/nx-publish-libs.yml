@@ -1,8 +1,9 @@
 name: NX Publish
 
-# Publica as libs no Verdaccio via `nx release publish` usando o template
-# reusable de actions-templates. O executor pula libs sem versão nova e versões
-# já no registry, então releases parciais publicam só o que mudou.
+# Publica as libs no GitHub Packages via `nx release publish`, pelo reusable
+# interno em .github/workflows/publish-libs.yaml. O executor pula libs sem
+# versão nova e versões já no registry, então releases parciais publicam só o
+# que mudou.
 # Dispara no push das tags do Nx Release (nx-release.yml).
 on:
   push:
@@ -23,18 +24,16 @@ concurrency:
   cancel-in-progress: true
 
 # Least-privilege explícito, em vez de herdar o token default do repositório.
-# `contents: read` cobre o checkout do reusable; `id-token: write` cobre a troca
-# OIDC que o template usa para obter a credencial de publicação (ver ADR-004:
-# "role/SSM de auth Verdaccio configurada na org"). Mesmo par usado pelo
-# `cd-dev-hmg.yml`. Se o reusable passar a exigir outra permissão, ela precisa ser
-# declarada aqui — o contrato dele não é versionado neste repositório.
+# `contents: read` cobre o checkout; `packages: write` cobre a publicação no
+# GitHub Packages, que autentica pelo GITHUB_TOKEN do próprio run — não há mais
+# troca OIDC, porque o registry deixou de ser externo.
 permissions:
   contents: read
-  id-token: write
+  packages: write
 
 jobs:
   publish:
-    uses: lidercap-apps/actions-templates/.github/workflows/publish-libs.yaml@main
+    uses: ./.github/workflows/publish-libs.yaml
     with:
       # pnpm_version vazio de propósito: o pnpm/action-setup trata string vazia
       # como ausência e resolve pelo campo packageManager do package.json
@@ -44,7 +43,7 @@ jobs:
       # depender do default do template — ver ARQ-465.
       pnpm_version: ""
       node_version: "24"
-      nx_exclude: "@nx-base-template/source"
-      scope: "@lidercap-apps"
+      nx_exclude: "@mateusmacedo/dmpf-source"
+      scope: "@mateusmacedo"
       tag: ${{ inputs.tag || 'latest' }}
-      build_projects_filter: "tag:type:lib"
+      build_projects_filter: "tag:type:lib,!tag:stack:go"

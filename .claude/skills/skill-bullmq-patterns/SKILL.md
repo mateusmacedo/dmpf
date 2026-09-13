@@ -4,7 +4,7 @@ description: |
   Use esta skill ao trabalhar com BullMQ: queues, workers, consumers, jobs, retry e error handling.
   Os padrões descritos são aplicáveis a qualquer backend Node.js que use BullMQ; muitos também
   se aplicam, com ajustes, a outras bibliotecas de filas.
-model: sonnet
+model: opus
 ---
 
 # BullMQ Patterns
@@ -47,7 +47,7 @@ const documentQueue = new Queue('documents.generate', {
 ### Convenção de nomes (sugestão)
 
 | Padrão | Exemplo | Uso |
-|--------|---------|-----|
+| -------- | --------- | ----- |
 | `recurso.acao` | `documents.generate` | Fila principal |
 | `recurso.acao.subtipo` | `documents.generate.pdf` | Fila especializada |
 | `scheduled.recurso` | `scheduled.cleanup` | Jobs agendados |
@@ -197,7 +197,7 @@ worker.on('failed', async (job, error) => {
 ### Estratégias de retry
 
 | Estratégia | Config | Quando considerar |
-|------------|--------|-------------------|
+| ------------ | -------- | ------------------- |
 | Exponencial | `{ type: 'exponential', delay: 2000 }` | API externa, rate limit |
 | Fixa | `{ type: 'fixed', delay: 5000 }` | Falha temporária previsível |
 | Custom | `backoffStrategy` callback | Lógica condicional |
@@ -227,7 +227,7 @@ logger.info('Queue metrics', counts)
 ## Anti-patterns
 
 | Anti-pattern | Alternativa |
-|--------------|-------------|
+| -------------- | ------------- |
 | Operação síncrona bloqueante no worker | Adotar `async/await` no processamento |
 | Ignorar evento `stalled` | Escutar e logar |
 | Job data sem tipagem | Definir type explícito |

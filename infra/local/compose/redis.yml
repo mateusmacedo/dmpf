@@ -1,0 +1,20 @@
+services:
+  redis:
+    image: redis:7-alpine
+    profiles: [redis, all]
+    ports:
+      - '${REDIS_PORT:-6379}:6379'
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits: { cpus: '0.25', memory: 128M }
+        reservations: { cpus: '0.05', memory: 32M }
+
+volumes:
+  redis-data:

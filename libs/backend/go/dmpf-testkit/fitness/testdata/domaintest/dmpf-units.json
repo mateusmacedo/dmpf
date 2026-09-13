@@ -1,0 +1,21 @@
+{
+  "schema": "dmpf/units@1",
+  "units": [
+    {
+      "id": "dt/domain",
+      "block": "domain",
+      "bounded_context": "dt",
+      "public_integration_surface": false,
+      "include": ["exemplo.test/domaintest/domain"]
+    },
+    {
+      "id": "dt/port",
+      "block": "port",
+      "bounded_context": "dt",
+      "public_integration_surface": false,
+      "include": ["exemplo.test/domaintest/port"]
+    }
+  ],
+  "external": [],
+  "exceptions": []
+}

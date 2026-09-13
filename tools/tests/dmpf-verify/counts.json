@@ -1,0 +1,120 @@
+{
+  "totals": {
+    "upr-decision-mensagens.md": {
+      "line": 1394,
+      "pattern": "São 54 regras com ID estável",
+      "value": 54
+    },
+    "uow-inbox-outbox.md": {
+      "line": 2346,
+      "pattern": "`registro` — \\*\\*64 regras com ID\\*\\*",
+      "value": 64
+    },
+    "cloudevents-protobuf-buf.md": {
+      "line": 1921,
+      "pattern": "As 64 regras têm por sujeito o contrato",
+      "value": 64,
+      "atypical": "o FND-05 não declara total em bloco próprio; a única afirmação da contagem está na célula M1 da tabela de monotonicidade"
+    },
+    "politicas-transporte.md": {
+      "line": 1830,
+      "pattern": "`registro` — 131 regras, em sete prefixos",
+      "value": 131
+    },
+    "contexto-erros-seguranca.md": {
+      "line": 1796,
+      "pattern": "\\*\\*Total: 112 regras `normativo`\\.\\*\\*",
+      "value": 112
+    },
+    "resiliencia-observabilidade.md": {
+      "line": 1919,
+      "pattern": "`registro` — 121 regras `normativo`\\.",
+      "value": 121
+    },
+    "testes-interop.md": {
+      "line": 2666,
+      "pattern": "\\*\\*Total: 142 regras próprias: 141 `normativo` e uma `encaminhado`, `RAS-41`\\.\\*\\*",
+      "value": 142
+    },
+    "governanca-bom-pilotos.md": {
+      "line": 1758,
+      "pattern": "`registro` — \\*\\*78 regras com identificador\\*\\*: 77 `normativo` e uma `encaminhado`",
+      "value": 78
+    }
+  },
+  "readmeProjections": [
+    {
+      "id": "P1-fontes",
+      "readmePattern": "O artefato herda de \\*\\*(\\w+)\\*\\* fontes",
+      "source": "testes-interop.md",
+      "sourcePattern": "este artefato depende de (\\w+) fontes"
+    },
+    {
+      "id": "P2-obrigacoes",
+      "readmePattern": "a matriz de §3 trata\\s+\\*\\*(\\d+) obrigações atômicas\\*\\*",
+      "source": "testes-interop.md",
+      "sourcePattern": "As (\\d+) obrigações estão fechadas"
+    },
+    {
+      "id": "P3-identificadores",
+      "readmePattern": "o acervo enumera\\s+(\\d+) identificadores",
+      "source": "testes-interop.md",
+      "sourcePattern": "endereçáveis por \\*\\*(\\d+) identificadores\\*\\*"
+    },
+    {
+      "id": "P4-estaveis",
+      "readmePattern": "\\*\\*(\\d+) são estáveis\\*\\*",
+      "source": "testes-interop.md",
+      "sourcePattern": "declara ali a sua própria contagem: (\\d+)"
+    },
+    {
+      "id": "P5-clausulas",
+      "readmePattern": "A distinção entre (\\d+) cláusulas `normativo`",
+      "source": "testes-interop.md",
+      "sourcePattern": "trazem \\*\\*(\\d+)\\s+cláusulas `normativo`\\*\\*"
+    },
+    {
+      "id": "P6-fnd08",
+      "readmePattern": "As (\\d+) regras `normativo` — incluídos os sufixos",
+      "source": "resiliencia-observabilidade.md",
+      "sourcePattern": "`registro` — (\\d+) regras `normativo`\\."
+    }
+  ],
+  "readmeForbidden": [
+    {
+      "id": "F1-seis-fontes",
+      "pattern": "herda de \\*\\*seis\\*\\* fontes",
+      "why": "correção 1 de RF1 — são sete fontes"
+    },
+    {
+      "id": "F2-551",
+      "pattern": "551 identificadores",
+      "why": "correção 3 de RF1 — são 672"
+    },
+    {
+      "id": "F3-535",
+      "pattern": "535 cláusulas",
+      "why": "correção 4 de RF1 — são 682"
+    },
+    {
+      "id": "F4-118",
+      "pattern": "As 118 regras `normativo`",
+      "why": "correção 5 de RF1 — são 121"
+    },
+    {
+      "id": "F5-inexistentes",
+      "pattern": "encaminhados a FND-09 e ainda inexistentes",
+      "why": "correção 6 de RF1 — a pendência foi quitada (REC-001)"
+    },
+    {
+      "id": "F6-mesmo-byte",
+      "pattern": "cuja spec hoje\\s+exige «mesmo byte»",
+      "why": "correção 7 de RF1 — reconciliado antes da redação (REC-004)"
+    }
+  ],
+  "navigationMap": {
+    "file": "navegacao.md",
+    "prefixRow": "^\\| `([A-Z]+(?:-[A-Z])?)` \\| (\\d+) \\|",
+    "documentRow": "^\\| \\[[^\\]]+\\]\\([^)]+\\) \\((FND-\\d{2})\\) \\| (\\d+) \\|"
+  }
+}

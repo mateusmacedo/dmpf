@@ -4,7 +4,7 @@ description: |
   Use esta skill ao trabalhar com banco em Go: database/sql, sqlx, sqlc, GORM, ent.
   Cobre repository pattern, query builders, migrations (golang-migrate, atlas, goose),
   relations, transações, paginação, índices e otimização de queries.
-model: sonnet
+model: opus
 ---
 
 # Go DB — padrões
@@ -24,7 +24,7 @@ Padronizar acesso a banco em Go: entities, repository pattern, queries, migratio
 ## Escolha de driver / ORM
 
 | Ferramenta | Quando usar | Trade-off |
-|------------|-------------|-----------|
+| ------------ | ------------- | ----------- |
 | `database/sql` (stdlib) | Controle total, sem mágica | Verbosidade |
 | `sqlx` | SQL puro + struct scanning | Não mapeia relações |
 | `sqlc` | SQL com geração de tipos | Setup adicional |
@@ -56,7 +56,7 @@ type UserEntity struct {
 ### Mapeamento SQL → Go
 
 | SQL | Go | Nullable |
-|-----|-----|---------|
+| ----- | ----- | --------- |
 | `varchar`, `text` | `string` | `sql.NullString` |
 | `int`, `bigint` | `int64` | `sql.NullInt64` |
 | `numeric` | `decimal.Decimal` (shopspring) | — |
@@ -239,7 +239,7 @@ Domínio não importa `database/sql` — repositório isola a persistência.
 ## SQL puro vs query builder
 
 | Cenário | Usar |
-|---------|------|
+| --------- | ------ |
 | Busca por chave primária | `db.GetContext` com SQL inline |
 | WHERE/ORDER BY simples | SQL inline |
 | JOINs complexos | SQL inline (legibilidade) |
@@ -391,7 +391,7 @@ tx, err := db.BeginTxx(ctx, &sql.TxOptions{
 ### Ferramentas comuns
 
 | Ferramenta | Característica |
-|------------|----------------|
+| ------------ | ---------------- |
 | `golang-migrate/migrate` | Padrão da indústria, file-based, CLI rica |
 | `pressly/goose` | SQL ou Go, migration por função |
 | `ariga/atlas` | Schema-as-code, declarativo |
@@ -445,7 +445,7 @@ if err := m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
 ### Práticas seguras
 
 | Recomendação | Motivo |
-|--------------|--------|
+| -------------- | -------- |
 | Evitar `AutoMigrate` em produção | Sem `down`, mudanças destrutivas implícitas |
 | Toda migration tem `up` + `down` | Rollback seguro |
 | Migrations idempotentes quando possível | `IF NOT EXISTS`, `ON CONFLICT` |
@@ -588,7 +588,7 @@ Linter `sqlclosecheck` cobre.
 ## Anti-patterns
 
 | Anti-pattern | Preferir |
-|--------------|----------|
+| -------------- | ---------- |
 | `AutoMigrate` em produção (GORM) | Migrations versionadas |
 | String concat em SQL | Parametrização (`$1`, `?`) |
 | `SELECT *` por reflexo | Colunas explícitas |

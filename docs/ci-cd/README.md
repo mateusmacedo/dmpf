@@ -28,7 +28,7 @@ Separação rígida: **CI não faz deploy**; **CD não substitui o CI**.
 | Plataforma | EKS, com GitOps reconciliado por ArgoCD |
 | Ambientes iniciais | `dev` e `hmg` |
 | Nomenclatura de app | Sufixo terminal canônico `-bff` ou `-api` (nunca `-bff-api`) |
-| Templates reutilizáveis | [actions-templates](https://gitea.lidercap.com.br/lidercap-apps/actions-templates) (`deploy-eks`, `detect-apps`, …) |
+| Templates reutilizáveis | [actions-templates](https://github.com/mateusmacedo/actions-templates) (`deploy-eks`, `detect-apps`, …) |
 
 Modelos B/C, CD de produção e outras plataformas estão em
 [EXPANSION_MODELS.md](./EXPANSION_MODELS.md) — consulte antes de proliferar
@@ -56,8 +56,8 @@ push develop / workflow_dispatch
 
 | Repo | URL |
 | --- | --- |
-| actions-templates | https://gitea.lidercap.com.br/lidercap-apps/actions-templates |
-| lidercap-infra | https://gitea.lidercap.com.br/lidercap-apps/lidercap-infra |
+| actions-templates | https://github.com/mateusmacedo/actions-templates |
+| infra-reference | https://github.com/mateusmacedo/infra-reference |
 
 Paths GitOps típicos, no repositório de infraestrutura:
 

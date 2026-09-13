@@ -35,7 +35,7 @@ jobs:
           startsWith(github.event.pull_request.head.ref, 'hotfix/')
         )
       )
-    runs-on: gitea-runner
+    runs-on: ubuntu-latest
     timeout-minutes: 30
 
     steps:
@@ -62,7 +62,7 @@ jobs:
 
       - name: Configure git identity
         run: |
-          git config user.email "gitea-actions[bot]@noreply.lidercap.com.br"
+          git config user.email "gitea-actions[bot]@noreply.github.com"
           git config user.name "gitea-actions[bot]"
 
       - name: Resolve docker version scheme
@@ -119,10 +119,13 @@ jobs:
         if: steps.lib-candidates.outputs.has_libs == 'true'
         run: git push --follow-tags origin master
 
+      # Módulos Go não geram imagem por aqui: a imagem é matéria do golden path
+      # (ADR-041), e um `type:app` Go sem Dockerfile quebraria o build. Mesmo
+      # precedente do `build_projects_filter` de `nx-publish-libs.yml`.
       - name: Detect docker release candidates
         id: docker-candidates
         run: |
-          APPS_JSON=$(pnpm nx show projects --projects="tag:type:app" --json)
+          APPS_JSON=$(pnpm nx show projects --projects="tag:type:app,!tag:stack:go" --json)
           APPS_COUNT=$(node -e "const projects = JSON.parse(process.argv[1] ?? '[]'); console.log(Array.isArray(projects) ? projects.length : 0);" "$APPS_JSON")
           APPS_CSV=$(node -e "const projects = JSON.parse(process.argv[1] ?? '[]'); console.log(Array.isArray(projects) ? projects.join(',') : '');" "$APPS_JSON")
 
@@ -133,7 +136,7 @@ jobs:
           else
             echo "has_docker_apps=false" >> "$GITHUB_OUTPUT"
             echo "projects_csv=" >> "$GITHUB_OUTPUT"
-            echo "No docker release candidates found for tag:type:app. Skipping Docker steps."
+            echo "No docker release candidates found for tag:type:app,!tag:stack:go. Skipping Docker steps."
           fi
 
       - name: Log in to GitHub Container Registry

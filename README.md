@@ -1,4 +1,4 @@
-# nx-base-template
+# dmpf
 
 Baseline de monorepo Nx multistack — Express, Fastify, NestJS, Next.js e Angular no mesmo workspace.
 
@@ -32,7 +32,7 @@ As versões de dependências são centralizadas no `catalog:` do
 ## Estrutura de diretórios
 
 ```
-nx-base-template/
+dmpf/
 ├── apps/                        # Aplicações executáveis
 │   └── <stack>-<name>/
 │   └── <stack>-<name>-e2e/
@@ -85,7 +85,7 @@ Cada projeto deve declarar uma tag de cada dimensão:
 
 ```bash
 # Rodar testes de uma lib
-pnpm nx test @lidercap-apps/minha-lib
+pnpm nx test @mateusmacedo/minha-lib
 
 # Rodar lint apenas nos projetos afetados pelo último commit
 pnpm nx affected -t lint
@@ -101,7 +101,7 @@ pnpm nx graph
 
 # Gerar nova shared lib
 pnpm nx g @nx/js:lib libs/shared/minha-lib \
-  --importPath=@lidercap-apps/minha-lib \
+  --importPath=@mateusmacedo/minha-lib \
   --bundler=tsc --unitTestRunner=jest --linter=none \
   --tags=type:lib,scope:shared,stack:node
 ```
@@ -142,7 +142,7 @@ Os testes usam Jest com transform via SWC (`.spec.swcrc`).
 
 ```bash
 # Testar uma lib específica
-pnpm nx test @lidercap-apps/minha-lib
+pnpm nx test @mateusmacedo/minha-lib
 
 # Testar apenas os projetos afetados
 pnpm nx affected -t test
@@ -160,6 +160,14 @@ pnpm nx run-many -t test
 - **Cache desatualizado do Nx**: rode com `--skip-nx-cache` ou `pnpm nx reset`.
 - **Erro de dependência no lockfile**: rode `pnpm install` e confira o diff de
   `pnpm-lock.yaml`; para CI use `pnpm install --frozen-lockfile`.
+
+## Release do produto DMPF
+
+O kernel DMPF é liberado como produto por uma tag anotada `dmpf@<semver>`, com
+o BOM em `bom/dmpf/<semver>.json` e a evidência de execução que o certifica em
+`bom/evidence/<semver>/`. O schema, o validador `dmpf-bom` e a geração da
+evidência estão em [`bom/README.md`](bom/README.md); o rito da tag, em
+[`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## Decisões arquiteturais
 

@@ -1,0 +1,42 @@
+services:
+  grafana:
+    image: grafana/grafana:13.2.1
+    profiles: [grafana, observability, dmpf, all]
+    environment:
+      # Desenvolvimento local: leitura e edição anônimas, e o formulário de login
+      # aberto para entrar como administrador do servidor (usuários, plugins,
+      # configuração) — papel que o anônimo não alcança.
+      GF_AUTH_ANONYMOUS_ENABLED: 'true'
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_DEFAULT_THEME: system
+      GF_FEATURE_TOGGLES_ENABLE: traceqlEditor
+      GF_LOG_LEVEL: warn
+      GF_ANALYTICS_REPORTING_ENABLED: 'false'
+    ports:
+      - '${GRAFANA_PORT:-3000}:3000'
+    volumes:
+      - ../../observability/grafana/datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml:ro
+      - ../../observability/grafana/dashboards.yaml:/etc/grafana/provisioning/dashboards/dashboards.yaml:ro
+      - ../../observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      prometheus:
+        condition: service_healthy
+      loki:
+        condition: service_started
+      tempo:
+        condition: service_started
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -q -O- http://localhost:3000/api/health | grep -q ok']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    deploy:
+      resources:
+        limits: { cpus: '0.50', memory: 768M }
+        reservations: { cpus: '0.05', memory: 256M }
+
+volumes:
+  grafana-data:

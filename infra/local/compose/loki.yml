@@ -1,0 +1,20 @@
+# A imagem do Loki não traz shell nem cliente HTTP, então não há healthcheck
+# possível por CMD; quem depende dele espera o start e tolera a primeira recusa
+# (o Alloy repete o envio, o Grafana resolve o datasource sob demanda).
+services:
+  loki:
+    image: grafana/loki:3.7.7
+    profiles: [loki, observability, dmpf, all]
+    command: ['-config.file=/etc/loki/loki.yaml']
+    ports:
+      - '${LOKI_PORT:-3100}:3100'
+    volumes:
+      - ../../observability/loki/loki.yaml:/etc/loki/loki.yaml:ro
+      - loki-data:/loki
+    deploy:
+      resources:
+        limits: { cpus: '0.75', memory: 768M }
+        reservations: { cpus: '0.10', memory: 128M }
+
+volumes:
+  loki-data:

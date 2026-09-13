@@ -2,7 +2,7 @@
 
 ## Status
 
-Aceito — 2026-07-30. Implementa SPEC-4NR9KKS8.
+Aceito — 2026-07-30. Implementa a spec de port do monorepo de origem.
 
 Supersede parcialmente o [ADR-004](./004-workflows-verdaccio-release.md): apenas
 os itens sobre host de hospedagem e uso do binário `gh`. As demais decisões do
@@ -21,8 +21,8 @@ O remoto do repositório contradiz essa premissa:
 
 ```text
 $ git remote -v
-origin	git@gitea.lidercap.com.br:lidercap-apps/nx-base-template.git (fetch)
-origin	git@gitea.lidercap.com.br:lidercap-apps/nx-base-template.git (push)
+origin	git@github.com:mateusmacedo/dmpf.git (fetch)
+origin	git@github.com:mateusmacedo/dmpf.git (push)
 ```
 
 O template está hospedado em Gitea desde antes do ADR-004, que registrou uma
@@ -34,8 +34,8 @@ execução real — um defeito latente, porque o workflow só roda por
 
 ## Decisão
 
-- **A plataforma é Gitea** (`gitea.lidercap.com.br`, organização
-  `lidercap-apps`). Toda automação que precise falar com a plataforma usa a API
+- **A plataforma é Gitea** (`github.com`, organização
+  `mateusmacedo`). Toda automação que precise falar com a plataforma usa a API
   do Gitea, não a do GitHub.
 - **`create-release.yml` abre PR via API do Gitea**: `jq` monta o corpo JSON e
   `curl -fsS -X POST` chama
@@ -74,7 +74,7 @@ execução real — um defeito latente, porque o workflow só roda por
 
 ## Referências
 
-- Spec: `SPEC-4NR9KKS8` (em `docs/specs/`)
+- Spec: a spec de port do monorepo de origem (em `docs/specs/`)
 - [ADR-004](./004-workflows-verdaccio-release.md) — parcialmente superseded
 - [ADR-003](./003-template-hardening.md) — follow-up de portabilidade de registry
 - `.github/workflows/create-release.yml`

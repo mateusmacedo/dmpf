@@ -1,0 +1,11 @@
+# Redpanda Console: interface do Kafka (tópicos, grupos, mensagens, schema) e da
+# Admin API do broker. Endereços internos do projeto; a porta publicada no host
+# fica no compose.
+kafka:
+  brokers: ['redpanda:29092']
+redpanda:
+  adminApi:
+    enabled: true
+    urls: ['http://redpanda:9644']
+server:
+  listenPort: 8080

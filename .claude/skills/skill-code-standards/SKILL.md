@@ -6,15 +6,17 @@ description: |
   padrões TypeScript, formatação, convenções backend e padrões internos.
   Cobre padrões TypeScript, formatação, imports, DTOs, decorators e convenções.
   Para princípios gerais (SOLID, code smells), ver `skill-clean-code`.
-model: sonnet
+model: opus
 ---
 
 # Padrões de código
 
 ## Objetivo
+
 Descrever convenções de código recomendadas. Os defaults abaixo costumam funcionar bem em projetos TS/JS de backend; adeque ao padrão vigente do projeto.
 
 ## Quando usar
+
 - Ao criar ou editar código.
 - Ao revisar PRs para garantir consistência.
 - Ao alinhar convenções do time.
@@ -32,22 +34,26 @@ Descrever convenções de código recomendadas. Os defaults abaixo costumam func
 ## TypeScript (defaults comuns)
 
 - Prefira `type` a `interface` quando não houver extensão/merge:
+
   ```ts
   type CreateUserInput = { name: string; email: string }
   ```
 
 - Arrow functions com `const` no nível de módulo:
+
   ```ts
   export const fetchUser = async (id: string) => {}
   ```
 
 - Use `import type` para imports exclusivamente de tipos:
+
   ```ts
   import type { User } from './types'
   import { createUser } from './utils'
   ```
 
 - Em geral, prefira union types ou `as const` a `enum` (menor pegada em runtime e melhor com tree-shaking):
+
   ```ts
   type Status = 'pending' | 'active' | 'done'
   const ROLES = ['admin', 'user'] as const
@@ -56,6 +62,7 @@ Descrever convenções de código recomendadas. Os defaults abaixo costumam func
 ## Imports
 
 - Quando o projeto define alias de path (por exemplo, `@/` ou `~/`), use os aliases para imports absolutos:
+
   ```ts
   import { UserRepository } from '@/infra/repositories/UserRepository'
   import type { User } from '@/domain/entities/User'

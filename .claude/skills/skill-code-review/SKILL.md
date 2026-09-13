@@ -6,7 +6,7 @@ description: |
   Cobre checklist de review, categorias de feedback e comunicação construtiva.
   Para checklist pré-release, ver `skill-quality-checklist`.
 argument-hint: "[escopo]"
-model: sonnet
+model: opus
 user-invocable: true
 ---
 
@@ -49,32 +49,39 @@ git diff HEAD~N       # últimos N commits
 **2. Aplicar checklist**
 
 **Código**
+
 - [ ] Segue padrões do projeto.
 
 **Contratos de API**
+
 - [ ] DTOs de request/response definidos e validados.
 - [ ] Códigos HTTP corretos para cada cenário.
 
 **Repository Pattern**
+
 - [ ] Repositórios seguem o contrato do domínio.
 - [ ] Queries otimizadas (sem N+1, índices considerados).
 
 **Hierarquia de erros**
+
 - [ ] Erros de domínio lançados nos casos de uso.
 - [ ] Tratamento centralizado (controller/middleware/handler global).
 - [ ] Sem exposição de detalhes internos.
 
 **Otimização de queries**
+
 - [ ] Sem N+1.
 - [ ] Índices para campos com filtro frequente.
 - [ ] Joins e selects enxutos.
 
 **Cobertura de testes**
+
 - [ ] Suíte existente passa.
 - [ ] Novos testes para funcionalidade nova.
 - [ ] Lógica de negócio coberta.
 
 **Autenticação e autorização**
+
 - [ ] Guards/middlewares aplicados nas rotas.
 - [ ] Permissões verificadas no nível adequado.
 
@@ -122,6 +129,7 @@ Mindset:
 ### Checklist de revisão
 
 #### 1. Correção
+
 - [ ] O código faz o que deveria?
 - [ ] Edge cases tratados?
 - [ ] Há bugs óbvios?
@@ -129,6 +137,7 @@ Mindset:
 - [ ] Testes passando?
 
 #### 2. Segurança
+
 - [ ] Input de usuário validado?
 - [ ] Queries parametrizadas?
 - [ ] Output escapado quando cabível?
@@ -137,12 +146,14 @@ Mindset:
 - [ ] Sem segredos no código?
 
 #### 3. Performance
+
 - [ ] Sem N+1?
 - [ ] Loops desnecessários?
 - [ ] Oportunidade de cache?
 - [ ] Índices para filtros frequentes?
 
 #### 4. Manutenibilidade
+
 - [ ] Código legível?
 - [ ] Nomes descritivos?
 - [ ] Funções pequenas e focadas?
@@ -150,12 +161,14 @@ Mindset:
 - [ ] Sem duplicação desnecessária?
 
 #### 5. Consistência
+
 - [ ] Padrões do projeto respeitados?
 - [ ] Estilo alinhado?
 - [ ] Imports organizados?
 - [ ] TypeScript strict?
 
 #### 6. Documentação
+
 - [ ] Código auto-explicativo onde possível?
 - [ ] Comentários onde realmente ajudam?
 - [ ] README atualizado se necessário?
@@ -176,6 +189,7 @@ Issues que impedem o merge:
 - Violações graves de padrão.
 
 Formato:
+
 ```
 **Blocker**: [descrição]
 
@@ -199,6 +213,7 @@ Sugestão:
 - Simplificações.
 
 Formato:
+
 ```
 **Sugestão**: [descrição]
 
@@ -305,7 +320,7 @@ Os números exatos dependem do time.
 ### Anti-padrões
 
 | Evitar | Preferir |
-|--------|----------|
+| -------- | ---------- |
 | Rubber stamping | Review genuíno |
 | Bloquear por estilo | Automatizar com linters |
 | Comentários vagos | Feedback específico |

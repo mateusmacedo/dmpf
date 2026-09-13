@@ -1,0 +1,17 @@
+services:
+  redpanda-console:
+    image: redpandadata/console:v3.11.0
+    profiles: [console, redpanda, dmpf, all]
+    environment:
+      CONFIG_FILEPATH: /etc/console/config.yaml
+    ports:
+      - '${CONSOLE_PORT:-8083}:8080'
+    volumes:
+      - ../redpanda-console.yaml:/etc/console/config.yaml:ro
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits: { cpus: '0.25', memory: 256M }
+        reservations: { cpus: '0.05', memory: 64M }

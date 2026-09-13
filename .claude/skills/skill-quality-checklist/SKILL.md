@@ -6,15 +6,17 @@ description: |
   ou mencionar validação pré-release, quality gates ou revisão completa.
   Cobre verificações de segurança, robustez, performance, banco de dados, APIs, filas e código.
   Para review detalhado de PR, ver `skill-code-review`.
-model: sonnet
+model: opus
 ---
 
 # Checklist de qualidade
 
 ## Objetivo
+
 Checklist para revisões pré-release: segurança, robustez, performance, banco de dados, APIs, filas e código.
 
 ## Quando usar
+
 - Antes de finalizar uma entrega ou PR.
 - Ao validar requisitos de qualidade em review.
 - Ao preparar release ou deploy.

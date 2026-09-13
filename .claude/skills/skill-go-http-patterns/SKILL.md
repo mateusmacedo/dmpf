@@ -5,7 +5,7 @@ description: |
   Cobre roteamento, dependency injection (constructor + Wire/Fx), middleware, validação,
   autenticação JWT, autorização baseada em role, recover, structured errors, request lifecycle,
   graceful shutdown, structured logging com slog.
-model: sonnet
+model: opus
 ---
 
 # Go HTTP — padrões
@@ -509,7 +509,7 @@ func JSON(w http.ResponseWriter, status int, payload any) {
 ### Mapeamento status × código
 
 | Status | Código sugerido | Quando |
-|--------|----------------|--------|
+| -------- | ---------------- | -------- |
 | 400 | `invalid_request` | Body/query mal formado |
 | 401 | `unauthorized` | Token inválido/ausente |
 | 403 | `forbidden` | Sem permissão |
@@ -586,6 +586,7 @@ func runServer(handler http.Handler, port int, log *slog.Logger) {
 ```
 
 Ordem ao encerrar:
+
 1. Parar de aceitar requisições novas (`Shutdown` faz isso).
 2. Aguardar requisições em voo até o timeout.
 3. Fechar workers/queues, conexões DB e cache.
@@ -595,7 +596,7 @@ Ordem ao encerrar:
 ## Anti-patterns
 
 | Anti-pattern | Preferir |
-|--------------|----------|
+| -------------- | ---------- |
 | Handler com lógica de negócio | Mover para use case/service |
 | `panic` em fluxo de request | Retornar erro; `panic` só em programming errors |
 | Token em query string | Header `Authorization` ou cookie HttpOnly |
@@ -610,7 +611,7 @@ Ordem ao encerrar:
 ## Recursos comuns
 
 | Pacote | Uso |
-|--------|-----|
+| -------- | ----- |
 | `github.com/go-chi/chi/v5` | Router idiomático |
 | `github.com/gin-gonic/gin` | Router com helpers |
 | `github.com/go-playground/validator/v10` | Validação por struct tag |

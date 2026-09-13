@@ -1,0 +1,52 @@
+name: DMPF Verify
+
+# Gate de congruência horizontal do acervo `docs/dmpf/`.
+# Workflow dedicado porque o `ci.yml` ignora `**/*.md` por design: remover essa
+# exclusão custaria o pipeline inteiro em todo PR documental.
+# Executa o harness E o verificador — o CI do Nx não alcança o harness, porque a
+# raiz declara `test: {executor: nx:noop}` e o `ci.yml` a exclui por `NX_EXCLUDE`.
+
+on:
+  pull_request:
+    branches:
+      - master
+      - develop
+      - "release/**"
+    paths:
+      - "docs/dmpf/**"
+      - "tools/dmpf-verify.mjs"
+      - "tools/dmpf-verify-emit.mjs"
+      - "tools/tests/dmpf-verify/**"
+      - ".github/workflows/dmpf-verify.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Congruência horizontal do acervo
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # O teste histórico monta a fixture a partir do commit base; sem o
+          # histórico completo, `git show <base>:<path>` falha.
+          fetch-depth: 0
+
+      - name: Setup Node and pnpm
+        uses: ./.github/actions/setup-node-pnpm
+        with:
+          node-version: "24"
+
+      - name: Harness do verificador
+        run: node --test tools/tests/dmpf-verify/verify.test.mjs
+
+      - name: Verificador sobre o acervo
+        run: node tools/dmpf-verify.mjs

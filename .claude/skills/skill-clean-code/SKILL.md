@@ -6,15 +6,17 @@ description: |
   ou mencionar SOLID, tamanho de funções, naming ou legibilidade.
   Cobre naming, funções pequenas, SOLID, code smells e refatoração segura.
   Para convenções específicas de projeto, ver `skill-code-standards`.
-model: sonnet
+model: opus
 ---
 
 # Clean Code
 
 ## Objetivo
+
 Reunir princípios gerais de Clean Code: naming, funções pequenas, SOLID, code smells e refatoração.
 
 ## Quando usar
+
 - Ao melhorar legibilidade e coesão.
 - Ao revisar naming e responsabilidades.
 - Ao remover code smells com refatoração segura.
@@ -174,7 +176,7 @@ const createUserService = (db: Database) => ({
 ## Code Smells
 
 | Smell | Tendência de solução |
-|-------|----------------------|
+| ------- | ---------------------- |
 | Função longa | Extract function |
 | Muitos parâmetros | Parameter object |
 | Código duplicado | Extract function/module |
@@ -361,7 +363,7 @@ func NewUserService(store UserStore) *UserService {
 ### Code Smells em Go
 
 | Smell | Indicador / solução |
-|-------|---------------------|
+| ------- | --------------------- |
 | Função longa | `funlen` linter; extract function |
 | Muitos parâmetros | `gocyclo`/manual; struct de opções |
 | Nesting profundo | Early return com erro |

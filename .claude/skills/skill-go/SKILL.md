@@ -10,7 +10,7 @@ description: >-
   mencionar erros de tipo, generics, type assertion, type switch, channels,
   goroutines, errors.Is/As, embedding ou ao tipar entities, repositories, DTOs,
   use cases ou respostas de API em Go.
-model: sonnet
+model: opus
 ---
 
 # Go — padrões e convenções

@@ -62,10 +62,10 @@ com realidade.
 | -------- | -------------- |
 | Runtime / package manager | Node `^24` (`engines`); `pnpm@11.14.0` via `packageManager`; Nx `23.1.0` |
 | Apps executáveis | Nenhuma. `apps/{backend,frontend,serverless}` são destinos vazios |
-| Libs | `@lidercap-apps/shared-types` e `@lidercap-apps/shared-utils`, ambas em `libs/shared/` |
+| Libs | `@mateusmacedo/shared-types` e `@mateusmacedo/shared-utils`, ambas em `libs/shared/` |
 | Lint / format | **Biome** (`biome ci` / `biome lint`) no CI e no lefthook — **não** ESLint/Prettier |
 | Testes | Jest 30 + SWC, com `passWithNoTests` no preset |
-| Tags 3D | `type:` / `scope:` / `stack:` presentes nas duas libs; `@nx-base-template/source` é exceção conhecida |
+| Tags 3D | `type:` / `scope:` / `stack:` presentes nas duas libs; `@mateusmacedo/dmpf-source` é exceção conhecida |
 | Documentação de entrada | `README.md`, `CONTRIBUTING.md`, `docs/onboarding.md`, `AGENTS.md` |
 
 Fonte de verdade de projetos: `pnpm nx show projects`. Pastas vazias sob `apps/` e
@@ -77,7 +77,7 @@ Fonte de verdade de projetos: `pnpm nx show projects`. Pastas vazias sob `apps/`
 | ---------------------------- | ------------- |
 | "ESLint com module boundaries é enforced em CI desde o primeiro commit" | **Não vigente.** Não existe config de ESLint nem dependência de ESLint no repositório; `targetDefaults.lint` executa `biome lint {projectRoot}`. |
 | "`@nx/enforce-module-boundaries` com tagging 3D" (fundamento) | Parcial. As tags 3D **permanecem** como convenção de governança, mas o **enforcement** de boundaries não está no CI — é débito técnico explícito. |
-| "Todos os projetos nascem com tags obrigatórias" | Meta mantida para apps/libs novos; `@nx-base-template/source` foge do padrão 3D completo. |
+| "Todos os projetos nascem com tags obrigatórias" | Meta mantida para apps/libs novos; `@mateusmacedo/dmpf-source` foge do padrão 3D completo. |
 | Stacks Express/Fastify/Next/Angular como parte do baseline "suportado" | Continuam no **roadmap**. O que existe de concreto são as duas libs `shared`. |
 
 ### Débitos e próximos passos derivados deste ADR

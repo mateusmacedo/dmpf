@@ -1,0 +1,419 @@
+version: "2"
+
+linters:
+  default: standard
+  enable:
+    - depguard
+    - forbidigo
+
+  # A regra `forbidigo` abaixo vale SÓ para o bloco `domain` (`-domain/` no kernel,
+  # `/domain/` nos contextos em pasta própria — ADR-030), como a regra `depguard`: fora dele, `cmd/` e providers escrevem e leem à vontade.
+  exclusions:
+    rules:
+      - path-except: '(-domain|/domain)/'
+        linters:
+          - forbidigo
+      # O `files` da regra `application` seleciona por caminho e alcançaria este
+      # subpackage, que é unidade `provider`. O verificador, gate autoritativo,
+      # deixa `provider` irrestrito (`capability.go:51`) porque quem realiza a
+      # porta precisa do I/O que o bloco de cima não pode ter.
+      - path: 'dmpf-application/example/memory/'
+        linters:
+          - depguard
+      # Código emitido pelo protoc-gen-go. As dependências que ele traz
+      # (`reflect`, `unsafe`) são exceções NOMINAIS no `dmpf-units.json` do
+      # módulo, com owner e `review_by`; o verificador é quem as honra.
+      # Repeti-las aqui poria a mesma norma em dois lugares, e o daqui não tem
+      # prazo de revisão.
+      - path: 'dmpf-contracts/gen/'
+        linters:
+          - depguard
+
+  settings:
+    # Segunda camada do bloco `domain`, por SÍMBOLO. O depguard e o verificador
+    # do KRN-02 decidem por package e declaram não distinguir `time.Now()` de
+    # `time.Duration` nem `fmt.Println` de `fmt.Sprintf`; aqui a distinção é
+    # feita. Lista própria descarta os defaults do forbidigo, por isso `print`
+    # e `println` aparecem explicitamente.
+    forbidigo:
+      analyze-types: true
+      forbid:
+        - pattern: '^time\.(Now|Since|Until|Tick|After|AfterFunc|NewTimer|NewTicker|Sleep)$'
+          msg: 'io.clock: o instante chega ao dominio como valor (RFC 9.3)'
+        - pattern: '^fmt\.(Print|Println|Printf|Fprint|Fprintln|Fprintf)$'
+          msg: 'saida e I/O; o dominio nao escreve (RFC 6.2)'
+        - pattern: '^fmt\.(Scan|Scanln|Scanf|Fscan|Fscanln|Fscanf|Sscan|Sscanln|Sscanf)$'
+          msg: 'entrada e I/O; o dominio nao le (RFC 6.2)'
+        - pattern: '^(print|println)$'
+          msg: 'saida e I/O; o dominio nao escreve (RFC 6.2)'
+        - pattern: '^(errors\.New|fmt\.Errorf)$'
+          msg: 'o dominio nao fabrica erro nao tipado; so Rejection trafega (ADR-018)'
+        - pattern: '^panic$'
+          msg: 'rejeicao e valor devolvido, nunca lancamento (DEC-04)'
+
+    depguard:
+      rules:
+        # Bloco `domain` da RFC DMPF: capability `pure` apenas (RFC §6.2).
+        #
+        # `list-mode: strict` é o que torna a regra fechada: sem ele o depguard
+        # opera em modo permissivo e libera tudo que não esteja em `deny` --
+        # `syscall`, `encoding/xml`, Zap, Redis, qualquer SDK. A `allow` abaixo
+        # é a fronteira real; a `deny` que a segue existe para dar mensagem
+        # explicativa por capability quando o import barrado for um dos casos
+        # previstos na RFC §7.
+        #
+        # ALCANCE (limitação declarada, não resolvida aqui): a regra seleciona
+        # por nome de diretório, não pelo `dmpf-units.json`, e o golangci-lint
+        # analisa um módulo por vez. Ela NÃO vê a aresta entre módulos: um
+        # `domain` que importe outro módulo do workspace que por sua vez use
+        # I/O passa verde. O enforcement transitivo e a leitura da classificação
+        # autoritativa são do verificador do KRN-02 (ARQ-521).
+        domain:
+          list-mode: strict
+          files:
+            - '**/*-domain/**'
+            - '**/domain/**'
+          allow:
+            # o próprio universo verificável do repositório
+            - github.com/mateusmacedo/dmpf/
+            # stdlib de computação determinística (RFC §7: capability `pure`)
+            - errors
+            - fmt
+            - strconv
+            - strings
+            - bytes
+            - sort
+            - math
+            - unicode
+            - unicode/utf8
+            - regexp
+            - slices
+            - maps
+            - cmp
+            - iter
+            # `time` entra como tipo (Duration, Time como valor). `time.Now()` é
+            # io.clock e entra por porta -- distinção de símbolo, que o depguard
+            # não faz e o verificador do KRN-02 fará.
+            - time
+            # testes do próprio bloco
+            - testing
+          deny:
+            # io.storage
+            - pkg: database/sql
+              desc: 'domain e default deny (RFC 6.2); acesso a banco e io.storage e entra por porta'
+            - pkg: gorm.io/gorm
+              desc: 'domain e default deny (RFC 6.2); ORM e io.storage e entra por porta'
+            - pkg: github.com/jackc/pgx
+              desc: 'domain e default deny (RFC 6.2); driver de banco e io.storage e entra por porta'
+            # io.messaging
+            - pkg: github.com/segmentio/kafka-go
+              desc: 'domain e default deny (RFC 6.2); SDK de broker e io.messaging e entra por porta'
+            - pkg: github.com/twmb/franz-go
+              desc: 'domain e default deny (RFC 6.2); SDK de broker e io.messaging e entra por porta'
+            - pkg: github.com/aws/aws-sdk-go-v2
+              desc: 'domain e default deny (RFC 6.2); SDK de nuvem e io.messaging ou io.storage e entra por porta'
+            # io.network
+            - pkg: net/http
+              desc: 'domain e default deny (RFC 6.2); cliente HTTP e io.network e entra por porta'
+            - pkg: net
+              desc: 'domain e default deny (RFC 6.2); acesso a rede e io.network e entra por porta'
+            - pkg: google.golang.org/grpc
+              desc: 'domain e default deny (RFC 6.2); gRPC e io.network e entra por porta'
+            # io.filesystem
+            - pkg: os
+              desc: 'domain e default deny (RFC 6.2); acesso a disco e ambiente e io.filesystem e entra por porta'
+            - pkg: path/filepath
+              desc: 'domain e default deny (RFC 6.2); acesso a disco e io.filesystem e entra por porta'
+            # io.random
+            - pkg: math/rand
+              desc: 'domain e default deny (RFC 6.2); entropia e io.random e entra por porta'
+            - pkg: crypto/rand
+              desc: 'domain e default deny (RFC 6.2); entropia e io.random e entra por porta'
+            # runtime.framework
+            - pkg: github.com/gin-gonic/gin
+              desc: 'domain e default deny (RFC 6.2); framework de servidor e runtime.framework'
+            - pkg: go.uber.org/fx
+              desc: 'domain e default deny (RFC 6.2); injecao de dependencia e runtime.framework'
+            - pkg: github.com/google/wire
+              desc: 'domain e default deny (RFC 6.2); injecao de dependencia e runtime.framework'
+            # wire.codec
+            - pkg: google.golang.org/protobuf
+              desc: 'domain e default deny (RFC 6.2); serializacao e wire.codec e vive no contract package'
+            - pkg: encoding/json
+              desc: 'domain e default deny (RFC 6.2); serializacao e wire.codec e vive no contract package'
+            # observability — vedada no domain mesmo sendo tecnicamente pura (RFC 6.2, principio 11)
+            - pkg: go.opentelemetry.io/otel
+              desc: 'observabilidade nao entra no domain (RFC 6.2); vive em adapters e providers'
+            - pkg: log
+              desc: 'observabilidade nao entra no domain (RFC 6.2); vive em adapters e providers'
+            - pkg: log/slog
+              desc: 'observabilidade nao entra no domain (RFC 6.2); vive em adapters e providers'
+
+        # Bloco `port`: capability `pure` apenas (RFC §6.2, `capability.go:46`).
+        # Espelha a regra `domain` com duas diferenças: `time` sai da `allow` e
+        # entra na `deny`, porque o verificador classifica o package inteiro
+        # como `io.clock` (`stdlib.go:28`) e é o gate autoritativo; `context` e
+        # `sync` entram, por serem `pure` na mesma tabela (`stdlib.go:111-112`).
+        # A limitação de alcance declarada na regra `domain` vale aqui igual.
+        port:
+          list-mode: strict
+          files:
+            - '**/*-ports/**'
+            - '**/ports/**'
+          allow:
+            # o próprio universo verificável do repositório
+            - github.com/mateusmacedo/dmpf/
+            # stdlib de computação determinística (RFC §7: capability `pure`)
+            - errors
+            - fmt
+            - strconv
+            - strings
+            - bytes
+            - sort
+            - math
+            - unicode
+            - unicode/utf8
+            - regexp
+            - slices
+            - maps
+            - cmp
+            - iter
+            - context
+            - sync
+            # testes do próprio bloco
+            - testing
+          deny:
+            # io.clock — a diferença em relação ao bloco `domain`
+            - pkg: time
+              desc: 'io.clock (RFC 6.2); o instante entra por porta, como dmpfports.Instant'
+            # io.storage
+            - pkg: database/sql
+              desc: 'port declara a fronteira, nao a realiza (RFC 6.2); banco e io.storage e vive no provider'
+            - pkg: gorm.io/gorm
+              desc: 'port declara a fronteira, nao a realiza (RFC 6.2); ORM e io.storage e vive no provider'
+            - pkg: github.com/jackc/pgx
+              desc: 'port declara a fronteira, nao a realiza (RFC 6.2); driver e io.storage e vive no provider'
+            # io.messaging
+            - pkg: github.com/segmentio/kafka-go
+              desc: 'port declara a fronteira, nao a realiza (RFC 6.2); SDK de broker e io.messaging e vive no provider'
+            - pkg: github.com/twmb/franz-go
+              desc: 'port declara a fronteira, nao a realiza (RFC 6.2); SDK de broker e io.messaging e vive no provider'
+            - pkg: github.com/aws/aws-sdk-go-v2
+              desc: 'port declara a fronteira, nao a realiza (RFC 6.2); SDK de nuvem e io.* e vive no provider'
+            # io.network
+            - pkg: net/http
+              desc: 'port declara a fronteira, nao a realiza (RFC 6.2); HTTP e io.network e vive no provider'
+            - pkg: net
+              desc: 'port declara a fronteira, nao a realiza (RFC 6.2); rede e io.network e vive no provider'
+            - pkg: google.golang.org/grpc
+              desc: 'port declara a fronteira, nao a realiza (RFC 6.2); gRPC e io.network e vive no provider'
+            # io.filesystem
+            - pkg: os
+              desc: 'port declara a fronteira, nao a realiza (RFC 6.2); disco e ambiente e io.filesystem'
+            - pkg: path/filepath
+              desc: 'port declara a fronteira, nao a realiza (RFC 6.2); disco e io.filesystem'
+            # io.random
+            - pkg: math/rand
+              desc: 'io.random (RFC 6.2); a identidade entra por porta, como dmpfports.IDGenerator'
+            - pkg: crypto/rand
+              desc: 'io.random (RFC 6.2); a identidade entra por porta, como dmpfports.IDGenerator'
+            # runtime.framework
+            - pkg: github.com/gin-gonic/gin
+              desc: 'port e default deny (RFC 6.2); framework de servidor e runtime.framework'
+            - pkg: go.uber.org/fx
+              desc: 'port e default deny (RFC 6.2); injecao de dependencia e runtime.framework'
+            - pkg: github.com/google/wire
+              desc: 'port e default deny (RFC 6.2); injecao de dependencia e runtime.framework'
+            # wire.codec
+            - pkg: google.golang.org/protobuf
+              desc: 'port e default deny (RFC 6.2); serializacao e wire.codec e vive no contract package'
+            - pkg: encoding/json
+              desc: 'port e default deny (RFC 6.2); serializacao e wire.codec e vive no contract package'
+            # observability — vedada no port como no domain (RFC 6.2, capability.go:46)
+            - pkg: go.opentelemetry.io/otel
+              desc: 'observabilidade nao entra no port (RFC 6.2); vive em adapters e providers'
+            - pkg: log
+              desc: 'observabilidade nao entra no port (RFC 6.2); vive em adapters e providers'
+            - pkg: log/slog
+              desc: 'observabilidade nao entra no port (RFC 6.2); vive em adapters e providers'
+
+        # Bloco `application`: `pure` mais `observability` (`capability.go:47`)
+        # — a norma nega io, framework e wire, e nada diz sobre telemetria
+        # (leitura do complemento registrada no ADR-031). O glob alcançaria
+        # também os subpackages `provider` dentro do módulo; cada um deles é
+        # excluído em `linters.exclusions.rules`, no topo deste arquivo.
+        application:
+          list-mode: strict
+          files:
+            - '**/*-application/**'
+            - '**/application/**'
+          allow:
+            # o próprio universo verificável do repositório
+            - github.com/mateusmacedo/dmpf/
+            # stdlib de computação determinística (RFC §7: capability `pure`)
+            - errors
+            - fmt
+            - strconv
+            - strings
+            - bytes
+            - sort
+            - math
+            - unicode
+            - unicode/utf8
+            - regexp
+            - slices
+            - maps
+            - cmp
+            - iter
+            - context
+            - sync
+            # capability `observability`, permitida ao bloco (capability.go:47)
+            - log
+            - log/slog
+            # testes do próprio bloco
+            - testing
+          deny:
+            # io.clock — a diferença em relação ao bloco `domain`
+            - pkg: time
+              desc: 'io.clock (RFC 6.2); o instante entra por porta, como dmpfports.Clock'
+            # io.storage
+            - pkg: database/sql
+              desc: 'application orquestra, nao realiza io (RFC 6.2); banco e io.storage e vive no provider'
+            - pkg: gorm.io/gorm
+              desc: 'application orquestra, nao realiza io (RFC 6.2); ORM e io.storage e vive no provider'
+            - pkg: github.com/jackc/pgx
+              desc: 'application orquestra, nao realiza io (RFC 6.2); driver e io.storage e vive no provider'
+            # io.messaging
+            - pkg: github.com/segmentio/kafka-go
+              desc: 'application orquestra, nao realiza io (RFC 6.2); SDK de broker e io.messaging e vive no provider'
+            - pkg: github.com/twmb/franz-go
+              desc: 'application orquestra, nao realiza io (RFC 6.2); SDK de broker e io.messaging e vive no provider'
+            - pkg: github.com/aws/aws-sdk-go-v2
+              desc: 'application orquestra, nao realiza io (RFC 6.2); SDK de nuvem e io.* e vive no provider'
+            # io.network
+            - pkg: net/http
+              desc: 'application orquestra, nao realiza io (RFC 6.2); HTTP e io.network e vive no provider'
+            - pkg: net
+              desc: 'application orquestra, nao realiza io (RFC 6.2); rede e io.network e vive no provider'
+            - pkg: google.golang.org/grpc
+              desc: 'application orquestra, nao realiza io (RFC 6.2); gRPC e io.network e vive no provider'
+            # io.filesystem
+            - pkg: os
+              desc: 'application orquestra, nao realiza io (RFC 6.2); disco e ambiente e io.filesystem'
+            - pkg: path/filepath
+              desc: 'application orquestra, nao realiza io (RFC 6.2); disco e io.filesystem'
+            # io.random
+            - pkg: math/rand
+              desc: 'io.random (RFC 6.2); a identidade entra por porta, como dmpfports.IDGenerator'
+            - pkg: crypto/rand
+              desc: 'io.random (RFC 6.2); a identidade entra por porta, como dmpfports.IDGenerator'
+            # runtime.framework
+            - pkg: github.com/gin-gonic/gin
+              desc: 'application e default deny (RFC 6.2); framework de servidor e runtime.framework'
+            - pkg: go.uber.org/fx
+              desc: 'application e default deny (RFC 6.2); injecao de dependencia e runtime.framework'
+            - pkg: github.com/google/wire
+              desc: 'application e default deny (RFC 6.2); injecao de dependencia e runtime.framework'
+            # wire.codec
+            - pkg: google.golang.org/protobuf
+              desc: 'application e default deny (RFC 6.2); serializacao e wire.codec e vive no contract package'
+            - pkg: encoding/json
+              desc: 'application e default deny (RFC 6.2); serializacao e wire.codec e vive no contract package'
+
+        # Bloco `contract`: `pure` mais `wire.codec` (`capability.go:48`) — o
+        # único que pode serializar, e é isso que o distingue dos três acima.
+        # `time` segue negado: gerar o instante é `io.clock`. O subpackage de
+        # código gerado é excluído do depguard no topo deste arquivo, porque as
+        # dependências dele são exceções nominais do `dmpf-units.json`.
+        #
+        # `!$test` restringe a regra à PRODUÇÃO, que é o que a política de
+        # capabilities governa (RFC §6.2) e o que o verificador considera: os
+        # testes deste bloco leem golden files do disco, e o package `golden`
+        # existe só como teste, fora do manifesto. As outras três regras não
+        # precisam do filtro porque os testes delas não fazem I/O.
+        contract:
+          list-mode: strict
+          files:
+            - '**/*-contracts/**'
+            - '!$test'
+          allow:
+            # o próprio universo verificável do repositório
+            - github.com/mateusmacedo/dmpf/
+            # stdlib de computação determinística (RFC §7: capability `pure`)
+            - errors
+            - fmt
+            - strconv
+            - strings
+            - bytes
+            - sort
+            - math
+            - unicode
+            - unicode/utf8
+            - regexp
+            - slices
+            - maps
+            - cmp
+            - iter
+            - context
+            - sync
+            # `pure` por package, não pela família: `crypto` inteiro liberaria
+            # `crypto/rand`, que é `io.random` (`stdlib.go:94-95,105`)
+            - crypto/sha256
+            - encoding/hex
+            - hash
+            # capability `wire.codec`, que só este bloco tem. Um por package:
+            # `encoding` na lista não cobre `encoding/json`, porque o depguard
+            # não casa por prefixo de caminho
+            - encoding
+            - encoding/json
+            - encoding/binary
+            - google.golang.org/protobuf
+          deny:
+            # io.clock
+            - pkg: time
+              desc: 'io.clock (RFC 6.2); o instante do envelope chega resolvido, nao e gerado aqui'
+            # io.random
+            - pkg: math/rand
+              desc: 'io.random (RFC 6.2); a identidade da mensagem entra por porta'
+            - pkg: crypto/rand
+              desc: 'io.random (RFC 6.2); a identidade da mensagem entra por porta'
+            # io.storage
+            - pkg: database/sql
+              desc: 'contract descreve o formato, nao o transporte (RFC 6.2); banco e io.storage'
+            - pkg: gorm.io/gorm
+              desc: 'contract descreve o formato, nao o transporte (RFC 6.2); ORM e io.storage'
+            - pkg: github.com/jackc/pgx
+              desc: 'contract descreve o formato, nao o transporte (RFC 6.2); driver e io.storage'
+            # io.messaging
+            - pkg: github.com/segmentio/kafka-go
+              desc: 'contract descreve o formato, nao o transporte (RFC 6.2); SDK de broker e io.messaging'
+            - pkg: github.com/twmb/franz-go
+              desc: 'contract descreve o formato, nao o transporte (RFC 6.2); SDK de broker e io.messaging'
+            - pkg: github.com/aws/aws-sdk-go-v2
+              desc: 'contract descreve o formato, nao o transporte (RFC 6.2); SDK de nuvem e io.*'
+            # io.network
+            - pkg: net/http
+              desc: 'contract descreve o formato, nao o transporte (RFC 6.2); HTTP e io.network'
+            - pkg: net
+              desc: 'contract descreve o formato, nao o transporte (RFC 6.2); rede e io.network'
+            - pkg: google.golang.org/grpc
+              desc: 'contract descreve o formato, nao o transporte (RFC 6.2); gRPC e io.network'
+            # io.filesystem
+            - pkg: os
+              desc: 'contract e default deny (RFC 6.2); disco e ambiente e io.filesystem'
+            - pkg: path/filepath
+              desc: 'contract e default deny (RFC 6.2); disco e io.filesystem'
+            # runtime.framework
+            - pkg: github.com/gin-gonic/gin
+              desc: 'contract e default deny (RFC 6.2); framework de servidor e runtime.framework'
+            - pkg: go.uber.org/fx
+              desc: 'contract e default deny (RFC 6.2); injecao de dependencia e runtime.framework'
+            - pkg: github.com/google/wire
+              desc: 'contract e default deny (RFC 6.2); injecao de dependencia e runtime.framework'
+            # observability — o bloco tem `pure` e `wire.codec`, nao telemetria
+            - pkg: go.opentelemetry.io/otel
+              desc: 'observabilidade nao entra no contract (RFC 6.2); vive em adapters e providers'
+            - pkg: log
+              desc: 'observabilidade nao entra no contract (RFC 6.2); vive em adapters e providers'
+            - pkg: log/slog
+              desc: 'observabilidade nao entra no contract (RFC 6.2); vive em adapters e providers'

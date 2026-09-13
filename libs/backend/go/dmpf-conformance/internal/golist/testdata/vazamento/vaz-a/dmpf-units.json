@@ -1,0 +1,37 @@
+{
+  "schema": "dmpf/units@1",
+  "units": [
+    {
+      "id": "domain",
+      "block": "application",
+      "bounded_context": "vaz",
+      "include": ["exemplo.test/vaz-a/domain"]
+    }
+  ],
+  "external": [],
+  "exceptions": [
+    {
+      "unit": "domain",
+      "dependency": "net/http",
+      "reason": "adapter legado do mod-a em migracao",
+      "owner": "team:plataforma",
+      "review_by": "2026-12-31",
+      "id": "X-vaz-a-net-http",
+      "object": {
+        "kind": "external-dependency",
+        "unit": "domain",
+        "identity": "net/http"
+      },
+      "adr": "ADR-015",
+      "justification": "adapter legado do mod-a em migracao",
+      "convergence": {
+        "kind": "plan",
+        "deadline": "2026-12-31",
+        "condition": "adapter do mod-a migrado para uma unidade provider"
+      },
+      "valid_from": "2026-01-01T00:00:00Z",
+      "valid_until": "2026-12-31",
+      "history": [{ "event": "granted", "at": "2026-01-01T00:00:00Z", "by": "team:plataforma" }]
+    }
+  ]
+}

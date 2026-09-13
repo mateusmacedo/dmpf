@@ -14,7 +14,7 @@ created: 2026-07-19
 
 ## Resumo
 
-Aplicar 11 melhorias no `nx-base-template` para elevá-lo a um template de
+Aplicar 11 melhorias no `dmpf` para elevá-lo a um template de
 monorepo pronto para produção, alinhado aos padrões do monorepo `jusdocs`.
 Como mantenedor do template, quero tooling, documentação de comunidade,
 CI/CD e infra padronizados para que todo projeto derivado herde uma base
@@ -33,7 +33,7 @@ consistente e completa.
 - **Inspiração**: monorepo `jusdocs` (`/home/mateus/work/jusdocs/repositories/jusdocs`),
   fonte de dados declarada no doc de origem.
 - **Links relevantes**:
-  - `plans/references/nx-base-template-improves.md` — doc de origem (11 melhorias)
+  - `dmpf-improves.md` — doc de origem (11 melhorias); rascunho local, fora do versionamento e não citável como fonte
   - `docs/adr/001-baseline-monorepo.md` — baseline do monorepo
   - `docs/adr/002-nx-task-configuration.md` — config de tasks e cache
   - `docs/nx-reference/tasks.md` — referência de tasks
@@ -145,7 +145,7 @@ consistente e completa.
 ## Localização de código
 
 ```
-nx-base-template/
+dmpf/
   .gitignore                         — enriquecer
   pnpm-workspace.yaml                — adicionar catalog:
   package.json                       — packageManager, engines, deps -> catalog:
@@ -183,7 +183,7 @@ nx-base-template/
 
 Mudanças são majoritariamente de configuração e documentação, sem código de
 runtime. O modelo de referência é o `jusdocs`, adaptado ao escopo do template
-(multi-stack Node/React/Angular/Go, `defaultBase: master`, escopo `@lidercap-apps`).
+(multi-stack Node/React/Angular/Go, `defaultBase: master`, escopo `@mateusmacedo`).
 
 ### Fluxo principal (execução por fase)
 

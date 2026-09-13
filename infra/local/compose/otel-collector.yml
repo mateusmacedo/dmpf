@@ -1,0 +1,22 @@
+# Collector OTLP/gRPC: recebe a telemetria dos papéis (dmpf-observability
+# exporta por otelboot/otlp) e a encaminha ao Tempo (traces) e ao Prometheus
+# (métricas). A configuração é a mesma que os manifestos Kubernetes usam.
+services:
+  otel-collector:
+    image: otel/opentelemetry-collector:0.160.0
+    profiles: [otel, observability, dmpf, all]
+    command: ['--config=/etc/otelcol/config.yaml']
+    ports:
+      - '${OTLP_GRPC_PORT:-4317}:4317'
+      - '${OTELCOL_METRICS_PORT:-8888}:8888'
+    volumes:
+      - ../../observability/otel-collector/otel-collector.yaml:/etc/otelcol/config.yaml:ro
+    depends_on:
+      tempo:
+        condition: service_started
+      prometheus:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits: { cpus: '0.50', memory: 256M }
+        reservations: { cpus: '0.05', memory: 64M }
