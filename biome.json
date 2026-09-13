@@ -46,6 +46,7 @@
       "!tmp",
       "!**/node_modules",
       "!pnpm-lock.yaml",
+      "!bom/evidence",
       "!**/*.swcrc",
       "!.agents",
       "!.claude",
