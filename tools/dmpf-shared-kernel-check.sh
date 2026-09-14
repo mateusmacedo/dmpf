@@ -118,10 +118,10 @@ regravar_baseline() {
 designar_shared_kernel() { # lista-json, ex: ["dmpf-kernel/domain"]
   local baseline="$WORKTREE/tools/dmpf-baseline/units-baseline.json" lista="$1"
   regravar_baseline
-  jq --argjson lista "$lista" '.shared_kernel_units = $lista' "$baseline" > "$baseline.tmp" \
+  jq --argjson lista "$lista" '.shared_kernel_units += ($lista - (.shared_kernel_units // []))' "$baseline" > "$baseline.tmp" \
     || falha_setup "jq nao conseguiu editar shared_kernel_units"
   mv "$baseline.tmp" "$baseline" || falha_setup "mv do baseline editado"
-  jq -e --argjson lista "$lista" '.shared_kernel_units == $lista' "$baseline" >/dev/null \
+  jq -e --argjson lista "$lista" '($lista - .shared_kernel_units) == []' "$baseline" >/dev/null \
     || falha_setup "jq nao encontrou shared_kernel_units apos a edicao"
   regravar_baseline
 }
