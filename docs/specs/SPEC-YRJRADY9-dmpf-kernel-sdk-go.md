@@ -113,7 +113,7 @@ declarado no acervo:
 
 ### Funcionais
 
-- [ ] **[P0] Fundação Nx-Go** (`KRN-01`): workspace Go operacional no monorepo —
+- [x] **[P0] Fundação Nx-Go** (`KRN-01`): workspace Go operacional no monorepo —
   módulos declarados em `go.work`, tags 3D com `stack:go`, cadeia de validação e
   release integrados ao Nx.
   - A cadeia de validação Go é mais ampla que o trio TypeScript: `gofmt`,
@@ -121,7 +121,7 @@ declarado no acervo:
     `govulncheck`.
   - Edge case: `go.work` declara `go 1.25` e o toolchain local é `go1.26.4` — a
     divergência é resolvida e registrada, não ignorada.
-- [ ] **[P0] Verificador de conformidade** (`KRN-02`): CLI Go que decide a regra
+- [x] **[P0] Verificador de conformidade** (`KRN-02`): CLI Go que decide a regra
   de dependência sobre o grafo real de imports.
   - Lê o manifesto `dmpf/units@1`; `verification_unit` é o **package**;
     `canonical_key` é o **import path completo**.
@@ -134,7 +134,7 @@ declarado no acervo:
     import.
   - Edge case: import que não resolve para o universo é dependência externa e
     segue a política de capabilities, não a matriz.
-- [ ] **[P0] Kernel de domínio** (`KRN-03`): UPR síncrona, determinística e sem
+- [x] **[P0] Kernel de domínio** (`KRN-03`): UPR síncrona, determinística e sem
   I/O, com desfecho na forma `Decision = Accepted(resposta, eventos) | Rejected(rejeição)`.
   - A `Rejection` carrega código estável no formato `contexto/motivo` (por
     exemplo `orders/empty-order`) e mensagem endereçada ao domínio.
@@ -144,13 +144,13 @@ declarado no acervo:
     e o ramo de recusa não carrega eventos de domínio.
   - O par `(decisão, erro)` idiomático de Go é admitido como realização conforme,
     desde que o canal de erro transporte **apenas** rejeições de domínio.
-- [ ] **[P0] Kernel de aplicação** (`KRN-04`): Unit of Work explícita no
+- [x] **[P0] Kernel de aplicação** (`KRN-04`): Unit of Work explícita no
   application service, com as portas vinculadas à transação.
   - Realiza a sequência canônica de escrita de nove passos, incluindo optimistic
     locking na persistência do agregado.
   - A UoW **não** repete automaticamente o callback transacional; retry de
     serialização ou deadlock é política explícita.
-- [ ] **[P0] Contratos wire** (`KRN-05`): `io.cloudevents.v1.CloudEvent` do
+- [x] **[P0] Contratos wire** (`KRN-05`): `io.cloudevents.v1.CloudEvent` do
   formato Protobuf oficial, com perfil organizacional que apenas acrescenta
   obrigatoriedade.
   - Modalidade única `proto_data` com payload em `google.protobuf.Any`;
@@ -161,23 +161,23 @@ declarado no acervo:
     reserializar; nenhum atributo do envelope entra no cálculo.
   - Gates Buf no CI: lint `STANDARD`, breaking `FILE` e geração determinística,
     todos fail-closed.
-- [ ] **[P0] Outbox** (`KRN-06`): porta que recebe `(domain event, intenção de
+- [x] **[P0] Outbox** (`KRN-06`): porta que recebe `(domain event, intenção de
   publicação)` e provider que mapeia e serializa **dentro da transação**.
   - A porta expõe tipo de domínio, nunca tipo de wire.
   - O estado de negócio e o registro da outbox são gravados na mesma transação.
-- [ ] **[P0] Inbox e consumo** (`KRN-07`): deduplicação, efeitos locais e outbox
+- [x] **[P0] Inbox e consumo** (`KRN-07`): deduplicação, efeitos locais e outbox
   derivada na mesma transação de consumo; ACK sempre depois do commit local.
   - `payload_hash` distingue redelivery legítima de reutilização indevida do
     identificador.
   - Disposições de consumo, poison message, DLQ e quarantine implementadas.
-- [ ] **[P0] Relay** (`KRN-08`): claim por lease com prazo, publicação fora de
+- [x] **[P0] Relay** (`KRN-08`): claim por lease com prazo, publicação fora de
   qualquer transação de banco, transição final condicional ao claim corrente.
   - `locked_by` identifica a **execução do claim**, não o processo.
   - Capacidades obrigatórias: paginação, batch configurável, lease com expiração,
     retry com backoff e jitter, limite de concorrência, exposição dos sinais
     `pending`, `lag`, `attempts` e `failures`, e graceful shutdown.
   - `FOR UPDATE SKIP LOCKED` é admitido **somente durante o claim**.
-- [ ] **[P1] Resiliência e observabilidade** (`KRN-09`): OpenTelemetry com a
+- [x] **[P1] Resiliência e observabilidade** (`KRN-09`): OpenTelemetry com a
   versão das *semantic conventions* fixada no BOM e propagador W3C Trace Context
   configurado explicitamente.
   - Retry autorizado se, e somente se, quatro fatores forem simultaneamente
@@ -188,7 +188,7 @@ declarado no acervo:
     remanescente na primeira falha; a espera de backoff consome orçamento.
   - Sujeito restrito a `app`, `provider` e `application service` — nenhuma regra
     obriga `domain` ou `port`.
-- [ ] **[P1] Providers de transporte** (`KRN-10`): gRPC no síncrono interno e
+- [x] **[P1] Providers de transporte** (`KRN-10`): gRPC no síncrono interno e
   REST na borda externa.
   - Toda chamada gRPC de saída carrega deadline; o deadline é propagado e
     **nunca reiniciado**; no fio trafega a duração restante e o receptor
@@ -223,7 +223,7 @@ declarado no acervo:
 - [ ] **Segurança**: identidade e tenant estabelecidos apenas após autenticação;
   redaction cumprida na origem e não no agregador; TLS obrigatório em produção
   para gRPC.
-- [ ] **Determinismo de build**: a geração de código a partir dos `.proto` é
+- [x] **Determinismo de build**: a geração de código a partir dos `.proto` é
   reprodutível — mesma entrada e mesmo pin de ferramenta produzem bytes iguais.
 
 ## Camadas afetadas
@@ -460,26 +460,26 @@ manual.
 
 ### Critérios de aceite
 
-- [ ] Existe ao menos um módulo Go no `go.work` com as três tags 3D
+- [x] Existe ao menos um módulo Go no `go.work` com as três tags 3D
       (`type:lib`, `scope:backend`, `stack:go`) e a cadeia de validação passando
-- [ ] O verificador de conformidade roda no CI, é fail-closed e reprova o PR
+- [x] O verificador de conformidade roda no CI, é fail-closed e reprova o PR
       quando uma aresta viola C1 ou C2
 - [ ] Cada uma das 36 células da matriz de blocos tem vetor positivo **e**
       negativo executável
-- [ ] Uma unidade `domain` cujo fechamento de imports alcance `net/http` reprova
+- [x] Uma unidade `domain` cujo fechamento de imports alcance `net/http` reprova
       com diagnóstico `DMPF-D001` ou violação de capability
-- [ ] Um package de produção sem entrada no manifesto **reprova** — não é tratado
+- [x] Um package de produção sem entrada no manifesto **reprova** — não é tratado
       como não classificado
-- [ ] A UPR devolve `Decision` exaustiva; após `Rejected` nenhum evento de domínio
+- [x] A UPR devolve `Decision` exaustiva; após `Rejected` nenhum evento de domínio
       é emitido e nenhuma mutação sobrevive
-- [ ] Estado de negócio e registro de outbox são gravados na mesma transação,
+- [x] Estado de negócio e registro de outbox são gravados na mesma transação,
       comprovado por teste que falha o commit e verifica que nenhum dos dois
       persistiu
-- [ ] O relay publica fora de transação e só transiciona o registro quando o claim
+- [x] O relay publica fora de transação e só transiciona o registro quando o claim
       ainda é seu
 - [ ] `payload_hash` calculado em Go é idêntico ao calculado em TypeScript para o
       mesmo `Any.value`
-- [ ] Nenhum artefato deste épico — código, README, contrato ou configuração —
+- [x] Nenhum artefato deste épico — código, README, contrato ou configuração —
       declara ou sugere exactly-once fim a fim
 - [ ] As 12 sub-specs `KRN-01`..`KRN-12` existem, com dependências e critérios de
       entrada explícitos
