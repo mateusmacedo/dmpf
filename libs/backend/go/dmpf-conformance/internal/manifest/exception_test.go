@@ -3,22 +3,15 @@ package manifest
 import (
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/internal/exception"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/internal/rule"
 )
 
-func instant(s string) exception.Instant {
-	if t, err := time.Parse(time.RFC3339, s); err == nil {
-		return exception.Instant(t.UnixNano())
-	}
-	t, err := time.Parse(time.DateOnly, s)
-	if err != nil {
-		panic(err)
-	}
-	return exception.Instant(t.UnixNano())
-}
+const (
+	jan1st2026 exception.Instant = 1_767_225_600_000_000_000
+	jan1st2027 exception.Instant = 1_798_761_600_000_000_000
+)
 
 func isStdlib(path string) bool {
 	_, ok := rule.StdlibCapability(path)
@@ -34,8 +27,8 @@ func TestAdmitidasDomainIORecusadaPorN1(t *testing.T) {
 			{
 				Owner:      "team:eng",
 				ReviewBy:   "2027-01-01",
-				ReviewByAt: instant("2027-01-01"),
-				ValidUntil: instant("2027-01-01"),
+				ReviewByAt: jan1st2027,
+				ValidUntil: jan1st2027,
 				ID:         "X-test-time",
 				Object: ExceptionObject{
 					Kind: "external-dependency", Unit: "u", Identity: "time",
@@ -45,12 +38,12 @@ func TestAdmitidasDomainIORecusadaPorN1(t *testing.T) {
 				Justification: "teste",
 				Convergence: ExceptionConvergence{
 					Kind:                "review",
-					ReviewBy:            instant("2027-01-01"),
+					ReviewBy:            jan1st2027,
 					ApprovedBy:          []string{"arquitetura", "plataforma"},
 					ReplanningCondition: "cond",
 					PresentKind:         true,
 				},
-				History: []ExceptionHistoryEntry{{Event: "granted", At: instant("2026-01-01T00:00:00Z"), By: "team:eng"}},
+				History: []ExceptionHistoryEntry{{Event: "granted", At: jan1st2026, By: "team:eng"}},
 
 				PresentID: true, PresentObject: true, PresentADR: true,
 				PresentJustification: true, PresentConvergence: true, PresentHistory: true,
@@ -83,8 +76,8 @@ func TestAdmitidasReflectAdmitida(t *testing.T) {
 			{
 				Owner:      "team:eng",
 				ReviewBy:   "2027-01-01",
-				ReviewByAt: instant("2027-01-01"),
-				ValidUntil: instant("2027-01-01"),
+				ReviewByAt: jan1st2027,
+				ValidUntil: jan1st2027,
 				ID:         "X-test-reflect",
 				Object: ExceptionObject{
 					Kind: "external-dependency", Unit: "u", Identity: "reflect",
@@ -94,12 +87,12 @@ func TestAdmitidasReflectAdmitida(t *testing.T) {
 				Justification: "protoc-gen-go emits reflect",
 				Convergence: ExceptionConvergence{
 					Kind:                "review",
-					ReviewBy:            instant("2027-01-01"),
+					ReviewBy:            jan1st2027,
 					ApprovedBy:          []string{"arquitetura", "plataforma"},
 					ReplanningCondition: "cond",
 					PresentKind:         true,
 				},
-				History: []ExceptionHistoryEntry{{Event: "granted", At: instant("2026-01-01T00:00:00Z"), By: "team:eng"}},
+				History: []ExceptionHistoryEntry{{Event: "granted", At: jan1st2026, By: "team:eng"}},
 
 				PresentID: true, PresentObject: true, PresentADR: true,
 				PresentJustification: true, PresentConvergence: true, PresentHistory: true,
