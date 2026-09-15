@@ -155,6 +155,11 @@ jobs:
       - name: DMPF generator check (self-test)
         run: bash tools/dmpf-generator-check.sh --phase self-test
 
+      # Sem `if: steps.go_affected`: import sem `require` compila no workspace pelo
+      # `go.work` e só quebra para quem consome o módulo por tag.
+      - name: DMPF modsync gate
+        run: go run ./libs/backend/go/dmpf-conformance/cmd/dmpf-modsync --root . --check
+
       # GATE, fail-closed. Sem `continue-on-error` e sem `|| true`: a partir
       # daqui o verificador reprova o PR. O passo shadow que existia aqui foi
       # removido NESTE MESMO COMMIT, para que não exista estado em que os dois
