@@ -27,10 +27,19 @@ const UndeclaredRouteLabel = "undeclared"
 
 func defaultRoute(r *http.Request) string { return r.Method + " " + r.URL.Path }
 
+// RefusalFunc writes the body of a refusal. An edge whose published contract
+// fixes the shape of an error answer injects it so that 429 and 404 obey the
+// same schema as every other answer; nil keeps the plain-text default.
+type RefusalFunc func(w http.ResponseWriter, r *http.Request, status int, reason string)
+
 // Admission is the middleware of RES-16: it asks the controller before the
 // handler and before the body is read (RES-17), answers 429 and counts the
 // refusal by route and tenant (MET-12); a route with no declared limit is 404.
-func Admission(ctrl *admission.Controller, route RouteFunc, tenant TenantFunc, instruments *metrics.Instruments) func(http.Handler) http.Handler {
+func Admission(ctrl *admission.Controller, route RouteFunc, tenant TenantFunc, instruments *metrics.Instruments, refusal ...RefusalFunc) func(http.Handler) http.Handler {
+	write := plainRefusal
+	if len(refusal) > 0 && refusal[0] != nil {
+		write = refusal[0]
+	}
 	if route == nil {
 		route = defaultRoute
 	}
@@ -58,11 +67,15 @@ func Admission(ctrl *admission.Controller, route RouteFunc, tenant TenantFunc, i
 				instruments.AdmissionRejections.Add(r.Context(), 1, metric.WithAttributes(labels.Attributes()...))
 			}
 			if reason == admission.UndeclaredRoute {
-				http.Error(w, "route declares no admission limit", http.StatusNotFound)
+				write(w, r, http.StatusNotFound, "route declares no admission limit")
 				return
 			}
 			w.Header().Set("Retry-After", "1")
-			http.Error(w, "admission refused: "+string(reason), http.StatusTooManyRequests)
+			write(w, r, http.StatusTooManyRequests, "admission refused: "+string(reason))
 		})
 	}
+}
+
+func plainRefusal(w http.ResponseWriter, _ *http.Request, status int, reason string) {
+	http.Error(w, reason, status)
 }
