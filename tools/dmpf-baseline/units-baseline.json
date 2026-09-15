@@ -1,6 +1,6 @@
 {
   "schema": "dmpf/units-baseline@1",
-  "digest": "sha256:bca1468050119449a9c62157a4d621d348838b550ce137d10aab94a3762ede87",
+  "digest": "sha256:536b9eb633ad7ea71d5c3a1b0cf5ffb2e862b268a879c9fb38aea89ad1cef7b9",
   "entries": [
     {
       "unit": "dmpf-kernel/reference-app",
@@ -132,6 +132,15 @@
       "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/cmd/dmpf-bom"]
     },
     {
+      "unit": "dmpf-conformance/cmd-modsync",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance",
+      "block": "app",
+      "bounded_context": "dmpf-conformance",
+      "membership": [
+        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/cmd/dmpf-modsync"
+      ]
+    },
+    {
       "unit": "dmpf-conformance/conformance",
       "module": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance",
       "block": "application",
@@ -182,6 +191,13 @@
       "membership": [
         "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/internal/manifest"
       ]
+    },
+    {
+      "unit": "dmpf-conformance/modsync",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance",
+      "block": "app",
+      "bounded_context": "dmpf-conformance",
+      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/modsync"]
     },
     {
       "unit": "dmpf-conformance/port",
