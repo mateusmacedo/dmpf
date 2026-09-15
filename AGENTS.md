@@ -102,7 +102,7 @@ Fonte de verdade dos projetos: `pnpm nx show projects`.
 ```text
 dmpf/
 ├── apps/
-│   ├── backend/dmpf-reference/     # composition root de referência do kernel DMPF (dmpf-reference-go)
+│   ├── backend/dmpf-reference-*-go/  # topologia de referência do kernel DMPF: BFF REST e contextos orders e reservations (ADR-044)
 │   ├── frontend/                   # placeholder — sem projeto Nx
 │   └── serverless/                 # placeholder — sem projeto Nx
 ├── libs/
@@ -135,9 +135,13 @@ Apps Nest criadas a partir daqui seguem tipicamente `src/app/<feature>/` (contro
 
 ### Apps
 
-Uma, Go, com as três tags de taxonomia (`type:app`, `scope:backend`, `stack:go`), a tag `layer:apps` e um `dmpf-units.json`:
+Três, Go, cada uma com as três tags de taxonomia (`type:app`, `scope:backend`, `stack:go`), a tag `layer:apps` e um `dmpf-units.json` — a topologia de referência do kernel DMPF, com seis processos sobre dois bancos (ADR-044):
 
-- **`dmpf-reference-go`** (`apps/backend/dmpf-reference`), a composition root de referência do kernel DMPF, criada por `KRN-12` (ARQ-545). É o único lugar do workspace onde instanciar provider concreto é permissivo (ADR-015): um binário cujo `--role api|relay|consumer` escolhe o processo — `api` serve a borda HTTP de `orders` (`POST /orders/{id}/items`, `POST /orders/{id}/place`, `GET /orders/{id}`, cada rota um `dmpfhttp.Route` com `ContractRef` para `contracts/openapi/orders/v1/openapi.yaml`), `relay` drena a outbox para o Kafka e `consumer` lê do Kafka e alimenta `reservations` pela inbox. Configuração só por variável de ambiente, validada por papel na partida (exit 2 nomeando a ausente); um runtime OTel por processo, em memória sem `DMPF_OTLP_ENDPOINT`. É uma unidade `app`, `dmpf-kernel/reference-app`, com três packages (raiz, `api`, `cmd/dmpf-reference`) e o `external` de todos os providers cabeados. O e2e (build tag `integration`) hospeda os três papéis num processo sobre Postgres e Redpanda e reentrega a mesma mensagem; o `test-race` declara `dependsOn` sobre os de `dmpf-provider-postgres-go` e `dmpf-app-go`. O `@nx-go/nx-go` infere `build` e `serve` para o módulo (o nome vem do diretório): o `build` explícito sobrescreve o inferido e o `serve` inferido não é usado — os papéis sobem por `serve-api`, `serve-relay` e `serve-consumer`. Fica fora do release Docker (`nx-release.yml` filtra `tag:type:app,!tag:stack:go`). Decisões em `docs/adr/041-sdk-de-referencia-generator-e-bom-certificado.md`.
+- **`dmpf-reference-bff-go`** (`apps/backend/dmpf-reference-bff-go`), a única borda REST/JSON pública (`RST-01`): um processo, sem banco, outbox nem consumer, que traduz `POST /orders/{id}/items`, `POST /orders/{id}/place`, `GET /orders/{id}`, `GET /reservations/{order_id}`, `POST /reservations/{order_id}/reserve` e `POST /reservations/{order_id}/cancel` — cada rota um `dmpfhttp.Route` com `ContractRef` para `contracts/openapi/{orders,reservations}/v1/openapi.yaml` — em chamadas gRPC aos contextos. É a unidade `dmpf-reference-bff/app`, em `bounded_context` próprio: só alcança contrato e shared kernel, e o verificador reprova import de domínio ou aplicação (`DMPF-D002`). Deriva o prazo do `Budget` da rota, preserva ou cunha `X-Correlation-ID` e envia `x-correlation-id`, `x-causation-id` e `traceparent` na metadata; retry só em `FindOrder` e `FindReservation`. O transporte gRPC exige `DMPF_GRPC_INSECURE=true` (desenvolvimento) ou `DMPF_GRPC_CA_FILE`. Carrega os targets de infraestrutura e o e2e caixa-preta (build tag `integration`), que compila os três binários, sobe os seis processos sobre dois bancos criados por execução e prova a cadeia de contexto até `ReservationConfirmed`, a primeira decisão vencendo e a reentrega idempotente; o `test-race` declara `dependsOn` sobre os de `dmpf-provider-postgres-go` e `dmpf-app-go`.
+- **`dmpf-reference-orders-go`** (`apps/backend/dmpf-reference-orders-go`), o contexto `orders`: `--role api|relay` — `api` serve `OrdersService` por gRPC (`AddItem`, `PlaceOrder`, `FindOrder`) sobre a UoW e a outbox de Postgres, e `relay` drena `orders.events` para o Kafka. Unidade `dmpf-kernel/reference-orders-app`.
+- **`dmpf-reference-reservations-go`** (`apps/backend/dmpf-reference-reservations-go`), o contexto `reservations`: `--role api|relay|consumer` — `api` serve `ReservationsService` (`Reserve`, `Cancel`, `FindReservation`), `relay` drena `reservations.events` e `consumer` consome `orders.events` pela inbox. Unidade `dmpf-kernel/reference-reservations-app`.
+
+Nos três, a configuração entra só por variável de ambiente, validada na partida (exit 2 nomeando a ausente), com um runtime OTel por processo, em memória sem `DMPF_OTLP_ENDPOINT`. O binding gRPC é escrito no bloco `app` a partir do descriptor gerado, porque o bloco `contract` não admite `io.network`. Cada contexto usa banco próprio (`DMPF_PG_DSN`), porque a drenagem não filtra destino. O `@nx-go/nx-go` infere `build` e `serve` pelo nome do diretório: o `build` explícito sobrescreve o inferido, os contextos sobem por `serve-api`, `serve-relay` e `serve-consumer`, e o BFF por `serve`. Ficam fora do release Docker (`nx-release.yml` filtra `tag:type:app,!tag:stack:go`). Decisões em `docs/adr/044-bff-rest-e-contextos-grpc-de-referencia.md`, que evolui o `docs/adr/041-sdk-de-referencia-generator-e-bom-certificado.md`.
 
 `apps/frontend` e `apps/serverless` seguem sendo diretórios de destino, sem projeto Nx registrado. Para criar uma app nova, invoque a skill `nx-generate` antes de qualquer exploração.
 
@@ -211,18 +215,22 @@ DMPF_SQS_ENDPOINT=http://localhost:4566 AWS_REGION=us-east-1 AWS_ACCESS_KEY_ID=t
 # Test kit (KRN-11): test-race cobre os kits em memória e, com DMPF_PG_DSN, appkit e providerkit sobre Postgres
 DMPF_PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' pnpm nx run dmpf-testkit-go:test-race
 DMPF_PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' DMPF_KAFKA_BROKERS=localhost:9092 pnpm nx run dmpf-testkit-go:test-distributed  # distkit: dois processos sobre Redpanda (V32)
-# Composition root de referência (KRN-12): os três papéis por flag, config só por ambiente
-DMPF_PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' DMPF_MIGRATE=true pnpm nx run dmpf-reference-go:serve-api
-DMPF_PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' DMPF_KAFKA_BROKERS=localhost:9092 DMPF_KAFKA_INSECURE=true DMPF_KAFKA_TOPIC=orders.events DMPF_KAFKA_DLQ=orders.events.dlq pnpm nx run dmpf-reference-go:serve-relay
-DMPF_PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' DMPF_KAFKA_BROKERS=localhost:9092 DMPF_KAFKA_INSECURE=true DMPF_KAFKA_TOPIC=orders.events DMPF_KAFKA_DLQ=orders.events.dlq DMPF_KAFKA_GROUP=reservations pnpm nx run dmpf-reference-go:serve-consumer
-DMPF_PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' DMPF_KAFKA_BROKERS=localhost:9092 pnpm nx run dmpf-reference-go:test-race  # e2e dos três papéis num processo (+ provider e dmpf-app por dependsOn)
+# Topologia de referência (ADR-044): BFF REST e contextos gRPC, config só por ambiente, um banco por contexto
+docker compose -f infra/local/docker-compose.yml exec postgres psql -U app -d app -c 'CREATE DATABASE dmpf_orders' -c 'CREATE DATABASE dmpf_reservations'
+DMPF_PG_DSN='postgres://app:app@localhost:5432/dmpf_orders?sslmode=disable' DMPF_MIGRATE=true DMPF_GRPC_INSECURE=true pnpm nx run dmpf-reference-orders-go:serve-api
+DMPF_PG_DSN='postgres://app:app@localhost:5432/dmpf_orders?sslmode=disable' DMPF_KAFKA_BROKERS=localhost:9092 DMPF_KAFKA_INSECURE=true DMPF_KAFKA_ORDERS_TOPIC=orders.events DMPF_KAFKA_ORDERS_DLQ=orders.events.dlq DMPF_KAFKA_GROUP=orders pnpm nx run dmpf-reference-orders-go:serve-relay
+DMPF_PG_DSN='postgres://app:app@localhost:5432/dmpf_reservations?sslmode=disable' DMPF_MIGRATE=true DMPF_GRPC_ADDR=:9091 DMPF_GRPC_INSECURE=true pnpm nx run dmpf-reference-reservations-go:serve-api
+DMPF_PG_DSN='postgres://app:app@localhost:5432/dmpf_reservations?sslmode=disable' DMPF_KAFKA_BROKERS=localhost:9092 DMPF_KAFKA_INSECURE=true DMPF_KAFKA_RESERVATIONS_TOPIC=reservations.events DMPF_KAFKA_RESERVATIONS_DLQ=reservations.events.dlq DMPF_KAFKA_GROUP=reservations pnpm nx run dmpf-reference-reservations-go:serve-relay
+DMPF_PG_DSN='postgres://app:app@localhost:5432/dmpf_reservations?sslmode=disable' DMPF_KAFKA_BROKERS=localhost:9092 DMPF_KAFKA_INSECURE=true DMPF_KAFKA_ORDERS_TOPIC=orders.events DMPF_KAFKA_ORDERS_DLQ=orders.events.dlq DMPF_KAFKA_GROUP=reservations pnpm nx run dmpf-reference-reservations-go:serve-consumer
+DMPF_ORDERS_GRPC_TARGET=dns:///localhost:9090 DMPF_RESERVATIONS_GRPC_TARGET=dns:///localhost:9091 DMPF_GRPC_INSECURE=true pnpm nx run dmpf-reference-bff-go:serve
+DMPF_PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' DMPF_KAFKA_BROKERS=localhost:9092 pnpm nx run dmpf-reference-bff-go:test-race  # e2e caixa-preta: três binários, seis processos, dois bancos por execução (+ provider e dmpf-app por dependsOn)
 # Infra local e manifestos (infra/README.md): Compose modular por profile e Kustomize por overlay
-pnpm nx run dmpf-reference-go:infra-up          # Postgres, Redpanda e floci por docker compose (--wait)
-pnpm nx run dmpf-reference-go:observability-up  # Grafana, Prometheus, Loki, Tempo, Alloy, Collector e exporters
-pnpm nx run dmpf-reference-go:infra-down
-pnpm nx run dmpf-reference-go:infra-budget      # soma dos tetos do compose ≤ 60% do host (reprova se passar)
-docker compose -f infra/local/docker-compose.yml --profile dmpf up -d --build   # os três papéis + tudo o que observam; Swagger UI em :8082, Console do Redpanda em :8083, Grafana em :3000
-pnpm nx run dmpf-reference-go:k8s-render        # kubectl kustomize dos overlays dev e hmg, sem cluster
+pnpm nx run dmpf-reference-bff-go:infra-up          # Postgres, Redpanda e floci por docker compose (--wait)
+pnpm nx run dmpf-reference-bff-go:observability-up  # Grafana, Prometheus, Loki, Tempo, Alloy, Collector e exporters
+pnpm nx run dmpf-reference-bff-go:infra-down
+pnpm nx run dmpf-reference-bff-go:infra-budget      # soma dos tetos do compose ≤ 60% do host (reprova se passar)
+docker compose -f infra/local/docker-compose.yml --profile dmpf up -d --build   # os seis processos + tudo o que observam; Swagger UI em :8082, Console do Redpanda em :8083, Grafana em :3000
+pnpm nx run dmpf-reference-bff-go:k8s-render        # kubectl kustomize dos overlays dev e hmg, sem cluster
 # Seleção por camada da pirâmide (é como o ci.yml monta os estágios; a saída é um array JSON)
 pnpm nx show projects --projects=tag:layer:domain --json | jq -r 'join(",")'   # domain | services | contract | providers | apps
 bash tools/dmpf-gate-check.sh          # prova o gate nos blocos domain, port e application: depguard (por package, vetores por bloco) e forbidigo (por símbolo, só domain)
@@ -287,7 +295,7 @@ Scripts raiz (`pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, `pnpm fo
   | `services` | `dmpf-application-go`, `dmpf-transport-go`, `bookings-application-go` |
   | `contract` | `dmpf-contracts-go` |
   | `providers` | `dmpf-provider-postgres-go`, `dmpf-provider-kafka-go`, `dmpf-provider-sqs-go`, `dmpf-provider-grpc-go`, `dmpf-provider-http-go`, `dmpf-observability-go`, `dmpf-testkit-go`, `bookings-provider-postgres-go` |
-  | `apps` | `dmpf-app-go`, `dmpf-reference-go`, `bookings-app-go` |
+  | `apps` | `dmpf-app-go`, `dmpf-reference-bff-go`, `dmpf-reference-orders-go`, `dmpf-reference-reservations-go`, `bookings-app-go` |
 
   A camada é a do **estágio** em que o módulo precisa rodar, não a do bloco DMPF de cada unidade: o `dmpf-testkit-go` tem unidades nos quatro blocos e é `layer:providers` porque a maior parte das suas suítes exige a infraestrutura que só sobe a partir do estágio 3.
 - **Não redeclarar targets** que um plugin ou `targetDefaults` (em `nx.json`) já fornece. Redeclarar quebra o cache silenciosamente (ver `docs/adr/002-nx-task-configuration.md`).

@@ -1,7 +1,9 @@
 go 1.26.6
 
 use (
-	./apps/backend/dmpf-reference
+	./apps/backend/dmpf-reference-bff-go
+	./apps/backend/dmpf-reference-orders-go
+	./apps/backend/dmpf-reference-reservations-go
 	./libs/backend/go/bookings/app
 	./libs/backend/go/bookings/application
 	./libs/backend/go/bookings/domain
