@@ -96,6 +96,121 @@
           "status": "confirmed"
         }
       }
+    },
+    {
+      "name": "cancel-accepted",
+      "doc": "Ramo Accepted de Cancel: reserva pendente é cancelada; um reservation-cancelled na sequência.",
+      "state_before": {
+        "order": "r-1",
+        "items": "0",
+        "status": "pending"
+      },
+      "command": {
+        "upr": "cancel",
+        "at": "1755432000"
+      },
+      "expected": {
+        "branch": "accepted",
+        "response": {
+          "order": "r-1"
+        },
+        "events": [
+          {
+            "name": "reservations.reservation-cancelled",
+            "fields": {
+              "order": "r-1",
+              "at": "1755432000"
+            }
+          }
+        ],
+        "state_after": {
+          "order": "r-1",
+          "items": "0",
+          "status": "canceled"
+        }
+      }
+    },
+    {
+      "name": "cancel-already-reserved",
+      "doc": "Ramo Rejected de Cancel: a primeira decisão venceu; reserva confirmada não é cancelada.",
+      "state_before": {
+        "order": "r-1",
+        "items": "2",
+        "status": "confirmed"
+      },
+      "command": {
+        "upr": "cancel",
+        "at": "1755432000"
+      },
+      "expected": {
+        "branch": "rejected",
+        "rejection": {
+          "code": "reservations/already-reserved",
+          "message": "reservation is already confirmed",
+          "details": {}
+        },
+        "events": [],
+        "state_after": {
+          "order": "r-1",
+          "items": "2",
+          "status": "confirmed"
+        }
+      }
+    },
+    {
+      "name": "cancel-already-canceled",
+      "doc": "Ramo Rejected de Cancel: reserva cancelada não aceita novo cancelamento; estado inalterado.",
+      "state_before": {
+        "order": "r-1",
+        "items": "0",
+        "status": "canceled"
+      },
+      "command": {
+        "upr": "cancel",
+        "at": "1755432000"
+      },
+      "expected": {
+        "branch": "rejected",
+        "rejection": {
+          "code": "reservations/already-canceled",
+          "message": "reservation is already canceled",
+          "details": {}
+        },
+        "events": [],
+        "state_after": {
+          "order": "r-1",
+          "items": "0",
+          "status": "canceled"
+        }
+      }
+    },
+    {
+      "name": "reserve-canceled",
+      "doc": "Ramo Rejected de Reserve: reserva cancelada é terminal e não confirma itens.",
+      "state_before": {
+        "order": "r-1",
+        "items": "0",
+        "status": "canceled"
+      },
+      "command": {
+        "upr": "reserve",
+        "items": "1",
+        "at": "1755432000"
+      },
+      "expected": {
+        "branch": "rejected",
+        "rejection": {
+          "code": "reservations/reservation-canceled",
+          "message": "reservation is canceled",
+          "details": {}
+        },
+        "events": [],
+        "state_after": {
+          "order": "r-1",
+          "items": "0",
+          "status": "canceled"
+        }
+      }
     }
   ]
 }
