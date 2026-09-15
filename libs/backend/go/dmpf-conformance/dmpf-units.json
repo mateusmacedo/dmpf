@@ -90,6 +90,20 @@
       "bounded_context": "dmpf-conformance",
       "public_integration_surface": false,
       "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/cmd/dmpf-bom"]
+    },
+    {
+      "id": "dmpf-conformance/modsync",
+      "block": "app",
+      "bounded_context": "dmpf-conformance",
+      "public_integration_surface": false,
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/modsync"]
+    },
+    {
+      "id": "dmpf-conformance/cmd-modsync",
+      "block": "app",
+      "bounded_context": "dmpf-conformance",
+      "public_integration_surface": false,
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/cmd/dmpf-modsync"]
     }
   ],
   "external": [],
