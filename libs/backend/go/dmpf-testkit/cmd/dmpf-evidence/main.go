@@ -94,8 +94,12 @@ var catalog = []subjectSpec{
 		redpanda: true,
 	},
 	{
-		name:     "reference",
-		packages: []string{modulePrefix + "apps/backend/dmpf-reference/..."},
+		name: "reference",
+		packages: []string{
+			modulePrefix + "apps/backend/dmpf-reference-bff-go/...",
+			modulePrefix + "apps/backend/dmpf-reference-orders-go/...",
+			modulePrefix + "apps/backend/dmpf-reference-reservations-go/...",
+		},
 		tags:     []string{"integration"},
 		env:      []string{envPostgres, envKafka, envRedpandaAdmin},
 		postgres: true,

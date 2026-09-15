@@ -151,7 +151,7 @@ As fixtures de **projeção observável** (`ORA-30`) vivem em
 | `services` | `dmpf-testkit/serviceskit` | — | — |
 | `app` | `dmpf-testkit/appkit` | `integration` | `DMPF_PG_DSN` |
 | `dist` | `dmpf-testkit/distkit` | `integration`, `distributed` | `DMPF_PG_DSN`, `DMPF_KAFKA_BROKERS`, `DMPF_REDPANDA_ADMIN` |
-| `reference` | `apps/backend/dmpf-reference/...` | `integration` | `DMPF_PG_DSN`, `DMPF_KAFKA_BROKERS`, `DMPF_REDPANDA_ADMIN` |
+| `reference` | `apps/backend/dmpf-reference-{bff,orders,reservations}-go/...` | `integration` | `DMPF_PG_DSN`, `DMPF_KAFKA_BROKERS`, `DMPF_REDPANDA_ADMIN` |
 
 - Teste que pula por construção fica fora do subject por `-skip` com o nome
   exato, porque sob `CI` o skip reprovaria o subject: no `golden`,
@@ -201,7 +201,7 @@ DMPF_PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' DMPF_KAFKA_B
   pnpm nx run dmpf-testkit-go:test-distributed
 
 # evidência da release (infra de pé; --out não pode existir)
-pnpm nx run dmpf-reference-go:infra-up
+pnpm nx run dmpf-reference-bff-go:infra-up
 DMPF_PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' DMPF_KAFKA_BROKERS=localhost:9092 \
   DMPF_REDPANDA_ADMIN=http://localhost:9644 pnpm nx run dmpf-testkit-go:evidence --out="$(mktemp -d)/0.1.0"
 ```
