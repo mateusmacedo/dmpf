@@ -155,7 +155,7 @@ Rode-os com `--parallel=1`: os harnesses truncam as tabelas do kernel, que todo
 contexto compartilha.
 
 ```bash
-pnpm nx run dmpf-reference-go:infra-up
+pnpm nx run dmpf-reference-bff-go:infra-up
 DMPF_PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' \
   pnpm nx run-many -t test-race -p '<ctx>-*' --parallel=1
 ```

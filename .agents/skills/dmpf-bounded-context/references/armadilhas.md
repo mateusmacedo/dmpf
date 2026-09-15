@@ -28,7 +28,7 @@ golden for regenerado e algo novo morder, a entrada nova vem para cá.
    `package.json` (`private: true`) e vira importer do pnpm; sem o install os
    targets falham de forma obscura.
 8. **A composition root fica fora do generator.** Cabear processo é copiar
-   `apps/backend/dmpf-reference/cmd/dmpf-reference`; a skill aponta o passo,
+   `apps/backend/dmpf-reference-orders-go/cmd/dmpf-reference-orders`; a skill aponta o passo,
    não o executa.
 9. **Sem pluralização automática.** O identificador vai literal para tabela,
    rota e package: `<ctx>_<agregado>`, `/<ctx>/<agregado>`.

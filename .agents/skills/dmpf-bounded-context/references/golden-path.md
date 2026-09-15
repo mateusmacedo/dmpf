@@ -88,16 +88,16 @@ pnpm install
 
 | Peça | Molde |
 | --- | --- |
-| Rotas `dmpfhttp.Route` com `ContractRef` (`POST /<ctx>/<agregado>` com chave de idempotência para criação; `POST /<ctx>/<agregado>/{id}/<comando>`; `GET` por consulta) | `apps/backend/dmpf-reference/api/routes.go` |
-| Handlers com validação de forma (`maxLength`, `pattern`, `additionalProperties: false`) | `apps/backend/dmpf-reference/api/handlers.go` |
+| Rotas `dmpfhttp.Route` com `ContractRef` (`POST /<ctx>/<agregado>` com chave de idempotência para criação; `POST /<ctx>/<agregado>/{id}/<comando>`; `GET` por consulta) | `apps/backend/dmpf-reference-bff-go/api/routes.go` |
+| Handlers com validação de forma (`maxLength`, `pattern`, `additionalProperties: false`) | `apps/backend/dmpf-reference-bff-go/api/handlers_orders.go` |
 | OpenAPI publicado | `contracts/openapi/orders/v1/openapi.yaml` |
-| e2e HTTP → outbox | `apps/backend/dmpf-reference/api/routes_test.go` |
+| e2e HTTP → outbox | `apps/backend/dmpf-reference-bff-go/e2e_test.go` |
 | Consumer adapter (`envelope.Unpack`) — **só se o contexto consome** | `libs/backend/go/dmpf-app/example/reservations/consumer.go` |
 
 - Norma: RST-02 (idempotência por método), RST-04 (`ContractRef`); FND-08
   (as três posições de observabilidade).
 - A composition root (`cmd/` com `--role`) fica fora: copiar
-  `apps/backend/dmpf-reference/cmd/dmpf-reference`.
+  `apps/backend/dmpf-reference-orders-go/cmd/dmpf-reference-orders`.
 
 ## 8. Contrato
 
