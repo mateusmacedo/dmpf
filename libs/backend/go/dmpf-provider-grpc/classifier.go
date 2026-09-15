@@ -34,6 +34,22 @@ func StatusClassifier(retryable []codes.Code) retry.Classifier {
 	}
 }
 
+// dependencyFailure is what the breaker holds against the dependency:
+// unavailability or a transport error, never an answer such as NOT_FOUND
+// (RES-10, RES-12).
+func dependencyFailure(err error) bool {
+	s, isStatus := status.FromError(err)
+	if !isStatus {
+		return true
+	}
+	switch s.Code() {
+	case codes.Unavailable, codes.DeadlineExceeded, codes.ResourceExhausted, codes.Internal, codes.Unknown, codes.DataLoss:
+		return true
+	default:
+		return false
+	}
+}
+
 // categoryOf returns the bounded category under which a failure is recorded:
 // the category a platform error carries, the context error, or the lowercase
 // gRPC code — never the message (TRC-12, MET-07).

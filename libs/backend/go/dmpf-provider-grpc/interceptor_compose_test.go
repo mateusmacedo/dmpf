@@ -267,3 +267,66 @@ func TestComposeObservesTheCall(t *testing.T) {
 		}
 	}
 }
+
+func breakerFloor(t *testing.T, cfg dmpfgrpc.Config) int {
+	t.Helper()
+	policy, declared := cfg.Sheet.Breaker.Get()
+	if !declared {
+		t.Fatal("the default sheet declares no breaker")
+	}
+	return policy.MinSamples
+}
+
+func answering(code codes.Code, invoked *int) grpc.UnaryInvoker {
+	return func(context.Context, string, any, any, *grpc.ClientConn, ...grpc.CallOption) error {
+		*invoked++
+		return status.Error(code, "answer")
+	}
+}
+
+func TestComposeBreakerDoesNotOpenOnBusinessAnswers(t *testing.T) {
+	for _, code := range []codes.Code{codes.NotFound, codes.AlreadyExists, codes.FailedPrecondition, codes.Aborted, codes.InvalidArgument, codes.PermissionDenied, codes.Unauthenticated, codes.OutOfRange, codes.Canceled} {
+		t.Run(code.String(), func(t *testing.T) {
+			c := clock.NewFake(start)
+			cfg := composeConfig(c, false)
+			interceptor, err := dmpfgrpc.ComposeUnaryInterceptor(cfg)
+			if err != nil {
+				t.Fatalf("ComposeUnaryInterceptor() = %v, want nil", err)
+			}
+			ctx, cancel := budgeted(c)
+			defer cancel()
+
+			invoked := 0
+			for range breakerFloor(t, cfg) * 2 {
+				_ = interceptor(ctx, checkMethod, nil, nil, nil, answering(code, &invoked))
+			}
+			if err := interceptor(ctx, checkMethod, nil, nil, nil, failing(0, codes.OK, &invoked)); err != nil {
+				t.Fatalf("interceptor = %v after a burst of %s, want the call through: an answer is not unavailability (RES-10)", err, code)
+			}
+		})
+	}
+}
+
+func TestComposeBreakerOpensOnUnavailability(t *testing.T) {
+	for _, code := range []codes.Code{codes.Unavailable, codes.DeadlineExceeded, codes.ResourceExhausted, codes.Internal, codes.Unknown, codes.DataLoss} {
+		t.Run(code.String(), func(t *testing.T) {
+			c := clock.NewFake(start)
+			cfg := composeConfig(c, false)
+			interceptor, err := dmpfgrpc.ComposeUnaryInterceptor(cfg)
+			if err != nil {
+				t.Fatalf("ComposeUnaryInterceptor() = %v, want nil", err)
+			}
+			ctx, cancel := budgeted(c)
+			defer cancel()
+
+			invoked := 0
+			for range breakerFloor(t, cfg) {
+				_ = interceptor(ctx, checkMethod, nil, nil, nil, answering(code, &invoked))
+			}
+			before := invoked
+			if err := interceptor(ctx, checkMethod, nil, nil, nil, answering(code, &invoked)); !errors.Is(err, resilience.ErrBreakerOpen) || invoked != before {
+				t.Fatalf("interceptor = %v, invoked %d more; want ErrBreakerOpen without invoking (RES-12)", err, invoked-before)
+			}
+		})
+	}
+}

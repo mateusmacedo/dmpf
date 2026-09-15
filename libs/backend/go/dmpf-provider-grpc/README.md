@@ -47,7 +47,11 @@ verificador não classifica.
   `dmpf-transport/compose` (`Shared` para as posições por dependência, `Retry`
   por método), **uma `Call` por método declarado**, construída em `Dial`: o
   classificador de retry depende dos `RetryableCodes` do método. `Breaker` e
-  `Bulkhead` são um por dependência e compartilhados; `Timeout` reserva
+  `Bulkhead` são um por dependência e compartilhados; o `Breaker` conta como
+  falha só indisponibilidade (`UNAVAILABLE`, `DEADLINE_EXCEEDED`,
+  `RESOURCE_EXHAUSTED`, `INTERNAL`, `UNKNOWN`, `DATA_LOSS`) e erro de
+  transporte — `NOT_FOUND`, `ABORTED` e os demais desfechos são resposta da
+  dependência e não o abrem (RES-10, RES-12); `Timeout` reserva
   `Backoff.Base`; `Retry` só repete método `Idempotent` com código
   declarado transiente **e** orçamento instalado no contexto por
   `retry.WithBudget` (RES-31) — sem orçamento, uma tentativa. `Retry`
