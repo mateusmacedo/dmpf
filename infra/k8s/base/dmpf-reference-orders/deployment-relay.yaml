@@ -1,0 +1,50 @@
+# O relay drena por claim com lease (OBX-09) só a outbox do banco dmpf_orders:
+# mais de uma réplica é seguro, mas uma basta para o volume de referência.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dmpf-reference-orders-relay
+  labels:
+    app.kubernetes.io/component: relay
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: relay
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: relay
+    spec:
+      serviceAccountName: dmpf-reference-orders
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: relay
+          image: ghcr.io/mateusmacedo/dmpf-reference-orders:latest
+          args: ['--role', 'relay']
+          envFrom:
+            - configMapRef:
+                name: dmpf-reference-orders
+            - secretRef:
+                name: dmpf-reference-orders
+          env:
+            - name: DMPF_INSTANCE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+      # ShutdownGrace do relay é 10 s; o pod espera mais que isso.
+      terminationGracePeriodSeconds: 20

@@ -1,8 +1,8 @@
 # Ambiente de desenvolvimento local: um recurso por arquivo em compose/, todos
 # incluídos aqui. Suba por profile — `docker compose --profile postgres up -d`,
 # `--profile observability` (Grafana, Loki, Tempo, Prometheus, Alloy e o
-# Collector), `--profile dmpf` (os três papéis do dmpf-reference com tudo o que
-# eles precisam) ou `--profile all`. Valores sensíveis vêm de .env (ignorado
+# Collector), `--profile dmpf` (os seis processos da topologia de
+# referência — BFF, orders e reservations — com tudo o que eles precisam) ou `--profile all`. Valores sensíveis vêm de .env (ignorado
 # pelo git; ver .env.example); os defaults servem apenas ao desenvolvimento local.
 
 name: dmpf-local

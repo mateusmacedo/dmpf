@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: dmpf-reference-api
+  name: dmpf-reference-orders-api
   labels:
     app.kubernetes.io/component: api
 spec:
@@ -14,36 +14,38 @@ spec:
       labels:
         app.kubernetes.io/component: api
     spec:
-      serviceAccountName: dmpf-reference
+      serviceAccountName: dmpf-reference-orders
       securityContext:
         runAsNonRoot: true
         seccompProfile:
           type: RuntimeDefault
       containers:
         - name: api
-          image: ghcr.io/mateusmacedo/dmpf-reference:latest
+          image: ghcr.io/mateusmacedo/dmpf-reference-orders:latest
           args: ['--role', 'api']
           ports:
-            - name: http
-              containerPort: 8080
+            - name: grpc
+              containerPort: 9090
           envFrom:
             - configMapRef:
-                name: dmpf-reference
+                name: dmpf-reference-orders
             - secretRef:
-                name: dmpf-reference
+                name: dmpf-reference-orders
           env:
             - name: DMPF_INSTANCE_ID
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
-          # A api não expõe rota de saúde nesta entrega: a sonda é o socket.
+          # Prontidão pelo health do serviço, que só vira SERVING com o banco
+          # alcançado; vivacidade pelo status geral, que não depende do banco.
           readinessProbe:
-            tcpSocket:
-              port: http
+            grpc:
+              port: 9090
+              service: company.orders.service.v1.OrdersService
             periodSeconds: 5
           livenessProbe:
-            tcpSocket:
-              port: http
+            grpc:
+              port: 9090
             initialDelaySeconds: 10
             periodSeconds: 20
           resources:

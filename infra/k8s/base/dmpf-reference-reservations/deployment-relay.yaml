@@ -1,9 +1,9 @@
-# O relay drena por claim com lease (OBX-09): mais de uma réplica é seguro,
-# mas uma basta para o volume de referência.
+# O relay drena por claim com lease (OBX-09) só a outbox do banco
+# dmpf_reservations, onde o consumer enfileira ReservationConfirmed.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: dmpf-reference-relay
+  name: dmpf-reference-reservations-relay
   labels:
     app.kubernetes.io/component: relay
 spec:
@@ -16,20 +16,20 @@ spec:
       labels:
         app.kubernetes.io/component: relay
     spec:
-      serviceAccountName: dmpf-reference
+      serviceAccountName: dmpf-reference-reservations
       securityContext:
         runAsNonRoot: true
         seccompProfile:
           type: RuntimeDefault
       containers:
         - name: relay
-          image: ghcr.io/mateusmacedo/dmpf-reference:latest
+          image: ghcr.io/mateusmacedo/dmpf-reference-reservations:latest
           args: ['--role', 'relay']
           envFrom:
             - configMapRef:
-                name: dmpf-reference
+                name: dmpf-reference-reservations
             - secretRef:
-                name: dmpf-reference
+                name: dmpf-reference-reservations
           env:
             - name: DMPF_INSTANCE_ID
               valueFrom:
@@ -46,5 +46,5 @@ spec:
             readOnlyRootFilesystem: true
             capabilities:
               drop: [ALL]
-      # ShutdownGrace do relay é 10 s (config.go); o pod espera mais que isso.
+      # ShutdownGrace do relay é 10 s; o pod espera mais que isso.
       terminationGracePeriodSeconds: 20

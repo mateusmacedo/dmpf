@@ -1,10 +1,10 @@
-# A borda não autentica ninguém (a identidade de FND-07 não tem realização no
-# kernel), então quem alcança a api é decidido pela rede: só pods rotulados
-# como cliente. relay e consumer não servem nada e não recebem tráfego algum.
+# Só o BFF chama o contexto (RST-01: a borda pública é ele). O par permitido
+# usa matchExpressions porque o Kustomize injeta o label `name` desta base em
+# todo matchLabels de NetworkPolicy, o que exigiria o nome errado do peer.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: dmpf-reference-api
+  name: dmpf-reference-reservations-api
 spec:
   podSelector:
     matchLabels:
@@ -13,16 +13,18 @@ spec:
   ingress:
     - from:
         - podSelector:
-            matchLabels:
-              dmpf/api-client: 'true'
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values: [dmpf-reference-bff]
       ports:
-        - port: http
+        - port: 9090
           protocol: TCP
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: dmpf-reference-workers
+  name: dmpf-reference-reservations-workers
 spec:
   podSelector:
     matchExpressions:

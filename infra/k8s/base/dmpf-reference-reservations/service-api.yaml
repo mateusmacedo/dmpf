@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: dmpf-reference-api
+  name: dmpf-reference-reservations-api
   labels:
     app.kubernetes.io/component: api
 spec:
@@ -9,6 +9,7 @@ spec:
   selector:
     app.kubernetes.io/component: api
   ports:
-    - name: http
-      port: 8080
-      targetPort: http
+    - name: grpc
+      port: 9090
+      targetPort: grpc
+      appProtocol: grpc

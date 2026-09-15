@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dmpf-reference-bff
+data:
+  # O BFF verifica os `api` pela CA montada de dmpf-reference-bff-grpc-ca; o
+  # nome verificado é o host do alvo (o Service de cada contexto).
+  DMPF_GRPC_CA_FILE: /etc/dmpf/grpc/ca.crt
+  DMPF_SERVICE_VERSION: hmg

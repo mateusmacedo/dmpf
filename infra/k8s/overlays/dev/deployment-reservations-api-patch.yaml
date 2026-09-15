@@ -1,0 +1,14 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dmpf-reference-reservations-api
+spec:
+  template:
+    spec:
+      containers:
+        - name: api
+          env:
+            # Em dev o api aplica o schema na partida (dmpfpostgres.Migrate é
+            # idempotente); relay e consumer reiniciam até as tabelas existirem.
+            - name: DMPF_MIGRATE
+              value: 'true'

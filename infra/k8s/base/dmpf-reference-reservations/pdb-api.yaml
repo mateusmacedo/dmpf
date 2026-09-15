@@ -1,7 +1,7 @@
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: dmpf-reference-api
+  name: dmpf-reference-reservations-api
 spec:
   minAvailable: 1
   selector:

@@ -1,40 +1,48 @@
-# O consumer é um membro do consumer group do canal: a réplica extra rebalanceia
-# partições, e o canal de referência tem uma só.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: dmpf-reference-consumer
+  name: dmpf-reference-bff
   labels:
-    app.kubernetes.io/component: consumer
+    app.kubernetes.io/component: bff
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app.kubernetes.io/component: consumer
+      app.kubernetes.io/component: bff
   template:
     metadata:
       labels:
-        app.kubernetes.io/component: consumer
+        app.kubernetes.io/component: bff
     spec:
-      serviceAccountName: dmpf-reference
+      serviceAccountName: dmpf-reference-bff
       securityContext:
         runAsNonRoot: true
         seccompProfile:
           type: RuntimeDefault
       containers:
-        - name: consumer
-          image: ghcr.io/mateusmacedo/dmpf-reference:latest
-          args: ['--role', 'consumer']
+        - name: bff
+          image: ghcr.io/mateusmacedo/dmpf-reference-bff:latest
+          ports:
+            - name: http
+              containerPort: 8080
           envFrom:
             - configMapRef:
-                name: dmpf-reference
-            - secretRef:
-                name: dmpf-reference
+                name: dmpf-reference-bff
           env:
             - name: DMPF_INSTANCE_ID
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
+          # O BFF não expõe rota de saúde: a sonda é o socket.
+          readinessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
           resources:
             requests:
               cpu: 50m
@@ -46,6 +54,4 @@ spec:
             readOnlyRootFilesystem: true
             capabilities:
               drop: [ALL]
-      # RebalanceTimeout do consumer é 30 s (wiring.go); a revogação cancela o
-      # trabalho em curso antes disso.
-      terminationGracePeriodSeconds: 35
+      terminationGracePeriodSeconds: 15

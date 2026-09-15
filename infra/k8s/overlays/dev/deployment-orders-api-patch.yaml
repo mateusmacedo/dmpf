@@ -1,14 +1,14 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: dmpf-reference-api
+  name: dmpf-reference-orders-api
 spec:
   template:
     spec:
       containers:
         - name: api
           env:
-            # Em dev a api aplica o schema na partida (dmpfpostgres.Migrate é
-            # idempotente); relay e consumer reiniciam até as tabelas existirem.
+            # Em dev o api aplica o schema na partida (dmpfpostgres.Migrate é
+            # idempotente); o relay reinicia até as tabelas existirem.
             - name: DMPF_MIGRATE
               value: 'true'
