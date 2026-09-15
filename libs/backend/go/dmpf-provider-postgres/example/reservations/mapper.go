@@ -9,7 +9,10 @@ import (
 	dmpfpostgres "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres"
 )
 
-const reservationConfirmedType = "com.company.reservations.reservation-confirmed.v1"
+const (
+	reservationConfirmedType = "com.company.reservations.reservation-confirmed.v1"
+	reservationCancelledType = "com.company.reservations.reservation-cancelled.v1"
+)
 
 // Mapper translates the reservations bounded context's domain events into
 // their wire contracts.
@@ -24,6 +27,11 @@ func (Mapper) Map(event dmpfdomain.DomainEvent) (dmpfpostgres.Mapped, error) {
 				ItemCount: int32(e.Items),
 			},
 			Type: reservationConfirmedType,
+		}, nil
+	case reservations.ReservationCancelled:
+		return dmpfpostgres.Mapped{
+			Message: &reservationsv1.ReservationCancelled{OrderId: string(e.Order)},
+			Type:    reservationCancelledType,
 		}, nil
 	default:
 		return dmpfpostgres.Mapped{}, fmt.Errorf("%w: %s", dmpfpostgres.ErrUnmappedEvent, event.EventName())

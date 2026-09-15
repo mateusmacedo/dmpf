@@ -24,6 +24,20 @@ func TestMapperMapsReservationConfirmed(t *testing.T) {
 	}
 }
 
+func TestMapperMapsReservationCancelled(t *testing.T) {
+	m := reservationspg.Mapper{}
+	mapped, err := m.Map(reservations.ReservationCancelled{Order: "o-1", At: 100})
+	if err != nil {
+		t.Fatalf("Map() = %v, want nil", err)
+	}
+	if mapped.Type != "com.company.reservations.reservation-cancelled.v1" {
+		t.Errorf("Type = %q, want %q", mapped.Type, "com.company.reservations.reservation-cancelled.v1")
+	}
+	if mapped.Message == nil {
+		t.Fatal("Message is nil")
+	}
+}
+
 type unknownEvent struct{}
 
 func (unknownEvent) EventName() string { return "unknown" }
