@@ -1,8 +1,8 @@
 {
-  "name": "dmpf-reference-go",
+  "name": "dmpf-reference-bff-go",
   "$schema": "../../../node_modules/nx/schemas/project-schema.json",
   "projectType": "application",
-  "sourceRoot": "apps/backend/dmpf-reference",
+  "sourceRoot": "apps/backend/dmpf-reference-bff-go",
   "tags": ["type:app", "scope:backend", "stack:go", "layer:apps"],
   "targets": {
     "fmt-check": {
@@ -54,24 +54,10 @@
         "cwd": "{projectRoot}"
       }
     },
-    "serve-api": {
+    "serve": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "DMPF_OPENAPI_PATH=../../../contracts/openapi/orders/v1/openapi.yaml go run ./cmd/dmpf-reference --role api",
-        "cwd": "{projectRoot}"
-      }
-    },
-    "serve-relay": {
-      "executor": "nx:run-commands",
-      "options": {
-        "command": "go run ./cmd/dmpf-reference --role relay",
-        "cwd": "{projectRoot}"
-      }
-    },
-    "serve-consumer": {
-      "executor": "nx:run-commands",
-      "options": {
-        "command": "go run ./cmd/dmpf-reference --role consumer",
+        "command": "DMPF_OPENAPI_ORDERS_PATH=../../../contracts/openapi/orders/v1/openapi.yaml DMPF_OPENAPI_RESERVATIONS_PATH=../../../contracts/openapi/reservations/v1/openapi.yaml go run ./cmd/dmpf-reference-bff",
         "cwd": "{projectRoot}"
       }
     },
