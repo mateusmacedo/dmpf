@@ -2,14 +2,14 @@
   "schema": "dmpf/units@1",
   "units": [
     {
-      "id": "dmpf-kernel/reference-app",
+      "id": "dmpf-kernel/reference-reservations-app",
       "block": "app",
       "bounded_context": "dmpf-kernel",
       "public_integration_surface": false,
       "include": [
-        "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference",
-        "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference/api",
-        "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference/cmd/dmpf-reference"
+        "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference-reservations-go",
+        "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference-reservations-go/rpc",
+        "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference-reservations-go/cmd/dmpf-reference-reservations"
       ]
     }
   ],
@@ -19,12 +19,6 @@
       "versions": ">=5.10 <6",
       "entrypoints": [".", "github.com/jackc/pgx/v5/pgxpool"],
       "capability": "io.storage"
-    },
-    {
-      "package": "github.com/twmb/franz-go",
-      "versions": ">=1.21.6 <2",
-      "entrypoints": ["github.com/twmb/franz-go/pkg/kgo", "github.com/twmb/franz-go/pkg/kadm"],
-      "capability": "io.messaging"
     },
     {
       "package": "go.opentelemetry.io/otel",
@@ -41,10 +35,7 @@
     {
       "package": "go.opentelemetry.io/otel/sdk",
       "versions": ">=1.46.0 <2",
-      "entrypoints": [
-        "go.opentelemetry.io/otel/sdk/trace",
-        "go.opentelemetry.io/otel/sdk/trace/tracetest"
-      ],
+      "entrypoints": ["go.opentelemetry.io/otel/sdk/trace/tracetest"],
       "capability": "observability"
     },
     {
@@ -54,22 +45,26 @@
       "capability": "observability"
     },
     {
-      "package": "go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc",
-      "versions": ">=1.46.0 <2",
-      "entrypoints": ["go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"],
-      "capability": "io.network"
-    },
-    {
-      "package": "go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc",
-      "versions": ">=1.46.0 <2",
-      "entrypoints": ["go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"],
-      "capability": "io.network"
-    },
-    {
       "package": "google.golang.org/grpc",
       "versions": ">=1.83.1 <2",
-      "entrypoints": ["google.golang.org/grpc/credentials"],
+      "entrypoints": [
+        ".",
+        "google.golang.org/grpc/codes",
+        "google.golang.org/grpc/health",
+        "google.golang.org/grpc/health/grpc_health_v1",
+        "google.golang.org/grpc/metadata",
+        "google.golang.org/grpc/status"
+      ],
       "capability": "io.network"
+    },
+    {
+      "package": "google.golang.org/protobuf",
+      "versions": ">=1.36.12 <2",
+      "entrypoints": [
+        "google.golang.org/protobuf/proto",
+        "google.golang.org/protobuf/reflect/protoreflect"
+      ],
+      "capability": "wire.codec"
     }
   ],
   "exceptions": []

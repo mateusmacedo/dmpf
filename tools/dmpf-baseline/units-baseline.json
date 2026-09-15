@@ -1,16 +1,39 @@
 {
   "schema": "dmpf/units-baseline@1",
-  "digest": "sha256:536b9eb633ad7ea71d5c3a1b0cf5ffb2e862b268a879c9fb38aea89ad1cef7b9",
+  "digest": "sha256:9871df0b958151dba7bb0aa84196e1c1f12d618953b9781dcd94fb1b5320f5b0",
   "entries": [
     {
-      "unit": "dmpf-kernel/reference-app",
-      "module": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference",
+      "unit": "dmpf-reference-bff/app",
+      "module": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference-bff-go",
+      "block": "app",
+      "bounded_context": "dmpf-reference-bff",
+      "membership": [
+        "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference-bff-go",
+        "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference-bff-go/api",
+        "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference-bff-go/cmd/dmpf-reference-bff",
+        "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference-bff-go/rpc"
+      ]
+    },
+    {
+      "unit": "dmpf-kernel/reference-orders-app",
+      "module": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference-orders-go",
       "block": "app",
       "bounded_context": "dmpf-kernel",
       "membership": [
-        "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference",
-        "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference/api",
-        "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference/cmd/dmpf-reference"
+        "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference-orders-go",
+        "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference-orders-go/cmd/dmpf-reference-orders",
+        "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference-orders-go/rpc"
+      ]
+    },
+    {
+      "unit": "dmpf-kernel/reference-reservations-app",
+      "module": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference-reservations-go",
+      "block": "app",
+      "bounded_context": "dmpf-kernel",
+      "membership": [
+        "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference-reservations-go",
+        "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference-reservations-go/cmd/dmpf-reference-reservations",
+        "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference-reservations-go/rpc"
       ]
     },
     {
@@ -132,15 +155,6 @@
       "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/cmd/dmpf-bom"]
     },
     {
-      "unit": "dmpf-conformance/cmd-modsync",
-      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance",
-      "block": "app",
-      "bounded_context": "dmpf-conformance",
-      "membership": [
-        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/cmd/dmpf-modsync"
-      ]
-    },
-    {
       "unit": "dmpf-conformance/conformance",
       "module": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance",
       "block": "application",
@@ -193,13 +207,6 @@
       ]
     },
     {
-      "unit": "dmpf-conformance/modsync",
-      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance",
-      "block": "app",
-      "bounded_context": "dmpf-conformance",
-      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/modsync"]
-    },
-    {
       "unit": "dmpf-conformance/port",
       "module": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance",
       "block": "port",
@@ -227,7 +234,9 @@
       "bounded_context": "dmpf-kernel",
       "membership": [
         "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/gen/go/company/orders/event/v1",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/gen/go/company/orders/service/v1",
         "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/gen/go/company/reservations/event/v1",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/gen/go/company/reservations/service/v1",
         "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/gen/go/io/cloudevents/v1"
       ]
     },
