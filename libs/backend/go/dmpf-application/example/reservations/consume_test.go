@@ -382,3 +382,30 @@ func TestConsumeAuthorizeDenyingWithACategoryKeepsIt(t *testing.T) {
 		t.Fatalf("disposition = %v, want %v (FND-07 §6.2: Forbidden is terminal)", disposition, dmpfapplication.R1D4)
 	}
 }
+
+func TestConsumeOnACanceledReservationIsR1D2WithoutWriting(t *testing.T) {
+	store := memory.New()
+	svc := newService(store)
+	if _, err := svc.Cancel(context.Background(), reservationsapp.Cancel{Order: "o-1"}); err != nil {
+		t.Fatalf("setup: Cancel() error = %v", err)
+	}
+	entriesBefore := len(store.Entries())
+
+	disp, err := svc.Consume(context.Background(), consumeOrderPlaced("msg-1", "hash-1", "o-1", 2))
+
+	if err != nil {
+		t.Fatalf("Consume() error = %v, want nil — a refusal is not a technical failure", err)
+	}
+	if disp != dmpfapplication.R1D2 {
+		t.Fatalf("disposition = %v, want R1D2 — the cancellation decided first", disp)
+	}
+	if status, _ := store.InboxStatus(consumer, "msg-1"); status != dmpfports.StatusRejected {
+		t.Fatalf("inbox status = %v, want rejected", status)
+	}
+	if last, _ := store.InboxLastError(consumer, "msg-1"); last != string(reservations.CodeReservationCanceled) {
+		t.Fatalf("inbox last error = %q, want %q", last, reservations.CodeReservationCanceled)
+	}
+	if got := len(store.Entries()); got != entriesBefore {
+		t.Fatalf("Entries() = %d, want %d — a refused consumption enqueues nothing", got, entriesBefore)
+	}
+}
