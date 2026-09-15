@@ -1,7 +1,7 @@
 package reservations
 
-// Reservation is a second example aggregate of the kernel: a single UPR,
-// Reserve, that confirms items for an order (FND-04 §7.2).
+// Reservation is a second example aggregate of the kernel: two UPRs, Reserve
+// and Cancel, decide a pending reservation for an order (FND-04 §7.2).
 type Reservation struct {
 	order  OrderID
 	items  int

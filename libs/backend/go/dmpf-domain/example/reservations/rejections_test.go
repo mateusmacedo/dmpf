@@ -9,8 +9,10 @@ import (
 
 func TestDeclaredCodesAreValid(t *testing.T) {
 	codes := map[string]dmpfdomain.Code{
-		"CodeNothingToReserve": reservations.CodeNothingToReserve,
-		"CodeAlreadyReserved":  reservations.CodeAlreadyReserved,
+		"CodeNothingToReserve":    reservations.CodeNothingToReserve,
+		"CodeAlreadyReserved":     reservations.CodeAlreadyReserved,
+		"CodeAlreadyCanceled":     reservations.CodeAlreadyCanceled,
+		"CodeReservationCanceled": reservations.CodeReservationCanceled,
 	}
 	for name, code := range codes {
 		t.Run(name, func(t *testing.T) {

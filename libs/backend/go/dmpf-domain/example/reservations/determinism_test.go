@@ -39,6 +39,26 @@ func TestReserveIsDeterministic(t *testing.T) {
 	}
 }
 
+func TestCancelIsDeterministic(t *testing.T) {
+	a := reservations.NewReservation(orderID)
+	b := reservations.NewReservation(orderID)
+	cmd := reservations.Cancel{At: at}
+
+	accA, rejA := a.Cancel(cmd)
+	accB, rejB := b.Cancel(cmd)
+
+	if rejA != nil || rejB != nil {
+		t.Fatalf("expected both Accepted: %v / %v", rejA, rejB)
+	}
+	if accA.Response() != accB.Response() {
+		t.Fatalf("responses differ: %+v vs %+v", accA.Response(), accB.Response())
+	}
+	sameSequence(t, accA.Events(), accB.Events())
+	if !a.Snapshot().Equal(b.Snapshot()) {
+		t.Fatalf("final snapshots differ:\n%+v\n%+v", a.Snapshot(), b.Snapshot())
+	}
+}
+
 func mustBeComparable[T comparable]() {}
 
 // Responses and events are comparable value types (no slice, map or func); the
@@ -47,4 +67,7 @@ var (
 	_ = mustBeComparable[reservations.ReservedResponse]
 	_ = mustBeComparable[reservations.ReservationConfirmed]
 	_ = mustBeComparable[reservations.Reserve]
+	_ = mustBeComparable[reservations.CancelledResponse]
+	_ = mustBeComparable[reservations.ReservationCancelled]
+	_ = mustBeComparable[reservations.Cancel]
 )

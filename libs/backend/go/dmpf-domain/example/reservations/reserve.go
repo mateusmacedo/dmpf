@@ -9,8 +9,11 @@ func (r *Reservation) Reserve(cmd Reserve) (dmpfdomain.Accepted[ReservedResponse
 	if cmd.Items <= 0 {
 		return dmpfdomain.Accepted[ReservedResponse]{}, dmpfdomain.Reject(CodeNothingToReserve, "nothing to reserve")
 	}
-	if next.status != Pending {
+	switch next.status {
+	case Confirmed:
 		return dmpfdomain.Accepted[ReservedResponse]{}, dmpfdomain.Reject(CodeAlreadyReserved, "reservation is already confirmed")
+	case Canceled:
+		return dmpfdomain.Accepted[ReservedResponse]{}, dmpfdomain.Reject(CodeReservationCanceled, "reservation is canceled")
 	}
 	next.status = Confirmed
 	next.items = cmd.Items

@@ -8,4 +8,8 @@ const (
 	CodeNothingToReserve dmpfdomain.Code = "reservations/nothing-to-reserve"
 	// CodeAlreadyReserved: the reservation is no longer pending.
 	CodeAlreadyReserved dmpfdomain.Code = "reservations/already-reserved"
+	// CodeAlreadyCanceled: the reservation was canceled before this command.
+	CodeAlreadyCanceled dmpfdomain.Code = "reservations/already-canceled"
+	// CodeReservationCanceled: a canceled reservation takes no reservation.
+	CodeReservationCanceled dmpfdomain.Code = "reservations/reservation-canceled"
 )
