@@ -1,0 +1,9 @@
+go 1.26.6
+
+use (
+	./libs/a
+	./libs/b
+	./libs/c
+	./libs/ctx/d
+	./libs/f
+)
