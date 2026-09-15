@@ -15,6 +15,6 @@
 // of a transport, and the dead-letter queue, both KRN-10; and every
 // operational value — wait ceiling, attempt limit, retention — which the
 // caller declares and FND-08 catalogues. The relay of the outbox (KRN-08)
-// lives in the relay package of this module, and the composition root that
-// wires both into real processes is apps/backend/dmpf-reference (KRN-12).
+// lives in the relay package of this module, and the composition roots that
+// wire them into real processes are apps/backend/dmpf-reference-{orders,reservations}-go (ADR-044).
 package dmpfapp
