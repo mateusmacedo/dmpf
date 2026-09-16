@@ -2,29 +2,25 @@
   "schema": "dmpf/units@1",
   "units": [
     {
-      "id": "dmpf-kernel/provider-postgres",
+      "id": "kernel/provider-postgres",
       "block": "provider",
-      "bounded_context": "dmpf-kernel",
+      "bounded_context": "kernel",
       "public_integration_surface": false,
-      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres"]
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/postgres"]
     },
     {
-      "id": "dmpf-kernel/example-orders-postgres",
+      "id": "kernel/example-orders-postgres",
       "block": "provider",
-      "bounded_context": "dmpf-kernel",
+      "bounded_context": "kernel",
       "public_integration_surface": false,
-      "include": [
-        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres/example/orders"
-      ]
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/postgres/example/orders"]
     },
     {
-      "id": "dmpf-kernel/example-reservations-postgres",
+      "id": "kernel/example-reservations-postgres",
       "block": "provider",
-      "bounded_context": "dmpf-kernel",
+      "bounded_context": "kernel",
       "public_integration_surface": false,
-      "include": [
-        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres/example/reservations"
-      ]
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/postgres/example/reservations"]
     }
   ],
   "external": [

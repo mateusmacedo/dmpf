@@ -1,0 +1,28 @@
+{
+  "schema": "dmpf/units@1",
+  "units": [
+    {
+      "id": "kernel/app-consumer",
+      "block": "app",
+      "bounded_context": "kernel",
+      "public_integration_surface": false,
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/app"]
+    },
+    {
+      "id": "kernel/app-relay",
+      "block": "app",
+      "bounded_context": "kernel",
+      "public_integration_surface": false,
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/app/relay"]
+    },
+    {
+      "id": "kernel/example-reservations-app",
+      "block": "app",
+      "bounded_context": "kernel",
+      "public_integration_surface": false,
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/app/example/reservations"]
+    }
+  ],
+  "external": [],
+  "exceptions": []
+}

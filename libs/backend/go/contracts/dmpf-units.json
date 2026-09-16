@@ -2,16 +2,16 @@
   "schema": "dmpf/units@1",
   "units": [
     {
-      "id": "dmpf-contracts/gen",
+      "id": "contracts/gen",
       "block": "contract",
-      "bounded_context": "dmpf-kernel",
+      "bounded_context": "kernel",
       "public_integration_surface": true,
       "include": [
-        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/gen/go/io/cloudevents/v1",
-        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/gen/go/company/orders/event/v1",
-        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/gen/go/company/orders/service/v1",
-        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/gen/go/company/reservations/event/v1",
-        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/gen/go/company/reservations/service/v1"
+        "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/io/cloudevents/v1",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/orders/event/v1",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/orders/service/v1",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/reservations/event/v1",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/reservations/service/v1"
       ]
     },
     {
@@ -20,22 +20,22 @@
       "bounded_context": "resource-scheduling",
       "public_integration_surface": true,
       "include": [
-        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/gen/go/company/bookings/event/v1"
+        "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/bookings/event/v1"
       ]
     },
     {
-      "id": "dmpf-contracts/envelope",
+      "id": "contracts/envelope",
       "block": "contract",
-      "bounded_context": "dmpf-kernel",
+      "bounded_context": "kernel",
       "public_integration_surface": true,
-      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/envelope"]
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/contracts/envelope"]
     },
     {
-      "id": "dmpf-contracts/payloadhash",
+      "id": "contracts/payloadhash",
       "block": "contract",
-      "bounded_context": "dmpf-kernel",
+      "bounded_context": "kernel",
       "public_integration_surface": true,
-      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/payloadhash"]
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/contracts/payloadhash"]
     }
   ],
   "external": [
@@ -54,16 +54,16 @@
   ],
   "exceptions": [
     {
-      "unit": "dmpf-contracts/gen",
+      "unit": "contracts/gen",
       "dependency": "reflect",
       "reason": "import emitido pelo protoc-gen-go v1.36.12 em todo arquivo gerado; plumbing do runtime Protobuf, não uso de framework (RFC 6.4)",
       "owner": "team:tech-leads",
       "review_by": "2027-03-02",
 
-      "id": "X-dmpf-contracts-gen-reflect",
+      "id": "X-contracts-gen-reflect",
       "object": {
         "kind": "external-dependency",
-        "unit": "dmpf-contracts/gen",
+        "unit": "contracts/gen",
         "identity": "reflect"
       },
       "adr": "ADR-033",
@@ -85,16 +85,16 @@
       ]
     },
     {
-      "unit": "dmpf-contracts/gen",
+      "unit": "contracts/gen",
       "dependency": "unsafe",
       "reason": "import emitido pelo protoc-gen-go v1.36.12 em todo arquivo gerado; plumbing do runtime Protobuf, não uso de framework (RFC 6.4)",
       "owner": "team:tech-leads",
       "review_by": "2027-03-02",
 
-      "id": "X-dmpf-contracts-gen-unsafe",
+      "id": "X-contracts-gen-unsafe",
       "object": {
         "kind": "external-dependency",
-        "unit": "dmpf-contracts/gen",
+        "unit": "contracts/gen",
         "identity": "unsafe"
       },
       "adr": "ADR-033",

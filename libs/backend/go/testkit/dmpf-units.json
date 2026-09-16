@@ -1,0 +1,132 @@
+{
+  "schema": "dmpf/units@1",
+  "units": [
+    {
+      "id": "kernel/testkit-domain",
+      "block": "domain",
+      "bounded_context": "kernel",
+      "public_integration_surface": false,
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/testkit/domainkit"]
+    },
+    {
+      "id": "kernel/testkit-golden",
+      "block": "contract",
+      "bounded_context": "kernel",
+      "public_integration_surface": false,
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/testkit/golden"]
+    },
+    {
+      "id": "kernel/testkit-services",
+      "block": "provider",
+      "bounded_context": "kernel",
+      "public_integration_surface": false,
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/testkit/serviceskit"]
+    },
+    {
+      "id": "kernel/testkit-provider",
+      "block": "provider",
+      "bounded_context": "kernel",
+      "public_integration_surface": false,
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/testkit/providerkit"]
+    },
+    {
+      "id": "kernel/testkit-clock",
+      "block": "provider",
+      "bounded_context": "kernel",
+      "public_integration_surface": false,
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/testkit/clock"]
+    },
+    {
+      "id": "kernel/testkit-ids",
+      "block": "provider",
+      "bounded_context": "kernel",
+      "public_integration_surface": false,
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/testkit/ids"]
+    },
+    {
+      "id": "kernel/testkit-stable",
+      "block": "provider",
+      "bounded_context": "kernel",
+      "public_integration_surface": false,
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/testkit/stable"]
+    },
+    {
+      "id": "kernel/testkit-app",
+      "block": "app",
+      "bounded_context": "kernel",
+      "public_integration_surface": false,
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/testkit/appkit"]
+    },
+    {
+      "id": "kernel/testkit-dist",
+      "block": "app",
+      "bounded_context": "kernel",
+      "public_integration_surface": false,
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/testkit/distkit"]
+    },
+    {
+      "id": "kernel/testkit-fitness",
+      "block": "app",
+      "bounded_context": "kernel",
+      "public_integration_surface": false,
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/testkit/fitness"]
+    },
+    {
+      "id": "kernel/testkit-tb",
+      "block": "app",
+      "bounded_context": "kernel",
+      "public_integration_surface": false,
+      "include": [
+        "github.com/mateusmacedo/dmpf/libs/backend/go/testkit",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/pg"
+      ]
+    },
+    {
+      "id": "kernel/testkit-evidence",
+      "block": "app",
+      "bounded_context": "kernel",
+      "public_integration_surface": false,
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/testkit/evidence"]
+    },
+    {
+      "id": "kernel/testkit-cmd-evidence",
+      "block": "app",
+      "bounded_context": "kernel",
+      "public_integration_surface": false,
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/testkit/cmd/evidence"]
+    }
+  ],
+  "external": [
+    {
+      "package": "github.com/jackc/pgx/v5",
+      "versions": ">=5.10 <6",
+      "entrypoints": [".", "github.com/jackc/pgx/v5/pgxpool"],
+      "capability": "io.storage"
+    },
+    {
+      "package": "github.com/twmb/franz-go",
+      "versions": ">=1.21.6 <2",
+      "entrypoints": ["github.com/twmb/franz-go/pkg/kgo"],
+      "capability": "io.messaging"
+    },
+    {
+      "package": "github.com/twmb/franz-go/pkg/kadm",
+      "versions": ">=1.18 <2",
+      "entrypoints": ["github.com/twmb/franz-go/pkg/kadm"],
+      "capability": "io.messaging"
+    },
+    {
+      "package": "google.golang.org/protobuf",
+      "versions": ">=1.36.12 <2",
+      "entrypoints": [
+        "google.golang.org/protobuf/proto",
+        "google.golang.org/protobuf/encoding/protojson",
+        "google.golang.org/protobuf/reflect/protoreflect",
+        "google.golang.org/protobuf/types/known/timestamppb"
+      ],
+      "capability": "wire.codec"
+    }
+  ],
+  "exceptions": []
+}

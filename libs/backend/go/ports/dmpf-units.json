@@ -2,11 +2,11 @@
   "schema": "dmpf/units@1",
   "units": [
     {
-      "id": "dmpf-kernel/port",
+      "id": "kernel/port",
       "block": "port",
-      "bounded_context": "dmpf-kernel",
+      "bounded_context": "kernel",
       "public_integration_surface": false,
-      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-ports"]
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/ports"]
     }
   ],
   "external": [],

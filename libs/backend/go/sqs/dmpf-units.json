@@ -2,11 +2,11 @@
   "schema": "dmpf/units@1",
   "units": [
     {
-      "id": "dmpf-kernel/provider-sqs",
+      "id": "kernel/provider-sqs",
       "block": "provider",
-      "bounded_context": "dmpf-kernel",
+      "bounded_context": "kernel",
       "public_integration_surface": false,
-      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-sqs"]
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/sqs"]
     }
   ],
   "external": [

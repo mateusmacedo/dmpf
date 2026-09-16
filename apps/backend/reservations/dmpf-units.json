@@ -2,14 +2,14 @@
   "schema": "dmpf/units@1",
   "units": [
     {
-      "id": "dmpf-kernel/reference-orders-app",
+      "id": "kernel/reference-reservations-app",
       "block": "app",
-      "bounded_context": "dmpf-kernel",
+      "bounded_context": "kernel",
       "public_integration_surface": false,
       "include": [
-        "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference-orders-go",
-        "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference-orders-go/rpc",
-        "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference-orders-go/cmd/dmpf-reference-orders"
+        "github.com/mateusmacedo/dmpf/apps/backend/reservations",
+        "github.com/mateusmacedo/dmpf/apps/backend/reservations/rpc",
+        "github.com/mateusmacedo/dmpf/apps/backend/reservations/cmd/reservations"
       ]
     }
   ],

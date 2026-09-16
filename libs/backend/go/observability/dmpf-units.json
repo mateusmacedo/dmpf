@@ -2,23 +2,23 @@
   "schema": "dmpf/units@1",
   "units": [
     {
-      "id": "dmpf-kernel/observability",
+      "id": "kernel/observability",
       "block": "provider",
-      "bounded_context": "dmpf-kernel",
+      "bounded_context": "kernel",
       "public_integration_surface": false,
       "include": [
-        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability",
-        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/audit",
-        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/clock",
-        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/logging",
-        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/metrics",
-        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/otelboot",
-        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/otelboot/otlp",
-        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/redact",
-        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/resilience",
-        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/retry",
-        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/tracing",
-        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/usecase"
+        "github.com/mateusmacedo/dmpf/libs/backend/go/observability",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/observability/audit",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/observability/clock",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/observability/logging",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/observability/metrics",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/observability/otelboot",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/observability/otelboot/otlp",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/observability/redact",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/observability/resilience",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/observability/retry",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/observability/tracing",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/observability/usecase"
       ]
     }
   ],

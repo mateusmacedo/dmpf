@@ -2,15 +2,15 @@
   "schema": "dmpf/units@1",
   "units": [
     {
-      "id": "dmpf-reference-bff/app",
+      "id": "bff/app",
       "block": "app",
-      "bounded_context": "dmpf-reference-bff",
+      "bounded_context": "bff",
       "public_integration_surface": false,
       "include": [
-        "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference-bff-go",
-        "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference-bff-go/api",
-        "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference-bff-go/rpc",
-        "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference-bff-go/cmd/dmpf-reference-bff"
+        "github.com/mateusmacedo/dmpf/apps/backend/bff",
+        "github.com/mateusmacedo/dmpf/apps/backend/bff/api",
+        "github.com/mateusmacedo/dmpf/apps/backend/bff/rpc",
+        "github.com/mateusmacedo/dmpf/apps/backend/bff/cmd/bff"
       ]
     }
   ],
