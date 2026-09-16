@@ -100,3 +100,56 @@ func TestOperationIsBoundedByTheSheet(t *testing.T) {
 		t.Fatalf("Validate() = %v", err)
 	}
 }
+
+var errAnswer = errors.New("answer")
+
+func breakerFloor(t *testing.T, cfg compose.Config) int {
+	t.Helper()
+	policy, declared := cfg.Sheet.Breaker.Get()
+	if !declared {
+		t.Fatal("the default sheet declares no breaker")
+	}
+	return policy.MinSamples
+}
+
+func TestBuildHandsTheFailureClassifierToTheBreaker(t *testing.T) {
+	c := clock.NewFake(start)
+	cfg := config(c)
+	cfg.BreakerFailure = func(err error) bool { return !errors.Is(err, errAnswer) }
+	call, err := compose.Build(cfg)
+	if err != nil {
+		t.Fatalf("Build() = %v", err)
+	}
+	ctx, cancel := c.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	op := compose.Operation(cfg, "op", false)
+
+	for range breakerFloor(t, cfg) * 2 {
+		_ = call(ctx, op, func(context.Context) error { return errAnswer })
+	}
+
+	invoked := false
+	if err := call(ctx, op, func(context.Context) error { invoked = true; return nil }); err != nil || !invoked {
+		t.Fatalf("call = %v, invoked %v; want the call through: an uncounted error must not open the breaker", err, invoked)
+	}
+}
+
+func TestBuildWithoutFailureClassifierCountsEveryError(t *testing.T) {
+	c := clock.NewFake(start)
+	cfg := config(c)
+	call, err := compose.Build(cfg)
+	if err != nil {
+		t.Fatalf("Build() = %v", err)
+	}
+	ctx, cancel := c.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	op := compose.Operation(cfg, "op", false)
+
+	for range breakerFloor(t, cfg) {
+		_ = call(ctx, op, func(context.Context) error { return errAnswer })
+	}
+
+	if err := call(ctx, op, func(context.Context) error { return nil }); !errors.Is(err, resilience.ErrBreakerOpen) {
+		t.Fatalf("call = %v, want ErrBreakerOpen", err)
+	}
+}

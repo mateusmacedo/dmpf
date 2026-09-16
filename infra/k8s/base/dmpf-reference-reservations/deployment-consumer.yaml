@@ -1,0 +1,51 @@
+# O consumer é um membro do consumer group do canal de orders: a réplica extra
+# rebalanceia partições, e o canal de referência tem uma só.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dmpf-reference-reservations-consumer
+  labels:
+    app.kubernetes.io/component: consumer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: consumer
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: consumer
+    spec:
+      serviceAccountName: dmpf-reference-reservations
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: consumer
+          image: ghcr.io/mateusmacedo/dmpf-reference-reservations:latest
+          args: ['--role', 'consumer']
+          envFrom:
+            - configMapRef:
+                name: dmpf-reference-reservations
+            - secretRef:
+                name: dmpf-reference-reservations
+          env:
+            - name: DMPF_INSTANCE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+      # O RebalanceTimeout do consumer é 30 s; a revogação cancela o trabalho
+      # em curso antes disso.
+      terminationGracePeriodSeconds: 35

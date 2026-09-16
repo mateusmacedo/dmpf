@@ -35,7 +35,7 @@ services:
       retries: 10
     deploy:
       resources:
-        limits: { cpus: '0.50', memory: 768M }
+        limits: { cpus: '0.30', memory: 768M }
         reservations: { cpus: '0.05', memory: 256M }
 
 volumes:

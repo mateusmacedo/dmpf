@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+package company.reservations.event.v1;
+
+// A pending reservation was canceled in the reservations bounded context.
+// Envelope type: com.company.reservations.reservation-cancelled.v1 (PTB-03).
+message ReservationCancelled {
+  string order_id = 1;
+}

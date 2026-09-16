@@ -15,7 +15,7 @@ services:
         condition: service_healthy
     deploy:
       resources:
-        limits: { cpus: '0.10', memory: 64M }
+        limits: { cpus: '0.05', memory: 64M }
         reservations: { cpus: '0.02', memory: 16M }
 
   redis-exporter:
@@ -26,7 +26,7 @@ services:
       - '${REDIS_EXPORTER_PORT:-9121}:9121'
     deploy:
       resources:
-        limits: { cpus: '0.10', memory: 64M }
+        limits: { cpus: '0.05', memory: 64M }
         reservations: { cpus: '0.02', memory: 16M }
 
   blackbox-exporter:
@@ -39,7 +39,7 @@ services:
       - ../../observability/prometheus/blackbox.yaml:/etc/blackbox/blackbox.yaml:ro
     deploy:
       resources:
-        limits: { cpus: '0.10', memory: 64M }
+        limits: { cpus: '0.05', memory: 64M }
         reservations: { cpus: '0.02', memory: 16M }
 
   cadvisor:
@@ -59,5 +59,5 @@ services:
       - /dev/disk/:/dev/disk:ro
     deploy:
       resources:
-        limits: { cpus: '0.25', memory: 256M }
+        limits: { cpus: '0.15', memory: 256M }
         reservations: { cpus: '0.05', memory: 64M }

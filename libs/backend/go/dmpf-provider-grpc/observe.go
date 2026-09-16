@@ -13,14 +13,15 @@ const spanPrefix = "dmpf.grpc.client "
 // the failure category (RES-22, RES-23).
 func composition(cfg Config) compose.Config {
 	return compose.Config{
-		Sheet:       cfg.Sheet,
-		Service:     cfg.Service,
-		SpanPrefix:  spanPrefix,
-		Clock:       cfg.Clock,
-		Tracer:      cfg.Tracer,
-		Instruments: cfg.Instruments,
-		Logger:      cfg.Logger,
-		Rand:        cfg.Rand,
-		Category:    categoryOf,
+		Sheet:          cfg.Sheet,
+		Service:        cfg.Service,
+		SpanPrefix:     spanPrefix,
+		Clock:          cfg.Clock,
+		Tracer:         cfg.Tracer,
+		Instruments:    cfg.Instruments,
+		Logger:         cfg.Logger,
+		Rand:           cfg.Rand,
+		Category:       categoryOf,
+		BreakerFailure: dependencyFailure,
 	}
 }

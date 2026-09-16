@@ -76,7 +76,7 @@
       "inputs": ["go", "^go"],
       "dependsOn": [
         {
-          "projects": ["dmpf-provider-postgres-go", "dmpf-app-go", "dmpf-reference-go"],
+          "projects": ["dmpf-provider-postgres-go", "dmpf-app-go", "dmpf-reference-bff-go"],
           "target": "test-race"
         }
       ],

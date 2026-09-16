@@ -33,11 +33,21 @@ func NewRepository(tx *dmpfpostgres.Tx) dmpfports.Repository[reservations.OrderI
 type repository struct{ conn pgx.Tx }
 
 func (r repository) Load(ctx context.Context, id reservations.OrderID) (reservations.Snapshot, dmpfports.Version, error) {
+	return load(ctx, r.conn, id)
+}
+
+// querier is the one method Load needs, satisfied by a transaction and by the
+// pool alike: the SELECT is the same, only the boundary around it differs.
+type querier interface {
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+}
+
+func load(ctx context.Context, q querier, id reservations.OrderID) (reservations.Snapshot, dmpfports.Version, error) {
 	var (
 		version int64
 		raw     []byte
 	)
-	switch err := r.conn.QueryRow(ctx, selectReservation, string(id)).Scan(&version, &raw); {
+	switch err := q.QueryRow(ctx, selectReservation, string(id)).Scan(&version, &raw); {
 	case errors.Is(err, pgx.ErrNoRows):
 		return reservations.Snapshot{}, 0, dmpfports.ErrNotFound
 	case err != nil:

@@ -221,7 +221,7 @@ passo fecha as decisões do seguinte:
   algo (FND-04 §6.3, detalhada em [7.3](#73-modo-consumer)).
 - **10, composição:** a composition root é a única unidade que instancia provider
   concreto (ADR-015); use
-  [`apps/backend/dmpf-reference`](../../apps/backend/dmpf-reference/README.md)
+  [`apps/backend/dmpf-reference-reservations-go`](../../apps/backend/dmpf-reference-reservations-go/README.md)
   como referência de forma, não como código a copiar.
 
 **11 — valide.** A cadeia por módulo é a de [`AGENTS.md`](../../AGENTS.md), e é a
@@ -1131,7 +1131,9 @@ consequência mecânica do ramo. A ordem do passo 7 separa duplicidade de perda:
 | [`development-workflow.md`](./development-workflow.md) | Branches, commits, PRs e validação local |
 | [`tools/dmpf-plugin/README.md`](../../tools/dmpf-plugin/README.md) | Generator do esqueleto de bounded context |
 | [`contracts/README.md`](../../contracts/README.md) | Árvore de contratos e rito Buf |
-| [`apps/backend/dmpf-reference/README.md`](../../apps/backend/dmpf-reference/README.md) | Composition root de referência dos três papéis |
+| [`apps/backend/dmpf-reference-bff-go/README.md`](../../apps/backend/dmpf-reference-bff-go/README.md) | BFF REST público da topologia de referência |
+| [`apps/backend/dmpf-reference-orders-go/README.md`](../../apps/backend/dmpf-reference-orders-go/README.md) | Contexto `orders`: `api` gRPC e `relay` |
+| [`apps/backend/dmpf-reference-reservations-go/README.md`](../../apps/backend/dmpf-reference-reservations-go/README.md) | Contexto `reservations`: `api` gRPC, `relay` e `consumer` |
 | [`libs/backend/go/dmpf-app/README.md`](../../libs/backend/go/dmpf-app/README.md) | Consumer adapter e relay |
 | [`libs/backend/go/dmpf-testkit/README.md`](../../libs/backend/go/dmpf-testkit/README.md) | Kits de teste por camada |
 | [`dmpf-qa-playbook.md`](./dmpf-qa-playbook.md) | Insumos de QA: template de projeção e checklist de handoff |

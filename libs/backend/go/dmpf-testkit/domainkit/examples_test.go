@@ -35,16 +35,14 @@ func TestOrdersMatchTheProjectionFixture(t *testing.T) {
 
 func TestReservationsMatchTheProjectionFixture(t *testing.T) {
 	f := tb.LoadProjection(t, "contracts/fixtures/reservations/projection/v1/reservation.golden")
-	if f.Identity.Aggregate != "reservation" || len(f.Cases) != 3 {
+	if f.Identity.Aggregate != "reservation" || len(f.Cases) != 7 {
 		t.Fatalf("fixture identity/cases = %+v/%d", f.Identity, len(f.Cases))
 	}
 	var decided domainkit.Verdict
 	for _, c := range f.Cases {
 		t.Run(c.Name, func(t *testing.T) {
-			items, _ := strconv.Atoi(c.Command["items"])
-			s := reserveSubject(reservations.Reserve{Items: items, At: reservations.Instant(instant(t, c.Command["at"]))})
-			equal := domainkit.Equal(domainkit.Run(reservationFromState(c.StateBefore), s), c.Expected.Projection())
-			twice := domainkit.ReadTwice(reservationFromState(c.StateBefore), s)
+			got, twice := runReservation(t, c)
+			equal := domainkit.Equal(got, c.Expected.Projection())
 			tb.Require(t, equal)
 			tb.Require(t, twice)
 			collect(&decided, equal, twice)
@@ -70,6 +68,23 @@ func runOrder(t *testing.T, c tb.ProjectionCase) (domainkit.Projection, domainki
 	case "place":
 		s := placeSubject(orders.PlaceOrder{At: at})
 		return domainkit.Run(orderFromState(c.StateBefore), s), domainkit.ReadTwice(orderFromState(c.StateBefore), s)
+	default:
+		t.Fatalf("unknown upr %q in case %s", c.Command["upr"], c.Name)
+		return domainkit.Projection{}, domainkit.Verdict{}
+	}
+}
+
+func runReservation(t *testing.T, c tb.ProjectionCase) (domainkit.Projection, domainkit.Verdict) {
+	t.Helper()
+	at := reservations.Instant(instant(t, c.Command["at"]))
+	switch c.Command["upr"] {
+	case "reserve":
+		items, _ := strconv.Atoi(c.Command["items"])
+		s := reserveSubject(reservations.Reserve{Items: items, At: at})
+		return domainkit.Run(reservationFromState(c.StateBefore), s), domainkit.ReadTwice(reservationFromState(c.StateBefore), s)
+	case "cancel":
+		s := cancelSubject(reservations.Cancel{At: at})
+		return domainkit.Run(reservationFromState(c.StateBefore), s), domainkit.ReadTwice(reservationFromState(c.StateBefore), s)
 	default:
 		t.Fatalf("unknown upr %q in case %s", c.Command["upr"], c.Name)
 		return domainkit.Projection{}, domainkit.Verdict{}

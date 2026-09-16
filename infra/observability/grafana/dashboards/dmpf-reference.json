@@ -1,7 +1,7 @@
 {
   "uid": "dmpf-reference",
-  "title": "DMPF — composition root de referência",
-  "description": "As três séries de serviço do kernel (MET-08, MET-09, MET-10), o fluxo assíncrono e os logs correlacionados por trace_id.",
+  "title": "DMPF — topologia de referência (BFF, orders, reservations)",
+  "description": "As três séries de serviço do kernel (MET-08, MET-09, MET-10) dos três serviços da topologia — dmpf-reference-bff, dmpf-reference-orders e dmpf-reference-reservations, filtrados por $service —, o fluxo assíncrono e os logs correlacionados por trace_id.",
   "tags": ["dmpf", "kernel"],
   "timezone": "browser",
   "editable": true,
@@ -207,7 +207,7 @@
         {
           "refId": "A",
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum by (dependency) (rate(dmpf_dependency_retries_total[$__rate_interval]))",
+          "expr": "sum by (dependency) (rate(dmpf_dependency_retries_total{service_name=~\"$service\"}[$__rate_interval]))",
           "legendFormat": "{{dependency}}"
         }
       ]

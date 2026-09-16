@@ -43,7 +43,7 @@ Uma unidade DMPF, `dmpf-kernel/observability`, com `block: provider` e
 | `RES-21`, `RES-40` | `resilience/sheet.go` — dez campos, cada um valor **ou** ausência declarada com motivo; `Effective()` alimenta os atributos de recurso |
 | `RES-22` | `resilience/compose.go` — nove posições, de fora para dentro: tracing, métricas, log, bulkhead, breaker, rate limit, retry, timeout, chamada |
 | `RES-05`, `RES-06`, `RES-07` | `resilience/timeout.go` — o prazo efetivo é o mínimo entre o do chamador, o do método e o remanescente |
-| `RES-10`, `RES-12` | `resilience/breaker.go` — taxa de falha na janela, com piso de amostras antes de abrir |
+| `RES-10`, `RES-12` | `resilience/breaker.go` — taxa de falha na janela, com piso de amostras antes de abrir; `CountsAsFailure` restringe o que conta contra a dependência (sem classificador, todo erro conta; cancelamento do chamador nunca conta) |
 | `RES-13`, `RES-14` | `resilience/bulkhead.go` — pool e fila; saturado é rejeição rápida, nunca espera |
 | `RES-25`, `RES-34` | `resilience/retry_decorator.go` — `Compose` recusa retry em volta de uma unidade de trabalho |
 | `RES-27` a `RES-31`, `RES-36` | `retry/evaluate.go`, `retry/budget.go` — a conjunção de fatores e o orçamento por execução |

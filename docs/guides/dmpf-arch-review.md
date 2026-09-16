@@ -30,11 +30,17 @@
 
 ### Implementação de Referência
 
-| Caminho Exato                                            | Linhas | O que documenta                                                                                                                                           |
-| -------------------------------------------------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `apps/backend/dmpf-reference/README.md`                  | 250+   | **Arquitetura prática**: 3 papéis (api, relay, consumer), fluxos E2E, exemplo orders/reservations, containers, processes, UoW + outbox + inbox na prática |
-| `apps/backend/dmpf-reference/cmd/dmpf-reference/main.go` | 59     | Entry point, parse de flags `--role`, configuração por variável de ambiente                                                                               |
-| `apps/backend/dmpf-reference/wiring.go`                  | 262    | Instanciação de providers concretos, composição de blocos, factories                                                                                      |
+| Caminho Exato                                                                         | Linhas | O que documenta                                                                                                                                                                    |
+| ------------------------------------------------------------------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/backend/dmpf-reference-bff-go/README.md`                                        | 89     | **Borda pública**: rotas REST traduzidas em gRPC, cadeia de uma requisição (admissão, trace, correlação, prazo, idempotência), mapeamento de status e e2e caixa-preta da topologia |
+| `apps/backend/dmpf-reference-orders-go/README.md`                                     | 57     | Contexto `orders`: papéis `api` (gRPC) e `relay`, interceptors, saúde e configuração por papel                                                                                     |
+| `apps/backend/dmpf-reference-reservations-go/README.md`                               | 67     | Contexto `reservations`: papéis `api`, `relay` e `consumer`, primeira decisão vencendo entre `Reserve` e `Cancel`, consumo pela inbox                                              |
+| `apps/backend/dmpf-reference-bff-go/cmd/dmpf-reference-bff/main.go`                   | 47     | Entry point do BFF, configuração por variável de ambiente                                                                                                                          |
+| `apps/backend/dmpf-reference-orders-go/cmd/dmpf-reference-orders/main.go`             | 58     | Entry point, parse de `--role`, configuração por variável de ambiente                                                                                                              |
+| `apps/backend/dmpf-reference-reservations-go/cmd/dmpf-reference-reservations/main.go` | 58     | Entry point, parse de `--role`, configuração por variável de ambiente                                                                                                              |
+| `apps/backend/dmpf-reference-bff-go/wiring.go`                                        | 152    | Clientes gRPC dos contextos, cadeia HTTP e ciclo de vida do servidor                                                                                                               |
+| `apps/backend/dmpf-reference-orders-go/wiring.go`                                     | 233    | Instanciação de providers concretos por papel (`api`, `relay`), servidor gRPC e saúde                                                                                              |
+| `apps/backend/dmpf-reference-reservations-go/wiring.go`                               | 284    | Instanciação de providers concretos por papel (`api`, `relay`, `consumer`)                                                                                                         |
 
 ### Código-Exemplo (Padrões Concretos)
 
@@ -708,7 +714,7 @@ type ExecutionContext struct {
 | **Collection**  | OrderID (mesma de Order)                                | Pending → Collected → Failed                                      | PickupOrder, FailCollection                                | OrderCollected     |
 | **Delivery**    | OrderID (mesma de Order)                                | Assigned → InTransit → Delivered → Failed                         | AssignDelivery, MarkInTransit, MarkDelivered, FailDelivery | DeliveryAssigned   |
 
-**Nota:** Todos os agregados compartilham OrderID como chave natural permanente (idêntico ao padrão de reservations no dmpf-reference).
+**Nota:** Todos os agregados compartilham OrderID como chave natural permanente (idêntico ao padrão de reservations em dmpf-reference-reservations-go).
 
 ### 5.2 Estrutura de Packages Go
 
@@ -1148,7 +1154,7 @@ flowchart LR
 
 - **9 artefatos normativos DMPF** (RFC, FND-03 a FND-10)
 - **2 guias** (manifesto, onboarding)
-- **1 implementação de referência** (dmpf-reference-go)
+- **1 topologia de referência** (dmpf-reference-bff-go, dmpf-reference-orders-go e dmpf-reference-reservations-go)
 - **~30 arquivos Go** (padrões concretos de agregados, UPRs, Decision)
 
 ### Destino e Navegação

@@ -1,19 +1,21 @@
-# Swagger UI sobre o contrato que a própria api serve em /openapi.yaml: o
-# "Try it out" chama a api de outro origin, por isso o papel api recebe
-# DMPF_CORS_ORIGINS com este endereço — só no compose local.
+# Swagger UI sobre os dois contratos que o BFF serve em
+# /openapi/{orders,reservations}/v1/openapi.yaml: URLS lista as specs no seletor
+# da barra superior (swagger-ui, docs/usage/configuration.md). O "Try it out"
+# chama o BFF de outro origin, por isso o BFF recebe DMPF_CORS_ORIGINS com este
+# endereço — só no compose local.
 services:
   swagger-ui:
     image: swaggerapi/swagger-ui:v5.31.0
     profiles: [dmpf]
     environment:
-      SWAGGER_JSON_URL: http://localhost:${DMPF_HTTP_PORT:-8080}/openapi.yaml
+      URLS: "[{ url: 'http://localhost:${DMPF_HTTP_PORT:-8080}/openapi/orders/v1/openapi.yaml', name: 'orders' }, { url: 'http://localhost:${DMPF_HTTP_PORT:-8080}/openapi/reservations/v1/openapi.yaml', name: 'reservations' }]"
       TRY_IT_OUT_ENABLED: 'true'
     ports:
       - '${SWAGGER_PORT:-8082}:8080'
     depends_on:
-      dmpf-api:
+      dmpf-bff:
         condition: service_started
     deploy:
       resources:
-        limits: { cpus: '0.10', memory: 64M }
+        limits: { cpus: '0.05', memory: 64M }
         reservations: { cpus: '0.02', memory: 16M }

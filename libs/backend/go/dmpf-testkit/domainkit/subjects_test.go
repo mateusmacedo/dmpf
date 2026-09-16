@@ -91,8 +91,11 @@ func placeSubject(cmd orders.PlaceOrder) domainkit.Subject[*orders.Order, orders
 func reservationState(r *reservations.Reservation) domainkit.Fields {
 	s := r.Snapshot()
 	status := "pending"
-	if s.Status == reservations.Confirmed {
+	switch s.Status {
+	case reservations.Confirmed:
 		status = "confirmed"
+	case reservations.Canceled:
+		status = "canceled"
 	}
 	return domainkit.Fields{"order": string(s.Order), "items": strconv.Itoa(s.Items), "status": status}
 }
@@ -100,8 +103,11 @@ func reservationState(r *reservations.Reservation) domainkit.Fields {
 func reservationFromState(f domainkit.Fields) *reservations.Reservation {
 	items, _ := strconv.Atoi(f["items"])
 	s := reservations.Snapshot{Order: reservations.OrderID(f["order"]), Items: items}
-	if f["status"] == "confirmed" {
+	switch f["status"] {
+	case "confirmed":
 		s.Status = reservations.Confirmed
+	case "canceled":
+		s.Status = reservations.Canceled
 	}
 	return reservations.FromSnapshot(s)
 }
@@ -114,17 +120,37 @@ func reserveSubject(cmd reservations.Reserve) domainkit.Subject[*reservations.Re
 		Response: func(r reservations.ReservedResponse) domainkit.Fields {
 			return domainkit.Fields{"order": string(r.Order), "items": strconv.Itoa(r.Items)}
 		},
-		Event: func(e dmpfdomain.DomainEvent) (string, domainkit.Fields) {
-			switch ev := e.(type) {
-			case reservations.ReservationConfirmed:
-				return ev.EventName(), domainkit.Fields{"order": string(ev.Order), "items": strconv.Itoa(ev.Items), "at": strconv.FormatInt(int64(ev.At), 10)}
-			default:
-				return e.EventName(), domainkit.Fields{}
-			}
-		},
+		Event:    reservationEvent,
 		Snapshot: reservationState,
-		Clone: func(r *reservations.Reservation) *reservations.Reservation {
-			return reservations.FromSnapshot(r.Snapshot())
-		},
+		Clone:    cloneReservation,
 	}
+}
+
+func cancelSubject(cmd reservations.Cancel) domainkit.Subject[*reservations.Reservation, reservations.CancelledResponse] {
+	return domainkit.Subject[*reservations.Reservation, reservations.CancelledResponse]{
+		Decide: func(r *reservations.Reservation) (dmpfdomain.Accepted[reservations.CancelledResponse], *dmpfdomain.Rejection) {
+			return r.Cancel(cmd)
+		},
+		Response: func(r reservations.CancelledResponse) domainkit.Fields {
+			return domainkit.Fields{"order": string(r.Order)}
+		},
+		Event:    reservationEvent,
+		Snapshot: reservationState,
+		Clone:    cloneReservation,
+	}
+}
+
+func reservationEvent(e dmpfdomain.DomainEvent) (string, domainkit.Fields) {
+	switch ev := e.(type) {
+	case reservations.ReservationConfirmed:
+		return ev.EventName(), domainkit.Fields{"order": string(ev.Order), "items": strconv.Itoa(ev.Items), "at": strconv.FormatInt(int64(ev.At), 10)}
+	case reservations.ReservationCancelled:
+		return ev.EventName(), domainkit.Fields{"order": string(ev.Order), "at": strconv.FormatInt(int64(ev.At), 10)}
+	default:
+		return e.EventName(), domainkit.Fields{}
+	}
+}
+
+func cloneReservation(r *reservations.Reservation) *reservations.Reservation {
+	return reservations.FromSnapshot(r.Snapshot())
 }

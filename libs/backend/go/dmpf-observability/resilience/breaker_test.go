@@ -436,3 +436,59 @@ func TestACancelledProbeGivesItsSlotBack(t *testing.T) {
 		t.Errorf("State() = %v, want closed: the probe succeeded", got)
 	}
 }
+
+var errAnswer = errors.New("payments: 404 not found")
+
+func classified(t *testing.T) (*resilience.Breaker, *clock.Fake, func(err error) error) {
+	t.Helper()
+
+	fake := clock.NewFake(start)
+	breaker := resilience.NewBreaker("payments", breakerPolicy(), fake, nil).
+		CountsAsFailure(func(err error) bool { return !errors.Is(err, errAnswer) })
+
+	var outcome error
+	decorated := breaker.Decorate()(func(context.Context, resilience.Operation, func(context.Context) error) error {
+		return outcome
+	})
+
+	return breaker, fake, func(err error) error {
+		outcome = err
+		return decorated(context.Background(), remoteOp(time.Second), nil)
+	}
+}
+
+func TestAnErrorTheClassifierDoesNotCountNeverOpensTheBreaker(t *testing.T) {
+	breaker, _, call := classified(t)
+	floor := breakerPolicy().MinSamples
+
+	for range floor * 2 {
+		if err := call(errAnswer); !errors.Is(err, errAnswer) {
+			t.Fatalf("call() = %v, want the answer through", err)
+		}
+	}
+	if got := breaker.State(); got != resilience.BreakerClosed {
+		t.Fatalf("State() = %v after %d uncounted errors, want closed — an answer is not unavailability (RES-10)", got, floor*2)
+	}
+
+	for range floor * 3 {
+		_ = call(errDependency)
+	}
+	if got := breaker.State(); got != resilience.BreakerOpen {
+		t.Fatalf("State() = %v after %d counted failures, want open", got, floor*3)
+	}
+}
+
+func TestAProbeAnsweredWithAnUncountedErrorClosesTheBreaker(t *testing.T) {
+	breaker, fake, call := classified(t)
+	for range breakerPolicy().MinSamples {
+		_ = call(errDependency)
+	}
+	fake.Advance(breakerPolicy().Cooldown)
+
+	if err := call(errAnswer); !errors.Is(err, errAnswer) {
+		t.Fatalf("call() = %v, want the answer through the probe", err)
+	}
+	if got := breaker.State(); got != resilience.BreakerClosed {
+		t.Fatalf("State() = %v after a probe the dependency answered, want closed", got)
+	}
+}

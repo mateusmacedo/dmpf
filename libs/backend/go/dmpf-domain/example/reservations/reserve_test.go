@@ -60,6 +60,18 @@ func TestReserveRejects(t *testing.T) {
 			items: 1,
 			code:  reservations.CodeAlreadyReserved,
 		},
+		{
+			name: "canceled",
+			reservation: func(t *testing.T) *reservations.Reservation {
+				r := reservations.NewReservation(orderID)
+				if _, rej := r.Cancel(reservations.Cancel{At: at}); rej != nil {
+					t.Fatalf("setup: Cancel rejected: %v", rej)
+				}
+				return r
+			},
+			items: 1,
+			code:  reservations.CodeReservationCanceled,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

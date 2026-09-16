@@ -45,6 +45,7 @@ type Breaker struct {
 	policy     BreakerPolicy
 	clock      clock.Clock
 	gauge      metric64Gauge
+	failure    func(error) bool
 
 	mu         sync.Mutex
 	window     []observation
@@ -77,6 +78,14 @@ func NewBreaker(dependency string, policy BreakerPolicy, c clock.Clock, instrume
 		breaker.gauge = instruments.BreakerState
 	}
 	return breaker
+}
+
+// CountsAsFailure narrows what the window holds against the dependency to the
+// errors failure accepts; without it every error counts. Call it before the
+// first call: the classifier is read without the lock.
+func (b *Breaker) CountsAsFailure(failure func(error) bool) *Breaker {
+	b.failure = failure
+	return b
 }
 
 // State is the current state, for a test and for whoever reports it.
@@ -144,7 +153,7 @@ func (b *Breaker) record(ctx context.Context, granted admission, err error) {
 	defer b.mu.Unlock()
 
 	now := b.clock.Now()
-	failed := err != nil
+	failed := err != nil && (b.failure == nil || b.failure(err))
 
 	if granted.probe {
 		// A probe from a cycle that already ended decides nothing, and its slot

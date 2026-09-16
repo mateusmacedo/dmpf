@@ -21,18 +21,19 @@ import (
 
 // Config is what every provider hands over: the sheet of RES-21, the clock,
 // the sinks of telemetry, the source of randomness for the backoff, the
-// failure category and the retry classifier of the transport.
+// failure category, the retry classifier and what the breaker counts as failure.
 type Config struct {
-	Sheet       resilience.Sheet
-	Service     string
-	SpanPrefix  string
-	Clock       clock.Clock
-	Tracer      trace.Tracer
-	Instruments *metrics.Instruments
-	Logger      *slog.Logger
-	Rand        func() float64
-	Category    func(error) string
-	Classifier  retry.Classifier
+	Sheet          resilience.Sheet
+	Service        string
+	SpanPrefix     string
+	Clock          clock.Clock
+	Tracer         trace.Tracer
+	Instruments    *metrics.Instruments
+	Logger         *slog.Logger
+	Rand           func() float64
+	Category       func(error) string
+	Classifier     retry.Classifier
+	BreakerFailure func(error) bool
 }
 
 // Build is the whole composition, one Call the provider reuses for every
@@ -62,7 +63,7 @@ func Shared(cfg Config) resilience.Slots {
 	})
 	dependency := cfg.Sheet.Dependency
 	if policy, declared := cfg.Sheet.Breaker.Get(); declared {
-		slots.Breaker = resilience.NewBreaker(dependency, policy, cfg.Clock, cfg.Instruments).Decorate()
+		slots.Breaker = resilience.NewBreaker(dependency, policy, cfg.Clock, cfg.Instruments).CountsAsFailure(cfg.BreakerFailure).Decorate()
 	}
 	if policy, declared := cfg.Sheet.Bulkhead.Get(); declared {
 		slots.Bulkhead = resilience.NewBulkhead(dependency, policy, cfg.Clock, cfg.Instruments).Decorate()

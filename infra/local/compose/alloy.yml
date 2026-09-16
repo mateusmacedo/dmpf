@@ -21,7 +21,7 @@ services:
         condition: service_started
     deploy:
       resources:
-        limits: { cpus: '0.25', memory: 256M }
+        limits: { cpus: '0.15', memory: 256M }
         reservations: { cpus: '0.05', memory: 64M }
 
 volumes:

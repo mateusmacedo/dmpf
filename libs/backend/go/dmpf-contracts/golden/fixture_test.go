@@ -58,7 +58,7 @@ type enumDiscriminator struct {
 	values []string
 }
 
-var specs = []fixtureSpec{orderPlacedSpec, itemAddedSpec, reservationConfirmedSpec}
+var specs = []fixtureSpec{orderPlacedSpec, itemAddedSpec, reservationConfirmedSpec, reservationCancelledSpec}
 
 func parseInt(fields map[string]string, name string, bitSize int) (int64, error) {
 	v, err := strconv.ParseInt(fields[name], 10, bitSize)
@@ -152,8 +152,9 @@ func appendVarint(b []byte, num protowire.Number, v uint64) []byte {
 	return protowire.AppendVarint(b, v)
 }
 
-// Fields emitted in descending number order: valid wire, same decoded message,
-// but never what a Go reserialization produces — the ENV-18 discriminator.
+// Fields emitted in descending number order — a lone field emitted twice, since
+// one field has no order to invert: valid wire, same decoded message, but never
+// what a Go reserialization produces — the ENV-18 discriminator.
 func nonCanonicalPayload(t *testing.T, msg proto.Message) []byte {
 	t.Helper()
 	type populated struct {
@@ -168,8 +169,11 @@ func nonCanonicalPayload(t *testing.T, msg proto.Message) []byte {
 	sort.Slice(fields, func(i, j int) bool {
 		return fields[i].descriptor.Number() > fields[j].descriptor.Number()
 	})
-	if len(fields) < 2 {
-		t.Fatalf("non-canonical order needs at least two populated fields, got %d", len(fields))
+	switch len(fields) {
+	case 0:
+		t.Fatal("non-canonical encoding needs at least one populated field")
+	case 1:
+		fields = append(fields, fields[0])
 	}
 	var b []byte
 	for _, f := range fields {
