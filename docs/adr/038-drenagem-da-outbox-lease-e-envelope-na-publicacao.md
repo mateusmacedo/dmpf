@@ -26,7 +26,7 @@ correspondência coluna → atributo, mas três atributos obrigatórios de `ENV-
 FND-05 encaminha a forma de persistir ao FND-04, que devolve o conteúdo ao
 FND-07: a referência é circular e a forma nunca foi decidida. Na prática o
 provider grava `metadata = '{}'`
-(`libs/backend/go/dmpf-provider-postgres/outbox.go:66-73`), porque inventar o
+(`libs/backend/go/postgres/outbox.go:66-73`), porque inventar o
 conteúdo seria o provider autorando o que não lhe pertence (`OBX-02`).
 
 **A terceira é o que fazer com corrupção em repouso.** O ADR-035 (`:163-165`)
@@ -51,7 +51,7 @@ da cláusula `locked_until IS NULL`: em SQL, `locked_until <= $1` avalia como
 desconhecido para um lease ausente, e sem a cláusula o registro **nunca**
 voltaria ao pool — o backoff seria inerte e a mensagem ficaria presa em
 `publishing` para sempre. A cláusula está em
-`libs/backend/go/dmpf-provider-postgres/claim.go` e tem teste próprio.
+`libs/backend/go/postgres/claim.go` e tem teste próprio.
 
 **O relay lê os três atributos de contexto de `metadata`, e um registro sem os
 três não é reivindicado.** O predicado do claim exige as três chaves. Um
@@ -109,7 +109,7 @@ com evidência, fora desta entrega e do `KRN-08`.
 
 O relay declara `Store` e `Publisher` no consumidor e é satisfeito
 estruturalmente pelo `OutboxStore` do provider. Isso acopla o pacote `relay` ao
-tipo `dmpfpostgres.Claimed`. A aresta `app → provider` é permitida pela matriz
+tipo `postgres.Claimed`. A aresta `app → provider` é permitida pela matriz
 de blocos (ADR-010), mas um segundo provider — outro banco — exigiria ou o mesmo
 tipo ou um adaptador na composition root. A troca foi aceita para não inaugurar
 uma camada de conversão antes de existir o segundo provider que a justifique.
@@ -118,7 +118,7 @@ uma camada de conversão antes de existir o segundo provider que a justifique.
 teria o que compor, e o transporte é do `KRN-10`. `BLK-02` fica satisfeito no
 desenho: o relay tem composition root e lifecycle próprios, separados do
 processo que atende requisições, e o exemplo está em
-`libs/backend/go/dmpf-app/example/reservations/relay.go`.
+`libs/backend/go/app/example/reservations/relay.go`.
 
 ## Alternativas descartadas
 
@@ -136,8 +136,8 @@ lacuna fosse fechada.
 demais erros.** A simetria seria só aparente: os outros erros têm chance de
 sucesso numa nova tentativa, e este não tem.
 
-**Acrescentar `Publisher` a `dmpf-ports`.** Contradiria uma decisão já
-registrada em código (`dmpf-ports/outbox.go:36-38`: aquele bloco não declara
+**Acrescentar `Publisher` a `ports`.** Contradiria uma decisão já
+registrada em código (`ports/outbox.go:36-38`: aquele bloco não declara
 porta de publicação porque publicar acontece depois do commit e fora da unidade
 de trabalho) e ampliaria a superfície fechada daquele bloco sem necessidade.
 
@@ -159,5 +159,5 @@ claim.
 
 ## Addendum — 2026-09-08
 
-A lacuna de `ENV-08` fechou no KRN-12 (ADR-041, SPEC-6QT9SBAS): a produção dos três atributos passou a ter dono. A borda HTTP de `dmpf-reference` autora `correlationid` (do cliente ou cunhado) e `traceparent` (do span de servidor) e os põe no contexto por `dmpfports.WithMessageContext`; `dmpfapplication.MessageContextFor` os copia para cada `OutboxEntry` e preenche a causação de quem inicia a cadeia com o próprio `message_id` (FND-05); no consumo, `dmpf-app.Consumer` propaga o `correlationid`, o `id` recebido como causação e o `traceparent` do envelope antes de chamar o handler. O predicado de claim desta decisão fica como está — e passa a selecionar as linhas que o `api` escreve. O sinal `pending` alto deixa de ser o estado normal.
+A lacuna de `ENV-08` fechou no KRN-12 (ADR-041, SPEC-6QT9SBAS): a produção dos três atributos passou a ter dono. A borda HTTP de `reference` autora `correlationid` (do cliente ou cunhado) e `traceparent` (do span de servidor) e os põe no contexto por `ports.WithMessageContext`; `application.MessageContextFor` os copia para cada `OutboxEntry` e preenche a causação de quem inicia a cadeia com o próprio `message_id` (FND-05); no consumo, `app.Consumer` propaga o `correlationid`, o `id` recebido como causação e o `traceparent` do envelope antes de chamar o handler. O predicado de claim desta decisão fica como está — e passa a selecionar as linhas que o `api` escreve. O sinal `pending` alto deixa de ser o estado normal.
 

@@ -1,0 +1,17 @@
+# Valores não sensíveis dos dois papéis; cada papel só lê o que lhe cabe.
+# Os opt-outs de TLS nascem desligados e o transporte gRPC não tem default:
+# o overlay declara o opt-out de desenvolvimento ou os arquivos do certificado.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: orders
+data:
+  DMPF_SERVICE: orders
+  DMPF_GRPC_ADDR: ':9090'
+  DMPF_KAFKA_ORDERS_TOPIC: orders.events
+  DMPF_KAFKA_ORDERS_DLQ: orders.events.dlq
+  DMPF_KAFKA_GROUP: reservations
+  DMPF_KAFKA_INSECURE: 'false'
+  DMPF_OTLP_ENDPOINT: otel-collector:4317
+  DMPF_OTLP_INSECURE: 'false'
+  DMPF_ITEM_LIMIT: '10'

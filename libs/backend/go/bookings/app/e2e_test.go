@@ -1,6 +1,6 @@
 //go:build integration
 
-package bookingsapp_test
+package app_test
 
 import (
 	"bytes"
@@ -15,13 +15,13 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	dmpfapplication "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application"
-	dmpfports "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-ports"
-	dmpfpostgres "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres"
+	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
 
-	bookingsapp "github.com/mateusmacedo/dmpf/libs/backend/go/bookings/app"
-	bookingsapplication "github.com/mateusmacedo/dmpf/libs/backend/go/bookings/application"
-	bookingspostgres "github.com/mateusmacedo/dmpf/libs/backend/go/bookings/provider"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/bookings/app"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/bookings/application"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/bookings/provider"
 )
 
 func openPool(t *testing.T) *pgxpool.Pool {
@@ -39,7 +39,7 @@ func openPool(t *testing.T) *pgxpool.Pool {
 		t.Fatalf("pgxpool.New() = %v", err)
 	}
 	t.Cleanup(pool.Close)
-	if err := bookingspostgres.Migrate(ctx, pool); err != nil {
+	if err := provider.Migrate(ctx, pool); err != nil {
 		t.Fatalf("Migrate() = %v", err)
 	}
 	truncate(t, pool)
@@ -56,40 +56,40 @@ func truncate(t *testing.T, pool *pgxpool.Pool) {
 
 type fixedClock struct{}
 
-func (fixedClock) Now() dmpfports.Instant { return 1_755_432_000 }
+func (fixedClock) Now() ports.Instant { return 1_755_432_000 }
 
 type sequenceIDs struct {
 	mu     sync.Mutex
 	issued int
 }
 
-func (g *sequenceIDs) NewMessageID() dmpfports.MessageID {
+func (g *sequenceIDs) NewMessageID() ports.MessageID {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	g.issued++
-	return dmpfports.MessageID(fmt.Sprintf("m-%06d", g.issued))
+	return ports.MessageID(fmt.Sprintf("m-%06d", g.issued))
 }
 
 func newMux(pool *pgxpool.Pool) *http.ServeMux {
-	bind := func(tx *dmpfpostgres.Tx) bookingsapplication.Resources {
-		return bookingsapplication.Resources{
-			Bookings:  bookingspostgres.NewBookingRepository(tx),
-			Resources: bookingspostgres.NewResourceRepository(tx),
-			Outbox:    tx.Outbox(bookingspostgres.Mapper{}),
+	bind := func(tx *postgres.Tx) application.Resources {
+		return application.Resources{
+			Bookings:  provider.NewBookingRepository(tx),
+			Resources: provider.NewResourceRepository(tx),
+			Outbox:    tx.Outbox(provider.Mapper{}),
 		}
 	}
-	service := bookingsapplication.Service{
-		UoW:            dmpfpostgres.NewUnitOfWork(pool, bind),
-		Reader:         bookingspostgres.NewBookingReader(pool),
-		ResourceReader: bookingspostgres.NewBookingsByResourceReader(pool),
+	service := application.Service{
+		UoW:            postgres.NewUnitOfWork(pool, bind),
+		Reader:         provider.NewBookingReader(pool),
+		ResourceReader: provider.NewBookingsByResourceReader(pool),
 		Clock:          fixedClock{},
 		IDs:            &sequenceIDs{},
-		Authorize:      dmpfapplication.AllowAll[bookingsapplication.Command](),
+		Authorize:      usecase.AllowAll[application.Command](),
 	}
-	h := bookingsapp.Handlers{Service: service}
+	h := app.Handlers{Service: service}
 
 	mux := http.NewServeMux()
-	routes := bookingsapp.Routes()
+	routes := app.Routes()
 	mux.HandleFunc(routes[0].Method+" "+routes[0].Path, h.ReserveBooking)
 	mux.HandleFunc(routes[1].Method+" "+routes[1].Path, h.CancelBooking)
 	mux.HandleFunc(routes[2].Method+" "+routes[2].Path, h.RegisterResource)

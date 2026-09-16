@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: dmpf-reference-bff
+  name: bff
 spec:
   template:
     spec:
@@ -20,4 +20,4 @@ spec:
       volumes:
         - name: grpc-ca
           secret:
-            secretName: dmpf-reference-bff-grpc-ca
+            secretName: bff-grpc-ca

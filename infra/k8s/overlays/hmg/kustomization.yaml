@@ -12,24 +12,24 @@ namespace: dmpf-hmg
 
 resources:
   - ../../../observability
-  - ../../base/dmpf-reference-orders
-  - ../../base/dmpf-reference-reservations
-  - ../../base/dmpf-reference-bff
+  - ../../base/orders
+  - ../../base/reservations
+  - ../../base/bff
 
 images:
-  - name: ghcr.io/mateusmacedo/dmpf-reference-bff
+  - name: ghcr.io/mateusmacedo/bff
     newTag: hmg
-  - name: ghcr.io/mateusmacedo/dmpf-reference-orders
+  - name: ghcr.io/mateusmacedo/orders
     newTag: hmg
-  - name: ghcr.io/mateusmacedo/dmpf-reference-reservations
+  - name: ghcr.io/mateusmacedo/reservations
     newTag: hmg
 
 replicas:
-  - name: dmpf-reference-bff
+  - name: bff
     count: 2
-  - name: dmpf-reference-orders-api
+  - name: orders-api
     count: 2
-  - name: dmpf-reference-reservations-api
+  - name: reservations-api
     count: 2
 
 patches:

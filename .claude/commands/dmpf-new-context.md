@@ -83,13 +83,13 @@ Depois do relatório, imprima sempre:
 Rito restante (passos humanos):
   1. pnpm install                                    (se o agente não rodou)
   2. (cd contracts && bash ../tools/buf.sh generate)  → gen/go
-     pnpm nx run dmpf-contracts-go:buf-lint
-     pnpm nx run dmpf-contracts-go:buf-pins
-     pnpm nx run dmpf-contracts-go:buf-generate-check
-     NX_BASE=origin/develop pnpm nx run dmpf-contracts-go:buf-breaking
-  3. go run ./libs/backend/go/dmpf-conformance/cmd/dmpf-conformance --root . --write-baseline
+     pnpm nx run contracts:buf-lint
+     pnpm nx run contracts:buf-pins
+     pnpm nx run contracts:buf-generate-check
+     NX_BASE=origin/develop pnpm nx run contracts:buf-breaking
+  3. go run ./libs/backend/go/conformance/cmd/conformance --root . --write-baseline
      git add tools/dmpf-baseline/units-baseline.json && git commit   (só o baseline — DMPF-T002)
-  4. go run ./libs/backend/go/dmpf-conformance/cmd/dmpf-conformance --root . --base origin/develop
+  4. go run ./libs/backend/go/conformance/cmd/conformance --root . --base origin/develop
   5. Um commit por projeto Nx (AGENTS.md §Convenções obrigatórias); PR para develop.
 ```
 

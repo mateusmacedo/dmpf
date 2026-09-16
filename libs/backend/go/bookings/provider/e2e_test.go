@@ -1,6 +1,6 @@
 //go:build integration
 
-package bookingspostgres_test
+package provider_test
 
 import (
 	"context"
@@ -10,35 +10,35 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	dmpfapplication "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application"
-	dmpfports "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-ports"
-	dmpfpostgres "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres"
+	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
 
-	bookingsapplication "github.com/mateusmacedo/dmpf/libs/backend/go/bookings/application"
-	bookingsdomain "github.com/mateusmacedo/dmpf/libs/backend/go/bookings/domain"
-	bookingspostgres "github.com/mateusmacedo/dmpf/libs/backend/go/bookings/provider"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/bookings/application"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/bookings/domain"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/bookings/provider"
 )
 
 const (
-	e2eBookingID  = bookingsdomain.BookingID("e2e-b-001")
-	e2eResourceID = bookingsdomain.ResourceID("e2e-r-001")
-	e2eOccurred   = dmpfports.Instant(1_755_432_000)
+	e2eBookingID  = domain.BookingID("e2e-b-001")
+	e2eResourceID = domain.ResourceID("e2e-r-001")
+	e2eOccurred   = ports.Instant(1_755_432_000)
 )
 
 type fixedClock struct{}
 
-func (fixedClock) Now() dmpfports.Instant { return e2eOccurred }
+func (fixedClock) Now() ports.Instant { return e2eOccurred }
 
 type sequenceIDs struct {
 	mu     sync.Mutex
 	issued int
 }
 
-func (g *sequenceIDs) NewMessageID() dmpfports.MessageID {
+func (g *sequenceIDs) NewMessageID() ports.MessageID {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	g.issued++
-	return dmpfports.MessageID(fmt.Sprintf("m-%06d", g.issued))
+	return ports.MessageID(fmt.Sprintf("m-%06d", g.issued))
 }
 
 type outboxRow struct {
@@ -49,20 +49,20 @@ type outboxRow struct {
 	Status           string
 }
 
-func newService(pool *pgxpool.Pool) bookingsapplication.Service {
-	bind := func(tx *dmpfpostgres.Tx) bookingsapplication.Resources {
-		return bookingsapplication.Resources{
-			Bookings:  bookingspostgres.NewBookingRepository(tx),
-			Resources: bookingspostgres.NewResourceRepository(tx),
-			Outbox:    tx.Outbox(bookingspostgres.Mapper{}),
+func newService(pool *pgxpool.Pool) application.Service {
+	bind := func(tx *postgres.Tx) application.Resources {
+		return application.Resources{
+			Bookings:  provider.NewBookingRepository(tx),
+			Resources: provider.NewResourceRepository(tx),
+			Outbox:    tx.Outbox(provider.Mapper{}),
 		}
 	}
-	return bookingsapplication.Service{
-		UoW:       dmpfpostgres.NewUnitOfWork(pool, bind),
-		Reader:    bookingspostgres.NewBookingReader(pool),
+	return application.Service{
+		UoW:       postgres.NewUnitOfWork(pool, bind),
+		Reader:    provider.NewBookingReader(pool),
 		Clock:     fixedClock{},
 		IDs:       &sequenceIDs{},
-		Authorize: dmpfapplication.AllowAll[bookingsapplication.Command](),
+		Authorize: usecase.AllowAll[application.Command](),
 	}
 }
 
@@ -71,7 +71,7 @@ func TestReserveBookingEndToEnd(t *testing.T) {
 	service := newService(pool)
 	ctx := context.Background()
 
-	outcome, err := service.ReserveBooking(ctx, bookingsapplication.Reserve{
+	outcome, err := service.ReserveBooking(ctx, application.Reserve{
 		BookingID:  e2eBookingID,
 		ResourceID: e2eResourceID,
 		Quantity:   3,
@@ -84,14 +84,14 @@ func TestReserveBookingEndToEnd(t *testing.T) {
 	}
 
 	t.Run("the booking is persisted", func(t *testing.T) {
-		snap, version, err := bookingspostgres.NewBookingReader(pool).Load(ctx, e2eBookingID)
+		snap, version, err := provider.NewBookingReader(pool).Load(ctx, e2eBookingID)
 		if err != nil {
 			t.Fatalf("Load() = %v", err)
 		}
 		if version != 1 {
 			t.Fatalf("version = %d, want 1", version)
 		}
-		if snap.Quantity != 3 || snap.ResourceID != e2eResourceID || snap.Status != bookingsdomain.BookingReservedStatus {
+		if snap.Quantity != 3 || snap.ResourceID != e2eResourceID || snap.Status != domain.BookingReservedStatus {
 			t.Fatalf("snapshot = %+v", snap)
 		}
 	})
@@ -113,7 +113,7 @@ func TestReserveBookingEndToEnd(t *testing.T) {
 	t.Run("cancel commits without outbox row", func(t *testing.T) {
 		_, outboxBefore := counts(t, pool)
 
-		cancelOutcome, err := service.CancelBooking(ctx, bookingsapplication.Cancel{
+		cancelOutcome, err := service.CancelBooking(ctx, application.Cancel{
 			BookingID: e2eBookingID,
 		})
 		if err != nil {
@@ -123,14 +123,14 @@ func TestReserveBookingEndToEnd(t *testing.T) {
 			t.Fatal("CancelBooking() was rejected, want accepted")
 		}
 
-		snap, version, err := bookingspostgres.NewBookingReader(pool).Load(ctx, e2eBookingID)
+		snap, version, err := provider.NewBookingReader(pool).Load(ctx, e2eBookingID)
 		if err != nil {
 			t.Fatalf("Load() = %v", err)
 		}
 		if version != 2 {
 			t.Fatalf("version = %d, want 2", version)
 		}
-		if snap.Status != bookingsdomain.BookingCancelled {
+		if snap.Status != domain.BookingCancelled {
 			t.Fatalf("Status = %v, want BookingCancelled", snap.Status)
 		}
 

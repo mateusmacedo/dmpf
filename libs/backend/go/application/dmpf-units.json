@@ -1,0 +1,35 @@
+{
+  "schema": "dmpf/units@1",
+  "units": [
+    {
+      "id": "kernel/application",
+      "block": "application",
+      "bounded_context": "kernel",
+      "public_integration_surface": false,
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/application"]
+    },
+    {
+      "id": "kernel/example-memory",
+      "block": "provider",
+      "bounded_context": "kernel",
+      "public_integration_surface": false,
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/application/example/memory"]
+    },
+    {
+      "id": "kernel/example-orders-application",
+      "block": "application",
+      "bounded_context": "kernel",
+      "public_integration_surface": false,
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/application/example/orders"]
+    },
+    {
+      "id": "kernel/example-reservations-application",
+      "block": "application",
+      "bounded_context": "kernel",
+      "public_integration_surface": false,
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/application/example/reservations"]
+    }
+  ],
+  "external": [],
+  "exceptions": []
+}

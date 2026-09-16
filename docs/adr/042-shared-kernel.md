@@ -11,8 +11,8 @@ novo sob aquele processo, não uma exceção a ele.
 
 ## Contexto
 
-O kernel DMPF existe para ser consumido. É essa a razão de `dmpf-domain`,
-`dmpf-ports`, `dmpf-application` e os providers terem nascido como módulos
+O kernel DMPF existe para ser consumido. É essa a razão de `domain`,
+`ports`, `application` e os providers terem nascido como módulos
 próprios em vez de pacotes internos de uma aplicação: outros bounded contexts
 devem poder construir sobre eles. A regra de dependência, como estava, tornava
 isso impossível.
@@ -24,9 +24,9 @@ aresta entre bounded contexts distintos só passa quando o destino é do bloco
 inválida em bloco `domain` — o manifesto que a fizesse reprovaria com
 `DMPF-M002` (`diagnostic.go:47`, RFC §10.1 e §7.2).
 
-O choque é estrutural, não acidental. `dmpfapplication.Outcome[R]` é genérico
-sobre o resultado de negócio e `dmpfports.OutboxEntry`
-(`libs/backend/go/dmpf-ports/outbox.go:26`) carrega tipos de domínio no seu
+O choque é estrutural, não acidental. `application.Outcome[R]` é genérico
+sobre o resultado de negócio e `ports.OutboxEntry`
+(`libs/backend/go/ports/outbox.go:26`) carrega tipos de domínio no seu
 próprio campo: quem importa qualquer bloco do kernel importa, por transitividade
 de tipo, o `domain` do kernel. Consumir o kernel de outro contexto emitia
 `DMPF-D002`, e não havia declaração legítima capaz de evitá-lo. As duas saídas
@@ -152,5 +152,5 @@ igual nos dois.
 - [ADR-031](./031-verificador-de-conformidade-dmpf-em-go.md) — o verificador que
   realiza a decisão
 - `docs/guides/dmpf-manifesto.md` — o rito operacional da designação
-- `libs/backend/go/dmpf-ports/outbox.go:26` — `OutboxEntry`, a exposição de tipo
+- `libs/backend/go/ports/outbox.go:26` — `OutboxEntry`, a exposição de tipo
   de domínio que motiva o caso

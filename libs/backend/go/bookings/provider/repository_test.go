@@ -1,6 +1,6 @@
 //go:build integration
 
-package bookingspostgres_test
+package provider_test
 
 import (
 	"context"
@@ -9,35 +9,35 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	bookingsdomain "github.com/mateusmacedo/dmpf/libs/backend/go/bookings/domain"
-	bookingspostgres "github.com/mateusmacedo/dmpf/libs/backend/go/bookings/provider"
-	dmpfports "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-ports"
-	dmpfpostgres "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/bookings/domain"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/bookings/provider"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
 )
 
-const repoBookingID = bookingsdomain.BookingID("b-1001")
+const repoBookingID = domain.BookingID("b-1001")
 
 type repoResources struct {
-	Bookings dmpfports.Repository[bookingsdomain.BookingID, bookingsdomain.BookingSnapshot]
+	Bookings ports.Repository[domain.BookingID, domain.BookingSnapshot]
 }
 
-func bindRepo(tx *dmpfpostgres.Tx) repoResources {
-	return repoResources{Bookings: bookingspostgres.NewBookingRepository(tx)}
+func bindRepo(tx *postgres.Tx) repoResources {
+	return repoResources{Bookings: provider.NewBookingRepository(tx)}
 }
 
-func snap(quantity int) bookingsdomain.BookingSnapshot {
-	return bookingsdomain.BookingSnapshot{
+func snap(quantity int) domain.BookingSnapshot {
+	return domain.BookingSnapshot{
 		ID:         repoBookingID,
 		ResourceID: "r-200",
 		Quantity:   quantity,
-		Status:     bookingsdomain.BookingReservedStatus,
+		Status:     domain.BookingReservedStatus,
 		ReservedAt: 1755432000,
 	}
 }
 
-func withRepo(t *testing.T, pool *pgxpool.Pool, fn func(ctx context.Context, repo dmpfports.Repository[bookingsdomain.BookingID, bookingsdomain.BookingSnapshot]) error) error {
+func withRepo(t *testing.T, pool *pgxpool.Pool, fn func(ctx context.Context, repo ports.Repository[domain.BookingID, domain.BookingSnapshot]) error) error {
 	t.Helper()
-	uow := dmpfpostgres.NewUnitOfWork(pool, bindRepo)
+	uow := postgres.NewUnitOfWork(pool, bindRepo)
 	return uow.Within(context.Background(), func(ctx context.Context, res repoResources) error {
 		return fn(ctx, res.Bookings)
 	})
@@ -45,16 +45,16 @@ func withRepo(t *testing.T, pool *pgxpool.Pool, fn func(ctx context.Context, rep
 
 func seed(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
-	if err := withRepo(t, pool, func(ctx context.Context, repo dmpfports.Repository[bookingsdomain.BookingID, bookingsdomain.BookingSnapshot]) error {
+	if err := withRepo(t, pool, func(ctx context.Context, repo ports.Repository[domain.BookingID, domain.BookingSnapshot]) error {
 		return repo.Save(ctx, repoBookingID, snap(5), 0)
 	}); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
 }
 
-func loadFromPool(t *testing.T, pool *pgxpool.Pool) (bookingsdomain.BookingSnapshot, dmpfports.Version) {
+func loadFromPool(t *testing.T, pool *pgxpool.Pool) (domain.BookingSnapshot, ports.Version) {
 	t.Helper()
-	reader := bookingspostgres.NewBookingReader(pool)
+	reader := provider.NewBookingReader(pool)
 	s, v, err := reader.Load(context.Background(), repoBookingID)
 	if err != nil {
 		t.Fatalf("reader.Load() = %v", err)
@@ -65,7 +65,7 @@ func loadFromPool(t *testing.T, pool *pgxpool.Pool) (bookingsdomain.BookingSnaps
 func TestSaveCreatesAndLoadReturnsIt(t *testing.T) {
 	pool := openPool(t)
 
-	if err := withRepo(t, pool, func(ctx context.Context, repo dmpfports.Repository[bookingsdomain.BookingID, bookingsdomain.BookingSnapshot]) error {
+	if err := withRepo(t, pool, func(ctx context.Context, repo ports.Repository[domain.BookingID, domain.BookingSnapshot]) error {
 		return repo.Save(ctx, repoBookingID, snap(5), 0)
 	}); err != nil {
 		t.Fatalf("Save(create) = %v", err)
@@ -86,8 +86,8 @@ func TestSaveUpdatesWithCorrectVersion(t *testing.T) {
 	seed(t, pool)
 
 	updated := snap(10)
-	updated.Status = bookingsdomain.BookingCancelled
-	if err := withRepo(t, pool, func(ctx context.Context, repo dmpfports.Repository[bookingsdomain.BookingID, bookingsdomain.BookingSnapshot]) error {
+	updated.Status = domain.BookingCancelled
+	if err := withRepo(t, pool, func(ctx context.Context, repo ports.Repository[domain.BookingID, domain.BookingSnapshot]) error {
 		return repo.Save(ctx, repoBookingID, updated, 1)
 	}); err != nil {
 		t.Fatalf("Save(update) = %v", err)
@@ -97,7 +97,7 @@ func TestSaveUpdatesWithCorrectVersion(t *testing.T) {
 	if version != 2 {
 		t.Fatalf("version = %d, want 2", version)
 	}
-	if got.Status != bookingsdomain.BookingCancelled {
+	if got.Status != domain.BookingCancelled {
 		t.Fatalf("Status = %v, want BookingCancelled", got.Status)
 	}
 }
@@ -106,10 +106,10 @@ func TestSaveConflictsOnStaleVersion(t *testing.T) {
 	pool := openPool(t)
 	seed(t, pool)
 
-	err := withRepo(t, pool, func(ctx context.Context, repo dmpfports.Repository[bookingsdomain.BookingID, bookingsdomain.BookingSnapshot]) error {
+	err := withRepo(t, pool, func(ctx context.Context, repo ports.Repository[domain.BookingID, domain.BookingSnapshot]) error {
 		return repo.Save(ctx, repoBookingID, snap(7), 0)
 	})
-	if !errors.Is(err, dmpfports.ErrVersionConflict) {
+	if !errors.Is(err, ports.ErrVersionConflict) {
 		t.Fatalf("Save(stale) = %v, want ErrVersionConflict", err)
 	}
 }
@@ -117,11 +117,11 @@ func TestSaveConflictsOnStaleVersion(t *testing.T) {
 func TestLoadReturnsNotFoundForAbsentBooking(t *testing.T) {
 	pool := openPool(t)
 
-	err := withRepo(t, pool, func(ctx context.Context, repo dmpfports.Repository[bookingsdomain.BookingID, bookingsdomain.BookingSnapshot]) error {
+	err := withRepo(t, pool, func(ctx context.Context, repo ports.Repository[domain.BookingID, domain.BookingSnapshot]) error {
 		_, _, err := repo.Load(ctx, "nonexistent")
 		return err
 	})
-	if !errors.Is(err, dmpfports.ErrNotFound) {
+	if !errors.Is(err, ports.ErrNotFound) {
 		t.Fatalf("Load(absent) = %v, want ErrNotFound", err)
 	}
 }

@@ -1,6 +1,6 @@
 ---
 id: SPEC-YRJRADY9
-slug: dmpf-kernel-sdk-go
+slug: kernel-sdk-go
 title: DMPF — Kernel e SDK de Referência Go
 stage: building
 priority: P0
@@ -251,20 +251,20 @@ sub-spec; `KRN-01` fixa a convenção antes de qualquer outro módulo nascer.
 dmpf/
 ├── go.work                              — passa a declarar os módulos DMPF
 ├── libs/backend/go/                     — nível de stack; o kernel TS entra em libs/backend/ts/
-│   ├── dmpf-domain/                     — bloco domain: UPR, Decision, Rejection
-│   ├── dmpf-application/                — bloco application: UoW, sequência canônica
-│   ├── dmpf-ports/                      — bloco port: outbox, inbox, repositório, relógio
-│   ├── dmpf-provider-postgres/          — bloco provider: outbox, inbox, optimistic locking
-│   ├── dmpf-provider-kafka/             — bloco provider: publicação e consumo
-│   ├── dmpf-provider-sqs/               — bloco provider: acervo normatizado
-│   ├── dmpf-provider-grpc/              — bloco provider: governo do tempo
-│   ├── dmpf-provider-http/              — bloco provider: borda externa
-│   ├── dmpf-observability/              — bloco provider: OTel, resiliência
-│   └── dmpf-contracts/                  — bloco contract: tipos gerados de Protobuf (KRN-05 fixou scope:backend)
+│   ├── domain/                     — bloco domain: UPR, Decision, Rejection
+│   ├── application/                — bloco application: UoW, sequência canônica
+│   ├── ports/                      — bloco port: outbox, inbox, repositório, relógio
+│   ├── postgres/          — bloco provider: outbox, inbox, optimistic locking
+│   ├── kafka/             — bloco provider: publicação e consumo
+│   ├── sqs/               — bloco provider: acervo normatizado
+│   ├── grpc/              — bloco provider: governo do tempo
+│   ├── http/              — bloco provider: borda externa
+│   ├── observability/              — bloco provider: OTel, resiliência
+│   └── contracts/                  — bloco contract: tipos gerados de Protobuf (KRN-05 fixou scope:backend)
 ├── libs/shared/go/                      — nível de stack, mesma convenção
-│   └── dmpf-testkit/                    — test kits de conformidade e fixtures
+│   └── testkit/                    — test kits de conformidade e fixtures
 ├── apps/backend/
-│   └── dmpf-reference/                  — bloco app: composition root e relay de exemplo
+│   └── reference/                  — bloco app: composition root e relay de exemplo
 ├── contracts/                           — .proto, buf.yaml, buf.gen.yaml
 └── tools/
     └── dmpf-verify/                     — verificador de conformidade (CLI Go)
@@ -272,7 +272,7 @@ dmpf/
 
 > **Convenção de path fixada por `KRN-01`**: módulos ficam sob
 > `libs/<scope>/<stack>/<módulo>`, e o nome do projeto Nx leva o sufixo da stack
-> (`dmpf-domain-go`). Motivo: o épico de ordem 2 do ARQ-436 entrega o kernel
+> (`domain`). Motivo: o épico de ordem 2 do ARQ-436 entrega o kernel
 > TypeScript com os mesmos nomes conceituais, e no Nx o nome de projeto é chave
 > única. Como a `canonical_key` é o import path e a RFC §5.4 a exige estável,
 > a convenção é fixada antes do segundo módulo nascer. Detalhes e alternativas

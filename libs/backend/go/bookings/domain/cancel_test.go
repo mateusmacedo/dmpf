@@ -1,52 +1,52 @@
-package bookingsdomain_test
+package domain_test
 
 import (
 	"testing"
 
-	bookingsdomain "github.com/mateusmacedo/dmpf/libs/backend/go/bookings/domain"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/bookings/domain"
 )
 
 func TestCancelAccepts(t *testing.T) {
 	b := newReservedBooking(t)
 
-	acc, rej := b.Cancel(bookingsdomain.CancelBooking{At: at})
+	acc, rej := b.Cancel(domain.CancelBooking{At: at})
 
-	requireAccepted[bookingsdomain.CancelledResponse](t, rej)
-	if got, want := acc.Response(), (bookingsdomain.CancelledResponse{BookingID: bookingID}); got != want {
+	requireAccepted[domain.CancelledResponse](t, rej)
+	if got, want := acc.Response(), (domain.CancelledResponse{BookingID: bookingID}); got != want {
 		t.Fatalf("Response() = %+v, want %+v", got, want)
 	}
 	events := acc.Events()
 	if len(events) != 1 {
 		t.Fatalf("Events() len = %d, want 1", len(events))
 	}
-	ev := events[0].(bookingsdomain.BookingCancelledEvent)
+	ev := events[0].(domain.BookingCancelledEvent)
 	if ev.BookingID != bookingID || ev.At != at {
 		t.Fatalf("BookingCancelledEvent = %+v", ev)
 	}
-	if got := b.Snapshot().Status; got != bookingsdomain.BookingCancelled {
+	if got := b.Snapshot().Status; got != domain.BookingCancelled {
 		t.Fatalf("Status = %v, want BookingCancelled", got)
 	}
 }
 
 func TestCancelRejectsWhenNotReserved(t *testing.T) {
-	b := bookingsdomain.NewBooking(bookingID)
+	b := domain.NewBooking(bookingID)
 	before := b.Snapshot()
 
-	acc, rej := b.Cancel(bookingsdomain.CancelBooking{At: at})
+	acc, rej := b.Cancel(domain.CancelBooking{At: at})
 
-	requireRejected(t, acc, rej, bookingsdomain.CodeNotReserved)
+	requireRejected(t, acc, rej, domain.CodeNotReserved)
 	requireBookingUnchanged(t, before, b.Snapshot())
 }
 
 func TestCancelRejectsWhenAlreadyCancelled(t *testing.T) {
 	b := newReservedBooking(t)
-	if _, rej := b.Cancel(bookingsdomain.CancelBooking{At: at}); rej != nil {
+	if _, rej := b.Cancel(domain.CancelBooking{At: at}); rej != nil {
 		t.Fatalf("setup: Cancel rejected: %v", rej)
 	}
 	before := b.Snapshot()
 
-	acc, rej := b.Cancel(bookingsdomain.CancelBooking{At: at})
+	acc, rej := b.Cancel(domain.CancelBooking{At: at})
 
-	requireRejected(t, acc, rej, bookingsdomain.CodeNotReserved)
+	requireRejected(t, acc, rej, domain.CodeNotReserved)
 	requireBookingUnchanged(t, before, b.Snapshot())
 }

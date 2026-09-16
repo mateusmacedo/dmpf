@@ -1,4 +1,4 @@
-package bookingsapp
+package app
 
 import (
 	"encoding/json"
@@ -7,19 +7,19 @@ import (
 	"net/http"
 	"regexp"
 
-	dmpfapplication "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application"
-	dmpfdomain "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-domain"
-	dmpfports "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-ports"
+	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
+	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 
-	bookingsapplication "github.com/mateusmacedo/dmpf/libs/backend/go/bookings/application"
-	bookingsdomain "github.com/mateusmacedo/dmpf/libs/backend/go/bookings/domain"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/bookings/application"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/bookings/domain"
 )
 
 const maxBodyBytes = 1 << 16
 
 var idFormat = regexp.MustCompile(`^[A-Za-z0-9._:-]{1,128}$`)
 
-type Handlers struct{ Service bookingsapplication.Service }
+type Handlers struct{ Service application.Service }
 
 type reserveRequest struct {
 	BookingID  string `json:"bookingId"`
@@ -66,9 +66,9 @@ func (h Handlers) ReserveBooking(w http.ResponseWriter, r *http.Request) {
 		writeRejection(w, http.StatusBadRequest, "invalid-request", "bookingId and resourceId must be 1-128 chars, quantity 1-100")
 		return
 	}
-	out, err := h.Service.ReserveBooking(r.Context(), bookingsapplication.Reserve{
-		BookingID:  bookingsdomain.BookingID(req.BookingID),
-		ResourceID: bookingsdomain.ResourceID(req.ResourceID),
+	out, err := h.Service.ReserveBooking(r.Context(), application.Reserve{
+		BookingID:  domain.BookingID(req.BookingID),
+		ResourceID: domain.ResourceID(req.ResourceID),
 		Quantity:   req.Quantity,
 	})
 	if err != nil {
@@ -88,8 +88,8 @@ func (h Handlers) CancelBooking(w http.ResponseWriter, r *http.Request) {
 		writeRejection(w, http.StatusBadRequest, "invalid-request", "id must be 1-128 chars of [A-Za-z0-9._:-]")
 		return
 	}
-	out, err := h.Service.CancelBooking(r.Context(), bookingsapplication.Cancel{
-		BookingID: bookingsdomain.BookingID(id),
+	out, err := h.Service.CancelBooking(r.Context(), application.Cancel{
+		BookingID: domain.BookingID(id),
 	})
 	if err != nil {
 		writeFailure(w, err)
@@ -112,8 +112,8 @@ func (h Handlers) RegisterResource(w http.ResponseWriter, r *http.Request) {
 		writeRejection(w, http.StatusBadRequest, "invalid-request", "code must be 1-128 chars")
 		return
 	}
-	out, err := h.Service.RegisterResource(r.Context(), bookingsapplication.Register{
-		Code: bookingsdomain.ResourceCode(req.Code),
+	out, err := h.Service.RegisterResource(r.Context(), application.Register{
+		Code: domain.ResourceCode(req.Code),
 	})
 	if err != nil {
 		writeFailure(w, err)
@@ -132,7 +132,7 @@ func (h Handlers) FindBooking(w http.ResponseWriter, r *http.Request) {
 		writeRejection(w, http.StatusBadRequest, "invalid-request", "id must be 1-128 chars of [A-Za-z0-9._:-]")
 		return
 	}
-	snapshot, err := h.Service.FindBooking(r.Context(), bookingsdomain.BookingID(id))
+	snapshot, err := h.Service.FindBooking(r.Context(), domain.BookingID(id))
 	if err != nil {
 		writeFailure(w, err)
 		return
@@ -146,7 +146,7 @@ func (h Handlers) FindBookingByResource(w http.ResponseWriter, r *http.Request) 
 		writeRejection(w, http.StatusBadRequest, "invalid-request", "resourceId query param required, 1-128 chars")
 		return
 	}
-	snapshots, err := h.Service.FindBookingByResource(r.Context(), bookingsdomain.ResourceID(resID))
+	snapshots, err := h.Service.FindBookingByResource(r.Context(), domain.ResourceID(resID))
 	if err != nil {
 		writeFailure(w, err)
 		return
@@ -158,7 +158,7 @@ func (h Handlers) FindBookingByResource(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusOK, views)
 }
 
-func viewOf(s bookingsdomain.BookingSnapshot) bookingView {
+func viewOf(s domain.BookingSnapshot) bookingView {
 	return bookingView{
 		ID:         string(s.ID),
 		ResourceID: string(s.ResourceID),
@@ -168,11 +168,11 @@ func viewOf(s bookingsdomain.BookingSnapshot) bookingView {
 	}
 }
 
-func statusOf(s bookingsdomain.BookingStatus) string {
+func statusOf(s domain.BookingStatus) string {
 	switch s {
-	case bookingsdomain.BookingReservedStatus:
+	case domain.BookingReservedStatus:
 		return "reserved"
-	case bookingsdomain.BookingCancelled:
+	case domain.BookingCancelled:
 		return "cancelled"
 	default:
 		return "new"
@@ -186,12 +186,12 @@ func decodeBody(w http.ResponseWriter, r *http.Request, into any) error {
 		return err
 	}
 	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
-		return errors.New("bookingsapp: trailing data after request body")
+		return errors.New("app: trailing data after request body")
 	}
 	return nil
 }
 
-func writeDomainRejection(w http.ResponseWriter, rej *dmpfdomain.Rejection) {
+func writeDomainRejection(w http.ResponseWriter, rej *kernel.Rejection) {
 	writeJSON(w, http.StatusUnprocessableEntity, rejection{Code: string(rej.Code()), Message: rej.Error()})
 }
 
@@ -201,7 +201,7 @@ func writeRejection(w http.ResponseWriter, status int, code, message string) {
 
 func writeFailure(w http.ResponseWriter, err error) {
 	switch {
-	case errors.Is(err, dmpfports.ErrNotFound):
+	case errors.Is(err, ports.ErrNotFound):
 		writeRejection(w, http.StatusNotFound, "not-found", "aggregate not found")
 	default:
 		writeRejection(w, http.StatusInternalServerError, "internal", "internal error")
@@ -216,4 +216,4 @@ func writeJSON(w http.ResponseWriter, status int, body any) {
 }
 
 // compile-time check
-var _ dmpfapplication.Outcome[bookingsdomain.ReservedResponse]
+var _ usecase.Outcome[domain.ReservedResponse]

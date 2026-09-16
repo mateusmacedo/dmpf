@@ -17,7 +17,7 @@ linters:
       # subpackage, que é unidade `provider`. O verificador, gate autoritativo,
       # deixa `provider` irrestrito (`capability.go:51`) porque quem realiza a
       # porta precisa do I/O que o bloco de cima não pode ter.
-      - path: 'dmpf-application/example/memory/'
+      - path: 'application/example/memory/'
         linters:
           - depguard
       # Código emitido pelo protoc-gen-go. As dependências que ele traz
@@ -25,7 +25,7 @@ linters:
       # módulo, com owner e `review_by`; o verificador é quem as honra.
       # Repeti-las aqui poria a mesma norma em dois lugares, e o daqui não tem
       # prazo de revisão.
-      - path: 'dmpf-contracts/gen/'
+      - path: 'contracts/gen/'
         linters:
           - depguard
 
@@ -185,7 +185,7 @@ linters:
           deny:
             # io.clock — a diferença em relação ao bloco `domain`
             - pkg: time
-              desc: 'io.clock (RFC 6.2); o instante entra por porta, como dmpfports.Instant'
+              desc: 'io.clock (RFC 6.2); o instante entra por porta, como ports.Instant'
             # io.storage
             - pkg: database/sql
               desc: 'port declara a fronteira, nao a realiza (RFC 6.2); banco e io.storage e vive no provider'
@@ -214,9 +214,9 @@ linters:
               desc: 'port declara a fronteira, nao a realiza (RFC 6.2); disco e io.filesystem'
             # io.random
             - pkg: math/rand
-              desc: 'io.random (RFC 6.2); a identidade entra por porta, como dmpfports.IDGenerator'
+              desc: 'io.random (RFC 6.2); a identidade entra por porta, como ports.IDGenerator'
             - pkg: crypto/rand
-              desc: 'io.random (RFC 6.2); a identidade entra por porta, como dmpfports.IDGenerator'
+              desc: 'io.random (RFC 6.2); a identidade entra por porta, como ports.IDGenerator'
             # runtime.framework
             - pkg: github.com/gin-gonic/gin
               desc: 'port e default deny (RFC 6.2); framework de servidor e runtime.framework'
@@ -275,7 +275,7 @@ linters:
           deny:
             # io.clock — a diferença em relação ao bloco `domain`
             - pkg: time
-              desc: 'io.clock (RFC 6.2); o instante entra por porta, como dmpfports.Clock'
+              desc: 'io.clock (RFC 6.2); o instante entra por porta, como ports.Clock'
             # io.storage
             - pkg: database/sql
               desc: 'application orquestra, nao realiza io (RFC 6.2); banco e io.storage e vive no provider'
@@ -304,9 +304,9 @@ linters:
               desc: 'application orquestra, nao realiza io (RFC 6.2); disco e io.filesystem'
             # io.random
             - pkg: math/rand
-              desc: 'io.random (RFC 6.2); a identidade entra por porta, como dmpfports.IDGenerator'
+              desc: 'io.random (RFC 6.2); a identidade entra por porta, como ports.IDGenerator'
             - pkg: crypto/rand
-              desc: 'io.random (RFC 6.2); a identidade entra por porta, como dmpfports.IDGenerator'
+              desc: 'io.random (RFC 6.2); a identidade entra por porta, como ports.IDGenerator'
             # runtime.framework
             - pkg: github.com/gin-gonic/gin
               desc: 'application e default deny (RFC 6.2); framework de servidor e runtime.framework'
@@ -335,6 +335,7 @@ linters:
           list-mode: strict
           files:
             - '**/*-contracts/**'
+            - '**/contracts/**'
             - '!$test'
           allow:
             # o próprio universo verificável do repositório

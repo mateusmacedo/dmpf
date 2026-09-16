@@ -20,5 +20,5 @@ include:
   - compose/tempo.yml
   - compose/alloy.yml
   - compose/grafana.yml
-  - compose/dmpf-reference.yml
+  - compose/reference.yml
   - compose/swagger-ui.yml

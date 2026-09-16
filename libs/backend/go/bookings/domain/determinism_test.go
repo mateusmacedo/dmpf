@@ -1,13 +1,13 @@
-package bookingsdomain_test
+package domain_test
 
 import (
 	"testing"
 
-	bookingsdomain "github.com/mateusmacedo/dmpf/libs/backend/go/bookings/domain"
-	dmpfdomain "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-domain"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/bookings/domain"
+	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
 )
 
-func sameSequence(t *testing.T, a, b []dmpfdomain.DomainEvent) {
+func sameSequence(t *testing.T, a, b []kernel.DomainEvent) {
 	t.Helper()
 	if len(a) != len(b) {
 		t.Fatalf("len(a)=%d, len(b)=%d", len(a), len(b))
@@ -23,12 +23,12 @@ func sameSequence(t *testing.T, a, b []dmpfdomain.DomainEvent) {
 }
 
 func TestReserveDeterminism(t *testing.T) {
-	cmd := bookingsdomain.ReserveBooking{ResourceID: resourceID, Quantity: 3, At: at}
+	cmd := domain.ReserveBooking{ResourceID: resourceID, Quantity: 3, At: at}
 
-	b1 := bookingsdomain.NewBooking(bookingID)
+	b1 := domain.NewBooking(bookingID)
 	acc1, _ := b1.Reserve(cmd)
 
-	b2 := bookingsdomain.NewBooking(bookingID)
+	b2 := domain.NewBooking(bookingID)
 	acc2, _ := b2.Reserve(cmd)
 
 	if !b1.Snapshot().Equal(b2.Snapshot()) {
@@ -38,7 +38,7 @@ func TestReserveDeterminism(t *testing.T) {
 }
 
 func TestCancelDeterminism(t *testing.T) {
-	cmd := bookingsdomain.CancelBooking{At: at}
+	cmd := domain.CancelBooking{At: at}
 
 	b1 := newReservedBooking(t)
 	acc1, _ := b1.Cancel(cmd)

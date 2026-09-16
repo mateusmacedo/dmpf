@@ -1,506 +1,486 @@
 {
   "schema": "dmpf/units-baseline@1",
-  "digest": "sha256:baa2f5c7f03cadb401382630239f3c2dfc9a3625f570aeb07b3685b9855f7bc7",
+  "digest": "sha256:93b1ccffb0bf4af188dfba8d7c575f25818b59dd0cb8991c318cd0ab04fc108b",
   "entries": [
     {
-      "unit": "dmpf-reference-bff/app",
-      "module": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference-bff-go",
+      "unit": "bff/app",
+      "module": "github.com/mateusmacedo/dmpf/apps/backend/bff",
       "block": "app",
-      "bounded_context": "dmpf-reference-bff",
+      "bounded_context": "bff",
       "membership": [
-        "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference-bff-go",
-        "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference-bff-go/api",
-        "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference-bff-go/cmd/dmpf-reference-bff",
-        "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference-bff-go/rpc"
+        "github.com/mateusmacedo/dmpf/apps/backend/bff",
+        "github.com/mateusmacedo/dmpf/apps/backend/bff/api",
+        "github.com/mateusmacedo/dmpf/apps/backend/bff/cmd/bff",
+        "github.com/mateusmacedo/dmpf/apps/backend/bff/rpc"
       ]
     },
     {
-      "unit": "dmpf-kernel/reference-orders-app",
-      "module": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference-orders-go",
+      "unit": "kernel/reference-orders-app",
+      "module": "github.com/mateusmacedo/dmpf/apps/backend/orders",
       "block": "app",
-      "bounded_context": "dmpf-kernel",
+      "bounded_context": "kernel",
       "membership": [
-        "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference-orders-go",
-        "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference-orders-go/cmd/dmpf-reference-orders",
-        "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference-orders-go/rpc"
+        "github.com/mateusmacedo/dmpf/apps/backend/orders",
+        "github.com/mateusmacedo/dmpf/apps/backend/orders/cmd/orders",
+        "github.com/mateusmacedo/dmpf/apps/backend/orders/rpc"
       ]
     },
     {
-      "unit": "dmpf-kernel/reference-reservations-app",
-      "module": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference-reservations-go",
+      "unit": "kernel/reference-reservations-app",
+      "module": "github.com/mateusmacedo/dmpf/apps/backend/reservations",
       "block": "app",
-      "bounded_context": "dmpf-kernel",
+      "bounded_context": "kernel",
       "membership": [
-        "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference-reservations-go",
-        "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference-reservations-go/cmd/dmpf-reference-reservations",
-        "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference-reservations-go/rpc"
+        "github.com/mateusmacedo/dmpf/apps/backend/reservations",
+        "github.com/mateusmacedo/dmpf/apps/backend/reservations/cmd/reservations",
+        "github.com/mateusmacedo/dmpf/apps/backend/reservations/rpc"
+      ]
+    },
+    {
+      "unit": "kernel/app-consumer",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/app",
+      "block": "app",
+      "bounded_context": "kernel",
+      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/app"]
+    },
+    {
+      "unit": "kernel/app-relay",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/app",
+      "block": "app",
+      "bounded_context": "kernel",
+      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/app/relay"]
+    },
+    {
+      "unit": "kernel/example-reservations-app",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/app",
+      "block": "app",
+      "bounded_context": "kernel",
+      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/app/example/reservations"]
+    },
+    {
+      "unit": "kernel/application",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/application",
+      "block": "application",
+      "bounded_context": "kernel",
+      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/application"]
+    },
+    {
+      "unit": "kernel/example-memory",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/application",
+      "block": "provider",
+      "bounded_context": "kernel",
+      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/application/example/memory"]
+    },
+    {
+      "unit": "kernel/example-orders-application",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/application",
+      "block": "application",
+      "bounded_context": "kernel",
+      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/application/example/orders"]
+    },
+    {
+      "unit": "kernel/example-reservations-application",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/application",
+      "block": "application",
+      "bounded_context": "kernel",
+      "membership": [
+        "github.com/mateusmacedo/dmpf/libs/backend/go/application/example/reservations"
       ]
     },
     {
       "unit": "resource-scheduling/app",
-      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/bookings/app",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/bookings",
       "block": "app",
       "bounded_context": "resource-scheduling",
       "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/bookings/app"]
     },
     {
       "unit": "resource-scheduling/application",
-      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/bookings/application",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/bookings",
       "block": "application",
       "bounded_context": "resource-scheduling",
       "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/bookings/application"]
     },
     {
       "unit": "resource-scheduling/domain",
-      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/bookings/domain",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/bookings",
       "block": "domain",
       "bounded_context": "resource-scheduling",
       "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/bookings/domain"]
     },
     {
       "unit": "resource-scheduling/ports",
-      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/bookings/ports",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/bookings",
       "block": "port",
       "bounded_context": "resource-scheduling",
       "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/bookings/ports"]
     },
     {
       "unit": "resource-scheduling/provider-postgres",
-      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/bookings/provider",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/bookings",
       "block": "provider",
       "bounded_context": "resource-scheduling",
       "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/bookings/provider"]
     },
     {
-      "unit": "dmpf-kernel/app-consumer",
-      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-app",
-      "block": "app",
-      "bounded_context": "dmpf-kernel",
-      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-app"]
-    },
-    {
-      "unit": "dmpf-kernel/app-relay",
-      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-app",
-      "block": "app",
-      "bounded_context": "dmpf-kernel",
-      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-app/relay"]
-    },
-    {
-      "unit": "dmpf-kernel/example-reservations-app",
-      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-app",
-      "block": "app",
-      "bounded_context": "dmpf-kernel",
-      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-app/example/reservations"]
-    },
-    {
-      "unit": "dmpf-kernel/application",
-      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application",
-      "block": "application",
-      "bounded_context": "dmpf-kernel",
-      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application"]
-    },
-    {
-      "unit": "dmpf-kernel/example-memory",
-      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application",
-      "block": "provider",
-      "bounded_context": "dmpf-kernel",
-      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application/example/memory"]
-    },
-    {
-      "unit": "dmpf-kernel/example-orders-application",
-      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application",
-      "block": "application",
-      "bounded_context": "dmpf-kernel",
-      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application/example/orders"]
-    },
-    {
-      "unit": "dmpf-kernel/example-reservations-application",
-      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application",
-      "block": "application",
-      "bounded_context": "dmpf-kernel",
-      "membership": [
-        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application/example/reservations"
-      ]
-    },
-    {
-      "unit": "dmpf-conformance/baseline",
-      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance",
+      "unit": "conformance/baseline",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/conformance",
       "block": "domain",
-      "bounded_context": "dmpf-conformance",
-      "membership": [
-        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/internal/baseline"
-      ]
+      "bounded_context": "conformance",
+      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/conformance/internal/baseline"]
     },
     {
-      "unit": "dmpf-conformance/bom",
-      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance",
+      "unit": "conformance/bom",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/conformance",
       "block": "app",
-      "bounded_context": "dmpf-conformance",
-      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/bom"]
+      "bounded_context": "conformance",
+      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/conformance/bom"]
     },
     {
-      "unit": "dmpf-conformance/cmd",
-      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance",
+      "unit": "conformance/cmd",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/conformance",
       "block": "app",
-      "bounded_context": "dmpf-conformance",
-      "membership": [
-        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/cmd/dmpf-conformance"
-      ]
+      "bounded_context": "conformance",
+      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/conformance/cmd/conformance"]
     },
     {
-      "unit": "dmpf-conformance/cmd-bom",
-      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance",
+      "unit": "conformance/cmd-bom",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/conformance",
       "block": "app",
-      "bounded_context": "dmpf-conformance",
-      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/cmd/dmpf-bom"]
+      "bounded_context": "conformance",
+      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/conformance/cmd/bom"]
     },
     {
-      "unit": "dmpf-conformance/cmd-modsync",
-      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance",
+      "unit": "conformance/cmd-modsync",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/conformance",
       "block": "app",
-      "bounded_context": "dmpf-conformance",
-      "membership": [
-        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/cmd/dmpf-modsync"
-      ]
+      "bounded_context": "conformance",
+      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/conformance/cmd/modsync"]
     },
     {
-      "unit": "dmpf-conformance/conformance",
-      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance",
+      "unit": "conformance/conformance",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/conformance",
       "block": "application",
-      "bounded_context": "dmpf-conformance",
+      "bounded_context": "conformance",
       "membership": [
-        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/internal/conformance"
+        "github.com/mateusmacedo/dmpf/libs/backend/go/conformance/internal/conformance"
       ]
     },
     {
-      "unit": "dmpf-conformance/exception",
-      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance",
+      "unit": "conformance/exception",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/conformance",
       "block": "domain",
-      "bounded_context": "dmpf-conformance",
-      "membership": [
-        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/internal/exception"
-      ]
+      "bounded_context": "conformance",
+      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/conformance/internal/exception"]
     },
     {
-      "unit": "dmpf-conformance/fitness",
-      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance",
+      "unit": "conformance/fitness",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/conformance",
       "block": "app",
-      "bounded_context": "dmpf-conformance",
-      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/fitness"]
+      "bounded_context": "conformance",
+      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/conformance/fitness"]
     },
     {
-      "unit": "dmpf-conformance/fsstore",
-      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance",
+      "unit": "conformance/fsstore",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/conformance",
       "block": "provider",
-      "bounded_context": "dmpf-conformance",
-      "membership": [
-        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/internal/fsstore"
-      ]
+      "bounded_context": "conformance",
+      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/conformance/internal/fsstore"]
     },
     {
-      "unit": "dmpf-conformance/golist",
-      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance",
+      "unit": "conformance/golist",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/conformance",
       "block": "provider",
-      "bounded_context": "dmpf-conformance",
-      "membership": [
-        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/internal/golist"
-      ]
+      "bounded_context": "conformance",
+      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/conformance/internal/golist"]
     },
     {
-      "unit": "dmpf-conformance/manifest",
-      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance",
+      "unit": "conformance/manifest",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/conformance",
       "block": "domain",
-      "bounded_context": "dmpf-conformance",
-      "membership": [
-        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/internal/manifest"
-      ]
+      "bounded_context": "conformance",
+      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/conformance/internal/manifest"]
     },
     {
-      "unit": "dmpf-conformance/modsync",
-      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance",
+      "unit": "conformance/modsync",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/conformance",
       "block": "app",
-      "bounded_context": "dmpf-conformance",
-      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/modsync"]
+      "bounded_context": "conformance",
+      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/conformance/modsync"]
     },
     {
-      "unit": "dmpf-conformance/port",
-      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance",
+      "unit": "conformance/port",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/conformance",
       "block": "port",
-      "bounded_context": "dmpf-conformance",
-      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/internal/port"]
+      "bounded_context": "conformance",
+      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/conformance/internal/port"]
     },
     {
-      "unit": "dmpf-conformance/rule",
-      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance",
+      "unit": "conformance/rule",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/conformance",
       "block": "domain",
-      "bounded_context": "dmpf-conformance",
-      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance/internal/rule"]
+      "bounded_context": "conformance",
+      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/conformance/internal/rule"]
     },
     {
-      "unit": "dmpf-contracts/envelope",
-      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts",
+      "unit": "contracts/envelope",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/contracts",
       "block": "contract",
-      "bounded_context": "dmpf-kernel",
-      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/envelope"]
+      "bounded_context": "kernel",
+      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/contracts/envelope"]
     },
     {
-      "unit": "dmpf-contracts/gen",
-      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts",
+      "unit": "contracts/gen",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/contracts",
       "block": "contract",
-      "bounded_context": "dmpf-kernel",
+      "bounded_context": "kernel",
       "membership": [
-        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/gen/go/company/orders/event/v1",
-        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/gen/go/company/orders/service/v1",
-        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/gen/go/company/reservations/event/v1",
-        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/gen/go/company/reservations/service/v1",
-        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/gen/go/io/cloudevents/v1"
+        "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/orders/event/v1",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/orders/service/v1",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/reservations/event/v1",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/reservations/service/v1",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/io/cloudevents/v1"
       ]
     },
     {
-      "unit": "dmpf-contracts/payloadhash",
-      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts",
+      "unit": "contracts/payloadhash",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/contracts",
       "block": "contract",
-      "bounded_context": "dmpf-kernel",
-      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/payloadhash"]
+      "bounded_context": "kernel",
+      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/contracts/payloadhash"]
     },
     {
       "unit": "resource-scheduling/contract",
-      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/contracts",
       "block": "contract",
       "bounded_context": "resource-scheduling",
       "membership": [
-        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/gen/go/company/bookings/event/v1"
+        "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/bookings/event/v1"
       ]
     },
     {
-      "unit": "dmpf-kernel/domain",
-      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-domain",
+      "unit": "kernel/domain",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/domain",
       "block": "domain",
-      "bounded_context": "dmpf-kernel",
-      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-domain"]
+      "bounded_context": "kernel",
+      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/domain"]
     },
     {
-      "unit": "dmpf-kernel/example-orders",
-      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-domain",
+      "unit": "kernel/example-orders",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/domain",
       "block": "domain",
-      "bounded_context": "dmpf-kernel",
-      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-domain/example/orders"]
+      "bounded_context": "kernel",
+      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/domain/example/orders"]
     },
     {
-      "unit": "dmpf-kernel/example-reservations",
-      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-domain",
+      "unit": "kernel/example-reservations",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/domain",
       "block": "domain",
-      "bounded_context": "dmpf-kernel",
-      "membership": [
-        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-domain/example/reservations"
-      ]
+      "bounded_context": "kernel",
+      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/domain/example/reservations"]
     },
     {
-      "unit": "dmpf-kernel/observability",
-      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability",
+      "unit": "kernel/provider-grpc",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/grpc",
       "block": "provider",
-      "bounded_context": "dmpf-kernel",
+      "bounded_context": "kernel",
+      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/grpc"]
+    },
+    {
+      "unit": "kernel/provider-http",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/http",
+      "block": "provider",
+      "bounded_context": "kernel",
+      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/http"]
+    },
+    {
+      "unit": "kernel/provider-kafka",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/kafka",
+      "block": "provider",
+      "bounded_context": "kernel",
+      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/kafka"]
+    },
+    {
+      "unit": "kernel/observability",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/observability",
+      "block": "provider",
+      "bounded_context": "kernel",
       "membership": [
-        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability",
-        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/audit",
-        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/clock",
-        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/logging",
-        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/metrics",
-        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/otelboot",
-        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/otelboot/otlp",
-        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/redact",
-        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/resilience",
-        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/retry",
-        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/tracing",
-        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability/usecase"
+        "github.com/mateusmacedo/dmpf/libs/backend/go/observability",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/observability/audit",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/observability/clock",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/observability/logging",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/observability/metrics",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/observability/otelboot",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/observability/otelboot/otlp",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/observability/redact",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/observability/resilience",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/observability/retry",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/observability/tracing",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/observability/usecase"
       ]
     },
     {
-      "unit": "dmpf-kernel/port",
-      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-ports",
+      "unit": "kernel/port",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/ports",
       "block": "port",
-      "bounded_context": "dmpf-kernel",
-      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-ports"]
+      "bounded_context": "kernel",
+      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/ports"]
     },
     {
-      "unit": "dmpf-kernel/provider-grpc",
-      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-grpc",
+      "unit": "kernel/example-orders-postgres",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/postgres",
       "block": "provider",
-      "bounded_context": "dmpf-kernel",
-      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-grpc"]
+      "bounded_context": "kernel",
+      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/postgres/example/orders"]
     },
     {
-      "unit": "dmpf-kernel/provider-http",
-      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-http",
+      "unit": "kernel/example-reservations-postgres",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/postgres",
       "block": "provider",
-      "bounded_context": "dmpf-kernel",
-      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-http"]
+      "bounded_context": "kernel",
+      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/postgres/example/reservations"]
     },
     {
-      "unit": "dmpf-kernel/provider-kafka",
-      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-kafka",
+      "unit": "kernel/provider-postgres",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/postgres",
       "block": "provider",
-      "bounded_context": "dmpf-kernel",
-      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-kafka"]
+      "bounded_context": "kernel",
+      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/postgres"]
     },
     {
-      "unit": "dmpf-kernel/example-orders-postgres",
-      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
+      "unit": "kernel/provider-sqs",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/sqs",
       "block": "provider",
-      "bounded_context": "dmpf-kernel",
-      "membership": [
-        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres/example/orders"
-      ]
+      "bounded_context": "kernel",
+      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/sqs"]
     },
     {
-      "unit": "dmpf-kernel/example-reservations-postgres",
-      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
-      "block": "provider",
-      "bounded_context": "dmpf-kernel",
-      "membership": [
-        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres/example/reservations"
-      ]
-    },
-    {
-      "unit": "dmpf-kernel/provider-postgres",
-      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres",
-      "block": "provider",
-      "bounded_context": "dmpf-kernel",
-      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres"]
-    },
-    {
-      "unit": "dmpf-kernel/provider-sqs",
-      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-sqs",
-      "block": "provider",
-      "bounded_context": "dmpf-kernel",
-      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-sqs"]
-    },
-    {
-      "unit": "dmpf-kernel/testkit-app",
-      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit",
+      "unit": "kernel/testkit-app",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/testkit",
       "block": "app",
-      "bounded_context": "dmpf-kernel",
-      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/appkit"]
+      "bounded_context": "kernel",
+      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/testkit/appkit"]
     },
     {
-      "unit": "dmpf-kernel/testkit-clock",
-      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit",
+      "unit": "kernel/testkit-clock",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/testkit",
       "block": "provider",
-      "bounded_context": "dmpf-kernel",
-      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/clock"]
+      "bounded_context": "kernel",
+      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/testkit/clock"]
     },
     {
-      "unit": "dmpf-kernel/testkit-cmd-evidence",
-      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit",
+      "unit": "kernel/testkit-cmd-evidence",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/testkit",
       "block": "app",
-      "bounded_context": "dmpf-kernel",
-      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/cmd/dmpf-evidence"]
+      "bounded_context": "kernel",
+      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/testkit/cmd/evidence"]
     },
     {
-      "unit": "dmpf-kernel/testkit-dist",
-      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit",
+      "unit": "kernel/testkit-dist",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/testkit",
       "block": "app",
-      "bounded_context": "dmpf-kernel",
-      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/distkit"]
+      "bounded_context": "kernel",
+      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/testkit/distkit"]
     },
     {
-      "unit": "dmpf-kernel/testkit-domain",
-      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit",
+      "unit": "kernel/testkit-domain",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/testkit",
       "block": "domain",
-      "bounded_context": "dmpf-kernel",
-      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/domainkit"]
+      "bounded_context": "kernel",
+      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/testkit/domainkit"]
     },
     {
-      "unit": "dmpf-kernel/testkit-evidence",
-      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit",
+      "unit": "kernel/testkit-evidence",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/testkit",
       "block": "app",
-      "bounded_context": "dmpf-kernel",
-      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/evidence"]
+      "bounded_context": "kernel",
+      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/testkit/evidence"]
     },
     {
-      "unit": "dmpf-kernel/testkit-fitness",
-      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit",
+      "unit": "kernel/testkit-fitness",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/testkit",
       "block": "app",
-      "bounded_context": "dmpf-kernel",
-      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/fitness"]
+      "bounded_context": "kernel",
+      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/testkit/fitness"]
     },
     {
-      "unit": "dmpf-kernel/testkit-golden",
-      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit",
+      "unit": "kernel/testkit-golden",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/testkit",
       "block": "contract",
-      "bounded_context": "dmpf-kernel",
-      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/golden"]
+      "bounded_context": "kernel",
+      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/testkit/golden"]
     },
     {
-      "unit": "dmpf-kernel/testkit-ids",
-      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit",
+      "unit": "kernel/testkit-ids",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/testkit",
       "block": "provider",
-      "bounded_context": "dmpf-kernel",
-      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/ids"]
+      "bounded_context": "kernel",
+      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/testkit/ids"]
     },
     {
-      "unit": "dmpf-kernel/testkit-provider",
-      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit",
+      "unit": "kernel/testkit-provider",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/testkit",
       "block": "provider",
-      "bounded_context": "dmpf-kernel",
-      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/providerkit"]
+      "bounded_context": "kernel",
+      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/testkit/providerkit"]
     },
     {
-      "unit": "dmpf-kernel/testkit-services",
-      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit",
+      "unit": "kernel/testkit-services",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/testkit",
       "block": "provider",
-      "bounded_context": "dmpf-kernel",
-      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/serviceskit"]
+      "bounded_context": "kernel",
+      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/testkit/serviceskit"]
     },
     {
-      "unit": "dmpf-kernel/testkit-stable",
-      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit",
+      "unit": "kernel/testkit-stable",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/testkit",
       "block": "provider",
-      "bounded_context": "dmpf-kernel",
-      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/stable"]
+      "bounded_context": "kernel",
+      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/testkit/stable"]
     },
     {
-      "unit": "dmpf-kernel/testkit-tb",
-      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit",
+      "unit": "kernel/testkit-tb",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/testkit",
       "block": "app",
-      "bounded_context": "dmpf-kernel",
+      "bounded_context": "kernel",
       "membership": [
-        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit",
-        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/tb",
-        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-testkit/tb/pg"
+        "github.com/mateusmacedo/dmpf/libs/backend/go/testkit",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/pg"
       ]
     },
     {
-      "unit": "dmpf-kernel/transport",
-      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-transport",
+      "unit": "kernel/transport",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/transport",
       "block": "provider",
-      "bounded_context": "dmpf-kernel",
+      "bounded_context": "kernel",
       "membership": [
-        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-transport",
-        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-transport/admission",
-        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-transport/attempt",
-        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-transport/channel",
-        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-transport/compose",
-        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-transport/deadline",
-        "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-transport/observe"
+        "github.com/mateusmacedo/dmpf/libs/backend/go/transport",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/transport/admission",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/transport/attempt",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/transport/channel",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/transport/compose",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/transport/deadline",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/transport/observe"
       ]
     }
   ],
   "shared_kernel_units": [
-    "dmpf-kernel/domain",
-    "dmpf-kernel/port",
-    "dmpf-kernel/application",
-    "dmpf-kernel/provider-postgres",
-    "dmpf-kernel/provider-grpc",
-    "dmpf-kernel/provider-http",
-    "dmpf-kernel/provider-kafka",
-    "dmpf-kernel/provider-sqs",
-    "dmpf-kernel/app-consumer",
-    "dmpf-kernel/app-relay",
-    "dmpf-kernel/observability",
-    "dmpf-kernel/transport",
-    "dmpf-contracts/envelope",
-    "dmpf-contracts/gen",
-    "dmpf-contracts/payloadhash"
+    "kernel/domain",
+    "kernel/port",
+    "kernel/application",
+    "kernel/provider-postgres",
+    "kernel/provider-grpc",
+    "kernel/provider-http",
+    "kernel/provider-kafka",
+    "kernel/provider-sqs",
+    "kernel/app-consumer",
+    "kernel/app-relay",
+    "kernel/observability",
+    "kernel/transport",
+    "contracts/envelope",
+    "contracts/gen",
+    "contracts/payloadhash"
   ]
 }

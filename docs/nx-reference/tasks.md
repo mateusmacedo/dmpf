@@ -190,7 +190,7 @@ o kernel DMPF terá contrapartes Go e TypeScript com os mesmos nomes conceituais
 e o nome de projeto é chave única no Nx.
 
 Go é `scope:backend` neste workspace: os oito módulos existentes vivem em
-`libs/backend/go/`. O módulo `dmpf-contracts` (projeto `dmpf-contracts-go`) é o
+`libs/backend/go/`. O módulo `contracts` (projeto `contracts`) é o
 único com targets além da cadeia Go — `buf-lint`, `buf-pins`,
 `buf-generate-check` e `buf-breaking` chamam os subcomandos de
 `tools/buf-gate.sh`, `buf-gate-selftest` roda

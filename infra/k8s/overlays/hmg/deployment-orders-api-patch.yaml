@@ -3,7 +3,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: dmpf-reference-orders-api
+  name: orders-api
 spec:
   template:
     spec:
@@ -30,4 +30,4 @@ spec:
       volumes:
         - name: grpc-tls
           secret:
-            secretName: dmpf-reference-orders-grpc-tls
+            secretName: orders-grpc-tls

@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: dmpf-reference-bff
+  name: bff
 data:
   # O Collector da base e os `api` dos contextos rodam sem TLS em dev.
   DMPF_OTLP_INSECURE: 'true'

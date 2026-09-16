@@ -1,17 +1,17 @@
-package bookingsapp
+package app
 
 import (
 	"net/http"
 
-	dmpfhttp "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-http"
+	provider "github.com/mateusmacedo/dmpf/libs/backend/go/http"
 )
 
 const IdempotencyHeader = "Idempotency-Key"
 
 const contract = "contracts/openapi/bookings/v1/openapi.yaml#/paths/"
 
-func Routes() [5]dmpfhttp.Route {
-	return [5]dmpfhttp.Route{
+func Routes() [5]provider.Route {
+	return [5]provider.Route{
 		{
 			Name:           "reserveBooking",
 			Method:         http.MethodPost,

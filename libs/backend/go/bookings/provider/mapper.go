@@ -1,25 +1,25 @@
-package bookingspostgres
+package provider
 
 import (
 	"fmt"
 	"time"
 
-	eventv1 "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/gen/go/company/bookings/event/v1"
-	dmpfdomain "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-domain"
-	dmpfpostgres "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres"
+	eventv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/bookings/event/v1"
+	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	bookingsdomain "github.com/mateusmacedo/dmpf/libs/backend/go/bookings/domain"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/bookings/domain"
 )
 
 const bookingReservedType = "com.company.bookings.booking-reserved.v1"
 
 type Mapper struct{}
 
-func (Mapper) Map(event dmpfdomain.DomainEvent) (dmpfpostgres.Mapped, error) {
+func (Mapper) Map(event kernel.DomainEvent) (postgres.Mapped, error) {
 	switch e := event.(type) {
-	case bookingsdomain.BookingReserved:
-		return dmpfpostgres.Mapped{
+	case domain.BookingReserved:
+		return postgres.Mapped{
 			Message: &eventv1.BookingReserved{
 				BookingId:  string(e.BookingID),
 				ResourceId: string(e.ResourceID),
@@ -29,6 +29,6 @@ func (Mapper) Map(event dmpfdomain.DomainEvent) (dmpfpostgres.Mapped, error) {
 			Type: bookingReservedType,
 		}, nil
 	default:
-		return dmpfpostgres.Mapped{}, fmt.Errorf("%w: %s", dmpfpostgres.ErrUnmappedEvent, event.EventName())
+		return postgres.Mapped{}, fmt.Errorf("%w: %s", postgres.ErrUnmappedEvent, event.EventName())
 	}
 }

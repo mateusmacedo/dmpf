@@ -1,10 +1,10 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: dmpf-reference-reservations
+  name: reservations
 data:
   # Kafka gerenciado com TLS (o default da app já é TLS ≥ 1.2; fica explícito) e
-  # o gRPC do api com o certificado montado de dmpf-reference-reservations-grpc-tls.
+  # o gRPC do api com o certificado montado de reservations-grpc-tls.
   DMPF_KAFKA_INSECURE: 'false'
   DMPF_GRPC_TLS_CERT_FILE: /etc/dmpf/grpc/tls.crt
   DMPF_GRPC_TLS_KEY_FILE: /etc/dmpf/grpc/tls.key

@@ -15,24 +15,24 @@ created: 2026-09-04
 ## Resumo
 
 Fechar o lado do consumo do Incremento 3 ("Garantias") entregando três peças que
-hoje não existem no workspace: a **porta de inbox** em `dmpf-ports` (bloco `port`),
+hoje não existem no workspace: a **porta de inbox** em `ports` (bloco `port`),
 cuja operação de registro tem semântica de `insert-if-absent` **com retorno** e
 devolve a classificação da recepção como tipo fechado; a **realização Postgres**
-dessa porta em `dmpf-provider-postgres`, que serializa na chave sob concorrência
+dessa porta em `postgres`, que serializa na chave sob concorrência
 e nunca sinaliza erro de constraint; e o **application service de consumo** com o
 adapter que o antecede, que ramifica pelas sete disposições de FND-04 §6.4 e põe
 deduplicação, efeitos locais e outbox derivada dentro de **uma** fronteira
 transacional.
 
 A entrega cria o **primeiro módulo do bloco `app`** do workspace
-(`libs/backend/go/dmpf-app`). Isso não é preferência de organização: é
+(`libs/backend/go/app`). Isso não é preferência de organização: é
 consequência da matriz de blocos. O adapter precisa validar o envelope e computar
 o `payload_hash`, o que exige importar `contract`; e precisa invocar o application
 service, o que exige importar `application`. `application → contract` é a célula
 12 e `provider → application` é a célula 26 — as duas são proibidas e as duas já
 têm vetor negativo rodando no CI
 (`tools/dmpf-cell-check.sh:38-41`). Só a linha `app` da matriz permite as duas
-arestas ao mesmo tempo (`libs/backend/go/dmpf-conformance/internal/rule/matrix.go:56-64`),
+arestas ao mesmo tempo (`libs/backend/go/conformance/internal/rule/matrix.go:56-64`),
 e é por isso que o adapter nasce em módulo próprio.
 
 Como time de plataforma, queremos que a semântica oficial — **at-least-once com
@@ -47,10 +47,10 @@ que o vetor V32 — verificável **somente** em runtime, nunca por revisão de c
 
 - **Problema**: `KRN-06` fechou a escrita. O agregado de exemplo grava estado de
   negócio e intenção de publicar na mesma `pgx.Tx`
-  (`libs/backend/go/dmpf-provider-postgres/outbox.go:33-36`), e a unicidade de
+  (`libs/backend/go/postgres/outbox.go:33-36`), e a unicidade de
   `message_id` é imposta pelo banco
-  (`libs/backend/go/dmpf-provider-postgres/schema.sql:22`). Do outro lado não há
-  nada: nenhuma porta de inbox em `dmpf-ports` (o pacote declara `UnitOfWork`,
+  (`libs/backend/go/postgres/schema.sql:22`). Do outro lado não há
+  nada: nenhuma porta de inbox em `ports` (o pacote declara `UnitOfWork`,
   `Repository`, `Outbox`, `Clock` e `IDGenerator`, e mais nada), nenhuma tabela de
   deduplicação no `schema.sql`, nenhum application service que ramifique por
   disposição, e nenhum módulo do bloco `app`. As duas janelas de duplicata que
@@ -80,7 +80,7 @@ repositório:
 |---|--------------|----------------------|---------|
 | 1 | "A taxonomia de erros que classifica retentável × não retentável [...] é consumida aqui, não definida" | FND-07 **já a fixou**: catálogo de onze categorias em `docs/dmpf/contexto-erros-seguranca.md:952-966`, e `ERR-11` fecha nominalmente o placeholder de `INB-09` (`:1815`) | Consumir a taxonomia **real** de FND-07 §5.3, e a coluna de mensageria de §6.2, em vez de declarar uma taxonomia local. O que a entrega declara é o **subconjunto realizado em Go**, não uma taxonomia nova |
 | 2 | "`registrar(consumer_name, message_id, payload_hash) -> classificação`" e "`concluir(processed \| rejected)`" como duas operações independentes | Go não tem união exaustiva; `INB-05` exige que `concluir` seja obrigatória **sob R1 e somente sob R1** | `Complete` é alcançável **apenas** pelo ramo R1, por construção do tipo (ver [Decisões técnicas](#decisões-técnicas), D2). A norma é preservada; a forma é a que o compilador consegue impor |
-| 3 | Não nomeia onde vive o consumer adapter | A matriz de blocos exclui `application` e `provider` como hospedeiros | Módulo novo `libs/backend/go/dmpf-app`, bloco `app`, primeiro do workspace |
+| 3 | Não nomeia onde vive o consumer adapter | A matriz de blocos exclui `application` e `provider` como hospedeiros | Módulo novo `libs/backend/go/app`, bloco `app`, primeiro do workspace |
 | 4 | "DLQ e quarantine distintos, com mapeamento declarado (`GAR-11`)" | Não há broker no kernel — o transporte é `KRN-10` | Quarantine é **realizada** aqui, sobre Postgres, porque não depende de broker. DLQ é **declarada** no mapeamento e encaminhada ao `KRN-10`, conforme `GAR-11` admite ("um contexto pode implementar apenas DLQ"; aqui é o inverso, e a distinção é declarada) |
 
 ### Fontes normativas
@@ -99,7 +99,7 @@ repositório:
 | FND-07 §5.3 | Catálogo de categorias e a retryability de cada uma | `docs/dmpf/contexto-erros-seguranca.md:952-966` |
 | FND-07 §6.2 | Coluna "Mensageria — disposição sob `R1`": o mapeamento categoria → disposição, literal | `:1160-1180` |
 | FND-07 `MAP-04`, `MAP-05`, `MAP-07` | Contenção de envelope está fora do eixo; R2/R3/R4 não produzem erro da taxonomia; `Conflict` e `DeadlineExceeded` resolvem por predicado | `:1173-1218` |
-| ADR-022 | Fórmula do `payload_hash`, realizada em `dmpf-contracts/payloadhash` | `docs/adr/022-*`, `libs/backend/go/dmpf-contracts/payloadhash` |
+| ADR-022 | Fórmula do `payload_hash`, realizada em `contracts/payloadhash` | `docs/adr/022-*`, `libs/backend/go/contracts/payloadhash` |
 | ADR-032 | O desfecho da UPR como par `(Accepted[R], *Rejection)` com tipo concreto — o precedente de forma que D2 segue | `docs/adr/032-realizacao-go-do-desfecho-da-upr.md` |
 | ADR-034 | `UnitOfWork[R]` com vínculo no composition root — a fronteira em que a inbox entra | `docs/adr/034-fronteira-de-uow-em-go.md` |
 | ADR-035 | Realização Postgres da outbox; serialização na escrita; o gate `dmpf-cell-check.sh` | `docs/adr/035-realizacao-postgres-da-outbox.md` |
@@ -108,9 +108,9 @@ repositório:
 
 ### Funcionais
 
-#### RF-01 — Porta de inbox (`dmpf-ports`, bloco `port`)
+#### RF-01 — Porta de inbox (`ports`, bloco `port`)
 
-1. O pacote `dmpfports` declara `Inbox`, com **uma** operação de entrada:
+1. O pacote `ports` declara `Inbox`, com **uma** operação de entrada:
    `Register(ctx, Receipt) (Reception, error)`, onde `Receipt{Consumer,
    MessageID, MessageType, PayloadHash, ReceivedAt}`. O ticket enunciava três
    escalares (`consumer, id, hash`); a forma mudou porque o schema de RF-02.1
@@ -131,8 +131,8 @@ repositório:
    R1 retorna sem `Complete` — registrar sem concluir é defeito ruidoso, nunca
    commit silencioso da linha provisória.
 4. A porta não importa `contract` nem `provider`: os campos do `Receipt` são
-   tipos de domínio ou primitivos, como `Outbox` já faz com `dmpfports.MessageID`
-   (`libs/backend/go/dmpf-ports/outbox.go:26-37`). Os instantes (`ReceivedAt`,
+   tipos de domínio ou primitivos, como `Outbox` já faz com `ports.MessageID`
+   (`libs/backend/go/ports/outbox.go:26-37`). Os instantes (`ReceivedAt`,
    `Completion.At`) são autorados pelo application service a partir do `Clock`,
    nunca pelo provider (ADR-034).
 5. `Register` devolve `error` **apenas** para falha técnica. Chave já presente é
@@ -140,23 +140,23 @@ repositório:
 6. Existe um sentinela `ErrRegisterTimeout` no pacote, para o estouro do teto de
    espera de `INB-17`, e ele é distinguível por `errors.Is`.
 7. Existe uma **suíte de contrato** da porta em
-   `dmpf-ports/inbox_contract_test.go` (`package dmpfports_test`), no molde de
-   `RunUnitOfWorkContract` (`libs/backend/go/dmpf-ports/contract_test.go:35`).
+   `ports/inbox_contract_test.go` (`package ports_test`), no molde de
+   `RunUnitOfWorkContract` (`libs/backend/go/ports/contract_test.go:35`).
    Cada realização **duplica** as cláusulas, com a nota que explica o porquê:
    um arquivo `_test.go` nunca é importável, e o test kit exportado como pacote
    é escopo do `KRN-11` — precedente já estabelecido em
-   `libs/backend/go/dmpf-application/example/memory/contract_test.go:11-13`.
+   `libs/backend/go/application/example/memory/contract_test.go:11-13`.
 
-#### RF-02 — Realização Postgres da porta (`dmpf-provider-postgres`, bloco `provider`)
+#### RF-02 — Realização Postgres da porta (`postgres`, bloco `provider`)
 
 1. `schema.sql` ganha `dmpf_inbox` com os oito campos de FND-04 §6.1:
    `consumer_name`, `message_id`, `message_type`, `payload_hash`, `received_at`,
    `processed_at`, `status` e `last_error`; com `UNIQUE (consumer_name,
    message_id)` (`INB-01`) e `CHECK (status IN ('processed','rejected'))`
    (`INB-02`). `Migrate` continua idempotente (`CREATE ... IF NOT EXISTS`).
-2. `Tx.Inbox(consumer string, wait time.Duration) dmpfports.Inbox` vincula a
+2. `Tx.Inbox(consumer string, wait time.Duration) ports.Inbox` vincula a
    porta à transação aberta, no mesmo molde de `Tx.Outbox(mapper)`
-   (`libs/backend/go/dmpf-provider-postgres/outbox.go:33`); `wait` é o teto de
+   (`libs/backend/go/postgres/outbox.go:33`); `wait` é o teto de
    `INB-17` declarado pelo chamador (`<= 0` desliga o teto). Entre `Register` e
    `Complete` a linha existe com `status` provisório dentro da transação —
    `status NOT NULL` com `CHECK` obriga um valor antes do desfecho — e `Complete`
@@ -176,7 +176,7 @@ repositório:
    FND-04 §6.2 exige nominalmente (`:1120-1128`).
 7. `PurgeInbox(ctx, pool, consumer, before)` devolve **evidência**: quantas
    chaves foram removidas, de qual consumidor e até qual instante (`INB-16`), no
-   molde de `PurgePublished` (`libs/backend/go/dmpf-provider-postgres/purge.go`).
+   molde de `PurgePublished` (`libs/backend/go/postgres/purge.go`).
 8. `Quarantine` é realizada sobre Postgres: tabela `dmpf_quarantine` que preserva
    o envelope recebido **byte-idêntico** ao publicado, com o erro sanitizado e o
    motivo da contenção (`GAR-07`, `GAR-11`, `ERR-20`, `ERR-21`).
@@ -184,9 +184,9 @@ repositório:
    quarantine, contagem de R1×D4 e contagem de R4 (`GAR-12`) — derivados da
    própria tabela por `GROUP BY reason`, sem contador em memória.
 
-#### RF-03 — Application service de consumo (`dmpf-application`, bloco `application`)
+#### RF-03 — Application service de consumo (`application`, bloco `application`)
 
-1. O pacote `dmpfapplication` ganha `Disposition`, tipo fechado com as **sete**
+1. O pacote `application` ganha `Disposition`, tipo fechado com as **sete**
    disposições de FND-04 §6.4, e `Classify(err error) Disposition`, que deriva
    D1..D4 a partir da retryability já resolvida do erro — nunca por inspeção
    ad hoc da mensagem (`INB-09`, `MAP-07`).
@@ -209,17 +209,17 @@ repositório:
 8. O efeito local do caso de uso de consumo é idempotente **por chave natural
    permanente**, independentemente da inbox (`GAR-03`, `GAR-04`, `GAR-10`).
 9. `Resources` do exemplo ganha `Inbox`; a realização em memória
-   (`dmpf-application/example/memory`) a satisfaz, para que o `application`
+   (`application/example/memory`) a satisfaz, para que o `application`
    continue testável sem banco.
 
-#### RF-04 — Consumer adapter (`dmpf-app`, bloco `app`, módulo novo)
+#### RF-04 — Consumer adapter (`app`, bloco `app`, módulo novo)
 
-1. Módulo `libs/backend/go/dmpf-app`, projeto Nx `dmpf-app-go`, com as três tags
+1. Módulo `libs/backend/go/app`, projeto Nx `app`, com as três tags
    3D (`type:lib`, `scope:backend`, `stack:go`), `package.json` com
    `private: true` e `dmpf-units.json` declarando as unidades do bloco `app`.
 2. O adapter recebe os bytes brutos da entrega (`Delivery{Raw, Attempt}`) e
    valida o envelope **antes** da UoW por `envelope.Unmarshal(Raw)` — função
-   acrescentada a `dmpf-contracts` nesta entrega, simétrica a `Pack`, para que a
+   acrescentada a `contracts` nesta entrega, simétrica a `Pack`, para que a
    decodificação de wire fique no bloco `contract` e o `app` não importe
    protobuf. Envelope inválido **não recebe classificação de recepção**, não
    entra em nenhuma das sete disposições e vai direto para a contenção
@@ -228,7 +228,7 @@ repositório:
    `envelope.Unpack(env, msg)`, também de `contract`.
 3. O adapter computa o `payload_hash` sobre os bytes do `Any.value` **exatamente
    como transportados**, por `payloadhash.Sum`
-   (`libs/backend/go/dmpf-contracts/payloadhash`), sem desserializar e sem
+   (`libs/backend/go/contracts/payloadhash`), sem desserializar e sem
    resserializar (H1, H2, ADR-022, `ENV-18`).
 4. O adapter aplica o efeito de broker **sempre depois** do retorno da transação
    (`INB-08`). Nesta entrega o "broker" é uma porta `Acknowledger` de duas
@@ -244,7 +244,7 @@ repositório:
 
 1. ADR novo (a partir de `036`) registrando a forma Go da classificação de
    recepção e a fronteira `Pending` — a decisão que D2 fixa.
-2. `README.md` do módulo `dmpf-app`, `README.md` do `dmpf-provider-postgres`
+2. `README.md` do módulo `app`, `README.md` do `postgres`
    atualizado com a inbox, e `AGENTS.md` com o inventário do novo módulo.
 3. `tools/dmpf-baseline/units-baseline.json` atualizado com as unidades novas,
    via `--write-baseline`, em **commit normativo separado**.
@@ -257,7 +257,7 @@ repositório:
 |----|-----------|-------------|
 | RNF-01 | A cadeia Go passa: `fmt-check`, `vet`, `lint`, `build`, `test`, `test-race`, `govulncheck` | CI |
 | RNF-02 | `pnpm biome ci .` e `pnpm nx affected -t lint,typecheck,test,build` verdes | CI |
-| RNF-03 | O verificador `dmpf-conformance` aprova o grafo com o módulo `app` novo, e o baseline reflete as unidades criadas | CI, job `main` |
+| RNF-03 | O verificador `conformance` aprova o grafo com o módulo `app` novo, e o baseline reflete as unidades criadas | CI, job `main` |
 | RNF-04 | `tools/dmpf-gate-check.sh` continua provando os vetores negativos por bloco; o bloco `app` **não** ganha regra `depguard` própria, porque a sua linha na matriz é totalmente permissiva | CI |
 | RNF-05 | Os testes que exigem banco levam a build tag `integration`, rodam só no `test-race`, com `cache: false` no Nx e `-count=1` no `go test` — o padrão que `KRN-06` fixou | `project.json` |
 | RNF-06 | V32 é exercido em runtime, com reentrega deliberada. Revisão de código **não** o satisfaz (FND-04 §7.1) | Teste de integração |
@@ -267,11 +267,11 @@ repositório:
 
 | Bloco | Módulo | Natureza da mudança |
 |-------|--------|---------------------|
-| `port` | `libs/backend/go/dmpf-ports` | Aditiva: `Inbox`, `Reception`, `Pending`, `Status`, `ErrRegisterTimeout`, suíte de contrato |
-| `application` | `libs/backend/go/dmpf-application` | Aditiva: `Disposition`, `Classify`, taxonomia consumida, caso de uso de consumo no exemplo, `Inbox` na realização em memória |
-| `provider` | `libs/backend/go/dmpf-provider-postgres` | Aditiva: `dmpf_inbox`, `dmpf_quarantine`, `Tx.Inbox`, `PurgeInbox`, `Quarantine`, `InboxSignals` |
-| `app` | `libs/backend/go/dmpf-app` | **Módulo novo** — primeira unidade do bloco `app` no workspace |
-| `contract` | `libs/backend/go/dmpf-contracts` | Sem mudança de código; consumido pelo adapter |
+| `port` | `libs/backend/go/ports` | Aditiva: `Inbox`, `Reception`, `Pending`, `Status`, `ErrRegisterTimeout`, suíte de contrato |
+| `application` | `libs/backend/go/application` | Aditiva: `Disposition`, `Classify`, taxonomia consumida, caso de uso de consumo no exemplo, `Inbox` na realização em memória |
+| `provider` | `libs/backend/go/postgres` | Aditiva: `dmpf_inbox`, `dmpf_quarantine`, `Tx.Inbox`, `PurgeInbox`, `Quarantine`, `InboxSignals` |
+| `app` | `libs/backend/go/app` | **Módulo novo** — primeira unidade do bloco `app` no workspace |
+| `contract` | `libs/backend/go/contracts` | Sem mudança de código; consumido pelo adapter |
 | Workspace | `go.work`, `tools/dmpf-baseline`, `AGENTS.md`, `docs/adr` | Registro do módulo e das unidades novas |
 
 ## Localização de código
@@ -280,24 +280,24 @@ repositório:
 contracts/proto/company/reservations/event/v1/reservation_confirmed.proto  # NOVO
 contracts/fixtures/reservations/event/v1/reservation-confirmed.golden      # NOVO
 libs/backend/go/
-├── dmpf-contracts/
+├── contracts/
 │   ├── gen/go/company/reservations/event/v1/                              # GERADO
 │   ├── golden/reservation_confirmed_fixture_test.go                       # NOVO
 │   └── envelope/envelope.go            # ALTERADO — Unmarshal(raw), Unpack(env, msg)
-├── dmpf-domain/example/reservations/   # NOVO — Reservation, Reserve, ReservationConfirmed
-├── dmpf-ports/
+├── domain/example/reservations/   # NOVO — Reservation, Reserve, ReservationConfirmed
+├── ports/
 │   ├── inbox.go                        # NOVO — Receipt, Completion, Status, Pending,
 │   │                                   #   Reception + Match, Inbox, ErrRegisterTimeout,
 │   │                                   #   ErrPendingNotCompleted
 │   ├── containment.go                  # NOVO — Reason, Contained, Containment
 │   ├── acknowledger.go                 # NOVO — Acknowledger{Ack, Release}
 │   └── inbox_contract_test.go          # NOVO — 7 cláusulas (duplicadas pelas realizações)
-├── dmpf-application/
+├── application/
 │   ├── disposition.go                  # NOVO — Disposition, Classify
 │   ├── failure.go                      # NOVO — Category, Failure (subconjunto de FND-07 §5.3)
 │   ├── example/memory/inbox.go         # NOVO — realização em memória da porta
 │   └── example/reservations/           # NOVO — reservationsapp: Resources, Service, Consume
-├── dmpf-provider-postgres/
+├── postgres/
 │   ├── schema.sql                      # ALTERADO — dmpf_inbox, dmpf_quarantine, dmpf_example_reservations
 │   ├── inbox.go                        # NOVO — Tx.Inbox(consumer, wait), Register, Complete
 │   ├── inbox_concurrency_test.go       # NOVO — cenários 8–11 (spike de lock_timeout)
@@ -305,14 +305,14 @@ libs/backend/go/
 │   ├── signals.go                      # NOVO — InboxSignals (GAR-12)
 │   ├── purge.go                        # ALTERADO — PurgeInbox com evidência
 │   └── example/reservations/           # NOVO — reservationspg: repositório (chave natural) + Mapper
-└── dmpf-app/                           # MÓDULO NOVO — bloco app
+└── app/                           # MÓDULO NOVO — bloco app
     ├── go.mod, project.json, package.json, dmpf-units.json, README.md, doc.go
     ├── consumer.go                     # adapter: Unmarshal, hash, Handler, efeitos
     ├── containment.go                  # ContainmentMap, MechanismFor (GAR-11)
     └── example/reservations/           # composition root do consumidor + e2e (V32)
 ```
 
-A porta `Acknowledger` ficou em `dmpf-ports`, não no `app` como o rascunho
+A porta `Acknowledger` ficou em `ports`, não no `app` como o rascunho
 previa: o KRN-10 a realizará a partir de `provider` ou `app`, e `provider → app`
 é célula proibida. O consumidor de exemplo vive em `example/reservations`, não
 em `example/orders` — consumidor e produtor são papéis distintos (D6).
@@ -483,7 +483,7 @@ Não é escolha de organização. `application → contract` (célula 12) e
 no CI. O adapter precisa das duas arestas — `contract` para validar envelope e
 hashear, `application` para invocar o caso de uso —, e a linha `app` da matriz é
 a única que as permite simultaneamente. Alternativa descartada: mover
-`payloadhash` para `dmpf-ports`. Ela violaria a autoria do `payload_hash`, que é
+`payloadhash` para `ports`. Ela violaria a autoria do `payload_hash`, que é
 de ANC-03, e desfaria a razão de `KRN-05` existir.
 
 **D2 — A classificação é tipo concreto com ramificador exaustivo, e `Pending`
@@ -505,20 +505,20 @@ a conexão viva. Confirmado empiricamente: a espera da inserção especulativa d
 `ON CONFLICT DO NOTHING` por transação concorrente é interrompida com SQLSTATE
 `55P03` em ~319 ms para um teto de 300 ms, e a transação bloqueada
 comprovadamente esperou (`inbox_concurrency_test.go`). O provider traduz `55P03`
-para `dmpfports.ErrRegisterTimeout`.
+para `ports.ErrRegisterTimeout`.
 
-**D8 — Ajustes descobertos na execução.** (a) O manifesto de `dmpf-contracts`
+**D8 — Ajustes descobertos na execução.** (a) O manifesto de `contracts`
 lista os pacotes gerados um a um; o pacote `company/reservations/event/v1`
-entrou no `include` da unidade `dmpf-contracts/gen`, e o commit normativo cobre
+entrou no `include` da unidade `contracts/gen`, e o commit normativo cobre
 cinco manifestos, não quatro. (b) Dois módulos com teste de banco
-(`dmpf-provider-postgres-go` e `dmpf-app-go`) não podem rodar `test-race` em
+(`postgres` e `app`) não podem rodar `test-race` em
 paralelo contra o mesmo Postgres — cada harness faz `TRUNCATE`; o `test-race`
-do `dmpf-app` declara `dependsOn` sobre o do provider e o Nx os sequencia, mesmo
+do `app` declara `dependsOn` sobre o do provider e o Nx os sequencia, mesmo
 com o `--parallel=3` do CI. (c) `tools/dmpf-gate-check.sh` descobria a cláusula
 `package` pelo primeiro `.go` alfabético do subpacote e, em
 `example/reservations`, encontrava um `_test.go` externo — corrigido para
 ignorar `_test.go`. (d) `envelope.Unmarshal` e `envelope.Unpack` foram
-acrescentados a `dmpf-contracts` (ver RF-04.2).
+acrescentados a `contracts` (ver RF-04.2).
 
 **D4 — A taxonomia consumida é a de FND-07, e a entrega realiza o subconjunto,
 não uma taxonomia local.** O ticket previa declarar uma; o artefato já a fixou e
@@ -592,7 +592,7 @@ requisitos desta spec.
       qual instante.
 - [x] `InboxSignals` expõe profundidade da quarantine e as contagens de R1×D4 e
       R4.
-- [x] O verificador `dmpf-conformance` aprova o grafo com o módulo `app`, e o
+- [x] O verificador `conformance` aprova o grafo com o módulo `app`, e o
       baseline registra as unidades novas.
 - [x] Cadeia Go completa verde, e `pnpm nx affected -t lint,typecheck,test,build`
       verde.

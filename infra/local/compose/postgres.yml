@@ -1,5 +1,5 @@
 # Postgres compartilhado pelas apps. Os bancos dmpf_orders e dmpf_reservations
-# nascem no postgres-init (profile dmpf); o schema, por `dmpfpostgres.Migrate`
+# nascem no postgres-init (profile dmpf); o schema, por `postgres.Migrate`
 # (DMPF_MIGRATE=true no papel api de cada contexto), não por init script.
 services:
   postgres:

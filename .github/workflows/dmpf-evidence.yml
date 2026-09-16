@@ -108,7 +108,7 @@ jobs:
           work="$RUNNER_TEMP/evidence-worktree"
           git worktree add --detach "$work" "$COMMIT"
           cd "$work"
-          GOTOOLCHAIN=go1.26.6 go run ./libs/backend/go/dmpf-testkit/cmd/dmpf-evidence \
+          GOTOOLCHAIN=go1.26.6 go run ./libs/backend/go/testkit/cmd/evidence \
             --root . --release "$RELEASE" --subjects "$SUBJECTS" \
             --out "$RUNNER_TEMP/evidence-regenerated/$RELEASE"
 

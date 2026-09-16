@@ -1,6 +1,6 @@
 //go:build integration
 
-package bookingspostgres_test
+package provider_test
 
 import (
 	"context"
@@ -8,8 +8,8 @@ import (
 	"sync"
 	"testing"
 
-	bookingsdomain "github.com/mateusmacedo/dmpf/libs/backend/go/bookings/domain"
-	dmpfports "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-ports"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/bookings/domain"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
 
 func TestConcurrentSaveLetsExactlyOneWriterThrough(t *testing.T) {
@@ -29,7 +29,7 @@ func TestConcurrentSaveLetsExactlyOneWriterThrough(t *testing.T) {
 	for i := range writers {
 		go func(quantity int) {
 			defer running.Done()
-			results <- withRepo(t, pool, func(ctx context.Context, repo dmpfports.Repository[bookingsdomain.BookingID, bookingsdomain.BookingSnapshot]) error {
+			results <- withRepo(t, pool, func(ctx context.Context, repo ports.Repository[domain.BookingID, domain.BookingSnapshot]) error {
 				_, version, err := repo.Load(ctx, repoBookingID)
 				if err != nil {
 					return err
@@ -51,7 +51,7 @@ func TestConcurrentSaveLetsExactlyOneWriterThrough(t *testing.T) {
 		switch {
 		case err == nil:
 			committed++
-		case errors.Is(err, dmpfports.ErrVersionConflict):
+		case errors.Is(err, ports.ErrVersionConflict):
 			conflicted++
 		default:
 			t.Fatalf("Within() = %v, want nil or ErrVersionConflict", err)

@@ -80,12 +80,12 @@ sobre o ticket em todos.
 
 | Ticket `ARQ-529` diz | Repositório em 06/09/2026 | Esta spec adota |
 | --- | --- | --- |
-| "Quatro módulos do bloco `provider`" | A linha `provider` da matriz de blocos permite `provider → provider` (`dmpf-conformance/internal/rule/matrix.go:52`). gRPC e HTTP compartilham a abstração de prazo (ticket, §5 passo 2); Kafka e SQS compartilham o contrato de catalogação e as fórmulas de `janela_redelivery` (ticket, entregável 3). Nenhum dos quatro é lugar neutro para isso, e `dmpf-observability` é nomeado por FND-08, não por transporte | **Cinco módulos**: `dmpf-transport` (primitivas compartilhadas, sem I/O; a API OpenTelemetry é a única dependência externa, pelo package `observe`) mais os quatro providers. A unidade `dmpf-kernel/transport` é bloco `provider` |
-| "Depende de `KRN-05`, `KRN-09`"; "Consome as portas de `KRN-06` e `KRN-07`" | `dmpf-ports/acknowledger.go:15` reserva o gesto: "Release does not confirm; the transport redelivers with backoff, a concrete gesture left to KRN-10 (D3)". `dmpf-app/relay/ports.go:32-42` declara `Publisher.Publish(ctx, destination string, message []byte) error` **no consumidor**, satisfeito estruturalmente | Realiza `dmpfports.Acknowledger` e `dmpfports.Containment` (bloco `port`, célula permitida) e satisfaz `relay.Publisher` **sem importar** `dmpf-app` — a célula `provider → app` é proibida (`matrix.go:52`), e a tipagem estrutural de Go dispensa o import, como `dmpfpostgres.OutboxStore` já faz com `relay.Store` |
-| Silente sobre como o provider entrega ao consumer adapter | `dmpfapp.Consumer.Consume(ctx, Delivery, Acknowledger)` recebe `Delivery{Raw, Attempt}` (`consumer.go:34-37`) — tipo do bloco `app`, que o `provider` não pode importar | Cada provider de consumo expõe uma interface `Sink` própria, `Handle(ctx, raw []byte, attempt int, ack dmpfports.Acknowledger) error`; a **composition root** (bloco `app`) adapta para `dmpfapp.Consumer.Consume`. Nenhum provider conhece `dmpfapp` |
+| "Quatro módulos do bloco `provider`" | A linha `provider` da matriz de blocos permite `provider → provider` (`conformance/internal/rule/matrix.go:52`). gRPC e HTTP compartilham a abstração de prazo (ticket, §5 passo 2); Kafka e SQS compartilham o contrato de catalogação e as fórmulas de `janela_redelivery` (ticket, entregável 3). Nenhum dos quatro é lugar neutro para isso, e `observability` é nomeado por FND-08, não por transporte | **Cinco módulos**: `transport` (primitivas compartilhadas, sem I/O; a API OpenTelemetry é a única dependência externa, pelo package `observe`) mais os quatro providers. A unidade `kernel/transport` é bloco `provider` |
+| "Depende de `KRN-05`, `KRN-09`"; "Consome as portas de `KRN-06` e `KRN-07`" | `ports/acknowledger.go:15` reserva o gesto: "Release does not confirm; the transport redelivers with backoff, a concrete gesture left to KRN-10 (D3)". `app/relay/ports.go:32-42` declara `Publisher.Publish(ctx, destination string, message []byte) error` **no consumidor**, satisfeito estruturalmente | Realiza `ports.Acknowledger` e `ports.Containment` (bloco `port`, célula permitida) e satisfaz `relay.Publisher` **sem importar** `app` — a célula `provider → app` é proibida (`matrix.go:52`), e a tipagem estrutural de Go dispensa o import, como `postgres.OutboxStore` já faz com `relay.Store` |
+| Silente sobre como o provider entrega ao consumer adapter | `app.Consumer.Consume(ctx, Delivery, Acknowledger)` recebe `Delivery{Raw, Attempt}` (`consumer.go:34-37`) — tipo do bloco `app`, que o `provider` não pode importar | Cada provider de consumo expõe uma interface `Sink` própria, `Handle(ctx, raw []byte, attempt int, ack ports.Acknowledger) error`; a **composition root** (bloco `app`) adapta para `app.Consumer.Consume`. Nenhum provider conhece `app` |
 | "Chave de partição vem do envelope" (`TRP-11`) | `relay.Publisher.Publish` não recebe chave de partição: recebe o destino lógico e os bytes do envelope já serializado por `envelope.Marshal` | O provider **decodifica o envelope para ler** `PartitionKey`, `ID`, `Source` e o `payload_hash`, e publica **os bytes originais** — observar não é substituir (`TRP-17`). `Unmarshal` é do bloco `contract`, célula `provider → contract` permitida |
-| "DLQ publicada antes do avanço do offset" | `dmpfapp.Consumer.contain` (`consumer.go:118-129`) já **quarantena primeiro e confirma depois**, via `dmpfports.Containment`; o destino da contenção é escolha do composition root, e `ContainmentMap` roteia por `Reason` | A DLQ do broker é uma realização de `dmpfports.Containment` (`kafka.DLQ`, `sqs.DLQ`) que publica o envelope **byte a byte** com o diagnóstico sanitizado. A ordem de `TRP-30` é do adapter e permanece lá; a fusão DLQ/quarantine de `TRP-36` é declaração do canal |
-| "Admissão por rota e tenant de `KRN-09`" | `SPEC-NYD18TGD:182` deixa a admissão por rota e tenant para o `KRN-10`; `:185` deixa `MET-11` e `MET-12`; `resilience/sheet.go` marca `RateLimitPolicy` como "belongs to another story" | Middleware de admissão no provider HTTP e no servidor gRPC, por rota e tenant, recusando **antes** do decode (`RES-16`, `RES-17`), com `dmpf_service_admission_rejections_total` (`MET-12`) acrescentado ao catálogo de `dmpf-observability/metrics`. `MET-11` é realizado pelos pools de consumo de Kafka e SQS |
+| "DLQ publicada antes do avanço do offset" | `app.Consumer.contain` (`consumer.go:118-129`) já **quarantena primeiro e confirma depois**, via `ports.Containment`; o destino da contenção é escolha do composition root, e `ContainmentMap` roteia por `Reason` | A DLQ do broker é uma realização de `ports.Containment` (`kafka.DLQ`, `sqs.DLQ`) que publica o envelope **byte a byte** com o diagnóstico sanitizado. A ordem de `TRP-30` é do adapter e permanece lá; a fusão DLQ/quarantine de `TRP-36` é declaração do canal |
+| "Admissão por rota e tenant de `KRN-09`" | `SPEC-NYD18TGD:182` deixa a admissão por rota e tenant para o `KRN-10`; `:185` deixa `MET-11` e `MET-12`; `resilience/sheet.go` marca `RateLimitPolicy` como "belongs to another story" | Middleware de admissão no provider HTTP e no servidor gRPC, por rota e tenant, recusando **antes** do decode (`RES-16`, `RES-17`), com `dmpf_service_admission_rejections_total` (`MET-12`) acrescentado ao catálogo de `observability/metrics`. `MET-11` é realizado pelos pools de consumo de Kafka e SQS |
 | Silente sobre a estabilidade do binding | `TRP-09`/`TRP-46` exigem que o endereço concreto (ou a revisão do binding) seja **persistido junto ao item da outbox antes do primeiro I/O**. O schema de `dmpf_outbox` (`KRN-06`) guarda só o destino lógico, e alterá-lo é evolução de outro módulo | **Fora do escopo**, encaminhado (ver "Escopo fora"). O risco é limitado enquanto cada canal tiver um único binding por deploy, e `COE-04` absorve a segunda entrega como R2. Registrado como pendência com owner |
 | "Catalogação em AsyncAPI, sem a qual o provider não opera" | FND-06 §16 encaminha **a forma do documento** — schema, versão, onde vive — a ANC-03, e normatiza só o **conteúdo operacional** (`ASY-02`) | O conteúdo de `ASY-02` é um tipo Go (`channel.Channel`) validado na construção do provider; o composition root o declara. O exemplo AsyncAPI de §16 é reproduzido na documentação do módulo como mapeamento campo a campo. Um decodificador do documento é de ANC-03 |
 | "TLS obrigatório em produção" (`GRP-15`) | O provider não sabe em que ambiente roda | TLS é o **default sem opção**; plaintext exige a opção nomeada `InsecureForDevelopmentOnly`, que o construtor registra em log de aviso. Não há terceiro estado |
@@ -117,7 +117,7 @@ sobre o ticket em todos.
 - [P0] NUNCA reiniciar o deadline recebido: o prazo de saída é `min(recebido − folga, orçamento do método)` e nunca maior que o recebido (`GRP-05`, `GRP-17`).
 - [P0] NUNCA confirmar no broker antes do retorno do `Sink`: `Ack` e `Release` são invocados pelo adapter depois do commit local (`TRP-26`, `INB-08`); o provider nunca confirma por conta própria.
 - [P0] NUNCA desserializar e reserializar o payload no caminho de publicação, consumo, retry ou contenção: o provider publica os bytes que recebeu (`TRP-13`, `TRP-14`, `TRP-17`).
-- [P0] NUNCA importar `dmpf-app` nem `dmpf-application` de um provider: células 26 e 27 da matriz são proibidas; `relay.Publisher` é satisfeito estruturalmente.
+- [P0] NUNCA importar `app` nem `application` de um provider: células 26 e 27 da matriz são proibidas; `relay.Publisher` é satisfeito estruturalmente.
 - [P0] NUNCA retentar automaticamente método ou rota sem idempotência declarada; lista de códigos retentáveis vazia significa nenhum retry (`GRP-08`, `GRP-09`, `RST-02`).
 - [P0] NUNCA operar canal sem os sete itens de `ASY-02` resolvidos, e recusar na construção, não na primeira publicação (`TRP-08`, `ASY-01`).
 - [P0] Nenhum tópico, fila, ARN ou URL fora da configuração do provider (`TRP-07`); nenhum artefato declara exactly-once fim a fim (`TRP-38`).
@@ -129,7 +129,7 @@ sobre o ticket em todos.
 
 ### Funcionais
 
-#### `dmpf-transport` — primitivas compartilhadas
+#### `transport` — primitivas compartilhadas
 
 - [ ] **[P0] Orçamento de prazo por método** (`deadline`): `Budget{Method, Limit,
   Slack}` e `Outgoing(ctx, now, budget) (time.Time, error)` que devolve
@@ -171,7 +171,7 @@ sobre o ticket em todos.
   `dmpf-attempt` e funções `Encode(int)`/`Decode(string)`, para o transporte
   que não mantém contagem (`TRP-52`), sempre lateral ao envelope (`TRP-18`).
 
-#### `dmpf-provider-grpc`
+#### `grpc`
 
 - [ ] **[P0] Cliente com governo do tempo**: `Dial(target, Config)` devolve
   `*grpc.ClientConn` com interceptors unário e de stream que aplicam
@@ -187,7 +187,7 @@ sobre o ticket em todos.
   RetryableCodes []codes.Code, Backoff}`; retry só se `Idempotent` **e** o
   código estiver na lista (`GRP-08`, `GRP-09`).
   - Lista vazia ou `Idempotent == false` → zero tentativas adicionais.
-  - Backoff exponencial com jitter via `dmpf-observability/retry` (`GRP-10`),
+  - Backoff exponencial com jitter via `observability/retry` (`GRP-10`),
     consumindo o orçamento de `RES` e nunca ultrapassando o prazo restante.
   - Métodos de stream nunca são retentados pelo interceptor.
 - [ ] **[P0] TLS por default**: `Config.TLS *tls.Config` obrigatório; a única
@@ -207,7 +207,7 @@ sobre o ticket em todos.
   e tenant, recusando com `RESOURCE_EXHAUSTED` **antes** do handler e
   incrementando `MET-12` (`RES-16`, `RES-17`).
 
-#### `dmpf-provider-http`
+#### `http`
 
 - [ ] **[P0] Cliente com timeout derivado do deadline**: `Client.Do(ctx,
   route, req)` exige deadline no contexto e aplica `deadline.Outgoing` com o
@@ -216,7 +216,7 @@ sobre o ticket em todos.
 - [ ] **[P0] Retry só de método idempotente**: `GET`, `HEAD`, `PUT`, `DELETE`
   são retentáveis nos status declarados na rota; `POST` só quando
   `Route.IdempotencyKey != ""` e o header é enviado (`RST-02`). `PATCH` nunca.
-  Backoff via `dmpf-observability/retry`.
+  Backoff via `observability/retry`.
 - [ ] **[P0] Canal externo aponta contrato**: `Route{Name, Method, Path,
   ContractRef, Budget, RetryableStatus}`; `ContractRef == ""` →
   `ErrContractRequired` na construção do `Client` (`RST-04`).
@@ -228,7 +228,7 @@ sobre o ticket em todos.
 - [ ] **[P2] Sem superfície de API**: o módulo não define recurso, paginação,
   corpo de erro nem versionamento (`TRP-03`; ADR-024 os deixa fora).
 
-#### `dmpf-provider-kafka`
+#### `kafka`
 
 - [ ] **[P0] Publisher estrutural**: `Publisher.Publish(ctx, destination,
   message)` resolve `destination` no `Catalog` (`TRP-07`, `TRP-08`),
@@ -261,17 +261,17 @@ sobre o ticket em todos.
   - Canal com `Ordering.Unit == partition` recusa `Retry.Strategy ==
     separate-channel` na construção (`KFK-11`).
 - [ ] **[P0] DLQ como `Containment`**: `DLQ{Channel}.Quarantine(ctx,
-  dmpfports.Contained)` publica em `Channel.Containment` o `Envelope` byte a
+  ports.Contained)` publica em `Channel.Containment` o `Envelope` byte a
   byte, com headers `dmpf-reason`, `dmpf-consumer`, `dmpf-error` (sanitizado,
   `ERR-20`) e `dmpf-attempt` (`TRP-52`). Nunca reserializa (`TRP-13`).
 - [ ] **[P1] Métricas do pool**: `dmpf_service_pool_utilization` e
   `dmpf_service_queue_depth` por consumidor (`MET-11`), via
-  `dmpf-observability/metrics`.
+  `observability/metrics`.
 - [ ] **[P1] Nome de tópico**: `Validate` do canal aplica `KFK-01`, `KFK-01c` e
   `KFK-02`; `Partitions`, `Partitioner` e `KeyEncoding` obrigatórios (`KFK-04`).
   Aumento de partições **não** é operação do provider (`KFK-04b`).
 
-#### `dmpf-provider-sqs`
+#### `sqs`
 
 - [ ] **[P0] Publisher SQS estrutural**: `Publisher.Publish(ctx, destination,
   message)` codifica `message` em Base64 **uma vez** como corpo (`SQS-01`,
@@ -325,15 +325,15 @@ sobre o ticket em todos.
   unidade e as dependências externas em `external[]` com as quatro chaves; o
   baseline é regravado por `--write-baseline`, nunca à mão.
 - [ ] **[P1] Documentação**: `README.md` por módulo, no molde de
-  `dmpf-provider-postgres/README.md`, com o mapeamento do exemplo AsyncAPI de
+  `postgres/README.md`, com o mapeamento do exemplo AsyncAPI de
   FND-06 §16 para `channel.Channel` e a tabela de fórmulas de
   `janela_redelivery` (entregável 3 do ticket).
 
 ### Não-funcionais
 
-- [ ] **Conformidade**: `dmpf-conformance` aprova as cinco unidades novas; o
+- [ ] **Conformidade**: `conformance` aprova as cinco unidades novas; o
   `tools/dmpf-cell-check.sh` continua provando as células 26 e 12; nenhum
-  provider importa `dmpf-app` nem `dmpf-application`.
+  provider importa `app` nem `application`.
 - [ ] **Cadeia Go verde**: `fmt-check`, `vet`, `lint`, `build`, `test-race`,
   `govulncheck` nos cinco módulos; `test-race` com `-count=1`, `-p 1` e
   `-tags=integration` onde houver infraestrutura.
@@ -349,7 +349,7 @@ sobre o ticket em todos.
   (`ERR-20`, `ERR-21`); `dmpf-error` na DLQ é o texto sanitizado que o adapter
   já produz.
 - [ ] **Compatibilidade**: `google.golang.org/grpc >=1.83.1 <2`, versão já no
-  workspace (`dmpf-observability/go.mod:14`); `franz-go >=1.21.6 <2`;
+  workspace (`observability/go.mod:14`); `franz-go >=1.21.6 <2`;
   `aws-sdk-go-v2/service/sqs >=1.51.0 <2`, `service/sns >=1.46.0 <2`,
   `config >=1.33.3 <2` — versões verificadas em `proxy.golang.org` em
   06/09/2026.
@@ -362,14 +362,14 @@ sobre o ticket em todos.
 | `application` | [ ] | Nada |
 | `port` | [ ] | Nada — `Acknowledger` e `Containment` são **realizados**, não alterados |
 | `contract` | [ ] | Nada — `envelope.Unmarshal` e `payloadhash.Sum` são consumidos |
-| `provider` | [x] | **Cinco módulos novos**: `dmpf-transport`, `dmpf-provider-grpc`, `dmpf-provider-http`, `dmpf-provider-kafka`, `dmpf-provider-sqs`; `dmpf-observability/metrics` ganha `MET-11`/`MET-12` |
+| `provider` | [x] | **Cinco módulos novos**: `transport`, `grpc`, `http`, `kafka`, `sqs`; `observability/metrics` ganha `MET-11`/`MET-12` |
 | `app` | [ ] | Nada em código; o composition root de exemplo do `KRN-12` é quem ligará provider ao adapter |
 | Workspace | [x] | `go.work` (+5 `use`), `tools/dmpf-baseline/units-baseline.json`, `.github/workflows/ci.yml` (+ Redpanda e floci), `AGENTS.md` (inventário de libs) |
 
 ## Localização de código
 
 ```text
-libs/backend/go/dmpf-transport/                      — NOVO módulo, bloco provider; única dependência externa: API OpenTelemetry (observe)
+libs/backend/go/transport/                      — NOVO módulo, bloco provider; única dependência externa: API OpenTelemetry (observe)
   deadline/
     deadline.go              — Budget, Outgoing, ErrNoDeadline, ErrDeadlineExhausted
     deadline_test.go
@@ -382,37 +382,37 @@ libs/backend/go/dmpf-transport/                      — NOVO módulo, bloco pro
     attempt.go               — Header, Encode, Decode
   doc.go, README.md, go.mod, go.sum, project.json, package.json, dmpf-units.json
 
-libs/backend/go/dmpf-provider-grpc/                  — NOVO módulo
+libs/backend/go/grpc/                  — NOVO módulo
   config.go                  — Config, MethodPolicy, Budgets, ErrTLSRequired, ErrMethodNotDeclared
   dial.go                    — Dial: TLS, service config (round_robin + health), interceptors
   interceptor_deadline.go    — unário e stream: deadline.Outgoing por método
-  interceptor_retry.go       — unário: retry por MethodPolicy via dmpf-observability/retry
+  interceptor_retry.go       — unário: retry por MethodPolicy via observability/retry
   server.go                  — NewServer: TLS, health por serviço, Admission
   admission.go               — interceptor de admissão por método e tenant (MET-12)
   status.go                  — HTTPStatus(codes.Code)
   *_test.go                  — bufconn; two_hops_test.go prova GRP-05/06/17
   doc.go, README.md, go.mod, go.sum, project.json, package.json, dmpf-units.json
 
-libs/backend/go/dmpf-provider-http/                  — NOVO módulo (só stdlib + dmpf-*)
+libs/backend/go/http/                  — NOVO módulo (só stdlib + dmpf-*)
   route.go                   — Route, ErrContractRequired
   client.go                  — Client.Do: timeout do deadline, retry por método
   admission.go               — middleware por rota e tenant (MET-12)
   *_test.go                  — httptest
   doc.go, README.md, go.mod, go.sum, project.json, package.json, dmpf-units.json
 
-libs/backend/go/dmpf-provider-kafka/                 — NOVO módulo
+libs/backend/go/kafka/                 — NOVO módulo
   config.go                  — Config, Observer, erros
   publisher.go               — Publisher (estrutural a relay.Publisher)
   consumer.go                — Consumer.Run: poll, partição→goroutine, rebalance
-  acknowledger.go            — realização de dmpfports.Acknowledger por registro
-  dlq.go                     — DLQ: realização de dmpfports.Containment
+  acknowledger.go            — realização de ports.Acknowledger por registro
+  dlq.go                     — DLQ: realização de ports.Containment
   offsets.go                 — cursor contíguo por partição (TRP-29)
   client.go                  — interface mínima sobre *kgo.Client para fakes
   *_test.go                  — unitário com fake; integration_test.go (//go:build integration)
   hops_test.go               — linhas Kafka da matriz §5.2, par positivo e negativo
   doc.go, README.md, go.mod, go.sum, project.json, package.json, dmpf-units.json
 
-libs/backend/go/dmpf-provider-sqs/                   — NOVO módulo
+libs/backend/go/sqs/                   — NOVO módulo
   config.go                  — Config, erros (ErrMessageTooLarge, ErrTooManyAttributes, ErrSNSEnvelopeNotRaw)
   body.go                    — EncodeBody, DecodeBody (Base64 uma vez; detecção de notificação SNS)
   derive.go                  — MessageGroupId e MessageDeduplicationId (SQS-05, SQS-06, SQS-06b)
@@ -420,13 +420,13 @@ libs/backend/go/dmpf-provider-sqs/                   — NOVO módulo
   sns.go                     — Publisher SNS com verificação de RawMessageDelivery na construção
   consumer.go                — Consumer.Run: receive, heartbeat de visibilidade, teto 12h
   acknowledger.go            — Ack = DeleteMessage; Release = ChangeMessageVisibility
-  dlq.go                     — DLQ: realização de dmpfports.Containment
+  dlq.go                     — DLQ: realização de ports.Containment
   api.go                     — interfaces mínimas sobre os clientes sqs/sns para fakes
   *_test.go                  — unitário com fake; integration_test.go (//go:build integration, floci)
   hops_test.go               — linhas SQS/SNS da matriz §5.2, par positivo e negativo
   doc.go, README.md, go.mod, go.sum, project.json, package.json, dmpf-units.json
 
-libs/backend/go/dmpf-observability/
+libs/backend/go/observability/
   metrics/instruments.go     — MODIFICAR: +AdmissionRejections (MET-12), +PoolUtilization, +QueueDepth (MET-11)
   metrics/instruments_test.go — MODIFICAR
 
@@ -439,7 +439,7 @@ docs/adr/039-*.md            — NOVO: ADR desta realização (ver Decisões té
 
 **Arquivos a modificar, e o que muda**:
 
-- `libs/backend/go/dmpf-observability/metrics/instruments.go` — acrescenta os
+- `libs/backend/go/observability/metrics/instruments.go` — acrescenta os
   três instrumentos que `SPEC-NYD18TGD:185` deixou para esta spec, no catálogo
   único de FND-08 §6; nomes e unidades **exatamente** os de `MET-11` e `MET-12`.
 - `go.work` — cinco entradas `use`, em ordem alfabética como as oito atuais.
@@ -458,27 +458,27 @@ docs/adr/039-*.md            — NOVO: ADR desta realização (ver Decisões té
                        ┌─────────────────────────────────────────────┐
    bloco app           │  composition root (KRN-12 / serviço)        │
                        │  declara Catalog, Budgets, Sheets, TLS      │
-                       │  adapta Sink → dmpfapp.Consumer.Consume     │
+                       │  adapta Sink → app.Consumer.Consume     │
                        └──────┬───────────────────────┬──────────────┘
                               │ relay.Publisher        │ Sink (interface do provider)
-                              │ (estrutural)           │ dmpfports.Acknowledger
-                              │                        │ dmpfports.Containment
+                              │ (estrutural)           │ ports.Acknowledger
+                              │                        │ ports.Containment
    ┌──────────────────────────▼────────┐   ┌───────────▼───────────────────────┐
-   │ dmpf-provider-grpc   dmpf-provider-http │   │ dmpf-provider-kafka   dmpf-provider-sqs │
+   │ grpc   http │   │ kafka   sqs │
    │ Dial/NewServer        Client/Admission │   │ Publisher · Consumer · DLQ · Ack        │
    └──────────┬─────────────────┬──────────┘   └──────────┬────────────────────┬─────────┘
               │                 │                          │                    │
               │      ┌──────────▼──────────────────────────▼──────┐             │
-   bloco      │      │ dmpf-transport                              │             │
+   bloco      │      │ transport                              │             │
    provider   │      │ deadline · channel (ASY-02, janela) · attempt│            │
               │      └──────────────────┬─────────────────────────┘             │
               │                         │                                       │
    ┌──────────▼─────────────────────────▼───────────────────────────────────────▼──┐
-   │ dmpf-observability (KRN-09): resilience.Compose · retry · metrics · clock      │
+   │ observability (KRN-09): resilience.Compose · retry · metrics · clock      │
    └───────────────────────────────────────┬────────────────────────────────────────┘
                                            │
    bloco port / contract      ┌────────────▼──────────────┐   ┌────────────────────────┐
-                              │ dmpf-ports: Acknowledger, │   │ dmpf-contracts:         │
+                              │ ports: Acknowledger, │   │ contracts:         │
                               │ Containment, Contained    │   │ envelope.Unmarshal,     │
                               └───────────────────────────┘   │ payloadhash.Sum         │
                                                               └────────────────────────┘
@@ -488,9 +488,9 @@ Fronteira que o desenho respeita: o `provider` guarda **tudo que é
 tecnologia** — cliente gRPC, `net/http`, `kgo.Client`, `sqs.Client`, o
 mapeamento de disposição para gesto de broker —, e nada de **processo de
 consumo**: quem decide a disposição é o application service (`KRN-07`), quem
-ordena "quarantena, depois confirma" é o adapter (`dmpfapp.Consumer.contain`),
+ordena "quarantena, depois confirma" é o adapter (`app.Consumer.contain`),
 e quem liga um ao outro é o composition root. Nenhum provider importa
-`dmpf-app` nem `dmpf-application`; as células 26 e 27 da matriz continuam
+`app` nem `application`; as células 26 e 27 da matriz continuam
 proibidas e o `dmpf-cell-check.sh` continua a prová-lo.
 
 ### Fluxo 1 — governo do tempo em dois saltos (gRPC)
@@ -604,9 +604,9 @@ Run(ctx):
 - **Cinco módulos, não quatro**: `provider → provider` é célula permitida
   (`matrix.go:52`), e a abstração de prazo é compartilhada por gRPC e HTTP
   enquanto o contrato de canal e as fórmulas são compartilhados por Kafka e
-  SQS. Alternativa descartada: colocar as primitivas em `dmpf-observability` —
+  SQS. Alternativa descartada: colocar as primitivas em `observability` —
   módulo nomeado por FND-08, cuja spec fechou o escopo sem catalogação de canal;
-  ou em `dmpf-ports` — bloco de superfície fechada (treze identificadores,
+  ou em `ports` — bloco de superfície fechada (treze identificadores,
   `KRN-04`) e capability `pure`, onde `time.Duration` sequer entra.
 
 - **`franz-go v1.21.6` para Kafka**: é o único dos três clientes puros em Go
@@ -629,7 +629,7 @@ Run(ctx):
   proíbe de interpretar. Decodificar para ler e publicar os bytes originais é
   exatamente a distinção de `TRP-17` ("pode ler, não substituir").
 
-- **DLQ é `dmpfports.Containment`, não um segundo caminho**: o adapter já
+- **DLQ é `ports.Containment`, não um segundo caminho**: o adapter já
   ordena contenção antes de confirmação (`consumer.go:118-129`) e roteia por
   `Reason` (`containment.go`). Realizar a DLQ como `Containment` reaproveita
   essa ordem — `TRP-30` sai de graça — e deixa a fusão DLQ/quarantine de
@@ -639,7 +639,7 @@ Run(ctx):
 
 - **`Sink` é interface do provider; a ponte é da composition root**: a célula
   `provider → app` é proibida, então o provider não pode produzir
-  `dmpfapp.Delivery`. Declarar a interface no provider e adaptar no `app` é o
+  `app.Delivery`. Declarar a interface no provider e adaptar no `app` é o
   idioma "accept interfaces, return structs" que `relay.Store` já usa no
   sentido inverso.
 
@@ -673,7 +673,7 @@ Run(ctx):
   decisão pelo floci é do usuário (2026-09-06). A validação contra SNS real
   continua com a revisão de infraestrutura de `TRP-41` e com o `KRN-11`.
 
-- **Métricas `MET-11`/`MET-12` no catálogo de `dmpf-observability/metrics`**:
+- **Métricas `MET-11`/`MET-12` no catálogo de `observability/metrics`**:
   FND-08 §6 é um catálogo único; instrumentos declarados em outro módulo
   criariam segunda autoridade sobre nome e unidade. O `KRN-09` os deixou
   nominalmente para esta spec (`SPEC-NYD18TGD:185`).
@@ -726,13 +726,13 @@ das fontes normativas e das divergências reconciliadas acima.
   operado.
 - [ ] A desserialização de qualquer contrato funciona sem acesso de rede a um
   registry, e nenhum artefato declara exactly-once fim a fim.
-- [ ] Nenhum dos cinco módulos importa `dmpf-app` nem `dmpf-application`;
-  `dmpf-conformance --root . --base develop` aprova e o `dmpf-cell-check.sh`
+- [ ] Nenhum dos cinco módulos importa `app` nem `application`;
+  `conformance --root . --base develop` aprova e o `dmpf-cell-check.sh`
   passa.
 - [ ] `relay.Publisher` é satisfeito por `kafka.Publisher` e `sqs.Publisher` em
   teste de compilação (`var _ interface{ Publish(...) error } = ...`) sem import
-  de `dmpf-app`.
-- [ ] `dmpfports.Acknowledger` e `dmpfports.Containment` são satisfeitos pelas
+  de `app`.
+- [ ] `ports.Acknowledger` e `ports.Containment` são satisfeitos pelas
   realizações Kafka e SQS.
 - [ ] Em Kafka, com `enable.auto.commit` desabilitado, um registro cujo `Sink`
   não retornou nunca tem offset commitado, e o commit após três registros
@@ -766,7 +766,7 @@ das fontes normativas e das divergências reconciliadas acima.
   contra Redpanda e floci; sem as variáveis, faz `t.Skip` nomeando-as.
 - [ ] `dmpf-units.json` de cada módulo declara as dependências externas com as
   quatro chaves; o baseline é regravado por `--write-baseline`.
-- [ ] `README.md` de cada módulo existe; o de `dmpf-transport` traz o
+- [ ] `README.md` de cada módulo existe; o de `transport` traz o
   mapeamento do exemplo AsyncAPI de FND-06 §16 e a tabela de fórmulas.
 - [ ] ADR-039 registrado e indexado em `docs/adr/README.md`; `AGENTS.md`
   inventaria os treze módulos.
@@ -813,7 +813,7 @@ das fontes normativas e das divergências reconciliadas acima.
   o handler não foi invocado e o corpo não foi lido (contador de bytes do
   `io.Reader` é zero).
 
-**`dmpf-transport` — canal e janelas**
+**`transport` — canal e janelas**
 
 - Dado `Channel` sem `Redelivery`, então `Validate` → erro nomeando o item.
 - Dado `Ordering{Unit: partition}` e `Retry{Strategy: separate-channel}`,
@@ -895,7 +895,7 @@ das fontes normativas e das divergências reconciliadas acima.
 - [P0] NUNCA reiniciar o deadline recebido: `Outgoing` devolve `min(recebido − folga, orçamento)` e nunca mais que o recebido.
 - [P0] NUNCA confirmar no broker antes do retorno do `Sink`; o provider só traduz `Ack`/`Release`.
 - [P0] NUNCA desserializar e reserializar o payload; publicar os bytes recebidos, em publicação, retry e contenção.
-- [P0] NUNCA importar `dmpf-app` nem `dmpf-application` de um provider.
+- [P0] NUNCA importar `app` nem `application` de um provider.
 - [P0] NUNCA retentar sem idempotência declarada; lista vazia é zero retry.
 - [P0] NUNCA operar canal sem os sete itens de `ASY-02`; recusar na construção.
 - [P0] Endereço concreto só na configuração; nenhum artefato declara exactly-once.
@@ -922,7 +922,7 @@ das fontes normativas e das divergências reconciliadas acima.
   realizados; a ausência é a conformidade para mensagem de inbox.
 - **Claim-check** (`TRP-21`, `SQS-12b`): vedado até nova major do perfil.
 - **CDC, replay operacional (`TRP-25`), runbook e limiares de FND-08**.
-- **Composition root de exemplo ligando provider → `dmpfapp.Consumer` →
+- **Composition root de exemplo ligando provider → `app.Consumer` →
   Postgres**: é do `KRN-12`; esta spec entrega os fakes e a interface `Sink`
   que ele usará.
 - **Test kit de conformidade de provider e vetores para o catálogo**: `KRN-11`

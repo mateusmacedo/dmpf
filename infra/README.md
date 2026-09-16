@@ -21,7 +21,7 @@ infra/
 │       ├── exporters.yml           # profile exporters (postgres, redis, blackbox, cAdvisor)
 │       ├── redpanda-console.yml    # profile console (+ ../redpanda-console.yaml): UI do Kafka
 │       ├── swagger-ui.yml          # profile dmpf: Swagger UI sobre as duas specs do BFF
-│       └── dmpf-reference.yml      # profile dmpf: BFF, orders e reservations, postgres-init
+│       └── reference.yml      # profile dmpf: BFF, orders e reservations, postgres-init
 ├── observability/                  # config + manifestos K8s, um diretório por componente
 │   ├── kustomization.yaml          # agrega os seis
 │   ├── otel-collector/             # config.yaml, Deployment, Service
@@ -31,7 +31,7 @@ infra/
 │   ├── alloy/                      # config do Docker e do K8s, DaemonSet, RBAC
 │   └── grafana/                    # datasources, provider e dashboards, Deployment, Service
 ├── k8s/                            # deploy (Kustomize)
-│   ├── base/{dmpf-reference-bff,dmpf-reference-orders,dmpf-reference-reservations,postgres,redpanda}/
+│   ├── base/{bff,orders,reservations,postgres,redpanda}/
 │   └── overlays/{dev,hmg}/
 └── docker/Dockerfile.node.example  # referência para apps Node
 ```
@@ -45,13 +45,13 @@ Os profiles são cumulativos. `observability` sobe a plataforma inteira; `dmpf` 
 docker compose -f infra/local/docker-compose.yml --profile postgres up -d
 
 # a plataforma de observabilidade e os exporters
-pnpm nx run dmpf-reference-bff-go:observability-up
+pnpm nx run bff:observability-up
 
 # os seis processos com dependências, exporters e painéis (constrói as três imagens)
 docker compose -f infra/local/docker-compose.yml --profile dmpf up -d --build
 
 # derrubar (os volumes ficam; `-v` apaga os dados)
-pnpm nx run dmpf-reference-bff-go:infra-down
+pnpm nx run bff:infra-down
 ```
 
 Pelo Nx: `infra-up` (Postgres, Redpanda e floci), `observability-up` (plataforma + exporters), `infra-down` e `infra-budget`.
@@ -94,7 +94,7 @@ Publicar em `0.0.0.0` tem uma consequência, além de servir o Windows: pelo IP 
 Todo serviço declara `deploy.resources` com teto (`limits`) e mínimo (`reservations`). O teto é do **conjunto**: `tools/infra-budget.sh` soma o que o `docker compose config` resolve e reprova se passar de 60% do host (`INFRA_BUDGET_FRACTION` muda a fração).
 
 ```bash
-pnpm nx run dmpf-reference-bff-go:infra-budget
+pnpm nx run bff:infra-budget
 ```
 
 Na máquina de referência (14 vCPU, 15,36 GiB) a soma dá **8,00 vCPU (57,1%)** e **8,2 GiB (53,1%)** com os 24 serviços: os seis processos da topologia dividem o mesmo 0,75 vCPU que os três papéis do app único usavam (0,15 no BFF e em cada `api`, 0,10 em cada relay e no consumer), e `postgres-init` e `redpanda-init` ficam em 0,05 vCPU cada. O teto é relativo ao host: num host de 8 vCPU os 60% (4,80 vCPU) não comportam a soma, com ou sem a topologia. O maior teto é do Redpanda (1,25 vCPU / 1,5 GiB, com `--memory=1G` no próprio broker); os exporters ficam em 0,10 vCPU / 64 MiB cada. O uso real em regime é da ordem de 0,15 vCPU e 1,2 GiB — os tetos protegem o host, não dimensionam o normal.
@@ -119,14 +119,14 @@ O dashboard `DMPF — topologia de referência (BFF, orders, reservations)` já 
 
 ```bash
 kubectl kustomize infra/k8s/overlays/dev     # renderizar sem cluster
-pnpm nx run dmpf-reference-bff-go:k8s-render     # renderiza os dois overlays
+pnpm nx run bff:k8s-render     # renderiza os dois overlays
 kubectl apply -k infra/k8s/overlays/dev
 ```
 
 | Overlay | Namespace | O que sobe | Credenciais |
 | --- | --- | --- | --- |
-| `dev` | `dmpf-dev` | Postgres, Redpanda, a plataforma de observabilidade e as três apps; Job `dmpf-databases` cria `dmpf_orders` e `dmpf_reservations`; Kafka, OTLP e gRPC interno sem TLS, `DMPF_MIGRATE=true` nos `api`, Grafana anônimo | `secretGenerator` com valores de desenvolvimento (`dmpf-reference-orders`, `dmpf-reference-reservations`, `grafana-admin`) |
-| `hmg` | `dmpf-hmg` | Observabilidade e as três apps (2 réplicas do BFF e de cada `api`); bancos e Kafka externos, TLS em tudo, inclusive no gRPC interno, Grafana só com login | `dmpf-reference-orders`, `dmpf-reference-reservations`, `dmpf-reference-orders-grpc-tls`, `dmpf-reference-reservations-grpc-tls`, `dmpf-reference-bff-grpc-ca` e `grafana-admin` vêm de ExternalSecret/SealedSecret com esses nomes; `secrets.example.yaml.tmpl` mostra a forma e **não** é resource |
+| `dev` | `dmpf-dev` | Postgres, Redpanda, a plataforma de observabilidade e as três apps; Job `dmpf-databases` cria `dmpf_orders` e `dmpf_reservations`; Kafka, OTLP e gRPC interno sem TLS, `DMPF_MIGRATE=true` nos `api`, Grafana anônimo | `secretGenerator` com valores de desenvolvimento (`orders`, `reservations`, `grafana-admin`) |
+| `hmg` | `dmpf-hmg` | Observabilidade e as três apps (2 réplicas do BFF e de cada `api`); bancos e Kafka externos, TLS em tudo, inclusive no gRPC interno, Grafana só com login | `orders`, `reservations`, `orders-grpc-tls`, `reservations-grpc-tls`, `bff-grpc-ca` e `grafana-admin` vêm de ExternalSecret/SealedSecret com esses nomes; `secrets.example.yaml.tmpl` mostra a forma e **não** é resource |
 
 As bases são fail-closed e o overlay `dev` relaxa o que precisa: `DMPF_KAFKA_INSECURE`, `DMPF_OTLP_INSECURE` e o acesso anônimo do Grafana nascem desligados, e o transporte gRPC interno não tem default — `dev` declara `DMPF_GRPC_INSECURE=true` por patch e `hmg` monta o certificado de cada `api` e a CA do BFF. As bases dos contextos não conhecem credencial: `DMPF_PG_DSN` (um banco por contexto) e `DMPF_KAFKA_BROKERS` vêm sempre do Secret do overlay; o resto vem do ConfigMap. Os seis Deployments têm `securityContext` restritivo (não root, sistema de arquivos só leitura, sem capabilities) e `terminationGracePeriodSeconds` acima do prazo interno de encerramento de cada papel.
 

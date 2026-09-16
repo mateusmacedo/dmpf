@@ -3,7 +3,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: dmpf-reference-reservations-api
+  name: reservations-api
 spec:
   template:
     spec:
@@ -30,4 +30,4 @@ spec:
       volumes:
         - name: grpc-tls
           secret:
-            secretName: dmpf-reference-reservations-grpc-tls
+            secretName: reservations-grpc-tls

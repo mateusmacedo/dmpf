@@ -12,8 +12,8 @@ As normas vivem em [`docs/dmpf/governanca-bom-pilotos.md`](../docs/dmpf/governan
 ## Validar
 
 ```bash
-go run ./libs/backend/go/dmpf-conformance/cmd/dmpf-bom --root . --release latest --base develop
-go run ./libs/backend/go/dmpf-conformance/cmd/dmpf-bom --root . --release 0.1.0 --now 2026-09-12T00:00:00Z
+go run ./libs/backend/go/conformance/cmd/bom --root . --release latest --base develop
+go run ./libs/backend/go/conformance/cmd/bom --root . --release 0.1.0 --now 2026-09-12T00:00:00Z
 ```
 
 | Flag | Efeito |
@@ -84,7 +84,7 @@ divergir em silêncio.
 | `package.json` | `packageManager` | O campo | o gerenciador antes do `@` |
 | `package.json` | `engines.node` | O campo | `node` |
 | `pnpm-workspace.yaml` | `catalog:<pacote>` | A entrada do mapa `catalog` | `<pacote>` |
-| `libs/backend/go/dmpf-observability/otelboot/start.go` | `semconv` | A versão do import `semconv` | `go.opentelemetry.io/otel/semconv` |
+| `libs/backend/go/observability/otelboot/start.go` | `semconv` | A versão do import `semconv` | `go.opentelemetry.io/otel/semconv` |
 
 Linha de comentário não é registro: um pin antigo comentado acima do atual é
 ignorado. A comparação ignora o prefixo `v`, o `<gerenciador>@` e o sufixo
@@ -111,7 +111,7 @@ decurso de prazo: `certificada` com `valid_until` no passado reprova em
 ## Evidência
 
 A evidência da certificação é commitada em `bom/evidence/<release>/<subject>.json`
-e gerada pelo `dmpf-evidence` do `dmpf-testkit`, sobre um commit com árvore limpa
+e gerada pelo `dmpf-evidence` do `testkit`, sobre um commit com árvore limpa
 e com o Postgres e o Redpanda das imagens pinadas no `dmpf-evidence.yml` — o
 header grava a versão real de cada um, e outra imagem não reproduz no workflow:
 
@@ -119,7 +119,7 @@ header grava a versão real de cada um, e outra imagem não reproduz no workflow
 CI=true GOTOOLCHAIN=go1.26.6 \
   DMPF_PG_DSN='postgres://dmpf:dmpf@localhost:5432/dmpf?sslmode=disable' \
   DMPF_KAFKA_BROKERS=localhost:9092 DMPF_REDPANDA_ADMIN=http://localhost:9644 \
-  go run ./libs/backend/go/dmpf-testkit/cmd/dmpf-evidence --root . --release 0.1.0 --out bom/evidence/0.1.0
+  go run ./libs/backend/go/testkit/cmd/evidence --root . --release 0.1.0 --out bom/evidence/0.1.0
 ```
 
 O comando publica um arquivo por subject (`golden`, `provider`, `domain`,
@@ -128,7 +128,7 @@ arquivo — o `evidence_digest` das entradas que o subject certifica. Duas
 execuções sobre o mesmo commit publicam os mesmos bytes, e o workflow
 `dmpf-evidence.yml` regenera a evidência no `header.commit` e a compara com
 `diff -r`. Subjects, variáveis e códigos de saída estão na seção `evidence` do
-[README do `dmpf-testkit`](../libs/backend/go/dmpf-testkit/README.md).
+[README do `testkit`](../libs/backend/go/testkit/README.md).
 
 O header de cada subject nomeia `schema`, `release`, `subject`, `commit`,
 `goversion`, `tags`, `packages`, `modules`, `externals`, `infra` (quando o subject
@@ -139,7 +139,7 @@ usa Postgres ou Redpanda) e, no `golden`, `tools`. O validador lê só `goversio
 {
   "header": {
     "goversion": "1.26.6",
-    "modules": [{ "path": "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-domain", "version": "0.0.0" }],
+    "modules": [{ "path": "github.com/mateusmacedo/dmpf/libs/backend/go/domain", "version": "0.0.0" }],
     "externals": [{ "package": "github.com/jackc/pgx/v5", "version": "v5.10.0" }]
   }
 }
@@ -191,7 +191,7 @@ reprova em `DMPF-X007`.
 ```json
 {
   "id": "X-go-1-27-migracao",
-  "object": { "kind": "bom-combination", "unit": "dmpf-reference", "identity": "go@1.27.0" },
+  "object": { "kind": "bom-combination", "unit": "reference", "identity": "go@1.27.0" },
   "adr": "ADR-041",
   "owner": "team:plataforma",
   "justification": "serviço em runtime uma minor à frente do certificado durante a migração",
@@ -245,4 +245,4 @@ derivam de `exceptions[].history`, e valor declarado divergente reprova
 
 As exceções do BOM trazem ainda os `DMPF-X001` a `DMPF-X007` da admissão comum.
 A tabela completa, com seção normativa, vive em
-`libs/backend/go/dmpf-conformance/internal/rule/diagnostic.go`.
+`libs/backend/go/conformance/internal/rule/diagnostic.go`.

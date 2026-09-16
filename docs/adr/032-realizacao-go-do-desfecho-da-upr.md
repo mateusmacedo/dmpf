@@ -19,7 +19,7 @@ decide a regra de dependência sobre o grafo real e classifica cada builtin por
 capability.
 
 Até esta história, nenhuma linha de código realizava a norma: o módulo
-`dmpf-domain-go` era um placeholder do `KRN-01`. Três forças pressionavam a
+`domain` era um placeholder do `KRN-01`. Três forças pressionavam a
 realização. A primeira é a **distinguibilidade** de `DEC-04`: se o segundo
 retorno fosse `error`, um `fmt.Errorf` vazaria falha técnica pelo mesmo canal e a
 exaustividade de `DEC-01` deixaria de ser verificável no chamador. A segunda é a
@@ -31,7 +31,7 @@ como `runtime.framework` e o bloco `domain` não pode importar.
 
 Dois achados do próprio terreno restringiram o desenho. O verificador do KRN-02
 classifica o package `time` inteiro como `io.clock`
-(`libs/backend/go/dmpf-conformance/internal/rule/stdlib.go`), então importá-lo
+(`libs/backend/go/conformance/internal/rule/stdlib.go`), então importá-lo
 no domínio reprova com `DMPF-E001`. E tanto o `depguard` quanto o verificador
 decidem por package e declaram não distinguir `time.Now()` de `time.Duration`
 nem `fmt.Println` de `fmt.Sprintf` — a metade dinâmica de RFC §9.1 ficava sem
@@ -40,7 +40,7 @@ defesa mecânica.
 ## Decisão
 
 **Forma do desfecho.** Toda UPR do kernel Go tem a assinatura
-`func (a *Aggregate) Verb(cmd Command) (dmpfdomain.Accepted[R], *dmpfdomain.Rejection)`.
+`func (a *Aggregate) Verb(cmd Command) (domain.Accepted[R], *domain.Rejection)`.
 O segundo retorno é o **tipo concreto** `*Rejection`, nunca a interface `error`:
 o compilador impede que qualquer outro valor trafegue pelo canal de recusa, o que
 é a condição do ADR-018 tornada estrutural. `*Rejection` implementa `error`
@@ -109,8 +109,8 @@ prova um vetor por família em cada execução, além dos vetores de package do
 `depguard`.
 
 **Cada package é uma unidade.** O agregado de exemplo vive em `example/orders`,
-package exportado do mesmo módulo e do mesmo `bounded_context: dmpf-kernel`,
-declarado como unidade própria `dmpf-kernel/example-orders` no manifesto e no
+package exportado do mesmo módulo e do mesmo `bounded_context: kernel`,
+declarado como unidade própria `kernel/example-orders` no manifesto e no
 baseline, em commit separado do código (RFC §10.2).
 
 ## Alternativas descartadas
@@ -153,9 +153,9 @@ baseline, em commit separado do código (RFC §10.2).
 - O vocabulário de tempo (`Instant`) é local ao exemplo. Um tipo compartilhado e
   o relógio como porta são do `KRN-04`.
 - **Consequência declarada, não decidida:** pela C2 (RFC §5.5; ADR-017), um
-  `domain` de bounded context de negócio não pode importar `dmpf-kernel/domain`
+  `domain` de bounded context de negócio não pode importar `kernel/domain`
   (`DMPF-D002`), e uma unidade `domain` nunca é superfície pública
-  (`DMPF-M002`). Esta história fica inteira em `dmpf-kernel` e o problema não a
+  (`DMPF-M002`). Esta história fica inteira em `kernel` e o problema não a
   alcança, mas ele alcança todo consumidor real do kernel. A adoção por
   contexts de negócio exige decisão da fundação — ADR sobre kernel compartilhado
   ou revisão da C2 — e é levada à SPEC-YRJRADY9, nunca resolvida por

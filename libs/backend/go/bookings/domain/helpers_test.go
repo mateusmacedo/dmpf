@@ -1,40 +1,40 @@
-package bookingsdomain_test
+package domain_test
 
 import (
 	"testing"
 
-	bookingsdomain "github.com/mateusmacedo/dmpf/libs/backend/go/bookings/domain"
-	dmpfdomain "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-domain"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/bookings/domain"
+	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
 )
 
 const (
-	bookingID  = bookingsdomain.BookingID("B-100")
-	resourceID = bookingsdomain.ResourceID("R-200")
-	resCode    = bookingsdomain.ResourceCode("room-101")
-	at         = bookingsdomain.Instant(1755432000)
+	bookingID  = domain.BookingID("B-100")
+	resourceID = domain.ResourceID("R-200")
+	resCode    = domain.ResourceCode("room-101")
+	at         = domain.Instant(1755432000)
 )
 
-func newReservedBooking(t *testing.T) *bookingsdomain.Booking {
+func newReservedBooking(t *testing.T) *domain.Booking {
 	t.Helper()
-	b := bookingsdomain.NewBooking(bookingID)
-	_, rej := b.Reserve(bookingsdomain.ReserveBooking{ResourceID: resourceID, Quantity: 5, At: at})
+	b := domain.NewBooking(bookingID)
+	_, rej := b.Reserve(domain.ReserveBooking{ResourceID: resourceID, Quantity: 5, At: at})
 	if rej != nil {
 		t.Fatalf("setup: Reserve rejected: %v", rej)
 	}
 	return b
 }
 
-func newRegisteredResource(t *testing.T) *bookingsdomain.Resource {
+func newRegisteredResource(t *testing.T) *domain.Resource {
 	t.Helper()
-	r := bookingsdomain.NewResource(resCode)
-	_, rej := r.Register(bookingsdomain.RegisterResource{Code: resCode, At: at})
+	r := domain.NewResource(resCode)
+	_, rej := r.Register(domain.RegisterResource{Code: resCode, At: at})
 	if rej != nil {
 		t.Fatalf("setup: Register rejected: %v", rej)
 	}
 	return r
 }
 
-func requireRejected[R any](t *testing.T, acc dmpfdomain.Accepted[R], rej *dmpfdomain.Rejection, code dmpfdomain.Code) {
+func requireRejected[R any](t *testing.T, acc kernel.Accepted[R], rej *kernel.Rejection, code kernel.Code) {
 	t.Helper()
 	if rej == nil {
 		t.Fatal("expected Rejected, got Accepted")
@@ -51,14 +51,14 @@ func requireRejected[R any](t *testing.T, acc dmpfdomain.Accepted[R], rej *dmpfd
 	}
 }
 
-func requireAccepted[R any](t *testing.T, rej *dmpfdomain.Rejection) {
+func requireAccepted[R any](t *testing.T, rej *kernel.Rejection) {
 	t.Helper()
 	if rej != nil {
 		t.Fatalf("expected Accepted, got Rejected %v", rej)
 	}
 }
 
-func requireBookingUnchanged(t *testing.T, before, after bookingsdomain.BookingSnapshot) {
+func requireBookingUnchanged(t *testing.T, before, after domain.BookingSnapshot) {
 	t.Helper()
 	if !before.Equal(after) {
 		t.Fatalf("snapshot changed on rejection\nbefore: %+v\nafter:  %+v", before, after)

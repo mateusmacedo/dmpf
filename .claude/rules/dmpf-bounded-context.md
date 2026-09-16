@@ -16,10 +16,11 @@ skill `.agents/skills/dmpf-bounded-context/`.
 ## Fronteiras (ADR-010, ADR-017, shared kernel)
 
 - Seis blocos, pertencimento único por unidade: `domain`, `port`,
-  `application`, `provider`, `app`, `contract`. Um módulo Go por bloco;
-  nenhum arquivo pertence a dois (ADR-010).
+  `application`, `provider`, `app`, `contract`. Um package por bloco, dentro
+  do módulo único do contexto (ADR-045); nenhum arquivo pertence a dois
+  (ADR-010).
 - A regra de dependência é fail-closed e decidida sobre o grafo real de
-  imports pelo `dmpf-conformance`. Células proibidas não têm exceção por
+  imports pelo `conformance`. Células proibidas não têm exceção por
   conveniência (ADR-010; `.golangci.yml` `depguard` por bloco).
 - Todo contexto declara o seu `bounded_context`, estável e único; contextos
   distintos só se tocam pela superfície pública ou por unidade designada no
@@ -74,12 +75,12 @@ skill `.agents/skills/dmpf-bounded-context/`.
 
 - A fonte é `contracts/proto/company/<name>/event/v1/<evento>.proto`, package
   `company.<name>.event.v1` — `company` é fixo (PTB-01, REP-01). O gerado
-  vive em `libs/backend/go/dmpf-contracts/gen/go/` e só nasce pelo rito
+  vive em `libs/backend/go/contracts/gen/go/` e só nasce pelo rito
   `tools/buf.sh generate`; nunca à mão (ADR-033).
 - Contrato publicado é imutável: `.proto` existente não é regravado; evolução
   é rito próprio. `contracts/buf.yaml` é módulo único — não se cria um por
   contexto.
-- A unidade `<ctx>/contract` entra no manifesto do `dmpf-contracts` **antes**
+- A unidade `<ctx>/contract` entra no manifesto do `contracts` **antes**
   do `generate`; sem ela o gerado cai em `DMPF-U001`.
 
 ## REST (RST-02, RST-04)
@@ -93,7 +94,7 @@ skill `.agents/skills/dmpf-bounded-context/`.
 ## Observabilidade mínima (FND-08)
 
 - O caso de uso passa pelo gancho de instrumentação do kernel
-  (`dmpf-observability/usecase`); rota e consumer expõem as três posições de
+  (`observability/usecase`); rota e consumer expõem as três posições de
   observabilidade que `RES-23` exige. Erro é sempre amostrado (`TRC-14`).
 
 ## O que nunca se faz
