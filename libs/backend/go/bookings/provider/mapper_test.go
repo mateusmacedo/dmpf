@@ -1,4 +1,4 @@
-package bookingspostgres_test
+package provider_test
 
 import (
 	"errors"
@@ -7,11 +7,11 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	bookingsdomain "github.com/mateusmacedo/dmpf/libs/backend/go/bookings/domain"
-	bookingspostgres "github.com/mateusmacedo/dmpf/libs/backend/go/bookings/provider"
-	eventv1 "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/gen/go/company/bookings/event/v1"
-	dmpfdomain "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-domain"
-	dmpfpostgres "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/bookings/domain"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/bookings/provider"
+	eventv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/bookings/event/v1"
+	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
 )
 
 type strayEvent struct{}
@@ -21,14 +21,14 @@ func (strayEvent) EventName() string { return "bookings.stray" }
 func TestMapperMapsBookingReserved(t *testing.T) {
 	t.Parallel()
 
-	event := bookingsdomain.BookingReserved{
+	event := domain.BookingReserved{
 		BookingID:  "B-100",
 		ResourceID: "R-200",
 		Quantity:   5,
 		At:         1_755_432_000,
 	}
 
-	mapped, err := bookingspostgres.Mapper{}.Map(event)
+	mapped, err := provider.Mapper{}.Map(event)
 
 	if err != nil {
 		t.Fatalf("Map() = %v, want nil", err)
@@ -50,11 +50,11 @@ func TestMapperMapsBookingReserved(t *testing.T) {
 func TestMapperReportsUnmappedEvent(t *testing.T) {
 	t.Parallel()
 
-	_, err := bookingspostgres.Mapper{}.Map(strayEvent{})
+	_, err := provider.Mapper{}.Map(strayEvent{})
 
-	if !errors.Is(err, dmpfpostgres.ErrUnmappedEvent) {
+	if !errors.Is(err, postgres.ErrUnmappedEvent) {
 		t.Fatalf("Map() = %v, want ErrUnmappedEvent", err)
 	}
 }
 
-var _ dmpfdomain.DomainEvent = strayEvent{}
+var _ kernel.DomainEvent = strayEvent{}

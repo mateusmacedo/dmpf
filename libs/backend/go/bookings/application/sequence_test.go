@@ -1,18 +1,18 @@
-package bookingsapplication_test
+package application_test
 
 import (
 	"context"
 	"slices"
 	"testing"
 
-	bookingsapplication "github.com/mateusmacedo/dmpf/libs/backend/go/bookings/application"
-	bookingsdomain "github.com/mateusmacedo/dmpf/libs/backend/go/bookings/domain"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/bookings/application"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/bookings/domain"
 )
 
 func TestReserveWalksTheNineStepsInOrder(t *testing.T) {
 	h := newHarness(t)
 
-	if _, err := h.service.ReserveBooking(context.Background(), bookingsapplication.Reserve{
+	if _, err := h.service.ReserveBooking(context.Background(), application.Reserve{
 		BookingID: testBookingID, ResourceID: testResourceID, Quantity: 5,
 	}); err != nil {
 		t.Fatalf("ReserveBooking() error = %v, want nil", err)
@@ -34,12 +34,12 @@ func TestReserveWalksTheNineStepsInOrder(t *testing.T) {
 
 func TestCancelWalksTheNineStepsInOrder(t *testing.T) {
 	h := newHarness(t)
-	h.seedBooking(t, bookingsdomain.BookingSnapshot{
+	h.seedBooking(t, domain.BookingSnapshot{
 		ID: testBookingID, ResourceID: testResourceID, Quantity: 5,
-		Status: bookingsdomain.BookingReservedStatus, ReservedAt: 1000,
+		Status: domain.BookingReservedStatus, ReservedAt: 1000,
 	}, 1)
 
-	if _, err := h.service.CancelBooking(context.Background(), bookingsapplication.Cancel{
+	if _, err := h.service.CancelBooking(context.Background(), application.Cancel{
 		BookingID: testBookingID,
 	}); err != nil {
 		t.Fatalf("CancelBooking() error = %v, want nil", err)
@@ -62,7 +62,7 @@ func TestCancelWalksTheNineStepsInOrder(t *testing.T) {
 func TestRegisterWalksTheNineStepsInOrder(t *testing.T) {
 	h := newHarness(t)
 
-	if _, err := h.service.RegisterResource(context.Background(), bookingsapplication.Register{
+	if _, err := h.service.RegisterResource(context.Background(), application.Register{
 		Code: testResCode,
 	}); err != nil {
 		t.Fatalf("RegisterResource() error = %v, want nil", err)
@@ -84,11 +84,11 @@ func TestRegisterWalksTheNineStepsInOrder(t *testing.T) {
 
 func TestCancelRejectsWhenBookingNotReserved(t *testing.T) {
 	h := newHarness(t)
-	h.seedBooking(t, bookingsdomain.BookingSnapshot{
-		ID: testBookingID, Status: bookingsdomain.BookingCancelled,
+	h.seedBooking(t, domain.BookingSnapshot{
+		ID: testBookingID, Status: domain.BookingCancelled,
 	}, 2)
 
-	outcome, err := h.service.CancelBooking(context.Background(), bookingsapplication.Cancel{
+	outcome, err := h.service.CancelBooking(context.Background(), application.Cancel{
 		BookingID: testBookingID,
 	})
 	if err != nil {
@@ -98,7 +98,7 @@ func TestCancelRejectsWhenBookingNotReserved(t *testing.T) {
 	if !refused {
 		t.Fatal("expected Rejected, got Accepted")
 	}
-	if rej.Code() != bookingsdomain.CodeNotReserved {
-		t.Fatalf("Code() = %q, want %q", rej.Code(), bookingsdomain.CodeNotReserved)
+	if rej.Code() != domain.CodeNotReserved {
+		t.Fatalf("Code() = %q, want %q", rej.Code(), domain.CodeNotReserved)
 	}
 }

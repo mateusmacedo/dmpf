@@ -1,15 +1,15 @@
-package bookingsapplication
+package application
 
 import (
 	"context"
 	"fmt"
 
-	dmpfapplication "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application"
-	dmpfdomain "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-domain"
-	dmpfports "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-ports"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/application"
+	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
+	port "github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 
-	bookingsdomain "github.com/mateusmacedo/dmpf/libs/backend/go/bookings/domain"
-	bookingsports "github.com/mateusmacedo/dmpf/libs/backend/go/bookings/ports"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/bookings/domain"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/bookings/ports"
 )
 
 const (
@@ -28,74 +28,74 @@ const (
 const maxEventsPerCommand = 1
 
 type Resources struct {
-	Bookings  dmpfports.Repository[bookingsdomain.BookingID, bookingsdomain.BookingSnapshot]
-	Resources dmpfports.Repository[bookingsdomain.ResourceCode, bookingsdomain.ResourceSnapshot]
-	Outbox    dmpfports.Outbox
+	Bookings  port.Repository[domain.BookingID, domain.BookingSnapshot]
+	Resources port.Repository[domain.ResourceCode, domain.ResourceSnapshot]
+	Outbox    port.Outbox
 }
 
 type Command interface{ isCommand() }
 
 type Reserve struct {
-	BookingID  bookingsdomain.BookingID
-	ResourceID bookingsdomain.ResourceID
+	BookingID  domain.BookingID
+	ResourceID domain.ResourceID
 	Quantity   int
 }
 
 func (Reserve) isCommand() {}
 
 type Cancel struct {
-	BookingID bookingsdomain.BookingID
+	BookingID domain.BookingID
 }
 
 func (Cancel) isCommand() {}
 
 type Register struct {
-	Code bookingsdomain.ResourceCode
+	Code domain.ResourceCode
 }
 
 func (Register) isCommand() {}
 
 type Service struct {
-	UoW            dmpfports.UnitOfWork[Resources]
-	Reader         dmpfports.Reader[bookingsdomain.BookingID, bookingsdomain.BookingSnapshot]
-	ResourceReader bookingsports.BookingsByResourceReader
-	Clock          dmpfports.Clock
-	IDs            dmpfports.IDGenerator
-	Authorize      dmpfapplication.AuthorizeFunc[Command]
+	UoW            port.UnitOfWork[Resources]
+	Reader         port.Reader[domain.BookingID, domain.BookingSnapshot]
+	ResourceReader ports.BookingsByResourceReader
+	Clock          port.Clock
+	IDs            port.IDGenerator
+	Authorize      application.AuthorizeFunc[Command]
 }
 
-func (s Service) instrumentation() dmpfports.Instrumentation {
-	return dmpfports.NoInstrumentation()
+func (s Service) instrumentation() port.Instrumentation {
+	return port.NoInstrumentation()
 }
 
-func authorizationResult(err error) dmpfports.Result {
-	return dmpfports.Result{Outcome: dmpfports.OutcomeFailed, Err: err}
+func authorizationResult(err error) port.Result {
+	return port.Result{Outcome: port.OutcomeFailed, Err: err}
 }
 
 func enqueueAll(
 	ctx context.Context,
-	outbox dmpfports.Outbox,
-	identity dmpfapplication.Identity,
+	outbox port.Outbox,
+	identity application.Identity,
 	aggregateType string,
 	aggregateID string,
-	written dmpfports.Version,
-	events []dmpfdomain.DomainEvent,
+	written port.Version,
+	events []kernel.DomainEvent,
 ) error {
 	if len(events) > len(identity.MessageIDs) {
 		panic(fmt.Sprintf(
-			"bookingsapplication: the decision produced %d events but only %d identifiers were resolved; raise maxEventsPerCommand",
+			"application: the decision produced %d events but only %d identifiers were resolved; raise maxEventsPerCommand",
 			len(events), len(identity.MessageIDs)))
 	}
 	for i, event := range events {
-		entry := dmpfports.OutboxEntry{
+		entry := port.OutboxEntry{
 			MessageID:        identity.MessageIDs[i],
 			OccurredAt:       identity.OccurredAt,
-			Intent:           dmpfports.PublishIntent{Destination: Destination, PartitionKey: aggregateID},
+			Intent:           port.PublishIntent{Destination: Destination, PartitionKey: aggregateID},
 			AggregateType:    aggregateType,
 			AggregateID:      aggregateID,
 			AggregateVersion: written,
 			Event:            event,
-			Context:          dmpfapplication.MessageContextFor(ctx, identity.MessageIDs[i]),
+			Context:          application.MessageContextFor(ctx, identity.MessageIDs[i]),
 		}
 		if err := outbox.Enqueue(ctx, entry); err != nil {
 			return err

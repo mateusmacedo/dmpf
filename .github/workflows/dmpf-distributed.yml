@@ -93,10 +93,10 @@ jobs:
           exit 1
 
       # O target declara `dependsOn` no `test-race` do provider Postgres e do
-      # dmpf-app, então o harness só roda depois que as duas camadas de que
+      # app, então o harness só roda depois que as duas camadas de que
       # depende passaram sobre a mesma infra.
       - name: Harness distribuído (KIT-06)
-        run: pnpm nx run dmpf-testkit-go:test-distributed
+        run: pnpm nx run testkit:test-distributed
 
       - name: Derrubar a infraestrutura do job
         if: always()

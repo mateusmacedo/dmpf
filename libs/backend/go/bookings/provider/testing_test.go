@@ -1,6 +1,6 @@
 //go:build integration
 
-package bookingspostgres_test
+package provider_test
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	bookingspostgres "github.com/mateusmacedo/dmpf/libs/backend/go/bookings/provider"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/bookings/provider"
 )
 
 func openPool(t *testing.T) *pgxpool.Pool {
@@ -30,7 +30,7 @@ func openPool(t *testing.T) *pgxpool.Pool {
 	}
 	t.Cleanup(pool.Close)
 
-	if err := bookingspostgres.Migrate(ctx, pool); err != nil {
+	if err := provider.Migrate(ctx, pool); err != nil {
 		t.Fatalf("Migrate() = %v, want nil", err)
 	}
 

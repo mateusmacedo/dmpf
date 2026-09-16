@@ -1,6 +1,6 @@
-package bookingsdomain
+package domain
 
-import dmpfdomain "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-domain"
+import "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
 
 type BookingID string
 
@@ -71,7 +71,7 @@ type ResourceRegistered struct {
 func (ResourceRegistered) EventName() string { return "bookings.resource-registered" }
 
 var (
-	_ dmpfdomain.DomainEvent = BookingReserved{}
-	_ dmpfdomain.DomainEvent = BookingCancelledEvent{}
-	_ dmpfdomain.DomainEvent = ResourceRegistered{}
+	_ domain.DomainEvent = BookingReserved{}
+	_ domain.DomainEvent = BookingCancelledEvent{}
+	_ domain.DomainEvent = ResourceRegistered{}
 )

@@ -22,7 +22,7 @@ function* na suíte. Hoje cada módulo tem o seu `fixedClock{}`, o seu
 `capturingPublisher` e o seu harness; o oráculo 3 do round-trip é um `t.Log`
 que não reprova; e a matriz das 36 células é provada no oráculo interno do
 `decide`, não por par de vetores executável no verificador. Esta spec entrega
-o módulo `dmpf-testkit` — um package por camada da pirâmide, cada um
+o módulo `testkit` — um package por camada da pirâmide, cada um
 classificado no bloco que a matriz permite —, o pipeline bidirecional das
 fixtures com `DMPF-R001`..`R004`, a fitness function que reusa
 `DMPF-D001`/`D002`/`E001`..`E004`, e o CI em estágios com a camada
@@ -48,18 +48,18 @@ sugerido").
   function, a regra de dependência só é verificada pelo gate de CI, que roda
   depois do `go test` e fora dele (`FIT-04`). Sem o pipeline em estágios, a
   suíte de integração penaliza quem mexe só no domínio (`KIT-11`, rationale).
-- **Impacto**: um módulo novo importa `dmpf-testkit` no seu `_test.go`, pluga
+- **Impacto**: um módulo novo importa `testkit` no seu `_test.go`, pluga
   o seu domínio/service/provider no kit da camada, e recebe um `Verdict` com
   diagnóstico estável. O CI reprova cedo no domínio e tarde no broker, e a
   camada distribuída tem gate próprio. A evidência do round-trip sai em
   formato que o BOM consome.
-- **Inspiração**: o próprio `dmpf-conformance` já pratica o que o kit
+- **Inspiração**: o próprio `conformance` já pratica o que o kit
   generaliza — oráculo transcrito à mão da norma e *red control* que corrompe
   a matriz para provar que o oráculo não é tautológico
   (`internal/rule/matrix_oracle_test.go`, `matrix_redcontrol_test.go`). O
-  `dmpf-contracts/golden` já carrega a fixture com todo escalar como string e
+  `contracts/golden` já carrega a fixture com todo escalar como string e
   rejeita versão de formato desconhecida (`fixture_test.go:22-73`,
-  `golden_test.go:67`). O `dmpf-app/example/reservations/relay_e2e_test.go`
+  `golden_test.go:67`). O `app/example/reservations/relay_e2e_test.go`
   já força a janela at-least-once com um `crashingStore` deliberado. O kit
   reúne esses três gestos sob contrato observável e os torna reutilizáveis.
 - **Links relevantes**:
@@ -99,15 +99,15 @@ ticket em todos.
 
 | Ticket `ARQ-530` diz | Repositório em 06/09/2026 | Esta spec adota |
 | --- | --- | --- |
-| "Criar `libs/shared/dmpf-testkit` na convenção de `KRN-01`" | A convenção de `KRN-01` é `libs/<scope>/<stack>/<módulo>` com sufixo de stack no nome do projeto (`AGENTS.md`, "Caminho por scope e stack"); `scope:shared` na taxonomia 3D é para libs consumidas por backend **e** frontend, e o kit certifica só módulos Go de backend | `libs/backend/go/dmpf-testkit`, projeto `dmpf-testkit-go`, tags `type:lib`, `scope:backend`, `stack:go` |
+| "Criar `libs/shared/testkit` na convenção de `KRN-01`" | A convenção de `KRN-01` é `libs/<scope>/<stack>/<módulo>` com sufixo de stack no nome do projeto (`AGENTS.md`, "Caminho por scope e stack"); `scope:shared` na taxonomia 3D é para libs consumidas por backend **e** frontend, e o kit certifica só módulos Go de backend | `libs/backend/go/testkit`, projeto `testkit`, tags `type:lib`, `scope:backend`, `stack:go` |
 | "Os cinco kits, um por camada (`KIT-01` a `KIT-06`)" | `KIT-01` é a regra-guarda (cada camada tem exatamente um kit, decidível); os kits são `KIT-02`..`KIT-06` (FND-09 §8.1) | Cinco packages, `KIT-02`..`KIT-06`; `KIT-01` é satisfeita pela forma de cada um |
 | "`FIX-06`, `FIX-07` … `FIX-12`"; "`ORA-01` a `ORA-07`" | `FIX` vai até `FIX-13`; `ORA` tem duas faixas, `ORA-01`..`ORA-13` (wire, §6) e `ORA-30`..`ORA-40` (projeção observável, §7); `ORA-14`..`29` são reservados (§13.1) | As faixas reais; `FIX-13` (diagnóstico estável) e `ORA-30`..`ORA-40` entram no escopo |
 | "Golden fixtures Go ↔ TypeScript … fonte única das duas stacks … pipeline bidirecional" | Não existe nenhum projeto TypeScript no workspace (`pnpm nx show projects` lista 13 projetos Go e o placeholder raiz); o próprio ticket põe a stack TS fora do escopo | O lado Go das **duas direções** — produtor (Go serializa a partir dos campos declarados) e consumidor (Go decodifica os bytes declarados) — com os três oráculos em separado e a evidência em JSON; a execução TS fica `encaminhada` ao épico de ordem 2, que consome a mesma fixture e o mesmo formato de evidência |
-| "Reusando `DMPF-D001`, `DMPF-D002` e `DMPF-E001` a `DMPF-E004` em vez de cunhar código novo" | Os quinze códigos, `BuildUniverse`, `decide` e `Check` vivem sob `internal/` (`dmpf-conformance/internal/rule/diagnostic.go:12-29`, `internal/conformance/check.go:60`); nenhum package exportado | O `dmpf-conformance` ganha um package exportado de bloco `app`, `fitness`, que expõe o universo e a decisão de aresta sem o trust model; o kit o importa |
-| Silente sobre a classificação do kit na matriz | Todo package não-teste é unidade do universo (`FIT-01`); um kit que importe domínio, ports, providers e contratos ao mesmo tempo só cabe no bloco `app` — e um `domainkit` de bloco `app` não provaria nada sobre o domínio | Um `dmpf-units.json` com **uma unidade por package**, cada package no bloco que a matriz permite: `domainkit` é `domain`, `golden` é `contract`, `serviceskit`/`providerkit`/`clock`/`ids`/`stable` são `provider`, `appkit`/`distkit`/`fitness`/`tb` são `app`. O precedente é `dmpf-kernel/example-memory`, unidade `provider` dentro do módulo `dmpf-application` |
+| "Reusando `DMPF-D001`, `DMPF-D002` e `DMPF-E001` a `DMPF-E004` em vez de cunhar código novo" | Os quinze códigos, `BuildUniverse`, `decide` e `Check` vivem sob `internal/` (`conformance/internal/rule/diagnostic.go:12-29`, `internal/conformance/check.go:60`); nenhum package exportado | O `conformance` ganha um package exportado de bloco `app`, `fitness`, que expõe o universo e a decisão de aresta sem o trust model; o kit o importa |
+| Silente sobre a classificação do kit na matriz | Todo package não-teste é unidade do universo (`FIT-01`); um kit que importe domínio, ports, providers e contratos ao mesmo tempo só cabe no bloco `app` — e um `domainkit` de bloco `app` não provaria nada sobre o domínio | Um `dmpf-units.json` com **uma unidade por package**, cada package no bloco que a matriz permite: `domainkit` é `domain`, `golden` é `contract`, `serviceskit`/`providerkit`/`clock`/`ids`/`stable` são `provider`, `appkit`/`distkit`/`fitness`/`tb` são `app`. O precedente é `kernel/example-memory`, unidade `provider` dentro do módulo `application` |
 | "As 36 células da matriz com par de vetores" | O oráculo das 36 células já é transcrito à mão e protegido por *red control* no `decide` (`matrix_oracle_test.go:16-53`, `matrix_redcontrol_test.go:38`); `vectors_test.go` exercita universos sintéticos para as células 1, 4, 5, 6 e 19; `tools/dmpf-cell-check.sh` prova 26 e 12 em worktree | O que falta é o **par executável no verificador por célula** — universo sintético com a aresta e sem ela — e a fitness function sobre o **universo de produção**. O oráculo do `decide` permanece onde está |
-| "Harness distribuído com reentrega deliberada (`V32`, executada, nunca inspecionada)" | `V32` já é executado **in-process** sobre Postgres, com `capturingPublisher` e `crashingStore` (`dmpf-app/example/reservations/relay_e2e_test.go:60,172`, `e2e_test.go:428`) | `KIT-06` exige dois ou mais **processos** sobre **broker real** (`PIR-14`); o harness re-executa o binário de teste como produtor e consumidor sobre o Redpanda que o CI já sobe, e o vetor negativo é um consumidor deliberadamente duplicador, reprovado com `DMPF-R004` |
-| "Carregador de fixture com todo escalar lido como string" | O carregador existe, mas é privado ao `_test.go` do contracts (`fixture_test.go:22-73`); o oráculo 3 é `t.Log` informativo (`golden_test.go:124`); não há `DMPF-R00x`, nem diagnóstico por campo (`FIX-12`), nem reprovação por segunda fixture do mesmo contrato-major (`FIX-11`) | O carregador e os oráculos migram para `dmpf-testkit/golden` (bloco `contract`); o `dmpf-contracts/golden` passa a delegar e mantém o gerador e o `GOLDEN_UPDATE` (ele é o dono da fixture, `FIX-02`) |
+| "Harness distribuído com reentrega deliberada (`V32`, executada, nunca inspecionada)" | `V32` já é executado **in-process** sobre Postgres, com `capturingPublisher` e `crashingStore` (`app/example/reservations/relay_e2e_test.go:60,172`, `e2e_test.go:428`) | `KIT-06` exige dois ou mais **processos** sobre **broker real** (`PIR-14`); o harness re-executa o binário de teste como produtor e consumidor sobre o Redpanda que o CI já sobe, e o vetor negativo é um consumidor deliberadamente duplicador, reprovado com `DMPF-R004` |
+| "Carregador de fixture com todo escalar lido como string" | O carregador existe, mas é privado ao `_test.go` do contracts (`fixture_test.go:22-73`); o oráculo 3 é `t.Log` informativo (`golden_test.go:124`); não há `DMPF-R00x`, nem diagnóstico por campo (`FIX-12`), nem reprovação por segunda fixture do mesmo contrato-major (`FIX-11`) | O carregador e os oráculos migram para `testkit/golden` (bloco `contract`); o `contracts/golden` passa a delegar e mantém o gerador e o `GOLDEN_UPDATE` (ele é o dono da fixture, `FIX-02`) |
 | "Pipeline em estágios com gate por estágio" | `ci.yml` é um job único, `main`, que roda `nx affected` de tudo em sequência; `dmpf-verify.yml` é o precedente de gate em workflow separado | Os estágios de §8.3.1 dentro do `ci.yml`, ordenados e com gate declarado; a camada distribuída em `dmpf-distributed.yml`, workflow próprio com gate próprio |
 | Não cita a fixture de projeção observável (§7) | `ORA-30`..`ORA-40` são regras próprias de FND-09 e definem o critério de aprovação de `KIT-02`; não há nada disso no repositório | Incluída: formato JSON de projeção em `contracts/fixtures/<ctx>/projection/v1/`, fonte única neutra de stack, consumida por `domainkit` |
 
@@ -127,14 +127,14 @@ ticket em todos.
 | FND-09 §10 (`RAS-01` a `RAS-16`) | Par positivo/negativo por regra; negativo que passa é defeito; diagnóstico estável; família `DMPF-R001`..`R004`; `V31` é varredura, `V32` é reentrega executada; `V27` assimétrico, registrado com motivo |
 | FND-09 §13.1 | Faixas de identificadores; `ORA-14`..`29` e `RAS-17`..`29` reservados |
 | RFC §4.5 regras 3 e 4, `V29`/`V30` | O teste não reclassifica o SUT; código de produção rotulado como teste para escapar da regra reprova |
-| RFC §7.4, `dmpf-conformance/internal/rule/matrix.go` | `domain → domain` (1), `contract → contract` (36), `provider → {domain, port, provider, contract}` (25, 28, 29, 30) e `app → *` (13-18) permitidas; `domain → {application, app, port, provider, contract}` (2-6), `provider → {application, app}` (26, 27) e `contract → {domain, application, app, port, provider}` (31-35) proibidas |
+| RFC §7.4, `conformance/internal/rule/matrix.go` | `domain → domain` (1), `contract → contract` (36), `provider → {domain, port, provider, contract}` (25, 28, 29, 30) e `app → *` (13-18) permitidas; `domain → {application, app, port, provider, contract}` (2-6), `provider → {application, app}` (26, 27) e `contract → {domain, application, app, port, provider}` (31-35) proibidas |
 | RFC §10.3, `internal/rule/diagnostic.go:12-29` | Conjunto fechado de quinze códigos; `DMPF-E004` não aplicável ao binding Go |
 | `AGENTS.md` ("Libs", "Convenções obrigatórias") | Caminho por scope e stack; tags 3D; `package.json` com `private: true`; `dmpf-units.json`; registro em `go.work` e no baseline |
 
 <constraints>
 - [P0] NUNCA colocar duplo de teste, relógio, seed ou gerador de identidade em package de bloco `domain` do kit: `domainkit` recebe tudo por valor (`KIT-02`, `KIT-08`, `ORA-36`).
 - [P0] NUNCA reduzir o round-trip a um único código de falha: cada oráculo reprova com o seu `DMPF-R00x`, e um passe no oráculo 2 não dispensa o 1 nem o 3 (`ORA-01`, `ORA-06`, `FIX-12`).
-- [P0] NUNCA cunhar diagnóstico novo para defeito que a RFC §10.3 já cataloga: a fitness function emite `DMPF-D001`/`D002`/`E001`..`E004` do `dmpf-conformance`, nunca uma cópia (`FIT-02`, `RAS-08`).
+- [P0] NUNCA cunhar diagnóstico novo para defeito que a RFC §10.3 já cataloga: a fitness function emite `DMPF-D001`/`D002`/`E001`..`E004` do `conformance`, nunca uma cópia (`FIT-02`, `RAS-08`).
 - [P0] NUNCA simular a reentrega de `V32`: o harness republica de fato sobre o broker; sem broker, o resultado é `t.Skip` nomeando a variável, nunca aprovado (`RAS-13`, `RAS-14`).
 - [P0] NUNCA deixar o critério de aprovação de um kit sem decisão por valor: todo kit devolve `Verdict` com diagnóstico estável, e o `testing.TB` é adaptador, não contrato (`KIT-01`).
 - [P1] Cada package do kit declara a sua unidade no bloco que a matriz permite; o verificador de conformidade aprova o módulo como qualquer outro (`RFC §4.5 r3`, `V29`).
@@ -145,18 +145,18 @@ ticket em todos.
 
 ### Funcionais
 
-- [ ] **[P0] Módulo `dmpf-testkit`**: criar `libs/backend/go/dmpf-testkit` na
+- [ ] **[P0] Módulo `testkit`**: criar `libs/backend/go/testkit` na
   convenção de `KRN-01`, com `go.mod`, `package.json` (`private: true`),
   `project.json` (tags 3D, targets `fmt-check`, `vet`, `test-race`,
   `govulncheck`, `lint`, `build`, `typecheck`), `doc.go`, `README.md`,
   `dmpf-units.json` com **uma unidade por package** e o `bounded_context`
-  `dmpf-kernel`; registrar em `go.work` e no baseline.
-  - As unidades e os blocos: `dmpf-kernel/testkit-domain` (`domainkit`,
-    `domain`); `dmpf-kernel/testkit-golden` (`golden`, `contract`);
-    `dmpf-kernel/testkit-services`, `-provider`, `-clock`, `-ids`, `-stable`
-    (`provider`); `dmpf-kernel/testkit-app`, `-dist`, `-fitness`, `-tb`
+  `kernel`; registrar em `go.work` e no baseline.
+  - As unidades e os blocos: `kernel/testkit-domain` (`domainkit`,
+    `domain`); `kernel/testkit-golden` (`golden`, `contract`);
+    `kernel/testkit-services`, `-provider`, `-clock`, `-ids`, `-stable`
+    (`provider`); `kernel/testkit-app`, `-dist`, `-fitness`, `-tb`
     (`app`).
-  - Edge case: `dmpf-conformance --root . --base develop` aprova o módulo;
+  - Edge case: `conformance --root . --base develop` aprova o módulo;
     um package do kit que importe fora da sua linha da matriz reprova com
     `DMPF-D001` — e esse é o vetor `V29`/`V30` do próprio kit.
 - [ ] **[P0] `domainkit` — kit de domínio em memória (`KIT-02`, §7)**:
@@ -178,14 +178,14 @@ ticket em todos.
   - Edge case: fixture com `format_version` desconhecida faz o codec falhar
     (`FIX-09`); número JSON não-string reprova o carregamento (`FIX-07`).
 - [ ] **[P0] `serviceskit` — kit de services com ports fakes (`KIT-03`)**:
-  fakes que honram as portas de `dmpf-ports` (`UnitOfWork`, `Repository`,
+  fakes que honram as portas de `ports` (`UnitOfWork`, `Repository`,
   `Outbox`, `Inbox`) com um **ledger** que registra a ordem dos gestos
   (begin, write, enqueue, commit, rollback, visibilidade).
   - Aprovação decidível a partir do ledger: escrita de estado e registro de
     outbox commitam juntos (`UOW-07`); nenhum gesto publica no broker
     (`UOW-08`); sob `Rejected`, nenhuma escrita e nenhum enfileiramento
     persistem (`UOW-06`); o commit é o único ponto de visibilidade.
-  - Compõe sobre `dmpf-application/example/memory` onde a realização em
+  - Compõe sobre `application/example/memory` onde a realização em
     memória já existe; o ledger é a diferença.
   - Vetor negativo: um service de fixture que enfileira fora da transação
     reprova nomeando o gesto e a posição no ledger.
@@ -200,15 +200,15 @@ ticket em todos.
     vencedor.
   - `UnitOfWork`: exatamente uma transação local por `Within`
     (`UOW-01`/`UOW-02`), rollback sem resíduo.
-  - Roda contra `dmpf-provider-postgres` (build tag `integration`,
-    `DMPF_PG_DSN`) e contra `dmpf-application/example/memory` (sem infra);
+  - Roda contra `postgres` (build tag `integration`,
+    `DMPF_PG_DSN`) e contra `application/example/memory` (sem infra);
     as duas aprovam. Vetor negativo: uma realização de fixture que permite
     `MarkPublished` com claim substituído reprova, nomeando a regra.
 - [ ] **[P1] `appkit` — kit de app borda a borda (`KIT-05`)**: harness que
-  compõe `dmpfapp.Consumer` com as realizações concretas e aceita bytes na
+  compõe `app.Consumer` com as realizações concretas e aceita bytes na
   borda de protocolo; aprova quando a borda de efeito exibe o desfecho
   esperado (contagens de inbox, outbox e estado, ou nada sob `Rejected`).
-  - Reusa o caso de `dmpf-app/example/reservations/e2e_test.go` como
+  - Reusa o caso de `app/example/reservations/e2e_test.go` como
     primeira instância; sem segundo serviço (`PIR-12`).
 - [ ] **[P1] `distkit` — harness distribuído com reentrega (`KIT-06`)**:
   dois processos OS — produtor e consumidor — sobre Redpanda
@@ -222,8 +222,8 @@ ticket em todos.
   - Sem `DMPF_KAFKA_BROKERS`: `t.Skip` nomeando a variável; nunca aprovado
     (`RAS-14`).
 - [ ] **[P0] `clock`, `ids`, `stable` — determinismo (`KIT-07`, `KIT-08`)**:
-  relógio fake realizando `dmpfports.Clock` com avanço explícito; gerador
-  de identificador sequencial e por seed realizando `dmpfports.IDGenerator`;
+  relógio fake realizando `ports.Clock` com avanço explícito; gerador
+  de identificador sequencial e por seed realizando `ports.IDGenerator`;
   ordenação estável para toda coleção comparada. Bloco `provider`.
   - Os fakes ad hoc dos módulos existentes (`fixedClock{}`,
     `sequenceIDs{}`) **podem** migrar; a migração não é requisito desta spec.
@@ -248,13 +248,13 @@ ticket em todos.
   - `Report` em JSON estável por fixture × direção × oráculo, que é a
     evidência que `KRN-12` consome.
   - `int64` além da precisão de double atravessa as duas direções sem perda.
-- [ ] **[P0] Migração de `dmpf-contracts/golden`**: os `_test.go` passam a
-  usar `dmpf-testkit/golden` para carregar e verificar; o gerador
+- [ ] **[P0] Migração de `contracts/golden`**: os `_test.go` passam a
+  usar `testkit/golden` para carregar e verificar; o gerador
   (`buildFixture`, `TestUpdateGolden`, `GOLDEN_UPDATE`) permanece no
   contracts, que segue dono das fixtures (`FIX-02`). Nenhuma fixture
   `.golden` muda de conteúdo.
-- [ ] **[P0] Package exportado `fitness` no `dmpf-conformance`**: bloco
-  `app`, unidade `dmpf-conformance/fitness`, que expõe o inventário do
+- [ ] **[P0] Package exportado `fitness` no `conformance`**: bloco
+  `app`, unidade `conformance/fitness`, que expõe o inventário do
   workspace, a construção do universo e a decisão de aresta e capability
   **sem** baseline e sem `--base` (`FIT-03`), devolvendo os mesmos
   `Diagnostic` e `Code` de `internal/rule`. Nada sai de `internal/`.
@@ -309,7 +309,7 @@ ticket em todos.
 - [ ] **Determinismo**: nenhum teste do kit nem dos vetores depende de
   relógio de parede, ordem de map ou porta aleatória; `go test -race
   -count=3` passa (`KIT-07`).
-- [ ] **Conformidade**: o módulo aprova em `dmpf-conformance`; nenhum package
+- [ ] **Conformidade**: o módulo aprova em `conformance`; nenhum package
   de bloco `domain` ou `contract` do kit importa `testing`, `os`, `time` ou
   qualquer capability fora da allowlist do bloco.
 - [ ] **Cadeia Go verde**: `fmt-check`, `vet`, `lint`, `test-race`,
@@ -326,18 +326,18 @@ ticket em todos.
 
 | Camada | Afetada | O que muda |
 | --- | --- | --- |
-| `domain` | [x] | `dmpf-testkit/domainkit` (unidade `domain`); `dmpf-domain` **não** muda — os seus exemplos ganham vetores via fixture de projeção |
+| `domain` | [x] | `testkit/domainkit` (unidade `domain`); `domain` **não** muda — os seus exemplos ganham vetores via fixture de projeção |
 | `application` | [ ] | Nada — `example/memory` é consumido por `serviceskit` e `providerkit` |
 | `port` | [ ] | Nada — `Clock`, `IDGenerator`, `Outbox`, `Inbox`, `UnitOfWork`, `Repository` são realizados pelos fakes, não alterados |
-| `contract` | [x] | `dmpf-testkit/golden` (unidade `contract`); `dmpf-contracts/golden/*_test.go` delega ao kit; `contracts/fixtures/<ctx>/projection/v1/` novas |
-| `provider` | [x] | `dmpf-testkit/{serviceskit,providerkit,clock,ids,stable}` (unidades `provider`); `dmpf-provider-postgres` recebe a suíte de conformidade em `_test.go` |
-| `app` | [x] | `dmpf-testkit/{appkit,distkit,fitness,tb}` (unidades `app`); `dmpf-conformance/fitness` novo package exportado (unidade `app`) |
+| `contract` | [x] | `testkit/golden` (unidade `contract`); `contracts/golden/*_test.go` delega ao kit; `contracts/fixtures/<ctx>/projection/v1/` novas |
+| `provider` | [x] | `testkit/{serviceskit,providerkit,clock,ids,stable}` (unidades `provider`); `postgres` recebe a suíte de conformidade em `_test.go` |
+| `app` | [x] | `testkit/{appkit,distkit,fitness,tb}` (unidades `app`); `conformance/fitness` novo package exportado (unidade `app`) |
 | Workspace | [x] | `go.work` (+1 `use`), `tools/dmpf-baseline/units-baseline.json` (+12 unidades), `.github/workflows/ci.yml` (estágios), `.github/workflows/dmpf-distributed.yml` (novo), tag `layer:*` nos 14 `project.json`, `AGENTS.md`, `contracts/README.md`, `docs/adr/040-*.md` |
 
 ## Localização de código
 
 ```text
-libs/backend/go/dmpf-testkit/                        — NOVO módulo; 11 unidades em 4 blocos
+libs/backend/go/testkit/                        — NOVO módulo; 11 unidades em 4 blocos
   domainkit/                 bloco domain — sem I/O, sem testing
     projection.go            — Projection, Branch, Event, Rejection; Equal (ordem de eventos comparada)
     fixture.go               — ProjectionFixture, Decode([]byte) (format_version, escalares como string)
@@ -357,24 +357,24 @@ libs/backend/go/dmpf-testkit/                        — NOVO módulo; 11 unidad
     verdict.go               — Verdict UOW-06/07/08 a partir do ledger
     *_test.go                — service de fixture conforme e não conforme
   providerkit/               bloco provider
-    outbox.go                — Suite para dmpfports.Outbox / relay.Store: OBX-10, OBX-11, purga, sinais
+    outbox.go                — Suite para ports.Outbox / relay.Store: OBX-10, OBX-11, purga, sinais
     inbox.go                 — Suite para a porta de inbox: INB-06, corrida de duas inserções
-    uow.go                   — Suite para dmpfports.UnitOfWork: UOW-01, UOW-02, rollback
+    uow.go                   — Suite para ports.UnitOfWork: UOW-01, UOW-02, rollback
     suite.go                 — Candidate, Reset, Run → Verdict
     *_test.go                — contra example/memory; realização de fixture não conforme reprova
-  clock/clock.go             bloco provider — Fake realizando dmpfports.Clock; Advance
-  ids/ids.go                 bloco provider — Sequence, Seeded realizando dmpfports.IDGenerator
+  clock/clock.go             bloco provider — Fake realizando ports.Clock; Advance
+  ids/ids.go                 bloco provider — Sequence, Seeded realizando ports.IDGenerator
   stable/stable.go           bloco provider — Sort helpers para coleções comparadas
   appkit/                    bloco app
-    harness.go               — Harness: compõe dmpfapp.Consumer com realizações; Deliver([]byte) → Effects
+    harness.go               — Harness: compõe app.Consumer com realizações; Deliver([]byte) → Effects
     *_test.go                — //go:build integration; instância reservations
   distkit/                   bloco app
     harness.go               — Harness: re-exec do binário de teste como producer/consumer (os.Executable)
-    producer.go, consumer.go — papéis sobre dmpf-provider-kafka; injeção de reentrega
+    producer.go, consumer.go — papéis sobre kafka; injeção de reentrega
     verdict.go               — DMPF-R004
     *_test.go                — //go:build integration; V32 positivo e consumidor duplicador
   fitness/                   bloco app
-    universe.go              — Universe do workspace via dmpf-conformance/fitness
+    universe.go              — Universe do workspace via conformance/fitness
     edges_test.go            — TestNenhumaArestaProibida (universo real)
     cells_test.go            — 36 células × par de vetores sobre testdata/cells
     domaintest_test.go       — V29/V30: package de teste de domínio com duplo
@@ -386,17 +386,17 @@ libs/backend/go/dmpf-testkit/                        — NOVO módulo; 11 unidad
     tb.go                    — Require(t, Verdict); ReadFixture(t, path) []byte; Env(t, name) string
   doc.go, README.md, go.mod, go.sum, project.json, package.json, dmpf-units.json
 
-libs/backend/go/dmpf-conformance/
-  fitness/                   — NOVO package exportado, bloco app, unidade dmpf-conformance/fitness
+libs/backend/go/conformance/
+  fitness/                   — NOVO package exportado, bloco app, unidade conformance/fitness
     fitness.go               — Inventory(root), Universe(inv), Edges(u) []Diagnostic; reexporta Code, Diagnostic
     fitness_test.go
   dmpf-units.json            — MODIFICAR: +unidade fitness
 
-libs/backend/go/dmpf-contracts/golden/
+libs/backend/go/contracts/golden/
   fixture_test.go            — MODIFICAR: remove o carregador; mantém specs, build, TestUpdateGolden
   golden_test.go             — MODIFICAR: delega a golden.Decode/Consumer/Producer; oráculo 3 reprova
 
-libs/backend/go/dmpf-provider-postgres/
+libs/backend/go/postgres/
   conformance_test.go        — NOVO: //go:build integration; providerkit sobre OutboxStore, Inbox, UoW
 
 contracts/fixtures/orders/projection/v1/order.golden           — NOVO
@@ -414,13 +414,13 @@ docs/adr/040-*.md            — NOVO: ADR desta realização
 
 **Arquivos a modificar, e o que muda**:
 
-- `libs/backend/go/dmpf-conformance/fitness/` — a única superfície pública do
+- `libs/backend/go/conformance/fitness/` — a única superfície pública do
   verificador. Expõe o que `FIT-01` precisa (inventário, universo, decisão de
   aresta e capability) e **omite** o que `FIT-03` proíbe (baseline, `--base`,
   autorização de mudança de classificação). É bloco `app` porque importa
   `rule` (`domain`), `conformance` (`application`) e `fsstore`/`golist`
   (`provider`) — só a linha `app` alcança os três.
-- `libs/backend/go/dmpf-contracts/golden/*_test.go` — o carregador e os três
+- `libs/backend/go/contracts/golden/*_test.go` — o carregador e os três
   oráculos saem daqui; o gerador fica. O contracts é dono da fixture, o kit
   é dono do oráculo — a divisão de FND-05 §8.4.
 - `.github/workflows/ci.yml` — o job `main` passa a executar os estágios em
@@ -436,30 +436,30 @@ docs/adr/040-*.md            — NOVO: ADR desta realização
 
 ```text
                         ┌──────────────────────────────────────────────┐
-                        │  dmpf-testkit (11 unidades, 4 blocos)         │
+                        │  testkit (11 unidades, 4 blocos)         │
                         │                                              │
-  domain  ──────────►   │  domainkit ──► dmpf-domain            (1)    │
+  domain  ──────────►   │  domainkit ──► domain            (1)    │
                         │                                              │
-  contract ─────────►   │  golden ─────► dmpf-contracts/{envelope,     │
+  contract ─────────►   │  golden ─────► contracts/{envelope,     │
                         │                payloadhash, gen}      (36)   │
                         │                                              │
   provider ─────────►   │  serviceskit ┐                               │
-                        │  providerkit ├─► dmpf-ports (28)             │
-                        │  clock/ids   │   dmpf-domain (25)            │
-                        │  stable      ┘   dmpf-application/example/   │
+                        │  providerkit ├─► ports (28)             │
+                        │  clock/ids   │   domain (25)            │
+                        │  stable      ┘   application/example/   │
                         │                  memory (29)                 │
                         │                                              │
-  app ──────────────►   │  appkit ──► dmpf-app, providers, ports  (13-18)
-                        │  distkit ─► dmpf-provider-kafka, dmpf-app    │
-                        │  fitness ─► dmpf-conformance/fitness (15)    │
+  app ──────────────►   │  appkit ──► app, providers, ports  (13-18)
+                        │  distkit ─► kafka, app    │
+                        │  fitness ─► conformance/fitness (15)    │
                         │  tb ──────► todos os kits + os/testing       │
                         └──────────────────────────────────────────────┘
                                           ▲
                                           │ importado só por *_test.go
                           ┌───────────────┴────────────────┐
-                          │ dmpf-domain, dmpf-application, │
-                          │ dmpf-provider-postgres, dmpf-  │
-                          │ contracts, dmpf-app, …         │
+                          │ domain, application, │
+                          │ postgres, dmpf-  │
+                          │ contracts, app, …         │
                           └────────────────────────────────┘
 ```
 
@@ -537,13 +537,13 @@ provados pelo próprio módulo.
 | --- | --- | --- |
 | `KIT-02`, `ORA-30`..`ORA-39` | `domainkit.Run` + fixture de projeção | `domainkit/*_test.go`, `contracts/fixtures/*/projection/` |
 | `KIT-03`, `UOW-06`..`UOW-08` | ledger de `serviceskit` | `serviceskit/*_test.go` |
-| `KIT-04`, `OBX-10`, `OBX-11`, `INB-06`, `UOW-01`, `UOW-02` | `providerkit` contra Postgres e memória | `providerkit/*_test.go`, `dmpf-provider-postgres/conformance_test.go` |
+| `KIT-04`, `OBX-10`, `OBX-11`, `INB-06`, `UOW-01`, `UOW-02` | `providerkit` contra Postgres e memória | `providerkit/*_test.go`, `postgres/conformance_test.go` |
 | `KIT-05`, `PIR-12`, `PIR-13` | `appkit.Harness` | `appkit/*_test.go` |
 | `KIT-06`, `PIR-14`, `PIR-15`, `V32`, `DMPF-R004` | `distkit.Harness` sobre Redpanda | `distkit/*_test.go`, `dmpf-distributed.yml` |
 | `KIT-07`, `KIT-08` | `clock`, `ids`, `stable`; `-count=3` | todos os `_test.go` do kit |
 | `KIT-09`..`KIT-11` | estágios do `ci.yml` e `dmpf-distributed.yml` | `.github/workflows/` |
 | `FIX-07`, `FIX-09`, `FIX-11` | `golden.Decode`, `golden.Catalog` | `golden/fixture_test.go`, `catalog_test.go` |
-| `FIX-12`, `FIX-13`, `ORA-01`..`ORA-06`, `DMPF-R001`..`R003` | `golden.Oracle*`, `golden.Report` | `golden/oracle_test.go`, `dmpf-contracts/golden/golden_test.go` |
+| `FIX-12`, `FIX-13`, `ORA-01`..`ORA-06`, `DMPF-R001`..`R003` | `golden.Oracle*`, `golden.Report` | `golden/oracle_test.go`, `contracts/golden/golden_test.go` |
 | `ORA-08`, `ORA-12`, `INT-03` | casos discriminatórios existentes | fixtures `.golden` de `KRN-05`, inalteradas |
 | `FIT-01`..`FIT-04` | `fitness` sobre o universo real | `fitness/edges_test.go` |
 | 36 células, `V13`..`V26`, `V28` | universos sintéticos | `fitness/cells_test.go`, `testdata/cells/` |
@@ -559,17 +559,17 @@ provados pelo próprio módulo.
   porque o kit é código de produção para o verificador (`FIT-01`) e um kit
   único de bloco `app` não provaria nada sobre a camada que certifica — um
   `domainkit` só é kit de domínio se ele próprio for `domain` (célula 1).
-  Alternativa descartada: módulo por camada (`dmpf-testkit-domain`, …),
+  Alternativa descartada: módulo por camada (`testkit-domain`, …),
   porque o custo de cinco `go.mod` não compra nada que a unidade por package
-  não compre, e o precedente `dmpf-kernel/example-memory` (unidade
-  `provider` dentro de `dmpf-application`) já mostra a forma.
+  não compre, e o precedente `kernel/example-memory` (unidade
+  `provider` dentro de `application`) já mostra a forma.
 - **Kits decidíveis por valor; `testing.TB` é adaptador**: cada kit devolve
   `Verdict{OK, Diagnostics}` com código estável, e `tb.Require` converte em
   `t.Fatalf`. O motivo é dobrado: `KIT-01` exige critério decidível, e os
   blocos `domain` e `contract` não podem importar `testing` (capability fora
   da allowlist). Alternativa descartada: kits recebendo `*testing.T`, porque
   amarraria o contrato ao framework e violaria a capability do bloco.
-- **Package exportado `fitness` no `dmpf-conformance`, sem mover `internal/`**:
+- **Package exportado `fitness` no `conformance`, sem mover `internal/`**:
   `FIT-02` exige reusar os diagnósticos, e hoje eles são inalcançáveis. O
   package expõe inventário, universo e decisão de aresta/capability, e omite
   baseline e `--base` — exatamente a fronteira de `FIT-03` (o teste de
@@ -618,15 +618,15 @@ provados pelo próprio módulo.
   `contracts/` é a raiz neutra de stack do workspace (`contracts/README.md`)
   e a projeção é a fonte única que o kernel TS consumirá (`ORA-35`); a
   extensão `.golden` e o `format_version` seguem `FIX-09`/`FIX-10` por
-  analogia. Alternativa descartada: `testdata/` dentro de `dmpf-domain`,
+  analogia. Alternativa descartada: `testdata/` dentro de `domain`,
   porque obrigaria a cópia na outra stack — o mesmo defeito que `FIX-02`
   proíbe para as fixtures de wire.
 - **O contracts segue dono das fixtures de wire; o kit é dono do oráculo**:
-  o gerador (`buildFixture`, `GOLDEN_UPDATE`) fica em `dmpf-contracts/golden`
+  o gerador (`buildFixture`, `GOLDEN_UPDATE`) fica em `contracts/golden`
   porque quem gera a fixture é quem tem o proto (`FIX-02`); o carregador e
   os oráculos vão para o kit porque são instrumento, não contrato
   (FND-05 §8.4). Não há ciclo quando o `_test.go` externo do contracts
-  importa o kit, e o kit importa `dmpf-contracts/envelope` — o package
+  importa o kit, e o kit importa `contracts/envelope` — o package
   `golden` do contracts não é importado por ninguém.
 - **`V31` como P2**: é varredura (`RAS-12`), não execução; o valor é baixo
   enquanto o acervo é escrito pela mesma equipe. Entra se couber no
@@ -636,7 +636,7 @@ provados pelo próprio módulo.
   registradas aqui e no README do kit. São as já praticadas pelos treze
   módulos; introduzir testify ou testcontainers-go criaria dependência
   externa nova sem ganho de decidibilidade.
-- **O `depguard` não alcança `dmpf-testkit/domainkit`**: a regra `domain` do
+- **O `depguard` não alcança `testkit/domainkit`**: a regra `domain` do
   `.golangci.yml` seleciona por path `**/*-domain/**`, que o package do kit
   não casa. O gate autoritativo entre módulos é o verificador, que
   classifica por `dmpf-units.json` e alcança o package. Registrado como
@@ -685,9 +685,9 @@ das fontes normativas e das divergências reconciliadas acima.
   o mesmo; consumidor que duplique o efeito reprova.
 - [ ] Nenhum cenário depende de relógio de parede, ordem de map ou porta
   aleatória, e `V27` está registrado como single-stack.
-- [ ] `libs/backend/go/dmpf-testkit` existe com onze unidades em
+- [ ] `libs/backend/go/testkit` existe com onze unidades em
   `dmpf-units.json`, registradas no `go.work` e no baseline;
-  `dmpf-conformance --root . --base develop` aprova.
+  `conformance --root . --base develop` aprova.
 - [ ] Nenhum package de bloco `domain` ou `contract` do kit importa
   `testing`, `os` ou `time`; um teste de compilação no próprio kit assevera
   isso pelo `go list -deps`.
@@ -698,7 +698,7 @@ das fontes normativas e das divergências reconciliadas acima.
   service de fixture que enfileira fora da transação reprova nomeando
   `UOW-08` e a posição no ledger.
 - [ ] `providerkit` aprova `example/memory` sem infra e
-  `dmpf-provider-postgres` com `DMPF_PG_DSN`; a realização de fixture com
+  `postgres` com `DMPF_PG_DSN`; a realização de fixture com
   claim substituído aceito reprova nomeando `OBX-11`; sem a variável, `t.Skip`
   nomeando-a.
 - [ ] `distkit` roda dois processos sobre `DMPF_KAFKA_BROKERS`; `V32`
@@ -711,14 +711,14 @@ das fontes normativas e das divergências reconciliadas acima.
   declarados reprova **só** no oráculo 3 (`DMPF-R003`) quando o hash foi
   gravado sobre os bytes divergentes, e nos oráculos 2 e 3 quando não foi;
   o `Report` lista os dois em separado.
-- [ ] `dmpf-contracts/golden` passa com o kit e as três fixtures `.golden`
+- [ ] `contracts/golden` passa com o kit e as três fixtures `.golden`
   são byte a byte as de antes; `GOLDEN_UPDATE=1` continua regravando.
 - [ ] `fitness.Edges` sobre o workspace real devolve zero diagnósticos;
   `testdata/cells/` tem 36 diretórios com `positive/` e `negative/`, e o
   metateste bate 17 permitidas e 19 proibidas com o oráculo de
   `matrix_oracle_test.go` sem derivá-lo de `matrix.go`.
 - [ ] `fitness/domaintest_test.go` reprova um package de teste de unidade
-  `domain` cujo fechamento alcança `dmpf-ports`, nomeando o import.
+  `domain` cujo fechamento alcança `ports`, nomeando o import.
 - [ ] `fitness/v27_test.go` assevera a entrada `V27` com
   `single-stack: typescript` e motivo; a tabela de vetores não a conta
   como lacuna.
@@ -726,8 +726,8 @@ das fontes normativas e das divergências reconciliadas acima.
   cada estágio com gate; os dois primeiros rodam antes de qualquer `docker
   run`; `dmpf-distributed.yml` existe, roda `distkit` e é gate próprio.
 - [ ] Os quatorze `project.json` têm a tag `layer:*`; `pnpm nx show projects
-  --projects tag:layer:domain` lista ao menos `dmpf-domain-go` e
-  `dmpf-testkit-go`.
+  --projects tag:layer:domain` lista ao menos `domain` e
+  `testkit`.
 - [ ] Cadeia Go verde nos quatorze módulos; `go test -race -count=3
   ./...` do kit passa; `tools/dmpf-gate-check.sh` e `tools/dmpf-cell-check.sh`
   passam.
@@ -797,7 +797,7 @@ das fontes normativas e das divergências reconciliadas acima.
   `0` do ledger.
 
 **Providerkit — outbox store (`providerkit/outbox_test.go`,
-`dmpf-provider-postgres/conformance_test.go`)**
+`postgres/conformance_test.go`)**
 
 - Dado um registro enfileirado e reivindicado com lease de 5s no relógio
   fake, quando o relógio avança 6s e o claimant original chama
@@ -837,28 +837,28 @@ das fontes normativas e das divergências reconciliadas acima.
   `DMPF-D002`; em `positive/` (mesmo context), zero.
 - Dado um diretório de célula com `negative/` que o verificador aprove,
   quando o metateste roda, então reprova nomeando a célula (`RAS-06`).
-- Dado um package de teste de unidade `domain` que importa `dmpf-ports`,
+- Dado um package de teste de unidade `domain` que importa `ports`,
   quando `domaintest_test.go` roda, então reprova nomeando
-  `github.com/.../dmpf-ports` como a dependência (`V29`/`V30`).
+  `github.com/.../ports` como a dependência (`V29`/`V30`).
 - Dado a tabela de vetores, quando `v27_test.go` roda, então a entrada
   `V27` tem `SingleStack == "typescript"` e motivo não vazio, e a contagem
   de lacunas Go é zero.
 
 **CI — estágios (`ci.yml`, `dmpf-distributed.yml`)**
 
-- Dado um PR que toca só `dmpf-domain`, quando o `ci.yml` roda, então o
+- Dado um PR que toca só `domain`, quando o `ci.yml` roda, então o
   estágio 1 executa antes de qualquer `docker run`, e os estágios 4 e 5 não
   selecionam projeto algum.
 - Dado uma reprovação no estágio 2, quando o `ci.yml` roda, então os
   estágios 3 a 5 não executam e o job reprova nomeando o estágio.
 - Dado um PR qualquer, quando `dmpf-distributed.yml` roda, então ele sobe
-  Postgres e Redpanda, executa `dmpf-testkit-go:test-race` com a tag
+  Postgres e Redpanda, executa `testkit:test-race` com a tag
   `integration` restrito a `distkit`, e reprova por conta própria.
 
 <critical_constraints>
 - [P0] NUNCA colocar duplo de teste, relógio, seed ou gerador de identidade em package de bloco `domain` do kit: `domainkit` recebe tudo por valor (`KIT-02`, `KIT-08`, `ORA-36`).
 - [P0] NUNCA reduzir o round-trip a um único código de falha: cada oráculo reprova com o seu `DMPF-R00x`, e um passe no oráculo 2 não dispensa o 1 nem o 3 (`ORA-01`, `ORA-06`, `FIX-12`).
-- [P0] NUNCA cunhar diagnóstico novo para defeito que a RFC §10.3 já cataloga: a fitness function emite `DMPF-D001`/`D002`/`E001`..`E004` do `dmpf-conformance`, nunca uma cópia (`FIT-02`, `RAS-08`).
+- [P0] NUNCA cunhar diagnóstico novo para defeito que a RFC §10.3 já cataloga: a fitness function emite `DMPF-D001`/`D002`/`E001`..`E004` do `conformance`, nunca uma cópia (`FIT-02`, `RAS-08`).
 - [P0] NUNCA simular a reentrega de `V32`: o harness republica de fato sobre o broker; sem broker, o resultado é `t.Skip` nomeando a variável, nunca aprovado (`RAS-13`, `RAS-14`).
 - [P0] NUNCA deixar o critério de aprovação de um kit sem decisão por valor: todo kit devolve `Verdict` com diagnóstico estável, e o `testing.TB` é adaptador, não contrato (`KIT-01`).
 - [P1] Cada package do kit declara a sua unidade no bloco que a matriz permite; o verificador de conformidade aprova o módulo como qualquer outro (`RFC §4.5 r3`, `V29`).
@@ -888,7 +888,7 @@ das fontes normativas e das divergências reconciliadas acima.
   `sequenceIDs{}`, `capturingPublisher`) para `clock`/`ids`/`serviceskit`:
   opcional; entra por Regra do Escoteiro se couber, não é critério de
   aceite.
-- **Extensão do glob do `depguard`** para alcançar `dmpf-testkit/domainkit`:
+- **Extensão do glob do `depguard`** para alcançar `testkit/domainkit`:
   registrado como limitação; o verificador cobre.
 - **Evidência para o BOM e a entrada certificada**: `KRN-12` consome o
   `Report`; o `evidence_uri`/`evidence_digest` são dele.

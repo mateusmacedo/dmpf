@@ -1,4 +1,4 @@
-package bookingsdomain
+package domain
 
 type Booking struct {
 	id         BookingID

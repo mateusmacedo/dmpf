@@ -1,17 +1,17 @@
-package bookingsapplication
+package application
 
 import (
 	"context"
 	"fmt"
 
-	dmpfapplication "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application"
-	dmpfports "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-ports"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/application"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 
-	bookingsdomain "github.com/mateusmacedo/dmpf/libs/backend/go/bookings/domain"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/bookings/domain"
 )
 
-func (s Service) CancelBooking(ctx context.Context, cmd Cancel) (dmpfapplication.Outcome[bookingsdomain.CancelledResponse], error) {
-	var zero dmpfapplication.Outcome[bookingsdomain.CancelledResponse]
+func (s Service) CancelBooking(ctx context.Context, cmd Cancel) (application.Outcome[domain.CancelledResponse], error) {
+	var zero application.Outcome[domain.CancelledResponse]
 
 	instrumentation := s.instrumentation()
 	ctx, end := instrumentation.BeginOperation(ctx, OperationCancel)
@@ -21,38 +21,38 @@ func (s Service) CancelBooking(ctx context.Context, cmd Cancel) (dmpfapplication
 		return zero, err
 	}
 
-	identity := dmpfapplication.ResolveIdentity(s.Clock, s.IDs, maxEventsPerCommand)
+	identity := application.ResolveIdentity(s.Clock, s.IDs, maxEventsPerCommand)
 
 	outcome := zero
 	err := s.UoW.Within(ctx, func(ctx context.Context, res Resources) error {
 		snapshot, stored, err := res.Bookings.Load(ctx, cmd.BookingID)
 		if err != nil {
-			return fmt.Errorf("bookingsapplication: cancel %s: %w", cmd.BookingID, err)
+			return fmt.Errorf("application: cancel %s: %w", cmd.BookingID, err)
 		}
 
-		b := bookingsdomain.FromBookingSnapshot(snapshot)
-		accepted, rejection := b.Cancel(bookingsdomain.CancelBooking{
-			At: bookingsdomain.Instant(identity.OccurredAt),
+		b := domain.FromBookingSnapshot(snapshot)
+		accepted, rejection := b.Cancel(domain.CancelBooking{
+			At: domain.Instant(identity.OccurredAt),
 		})
 		if rejection != nil {
-			outcome = dmpfapplication.Rejected[bookingsdomain.CancelledResponse](rejection)
+			outcome = application.Rejected[domain.CancelledResponse](rejection)
 			return nil
 		}
 		if err := res.Bookings.Save(ctx, cmd.BookingID, b.Snapshot(), stored); err != nil {
-			return fmt.Errorf("bookingsapplication: cancel %s: %w", cmd.BookingID, err)
+			return fmt.Errorf("application: cancel %s: %w", cmd.BookingID, err)
 		}
-		outcome = dmpfapplication.Accepted(accepted.Response())
+		outcome = application.Accepted(accepted.Response())
 		return nil
 	})
 	if err != nil {
-		end(dmpfports.Result{Outcome: dmpfports.OutcomeFailed, Err: err})
+		end(ports.Result{Outcome: ports.OutcomeFailed, Err: err})
 		return zero, err
 	}
 
-	category := dmpfports.OutcomeAccepted
+	category := ports.OutcomeAccepted
 	if _, refused := outcome.Rejection(); refused {
-		category = dmpfports.OutcomeRejected
+		category = ports.OutcomeRejected
 	}
-	end(dmpfports.Result{Outcome: category})
+	end(ports.Result{Outcome: category})
 	return outcome, nil
 }

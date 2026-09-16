@@ -2,10 +2,19 @@ import { join } from 'node:path';
 import type { Tree } from '@nx/devkit';
 import { generateFiles, logger } from '@nx/devkit';
 import type { BlockLayout } from './blocks';
-import { BLOCK_NAMES, CONTRACT_BLOCK, isBlock, layoutOf, missingDependencies } from './blocks';
+import {
+  BLOCK_NAMES,
+  CONTRACT_BLOCK,
+  externalOf,
+  highestLayer,
+  isBlock,
+  layoutOf,
+  missingDependencies,
+  orderBlocks,
+} from './blocks';
 import { parseGoWork, registerModules, useEntryOf } from './go-work';
-import { IDENTIFIER_PATTERN, identifiersOf, isIdentifier } from './identifiers';
-import { externalFragment, includeFragment } from './manifest';
+import { IDENTIFIER_PATTERN, isIdentifier } from './identifiers';
+import { externalFragment, unitsFragment } from './manifest';
 import type { Block, BoundedContextGeneratorSchema } from './schema';
 
 const MODULE_PREFIX = 'github.com/mateusmacedo/dmpf';
@@ -15,21 +24,22 @@ const NPM_SCOPE = '@mateusmacedo';
 
 const BASELINE_INSTRUCTION = [
   'Unidades novas são ato de classificação (AUT-01). Regrave o baseline em commit próprio:',
-  '  go run ./libs/backend/go/dmpf-conformance/cmd/dmpf-conformance --root . --write-baseline',
+  '  go run ./libs/backend/go/conformance/cmd/conformance --root . --write-baseline',
 ].join('\n');
 
-type Substitutions = Record<string, string | boolean | readonly string[]>;
+type Substitutions = Record<string, string | boolean>;
 
-type PlannedModule = {
+type PlannedBlock = {
   layout: BlockLayout;
   directory: string;
-  useEntry: string;
   substitutions: Substitutions;
 };
 
 type Plan = {
   directory: string;
-  modules: readonly PlannedModule[];
+  useEntry: string;
+  substitutions: Substitutions;
+  blocks: readonly PlannedBlock[];
   goWork: string;
 };
 
@@ -40,7 +50,7 @@ const refuse = (reason: string): never => {
 const validatedName = (name: string | undefined): string => {
   if (name === undefined || name.trim().length === 0) {
     return refuse(
-      'option name is required: it names the context directory that holds every generated module',
+      'option name is required: it names the context directory, the Nx project and the Go module',
     );
   }
   if (!isIdentifier(name)) {
@@ -96,68 +106,91 @@ const validatedBlocks = (blocks: readonly string[] | undefined): Block[] => {
       `blocks ${selected.join(', ')} leave dependencies open: add the missing block(s) ${missing.join(', ')}`,
     );
   }
-  return selected;
+  return orderBlocks(selected);
 };
 
-const testRaceCommandOf = (layout: BlockLayout): string =>
-  layout.integration
-    ? 'go test -race -count=1 -p 1 -tags=integration ./...'
-    : 'go test -race ./...';
+const testRaceCommandOf = (integration: boolean): string =>
+  integration ? 'go test -race -count=1 -p 1 -tags=integration ./...' : 'go test -race ./...';
+
+const blocksTableOf = ({
+  layouts,
+  boundedContext,
+}: {
+  layouts: readonly BlockLayout[];
+  boundedContext: string;
+}): string =>
+  layouts
+    .map(
+      (layout) =>
+        `| \`${layout.dirName}\` | \`${layout.block}\` | \`${boundedContext}/${layout.unitSuffix}\` | ${layout.summary} |`,
+    )
+    .join('\n');
 
 const planModule = ({
-  layout,
   name,
   boundedContext,
   directory,
+  blocks,
   goVersion,
 }: {
-  layout: BlockLayout;
   name: string;
   boundedContext: string;
   directory: string;
+  blocks: readonly Block[];
   goVersion: string;
-}): PlannedModule => {
-  const identifiers = identifiersOf(name);
-  const moduleDirectory = `${directory}/${name}/${layout.dirName}`;
-  const projectName = `${name}-${layout.suffix}-go`;
+}): Omit<Plan, 'goWork'> => {
+  const moduleDirectory = `${directory}/${name}`;
   const modulePath = `${MODULE_PREFIX}/${moduleDirectory}`;
   const depth = moduleDirectory.split('/').length;
-  const dependsOnProjects = layout.dependsOnBlocks.map(
-    (block) => `${name}-${layoutOf(block).suffix}-go`,
-  );
+  const layouts = blocks.map(layoutOf);
+  const layer = highestLayer(layouts);
+  const integration = layouts.some((layout) => layout.integration);
+  const dependsOnProjects = [...new Set(layouts.flatMap((layout) => layout.dependsOnProjects))];
+
   return {
-    layout,
     directory: moduleDirectory,
     useEntry: useEntryOf(moduleDirectory),
     substitutions: {
       tmpl: '',
-      block: layout.block,
-      blockJson: JSON.stringify(layout.block),
-      blockRole: layout.role,
-      blockSummary: layout.summary,
-      layer: layout.layer,
-      layerTagJson: JSON.stringify(`layer:${layout.layer}`),
-      projectName,
-      projectNameJson: JSON.stringify(projectName),
-      packageNameJson: JSON.stringify(`${NPM_SCOPE}/${projectName}`),
+      name,
+      projectNameJson: JSON.stringify(name),
+      packageNameJson: JSON.stringify(`${NPM_SCOPE}/${name}`),
       sourceRootJson: JSON.stringify(moduleDirectory),
       nxSchemaJson: JSON.stringify(
         `${'../'.repeat(depth)}node_modules/nx/schemas/project-schema.json`,
       ),
       modulePath,
       goVersion,
-      goPackage: `${identifiers.goIdent}${layout.packageSuffix}`,
       boundedContext,
-      boundedContextJson: JSON.stringify(boundedContext),
-      unitIdJson: JSON.stringify(`${boundedContext}/${layout.suffix}`),
-      unitId: `${boundedContext}/${layout.suffix}`,
-      includeFragment: includeFragment({ level: 3, packages: [modulePath] }),
-      externalFragment: externalFragment({ level: 1, external: layout.external }),
-      testRaceCacheJson: layout.integration ? 'false' : 'true',
-      testRaceCommandJson: JSON.stringify(testRaceCommandOf(layout)),
+      layer,
+      layerTagJson: JSON.stringify(`layer:${layer}`),
+      blocksTable: blocksTableOf({ layouts, boundedContext }),
+      unitsFragment: unitsFragment({
+        level: 2,
+        units: layouts.map((layout) => ({
+          id: `${boundedContext}/${layout.unitSuffix}`,
+          block: layout.block,
+          boundedContext,
+          include: [`${modulePath}/${layout.dirName}`],
+        })),
+      }),
+      externalFragment: externalFragment({ level: 1, external: externalOf(layouts) }),
+      testRaceCacheJson: integration ? 'false' : 'true',
+      testRaceCommandJson: JSON.stringify(testRaceCommandOf(integration)),
       hasTestRaceDependsOn: dependsOnProjects.length > 0,
       testRaceDependsOnJson: dependsOnProjects.map((project) => JSON.stringify(project)).join(', '),
     },
+    blocks: layouts.map((layout) => ({
+      layout,
+      directory: `${moduleDirectory}/${layout.dirName}`,
+      substitutions: {
+        tmpl: '',
+        goPackage: layout.dirName,
+        block: layout.block,
+        blockRole: layout.role,
+        boundedContext,
+      },
+    })),
   };
 };
 
@@ -171,26 +204,18 @@ const planGeneration = (tree: Tree, options: BoundedContextGeneratorSchema): Pla
     tree.read(GO_WORK, 'utf-8') ?? refuse(`${GO_WORK} was not found at the workspace root`);
   const { goVersion, useEntries } = parseGoWork(goWorkContent);
 
-  const modules = blocks.map((block) =>
-    planModule({ layout: layoutOf(block), name, boundedContext, directory, goVersion }),
-  );
+  const module = planModule({ name, boundedContext, directory, blocks, goVersion });
 
-  for (const module of modules) {
-    if (tree.exists(module.directory)) {
-      refuse(`${module.directory} already exists: refusing to overwrite a module in place`);
-    }
-    if (useEntries.includes(module.useEntry)) {
-      refuse(`${GO_WORK} already registers ${module.useEntry}: refusing to duplicate the entry`);
-    }
+  if (tree.exists(module.directory)) {
+    refuse(`${module.directory} already exists: refusing to overwrite a module in place`);
+  }
+  if (useEntries.includes(module.useEntry)) {
+    refuse(`${GO_WORK} already registers ${module.useEntry}: refusing to duplicate the entry`);
   }
 
   return {
-    directory,
-    modules,
-    goWork: registerModules({
-      content: goWorkContent,
-      modules: modules.map((module) => module.useEntry),
-    }),
+    ...module,
+    goWork: registerModules({ content: goWorkContent, modules: [module.useEntry] }),
   };
 };
 
@@ -202,15 +227,17 @@ export const boundedContextGenerator = async (
 ): Promise<void> => {
   const plan = planGeneration(tree, options);
 
-  for (const module of plan.modules) {
-    generateFiles(tree, templateDir('module'), module.directory, module.substitutions);
+  generateFiles(tree, templateDir('module'), plan.directory, plan.substitutions);
+  for (const block of plan.blocks) {
+    generateFiles(tree, templateDir('block'), block.directory, block.substitutions);
   }
 
   tree.write(GO_WORK, plan.goWork);
 
-  const generated =
-    plan.modules.length === 1 ? '1 módulo gerado' : `${plan.modules.length} módulos gerados`;
-  logger.info(`\nbounded-context: ${generated} em ${plan.directory}.\n${BASELINE_INSTRUCTION}`);
+  const blocks = plan.blocks.map((block) => block.layout.dirName).join(', ');
+  logger.info(
+    `\nbounded-context: 1 módulo gerado em ${plan.directory} com ${plan.blocks.length} bloco(s): ${blocks}.\n${BASELINE_INSTRUCTION}`,
+  );
 };
 
 export default boundedContextGenerator;

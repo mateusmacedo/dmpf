@@ -1,13 +1,7 @@
 {
   "schema": "dmpf/units@1",
   "units": [
-    {
-      "id": <%- unitIdJson %>,
-      "block": <%- blockJson %>,
-      "bounded_context": <%- boundedContextJson %>,
-      "public_integration_surface": false,
-<%- includeFragment %>
-    }
+<%- unitsFragment %>
   ],
 <%- externalFragment %>
   "exceptions": []

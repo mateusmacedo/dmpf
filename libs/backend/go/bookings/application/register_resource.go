@@ -1,18 +1,18 @@
-package bookingsapplication
+package application
 
 import (
 	"context"
 	"errors"
 	"fmt"
 
-	dmpfapplication "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application"
-	dmpfports "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-ports"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/application"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 
-	bookingsdomain "github.com/mateusmacedo/dmpf/libs/backend/go/bookings/domain"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/bookings/domain"
 )
 
-func (s Service) RegisterResource(ctx context.Context, cmd Register) (dmpfapplication.Outcome[bookingsdomain.RegisteredResponse], error) {
-	var zero dmpfapplication.Outcome[bookingsdomain.RegisteredResponse]
+func (s Service) RegisterResource(ctx context.Context, cmd Register) (application.Outcome[domain.RegisteredResponse], error) {
+	var zero application.Outcome[domain.RegisteredResponse]
 
 	instrumentation := s.instrumentation()
 	ctx, end := instrumentation.BeginOperation(ctx, OperationRegister)
@@ -22,7 +22,7 @@ func (s Service) RegisterResource(ctx context.Context, cmd Register) (dmpfapplic
 		return zero, err
 	}
 
-	identity := dmpfapplication.ResolveIdentity(s.Clock, s.IDs, maxEventsPerCommand)
+	identity := application.ResolveIdentity(s.Clock, s.IDs, maxEventsPerCommand)
 
 	outcome := zero
 	err := s.UoW.Within(ctx, func(ctx context.Context, res Resources) error {
@@ -31,40 +31,40 @@ func (s Service) RegisterResource(ctx context.Context, cmd Register) (dmpfapplic
 			return err
 		}
 
-		accepted, rejection := r.Register(bookingsdomain.RegisterResource{
+		accepted, rejection := r.Register(domain.RegisterResource{
 			Code: cmd.Code,
-			At:   bookingsdomain.Instant(identity.OccurredAt),
+			At:   domain.Instant(identity.OccurredAt),
 		})
 		if rejection != nil {
-			outcome = dmpfapplication.Rejected[bookingsdomain.RegisteredResponse](rejection)
+			outcome = application.Rejected[domain.RegisteredResponse](rejection)
 			return nil
 		}
 		if err := res.Resources.Save(ctx, cmd.Code, r.Snapshot(), stored); err != nil {
-			return fmt.Errorf("bookingsapplication: register %s: %w", cmd.Code, err)
+			return fmt.Errorf("application: register %s: %w", cmd.Code, err)
 		}
-		outcome = dmpfapplication.Accepted(accepted.Response())
+		outcome = application.Accepted(accepted.Response())
 		return nil
 	})
 	if err != nil {
-		end(dmpfports.Result{Outcome: dmpfports.OutcomeFailed, Err: err})
+		end(ports.Result{Outcome: ports.OutcomeFailed, Err: err})
 		return zero, err
 	}
 
-	category := dmpfports.OutcomeAccepted
+	category := ports.OutcomeAccepted
 	if _, refused := outcome.Rejection(); refused {
-		category = dmpfports.OutcomeRejected
+		category = ports.OutcomeRejected
 	}
-	end(dmpfports.Result{Outcome: category})
+	end(ports.Result{Outcome: category})
 	return outcome, nil
 }
 
-func loadOrCreateResource(ctx context.Context, res Resources, code bookingsdomain.ResourceCode) (*bookingsdomain.Resource, dmpfports.Version, error) {
+func loadOrCreateResource(ctx context.Context, res Resources, code domain.ResourceCode) (*domain.Resource, ports.Version, error) {
 	snapshot, stored, err := res.Resources.Load(ctx, code)
-	if errors.Is(err, dmpfports.ErrNotFound) {
-		return bookingsdomain.NewResource(code), 0, nil
+	if errors.Is(err, ports.ErrNotFound) {
+		return domain.NewResource(code), 0, nil
 	}
 	if err != nil {
-		return nil, 0, fmt.Errorf("bookingsapplication: register %s: %w", code, err)
+		return nil, 0, fmt.Errorf("application: register %s: %w", code, err)
 	}
-	return bookingsdomain.FromResourceSnapshot(snapshot), stored, nil
+	return domain.FromResourceSnapshot(snapshot), stored, nil
 }

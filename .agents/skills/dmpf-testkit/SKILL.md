@@ -1,7 +1,7 @@
 ---
-name: dmpf-testkit
+name: testkit
 description: >-
-  Implementa, revisa e executa testes do kernel DMPF Go com o dmpf-testkit deste
+  Implementa, revisa e executa testes do kernel DMPF Go com o testkit deste
   workspace. Use para UPRs e agregados, services transacionais, conformidade de
   UoW/Inbox/Outbox, golden fixtures, consumer adapters, redelivery distribuído ou
   fitness arquitetural. Não use para testes Go sem relação com o DMPF.
@@ -17,15 +17,15 @@ efeito observável e o diagnóstico normativo, não apenas exercitar um helper.
 
 O código no disco é a autoridade. Antes de escrever ou revisar um teste:
 
-1. Leia `libs/backend/go/dmpf-testkit/README.md` e o `doc.go` do package escolhido.
+1. Leia `libs/backend/go/testkit/README.md` e o `doc.go` do package escolhido.
 2. Inspecione as declarações exportadas e pelo menos um uso real em `*_test.go`.
 3. Procure consumidores fora do módulo para entender a adaptação do candidato.
 
 Use buscas focadas, por exemplo:
 
 ```bash
-rg -n '^(type|func|const|var) [A-Z]' libs/backend/go/dmpf-testkit/<package> --glob '*.go' --glob '!**/*_test.go'
-rg -n 'dmpf-testkit/<package>' libs/backend/go --glob '*_test.go'
+rg -n '^(type|func|const|var) [A-Z]' libs/backend/go/testkit/<package> --glob '*.go' --glob '!**/*_test.go'
+rg -n 'testkit/<package>' libs/backend/go --glob '*_test.go'
 ```
 
 Consulte [references/package-routing.md](references/package-routing.md) para
@@ -57,7 +57,7 @@ escolher o package e localizar os exemplos canônicos.
   forem parte do comportamento. Duas goroutines não substituem os processos OS
   do vetor distribuído, e o controle ingênuo deve reprovar com `DMPF-R004`.
 - A fitness function reutiliza `DMPF-D001`, `DMPF-D002` e `DMPF-E001..E004` do
-  `dmpf-conformance`; não crie uma taxonomia paralela nem incorpore o trust model
+  `conformance`; não crie uma taxonomia paralela nem incorpore o trust model
   do baseline ao teste da suíte.
 
 ## Forma do teste
@@ -82,12 +82,12 @@ atalhos de import ou paths para mascarar a aresta.
 Rode primeiro o alvo estreito do módulo alterado e depois a cadeia relevante:
 
 ```bash
-pnpm nx run dmpf-testkit-go:fmt-check
-pnpm nx run dmpf-testkit-go:vet
-pnpm nx run dmpf-testkit-go:lint
-pnpm nx run dmpf-testkit-go:build
-pnpm nx run dmpf-testkit-go:test-race
-pnpm nx run dmpf-testkit-go:govulncheck
+pnpm nx run testkit:fmt-check
+pnpm nx run testkit:vet
+pnpm nx run testkit:lint
+pnpm nx run testkit:build
+pnpm nx run testkit:test-race
+pnpm nx run testkit:govulncheck
 ```
 
 `test-race` inclui a build tag `integration`; sem `DMPF_PG_DSN`, os casos de
@@ -97,7 +97,7 @@ distribuída, use Postgres e Redpanda reais:
 ```bash
 DMPF_PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' \
 DMPF_KAFKA_BROKERS=localhost:9092 \
-pnpm nx run dmpf-testkit-go:test-distributed
+pnpm nx run testkit:test-distributed
 ```
 
 Inclua na validação os módulos consumidores modificados. Não afirme que uma

@@ -24,4 +24,4 @@ configMapGenerator:
       - dashboards.yaml
   - name: grafana-dashboards
     files:
-      - dashboards/dmpf-reference.json
+      - dashboards/reference.json

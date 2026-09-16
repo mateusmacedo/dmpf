@@ -1,4 +1,4 @@
-package bookingspostgres
+package provider
 
 import (
 	"context"
@@ -7,9 +7,9 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	bookingsdomain "github.com/mateusmacedo/dmpf/libs/backend/go/bookings/domain"
-	dmpfports "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-ports"
-	dmpfpostgres "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/bookings/domain"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
 )
 
 const (
@@ -25,47 +25,47 @@ const (
 		WHERE code = $1 AND version = $2`
 )
 
-func NewResourceRepository(tx *dmpfpostgres.Tx) dmpfports.Repository[bookingsdomain.ResourceCode, bookingsdomain.ResourceSnapshot] {
+func NewResourceRepository(tx *postgres.Tx) ports.Repository[domain.ResourceCode, domain.ResourceSnapshot] {
 	return resourceRepository{conn: tx.Conn()}
 }
 
 type resourceRepository struct{ conn pgx.Tx }
 
-func (r resourceRepository) Load(ctx context.Context, code bookingsdomain.ResourceCode) (bookingsdomain.ResourceSnapshot, dmpfports.Version, error) {
+func (r resourceRepository) Load(ctx context.Context, code domain.ResourceCode) (domain.ResourceSnapshot, ports.Version, error) {
 	var (
 		version      int64
 		registeredAt int64
 	)
 	err := r.conn.QueryRow(ctx, selectResource, string(code)).Scan(&version, &registeredAt)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return bookingsdomain.ResourceSnapshot{}, 0, dmpfports.ErrNotFound
+		return domain.ResourceSnapshot{}, 0, ports.ErrNotFound
 	}
 	if err != nil {
-		return bookingsdomain.ResourceSnapshot{}, 0, fmt.Errorf("bookingspostgres: load resource %s: %w", code, err)
+		return domain.ResourceSnapshot{}, 0, fmt.Errorf("provider: load resource %s: %w", code, err)
 	}
-	return bookingsdomain.ResourceSnapshot{
+	return domain.ResourceSnapshot{
 		Code:         code,
-		RegisteredAt: bookingsdomain.Instant(registeredAt),
-	}, dmpfports.Version(version), nil
+		RegisteredAt: domain.Instant(registeredAt),
+	}, ports.Version(version), nil
 }
 
-func (r resourceRepository) Save(ctx context.Context, code bookingsdomain.ResourceCode, s bookingsdomain.ResourceSnapshot, expected dmpfports.Version) error {
+func (r resourceRepository) Save(ctx context.Context, code domain.ResourceCode, s domain.ResourceSnapshot, expected ports.Version) error {
 	if expected == 0 {
 		tag, err := r.conn.Exec(ctx, insertResource, string(code), int64(s.RegisteredAt))
 		if err != nil {
-			return fmt.Errorf("bookingspostgres: insert resource %s: %w", code, err)
+			return fmt.Errorf("provider: insert resource %s: %w", code, err)
 		}
 		if tag.RowsAffected() == 0 {
-			return dmpfports.ErrVersionConflict
+			return ports.ErrVersionConflict
 		}
 		return nil
 	}
 	tag, err := r.conn.Exec(ctx, updateResource, string(code), int64(expected), int64(s.RegisteredAt))
 	if err != nil {
-		return fmt.Errorf("bookingspostgres: update resource %s: %w", code, err)
+		return fmt.Errorf("provider: update resource %s: %w", code, err)
 	}
 	if tag.RowsAffected() == 0 {
-		return dmpfports.ErrVersionConflict
+		return ports.ErrVersionConflict
 	}
 	return nil
 }

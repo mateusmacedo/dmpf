@@ -24,7 +24,7 @@ execução, cada módulo que `KRN-03`..`KRN-12` criar nasceria sob revisão manu
 
 ## Decisão
 
-Entregar `dmpf-conformance`: uma CLI Go que decide a regra sobre o **grafo real
+Entregar `conformance`: uma CLI Go que decide a regra sobre o **grafo real
 de imports**, lendo a classificação declarada nos manifestos `dmpf/units@1`, e
 reprova o PR no CI.
 
@@ -197,11 +197,11 @@ mudança visível e isolada; um aprovador desatento ainda basta.
 ### O `depguard` não alcança o próprio verificador
 
 A regra `domain` do `.golangci.yml` seleciona por `**/*-domain/**`, e os pacotes
-`domain` do `dmpf-conformance` não casam esse glob — verificado: `net/http` em
+`domain` do `conformance` não casam esse glob — verificado: `net/http` em
 `internal/rule` devolve 0 issues no golangci-lint. O `tools/dmpf-gate-check.sh`
 passou a declarar esses módulos como fora do seu alcance, em vez de reprová-los
 por um gate que não os cobre. A proteção deles vem da autoverificação do próprio
-`dmpf-conformance`.
+`conformance`.
 
 ### Vinte das 36 células não têm evidência no parque
 

@@ -1,9 +1,9 @@
-package bookingsports
+package ports
 
 import (
 	"context"
 
-	bookingsdomain "github.com/mateusmacedo/dmpf/libs/backend/go/bookings/domain"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/bookings/domain"
 )
 
 // BookingsByResourceReader reads bookings by the resource they hold. The
@@ -11,5 +11,5 @@ import (
 // query that traverses a relation has no expression there and belongs to the
 // port block of the context (FND-04 §3.3).
 type BookingsByResourceReader interface {
-	LoadByResource(ctx context.Context, resourceID bookingsdomain.ResourceID) ([]bookingsdomain.BookingSnapshot, error)
+	LoadByResource(ctx context.Context, resourceID domain.ResourceID) ([]domain.BookingSnapshot, error)
 }

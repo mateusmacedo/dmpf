@@ -1,0 +1,199 @@
+# Topologia de referência (ADR-044): o BFF é a única borda HTTP publicada no
+# host; orders e reservations servem gRPC só na rede do projeto, cada um com o
+# próprio banco, e cada relay drena apenas a outbox do seu contexto. Os bancos
+# nascem no postgres-init; o schema, no papel api (DMPF_MIGRATE=true). Relay e
+# consumer reiniciam até as tabelas existirem. Os tópicos vêm do redpanda-init.
+x-app: &app
+  profiles: [dmpf]
+  restart: on-failure
+
+x-orders-image: &orders-image
+  build:
+    context: ../../..
+    dockerfile: apps/backend/orders/Dockerfile
+  image: ${DMPF_ORDERS_IMAGE:-orders:local}
+
+x-reservations-image: &reservations-image
+  build:
+    context: ../../..
+    dockerfile: apps/backend/reservations/Dockerfile
+  image: ${DMPF_RESERVATIONS_IMAGE:-reservations:local}
+
+x-dmpf-env: &dmpf-env
+  DMPF_OTLP_ENDPOINT: otel-collector:4317
+  DMPF_OTLP_INSECURE: 'true'
+  DMPF_SERVICE_VERSION: ${DMPF_SERVICE_VERSION:-local}
+
+x-kafka-env: &kafka-env
+  DMPF_KAFKA_BROKERS: redpanda:29092
+  DMPF_KAFKA_INSECURE: 'true'
+  DMPF_KAFKA_GROUP: ${DMPF_KAFKA_GROUP:-reservations}
+
+x-orders-env: &orders-env
+  DMPF_SERVICE: orders
+  DMPF_PG_DSN: postgres://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-app}@postgres:5432/${DMPF_ORDERS_DB:-dmpf_orders}?sslmode=disable
+
+x-reservations-env: &reservations-env
+  DMPF_SERVICE: reservations
+  DMPF_PG_DSN: postgres://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-app}@postgres:5432/${DMPF_RESERVATIONS_DB:-dmpf_reservations}?sslmode=disable
+
+# O gRPC interno roda sem TLS só neste compose; fora dele o transporte exige
+# certificado (GRP-15) e o processo não sobe sem um dos dois.
+x-grpc-server-env: &grpc-server-env
+  DMPF_GRPC_ADDR: ':9090'
+  DMPF_GRPC_INSECURE: 'true'
+  DMPF_MIGRATE: 'true'
+
+x-app-limits: &app-limits
+  resources:
+    limits: { cpus: '0.15', memory: 192M }
+    reservations: { cpus: '0.03', memory: 32M }
+
+x-worker-limits: &worker-limits
+  resources:
+    limits: { cpus: '0.10', memory: 128M }
+    reservations: { cpus: '0.02', memory: 32M }
+
+services:
+  postgres-init:
+    image: postgres:16-alpine
+    profiles: [dmpf]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER:-app}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-app}
+      PGDATABASE: ${POSTGRES_DB:-app}
+    entrypoint: ['/bin/sh', '-c']
+    # Idempotente: só cria o banco que ainda não existe, então reexecutar o
+    # profile não falha.
+    command:
+      - >-
+        set -e; for db in ${DMPF_ORDERS_DB:-dmpf_orders} ${DMPF_RESERVATIONS_DB:-dmpf_reservations}; do
+        if ! psql -tAc "SELECT 1 FROM pg_database WHERE datname = '$$db'" | grep -q 1; then
+        psql -c "CREATE DATABASE \"$$db\""; fi; done
+    deploy:
+      resources:
+        limits: { cpus: '0.05', memory: 32M }
+        reservations: { cpus: '0.01', memory: 16M }
+
+  redpanda-init:
+    image: redpandadata/redpanda:v26.2.2
+    profiles: [dmpf]
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    entrypoint: ['/bin/sh', '-c']
+    command:
+      - >-
+        rpk topic create ${DMPF_KAFKA_ORDERS_TOPIC:-orders.events} ${DMPF_KAFKA_ORDERS_DLQ:-orders.events.dlq}
+        ${DMPF_KAFKA_RESERVATIONS_TOPIC:-reservations.events} ${DMPF_KAFKA_RESERVATIONS_DLQ:-reservations.events.dlq}
+        -X brokers=redpanda:29092 -p 1 -r 1 || true
+    deploy:
+      resources:
+        limits: { cpus: '0.05', memory: 64M }
+        reservations: { cpus: '0.01', memory: 16M }
+
+  dmpf-orders-api:
+    <<: [*app, *orders-image]
+    command: ['--role', 'api']
+    environment:
+      <<: [*dmpf-env, *orders-env, *grpc-server-env]
+      DMPF_INSTANCE_ID: orders-api
+      DMPF_ITEM_LIMIT: ${DMPF_ITEM_LIMIT:-10}
+    depends_on:
+      postgres-init:
+        condition: service_completed_successfully
+      otel-collector:
+        condition: service_started
+    deploy: *app-limits
+
+  dmpf-orders-relay:
+    <<: [*app, *orders-image]
+    command: ['--role', 'relay']
+    environment:
+      <<: [*dmpf-env, *orders-env, *kafka-env]
+      DMPF_INSTANCE_ID: orders-relay
+      DMPF_KAFKA_ORDERS_TOPIC: ${DMPF_KAFKA_ORDERS_TOPIC:-orders.events}
+      DMPF_KAFKA_ORDERS_DLQ: ${DMPF_KAFKA_ORDERS_DLQ:-orders.events.dlq}
+    depends_on:
+      redpanda-init:
+        condition: service_completed_successfully
+      dmpf-orders-api:
+        condition: service_started
+    deploy: *worker-limits
+
+  dmpf-reservations-api:
+    <<: [*app, *reservations-image]
+    command: ['--role', 'api']
+    environment:
+      <<: [*dmpf-env, *reservations-env, *grpc-server-env]
+      DMPF_INSTANCE_ID: reservations-api
+    depends_on:
+      postgres-init:
+        condition: service_completed_successfully
+      otel-collector:
+        condition: service_started
+    deploy: *app-limits
+
+  dmpf-reservations-relay:
+    <<: [*app, *reservations-image]
+    command: ['--role', 'relay']
+    environment:
+      <<: [*dmpf-env, *reservations-env, *kafka-env]
+      DMPF_INSTANCE_ID: reservations-relay
+      DMPF_KAFKA_RESERVATIONS_TOPIC: ${DMPF_KAFKA_RESERVATIONS_TOPIC:-reservations.events}
+      DMPF_KAFKA_RESERVATIONS_DLQ: ${DMPF_KAFKA_RESERVATIONS_DLQ:-reservations.events.dlq}
+    depends_on:
+      redpanda-init:
+        condition: service_completed_successfully
+      dmpf-reservations-api:
+        condition: service_started
+    deploy: *worker-limits
+
+  dmpf-reservations-consumer:
+    <<: [*app, *reservations-image]
+    command: ['--role', 'consumer']
+    environment:
+      <<: [*dmpf-env, *reservations-env, *kafka-env]
+      DMPF_INSTANCE_ID: reservations-consumer
+      DMPF_KAFKA_ORDERS_TOPIC: ${DMPF_KAFKA_ORDERS_TOPIC:-orders.events}
+      DMPF_KAFKA_ORDERS_DLQ: ${DMPF_KAFKA_ORDERS_DLQ:-orders.events.dlq}
+    depends_on:
+      redpanda-init:
+        condition: service_completed_successfully
+      dmpf-reservations-api:
+        condition: service_started
+    deploy: *worker-limits
+
+  dmpf-bff:
+    <<: *app
+    build:
+      context: ../../..
+      dockerfile: apps/backend/bff/Dockerfile
+    image: ${DMPF_BFF_IMAGE:-bff:local}
+    environment:
+      <<: *dmpf-env
+      DMPF_SERVICE: bff
+      DMPF_INSTANCE_ID: bff
+      DMPF_HTTP_ADDR: ':8080'
+      DMPF_ORDERS_GRPC_TARGET: dns:///dmpf-orders-api:9090
+      DMPF_RESERVATIONS_GRPC_TARGET: dns:///dmpf-reservations-api:9090
+      DMPF_GRPC_INSECURE: 'true'
+      DMPF_OPENAPI_ORDERS_PATH: /contracts/openapi/orders/v1/openapi.yaml
+      DMPF_OPENAPI_RESERVATIONS_PATH: /contracts/openapi/reservations/v1/openapi.yaml
+      # Só o Swagger UI local chama o BFF de outro origin; fora do
+      # desenvolvimento a variável fica vazia e a borda é same-origin.
+      DMPF_CORS_ORIGINS: http://localhost:${SWAGGER_PORT:-8082},http://127.0.0.1:${SWAGGER_PORT:-8082}
+    ports:
+      - '${DMPF_HTTP_PORT:-8080}:8080'
+    depends_on:
+      dmpf-orders-api:
+        condition: service_started
+      dmpf-reservations-api:
+        condition: service_started
+      otel-collector:
+        condition: service_started
+    deploy: *app-limits

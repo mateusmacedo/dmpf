@@ -23,18 +23,18 @@ tudo que faz I/O: relógio de parede, socket para o collector, saída de log.
 
 ## Decisão
 
-Um módulo `provider`, `dmpf-observability-go`, com doze packages e uma unidade
-DMPF (`dmpf-kernel/observability`).
+Um módulo `provider`, `observability`, com doze packages e uma unidade
+DMPF (`kernel/observability`).
 
-### O gancho de instrumentação vive em `dmpf-ports`, não no bloco `application`
+### O gancho de instrumentação vive em `ports`, não no bloco `application`
 
-A spec originalmente o punha em `dmpfapplication`. A implementação refutou isso
+A spec originalmente o punha em `application`. A implementação refutou isso
 por medição: **Go satisfaz interface por assinatura idêntica, não por
 estrutura**. Um provider que declarasse o próprio `Result` — mesmo com campos
 iguais — não satisfaria a interface do bloco `application`, e importá-la seria a
 aresta proibida.
 
-A porta foi para `dmpf-ports` (`Instrumentation`, `Result`, `AuditEvent`,
+A porta foi para `ports` (`Instrumentation`, `Result`, `AuditEvent`,
 `OutcomeCategory`, `EndOperation`, `ErrDenied`, `NoInstrumentation`), onde os
 dois lados a alcançam legitimamente: declarada acima, realizada abaixo, como
 toda porta. Erratas 7 e 8 da spec.
@@ -95,7 +95,7 @@ O orçamento de retry (`RES-30`) precisa ser compartilhado entre dependências d
 uma mesma execução, e o contexto é o único canal com esse alcance. Ele é a
 **única** exceção: nenhum outro estado da plataforma viaja em `context.Value`.
 
-Pô-lo em `dmpfports` violaria `RES-24` pelo caminho mais discreto — o bloco
+Pô-lo em `ports` violaria `RES-24` pelo caminho mais discreto — o bloco
 `port` passaria a conhecer política de retry.
 
 ### Retry por conjunção, com taxonomia injetada
@@ -206,7 +206,7 @@ política própria, onde a norma pede conjunção de fatores explícita e audit�
 
 **Realizar a taxonomia de erro aqui** — invade FND-07 e o `KRN-10`.
 
-**Estender `dmpfports.Clock` para cobrir timer e sleep** — violaria `RES-24`,
+**Estender `ports.Clock` para cobrir timer e sleep** — violaria `RES-24`,
 levando política de resiliência ao bloco `port`.
 
 **Tag `integration` ou `testing.Short()` para o teste do collector** — cria
@@ -252,4 +252,4 @@ concorrente os encontra no meio do caminho.
 - `docs/adr/030-granularidade-modulo-go-e-bom.md` — o piso Go e o BOM
 - `docs/dmpf/resiliencia-observabilidade.md` — FND-08
 - `docs/dmpf/rfc-dmpf-foundation-v0.1.md` — §6.2, §6.3, §10.2
-- `libs/backend/go/dmpf-observability/README.md` — o módulo em detalhe
+- `libs/backend/go/observability/README.md` — o módulo em detalhe

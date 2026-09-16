@@ -1,9 +1,9 @@
-package bookingsdomain
+package domain
 
-import dmpfdomain "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-domain"
+import "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
 
 const (
-	CodeQuantityOutOfRange dmpfdomain.Code = "resource-scheduling/booking/quantity-out-of-range"
-	CodeNotReserved        dmpfdomain.Code = "resource-scheduling/booking/not-reserved"
-	CodeCodeEmpty          dmpfdomain.Code = "resource-scheduling/resource/code-empty"
+	CodeQuantityOutOfRange domain.Code = "resource-scheduling/booking/quantity-out-of-range"
+	CodeNotReserved        domain.Code = "resource-scheduling/booking/not-reserved"
+	CodeCodeEmpty          domain.Code = "resource-scheduling/resource/code-empty"
 )

@@ -1,4 +1,4 @@
-package bookingspostgres
+package provider
 
 import (
 	"context"
@@ -7,17 +7,17 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	bookingsdomain "github.com/mateusmacedo/dmpf/libs/backend/go/bookings/domain"
-	dmpfports "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-ports"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/bookings/domain"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
 
-func NewBookingReader(pool *pgxpool.Pool) dmpfports.Reader[bookingsdomain.BookingID, bookingsdomain.BookingSnapshot] {
+func NewBookingReader(pool *pgxpool.Pool) ports.Reader[domain.BookingID, domain.BookingSnapshot] {
 	return bookingReader{pool: pool}
 }
 
 type bookingReader struct{ pool *pgxpool.Pool }
 
-func (r bookingReader) Load(ctx context.Context, id bookingsdomain.BookingID) (bookingsdomain.BookingSnapshot, dmpfports.Version, error) {
+func (r bookingReader) Load(ctx context.Context, id domain.BookingID) (domain.BookingSnapshot, ports.Version, error) {
 	return loadBooking(ctx, r.pool, id)
 }
 
@@ -29,14 +29,14 @@ func NewBookingsByResourceReader(pool *pgxpool.Pool) *BookingsByResourceReader {
 	return &BookingsByResourceReader{pool: pool}
 }
 
-func (r *BookingsByResourceReader) LoadByResource(ctx context.Context, resourceID bookingsdomain.ResourceID) ([]bookingsdomain.BookingSnapshot, error) {
+func (r *BookingsByResourceReader) LoadByResource(ctx context.Context, resourceID domain.ResourceID) ([]domain.BookingSnapshot, error) {
 	rows, err := r.pool.Query(ctx, selectBookingsByResource, string(resourceID))
 	if err != nil {
-		return nil, fmt.Errorf("bookingspostgres: find by resource %s: %w", resourceID, err)
+		return nil, fmt.Errorf("provider: find by resource %s: %w", resourceID, err)
 	}
 	defer rows.Close()
 
-	var result []bookingsdomain.BookingSnapshot
+	var result []domain.BookingSnapshot
 	for rows.Next() {
 		var (
 			bookingID  string
@@ -47,19 +47,19 @@ func (r *BookingsByResourceReader) LoadByResource(ctx context.Context, resourceI
 			reservedAt int64
 		)
 		if err := rows.Scan(&bookingID, &version, &resID, &quantity, &status, &reservedAt); err != nil {
-			return nil, fmt.Errorf("bookingspostgres: scan by resource %s: %w", resourceID, err)
+			return nil, fmt.Errorf("provider: scan by resource %s: %w", resourceID, err)
 		}
-		result = append(result, bookingsdomain.BookingSnapshot{
-			ID:         bookingsdomain.BookingID(bookingID),
-			ResourceID: bookingsdomain.ResourceID(resID),
+		result = append(result, domain.BookingSnapshot{
+			ID:         domain.BookingID(bookingID),
+			ResourceID: domain.ResourceID(resID),
 			Quantity:   quantity,
-			Status:     bookingsdomain.BookingStatus(status),
-			ReservedAt: bookingsdomain.Instant(reservedAt),
+			Status:     domain.BookingStatus(status),
+			ReservedAt: domain.Instant(reservedAt),
 		})
-		_ = dmpfports.Version(version)
+		_ = ports.Version(version)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("bookingspostgres: rows by resource %s: %w", resourceID, err)
+		return nil, fmt.Errorf("provider: rows by resource %s: %w", resourceID, err)
 	}
 	return result, nil
 }

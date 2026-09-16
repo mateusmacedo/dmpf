@@ -1,4 +1,4 @@
-package bookingspostgres
+package provider
 
 import (
 	"context"
@@ -7,9 +7,9 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	bookingsdomain "github.com/mateusmacedo/dmpf/libs/backend/go/bookings/domain"
-	dmpfports "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-ports"
-	dmpfpostgres "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/bookings/domain"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
 )
 
 const (
@@ -25,48 +25,48 @@ const (
 		WHERE booking_id = $1 AND version = $2`
 )
 
-func NewBookingRepository(tx *dmpfpostgres.Tx) dmpfports.Repository[bookingsdomain.BookingID, bookingsdomain.BookingSnapshot] {
+func NewBookingRepository(tx *postgres.Tx) ports.Repository[domain.BookingID, domain.BookingSnapshot] {
 	return bookingRepository{conn: tx.Conn()}
 }
 
 type bookingRepository struct{ conn pgx.Tx }
 
-func (r bookingRepository) Load(ctx context.Context, id bookingsdomain.BookingID) (bookingsdomain.BookingSnapshot, dmpfports.Version, error) {
+func (r bookingRepository) Load(ctx context.Context, id domain.BookingID) (domain.BookingSnapshot, ports.Version, error) {
 	return loadBooking(ctx, r.conn, id)
 }
 
-func (r bookingRepository) Save(ctx context.Context, id bookingsdomain.BookingID, s bookingsdomain.BookingSnapshot, expected dmpfports.Version) error {
+func (r bookingRepository) Save(ctx context.Context, id domain.BookingID, s domain.BookingSnapshot, expected ports.Version) error {
 	if expected == 0 {
 		return r.insert(ctx, id, s)
 	}
 	return r.update(ctx, id, s, expected)
 }
 
-func (r bookingRepository) insert(ctx context.Context, id bookingsdomain.BookingID, s bookingsdomain.BookingSnapshot) error {
+func (r bookingRepository) insert(ctx context.Context, id domain.BookingID, s domain.BookingSnapshot) error {
 	tag, err := r.conn.Exec(ctx, insertBooking, string(id), string(s.ResourceID), s.Quantity, int(s.Status), int64(s.ReservedAt))
 	if err != nil {
-		return fmt.Errorf("bookingspostgres: insert booking %s: %w", id, err)
+		return fmt.Errorf("provider: insert booking %s: %w", id, err)
 	}
 	if tag.RowsAffected() == 0 {
-		return dmpfports.ErrVersionConflict
+		return ports.ErrVersionConflict
 	}
 	return nil
 }
 
-func (r bookingRepository) update(ctx context.Context, id bookingsdomain.BookingID, s bookingsdomain.BookingSnapshot, expected dmpfports.Version) error {
+func (r bookingRepository) update(ctx context.Context, id domain.BookingID, s domain.BookingSnapshot, expected ports.Version) error {
 	tag, err := r.conn.Exec(ctx, updateBooking, string(id), int64(expected), string(s.ResourceID), s.Quantity, int(s.Status), int64(s.ReservedAt))
 	if err != nil {
-		return fmt.Errorf("bookingspostgres: update booking %s: %w", id, err)
+		return fmt.Errorf("provider: update booking %s: %w", id, err)
 	}
 	if tag.RowsAffected() == 0 {
-		return dmpfports.ErrVersionConflict
+		return ports.ErrVersionConflict
 	}
 	return nil
 }
 
 func loadBooking(ctx context.Context, q interface {
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
-}, id bookingsdomain.BookingID) (bookingsdomain.BookingSnapshot, dmpfports.Version, error) {
+}, id domain.BookingID) (domain.BookingSnapshot, ports.Version, error) {
 	var (
 		version    int64
 		resourceID string
@@ -76,16 +76,16 @@ func loadBooking(ctx context.Context, q interface {
 	)
 	err := q.QueryRow(ctx, selectBooking, string(id)).Scan(&version, &resourceID, &quantity, &status, &reservedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return bookingsdomain.BookingSnapshot{}, 0, dmpfports.ErrNotFound
+		return domain.BookingSnapshot{}, 0, ports.ErrNotFound
 	}
 	if err != nil {
-		return bookingsdomain.BookingSnapshot{}, 0, fmt.Errorf("bookingspostgres: load booking %s: %w", id, err)
+		return domain.BookingSnapshot{}, 0, fmt.Errorf("provider: load booking %s: %w", id, err)
 	}
-	return bookingsdomain.BookingSnapshot{
+	return domain.BookingSnapshot{
 		ID:         id,
-		ResourceID: bookingsdomain.ResourceID(resourceID),
+		ResourceID: domain.ResourceID(resourceID),
 		Quantity:   quantity,
-		Status:     bookingsdomain.BookingStatus(status),
-		ReservedAt: bookingsdomain.Instant(reservedAt),
-	}, dmpfports.Version(version), nil
+		Status:     domain.BookingStatus(status),
+		ReservedAt: domain.Instant(reservedAt),
+	}, ports.Version(version), nil
 }

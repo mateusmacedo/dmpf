@@ -28,10 +28,10 @@ com task própria no épico ARQ-519, branch própria e plano próprio:
 
 | Ordem | Sub-spec | Entrega | Depende de |
 | --- | --- | --- | --- |
-| 1 | `SPEC-6QT9SBAS` (ARQ-545) — composition root `dmpf-reference` | `apps/backend/dmpf-reference`, contrato OpenAPI de `orders`, `orderspg.NewReader`, targets `serve-*`, exclusão do release Docker | as onze sub-specs de `KRN-01` a `KRN-11` |
+| 1 | `SPEC-6QT9SBAS` (ARQ-545) — composition root `reference` | `apps/backend/reference`, contrato OpenAPI de `orders`, `orderspg.NewReader`, targets `serve-*`, exclusão do release Docker | as onze sub-specs de `KRN-01` a `KRN-11` |
 | 2 | `SPEC-H1A190Y8` (ARQ-546) — generator `bounded-context` | plugin local `tools/dmpf-plugin`, generator, prova mecânica em worktree com dois commits e `--base`, guia de composição | `SPEC-MQA5HAXF`, `SPEC-WTAXFV8B`, `SPEC-SJ66880S` |
 | 3 | `SPEC-538MS2D4` (ARQ-547) — modelo do BOM, validador e escape hatch | schema `dmpf/bom@1`, `dmpf-bom` (`B001`..`B010`), exceção com `history[]` e admissão `X001`..`X007` ponta a ponta no verificador | `SPEC-WTAXFV8B`, `SPEC-VVR1X71Q` |
-| 4 | `SPEC-JPP31095` (ARQ-548) — evidência e certificação da release `0.1.0` | `cmd/dmpf-evidence` por API, `bom/evidence/`, o primeiro BOM certificado, tag `dmpf@0.1.0`, ADR-041 consolidado, `AGENTS.md` | 1, 2 e 3 |
+| 4 | `SPEC-JPP31095` (ARQ-548) — evidência e certificação da release `0.1.0` | `cmd/evidence` por API, `bom/evidence/`, o primeiro BOM certificado, tag `dmpf@0.1.0`, ADR-041 consolidado, `AGENTS.md` | 1, 2 e 3 |
 
 O porquê é o do ADR-027: a combinação que quebra é a que nunca foi exercitada.
 Como usuário de uma squad, quero chegar de um comando a um serviço aprovado pelo
@@ -53,7 +53,7 @@ juntas e por qual evidência.
   rodando; o BOM diz quais versões usar e por qual evidência; divergir do golden
   path continua permitido, mas é ato rastreado com prazo, recusado na admissão
   quando toca constraint P0.
-- **Inspiração**: `libs/backend/go/dmpf-app/example/reservations/` já cabeia
+- **Inspiração**: `libs/backend/go/app/example/reservations/` já cabeia
   Postgres, UoW, consumer e relay em miniatura; o guia
   `docs/guides/dmpf-manifesto.md` é o gesto que o generator automatiza; os
   `chore(workspace): [ARQ-xxx] Registrar ... no baseline` são o precedente do
@@ -64,7 +64,7 @@ juntas e por qual evidência.
   - `SPEC-VVR1X71Q` — FND-10, que deixou "o preenchimento do BOM com versões
     reais" e "generators" para os épicos de tooling
   - `SPEC-SJ66880S` — `KRN-11`, cujo `Report` é a evidência que `KRN-12` consome
-  - `SPEC-CGPX20NP` — `KRN-08`, que reservou o nome `dmpf-reference`
+  - `SPEC-CGPX20NP` — `KRN-08`, que reservou o nome `reference`
   - `docs/dmpf/governanca-bom-pilotos.md` — FND-10, §3, §4 e §5.1
   - ADR-012, ADR-015, ADR-027, ADR-030, ADR-031, ADR-034, ADR-039, ADR-040
   - `docs/guides/dmpf-manifesto.md`
@@ -79,7 +79,7 @@ juntas e por qual evidência.
 | "aprovado pelo verificador, sem edição manual" | criar unidade é ato regulado (`AUT-01` A3); sem `--base` o verificador devolve "não verificado" (`conformance/check.go:188`); a autorização é lida nos commits `base..HEAD` | "Sem edição manual" = nenhum byte gerado muda entre o generator e a aprovação. A prova faz dois commits num worktree (classificação; código) e verifica com `--base`; o generator nunca regrava o baseline |
 | "BOM da release" | não há release do produto DMPF: o `nx release` versiona projetos `type:lib` de forma independente; nenhuma tag existe; `package.json` em `0.0.0` | **Identidade do produto** definida abaixo: tag anotada `dmpf@<semver>`, um BOM por tag |
 | "guia em `docs/dmpf/`" | norma em `docs/dmpf/`; guias operacionais em `docs/guides/` | `docs/guides/dmpf-composicao.md`, indexado em `docs/dmpf/README.md` |
-| "`AGENTS.md` reflete o inventário real" | `AGENTS.md` e `dmpf-app/README.md` descrevem 2 unidades no `dmpf-app`; o manifesto tem 3 | A divergência preexistente fecha na sub-spec 1 |
+| "`AGENTS.md` reflete o inventário real" | `AGENTS.md` e `app/README.md` descrevem 2 unidades no `app`; o manifesto tem 3 | A divergência preexistente fecha na sub-spec 1 |
 | "consumo fora do workspace com `require` versionado" (ADR-034) | `go.mod` sem `require` de irmão; tags do `nx release` (`<projeto>@<versão>`) não são tags de módulo Go (`<path>/vX.Y.Z`) | Fora de `KRN-12`, com task sucessora **ARQ-550** (`KRN-14`) e addendum no ADR-034 com owner, dependência e aceite |
 
 ### Fontes normativas
@@ -104,7 +104,7 @@ juntas e por qual evidência.
 - [P0] NUNCA admitir exceção sem os quatro itens de `GOV-30` nem exceção cujo objeto esteja no catálogo N1–N7 de `GOV-32`; a admissão é decidida por catálogo fechado, nunca por texto livre.
 - [P0] NUNCA deixar o generator regravar `tools/dmpf-baseline/units-baseline.json` (`AUT-01`, ADR-031).
 - [P0] NUNCA declarar exactly-once em nenhum artefato de `KRN-12`.
-- [P1] Um transporte assíncrono por processo no `dmpf-reference` (Kafka); `TRP-09`/`TRP-46` são de task sucessora.
+- [P1] Um transporte assíncrono por processo no `reference` (Kafka); `TRP-09`/`TRP-46` são de task sucessora.
 - [P1] Toda decisão transversal desta guarda-chuva é citada pela sub-spec que a aplica, nunca reescrita.
 </constraints>
 
@@ -120,7 +120,7 @@ juntas e por qual evidência.
   que continuam a existir; o BOM referencia ambas.
   - `version` de cada entrada é o valor **efetivo** no commit da tag: para
     módulos `type:lib`, o `version` do `package.json` (`0.0.0` até o primeiro
-    `nx release`); para `dmpf-reference` (`type:app`, não versionado), o SHA
+    `nx release`); para `reference` (`type:app`, não versionado), o SHA
     curto do commit; para dependências externas, a versão do `go.mod`.
     Certificar uma combinação não exige que a versão seja "bonita" — exige que
     seja a exercitada.
@@ -156,12 +156,12 @@ juntas e por qual evidência.
 
 - [ ] Cada sub-spec fecha com a cadeia do workspace verde (`fmt-check`, `vet`,
   `lint`, `build`, `test-race`, `govulncheck`, `biome ci`, `adr-verify`,
-  `dmpf-verify`) e o verificador `dmpf-conformance` sem diagnóstico.
+  `dmpf-verify`) e o verificador `conformance` sem diagnóstico.
   Pendente na sub-spec 4, fora do escopo dela: `adr-verify` reprova com 50
   violações (49 já na `develop` e 1 da regra que só admite um addendum por ADR,
   no ADR-041), `dmpf-verify` reprova no `C4` e o harness dele num teste
   histórico, e `fitness/TestDomainTestsNeedNoInfrastructureDouble` já reprovava
-  na `develop`. O verificador `dmpf-conformance` passa sem diagnóstico.
+  na `develop`. O verificador `conformance` passa sem diagnóstico.
 - [x] Nenhuma sub-spec adiciona dependência Go nova; a sub-spec 2 adiciona
   `@nx/plugin` e `@nx/devkit` (npm), declaradas no BOM pela sub-spec 4.
 
@@ -169,12 +169,12 @@ juntas e por qual evidência.
 
 | Camada (bloco DMPF) | Afetada? | Por qual sub-spec |
 | --- | --- | --- |
-| `domain` | [x] | 3 (`internal/exception` como unidade `domain` do `dmpf-conformance`) |
+| `domain` | [x] | 3 (`internal/exception` como unidade `domain` do `conformance`) |
 | `application` | [ ] | — |
 | `port` | [ ] | — |
 | `contract` | [x] | 1 (`contracts/openapi/orders/v1/openapi.yaml`) |
 | `provider` | [x] | 1 (`orderspg.NewReader`); 3 (`fsstore` decodifica a exceção completa) |
-| `app` | [x] | 1 (`dmpf-reference`); 3 (`bom`, `cmd/dmpf-bom`); 4 (`evidence`, `cmd/dmpf-evidence`) |
+| `app` | [x] | 1 (`reference`); 3 (`bom`, `cmd/bom`); 4 (`evidence`, `cmd/evidence`) |
 | Workspace | [x] | 1 (`go.work`, `nx-release.yml`); 2 (`tools/dmpf-plugin`, `package.json`, lockfile, `ci.yml`); 3 (`bom/`, `ci.yml`); 4 (tag, `AGENTS.md`, ADR-041) |
 
 ## Localização de código
@@ -196,8 +196,8 @@ tools/dmpf-baseline/units-baseline.json    — cada sub-spec que cria unidade re
 
 ```text
  sub-spec 1                       sub-spec 2                          sub-spec 3                          sub-spec 4
- dmpf-reference (app)             tools/dmpf-plugin                   dmpf-conformance/{bom,exception}    dmpf-testkit/evidence
- HTTP → orders → UoW(pg) → outbox bounded-context → 5 módulos         dmpf/bom@1, B001..B011              cmd/dmpf-evidence → bom/evidence/
+ reference (app)             tools/dmpf-plugin                   conformance/{bom,exception}    testkit/evidence
+ HTTP → orders → UoW(pg) → outbox bounded-context → 5 módulos         dmpf/bom@1, B001..B011              cmd/evidence → bom/evidence/
  relay → Kafka → consumer → inbox go.work, manifesto declarado        exceção + history, X001..X007       digest → BOM certificado
  NewReader(pool), OpenAPI         dmpf-generator-check.sh (2 commits) fsstore→manifest→admissão→policy    tag dmpf@0.1.0, ADR-041 final
         │                                   │                                   │                                   ▲
@@ -285,7 +285,7 @@ Os cenários executáveis vivem nas sub-specs. Os desta guarda-chuva são de
 integração entre elas:
 
 - Dado as sub-specs 1, 2 e 3 `done`, quando a sub-spec 4 roda
-  `dmpf-evidence` e `dmpf-bom`, então o BOM `0.1.0` lista `dmpf-reference` com
+  `dmpf-evidence` e `dmpf-bom`, então o BOM `0.1.0` lista `reference` com
   `version` = SHA curto e os módulos do kernel com a versão do `package.json`,
   e o validador sai com 0.
 - Dado a tag `dmpf@0.1.0` cunhada, quando `dmpf-bom --root .` roda sem
@@ -301,7 +301,7 @@ integração entre elas:
 - [P0] NUNCA admitir exceção sem os quatro itens de `GOV-30` nem exceção cujo objeto esteja no catálogo N1–N7 de `GOV-32`; a admissão é decidida por catálogo fechado, nunca por texto livre.
 - [P0] NUNCA deixar o generator regravar `tools/dmpf-baseline/units-baseline.json` (`AUT-01`, ADR-031).
 - [P0] NUNCA declarar exactly-once em nenhum artefato de `KRN-12`.
-- [P1] Um transporte assíncrono por processo no `dmpf-reference` (Kafka); `TRP-09`/`TRP-46` são de task sucessora.
+- [P1] Um transporte assíncrono por processo no `reference` (Kafka); `TRP-09`/`TRP-46` são de task sucessora.
 - [P1] Toda decisão transversal desta guarda-chuva é citada pela sub-spec que a aplica, nunca reescrita.
 </critical_constraints>
 
@@ -314,7 +314,7 @@ integração entre elas:
   processo, respectivamente.
 - **Consumo dos módulos fora do workspace com tag de módulo Go**: task
   sucessora; addendum no ADR-034.
-- **Imagem Docker do `dmpf-reference`**: golden path.
+- **Imagem Docker do `reference`**: golden path.
 - **Migração do `legado-golibs`, pilotos e métricas de adoção**: épico de ordem 5.
 - **Kernel TypeScript e repositório de contratos separado**: ordens 2 e 3.
 - **Alteração de FND-10**: a tensão entre `BOM-07` (transição só por ato) e

@@ -13,27 +13,27 @@ resources:
   - ../../base/postgres
   - ../../base/redpanda
   - ../../../observability
-  - ../../base/dmpf-reference-orders
-  - ../../base/dmpf-reference-reservations
-  - ../../base/dmpf-reference-bff
+  - ../../base/orders
+  - ../../base/reservations
+  - ../../base/bff
   - job-databases.yaml
 
 images:
-  - name: ghcr.io/mateusmacedo/dmpf-reference-bff
+  - name: ghcr.io/mateusmacedo/bff
     newTag: dev
-  - name: ghcr.io/mateusmacedo/dmpf-reference-orders
+  - name: ghcr.io/mateusmacedo/orders
     newTag: dev
-  - name: ghcr.io/mateusmacedo/dmpf-reference-reservations
+  - name: ghcr.io/mateusmacedo/reservations
     newTag: dev
 
 secretGenerator:
-  - name: dmpf-reference-orders
+  - name: orders
     literals:
       - DMPF_PG_DSN=postgres://app:app@postgres-0.postgres:5432/dmpf_orders?sslmode=disable
       - DMPF_KAFKA_BROKERS=redpanda-0.redpanda:9092
     options:
       disableNameSuffixHash: true
-  - name: dmpf-reference-reservations
+  - name: reservations
     literals:
       - DMPF_PG_DSN=postgres://app:app@postgres-0.postgres:5432/dmpf_reservations?sslmode=disable
       - DMPF_KAFKA_BROKERS=redpanda-0.redpanda:9092

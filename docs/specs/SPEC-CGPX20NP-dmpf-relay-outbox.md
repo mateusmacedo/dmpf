@@ -31,7 +31,7 @@ inbox.
 ## Contexto
 
 - **Problema**: hoje `dmpf_outbox` acumula registros em `status = 'pending'` e
-  nada os lê. `libs/backend/go/dmpf-provider-postgres/outbox.go:42-81`
+  nada os lê. `libs/backend/go/postgres/outbox.go:42-81`
   (`Enqueue`) é o único caminho de escrita da tabela, e ele deixa `status`,
   `attempt_count`, `locked_by`, `locked_until`, `published_at` e `last_error`
   ao default do schema — porque, no comentário do próprio arquivo
@@ -77,12 +77,12 @@ sobre o ticket em todos.
 
 | Ticket `ARQ-527` diz | Repositório em 05/09/2026 | Esta spec adota |
 | --- | --- | --- |
-| App `apps/backend/dmpf-reference` no bloco `app` | `apps/backend/` contém apenas `.gitkeep`; nenhum projeto Nx registrado. O bloco `app` real nasceu em `libs/backend/go/dmpf-app` (`KRN-07`), cujo `doc.go:15` já reserva o lugar: "the relay, KRN-08". A convenção do ADR-030 é `libs/<scope>/<stack>/<módulo>`, e `libs/backend/go/dmpf-conformance/cmd` é o precedente de binário dentro de lib | Pacote `relay/` e binário `cmd/dmpf-relay/` **dentro de `libs/backend/go/dmpf-app`**. O nome `dmpf-reference` fica reservado ao composition root de exemplo do `KRN-12`, com quem colidiria |
+| App `apps/backend/reference` no bloco `app` | `apps/backend/` contém apenas `.gitkeep`; nenhum projeto Nx registrado. O bloco `app` real nasceu em `libs/backend/go/app` (`KRN-07`), cujo `doc.go:15` já reserva o lugar: "the relay, KRN-08". A convenção do ADR-030 é `libs/<scope>/<stack>/<módulo>`, e `libs/backend/go/conformance/cmd` é o precedente de binário dentro de lib | Pacote `relay/` e binário `cmd/dmpf-relay/` **dentro de `libs/backend/go/app`**. O nome `reference` fica reservado ao composition root de exemplo do `KRN-12`, com quem colidiria |
 | "O ADR-021 explica por que o relay é agnóstico ao que publica" | O congelamento dos bytes é decisão do ADR-021 (`:57`, "Serializar na escrita congela os bytes no commit"), mas a conclusão "e é isso que torna o relay agnóstico ao conteúdo do que publica" está no **ADR-020** (`:108-113`), na seção de Referências | Cita a origem correta de cada afirmação |
 | Escopo silente sobre `payload_hash` | `docs/adr/035-realizacao-postgres-da-outbox.md:163-165`: "`payload_hash` é redundante enquanto ninguém o lê: quem passa a conferi-lo na drenagem é o `KRN-08`" | Conferência de `payload_hash` na drenagem é requisito **P0** desta entrega |
 | Escopo silente sobre a montagem do CloudEvent | `docs/adr/035-...md:40-44`: "O relay (`KRN-08`) monta o CloudEvent na drenagem a partir das colunas — `message_id`→`id`, `message_type`→`type`, `schema_version`→`dataschema`, `occurred_at`→`time`, `partition_key`, `aggregate_version` — e de `metadata`". A coluna `payload` guarda **só** os bytes do `Any` do integration event (`envelope.Pack`, `outbox.go:58-64`), nunca o CloudEvent inteiro | Montagem do envelope a partir das colunas é entregável **P0**. Sem ela o relay não tem o que publicar |
-| Escopo silente sobre a serialização do envelope | O package `envelope` expõe `Pack`, `Encode`, `Decode`, `Unmarshal` e `Unpack`. `Encode` devolve `*cloudeventsv1.CloudEvent` — o tipo gerado, **não bytes**. Não existe `Marshal`, o simétrico de `Unmarshal`, cujo godoc declara a intenção: "so adapters that receive raw transport bytes never import the CloudEvent generated type directly" | Acrescentar `envelope.Marshal(Envelope) ([]byte, error)` ao `dmpf-contracts`, pelo mesmo motivo que justifica `Unmarshal`. Requisito **P0** |
-| Trata claim e drenagem como um bloco só | RFC `§7.5` separa: **persistência da tabela e do claim** é do `provider` ("Tabela, `SKIP LOCKED` e backoff são tecnologia"); **drenagem e publicação** é do `app` ("É um processo próprio, com composition root e lifecycle") | Entrega em dois módulos: o claim e as transições em `dmpf-provider-postgres`, o laço e o lifecycle em `dmpf-app` |
+| Escopo silente sobre a serialização do envelope | O package `envelope` expõe `Pack`, `Encode`, `Decode`, `Unmarshal` e `Unpack`. `Encode` devolve `*cloudeventsv1.CloudEvent` — o tipo gerado, **não bytes**. Não existe `Marshal`, o simétrico de `Unmarshal`, cujo godoc declara a intenção: "so adapters that receive raw transport bytes never import the CloudEvent generated type directly" | Acrescentar `envelope.Marshal(Envelope) ([]byte, error)` ao `contracts`, pelo mesmo motivo que justifica `Unmarshal`. Requisito **P0** |
+| Trata claim e drenagem como um bloco só | RFC `§7.5` separa: **persistência da tabela e do claim** é do `provider` ("Tabela, `SKIP LOCKED` e backoff são tecnologia"); **drenagem e publicação** é do `app` ("É um processo próprio, com composition root e lifecycle") | Entrega em dois módulos: o claim e as transições em `postgres`, o laço e o lifecycle em `app` |
 | Cita `OBX-03, 06, 07, 08, 09, 10, 12, 13, 14, 16, 18` | FND-04 tem `OBX-01`..`OBX-18`. Quatro cláusulas não citadas pelo ticket governam esta entrega: `OBX-04` (não existe transição `publishing → pending`), `OBX-05` (valores iniciais que tornam o registro elegível), `OBX-11` (nenhum claim substituído altera estado) e `OBX-17` (retenção: `published` purgável, `failed` não) | Cobre as quinze cláusulas aplicáveis. `OBX-15` (CDC) fica no escopo fora, como o ticket determina |
 
 ### Fontes normativas
@@ -187,7 +187,7 @@ são `structurally reviewable` por inspeção. Nenhuma `OBX-*` é
 ### Funcionais
 
 - [ ] **[P0] `envelope.Marshal` — o simétrico que falta**: acrescentar ao
-  package `envelope` de `dmpf-contracts` a função
+  package `envelope` de `contracts` a função
   `Marshal(e Envelope) ([]byte, error)`, que valida o perfil, codifica via
   `Encode` e serializa o `*cloudeventsv1.CloudEvent` resultante.
   - Motivo declarado, o mesmo do godoc de `Unmarshal`: adaptadores que emitem
@@ -196,11 +196,11 @@ são `structurally reviewable` por inspeção. Nenhuma `OBX-*` é
     reproduz `e` para todo `e` válido.
   - `Marshal` DEVE reprovar envelope inválido antes de serializar, com o
     mesmo erro que `Encode` retorna.
-  - Alteração é de código Go em `dmpf-contracts`, não de `.proto`: **não**
+  - Alteração é de código Go em `contracts`, não de `.proto`: **não**
     dispara `buf-breaking`.
 
 - [ ] **[P0] Índice de elegibilidade ao claim**: acrescentar a
-  `libs/backend/go/dmpf-provider-postgres/schema.sql` o índice que serve à
+  `libs/backend/go/postgres/schema.sql` o índice que serve à
   query de `OBX-09`.
   - O schema hoje tem apenas `dmpf_outbox_published_at_idx`, índice parcial
     sobre `published_at WHERE status = 'published'`, que serve à purga de
@@ -213,7 +213,7 @@ são `structurally reviewable` por inspeção. Nenhuma `OBX-*` é
     `last_error` já existem em `schema.sql:1-30`.
 
 - [ ] **[P0] Claim por lease no `provider`**: implementar em
-  `libs/backend/go/dmpf-provider-postgres` a transação curta de claim.
+  `libs/backend/go/postgres` a transação curta de claim.
   - Seleciona registros elegíveis por `OBX-09`: `available_at` já passado
     **e** (`status = 'pending'` **ou** `status = 'publishing'` com lease
     vencido).
@@ -221,7 +221,7 @@ são `structurally reviewable` por inspeção. Nenhuma `OBX-*` é
   - Grava no mesmo commit (`OBX-16`): `status = 'publishing'`, `locked_by`,
     `locked_until`, `attempt_count = attempt_count + 1`.
   - `locked_by` recebe identidade **nova a cada aquisição** (`OBX-08`), obtida
-    de uma porta própria do relay. NÃO vem de `dmpfports.IDGenerator`, que
+    de uma porta própria do relay. NÃO vem de `ports.IDGenerator`, que
     devolve `MessageID` — identidade de *mensagem*, não de *claim*.
   - A transação fecha **antes** de qualquer I/O com o broker (`OBX-07`).
   - Ordenação por `available_at, id` — FIFO estável, com `id` desempatando
@@ -230,7 +230,7 @@ são `structurally reviewable` por inspeção. Nenhuma `OBX-*` é
     cursor aberto (um cursor manteria transação viva durante o I/O).
 
 - [ ] **[P0] As três transições finais, condicionais ao claim**: implementar
-  em `dmpf-provider-postgres` as três escritas do passo 3, todas com
+  em `postgres` as três escritas do passo 3, todas com
   `WHERE id = $1 AND locked_by = $2` (`OBX-10`).
   - **3a — sucesso**: `status = 'published'`, `published_at` gravado,
     `last_error` limpo.
@@ -269,7 +269,7 @@ são `structurally reviewable` por inspeção. Nenhuma `OBX-*` é
     sobre conteúdo.
 
 - [ ] **[P0] Porta de publicação declarada no relay**: o bloco `port`
-  (`dmpf-ports/outbox.go:36-38`) declara explicitamente que "this block
+  (`ports/outbox.go:36-38`) declara explicitamente que "this block
   declares no publishing port, because publishing happens after the commit and
   outside the unit of work". A porta de publicação é, portanto, declarada
   **no consumidor** — no pacote do relay, como manda o idioma Go.
@@ -278,7 +278,7 @@ são `structurally reviewable` por inspeção. Nenhuma `OBX-*` é
     Transportes concretos (Kafka, SNS/SQS) são do `KRN-10`.
 
 - [ ] **[P0] Laço de drenagem no bloco `app`**: implementar em
-  `libs/backend/go/dmpf-app/relay/` o processo de drenagem.
+  `libs/backend/go/app/relay/` o processo de drenagem.
   - Ciclo: claim de um lote → para cada registro, montar, conferir hash,
     publicar, transicionar → aguardar o intervalo de varredura → repetir.
   - Limite de concorrência configurável, com o relay nunca sendo fonte de
@@ -288,7 +288,7 @@ são `structurally reviewable` por inspeção. Nenhuma `OBX-*` é
   - Intervalo de varredura, tamanho de lote, prazo de lease, teto de
     tentativas e limite de concorrência são **declarados pelo chamador** —
     nenhum valor operacional é fixado no código (mesma regra que
-    `dmpf-app/doc.go:16-17` já aplica ao consumer).
+    `app/doc.go:16-17` já aplica ao consumer).
 
 - [ ] **[P0] Exposição dos quatro sinais** (`OBX-12`): o relay expõe
   `pending`, `lag`, `attempts` e `failures` por uma superfície observável.
@@ -310,20 +310,20 @@ são `structurally reviewable` por inspeção. Nenhuma `OBX-*` é
 - [ ] **[P1] Composition root e binário**: `cmd/dmpf-relay/` monta pool,
   relógio, gerador de identidade, provider de claim, publisher e o laço, e
   traduz sinal do sistema operacional em encerramento gracioso.
-  - Segue o precedente de `libs/backend/go/dmpf-conformance/cmd`.
-  - `libs/backend/go/dmpf-app/example/reservations/consumer.go:9` já importa
+  - Segue o precedente de `libs/backend/go/conformance/cmd`.
+  - `libs/backend/go/app/example/reservations/consumer.go:9` já importa
     `pgxpool` em código de produção com o workspace conforme, então o
     composition root do relay não inaugura dependência nova no módulo.
 
 - [ ] **[P1] Manifesto e baseline**: declarar as unidades novas em
-  `libs/backend/go/dmpf-app/dmpf-units.json` e regravar o baseline.
-  - Unidades propostas: `dmpf-kernel/app-relay` (o pacote `relay/`) e
-    `dmpf-kernel/app-relay-cmd` (o binário), ambas bloco `app`,
-    `bounded_context: dmpf-kernel`.
+  `libs/backend/go/app/dmpf-units.json` e regravar o baseline.
+  - Unidades propostas: `kernel/app-relay` (o pacote `relay/`) e
+    `kernel/app-relay-cmd` (o binário), ambas bloco `app`,
+    `bounded_context: kernel`.
   - O baseline **nunca** é editado à mão: seu `digest` é SHA-256 sobre
     codificação length-prefixed dos campos, não hash do texto JSON. Regravar
-    por `dmpf-conformance --write-baseline --root .`, comando que
-    `cmd/dmpf-conformance/main.go:32` declara "NUNCA usar no gate".
+    por `conformance --write-baseline --root .`, comando que
+    `cmd/conformance/main.go:32` declara "NUNCA usar no gate".
 
 ### Não-funcionais
 
@@ -335,7 +335,7 @@ são `structurally reviewable` por inspeção. Nenhuma `OBX-*` é
   `pgxpool` não acusa conexão adquirida enquanto o publisher está bloqueado.
 - [ ] **Cadeia Go verde**: `gofmt`, `go vet`, `golangci-lint`, `go build`,
   `go test`, `go test -race`, `govulncheck`.
-- [ ] **Gates DMPF verdes**: `dmpf-conformance` conforme;
+- [ ] **Gates DMPF verdes**: `conformance` conforme;
   `tools/dmpf-gate-check.sh` e `tools/dmpf-cell-check.sh` passando.
 - [ ] **Compatibilidade**: Go 1.26.6 (piso do `go.work`), `pgx/v5 >=5.10 <6`,
   PostgreSQL 16 (imagem do CI).
@@ -347,24 +347,24 @@ são `structurally reviewable` por inspeção. Nenhuma `OBX-*` é
 
 | Camada | Afetada? | Descrição |
 | --- | --- | --- |
-| `domain` (`dmpf-domain`) | [ ] Não | O relay não conhece agregado nem evento de domínio; opera sobre colunas |
-| `port` (`dmpf-ports`) | [ ] Não | A porta de publicação é declarada no consumidor, porque publicar acontece fora da UoW — decisão já registrada em `dmpf-ports/outbox.go:36-38` |
-| `contract` (`dmpf-contracts`) | [x] Sim | `envelope.Marshal`, o simétrico de `Unmarshal` que hoje não existe |
-| `application` (`dmpf-application`) | [ ] Não | A drenagem não é caso de uso; RFC §7.5 a aloca ao `app` |
-| `provider` (`dmpf-provider-postgres`) | [x] Sim | Claim por lease, as três transições condicionais, a query de elegibilidade, o índice novo e as consultas dos sinais `pending` e `lag` |
-| `app` (`dmpf-app`) | [x] Sim | Laço de drenagem, concorrência, backoff, sinais, graceful shutdown, porta de publicação e composition root |
+| `domain` (`domain`) | [ ] Não | O relay não conhece agregado nem evento de domínio; opera sobre colunas |
+| `port` (`ports`) | [ ] Não | A porta de publicação é declarada no consumidor, porque publicar acontece fora da UoW — decisão já registrada em `ports/outbox.go:36-38` |
+| `contract` (`contracts`) | [x] Sim | `envelope.Marshal`, o simétrico de `Unmarshal` que hoje não existe |
+| `application` (`application`) | [ ] Não | A drenagem não é caso de uso; RFC §7.5 a aloca ao `app` |
+| `provider` (`postgres`) | [x] Sim | Claim por lease, as três transições condicionais, a query de elegibilidade, o índice novo e as consultas dos sinais `pending` e `lag` |
+| `app` (`app`) | [x] Sim | Laço de drenagem, concorrência, backoff, sinais, graceful shutdown, porta de publicação e composition root |
 | Schema (`schema.sql`) | [x] Sim | Um índice novo. Nenhuma coluna nova |
-| CI (`.github/workflows/ci.yml`) | [ ] Não | `:92` roda `nx affected -t fmt-check,vet,test-race,govulncheck` e `dmpf-app-go` já está na cadeia; os gates DMPF já rodam em `:111`, `:117` e `:128-131` |
+| CI (`.github/workflows/ci.yml`) | [ ] Não | `:92` roda `nx affected -t fmt-check,vet,test-race,govulncheck` e `app` já está na cadeia; os gates DMPF já rodam em `:111`, `:117` e `:128-131` |
 
 ## Localização de código
 
 ```text
-libs/backend/go/dmpf-contracts/
+libs/backend/go/contracts/
   envelope/
     envelope.go            — MODIFICAR: +Marshal(Envelope) ([]byte, error)
     envelope_test.go       — MODIFICAR: +round-trip Marshal/Unmarshal
 
-libs/backend/go/dmpf-provider-postgres/
+libs/backend/go/postgres/
   schema.sql               — MODIFICAR: +índice de elegibilidade ao claim
   claim.go                 — NOVO: Claim, as três transições, tipo Claimed
   claim_test.go            — NOVO: //go:build integration
@@ -372,7 +372,7 @@ libs/backend/go/dmpf-provider-postgres/
   signals_test.go          — NOVO: //go:build integration
   errors.go                — MODIFICAR: +sentinelas do claim
 
-libs/backend/go/dmpf-app/
+libs/backend/go/app/
   relay/
     relay.go               — NOVO: laço, concorrência, backoff, shutdown
     publisher.go           — NOVO: porta de publicação (interface no consumidor)
@@ -392,16 +392,16 @@ tools/dmpf-baseline/
 
 **Arquivos a modificar, e o que muda**:
 
-- `libs/backend/go/dmpf-contracts/envelope/envelope.go` — acrescenta
+- `libs/backend/go/contracts/envelope/envelope.go` — acrescenta
   `Marshal`, simétrico de `Unmarshal` (`:226-235`), pelo motivo que o godoc
   daquela função já declara.
-- `libs/backend/go/dmpf-provider-postgres/schema.sql` — acrescenta o índice
+- `libs/backend/go/postgres/schema.sql` — acrescenta o índice
   parcial de elegibilidade. O arquivo já tem `dmpf_outbox_published_at_idx`
   (`:28-29`) como precedente de índice parcial.
-- `libs/backend/go/dmpf-provider-postgres/errors.go` — acrescenta as
+- `libs/backend/go/postgres/errors.go` — acrescenta as
   sentinelas do claim, seguindo o padrão de `ErrDuplicateMessage` (`:30`), que
   encapsula o erro do driver com `%w: %w`.
-- `libs/backend/go/dmpf-app/dmpf-units.json` — hoje declara duas unidades e
+- `libs/backend/go/app/dmpf-units.json` — hoje declara duas unidades e
   `external: []`; passa a declarar as do relay.
 
 ## Design
@@ -423,7 +423,7 @@ tools/dmpf-baseline/
                         │                          │  declarada aqui, no
                         │                          │  consumidor
       ┌─────────────────▼──────────────┐    ┌──────▼─────────────────┐
-      │  dmpf-provider-postgres        │    │  KRN-10: Kafka, SQS    │
+      │  postgres        │    │  KRN-10: Kafka, SQS    │
       │  Claim  (txn curta, SKIP       │    │  KRN-08: em memória,   │
       │         LOCKED, OBX-16)        │    │          para teste    │
       │  MarkPublished / Reschedule /  │    └────────────────────────┘
@@ -432,7 +432,7 @@ tools/dmpf-baseline/
       └─────────────────┬──────────────┘
                         │
                  ┌──────▼────────┐        ┌───────────────────────────┐
-                 │  dmpf_outbox  │        │  dmpf-contracts/envelope  │
+                 │  dmpf_outbox  │        │  contracts/envelope  │
                  │  (KRN-06)     │        │  Marshal (NOVO) · Encode  │
                  └───────────────┘        └───────────────────────────┘
 ```
@@ -442,7 +442,7 @@ tecnologia** — a tabela, o `SKIP LOCKED`, a aritmética do backoff aplicada à
 colunas —, e o `app` guarda **tudo que é processo** — o laço, a concorrência,
 o lifecycle e a decisão de quando desistir. É a divisão literal de RFC `§7.5`.
 
-O relay não importa `dmpf-application` nem `dmpf-domain`. A linha `app` da
+O relay não importa `application` nem `domain`. A linha `app` da
 matriz permite as duas arestas (células 13 e 14, ambas `P`), mas o relay não
 tem o que fazer com elas: opera sobre colunas, e `OBX-14` o proíbe de
 interpretar o conteúdo.
@@ -613,21 +613,21 @@ volta ao pool imediatamente, em vez de esperar o lease vencer.
 
 ## Decisões técnicas
 
-- **Relay em `libs/backend/go/dmpf-app`, não em `apps/backend/`**: o módulo já
+- **Relay em `libs/backend/go/app`, não em `apps/backend/`**: o módulo já
   é o bloco `app` do kernel, seu `doc.go:15` reserva nominalmente o lugar do
   relay, e seu `test-race` já declara `dependsOn` sobre o do
-  `dmpf-provider-postgres-go` — os dois compartilham o Postgres do job.
-  Precedente de binário dentro de lib: `libs/backend/go/dmpf-conformance/cmd`.
+  `postgres` — os dois compartilham o Postgres do job.
+  Precedente de binário dentro de lib: `libs/backend/go/conformance/cmd`.
   Alternativa descartada: `apps/backend/dmpf-relay`, que inauguraria `apps/`
-  sem generator Go documentado e cujo nome no ticket (`dmpf-reference`)
+  sem generator Go documentado e cujo nome no ticket (`reference`)
   colidiria com o composition root de exemplo do `KRN-12`.
 
-- **Porta de publicação declarada no relay, não em `dmpf-ports`**: o godoc de
-  `dmpf-ports/outbox.go:36-38` já decidiu que aquele bloco não declara porta de
+- **Porta de publicação declarada no relay, não em `ports`**: o godoc de
+  `ports/outbox.go:36-38` já decidiu que aquele bloco não declara porta de
   publicação, "because publishing happens after the commit and outside the
   unit of work". Declarar a interface no consumidor é também o idioma Go —
   "accept interfaces, return structs". Alternativa descartada: acrescentar
-  `Publisher` a `dmpf-ports`, que contradiria uma decisão já registrada em
+  `Publisher` a `ports`, que contradiria uma decisão já registrada em
   código e ampliaria a superfície fechada daquele bloco sem necessidade.
 
 - **`locked_until = NULL` no desfecho transitório, com o predicado aceitando
@@ -645,7 +645,7 @@ volta ao pool imediatamente, em vez de esperar o lease vencer.
   descoberta do problema. Alternativa descartada: tratar como transitória "por
   simetria" com os demais erros.
 
-- **`envelope.Marshal` em `dmpf-contracts`, não no relay**: manter a
+- **`envelope.Marshal` em `contracts`, não no relay**: manter a
   serialização do CloudEvent dentro do bloco `contract` preserva a propriedade
   que o godoc de `Unmarshal` já enuncia — adaptadores não importam o tipo
   gerado. Alternativa descartada: `Encode` + `proto.Marshal` no relay, que
@@ -666,7 +666,7 @@ volta ao pool imediatamente, em vez de esperar o lease vencer.
   instrumentação OTel é do `KRN-09`. Entregar OTel aqui anteciparia decisão de
   outra spec e fixaria nomes de métrica que este artefato não pode fixar.
 
-- **Nenhum target Nx novo e nenhum step de CI novo**: `libs/backend/go/dmpf-conformance/project.json` é o precedente — tem `cmd/` e não declara target próprio para o binário, porque `build` já é `go build ./...`. E `.github/workflows/ci.yml:92` roda `nx affected` sobre os targets existentes, com `dmpf-app-go` já na cadeia e os gates DMPF em `:111`, `:117` e `:128-131`. Acrescentar target ou step seria redeclarar o que já existe, contra a convenção do `AGENTS.md` de não redeclarar o que `targetDefaults` ou plugin já fornece.
+- **Nenhum target Nx novo e nenhum step de CI novo**: `libs/backend/go/conformance/project.json` é o precedente — tem `cmd/` e não declara target próprio para o binário, porque `build` já é `go build ./...`. E `.github/workflows/ci.yml:92` roda `nx affected` sobre os targets existentes, com `app` já na cadeia e os gates DMPF em `:111`, `:117` e `:128-131`. Acrescentar target ou step seria redeclarar o que já existe, contra a convenção do `AGENTS.md` de não redeclarar o que `targetDefaults` ou plugin já fornece.
 
 - **Índice parcial em vez de índice total**: `failed` é terminal e nenhuma
   varredura automática o alcança; incluí-lo no índice custaria escrita e
@@ -743,7 +743,7 @@ das fontes normativas e das divergências reconciliadas acima.
 - [ ] Intervalo de varredura, tamanho de lote, prazo de lease, teto de
   tentativas e limite de concorrência são declarados pelo chamador; nenhum
   valor operacional está fixado no código do relay.
-- [ ] `dmpf-conformance --root . --base develop` reporta conforme com as
+- [ ] `conformance --root . --base develop` reporta conforme com as
   unidades novas declaradas, e o baseline foi regravado por `--write-baseline`,
   nunca à mão.
 - [ ] `tools/dmpf-gate-check.sh` e `tools/dmpf-cell-check.sh` passam.
@@ -861,7 +861,7 @@ ENTÃO pending conta apenas os 7 elegíveis, lag reflete o occurred_at mais
   `KRN-08` entrega a porta de publicação e uma realização em memória para
   teste.
 - **ACK, nack, offset commit e dead-letter queue**: já declarados fora do bloco
-  `app` em `dmpf-app/doc.go:14-15`, e alocados ao `KRN-10`.
+  `app` em `app/doc.go:14-15`, e alocados ao `KRN-10`.
 - **Instrumentação OpenTelemetry e retry por conjunção**: são do `KRN-09`. O
   `KRN-08` entrega a superfície dos sinais, não o binding de telemetria.
 - **Nomes de métrica, unidades, limiares, alarmes e runbook de operação**: são
@@ -874,4 +874,4 @@ ENTÃO pending conta apenas os 7 elegíveis, lag reflete o occurred_at mais
 - **Infraestrutura de mensageria**: provisionamento de broker, tópicos,
   partições e políticas de retenção não são desta entrega.
 - **Composition root de referência do SDK**: é do `KRN-12`, e é a ele que o
-  nome `dmpf-reference` do ticket pertence.
+  nome `reference` do ticket pertence.

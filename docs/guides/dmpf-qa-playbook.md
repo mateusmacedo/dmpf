@@ -155,7 +155,7 @@ Detalhe de formato: FND-09 §5 (`FIX-05`…`FIX-13`) e `contracts/README.md`.
 
 ### Fora do escopo do QA de negócio
 
-Fitness/`dmpf-conformance`, fakes de relógio, harness Postgres, `Skipped` de provider. Isso é plataforma.
+Fitness/`conformance`, fakes de relógio, harness Postgres, `Skipped` de provider. Isso é plataforma.
 
 ---
 
@@ -163,9 +163,9 @@ Fitness/`dmpf-conformance`, fakes de relógio, harness Postgres, `Skipped` de pr
 
 | Insumo | Package | Comando típico |
 | --- | --- | --- |
-| Projeção | `domainkit` | `pnpm nx run dmpf-testkit-go:test-race` (os `Test*MatchTheProjectionFixture`) |
-| Wire | `golden` | mesmo target; dono das fixtures: `dmpf-contracts-go` |
-| `.proto` | Buf | `pnpm nx run dmpf-contracts-go:buf-lint` (e demais gates do módulo) |
+| Projeção | `domainkit` | `pnpm nx run testkit:test-race` (os `Test*MatchTheProjectionFixture`) |
+| Wire | `golden` | mesmo target; dono das fixtures: `contracts` |
+| `.proto` | Buf | `pnpm nx run contracts:buf-lint` (e demais gates do módulo) |
 | Consumo / reentrega | `appkit`, `distkit` | `test-race` com `DMPF_PG_DSN`; `test-distributed` com Redpanda |
 
 Veredicto por valor: lista de diagnósticos com o ID da regra. `tb.Require` converte em falha de teste.

@@ -38,7 +38,7 @@ próprio contexto, não a requisição da borda. O comportamento atual está cer
 e `rpc/interceptors_test.go:60` já o trava.
 
 <constraints>
-- Toda mudança em `dmpf-transport/channel` ou `dmpf-observability/otelboot`
+- Toda mudança em `transport/channel` ou `observability/otelboot`
   afeta os quatro providers de transporte e os três apps de referência.
 - Nenhum item pode afrouxar o gate: o verificador, o gate de dependência e os
   autotestes de célula continuam valendo.
@@ -56,9 +56,9 @@ e `rpc/interceptors_test.go:60` já o trava.
    flag propaga da borda até os contextos pelo `contextInterceptor`.
 
 2. **[P1] Canal declara todos os eventos que carrega.** `channel.Channel`
-   (`dmpf-transport/channel/channel.go:131`) tem `EventType string` — um único
+   (`transport/channel/channel.go:131`) tem `EventType string` — um único
    tipo. O canal `orders.events` transporta `order-placed` **e**
-   `item-added.v1` (`dmpf-provider-postgres/example/orders/mapper.go:14,32`),
+   `item-added.v1` (`postgres/example/orders/mapper.go:14,32`),
    então a declaração ASY-01 está incompleta para quem for assinar o canal.
 
 3. **[P1] Consumer drena na janela de graça.** O primeiro sinal cancela o mesmo

@@ -2,7 +2,7 @@
 
 Guia **derivado e não normativo**. Duração sugerida: **90 minutos**.
 Pré-requisito de leitura: [playbook QA](./dmpf-qa-playbook.md) §§1–3.
-Norma: [FND-09](../dmpf/testes-interop.md). Código: `libs/backend/go/dmpf-testkit/domainkit/examples_test.go`.
+Norma: [FND-09](../dmpf/testes-interop.md). Código: `libs/backend/go/testkit/domainkit/examples_test.go`.
 
 Objetivo: o time de QA abre os arquivos **já versionados**, vê como cada caso vira oráculo, e sai capaz de escrever o próximo `.golden` no mesmo formato.
 
@@ -63,7 +63,7 @@ Controle negativo mental: se alguém trocar `add-item-limit-exceeded` para `bran
 
 ## 3. O Dev não reescreve o esperado
 
-Abra `libs/backend/go/dmpf-testkit/domainkit/examples_test.go`.
+Abra `libs/backend/go/testkit/domainkit/examples_test.go`.
 
 `TestOrdersMatchTheProjectionFixture`:
 
@@ -103,7 +103,7 @@ A costura ponta a ponta (relay, inbox, Ack) é `appkit`/`distkit` e fica para um
 | `orders/event/v1/order-placed.golden` | os dois condicionais, `channel-unspecified`, `total-cents-beyond-double`, `time-with-nanos`, `item-count-present` | Discriminadores de precisão (`ORA-08`) |
 | `reservations/event/v1/reservation-confirmed.golden` | condicionais ±, `item-count-zero` | Espelho no consumidor |
 
-QA descreve **campos e discriminação**. Bytes (`payload_bytes_hex`, `payload_hash`) saem do gerador em `dmpf-contracts`. Três oráculos: `DMPF-R001` semântica, `DMPF-R002` hash, `DMPF-R003` bytes — reportados em separado.
+QA descreve **campos e discriminação**. Bytes (`payload_bytes_hex`, `payload_hash`) saem do gerador em `contracts`. Três oráculos: `DMPF-R001` semântica, `DMPF-R002` hash, `DMPF-R003` bytes — reportados em separado.
 
 Proto correspondente: `contracts/proto/` (árvore em `contracts/README.md`). A golden **espelha** o caminho do contrato (`FIX-10`).
 
@@ -118,7 +118,7 @@ Proto correspondente: `contracts/proto/` (árvore em `contracts/README.md`). A g
 Depois rode o que já está verde (sem o caso novo):
 
 ```bash
-pnpm nx run dmpf-testkit-go:test-race
+pnpm nx run testkit:test-race
 ```
 
 Os testes `TestOrdersMatchTheProjectionFixture` e `TestReservationsMatchTheProjectionFixture` têm de passar. Sem `DMPF_PG_DSN`, suítes de infra fazem skip **local**; não trate skip como aceite de `appkit`.
@@ -126,7 +126,7 @@ Os testes `TestOrdersMatchTheProjectionFixture` e `TestReservationsMatchTheProje
 Opcional, só contratos:
 
 ```bash
-pnpm nx run dmpf-contracts-go:buf-lint
+pnpm nx run contracts:buf-lint
 ```
 
 ---

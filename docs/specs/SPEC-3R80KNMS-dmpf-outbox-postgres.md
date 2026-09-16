@@ -14,7 +14,7 @@ created: 2026-09-04
 
 ## Resumo
 
-Criar o módulo Go `dmpf-provider-postgres-go` (`libs/backend/go/dmpf-provider-postgres`,
+Criar o módulo Go `postgres` (`libs/backend/go/postgres`,
 bloco `provider`), que realiza sobre PostgreSQL as três portas transacionais que o
 `KRN-04` fixou em tipos de domínio — `UnitOfWork[R]`, `Repository[ID, S]` e
 `Outbox` — e que, ao receber `(domain event, intenção de publicação)`, **mapeia**
@@ -41,11 +41,11 @@ realização em memória continua sendo o duplo de teste do `application`.
 ## Contexto
 
 - **Problema**: a sequência canônica de FND-04 §3.2 está realizada em Go
-  (`libs/backend/go/dmpf-application/example/orders/add_item.go:45-50`), mas o
+  (`libs/backend/go/application/example/orders/add_item.go:45-50`), mas o
   único provider que a executa é `example/memory`, cuja "transação" é um par de
-  mutexes e cuja "outbox" é uma fatia `[]dmpfports.OutboxEntry` que guarda o
+  mutexes e cuja "outbox" é uma fatia `[]ports.OutboxEntry` que guarda o
   evento de domínio em memória, sem bytes de wire, sem schema, sem unicidade e
-  sem estado de drenagem (`libs/backend/go/dmpf-application/example/memory/tx.go:108-113`).
+  sem estado de drenagem (`libs/backend/go/application/example/memory/tx.go:108-113`).
   O `README.md` do módulo registra o que falta: "Provider Postgres, schema de
   outbox e isolamento real (`KRN-06`)". Sem isso, `UOW-07` é provado por um
   `append` sob lock, `OBX-01` não tem quem o imponha, o mapeamento de ADR-021
@@ -56,7 +56,7 @@ realização em memória continua sendo o duplo de teste do `application`.
   purga; o `KRN-07` recebe uma `UnitOfWork[R]` Postgres para gravar a inbox e
   os efeitos locais na mesma transação; o verificador do `KRN-02` passa a ter,
   pela primeira vez no `develop`, uma unidade `provider` que importa `contract`
-  (célula 30) e coexiste com `dmpf-contracts-go`, o que dá vetor de módulo à
+  (célula 30) e coexiste com `contracts`, o que dá vetor de módulo à
   célula 12 — dívida declarada na
   [SPEC-ZHE7DN1H](./SPEC-ZHE7DN1H-dmpf-kernel-aplicacao-go.md) (linha 98).
 - **Inspiração**: o exemplo conforme de FND-04 §9.2 e a contraprova de §9.5
@@ -76,7 +76,7 @@ realização em memória continua sendo o duplo de teste do `application`.
   - [SPEC-WYX5GW87](./SPEC-WYX5GW87-dmpf-contratos-wire.md) — `KRN-05`; fixou
     `envelope.Pack`, o `payload_hash` versão 1, a fixture golden por contrato
     (`INT-02`) e a máquina de estados do baseline (`BUF-08`); esta spec é o
-    primeiro consumidor de `dmpf-contracts-go` fora do próprio módulo
+    primeiro consumidor de `contracts` fora do próprio módulo
   - [SPEC-XF9TF9A0](./SPEC-XF9TF9A0-dmpf-kernel-dominio-go.md) — `KRN-03`; os
     eventos `OrderPlaced` e `ItemAdded` e o `Snapshot` do agregado são o que
     este provider mapeia e persiste
@@ -84,7 +84,7 @@ realização em memória continua sendo o duplo de teste do `application`.
     `KRN-02`; o verificador é o instrumento dos critérios de dependência
   - [SPEC-MQA5HAXF](./SPEC-MQA5HAXF-dmpf-fundacao-nx-go.md) — `KRN-01`;
     convenção de módulo, tags 3D, cadeia de sete passos, `bounded_context:
-    dmpf-kernel`
+    kernel`
   - `docs/dmpf/uow-inbox-outbox.md` (FND-04) — §2.1–§2.3, §3.2, §3.3, §4.1–§4.3,
     §9.5
   - `docs/dmpf/cloudevents-protobuf-buf.md` (FND-05) — `PTB-03`, `PTB-06`,
@@ -109,17 +109,17 @@ fixados aqui, sem reabrir decisão alguma:
 
 | Ticket diz | Repositório | Esta spec fixa |
 | --- | --- | --- |
-| Entregável 1: "**Porta de outbox** — contrato no bloco `port`, expondo tipo de domínio" | A porta já existe: `Outbox`, `OutboxEntry` e `PublishIntent` em `libs/backend/go/dmpf-ports/outbox.go`, entregues pelo `KRN-04` com os sete campos de autoria do `application service` (§2.3) e sem campo de wire nem de drenagem (`BLK-05`) | A porta **não é alterada**. O entregável 1 está cumprido; esta spec entrega o provider que a realiza. O critério "assinatura da porta não menciona tipo Protobuf" vira re-verificação sobre o módulo existente |
-| "Porta em `libs/backend/dmpf-ports`" e "Provider em `libs/backend/dmpf-provider-postgres`" | Módulos Go vivem em `libs/backend/go/<módulo>` e o projeto Nx leva o sufixo `-go` (`AGENTS.md`, "Caminho por scope e stack") | Módulo em `libs/backend/go/dmpf-provider-postgres`, projeto Nx `dmpf-provider-postgres-go` |
+| Entregável 1: "**Porta de outbox** — contrato no bloco `port`, expondo tipo de domínio" | A porta já existe: `Outbox`, `OutboxEntry` e `PublishIntent` em `libs/backend/go/ports/outbox.go`, entregues pelo `KRN-04` com os sete campos de autoria do `application service` (§2.3) e sem campo de wire nem de drenagem (`BLK-05`) | A porta **não é alterada**. O entregável 1 está cumprido; esta spec entrega o provider que a realiza. O critério "assinatura da porta não menciona tipo Protobuf" vira re-verificação sobre o módulo existente |
+| "Porta em `libs/backend/ports`" e "Provider em `libs/backend/postgres`" | Módulos Go vivem em `libs/backend/go/<módulo>` e o projeto Nx leva o sufixo `-go` (`AGENTS.md`, "Caminho por scope e stack") | Módulo em `libs/backend/go/postgres`, projeto Nx `postgres` |
 | "Schema mínimo de §4.1 com … valores iniciais declarados (`OBX-05`): `pending`, `available_at = occurred_at`" e, em Riscos, "`available_at` nulo … mitigado pelo default no schema" | PostgreSQL não admite `DEFAULT` que referencie outra coluna da mesma linha; `available_at = occurred_at` não é expressável como default de coluna | `available_at` é `NOT NULL` com `CHECK (available_at >= occurred_at)`, e o provider o grava explicitamente igual a `occurred_at` no `INSERT`. O teste do cenário 5 prova o valor inicial. `status` e `attempt_count` têm `DEFAULT` de coluna |
 | "Autoria conforme §2.3: … `metadata` sem dado sensível" (`OBX-02`) | `OutboxEntry` não carrega `metadata`; o `application service` de referência não autoria nenhum metadado, e o conteúdo de `metadata` é `encaminhado` a FND-07 (§4.1) | Coluna `metadata jsonb NOT NULL DEFAULT '{}'`; o provider grava o objeto vazio. Estender `OutboxEntry` com metadados é mudança de porta e fica encaminhada ao primeiro consumidor que os autorie (`KRN-07`/`KRN-09`) |
-| "Formato do integration event, codec e fórmula do hash (KRN-05)" está **fora do escopo** | O `example/orders` produz `OrderPlaced` e `ItemAdded` (`libs/backend/go/dmpf-domain/example/orders/messages.go:44-62`); o `KRN-05` publicou apenas `order_placed.proto`. Sem contrato para `ItemAdded`, o caso de uso `AddItem` não tem o que serializar | **Decisão do time (04/09)**: esta história acrescenta `item_added.proto` e o campo aditivo `item_count` a `OrderPlaced`, com fixture golden própria (`INT-02`), sob os gates Buf. O codec e a fórmula do hash continuam intocados |
+| "Formato do integration event, codec e fórmula do hash (KRN-05)" está **fora do escopo** | O `example/orders` produz `OrderPlaced` e `ItemAdded` (`libs/backend/go/domain/example/orders/messages.go:44-62`); o `KRN-05` publicou apenas `order_placed.proto`. Sem contrato para `ItemAdded`, o caso de uso `AddItem` não tem o que serializar | **Decisão do time (04/09)**: esta história acrescenta `item_added.proto` e o campo aditivo `item_count` a `OrderPlaced`, com fixture golden própria (`INT-02`), sob os gates Buf. O codec e a fórmula do hash continuam intocados |
 | DoD: "Critérios de aceite verificados no CI" | O job `main` de `.github/workflows/ci.yml` roda em `gitea-runner` sem bloco `services:`; não há Postgres alcançável no CI | O CI ganha um serviço `postgres:16-alpine` e a variável `DMPF_PG_DSN`; os testes de integração **reprovam** quando `CI` está definido e a variável está ausente (fail-closed), e são pulados só fora do CI |
-| `README.md` de `dmpf-application`: "Provider Postgres, schema de outbox, `SKIP LOCKED` e isolamento real (`KRN-06`)" | `FOR UPDATE SKIP LOCKED` é admitido "somente durante o claim" (`OBX-07`), e o claim é do relay (ADR-020, `KRN-08`) | `SKIP LOCKED` **não** entra nesta história; a menção (uma só, em `README.md:144`) é corrigida para apontar o `KRN-08` |
+| `README.md` de `application`: "Provider Postgres, schema de outbox, `SKIP LOCKED` e isolamento real (`KRN-06`)" | `FOR UPDATE SKIP LOCKED` é admitido "somente durante o claim" (`OBX-07`), e o claim é do relay (ADR-020, `KRN-08`) | `SKIP LOCKED` **não** entra nesta história; a menção (uma só, em `README.md:144`) é corrigida para apontar o `KRN-08` |
 
 ### Pré-requisito externo: marca de baseline dos contratos
 
-Como esta história toca `contracts/proto/`, o projeto `dmpf-contracts-go` entra
+Como esta história toca `contracts/proto/`, o projeto `contracts` entra
 no `affected` e o gate `buf-breaking` roda. Em `tools/buf-gate.sh:106-107`, um
 módulo que já existe em `NX_BASE` **sem** a marca `contracts-baseline/proto`
 reprova por construção ("estado invalido, nao 'sem baseline'"). Hoje a marca não
@@ -142,7 +142,7 @@ exigência abaixo tem origem:
 | Mapeamento no `provider`, serialização na escrita, porta sem tipo de wire | FND-04 §2.2, `BLK-03`; ADR-021 |
 | Autoria dos campos: identidade, tempo, roteamento e origem pelo `application service`; `message_type`, `schema_version`, `payload` pelo `provider`; estado de drenagem pelo schema e pelo relay | FND-04 §2.3, `BLK-04`, `BLK-05` |
 | Passos 6 e 7 na mesma transação, commit no passo 8, nenhum passo publica | FND-04 §3.2, `UOW-05`..`UOW-08` |
-| Optimistic locking; sem retry automático do callback | FND-04 §3.3, `UOW-09`, `UOW-10`; `dmpf-ports/repository.go` (`ErrVersionConflict`) |
+| Optimistic locking; sem retry automático do callback | FND-04 §3.3, `UOW-09`, `UOW-10`; `ports/repository.go` (`ErrVersionConflict`) |
 | Schema mínimo e unicidade de `message_id` | FND-04 §4.1, `OBX-01`, `OBX-02` |
 | Estados e valores iniciais do registro | FND-04 §4.2, `OBX-04`, `OBX-05` |
 | Retenção: `published` purgável com evidência; os demais não | FND-04 §4.3, `OBX-17` |
@@ -161,14 +161,14 @@ exigência abaixo tem origem:
   `provider`. Suas unidades importam SOMENTE `domain` (célula 25), `port`
   (célula 28) e `contract` (célula 30). NUNCA importar `application` (célula
   26) nem `app` (célula 27) em código de produção. O teste ponta a ponta que
-  importa `dmpf-application/example/orders` vive em arquivo `_test.go`, que o
+  importa `application/example/orders` vive em arquivo `_test.go`, que o
   toolchain exclui do universo (`internal/golist/golist.go:196`).
 - [P0] Célula 11 intocada (`BLK-01`; RFC §7.5): NENHUM arquivo de
-  `dmpf-application` importa o módulo novo, `pgx`, `database/sql` nem o tipo da
-  linha. O caso de uso continua gravando por `dmpfports.Outbox` e
-  `dmpfports.Repository`. O verificador reporta zero arestas
+  `application` importa o módulo novo, `pgx`, `database/sql` nem o tipo da
+  linha. O caso de uso continua gravando por `ports.Outbox` e
+  `ports.Repository`. O verificador reporta zero arestas
   `application → provider`.
-- [P0] Porta intocada (`BLK-03`, ADR-021): `dmpf-ports/outbox.go` NÃO muda.
+- [P0] Porta intocada (`BLK-03`, ADR-021): `ports/outbox.go` NÃO muda.
   Nenhum tipo gerado de Protobuf, nenhum `pgx`, nenhum `[]byte` de wire
   aparece na assinatura de `Outbox`, `OutboxEntry` ou `PublishIntent`. Quem
   conhece o wire é quem realiza a porta.
@@ -215,7 +215,7 @@ exigência abaixo tem origem:
   externo para o gate `breaking` ficar verde.
 - [P0] Tempo como inteiro (ADR-034): `occurred_at`, `available_at`,
   `locked_until` e `published_at` são `bigint` de nanossegundos desde a época
-  Unix, espelhando `dmpfports.Instant`. NUNCA `timestamptz` — perde três casas.
+  Unix, espelhando `ports.Instant`. NUNCA `timestamptz` — perde três casas.
 - [P1] Testes de integração fail-closed no CI: sem `DMPF_PG_DSN`, os testes que
   exigem banco chamam `t.Skip` fora do CI e `t.Fatal` quando a variável `CI`
   está definida. NUNCA passar em silêncio no CI sem exercitar o banco.
@@ -228,19 +228,19 @@ exigência abaixo tem origem:
 
 ### Funcionais
 
-#### Módulo `dmpf-provider-postgres-go` — bloco `provider`
+#### Módulo `postgres` — bloco `provider`
 
-- [x] **[P0] Projeto Nx e módulo Go**: `libs/backend/go/dmpf-provider-postgres`
-  com `project.json` (nome `dmpf-provider-postgres-go`, tags `type:lib`,
+- [x] **[P0] Projeto Nx e módulo Go**: `libs/backend/go/postgres`
+  com `project.json` (nome `postgres`, tags `type:lib`,
   `scope:backend`, `stack:go`, os cinco targets `fmt-check`, `vet`, `build`,
-  `test-race`, `govulncheck` copiados de `dmpf-application`), `package.json`
-  (`@mateusmacedo/dmpf-provider-postgres-go`, `private: true`), `go.mod`
+  `test-race`, `govulncheck` copiados de `application`), `package.json`
+  (`@mateusmacedo/postgres`, `private: true`), `go.mod`
   (`go 1.26.4`, `require github.com/jackc/pgx/v5` e
   `google.golang.org/protobuf v1.36.12`), `go.sum`, e entrada `use` no
-  `go.work`. Package raiz `dmpfpostgres`.
+  `go.work`. Package raiz `postgres`.
 - [x] **[P0] `UnitOfWork[R]` sobre `pgxpool.Pool`**:
-  `NewUnitOfWork[R any](pool *pgxpool.Pool, bind func(tx *Tx) R) dmpfports.UnitOfWork[R]`.
-  `Within` honra as seis cláusulas do contrato de `dmpf-ports/uow.go`:
+  `NewUnitOfWork[R any](pool *pgxpool.Pool, bind func(tx *Tx) R) ports.UnitOfWork[R]`.
+  `Within` honra as seis cláusulas do contrato de `ports/uow.go`:
   - `ctx.Err() != nil` antes de `BeginTx` devolve o erro sem abrir transação e
     sem invocar `fn` (`CTX-21`);
   - `fn` é invocada exatamente uma vez (`UOW-09`);
@@ -253,17 +253,17 @@ exigência abaixo tem origem:
   - `Tx` é o único caminho até as portas: `bind` recebe `*Tx` e monta `R`.
   - Nível de isolamento: o default do Postgres (`READ COMMITTED`); a exclusão
     entre escritores concorrentes vem do optimistic locking, não do isolamento.
-- [x] **[P0] `Tx`**: expõe `Outbox(mapper EventMapper) dmpfports.Outbox` e
+- [x] **[P0] `Tx`**: expõe `Outbox(mapper EventMapper) ports.Outbox` e
   `Conn() pgx.Tx` (para repositórios do mesmo módulo construírem suas queries
   sobre a transação corrente). Nenhum método de commit ou rollback é exportado:
   encerrar a transação é de `Within`.
 - [x] **[P0] `EventMapper` e `Mapped`**:
-  `type EventMapper interface { Map(event dmpfdomain.DomainEvent) (Mapped, error) }`
+  `type EventMapper interface { Map(event domain.DomainEvent) (Mapped, error) }`
   e `type Mapped struct { Message proto.Message; Type string }`, onde `Type` é o
   nome de tipo CloudEvents no formato `PTB-03` (ex.:
   `com.company.orders.order-placed.v1`). Evento desconhecido devolve erro que
   embrulha `ErrUnmappedEvent`.
-- [x] **[P0] `Enqueue`** (realização de `dmpfports.Outbox`), nesta ordem:
+- [x] **[P0] `Enqueue`** (realização de `ports.Outbox`), nesta ordem:
   1. `entry.MessageID == ""` → `ErrEmptyMessageID`;
   2. `entry.Intent.Destination` fora da forma de `BLK-04` → `ErrInvalidDestination`;
   3. `mapper.Map(entry.Event)` → em erro, devolve-o (embrulhando `ErrUnmappedEvent`);
@@ -286,21 +286,21 @@ exigência abaixo tem origem:
   `dmpf_outbox` e `dmpf_example_orders` conforme a seção Design. Sem ferramenta
   de migração externa e sem tabela de versões de migração.
 - [x] **[P0] Purga com evidência** (`OBX-17`):
-  `PurgePublished(ctx context.Context, pool *pgxpool.Pool, before dmpfports.Instant) (Purge, error)`
+  `PurgePublished(ctx context.Context, pool *pgxpool.Pool, before ports.Instant) (Purge, error)`
   executa `DELETE FROM dmpf_outbox WHERE status = 'published' AND published_at < $1`
-  e devolve `Purge{Count int64, Before dmpfports.Instant}`. Registros
+  e devolve `Purge{Count int64, Before ports.Instant}`. Registros
   `pending`, `publishing` e `failed` NUNCA são alcançados pelo `WHERE`. O
   registro da evidência (log, métrica) é do chamador, que é bloco `app`.
 - [x] **[P0] Erros exportados**: `ErrEmptyMessageID`, `ErrInvalidDestination`,
   `ErrUnmappedEvent`, `ErrEmptyMapping`, `ErrDuplicateMessage`, todos
-  `errors.New` com prefixo `dmpfpostgres:`; `ErrVersionConflict` e `ErrNotFound`
-  são os de `dmpfports`, nunca redeclarados.
+  `errors.New` com prefixo `postgres:`; `ErrVersionConflict` e `ErrNotFound`
+  são os de `ports`, nunca redeclarados.
   **Acrescentado na implementação**: `ErrEmptyMapping` não estava previsto. O
   code review encontrou `checkMajor` dereferenciando `Mapped.Message` sem
   conferir nil — um mapeador que devolvesse sucesso sem mensagem derrubava o
   provider com nil pointer, sem dizer de quem era a culpa.
 - [x] **[P0] Repositório de exemplo** (`example/orders`, package `orderspg`):
-  `NewRepository(tx *dmpfpostgres.Tx) dmpfports.Repository[orders.OrderID, orders.Snapshot]`
+  `NewRepository(tx *postgres.Tx) ports.Repository[orders.OrderID, orders.Snapshot]`
   sobre `dmpf_example_orders`:
   - `Load`: `SELECT version, snapshot WHERE order_id = $1`; sem linha →
     `ErrNotFound`; `snapshot` (jsonb) decodificado para `orders.Snapshot`;
@@ -321,10 +321,10 @@ exigência abaixo tem origem:
   `eventv1.ItemAdded` (`order_id`, `sku`, `quantity`) com `Type`
   `com.company.orders.item-added.v1`. Qualquer outro evento → `ErrUnmappedEvent`.
 - [x] **[P0] Manifesto**: `dmpf-units.json` com duas unidades no
-  `bounded_context: dmpf-kernel`, ambas `block: provider`,
-  `public_integration_surface: false`: `dmpf-kernel/provider-postgres`
-  (include: raiz do módulo) e `dmpf-kernel/example-orders-postgres` (include:
-  `.../dmpf-provider-postgres/example/orders`). `external[]` com duas entradas:
+  `bounded_context: kernel`, ambas `block: provider`,
+  `public_integration_surface: false`: `kernel/provider-postgres`
+  (include: raiz do módulo) e `kernel/example-orders-postgres` (include:
+  `.../postgres/example/orders`). `external[]` com duas entradas:
   `github.com/jackc/pgx/v5` (entrypoints raiz, `pgxpool`, `pgconn`;
   `capability: io.storage`) e `google.golang.org/protobuf` (entrypoint `proto`;
   `capability: wire.codec`), ambas com faixa de `versions` fechada por major.
@@ -343,7 +343,7 @@ exigência abaixo tem origem:
 - [x] **[P0] Regeneração**: `gen/go/company/orders/event/v1/item_added.pb.go`
   criado e `order_placed.pb.go` regenerado por `buf generate`;
   `buf-generate-check` prova ausência de drift (`BUF-11`). O manifesto de
-  `dmpf-contracts` não muda: a unidade `dmpf-contracts/gen` já inclui o pacote
+  `contracts` não muda: a unidade `contracts/gen` já inclui o pacote
   `company/orders/event/v1`.
 - [x] **[P0] Fixture golden `contracts/fixtures/orders/event/v1/item-added.golden`**
   (`INT-02`): `identity` (`fixture`, `contract`, `type`, `dataschema`),
@@ -360,7 +360,7 @@ exigência abaixo tem origem:
 
 #### Gate local e vetores
 
-- [x] **[P0] Verificador `KRN-02` sobre o módulo novo**: `dmpf-conformance`
+- [x] **[P0] Verificador `KRN-02` sobre o módulo novo**: `conformance`
   aprova o `develop` com as duas unidades novas; as arestas `provider → domain`
   (25), `provider → port` (28) e `provider → contract` (30) são permitidas sob
   C2 (`bounded_context` idêntico ou `public_integration_surface: true` no
@@ -368,10 +368,10 @@ exigência abaixo tem origem:
 - [x] **[P0] Vetor negativo de módulo para a célula 26** (`provider →
   application`): em `tools/dmpf-cell-check.sh` — script próprio, **não** o
   `tools/dmpf-gate-check.sh` —, um `git worktree` descartável em que uma unidade
-  `provider` importa `dmpf-application` reprova com `DMPF-D001`. A célula 12
+  `provider` importa `application` reprova com `DMPF-D001`. A célula 12
   (`application → contract`) ganha seu vetor de módulo, pago como dívida da
   `SPEC-ZHE7DN1H` (linha 98): uma unidade `application` importando
-  `dmpf-contracts/envelope` reprova com `DMPF-D001`. **Ajustado na review do
+  `contracts/envelope` reprova com `DMPF-D001`. **Ajustado na review do
   plano**: o `dmpf-gate-check.sh` prova o `depguard`, que decide por nome de
   diretório e não conhece aresta entre unidades; misturar as duas provas no
   mesmo script confundiria gates com alcances diferentes.
@@ -411,8 +411,8 @@ exigência abaixo tem origem:
   `docs/adr/README.md`.
 - [x] **[P1] Inventário**: `AGENTS.md` (seção "Libs") ganha o sexto módulo, com
   as duas unidades e o bloco; `README.md` do módulo novo no molde do de
-  `dmpf-application`; a **única** menção literal a `SKIP LOCKED` em
-  `dmpf-application` (`README.md:144`) passa a apontar o `KRN-08`. **Ajustado
+  `application`; a **única** menção literal a `SKIP LOCKED` em
+  `application` (`README.md:144`) passa a apontar o `KRN-08`. **Ajustado
   na review do plano**: a spec falava em duas menções, mas `example/memory/doc.go`
   não cita `SKIP LOCKED` — ele referencia o `KRN-06`, e essa referência foi
   atualizada para nomear o módulo entregue.
@@ -425,12 +425,12 @@ exigência abaixo tem origem:
   `golangci-lint` (via `tools/dmpf-gate-check.sh`), `go build`, `go test`,
   `go test -race`, `govulncheck`.
   **Ressalva**: `TestAContextCancelledWhileWaitingNeverOpensATransaction`, em
-  `dmpf-application/example/memory`, é flaky e **pré-existente** a esta entrega —
+  `application/example/memory`, é flaky e **pré-existente** a esta entrega —
   medido com `-cpu 1` em 15 execuções, falha 5/15 no HEAD limpo de `develop`
   contra 4/15 com estas mudanças. Merece ticket próprio.
 - [x] **Workspace verde**: `pnpm biome ci .` e
   `pnpm nx affected -t lint,typecheck,test,build --exclude=@mateusmacedo/dmpf-source`.
-- [ ] **Gates fail-closed** (em aberto: `buf-breaking`): `dmpf-conformance` e os cinco targets Buf sem
+- [ ] **Gates fail-closed** (em aberto: `buf-breaking`): `conformance` e os cinco targets Buf sem
   `continue-on-error`, sem `|| true`.
 - [x] **Determinismo**: duas execuções de `Enqueue` sobre entradas iguais
   produzem `payload` e `payload_hash` byte a byte idênticos
@@ -445,11 +445,11 @@ exigência abaixo tem origem:
 
 | Camada (bloco DMPF) | Afetada? | Descrição |
 | --- | --- | --- |
-| `domain` (`dmpf-domain-go`) | [ ] | Intocado. `OrderPlaced`, `ItemAdded` e `Snapshot` são consumidos como estão |
-| `port` (`dmpf-ports-go`) | [ ] | Intocado. As três portas e os valores já existem; esta spec as realiza |
-| `application` (`dmpf-application-go`) | [x] | Só documentação: duas menções a `SKIP LOCKED` redirecionadas ao `KRN-08`. Nenhum import novo, nenhuma aresta nova |
-| `contract` (`dmpf-contracts-go`, `contracts/`) | [x] | `item_added.proto` novo, `item_count` em `OrderPlaced`, `gen/go` regenerado, fixture `item-added.golden`, suíte golden parametrizada |
-| `provider` (novo `dmpf-provider-postgres-go`) | [x] | Módulo inteiro: UoW, outbox, migração, purga, repositório e mapeador de exemplo, manifesto |
+| `domain` (`domain`) | [ ] | Intocado. `OrderPlaced`, `ItemAdded` e `Snapshot` são consumidos como estão |
+| `port` (`ports`) | [ ] | Intocado. As três portas e os valores já existem; esta spec as realiza |
+| `application` (`application`) | [x] | Só documentação: duas menções a `SKIP LOCKED` redirecionadas ao `KRN-08`. Nenhum import novo, nenhuma aresta nova |
+| `contract` (`contracts`, `contracts/`) | [x] | `item_added.proto` novo, `item_count` em `OrderPlaced`, `gen/go` regenerado, fixture `item-added.golden`, suíte golden parametrizada |
+| `provider` (novo `postgres`) | [x] | Módulo inteiro: UoW, outbox, migração, purga, repositório e mapeador de exemplo, manifesto |
 | `app` | [ ] | Não existe composition root de produção; os testes fazem o papel de `bind` |
 | Infra / CI | [x] | `services.postgres` e `DMPF_PG_DSN` no job `main`; `go.work` com o sexto módulo; baseline do verificador |
 | Documentação | [x] | ADR-035, índice de ADRs, README do módulo, `AGENTS.md` |
@@ -458,7 +458,7 @@ exigência abaixo tem origem:
 
 ```text
 dmpf/
-├── go.work                                                  # MODIFICAR — use ./libs/backend/go/dmpf-provider-postgres
+├── go.work                                                  # MODIFICAR — use ./libs/backend/go/postgres
 ├── .github/workflows/ci.yml                                 # MODIFICAR — services.postgres + env.DMPF_PG_DSN no job main
 ├── contracts/
 │   ├── proto/company/orders/event/v1/
@@ -467,18 +467,18 @@ dmpf/
 │   └── fixtures/orders/event/v1/
 │       ├── order-placed.golden                              # MODIFICAR — regenerado; caso item-count-present
 │       └── item-added.golden                                # CRIAR — fixture do contrato novo (INT-02)
-├── libs/backend/go/dmpf-contracts/
+├── libs/backend/go/contracts/
 │   ├── gen/go/company/orders/event/v1/
 │   │   ├── order_placed.pb.go                               # MODIFICAR — regenerado por buf generate, nunca à mão
 │   │   └── item_added.pb.go                                 # CRIAR — gerado
 │   └── golden/
 │       ├── golden_test.go                                   # MODIFICAR — tabela de fixtures em vez de fixturePath
 │       └── fixture_test.go                                  # MODIFICAR — gerador cobre ItemAdded e item_count
-├── libs/backend/go/dmpf-provider-postgres/                  # CRIAR — projeto Nx dmpf-provider-postgres-go, bloco provider
-│   ├── go.mod                                               # module .../libs/backend/go/dmpf-provider-postgres, go 1.26.4, require pgx/v5 + protobuf
+├── libs/backend/go/postgres/                  # CRIAR — projeto Nx postgres, bloco provider
+│   ├── go.mod                                               # module .../libs/backend/go/postgres, go 1.26.4, require pgx/v5 + protobuf
 │   ├── go.sum                                               # presente: há dependência externa real
-│   ├── project.json                                         # 5 targets copiados de dmpf-application; tags 3D
-│   ├── package.json                                         # @mateusmacedo/dmpf-provider-postgres-go, private
+│   ├── project.json                                         # 5 targets copiados de application; tags 3D
+│   ├── package.json                                         # @mateusmacedo/postgres, private
 │   ├── dmpf-units.json                                      # 2 unidades provider + 2 external (commit próprio)
 │   ├── README.md                                            # o que o módulo é, como subir o Postgres local, o que fica com KRN-07/08
 │   ├── doc.go                                               # godoc de package: bloco provider, células 25/28/30, o que não contém
@@ -494,14 +494,14 @@ dmpf/
 │   ├── uow_test.go                                          # seis cláusulas de Within sobre Postgres real (duplica RunUnitOfWorkContract)
 │   ├── outbox_test.go                                       # valores iniciais, unicidade, destino, unmapped, bytes congelados, hash
 │   ├── purge_test.go                                        # só published sai; evidência devolvida
-│   └── example/orders/                                      # unidade dmpf-kernel/example-orders-postgres
+│   └── example/orders/                                      # unidade kernel/example-orders-postgres
 │       ├── doc.go                                           # repositório e mapeador de exemplo
 │       ├── repository.go                                    # NewRepository(tx): Load/Save com optimistic locking em SQL
 │       ├── mapper.go                                        # Mapper: OrderPlaced → eventv1.OrderPlaced; ItemAdded → eventv1.ItemAdded
 │       ├── repository_test.go                               # create, update, conflito, not found
 │       ├── mapper_test.go                                   # dois eventos mapeados; evento estranho → ErrUnmappedEvent; Type PTB-03
-│       └── e2e_test.go                                      # PlaceOrder e AddItem de dmpf-application sobre a UoW Postgres (importa application: só em _test.go)
-├── libs/backend/go/dmpf-application/
+│       └── e2e_test.go                                      # PlaceOrder e AddItem de application sobre a UoW Postgres (importa application: só em _test.go)
+├── libs/backend/go/application/
 │   ├── README.md                                            # MODIFICAR — "SKIP LOCKED" → KRN-08
 │   └── example/memory/doc.go                                # MODIFICAR — idem
 ├── tools/
@@ -515,15 +515,15 @@ dmpf/
 
 Import paths canônicos (as `canonical_key` das duas unidades novas):
 
-- `github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres`
-- `github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-provider-postgres/example/orders`
+- `github.com/mateusmacedo/dmpf/libs/backend/go/postgres`
+- `github.com/mateusmacedo/dmpf/libs/backend/go/postgres/example/orders`
 
 **Arquivos a modificar**, em prosa: `go.work` (sexto `use`); `ci.yml`
 (serviço e variável); `order_placed.proto` (campo 6); `order-placed.golden`,
 `golden_test.go`, `fixture_test.go` (segunda fixture e caso novo); os dois
 `.pb.go` (regeneração); `units-baseline.json` (duas entradas, digest);
 `dmpf-gate-check.sh` (dois vetores); `README.md` e `doc.go` de
-`dmpf-application` (redirecionar `SKIP LOCKED`); `docs/adr/README.md` e
+`application` (redirecionar `SKIP LOCKED`); `docs/adr/README.md` e
 `AGENTS.md` (inventário).
 
 ## Design
@@ -531,7 +531,7 @@ Import paths canônicos (as `canonical_key` das duas unidades novas):
 ### Arquitetura
 
 ```text
-                    bloco application (dmpf-application-go)          — INTOCADO
+                    bloco application (application)          — INTOCADO
                     ┌──────────────────────────────────────┐
                     │ ordersapp.Service.PlaceOrder / AddItem │
                     │   UoW.Within(ctx, func(res Resources)  │
@@ -541,15 +541,15 @@ Import paths canônicos (as `canonical_key` das duas unidades novas):
                     └───────────────┬──────────────────────┘
                                     │ célula 10 (application → port)
                                     ▼
-                    bloco port (dmpf-ports-go)                        — INTOCADO
+                    bloco port (ports)                        — INTOCADO
                     UnitOfWork[R] · Repository[ID,S] · Outbox · OutboxEntry · Instant
                                     ▲                    ▲
           célula 28 (provider → port)│                    │ célula 25 (provider → domain)
                                     │                    │
    ┌────────────────────────────────┴────────────────────┴──────────────────────┐
-   │ bloco provider (dmpf-provider-postgres-go)                          — NOVO │
+   │ bloco provider (postgres)                          — NOVO │
    │                                                                             │
-   │  dmpfpostgres                                 example/orders (orderspg)    │
+   │  postgres                                 example/orders (orderspg)    │
    │  ├── NewUnitOfWork[R](pool, bind)             ├── NewRepository(tx)         │
    │  ├── Tx{ Conn() pgx.Tx; Outbox(mapper) }      │     Load / Save (version)   │
    │  ├── Enqueue: validar → Map → Pack → Sum      └── Mapper                    │
@@ -559,7 +559,7 @@ Import paths canônicos (as `canonical_key` das duas unidades novas):
    └───────────────────────────────────┬─────────────────────────────────────────┘
                                        │ célula 30 (provider → contract), C2 via public_integration_surface
                                        ▼
-                    bloco contract (dmpf-contracts-go)
+                    bloco contract (contracts)
                     envelope.Pack · payloadhash.Sum · gen/go/.../event/v1 (OrderPlaced, ItemAdded)
 
    NÃO atravessa: 11 (application → provider), 12 (application → contract),
@@ -697,7 +697,7 @@ Enqueue(ctx, entry):
 | `UOW-09`, `UOW-10` | `uow_test.go`: contador de invocações de `fn` = 1 sob sucesso, erro e `ErrVersionConflict` |
 | `ERR-22` | `uow_test.go`: panic em `fn` propaga (`recover` no teste) e zero linhas persistem |
 | `CTX-21` | `uow_test.go`: `ctx` já cancelado → `Within` devolve `context.Canceled` e `fn` não roda |
-| `BLK-01` | Verificador: zero arestas `application → provider`; `grep` negativo de `pgx`/`database/sql` em `dmpf-application` no `dmpf-gate-check.sh` |
+| `BLK-01` | Verificador: zero arestas `application → provider`; `grep` negativo de `pgx`/`database/sql` em `application` no `dmpf-gate-check.sh` |
 | `BLK-03`, ADR-021 | `outbox_test.go`: `payload` lido do banco == `envelope.Pack` do mesmo evento; após trocar o mapeador por um que produz bytes diferentes, o registro antigo permanece byte a byte igual e `payload_hash` bate com `payloadhash.Sum(payload)` |
 | `BLK-04` | `outbox_test.go`: `arn:aws:sns:...`, `orders/events`, `kafka://orders`, `Orders.Events` → `ErrInvalidDestination`, zero linhas; `orders.events` → aceito |
 | `BLK-05`, `OBX-05` | `outbox_test.go`: `SELECT status, available_at, attempt_count, locked_by, locked_until, published_at, last_error` do registro recém-gravado → `pending`, `= occurred_at`, `0`, `NULL ×4` |
@@ -731,7 +731,7 @@ Enqueue(ctx, entry):
   golden fixture registra; o major está embutido no segmento `v1`. Alternativa
   descartada: gravar só `v1` — perderia o nome da mensagem e obrigaria o relay
   a recompô-lo.
-- **Tempo como `bigint` de nanossegundos**, espelhando `dmpfports.Instant`,
+- **Tempo como `bigint` de nanossegundos**, espelhando `ports.Instant`,
   porque `timestamptz` tem precisão de microssegundos e o ADR-034 fixou
   nanossegundos justamente para que `available_at` não colida sob carga.
   Alternativa descartada: `timestamptz` — perde três casas e quebra a
@@ -815,15 +815,15 @@ Enqueue(ctx, entry):
 
 ### Critérios de aceite
 
-- [x] A assinatura de `dmpfports.Outbox`, `OutboxEntry` e `PublishIntent` não
+- [x] A assinatura de `ports.Outbox`, `OutboxEntry` e `PublishIntent` não
   menciona tipo gerado de Protobuf, `pgx` nem `[]byte`; `git diff` de
-  `dmpf-ports/*.go` é vazio e o verificador aprova a unidade `dmpf-kernel/port`
-  como `pure`. **Ajustado na implementação**: o critério dizia `dmpf-ports/`
+  `ports/*.go` é vazio e o verificador aprova a unidade `kernel/port`
+  como `pure`. **Ajustado na implementação**: o critério dizia `ports/`
   inteiro, mas o `go.mod` do módulo mudou na subida de toolchain para 1.26.6
   (decidida nesta entrega, ver ADR-035). A intenção — a superfície da porta não
-  muda — segue provada: nenhum `.go` de `dmpf-ports` foi tocado.
-- [x] `dmpf-application` não importa driver, cliente de banco nem o tipo da
-  linha: `go list -deps ./...` em `dmpf-application` não contém `pgx` nem
+  muda — segue provada: nenhum `.go` de `ports` foi tocado.
+- [x] `application` não importa driver, cliente de banco nem o tipo da
+  linha: `go list -deps ./...` em `application` não contém `pgx` nem
   `database/sql`; o verificador reporta zero arestas `application → provider`.
 - [x] Existe teste que faz o commit falhar (cancelamento do `ctx` dentro de
   `fn`) e comprova, por `SELECT count(*)` nas duas tabelas, que nem o estado
@@ -848,14 +848,14 @@ Enqueue(ctx, entry):
   ainda é `payloadhash.Sum` dos bytes lidos.
 - [x] Nenhum artefato desta entrega declara ou sugere exactly-once fim a fim:
   `buf-lint` verde e `grep -ri` negativo por "exactly-once" e "exatamente uma
-  vez" em `libs/backend/go/dmpf-provider-postgres/` e em `docs/adr/035-*.md`
+  vez" em `libs/backend/go/postgres/` e em `docs/adr/035-*.md`
   (salvo a frase que o veda).
 - [x] A purga de `published` devolve `Purge{Count, Before}` com o que foi
   purgado e até qual instante; registros `pending`, `publishing` e `failed`
   permanecem, comprovado por `SELECT` após a purga.
 - [x] Evento sem contrato registrado devolve `ErrUnmappedEvent` em `Enqueue`;
   após o rollback, zero linhas.
-- [x] `AddItem` e `PlaceOrder` de `dmpf-application/example/orders` rodam ponta
+- [x] `AddItem` e `PlaceOrder` de `application/example/orders` rodam ponta
   a ponta sobre a UoW Postgres (`e2e_test.go`): item adicionado criando o
   pedido em `version = 1`, pedido colocado em `version = 2`, dois registros na
   outbox com `message_type` `com.company.orders.item-added.v1` e
@@ -880,7 +880,7 @@ Enqueue(ctx, entry):
   `test-race`. **Em aberto**: o CI do PR #32 não chegou a exercitar o step — o
   merge saiu com a run pendente, e o workflow só dispara em `pull_request`.
 - [x] Cadeia Go verde nos seis módulos; `pnpm biome ci .` e
-  `pnpm nx affected -t lint,typecheck,test,build` verdes; `dmpf-conformance`
+  `pnpm nx affected -t lint,typecheck,test,build` verdes; `conformance`
   aprovando; ADR-035 criado e indexado; `AGENTS.md` com o sexto módulo.
 
 ### Cenários de teste
@@ -942,7 +942,7 @@ ENTÃO devolve ErrInvalidDestination sem executar INSERT (BLK-04)
   E o mesmo vale para "orders/events", "kafka://orders", "Orders.Events" e ""
   E "orders.events" e "billing.invoice.issued" são aceitos
 
-DADO uma OutboxEntry cujo Event é um tipo anônimo que satisfaz dmpfdomain.DomainEvent
+DADO uma OutboxEntry cujo Event é um tipo anônimo que satisfaz domain.DomainEvent
 QUANDO Enqueue é chamado com orderspg.Mapper{}
 ENTÃO devolve erro que satisfaz errors.Is(err, ErrUnmappedEvent) e nada é gravado
 
@@ -968,20 +968,20 @@ ENTÃO a linha nasce com version 1
 QUANDO Save("o-1", snapshot', expected 1) é chamado
 ENTÃO a linha passa a version 2
 QUANDO Save("o-1", snapshot'', expected 1) é chamado de novo
-ENTÃO devolve dmpfports.ErrVersionConflict e a linha segue em version 2 (§3.3)
+ENTÃO devolve ports.ErrVersionConflict e a linha segue em version 2 (§3.3)
 QUANDO Load("o-inexistente") é chamado
-ENTÃO devolve dmpfports.ErrNotFound
+ENTÃO devolve ports.ErrNotFound
 
 DADO o repositório em NX_BASE = develop com a marca contracts-baseline/proto existente
 QUANDO buf-lint, buf-pins, buf-generate-check e buf-breaking rodam sobre contracts/
 ENTÃO os quatro passam: item_added.proto novo e item_count aditivo não são breaking em FILE
   E gen/go regenerado é byte a byte igual ao versionado (BUF-11)
 
-DADO um repositório descartável com uma unidade provider que importa dmpf-application
-QUANDO dmpf-conformance roda
+DADO um repositório descartável com uma unidade provider que importa application
+QUANDO conformance roda
 ENTÃO reprova com DMPF-D001 na célula 26
-DADO um repositório descartável com uma unidade application que importa dmpf-contracts/envelope
-QUANDO dmpf-conformance roda
+DADO um repositório descartável com uma unidade application que importa contracts/envelope
+QUANDO conformance roda
 ENTÃO reprova com DMPF-D001 na célula 12
 
 DADO a variável CI definida e DMPF_PG_DSN ausente
@@ -998,9 +998,9 @@ ENTÃO os testes de integração são pulados com t.Skip e os unitários (destin
   (célula 28) e `contract` (célula 30). NUNCA importar `application` (célula
   26) nem `app` (célula 27) em código de produção; o teste ponta a ponta que
   importa o `application` vive em `_test.go`, fora do universo.
-- [P0] Célula 11 intocada (`BLK-01`): NENHUM arquivo de `dmpf-application`
+- [P0] Célula 11 intocada (`BLK-01`): NENHUM arquivo de `application`
   importa o módulo novo, `pgx`, `database/sql` nem o tipo da linha.
-- [P0] Porta intocada (`BLK-03`, ADR-021): `dmpf-ports/outbox.go` NÃO muda;
+- [P0] Porta intocada (`BLK-03`, ADR-021): `ports/outbox.go` NÃO muda;
   nenhum tipo de wire na assinatura.
 - [P0] Mesma transação (`UOW-07`): `INSERT` da outbox e escrita do agregado
   sobre a MESMA `pgx.Tx`; visibilidade só no `COMMIT`. NUNCA transação

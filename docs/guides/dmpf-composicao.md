@@ -84,16 +84,18 @@ sem escrever nada:
 seção ausente: Comandos (UPRs)
 ```
 
-O agente então percorre o golden path: roda o generator para o esqueleto dos
-cinco módulos, escreve o domínio por agregado, as portas, os casos de uso, o
+O agente então percorre o golden path: roda o generator para o esqueleto do
+módulo — um package por bloco —, escreve o domínio por agregado, as portas, os casos de uso, o
 provider com o esquema e os repositórios, e a borda do bloco `app`. Ele para em
 qualquer gate normativo em vez de contornar — reprovação do verificador,
 do `depguard` ou do rito Buf interrompem a execução e são reportadas.
 
-O contexto nasce em `libs/<scope>/<stack>/<ctx>/<bloco>` — uma pasta por
-contexto, um subdiretório por bloco. O nome do projeto Nx continua composto e
-com sufixo de stack (`<ctx>-domain-go`), porque nome de projeto é chave única
-no workspace.
+O contexto nasce em `libs/<scope>/<stack>/<ctx>` — um módulo Go por contexto,
+um package por bloco (`<ctx>/domain`, `<ctx>/ports`, `<ctx>/application`,
+`<ctx>/provider`, `<ctx>/app`). O nome do projeto Nx é `<ctx>`, sem prefixo nem
+sufixo: a árvore já diz o scope e a stack (ADR-045). Onde um arquivo importa o
+package do kernel e o do contexto com o mesmo nome, o import do kernel recebe
+alias pelo papel — `kernel`, `usecase`, `port`.
 
 ## 4. Passo 3 — o rito Buf
 
@@ -107,10 +109,10 @@ cd contracts && bash ../tools/buf.sh generate
 Depois, os quatro gates:
 
 ```bash
-pnpm nx run dmpf-contracts-go:buf-lint
-pnpm nx run dmpf-contracts-go:buf-pins
-pnpm nx run dmpf-contracts-go:buf-generate-check
-NX_BASE=<ref> pnpm nx run dmpf-contracts-go:buf-breaking
+pnpm nx run contracts:buf-lint
+pnpm nx run contracts:buf-pins
+pnpm nx run contracts:buf-generate-check
+NX_BASE=<ref> pnpm nx run contracts:buf-breaking
 ```
 
 O `buf-generate-check` gera duas vezes e compara com o versionado: é ele que
@@ -126,7 +128,7 @@ entra em `panic` no `init()`.
 As unidades do contexto novo precisam entrar no baseline governado:
 
 ```bash
-go run ./libs/backend/go/dmpf-conformance/cmd/dmpf-conformance --write-baseline
+go run ./libs/backend/go/conformance/cmd/conformance --write-baseline
 ```
 
 Este é um **passo humano**, nunca do agente (ADR-028): classificar é ato de
@@ -134,7 +136,7 @@ autoridade sobre a arquitetura, não consequência de escrever código.
 
 O commit da classificação vai **sozinho**. `DMPF-T002` reprova o commit que
 mistura mudança normativa com código, e "normativo" inclui tanto o baseline
-quanto os `dmpf-units.json` de cada módulo:
+quanto o `dmpf-units.json` do módulo:
 
 ```bash
 git add tools/dmpf-baseline/units-baseline.json '**/dmpf-units.json'
@@ -147,7 +149,7 @@ O módulo novo é importer do pnpm, então o install vem antes:
 
 ```bash
 pnpm install
-pnpm nx run-many -t fmt-check,vet,lint,build,test -p '<ctx>-*'
+pnpm nx run-many -t fmt-check,vet,lint,build,test -p <ctx>
 ```
 
 Os testes que tocam Postgres levam a build tag `integration` e exigem o DSN.
@@ -155,15 +157,15 @@ Rode-os com `--parallel=1`: os harnesses truncam as tabelas do kernel, que todo
 contexto compartilha.
 
 ```bash
-pnpm nx run dmpf-reference-bff-go:infra-up
+pnpm nx run bff:infra-up
 DMPF_PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' \
-  pnpm nx run-many -t test-race -p '<ctx>-*' --parallel=1
+  pnpm nx run <ctx>:test-race
 ```
 
 Por fim, o gate autoritativo entre módulos, com a base do intervalo em revisão:
 
 ```bash
-go run ./libs/backend/go/dmpf-conformance/cmd/dmpf-conformance -base <ref>
+go run ./libs/backend/go/conformance/cmd/conformance -base <ref>
 ```
 
 Sem `-base`, a condição de commit próprio fica **não verificada** — e condição
@@ -191,7 +193,7 @@ tools/dmpf-harness-check.sh --phase regen
 ```
 
 O **`self-test`** não usa LLM. Sobre o golden commitado, num worktree
-descartável, ele retira `dmpf-kernel/domain` de `shared_kernel_units` e exige
+descartável, ele retira `kernel/domain` de `shared_kernel_units` e exige
 que o verificador reprove com `DMPF-D002` apontando `<ctx>/domain`. É a prova de
 que o gate normativo ainda morde — se ele aprovar sem o shared kernel
 designado, a regra de dependência parou de valer.
@@ -203,7 +205,7 @@ exige LLM, credenciais e tempo, então **não roda no CI** — o CI prova o gold
 como qualquer outro módulo. Rode-o depois de mudar a skill, a rule ou o agente.
 
 Vale rodar o `self-test` a cada mudança de forma do golden: a prova carrega o
-layout em `MODULOS` e nos globs de comparação, e envelhece junto com ele.
+layout em `MODULO` e `BLOCOS` e nos globs de comparação, e envelhece junto com ele.
 
 ## 9. Divergir do golden path
 
@@ -250,7 +252,7 @@ aprovação de Arquitetura e Plataforma (`GOV-34`):
 
 `approved_by` é declaração: o verificador confere que as duas autoridades
 constam do array, não que aprovaram. A aprovação precisa existir de fato na
-revisão do PR que introduz a exceção. As exceções reais de `dmpf-contracts` são
+revisão do PR que introduz a exceção. As exceções reais de `contracts` são
 desse tipo (ADR-033).
 
 ### Um pedido recusado
@@ -291,7 +293,7 @@ reproduzir um relatório.
 
 A certificação promove a `certificada`, no BOM da release, as entradas que uma
 execução real da suíte alcançou. O instrumento é o `dmpf-evidence` do
-`dmpf-testkit`; as normas são `BOM-03` a `BOM-08` de
+`testkit`; as normas são `BOM-03` a `BOM-08` de
 [`governanca-bom-pilotos.md`](../dmpf/governanca-bom-pilotos.md) §4, e o schema
 está em [`bom/README.md`](../../bom/README.md).
 
@@ -304,7 +306,7 @@ está em [`bom/README.md`](../../bom/README.md).
    CI=true GOTOOLCHAIN=go1.26.6 \
      DMPF_PG_DSN='postgres://dmpf:dmpf@localhost:5432/dmpf?sslmode=disable' \
      DMPF_KAFKA_BROKERS=localhost:9092 DMPF_REDPANDA_ADMIN=http://localhost:9644 \
-     go run ./libs/backend/go/dmpf-testkit/cmd/dmpf-evidence --root . --release <semver> --out /tmp/evidence-a/<semver>
+     go run ./libs/backend/go/testkit/cmd/evidence --root . --release <semver> --out /tmp/evidence-a/<semver>
    ```
 
 2. **Promover só o que o header alcança.** Uma entrada vai a `certificada`
@@ -342,7 +344,8 @@ está em [`bom/README.md`](../../bom/README.md).
 - [`.agents/skills/dmpf-bounded-context/references/armadilhas.md`](../../.agents/skills/dmpf-bounded-context/references/armadilhas.md) — o que já deu errado
 - ADR-010, ADR-012, ADR-017 — regra de dependência, classificação por manifesto, identidade estável
 - ADR-028 — classificação como ato de autoridade
-- ADR-030 — granularidade de módulo e o layout de pasta por contexto
+- ADR-030 — granularidade de módulo do kernel e BOM
+- ADR-045 — nomes sem prefixo nem sufixo e o contexto como um módulo só
 - ADR-041 — a virada do generator orientado ao domínio para o híbrido generator + agente
 - ADR-042 — shared kernel
 - ADR-015 — política de capabilities por bloco, que decide N1 para E1

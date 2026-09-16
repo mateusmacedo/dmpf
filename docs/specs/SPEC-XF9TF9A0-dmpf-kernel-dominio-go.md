@@ -1,6 +1,6 @@
 ---
 id: SPEC-XF9TF9A0
-slug: dmpf-kernel-dominio-go
+slug: kernel-dominio-go
 title: DMPF KRN-03 — Kernel de domínio Go: UPR, Decision e Rejection
 stage: done
 priority: P0
@@ -14,7 +14,7 @@ created: 2026-09-02
 
 ## Resumo
 
-Preencher o módulo `dmpf-domain-go` (`libs/backend/go/dmpf-domain`), hoje um
+Preencher o módulo `domain` (`libs/backend/go/domain`), hoje um
 placeholder do `KRN-01`, com a realização Go do bloco `domain` da fundação DMPF:
 o desfecho da UPR como par `(Accepted[R], *Rejection)`, o tipo `Rejection` com
 código estável `contexto/motivo`, o contrato de evento de domínio como sequência
@@ -44,7 +44,7 @@ transporte apenas rejeições de domínio. O ADR-014 fechou a aresta
 `domain → port`; o ADR-016 fixou o domínio executável em memória em duas metades
 conjuntas (estática e dinâmica) e recusou a mockabilidade como satisfação.
 
-- **Problema**: o módulo `dmpf-domain-go` existe desde o `KRN-01` com um único
+- **Problema**: o módulo `domain` existe desde o `KRN-01` com um único
   símbolo, `DmpfDomain(name string) string`, criado apenas para exercitar a
   cadeia de sete passos. A SPEC-MQA5HAXF:128 registra que "`KRN-03` preenche o
   módulo com UPR, `Decision` e `Rejection`". Sem esse preenchimento, o `KRN-04`
@@ -62,7 +62,7 @@ conjuntas (estática e dinâmica) e recusou a mockabilidade como satisfação.
   - [SPEC-YRJRADY9](./SPEC-YRJRADY9-dmpf-kernel-sdk-go.md) — guarda-chuva; esta
     spec realiza o requisito funcional `KRN-03`
   - [SPEC-MQA5HAXF](./SPEC-MQA5HAXF-dmpf-fundacao-nx-go.md) — `KRN-01`, fixou o
-    módulo, as tags, a cadeia e o `bounded_context: dmpf-kernel`
+    módulo, as tags, a cadeia e o `bounded_context: kernel`
   - [SPEC-WTAXFV8B](./SPEC-WTAXFV8B-dmpf-verificador-conformidade-go.md) —
     `KRN-02`, o verificador que é o instrumento dos critérios mecânicos desta spec
   - `docs/dmpf/upr-decision-mensagens.md` — FND-03, §2 (UPR), §3 (desfecho), §4
@@ -88,7 +88,7 @@ fixados aqui, sem reabrir decisão alguma:
 
 | Ticket diz | Repositório | Esta spec fixa |
 | --- | --- | --- |
-| "Criar `libs/backend/dmpf-domain`" | O módulo existe em `libs/backend/go/dmpf-domain` (ADR-030), com projeto Nx `dmpf-domain-go` e unidade `dmpf-kernel/domain` no manifesto e no baseline | **Evoluir** o módulo existente; remover o placeholder `DmpfDomain` |
+| "Criar `libs/backend/domain`" | O módulo existe em `libs/backend/go/domain` (ADR-030), com projeto Nx `domain` e unidade `kernel/domain` no manifesto e no baseline | **Evoluir** o módulo existente; remover o placeholder `DmpfDomain` |
 | "ADR a partir de `029`" | `029`, `030` e `031` já existem | O ADR desta história é o **`032`** |
 | "Vetor negativo com `net/http` reprova com `DMPF-D001` (V13)" | No verificador, `domain → net/http` emite **`DMPF-E001`** (`io.network` não permitida para o bloco — `internal/rule/stdlib.go:17`, `integration_test.go` `TestArestaTransitivaEntreModulos`). `D001` é aresta unidade→unidade, e V13 propriamente dito é `domain → provider` (`rule/vectors_test.go:292`, `TestArestaInternaEntreModulosProduzD001`) | O critério exige **`E001`** para `net/http` e aponta a cobertura de `D001` já existente |
 | Suíte "em memória, sem depender de horário", com instante no exemplo | O verificador classifica o package `time` inteiro como `io.clock` (`internal/rule/stdlib.go:28`, teste `capability_test.go:88`): importá-lo em `domain` reprova com `E001` | O instante entra como **valor de domínio próprio**, sem `time`. O comentário em `stdlib.go:67-73` e a linha do ADR-031 em `docs/adr/README.md:130` dizem "`time` puro" — divergência doc/código do `KRN-02`, registrada em "Escopo fora" |
@@ -138,7 +138,7 @@ fixados aqui, sem reabrir decisão alguma:
 - [P0] Classificação declarada (ADR-012; RFC §3.3, §10.1): cada package de
   produção do módulo é uma unidade com entrada própria no `dmpf-units.json`
   (`include` por import path exato) e no baseline, todas com `block: domain` e
-  `bounded_context: dmpf-kernel`. A mudança de classificação vem em COMMIT
+  `bounded_context: kernel`. A mudança de classificação vem em COMMIT
   PRÓPRIO, separado do código (RFC §10.2).
 - [P0] Nenhum artefato desta entrega declara nem sugere exactly-once fim a fim
   (P0-3, V31); determinismo NÃO é idempotência (FND-03 §8.2).
@@ -155,7 +155,7 @@ fixados aqui, sem reabrir decisão alguma:
 
 ### Funcionais
 
-- [x] **[P0] Tipo `Rejection` no package raiz `dmpfdomain`** (`DEC-03`, `DEC-09`,
+- [x] **[P0] Tipo `Rejection` no package raiz `domain`** (`DEC-03`, `DEC-09`,
   FND-03 §3.3): valor imutável com três campos não exportados — `code` do tipo
   `Code`, `message` string e `details` como sequência ordenada de `Detail{Key,
   Value string}` —, acessíveis por `Code()`, `Message()` e `Details()` (este
@@ -189,8 +189,8 @@ fixados aqui, sem reabrir decisão alguma:
   superfície do package (`UPR-I11`, `UPR-I12`).
 - [x] **[P0] Forma da UPR em Go** (FND-03 §2.1, §3.4; ADR-018): método do
   agregado, ou função pura sobre ele, com a assinatura
-  `func (a *Aggregate) Verb(cmd Command) (dmpfdomain.Accepted[Response],
-  *dmpfdomain.Rejection)`. Exatamente um dos dois retornos é não zero: em
+  `func (a *Aggregate) Verb(cmd Command) (domain.Accepted[Response],
+  *domain.Rejection)`. Exatamente um dos dois retornos é não zero: em
   `Rejected`, o `Accepted[R]` é o valor zero e `Events()` é vazio; em
   `Accepted`, a `*Rejection` é `nil`.
   - Sem `context.Context`, sem `time.Time`, sem interface de relógio, gerador de
@@ -201,7 +201,7 @@ fixados aqui, sem reabrir decisão alguma:
   - O agregado NÃO mantém coleção de eventos pendentes nem método que a
     exponha; eventos existem apenas no `Accepted` (`DEC-07`, `DEC-08`).
 - [x] **[P0] Agregado de exemplo `Order`** no package
-  `libs/backend/go/dmpf-domain/example/orders`, unidade `dmpf-kernel/example-orders`,
+  `libs/backend/go/domain/example/orders`, unidade `kernel/example-orders`,
   transcrição em Go dos exemplos §8.2 e §8.3 do FND-03:
   - Estado: `id OrderID`, `status Status` (`Open`, `Placed`), `items []Item`
     (`SKU`, `Quantity`), `itemLimit int`. Construtor `NewOrder(id OrderID,
@@ -229,19 +229,19 @@ fixados aqui, sem reabrir decisão alguma:
   - Nomes das mensagens seguem §5.3: commands no imperativo (`AddItem`,
     `PlaceOrder`), eventos no passado (`ItemAdded`, `OrderPlaced`), códigos
     `orders/<motivo>`.
-- [x] **[P0] Remoção do placeholder do `KRN-01`**: `dmpf-domain.go`
+- [x] **[P0] Remoção do placeholder do `KRN-01`**: `domain.go`
   (`DmpfDomain`) e `dmpf-domain_test.go` saem do módulo. A SPEC-MQA5HAXF:128 os
   define como "conteúdo mínimo" a ser preenchido por esta história; nenhum
   outro `.go` ou `.json` os referencia (verificar com
   `grep -rln DmpfDomain --include='*.go' --include='*.json'` antes de remover).
 - [x] **[P0] Manifesto e baseline**: `dmpf-units.json` do módulo passa a
-  declarar duas unidades, ambas `block: domain`, `bounded_context: dmpf-kernel`,
+  declarar duas unidades, ambas `block: domain`, `bounded_context: kernel`,
   `public_integration_surface: false`, `include` por import path exato —
-  `dmpf-kernel/domain` (raiz, inalterada) e `dmpf-kernel/example-orders`
-  (`.../dmpf-domain/example/orders`). `tools/dmpf-baseline/units-baseline.json`
+  `kernel/domain` (raiz, inalterada) e `kernel/example-orders`
+  (`.../domain/example/orders`). `tools/dmpf-baseline/units-baseline.json`
   é regravado com `--write-baseline` e passa a ter a entrada nova.
   - As duas edições vêm em **um commit próprio**, sem código Go, com o ato
-    declarado no assunto e no corpo ("criar unidade `dmpf-kernel/example-orders`",
+    declarado no assunto e no corpo ("criar unidade `kernel/example-orders`",
     bloco, contexto, arestas liberadas: nenhuma), como exige RFC §10.2 e como o
     verificador cobra em `internal/baseline/authorization.go`
     (`VerificarAutorizacao`). Precedente: commit `92fcd4d` do ARQ-521.
@@ -289,8 +289,8 @@ fixados aqui, sem reabrir decisão alguma:
   de símbolo; e a pendência de adoção entre bounded contexts (ver "Escopo fora")
   como consequência declarada, não decidida.
 - [x] **[P1] Documentação do workspace**: `AGENTS.md` deixa de dizer "Uma:" em
-  Libs (linha 141) e passa a inventariar `dmpf-domain-go` (com o exemplo) e
-  `dmpf-conformance-go`, e registra na cadeia Go que a regra `domain` do lint
+  Libs (linha 141) e passa a inventariar `domain` (com o exemplo) e
+  `conformance`, e registra na cadeia Go que a regra `domain` do lint
   tem `depguard` e `forbidigo`.
 
 ### Não-funcionais
@@ -308,14 +308,14 @@ fixados aqui, sem reabrir decisão alguma:
 - [x] `go test -race -count=2 -shuffle=on ./...` verde: nenhuma corrida e nenhum
   teste dependente de ordem.
 - [x] Cadeia Go verde por `pnpm nx`: `fmt-check`, `vet`, `lint`, `build`, `test`,
-  `test-race`, `govulncheck` do projeto `dmpf-domain-go`.
+  `test-race`, `govulncheck` do projeto `domain`.
 
 ## Camadas afetadas
 
 | Camada | Impacto |
 | --- | --- |
-| **Módulo Go `dmpf-domain`** | Placeholder substituído pelo kernel de domínio (package raiz) e pelo agregado de exemplo (`example/orders`) |
-| **Governança (manifesto + baseline)** | Unidade nova `dmpf-kernel/example-orders`; baseline regravado; commit próprio |
+| **Módulo Go `domain`** | Placeholder substituído pelo kernel de domínio (package raiz) e pelo agregado de exemplo (`example/orders`) |
+| **Governança (manifesto + baseline)** | Unidade nova `kernel/example-orders`; baseline regravado; commit próprio |
 | **Lint** | `.golangci.yml` ganha `forbidigo` na regra `domain`; `tools/dmpf-gate-check.sh` ganha o vetor correspondente |
 | **CI** | Nenhuma mudança: o gate do verificador já roda para projetos Go afetados (`ci.yml:94-97`) e a cadeia Go já cobre o módulo |
 | **Nx** | Nenhuma mudança em `project.json` ou `nx.json`: targets inferidos e declarados pelo `KRN-01` bastam |
@@ -328,20 +328,20 @@ provider nesta entrega.
 
 ```text
 dmpf/
-├── libs/backend/go/dmpf-domain/                 # projeto Nx dmpf-domain-go — EXISTE
-│   ├── go.mod                                   # INTOCADO — module .../libs/backend/go/dmpf-domain, go 1.26.4
+├── libs/backend/go/domain/                 # projeto Nx domain — EXISTE
+│   ├── go.mod                                   # INTOCADO — module .../libs/backend/go/domain, go 1.26.4
 │   ├── package.json                             # INTOCADO — private: true
 │   ├── project.json                             # INTOCADO — tags 3D e targets Go
-│   ├── dmpf-units.json                          # MODIFICAR — 2ª unidade dmpf-kernel/example-orders (commit próprio)
-│   ├── dmpf-domain.go                           # REMOVER — placeholder DmpfDomain do KRN-01
+│   ├── dmpf-units.json                          # MODIFICAR — 2ª unidade kernel/example-orders (commit próprio)
+│   ├── domain.go                           # REMOVER — placeholder DmpfDomain do KRN-01
 │   ├── dmpf-domain_test.go                      # REMOVER — teste do placeholder
-│   ├── doc.go                                   # CRIAR — package dmpfdomain: o que é e o que não é (FND-03 §2.1)
+│   ├── doc.go                                   # CRIAR — package domain: o que é e o que não é (FND-03 §2.1)
 │   ├── event.go                                 # CRIAR — DomainEvent
 │   ├── decision.go                              # CRIAR — Accepted[R], Accept, Empty
 │   ├── rejection.go                             # CRIAR — Rejection, Reject, Code, Detail
 │   ├── decision_test.go                         # CRIAR — DEC-05, DEC-12, DEC-13
 │   ├── rejection_test.go                        # CRIAR — Code.Valid, Details cópia, errors.As
-│   └── example/orders/                          # CRIAR — unidade dmpf-kernel/example-orders
+│   └── example/orders/                          # CRIAR — unidade kernel/example-orders
 │       ├── order.go                             # Order, NewOrder, Snapshot, clone
 │       ├── messages.go                          # AddItem, PlaceOrder, ItemAdded, OrderPlaced, ItemAccepted, PlacedResponse, Instant
 │       ├── rejections.go                        # constantes Code orders/*
@@ -357,19 +357,19 @@ dmpf/
 ├── docs/adr/032-realizacao-go-do-desfecho-da-upr.md   # CRIAR
 ├── docs/adr/README.md                           # MODIFICAR — linha do ADR-032
 ├── AGENTS.md                                    # MODIFICAR — inventário de libs e cadeia Go
-├── libs/backend/go/dmpf-conformance/            # INTOCADO — o verificador é instrumento, não objeto
+├── libs/backend/go/conformance/            # INTOCADO — o verificador é instrumento, não objeto
 └── docs/dmpf/                                   # INTOCADO — acervo normativo
 ```
 
 Import paths canônicos (as `canonical_key` das duas unidades):
 
-- `github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-domain`
-- `github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-domain/example/orders`
+- `github.com/mateusmacedo/dmpf/libs/backend/go/domain`
+- `github.com/mateusmacedo/dmpf/libs/backend/go/domain/example/orders`
 
 **Arquivos a modificar**:
 
-- `libs/backend/go/dmpf-domain/dmpf-units.json` — acrescenta a unidade
-  `dmpf-kernel/example-orders`, porque `include` casa por import path exato e um
+- `libs/backend/go/domain/dmpf-units.json` — acrescenta a unidade
+  `kernel/example-orders`, porque `include` casa por import path exato e um
   package não listado reprova com `DMPF-U001`.
 - `tools/dmpf-baseline/units-baseline.json` — ganha a entrada correspondente,
   porque baseline divergente reprova com `DMPF-T001`.
@@ -382,17 +382,17 @@ Import paths canônicos (as `canonical_key` das duas unidades):
 ### Arquitetura
 
 ```text
-libs/backend/go/dmpf-domain  (ownership_module; bounded_context: dmpf-kernel)
+libs/backend/go/domain  (ownership_module; bounded_context: kernel)
 
   ┌──────────────────────────────────────────────┐
-  │ dmpfdomain  (unidade dmpf-kernel/domain)     │  block: domain
+  │ domain  (unidade kernel/domain)     │  block: domain
   │  DomainEvent · Accepted[R] · Accept · Empty  │  imports: errors, fmt, regexp, slices
   │  Rejection · Reject · Code · Detail          │
   └──────────────────────▲───────────────────────┘
                          │ domain → domain, mesmo bounded_context (célula 1 + C2: permitida)
   ┌──────────────────────┴───────────────────────┐
-  │ orders  (unidade dmpf-kernel/example-orders) │  block: domain
-  │  Order · AddItem · Place · eventos · códigos │  imports: dmpfdomain, slices
+  │ orders  (unidade kernel/example-orders) │  block: domain
+  │  Order · AddItem · Place · eventos · códigos │  imports: domain, slices
   └──────────────────────────────────────────────┘
 
   Fora do módulo, nada é importado. Nenhuma unidade port, provider, contract,
@@ -494,7 +494,7 @@ quebrar teste algum que só olhasse `len`.
   `bounded_context`** (`example/orders`), porque o `KRN-04` é outro módulo e não
   poderia importar `internal/`; um módulo à parte traria manifesto, baseline,
   `package.json` e `go.work` só para um exemplo; e um `bounded_context` de
-  negócio (`orders`) faria `orders → dmpfdomain` reprovar com `D002`. O nome do
+  negócio (`orders`) faria `orders → domain` reprovar com `D002`. O nome do
   contexto no código de rejeição (`orders/...`) é o contexto do **exemplo** e não
   altera o `bounded_context` declarado.
 - **`forbidigo` como segunda camada da regra `domain`**, porque `depguard` e
@@ -517,24 +517,24 @@ quebrar teste algum que só olhasse `len`.
 ## Regras relacionadas
 
 - `AGENTS.md` — taxonomia de tags 3D; vedação a redeclarar targets; Conventional
-  Commits em PT-BR com scope igual ao projeto Nx (`dmpf-domain-go`); git-flow com
+  Commits em PT-BR com scope igual ao projeto Nx (`domain`); git-flow com
   `master` e `develop` protegidas
 - `.claude/rules/process-enforcement.md` — cadeia de validação Go
 - `.claude/rules/git-safety.md` — hooks, revisão de diff, testes nunca alterados
   para passar
 - SPEC-YRJRADY9 — guarda-chuva; esta spec é a primeira metade do Incremento 2
-- SPEC-MQA5HAXF — módulo, tags, cadeia e `bounded_context: dmpf-kernel`
+- SPEC-MQA5HAXF — módulo, tags, cadeia e `bounded_context: kernel`
 - SPEC-WTAXFV8B — verificador; `include` exato, baseline, `T001`/`T002`
 
 ## Verificação e testes
 
 ### Critérios de aceite
 
-- [x] `go run ./libs/backend/go/dmpf-conformance/cmd/dmpf-conformance --root .
+- [x] `go run ./libs/backend/go/conformance/cmd/conformance --root .
   --base origin/develop` sai com código 0 e nenhum diagnóstico `DMPF-D001`,
   `DMPF-E001`, `DMPF-E002`, `DMPF-M002`, `DMPF-U001`, `DMPF-T001` ou `DMPF-T002`
   para as unidades do módulo.
-- [x] `go list -deps ./...` executado em `libs/backend/go/dmpf-domain` não lista
+- [x] `go list -deps ./...` executado em `libs/backend/go/domain` não lista
   `time`, `context`, `os`, `net`, `net/http`, `math/rand`, `crypto/rand`,
   `encoding/json`, `log`, `log/slog`, `reflect` nem package fora da stdlib.
 - [x] Vetor `net/http`: cópia temporária do módulo com `import _ "net/http"` em
@@ -543,7 +543,7 @@ quebrar teste algum que só olhasse `len`.
   a fixture permanente vive na suíte do `KRN-02`
   (`integration_test.go` `TestArestaTransitivaEntreModulos`).
 - [x] Vetor V07: cópia temporária do manifesto com `public_integration_surface:
-  true` na unidade `dmpf-kernel/example-orders` reprova no verificador com
+  true` na unidade `kernel/example-orders` reprova no verificador com
   `DMPF-M002`. Evidência anexada ao PR; a fixture permanente é
   `rule/vectors_test.go:244`.
 - [x] Vetor V13 propriamente dito (`domain → provider`, `DMPF-D001`) segue
@@ -565,23 +565,23 @@ quebrar teste algum que só olhasse `len`.
   `context` ausente da allowlist faz o `lint` reprovar qualquer tentativa.
 - [x] O agregado não expõe método que devolva eventos pendentes; eventos aparecem
   apenas em `Accepted` (conferido na mesma saída de `go doc -all`).
-- [x] `grep -rniE 'exactly.once' libs/backend/go/dmpf-domain docs/adr/032-*.md`
+- [x] `grep -rniE 'exactly.once' libs/backend/go/domain docs/adr/032-*.md`
   devolve zero ocorrências.
 - [x] Todas as constantes `Code` do exemplo passam em `Code.Valid()`; os
   negativos listados nos requisitos falham.
-- [x] `pnpm nx run dmpf-domain-go:lint` reprova, num arquivo temporário sob o
+- [x] `pnpm nx run domain:lint` reprova, num arquivo temporário sob o
   módulo, `time.Now()`, `errors.New("x")`, `fmt.Errorf("x")` e `panic("x")`, e
   `bash tools/dmpf-gate-check.sh` prova o vetor `time.Now()` em cada execução.
 - [x] `dmpf-units.json` declara exatamente 2 unidades; `--write-baseline`
   executado uma segunda vez não produz diff.
-- [x] `git log origin/develop..HEAD -- libs/backend/go/dmpf-domain/dmpf-units.json
+- [x] `git log origin/develop..HEAD -- libs/backend/go/domain/dmpf-units.json
   tools/dmpf-baseline/units-baseline.json` mostra um único commit, e esse commit
   não toca arquivo `.go`.
 - [x] `DmpfDomain` não existe mais em código nem em manifesto
   (`grep -rn DmpfDomain --include='*.go' --include='*.json'` vazio); esta spec e
   o ADR-032 continuam citando o nome como histórico.
 - [x] Cadeia Go verde: `pnpm nx run-many -t fmt-check,vet,lint,build,test,test-race,govulncheck
-  -p dmpf-domain-go`; `pnpm nx affected -t lint,typecheck,test,build
+  -p domain`; `pnpm nx affected -t lint,typecheck,test,build
   --exclude=@mateusmacedo/dmpf-source` verde; `pnpm biome ci .` verde nos arquivos
   desta entrega.
 - [x] `docs/adr/032-realizacao-go-do-desfecho-da-upr.md` existe, indexado em
@@ -626,15 +626,15 @@ QUANDO o chamador faz evs := acc.Events(); evs[0], evs[1] = evs[1], evs[0]; evs 
 ENTÃO acc.Events() devolve [e1, e2], na ordem original, com comprimento 2
 
 DADO um *Rejection devolvido por uma UPR e embrulhado pelo chamador com errors.Join(rej)
-QUANDO errors.As(err, &target) é executado com target *dmpfdomain.Rejection
+QUANDO errors.As(err, &target) é executado com target *domain.Rejection
 ENTÃO target.Code() é o código original
 
 DADO uma cópia temporária do módulo com `import _ "net/http"` em example/orders
 QUANDO o verificador roda sobre ela
 ENTÃO o relatório contém DMPF-E001 com Target net/http e o gate sai com código 1
 
-DADO um arquivo temporário sob libs/backend/go/dmpf-domain com `_ = time.Now()`
-QUANDO pnpm nx run dmpf-domain-go:lint é executado
+DADO um arquivo temporário sob libs/backend/go/domain com `_ = time.Now()`
+QUANDO pnpm nx run domain:lint é executado
 ENTÃO o forbidigo reprova apontando o símbolo, e tools/dmpf-gate-check.sh registra o vetor como reprovado
 ```
 
@@ -658,7 +658,7 @@ ENTÃO o forbidigo reprova apontando o símbolo, e tools/dmpf-gate-check.sh regi
   operação que altere o desfecho; toda sequência devolvida é cópia.
 - [P0] Classificação declarada (ADR-012; RFC §3.3, §10.1): cada package de
   produção é uma unidade com `include` por import path exato no manifesto e
-  entrada no baseline, `block: domain`, `bounded_context: dmpf-kernel`. A
+  entrada no baseline, `block: domain`, `bounded_context: kernel`. A
   mudança de classificação vem em COMMIT PRÓPRIO (RFC §10.2).
 - [P0] Nenhum artefato declara nem sugere exactly-once fim a fim (P0-3, V31);
   determinismo NÃO é idempotência.
@@ -683,11 +683,11 @@ ENTÃO o forbidigo reprova apontando o símbolo, e tools/dmpf-gate-check.sh regi
 - **Lado TypeScript e fixtures pareadas**: `KRN-11`. A paridade é conceitual
   (princípio 10); nenhuma abstração é introduzida aqui para facilitá-la.
 - **Vocabulário de tempo do kernel**: `Instant` é local ao exemplo. Um tipo de
-  instante compartilhado, e o relógio como porta, são de `KRN-04`/`dmpf-ports`.
+  instante compartilhado, e o relógio como porta, são de `KRN-04`/`ports`.
 - **Adoção do kernel por bounded contexts de negócio**: pela C2 (RFC §5.5;
   ADR-017), um `domain` de contexto `orders` não pode importar
-  `dmpf-kernel/domain` (`DMPF-D002`), e uma unidade `domain` nunca é superfície
-  pública (`DMPF-M002`). Esta história fica inteira em `dmpf-kernel` e o problema
+  `kernel/domain` (`DMPF-D002`), e uma unidade `domain` nunca é superfície
+  pública (`DMPF-M002`). Esta história fica inteira em `kernel` e o problema
   não a alcança, mas ele alcança todo consumidor real do kernel. É decisão da
   fundação (ADR novo sobre kernel compartilhado, ou revisão da C2), registrada
   como consequência no ADR-032 e a ser levada à guarda-chuva SPEC-YRJRADY9 —

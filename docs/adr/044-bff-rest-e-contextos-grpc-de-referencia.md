@@ -6,7 +6,7 @@ Aceito — 2026-09-15. Implementa SPEC-ACYKBF9V. Evolui a topologia do compositi
 
 ## Contexto
 
-O ADR-041 entregou `apps/backend/dmpf-reference` como um binário único: o papel `api` servia REST direto do contexto `orders`, e o `consumer` de `reservations` rodava no mesmo módulo. O FND-06 fixa REST/JSON só para o consumidor externo (`RST-01`, ADR-024) e gRPC para a chamada síncrona interna (`GRP-01`), e a referência não exercitava nenhum dos dois como a norma separa. O contexto `reservations` só existia como consumidor assíncrono, sem comando síncrono, leitura nem cancelamento.
+O ADR-041 entregou `apps/backend/reference` como um binário único: o papel `api` servia REST direto do contexto `orders`, e o `consumer` de `reservations` rodava no mesmo módulo. O FND-06 fixa REST/JSON só para o consumidor externo (`RST-01`, ADR-024) e gRPC para a chamada síncrona interna (`GRP-01`), e a referência não exercitava nenhum dos dois como a norma separa. O contexto `reservations` só existia como consumidor assíncrono, sem comando síncrono, leitura nem cancelamento.
 
 Restrições herdadas:
 
@@ -17,9 +17,9 @@ Restrições herdadas:
 
 ## Decisão
 
-**Três composition roots, seis processos.** `dmpf-reference-bff-go` é a única borda REST/JSON pública. `dmpf-reference-orders-go` roda os papéis `api` (servidor gRPC) e `relay`. `dmpf-reference-reservations-go` roda `api`, `relay` e `consumer`. `orders` não tem papel `consumer`, porque não consome canal. O `dmpf-reference` é removido.
+**Três composition roots, seis processos.** `bff` é a única borda REST/JSON pública. `orders` roda os papéis `api` (servidor gRPC) e `relay`. `reservations` roda `api`, `relay` e `consumer`. `orders` não tem papel `consumer`, porque não consome canal. O `reference` é removido.
 
-**O BFF vive em contexto próprio.** A unidade `dmpf-reference-bff/app` declara `bounded_context` `dmpf-reference-bff`. Ela alcança só o contrato, que é superfície pública por construção, e o shared kernel: providers HTTP e gRPC, transporte, observabilidade e portas. O verificador prova, por `DMPF-D002`, que ela não importa domínio nem aplicação dos exemplos. Os contextos permanecem em `dmpf-kernel`.
+**O BFF vive em contexto próprio.** A unidade `bff/app` declara `bounded_context` `bff`. Ela alcança só o contrato, que é superfície pública por construção, e o shared kernel: providers HTTP e gRPC, transporte, observabilidade e portas. O verificador prova, por `DMPF-D002`, que ela não importa domínio nem aplicação dos exemplos. Os contextos permanecem em `kernel`.
 
 **Mensagens no contrato, binding no app.** Os `.proto` de `OrdersService` e `ReservationsService` geram só mensagens e descriptor pelo `protoc-gen-go` já pinado. Cada app monta o próprio `grpc.ServiceDesc` (servidor) ou chama `ClientConn.Invoke` (cliente), com os nomes de serviço e método tirados do descriptor gerado. Um teste por app prova que todo método do descriptor está coberto. A rejeição de domínio viaja no `oneof result` da resposta; a falha técnica é status gRPC, mapeado por tabela.
 
@@ -29,7 +29,7 @@ Restrições herdadas:
 
 **A saúde fica fora da cadeia do contexto.** Admissão, deadline obrigatório e `MessageContext` valem só para os métodos do serviço do contexto. A checagem de saúde passa direto: ela não é caso de uso, e a probe gRPC do Kubernetes precisa dela sem limite de admissão declarado. O serviço começa `NOT_SERVING`, inclusive o status geral, e só vira `SERVING` depois do `Ping` e do `Migrate` opcional.
 
-**O breaker conta só indisponibilidade.** O primeiro e2e mostrou que o breaker do kernel contava qualquer erro como falha da dependência: uma rajada de `NOT_FOUND` em `FindReservation` o abria e recusava todas as leituras de `reservations` por 30 s, contra `RES-10` e `RES-12`. A correção fica no kernel, não no BFF. `resilience.Breaker` ganha `CountsAsFailure`, que `dmpf-transport/compose` repassa por `Config.BreakerFailure`, e o `dmpf-provider-grpc` passa a contar só `UNAVAILABLE`, `DEADLINE_EXCEEDED`, `RESOURCE_EXHAUSTED`, `INTERNAL`, `UNKNOWN`, `DATA_LOSS` e erro de transporte. Sem classificador, os demais providers mantêm o comportamento anterior.
+**O breaker conta só indisponibilidade.** O primeiro e2e mostrou que o breaker do kernel contava qualquer erro como falha da dependência: uma rajada de `NOT_FOUND` em `FindReservation` o abria e recusava todas as leituras de `reservations` por 30 s, contra `RES-10` e `RES-12`. A correção fica no kernel, não no BFF. `resilience.Breaker` ganha `CountsAsFailure`, que `transport/compose` repassa por `Config.BreakerFailure`, e o `grpc` passa a contar só `UNAVAILABLE`, `DEADLINE_EXCEEDED`, `RESOURCE_EXHAUSTED`, `INTERNAL`, `UNKNOWN`, `DATA_LOSS` e erro de transporte. Sem classificador, os demais providers mantêm o comportamento anterior.
 
 **A primeira decisão vence em `reservations`.** `Canceled` é o segundo estado terminal, ao lado de `Confirmed`. `Reserve` e `Cancel` síncronos carregam ou criam a reserva e percorrem os nove passos de FND-04 §3.2. O consumo de `OrderPlaced` sobre reserva cancelada é rejeitado por domínio, e o `Ack` vem depois do commit.
 
@@ -42,7 +42,7 @@ Restrições herdadas:
 | REST entre o BFF e os contextos | `GRP-01` fixa gRPC para a chamada síncrona interna quando as duas pontas são nossas |
 | Transcodificação gRPC-JSON nos contextos | `GRP-02` a reserva a outro perfil e `GRP-03` a exclui do caminho que alimenta inbox; o BFF é o tradutor |
 | BFF importando domínio ou aplicação dos exemplos | Cruza o bounded context (`DMPF-D002`) e acopla a borda ao modelo interno |
-| `protoc-gen-go-grpc` gerando o binding em `dmpf-contracts` | O código gerado importa `grpc`, de capability `io.network`, que o bloco `contract` não admite |
+| `protoc-gen-go-grpc` gerando o binding em `contracts` | O código gerado importa `grpc`, de capability `io.network`, que o bloco `contract` não admite |
 | Um único banco com filtro por destino na drenagem | Muda a porta de outbox do kernel por causa de um exemplo |
 | Lib compartilhada de interceptors entre os apps | Tira composição do composition root (ADR-015) |
 | E2e em goroutines no mesmo processo | O runtime OTel é único por processo e a topologia de seis processos ficaria sem prova |

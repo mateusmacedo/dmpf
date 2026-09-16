@@ -4,7 +4,7 @@ info:
   version: 1.0.0
   description: >-
     Public REST edge of the reservations example, served by
-    apps/backend/dmpf-reference-bff-go, which calls the reservations context over
+    apps/backend/bff, which calls the reservations context over
     gRPC (ADR-024). Every route of the edge references one operation of this
     document (RST-04). Writes require an Idempotency-Key (RST-02); reads run
     outside any transaction (UOW-11). The first decision on a pending
@@ -13,7 +13,7 @@ info:
     the Buf gates.
 servers:
   - url: http://localhost:8080
-    description: local dmpf-reference-bff-go
+    description: local bff
 paths:
   /reservations/{order_id}:
     get:

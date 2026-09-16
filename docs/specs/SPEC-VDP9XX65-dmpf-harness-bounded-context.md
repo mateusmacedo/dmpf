@@ -45,7 +45,7 @@ regra de negócio escrita, não como `TODO`.
   revisa um PR, não preenche stubs.
 - **Inspiração**: o próprio fluxo deste repositório (`skill-feature-pipeline`,
   agentes em `.claude/agents/`, skills em `.claude/skills/` e
-  `.agents/skills/dmpf-testkit`), o golden path de `docs/guides/dmpf-manifesto.md`,
+  `.agents/skills/testkit`), o golden path de `docs/guides/dmpf-manifesto.md`,
   e os módulos `example/orders`/`example/reservations` como forma canônica.
 - **Links relevantes**:
   - `SPEC-H1A190Y8` — guarda-chuva: plugin, esqueleto, prova, CI, docs
@@ -62,7 +62,7 @@ regra de negócio escrita, não como `TODO`.
 <constraints>
 - [P0] O agente NUNCA escreve `dmpf-units.json`, `project.json`, `go.mod`, `go.work` à mão: o esqueleto é do generator `bounded-context`; o agente só acrescenta packages ao `include` pelo merge por campo do manifesto.
 - [P0] O agente NUNCA regrava baselines (`units-baseline.json`, baseline Buf) nem `gen/go`: classificação e rito Buf são passos humanos/CI nomeados pela skill.
-- [P0] Todo contexto produzido pelo harness passa pelos mesmos gates que qualquer módulo: `fmt-check`, `vet`, `build`, `lint` (depguard/forbidigo por bloco), `test-race`, `dmpf-conformance --base`, `biome ci`; nenhum gate é afrouxado para código de agente.
+- [P0] Todo contexto produzido pelo harness passa pelos mesmos gates que qualquer módulo: `fmt-check`, `vet`, `build`, `lint` (depguard/forbidigo por bloco), `test-race`, `conformance --base`, `biome ci`; nenhum gate é afrouxado para código de agente.
 - [P0] A spec de bounded context segue o template dedicado; o command recusa spec fora do template (seções obrigatórias ausentes).
 - [P1] O golden `bookings` é regenerado pelo harness a cada mudança do harness e comparado com o gate; divergência que reprova é regressão do harness.
 - [P1] Prosa em PT-BR; código e godoc em inglês; comentários só pelos três critérios do repositório.
@@ -107,7 +107,7 @@ regra de negócio escrita, não como `TODO`.
   Regras duras carregadas (esqueleto pelo generator, baselines e `gen/go`
   fora, comentários pelos três critérios, sem `git commit`).
 - [ ] **[P0] Skill `dmpf-bounded-context`** em `.agents/skills/` (ao lado de
-  `dmpf-testkit`): o golden path passo a passo, cada passo com a norma que o
+  `testkit`): o golden path passo a passo, cada passo com a norma que o
   rege e o arquivo que o exemplifica — (1) validar a spec contra o template;
   (2) `pnpm nx g @mateusmacedo/dmpf-plugin:bounded-context <name>
   --bounded-context <ctx>`; (3) `domain` por agregado (forma de
@@ -120,7 +120,7 @@ regra de negócio escrita, não como `TODO`.
   `contracts/openapi/<name>/v1/`, consumer com `envelope.Unpack`, e2e); (8)
   contrato: `.proto` + `(cd contracts && bash ../tools/buf.sh generate)` + os
   quatro gates Buf + unidade `contract` do contexto no manifesto do
-  `dmpf-contracts` por merge; (9) `include` dos packages novos nos
+  `contracts` por merge; (9) `include` dos packages novos nos
   manifestos; (10) classificação (`--write-baseline` em commit próprio — passo
   humano); (11) cadeia, verificador com `--base`, testes; (12) checklist final
   (tabela de "o que o generator nunca toca", o que é do agente, o que é
@@ -166,7 +166,7 @@ regra de negócio escrita, não como `TODO`.
 - [ ] Todo `.go` do golden passa `gofmt -l`, `go vet`, `golangci-lint` do
   workspace (depguard/forbidigo por bloco) sem exceção nova; testes rodam de
   fato (`ok` por package).
-- [ ] `dmpf-conformance --root . --base <antes>` aprova o workspace com o golden.
+- [ ] `conformance --root . --base <antes>` aprova o workspace com o golden.
 - [ ] Sem dependência npm ou Go nova além das já decididas nas specs
   anteriores; o harness é Markdown (agent, skill, rule, command).
 - [ ] Prosa PT-BR revisada; godoc em inglês revisado.
@@ -199,7 +199,7 @@ tools/dmpf-plugin/src/generators/bounded-context/{blocks,generator}.ts — MODIF
 .golangci.yml, tools/dmpf-gate-check.sh                      — MODIFICAR: depguard/forbidigo alcançam **/domain/**, **/ports/**, **/application/**
 docs/adr/030-granularidade-modulo-go-e-bom.md      — MODIFICAR: addendum (contexto de negócio em pasta própria)
 contracts/proto/company/bookings/event/v1/*.proto — NOVO (golden); gen/go pelo rito Buf
-libs/backend/go/dmpf-contracts/dmpf-units.json    — MODIFICAR: unidade resource-scheduling/contract
+libs/backend/go/contracts/dmpf-units.json    — MODIFICAR: unidade resource-scheduling/contract
 tools/dmpf-baseline/units-baseline.json           — MODIFICAR: classificação do golden (commit próprio)
 go.work                                           — MODIFICAR: cinco use (pelo generator)
 tools/dmpf-harness-check.sh                       — NOVO (local; não roda no CI)
@@ -220,7 +220,7 @@ docs/guides/dmpf-composicao.md, AGENTS.md, docs/nx-reference/tasks.md, tools/dmp
    │  (3) agente roda gates e corrige até passar; para em gate normativo
    ▼
  rito humano: buf.sh generate + 4 gates Buf → --write-baseline (commit próprio) → commit do código → PR
- gates (CI): fmt/vet/build/lint · test-race · dmpf-conformance --base · biome ci · prova do esqueleto · golden bookings como módulos
+ gates (CI): fmt/vet/build/lint · test-race · conformance --base · biome ci · prova do esqueleto · golden bookings como módulos
 ```
 
 ### Fluxo principal
@@ -259,7 +259,7 @@ docs/guides/dmpf-composicao.md, AGENTS.md, docs/nx-reference/tasks.md, tools/dmp
   regenerando o golden localmente. Alternativa descartada: golden em worktree
   no CI.
 - **Skill em `.agents/skills/`** porque é o lugar das skills de workspace
-  DMPF (`dmpf-testkit`); agente, rule e command ficam em `.claude/` como os
+  DMPF (`testkit`); agente, rule e command ficam em `.claude/` como os
   demais.
 
 ## Regras relacionadas
@@ -278,7 +278,7 @@ docs/guides/dmpf-composicao.md, AGENTS.md, docs/nx-reference/tasks.md, tools/dmp
 - [x] O golden `bookings` está no workspace: cinco módulos com tags e
   `layer:*`, `go.work`, unidade `contract`, baseline; `pnpm nx run-many -t
   fmt-check,vet,build,lint -p bookings-*` verde; `DMPF_PG_DSN=… test-race`
-  dos cinco verde, inclusive e2e; `dmpf-conformance --base` aprova o
+  dos cinco verde, inclusive e2e; `conformance --base` aprova o
   workspace.
 - [x] `tools/dmpf-harness-check.sh` regenera `bookings` num worktree e reporta
   os gates; uma execução documentada no CHECKPOINT com o resultado. Executada em
@@ -310,7 +310,7 @@ ENTÃO o bookings regenerado reprova no gate (lint ou verificador) e a prova rep
 
 DADO o workspace sem SPEC-XMNBMY50 aplicada
 QUANDO o agente roda o verificador sobre bookings
-ENTÃO D002 aponta bookings-domain → dmpf-kernel/domain e o agente para reportando o gate normativo, sem contornar
+ENTÃO D002 aponta bookings-domain → kernel/domain e o agente para reportando o gate normativo, sem contornar
 ```
 
 <critical_constraints>
@@ -329,7 +329,7 @@ ENTÃO D002 aponta bookings-domain → dmpf-kernel/domain e o agente para report
 - **Generator orientado ao domínio** (DSL, `--update`, inventário): sub-specs
   a/b/c, deferidas.
 - **Composition root (`cmd/` com `--role`)**: continua sendo copiar
-  `dmpf-reference`; a skill aponta o passo.
+  `reference`; a skill aponta o passo.
 - **Revisão automática do código do agente**: o PR segue o fluxo humano do
   repositório (`skill-code-review`, `pr-guardian`); o harness não aprova a si
   mesmo.

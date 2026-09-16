@@ -13,7 +13,7 @@ com 6, 7 e 8 na mesma transação (§3.2, `UOW-05`..`UOW-08`), a ausência de re
 automático (§3.3, `UOW-09`, `UOW-10`) e a autoria dos campos da outbox pelo
 application service (§2.3, `BLK-04`, `BLK-05`).
 
-O ADR-032 entregou a metade de dentro: o `dmpf-domain-go` devolve a `Decision`
+O ADR-032 entregou a metade de dentro: o `domain` devolve a `Decision`
 como par `(Accepted[R], *Rejection)`. Mas ninguém a consumia. A norma que
 descreve o consumidor não tinha realização, e sem ela o `KRN-06` (outbox
 Postgres), o `KRN-07` (inbox) e o `KRN-09` (retry por conjunção) não teriam o
@@ -63,7 +63,7 @@ devolvendo `nil` commita e devolvendo erro faz rollback com o mesmo erro, sem
 embrulho que quebre `errors.Is`; erro de commit devolvido como o provider o
 produziu, sem persistir nada; panic em `fn` propaga após rollback (`ERR-22`). A
 sétima — `R` como único caminho até as portas — é estrutural. A suíte
-`RunUnitOfWorkContract` vive em arquivo `_test.go` do `dmpf-ports`; como arquivo
+`RunUnitOfWorkContract` vive em arquivo `_test.go` do `ports`; como arquivo
 de teste nunca é importável, a realização em memória **duplica** o corpo. Um
 test kit exportado é do `KRN-11`.
 
@@ -90,7 +90,7 @@ ele, e segundos colidiriam sob carga. Ler o relógio e obter entropia são I/O, 
 por isso `Clock` e `IDGenerator` são portas, nunca tipos do domínio (ADR-014,
 ADR-016).
 
-**A realização em memória é unidade `provider` dentro do `dmpf-application`, com
+**A realização em memória é unidade `provider` dentro do `application`, com
 falha de commit injetável.** Não é módulo à parte, o que traria manifesto,
 baseline, `package.json`, `project.json` e entrada no `go.work` só para um
 exemplo; nem código apenas de teste, que o `KRN-07` e o `KRN-09` não poderiam

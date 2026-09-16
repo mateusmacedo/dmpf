@@ -14,7 +14,7 @@ created: 2026-09-01
 
 ## Resumo
 
-Entregar `dmpf-conformance`, uma CLI Go que decide a regra de dependência do DMPF
+Entregar `conformance`, uma CLI Go que decide a regra de dependência do DMPF
 sobre o grafo real de imports do workspace, lendo a classificação declarada nos
 manifestos `dmpf/units@1` e reprovando o PR no CI. Como time de plataforma,
 queremos que a conformidade arquitetural seja decidida por máquina — sobre o
@@ -70,7 +70,7 @@ verificador está no Incremento 1: sem ele, cada módulo de `KRN-03` em diante
 nasceria sem gate, e a dívida do `legado-golibs` se reproduziria em terreno novo.
 
 O terreno herdado do `KRN-01` é mínimo e conhecido: um `go.work` com `go 1.26.4`
-declarando um único módulo (`libs/backend/go/dmpf-domain`), com manifesto
+declarando um único módulo (`libs/backend/go/domain`), com manifesto
 `dmpf-units.json` válido de uma unidade, `project.json` com as três tags 3D e
 cinco targets Go, e `tools/dmpf-gate-check.sh` provando o gate atual com seis
 vetores negativos e um positivo por módulo.
@@ -273,7 +273,7 @@ vetores negativos e um positivo por módulo.
 | Camada | Impacto |
 | --- | --- |
 | **Workspace Go** | `go.work` ganha o segundo módulo |
-| **Nx** | Novo projeto `dmpf-conformance-go` com tags 3D e targets Go; inputs do gate cobrem `tools/dmpf-baseline/**`, para que mudança só no baseline dispare a verificação |
+| **Nx** | Novo projeto `conformance` com tags 3D e targets Go; inputs do gate cobrem `tools/dmpf-baseline/**`, para que mudança só no baseline dispare a verificação |
 | **CI** | `ci.yml` ganha o passo do verificador; `tools/dmpf-gate-check.sh` passa a conviver com ele |
 | **Lint** | `.golangci.yml` mantém a regra `depguard` como defesa local rápida; a limitação declarada no comentário deixa de valer para a aresta entre módulos |
 | **Governança** | Baseline versionado passa a ser artefato de revisão obrigatória em PR |
@@ -286,13 +286,13 @@ entrega.
 
 ```text
 dmpf/
-├── libs/backend/go/dmpf-conformance/          # CRIAR — módulo Go, projeto dmpf-conformance-go
-│   ├── go.mod                                 # module .../libs/backend/go/dmpf-conformance
+├── libs/backend/go/conformance/          # CRIAR — módulo Go, projeto conformance
+│   ├── go.mod                                 # module .../libs/backend/go/conformance
 │   ├── package.json                           # private: true (Nx Release exige manifesto npm)
-│   ├── project.json                           # tags 3D + targets Go espelhando dmpf-domain-go
+│   ├── project.json                           # tags 3D + targets Go espelhando domain
 │   ├── dmpf-units.json                        # o verificador declarado para si mesmo
 │   ├── build-profiles.json                    # perfis de produção — dado versionado (GOOS × GOARCH × CGO_ENABLED × tags)
-│   ├── cmd/dmpf-conformance/
+│   ├── cmd/conformance/
 │   │   └── main.go                            # bloco `app` — composition root
 │   └── internal/
 │       ├── rule/                              # bloco `domain` — decide(), C1, C2, diagnósticos
@@ -314,13 +314,13 @@ dmpf/
 ├── .github/workflows/ci.yml                   # MODIFICAR — passo do verificador
 ├── nx.json                                    # MODIFICAR — inputs: mudança no baseline dispara o gate
 ├── .github/workflows/dmpf-verify.yml          # INTOCADO — outro gate
-├── go.work                                    # MODIFICAR — use ./libs/backend/go/dmpf-conformance
+├── go.work                                    # MODIFICAR — use ./libs/backend/go/conformance
 ├── docs/adr/031-verificador-de-conformidade-dmpf-em-go.md   # CRIAR
 └── docs/dmpf/                                 # INTOCADO — acervo normativo
 ```
 
 Import path canônico do módulo:
-`github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-conformance`
+`github.com/mateusmacedo/dmpf/libs/backend/go/conformance`
 
 ## Design
 
@@ -334,7 +334,7 @@ dentro de um mesmo `bounded_context`, ele exercita C1 de verdade — e a aresta
 `domain → port`, que o ADR-014 proíbe, torna-se um erro que o próprio build pega.
 
 ```text
-cmd/dmpf-conformance  [app]         composition root: monta providers, roda, imprime
+cmd/conformance  [app]         composition root: monta providers, roda, imprime
         │
         ├──────────────┬────────────────┐
         ▼              ▼                ▼
@@ -351,7 +351,7 @@ Arestas exercitadas, todas `P` na matriz: `app → *`, `provider → port`,
 torna impossível é `domain → port`: nenhuma unidade de `rule`, `manifest` ou
 `baseline` importa `port`, e o gate reprova se alguém tentar.
 
-Todas as unidades declaram `bounded_context: dmpf-conformance`, de modo que C2
+Todas as unidades declaram `bounded_context: conformance`, de modo que C2
 passa internamente e o módulo não depende de `public_integration_surface` para
 compilar.
 
@@ -429,9 +429,9 @@ derivados de RFC §7.4, célula a célula, e não de código observado.
 
 | Decisão | Alternativas descartadas |
 | --- | --- |
-| **Nome `dmpf-conformance`** | `dmpf-verify` está ocupado por `tools/dmpf-verify.mjs` e pelo workflow `dmpf-verify.yml`, que verificam a congruência do acervo `docs/dmpf/`; reusar confundiria dois gates com objetos distintos. `dmpf-depcheck` foi descartado por sugerir escopo só de dependência, quando a entrega inclui manifesto, baseline e capabilities. |
-| **Local `libs/backend/go/dmpf-conformance`** | `tools/go/` agruparia os dois gates, mas contraria o caminho por scope/stack que o `AGENTS.md` fixou e que o `dmpf-domain-go` inaugurou. |
-| **Tag `type:lib`** | `type:app` seria semanticamente mais próximo de um CLI, mas o módulo é majoritariamente biblioteca (regra, manifesto, baseline) com `cmd/` fino, e `type:lib` preserva o comportamento já provado do `dmpf-domain-go` no `nx-release.yml`: versionado por Conventional Commits, excluído da publicação por `private: true` e pelo filtro `!tag:stack:go`. |
+| **Nome `conformance`** | `dmpf-verify` está ocupado por `tools/dmpf-verify.mjs` e pelo workflow `dmpf-verify.yml`, que verificam a congruência do acervo `docs/dmpf/`; reusar confundiria dois gates com objetos distintos. `dmpf-depcheck` foi descartado por sugerir escopo só de dependência, quando a entrega inclui manifesto, baseline e capabilities. |
+| **Local `libs/backend/go/conformance`** | `tools/go/` agruparia os dois gates, mas contraria o caminho por scope/stack que o `AGENTS.md` fixou e que o `domain` inaugurou. |
+| **Tag `type:lib`** | `type:app` seria semanticamente mais próximo de um CLI, mas o módulo é majoritariamente biblioteca (regra, manifesto, baseline) com `cmd/` fino, e `type:lib` preserva o comportamento já provado do `domain` no `nx-release.yml`: versionado por Conventional Commits, excluído da publicação por `private: true` e pelo filtro `!tag:stack:go`. |
 | **Grafo via `go list -e -deps -json`** | Parsear os arquivos com `go/parser` daria o texto do import, não a resolução — exatamente o que RFC §3.5 proíbe como base da decisão. `go list` entrega a resolução do toolchain: `Imports`/`ImportMap` para arestas diretas, `Deps` só para o fechamento transitivo de pureza. Sem `-e`, package errôneo vai para stderr fora do JSON e `DMPF-E003` não é emissível de forma estável; o `-e` é transporte estruturado de erro — o fail-closed é do consumidor. |
 | **Inventário independente de módulos** | Descoberta só via `go.work` deixaria módulo omitido (com `go.mod`, código de produção e projeto Nx `stack:go`) fora do universo — ele nunca geraria o `DMPF-U004` que existe para detectá-lo. |
 | **Perfis de produção como dado versionado** | Perfil implícito do runner mantém "produção" indefinida — trocar o runner mudaria o veredicto em silêncio. União de todos os `GOOS`/`GOARCH` do toolchain decidiria arestas de plataformas nunca compiladas (falsos vermelhos) e multiplicaria o custo do `go list`. |
@@ -500,11 +500,11 @@ derivados de RFC §7.4, célula a célula, e não de código observado.
       contra uma mudança futura que passasse a ler `TestGoFiles` no grafo.
 - [x] Código gerado consumido em runtime **reprova** pelas regras do bloco que o
       consome (RFC §4.5, regra 2).
-- [x] O módulo `dmpf-conformance-go` é verificado por si mesmo e passa.
+- [x] O módulo `conformance` é verificado por si mesmo e passa.
 - [x] `pnpm biome ci .` e
       `pnpm nx affected -t lint,typecheck,test,build --exclude=@mateusmacedo/dmpf-source`
       passam.
-- [x] `pnpm nx run dmpf-conformance-go:fmt-check,vet,test-race,govulncheck` passam.
+- [x] `pnpm nx run conformance:fmt-check,vet,test-race,govulncheck` passam.
 
 ### Cenários de teste
 
@@ -543,7 +543,7 @@ derivados de RFC §7.4, célula a célula, e não de código observado.
 14. **Import não resolvido.** Import para package inexistente. → `DMPF-E003`.
 15. **Pureza transitiva.** Entrada `pure` na allowlist cujo fechamento, a partir
     do entrypoint declarado, alcança capability `io.*`. → `DMPF-E002`.
-16. **Autoverificação.** Rodar `dmpf-conformance` sobre o próprio módulo.
+16. **Autoverificação.** Rodar `conformance` sobre o próprio módulo.
     → saída 0, e a suite falha se alguém introduzir `domain → port` nele.
 17. **Módulo omitido do `go.work`.** Módulo com `go.mod`, código de produção e
     projeto Nx `stack:go`, ausente do `go.work` e sem manifesto. O inventário

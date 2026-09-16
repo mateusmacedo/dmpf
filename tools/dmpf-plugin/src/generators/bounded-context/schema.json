@@ -1,13 +1,13 @@
 {
   "$schema": "https://json-schema.org/schema",
   "$id": "DmpfBoundedContext",
-  "title": "Gera um bounded context DMPF em módulos Go, um por bloco",
-  "description": "Gera um bounded context DMPF em módulos Go, um por bloco, com manifesto declarado e entradas no go.work. contract fica fora (contracts/ pelo rito Buf).",
+  "title": "Gera um bounded context DMPF em um módulo Go, um package por bloco",
+  "description": "Gera um bounded context DMPF como um único módulo Go — um package por bloco —, com manifesto declarado e entrada no go.work. contract fica fora (contracts/ pelo rito Buf).",
   "type": "object",
   "properties": {
     "name": {
       "type": "string",
-      "description": "Nome do contexto em kebab-case; pasta dos módulos (<name>/domain, <name>/ports, ...), prefixo dos projetos Nx e origem dos identificadores Go e SQL.",
+      "description": "Nome do contexto em kebab-case; diretório do módulo (<directory>/<name>), nome do projeto Nx e do pacote npm privado. Os packages Go levam o nome do bloco (domain, ports, application, provider, app).",
       "pattern": "^[a-z][a-z0-9-]*$",
       "$default": {
         "$source": "argv",
@@ -22,7 +22,7 @@
     },
     "blocks": {
       "type": "array",
-      "description": "Blocos DMPF a gerar. contract fica fora (fonte em contracts/ pelo rito Buf); um subconjunto precisa fechar as dependências entre blocos.",
+      "description": "Blocos DMPF a gerar, cada um como package do módulo. contract fica fora (fonte em contracts/ pelo rito Buf); um subconjunto precisa fechar as dependências entre blocos.",
       "items": {
         "type": "string"
       },
@@ -30,7 +30,7 @@
     },
     "directory": {
       "type": "string",
-      "description": "Diretório raiz dos módulos gerados, relativo à raiz do workspace.",
+      "description": "Diretório que recebe o módulo do contexto, relativo à raiz do workspace.",
       "default": "libs/backend/go"
     }
   },

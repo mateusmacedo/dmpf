@@ -17,7 +17,7 @@ hops (`TRP-13`, §5.2), a ordem do ACK depois do commit local (`TRP-26` a
 sem a qual o provider não opera (`ASY-01`, `ASY-02`).
 
 Nenhuma dessas regras tinha realização. O relay do `KRN-08` (ADR-038) só
-publicava em memória; `dmpfports.Acknowledger.Release` estava reservado ao
+publicava em memória; `ports.Acknowledger.Release` estava reservado ao
 `KRN-10` no próprio godoc; o `KRN-09` (ADR-037) entregara os decorators de
 resiliência e o governo do tempo (`resilience.EffectiveDeadline`, `Timeout`,
 `NewRetry`) sem transporte que os compusesse; e o `KRN-05` (ADR-033) fixara o
@@ -25,19 +25,19 @@ resiliência e o governo do tempo (`resilience.EffectiveDeadline`, `Timeout`,
 
 Restrições herdadas: a matriz de blocos veda `provider → application` e
 `provider → app` (células 26 e 27, RFC §7.3), então o provider não pode importar
-o consumer adapter do `dmpf-app`; a cadeia Go do workspace exige um projeto Nx
+o consumer adapter do `app`; a cadeia Go do workspace exige um projeto Nx
 por commit e mudança normativa do baseline em commit próprio (`DMPF-T002`); e o
 CI roda em `act_runner`, onde o bloco `services:` não resolve DNS (ADR-035).
 
 ## Decisão
 
-**Cinco módulos, não quatro.** Além de `dmpf-provider-grpc`, `-http`, `-kafka`
-e `-sqs`, existe `dmpf-transport`, bloco `provider`, com as primitivas que gRPC
+**Cinco módulos, não quatro.** Além de `grpc`, `-http`, `-kafka`
+e `-sqs`, existe `transport`, bloco `provider`, com as primitivas que gRPC
 e HTTP compartilham (o orçamento de prazo por método, `deadline`), as que Kafka
 e SQS compartilham (a catalogação de canal e as fórmulas de `janela_redelivery`,
 `channel`; o metadado de tentativa, `attempt`), a admissão por rota e tenant
 (`admission`) e as três posições de observabilidade da composição (`observe`).
-Nenhum dos quatro providers era lugar neutro para isso, e `dmpf-observability` é
+Nenhum dos quatro providers era lugar neutro para isso, e `observability` é
 nomeado por FND-08, não por transporte.
 
 **O governo do tempo é o do `KRN-09`; `deadline` só acrescenta o que faltava.**
@@ -50,8 +50,8 @@ vê idempotência. No gRPC a composição de `RES-22` é **uma `Call` por métod
 porque o classificador depende dos códigos transientes de cada método; no HTTP é
 uma por cliente, porque o status transiente vira erro dentro da tentativa.
 
-**Os três decorators de observabilidade vivem em `dmpf-transport/observe`, e a
-montagem da composição em `dmpf-transport/compose`.** O `KRN-09` exige as
+**Os três decorators de observabilidade vivem em `transport/observe`, e a
+montagem da composição em `transport/compose`.** O `KRN-09` exige as
 posições de tracing, métricas e log em toda composição (`RES-23`) e não as
 construiu. Elas nascem aqui uma vez, parametrizadas só pela função de categoria
 de falha de cada transporte, e os quatro providers as consomem. A ordem dos
@@ -59,17 +59,17 @@ decorators, a reserva do `Timeout` e a regra "`Retry` declarado `false` recebe
 identidade" também eram quatro cópias; o code review as recolheu em
 `compose.Build`, `compose.Shared`, `compose.Retry` e `compose.Operation`, e cada
 provider passa só a sheet, o classificador e a categoria. Consequência aceita:
-`dmpf-transport` declara a API do OpenTelemetry (`otel/trace`, `otel/metric`)
+`transport` declara a API do OpenTelemetry (`otel/trace`, `otel/metric`)
 como dependência externa — deixa de ser um módulo sem dependência externa, mas
 continua sem I/O.
 
 **A ponte com o adapter é uma interface do provider.** O consumidor de Kafka e o
 de SQS entregam cada mensagem a um `Sink` — `Handle(ctx, raw, attempt, ack)` —
-que o consumer adapter do `dmpf-app` realiza; o provider nunca importa o `app`.
-A contenção é a porta `dmpfports.Containment`, realizada aqui como DLQ (tópico
+que o consumer adapter do `app` realiza; o provider nunca importa o `app`.
+A contenção é a porta `ports.Containment`, realizada aqui como DLQ (tópico
 ou fila de contenção do canal), e é o adapter quem a chama, antes do gesto. Os
 tetos são um contrato declarado, não inferido: em Kafka,
-`dmpfapp.Consumer.MaxAttempts` **igual** a `Channel.Retry.MaxAttempts`, e o
+`app.Consumer.MaxAttempts` **igual** a `Channel.Retry.MaxAttempts`, e o
 composition root os iguala; em SQS, o teto do adapter **maior** que o
 `maxReceiveCount` da fila, para que redrive gerenciado e publicação explícita
 nunca se apliquem à mesma disposição (`SQS-11b`).
@@ -125,7 +125,7 @@ coexistem no mesmo processo e o binding por mensagem passa a importar.
 
 | Alternativa | Por que foi rejeitada |
 | ----------- | --------------------- |
-| Fórmula própria de prazo em `dmpf-transport/deadline` | Criaria uma segunda autoridade sobre `RES-05`/`RES-06`/`RES-07`, que o `KRN-09` já realiza; a leitura por analogia de `TRP-53` veda a segunda tabela |
+| Fórmula própria de prazo em `transport/deadline` | Criaria uma segunda autoridade sobre `RES-05`/`RES-06`/`RES-07`, que o `KRN-09` já realiza; a leitura por analogia de `TRP-53` veda a segunda tabela |
 | Confiar no retry nativo do gRPC (`retryPolicy`) | Não distingue idempotência (gRFC A6); `GRP-08` exige que o retry derive dela |
 | Quatro módulos, com as primitivas dentro do gRPC ou do Kafka | Nenhum é lugar neutro: HTTP dependeria do gRPC pelo prazo, SQS do Kafka pela catalogação |
 | Decorators de tracing/métricas/log em cada provider | Quatro cópias do mesmo código; a divergência viria na primeira manutenção |
@@ -166,7 +166,7 @@ coexistem no mesmo processo e o binding por mensagem passa a importar.
 
 **Negativas:**
 
-- **Custo aceito:** `dmpf-transport` passa a depender da API do OpenTelemetry;
+- **Custo aceito:** `transport` passa a depender da API do OpenTelemetry;
   a spec e o README foram ajustados, e a dependência é só de tipos e interfaces.
 - Cinco módulos novos são cinco commits normativos de baseline (`DMPF-T002`)
   além dos de código, e o verificador reprova até que existam.
@@ -185,16 +185,16 @@ coexistem no mesmo processo e o binding por mensagem passa a importar.
 - `docs/adr/035-realizacao-postgres-da-outbox.md` — a rede do job no CI.
 - `docs/adr/037-observabilidade-otel-e-retry-por-conjuncao-em-go.md` — o que este ADR compõe.
 - `docs/adr/038-drenagem-da-outbox-lease-e-envelope-na-publicacao.md` — o relay que estes providers servem.
-- READMEs de `libs/backend/go/dmpf-transport`, `dmpf-provider-grpc`, `dmpf-provider-http`, `dmpf-provider-kafka`, `dmpf-provider-sqs`.
+- READMEs de `libs/backend/go/transport`, `grpc`, `http`, `kafka`, `sqs`.
 
 ## Addendum — 2026-09-12
 
 A pendência `TRP-09`/`TRP-46` registrada na `## Decisão` tinha prazo declarado:
 "antes do `KRN-12` (composition root de exemplo)". O prazo venceu com a sub-spec
-1 do `KRN-12` (`SPEC-6QT9SBAS`), e o desfecho foi outro. O `dmpf-reference` sobe
+1 do `KRN-12` (`SPEC-6QT9SBAS`), e o desfecho foi outro. O `reference` sobe
 **um transporte assíncrono por processo** — Kafka —, decisão do usuário fixada
 na guarda-chuva `SPEC-8HWBWJCB`. Com um só canal assíncrono por processo, o
-binding segue resolvido pelo catálogo de `dmpf-transport/channel`, e o binding
+binding segue resolvido pelo catálogo de `transport/channel`, e o binding
 persistido por mensagem nunca é exercido: deixa de ser pré-requisito da release.
 
 A pendência não foi resolvida — foi empurrada com endereço. Vira a task

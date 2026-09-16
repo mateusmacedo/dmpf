@@ -1,6 +1,6 @@
 //go:build integration
 
-package bookingspostgres_test
+package provider_test
 
 import (
 	"context"
@@ -9,24 +9,24 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	bookingsdomain "github.com/mateusmacedo/dmpf/libs/backend/go/bookings/domain"
-	bookingspostgres "github.com/mateusmacedo/dmpf/libs/backend/go/bookings/provider"
-	dmpfports "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-ports"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/bookings/domain"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/bookings/provider"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
 
 const (
-	queriedResource = bookingsdomain.ResourceID("r-query")
-	otherResource   = bookingsdomain.ResourceID("r-other")
+	queriedResource = domain.ResourceID("r-query")
+	otherResource   = domain.ResourceID("r-other")
 )
 
-func saveBooking(t *testing.T, pool *pgxpool.Pool, id bookingsdomain.BookingID, resource bookingsdomain.ResourceID) {
+func saveBooking(t *testing.T, pool *pgxpool.Pool, id domain.BookingID, resource domain.ResourceID) {
 	t.Helper()
-	err := withRepo(t, pool, func(ctx context.Context, repo dmpfports.Repository[bookingsdomain.BookingID, bookingsdomain.BookingSnapshot]) error {
-		return repo.Save(ctx, id, bookingsdomain.BookingSnapshot{
+	err := withRepo(t, pool, func(ctx context.Context, repo ports.Repository[domain.BookingID, domain.BookingSnapshot]) error {
+		return repo.Save(ctx, id, domain.BookingSnapshot{
 			ID:         id,
 			ResourceID: resource,
 			Quantity:   3,
-			Status:     bookingsdomain.BookingReservedStatus,
+			Status:     domain.BookingReservedStatus,
 			ReservedAt: 1755432000,
 		}, 0)
 	})
@@ -35,7 +35,7 @@ func saveBooking(t *testing.T, pool *pgxpool.Pool, id bookingsdomain.BookingID, 
 	}
 }
 
-func ids(snapshots []bookingsdomain.BookingSnapshot) []string {
+func ids(snapshots []domain.BookingSnapshot) []string {
 	out := make([]string, 0, len(snapshots))
 	for _, s := range snapshots {
 		out = append(out, string(s.ID))
@@ -54,7 +54,7 @@ func TestLoadByResourceReturnsOnlyTheBookingsOfThatResource(t *testing.T) {
 	saveBooking(t, pool, "b-query-2", queriedResource)
 	saveBooking(t, pool, "b-other-1", otherResource)
 
-	reader := bookingspostgres.NewBookingsByResourceReader(pool)
+	reader := provider.NewBookingsByResourceReader(pool)
 
 	found, err := reader.LoadByResource(context.Background(), queriedResource)
 	if err != nil {
@@ -86,7 +86,7 @@ func TestLoadByResourceReturnsEmptyForUnknownResource(t *testing.T) {
 
 	saveBooking(t, pool, "b-query-1", queriedResource)
 
-	found, err := bookingspostgres.NewBookingsByResourceReader(pool).
+	found, err := provider.NewBookingsByResourceReader(pool).
 		LoadByResource(context.Background(), "r-absent")
 	if err != nil {
 		t.Fatalf("LoadByResource(r-absent) = %v, want nil", err)

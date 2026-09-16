@@ -158,7 +158,7 @@ jobs:
       # Sem `if: steps.go_affected`: import sem `require` compila no workspace pelo
       # `go.work` e só quebra para quem consome o módulo por tag.
       - name: DMPF modsync gate
-        run: go run ./libs/backend/go/dmpf-conformance/cmd/dmpf-modsync --root . --check
+        run: go run ./libs/backend/go/conformance/cmd/modsync --root . --check
 
       # GATE, fail-closed. Sem `continue-on-error` e sem `|| true`: a partir
       # daqui o verificador reprova o PR. O passo shadow que existia aqui foi
@@ -174,7 +174,7 @@ jobs:
       # o tempo, sem mudança de código, e precisa reprovar em qualquer PR.
       - name: DMPF conformance gate
         run: |
-          go run ./libs/backend/go/dmpf-conformance/cmd/dmpf-conformance --root . --base "$NX_BASE"
+          go run ./libs/backend/go/conformance/cmd/conformance --root . --base "$NX_BASE"
 
       # Sem `if: steps.go_affected`, como o generator check: um PR que só toca
       # `bom/` não afeta projeto Go nenhum e pularia o gate. Os BOMs antigos ficam
@@ -187,7 +187,7 @@ jobs:
           case "$BASE_REF" in
             master | release/*) base="origin/develop" ;;
           esac
-          go run ./libs/backend/go/dmpf-conformance/cmd/dmpf-bom --root . --release latest --base "$base"
+          go run ./libs/backend/go/conformance/cmd/bom --root . --release latest --base "$base"
 
       # O bloco `services:` não serve aqui: o act_runner põe serviço e job na
       # bridge default do Docker, que não resolve nome de container, e declara
@@ -272,7 +272,7 @@ jobs:
           pnpm nx run-many -t fmt-check,vet,test-race -p "$lista" --parallel=3
 
       # Gates Buf dos contratos (contracts/README.md, "Gates e baseline"): só o
-      # dmpf-contracts-go os declara, com contracts/** nos inputs, então um PR que
+      # contracts os declara, com contracts/** nos inputs, então um PR que
       # toque só um .proto entra no affected; buf-breaking lê NX_BASE como baseline.
       # Fecham o estágio 3 (KIT-09: uma quebra contratual barra providers e apps)
       # e correm DEPOIS dos gates DMPF, que já passaram antes da infra — a falha

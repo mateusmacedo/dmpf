@@ -1,17 +1,17 @@
-package bookingsapplication
+package application
 
 import (
 	"context"
 	"fmt"
 
-	dmpfapplication "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-application"
-	dmpfports "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-ports"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/application"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 
-	bookingsdomain "github.com/mateusmacedo/dmpf/libs/backend/go/bookings/domain"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/bookings/domain"
 )
 
-func (s Service) ReserveBooking(ctx context.Context, cmd Reserve) (dmpfapplication.Outcome[bookingsdomain.ReservedResponse], error) {
-	var zero dmpfapplication.Outcome[bookingsdomain.ReservedResponse]
+func (s Service) ReserveBooking(ctx context.Context, cmd Reserve) (application.Outcome[domain.ReservedResponse], error) {
+	var zero application.Outcome[domain.ReservedResponse]
 
 	instrumentation := s.instrumentation()
 	ctx, end := instrumentation.BeginOperation(ctx, OperationReserve)
@@ -21,39 +21,39 @@ func (s Service) ReserveBooking(ctx context.Context, cmd Reserve) (dmpfapplicati
 		return zero, err
 	}
 
-	identity := dmpfapplication.ResolveIdentity(s.Clock, s.IDs, maxEventsPerCommand)
+	identity := application.ResolveIdentity(s.Clock, s.IDs, maxEventsPerCommand)
 
 	outcome := zero
 	err := s.UoW.Within(ctx, func(ctx context.Context, res Resources) error {
-		b := bookingsdomain.NewBooking(cmd.BookingID)
-		accepted, rejection := b.Reserve(bookingsdomain.ReserveBooking{
+		b := domain.NewBooking(cmd.BookingID)
+		accepted, rejection := b.Reserve(domain.ReserveBooking{
 			ResourceID: cmd.ResourceID,
 			Quantity:   cmd.Quantity,
-			At:         bookingsdomain.Instant(identity.OccurredAt),
+			At:         domain.Instant(identity.OccurredAt),
 		})
 		if rejection != nil {
-			outcome = dmpfapplication.Rejected[bookingsdomain.ReservedResponse](rejection)
+			outcome = application.Rejected[domain.ReservedResponse](rejection)
 			return nil
 		}
 		if err := res.Bookings.Save(ctx, cmd.BookingID, b.Snapshot(), 0); err != nil {
-			return fmt.Errorf("bookingsapplication: reserve %s: %w", cmd.BookingID, err)
+			return fmt.Errorf("application: reserve %s: %w", cmd.BookingID, err)
 		}
-		written := dmpfports.Version(1)
+		written := ports.Version(1)
 		if err := enqueueAll(ctx, res.Outbox, identity, AggregateTypeBooking, string(cmd.BookingID), written, accepted.Events()); err != nil {
-			return fmt.Errorf("bookingsapplication: reserve %s: enqueue: %w", cmd.BookingID, err)
+			return fmt.Errorf("application: reserve %s: enqueue: %w", cmd.BookingID, err)
 		}
-		outcome = dmpfapplication.Accepted(accepted.Response())
+		outcome = application.Accepted(accepted.Response())
 		return nil
 	})
 	if err != nil {
-		end(dmpfports.Result{Outcome: dmpfports.OutcomeFailed, Err: err})
+		end(ports.Result{Outcome: ports.OutcomeFailed, Err: err})
 		return zero, err
 	}
 
-	category := dmpfports.OutcomeAccepted
+	category := ports.OutcomeAccepted
 	if _, refused := outcome.Rejection(); refused {
-		category = dmpfports.OutcomeRejected
+		category = ports.OutcomeRejected
 	}
-	end(dmpfports.Result{Outcome: category})
+	end(ports.Result{Outcome: category})
 	return outcome, nil
 }

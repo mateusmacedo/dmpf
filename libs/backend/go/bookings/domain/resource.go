@@ -1,6 +1,6 @@
-package bookingsdomain
+package domain
 
-import dmpfdomain "github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-domain"
+import "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
 
 type Resource struct {
 	code         ResourceCode
@@ -32,18 +32,18 @@ func (r *Resource) clone() Resource {
 	return Resource{code: r.code, registeredAt: r.registeredAt}
 }
 
-func (r *Resource) Register(cmd RegisterResource) (dmpfdomain.Accepted[RegisteredResponse], *dmpfdomain.Rejection) {
+func (r *Resource) Register(cmd RegisterResource) (domain.Accepted[RegisteredResponse], *domain.Rejection) {
 	next := r.clone()
 	if cmd.Code == "" {
-		return dmpfdomain.Accepted[RegisteredResponse]{}, dmpfdomain.Reject(CodeCodeEmpty, "code must not be empty")
+		return domain.Accepted[RegisteredResponse]{}, domain.Reject(CodeCodeEmpty, "code must not be empty")
 	}
 	// WHY: spec says "when present: accept without changing or emitting".
 	if next.registeredAt != 0 {
-		return dmpfdomain.Accept(RegisteredResponse{Code: r.code}), nil
+		return domain.Accept(RegisteredResponse{Code: r.code}), nil
 	}
 	next.registeredAt = cmd.At
 	*r = next
-	return dmpfdomain.Accept(
+	return domain.Accept(
 		RegisteredResponse{Code: r.code},
 		ResourceRegistered{Code: r.code, At: cmd.At},
 	), nil
