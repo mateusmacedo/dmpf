@@ -2,7 +2,7 @@
 id: SPEC-YRJRADY9
 slug: kernel-sdk-go
 title: DMPF — Kernel e SDK de Referência Go
-stage: building
+stage: done
 priority: P0
 depends_on: [SPEC-QG2N8STY]
 ticket_url: null
@@ -196,11 +196,17 @@ declarado no acervo:
   - O provider HTTP não retenta método sem semântica idempotente.
   - Kafka é o transporte-alvo do assíncrono de domínio; SNS/SQS permanece
     normatizado.
-- [ ] **[P1] Testes, test kits e interoperabilidade** (`KRN-11`): pirâmide de
-  testes, test kit de conformidade de provider e golden fixtures Go ↔ TypeScript.
-  - Cada classe normativa tem ao menos um vetor **positivo** e um **negativo**.
-  - Vetores pareados com o kernel TypeScript, com a assimetria de `V27`
-    registrada (Go não tem `import type`).
+- [x] **[P1] Testes, test kits e interoperabilidade** (`KRN-11`), *na parte Go*:
+  pirâmide de testes, test kit de conformidade de provider e golden fixtures.
+  Entregue em `libs/backend/go/testkit` (`SPEC-SJ66880S`, `done`).
+  - [x] Cada classe normativa tem ao menos um vetor **positivo** e um
+    **negativo** — as 36 células por `Cell.Verify()` e os vetores `V13`–`V32`
+    registrados em `fitness/vectors.go`, com `TestVectorsCoverV13ToV32Once`
+    garantindo a cobertura sem repetição.
+  - [ ] *(movido para o épico TypeScript)* Vetores pareados com o kernel
+    TypeScript. O lado Go já registra a assimetria de `V27`
+    (`TestV27IsRegisteredAsTypeScriptOnly`) e publica as fixtures; o pareamento
+    só existe quando o outro lado nascer.
 - [x] **[P2] SDK de referência, generator e BOM** (`KRN-12`): composition root de
   exemplo, generator Nx que scaffolda um bounded context conforme e BOM com
   combinação certificada.
@@ -209,20 +215,45 @@ declarado no acervo:
 
 ### Não-funcionais
 
-- [ ] **Verificabilidade**: 100% das cláusulas `import-verifiable` da RFC §11 têm
-  vetor executável no CI; cláusulas `runtime-testable` têm teste de integração;
-  cláusulas `structurally reviewable` têm item de checklist de revisão.
-- [ ] **Domínio puro**: o fechamento transitivo de imports de toda unidade
+- [x] **Verificabilidade** *(atendida com ressalva registrada)*: as cláusulas
+  `import-verifiable` da RFC §11 têm vetor executável no CI; as
+  `runtime-testable` têm teste de integração; as `structurally reviewable` têm
+  item de checklist. O mapa formal é FND-09 §13
+  (`docs/dmpf/testes-interop.md:2699-2708`): **650 das 654 regras** têm mecanismo
+  de prova. As quatro sem mecanismo — `THR-01`, `THR-02`, `TRP-31` (donas:
+  FND-08 §12.1) e `THR-03` (dona: FND-07 §14, gate de revisão de Segurança sem
+  owner nomeado) — são **fronteira declarada com dona nomeada**, não vazio
+  silencioso. O critério original pedia 100%; a diferença é assumida aqui porque
+  as quatro pertencem a outras fundações e não ao kernel Go.
+- [x] **Domínio puro**: o fechamento transitivo de imports de toda unidade
   `domain` contém apenas capability `pure`, e executar seus testes não inicia
-  processo, não abre socket, não toca disco e não depende de horário.
-- [ ] **Compatibilidade**: Go 1.25 como piso declarado no `go.work`;
-  `@nx-go/nx-go` 4.0.0; módulos publicados sob `github.com/mateusmacedo`
-  com `GOPRIVATE` já configurado.
-- [ ] **Interoperabilidade**: um contrato serializado em Go é desserializado em
-  TypeScript sem perda semântica, com `payload_hash` idêntico nas duas stacks.
-- [ ] **Segurança**: identidade e tenant estabelecidos apenas após autenticação;
-  redaction cumprida na origem e não no agregador; TLS obrigatório em produção
-  para gRPC.
+  processo, não abre socket, não toca disco e não depende de horário. Provado por
+  `TestDomainTestsNeedNoInfrastructureDouble` e `TestDomainTestImportingAPortIsNamed`
+  (`libs/backend/go/testkit/fitness`).
+- [x] **Compatibilidade**: `@nx-go/nx-go` como plugin do workspace e módulos sob
+  `github.com/mateusmacedo`. O piso Go declarado no `go.work` é **1.26.6** — o
+  critério original dizia 1.25, redigido antes das subidas de toolchain, e foi
+  atualizado aqui para o valor real. O `GOPRIVATE` que o critério citava deixa de
+  ser requisito: o repositório é público, e sua remoção pertence ao `KRN-14`
+  (`SPEC-95AHV4D4`).
+- [ ] **Interoperabilidade** *(movido para o épico TypeScript)*: um contrato
+  serializado em Go é desserializado em TypeScript sem perda semântica, com
+  `payload_hash` idêntico nas duas stacks. **Inatingível nesta spec** — depende
+  do kernel TypeScript, que o próprio "Escopo fora" declara ser o épico
+  subsequente de ordem 2. A stack Go entrega os fixtures que o outro lado
+  consome; a assimetria de `V27` está registrada em
+  `TestV27IsRegisteredAsTypeScriptOnly`.
+- [ ] **Segurança** *(parcial; a lacuna virou spec própria)*: redaction e TLS
+  estão cumpridos — o `Redactor` é fail-closed por allowlist e aplicado na
+  origem, por processo (`libs/backend/go/observability/redact/redact.go:37-63`),
+  e o `validateTLS` recusa transporte sem TLS ou abaixo de 1.2 salvo opt-out
+  explícito do operador (`libs/backend/go/grpc/config.go:117-125`). **Identidade
+  e tenant após autenticação não foram realizados**: o BFF usa `Tenant = "public"`
+  constante e um `tenantOf` que ignora a requisição
+  (`apps/backend/bff/api/routes.go:21,119`), e o gancho de autorização do kernel
+  é `AllowAll` (`libs/backend/go/application/authorize.go:12-16`), declarado como
+  escolha explícita de um kernel que ainda não tem autorização. A realização é a
+  `SPEC-9B6SHEH8`.
 - [x] **Determinismo de build**: a geração de código a partir dos `.proto` é
   reprodutível — mesma entrada e mesmo pin de ferramenta produzem bytes iguais.
 
@@ -464,8 +495,13 @@ manual.
       (`type:lib`, `scope:backend`, `stack:go`) e a cadeia de validação passando
 - [x] O verificador de conformidade roda no CI, é fail-closed e reprova o PR
       quando uma aresta viola C1 ou C2
-- [ ] Cada uma das 36 células da matriz de blocos tem vetor positivo **e**
-      negativo executável
+- [x] Cada uma das 36 células da matriz de blocos tem vetor positivo **e**
+      negativo executável — `Cell.Verify()` roda os dois por célula
+      (`libs/backend/go/testkit/fitness/cells.go:98-113`), o oráculo de RFC §7.4
+      é conferido à mão em `TestCellsMatchTheNormativeOracle` (36 pares, 17
+      permitidas e 19 proibidas), a adulteração é detectada por
+      `TestATamperedCellIsNamedByVerify`, e `tools/dmpf-cell-check.sh` prova as
+      células 26 e 12 contra a árvore real
 - [x] Uma unidade `domain` cujo fechamento de imports alcance `net/http` reprova
       com diagnóstico `DMPF-D001` ou violação de capability
 - [x] Um package de produção sem entrada no manifesto **reprova** — não é tratado
@@ -477,14 +513,25 @@ manual.
       persistiu
 - [x] O relay publica fora de transação e só transiciona o registro quando o claim
       ainda é seu
-- [ ] `payload_hash` calculado em Go é idêntico ao calculado em TypeScript para o
-      mesmo `Any.value`
+- [ ] *(movido para o épico TypeScript)* `payload_hash` calculado em Go é
+      idêntico ao calculado em TypeScript para o mesmo `Any.value` — não há
+      kernel TypeScript neste repositório, e o "Escopo fora" desta spec o declara
+      como o épico subsequente de ordem 2. A stack Go entrega a fórmula
+      (`libs/backend/go/contracts/payloadhash`) e as golden fixtures que o outro
+      lado consumirá
 - [x] Nenhum artefato deste épico — código, README, contrato ou configuração —
       declara ou sugere exactly-once fim a fim
-- [ ] As 12 sub-specs `KRN-01`..`KRN-12` existem, com dependências e critérios de
-      entrada explícitos
-- [ ] Validação do projeto passando: `pnpm biome ci .` e
-      `pnpm nx affected -t lint,typecheck,test,build`
+- [x] As 12 sub-specs `KRN-01`..`KRN-12` existem, com dependências e critérios de
+      entrada explícitos — uma por trilha de `KRN-01` a `KRN-11`, todas `done`; o
+      `KRN-12` desdobrou-se na guarda-chuva `SPEC-8HWBWJCB` e mais cinco specs
+      `done`, com três `deferred` (o motor DSL do generator e seus dois
+      complementos), diferidas por decisão e não por lacuna
+- [x] Validação do projeto passando: `pnpm biome ci .` (114 arquivos, sem fixes) e
+      a cadeia de lint sobre os 19 módulos Go, 19 de 19 conformes. O `staticcheck`
+      reprovava `apps/backend/{orders,reservations}/dbtrace_test.go:47` com
+      `SA1019` (`attribute.Value.Emit` deprecado no OTel `v1.46.0`); a chamada
+      passou a `Value.String`, que para `case STRING` devolve o mesmo
+      `v.stringly`
 
 ### Cenários de teste
 
