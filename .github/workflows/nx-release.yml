@@ -62,9 +62,17 @@ jobs:
 
       - name: Configure git identity
         run: |
-          git config user.email "gitea-actions[bot]@noreply.github.com"
-          git config user.name "gitea-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
 
+      # O nome resolvido aqui (production | hotfix) é o que `--dockerVersionScheme`
+      # recebe no step "Release — docker apps". O conteúdo do esquema NÃO vive mais
+      # em `release.docker` na raiz do nx.json — lá ele contamina todo release group
+      # e força `requireSemver: false`, o que faz a versão ser lida como o nome do
+      # projeto (SPEC-95AHV4D4, requisito "release.docker fora da raiz"). Hoje o
+      # step Docker não tem candidato (toda app é Go); a primeira app não-Go
+      # declara `release.docker.versionSchemes.{production,hotfix}` no seu próprio
+      # release group, senão o flag abaixo não resolve nenhum template.
       - name: Resolve docker version scheme
         id: docker-scheme
         env:
@@ -78,8 +86,10 @@ jobs:
           fi
 
       # Sem projeto com tag:type:lib o nx release sai com exit 1 ("Release group
-      # __default__ matches no projects"), não vazio. Esta detecção é o que mantém
-      # o pipeline ocioso — mesmo padrão dos candidatos Docker abaixo.
+      # \"<nome>\" matches no projects"), não vazio — e com os grupos nomeados do
+      # nx.json (go-libs, go-tools, npm) cada um precisa casar ao menos um projeto.
+      # Esta detecção é o que mantém o pipeline ocioso — mesmo padrão dos
+      # candidatos Docker abaixo.
       - name: Detect lib release candidates
         id: lib-candidates
         run: |
@@ -95,29 +105,58 @@ jobs:
           fi
 
       # Versiona (bump + changelog + commit + tag) SEM publicar e SEM empurrar. A
-      # publicação no Verdaccio roda no nx-publish-libs.yml, disparado pelo push das
-      # tags geradas abaixo. Na primeira release (sem tags {projectName}@{version})
-      # usa --first-release para não exigir um git tag anterior no changelog.
+      # publicação no GitHub Packages roda no nx-publish-libs.yml, disparado pelo
+      # push das tags geradas abaixo.
       # --yes e --skip-publish são mutuamente exclusivos no Nx; usar só skip-publish.
       # Sem continue-on-error: falha real do nx release NÃO deve empurrar tags.
       #
-      # O nx.json não declara changelog.projectChangelogs.createRelease: o Nx não
-      # tem provider de release para Gitea, e é essa chave que liga o push
-      # automático do comando agregado. Com ela ausente e release.git.push: false
-      # como guardrail, o push acontece num único ponto — o step abaixo.
+      # A detecção de primeira release olha os padrões das PRÓPRIAS famílias de
+      # release, nunca `*@*`: a tag do produto `dmpf@X.Y.Z` casa esse glob e
+      # mascararia a primeira release das libs, que nunca receberia
+      # --first-release. As famílias são as três declaradas em nx.json:
+      # `libs/backend/go/<lib>/vX.Y.Z`, `tools/dmpf-conformance/vX.Y.Z` e o npm
+      # `<projeto>@X.Y.Z` (com `dmpf@*` excluído).
       - name: Nx Release (skip publish)
         if: steps.lib-candidates.outputs.has_libs == 'true'
         run: |
+          set -euo pipefail
+          GO_TAGS=$(git tag -l 'libs/backend/go/*/v*' 'tools/dmpf-conformance/v*' | head -n 1)
+          NPM_TAGS=$(git tag -l '*@*' | grep -v '^dmpf@' | head -n 1 || true)
+
           FIRST_RELEASE=""
-          if [ -z "$(git tag -l '*@*')" ]; then
-            echo 'Nenhuma tag de release existente; usando --first-release.'
+          if [ -z "$GO_TAGS" ] && [ -z "$NPM_TAGS" ]; then
+            echo 'Nenhuma tag das famílias de release existente; usando --first-release.'
             FIRST_RELEASE="--first-release"
           fi
+
+          # Snapshot para empurrar depois SÓ as tags criadas nesta execução.
+          git tag | sort > /tmp/tags-before.txt
+
           pnpm nx release --skip-publish $FIRST_RELEASE
 
+      # Empurra o commit de release e apenas as tags que esta execução criou. Um
+      # `git push --follow-tags` arrastaria qualquer tag anotada alcançável, o que
+      # inclui `dmpf@*` — a tag do produto tem rito próprio (dmpf-release.yml) e
+      # nunca sai daqui.
       - name: Push version commit and tags
         if: steps.lib-candidates.outputs.has_libs == 'true'
-        run: git push --follow-tags origin master
+        run: |
+          set -euo pipefail
+          git tag | sort > /tmp/tags-after.txt
+          comm -13 /tmp/tags-before.txt /tmp/tags-after.txt > /tmp/tags-new.txt
+
+          if grep -q '^dmpf@' /tmp/tags-new.txt; then
+            echo "::error::nx release criou uma tag dmpf@*, que não lhe pertence. Abortando o push."
+            exit 1
+          fi
+
+          echo "Tags criadas nesta execução:"
+          cat /tmp/tags-new.txt
+
+          git push origin master
+          if [ -s /tmp/tags-new.txt ]; then
+            xargs -r -a /tmp/tags-new.txt git push origin
+          fi
 
       # Módulos Go não geram imagem por aqui: a imagem é matéria do golden path
       # (ADR-041), e um `type:app` Go sem Dockerfile quebraria o build. Mesmo
