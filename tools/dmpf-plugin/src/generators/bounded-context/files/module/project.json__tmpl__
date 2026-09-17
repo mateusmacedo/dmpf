@@ -1,9 +1,9 @@
 {
   "name": <%- projectNameJson %>,
   "$schema": <%- nxSchemaJson %>,
-  "projectType": "library",
+  "projectType": "application",
   "sourceRoot": <%- sourceRootJson %>,
-  "tags": ["type:lib", "scope:backend", "stack:go", <%- layerTagJson %>],
+  "tags": ["type:app", "scope:backend", "stack:go", <%- layerTagJson %>],
   "targets": {
     "fmt-check": {
       "executor": "nx:run-commands",

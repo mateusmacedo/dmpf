@@ -12,8 +12,8 @@ As normas vivem em [`docs/dmpf/governanca-bom-pilotos.md`](../docs/dmpf/governan
 ## Validar
 
 ```bash
-go run ./libs/backend/go/conformance/cmd/bom --root . --release latest --base develop
-go run ./libs/backend/go/conformance/cmd/bom --root . --release 0.1.0 --now 2026-09-12T00:00:00Z
+go run ./tools/dmpf-conformance/cmd/bom --root . --release latest --base develop
+go run ./tools/dmpf-conformance/cmd/bom --root . --release 0.1.0 --now 2026-09-12T00:00:00Z
 ```
 
 | Flag | Efeito |
@@ -245,4 +245,4 @@ derivam de `exceptions[].history`, e valor declarado divergente reprova
 
 As exceções do BOM trazem ainda os `DMPF-X001` a `DMPF-X007` da admissão comum.
 A tabela completa, com seção normativa, vive em
-`libs/backend/go/conformance/internal/rule/diagnostic.go`.
+`tools/dmpf-conformance/internal/rule/diagnostic.go`.

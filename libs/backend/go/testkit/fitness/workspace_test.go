@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	conffit "github.com/mateusmacedo/dmpf/libs/backend/go/conformance/fitness"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb"
+	conffit "github.com/mateusmacedo/dmpf/tools/dmpf-conformance/fitness"
 )
 
 // goListTimeout bounds every go list the suite spawns: a module download that

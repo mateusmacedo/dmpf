@@ -7,20 +7,6 @@
       "bounded_context": "kernel",
       "public_integration_surface": false,
       "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/postgres"]
-    },
-    {
-      "id": "kernel/example-orders-postgres",
-      "block": "provider",
-      "bounded_context": "kernel",
-      "public_integration_surface": false,
-      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/postgres/example/orders"]
-    },
-    {
-      "id": "kernel/example-reservations-postgres",
-      "block": "provider",
-      "bounded_context": "kernel",
-      "public_integration_surface": false,
-      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/postgres/example/reservations"]
     }
   ],
   "external": [

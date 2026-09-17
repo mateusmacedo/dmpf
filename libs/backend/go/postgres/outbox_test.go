@@ -15,16 +15,22 @@ import (
 	eventv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/orders/event/v1"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/contracts/payloadhash"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/domain"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/domain/example/orders"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
 )
 
 const (
-	outboxOrderID  = orders.OrderID("o-1001")
+	outboxOrderID  = "o-1001"
 	outboxOccurred = ports.Instant(1_755_432_000_000_000_000)
 	orderPlacedV1  = "com.company.orders.order-placed.v1"
 )
+
+type orderPlaced struct {
+	Order string
+	Items int
+}
+
+func (orderPlaced) EventName() string { return "orders.order-placed" }
 
 // testMapper is the mapper these tests need before Fase 5 writes the real one.
 // shift changes the payload for the same event, which is how the frozen-bytes
@@ -35,7 +41,7 @@ type testMapper struct {
 }
 
 func (m testMapper) Map(event domain.DomainEvent) (postgres.Mapped, error) {
-	placed, ok := event.(orders.OrderPlaced)
+	placed, ok := event.(orderPlaced)
 	if !ok {
 		return postgres.Mapped{}, postgres.ErrUnmappedEvent
 	}
@@ -45,7 +51,7 @@ func (m testMapper) Map(event domain.DomainEvent) (postgres.Mapped, error) {
 	}
 	return postgres.Mapped{
 		Message: &eventv1.OrderPlaced{
-			OrderId:   string(placed.Order),
+			OrderId:   placed.Order,
 			ItemCount: int32(placed.Items) + m.shift,
 		},
 		Type: declared,
@@ -70,16 +76,16 @@ func outboxEntry(id ports.MessageID, event domain.DomainEvent) ports.OutboxEntry
 	return ports.OutboxEntry{
 		MessageID:        id,
 		OccurredAt:       outboxOccurred,
-		Intent:           ports.PublishIntent{Destination: "orders.events", PartitionKey: string(outboxOrderID)},
+		Intent:           ports.PublishIntent{Destination: "orders.events", PartitionKey: outboxOrderID},
 		AggregateType:    "orders.Order",
-		AggregateID:      string(outboxOrderID),
+		AggregateID:      outboxOrderID,
 		AggregateVersion: 1,
 		Event:            event,
 	}
 }
 
-func placedEvent(items int) orders.OrderPlaced {
-	return orders.OrderPlaced{Order: outboxOrderID, Items: items, At: orders.Instant(outboxOccurred.Unix())}
+func placedEvent(items int) orderPlaced {
+	return orderPlaced{Order: outboxOrderID, Items: items}
 }
 
 func enqueued(t *testing.T, pool *pgxpool.Pool) int {
@@ -162,11 +168,11 @@ func TestEnqueueWritesTheInitialValues(t *testing.T) {
 		if want := "type.googleapis.com/company.orders.event.v1.OrderPlaced"; schemaVersion != want {
 			t.Errorf("schema_version = %q, want %q", schemaVersion, want)
 		}
-		if aggregateType != "orders.Order" || aggregateID != string(outboxOrderID) || aggregateVersion != 1 {
+		if aggregateType != "orders.Order" || aggregateID != outboxOrderID || aggregateVersion != 1 {
 			t.Errorf("aggregate = (%q, %q, %d), want (\"orders.Order\", %q, 1)",
 				aggregateType, aggregateID, aggregateVersion, outboxOrderID)
 		}
-		if partitionKey != string(outboxOrderID) || destination != "orders.events" {
+		if partitionKey != outboxOrderID || destination != "orders.events" {
 			t.Errorf("routing = (%q, %q), want (%q, \"orders.events\")", partitionKey, destination, outboxOrderID)
 		}
 		if occurredAt != int64(outboxOccurred) {
@@ -175,7 +181,7 @@ func TestEnqueueWritesTheInitialValues(t *testing.T) {
 	})
 
 	t.Run("payload is the serialized contract and metadata is empty", func(t *testing.T) {
-		want, _, err := envelope.Pack(&eventv1.OrderPlaced{OrderId: string(outboxOrderID), ItemCount: 3})
+		want, _, err := envelope.Pack(&eventv1.OrderPlaced{OrderId: outboxOrderID, ItemCount: 3})
 		if err != nil {
 			t.Fatalf("Pack() = %v, want nil", err)
 		}

@@ -35,7 +35,7 @@ created: AAAA-MM-DD
 ## Identidade
 
 - **bounded_context**: `<ctx>` [nome declarado no `dmpf-units.json`; kebab-case]
-- **name**: `<name>` [nome do módulo `libs/backend/go/<name>`, do projeto Nx e do package
+- **name**: `<name>` [nome do módulo `apps/backend/<name>`, do projeto Nx e do package
   Protobuf `company.<name>.event.v1`; identificador Go válido, sem hífen]
 - **Linguagem ubíqua**: [um termo por linha, definição de uma linha]
   - *Termo* — definição.

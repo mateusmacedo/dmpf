@@ -131,7 +131,7 @@ floci").
 
 ```bash
 pnpm nx run-many -t fmt-check,vet,lint,build,test-race,govulncheck -p sqs
-go run ./libs/backend/go/conformance/cmd/conformance --root . --base develop
+go run ./tools/dmpf-conformance/cmd/conformance --root . --base develop
 ```
 
 O `dmpf-gate-check.sh` não alcança este módulo; o gate autoritativo é o

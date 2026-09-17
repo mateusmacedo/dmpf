@@ -31,7 +31,7 @@
     "directory": {
       "type": "string",
       "description": "Diretório que recebe o módulo do contexto, relativo à raiz do workspace.",
-      "default": "libs/backend/go"
+      "default": "apps/backend"
     }
   },
   "required": ["name", "boundedContext"]

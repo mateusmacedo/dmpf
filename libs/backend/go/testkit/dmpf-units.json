@@ -33,14 +33,14 @@
       "id": "kernel/testkit-clock",
       "block": "provider",
       "bounded_context": "kernel",
-      "public_integration_surface": false,
+      "public_integration_surface": true,
       "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/testkit/clock"]
     },
     {
       "id": "kernel/testkit-ids",
       "block": "provider",
       "bounded_context": "kernel",
-      "public_integration_surface": false,
+      "public_integration_surface": true,
       "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/testkit/ids"]
     },
     {
@@ -49,20 +49,6 @@
       "bounded_context": "kernel",
       "public_integration_surface": false,
       "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/testkit/stable"]
-    },
-    {
-      "id": "kernel/testkit-app",
-      "block": "app",
-      "bounded_context": "kernel",
-      "public_integration_surface": false,
-      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/testkit/appkit"]
-    },
-    {
-      "id": "kernel/testkit-dist",
-      "block": "app",
-      "bounded_context": "kernel",
-      "public_integration_surface": false,
-      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/testkit/distkit"]
     },
     {
       "id": "kernel/testkit-fitness",
@@ -75,7 +61,7 @@
       "id": "kernel/testkit-tb",
       "block": "app",
       "bounded_context": "kernel",
-      "public_integration_surface": false,
+      "public_integration_surface": true,
       "include": [
         "github.com/mateusmacedo/dmpf/libs/backend/go/testkit",
         "github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb",
@@ -103,18 +89,6 @@
       "versions": ">=5.10 <6",
       "entrypoints": [".", "github.com/jackc/pgx/v5/pgxpool"],
       "capability": "io.storage"
-    },
-    {
-      "package": "github.com/twmb/franz-go",
-      "versions": ">=1.21.6 <2",
-      "entrypoints": ["github.com/twmb/franz-go/pkg/kgo"],
-      "capability": "io.messaging"
-    },
-    {
-      "package": "github.com/twmb/franz-go/pkg/kadm",
-      "versions": ">=1.18 <2",
-      "entrypoints": ["github.com/twmb/franz-go/pkg/kadm"],
-      "capability": "io.messaging"
     },
     {
       "package": "google.golang.org/protobuf",

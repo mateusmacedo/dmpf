@@ -41,6 +41,7 @@ require (
 	github.com/magiconair/properties v1.8.10 // indirect
 	github.com/mateusmacedo/dmpf/libs/backend/go/application v0.1.0
 	github.com/mateusmacedo/dmpf/libs/backend/go/domain v0.1.0
+	github.com/mateusmacedo/dmpf/libs/backend/go/memory v0.1.0
 	github.com/mateusmacedo/dmpf/libs/backend/go/ports v0.1.0
 	github.com/moby/docker-image-spec v1.3.1 // indirect
 	github.com/moby/go-archive v0.3.3 // indirect

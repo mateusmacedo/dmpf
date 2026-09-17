@@ -2,7 +2,7 @@
 
 Guia **derivado e não normativo**. Duração sugerida: **90 minutos**.
 Pré-requisito de leitura: [playbook QA](./dmpf-qa-playbook.md) §§1–3.
-Norma: [FND-09](../dmpf/testes-interop.md). Código: `libs/backend/go/testkit/domainkit/examples_test.go`.
+Norma: [FND-09](../dmpf/testes-interop.md). Código: as fixtures em `contracts/fixtures/{orders,reservations}/projection/v1/` e o molde do teste em `libs/backend/go/testkit/domainkit/fixture_test.go`.
 
 Objetivo: o time de QA abre os arquivos **já versionados**, vê como cada caso vira oráculo, e sai capaz de escrever o próximo `.golden` no mesmo formato.
 
@@ -14,7 +14,7 @@ Objetivo: o time de QA abre os arquivos **já versionados**, vê como cada caso 
 | --- | --- | --- |
 | 0–10 | Mapa do exemplo | este guia, §1 |
 | 10–30 | Projeção `orders` | `contracts/fixtures/orders/projection/v1/order.golden` |
-| 30–45 | Ponte Dev: `domainkit` | `examples_test.go` |
+| 30–45 | Ponte Dev: `domainkit` | `fixture_test.go` |
 | 45–60 | Projeção `reservations` e a costura | `reservation.golden` |
 | 60–75 | Wire (o que o QA descreve vs o que o gerador preenche) | `contracts/fixtures/*/event/v1/*.golden` |
 | 75–90 | Exercício + comando | §6 |
@@ -63,19 +63,26 @@ Controle negativo mental: se alguém trocar `add-item-limit-exceeded` para `bran
 
 ## 3. O Dev não reescreve o esperado
 
-Abra `libs/backend/go/testkit/domainkit/examples_test.go`.
+Abra `libs/backend/go/testkit/domainkit/fixture_test.go`. É o molde: dirige o
+agregado `counter` do próprio kit pela fixture
+`domainkit/testdata/counter.golden`, no mesmo formato `ORA-30` das fixtures de
+`orders` e `reservations`.
 
-`TestOrdersMatchTheProjectionFixture`:
+`TestTheCounterMatchesTheProjectionFixture`:
 
 - `tb.LoadProjection` no **mesmo** caminho da fixture;
 - um subteste por `c.Name`;
-- `domainkit.Run` na UPR real (`AddItem` / `PlaceOrder`);
+- `domainkit.Run` na UPR real (`bump` / `reset`);
 - `domainkit.Equal(got, c.Expected.Projection())`;
 - `ReadTwice` no mesmo sujeito.
 
 O switch `c.Command["upr"]` é a **única** tradução Dev: kebab da fixture → tipo Go. O restante (estado, eventos, rejeição) vem do arquivo do QA.
 
-`TestReservationsMatchTheProjectionFixture` faz o mesmo com três casos.
+Para `orders` (`AddItem` / `PlaceOrder`) e `reservations` (`Reserve`), o teste
+com essa forma pertence ao `domain` de cada contexto, em
+`apps/backend/{orders,reservations}/domain` — os exemplos saíram do kit quando
+`libs/backend/go` passou a guardar só o kernel de reuso (ADR-046), e o kit não
+pode depender de um contexto para provar a si mesmo.
 
 ---
 
@@ -91,7 +98,7 @@ Abra `contracts/fixtures/reservations/projection/v1/reservation.golden`.
 
 Campo `"order": "r-1"`: a reserva **não** inventa outro ID. QA de um contexto consumidor declara a chave natural do produtor.
 
-A costura ponta a ponta (relay, inbox, Ack) é `appkit`/`distkit` e fica para um segundo workshop. Neste, o aceite de `Reserve` já está fechado **sem broker**.
+A costura ponta a ponta (relay, inbox, Ack) é `appkit`/`distkit` — os harnesses do contexto, em `apps/backend/reservations` — e fica para um segundo workshop. Neste, o aceite de `Reserve` já está fechado **sem broker**.
 
 ---
 
@@ -121,7 +128,7 @@ Depois rode o que já está verde (sem o caso novo):
 pnpm nx run testkit:test-race
 ```
 
-Os testes `TestOrdersMatchTheProjectionFixture` e `TestReservationsMatchTheProjectionFixture` têm de passar. Sem `DMPF_PG_DSN`, suítes de infra fazem skip **local**; não trate skip como aceite de `appkit`.
+O teste `TestTheCounterMatchesTheProjectionFixture` tem de passar. Os testes que consumiam `order.golden` e `reservation.golden` saíram do kit junto com os exemplos (ADR-046); reescrevê-los no molde do `counter`, dentro do `domain` de cada contexto (`pnpm nx run orders:test-race`), é item aberto dos contextos — até lá, as duas fixtures ficam sem consumidor. Sem `DMPF_PG_DSN`, suítes de infra fazem skip **local**; não trate skip como aceite de `appkit`.
 
 Opcional, só contratos:
 
@@ -136,7 +143,7 @@ pnpm nx run contracts:buf-lint
 | Papel | Próximo passo |
 | --- | --- |
 | QA | Preencher o [playbook](./dmpf-qa-playbook.md) §5 para o bounded context real |
-| Dev | Ligar a UPR nova com o mesmo padrão de `examples_test.go` |
+| Dev | Ligar a UPR nova com o mesmo padrão de `fixture_test.go`, no `domain` do contexto |
 | Ambos | Um PR de fixture **antes ou junto** do PR de código, nunca depois do “já funciona na API” |
 
 Fonte do esqueleto de implementação: [dmpf-implementation.md](./dmpf-implementation.md) passo 1 (spec) e §2.5 (pirâmide).

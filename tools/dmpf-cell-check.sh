@@ -54,7 +54,7 @@ abrir_worktree() {
 }
 
 verificar() {
-  go run ./libs/backend/go/conformance/cmd/conformance \
+  go run ./tools/dmpf-conformance/cmd/conformance \
     --root "$WORKTREE" --base "$NX_BASE" 2>&1
 }
 

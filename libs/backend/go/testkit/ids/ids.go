@@ -8,8 +8,8 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
 
-// Sequence issues Prefix plus a six-digit counter ("m-000001"), the format the
-// example providers already assert on. The counter is guarded because one
+// Sequence issues Prefix plus a six-digit counter ("m-000001"), the same format
+// memory.SequenceIDs issues. The counter is guarded because one
 // generator is shared by concurrent callers.
 type Sequence struct {
 	Prefix string

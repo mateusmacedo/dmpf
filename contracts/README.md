@@ -23,7 +23,7 @@ contracts/
 ├── fixtures/
 │   ├── orders/event/v1/order-placed.golden           golden fixture JSON, fonte única das stacks (INT-01)
 │   ├── orders/projection/v1/order.golden             fixture de projeção observável (FND-09 ORA-30): estado, comando e desfecho esperado, sem bytes de wire
-│   └── reservations/projection/v1/reservation.golden idem, para o agregado de reservas; consumidas por `testkit/domainkit`
+│   └── reservations/projection/v1/reservation.golden idem, para o agregado de reservas; consumidas pelos testes de projeção de `apps/backend/orders/domain` e `apps/backend/reservations/domain`
 ├── openapi/            registrado, não normatizado (REP-06)
 └── asyncapi/           registrado, não normatizado (REP-06)
 ```

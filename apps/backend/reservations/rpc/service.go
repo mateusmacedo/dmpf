@@ -10,10 +10,11 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 
-	reservationsapp "github.com/mateusmacedo/dmpf/libs/backend/go/application/example/reservations"
 	servicev1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/reservations/service/v1"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/domain"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/domain/example/reservations"
+	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
+
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/application"
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
 )
 
 var descriptor = servicev1.File_company_reservations_service_v1_reservations_service_proto.Services().ByName("ReservationsService")
@@ -90,7 +91,7 @@ func unary[Req any, PReq interface {
 
 // Server realizes ReservationsServer over the reservations use cases.
 type Server struct {
-	Service reservationsapp.Service
+	Service application.Service
 }
 
 func (s Server) Reserve(ctx context.Context, req *servicev1.ReserveRequest) (*servicev1.ReserveResponse, error) {
@@ -98,7 +99,7 @@ func (s Server) Reserve(ctx context.Context, req *servicev1.ReserveRequest) (*se
 	if err != nil {
 		return nil, err
 	}
-	out, err := s.Service.Reserve(ctx, reservationsapp.Reserve{Order: id, Items: int(req.GetItemCount())})
+	out, err := s.Service.Reserve(ctx, application.Reserve{Order: id, Items: int(req.GetItemCount())})
 	if err != nil {
 		return nil, statusOf(err)
 	}
@@ -116,7 +117,7 @@ func (s Server) Cancel(ctx context.Context, req *servicev1.CancelRequest) (*serv
 	if err != nil {
 		return nil, err
 	}
-	out, err := s.Service.Cancel(ctx, reservationsapp.Cancel{Order: id})
+	out, err := s.Service.Cancel(ctx, application.Cancel{Order: id})
 	if err != nil {
 		return nil, statusOf(err)
 	}
@@ -144,24 +145,24 @@ func (s Server) FindReservation(ctx context.Context, req *servicev1.FindReservat
 	}}, nil
 }
 
-func orderID(raw string) (reservations.OrderID, error) {
+func orderID(raw string) (domain.OrderID, error) {
 	if !orderIDFormat.MatchString(raw) {
 		return "", status.Error(codes.InvalidArgument, "order_id must have 1 to 128 characters of [A-Za-z0-9._:-]")
 	}
-	return reservations.OrderID(raw), nil
+	return domain.OrderID(raw), nil
 }
 
-func reservationStatus(s reservations.Status) servicev1.ReservationStatus {
+func reservationStatus(s domain.Status) servicev1.ReservationStatus {
 	switch s {
-	case reservations.Confirmed:
+	case domain.Confirmed:
 		return servicev1.ReservationStatus_RESERVATION_STATUS_CONFIRMED
-	case reservations.Canceled:
+	case domain.Canceled:
 		return servicev1.ReservationStatus_RESERVATION_STATUS_CANCELED
 	default:
 		return servicev1.ReservationStatus_RESERVATION_STATUS_UNSPECIFIED
 	}
 }
 
-func rejectionOf(rejection *domain.Rejection) *servicev1.Rejection {
+func rejectionOf(rejection *kernel.Rejection) *servicev1.Rejection {
 	return &servicev1.Rejection{Code: string(rejection.Code()), Message: rejection.Message()}
 }

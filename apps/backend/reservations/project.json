@@ -35,8 +35,14 @@
       "executor": "nx:run-commands",
       "cache": false,
       "inputs": ["go", "^go"],
+      "dependsOn": [
+        {
+          "projects": ["postgres"],
+          "target": "test-race"
+        }
+      ],
       "options": {
-        "command": "go test -race -count=1 ./...",
+        "command": "go test -race -count=1 -p 1 -tags=integration ./...",
         "cwd": "{projectRoot}"
       }
     },
@@ -45,6 +51,21 @@
       "cache": false,
       "options": {
         "command": "go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 ./...",
+        "cwd": "{projectRoot}"
+      }
+    },
+    "test-distributed": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "inputs": ["go", "^go"],
+      "dependsOn": [
+        {
+          "projects": ["postgres", "app"],
+          "target": "test-race"
+        }
+      ],
+      "options": {
+        "command": "go test -race -count=1 -p 1 -tags=integration,distributed ./distkit/...",
         "cwd": "{projectRoot}"
       }
     },

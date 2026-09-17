@@ -2,7 +2,7 @@
 
 ## Status
 
-Aceito — 2026-09-15. Implementa SPEC-ACYKBF9V. Evolui a topologia do composition root do ADR-041 sem alterar as decisões transversais dele: papéis por flag, configuração só por ambiente, um runtime OTel por processo, release do produto por tag anotada e BOM.
+Aceito — 2026-09-15. Implementa SPEC-ACYKBF9V. Evolui a topologia do composition root do ADR-041 sem alterar as decisões transversais dele: papéis por flag, configuração só por ambiente, um runtime OTel por processo, release do produto por tag anotada e BOM. **Parcialmente supersedido pelo ADR-046 (2026-09-16)**: `orders` e `reservations` deixam o `bounded_context` `kernel` e passam a contextos próprios, completos, em `apps/backend`; a topologia de três composition roots e seis processos permanece.
 
 ## Contexto
 

@@ -3,7 +3,8 @@
 # Imagem do contexto orders: um binário, dois papéis por `--role` (api gRPC e relay).
 #
 # Build a partir da RAIZ do repositório — o go.work resolve os módulos irmãos
-# de libs/backend/go, então o contexto precisa do workspace Go inteiro:
+# (libs/backend/go e tools/dmpf-conformance) e recusa um `use` ausente do
+# contexto, então o COPY leva todos os módulos do workspace Go:
 #   docker build -f apps/backend/orders/Dockerfile -t orders:local .
 #
 # Esta imagem NÃO entra no release Docker do workspace (nx-release.yml filtra
@@ -15,6 +16,7 @@ WORKDIR /src
 
 COPY go.work go.work.sum ./
 COPY libs/backend/go ./libs/backend/go
+COPY tools/dmpf-conformance ./tools/dmpf-conformance
 COPY apps/backend ./apps/backend
 
 RUN --mount=type=cache,target=/root/go/pkg/mod \

@@ -17,18 +17,18 @@ import (
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 
+	"github.com/mateusmacedo/dmpf/apps/backend/orders/application"
+	"github.com/mateusmacedo/dmpf/apps/backend/orders/provider"
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/rpc"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/app/relay"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/application"
-	ordersapp "github.com/mateusmacedo/dmpf/libs/backend/go/application/example/orders"
-	provider "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
+	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
+	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/kafka"
 	obsclock "github.com/mateusmacedo/dmpf/libs/backend/go/observability/clock"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/metrics"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/otelboot"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/usecase"
+	obsusecase "github.com/mateusmacedo/dmpf/libs/backend/go/observability/usecase"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
-	orderspg "github.com/mateusmacedo/dmpf/libs/backend/go/postgres/example/orders"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/admission"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/channel"
 )
@@ -74,24 +74,24 @@ func NewPool(ctx context.Context, dsn string, tracer trace.Tracer) (*pgxpool.Poo
 	return pgxpool.NewWithConfig(ctx, config)
 }
 
-func bindOrders(tx *postgres.Tx) ordersapp.Resources {
-	return ordersapp.Resources{
-		Orders: orderspg.NewRepository(tx),
-		Outbox: tx.Outbox(orderspg.Mapper{}),
+func bindOrders(tx *postgres.Tx) application.Resources {
+	return application.Resources{
+		Orders: provider.NewRepository(tx),
+		Outbox: tx.Outbox(provider.Mapper{}),
 	}
 }
 
 // NewOrdersService assembles the orders use cases over Postgres, with the
 // instrumentation of FND-08 and the audit trail written to auditOut.
-func NewOrdersService(pool *pgxpool.Pool, rt *otelboot.Runtime, cfg Config, auditOut io.Writer) ordersapp.Service {
-	return ordersapp.Service{
+func NewOrdersService(pool *pgxpool.Pool, rt *otelboot.Runtime, cfg Config, auditOut io.Writer) application.Service {
+	return application.Service{
 		UoW:             postgres.NewUnitOfWork(pool, bindOrders),
-		Reader:          orderspg.NewReader(pool),
+		Reader:          provider.NewReader(pool),
 		Clock:           SystemClock{},
 		IDs:             RandomMessageIDs{},
-		Authorize:       application.AllowAll[ordersapp.Command](),
+		Authorize:       usecase.AllowAll[application.Command](),
 		ItemLimit:       cfg.ItemLimit,
-		Instrumentation: usecase.New(rt, NewAuditSink(auditOut, cfg), subject, classify, ordersapp.OperationFindOrder),
+		Instrumentation: obsusecase.New(rt, NewAuditSink(auditOut, cfg), subject, classify, application.OperationFindOrder),
 	}
 }
 
@@ -120,12 +120,12 @@ func serverTLS(cfg Config) (*tls.Config, error) {
 	return &tls.Config{Certificates: []tls.Certificate{certificate}, MinVersion: tls.VersionTLS12}, nil
 }
 
-func apiServerConfig(cfg Config, rt *otelboot.Runtime, ctrl *admission.Controller) (provider.ServerConfig, error) {
+func apiServerConfig(cfg Config, rt *otelboot.Runtime, ctrl *admission.Controller) (kernel.ServerConfig, error) {
 	tlsConfig, err := serverTLS(cfg)
 	if err != nil {
-		return provider.ServerConfig{}, err
+		return kernel.ServerConfig{}, err
 	}
-	return provider.ServerConfig{
+	return kernel.ServerConfig{
 		TLS:                        tlsConfig,
 		InsecureForDevelopmentOnly: tlsConfig == nil && cfg.GRPCInsecure,
 		Services:                   healthServices(),
@@ -149,7 +149,7 @@ func serveAPI(ctx context.Context, cfg Config, rt *otelboot.Runtime, out io.Writ
 	if err != nil {
 		return err
 	}
-	server, healthServer, err := provider.NewServer(serverConfig)
+	server, healthServer, err := kernel.NewServer(serverConfig)
 	if err != nil {
 		return err
 	}
@@ -257,7 +257,7 @@ func runRelay(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {
 	if err != nil {
 		return err
 	}
-	rt.Logger().InfoContext(ctx, "relay draining", "channel", ordersapp.Destination, "topic", cfg.OrdersTopic)
+	rt.Logger().InfoContext(ctx, "relay draining", "channel", application.Destination, "topic", cfg.OrdersTopic)
 	return drain.Run(ctx)
 }
 

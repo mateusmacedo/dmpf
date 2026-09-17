@@ -7,8 +7,8 @@ FND-04 (`docs/dmpf/uow-inbox-outbox.md` §3.1) e as portas que a sequência
 canônica de nove passos usa (§3.2).
 
 Aqui há apenas declaração. Nenhuma porta deste módulo tem realização: quem
-realiza é um provider — o `example/memory` do `application` nesta
-entrega, e o Postgres no `KRN-06`.
+realiza é um provider — o `memory`, em memória e sem banco, e o `postgres`
+(`KRN-06`).
 
 Projeto Nx `ports`, tags `type:lib`, `scope:backend`, `stack:go`.
 Import path do módulo:
@@ -58,7 +58,7 @@ service locator que `UOW-03` recusa nominalmente.
 
 Toda realização cumpre as seis cláusulas abaixo, e a suíte reutilizável
 `providerkit.UnitOfWork` (em `testkit`, `KRN-11`) as executa contra cada
-realização — `application/example/memory` e `postgres`:
+realização — `memory` e `postgres`:
 
 1. Abre exatamente **uma** transação local sobre **um** recurso (`UOW-01`,
    `UOW-02`).
@@ -113,7 +113,7 @@ O fechamento de imports do código de produção é `context`, `errors` e o
 ```bash
 pnpm nx run-many -t fmt-check,vet,lint,build,test,test-race,govulncheck -p ports
 bash tools/dmpf-gate-check.sh
-go run ./libs/backend/go/conformance/cmd/conformance --root . --base origin/develop
+go run ./tools/dmpf-conformance/cmd/conformance --root . --base origin/develop
 ```
 
 O `lint` aplica ao bloco `port` a regra `depguard` do `.golangci.yml`, com
@@ -123,10 +123,12 @@ domínio, `errors.New`, `fmt.Errorf` e `panic` são legítimos. O `gate-check`
 prova a regra com vetores por bloco; o verificador `conformance` é o gate
 autoritativo entre módulos e roda no CI.
 
-O `go.mod` não tem `require` nem `replace`, e não há `go.sum`: a resolução do
-módulo irmão é do `go.work`. Por isso o target `tidy`, que o plugin do Nx
-infere, **não** faz parte da cadeia — ele tentaria a rede para resolver um
-módulo que ainda não tem tag. Consumo fora do workspace é matéria do `KRN-12`.
+O `go.mod` só declara o `require` do módulo irmão, sem `replace`, e não há
+`go.sum`: a resolução é do `go.work`, que o `modsync`
+(`go run ./tools/dmpf-conformance/cmd/modsync`) mantém sincronizado. Por isso o
+target `tidy`, que o plugin do Nx infere, **não** faz parte da cadeia — ele
+tentaria a rede para resolver um módulo que ainda não tem tag. Consumo fora do
+workspace é matéria do `KRN-12`.
 
 ## Governança
 

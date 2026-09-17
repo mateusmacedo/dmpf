@@ -35,7 +35,7 @@ NOME=bookings
 CONTEXTO=resource-scheduling
 # Um módulo por contexto e um package por bloco (ADR-045): o golden é o
 # projeto Nx `bookings`, e cada bloco é um subdiretório do módulo.
-MODULO="libs/backend/go/$NOME"
+MODULO="apps/backend/$NOME"
 BLOCOS=(domain ports application provider app)
 PROJETOS=("$NOME")
 PROJETOS_POSTGRES=("$NOME")
@@ -161,7 +161,7 @@ remover_golden() {
   local caminho tmp
   git -C "$WT" rm -rq -- "$MODULO" || falha "não consegui remover $MODULO do worktree"
   sed -i "\#^\t./$MODULO\$#d" "$WT/go.work" || falha "não consegui editar o go.work"
-  go run ./libs/backend/go/conformance/cmd/modsync --root "$WT" --write >/dev/null 2>&1 \
+  go run ./tools/dmpf-conformance/cmd/modsync --root "$WT" --write >/dev/null 2>&1 \
     || falha "o modsync não conseguiu retirar $NOME do replace do go.work"
   for caminho in "${CAMINHOS_GOLDEN[@]}"; do
     [ -e "$WT/$caminho" ] || continue
@@ -174,7 +174,7 @@ remover_golden() {
     && mv "$tmp" "$WT/$MANIFESTO_CONTRATOS" || falha "não consegui retirar $UNIDADE_CONTRATO do manifesto"
   (cd "$WT" && pnpm biome format --write "$MANIFESTO_CONTRATOS" >/dev/null 2>&1) || true
 
-  (cd "$WT" && go run ./libs/backend/go/conformance/cmd/conformance --root . --write-baseline >/dev/null 2>&1) \
+  (cd "$WT" && go run ./tools/dmpf-conformance/cmd/conformance --root . --write-baseline >/dev/null 2>&1) \
     || falha "--write-baseline reprovou ao classificar o estado sem o golden"
   git -C "$WT" add -A >/dev/null || falha "git add do estado sem o golden"
   git_gate commit -q -m "chore(workspace): estado sem o golden bookings (efêmero)" \
@@ -251,7 +251,7 @@ commitar_classificacao() {
   local saida status
   git -C "$WT" add -- $(git -C "$WT" ls-files -o -m --exclude-standard -- '*/dmpf-units.json' "$MANIFESTO_CONTRATOS") \
     || falha "git add dos manifestos de unidade"
-  saida="$(cd "$WT" && go run ./libs/backend/go/conformance/cmd/conformance --root . --write-baseline 2>&1)"
+  saida="$(cd "$WT" && go run ./tools/dmpf-conformance/cmd/conformance --root . --write-baseline 2>&1)"
   status=$?
   [ "$status" -eq 0 ] || { printf '%s\n' "$saida" >&2; falha "--write-baseline reprovou (exit $status)"; }
   git -C "$WT" add -- "$BASELINE" || falha "git add do baseline"
@@ -285,7 +285,7 @@ cadeia_nx() {
 
 verificar_conformidade() {
   local saida status
-  saida="$(go run ./libs/backend/go/conformance/cmd/conformance --root "$WT" --base "$HEAD0" 2>&1)"
+  saida="$(go run ./tools/dmpf-conformance/cmd/conformance --root "$WT" --base "$HEAD0" 2>&1)"
   status=$?
   printf '%s\n' "$saida"
   [ "$status" -eq 0 ] || falha "o verificador de conformidade reprovou o contexto regenerado (exit $status)"
@@ -306,11 +306,11 @@ conferir_arvore_limpa() {
 relatar_divergencia() {
   local so_golden so_regen
   so_golden="$(comm -23 \
-    <(git -C "$ROOT" ls-tree -r --name-only HEAD -- "libs/backend/go/$NOME" "${CAMINHOS_GOLDEN[@]}" 2>/dev/null | sort) \
-    <(git -C "$WT" ls-tree -r --name-only HEAD -- "libs/backend/go/$NOME" "${CAMINHOS_GOLDEN[@]}" 2>/dev/null | sort))"
+    <(git -C "$ROOT" ls-tree -r --name-only HEAD -- "apps/backend/$NOME" "${CAMINHOS_GOLDEN[@]}" 2>/dev/null | sort) \
+    <(git -C "$WT" ls-tree -r --name-only HEAD -- "apps/backend/$NOME" "${CAMINHOS_GOLDEN[@]}" 2>/dev/null | sort))"
   so_regen="$(comm -13 \
-    <(git -C "$ROOT" ls-tree -r --name-only HEAD -- "libs/backend/go/$NOME" "${CAMINHOS_GOLDEN[@]}" 2>/dev/null | sort) \
-    <(git -C "$WT" ls-tree -r --name-only HEAD -- "libs/backend/go/$NOME" "${CAMINHOS_GOLDEN[@]}" 2>/dev/null | sort))"
+    <(git -C "$ROOT" ls-tree -r --name-only HEAD -- "apps/backend/$NOME" "${CAMINHOS_GOLDEN[@]}" 2>/dev/null | sort) \
+    <(git -C "$WT" ls-tree -r --name-only HEAD -- "apps/backend/$NOME" "${CAMINHOS_GOLDEN[@]}" 2>/dev/null | sort))"
   printf '\nDivergência de forma contra o golden commitado (informativo):\n'
   printf '  só no golden:      %s\n' "${so_golden:-nenhum}"
   printf '  só no regenerado:  %s\n' "${so_regen:-nenhum}"
@@ -378,14 +378,14 @@ fase_self_test() {
   # Regravar preserva a lista do arquivo atual e recalcula o digest
   # (baseline.go, Regravar): sem este passo o verificador reprovaria por
   # digest, não por D002.
-  (cd "$WT" && go run ./libs/backend/go/conformance/cmd/conformance --root . --write-baseline >/dev/null 2>&1) \
+  (cd "$WT" && go run ./tools/dmpf-conformance/cmd/conformance --root . --write-baseline >/dev/null 2>&1) \
     || falha "--write-baseline reprovou ao fechar o digest do baseline sabotado"
   ! jq -e --arg u "$UNIDADE_SABOTADA" '.shared_kernel_units | index($u)' "$WT/$BASELINE" >/dev/null \
     || falha "o --write-baseline restaurou $UNIDADE_SABOTADA: a sabotagem não pegou"
   ok "baseline sem $UNIDADE_SABOTADA, digest fechado"
 
   passo "o verificador precisa reprovar com DMPF-D002 em $NOME/domain"
-  saida="$(go run ./libs/backend/go/conformance/cmd/conformance --root "$WT" 2>&1)"
+  saida="$(go run ./tools/dmpf-conformance/cmd/conformance --root "$WT" 2>&1)"
   status=$?
   if [ "$status" -eq 0 ]; then
     printf '%s\n' "$saida" >&2

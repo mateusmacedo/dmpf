@@ -46,13 +46,13 @@
 
 | Caminho Exato                                                     | Linhas | Padrão                                                                                            |
 | ----------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------- |
-| `libs/backend/go/domain/example/orders/order.go`             | ~80    | Agregado Order (id, status, items, itemLimit), NewOrder(), FromSnapshot(), clone()                |
-| `libs/backend/go/domain/example/orders/add_item.go`          | ~30    | **UPR AddItem**: decide-over-copy, Accepted[ItemAccepted]/Rejected, eventos                       |
-| `libs/backend/go/domain/example/orders/place.go`             | ~25    | **UPR Place**: mesmo padrão, ciclo de vida                                                        |
-| `libs/backend/go/domain/example/orders/rejections.go`        | ~15    | Rejection codes: `orders/item-limit-exceeded`, `orders/empty-order`, `orders/order-not-open`      |
-| `libs/backend/go/domain/example/orders/messages.go`          | ~40    | Tipos: OrderID, SKU, Item, Status (enum), Instant, AddItem, PlaceOrder, ItemAccepted, OrderPlaced |
-| `libs/backend/go/domain/example/reservations/reservation.go` | ~40    | Agregado Reservation (order: OrderID, items, status), chave natural **permanente**                |
-| `libs/backend/go/domain/example/reservations/reserve.go`     | ~25    | **UPR Reserve**: mesmo padrão decide-over-copy                                                    |
+| `apps/backend/orders/domain/order.go`                        | ~80    | Agregado Order (id, status, items, itemLimit), NewOrder(), FromSnapshot(), clone()                |
+| `apps/backend/orders/domain/add_item.go`                     | ~30    | **UPR AddItem**: decide-over-copy, Accepted[ItemAccepted]/Rejected, eventos                       |
+| `apps/backend/orders/domain/place.go`                        | ~25    | **UPR Place**: mesmo padrão, ciclo de vida                                                        |
+| `apps/backend/orders/domain/rejections.go`                   | ~15    | Rejection codes: `orders/item-limit-exceeded`, `orders/empty-order`, `orders/order-not-open`      |
+| `apps/backend/orders/domain/messages.go`                     | ~40    | Tipos: OrderID, SKU, Item, Status (enum), Instant, AddItem, PlaceOrder, ItemAccepted, OrderPlaced |
+| `apps/backend/reservations/domain/reservation.go`            | ~40    | Agregado Reservation (order: OrderID, items, status), chave natural **permanente**                |
+| `apps/backend/reservations/domain/reserve.go`                | ~25    | **UPR Reserve**: mesmo padrão decide-over-copy                                                    |
 | `libs/backend/go/domain/decision.go`                         | ~50    | **Tipo Decision[R]**: Accepted[R] (response, events), Rejected, imutabilidade                     |
 | `libs/backend/go/domain/rejection.go`                        | ~40    | **Tipo Rejection**: Code (context/reason), Details, métodos                                       |
 | `libs/backend/go/domain/doc.go`                              | ~30    | Contrato de imutabilidade, comparable types, no pointers/slices/maps                              |

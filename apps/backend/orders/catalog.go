@@ -5,7 +5,7 @@ import (
 	"crypto/tls"
 	"time"
 
-	ordersapp "github.com/mateusmacedo/dmpf/libs/backend/go/application/example/orders"
+	"github.com/mateusmacedo/dmpf/apps/backend/orders/application"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/kafka"
 	obsclock "github.com/mateusmacedo/dmpf/libs/backend/go/observability/clock"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/otelboot"
@@ -28,7 +28,7 @@ const (
 // destination the use case authors, because the publisher resolves by it.
 func OrdersChannel(cfg Config) channel.Channel {
 	return channel.Channel{
-		Name:          ordersapp.Destination,
+		Name:          application.Destination,
 		Transport:     channel.Kafka,
 		Address:       cfg.OrdersTopic,
 		EventType:     orderPlacedEventType,

@@ -31,14 +31,23 @@ arestas permitem: um `domainkit` só é kit de domínio se ele próprio for
 | `kernel/testkit-clock` | `provider` | `clock` | `KIT-07` — relógio fake com avanço explícito |
 | `kernel/testkit-ids` | `provider` | `ids` | `KIT-07` — identificadores em sequência ou por seed |
 | `kernel/testkit-stable` | `provider` | `stable` | `KIT-08` — ordenação estável de coleções comparadas |
-| `kernel/testkit-app` | `app` | `appkit` | `KIT-05` — harness borda a borda |
-| `kernel/testkit-dist` | `app` | `distkit` | `KIT-06` — dois processos sobre o broker, `DMPF-R004` |
 | `kernel/testkit-fitness` | `app` | `fitness` | `FIT-01..FIT-04` — regra de dependência na suíte |
 | `kernel/testkit-tb` | `app` | `tb`, `tb/pg` | adaptador de `testing.TB`, fixtures, codec de projeção, pool Postgres |
 | `kernel/testkit-evidence` | `app` | `evidence` | gravação dos veredictos e montagem da evidência da release (`BOM-03`) |
 | `kernel/testkit-cmd-evidence` | `app` | `cmd/evidence` | comando que publica `bom/evidence/<release>/` |
 
-## Os cinco kits — o que exigem, o que exercitam, o que aprovam
+Os harnesses `appkit` (`KIT-05`, borda a borda) e `distkit` (`KIT-06`, dois
+processos sobre o broker, `DMPF-R004`) não são genéricos: só provam o contexto
+`reservations` — `NewReservations`, SQL em `dmpf_example_reservations`,
+`RawOrderPlaced` de `orders`. Por isso vivem com o contexto, em
+`apps/backend/reservations/{appkit,distkit}`, como as unidades
+`reservations/appkit` e `reservations/distkit` (ADR-046). Este módulo guarda só
+o que qualquer contexto importa; `kernel/testkit-tb`, `kernel/testkit-clock` e
+`kernel/testkit-ids` declaram `public_integration_surface: true` para que esses
+harnesses, agora de outro contexto, continuem alcançando `tb`, `tb/pg`, `clock`
+e `ids`.
+
+## Os kits — o que exigem, o que exercitam, o que aprovam
 
 Todo kit devolve um **veredicto por valor**: uma lista de diagnósticos, vazia no
 passe, cada um nomeando a regra normativa violada. `tb.Require(t, verdict)`
@@ -49,16 +58,26 @@ adaptador é um package `app` à parte.
 | Kit | Exige do candidato | Exercita | Aprova quando |
 | --- | --- | --- | --- |
 | `domainkit` | `Subject[S,R]`: a UPR, a projeção da resposta, do evento e do estado, e um clone do alvo — tudo **por valor**, sem duplo (`ORA-36`) | `Run` executa a UPR e lê o desfecho duas vezes; `ReadTwice` compara duas execuções | `Equal(got, want)` sem diagnóstico: ramo, resposta ou rejeição, sequência ordenada de eventos e estado antes/depois iguais aos da fixture (`ORA-31`, `ORA-34`); sob `Rejected`, sequência vazia e estado idêntico (`ORA-38`); nenhum segundo acessor de eventos (`ORA-37`) |
-| `serviceskit` | Um service composto sobre `Fakes.UnitOfWork` — os fakes envolvem `application/example/memory` e registram cada gesto no `Ledger` com a identidade da transação que o fez | O caso de uso real, aceito e recusado | `Decide` sem diagnóstico: em cada transação commitada, escrita e enfileiramento vêm juntos e a outbox ganhou o que foi enfileirado (`UOW-07`); uma porta escapada de outra transação é nomeada; nenhum `publish` (`UOW-08`); exatamente um commit, vazio sob recusa (`UOW-06`); uma transação por caso de uso (`UOW-01`) |
+| `serviceskit` | Um service composto sobre `Fakes.UnitOfWork` — os fakes envolvem o `memory` e registram cada gesto no `Ledger` com a identidade da transação que o fez | O caso de uso real, aceito e recusado | `Decide` sem diagnóstico: em cada transação commitada, escrita e enfileiramento vêm juntos e a outbox ganhou o que foi enfileirado (`UOW-07`); uma porta escapada de outra transação é nomeada; nenhum `publish` (`UOW-08`); exatamente um commit, vazio sob recusa (`UOW-06`); uma transação por caso de uso (`UOW-01`) |
 | `providerkit` | `UnitOfWorkSubject` (UoW, uma escrita, contagem do que persistiu, commits), `InboxSubject` (`Within` sob o `context.Context` da suíte, leitura do status, linhas, erro de consumer divergente), `OutboxSubject` (store, enfileirar, relógio fake, estado inteiro do registro, `Pending`, `Purge`) — com uma função que devolve o candidato **limpo** | As cláusulas de `Within` (UOW-01/02/06/07/09, CTX-21, ERR-22), as recepções R1-R4 e a corrida de duas inserções com sobreposição garantida no retorno do `Register` (`INB-06`), o lease e as três transições condicionadas ao claimant (`OBX-09/10/11/18/06`), a purga (`OBX-17`) e o sinal `Pending` (`OBX-12`) | Sem diagnóstico. Cláusula que o candidato não consegue exercitar (Postgres não injeta falha de commit; `memory` serializa e não corre) vai para `Skipped`, nunca fica ausente em silêncio |
-| `appkit` | Postgres (`DMPF_PG_DSN`) | `app.Consumer` real composto sobre as realizações, alimentado com bytes na borda de protocolo | `Effects` mostra o desfecho esperado nas quatro tabelas; `Ack` prova que o gesto veio depois do commit (`INB-08`) |
-| `distkit` | Redpanda (`DMPF_KAFKA_BROKERS`) e Postgres | Dois processos OS — `producer` publica `evt-1`, `evt-1`, `evt-9`; `consumer` consome pelo adapter — sobre um tópico único por execução | `Decide` sem `DMPF-R004`: uma reserva, com os itens de uma única entrega, escrita uma vez (`V32`). O papel `consumer-naive`, que aplica o efeito a cada entrega, reprova nomeando o `message_id` reentregue |
+
+Os dois harnesses de `apps/backend/reservations` completam a pirâmide:
+`appkit` exige Postgres (`DMPF_PG_DSN`), compõe o `app.Consumer` real sobre as
+realizações e alimenta bytes na borda de protocolo — `Effects` mostra o desfecho
+nas quatro tabelas e `Ack` prova que o gesto veio depois do commit (`INB-08`);
+`distkit` exige Redpanda (`DMPF_KAFKA_BROKERS`) e Postgres, sobe dois processos
+OS (`producer` publica `evt-1`, `evt-1`, `evt-9`; `consumer` consome pelo
+adapter) sobre um tópico único por execução, e `Decide` sem `DMPF-R004` prova
+uma reserva escrita uma vez (`V32`), com o papel `consumer-naive` reprovando ao
+nomear o `message_id` reentregue.
 
 Cada kit tem, no próprio módulo, o **par de vetores** que `ORA-39` exige: o
-positivo contra o exemplo do kernel (`orders`, `reservations`, `memory`,
-Postgres) e o negativo contra uma realização de fixture não conforme — domínio
+positivo contra um agregado de fixture do próprio kit — o `counter`, definido em
+`_test.go` e dirigido pela projeção `domainkit/testdata/counter.golden`, para
+que a suíte não dependa de nenhum contexto de `apps/backend` — e contra `memory`
+e Postgres; o negativo contra uma realização de fixture não conforme — domínio
 com segundo acessor de eventos, service que enfileira fora da transação, store
-que aceita claim substituído, consumidor que duplica o efeito.
+que aceita claim substituído.
 
 ## Determinismo (`KIT-07`, `KIT-08`)
 
@@ -146,12 +165,12 @@ As fixtures de **projeção observável** (`ORA-30`) vivem em
 | Subject | Pacotes | Tags | Variáveis |
 | --- | --- | --- | --- |
 | `golden` | `contracts/golden` | — | — |
-| `provider` | `postgres`, `application/example/memory` | `integration` | `DMPF_PG_DSN` |
+| `provider` | `postgres`, `memory` | `integration` | `DMPF_PG_DSN` |
 | `domain` | `testkit/domainkit` | — | — |
 | `services` | `testkit/serviceskit` | — | — |
-| `app` | `testkit/appkit` | `integration` | `DMPF_PG_DSN` |
-| `dist` | `testkit/distkit` | `integration`, `distributed` | `DMPF_PG_DSN`, `DMPF_KAFKA_BROKERS`, `DMPF_REDPANDA_ADMIN` |
-| `reference` | `apps/backend/reference-{bff,orders,reservations}-go/...` | `integration` | `DMPF_PG_DSN`, `DMPF_KAFKA_BROKERS`, `DMPF_REDPANDA_ADMIN` |
+| `app` | `apps/backend/reservations/appkit` | `integration` | `DMPF_PG_DSN` |
+| `dist` | `apps/backend/reservations/distkit` | `integration`, `distributed` | `DMPF_PG_DSN`, `DMPF_KAFKA_BROKERS`, `DMPF_REDPANDA_ADMIN` |
+| `reference` | `apps/backend/{bff,bookings,orders,reservations}/...` | `integration` | `DMPF_PG_DSN`, `DMPF_KAFKA_BROKERS`, `DMPF_REDPANDA_ADMIN` |
 
 - Teste que pula por construção fica fora do subject por `-skip` com o nome
   exato, porque sob `CI` o skip reprovaria o subject: no `golden`,
@@ -189,16 +208,18 @@ ganho de decidibilidade.
 ## Como rodar
 
 ```bash
-# unitário (sem infra): clock, ids, stable, domainkit, golden, serviceskit, providerkit (memória), fitness, tb, evidence
+# sem infra: clock, ids, stable, domainkit, golden, serviceskit, providerkit (memória), fitness, tb, evidence
+# (o test-race leva -tags=integration; sem DMPF_PG_DSN, as suítes de banco fazem skip fora do CI)
 pnpm nx run testkit:test-race
 
-# com Postgres (appkit, providerkit sobre Postgres via postgres, tb/pg)
+# com Postgres (providerkit sobre Postgres via postgres, tb/pg)
 docker compose -f infra/local/docker-compose.yml --profile postgres up -d
 DMPF_PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' pnpm nx run testkit:test-race
 
-# distribuído (distkit; build tag `distributed`, fora do test-race)
+# borda a borda (appkit) e distribuído (distkit; build tag `distributed`) — harnesses do contexto reservations
+DMPF_PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' pnpm nx run reservations:test-race
 DMPF_PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' DMPF_KAFKA_BROKERS=localhost:9092 \
-  pnpm nx run testkit:test-distributed
+  pnpm nx run reservations:test-distributed
 
 # evidência da release (infra de pé; --out não pode existir)
 pnpm nx run bff:infra-up
@@ -212,8 +233,8 @@ runner —, falham (`tb.Env`, fail-closed). `tb/pg.OpenPool` só aceita DSN de
 host loopback (`localhost`, `127.0.0.1`, `::1` ou socket Unix): o reset das
 tabelas é destrutivo, e um Postgres compartilhado nunca é fixture de teste. O
 erro de conexão do pgx que chega ao log traz host, usuário e nome do banco —
-nunca a senha, que o pgx redige. O `test-distributed` depende do `test-race` de
-`postgres` e `app`, porque os três compartilham o
+nunca a senha, que o pgx redige. O `test-distributed` de `reservations` depende
+do `test-race` de `postgres` e `app`, porque os três compartilham o
 Postgres do job. No CI, o `ci.yml` roda a cadeia por estágio (`layer:domain` →
 `services` → infra → `contract` → `providers` → `apps`); dentro do estágio 4,
 os providers cujo `test-race` tem `cache: false` — os que exigem a infra do
@@ -224,12 +245,13 @@ dois workflows derrubam os containers do job num step `if: always()`.
 ## Limitação conhecida
 
 O `depguard` do `.golangci.yml` seleciona a regra `domain` por caminho
-(`**/*-domain/**`), que `testkit/domainkit` não casa. O gate autoritativo
+(`**/domain/**`, e `**/*-domain/**` do layout anterior ao ADR-045), que
+`testkit/domainkit` não casa. O gate autoritativo
 é o verificador `conformance`, que classifica por `dmpf-units.json` e
 alcança o package; o teste de capability do próprio kit é a segunda linha.
 
 O grafo de projetos do Nx conta imports de `_test.go`, então os módulos que
-rodam as suítes do kit apontam para ele e o kit aponta para `app`,
-`application` e `postgres`. O `build` deste módulo declara
+rodam as suítes do kit apontam para ele e o kit aponta para `application`,
+`memory`, `postgres` e os demais módulos que as suas suítes exercem. O `build` deste módulo declara
 `dependsOn: []` para quebrar o ciclo de tasks que `^build` formaria; as arestas
 de projeto continuam e o `affected` as vê.

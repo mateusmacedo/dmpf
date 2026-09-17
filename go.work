@@ -2,37 +2,39 @@ go 1.26.6
 
 use (
 	./apps/backend/bff
+	./apps/backend/bookings
 	./apps/backend/orders
 	./apps/backend/reservations
 	./libs/backend/go/app
 	./libs/backend/go/application
-	./libs/backend/go/bookings
-	./libs/backend/go/conformance
 	./libs/backend/go/contracts
 	./libs/backend/go/domain
 	./libs/backend/go/grpc
 	./libs/backend/go/http
 	./libs/backend/go/kafka
+	./libs/backend/go/memory
 	./libs/backend/go/observability
 	./libs/backend/go/ports
 	./libs/backend/go/postgres
 	./libs/backend/go/sqs
 	./libs/backend/go/testkit
 	./libs/backend/go/transport
+	./tools/dmpf-conformance
 )
 
 replace (
 	github.com/mateusmacedo/dmpf/libs/backend/go/app v0.1.0 => ./libs/backend/go/app
 	github.com/mateusmacedo/dmpf/libs/backend/go/application v0.1.0 => ./libs/backend/go/application
-	github.com/mateusmacedo/dmpf/libs/backend/go/conformance v0.1.0 => ./libs/backend/go/conformance
 	github.com/mateusmacedo/dmpf/libs/backend/go/contracts v0.1.0 => ./libs/backend/go/contracts
 	github.com/mateusmacedo/dmpf/libs/backend/go/domain v0.1.0 => ./libs/backend/go/domain
 	github.com/mateusmacedo/dmpf/libs/backend/go/grpc v0.1.0 => ./libs/backend/go/grpc
 	github.com/mateusmacedo/dmpf/libs/backend/go/http v0.1.0 => ./libs/backend/go/http
 	github.com/mateusmacedo/dmpf/libs/backend/go/kafka v0.1.0 => ./libs/backend/go/kafka
+	github.com/mateusmacedo/dmpf/libs/backend/go/memory v0.1.0 => ./libs/backend/go/memory
 	github.com/mateusmacedo/dmpf/libs/backend/go/observability v0.1.0 => ./libs/backend/go/observability
 	github.com/mateusmacedo/dmpf/libs/backend/go/ports v0.1.0 => ./libs/backend/go/ports
 	github.com/mateusmacedo/dmpf/libs/backend/go/postgres v0.1.0 => ./libs/backend/go/postgres
 	github.com/mateusmacedo/dmpf/libs/backend/go/testkit v0.1.0 => ./libs/backend/go/testkit
 	github.com/mateusmacedo/dmpf/libs/backend/go/transport v0.1.0 => ./libs/backend/go/transport
+	github.com/mateusmacedo/dmpf/tools/dmpf-conformance v0.1.0 => ./tools/dmpf-conformance
 )

@@ -13,7 +13,7 @@
 // party. The instant and the message identifier arrive as port values.
 //
 // What this block does not contain: the transaction itself, which a provider
-// realizes (example/memory here, Postgres in KRN-06); the wire format, which is
+// realizes (the memory module here, Postgres in KRN-06); the wire format, which is
 // KRN-05; publishing and the relay, KRN-08; the inbox, KRN-07; retry and
 // telemetry, KRN-09. Input shape validation is the app block's (RFC §4.1), and
 // the real authorization, the execution context and the error taxonomy are

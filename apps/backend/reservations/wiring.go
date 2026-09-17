@@ -17,12 +17,8 @@ import (
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 
-	"github.com/mateusmacedo/dmpf/apps/backend/reservations/rpc"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/app"
-	reservationsconsumer "github.com/mateusmacedo/dmpf/libs/backend/go/app/example/reservations"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/app/relay"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/application"
-	reservationsapp "github.com/mateusmacedo/dmpf/libs/backend/go/application/example/reservations"
 	provider "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/kafka"
 	obsclock "github.com/mateusmacedo/dmpf/libs/backend/go/observability/clock"
@@ -31,9 +27,11 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/retry"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/usecase"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
-	reservationspg "github.com/mateusmacedo/dmpf/libs/backend/go/postgres/example/reservations"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/admission"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/channel"
+
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/application"
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/rpc"
 )
 
 const (
@@ -87,16 +85,10 @@ func NewPool(ctx context.Context, dsn string, tracer trace.Tracer) (*pgxpool.Poo
 
 // NewReservationsService assembles the synchronous reservations use cases over
 // Postgres, with the resource set the consumer also binds (INB-07).
-func NewReservationsService(pool *pgxpool.Pool, rt *otelboot.Runtime, cfg Config, auditOut io.Writer) reservationsapp.Service {
-	return reservationsapp.Service{
-		UoW:             postgres.NewUnitOfWork(pool, reservationsconsumer.Bind(cfg.Wait)),
-		Reader:          reservationspg.NewReader(pool),
-		Clock:           SystemClock{},
-		IDs:             RandomMessageIDs{},
-		Authorize:       application.AllowAll[reservationsapp.Command](),
-		Consumer:        reservationsconsumer.ConsumerName,
-		Instrumentation: usecase.New(rt, NewAuditSink(auditOut, cfg), subject, classify, reservationsapp.OperationFindReservation),
-	}
+func NewReservationsService(pool *pgxpool.Pool, rt *otelboot.Runtime, cfg Config, auditOut io.Writer) application.Service {
+	service := NewService(pool, SystemClock{}, RandomMessageIDs{}, cfg.Wait)
+	service.Instrumentation = usecase.New(rt, NewAuditSink(auditOut, cfg), subject, classify, application.OperationFindReservation)
+	return service
 }
 
 // NewAdmission builds the controller of RES-16, one limit per method.
@@ -269,7 +261,7 @@ func runRelay(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {
 // NewReservationsConsumer is the consumer adapter with the attempt limit of the
 // channel it consumes (ADR-039: the two must agree).
 func NewReservationsConsumer(pool *pgxpool.Pool, cfg Config, ch channel.Channel) app.Consumer {
-	return reservationsconsumer.NewConsumer(pool, SystemClock{}, RandomMessageIDs{}, cfg.Wait, ch.Retry.MaxAttempts)
+	return NewConsumer(pool, SystemClock{}, RandomMessageIDs{}, cfg.Wait, ch.Retry.MaxAttempts)
 }
 
 func runConsumer(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {
