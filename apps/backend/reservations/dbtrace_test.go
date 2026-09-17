@@ -44,7 +44,7 @@ func TestTheQueryTracerOpensAClientSpanWithoutSQL(t *testing.T) {
 		t.Fatalf("parent = %s, want %s", span.Parent.SpanID(), parent.SpanID())
 	}
 	for _, attribute := range span.Attributes {
-		if value := attribute.Value.Emit(); strings.Contains(value, "SELECT") || strings.Contains(value, "p-1") {
+		if value := attribute.Value.String(); strings.Contains(value, "SELECT") || strings.Contains(value, "p-1") {
 			t.Fatalf("attribute %s = %q leaks the statement or its arguments (TRC-15)", attribute.Key, value)
 		}
 	}
