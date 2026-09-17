@@ -4,11 +4,18 @@ name: NX Publish
 # interno em .github/workflows/publish-libs.yaml. O executor pula libs sem
 # versão nova e versões já no registry, então releases parciais publicam só o
 # que mudou.
-# Dispara no push das tags do Nx Release (nx-release.yml).
+# Dispara no push das tags npm do Nx Release (nx-release.yml). A exclusão de
+# `dmpf@*` é o que separa as duas famílias de tag: a do produto tem rito próprio
+# (dmpf-release.yml) e não publica pacote nenhum. Em filtro de tag do GitHub
+# Actions vence o ÚLTIMO padrão que casa, então a negação vem depois. As tags de
+# módulo Go (`libs/backend/go/<lib>/vX.Y.Z` e `tools/dmpf-conformance/vX.Y.Z`)
+# não casam `**@*` e por construção nunca chegam aqui: consumo Go é por tag no
+# git, sem registry.
 on:
   push:
     tags:
       - "**@*"
+      - "!dmpf@*"
   workflow_dispatch:
     inputs:
       tag:
