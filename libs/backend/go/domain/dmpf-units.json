@@ -7,20 +7,6 @@
       "bounded_context": "kernel",
       "public_integration_surface": false,
       "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/domain"]
-    },
-    {
-      "id": "kernel/example-orders",
-      "block": "domain",
-      "bounded_context": "kernel",
-      "public_integration_surface": false,
-      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/domain/example/orders"]
-    },
-    {
-      "id": "kernel/example-reservations",
-      "block": "domain",
-      "bounded_context": "kernel",
-      "public_integration_surface": false,
-      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/domain/example/reservations"]
     }
   ],
   "external": [],

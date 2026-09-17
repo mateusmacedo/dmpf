@@ -2,15 +2,50 @@
   "schema": "dmpf/units@1",
   "units": [
     {
-      "id": "kernel/reference-reservations-app",
+      "id": "reservations/domain",
+      "block": "domain",
+      "bounded_context": "reservations",
+      "public_integration_surface": false,
+      "include": ["github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"]
+    },
+    {
+      "id": "reservations/application",
+      "block": "application",
+      "bounded_context": "reservations",
+      "public_integration_surface": false,
+      "include": ["github.com/mateusmacedo/dmpf/apps/backend/reservations/application"]
+    },
+    {
+      "id": "reservations/provider-postgres",
+      "block": "provider",
+      "bounded_context": "reservations",
+      "public_integration_surface": false,
+      "include": ["github.com/mateusmacedo/dmpf/apps/backend/reservations/provider"]
+    },
+    {
+      "id": "reservations/app",
       "block": "app",
-      "bounded_context": "kernel",
+      "bounded_context": "reservations",
       "public_integration_surface": false,
       "include": [
         "github.com/mateusmacedo/dmpf/apps/backend/reservations",
         "github.com/mateusmacedo/dmpf/apps/backend/reservations/rpc",
         "github.com/mateusmacedo/dmpf/apps/backend/reservations/cmd/reservations"
       ]
+    },
+    {
+      "id": "reservations/appkit",
+      "block": "app",
+      "bounded_context": "reservations",
+      "public_integration_surface": false,
+      "include": ["github.com/mateusmacedo/dmpf/apps/backend/reservations/appkit"]
+    },
+    {
+      "id": "reservations/distkit",
+      "block": "app",
+      "bounded_context": "reservations",
+      "public_integration_surface": false,
+      "include": ["github.com/mateusmacedo/dmpf/apps/backend/reservations/distkit"]
     }
   ],
   "external": [
@@ -19,6 +54,18 @@
       "versions": ">=5.10 <6",
       "entrypoints": [".", "github.com/jackc/pgx/v5/pgxpool"],
       "capability": "io.storage"
+    },
+    {
+      "package": "github.com/twmb/franz-go",
+      "versions": ">=1.21.6 <2",
+      "entrypoints": ["github.com/twmb/franz-go/pkg/kgo"],
+      "capability": "io.messaging"
+    },
+    {
+      "package": "github.com/twmb/franz-go/pkg/kadm",
+      "versions": ">=1.18 <2",
+      "entrypoints": ["github.com/twmb/franz-go/pkg/kadm"],
+      "capability": "io.messaging"
     },
     {
       "package": "go.opentelemetry.io/otel",
@@ -62,7 +109,8 @@
       "versions": ">=1.36.12 <2",
       "entrypoints": [
         "google.golang.org/protobuf/proto",
-        "google.golang.org/protobuf/reflect/protoreflect"
+        "google.golang.org/protobuf/reflect/protoreflect",
+        "google.golang.org/protobuf/types/known/timestamppb"
       ],
       "capability": "wire.codec"
     }

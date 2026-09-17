@@ -14,13 +14,6 @@
       "bounded_context": "kernel",
       "public_integration_surface": false,
       "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/app/relay"]
-    },
-    {
-      "id": "kernel/example-reservations-app",
-      "block": "app",
-      "bounded_context": "kernel",
-      "public_integration_surface": false,
-      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/app/example/reservations"]
     }
   ],
   "external": [],

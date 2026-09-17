@@ -6,98 +6,98 @@
       "block": "domain",
       "bounded_context": "conformance",
       "public_integration_surface": false,
-      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/conformance/internal/rule"]
+      "include": ["github.com/mateusmacedo/dmpf/tools/dmpf-conformance/internal/rule"]
     },
     {
       "id": "conformance/manifest",
       "block": "domain",
       "bounded_context": "conformance",
       "public_integration_surface": false,
-      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/conformance/internal/manifest"]
+      "include": ["github.com/mateusmacedo/dmpf/tools/dmpf-conformance/internal/manifest"]
     },
     {
       "id": "conformance/baseline",
       "block": "domain",
       "bounded_context": "conformance",
       "public_integration_surface": false,
-      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/conformance/internal/baseline"]
+      "include": ["github.com/mateusmacedo/dmpf/tools/dmpf-conformance/internal/baseline"]
     },
     {
       "id": "conformance/exception",
       "block": "domain",
       "bounded_context": "conformance",
       "public_integration_surface": false,
-      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/conformance/internal/exception"]
+      "include": ["github.com/mateusmacedo/dmpf/tools/dmpf-conformance/internal/exception"]
     },
     {
       "id": "conformance/port",
       "block": "port",
       "bounded_context": "conformance",
       "public_integration_surface": false,
-      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/conformance/internal/port"]
+      "include": ["github.com/mateusmacedo/dmpf/tools/dmpf-conformance/internal/port"]
     },
     {
       "id": "conformance/conformance",
       "block": "application",
       "bounded_context": "conformance",
       "public_integration_surface": false,
-      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/conformance/internal/conformance"]
+      "include": ["github.com/mateusmacedo/dmpf/tools/dmpf-conformance/internal/conformance"]
     },
     {
       "id": "conformance/fsstore",
       "block": "provider",
       "bounded_context": "conformance",
       "public_integration_surface": false,
-      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/conformance/internal/fsstore"]
+      "include": ["github.com/mateusmacedo/dmpf/tools/dmpf-conformance/internal/fsstore"]
     },
     {
       "id": "conformance/golist",
       "block": "provider",
       "bounded_context": "conformance",
       "public_integration_surface": false,
-      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/conformance/internal/golist"]
+      "include": ["github.com/mateusmacedo/dmpf/tools/dmpf-conformance/internal/golist"]
     },
     {
       "id": "conformance/cmd",
       "block": "app",
       "bounded_context": "conformance",
       "public_integration_surface": false,
-      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/conformance/cmd/conformance"]
+      "include": ["github.com/mateusmacedo/dmpf/tools/dmpf-conformance/cmd/conformance"]
     },
     {
       "id": "conformance/fitness",
       "block": "app",
       "bounded_context": "conformance",
       "public_integration_surface": true,
-      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/conformance/fitness"]
+      "include": ["github.com/mateusmacedo/dmpf/tools/dmpf-conformance/fitness"]
     },
     {
       "id": "conformance/bom",
       "block": "app",
       "bounded_context": "conformance",
       "public_integration_surface": false,
-      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/conformance/bom"]
+      "include": ["github.com/mateusmacedo/dmpf/tools/dmpf-conformance/bom"]
     },
     {
       "id": "conformance/cmd-bom",
       "block": "app",
       "bounded_context": "conformance",
       "public_integration_surface": false,
-      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/conformance/cmd/bom"]
+      "include": ["github.com/mateusmacedo/dmpf/tools/dmpf-conformance/cmd/bom"]
     },
     {
       "id": "conformance/modsync",
       "block": "app",
       "bounded_context": "conformance",
       "public_integration_surface": false,
-      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/conformance/modsync"]
+      "include": ["github.com/mateusmacedo/dmpf/tools/dmpf-conformance/modsync"]
     },
     {
       "id": "conformance/cmd-modsync",
       "block": "app",
       "bounded_context": "conformance",
       "public_integration_surface": false,
-      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/conformance/cmd/modsync"]
+      "include": ["github.com/mateusmacedo/dmpf/tools/dmpf-conformance/cmd/modsync"]
     }
   ],
   "external": [],

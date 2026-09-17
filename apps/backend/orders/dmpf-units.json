@@ -2,9 +2,30 @@
   "schema": "dmpf/units@1",
   "units": [
     {
-      "id": "kernel/reference-orders-app",
+      "id": "orders/domain",
+      "block": "domain",
+      "bounded_context": "orders",
+      "public_integration_surface": false,
+      "include": ["github.com/mateusmacedo/dmpf/apps/backend/orders/domain"]
+    },
+    {
+      "id": "orders/application",
+      "block": "application",
+      "bounded_context": "orders",
+      "public_integration_surface": false,
+      "include": ["github.com/mateusmacedo/dmpf/apps/backend/orders/application"]
+    },
+    {
+      "id": "orders/provider-postgres",
+      "block": "provider",
+      "bounded_context": "orders",
+      "public_integration_surface": false,
+      "include": ["github.com/mateusmacedo/dmpf/apps/backend/orders/provider"]
+    },
+    {
+      "id": "orders/app",
       "block": "app",
-      "bounded_context": "kernel",
+      "bounded_context": "orders",
       "public_integration_surface": false,
       "include": [
         "github.com/mateusmacedo/dmpf/apps/backend/orders",

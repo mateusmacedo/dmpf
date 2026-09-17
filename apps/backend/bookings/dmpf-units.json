@@ -6,35 +6,35 @@
       "block": "domain",
       "bounded_context": "resource-scheduling",
       "public_integration_surface": false,
-      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/bookings/domain"]
+      "include": ["github.com/mateusmacedo/dmpf/apps/backend/bookings/domain"]
     },
     {
       "id": "resource-scheduling/ports",
       "block": "port",
       "bounded_context": "resource-scheduling",
       "public_integration_surface": false,
-      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/bookings/ports"]
+      "include": ["github.com/mateusmacedo/dmpf/apps/backend/bookings/ports"]
     },
     {
       "id": "resource-scheduling/application",
       "block": "application",
       "bounded_context": "resource-scheduling",
       "public_integration_surface": false,
-      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/bookings/application"]
+      "include": ["github.com/mateusmacedo/dmpf/apps/backend/bookings/application"]
     },
     {
       "id": "resource-scheduling/provider-postgres",
       "block": "provider",
       "bounded_context": "resource-scheduling",
       "public_integration_surface": false,
-      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/bookings/provider"]
+      "include": ["github.com/mateusmacedo/dmpf/apps/backend/bookings/provider"]
     },
     {
       "id": "resource-scheduling/app",
       "block": "app",
       "bounded_context": "resource-scheduling",
       "public_integration_surface": false,
-      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/bookings/app"]
+      "include": ["github.com/mateusmacedo/dmpf/apps/backend/bookings/app"]
     }
   ],
   "external": [
