@@ -8,7 +8,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/mateusmacedo/dmpf/libs/backend/go/application/example/memory"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/memory"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/providerkit"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb"

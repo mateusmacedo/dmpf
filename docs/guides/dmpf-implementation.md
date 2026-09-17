@@ -156,7 +156,7 @@ camada de domínio não admite infraestrutura (`PIR-04`) nem duplo de teste
 (`KIT-09`), herda de FND-05 os gates de contrato (`KIT-10`) e põe a camada
 distribuída em pipeline separado (`KIT-11`). O instrumento pronto é o
 [`testkit`](../../libs/backend/go/testkit/README.md), com roteiro na
-skill [`testkit`](../../.agents/skills/testkit/SKILL.md). Insumos de QA
+skill [`testkit`](../../.agents/skills/dmpf-testkit/SKILL.md). Insumos de QA
 (fixture de projeção e handoff): [playbook](./dmpf-qa-playbook.md) e
 [workshop `orders`/`reservations`](./dmpf-qa-workshop-orders-reservations.md).
 
@@ -171,8 +171,8 @@ composition root por último.
 estável, estados, UPRs, rejeições, eventos publicados e consumidos, critérios de
 aceite. O QA versiona o aceite como fixture — [playbook](./dmpf-qa-playbook.md).
 
-**2 — gere o esqueleto.** Um módulo Go por bloco, já com tags,
-`dmpf-units.json` e entrada no `go.work`:
+**2 — gere o esqueleto.** Um módulo Go por contexto em `apps/backend/<name>`,
+um package por bloco, já com tags, `dmpf-units.json` e entrada no `go.work`:
 
 ```bash
 pnpm nx g @mateusmacedo/dmpf-plugin:bounded-context ordering \
@@ -189,7 +189,7 @@ revisor distinto do autor. Misturar os dois emite `DMPF-T002`; divergência entr
 manifesto e baseline emite `DMPF-T001`.
 
 ```bash
-go run ./libs/backend/go/conformance/cmd/conformance --root . --write-baseline
+go run ./tools/dmpf-conformance/cmd/conformance --root . --write-baseline
 ```
 
 **4 — escreva o contrato.** Um `.proto` por evento publicado, no caminho de
@@ -228,13 +228,13 @@ passo fecha as decisões do seguinte:
 mesma que o [checklist](#8-checklist-final) cobra:
 
 ```bash
-pnpm nx run <modulo>-go:fmt-check
-pnpm nx run <modulo>-go:vet
-pnpm nx run <modulo>-go:lint
-pnpm nx run <modulo>-go:build
-pnpm nx run <modulo>-go:test-race
-pnpm nx run <modulo>-go:govulncheck
-go run ./libs/backend/go/conformance/cmd/conformance --root .
+pnpm nx run <modulo>:fmt-check
+pnpm nx run <modulo>:vet
+pnpm nx run <modulo>:lint
+pnpm nx run <modulo>:build
+pnpm nx run <modulo>:test-race
+pnpm nx run <modulo>:govulncheck
+go run ./tools/dmpf-conformance/cmd/conformance --root .
 ```
 
 O `govulncheck` roda sem cache porque consulta base remota — é o passo mais
@@ -462,9 +462,11 @@ chama outro é a sua própria, e a do sujeito original é proveniência (`CTX-12
 ([ADR-037](../adr/037-observabilidade-otel-e-retry-por-conjuncao-em-go.md)).
 
 Para provar o que você escreveu, **`testkit`** tem um kit por camada —
-`domainkit`, `golden`, `serviceskit`, `providerkit`, `appkit`, `distkit` e
-`fitness` —, todos devolvendo veredicto por valor
-([README do módulo](../../libs/backend/go/testkit/README.md)). E
+`domainkit`, `golden`, `serviceskit`, `providerkit` e `fitness` —, todos
+devolvendo veredicto por valor
+([README do módulo](../../libs/backend/go/testkit/README.md)); os harnesses
+borda a borda e distribuído (`appkit`, `distkit`) são do contexto que os
+exercita, em `apps/backend/reservations`. E
 **`conformance`** é o gate *fail-closed* sobre o grafo real de imports:
 exit 0 é aprovação, exit 1 é reprovação, exit 2 é falha de execução — que
 **nunca** pode ser lida como conformidade.
@@ -475,8 +477,9 @@ exit 0 é aprovação, exit 1 é reprovação, exit 2 é falha de execução —
 
 Exemplo **didático**, que não existe no código: serve para mostrar como cinco
 contextos autônomos colaboram sem que nenhum importe o domínio do outro. Os
-exemplos que existem no repositório — `orders` e `reservations` — são referência
-**técnica** do kernel, não modelagem a copiar.
+contextos de referência que existem no repositório — `orders` e `reservations`,
+em `apps/backend` — são referência **técnica** do kernel, não modelagem a
+copiar.
 
 Os cinco são `ordering`, `payment`, `preparation`, `collection` e `delivery`.
 Cada um é dono do próprio agregado, da própria inbox e da própria outbox: quem

@@ -6,16 +6,21 @@ import (
 	"strconv"
 	"time"
 
-	ordersapp "github.com/mateusmacedo/dmpf/libs/backend/go/application/example/orders"
-	reservationsapp "github.com/mateusmacedo/dmpf/libs/backend/go/application/example/reservations"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/kafka"
 	obsclock "github.com/mateusmacedo/dmpf/libs/backend/go/observability/clock"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/otelboot"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/resilience"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/channel"
+
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/application"
 )
 
 const (
+	// ordersDestination is the logical flow the orders context publishes. The
+	// consumer names it itself: a context never imports another context's
+	// blocks, and the channel name, not the package, is the contract (ASY-01).
+	ordersDestination = "orders.events"
+
 	orderPlacedEventType         = "com.company.orders.order-placed"
 	orderPlacedContract          = "company/orders/event/v1/order_placed.proto#OrderPlaced"
 	reservationConfirmedType     = "com.company.reservations.reservation-confirmed"
@@ -31,13 +36,13 @@ const (
 // OrdersChannel is the channel the consumer reads, named after the destination
 // the orders use case authors.
 func OrdersChannel(cfg Config) channel.Channel {
-	return kafkaChannel(ordersapp.Destination, cfg.OrdersTopic, cfg.OrdersDLQ, cfg.Group, orderPlacedEventType, orderPlacedContract)
+	return kafkaChannel(ordersDestination, cfg.OrdersTopic, cfg.OrdersDLQ, cfg.Group, orderPlacedEventType, orderPlacedContract)
 }
 
 // ReservationsChannel is the channel the relay publishes to, named after the
 // destination the reservations use cases author, because the publisher resolves by it.
 func ReservationsChannel(cfg Config) channel.Channel {
-	return kafkaChannel(reservationsapp.Destination, cfg.ReservationsTopic, cfg.ReservationsDLQ, cfg.Group, reservationConfirmedType, reservationConfirmedContract)
+	return kafkaChannel(application.Destination, cfg.ReservationsTopic, cfg.ReservationsDLQ, cfg.Group, reservationConfirmedType, reservationConfirmedContract)
 }
 
 func kafkaChannel(name, address, dlq, group, eventType, contract string) channel.Channel {

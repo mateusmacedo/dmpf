@@ -10,9 +10,11 @@ require (
 	github.com/mateusmacedo/dmpf/libs/backend/go/domain v0.1.0
 	github.com/mateusmacedo/dmpf/libs/backend/go/grpc v0.1.0
 	github.com/mateusmacedo/dmpf/libs/backend/go/kafka v0.1.0
+	github.com/mateusmacedo/dmpf/libs/backend/go/memory v0.1.0
 	github.com/mateusmacedo/dmpf/libs/backend/go/observability v0.1.0
 	github.com/mateusmacedo/dmpf/libs/backend/go/ports v0.1.0
 	github.com/mateusmacedo/dmpf/libs/backend/go/postgres v0.1.0
+	github.com/mateusmacedo/dmpf/libs/backend/go/testkit v0.1.0
 	github.com/mateusmacedo/dmpf/libs/backend/go/transport v0.1.0
 	go.opentelemetry.io/otel v1.46.0
 	go.opentelemetry.io/otel/sdk v1.46.0

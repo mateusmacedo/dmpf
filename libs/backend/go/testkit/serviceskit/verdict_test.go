@@ -6,8 +6,6 @@ import (
 	"testing"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/application"
-	ordersapp "github.com/mateusmacedo/dmpf/libs/backend/go/application/example/orders"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/domain/example/orders"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/clock"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/evidence"
@@ -26,34 +24,34 @@ func (u uowOf[R]) Within(ctx context.Context, fn func(context.Context, R) error)
 	return u.inner.Within(ctx, func(ctx context.Context, res any) error { return fn(ctx, res.(R)) })
 }
 
-func ordersService(f *serviceskit.Fakes) ordersapp.Service {
+func countersService(f *serviceskit.Fakes) counterService {
 	uow := f.UnitOfWork(func(tx serviceskit.Tx) any {
-		return ordersapp.Resources{
-			Orders: serviceskit.Repository(tx, tx.Memory().Orders(), func(id orders.OrderID) string { return string(id) }),
-			Outbox: tx.Outbox(),
+		return counterResources{
+			Counters: serviceskit.Repository(tx, countersTable.Repository(tx.Memory()), func(id counterID) string { return string(id) }),
+			Outbox:   tx.Outbox(),
 		}
 	})
-	return ordersapp.Service{
-		UoW:       uowOf[ordersapp.Resources]{inner: uow},
-		Reader:    f.Store.Reader(),
+	return counterService{
+		UoW:       uowOf[counterResources]{inner: uow},
+		Reader:    countersTable.Reader(f.Store),
 		Clock:     clock.New(at),
 		IDs:       &ids.Sequence{Prefix: "m-"},
-		Authorize: application.AllowAll[ordersapp.Command](),
-		ItemLimit: 2,
+		Authorize: application.AllowAll[bumpCounter](),
+		Limit:     2,
 	}
 }
 
 func TestAcceptedCommitsStateAndOutboxTogether(t *testing.T) {
 	f := serviceskit.NewFakes()
-	svc := ordersService(f)
-	outcome, err := svc.AddItem(context.Background(), ordersapp.AddItem{Order: "o-1", SKU: "A", Quantity: 1})
+	svc := countersService(f)
+	outcome, err := svc.Bump(context.Background(), bumpCounter{Counter: "c-1", By: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, refused := outcome.Rejection(); refused {
-		t.Fatal("AddItem refused on an empty order")
+		t.Fatal("Bump refused on a fresh counter")
 	}
-	if got := f.Ledger.String(); got != "[begin write(o-1) enqueue(m-000001) commit]" {
+	if got := f.Ledger.String(); got != "[begin write(c-1) enqueue(m-000001) commit]" {
 		t.Fatalf("ledger = %s", got)
 	}
 	v := serviceskit.Decide(f, serviceskit.Expect{Accepted: true})
@@ -63,23 +61,23 @@ func TestAcceptedCommitsStateAndOutboxTogether(t *testing.T) {
 
 func TestRejectedLeavesNothingBehind(t *testing.T) {
 	f := serviceskit.NewFakes()
-	svc := ordersService(f)
+	svc := countersService(f)
 	ctx := context.Background()
-	for _, sku := range []orders.SKU{"A", "B"} {
-		if _, err := svc.AddItem(ctx, ordersapp.AddItem{Order: "o-1", SKU: sku, Quantity: 1}); err != nil {
+	for range 2 {
+		if _, err := svc.Bump(ctx, bumpCounter{Counter: "c-1", By: 1}); err != nil {
 			t.Fatal(err)
 		}
 	}
 	f.Ledger.Reset()
 	before := len(f.Store.Entries())
 
-	outcome, err := svc.AddItem(ctx, ordersapp.AddItem{Order: "o-1", SKU: "C", Quantity: 1})
+	outcome, err := svc.Bump(ctx, bumpCounter{Counter: "c-1", By: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
 	rej, refused := outcome.Rejection()
-	if !refused || rej.Code() != orders.CodeItemLimitExceeded {
-		t.Fatalf("outcome = %+v, want item-limit-exceeded", outcome)
+	if !refused || rej.Code() != codeLimitExceeded {
+		t.Fatalf("outcome = %+v, want limit-exceeded", outcome)
 	}
 	if got := f.Ledger.String(); got != "[begin commit]" {
 		t.Fatalf("ledger = %s, want an effect-free commit (UOW-06 rationale)", got)
@@ -92,15 +90,15 @@ func TestRejectedLeavesNothingBehind(t *testing.T) {
 	// entries the accepted ones enqueued — Decide judges the refused command by
 	// its ledger, so the fixture's entries are discounted.
 	fresh := serviceskit.NewFakes()
-	svc = ordersService(fresh)
-	for _, sku := range []orders.SKU{"A", "B"} {
-		if _, err := svc.AddItem(ctx, ordersapp.AddItem{Order: "o-1", SKU: sku, Quantity: 1}); err != nil {
+	svc = countersService(fresh)
+	for range 2 {
+		if _, err := svc.Bump(ctx, bumpCounter{Counter: "c-1", By: 1}); err != nil {
 			t.Fatal(err)
 		}
 	}
 	fresh.Ledger.Reset()
 	fresh.Baseline()
-	if _, err := svc.AddItem(ctx, ordersapp.AddItem{Order: "o-1", SKU: "C", Quantity: 1}); err != nil {
+	if _, err := svc.Bump(ctx, bumpCounter{Counter: "c-1", By: 1}); err != nil {
 		t.Fatal(err)
 	}
 	v := serviceskit.Decide(fresh, serviceskit.Expect{Accepted: false})

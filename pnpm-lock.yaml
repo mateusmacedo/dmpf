@@ -250,10 +250,6 @@ importers:
 
   libs/backend/go/application: {}
 
-  libs/backend/go/bookings: {}
-
-  libs/backend/go/conformance: {}
-
   libs/backend/go/contracts: {}
 
   libs/backend/go/domain: {}
@@ -263,6 +259,8 @@ importers:
   libs/backend/go/http: {}
 
   libs/backend/go/kafka: {}
+
+  libs/backend/go/memory: {}
 
   libs/backend/go/observability: {}
 
@@ -275,6 +273,8 @@ importers:
   libs/backend/go/testkit: {}
 
   libs/backend/go/transport: {}
+
+  tools/dmpf-conformance: {}
 
   tools/dmpf-plugin:
     dependencies:

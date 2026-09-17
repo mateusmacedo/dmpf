@@ -15,16 +15,20 @@ import (
 	"google.golang.org/grpc/test/bufconn"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/mateusmacedo/dmpf/apps/backend/reservations/rpc"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/application"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/application/example/memory"
-	reservationsapp "github.com/mateusmacedo/dmpf/libs/backend/go/application/example/reservations"
+	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/memory"
 	obsclock "github.com/mateusmacedo/dmpf/libs/backend/go/observability/clock"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/metrics"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/admission"
+
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/application"
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/rpc"
 )
+
+var reservationsTable = memory.Table[domain.OrderID, domain.Snapshot]{Name: "reservations"}
 
 const (
 	occurred    = ports.Instant(1_755_432_000_000_000_000)
@@ -46,14 +50,14 @@ func newHarness(t *testing.T, limit admission.Limit) *harness {
 	t.Helper()
 
 	store := memory.New()
-	service := reservationsapp.Service{
-		UoW: memory.NewUnitOfWork(store, func(tx *memory.Tx) reservationsapp.Resources {
-			return reservationsapp.Resources{Inbox: tx.Inbox("reservations"), Reservations: tx.Reservations(), Outbox: tx.Outbox()}
+	service := application.Service{
+		UoW: memory.NewUnitOfWork(store, func(tx *memory.Tx) application.Resources {
+			return application.Resources{Inbox: tx.Inbox("reservations"), Reservations: reservationsTable.Repository(tx), Outbox: tx.Outbox()}
 		}),
-		Reader:    store.ReservationsReader(),
+		Reader:    reservationsTable.Reader(store),
 		Clock:     memory.FixedClock{At: occurred},
 		IDs:       &memory.SequenceIDs{Prefix: "m-"},
-		Authorize: application.AllowAll[reservationsapp.Command](),
+		Authorize: usecase.AllowAll[application.Command](),
 		Consumer:  "reservations",
 	}
 

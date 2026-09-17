@@ -24,7 +24,7 @@ set -uo pipefail
 ROOT="$(git rev-parse --show-toplevel)" || { echo "fora de um repositorio git" >&2; exit 2; }
 cd "$ROOT" || exit 2
 
-VERIFICADOR="./libs/backend/go/conformance/cmd/conformance"
+VERIFICADOR="./tools/dmpf-conformance/cmd/conformance"
 BASE_IMPORT="github.com/mateusmacedo/dmpf/libs/backend/go"
 
 PROBE_X_DIR="libs/backend/go/probe-x"
@@ -32,11 +32,11 @@ PROBE_Y_DIR="libs/backend/go/probe-y"
 PROBE_X_PKG="$BASE_IMPORT/probe-x"
 PROBE_Y_PKG="$BASE_IMPORT/probe-y"
 
-# kernel/domain e kernel/example-orders, os dois pela chave real de
-# libs/backend/go/domain/dmpf-units.json: o primeiro é a unidade
-# designada nos vetores, o segundo a não designada do mesmo módulo.
+# kernel/domain e kernel/testkit-domain, os dois pela chave real dos manifestos
+# de libs/backend/go/domain e libs/backend/go/testkit: o primeiro é a unidade
+# designada nos vetores, o segundo a não designada do mesmo bounded context.
 DESIGNADA="$BASE_IMPORT/domain"
-NAO_DESIGNADA="$BASE_IMPORT/domain/example/orders"
+NAO_DESIGNADA="$BASE_IMPORT/testkit/domainkit"
 
 WORKTREE=""
 descartar_worktree() {
@@ -168,7 +168,7 @@ TOTAL_CENARIOS=4
 VETORES_D002=(
   # nome|import-alvo|exit-esperado|codigos-esperados(sep. por espaço, vazio = nenhum)|par chave->alvo (vazio = não conferir)
   "designada (shared kernel)|$DESIGNADA|0||"
-  "nao-designada (mesmo modulo domain)|$NAO_DESIGNADA|1|DMPF-D002|$PROBE_X_PKG -> $NAO_DESIGNADA"
+  "nao-designada (mesmo bounded context kernel)|$NAO_DESIGNADA|1|DMPF-D002|$PROBE_X_PKG -> $NAO_DESIGNADA"
   "outro bounded context (probe-y)|$PROBE_Y_PKG|1|DMPF-D002|$PROBE_X_PKG -> $PROBE_Y_PKG"
 )
 
@@ -207,7 +207,7 @@ done
 # gate — se DMPF-T002 não disparar aqui, é sinal de buraco na tarefa 1.5, não
 # motivo para afrouxar a checagem até o script ficar verde.
 preparar_ambiente
-designar_shared_kernel '["kernel/domain", "kernel/example-orders"]'
+designar_shared_kernel '["kernel/domain", "kernel/testkit-domain"]'
 printf '\nconst MarkerV2 = "probe-x-v2"\n' >> "$WORKTREE/$PROBE_X_DIR/probe.go" \
   || falha_setup "editar probe.go do sexto ato"
 commitar "refactor(probe): rotate shared kernel designation and touch code" \

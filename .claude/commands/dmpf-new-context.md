@@ -55,9 +55,9 @@ done
   continua (o agente escreve muitos arquivos).
 - `git branch --show-current` fora de `master`, `develop` e `release/*`;
   caso contrário, recuse: "crie uma branch de trabalho antes".
-- `libs/backend/go/<name>-domain` **não** existe (o `name` vem da seção
-  Identidade); caso contrário, recuse: "o contexto `<name>` já existe; este
-  command só cria".
+- `apps/backend/<name>` **não** existe (o `name` vem da seção Identidade);
+  caso contrário, recuse: "o contexto `<name>` já existe; este command só
+  cria".
 
 ## 4. Invocar o agente
 
@@ -81,16 +81,15 @@ Depois do relatório, imprima sempre:
 
 ```text
 Rito restante (passos humanos):
-  1. pnpm install                                    (se o agente não rodou)
-  2. (cd contracts && bash ../tools/buf.sh generate)  → gen/go
+  1. (cd contracts && bash ../tools/buf.sh generate)  → gen/go
      pnpm nx run contracts:buf-lint
      pnpm nx run contracts:buf-pins
      pnpm nx run contracts:buf-generate-check
      NX_BASE=origin/develop pnpm nx run contracts:buf-breaking
-  3. go run ./libs/backend/go/conformance/cmd/conformance --root . --write-baseline
+  2. go run ./tools/dmpf-conformance/cmd/conformance --root . --write-baseline
      git add tools/dmpf-baseline/units-baseline.json && git commit   (só o baseline — DMPF-T002)
-  4. go run ./libs/backend/go/conformance/cmd/conformance --root . --base origin/develop
-  5. Um commit por projeto Nx (AGENTS.md §Convenções obrigatórias); PR para develop.
+  3. go run ./tools/dmpf-conformance/cmd/conformance --root . --base origin/develop
+  4. Um commit por projeto Nx (AGENTS.md §Convenções obrigatórias); PR para develop.
 ```
 
 Se o agente parou num gate normativo, imprima o gate em vez do rito e não

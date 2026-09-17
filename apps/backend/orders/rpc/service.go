@@ -10,10 +10,10 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 
-	ordersapp "github.com/mateusmacedo/dmpf/libs/backend/go/application/example/orders"
+	"github.com/mateusmacedo/dmpf/apps/backend/orders/application"
+	"github.com/mateusmacedo/dmpf/apps/backend/orders/domain"
 	servicev1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/orders/service/v1"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/domain"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/domain/example/orders"
+	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
 )
 
 var descriptor = servicev1.File_company_orders_service_v1_orders_service_proto.Services().ByName("OrdersService")
@@ -90,7 +90,7 @@ func unary[Req any, PReq interface {
 
 // Server realizes OrdersServer over the orders use cases.
 type Server struct {
-	Service ordersapp.Service
+	Service application.Service
 }
 
 func (s Server) AddItem(ctx context.Context, req *servicev1.AddItemRequest) (*servicev1.AddItemResponse, error) {
@@ -98,7 +98,7 @@ func (s Server) AddItem(ctx context.Context, req *servicev1.AddItemRequest) (*se
 	if err != nil {
 		return nil, err
 	}
-	out, err := s.Service.AddItem(ctx, ordersapp.AddItem{Order: id, SKU: orders.SKU(req.GetSku()), Quantity: int(req.GetQuantity())})
+	out, err := s.Service.AddItem(ctx, application.AddItem{Order: id, SKU: domain.SKU(req.GetSku()), Quantity: int(req.GetQuantity())})
 	if err != nil {
 		return nil, statusOf(err)
 	}
@@ -116,7 +116,7 @@ func (s Server) PlaceOrder(ctx context.Context, req *servicev1.PlaceOrderRequest
 	if err != nil {
 		return nil, err
 	}
-	out, err := s.Service.PlaceOrder(ctx, ordersapp.PlaceOrder{Order: id})
+	out, err := s.Service.PlaceOrder(ctx, application.PlaceOrder{Order: id})
 	if err != nil {
 		return nil, statusOf(err)
 	}
@@ -149,24 +149,24 @@ func (s Server) FindOrder(ctx context.Context, req *servicev1.FindOrderRequest) 
 	}}, nil
 }
 
-func orderID(raw string) (orders.OrderID, error) {
+func orderID(raw string) (domain.OrderID, error) {
 	if !orderIDFormat.MatchString(raw) {
 		return "", status.Error(codes.InvalidArgument, "order_id must have 1 to 128 characters of [A-Za-z0-9._:-]")
 	}
-	return orders.OrderID(raw), nil
+	return domain.OrderID(raw), nil
 }
 
-func orderStatus(s orders.Status) servicev1.OrderStatus {
+func orderStatus(s domain.Status) servicev1.OrderStatus {
 	switch s {
-	case orders.Open:
+	case domain.Open:
 		return servicev1.OrderStatus_ORDER_STATUS_OPEN
-	case orders.Placed:
+	case domain.Placed:
 		return servicev1.OrderStatus_ORDER_STATUS_PLACED
 	default:
 		return servicev1.OrderStatus_ORDER_STATUS_UNSPECIFIED
 	}
 }
 
-func rejectionOf(rejection *domain.Rejection) *servicev1.Rejection {
+func rejectionOf(rejection *kernel.Rejection) *servicev1.Rejection {
 	return &servicev1.Rejection{Code: string(rejection.Code()), Message: rejection.Message()}
 }

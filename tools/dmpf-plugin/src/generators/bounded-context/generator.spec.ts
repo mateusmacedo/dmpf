@@ -5,9 +5,9 @@ import { boundedContextGenerator } from './generator';
 import type { BoundedContextGeneratorSchema } from './schema';
 
 const GO_VERSION = '1.26.6';
-const DIRECTORY = 'libs/backend/go';
+const DIRECTORY = 'apps/backend';
 const MODULE_PREFIX = 'github.com/mateusmacedo/dmpf';
-const NX_PROJECT_SCHEMA = '../../../../node_modules/nx/schemas/project-schema.json';
+const NX_PROJECT_SCHEMA = '../../../node_modules/nx/schemas/project-schema.json';
 const GOFMT_COMMAND = String.raw`saida="$(gofmt -l . 2>&1)"; status=$?; [ $status -eq 0 ] || { printf '%s\n' "$saida" >&2; exit $status; }; [ -z "$saida" ] || { printf '%s\n' "$saida" >&2; exit 1; }`;
 
 const GO_WORK = [
@@ -241,7 +241,7 @@ describe('[generator] bounded-context — generation', () => {
 
     expect(project.name).toBe('checkout');
     expect(project.$schema).toBe(NX_PROJECT_SCHEMA);
-    expect(project.projectType).toBe('library');
+    expect(project.projectType).toBe('application');
     expect(project.sourceRoot).toBe(MODULE_DIR);
   });
 
@@ -257,7 +257,7 @@ describe('[generator] bounded-context — generation', () => {
       const tree = await generate({ blocks });
 
       expect(projectOf(tree).tags).toEqual([
-        'type:lib',
+        'type:app',
         'scope:backend',
         'stack:go',
         `layer:${layer}`,
@@ -342,8 +342,8 @@ describe('[generator] bounded-context — generation', () => {
     const tree = await generate();
 
     expect(useEntries(readText(tree, 'go.work'))).toEqual([
+      './apps/backend/checkout',
       './libs/backend/go/app',
-      './libs/backend/go/checkout',
       './libs/backend/go/domain',
       './libs/backend/go/ports',
     ]);
@@ -498,7 +498,7 @@ describe('[generator] bounded-context — refusals', () => {
           'go.work',
           GO_WORK.replace(
             '\t./libs/backend/go/app\n',
-            '\t./libs/backend/go/checkout\n\t./libs/backend/go/app\n',
+            '\t./apps/backend/checkout\n\t./libs/backend/go/app\n',
           ),
         );
       },

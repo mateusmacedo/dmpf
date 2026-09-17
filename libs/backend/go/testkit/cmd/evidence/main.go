@@ -60,7 +60,7 @@ var catalog = []subjectSpec{
 		name: "provider",
 		packages: []string{
 			modulePrefix + "libs/backend/go/postgres",
-			modulePrefix + "libs/backend/go/application/example/memory",
+			modulePrefix + "libs/backend/go/memory",
 		},
 		tags:     []string{"integration"},
 		env:      []string{envPostgres},
@@ -79,14 +79,14 @@ var catalog = []subjectSpec{
 	},
 	{
 		name:     "app",
-		packages: []string{modulePrefix + "libs/backend/go/testkit/appkit"},
+		packages: []string{modulePrefix + "apps/backend/reservations/appkit"},
 		tags:     []string{"integration"},
 		env:      []string{envPostgres},
 		postgres: true,
 	},
 	{
 		name:     "dist",
-		packages: []string{modulePrefix + "libs/backend/go/testkit/distkit"},
+		packages: []string{modulePrefix + "apps/backend/reservations/distkit"},
 		tags:     []string{"integration", "distributed"},
 		skip:     []string{"TestDistkitRole"},
 		env:      []string{envPostgres, envKafka, envRedpandaAdmin},
@@ -97,6 +97,7 @@ var catalog = []subjectSpec{
 		name: "reference",
 		packages: []string{
 			modulePrefix + "apps/backend/bff/...",
+			modulePrefix + "apps/backend/bookings/...",
 			modulePrefix + "apps/backend/orders/...",
 			modulePrefix + "apps/backend/reservations/...",
 		},

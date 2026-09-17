@@ -80,7 +80,7 @@ tag anotada `dmpf@<semver>`, com o BOM em `bom/dmpf/<semver>.json`.
    git tag -a dmpf@<semver> -m "DMPF release <semver> — BOM bom/dmpf/<semver>.json" <merge-commit>
    git cat-file -t dmpf@<semver>        # tag: anotada
    git rev-list -n1 dmpf@<semver>       # o merge commit
-   go run ./libs/backend/go/conformance/cmd/bom --root . --release <semver>
+   go run ./tools/dmpf-conformance/cmd/bom --root . --release <semver>
    git push origin master dmpf@<semver>
    ```
 

@@ -3,7 +3,9 @@
 Plugin Nx local do workspace com o generator `bounded-context`, que cria o
 **esqueleto** de um bounded context DMPF em Go — um módulo por contexto, um
 package por bloco da arquitetura (`domain`, `port`, `application`, `provider`,
-`app`; ADR-045) — já na convenção dos módulos do kernel: tags 3D mais `layer:*`,
+`app`; ADR-045) — em `apps/backend/<name>`, porque um contexto de negócio é
+uma app (`type:app`) e em `libs/backend/go` fica só o kernel de reuso
+(ADR-046) —, já na convenção dos módulos do kernel: tags 3D mais `layer:*`,
 `dmpf-units.json` com `block` e `bounded_context` declarados por unidade,
 `go.mod` sem `require` e a entrada no `go.work`. O código de negócio dos blocos não é gerado aqui: é escrito por
 agentes a partir de uma spec de bounded context, pelo harness da
@@ -20,7 +22,7 @@ plugin não é unidade, o que ele gera é.
 pnpm nx g @mateusmacedo/dmpf-plugin:bounded-context <name> \
   --bounded-context <ctx> \
   [--blocks domain,port,application,provider,app] \
-  [--directory libs/backend/go] \
+  [--directory apps/backend] \
   [--dry-run]
 ```
 
@@ -29,7 +31,7 @@ pnpm nx g @mateusmacedo/dmpf-plugin:bounded-context <name> \
 | `name` (posicional) | sim | — | `^[a-z][a-z0-9-]*$`; nome da pasta do módulo, do projeto Nx e do pacote npm privado; os packages Go levam o nome do bloco |
 | `--bounded-context` | sim | — | `^[a-z][a-z0-9-]*$`; valor literal de `bounded_context` nos manifestos, nunca derivado do nome nem do diretório (ADR-012) |
 | `--blocks` | não | os cinco | subconjunto precisa fechar as dependências entre blocos; `contract` é recusado |
-| `--directory` | não | `libs/backend/go` | relativo à raiz, sem `..` |
+| `--directory` | não | `apps/backend` | relativo à raiz, sem `..` |
 | `--dry-run` | não | — | flag do próprio Nx: lista e não escreve |
 
 O `name` é usado literalmente em kebab-case como pasta do módulo e nome do
@@ -45,7 +47,8 @@ de rota são do código de negócio, escrito pelo harness.
 
 O contexto vira **um** módulo `<directory>/<name>`, projeto Nx `<name>`, com
 cinco arquivos na raiz: `README.md`, `go.mod` (workspace-only, sem `require`),
-`project.json` (quatro tags e os cinco targets dos módulos existentes —
+`project.json` (quatro tags — `type:app`, `scope:backend`, `stack:go` e a
+`layer:*` — e os cinco targets dos módulos existentes —
 `fmt-check`, `vet`, `build`, `test-race`, `govulncheck`), `package.json`
 (privado, `0.0.0`) e `dmpf-units.json` (`schema: dmpf/units@1`, uma unidade
 `<ctx>/<sufixo>` por bloco, com `include` do package do bloco). Cada bloco vira
@@ -79,12 +82,14 @@ classificação (AUT-01), então o baseline do verificador é regravado em commi
 próprio, separado do código:
 
 ```bash
-go run ./libs/backend/go/conformance/cmd/conformance --root . --write-baseline
+go run ./tools/dmpf-conformance/cmd/conformance --root . --write-baseline
 ```
 
 O generator nunca regrava o baseline por conta própria (ADR-031). O módulo
-gerado tem `package.json` e vira importer do pnpm — rode `pnpm install` depois
-de gerar. O rito completo — manifesto, baseline, gate no CI — está em
+gerado tem `package.json` privado, como as demais apps Go, mas não é importer
+do pnpm: `apps/backend/<name>` fica fora dos globs do `pnpm-workspace.yaml`
+(`apps/*`), e só o Nx o lê — não há `pnpm install` depois de gerar. O rito
+completo — manifesto, baseline, gate no CI — está em
 `docs/guides/dmpf-manifesto.md`.
 
 ## Verificação

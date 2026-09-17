@@ -250,7 +250,7 @@ projetos_gerados() {
   for bloco in "${blocos[@]}"; do
     [ -n "$bloco" ] || continue
     case "$bloco" in port) bloco=ports ;; esac
-    [ -d "$WT/libs/backend/go/$NOME/$bloco" ] || faltando+=("$bloco")
+    [ -d "$WT/apps/backend/$NOME/$bloco" ] || faltando+=("$bloco")
   done
   [ "${#faltando[@]}" -eq 0 ] \
     || falha "bloco(s) pedido(s) sem diretório no módulo gerado: ${faltando[*]} — a lista --blocks não chegou inteira ao generator"
@@ -313,7 +313,7 @@ commitar_classificacao() {
   [ "${#manifestos[@]}" -gt 0 ] || falha "nenhum dmpf-units.json entre os arquivos gerados"
 
   git -C "$WT" add -- "${manifestos[@]}" || falha "git add dos manifestos de unidade"
-  saida="$(cd "$WT" && go run ./libs/backend/go/conformance/cmd/conformance \
+  saida="$(cd "$WT" && go run ./tools/dmpf-conformance/cmd/conformance \
     --root . --write-baseline 2>&1)"
   status=$?
   if [ "$status" -ne 0 ]; then
@@ -361,7 +361,7 @@ cadeia_nx() {
 
 verificar_conformidade() {
   local saida status
-  saida="$(go run ./libs/backend/go/conformance/cmd/conformance \
+  saida="$(go run ./tools/dmpf-conformance/cmd/conformance \
     --root "$WT" --base "$HEAD0" 2>&1)"
   status=$?
   printf '%s\n' "$saida"

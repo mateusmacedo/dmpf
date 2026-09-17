@@ -18,15 +18,15 @@ kernel exemplifica a forma. `<name>` é o identificador Go do contexto (ex.:
 
 ```bash
 pnpm nx g @mateusmacedo/dmpf-plugin:bounded-context <name> --boundedContext <ctx>
-pnpm install
 ```
 
-- Produz o módulo `libs/backend/go/<name>` com `project.json` (tags 3D +
-  `layer:*` do bloco mais alto, `test-race` com `dependsOn` em
+- Produz o módulo `apps/backend/<name>` com `project.json` (tags 3D com
+  `type:app` + `layer:*` do bloco mais alto, `test-race` com `dependsOn` em
   `postgres`), `go.mod` sem `require` (resolve pelo `go.work`), `package.json`,
   `dmpf-units.json` com uma unidade por bloco, `README.md` e um `doc.go` por
   bloco em `<name>/{domain,ports,application,provider,app}`; acrescenta um `use`
-  ao `go.work` (ADR-045).
+  ao `go.work` (ADR-045). Não há `pnpm install`: `apps/backend/<name>` fica
+  fora dos globs do `pnpm-workspace.yaml`, e só o Nx o lê.
 - Norma: ADR-012 (classificação declarada); `tools/dmpf-plugin/README.md`.
 - Nunca editar o que o generator escreveu; `include` por merge no passo 9.
 
@@ -34,13 +34,13 @@ pnpm install
 
 | Peça | Molde |
 | --- | --- |
-| Agregado, `Snapshot`, `From*Snapshot`, `Equal`, `clone` | `libs/backend/go/domain/example/orders/order.go` |
-| UPR de criação | `orders/place.go` |
-| UPR sobre agregado existente | `orders/add_item.go` |
-| Agregado com chave natural e `initializesOnNotFound` | `domain/example/reservations/reservation.go`, `reserve.go` |
-| Comando, resposta e evento (`EventName()` = `<ctx>.<agregado>.<evento>`) | `orders/messages.go` |
-| Rejeições (`<ctx>/<agregado>/<rejeicao>`) | `orders/rejections.go` |
-| Testes: por pré-condição, por efeito, determinismo, snapshot | `orders/{add_item_test,place_test,determinism_test,snapshot_test,helpers_test}.go` |
+| Agregado, `Snapshot`, `From*Snapshot`, `Equal`, `clone` | `apps/backend/orders/domain/order.go` |
+| UPR de criação | `orders/domain/place.go` |
+| UPR sobre agregado existente | `orders/domain/add_item.go` |
+| Agregado com chave natural e `initializesOnNotFound` | `apps/backend/reservations/domain/reservation.go`, `reserve.go` |
+| Comando, resposta e evento (`EventName()` = `<ctx>.<agregado>.<evento>`) | `orders/domain/messages.go` |
+| Rejeições (`<ctx>/<agregado>/<rejeicao>`) | `orders/domain/rejections.go` |
+| Testes: por pré-condição, por efeito, determinismo, snapshot | `orders/domain/{add_item_test,place_test,determinism_test,snapshot_test,helpers_test}.go` |
 
 - Norma: ADR-032 (desfecho `(Accepted[R], *Rejection)`, tipo concreto);
   `.golangci.yml` `depguard`/`forbidigo` do bloco `domain` (sem `time`,
@@ -61,13 +61,13 @@ pnpm install
 
 | Peça | Molde |
 | --- | --- |
-| `service.go`: `AggregateType`, `Destination`, `Resources`, `Command` selado, `enqueueAll` | `libs/backend/go/application/example/orders/service.go` |
-| Caso de uso de criação (nove passos, ramo `creates`) | `orders/place_order.go` |
-| Caso de uso sobre existente | `orders/add_item.go` |
-| Consulta fora da UoW | `orders/find_order.go` |
-| Caso de uso de consumo (sete disposições) — só se consome | `application/example/reservations/consume.go` |
-| Fakes em memória para teste | `application/example/memory/{tx,store,inbox,clock,errors}.go` |
-| Testes de sequência e instrumentação | `orders/{sequence_test,instrumentation_test,doubles_test}.go` |
+| `service.go`: `AggregateType`, `Destination`, `Resources`, `Command` selado, `enqueueAll` | `apps/backend/orders/application/service.go` |
+| Caso de uso de criação (nove passos, ramo `creates`) | `orders/application/place_order.go` |
+| Caso de uso sobre existente | `orders/application/add_item.go` |
+| Consulta fora da UoW | `orders/application/find_order.go` |
+| Caso de uso de consumo (sete disposições) — só se consome | `apps/backend/reservations/application/consume.go` |
+| Realização em memória para teste (`memory.Table[ID, S]` por agregado) | `libs/backend/go/memory/{tx,store,inbox,clock,errors}.go` |
+| Testes de sequência e instrumentação | `orders/application/{sequence_test,instrumentation_test,doubles_test}.go` |
 
 - Norma: FND-04 §3.2 (a sequência canônica), §6.4 (disposições); ADR-035
   (evento na mesma transação do estado).
@@ -77,11 +77,11 @@ pnpm install
 | Peça | Molde |
 | --- | --- |
 | `schema.sql`: tabela `<ctx>_<agregado>` com `id`, `version`, `snapshot jsonb`, coluna por campo de consulta/relação, índices na ordem do `by[]` | `libs/backend/go/postgres/schema.sql` |
-| Repositório com optimistic locking | `postgres/example/orders/repository.go` |
-| Mapper evento → payload do contrato (`instant` → `google.protobuf.Timestamp`) | `orders/mapper.go` |
-| `Reader`, um SQL por consulta | `orders/reader.go` |
-| Harness de teste próprio (migra o kernel **e** o contexto; trunca as tabelas do kernel **e** as do contexto) | `orders/testing_test.go` |
-| Testes de repositório, concorrência, e2e (build tag `integration`) | `orders/{repository_test,concurrency_test,e2e_test}.go` |
+| Repositório com optimistic locking | `apps/backend/orders/provider/repository.go` |
+| Mapper evento → payload do contrato (`instant` → `google.protobuf.Timestamp`) | `orders/provider/mapper.go` |
+| `Reader`, um SQL por consulta | `orders/provider/reader.go` |
+| Harness de teste próprio (migra o kernel **e** o contexto; trunca as tabelas do kernel **e** as do contexto) | `orders/provider/testing_test.go` |
+| Testes de repositório, concorrência, e2e (build tag `integration`) | `orders/provider/{repository_test,concurrency_test,e2e_test}.go` |
 
 - Norma: ADR-034, ADR-035; `DMPF_PG_DSN` para a suíte.
 - No `project.json` do módulo, `test-race` com `cache: false` e `dependsOn`
@@ -95,7 +95,7 @@ pnpm install
 | Handlers com validação de forma (`maxLength`, `pattern`, `additionalProperties: false`) | `apps/backend/bff/api/handlers_orders.go` |
 | OpenAPI publicado | `contracts/openapi/orders/v1/openapi.yaml` |
 | e2e HTTP → outbox | `apps/backend/bff/e2e_test.go` |
-| Consumer adapter (`envelope.Unpack`) — **só se o contexto consome** | `libs/backend/go/app/example/reservations/consumer.go` |
+| Consumer adapter (`envelope.Unpack`) — **só se o contexto consome** | `apps/backend/reservations/consumer.go` |
 
 - Norma: RST-02 (idempotência por método), RST-04 (`ContractRef`); FND-08
   (as três posições de observabilidade).
@@ -127,7 +127,7 @@ pnpm install
 ## 10. Classificação — passo humano
 
 ```bash
-go run ./libs/backend/go/conformance/cmd/conformance --root . --write-baseline
+go run ./tools/dmpf-conformance/cmd/conformance --root . --write-baseline
 git add tools/dmpf-baseline/units-baseline.json && git commit   # só o baseline
 ```
 
@@ -138,7 +138,7 @@ git add tools/dmpf-baseline/units-baseline.json && git commit   # só o baseline
 ```bash
 pnpm nx run-many -t fmt-check,vet,build,lint -p <name>
 DMPF_PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' pnpm nx run <name>:test-race
-go run ./libs/backend/go/conformance/cmd/conformance --root . --base <ref-base>
+go run ./tools/dmpf-conformance/cmd/conformance --root . --base <ref-base>
 pnpm biome ci .
 ```
 
@@ -152,5 +152,5 @@ pnpm biome ci .
   `.yaml`, `.sql` e nos `include`).
 - [ ] Um cenário de aceite e um por rejeição, por comando, em teste.
 - [ ] Sem `time` no `domain`; sem `Inbox`/consumer se o contexto não consome.
-- [ ] Rito humano impresso: `pnpm install` (se ainda não), rito Buf,
-  `--write-baseline` em commit próprio, commits por projeto, PR.
+- [ ] Rito humano impresso: rito Buf, `--write-baseline` em commit próprio,
+  commits por projeto, PR.

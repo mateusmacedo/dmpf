@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	conffit "github.com/mateusmacedo/dmpf/libs/backend/go/conformance/fitness"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/fitness"
+	conffit "github.com/mateusmacedo/dmpf/tools/dmpf-conformance/fitness"
 )
 
 func TestCellsEachHaveAWorkingPair(t *testing.T) {

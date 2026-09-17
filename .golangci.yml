@@ -13,13 +13,6 @@ linters:
       - path-except: '(-domain|/domain)/'
         linters:
           - forbidigo
-      # O `files` da regra `application` seleciona por caminho e alcançaria este
-      # subpackage, que é unidade `provider`. O verificador, gate autoritativo,
-      # deixa `provider` irrestrito (`capability.go:51`) porque quem realiza a
-      # porta precisa do I/O que o bloco de cima não pode ter.
-      - path: 'application/example/memory/'
-        linters:
-          - depguard
       # Código emitido pelo protoc-gen-go. As dependências que ele traz
       # (`reflect`, `unsafe`) são exceções NOMINAIS no `dmpf-units.json` do
       # módulo, com owner e `review_by`; o verificador é quem as honra.

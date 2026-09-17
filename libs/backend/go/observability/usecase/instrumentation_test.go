@@ -23,7 +23,7 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
 
-const readOperation = "orders.FindOrder"
+const readOperation = operationFind
 
 // booted is everything a test needs to look at what the instrumentation
 // produced: the spans that left the process, the metrics that were collected

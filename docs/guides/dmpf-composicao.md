@@ -41,7 +41,7 @@ Os cinco artefatos que o compõem:
 | `.claude/commands/dmpf-new-context.md` | Valida a spec e invoca o agente |
 | `tools/dmpf-harness-check.sh` | A prova de regressão do próprio harness |
 
-O golden de referência é `bookings` (`libs/backend/go/bookings/`), gerado a
+O golden de referência é `bookings` (`apps/backend/bookings/`), gerado a
 partir de `docs/specs/SPEC-AHPRBZCT-bookings.md`. Quando algo neste guia parecer
 ambíguo, o golden é a resposta.
 
@@ -90,12 +90,13 @@ provider com o esquema e os repositórios, e a borda do bloco `app`. Ele para em
 qualquer gate normativo em vez de contornar — reprovação do verificador,
 do `depguard` ou do rito Buf interrompem a execução e são reportadas.
 
-O contexto nasce em `libs/<scope>/<stack>/<ctx>` — um módulo Go por contexto,
-um package por bloco (`<ctx>/domain`, `<ctx>/ports`, `<ctx>/application`,
-`<ctx>/provider`, `<ctx>/app`). O nome do projeto Nx é `<ctx>`, sem prefixo nem
-sufixo: a árvore já diz o scope e a stack (ADR-045). Onde um arquivo importa o
-package do kernel e o do contexto com o mesmo nome, o import do kernel recebe
-alias pelo papel — `kernel`, `usecase`, `port`.
+O contexto nasce em `apps/<scope>/<ctx>` — um contexto de negócio é uma app
+(`type:app`), não uma lib: em `libs/backend/go` fica só o kernel de reuso. É um
+módulo Go por contexto, um package por bloco (`<ctx>/domain`, `<ctx>/ports`,
+`<ctx>/application`, `<ctx>/provider`, `<ctx>/app`). O nome do projeto Nx é
+`<ctx>`, sem prefixo nem sufixo: a árvore já diz o scope (ADR-045). Onde um
+arquivo importa o package do kernel e o do contexto com o mesmo nome, o import
+do kernel recebe alias pelo papel — `kernel`, `usecase`, `port`.
 
 ## 4. Passo 3 — o rito Buf
 
@@ -128,7 +129,7 @@ entra em `panic` no `init()`.
 As unidades do contexto novo precisam entrar no baseline governado:
 
 ```bash
-go run ./libs/backend/go/conformance/cmd/conformance --write-baseline
+go run ./tools/dmpf-conformance/cmd/conformance --write-baseline
 ```
 
 Este é um **passo humano**, nunca do agente (ADR-028): classificar é ato de
@@ -145,10 +146,11 @@ git commit -m "chore(workspace): classificar as unidades de <ctx>"
 
 ## 6. Passo 5 — validar
 
-O módulo novo é importer do pnpm, então o install vem antes:
+O módulo novo não é importer do pnpm — `apps/backend/<ctx>` fica fora dos
+globs de `pnpm-workspace.yaml` (`apps/*`) — e só o Nx o lê, então não há
+`pnpm install` no rito:
 
 ```bash
-pnpm install
 pnpm nx run-many -t fmt-check,vet,lint,build,test -p <ctx>
 ```
 
@@ -165,7 +167,7 @@ DMPF_PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' \
 Por fim, o gate autoritativo entre módulos, com a base do intervalo em revisão:
 
 ```bash
-go run ./libs/backend/go/conformance/cmd/conformance -base <ref>
+go run ./tools/dmpf-conformance/cmd/conformance -base <ref>
 ```
 
 Sem `-base`, a condição de commit próprio fica **não verificada** — e condição

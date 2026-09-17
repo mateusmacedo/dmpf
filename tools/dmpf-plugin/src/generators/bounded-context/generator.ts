@@ -18,13 +18,13 @@ import { externalFragment, unitsFragment } from './manifest';
 import type { Block, BoundedContextGeneratorSchema } from './schema';
 
 const MODULE_PREFIX = 'github.com/mateusmacedo/dmpf';
-const DEFAULT_DIRECTORY = 'libs/backend/go';
+const DEFAULT_DIRECTORY = 'apps/backend';
 const GO_WORK = 'go.work';
 const NPM_SCOPE = '@mateusmacedo';
 
 const BASELINE_INSTRUCTION = [
   'Unidades novas são ato de classificação (AUT-01). Regrave o baseline em commit próprio:',
-  '  go run ./libs/backend/go/conformance/cmd/conformance --root . --write-baseline',
+  '  go run ./tools/dmpf-conformance/cmd/conformance --root . --write-baseline',
 ].join('\n');
 
 type Substitutions = Record<string, string | boolean>;

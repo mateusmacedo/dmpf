@@ -56,6 +56,10 @@ escolher o package e localizar os exemplos canônicos.
 - Use `distkit` somente quando broker, redelivery e isolamento entre processos
   forem parte do comportamento. Duas goroutines não substituem os processos OS
   do vetor distribuído, e o controle ingênuo deve reprovar com `DMPF-R004`.
+- `appkit` e `distkit` não são packages do `testkit`: são harnesses do contexto
+  `reservations`, em `apps/backend/reservations/{appkit,distkit}` (ADR-046). O
+  kit em `libs/backend/go/testkit` guarda só o que qualquer contexto importa —
+  uma suíte do kit nunca depende de um contexto de `apps/backend`.
 - A fitness function reutiliza `DMPF-D001`, `DMPF-D002` e `DMPF-E001..E004` do
   `conformance`; não crie uma taxonomia paralela nem incorpore o trust model
   do baseline ao teste da suíte.
@@ -91,13 +95,16 @@ pnpm nx run testkit:govulncheck
 ```
 
 `test-race` inclui a build tag `integration`; sem `DMPF_PG_DSN`, os casos de
-infraestrutura fazem skip local e falham com `CI` definido. Para a prova
-distribuída, use Postgres e Redpanda reais:
+infraestrutura fazem skip local e falham com `CI` definido. Os harnesses
+borda a borda e distribuído são targets do contexto `reservations`; para a
+prova distribuída, use Postgres e Redpanda reais:
 
 ```bash
 DMPF_PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' \
+pnpm nx run reservations:test-race
+DMPF_PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' \
 DMPF_KAFKA_BROKERS=localhost:9092 \
-pnpm nx run testkit:test-distributed
+pnpm nx run reservations:test-distributed
 ```
 
 Inclua na validação os módulos consumidores modificados. Não afirme que uma

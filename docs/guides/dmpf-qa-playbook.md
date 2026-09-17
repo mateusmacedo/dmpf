@@ -147,11 +147,11 @@ Detalhe de formato: FND-09 §5 (`FIX-05`…`FIX-13`) e `contracts/README.md`.
 
 ### Dev devolve no PR de implementação
 
-- [ ] `domainkit` + `tb.LoadProjection` contra o arquivo do QA (`examples_test.go` é o molde).
+- [ ] `domainkit` + `tb.LoadProjection` contra o arquivo do QA (`testkit/domainkit/fixture_test.go` é o molde; o teste vive no `domain` do contexto).
 - [ ] `ReadTwice` / determinismo em toda UPR.
 - [ ] Service no `serviceskit` se a UPR atravessa UoW/outbox.
 - [ ] Golden de wire no `golden.Evaluate` se o evento foi publicado.
-- [ ] `appkit`/`distkit` só quando o aceite exige persistência + broker, não para “cobrir domínio com integração”.
+- [ ] `appkit`/`distkit` (harnesses do contexto, em `apps/backend/reservations`) só quando o aceite exige persistência + broker, não para “cobrir domínio com integração”.
 
 ### Fora do escopo do QA de negócio
 
@@ -163,10 +163,10 @@ Fitness/`conformance`, fakes de relógio, harness Postgres, `Skipped` de provide
 
 | Insumo | Package | Comando típico |
 | --- | --- | --- |
-| Projeção | `domainkit` | `pnpm nx run testkit:test-race` (os `Test*MatchTheProjectionFixture`) |
+| Projeção | `domainkit` | `pnpm nx run testkit:test-race` (`TestTheCounterMatchesTheProjectionFixture`, o molde) e `pnpm nx run <ctx>:test-race` (o teste de projeção do `domain` do contexto) |
 | Wire | `golden` | mesmo target; dono das fixtures: `contracts` |
 | `.proto` | Buf | `pnpm nx run contracts:buf-lint` (e demais gates do módulo) |
-| Consumo / reentrega | `appkit`, `distkit` | `test-race` com `DMPF_PG_DSN`; `test-distributed` com Redpanda |
+| Consumo / reentrega | `appkit`, `distkit` (em `apps/backend/reservations`) | `pnpm nx run reservations:test-race` com `DMPF_PG_DSN`; `reservations:test-distributed` com Redpanda |
 
 Veredicto por valor: lista de diagnósticos com o ID da regra. `tb.Require` converte em falha de teste.
 

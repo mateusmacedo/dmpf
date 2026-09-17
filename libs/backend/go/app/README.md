@@ -14,7 +14,11 @@ O adapter precisa de duas arestas ao mesmo tempo: `contract` (decodificar o enve
 | --- | --- | --- |
 | `kernel/app-consumer` | `app` | raiz do módulo |
 | `kernel/app-relay` | `app` | `relay` — o relay da outbox de `KRN-08` (ADR-038) |
-| `kernel/example-reservations-app` | `app` | `example/reservations` |
+
+A composition root do consumidor de exemplo, que este módulo carregava em
+`example/reservations`, é hoje o bloco `app` do contexto `reservations` — o
+package raiz de `apps/backend/reservations` (unidade `reservations/app`,
+ADR-046). Aqui fica só o que todo contexto consumidor importa.
 
 Desde o `KRN-12` (ADR-041), `Consumer.Consume` põe no contexto do `Handler` o contexto de mensagem do envelope — `correlationid`, o `id` recebido como `causationid` e `traceparent` — por `ports.WithMessageContext`, para que o application service de consumo o copie em cada `OutboxEntry` que autorar (FND-07 §8.6 item 3). Quem cabeia este adapter e o relay em processos reais são os composition roots `apps/backend/reservations` (relay e consumer) e `apps/backend/orders` (relay), conforme o ADR-044.
 

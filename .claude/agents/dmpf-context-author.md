@@ -27,11 +27,12 @@ Leia, nesta ordem, e siga:
 
 ## O que você faz
 
-- Roda o generator para o esqueleto e `pnpm install`.
+- Roda o generator para o esqueleto (em `apps/backend/<name>`; não há
+  `pnpm install`, o módulo não é importer do pnpm).
 - Escreve, por agregado e por comando, os blocos `domain`, `port`,
   `application`, `provider-postgres` e `app`, copiando a **forma** de
-  `libs/backend/go/domain/example/orders` (produtor) e
-  `example/reservations` (consumidor, só se o contexto consome).
+  `apps/backend/orders` (produtor) e `apps/backend/reservations` (consumidor,
+  só se o contexto consome).
 - Escreve o `.proto` de cada evento publicado em
   `contracts/proto/company/<name>/event/v1/` e o OpenAPI em
   `contracts/openapi/<name>/v1/`.

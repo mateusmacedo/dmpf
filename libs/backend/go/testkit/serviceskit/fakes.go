@@ -3,12 +3,12 @@ package serviceskit
 import (
 	"context"
 
-	"github.com/mateusmacedo/dmpf/libs/backend/go/application/example/memory"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/memory"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
 
-// Fakes are the ports a service receives: the in-memory realization of
-// application/example/memory with every gesture written to the ledger.
+// Fakes are the ports a service receives: the in-memory realization of the
+// memory module with every gesture written to the ledger.
 // The realization is the same one KIT-04 certifies; the ledger is the
 // difference (KIT-03). Fakes is not safe for concurrent use: a service test
 // drives it from one goroutine, and the transaction counter relies on that.

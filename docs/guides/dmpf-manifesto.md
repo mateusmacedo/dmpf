@@ -240,7 +240,7 @@ regulados (RFC §10.2 T4/T6; ADR-028). Todos exigem:
 Para regravar o baseline depois de uma mudança legítima:
 
 ```bash
-go run ./libs/backend/go/conformance/cmd/conformance --root . --write-baseline
+go run ./tools/dmpf-conformance/cmd/conformance --root . --write-baseline
 pnpm biome format --write tools/dmpf-baseline/units-baseline.json
 ```
 
@@ -295,8 +295,9 @@ Continua valendo tudo o mais:
   (`DMPF-M002`). Designar não é declarar superfície pública, e uma coisa não
   substitui a outra.
 - O interior do contexto segue privado por default (ADR-017). Designa-se
-  unidade nominal, nunca o bounded context inteiro: os agregados de exemplo e as
-  composition roots do kernel permanecem privados.
+  unidade nominal, nunca o bounded context inteiro: os contextos de referência
+  em `apps/backend` (`orders`, `reservations`, `bookings`) e as suas composition
+  roots permanecem privados.
 
 ### Como designar
 
@@ -308,7 +309,7 @@ próprio, separado de código, aprovado por revisor distinto do autor. Alterar
 2. Regrave o baseline, porque o digest incorpora a lista:
 
 ```bash
-go run ./libs/backend/go/conformance/cmd/conformance --root . --write-baseline
+go run ./tools/dmpf-conformance/cmd/conformance --root . --write-baseline
 pnpm biome format --write tools/dmpf-baseline/units-baseline.json
 ```
 
@@ -333,7 +334,7 @@ por ser ambíguo entre as duas intenções.
 ## Rodar o verificador localmente
 
 ```bash
-go run ./libs/backend/go/conformance/cmd/conformance --root .
+go run ./tools/dmpf-conformance/cmd/conformance --root .
 ```
 
 Saída `conforme` e exit 0 significa aprovado. Exit 1 é reprovação; exit 2 é falha

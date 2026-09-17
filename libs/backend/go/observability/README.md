@@ -178,7 +178,7 @@ mais tarde.
 ```bash
 pnpm nx run-many -t fmt-check,vet,lint,build,test,test-race,govulncheck -p observability
 bash tools/dmpf-gate-check.sh
-go run ./libs/backend/go/conformance/cmd/conformance --root . --base origin/develop
+go run ./tools/dmpf-conformance/cmd/conformance --root . --base origin/develop
 ```
 
 O `dmpf-gate-check.sh` e o `nx affected` **não devem rodar ao mesmo tempo**: o

@@ -12,8 +12,8 @@ assinaturas no código atual antes de implementar.
 | Realização de UoW, Inbox ou Outbox | `providerkit` | suíte de conformidade parametrizada |
 | Contrato Protobuf/CloudEvents e bytes canônicos | `golden` | duas direções e três oráculos |
 | Tempo, IDs e ordenação determinísticos | `clock`, `ids`, `stable` | seam controlável e comparação estável |
-| Consumer adapter até Postgres e gesto do broker | `appkit` | efeitos persistidos e Ack após commit |
-| Redelivery com broker e isolamento real | `distkit` | processos OS e `DMPF-R004` |
+| Consumer adapter até Postgres e gesto do broker | `appkit` (`apps/backend/reservations`) | efeitos persistidos e Ack após commit |
+| Redelivery com broker e isolamento real | `distkit` (`apps/backend/reservations`) | processos OS e `DMPF-R004` |
 | Dependências e capacidades dos blocos | `fitness` | universo real e vetores sintéticos |
 | Adaptação a `testing.TB`, fixtures e Postgres | `tb`, `tb/pg` | falha/skip explícito no ambiente de teste |
 
@@ -24,8 +24,10 @@ Autoridade de API:
 - `domainkit/run.go`: `Subject[S,R]`, `Run`, `ReadTwice`;
 - `domainkit/projection.go`: forma da projeção observável;
 - `domainkit/verdict.go`: `Equal` e diagnósticos;
-- `domainkit/examples_test.go`: orders e reservations dirigidos pelas fixtures
-  de projeção;
+- `domainkit/fixture_test.go`: o agregado `counter` do próprio kit
+  (`subjects_test.go`) dirigido pela fixture de projeção
+  `testdata/counter.golden` — o molde para o teste de projeção do `domain` de
+  cada contexto em `apps/backend`;
 - `domainkit/violations_test.go`: red controls.
 
 Use `tb.LoadProjection` para fixtures em
@@ -87,30 +89,35 @@ Confirme `clock/clock.go`, `ids/ids.go` e `stable/stable.go`. Na API atual:
 - `stable.SortStrings`, `stable.SortBy` e `stable.Sequence[T]` removem ordem
   incidental das comparações.
 
-## `appkit`
+## `appkit` (em `apps/backend/reservations/appkit`)
 
 Autoridade de API:
 
-- `appkit/harness.go`: `Harness`, `NewReservations`, `RawOrderPlaced`, `Ack` e
-  `Effects`;
-- `appkit/harness_test.go`: disposições, contenção, reentrega e Ack após commit.
+- `apps/backend/reservations/appkit/harness.go`: `Harness`, `NewReservations`,
+  `RawOrderPlaced`, `Ack` e `Effects`;
+- `apps/backend/reservations/appkit/harness_test.go`: disposições, contenção,
+  reentrega e Ack após commit.
 
-O harness atual é uma composition root concreta do exemplo de reservations,
-não uma abstração genérica para qualquer bounded context. Estenda-o
-deliberadamente quando o cenário solicitado exigir outro contexto.
+O harness é uma composition root concreta do contexto `reservations` — unidade
+`reservations/appkit`, bloco `app` —, não uma abstração genérica para qualquer
+bounded context; por isso vive com o contexto e não no `testkit` (ADR-046).
+Um contexto novo que precise do mesmo tipo de prova escreve o próprio harness
+no molde deste, sobre `tb`, `tb/pg`, `clock` e `ids` do kit.
 
-## `distkit`
+## `distkit` (em `apps/backend/reservations/distkit`)
 
 Autoridade de API:
 
-- `distkit/harness.go`: `New`, processos e espera;
-- `distkit/roles.go`: papéis filhos;
-- `distkit/verdict.go`: plano, efeitos e `DMPF-R004`;
-- `distkit/harness_test.go`: positivo e consumer ingênuo.
+- `apps/backend/reservations/distkit/harness.go`: `New`, processos e espera;
+- `apps/backend/reservations/distkit/roles.go`: papéis filhos;
+- `apps/backend/reservations/distkit/verdict.go`: plano, efeitos e `DMPF-R004`;
+- `apps/backend/reservations/distkit/harness_test.go`: positivo e consumer
+  ingênuo.
 
 Preserve `//go:build integration && distributed`. O processo pai inicia os
 papéis `producer`, `consumer` e `consumer-naive` pelo próprio executável de
-teste; por isso um fake compartilhado em memória invalida a prova.
+teste; por isso um fake compartilhado em memória invalida a prova. O target é
+`reservations:test-distributed`.
 
 ## `fitness`
 

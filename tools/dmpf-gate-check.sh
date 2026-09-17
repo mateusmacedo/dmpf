@@ -72,7 +72,6 @@ VETORES_CONTRACT=(
 # configuracao deliberadamente nao faz; usa-los como alvo de fixture faria o
 # gate reportar falha onde nao existe.
 FORA_DO_DEPGUARD=(
-  "application/example/memory/"
   "contracts/gen/"
 )
 

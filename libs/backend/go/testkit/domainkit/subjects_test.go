@@ -4,153 +4,136 @@ import (
 	"strconv"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/domain"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/domain/example/orders"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/domain/example/reservations"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/domainkit"
 )
 
-// The projections of the two example aggregates: how their state, responses
-// and events read as abstract Fields (ORA-33). Shared by the pure tests and by
-// the fixture-driven ones.
-
-func orderState(o *orders.Order) domainkit.Fields {
-	s := o.Snapshot()
-	f := domainkit.Fields{
-		"id":          string(s.ID),
-		"status":      orderStatus(s.Status),
-		"item_limit":  strconv.Itoa(s.ItemLimit),
-		"items.count": strconv.Itoa(len(s.Items)),
-	}
-	for i, it := range s.Items {
-		f["items."+strconv.Itoa(i)+".sku"] = string(it.SKU)
-		f["items."+strconv.Itoa(i)+".quantity"] = strconv.Itoa(it.Quantity)
-	}
-	return f
+// counter is the fixture aggregate of this package: two UPRs with an accepting
+// and a refusing branch each, which is what every field of a Projection needs.
+type counter struct {
+	id    string
+	total int
+	limit int
 }
 
-func orderStatus(s orders.Status) string {
-	if s == orders.Placed {
-		return "placed"
-	}
-	return "open"
+type bump struct {
+	By int
+	At int64
 }
 
-func orderFromState(f domainkit.Fields) *orders.Order {
-	limit, _ := strconv.Atoi(f["item_limit"])
-	count, _ := strconv.Atoi(f["items.count"])
-	s := orders.Snapshot{ID: orders.OrderID(f["id"]), ItemLimit: limit, Items: []orders.Item{}}
-	if f["status"] == "placed" {
-		s.Status = orders.Placed
-	}
-	for i := range count {
-		q, _ := strconv.Atoi(f["items."+strconv.Itoa(i)+".quantity"])
-		s.Items = append(s.Items, orders.Item{SKU: orders.SKU(f["items."+strconv.Itoa(i)+".sku"]), Quantity: q})
-	}
-	return orders.FromSnapshot(s)
+type reset struct{ At int64 }
+
+type bumpResponse struct {
+	Counter string
+	Total   int
 }
 
-func orderEvent(e domain.DomainEvent) (string, domainkit.Fields) {
+type resetResponse struct{ Counter string }
+
+type bumped struct {
+	Counter string
+	By      int
+	Total   int
+	At      int64
+}
+
+func (bumped) EventName() string { return "counters.bumped" }
+
+type wasReset struct {
+	Counter string
+	From    int
+	At      int64
+}
+
+func (wasReset) EventName() string { return "counters.reset" }
+
+const (
+	codeLimitExceeded domain.Code = "counters/limit-exceeded"
+	codeAlreadyZero   domain.Code = "counters/already-zero"
+
+	messageLimitExceeded = "the counter would exceed its limit"
+	messageAlreadyZero   = "the counter is already at zero"
+)
+
+func (c *counter) bump(cmd bump) (domain.Accepted[bumpResponse], *domain.Rejection) {
+	attempted := c.total + cmd.By
+	if attempted > c.limit {
+		return domain.Accepted[bumpResponse]{}, domain.Reject(codeLimitExceeded, messageLimitExceeded,
+			domain.Detail{Key: "limit", Value: strconv.Itoa(c.limit)},
+			domain.Detail{Key: "attempted", Value: strconv.Itoa(attempted)})
+	}
+	c.total = attempted
+	return domain.Accept(
+		bumpResponse{Counter: c.id, Total: c.total},
+		bumped{Counter: c.id, By: cmd.By, Total: c.total, At: cmd.At},
+	), nil
+}
+
+func (c *counter) reset(cmd reset) (domain.Accepted[resetResponse], *domain.Rejection) {
+	if c.total == 0 {
+		return domain.Accepted[resetResponse]{}, domain.Reject(codeAlreadyZero, messageAlreadyZero)
+	}
+	from := c.total
+	c.total = 0
+	return domain.Accept(resetResponse{Counter: c.id}, wasReset{Counter: c.id, From: from, At: cmd.At}), nil
+}
+
+func counterState(c *counter) domainkit.Fields {
+	return domainkit.Fields{
+		"id":    c.id,
+		"total": strconv.Itoa(c.total),
+		"limit": strconv.Itoa(c.limit),
+	}
+}
+
+func counterFromState(f domainkit.Fields) *counter {
+	total, _ := strconv.Atoi(f["total"])
+	limit, _ := strconv.Atoi(f["limit"])
+	return &counter{id: f["id"], total: total, limit: limit}
+}
+
+func counterEvent(e domain.DomainEvent) (string, domainkit.Fields) {
 	switch ev := e.(type) {
-	case orders.ItemAdded:
-		return ev.EventName(), domainkit.Fields{"order": string(ev.Order), "sku": string(ev.SKU), "quantity": strconv.Itoa(ev.Quantity), "at": strconv.FormatInt(int64(ev.At), 10)}
-	case orders.OrderPlaced:
-		return ev.EventName(), domainkit.Fields{"order": string(ev.Order), "items": strconv.Itoa(ev.Items), "at": strconv.FormatInt(int64(ev.At), 10)}
+	case bumped:
+		return ev.EventName(), domainkit.Fields{
+			"counter": ev.Counter,
+			"by":      strconv.Itoa(ev.By),
+			"total":   strconv.Itoa(ev.Total),
+			"at":      strconv.FormatInt(ev.At, 10),
+		}
+	case wasReset:
+		return ev.EventName(), domainkit.Fields{
+			"counter": ev.Counter,
+			"from":    strconv.Itoa(ev.From),
+			"at":      strconv.FormatInt(ev.At, 10),
+		}
 	default:
 		return e.EventName(), domainkit.Fields{}
 	}
 }
 
-func cloneOrder(o *orders.Order) *orders.Order { return orders.FromSnapshot(o.Snapshot()) }
+func cloneCounter(c *counter) *counter {
+	copied := *c
+	return &copied
+}
 
-func addItemSubject(cmd orders.AddItem) domainkit.Subject[*orders.Order, orders.ItemAccepted] {
-	return domainkit.Subject[*orders.Order, orders.ItemAccepted]{
-		Decide: func(o *orders.Order) (domain.Accepted[orders.ItemAccepted], *domain.Rejection) {
-			return o.AddItem(cmd)
+func bumpSubject(cmd bump) domainkit.Subject[*counter, bumpResponse] {
+	return domainkit.Subject[*counter, bumpResponse]{
+		Decide: func(c *counter) (domain.Accepted[bumpResponse], *domain.Rejection) { return c.bump(cmd) },
+		Response: func(r bumpResponse) domainkit.Fields {
+			return domainkit.Fields{"counter": r.Counter, "total": strconv.Itoa(r.Total)}
 		},
-		Response: func(r orders.ItemAccepted) domainkit.Fields {
-			return domainkit.Fields{"order": string(r.Order), "items": strconv.Itoa(r.Items)}
-		},
-		Event:    orderEvent,
-		Snapshot: orderState,
-		Clone:    cloneOrder,
+		Event:    counterEvent,
+		Snapshot: counterState,
+		Clone:    cloneCounter,
 	}
 }
 
-func placeSubject(cmd orders.PlaceOrder) domainkit.Subject[*orders.Order, orders.PlacedResponse] {
-	return domainkit.Subject[*orders.Order, orders.PlacedResponse]{
-		Decide: func(o *orders.Order) (domain.Accepted[orders.PlacedResponse], *domain.Rejection) {
-			return o.Place(cmd)
-		},
-		Response: func(r orders.PlacedResponse) domainkit.Fields { return domainkit.Fields{"order": string(r.Order)} },
-		Event:    orderEvent,
-		Snapshot: orderState,
-		Clone:    cloneOrder,
+func resetSubject(cmd reset) domainkit.Subject[*counter, resetResponse] {
+	return domainkit.Subject[*counter, resetResponse]{
+		Decide:   func(c *counter) (domain.Accepted[resetResponse], *domain.Rejection) { return c.reset(cmd) },
+		Response: func(r resetResponse) domainkit.Fields { return domainkit.Fields{"counter": r.Counter} },
+		Event:    counterEvent,
+		Snapshot: counterState,
+		Clone:    cloneCounter,
 	}
-}
-
-func reservationState(r *reservations.Reservation) domainkit.Fields {
-	s := r.Snapshot()
-	status := "pending"
-	switch s.Status {
-	case reservations.Confirmed:
-		status = "confirmed"
-	case reservations.Canceled:
-		status = "canceled"
-	}
-	return domainkit.Fields{"order": string(s.Order), "items": strconv.Itoa(s.Items), "status": status}
-}
-
-func reservationFromState(f domainkit.Fields) *reservations.Reservation {
-	items, _ := strconv.Atoi(f["items"])
-	s := reservations.Snapshot{Order: reservations.OrderID(f["order"]), Items: items}
-	switch f["status"] {
-	case "confirmed":
-		s.Status = reservations.Confirmed
-	case "canceled":
-		s.Status = reservations.Canceled
-	}
-	return reservations.FromSnapshot(s)
-}
-
-func reserveSubject(cmd reservations.Reserve) domainkit.Subject[*reservations.Reservation, reservations.ReservedResponse] {
-	return domainkit.Subject[*reservations.Reservation, reservations.ReservedResponse]{
-		Decide: func(r *reservations.Reservation) (domain.Accepted[reservations.ReservedResponse], *domain.Rejection) {
-			return r.Reserve(cmd)
-		},
-		Response: func(r reservations.ReservedResponse) domainkit.Fields {
-			return domainkit.Fields{"order": string(r.Order), "items": strconv.Itoa(r.Items)}
-		},
-		Event:    reservationEvent,
-		Snapshot: reservationState,
-		Clone:    cloneReservation,
-	}
-}
-
-func cancelSubject(cmd reservations.Cancel) domainkit.Subject[*reservations.Reservation, reservations.CancelledResponse] {
-	return domainkit.Subject[*reservations.Reservation, reservations.CancelledResponse]{
-		Decide: func(r *reservations.Reservation) (domain.Accepted[reservations.CancelledResponse], *domain.Rejection) {
-			return r.Cancel(cmd)
-		},
-		Response: func(r reservations.CancelledResponse) domainkit.Fields {
-			return domainkit.Fields{"order": string(r.Order)}
-		},
-		Event:    reservationEvent,
-		Snapshot: reservationState,
-		Clone:    cloneReservation,
-	}
-}
-
-func reservationEvent(e domain.DomainEvent) (string, domainkit.Fields) {
-	switch ev := e.(type) {
-	case reservations.ReservationConfirmed:
-		return ev.EventName(), domainkit.Fields{"order": string(ev.Order), "items": strconv.Itoa(ev.Items), "at": strconv.FormatInt(int64(ev.At), 10)}
-	case reservations.ReservationCancelled:
-		return ev.EventName(), domainkit.Fields{"order": string(ev.Order), "at": strconv.FormatInt(int64(ev.At), 10)}
-	default:
-		return e.EventName(), domainkit.Fields{}
-	}
-}
-
-func cloneReservation(r *reservations.Reservation) *reservations.Reservation {
-	return reservations.FromSnapshot(r.Snapshot())
 }

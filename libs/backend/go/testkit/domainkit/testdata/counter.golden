@@ -1,0 +1,174 @@
+{
+  "format_version": "1",
+  "identity": {
+    "context": "counters",
+    "aggregate": "counter"
+  },
+  "cases": [
+    {
+      "name": "bump-accepted",
+      "doc": "Accepted branch of Bump: a counter below its limit takes the increment; the response carries the new total and one counters.bumped follows.",
+      "state_before": {
+        "id": "c-1",
+        "total": "1",
+        "limit": "3"
+      },
+      "command": {
+        "upr": "bump",
+        "by": "2",
+        "at": "1755432000"
+      },
+      "expected": {
+        "branch": "accepted",
+        "response": {
+          "counter": "c-1",
+          "total": "3"
+        },
+        "events": [
+          {
+            "name": "counters.bumped",
+            "fields": {
+              "counter": "c-1",
+              "by": "2",
+              "total": "3",
+              "at": "1755432000"
+            }
+          }
+        ],
+        "state_after": {
+          "id": "c-1",
+          "total": "3",
+          "limit": "3"
+        }
+      }
+    },
+    {
+      "name": "bump-limit-exceeded",
+      "doc": "Rejected branch of Bump: the increment would pass the limit; empty sequence and state identical to the one before (ORA-38).",
+      "state_before": {
+        "id": "c-1",
+        "total": "1",
+        "limit": "1"
+      },
+      "command": {
+        "upr": "bump",
+        "by": "1",
+        "at": "1755432000"
+      },
+      "expected": {
+        "branch": "rejected",
+        "rejection": {
+          "code": "counters/limit-exceeded",
+          "message": "the counter would exceed its limit",
+          "details": {
+            "limit": "1",
+            "attempted": "2"
+          }
+        },
+        "events": [],
+        "state_after": {
+          "id": "c-1",
+          "total": "1",
+          "limit": "1"
+        }
+      }
+    },
+    {
+      "name": "bump-reaches-the-limit",
+      "doc": "Accepted branch of Bump at the boundary: reaching the limit exactly is still accepted; only passing it refuses.",
+      "state_before": {
+        "id": "c-1",
+        "total": "2",
+        "limit": "3"
+      },
+      "command": {
+        "upr": "bump",
+        "by": "1",
+        "at": "1755432000"
+      },
+      "expected": {
+        "branch": "accepted",
+        "response": {
+          "counter": "c-1",
+          "total": "3"
+        },
+        "events": [
+          {
+            "name": "counters.bumped",
+            "fields": {
+              "counter": "c-1",
+              "by": "1",
+              "total": "3",
+              "at": "1755432000"
+            }
+          }
+        ],
+        "state_after": {
+          "id": "c-1",
+          "total": "3",
+          "limit": "3"
+        }
+      }
+    },
+    {
+      "name": "reset-accepted",
+      "doc": "Accepted branch of Reset: a counter above zero goes back to zero; the event carries the total it left.",
+      "state_before": {
+        "id": "c-1",
+        "total": "2",
+        "limit": "3"
+      },
+      "command": {
+        "upr": "reset",
+        "at": "1755432000"
+      },
+      "expected": {
+        "branch": "accepted",
+        "response": {
+          "counter": "c-1"
+        },
+        "events": [
+          {
+            "name": "counters.reset",
+            "fields": {
+              "counter": "c-1",
+              "from": "2",
+              "at": "1755432000"
+            }
+          }
+        ],
+        "state_after": {
+          "id": "c-1",
+          "total": "0",
+          "limit": "3"
+        }
+      }
+    },
+    {
+      "name": "reset-already-zero",
+      "doc": "Rejected branch of Reset: a counter at zero has nothing to reset; the rejection carries no details.",
+      "state_before": {
+        "id": "c-1",
+        "total": "0",
+        "limit": "3"
+      },
+      "command": {
+        "upr": "reset",
+        "at": "1755432000"
+      },
+      "expected": {
+        "branch": "rejected",
+        "rejection": {
+          "code": "counters/already-zero",
+          "message": "the counter is already at zero"
+        },
+        "events": [],
+        "state_after": {
+          "id": "c-1",
+          "total": "0",
+          "limit": "3"
+        }
+      }
+    }
+  ]
+}

@@ -12,8 +12,8 @@ import (
 	"strings"
 	"testing"
 
-	conffit "github.com/mateusmacedo/dmpf/libs/backend/go/conformance/fitness"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb"
+	conffit "github.com/mateusmacedo/dmpf/tools/dmpf-conformance/fitness"
 )
 
 // V29/V30 (PIR-17): a test of a domain unit that needs an infrastructure double

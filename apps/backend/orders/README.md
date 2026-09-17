@@ -1,17 +1,30 @@
 # orders
 
-Contexto `orders` da topologia de referência do kernel DMPF (ADR-044): um binário, dois papéis escolhidos por `--role`, sobre o banco próprio do contexto.
+Bounded context `orders` da topologia de referência do kernel DMPF (ADR-044, ADR-046): um módulo Go com os blocos `domain`, `application` e `provider` em um package cada e o bloco `app` no package raiz — um binário, dois papéis escolhidos por `--role`, sobre o banco próprio do contexto.
 
 | Papel | O que faz | Blocos cabeados |
 | --- | --- | --- |
-| `api` | Serve `company.orders.service.v1.OrdersService` por gRPC: `AddItem`, `PlaceOrder`, `FindOrder` | `grpc` (servidor, admissão) → `ordersapp` → `postgres` (UoW, outbox, reader) |
+| `api` | Serve `company.orders.service.v1.OrdersService` por gRPC: `AddItem`, `PlaceOrder`, `FindOrder` | `grpc` (servidor, admissão) → `application` do contexto → `provider` do contexto (repositório, reader) sobre `postgres` do kernel (UoW, outbox) |
 | `relay` | Drena a outbox de `dmpf_orders` para `orders.events` | `app/relay` → `postgres` (claim) + `kafka` (publisher) |
 
-`orders` não consome canal: `--role consumer` encerra com exit 2. Criado pela `docs/specs/SPEC-ACYKBF9V-dmpf-reference-bff-contextos.md`.
+`orders` não consome canal: `--role consumer` encerra com exit 2. Criado pela `docs/specs/SPEC-ACYKBF9V-dmpf-reference-bff-contextos.md`; os blocos de domínio, aplicação e provider vieram de `libs/backend/go/{domain,application,postgres}/example/orders` pelo ADR-046.
 
-## Unidade do manifesto
+Projeto Nx `orders`, tags `type:app`, `scope:backend`, `stack:go` e `layer:apps`. Import path do módulo: `github.com/mateusmacedo/dmpf/apps/backend/orders`.
 
-`kernel/reference-orders-app`, bloco `app`, `bounded_context` `kernel`. É composition root: o único lugar onde os providers concretos de `orders` são instanciados (ADR-015).
+## Unidades do manifesto
+
+| Package | Bloco | Unidade | Conteúdo |
+| --- | --- | --- | --- |
+| `domain` | `domain` | `orders/domain` | Agregado `Order` com as UPRs `AddItem` e `Place` (FND-03 §8.2, §8.3), mensagens, rejeições `orders/*` |
+| `application` | `application` | `orders/application` | `Service` com `AddItem`, `PlaceOrder` (os nove passos de FND-04 §3.2) e `FindOrder`; `Destination = orders.events` |
+| `provider` | `provider` | `orders/provider-postgres` | Repositório com optimistic locking sobre `dmpf_example_orders`, `Reader`, mapeador para `company.orders.event.v1` |
+| raiz, `rpc`, `cmd/orders` | `app` | `orders/app` | Composition root: o único lugar onde os providers concretos de `orders` são instanciados (ADR-015); servidor gRPC e binário |
+
+Todas com `bounded_context` `orders`. O contrato (`company.orders.event.v1`, `company.orders.service.v1`) é a unidade `orders/contract`, declarada no manifesto de `libs/backend/go/contracts`, onde o código gerado mora; é superfície pública, e é por ela que `bff` e `reservations` alcançam `orders` sem importar o seu domínio.
+
+## Aliases de import
+
+Os packages do kernel `domain` e `application` têm o mesmo nome dos deste módulo. Onde um arquivo importa os dois, o import do kernel recebe alias pelo papel — `kernel` para o domínio, `usecase` para a aplicação (ADR-045); os packages do contexto ficam bare. Em `wiring.go`, `provider` é o package Postgres do contexto e o `grpc` do kernel entra como `kernel`.
 
 ## Servidor gRPC
 
@@ -54,4 +67,8 @@ DMPF_PG_DSN='postgres://app:app@localhost:5432/dmpf_orders?sslmode=disable' DMPF
 
 ## Testes
 
-Unitários, sem banco: binding e interceptors por `bufconn` sobre o store em memória (cobertura do descriptor, desfechos, deadline obrigatório, contexto de mensagem gravado na outbox, admissão), ciclo de saúde, tracer de banco e partida do binário por papel. A topologia inteira é provada pelo e2e do `bff`.
+Unitários, sem banco: as UPRs do `domain` (pré-condição, efeito, determinismo, snapshot), a sequência canônica e a instrumentação da `application` sobre o `memory` (`memory.Table` por agregado), e o binding e os interceptors do `rpc` por `bufconn` sobre o store em memória (cobertura do descriptor, desfechos, deadline obrigatório, contexto de mensagem gravado na outbox, admissão), ciclo de saúde, tracer de banco e partida do binário por papel. Com a build tag `integration` e `DMPF_PG_DSN`, o `provider` prova repositório, concorrência (dois escritores, um `ErrVersionConflict`) e o e2e até a outbox; o `test-race` declara `dependsOn` sobre o do `postgres`, porque os dois harnesses truncam as mesmas tabelas. A topologia inteira é provada pelo e2e do `bff`.
+
+```bash
+DMPF_PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' pnpm nx run orders:test-race
+```

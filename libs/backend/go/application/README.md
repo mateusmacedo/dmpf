@@ -2,14 +2,18 @@
 
 Bloco `application` do kernel DMPF em Go: o lado do chamador da UPR. Realiza o
 desfecho que separa o canal de negócio do canal técnico, a resolução de
-identidade anterior à transação, o gancho de autorização do passo 1 e um caso de
-uso de escrita que percorre os nove passos da sequência canônica do FND-04
-(`docs/dmpf/uow-inbox-outbox.md` §3.2) sobre o agregado de exemplo do
-`domain`.
+identidade anterior à transação, o gancho de autorização do passo 1 e a
+taxonomia mínima do consumo. O caso de uso de escrita que percorre os nove
+passos da sequência canônica do FND-04 (`docs/dmpf/uow-inbox-outbox.md` §3.2) e
+o caso de uso de consumo são hoje os blocos `application` dos contextos de
+referência, `apps/backend/orders/application` e
+`apps/backend/reservations/application` (ADR-046); este README continua
+descrevendo-os porque são o molde de quem escreve um contexto.
 
-Traz também, como unidade `provider`, uma realização em memória da Unit of Work
-e das portas — o que fecha o caso de uso ponta a ponta sem banco. O `KRN-06` a
-substitui pelo Postgres.
+A realização em memória da Unit of Work e das portas — o que fecha um caso de
+uso ponta a ponta sem banco — é módulo próprio, `memory`
+(`libs/backend/go/memory`, unidade `kernel/provider-memory`). O `postgres` a
+substitui por um banco de verdade (`KRN-06`).
 
 Projeto Nx `application`, tags `type:lib`, `scope:backend`, `stack:go`.
 Import path do módulo:
@@ -20,18 +24,25 @@ Import path do módulo:
 | Package | Unidade DMPF | Bloco | Conteúdo |
 | --- | --- | --- | --- |
 | `application` (raiz) | `kernel/application` | `application` | `Outcome[R]`, `Accepted`, `Rejected`; `Identity`, `ResolveIdentity`; `AuthorizeFunc`, `AllowAll`; `Disposition` (as sete de FND-04 §6.4), `Category`, `Failure`, `Classify` |
-| `example/orders` | `kernel/example-orders-application` | `application` | `Service`, `Resources`, `Command`, `AddItem`, `PlaceOrder`, `FindOrder`, `AggregateType`, `Destination` — o lado da **escrita** |
-| `example/reservations` | `kernel/example-reservations-application` | `application` | `Service`, `Resources` (com `Inbox`), `ConsumeOrderPlaced`, `Consume` — o lado do **consumo** (`KRN-07`) |
-| `example/memory` | `kernel/example-memory` | `provider` | `Store`, `New`, `Tx`, `NewUnitOfWork`, `Reader`, `Entries`, `FailNextCommit`, `WithinCalls`, `FixedClock`, `SequenceIDs`; `Tx.Inbox`, `Tx.Reservations` |
 
-Quatro unidades, todas com `bounded_context: kernel`. Cada package é uma
-unidade porque, em Go, a unidade de verificação é o package (RFC §3.3), e a do
-`example/memory` é `provider` — não `application` — porque ela **realiza** as
-portas em vez de orquestrá-las.
+Uma unidade só, com `bounded_context: kernel`; em Go, a unidade de verificação
+é o package (RFC §3.3). Os packages que este módulo carregava como
+`example/` viraram unidades dos próprios contextos:
+
+| Antes (ADR-044) | Hoje (ADR-046) | Unidade | Bloco |
+| --- | --- | --- | --- |
+| `example/orders` | `apps/backend/orders/application` — `Service`, `Resources`, `Command`, `AddItem`, `PlaceOrder`, `FindOrder`, `AggregateType`, `Destination`; o lado da **escrita** | `orders/application` | `application` |
+| `example/reservations` | `apps/backend/reservations/application` — `Service`, `Resources` (com `Inbox`), `ConsumeOrderPlaced`, `Consume`; o lado do **consumo** (`KRN-07`) | `reservations/application` | `application` |
+| `example/memory` | `libs/backend/go/memory` — `Store`, `New`, `Tx`, `NewUnitOfWork`, `Table[ID, S]`, `Entries`, `FailNextCommit`, `WithinCalls`, `FixedClock`, `SequenceIDs`; `Tx.Inbox`, `Tx.Outbox` | `kernel/provider-memory` | `provider` |
+
+A realização em memória é `provider` — não `application` — porque ela
+**realiza** as portas em vez de orquestrá-las; por isso ganhou módulo próprio,
+fora do alcance da regra `application` do `depguard`.
 
 ## O consumo: as sete disposições
 
-`reservationsapp.Consume` percorre o lado do service da sequência de FND-04
+O `Consume` do contexto `reservations`
+(`apps/backend/reservations/application/consume.go`) percorre o lado do service da sequência de FND-04
 §6.3: abre a UoW, chama `Inbox.Register(Receipt)` e ramifica **uma única vez**,
 no `Reception.Match` (`INB-11`). Sob R1 decide entre aplicar (`Save` + outbox
 derivada + `Complete(processed)`), rejeitar por negócio (`Complete(rejected)`
@@ -52,8 +63,12 @@ categoria (`ERR-08`).
 
 ## O desfecho: `Outcome` e `error` são canais distintos
 
+No caso de uso de referência (`apps/backend/orders/application`, package
+`application` do contexto, que importa este módulo homônimo sem alias; quem
+importa os dois recebe o kernel como `usecase`, ADR-045):
+
 ```go
-func (s Service) AddItem(ctx context.Context, cmd AddItem) (application.Outcome[orders.ItemAccepted], error)
+func (s Service) AddItem(ctx context.Context, cmd AddItem) (application.Outcome[domain.ItemAccepted], error)
 ```
 
 `error` transporta **apenas** falha técnica: conflito de versão, erro de commit,
@@ -64,14 +79,14 @@ de erro do Go já está ocupado pela falha técnica — e o ADR-018 só admite o
 domínio, o que é verdade na UPR e deixa de ser aqui.
 
 ```go
-out, err := service.AddItem(ctx, ordersapp.AddItem{Order: "P-100", SKU: "ABC", Quantity: 1})
+out, err := service.AddItem(ctx, application.AddItem{Order: "P-100", SKU: "ABC", Quantity: 1})
 if err != nil {
     return err // falha técnica: conflito, commit, cancelamento
 }
 if rej, refused := out.Rejection(); refused {
     return present(rej) // recusa de negócio, com o commit já ocorrido
 }
-resp := out.Response() // orders.ItemAccepted
+resp := out.Response() // domain.ItemAccepted
 ```
 
 `Rejected(nil)` provoca panic: ausência de rejeição não é um terceiro desfecho
@@ -80,14 +95,15 @@ resp := out.Response() // orders.ItemAccepted
 ## Os nove passos, e onde cada um está no código
 
 A sequência do FND-04 §3.2 não é comentada por número no código: ela é legível
-nas próprias chamadas. O mapa está aqui.
+nas próprias chamadas. O mapa está aqui; os arquivos são os de
+`apps/backend/orders/application`.
 
 | Passo | Onde | O que acontece |
 | --- | --- | --- |
 | 1. autorizar | `add_item.go`, `s.Authorize(ctx, cmd)` | Erro interrompe antes de qualquer resolução ou transação |
 | 2. resolver identidade | `add_item.go`, `application.ResolveIdentity(s.Clock, s.IDs, maxEventsPerCommand)` | Uma leitura de relógio e um identificador por evento possível, **antes** de `Within` |
 | 3. abrir a UoW | `add_item.go`, `s.UoW.Within(ctx, func(...) error {` | Uma transação sobre um recurso |
-| 4. carregar | `add_item.go`, `s.loadOrCreate(...)` → `res.Orders.Load` | `ErrNotFound` vira `orders.NewOrder` com `expected == 0` |
+| 4. carregar | `add_item.go`, `s.loadOrCreate(...)` → `res.Orders.Load` | `ErrNotFound` vira `domain.NewOrder` com `expected == 0` |
 | 5. decidir | `add_item.go`, `order.AddItem(...)` | O único passo que ocorre no bloco `domain` |
 | 6. persistir | `add_item.go`, `res.Orders.Save(ctx, cmd.Order, order.Snapshot(), stored)` | Optimistic locking; grava como `stored + 1` |
 | 7. enfileirar | `service.go`, `enqueueAll(...)` → `res.Outbox.Enqueue` | Mesma transação do passo 6 |
@@ -172,30 +188,31 @@ consumidor com outro nome.
 
 ## O que a realização em memória prova, e o que não prova
 
-`example/memory` prova: uma transação por `Within` sobre um recurso, o callback
-invocado exatamente uma vez, o commit aplicando estado de negócio e outbox
-juntos, o rollback por erro e por panic, uma falha de commit injetável
-(`FailNextCommit`), o contexto cancelado que nunca abre transação, e snapshots
-que não compartilham array com o `Store`.
+O `memory` (`libs/backend/go/memory/README.md`) prova: uma transação por
+`Within` sobre um recurso, o callback invocado exatamente uma vez, o commit
+aplicando estado de negócio e outbox juntos, o rollback por erro e por panic,
+uma falha de commit injetável (`FailNextCommit`), o contexto cancelado que
+nunca abre transação, e snapshots que não compartilham array com o `Store`.
 
 Não prova **isolamento** nem conflito de serialização entre transações
 concorrentes: `Within` retém `txMu` durante todo o callback, então as transações
 são serializadas, e `Load` e `Save` da mesma `Tx` sempre veem o mesmo estado. Um
-conflito de versão tem de ser injetado pelo chamador — é o que
-`doubles_test.go` faz, embrulhando `tx.Orders()` em um repositório instrumentado.
-Isolamento real é do `KRN-06`.
+conflito de versão tem de ser injetado pelo chamador — é o que o
+`doubles_test.go` de `apps/backend/orders/application` faz, embrulhando o
+repositório da `Table` em um repositório instrumentado. Isolamento real é do
+`postgres` (`KRN-06`).
 
 O `Store` guarda **dois** mutexes para que essa serialização não vire armadilha:
 `txMu` é o que faz uma transação excluir a outra, e `dataMu` protege o estado,
-adquirido por operação. Assim `Store.Reader()` chamado de dentro do callback lê
-o estado já commitado — o que um leitor fora da transação veria — em vez de
-travar. Com um mutex único fazendo os dois papéis, essa leitura seria deadlock;
-`store_test.go` tem um teste que fixa o comportamento.
+adquirido por operação. Assim `Table.Reader(store)` chamado de dentro do
+callback lê o estado já commitado — o que um leitor fora da transação veria —
+em vez de travar. Com um mutex único fazendo os dois papéis, essa leitura seria
+deadlock; o `store_test.go` do `memory` tem um teste que fixa o comportamento.
 
 O `bind` que liga a transação ao tipo de recursos do caso de uso é escrito pelo
 composition root — nos testes, o próprio arquivo de teste — porque
-`provider → application` é célula proibida e a realização não pode conhecer
-`ordersapp.Resources`.
+`provider → application` é célula proibida e a realização não pode conhecer o
+`Resources` do contexto.
 
 ## O que o módulo não contém
 
@@ -223,22 +240,24 @@ lhe permite (`capability.go:47`), mas esta entrega não usa.
 pnpm nx run-many -t fmt-check,vet,lint,build,test,test-race,govulncheck -p application
 go -C libs/backend/go/application test -race -count=2 -shuffle=on ./...
 bash tools/dmpf-gate-check.sh
-go run ./libs/backend/go/conformance/cmd/conformance --root . --base origin/develop
+go run ./tools/dmpf-conformance/cmd/conformance --root . --base origin/develop
 ```
 
 O `lint` aplica ao bloco a regra `application` do `.golangci.yml`, com
 `list-mode: strict`. O `files` dessa regra seleciona por caminho
-(`**/*-application/**`) e por isso alcançaria `example/memory`, que é `provider`
-e cuja capability o verificador deixa irrestrita (`capability.go:51`) — quem
-realiza a porta precisa do I/O que os blocos de cima não podem ter. O
-subpackage é portanto excluído do `depguard` em `linters.exclusions.rules`,
-alinhando o gate local ao autoritativo em vez de manter uma restrição que o
-provider teria de burlar ao trocar memória por banco. O `gate-check.sh` declara
-essa unidade como fora do gate local, em vez de exercitá-la.
+(`**/application/**`, e `**/*-application/**` do layout anterior ao ADR-045), e
+por isso alcança também o bloco `application` de cada contexto em
+`apps/backend/<ctx>/application`. Enquanto a realização em memória vivia aqui
+como `example/memory`, o glob a alcançava indevidamente — ela é `provider`, cuja
+capability o verificador deixa irrestrita (`capability.go:51`) — e precisava de
+uma exclusão em `linters.exclusions.rules` e de uma entrada em
+`FORA_DO_DEPGUARD` do `gate-check.sh`. Com o `memory` em módulo próprio
+(ADR-046), a exclusão e a entrada deixaram de existir.
 
-O `go.mod` não tem `require` nem `replace`, e não há `go.sum`: a resolução dos
-módulos irmãos é do `go.work`. Por isso o target `tidy`, que o plugin do Nx
-infere, **não** faz parte da cadeia.
+O `go.mod` só declara `require` dos módulos irmãos, sem `replace`, e não há
+`go.sum`: a resolução é do `go.work`, que o `modsync`
+(`go run ./tools/dmpf-conformance/cmd/modsync`) mantém sincronizado. Por isso o
+target `tidy`, que o plugin do Nx infere, **não** faz parte da cadeia.
 
 ## Governança
 

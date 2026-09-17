@@ -195,6 +195,7 @@ docs/specs/SPEC-<id>-bookings.md                  — NOVO: spec de exemplo (ent
 .claude/commands/dmpf-new-context.md              — NOVO
 .claude/README.md                                 — MODIFICAR: índice
 libs/backend/go/bookings/{domain,ports,application,provider,app}/ — NOVO (golden, pelo harness; uma pasta por contexto — ADR-030)
+  Nota: o golden foi movido para `apps/backend/bookings` (ADR-046); `libs/backend/go` guarda só o kernel de reuso.
 tools/dmpf-plugin/src/generators/bounded-context/{blocks,generator}.ts — MODIFICAR: módulos em <directory>/<name>/<bloco>
 .golangci.yml, tools/dmpf-gate-check.sh                      — MODIFICAR: depguard/forbidigo alcançam **/domain/**, **/ports/**, **/application/**
 docs/adr/030-granularidade-modulo-go-e-bom.md      — MODIFICAR: addendum (contexto de negócio em pasta própria)

@@ -2,7 +2,7 @@
 
 ## Status
 
-Aceito — 2026-09-16. Supersede parcialmente o ADR-030 (a nomenclatura dos projetos e o addendum de 2026-09-10); mantém dele um módulo Go por lib do kernel, o BOM declarado e a segregação de stack no caminho.
+Aceito — 2026-09-16. Supersede parcialmente o ADR-030 (a nomenclatura dos projetos e o addendum de 2026-09-10); mantém dele um módulo Go por lib do kernel, o BOM declarado e a segregação de stack no caminho. **Parcialmente supersedido pelo ADR-046 (2026-09-16)**: o módulo único por contexto vive em `apps/backend/<contexto>`, como app, e não em `libs/backend/go/<contexto>`; o verificador passa a tooling em `tools/dmpf-conformance`, sob a mesma exceção do plugin. Nome bare, alias pelo papel e um package por bloco permanecem.
 
 ## Contexto
 

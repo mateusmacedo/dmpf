@@ -3,8 +3,11 @@
 Kernel de domínio do DMPF em Go: a realização da unidade de processamento de
 requisição (UPR) e do seu desfecho, conforme o FND-03
 (`docs/dmpf/upr-decision-mensagens.md` §2 e §3) e o ADR-018. É o bloco `domain`
-da fundação — síncrono, determinístico e sem I/O — e o sujeito executável em
-memória que o `KRN-04` orquestra.
+da fundação — síncrono, determinístico e sem I/O — e o tipo do desfecho que
+todo agregado do workspace devolve. O agregado de exemplo que o exercitava,
+`Order`, é hoje o bloco `domain` do contexto `orders`
+(`apps/backend/orders/domain`, ADR-046): em `libs/backend/go` fica só o kernel
+de reuso.
 
 Projeto Nx `domain`, tags `type:lib`, `scope:backend`, `stack:go`.
 Import path do módulo:
@@ -15,13 +18,16 @@ Import path do módulo:
 | Package | Unidade DMPF | Conteúdo |
 | --- | --- | --- |
 | `domain` (raiz) | `kernel/domain` | `DomainEvent`, `Accepted[R]`, `Accept`, `Empty`, `Rejection`, `Reject`, `Code`, `Detail` |
-| `example/orders` | `kernel/example-orders` | Agregado `Order` com duas UPRs (`AddItem`, `Place`), transcrição dos exemplos §8.2 e §8.3 do FND-03 |
 
-Ambas as unidades têm `block: domain` e `bounded_context: kernel`
-(`dmpf-units.json`), e cada package é uma unidade porque, em Go, a unidade de
-verificação é o package (RFC §3.3).
+Uma unidade só, com `block: domain` e `bounded_context: kernel`
+(`dmpf-units.json`); em Go, a unidade de verificação é o package (RFC §3.3). A
+transcrição dos exemplos §8.2 e §8.3 do FND-03 — o agregado `Order` com as UPRs
+`AddItem` e `Place` — é a unidade `orders/domain`, em
+`apps/backend/orders/domain`.
 
 ## A forma de uma UPR
+
+No agregado de referência (`apps/backend/orders/domain`):
 
 ```go
 func (o *Order) AddItem(cmd AddItem) (domain.Accepted[ItemAccepted], *domain.Rejection)
@@ -36,7 +42,7 @@ tempo e identificadores chegam como valores já resolvidos (RFC §9.3).
 Lendo o desfecho do lado de quem chama:
 
 ```go
-acc, rej := order.AddItem(orders.AddItem{SKU: "ABC", Quantity: 1, At: at})
+acc, rej := order.AddItem(domain.AddItem{SKU: "ABC", Quantity: 1, At: at})
 if rej != nil {
     // Rejected: rej.Code() é estável ("orders/item-limit-exceeded"),
     // rej.Details() traz os detalhes em termos de domínio, e o pedido
@@ -60,7 +66,8 @@ Garantias que o código realiza e a suíte prova:
   de cada evento é contrato dos tipos do agregado — valores comparáveis cujos
   campos não carregam ponteiro, slice, map nem função. Sem `reflect`, o kernel
   não consegue copiar em profundidade um `R` arbitrário. O teste de compilação do
-  exemplo prova a parte mecanizável (sem slice, map ou função); `comparable` não
+  agregado de referência (`apps/backend/orders/domain`) prova a parte
+  mecanizável (sem slice, map ou função); `comparable` não
   exclui ponteiro, e essa ausência é item de revisão de cada agregado. Detalhes
   e alternativas no ADR-032.
 
@@ -77,7 +84,7 @@ não tem dependência de terceiro.
 ```bash
 pnpm nx run-many -t fmt-check,vet,lint,build,test,test-race,govulncheck -p domain
 bash tools/dmpf-gate-check.sh
-go run ./libs/backend/go/conformance/cmd/conformance --root . --base origin/develop
+go run ./tools/dmpf-conformance/cmd/conformance --root . --base origin/develop
 ```
 
 O `lint` aplica duas camadas ao bloco `domain` (`.golangci.yml`): `depguard`

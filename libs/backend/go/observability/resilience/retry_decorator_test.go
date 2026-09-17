@@ -9,8 +9,7 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
-	"github.com/mateusmacedo/dmpf/libs/backend/go/application/example/memory"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/domain/example/orders"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/memory"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/clock"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/metrics"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/resilience"
@@ -18,6 +17,15 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/tracing"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
+
+type ledgerID string
+
+type ledger struct {
+	ID      ledgerID
+	Balance int
+}
+
+var ledgers = memory.Table[ledgerID, ledger]{Name: "ledgers"}
 
 func retryConfig() resilience.RetryConfig {
 	return resilience.RetryConfig{
@@ -347,7 +355,7 @@ func TestARetriedDependencyNeverReopensTheUnitOfWork(t *testing.T) {
 		if err := guarded(ctx, idempotent(time.Minute), nil); err != nil {
 			return err
 		}
-		return tx.Orders().Save(ctx, orders.OrderID("P-100"), openSnapshotFor("P-100"), ports.Version(0))
+		return ledgers.Repository(tx).Save(ctx, ledgerID("L-100"), ledger{ID: "L-100", Balance: 1}, ports.Version(0))
 	})
 
 	if err != nil {
@@ -361,15 +369,6 @@ func TestARetriedDependencyNeverReopensTheUnitOfWork(t *testing.T) {
 	}
 	if got := store.Commits(); got != 1 {
 		t.Errorf("Commits() = %d, want 1", got)
-	}
-}
-
-func openSnapshotFor(id orders.OrderID) orders.Snapshot {
-	return orders.Snapshot{
-		ID:        id,
-		Status:    orders.Open,
-		ItemLimit: 3,
-		Items:     []orders.Item{{SKU: "A", Quantity: 1}},
 	}
 }
 
