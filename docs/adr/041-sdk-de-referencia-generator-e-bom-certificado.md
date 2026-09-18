@@ -2,7 +2,7 @@
 
 ## Status
 
-Aceito — 2026-09-08. Implementa SPEC-6QT9SBAS, primeira sub-spec de SPEC-8HWBWJCB (KRN-12). As sub-specs seguintes — generator (SPEC-H1A190Y8), BOM e validador (SPEC-538MS2D4), evidência e tag (SPEC-JPP31095) — acrescentam addenda a este ADR em vez de abrir outro; a consolidação final é da última.
+Aceito — 2026-09-08. **Parcialmente supersedido pelo ADR-047 (2026-09-17)**: o `go.mod` de um módulo deixa de ser workspace-only e passa a declarar `require` versionado dos irmãos que importa; o `replace` versionado fica no `go.work`, e o generator roda o `dmpf-modsync` ao final. O resto segue válido. Implementa SPEC-6QT9SBAS, primeira sub-spec de SPEC-8HWBWJCB (KRN-12). As sub-specs seguintes — generator (SPEC-H1A190Y8), BOM e validador (SPEC-538MS2D4), evidência e tag (SPEC-JPP31095) — acrescentam addenda a este ADR em vez de abrir outro; a consolidação final é da última.
 
 ## Contexto
 
