@@ -132,16 +132,16 @@ FND-04+FND-05 → FND-09; FND-01 → FND-10 (fecha após demais); FND-02 → FND
 
 Espelham AC-01…AC-12 do épico ARQ-436 (detalhados nas sub-specs):
 
-- [ ] **[P0] AC-01** RFC e decisões
-- [ ] **[P0] AC-02** Limites arquiteturais
-- [ ] **[P0] AC-03** Modelo de domínio e processamento
-- [ ] **[P0] AC-04** Mensagens e contratos
-- [ ] **[P0] AC-05** Protobuf e CloudEvents
-- [ ] **[P0] AC-06** Comunicação síncrona e assíncrona
-- [ ] **[P0] AC-07** Transação, inbox e outbox
-- [ ] **[P0] AC-08** Contexto, erros e segurança
-- [ ] **[P0] AC-09** Resiliência e observabilidade
-- [ ] **[P0] AC-10** Qualidade e interoperabilidade
+- [x] **[P0] AC-01** RFC e decisões
+- [x] **[P0] AC-02** Limites arquiteturais
+- [x] **[P0] AC-03** Modelo de domínio e processamento
+- [x] **[P0] AC-04** Mensagens e contratos
+- [x] **[P0] AC-05** Protobuf e CloudEvents
+- [x] **[P0] AC-06** Comunicação síncrona e assíncrona
+- [x] **[P0] AC-07** Transação, inbox e outbox
+- [x] **[P0] AC-08** Contexto, erros e segurança
+- [x] **[P0] AC-09** Resiliência e observabilidade
+- [x] **[P0] AC-10** Qualidade e interoperabilidade
 - [ ] **[P0] AC-11** Governança e adoção
 - [ ] **[P0] AC-12** Prontidão para implementação
 

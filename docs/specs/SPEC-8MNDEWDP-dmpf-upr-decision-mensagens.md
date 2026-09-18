@@ -146,9 +146,9 @@ que cruza a fronteira e tem contrato publicado.
 
 ### Critérios de aceite
 
-- [ ] **[P0] UPR e Decision especificados com exemplos language-agnostic, no artefato promovido para `docs/dmpf/upr-decision-mensagens.md`**
-- [ ] **[P0] Domain event ≠ integration event documentado e aprovado em PR**
-- [ ] **[P0] Convenções de ownership/versionamento de contratos publicadas (nível conceitual) no artefato promovido**
+- [x] **[P0] UPR e Decision especificados com exemplos language-agnostic, no artefato promovido para `docs/dmpf/upr-decision-mensagens.md`**
+- [x] **[P0] Domain event ≠ integration event documentado e aprovado em PR**
+- [x] **[P0] Convenções de ownership/versionamento de contratos publicadas (nível conceitual) no artefato promovido**
 
 ### Cenários de teste (mínimo 3)
 

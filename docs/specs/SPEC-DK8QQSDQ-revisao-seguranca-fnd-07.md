@@ -315,30 +315,30 @@ para cada vetor V em {adapters, desserializacao, contratos, mensageria,
 
 ### Critérios de aceite
 
-- [ ] **[P0] ADR-029 criado**, nomeando o titular, declarando a divergência em
+- [x] **[P0] ADR-029 criado**, nomeando o titular, declarando a divergência em
   relação ao cabeçalho do FND-07 e à ARQ-488, com alternativa descartada e condição
   de re-revisão
-- [ ] **[P0] Parecer em `docs/dmpf/revisao-seguranca-fnd-07.md`** com matriz de
+- [x] **[P0] Parecer em `docs/dmpf/revisao-seguranca-fnd-07.md`** com matriz de
   conferência dos 7 vetores, conferência de §8 nos 4 eixos e na matriz de 13
   cláusulas, achados e desfecho declarado
-- [ ] **[P0] As 40 linhas de §7 conferidas** — 33 materiais e 7 de exclusões — com
+- [x] **[P0] As 40 linhas de §7 conferidas** — 33 materiais e 7 de exclusões — com
   a distribuição por vetor registrada e reproduzível
-- [ ] **[P0] As 6 categorias STRIDE conferidas em cada um dos 7 vetores**, com a
+- [x] **[P0] As 6 categorias STRIDE conferidas em cada um dos 7 vetores**, com a
   posição de cada uma (linha própria ou exclusão) registrada
-- [ ] **[P0] Os quatro pontos nominados pela ARQ-488** — `CTX-25`, `IDN-14`,
+- [x] **[P0] Os quatro pontos nominados pela ARQ-488** — `CTX-25`, `IDN-14`,
   `DAT-10` e `THR-01` — tratados nominalmente no parecer
-- [ ] **[P0] As 112 regras do FND-07 inalteradas** em texto e numeração, conferido
+- [x] **[P0] As 112 regras do FND-07 inalteradas** em texto e numeração, conferido
   por contagem por prefixo: `CTX` 28, `IDN` 20, `ERR` 28, `MAP` 7, `THR` 3, `DAT` 26
-- [ ] **[P0] CA1 da SPEC-XQWGGAXF marcado** e **CA2 marcado somente se o desfecho
+- [x] **[P0] CA1 da SPEC-XQWGGAXF marcado** e **CA2 marcado somente se o desfecho
   for aprovação ou aprovação com ressalvas**
-- [ ] **[P0] `REC-011` registrado** no ledger — linha `parcial` na tabela de estado
+- [x] **[P0] `REC-011` registrado** no ledger — linha `parcial` na tabela de estado
   atual, com a partição declarada, e entrada datada no histórico append-only
 - [ ] **[P0] Os três artefatos promovidos byte-idênticos** ao estado anterior:
   `contexto-erros-seguranca.md`, `testes-interop.md`, `resiliencia-observabilidade.md`
 - [ ] **[P0] `node tools/dmpf-verify.mjs` sem violações** — o gate mecânico que
   reforça a convenção de não editar artefato promovido
 - [ ] **[P1] ARQ-488 transicionada**, com o parecer citado
-- [ ] **[P0] Revisão PT-BR** do parecer e do ADR sem erro de acentuação
+- [x] **[P0] Revisão PT-BR** do parecer e do ADR sem erro de acentuação
 
 ### Cenários de teste (mínimo 3)
 

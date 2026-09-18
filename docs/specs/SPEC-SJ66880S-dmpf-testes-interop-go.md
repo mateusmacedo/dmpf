@@ -669,60 +669,60 @@ provados pelo próprio módulo.
 Os sete primeiros são os do ticket `ARQ-530`, verbatim; os seguintes derivam
 das fontes normativas e das divergências reconciliadas acima.
 
-- [ ] Cada uma das **36 células** da matriz tem vetor positivo **e** negativo
+- [x] Cada uma das **36 células** da matriz tem vetor positivo **e** negativo
   executável, e a suíte reprova se algum negativo passar.
-- [ ] Um teste de domínio que precise de duplo de infraestrutura reprova,
+- [x] Um teste de domínio que precise de duplo de infraestrutura reprova,
   nomeando a dependência como violação.
-- [ ] O round-trip roda nas **duas direções**, e o passe numa não dispensa a
+- [x] O round-trip roda nas **duas direções**, e o passe numa não dispensa a
   outra.
-- [ ] Os três oráculos são reportados em separado, com o campo divergente, a
+- [x] Os três oráculos são reportados em separado, com o campo divergente, a
   direção e o valor esperado; código único de "round-trip falhou" reprova o
   próprio kit.
-- [ ] Fixture com versão de formato desconhecida faz o carregador **falhar**;
+- [x] Fixture com versão de formato desconhecida faz o carregador **falhar**;
   uma segunda fixture para o mesmo contrato-major reprova por ambiguidade, e
   um inteiro de 64 bits atravessa o round-trip sem perda de precisão.
-- [ ] O harness injeta reentrega deliberada e aprova quando o efeito final é
+- [x] O harness injeta reentrega deliberada e aprova quando o efeito final é
   o mesmo; consumidor que duplique o efeito reprova.
-- [ ] Nenhum cenário depende de relógio de parede, ordem de map ou porta
+- [x] Nenhum cenário depende de relógio de parede, ordem de map ou porta
   aleatória, e `V27` está registrado como single-stack.
-- [ ] `libs/backend/go/testkit` existe com onze unidades em
+- [x] `libs/backend/go/testkit` existe com onze unidades em
   `dmpf-units.json`, registradas no `go.work` e no baseline;
   `conformance --root . --base develop` aprova.
-- [ ] Nenhum package de bloco `domain` ou `contract` do kit importa
+- [x] Nenhum package de bloco `domain` ou `contract` do kit importa
   `testing`, `os` ou `time`; um teste de compilação no próprio kit assevera
   isso pelo `go list -deps`.
-- [ ] `domainkit.Run` sobre `orders` e `reservations` aprova com as fixtures
+- [x] `domainkit.Run` sobre `orders` e `reservations` aprova com as fixtures
   de projeção; um `Rejected` devolve sequência vazia e estado idêntico; a
   segunda leitura devolve a mesma projeção.
-- [ ] `serviceskit` aprova o caso de uso de referência de `orders`; um
+- [x] `serviceskit` aprova o caso de uso de referência de `orders`; um
   service de fixture que enfileira fora da transação reprova nomeando
   `UOW-08` e a posição no ledger.
-- [ ] `providerkit` aprova `example/memory` sem infra e
+- [x] `providerkit` aprova `example/memory` sem infra e
   `postgres` com `DMPF_PG_DSN`; a realização de fixture com
   claim substituído aceito reprova nomeando `OBX-11`; sem a variável, `t.Skip`
   nomeando-a.
-- [ ] `distkit` roda dois processos sobre `DMPF_KAFKA_BROKERS`; `V32`
+- [x] `distkit` roda dois processos sobre `DMPF_KAFKA_BROKERS`; `V32`
   positivo aprova; `consumer-naive` reprova com `DMPF-R004`; sem a variável,
   `t.Skip` nomeando-a.
-- [ ] `golden.Decode` rejeita `format_version` `"2"`, rejeita um escalar
+- [x] `golden.Decode` rejeita `format_version` `"2"`, rejeita um escalar
   numérico, e `Catalog.Add` rejeita a segunda fixture de
   `orders/event/v1`; os três diagnósticos nomeiam o caminho.
-- [ ] Na direção produtor, uma fixture cujos bytes divergem dos campos
+- [x] Na direção produtor, uma fixture cujos bytes divergem dos campos
   declarados reprova **só** no oráculo 3 (`DMPF-R003`) quando o hash foi
   gravado sobre os bytes divergentes, e nos oráculos 2 e 3 quando não foi;
   o `Report` lista os dois em separado.
-- [ ] `contracts/golden` passa com o kit e as três fixtures `.golden`
+- [x] `contracts/golden` passa com o kit e as três fixtures `.golden`
   são byte a byte as de antes; `GOLDEN_UPDATE=1` continua regravando.
 - [ ] `fitness.Edges` sobre o workspace real devolve zero diagnósticos;
   `testdata/cells/` tem 36 diretórios com `positive/` e `negative/`, e o
   metateste bate 17 permitidas e 19 proibidas com o oráculo de
   `matrix_oracle_test.go` sem derivá-lo de `matrix.go`.
-- [ ] `fitness/domaintest_test.go` reprova um package de teste de unidade
+- [x] `fitness/domaintest_test.go` reprova um package de teste de unidade
   `domain` cujo fechamento alcança `ports`, nomeando o import.
-- [ ] `fitness/v27_test.go` assevera a entrada `V27` com
+- [x] `fitness/v27_test.go` assevera a entrada `V27` com
   `single-stack: typescript` e motivo; a tabela de vetores não a conta
   como lacuna.
-- [ ] `ci.yml` executa domínio → services → contrato → providers → apps,
+- [x] `ci.yml` executa domínio → services → contrato → providers → apps,
   cada estágio com gate; os dois primeiros rodam antes de qualquer `docker
   run`; `dmpf-distributed.yml` existe, roda `distkit` e é gate próprio.
 - [ ] Os quatorze `project.json` têm a tag `layer:*`; `pnpm nx show projects
@@ -731,7 +731,7 @@ das fontes normativas e das divergências reconciliadas acima.
 - [ ] Cadeia Go verde nos quatorze módulos; `go test -race -count=3
   ./...` do kit passa; `tools/dmpf-gate-check.sh` e `tools/dmpf-cell-check.sh`
   passam.
-- [ ] `README.md` do kit traz o contrato dos cinco kits, a tabela regra →
+- [x] `README.md` do kit traz o contrato dos cinco kits, a tabela regra →
   vetor, as escolhas de §8.4 e a assimetria de `V27`; `contracts/README.md`
   descreve `projection/`; `AGENTS.md` inventaria os quatorze módulos;
   ADR-040 registrado e indexado.

@@ -1,6 +1,6 @@
 ---
 id: SPEC-ZHE7DN1H
-slug: kernel-aplicacao-go
+slug: dmpf-kernel-aplicacao-go
 title: DMPF KRN-04 — Kernel de aplicação Go: Unit of Work e sequência canônica
 stage: done
 priority: P0

@@ -240,11 +240,11 @@ owner e prazo. É o mecanismo previsto no cenário de edge da umbrella.
 
 ### Critérios de aceite
 
-- [ ] **[P0] 19 ADRs promovidos para `docs/adr/010`–`028` e revisáveis em PR** (satisfaz o piso de «15 ADRs mínimos» do épico)
+- [x] **[P0] 19 ADRs promovidos para `docs/adr/010`–`028` e revisáveis em PR** (satisfaz o piso de «15 ADRs mínimos» do épico)
 - [ ] **[P0] Cada ADR obrigatório aceito ou com pendência explícita (owner/prazo)**
-- [ ] **[P0] `docs/adr/README.md` atualizado com as 19 entradas, e o índice referenciado pela RFC e pela umbrella**
-- [ ] **[P0] Mapa de reconciliação publicado**: cada uma das 15 linhas da tabela §8 aponta o ADR que a cobre, ou declara por que não recebe ADR próprio; cada acionamento sem linha correspondente é nomeado
-- [ ] **[P0] Nenhum ADR promovido citando outro por identificador provisório**: as referências cruzadas usam o número definitivo após a promoção
+- [x] **[P0] `docs/adr/README.md` atualizado com as 19 entradas, e o índice referenciado pela RFC e pela umbrella**
+- [x] **[P0] Mapa de reconciliação publicado**: cada uma das 15 linhas da tabela §8 aponta o ADR que a cobre, ou declara por que não recebe ADR próprio; cada acionamento sem linha correspondente é nomeado
+- [x] **[P0] Nenhum ADR promovido citando outro por identificador provisório**: as referências cruzadas usam o número definitivo após a promoção
 
 ### Cenários de teste (mínimo 3)
 

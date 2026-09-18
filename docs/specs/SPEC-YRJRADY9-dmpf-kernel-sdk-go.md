@@ -1,6 +1,6 @@
 ---
 id: SPEC-YRJRADY9
-slug: kernel-sdk-go
+slug: dmpf-kernel-sdk-go
 title: DMPF — Kernel e SDK de Referência Go
 stage: done
 priority: P0

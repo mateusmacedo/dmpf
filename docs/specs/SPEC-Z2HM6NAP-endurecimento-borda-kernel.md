@@ -3,7 +3,7 @@ id: SPEC-Z2HM6NAP
 slug: endurecimento-borda-kernel
 title: Endurecimento da borda e do kernel — amostragem, catálogo multi-evento e orçamento operacional
 stage: backlog
-priority: 3
+priority: P3
 depends_on: [SPEC-ACYKBF9V]
 ticket_url: null
 subtask_urls: []

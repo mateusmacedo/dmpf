@@ -228,13 +228,13 @@ rodar pnpm install e conferir lockfile sem downgrade de versões
 
 ### Critérios de aceite
 
-- [ ] `.gitignore` ignora `.env*` (verificável: `git check-ignore .env`)
-- [ ] `pnpm-workspace.yaml` tem `catalog:` e `package.json` usa `catalog:`;
+- [x] `.gitignore` ignora `.env*` (verificável: `git check-ignore .env`)
+- [x] `pnpm-workspace.yaml` tem `catalog:` e `package.json` usa `catalog:`;
   `pnpm install` mantém lockfile sem downgrade de versões
-- [ ] `renovate.json` válido (`npx --yes renovate-config-validator`)
-- [ ] `package.json` tem `packageManager` e `engines`; `.nvmrc` presente
-- [ ] README com seções Quick Start, Pré-requisitos, Testes, Troubleshooting
-- [ ] Existem CONTRIBUTING.md, CODE_OF_CONDUCT.md, LICENSE, SECURITY.md e
+- [x] `renovate.json` válido (`npx --yes renovate-config-validator`)
+- [x] `package.json` tem `packageManager` e `engines`; `.nvmrc` presente
+- [x] README com seções Quick Start, Pré-requisitos, Testes, Troubleshooting
+- [x] Existem CONTRIBUTING.md, CODE_OF_CONDUCT.md, LICENSE, SECURITY.md e
   `.github/CODEOWNERS`
 - [ ] `.github/workflows/ci.yml` ativo e passa `actionlint`
 - [ ] Existe `.dockerignore`, um Dockerfile de referência e `docker-compose.yml`;

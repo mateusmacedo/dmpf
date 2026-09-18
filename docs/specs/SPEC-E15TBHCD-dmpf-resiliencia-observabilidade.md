@@ -182,9 +182,9 @@ nunca redefinido.
 
 ### Critérios de aceite
 
-- [ ] **[P0] Políticas de resiliência promovidas para `docs/dmpf/resiliencia-observabilidade.md` e aprovadas em PR**
-- [ ] **[P0] Catálogo de métricas/tracing/logging definido no artefato promovido**
-- [ ] **[P0] Runbook mínimo DLQ/replay documentado**
+- [x] **[P0] Políticas de resiliência promovidas para `docs/dmpf/resiliencia-observabilidade.md` e aprovadas em PR**
+- [x] **[P0] Catálogo de métricas/tracing/logging definido no artefato promovido**
+- [x] **[P0] Runbook mínimo DLQ/replay documentado**
 
 ### Cenários de teste (mínimo 3)
 

@@ -706,41 +706,41 @@ volta ao pool imediatamente, em vez de esperar o lease vencer.
 Os dez primeiros são os do ticket `ARQ-527`, verbatim; os seguintes derivam
 das fontes normativas e das divergências reconciliadas acima.
 
-- [ ] A publicação ocorre fora de qualquer transação de banco, com teste
+- [x] A publicação ocorre fora de qualquer transação de banco, com teste
   comprovando que nenhuma conexão fica presa durante o I/O.
-- [ ] A transação de claim grava os quatro campos no mesmo commit; um registro
+- [x] A transação de claim grava os quatro campos no mesmo commit; um registro
   em `publishing` sem `locked_until` nunca é produzido.
-- [ ] Dado um registro cujo lease expirou, quando um segundo relay o reivindica
+- [x] Dado um registro cujo lease expirou, quando um segundo relay o reivindica
   e publica, o primeiro não consegue transicioná-lo: a escrita é rejeitada e
   nada no registro é alterado.
-- [ ] Um mesmo worker que readquira o mesmo registro recebe identidade de claim
+- [x] Um mesmo worker que readquira o mesmo registro recebe identidade de claim
   diferente da anterior.
-- [ ] Não existe caminho de código que escreva `pending` sobre um registro em
+- [x] Não existe caminho de código que escreva `pending` sobre um registro em
   `publishing`: a devolução ao pool é por comparação de prazos.
-- [ ] No desfecho transitório, `locked_until` é liberado no mesmo commit do
+- [x] No desfecho transitório, `locked_until` é liberado no mesmo commit do
   recálculo de `available_at`, e o próximo claim respeita o backoff, não o
   restante do lease.
-- [ ] Esgotadas as tentativas, o registro vai para `failed` e não retorna ao
+- [x] Esgotadas as tentativas, o registro vai para `failed` e não retorna ao
   pool sem intervenção.
-- [ ] O relay não lê o `payload` para decidir publicar; os quatro sinais são
+- [x] O relay não lê o `payload` para decidir publicar; os quatro sinais são
   observáveis; o graceful shutdown não deixa claim órfão.
-- [ ] Uma falha entre publicar e marcar produz republicação no ciclo seguinte,
+- [x] Uma falha entre publicar e marcar produz republicação no ciclo seguinte,
   declarada no teste como duplicata esperada sob at-least-once.
-- [ ] Nenhum artefato desta entrega declara ou sugere exactly-once fim a fim, e
+- [x] Nenhum artefato desta entrega declara ou sugere exactly-once fim a fim, e
   `last_error` não contém payload de negócio, credencial nem stack trace com
   dado de usuário.
-- [ ] `envelope.Marshal` existe, valida o perfil antes de serializar, e é
+- [x] `envelope.Marshal` existe, valida o perfil antes de serializar, e é
   inversa de `envelope.Unmarshal` para todo envelope válido.
-- [ ] O relay monta o CloudEvent a partir das colunas conforme
+- [x] O relay monta o CloudEvent a partir das colunas conforme
   `docs/adr/035-...md:40-44`, sem desserializar nem reserializar `payload`.
-- [ ] `payload_hash` é conferido antes de publicar; divergência leva o registro
+- [x] `payload_hash` é conferido antes de publicar; divergência leva o registro
   a `failed` sem novo backoff e sem incremento além do que o claim já fez, e
   `last_error` descreve a divergência sem reproduzir os bytes.
-- [ ] O índice de elegibilidade existe em `schema.sql` e a query de claim o
+- [x] O índice de elegibilidade existe em `schema.sql` e a query de claim o
   utiliza — comprovado por `EXPLAIN` no teste de integração.
-- [ ] Um registro em `publishing` com `locked_until IS NULL` e `available_at`
+- [x] Um registro em `publishing` com `locked_until IS NULL` e `available_at`
   passado é elegível ao claim.
-- [ ] Intervalo de varredura, tamanho de lote, prazo de lease, teto de
+- [x] Intervalo de varredura, tamanho de lote, prazo de lease, teto de
   tentativas e limite de concorrência são declarados pelo chamador; nenhum
   valor operacional está fixado no código do relay.
 - [ ] `conformance --root . --base develop` reporta conforme com as
@@ -752,9 +752,9 @@ das fontes normativas e das divergências reconciliadas acima.
 - [ ] `pnpm biome ci .` e `pnpm nx affected -t lint,typecheck,test,build`
   verdes.
 - [ ] Critérios verificados no CI, não apenas localmente.
-- [ ] Resultado do incremento 3 demonstrado com `KRN-05` a `KRN-07`: mensagem
+- [x] Resultado do incremento 3 demonstrado com `KRN-05` a `KRN-07`: mensagem
   publicada atomicamente e consumida com deduplicação.
-- [ ] Divergência com a fundação registrada como ADR `038`.
+- [x] Divergência com a fundação registrada como ADR `038`.
 
 ### Cenários de teste
 

@@ -163,7 +163,7 @@ de continuidade.
 
 ### Critérios de aceite
 
-- [ ] **[P0] Política de produto e BOM template promovidos para `docs/dmpf/governanca-bom-pilotos.md` e aprovados em PR**
+- [x] **[P0] Política de produto e BOM template promovidos para `docs/dmpf/governanca-bom-pilotos.md` e aprovados em PR**
 - [ ] **[P0] Charter dos 2 pilotos assinado pelas squads**
 - [ ] **[P0] AC-12 de prontidão atendido (riscos com owner; decisão de continuidade)**
 

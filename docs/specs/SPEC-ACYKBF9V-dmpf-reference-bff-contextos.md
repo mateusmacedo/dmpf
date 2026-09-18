@@ -1,6 +1,6 @@
 ---
 id: SPEC-ACYKBF9V
-slug: bff-contextos
+slug: dmpf-reference-bff-contextos
 title: DMPF — BFF REST público e contextos orders e reservations com gRPC interno
 stage: done
 priority: P1
@@ -312,12 +312,12 @@ Seis processos. O BFF não tem banco, outbox, relay nem consumer.
 ### Critérios de aceite
 
 - [ ] A cadeia de gates fecha verde, nesta ordem: `contracts:buf-lint`, `buf-pins`, `buf-generate-check`, `NX_BASE=develop buf-breaking`; `tools/dmpf-gate-check.sh`; `tools/dmpf-cell-check.sh`; `conformance` com baseline atualizado; `fmt-check`, `vet`, `test-race`, `build` e `govulncheck` nos projetos Go afetados; `k8s-render`, `infra-budget`, `biome ci`, `adr-verify`.
-- [ ] `pnpm nx show projects --projects=tag:layer:apps` lista `app`, `bookings` e os três novos; `reference-go` não existe mais.
-- [ ] O e2e, falando só HTTP com o BFF, leva `POST items` → `POST place` até `ReservationConfirmed` em `reservations.events` com o mesmo `correlationid` enviado, `causationid` igual ao id do `OrderPlaced` e o mesmo trace id do `traceparent` gravado na outbox de `orders`.
-- [ ] O e2e cancela uma reserva antes do `OrderPlaced` e termina com `Canceled`, `ReservationCancelled` publicado e nenhum `ReservationConfirmed`.
-- [ ] A reentrega do mesmo `OrderPlaced` termina em `DuplicateIgnored`, com uma reserva e um registro de inbox.
-- [ ] A outbox de `dmpf_orders` só tem destino `orders.events` e a de `dmpf_reservations` só `reservations.events`.
-- [ ] Nenhum arquivo do BFF importa `domain`, `application` nem os pacotes dos contextos; nenhum pacote gerado importa `google.golang.org/grpc`.
+- [x] `pnpm nx show projects --projects=tag:layer:apps` lista `app`, `bookings` e os três novos; `reference-go` não existe mais.
+- [x] O e2e, falando só HTTP com o BFF, leva `POST items` → `POST place` até `ReservationConfirmed` em `reservations.events` com o mesmo `correlationid` enviado, `causationid` igual ao id do `OrderPlaced` e o mesmo trace id do `traceparent` gravado na outbox de `orders`.
+- [x] O e2e cancela uma reserva antes do `OrderPlaced` e termina com `Canceled`, `ReservationCancelled` publicado e nenhum `ReservationConfirmed`.
+- [x] A reentrega do mesmo `OrderPlaced` termina em `DuplicateIgnored`, com uma reserva e um registro de inbox.
+- [x] A outbox de `dmpf_orders` só tem destino `orders.events` e a de `dmpf_reservations` só `reservations.events`.
+- [x] Nenhum arquivo do BFF importa `domain`, `application` nem os pacotes dos contextos; nenhum pacote gerado importa `google.golang.org/grpc`.
 - [ ] ADR-044 criado; `AGENTS.md` e os guias apontam para os três apps; nenhuma referência viva a `apps/backend/reference/` fora de specs, ADRs e BOM históricos.
 
 ### Cenários de teste

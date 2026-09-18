@@ -1,6 +1,6 @@
 ---
 id: SPEC-XF9TF9A0
-slug: kernel-dominio-go
+slug: dmpf-kernel-dominio-go
 title: DMPF KRN-03 — Kernel de domínio Go: UPR, Decision e Rejection
 stage: done
 priority: P0

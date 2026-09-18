@@ -234,18 +234,18 @@ docs/guides/dmpf-manifesto.md          — MODIFICAR: seção "Shared kernel"
 
 ### Critérios de aceite
 
-- [ ] `pnpm nx run conformance:test-race` verde com os vetores novos,
+- [x] `pnpm nx run conformance:test-race` verde com os vetores novos,
   incluindo: `Digest` muda quando `shared_kernel_units` muda; lista alterada sem
   recalcular → `T001`; `Ato` "designar shared kernel" detectado.
-- [ ] Um contexto de teste `X` (fixture) importando `kernel/domain`,
+- [x] Um contexto de teste `X` (fixture) importando `kernel/domain`,
   `port` e `application` é aprovado com `--base`; o mesmo `X` importando
   `Y/domain` ou `kernel/example-orders` reprova com `D002`.
-- [ ] `tools/dmpf-baseline/units-baseline.json` contém `shared_kernel_units`
+- [x] `tools/dmpf-baseline/units-baseline.json` contém `shared_kernel_units`
   com a lista nominal em commit próprio; `conformance
   --root . --base <antes>` aprova o workspace.
-- [ ] `bash tools/dmpf-gate-check.sh` passa com o vetor novo.
-- [ ] ADR-042 criado; ADR-017 anotado; guia atualizado; `pt-reviewer` ✓.
-- [ ] Cadeia do workspace verde; nenhum diagnóstico novo nos módulos existentes.
+- [x] `bash tools/dmpf-gate-check.sh` passa com o vetor novo.
+- [x] ADR-042 criado; ADR-017 anotado; guia atualizado; `pt-reviewer` ✓.
+- [x] Cadeia do workspace verde; nenhum diagnóstico novo nos módulos existentes.
 
 ### Cenários de teste
 

@@ -642,66 +642,66 @@ diferentes.
 
 ### Critérios de aceite
 
-- [ ] `contracts/buf.yaml` é v2, lista `proto` explicitamente, usa `STANDARD` com
+- [x] `contracts/buf.yaml` é v2, lista `proto` explicitamente, usa `STANDARD` com
   `enum_zero_value_suffix: _UNSPECIFIED`, `FILE` e `deps: []`; `tools/buf.sh
   lint contracts` e `tools/buf.sh format --diff --exit-code contracts` saem com 0.
-- [ ] O envelope carrega os quinze atributos de `ENV-08` com a presença
+- [x] O envelope carrega os quinze atributos de `ENV-08` com a presença
   declarada: teste de `Encode`/`Decode` para cada obrigatório ausente devolve
   `ErrMissingAttribute` com o nome; para cada condicional presente e vazio,
   `ErrEmptyConditional`; para cada condicional ausente, sucesso sem entrada no
   mapa.
-- [ ] A modalidade do `data` é `proto_data`: `Decode` de `CloudEvent` com
+- [x] A modalidade do `data` é `proto_data`: `Decode` de `CloudEvent` com
   `binary_data` e com `text_data` devolve `ErrModality`; `Encode` nunca produz
   outra modalidade.
-- [ ] `datacontenttype` é `application/protobuf` e o *type URL* do `Any` é
+- [x] `datacontenttype` é `application/protobuf` e o *type URL* do `Any` é
   literalmente igual a `dataschema`: um único caractere de diferença devolve
   `ErrSchemaMismatch`; `type` em `v2` com `dataschema` em `v1` devolve
   `ErrMajorMismatch`; `dataschema` e `type` de majors iguais com strings
   distintas passam (b).
-- [ ] `payloadhash.Sum` devolve 64 caracteres em `[0-9a-f]`; para o mesmo
+- [x] `payloadhash.Sum` devolve 64 caracteres em `[0-9a-f]`; para o mesmo
   `Payload`, variar cada um dos quinze atributos do envelope não altera o valor
   (teste parametrizado por atributo).
-- [ ] Existe teste que falha se o hash for recomputado a partir de estrutura
+- [x] Existe teste que falha se o hash for recomputado a partir de estrutura
   desserializada: caso (8) da fixture — `Sum(bytes) == payload_hash` e
   `Sum(proto.Marshal(decodificado)) != payload_hash`.
-- [ ] O valor calculado em Go coincide com o hash declarado em cada caso da
+- [x] O valor calculado em Go coincide com o hash declarado em cada caso da
   golden fixture, e cada caso decodifica campo a campo no valor declarado,
   inclusive `total_cents = 9007199254740993` e o campo desconhecido preservado
   (`PTB-10`).
-- [ ] A fixture tem ao menos um caso presente e um ausente para cada um de
+- [x] A fixture tem ao menos um caso presente e um ausente para cada um de
   `aggregateversion`, `tenantid` e `tracestate` (§8.2), o enum em `UNSPECIFIED`, em
   valor conhecido e em valor desconhecido, e um caso de campo desconhecido
   (§8.2; `ORA-08`); todo escalar é string; `format_version` desconhecida faz o
   carregador falhar.
-- [ ] `buf lint` roda em `STANDARD` e `buf breaking` em `FILE` no CI; nenhuma
+- [x] `buf lint` roda em `STANDARD` e `buf breaking` em `FILE` no CI; nenhuma
   regra é desabilitada por diretório; com marca de baseline presente, `NX_BASE`
   vazio ou irresolvível reprova (provado pelo autoteste); com marca ausente em
   módulo já presente em `NX_BASE`, reprova; em módulo novo, o gate registra
   `sem baseline` e segue.
-- [ ] Duas gerações consecutivas em ambiente limpo produzem artefatos idênticos
+- [x] Duas gerações consecutivas em ambiente limpo produzem artefatos idênticos
   byte a byte, e a edição de um byte em `gen/go/` faz `generate-check` reprovar
   (autoteste).
-- [ ] `buf-pins` reprova `latest`, faixa e divergência entre a versão do plugin e
+- [x] `buf-pins` reprova `latest`, faixa e divergência entre a versão do plugin e
   a do runtime no `go.mod` (autoteste); passa na configuração versionada.
-- [ ] Nenhum artefato desta entrega declara ou sugere exactly-once fim a fim: a
+- [x] Nenhum artefato desta entrega declara ou sugere exactly-once fim a fim: a
   varredura de `lint` sai com 0 sobre `contracts/` e a lib.
 - [ ] O verificador de conformidade não reporta aresta de `contract` para
   `domain` nem para qualquer outro bloco: `go run
   ./libs/backend/go/conformance/cmd/conformance --root . --base
   origin/develop` sai com 0 com as três unidades no manifesto e no baseline.
-- [ ] Teste negativo de matriz: um pacote de teste temporário em
+- [x] Teste negativo de matriz: um pacote de teste temporário em
   `domain` importando `contracts/envelope` reprova com `DMPF-D001`
   (célula 6), executado como caso do autoteste do gate ou como teste do
   verificador, e removido em seguida.
 - [ ] Cadeia Go verde na lib: `pnpm nx run-many -t fmt-check,vet,lint,build,test,test-race,govulncheck -p contracts`.
 - [ ] `pnpm biome ci .` e `pnpm nx affected -t lint,typecheck,test,build
   --exclude=@mateusmacedo/dmpf-source` verdes.
-- [ ] `tools/dmpf-baseline/units-baseline.json` atualizado em commit próprio;
+- [x] `tools/dmpf-baseline/units-baseline.json` atualizado em commit próprio;
   `bash tools/dmpf-gate-check.sh` continua verde (o módulo novo não é `domain`
   e é reportado fora do alcance do depguard, sem reprovar).
 - [ ] `CODEOWNERS` lido pela forge tem owner de equipe para `orders`; o handle é
   uma equipe existente em `mateusmacedo`.
-- [ ] `docs/guides/dmpf-manifesto.md`, `docs/nx-reference/tasks.md` e
+- [x] `docs/guides/dmpf-manifesto.md`, `docs/nx-reference/tasks.md` e
   `AGENTS.md` atualizados; ADR-033 criado na finalização.
 
 ### Cenários de teste

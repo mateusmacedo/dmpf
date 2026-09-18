@@ -712,63 +712,63 @@ Fora, com destino: `TRP-09`, `TRP-46` (ver "Escopo fora"); `KFK-13` a `KFK-18`
 Os seis primeiros são os do ticket `ARQ-529`, verbatim; os seguintes derivam
 das fontes normativas e das divergências reconciliadas acima.
 
-- [ ] Uma chamada gRPC com deadline em vigor faz trafegar a duração restante, o
+- [x] Uma chamada gRPC com deadline em vigor faz trafegar a duração restante, o
   receptor reconstrói o instante e o prazo não é reiniciado — comprovado em dois
   saltos.
-- [ ] Método sem semântica idempotente comprovada não recebe retry automático,
+- [x] Método sem semântica idempotente comprovada não recebe retry automático,
   em gRPC nem em HTTP.
-- [ ] O ACK só sai depois do commit local, e a DLQ é publicada antes do avanço
+- [x] O ACK só sai depois do commit local, e a DLQ é publicada antes do avanço
   do offset — comprovados por testes que interrompem a execução entre os passos.
-- [ ] O `payload_hash` recomputado após o hop é idêntico ao publicado; um
+- [x] O `payload_hash` recomputado após o hop é idêntico ao publicado; um
   interceptor que reserialize e o hop sem *raw message delivery* reprovam.
-- [ ] Nenhum tópico, fila ou ARN aparece fora da configuração do provider, e
+- [x] Nenhum tópico, fila ou ARN aparece fora da configuração do provider, e
   canal sem catalogação resolvível ou sem `janela_redelivery` com fórmula não é
   operado.
-- [ ] A desserialização de qualquer contrato funciona sem acesso de rede a um
+- [x] A desserialização de qualquer contrato funciona sem acesso de rede a um
   registry, e nenhum artefato declara exactly-once fim a fim.
-- [ ] Nenhum dos cinco módulos importa `app` nem `application`;
+- [x] Nenhum dos cinco módulos importa `app` nem `application`;
   `conformance --root . --base develop` aprova e o `dmpf-cell-check.sh`
   passa.
-- [ ] `relay.Publisher` é satisfeito por `kafka.Publisher` e `sqs.Publisher` em
+- [x] `relay.Publisher` é satisfeito por `kafka.Publisher` e `sqs.Publisher` em
   teste de compilação (`var _ interface{ Publish(...) error } = ...`) sem import
   de `app`.
-- [ ] `ports.Acknowledger` e `ports.Containment` são satisfeitos pelas
+- [x] `ports.Acknowledger` e `ports.Containment` são satisfeitos pelas
   realizações Kafka e SQS.
-- [ ] Em Kafka, com `enable.auto.commit` desabilitado, um registro cujo `Sink`
+- [x] Em Kafka, com `enable.auto.commit` desabilitado, um registro cujo `Sink`
   não retornou nunca tem offset commitado, e o commit após três registros
   contíguos é `offset(3)+1`.
-- [ ] Em Kafka, `Release` reentrega o mesmo registro ao `Sink` com `attempt+1`
+- [x] Em Kafka, `Release` reentrega o mesmo registro ao `Sink` com `attempt+1`
   e, esgotado `MaxInlineAttempts`, o adapter contém e o offset avança **depois**
   da DLQ.
-- [ ] Em Kafka, revogação de partição durante `Handle` cancela o contexto e
+- [x] Em Kafka, revogação de partição durante `Handle` cancela o contexto e
   não commita o registro em curso.
-- [ ] Em SQS FIFO, `MessageGroupId` e `MessageDeduplicationId` têm 64
+- [x] Em SQS FIFO, `MessageGroupId` e `MessageDeduplicationId` têm 64
   caracteres hexadecimais; duas mensagens com o mesmo `id` e payloads
   diferentes têm dedup ids diferentes.
-- [ ] Em SQS, `Ack` faz delete com o receipt handle da tentativa corrente e
+- [x] Em SQS, `Ack` faz delete com o receipt handle da tentativa corrente e
   `Release` altera a visibilidade sem deletar; a visibilidade é estendida
   durante o processamento e cessa às 12h.
-- [ ] `NewSNSPublisher` recusa assinatura sem `RawMessageDelivery=true` e
+- [x] `NewSNSPublisher` recusa assinatura sem `RawMessageDelivery=true` e
   tópico FIFO com `FilterPolicy`.
-- [ ] Um corpo SQS que seja notificação SNS (sem raw delivery) é reconhecido e
+- [x] Um corpo SQS que seja notificação SNS (sem raw delivery) é reconhecido e
   produz `ErrSNSEnvelopeNotRaw`; um corpo com duplo Base64 produz hash
   divergente.
-- [ ] Corpo codificado acima do limite do caminho não é enviado
+- [x] Corpo codificado acima do limite do caminho não é enviado
   (`ErrMessageTooLarge`); não existe caminho de claim-check.
-- [ ] Toda fórmula de `janela_redelivery` produz limite superior fechado, e a
+- [x] Toda fórmula de `janela_redelivery` produz limite superior fechado, e a
   de SNS → SQS é a soma das duas janelas.
-- [ ] Canal ordenado com retry em canal separado é recusado na construção.
-- [ ] Rota HTTP sem `ContractRef` e cliente gRPC sem TLS (sem a opção
+- [x] Canal ordenado com retry em canal separado é recusado na construção.
+- [x] Rota HTTP sem `ContractRef` e cliente gRPC sem TLS (sem a opção
   nomeada) são recusados na construção.
-- [ ] A admissão recusa por rota e tenant antes de ler o corpo e incrementa
+- [x] A admissão recusa por rota e tenant antes de ler o corpo e incrementa
   `dmpf_service_admission_rejections_total{route, tenant}`.
 - [ ] Cadeia Go verde nos cinco módulos; `test-race` de Kafka e SQS roda no CI
   contra Redpanda e floci; sem as variáveis, faz `t.Skip` nomeando-as.
-- [ ] `dmpf-units.json` de cada módulo declara as dependências externas com as
+- [x] `dmpf-units.json` de cada módulo declara as dependências externas com as
   quatro chaves; o baseline é regravado por `--write-baseline`.
-- [ ] `README.md` de cada módulo existe; o de `transport` traz o
+- [x] `README.md` de cada módulo existe; o de `transport` traz o
   mapeamento do exemplo AsyncAPI de FND-06 §16 e a tabela de fórmulas.
-- [ ] ADR-039 registrado e indexado em `docs/adr/README.md`; `AGENTS.md`
+- [x] ADR-039 registrado e indexado em `docs/adr/README.md`; `AGENTS.md`
   inventaria os treze módulos.
 
 ### Cenários de teste

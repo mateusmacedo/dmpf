@@ -329,21 +329,21 @@ docs/guides/dmpf-composicao.md, AGENTS.md, docs/adr/041-*.md — MODIFICAR
 
 ### Critérios de aceite
 
-- [ ] O BOM está versionado e é revisável por PR; nenhum dos seis itens está
+- [x] O BOM está versionado e é revisável por PR; nenhum dos seis itens está
   ausente, e item sem instância aparece declarado vazio (critério 3 do ticket,
   parte do modelo).
-- [ ] Nenhuma entrada `certificada` existe sem `evidence_uri`, `evidence_digest`,
+- [x] Nenhuma entrada `certificada` existe sem `evidence_uri`, `evidence_digest`,
   `approved_by`, `certified_at` e `valid_until`; entrada vencida reprova até o
   ato que a rebaixa (critério 4, parte do validador).
-- [ ] Pedido de escape hatch sem plano de convergência **com prazo** (ou sem
+- [x] Pedido de escape hatch sem plano de convergência **com prazo** (ou sem
   revisão com aprovação dual), ou sobre constraint P0, é recusado na admissão
   (critério 5).
-- [ ] Um vetor negativo por `B001`..`B011` e por `X001`..`X007`, incluindo um
+- [x] Um vetor negativo por `B001`..`B011` e por `X001`..`X007`, incluindo um
   por N1–N7.
-- [ ] `check_e2e_test.go`: E1 admitida autoriza só o import nominal; E1 sem
+- [x] `check_e2e_test.go`: E1 admitida autoriza só o import nominal; E1 sem
   `adr` não autoriza e emite `X001`.
-- [ ] `dmpf-bom` roda no CI e passa sobre `bom/dmpf/0.1.0.json` inicial.
-- [ ] Unidades `exception`, `bom`, `cmd-bom` no baseline em commit próprio;
+- [x] `dmpf-bom` roda no CI e passa sobre `bom/dmpf/0.1.0.json` inicial.
+- [x] Unidades `exception`, `bom`, `cmd-bom` no baseline em commit próprio;
   verificador sem diagnóstico; cadeia verde.
 
 ### Cenários de teste

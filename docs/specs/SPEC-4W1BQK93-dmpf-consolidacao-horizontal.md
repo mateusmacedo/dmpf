@@ -450,20 +450,20 @@ de C3 entraram aqui.
 
 ### Critérios de aceite
 
-- [ ] `docs/dmpf/README.md` com as 8 correções da tabela aplicadas: nenhuma das
+- [x] `docs/dmpf/README.md` com as 8 correções da tabela aplicadas: nenhuma das
       7 afirmações desatualizadas permanece, os números conferem com os
       artefatos promovidos (fonte da verdade citada por correção), e a tabela
       `## Artefatos` passa de dez para onze linhas, com o ledger indexado.
-- [ ] `docs/dmpf/reconciliacao.md` criado com o inventário fechado
+- [x] `docs/dmpf/reconciliacao.md` criado com o inventário fechado
       `REC-001..REC-008` (estado atual + histórico), cada linha com os 6
       campos preenchidos.
-- [ ] As 8 edições da errata aplicadas exatamente como especificadas
+- [x] As 8 edições da errata aplicadas exatamente como especificadas
       (antes/depois por linha); a contagem de linhas de
       `upr-decision-mensagens.md` e `testes-interop.md` não muda; nenhum outro
       trecho dos dois arquivos é alterado.
 - [ ] Reverse-lookup executado no PR: nenhuma referência física do acervo tem
       alvo deslocado após a errata (C4 verde com o manifesto gerado).
-- [ ] Convenção de citação publicada no README de `docs/dmpf/`.
+- [x] Convenção de citação publicada no README de `docs/dmpf/`.
 - [ ] `node tools/dmpf-verify.mjs` sai com código 0 no acervo corrigido, e
       `node --test tools/tests/dmpf-verify/` passa.
 - [ ] Suíte de fixtures cobre cada checagem com ao menos 1 vetor positivo e 1

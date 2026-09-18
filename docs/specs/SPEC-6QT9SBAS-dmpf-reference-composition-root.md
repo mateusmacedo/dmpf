@@ -1,6 +1,6 @@
 ---
 id: SPEC-6QT9SBAS
-slug: reference-composition-root
+slug: dmpf-reference-composition-root
 title: DMPF KRN-12.1 — Composition root de referência reference
 stage: done
 priority: P2
