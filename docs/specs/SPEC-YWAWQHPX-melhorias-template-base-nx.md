@@ -236,12 +236,12 @@ rodar pnpm install e conferir lockfile sem downgrade de versões
 - [x] README com seções Quick Start, Pré-requisitos, Testes, Troubleshooting
 - [x] Existem CONTRIBUTING.md, CODE_OF_CONDUCT.md, LICENSE, SECURITY.md e
   `.github/CODEOWNERS`
-- [ ] `.github/workflows/ci.yml` ativo e passa `actionlint`
+- [x] `.github/workflows/ci.yml` ativo e passa `actionlint`
 - [ ] Existe `.dockerignore`, um Dockerfile de referência e `docker-compose.yml`;
   `docker build` do exemplo conclui
 - [ ] Diretórios `libs/{backend,frontend,data-access}` existem
-- [ ] `nx affected -t lint typecheck test build` verde ao final
-- [ ] Validação do projeto passando (lint, typecheck, test)
+- [x] `nx affected -t lint typecheck test build` verde ao final
+- [x] Validação do projeto passando (lint, typecheck, test)
 
 ### Cenários de teste (mínimo 3)
 

@@ -746,10 +746,10 @@ das fontes normativas e das divergências reconciliadas acima.
 - [ ] `conformance --root . --base develop` reporta conforme com as
   unidades novas declaradas, e o baseline foi regravado por `--write-baseline`,
   nunca à mão.
-- [ ] `tools/dmpf-gate-check.sh` e `tools/dmpf-cell-check.sh` passam.
-- [ ] Cadeia Go verde: `gofmt`, `go vet`, `golangci-lint`, `go build`,
+- [x] `tools/dmpf-gate-check.sh` e `tools/dmpf-cell-check.sh` passam.
+- [x] Cadeia Go verde: `gofmt`, `go vet`, `golangci-lint`, `go build`,
   `go test`, `go test -race`, `govulncheck`.
-- [ ] `pnpm biome ci .` e `pnpm nx affected -t lint,typecheck,test,build`
+- [x] `pnpm biome ci .` e `pnpm nx affected -t lint,typecheck,test,build`
   verdes.
 - [ ] Critérios verificados no CI, não apenas localmente.
 - [x] Resultado do incremento 3 demonstrado com `KRN-05` a `KRN-07`: mensagem

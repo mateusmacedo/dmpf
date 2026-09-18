@@ -693,8 +693,8 @@ diferentes.
   `domain` importando `contracts/envelope` reprova com `DMPF-D001`
   (célula 6), executado como caso do autoteste do gate ou como teste do
   verificador, e removido em seguida.
-- [ ] Cadeia Go verde na lib: `pnpm nx run-many -t fmt-check,vet,lint,build,test,test-race,govulncheck -p contracts`.
-- [ ] `pnpm biome ci .` e `pnpm nx affected -t lint,typecheck,test,build
+- [x] Cadeia Go verde na lib: `pnpm nx run-many -t fmt-check,vet,lint,build,test,test-race,govulncheck -p contracts`.
+- [x] `pnpm biome ci .` e `pnpm nx affected -t lint,typecheck,test,build
   --exclude=@mateusmacedo/dmpf-source` verdes.
 - [x] `tools/dmpf-baseline/units-baseline.json` atualizado em commit próprio;
   `bash tools/dmpf-gate-check.sh` continua verde (o módulo novo não é `domain`

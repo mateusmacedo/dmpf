@@ -728,7 +728,7 @@ das fontes normativas e das divergências reconciliadas acima.
 - [ ] Os quatorze `project.json` têm a tag `layer:*`; `pnpm nx show projects
   --projects tag:layer:domain` lista ao menos `domain` e
   `testkit`.
-- [ ] Cadeia Go verde nos quatorze módulos; `go test -race -count=3
+- [x] Cadeia Go verde nos quatorze módulos; `go test -race -count=3
   ./...` do kit passa; `tools/dmpf-gate-check.sh` e `tools/dmpf-cell-check.sh`
   passam.
 - [x] `README.md` do kit traz o contrato dos cinco kits, a tabela regra →
