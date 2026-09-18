@@ -1,8 +1,14 @@
+import * as childProcess from 'node:child_process';
 import type { Tree } from '@nx/devkit';
 import { logger, output } from '@nx/devkit';
 import { createTreeWithEmptyWorkspace } from '@nx/devkit/testing';
 import { boundedContextGenerator } from './generator';
 import type { BoundedContextGeneratorSchema } from './schema';
+
+jest.mock('node:child_process', () => ({
+  ...jest.requireActual<typeof import('node:child_process')>('node:child_process'),
+  execFileSync: jest.fn(),
+}));
 
 const GO_VERSION = '1.26.6';
 const DIRECTORY = 'apps/backend';
@@ -320,7 +326,7 @@ describe('[generator] bounded-context — generation', () => {
     expect(withoutProvider.external).toEqual([]);
   });
 
-  it('should write a workspace-only go.mod at the module root', async () => {
+  it('should write a go.mod with only module and go: a fresh context imports no siblings', async () => {
     const tree = await generate();
     const goMod = readText(tree, `${MODULE_DIR}/go.mod`);
 
@@ -530,6 +536,91 @@ describe('[generator] bounded-context — refusals', () => {
       expect(() => JSON.parse(content)).not.toThrow();
     }
     expect(manifestOf(tree).units[0].bounded_context).toBe(unsafe);
+  });
+});
+
+describe('[generator] bounded-context — release groups and module sync', () => {
+  const MODSYNC_ARGS = ['run', './tools/dmpf-conformance/cmd/modsync', '--root', '.', '--write'];
+
+  const NX_JSON = JSON.stringify(
+    {
+      release: {
+        groups: {
+          'go-libs': {
+            projects: ['directory:libs/backend/go/*'],
+            releaseTag: { pattern: 'libs/backend/go/{projectName}/v{version}' },
+          },
+          'go-tools': {
+            projects: ['conformance'],
+            releaseTag: { pattern: 'tools/dmpf-conformance/v{version}' },
+          },
+          npm: {
+            projects: ['tag:type:lib', '!tag:stack:go'],
+            releaseTag: { pattern: '{projectName}@{version}' },
+          },
+        },
+      },
+    },
+    null,
+    2,
+  );
+
+  const modsync = childProcess.execFileSync as jest.MockedFunction<
+    typeof childProcess.execFileSync
+  >;
+
+  beforeEach(() => {
+    modsync.mockClear();
+  });
+
+  it('should never write to nx.json, so no release group is edited during generation', async () => {
+    const tree = treeWithGoWork();
+    tree.write('nx.json', NX_JSON);
+
+    await boundedContextGenerator(tree, FULL_OPTIONS);
+
+    expect(projectOf(tree).tags).toContain('type:app');
+    expect(readText(tree, 'nx.json')).toBe(NX_JSON);
+  });
+
+  it('should defer the modsync run to the post-flush callback', async () => {
+    const tree = treeWithGoWork();
+
+    const callback = await boundedContextGenerator(tree, FULL_OPTIONS);
+
+    expect(typeof callback).toBe('function');
+    expect(modsync).not.toHaveBeenCalled();
+  });
+
+  it('should write the sibling requires by running dmpf-modsync from the workspace root', async () => {
+    const tree = treeWithGoWork();
+
+    const callback = await boundedContextGenerator(tree, FULL_OPTIONS);
+    await callback();
+
+    expect(modsync).toHaveBeenCalledTimes(1);
+    expect(modsync).toHaveBeenCalledWith('go', MODSYNC_ARGS, {
+      cwd: tree.root,
+      stdio: 'inherit',
+    });
+  });
+
+  it('should point to the manual recovery when the modsync run fails', async () => {
+    const cause = new Error('spawnSync go ENOENT');
+    modsync.mockImplementation(() => {
+      throw cause;
+    });
+    const tree = treeWithGoWork();
+
+    const callback = await boundedContextGenerator(tree, FULL_OPTIONS);
+
+    expect(callback).toThrow(MODULE_DIR);
+    expect(callback).toThrow(`go ${MODSYNC_ARGS.join(' ')}`);
+    try {
+      callback();
+    } catch (error) {
+      expect((error as Error).cause).toBe(cause);
+    }
   });
 });
 

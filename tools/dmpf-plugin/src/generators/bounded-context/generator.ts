@@ -1,5 +1,6 @@
+import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
-import type { Tree } from '@nx/devkit';
+import type { GeneratorCallback, Tree } from '@nx/devkit';
 import { generateFiles, logger } from '@nx/devkit';
 import type { BlockLayout } from './blocks';
 import {
@@ -21,6 +22,7 @@ const MODULE_PREFIX = 'github.com/mateusmacedo/dmpf';
 const DEFAULT_DIRECTORY = 'apps/backend';
 const GO_WORK = 'go.work';
 const NPM_SCOPE = '@mateusmacedo';
+const MODSYNC_ARGS = ['run', './tools/dmpf-conformance/cmd/modsync', '--root', '.', '--write'];
 
 const BASELINE_INSTRUCTION = [
   'Unidades novas são ato de classificação (AUT-01). Regrave o baseline em commit próprio:',
@@ -224,7 +226,7 @@ const templateDir = (name: string): string => join(__dirname, 'files', name);
 export const boundedContextGenerator = async (
   tree: Tree,
   options: BoundedContextGeneratorSchema,
-): Promise<void> => {
+): Promise<GeneratorCallback> => {
   const plan = planGeneration(tree, options);
 
   generateFiles(tree, templateDir('module'), plan.directory, plan.substitutions);
@@ -238,6 +240,19 @@ export const boundedContextGenerator = async (
   logger.info(
     `\nbounded-context: 1 módulo gerado em ${plan.directory} com ${plan.blocks.length} bloco(s): ${blocks}.\n${BASELINE_INSTRUCTION}`,
   );
+
+  // WHY: o modsync lê `go.mod` e `go.work` do disco, não da Tree — só o
+  // callback pós-flush enxerga o módulo novo.
+  return () => {
+    try {
+      execFileSync('go', MODSYNC_ARGS, { cwd: tree.root, stdio: 'inherit' });
+    } catch (cause) {
+      throw new Error(
+        `bounded-context: the module was written to ${plan.directory}, but dmpf-modsync did not run. Fix the cause above, then run: go ${MODSYNC_ARGS.join(' ')}`,
+        { cause },
+      );
+    }
+  };
 };
 
 export default boundedContextGenerator;
