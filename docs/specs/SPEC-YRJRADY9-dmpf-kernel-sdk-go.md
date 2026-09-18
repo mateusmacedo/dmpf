@@ -513,12 +513,14 @@ manual.
       persistiu
 - [x] O relay publica fora de transação e só transiciona o registro quando o claim
       ainda é seu
-- [ ] *(movido para o épico TypeScript)* `payload_hash` calculado em Go é
-      idêntico ao calculado em TypeScript para o mesmo `Any.value` — não há
-      kernel TypeScript neste repositório, e o "Escopo fora" desta spec o declara
-      como o épico subsequente de ordem 2. A stack Go entrega a fórmula
-      (`libs/backend/go/contracts/payloadhash`) e as golden fixtures que o outro
-      lado consumirá
+> **Fora do escopo desta spec — pertence ao épico TypeScript.** A equivalência
+> entre o `payload_hash` calculado em Go e o calculado em TypeScript para o
+> mesmo `Any.value` só pode ser verificada quando existir um kernel TypeScript,
+> e o "Escopo fora" desta spec já o declara como o épico subsequente de ordem 2.
+> A stack Go entrega a fórmula (`libs/backend/go/contracts/payloadhash`) e as
+> golden fixtures que o outro lado consumirá; a verificação cruzada é critério
+> de aceite de lá, não daqui. Deixa de ser checkbox desta spec para não
+> registrar como pendência própria um item cujo dono é outro épico.
 - [x] Nenhum artefato deste épico — código, README, contrato ou configuração —
       declara ou sugere exactly-once fim a fim
 - [x] As 12 sub-specs `KRN-01`..`KRN-12` existem, com dependências e critérios de

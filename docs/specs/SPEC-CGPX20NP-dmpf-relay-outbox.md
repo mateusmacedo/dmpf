@@ -317,9 +317,11 @@ são `structurally reviewable` por inspeção. Nenhuma `OBX-*` é
 
 - [ ] **[P1] Manifesto e baseline**: declarar as unidades novas em
   `libs/backend/go/app/dmpf-units.json` e regravar o baseline.
-  - Unidades propostas: `kernel/app-relay` (o pacote `relay/`) e
-    `kernel/app-relay-cmd` (o binário), ambas bloco `app`,
-    `bounded_context: kernel`.
+  - Unidade declarada: `kernel/app-relay` (o pacote `relay/`), bloco `app`,
+    `bounded_context: kernel`. A proposta original previa também
+    `kernel/app-relay-cmd`, para um binário próprio do relay; o ADR-044
+    dispensou-o ao fazer a drenagem rodar como `--role relay` dos binários de
+    cada contexto, e o binário separado nunca foi criado.
   - O baseline **nunca** é editado à mão: seu `digest` é SHA-256 sobre
     codificação length-prefixed dos campos, não hash do texto JSON. Regravar
     por `conformance --write-baseline --root .`, comando que
@@ -743,7 +745,7 @@ das fontes normativas e das divergências reconciliadas acima.
 - [x] Intervalo de varredura, tamanho de lote, prazo de lease, teto de
   tentativas e limite de concorrência são declarados pelo chamador; nenhum
   valor operacional está fixado no código do relay.
-- [ ] `conformance --root . --base develop` reporta conforme com as
+- [x] `conformance --root . --base develop` reporta conforme com as
   unidades novas declaradas, e o baseline foi regravado por `--write-baseline`,
   nunca à mão.
 - [x] `tools/dmpf-gate-check.sh` e `tools/dmpf-cell-check.sh` passam.

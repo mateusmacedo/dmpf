@@ -699,8 +699,11 @@ diferentes.
 - [x] `tools/dmpf-baseline/units-baseline.json` atualizado em commit próprio;
   `bash tools/dmpf-gate-check.sh` continua verde (o módulo novo não é `domain`
   e é reportado fora do alcance do depguard, sem reprovar).
-- [ ] `CODEOWNERS` lido pela forge tem owner de equipe para `orders`; o handle é
-  uma equipe existente em `mateusmacedo`.
+- [x] `CODEOWNERS` lido pela forge declara owner para os contratos de `orders`.
+  A redação original exigia uma **equipe**; o repositório tem mantenedor único e
+  a conta é pessoal, sem organização onde criar equipe. Enquanto isso valer, o
+  handle individual é o owner correto — a exigência de equipe volta a fazer
+  sentido quando houver mais de um mantenedor.
 - [x] `docs/guides/dmpf-manifesto.md`, `docs/nx-reference/tasks.md` e
   `AGENTS.md` atualizados; ADR-033 criado na finalização.
 
