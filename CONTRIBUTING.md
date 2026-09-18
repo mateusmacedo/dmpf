@@ -74,15 +74,13 @@ tag anotada `dmpf@<semver>`, com o BOM em `bom/dmpf/<semver>.json`.
    `docs/guides/dmpf-composicao.md` §10.
 2. A mesma árvore segue por `release/<semver>` e é mergeada em `master` com
    `--no-ff`, sem squash.
-3. A tag vai no merge commit de `master`, depois do merge:
-
-   ```bash
-   git tag -a dmpf@<semver> -m "DMPF release <semver> — BOM bom/dmpf/<semver>.json" <merge-commit>
-   git cat-file -t dmpf@<semver>        # tag: anotada
-   git rev-list -n1 dmpf@<semver>       # o merge commit
-   go run ./tools/dmpf-conformance/cmd/bom --root . --release <semver>
-   git push origin master dmpf@<semver>
-   ```
+3. A tag nasce do `dmpf-release.yml`, disparado em `master` com a release
+   (`workflow_dispatch`, input `release`). O workflow valida o BOM com
+   `dmpf-bom --release <semver> --commit HEAD` — o `DMPF-B012` exige que a tag
+   de módulo Go de cada entrada `kernel` seja ancestral do merge commit —,
+   reproduz a evidência publicada, recusa tag já existente e só então cunha a
+   tag anotada `dmpf@<semver>` no merge commit e faz push apenas dela. Não há
+   rito manual: uma `dmpf@*` cunhada à mão não passou pelos gates.
 
 Na `0.1.0`, a promoção não passou por PR: foi o merge local da branch de trabalho
 em `develop`, e `promoted.pr` registra essa branch (ADR-041).

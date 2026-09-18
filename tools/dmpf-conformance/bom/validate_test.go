@@ -3,6 +3,7 @@ package bom
 import (
 	"cmp"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -207,5 +208,183 @@ func TestValidUntilSemHoraValeODiaInteiro(t *testing.T) {
 	}
 	if temCodigo(ds, rule.CodeB008) {
 		t.Fatalf("certificação válida até o fim do dia vencida ao meio-dia:\n%s", listar(ds))
+	}
+}
+
+const (
+	moduloDomain      = "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
+	moduloConformance = "github.com/mateusmacedo/dmpf/tools/dmpf-conformance"
+)
+
+// Cópia da fixture em disco temporário com dois módulos no go.work — um em
+// libs/, outro em tools/ — e a evidência da 0.1.0 reaproveitada na release.
+func workspaceComModulos(t *testing.T, release string) string {
+	t.Helper()
+	dir := t.TempDir()
+	if err := os.CopyFS(dir, os.DirFS(workspace)); err != nil {
+		t.Fatal(err)
+	}
+	if release != "0.1.0" {
+		evidencia := filepath.Join(dir, "bom", "evidence")
+		if err := os.CopyFS(filepath.Join(evidencia, release), os.DirFS(filepath.Join(evidencia, "0.1.0"))); err != nil {
+			t.Fatal(err)
+		}
+	}
+	escrever := func(rel, conteudo string) {
+		t.Helper()
+		caminho := filepath.Join(dir, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(caminho), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(caminho, []byte(conteudo), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	escrever("go.work", "go 1.26.6\n\nuse (\n\t./libs/backend/go/domain\n\t./tools/dmpf-conformance\n)\n")
+	escrever("libs/backend/go/domain/go.mod", "module "+moduloDomain+"\n\ngo 1.26.6\n")
+	escrever("tools/dmpf-conformance/go.mod", "module "+moduloConformance+"\n\ngo 1.26.6\n")
+	return dir
+}
+
+// O BOM da fixture reescrito para outra release, o mesmo gesto de criarRelease
+// no cmd: tag, nome do arquivo e evidence_uri passam a apontar para ela.
+func documentoDaRelease(t *testing.T, release string) Document {
+	t.Helper()
+	raw, err := os.ReadFile(workspace + "/" + arquivoValido)
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc, err := Decode([]byte(strings.ReplaceAll(string(raw), "0.1.0", release)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return doc
+}
+
+func entradaKernel(identity, version string, state State) Entry {
+	return Entry{Subject: SubjectKernel, Identity: identity, Version: version, State: state, PresentCompatibleWith: true, PresentCVE: true}
+}
+
+func comKernel(d *Document, entradas ...Entry) {
+	d.Sections[2].Entries = append(d.Sections[2].Entries, entradas...)
+}
+
+// alcanceFixo responde pelo mapa (ausente quando a tag não consta) e registra
+// as tags perguntadas.
+type alcanceFixo struct {
+	por     map[string]TagReach
+	pedidas []string
+}
+
+func (a *alcanceFixo) Reach(tag string) (TagReach, error) {
+	a.pedidas = append(a.pedidas, tag)
+	return a.por[tag], nil
+}
+
+func validarComAlcance(t *testing.T, doc Document, release, raiz string, alcance Ancestry) []rule.Diagnostic {
+	t.Helper()
+	ds, err := Validate(doc, Input{File: "bom/dmpf/" + release + ".json", Now: instante(t, agoraFixo), Root: os.DirFS(raiz), Ancestry: alcance})
+	if err != nil {
+		t.Fatalf("Validate: %v", err)
+	}
+	return ds
+}
+
+func TestB012TagDeModuloAusenteOuForaDoAlvoReprova(t *testing.T) {
+	casos := []struct {
+		nome    string
+		alcance TagReach
+		codigos []rule.Code
+	}{
+		{nome: "tag ausente", alcance: TagMissing, codigos: []rule.Code{rule.CodeB012}},
+		{nome: "tag fora do alvo", alcance: TagNotAncestor, codigos: []rule.Code{rule.CodeB012}},
+		{nome: "tag ancestral", alcance: TagAncestor},
+	}
+	for _, c := range casos {
+		t.Run(c.nome, func(t *testing.T) {
+			raiz := workspaceComModulos(t, "0.2.0")
+			doc := documentoDaRelease(t, "0.2.0")
+			comKernel(&doc, entradaKernel(moduloDomain, "0.2.0", StateCandidata))
+			alcance := &alcanceFixo{por: map[string]TagReach{"libs/backend/go/domain/v0.2.0": c.alcance}}
+			exigeCodigos(t, validarComAlcance(t, doc, "0.2.0", raiz, alcance), c.codigos...)
+		})
+	}
+}
+
+func TestB012ResolveATagPeloDiretorioDoModuloNoGoWork(t *testing.T) {
+	raiz := workspaceComModulos(t, "0.2.0")
+	doc := documentoDaRelease(t, "0.2.0")
+	comKernel(&doc,
+		entradaKernel(moduloDomain, "0.2.0", StateCandidata),
+		entradaKernel(moduloConformance, "0.2.1", StateProposta),
+	)
+	alcance := &alcanceFixo{por: map[string]TagReach{
+		"libs/backend/go/domain/v0.2.0": TagAncestor,
+		"tools/dmpf-conformance/v0.2.1": TagAncestor,
+	}}
+	if ds := validarComAlcance(t, doc, "0.2.0", raiz, alcance); len(ds) > 0 {
+		t.Fatalf("tags ancestrais reprovaram:\n%s", listar(ds))
+	}
+	slices.Sort(alcance.pedidas)
+	if want := []string{"libs/backend/go/domain/v0.2.0", "tools/dmpf-conformance/v0.2.1"}; !slices.Equal(alcance.pedidas, want) {
+		t.Fatalf("tags perguntadas %v, esperado %v", alcance.pedidas, want)
+	}
+}
+
+func TestB012ModuloForaDoGoWorkReprovaSemPerguntarTag(t *testing.T) {
+	raiz := workspaceComModulos(t, "0.2.0")
+	doc := documentoDaRelease(t, "0.2.0")
+	comKernel(&doc, entradaKernel("github.com/mateusmacedo/dmpf/libs/backend/go/inexistente", "0.2.0", StateCandidata))
+	alcance := &alcanceFixo{}
+	exigeCodigos(t, validarComAlcance(t, doc, "0.2.0", raiz, alcance), rule.CodeB012)
+	if len(alcance.pedidas) != 0 {
+		t.Fatalf("sem diretório não há tag a perguntar; perguntou %v", alcance.pedidas)
+	}
+}
+
+func TestB012NaoAlcancaRelease010NemRejeitadaNemSemAncestry(t *testing.T) {
+	t.Run("release 0.1.0 isenta", func(t *testing.T) {
+		raiz := workspaceComModulos(t, "0.1.0")
+		doc := documentoValido(t)
+		comKernel(&doc, entradaKernel(moduloDomain, "0.0.0", StateCandidata))
+		alcance := &alcanceFixo{}
+		if ds := validarComAlcance(t, doc, "0.1.0", raiz, alcance); len(ds) > 0 {
+			t.Fatalf("0.1.0 reprovou:\n%s", listar(ds))
+		}
+		if len(alcance.pedidas) != 0 {
+			t.Fatalf("0.1.0 não consulta tag; perguntou %v", alcance.pedidas)
+		}
+	})
+	t.Run("rejeitada ignorada", func(t *testing.T) {
+		raiz := workspaceComModulos(t, "0.2.0")
+		doc := documentoDaRelease(t, "0.2.0")
+		comKernel(&doc, entradaKernel(moduloDomain, "0.2.0", StateRejeitada))
+		if ds := validarComAlcance(t, doc, "0.2.0", raiz, &alcanceFixo{}); len(ds) > 0 {
+			t.Fatalf("rejeitada reprovou:\n%s", listar(ds))
+		}
+	})
+	t.Run("sem Ancestry a regra fica desligada", func(t *testing.T) {
+		raiz := workspaceComModulos(t, "0.2.0")
+		doc := documentoDaRelease(t, "0.2.0")
+		comKernel(&doc, entradaKernel(moduloDomain, "0.2.0", StateCandidata))
+		if ds := validarComAlcance(t, doc, "0.2.0", raiz, nil); len(ds) > 0 {
+			t.Fatalf("sem Ancestry reprovou:\n%s", listar(ds))
+		}
+	})
+}
+
+func TestModulePathIgnoraComentarioNaLinhaModule(t *testing.T) {
+	casos := []struct{ nome, gomod, want string }{
+		{"simples", "module " + moduloDomain + "\n\ngo 1.26.6\n", moduloDomain},
+		{"comentário de fim de linha", "module " + moduloDomain + " // kernel\n", moduloDomain},
+		{"linha comentada acima", "// module antigo\nmodule " + moduloDomain + "\n", moduloDomain},
+		{"sem module", "go 1.26.6\n", ""},
+	}
+	for _, c := range casos {
+		t.Run(c.nome, func(t *testing.T) {
+			if got := modulePath(c.gomod); got != c.want {
+				t.Fatalf("modulePath = %q, esperado %q", got, c.want)
+			}
+		})
 	}
 }

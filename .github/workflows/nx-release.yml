@@ -123,16 +123,21 @@ jobs:
           GO_TAGS=$(git tag -l 'libs/backend/go/*/v*' 'tools/dmpf-conformance/v*' | head -n 1)
           NPM_TAGS=$(git tag -l '*@*' | grep -v '^dmpf@' | head -n 1 || true)
 
-          FIRST_RELEASE=""
+          # A estreia leva a versão EXPLÍCITA: sem tag das famílias o resolver
+          # cai no fallback `disk` (0.0.0), e os `require` dos go.mod já apontam
+          # v0.1.0 (ADR-047). A guarda é por família, não por projeto.
+          FIRST_VERSION="0.1.0"
+
+          VERSION_ARGS=""
           if [ -z "$GO_TAGS" ] && [ -z "$NPM_TAGS" ]; then
-            echo 'Nenhuma tag das famílias de release existente; usando --first-release.'
-            FIRST_RELEASE="--first-release"
+            echo "Nenhuma tag das famílias de release existente; primeira release em $FIRST_VERSION."
+            VERSION_ARGS="$FIRST_VERSION --first-release"
           fi
 
           # Snapshot para empurrar depois SÓ as tags criadas nesta execução.
           git tag | sort > /tmp/tags-before.txt
 
-          pnpm nx release --skip-publish $FIRST_RELEASE
+          pnpm nx release $VERSION_ARGS --skip-publish
 
       # Empurra o commit de release e apenas as tags que esta execução criou. Um
       # `git push --follow-tags` arrastaria qualquer tag anotada alcançável, o que

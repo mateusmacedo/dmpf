@@ -6,6 +6,8 @@ package main
 
 import (
 	"bufio"
+	"cmp"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -38,9 +40,10 @@ func main() {
 	release := flag.String("release", "", "release a validar: <semver>, ou latest para a maior semver de bom/dmpf/ (default: o único arquivo)")
 	agora := flag.String("now", "", "instante RFC3339 contra o qual as validades vencem (default: relógio)")
 	base := flag.String("base", "", "ref git do BOM anterior: o mesmo arquivo ou, se ausente, a maior semver no ref (B003)")
+	commit := flag.String("commit", "HEAD", "commit alvo do B012: a tag de cada módulo kernel precisa ser ancestral dele")
 	flag.Parse()
 
-	os.Exit(run(opcoes{raiz: *raiz, release: *release, agora: *agora, base: *base}, os.Stdout, os.Stderr))
+	os.Exit(run(opcoes{raiz: *raiz, release: *release, agora: *agora, base: *base, commit: *commit}, os.Stdout, os.Stderr))
 }
 
 type opcoes struct {
@@ -48,6 +51,7 @@ type opcoes struct {
 	release string
 	agora   string
 	base    string
+	commit  string
 }
 
 func run(o opcoes, saida, erros io.Writer) int {
@@ -85,6 +89,9 @@ func validar(o opcoes) ([]rule.Diagnostic, error) {
 	if strings.HasPrefix(o.base, "-") {
 		return nil, fmt.Errorf("--base %q não é ref", o.base)
 	}
+	if strings.HasPrefix(o.commit, "-") {
+		return nil, fmt.Errorf("--commit %q não é ref", o.commit)
+	}
 	abs, err := filepath.Abs(o.raiz)
 	if err != nil {
 		return nil, err
@@ -121,7 +128,8 @@ func validar(o opcoes) ([]rule.Diagnostic, error) {
 	if err != nil {
 		return nil, err
 	}
-	return bom.Validate(doc, bom.Input{File: arquivo, Now: now, Root: fsys, Base: anterior})
+	alcance := alcanceGit{dir: abs, commit: cmp.Or(o.commit, "HEAD")}
+	return bom.Validate(doc, bom.Input{File: arquivo, Now: now, Root: fsys, Base: anterior, Ancestry: alcance})
 }
 
 func instanteDe(v string) (exception.Instant, error) {
@@ -219,4 +227,36 @@ func git(dir string, args ...string) ([]byte, error) {
 	cmd := exec.Command("git", args...)
 	cmd.Dir = dir
 	return cmd.Output()
+}
+
+// alcanceGit consulta o repositório só quando o B012 pergunta por uma tag,
+// para que uma raiz sem git continue validando BOMs sem entrada kernel.
+type alcanceGit struct{ dir, commit string }
+
+func (a alcanceGit) Reach(tag string) (bom.TagReach, error) {
+	existe, err := gitSucceeds(a.dir, "rev-parse", "--verify", "--quiet", "refs/tags/"+tag)
+	if err != nil || !existe {
+		return bom.TagMissing, err
+	}
+	ancestral, err := gitSucceeds(a.dir, "merge-base", "--is-ancestor", "refs/tags/"+tag, a.commit)
+	if err != nil || !ancestral {
+		return bom.TagNotAncestor, err
+	}
+	return bom.TagAncestor, nil
+}
+
+// Exit 1 é a resposta negativa de rev-parse --verify e de merge-base
+// --is-ancestor; qualquer outro código é falha do git.
+func gitSucceeds(dir string, args ...string) (bool, error) {
+	_, err := git(dir, args...)
+	var exit *exec.ExitError
+	switch {
+	case err == nil:
+		return true, nil
+	case errors.As(err, &exit) && exit.ExitCode() == 1:
+		return false, nil
+	case errors.As(err, &exit):
+		return false, fmt.Errorf("git %s: %s", strings.Join(args, " "), strings.TrimSpace(string(exit.Stderr)))
+	}
+	return false, err
 }

@@ -99,31 +99,11 @@ func resolve(fsys fs.FS, ref RegistryRef, identity string) (string, string, erro
 }
 
 func inGoWork(fsys fs.FS, dir string) (bool, error) {
-	raw, err := fs.ReadFile(fsys, "go.work")
-	if errors.Is(err, fs.ErrNotExist) {
-		return false, nil
-	}
+	uses, err := goWorkUses(fsys)
 	if err != nil {
-		return false, fmt.Errorf("ler go.work: %w", err)
+		return false, err
 	}
-	inUse := false
-	for _, line := range strings.Split(withoutComments(string(raw)), "\n") {
-		fields := strings.Fields(line)
-		switch {
-		case len(fields) == 0:
-		case fields[0] == "use" && len(fields) > 1 && fields[1] == "(":
-			inUse = true
-		case fields[0] == "use" && len(fields) > 1:
-			if path.Clean(fields[1]) == path.Clean(dir) {
-				return true, nil
-			}
-		case fields[0] == ")":
-			inUse = false
-		case inUse && path.Clean(fields[0]) == path.Clean(dir):
-			return true, nil
-		}
-	}
-	return false, nil
+	return slices.Contains(uses, path.Clean(dir)), nil
 }
 
 func exactRef(file, selector string) func(RegistryRef) bool {

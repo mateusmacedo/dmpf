@@ -71,7 +71,7 @@
     "projectsRelationship": "independent",
     "groups": {
       "go-libs": {
-        "projects": ["directory:libs/backend/go/*"],
+        "projects": ["directory:libs/backend/go/*", "!tag:type:app"],
         "releaseTag": {
           "pattern": "libs/backend/go/{projectName}/v{version}"
         }
