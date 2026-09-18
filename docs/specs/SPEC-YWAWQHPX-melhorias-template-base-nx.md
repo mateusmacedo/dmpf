@@ -239,7 +239,8 @@ rodar pnpm install e conferir lockfile sem downgrade de versões
 - [x] `.github/workflows/ci.yml` ativo e passa `actionlint`
 - [ ] Existe `.dockerignore`, um Dockerfile de referência e `docker-compose.yml`;
   `docker build` do exemplo conclui
-- [ ] Diretórios `libs/{backend,frontend,data-access}` existem
+- [x] Diretórios `libs/{backend,frontend,shared}` existem — a terceira camada
+  foi nomeada `shared`, não `data-access` como esta spec previa
 - [x] `nx affected -t lint typecheck test build` verde ao final
 - [x] Validação do projeto passando (lint, typecheck, test)
 
