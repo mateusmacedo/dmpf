@@ -19,6 +19,8 @@ type Input struct {
 	Root fs.FS
 	// Nil desliga a comparação de transições do B003.
 	Base *Document
+	// Nil desliga a exigência de tag de módulo do B012.
+	Ancestry Ancestry
 }
 
 func Validate(doc Document, in Input) ([]rule.Diagnostic, error) {
@@ -32,7 +34,7 @@ func Validate(doc Document, in Input) ([]rule.Diagnostic, error) {
 	for _, l := range doc.located() {
 		v.checkEntry(l)
 	}
-	for _, check := range []func() error{v.checkDigests, v.checkCompatibility, v.checkRegistries} {
+	for _, check := range []func() error{v.checkDigests, v.checkCompatibility, v.checkRegistries, v.checkModuleTags} {
 		if err := check(); err != nil {
 			return nil, err
 		}
