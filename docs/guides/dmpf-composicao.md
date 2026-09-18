@@ -21,7 +21,8 @@ em [`docs/dmpf/`](../dmpf/) e nos ADRs; este guia é operacional e não normativ
 8. [A prova de regressão](#8-a-prova-de-regressão)
 9. [Divergir do golden path](#9-divergir-do-golden-path)
 10. [Como certificar](#10-como-certificar)
-11. [Fontes normativas](#11-fontes-normativas)
+11. [Consumir os módulos fora do workspace](#11-consumir-os-módulos-fora-do-workspace)
+12. [Fontes normativas](#12-fontes-normativas)
 
 ---
 
@@ -336,10 +337,56 @@ está em [`bom/README.md`](../../bom/README.md).
 
 4. **Revisar e cunhar a tag.** A promoção é um PR para `develop` revisado por
    Arquitetura e mergeado por Plataforma (`BOM-05`). A mesma árvore segue por
-   `release/<semver>` até `master`, e a tag anotada `dmpf@<semver>` vai no merge
-   commit; o rito está no [`CONTRIBUTING.md`](../../CONTRIBUTING.md).
+   `release/<semver>` até `master`, e a tag anotada `dmpf@<semver>` é cunhada
+   pelo workflow `dmpf-release.yml`, disparado à mão com o `<semver>` da release;
+   o rito está no [`CONTRIBUTING.md`](../../CONTRIBUTING.md).
 
-## 11. Fontes normativas
+## 11. Consumir os módulos fora do workspace
+
+Cada módulo Go do kernel é uma lib independente, publicada por tag própria
+(`libs/backend/go/<módulo>/vX.Y.Z`, e `tools/dmpf-conformance/vX.Y.Z` para o
+verificador). A tag do produto, `dmpf@X.Y.Z`, é outra linha e não serve ao
+toolchain Go. Há dois jeitos de consumir, e a diferença está em quem resolve o
+`require`.
+
+**Por tag.** O módulo declara no `go.mod` tudo o que importa, então um
+`go get` basta — os irmãos vêm junto, cada um na versão que o `require` fixa:
+
+```bash
+go get github.com/mateusmacedo/dmpf/libs/backend/go/domain@v0.1.0
+```
+
+**Por clone local**, quando você quer editar o kernel enquanto desenvolve
+contra ele. O consumidor monta um `go.work` que cobre o próprio módulo e o
+clone:
+
+```bash
+git clone https://github.com/mateusmacedo/dmpf.git ../dmpf
+go work init . ../dmpf/libs/backend/go/domain ../dmpf/libs/backend/go/ports
+```
+
+Um `replace` versionado no `go.work` do consumidor tem o mesmo efeito e
+dispensa listar cada irmão em `use`.
+
+Duas consequências que valem a leitura antes de depender disto:
+
+- **O `require` fica na versão mínima.** Ele não é reescrito a cada release,
+  então um módulo pode usar API nova de um irmão sem subir o `require`, e você,
+  consumindo por tag, compilaria contra a versão anterior. Ao mexer em um irmão,
+  suba o `require` no mesmo PR.
+- **Dentro do repositório, quem manda é o `go.work`.** Os `replace` versionados
+  da raiz vencem os `require`, e é isso que faz o build local usar o código da
+  árvore. Quem grava os dois lados é o `dmpf-modsync`, que o generator roda ao
+  criar um contexto e que o CI confere com `--check` a cada PR:
+
+```bash
+go run ./tools/dmpf-conformance/cmd/modsync --root . --check
+```
+
+Decisão e alternativas descartadas em
+[`docs/adr/047-tags-de-modulo-go-e-consumo-fora-do-workspace.md`](../adr/047-tags-de-modulo-go-e-consumo-fora-do-workspace.md).
+
+## 12. Fontes normativas
 
 - [`docs/dmpf/rfc-dmpf-foundation-v0.1.md`](../dmpf/rfc-dmpf-foundation-v0.1.md) — a RFC
 - [`.claude/rules/dmpf-bounded-context.md`](../../.claude/rules/dmpf-bounded-context.md) — as normas do contexto

@@ -7,7 +7,7 @@ package por bloco da arquitetura (`domain`, `port`, `application`, `provider`,
 uma app (`type:app`) e em `libs/backend/go` fica só o kernel de reuso
 (ADR-046) —, já na convenção dos módulos do kernel: tags 3D mais `layer:*`,
 `dmpf-units.json` com `block` e `bounded_context` declarados por unidade,
-`go.mod` sem `require` e a entrada no `go.work`. O código de negócio dos blocos não é gerado aqui: é escrito por
+`go.mod`, a entrada no `go.work` e uma passada do `dmpf-modsync` ao final. O código de negócio dos blocos não é gerado aqui: é escrito por
 agentes a partir de uma spec de bounded context, pelo harness da
 `SPEC-VDP9XX65`, sobre este esqueleto. Sub-spec 2 do KRN-12 (SPEC-H1A190Y8,
 ARQ-546).
@@ -46,7 +46,8 @@ de rota são do código de negócio, escrito pelo harness.
 ## O que é gerado
 
 O contexto vira **um** módulo `<directory>/<name>`, projeto Nx `<name>`, com
-cinco arquivos na raiz: `README.md`, `go.mod` (workspace-only, sem `require`),
+cinco arquivos na raiz: `README.md`, `go.mod` (só `module` e `go`: o contexto
+recém-criado ainda não importa irmão nenhum),
 `project.json` (quatro tags — `type:app`, `scope:backend`, `stack:go` e a
 `layer:*` — e os cinco targets dos módulos existentes —
 `fmt-check`, `vet`, `build`, `test-race`, `govulncheck`), `package.json`
@@ -56,7 +57,12 @@ um package `<name>/<bloco>` com um `doc.go` compilável (godoc de três linhas).
 A tag `layer:*` é a do bloco mais alto gerado; `test-race` leva
 `-tags=integration` e `dependsOn` em `postgres` quando `provider` entra; o
 `external` do manifesto é a união dos blocos. O `go.work` recebe um `use` em
-ordem.
+ordem. Depois do flush em disco, o generator devolve um callback que roda
+`go run ./tools/dmpf-conformance/cmd/modsync --root . --write` a partir da raiz
+do workspace — é ele que grava os `require` dos irmãos e o bloco `replace` do
+`go.work` (ADR-047), e é por isso que a chamada é pós-flush: o modsync lê os
+arquivos do disco, não a Tree. O contexto nasce `type:app` e não entra em
+release group, então o generator nunca escreve no `nx.json`.
 
 | Bloco | Package | Unidade | `layer:*` | `external` |
 | --- | --- | --- | --- | --- |

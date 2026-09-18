@@ -21,6 +21,7 @@ go run ./tools/dmpf-conformance/cmd/bom --root . --release 0.1.0 --now 2026-09-1
 | `--release` | Qual `bom/dmpf/<release>.json` validar: uma semver, ou `latest` para a maior semver do diretório. Sem ela, o único arquivo do diretório; mais de um reprova em `DMPF-B011` |
 | `--base` | Ref git do BOM anterior; avalia as transições de `BOM-07` (`DMPF-B003`). Compara com o mesmo arquivo no ref; na release nova, com a maior semver de lá; sem BOM no ref, toda entrada é nova |
 | `--now` | Instante RFC3339 contra o qual as validades vencem. Sem ela, o relógio |
+| `--commit` | Commit alvo do `DMPF-B012` (default `HEAD`): a tag de módulo Go de cada entrada `kernel` precisa ser ancestral dele. Vale para releases a partir de `0.2.0`; o BOM `0.1.0` fica isento |
 
 Sai com `0` sem diagnóstico, `1` com diagnóstico e `2` em erro de leitura. O
 workspace é lido por `os.Root`, que recusa symlink para fora da raiz.
@@ -163,11 +164,13 @@ usa Postgres ou Redpanda) e, no `golden`, `tools`. O validador lê só `goversio
    [`docs/guides/dmpf-composicao.md`](../docs/guides/dmpf-composicao.md) §10.
 3. Mergear em `develop` pela promoção de `BOM-05` e seguir por `release/<semver>`
    até `master`.
-4. Cunhar a tag anotada `dmpf@<semver>` no merge commit de `master`, com a
-   mensagem `DMPF release <semver> — BOM bom/dmpf/<semver>.json`. O
-   `DMPF-B011` compara o campo `tag` do BOM com a release, e não a tag git:
-   existência e alvo da tag são conferidos no rito, com `git cat-file` e
-   `git rev-list` (ver [`CONTRIBUTING.md`](../CONTRIBUTING.md)).
+4. Disparar o `dmpf-release.yml` em `master` com a release. O workflow valida
+   o BOM (`DMPF-B001` a `DMPF-B012`, com `--commit HEAD`), reproduz a evidência
+   publicada pelo `dmpf-evidence.yml` e, com `dmpf@<semver>` ainda inexistente,
+   cunha a tag anotada no merge commit — mensagem `DMPF release <semver> — BOM
+   bom/dmpf/<semver>.json` — e faz push só dela. O `DMPF-B011` compara o campo
+   `tag` do BOM com a release; existência e alvo da tag git são conferidos pelo
+   workflow, não à mão (ver [`CONTRIBUTING.md`](../CONTRIBUTING.md)).
 
 ## Pedir exceção
 
@@ -242,6 +245,7 @@ derivam de `exceptions[].history`, e valor declarado divergente reprova
 | `DMPF-B009` | `BOM-03`, `BOM-09` | `cve` ausente; CVE `aberta` sem `owner` |
 | `DMPF-B010` | `GOV-36` | `metrics` diferentes das derivadas de `exceptions[].history` |
 | `DMPF-B011` | `BOM-02` | Mais de um BOM sem `--release`; `release` diferente do nome do arquivo ou fora de semver; `tag` diferente de `dmpf@<release>` |
+| `DMPF-B012` | `KRN-14` | Release a partir de `0.2.0` com entrada `kernel` cuja tag de módulo Go — `<diretório do módulo>/v<versão>`, pelo `go.mod` de cada `use` do `go.work` — está ausente ou não é ancestral do `--commit`; módulo fora do `go.work`. `rejeitada` fica de fora |
 
 As exceções do BOM trazem ainda os `DMPF-X001` a `DMPF-X007` da admissão comum.
 A tabela completa, com seção normativa, vive em
