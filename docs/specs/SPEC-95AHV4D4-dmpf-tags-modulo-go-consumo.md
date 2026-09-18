@@ -2,7 +2,7 @@
 id: SPEC-95AHV4D4
 slug: dmpf-tags-modulo-go-consumo
 title: DMPF KRN-14 — Tags de módulo Go separadas da release do produto e consumo dos módulos fora do workspace
-stage: building
+stage: done
 priority: P2
 depends_on: [SPEC-JPP31095]
 ticket_url: null
@@ -200,12 +200,12 @@ observado continua valendo.
 
 **A. Nx Release gera tags de módulo Go**
 
-- [ ] **[P0] Grupo único para as libs do kernel**: declarar em `nx.json` um grupo com os 14 projetos de `libs/backend/go/*` (seletor `directory:libs/backend/go/*`, que faz toda lib nova entrar sozinha) e `releaseTag.pattern` `libs/backend/go/{projectName}/v{version}`. O padrão com `{projectName}` é possível porque o ADR-045 alinhou nome e diretório. As version actions do `@nx/js` (`@nx/js/src/release/version-actions`), `currentVersionResolver: "git-tag"`, `specifierSource: "conventional-commits"`, `fallbackCurrentVersionResolver: "disk"` e `updateDependents: "always"` são herdados do bloco `version` da raiz e **não** se declaram no grupo: `conventionalCommits: true` é um atalho que já define resolver e specifier, e declarar qualquer um dos dois ao lado dele é erro de configuração (`CONVENTIONAL_COMMITS_SHORTHAND_MIXED_WITH_OVERLAPPING_OPTIONS`).
-- [ ] **[P0] Grupo próprio para o `conformance`**: o projeto se chama `conformance` e mora em `tools/dmpf-conformance`, então o padrão do grupo é o literal `tools/dmpf-conformance/v{version}`. Ele é `type:lib` e o `testkit` o requer, logo precisa de tag publicável.
-- [ ] **[P0] Grupo npm preservado**: manter `@mateusmacedo/dmpf-plugin` e demais libs `stack:node` num grupo com `{projectName}@{version}`.
-- [ ] **[P0] `release.docker` fora da raiz**: remover o bloco `release.docker` do `nx.json`. Com ele na raiz, **todo** release group herda config de Docker (`config.js`, `shouldIncludeDockerConfig`), e o Nx então força `releaseTag.requireSemver = false` no grupo — por atribuição direta, que nenhuma config do usuário sobrescreve. Com `requireSemver: false`, `extractTagAndVersion` devolve o **primeiro** grupo de captura do padrão em vez do que casa semver: a tag `libs/backend/go/domain/v0.1.0` passa a ser lida como versão `"domain"`, e `@mateusmacedo/dmpf-plugin@0.1.0` como `"@mateusmacedo/dmpf-plugin"`. O defeito é anterior a esta spec — o grupo implícito de `develop` já resolve com `requireSemver: false` — e só não apareceu porque nunca houve segunda release de lib. O step `Release — docker apps` do `nx-release.yml` hoje não tem candidatos (`tag:type:app,!tag:stack:go` é vazio, porque toda app é Go); quando existir app não-Go, ela declara o `docker` no grupo de release próprio.
-- [ ] **[P0] Primeira release em `v0.1.0`**: toda lib Go recebe `v0.1.0` na primeira execução; depois, o versionamento é independente por Conventional Commits, e todo projeto afetado pelo commit no grafo Nx, inclusive por aresta de teste, sobe ao menos patch. O release atualiza o `package.json` e não reescreve `go.mod`.
-- [ ] **[P1] `package.json` privado como fonte da versão**: o manifesto dos módulos Go permanece; BOM e evidência seguem lendo a versão dele.
+- [x] **[P0] Grupo único para as libs do kernel**: declarar em `nx.json` um grupo com os 14 projetos de `libs/backend/go/*` (seletor `directory:libs/backend/go/*` menos `!tag:type:app`, que faz toda lib nova entrar sozinha e barra app criada fora da convenção) e `releaseTag.pattern` `libs/backend/go/{projectName}/v{version}`. O padrão com `{projectName}` é possível porque o ADR-045 alinhou nome e diretório. As version actions do `@nx/js` (`@nx/js/src/release/version-actions`), `currentVersionResolver: "git-tag"`, `specifierSource: "conventional-commits"`, `fallbackCurrentVersionResolver: "disk"` e `updateDependents: "always"` são herdados do bloco `version` da raiz e **não** se declaram no grupo: `conventionalCommits: true` é um atalho que já define resolver e specifier, e declarar qualquer um dos dois ao lado dele é erro de configuração (`CONVENTIONAL_COMMITS_SHORTHAND_MIXED_WITH_OVERLAPPING_OPTIONS`).
+- [x] **[P0] Grupo próprio para o `conformance`**: o projeto se chama `conformance` e mora em `tools/dmpf-conformance`, então o padrão do grupo é o literal `tools/dmpf-conformance/v{version}`. Ele é `type:lib` e o `testkit` o requer, logo precisa de tag publicável.
+- [x] **[P0] Grupo npm preservado**: manter `@mateusmacedo/dmpf-plugin` e demais libs `stack:node` num grupo com `{projectName}@{version}`.
+- [x] **[P0] `release.docker` fora da raiz**: remover o bloco `release.docker` do `nx.json`. Com ele na raiz, **todo** release group herda config de Docker (`config.js`, `shouldIncludeDockerConfig`), e o Nx então força `releaseTag.requireSemver = false` no grupo — por atribuição direta, que nenhuma config do usuário sobrescreve. Com `requireSemver: false`, `extractTagAndVersion` devolve o **primeiro** grupo de captura do padrão em vez do que casa semver: a tag `libs/backend/go/domain/v0.1.0` passa a ser lida como versão `"domain"`, e `@mateusmacedo/dmpf-plugin@0.1.0` como `"@mateusmacedo/dmpf-plugin"`. O defeito é anterior a esta spec — o grupo implícito de `develop` já resolve com `requireSemver: false` — e só não apareceu porque nunca houve segunda release de lib. O step `Release — docker apps` do `nx-release.yml` hoje não tem candidatos (`tag:type:app,!tag:stack:go` é vazio, porque toda app é Go); quando existir app não-Go, ela declara o `docker` no grupo de release próprio.
+- [x] **[P0] Primeira release em `v0.1.0`**: toda lib Go recebe `v0.1.0` na primeira execução; depois, o versionamento é independente por Conventional Commits, e todo projeto afetado pelo commit no grafo Nx, inclusive por aresta de teste, sobe ao menos patch. O release atualiza o `package.json` e não reescreve `go.mod`.
+- [x] **[P1] `package.json` privado como fonte da versão**: o manifesto dos módulos Go permanece; BOM e evidência seguem lendo a versão dele.
 
 **B. `go.mod` declarados e workspace resolvido pelo `go.work`** — ✅ entregue na fase 1
 
@@ -214,36 +214,36 @@ observado continua valendo.
 - [x] **[P0] `replace` versionado no `go.work`**: para cada par (irmão, versão) requerido em algum `go.mod`, o `go.work` declara `replace <irmão> <versão> => ./<dir>`, num bloco único.
 - [x] **[P0] Ferramenta `modsync`**: `--write` adiciona os `require` faltantes e regrava o bloco `replace` do `go.work`; `--check` reprova import sem `require`, `replace` em `go.mod` e bloco divergente. Roda sem rede e está no CI sem condição `go_affected`.
 
-**C. Release do produto DMPF**
+**C. Release do produto DMPF** — ✅ entregue na fase 3
 
-- [ ] **[P0] Workflow `dmpf-release.yml`**: `workflow_dispatch` com input `release` (semver), só em `master`, que cria e publica apenas a tag anotada `dmpf@<semver>` depois de passar em todos os gates abaixo.
-- [ ] **[P0] Gates do workflow**: `bom/dmpf/<semver>.json` existe e declara `tag: dmpf@<semver>`; `dmpf-bom --release <semver>` passa; a evidência regenerada é idêntica a `bom/evidence/<semver>/` (reaproveitar `dmpf-evidence.yml` como `workflow_call`); a tag `dmpf@<semver>` ainda não existe.
-- [ ] **[P0] Tag Go no BOM**: o `bom` ganha `DMPF-B012`, que reprova entrada `subject: kernel` cuja tag de módulo está ausente ou não é ancestral do commit alvo. A regra vale para releases a partir de `0.2.0`; o BOM `0.1.0`, com módulos em `0.0.0`, fica isento. O padrão da tag por projeto vem do grupo, então a regra resolve `libs/backend/go/<nome>/v<versão>` e `tools/dmpf-conformance/v<versão>`.
-- [ ] **[P1] Rito manual removido**: `CONTRIBUTING.md:79-85` e `bom/README.md` passam a apontar o `dmpf-release.yml` como único caminho da tag do produto.
+- [x] **[P0] Workflow `dmpf-release.yml`**: `workflow_dispatch` com input `release` (semver), só em `master`, que cria e publica apenas a tag anotada `dmpf@<semver>` depois de passar em todos os gates abaixo.
+- [x] **[P0] Gates do workflow**: `bom/dmpf/<semver>.json` existe e declara `tag: dmpf@<semver>`; `dmpf-bom --release <semver>` passa; a evidência regenerada é idêntica a `bom/evidence/<semver>/` (reaproveitar `dmpf-evidence.yml` como `workflow_call`); a tag `dmpf@<semver>` ainda não existe.
+- [x] **[P0] Tag Go no BOM**: o `bom` ganha `DMPF-B012`, que reprova entrada `subject: kernel` cuja tag de módulo está ausente ou não é ancestral do commit alvo. A regra vale para releases a partir de `0.2.0`; o BOM `0.1.0`, com módulos em `0.0.0`, fica isento. O padrão da tag por projeto vem do grupo, então a regra resolve `libs/backend/go/<nome>/v<versão>` e `tools/dmpf-conformance/v<versão>`.
+- [x] **[P1] Rito manual removido**: `CONTRIBUTING.md:79-85` e `bom/README.md` passam a apontar o `dmpf-release.yml` como único caminho da tag do produto.
 
 **D. Separação de gatilhos no CI**
 
-- [ ] **[P0] `nx-publish-libs.yml`**: gatilho de tags `**@*` com exclusão `!dmpf@*`.
-- [ ] **[P0] `--first-release` por família**: `nx-release.yml` detecta primeira release pelos padrões da própria família (`libs/backend/go/*/v*` e `tools/dmpf-conformance/v*` para Go, `*@*` sem `dmpf@*` para npm), nunca por `dmpf@*`.
-- [ ] **[P0] Push só das tags do release**: `nx-release.yml` publica o commit de release e as tags criadas na execução, sem tocar em `dmpf@*`.
-- [ ] **[P1] `GOPRIVATE` removido**: retirar `GOPRIVATE=github.com` do `setup-go`, já que o repositório é público.
-- [ ] **[P2] Identidade do commit de release**: trocar `gitea-actions[bot]` pela identidade de automação do GitHub, fechando a pendência que o ADR-043 deixou.
+- [x] **[P0] `nx-publish-libs.yml`**: gatilho de tags `**@*` com exclusão `!dmpf@*`.
+- [x] **[P0] `--first-release` por família, com versão explícita**: `nx-release.yml` detecta primeira release pelos padrões da própria família (`libs/backend/go/*/v*` e `tools/dmpf-conformance/v*` para Go, `*@*` sem `dmpf@*` para npm), nunca por `dmpf@*`, e passa a versão `0.1.0` explicitamente nessa execução. Sem a versão, o resolver cai no fallback `disk` (`0.0.0` do `package.json`) e o specifier de conventional commits decide por projeto — `0.0.1` para uns, nenhuma tag para outros —, o que descasaria dos `require` já gravados em `v0.1.0` na fase 1.
+- [x] **[P0] Push só das tags do release**: `nx-release.yml` publica o commit de release e as tags criadas na execução, sem tocar em `dmpf@*`.
+- [x] **[P1] `GOPRIVATE` removido**: retirar `GOPRIVATE=github.com` do `setup-go`, já que o repositório é público.
+- [x] **[P2] Identidade do commit de release**: trocar `gitea-actions[bot]` pela identidade de automação do GitHub, fechando a pendência que o ADR-043 deixou.
 
 **E. Consumo**
 
-- [ ] **[P1] Guia de consumo**: documentar o consumo por tag (`go get <module path>@vX.Y.Z`) e por clone local (`go.work` do consumidor com `use` do módulo e dos irmãos que ele requer, ou `replace` versionado para o clone).
+- [x] **[P1] Guia de consumo**: documentar o consumo por tag (`go get <module path>@vX.Y.Z`) e por clone local (`go.work` do consumidor com `use` do módulo e dos irmãos que ele requer, ou `replace` versionado para o clone).
 
 **F. Generator e documentação**
 
-- [ ] **[P0] Generator `bounded-context`**: registrar o contexto gerado no grupo de release apropriado e rodar `modsync --write` depois da escrita em disco; o golden `bookings` segue consistente com o `--check`. Como o contexto é `type:app` (ADR-046), o generator declara release group só quando o módulo gerado for `type:lib`.
-- [ ] **[P1] ADR novo**: registrar a separação das famílias de tag, os grupos e padrões, o `require` versionado com `replace` no `go.work`, o gate `modsync`, a cascata de versão e a versão inicial, superseding a decisão do ADR-034 (sem `require` entre irmãos) e a parte do ADR-030 sobre esquema de tag. O número 044 foi consumido pela topologia de referência; o ADR desta spec recebe o próximo livre.
-- [ ] **[P1] `AGENTS.md`**: atualizar Tooling, Git e release e Comandos com o novo fluxo e a ferramenta.
+- [x] **[P0] Generator `bounded-context`**: rodar `modsync --write` depois da escrita em disco (callback pós-flush); o golden `bookings` segue consistente com o `--check`. O generator **não** escreve release group: o contexto é sempre `type:app` (ADR-046) e uma lib nova em `libs/backend/go/` já é casada pelo seletor de diretório, então a condicional seria código morto. Quem garante que um contexto criado fora da convenção não seja versionado como lib é o `!tag:type:app` do grupo `go-libs`, não o generator — `--directory` aceita qualquer caminho relativo.
+- [x] **[P1] ADR novo**: `docs/adr/047-tags-de-modulo-go-e-consumo-fora-do-workspace.md` registra a separação das famílias de tag, os grupos e padrões, o `require` versionado com `replace` no `go.work`, o gate `modsync`, a cascata de versão e a versão inicial. Supersede parcialmente o **ADR-041**, que é quem fixou o `go.mod` workspace-only (`041:101`) — não o ADR-034, que apenas registra ARQ-550/`KRN-14` como tema sucessor (`034:225`). Os números 044 a 046 foram consumidos; este ADR é o 047.
+- [x] **[P1] `AGENTS.md`**: atualizar Tooling, Git e release e Comandos com o novo fluxo e a ferramenta.
 
 ### Não-funcionais
 
-- [ ] **Reprodutibilidade**: o mesmo commit gera sempre as mesmas tags; `modsync --write` é idempotente.
-- [ ] **Sem rede**: `modsync --check` e o build do workspace não dependem de rede para módulos do próprio repositório.
-- [ ] **Compatibilidade**: Nx 23.1.0, Go `1.26.6` (piso do `go.work`), `@nx-go/nx-go` sem troca.
+- [x] **Reprodutibilidade**: o mesmo commit gera sempre as mesmas tags; `modsync --write` é idempotente.
+- [x] **Sem rede**: `modsync --check` e o build do workspace não dependem de rede para módulos do próprio repositório.
+- [x] **Compatibilidade**: Nx 23.1.0, Go `1.26.6` (piso do `go.work`), `@nx-go/nx-go` sem troca.
 
 ## Camadas afetadas
 
@@ -263,7 +263,7 @@ saíram da lista: foram tocados e fechados na fase 1.
 ```text
 nx.json                                                  release.groups (go-libs, go-tools, npm)
 tools/dmpf-conformance/bom/validate.go                   DMPF-B012
-tools/dmpf-conformance/bom/rule/                         CodeB012 no catálogo
+tools/dmpf-conformance/internal/rule/diagnostic.go       CodeB012 no catálogo
 tools/dmpf-plugin/src/generators/bounded-context/generator.ts
 .github/workflows/nx-release.yml                         first-release por família, identidade, push
 .github/workflows/nx-publish-libs.yml                    !dmpf@*
@@ -396,14 +396,14 @@ Check    import sem require; replace em go.mod; bloco replace do go.work ≠ esp
 
 ### Critérios de aceite
 
-- [ ] `pnpm nx release 0.1.0 --first-release --skip-publish`, num clone descartável sem remote, cria 14 tags `libs/backend/go/<módulo>/v0.1.0`, a tag `tools/dmpf-conformance/v0.1.0` e o grupo npm com o padrão atual, sem nenhuma tag `<projeto>@0.1.0` para projeto Go.
-- [ ] Uma **segunda** release no mesmo clone, depois de um commit `fix`, resolve a versão corrente **pela tag** (`Resolved the current version as 0.1.0 from git tag "libs/backend/go/<módulo>/v0.1.0"`) e não pelo nome do projeto — é o que prova que `requireSemver` continua `true` e que nenhuma config de Docker vazou para os grupos.
-- [ ] `modsync --check` passa na árvore e reprova import sem `require`, `replace` em `go.mod` e bloco `replace` do `go.work` divergente. *(gate já verde hoje; aqui vale como não-regressão)*
-- [ ] Build, vet e testes dos 19 módulos Go passam no workspace com `GOPROXY=off`.
-- [ ] `dmpf-bom` reprova com `DMPF-B012` um BOM de teste de release `0.2.0` ou posterior cuja versão de módulo não tem tag Go ancestral, e mantém o BOM `0.1.0` verde.
-- [ ] `nx-publish-libs.yml` não dispara no push de `dmpf@*` e `dmpf-release.yml` não roda fora de `master`.
-- [ ] Os gates DMPF existentes e `pnpm nx affected -t lint,typecheck,test,build` seguem verdes.
-- [ ] Generator `bounded-context` gera contexto novo com `require`, `replace` no `go.work` e — quando `type:lib` — release group, e o `self-test` do harness passa.
+- [x] `pnpm nx release 0.1.0 --first-release --skip-publish`, num clone descartável sem remote, cria 14 tags `libs/backend/go/<módulo>/v0.1.0`, a tag `tools/dmpf-conformance/v0.1.0` e o grupo npm com o padrão atual, sem nenhuma tag `<projeto>@0.1.0` para projeto Go.
+- [x] Uma **segunda** release no mesmo clone, depois de um commit `fix`, resolve a versão corrente **pela tag** (`Resolved the current version as 0.1.0 from git tag "libs/backend/go/<módulo>/v0.1.0"`) e não pelo nome do projeto — é o que prova que `requireSemver` continua `true` e que nenhuma config de Docker vazou para os grupos.
+- [x] `modsync --check` passa na árvore e reprova import sem `require`, `replace` em `go.mod` e bloco `replace` do `go.work` divergente. *(gate já verde hoje; aqui vale como não-regressão)*
+- [x] Build, vet e testes dos 19 módulos Go passam no workspace com `GOPROXY=off`.
+- [x] `dmpf-bom` reprova com `DMPF-B012` um BOM de teste de release `0.2.0` ou posterior cuja versão de módulo não tem tag Go ancestral, e mantém o BOM `0.1.0` verde.
+- [x] `nx-publish-libs.yml` não dispara no push de `dmpf@*` e `dmpf-release.yml` não roda fora de `master`.
+- [x] Os gates DMPF existentes e `pnpm nx affected -t lint,typecheck,test,build` seguem verdes.
+- [x] Generator `bounded-context` gera contexto novo e roda o `modsync --write` no callback pós-flush, deixando `require` e `replace` do `go.work` em dia; não escreve release group (o contexto é `type:app`, e o `!tag:type:app` do grupo `go-libs` é a guarda). O `self-test` do harness passa.
 - [ ] Após o push operacional do repositório e da release: um repositório fora deste workspace faz `go get github.com/mateusmacedo/dmpf/libs/backend/go/application@v0.1.0` contra `github.com` (dependente do pré-requisito operacional).
 
 ### Cenários de teste
