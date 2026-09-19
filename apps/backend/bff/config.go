@@ -3,9 +3,7 @@ package bff
 import (
 	"errors"
 	"fmt"
-	"os"
-	"strconv"
-	"strings"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/envconfig"
 	"time"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/admission"
@@ -14,7 +12,7 @@ import (
 
 var (
 	ErrMissingVariable = errors.New("bff: required variable is not set")
-	ErrInvalidVariable = errors.New("bff: variable has an invalid value")
+	ErrInvalidVariable = envconfig.ErrInvalidVariable
 
 	// ErrInsecureNotDeclared refuses a clear-text dial that no one asked for:
 	// without a CA file, DMPF_GRPC_INSECURE has to say so explicitly.
@@ -81,24 +79,24 @@ func Defaults() Config {
 func FromEnv(lookup func(string) string) (Config, error) {
 	cfg := Defaults()
 
-	cfg.HTTPAddr = orDefault(lookup(envHTTPAddr), cfg.HTTPAddr)
+	cfg.HTTPAddr = envconfig.OrDefault(lookup(envHTTPAddr), cfg.HTTPAddr)
 	cfg.OrdersTarget = lookup(envOrdersTarget)
 	cfg.ReservationsTarget = lookup(envReservationsTarget)
 	cfg.CAFile = lookup(envGRPCCAFile)
 	cfg.ServerName = lookup(envGRPCServerName)
-	cfg.CORSOrigins = splitList(lookup(envCORSOrigins))
+	cfg.CORSOrigins = envconfig.SplitList(lookup(envCORSOrigins))
 	cfg.OrdersContractPath = lookup(envOrdersContractPath)
 	cfg.ReservationsContractPath = lookup(envReservationsContractPath)
 	cfg.OTLPEndpoint = lookup(envOTLPEndpoint)
-	cfg.Service = orDefault(lookup(envService), cfg.Service)
-	cfg.Version = orDefault(lookup(envServiceVersion), cfg.Version)
-	cfg.Instance = orDefault(lookup(envInstanceID), hostname())
+	cfg.Service = envconfig.OrDefault(lookup(envService), cfg.Service)
+	cfg.Version = envconfig.OrDefault(lookup(envServiceVersion), cfg.Version)
+	cfg.Instance = envconfig.OrDefault(lookup(envInstanceID), envconfig.Hostname())
 
 	var err error
-	if cfg.GRPCInsecure, err = parseBool(envGRPCInsecure, lookup(envGRPCInsecure)); err != nil {
+	if cfg.GRPCInsecure, err = envconfig.ParseBool(envGRPCInsecure, lookup(envGRPCInsecure)); err != nil {
 		return Config{}, err
 	}
-	if cfg.OTLPInsecure, err = parseBool(envOTLPInsecure, lookup(envOTLPInsecure)); err != nil {
+	if cfg.OTLPInsecure, err = envconfig.ParseBool(envOTLPInsecure, lookup(envOTLPInsecure)); err != nil {
 		return Config{}, err
 	}
 
@@ -121,39 +119,4 @@ func (c Config) Validate() error {
 		return fmt.Errorf("%w: %s=true or %s", ErrMissingVariable, envGRPCInsecure, envGRPCCAFile)
 	}
 	return c.RouteBudget.Validate()
-}
-
-func orDefault(value, fallback string) string {
-	if value == "" {
-		return fallback
-	}
-	return value
-}
-
-func hostname() string {
-	if name, err := os.Hostname(); err == nil && name != "" {
-		return name
-	}
-	return "local"
-}
-
-func splitList(value string) []string {
-	var items []string
-	for item := range strings.SplitSeq(value, ",") {
-		if item = strings.TrimSpace(item); item != "" {
-			items = append(items, item)
-		}
-	}
-	return items
-}
-
-func parseBool(variable, value string) (bool, error) {
-	if value == "" {
-		return false, nil
-	}
-	parsed, err := strconv.ParseBool(value)
-	if err != nil {
-		return false, fmt.Errorf("%w: %s=%q is not a boolean", ErrInvalidVariable, variable, value)
-	}
-	return parsed, nil
 }
