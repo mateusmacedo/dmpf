@@ -16,9 +16,9 @@ import (
 	"google.golang.org/grpc/test/bufconn"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/mateusmacedo/dmpf/apps/backend/orders/app/rpc"
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/application"
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/domain"
-	"github.com/mateusmacedo/dmpf/apps/backend/orders/rpc"
 	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/memory"

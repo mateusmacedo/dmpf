@@ -1,11 +1,11 @@
-package orders_test
+package app_test
 
 import (
 	"errors"
 	"strings"
 	"testing"
 
-	"github.com/mateusmacedo/dmpf/apps/backend/orders"
+	"github.com/mateusmacedo/dmpf/apps/backend/orders/app"
 )
 
 func lookup(pairs ...string) func(string) string {
@@ -17,7 +17,7 @@ func lookup(pairs ...string) func(string) string {
 }
 
 func TestTheAPIRunsWithItsDefaults(t *testing.T) {
-	cfg, err := orders.FromEnv(orders.RoleAPI, lookup("DMPF_PG_DSN", "postgres://x", "DMPF_GRPC_INSECURE", "true"))
+	cfg, err := app.FromEnv(app.RoleAPI, lookup("DMPF_PG_DSN", "postgres://x", "DMPF_GRPC_INSECURE", "true"))
 
 	if err != nil {
 		t.Fatalf("FromEnv() = %v, want nil", err)
@@ -28,15 +28,15 @@ func TestTheAPIRunsWithItsDefaults(t *testing.T) {
 }
 
 func TestTheAPIRequiresATransportPolicy(t *testing.T) {
-	_, err := orders.FromEnv(orders.RoleAPI, lookup("DMPF_PG_DSN", "postgres://x"))
+	_, err := app.FromEnv(app.RoleAPI, lookup("DMPF_PG_DSN", "postgres://x"))
 
-	if !errors.Is(err, orders.ErrMissingVariable) || !strings.Contains(err.Error(), "DMPF_GRPC_INSECURE") {
+	if !errors.Is(err, app.ErrMissingVariable) || !strings.Contains(err.Error(), "DMPF_GRPC_INSECURE") {
 		t.Fatalf("FromEnv() = %v, want the missing transport policy named", err)
 	}
 }
 
 func TestTheAPIAcceptsATLSPair(t *testing.T) {
-	_, err := orders.FromEnv(orders.RoleAPI,
+	_, err := app.FromEnv(app.RoleAPI,
 		lookup("DMPF_PG_DSN", "postgres://x", "DMPF_GRPC_TLS_CERT_FILE", "/tls/cert.pem", "DMPF_GRPC_TLS_KEY_FILE", "/tls/key.pem"))
 
 	if err != nil {
@@ -45,10 +45,10 @@ func TestTheAPIAcceptsATLSPair(t *testing.T) {
 }
 
 func TestHalfATLSPairNamesTheMissingFile(t *testing.T) {
-	_, err := orders.FromEnv(orders.RoleAPI,
+	_, err := app.FromEnv(app.RoleAPI,
 		lookup("DMPF_PG_DSN", "postgres://x", "DMPF_GRPC_TLS_CERT_FILE", "/tls/cert.pem"))
 
-	if !errors.Is(err, orders.ErrMissingVariable) || !strings.Contains(err.Error(), "DMPF_GRPC_TLS_KEY_FILE") {
+	if !errors.Is(err, app.ErrMissingVariable) || !strings.Contains(err.Error(), "DMPF_GRPC_TLS_KEY_FILE") {
 		t.Fatalf("FromEnv() = %v, want DMPF_GRPC_TLS_KEY_FILE named", err)
 	}
 }
@@ -58,7 +58,7 @@ func TestTheRelayNamesEachMissingVariable(t *testing.T) {
 		"DMPF_PG_DSN", "postgres://x", "DMPF_KAFKA_BROKERS", "b:9092",
 		"DMPF_KAFKA_ORDERS_TOPIC", "orders", "DMPF_KAFKA_ORDERS_DLQ", "orders.dlq", "DMPF_KAFKA_GROUP", "g",
 	}
-	if _, err := orders.FromEnv(orders.RoleRelay, lookup(full...)); err != nil {
+	if _, err := app.FromEnv(app.RoleRelay, lookup(full...)); err != nil {
 		t.Fatalf("FromEnv(full) = %v, want nil", err)
 	}
 	for i := 0; i < len(full); i += 2 {
@@ -66,9 +66,9 @@ func TestTheRelayNamesEachMissingVariable(t *testing.T) {
 		t.Run("without "+variable, func(t *testing.T) {
 			pairs := append(append([]string{}, full[:i]...), full[i+2:]...)
 
-			_, err := orders.FromEnv(orders.RoleRelay, lookup(pairs...))
+			_, err := app.FromEnv(app.RoleRelay, lookup(pairs...))
 
-			if !errors.Is(err, orders.ErrMissingVariable) || !strings.Contains(err.Error(), variable) {
+			if !errors.Is(err, app.ErrMissingVariable) || !strings.Contains(err.Error(), variable) {
 				t.Fatalf("FromEnv() = %v, want %s named", err, variable)
 			}
 		})
@@ -76,18 +76,18 @@ func TestTheRelayNamesEachMissingVariable(t *testing.T) {
 }
 
 func TestOrdersRefusesTheConsumerRole(t *testing.T) {
-	_, err := orders.FromEnv("consumer", lookup("DMPF_PG_DSN", "postgres://x"))
+	_, err := app.FromEnv("consumer", lookup("DMPF_PG_DSN", "postgres://x"))
 
-	if !errors.Is(err, orders.ErrUnknownRole) || !strings.Contains(err.Error(), "consumer") || !strings.Contains(err.Error(), "api|relay") {
+	if !errors.Is(err, app.ErrUnknownRole) || !strings.Contains(err.Error(), "consumer") || !strings.Contains(err.Error(), "api|relay") {
 		t.Fatalf("FromEnv(consumer) = %v, want a refusal naming the role and api|relay", err)
 	}
 }
 
 func TestAnInvalidItemLimitIsRefused(t *testing.T) {
-	_, err := orders.FromEnv(orders.RoleAPI,
+	_, err := app.FromEnv(app.RoleAPI,
 		lookup("DMPF_PG_DSN", "postgres://x", "DMPF_GRPC_INSECURE", "true", "DMPF_ITEM_LIMIT", "0"))
 
-	if !errors.Is(err, orders.ErrInvalidVariable) {
+	if !errors.Is(err, app.ErrInvalidVariable) {
 		t.Fatalf("FromEnv() = %v, want ErrInvalidVariable", err)
 	}
 }

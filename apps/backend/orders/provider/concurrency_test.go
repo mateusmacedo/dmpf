@@ -5,6 +5,7 @@ package provider_test
 import (
 	"context"
 	"errors"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/pg"
 	"sync"
 	"testing"
 
@@ -17,7 +18,7 @@ import (
 // isolation level, with the loser told so instead of silently overwriting
 // the winner.
 func TestConcurrentSaveLetsExactlyOneWriterThrough(t *testing.T) {
-	pool := openPool(t)
+	pool := pg.OpenPool(t)
 	seed(t, pool)
 
 	const writers = 2

@@ -1,10 +1,9 @@
-package orders
+package app
 
 import (
 	"errors"
 	"fmt"
-	"os"
-	"strconv"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/envconfig"
 	"strings"
 	"time"
 
@@ -27,7 +26,7 @@ var Roles = []Role{RoleAPI, RoleRelay}
 var (
 	ErrUnknownRole     = errors.New("orders: unknown role")
 	ErrMissingVariable = errors.New("orders: required variable is not set")
-	ErrInvalidVariable = errors.New("orders: variable has an invalid value")
+	ErrInvalidVariable = envconfig.ErrInvalidVariable
 )
 
 const (
@@ -48,6 +47,9 @@ const (
 	envServiceVersion = "DMPF_SERVICE_VERSION"
 	envInstanceID     = "DMPF_INSTANCE_ID"
 	envItemLimit      = "DMPF_ITEM_LIMIT"
+
+	// DefaultItemLimit is the ceiling a process takes when it declares none.
+	DefaultItemLimit = 10
 )
 
 // Config is every operational value the two roles need, resolved once at
@@ -89,7 +91,7 @@ func Defaults(role Role) Config {
 		GRPCAddr:  ":9090",
 		Service:   "orders",
 		Version:   "dev",
-		ItemLimit: 10,
+		ItemLimit: DefaultItemLimit,
 		Relay: relay.Config{
 			Source:         "urn:dmpf:reference-orders",
 			Interval:       500 * time.Millisecond,
@@ -111,13 +113,13 @@ func FromEnv(role Role, lookup func(string) string) (Config, error) {
 	cfg := Defaults(role)
 
 	cfg.DSN = lookup(envDSN)
-	cfg.GRPCAddr = orDefault(lookup(envGRPCAddr), cfg.GRPCAddr)
+	cfg.GRPCAddr = envconfig.OrDefault(lookup(envGRPCAddr), cfg.GRPCAddr)
 	cfg.GRPCCertFile = lookup(envGRPCCertFile)
 	cfg.GRPCKeyFile = lookup(envGRPCKeyFile)
-	cfg.Service = orDefault(lookup(envService), cfg.Service)
-	cfg.Version = orDefault(lookup(envServiceVersion), cfg.Version)
-	cfg.Instance = orDefault(lookup(envInstanceID), hostname())
-	cfg.Brokers = splitList(lookup(envBrokers))
+	cfg.Service = envconfig.OrDefault(lookup(envService), cfg.Service)
+	cfg.Version = envconfig.OrDefault(lookup(envServiceVersion), cfg.Version)
+	cfg.Instance = envconfig.OrDefault(lookup(envInstanceID), envconfig.Hostname())
+	cfg.Brokers = envconfig.SplitList(lookup(envBrokers))
 	cfg.OrdersTopic = lookup(envOrdersTopic)
 	cfg.OrdersDLQ = lookup(envOrdersDLQ)
 	cfg.Group = lookup(envGroup)
@@ -134,11 +136,11 @@ func FromEnv(role Role, lookup func(string) string) (Config, error) {
 		{envMigrate, &cfg.Migrate},
 	}
 	for _, flag := range flags {
-		if *flag.into, err = parseBool(flag.variable, lookup(flag.variable)); err != nil {
+		if *flag.into, err = envconfig.ParseBool(flag.variable, lookup(flag.variable)); err != nil {
 			return Config{}, err
 		}
 	}
-	if cfg.ItemLimit, err = parsePositive(envItemLimit, lookup(envItemLimit), cfg.ItemLimit); err != nil {
+	if cfg.ItemLimit, err = envconfig.ParsePositive(envItemLimit, lookup(envItemLimit), cfg.ItemLimit); err != nil {
 		return Config{}, err
 	}
 
@@ -209,50 +211,4 @@ func roleList() string {
 		names[i] = string(role)
 	}
 	return strings.Join(names, "|")
-}
-
-func orDefault(value, fallback string) string {
-	if value == "" {
-		return fallback
-	}
-	return value
-}
-
-func hostname() string {
-	if name, err := os.Hostname(); err == nil && name != "" {
-		return name
-	}
-	return "local"
-}
-
-func splitList(value string) []string {
-	var items []string
-	for item := range strings.SplitSeq(value, ",") {
-		if item = strings.TrimSpace(item); item != "" {
-			items = append(items, item)
-		}
-	}
-	return items
-}
-
-func parseBool(variable, value string) (bool, error) {
-	if value == "" {
-		return false, nil
-	}
-	parsed, err := strconv.ParseBool(value)
-	if err != nil {
-		return false, fmt.Errorf("%w: %s=%q is not a boolean", ErrInvalidVariable, variable, value)
-	}
-	return parsed, nil
-}
-
-func parsePositive(variable, value string, fallback int) (int, error) {
-	if value == "" {
-		return fallback, nil
-	}
-	parsed, err := strconv.Atoi(value)
-	if err != nil || parsed <= 0 {
-		return 0, fmt.Errorf("%w: %s=%q is not a positive integer", ErrInvalidVariable, variable, value)
-	}
-	return parsed, nil
 }

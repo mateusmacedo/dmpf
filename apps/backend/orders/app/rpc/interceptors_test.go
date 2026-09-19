@@ -12,7 +12,7 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
-	"github.com/mateusmacedo/dmpf/apps/backend/orders/rpc"
+	"github.com/mateusmacedo/dmpf/apps/backend/orders/app/rpc"
 	servicev1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/orders/service/v1"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/tracing"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/admission"

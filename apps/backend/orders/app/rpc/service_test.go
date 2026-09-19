@@ -7,8 +7,8 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/mateusmacedo/dmpf/apps/backend/orders/app/rpc"
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/domain"
-	"github.com/mateusmacedo/dmpf/apps/backend/orders/rpc"
 	servicev1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/orders/service/v1"
 )
 
