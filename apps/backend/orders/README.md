@@ -18,7 +18,7 @@ Projeto Nx `orders`, tags `type:app`, `scope:backend`, `stack:go` e `layer:apps`
 | `domain` | `domain` | `orders/domain` | Agregado `Order` com as UPRs `AddItem` e `Place` (FND-03 §8.2, §8.3), mensagens, rejeições `orders/*` |
 | `application` | `application` | `orders/application` | `Service` com `AddItem`, `PlaceOrder` (os nove passos de FND-04 §3.2) e `FindOrder`; `Destination = orders.events` |
 | `provider` | `provider` | `orders/provider-postgres` | Repositório com optimistic locking sobre `dmpf_example_orders`, `Reader`, mapeador para `company.orders.event.v1` |
-| raiz, `rpc`, `cmd/orders` | `app` | `orders/app` | Composition root: o único lugar onde os providers concretos de `orders` são instanciados (ADR-015); servidor gRPC e binário |
+| `app`, `app/rpc`, `cmd` | `app` | `orders/app` | Composition root: o único lugar onde os providers concretos de `orders` são instanciados (ADR-015); servidor gRPC e binário |
 
 Todas com `bounded_context` `orders`. O contrato (`company.orders.event.v1`, `company.orders.service.v1`) é a unidade `orders/contract`, declarada no manifesto de `libs/backend/go/contracts`, onde o código gerado mora; é superfície pública, e é por ela que `bff` e `reservations` alcançam `orders` sem importar o seu domínio.
 
