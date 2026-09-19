@@ -23,9 +23,9 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/admission"
 
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/app/rpc"
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/application"
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
-	"github.com/mateusmacedo/dmpf/apps/backend/reservations/rpc"
 )
 
 var reservationsTable = memory.Table[domain.OrderID, domain.Snapshot]{Name: "reservations"}

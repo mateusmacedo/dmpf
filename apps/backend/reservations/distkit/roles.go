@@ -14,7 +14,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/mateusmacedo/dmpf/libs/backend/go/app"
+	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/app"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/contracts/envelope"
 	eventv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/orders/event/v1"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/kafka"
@@ -27,7 +27,7 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/channel"
 
-	"github.com/mateusmacedo/dmpf/apps/backend/reservations"
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/app"
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/appkit"
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
 )
@@ -55,7 +55,7 @@ func RunRole(t *testing.T) {
 		produce(t, ctx, cfg, plan)
 	case RoleConsumer:
 		pool := openPool(t)
-		consume(t, ctx, cfg, ch, adapterSink{consumer: reservations.NewConsumer(pool, clock.New(at), &ids.Sequence{Prefix: "m-"}, appkit.Wait, appkit.MaxAttempts)})
+		consume(t, ctx, cfg, ch, adapterSink{consumer: app.NewConsumer(pool, clock.New(at), &ids.Sequence{Prefix: "m-"}, appkit.Wait, appkit.MaxAttempts)})
 	case RoleNaiveConsumer:
 		consume(t, ctx, cfg, ch, naiveSink{pool: openPool(t)})
 	default:
@@ -156,10 +156,10 @@ func consume(t *testing.T, ctx context.Context, cfg kafka.Config, ch channel.Cha
 // its transaction (TRP-26), and that gesture — not the error — is what the
 // worker applies; the error goes back whole so the worker can log the cause of
 // an acknowledged failure or of a delivery left without a gesture.
-type adapterSink struct{ consumer app.Consumer }
+type adapterSink struct{ consumer kernel.Consumer }
 
 func (s adapterSink) Handle(ctx context.Context, raw []byte, attempt int, ack ports.Acknowledger) error {
-	_, err := s.consumer.Consume(ctx, app.Delivery{Raw: raw, Attempt: attempt}, ack)
+	_, err := s.consumer.Consume(ctx, kernel.Delivery{Raw: raw, Attempt: attempt}, ack)
 	return err
 }
 

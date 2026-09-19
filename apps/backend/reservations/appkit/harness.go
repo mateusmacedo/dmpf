@@ -11,13 +11,13 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/mateusmacedo/dmpf/libs/backend/go/app"
+	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/app"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/contracts/envelope"
 	eventv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/orders/event/v1"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/pg"
 
-	"github.com/mateusmacedo/dmpf/apps/backend/reservations"
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/app"
 )
 
 const (
@@ -31,7 +31,7 @@ const (
 // realizations, fed raw bytes at the protocol edge, observed at the effect
 // edge — the four tables.
 type Harness struct {
-	Consumer app.Consumer
+	Consumer kernel.Consumer
 	Pool     *pgxpool.Pool
 }
 
@@ -42,7 +42,7 @@ func NewReservations(t testing.TB, clock ports.Clock, ids ports.IDGenerator) Har
 	t.Helper()
 	pool := pg.OpenPool(t)
 	return Harness{
-		Consumer: reservations.NewConsumer(pool, clock, ids, Wait, MaxAttempts),
+		Consumer: app.NewConsumer(pool, clock, ids, Wait, MaxAttempts),
 		Pool:     pool,
 	}
 }
@@ -63,7 +63,7 @@ func (a *Ack) Ack(ctx context.Context) error {
 	a.Acks++
 	return a.pool.QueryRow(ctx,
 		"SELECT count(*) FROM dmpf_inbox WHERE consumer_name = $1 AND message_id = $2",
-		reservations.ConsumerName, a.messageID).Scan(&a.InboxAtAck)
+		app.ConsumerName, a.messageID).Scan(&a.InboxAtAck)
 }
 
 func (a *Ack) Release(context.Context) error {
@@ -74,9 +74,9 @@ func (a *Ack) Release(context.Context) error {
 // Deliver hands the raw bytes of one delivery to the adapter and returns what
 // it did, with the acknowledger that saw the gesture. messageID only tells the
 // acknowledger which inbox row to watch.
-func (h Harness) Deliver(ctx context.Context, messageID string, raw []byte, attempt int) (app.Outcome, *Ack, error) {
+func (h Harness) Deliver(ctx context.Context, messageID string, raw []byte, attempt int) (kernel.Outcome, *Ack, error) {
 	ack := &Ack{pool: h.Pool, messageID: messageID}
-	outcome, err := h.Consumer.Consume(ctx, app.Delivery{Raw: raw, Attempt: attempt}, ack)
+	outcome, err := h.Consumer.Consume(ctx, kernel.Delivery{Raw: raw, Attempt: attempt}, ack)
 	return outcome, ack, err
 }
 
@@ -113,7 +113,7 @@ func (h Harness) InboxRow(t testing.TB, messageID string) (status string, lastEr
 	defer cancel()
 	err := h.Pool.QueryRow(ctx,
 		"SELECT status, last_error FROM dmpf_inbox WHERE consumer_name = $1 AND message_id = $2",
-		reservations.ConsumerName, messageID).Scan(&status, &lastError)
+		app.ConsumerName, messageID).Scan(&status, &lastError)
 	if err != nil {
 		t.Fatalf("appkit.InboxRow %s: %v", messageID, err)
 	}

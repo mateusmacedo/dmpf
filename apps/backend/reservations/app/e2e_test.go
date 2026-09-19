@@ -1,12 +1,13 @@
 //go:build integration
 
-package reservations_test
+package app_test
 
 import (
 	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/pg"
 	"sync"
 	"testing"
 	"time"
@@ -15,14 +16,14 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/mateusmacedo/dmpf/libs/backend/go/app"
+	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/app"
 	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/contracts/envelope"
 	eventv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/orders/event/v1"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
 
-	"github.com/mateusmacedo/dmpf/apps/backend/reservations"
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/app"
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/appkit"
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/application"
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
@@ -92,7 +93,7 @@ func inboxRow(t *testing.T, pool *pgxpool.Pool, messageID string) (status string
 	t.Helper()
 	err := pool.QueryRow(context.Background(),
 		"SELECT status, last_error FROM dmpf_inbox WHERE consumer_name = $1 AND message_id = $2",
-		reservations.ConsumerName, messageID).Scan(&status, &lastError)
+		app.ConsumerName, messageID).Scan(&status, &lastError)
 	if err != nil {
 		t.Fatalf("inbox row %s: %v", messageID, err)
 	}
@@ -105,17 +106,17 @@ func quarantinedEnvelope(t *testing.T, pool *pgxpool.Pool, messageID string) ([]
 	var reason string
 	err := pool.QueryRow(context.Background(),
 		"SELECT envelope, reason FROM dmpf_quarantine WHERE consumer_name = $1 AND message_id = $2",
-		reservations.ConsumerName, messageID).Scan(&raw, &reason)
+		app.ConsumerName, messageID).Scan(&raw, &reason)
 	if err != nil {
 		t.Fatalf("quarantine row %s: %v", messageID, err)
 	}
 	return raw, reason
 }
 
-func consume(t *testing.T, pool *pgxpool.Pool, consumer app.Consumer, messageID string, raw []byte, attempt int) (app.Outcome, error, *recordingAck) {
+func consume(t *testing.T, pool *pgxpool.Pool, consumer kernel.Consumer, messageID string, raw []byte, attempt int) (kernel.Outcome, error, *recordingAck) {
 	t.Helper()
 	ack := &recordingAck{pool: pool, messageIDSeen: ports.MessageID(messageID)}
-	outcome, err := consumer.Consume(context.Background(), app.Delivery{Raw: raw, Attempt: attempt}, ack)
+	outcome, err := consumer.Consume(context.Background(), kernel.Delivery{Raw: raw, Attempt: attempt}, ack)
 	return outcome, err, ack
 }
 
@@ -134,29 +135,29 @@ type failingOutbox struct{ err error }
 
 func (f failingOutbox) Enqueue(context.Context, ports.OutboxEntry) error { return f.err }
 
-func consumerWith(pool *pgxpool.Pool, decorate func(application.Resources) application.Resources) app.Consumer {
+func consumerWith(pool *pgxpool.Pool, decorate func(application.Resources) application.Resources) kernel.Consumer {
 	bind := func(tx *postgres.Tx) application.Resources {
-		return decorate(reservations.Bind(e2eWait)(tx))
+		return decorate(app.Bind(e2eWait)(tx))
 	}
 	service := application.Service{
 		UoW:       postgres.NewUnitOfWork(pool, bind),
 		Clock:     e2eClock{},
 		IDs:       &sequenceIDs{},
 		Authorize: usecase.AllowAll[application.Command](),
-		Consumer:  reservations.ConsumerName,
+		Consumer:  app.ConsumerName,
 	}
-	return app.Consumer{
-		Name:        reservations.ConsumerName,
+	return kernel.Consumer{
+		Name:        app.ConsumerName,
 		MaxAttempts: e2eAttempts,
-		Handle:      reservations.Handler(service),
+		Handle:      app.Handler(service),
 		Containment: postgres.NewQuarantine(pool),
 		Clock:       e2eClock{},
 	}
 }
 
 func TestFirstReceptionAppliesConfirmsAndDerivesTheOutbox(t *testing.T) {
-	pool := openPool(t)
-	consumer := reservations.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eAttempts)
+	pool := pg.OpenPool(t)
+	consumer := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eAttempts)
 
 	outcome, err, ack := consume(t, pool, consumer, "evt-1", appkit.RawOrderPlaced(t, "evt-1", "o-1", 2), 1)
 	if err != nil {
@@ -184,8 +185,8 @@ func TestFirstReceptionAppliesConfirmsAndDerivesTheOutbox(t *testing.T) {
 }
 
 func TestBusinessRejectionCommitsRejectedAndConfirms(t *testing.T) {
-	pool := openPool(t)
-	consumer := reservations.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eAttempts)
+	pool := pg.OpenPool(t)
+	consumer := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eAttempts)
 
 	outcome, err, ack := consume(t, pool, consumer, "evt-2", appkit.RawOrderPlaced(t, "evt-2", "o-2", 0), 1)
 	if err != nil {
@@ -207,8 +208,8 @@ func TestBusinessRejectionCommitsRejectedAndConfirms(t *testing.T) {
 }
 
 func TestRedeliveriesShortCircuit(t *testing.T) {
-	pool := openPool(t)
-	consumer := reservations.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eAttempts)
+	pool := pg.OpenPool(t)
+	consumer := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eAttempts)
 	applied := appkit.RawOrderPlaced(t, "evt-1", "o-1", 2)
 	rejected := appkit.RawOrderPlaced(t, "evt-2", "o-2", 0)
 	for _, raw := range [][]byte{applied, rejected} {
@@ -259,7 +260,7 @@ func TestRedeliveriesShortCircuit(t *testing.T) {
 }
 
 func TestTransientFailureRollsBackAndReleases(t *testing.T) {
-	pool := openPool(t)
+	pool := pg.OpenPool(t)
 	consumer := consumerWith(pool, func(r application.Resources) application.Resources {
 		r.Reservations = failingReservations{r.Reservations, usecase.NewFailure(usecase.TransientDependency, true, errBoom)}
 		return r
@@ -278,7 +279,7 @@ func TestTransientFailureRollsBackAndReleases(t *testing.T) {
 }
 
 func TestExhaustedAttemptsContainThePoisonMessage(t *testing.T) {
-	pool := openPool(t)
+	pool := pg.OpenPool(t)
 	consumer := consumerWith(pool, func(r application.Resources) application.Resources {
 		r.Reservations = failingReservations{r.Reservations, usecase.NewFailure(usecase.TransientDependency, true, errBoom)}
 		return r
@@ -297,7 +298,7 @@ func TestExhaustedAttemptsContainThePoisonMessage(t *testing.T) {
 	}
 
 	// The next message of the same partition is not blocked by the poison one.
-	healthy := reservations.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eAttempts)
+	healthy := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eAttempts)
 	outcome, err, _ = consume(t, pool, healthy, "evt-5", appkit.RawOrderPlaced(t, "evt-5", "o-4", 1), 1)
 	if err != nil || outcome.Disposition != usecase.R1D1 {
 		t.Fatalf("the partition stayed blocked: outcome = %+v, err = %v", outcome, err)
@@ -305,7 +306,7 @@ func TestExhaustedAttemptsContainThePoisonMessage(t *testing.T) {
 }
 
 func TestTerminalFailureIsContained(t *testing.T) {
-	pool := openPool(t)
+	pool := pg.OpenPool(t)
 	consumer := consumerWith(pool, func(r application.Resources) application.Resources {
 		r.Reservations = failingReservations{r.Reservations, usecase.NewFailure(usecase.Forbidden, false, errBoom)}
 		return r
@@ -324,7 +325,7 @@ func TestTerminalFailureIsContained(t *testing.T) {
 }
 
 func TestOutboxFailureRollsBackDeduplicationAndState(t *testing.T) {
-	pool := openPool(t)
+	pool := pg.OpenPool(t)
 	consumer := consumerWith(pool, func(r application.Resources) application.Resources {
 		r.Outbox = failingOutbox{errBoom}
 		return r
@@ -340,8 +341,8 @@ func TestOutboxFailureRollsBackDeduplicationAndState(t *testing.T) {
 }
 
 func TestInvalidEnvelopeIsContainedWithoutTouchingTheInbox(t *testing.T) {
-	pool := openPool(t)
-	consumer := reservations.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eAttempts)
+	pool := pg.OpenPool(t)
+	consumer := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eAttempts)
 	garbage := []byte("definitely not a cloudevent")
 
 	outcome, err, ack := consume(t, pool, consumer, "", garbage, 1)
@@ -357,8 +358,8 @@ func TestInvalidEnvelopeIsContainedWithoutTouchingTheInbox(t *testing.T) {
 }
 
 func TestPayloadOfAnotherContractIsTerminal(t *testing.T) {
-	pool := openPool(t)
-	consumer := reservations.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eAttempts)
+	pool := pg.OpenPool(t)
+	consumer := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eAttempts)
 	payload, typeURL, err := envelope.Pack(&eventv1.ItemAdded{OrderId: "o-8", Sku: "sku", Quantity: 1})
 	if err != nil {
 		t.Fatalf("Pack: %v", err)
@@ -390,8 +391,8 @@ func TestPayloadOfAnotherContractIsTerminal(t *testing.T) {
 }
 
 func TestRedeliveryWithANewMessageIDDoesNotDuplicateTheEffect(t *testing.T) {
-	pool := openPool(t)
-	consumer := reservations.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eAttempts)
+	pool := pg.OpenPool(t)
+	consumer := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eAttempts)
 	if _, err, _ := consume(t, pool, consumer, "evt-1", appkit.RawOrderPlaced(t, "evt-1", "o-1", 2), 1); err != nil {
 		t.Fatalf("first: %v", err)
 	}
@@ -414,8 +415,8 @@ func TestRedeliveryWithANewMessageIDDoesNotDuplicateTheEffect(t *testing.T) {
 }
 
 func TestSignalsExposeTheConsumerSide(t *testing.T) {
-	pool := openPool(t)
-	consumer := reservations.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eAttempts)
+	pool := pg.OpenPool(t)
+	consumer := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eAttempts)
 	if _, err, _ := consume(t, pool, consumer, "evt-1", appkit.RawOrderPlaced(t, "evt-1", "o-1", 2), 1); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
@@ -426,7 +427,7 @@ func TestSignalsExposeTheConsumerSide(t *testing.T) {
 		t.Fatalf("invalid: %v", err)
 	}
 
-	signals, err := postgres.InboxSignals(context.Background(), pool, reservations.ConsumerName)
+	signals, err := postgres.InboxSignals(context.Background(), pool, app.ConsumerName)
 	if err != nil {
 		t.Fatalf("InboxSignals: %v", err)
 	}

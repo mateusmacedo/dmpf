@@ -1,17 +1,18 @@
 //go:build integration
 
-package reservations_test
+package app_test
 
 import (
 	"context"
 	"fmt"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/pg"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/mateusmacedo/dmpf/libs/backend/go/app"
+	kernelapp "github.com/mateusmacedo/dmpf/libs/backend/go/app"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/app/relay"
 	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/contracts/envelope"
@@ -20,7 +21,7 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
 
-	"github.com/mateusmacedo/dmpf/apps/backend/reservations"
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/app"
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/appkit"
 )
 
@@ -156,11 +157,11 @@ func outboxStatus(t *testing.T, pool *pgxpool.Pool) (status string, attempts int
 }
 
 func TestTheRelayDrainsWhatTheWriterCommitted(t *testing.T) {
-	pool := openPool(t)
+	pool := pg.OpenPool(t)
 	enqueueOrderPlaced(t, pool)
 
 	publisher := &capturingPublisher{}
-	drain, err := reservations.NewRelay(pool, publisher, relayConfig())
+	drain, err := relay.NewOverPostgres(pool, publisher, "reservations", relayConfig())
 	if err != nil {
 		t.Fatalf("NewRelay() = %v, want nil", err)
 	}
@@ -199,13 +200,13 @@ func TestTheRelayDrainsWhatTheWriterCommitted(t *testing.T) {
 // next cycle. The duplicate is expected under at-least-once — it is not a
 // defect to be fixed here; it is the property the inbox of KRN-07 absorbs.
 func TestAFailureBetweenPublishingAndMarkingRepublishesAndTheInboxAbsorbsIt(t *testing.T) {
-	pool := openPool(t)
+	pool := pg.OpenPool(t)
 	enqueueOrderPlaced(t, pool)
 
 	publisher := &capturingPublisher{entered: make(chan struct{})}
 	config := relayConfig()
 
-	crashing, err := reservations.NewRelay(pool, publisher, config)
+	crashing, err := relay.NewOverPostgres(pool, publisher, "reservations", config)
 	if err != nil {
 		t.Fatalf("NewRelay() = %v, want nil", err)
 	}
@@ -228,7 +229,7 @@ func TestAFailureBetweenPublishingAndMarkingRepublishesAndTheInboxAbsorbsIt(t *t
 	// is exactly what OBX-09 buys, and here it is 150ms.
 	time.Sleep(config.Lease + 50*time.Millisecond)
 
-	healthy, err := reservations.NewRelay(pool, publisher, config)
+	healthy, err := relay.NewOverPostgres(pool, publisher, "reservations", config)
 	if err != nil {
 		t.Fatalf("NewRelay() = %v, want nil", err)
 	}
@@ -262,12 +263,12 @@ func TestAFailureBetweenPublishingAndMarkingRepublishesAndTheInboxAbsorbsIt(t *t
 	// The consumer of KRN-07 receives both deliveries. The first does the work;
 	// the second is absorbed by the inbox, which is what makes the duplicate
 	// harmless rather than a second reservation.
-	consumer := reservations.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eAttempts)
+	consumer := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eAttempts)
 	raw := appkit.RawOrderPlaced(t, relayMessageID, relayOrderID, relayItems)
 
 	for delivery := 1; delivery <= 2; delivery++ {
 		ack := &recordingAck{pool: pool, messageIDSeen: relayMessageID}
-		outcome, err := consumer.Consume(context.Background(), app.Delivery{Raw: raw, Attempt: delivery}, ack)
+		outcome, err := consumer.Consume(context.Background(), kernelapp.Delivery{Raw: raw, Attempt: delivery}, ack)
 		if err != nil {
 			t.Fatalf("delivery %d = %v, want nil", delivery, err)
 		}

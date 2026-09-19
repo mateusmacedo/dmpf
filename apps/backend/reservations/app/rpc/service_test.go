@@ -9,8 +9,8 @@ import (
 
 	servicev1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/reservations/service/v1"
 
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/app/rpc"
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
-	"github.com/mateusmacedo/dmpf/apps/backend/reservations/rpc"
 )
 
 func TestServiceDescCoversEveryMethodOfTheDescriptor(t *testing.T) {

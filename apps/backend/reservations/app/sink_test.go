@@ -1,4 +1,4 @@
-package reservations_test
+package app_test
 
 import (
 	"context"
@@ -11,8 +11,8 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/mateusmacedo/dmpf/apps/backend/reservations"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/app"
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/app"
+	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/app"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/contracts/envelope"
 	eventv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/orders/event/v1"
@@ -83,9 +83,9 @@ func rawEnvelope(t *testing.T, eventType string, msg proto.Message) []byte {
 	return raw
 }
 
-func newSink(handler *fakeHandler, containment *fakeContainment, tracer trace.Tracer) reservations.Sink {
-	return reservations.Sink{
-		Consumer: app.Consumer{
+func newSink(handler *fakeHandler, containment *fakeContainment, tracer trace.Tracer) app.Sink {
+	return app.Sink{
+		Consumer: kernel.Consumer{
 			Name:        "reservations",
 			MaxAttempts: 2,
 			Handle:      handler.handle,

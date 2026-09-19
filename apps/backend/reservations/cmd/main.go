@@ -12,7 +12,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/mateusmacedo/dmpf/apps/backend/reservations"
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/app"
 )
 
 // A refused start (usage or configuration) must never read as a failed run to
@@ -41,7 +41,7 @@ func run(o options, out, errOut io.Writer) int {
 		return exitUsage
 	}
 
-	cfg, err := reservations.FromEnv(reservations.Role(o.role), o.lookup)
+	cfg, err := app.FromEnv(app.Role(o.role), o.lookup)
 	if err != nil {
 		_, _ = fmt.Fprintf(errOut, "reservations: %v\n", err)
 		return exitUsage
@@ -50,7 +50,7 @@ func run(o options, out, errOut io.Writer) int {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
 
-	if err := reservations.Run(ctx, cfg, out); err != nil {
+	if err := app.Run(ctx, cfg, out); err != nil {
 		_, _ = fmt.Fprintf(errOut, "reservations: %s: %v\n", cfg.Role, err)
 		return exitFailure
 	}

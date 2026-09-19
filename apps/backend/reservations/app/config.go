@@ -1,10 +1,9 @@
-package reservations
+package app
 
 import (
 	"errors"
 	"fmt"
-	"os"
-	"strconv"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/envconfig"
 	"strings"
 	"time"
 
@@ -28,7 +27,7 @@ var Roles = []Role{RoleAPI, RoleRelay, RoleConsumer}
 var (
 	ErrUnknownRole     = errors.New("reservations: unknown role")
 	ErrMissingVariable = errors.New("reservations: required variable is not set")
-	ErrInvalidVariable = errors.New("reservations: variable has an invalid value")
+	ErrInvalidVariable = envconfig.ErrInvalidVariable
 )
 
 const (
@@ -118,13 +117,13 @@ func FromEnv(role Role, lookup func(string) string) (Config, error) {
 	cfg := Defaults(role)
 
 	cfg.DSN = lookup(envDSN)
-	cfg.GRPCAddr = orDefault(lookup(envGRPCAddr), cfg.GRPCAddr)
+	cfg.GRPCAddr = envconfig.OrDefault(lookup(envGRPCAddr), cfg.GRPCAddr)
 	cfg.GRPCCertFile = lookup(envGRPCCertFile)
 	cfg.GRPCKeyFile = lookup(envGRPCKeyFile)
-	cfg.Service = orDefault(lookup(envService), cfg.Service)
-	cfg.Version = orDefault(lookup(envServiceVersion), cfg.Version)
-	cfg.Instance = orDefault(lookup(envInstanceID), hostname())
-	cfg.Brokers = splitList(lookup(envBrokers))
+	cfg.Service = envconfig.OrDefault(lookup(envService), cfg.Service)
+	cfg.Version = envconfig.OrDefault(lookup(envServiceVersion), cfg.Version)
+	cfg.Instance = envconfig.OrDefault(lookup(envInstanceID), envconfig.Hostname())
+	cfg.Brokers = envconfig.SplitList(lookup(envBrokers))
 	cfg.Group = lookup(envGroup)
 	cfg.OrdersTopic = lookup(envOrdersTopic)
 	cfg.OrdersDLQ = lookup(envOrdersDLQ)
@@ -142,7 +141,7 @@ func FromEnv(role Role, lookup func(string) string) (Config, error) {
 		{envMigrate, &cfg.Migrate},
 	}
 	for _, flag := range flags {
-		value, err := parseBool(flag.variable, lookup(flag.variable))
+		value, err := envconfig.ParseBool(flag.variable, lookup(flag.variable))
 		if err != nil {
 			return Config{}, err
 		}
@@ -218,39 +217,4 @@ func roleList() string {
 		names[i] = string(role)
 	}
 	return strings.Join(names, "|")
-}
-
-func orDefault(value, fallback string) string {
-	if value == "" {
-		return fallback
-	}
-	return value
-}
-
-func hostname() string {
-	if name, err := os.Hostname(); err == nil && name != "" {
-		return name
-	}
-	return "local"
-}
-
-func splitList(value string) []string {
-	var items []string
-	for item := range strings.SplitSeq(value, ",") {
-		if item = strings.TrimSpace(item); item != "" {
-			items = append(items, item)
-		}
-	}
-	return items
-}
-
-func parseBool(variable, value string) (bool, error) {
-	if value == "" {
-		return false, nil
-	}
-	parsed, err := strconv.ParseBool(value)
-	if err != nil {
-		return false, fmt.Errorf("%w: %s=%q is not a boolean", ErrInvalidVariable, variable, value)
-	}
-	return parsed, nil
 }

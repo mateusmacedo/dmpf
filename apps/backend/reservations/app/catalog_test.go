@@ -1,4 +1,4 @@
-package reservations
+package app
 
 import (
 	"testing"

@@ -1,6 +1,6 @@
 // comment-discipline-ok-file: arquivo de declarações da composition root; cada godoc é contrato de API pública com referência normativa (FND-04 §6.3, MAP-07, ERR-11), dentro do limite de 3 linhas.
 
-package reservations
+package app
 
 import (
 	"context"
