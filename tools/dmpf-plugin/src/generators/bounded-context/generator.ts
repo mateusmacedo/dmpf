@@ -169,14 +169,27 @@ const planModule = ({
       blocksTable: blocksTableOf({ layouts, boundedContext }),
       unitsFragment: unitsFragment({
         level: 2,
-        units: layouts.map((layout) => ({
-          id: `${boundedContext}/${layout.unitSuffix}`,
-          block: layout.block,
-          boundedContext,
-          include: [`${modulePath}/${layout.dirName}`],
-        })),
+        // A companion unit shares the block and keeps a membership of its own,
+        // so the verifier reads one include per directory.
+        units: layouts.flatMap((layout) =>
+          [
+            { unitSuffix: layout.unitSuffix, dirName: layout.dirName },
+            ...(layout.companions ?? []),
+          ].map((unit) => ({
+            id: `${boundedContext}/${unit.unitSuffix}`,
+            block: layout.block,
+            boundedContext,
+            // O binário pertence à unidade do bloco app: é composition root,
+            // não unidade de si mesmo.
+            include:
+              unit.dirName === 'app'
+                ? [`${modulePath}/app`, `${modulePath}/cmd`]
+                : [`${modulePath}/${unit.dirName}`],
+          })),
+        ),
       }),
       externalFragment: externalFragment({ level: 1, external: externalOf(layouts) }),
+      hasApp: blocks.includes('app'),
       testRaceCacheJson: integration ? 'false' : 'true',
       testRaceCommandJson: JSON.stringify(testRaceCommandOf(integration)),
       hasTestRaceDependsOn: dependsOnProjects.length > 0,
@@ -230,6 +243,11 @@ export const boundedContextGenerator = async (
   const plan = planGeneration(tree, options);
 
   generateFiles(tree, templateDir('module'), plan.directory, plan.substitutions);
+  if (plan.substitutions.hasApp) {
+    // The binary and its composition root only exist when the context has an
+    // app block: there is nothing to serve without one.
+    generateFiles(tree, templateDir('app'), plan.directory, plan.substitutions);
+  }
   for (const block of plan.blocks) {
     generateFiles(tree, templateDir('block'), block.directory, block.substitutions);
   }

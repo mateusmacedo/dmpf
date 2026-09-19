@@ -9,10 +9,21 @@ export type ExternalDependency = {
 
 export type Layer = 'domain' | 'services' | 'contract' | 'providers' | 'apps';
 
+// CompanionUnit is a unit of the same block that lives in a directory of its
+// own. The test kits are the case: they belong to the app block, but each is
+// its own unit in the manifest, so the verifier reads one membership per
+// directory instead of one per block.
+export type CompanionUnit = {
+  unitSuffix: string;
+  dirName: string;
+  summary: string;
+};
+
 export type BlockLayout = {
   block: Block;
   unitSuffix: string;
   dirName: string;
+  companions?: readonly CompanionUnit[];
   layer: Layer;
   requires: readonly Block[];
   integration: boolean;
@@ -104,6 +115,20 @@ export const LAYOUTS: readonly BlockLayout[] = [
     block: 'app',
     unitSuffix: 'app',
     dirName: 'app',
+    companions: [
+      {
+        unitSuffix: 'appkit',
+        dirName: 'appkit',
+        summary:
+          'Harness que compõe a aplicação sobre as realizações concretas e observa os efeitos (KIT-05).',
+      },
+      {
+        unitSuffix: 'distkit',
+        dirName: 'distkit',
+        summary:
+          'Harness distribuído que reexecuta o binário de teste em processos separados sobre um broker real (KIT-06).',
+      },
+    ],
     layer: 'apps',
     requires: ['domain', 'port', 'application', 'provider'],
     integration: true,
