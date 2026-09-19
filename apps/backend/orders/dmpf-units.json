@@ -28,10 +28,24 @@
       "bounded_context": "orders",
       "public_integration_surface": false,
       "include": [
-        "github.com/mateusmacedo/dmpf/apps/backend/orders",
-        "github.com/mateusmacedo/dmpf/apps/backend/orders/rpc",
-        "github.com/mateusmacedo/dmpf/apps/backend/orders/cmd/orders"
+        "github.com/mateusmacedo/dmpf/apps/backend/orders/app",
+        "github.com/mateusmacedo/dmpf/apps/backend/orders/app/rpc",
+        "github.com/mateusmacedo/dmpf/apps/backend/orders/cmd"
       ]
+    },
+    {
+      "id": "orders/appkit",
+      "block": "app",
+      "bounded_context": "orders",
+      "public_integration_surface": false,
+      "include": ["github.com/mateusmacedo/dmpf/apps/backend/orders/appkit"]
+    },
+    {
+      "id": "orders/distkit",
+      "block": "app",
+      "bounded_context": "orders",
+      "public_integration_surface": false,
+      "include": ["github.com/mateusmacedo/dmpf/apps/backend/orders/distkit"]
     }
   ],
   "external": [
