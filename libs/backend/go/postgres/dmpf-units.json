@@ -21,6 +21,12 @@
       "versions": ">=1.36.12 <2",
       "entrypoints": ["google.golang.org/protobuf/proto"],
       "capability": "wire.codec"
+    },
+    {
+      "package": "go.opentelemetry.io/otel/trace",
+      "versions": ">=1.46.0 <2",
+      "entrypoints": ["."],
+      "capability": "observability"
     }
   ],
   "exceptions": []

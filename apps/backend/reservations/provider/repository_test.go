@@ -5,6 +5,7 @@ package provider_test
 import (
 	"context"
 	"errors"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/pg"
 	"sync"
 	"testing"
 
@@ -70,7 +71,7 @@ func load(t *testing.T, pool *pgxpool.Pool) (domain.Snapshot, ports.Version) {
 }
 
 func TestRepositoryLoadAbsent(t *testing.T) {
-	pool := openPool(t)
+	pool := pg.OpenPool(t)
 
 	err := withRepo(t, pool, func(ctx context.Context, repo ports.Repository[domain.OrderID, domain.Snapshot]) error {
 		_, _, err := repo.Load(ctx, repoOrderID)
@@ -82,7 +83,7 @@ func TestRepositoryLoadAbsent(t *testing.T) {
 }
 
 func TestRepositorySaveCreate(t *testing.T) {
-	pool := openPool(t)
+	pool := pg.OpenPool(t)
 	seed(t, pool)
 
 	s, v := load(t, pool)
@@ -95,7 +96,7 @@ func TestRepositorySaveCreate(t *testing.T) {
 }
 
 func TestRepositorySaveUpdate(t *testing.T) {
-	pool := openPool(t)
+	pool := pg.OpenPool(t)
 	seed(t, pool)
 
 	if err := withRepo(t, pool, func(ctx context.Context, repo ports.Repository[domain.OrderID, domain.Snapshot]) error {
@@ -114,7 +115,7 @@ func TestRepositorySaveUpdate(t *testing.T) {
 }
 
 func TestRepositoryVersionConflict(t *testing.T) {
-	pool := openPool(t)
+	pool := pg.OpenPool(t)
 	seed(t, pool)
 
 	err := withRepo(t, pool, func(ctx context.Context, repo ports.Repository[domain.OrderID, domain.Snapshot]) error {
@@ -126,7 +127,7 @@ func TestRepositoryVersionConflict(t *testing.T) {
 }
 
 func TestRepositoryCreateOverExistingConflicts(t *testing.T) {
-	pool := openPool(t)
+	pool := pg.OpenPool(t)
 	seed(t, pool)
 
 	err := withRepo(t, pool, func(ctx context.Context, repo ports.Repository[domain.OrderID, domain.Snapshot]) error {
@@ -138,7 +139,7 @@ func TestRepositoryCreateOverExistingConflicts(t *testing.T) {
 }
 
 func TestConcurrentSaveReservation(t *testing.T) {
-	pool := openPool(t)
+	pool := pg.OpenPool(t)
 	seed(t, pool)
 
 	const writers = 2

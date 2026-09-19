@@ -4,6 +4,7 @@ package provider_test
 
 import (
 	"context"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/pg"
 	"sort"
 	"testing"
 
@@ -48,7 +49,7 @@ func ids(snapshots []domain.BookingSnapshot) []string {
 // outside any unit of work, so it must not be able to join a caller's
 // transaction. Constructing it from the pool is what makes that structural.
 func TestLoadByResourceReturnsOnlyTheBookingsOfThatResource(t *testing.T) {
-	pool := openPool(t)
+	pool := pg.OpenPool(t, "bookings_booking", "bookings_resource")
 
 	saveBooking(t, pool, "b-query-1", queriedResource)
 	saveBooking(t, pool, "b-query-2", queriedResource)
@@ -82,7 +83,7 @@ func TestLoadByResourceReturnsOnlyTheBookingsOfThatResource(t *testing.T) {
 }
 
 func TestLoadByResourceReturnsEmptyForUnknownResource(t *testing.T) {
-	pool := openPool(t)
+	pool := pg.OpenPool(t, "bookings_booking", "bookings_resource")
 
 	saveBooking(t, pool, "b-query-1", queriedResource)
 

@@ -57,7 +57,7 @@
     "serve": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "DMPF_OPENAPI_ORDERS_PATH=../../../contracts/openapi/orders/v1/openapi.yaml DMPF_OPENAPI_RESERVATIONS_PATH=../../../contracts/openapi/reservations/v1/openapi.yaml go run ./cmd/bff",
+        "command": "DMPF_OPENAPI_ORDERS_PATH=../../../contracts/openapi/orders/v1/openapi.yaml DMPF_OPENAPI_RESERVATIONS_PATH=../../../contracts/openapi/reservations/v1/openapi.yaml go run ./cmd",
         "cwd": "{projectRoot}"
       }
     },

@@ -5,6 +5,7 @@ package provider_test
 import (
 	"context"
 	"errors"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/pg"
 	"strings"
 	"sync"
 	"testing"
@@ -56,7 +57,7 @@ func tracedPool(t *testing.T, pool *pgxpool.Pool) (*pgxpool.Pool, *sqlRecorder) 
 }
 
 func TestNewReaderLoadsWhatTheRepositoryWrote(t *testing.T) {
-	pool := openPool(t)
+	pool := pg.OpenPool(t)
 	seed(t, pool)
 
 	loaded, version, err := provider.NewReader(pool).Load(context.Background(), repoOrderID)
@@ -73,7 +74,7 @@ func TestNewReaderLoadsWhatTheRepositoryWrote(t *testing.T) {
 }
 
 func TestNewReaderReportsAnAbsentOrder(t *testing.T) {
-	pool := openPool(t)
+	pool := pg.OpenPool(t)
 
 	_, _, err := provider.NewReader(pool).Load(context.Background(), "o-absent")
 
@@ -85,7 +86,7 @@ func TestNewReaderReportsAnAbsentOrder(t *testing.T) {
 // UOW-11: a query is given read access without the write side, and that read
 // must not open a transaction — one SELECT on the pool, no begin, no commit.
 func TestNewReaderNeverOpensATransaction(t *testing.T) {
-	pool := openPool(t)
+	pool := pg.OpenPool(t)
 	seed(t, pool)
 	traced, recorder := tracedPool(t, pool)
 

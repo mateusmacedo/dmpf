@@ -9,7 +9,10 @@
       "include": [
         "github.com/mateusmacedo/dmpf/libs/backend/go/observability",
         "github.com/mateusmacedo/dmpf/libs/backend/go/observability/audit",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/observability/boot",
         "github.com/mateusmacedo/dmpf/libs/backend/go/observability/clock",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/observability/envconfig",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/observability/idclock",
         "github.com/mateusmacedo/dmpf/libs/backend/go/observability/logging",
         "github.com/mateusmacedo/dmpf/libs/backend/go/observability/metrics",
         "github.com/mateusmacedo/dmpf/libs/backend/go/observability/otelboot",

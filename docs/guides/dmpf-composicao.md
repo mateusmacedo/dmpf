@@ -97,7 +97,24 @@ módulo Go por contexto, um package por bloco (`<ctx>/domain`, `<ctx>/ports`,
 `<ctx>/application`, `<ctx>/provider`, `<ctx>/app`). O nome do projeto Nx é
 `<ctx>`, sem prefixo nem sufixo: a árvore já diz o scope (ADR-045). Onde um
 arquivo importa o package do kernel e o do contexto com o mesmo nome, o import
-do kernel recebe alias pelo papel — `kernel`, `usecase`, `port`.
+do kernel recebe alias pelo papel — `kernel`, `usecase`, `port`, e `kernelapp`
+quando `kernel` já nomeia o `domain`.
+
+O layout canônico do ADR-048 completa a lista: a **raiz do contexto não tem
+código Go**, a borda do transporte fica em subpacote de `app/` (`app/rpc/` em
+gRPC, `app/http/` em HTTP, com o package chamado `httpedge` para não colidir
+com `net/http`), o binário fica em `cmd/main.go` — um por contexto, com os
+papéis em `--role` — e os kits `appkit/` e `distkit/` são obrigatórios. O
+`tools/dmpf-context-check.sh` reprova o que fugir disso, e o generator já
+emite tudo:
+
+```text
+<ctx>/
+  domain/  ports/ (condicional)  application/  provider/
+  app/  →  rpc/ ou http/
+  appkit/  distkit/
+  cmd/main.go
+```
 
 ## 4. Passo 3 — o rito Buf
 

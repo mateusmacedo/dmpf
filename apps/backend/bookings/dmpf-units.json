@@ -34,7 +34,25 @@
       "block": "app",
       "bounded_context": "resource-scheduling",
       "public_integration_surface": false,
-      "include": ["github.com/mateusmacedo/dmpf/apps/backend/bookings/app"]
+      "include": [
+        "github.com/mateusmacedo/dmpf/apps/backend/bookings/app",
+        "github.com/mateusmacedo/dmpf/apps/backend/bookings/app/http",
+        "github.com/mateusmacedo/dmpf/apps/backend/bookings/cmd"
+      ]
+    },
+    {
+      "id": "resource-scheduling/appkit",
+      "block": "app",
+      "bounded_context": "resource-scheduling",
+      "public_integration_surface": false,
+      "include": ["github.com/mateusmacedo/dmpf/apps/backend/bookings/appkit"]
+    },
+    {
+      "id": "resource-scheduling/distkit",
+      "block": "app",
+      "bounded_context": "resource-scheduling",
+      "public_integration_surface": false,
+      "include": ["github.com/mateusmacedo/dmpf/apps/backend/bookings/distkit"]
     }
   ],
   "external": [

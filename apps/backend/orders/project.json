@@ -57,14 +57,29 @@
     "serve-api": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "DMPF_GRPC_INSECURE=true go run ./cmd/orders --role api",
+        "command": "DMPF_GRPC_INSECURE=true go run ./cmd --role api",
         "cwd": "{projectRoot}"
       }
     },
     "serve-relay": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "go run ./cmd/orders --role relay",
+        "command": "go run ./cmd --role relay",
+        "cwd": "{projectRoot}"
+      }
+    },
+    "test-distributed": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "inputs": ["go", "^go"],
+      "dependsOn": [
+        {
+          "projects": ["postgres", "app"],
+          "target": "test-race"
+        }
+      ],
+      "options": {
+        "command": "go test -race -count=1 -p 1 -tags=integration,distributed ./distkit/...",
         "cwd": "{projectRoot}"
       }
     }

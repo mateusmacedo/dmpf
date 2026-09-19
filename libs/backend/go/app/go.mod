@@ -7,6 +7,7 @@ require (
 	github.com/mateusmacedo/dmpf/libs/backend/go/application v0.1.0
 	github.com/mateusmacedo/dmpf/libs/backend/go/contracts v0.1.0
 	github.com/mateusmacedo/dmpf/libs/backend/go/domain v0.1.0
+	github.com/mateusmacedo/dmpf/libs/backend/go/observability v0.1.0
 	github.com/mateusmacedo/dmpf/libs/backend/go/ports v0.1.0
 	github.com/mateusmacedo/dmpf/libs/backend/go/postgres v0.1.0
 	github.com/mateusmacedo/dmpf/libs/backend/go/testkit v0.1.0

@@ -27,11 +27,18 @@ const GO_WORK = [
   '',
 ].join('\n');
 
+type CompanionUnit = {
+  unitSuffix: string;
+  dirName: string;
+  summary: string;
+};
+
 type BlockLayout = {
   block: string;
   unitSuffix: string;
   dirName: string;
   layer: string;
+  companions?: readonly CompanionUnit[];
 };
 
 const LAYOUT: readonly BlockLayout[] = [
@@ -39,7 +46,16 @@ const LAYOUT: readonly BlockLayout[] = [
   { block: 'port', unitSuffix: 'ports', dirName: 'ports', layer: 'domain' },
   { block: 'application', unitSuffix: 'application', dirName: 'application', layer: 'services' },
   { block: 'provider', unitSuffix: 'provider-postgres', dirName: 'provider', layer: 'providers' },
-  { block: 'app', unitSuffix: 'app', dirName: 'app', layer: 'apps' },
+  {
+    block: 'app',
+    unitSuffix: 'app',
+    dirName: 'app',
+    layer: 'apps',
+    companions: [
+      { unitSuffix: 'appkit', dirName: 'appkit', summary: '' },
+      { unitSuffix: 'distkit', dirName: 'distkit', summary: '' },
+    ],
+  },
 ];
 
 const ALL_BLOCKS: readonly string[] = LAYOUT.map((entry) => entry.block);
@@ -52,6 +68,12 @@ const MODULE_FILES: readonly string[] = [
   'package.json',
   'project.json',
 ];
+
+// The binary lives beside the blocks and only exists when the context has an
+// app block: there is nothing to serve without one.
+const CMD_DIR = 'cmd';
+const APPKIT_DIR = 'appkit';
+const DISTKIT_DIR = 'distkit';
 
 const FULL_OPTIONS: BoundedContextGeneratorSchema = {
   name: 'checkout',
@@ -156,12 +178,19 @@ const goTarget = ({
   return target;
 };
 
+const serveTarget = (role: string): Record<string, unknown> => ({
+  executor: 'nx:run-commands',
+  options: { command: `go run ./cmd --role ${role}`, cwd: '{projectRoot}' },
+});
+
 const expectedTargets = ({
   integration,
   dependsOnProjects,
+  app = true,
 }: {
   integration: boolean;
   dependsOnProjects?: string[];
+  app?: boolean;
 }): Record<string, unknown> => {
   const testRace = goTarget({
     command: integration
@@ -182,6 +211,22 @@ const expectedTargets = ({
       cache: false,
       withInputs: false,
     }),
+    ...(app
+      ? {
+          'serve-api': serveTarget('api'),
+          'serve-relay': serveTarget('relay'),
+          'test-distributed': {
+            executor: 'nx:run-commands',
+            cache: false,
+            inputs: ['go', '^go'],
+            dependsOn: [{ projects: ['postgres', 'app'], target: 'test-race' }],
+            options: {
+              command: 'go test -race -count=1 -p 1 -tags=integration,distributed ./distkit/...',
+              cwd: '{projectRoot}',
+            },
+          },
+        }
+      : {}),
   };
 };
 
@@ -230,15 +275,37 @@ describe('[generator] bounded-context — generation', () => {
   it('should create one Go module holding one directory per requested block', async () => {
     const tree = await generate();
 
-    expect(tree.children(MODULE_DIR).sort()).toEqual([...MODULE_FILES, ...BLOCK_DIRS].sort());
+    expect(tree.children(MODULE_DIR).sort()).toEqual(
+      [...MODULE_FILES, ...BLOCK_DIRS, CMD_DIR, APPKIT_DIR, DISTKIT_DIR].sort(),
+    );
   });
 
-  it('should place only doc.go inside every block directory', async () => {
+  it('should place only doc.go inside every block directory but app', async () => {
     const tree = await generate();
 
     for (const { dirName } of LAYOUT) {
-      expect(tree.children(`${MODULE_DIR}/${dirName}`)).toEqual(['doc.go']);
+      const want = dirName === 'app' ? ['doc.go', 'run.go'] : ['doc.go'];
+      expect(tree.children(`${MODULE_DIR}/${dirName}`).sort()).toEqual(want);
     }
+  });
+
+  it('should give the app block a composition root the binary enters by', async () => {
+    const tree = await generate();
+    const run = readText(tree, `${MODULE_DIR}/app/run.go`);
+    const main = readText(tree, `${MODULE_DIR}/${CMD_DIR}/main.go`);
+
+    expect(run).toContain('func Run(ctx context.Context, cfg Config, out io.Writer) error');
+    expect(run).toContain('func FromEnv(role Role, lookup func(string) string) (Config, error)');
+    expect(run).toContain('has no composition root yet');
+    expect(main).toContain('app.FromEnv(app.Role(o.role), o.lookup)');
+    expect(main).toContain('--role api|relay');
+  });
+
+  it('should leave no binary and no serve target when the context has no app block', async () => {
+    const tree = await generate({ blocks: ['domain', 'port', 'application'] });
+
+    expect(tree.children(MODULE_DIR)).not.toContain(CMD_DIR);
+    expect(Object.keys(projectOf(tree).targets)).not.toContain('serve-api');
   });
 
   it('should identify the project by the bare context name', async () => {
@@ -271,16 +338,27 @@ describe('[generator] bounded-context — generation', () => {
     }
   });
 
-  it('should declare the five Go targets and no lint target', async () => {
+  it('should declare the five Go targets, the two serve targets, the distributed one and no lint target', async () => {
     const tree = await generate();
 
     expect(Object.keys(projectOf(tree).targets).sort()).toEqual([
       'build',
       'fmt-check',
       'govulncheck',
+      'serve-api',
+      'serve-relay',
+      'test-distributed',
       'test-race',
       'vet',
     ]);
+  });
+
+  it('should serve each role by the single binary of the context', async () => {
+    const tree = await generate();
+    const targets = projectOf(tree).targets as Record<string, { options: { command: string } }>;
+
+    expect(targets['serve-api'].options.command).toBe('go run ./cmd --role api');
+    expect(targets['serve-relay'].options.command).toBe('go run ./cmd --role relay');
   });
 
   it('should run test-race with the integration tag after postgres when provider is generated', async () => {
@@ -294,24 +372,70 @@ describe('[generator] bounded-context — generation', () => {
   it('should run a cached, tag-free test-race when no block touches infrastructure', async () => {
     const tree = await generate({ blocks: ['domain', 'port', 'application'] });
 
-    expect(projectOf(tree).targets).toEqual(expectedTargets({ integration: false }));
+    expect(projectOf(tree).targets).toEqual(expectedTargets({ integration: false, app: false }));
   });
 
-  it('should declare one unit per block in the single manifest, in block order', async () => {
+  it('should declare one unit per block and one per companion, in block order', async () => {
     const tree = await generate();
     const manifest = manifestOf(tree);
+    const expected = LAYOUT.flatMap((entry) => [
+      { block: entry.block, unitSuffix: entry.unitSuffix, dirName: entry.dirName },
+      ...(entry.companions ?? []).map((companion) => ({
+        block: entry.block,
+        unitSuffix: companion.unitSuffix,
+        dirName: companion.dirName,
+      })),
+    ]);
 
     expect(manifest.schema).toBe('dmpf/units@1');
     expect(manifest.exceptions).toEqual([]);
-    expect(manifest.units).toHaveLength(LAYOUT.length);
+    expect(manifest.units).toHaveLength(expected.length);
     manifest.units.forEach((unit, index) => {
-      const { block, unitSuffix, dirName } = LAYOUT[index];
+      const { block, unitSuffix, dirName } = expected[index];
       expect(unit.id).toBe(`sales/${unitSuffix}`);
       expect(unit.block).toBe(block);
       expect(unit.bounded_context).toBe('sales');
       expect(unit.public_integration_surface).toBe(false);
-      expect(unit.include).toEqual([`${MODULE_PREFIX}/${MODULE_DIR}/${dirName}`]);
+      // The binary belongs to the unit of the app block: it is a composition
+      // root, not a unit of its own.
+      const include =
+        dirName === 'app'
+          ? [`${MODULE_PREFIX}/${MODULE_DIR}/app`, `${MODULE_PREFIX}/${MODULE_DIR}/cmd`]
+          : [`${MODULE_PREFIX}/${MODULE_DIR}/${dirName}`];
+      expect(unit.include).toEqual(include);
     });
+  });
+
+  it('should give the app block both test kits, each in a directory of its own', async () => {
+    const tree = await generate();
+
+    expect(tree.children(`${MODULE_DIR}/${APPKIT_DIR}`)).toEqual(['doc.go']);
+    expect(readText(tree, `${MODULE_DIR}/${APPKIT_DIR}/doc.go`)).toContain('package appkit');
+    expect(tree.children(`${MODULE_DIR}/${DISTKIT_DIR}`)).toEqual(['doc.go']);
+    expect(readText(tree, `${MODULE_DIR}/${DISTKIT_DIR}/doc.go`)).toContain('package distkit');
+  });
+
+  it('should run the distributed vector by its own target, after the shared infrastructure', async () => {
+    const tree = await generate();
+    const target = (projectOf(tree).targets as Record<string, Record<string, unknown>>)[
+      'test-distributed'
+    ];
+
+    expect(target.cache).toBe(false);
+    expect(target.dependsOn).toEqual([{ projects: ['postgres', 'app'], target: 'test-race' }]);
+    expect((target.options as { command: string }).command).toBe(
+      'go test -race -count=1 -p 1 -tags=integration,distributed ./distkit/...',
+    );
+  });
+
+  it('should leave no test kit when the context has no app block', async () => {
+    const tree = await generate({ blocks: ['domain', 'port', 'application'] });
+
+    expect(tree.children(MODULE_DIR)).not.toContain(APPKIT_DIR);
+    expect(tree.children(MODULE_DIR)).not.toContain(DISTKIT_DIR);
+    const ids = manifestOf(tree).units.map((unit) => unit.id);
+    expect(ids).not.toContain('sales/appkit');
+    expect(ids).not.toContain('sales/distkit');
   });
 
   it('should declare the pgx external dependency only when provider is generated', async () => {
@@ -384,7 +508,9 @@ describe('[generator] bounded-context — generation', () => {
       boundedContext: FULL_OPTIONS.boundedContext,
     });
 
-    expect(tree.children(MODULE_DIR).sort()).toEqual([...MODULE_FILES, ...BLOCK_DIRS].sort());
+    expect(tree.children(MODULE_DIR).sort()).toEqual(
+      [...MODULE_FILES, ...BLOCK_DIRS, CMD_DIR, APPKIT_DIR, DISTKIT_DIR].sort(),
+    );
   });
 });
 
@@ -396,7 +522,7 @@ describe('[generator] bounded-context — identifiers', () => {
 
     expect(tree.children(DIRECTORY)).toEqual(['order-fulfillment']);
     expect(tree.children(`${DIRECTORY}/order-fulfillment`).sort()).toEqual(
-      [...MODULE_FILES, ...BLOCK_DIRS].sort(),
+      [...MODULE_FILES, ...BLOCK_DIRS, CMD_DIR, APPKIT_DIR, DISTKIT_DIR].sort(),
     );
   });
 

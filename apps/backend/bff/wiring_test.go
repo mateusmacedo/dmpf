@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/mateusmacedo/dmpf/apps/backend/bff"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/boot"
 )
 
 func TestTheReadinessLineCarriesThePortTheKernelChose(t *testing.T) {
@@ -21,9 +22,9 @@ func TestTheReadinessLineCarriesThePortTheKernelChose(t *testing.T) {
 	var logs logSink
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	runtime, err := bff.NewTelemetry(ctx, cfg, &logs)
+	runtime, err := boot.StartTelemetry(ctx, &logs, bff.TelemetryOf(cfg))
 	if err != nil {
-		t.Fatalf("NewTelemetry() = %v", err)
+		t.Fatalf("StartTelemetry() = %v", err)
 	}
 	t.Cleanup(func() { _ = runtime.Shutdown(context.Background()) })
 

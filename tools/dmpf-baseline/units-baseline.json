@@ -1,6 +1,6 @@
 {
   "schema": "dmpf/units-baseline@1",
-  "digest": "sha256:4e69048f12396669574ad544f13f42476778b3bc1ac61fac56b8411260065a7d",
+  "digest": "sha256:2c1cd22bd733e5cff3fc1ea3d074a0f9621a3c81c8365ab4177fd7b7ec514b1f",
   "entries": [
     {
       "unit": "bff/app",
@@ -10,7 +10,7 @@
       "membership": [
         "github.com/mateusmacedo/dmpf/apps/backend/bff",
         "github.com/mateusmacedo/dmpf/apps/backend/bff/api",
-        "github.com/mateusmacedo/dmpf/apps/backend/bff/cmd/bff",
+        "github.com/mateusmacedo/dmpf/apps/backend/bff/cmd",
         "github.com/mateusmacedo/dmpf/apps/backend/bff/rpc"
       ]
     },
@@ -19,7 +19,18 @@
       "module": "github.com/mateusmacedo/dmpf/apps/backend/bookings",
       "block": "app",
       "bounded_context": "resource-scheduling",
-      "membership": ["github.com/mateusmacedo/dmpf/apps/backend/bookings/app"]
+      "membership": [
+        "github.com/mateusmacedo/dmpf/apps/backend/bookings/app",
+        "github.com/mateusmacedo/dmpf/apps/backend/bookings/app/http",
+        "github.com/mateusmacedo/dmpf/apps/backend/bookings/cmd"
+      ]
+    },
+    {
+      "unit": "resource-scheduling/appkit",
+      "module": "github.com/mateusmacedo/dmpf/apps/backend/bookings",
+      "block": "app",
+      "bounded_context": "resource-scheduling",
+      "membership": ["github.com/mateusmacedo/dmpf/apps/backend/bookings/appkit"]
     },
     {
       "unit": "resource-scheduling/application",
@@ -27,6 +38,13 @@
       "block": "application",
       "bounded_context": "resource-scheduling",
       "membership": ["github.com/mateusmacedo/dmpf/apps/backend/bookings/application"]
+    },
+    {
+      "unit": "resource-scheduling/distkit",
+      "module": "github.com/mateusmacedo/dmpf/apps/backend/bookings",
+      "block": "app",
+      "bounded_context": "resource-scheduling",
+      "membership": ["github.com/mateusmacedo/dmpf/apps/backend/bookings/distkit"]
     },
     {
       "unit": "resource-scheduling/domain",
@@ -55,10 +73,17 @@
       "block": "app",
       "bounded_context": "orders",
       "membership": [
-        "github.com/mateusmacedo/dmpf/apps/backend/orders",
-        "github.com/mateusmacedo/dmpf/apps/backend/orders/cmd/orders",
-        "github.com/mateusmacedo/dmpf/apps/backend/orders/rpc"
+        "github.com/mateusmacedo/dmpf/apps/backend/orders/app",
+        "github.com/mateusmacedo/dmpf/apps/backend/orders/app/rpc",
+        "github.com/mateusmacedo/dmpf/apps/backend/orders/cmd"
       ]
+    },
+    {
+      "unit": "orders/appkit",
+      "module": "github.com/mateusmacedo/dmpf/apps/backend/orders",
+      "block": "app",
+      "bounded_context": "orders",
+      "membership": ["github.com/mateusmacedo/dmpf/apps/backend/orders/appkit"]
     },
     {
       "unit": "orders/application",
@@ -66,6 +91,13 @@
       "block": "application",
       "bounded_context": "orders",
       "membership": ["github.com/mateusmacedo/dmpf/apps/backend/orders/application"]
+    },
+    {
+      "unit": "orders/distkit",
+      "module": "github.com/mateusmacedo/dmpf/apps/backend/orders",
+      "block": "app",
+      "bounded_context": "orders",
+      "membership": ["github.com/mateusmacedo/dmpf/apps/backend/orders/distkit"]
     },
     {
       "unit": "orders/domain",
@@ -87,9 +119,9 @@
       "block": "app",
       "bounded_context": "reservations",
       "membership": [
-        "github.com/mateusmacedo/dmpf/apps/backend/reservations",
-        "github.com/mateusmacedo/dmpf/apps/backend/reservations/cmd/reservations",
-        "github.com/mateusmacedo/dmpf/apps/backend/reservations/rpc"
+        "github.com/mateusmacedo/dmpf/apps/backend/reservations/app",
+        "github.com/mateusmacedo/dmpf/apps/backend/reservations/app/rpc",
+        "github.com/mateusmacedo/dmpf/apps/backend/reservations/cmd"
       ]
     },
     {
@@ -243,7 +275,10 @@
       "membership": [
         "github.com/mateusmacedo/dmpf/libs/backend/go/observability",
         "github.com/mateusmacedo/dmpf/libs/backend/go/observability/audit",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/observability/boot",
         "github.com/mateusmacedo/dmpf/libs/backend/go/observability/clock",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/observability/envconfig",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/observability/idclock",
         "github.com/mateusmacedo/dmpf/libs/backend/go/observability/logging",
         "github.com/mateusmacedo/dmpf/libs/backend/go/observability/metrics",
         "github.com/mateusmacedo/dmpf/libs/backend/go/observability/otelboot",

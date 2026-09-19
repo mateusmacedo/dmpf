@@ -23,7 +23,7 @@ COPY apps/backend ./apps/backend
 RUN --mount=type=cache,target=/root/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' \
-      -o /out/bff ./apps/backend/bff/cmd/bff
+      -o /out/bff ./apps/backend/bff/cmd
 
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=build /out/bff /bff

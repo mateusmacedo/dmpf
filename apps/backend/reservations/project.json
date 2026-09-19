@@ -72,21 +72,21 @@
     "serve-api": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "DMPF_GRPC_INSECURE=true go run ./cmd/reservations --role api",
+        "command": "DMPF_GRPC_INSECURE=true go run ./cmd --role api",
         "cwd": "{projectRoot}"
       }
     },
     "serve-relay": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "go run ./cmd/reservations --role relay",
+        "command": "go run ./cmd --role relay",
         "cwd": "{projectRoot}"
       }
     },
     "serve-consumer": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "go run ./cmd/reservations --role consumer",
+        "command": "go run ./cmd --role consumer",
         "cwd": "{projectRoot}"
       }
     }

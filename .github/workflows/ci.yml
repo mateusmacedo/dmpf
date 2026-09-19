@@ -166,6 +166,15 @@ jobs:
       - name: DMPF generator check (self-test)
         run: bash tools/dmpf-generator-check.sh --phase self-test
 
+      # Sem `if: steps.go_affected`: o layout de um contexto se rompe ao mover
+      # arquivo ou ao mexer em project.json e dmpf-units.json, que não são Go.
+      - name: DMPF context check (structural)
+        run: bash tools/dmpf-context-check.sh --phase structural
+
+      # Os sete vetores negativos, pela mesma razão do self-test acima.
+      - name: DMPF context check (self-test)
+        run: bash tools/dmpf-context-check.sh --phase self-test
+
       # Sem `if: steps.go_affected`: import sem `require` compila no workspace pelo
       # `go.work` e só quebra para quem consome o módulo por tag.
       - name: DMPF modsync gate

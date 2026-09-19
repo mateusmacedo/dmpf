@@ -5,6 +5,7 @@ package provider_test
 import (
 	"context"
 	"fmt"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/pg"
 	"sync"
 	"testing"
 
@@ -67,7 +68,7 @@ func newService(pool *pgxpool.Pool) application.Service {
 }
 
 func TestReserveBookingEndToEnd(t *testing.T) {
-	pool := openPool(t)
+	pool := pg.OpenPool(t, "bookings_booking", "bookings_resource")
 	service := newService(pool)
 	ctx := context.Background()
 

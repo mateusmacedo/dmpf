@@ -23,7 +23,7 @@ Uma reserva pendente vira `Confirmed`, por `Reserve` síncrono ou pelo consumo d
 | `domain` | `domain` | `reservations/domain` | Agregado `Reservation` com chave natural permanente (o identificador do pedido) e as UPRs `Reserve` e `Cancel` |
 | `application` | `application` | `reservations/application` | `Service` com `Reserve`, `Cancel`, `FindReservation` e o consumo `ConsumeOrderPlaced`/`Consume`, que ramifica pelas sete disposições de FND-04 §6.4 sobre a inbox |
 | `provider` | `provider` | `reservations/provider-postgres` | Repositório por chave natural (`order_id`, `ON CONFLICT DO NOTHING`, `GAR-10`) sobre `dmpf_example_reservations`, `Reader`, mapeador para `company.reservations.event.v1` |
-| raiz, `rpc`, `cmd/reservations` | `app` | `reservations/app` | Composition root: o único lugar onde os providers concretos de `reservations` são instanciados (ADR-015); consumer adapter (`NewConsumer`, `Handler`), `Sink`, servidor gRPC e binário |
+| `app`, `app/rpc`, `cmd` | `app` | `reservations/app` | Composition root: o único lugar onde os providers concretos de `reservations` são instanciados (ADR-015); consumer adapter (`NewConsumer`, `Handler`), `Sink`, servidor gRPC e binário |
 | `appkit` | `app` | `reservations/appkit` | Harness borda a borda (`KIT-05`): `app.Consumer` real sobre Postgres, alimentado com bytes na borda de protocolo; `Effects` e `Ack` depois do commit |
 | `distkit` | `app` | `reservations/distkit` | Harness distribuído (`KIT-06`): dois processos OS sobre Redpanda, reentrega deliberada e `DMPF-R004` (`V32`) |
 

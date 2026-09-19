@@ -5,6 +5,7 @@ package provider_test
 import (
 	"context"
 	"errors"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/pg"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -46,7 +47,7 @@ func withRepo(t *testing.T, pool *pgxpool.Pool, fn func(ctx context.Context, rep
 }
 
 func TestSaveCreatesAtVersionOne(t *testing.T) {
-	pool := openPool(t)
+	pool := pg.OpenPool(t)
 
 	err := withRepo(t, pool, func(ctx context.Context, repo ports.Repository[domain.OrderID, domain.Snapshot]) error {
 		return repo.Save(ctx, repoOrderID, snapshot(1), 0)
@@ -65,7 +66,7 @@ func TestSaveCreatesAtVersionOne(t *testing.T) {
 }
 
 func TestSaveAdvancesTheVersion(t *testing.T) {
-	pool := openPool(t)
+	pool := pg.OpenPool(t)
 	seed(t, pool)
 
 	err := withRepo(t, pool, func(ctx context.Context, repo ports.Repository[domain.OrderID, domain.Snapshot]) error {
@@ -85,7 +86,7 @@ func TestSaveAdvancesTheVersion(t *testing.T) {
 }
 
 func TestSaveRejectsADivergentExpectedVersion(t *testing.T) {
-	pool := openPool(t)
+	pool := pg.OpenPool(t)
 	seed(t, pool)
 
 	// Second write with the same expected version: the first already moved the
@@ -110,7 +111,7 @@ func TestSaveRejectsADivergentExpectedVersion(t *testing.T) {
 }
 
 func TestSaveRejectsACreateOverAnExistingAggregate(t *testing.T) {
-	pool := openPool(t)
+	pool := pg.OpenPool(t)
 	seed(t, pool)
 
 	err := withRepo(t, pool, func(ctx context.Context, repo ports.Repository[domain.OrderID, domain.Snapshot]) error {
@@ -126,7 +127,7 @@ func TestSaveRejectsACreateOverAnExistingAggregate(t *testing.T) {
 }
 
 func TestLoadReportsErrNotFound(t *testing.T) {
-	pool := openPool(t)
+	pool := pg.OpenPool(t)
 
 	err := withRepo(t, pool, func(ctx context.Context, repo ports.Repository[domain.OrderID, domain.Snapshot]) error {
 		_, _, err := repo.Load(ctx, "o-404")

@@ -28,9 +28,9 @@
       "bounded_context": "reservations",
       "public_integration_surface": false,
       "include": [
-        "github.com/mateusmacedo/dmpf/apps/backend/reservations",
-        "github.com/mateusmacedo/dmpf/apps/backend/reservations/rpc",
-        "github.com/mateusmacedo/dmpf/apps/backend/reservations/cmd/reservations"
+        "github.com/mateusmacedo/dmpf/apps/backend/reservations/app",
+        "github.com/mateusmacedo/dmpf/apps/backend/reservations/app/rpc",
+        "github.com/mateusmacedo/dmpf/apps/backend/reservations/cmd"
       ]
     },
     {

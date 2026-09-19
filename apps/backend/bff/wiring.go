@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/boot"
 	"io"
 	"log/slog"
 	"net"
@@ -12,7 +14,6 @@ import (
 	"time"
 
 	obsclock "github.com/mateusmacedo/dmpf/libs/backend/go/observability/clock"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/metrics"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/otelboot"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/admission"
 
@@ -21,26 +22,17 @@ import (
 )
 
 const (
-	admissionKeys = 64
-
 	readHeaderTimeout = 5 * time.Second
 	readTimeout       = 10 * time.Second
 	writeTimeout      = 15 * time.Second
 	idleTimeout       = 60 * time.Second
 	maxHeaderBytes    = 1 << 16
-	shutdownGrace     = 10 * time.Second
 )
 
-// Run boots the telemetry and serves the edge until ctx is cancelled. Every
-// concrete provider of the process is built below this call (ADR-015).
 func Run(ctx context.Context, cfg Config, out io.Writer) error {
-	rt, err := NewTelemetry(ctx, cfg, out)
-	if err != nil {
-		return err
-	}
-	defer shutdownTelemetry(ctx, rt)
-
-	return RunWith(ctx, cfg, rt)
+	return boot.Boot(ctx, out, TelemetryOf(cfg), func(ctx context.Context, rt *otelboot.Runtime) error {
+		return RunWith(ctx, cfg, rt)
+	})
 }
 
 func RunWith(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {
@@ -59,7 +51,7 @@ func RunWith(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {
 	}
 	defer func() { _ = reservationsConn.Close() }()
 
-	ctrl, err := NewAdmission(cfg.Admission)
+	ctrl, err := admission.NewController(api.Limits(cfg.Admission), api.Tenant, admission.DefaultMaxKeys)
 	if err != nil {
 		return err
 	}
@@ -97,7 +89,7 @@ func RunWith(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {
 
 	select {
 	case <-ctx.Done():
-		grace, cancel := context.WithTimeout(context.WithoutCancel(ctx), shutdownGrace)
+		grace, cancel := context.WithTimeout(context.WithoutCancel(ctx), observability.ShutdownGrace)
 		defer cancel()
 		return server.Shutdown(grace)
 	case err := <-failed:
@@ -137,19 +129,6 @@ func ClientOptions(ctx context.Context, cfg Config, rt *otelboot.Runtime) (rpc.O
 	return opts, nil
 }
 
-func NewAdmission(limit admission.Limit) (*admission.Controller, error) {
-	tenants, err := metrics.DeclareTenants(api.Tenant)
-	if err != nil {
-		return nil, err
-	}
-	return admission.New(admission.Config{
-		Limits:  api.Limits(limit),
-		Tenants: tenants,
-		MaxKeys: admissionKeys,
-		Clock:   obsclock.System(),
-	})
-}
-
 func readContract(path string) ([]byte, error) {
 	if path == "" {
 		return nil, nil
@@ -159,15 +138,4 @@ func readContract(path string) ([]byte, error) {
 		return nil, fmt.Errorf("openapi: %w", err)
 	}
 	return document, nil
-}
-
-// WHY: context.WithoutCancel drops the cancellation and adds no deadline, and
-// otelboot.Runtime.Shutdown hands the context straight to both providers, so an
-// unreachable collector blocks the exit until the orchestrator sends SIGKILL.
-func shutdownTelemetry(ctx context.Context, rt *otelboot.Runtime) {
-	grace, cancel := context.WithTimeout(context.WithoutCancel(ctx), shutdownGrace)
-	defer cancel()
-	if err := rt.Shutdown(grace); err != nil {
-		rt.Logger().WarnContext(grace, "telemetry shutdown", "error", err.Error())
-	}
 }

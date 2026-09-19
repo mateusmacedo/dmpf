@@ -69,9 +69,9 @@ func buildBinaries(t *testing.T) binaries {
 		reservations: filepath.Join(dir, "reservations"),
 	}
 	for path, pkg := range map[string]string{
-		out.bff:          modulePrefix + "bff/cmd/bff",
-		out.orders:       modulePrefix + "orders/cmd/orders",
-		out.reservations: modulePrefix + "reservations/cmd/reservations",
+		out.bff:          modulePrefix + "bff/cmd",
+		out.orders:       modulePrefix + "orders/cmd",
+		out.reservations: modulePrefix + "reservations/cmd",
 	} {
 		cmd := exec.Command("go", "build", "-race", "-o", path, pkg)
 		cmd.Dir = root
