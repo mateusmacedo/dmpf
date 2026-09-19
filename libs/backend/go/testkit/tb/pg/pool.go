@@ -19,7 +19,10 @@ import (
 // PostgresDSN is the variable every Postgres-backed suite reads.
 const PostgresDSN = "DMPF_PG_DSN"
 
-const resetStatement = "TRUNCATE dmpf_outbox, dmpf_inbox, dmpf_quarantine, dmpf_example_orders, dmpf_example_reservations"
+// kernelTables are the tables every DMPF context shares. A context with tables
+// of its own names them at the call, because the kit cannot know a schema it
+// does not own.
+var kernelTables = []string{"dmpf_outbox", "dmpf_inbox", "dmpf_quarantine", "dmpf_example_orders", "dmpf_example_reservations"}
 
 // resetTimeout bounds every reset, so a lock left behind by a failed clause
 // fails the cleanup instead of holding the binary until go test's -timeout.
@@ -31,7 +34,7 @@ const resetTimeout = 30 * time.Second
 // fails in CI, where an integration suite must never pass by skipping. The
 // DSN must point at a loopback host: the reset is destructive, and a shared
 // instance is never a test fixture.
-func OpenPool(t testing.TB) *pgxpool.Pool {
+func OpenPool(t testing.TB, extraTables ...string) *pgxpool.Pool {
 	t.Helper()
 	dsn := tb.Env(t, PostgresDSN)
 	cfg, err := pgxpool.ParseConfig(dsn)
@@ -50,29 +53,30 @@ func OpenPool(t testing.TB) *pgxpool.Pool {
 	if err := postgres.Migrate(ctx, pool); err != nil {
 		t.Fatalf("pg.OpenPool: Migrate: %v", err)
 	}
-	ResetTables(t, pool)
+	ResetTables(t, pool, extraTables...)
 	t.Cleanup(func() {
 		// Errorf, not Fatalf: FailNow inside a cleanup skips the cleanups still
 		// pending, and pool.Close is one of them.
-		if err := reset(pool); err != nil {
+		if err := reset(pool, extraTables); err != nil {
 			t.Errorf("pg.OpenPool: reset after the test: %v", err)
 		}
 	})
 	return pool
 }
 
-// ResetTables empties the five DMPF tables of the example schema.
-func ResetTables(t testing.TB, pool *pgxpool.Pool) {
+// ResetTables empties the shared DMPF tables plus the ones the caller names.
+func ResetTables(t testing.TB, pool *pgxpool.Pool, extraTables ...string) {
 	t.Helper()
-	if err := reset(pool); err != nil {
+	if err := reset(pool, extraTables); err != nil {
 		t.Fatalf("pg.ResetTables: %v", err)
 	}
 }
 
-func reset(pool *pgxpool.Pool) error {
+func reset(pool *pgxpool.Pool, extraTables []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), resetTimeout)
 	defer cancel()
-	_, err := pool.Exec(ctx, resetStatement)
+	tables := append(append([]string(nil), kernelTables...), extraTables...)
+	_, err := pool.Exec(ctx, "TRUNCATE "+strings.Join(tables, ", "))
 	return err
 }
 
