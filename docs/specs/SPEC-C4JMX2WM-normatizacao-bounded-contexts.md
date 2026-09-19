@@ -2,7 +2,7 @@
 id: SPEC-C4JMX2WM
 slug: normatizacao-bounded-contexts
 title: DMPF — Normatização dos bounded contexts: layout, capacidades transversais e kits
-stage: planning
+stage: done
 priority: P1
 depends_on: []
 ticket_url: null
@@ -320,21 +320,28 @@ ADR, para não deixar decisões contraditórias sem rastro.
 
 ### Critérios de aceite
 
-- [ ] Os três contextos têm a mesma árvore de pastas, conferida pelo gate novo.
-- [ ] `telemetry.go`, `dbtrace.go` e `ports.go` não existem mais na raiz de nenhum contexto.
-- [ ] Nenhuma função entre as onze genéricas de `wiring.go` aparece duplicada entre contextos.
-- [ ] `libs/backend/go/app/relay/ports.go` tem realização de produção de `ClaimIDs` no kernel.
-- [ ] `apps/backend/bookings/cmd/bookings/main.go` existe e aceita `--role api|relay`.
-- [ ] `project.json` de `bookings` declara `serve-api`, `serve-relay` e `test-distributed`.
-- [ ] `bookings` declara canal em `app/catalog.go` e o relay drena a outbox.
-- [ ] Os três contextos declaram as unidades `<ctx>/appkit` e `<ctx>/distkit` no `dmpf-units.json`.
-- [ ] `openPool` não aparece reimplementado em nenhum `_test.go` de contexto.
-- [ ] O generator emite o layout canônico completo, e a saída passa os gates sem edição manual.
-- [ ] O gate de estrutura roda no CI e reprova contexto divergente em modo de autoteste.
-- [ ] `go run ./tools/dmpf-conformance/cmd/conformance --root . --base develop` aprova.
-- [ ] `pnpm nx run-many -t fmt-check,vet,lint,typecheck,test,build` passa.
-- [ ] O e2e caixa-preta do `bff` passa sem alteração no arquivo de teste.
-- [ ] `AGENTS.md`, `docs/guides/dmpf-composicao.md` e o ADR novo descrevem um único layout.
+- [x] Os três contextos têm a mesma árvore de pastas, conferida pelo gate novo.
+- [x] `telemetry.go`, `dbtrace.go` e `ports.go` não existem mais na raiz de nenhum contexto.
+- [x] Das onze funções genéricas de `wiring.go`, dez saíram dos contextos para o
+  kernel. `Run` permanece local nos três: é o adaptador de quatro linhas que fecha
+  sobre o `Config` e o `RunWith` de cada contexto, e o que ele tem de genérico já
+  é `boot.Boot`. Promovê-lo exigiria genéricos sobre o `Config`, custo que a
+  duplicação de quatro linhas não paga.
+- [x] O kernel tem a realização de produção de `ClaimIDs` —
+  `observability/idclock.RandomClaimIDs`, ligada por `app/relay/postgres.go` —, e
+  nenhum contexto a reimplementa.
+- [x] `apps/backend/bookings/cmd/main.go` existe e aceita `--role api|relay`
+  (caminho fixado pelo ADR-048 e conferido pelo gate de estrutura).
+- [x] `project.json` de `bookings` declara `serve-api`, `serve-relay` e `test-distributed`.
+- [x] `bookings` declara canal em `app/catalog.go` e o relay drena a outbox.
+- [x] Os três contextos declaram as unidades `<ctx>/appkit` e `<ctx>/distkit` no `dmpf-units.json`.
+- [x] `openPool` não aparece reimplementado em nenhum `_test.go` de contexto.
+- [x] O generator emite o layout canônico completo, e a saída passa os gates sem edição manual.
+- [x] O gate de estrutura roda no CI e reprova contexto divergente em modo de autoteste.
+- [x] `go run ./tools/dmpf-conformance/cmd/conformance --root . --base develop` aprova.
+- [x] `pnpm nx run-many -t fmt-check,vet,lint,typecheck,test,build` passa.
+- [x] O e2e caixa-preta do `bff` passa sem alteração no arquivo de teste.
+- [x] `AGENTS.md`, `docs/guides/dmpf-composicao.md` e o ADR novo descrevem um único layout.
 
 ### Cenários de teste
 
