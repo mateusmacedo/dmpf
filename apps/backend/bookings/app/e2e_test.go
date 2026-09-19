@@ -7,9 +7,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	httpedge "github.com/mateusmacedo/dmpf/apps/backend/bookings/app/http"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/pg"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"sync"
 	"testing"
 
@@ -19,40 +20,9 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
 
-	"github.com/mateusmacedo/dmpf/apps/backend/bookings/app"
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/application"
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/provider"
 )
-
-func openPool(t *testing.T) *pgxpool.Pool {
-	t.Helper()
-	dsn := os.Getenv("DMPF_PG_DSN")
-	if dsn == "" {
-		if os.Getenv("CI") != "" {
-			t.Fatal("DMPF_PG_DSN is empty in CI")
-		}
-		t.Skip("DMPF_PG_DSN not set")
-	}
-	ctx := context.Background()
-	pool, err := pgxpool.New(ctx, dsn)
-	if err != nil {
-		t.Fatalf("pgxpool.New() = %v", err)
-	}
-	t.Cleanup(pool.Close)
-	if err := provider.Migrate(ctx, pool); err != nil {
-		t.Fatalf("Migrate() = %v", err)
-	}
-	truncate(t, pool)
-	t.Cleanup(func() { truncate(t, pool) })
-	return pool
-}
-
-func truncate(t *testing.T, pool *pgxpool.Pool) {
-	t.Helper()
-	if _, err := pool.Exec(context.Background(), "TRUNCATE dmpf_outbox, dmpf_inbox, dmpf_quarantine, bookings_booking, bookings_resource"); err != nil {
-		t.Fatalf("TRUNCATE = %v", err)
-	}
-}
 
 type fixedClock struct{}
 
@@ -86,10 +56,10 @@ func newMux(pool *pgxpool.Pool) *http.ServeMux {
 		IDs:            &sequenceIDs{},
 		Authorize:      usecase.AllowAll[application.Command](),
 	}
-	h := app.Handlers{Service: service}
+	h := httpedge.Handlers{Service: service}
 
 	mux := http.NewServeMux()
-	routes := app.Routes()
+	routes := httpedge.Routes()
 	mux.HandleFunc(routes[0].Method+" "+routes[0].Path, h.ReserveBooking)
 	mux.HandleFunc(routes[1].Method+" "+routes[1].Path, h.CancelBooking)
 	mux.HandleFunc(routes[2].Method+" "+routes[2].Path, h.RegisterResource)
@@ -99,7 +69,7 @@ func newMux(pool *pgxpool.Pool) *http.ServeMux {
 }
 
 func TestReserveBookingHTTPEndToEnd(t *testing.T) {
-	pool := openPool(t)
+	pool := pg.OpenPool(t, "bookings_booking", "bookings_resource")
 	mux := newMux(pool)
 
 	body, _ := json.Marshal(map[string]any{"bookingId": "http-b-001", "resourceId": "http-r-001", "quantity": 3})
@@ -185,7 +155,7 @@ func TestReserveBookingHTTPEndToEnd(t *testing.T) {
 }
 
 func TestReserveBookingHTTPRejectsInvalidQuantity(t *testing.T) {
-	pool := openPool(t)
+	pool := pg.OpenPool(t, "bookings_booking", "bookings_resource")
 	mux := newMux(pool)
 
 	body, _ := json.Marshal(map[string]any{"bookingId": "http-b-002", "resourceId": "http-r-002", "quantity": 0})

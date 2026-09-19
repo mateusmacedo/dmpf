@@ -1,4 +1,4 @@
-package app
+package httpedge
 
 import (
 	"encoding/json"
