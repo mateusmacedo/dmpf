@@ -21,6 +21,37 @@ var (
 
 	// ErrIncompleteRoute is a route without name or path.
 	ErrIncompleteRoute = errors.New("http: route is incomplete")
+
+	// ErrRequirementUnknown is a route whose declaration is outside the four
+	// cases of IDN-16, which the provider cannot evaluate as a predicate.
+	ErrRequirementUnknown = errors.New("http: route requirement is not one of the four cases of IDN-16")
+
+	// ErrPlatformReachRequired is a platform route that leaves its data reach
+	// undeclared, or a scoped route that declares one: reach is declared by the
+	// platform operation alone, never obtained as a side effect (IDN-19).
+	ErrPlatformReachRequired = errors.New("http: platform route must declare its data reach, and only it may (IDN-19)")
+)
+
+// Requirement is what an operation declares it needs resolved in the execution
+// context (IDN-16). The zero value demands subject and tenant, so omitting the
+// declaration closes the route instead of opening it (IDN-17).
+type Requirement uint8
+
+const (
+	RequireSubjectAndTenant Requirement = iota
+	RequireSubject
+	RequireTenant
+	RequireNeither
+)
+
+// PlatformReach is the data reach a platform operation declares (IDN-19).
+// Reaching every tenant is a registered decision, never the side effect of a
+// context carrying no tenant.
+type PlatformReach uint8
+
+const (
+	ReachUndeclared PlatformReach = iota
+	ReachAllTenants
 )
 
 var allowedMethods = map[string]struct{}{
@@ -39,6 +70,8 @@ type Route struct {
 	Budget          deadline.Budget
 	RetryableStatus []int
 	IdempotencyKey  string
+	Requires        Requirement
+	PlatformReach   PlatformReach
 }
 
 // Validate refuses a route without name, path, contract or a known method,
@@ -58,7 +91,25 @@ func (r Route) Validate() error {
 	if err := r.Budget.Validate(); err != nil {
 		return fmt.Errorf("http: %s: %w", r.Name, err)
 	}
+	if r.Requires > RequireNeither {
+		return fmt.Errorf("%w: %s: %d", ErrRequirementUnknown, r.Name, r.Requires)
+	}
+	if platform := r.Requires == RequireNeither; platform != (r.PlatformReach == ReachAllTenants) {
+		return fmt.Errorf("%w: %s", ErrPlatformReachRequired, r.Name)
+	}
 	return nil
+}
+
+// RequiresSubject reports whether the operation demands an authenticated
+// subject in the context; a route that declares nothing does (IDN-17).
+func (r Route) RequiresSubject() bool {
+	return r.Requires == RequireSubjectAndTenant || r.Requires == RequireSubject
+}
+
+// RequiresTenant reports whether the operation demands a resolved tenant in
+// the context; a route that declares nothing does (IDN-17).
+func (r Route) RequiresTenant() bool {
+	return r.Requires == RequireSubjectAndTenant || r.Requires == RequireTenant
 }
 
 // Idempotent is what RST-02 admits a retry for: GET, HEAD, PUT and DELETE by
