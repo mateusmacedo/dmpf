@@ -1,6 +1,6 @@
 {
   "schema": "dmpf/units-baseline@1",
-  "digest": "sha256:f7fe6e63bd39e26528bf043b0da6f2a08f8bffdc82b2dd2b3f806b296138a507",
+  "digest": "sha256:f9fa75911879d1fd8856a2a5bfce3fc759321dc20dbb8dfac85980ef29c937d3",
   "entries": [
     {
       "unit": "bff/app",
@@ -10,7 +10,6 @@
       "membership": [
         "github.com/mateusmacedo/dmpf/apps/backend/bff",
         "github.com/mateusmacedo/dmpf/apps/backend/bff/api",
-        "github.com/mateusmacedo/dmpf/apps/backend/bff/auth",
         "github.com/mateusmacedo/dmpf/apps/backend/bff/cmd",
         "github.com/mateusmacedo/dmpf/apps/backend/bff/rpc"
       ]
@@ -180,6 +179,13 @@
       "block": "application",
       "bounded_context": "kernel",
       "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/application"]
+    },
+    {
+      "unit": "kernel/provider-authn",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/authn",
+      "block": "provider",
+      "bounded_context": "kernel",
+      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/authn"]
     },
     {
       "unit": "contracts/envelope",
@@ -523,6 +529,7 @@
     "contracts/envelope",
     "contracts/gen",
     "contracts/payloadhash",
-    "kernel/provider-memory"
+    "kernel/provider-memory",
+    "kernel/provider-authn"
   ]
 }

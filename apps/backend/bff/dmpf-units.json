@@ -9,7 +9,6 @@
       "include": [
         "github.com/mateusmacedo/dmpf/apps/backend/bff",
         "github.com/mateusmacedo/dmpf/apps/backend/bff/api",
-        "github.com/mateusmacedo/dmpf/apps/backend/bff/auth",
         "github.com/mateusmacedo/dmpf/apps/backend/bff/rpc",
         "github.com/mateusmacedo/dmpf/apps/backend/bff/cmd"
       ]
@@ -56,12 +55,6 @@
       "versions": ">=1.36.12 <2",
       "entrypoints": ["google.golang.org/protobuf/reflect/protoreflect"],
       "capability": "wire.codec"
-    },
-    {
-      "package": "github.com/coreos/go-oidc/v3",
-      "versions": ">=3.21.0 <4",
-      "entrypoints": ["github.com/coreos/go-oidc/v3/oidc"],
-      "capability": "io.network"
     }
   ],
   "exceptions": []
