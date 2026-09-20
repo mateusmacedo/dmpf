@@ -1,4 +1,4 @@
-package auth_test
+package authn_test
 
 import (
 	"errors"
@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mateusmacedo/dmpf/apps/backend/bff/auth"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/authn"
 )
 
 func env(pairs map[string]string) func(string) string {
@@ -23,7 +23,7 @@ func keycloakEnv() map[string]string {
 }
 
 func TestFromEnvReadsTheKeycloakMinimum(t *testing.T) {
-	cfg, err := auth.FromEnv(env(keycloakEnv()))
+	cfg, err := authn.FromEnv(env(keycloakEnv()))
 	if err != nil {
 		t.Fatalf("FromEnv() err = %v", err)
 	}
@@ -49,10 +49,10 @@ func TestFromEnvReadsTheKeycloakMinimum(t *testing.T) {
 }
 
 func TestFromEnvRefusesAStartWithNeitherVerifierNorDeclaredMock(t *testing.T) {
-	_, err := auth.FromEnv(env(nil))
+	_, err := authn.FromEnv(env(nil))
 
-	if !errors.Is(err, auth.ErrVerifierNotDeclared) {
-		t.Fatalf("FromEnv() err = %v, want %v", err, auth.ErrVerifierNotDeclared)
+	if !errors.Is(err, authn.ErrVerifierNotDeclared) {
+		t.Fatalf("FromEnv() err = %v, want %v", err, authn.ErrVerifierNotDeclared)
 	}
 }
 
@@ -69,9 +69,9 @@ func TestFromEnvRefusesAPartiallyConfiguredVerifier(t *testing.T) {
 			pairs := keycloakEnv()
 			delete(pairs, tt.unset)
 
-			_, err := auth.FromEnv(env(pairs))
-			if !errors.Is(err, auth.ErrMissingVariable) {
-				t.Fatalf("FromEnv() err = %v, want %v", err, auth.ErrMissingVariable)
+			_, err := authn.FromEnv(env(pairs))
+			if !errors.Is(err, authn.ErrMissingVariable) {
+				t.Fatalf("FromEnv() err = %v, want %v", err, authn.ErrMissingVariable)
 			}
 			if !strings.Contains(err.Error(), tt.unset) {
 				t.Fatalf("the error must name the missing variable, got %q", err.Error())
@@ -81,7 +81,7 @@ func TestFromEnvRefusesAPartiallyConfiguredVerifier(t *testing.T) {
 }
 
 func TestFromEnvAcceptsTheDeclaredDevelopmentMockAlone(t *testing.T) {
-	cfg, err := auth.FromEnv(env(map[string]string{"DMPF_AUTH_DEV_MOCK": "true"}))
+	cfg, err := authn.FromEnv(env(map[string]string{"DMPF_AUTH_DEV_MOCK": "true"}))
 	if err != nil {
 		t.Fatalf("FromEnv() err = %v", err)
 	}
@@ -96,7 +96,7 @@ func TestFromEnvOverridesEveryClaimAndTheTimeout(t *testing.T) {
 	pairs["DMPF_OIDC_DISCOVERY_TIMEOUT_SECONDS"] = "30"
 	pairs["DMPF_OIDC_TENANT_CLAIM"] = "https://app.example.com/tenant_id"
 
-	cfg, err := auth.FromEnv(env(pairs))
+	cfg, err := authn.FromEnv(env(pairs))
 	if err != nil {
 		t.Fatalf("FromEnv() err = %v", err)
 	}
@@ -116,7 +116,7 @@ func TestFromEnvRefusesTheMockAlongsideAConfiguredVerifier(t *testing.T) {
 	pairs := keycloakEnv()
 	pairs["DMPF_AUTH_DEV_MOCK"] = "true"
 
-	if _, err := auth.FromEnv(env(pairs)); !errors.Is(err, auth.ErrMockWithVerifier) {
-		t.Fatalf("FromEnv() err = %v, want %v: one start resolves identity one way", err, auth.ErrMockWithVerifier)
+	if _, err := authn.FromEnv(env(pairs)); !errors.Is(err, authn.ErrMockWithVerifier) {
+		t.Fatalf("FromEnv() err = %v, want %v: one start resolves identity one way", err, authn.ErrMockWithVerifier)
 	}
 }

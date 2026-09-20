@@ -1,4 +1,4 @@
-package auth_test
+package authn_test
 
 import (
 	"crypto"
@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mateusmacedo/dmpf/apps/backend/bff/auth"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/authn"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
 
@@ -117,15 +117,15 @@ func (p *idp) keycloakToken(t *testing.T, overrides map[string]any) string {
 	return p.sign(t, claims)
 }
 
-func verifierFor(t *testing.T, provider *idp) *auth.Verifier {
+func verifierFor(t *testing.T, provider *idp) *authn.Verifier {
 	t.Helper()
 
-	cfg := auth.Defaults()
+	cfg := authn.Defaults()
 	cfg.Issuer = provider.issuer
 	cfg.Audience = "dmpf-bff"
 	cfg.TenantClaim = "tenant_id"
 
-	verifier, err := auth.NewVerifier(t.Context(), cfg)
+	verifier, err := authn.NewVerifier(t.Context(), cfg)
 	if err != nil {
 		t.Fatalf("NewVerifier() err = %v", err)
 	}
@@ -229,13 +229,13 @@ func TestVerifierLeavesAnAbsentTenantAbsent(t *testing.T) {
 func TestVerifierReadsTheClaimsTheOperatorDeclared(t *testing.T) {
 	provider := newIdP(t)
 
-	cfg := auth.Defaults()
+	cfg := authn.Defaults()
 	cfg.Issuer = provider.issuer
 	cfg.Audience = "dmpf-bff"
 	cfg.TenantClaim = "https://app.example.com/tenant_id"
 	cfg.PermissionClaims = []string{"resource_access.dmpf-bff.roles"}
 
-	verifier, err := auth.NewVerifier(t.Context(), cfg)
+	verifier, err := authn.NewVerifier(t.Context(), cfg)
 	if err != nil {
 		t.Fatalf("NewVerifier() err = %v", err)
 	}
@@ -264,12 +264,12 @@ func TestNewVerifierFailsWhenDiscoveryDoesNotAnswer(t *testing.T) {
 	}))
 	t.Cleanup(unreachable.Close)
 
-	cfg := auth.Defaults()
+	cfg := authn.Defaults()
 	cfg.Issuer = unreachable.URL
 	cfg.Audience = "dmpf-bff"
 	cfg.TenantClaim = "tenant_id"
 
-	if _, err := auth.NewVerifier(t.Context(), cfg); err == nil {
+	if _, err := authn.NewVerifier(t.Context(), cfg); err == nil {
 		t.Fatal("NewVerifier() err = nil: a start that cannot reach the authority must fail, not serve unauthenticated")
 	}
 }

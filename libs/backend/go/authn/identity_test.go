@@ -1,4 +1,4 @@
-package auth_test
+package authn_test
 
 import (
 	"errors"
@@ -7,7 +7,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/mateusmacedo/dmpf/apps/backend/bff/auth"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/authn"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
 
@@ -36,7 +36,7 @@ func TestCredentialFromReadsTheAuthorizationHeader(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := auth.CredentialFrom(request(t, tt.header))
+			got := authn.CredentialFrom(request(t, tt.header))
 
 			if got.Scheme != tt.wantScheme {
 				t.Fatalf("Scheme = %q, want %q", got.Scheme, tt.wantScheme)
@@ -49,13 +49,13 @@ func TestCredentialFromReadsTheAuthorizationHeader(t *testing.T) {
 }
 
 func TestCredentialFromNeverLeaksTheHeaderIntoTheValueWhenAbsent(t *testing.T) {
-	if got := auth.CredentialFrom(request(t, "")); got.Presented() {
+	if got := authn.CredentialFrom(request(t, "")); got.Presented() {
 		t.Fatalf("Presented() = true for a request carrying no Authorization header, got %+v", got)
 	}
 }
 
 func TestDevAuthenticatorResolvesTheIdentityTheCredentialDeclares(t *testing.T) {
-	var authenticator ports.Authenticator = auth.DevAuthenticator{}
+	var authenticator ports.Authenticator = authn.DevAuthenticator{}
 
 	got, err := authenticator.Authenticate(t.Context(), ports.Credential{
 		Scheme: "Bearer",
@@ -77,7 +77,7 @@ func TestDevAuthenticatorResolvesTheIdentityTheCredentialDeclares(t *testing.T) 
 }
 
 func TestDevAuthenticatorLeavesAnUndeclaredTenantAbsent(t *testing.T) {
-	got, err := auth.DevAuthenticator{}.Authenticate(t.Context(), ports.Credential{
+	got, err := authn.DevAuthenticator{}.Authenticate(t.Context(), ports.Credential{
 		Scheme: "Bearer",
 		Value:  `{"sub":"workload"}`,
 	})
@@ -105,7 +105,7 @@ func TestDevAuthenticatorFailsTheThreeConditionsDistinctly(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := auth.DevAuthenticator{}.Authenticate(t.Context(), ports.Credential{Scheme: "Bearer", Value: tt.value})
+			_, err := authn.DevAuthenticator{}.Authenticate(t.Context(), ports.Credential{Scheme: "Bearer", Value: tt.value})
 
 			if !errors.Is(err, tt.want) {
 				t.Fatalf("Authenticate() err = %v, want %v", err, tt.want)
@@ -115,7 +115,7 @@ func TestDevAuthenticatorFailsTheThreeConditionsDistinctly(t *testing.T) {
 }
 
 func TestDevAuthenticatorRefusesAnUnsupportedScheme(t *testing.T) {
-	_, err := auth.DevAuthenticator{}.Authenticate(t.Context(), ports.Credential{
+	_, err := authn.DevAuthenticator{}.Authenticate(t.Context(), ports.Credential{
 		Scheme: "Basic",
 		Value:  `{"sub":"alice"}`,
 	})

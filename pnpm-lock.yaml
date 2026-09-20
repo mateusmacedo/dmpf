@@ -250,6 +250,8 @@ importers:
 
   libs/backend/go/application: {}
 
+  libs/backend/go/authn: {}
+
   libs/backend/go/contracts: {}
 
   libs/backend/go/domain: {}
