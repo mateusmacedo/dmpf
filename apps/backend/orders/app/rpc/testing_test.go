@@ -43,10 +43,25 @@ const (
 var unlimited = admission.Limit{PerSecond: 1000, Burst: 1000, Concurrency: 64}
 
 type harness struct {
-	store *memory.Store
-	conn  *grpc.ClientConn
-	spans *tracetest.InMemoryExporter
-	logs  *bytes.Buffer
+	store     *memory.Store
+	conn      *grpc.ClientConn
+	spans     *tracetest.InMemoryExporter
+	logs      *bytes.Buffer
+	execution *capture
+}
+
+// capture is the innermost interceptor of the chain: it observes what the
+// server rebuilt, which is otherwise only reachable from inside the handler.
+type capture struct {
+	execution ports.ExecutionContext
+	present   bool
+}
+
+func (c *capture) intercept(ctx context.Context, req any, _ *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
+	if execution, ok := rpc.ExecutionContextFrom(ctx); ok {
+		c.execution, c.present = execution, true
+	}
+	return handler(ctx, req)
 }
 
 func newHarness(t *testing.T, limit admission.Limit) *harness {
@@ -77,10 +92,14 @@ func newHarness(t *testing.T, limit admission.Limit) *harness {
 	if err != nil {
 		t.Fatalf("admission.New() = %v", err)
 	}
+	execution := &capture{}
 	server, _, err := kernel.NewServer(kernel.ServerConfig{
 		InsecureForDevelopmentOnly: true,
 		Services:                   []string{rpc.ServiceName},
-		UnaryInterceptors:          rpc.Interceptors(provider.Tracer("rpc-test"), ctrl, nil, slog.New(slog.NewJSONHandler(logs, nil))),
+		UnaryInterceptors: append(
+			rpc.Interceptors(provider.Tracer("rpc-test"), ctrl, nil, slog.New(slog.NewJSONHandler(logs, nil))),
+			execution.intercept,
+		),
 	})
 	if err != nil {
 		t.Fatalf("NewServer() = %v", err)
@@ -103,7 +122,7 @@ func newHarness(t *testing.T, limit admission.Limit) *harness {
 	}
 	t.Cleanup(func() { _ = conn.Close() })
 
-	return &harness{store: store, conn: conn, spans: spans, logs: logs}
+	return &harness{store: store, conn: conn, spans: spans, logs: logs, execution: execution}
 }
 
 func (h *harness) invoke(ctx context.Context, method string, req, resp proto.Message) error {

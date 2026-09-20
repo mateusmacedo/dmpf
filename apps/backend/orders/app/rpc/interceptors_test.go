@@ -69,6 +69,91 @@ func TestMetadataBecomesTheMessageContextOfTheOutbox(t *testing.T) {
 	}
 }
 
+func TestTheServerRebuildsTheExecutionContextFromTheMetadata(t *testing.T) {
+	h := newHarness(t, unlimited)
+	ctx := metadata.AppendToOutgoingContext(withDeadline(t),
+		rpc.CorrelationKey, "corr-1", rpc.CausationKey, "bff-req-1", rpc.TenantKey, "acme", "traceparent", traceparent)
+
+	addItem(t, h, ctx)
+
+	if !h.execution.present {
+		t.Fatalf("ExecutionContextFrom() = _, false, want the server to rebuild the context (CTX-02)")
+	}
+	execution := h.execution.execution
+
+	tenant, scoped := execution.Tenant()
+	if !scoped || string(tenant) != "acme" {
+		t.Fatalf("Tenant() = %q, %t, want acme, true (CTX-13)", tenant, scoped)
+	}
+	if execution.CorrelationID() != "corr-1" {
+		t.Fatalf("CorrelationID() = %q, want corr-1 (CTX-07)", execution.CorrelationID())
+	}
+	causation, caused := execution.CausationID()
+	if !caused || causation != "bff-req-1" {
+		t.Fatalf("CausationID() = %q, %t, want bff-req-1, true: the edge request is the preceding step (CTX-08)", causation, caused)
+	}
+	if execution.RequestID() == "" || execution.RequestID() == causation {
+		t.Fatalf("RequestID() = %q, want an identifier of this execution, distinct from the causation", execution.RequestID())
+	}
+	if execution.TraceContext() != traceID {
+		t.Fatalf("TraceContext() = %q, want the propagated trace %s (CTX-09)", execution.TraceContext(), traceID)
+	}
+	if execution.Deadline() <= 0 {
+		t.Fatalf("Deadline() = %d, want the instant the call is governed by (GRP-04)", execution.Deadline())
+	}
+	if execution.Locale() != rpc.DefaultLocale {
+		t.Fatalf("Locale() = %q, want %q", execution.Locale(), rpc.DefaultLocale)
+	}
+}
+
+func TestMetadataAssertingASubjectResolvesNone(t *testing.T) {
+	h := newHarness(t, unlimited)
+	ctx := metadata.AppendToOutgoingContext(withDeadline(t),
+		rpc.TenantKey, "acme", "x-subject-id", "forged", "authorization", "Bearer forged")
+
+	addItem(t, h, ctx)
+
+	if !h.execution.present {
+		t.Fatalf("ExecutionContextFrom() = _, false, want the server to rebuild the context (CTX-02)")
+	}
+	if subject, identified := h.execution.execution.Subject(); identified {
+		t.Fatalf("Subject() = %q, true, want absent: channel trust establishes the caller, not the subject (IDN-02)", subject)
+	}
+	if permissions := h.execution.execution.Permissions(); permissions != nil {
+		t.Fatalf("Permissions() = %v, want nil: they do not cross the fan-out (CTX-12)", permissions)
+	}
+}
+
+func TestWhatTheCallerLeavesOutStaysAbsent(t *testing.T) {
+	h := newHarness(t, unlimited)
+
+	addItem(t, h, withDeadline(t))
+
+	if !h.execution.present {
+		t.Fatalf("ExecutionContextFrom() = _, false, want the server to rebuild the context (CTX-02)")
+	}
+	if tenant, scoped := h.execution.execution.Tenant(); scoped {
+		t.Fatalf("Tenant() = %q, true, want absent: no filler value stands for an unresolved tenant (IDN-20)", tenant)
+	}
+	if causation, caused := h.execution.execution.CausationID(); caused {
+		t.Fatalf("CausationID() = %q, true, want absent: no preceding step was declared (CTX-08)", causation)
+	}
+}
+
+func TestAnEmptyTenantIsAbsenceAndNotADefect(t *testing.T) {
+	h := newHarness(t, unlimited)
+	ctx := metadata.AppendToOutgoingContext(withDeadline(t), rpc.TenantKey, "")
+
+	addItem(t, h, ctx)
+
+	if !h.execution.present {
+		t.Fatalf("ExecutionContextFrom() = _, false, want the empty value to leave the context assemblable (CTX-01)")
+	}
+	if tenant, scoped := h.execution.execution.Tenant(); scoped {
+		t.Fatalf("Tenant() = %q, true, want absent: the empty value never stands for a resolved tenant (IDN-20)", tenant)
+	}
+}
+
 func TestAMalformedCorrelationIsReplaced(t *testing.T) {
 	h := newHarness(t, unlimited)
 	ctx := metadata.AppendToOutgoingContext(withDeadline(t), rpc.CorrelationKey, "not valid!")
