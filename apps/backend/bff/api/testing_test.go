@@ -29,8 +29,8 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/deadline"
 
 	"github.com/mateusmacedo/dmpf/apps/backend/bff/api"
-	"github.com/mateusmacedo/dmpf/apps/backend/bff/auth"
 	"github.com/mateusmacedo/dmpf/apps/backend/bff/rpc"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/authn"
 )
 
 var routeBudget = deadline.Budget{Dependency: "edge", Method: "route", Limit: 2 * time.Second, Slack: 200 * time.Millisecond, EstimatedDuration: 100 * time.Millisecond}
@@ -213,7 +213,7 @@ func newFixture(t *testing.T, fake *fakeContexts, options ...option) fixture {
 
 	handler, err := api.NewHandler(rpc.NewOrders(ordersConn), rpc.NewReservations(reservationsConn), ctrl, tracer, nil, api.Options{
 		Budget:               cfg.budget,
-		Authenticator:        auth.DevAuthenticator{},
+		Authenticator:        authn.DevAuthenticator{},
 		OrdersContract:       cfg.ordersContract,
 		ReservationsContract: cfg.reservationsContract,
 		CORSOrigins:          cfg.cors,

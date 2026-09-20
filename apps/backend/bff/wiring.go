@@ -19,8 +19,8 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/admission"
 
 	"github.com/mateusmacedo/dmpf/apps/backend/bff/api"
-	"github.com/mateusmacedo/dmpf/apps/backend/bff/auth"
 	"github.com/mateusmacedo/dmpf/apps/backend/bff/rpc"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/authn"
 )
 
 const (
@@ -42,9 +42,9 @@ func Run(ctx context.Context, cfg Config, out io.Writer) error {
 // combine with an issuer, so one start never has two ways of resolving it.
 func Authenticator(ctx context.Context, cfg Config) (ports.Authenticator, error) {
 	if cfg.Auth.DevMock {
-		return auth.DevAuthenticator{}, nil
+		return authn.DevAuthenticator{}, nil
 	}
-	return auth.NewVerifier(ctx, cfg.Auth)
+	return authn.NewVerifier(ctx, cfg.Auth)
 }
 
 func RunWith(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {

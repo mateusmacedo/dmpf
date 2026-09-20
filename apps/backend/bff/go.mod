@@ -22,6 +22,6 @@ require (
 )
 
 require (
-	github.com/coreos/go-oidc/v3 v3.21.0
+	github.com/mateusmacedo/dmpf/libs/backend/go/authn v0.1.0
 	github.com/mateusmacedo/dmpf/libs/backend/go/ports v0.1.0
 )

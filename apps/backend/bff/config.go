@@ -9,7 +9,7 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/admission"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/deadline"
 
-	"github.com/mateusmacedo/dmpf/apps/backend/bff/auth"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/authn"
 )
 
 var (
@@ -61,7 +61,7 @@ type Config struct {
 	Admission   admission.Limit
 	RouteBudget deadline.Budget
 
-	Auth auth.Config
+	Auth authn.Config
 }
 
 func Defaults() Config {
@@ -103,7 +103,7 @@ func FromEnv(lookup func(string) string) (Config, error) {
 	if cfg.OTLPInsecure, err = envconfig.ParseBool(envOTLPInsecure, lookup(envOTLPInsecure)); err != nil {
 		return Config{}, err
 	}
-	if cfg.Auth, err = auth.ReadEnv(lookup); err != nil {
+	if cfg.Auth, err = authn.ReadEnv(lookup); err != nil {
 		return Config{}, err
 	}
 

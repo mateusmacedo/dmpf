@@ -18,8 +18,8 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/deadline"
 
-	"github.com/mateusmacedo/dmpf/apps/backend/bff/auth"
 	"github.com/mateusmacedo/dmpf/apps/backend/bff/rpc"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/authn"
 )
 
 const identifierBytes = 16
@@ -32,16 +32,6 @@ var correlationFormat = regexp.MustCompile(`^[A-Za-z0-9._-]{1,128}$`)
 // reaches gRPC metadata, which refuses anything outside %x20-%x7E and answers
 // Internal. Without this the edge turns a client header into a permanent 500.
 var idempotencyFormat = regexp.MustCompile(`^[A-Za-z0-9._-]{1,128}$`)
-
-type executionContextKey struct{}
-
-// ExecutionContextFrom returns what the edge mounted for this request. Only the
-// handler reads it: from there down the context travels as an explicit argument
-// (CTX-03), so no block downstream depends on the ambient value (CTX-05).
-func ExecutionContextFrom(ctx context.Context) (ports.ExecutionContext, bool) {
-	execution, ok := ctx.Value(executionContextKey{}).(ports.ExecutionContext)
-	return execution, ok
-}
 
 // withExecutionContext authenticates and mounts the nine-field context. It runs
 // inside withRouteDeadline, never outside: deadline is mandatory in CTX-01, and
@@ -70,7 +60,7 @@ func withExecutionContext(tracer trace.Tracer, authenticator ports.Authenticator
 			return
 		}
 
-		identity, status, code := resolveIdentity(ctx, authenticator, route, r)
+		identity, status, code := provider.ResolveIdentity(ctx, authenticator, route, authn.CredentialFrom(r))
 		if status != 0 {
 			tracing.RecordError(span, code)
 			writeRejection(r, w, status, code, rejectionMessage(status))
@@ -81,9 +71,9 @@ func withExecutionContext(tracer trace.Tracer, authenticator ports.Authenticator
 			RequestID:     requestID,
 			CorrelationID: correlation,
 			TraceContext:  span.SpanContext().TraceID().String(),
-			Subject:       identity.subject,
-			Tenant:        identity.tenant,
-			Permissions:   identity.permissions,
+			Subject:       identity.Subject,
+			Tenant:        identity.Tenant,
+			Permissions:   identity.Permissions,
 			Deadline:      ports.Instant(deadline.UnixNano()),
 			Locale:        localeOf(r),
 		})
@@ -103,42 +93,10 @@ func withExecutionContext(tracer trace.Tracer, authenticator ports.Authenticator
 			call.TenantID = string(tenant)
 		}
 
-		ctx = context.WithValue(ctx, executionContextKey{}, execution)
+		ctx = provider.WithExecutionContext(ctx, execution)
 		ctx = rpc.WithCall(ctx, call)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
-}
-
-// resolved is what verification yielded, already in the shape the context spec
-// takes. A zero status means the request may proceed.
-type resolved struct {
-	subject     *ports.SubjectID
-	tenant      *ports.TenantID
-	permissions []ports.Permission
-}
-
-// resolveIdentity separates the two refusals IDN-06 keeps apart: 401 when
-// authentication did not resolve a subject, 403 when it did and the operation
-// demands something the subject does not carry (IDN-15).
-func resolveIdentity(ctx context.Context, authenticator ports.Authenticator, route provider.Route, r *http.Request) (resolved, int, string) {
-	credential := auth.CredentialFrom(r)
-	if !credential.Presented() {
-		if route.RequiresSubject() || route.RequiresTenant() {
-			return resolved{}, http.StatusUnauthorized, "unauthenticated"
-		}
-		return resolved{}, 0, ""
-	}
-
-	identity, err := authenticator.Authenticate(ctx, credential)
-	if err != nil {
-		return resolved{}, http.StatusUnauthorized, "unauthenticated"
-	}
-	if route.RequiresTenant() && identity.Tenant == nil {
-		return resolved{}, http.StatusForbidden, "tenant-unresolved"
-	}
-
-	subject := identity.Subject
-	return resolved{subject: &subject, tenant: identity.Tenant, permissions: identity.Permissions}, 0, ""
 }
 
 func rejectionMessage(status int) string {
