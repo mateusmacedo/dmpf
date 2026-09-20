@@ -308,6 +308,7 @@ func (top *topology) boot(t *testing.T, bin binaries) {
 		"DMPF_HTTP_ADDR": "127.0.0.1:0", "DMPF_GRPC_INSECURE": "true", "DMPF_INSTANCE_ID": "e2e-bff",
 		"DMPF_ORDERS_GRPC_TARGET":       "dns:///" + ordersAddr,
 		"DMPF_RESERVATIONS_GRPC_TARGET": "dns:///" + reservationsAddr,
+		"DMPF_AUTH_DEV_MOCK":            "true",
 	})
 	top.bffAddr = bff.waitLog(t, "http listening")["addr"].(string)
 }

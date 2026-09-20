@@ -18,8 +18,24 @@ func lookup(pairs ...string) func(string) string {
 
 var targets = []string{"DMPF_ORDERS_GRPC_TARGET", "orders:9090", "DMPF_RESERVATIONS_GRPC_TARGET", "reservations:9090"}
 
+// devMock declares how these starts resolve identity. Since the edge demands a
+// subject on every route, a start that declares no verifier and no mock is
+// refused, so the cases that expect a usable config have to say which one.
+const devMock = "DMPF_AUTH_DEV_MOCK"
+
+func TestFromEnvRefusesAStartThatDeclaresNoIdentity(t *testing.T) {
+	_, err := bff.FromEnv(lookup(append(targets, "DMPF_GRPC_INSECURE", "true")...))
+
+	if err == nil {
+		t.Fatal("FromEnv() = nil: a start that could authenticate nobody must be refused")
+	}
+	if !strings.Contains(err.Error(), devMock) {
+		t.Fatalf("FromEnv() = %v, want the error to name %s", err, devMock)
+	}
+}
+
 func TestFromEnvAppliesTheDefaults(t *testing.T) {
-	cfg, err := bff.FromEnv(lookup(append(targets, "DMPF_GRPC_INSECURE", "true")...))
+	cfg, err := bff.FromEnv(lookup(append(targets, "DMPF_GRPC_INSECURE", "true", devMock, "true")...))
 
 	if err != nil {
 		t.Fatalf("FromEnv() = %v", err)
@@ -58,7 +74,7 @@ func TestFromEnvRequiresATransportPolicy(t *testing.T) {
 }
 
 func TestFromEnvAcceptsATrustAuthority(t *testing.T) {
-	cfg, err := bff.FromEnv(lookup(append(targets, "DMPF_GRPC_CA_FILE", "/etc/ca.pem", "DMPF_GRPC_SERVER_NAME", "orders.internal", "DMPF_CORS_ORIGINS", "http://a, http://b")...))
+	cfg, err := bff.FromEnv(lookup(append(targets, "DMPF_GRPC_CA_FILE", "/etc/ca.pem", "DMPF_GRPC_SERVER_NAME", "orders.internal", "DMPF_CORS_ORIGINS", "http://a, http://b", devMock, "true")...))
 
 	if err != nil {
 		t.Fatalf("FromEnv() = %v", err)

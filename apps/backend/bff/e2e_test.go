@@ -119,6 +119,11 @@ func (top *topology) placeOrder(t *testing.T, order string, headers map[string]s
 	}
 }
 
+// e2eCredential is what the development authenticator reads back. The tenant
+// matches the one admission declares, so the identity the edge resolves and the
+// bucket it charges stay the same until Phase 7 removes the literal.
+const e2eCredential = `Bearer {"sub":"e2e-tester","tenant":"public","permissions":["orders:write","orders:read"]}`
+
 func (top *topology) call(t *testing.T, method, path, body string, headers map[string]string) (int, []byte) {
 	t.Helper()
 	req, err := http.NewRequest(method, "http://"+top.bffAddr+path, strings.NewReader(body))
@@ -129,6 +134,7 @@ func (top *topology) call(t *testing.T, method, path, body string, headers map[s
 		req.Header.Set("Idempotency-Key", fmt.Sprintf("k-%d", time.Now().UnixNano()))
 		req.Header.Set("Content-Type", "application/json")
 	}
+	req.Header.Set("Authorization", e2eCredential)
 	for k, v := range headers {
 		req.Header.Set(k, v)
 	}
