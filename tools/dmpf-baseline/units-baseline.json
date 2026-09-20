@@ -1,6 +1,6 @@
 {
   "schema": "dmpf/units-baseline@1",
-  "digest": "sha256:2c1cd22bd733e5cff3fc1ea3d074a0f9621a3c81c8365ab4177fd7b7ec514b1f",
+  "digest": "sha256:f7fe6e63bd39e26528bf043b0da6f2a08f8bffdc82b2dd2b3f806b296138a507",
   "entries": [
     {
       "unit": "bff/app",
@@ -10,6 +10,7 @@
       "membership": [
         "github.com/mateusmacedo/dmpf/apps/backend/bff",
         "github.com/mateusmacedo/dmpf/apps/backend/bff/api",
+        "github.com/mateusmacedo/dmpf/apps/backend/bff/auth",
         "github.com/mateusmacedo/dmpf/apps/backend/bff/cmd",
         "github.com/mateusmacedo/dmpf/apps/backend/bff/rpc"
       ]
