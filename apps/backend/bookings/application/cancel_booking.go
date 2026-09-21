@@ -10,13 +10,13 @@ import (
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/domain"
 )
 
-func (s Service) CancelBooking(ctx context.Context, cmd Cancel) (application.Outcome[domain.CancelledResponse], error) {
+func (s Service) CancelBooking(ctx context.Context, execution ports.ExecutionContext, cmd Cancel) (application.Outcome[domain.CancelledResponse], error) {
 	var zero application.Outcome[domain.CancelledResponse]
 
 	instrumentation := s.instrumentation()
 	ctx, end := instrumentation.BeginOperation(ctx, OperationCancel)
 
-	if err := s.Authorize(ctx, cmd); err != nil {
+	if err := s.Authorize(ctx, execution, cmd); err != nil {
 		end(authorizationResult(err))
 		return zero, err
 	}

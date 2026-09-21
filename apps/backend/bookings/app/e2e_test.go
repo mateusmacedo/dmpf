@@ -57,7 +57,7 @@ func newMux(pool *pgxpool.Pool) *http.ServeMux {
 		ResourceReader: provider.NewBookingsByResourceReader(pool),
 		Clock:          fixedClock{},
 		IDs:            &sequenceIDs{},
-		Authorize:      usecase.AllowAll[application.Command](),
+		Authorize:      usecase.AllowAllWithContext[application.Operation](),
 	}
 	return httpedge.Mux(service, e2eBudget)
 }

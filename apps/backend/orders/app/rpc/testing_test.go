@@ -75,7 +75,7 @@ func newHarness(t *testing.T, limit admission.Limit) *harness {
 		Reader:    ordersTable.Reader(store),
 		Clock:     memory.FixedClock{At: occurred},
 		IDs:       &memory.SequenceIDs{Prefix: "m-"},
-		Authorize: usecase.AllowAll[application.Command](),
+		Authorize: usecase.AllowAllWithContext[application.Operation](),
 		ItemLimit: 1,
 	}
 

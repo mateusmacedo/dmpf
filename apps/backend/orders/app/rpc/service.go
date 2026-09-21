@@ -14,7 +14,19 @@ import (
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/domain"
 	servicev1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/orders/service/v1"
 	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
+
+// WHY: the absence of what the interceptor mounted is a wiring defect of this
+// server, never a fault of the caller, so it answers Internal rather than
+// leaving the handler to invent a context (CTX-03).
+func executionOf(ctx context.Context) (ports.ExecutionContext, error) {
+	execution, ok := ExecutionContextFrom(ctx)
+	if !ok {
+		return ports.ExecutionContext{}, status.Error(codes.Internal, "the execution context was not assembled")
+	}
+	return execution, nil
+}
 
 var descriptor = servicev1.File_company_orders_service_v1_orders_service_proto.Services().ByName("OrdersService")
 
@@ -98,7 +110,11 @@ func (s Server) AddItem(ctx context.Context, req *servicev1.AddItemRequest) (*se
 	if err != nil {
 		return nil, err
 	}
-	out, err := s.Service.AddItem(ctx, application.AddItem{Order: id, SKU: domain.SKU(req.GetSku()), Quantity: int(req.GetQuantity())})
+	execution, err := executionOf(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out, err := s.Service.AddItem(ctx, execution, application.AddItem{Order: id, SKU: domain.SKU(req.GetSku()), Quantity: int(req.GetQuantity())})
 	if err != nil {
 		return nil, statusOf(err)
 	}
@@ -116,7 +132,11 @@ func (s Server) PlaceOrder(ctx context.Context, req *servicev1.PlaceOrderRequest
 	if err != nil {
 		return nil, err
 	}
-	out, err := s.Service.PlaceOrder(ctx, application.PlaceOrder{Order: id})
+	execution, err := executionOf(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out, err := s.Service.PlaceOrder(ctx, execution, application.PlaceOrder{Order: id})
 	if err != nil {
 		return nil, statusOf(err)
 	}
@@ -133,7 +153,11 @@ func (s Server) FindOrder(ctx context.Context, req *servicev1.FindOrderRequest) 
 	if err != nil {
 		return nil, err
 	}
-	snapshot, err := s.Service.FindOrder(ctx, id)
+	execution, err := executionOf(ctx)
+	if err != nil {
+		return nil, err
+	}
+	snapshot, err := s.Service.FindOrder(ctx, execution, id)
 	if err != nil {
 		return nil, statusOf(err)
 	}

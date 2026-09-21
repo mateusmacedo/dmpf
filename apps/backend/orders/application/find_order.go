@@ -9,9 +9,15 @@ import (
 )
 
 // FindOrder reads through Reader, never through UoW: a query neither opens a
-// transaction nor writes the outbox (UOW-11).
-func (s Service) FindOrder(ctx context.Context, id domain.OrderID) (domain.Snapshot, error) {
+// transaction nor writes the outbox (UOW-11). It still walks step 1 first,
+// because authenticating at the route is not permission to read.
+func (s Service) FindOrder(ctx context.Context, execution ports.ExecutionContext, id domain.OrderID) (domain.Snapshot, error) {
 	ctx, end := s.instrumentation().BeginOperation(ctx, OperationFindOrder)
+
+	if err := s.Authorize(ctx, execution, FindOrder{Order: id}); err != nil {
+		end(authorizationResult(err))
+		return domain.Snapshot{}, err
+	}
 
 	snapshot, _, err := s.Reader.Load(ctx, id)
 	if err != nil {

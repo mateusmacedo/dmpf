@@ -51,7 +51,7 @@ func (r *instrumentationRecorder) onlyResult(t *testing.T) ports.Result {
 func TestAddItemAcceptedReportsAcceptedAndAudits(t *testing.T) {
 	h, instr := newInstrumentedHarness(t)
 
-	_, err := h.service.AddItem(context.Background(), application.AddItem{Order: orderID, SKU: "XYZ", Quantity: 1})
+	_, err := h.service.AddItem(context.Background(), testExecution(t), application.AddItem{Order: orderID, SKU: "XYZ", Quantity: 1})
 
 	if err != nil {
 		t.Fatalf("AddItem() error = %v, want nil", err)
@@ -80,7 +80,7 @@ func TestAddItemRejectedReportsRejectedAndAudits(t *testing.T) {
 	h, instr := newInstrumentedHarness(t)
 	h.seed(t, openSnapshot(itemLimit), 0)
 
-	out, err := h.service.AddItem(context.Background(), application.AddItem{Order: orderID, SKU: "XYZ", Quantity: 1})
+	out, err := h.service.AddItem(context.Background(), testExecution(t), application.AddItem{Order: orderID, SKU: "XYZ", Quantity: 1})
 
 	if err != nil {
 		t.Fatalf("AddItem() error = %v, want nil — a refusal is not a technical failure (DEC-04)", err)
@@ -97,12 +97,12 @@ func TestAddItemRejectedReportsRejectedAndAudits(t *testing.T) {
 }
 
 func TestAddItemDeniedReportsDeniedWithoutAuditOrTransaction(t *testing.T) {
-	denied := func(context.Context, application.Command) error {
+	denied := func(context.Context, ports.ExecutionContext, application.Operation) error {
 		return errors.Join(errors.New("policy engine refused"), ports.ErrDenied)
 	}
 	h, instr := newInstrumentedHarness(t, withAuthorize(denied))
 
-	_, err := h.service.AddItem(context.Background(), application.AddItem{Order: orderID, SKU: "XYZ", Quantity: 1})
+	_, err := h.service.AddItem(context.Background(), testExecution(t), application.AddItem{Order: orderID, SKU: "XYZ", Quantity: 1})
 
 	if !errors.Is(err, ports.ErrDenied) {
 		t.Fatalf("AddItem() error = %v, want a denial", err)
@@ -124,11 +124,11 @@ func TestAddItemDeniedReportsDeniedWithoutAuditOrTransaction(t *testing.T) {
 
 func TestAddItemAuthorizerFailureReportsFailedNotDenied(t *testing.T) {
 	broken := errors.New("timeout dialing the policy engine")
-	h, instr := newInstrumentedHarness(t, withAuthorize(func(context.Context, application.Command) error {
+	h, instr := newInstrumentedHarness(t, withAuthorize(func(context.Context, ports.ExecutionContext, application.Operation) error {
 		return broken
 	}))
 
-	_, err := h.service.AddItem(context.Background(), application.AddItem{Order: orderID, SKU: "XYZ", Quantity: 1})
+	_, err := h.service.AddItem(context.Background(), testExecution(t), application.AddItem{Order: orderID, SKU: "XYZ", Quantity: 1})
 
 	if !errors.Is(err, broken) {
 		t.Fatalf("AddItem() error = %v, want the authorizer error", err)
@@ -149,7 +149,7 @@ func TestAddItemTechnicalFailureReportsFailedWithTheError(t *testing.T) {
 	broken := errors.New("storage unavailable")
 	h, instr := newInstrumentedHarness(t, withSaveError(broken))
 
-	_, err := h.service.AddItem(context.Background(), application.AddItem{Order: orderID, SKU: "XYZ", Quantity: 1})
+	_, err := h.service.AddItem(context.Background(), testExecution(t), application.AddItem{Order: orderID, SKU: "XYZ", Quantity: 1})
 
 	if !errors.Is(err, broken) {
 		t.Fatalf("AddItem() error = %v, want the storage error", err)
@@ -170,7 +170,7 @@ func TestPlaceOrderAcceptedReportsAcceptedAndAudits(t *testing.T) {
 	h, instr := newInstrumentedHarness(t)
 	h.seed(t, openSnapshot(1), 0)
 
-	_, err := h.service.PlaceOrder(context.Background(), application.PlaceOrder{Order: orderID})
+	_, err := h.service.PlaceOrder(context.Background(), testExecution(t), application.PlaceOrder{Order: orderID})
 
 	if err != nil {
 		t.Fatalf("PlaceOrder() error = %v, want nil", err)
@@ -196,7 +196,7 @@ func TestFindOrderReportsAcceptedWithoutAudit(t *testing.T) {
 	h, instr := newInstrumentedHarness(t)
 	h.seed(t, openSnapshot(2), 0)
 
-	if _, err := h.service.FindOrder(context.Background(), orderID); err != nil {
+	if _, err := h.service.FindOrder(context.Background(), testExecution(t), orderID); err != nil {
 		t.Fatalf("FindOrder() error = %v, want nil", err)
 	}
 
@@ -214,7 +214,7 @@ func TestFindOrderReportsAcceptedWithoutAudit(t *testing.T) {
 func TestFindOrderOnAnAbsentAggregateReportsFailed(t *testing.T) {
 	h, instr := newInstrumentedHarness(t)
 
-	if _, err := h.service.FindOrder(context.Background(), orderID); err == nil {
+	if _, err := h.service.FindOrder(context.Background(), testExecution(t), orderID); err == nil {
 		t.Fatal("FindOrder() error = nil, want ErrNotFound for an absent aggregate")
 	}
 
@@ -226,7 +226,7 @@ func TestFindOrderOnAnAbsentAggregateReportsFailed(t *testing.T) {
 func TestBeginPrecedesAuthorizationAndEndClosesTheSequence(t *testing.T) {
 	h, _ := newInstrumentedHarness(t)
 
-	if _, err := h.service.AddItem(context.Background(), application.AddItem{Order: orderID, SKU: "XYZ", Quantity: 1}); err != nil {
+	if _, err := h.service.AddItem(context.Background(), testExecution(t), application.AddItem{Order: orderID, SKU: "XYZ", Quantity: 1}); err != nil {
 		t.Fatalf("AddItem() error = %v, want nil", err)
 	}
 
@@ -245,7 +245,7 @@ func TestBeginPrecedesAuthorizationAndEndClosesTheSequence(t *testing.T) {
 func TestServiceWithoutInstrumentationRunsInertly(t *testing.T) {
 	h := newHarness(t)
 
-	out, err := h.service.AddItem(context.Background(), application.AddItem{Order: orderID, SKU: "XYZ", Quantity: 1})
+	out, err := h.service.AddItem(context.Background(), testExecution(t), application.AddItem{Order: orderID, SKU: "XYZ", Quantity: 1})
 
 	if err != nil {
 		t.Fatalf("AddItem() error = %v, want nil — a nil hook falls back to NoInstrumentation", err)

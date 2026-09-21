@@ -28,16 +28,22 @@ const (
 	// has no realization in the kernel, so every call resolves to it (MET-07).
 	Tenant = "public"
 
-	// CorrelationKey is the metadata the BFF propagates and this context adopts.
-	// CausationKey is what the BFF sends and this context deliberately does NOT
-	// adopt: CTX-08 fixes causation as the step immediately before, which for an
-	// outbox record is this RPC, not the edge request two steps back.
+	// CorrelationKey and CausationKey are what the BFF propagates. The causation
+	// is the step preceding this execution, never the one preceding what this
+	// execution publishes: for an outbox record CTX-08 makes the cause this RPC.
 	CorrelationKey = "x-correlation-id"
 	CausationKey   = "x-causation-id"
+
+	// TenantKey carries the tenant the edge resolved (CTX-13). Its absence means
+	// a chain without a subject, and no value is invented to replace it.
+	TenantKey = "x-tenant-id"
 
 	// IdempotencyKey is propagated by the BFF for the log alone: the context
 	// keeps no replay store, so the key decides nothing here.
 	IdempotencyKey = "idempotency-key"
+
+	// DefaultLocale answers a mandatory field of CTX-01 that no hop carries yet.
+	DefaultLocale = "en"
 
 	idBytes = 16
 )
@@ -45,13 +51,13 @@ const (
 var correlationFormat = regexp.MustCompile(`^[A-Za-z0-9._-]{1,128}$`)
 
 // Interceptors is the server chain in the order SPEC-ACYKBF9V fixes: span,
-// admission, deadline, message context.
+// admission, deadline, context.
 func Interceptors(tracer trace.Tracer, ctrl *admission.Controller, instruments *metrics.Instruments, logger *slog.Logger) []grpc.UnaryServerInterceptor {
 	return []grpc.UnaryServerInterceptor{
 		ownMethods(serverSpan(tracer)),
 		ownMethods(provider.Admission(ctrl, func(context.Context) string { return Tenant }, instruments)),
 		ownMethods(requireDeadline),
-		ownMethods(messageContext(logger)),
+		ownMethods(requestContext(logger)),
 	}
 }
 
@@ -102,12 +108,15 @@ func requireDeadline(ctx context.Context, req any, _ *grpc.UnaryServerInfo, hand
 	return handler(ctx, req)
 }
 
-// messageContext authors what the outbox records: the correlation the BFF
-// propagated, this request as the cause (CTX-08) and the server span as trace.
-func messageContext(logger *slog.Logger) grpc.UnaryServerInterceptor {
+// requestContext authors the two contexts of this execution from what crossed
+// the hop: the nine-field context the application service takes as an argument,
+// and the message context the outbox records.
+func requestContext(logger *slog.Logger) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		md, _ := metadata.FromIncomingContext(ctx)
-		correlation := metadataCarrier(md).Get(CorrelationKey)
+		incoming := metadataCarrier(md)
+
+		correlation := incoming.Get(CorrelationKey)
 		if !correlationFormat.MatchString(correlation) {
 			correlation = newID()
 		}
@@ -115,18 +124,71 @@ func messageContext(logger *slog.Logger) grpc.UnaryServerInterceptor {
 
 		carrier := propagation.MapCarrier{}
 		propagation.TraceContext{}.Inject(ctx, carrier)
-		trace.SpanFromContext(ctx).SetAttributes(tracing.Attributes{}.CorrelationID(correlation).RequestID(requestID).KeyValues()...)
+		span := trace.SpanFromContext(ctx)
+		span.SetAttributes(tracing.Attributes{}.CorrelationID(correlation).RequestID(requestID).KeyValues()...)
 
+		execution, err := ports.NewExecutionContext(ports.ExecutionContextSpec{
+			RequestID:     requestID,
+			CorrelationID: correlation,
+			CausationID:   optional(incoming.Get(CausationKey)),
+			TraceContext:  span.SpanContext().TraceID().String(),
+			Tenant:        tenantOf(incoming),
+			Deadline:      deadlineOf(ctx),
+			Locale:        DefaultLocale,
+		})
+		if err != nil {
+			return nil, status.Error(codes.Internal, "the execution context could not be assembled")
+		}
+
+		ctx = withExecutionContext(ctx, execution)
 		ctx = ports.WithMessageContext(ctx, ports.MessageContext{
 			CorrelationID: correlation,
 			CausationID:   requestID,
 			Traceparent:   carrier.Get("traceparent"),
 		})
-		if key := metadataCarrier(md).Get(IdempotencyKey); key != "" && logger != nil {
+		if key := incoming.Get(IdempotencyKey); key != "" && logger != nil {
 			logger.InfoContext(ctx, "grpc request", "operation", info.FullMethod, "idempotency_key", key)
 		}
 		return handler(ctx, req)
 	}
+}
+
+type executionContextKey struct{}
+
+func withExecutionContext(ctx context.Context, execution ports.ExecutionContext) context.Context {
+	return context.WithValue(ctx, executionContextKey{}, execution)
+}
+
+// ExecutionContextFrom returns what this hop rebuilt. Only the handler reads it:
+// from there down the context travels as an explicit argument (CTX-03), so no
+// block downstream depends on the ambient value (CTX-05).
+func ExecutionContextFrom(ctx context.Context) (ports.ExecutionContext, bool) {
+	execution, ok := ctx.Value(executionContextKey{}).(ports.ExecutionContext)
+	return execution, ok
+}
+
+func optional(value string) *string {
+	if value == "" {
+		return nil
+	}
+	return &value
+}
+
+func tenantOf(incoming metadataCarrier) *ports.TenantID {
+	value := incoming.Get(TenantKey)
+	if value == "" {
+		return nil
+	}
+	tenant := ports.TenantID(value)
+	return &tenant
+}
+
+func deadlineOf(ctx context.Context) ports.Instant {
+	governed, ok := ctx.Deadline()
+	if !ok {
+		return 0
+	}
+	return ports.Instant(governed.UnixNano())
 }
 
 type metadataCarrier metadata.MD

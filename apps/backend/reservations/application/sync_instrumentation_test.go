@@ -35,7 +35,7 @@ func newInstrumentedSyncHarness(t *testing.T) (*syncHarness, *syncInstrumentatio
 func TestReserveAcceptedReportsAcceptedAndAudits(t *testing.T) {
 	h, instr := newInstrumentedSyncHarness(t)
 
-	if _, err := h.service.Reserve(context.Background(), application.Reserve{Order: syncOrder, Items: 1}); err != nil {
+	if _, err := h.service.Reserve(context.Background(), testExecution(t), application.Reserve{Order: syncOrder, Items: 1}); err != nil {
 		t.Fatalf("Reserve() error = %v, want nil", err)
 	}
 
@@ -55,7 +55,7 @@ func TestCancelRejectedReportsRejectedAndAudits(t *testing.T) {
 	h, instr := newInstrumentedSyncHarness(t)
 	h.seed(t, confirmedSnapshot(1), 0)
 
-	if _, err := h.service.Cancel(context.Background(), application.Cancel{Order: syncOrder}); err != nil {
+	if _, err := h.service.Cancel(context.Background(), testExecution(t), application.Cancel{Order: syncOrder}); err != nil {
 		t.Fatalf("Cancel() error = %v, want nil", err)
 	}
 
@@ -74,7 +74,7 @@ func TestFindReservationReportsAcceptedWithoutAudit(t *testing.T) {
 	h, instr := newInstrumentedSyncHarness(t)
 	h.seed(t, confirmedSnapshot(1), 0)
 
-	if _, err := h.service.FindReservation(context.Background(), syncOrder); err != nil {
+	if _, err := h.service.FindReservation(context.Background(), testExecution(t), syncOrder); err != nil {
 		t.Fatalf("FindReservation() error = %v, want nil", err)
 	}
 

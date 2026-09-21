@@ -135,14 +135,14 @@ type option func(*setup)
 
 type setup struct {
 	saveErr   error
-	authorize usecase.AuthorizeFunc[application.Command]
+	authorize usecase.AuthorizeWithContext[application.Operation]
 }
 
 func withSaveError(err error) option {
 	return func(s *setup) { s.saveErr = err }
 }
 
-func withAuthorize(authorize usecase.AuthorizeFunc[application.Command]) option {
+func withAuthorize(authorize usecase.AuthorizeWithContext[application.Operation]) option {
 	return func(s *setup) { s.authorize = authorize }
 }
 
@@ -150,7 +150,7 @@ func newHarness(t *testing.T, options ...option) *harness {
 	t.Helper()
 
 	h := &harness{store: memory.New(), rec: &recorder{}}
-	cfg := &setup{authorize: usecase.AllowAll[application.Command]()}
+	cfg := &setup{authorize: usecase.AllowAllWithContext[application.Operation]()}
 	for _, apply := range options {
 		apply(cfg)
 	}
@@ -174,10 +174,10 @@ func newHarness(t *testing.T, options ...option) *harness {
 	return h
 }
 
-func recordingAuthorize(rec *recorder, inner usecase.AuthorizeFunc[application.Command]) usecase.AuthorizeFunc[application.Command] {
-	return func(ctx context.Context, cmd application.Command) error {
+func recordingAuthorize(rec *recorder, inner usecase.AuthorizeWithContext[application.Operation]) usecase.AuthorizeWithContext[application.Operation] {
+	return func(ctx context.Context, execution ports.ExecutionContext, cmd application.Operation) error {
 		rec.record("authorize")
-		return inner(ctx, cmd)
+		return inner(ctx, execution, cmd)
 	}
 }
 

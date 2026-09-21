@@ -2,15 +2,21 @@
 
 package application
 
-import "context"
+import (
+	"context"
 
-// AuthorizeFunc is step 1 of FND-04 §3.2 as a hook: the use case invokes it
-// first and a returned error stops the sequence before step 2. The taxonomy of
+	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
+)
+
+// AuthorizeWithContext is step 1 of FND-04 §3.2 as a hook: the use case invokes
+// it first and a returned error stops the sequence before step 2. The execution
+// context is an explicit argument (CTX-03), and the decision reads permissions
+// already resolved, reaching no authority of its own (IDN-10). The taxonomy of
 // the authorization error belongs to FND-07 and is not modelled here.
-type AuthorizeFunc[C any] func(ctx context.Context, cmd C) error
+type AuthorizeWithContext[C any] func(ctx context.Context, execution ports.ExecutionContext, cmd C) error
 
-// AllowAll authorizes every command. It is the composition root's explicit
-// choice for a kernel that has no authorization yet, never a silent default.
-func AllowAll[C any]() AuthorizeFunc[C] {
-	return func(context.Context, C) error { return nil }
+// AllowAllWithContext authorizes every operation whatever the context carries.
+// It stays the composition root's explicit choice, never a silent default.
+func AllowAllWithContext[C any]() AuthorizeWithContext[C] {
+	return func(context.Context, ports.ExecutionContext, C) error { return nil }
 }

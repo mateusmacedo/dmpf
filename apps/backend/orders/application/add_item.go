@@ -13,13 +13,13 @@ import (
 // AddItem walks the nine steps of FND-04 §3.2. Identity is resolved before the
 // transaction opens, because a re-execution would mint new identity for the
 // same fact (UOW-09).
-func (s Service) AddItem(ctx context.Context, cmd AddItem) (application.Outcome[domain.ItemAccepted], error) {
+func (s Service) AddItem(ctx context.Context, execution ports.ExecutionContext, cmd AddItem) (application.Outcome[domain.ItemAccepted], error) {
 	var zero application.Outcome[domain.ItemAccepted]
 
 	instrumentation := s.instrumentation()
 	ctx, end := instrumentation.BeginOperation(ctx, OperationAddItem)
 
-	if err := s.Authorize(ctx, cmd); err != nil {
+	if err := s.Authorize(ctx, execution, cmd); err != nil {
 		end(authorizationResult(err))
 		return zero, err
 	}

@@ -4,6 +4,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -45,7 +46,7 @@ func NewService(pool *pgxpool.Pool, clock ports.Clock, ids ports.IDGenerator, wa
 		Reader:    provider.NewReader(pool),
 		Clock:     clock,
 		IDs:       ids,
-		Authorize: usecase.AllowAll[application.Command](),
+		Authorize: usecase.AllowAllWithContext[application.Operation](),
 		Consumer:  ConsumerName,
 	}
 }
@@ -59,7 +60,11 @@ func Handler(service application.Service) app.Handler {
 		if err := envelope.Unpack(env, &placed); err != nil {
 			return usecase.R1D4, usecase.NewFailure(usecase.Validation, false, err)
 		}
-		return service.Consume(ctx, application.ConsumeOrderPlaced{
+		execution, err := executionOf(ctx, env)
+		if err != nil {
+			return usecase.R1D4, usecase.NewFailure(usecase.Validation, false, err)
+		}
+		return service.Consume(ctx, execution, application.ConsumeOrderPlaced{
 			MessageID:   receipt.MessageID,
 			MessageType: receipt.MessageType,
 			PayloadHash: receipt.PayloadHash,
@@ -68,6 +73,50 @@ func Handler(service application.Service) app.Handler {
 			Items:       int(placed.GetItemCount()),
 		})
 	}
+}
+
+// consumerLocale answers a mandatory field of CTX-01 that a consumption has no
+// source for: there is no caller stating a preference on this side.
+const consumerLocale = "en"
+
+// executionOf rebuilds the context of one consumption. The envelope is the
+// trusted boundary for correlation, causation, trace and tenant (CTX-24), the
+// subject stays absent because reconstructing it would be privilege escalation
+// (CTX-25), and identity and deadline are the consumer's own (CTX-28).
+func executionOf(ctx context.Context, env envelope.Envelope) (ports.ExecutionContext, error) {
+	attempt, minted := app.AttemptFrom(ctx)
+	if !minted {
+		return ports.ExecutionContext{}, errors.New("app: the adapter minted no attempt for this consumption")
+	}
+	deadline, governed := ctx.Deadline()
+	if !governed {
+		return ports.ExecutionContext{}, errors.New("app: the adapter governed no time for this consumption")
+	}
+
+	return ports.NewExecutionContext(ports.ExecutionContextSpec{
+		RequestID:     attempt.RequestID,
+		CorrelationID: env.CorrelationID,
+		CausationID:   optional(env.CausationID),
+		TraceContext:  env.TraceParent,
+		Tenant:        tenantOf(env),
+		Deadline:      ports.Instant(deadline.UnixNano()),
+		Locale:        consumerLocale,
+	})
+}
+
+func optional(value string) *string {
+	if value == "" {
+		return nil
+	}
+	return &value
+}
+
+func tenantOf(env envelope.Envelope) *ports.TenantID {
+	if env.TenantID == nil || *env.TenantID == "" {
+		return nil
+	}
+	tenant := ports.TenantID(*env.TenantID)
+	return &tenant
 }
 
 // NewConsumer is the whole consumer: adapter, service and Postgres quarantine.

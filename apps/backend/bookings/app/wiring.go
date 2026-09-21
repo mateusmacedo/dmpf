@@ -60,7 +60,7 @@ func NewBookingsService(pool *pgxpool.Pool) application.Service {
 		ResourceReader: provider.NewBookingsByResourceReader(pool),
 		Clock:          idclock.SystemClock{},
 		IDs:            idclock.NewMessageIDs("bookings"),
-		Authorize:      usecase.AllowAll[application.Command](),
+		Authorize:      usecase.AllowAllWithContext[application.Operation](),
 	}
 }
 

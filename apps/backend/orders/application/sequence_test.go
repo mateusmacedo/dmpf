@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/application"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
 
 var errDenied = errors.New("application_test: denied")
@@ -14,7 +15,7 @@ var errDenied = errors.New("application_test: denied")
 func TestAddItemWalksTheNineStepsInOrder(t *testing.T) {
 	h := newHarness(t)
 
-	if _, err := h.service.AddItem(context.Background(), application.AddItem{Order: orderID, SKU: "ABC", Quantity: 1}); err != nil {
+	if _, err := h.service.AddItem(context.Background(), testExecution(t), application.AddItem{Order: orderID, SKU: "ABC", Quantity: 1}); err != nil {
 		t.Fatalf("AddItem() error = %v, want nil", err)
 	}
 
@@ -37,7 +38,7 @@ func TestPlaceOrderWalksTheNineStepsInOrder(t *testing.T) {
 	h := newHarness(t)
 	h.seed(t, openSnapshot(1), 0)
 
-	if _, err := h.service.PlaceOrder(context.Background(), application.PlaceOrder{Order: orderID}); err != nil {
+	if _, err := h.service.PlaceOrder(context.Background(), testExecution(t), application.PlaceOrder{Order: orderID}); err != nil {
 		t.Fatalf("PlaceOrder() error = %v, want nil", err)
 	}
 
@@ -57,10 +58,10 @@ func TestPlaceOrderWalksTheNineStepsInOrder(t *testing.T) {
 }
 
 func TestADeniedAuthorizationStopsBeforeIdentityAndTransaction(t *testing.T) {
-	deny := func(context.Context, application.Command) error { return errDenied }
+	deny := func(context.Context, ports.ExecutionContext, application.Operation) error { return errDenied }
 	h := newHarness(t, withAuthorize(deny))
 
-	_, err := h.service.AddItem(context.Background(), application.AddItem{Order: orderID, SKU: "ABC", Quantity: 1})
+	_, err := h.service.AddItem(context.Background(), testExecution(t), application.AddItem{Order: orderID, SKU: "ABC", Quantity: 1})
 
 	if !errors.Is(err, errDenied) {
 		t.Fatalf("AddItem() error = %v, want errDenied", err)

@@ -14,7 +14,7 @@ import (
 func TestReserveCreatesTheReservationAndAuthorsTheOutboxEntry(t *testing.T) {
 	h := newSyncHarness(t)
 
-	out, err := h.service.Reserve(context.Background(), application.Reserve{Order: syncOrder, Items: 2})
+	out, err := h.service.Reserve(context.Background(), testExecution(t), application.Reserve{Order: syncOrder, Items: 2})
 
 	if err != nil {
 		t.Fatalf("Reserve() error = %v, want nil", err)
@@ -60,7 +60,7 @@ func TestReserveCopiesTheMessageContextIntoTheOutboxEntry(t *testing.T) {
 		CorrelationID: "corr-1", CausationID: "req-ctx-1", Traceparent: traceparent,
 	})
 
-	if _, err := h.service.Reserve(ctx, application.Reserve{Order: syncOrder, Items: 1}); err != nil {
+	if _, err := h.service.Reserve(ctx, testExecution(t), application.Reserve{Order: syncOrder, Items: 1}); err != nil {
 		t.Fatalf("Reserve() error = %v, want nil", err)
 	}
 
@@ -78,7 +78,7 @@ func TestReserveOnACanceledReservationRejectsWithoutWriting(t *testing.T) {
 	h := newSyncHarness(t)
 	h.seed(t, canceledSnapshot(), 0)
 
-	out, err := h.service.Reserve(context.Background(), application.Reserve{Order: syncOrder, Items: 1})
+	out, err := h.service.Reserve(context.Background(), testExecution(t), application.Reserve{Order: syncOrder, Items: 1})
 
 	if err != nil {
 		t.Fatalf("Reserve() error = %v, want nil — a refusal is not a technical failure (DEC-04)", err)
@@ -104,7 +104,7 @@ func TestReserveOnACanceledReservationRejectsWithoutWriting(t *testing.T) {
 func TestReserveUnderAVersionConflictStopsBeforeTheOutbox(t *testing.T) {
 	h := newSyncHarness(t, withSyncSaveError(ports.ErrVersionConflict))
 
-	_, err := h.service.Reserve(context.Background(), application.Reserve{Order: syncOrder, Items: 1})
+	_, err := h.service.Reserve(context.Background(), testExecution(t), application.Reserve{Order: syncOrder, Items: 1})
 
 	if !errors.Is(err, ports.ErrVersionConflict) {
 		t.Fatalf("Reserve() error = %v, want ErrVersionConflict", err)

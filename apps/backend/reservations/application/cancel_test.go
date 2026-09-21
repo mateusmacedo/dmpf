@@ -13,7 +13,7 @@ import (
 func TestCancelCreatesACanceledReservationAndAuthorsTheOutboxEntry(t *testing.T) {
 	h := newSyncHarness(t)
 
-	out, err := h.service.Cancel(context.Background(), application.Cancel{Order: syncOrder})
+	out, err := h.service.Cancel(context.Background(), testExecution(t), application.Cancel{Order: syncOrder})
 
 	if err != nil {
 		t.Fatalf("Cancel() error = %v, want nil", err)
@@ -50,7 +50,7 @@ func TestCancelOnAConfirmedReservationRejectsWithoutWriting(t *testing.T) {
 	h := newSyncHarness(t)
 	h.seed(t, confirmedSnapshot(2), 0)
 
-	out, err := h.service.Cancel(context.Background(), application.Cancel{Order: syncOrder})
+	out, err := h.service.Cancel(context.Background(), testExecution(t), application.Cancel{Order: syncOrder})
 
 	if err != nil {
 		t.Fatalf("Cancel() error = %v, want nil — a refusal is not a technical failure (DEC-04)", err)

@@ -63,7 +63,7 @@ func newService(pool *pgxpool.Pool) application.Service {
 		Reader:    provider.NewBookingReader(pool),
 		Clock:     fixedClock{},
 		IDs:       &sequenceIDs{},
-		Authorize: usecase.AllowAll[application.Command](),
+		Authorize: usecase.AllowAllWithContext[application.Operation](),
 	}
 }
 
@@ -72,7 +72,7 @@ func TestReserveBookingEndToEnd(t *testing.T) {
 	service := newService(pool)
 	ctx := context.Background()
 
-	outcome, err := service.ReserveBooking(ctx, application.Reserve{
+	outcome, err := service.ReserveBooking(ctx, testExecution(t), application.Reserve{
 		BookingID:  e2eBookingID,
 		ResourceID: e2eResourceID,
 		Quantity:   3,
@@ -114,7 +114,7 @@ func TestReserveBookingEndToEnd(t *testing.T) {
 	t.Run("cancel commits without outbox row", func(t *testing.T) {
 		_, outboxBefore := counts(t, pool)
 
-		cancelOutcome, err := service.CancelBooking(ctx, application.Cancel{
+		cancelOutcome, err := service.CancelBooking(ctx, testExecution(t), application.Cancel{
 			BookingID: e2eBookingID,
 		})
 		if err != nil {

@@ -12,7 +12,7 @@ func TestFindOrderReadsOutsideTheUnitOfWork(t *testing.T) {
 	h := newHarness(t)
 	h.seed(t, openSnapshot(2), 0)
 
-	snapshot, err := h.service.FindOrder(context.Background(), orderID)
+	snapshot, err := h.service.FindOrder(context.Background(), testExecution(t), orderID)
 
 	if err != nil {
 		t.Fatalf("FindOrder() error = %v, want nil", err)
@@ -31,7 +31,7 @@ func TestFindOrderReadsOutsideTheUnitOfWork(t *testing.T) {
 func TestFindOrderReportsErrNotFoundForAnAbsentAggregate(t *testing.T) {
 	h := newHarness(t)
 
-	_, err := h.service.FindOrder(context.Background(), "P-404")
+	_, err := h.service.FindOrder(context.Background(), testExecution(t), "P-404")
 
 	if !errors.Is(err, ports.ErrNotFound) {
 		t.Fatalf("FindOrder() error = %v, want ErrNotFound through the wrapping", err)

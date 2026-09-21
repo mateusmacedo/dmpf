@@ -14,7 +14,7 @@ func TestPlaceOrderAcceptedPlacesTheOrderAndEnqueuesTheFact(t *testing.T) {
 	h := newHarness(t)
 	h.seed(t, openSnapshot(1), 0)
 
-	out, err := h.service.PlaceOrder(context.Background(), application.PlaceOrder{Order: orderID})
+	out, err := h.service.PlaceOrder(context.Background(), testExecution(t), application.PlaceOrder{Order: orderID})
 
 	if err != nil {
 		t.Fatalf("PlaceOrder() error = %v, want nil", err)
@@ -47,7 +47,7 @@ func TestPlaceOrderRejectedCommitsWithoutWriting(t *testing.T) {
 	h := newHarness(t)
 	h.seed(t, openSnapshot(0), 0)
 
-	out, err := h.service.PlaceOrder(context.Background(), application.PlaceOrder{Order: orderID})
+	out, err := h.service.PlaceOrder(context.Background(), testExecution(t), application.PlaceOrder{Order: orderID})
 
 	if err != nil {
 		t.Fatalf("PlaceOrder() error = %v, want nil", err)
@@ -79,7 +79,7 @@ func TestPlaceOrderKeepsNothingWhenTheCommitFailsWhileLoading(t *testing.T) {
 	h.seed(t, openSnapshot(1), 0)
 	h.store.FailNextCommit(errCommitFailed)
 
-	out, err := h.service.PlaceOrder(context.Background(), application.PlaceOrder{Order: orderID})
+	out, err := h.service.PlaceOrder(context.Background(), testExecution(t), application.PlaceOrder{Order: orderID})
 
 	if !errors.Is(err, errCommitFailed) {
 		t.Fatalf("PlaceOrder() error = %v, want errCommitFailed", err)
@@ -102,7 +102,7 @@ func TestPlaceOrderKeepsNothingWhenTheCommitFailsWhileLoading(t *testing.T) {
 func TestPlaceOrderReportsErrNotFoundForAnAbsentAggregate(t *testing.T) {
 	h := newHarness(t)
 
-	out, err := h.service.PlaceOrder(context.Background(), application.PlaceOrder{Order: "P-200"})
+	out, err := h.service.PlaceOrder(context.Background(), testExecution(t), application.PlaceOrder{Order: "P-200"})
 
 	if !errors.Is(err, ports.ErrNotFound) {
 		t.Fatalf("PlaceOrder() error = %v, want ErrNotFound through the wrapping", err)

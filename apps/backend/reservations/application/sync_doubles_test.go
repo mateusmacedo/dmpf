@@ -106,14 +106,14 @@ type syncOption func(*syncSetup)
 
 type syncSetup struct {
 	saveErr   error
-	authorize usecase.AuthorizeFunc[application.Command]
+	authorize usecase.AuthorizeWithContext[application.Operation]
 }
 
 func withSyncSaveError(err error) syncOption {
 	return func(s *syncSetup) { s.saveErr = err }
 }
 
-func withSyncAuthorize(authorize usecase.AuthorizeFunc[application.Command]) syncOption {
+func withSyncAuthorize(authorize usecase.AuthorizeWithContext[application.Operation]) syncOption {
 	return func(s *syncSetup) { s.authorize = authorize }
 }
 
@@ -121,7 +121,7 @@ func newSyncHarness(t *testing.T, options ...syncOption) *syncHarness {
 	t.Helper()
 
 	h := &syncHarness{store: memory.New(), rec: &syncRecorder{}}
-	cfg := &syncSetup{authorize: usecase.AllowAll[application.Command]()}
+	cfg := &syncSetup{authorize: usecase.AllowAllWithContext[application.Operation]()}
 	for _, apply := range options {
 		apply(cfg)
 	}
@@ -141,9 +141,9 @@ func newSyncHarness(t *testing.T, options ...syncOption) *syncHarness {
 		Reader: reservationsTable.Reader(h.store),
 		Clock:  syncClock{inner: memory.FixedClock{At: syncOccurred}, rec: h.rec},
 		IDs:    syncIDs{inner: &memory.SequenceIDs{Prefix: "m-"}, rec: h.rec},
-		Authorize: func(ctx context.Context, cmd application.Command) error {
+		Authorize: func(ctx context.Context, execution ports.ExecutionContext, cmd application.Operation) error {
 			h.rec.record("authorize")
-			return authorize(ctx, cmd)
+			return authorize(ctx, execution, cmd)
 		},
 		Consumer: consumer,
 	}

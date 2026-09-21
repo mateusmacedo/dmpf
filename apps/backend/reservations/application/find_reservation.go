@@ -10,9 +10,15 @@ import (
 )
 
 // FindReservation reads through Reader, never through UoW: a query neither
-// opens a transaction nor writes the outbox (UOW-11).
-func (s Service) FindReservation(ctx context.Context, id domain.OrderID) (domain.Snapshot, error) {
+// opens a transaction nor writes the outbox (UOW-11). It still walks step 1
+// first, because authenticating at the route is not permission to read.
+func (s Service) FindReservation(ctx context.Context, execution ports.ExecutionContext, id domain.OrderID) (domain.Snapshot, error) {
 	ctx, end := s.instrumentation().BeginOperation(ctx, OperationFindReservation)
+
+	if err := s.Authorize(ctx, execution, FindReservation{Order: id}); err != nil {
+		end(authorizationResult(err))
+		return domain.Snapshot{}, err
+	}
 
 	snapshot, _, err := s.Reader.Load(ctx, id)
 	if err != nil {

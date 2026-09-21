@@ -38,9 +38,10 @@ type Resources struct {
 	Outbox ports.Outbox
 }
 
-// Command is the closed union of this service's commands, so one AuthorizeFunc
-// covers every entry point. The marker is unexported: no other package widens it.
-type Command interface{ isCommand() }
+// Operation is the closed union of this service's entry points, writes and
+// queries alike, so one authorizer covers every one of them. The marker is
+// unexported: no other package widens the union.
+type Operation interface{ isOperation() }
 
 // AddItem asks the order to take one more item.
 type AddItem struct {
@@ -49,14 +50,23 @@ type AddItem struct {
 	Quantity int
 }
 
-func (AddItem) isCommand() {}
+func (AddItem) isOperation() {}
 
 // PlaceOrder asks the order to be placed.
 type PlaceOrder struct {
 	Order domain.OrderID
 }
 
-func (PlaceOrder) isCommand() {}
+func (PlaceOrder) isOperation() {}
+
+// FindOrder asks for the current state of one order. A query is an entry point
+// like any other: authenticating at the route does not stand for permission to
+// read what the operation returns.
+type FindOrder struct {
+	Order domain.OrderID
+}
+
+func (FindOrder) isOperation() {}
 
 // Service is the reference application service of the kernel: it walks the nine
 // steps of FND-04 §3.2 over the orders aggregate. README.md maps each step to
@@ -67,7 +77,7 @@ type Service struct {
 
 	Clock     ports.Clock
 	IDs       ports.IDGenerator
-	Authorize application.AuthorizeFunc[Command]
+	Authorize application.AuthorizeWithContext[Operation]
 	ItemLimit int
 
 	Instrumentation ports.Instrumentation

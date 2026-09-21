@@ -16,7 +16,7 @@ var errCommitFailed = errors.New("application_test: commit failed")
 func TestAddItemCreatesTheAggregateAndAuthorsTheOutboxEntry(t *testing.T) {
 	h := newHarness(t)
 
-	out, err := h.service.AddItem(context.Background(), application.AddItem{Order: orderID, SKU: "ABC", Quantity: 1})
+	out, err := h.service.AddItem(context.Background(), testExecution(t), application.AddItem{Order: orderID, SKU: "ABC", Quantity: 1})
 
 	if err != nil {
 		t.Fatalf("AddItem() error = %v, want nil", err)
@@ -70,7 +70,7 @@ func TestAddItemCopiesTheMessageContextIntoTheOutboxEntry(t *testing.T) {
 	const traceparent = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01"
 	ctx := ports.WithMessageContext(context.Background(), ports.MessageContext{CorrelationID: "corr-1", Traceparent: traceparent})
 
-	if _, err := h.service.AddItem(ctx, application.AddItem{Order: orderID, SKU: "ABC", Quantity: 1}); err != nil {
+	if _, err := h.service.AddItem(ctx, testExecution(t), application.AddItem{Order: orderID, SKU: "ABC", Quantity: 1}); err != nil {
 		t.Fatalf("AddItem() error = %v, want nil", err)
 	}
 
@@ -88,7 +88,7 @@ func TestAddItemLoadsAnExistingAggregate(t *testing.T) {
 	h := newHarness(t)
 	h.seed(t, openSnapshot(1), 0)
 
-	out, err := h.service.AddItem(context.Background(), application.AddItem{Order: orderID, SKU: "XYZ", Quantity: 2})
+	out, err := h.service.AddItem(context.Background(), testExecution(t), application.AddItem{Order: orderID, SKU: "XYZ", Quantity: 2})
 
 	if err != nil {
 		t.Fatalf("AddItem() error = %v, want nil", err)
@@ -113,7 +113,7 @@ func TestAddItemRejectedCommitsWithoutWriting(t *testing.T) {
 	h.seed(t, openSnapshot(itemLimit), 0)
 	before, versionBefore, _ := ordersTable.Reader(h.store).Load(context.Background(), orderID)
 
-	out, err := h.service.AddItem(context.Background(), application.AddItem{Order: orderID, SKU: "XYZ", Quantity: 1})
+	out, err := h.service.AddItem(context.Background(), testExecution(t), application.AddItem{Order: orderID, SKU: "XYZ", Quantity: 1})
 
 	if err != nil {
 		t.Fatalf("AddItem() error = %v, want nil — a refusal is not a technical failure (DEC-04)", err)
@@ -151,7 +151,7 @@ func TestAddItemKeepsNothingWhenTheCommitFailsWhileCreating(t *testing.T) {
 	h := newHarness(t)
 	h.store.FailNextCommit(errCommitFailed)
 
-	out, err := h.service.AddItem(context.Background(), application.AddItem{Order: orderID, SKU: "ABC", Quantity: 1})
+	out, err := h.service.AddItem(context.Background(), testExecution(t), application.AddItem{Order: orderID, SKU: "ABC", Quantity: 1})
 
 	if !errors.Is(err, errCommitFailed) {
 		t.Fatalf("AddItem() error = %v, want errCommitFailed", err)
@@ -172,7 +172,7 @@ func TestAddItemUnderAVersionConflictStopsBeforeTheOutbox(t *testing.T) {
 	h.seed(t, openSnapshot(1), 0)
 	h.seed(t, openSnapshot(1), 1)
 
-	_, err := h.service.AddItem(context.Background(), application.AddItem{Order: orderID, SKU: "XYZ", Quantity: 1})
+	_, err := h.service.AddItem(context.Background(), testExecution(t), application.AddItem{Order: orderID, SKU: "XYZ", Quantity: 1})
 
 	if !errors.Is(err, ports.ErrVersionConflict) {
 		t.Fatalf("AddItem() error = %v, want ErrVersionConflict", err)
