@@ -110,7 +110,10 @@ A norma define o critério; a realização em Go é desta spec.
 
 - [ ] **[P0] Autenticação antes do contexto**: a borda HTTP resolve o sujeito pelas três condições de `IDN-01` e só então monta o contexto. Requisição não autenticada em operação que exige sujeito é negada.
 - [ ] **[P0] Subject e tenant nunca da entrada**: nenhum header, query ou corpo é fonte de `authenticated_subject` ou `tenant_id`; divergência recusa a requisição (`CTX-06`).
-- [ ] **[P0] Consumo assíncrono**: o consumer monta contexto a partir da entrada autenticada de `IDN-04` — integridade do envelope mais confiança da fronteira de transporte. Mensagem que não satisfaça as duas não produz contexto.
+- [ ] **[P0] Consumo assíncrono**: o consumer monta contexto a partir da entrada autenticada de `IDN-04` — integridade do envelope mais confiança da fronteira de transporte. Mensagem que não satisfaça as duas não produz contexto: ela é contida, e a disposição da contenção é de FND-04 (`CTX-27`).
+- [ ] **[P0] No consumo o contexto é reconstruído, não resolvido**: `correlation_id`, `causation_id`, `trace_context` e `tenant_id` vêm dos atributos do envelope, com a autoridade de representação de `ENV-14`, nunca de campo do payload (`CTX-24`). O sujeito **não** é reconstruído do envelope como identidade autorizadora — reconstruí-lo seria elevação de privilégio diferida, porque qualquer produtor que publique no tópico escolheria com que identidade o consumidor age; o consumidor opera com a identidade do próprio workload e o sujeito de origem é proveniência (`CTX-25`). Tenant ausente é cadeia de plataforma sem sujeito, na forma de `ENV-12`, sem default, `system` nem valor sintético (`CTX-26`).
+- [ ] **[P0] Identidade e prazo próprios do consumidor**: o contexto reconstruído tem `request_id` próprio, por tentativa de processamento, e `deadline` próprio, montado pela política do consumidor. Nenhum dos dois é lido do envelope (`CTX-28`).
+- [ ] **[P0] Prazo regenerado pela política de borda**: no ingress, `deadline` é regenerado pela política da borda, restringida por FND-07 §3.5, e valor da entrada que **amplie** o prazo é fonte proibida. Uma borda que não governa o tempo não tem instante a declarar, e portanto não satisfaz o campo obrigatório de `CTX-01` — preencher o campo sem governar o prazo é declarar um limite que nada impõe.
 - [ ] **[P1] Correlação preservada como hoje**: `correlation_id` de fronteira confiável é preservado, e gerado quando ausente, malformado ou de fronteira não confiável (`CTX-07`). O comportamento atual do BFF já satisfaz e é mantido.
 
 **C. Passagem explícita e autorização**
@@ -288,6 +291,8 @@ apps/backend/{orders,reservations}/provider/ escopo de tenant
 - [P0] A autorização ocorre antes de a Unit of Work ser iniciada (`IDN-07`) e não faz I/O (`IDN-10`).
 - [P0] O tipo vive no `port`; a instância é montada no `app` (`CTX-02`).
 - [P0] O isolamento de tenant não depende de convenção de código (`IDN-14`).
+- [P0] No consumo, `request_id` e `deadline` são próprios do consumidor, por tentativa, e nunca lidos do envelope (`CTX-28`); o sujeito não é reconstruído do envelope como identidade autorizadora (`CTX-25`).
+- [P0] `deadline` é regenerado pela política de borda no ingress e por tentativa no consumo; valor da entrada que amplie o prazo é fonte proibida (FND-07 §3.5).
 - [P0] Os gates DMPF existentes seguem verdes.
 </critical_constraints>
 
