@@ -9,6 +9,7 @@ import (
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/app/relay"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/envconfig"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/deadline"
 )
 
 // Role selects which process the binary becomes (BLK-02: the relay never
@@ -52,9 +53,10 @@ const (
 type Config struct {
 	Role Role
 
-	DSN      string
-	HTTPAddr string
-	Migrate  bool
+	DSN         string
+	HTTPAddr    string
+	Migrate     bool
+	RouteBudget deadline.Budget
 
 	Brokers       []string
 	KafkaInsecure bool
@@ -88,6 +90,13 @@ func FromEnv(role Role, lookup func(string) string) (Config, error) {
 		Version:       envconfig.OrDefault(lookup(envServiceVersion), "0.0.0"),
 		Instance:      envconfig.OrDefault(lookup(envInstanceID), envconfig.Hostname()),
 		Brokers:       envconfig.SplitList(lookup(envBrokers)),
+		RouteBudget: deadline.Budget{
+			Dependency:        "postgres",
+			Method:            "route",
+			Limit:             2 * time.Second,
+			Slack:             200 * time.Millisecond,
+			EstimatedDuration: 200 * time.Millisecond,
+		},
 		Relay: relay.Config{
 			Source:         "urn:dmpf:reference-bookings",
 			Interval:       500 * time.Millisecond,

@@ -13,6 +13,9 @@ import (
 	"net/http/httptest"
 	"sync"
 	"testing"
+	"time"
+
+	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/deadline"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -56,16 +59,17 @@ func newMux(pool *pgxpool.Pool) *http.ServeMux {
 		IDs:            &sequenceIDs{},
 		Authorize:      usecase.AllowAll[application.Command](),
 	}
-	h := httpedge.Handlers{Service: service}
+	return httpedge.Mux(service, e2eBudget)
+}
 
-	mux := http.NewServeMux()
-	routes := httpedge.Routes()
-	mux.HandleFunc(routes[0].Method+" "+routes[0].Path, h.ReserveBooking)
-	mux.HandleFunc(routes[1].Method+" "+routes[1].Path, h.CancelBooking)
-	mux.HandleFunc(routes[2].Method+" "+routes[2].Path, h.RegisterResource)
-	mux.HandleFunc(routes[3].Method+" "+routes[3].Path, h.FindBooking)
-	mux.HandleFunc("GET /bookings/booking", h.FindBookingByResource)
-	return mux
+// WHY: the suite exercises the mux the process serves, middleware included, so
+// a route that only answers without the edge's time policy fails here.
+var e2eBudget = deadline.Budget{
+	Dependency:        "postgres",
+	Method:            "route",
+	Limit:             5 * time.Second,
+	Slack:             200 * time.Millisecond,
+	EstimatedDuration: 200 * time.Millisecond,
 }
 
 func TestReserveBookingHTTPEndToEnd(t *testing.T) {

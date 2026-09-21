@@ -19,6 +19,7 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/idclock"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/otelboot"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/deadline"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -63,20 +64,8 @@ func NewBookingsService(pool *pgxpool.Pool) application.Service {
 	}
 }
 
-// NewMux binds every declared route to its handler, so a route the contract
-// names and nobody serves fails to compile rather than at the first call.
-func NewMux(service application.Service) *http.ServeMux {
-	h := httpedge.Handlers{Service: service}
-	routes := httpedge.Routes()
-	handlers := [5]http.HandlerFunc{
-		h.ReserveBooking, h.CancelBooking, h.RegisterResource, h.FindBooking, h.FindBookingByResource,
-	}
-
-	mux := http.NewServeMux()
-	for i, route := range routes {
-		mux.HandleFunc(route.Method+" "+route.Path, handlers[i])
-	}
-	return mux
+func NewMux(service application.Service, budget deadline.Budget) *http.ServeMux {
+	return httpedge.Mux(service, budget)
 }
 
 func serveAPI(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {
@@ -94,7 +83,7 @@ func serveAPI(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {
 		return fmt.Errorf("postgres: %w", err)
 	}
 
-	server := &http.Server{Addr: cfg.HTTPAddr, Handler: NewMux(NewBookingsService(pool))}
+	server := &http.Server{Addr: cfg.HTTPAddr, Handler: NewMux(NewBookingsService(pool), cfg.RouteBudget)}
 	failed := make(chan error, 1)
 	go func() { failed <- server.ListenAndServe() }()
 	rt.Logger().InfoContext(ctx, "http listening", "addr", cfg.HTTPAddr)
