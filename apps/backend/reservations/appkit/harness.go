@@ -25,6 +25,8 @@ const (
 	Wait = 2 * time.Second
 	// MaxAttempts is the GAR-08 limit the harness declares.
 	MaxAttempts = 2
+	// Timeout is the consumer's own time policy, which CTX-28 makes mandatory.
+	Timeout = 10 * time.Second
 )
 
 // Harness is KIT-05: the consumer adapter composed with its concrete
@@ -42,7 +44,7 @@ func NewReservations(t testing.TB, clock ports.Clock, ids ports.IDGenerator) Har
 	t.Helper()
 	pool := pg.OpenPool(t)
 	return Harness{
-		Consumer: app.NewConsumer(pool, clock, ids, Wait, MaxAttempts),
+		Consumer: app.NewConsumer(pool, clock, ids, Wait, Timeout, MaxAttempts),
 		Pool:     pool,
 	}
 }

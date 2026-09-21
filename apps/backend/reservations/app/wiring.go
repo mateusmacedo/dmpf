@@ -113,7 +113,7 @@ func serveAPI(ctx context.Context, cfg Config, rt *otelboot.Runtime, out io.Writ
 // NewReservationsConsumer is the consumer adapter with the attempt limit of the
 // channel it consumes (ADR-039: the two must agree).
 func NewReservationsConsumer(pool *pgxpool.Pool, cfg Config, ch channel.Channel) app.Consumer {
-	return NewConsumer(pool, idclock.SystemClock{}, idclock.NewMessageIDs("reservations"), cfg.Wait, ch.Retry.MaxAttempts)
+	return NewConsumer(pool, idclock.SystemClock{}, idclock.NewMessageIDs("reservations"), cfg.Wait, cfg.ConsumerTimeout, ch.Retry.MaxAttempts)
 }
 
 func runConsumer(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {

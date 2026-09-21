@@ -5,6 +5,7 @@ package app
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/contracts/envelope"
@@ -15,7 +16,7 @@ import (
 // ErrIncompleteConsumer is what Consume reports when a collaborator is missing;
 // the adapter has no defaults to fall back on, because every value here is the
 // caller's declaration (FND-08 catalogues them, this block only demands them).
-var ErrIncompleteConsumer = errors.New("app: consumer requires name, handler, containment and clock")
+var ErrIncompleteConsumer = errors.New("app: consumer requires name, handler, containment, clock and timeout")
 
 // ErrUnknownDisposition is what Consume reports when the handler returns a value
 // outside the seven of §6.4. It is a defect, but the adapter is the border
@@ -45,6 +46,11 @@ type Consumer struct {
 	Handle      Handler
 	Containment ports.Containment
 	Clock       ports.Clock
+
+	// Timeout is the time policy of this consumer, applied per attempt. CTX-28
+	// makes the deadline the consumer's own, so the adapter demands one rather
+	// than handing the handler an execution with no limit to declare.
+	Timeout time.Duration
 }
 
 // Outcome is what the adapter did with one delivery. Classified is false only
@@ -61,7 +67,7 @@ type Outcome struct {
 // broker effect strictly after the handler returned (INB-08). The error is the
 // handler's own under D3/D4, or the broker's or quarantine's when they fail.
 func (c Consumer) Consume(ctx context.Context, d Delivery, ack ports.Acknowledger) (Outcome, error) {
-	if c.Name == "" || c.Handle == nil || c.Containment == nil || c.Clock == nil {
+	if c.Name == "" || c.Handle == nil || c.Containment == nil || c.Clock == nil || c.Timeout <= 0 {
 		return Outcome{}, ErrIncompleteConsumer
 	}
 
@@ -89,7 +95,11 @@ func (c Consumer) Consume(ctx context.Context, d Delivery, ack ports.Acknowledge
 		CausationID:   env.ID,
 		Traceparent:   env.TraceParent,
 	})
-	disposition, handleErr := c.Handle(ctx, receipt, env)
+	ctx = WithAttempt(ctx, Attempt{RequestID: newAttemptID(), Number: d.Attempt})
+
+	handleCtx, cancel := context.WithTimeout(ctx, c.Timeout)
+	defer cancel()
+	disposition, handleErr := c.Handle(handleCtx, receipt, env)
 	outcome := Outcome{Disposition: disposition, Classified: true}
 
 	switch disposition {

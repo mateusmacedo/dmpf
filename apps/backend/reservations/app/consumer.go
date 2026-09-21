@@ -73,12 +73,13 @@ func Handler(service application.Service) app.Handler {
 // NewConsumer is the whole consumer: adapter, service and Postgres quarantine.
 // maxAttempts <= 0 disables the attempt limit (GAR-08 fixes that one exists;
 // the value is FND-08's).
-func NewConsumer(pool *pgxpool.Pool, clock ports.Clock, ids ports.IDGenerator, wait time.Duration, maxAttempts int) app.Consumer {
+func NewConsumer(pool *pgxpool.Pool, clock ports.Clock, ids ports.IDGenerator, wait, timeout time.Duration, maxAttempts int) app.Consumer {
 	return app.Consumer{
 		Name:        ConsumerName,
 		MaxAttempts: maxAttempts,
 		Handle:      Handler(NewService(pool, clock, ids, wait)),
 		Containment: postgres.NewQuarantine(pool),
 		Clock:       clock,
+		Timeout:     timeout,
 	}
 }

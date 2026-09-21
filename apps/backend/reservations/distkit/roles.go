@@ -55,7 +55,7 @@ func RunRole(t *testing.T) {
 		produce(t, ctx, cfg, plan)
 	case RoleConsumer:
 		pool := openPool(t)
-		consume(t, ctx, cfg, ch, adapterSink{consumer: app.NewConsumer(pool, clock.New(at), &ids.Sequence{Prefix: "m-"}, appkit.Wait, appkit.MaxAttempts)})
+		consume(t, ctx, cfg, ch, adapterSink{consumer: app.NewConsumer(pool, clock.New(at), &ids.Sequence{Prefix: "m-"}, appkit.Wait, appkit.Timeout, appkit.MaxAttempts)})
 	case RoleNaiveConsumer:
 		consume(t, ctx, cfg, ch, naiveSink{pool: openPool(t)})
 	default:
