@@ -60,7 +60,7 @@ func newService(pool *pgxpool.Pool) application.Service {
 	}
 	return application.Service{
 		UoW:       postgres.NewUnitOfWork(pool, bind),
-		Reader:    provider.NewBookingReader(pool),
+		Reader:    provider.NewBookingReader(postgres.NewReadPool(pool)),
 		Clock:     fixedClock{},
 		IDs:       &sequenceIDs{},
 		Authorize: usecase.AllowAll[application.Operation](),
@@ -85,7 +85,7 @@ func TestReserveBookingEndToEnd(t *testing.T) {
 	}
 
 	t.Run("the booking is persisted", func(t *testing.T) {
-		snap, version, err := provider.NewBookingReader(pool).Load(withExecution(t, ctx), e2eBookingID)
+		snap, version, err := provider.NewBookingReader(postgres.NewReadPool(pool)).Load(withExecution(t, ctx), e2eBookingID)
 		if err != nil {
 			t.Fatalf("Load() = %v", err)
 		}
@@ -124,7 +124,7 @@ func TestReserveBookingEndToEnd(t *testing.T) {
 			t.Fatal("CancelBooking() was rejected, want accepted")
 		}
 
-		snap, version, err := provider.NewBookingReader(pool).Load(withExecution(t, ctx), e2eBookingID)
+		snap, version, err := provider.NewBookingReader(postgres.NewReadPool(pool)).Load(withExecution(t, ctx), e2eBookingID)
 		if err != nil {
 			t.Fatalf("Load() = %v", err)
 		}

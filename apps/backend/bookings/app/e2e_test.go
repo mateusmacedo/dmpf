@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/mateusmacedo/dmpf/apps/backend/bookings/app"
 	httpedge "github.com/mateusmacedo/dmpf/apps/backend/bookings/app/http"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/pg"
 	"net/http"
@@ -19,7 +20,6 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/authn"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
@@ -54,11 +54,11 @@ func newMux(pool *pgxpool.Pool) *http.ServeMux {
 	}
 	service := application.Service{
 		UoW:            postgres.NewUnitOfWork(pool, bind),
-		Reader:         provider.NewBookingReader(pool),
-		ResourceReader: provider.NewBookingsByResourceReader(pool),
+		Reader:         provider.NewBookingReader(postgres.NewReadPool(pool)),
+		ResourceReader: provider.NewBookingsByResourceReader(postgres.NewReadPool(pool)),
 		Clock:          fixedClock{},
 		IDs:            &sequenceIDs{},
-		Authorize:      usecase.AllowAll[application.Operation](),
+		Authorize:      app.Authorization(),
 	}
 	return httpedge.Mux(service, e2eBudget, authn.DevAuthenticator{})
 }
@@ -66,7 +66,10 @@ func newMux(pool *pgxpool.Pool) *http.ServeMux {
 // e2eCredential is what a caller presents: the development mock resolves the
 // identity from the declaration itself, which is why the start refuses it
 // outside DMPF_AUTH_DEV_MOCK.
-const e2eCredential = `Bearer {"sub":"s-e2e","tenant":"acme","permissions":[]}`
+const e2eCredential = `Bearer {"sub":"s-e2e","tenant":"acme","permissions":["bookings:write","bookings:read"]}`
+
+// e2eReadOnly authenticates in the same tenant without the write permission.
+const e2eReadOnly = `Bearer {"sub":"s-e2e","tenant":"acme","permissions":["bookings:read"]}`
 
 // WHY: the suite exercises the mux the process serves, middleware included, so
 // a route that only answers without the edge's time policy fails here.
@@ -182,5 +185,59 @@ func TestReserveBookingHTTPRejectsInvalidQuantity(t *testing.T) {
 
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400; body: %s", rec.Code, rec.Body.String())
+	}
+}
+
+// IDN-06 and IDN-08 at the edge: an authenticated subject of the right tenant
+// without the write permission is refused as forbidden, never as unauthenticated
+// and never as an internal failure, and nothing is written.
+func TestReserveBookingWithoutThePermissionIsForbidden(t *testing.T) {
+	pool := pg.OpenPool(t, "bookings_booking", "bookings_resource")
+	mux := newMux(pool)
+
+	body, _ := json.Marshal(map[string]any{"bookingId": "http-b-403", "resourceId": "http-r-403", "quantity": 1})
+	req := httptest.NewRequest(http.MethodPost, "/bookings/booking", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", e2eReadOnly)
+	req.Header.Set("Idempotency-Key", "idem-403")
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403; body: %s", rec.Code, rec.Body.String())
+	}
+	var count int
+	if err := pool.QueryRow(context.Background(), "SELECT count(*) FROM dmpf_outbox").Scan(&count); err != nil {
+		t.Fatalf("count outbox: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("outbox rows = %d, want 0: authorization is step 1, before any write (IDN-07)", count)
+	}
+}
+
+// CTX-06 at the edge: a header asserting another tenant than the credential
+// resolved is refused, and nothing is written under either tenant.
+func TestAHeaderAssertingAnotherTenantIsRefused(t *testing.T) {
+	pool := pg.OpenPool(t, "bookings_booking", "bookings_resource")
+	mux := newMux(pool)
+
+	body, _ := json.Marshal(map[string]any{"bookingId": "http-b-406", "resourceId": "http-r-406", "quantity": 1})
+	req := httptest.NewRequest(http.MethodPost, "/bookings/booking", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", e2eCredential)
+	req.Header.Set("Idempotency-Key", "idem-406")
+	req.Header.Set("X-Tenant-ID", "globex")
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403; body: %s", rec.Code, rec.Body.String())
+	}
+	var count int
+	if err := pool.QueryRow(context.Background(), "SELECT count(*) FROM dmpf_outbox").Scan(&count); err != nil {
+		t.Fatalf("count outbox: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("outbox rows = %d, want 0", count)
 	}
 }

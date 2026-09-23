@@ -203,6 +203,8 @@ func writeFailure(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, ports.ErrNotFound):
 		writeRejection(w, http.StatusNotFound, "not-found", "aggregate not found")
+	case errors.Is(err, ports.ErrDenied):
+		writeRejection(w, http.StatusForbidden, "forbidden", "permission denied")
 	default:
 		writeRejection(w, http.StatusInternalServerError, "internal", "internal error")
 	}

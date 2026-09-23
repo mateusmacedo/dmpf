@@ -32,15 +32,15 @@ type Harness struct {
 func NewBookings(t testing.TB, clock ports.Clock, ids ports.IDGenerator) Harness {
 	t.Helper()
 	pool := pg.OpenPool(t, Tables...)
-	if err := provider.Migrate(context.Background(), pool); err != nil {
+	if err := postgres.Migrate(context.Background(), pool, provider.Schema); err != nil {
 		t.Fatalf("appkit.NewBookings: Migrate: %v", err)
 	}
 	pg.ResetTables(t, pool, Tables...)
 	return Harness{
 		Service: application.Service{
 			UoW:            postgres.NewUnitOfWork(pool, bind),
-			Reader:         provider.NewBookingReader(pool),
-			ResourceReader: provider.NewBookingsByResourceReader(pool),
+			Reader:         provider.NewBookingReader(postgres.NewReadPool(pool)),
+			ResourceReader: provider.NewBookingsByResourceReader(postgres.NewReadPool(pool)),
 			Clock:          clock,
 			IDs:            ids,
 			Authorize:      kernel.AllowAll[application.Operation](),

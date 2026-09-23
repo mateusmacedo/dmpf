@@ -12,13 +12,14 @@ import (
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/application"
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/provider"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/app/relay"
-	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/authn"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/kafka"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/audit"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/boot"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/idclock"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/otelboot"
+	obsusecase "github.com/mateusmacedo/dmpf/libs/backend/go/observability/usecase"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/deadline"
@@ -28,16 +29,16 @@ import (
 
 func Run(ctx context.Context, cfg Config, out io.Writer) error {
 	return boot.Boot(ctx, out, TelemetryOf(cfg), func(ctx context.Context, rt *otelboot.Runtime) error {
-		return RunWith(ctx, cfg, rt)
+		return RunWith(ctx, cfg, rt, out)
 	})
 }
 
 // RunWith is the delegate a caller that already owns the telemetry enters by,
 // which is what the harnesses use.
-func RunWith(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {
+func RunWith(ctx context.Context, cfg Config, rt *otelboot.Runtime, out io.Writer) error {
 	switch cfg.Role {
 	case RoleAPI:
-		return serveAPI(ctx, cfg, rt)
+		return serveAPI(ctx, cfg, rt, out)
 	case RoleRelay:
 		return runRelay(ctx, cfg, rt)
 	default:
@@ -54,15 +55,19 @@ func bindBookings(tx *postgres.Tx) application.Resources {
 }
 
 // NewBookingsService assembles the use cases over Postgres, which is the one
-// place the concrete providers of this context are instantiated (ADR-015).
-func NewBookingsService(pool *pgxpool.Pool) application.Service {
+// place the concrete providers of this context are instantiated (ADR-015),
+// with the instrumentation of FND-08 and the audit trail written to auditOut.
+func NewBookingsService(pool *pgxpool.Pool, rt *otelboot.Runtime, cfg Config, auditOut io.Writer) application.Service {
 	return application.Service{
 		UoW:            postgres.NewUnitOfWork(pool, bindBookings),
-		Reader:         provider.NewBookingReader(pool),
-		ResourceReader: provider.NewBookingsByResourceReader(pool),
+		Reader:         provider.NewBookingReader(postgres.NewReadPool(pool)),
+		ResourceReader: provider.NewBookingsByResourceReader(postgres.NewReadPool(pool)),
 		Clock:          idclock.SystemClock{},
 		IDs:            idclock.NewMessageIDs("bookings"),
-		Authorize:      usecase.AllowAll[application.Operation](),
+		Authorize:      Authorization(),
+		Instrumentation: obsusecase.New(rt,
+			audit.NewEnvelopeSink(auditOut, audit.Identity{Service: cfg.Service, Version: cfg.Version, Instance: cfg.Instance}),
+			carrierSubject, nil, application.OperationFindBooking, application.OperationFindByResource),
 	}
 }
 
@@ -80,14 +85,14 @@ func Authenticator(ctx context.Context, cfg Config) (ports.Authenticator, error)
 	return authn.NewVerifier(ctx, cfg.Auth)
 }
 
-func serveAPI(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {
+func serveAPI(ctx context.Context, cfg Config, rt *otelboot.Runtime, out io.Writer) error {
 	pool, err := postgres.NewPool(ctx, cfg.DSN, rt.Tracer())
 	if err != nil {
 		return err
 	}
 	defer pool.Close()
 	if cfg.Migrate {
-		if err := postgres.Migrate(ctx, pool); err != nil {
+		if err := postgres.Migrate(ctx, pool, provider.Schema); err != nil {
 			return fmt.Errorf("migrate: %w", err)
 		}
 	}
@@ -99,7 +104,7 @@ func serveAPI(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {
 	if err != nil {
 		return fmt.Errorf("authenticator: %w", err)
 	}
-	server := &http.Server{Addr: cfg.HTTPAddr, Handler: NewMux(NewBookingsService(pool), cfg.RouteBudget, authenticator)}
+	server := &http.Server{Addr: cfg.HTTPAddr, Handler: NewMux(NewBookingsService(pool, rt, cfg, out), cfg.RouteBudget, authenticator)}
 	failed := make(chan error, 1)
 	go func() { failed <- server.ListenAndServe() }()
 	rt.Logger().InfoContext(ctx, "http listening", "addr", cfg.HTTPAddr)

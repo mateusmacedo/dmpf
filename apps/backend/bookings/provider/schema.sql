@@ -63,3 +63,8 @@ END $$;
 DROP INDEX IF EXISTS bookings_booking_resource_id_idx;
 CREATE INDEX IF NOT EXISTS bookings_booking_tenant_resource_idx
   ON bookings_booking (tenant_id, resource_id);
+
+-- The cross-tenant probe of the kernel Table (IDN-12) looks the identifier up
+-- without the tenant, and the composite PK leads with tenant_id.
+CREATE INDEX IF NOT EXISTS bookings_booking_booking_id_idx ON bookings_booking (booking_id);
+CREATE INDEX IF NOT EXISTS bookings_resource_code_idx ON bookings_resource (code);

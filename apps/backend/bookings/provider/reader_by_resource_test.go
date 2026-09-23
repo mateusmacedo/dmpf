@@ -13,6 +13,7 @@ import (
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/domain"
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/provider"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
 )
 
 const (
@@ -55,7 +56,7 @@ func TestLoadByResourceReturnsOnlyTheBookingsOfThatResource(t *testing.T) {
 	saveBooking(t, pool, "b-query-2", queriedResource)
 	saveBooking(t, pool, "b-other-1", otherResource)
 
-	reader := provider.NewBookingsByResourceReader(pool)
+	reader := provider.NewBookingsByResourceReader(postgres.NewReadPool(pool))
 
 	found, err := reader.LoadByResource(withExecution(t, context.Background()), queriedResource)
 	if err != nil {
@@ -87,7 +88,7 @@ func TestLoadByResourceReturnsEmptyForUnknownResource(t *testing.T) {
 
 	saveBooking(t, pool, "b-query-1", queriedResource)
 
-	found, err := provider.NewBookingsByResourceReader(pool).
+	found, err := provider.NewBookingsByResourceReader(postgres.NewReadPool(pool)).
 		LoadByResource(withExecution(t, context.Background()), "r-absent")
 	if err != nil {
 		t.Fatalf("LoadByResource(r-absent) = %v, want nil", err)

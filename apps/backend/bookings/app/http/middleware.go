@@ -51,6 +51,9 @@ func withExecutionContext(authenticator ports.Authenticator, route provider.Rout
 		}
 
 		identity, status, code := provider.ResolveIdentity(r.Context(), authenticator, route, authn.CredentialFrom(r))
+		if status == 0 {
+			status, code = provider.RefuseAssertedIdentity(r, identity)
+		}
 		if status != 0 {
 			writeRejection(w, status, code, "the request was not authenticated")
 			return
