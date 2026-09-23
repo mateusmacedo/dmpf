@@ -20,6 +20,7 @@ const (
 	metaCorrelationID = "correlationid"
 	metaCausationID   = "causationid"
 	metaTraceParent   = "traceparent"
+	metaTenantID      = "tenantid"
 )
 
 // Assemble turns one claimed record into the envelope of ENV-14, without ever
@@ -43,6 +44,14 @@ func Assemble(record postgres.Claimed, source string) (envelope.Envelope, error)
 	}
 
 	aggregateVersion := int32(record.AggregateVersion)
+
+	// CTX-13: the tenant crosses preserved, and its absence means a platform
+	// chain — so the pointer stays nil rather than carrying "".
+	var tenantID *string
+	if tenant := attributes[metaTenantID]; tenant != "" {
+		tenantID = &tenant
+	}
+
 	return envelope.Envelope{
 		ID:               record.MessageID,
 		Source:           source,
@@ -57,6 +66,7 @@ func Assemble(record postgres.Claimed, source string) (envelope.Envelope, error)
 		PartitionKey:     record.PartitionKey,
 		TraceParent:      attributes[metaTraceParent],
 		AggregateVersion: &aggregateVersion,
+		TenantID:         tenantID,
 		Payload:          record.Payload,
 	}, nil
 }
@@ -72,7 +82,7 @@ func contextAttributes(metadata []byte) (map[string]string, error) {
 		}
 	}
 
-	attributes := make(map[string]string, 3)
+	attributes := make(map[string]string, 4)
 	for _, key := range [...]string{metaCorrelationID, metaCausationID, metaTraceParent} {
 		value, ok := raw[key]
 		if !ok {
@@ -83,6 +93,17 @@ func contextAttributes(metadata []byte) (map[string]string, error) {
 			return nil, fmt.Errorf("%w: %s is not a non-empty string", ErrMissingContextAttributes, key)
 		}
 		attributes[key] = text
+	}
+
+	// The tenant is absent on a platform chain (CTX-26), so its absence is not a
+	// defect. Present and unreadable is: treating that as absence would turn one
+	// tenant's fact into a chain that belongs to nobody.
+	if value, ok := raw[metaTenantID]; ok {
+		var text string
+		if err := json.Unmarshal(value, &text); err != nil || text == "" {
+			return nil, fmt.Errorf("%w: %s is present but not a non-empty string", ErrMissingContextAttributes, metaTenantID)
+		}
+		attributes[metaTenantID] = text
 	}
 	return attributes, nil
 }
