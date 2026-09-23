@@ -38,11 +38,11 @@ const (
 
 const kitDeadline = ports.Instant(1_755_432_000_000_000_000)
 
-// Repository exercises the seven observable clauses of Repository and Reader
+// Repository exercises the eight observable clauses of Repository and Reader
 // over any realization; newSubject must return a subject over a fresh resource
-// on every call. Four of them are the tenant scope of IDN-12..IDN-15, which is
+// on every call. Five of them are the tenant scope of IDN-12..IDN-15, which is
 // why the suite exists: a realization that isolates by discipline rather than
-// by construction passes the first three and fails these.
+// by construction passes the other three and fails these.
 func Repository[ID comparable, S any](newSubject func() RepositorySubject[ID, S]) Verdict {
 	var v Verdict
 
@@ -80,6 +80,22 @@ func Repository[ID comparable, S any](newSubject func() RepositorySubject[ID, S]
 			// Telling "not yours" from "does not exist" is an enumeration
 			// oracle, so the two answers have to be the same one.
 			v.fail(clause, "IDN-13", "Load() from another tenant = %v, want ErrNotFound", err)
+		} else if access, ok := crossTenant(err); !ok {
+			v.fail(clause, "IDN-12", "Load() from another tenant = %v, want a CrossTenantAccess the security record can name", err)
+		} else if access.ContextTenant != kitTenantB || access.DataTenant != kitTenantA {
+			v.fail(clause, "IDN-12", "CrossTenantAccess names context %q and data %q, want %q and %q",
+				access.ContextTenant, access.DataTenant, kitTenantB, kitTenantA)
+		}
+	}
+
+	{
+		const clause = "does not report an absent identifier as another tenant's"
+		s := newSubject()
+		id := s.NewID(8)
+		if _, _, err := s.Reader.Load(acme, id); !errors.Is(err, ports.ErrNotFound) {
+			v.fail(clause, "IDN-13", "Load() of an absent identifier = %v, want ErrNotFound", err)
+		} else if _, ok := crossTenant(err); ok {
+			v.fail(clause, "IDN-13", "Load() of an absent identifier = %v; the internal record would log an access that never happened", err)
 		}
 	}
 
@@ -184,6 +200,11 @@ func expectRow[ID comparable, S any](v *Verdict, clause, rule string, s Reposito
 	if wantVersion != 0 && version != wantVersion {
 		v.fail(clause, rule, "%s is at v%d, want v%d", whose, version, wantVersion)
 	}
+}
+
+func crossTenant(err error) (ports.CrossTenantAccess, bool) {
+	var access ports.CrossTenantAccess
+	return access, errors.As(err, &access)
 }
 
 func (s RepositorySubject[ID, S]) save(ctx context.Context, id ID, state S, expected ports.Version) error {

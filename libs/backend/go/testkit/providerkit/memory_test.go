@@ -131,6 +131,39 @@ func TestAnUnscopedRepositoryIsReprovedOnIDN13(t *testing.T) {
 	}
 }
 
+// silentReader is the negative vector of IDN-12: it scopes correctly, so no
+// row leaks, but answers every miss with a bare ErrNotFound and leaves the
+// security record nothing to name. The suite must name IDN-12.
+type silentReader struct{ inner ports.Reader[string, probe] }
+
+func (r silentReader) Load(ctx context.Context, id string) (probe, ports.Version, error) {
+	state, version, err := r.inner.Load(ctx, id)
+	if errors.Is(err, ports.ErrNotFound) {
+		return probe{}, 0, ports.ErrNotFound
+	}
+	return state, version, err
+}
+
+func TestAScopedButSilentReaderIsReprovedOnIDN12(t *testing.T) {
+	v := providerkit.Repository(func() providerkit.RepositorySubject[string, probe] {
+		s := memoryRepository()
+		s.Reader = silentReader{inner: s.Reader}
+		return s
+	})
+	if v.OK() {
+		t.Fatal("a reader that cannot tell another tenant's row from an absent one passed the scope clauses")
+	}
+	var named bool
+	for _, d := range v.Diagnostics {
+		if d.Rule == "IDN-12" {
+			named = true
+		}
+	}
+	if !named {
+		t.Fatalf("IDN-12 not named: %v", v.Failures())
+	}
+}
+
 type inboxResources struct{ Inbox ports.Inbox }
 
 func memoryInbox() providerkit.InboxSubject {
