@@ -36,7 +36,7 @@ func countersService(f *serviceskit.Fakes) counterService {
 		Reader:    countersTable.Reader(f.Store),
 		Clock:     clock.New(at),
 		IDs:       &ids.Sequence{Prefix: "m-"},
-		Authorize: application.AllowAllWithContext[bumpCounter](),
+		Authorize: application.AllowAll[bumpCounter](),
 		Limit:     2,
 	}
 }
@@ -44,7 +44,7 @@ func countersService(f *serviceskit.Fakes) counterService {
 func TestAcceptedCommitsStateAndOutboxTogether(t *testing.T) {
 	f := serviceskit.NewFakes()
 	svc := countersService(f)
-	outcome, err := svc.Bump(context.Background(), testExecution(t), bumpCounter{Counter: "c-1", By: 1})
+	outcome, err := svc.Bump(withExecution(t, context.Background()), bumpCounter{Counter: "c-1", By: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,14 +64,14 @@ func TestRejectedLeavesNothingBehind(t *testing.T) {
 	svc := countersService(f)
 	ctx := context.Background()
 	for range 2 {
-		if _, err := svc.Bump(ctx, testExecution(t), bumpCounter{Counter: "c-1", By: 1}); err != nil {
+		if _, err := svc.Bump(withExecution(t, ctx), bumpCounter{Counter: "c-1", By: 1}); err != nil {
 			t.Fatal(err)
 		}
 	}
 	f.Ledger.Reset()
 	before := len(f.Store.Entries())
 
-	outcome, err := svc.Bump(ctx, testExecution(t), bumpCounter{Counter: "c-1", By: 1})
+	outcome, err := svc.Bump(withExecution(t, ctx), bumpCounter{Counter: "c-1", By: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,13 +92,13 @@ func TestRejectedLeavesNothingBehind(t *testing.T) {
 	fresh := serviceskit.NewFakes()
 	svc = countersService(fresh)
 	for range 2 {
-		if _, err := svc.Bump(ctx, testExecution(t), bumpCounter{Counter: "c-1", By: 1}); err != nil {
+		if _, err := svc.Bump(withExecution(t, ctx), bumpCounter{Counter: "c-1", By: 1}); err != nil {
 			t.Fatal(err)
 		}
 	}
 	fresh.Ledger.Reset()
 	fresh.Baseline()
-	if _, err := svc.Bump(ctx, testExecution(t), bumpCounter{Counter: "c-1", By: 1}); err != nil {
+	if _, err := svc.Bump(withExecution(t, ctx), bumpCounter{Counter: "c-1", By: 1}); err != nil {
 		t.Fatal(err)
 	}
 	v := serviceskit.Decide(fresh, serviceskit.Expect{Accepted: false})

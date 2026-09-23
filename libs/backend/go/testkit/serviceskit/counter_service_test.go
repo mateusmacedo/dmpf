@@ -54,14 +54,14 @@ type counterService struct {
 	Reader    ports.Reader[counterID, counterState]
 	Clock     ports.Clock
 	IDs       ports.IDGenerator
-	Authorize application.AuthorizeWithContext[bumpCounter]
+	Authorize application.Authorize[bumpCounter]
 	Limit     int
 }
 
-func (s counterService) Bump(ctx context.Context, execution ports.ExecutionContext, cmd bumpCounter) (application.Outcome[bumpResponse], error) {
+func (s counterService) Bump(ctx context.Context, cmd bumpCounter) (application.Outcome[bumpResponse], error) {
 	var zero application.Outcome[bumpResponse]
 
-	if err := s.Authorize(ctx, execution, cmd); err != nil {
+	if err := s.Authorize(ctx, cmd); err != nil {
 		return zero, err
 	}
 	identity := application.ResolveIdentity(s.Clock, s.IDs, 1)

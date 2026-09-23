@@ -46,6 +46,91 @@ func TestMemoryUnitOfWorkConforms(t *testing.T) {
 	}
 }
 
+type probe struct{ Marker int }
+
+type probeResources struct {
+	Probes ports.Repository[string, probe]
+}
+
+var probeTable = memory.Table[string, probe]{Name: "probes"}
+
+func memoryRepository() providerkit.RepositorySubject[string, probe] {
+	store := memory.New()
+	return providerkit.RepositorySubject[string, probe]{
+		Within: func(ctx context.Context, fn func(ctx context.Context, repo ports.Repository[string, probe]) error) error {
+			uow := memory.NewUnitOfWork(store, func(tx *memory.Tx) probeResources {
+				return probeResources{Probes: probeTable.Repository(tx)}
+			})
+			return uow.Within(ctx, func(ctx context.Context, res probeResources) error { return fn(ctx, res.Probes) })
+		},
+		Reader:           probeTable.Reader(store),
+		NewID:            func(n int) string { return "p-" + strconv.Itoa(n) },
+		NewState:         func(marker int) probe { return probe{Marker: marker} },
+		Marker:           func(p probe) int { return p.Marker },
+		TenantUnresolved: memory.ErrTenantUnresolved,
+	}
+}
+
+func TestMemoryRepositoryConforms(t *testing.T) {
+	v := providerkit.Repository(memoryRepository)
+	tb.Require(t, v)
+	if len(v.Skipped) != 0 {
+		t.Fatalf("memory scopes by construction; nothing should be skipped: %v", v.Skipped)
+	}
+}
+
+// unscopedRepository is the negative vector of IDN-14: it keys rows by
+// identifier alone, so one tenant reads and overwrites another's row. The suite
+// must name IDN-13.
+type unscopedRepository struct {
+	rows map[string]row
+}
+
+type row struct {
+	state   probe
+	version ports.Version
+}
+
+func (r *unscopedRepository) Load(_ context.Context, id string) (probe, ports.Version, error) {
+	rec, ok := r.rows[id]
+	if !ok {
+		return probe{}, 0, ports.ErrNotFound
+	}
+	return rec.state, rec.version, nil
+}
+
+func (r *unscopedRepository) Save(_ context.Context, id string, state probe, expected ports.Version) error {
+	if r.rows[id].version != expected {
+		return ports.ErrVersionConflict
+	}
+	r.rows[id] = row{state: state, version: expected + 1}
+	return nil
+}
+
+func TestAnUnscopedRepositoryIsReprovedOnIDN13(t *testing.T) {
+	v := providerkit.Repository(func() providerkit.RepositorySubject[string, probe] {
+		unscoped := &unscopedRepository{rows: map[string]row{}}
+		s := memoryRepository()
+		s.Within = func(ctx context.Context, fn func(ctx context.Context, repo ports.Repository[string, probe]) error) error {
+			return fn(ctx, unscoped)
+		}
+		s.Reader = unscoped
+		return s
+	})
+	if v.OK() {
+		t.Fatal("a repository that keys rows by identifier alone passed the scope clauses")
+	}
+	var named bool
+	for _, d := range v.Diagnostics {
+		if d.Rule == "IDN-13" {
+			named = true
+		}
+	}
+	if !named {
+		t.Fatalf("IDN-13 not named: %v", v.Failures())
+	}
+}
+
 type inboxResources struct{ Inbox ports.Inbox }
 
 func memoryInbox() providerkit.InboxSubject {
