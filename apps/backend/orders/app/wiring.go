@@ -15,7 +15,6 @@ import (
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/application"
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/provider"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/app/relay"
-	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/kafka"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/audit"
@@ -58,12 +57,12 @@ func bindOrders(tx *postgres.Tx) application.Resources {
 func NewOrdersService(pool *pgxpool.Pool, rt *otelboot.Runtime, cfg Config, auditOut io.Writer) application.Service {
 	return application.Service{
 		UoW:             postgres.NewUnitOfWork(pool, bindOrders),
-		Reader:          provider.NewReader(pool),
+		Reader:          provider.NewReader(postgres.NewReadPool(pool)),
 		Clock:           idclock.SystemClock{},
 		IDs:             idclock.NewMessageIDs("orders"),
-		Authorize:       usecase.AllowAll[application.Operation](),
+		Authorize:       Authorization(),
 		ItemLimit:       cfg.ItemLimit,
-		Instrumentation: obsusecase.New(rt, audit.NewEnvelopeSink(auditOut, audit.Identity{Service: cfg.Service, Version: cfg.Version, Instance: cfg.Instance, Tenant: rpc.Tenant}), subject, classify, application.OperationFindOrder),
+		Instrumentation: obsusecase.New(rt, audit.NewEnvelopeSink(auditOut, audit.Identity{Service: cfg.Service, Version: cfg.Version, Instance: cfg.Instance}), subject, classify, application.OperationFindOrder),
 	}
 }
 
@@ -74,7 +73,7 @@ func serveAPI(ctx context.Context, cfg Config, rt *otelboot.Runtime, out io.Writ
 	}
 	defer pool.Close()
 
-	ctrl, err := admission.NewController(rpc.Limits(cfg.Admission), rpc.Tenant, admission.DefaultMaxKeys)
+	ctrl, err := admission.NewController(rpc.Limits(cfg.Admission), cfg.MetricTenants, admission.DefaultMaxKeys)
 	if err != nil {
 		return err
 	}

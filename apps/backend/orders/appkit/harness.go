@@ -32,7 +32,7 @@ func NewOrders(t testing.TB, clock ports.Clock, ids ports.IDGenerator) Harness {
 	return Harness{
 		Service: application.Service{
 			UoW:       postgres.NewUnitOfWork(pool, bind),
-			Reader:    provider.NewReader(pool),
+			Reader:    provider.NewReader(postgres.NewReadPool(pool)),
 			Clock:     clock,
 			IDs:       ids,
 			Authorize: kernel.AllowAll[application.Operation](),

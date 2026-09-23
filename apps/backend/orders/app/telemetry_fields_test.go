@@ -4,18 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/mateusmacedo/dmpf/apps/backend/orders/app/rpc"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/logging"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
-
-func TestRequestFieldsAlwaysCarryTheTenant(t *testing.T) {
-	fields := requestFields(context.Background())
-
-	if got := fields[logging.KeyTenantID]; got != rpc.Tenant {
-		t.Fatalf("tenant = %v, want %q: every line is attributed even outside a message", got, rpc.Tenant)
-	}
-}
 
 func TestRequestFieldsCarryTheCorrelationOfTheMessageInFlight(t *testing.T) {
 	ctx := ports.WithMessageContext(context.Background(), ports.MessageContext{CorrelationID: "corr-1"})

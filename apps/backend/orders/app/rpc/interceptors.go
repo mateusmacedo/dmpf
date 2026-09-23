@@ -24,10 +24,6 @@ import (
 )
 
 const (
-	// Tenant is the single tenant the context admits: the identity of FND-07
-	// has no realization in the kernel, so every call resolves to it (MET-07).
-	Tenant = "public"
-
 	// CorrelationKey and CausationKey are what the BFF propagates. The causation
 	// is the step preceding this execution, never the one preceding what this
 	// execution publishes: for an outbox record CTX-08 makes the cause this RPC.
@@ -42,7 +38,9 @@ const (
 	// keeps no replay store, so the key decides nothing here.
 	IdempotencyKey = "idempotency-key"
 
-	// DefaultLocale answers a mandatory field of CTX-01 that no hop carries yet.
+	// LocaleKey carries the locale the edge resolved, which the hop preserves
+	// (CTX-11); DefaultLocale answers when none, or no valid tag, arrived.
+	LocaleKey     = "x-locale"
 	DefaultLocale = "en"
 
 	idBytes = 16
@@ -55,7 +53,7 @@ var correlationFormat = regexp.MustCompile(`^[A-Za-z0-9._-]{1,128}$`)
 func Interceptors(tracer trace.Tracer, ctrl *admission.Controller, instruments *metrics.Instruments, logger *slog.Logger) []grpc.UnaryServerInterceptor {
 	return []grpc.UnaryServerInterceptor{
 		ownMethods(serverSpan(tracer)),
-		ownMethods(provider.Admission(ctrl, func(context.Context) string { return Tenant }, instruments)),
+		ownMethods(provider.Admission(ctrl, admissionTenant, instruments)),
 		ownMethods(requireDeadline),
 		ownMethods(requestContext(logger)),
 	}
@@ -134,7 +132,7 @@ func requestContext(logger *slog.Logger) grpc.UnaryServerInterceptor {
 			TraceContext:  span.SpanContext().TraceID().String(),
 			Tenant:        tenantOf(incoming),
 			Deadline:      deadlineOf(ctx),
-			Locale:        DefaultLocale,
+			Locale:        localeOf(incoming),
 		})
 		if err != nil {
 			return nil, status.Error(codes.Internal, "the execution context could not be assembled")
@@ -178,6 +176,23 @@ func tenantOf(incoming metadataCarrier) *ports.TenantID {
 	}
 	tenant := ports.TenantID(value)
 	return &tenant
+}
+
+// admissionTenant keys the bucket by the tenant the edge propagated (RES-16),
+// read where the context will read it; a call without one shares the bucket of
+// every undeclared tenant.
+func admissionTenant(ctx context.Context) string {
+	md, _ := metadata.FromIncomingContext(ctx)
+	return metadataCarrier(md).Get(TenantKey)
+}
+
+var localeFormat = regexp.MustCompile(`^[A-Za-z]{1,8}(-[A-Za-z0-9]{1,8})*$`)
+
+func localeOf(incoming metadataCarrier) string {
+	if locale := incoming.Get(LocaleKey); localeFormat.MatchString(locale) {
+		return locale
+	}
+	return DefaultLocale
 }
 
 func deadlineOf(ctx context.Context) ports.Instant {

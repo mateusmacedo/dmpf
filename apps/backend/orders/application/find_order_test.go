@@ -37,3 +37,40 @@ func TestFindOrderReportsErrNotFoundForAnAbsentAggregate(t *testing.T) {
 		t.Fatalf("FindOrder() error = %v, want ErrNotFound through the wrapping", err)
 	}
 }
+
+func TestFindOrderOfAnotherTenantAnswersNotFoundAndHandsTheAccessToTheInstrumentation(t *testing.T) {
+	h, instr := newInstrumentedHarness(t)
+	h.seed(t, openSnapshot(1), 0)
+
+	_, err := h.service.FindOrder(asTenant(t, "globex"), orderID)
+
+	if !errors.Is(err, ports.ErrNotFound) {
+		t.Fatalf("FindOrder() error = %v, want ErrNotFound: the caller must not learn the order exists (IDN-13)", err)
+	}
+	var access ports.CrossTenantAccess
+	if result := instr.onlyResult(t); result.Outcome != ports.OutcomeFailed || !errors.As(result.Err, &access) {
+		t.Fatalf("EndOperation(%+v), want a failure carrying CrossTenantAccess for the security record (IDN-12)", result)
+	}
+	if access.ContextTenant != "globex" || access.DataTenant != "acme" {
+		t.Fatalf("CrossTenantAccess names context %q and data %q, want globex and acme", access.ContextTenant, access.DataTenant)
+	}
+}
+
+func asTenant(t *testing.T, tenant ports.TenantID) context.Context {
+	t.Helper()
+	subject := ports.SubjectID("s-test")
+	execution, err := ports.NewExecutionContext(ports.ExecutionContextSpec{
+		RequestID:     "r-test",
+		CorrelationID: "c-test",
+		TraceContext:  "t-test",
+		Subject:       &subject,
+		Tenant:        &tenant,
+		Permissions:   []ports.Permission{},
+		Deadline:      ports.Instant(1_755_432_000_000_000_000),
+		Locale:        "en",
+	})
+	if err != nil {
+		t.Fatalf("NewExecutionContext() = %v", err)
+	}
+	return ports.WithExecutionContext(context.Background(), execution)
+}
