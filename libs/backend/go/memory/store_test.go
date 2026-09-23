@@ -66,7 +66,7 @@ func entry(messageID ports.MessageID) ports.OutboxEntry {
 func seed(t *testing.T, store *memory.Store, snapshot counter, expected ports.Version) {
 	t.Helper()
 	uow := memory.NewUnitOfWork(store, bind)
-	err := uow.Within(context.Background(), func(ctx context.Context, res resources) error {
+	err := uow.Within(withExecution(t, context.Background()), func(ctx context.Context, res resources) error {
 		return res.Counters.Save(ctx, snapshot.ID, snapshot, expected)
 	})
 	if err != nil {
@@ -78,7 +78,7 @@ func TestCommitAppliesBothWritesToTheStore(t *testing.T) {
 	store := memory.New()
 	uow := memory.NewUnitOfWork(store, bind)
 
-	err := uow.Within(context.Background(), func(ctx context.Context, res resources) error {
+	err := uow.Within(withExecution(t, context.Background()), func(ctx context.Context, res resources) error {
 		if err := res.Counters.Save(ctx, id, state(1), 0); err != nil {
 			return err
 		}
@@ -88,7 +88,7 @@ func TestCommitAppliesBothWritesToTheStore(t *testing.T) {
 		t.Fatalf("Within() = %v, want nil", err)
 	}
 
-	snapshot, version, err := counters.Reader(store).Load(context.Background(), id)
+	snapshot, version, err := counters.Reader(store).Load(withExecution(t, context.Background()), id)
 	if err != nil {
 		t.Fatalf("Load() = %v, want nil", err)
 	}
@@ -107,7 +107,7 @@ func TestAFailingCallbackKeepsNothing(t *testing.T) {
 	store := memory.New()
 	uow := memory.NewUnitOfWork(store, bind)
 
-	err := uow.Within(context.Background(), func(ctx context.Context, res resources) error {
+	err := uow.Within(withExecution(t, context.Background()), func(ctx context.Context, res resources) error {
 		if err := res.Counters.Save(ctx, id, state(1), 0); err != nil {
 			return err
 		}
@@ -128,7 +128,7 @@ func TestFailNextCommitDiscardsTheTransactionAndReturnsTheError(t *testing.T) {
 	store.FailNextCommit(errBoom)
 	uow := memory.NewUnitOfWork(store, bind)
 
-	err := uow.Within(context.Background(), func(ctx context.Context, res resources) error {
+	err := uow.Within(withExecution(t, context.Background()), func(ctx context.Context, res resources) error {
 		if err := res.Counters.Save(ctx, id, state(1), 0); err != nil {
 			return err
 		}
@@ -147,10 +147,10 @@ func TestFailNextCommitArmsOnlyTheNextCommit(t *testing.T) {
 	uow := memory.NewUnitOfWork(store, bind)
 	noop := func(context.Context, resources) error { return nil }
 
-	if err := uow.Within(context.Background(), noop); !errors.Is(err, errBoom) {
+	if err := uow.Within(withExecution(t, context.Background()), noop); !errors.Is(err, errBoom) {
 		t.Fatalf("first Within() = %v, want errBoom", err)
 	}
-	if err := uow.Within(context.Background(), noop); err != nil {
+	if err := uow.Within(withExecution(t, context.Background()), noop); err != nil {
 		t.Fatalf("second Within() = %v, want nil — the injection is consumed once", err)
 	}
 }
@@ -166,7 +166,7 @@ func TestAPanickingCallbackPropagatesAndKeepsNothing(t *testing.T) {
 			}
 		}()
 
-		_ = uow.Within(context.Background(), func(ctx context.Context, res resources) error {
+		_ = uow.Within(withExecution(t, context.Background()), func(ctx context.Context, res resources) error {
 			if err := res.Counters.Save(ctx, id, state(1), 0); err != nil {
 				return err
 			}
@@ -204,13 +204,13 @@ func TestReaderSharesNoSliceWithTheStore(t *testing.T) {
 	store := memory.New()
 	seed(t, store, state(1), 0)
 
-	loaded, _, err := counters.Reader(store).Load(context.Background(), id)
+	loaded, _, err := counters.Reader(store).Load(withExecution(t, context.Background()), id)
 	if err != nil {
 		t.Fatalf("Load() = %v, want nil", err)
 	}
 	loaded.Steps[0] = 999
 
-	again, _, _ := counters.Reader(store).Load(context.Background(), id)
+	again, _, _ := counters.Reader(store).Load(withExecution(t, context.Background()), id)
 	if again.Steps[0] != 1 {
 		t.Fatalf("mutating a loaded snapshot reached the store: Steps[0] = %d, want 1", again.Steps[0])
 	}
@@ -223,7 +223,7 @@ func TestSaveSharesNoSliceWithTheCaller(t *testing.T) {
 
 	snapshot.Steps[0] = 999
 
-	loaded, _, _ := counters.Reader(store).Load(context.Background(), id)
+	loaded, _, _ := counters.Reader(store).Load(withExecution(t, context.Background()), id)
 	if loaded.Steps[0] != 1 {
 		t.Fatalf("mutating the caller's slice reached the store: Steps[0] = %d, want 1", loaded.Steps[0])
 	}
@@ -240,7 +240,7 @@ func TestReaderInsideWithinReadsTheCommittedState(t *testing.T) {
 	var seenStep int
 	var seenVersion ports.Version
 
-	err := uow.Within(context.Background(), func(ctx context.Context, res resources) error {
+	err := uow.Within(withExecution(t, context.Background()), func(ctx context.Context, res resources) error {
 		if err := res.Counters.Save(ctx, id, state(7), 1); err != nil {
 			return err
 		}
@@ -261,7 +261,7 @@ func TestReaderInsideWithinReadsTheCommittedState(t *testing.T) {
 			seenStep, seenVersion)
 	}
 
-	after, version, _ := counters.Reader(store).Load(context.Background(), id)
+	after, version, _ := counters.Reader(store).Load(withExecution(t, context.Background()), id)
 	if after.Steps[0] != 7 || version != 2 {
 		t.Fatalf("after the commit: step %d at v%d, want 7 at v2", after.Steps[0], version)
 	}
@@ -274,7 +274,7 @@ func TestAPortThatEscapesTheCallbackCannotReachTheStore(t *testing.T) {
 	uow := memory.NewUnitOfWork(store, bind)
 
 	var escaped resources
-	err := uow.Within(context.Background(), func(ctx context.Context, res resources) error {
+	err := uow.Within(withExecution(t, context.Background()), func(ctx context.Context, res resources) error {
 		escaped = res
 		return res.Counters.Save(ctx, id, state(1), 0)
 	})
@@ -282,14 +282,14 @@ func TestAPortThatEscapesTheCallbackCannotReachTheStore(t *testing.T) {
 		t.Fatalf("Within() = %v, want nil", err)
 	}
 
-	if err := escaped.Counters.Save(context.Background(), id, state(9), 1); err != nil {
+	if err := escaped.Counters.Save(withExecution(t, context.Background()), id, state(9), 1); err != nil {
 		t.Fatalf("Save through the escaped port = %v, want nil (it writes the discarded copy)", err)
 	}
 	if err := escaped.Outbox.Enqueue(context.Background(), entry("m-999999")); err != nil {
 		t.Fatalf("Enqueue through the escaped port = %v, want nil", err)
 	}
 
-	snapshot, version, _ := counters.Reader(store).Load(context.Background(), id)
+	snapshot, version, _ := counters.Reader(store).Load(withExecution(t, context.Background()), id)
 	if snapshot.Steps[0] != 1 || version != 1 {
 		t.Fatalf("the escaped port reached the store: step %d at v%d, want 1 at v1",
 			snapshot.Steps[0], version)
@@ -309,7 +309,7 @@ func TestAContextCancelledWhileWaitingNeverOpensATransaction(t *testing.T) {
 	holding := make(chan struct{})
 	release := make(chan struct{})
 	go func() {
-		_ = uow.Within(context.Background(), func(context.Context, resources) error {
+		_ = uow.Within(withExecution(t, context.Background()), func(context.Context, resources) error {
 			close(holding)
 			<-release
 			return nil
@@ -341,14 +341,14 @@ func TestSaveRejectsADivergentExpectedVersion(t *testing.T) {
 	seed(t, store, state(1), 0)
 	uow := memory.NewUnitOfWork(store, bind)
 
-	err := uow.Within(context.Background(), func(ctx context.Context, res resources) error {
+	err := uow.Within(withExecution(t, context.Background()), func(ctx context.Context, res resources) error {
 		return res.Counters.Save(ctx, id, state(2), 0)
 	})
 
 	if !errors.Is(err, ports.ErrVersionConflict) {
 		t.Fatalf("Within() = %v, want ErrVersionConflict", err)
 	}
-	loaded, version, _ := counters.Reader(store).Load(context.Background(), id)
+	loaded, version, _ := counters.Reader(store).Load(withExecution(t, context.Background()), id)
 	if version != 1 || loaded.Steps[0] != 1 {
 		t.Fatalf("the store changed under a conflict: version = %d, step = %d", version, loaded.Steps[0])
 	}
@@ -357,7 +357,7 @@ func TestSaveRejectsADivergentExpectedVersion(t *testing.T) {
 func TestLoadReportsErrNotFoundForAnAbsentAggregate(t *testing.T) {
 	store := memory.New()
 
-	_, _, err := counters.Reader(store).Load(context.Background(), "C-404")
+	_, _, err := counters.Reader(store).Load(withExecution(t, context.Background()), "C-404")
 
 	if !errors.Is(err, ports.ErrNotFound) {
 		t.Fatalf("Load() = %v, want ErrNotFound", err)
@@ -371,7 +371,7 @@ func TestTablesWithDifferentNamesDoNotShareRows(t *testing.T) {
 	seed(t, store, state(1), 0)
 	other := memory.Table[counterID, counter]{Name: "archive", Clone: cloneCounter}
 
-	_, _, err := other.Reader(store).Load(context.Background(), id)
+	_, _, err := other.Reader(store).Load(withExecution(t, context.Background()), id)
 
 	if !errors.Is(err, ports.ErrNotFound) {
 		t.Fatalf("Load() through another table = %v, want ErrNotFound", err)
@@ -386,14 +386,14 @@ func TestATableWithoutCloneRoundTripsTheValue(t *testing.T) {
 	store := memory.New()
 	uow := memory.NewUnitOfWork(store, func(tx *memory.Tx) ports.Repository[string, flag] { return flags.Repository(tx) })
 
-	err := uow.Within(context.Background(), func(ctx context.Context, repo ports.Repository[string, flag]) error {
+	err := uow.Within(withExecution(t, context.Background()), func(ctx context.Context, repo ports.Repository[string, flag]) error {
 		return repo.Save(ctx, "f-1", flag{On: true}, 0)
 	})
 	if err != nil {
 		t.Fatalf("Within() = %v, want nil", err)
 	}
 
-	loaded, version, err := flags.Reader(store).Load(context.Background(), "f-1")
+	loaded, version, err := flags.Reader(store).Load(withExecution(t, context.Background()), "f-1")
 	if err != nil || version != 1 || !loaded.On {
 		t.Fatalf("Load() = (%+v, %d, %v), want (On, 1, nil)", loaded, version, err)
 	}
@@ -409,7 +409,7 @@ func TestConcurrentWithinIsSerialized(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			_ = uow.Within(context.Background(), func(ctx context.Context, res resources) error {
+			_ = uow.Within(withExecution(t, context.Background()), func(ctx context.Context, res resources) error {
 				return res.Outbox.Enqueue(ctx, entry(ports.MessageID("m-"+string(rune('a'+i)))))
 			})
 		}(i)
@@ -426,7 +426,7 @@ func TestConcurrentWithinIsSerialized(t *testing.T) {
 
 func requireEmpty(t *testing.T, store *memory.Store) {
 	t.Helper()
-	if _, _, err := counters.Reader(store).Load(context.Background(), id); !errors.Is(err, ports.ErrNotFound) {
+	if _, _, err := counters.Reader(store).Load(withExecution(t, context.Background()), id); !errors.Is(err, ports.ErrNotFound) {
 		t.Fatalf("Load() = %v, want ErrNotFound — the store must be untouched", err)
 	}
 	if got := store.Entries(); len(got) != 0 {

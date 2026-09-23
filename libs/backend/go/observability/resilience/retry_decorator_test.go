@@ -350,7 +350,7 @@ func TestARetriedDependencyNeverReopensTheUnitOfWork(t *testing.T) {
 		return nil
 	})
 
-	ctx := retry.WithBudget(context.Background(), retry.WithTotal(time.Minute))
+	ctx := retry.WithBudget(withExecution(t, context.Background()), retry.WithTotal(time.Minute))
 	err := uow.Within(ctx, func(ctx context.Context, tx *memory.Tx) error {
 		if err := guarded(ctx, idempotent(time.Minute), nil); err != nil {
 			return err

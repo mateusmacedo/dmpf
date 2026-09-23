@@ -45,17 +45,44 @@ func (t Table[ID, S]) erasedClone() func(any) any {
 	return func(v any) any { return t.Clone(v.(S)) }
 }
 
-func (t Table[ID, S]) load(from map[string]*table, id ID) (S, ports.Version, error) {
+func (t Table[ID, S]) load(ctx context.Context, from map[string]*table, id ID) (S, ports.Version, error) {
 	var zero S
+
+	key, err := scopedKey(ctx, id)
+	if err != nil {
+		return zero, 0, err
+	}
 	rows, ok := from[t.Name]
 	if !ok {
 		return zero, 0, ports.ErrNotFound
 	}
-	rec, ok := rows.rows[id]
+	rec, ok := rows.rows[key]
 	if !ok {
 		return zero, 0, ports.ErrNotFound
 	}
 	return t.copy(rec.snapshot.(S)), rec.version, nil
+}
+
+// rowKey pairs the tenant with the identifier, so two tenants holding the same
+// identifier are two rows and neither can reach the other's.
+type rowKey struct {
+	tenant ports.TenantID
+	id     any
+}
+
+// WHY: the double scopes for the same reason Postgres does — a use case proven
+// only against it would otherwise pass under an isolation it does not have
+// (IDN-14). Absence refuses (IDN-15); no tenant is invented for it (IDN-20).
+func scopedKey(ctx context.Context, id any) (rowKey, error) {
+	execution, err := ports.RequireExecutionContext(ctx)
+	if err != nil {
+		return rowKey{}, err
+	}
+	tenant, ok := execution.Tenant()
+	if !ok {
+		return rowKey{}, ErrTenantUnresolved
+	}
+	return rowKey{tenant: tenant, id: id}, nil
 }
 
 type row struct {
@@ -63,8 +90,8 @@ type row struct {
 	version  ports.Version
 }
 
-// table is the storage behind one Table: the rows by ID and the clone they
-// need when the whole table is copied at open and at commit.
+// table is the storage behind one Table: the rows by scoped key and the clone
+// they need when the whole table is copied at open and at commit.
 type table struct {
 	rows  map[any]row
 	clone func(any) any
@@ -158,19 +185,19 @@ type storeReader[ID comparable, S any] struct {
 	table Table[ID, S]
 }
 
-func (r storeReader[ID, S]) Load(_ context.Context, id ID) (S, ports.Version, error) {
+func (r storeReader[ID, S]) Load(ctx context.Context, id ID) (S, ports.Version, error) {
 	r.store.dataMu.Lock()
 	defer r.store.dataMu.Unlock()
-	return r.table.load(r.store.tables, id)
+	return r.table.load(ctx, r.store.tables, id)
 }
 
 func (t *table) cloneRows() *table {
 	out := &table{rows: make(map[any]row, len(t.rows)), clone: t.clone}
-	for id, rec := range t.rows {
+	for key, rec := range t.rows {
 		if t.clone != nil {
 			rec.snapshot = t.clone(rec.snapshot)
 		}
-		out.rows[id] = rec
+		out.rows[key] = rec
 	}
 	return out
 }

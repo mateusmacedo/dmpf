@@ -106,20 +106,25 @@ type txRepository[ID comparable, S any] struct {
 	table Table[ID, S]
 }
 
-func (r txRepository[ID, S]) Load(_ context.Context, id ID) (S, ports.Version, error) {
-	return r.table.load(r.tx.tables, id)
+func (r txRepository[ID, S]) Load(ctx context.Context, id ID) (S, ports.Version, error) {
+	return r.table.load(ctx, r.tx.tables, id)
 }
 
-func (r txRepository[ID, S]) Save(_ context.Context, id ID, state S, expected ports.Version) error {
+func (r txRepository[ID, S]) Save(ctx context.Context, id ID, state S, expected ports.Version) error {
+	key, err := scopedKey(ctx, id)
+	if err != nil {
+		return err
+	}
+
 	rows := r.tx.table(r.table.Name, r.table.erasedClone())
 	current := ports.Version(0)
-	if rec, ok := rows.rows[id]; ok {
+	if rec, ok := rows.rows[key]; ok {
 		current = rec.version
 	}
 	if current != expected {
 		return ports.ErrVersionConflict
 	}
-	rows.rows[id] = row{snapshot: r.table.copy(state), version: expected + 1}
+	rows.rows[key] = row{snapshot: r.table.copy(state), version: expected + 1}
 	return nil
 }
 
