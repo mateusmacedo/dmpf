@@ -1,4 +1,4 @@
-// comment-discipline-ok-file: arquivo de declarações; cada godoc é contrato de API pública com referência normativa (FND-04 §3.3, UOW-09/11), dentro do limite de 3 linhas.
+// comment-discipline-ok-file: arquivo de declarações; cada godoc é contrato de API pública com referência normativa (FND-04 §3.3, UOW-09/11, IDN-12/13), dentro do limite de 3 linhas.
 
 package ports
 
@@ -10,6 +10,19 @@ import (
 // ErrNotFound is what Load reports when the aggregate does not exist. A
 // provider may wrap it; errors.Is recovers it through any wrapping.
 var ErrNotFound = errors.New("ports: aggregate not found")
+
+// CrossTenantAccess is how a Reader reports that the identifier exists for
+// another tenant. It unwraps to ErrNotFound and reads the same, so the answer
+// stays indistinguishable (IDN-13) while the internal record tells (IDN-12).
+type CrossTenantAccess struct {
+	Object        string
+	ContextTenant TenantID
+	DataTenant    TenantID
+}
+
+func (CrossTenantAccess) Error() string { return ErrNotFound.Error() }
+
+func (CrossTenantAccess) Unwrap() error { return ErrNotFound }
 
 // ErrVersionConflict is what Save reports when the stored version differs from
 // expected. Within never retries the callback on it (UOW-09, UOW-10): the retry

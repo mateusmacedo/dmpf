@@ -13,6 +13,9 @@ const (
 	ReasonTerminalFailure   Reason = "terminal-failure"
 	ReasonCollision         Reason = "collision"
 	ReasonAttemptsExhausted Reason = "attempts-exhausted"
+	// ReasonUntrustedBoundary is an intact envelope delivered from outside the
+	// consumer's declared boundary, which produces no context (CTX-27, IDN-04).
+	ReasonUntrustedBoundary Reason = "untrusted-boundary"
 )
 
 // Contained is what Containment.Quarantine persists: the raw envelope exactly
