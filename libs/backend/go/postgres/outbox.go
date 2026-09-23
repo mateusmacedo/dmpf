@@ -64,7 +64,7 @@ func (o txOutbox) Enqueue(ctx context.Context, entry ports.OutboxEntry) error {
 		return err
 	}
 
-	metadata, err := encodeMetadata(entry.Context)
+	metadata, err := encodeMetadata(entry.Context, enqueueTenant(ctx))
 	if err != nil {
 		return err
 	}
@@ -91,17 +91,42 @@ type metadataKeys struct {
 	CorrelationID string `json:"correlationid,omitempty"`
 	CausationID   string `json:"causationid,omitempty"`
 	Traceparent   string `json:"traceparent,omitempty"`
+	TenantID      string `json:"tenantid,omitempty"`
 }
 
-func encodeMetadata(mc ports.MessageContext) (string, error) {
-	if mc.IsZero() {
+// encodeMetadata takes the tenant apart from the MessageContext because the two
+// have different authors: the adapter writes the ENV-08 trio, authentication
+// resolves the tenant (CTX-13). Absence stays absent, as OBX-02 requires.
+func encodeMetadata(mc ports.MessageContext, tenant ports.TenantID) (string, error) {
+	keys := metadataKeys{
+		CorrelationID: mc.CorrelationID,
+		CausationID:   mc.CausationID,
+		Traceparent:   mc.Traceparent,
+		TenantID:      string(tenant),
+	}
+	if keys == (metadataKeys{}) {
 		return "{}", nil
 	}
-	encoded, err := json.Marshal(metadataKeys(mc))
+	encoded, err := json.Marshal(keys)
 	if err != nil {
 		return "", err
 	}
 	return string(encoded), nil
+}
+
+// enqueueTenant reads the scope the edge resolved, so no use case has to
+// remember to copy it (IDN-14). Absence is legitimate here and is not refused:
+// a platform chain has no tenant, and CTX-13 forbids inventing one.
+func enqueueTenant(ctx context.Context) ports.TenantID {
+	execution, ok := ports.ExecutionContextFrom(ctx)
+	if !ok {
+		return ""
+	}
+	tenant, scoped := execution.Tenant()
+	if !scoped {
+		return ""
+	}
+	return tenant
 }
 
 func isUniqueViolation(err error) bool {

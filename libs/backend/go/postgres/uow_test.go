@@ -20,13 +20,13 @@ import (
 var errContractCallbackFailed = errors.New("postgres_test: contract callback failed")
 
 // writer is the resource set these tests bind to an open transaction. It writes
-// through Conn() because the repository is Fase 5's: the contract of Within is
-// provable with any write whose effect a SELECT can see.
+// through Conn() because the contract of Within is provable with any write whose
+// effect a SELECT can see, and does not need the Table's scoping to be proven.
 type writer struct{ tx *postgres.Tx }
 
 func (w writer) write(ctx context.Context, id string) error {
 	_, err := w.tx.Conn().Exec(ctx,
-		`INSERT INTO dmpf_example_orders (order_id, version, snapshot) VALUES ($1, 1, '{}')`, id)
+		`INSERT INTO dmpf_example_orders (tenant_id, order_id, version, snapshot) VALUES ('acme', $1, 1, '{}')`, id)
 	return err
 }
 
