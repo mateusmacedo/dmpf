@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/app/relay"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/authn"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/envconfig"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/deadline"
 )
@@ -72,6 +73,7 @@ type Config struct {
 	Instance string
 
 	Relay relay.Config
+	Auth  authn.Config
 }
 
 // FromEnv resolves the configuration of the role and refuses to start when a
@@ -120,6 +122,9 @@ func FromEnv(role Role, lookup func(string) string) (Config, error) {
 	if cfg.OTLPInsecure, err = envconfig.ParseBool(envOTLPInsecure, lookup(envOTLPInsecure)); err != nil {
 		return Config{}, err
 	}
+	if cfg.Auth, err = authn.ReadEnv(lookup); err != nil {
+		return Config{}, err
+	}
 
 	if err := cfg.validate(); err != nil {
 		return Config{}, err
@@ -151,6 +156,11 @@ func (c Config) validate() error {
 	}
 	if c.Role == RoleRelay {
 		if err := c.Relay.Validate(); err != nil {
+			return err
+		}
+	}
+	if c.Role == RoleAPI {
+		if err := c.Auth.Validate(); err != nil {
 			return err
 		}
 	}

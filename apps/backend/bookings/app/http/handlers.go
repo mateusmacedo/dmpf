@@ -66,12 +66,7 @@ func (h Handlers) ReserveBooking(w http.ResponseWriter, r *http.Request) {
 		writeRejection(w, http.StatusBadRequest, "invalid-request", "bookingId and resourceId must be 1-128 chars, quantity 1-100")
 		return
 	}
-	execution, err := executionOf(r)
-	if err != nil {
-		writeFailure(w, err)
-		return
-	}
-	out, err := h.Service.ReserveBooking(r.Context(), execution, application.Reserve{
+	out, err := h.Service.ReserveBooking(r.Context(), application.Reserve{
 		BookingID:  domain.BookingID(req.BookingID),
 		ResourceID: domain.ResourceID(req.ResourceID),
 		Quantity:   req.Quantity,
@@ -93,12 +88,7 @@ func (h Handlers) CancelBooking(w http.ResponseWriter, r *http.Request) {
 		writeRejection(w, http.StatusBadRequest, "invalid-request", "id must be 1-128 chars of [A-Za-z0-9._:-]")
 		return
 	}
-	execution, err := executionOf(r)
-	if err != nil {
-		writeFailure(w, err)
-		return
-	}
-	out, err := h.Service.CancelBooking(r.Context(), execution, application.Cancel{
+	out, err := h.Service.CancelBooking(r.Context(), application.Cancel{
 		BookingID: domain.BookingID(id),
 	})
 	if err != nil {
@@ -122,12 +112,7 @@ func (h Handlers) RegisterResource(w http.ResponseWriter, r *http.Request) {
 		writeRejection(w, http.StatusBadRequest, "invalid-request", "code must be 1-128 chars")
 		return
 	}
-	execution, err := executionOf(r)
-	if err != nil {
-		writeFailure(w, err)
-		return
-	}
-	out, err := h.Service.RegisterResource(r.Context(), execution, application.Register{
+	out, err := h.Service.RegisterResource(r.Context(), application.Register{
 		Code: domain.ResourceCode(req.Code),
 	})
 	if err != nil {
@@ -147,12 +132,7 @@ func (h Handlers) FindBooking(w http.ResponseWriter, r *http.Request) {
 		writeRejection(w, http.StatusBadRequest, "invalid-request", "id must be 1-128 chars of [A-Za-z0-9._:-]")
 		return
 	}
-	execution, err := executionOf(r)
-	if err != nil {
-		writeFailure(w, err)
-		return
-	}
-	snapshot, err := h.Service.FindBooking(r.Context(), execution, domain.BookingID(id))
+	snapshot, err := h.Service.FindBooking(r.Context(), domain.BookingID(id))
 	if err != nil {
 		writeFailure(w, err)
 		return
@@ -166,12 +146,7 @@ func (h Handlers) FindBookingByResource(w http.ResponseWriter, r *http.Request) 
 		writeRejection(w, http.StatusBadRequest, "invalid-request", "resourceId query param required, 1-128 chars")
 		return
 	}
-	execution, err := executionOf(r)
-	if err != nil {
-		writeFailure(w, err)
-		return
-	}
-	snapshots, err := h.Service.FindBookingByResource(r.Context(), execution, domain.ResourceID(resID))
+	snapshots, err := h.Service.FindBookingByResource(r.Context(), domain.ResourceID(resID))
 	if err != nil {
 		writeFailure(w, err)
 		return

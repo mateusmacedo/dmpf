@@ -4,11 +4,12 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
-	"errors"
 	"net/http"
 
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/mateusmacedo/dmpf/libs/backend/go/authn"
+	provider "github.com/mateusmacedo/dmpf/libs/backend/go/http"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/deadline"
 
@@ -17,7 +18,7 @@ import (
 
 // Mux binds every declared route to its handler under the edge's own time
 // policy, so a route the contract names and nobody serves fails to compile.
-func Mux(service application.Service, budget deadline.Budget) *http.ServeMux {
+func Mux(service application.Service, budget deadline.Budget, authenticator ports.Authenticator) *http.ServeMux {
 	h := Handlers{Service: service}
 	handlers := [5]http.HandlerFunc{
 		h.ReserveBooking, h.CancelBooking, h.RegisterResource, h.FindBooking, h.FindBookingByResource,
@@ -25,7 +26,8 @@ func Mux(service application.Service, budget deadline.Budget) *http.ServeMux {
 
 	mux := http.NewServeMux()
 	for i, route := range Routes(budget) {
-		mux.Handle(route.Method+" "+route.Path, withRouteDeadline(route.Budget, handlers[i]))
+		mounted := withExecutionContext(authenticator, route, handlers[i])
+		mux.Handle(route.Method+" "+route.Path, withRouteDeadline(route.Budget, mounted))
 	}
 	return mux
 }
@@ -36,21 +38,41 @@ const edgeLocale = "en"
 
 const identifierBytes = 16
 
-// WHY: this edge authenticates nobody yet, so subject and tenant stay absent —
-// absence is the truthful shape of an edge with no identity provider wired, and
-// inventing either would be the filler value IDN-20 forbids.
-func executionOf(r *http.Request) (ports.ExecutionContext, error) {
-	deadline, governed := r.Context().Deadline()
-	if !governed {
-		return ports.ExecutionContext{}, errors.New("httpedge: the route mounted no deadline")
-	}
-	identifier := newIdentifier()
-	return ports.NewExecutionContext(ports.ExecutionContextSpec{
-		RequestID:     identifier,
-		CorrelationID: identifier,
-		TraceContext:  trace.SpanFromContext(r.Context()).SpanContext().TraceID().String(),
-		Deadline:      ports.Instant(deadline.UnixNano()),
-		Locale:        edgeLocale,
+// withExecutionContext authenticates, mounts the nine-field context and
+// deposits it on the carrier, which is the single path from here to the
+// provider (CTX-03, ADR-049). It runs inside withRouteDeadline, never outside:
+// the deadline is mandatory in CTX-01 and has to exist before the context does.
+func withExecutionContext(authenticator ports.Authenticator, route provider.Route, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		limit, governed := r.Context().Deadline()
+		if !governed {
+			writeRejection(w, http.StatusInternalServerError, "internal-failure", "the request could not be completed")
+			return
+		}
+
+		identity, status, code := provider.ResolveIdentity(r.Context(), authenticator, route, authn.CredentialFrom(r))
+		if status != 0 {
+			writeRejection(w, status, code, "the request was not authenticated")
+			return
+		}
+
+		identifier := newIdentifier()
+		execution, err := ports.NewExecutionContext(ports.ExecutionContextSpec{
+			RequestID:     identifier,
+			CorrelationID: identifier,
+			TraceContext:  trace.SpanFromContext(r.Context()).SpanContext().TraceID().String(),
+			Subject:       identity.Subject,
+			Tenant:        identity.Tenant,
+			Permissions:   identity.Permissions,
+			Deadline:      ports.Instant(limit.UnixNano()),
+			Locale:        edgeLocale,
+		})
+		if err != nil {
+			writeRejection(w, http.StatusInternalServerError, "internal-failure", "the request could not be completed")
+			return
+		}
+
+		next.ServeHTTP(w, r.WithContext(ports.WithExecutionContext(r.Context(), execution)))
 	})
 }
 

@@ -13,11 +13,13 @@ import (
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/provider"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/app/relay"
 	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/authn"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/kafka"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/boot"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/idclock"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/otelboot"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/deadline"
 
@@ -60,12 +62,22 @@ func NewBookingsService(pool *pgxpool.Pool) application.Service {
 		ResourceReader: provider.NewBookingsByResourceReader(pool),
 		Clock:          idclock.SystemClock{},
 		IDs:            idclock.NewMessageIDs("bookings"),
-		Authorize:      usecase.AllowAllWithContext[application.Operation](),
+		Authorize:      usecase.AllowAll[application.Operation](),
 	}
 }
 
-func NewMux(service application.Service, budget deadline.Budget) *http.ServeMux {
-	return httpedge.Mux(service, budget)
+func NewMux(service application.Service, budget deadline.Budget, authenticator ports.Authenticator) *http.ServeMux {
+	return httpedge.Mux(service, budget, authenticator)
+}
+
+// Authenticator resolves how this process verifies identity. The development
+// mock is only reachable through the opt-out the config already refused to
+// combine with an issuer, so one start never has two ways of resolving it.
+func Authenticator(ctx context.Context, cfg Config) (ports.Authenticator, error) {
+	if cfg.Auth.DevMock {
+		return authn.DevAuthenticator{}, nil
+	}
+	return authn.NewVerifier(ctx, cfg.Auth)
 }
 
 func serveAPI(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {
@@ -83,7 +95,11 @@ func serveAPI(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {
 		return fmt.Errorf("postgres: %w", err)
 	}
 
-	server := &http.Server{Addr: cfg.HTTPAddr, Handler: NewMux(NewBookingsService(pool), cfg.RouteBudget)}
+	authenticator, err := Authenticator(ctx, cfg)
+	if err != nil {
+		return fmt.Errorf("authenticator: %w", err)
+	}
+	server := &http.Server{Addr: cfg.HTTPAddr, Handler: NewMux(NewBookingsService(pool), cfg.RouteBudget, authenticator)}
 	failed := make(chan error, 1)
 	go func() { failed <- server.ListenAndServe() }()
 	rt.Logger().InfoContext(ctx, "http listening", "addr", cfg.HTTPAddr)
