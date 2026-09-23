@@ -411,3 +411,28 @@ linters:
               desc: 'observabilidade nao entra no contract (RFC 6.2); vive em adapters e providers'
             - pkg: log/slog
               desc: 'observabilidade nao entra no contract (RFC 6.2); vive em adapters e providers'
+
+        # Provider de contexto (`apps/<scope>/<ctx>/provider`): nega o driver,
+        # não uma capability. O bloco `provider` tem `io.storage`, mas IDN-14
+        # recusa isolamento de tenant que dependa de cada autor lembrar do
+        # predicado: todo statement vem do kernel (`postgres.Table`, `Relation`,
+        # `ReadPool`), e o pool do driver fica com a composition root. Sem o
+        # `pgxpool` aqui, `pool.Query` deixa de existir para o contexto.
+        #
+        # `list-mode: lax` porque só o driver é a fronteira; o resto do bloco
+        # segue governado pelo verificador. `!$test` porque os harnesses de
+        # teste semeiam e inspecionam o banco cru, fora do caminho da aplicação.
+        # Exceção nominal: a DDL do contexto é aplicada pelo `app`, por
+        # `postgres.Migrate(ctx, pool, provider.Schema)`.
+        context-provider:
+          list-mode: lax
+          files:
+            - '**/apps/**/provider/**'
+            - '!$test'
+          deny:
+            - pkg: github.com/jackc/pgx
+              desc: 'IDN-14: o provider de contexto nao escreve SQL; declare postgres.Table e receba postgres.ReadPool'
+            - pkg: database/sql
+              desc: 'IDN-14: o provider de contexto nao escreve SQL; declare postgres.Table e receba postgres.ReadPool'
+            - pkg: gorm.io/gorm
+              desc: 'IDN-14: o provider de contexto nao escreve SQL; declare postgres.Table e receba postgres.ReadPool'
