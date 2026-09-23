@@ -110,11 +110,11 @@ func (s Server) AddItem(ctx context.Context, req *servicev1.AddItemRequest) (*se
 	if err != nil {
 		return nil, err
 	}
-	execution, err := executionOf(ctx)
+	_, err = executionOf(ctx)
 	if err != nil {
 		return nil, err
 	}
-	out, err := s.Service.AddItem(ctx, execution, application.AddItem{Order: id, SKU: domain.SKU(req.GetSku()), Quantity: int(req.GetQuantity())})
+	out, err := s.Service.AddItem(ctx, application.AddItem{Order: id, SKU: domain.SKU(req.GetSku()), Quantity: int(req.GetQuantity())})
 	if err != nil {
 		return nil, statusOf(err)
 	}
@@ -132,11 +132,11 @@ func (s Server) PlaceOrder(ctx context.Context, req *servicev1.PlaceOrderRequest
 	if err != nil {
 		return nil, err
 	}
-	execution, err := executionOf(ctx)
+	_, err = executionOf(ctx)
 	if err != nil {
 		return nil, err
 	}
-	out, err := s.Service.PlaceOrder(ctx, execution, application.PlaceOrder{Order: id})
+	out, err := s.Service.PlaceOrder(ctx, application.PlaceOrder{Order: id})
 	if err != nil {
 		return nil, statusOf(err)
 	}
@@ -153,11 +153,11 @@ func (s Server) FindOrder(ctx context.Context, req *servicev1.FindOrderRequest) 
 	if err != nil {
 		return nil, err
 	}
-	execution, err := executionOf(ctx)
+	_, err = executionOf(ctx)
 	if err != nil {
 		return nil, err
 	}
-	snapshot, err := s.Service.FindOrder(ctx, execution, id)
+	snapshot, err := s.Service.FindOrder(ctx, id)
 	if err != nil {
 		return nil, statusOf(err)
 	}

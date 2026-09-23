@@ -11,13 +11,13 @@ import (
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/domain"
 )
 
-func (s Service) RegisterResource(ctx context.Context, execution ports.ExecutionContext, cmd Register) (application.Outcome[domain.RegisteredResponse], error) {
+func (s Service) RegisterResource(ctx context.Context, cmd Register) (application.Outcome[domain.RegisteredResponse], error) {
 	var zero application.Outcome[domain.RegisteredResponse]
 
 	instrumentation := s.instrumentation()
 	ctx, end := instrumentation.BeginOperation(ctx, OperationRegister)
 
-	if err := s.Authorize(ctx, execution, cmd); err != nil {
+	if err := s.Authorize(ctx, cmd); err != nil {
 		end(authorizationResult(err))
 		return zero, err
 	}

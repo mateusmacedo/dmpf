@@ -9,10 +9,10 @@ import (
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/domain"
 )
 
-func (s Service) FindBooking(ctx context.Context, execution ports.ExecutionContext, id domain.BookingID) (domain.BookingSnapshot, error) {
+func (s Service) FindBooking(ctx context.Context, id domain.BookingID) (domain.BookingSnapshot, error) {
 	ctx, end := s.instrumentation().BeginOperation(ctx, OperationFindBooking)
 
-	if err := s.Authorize(ctx, execution, FindBooking{Booking: id}); err != nil {
+	if err := s.Authorize(ctx, FindBooking{Booking: id}); err != nil {
 		end(authorizationResult(err))
 		return domain.BookingSnapshot{}, err
 	}
@@ -28,10 +28,10 @@ func (s Service) FindBooking(ctx context.Context, execution ports.ExecutionConte
 	return snapshot, nil
 }
 
-func (s Service) FindBookingByResource(ctx context.Context, execution ports.ExecutionContext, resourceID domain.ResourceID) ([]domain.BookingSnapshot, error) {
+func (s Service) FindBookingByResource(ctx context.Context, resourceID domain.ResourceID) ([]domain.BookingSnapshot, error) {
 	ctx, end := s.instrumentation().BeginOperation(ctx, OperationFindByResource)
 
-	if err := s.Authorize(ctx, execution, FindBookingByResource{Resource: resourceID}); err != nil {
+	if err := s.Authorize(ctx, FindBookingByResource{Resource: resourceID}); err != nil {
 		end(authorizationResult(err))
 		return nil, err
 	}

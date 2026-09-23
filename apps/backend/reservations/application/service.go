@@ -87,7 +87,7 @@ type Service struct {
 
 	Clock     ports.Clock
 	IDs       ports.IDGenerator
-	Authorize application.AuthorizeWithContext[Operation]
+	Authorize application.Authorize[Operation]
 	Consumer  string
 
 	Instrumentation ports.Instrumentation

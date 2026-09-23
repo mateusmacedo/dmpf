@@ -25,7 +25,8 @@ type UnitOfWork[R any] interface {
 	//     converted into a rejection (ERR-22).
 	//
 	// R is built by the realization from the open transaction and is the only
-	// path by which transactional ports reach fn: not context.Context (CTX-05),
-	// not a tx.Repository("name") lookup, which UOW-03 rules out by name.
+	// path by which transactional ports reach fn — not a tx.Repository("name")
+	// lookup, which UOW-03 rules out by name. The execution context travels
+	// apart, on the request-scoped carrier (CTX-03, ADR-049); R carries ports.
 	Within(ctx context.Context, fn func(ctx context.Context, resources R) error) error
 }

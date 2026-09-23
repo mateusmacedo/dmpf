@@ -46,7 +46,7 @@ func NewService(pool *pgxpool.Pool, clock ports.Clock, ids ports.IDGenerator, wa
 		Reader:    provider.NewReader(pool),
 		Clock:     clock,
 		IDs:       ids,
-		Authorize: usecase.AllowAllWithContext[application.Operation](),
+		Authorize: usecase.AllowAll[application.Operation](),
 		Consumer:  ConsumerName,
 	}
 }
@@ -64,7 +64,8 @@ func Handler(service application.Service) app.Handler {
 		if err != nil {
 			return usecase.R1D4, usecase.NewFailure(usecase.Validation, false, err)
 		}
-		return service.Consume(ctx, execution, application.ConsumeOrderPlaced{
+		ctx = ports.WithExecutionContext(ctx, execution)
+		return service.Consume(ctx, application.ConsumeOrderPlaced{
 			MessageID:   receipt.MessageID,
 			MessageType: receipt.MessageType,
 			PayloadHash: receipt.PayloadHash,

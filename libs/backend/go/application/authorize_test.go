@@ -11,11 +11,11 @@ import (
 
 type command struct{ Order string }
 
-func TestAllowAllWithContextAuthorizesEveryOperation(t *testing.T) {
-	authorize := application.AllowAllWithContext[command]()
+func TestAllowAllAuthorizesEveryOperation(t *testing.T) {
+	authorize := application.AllowAll[command]()
 
-	if err := authorize(context.Background(), ports.ExecutionContext{}, command{Order: "P-100"}); err != nil {
-		t.Fatalf("AllowAllWithContext() = %v, want nil", err)
+	if err := authorize(context.Background(), command{Order: "P-100"}); err != nil {
+		t.Fatalf("AllowAll() = %v, want nil", err)
 	}
 }
 
@@ -36,12 +36,17 @@ func TestTheContextReachesTheDecisionIntact(t *testing.T) {
 	}
 
 	var seen ports.ExecutionContext
-	var authorize application.AuthorizeWithContext[command] = func(_ context.Context, received ports.ExecutionContext, _ command) error {
+	var authorize application.Authorize[command] = func(ctx context.Context, _ command) error {
+		received, err := ports.RequireExecutionContext(ctx)
+		if err != nil {
+			return err
+		}
 		seen = received
 		return nil
 	}
 
-	if err := authorize(context.Background(), execution, command{Order: "P-100"}); err != nil {
+	ctx := ports.WithExecutionContext(context.Background(), execution)
+	if err := authorize(ctx, command{Order: "P-100"}); err != nil {
 		t.Fatalf("authorize() = %v, want nil", err)
 	}
 

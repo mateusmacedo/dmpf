@@ -3,6 +3,7 @@
 package ports
 
 import (
+	"context"
 	"errors"
 	"fmt"
 )
@@ -33,6 +34,11 @@ var ErrContextValueEmpty = errors.New("ports: execution context value empty")
 // subject without them: CTX-01 ties one presence to the other.
 var ErrContextPermissionsMismatch = errors.New("ports: execution context permissions do not match the subject")
 
+// ErrContextAbsent reports a carrier holding no execution context where one is
+// required. Absence is not permission (IDN-15), so the caller refuses rather
+// than proceeding with an empty context.
+var ErrContextAbsent = errors.New("ports: execution context absent from the carrier")
+
 // ExecutionContextSpec is what the edge gathers before construction. The four
 // conditional fields carry absence in the type, so no block can write "" where
 // nothing was resolved (CTX-01).
@@ -49,8 +55,8 @@ type ExecutionContextSpec struct {
 }
 
 // ExecutionContext is the nine-field context of CTX-01. The port declares the
-// type, the app mounts the instance at the edge, and the application service
-// takes it as an explicit argument (CTX-02, CTX-03).
+// type, the app mounts the instance at the edge and deposits it on the
+// request-scoped carrier, from which every block downstream reads (CTX-02, CTX-03).
 type ExecutionContext struct {
 	requestID     string
 	correlationID string
@@ -165,4 +171,32 @@ func clonePermissions(in []Permission) []Permission {
 	out := make([]Permission, len(in))
 	copy(out, in)
 	return out
+}
+
+type executionContextKey struct{}
+
+// WithExecutionContext deposits the context on the request-scoped carrier, the
+// single path from the edge down to the provider (CTX-03, ADR-049). The edge is
+// the only caller: CTX-02 gives it the mounting, CTX-04 the immutability.
+func WithExecutionContext(ctx context.Context, execution ExecutionContext) context.Context {
+	return context.WithValue(ctx, executionContextKey{}, execution)
+}
+
+// ExecutionContextFrom reads what the edge deposited; ok is false when the
+// carrier holds none. Whoever requires the context calls RequireExecutionContext
+// instead, so that absence cannot be mistaken for a zero value.
+func ExecutionContextFrom(ctx context.Context) (ExecutionContext, bool) {
+	execution, ok := ctx.Value(executionContextKey{}).(ExecutionContext)
+	return execution, ok
+}
+
+// RequireExecutionContext is the fail-closed read: absence is a refusal, never a
+// permissive path (IDN-15, IDN-17). It stands in for the compiler guarantee the
+// explicit parameter gave before ADR-049.
+func RequireExecutionContext(ctx context.Context) (ExecutionContext, error) {
+	execution, ok := ExecutionContextFrom(ctx)
+	if !ok {
+		return ExecutionContext{}, ErrContextAbsent
+	}
+	return execution, nil
 }

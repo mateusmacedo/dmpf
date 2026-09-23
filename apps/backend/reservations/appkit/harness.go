@@ -122,9 +122,29 @@ func (h Harness) InboxRow(t testing.TB, messageID string) (status string, lastEr
 	return status, lastError
 }
 
+// Tenant is the scope the producer resolved, carried on every event this
+// harness publishes. A consumer that writes a scoped aggregate needs it: the
+// relay puts it on the envelope (CTX-13), and without it persistence refuses.
+const Tenant = "acme"
+
 // RawOrderPlaced is the CloudEvent of an OrderPlaced as a producer publishes
 // it: the bytes the harness delivers at the protocol edge.
 func RawOrderPlaced(t testing.TB, messageID, orderID string, items int32) []byte {
+	t.Helper()
+	return rawOrderPlaced(t, messageID, orderID, items, ptr(Tenant))
+}
+
+// RawOrderPlacedWithoutTenant is the platform chain of CTX-26: an event whose
+// producer resolved no tenant. It is not malformed — it is the shape ENV-12
+// gives absence — so what refuses it is persistence, not the envelope.
+func RawOrderPlacedWithoutTenant(t testing.TB, messageID, orderID string, items int32) []byte {
+	t.Helper()
+	return rawOrderPlaced(t, messageID, orderID, items, nil)
+}
+
+func ptr[T any](v T) *T { return &v }
+
+func rawOrderPlaced(t testing.TB, messageID, orderID string, items int32, tenant *string) []byte {
 	t.Helper()
 	payload, typeURL, err := envelope.Pack(&eventv1.OrderPlaced{OrderId: orderID, ItemCount: items})
 	if err != nil {
@@ -143,6 +163,7 @@ func RawOrderPlaced(t testing.TB, messageID, orderID string, items int32) []byte
 		CausationID:     messageID,
 		PartitionKey:    orderID,
 		TraceParent:     "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+		TenantID:        tenant,
 		Payload:         payload,
 	})
 	if err != nil {

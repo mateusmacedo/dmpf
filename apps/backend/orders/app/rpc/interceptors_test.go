@@ -44,7 +44,7 @@ func TestACallWithoutDeadlineIsRefusedBeforeTheUseCase(t *testing.T) {
 
 func TestMetadataBecomesTheMessageContextOfTheOutbox(t *testing.T) {
 	h := newHarness(t, unlimited)
-	ctx := metadata.AppendToOutgoingContext(withDeadline(t),
+	ctx := metadata.AppendToOutgoingContext(withTenant(t),
 		rpc.CorrelationKey, "corr-1", rpc.CausationKey, "bff-req-1", "traceparent", traceparent)
 
 	addItem(t, h, ctx)
@@ -127,8 +127,12 @@ func TestMetadataAssertingASubjectResolvesNone(t *testing.T) {
 func TestWhatTheCallerLeavesOutStaysAbsent(t *testing.T) {
 	h := newHarness(t, unlimited)
 
-	addItem(t, h, withDeadline(t))
+	var resp servicev1.AddItemResponse
+	err := h.invoke(withDeadline(t), "AddItem", &servicev1.AddItemRequest{OrderId: "o-1", Sku: "A", Quantity: 1}, &resp)
 
+	if status.Code(err) != codes.Internal {
+		t.Fatalf("AddItem() without a tenant = %v, want the call refused: absence is not permission (IDN-15)", err)
+	}
 	if !h.execution.present {
 		t.Fatalf("ExecutionContextFrom() = _, false, want the server to rebuild the context (CTX-02)")
 	}
@@ -144,8 +148,12 @@ func TestAnEmptyTenantIsAbsenceAndNotADefect(t *testing.T) {
 	h := newHarness(t, unlimited)
 	ctx := metadata.AppendToOutgoingContext(withDeadline(t), rpc.TenantKey, "")
 
-	addItem(t, h, ctx)
+	var resp servicev1.AddItemResponse
+	err := h.invoke(ctx, "AddItem", &servicev1.AddItemRequest{OrderId: "o-1", Sku: "A", Quantity: 1}, &resp)
 
+	if status.Code(err) != codes.Internal {
+		t.Fatalf("AddItem() with an empty tenant = %v, want the call refused: the empty value resolves no scope (IDN-15)", err)
+	}
 	if !h.execution.present {
 		t.Fatalf("ExecutionContextFrom() = _, false, want the empty value to leave the context assemblable (CTX-01)")
 	}
@@ -156,7 +164,7 @@ func TestAnEmptyTenantIsAbsenceAndNotADefect(t *testing.T) {
 
 func TestAMalformedCorrelationIsReplaced(t *testing.T) {
 	h := newHarness(t, unlimited)
-	ctx := metadata.AppendToOutgoingContext(withDeadline(t), rpc.CorrelationKey, "not valid!")
+	ctx := metadata.AppendToOutgoingContext(withTenant(t), rpc.CorrelationKey, "not valid!")
 
 	addItem(t, h, ctx)
 
@@ -168,7 +176,7 @@ func TestAMalformedCorrelationIsReplaced(t *testing.T) {
 
 func TestTheServerSpanContinuesThePropagatedTrace(t *testing.T) {
 	h := newHarness(t, unlimited)
-	ctx := metadata.AppendToOutgoingContext(withDeadline(t), "traceparent", traceparent)
+	ctx := metadata.AppendToOutgoingContext(withTenant(t), "traceparent", traceparent)
 
 	addItem(t, h, ctx)
 
@@ -192,8 +200,8 @@ func TestAdmissionRefusesBeyondTheLimit(t *testing.T) {
 	h := newHarness(t, admission.Limit{PerSecond: 1, Burst: 1, Concurrency: 1})
 
 	var first, second servicev1.FindOrderResponse
-	firstErr := h.invoke(withDeadline(t), "FindOrder", &servicev1.FindOrderRequest{OrderId: "o-1"}, &first)
-	secondErr := h.invoke(withDeadline(t), "FindOrder", &servicev1.FindOrderRequest{OrderId: "o-1"}, &second)
+	firstErr := h.invoke(withTenant(t), "FindOrder", &servicev1.FindOrderRequest{OrderId: "o-1"}, &first)
+	secondErr := h.invoke(withTenant(t), "FindOrder", &servicev1.FindOrderRequest{OrderId: "o-1"}, &second)
 
 	if status.Code(firstErr) != codes.NotFound {
 		t.Fatalf("first FindOrder() = %v, want NotFound (admitted)", firstErr)
@@ -221,7 +229,7 @@ func TestTheHealthProbePassesThroughTheChain(t *testing.T) {
 
 func TestTheIdempotencyKeyReachesTheLog(t *testing.T) {
 	h := newHarness(t, unlimited)
-	ctx := metadata.AppendToOutgoingContext(withDeadline(t), rpc.IdempotencyKey, "k-42")
+	ctx := metadata.AppendToOutgoingContext(withTenant(t), rpc.IdempotencyKey, "k-42")
 
 	addItem(t, h, ctx)
 

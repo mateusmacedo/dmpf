@@ -147,7 +147,7 @@ func consumerWith(pool *pgxpool.Pool, decorate func(application.Resources) appli
 		UoW:       postgres.NewUnitOfWork(pool, bind),
 		Clock:     e2eClock{},
 		IDs:       &sequenceIDs{},
-		Authorize: usecase.AllowAllWithContext[application.Operation](),
+		Authorize: usecase.AllowAll[application.Operation](),
 		Consumer:  app.ConsumerName,
 	}
 	return kernel.Consumer{

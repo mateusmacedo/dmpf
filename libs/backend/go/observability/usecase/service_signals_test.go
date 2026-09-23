@@ -6,8 +6,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
-
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/audit"
@@ -19,10 +17,10 @@ func TestTheServiceSeriesCountByOperationAndOutcome(t *testing.T) {
 	w := wire(t, allowAll())
 	ctx := budgeted(t)
 
-	if _, err := w.service.Bump(ctx, testExecution(t), bumpCounter{Counter: subjectID, By: 1}); err != nil {
+	if _, err := w.service.Bump(withExecution(t, ctx), bumpCounter{Counter: subjectID, By: 1}); err != nil {
 		t.Fatalf("Bump() error = %v, want nil", err)
 	}
-	if _, err := w.service.Find(ctx, subjectID); err != nil {
+	if _, err := w.service.Find(withExecution(t, ctx), subjectID); err != nil {
 		t.Fatalf("Find() error = %v, want nil", err)
 	}
 
@@ -83,7 +81,7 @@ func TestARejectionCountsAsARequestAndNeverAsAnError(t *testing.T) {
 	w := wire(t, allowAll())
 	w.seed(t, counterAt(limit))
 
-	if _, err := w.service.Bump(budgeted(t), testExecution(t), bumpCounter{Counter: subjectID, By: 1}); err != nil {
+	if _, err := w.service.Bump(withExecution(t, budgeted(t)), bumpCounter{Counter: subjectID, By: 1}); err != nil {
 		t.Fatalf("Bump() error = %v, want nil", err)
 	}
 
@@ -97,11 +95,11 @@ func TestARejectionCountsAsARequestAndNeverAsAnError(t *testing.T) {
 }
 
 func TestATechnicalFailureCountsUnderItsCategory(t *testing.T) {
-	w := wire(t, func(context.Context, ports.ExecutionContext, bumpCounter) error {
+	w := wire(t, func(context.Context, bumpCounter) error {
 		return errors.New("timeout dialing the policy engine")
 	})
 
-	if _, err := w.service.Bump(budgeted(t), testExecution(t), bumpCounter{Counter: subjectID, By: 1}); err == nil {
+	if _, err := w.service.Bump(withExecution(t, budgeted(t)), bumpCounter{Counter: subjectID, By: 1}); err == nil {
 		t.Fatal("Bump() error = nil, want the authorizer failure")
 	}
 
@@ -124,7 +122,7 @@ func TestATechnicalFailureCountsUnderItsCategory(t *testing.T) {
 func TestTheAuditTrailNeverPassesThroughTheLogHandler(t *testing.T) {
 	w := wire(t, allowAll())
 
-	if _, err := w.service.Bump(budgeted(t), testExecution(t), bumpCounter{Counter: subjectID, By: 1}); err != nil {
+	if _, err := w.service.Bump(withExecution(t, budgeted(t)), bumpCounter{Counter: subjectID, By: 1}); err != nil {
 		t.Fatalf("Bump() error = %v, want nil", err)
 	}
 
@@ -145,11 +143,11 @@ func TestTheAuditTrailNeverPassesThroughTheLogHandler(t *testing.T) {
 // the three channels.
 func TestAPersonalIdentifierInAFailureLeavesThroughNoChannel(t *testing.T) {
 	const cpf = "123.456.789-00"
-	w := wire(t, func(context.Context, ports.ExecutionContext, bumpCounter) error {
+	w := wire(t, func(context.Context, bumpCounter) error {
 		return errors.New("the policy engine refused cpf=" + cpf + " with no reason")
 	})
 
-	if _, err := w.service.Bump(budgeted(t), testExecution(t), bumpCounter{Counter: subjectID, By: 1}); err == nil {
+	if _, err := w.service.Bump(withExecution(t, budgeted(t)), bumpCounter{Counter: subjectID, By: 1}); err == nil {
 		t.Fatal("Bump() error = nil, want the authorizer failure")
 	}
 
@@ -202,7 +200,7 @@ func TestAFailingAuditSinkIsReportedByCategoryAndNeverByMessage(t *testing.T) {
 		operationFind,
 	)
 
-	if _, err := w.service.Bump(budgeted(t), testExecution(t), bumpCounter{Counter: subjectID, By: 1}); err != nil {
+	if _, err := w.service.Bump(withExecution(t, budgeted(t)), bumpCounter{Counter: subjectID, By: 1}); err != nil {
 		t.Fatalf("Bump() error = %v, want nil: a trail that refuses does not fail the operation", err)
 	}
 

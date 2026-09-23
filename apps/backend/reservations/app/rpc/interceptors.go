@@ -153,18 +153,15 @@ func requestContext(logger *slog.Logger) grpc.UnaryServerInterceptor {
 	}
 }
 
-type executionContextKey struct{}
-
 func withExecutionContext(ctx context.Context, execution ports.ExecutionContext) context.Context {
-	return context.WithValue(ctx, executionContextKey{}, execution)
+	return ports.WithExecutionContext(ctx, execution)
 }
 
-// ExecutionContextFrom returns what this hop rebuilt. Only the handler reads it:
-// from there down the context travels as an explicit argument (CTX-03), so no
-// block downstream depends on the ambient value (CTX-05).
+// ExecutionContextFrom returns what this hop rebuilt, off the canonical carrier
+// every block downstream reads (CTX-03, ADR-049). Keying a second value here
+// would hide what this hop mounted from the provider.
 func ExecutionContextFrom(ctx context.Context) (ports.ExecutionContext, bool) {
-	execution, ok := ctx.Value(executionContextKey{}).(ports.ExecutionContext)
-	return execution, ok
+	return ports.ExecutionContextFrom(ctx)
 }
 
 func optional(value string) *string {

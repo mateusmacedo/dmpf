@@ -111,11 +111,11 @@ func (s Server) Reserve(ctx context.Context, req *servicev1.ReserveRequest) (*se
 	if err != nil {
 		return nil, err
 	}
-	execution, err := executionOf(ctx)
+	_, err = executionOf(ctx)
 	if err != nil {
 		return nil, err
 	}
-	out, err := s.Service.Reserve(ctx, execution, application.Reserve{Order: id, Items: int(req.GetItemCount())})
+	out, err := s.Service.Reserve(ctx, application.Reserve{Order: id, Items: int(req.GetItemCount())})
 	if err != nil {
 		return nil, statusOf(err)
 	}
@@ -133,11 +133,11 @@ func (s Server) Cancel(ctx context.Context, req *servicev1.CancelRequest) (*serv
 	if err != nil {
 		return nil, err
 	}
-	execution, err := executionOf(ctx)
+	_, err = executionOf(ctx)
 	if err != nil {
 		return nil, err
 	}
-	out, err := s.Service.Cancel(ctx, execution, application.Cancel{Order: id})
+	out, err := s.Service.Cancel(ctx, application.Cancel{Order: id})
 	if err != nil {
 		return nil, statusOf(err)
 	}
@@ -154,11 +154,11 @@ func (s Server) FindReservation(ctx context.Context, req *servicev1.FindReservat
 	if err != nil {
 		return nil, err
 	}
-	execution, err := executionOf(ctx)
+	_, err = executionOf(ctx)
 	if err != nil {
 		return nil, err
 	}
-	snapshot, err := s.Service.FindReservation(ctx, execution, id)
+	snapshot, err := s.Service.FindReservation(ctx, id)
 	if err != nil {
 		return nil, statusOf(err)
 	}

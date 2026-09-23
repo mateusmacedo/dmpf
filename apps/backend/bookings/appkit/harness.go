@@ -43,7 +43,7 @@ func NewBookings(t testing.TB, clock ports.Clock, ids ports.IDGenerator) Harness
 			ResourceReader: provider.NewBookingsByResourceReader(pool),
 			Clock:          clock,
 			IDs:            ids,
-			Authorize:      kernel.AllowAllWithContext[application.Operation](),
+			Authorize:      kernel.AllowAll[application.Operation](),
 		},
 		Pool: pool,
 	}

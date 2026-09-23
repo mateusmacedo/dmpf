@@ -135,14 +135,14 @@ type option func(*setup)
 
 type setup struct {
 	saveErr   error
-	authorize usecase.AuthorizeWithContext[application.Operation]
+	authorize usecase.Authorize[application.Operation]
 }
 
 func withSaveError(err error) option {
 	return func(s *setup) { s.saveErr = err }
 }
 
-func withAuthorize(authorize usecase.AuthorizeWithContext[application.Operation]) option {
+func withAuthorize(authorize usecase.Authorize[application.Operation]) option {
 	return func(s *setup) { s.authorize = authorize }
 }
 
@@ -150,7 +150,7 @@ func newHarness(t *testing.T, options ...option) *harness {
 	t.Helper()
 
 	h := &harness{store: memory.New(), rec: &recorder{}}
-	cfg := &setup{authorize: usecase.AllowAllWithContext[application.Operation]()}
+	cfg := &setup{authorize: usecase.AllowAll[application.Operation]()}
 	for _, apply := range options {
 		apply(cfg)
 	}
@@ -174,10 +174,10 @@ func newHarness(t *testing.T, options ...option) *harness {
 	return h
 }
 
-func recordingAuthorize(rec *recorder, inner usecase.AuthorizeWithContext[application.Operation]) usecase.AuthorizeWithContext[application.Operation] {
-	return func(ctx context.Context, execution ports.ExecutionContext, cmd application.Operation) error {
+func recordingAuthorize(rec *recorder, inner usecase.Authorize[application.Operation]) usecase.Authorize[application.Operation] {
+	return func(ctx context.Context, cmd application.Operation) error {
 		rec.record("authorize")
-		return inner(ctx, execution, cmd)
+		return inner(ctx, cmd)
 	}
 }
 
@@ -189,7 +189,7 @@ func (h *harness) seed(t *testing.T, snapshot domain.Snapshot, expected ports.Ve
 	uow := memory.NewUnitOfWork(h.store, func(tx *memory.Tx) application.Resources {
 		return application.Resources{Orders: ordersTable.Repository(tx), Outbox: tx.Outbox()}
 	})
-	err := uow.Within(context.Background(), func(ctx context.Context, res application.Resources) error {
+	err := uow.Within(withExecution(t, context.Background()), func(ctx context.Context, res application.Resources) error {
 		return res.Orders.Save(ctx, snapshot.ID, snapshot, expected)
 	})
 	if err != nil {

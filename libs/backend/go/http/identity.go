@@ -48,18 +48,15 @@ func ResolveIdentity(ctx context.Context, authenticator ports.Authenticator, rou
 	return Resolved{Subject: &subject, Tenant: identity.Tenant, Permissions: identity.Permissions}, 0, ""
 }
 
-type executionContextKey struct{}
-
-// WithExecutionContext carries what the edge mounted to the handler, which is
-// the only channel net/http offers between the two.
+// WithExecutionContext deposits what the edge mounted on the canonical carrier.
+// It delegates rather than keying its own value: a second key would make the
+// provider read from a carrier the edge never wrote to (CTX-05, ADR-049).
 func WithExecutionContext(ctx context.Context, execution ports.ExecutionContext) context.Context {
-	return context.WithValue(ctx, executionContextKey{}, execution)
+	return ports.WithExecutionContext(ctx, execution)
 }
 
-// ExecutionContextFrom returns what the edge mounted. Only the handler reads it:
-// from there down the context travels as an explicit argument (CTX-03), so no
-// block downstream depends on the ambient value (CTX-05).
+// ExecutionContextFrom returns what the edge deposited, off the same carrier
+// every block downstream reads (CTX-03).
 func ExecutionContextFrom(ctx context.Context) (ports.ExecutionContext, bool) {
-	execution, ok := ctx.Value(executionContextKey{}).(ports.ExecutionContext)
-	return execution, ok
+	return ports.ExecutionContextFrom(ctx)
 }

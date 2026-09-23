@@ -1,6 +1,7 @@
 package ports_test
 
 import (
+	"context"
 	"errors"
 	"slices"
 	"testing"
@@ -228,5 +229,57 @@ func TestExecutionContextZeroValueIsNotUsable(t *testing.T) {
 	}
 	if _, ok := zero.Tenant(); ok {
 		t.Fatal("the zero ExecutionContext must report the tenant as absent")
+	}
+}
+
+func TestCarrierRoundTripsTheContext(t *testing.T) {
+	spec := validSpec()
+	spec.Subject, spec.Permissions = subjectOf("sub-1"), []ports.Permission{"orders:write"}
+	spec.Tenant = tenantOf("acme")
+	execution, err := ports.NewExecutionContext(spec)
+	if err != nil {
+		t.Fatalf("NewExecutionContext: %v", err)
+	}
+
+	ctx := ports.WithExecutionContext(context.Background(), execution)
+	back, ok := ports.ExecutionContextFrom(ctx)
+	if !ok {
+		t.Fatal("ExecutionContextFrom did not find what WithExecutionContext deposited")
+	}
+
+	tenant, hasTenant := back.Tenant()
+	if !hasTenant || tenant != "acme" {
+		t.Fatalf("tenant = %q, %v; want %q, true", tenant, hasTenant, "acme")
+	}
+	if back.RequestID() != execution.RequestID() {
+		t.Fatalf("request_id = %q; want %q", back.RequestID(), execution.RequestID())
+	}
+}
+
+func TestCarrierReportsAbsenceRatherThanAZeroValue(t *testing.T) {
+	if _, ok := ports.ExecutionContextFrom(context.Background()); ok {
+		t.Fatal("a bare context reported a deposited execution context")
+	}
+}
+
+func TestRequireExecutionContextRefusesWhenTheCarrierIsEmpty(t *testing.T) {
+	_, err := ports.RequireExecutionContext(context.Background())
+	if !errors.Is(err, ports.ErrContextAbsent) {
+		t.Fatalf("err = %v; want ErrContextAbsent", err)
+	}
+}
+
+func TestRequireExecutionContextReturnsWhatWasDeposited(t *testing.T) {
+	execution, err := ports.NewExecutionContext(validSpec())
+	if err != nil {
+		t.Fatalf("NewExecutionContext: %v", err)
+	}
+
+	got, err := ports.RequireExecutionContext(ports.WithExecutionContext(context.Background(), execution))
+	if err != nil {
+		t.Fatalf("RequireExecutionContext: %v", err)
+	}
+	if got.RequestID() != execution.RequestID() {
+		t.Fatalf("request_id = %q; want %q", got.RequestID(), execution.RequestID())
 	}
 }

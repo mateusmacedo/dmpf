@@ -87,7 +87,7 @@ func enqueue(t *testing.T, n int) {
 	})
 	for i := range n {
 		order := domain.OrderID(fmt.Sprintf("o-distkit-%d", i))
-		if _, err := h.Service.AddItem(ctx, testExecution(t), application.AddItem{Order: order, SKU: "sku-1", Quantity: 1}); err != nil {
+		if _, err := h.Service.AddItem(withExecution(t, ctx), application.AddItem{Order: order, SKU: "sku-1", Quantity: 1}); err != nil {
 			t.Fatalf("AddItem(%s) = %v, want nil", order, err)
 		}
 	}

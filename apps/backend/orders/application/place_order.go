@@ -12,13 +12,13 @@ import (
 // PlaceOrder walks the same nine steps as AddItem, but only loads: an absent
 // aggregate comes back as a wrapped technical error, not a rejection, because
 // no UPR produced one and the edge category belongs to FND-07.
-func (s Service) PlaceOrder(ctx context.Context, execution ports.ExecutionContext, cmd PlaceOrder) (application.Outcome[domain.PlacedResponse], error) {
+func (s Service) PlaceOrder(ctx context.Context, cmd PlaceOrder) (application.Outcome[domain.PlacedResponse], error) {
 	var zero application.Outcome[domain.PlacedResponse]
 
 	instrumentation := s.instrumentation()
 	ctx, end := instrumentation.BeginOperation(ctx, OperationPlaceOrder)
 
-	if err := s.Authorize(ctx, execution, cmd); err != nil {
+	if err := s.Authorize(ctx, cmd); err != nil {
 		end(authorizationResult(err))
 		return zero, err
 	}

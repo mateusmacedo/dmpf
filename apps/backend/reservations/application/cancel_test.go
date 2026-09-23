@@ -13,7 +13,7 @@ import (
 func TestCancelCreatesACanceledReservationAndAuthorsTheOutboxEntry(t *testing.T) {
 	h := newSyncHarness(t)
 
-	out, err := h.service.Cancel(context.Background(), testExecution(t), application.Cancel{Order: syncOrder})
+	out, err := h.service.Cancel(withExecution(t, context.Background()), application.Cancel{Order: syncOrder})
 
 	if err != nil {
 		t.Fatalf("Cancel() error = %v, want nil", err)
@@ -22,7 +22,7 @@ func TestCancelCreatesACanceledReservationAndAuthorsTheOutboxEntry(t *testing.T)
 		t.Fatalf("Response() = %+v, want %+v", got, want)
 	}
 
-	snapshot, version, err := reservationsTable.Reader(h.store).Load(context.Background(), syncOrder)
+	snapshot, version, err := reservationsTable.Reader(h.store).Load(withExecution(t, context.Background()), syncOrder)
 	if err != nil || version != 1 || snapshot.Status != domain.Canceled {
 		t.Fatalf("stored = %+v v%d (%v), want canceled at v1", snapshot, version, err)
 	}
@@ -50,7 +50,7 @@ func TestCancelOnAConfirmedReservationRejectsWithoutWriting(t *testing.T) {
 	h := newSyncHarness(t)
 	h.seed(t, confirmedSnapshot(2), 0)
 
-	out, err := h.service.Cancel(context.Background(), testExecution(t), application.Cancel{Order: syncOrder})
+	out, err := h.service.Cancel(withExecution(t, context.Background()), application.Cancel{Order: syncOrder})
 
 	if err != nil {
 		t.Fatalf("Cancel() error = %v, want nil — a refusal is not a technical failure (DEC-04)", err)

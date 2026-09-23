@@ -16,7 +16,7 @@
 // realizes (the memory module here, Postgres in KRN-06); the wire format, which is
 // KRN-05; publishing and the relay, KRN-08; the inbox, KRN-07; retry and
 // telemetry, KRN-09. Input shape validation is the app block's (RFC §4.1), and
-// the real authorization and the error taxonomy are FND-07's —
-// AuthorizeWithContext is only the hook they will fill, over the execution
-// context the port declares.
+// the real authorization and the error taxonomy are FND-07's — Authorize is
+// only the hook they will fill, over the execution context the port declares
+// and the carrier delivers.
 package application

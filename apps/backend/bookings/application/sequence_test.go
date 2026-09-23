@@ -12,7 +12,7 @@ import (
 func TestReserveWalksTheNineStepsInOrder(t *testing.T) {
 	h := newHarness(t)
 
-	if _, err := h.service.ReserveBooking(context.Background(), testExecution(t), application.Reserve{
+	if _, err := h.service.ReserveBooking(withExecution(t, context.Background()), application.Reserve{
 		BookingID: testBookingID, ResourceID: testResourceID, Quantity: 5,
 	}); err != nil {
 		t.Fatalf("ReserveBooking() error = %v, want nil", err)
@@ -39,7 +39,7 @@ func TestCancelWalksTheNineStepsInOrder(t *testing.T) {
 		Status: domain.BookingReservedStatus, ReservedAt: 1000,
 	}, 1)
 
-	if _, err := h.service.CancelBooking(context.Background(), testExecution(t), application.Cancel{
+	if _, err := h.service.CancelBooking(withExecution(t, context.Background()), application.Cancel{
 		BookingID: testBookingID,
 	}); err != nil {
 		t.Fatalf("CancelBooking() error = %v, want nil", err)
@@ -62,7 +62,7 @@ func TestCancelWalksTheNineStepsInOrder(t *testing.T) {
 func TestRegisterWalksTheNineStepsInOrder(t *testing.T) {
 	h := newHarness(t)
 
-	if _, err := h.service.RegisterResource(context.Background(), testExecution(t), application.Register{
+	if _, err := h.service.RegisterResource(withExecution(t, context.Background()), application.Register{
 		Code: testResCode,
 	}); err != nil {
 		t.Fatalf("RegisterResource() error = %v, want nil", err)
@@ -88,7 +88,7 @@ func TestCancelRejectsWhenBookingNotReserved(t *testing.T) {
 		ID: testBookingID, Status: domain.BookingCancelled,
 	}, 2)
 
-	outcome, err := h.service.CancelBooking(context.Background(), testExecution(t), application.Cancel{
+	outcome, err := h.service.CancelBooking(withExecution(t, context.Background()), application.Cancel{
 		BookingID: testBookingID,
 	})
 	if err != nil {

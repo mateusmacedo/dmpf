@@ -16,8 +16,8 @@ import (
 // point (INB-11): R2, R3 and R4 short-circuit without writing, and only R1
 // reaches axis 2. The broker effect of §6.4 is the adapter's, not this
 // method's (INB-08).
-func (s Service) Consume(ctx context.Context, execution ports.ExecutionContext, cmd ConsumeOrderPlaced) (application.Disposition, error) {
-	if err := s.Authorize(ctx, execution, cmd); err != nil {
+func (s Service) Consume(ctx context.Context, cmd ConsumeOrderPlaced) (application.Disposition, error) {
+	if err := s.Authorize(ctx, cmd); err != nil {
 		return application.Classify(err), err
 	}
 

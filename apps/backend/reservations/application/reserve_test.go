@@ -14,7 +14,7 @@ import (
 func TestReserveCreatesTheReservationAndAuthorsTheOutboxEntry(t *testing.T) {
 	h := newSyncHarness(t)
 
-	out, err := h.service.Reserve(context.Background(), testExecution(t), application.Reserve{Order: syncOrder, Items: 2})
+	out, err := h.service.Reserve(withExecution(t, context.Background()), application.Reserve{Order: syncOrder, Items: 2})
 
 	if err != nil {
 		t.Fatalf("Reserve() error = %v, want nil", err)
@@ -26,7 +26,7 @@ func TestReserveCreatesTheReservationAndAuthorsTheOutboxEntry(t *testing.T) {
 		t.Fatalf("Response() = %+v, want %+v", got, want)
 	}
 
-	snapshot, version, err := reservationsTable.Reader(h.store).Load(context.Background(), syncOrder)
+	snapshot, version, err := reservationsTable.Reader(h.store).Load(withExecution(t, context.Background()), syncOrder)
 	if err != nil {
 		t.Fatalf("Load() = %v, want nil", err)
 	}
@@ -60,7 +60,7 @@ func TestReserveCopiesTheMessageContextIntoTheOutboxEntry(t *testing.T) {
 		CorrelationID: "corr-1", CausationID: "req-ctx-1", Traceparent: traceparent,
 	})
 
-	if _, err := h.service.Reserve(ctx, testExecution(t), application.Reserve{Order: syncOrder, Items: 1}); err != nil {
+	if _, err := h.service.Reserve(withExecution(t, ctx), application.Reserve{Order: syncOrder, Items: 1}); err != nil {
 		t.Fatalf("Reserve() error = %v, want nil", err)
 	}
 
@@ -78,7 +78,7 @@ func TestReserveOnACanceledReservationRejectsWithoutWriting(t *testing.T) {
 	h := newSyncHarness(t)
 	h.seed(t, canceledSnapshot(), 0)
 
-	out, err := h.service.Reserve(context.Background(), testExecution(t), application.Reserve{Order: syncOrder, Items: 1})
+	out, err := h.service.Reserve(withExecution(t, context.Background()), application.Reserve{Order: syncOrder, Items: 1})
 
 	if err != nil {
 		t.Fatalf("Reserve() error = %v, want nil — a refusal is not a technical failure (DEC-04)", err)
@@ -87,7 +87,7 @@ func TestReserveOnACanceledReservationRejectsWithoutWriting(t *testing.T) {
 	if !refused || rej.Code() != domain.CodeReservationCanceled {
 		t.Fatalf("Rejection() = %v, %v; want %q", rej, refused, domain.CodeReservationCanceled)
 	}
-	if _, version, _ := reservationsTable.Reader(h.store).Load(context.Background(), syncOrder); version != 1 {
+	if _, version, _ := reservationsTable.Reader(h.store).Load(withExecution(t, context.Background()), syncOrder); version != 1 {
 		t.Fatalf("version = %d, want 1 — a refusal writes nothing", version)
 	}
 	if got := h.store.Entries(); len(got) != 0 {
@@ -104,7 +104,7 @@ func TestReserveOnACanceledReservationRejectsWithoutWriting(t *testing.T) {
 func TestReserveUnderAVersionConflictStopsBeforeTheOutbox(t *testing.T) {
 	h := newSyncHarness(t, withSyncSaveError(ports.ErrVersionConflict))
 
-	_, err := h.service.Reserve(context.Background(), testExecution(t), application.Reserve{Order: syncOrder, Items: 1})
+	_, err := h.service.Reserve(withExecution(t, context.Background()), application.Reserve{Order: syncOrder, Items: 1})
 
 	if !errors.Is(err, ports.ErrVersionConflict) {
 		t.Fatalf("Reserve() error = %v, want ErrVersionConflict", err)

@@ -76,7 +76,7 @@ type Service struct {
 	ResourceReader ports.BookingsByResourceReader
 	Clock          port.Clock
 	IDs            port.IDGenerator
-	Authorize      application.AuthorizeWithContext[Operation]
+	Authorize      application.Authorize[Operation]
 }
 
 func (s Service) instrumentation() port.Instrumentation {

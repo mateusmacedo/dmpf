@@ -46,7 +46,7 @@ func TestReserveAcceptedReturnsTheItemCount(t *testing.T) {
 	h := newHarness(t, unlimited)
 
 	var resp servicev1.ReserveResponse
-	err := h.invoke(withDeadline(t), "Reserve", &servicev1.ReserveRequest{OrderId: "o-1", ItemCount: 2}, &resp)
+	err := h.invoke(withTenant(t), "Reserve", &servicev1.ReserveRequest{OrderId: "o-1", ItemCount: 2}, &resp)
 
 	if err != nil {
 		t.Fatalf("Reserve() = %v, want nil", err)
@@ -60,7 +60,7 @@ func TestCancelAcceptedReturnsTheOrder(t *testing.T) {
 	h := newHarness(t, unlimited)
 
 	var resp servicev1.CancelResponse
-	err := h.invoke(withDeadline(t), "Cancel", &servicev1.CancelRequest{OrderId: "o-2"}, &resp)
+	err := h.invoke(withTenant(t), "Cancel", &servicev1.CancelRequest{OrderId: "o-2"}, &resp)
 
 	if err != nil {
 		t.Fatalf("Cancel() = %v, want nil", err)
@@ -73,12 +73,12 @@ func TestCancelAcceptedReturnsTheOrder(t *testing.T) {
 func TestCancelAfterReserveTravelsAsARejection(t *testing.T) {
 	h := newHarness(t, unlimited)
 	var reserved servicev1.ReserveResponse
-	if err := h.invoke(withDeadline(t), "Reserve", &servicev1.ReserveRequest{OrderId: "o-1", ItemCount: 1}, &reserved); err != nil {
+	if err := h.invoke(withTenant(t), "Reserve", &servicev1.ReserveRequest{OrderId: "o-1", ItemCount: 1}, &reserved); err != nil {
 		t.Fatalf("setup Reserve() = %v", err)
 	}
 
 	var resp servicev1.CancelResponse
-	err := h.invoke(withDeadline(t), "Cancel", &servicev1.CancelRequest{OrderId: "o-1"}, &resp)
+	err := h.invoke(withTenant(t), "Cancel", &servicev1.CancelRequest{OrderId: "o-1"}, &resp)
 
 	if err != nil {
 		t.Fatalf("Cancel() = %v, want nil — a domain refusal is not a gRPC error", err)
@@ -91,19 +91,19 @@ func TestCancelAfterReserveTravelsAsARejection(t *testing.T) {
 func TestFindReservationReturnsTheStatus(t *testing.T) {
 	h := newHarness(t, unlimited)
 	var reserved servicev1.ReserveResponse
-	if err := h.invoke(withDeadline(t), "Reserve", &servicev1.ReserveRequest{OrderId: "o-1", ItemCount: 2}, &reserved); err != nil {
+	if err := h.invoke(withTenant(t), "Reserve", &servicev1.ReserveRequest{OrderId: "o-1", ItemCount: 2}, &reserved); err != nil {
 		t.Fatalf("setup Reserve() = %v", err)
 	}
 	var canceled servicev1.CancelResponse
-	if err := h.invoke(withDeadline(t), "Cancel", &servicev1.CancelRequest{OrderId: "o-2"}, &canceled); err != nil {
+	if err := h.invoke(withTenant(t), "Cancel", &servicev1.CancelRequest{OrderId: "o-2"}, &canceled); err != nil {
 		t.Fatalf("setup Cancel() = %v", err)
 	}
 
 	var confirmed, cancel servicev1.FindReservationResponse
-	if err := h.invoke(withDeadline(t), "FindReservation", &servicev1.FindReservationRequest{OrderId: "o-1"}, &confirmed); err != nil {
+	if err := h.invoke(withTenant(t), "FindReservation", &servicev1.FindReservationRequest{OrderId: "o-1"}, &confirmed); err != nil {
 		t.Fatalf("FindReservation(o-1) = %v", err)
 	}
-	if err := h.invoke(withDeadline(t), "FindReservation", &servicev1.FindReservationRequest{OrderId: "o-2"}, &cancel); err != nil {
+	if err := h.invoke(withTenant(t), "FindReservation", &servicev1.FindReservationRequest{OrderId: "o-2"}, &cancel); err != nil {
 		t.Fatalf("FindReservation(o-2) = %v", err)
 	}
 
@@ -119,7 +119,7 @@ func TestAnAbsentReservationIsNotFound(t *testing.T) {
 	h := newHarness(t, unlimited)
 
 	var resp servicev1.FindReservationResponse
-	err := h.invoke(withDeadline(t), "FindReservation", &servicev1.FindReservationRequest{OrderId: "o-404"}, &resp)
+	err := h.invoke(withTenant(t), "FindReservation", &servicev1.FindReservationRequest{OrderId: "o-404"}, &resp)
 
 	if status.Code(err) != codes.NotFound {
 		t.Fatalf("FindReservation() = %v, want NotFound", err)

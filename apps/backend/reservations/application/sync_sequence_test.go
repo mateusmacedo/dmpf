@@ -25,7 +25,7 @@ var nineSteps = []string{
 func TestReserveWalksTheNineStepsInOrder(t *testing.T) {
 	h := newSyncHarness(t)
 
-	if _, err := h.service.Reserve(context.Background(), testExecution(t), application.Reserve{Order: syncOrder, Items: 1}); err != nil {
+	if _, err := h.service.Reserve(withExecution(t, context.Background()), application.Reserve{Order: syncOrder, Items: 1}); err != nil {
 		t.Fatalf("Reserve() error = %v, want nil", err)
 	}
 
@@ -37,7 +37,7 @@ func TestReserveWalksTheNineStepsInOrder(t *testing.T) {
 func TestCancelWalksTheNineStepsInOrder(t *testing.T) {
 	h := newSyncHarness(t)
 
-	if _, err := h.service.Cancel(context.Background(), testExecution(t), application.Cancel{Order: syncOrder}); err != nil {
+	if _, err := h.service.Cancel(withExecution(t, context.Background()), application.Cancel{Order: syncOrder}); err != nil {
 		t.Fatalf("Cancel() error = %v, want nil", err)
 	}
 
@@ -47,10 +47,10 @@ func TestCancelWalksTheNineStepsInOrder(t *testing.T) {
 }
 
 func TestADeniedReserveStopsBeforeIdentityAndTransaction(t *testing.T) {
-	deny := func(context.Context, ports.ExecutionContext, application.Operation) error { return ports.ErrDenied }
+	deny := func(context.Context, application.Operation) error { return ports.ErrDenied }
 	h := newSyncHarness(t, withSyncAuthorize(deny))
 
-	_, err := h.service.Reserve(context.Background(), testExecution(t), application.Reserve{Order: syncOrder, Items: 1})
+	_, err := h.service.Reserve(withExecution(t, context.Background()), application.Reserve{Order: syncOrder, Items: 1})
 
 	if !errors.Is(err, ports.ErrDenied) {
 		t.Fatalf("Reserve() error = %v, want ErrDenied", err)

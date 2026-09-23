@@ -60,17 +60,17 @@ type counterService struct {
 	Reader    ports.Reader[counterID, counterState]
 	Clock     ports.Clock
 	IDs       ports.IDGenerator
-	Authorize application.AuthorizeWithContext[bumpCounter]
+	Authorize application.Authorize[bumpCounter]
 	Limit     int
 
 	Instrumentation ports.Instrumentation
 }
 
-func (s counterService) Bump(ctx context.Context, execution ports.ExecutionContext, cmd bumpCounter) (application.Outcome[bumpResponse], error) {
+func (s counterService) Bump(ctx context.Context, cmd bumpCounter) (application.Outcome[bumpResponse], error) {
 	var zero application.Outcome[bumpResponse]
 
 	ctx, end := s.Instrumentation.BeginOperation(ctx, operationBump)
-	if err := s.Authorize(ctx, execution, cmd); err != nil {
+	if err := s.Authorize(ctx, cmd); err != nil {
 		if errors.Is(err, ports.ErrDenied) {
 			end(ports.Result{Outcome: ports.OutcomeDenied})
 		} else {

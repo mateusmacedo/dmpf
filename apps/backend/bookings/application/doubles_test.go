@@ -284,15 +284,15 @@ func newHarness(t *testing.T) *harness {
 		ResourceReader: stubResourceReader{},
 		Clock:          recordingClock{at: testOccurred, rec: rec},
 		IDs:            &recordingIDs{prefix: "m-", rec: rec},
-		Authorize:      recordingAuthorize(rec, usecase.AllowAllWithContext[application.Operation]()),
+		Authorize:      recordingAuthorize(rec, usecase.AllowAll[application.Operation]()),
 	}
 	return h
 }
 
-func recordingAuthorize(rec *recorder, inner usecase.AuthorizeWithContext[application.Operation]) usecase.AuthorizeWithContext[application.Operation] {
-	return func(ctx context.Context, execution ports.ExecutionContext, cmd application.Operation) error {
+func recordingAuthorize(rec *recorder, inner usecase.Authorize[application.Operation]) usecase.Authorize[application.Operation] {
+	return func(ctx context.Context, cmd application.Operation) error {
 		rec.record("authorize")
-		return inner(ctx, execution, cmd)
+		return inner(ctx, cmd)
 	}
 }
 
