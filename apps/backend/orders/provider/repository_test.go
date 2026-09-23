@@ -41,7 +41,7 @@ func withRepo(t *testing.T, pool *pgxpool.Pool, fn func(ctx context.Context, rep
 	t.Helper()
 
 	uow := postgres.NewUnitOfWork(pool, bindRepo)
-	return uow.Within(context.Background(), func(ctx context.Context, res repoResources) error {
+	return uow.Within(withExecution(t, context.Background()), func(ctx context.Context, res repoResources) error {
 		return fn(ctx, res.Orders)
 	})
 }

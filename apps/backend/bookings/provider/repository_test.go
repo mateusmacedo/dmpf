@@ -39,7 +39,7 @@ func snap(quantity int) domain.BookingSnapshot {
 func withRepo(t *testing.T, pool *pgxpool.Pool, fn func(ctx context.Context, repo ports.Repository[domain.BookingID, domain.BookingSnapshot]) error) error {
 	t.Helper()
 	uow := postgres.NewUnitOfWork(pool, bindRepo)
-	return uow.Within(context.Background(), func(ctx context.Context, res repoResources) error {
+	return uow.Within(withExecution(t, context.Background()), func(ctx context.Context, res repoResources) error {
 		return fn(ctx, res.Bookings)
 	})
 }
@@ -56,7 +56,7 @@ func seed(t *testing.T, pool *pgxpool.Pool) {
 func loadFromPool(t *testing.T, pool *pgxpool.Pool) (domain.BookingSnapshot, ports.Version) {
 	t.Helper()
 	reader := provider.NewBookingReader(pool)
-	s, v, err := reader.Load(context.Background(), repoBookingID)
+	s, v, err := reader.Load(withExecution(t, context.Background()), repoBookingID)
 	if err != nil {
 		t.Fatalf("reader.Load() = %v", err)
 	}

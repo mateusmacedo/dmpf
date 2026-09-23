@@ -57,7 +57,7 @@ func TestLoadByResourceReturnsOnlyTheBookingsOfThatResource(t *testing.T) {
 
 	reader := provider.NewBookingsByResourceReader(pool)
 
-	found, err := reader.LoadByResource(context.Background(), queriedResource)
+	found, err := reader.LoadByResource(withExecution(t, context.Background()), queriedResource)
 	if err != nil {
 		t.Fatalf("LoadByResource(%s) = %v, want nil", queriedResource, err)
 	}
@@ -73,7 +73,7 @@ func TestLoadByResourceReturnsOnlyTheBookingsOfThatResource(t *testing.T) {
 
 	// The booking of the other resource is still there: the filter narrows the
 	// result; it does not shrink the table.
-	others, err := reader.LoadByResource(context.Background(), otherResource)
+	others, err := reader.LoadByResource(withExecution(t, context.Background()), otherResource)
 	if err != nil {
 		t.Fatalf("LoadByResource(%s) = %v, want nil", otherResource, err)
 	}
@@ -88,7 +88,7 @@ func TestLoadByResourceReturnsEmptyForUnknownResource(t *testing.T) {
 	saveBooking(t, pool, "b-query-1", queriedResource)
 
 	found, err := provider.NewBookingsByResourceReader(pool).
-		LoadByResource(context.Background(), "r-absent")
+		LoadByResource(withExecution(t, context.Background()), "r-absent")
 	if err != nil {
 		t.Fatalf("LoadByResource(r-absent) = %v, want nil", err)
 	}
