@@ -14,6 +14,7 @@ func TestEveryReasonHasADeclaredMechanism(t *testing.T) {
 		ports.ReasonTerminalFailure,
 		ports.ReasonCollision,
 		ports.ReasonAttemptsExhausted,
+		ports.ReasonUntrustedBoundary,
 	}
 	for _, reason := range reasons {
 		mechanism, ok := app.MechanismFor(reason)

@@ -5,6 +5,7 @@ package app
 import (
 	"context"
 	"errors"
+	"slices"
 	"time"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/application"
@@ -16,7 +17,34 @@ import (
 // ErrIncompleteConsumer is what Consume reports when a collaborator is missing;
 // the adapter has no defaults to fall back on, because every value here is the
 // caller's declaration (FND-08 catalogues them, this block only demands them).
-var ErrIncompleteConsumer = errors.New("app: consumer requires name, handler, containment, clock and timeout")
+var ErrIncompleteConsumer = errors.New("app: consumer requires name, handler, containment, clock, timeout, boundary and locale")
+
+// Transport says on what ground the channel that delivered a message is
+// trusted. A value outside the two below is an undeclared boundary.
+type Transport string
+
+const (
+	// TransportVerified states that the broker verifies the producing workload
+	// and the channel is under a declared administrative domain (IDN-03); the
+	// proof is the platform's, this value says it was established.
+	TransportVerified Transport = "verified"
+	// TransportDevelopmentOnly mirrors the transport's own opt-out, never a default.
+	TransportDevelopmentOnly Transport = "development-only"
+)
+
+// Boundary is the trusted boundary CTX-27 and IDN-04 require before a message
+// produces a context: the transport's trust plus the producers the channel
+// admits, by the envelope's source attribute (ENV-08).
+type Boundary struct {
+	Transport Transport
+	Sources   []string
+}
+
+func (b Boundary) declared() bool {
+	return (b.Transport == TransportVerified || b.Transport == TransportDevelopmentOnly) && len(b.Sources) > 0
+}
+
+func (b Boundary) admits(source string) bool { return slices.Contains(b.Sources, source) }
 
 // ErrUnknownDisposition is what Consume reports when the handler returns a value
 // outside the seven of §6.4. It is a defect, but the adapter is the border
@@ -51,6 +79,12 @@ type Consumer struct {
 	// makes the deadline the consumer's own, so the adapter demands one rather
 	// than handing the handler an execution with no limit to declare.
 	Timeout time.Duration
+
+	Boundary Boundary
+
+	// Locale answers the mandatory field of CTX-01 that a consumption has no
+	// caller to state; it is the consumer's declaration, like Timeout.
+	Locale string
 }
 
 // Outcome is what the adapter did with one delivery. Classified is false only
@@ -67,7 +101,7 @@ type Outcome struct {
 // broker effect strictly after the handler returned (INB-08). The error is the
 // handler's own under D3/D4, or the broker's or quarantine's when they fail.
 func (c Consumer) Consume(ctx context.Context, d Delivery, ack ports.Acknowledger) (Outcome, error) {
-	if c.Name == "" || c.Handle == nil || c.Containment == nil || c.Clock == nil || c.Timeout <= 0 {
+	if c.Name == "" || c.Handle == nil || c.Containment == nil || c.Clock == nil || c.Timeout <= 0 || !c.Boundary.declared() || c.Locale == "" {
 		return Outcome{}, ErrIncompleteConsumer
 	}
 
@@ -79,6 +113,17 @@ func (c Consumer) Consume(ctx context.Context, d Delivery, ack ports.Acknowledge
 			Envelope: d.Raw,
 			Error:    sanitizedEnvelopeError(err),
 			At:       c.Clock.Now(),
+		}, nil)
+	}
+
+	if !c.Boundary.admits(env.Source) {
+		return c.contain(ctx, ack, Outcome{Reason: ports.ReasonUntrustedBoundary}, ports.Contained{
+			Consumer:  c.Name,
+			MessageID: ports.MessageID(env.ID),
+			Reason:    ports.ReasonUntrustedBoundary,
+			Envelope:  d.Raw,
+			Error:     "app: source outside the trusted boundary",
+			At:        c.Clock.Now(),
 		}, nil)
 	}
 
@@ -95,11 +140,16 @@ func (c Consumer) Consume(ctx context.Context, d Delivery, ack ports.Acknowledge
 		CausationID:   env.ID,
 		Traceparent:   env.TraceParent,
 	})
-	ctx = WithAttempt(ctx, Attempt{RequestID: newAttemptID(), Number: d.Attempt})
+	attempt := Attempt{RequestID: newAttemptID(), Number: d.Attempt}
+	ctx = WithAttempt(ctx, attempt)
 
 	handleCtx, cancel := context.WithTimeout(ctx, c.Timeout)
 	defer cancel()
-	disposition, handleErr := c.Handle(handleCtx, receipt, env)
+	execution, err := c.executionOf(handleCtx, env, attempt)
+	if err != nil {
+		return Outcome{}, err
+	}
+	disposition, handleErr := c.Handle(ports.WithExecutionContext(handleCtx, execution), receipt, env)
 	outcome := Outcome{Disposition: disposition, Classified: true}
 
 	switch disposition {
@@ -117,6 +167,31 @@ func (c Consumer) Consume(ctx context.Context, d Delivery, ack ports.Acknowledge
 	default:
 		return Outcome{}, errors.Join(handleErr, ErrUnknownDisposition)
 	}
+}
+
+// executionOf rebuilds the context of one consumption: correlation, causation,
+// trace and tenant from the envelope (CTX-24), no subject because provenance is
+// not identity (CTX-25), and request id and deadline the consumer's own (CTX-28).
+func (c Consumer) executionOf(ctx context.Context, env envelope.Envelope, attempt Attempt) (ports.ExecutionContext, error) {
+	deadline, _ := ctx.Deadline()
+	var causation *string
+	if env.CausationID != "" {
+		causation = &env.CausationID
+	}
+	var tenant *ports.TenantID
+	if env.TenantID != nil {
+		value := ports.TenantID(*env.TenantID)
+		tenant = &value
+	}
+	return ports.NewExecutionContext(ports.ExecutionContextSpec{
+		RequestID:     attempt.RequestID,
+		CorrelationID: env.CorrelationID,
+		CausationID:   causation,
+		TraceContext:  env.TraceParent,
+		Tenant:        tenant,
+		Deadline:      ports.Instant(deadline.UnixNano()),
+		Locale:        c.Locale,
+	})
 }
 
 // sanitizedEnvelopeError keeps the quarantine free of transported bytes (ERR-20,
