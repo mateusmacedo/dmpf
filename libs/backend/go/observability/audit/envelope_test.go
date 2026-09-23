@@ -13,7 +13,7 @@ import (
 )
 
 func envelopeIdentity() audit.Identity {
-	return audit.Identity{Service: "orders", Version: "1.2.3", Instance: "pod-1", Tenant: "public"}
+	return audit.Identity{Service: "orders", Version: "1.2.3", Instance: "pod-1"}
 }
 
 func emitOne(t *testing.T, ctx context.Context, event audit.Event) map[string]any {
@@ -36,7 +36,7 @@ func TestTheEnvelopeCarriesTheProcessIdentityAndTheEvent(t *testing.T) {
 
 	want := map[string]string{
 		"kind": "audit", "msg": "audit", "service": "orders", "version": "1.2.3",
-		"instance": "pod-1", "tenant_id": "public", "subject": "user-1",
+		"instance": "pod-1", "subject": "user-1",
 		"object": "order-1", "action": "orders.PlaceOrder", "outcome": "accepted",
 	}
 	for key, value := range want {
@@ -46,6 +46,51 @@ func TestTheEnvelopeCarriesTheProcessIdentityAndTheEvent(t *testing.T) {
 	}
 	if got, _ := record["time"].(string); !strings.HasPrefix(got, "2023-11-14T") {
 		t.Fatalf("time = %q, want the instant of the event in RFC3339Nano UTC", got)
+	}
+}
+
+// IDN-20: a process serves every tenant it authenticates, so the line names the
+// tenant of the call from the carrier, and none when the call resolved none.
+func TestTheEnvelopeNamesTheTenantOfTheCall(t *testing.T) {
+	tenant := ports.TenantID("acme")
+	execution, err := ports.NewExecutionContext(ports.ExecutionContextSpec{
+		RequestID: "r-1", CorrelationID: "c-1", TraceContext: "t-1", Tenant: &tenant,
+		Deadline: ports.Instant(1_755_432_000_000_000_000), Locale: "en",
+	})
+	if err != nil {
+		t.Fatalf("NewExecutionContext() = %v", err)
+	}
+
+	record := emitOne(t, ports.WithExecutionContext(context.Background(), execution), audit.Event{Action: "orders.PlaceOrder", Outcome: "accepted"})
+	if got, _ := record["tenant_id"].(string); got != "acme" {
+		t.Fatalf("tenant_id = %q, want the tenant of the call", got)
+	}
+
+	bare := emitOne(t, context.Background(), audit.Event{Action: "orders.PlaceOrder", Outcome: "accepted"})
+	if got, _ := bare["tenant_id"].(string); got != "" {
+		t.Fatalf("tenant_id = %q, want absent outside a scoped call: no value is invented for it", got)
+	}
+}
+
+func TestTheEnvelopeOfASecurityEventCarriesBothTenants(t *testing.T) {
+	record := emitOne(t, context.Background(), audit.Event{
+		Subject: "user-1", Object: "orders/o-1", Action: "security.cross_tenant_access", Outcome: "denied",
+		Tenant: "globex", DataTenant: "acme",
+	})
+
+	if got, _ := record["tenant_id"].(string); got != "globex" {
+		t.Fatalf("tenant_id = %q, want the tenant of the context, %q, over the process identity", got, "globex")
+	}
+	if got, _ := record["data_tenant_id"].(string); got != "acme" {
+		t.Fatalf("data_tenant_id = %q, want the tenant of the data reached, %q (IDN-12)", got, "acme")
+	}
+}
+
+func TestTheEnvelopeOfAnOrdinaryEventOmitsTheDataTenant(t *testing.T) {
+	record := emitOne(t, context.Background(), audit.Event{Action: "orders.PlaceOrder", Outcome: "accepted"})
+
+	if _, present := record["data_tenant_id"]; present {
+		t.Fatalf("data_tenant_id present in %v, want it absent outside a cross-tenant access", record)
 	}
 }
 

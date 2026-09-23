@@ -13,14 +13,13 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
 
-// Identity names the process in every line of the trail. The tenant is a field
-// rather than a lookup because a process serves one tenancy and states it at
-// startup.
+// Identity names the process in every line of the trail. It holds no tenant:
+// a process serves every tenant it authenticates, so the line takes the tenant
+// of the call from the carrier (IDN-20).
 type Identity struct {
 	Service  string
 	Version  string
 	Instance string
-	Tenant   string
 }
 
 // envelopeRecord is one line of the audit trail in the envelope the log handler
@@ -41,6 +40,7 @@ type envelopeRecord struct {
 	Object        string `json:"object"`
 	Action        string `json:"action"`
 	Outcome       string `json:"outcome"`
+	DataTenantID  string `json:"data_tenant_id,omitempty"`
 }
 
 // NewEnvelopeSink writes the trail to w in the log envelope, one JSON object
@@ -68,11 +68,17 @@ func (s *envelopeSink) Emit(ctx context.Context, event Event) error {
 		Service:  s.identity.Service,
 		Version:  s.identity.Version,
 		Instance: s.identity.Instance,
-		TenantID: s.identity.Tenant,
 		Subject:  event.Subject,
 		Object:   event.Object,
 		Action:   event.Action,
 		Outcome:  event.Outcome,
+	}
+	if event.Tenant != "" {
+		record.TenantID, record.DataTenantID = event.Tenant, event.DataTenant
+	} else if execution, ok := ports.ExecutionContextFrom(ctx); ok {
+		if tenant, scoped := execution.Tenant(); scoped {
+			record.TenantID = string(tenant)
+		}
 	}
 	if span := trace.SpanContextFromContext(ctx); span.IsValid() {
 		record.TraceID, record.SpanID = span.TraceID().String(), span.SpanID().String()
