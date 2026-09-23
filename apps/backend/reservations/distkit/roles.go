@@ -5,6 +5,7 @@ package distkit
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"os/signal"
 	"strings"
@@ -55,7 +56,7 @@ func RunRole(t *testing.T) {
 		produce(t, ctx, cfg, plan)
 	case RoleConsumer:
 		pool := openPool(t)
-		consume(t, ctx, cfg, ch, adapterSink{consumer: app.NewConsumer(pool, clock.New(at), &ids.Sequence{Prefix: "m-"}, appkit.Wait, appkit.Timeout, appkit.MaxAttempts)})
+		consume(t, ctx, cfg, ch, adapterSink{consumer: app.NewConsumer(pool, clock.New(at), &ids.Sequence{Prefix: "m-"}, appkit.Wait, appkit.Timeout, appkit.MaxAttempts, appkit.Boundary)})
 	case RoleNaiveConsumer:
 		consume(t, ctx, cfg, ch, naiveSink{pool: openPool(t)})
 	default:
@@ -168,8 +169,8 @@ func (s adapterSink) Handle(ctx context.Context, raw []byte, attempt int, ack po
 type naiveSink struct{ pool *pgxpool.Pool }
 
 const naiveUpsert = `
-INSERT INTO dmpf_example_reservations (order_id, version, snapshot) VALUES ($1, 1, $2)
-ON CONFLICT (order_id) DO UPDATE
+INSERT INTO dmpf_example_reservations (tenant_id, order_id, version, snapshot) VALUES ($4, $1, 1, $2)
+ON CONFLICT (tenant_id, order_id) DO UPDATE
    SET version  = dmpf_example_reservations.version + 1,
        snapshot = jsonb_set(dmpf_example_reservations.snapshot, '{Items}',
                             to_jsonb((dmpf_example_reservations.snapshot->>'Items')::int + $3))`
@@ -183,11 +184,14 @@ func (s naiveSink) Handle(ctx context.Context, raw []byte, _ int, ack ports.Ackn
 	if err := envelope.Unpack(env, &placed); err != nil {
 		return err
 	}
+	if env.TenantID == nil {
+		return errors.New("distkit: the naive consumer received an envelope without tenant")
+	}
 	snapshot, err := json.Marshal(domain.Snapshot{Order: domain.OrderID(placed.GetOrderId()), Items: int(placed.GetItemCount()), Status: domain.Confirmed})
 	if err != nil {
 		return err
 	}
-	if _, err := s.pool.Exec(ctx, naiveUpsert, placed.GetOrderId(), snapshot, placed.GetItemCount()); err != nil {
+	if _, err := s.pool.Exec(ctx, naiveUpsert, placed.GetOrderId(), snapshot, placed.GetItemCount(), *env.TenantID); err != nil {
 		return err
 	}
 	return ack.Ack(ctx)

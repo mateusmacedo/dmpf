@@ -38,9 +38,11 @@ const (
 	envGRPCKeyFile       = "DMPF_GRPC_TLS_KEY_FILE"
 	envMigrate           = "DMPF_MIGRATE"
 	envBrokers           = "DMPF_KAFKA_BROKERS"
+	envMetricTenants     = "DMPF_METRIC_TENANTS"
 	envKafkaInsecure     = "DMPF_KAFKA_INSECURE"
 	envOrdersTopic       = "DMPF_KAFKA_ORDERS_TOPIC"
 	envOrdersDLQ         = "DMPF_KAFKA_ORDERS_DLQ"
+	envOrdersSource      = "DMPF_ORDERS_SOURCE"
 	envReservationsTopic = "DMPF_KAFKA_RESERVATIONS_TOPIC"
 	envReservationsDLQ   = "DMPF_KAFKA_RESERVATIONS_DLQ"
 	envGroup             = "DMPF_KAFKA_GROUP"
@@ -78,6 +80,10 @@ type Config struct {
 	ReservationsTopic string
 	ReservationsDLQ   string
 
+	// OrdersSource is the producer the consumer admits on the orders channel,
+	// by the envelope's source attribute (CTX-27, IDN-04).
+	OrdersSource string
+
 	OTLPEndpoint string
 	OTLPInsecure bool
 
@@ -90,6 +96,10 @@ type Config struct {
 	// mandatory: the adapter mounts a deadline per attempt from it.
 	ConsumerTimeout time.Duration
 	Admission       admission.Limit
+
+	// MetricTenants is the allowlist of MET-07: the tenants that keep their own
+	// admission bucket and label. Every other tenant shares "other".
+	MetricTenants []string
 }
 
 // Defaults are the values a role runs with when the environment says nothing.
@@ -110,6 +120,7 @@ func Defaults(role Role) Config {
 			BackoffCeiling: 30 * time.Second,
 			ShutdownGrace:  10 * time.Second,
 		},
+		OrdersSource:    "urn:dmpf:reference-orders",
 		Wait:            2 * time.Second,
 		ConsumerTimeout: 30 * time.Second,
 		Admission:       admission.Limit{PerSecond: 50, Burst: 100, Concurrency: 32},
@@ -129,9 +140,11 @@ func FromEnv(role Role, lookup func(string) string) (Config, error) {
 	cfg.Version = envconfig.OrDefault(lookup(envServiceVersion), cfg.Version)
 	cfg.Instance = envconfig.OrDefault(lookup(envInstanceID), envconfig.Hostname())
 	cfg.Brokers = envconfig.SplitList(lookup(envBrokers))
+	cfg.MetricTenants = envconfig.SplitList(lookup(envMetricTenants))
 	cfg.Group = lookup(envGroup)
 	cfg.OrdersTopic = lookup(envOrdersTopic)
 	cfg.OrdersDLQ = lookup(envOrdersDLQ)
+	cfg.OrdersSource = envconfig.OrDefault(lookup(envOrdersSource), cfg.OrdersSource)
 	cfg.ReservationsTopic = lookup(envReservationsTopic)
 	cfg.ReservationsDLQ = lookup(envReservationsDLQ)
 	cfg.OTLPEndpoint = lookup(envOTLPEndpoint)

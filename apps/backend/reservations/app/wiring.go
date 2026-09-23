@@ -63,7 +63,7 @@ func RunWith(ctx context.Context, cfg Config, rt *otelboot.Runtime, out io.Write
 // Postgres, with the resource set the consumer also binds (INB-07).
 func NewReservationsService(pool *pgxpool.Pool, rt *otelboot.Runtime, cfg Config, auditOut io.Writer) application.Service {
 	service := NewService(pool, idclock.SystemClock{}, idclock.NewMessageIDs("reservations"), cfg.Wait)
-	service.Instrumentation = usecase.New(rt, audit.NewEnvelopeSink(auditOut, audit.Identity{Service: cfg.Service, Version: cfg.Version, Instance: cfg.Instance, Tenant: rpc.Tenant}), subject, classify, application.OperationFindReservation)
+	service.Instrumentation = usecase.New(rt, audit.NewEnvelopeSink(auditOut, audit.Identity{Service: cfg.Service, Version: cfg.Version, Instance: cfg.Instance}), subject, classify, application.OperationFindReservation)
 	return service
 }
 
@@ -74,7 +74,7 @@ func serveAPI(ctx context.Context, cfg Config, rt *otelboot.Runtime, out io.Writ
 	}
 	defer pool.Close()
 
-	ctrl, err := admission.NewController(rpc.Limits(cfg.Admission), rpc.Tenant, admission.DefaultMaxKeys)
+	ctrl, err := admission.NewController(rpc.Limits(cfg.Admission), cfg.MetricTenants, admission.DefaultMaxKeys)
 	if err != nil {
 		return err
 	}
@@ -113,7 +113,18 @@ func serveAPI(ctx context.Context, cfg Config, rt *otelboot.Runtime, out io.Writ
 // NewReservationsConsumer is the consumer adapter with the attempt limit of the
 // channel it consumes (ADR-039: the two must agree).
 func NewReservationsConsumer(pool *pgxpool.Pool, cfg Config, ch channel.Channel) app.Consumer {
-	return NewConsumer(pool, idclock.SystemClock{}, idclock.NewMessageIDs("reservations"), cfg.Wait, cfg.ConsumerTimeout, ch.Retry.MaxAttempts)
+	return NewConsumer(pool, idclock.SystemClock{}, idclock.NewMessageIDs("reservations"), cfg.Wait, cfg.ConsumerTimeout, ch.Retry.MaxAttempts, OrdersBoundary(cfg))
+}
+
+// OrdersBoundary is the one place the consumer's trust is declared: the orders
+// producer, over a transport the Kafka config already refused to leave
+// unsecured unless the development opt-out says so.
+func OrdersBoundary(cfg Config) app.Boundary {
+	transport := app.TransportVerified
+	if cfg.KafkaInsecure {
+		transport = app.TransportDevelopmentOnly
+	}
+	return app.Boundary{Transport: transport, Sources: []string{cfg.OrdersSource}}
 }
 
 func runConsumer(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {

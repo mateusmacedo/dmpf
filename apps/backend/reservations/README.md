@@ -55,6 +55,8 @@ A ponte `Sink` confirma sem inbox a entrega de tipo diferente do assinado e abre
 | `DMPF_KAFKA_BROKERS`, `DMPF_KAFKA_INSECURE` | `relay`, `consumer` | Brokers e opt-out de TLS |
 | `DMPF_KAFKA_RESERVATIONS_TOPIC`, `DMPF_KAFKA_RESERVATIONS_DLQ`, `DMPF_KAFKA_GROUP` | `relay` | Canal `reservations.events` |
 | `DMPF_KAFKA_ORDERS_TOPIC`, `DMPF_KAFKA_ORDERS_DLQ`, `DMPF_KAFKA_GROUP` | `consumer` | Canal inbound `orders.events` e grupo |
+| `DMPF_ORDERS_SOURCE` | `consumer` | Produtor admitido na fronteira do consumo, pelo atributo `source` do envelope (`CTX-27`); default `urn:dmpf:reference-orders`, o do relay de `orders` |
+| `DMPF_METRIC_TENANTS` | `api` | Tenants com bucket de admissão e rótulo de métrica próprios (`MET-07`), separados por vírgula; os demais compartilham `other` |
 | `DMPF_OTLP_ENDPOINT`, `DMPF_OTLP_INSECURE`, `DMPF_SERVICE`, `DMPF_SERVICE_VERSION`, `DMPF_INSTANCE_ID` | todos | Telemetria e identidade |
 
 Variável obrigatória ausente encerra a partida com exit 2 nomeando-a.

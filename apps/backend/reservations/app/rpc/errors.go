@@ -18,6 +18,8 @@ func statusOf(err error) error {
 	switch {
 	case errors.Is(err, ports.ErrNotFound), classified && failure.Category() == application.NotFound:
 		return status.Error(codes.NotFound, "not found")
+	case errors.Is(err, ports.ErrDenied), classified && failure.Category() == application.Forbidden:
+		return status.Error(codes.PermissionDenied, "permission denied")
 	case errors.Is(err, ports.ErrVersionConflict), classified && failure.Category() == application.Conflict:
 		return status.Error(codes.Aborted, "version conflict; replay the call")
 	case errors.Is(err, context.DeadlineExceeded):
