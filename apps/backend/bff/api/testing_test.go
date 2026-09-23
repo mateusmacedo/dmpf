@@ -202,7 +202,7 @@ func newFixture(t *testing.T, fake *fakeContexts, options ...option) fixture {
 	}
 	t.Cleanup(func() { _ = reservationsConn.Close() })
 
-	tenants, err := metrics.DeclareTenants(api.Tenant)
+	tenants, err := metrics.DeclareTenants(testTenant)
 	if err != nil {
 		t.Fatalf("DeclareTenants() = %v", err)
 	}
@@ -228,7 +228,11 @@ func newFixture(t *testing.T, fake *fakeContexts, options ...option) fixture {
 // Every route declares RequireSubjectAndTenant, so a request without it is
 // denied before reaching a context — which is what the 401 cases assert by
 // passing an empty Authorization explicitly.
-const testCredential = `Bearer {"sub":"tester","tenant":"public","permissions":["orders:write","orders:read"]}`
+const testCredential = `Bearer {"sub":"tester","tenant":"acme","permissions":["orders:write","orders:read"]}`
+
+// testTenant is the tenant testCredential resolves, declared so its bucket and
+// label are its own (MET-07).
+const testTenant = "acme"
 
 func (f fixture) do(t *testing.T, method, path string, body io.Reader, headers ...string) *httptest.ResponseRecorder {
 	t.Helper()

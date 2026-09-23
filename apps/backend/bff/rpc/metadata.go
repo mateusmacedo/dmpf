@@ -13,6 +13,7 @@ const (
 	CausationIDKey    = "x-causation-id"
 	IdempotencyKeyKey = "idempotency-key"
 	TenantIDKey       = "x-tenant-id"
+	LocaleKey         = "x-locale"
 )
 
 // Call is what the edge authored for one request and hands to the contexts:
@@ -27,6 +28,7 @@ type Call struct {
 	RequestID      string
 	IdempotencyKey string
 	TenantID       string
+	Locale         string
 }
 
 type callKey struct{}
@@ -48,6 +50,7 @@ func contextInterceptor(ctx context.Context, method string, req, reply any, cc *
 		setPresent(md, CausationIDKey, call.RequestID)
 		setPresent(md, IdempotencyKeyKey, call.IdempotencyKey)
 		setPresent(md, TenantIDKey, call.TenantID)
+		setPresent(md, LocaleKey, call.Locale)
 	}
 	propagation.TraceContext{}.Inject(ctx, carrier(md))
 	return invoker(metadata.NewOutgoingContext(ctx, md), method, req, reply, cc, opts...)

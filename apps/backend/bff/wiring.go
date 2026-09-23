@@ -63,7 +63,7 @@ func RunWith(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {
 	}
 	defer func() { _ = reservationsConn.Close() }()
 
-	ctrl, err := admission.NewController(api.Limits(cfg.Admission), api.Tenant, admission.DefaultMaxKeys)
+	ctrl, err := admission.NewController(api.Limits(cfg.Admission), cfg.MetricTenants, admission.DefaultMaxKeys)
 	if err != nil {
 		return err
 	}

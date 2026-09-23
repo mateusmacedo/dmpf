@@ -29,6 +29,7 @@ const (
 	envGRPCCAFile               = "DMPF_GRPC_CA_FILE"
 	envGRPCServerName           = "DMPF_GRPC_SERVER_NAME"
 	envCORSOrigins              = "DMPF_CORS_ORIGINS"
+	envMetricTenants            = "DMPF_METRIC_TENANTS"
 	envOrdersContractPath       = "DMPF_OPENAPI_ORDERS_PATH"
 	envReservationsContractPath = "DMPF_OPENAPI_RESERVATIONS_PATH"
 	envOTLPEndpoint             = "DMPF_OTLP_ENDPOINT"
@@ -58,8 +59,12 @@ type Config struct {
 	Version  string
 	Instance string
 
-	Admission   admission.Limit
-	RouteBudget deadline.Budget
+	Admission admission.Limit
+
+	// MetricTenants is the allowlist of MET-07: the tenants that keep their own
+	// admission bucket and label. Every other tenant shares "other".
+	MetricTenants []string
+	RouteBudget   deadline.Budget
 
 	Auth authn.Config
 }
@@ -89,6 +94,7 @@ func FromEnv(lookup func(string) string) (Config, error) {
 	cfg.CAFile = lookup(envGRPCCAFile)
 	cfg.ServerName = lookup(envGRPCServerName)
 	cfg.CORSOrigins = envconfig.SplitList(lookup(envCORSOrigins))
+	cfg.MetricTenants = envconfig.SplitList(lookup(envMetricTenants))
 	cfg.OrdersContractPath = lookup(envOrdersContractPath)
 	cfg.ReservationsContractPath = lookup(envReservationsContractPath)
 	cfg.OTLPEndpoint = lookup(envOTLPEndpoint)

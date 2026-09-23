@@ -20,7 +20,6 @@ import (
 )
 
 const (
-	Tenant            = "public"
 	IdempotencyHeader = "Idempotency-Key"
 	CorrelationHeader = "X-Correlation-ID"
 
@@ -131,4 +130,13 @@ func NewHandler(
 
 func routeOf(r *http.Request) string { return r.Pattern }
 
-func tenantOf(*http.Request) string { return Tenant }
+// tenantOf keys the admission bucket by the tenant the edge authenticated
+// (RES-16); admission runs inside withExecutionContext, so the context is there.
+func tenantOf(r *http.Request) string {
+	execution, ok := ports.ExecutionContextFrom(r.Context())
+	if !ok {
+		return ""
+	}
+	tenant, _ := execution.Tenant()
+	return string(tenant)
+}

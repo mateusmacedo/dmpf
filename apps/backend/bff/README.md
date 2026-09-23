@@ -57,6 +57,7 @@ Retry só em `FindOrder` e `FindReservation`, com `UNAVAILABLE` retentável; com
 | `DMPF_GRPC_CA_FILE`, `DMPF_GRPC_SERVER_NAME` | uma das duas | CA que valida os contextos e nome esperado no certificado |
 | `DMPF_HTTP_ADDR` | não | Default `:8080`; `127.0.0.1:0` escolhe porta livre e o log `http listening` traz o endereço |
 | `DMPF_CORS_ORIGINS` | não | Origens aceitas pelo navegador (Swagger UI local) |
+| `DMPF_METRIC_TENANTS` | não | Tenants que têm bucket de admissão e rótulo de métrica próprios (`MET-07`), separados por vírgula; os demais compartilham `other` |
 | `DMPF_OPENAPI_ORDERS_PATH`, `DMPF_OPENAPI_RESERVATIONS_PATH` | não | Servem os contratos em `/openapi/<ctx>/v1/openapi.yaml` |
 | `DMPF_OTLP_ENDPOINT`, `DMPF_OTLP_INSECURE` | não | Exportação OTLP; sem endpoint, telemetria em memória |
 | `DMPF_SERVICE`, `DMPF_SERVICE_VERSION`, `DMPF_INSTANCE_ID` | não | Identidade do recurso OTel |
