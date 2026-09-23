@@ -17,7 +17,7 @@ type decision[R any] func(*domain.Reservation, domain.Instant) (kernel.Accepted[
 // write is the nine steps of FND-04 §3.2 shared by Reserve and Cancel. Identity
 // is resolved before the transaction, because a re-execution would mint new
 // identity for the same fact (UOW-09).
-func write[R any](ctx context.Context, s Service, operation string, cmd Command, order domain.OrderID, decide decision[R]) (application.Outcome[R], error) {
+func write[R any](ctx context.Context, s Service, operation string, cmd Operation, order domain.OrderID, decide decision[R]) (application.Outcome[R], error) {
 	var zero application.Outcome[R]
 
 	instrumentation := s.instrumentation()

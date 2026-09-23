@@ -44,7 +44,7 @@ func TestACallWithoutDeadlineIsRefusedBeforeTheUseCase(t *testing.T) {
 
 func TestMetadataBecomesTheMessageContextOfTheOutbox(t *testing.T) {
 	h := newHarness(t, unlimited)
-	ctx := metadata.AppendToOutgoingContext(withDeadline(t),
+	ctx := metadata.AppendToOutgoingContext(withTenant(t),
 		rpc.CorrelationKey, "corr-1", rpc.CausationKey, "bff-req-1", "traceparent", traceparent)
 
 	reserve(t, h, ctx)
@@ -71,7 +71,7 @@ func TestMetadataBecomesTheMessageContextOfTheOutbox(t *testing.T) {
 
 func TestAMalformedCorrelationIsReplaced(t *testing.T) {
 	h := newHarness(t, unlimited)
-	ctx := metadata.AppendToOutgoingContext(withDeadline(t), rpc.CorrelationKey, "not valid!")
+	ctx := metadata.AppendToOutgoingContext(withTenant(t), rpc.CorrelationKey, "not valid!")
 
 	reserve(t, h, ctx)
 
@@ -83,7 +83,7 @@ func TestAMalformedCorrelationIsReplaced(t *testing.T) {
 
 func TestTheServerSpanContinuesThePropagatedTrace(t *testing.T) {
 	h := newHarness(t, unlimited)
-	ctx := metadata.AppendToOutgoingContext(withDeadline(t), "traceparent", traceparent)
+	ctx := metadata.AppendToOutgoingContext(withTenant(t), "traceparent", traceparent)
 
 	reserve(t, h, ctx)
 
@@ -107,8 +107,8 @@ func TestAdmissionRefusesBeyondTheLimit(t *testing.T) {
 	h := newHarness(t, admission.Limit{PerSecond: 1, Burst: 1, Concurrency: 1})
 
 	var first, second servicev1.FindReservationResponse
-	firstErr := h.invoke(withDeadline(t), "FindReservation", &servicev1.FindReservationRequest{OrderId: "o-1"}, &first)
-	secondErr := h.invoke(withDeadline(t), "FindReservation", &servicev1.FindReservationRequest{OrderId: "o-1"}, &second)
+	firstErr := h.invoke(withTenant(t), "FindReservation", &servicev1.FindReservationRequest{OrderId: "o-1"}, &first)
+	secondErr := h.invoke(withTenant(t), "FindReservation", &servicev1.FindReservationRequest{OrderId: "o-1"}, &second)
 
 	if status.Code(firstErr) != codes.NotFound {
 		t.Fatalf("first FindReservation() = %v, want NotFound (admitted)", firstErr)
@@ -136,7 +136,7 @@ func TestTheHealthProbePassesThroughTheChain(t *testing.T) {
 
 func TestTheIdempotencyKeyReachesTheLog(t *testing.T) {
 	h := newHarness(t, unlimited)
-	ctx := metadata.AppendToOutgoingContext(withDeadline(t), rpc.IdempotencyKey, "k-42")
+	ctx := metadata.AppendToOutgoingContext(withTenant(t), rpc.IdempotencyKey, "k-42")
 
 	reserve(t, h, ctx)
 

@@ -8,7 +8,9 @@ import (
 	"time"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/app/relay"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/authn"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/envconfig"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/deadline"
 )
 
 // Role selects which process the binary becomes (BLK-02: the relay never
@@ -52,9 +54,10 @@ const (
 type Config struct {
 	Role Role
 
-	DSN      string
-	HTTPAddr string
-	Migrate  bool
+	DSN         string
+	HTTPAddr    string
+	Migrate     bool
+	RouteBudget deadline.Budget
 
 	Brokers       []string
 	KafkaInsecure bool
@@ -70,6 +73,7 @@ type Config struct {
 	Instance string
 
 	Relay relay.Config
+	Auth  authn.Config
 }
 
 // FromEnv resolves the configuration of the role and refuses to start when a
@@ -88,6 +92,13 @@ func FromEnv(role Role, lookup func(string) string) (Config, error) {
 		Version:       envconfig.OrDefault(lookup(envServiceVersion), "0.0.0"),
 		Instance:      envconfig.OrDefault(lookup(envInstanceID), envconfig.Hostname()),
 		Brokers:       envconfig.SplitList(lookup(envBrokers)),
+		RouteBudget: deadline.Budget{
+			Dependency:        "postgres",
+			Method:            "route",
+			Limit:             2 * time.Second,
+			Slack:             200 * time.Millisecond,
+			EstimatedDuration: 200 * time.Millisecond,
+		},
 		Relay: relay.Config{
 			Source:         "urn:dmpf:reference-bookings",
 			Interval:       500 * time.Millisecond,
@@ -109,6 +120,9 @@ func FromEnv(role Role, lookup func(string) string) (Config, error) {
 		return Config{}, err
 	}
 	if cfg.OTLPInsecure, err = envconfig.ParseBool(envOTLPInsecure, lookup(envOTLPInsecure)); err != nil {
+		return Config{}, err
+	}
+	if cfg.Auth, err = authn.ReadEnv(lookup); err != nil {
 		return Config{}, err
 	}
 
@@ -142,6 +156,11 @@ func (c Config) validate() error {
 	}
 	if c.Role == RoleRelay {
 		if err := c.Relay.Validate(); err != nil {
+			return err
+		}
+	}
+	if c.Role == RoleAPI {
+		if err := c.Auth.Validate(); err != nil {
 			return err
 		}
 	}

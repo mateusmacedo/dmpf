@@ -14,7 +14,7 @@ func TestPlaceOrderAcceptedPlacesTheOrderAndEnqueuesTheFact(t *testing.T) {
 	h := newHarness(t)
 	h.seed(t, openSnapshot(1), 0)
 
-	out, err := h.service.PlaceOrder(context.Background(), application.PlaceOrder{Order: orderID})
+	out, err := h.service.PlaceOrder(withExecution(t, context.Background()), application.PlaceOrder{Order: orderID})
 
 	if err != nil {
 		t.Fatalf("PlaceOrder() error = %v, want nil", err)
@@ -23,7 +23,7 @@ func TestPlaceOrderAcceptedPlacesTheOrderAndEnqueuesTheFact(t *testing.T) {
 		t.Fatalf("Response() = %+v, want %+v", got, want)
 	}
 
-	snapshot, version, _ := ordersTable.Reader(h.store).Load(context.Background(), orderID)
+	snapshot, version, _ := ordersTable.Reader(h.store).Load(withExecution(t, context.Background()), orderID)
 	if snapshot.Status != domain.Placed {
 		t.Fatalf("Status = %v, want Placed", snapshot.Status)
 	}
@@ -47,7 +47,7 @@ func TestPlaceOrderRejectedCommitsWithoutWriting(t *testing.T) {
 	h := newHarness(t)
 	h.seed(t, openSnapshot(0), 0)
 
-	out, err := h.service.PlaceOrder(context.Background(), application.PlaceOrder{Order: orderID})
+	out, err := h.service.PlaceOrder(withExecution(t, context.Background()), application.PlaceOrder{Order: orderID})
 
 	if err != nil {
 		t.Fatalf("PlaceOrder() error = %v, want nil", err)
@@ -68,7 +68,7 @@ func TestPlaceOrderRejectedCommitsWithoutWriting(t *testing.T) {
 	if h.saves != 0 || h.enqueues != 0 {
 		t.Fatalf("a refusal wrote: saves = %d, enqueues = %d, want 0 and 0", h.saves, h.enqueues)
 	}
-	snapshot, version, _ := ordersTable.Reader(h.store).Load(context.Background(), orderID)
+	snapshot, version, _ := ordersTable.Reader(h.store).Load(withExecution(t, context.Background()), orderID)
 	if snapshot.Status != domain.Open || version != 1 {
 		t.Fatalf("the store changed under a refusal: status = %v, version = %d", snapshot.Status, version)
 	}
@@ -79,7 +79,7 @@ func TestPlaceOrderKeepsNothingWhenTheCommitFailsWhileLoading(t *testing.T) {
 	h.seed(t, openSnapshot(1), 0)
 	h.store.FailNextCommit(errCommitFailed)
 
-	out, err := h.service.PlaceOrder(context.Background(), application.PlaceOrder{Order: orderID})
+	out, err := h.service.PlaceOrder(withExecution(t, context.Background()), application.PlaceOrder{Order: orderID})
 
 	if !errors.Is(err, errCommitFailed) {
 		t.Fatalf("PlaceOrder() error = %v, want errCommitFailed", err)
@@ -87,7 +87,7 @@ func TestPlaceOrderKeepsNothingWhenTheCommitFailsWhileLoading(t *testing.T) {
 	if got := out.Response(); got != (domain.PlacedResponse{}) {
 		t.Fatalf("Response() = %+v, want the zero outcome", got)
 	}
-	snapshot, version, err := ordersTable.Reader(h.store).Load(context.Background(), orderID)
+	snapshot, version, err := ordersTable.Reader(h.store).Load(withExecution(t, context.Background()), orderID)
 	if err != nil {
 		t.Fatalf("Load() = %v, want the previous snapshot", err)
 	}
@@ -102,7 +102,7 @@ func TestPlaceOrderKeepsNothingWhenTheCommitFailsWhileLoading(t *testing.T) {
 func TestPlaceOrderReportsErrNotFoundForAnAbsentAggregate(t *testing.T) {
 	h := newHarness(t)
 
-	out, err := h.service.PlaceOrder(context.Background(), application.PlaceOrder{Order: "P-200"})
+	out, err := h.service.PlaceOrder(withExecution(t, context.Background()), application.PlaceOrder{Order: "P-200"})
 
 	if !errors.Is(err, ports.ErrNotFound) {
 		t.Fatalf("PlaceOrder() error = %v, want ErrNotFound through the wrapping", err)

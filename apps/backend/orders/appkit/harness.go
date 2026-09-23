@@ -35,7 +35,7 @@ func NewOrders(t testing.TB, clock ports.Clock, ids ports.IDGenerator) Harness {
 			Reader:    provider.NewReader(pool),
 			Clock:     clock,
 			IDs:       ids,
-			Authorize: kernel.AllowAll[application.Command](),
+			Authorize: kernel.AllowAll[application.Operation](),
 			ItemLimit: app.DefaultItemLimit,
 		},
 		Pool: pool,

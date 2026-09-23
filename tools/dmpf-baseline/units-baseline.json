@@ -1,6 +1,6 @@
 {
   "schema": "dmpf/units-baseline@1",
-  "digest": "sha256:2c1cd22bd733e5cff3fc1ea3d074a0f9621a3c81c8365ab4177fd7b7ec514b1f",
+  "digest": "sha256:f9fa75911879d1fd8856a2a5bfce3fc759321dc20dbb8dfac85980ef29c937d3",
   "entries": [
     {
       "unit": "bff/app",
@@ -179,6 +179,13 @@
       "block": "application",
       "bounded_context": "kernel",
       "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/application"]
+    },
+    {
+      "unit": "kernel/provider-authn",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/authn",
+      "block": "provider",
+      "bounded_context": "kernel",
+      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/authn"]
     },
     {
       "unit": "contracts/envelope",
@@ -522,6 +529,7 @@
     "contracts/envelope",
     "contracts/gen",
     "contracts/payloadhash",
-    "kernel/provider-memory"
+    "kernel/provider-memory",
+    "kernel/provider-authn"
   ]
 }

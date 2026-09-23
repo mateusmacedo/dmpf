@@ -12,6 +12,11 @@ import (
 func (s Service) FindBooking(ctx context.Context, id domain.BookingID) (domain.BookingSnapshot, error) {
 	ctx, end := s.instrumentation().BeginOperation(ctx, OperationFindBooking)
 
+	if err := s.Authorize(ctx, FindBooking{Booking: id}); err != nil {
+		end(authorizationResult(err))
+		return domain.BookingSnapshot{}, err
+	}
+
 	snapshot, _, err := s.Reader.Load(ctx, id)
 	if err != nil {
 		failed := fmt.Errorf("application: find booking %s: %w", id, err)
@@ -25,6 +30,11 @@ func (s Service) FindBooking(ctx context.Context, id domain.BookingID) (domain.B
 
 func (s Service) FindBookingByResource(ctx context.Context, resourceID domain.ResourceID) ([]domain.BookingSnapshot, error) {
 	ctx, end := s.instrumentation().BeginOperation(ctx, OperationFindByResource)
+
+	if err := s.Authorize(ctx, FindBookingByResource{Resource: resourceID}); err != nil {
+		end(authorizationResult(err))
+		return nil, err
+	}
 
 	snapshots, err := s.ResourceReader.LoadByResource(ctx, resourceID)
 	if err != nil {

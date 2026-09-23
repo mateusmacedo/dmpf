@@ -40,7 +40,7 @@ type wiring struct {
 	log      *bytes.Buffer
 }
 
-func wire(t *testing.T, authorize application.AuthorizeFunc[bumpCounter]) *wiring {
+func wire(t *testing.T, authorize application.Authorize[bumpCounter]) *wiring {
 	t.Helper()
 
 	fixture := boot(t, options{
@@ -75,7 +75,7 @@ func wire(t *testing.T, authorize application.AuthorizeFunc[bumpCounter]) *wirin
 func (w *wiring) seed(t *testing.T, state counterState) {
 	t.Helper()
 	err := memory.NewUnitOfWork(w.store, func(tx *memory.Tx) *memory.Tx { return tx }).
-		Within(context.Background(), func(ctx context.Context, tx *memory.Tx) error {
+		Within(withExecution(t, context.Background()), func(ctx context.Context, tx *memory.Tx) error {
 			return countersTable.Repository(tx).Save(ctx, subjectID, state, 0)
 		})
 	if err != nil {
@@ -100,7 +100,7 @@ func (w *wiring) endedSpan(t *testing.T) tracetest.SpanStub {
 	return ended[0]
 }
 
-func allowAll() application.AuthorizeFunc[bumpCounter] {
+func allowAll() application.Authorize[bumpCounter] {
 	return application.AllowAll[bumpCounter]()
 }
 
@@ -150,7 +150,7 @@ func (w *wiring) records(t *testing.T) []map[string]any {
 func TestAcceptedProducesOneSpanOneAuditAndOneTransaction(t *testing.T) {
 	w := wire(t, allowAll())
 
-	out, err := w.service.Bump(context.Background(), bumpCounter{Counter: subjectID, By: 1})
+	out, err := w.service.Bump(withExecution(t, context.Background()), bumpCounter{Counter: subjectID, By: 1})
 
 	if err != nil {
 		t.Fatalf("Bump() error = %v, want nil", err)
@@ -192,7 +192,7 @@ func TestRejectedProducesOneAuditAndCommitsWithoutWriting(t *testing.T) {
 	w.seed(t, counterAt(limit))
 	before := w.store.WithinCalls()
 
-	out, err := w.service.Bump(context.Background(), bumpCounter{Counter: subjectID, By: 1})
+	out, err := w.service.Bump(withExecution(t, context.Background()), bumpCounter{Counter: subjectID, By: 1})
 
 	if err != nil {
 		t.Fatalf("Bump() error = %v, want nil — a refusal is not a technical failure (DEC-04)", err)
@@ -216,7 +216,7 @@ func TestDeniedProducesNoAuditAndNoTransaction(t *testing.T) {
 		return errors.Join(errors.New("policy engine refused"), ports.ErrDenied)
 	})
 
-	_, err := w.service.Bump(context.Background(), bumpCounter{Counter: subjectID, By: 1})
+	_, err := w.service.Bump(withExecution(t, context.Background()), bumpCounter{Counter: subjectID, By: 1})
 
 	if !errors.Is(err, ports.ErrDenied) {
 		t.Fatalf("Bump() error = %v, want a denial", err)
@@ -236,7 +236,7 @@ func TestAnAuthorizerErrorThatIsNotDeniedIsReportedAsFailed(t *testing.T) {
 	broken := errors.New("timeout dialing the policy engine")
 	w := wire(t, func(context.Context, bumpCounter) error { return broken })
 
-	_, err := w.service.Bump(context.Background(), bumpCounter{Counter: subjectID, By: 1})
+	_, err := w.service.Bump(withExecution(t, context.Background()), bumpCounter{Counter: subjectID, By: 1})
 
 	if !errors.Is(err, broken) {
 		t.Fatalf("Bump() error = %v, want the authorizer error", err)
@@ -255,7 +255,7 @@ func TestFindIsReadTrafficAndLeavesNoAuditTrail(t *testing.T) {
 	w.seed(t, counterAt(2))
 	before := w.store.WithinCalls()
 
-	if _, err := w.service.Find(context.Background(), subjectID); err != nil {
+	if _, err := w.service.Find(withExecution(t, context.Background()), subjectID); err != nil {
 		t.Fatalf("Find() error = %v, want nil", err)
 	}
 

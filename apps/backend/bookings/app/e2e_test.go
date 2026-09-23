@@ -13,10 +13,14 @@ import (
 	"net/http/httptest"
 	"sync"
 	"testing"
+	"time"
+
+	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/deadline"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/authn"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
 
@@ -54,18 +58,24 @@ func newMux(pool *pgxpool.Pool) *http.ServeMux {
 		ResourceReader: provider.NewBookingsByResourceReader(pool),
 		Clock:          fixedClock{},
 		IDs:            &sequenceIDs{},
-		Authorize:      usecase.AllowAll[application.Command](),
+		Authorize:      usecase.AllowAll[application.Operation](),
 	}
-	h := httpedge.Handlers{Service: service}
+	return httpedge.Mux(service, e2eBudget, authn.DevAuthenticator{})
+}
 
-	mux := http.NewServeMux()
-	routes := httpedge.Routes()
-	mux.HandleFunc(routes[0].Method+" "+routes[0].Path, h.ReserveBooking)
-	mux.HandleFunc(routes[1].Method+" "+routes[1].Path, h.CancelBooking)
-	mux.HandleFunc(routes[2].Method+" "+routes[2].Path, h.RegisterResource)
-	mux.HandleFunc(routes[3].Method+" "+routes[3].Path, h.FindBooking)
-	mux.HandleFunc("GET /bookings/booking", h.FindBookingByResource)
-	return mux
+// e2eCredential is what a caller presents: the development mock resolves the
+// identity from the declaration itself, which is why the start refuses it
+// outside DMPF_AUTH_DEV_MOCK.
+const e2eCredential = `Bearer {"sub":"s-e2e","tenant":"acme","permissions":[]}`
+
+// WHY: the suite exercises the mux the process serves, middleware included, so
+// a route that only answers without the edge's time policy fails here.
+var e2eBudget = deadline.Budget{
+	Dependency:        "postgres",
+	Method:            "route",
+	Limit:             5 * time.Second,
+	Slack:             200 * time.Millisecond,
+	EstimatedDuration: 200 * time.Millisecond,
 }
 
 func TestReserveBookingHTTPEndToEnd(t *testing.T) {
@@ -75,6 +85,7 @@ func TestReserveBookingHTTPEndToEnd(t *testing.T) {
 	body, _ := json.Marshal(map[string]any{"bookingId": "http-b-001", "resourceId": "http-r-001", "quantity": 3})
 	req := httptest.NewRequest(http.MethodPost, "/bookings/booking", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", e2eCredential)
 	req.Header.Set("Idempotency-Key", "idem-001")
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
@@ -104,6 +115,7 @@ func TestReserveBookingHTTPEndToEnd(t *testing.T) {
 
 	t.Run("find booking by id via HTTP", func(t *testing.T) {
 		findReq := httptest.NewRequest(http.MethodGet, "/bookings/booking/http-b-001", nil)
+		findReq.Header.Set("Authorization", e2eCredential)
 		findRec := httptest.NewRecorder()
 		mux.ServeHTTP(findRec, findReq)
 
@@ -124,6 +136,7 @@ func TestReserveBookingHTTPEndToEnd(t *testing.T) {
 
 	t.Run("cancel via HTTP", func(t *testing.T) {
 		cancelReq := httptest.NewRequest(http.MethodPost, "/bookings/booking/http-b-001/cancel", nil)
+		cancelReq.Header.Set("Authorization", e2eCredential)
 		cancelReq.Header.Set("Idempotency-Key", "idem-002")
 		cancelRec := httptest.NewRecorder()
 		mux.ServeHTTP(cancelRec, cancelReq)
@@ -135,6 +148,7 @@ func TestReserveBookingHTTPEndToEnd(t *testing.T) {
 
 	t.Run("find by resource via HTTP", func(t *testing.T) {
 		findReq := httptest.NewRequest(http.MethodGet, "/bookings/booking?resourceId=http-r-001", nil)
+		findReq.Header.Set("Authorization", e2eCredential)
 		findRec := httptest.NewRecorder()
 		mux.ServeHTTP(findRec, findReq)
 
@@ -161,6 +175,7 @@ func TestReserveBookingHTTPRejectsInvalidQuantity(t *testing.T) {
 	body, _ := json.Marshal(map[string]any{"bookingId": "http-b-002", "resourceId": "http-r-002", "quantity": 0})
 	req := httptest.NewRequest(http.MethodPost, "/bookings/booking", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", e2eCredential)
 	req.Header.Set("Idempotency-Key", "idem-003")
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)

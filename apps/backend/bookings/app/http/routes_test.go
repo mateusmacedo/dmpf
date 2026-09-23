@@ -4,12 +4,41 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	httpedge "github.com/mateusmacedo/dmpf/apps/backend/bookings/app/http"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/deadline"
 )
 
+var testBudget = deadline.Budget{
+	Dependency:        "postgres",
+	Method:            "route",
+	Limit:             2 * time.Second,
+	Slack:             200 * time.Millisecond,
+	EstimatedDuration: 200 * time.Millisecond,
+}
+
+func TestEveryRouteCarriesTheBudgetTheEdgeDeclares(t *testing.T) {
+	for _, route := range httpedge.Routes(testBudget) {
+		if route.Budget != testBudget {
+			t.Fatalf("%s carries %+v, want the budget the edge declared: the deadline is the edge policy's, not the caller's", route.Name, route.Budget)
+		}
+		if err := route.Validate(); err != nil {
+			t.Fatalf("%s: Validate() = %v", route.Name, err)
+		}
+	}
+}
+
+func TestARouteWithoutABudgetIsRefused(t *testing.T) {
+	for _, route := range httpedge.Routes(deadline.Budget{}) {
+		if err := route.Validate(); err == nil {
+			t.Fatalf("%s validated with no budget, so nothing would stop a route from serving without a governed deadline", route.Name)
+		}
+	}
+}
+
 func TestEveryRouteNamesTheContractItServes(t *testing.T) {
-	for _, route := range httpedge.Routes() {
+	for _, route := range httpedge.Routes(testBudget) {
 		if route.Name == "" {
 			t.Fatalf("route %+v has no name", route)
 		}
@@ -20,7 +49,7 @@ func TestEveryRouteNamesTheContractItServes(t *testing.T) {
 }
 
 func TestEveryWriteRouteDeclaresItsIdempotencyKey(t *testing.T) {
-	for _, route := range httpedge.Routes() {
+	for _, route := range httpedge.Routes(testBudget) {
 		if route.Method != http.MethodPost {
 			continue
 		}
@@ -31,7 +60,7 @@ func TestEveryWriteRouteDeclaresItsIdempotencyKey(t *testing.T) {
 }
 
 func TestTheReadRoutesCarryNoIdempotencyKey(t *testing.T) {
-	for _, route := range httpedge.Routes() {
+	for _, route := range httpedge.Routes(testBudget) {
 		if route.Method != http.MethodGet {
 			continue
 		}
@@ -43,7 +72,7 @@ func TestTheReadRoutesCarryNoIdempotencyKey(t *testing.T) {
 
 func TestNoTwoRoutesShareAMethodAndPath(t *testing.T) {
 	seen := map[string]string{}
-	for _, route := range httpedge.Routes() {
+	for _, route := range httpedge.Routes(testBudget) {
 		key := route.Method + " " + route.Path
 		if before, clash := seen[key]; clash {
 			t.Fatalf("%s and %s both answer %q; the mux would refuse the second", before, route.Name, key)

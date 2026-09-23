@@ -12,14 +12,21 @@ const (
 	CorrelationIDKey  = "x-correlation-id"
 	CausationIDKey    = "x-causation-id"
 	IdempotencyKeyKey = "idempotency-key"
+	TenantIDKey       = "x-tenant-id"
 )
 
 // Call is what the edge authored for one request and hands to the contexts:
-// the correlation of the chain and, as causation, the edge's own request id.
+// the correlation of the chain, the edge's own request id as causation, and the
+// tenant CTX-13 preserves across the hop.
+//
+// WHY: the authenticated subject and its permissions are deliberately absent.
+// CTX-12 turns them into provenance at this boundary, and the callee resolves
+// its own caller identity instead of trusting one the edge asserts (IDN-02).
 type Call struct {
 	CorrelationID  string
 	RequestID      string
 	IdempotencyKey string
+	TenantID       string
 }
 
 type callKey struct{}
@@ -40,6 +47,7 @@ func contextInterceptor(ctx context.Context, method string, req, reply any, cc *
 		setPresent(md, CorrelationIDKey, call.CorrelationID)
 		setPresent(md, CausationIDKey, call.RequestID)
 		setPresent(md, IdempotencyKeyKey, call.IdempotencyKey)
+		setPresent(md, TenantIDKey, call.TenantID)
 	}
 	propagation.TraceContext{}.Inject(ctx, carrier(md))
 	return invoker(metadata.NewOutgoingContext(ctx, md), method, req, reply, cc, opts...)

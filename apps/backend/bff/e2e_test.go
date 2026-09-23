@@ -107,6 +107,11 @@ func TestTopologyEndToEnd(t *testing.T) {
 			t.Fatalf("%s outbox rows failed = %d, want 0", name, n)
 		}
 	}
+
+	t.Log("7. the same call without a credential is refused as identity, not as an internal failure")
+	if status, body := top.callAnonymous(t, http.MethodGet, "/orders/"+reservedOrder); status != http.StatusUnauthorized {
+		t.Fatalf("GET order without credential: status = %d, want %d (IDN-01, IDN-06), body %s", status, http.StatusUnauthorized, body)
+	}
 }
 
 func (top *topology) placeOrder(t *testing.T, order string, headers map[string]string) {
@@ -119,7 +124,29 @@ func (top *topology) placeOrder(t *testing.T, order string, headers map[string]s
 	}
 }
 
+// e2eCredential is what the development authenticator reads back. The tenant
+// matches the one admission declares, so the identity the edge resolves and the
+// bucket it charges stay the same until Phase 7 removes the literal.
+const e2eCredential = `Bearer {"sub":"e2e-tester","tenant":"public","permissions":["orders:write","orders:read"]}`
+
 func (top *topology) call(t *testing.T, method, path, body string, headers map[string]string) (int, []byte) {
+	t.Helper()
+	req := top.request(t, method, path, body)
+	req.Header.Set("Authorization", e2eCredential)
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
+	return send(t, req)
+}
+
+// callAnonymous sends the same request without the Authorization header, which
+// is the only way to observe the refusal across the whole topology.
+func (top *topology) callAnonymous(t *testing.T, method, path string) (int, []byte) {
+	t.Helper()
+	return send(t, top.request(t, method, path, ""))
+}
+
+func (top *topology) request(t *testing.T, method, path, body string) *http.Request {
 	t.Helper()
 	req, err := http.NewRequest(method, "http://"+top.bffAddr+path, strings.NewReader(body))
 	if err != nil {
@@ -129,12 +156,14 @@ func (top *topology) call(t *testing.T, method, path, body string, headers map[s
 		req.Header.Set("Idempotency-Key", fmt.Sprintf("k-%d", time.Now().UnixNano()))
 		req.Header.Set("Content-Type", "application/json")
 	}
-	for k, v := range headers {
-		req.Header.Set(k, v)
-	}
+	return req
+}
+
+func send(t *testing.T, req *http.Request) (int, []byte) {
+	t.Helper()
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
-		t.Fatalf("%s %s: %v", method, path, err)
+		t.Fatalf("%s %s: %v", req.Method, req.URL.Path, err)
 	}
 	defer res.Body.Close()
 	got, err := io.ReadAll(res.Body)

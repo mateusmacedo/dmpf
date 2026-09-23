@@ -14,7 +14,7 @@ func TestFindReservationReadsOutsideTheUnitOfWork(t *testing.T) {
 	h := newSyncHarness(t)
 	h.seed(t, confirmedSnapshot(3), 0)
 
-	snapshot, err := h.service.FindReservation(context.Background(), syncOrder)
+	snapshot, err := h.service.FindReservation(withExecution(t, context.Background()), syncOrder)
 
 	if err != nil {
 		t.Fatalf("FindReservation() error = %v, want nil", err)
@@ -33,7 +33,7 @@ func TestFindReservationReadsOutsideTheUnitOfWork(t *testing.T) {
 func TestFindReservationReportsErrNotFoundForAnAbsentAggregate(t *testing.T) {
 	h := newSyncHarness(t)
 
-	_, err := h.service.FindReservation(context.Background(), "P-404")
+	_, err := h.service.FindReservation(withExecution(t, context.Background()), "P-404")
 
 	if !errors.Is(err, ports.ErrNotFound) {
 		t.Fatalf("FindReservation() error = %v, want ErrNotFound through the wrapping", err)

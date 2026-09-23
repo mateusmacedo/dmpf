@@ -191,3 +191,51 @@ func decoded(t *testing.T, env envelope.Envelope) *eventv1.OrderPlaced {
 	}
 	return &got
 }
+
+// CTX-13: the tenant the producer resolved crosses to the envelope, so the
+// consumer can rebuild a context that reaches scoped persistence.
+func TestAssembleCarriesTheTenantOntoTheEnvelope(t *testing.T) {
+	t.Parallel()
+
+	record := publishableRecord(t)
+	record.Metadata = []byte(`{"correlationid":"corr-1","causationid":"caus-1","traceparent":"tp","tenantid":"acme"}`)
+
+	env, err := Assemble(record, testSource)
+	if err != nil {
+		t.Fatalf("Assemble() = %v, want nil", err)
+	}
+	if env.TenantID == nil || *env.TenantID != "acme" {
+		t.Fatalf("TenantID = %v, want a pointer to acme", env.TenantID)
+	}
+}
+
+// CTX-26: a platform chain resolved no tenant, and ENV-12 gives absence the nil
+// pointer rather than the empty string.
+func TestAssembleLeavesTheTenantNilWhenTheChainHasNone(t *testing.T) {
+	t.Parallel()
+
+	env, err := Assemble(publishableRecord(t), testSource)
+	if err != nil {
+		t.Fatalf("Assemble() = %v, want nil", err)
+	}
+	if env.TenantID != nil {
+		t.Fatalf("TenantID = %q, want nil: no tenant was resolved", *env.TenantID)
+	}
+}
+
+// Present and unreadable is corruption, not absence: silently dropping it would
+// turn one tenant's fact into a chain that belongs to nobody.
+func TestAssembleRejectsAMalformedTenant(t *testing.T) {
+	t.Parallel()
+
+	for _, malformed := range []string{`"tenantid":1`, `"tenantid":""`, `"tenantid":{}`} {
+		t.Run(malformed, func(t *testing.T) {
+			record := publishableRecord(t)
+			record.Metadata = []byte(`{"correlationid":"corr-1","causationid":"caus-1","traceparent":"tp",` + malformed + `}`)
+
+			if _, err := Assemble(record, testSource); !errors.Is(err, ErrMissingContextAttributes) {
+				t.Fatalf("Assemble() = %v, want ErrMissingContextAttributes", err)
+			}
+		})
+	}
+}

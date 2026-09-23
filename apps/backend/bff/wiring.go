@@ -15,10 +15,12 @@ import (
 
 	obsclock "github.com/mateusmacedo/dmpf/libs/backend/go/observability/clock"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/otelboot"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/admission"
 
 	"github.com/mateusmacedo/dmpf/apps/backend/bff/api"
 	"github.com/mateusmacedo/dmpf/apps/backend/bff/rpc"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/authn"
 )
 
 const (
@@ -33,6 +35,16 @@ func Run(ctx context.Context, cfg Config, out io.Writer) error {
 	return boot.Boot(ctx, out, TelemetryOf(cfg), func(ctx context.Context, rt *otelboot.Runtime) error {
 		return RunWith(ctx, cfg, rt)
 	})
+}
+
+// Authenticator resolves how this process verifies identity. The development
+// mock is only reachable through the opt-out the config already refused to
+// combine with an issuer, so one start never has two ways of resolving it.
+func Authenticator(ctx context.Context, cfg Config) (ports.Authenticator, error) {
+	if cfg.Auth.DevMock {
+		return authn.DevAuthenticator{}, nil
+	}
+	return authn.NewVerifier(ctx, cfg.Auth)
 }
 
 func RunWith(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {
@@ -55,7 +67,11 @@ func RunWith(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {
 	if err != nil {
 		return err
 	}
-	options := api.Options{Budget: cfg.RouteBudget, CORSOrigins: cfg.CORSOrigins}
+	authenticator, err := Authenticator(ctx, cfg)
+	if err != nil {
+		return err
+	}
+	options := api.Options{Budget: cfg.RouteBudget, Authenticator: authenticator, CORSOrigins: cfg.CORSOrigins}
 	if options.OrdersContract, err = readContract(cfg.OrdersContractPath); err != nil {
 		return err
 	}

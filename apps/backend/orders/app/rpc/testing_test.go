@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/test/bufconn"
 	"google.golang.org/protobuf/proto"
 
@@ -38,15 +39,31 @@ const (
 	traceID     = "0af7651916cd43dd8448eb211c80319c"
 	parentSpan  = "b7ad6b7169203331"
 	traceparent = "00-" + traceID + "-" + parentSpan + "-01"
+	testTenant  = "acme"
 )
 
 var unlimited = admission.Limit{PerSecond: 1000, Burst: 1000, Concurrency: 64}
 
 type harness struct {
-	store *memory.Store
-	conn  *grpc.ClientConn
-	spans *tracetest.InMemoryExporter
-	logs  *bytes.Buffer
+	store     *memory.Store
+	conn      *grpc.ClientConn
+	spans     *tracetest.InMemoryExporter
+	logs      *bytes.Buffer
+	execution *capture
+}
+
+// capture is the innermost interceptor of the chain: it observes what the
+// server rebuilt, which is otherwise only reachable from inside the handler.
+type capture struct {
+	execution ports.ExecutionContext
+	present   bool
+}
+
+func (c *capture) intercept(ctx context.Context, req any, _ *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
+	if execution, ok := rpc.ExecutionContextFrom(ctx); ok {
+		c.execution, c.present = execution, true
+	}
+	return handler(ctx, req)
 }
 
 func newHarness(t *testing.T, limit admission.Limit) *harness {
@@ -60,7 +77,7 @@ func newHarness(t *testing.T, limit admission.Limit) *harness {
 		Reader:    ordersTable.Reader(store),
 		Clock:     memory.FixedClock{At: occurred},
 		IDs:       &memory.SequenceIDs{Prefix: "m-"},
-		Authorize: usecase.AllowAll[application.Command](),
+		Authorize: usecase.AllowAll[application.Operation](),
 		ItemLimit: 1,
 	}
 
@@ -77,10 +94,14 @@ func newHarness(t *testing.T, limit admission.Limit) *harness {
 	if err != nil {
 		t.Fatalf("admission.New() = %v", err)
 	}
+	execution := &capture{}
 	server, _, err := kernel.NewServer(kernel.ServerConfig{
 		InsecureForDevelopmentOnly: true,
 		Services:                   []string{rpc.ServiceName},
-		UnaryInterceptors:          rpc.Interceptors(provider.Tracer("rpc-test"), ctrl, nil, slog.New(slog.NewJSONHandler(logs, nil))),
+		UnaryInterceptors: append(
+			rpc.Interceptors(provider.Tracer("rpc-test"), ctrl, nil, slog.New(slog.NewJSONHandler(logs, nil))),
+			execution.intercept,
+		),
 	})
 	if err != nil {
 		t.Fatalf("NewServer() = %v", err)
@@ -103,7 +124,7 @@ func newHarness(t *testing.T, limit admission.Limit) *harness {
 	}
 	t.Cleanup(func() { _ = conn.Close() })
 
-	return &harness{store: store, conn: conn, spans: spans, logs: logs}
+	return &harness{store: store, conn: conn, spans: spans, logs: logs, execution: execution}
 }
 
 func (h *harness) invoke(ctx context.Context, method string, req, resp proto.Message) error {
@@ -115,4 +136,12 @@ func withDeadline(t *testing.T) context.Context {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	t.Cleanup(cancel)
 	return ctx
+}
+
+// withTenant is what the BFF puts on the wire: the deadline GRP-04 requires
+// plus the tenant the edge resolved, without which persistence refuses the
+// call (IDN-15).
+func withTenant(t *testing.T) context.Context {
+	t.Helper()
+	return metadata.AppendToOutgoingContext(withDeadline(t), rpc.TenantKey, testTenant)
 }

@@ -83,6 +83,10 @@ func rawEnvelope(t *testing.T, eventType string, msg proto.Message) []byte {
 	return raw
 }
 
+// sinkTimeout is the consumer's own time policy, which CTX-28 makes mandatory.
+// It lives here because e2e_test.go is behind the integration build tag.
+const sinkTimeout = 10 * time.Second
+
 func newSink(handler *fakeHandler, containment *fakeContainment, tracer trace.Tracer) app.Sink {
 	return app.Sink{
 		Consumer: kernel.Consumer{
@@ -91,6 +95,7 @@ func newSink(handler *fakeHandler, containment *fakeContainment, tracer trace.Tr
 			Handle:      handler.handle,
 			Containment: containment,
 			Clock:       fixedClock{},
+			Timeout:     sinkTimeout,
 		},
 		EventType: orderPlacedV1,
 		Tracer:    tracer,

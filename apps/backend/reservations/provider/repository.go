@@ -1,12 +1,9 @@
 package provider
 
 import (
-	"context"
 	"encoding/json"
-	"errors"
-	"fmt"
 
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
@@ -14,71 +11,44 @@ import (
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
 )
 
-const (
-	selectReservation = `SELECT version, snapshot FROM dmpf_example_reservations WHERE order_id = $1`
+// reservationsTable declares how the Reservation snapshot maps to columns. The
+// statements, and with them the tenant predicate, are the kernel's: a read or
+// write written here could not omit the scope even by mistake (IDN-14).
+var reservationsTable = postgres.Table[domain.OrderID, domain.Snapshot]{
+	Name:     "dmpf_example_reservations",
+	IDColumn: "order_id",
+	Columns:  []string{"snapshot"},
 
-	insertReservation = `
-		INSERT INTO dmpf_example_reservations (order_id, version, snapshot) VALUES ($1, 1, $2)
-		ON CONFLICT (order_id) DO NOTHING`
+	Encode: func(s domain.Snapshot) ([]any, error) {
+		raw, err := json.Marshal(s)
+		if err != nil {
+			return nil, err
+		}
+		return []any{raw}, nil
+	},
 
-	updateReservation = `
-		UPDATE dmpf_example_reservations SET version = $2 + 1, snapshot = $3
-		WHERE order_id = $1 AND version = $2`
-)
+	Decode: func(scan func(dest ...any) error) (domain.Snapshot, error) {
+		var raw []byte
+		if err := scan(&raw); err != nil {
+			return domain.Snapshot{}, err
+		}
+		var snapshot domain.Snapshot
+		if err := json.Unmarshal(raw, &snapshot); err != nil {
+			return domain.Snapshot{}, err
+		}
+		return snapshot, nil
+	},
+}
 
-// NewRepository binds the repository to an open transaction (UOW-01).
+// NewRepository binds the repository to an open transaction, because every read
+// and write of the aggregate has to run on the same transaction as the outbox
+// row (UOW-01).
 func NewRepository(tx *postgres.Tx) ports.Repository[domain.OrderID, domain.Snapshot] {
-	return repository{conn: tx.Conn()}
+	return reservationsTable.Repository(tx)
 }
 
-type repository struct{ conn pgx.Tx }
-
-func (r repository) Load(ctx context.Context, id domain.OrderID) (domain.Snapshot, ports.Version, error) {
-	return load(ctx, r.conn, id)
-}
-
-// querier is the one method Load needs, satisfied by a transaction and by the
-// pool alike: the SELECT is the same, only the boundary around it differs.
-type querier interface {
-	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
-}
-
-func load(ctx context.Context, q querier, id domain.OrderID) (domain.Snapshot, ports.Version, error) {
-	var (
-		version int64
-		raw     []byte
-	)
-	switch err := q.QueryRow(ctx, selectReservation, string(id)).Scan(&version, &raw); {
-	case errors.Is(err, pgx.ErrNoRows):
-		return domain.Snapshot{}, 0, ports.ErrNotFound
-	case err != nil:
-		return domain.Snapshot{}, 0, fmt.Errorf("provider: load %s: %w", id, err)
-	}
-
-	var snapshot domain.Snapshot
-	if err := json.Unmarshal(raw, &snapshot); err != nil {
-		return domain.Snapshot{}, 0, fmt.Errorf("provider: decode snapshot of %s: %w", id, err)
-	}
-	return snapshot, ports.Version(version), nil
-}
-
-func (r repository) Save(ctx context.Context, id domain.OrderID, state domain.Snapshot, expected ports.Version) error {
-	raw, err := json.Marshal(state)
-	if err != nil {
-		return fmt.Errorf("provider: encode snapshot of %s: %w", id, err)
-	}
-
-	statement, args := updateReservation, []any{string(id), int64(expected), raw}
-	if expected == 0 {
-		statement, args = insertReservation, []any{string(id), raw}
-	}
-
-	tag, err := r.conn.Exec(ctx, statement, args...)
-	if err != nil {
-		return fmt.Errorf("provider: save %s: %w", id, err)
-	}
-	if tag.RowsAffected() == 0 {
-		return ports.ErrVersionConflict
-	}
-	return nil
+// NewReader serves the read side without the write side (UOW-11): it takes the
+// pool because a query must not open a transaction.
+func NewReader(pool *pgxpool.Pool) ports.Reader[domain.OrderID, domain.Snapshot] {
+	return reservationsTable.Reader(pool)
 }

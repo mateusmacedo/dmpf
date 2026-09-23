@@ -5,6 +5,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"net/http"
 
 	"go.opentelemetry.io/otel/trace"
@@ -13,6 +14,7 @@ import (
 	reservationsv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/reservations/service/v1"
 	provider "github.com/mateusmacedo/dmpf/libs/backend/go/http"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/metrics"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/admission"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/deadline"
 )
@@ -21,6 +23,10 @@ const (
 	Tenant            = "public"
 	IdempotencyHeader = "Idempotency-Key"
 	CorrelationHeader = "X-Correlation-ID"
+
+	// DefaultLocale resolves CTX-01's mandatory field when the caller states no
+	// preference; leaving it empty would make the context a construction defect.
+	DefaultLocale = "en"
 
 	OrdersContractPath       = "/openapi/orders/v1/openapi.yaml"
 	ReservationsContractPath = "/openapi/reservations/v1/openapi.yaml"
@@ -46,6 +52,7 @@ type ReservationsClient interface {
 // nothing) and the browser origins allowed to call the edge (none by default).
 type Options struct {
 	Budget               deadline.Budget
+	Authenticator        ports.Authenticator
 	OrdersContract       []byte
 	ReservationsContract []byte
 	CORSOrigins          []string
@@ -53,12 +60,12 @@ type Options struct {
 
 func Routes(budget deadline.Budget) []provider.Route {
 	return []provider.Route{
-		{Name: "addItem", Method: http.MethodPost, Path: "/orders/{id}/items", ContractRef: ordersContract + "~1orders~1{id}~1items/post", Budget: budget, IdempotencyKey: IdempotencyHeader},
-		{Name: "placeOrder", Method: http.MethodPost, Path: "/orders/{id}/place", ContractRef: ordersContract + "~1orders~1{id}~1place/post", Budget: budget, IdempotencyKey: IdempotencyHeader},
-		{Name: "findOrder", Method: http.MethodGet, Path: "/orders/{id}", ContractRef: ordersContract + "~1orders~1{id}/get", Budget: budget},
-		{Name: "findReservation", Method: http.MethodGet, Path: "/reservations/{order_id}", ContractRef: reservationsContract + "~1reservations~1{order_id}/get", Budget: budget},
-		{Name: "reserve", Method: http.MethodPost, Path: "/reservations/{order_id}/reserve", ContractRef: reservationsContract + "~1reservations~1{order_id}~1reserve/post", Budget: budget, IdempotencyKey: IdempotencyHeader},
-		{Name: "cancel", Method: http.MethodPost, Path: "/reservations/{order_id}/cancel", ContractRef: reservationsContract + "~1reservations~1{order_id}~1cancel/post", Budget: budget, IdempotencyKey: IdempotencyHeader},
+		{Name: "addItem", Method: http.MethodPost, Path: "/orders/{id}/items", ContractRef: ordersContract + "~1orders~1{id}~1items/post", Budget: budget, IdempotencyKey: IdempotencyHeader, Requires: provider.RequireSubjectAndTenant},
+		{Name: "placeOrder", Method: http.MethodPost, Path: "/orders/{id}/place", ContractRef: ordersContract + "~1orders~1{id}~1place/post", Budget: budget, IdempotencyKey: IdempotencyHeader, Requires: provider.RequireSubjectAndTenant},
+		{Name: "findOrder", Method: http.MethodGet, Path: "/orders/{id}", ContractRef: ordersContract + "~1orders~1{id}/get", Budget: budget, Requires: provider.RequireSubjectAndTenant},
+		{Name: "findReservation", Method: http.MethodGet, Path: "/reservations/{order_id}", ContractRef: reservationsContract + "~1reservations~1{order_id}/get", Budget: budget, Requires: provider.RequireSubjectAndTenant},
+		{Name: "reserve", Method: http.MethodPost, Path: "/reservations/{order_id}/reserve", ContractRef: reservationsContract + "~1reservations~1{order_id}~1reserve/post", Budget: budget, IdempotencyKey: IdempotencyHeader, Requires: provider.RequireSubjectAndTenant},
+		{Name: "cancel", Method: http.MethodPost, Path: "/reservations/{order_id}/cancel", ContractRef: reservationsContract + "~1reservations~1{order_id}~1cancel/post", Budget: budget, IdempotencyKey: IdempotencyHeader, Requires: provider.RequireSubjectAndTenant},
 	}
 }
 
@@ -73,11 +80,14 @@ func Limits(limit admission.Limit) map[string]admission.Limit {
 
 func pattern(route provider.Route) string { return route.Method + " " + route.Path }
 
-// NewHandler validates the routes and mounts each behind the request context,
-// admission, the route deadline and the idempotency check, in that order: the
-// span and the correlation open first, so that a refusal under load carries the
-// same identifiers as any other answer, and admission still refuses before the
-// body is read (RES-17).
+// ErrAuthenticatorRequired refuses a handler that could not authenticate: every
+// route here demands a subject, and a nil verifier would deny all of them at
+// the first request instead of at the start.
+var ErrAuthenticatorRequired = errors.New("api: no authenticator provided")
+
+// WHY: the deadline wraps the execution context, not the reverse, because
+// CTX-01 makes deadline mandatory and the context cannot resolve what the
+// timeout has not yet set. Admission stays inside, still ahead of the body.
 func NewHandler(
 	orders OrdersClient,
 	reservations ReservationsClient,
@@ -86,6 +96,10 @@ func NewHandler(
 	instruments *metrics.Instruments,
 	opts Options,
 ) (http.Handler, error) {
+	if opts.Authenticator == nil {
+		return nil, ErrAuthenticatorRequired
+	}
+
 	h := handlers{orders: orders, reservations: reservations}
 	serve := map[string]http.HandlerFunc{
 		"addItem":         h.addItem,
@@ -103,7 +117,8 @@ func NewHandler(
 			return nil, err
 		}
 		handler := requireIdempotencyKey(serve[route.Name])
-		mux.Handle(pattern(route), withRecover(withRequestContext(tracer, admit(withRouteDeadline(route.Budget, handler)))))
+		mounted := withExecutionContext(tracer, opts.Authenticator, route, admit(handler))
+		mux.Handle(pattern(route), withRecover(withRouteDeadline(route.Budget, mounted)))
 	}
 	if len(opts.OrdersContract) > 0 {
 		mux.Handle("GET "+OrdersContractPath, serveContract(opts.OrdersContract))

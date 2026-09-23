@@ -33,7 +33,7 @@ type Resources struct {
 	Outbox    port.Outbox
 }
 
-type Command interface{ isCommand() }
+type Operation interface{ isOperation() }
 
 type Reserve struct {
 	BookingID  domain.BookingID
@@ -41,19 +41,34 @@ type Reserve struct {
 	Quantity   int
 }
 
-func (Reserve) isCommand() {}
+func (Reserve) isOperation() {}
 
 type Cancel struct {
 	BookingID domain.BookingID
 }
 
-func (Cancel) isCommand() {}
+func (Cancel) isOperation() {}
 
 type Register struct {
 	Code domain.ResourceCode
 }
 
-func (Register) isCommand() {}
+func (Register) isOperation() {}
+
+// FindBooking and FindBookingByResource ask for state without changing it. A
+// query is an entry point like any other: authenticating at the route does not
+// stand for permission to read what the operation returns.
+type FindBooking struct {
+	Booking domain.BookingID
+}
+
+func (FindBooking) isOperation() {}
+
+type FindBookingByResource struct {
+	Resource domain.ResourceID
+}
+
+func (FindBookingByResource) isOperation() {}
 
 type Service struct {
 	UoW            port.UnitOfWork[Resources]
@@ -61,7 +76,7 @@ type Service struct {
 	ResourceReader ports.BookingsByResourceReader
 	Clock          port.Clock
 	IDs            port.IDGenerator
-	Authorize      application.AuthorizeFunc[Command]
+	Authorize      application.Authorize[Operation]
 }
 
 func (s Service) instrumentation() port.Instrumentation {

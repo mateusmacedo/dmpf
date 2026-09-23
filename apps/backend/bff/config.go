@@ -8,6 +8,8 @@ import (
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/admission"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/deadline"
+
+	"github.com/mateusmacedo/dmpf/libs/backend/go/authn"
 )
 
 var (
@@ -58,6 +60,8 @@ type Config struct {
 
 	Admission   admission.Limit
 	RouteBudget deadline.Budget
+
+	Auth authn.Config
 }
 
 func Defaults() Config {
@@ -99,6 +103,9 @@ func FromEnv(lookup func(string) string) (Config, error) {
 	if cfg.OTLPInsecure, err = envconfig.ParseBool(envOTLPInsecure, lookup(envOTLPInsecure)); err != nil {
 		return Config{}, err
 	}
+	if cfg.Auth, err = authn.ReadEnv(lookup); err != nil {
+		return Config{}, err
+	}
 
 	if err := cfg.Validate(); err != nil {
 		return Config{}, err
@@ -118,5 +125,8 @@ func (c Config) Validate() error {
 	case !c.GRPCInsecure && c.CAFile == "":
 		return fmt.Errorf("%w: %s=true or %s", ErrMissingVariable, envGRPCInsecure, envGRPCCAFile)
 	}
-	return c.RouteBudget.Validate()
+	if err := c.RouteBudget.Validate(); err != nil {
+		return err
+	}
+	return c.Auth.Validate()
 }

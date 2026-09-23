@@ -59,7 +59,7 @@ func TestNewReaderLoadsWhatTheRepositoryWrote(t *testing.T) {
 	seed(t, pool)
 	want, wantVersion := load(t, pool)
 
-	got, version, err := provider.NewReader(pool).Load(context.Background(), repoOrderID)
+	got, version, err := provider.NewReader(pool).Load(withExecution(t, context.Background()), repoOrderID)
 
 	if err != nil {
 		t.Fatalf("Load() = %v, want nil", err)
@@ -72,7 +72,7 @@ func TestNewReaderLoadsWhatTheRepositoryWrote(t *testing.T) {
 func TestNewReaderReportsAnAbsentReservation(t *testing.T) {
 	pool := pg.OpenPool(t)
 
-	_, _, err := provider.NewReader(pool).Load(context.Background(), "o-absent")
+	_, _, err := provider.NewReader(pool).Load(withExecution(t, context.Background()), "o-absent")
 
 	if !errors.Is(err, ports.ErrNotFound) {
 		t.Fatalf("Load() = %v, want ErrNotFound", err)
@@ -85,7 +85,7 @@ func TestNewReaderNeverOpensATransaction(t *testing.T) {
 	seed(t, pool)
 	traced, recorder := tracedPool(t, pool)
 
-	if _, _, err := provider.NewReader(traced).Load(context.Background(), repoOrderID); err != nil {
+	if _, _, err := provider.NewReader(traced).Load(withExecution(t, context.Background()), repoOrderID); err != nil {
 		t.Fatalf("Load() = %v, want nil", err)
 	}
 

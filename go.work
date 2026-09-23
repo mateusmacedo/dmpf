@@ -7,6 +7,7 @@ use (
 	./apps/backend/reservations
 	./libs/backend/go/app
 	./libs/backend/go/application
+	./libs/backend/go/authn
 	./libs/backend/go/contracts
 	./libs/backend/go/domain
 	./libs/backend/go/grpc
@@ -25,6 +26,7 @@ use (
 replace (
 	github.com/mateusmacedo/dmpf/libs/backend/go/app v0.1.0 => ./libs/backend/go/app
 	github.com/mateusmacedo/dmpf/libs/backend/go/application v0.1.0 => ./libs/backend/go/application
+	github.com/mateusmacedo/dmpf/libs/backend/go/authn v0.1.0 => ./libs/backend/go/authn
 	github.com/mateusmacedo/dmpf/libs/backend/go/contracts v0.1.0 => ./libs/backend/go/contracts
 	github.com/mateusmacedo/dmpf/libs/backend/go/domain v0.1.0 => ./libs/backend/go/domain
 	github.com/mateusmacedo/dmpf/libs/backend/go/grpc v0.1.0 => ./libs/backend/go/grpc

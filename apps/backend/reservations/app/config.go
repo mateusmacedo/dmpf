@@ -83,9 +83,13 @@ type Config struct {
 
 	Migrate bool
 
-	Relay     relay.Config
-	Wait      time.Duration
-	Admission admission.Limit
+	Relay relay.Config
+	Wait  time.Duration
+
+	// ConsumerTimeout is this consumer's own time policy, which CTX-28 makes
+	// mandatory: the adapter mounts a deadline per attempt from it.
+	ConsumerTimeout time.Duration
+	Admission       admission.Limit
 }
 
 // Defaults are the values a role runs with when the environment says nothing.
@@ -106,8 +110,9 @@ func Defaults(role Role) Config {
 			BackoffCeiling: 30 * time.Second,
 			ShutdownGrace:  10 * time.Second,
 		},
-		Wait:      2 * time.Second,
-		Admission: admission.Limit{PerSecond: 50, Burst: 100, Concurrency: 32},
+		Wait:            2 * time.Second,
+		ConsumerTimeout: 30 * time.Second,
+		Admission:       admission.Limit{PerSecond: 50, Burst: 100, Concurrency: 32},
 	}
 }
 

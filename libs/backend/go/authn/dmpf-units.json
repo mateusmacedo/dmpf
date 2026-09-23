@@ -1,0 +1,21 @@
+{
+  "schema": "dmpf/units@1",
+  "units": [
+    {
+      "id": "kernel/provider-authn",
+      "block": "provider",
+      "bounded_context": "kernel",
+      "public_integration_surface": false,
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/authn"]
+    }
+  ],
+  "external": [
+    {
+      "package": "github.com/coreos/go-oidc/v3",
+      "versions": ">=3.21.0 <4",
+      "entrypoints": ["github.com/coreos/go-oidc/v3/oidc"],
+      "capability": "io.network"
+    }
+  ],
+  "exceptions": []
+}

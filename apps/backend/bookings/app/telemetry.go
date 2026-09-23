@@ -9,9 +9,6 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
 
-// Tenant attributes every line of this context, which serves one tenancy.
-const Tenant = "public"
-
 // TelemetryOf is what this process declares about itself to the telemetry.
 func TelemetryOf(cfg Config) boot.Telemetry {
 	return boot.Telemetry{
@@ -25,8 +22,16 @@ func TelemetryOf(cfg Config) boot.Telemetry {
 	}
 }
 
+// WHY: the tenant comes from the context the edge mounted, never from a literal
+// this package holds — a fixed value would put one tenancy's name on every line,
+// including the lines of another tenant's request (IDN-20).
 func requestFields(ctx context.Context) logging.Fields {
-	fields := logging.Fields{logging.KeyTenantID: Tenant}
+	fields := logging.Fields{}
+	if execution, ok := ports.ExecutionContextFrom(ctx); ok {
+		if tenant, scoped := execution.Tenant(); scoped {
+			fields[logging.KeyTenantID] = string(tenant)
+		}
+	}
 	if mc, ok := ports.MessageContextFrom(ctx); ok {
 		fields[logging.KeyCorrelationID] = mc.CorrelationID
 	}

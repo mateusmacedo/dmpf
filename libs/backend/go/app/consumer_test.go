@@ -123,8 +123,13 @@ func newConsumer(h *fakeHandler, c *fakeContainment, maxAttempts int) app.Consum
 		Handle:      h.handle,
 		Containment: c,
 		Clock:       fixedClock{},
+		Timeout:     testTimeout,
 	}
 }
+
+// testTimeout is the time policy the suite declares. CTX-28 makes it the
+// consumer's own, so the adapter refuses to run without one.
+const testTimeout = 5 * time.Second
 
 func TestInvalidEnvelopeIsContainedBeforeAnyHandling(t *testing.T) {
 	t.Parallel()
@@ -405,10 +410,11 @@ func TestConsumerRequiresItsCollaborators(t *testing.T) {
 	t.Parallel()
 	raw, _ := validRaw(t)
 	cases := map[string]app.Consumer{
-		"name":        {MaxAttempts: 1, Handle: (&fakeHandler{}).handle, Containment: &fakeContainment{}, Clock: fixedClock{}},
-		"handler":     {Name: consumerName, Containment: &fakeContainment{}, Clock: fixedClock{}},
-		"containment": {Name: consumerName, Handle: (&fakeHandler{}).handle, Clock: fixedClock{}},
-		"clock":       {Name: consumerName, Handle: (&fakeHandler{}).handle, Containment: &fakeContainment{}},
+		"name":        {MaxAttempts: 1, Handle: (&fakeHandler{}).handle, Containment: &fakeContainment{}, Clock: fixedClock{}, Timeout: testTimeout},
+		"handler":     {Name: consumerName, Containment: &fakeContainment{}, Clock: fixedClock{}, Timeout: testTimeout},
+		"containment": {Name: consumerName, Handle: (&fakeHandler{}).handle, Clock: fixedClock{}, Timeout: testTimeout},
+		"clock":       {Name: consumerName, Handle: (&fakeHandler{}).handle, Containment: &fakeContainment{}, Timeout: testTimeout},
+		"timeout":     {Name: consumerName, Handle: (&fakeHandler{}).handle, Containment: &fakeContainment{}, Clock: fixedClock{}},
 	}
 	for name, consumer := range cases {
 		t.Run(name, func(t *testing.T) {

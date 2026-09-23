@@ -63,7 +63,7 @@ func newService(pool *pgxpool.Pool) application.Service {
 		Reader:    provider.NewBookingReader(pool),
 		Clock:     fixedClock{},
 		IDs:       &sequenceIDs{},
-		Authorize: usecase.AllowAll[application.Command](),
+		Authorize: usecase.AllowAll[application.Operation](),
 	}
 }
 
@@ -72,7 +72,7 @@ func TestReserveBookingEndToEnd(t *testing.T) {
 	service := newService(pool)
 	ctx := context.Background()
 
-	outcome, err := service.ReserveBooking(ctx, application.Reserve{
+	outcome, err := service.ReserveBooking(withExecution(t, ctx), application.Reserve{
 		BookingID:  e2eBookingID,
 		ResourceID: e2eResourceID,
 		Quantity:   3,
@@ -85,7 +85,7 @@ func TestReserveBookingEndToEnd(t *testing.T) {
 	}
 
 	t.Run("the booking is persisted", func(t *testing.T) {
-		snap, version, err := provider.NewBookingReader(pool).Load(ctx, e2eBookingID)
+		snap, version, err := provider.NewBookingReader(pool).Load(withExecution(t, ctx), e2eBookingID)
 		if err != nil {
 			t.Fatalf("Load() = %v", err)
 		}
@@ -114,7 +114,7 @@ func TestReserveBookingEndToEnd(t *testing.T) {
 	t.Run("cancel commits without outbox row", func(t *testing.T) {
 		_, outboxBefore := counts(t, pool)
 
-		cancelOutcome, err := service.CancelBooking(ctx, application.Cancel{
+		cancelOutcome, err := service.CancelBooking(withExecution(t, ctx), application.Cancel{
 			BookingID: e2eBookingID,
 		})
 		if err != nil {
@@ -124,7 +124,7 @@ func TestReserveBookingEndToEnd(t *testing.T) {
 			t.Fatal("CancelBooking() was rejected, want accepted")
 		}
 
-		snap, version, err := provider.NewBookingReader(pool).Load(ctx, e2eBookingID)
+		snap, version, err := provider.NewBookingReader(pool).Load(withExecution(t, ctx), e2eBookingID)
 		if err != nil {
 			t.Fatalf("Load() = %v", err)
 		}

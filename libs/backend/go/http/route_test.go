@@ -86,3 +86,72 @@ func TestRouteIdempotent(t *testing.T) {
 		})
 	}
 }
+
+func TestRouteWithoutDeclarationRequiresBoth(t *testing.T) {
+	undeclared := route(http.MethodPost)
+
+	if undeclared.Requires != provider.RequireSubjectAndTenant {
+		t.Fatalf("the zero Requirement must be RequireSubjectAndTenant, got %v (IDN-17)", undeclared.Requires)
+	}
+	if !undeclared.RequiresSubject() || !undeclared.RequiresTenant() {
+		t.Fatal("a route that declares nothing must demand subject and tenant (IDN-17)")
+	}
+}
+
+func TestRouteRequirementPredicates(t *testing.T) {
+	cases := map[string]struct {
+		requires    provider.Requirement
+		wantSubject bool
+		wantTenant  bool
+	}{
+		"both by omission": {provider.RequireSubjectAndTenant, true, true},
+		"subject only":     {provider.RequireSubject, true, false},
+		"tenant only":      {provider.RequireTenant, false, true},
+		"platform":         {provider.RequireNeither, false, false},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			r := route(http.MethodGet)
+			r.Requires = tc.requires
+
+			if got := r.RequiresSubject(); got != tc.wantSubject {
+				t.Fatalf("RequiresSubject() = %v, want %v (IDN-16)", got, tc.wantSubject)
+			}
+			if got := r.RequiresTenant(); got != tc.wantTenant {
+				t.Fatalf("RequiresTenant() = %v, want %v (IDN-16)", got, tc.wantTenant)
+			}
+		})
+	}
+}
+
+func TestRouteValidateRefusesPlatformRouteWithUndeclaredReach(t *testing.T) {
+	platform := route(http.MethodGet)
+	platform.Requires = provider.RequireNeither
+
+	if err := platform.Validate(); !errors.Is(err, provider.ErrPlatformReachRequired) {
+		t.Fatalf("Validate() err = %v, want %v (IDN-19)", err, provider.ErrPlatformReachRequired)
+	}
+
+	platform.PlatformReach = provider.ReachAllTenants
+	if err := platform.Validate(); err != nil {
+		t.Fatalf("a platform route that declares its reach is valid, got err = %v", err)
+	}
+}
+
+func TestRouteValidateRefusesReachDeclaredByNonPlatformRoute(t *testing.T) {
+	scoped := route(http.MethodGet)
+	scoped.PlatformReach = provider.ReachAllTenants
+
+	if err := scoped.Validate(); !errors.Is(err, provider.ErrPlatformReachRequired) {
+		t.Fatalf("Validate() err = %v, want %v: reach belongs to the platform route alone (IDN-19)", err, provider.ErrPlatformReachRequired)
+	}
+}
+
+func TestRouteRequirementUnknownValueIsRefused(t *testing.T) {
+	unknown := route(http.MethodGet)
+	unknown.Requires = provider.Requirement(99)
+
+	if err := unknown.Validate(); !errors.Is(err, provider.ErrRequirementUnknown) {
+		t.Fatalf("Validate() err = %v, want %v", err, provider.ErrRequirementUnknown)
+	}
+}

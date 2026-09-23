@@ -71,3 +71,67 @@ CREATE TABLE IF NOT EXISTS dmpf_example_reservations (
   version  bigint NOT NULL,
   snapshot jsonb  NOT NULL
 );
+
+-- IDN-14: the tenant scope is a column of the key, not a condition each query
+-- has to remember to include. The tables above were born with a global PK by ID,
+-- and CREATE TABLE IF NOT EXISTS does not alter an existing table, so the
+-- promotion is explicit and idempotent.
+ALTER TABLE dmpf_example_orders ADD COLUMN IF NOT EXISTS tenant_id text;
+
+-- IDN-20 forbids a synthetic tenant, so there is no backfill: a row older than
+-- the column has no tenant anyone could invent, and the migration stops rather
+-- than assigning 'public' to data whose owner is unknown.
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM dmpf_example_orders WHERE tenant_id IS NULL) THEN
+    RAISE EXCEPTION 'dmpf_example_orders has rows without tenant_id; IDN-20 forbids a synthetic backfill, so resolve each row''s tenant before migrating';
+  END IF;
+END $$;
+
+ALTER TABLE dmpf_example_orders ALTER COLUMN tenant_id SET NOT NULL;
+
+-- The PK becomes composite because two tenants may legitimately use the same
+-- order_id; under the global PK, the second would collide with the first.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint c
+    JOIN pg_class t ON t.oid = c.conrelid
+    WHERE t.relname = 'dmpf_example_orders'
+      AND c.contype = 'p'
+      AND cardinality(c.conkey) = 2
+  ) THEN
+    ALTER TABLE dmpf_example_orders DROP CONSTRAINT IF EXISTS dmpf_example_orders_pkey;
+    ALTER TABLE dmpf_example_orders ADD PRIMARY KEY (tenant_id, order_id);
+  END IF;
+END $$;
+
+-- dmpf_example_reservations takes the same treatment for the same reason: the
+-- table was born with a global PK by order_id, and two tenants may use the same
+-- one.
+ALTER TABLE dmpf_example_reservations ADD COLUMN IF NOT EXISTS tenant_id text;
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM dmpf_example_reservations WHERE tenant_id IS NULL) THEN
+    RAISE EXCEPTION 'dmpf_example_reservations has rows without tenant_id; IDN-20 forbids a synthetic backfill, so resolve each row''s tenant before migrating';
+  END IF;
+END $$;
+
+ALTER TABLE dmpf_example_reservations ALTER COLUMN tenant_id SET NOT NULL;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint c
+    JOIN pg_class t ON t.oid = c.conrelid
+    WHERE t.relname = 'dmpf_example_reservations'
+      AND c.contype = 'p'
+      AND cardinality(c.conkey) = 2
+  ) THEN
+    ALTER TABLE dmpf_example_reservations DROP CONSTRAINT IF EXISTS dmpf_example_reservations_pkey;
+    ALTER TABLE dmpf_example_reservations ADD PRIMARY KEY (tenant_id, order_id);
+  END IF;
+END $$;

@@ -30,6 +30,7 @@ import (
 
 	"github.com/mateusmacedo/dmpf/apps/backend/bff/api"
 	"github.com/mateusmacedo/dmpf/apps/backend/bff/rpc"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/authn"
 )
 
 var routeBudget = deadline.Budget{Dependency: "edge", Method: "route", Limit: 2 * time.Second, Slack: 200 * time.Millisecond, EstimatedDuration: 100 * time.Millisecond}
@@ -212,6 +213,7 @@ func newFixture(t *testing.T, fake *fakeContexts, options ...option) fixture {
 
 	handler, err := api.NewHandler(rpc.NewOrders(ordersConn), rpc.NewReservations(reservationsConn), ctrl, tracer, nil, api.Options{
 		Budget:               cfg.budget,
+		Authenticator:        authn.DevAuthenticator{},
 		OrdersContract:       cfg.ordersContract,
 		ReservationsContract: cfg.reservationsContract,
 		CORSOrigins:          cfg.cors,
@@ -222,11 +224,20 @@ func newFixture(t *testing.T, fake *fakeContexts, options ...option) fixture {
 	return fixture{fake: fake, handler: handler, spans: spans}
 }
 
+// testCredential is what the development authenticator reads back as identity.
+// Every route declares RequireSubjectAndTenant, so a request without it is
+// denied before reaching a context — which is what the 401 cases assert by
+// passing an empty Authorization explicitly.
+const testCredential = `Bearer {"sub":"tester","tenant":"public","permissions":["orders:write","orders:read"]}`
+
 func (f fixture) do(t *testing.T, method, path string, body io.Reader, headers ...string) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequest(method, path, body)
 	for i := 0; i+1 < len(headers); i += 2 {
 		req.Header.Set(headers[i], headers[i+1])
+	}
+	if _, declared := req.Header["Authorization"]; !declared {
+		req.Header.Set("Authorization", testCredential)
 	}
 	rec := httptest.NewRecorder()
 	f.handler.ServeHTTP(rec, req)

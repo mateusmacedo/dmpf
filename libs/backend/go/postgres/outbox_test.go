@@ -438,3 +438,35 @@ func hashOf(t *testing.T, pool *pgxpool.Pool, id ports.MessageID) string {
 	}
 	return hash
 }
+
+// The tenant crosses to the envelope through metadata, resolved from the
+// carrier by the writer rather than copied by each use case (CTX-13, IDN-14).
+func TestEnqueueCarriesTheTenantOfTheCarrier(t *testing.T) {
+	pool := openPool(t)
+
+	uow := postgres.NewUnitOfWork(pool, bindOutbox(testMapper{}))
+	err := uow.Within(scopedTo(t, "acme"), func(ctx context.Context, res outboxResources) error {
+		return res.Outbox.Enqueue(ctx, outboxEntry("m-000001", placedEvent(3)))
+	})
+	if err != nil {
+		t.Fatalf("Within() = %v, want nil", err)
+	}
+
+	if got := metadataOf(t, pool, "m-000001")["tenantid"]; got != "acme" {
+		t.Fatalf("metadata tenantid = %q, want acme", got)
+	}
+}
+
+// A platform chain resolves no tenant, and ENV-12 gives absence its own shape:
+// the key is absent rather than present and empty (IDN-20).
+func TestEnqueueLeavesTheTenantAbsentWhenNoneWasResolved(t *testing.T) {
+	pool := openPool(t)
+
+	if err := enqueueOne(t, pool, testMapper{}, outboxEntry("m-000001", placedEvent(3))); err != nil {
+		t.Fatalf("Enqueue() = %v, want nil", err)
+	}
+
+	if _, present := metadataOf(t, pool, "m-000001")["tenantid"]; present {
+		t.Fatal("metadata carries a tenantid key for a chain that resolved none")
+	}
+}

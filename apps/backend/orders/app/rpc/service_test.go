@@ -45,7 +45,7 @@ func TestAddItemAcceptedReturnsTheItemCount(t *testing.T) {
 	h := newHarness(t, unlimited)
 
 	var resp servicev1.AddItemResponse
-	err := h.invoke(withDeadline(t), "AddItem", &servicev1.AddItemRequest{OrderId: "o-1", Sku: "A", Quantity: 1}, &resp)
+	err := h.invoke(withTenant(t), "AddItem", &servicev1.AddItemRequest{OrderId: "o-1", Sku: "A", Quantity: 1}, &resp)
 
 	if err != nil {
 		t.Fatalf("AddItem() = %v, want nil", err)
@@ -58,12 +58,12 @@ func TestAddItemAcceptedReturnsTheItemCount(t *testing.T) {
 func TestAddItemRejectionTravelsInTheResponse(t *testing.T) {
 	h := newHarness(t, unlimited)
 	var first servicev1.AddItemResponse
-	if err := h.invoke(withDeadline(t), "AddItem", &servicev1.AddItemRequest{OrderId: "o-1", Sku: "A", Quantity: 1}, &first); err != nil {
+	if err := h.invoke(withTenant(t), "AddItem", &servicev1.AddItemRequest{OrderId: "o-1", Sku: "A", Quantity: 1}, &first); err != nil {
 		t.Fatalf("setup AddItem() = %v", err)
 	}
 
 	var resp servicev1.AddItemResponse
-	err := h.invoke(withDeadline(t), "AddItem", &servicev1.AddItemRequest{OrderId: "o-1", Sku: "B", Quantity: 1}, &resp)
+	err := h.invoke(withTenant(t), "AddItem", &servicev1.AddItemRequest{OrderId: "o-1", Sku: "B", Quantity: 1}, &resp)
 
 	if err != nil {
 		t.Fatalf("AddItem() = %v, want nil — a domain refusal is not a gRPC error", err)
@@ -76,12 +76,12 @@ func TestAddItemRejectionTravelsInTheResponse(t *testing.T) {
 func TestFindOrderReturnsTheOrder(t *testing.T) {
 	h := newHarness(t, unlimited)
 	var added servicev1.AddItemResponse
-	if err := h.invoke(withDeadline(t), "AddItem", &servicev1.AddItemRequest{OrderId: "o-1", Sku: "A", Quantity: 2}, &added); err != nil {
+	if err := h.invoke(withTenant(t), "AddItem", &servicev1.AddItemRequest{OrderId: "o-1", Sku: "A", Quantity: 2}, &added); err != nil {
 		t.Fatalf("setup AddItem() = %v", err)
 	}
 
 	var resp servicev1.FindOrderResponse
-	err := h.invoke(withDeadline(t), "FindOrder", &servicev1.FindOrderRequest{OrderId: "o-1"}, &resp)
+	err := h.invoke(withTenant(t), "FindOrder", &servicev1.FindOrderRequest{OrderId: "o-1"}, &resp)
 
 	if err != nil {
 		t.Fatalf("FindOrder() = %v, want nil", err)
@@ -99,9 +99,9 @@ func TestAbsentOrdersAreNotFound(t *testing.T) {
 	h := newHarness(t, unlimited)
 
 	var find servicev1.FindOrderResponse
-	findErr := h.invoke(withDeadline(t), "FindOrder", &servicev1.FindOrderRequest{OrderId: "o-404"}, &find)
+	findErr := h.invoke(withTenant(t), "FindOrder", &servicev1.FindOrderRequest{OrderId: "o-404"}, &find)
 	var place servicev1.PlaceOrderResponse
-	placeErr := h.invoke(withDeadline(t), "PlaceOrder", &servicev1.PlaceOrderRequest{OrderId: "o-404"}, &place)
+	placeErr := h.invoke(withTenant(t), "PlaceOrder", &servicev1.PlaceOrderRequest{OrderId: "o-404"}, &place)
 
 	if status.Code(findErr) != codes.NotFound || status.Code(placeErr) != codes.NotFound {
 		t.Fatalf("FindOrder = %v, PlaceOrder = %v; want NotFound for both", findErr, placeErr)

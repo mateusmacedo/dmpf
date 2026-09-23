@@ -54,7 +54,7 @@ type counterService struct {
 	Reader    ports.Reader[counterID, counterState]
 	Clock     ports.Clock
 	IDs       ports.IDGenerator
-	Authorize application.AuthorizeFunc[bumpCounter]
+	Authorize application.Authorize[bumpCounter]
 	Limit     int
 }
 

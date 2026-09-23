@@ -61,7 +61,7 @@ func NewOrdersService(pool *pgxpool.Pool, rt *otelboot.Runtime, cfg Config, audi
 		Reader:          provider.NewReader(pool),
 		Clock:           idclock.SystemClock{},
 		IDs:             idclock.NewMessageIDs("orders"),
-		Authorize:       usecase.AllowAll[application.Command](),
+		Authorize:       usecase.AllowAll[application.Operation](),
 		ItemLimit:       cfg.ItemLimit,
 		Instrumentation: obsusecase.New(rt, audit.NewEnvelopeSink(auditOut, audit.Identity{Service: cfg.Service, Version: cfg.Version, Instance: cfg.Instance, Tenant: rpc.Tenant}), subject, classify, application.OperationFindOrder),
 	}

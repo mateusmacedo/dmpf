@@ -47,6 +47,31 @@ func TestUnitOfWorkConformsToTheKit(t *testing.T) {
 	evidence.RecordVerdict(t, "provider", "postgres-unit-of-work", v)
 }
 
+func TestRepositoryConformsToTheKit(t *testing.T) {
+	pool := pg.OpenPool(t)
+	v := providerkit.Repository(func() providerkit.RepositorySubject[string, probe] {
+		pg.ResetTables(t, pool)
+		return providerkit.RepositorySubject[string, probe]{
+			Within: func(ctx context.Context, fn func(ctx context.Context, repo ports.Repository[string, probe]) error) error {
+				uow := postgres.NewUnitOfWork(pool, func(tx *postgres.Tx) ports.Repository[string, probe] {
+					return probeTable.Repository(tx)
+				})
+				return uow.Within(ctx, fn)
+			},
+			Reader:           probeTable.Reader(pool),
+			NewID:            func(n int) string { return "kit-" + strconv.Itoa(n) },
+			NewState:         func(marker int) probe { return probe{Items: marker} },
+			Marker:           func(p probe) int { return p.Items },
+			TenantUnresolved: postgres.ErrTenantUnresolved,
+		}
+	})
+	tb.Require(t, v)
+	if len(v.Skipped) != 0 {
+		t.Fatalf("postgres scopes by construction; nothing should be skipped: %v", v.Skipped)
+	}
+	evidence.RecordVerdict(t, "provider", "postgres-repository", v)
+}
+
 func TestInboxConformsToTheKit(t *testing.T) {
 	pool := pg.OpenPool(t)
 	v := providerkit.Inbox(func() providerkit.InboxSubject {

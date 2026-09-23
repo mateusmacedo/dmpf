@@ -16,7 +16,7 @@ var errCommitFailed = errors.New("application_test: commit failed")
 func TestAddItemCreatesTheAggregateAndAuthorsTheOutboxEntry(t *testing.T) {
 	h := newHarness(t)
 
-	out, err := h.service.AddItem(context.Background(), application.AddItem{Order: orderID, SKU: "ABC", Quantity: 1})
+	out, err := h.service.AddItem(withExecution(t, context.Background()), application.AddItem{Order: orderID, SKU: "ABC", Quantity: 1})
 
 	if err != nil {
 		t.Fatalf("AddItem() error = %v, want nil", err)
@@ -28,7 +28,7 @@ func TestAddItemCreatesTheAggregateAndAuthorsTheOutboxEntry(t *testing.T) {
 		t.Fatalf("Response() = %+v, want %+v", got, want)
 	}
 
-	snapshot, version, err := ordersTable.Reader(h.store).Load(context.Background(), orderID)
+	snapshot, version, err := ordersTable.Reader(h.store).Load(withExecution(t, context.Background()), orderID)
 	if err != nil {
 		t.Fatalf("Load() = %v, want nil", err)
 	}
@@ -70,7 +70,7 @@ func TestAddItemCopiesTheMessageContextIntoTheOutboxEntry(t *testing.T) {
 	const traceparent = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01"
 	ctx := ports.WithMessageContext(context.Background(), ports.MessageContext{CorrelationID: "corr-1", Traceparent: traceparent})
 
-	if _, err := h.service.AddItem(ctx, application.AddItem{Order: orderID, SKU: "ABC", Quantity: 1}); err != nil {
+	if _, err := h.service.AddItem(withExecution(t, ctx), application.AddItem{Order: orderID, SKU: "ABC", Quantity: 1}); err != nil {
 		t.Fatalf("AddItem() error = %v, want nil", err)
 	}
 
@@ -88,7 +88,7 @@ func TestAddItemLoadsAnExistingAggregate(t *testing.T) {
 	h := newHarness(t)
 	h.seed(t, openSnapshot(1), 0)
 
-	out, err := h.service.AddItem(context.Background(), application.AddItem{Order: orderID, SKU: "XYZ", Quantity: 2})
+	out, err := h.service.AddItem(withExecution(t, context.Background()), application.AddItem{Order: orderID, SKU: "XYZ", Quantity: 2})
 
 	if err != nil {
 		t.Fatalf("AddItem() error = %v, want nil", err)
@@ -96,7 +96,7 @@ func TestAddItemLoadsAnExistingAggregate(t *testing.T) {
 	if got, want := out.Response(), (domain.ItemAccepted{Order: orderID, Items: 2}); got != want {
 		t.Fatalf("Response() = %+v, want %+v", got, want)
 	}
-	snapshot, version, _ := ordersTable.Reader(h.store).Load(context.Background(), orderID)
+	snapshot, version, _ := ordersTable.Reader(h.store).Load(withExecution(t, context.Background()), orderID)
 	if version != 2 {
 		t.Fatalf("version = %d, want 2 — the stored version plus one", version)
 	}
@@ -111,9 +111,9 @@ func TestAddItemLoadsAnExistingAggregate(t *testing.T) {
 func TestAddItemRejectedCommitsWithoutWriting(t *testing.T) {
 	h := newHarness(t)
 	h.seed(t, openSnapshot(itemLimit), 0)
-	before, versionBefore, _ := ordersTable.Reader(h.store).Load(context.Background(), orderID)
+	before, versionBefore, _ := ordersTable.Reader(h.store).Load(withExecution(t, context.Background()), orderID)
 
-	out, err := h.service.AddItem(context.Background(), application.AddItem{Order: orderID, SKU: "XYZ", Quantity: 1})
+	out, err := h.service.AddItem(withExecution(t, context.Background()), application.AddItem{Order: orderID, SKU: "XYZ", Quantity: 1})
 
 	if err != nil {
 		t.Fatalf("AddItem() error = %v, want nil — a refusal is not a technical failure (DEC-04)", err)
@@ -129,7 +129,7 @@ func TestAddItemRejectedCommitsWithoutWriting(t *testing.T) {
 		t.Fatalf("Response() = %+v, want the zero response", got)
 	}
 
-	after, versionAfter, _ := ordersTable.Reader(h.store).Load(context.Background(), orderID)
+	after, versionAfter, _ := ordersTable.Reader(h.store).Load(withExecution(t, context.Background()), orderID)
 	if !after.Equal(before) || versionAfter != versionBefore {
 		t.Fatalf("the store changed under a refusal: %+v v%d, want %+v v%d", after, versionAfter, before, versionBefore)
 	}
@@ -151,7 +151,7 @@ func TestAddItemKeepsNothingWhenTheCommitFailsWhileCreating(t *testing.T) {
 	h := newHarness(t)
 	h.store.FailNextCommit(errCommitFailed)
 
-	out, err := h.service.AddItem(context.Background(), application.AddItem{Order: orderID, SKU: "ABC", Quantity: 1})
+	out, err := h.service.AddItem(withExecution(t, context.Background()), application.AddItem{Order: orderID, SKU: "ABC", Quantity: 1})
 
 	if !errors.Is(err, errCommitFailed) {
 		t.Fatalf("AddItem() error = %v, want errCommitFailed", err)
@@ -159,7 +159,7 @@ func TestAddItemKeepsNothingWhenTheCommitFailsWhileCreating(t *testing.T) {
 	if got := out.Response(); got != (domain.ItemAccepted{}) {
 		t.Fatalf("Response() = %+v, want the zero outcome", got)
 	}
-	if _, _, err := ordersTable.Reader(h.store).Load(context.Background(), orderID); !errors.Is(err, ports.ErrNotFound) {
+	if _, _, err := ordersTable.Reader(h.store).Load(withExecution(t, context.Background()), orderID); !errors.Is(err, ports.ErrNotFound) {
 		t.Fatalf("Load() = %v, want ErrNotFound — a failed commit creates nothing (UOW-07)", err)
 	}
 	if got := h.store.Entries(); len(got) != 0 {
@@ -172,7 +172,7 @@ func TestAddItemUnderAVersionConflictStopsBeforeTheOutbox(t *testing.T) {
 	h.seed(t, openSnapshot(1), 0)
 	h.seed(t, openSnapshot(1), 1)
 
-	_, err := h.service.AddItem(context.Background(), application.AddItem{Order: orderID, SKU: "XYZ", Quantity: 1})
+	_, err := h.service.AddItem(withExecution(t, context.Background()), application.AddItem{Order: orderID, SKU: "XYZ", Quantity: 1})
 
 	if !errors.Is(err, ports.ErrVersionConflict) {
 		t.Fatalf("AddItem() error = %v, want ErrVersionConflict", err)
@@ -189,7 +189,7 @@ func TestAddItemUnderAVersionConflictStopsBeforeTheOutbox(t *testing.T) {
 	if got := h.store.Entries(); len(got) != 0 {
 		t.Fatalf("Entries() = %+v, want empty", got)
 	}
-	if _, version, _ := ordersTable.Reader(h.store).Load(context.Background(), orderID); version != 2 {
+	if _, version, _ := ordersTable.Reader(h.store).Load(withExecution(t, context.Background()), orderID); version != 2 {
 		t.Fatalf("version = %d, want 2 — the stored aggregate is untouched", version)
 	}
 }
@@ -205,7 +205,7 @@ func TestWritingIntoAnUnboundResourceEscapesTheTransaction(t *testing.T) {
 	unbound := memory.NewUnitOfWork(b, bind)
 	const escaped = domain.OrderID("P-300")
 
-	err := memory.NewUnitOfWork(a, bind).Within(context.Background(),
+	err := memory.NewUnitOfWork(a, bind).Within(withExecution(t, context.Background()),
 		func(ctx context.Context, res application.Resources) error {
 			if err := res.Orders.Save(ctx, orderID, openSnapshot(1), 0); err != nil {
 				return err
@@ -224,10 +224,10 @@ func TestWritingIntoAnUnboundResourceEscapesTheTransaction(t *testing.T) {
 	if !errors.Is(err, errCommitFailed) {
 		t.Fatalf("Within() = %v, want errCommitFailed", err)
 	}
-	if _, _, err := ordersTable.Reader(a).Load(context.Background(), orderID); !errors.Is(err, ports.ErrNotFound) {
+	if _, _, err := ordersTable.Reader(a).Load(withExecution(t, context.Background()), orderID); !errors.Is(err, ports.ErrNotFound) {
 		t.Fatalf("store A kept a write after rollback: Load() = %v, want ErrNotFound", err)
 	}
-	if _, version, err := ordersTable.Reader(b).Load(context.Background(), escaped); err != nil || version != 1 {
+	if _, version, err := ordersTable.Reader(b).Load(withExecution(t, context.Background()), escaped); err != nil || version != 1 {
 		t.Fatalf("store B lost the write it committed on its own: err = %v, version = %d", err, version)
 	}
 }

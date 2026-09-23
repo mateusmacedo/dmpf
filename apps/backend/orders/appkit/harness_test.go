@@ -25,14 +25,14 @@ func TestTheUseCaseLeavesOneOutboxRecordPerDecision(t *testing.T) {
 	h := harness(t)
 	ctx := context.Background()
 
-	added, err := h.Service.AddItem(ctx, application.AddItem{Order: orderUnderTest, SKU: "sku-1", Quantity: 2})
+	added, err := h.Service.AddItem(withExecution(t, ctx), application.AddItem{Order: orderUnderTest, SKU: "sku-1", Quantity: 2})
 	if err != nil {
 		t.Fatalf("AddItem() = %v, want nil", err)
 	}
 	if rejection, refused := added.Rejection(); refused {
 		t.Fatalf("AddItem() was rejected with %v, want accepted", rejection)
 	}
-	placed, err := h.Service.PlaceOrder(ctx, application.PlaceOrder{Order: orderUnderTest})
+	placed, err := h.Service.PlaceOrder(withExecution(t, ctx), application.PlaceOrder{Order: orderUnderTest})
 	if err != nil {
 		t.Fatalf("PlaceOrder() = %v, want nil", err)
 	}
@@ -65,17 +65,17 @@ func TestTheUseCaseLeavesOneOutboxRecordPerDecision(t *testing.T) {
 func TestARejectedDecisionLeavesNothingBehind(t *testing.T) {
 	h := harness(t)
 	ctx := context.Background()
-	if _, err := h.Service.AddItem(ctx, application.AddItem{Order: orderUnderTest, SKU: "sku-1", Quantity: 1}); err != nil {
+	if _, err := h.Service.AddItem(withExecution(t, ctx), application.AddItem{Order: orderUnderTest, SKU: "sku-1", Quantity: 1}); err != nil {
 		t.Fatalf("AddItem() = %v, want nil", err)
 	}
-	if _, err := h.Service.PlaceOrder(ctx, application.PlaceOrder{Order: orderUnderTest}); err != nil {
+	if _, err := h.Service.PlaceOrder(withExecution(t, ctx), application.PlaceOrder{Order: orderUnderTest}); err != nil {
 		t.Fatalf("PlaceOrder() = %v, want nil", err)
 	}
 	before := len(h.Outbox(t))
 
 	// Placing twice is the rejection the aggregate declares (CodeOrderNotOpen),
 	// and a rejection never reaches the outbox.
-	again, err := h.Service.PlaceOrder(ctx, application.PlaceOrder{Order: orderUnderTest})
+	again, err := h.Service.PlaceOrder(withExecution(t, ctx), application.PlaceOrder{Order: orderUnderTest})
 
 	if err != nil {
 		t.Fatalf("PlaceOrder() = %v, want the rejection on the business channel, not an error", err)

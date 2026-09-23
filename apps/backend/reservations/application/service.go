@@ -36,9 +36,10 @@ type Resources struct {
 	Outbox       ports.Outbox
 }
 
-// Command is the closed union of this service's commands, so one AuthorizeFunc
-// covers every entry point. The marker is unexported: no other package widens it.
-type Command interface{ isCommand() }
+// Operation is the closed union of this service's entry points, writes and
+// queries alike, so one authorizer covers every one of them. The marker is
+// unexported: no other package widens the union.
+type Operation interface{ isOperation() }
 
 // ConsumeOrderPlaced asks the reservation to confirm Items for Order, in
 // response to one delivered message the consumer adapter has already decoded.
@@ -51,7 +52,7 @@ type ConsumeOrderPlaced struct {
 	Items       int
 }
 
-func (ConsumeOrderPlaced) isCommand() {}
+func (ConsumeOrderPlaced) isOperation() {}
 
 // Reserve asks the reservation of Order to confirm Items outside any delivery.
 type Reserve struct {
@@ -59,14 +60,23 @@ type Reserve struct {
 	Items int
 }
 
-func (Reserve) isCommand() {}
+func (Reserve) isOperation() {}
 
 // Cancel asks the pending reservation of Order to be canceled.
 type Cancel struct {
 	Order domain.OrderID
 }
 
-func (Cancel) isCommand() {}
+func (Cancel) isOperation() {}
+
+// FindReservation asks for the current state of one reservation. A query is an
+// entry point like any other: authenticating at the route does not stand for
+// permission to read what the operation returns.
+type FindReservation struct {
+	Order domain.OrderID
+}
+
+func (FindReservation) isOperation() {}
 
 // Service realizes the reservations use cases: Consume walks the seven steps of
 // FND-04 §6.3 over a delivered message, and Reserve and Cancel walk the nine
@@ -77,7 +87,7 @@ type Service struct {
 
 	Clock     ports.Clock
 	IDs       ports.IDGenerator
-	Authorize application.AuthorizeFunc[Command]
+	Authorize application.Authorize[Operation]
 	Consumer  string
 
 	Instrumentation ports.Instrumentation

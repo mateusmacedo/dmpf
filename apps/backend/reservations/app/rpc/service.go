@@ -12,10 +12,22 @@ import (
 
 	servicev1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/reservations/service/v1"
 	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/application"
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
 )
+
+// WHY: the absence of what the interceptor mounted is a wiring defect of this
+// server, never a fault of the caller, so it answers Internal rather than
+// leaving the handler to invent a context (CTX-03).
+func executionOf(ctx context.Context) (ports.ExecutionContext, error) {
+	execution, ok := ExecutionContextFrom(ctx)
+	if !ok {
+		return ports.ExecutionContext{}, status.Error(codes.Internal, "the execution context was not assembled")
+	}
+	return execution, nil
+}
 
 var descriptor = servicev1.File_company_reservations_service_v1_reservations_service_proto.Services().ByName("ReservationsService")
 
@@ -99,6 +111,10 @@ func (s Server) Reserve(ctx context.Context, req *servicev1.ReserveRequest) (*se
 	if err != nil {
 		return nil, err
 	}
+	_, err = executionOf(ctx)
+	if err != nil {
+		return nil, err
+	}
 	out, err := s.Service.Reserve(ctx, application.Reserve{Order: id, Items: int(req.GetItemCount())})
 	if err != nil {
 		return nil, statusOf(err)
@@ -117,6 +133,10 @@ func (s Server) Cancel(ctx context.Context, req *servicev1.CancelRequest) (*serv
 	if err != nil {
 		return nil, err
 	}
+	_, err = executionOf(ctx)
+	if err != nil {
+		return nil, err
+	}
 	out, err := s.Service.Cancel(ctx, application.Cancel{Order: id})
 	if err != nil {
 		return nil, statusOf(err)
@@ -131,6 +151,10 @@ func (s Server) Cancel(ctx context.Context, req *servicev1.CancelRequest) (*serv
 
 func (s Server) FindReservation(ctx context.Context, req *servicev1.FindReservationRequest) (*servicev1.FindReservationResponse, error) {
 	id, err := orderID(req.GetOrderId())
+	if err != nil {
+		return nil, err
+	}
+	_, err = executionOf(ctx)
 	if err != nil {
 		return nil, err
 	}

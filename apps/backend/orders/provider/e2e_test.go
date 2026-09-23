@@ -63,7 +63,7 @@ func newService(pool *pgxpool.Pool) application.Service {
 		// queries outside a transaction.
 		Clock:     fixedClock{},
 		IDs:       &sequenceIDs{},
-		Authorize: usecase.AllowAll[application.Command](),
+		Authorize: usecase.AllowAll[application.Operation](),
 		ItemLimit: 3,
 	}
 }
@@ -76,7 +76,7 @@ func TestTheUseCaseRunsEndToEndOverPostgres(t *testing.T) {
 	service := newService(pool)
 	ctx := context.Background()
 
-	added, err := service.AddItem(ctx, application.AddItem{Order: repoOrderID, SKU: "sku-1", Quantity: 2})
+	added, err := service.AddItem(withExecution(t, ctx), application.AddItem{Order: repoOrderID, SKU: "sku-1", Quantity: 2})
 	if err != nil {
 		t.Fatalf("AddItem() = %v, want nil", err)
 	}
@@ -101,7 +101,7 @@ func TestTheUseCaseRunsEndToEndOverPostgres(t *testing.T) {
 		}
 	})
 
-	placed, err := service.PlaceOrder(ctx, application.PlaceOrder{Order: repoOrderID})
+	placed, err := service.PlaceOrder(withExecution(t, ctx), application.PlaceOrder{Order: repoOrderID})
 	if err != nil {
 		t.Fatalf("PlaceOrder() = %v, want nil", err)
 	}
@@ -129,7 +129,7 @@ func TestTheUseCaseRunsEndToEndOverPostgres(t *testing.T) {
 	t.Run("a rejection commits nothing and is not an error", func(t *testing.T) {
 		ordersBefore, outboxBefore := counts(t, pool)
 
-		outcome, err := service.AddItem(ctx, application.AddItem{Order: repoOrderID, SKU: "sku-2", Quantity: 1})
+		outcome, err := service.AddItem(withExecution(t, ctx), application.AddItem{Order: repoOrderID, SKU: "sku-2", Quantity: 1})
 
 		if err != nil {
 			t.Fatalf("AddItem() on a placed order = %v, want nil — a refusal is not a technical failure (DEC-04)", err)

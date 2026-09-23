@@ -5,6 +5,11 @@ package memory
 import "errors"
 
 var (
+	// ErrTenantUnresolved reports a read or write whose carrier resolved no
+	// tenant. It is a refusal, not an empty result: the scope is not optional
+	// here for the same reason it is not optional in Postgres (IDN-15).
+	ErrTenantUnresolved = errors.New("memory: the execution context resolved no tenant")
+
 	// ErrInboxConsumerRequired mirrors postgres.ErrInboxConsumerRequired (INB-01).
 	ErrInboxConsumerRequired = errors.New("memory: inbox consumer name is required")
 
