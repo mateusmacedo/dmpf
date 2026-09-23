@@ -103,7 +103,7 @@ func TestTableRoundTripsWithinTheTenant(t *testing.T) {
 		t.Fatalf("Save() = %v, want nil", err)
 	}
 
-	state, version, err := probeTable.Reader(pool).Load(ctx, "P-1")
+	state, version, err := probeTable.Reader(postgres.NewReadPool(pool)).Load(ctx, "P-1")
 	if err != nil {
 		t.Fatalf("Load() = %v, want nil", err)
 	}
@@ -121,7 +121,7 @@ func TestTableNeverReturnsAnotherTenantsRow(t *testing.T) {
 		t.Fatalf("Save() = %v, want nil", err)
 	}
 
-	_, _, err := probeTable.Reader(pool).Load(scopedTo(t, "globex"), "P-1")
+	_, _, err := probeTable.Reader(postgres.NewReadPool(pool)).Load(scopedTo(t, "globex"), "P-1")
 	if !errors.Is(err, ports.ErrNotFound) {
 		t.Fatalf("Load() from another tenant = %v, want ErrNotFound (IDN-12, IDN-13)", err)
 	}
@@ -137,11 +137,11 @@ func TestTableKeepsTheSameIdentifierApartPerTenant(t *testing.T) {
 		t.Fatalf("Save() for globex = %v, want nil: the composite key admits both", err)
 	}
 
-	acme, _, err := probeTable.Reader(pool).Load(scopedTo(t, "acme"), "P-1")
+	acme, _, err := probeTable.Reader(postgres.NewReadPool(pool)).Load(scopedTo(t, "acme"), "P-1")
 	if err != nil || acme.Items != 3 {
 		t.Fatalf("acme Load() = %+v, %v; want {Items:3}, nil", acme, err)
 	}
-	globex, _, err := probeTable.Reader(pool).Load(scopedTo(t, "globex"), "P-1")
+	globex, _, err := probeTable.Reader(postgres.NewReadPool(pool)).Load(scopedTo(t, "globex"), "P-1")
 	if err != nil || globex.Items != 7 {
 		t.Fatalf("globex Load() = %+v, %v; want {Items:7}, nil", globex, err)
 	}
@@ -160,7 +160,7 @@ func TestTableRefusesAWriteOverAnotherTenantsRow(t *testing.T) {
 		t.Fatalf("Save() over another tenant = %v, want ErrVersionConflict", err)
 	}
 
-	acme, version, err := probeTable.Reader(pool).Load(scopedTo(t, "acme"), "P-1")
+	acme, version, err := probeTable.Reader(postgres.NewReadPool(pool)).Load(scopedTo(t, "acme"), "P-1")
 	if err != nil || acme.Items != 3 || version != 1 {
 		t.Fatalf("acme row = %+v, v%d, %v; want {Items:3}, v1, nil", acme, version, err)
 	}
@@ -169,7 +169,7 @@ func TestTableRefusesAWriteOverAnotherTenantsRow(t *testing.T) {
 func TestTableRefusesWhenTheCarrierResolvedNoTenant(t *testing.T) {
 	pool := openPool(t)
 
-	_, _, err := probeTable.Reader(pool).Load(tenantless(t), "P-1")
+	_, _, err := probeTable.Reader(postgres.NewReadPool(pool)).Load(tenantless(t), "P-1")
 	if !errors.Is(err, postgres.ErrTenantUnresolved) {
 		t.Fatalf("Load() without a tenant = %v, want ErrTenantUnresolved (IDN-15)", err)
 	}
@@ -182,7 +182,7 @@ func TestTableRefusesWhenTheCarrierResolvedNoTenant(t *testing.T) {
 func TestTableRefusesWhenTheCarrierHoldsNoContext(t *testing.T) {
 	pool := openPool(t)
 
-	_, _, err := probeTable.Reader(pool).Load(context.Background(), "P-1")
+	_, _, err := probeTable.Reader(postgres.NewReadPool(pool)).Load(context.Background(), "P-1")
 	if !errors.Is(err, ports.ErrContextAbsent) {
 		t.Fatalf("Load() off a bare context = %v, want ErrContextAbsent", err)
 	}
@@ -233,7 +233,7 @@ func TestTableRefusesAMalformedDeclaration(t *testing.T) {
 					t.Fatal("a malformed Table compiled; the declaration has to fail before any statement reaches the server")
 				}
 			}()
-			tt.table.Reader(nil)
+			tt.table.Reader(postgres.ReadPool{})
 		})
 	}
 }

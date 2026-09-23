@@ -135,3 +135,8 @@ BEGIN
     ALTER TABLE dmpf_example_reservations ADD PRIMARY KEY (tenant_id, order_id);
   END IF;
 END $$;
+
+-- The cross-tenant probe of Table (IDN-12) looks the identifier up without the
+-- tenant, and the composite PK leads with tenant_id, so it cannot serve it.
+CREATE INDEX IF NOT EXISTS dmpf_example_orders_order_id_idx ON dmpf_example_orders (order_id);
+CREATE INDEX IF NOT EXISTS dmpf_example_reservations_order_id_idx ON dmpf_example_reservations (order_id);

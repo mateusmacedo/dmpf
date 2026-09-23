@@ -38,10 +38,22 @@ type Table[ID ~string, S any] struct {
 	WithID func(S, ID) S
 }
 
+// ReadPool is the pool as a context provider holds it: only statements this
+// package compiles run on it, so a provider cannot write a query that omits the
+// tenant predicate (IDN-14). The driver's pool stays with the composition root.
+type ReadPool struct{ pool *pgxpool.Pool }
+
+func NewReadPool(pool *pgxpool.Pool) ReadPool {
+	if pool == nil {
+		panic("postgres: NewReadPool received a nil pool")
+	}
+	return ReadPool{pool: pool}
+}
+
 // Reader serves the read side without the write side (UOW-11), over a pooled
 // connection in autocommit: a query must not open a transaction.
-func (t Table[ID, S]) Reader(pool *pgxpool.Pool) ports.Reader[ID, S] {
-	return tableReader[ID, S]{table: t, statements: t.compile(), pool: pool}
+func (t Table[ID, S]) Reader(pool ReadPool) ports.Reader[ID, S] {
+	return tableReader[ID, S]{table: t, statements: t.compile(), pool: pool.pool}
 }
 
 // Repository binds the table to an open transaction, so aggregate state and the
@@ -80,13 +92,13 @@ type Relation[ID ~string, S any] struct {
 // Query returns every row of this tenant whose filter column equals value, in
 // no declared order. A row of another tenant is not filtered out afterwards: it
 // never leaves the server.
-func (r Relation[ID, S]) Query(ctx context.Context, pool *pgxpool.Pool, value any) ([]S, error) {
+func (r Relation[ID, S]) Query(ctx context.Context, pool ReadPool, value any) ([]S, error) {
 	tenant, err := tenantOf(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	rows, err := pool.Query(ctx, r.statement, string(tenant), value)
+	rows, err := pool.pool.Query(ctx, r.statement, string(tenant), value)
 	if err != nil {
 		return nil, fmt.Errorf("postgres: query %s: %w", r.table.Name, err)
 	}
@@ -114,6 +126,7 @@ func (r Relation[ID, S]) Query(ctx context.Context, pool *pgxpool.Pool, value an
 
 type statements struct {
 	selectOne string
+	owner     string
 	insert    string
 	update    string
 }
@@ -134,6 +147,11 @@ func (t Table[ID, S]) compile() statements {
 		selectOne: fmt.Sprintf(
 			"SELECT version, %s FROM %s WHERE tenant_id = $1 AND %s = $2",
 			columns, t.Name, t.IDColumn),
+		// Only the owning tenant comes back, never a state column: the probe
+		// feeds the security record (IDN-12), not the caller (IDN-13).
+		owner: fmt.Sprintf(
+			"SELECT tenant_id FROM %s WHERE %s = $1 AND tenant_id <> $2 ORDER BY tenant_id LIMIT 1",
+			t.Name, t.IDColumn),
 		// ON CONFLICT DO NOTHING rather than an upsert: a create over an
 		// existing aggregate is the same lost update as a stale expected
 		// version, and both have to come back as ErrVersionConflict.
@@ -203,7 +221,7 @@ type querier interface {
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
 }
 
-func (t Table[ID, S]) load(ctx context.Context, q querier, stmt string, id ID) (S, ports.Version, error) {
+func (t Table[ID, S]) load(ctx context.Context, q querier, stmts statements, id ID) (S, ports.Version, error) {
 	var zero S
 
 	tenant, err := tenantOf(ctx)
@@ -212,19 +230,35 @@ func (t Table[ID, S]) load(ctx context.Context, q querier, stmt string, id ID) (
 	}
 
 	var version int64
-	row := q.QueryRow(ctx, stmt, string(tenant), string(id))
+	row := q.QueryRow(ctx, stmts.selectOne, string(tenant), string(id))
 	state, err := t.Decode(func(dest ...any) error {
 		return row.Scan(append([]any{&version}, dest...)...)
 	})
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
-		// IDN-13: a row of another tenant is indistinguishable from one that
-		// does not exist, because telling them apart is an enumeration oracle.
-		return zero, 0, ports.ErrNotFound
+		return zero, 0, t.miss(ctx, q, stmts.owner, tenant, id)
 	case err != nil:
 		return zero, 0, fmt.Errorf("postgres: load %s %s: %w", t.Name, id, err)
 	}
 	return t.identify(state, id), ports.Version(version), nil
+}
+
+// miss runs on every miss, owner or not, so the latency does not tell the two
+// apart either. A failed probe is a failure: a lost security record must not
+// pass for a plain not-found.
+func (t Table[ID, S]) miss(ctx context.Context, q querier, stmt string, tenant ports.TenantID, id ID) error {
+	var owner string
+	switch err := q.QueryRow(ctx, stmt, string(id), string(tenant)).Scan(&owner); {
+	case errors.Is(err, pgx.ErrNoRows):
+		return ports.ErrNotFound
+	case err != nil:
+		return fmt.Errorf("postgres: probe owner of %s %s: %w", t.Name, id, err)
+	}
+	return ports.CrossTenantAccess{
+		Object:        t.Name + "/" + string(id),
+		ContextTenant: tenant,
+		DataTenant:    ports.TenantID(owner),
+	}
 }
 
 func (t Table[ID, S]) identify(state S, id ID) S {
@@ -241,7 +275,7 @@ type tableReader[ID ~string, S any] struct {
 }
 
 func (r tableReader[ID, S]) Load(ctx context.Context, id ID) (S, ports.Version, error) {
-	return r.table.load(ctx, r.pool, r.statements.selectOne, id)
+	return r.table.load(ctx, r.pool, r.statements, id)
 }
 
 type tableRepository[ID ~string, S any] struct {
@@ -251,7 +285,7 @@ type tableRepository[ID ~string, S any] struct {
 }
 
 func (r tableRepository[ID, S]) Load(ctx context.Context, id ID) (S, ports.Version, error) {
-	return r.table.load(ctx, r.conn, r.statements.selectOne, id)
+	return r.table.load(ctx, r.conn, r.statements, id)
 }
 
 func (r tableRepository[ID, S]) Save(ctx context.Context, id ID, state S, expected ports.Version) error {

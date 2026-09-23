@@ -135,7 +135,7 @@ func (s OutboxStore) Claim(ctx context.Context, claimID string, limit int, lease
 	uow := NewUnitOfWork(s.pool, func(tx *Tx) *Tx { return tx })
 	err := uow.Within(ctx, func(ctx context.Context, tx *Tx) error {
 		now := s.clock.Now()
-		rows, err := tx.Conn().Query(ctx, claimStatement, int64(now), limit, claimID, int64(now)+int64(lease))
+		rows, err := tx.conn.Query(ctx, claimStatement, int64(now), limit, claimID, int64(now)+int64(lease))
 		if err != nil {
 			return err
 		}
