@@ -40,8 +40,9 @@ identidade. Três defeitos concretos, medidos em 2026-09-17 na `develop` (`07bf6
 O que existe hoje no lugar do contexto é o `rpc.Call`
 (`apps/backend/bff/rpc/metadata.go:19-23`), com três campos — `CorrelationID`,
 `RequestID`, `IdempotencyKey` — propagados por `context.WithValue`. São três dos
-nove campos, nenhum deles de identidade, e o veículo é exatamente o mecanismo
-ambiental que `CTX-05` proíbe como fonte de valor de que a correção dependa.
+nove campos, nenhum deles de identidade. O veículo — `context.Context` — é o
+portador que `CTX-03` e `CTX-05` passaram a exigir desde o ADR-049; o defeito
+está no que ele carrega, não em onde carrega.
 
 A autorização está declarada e vazia por escolha explícita: `AuthorizeFunc`
 existe (`libs/backend/go/application/authorize.go:7-10`), recebe `context.Context`
@@ -87,8 +88,8 @@ A norma define o critério; a realização em Go é desta spec.
 - [P0] Autenticação exige as três condições de `IDN-01` — credencial apresentada, verificada contra a autoridade e resolvendo um sujeito. Nenhuma é presumida pelas outras.
 - [P0] Confiança de canal não autentica sujeito (`IDN-02`): rede interna, gateway ou mesh estabelecem o chamador, não o sujeito.
 - [P0] `system`, `default`, `anonymous`, `unknown` e tenant sintético são proibidos como valor; a forma correta da ausência é a ausência (`IDN-20`).
-- [P0] O contexto é passado explicitamente como argumento ao application service; a UPR não o recebe, e o que alcança o `domain` são valores extraídos (`CTX-03`).
-- [P0] Mecanismo ambiental (`context.Context`, thread-local) não é fonte de valor de que a correção dependa (`CTX-05`).
+- [P0] O contexto viaja no portador de escopo da requisição, do ingress ao `provider`; a UPR não o recebe, e o que alcança o `domain` são valores extraídos (`CTX-03`, emendado pelo ADR-049).
+- [P0] O portador nasce e morre com a requisição e é a fonte única; portador que sobreviva à requisição é proibido, e quem não encontra o contexto nega (`CTX-05`, emendado pelo ADR-049).
 - [P0] A autorização ocorre no application service **antes** de a Unit of Work ser iniciada (`IDN-07`), e decide sobre `permissions` já resolvidas, sem I/O no meio do caso de uso (`IDN-10`).
 - [P0] O tipo do contexto é declarado no `port`; a instância é montada no `app` (`CTX-02`). Nenhum outro bloco monta contexto.
 - [P0] Não quebrar os gates DMPF existentes: a matriz de blocos, o verificador de conformidade, o shared kernel e o BOM seguem verdes.
@@ -118,8 +119,8 @@ A norma define o critério; a realização em Go é desta spec.
 
 **C. Passagem explícita e autorização**
 
-- [ ] **[P0] Argumento, não ambiente**: o contexto chega ao application service como argumento; `context.Context` segue carregando cancelamento e prazo, nunca os campos de que a correção depende (`CTX-03`, `CTX-05`).
-- [ ] **[P0] `AuthorizeFunc` recebe o contexto**: a assinatura passa a receber o contexto de execução junto do comando, e a decisão usa as `permissions` já resolvidas, sem consultar autoridade de identidade (`IDN-10`).
+- [ ] **[P0] Portador único, com negação na ausência**: o contexto é depositado no `context.Context` na borda e obtido de lá do application service ao `provider`; não há segunda fonte para nenhum campo, e o consumidor que não o encontra nega em vez de prosseguir (`CTX-03`, `CTX-05`, `IDN-15`, emendados pelo ADR-049).
+- [ ] **[P0] A autorização lê o contexto do portador**: a decisão obtém o contexto do `ctx` que já recebe e usa as `permissions` já resolvidas, sem consultar autoridade de identidade (`IDN-10`).
 - [ ] **[P0] Antes da Unit of Work**: a invocação continua sendo o passo 1 da sequência canônica, anterior a `Within` (`IDN-07`).
 - [ ] **[P0] Autenticado não é autorizado**: a presença de `authenticated_subject` nunca é tratada como permissão (`IDN-05`), e as duas falhas produzem categorias distintas na taxonomia de FND-07 §5 (`IDN-06`).
 
@@ -160,7 +161,7 @@ A norma define o critério; a realização em Go é desta spec.
 | Camada | Efeito |
 | ------ | ------ |
 | `port` | tipo do contexto de execução e declaração de exigência por operação |
-| `application` | assinatura de `AuthorizeFunc`; contexto como argumento do service |
+| `application` | assinatura da autorização; contexto obtido do portador pelo service |
 | `app` | montagem na borda HTTP e no consumer; autenticação; declaração por operação |
 | `provider` | escopo de tenant no repositório e no reader; evento de segurança do acesso cruzado |
 | `domain` | nenhum |
@@ -170,8 +171,8 @@ A norma define o critério; a realização em Go é desta spec.
 
 ```text
 libs/backend/go/ports/                       tipo do contexto, declaração de exigência
-libs/backend/go/application/authorize.go     assinatura de AuthorizeFunc
-libs/backend/go/application/                 contexto como argumento do service
+libs/backend/go/application/authorize.go     assinatura da autorização
+libs/backend/go/application/                 contexto obtido do portador pelo service
 libs/backend/go/postgres/                    escopo de tenant no repositório e no reader
 libs/backend/go/testkit/fitness/             vetores das regras IDN e CTX
 apps/backend/bff/api/middleware.go           autenticação e montagem do contexto
@@ -219,7 +220,7 @@ apps/backend/{orders,reservations}/provider/ escopo de tenant
 
 | Decisão | Escolha | Alternativas descartadas |
 | ------- | ------- | ------------------------ |
-| Veículo do contexto | Argumento explícito do application service | `context.Context` como fonte — `CTX-05` o proíbe como valor de que a correção dependa; permanece para cancelamento e prazo |
+| Veículo do contexto | `context.Context`, do ingress ao `provider` (ADR-049) | Argumento explícito do application service — não alcança `ports.Repository` nem `ports.Reader`, cujas assinaturas só recebem `ctx`; `ports.ScopedUnitOfWork` — criaria dois tipos onde havia um, com rota de contorno que `IDN-14` proíbe |
 | Onde o tipo vive | Bloco `port` | `application` (romperia `CTX-02`); `domain` (o domínio não conhece contexto) |
 | Ausência de sujeito | Representada como ausência no tipo | Sentinela `""`, `anonymous` ou tenant sintético — `IDN-20` proíbe |
 | Imposição do escopo de tenant | Mecânica, no provider, sem depender de o autor lembrar | Convenção de código com revisão — `IDN-14` a recusa explicitamente |
@@ -286,8 +287,8 @@ apps/backend/{orders,reservations}/provider/ escopo de tenant
 - [P0] Autenticação exige credencial apresentada, verificada e resolvendo um sujeito; nenhuma condição é presumida pelas outras (`IDN-01`).
 - [P0] Confiança de canal não autentica sujeito (`IDN-02`).
 - [P0] `system`, `default`, `anonymous`, `unknown` e tenant sintético são proibidos como valor (`IDN-20`).
-- [P0] O contexto é argumento explícito do application service; a UPR não o recebe (`CTX-03`).
-- [P0] Mecanismo ambiental não é fonte de valor de que a correção dependa (`CTX-05`).
+- [P0] O contexto viaja no portador de escopo da requisição, do ingress ao `provider`; a UPR não o recebe (`CTX-03`, emendado pelo ADR-049).
+- [P0] O portador é a fonte única e não sobrevive à requisição; quem não encontra o contexto nega (`CTX-05`, emendado pelo ADR-049).
 - [P0] A autorização ocorre antes de a Unit of Work ser iniciada (`IDN-07`) e não faz I/O (`IDN-10`).
 - [P0] O tipo vive no `port`; a instância é montada no `app` (`CTX-02`).
 - [P0] O isolamento de tenant não depende de convenção de código (`IDN-14`).
