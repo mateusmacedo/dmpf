@@ -48,6 +48,38 @@ func ResolveIdentity(ctx context.Context, authenticator ports.Authenticator, rou
 	return Resolved{Subject: &subject, Tenant: identity.Tenant, Permissions: identity.Permissions}, 0, ""
 }
 
+// assertedSources are the request fields with the semantics of subject or
+// tenant a client could fill; none of them ever feeds the context (CTX-06).
+var (
+	assertedSubject = []string{"X-Subject-ID"}
+	assertedTenant  = []string{"X-Tenant-ID"}
+	assertedQuery   = map[string]bool{"tenant_id": true}
+)
+
+// RefuseAssertedIdentity refuses a request whose own fields assert a subject or
+// a tenant that diverges from what verification resolved (CTX-06). A zero
+// status means no divergence; an equal value is redundant, never a source.
+func RefuseAssertedIdentity(r *http.Request, resolved Resolved) (int, string) {
+	for _, header := range assertedSubject {
+		if value := r.Header.Get(header); value != "" && (resolved.Subject == nil || string(*resolved.Subject) != value) {
+			return http.StatusForbidden, "identity-mismatch"
+		}
+	}
+	tenants := make([]string, 0, 2)
+	for _, header := range assertedTenant {
+		tenants = append(tenants, r.Header.Get(header))
+	}
+	for key := range assertedQuery {
+		tenants = append(tenants, r.URL.Query().Get(key))
+	}
+	for _, value := range tenants {
+		if value != "" && (resolved.Tenant == nil || string(*resolved.Tenant) != value) {
+			return http.StatusForbidden, "identity-mismatch"
+		}
+	}
+	return 0, ""
+}
+
 // WithExecutionContext deposits what the edge mounted on the canonical carrier.
 // It delegates rather than keying its own value: a second key would make the
 // provider read from a carrier the edge never wrote to (CTX-05, ADR-049).

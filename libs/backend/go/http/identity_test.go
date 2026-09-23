@@ -3,6 +3,7 @@ package http_test
 import (
 	"context"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	provider "github.com/mateusmacedo/dmpf/libs/backend/go/http"
@@ -137,5 +138,51 @@ func TestExecutionContextCrossesToTheHandlerAndNowhereElse(t *testing.T) {
 	}
 	if carried.RequestID() != "req-1" {
 		t.Fatalf("RequestID() = %q, want req-1", carried.RequestID())
+	}
+}
+
+// CTX-06: a field of the request asserting the subject or the tenant never
+// feeds the context, and one that diverges from what verification resolved is
+// an elevation attempt, refused as forbidden rather than ignored.
+func TestAnAssertedIdentityThatDivergesIsRefused(t *testing.T) {
+	subject, tenant := ports.SubjectID("alice"), ports.TenantID("acme")
+	resolved := provider.Resolved{Subject: &subject, Tenant: &tenant}
+
+	cases := map[string]struct {
+		header, value, query string
+		want                 int
+	}{
+		"no assertion":              {want: 0},
+		"same tenant in a header":   {header: "X-Tenant-ID", value: "acme", want: 0},
+		"other tenant in a header":  {header: "X-Tenant-ID", value: "globex", want: http.StatusForbidden},
+		"other subject in a header": {header: "X-Subject-ID", value: "mallory", want: http.StatusForbidden},
+		"other tenant in the query": {query: "tenant_id=globex", want: http.StatusForbidden},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			r := httptest.NewRequest(http.MethodGet, "/orders/o-1?"+c.query, nil)
+			if c.header != "" {
+				r.Header.Set(c.header, c.value)
+			}
+			status, code := provider.RefuseAssertedIdentity(r, resolved)
+			if status != c.want {
+				t.Fatalf("status = %d (%s), want %d", status, code, c.want)
+			}
+			if c.want != 0 && code != "identity-mismatch" {
+				t.Fatalf("code = %q, want identity-mismatch", code)
+			}
+		})
+	}
+}
+
+// A tenant asserted where verification resolved none still diverges: absence
+// is not an empty value the request may fill (IDN-20).
+func TestAnAssertedTenantOverAnAbsentOneIsRefused(t *testing.T) {
+	subject := ports.SubjectID("alice")
+	r := httptest.NewRequest(http.MethodGet, "/orders/o-1", nil)
+	r.Header.Set("X-Tenant-ID", "acme")
+
+	if status, _ := provider.RefuseAssertedIdentity(r, provider.Resolved{Subject: &subject}); status != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403", status)
 	}
 }
