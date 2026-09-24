@@ -237,3 +237,27 @@ func TestTableRefusesAMalformedDeclaration(t *testing.T) {
 		})
 	}
 }
+
+// IDN-12 on the relation: a filter value held only by another tenant reports
+// the access, and one held by nobody stays an empty answer (IDN-13 lets the
+// caller make both look alike; the internal record tells them apart).
+func TestRelationReportsAValueHeldOnlyByAnotherTenant(t *testing.T) {
+	pool := openPool(t)
+	if err := saveProbe(t, scopedTo(t, "acme"), pool, "P-9", probe{Items: 1}, 0); err != nil {
+		t.Fatalf("Save() = %v", err)
+	}
+	relation := probeTable.Relation("order_id")
+	read := postgres.NewReadPool(pool)
+
+	if rows, err := relation.Query(scopedTo(t, "acme"), read, "P-9"); err != nil || len(rows) != 1 {
+		t.Fatalf("Query() in the owning tenant = %v, %v; want the row", rows, err)
+	}
+	_, err := relation.Query(scopedTo(t, "globex"), read, "P-9")
+	var access ports.CrossTenantAccess
+	if !errors.As(err, &access) || access.ContextTenant != "globex" || access.DataTenant != "acme" {
+		t.Fatalf("Query() from another tenant = %v, want CrossTenantAccess globex over acme", err)
+	}
+	if rows, err := relation.Query(scopedTo(t, "globex"), read, "P-nobody"); err != nil || len(rows) != 0 {
+		t.Fatalf("Query() of a value nobody holds = %v, %v; want an empty answer", rows, err)
+	}
+}

@@ -77,16 +77,22 @@ func (t Table[ID, S]) Relation(filterColumn string) Relation[ID, S] {
 	t.validate()
 
 	return Relation[ID, S]{
-		table: t,
+		table:  t,
+		filter: filterColumn,
 		statement: fmt.Sprintf(
 			"SELECT %s, version, %s FROM %s WHERE tenant_id = $1 AND %s = $2",
 			t.IDColumn, strings.Join(t.Columns, ", "), t.Name, filterColumn),
+		owner: fmt.Sprintf(
+			"SELECT tenant_id FROM %s WHERE %s = $1 AND tenant_id <> $2 ORDER BY tenant_id LIMIT 1",
+			t.Name, filterColumn),
 	}
 }
 
 type Relation[ID ~string, S any] struct {
 	table     Table[ID, S]
+	filter    string
 	statement string
+	owner     string
 }
 
 // Query returns every row of this tenant whose filter column equals value, in
@@ -121,7 +127,28 @@ func (r Relation[ID, S]) Query(ctx context.Context, pool ReadPool, value any) ([
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("postgres: rows of %s: %w", r.table.Name, err)
 	}
+	if len(out) == 0 {
+		return nil, r.miss(ctx, pool, tenant, value)
+	}
 	return out, nil
+}
+
+// miss answers an empty relation: nothing when no tenant holds the value,
+// CrossTenantAccess when another does, so the caller may still answer with
+// an empty collection while the record tells the two apart (IDN-12, IDN-13).
+func (r Relation[ID, S]) miss(ctx context.Context, pool ReadPool, tenant ports.TenantID, value any) error {
+	var owner string
+	switch err := pool.pool.QueryRow(ctx, r.owner, value, string(tenant)).Scan(&owner); {
+	case errors.Is(err, pgx.ErrNoRows):
+		return nil
+	case err != nil:
+		return fmt.Errorf("postgres: probe owner of %s %s: %w", r.table.Name, r.filter, err)
+	}
+	return ports.CrossTenantAccess{
+		Object:        fmt.Sprintf("%s?%s=%v", r.table.Name, r.filter, value),
+		ContextTenant: tenant,
+		DataTenant:    ports.TenantID(owner),
+	}
 }
 
 type statements struct {
