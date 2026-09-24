@@ -13,7 +13,7 @@ namespace, nome de secret) é versionado aqui — e não deve passar a ser.
 | Item | Estado no template |
 | --- | --- |
 | CI em PR (`ci.yml`) | **Ativo** — Nx affected de lint/typecheck/test/build/e2e |
-| Versionamento e publish de libs | **Ativo** — `release.yml`, `publish-libs.yml`, `create-release.yml` |
+| Versionamento e publish de libs | **Ativo** — `nx-release.yml`, `nx-publish-libs.yml`, `create-release.yml` |
 | CD (`cd-dev-hmg.yml`) | **Template** — só `workflow_dispatch`, parametrizado por placeholder |
 | Manifestos GitOps | **Ausentes** — vivem no repositório de infraestrutura, não aqui |
 | Variáveis e secrets de deploy | **Ausentes** — configurados no repositório do projeto |
@@ -28,7 +28,7 @@ Separação rígida: **CI não faz deploy**; **CD não substitui o CI**.
 | Plataforma | EKS, com GitOps reconciliado por ArgoCD |
 | Ambientes iniciais | `dev` e `hmg` |
 | Nomenclatura de app | Sufixo terminal canônico `-bff` ou `-api` (nunca `-bff-api`) |
-| Templates reutilizáveis | [actions-templates](https://github.com/mateusmacedo/actions-templates) (`deploy-eks`, `detect-apps`, …) |
+| Templates reutilizáveis | `detect-apps` e `publish-libs` internalizados em `.github/workflows/` (ADR-043); `deploy-eks` ainda referenciado do [actions-templates](https://github.com/mateusmacedo/actions-templates), a internalizar quando o CD for ligado |
 
 Modelos B/C, CD de produção e outras plataformas estão em
 [EXPANSION_MODELS.md](./EXPANSION_MODELS.md) — consulte antes de proliferar
@@ -93,10 +93,16 @@ ConfigMap e de secrets externos definidos no repositório de infraestrutura — 
 
 | Workflow | Papel |
 | --- | --- |
-| `.github/workflows/ci.yml` | CI em PR |
-| `.github/workflows/publish-libs.yml` | Publish de libs (Nx Release → Verdaccio) |
-| `.github/workflows/release.yml` / `create-release.yml` | Versionamento e criação da branch de release |
+| `.github/workflows/ci.yml` | CI em PR (Nx affected) |
+| `.github/workflows/nx-release.yml` | Versionamento Nx Release (release groups `go-libs`, `go-tools`, `npm`); cunha as tags de módulo |
+| `.github/workflows/nx-publish-libs.yml` | Publica libs npm no GitHub Packages (dispara no push de tag `**@*`, exceto `dmpf@*`), pelo reusable `publish-libs.yaml` |
+| `.github/workflows/create-release.yml` | Cria a branch `release/<versão>` a partir de `develop` |
+| `.github/workflows/dmpf-release.yml` | Cunha a tag do produto `dmpf@<release>` sob os gates de BOM e evidência (`workflow_dispatch`) |
+| `.github/workflows/dmpf-verify.yml` | Gate de congruência horizontal do acervo `docs/dmpf/` |
+| `.github/workflows/dmpf-evidence.yml` | Reproduz e compara a evidência publicada de uma release |
+| `.github/workflows/dmpf-distributed.yml` | Camada distribuída da pirâmide de testes (build tag `distributed`) |
 
 Decisões relacionadas: [ADR-004](../adr/004-workflows-verdaccio-release.md) (split
-version/publish) e [ADR-005](../adr/005-plataforma-gitea.md) (a plataforma é
-Gitea).
+version/publish, parcialmente supersedido) e [ADR-043](../adr/043-migracao-para-github-licenca-e-autoria.md)
+(a plataforma é GitHub, com registry, runner e reusables próprios — supersede
+[ADR-005](../adr/005-plataforma-gitea.md)).
