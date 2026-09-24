@@ -489,3 +489,22 @@ func TestAPlainNotFoundRecordsNoSecurityEvent(t *testing.T) {
 		t.Fatalf("Events() = %+v, want none: an absent identifier is not an access (IDN-13)", events)
 	}
 }
+
+// IDN-12 requires the attempt to be recorded. When the audit sink refuses it,
+// the event goes to the log channel whole instead of vanishing behind a
+// category, because the log leaves the process by another path.
+func TestASecurityEventTheSinkRefusesReachesTheLogWhole(t *testing.T) {
+	fixture := boot(t, options{})
+	instrumentation := usecase.New(fixture.runtime, refusingSink{err: errors.New("sink closed")}, nil, nil, readOperation)
+	access := ports.CrossTenantAccess{Object: "dmpf_example_orders/o-1", ContextTenant: "globex", DataTenant: "acme"}
+
+	_, end := instrumentation.BeginOperation(withExecution(t, context.Background()), operationFind)
+	end(ports.Result{Outcome: ports.OutcomeFailed, Err: access})
+
+	logged := fixture.log.String()
+	for _, want := range []string{usecase.ActionCrossTenantAccess, "dmpf_example_orders/o-1", "globex", "acme", "s-test"} {
+		if !strings.Contains(logged, want) {
+			t.Fatalf("log = %s\nwant %q in it: the security record must survive the sink", logged, want)
+		}
+	}
+}

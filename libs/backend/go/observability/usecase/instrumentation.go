@@ -117,7 +117,7 @@ func (i *Instrumentation) recordCrossTenant(ctx context.Context, result ports.Re
 	if result.Outcome != ports.OutcomeFailed || !errors.As(result.Err, &access) {
 		return
 	}
-	i.emit(ctx, audit.Event{
+	event := audit.Event{
 		Subject:    carrierSubject(ctx),
 		Object:     access.Object,
 		Action:     ActionCrossTenantAccess,
@@ -125,7 +125,16 @@ func (i *Instrumentation) recordCrossTenant(ctx context.Context, result ports.Re
 		At:         ports.Instant(i.clock.Now().UnixNano()),
 		Tenant:     string(access.ContextTenant),
 		DataTenant: string(access.DataTenant),
-	})
+	}
+	if !i.emit(ctx, event) {
+		// IDN-12 needs the record, so the event goes whole to the log channel,
+		// which leaves the process by another path; the sink's own error does
+		// not, because it may carry what redaction exists to keep out.
+		i.logger.ErrorContext(ctx, "dmpf: security event kept in the log because the audit sink refused it",
+			slog.String("action", event.Action), slog.String("object", event.Object),
+			slog.String("subject", event.Subject), slog.String("outcome", event.Outcome),
+			slog.String("tenant_id", event.Tenant), slog.String("data_tenant_id", event.DataTenant))
+	}
 }
 
 // record writes the three service series of MET-08, MET-09 and MET-10. Every
@@ -176,9 +185,10 @@ func (i *Instrumentation) Audit(ctx context.Context, event ports.AuditEvent) {
 	})
 }
 
-func (i *Instrumentation) emit(ctx context.Context, event audit.Event) {
+// emit reports whether the sink kept the record.
+func (i *Instrumentation) emit(ctx context.Context, event audit.Event) bool {
 	if i.sink == nil {
-		return
+		return false
 	}
 	if err := i.sink.Emit(ctx, event); err != nil {
 		// A porta não devolve erro, e engolir este seria perder um registro de
@@ -186,7 +196,9 @@ func (i *Instrumentation) emit(ctx context.Context, event audit.Event) {
 		i.logger.ErrorContext(ctx, "dmpf: the audit sink rejected the record",
 			slog.String("error_category", "audit_sink"),
 			slog.String("action", event.Action))
+		return false
 	}
+	return true
 }
 
 // carrierSubject leaves a platform chain's absent subject absent (IDN-20).
