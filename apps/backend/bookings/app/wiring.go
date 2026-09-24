@@ -71,7 +71,7 @@ func NewBookingsService(pool *pgxpool.Pool, rt *otelboot.Runtime, cfg Config, au
 	}
 }
 
-func NewMux(service application.Service, budget deadline.Budget, authenticator ports.Authenticator) *http.ServeMux {
+func NewMux(service application.Service, budget deadline.Budget, authenticator ports.Authenticator) (*http.ServeMux, error) {
 	return httpedge.Mux(service, budget, authenticator)
 }
 
@@ -104,7 +104,11 @@ func serveAPI(ctx context.Context, cfg Config, rt *otelboot.Runtime, out io.Writ
 	if err != nil {
 		return fmt.Errorf("authenticator: %w", err)
 	}
-	server := &http.Server{Addr: cfg.HTTPAddr, Handler: NewMux(NewBookingsService(pool, rt, cfg, out), cfg.RouteBudget, authenticator)}
+	mux, err := NewMux(NewBookingsService(pool, rt, cfg, out), cfg.RouteBudget, authenticator)
+	if err != nil {
+		return fmt.Errorf("routes: %w", err)
+	}
+	server := &http.Server{Addr: cfg.HTTPAddr, Handler: mux}
 	failed := make(chan error, 1)
 	go func() { failed <- server.ListenAndServe() }()
 	rt.Logger().InfoContext(ctx, "http listening", "addr", cfg.HTTPAddr)
@@ -149,8 +153,11 @@ func runRelay(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {
 	if err := postgres.AssertOwnOutbox(ctx, pool, slices.Collect(maps.Keys(catalog))); err != nil {
 		return err
 	}
-	publisher, err := kafka.NewPublisher(
-		kafka.NewConfig(ctx, rt, catalog, cfg.Brokers, cfg.Service, cfg.KafkaInsecure), nil)
+	kafkaConfig, err := kafka.NewConfig(ctx, rt, catalog, cfg.Brokers, cfg.Service, cfg.KafkaInsecure, cfg.KafkaAuth)
+	if err != nil {
+		return err
+	}
+	publisher, err := kafka.NewPublisher(kafkaConfig, nil)
 	if err != nil {
 		return err
 	}

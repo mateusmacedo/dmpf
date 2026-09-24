@@ -44,7 +44,8 @@ func (g *sequenceIDs) NewMessageID() ports.MessageID {
 	return ports.MessageID(fmt.Sprintf("m-%06d", g.issued))
 }
 
-func newMux(pool *pgxpool.Pool) *http.ServeMux {
+func newMux(t *testing.T, pool *pgxpool.Pool) *http.ServeMux {
+	t.Helper()
 	bind := func(tx *postgres.Tx) application.Resources {
 		return application.Resources{
 			Bookings:  provider.NewBookingRepository(tx),
@@ -60,7 +61,11 @@ func newMux(pool *pgxpool.Pool) *http.ServeMux {
 		IDs:            &sequenceIDs{},
 		Authorize:      app.Authorization(),
 	}
-	return httpedge.Mux(service, e2eBudget, authn.DevAuthenticator{})
+	mux, err := httpedge.Mux(service, e2eBudget, authn.DevAuthenticator{})
+	if err != nil {
+		t.Fatalf("Mux() = %v", err)
+	}
+	return mux
 }
 
 // e2eCredential is what a caller presents: the development mock resolves the
@@ -83,7 +88,7 @@ var e2eBudget = deadline.Budget{
 
 func TestReserveBookingHTTPEndToEnd(t *testing.T) {
 	pool := pg.OpenPool(t, "bookings_booking", "bookings_resource")
-	mux := newMux(pool)
+	mux := newMux(t, pool)
 
 	body, _ := json.Marshal(map[string]any{"bookingId": "http-b-001", "resourceId": "http-r-001", "quantity": 3})
 	req := httptest.NewRequest(http.MethodPost, "/bookings/booking", bytes.NewReader(body))
@@ -173,7 +178,7 @@ func TestReserveBookingHTTPEndToEnd(t *testing.T) {
 
 func TestReserveBookingHTTPRejectsInvalidQuantity(t *testing.T) {
 	pool := pg.OpenPool(t, "bookings_booking", "bookings_resource")
-	mux := newMux(pool)
+	mux := newMux(t, pool)
 
 	body, _ := json.Marshal(map[string]any{"bookingId": "http-b-002", "resourceId": "http-r-002", "quantity": 0})
 	req := httptest.NewRequest(http.MethodPost, "/bookings/booking", bytes.NewReader(body))
@@ -193,7 +198,7 @@ func TestReserveBookingHTTPRejectsInvalidQuantity(t *testing.T) {
 // and never as an internal failure, and nothing is written.
 func TestReserveBookingWithoutThePermissionIsForbidden(t *testing.T) {
 	pool := pg.OpenPool(t, "bookings_booking", "bookings_resource")
-	mux := newMux(pool)
+	mux := newMux(t, pool)
 
 	body, _ := json.Marshal(map[string]any{"bookingId": "http-b-403", "resourceId": "http-r-403", "quantity": 1})
 	req := httptest.NewRequest(http.MethodPost, "/bookings/booking", bytes.NewReader(body))
@@ -219,7 +224,7 @@ func TestReserveBookingWithoutThePermissionIsForbidden(t *testing.T) {
 // resolved is refused, and nothing is written under either tenant.
 func TestAHeaderAssertingAnotherTenantIsRefused(t *testing.T) {
 	pool := pg.OpenPool(t, "bookings_booking", "bookings_resource")
-	mux := newMux(pool)
+	mux := newMux(t, pool)
 
 	body, _ := json.Marshal(map[string]any{"bookingId": "http-b-406", "resourceId": "http-r-406", "quantity": 1})
 	req := httptest.NewRequest(http.MethodPost, "/bookings/booking", bytes.NewReader(body))
