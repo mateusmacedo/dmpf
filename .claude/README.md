@@ -15,7 +15,8 @@ remover arquivos, atualize a tabela correspondente.
 | `commands/` | 9 | Comandos de workspace (Nx e utilitários) |
 
 Convenções gerais do repositório ficam em `AGENTS.md`, na raiz. Skills de
-workspace específicas de Nx ficam em `.agents/skills/`.
+workspace (Nx e kernel DMPF) ficam em `.agents/skills/` — catálogo na seção
+própria abaixo.
 
 ---
 
@@ -116,6 +117,31 @@ demais; ambas seguem a convenção do repositório de origem.
 > `package.json`. Elas ficam disponíveis porque projetos derivados podem adotar
 > essas tecnologias — trate-as como material de referência até que a stack exista
 > de fato no seu projeto.
+
+---
+
+## Skills de workspace (`.agents/skills/`)
+
+Diretório irmão de `.claude/`, com skills específicas do workspace Nx e do
+kernel DMPF. Tem 11 skills; 8 delas correspondem a um comando homônimo em
+`commands/` — mesma capacidade, exposta também como skill autoinvocável
+(`fill-pr-template-from-diff`, `link-workspace-packages`, `monitor-ci`,
+`nx-generate`, `nx-import`, `nx-plugins`, `nx-run-tasks`, `nx-workspace`). As
+3 restantes não têm comando equivalente.
+
+| Skill | Diretório | Descrição |
+| --- | --- | --- |
+| DMPF Bounded Context | `.agents/skills/dmpf-bounded-context/` | Escreve um bounded context completo sobre o kernel DMPF a partir de uma spec: esqueleto pelo generator, código dos cinco blocos por agregado, contrato Protobuf e OpenAPI, gates até passar. |
+| Testkit (DMPF) | `.agents/skills/dmpf-testkit/` | Implementa, revisa e executa testes do kernel DMPF Go: UPRs e agregados, UoW/Inbox/Outbox, golden fixtures, consumer adapters e fitness arquitetural. |
+| Fill PR Template | `.agents/skills/fill-pr-template-from-diff/` | Preenche a descrição do PR a partir do diff da branch atual. |
+| Link Workspace Packages | `.agents/skills/link-workspace-packages/` | Conecta dependências entre pacotes do monorepo (npm, yarn, pnpm, bun). |
+| Monitor CI | `.agents/skills/monitor-ci/` | Acompanha o pipeline de CI no Nx Cloud e trata correções de self-healing. |
+| Nx Commit | `.agents/skills/nx-commit/` | Cria commits em Conventional Commits com o scope do projeto Nx correto. |
+| Nx Generate | `.agents/skills/nx-generate/` | Descobre e executa generators do Nx para scaffolding de apps e libs. |
+| Nx Import | `.agents/skills/nx-import/` | Importa ou combina repositórios em um workspace Nx. |
+| Nx Plugins | `.agents/skills/nx-plugins/` | Descobre e instala plugins do Nx. |
+| Nx Run Tasks | `.agents/skills/nx-run-tasks/` | Executa build, lint, test, serve e outras tasks do workspace. |
+| Nx Workspace | `.agents/skills/nx-workspace/` | Explora projetos, targets e configuração do workspace Nx. |
 
 ---
 

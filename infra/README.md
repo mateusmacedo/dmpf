@@ -10,7 +10,8 @@ infra/
 │   └── compose/                    # um arquivo por recurso
 │       ├── postgres.yml            # profile postgres
 │       ├── redis.yml               # profile redis
-│       ├── redpanda.yml            # profile redpanda (Kafka + admin/métricas em 9644)
+│       ├── redpanda.yml            # profile redpanda (Kafka + admin/métricas em 9644); listener interno exige SASL
+│       ├── pki.yml                 # profile dmpf: CA de desenvolvimento e certificados do mTLS gRPC interno (ADR-052)
 │       ├── floci.yml               # profile floci (SQS e SNS)
 │       ├── otel-collector.yml      # profile otel
 │       ├── prometheus.yml          # profile prometheus
@@ -19,9 +20,9 @@ infra/
 │       ├── alloy.yml               # profile alloy (coleta de logs)
 │       ├── grafana.yml             # profile grafana
 │       ├── exporters.yml           # profile exporters (postgres, redis, blackbox, cAdvisor)
-│       ├── redpanda-console.yml    # profile console (+ ../redpanda-console.yaml): UI do Kafka
+│       ├── redpanda-console.yml    # profile console (+ ../redpanda-console.yaml): UI do Kafka, autenticado por SASL
 │       ├── swagger-ui.yml          # profile dmpf: Swagger UI sobre as duas specs do BFF
-│       └── reference.yml      # profile dmpf: BFF, orders e reservations, postgres-init
+│       └── reference.yml          # profile dmpf: BFF, orders e reservations, postgres-init, redpanda-init
 ├── observability/                  # config + manifestos K8s, um diretório por componente
 │   ├── kustomization.yaml          # agrega os seis
 │   ├── otel-collector/             # config.yaml, Deployment, Service
@@ -38,7 +39,7 @@ infra/
 
 ## Desenvolvimento local (Compose)
 
-Os profiles são cumulativos. `observability` sobe a plataforma inteira; `dmpf` sobe os seis processos da topologia de referência — o BFF, `api` e `relay` de orders, `api`, `relay` e `consumer` de reservations — **com** tudo o que eles precisam e observam, inclusive o `postgres-init`, que cria os bancos `dmpf_orders` e `dmpf_reservations` sem falhar quando já existem; `all` sobe a infraestrutura toda menos as apps.
+Os profiles são cumulativos. `observability` sobe a plataforma inteira; `dmpf` sobe os seis processos da topologia de referência — o BFF, `api` e `relay` de orders, `api`, `relay` e `consumer` de reservations — **com** tudo o que eles precisam e observam, inclusive o `postgres-init` (cria `dmpf_orders` e `dmpf_reservations` sem falhar quando já existem), o `redpanda-init` (usuários SASL, tópicos e ACLs) e o `pki-init` (CA e certificados do mTLS interno); `all` sobe a infraestrutura toda menos as apps. Diferente do BFF e dos dois contextos da topologia de referência, `bookings` não faz parte de nenhum profile local — sobe isolado contra o profile `postgres` (ver `apps/backend/bookings/README.md`).
 
 ```bash
 # só o banco (o que os testes de integração dos módulos Go precisam)
@@ -56,6 +57,10 @@ pnpm nx run bff:infra-down
 
 Pelo Nx: `infra-up` (Postgres, Redpanda e floci), `observability-up` (plataforma + exporters), `infra-down` e `infra-budget`.
 
+### mTLS interno e SASL no Kafka (profile `dmpf`)
+
+O `pki-init` gera, num volume nomeado e só na primeira subida, uma CA de desenvolvimento, o certificado de servidor de cada `api` (`dmpf-orders-api`, `dmpf-reservations-api`) e o certificado de cliente do BFF, com a URI `spiffe://dmpf/bff` no SAN. Os `api` exigem e verificam esse certificado (`DMPF_GRPC_CLIENT_CA_FILE`, `DMPF_GRPC_TRUSTED_CLIENTS`); o BFF apresenta o seu (`DMPF_GRPC_CA_FILE`, `DMPF_GRPC_CLIENT_CERT_FILE`/`_KEY_FILE`) e autentica localmente por `DMPF_AUTH_DEV_MOCK=true` — sem verificação real de identidade, só para o desenvolvimento (ver `apps/backend/bff/README.md`). O listener Kafka interno (`redpanda:29092`) exige SASL SCRAM-SHA-256; o `redpanda-init` cria um principal por processo (`orders`, `reservations`, `console`) e as ACLs por principal do ADR-052 — cada um só escreve no próprio tópico e na DLQ que alimenta, e só `reservations` lê `orders.events`. O listener externo (`localhost:${REDPANDA_PORT:-9092}`), que os testes de integração dos módulos Go usam, continua sem autenticação — é o mesmo cluster, alcançável por qualquer container da rede, e o principal desse listener é superusuário; serve só ao desenvolvimento local.
+
 ### Portas no host
 
 Tudo publica em `0.0.0.0`, então os endereços valem no WSL (`localhost`) e no Windows (`localhost`, pelo encaminhamento do Docker Desktop; pelo IP do WSL quando o encaminhamento não estiver ativo — `hostname -I`).
@@ -64,17 +69,17 @@ Tudo publica em `0.0.0.0`, então os endereços valem no WSL (`localhost`) e no 
 | --- | --- | --- |
 | **Grafana** | **3000** | painéis, Explore, correlação log ↔ trace; login `admin`/`GRAFANA_ADMIN_PASSWORD` para a administração do servidor |
 | Swagger UI | 8082 | os contratos de `orders` e `reservations` com "Try it out" contra o BFF (profile `dmpf`) |
-| Redpanda Console | 8083 | tópicos, grupos, mensagens e Admin API do Kafka (profile `console`) |
+| Redpanda Console | 8083 | tópicos, grupos, mensagens e Admin API do Kafka (profile `console`), autenticado com o principal `console` |
 | dmpf-bff `/openapi/{orders,reservations}/v1/openapi.yaml` | 8080 | os contratos servidos pelo BFF (`DMPF_OPENAPI_ORDERS_PATH`, `DMPF_OPENAPI_RESERVATIONS_PATH`) |
 | Prometheus | 9090 | consulta PromQL, alvos de scrape |
 | Loki | 3100 | API de logs |
 | Tempo | 3200 | API de traces |
 | Collector | 4317 / 8888 | OTLP/gRPC · métricas do próprio Collector |
 | Alloy | 12345 | interface de componentes da coleta |
-| dmpf-bff | 8080 | a única borda HTTP pública; os `api` de orders e reservations servem gRPC na 9090 só na rede do projeto |
+| dmpf-bff | 8080 | a única borda HTTP pública; os `api` de orders e reservations servem gRPC na 9090 só na rede do projeto, sob mTLS |
 | Postgres | 5432 | banco |
 | Redis | 6379 | cache |
-| Redpanda | 9092 / 9644 | Kafka · admin e métricas Prometheus |
+| Redpanda | 9092 / 9644 | Kafka (listener externo, sem autenticação, só para o host) · admin e métricas Prometheus |
 | floci | 4566 | SQS e SNS |
 | cAdvisor | 8081 | métricas de container (8080 é do BFF) |
 | postgres-exporter | 9187 | métricas do Postgres |
@@ -87,7 +92,7 @@ Publicar em `0.0.0.0` tem uma consequência, além de servir o Windows: pelo IP 
 
 ### Acesso pelo BFF
 
-`GET /openapi/orders/v1/openapi.yaml` e `GET /openapi/reservations/v1/openapi.yaml` devolvem os contratos publicados (`contracts/openapi/`, copiados para a imagem do BFF); o Swagger UI em `:8082` os lista no seletor da barra superior pela variável `URLS` da imagem. Como o "Try it out" chama o BFF de outro origin, o compose passa `DMPF_CORS_ORIGINS=http://localhost:8082,...` ao BFF — fora do compose a variável fica vazia e a borda é same-origin. O BFF valida o que os contratos publicam e fala com os contextos por gRPC (`dns:///dmpf-orders-api:9090` e `dns:///dmpf-reservations-api:9090`), sem TLS só no compose (`DMPF_GRPC_INSECURE=true`); os `api` não publicam porta no host.
+`GET /openapi/orders/v1/openapi.yaml` e `GET /openapi/reservations/v1/openapi.yaml` devolvem os contratos publicados (`contracts/openapi/`, copiados para a imagem do BFF); o Swagger UI em `:8082` os lista no seletor da barra superior pela variável `URLS` da imagem. Como o "Try it out" chama o BFF de outro origin, o compose passa `DMPF_CORS_ORIGINS=http://localhost:8082,...` ao BFF — fora do compose a variável fica vazia e a borda é same-origin. O BFF autentica com `DMPF_AUTH_DEV_MOCK=true` (lê a identidade do próprio Bearer, sem verificação) e fala com os contextos por gRPC sob mTLS (`dns:///dmpf-orders-api:9090` e `dns:///dmpf-reservations-api:9090`), com o certificado de cliente e a CA que o `pki-init` gera; os `api` não publicam porta no host.
 
 ### Orçamento de recursos
 
@@ -97,7 +102,7 @@ Todo serviço declara `deploy.resources` com teto (`limits`) e mínimo (`reserva
 pnpm nx run bff:infra-budget
 ```
 
-Na máquina de referência (14 vCPU, 15,36 GiB) a soma dá **8,00 vCPU (57,1%)** e **8,2 GiB (53,1%)** com os 24 serviços: os seis processos da topologia dividem o mesmo 0,75 vCPU que os três papéis do app único usavam (0,15 no BFF e em cada `api`, 0,10 em cada relay e no consumer), e `postgres-init` e `redpanda-init` ficam em 0,05 vCPU cada. O teto é relativo ao host: num host de 8 vCPU os 60% (4,80 vCPU) não comportam a soma, com ou sem a topologia. O maior teto é do Redpanda (1,25 vCPU / 1,5 GiB, com `--memory=1G` no próprio broker); os exporters ficam em 0,10 vCPU / 64 MiB cada. O uso real em regime é da ordem de 0,15 vCPU e 1,2 GiB — os tetos protegem o host, não dimensionam o normal.
+Na máquina de referência (14 vCPU, 15,36 GiB) a soma dá **4,55 vCPU (32,5%)** e **8,22 GiB (53,5%)** com os 25 serviços: os seis processos da topologia dividem o mesmo 0,75 vCPU que os três papéis do app único usavam (0,15 no BFF e em cada `api`, 0,10 em cada relay e no consumer), e `postgres-init`, `redpanda-init` e `pki-init` ficam em 0,05–0,10 vCPU cada, todos de execução única. O teto é relativo ao host: num host de 8 vCPU os 60% (4,80 vCPU) comportam a soma com folga. O maior teto é do Redpanda (0,60 vCPU / 1,5 GiB, com `--memory=1G` no próprio broker); os exporters ficam em 0,05 vCPU / 64 MiB cada. O uso real em regime é da ordem de 0,15 vCPU e 1,2 GiB — os tetos protegem o host, não dimensionam o normal.
 
 ### O que observa o quê
 
@@ -126,10 +131,10 @@ kubectl apply -k infra/k8s/overlays/dev
 | Overlay | Namespace | O que sobe | Credenciais |
 | --- | --- | --- | --- |
 | `dev` | `dmpf-dev` | Postgres, Redpanda, a plataforma de observabilidade e as três apps; Job `dmpf-databases` cria `dmpf_orders` e `dmpf_reservations`; Kafka, OTLP e gRPC interno sem TLS, `DMPF_MIGRATE=true` nos `api`, Grafana anônimo | `secretGenerator` com valores de desenvolvimento (`orders`, `reservations`, `grafana-admin`) |
-| `hmg` | `dmpf-hmg` | Observabilidade e as três apps (2 réplicas do BFF e de cada `api`); bancos e Kafka externos, TLS em tudo, inclusive no gRPC interno, Grafana só com login | `orders`, `reservations`, `orders-grpc-tls`, `reservations-grpc-tls`, `bff-grpc-ca` e `grafana-admin` vêm de ExternalSecret/SealedSecret com esses nomes; `secrets.example.yaml.tmpl` mostra a forma e **não** é resource |
+| `hmg` | `dmpf-hmg` | Observabilidade e as três apps (2 réplicas do BFF e de cada `api`); bancos e Kafka externos, mTLS no gRPC interno e SASL no Kafka, Grafana só com login | `orders`, `reservations` (com `DMPF_KAFKA_SASL_USERNAME`/`_PASSWORD`), `orders-grpc-tls`, `reservations-grpc-tls`, `bff-grpc-ca`, `bff-grpc-client`, `grpc-client-ca`, `bff-oidc` e `grafana-admin` vêm de ExternalSecret/SealedSecret com esses nomes; `secrets.example.yaml.tmpl` mostra a forma e **não** é resource |
 
-As bases são fail-closed e o overlay `dev` relaxa o que precisa: `DMPF_KAFKA_INSECURE`, `DMPF_OTLP_INSECURE` e o acesso anônimo do Grafana nascem desligados, e o transporte gRPC interno não tem default — `dev` declara `DMPF_GRPC_INSECURE=true` por patch e `hmg` monta o certificado de cada `api` e a CA do BFF. As bases dos contextos não conhecem credencial: `DMPF_PG_DSN` (um banco por contexto) e `DMPF_KAFKA_BROKERS` vêm sempre do Secret do overlay; o resto vem do ConfigMap. Os seis Deployments têm `securityContext` restritivo (não root, sistema de arquivos só leitura, sem capabilities) e `terminationGracePeriodSeconds` acima do prazo interno de encerramento de cada papel.
+As bases são fail-closed e o overlay `dev` relaxa o que precisa: `DMPF_KAFKA_INSECURE`, `DMPF_OTLP_INSECURE` e o acesso anônimo do Grafana nascem desligados, e o transporte gRPC interno não tem default — `dev` declara `DMPF_GRPC_INSECURE=true` por patch. Em `hmg`, o mTLS é bidirecional: cada `api` monta o próprio certificado de servidor (`orders-grpc-tls`, `reservations-grpc-tls`) e a CA que verifica o cliente (`grpc-client-ca`, comum aos dois contextos porque o único cliente confiável é o BFF), e o BFF monta a CA que verifica os `api` (`bff-grpc-ca`) e o próprio certificado de cliente (`bff-grpc-client`); o Kafka gerenciado exige SASL SCRAM-SHA-512 por contexto, com usuário e senha no Secret do próprio contexto. A ACL do broker por principal do ADR-052 é **pré-requisito externo**, registrada como comentário no `secrets.example.yaml.tmpl`: sem ela, `hmg` não tem como impor que só `orders` publique em `orders.events`. As bases dos contextos não conhecem credencial: `DMPF_PG_DSN`, `DMPF_KAFKA_BROKERS` e as credenciais SASL vêm sempre do Secret do overlay; o resto vem do ConfigMap. Os seis Deployments têm `securityContext` restritivo (não root, sistema de arquivos só leitura, sem capabilities) e `terminationGracePeriodSeconds` acima do prazo interno de encerramento de cada papel.
 
-A borda não autentica ninguém (a identidade de FND-07 não tem realização no kernel), então quem a alcança é decidido pela rede: a `NetworkPolicy` do BFF só admite ingress de pods rotulados `dmpf/api-client: "true"`; a de cada contexto só admite ingress na 9090 do `api` vindo de pods do BFF e nega todo ingress a `relay` e `consumer`. Os seletores de peer usam `matchExpressions` porque o Kustomize injeta o label `app.kubernetes.io/name` da base em todo `matchLabels` de NetworkPolicy. O Alloy roda como DaemonSet e lê os logs dos pods pela API do kubelet, com RBAC de `pods`, `pods/log` e `namespaces` — sem `hostPath` e sem `nodes/proxy`.
+A borda pública (o BFF) autentica o sujeito por OIDC ou pelo mock de desenvolvimento (`apps/backend/bff/README.md`): `dev` declara `DMPF_AUTH_DEV_MOCK=true` no ConfigMap, e `hmg` lê `DMPF_OIDC_ISSUER`, `DMPF_OIDC_AUDIENCE` e `DMPF_OIDC_TENANT_CLAIM` do Secret `bff-oidc`. O acesso à rede é decidido por `NetworkPolicy`: a do BFF só admite ingress de pods rotulados `dmpf/api-client: "true"`; a de cada contexto só admite ingress na 9090 do `api` vindo de pods do BFF e nega todo ingress a `relay` e `consumer`. Os seletores de peer usam `matchExpressions` porque o Kustomize injeta o label `app.kubernetes.io/name` da base em todo `matchLabels` de NetworkPolicy. O Alloy roda como DaemonSet e lê os logs dos pods pela API do kubelet, com RBAC de `pods`, `pods/log` e `namespaces` — sem `hostPath` e sem `nodes/proxy`.
 
-Limitações declaradas: o BFF não expõe rota de saúde (as sondas são de socket TCP); os `api` usam a sonda gRPC nativa do kubelet em `dev`, que não fala TLS, então em `hmg` voltam à sonda de socket; Postgres, Redpanda, Loki, Tempo e Prometheus das bases são de desenvolvimento (um pod, sem operador, sem TLS, armazenamento local) e em produção viram serviços gerenciados; não há Ingress nem a malha completa de NetworkPolicy (Prometheus → alvos, Grafana → datasources, Alloy → Loki), que dependem do cluster de destino e estão registradas como dívida no ADR-041.
+Limitações declaradas: o BFF não expõe rota de saúde (as sondas são de socket TCP); os `api` usam a sonda gRPC nativa do kubelet em `dev`, que não fala TLS, então em `hmg` — com mTLS ativo — voltam à sonda de socket; Postgres, Redpanda, Loki, Tempo e Prometheus das bases são de desenvolvimento (um pod, sem operador, sem TLS, armazenamento local) e em produção viram serviços gerenciados; não há Ingress nem a malha completa de NetworkPolicy (Prometheus → alvos, Grafana → datasources, Alloy → Loki), que dependem do cluster de destino e estão registradas como dívida no ADR-041; a configuração de autenticação do BFF (acima) é a mesma classe de dívida.

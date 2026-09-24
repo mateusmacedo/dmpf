@@ -8,12 +8,12 @@ Agents são arquivos `.md` com frontmatter YAML que definem um subagente com fer
 modelo e instruções específicas. O Claude os invoca automaticamente via `Agent` tool
 quando a descrição do agente corresponde à tarefa.
 
-## Agentes atuais
+## Catálogo completo
 
-| Arquivo | Propósito | Modelo |
-|---------|-----------|--------|
-| `pt-reviewer.md` | Revisa texto em português (acentuação, crase, confusáveis) | Haiku |
-| `en-reviewer.md` | Revisa texto em inglês (spelling, grammar, confused words) | Haiku |
+Esta pasta tem 50 agentes. O catálogo canônico, agrupado por foco (revisão e
+diagnóstico, backend/dados/APIs, infraestrutura/CI/CD/segurança, testes e
+automação, documentação e texto, orquestração e evolução), vive em
+[`../README.md`](../README.md#agents) — evite duplicá-lo aqui.
 
 ## Anatomia de um agent
 
@@ -21,9 +21,7 @@ quando a descrição do agente corresponde à tarefa.
 ---
 name: nome-do-agent
 model: haiku  # haiku, sonnet ou opus
-description: >
-  Descrição usada pelo Claude para decidir quando invocar.
-  Quanto mais específica, melhor o trigger.
+description: "Descrição usada pelo Claude para decidir quando invocar. Quanto mais específica, melhor o trigger."
 tools:
   - Read
   - Grep

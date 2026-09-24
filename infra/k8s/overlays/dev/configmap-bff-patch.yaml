@@ -6,4 +6,7 @@ data:
   # O Collector da base e os `api` dos contextos rodam sem TLS em dev.
   DMPF_OTLP_INSECURE: 'true'
   DMPF_GRPC_INSECURE: 'true'
+  # Sem servidor de autorização em dev: a identidade vem do próprio Bearer, sem
+  # verificação. Em hmg o BFF verifica por OIDC (Secret bff-oidc).
+  DMPF_AUTH_DEV_MOCK: 'true'
   DMPF_SERVICE_VERSION: dev

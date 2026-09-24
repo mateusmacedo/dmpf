@@ -1,155 +1,86 @@
 # dmpf
 
-Baseline de monorepo Nx multistack — Express, Fastify, NestJS, Next.js e Angular no mesmo workspace.
+Baseline de monorepo Nx multistack da organização — Go e TypeScript no mesmo
+workspace, com pnpm e Nx Release por projeto. O workspace já vem preparado
+para Express, Fastify, NestJS, Next.js e Angular, mas as únicas apps e libs
+reais hoje são as do kernel DMPF, em Go: a topologia de referência e o golden
+do harness de bounded contexts. Quem parte deste template cria as apps de
+outra stack do zero.
 
-## Pré-requisitos
+Para as convenções completas do workspace — estrutura, comandos, tags,
+git-flow, padrões de código — ver [`AGENTS.md`](AGENTS.md), a fonte canônica
+para quem (humano ou agente) trabalha neste repositório.
 
-- Node.js `24` (ver `.nvmrc` / `.node-version`)
-- pnpm `11` (habilite via `corepack enable`)
+## Stack
 
-## Quick Start
+| Camada | Tecnologia |
+| --- | --- |
+| Orquestração | Nx `23.1.0`, workspace pnpm |
+| Kernel DMPF | Go `1.26.6` (`libs/backend/go/`, `apps/backend/`, `tools/dmpf-conformance/`) |
+| Tooling do workspace | TypeScript (`tools/dmpf-plugin`, scripts) |
+| Runtime | Node.js `^24`, pnpm `11.14.0` |
+| Lint/format | Biome `2.4.16` |
+| Testes TS | Jest `30` + SWC |
+
+## Setup
 
 ```bash
-corepack enable          # ativa o pnpm na versão de packageManager
-pnpm install             # instala deps e registra os git hooks (Lefthook)
-pnpm nx run-many -t build # build incremental de tudo
+corepack enable           # ativa o pnpm na versão de packageManager
+pnpm install               # instala deps e registra os git hooks (Lefthook)
+pnpm nx run-many -t build  # build incremental de tudo
 ```
 
-As versões de dependências são centralizadas no `catalog:` do
-`pnpm-workspace.yaml` — cada `package.json` referencia `"catalog:"`.
+As versões de dependências TS são centralizadas no `catalog:` do
+`pnpm-workspace.yaml` — cada `package.json` referencia `"catalog:"`. Passo a
+passo completo, incluindo infraestrutura local (Postgres, Redpanda) e o
+primeiro PR, em [`docs/onboarding.md`](docs/onboarding.md).
 
-## Stack suportada
+## Estrutura em alto nível
 
-| Stack                     | Tipo        | Plugin Nx                     |
-| ------------------------- | ----------- | ----------------------------- |
-| Node.js / TypeScript puro | libs        | `@nx/js`                      |
-| Express                   | apps        | `@nx/express` + `@nx/webpack` |
-| Fastify                   | apps        | `@nx/node` + `@nx/webpack`    |
-| NestJS                    | apps + libs | `@nx/nest` + `@nx/webpack`    |
-| Next.js                   | apps + libs | `@nx/next`                    |
-| Angular                   | apps + libs | `@nx/angular`                 |
-
-## Estrutura de diretórios
-
-```
+```text
 dmpf/
-├── apps/                        # Aplicações executáveis
-│   └── <stack>-<name>/
-│   └── <stack>-<name>-e2e/
-├── libs/
-│   ├── shared/                  # Libs agnósticas de framework (scope:shared)
-│   │   ├── utils/               # Utilitários TypeScript puros
-│   │   ├── types/               # Tipos e interfaces compartilhados
-│   │   └── testing/             # Fixtures e helpers de teste
-│   ├── backend/                 # Libs de servidor (scope:backend)
-│   │   ├── domain/              # Lógica de domínio
-│   │   ├── nest/                # Módulos NestJS reutilizáveis
-│   │   └── infra/               # Adapters (DB, cache, queue)
-│   ├── frontend/                # Libs de UI (scope:frontend)
-│   │   ├── ui/                  # Componentes React/Next.js
-│   │   └── angular/             # Componentes Angular
-│   └── data-access/
-│       └── api-client/          # Client HTTP compartilhado
-├── tools/
-│   ├── generators/              # Nx generators do workspace (vazio)
-│   └── executors/               # Nx executors customizados
-├── docs/
-│   └── adr/                     # Architecture Decision Records
-├── .github/workflows/ci.yml     # CI com nx affected
-├── nx.json
-├── tsconfig.base.json           # TypeScript Project References (nodenext)
-├── pnpm-workspace.yaml          # apps/*, libs/**, tools/* + catalog de versões
-├── biome.json                   # Biome (lint + formatação)
-├── jest.config.ts               # Jest root
-├── jest.preset.js               # Preset SWC
-└── .spec.swcrc                  # Config SWC para testes (suporta decorators)
+├── apps/backend/          # BFF REST e os bounded contexts Go (bff, orders, reservations, bookings)
+├── libs/backend/go/       # Kernel DMPF de reuso — módulos Go (domain, ports, application, providers, testkit, ...)
+├── contracts/             # Fonte dos contratos Protobuf (Buf), neutra de stack
+├── bom/                   # BOM da release do produto e a evidência que o certifica
+├── infra/                 # Compose local, observabilidade, manifestos Kustomize
+├── tools/                 # dmpf-plugin (generator), dmpf-conformance (verificador), scripts do workspace
+├── docs/                  # ADRs, specs, regras de domínio, guias
+└── .claude/, .agents/     # skills e agents para assistentes
 ```
 
-## Convenção de tags (obrigatória em todo project.json)
+Detalhe módulo a módulo no README de cada lib/app (`libs/backend/go/<módulo>/README.md`,
+`apps/backend/<app>/README.md`), infraestrutura em [`infra/README.md`](infra/README.md),
+contratos em [`contracts/README.md`](contracts/README.md) e o BOM da release em
+[`bom/README.md`](bom/README.md).
 
-Cada projeto deve declarar uma tag de cada dimensão:
-
-```json
-{
-  "tags": ["type:app", "scope:backend", "stack:nest"]
-}
-```
-
-| Dimensão | Valores                                                 |
-| -------- | ------------------------------------------------------- |
-| `type:`  | `app`, `lib`, `e2e`                                     |
-| `scope:` | `shared`, `backend`, `frontend`                         |
-| `stack:` | `node`, `express`, `fastify`, `nest`, `next`, `angular` |
-
-## Comandos principais
+## Comandos essenciais
 
 ```bash
-# Rodar testes de uma lib
-pnpm nx test @mateusmacedo/minha-lib
-
-# Rodar lint apenas nos projetos afetados pelo último commit
-pnpm nx affected -t lint
-
-# Typecheck incremental de tudo
-pnpm nx run-many -t typecheck
-
-# Build incremental de tudo
+# Em lote / afetados pela mudança
 pnpm nx run-many -t build
+pnpm nx affected -t lint,typecheck,test,build
 
-# Ver grafo de dependências
+# Um único projeto
+pnpm nx test <projeto>
+pnpm nx build <projeto>
+
+# Grafo de dependências
 pnpm nx graph
 
-# Gerar nova shared lib
-pnpm nx g @nx/js:lib libs/shared/minha-lib \
-  --importPath=@mateusmacedo/minha-lib \
-  --bundler=tsc --unitTestRunner=jest --linter=none \
-  --tags=type:lib,scope:shared,stack:node
+# Formatação (Biome — não Prettier)
+pnpm biome format --write .
+pnpm biome ci .
 ```
 
-## Adicionar uma nova app
+Guia prático de tasks Nx — incluindo a taxonomia completa de tags (`type:`,
+`scope:`, `stack:`, `layer:`) — em
+[`docs/nx-reference/tasks.md`](docs/nx-reference/tasks.md).
 
-```bash
-# Express
-pnpm nx g @nx/express:app my-api --directory=apps/my-api
+## Git e release
 
-# NestJS
-pnpm nx g @nx/nest:app my-nest-api --directory=apps/my-nest-api
-
-# Next.js
-pnpm nx g @nx/next:app my-web --directory=apps/my-web
-
-# Angular
-pnpm nx g @nx/angular:app my-angular --directory=apps/my-angular
-```
-
-Sempre adicione as tags obrigatórias no `project.json` gerado.
-
-## CI/CD
-
-O pipeline em `.github/workflows/ci.yml` executa sobre os projetos **afetados**
-pela mudança (`nx affected`), na ordem:
-
-1. `format:check` — Biome (`biome ci`)
-2. `lint` — Biome
-3. `typecheck` — TypeScript Project References
-4. `test` — Jest + SWC
-5. `build` — build incremental
-6. `e2e` — testes E2E
-
-## Testes
-
-Os testes usam Jest com transform via SWC (`.spec.swcrc`).
-
-```bash
-# Testar uma lib específica
-pnpm nx test @mateusmacedo/minha-lib
-
-# Testar apenas os projetos afetados
-pnpm nx affected -t test
-
-# Testar tudo
-pnpm nx run-many -t test
-```
+Fluxo git-flow (`master` / `develop` / `release/*`), convenção de commits e o
+rito de release estão em [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## Troubleshooting
 
@@ -161,15 +92,14 @@ pnpm nx run-many -t test
 - **Erro de dependência no lockfile**: rode `pnpm install` e confira o diff de
   `pnpm-lock.yaml`; para CI use `pnpm install --frozen-lockfile`.
 
-## Release do produto DMPF
+## Documentação
 
-O kernel DMPF é liberado como produto por uma tag anotada `dmpf@<semver>`, com
-o BOM em `bom/dmpf/<semver>.json` e a evidência de execução que o certifica em
-`bom/evidence/<semver>/`. O schema, o validador `dmpf-bom` e a geração da
-evidência estão em [`bom/README.md`](bom/README.md); o rito da tag, em
-[`CONTRIBUTING.md`](CONTRIBUTING.md).
-
-## Decisões arquiteturais
-
-Consulte `docs/adr/` para o registro de decisões.
-ADR-001 cobre a escolha do baseline e os fundamentos técnicos.
+| Onde | O quê |
+| --- | --- |
+| [`AGENTS.md`](AGENTS.md) | Convenções completas do workspace |
+| [`docs/adr/`](docs/adr/README.md) | Decisões arquiteturais |
+| [`docs/specs/`](docs/specs/README.md) | Especificações de features |
+| [`docs/rules/`](docs/rules/README.md) | Regras de domínio (negócio, aplicação, produto) |
+| [`docs/guides/development-workflow.md`](docs/guides/development-workflow.md) | Guia detalhado do fluxo de trabalho |
+| [`docs/ci-cd/`](docs/ci-cd/README.md) | Adoção de CI/CD e deploy |
+| [`docs/onboarding.md`](docs/onboarding.md) | Setup local e primeiro PR |

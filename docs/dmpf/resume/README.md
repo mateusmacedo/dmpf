@@ -116,7 +116,7 @@ Se preferir entrar pela **estrutura dos artefatos donos**, use:
 | Item | Valor |
 |--|--|
 | **Épico** | ARQ-436 — Golden Path para Sistemas Orientados a Domínio e Mensagens |
-| **Especificação** | [SPEC-8YVF0RR5](../specs/SPEC-8YVF0RR5-dmpf-rfc-limites-deps.md) (limites, dependência) |
+| **Especificação** | [SPEC-8YVF0RR5](../../specs/SPEC-8YVF0RR5-dmpf-rfc-limites-deps.md) (limites, dependência) |
 | **Repositório** | [`dmpf` / `docs/dmpf/`](https://github.com/mateusmacedo/dmpf) |
 | **Próximo passo** | Leia [`docs/onboarding.md`](../../onboarding.md) para setup e primeiro PR |
 

@@ -19,10 +19,9 @@ Para o dia a dia com o workspace, tenha também estas ferramentas de linha de co
 - `yq` (implementação do mikefarah) — processamento de YAML; confirme a origem
   com `yq --version`, cuja saída menciona `mikefarah/yq`.
 
-O binário `gh` (GitHub CLI) só é necessário quando o fluxo do desenvolvedor
-envolve GitHub. A plataforma deste projeto é **Gitea** (`github.com`)
-e não depende do `gh` — a automação que fala com a plataforma usa a API do
-Gitea (`/api/v1/...`).
+- `gh` (GitHub CLI) — a plataforma deste projeto é o GitHub
+  (`docs/adr/043-migracao-para-github-licenca-e-autoria.md`), e o `gh` é o
+  caminho padrão para abrir PRs e operar a plataforma.
 
 ```bash
 corepack enable
@@ -149,9 +148,9 @@ commit.
 ## CI
 
 O workflow `.github/workflows/ci.yml` roda em PRs para `master`, `develop` e
-`release/**`, no runner `gitea-runner`. A pipeline executa `pnpm biome ci .` e
+`release/**`, no runner `ubuntu-latest`. A pipeline executa `pnpm biome ci .` e
 depois `nx affected` de lint, typecheck, test (com `--ci --coverage`), build e
-e2e.
+e2e, mais os estágios Go selecionados por `layer:*`.
 
 Nota importante: o CI ignora mudanças que sejam apenas Markdown (`paths-ignore`
 com `**/*.md` e `.github/ISSUE_TEMPLATE/**`). PRs só de documentação não disparam
@@ -159,12 +158,13 @@ o pipeline e precisam de revisão humana.
 
 ## Release e plataforma
 
-- A plataforma é **Gitea** (`github.com`). O binário `gh` não opera
-  contra este servidor — ver `docs/adr/005-plataforma-gitea.md`.
-- O versionamento (`release.yml`) é separado da publicação de libs
-  (`publish-libs.yml`) — ver `docs/adr/004-workflows-verdaccio-release.md`.
-- O `create-release.yml` cria a branch `release/X.Y.Z` e abre o PR de release pela
-  API do Gitea.
+- A plataforma é o **GitHub** — ver
+  `docs/adr/043-migracao-para-github-licenca-e-autoria.md`, que supersede os
+  ADRs 004 e 005.
+- O versionamento (`nx-release.yml`) é separado da publicação de libs no GitHub
+  Packages (`nx-publish-libs.yml`).
+- O `create-release.yml` cria a branch `release/X.Y.Z` e abre o PR de release com
+  `gh pr create`.
 
 ## CD (deploy)
 

@@ -3,10 +3,13 @@
 Bloco `provider` do kernel DMPF para o transporte síncrono interno em gRPC
 (FND-06 §10, ADR-024): deadline em toda chamada de saída, propagado como
 duração restante e nunca reiniciado; retry derivado da idempotência declarada
-do método; TLS obrigatório fora de desenvolvimento; health por serviço;
-admissão por método e tenant na borda do servidor.
+do método; TLS obrigatório fora de desenvolvimento; identidade do workload
+verificada por mTLS em cada salto (ADR-052); health por serviço; admissão por
+método e tenant na borda do servidor.
 
-Criado por `KRN-10` (ARQ-529, `docs/specs/SPEC-EAGAXQN1-dmpf-providers-transporte.md`).
+Criado por `KRN-10` (ARQ-529, `docs/specs/SPEC-EAGAXQN1-dmpf-providers-transporte.md`);
+a verificação de workload por mTLS é de `docs/specs/SPEC-9B6SHEH8-contexto-execucao-identidade-tenant.md`
+(ADR-052).
 
 ## Unidades do manifesto
 
@@ -14,10 +17,10 @@ Criado por `KRN-10` (ARQ-529, `docs/specs/SPEC-EAGAXQN1-dmpf-providers-transport
 | --- | --- | --- |
 | `kernel/provider-grpc` | `provider` | raiz do módulo |
 
-Dependências externas declaradas: `google.golang.org/grpc` (`io.network`),
-`go.opentelemetry.io/otel/trace` e `go.opentelemetry.io/otel/metric`
-(`observability`). O SDK OTel e o `bufconn` só aparecem em `_test.go`, que o
-verificador não classifica.
+Dependências externas declaradas: `google.golang.org/grpc` `>=1.83.1` (`io.network`,
+incluindo `credentials` e `health`), `go.opentelemetry.io/otel/trace` e
+`go.opentelemetry.io/otel/metric` (`observability`). O SDK OTel e o `bufconn`
+só aparecem em `_test.go`, que o verificador não classifica.
 
 ## O que o módulo contém
 
@@ -69,9 +72,22 @@ verificador não classifica.
   import em branco de `grpc/health`) e `Dial`: credenciais, service config,
   `WithDisableRetry` — o retry nativo não vê idempotência (GRP-08) — e as
   cadeias de interceptors.
-- **`server.go`** — `ServerConfig` e `NewServer`: `grpc.Creds`, cadeias de
-  interceptors e o serviço de health com cada serviço declarado começando em
-  `NOT_SERVING` (GRP-13).
+- **`server.go`** — `ServerConfig{TLS, InsecureForDevelopmentOnly, Services,
+  UnaryInterceptors, StreamInterceptors, Logger}` e `NewServer`:
+  `Validate` recusa servidor sem transporte seguro e sem o opt-out (GRP-15), e
+  um servidor TLS cujo `ClientAuth` não é `RequireAndVerifyClientCert`
+  (`ErrClientCARequired`, IDN-03) — um `ServerConfig` montado fora de
+  `APIServerConfig` não escapa dessa exigência. Cada serviço declarado começa
+  em `NOT_SERVING` (GRP-13).
+- **`server_config.go`** — a fachada de composição do servidor de API:
+  `APIServer{CertFile, KeyFile, Insecure, ClientCAFile, TrustedClients,
+  Services, Interceptors, Logger}` e `APIServerConfig`, que monta o
+  `ServerConfig` já com mTLS ligado — sem o composition root ter que
+  encadear `requireClientAuth` e os interceptors de confiança à mão.
+  `ServerTLS(certFile, keyFile)` carrega o par declarado ou devolve `nil`
+  para o opt-out explícito de `NewServer`. `HealthServices(name)` é
+  `["", name]`: o nome vazio é o status geral que uma sonda sem serviço
+  pergunta.
 - **`admission.go`** — `Admission(ctrl, tenant, instruments)`: interceptor do
   servidor sobre `transport/admission`. Recusa `RESOURCE_EXHAUSTED` antes
   do handler (RES-17) e conta `dmpf_service_admission_rejections_total{route,
@@ -79,6 +95,38 @@ verificador não classifica.
   limite declarado responde `UNIMPLEMENTED` (RES-16).
 - **`status.go`** — `HTTPStatus(codes.Code)`: a tabela canônica de GRP-14
   (`Canceled → 499`), o resto conforme o grpc-gateway, fora da tabela → 500.
+- **`serve.go`** — `Serve(ctx, listen, server, healthServer, services, ready,
+  logger)`: roda `ready` **antes** de aceitar a primeira conexão — uma sonda
+  que não fala o protocolo de saúde (o kubelet caindo para sonda TCP num
+  listener TLS) só passa num processo que respondeu pelas próprias
+  dependências. `Drain` para de aceitar, espera as chamadas em curso e força
+  a saída ao fim de `observability.ShutdownGrace` (10 s), a mesma janela que
+  o `boot` da telemetria usa.
+
+## Identidade do workload por mTLS (`IDN-03`, ADR-052)
+
+Com TLS ativo, `APIServerConfig` exige que o cliente apresente certificado e o
+verifica contra uma CA declarada (`ClientCAFile`) — a partida recusa TLS sem
+essa CA (`ErrClientCARequired`) e sem ao menos um workload confiável declarado
+(`ErrTrustedClientsRequired`, `TrustedClients`). O interceptor `TrustedPeers`
+(unário) e `TrustedStreamPeers` (stream) confere a identidade do certificado
+verificado **antes** de qualquer outro interceptor — inclusive admissão e o
+contexto de execução — contra a URI SAN ou o DNS SAN da folha, **nunca contra
+o CN**, que não tem semântica de nome e que a própria CA pode emitir livre. Só
+depois desse interceptor a metadata `x-tenant-id` chega a ser lida.
+
+A identidade do BFF, o único cliente destes servidores hoje, é
+`spiffe://dmpf/bff`. `orders` e `reservations` a leem em `DMPF_GRPC_TRUSTED_CLIENTS`,
+e a CA de clientes em `DMPF_GRPC_CLIENT_CA_FILE` — as duas variáveis são lidas
+pelo composition root de cada contexto (`apps/backend/{orders,reservations}/app/config.go`),
+não por este módulo, que só declara os campos de `APIServer`. No compose local
+a CA é de desenvolvimento, emitida pelo `pki-init` (`infra/local`); o opt-out
+continua existindo como `DMPF_GRPC_INSECURE`, registrado no log quando usado.
+
+A sonda gRPC do kubelet não apresenta certificado de cliente: com mTLS ativo os
+processos `api` trocam para sonda de socket TCP, e é por isso que `Serve`
+resolve `ready` antes de aceitar qualquer conexão — a sonda de socket só
+enxerga a porta aberta, nunca a saúde declarada.
 
 ## O que o módulo não contém
 
@@ -86,8 +134,12 @@ Connect e transcodificação; a superfície REST (recurso, paginação,
 versionamento), que ADR-024 deixa fora do kernel; qualquer serviço próprio —
 o health é o único protocolo que ele embarca, e é também a RPC dos testes,
 para não haver código gerado; o rate limit de saída por dependência (RES-15,
-decorator do KRN-09 ainda sem realização); a identidade de FND-07 — o tenant
-chega por `TenantFunc` injetada pelo composition root.
+decorator do KRN-09 ainda sem realização); a resolução da identidade do
+sujeito — a autenticação e a autorização por permissão vivem na borda REST
+(`libs/backend/go/http`, `libs/backend/go/authn`); o tenant chega por
+`TenantFunc` injetada pelo composition root, e a leitura de
+`DMPF_GRPC_CLIENT_CA_FILE`/`DMPF_GRPC_TRUSTED_CLIENTS` é do composition root de
+cada contexto, não deste módulo.
 
 ## Como rodar os testes localmente
 
@@ -95,6 +147,11 @@ Todos os testes são unitários e sem rede: `bufconn` para o transporte,
 `clock.Fake` para o tempo, `tracetest` e `ManualReader` para os sinais. O
 teste de dois saltos usa o relógio do sistema porque atravessa transportes
 reais, e tolera 20 ms de trânsito na folga observada por hop.
+
+Os testes de mTLS (`mtls_test.go`, `server_config_test.go`) têm a própria
+autoridade de certificados descartável, definida em `pki_test.go` — sem
+depender do `testkit` (um `provider` não alcança o bloco `app`, que é onde
+vive o equivalente `tb.PKI`).
 
 ```bash
 pnpm nx run grpc:test-race
@@ -116,6 +173,9 @@ verificador.
 - `docs/dmpf/politicas-transporte.md` (FND-06) — §10 (`GRP-04` a `GRP-18`).
 - `docs/dmpf/resiliencia-observabilidade.md` (FND-08) — `RES-16`, `RES-17`,
   `RES-21` a `RES-23`, `RES-31`, `MET-08` a `MET-12`, `TRC-04`, `TRC-12`.
+- `docs/dmpf/contexto-erros-seguranca.md` (FND-07) — `IDN-03`, `IDN-04`.
 - `docs/adr/024-rest-externo-grpc-interno-governo-do-tempo.md` — o transporte síncrono interno.
+- `docs/adr/052-identidade-de-workload-no-grpc-e-no-kafka.md` — a verificação por mTLS e a allowlist de workloads.
 - `libs/backend/go/transport/README.md` — `deadline`, `admission` e `observe`.
 - `libs/backend/go/observability/README.md` — a composição do KRN-09.
+- `libs/backend/go/authn/README.md` — a autenticação do sujeito na borda REST.

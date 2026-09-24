@@ -67,12 +67,42 @@ um pedido admitido e um recusado, em
 
 ```bash
 go run ./tools/dmpf-conformance/cmd/bom --root . --release latest --base develop
+go run ./tools/dmpf-conformance/cmd/bom --root . --release 0.2.0 --commit HEAD
 ```
+
+| Flag | Efeito |
+| --- | --- |
+| `--root` | Raiz do workspace |
+| `--release` | Release a validar: `<semver>`, ou `latest` para a maior semver de `bom/dmpf/` (default: o único arquivo) |
+| `--now` | Instante RFC3339 contra o qual as validades vencem (default: relógio) |
+| `--base` | Ref git do BOM anterior: o mesmo arquivo ou, se ausente, a maior semver no ref (`BOM-03`) |
+| `--commit` | Commit alvo do `DMPF-B012`: a tag `<diretório>/v<versão>` de cada módulo `kernel` não rejeitado precisa ser ancestral dele (default: `HEAD`) |
 
 Valida `bom/dmpf/<semver>.json` contra `BOM-01` a `BOM-10` (`DMPF-B001` a
 `DMPF-B011`) e admite as exceções E2 e E3 pela mesma `internal/exception`. Lê o
-workspace por `os.Root`, que recusa symlink para fora da raiz. Flags, schema e
+workspace por `os.Root`, que recusa symlink para fora da raiz. Schema e demais
 códigos em [`bom/README.md`](../../bom/README.md).
+
+## `dmpf-modsync`
+
+```bash
+go run ./tools/dmpf-conformance/cmd/modsync --root . --write
+go run ./tools/dmpf-conformance/cmd/modsync --root . --check
+```
+
+| Flag | Efeito |
+| --- | --- |
+| `--root` | Raiz do workspace, diretório do `go.work` (default: `.`) |
+| `--write` | Grava o `require` e o `replace` versionado dos irmãos nos `go.mod` |
+| `--check` | Confere os `go.mod` sem alterar e reprova divergência |
+
+Exige exatamente um entre `--write` e `--check`. Sincroniza o `go.work` (bloco
+`use` e `replace` versionado) e os `require` de cada `go.mod` com o grafo real
+de imports entre módulos irmãos (ADR-047) — sem isso, o `go.mod` gerado
+carregaria imports não declarados. O generator `bounded-context`
+(`tools/dmpf-plugin`) roda `--write` uma vez ao criar o módulo, num callback
+pós-flush: o modsync lê `go.mod` e `go.work` do disco, não da Tree do Nx. O CI
+roda `--check` como gate de conformidade dos dois lados.
 
 ## Códigos
 

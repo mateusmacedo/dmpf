@@ -5,13 +5,13 @@ paths:
 
 # Segurança Git
 
-Práticas para operações Git seguras neste workspace. As branches protegidas são `master`, `develop` e `release/**`; o fluxo git-flow completo está em `AGENTS.md` e `CONTRIBUTING.md`.
+Práticas para operações Git seguras neste workspace. As branches protegidas são `master`, `develop` e `release/**`; o fluxo git-flow completo está em `CONTRIBUTING.md`.
 
 ## Hooks de Git
 
 - Deixe os hooks de `pre-commit` e `pre-push` (Lefthook) rodarem em cada operação — eles são a rede de segurança do commit verde.
 - Quando um hook falhar, diagnostique e corrija a causa raiz (lint, typecheck, teste) antes de tentar de novo.
-- Pular hooks com `--no-verify` exige pedido explícito do usuário, conforme a regra dura do `AGENTS.md` — a falha sinaliza um problema real a resolver, não a silenciar. Sem esse pedido, corrija o que o hook apontou.
+- Pular hooks com `--no-verify` exige pedido explícito do usuário — a falha sinaliza um problema real a resolver, não a silenciar. Sem esse pedido, corrija o que o hook apontou.
 
 ## Force push
 
