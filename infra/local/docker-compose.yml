@@ -11,6 +11,7 @@ include:
   - compose/postgres.yml
   - compose/redis.yml
   - compose/redpanda.yml
+  - compose/pki.yml
   - compose/redpanda-console.yml
   - compose/floci.yml
   - compose/otel-collector.yml

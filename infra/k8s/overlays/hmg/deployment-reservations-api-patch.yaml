@@ -21,6 +21,9 @@ spec:
             - name: grpc-tls
               mountPath: /etc/dmpf/grpc
               readOnly: true
+            - name: grpc-client-ca
+              mountPath: /etc/dmpf/grpc-clients
+              readOnly: true
           resources:
             requests:
               cpu: 200m
@@ -31,3 +34,6 @@ spec:
         - name: grpc-tls
           secret:
             secretName: reservations-grpc-tls
+        - name: grpc-client-ca
+          secret:
+            secretName: grpc-client-ca

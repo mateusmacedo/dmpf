@@ -1,7 +1,11 @@
 # Redpanda no mesmo modo do CI (ci.yml: --mode dev-container --smp 1). Dois
-# listeners: `internal` para os containers do projeto (redpanda:29092) e
-# `external` publicado no host em ${REDPANDA_PORT:-9092}, que é o endereço que
-# a documentação dos módulos Go usa (DMPF_KAFKA_BROKERS=localhost:9092).
+# listeners: `internal` para os containers do projeto (redpanda:29092), que
+# exige SASL SCRAM — cada processo se autentica com o próprio principal
+# (IDN-04) —, e `external` publicado no host em ${REDPANDA_PORT:-9092}, sem
+# autenticação, que é o endereço que os testes locais dos módulos Go usam
+# (DMPF_KAFKA_BROKERS=localhost:9092). Só para desenvolvimento: outro
+# container da rede também o alcança em redpanda:9092, e o principal dele é
+# superusuário. Usuários, ACLs e autorização nascem no redpanda-init.
 # A porta 9644 serve as métricas Prometheus nativas, que o scrape lê.
 services:
   redpanda:
@@ -13,15 +17,18 @@ services:
       - --mode=dev-container
       - --smp=1
       - --memory=1G
-      - --kafka-addr=internal://0.0.0.0:29092,external://0.0.0.0:9092
       - --advertise-kafka-addr=internal://redpanda:29092,external://localhost:${REDPANDA_PORT:-9092}
+      # Declarado só pelo kafka_api: o --kafka-addr descartaria o método de
+      # autenticação de cada listener.
+      - --set
+      - 'redpanda.kafka_api=[{"name":"internal","address":"0.0.0.0","port":29092,"authentication_method":"sasl"},{"name":"external","address":"0.0.0.0","port":9092,"authentication_method":"none"}]'
     ports:
       - '${REDPANDA_PORT:-9092}:9092'
       - '${REDPANDA_ADMIN_PORT:-9644}:9644'
     volumes:
       - redpanda-data:/var/lib/redpanda/data
     healthcheck:
-      test: ['CMD-SHELL', 'rpk cluster info -X brokers=localhost:29092 >/dev/null 2>&1']
+      test: ['CMD-SHELL', 'rpk cluster info -X brokers=localhost:9092 >/dev/null 2>&1']
       interval: 10s
       timeout: 5s
       retries: 6
