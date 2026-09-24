@@ -47,7 +47,7 @@ func validRaw(t *testing.T, partitionKey string) ([]byte, envelope.Envelope) {
 
 func publishConfig() kafka.Config {
 	cfg := validConfig()
-	cfg.InsecureForDevelopmentOnly, cfg.TLS = true, nil
+	cfg.InsecureForDevelopmentOnly, cfg.TLS, cfg.SASL = true, nil, nil
 	return cfg
 }
 

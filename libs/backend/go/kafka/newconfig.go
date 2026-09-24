@@ -14,7 +14,7 @@ import (
 // default; insecure opts out for development and CI only, and says so in the
 // log, because a process that silently dropped its transport security would
 // look identical to one that never had it.
-func NewConfig(ctx context.Context, rt *otelboot.Runtime, catalog channel.Catalog, brokers []string, service string, insecure bool) Config {
+func NewConfig(ctx context.Context, rt *otelboot.Runtime, catalog channel.Catalog, brokers []string, service string, insecure bool, auth ClientAuth) (Config, error) {
 	cfg := Config{
 		Brokers:     brokers,
 		Catalog:     catalog,
@@ -31,5 +31,8 @@ func NewConfig(ctx context.Context, rt *otelboot.Runtime, catalog channel.Catalo
 	} else {
 		cfg.TLS = &tls.Config{MinVersion: tls.VersionTLS12}
 	}
-	return cfg
+	if err := auth.apply(&cfg); err != nil {
+		return Config{}, err
+	}
+	return cfg, nil
 }

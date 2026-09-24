@@ -21,6 +21,7 @@ import (
 type Config struct {
 	Brokers                    []string
 	TLS                        *tls.Config
+	SASL                       *SASL
 	InsecureForDevelopmentOnly bool
 	Catalog                    channel.Catalog
 	Sheet                      resilience.Sheet
@@ -47,11 +48,24 @@ func (c Config) Validate() error {
 		return ErrTLSRequired
 	case c.TLS != nil && (c.TLS.InsecureSkipVerify || (c.TLS.MinVersion != 0 && c.TLS.MinVersion < tls.VersionTLS12)):
 		return ErrTLSTooWeak
+	case c.TLS != nil && c.SASL == nil && len(c.TLS.Certificates) == 0:
+		return ErrClientAuthRequired
+	case c.SASL != nil && c.SASL.Mechanism != ScramSHA256 && c.SASL.Mechanism != ScramSHA512:
+		return ErrSASLMechanism
+	case c.SASL != nil && (c.SASL.Username == "" || c.SASL.Password == ""):
+		return ErrSASLCredentials
 	}
 	if err := c.Catalog.Validate(); err != nil {
 		return err
 	}
 	return c.Sheet.Validate()
+}
+
+// ClientAuthenticated reports whether the broker is verified by TLS and this
+// client authenticates to it: the only ground a consumer boundary may call
+// verified (IDN-03, IDN-04).
+func (c Config) ClientAuthenticated() bool {
+	return c.TLS != nil && (c.SASL != nil || len(c.TLS.Certificates) > 0)
 }
 
 // Channel resolves a logical destination to its Kafka channel: unknown

@@ -49,6 +49,7 @@ func validConfig() kafka.Config {
 	return kafka.Config{
 		Brokers: []string{"localhost:9092"},
 		TLS:     &tls.Config{MinVersion: tls.VersionTLS13},
+		SASL:    &kafka.SASL{Mechanism: kafka.ScramSHA256, Username: "billing", Password: "s3"},
 		Catalog: channel.Catalog{"orders": ordersChannel(), "reservations": sqsChannel()},
 		Sheet:   resilience.Defaults("kafka"),
 		Service: "billing",
@@ -107,5 +108,75 @@ func TestConfigChannel(t *testing.T) {
 	}
 	if _, err := cfg.Channel("reservations"); !errors.Is(err, kafka.ErrNotKafkaChannel) {
 		t.Fatalf("Channel(sqs) = %v, want ErrNotKafkaChannel", err)
+	}
+}
+
+// IDN-04: a trusted transport verifies who is producing, and TLS alone only
+// verifies the broker. Outside development the client has to authenticate.
+func TestConfigRefusesTLSWithoutClientAuthentication(t *testing.T) {
+	cfg := validConfig()
+	cfg.SASL = nil
+
+	if err := cfg.Validate(); !errors.Is(err, kafka.ErrClientAuthRequired) {
+		t.Fatalf("Validate() = %v, want ErrClientAuthRequired", err)
+	}
+	cfg.TLS.Certificates = []tls.Certificate{{}}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate() with a client certificate = %v, want nil", err)
+	}
+}
+
+func TestConfigRefusesAnUnknownSASLMechanism(t *testing.T) {
+	cfg := validConfig()
+	cfg.SASL.Mechanism = "PLAIN"
+
+	if err := cfg.Validate(); !errors.Is(err, kafka.ErrSASLMechanism) {
+		t.Fatalf("Validate() = %v, want ErrSASLMechanism", err)
+	}
+}
+
+func TestClientAuthenticatedIsWhatTheBoundaryMayClaim(t *testing.T) {
+	cfg := validConfig()
+	if !cfg.ClientAuthenticated() {
+		t.Fatal("TLS with SASL is an authenticated client")
+	}
+	cfg.TLS = nil
+	cfg.InsecureForDevelopmentOnly = true
+	if cfg.ClientAuthenticated() {
+		t.Fatal("without TLS the broker, and so the principal, is not verified")
+	}
+}
+
+func TestReadClientAuthResolvesTheDeclaredVariables(t *testing.T) {
+	env := map[string]string{
+		"DMPF_KAFKA_SASL_MECHANISM": "SCRAM-SHA-512", "DMPF_KAFKA_SASL_USERNAME": "orders",
+		"DMPF_KAFKA_SASL_PASSWORD": "s3", "DMPF_KAFKA_CA_FILE": "/etc/kafka/ca.crt",
+	}
+	auth := kafka.ReadClientAuth(func(k string) string { return env[k] })
+
+	if auth.SASL == nil || auth.SASL.Mechanism != kafka.ScramSHA512 || auth.SASL.Username != "orders" || auth.SASL.Password != "s3" || auth.CAFile != "/etc/kafka/ca.crt" {
+		t.Fatalf("ReadClientAuth() = %+v", auth)
+	}
+	if kafka.ReadClientAuth(func(string) string { return "" }).SASL != nil {
+		t.Fatal("no mechanism declared, want no SASL")
+	}
+}
+
+func TestConfigRefusesSASLWithoutCredentials(t *testing.T) {
+	cfg := validConfig()
+	cfg.SASL.Password = ""
+
+	if err := cfg.Validate(); !errors.Is(err, kafka.ErrSASLCredentials) {
+		t.Fatalf("Validate() = %v, want ErrSASLCredentials", err)
+	}
+}
+
+// A mechanism outside the list never falls back to another one, even on a
+// path that skipped Validate.
+func TestTheClientRefusesAnUndeclaredSASLMechanism(t *testing.T) {
+	cfg := kafka.Config{Brokers: []string{"localhost:1"}, SASL: &kafka.SASL{Mechanism: "PLAIN", Username: "u", Password: "p"}}
+
+	if err := kafka.NewClientFor(cfg); !errors.Is(err, kafka.ErrSASLMechanism) {
+		t.Fatalf("newClient() = %v, want ErrSASLMechanism", err)
 	}
 }
