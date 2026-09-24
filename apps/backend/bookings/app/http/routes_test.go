@@ -23,7 +23,7 @@ func TestEveryRouteCarriesTheBudgetTheEdgeDeclares(t *testing.T) {
 		if route.Budget != testBudget {
 			t.Fatalf("%s carries %+v, want the budget the edge declared: the deadline is the edge policy's, not the caller's", route.Name, route.Budget)
 		}
-		if err := route.Validate(); err != nil {
+		if err := route.ValidateEdge(); err != nil {
 			t.Fatalf("%s: Validate() = %v", route.Name, err)
 		}
 	}

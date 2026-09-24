@@ -63,7 +63,7 @@ func RunWith(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {
 	}
 	defer func() { _ = reservationsConn.Close() }()
 
-	ctrl, err := admission.NewController(api.Limits(cfg.Admission), api.Tenant, admission.DefaultMaxKeys)
+	ctrl, err := admission.NewController(api.Limits(cfg.Admission), cfg.MetricTenants, admission.DefaultMaxKeys)
 	if err != nil {
 		return err
 	}
@@ -137,7 +137,7 @@ func ClientOptions(ctx context.Context, cfg Config, rt *otelboot.Runtime) (rpc.O
 		opts.Insecure = true
 		return opts, nil
 	}
-	clientTLS, err := rpc.ClientTLS(cfg.CAFile, cfg.ServerName)
+	clientTLS, err := rpc.ClientTLS(cfg.CAFile, cfg.ServerName, cfg.ClientCertFile, cfg.ClientKeyFile)
 	if err != nil {
 		return rpc.Options{}, err
 	}

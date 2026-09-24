@@ -6,8 +6,8 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/boot"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/logging"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/tracing"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 
-	"github.com/mateusmacedo/dmpf/apps/backend/bff/api"
 	"github.com/mateusmacedo/dmpf/apps/backend/bff/rpc"
 )
 
@@ -25,7 +25,12 @@ func TelemetryOf(cfg Config) boot.Telemetry {
 }
 
 func requestFields(ctx context.Context) logging.Fields {
-	fields := logging.Fields{logging.KeyTenantID: api.Tenant}
+	fields := logging.Fields{}
+	if execution, ok := ports.ExecutionContextFrom(ctx); ok {
+		if tenant, scoped := execution.Tenant(); scoped {
+			fields[logging.KeyTenantID] = string(tenant)
+		}
+	}
 	if call, ok := rpc.CallFrom(ctx); ok {
 		fields[logging.KeyCorrelationID] = call.CorrelationID
 		fields[logging.KeyRequestID] = call.RequestID

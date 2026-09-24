@@ -37,6 +37,8 @@ type fakeHandler struct {
 	env         envelope.Envelope
 	mc          ports.MessageContext
 	mcPresent   bool
+	execution   ports.ExecutionContext
+	executed    bool
 	trace       *[]string
 }
 
@@ -45,6 +47,7 @@ func (h *fakeHandler) handle(ctx context.Context, r ports.Receipt, env envelope.
 	h.receipt = r
 	h.env = env
 	h.mc, h.mcPresent = ports.MessageContextFrom(ctx)
+	h.execution, h.executed = ports.ExecutionContextFrom(ctx)
 	if h.trace != nil {
 		*h.trace = append(*h.trace, "handle")
 	}
@@ -103,8 +106,16 @@ func validRaw(t *testing.T) ([]byte, envelope.Envelope) {
 		CausationID:     "evt-0",
 		PartitionKey:    "o-1",
 		TraceParent:     "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+		TenantID:        &fixtureTenant,
 		Payload:         payload,
 	}
+	return encode(t, env), env
+}
+
+var fixtureTenant = "acme"
+
+func encode(t *testing.T, env envelope.Envelope) []byte {
+	t.Helper()
 	ce, err := envelope.Encode(env)
 	if err != nil {
 		t.Fatalf("Encode: %v", err)
@@ -113,7 +124,7 @@ func validRaw(t *testing.T) ([]byte, envelope.Envelope) {
 	if err != nil {
 		t.Fatalf("Marshal: %v", err)
 	}
-	return raw, env
+	return raw
 }
 
 func newConsumer(h *fakeHandler, c *fakeContainment, maxAttempts int) app.Consumer {
@@ -124,8 +135,14 @@ func newConsumer(h *fakeHandler, c *fakeContainment, maxAttempts int) app.Consum
 		Containment: c,
 		Clock:       fixedClock{},
 		Timeout:     testTimeout,
+		Boundary:    testBoundary,
+		Locale:      "en",
 	}
 }
+
+// testBoundary trusts the producer validRaw declares, so every other test
+// exercises what happens after the boundary admitted the message.
+var testBoundary = app.Boundary{Transport: app.TransportDevelopmentOnly, Sources: []string{"urn:dmpf:orders"}}
 
 // testTimeout is the time policy the suite declares. CTX-28 makes it the
 // consumer's own, so the adapter refuses to run without one.
@@ -156,6 +173,90 @@ func TestInvalidEnvelopeIsContainedBeforeAnyHandling(t *testing.T) {
 	}
 	if ack.acks != 1 || ack.releases != 0 {
 		t.Fatalf("ack=%d release=%d, want the message taken out of the flow", ack.acks, ack.releases)
+	}
+}
+
+// CTX-27 and IDN-04: an intact envelope from a producer outside the declared
+// boundary produces no context, so it never reaches the handler or the inbox.
+func TestAnEnvelopeFromOutsideTheBoundaryIsContainedBeforeAnyHandling(t *testing.T) {
+	t.Parallel()
+	raw, env := validRaw(t)
+	handler := &fakeHandler{disposition: application.R1D1}
+	containment := &fakeContainment{}
+	ack := &fakeAck{}
+	consumer := newConsumer(handler, containment, 3)
+	consumer.Boundary.Sources = []string{"urn:dmpf:someone-else"}
+
+	outcome, err := consumer.Consume(context.Background(), app.Delivery{Raw: raw, Attempt: 1}, ack)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if handler.calls != 0 {
+		t.Fatalf("handler ran %d times on a message outside the boundary; it must not produce a context", handler.calls)
+	}
+	if !outcome.Contained || outcome.Reason != ports.ReasonUntrustedBoundary || outcome.Classified {
+		t.Fatalf("outcome = %+v, want contained as untrusted-boundary and unclassified", outcome)
+	}
+	if len(containment.contained) != 1 || !bytes.Equal(containment.contained[0].Envelope, raw) {
+		t.Fatalf("quarantine must keep the raw bytes, got %+v", containment.contained)
+	}
+	if got := containment.contained[0].MessageID; got != ports.MessageID(env.ID) {
+		t.Fatalf("MessageID = %q, want %q: the envelope was intact, so its id is known", got, env.ID)
+	}
+	if ack.acks != 1 || ack.releases != 0 {
+		t.Fatalf("ack=%d release=%d, want the message taken out of the flow", ack.acks, ack.releases)
+	}
+}
+
+// CTX-24..CTX-28 in one place: the adapter rebuilds the context from the
+// envelope, so no consumer has to remember to (IDN-14's argument, applied to
+// the consumption edge).
+func TestTheHandlerReceivesTheContextRebuiltFromTheEnvelope(t *testing.T) {
+	t.Parallel()
+	raw, env := validRaw(t)
+	handler := &fakeHandler{disposition: application.R1D1}
+
+	if _, err := newConsumer(handler, &fakeContainment{}, 3).Consume(context.Background(), app.Delivery{Raw: raw, Attempt: 1}, &fakeAck{}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !handler.executed {
+		t.Fatal("the handler received no execution context (CTX-24)")
+	}
+	ec := handler.execution
+	if ec.CorrelationID() != env.CorrelationID || ec.TraceContext() != env.TraceParent {
+		t.Fatalf("correlation %q, trace %q; want the envelope's %q, %q", ec.CorrelationID(), ec.TraceContext(), env.CorrelationID, env.TraceParent)
+	}
+	if causation, ok := ec.CausationID(); !ok || causation != env.CausationID {
+		t.Fatalf("causation = %q, %v; want the envelope's %q", causation, ok, env.CausationID)
+	}
+	if tenant, ok := ec.Tenant(); !ok || string(tenant) != *env.TenantID {
+		t.Fatalf("tenant = %q, %v; want the envelope's %q (CTX-24)", tenant, ok, *env.TenantID)
+	}
+	if _, ok := ec.Subject(); ok {
+		t.Fatal("a subject was rebuilt from the envelope: provenance is not identity (CTX-25)")
+	}
+	if ec.RequestID() == "" || ec.RequestID() == env.ID {
+		t.Fatalf("request_id = %q, want the consumer's own per attempt, never read from the envelope (CTX-28)", ec.RequestID())
+	}
+	if ec.Deadline() <= 0 || ec.Locale() != "en" {
+		t.Fatalf("deadline %d, locale %q; want the consumer's own policy", ec.Deadline(), ec.Locale())
+	}
+}
+
+// CTX-26: an envelope without tenant is a platform chain, and the context
+// carries the absence; no default is put in its place.
+func TestAnEnvelopeWithoutTenantRebuildsAContextWithoutTenant(t *testing.T) {
+	t.Parallel()
+	_, env := validRaw(t)
+	env.TenantID = nil
+	raw := encode(t, env)
+	handler := &fakeHandler{disposition: application.R1D1}
+
+	if _, err := newConsumer(handler, &fakeContainment{}, 3).Consume(context.Background(), app.Delivery{Raw: raw, Attempt: 1}, &fakeAck{}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if tenant, ok := handler.execution.Tenant(); ok {
+		t.Fatalf("tenant = %q, want absent (CTX-26, IDN-20)", tenant)
 	}
 }
 
@@ -410,11 +511,17 @@ func TestConsumerRequiresItsCollaborators(t *testing.T) {
 	t.Parallel()
 	raw, _ := validRaw(t)
 	cases := map[string]app.Consumer{
-		"name":        {MaxAttempts: 1, Handle: (&fakeHandler{}).handle, Containment: &fakeContainment{}, Clock: fixedClock{}, Timeout: testTimeout},
-		"handler":     {Name: consumerName, Containment: &fakeContainment{}, Clock: fixedClock{}, Timeout: testTimeout},
-		"containment": {Name: consumerName, Handle: (&fakeHandler{}).handle, Clock: fixedClock{}, Timeout: testTimeout},
-		"clock":       {Name: consumerName, Handle: (&fakeHandler{}).handle, Containment: &fakeContainment{}, Timeout: testTimeout},
-		"timeout":     {Name: consumerName, Handle: (&fakeHandler{}).handle, Containment: &fakeContainment{}, Clock: fixedClock{}},
+		"name":        {MaxAttempts: 1, Handle: (&fakeHandler{}).handle, Containment: &fakeContainment{}, Clock: fixedClock{}, Timeout: testTimeout, Boundary: testBoundary, Locale: "en"},
+		"handler":     {Name: consumerName, Containment: &fakeContainment{}, Clock: fixedClock{}, Timeout: testTimeout, Boundary: testBoundary, Locale: "en"},
+		"containment": {Name: consumerName, Handle: (&fakeHandler{}).handle, Clock: fixedClock{}, Timeout: testTimeout, Boundary: testBoundary, Locale: "en"},
+		"clock":       {Name: consumerName, Handle: (&fakeHandler{}).handle, Containment: &fakeContainment{}, Timeout: testTimeout, Boundary: testBoundary, Locale: "en"},
+		"timeout":     {Name: consumerName, Handle: (&fakeHandler{}).handle, Containment: &fakeContainment{}, Clock: fixedClock{}, Boundary: testBoundary, Locale: "en"},
+		"boundary":    {Name: consumerName, Handle: (&fakeHandler{}).handle, Containment: &fakeContainment{}, Clock: fixedClock{}, Timeout: testTimeout, Locale: "en"},
+		"locale":      {Name: consumerName, Handle: (&fakeHandler{}).handle, Containment: &fakeContainment{}, Clock: fixedClock{}, Timeout: testTimeout, Boundary: testBoundary},
+		"boundary without sources": {Name: consumerName, Handle: (&fakeHandler{}).handle, Containment: &fakeContainment{}, Clock: fixedClock{}, Timeout: testTimeout,
+			Boundary: app.Boundary{Transport: app.TransportVerified}, Locale: "en"},
+		"boundary with an undeclared transport": {Name: consumerName, Handle: (&fakeHandler{}).handle, Containment: &fakeContainment{}, Clock: fixedClock{}, Timeout: testTimeout,
+			Boundary: app.Boundary{Transport: "trusted-because-internal", Sources: []string{"urn:dmpf:orders"}}, Locale: "en"},
 	}
 	for name, consumer := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -458,5 +565,24 @@ func TestUnknownDispositionIsAnErrorNotAPanic(t *testing.T) {
 	}
 	if ack.acks != 0 || ack.releases != 0 || len(containment.contained) != 0 {
 		t.Fatal("a defective disposition must leave the message untouched: no ack, no release, no containment")
+	}
+}
+
+// CTX-11, retry column for subject and permissions: §3.6 reconstructs the
+// consumption with the consumer's own workload identity (CTX-25), so what the
+// producer's subject could do never reaches the decision on this side.
+func TestTheConsumerActsWithoutTheProducersIdentity(t *testing.T) {
+	t.Parallel()
+	raw, _ := validRaw(t)
+	handler := &fakeHandler{disposition: application.R1D1}
+
+	if _, err := newConsumer(handler, &fakeContainment{}, 3).Consume(context.Background(), app.Delivery{Raw: raw, Attempt: 2}, &fakeAck{}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if subject, ok := handler.execution.Subject(); ok {
+		t.Fatalf("subject = %q on a redelivery; provenance is not identity (CTX-25)", subject)
+	}
+	if permissions := handler.execution.Permissions(); permissions != nil {
+		t.Fatalf("permissions = %v on a redelivery; none is carried from the producer (CTX-12)", permissions)
 	}
 }

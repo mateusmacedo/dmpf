@@ -44,7 +44,7 @@ func NewReservations(t testing.TB, clock ports.Clock, ids ports.IDGenerator) Har
 	t.Helper()
 	pool := pg.OpenPool(t)
 	return Harness{
-		Consumer: app.NewConsumer(pool, clock, ids, Wait, Timeout, MaxAttempts),
+		Consumer: app.NewConsumer(pool, clock, ids, Wait, Timeout, MaxAttempts, Boundary),
 		Pool:     pool,
 	}
 }
@@ -144,6 +144,13 @@ func RawOrderPlacedWithoutTenant(t testing.TB, messageID, orderID string, items 
 
 func ptr[T any](v T) *T { return &v }
 
+// OrdersSource is the producer the harness publishes as, and Boundary the
+// consumer's trust in it, so a harness message crosses the boundary like a
+// production one does (CTX-27).
+const OrdersSource = "urn:dmpf:orders"
+
+var Boundary = kernel.Boundary{Transport: kernel.TransportDevelopmentOnly, Sources: []string{OrdersSource}}
+
 func rawOrderPlaced(t testing.TB, messageID, orderID string, items int32, tenant *string) []byte {
 	t.Helper()
 	payload, typeURL, err := envelope.Pack(&eventv1.OrderPlaced{OrderId: orderID, ItemCount: items})
@@ -152,7 +159,7 @@ func rawOrderPlaced(t testing.TB, messageID, orderID string, items int32, tenant
 	}
 	ce, err := envelope.Encode(envelope.Envelope{
 		ID:              messageID,
-		Source:          "urn:dmpf:orders",
+		Source:          OrdersSource,
 		SpecVersion:     envelope.SpecVersion,
 		Type:            "com.company.orders.order-placed.v1",
 		Subject:         "order/" + orderID,

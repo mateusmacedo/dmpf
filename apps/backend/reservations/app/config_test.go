@@ -57,14 +57,14 @@ func requireEachVariable(t *testing.T, role app.Role, full []string) {
 
 func TestTheRelayNamesEachMissingVariable(t *testing.T) {
 	requireEachVariable(t, app.RoleRelay, []string{
-		"DMPF_PG_DSN", "postgres://x", "DMPF_KAFKA_BROKERS", "b:9092",
+		"DMPF_PG_DSN", "postgres://x", "DMPF_KAFKA_BROKERS", "b:9092", "DMPF_KAFKA_SASL_MECHANISM", "SCRAM-SHA-256",
 		"DMPF_KAFKA_RESERVATIONS_TOPIC", "reservations", "DMPF_KAFKA_RESERVATIONS_DLQ", "reservations.dlq", "DMPF_KAFKA_GROUP", "g",
 	})
 }
 
 func TestTheConsumerNamesEachMissingVariable(t *testing.T) {
 	requireEachVariable(t, app.RoleConsumer, []string{
-		"DMPF_PG_DSN", "postgres://x", "DMPF_KAFKA_BROKERS", "b:9092",
+		"DMPF_PG_DSN", "postgres://x", "DMPF_KAFKA_BROKERS", "b:9092", "DMPF_KAFKA_SASL_MECHANISM", "SCRAM-SHA-256",
 		"DMPF_KAFKA_ORDERS_TOPIC", "orders", "DMPF_KAFKA_ORDERS_DLQ", "orders.dlq", "DMPF_KAFKA_GROUP", "g",
 	})
 }

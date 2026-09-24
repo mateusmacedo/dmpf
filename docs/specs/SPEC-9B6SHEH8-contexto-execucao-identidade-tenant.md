@@ -2,7 +2,7 @@
 id: SPEC-9B6SHEH8
 slug: contexto-execucao-identidade-tenant
 title: DMPF — Contexto de execução em Go, com identidade e tenant estabelecidos após autenticação
-stage: building
+stage: done
 priority: P0
 depends_on: [SPEC-YRJRADY9, SPEC-XQWGGAXF]
 ticket_url: null

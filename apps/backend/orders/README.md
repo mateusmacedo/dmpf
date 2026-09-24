@@ -41,9 +41,12 @@ Os packages do kernel `domain` e `application` têm o mesmo nome dos deste módu
 | `DMPF_PG_DSN` | todos | Banco `dmpf_orders` |
 | `DMPF_GRPC_ADDR` | `api` | Default `:9090` |
 | `DMPF_GRPC_INSECURE` ou `DMPF_GRPC_TLS_CERT_FILE` + `DMPF_GRPC_TLS_KEY_FILE` | `api` | Transporte; sem nenhum, exit 2 |
+| `DMPF_GRPC_CLIENT_CA_FILE`, `DMPF_GRPC_TRUSTED_CLIENTS` | `api`, com TLS | CA dos clientes e allowlist de identidades (ex.: `spiffe://dmpf/bff`); o `x-tenant-id` só é lido de peer verificado (ADR-052) |
 | `DMPF_MIGRATE` | `api` | Aplica o schema antes de servir |
 | `DMPF_ITEM_LIMIT` | `api` | Default 10 |
+| `DMPF_METRIC_TENANTS` | `api` | Tenants com bucket de admissão e rótulo de métrica próprios (`MET-07`), separados por vírgula; os demais compartilham `other` |
 | `DMPF_KAFKA_BROKERS`, `DMPF_KAFKA_INSECURE` | `relay` | Brokers e opt-out de TLS |
+| `DMPF_KAFKA_SASL_MECHANISM`, `DMPF_KAFKA_SASL_USERNAME`, `DMPF_KAFKA_SASL_PASSWORD` ou `DMPF_KAFKA_CLIENT_CERT_FILE` + `DMPF_KAFKA_CLIENT_KEY_FILE` | papéis com Kafka, com TLS | Autenticação do cliente no broker (SCRAM-SHA-256/512 ou certificado); `DMPF_KAFKA_CA_FILE` quando a CA do broker é privada (ADR-052) |
 | `DMPF_KAFKA_ORDERS_TOPIC`, `DMPF_KAFKA_ORDERS_DLQ`, `DMPF_KAFKA_GROUP` | `relay` | Endereço, contenção e grupo do canal `orders.events` |
 | `DMPF_OTLP_ENDPOINT`, `DMPF_OTLP_INSECURE`, `DMPF_SERVICE`, `DMPF_SERVICE_VERSION`, `DMPF_INSTANCE_ID` | todos | Telemetria e identidade |
 

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/deadline"
 )
 
@@ -30,6 +31,10 @@ var (
 	// undeclared, or a scoped route that declares one: reach is declared by the
 	// platform operation alone, never obtained as a side effect (IDN-19).
 	ErrPlatformReachRequired = errors.New("http: platform route must declare its data reach, and only it may (IDN-19)")
+
+	// ErrPermissionRequired is an inbound route that demands a subject and
+	// declares no permission: the edge would deny every call it serves (IDN-17).
+	ErrPermissionRequired = errors.New("http: inbound route demanding a subject declares no permission (IDN-16)")
 )
 
 // Requirement is what an operation declares it needs resolved in the execution
@@ -72,6 +77,7 @@ type Route struct {
 	IdempotencyKey  string
 	Requires        Requirement
 	PlatformReach   PlatformReach
+	Permission      ports.Permission
 }
 
 // Validate refuses a route without name, path, contract or a known method,
@@ -96,6 +102,18 @@ func (r Route) Validate() error {
 	}
 	if platform := r.Requires == RequireNeither; platform != (r.PlatformReach == ReachAllTenants) {
 		return fmt.Errorf("%w: %s", ErrPlatformReachRequired, r.Name)
+	}
+	return nil
+}
+
+// ValidateEdge is Validate for an inbound route, which also declares the
+// permission its subject needs (IDN-16).
+func (r Route) ValidateEdge() error {
+	if err := r.Validate(); err != nil {
+		return err
+	}
+	if r.RequiresSubject() && r.Permission == "" {
+		return fmt.Errorf("%w: %s", ErrPermissionRequired, r.Name)
 	}
 	return nil
 }

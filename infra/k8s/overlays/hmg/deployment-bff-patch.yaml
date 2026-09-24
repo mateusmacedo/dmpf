@@ -11,6 +11,9 @@ spec:
             - name: grpc-ca
               mountPath: /etc/dmpf/grpc
               readOnly: true
+            - name: grpc-client
+              mountPath: /etc/dmpf/grpc-client
+              readOnly: true
           resources:
             requests:
               cpu: 200m
@@ -21,3 +24,6 @@ spec:
         - name: grpc-ca
           secret:
             secretName: bff-grpc-ca
+        - name: grpc-client
+          secret:
+            secretName: bff-grpc-client

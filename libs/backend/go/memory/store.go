@@ -2,6 +2,7 @@ package memory
 
 import (
 	"context"
+	"fmt"
 	"slices"
 	"sync"
 
@@ -58,9 +59,30 @@ func (t Table[ID, S]) load(ctx context.Context, from map[string]*table, id ID) (
 	}
 	rec, ok := rows.rows[key]
 	if !ok {
-		return zero, 0, ports.ErrNotFound
+		return zero, 0, rows.miss(t.Name, key)
 	}
 	return t.copy(rec.snapshot.(S)), rec.version, nil
+}
+
+// miss mirrors the probe the Postgres Table runs: it returns only which tenant
+// holds the identifier, never the row, and picks the lowest tenant so the
+// report does not depend on map order.
+func (t *table) miss(name string, key rowKey) error {
+	var owner ports.TenantID
+	for candidate := range t.rows {
+		other := candidate.(rowKey)
+		if other.id == key.id && other.tenant != key.tenant && (owner == "" || other.tenant < owner) {
+			owner = other.tenant
+		}
+	}
+	if owner == "" {
+		return ports.ErrNotFound
+	}
+	return ports.CrossTenantAccess{
+		Object:        fmt.Sprintf("%s/%v", name, key.id),
+		ContextTenant: key.tenant,
+		DataTenant:    owner,
+	}
 }
 
 // rowKey pairs the tenant with the identifier, so two tenants holding the same

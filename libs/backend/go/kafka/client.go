@@ -32,6 +32,13 @@ func newClient(cfg Config, opts ...kgo.Opt) (*kgo.Client, error) {
 	} else {
 		cfg.logger().Warn("kafka: brokers without TLS by explicit development-only opt-out")
 	}
+	if cfg.SASL != nil {
+		mechanism, err := cfg.SASL.mechanism()
+		if err != nil {
+			return nil, err
+		}
+		options = append(options, kgo.SASL(mechanism))
+	}
 	options = append(options, opts...)
 	return kgo.NewClient(options...)
 }

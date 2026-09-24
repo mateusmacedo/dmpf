@@ -61,6 +61,9 @@ func withExecutionContext(tracer trace.Tracer, authenticator ports.Authenticator
 		}
 
 		identity, status, code := provider.ResolveIdentity(ctx, authenticator, route, authn.CredentialFrom(r))
+		if status == 0 {
+			status, code = provider.RefuseAssertedIdentity(r, identity)
+		}
 		if status != 0 {
 			tracing.RecordError(span, code)
 			writeRejection(r, w, status, code, rejectionMessage(status))
@@ -87,6 +90,7 @@ func withExecutionContext(tracer trace.Tracer, authenticator ports.Authenticator
 			CorrelationID:  correlation,
 			RequestID:      requestID,
 			IdempotencyKey: r.Header.Get(IdempotencyHeader),
+			Locale:         execution.Locale(),
 		}
 		if tenant, ok := execution.Tenant(); ok {
 			span.SetAttributes(tracing.Attributes{}.TenantID(string(tenant)).KeyValues()...)
@@ -106,14 +110,17 @@ func rejectionMessage(status int) string {
 	return "the request carries no verifiable credential"
 }
 
-// localeOf answers CTX-01's mandatory field from what the caller asked for,
-// falling back to the edge default rather than leaving it unresolved.
+// localeFormat is a language tag without parameters: the value crosses to gRPC
+// metadata, which refuses anything outside printable ASCII.
+var localeFormat = regexp.MustCompile(`^[A-Za-z]{1,8}(-[A-Za-z0-9]{1,8})*$`)
+
+// localeOf preserves the first language the caller declared and falls back to
+// the edge default when none is declared or it is not a tag (CTX-11).
 func localeOf(r *http.Request) string {
-	if requested := strings.TrimSpace(r.Header.Get("Accept-Language")); requested != "" {
-		if first, _, found := strings.Cut(requested, ","); found {
-			return strings.TrimSpace(first)
-		}
-		return requested
+	first, _, _ := strings.Cut(r.Header.Get("Accept-Language"), ",")
+	tag, _, _ := strings.Cut(first, ";")
+	if tag = strings.TrimSpace(tag); localeFormat.MatchString(tag) {
+		return tag
 	}
 	return DefaultLocale
 }

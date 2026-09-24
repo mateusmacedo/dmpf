@@ -58,7 +58,7 @@ func TestRepositoryConformsToTheKit(t *testing.T) {
 				})
 				return uow.Within(ctx, fn)
 			},
-			Reader:           probeTable.Reader(pool),
+			Reader:           probeTable.Reader(postgres.NewReadPool(pool)),
 			NewID:            func(n int) string { return "kit-" + strconv.Itoa(n) },
 			NewState:         func(marker int) probe { return probe{Items: marker} },
 			Marker:           func(p probe) int { return p.Items },

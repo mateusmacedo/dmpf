@@ -157,12 +157,16 @@ func consumerWith(pool *pgxpool.Pool, decorate func(application.Resources) appli
 		Containment: postgres.NewQuarantine(pool),
 		Clock:       e2eClock{},
 		Timeout:     e2eTimeout,
+		Boundary:    e2eBoundary,
+		Locale:      "en",
 	}
 }
 
+var e2eBoundary = kernel.Boundary{Transport: kernel.TransportDevelopmentOnly, Sources: []string{"urn:dmpf:orders"}}
+
 func TestFirstReceptionAppliesConfirmsAndDerivesTheOutbox(t *testing.T) {
 	pool := pg.OpenPool(t)
-	consumer := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eTimeout, e2eAttempts)
+	consumer := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eTimeout, e2eAttempts, e2eBoundary)
 
 	outcome, err, ack := consume(t, pool, consumer, "evt-1", appkit.RawOrderPlaced(t, "evt-1", "o-1", 2), 1)
 	if err != nil {
@@ -191,7 +195,7 @@ func TestFirstReceptionAppliesConfirmsAndDerivesTheOutbox(t *testing.T) {
 
 func TestBusinessRejectionCommitsRejectedAndConfirms(t *testing.T) {
 	pool := pg.OpenPool(t)
-	consumer := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eTimeout, e2eAttempts)
+	consumer := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eTimeout, e2eAttempts, e2eBoundary)
 
 	outcome, err, ack := consume(t, pool, consumer, "evt-2", appkit.RawOrderPlaced(t, "evt-2", "o-2", 0), 1)
 	if err != nil {
@@ -214,7 +218,7 @@ func TestBusinessRejectionCommitsRejectedAndConfirms(t *testing.T) {
 
 func TestRedeliveriesShortCircuit(t *testing.T) {
 	pool := pg.OpenPool(t)
-	consumer := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eTimeout, e2eAttempts)
+	consumer := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eTimeout, e2eAttempts, e2eBoundary)
 	applied := appkit.RawOrderPlaced(t, "evt-1", "o-1", 2)
 	rejected := appkit.RawOrderPlaced(t, "evt-2", "o-2", 0)
 	for _, raw := range [][]byte{applied, rejected} {
@@ -303,7 +307,7 @@ func TestExhaustedAttemptsContainThePoisonMessage(t *testing.T) {
 	}
 
 	// The next message of the same partition is not blocked by the poison one.
-	healthy := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eTimeout, e2eAttempts)
+	healthy := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eTimeout, e2eAttempts, e2eBoundary)
 	outcome, err, _ = consume(t, pool, healthy, "evt-5", appkit.RawOrderPlaced(t, "evt-5", "o-4", 1), 1)
 	if err != nil || outcome.Disposition != usecase.R1D1 {
 		t.Fatalf("the partition stayed blocked: outcome = %+v, err = %v", outcome, err)
@@ -347,7 +351,7 @@ func TestOutboxFailureRollsBackDeduplicationAndState(t *testing.T) {
 
 func TestInvalidEnvelopeIsContainedWithoutTouchingTheInbox(t *testing.T) {
 	pool := pg.OpenPool(t)
-	consumer := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eTimeout, e2eAttempts)
+	consumer := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eTimeout, e2eAttempts, e2eBoundary)
 	garbage := []byte("definitely not a cloudevent")
 
 	outcome, err, ack := consume(t, pool, consumer, "", garbage, 1)
@@ -364,7 +368,7 @@ func TestInvalidEnvelopeIsContainedWithoutTouchingTheInbox(t *testing.T) {
 
 func TestPayloadOfAnotherContractIsTerminal(t *testing.T) {
 	pool := pg.OpenPool(t)
-	consumer := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eTimeout, e2eAttempts)
+	consumer := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eTimeout, e2eAttempts, e2eBoundary)
 	payload, typeURL, err := envelope.Pack(&eventv1.ItemAdded{OrderId: "o-8", Sku: "sku", Quantity: 1})
 	if err != nil {
 		t.Fatalf("Pack: %v", err)
@@ -397,7 +401,7 @@ func TestPayloadOfAnotherContractIsTerminal(t *testing.T) {
 
 func TestRedeliveryWithANewMessageIDDoesNotDuplicateTheEffect(t *testing.T) {
 	pool := pg.OpenPool(t)
-	consumer := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eTimeout, e2eAttempts)
+	consumer := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eTimeout, e2eAttempts, e2eBoundary)
 	if _, err, _ := consume(t, pool, consumer, "evt-1", appkit.RawOrderPlaced(t, "evt-1", "o-1", 2), 1); err != nil {
 		t.Fatalf("first: %v", err)
 	}
@@ -421,7 +425,7 @@ func TestRedeliveryWithANewMessageIDDoesNotDuplicateTheEffect(t *testing.T) {
 
 func TestSignalsExposeTheConsumerSide(t *testing.T) {
 	pool := pg.OpenPool(t)
-	consumer := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eTimeout, e2eAttempts)
+	consumer := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eTimeout, e2eAttempts, e2eBoundary)
 	if _, err, _ := consume(t, pool, consumer, "evt-1", appkit.RawOrderPlaced(t, "evt-1", "o-1", 2), 1); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
@@ -438,5 +442,62 @@ func TestSignalsExposeTheConsumerSide(t *testing.T) {
 	}
 	if signals.QuarantineDepth != 2 || signals.Collisions != 1 || signals.InvalidEnvelopes != 1 {
 		t.Fatalf("signals = %+v (GAR-12)", signals)
+	}
+}
+
+// CTX-27 end to end: an OrderPlaced that is intact and well-formed, but from a
+// producer the boundary does not admit, writes nothing but its quarantine row.
+func TestAnOrderPlacedFromOutsideTheBoundaryWritesNothing(t *testing.T) {
+	pool := pg.OpenPool(t)
+	consumer := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eTimeout, e2eAttempts, e2eBoundary)
+	payload, typeURL, err := envelope.Pack(&eventv1.OrderPlaced{OrderId: "o-9", ItemCount: 1})
+	if err != nil {
+		t.Fatalf("Pack: %v", err)
+	}
+	tenant := "acme"
+	ce, err := envelope.Encode(envelope.Envelope{
+		ID: "evt-9", Source: "urn:dmpf:intruder", SpecVersion: envelope.SpecVersion,
+		Type: "com.company.orders.order-placed.v1", Subject: "order/o-9",
+		Time:       timestamppb.New(time.Date(2026, 9, 5, 12, 0, 0, 0, time.UTC)),
+		DataSchema: typeURL, DataContentType: envelope.ContentType,
+		CorrelationID: "corr-9", CausationID: "evt-9", PartitionKey: "o-9",
+		TraceParent: "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+		TenantID:    &tenant,
+		Payload:     payload,
+	})
+	if err != nil {
+		t.Fatalf("Encode: %v", err)
+	}
+	raw, err := proto.Marshal(ce)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+
+	outcome, err, _ := consume(t, pool, consumer, "evt-9", raw, 1)
+	if err != nil || !outcome.Contained || outcome.Reason != ports.ReasonUntrustedBoundary || outcome.Classified {
+		t.Fatalf("outcome = %+v, err = %v; want contained as untrusted-boundary before any context", outcome, err)
+	}
+	if got := counts(t, pool); got != (tableCounts{quarantine: 1}) {
+		t.Fatalf("counts = %+v, want only the quarantine row", got)
+	}
+}
+
+// CTX-26 over the seven dispositions: a platform chain carries no tenant, and a
+// reservation is tenant data, so step 1 denies before any unit of work (IDN-07,
+// IDN-08) instead of widening the query. With no predicate that makes it
+// retryable the refusal is terminal: contained once, nothing written.
+func TestAPlatformChainOrderPlacedIsRefusedTerminallyWithoutWriting(t *testing.T) {
+	pool := pg.OpenPool(t)
+	consumer := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eTimeout, e2eAttempts, e2eBoundary)
+
+	outcome, err, ack := consume(t, pool, consumer, "evt-10", appkit.RawOrderPlacedWithoutTenant(t, "evt-10", "o-10", 1), 1)
+	if !errors.Is(err, ports.ErrDenied) || outcome.Disposition != usecase.R1D4 || outcome.Reason != ports.ReasonTerminalFailure {
+		t.Fatalf("outcome = %+v, err = %v; want R1xD4 over the step 1 denial", outcome, err)
+	}
+	if got := counts(t, pool); got != (tableCounts{quarantine: 1}) {
+		t.Fatalf("counts = %+v, want only the quarantine row: no inbox, no reservation, no outbox", got)
+	}
+	if ack.acks != 1 || ack.releases != 0 {
+		t.Fatalf("ack=%d release=%d, want it taken out of the flow on the first attempt", ack.acks, ack.releases)
 	}
 }

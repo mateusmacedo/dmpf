@@ -203,3 +203,11 @@ func (c *Consumer) StalledAt(topic string, partition int32) bool {
 	c.mu.Unlock()
 	return ok && w.Stalled()
 }
+
+func NewClientFor(cfg Config) error {
+	cl, err := newClient(cfg)
+	if cl != nil {
+		cl.Close()
+	}
+	return err
+}

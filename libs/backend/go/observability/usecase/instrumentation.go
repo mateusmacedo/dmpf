@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"time"
 
@@ -26,6 +27,9 @@ const (
 	trafficWrite = "write"
 	trafficRead  = "read"
 )
+
+// ActionCrossTenantAccess names the security event of IDN-12 in the audit trail.
+const ActionCrossTenantAccess = "security.cross_tenant_access"
 
 // CategoryUnclassified is what a failure is counted under when nobody says what
 // kind of failure it was. It is a category and never the error message, which
@@ -100,6 +104,36 @@ func (i *Instrumentation) BeginOperation(ctx context.Context, operation string) 
 		span.End()
 
 		i.record(ctx, operation, result, i.clock.Now().Sub(started))
+		i.recordCrossTenant(ctx, result)
+	}
+}
+
+// WHY: every use case closes here, so the provider's report of a cross-tenant
+// access becomes a security event in one place instead of one per edge. The
+// load-or-create paths swallow it on purpose: creating in one's own tenant is
+// not an access.
+func (i *Instrumentation) recordCrossTenant(ctx context.Context, result ports.Result) {
+	var access ports.CrossTenantAccess
+	if result.Outcome != ports.OutcomeFailed || !errors.As(result.Err, &access) {
+		return
+	}
+	event := audit.Event{
+		Subject:    carrierSubject(ctx),
+		Object:     access.Object,
+		Action:     ActionCrossTenantAccess,
+		Outcome:    string(ports.OutcomeDenied),
+		At:         ports.Instant(i.clock.Now().UnixNano()),
+		Tenant:     string(access.ContextTenant),
+		DataTenant: string(access.DataTenant),
+	}
+	if !i.emit(ctx, event) {
+		// IDN-12 needs the record, so the event goes whole to the log channel,
+		// which leaves the process by another path; the sink's own error does
+		// not, because it may carry what redaction exists to keep out.
+		i.logger.ErrorContext(ctx, "dmpf: security event kept in the log because the audit sink refused it",
+			slog.String("action", event.Action), slog.String("object", event.Object),
+			slog.String("subject", event.Subject), slog.String("outcome", event.Outcome),
+			slog.String("tenant_id", event.Tenant), slog.String("data_tenant_id", event.DataTenant))
 	}
 }
 
@@ -142,24 +176,39 @@ func (i *Instrumentation) category(err error) string {
 }
 
 func (i *Instrumentation) Audit(ctx context.Context, event ports.AuditEvent) {
-	if i.sink == nil {
-		return
-	}
-
-	err := i.sink.Emit(ctx, audit.Event{
+	i.emit(ctx, audit.Event{
 		Subject: i.resolveSubject(ctx),
 		Object:  event.Object,
 		Action:  event.Action,
 		Outcome: string(event.Outcome),
 		At:      event.At,
 	})
-	if err != nil {
+}
+
+// emit reports whether the sink kept the record.
+func (i *Instrumentation) emit(ctx context.Context, event audit.Event) bool {
+	if i.sink == nil {
+		return false
+	}
+	if err := i.sink.Emit(ctx, event); err != nil {
 		// A porta não devolve erro, e engolir este seria perder um registro de
 		// auditoria em silêncio. Sai a categoria, não o conteúdo do evento.
 		i.logger.ErrorContext(ctx, "dmpf: the audit sink rejected the record",
 			slog.String("error_category", "audit_sink"),
 			slog.String("action", event.Action))
+		return false
 	}
+	return true
+}
+
+// carrierSubject leaves a platform chain's absent subject absent (IDN-20).
+func carrierSubject(ctx context.Context) string {
+	execution, ok := ports.ExecutionContextFrom(ctx)
+	if !ok {
+		return ""
+	}
+	subject, _ := execution.Subject()
+	return string(subject)
 }
 
 func (i *Instrumentation) trafficClass(operation string) string {

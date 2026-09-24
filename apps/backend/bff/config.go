@@ -28,7 +28,10 @@ const (
 	envGRPCInsecure             = "DMPF_GRPC_INSECURE"
 	envGRPCCAFile               = "DMPF_GRPC_CA_FILE"
 	envGRPCServerName           = "DMPF_GRPC_SERVER_NAME"
+	envGRPCClientCertFile       = "DMPF_GRPC_CLIENT_CERT_FILE"
+	envGRPCClientKeyFile        = "DMPF_GRPC_CLIENT_KEY_FILE"
 	envCORSOrigins              = "DMPF_CORS_ORIGINS"
+	envMetricTenants            = "DMPF_METRIC_TENANTS"
 	envOrdersContractPath       = "DMPF_OPENAPI_ORDERS_PATH"
 	envReservationsContractPath = "DMPF_OPENAPI_RESERVATIONS_PATH"
 	envOTLPEndpoint             = "DMPF_OTLP_ENDPOINT"
@@ -46,6 +49,8 @@ type Config struct {
 	GRPCInsecure       bool
 	CAFile             string
 	ServerName         string
+	ClientCertFile     string
+	ClientKeyFile      string
 
 	CORSOrigins              []string
 	OrdersContractPath       string
@@ -58,8 +63,12 @@ type Config struct {
 	Version  string
 	Instance string
 
-	Admission   admission.Limit
-	RouteBudget deadline.Budget
+	Admission admission.Limit
+
+	// MetricTenants is the allowlist of MET-07: the tenants that keep their own
+	// admission bucket and label. Every other tenant shares "other".
+	MetricTenants []string
+	RouteBudget   deadline.Budget
 
 	Auth authn.Config
 }
@@ -88,7 +97,10 @@ func FromEnv(lookup func(string) string) (Config, error) {
 	cfg.ReservationsTarget = lookup(envReservationsTarget)
 	cfg.CAFile = lookup(envGRPCCAFile)
 	cfg.ServerName = lookup(envGRPCServerName)
+	cfg.ClientCertFile = lookup(envGRPCClientCertFile)
+	cfg.ClientKeyFile = lookup(envGRPCClientKeyFile)
 	cfg.CORSOrigins = envconfig.SplitList(lookup(envCORSOrigins))
+	cfg.MetricTenants = envconfig.SplitList(lookup(envMetricTenants))
 	cfg.OrdersContractPath = lookup(envOrdersContractPath)
 	cfg.ReservationsContractPath = lookup(envReservationsContractPath)
 	cfg.OTLPEndpoint = lookup(envOTLPEndpoint)
@@ -124,6 +136,8 @@ func (c Config) Validate() error {
 		return fmt.Errorf("%w: %s", ErrMissingVariable, envReservationsTarget)
 	case !c.GRPCInsecure && c.CAFile == "":
 		return fmt.Errorf("%w: %s=true or %s", ErrMissingVariable, envGRPCInsecure, envGRPCCAFile)
+	case c.CAFile != "" && (c.ClientCertFile == "" || c.ClientKeyFile == ""):
+		return fmt.Errorf("%w: %s and %s", ErrMissingVariable, envGRPCClientCertFile, envGRPCClientKeyFile)
 	}
 	if err := c.RouteBudget.Validate(); err != nil {
 		return err

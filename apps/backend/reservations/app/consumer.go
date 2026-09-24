@@ -4,7 +4,6 @@ package app
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -43,10 +42,10 @@ func Bind(wait time.Duration) func(tx *postgres.Tx) application.Resources {
 func NewService(pool *pgxpool.Pool, clock ports.Clock, ids ports.IDGenerator, wait time.Duration) application.Service {
 	return application.Service{
 		UoW:       postgres.NewUnitOfWork(pool, Bind(wait)),
-		Reader:    provider.NewReader(pool),
+		Reader:    provider.NewReader(postgres.NewReadPool(pool)),
 		Clock:     clock,
 		IDs:       ids,
-		Authorize: usecase.AllowAll[application.Operation](),
+		Authorize: Authorization(),
 		Consumer:  ConsumerName,
 	}
 }
@@ -60,11 +59,6 @@ func Handler(service application.Service) app.Handler {
 		if err := envelope.Unpack(env, &placed); err != nil {
 			return usecase.R1D4, usecase.NewFailure(usecase.Validation, false, err)
 		}
-		execution, err := executionOf(ctx, env)
-		if err != nil {
-			return usecase.R1D4, usecase.NewFailure(usecase.Validation, false, err)
-		}
-		ctx = ports.WithExecutionContext(ctx, execution)
 		return service.Consume(ctx, application.ConsumeOrderPlaced{
 			MessageID:   receipt.MessageID,
 			MessageType: receipt.MessageType,
@@ -80,50 +74,10 @@ func Handler(service application.Service) app.Handler {
 // source for: there is no caller stating a preference on this side.
 const consumerLocale = "en"
 
-// executionOf rebuilds the context of one consumption. The envelope is the
-// trusted boundary for correlation, causation, trace and tenant (CTX-24), the
-// subject stays absent because reconstructing it would be privilege escalation
-// (CTX-25), and identity and deadline are the consumer's own (CTX-28).
-func executionOf(ctx context.Context, env envelope.Envelope) (ports.ExecutionContext, error) {
-	attempt, minted := app.AttemptFrom(ctx)
-	if !minted {
-		return ports.ExecutionContext{}, errors.New("app: the adapter minted no attempt for this consumption")
-	}
-	deadline, governed := ctx.Deadline()
-	if !governed {
-		return ports.ExecutionContext{}, errors.New("app: the adapter governed no time for this consumption")
-	}
-
-	return ports.NewExecutionContext(ports.ExecutionContextSpec{
-		RequestID:     attempt.RequestID,
-		CorrelationID: env.CorrelationID,
-		CausationID:   optional(env.CausationID),
-		TraceContext:  env.TraceParent,
-		Tenant:        tenantOf(env),
-		Deadline:      ports.Instant(deadline.UnixNano()),
-		Locale:        consumerLocale,
-	})
-}
-
-func optional(value string) *string {
-	if value == "" {
-		return nil
-	}
-	return &value
-}
-
-func tenantOf(env envelope.Envelope) *ports.TenantID {
-	if env.TenantID == nil || *env.TenantID == "" {
-		return nil
-	}
-	tenant := ports.TenantID(*env.TenantID)
-	return &tenant
-}
-
 // NewConsumer is the whole consumer: adapter, service and Postgres quarantine.
 // maxAttempts <= 0 disables the attempt limit (GAR-08 fixes that one exists;
 // the value is FND-08's).
-func NewConsumer(pool *pgxpool.Pool, clock ports.Clock, ids ports.IDGenerator, wait, timeout time.Duration, maxAttempts int) app.Consumer {
+func NewConsumer(pool *pgxpool.Pool, clock ports.Clock, ids ports.IDGenerator, wait, timeout time.Duration, maxAttempts int, boundary app.Boundary) app.Consumer {
 	return app.Consumer{
 		Name:        ConsumerName,
 		MaxAttempts: maxAttempts,
@@ -131,5 +85,7 @@ func NewConsumer(pool *pgxpool.Pool, clock ports.Clock, ids ports.IDGenerator, w
 		Containment: postgres.NewQuarantine(pool),
 		Clock:       clock,
 		Timeout:     timeout,
+		Boundary:    boundary,
+		Locale:      consumerLocale,
 	}
 }

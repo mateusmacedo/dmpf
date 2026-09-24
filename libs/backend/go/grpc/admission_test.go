@@ -62,11 +62,11 @@ func TestAdmissionRefusesBeforeTheHandlerAndCountsByRouteAndTenant(t *testing.T)
 	handled := 0
 	handler := func(context.Context, any) (any, error) { handled++; return "ok", nil }
 
-	// The burst admits one call from an undeclared tenant; the second is refused.
+	// The burst admits one call from an undeclared tenant; its second is refused.
 	if _, err := interceptor(withTenant(context.Background(), "initech"), nil, info, handler); err != nil {
 		t.Fatalf("first call = %v, want nil", err)
 	}
-	_, err = interceptor(withTenant(context.Background(), "umbrella"), nil, info, handler)
+	_, err = interceptor(withTenant(context.Background(), "initech"), nil, info, handler)
 	if status.Code(err) != codes.ResourceExhausted {
 		t.Fatalf("second call = %v, want RESOURCE_EXHAUSTED (RES-17)", err)
 	}

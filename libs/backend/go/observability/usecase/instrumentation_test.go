@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"strings"
 	"testing"
@@ -444,5 +445,66 @@ func TestAReadOperationIsCountedLikeAnyOther(t *testing.T) {
 	points := collect(t, fixture.reader)[metrics.RequestsTotal]
 	if len(points) != 1 || labelsOf(points[0])[metrics.KeyOperation] != readOperation {
 		t.Errorf("%s = %+v, want the read operation counted like any other", metrics.RequestsTotal, points)
+	}
+}
+
+// The injected SubjectFunc says someone else on purpose: the subject of the
+// security record comes from the carrier, the one source CTX-03 allows.
+func TestACrossTenantAccessIsRecordedAsASecurityEvent(t *testing.T) {
+	fixture := boot(t, options{subject: func(context.Context) string { return "not-the-carrier" }})
+	access := ports.CrossTenantAccess{Object: "dmpf_example_orders/o-1", ContextTenant: "globex", DataTenant: "acme"}
+
+	_, end := fixture.instrumentation.BeginOperation(withExecution(t, context.Background()), operationFind)
+	end(ports.Result{Outcome: ports.OutcomeFailed, Err: fmt.Errorf("application: find order o-1: %w", access)})
+
+	events := fixture.recording.Events()
+	if len(events) != 1 {
+		t.Fatalf("Events() has %d events, want 1: IDN-12 requires the attempt to be recorded", len(events))
+	}
+	got := events[0]
+	if got.At == 0 {
+		t.Fatal("At = 0, want the instant of the attempt")
+	}
+	got.At = 0
+	want := audit.Event{
+		Subject:    "s-test",
+		Object:     "dmpf_example_orders/o-1",
+		Action:     usecase.ActionCrossTenantAccess,
+		Outcome:    string(ports.OutcomeDenied),
+		Tenant:     "globex",
+		DataTenant: "acme",
+	}
+	if got != want {
+		t.Fatalf("Event = %+v, want %+v", got, want)
+	}
+}
+
+func TestAPlainNotFoundRecordsNoSecurityEvent(t *testing.T) {
+	fixture := boot(t, options{})
+
+	_, end := fixture.instrumentation.BeginOperation(withExecution(t, context.Background()), operationFind)
+	end(ports.Result{Outcome: ports.OutcomeFailed, Err: fmt.Errorf("application: find order o-1: %w", ports.ErrNotFound)})
+
+	if events := fixture.recording.Events(); len(events) != 0 {
+		t.Fatalf("Events() = %+v, want none: an absent identifier is not an access (IDN-13)", events)
+	}
+}
+
+// IDN-12 requires the attempt to be recorded. When the audit sink refuses it,
+// the event goes to the log channel whole instead of vanishing behind a
+// category, because the log leaves the process by another path.
+func TestASecurityEventTheSinkRefusesReachesTheLogWhole(t *testing.T) {
+	fixture := boot(t, options{})
+	instrumentation := usecase.New(fixture.runtime, refusingSink{err: errors.New("sink closed")}, nil, nil, readOperation)
+	access := ports.CrossTenantAccess{Object: "dmpf_example_orders/o-1", ContextTenant: "globex", DataTenant: "acme"}
+
+	_, end := instrumentation.BeginOperation(withExecution(t, context.Background()), operationFind)
+	end(ports.Result{Outcome: ports.OutcomeFailed, Err: access})
+
+	logged := fixture.log.String()
+	for _, want := range []string{usecase.ActionCrossTenantAccess, "dmpf_example_orders/o-1", "globex", "acme", "s-test"} {
+		if !strings.Contains(logged, want) {
+			t.Fatalf("log = %s\nwant %q in it: the security record must survive the sink", logged, want)
+		}
 	}
 }

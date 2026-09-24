@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Prova que o depguard (VETORES_*, quatro blocos) e o forbidigo (SIMBOLOS, só
+# Prova que o depguard (VETORES_*, quatro blocos e o provider de contexto) e o forbidigo (SIMBOLOS, só
 # `domain`) reprovam o que devem. Módulos vêm do `dmpf-units.json`, não de lista
 # fixa: módulo novo entra no gate sozinho. Os fixtures .go são movidos para /tmp
 # em vez de apagados — o runner não tem utilitário de lixeira.
@@ -71,6 +71,16 @@ VETORES_CONTRACT=(
 # os VETORES_* espelham as `deny`. Exigir reprovacao neles seria exigir o que a
 # configuracao deliberadamente nao faz; usa-los como alvo de fixture faria o
 # gate reportar falha onde nao existe.
+# pacote|motivo. Provider de contexto (`apps/**/provider`): a regra
+# `context-provider` é uma denylist (`list-mode: lax`), então só há vetores
+# `dentro`. Todos precisam cair: sem o `pgxpool` negado, `pool.Query` volta a
+# existir para o contexto e o isolamento passa a depender de convenção (IDN-14).
+VETORES_CONTEXT_PROVIDER=(
+  "github.com/jackc/pgx/v5|driver"
+  "github.com/jackc/pgx/v5/pgxpool|pool do driver"
+  "database/sql|driver generico"
+)
+
 FORA_DO_DEPGUARD=(
   "contracts/gen/"
 )
@@ -350,6 +360,77 @@ while IFS= read -r manifesto; do
   fi
 done < <(git ls-files '*dmpf-units.json')
 
+# O laço acima pula os módulos de contexto (o caminho do módulo não é de bloco),
+# então o provider de cada app é exercitado aqui, pelo include do manifesto.
+providers_de_contexto=0
+while IFS= read -r manifesto; do
+  module_dir="$(dirname "$manifesto")"
+  case "/$module_dir/" in
+    */apps/*) ;;
+    *) continue ;;
+  esac
+  module_path="$(awk '/^module /{print $2; exit}' "$module_dir/go.mod" 2>/dev/null)"
+  project="$(node -p 'require(process.argv[1]).name' "$ROOT/$module_dir/project.json" 2>/dev/null)"
+
+  while IFS= read -r inc; do
+    rel="${inc#"$module_path"}"
+    rel="${rel#/}"
+    case "/$rel/" in
+      */provider/) ;;
+      *) continue ;;
+    esac
+    sub_dir="$module_dir/$rel"
+    sub_clause="$(clausula_de_package "$sub_dir")"
+    if [ -z "$project" ] || [ -z "$sub_clause" ]; then
+      echo "FALHA  $sub_dir: sem projeto Nx ou sem .go com clausula de package"
+      falhas=$((falhas + 1))
+      continue
+    fi
+    providers_de_contexto=$((providers_de_contexto + 1))
+    echo "== $project ($sub_dir) [provider de contexto]"
+
+    for vetor in "${VETORES_CONTEXT_PROVIDER[@]}"; do
+      pkg="${vetor%%|*}"
+      motivo="${vetor#*|}"
+      FIXTURE="$(mktemp "$sub_dir/zz_gate_XXXXXX.go")" || {
+        echo "FALHA  $project: nao consegui criar o fixture em $rel"
+        falhas=$((falhas + 1))
+        break
+      }
+      printf '%s\n\nimport _ "%s"\n' "$sub_clause" "$pkg" > "$FIXTURE"
+
+      saida="$(pnpm nx run "$project":lint --skip-nx-cache 2>&1)"
+      status=$?
+      retirar_fixture
+
+      if [ "$status" -eq 0 ]; then
+        echo "  FALHA  $pkg ($motivo): o lint passou, mas deveria reprovar"
+        falhas=$((falhas + 1))
+      elif ! grep -q "context-provider" <<<"$saida"; then
+        echo "  FALHA  $pkg ($motivo): reprovou por outro motivo que nao a regra context-provider"
+        falhas=$((falhas + 1))
+      else
+        echo "  ok     $pkg ($motivo)"
+      fi
+    done
+
+    if pnpm nx run "$project":lint --skip-nx-cache >/dev/null 2>&1; then
+      echo "  ok     arvore limpa: aprovada"
+    else
+      echo "  FALHA  arvore limpa: reprovada, mas deveria passar"
+      falhas=$((falhas + 1))
+    fi
+  done < <(node -e '
+    const m = require(process.argv[1]);
+    for (const u of m.units ?? []) if (u.block === "provider") for (const i of u.include ?? []) console.log(i);
+  ' "$ROOT/$manifesto" 2>/dev/null)
+done < <(git ls-files '*dmpf-units.json')
+
+if [ "$providers_de_contexto" -eq 0 ]; then
+  echo "FALHA: nenhum provider de contexto encontrado; a regra context-provider nao foi exercitada." >&2
+  exit 1
+fi
+
 if [ "$modulos" -eq 0 ]; then
   echo "FALHA: nenhum modulo com bloco domain, port, application ou contract encontrado; o gate nao exercitou nada." >&2
   exit 1
@@ -363,7 +444,7 @@ fi
 
 echo
 echo "Gate de dependencia: $modulos modulo(s) — domain: $modulos_domain, port: $modulos_port, application: $modulos_application, contract: $modulos_contract."
-echo "Vetores de package por bloco: domain ${#VETORES_DOMAIN[@]}, port ${#VETORES_PORT[@]}, application ${#VETORES_APPLICATION[@]}, contract ${#VETORES_CONTRACT[@]}; ${#SIMBOLOS[@]} de simbolo em domain; 1 positivo por modulo. Todos conformes."
+echo "Vetores de package por bloco: domain ${#VETORES_DOMAIN[@]}, port ${#VETORES_PORT[@]}, application ${#VETORES_APPLICATION[@]}, contract ${#VETORES_CONTRACT[@]}; ${#SIMBOLOS[@]} de simbolo em domain; 1 positivo por modulo; provider de contexto ${#VETORES_CONTEXT_PROVIDER[@]} em $providers_de_contexto package(s). Todos conformes."
 if [ "$fora_de_alcance" -gt 0 ]; then
   # Declarado, nunca silencioso: um gate que esconde o proprio alcance passa a
   # informar cobertura que nao tem.

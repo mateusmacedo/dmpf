@@ -17,8 +17,9 @@ import (
 )
 
 // Mux binds every declared route to its handler under the edge's own time
-// policy, so a route the contract names and nobody serves fails to compile.
-func Mux(service application.Service, budget deadline.Budget, authenticator ports.Authenticator) *http.ServeMux {
+// policy, so a route the contract names and nobody serves fails to compile, and
+// one that demands a subject without declaring a permission refuses to start.
+func Mux(service application.Service, budget deadline.Budget, authenticator ports.Authenticator) (*http.ServeMux, error) {
 	h := Handlers{Service: service}
 	handlers := [5]http.HandlerFunc{
 		h.ReserveBooking, h.CancelBooking, h.RegisterResource, h.FindBooking, h.FindBookingByResource,
@@ -26,10 +27,13 @@ func Mux(service application.Service, budget deadline.Budget, authenticator port
 
 	mux := http.NewServeMux()
 	for i, route := range Routes(budget) {
+		if err := route.ValidateEdge(); err != nil {
+			return nil, err
+		}
 		mounted := withExecutionContext(authenticator, route, handlers[i])
 		mux.Handle(route.Method+" "+route.Path, withRouteDeadline(route.Budget, mounted))
 	}
-	return mux
+	return mux, nil
 }
 
 // edgeLocale answers the other mandatory field of CTX-01 that this edge has no
@@ -51,6 +55,9 @@ func withExecutionContext(authenticator ports.Authenticator, route provider.Rout
 		}
 
 		identity, status, code := provider.ResolveIdentity(r.Context(), authenticator, route, authn.CredentialFrom(r))
+		if status == 0 {
+			status, code = provider.RefuseAssertedIdentity(r, identity)
+		}
 		if status != 0 {
 			writeRejection(w, status, code, "the request was not authenticated")
 			return

@@ -26,9 +26,16 @@ type ServerConfig struct {
 }
 
 // Validate refuses a server without transport security and without the
-// explicit development-only opt-out (GRP-15).
+// explicit development-only opt-out (GRP-15), and a TLS server that does not
+// verify its callers' certificates (IDN-03).
 func (c ServerConfig) Validate() error {
-	return validateTLS(c.TLS, c.InsecureForDevelopmentOnly)
+	if err := validateTLS(c.TLS, c.InsecureForDevelopmentOnly); err != nil {
+		return err
+	}
+	if c.TLS != nil && c.TLS.ClientAuth != tls.RequireAndVerifyClientCert {
+		return ErrClientCARequired
+	}
+	return nil
 }
 
 // NewServer builds the server with its credentials, interceptor chains and the

@@ -20,7 +20,6 @@ import (
 )
 
 const (
-	Tenant            = "public"
 	IdempotencyHeader = "Idempotency-Key"
 	CorrelationHeader = "X-Correlation-ID"
 
@@ -60,12 +59,12 @@ type Options struct {
 
 func Routes(budget deadline.Budget) []provider.Route {
 	return []provider.Route{
-		{Name: "addItem", Method: http.MethodPost, Path: "/orders/{id}/items", ContractRef: ordersContract + "~1orders~1{id}~1items/post", Budget: budget, IdempotencyKey: IdempotencyHeader, Requires: provider.RequireSubjectAndTenant},
-		{Name: "placeOrder", Method: http.MethodPost, Path: "/orders/{id}/place", ContractRef: ordersContract + "~1orders~1{id}~1place/post", Budget: budget, IdempotencyKey: IdempotencyHeader, Requires: provider.RequireSubjectAndTenant},
-		{Name: "findOrder", Method: http.MethodGet, Path: "/orders/{id}", ContractRef: ordersContract + "~1orders~1{id}/get", Budget: budget, Requires: provider.RequireSubjectAndTenant},
-		{Name: "findReservation", Method: http.MethodGet, Path: "/reservations/{order_id}", ContractRef: reservationsContract + "~1reservations~1{order_id}/get", Budget: budget, Requires: provider.RequireSubjectAndTenant},
-		{Name: "reserve", Method: http.MethodPost, Path: "/reservations/{order_id}/reserve", ContractRef: reservationsContract + "~1reservations~1{order_id}~1reserve/post", Budget: budget, IdempotencyKey: IdempotencyHeader, Requires: provider.RequireSubjectAndTenant},
-		{Name: "cancel", Method: http.MethodPost, Path: "/reservations/{order_id}/cancel", ContractRef: reservationsContract + "~1reservations~1{order_id}~1cancel/post", Budget: budget, IdempotencyKey: IdempotencyHeader, Requires: provider.RequireSubjectAndTenant},
+		{Name: "addItem", Method: http.MethodPost, Path: "/orders/{id}/items", ContractRef: ordersContract + "~1orders~1{id}~1items/post", Budget: budget, IdempotencyKey: IdempotencyHeader, Requires: provider.RequireSubjectAndTenant, Permission: "orders:write"},
+		{Name: "placeOrder", Method: http.MethodPost, Path: "/orders/{id}/place", ContractRef: ordersContract + "~1orders~1{id}~1place/post", Budget: budget, IdempotencyKey: IdempotencyHeader, Requires: provider.RequireSubjectAndTenant, Permission: "orders:write"},
+		{Name: "findOrder", Method: http.MethodGet, Path: "/orders/{id}", ContractRef: ordersContract + "~1orders~1{id}/get", Budget: budget, Requires: provider.RequireSubjectAndTenant, Permission: "orders:read"},
+		{Name: "findReservation", Method: http.MethodGet, Path: "/reservations/{order_id}", ContractRef: reservationsContract + "~1reservations~1{order_id}/get", Budget: budget, Requires: provider.RequireSubjectAndTenant, Permission: "reservations:read"},
+		{Name: "reserve", Method: http.MethodPost, Path: "/reservations/{order_id}/reserve", ContractRef: reservationsContract + "~1reservations~1{order_id}~1reserve/post", Budget: budget, IdempotencyKey: IdempotencyHeader, Requires: provider.RequireSubjectAndTenant, Permission: "reservations:write"},
+		{Name: "cancel", Method: http.MethodPost, Path: "/reservations/{order_id}/cancel", ContractRef: reservationsContract + "~1reservations~1{order_id}~1cancel/post", Budget: budget, IdempotencyKey: IdempotencyHeader, Requires: provider.RequireSubjectAndTenant, Permission: "reservations:write"},
 	}
 }
 
@@ -113,7 +112,7 @@ func NewHandler(
 	admit := provider.Admission(ctrl, routeOf, tenantOf, instruments, refuseAsRejection)
 	mux := http.NewServeMux()
 	for _, route := range Routes(opts.Budget) {
-		if err := route.Validate(); err != nil {
+		if err := route.ValidateEdge(); err != nil {
 			return nil, err
 		}
 		handler := requireIdempotencyKey(serve[route.Name])
@@ -131,4 +130,13 @@ func NewHandler(
 
 func routeOf(r *http.Request) string { return r.Pattern }
 
-func tenantOf(*http.Request) string { return Tenant }
+// tenantOf keys the admission bucket by the tenant the edge authenticated
+// (RES-16); admission runs inside withExecutionContext, so the context is there.
+func tenantOf(r *http.Request) string {
+	execution, ok := ports.ExecutionContextFrom(r.Context())
+	if !ok {
+		return ""
+	}
+	tenant, _ := execution.Tenant()
+	return string(tenant)
+}

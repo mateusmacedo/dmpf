@@ -5,6 +5,7 @@ package http
 import (
 	"context"
 	"net/http"
+	"slices"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
@@ -43,9 +44,64 @@ func ResolveIdentity(ctx context.Context, authenticator ports.Authenticator, rou
 	if route.RequiresTenant() && identity.Tenant == nil {
 		return Resolved{}, http.StatusForbidden, "tenant-unresolved"
 	}
+	if route.RequiresSubject() {
+		if route.Permission == "" {
+			return Resolved{}, http.StatusForbidden, "permission-undeclared"
+		}
+		if !slices.Contains(identity.Permissions, route.Permission) {
+			return Resolved{}, http.StatusForbidden, "permission-denied"
+		}
+	}
 
 	subject := identity.Subject
 	return Resolved{Subject: &subject, Tenant: identity.Tenant, Permissions: identity.Permissions}, 0, ""
+}
+
+// assertedSources are the request fields with the semantics of subject or
+// tenant a client could fill; none of them ever feeds the context (CTX-06).
+var (
+	assertedSubject = []string{"X-Subject-ID"}
+	assertedTenant  = []string{"X-Tenant-ID"}
+	assertedQuery   = map[string]bool{"tenant_id": true}
+)
+
+// RefuseAssertedIdentity refuses a request whose own fields assert a subject or
+// a tenant that diverges from what verification resolved (CTX-06). Every value
+// counts, an empty one included: presence is the assertion, not its content.
+func RefuseAssertedIdentity(r *http.Request, resolved Resolved) (int, string) {
+	var subject, tenant string
+	if resolved.Subject != nil {
+		subject = string(*resolved.Subject)
+	}
+	if resolved.Tenant != nil {
+		tenant = string(*resolved.Tenant)
+	}
+	for _, header := range assertedSubject {
+		if diverges(r.Header.Values(header), resolved.Subject != nil, subject) {
+			return http.StatusForbidden, "identity-mismatch"
+		}
+	}
+	for _, header := range assertedTenant {
+		if diverges(r.Header.Values(header), resolved.Tenant != nil, tenant) {
+			return http.StatusForbidden, "identity-mismatch"
+		}
+	}
+	query := r.URL.Query()
+	for key := range assertedQuery {
+		if diverges(query[key], resolved.Tenant != nil, tenant) {
+			return http.StatusForbidden, "identity-mismatch"
+		}
+	}
+	return 0, ""
+}
+
+func diverges(asserted []string, resolved bool, value string) bool {
+	for _, candidate := range asserted {
+		if !resolved || candidate != value {
+			return true
+		}
+	}
+	return false
 }
 
 // WithExecutionContext deposits what the edge mounted on the canonical carrier.

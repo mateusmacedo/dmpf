@@ -387,3 +387,20 @@ func TestAnIdempotencyKeyTheWireRejectsNeverReachesAContext(t *testing.T) {
 		t.Fatalf("calls = %d, want 0", n)
 	}
 }
+
+// RES-16: the bucket is per tenant, keyed by the tenant the edge authenticated,
+// so one tenant exhausting its own does not refuse another's request.
+func TestOneTenantExhaustingItsBucketDoesNotRefuseAnother(t *testing.T) {
+	f := newFixture(t, &fakeContexts{}, withLimit(admission.Limit{PerSecond: 0.001, Burst: 1, Concurrency: 10}))
+	other := `Bearer {"sub":"tester","tenant":"globex","permissions":["orders:write","orders:read","reservations:write","reservations:read"]}`
+
+	if rec := f.do(t, http.MethodGet, "/reservations/o-1", nil); rec.Code != http.StatusOK {
+		t.Fatalf("first request = %d, want 200", rec.Code)
+	}
+	if rec := f.do(t, http.MethodGet, "/reservations/o-1", nil); rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("second request = %d, want 429", rec.Code)
+	}
+	if rec := f.do(t, http.MethodGet, "/reservations/o-1", nil, "Authorization", other); rec.Code != http.StatusOK {
+		t.Fatalf("another tenant's request = %d, want 200: the buckets are per tenant", rec.Code)
+	}
+}

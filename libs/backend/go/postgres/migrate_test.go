@@ -27,6 +27,20 @@ func TestMigrateIsIdempotent(t *testing.T) {
 	}
 }
 
+func TestMigrateAppliesTheSchemaOfAContext(t *testing.T) {
+	pool := openPool(t)
+	ctx := context.Background()
+	const index = "dmpf_migrate_context_schema_idx"
+	t.Cleanup(func() { _, _ = pool.Exec(context.Background(), "DROP INDEX IF EXISTS "+index) })
+
+	if err := postgres.Migrate(ctx, pool, "CREATE INDEX IF NOT EXISTS "+index+" ON dmpf_example_orders (version)"); err != nil {
+		t.Fatalf("Migrate() with a context schema = %v, want nil", err)
+	}
+	if !exists(t, ctx, pool, indexExistsQuery, index) {
+		t.Fatalf("index %s does not exist: the context schema was not applied", index)
+	}
+}
+
 func TestMigrateCreatesTheOutboxSchema(t *testing.T) {
 	pool := openPool(t)
 	ctx := context.Background()
@@ -61,7 +75,7 @@ func TestMigrateCreatesTheOutboxSchema(t *testing.T) {
 	})
 
 	t.Run("indexes", func(t *testing.T) {
-		for _, idx := range []string{"dmpf_outbox_published_at_idx", "dmpf_outbox_claim_idx", "dmpf_inbox_retention_idx", "dmpf_quarantine_reason_idx"} {
+		for _, idx := range []string{"dmpf_outbox_published_at_idx", "dmpf_outbox_claim_idx", "dmpf_inbox_retention_idx", "dmpf_quarantine_reason_idx", "dmpf_example_orders_order_id_idx", "dmpf_example_reservations_order_id_idx"} {
 			if !exists(t, ctx, pool, indexExistsQuery, idx) {
 				t.Errorf("index %s does not exist", idx)
 			}

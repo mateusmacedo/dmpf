@@ -11,13 +11,17 @@ import (
 
 // Event is the audit record of LOG-14: who did what to which object, with which
 // outcome and when. Outcome is a plain string because the category is named in
-// the application block, which a provider must not import.
+// the application block, which a provider must not import. Tenant and
+// DataTenant are filled by a cross-tenant access alone, which IDN-12 records
+// with both.
 type Event struct {
-	Subject string        `json:"subject"`
-	Object  string        `json:"object"`
-	Action  string        `json:"action"`
-	Outcome string        `json:"outcome"`
-	At      ports.Instant `json:"at"`
+	Subject    string        `json:"subject"`
+	Object     string        `json:"object"`
+	Action     string        `json:"action"`
+	Outcome    string        `json:"outcome"`
+	At         ports.Instant `json:"at"`
+	Tenant     string        `json:"tenant,omitempty"`
+	DataTenant string        `json:"data_tenant,omitempty"`
 }
 
 // Sink is the destination of the audit trail. It is its own interface, never a

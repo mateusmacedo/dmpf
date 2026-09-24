@@ -77,10 +77,17 @@ type Service struct {
 	Clock          port.Clock
 	IDs            port.IDGenerator
 	Authorize      application.Authorize[Operation]
+
+	Instrumentation port.Instrumentation
 }
 
+// A nil hook is the inert realization, so every operation opens and closes
+// unconditionally.
 func (s Service) instrumentation() port.Instrumentation {
-	return port.NoInstrumentation()
+	if s.Instrumentation == nil {
+		return port.NoInstrumentation()
+	}
+	return s.Instrumentation
 }
 
 func authorizationResult(err error) port.Result {

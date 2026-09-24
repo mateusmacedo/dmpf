@@ -86,7 +86,7 @@ func newHarness(t *testing.T, limit admission.Limit) *harness {
 	provider := sdktrace.NewTracerProvider(sdktrace.WithSyncer(spans))
 	t.Cleanup(func() { _ = provider.Shutdown(context.Background()) })
 
-	tenants, err := metrics.DeclareTenants(rpc.Tenant)
+	tenants, err := metrics.DeclareTenants(testTenant)
 	if err != nil {
 		t.Fatalf("DeclareTenants() = %v", err)
 	}

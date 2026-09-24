@@ -3,8 +3,6 @@ package provider
 import (
 	"encoding/json"
 
-	"github.com/jackc/pgx/v5/pgxpool"
-
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/domain"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
@@ -48,6 +46,6 @@ func NewRepository(tx *postgres.Tx) ports.Repository[domain.OrderID, domain.Snap
 
 // NewReader serves the read side without the write side (UOW-11): it takes the
 // pool because a query must not open a transaction.
-func NewReader(pool *pgxpool.Pool) ports.Reader[domain.OrderID, domain.Snapshot] {
+func NewReader(pool postgres.ReadPool) ports.Reader[domain.OrderID, domain.Snapshot] {
 	return ordersTable.Reader(pool)
 }

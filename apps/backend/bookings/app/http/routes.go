@@ -22,6 +22,7 @@ func Routes(budget deadline.Budget) [5]provider.Route {
 			Path:           "/bookings/booking",
 			ContractRef:    contract + "~1bookings~1booking/post",
 			Budget:         budget,
+			Permission:     "bookings:write",
 			IdempotencyKey: IdempotencyHeader,
 		},
 		{
@@ -30,6 +31,7 @@ func Routes(budget deadline.Budget) [5]provider.Route {
 			Path:           "/bookings/booking/{id}/cancel",
 			ContractRef:    contract + "~1bookings~1booking~1{id}~1cancel/post",
 			Budget:         budget,
+			Permission:     "bookings:write",
 			IdempotencyKey: IdempotencyHeader,
 		},
 		{
@@ -38,6 +40,7 @@ func Routes(budget deadline.Budget) [5]provider.Route {
 			Path:           "/bookings/resource",
 			ContractRef:    contract + "~1bookings~1resource/post",
 			Budget:         budget,
+			Permission:     "bookings:write",
 			IdempotencyKey: IdempotencyHeader,
 		},
 		{
@@ -46,6 +49,7 @@ func Routes(budget deadline.Budget) [5]provider.Route {
 			Path:        "/bookings/booking/{id}",
 			ContractRef: contract + "~1bookings~1booking~1{id}/get",
 			Budget:      budget,
+			Permission:  "bookings:read",
 		},
 		{
 			Name:        "findBookingByResource",
@@ -53,6 +57,7 @@ func Routes(budget deadline.Budget) [5]provider.Route {
 			Path:        "/bookings/booking",
 			ContractRef: contract + "~1bookings~1booking/get",
 			Budget:      budget,
+			Permission:  "bookings:read",
 		},
 	}
 }

@@ -1,0 +1,48 @@
+# Autoridade de desenvolvimento para o mTLS do gRPC interno (IDN-03): uma CA, os
+# certificados de servidor de orders-api e reservations-api e o de cliente do
+# BFF, cuja identidade é a URI spiffe://dmpf/bff que os contextos confiam.
+# Tudo nasce num volume nomeado, só na primeira subida; nenhuma chave é
+# versionada, e as chaves ficam legíveis porque as imagens rodam como nonroot.
+# CSR e serial vão para o /tmp do container, que some com ele.
+services:
+  pki-init:
+    image: alpine:3.20
+    profiles: [dmpf]
+    entrypoint: ['/bin/sh', '-c']
+    command:
+      - |
+        set -eu
+        cd /pki
+        [ -f ca.crt ] && exit 0
+        apk add --no-cache openssl >/dev/null
+        openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes -days 365 \
+          -subj /CN=dmpf-local-ca -keyout ca.key -out ca.crt
+        sign() {
+          openssl x509 -req -in "/tmp/$$1.csr" -CA ca.crt -CAkey ca.key -CAserial /tmp/ca.srl -CAcreateserial \
+            -days 365 -copy_extensions copy -out "$$1.crt"
+        }
+        server() {
+          openssl req -new -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes -subj "/CN=$$1" \
+            -addext "subjectAltName=DNS:$$1,DNS:localhost" -addext extendedKeyUsage=serverAuth \
+            -keyout "$$1.key" -out "/tmp/$$1.csr"
+          sign "$$1"
+        }
+        client() {
+          openssl req -new -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes -subj "/CN=$$1" \
+            -addext "subjectAltName=URI:spiffe://dmpf/$$1" -addext extendedKeyUsage=clientAuth \
+            -keyout "$$1-client.key" -out "/tmp/$$1-client.csr"
+          sign "$$1-client"
+        }
+        server dmpf-orders-api
+        server dmpf-reservations-api
+        client bff
+        chmod 0644 ./*.key ./*.crt
+    volumes:
+      - dmpf-pki:/pki
+    deploy:
+      resources:
+        limits: { cpus: '0.10', memory: 64M }
+        reservations: { cpus: '0.01', memory: 16M }
+
+volumes:
+  dmpf-pki:

@@ -155,3 +155,48 @@ func spanCarries(h *harness, key, value string) bool {
 	}
 	return false
 }
+
+// RES-16: the bucket is per tenant, keyed by the tenant the edge propagated, so
+// one tenant exhausting its own does not refuse another's call.
+func TestOneTenantExhaustingItsBucketDoesNotRefuseAnother(t *testing.T) {
+	h := newHarness(t, admission.Limit{PerSecond: 1, Burst: 1, Concurrency: 1})
+	other := metadata.AppendToOutgoingContext(withDeadline(t), rpc.TenantKey, "globex")
+
+	var a, b, c servicev1.FindReservationResponse
+	first := h.invoke(withTenant(t), "FindReservation", &servicev1.FindReservationRequest{OrderId: "o-1"}, &a)
+	second := h.invoke(withTenant(t), "FindReservation", &servicev1.FindReservationRequest{OrderId: "o-1"}, &b)
+	another := h.invoke(other, "FindReservation", &servicev1.FindReservationRequest{OrderId: "o-1"}, &c)
+
+	if status.Code(first) != codes.NotFound || status.Code(second) != codes.ResourceExhausted {
+		t.Fatalf("first = %v, second = %v; want the first admitted and the second refused", first, second)
+	}
+	if status.Code(another) != codes.NotFound {
+		t.Fatalf("another tenant's FindReservation() = %v, want NotFound (admitted): the buckets are per tenant", another)
+	}
+}
+
+// CTX-11, locale column downstream: the locale the edge resolved is preserved,
+// and the service default answers only when none or a malformed one arrived.
+func TestTheServerPreservesTheLocaleTheEdgeResolved(t *testing.T) {
+	cases := map[string]struct{ sent, want string }{
+		"declared":  {"pt-BR", "pt-BR"},
+		"absent":    {"", rpc.DefaultLocale},
+		"malformed": {"pt BR", rpc.DefaultLocale},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			h := newHarness(t, unlimited)
+			ctx := withTenant(t)
+			if c.sent != "" {
+				ctx = metadata.AppendToOutgoingContext(ctx, rpc.LocaleKey, c.sent)
+			}
+
+			var resp servicev1.FindReservationResponse
+			_ = h.invoke(ctx, "FindReservation", &servicev1.FindReservationRequest{OrderId: "o-1"}, &resp)
+
+			if got := h.execution.execution.Locale(); got != c.want {
+				t.Fatalf("Locale() = %q, want %q", got, c.want)
+			}
+		})
+	}
+}

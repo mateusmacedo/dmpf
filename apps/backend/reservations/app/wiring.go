@@ -63,7 +63,7 @@ func RunWith(ctx context.Context, cfg Config, rt *otelboot.Runtime, out io.Write
 // Postgres, with the resource set the consumer also binds (INB-07).
 func NewReservationsService(pool *pgxpool.Pool, rt *otelboot.Runtime, cfg Config, auditOut io.Writer) application.Service {
 	service := NewService(pool, idclock.SystemClock{}, idclock.NewMessageIDs("reservations"), cfg.Wait)
-	service.Instrumentation = usecase.New(rt, audit.NewEnvelopeSink(auditOut, audit.Identity{Service: cfg.Service, Version: cfg.Version, Instance: cfg.Instance, Tenant: rpc.Tenant}), subject, classify, application.OperationFindReservation)
+	service.Instrumentation = usecase.New(rt, audit.NewEnvelopeSink(auditOut, audit.Identity{Service: cfg.Service, Version: cfg.Version, Instance: cfg.Instance}), subject, classify, application.OperationFindReservation)
 	return service
 }
 
@@ -74,17 +74,19 @@ func serveAPI(ctx context.Context, cfg Config, rt *otelboot.Runtime, out io.Writ
 	}
 	defer pool.Close()
 
-	ctrl, err := admission.NewController(rpc.Limits(cfg.Admission), rpc.Tenant, admission.DefaultMaxKeys)
+	ctrl, err := admission.NewController(rpc.Limits(cfg.Admission), cfg.MetricTenants, admission.DefaultMaxKeys)
 	if err != nil {
 		return err
 	}
 	serverConfig, err := provider.APIServerConfig(provider.APIServer{
-		CertFile:     cfg.GRPCCertFile,
-		KeyFile:      cfg.GRPCKeyFile,
-		Insecure:     cfg.GRPCInsecure,
-		Services:     provider.HealthServices(rpc.ServiceName),
-		Interceptors: rpc.Interceptors(rt.Tracer(), ctrl, rt.Instruments(), rt.Logger()),
-		Logger:       rt.Logger(),
+		CertFile:       cfg.GRPCCertFile,
+		KeyFile:        cfg.GRPCKeyFile,
+		ClientCAFile:   cfg.GRPCClientCAFile,
+		TrustedClients: cfg.GRPCTrustedClients,
+		Insecure:       cfg.GRPCInsecure,
+		Services:       provider.HealthServices(rpc.ServiceName),
+		Interceptors:   rpc.Interceptors(rt.Tracer(), ctrl, rt.Instruments(), rt.Logger()),
+		Logger:         rt.Logger(),
 	})
 	if err != nil {
 		return err
@@ -112,8 +114,19 @@ func serveAPI(ctx context.Context, cfg Config, rt *otelboot.Runtime, out io.Writ
 
 // NewReservationsConsumer is the consumer adapter with the attempt limit of the
 // channel it consumes (ADR-039: the two must agree).
-func NewReservationsConsumer(pool *pgxpool.Pool, cfg Config, ch channel.Channel) app.Consumer {
-	return NewConsumer(pool, idclock.SystemClock{}, idclock.NewMessageIDs("reservations"), cfg.Wait, cfg.ConsumerTimeout, ch.Retry.MaxAttempts)
+func NewReservationsConsumer(pool *pgxpool.Pool, cfg Config, ch channel.Channel, authenticated bool) app.Consumer {
+	return NewConsumer(pool, idclock.SystemClock{}, idclock.NewMessageIDs("reservations"), cfg.Wait, cfg.ConsumerTimeout, ch.Retry.MaxAttempts, OrdersBoundary(cfg, authenticated))
+}
+
+// OrdersBoundary is the one place the consumer's trust is declared: the orders
+// producer, and a transport called verified only when TLS checks the broker
+// and this client authenticates to it (IDN-03, IDN-04).
+func OrdersBoundary(cfg Config, authenticated bool) app.Boundary {
+	transport := app.TransportDevelopmentOnly
+	if authenticated {
+		transport = app.TransportVerified
+	}
+	return app.Boundary{Transport: transport, Sources: []string{cfg.OrdersSource}}
 }
 
 func runConsumer(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {
@@ -131,11 +144,15 @@ func runConsumer(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {
 	if err != nil {
 		return err
 	}
+	kafkaConfig, err := kafka.NewConfig(ctx, rt, catalog, cfg.Brokers, cfg.Service, cfg.KafkaInsecure, cfg.KafkaAuth)
+	if err != nil {
+		return err
+	}
 	consumer := &kafka.Consumer{
-		Config:  kafka.NewConfig(ctx, rt, catalog, cfg.Brokers, cfg.Service, cfg.KafkaInsecure),
+		Config:  kafkaConfig,
 		Channel: ch,
 		Sink: Sink{
-			Consumer:  NewReservationsConsumer(pool, cfg, ch),
+			Consumer:  NewReservationsConsumer(pool, cfg, ch, kafkaConfig.ClientAuthenticated()),
 			EventType: channel.EventTypeOf(ch),
 			Logger:    rt.Logger(),
 			Tracer:    rt.Tracer(),
@@ -176,7 +193,11 @@ func runRelay(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {
 	if err := postgres.AssertOwnOutbox(ctx, pool, slices.Collect(maps.Keys(catalog))); err != nil {
 		return err
 	}
-	publisher, err := kafka.NewPublisher(kafka.NewConfig(ctx, rt, catalog, cfg.Brokers, cfg.Service, cfg.KafkaInsecure), nil)
+	kafkaConfig, err := kafka.NewConfig(ctx, rt, catalog, cfg.Brokers, cfg.Service, cfg.KafkaInsecure, cfg.KafkaAuth)
+	if err != nil {
+		return err
+	}
+	publisher, err := kafka.NewPublisher(kafkaConfig, nil)
 	if err != nil {
 		return err
 	}

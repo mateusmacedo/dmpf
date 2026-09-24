@@ -20,6 +20,7 @@ func TestStatusOfMapsEveryTechnicalOutcome(t *testing.T) {
 		want codes.Code
 	}{
 		"absent aggregate":        {ports.ErrNotFound, codes.NotFound},
+		"denied":                  {ports.ErrDenied, codes.PermissionDenied},
 		"classified as not found": {application.NewFailure(application.NotFound, false, errors.New("secret")), codes.NotFound},
 		"version conflict":        {ports.ErrVersionConflict, codes.Aborted},
 		"classified as conflict":  {application.NewFailure(application.Conflict, true, errors.New("secret")), codes.Aborted},

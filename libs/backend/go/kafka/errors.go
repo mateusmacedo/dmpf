@@ -32,6 +32,17 @@ var (
 	// without a gesture and the partition stalls; the consumer does not crash.
 	ErrSinkPanicked = errors.New("kafka: sink panicked")
 
+	// ErrClientAuthRequired is a TLS client that does not authenticate itself:
+	// TLS verifies the broker, not who produces, which IDN-04 needs.
+	ErrClientAuthRequired = errors.New("kafka: a TLS client must authenticate with SASL or a client certificate (IDN-04)")
+
+	// ErrSASLMechanism is a SASL declaration outside the mechanisms this
+	// provider speaks; PLAIN is not one, because it sends the secret as is.
+	ErrSASLMechanism = errors.New("kafka: SASL mechanism must be SCRAM-SHA-256 or SCRAM-SHA-512")
+
+	// ErrSASLCredentials is a SASL declaration without the principal or its secret.
+	ErrSASLCredentials = errors.New("kafka: SASL requires a username and a password")
+
 	// ErrIncompleteConfig is a configuration without brokers, catalogue or clock.
 	ErrIncompleteConfig = errors.New("kafka: configuration is incomplete")
 

@@ -6,7 +6,6 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	obsusecase "github.com/mateusmacedo/dmpf/libs/backend/go/observability/usecase"
 
-	"github.com/mateusmacedo/dmpf/apps/backend/orders/app/rpc"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/boot"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/logging"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/tracing"
@@ -27,7 +26,12 @@ func TelemetryOf(cfg Config) boot.Telemetry {
 }
 
 func requestFields(ctx context.Context) logging.Fields {
-	fields := logging.Fields{logging.KeyTenantID: rpc.Tenant}
+	fields := logging.Fields{}
+	if execution, ok := ports.ExecutionContextFrom(ctx); ok {
+		if tenant, scoped := execution.Tenant(); scoped {
+			fields[logging.KeyTenantID] = string(tenant)
+		}
+	}
 	if mc, ok := ports.MessageContextFrom(ctx); ok {
 		fields[logging.KeyCorrelationID] = mc.CorrelationID
 	}
@@ -41,6 +45,14 @@ func classify(err error) string {
 	return obsusecase.CategoryUnclassified
 }
 
-// subject is absent by design: the identity of FND-07 has no realization in
-// the kernel and this context authenticates nobody.
-func subject(context.Context) string { return "" }
+// subject is read from the carrier, the one source of identity (CTX-03). Over
+// gRPC it is usually absent, because the fan-out never carries it (IDN-02), and
+// absent stays absent (IDN-20).
+func subject(ctx context.Context) string {
+	execution, ok := ports.ExecutionContextFrom(ctx)
+	if !ok {
+		return ""
+	}
+	who, _ := execution.Subject()
+	return string(who)
+}

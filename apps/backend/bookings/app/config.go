@@ -3,6 +3,7 @@ package app
 import (
 	"errors"
 	"fmt"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/kafka"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability"
 	"strings"
 	"time"
@@ -61,6 +62,10 @@ type Config struct {
 
 	Brokers       []string
 	KafkaInsecure bool
+
+	// KafkaAuth is the principal this process presents to the
+	// broker, required whenever TLS is on (IDN-04).
+	KafkaAuth     kafka.ClientAuth
 	BookingsTopic string
 	BookingsDLQ   string
 	Group         string
@@ -112,6 +117,7 @@ func FromEnv(role Role, lookup func(string) string) (Config, error) {
 		},
 	}
 
+	cfg.KafkaAuth = kafka.ReadClientAuth(lookup)
 	var err error
 	if cfg.Migrate, err = envconfig.ParseBool(envMigrate, lookup(envMigrate)); err != nil {
 		return Config{}, err
@@ -140,6 +146,9 @@ func (c Config) validate() error {
 	if c.Role == RoleRelay {
 		if len(c.Brokers) == 0 {
 			missing = append(missing, envBrokers)
+		}
+		if !c.KafkaInsecure && c.KafkaAuth.SASL == nil && c.KafkaAuth.CertFile == "" {
+			missing = append(missing, "DMPF_KAFKA_SASL_MECHANISM or DMPF_KAFKA_CLIENT_CERT_FILE")
 		}
 		if c.BookingsTopic == "" {
 			missing = append(missing, envBookingsTopic)

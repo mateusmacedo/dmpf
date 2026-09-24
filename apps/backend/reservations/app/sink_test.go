@@ -96,6 +96,8 @@ func newSink(handler *fakeHandler, containment *fakeContainment, tracer trace.Tr
 			Containment: containment,
 			Clock:       fixedClock{},
 			Timeout:     sinkTimeout,
+			Boundary:    kernel.Boundary{Transport: kernel.TransportDevelopmentOnly, Sources: []string{"urn:dmpf:reference-orders"}},
+			Locale:      "en",
 		},
 		EventType: orderPlacedV1,
 		Tracer:    tracer,

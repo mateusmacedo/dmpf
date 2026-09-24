@@ -4,16 +4,28 @@ import (
 	"context"
 	"testing"
 
-	"github.com/mateusmacedo/dmpf/apps/backend/bff/api"
 	"github.com/mateusmacedo/dmpf/apps/backend/bff/rpc"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/logging"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
 
-func TestRequestFieldsAlwaysCarryTheTenant(t *testing.T) {
-	fields := requestFields(context.Background())
+// IDN-20: the line names the tenant the edge authenticated, off the carrier,
+// and no tenant when the call resolved none.
+func TestRequestFieldsNameTheTenantOfTheCall(t *testing.T) {
+	tenant := ports.TenantID("acme")
+	execution, err := ports.NewExecutionContext(ports.ExecutionContextSpec{
+		RequestID: "r-1", CorrelationID: "c-1", TraceContext: "t-1", Tenant: &tenant,
+		Deadline: ports.Instant(1_755_432_000_000_000_000), Locale: "en",
+	})
+	if err != nil {
+		t.Fatalf("NewExecutionContext() = %v", err)
+	}
 
-	if got := fields[logging.KeyTenantID]; got != api.Tenant {
-		t.Fatalf("tenant = %v, want %q: every line is attributed even outside a call", got, api.Tenant)
+	if got := requestFields(ports.WithExecutionContext(context.Background(), execution))[logging.KeyTenantID]; got != "acme" {
+		t.Fatalf("tenant = %v, want the tenant of the call", got)
+	}
+	if got, present := requestFields(context.Background())[logging.KeyTenantID]; present {
+		t.Fatalf("tenant = %v, want absent outside a scoped call", got)
 	}
 }
 

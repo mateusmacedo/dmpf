@@ -55,7 +55,7 @@ func seed(t *testing.T, pool *pgxpool.Pool) {
 
 func loadFromPool(t *testing.T, pool *pgxpool.Pool) (domain.BookingSnapshot, ports.Version) {
 	t.Helper()
-	reader := provider.NewBookingReader(pool)
+	reader := provider.NewBookingReader(postgres.NewReadPool(pool))
 	s, v, err := reader.Load(withExecution(t, context.Background()), repoBookingID)
 	if err != nil {
 		t.Fatalf("reader.Load() = %v", err)
