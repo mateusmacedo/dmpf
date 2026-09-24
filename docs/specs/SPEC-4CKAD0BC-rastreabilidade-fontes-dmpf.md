@@ -185,15 +185,15 @@ classe C —, e inadequado onde a citação pretende ser fonte.
 
 ### Critérios de aceite
 
-- [ ] Nenhuma linha de `docs/` declara fonte normativa apontando para `plans/`
-- [ ] `git grep -n 'plans/' -- 'docs/**/*.md'` retorna apenas ocorrências das
+- [x] Nenhuma linha de `docs/` declara fonte normativa apontando para `plans/`
+- [x] `git grep -n 'plans/' -- 'docs/**/*.md'` retorna apenas ocorrências das
   classes B e C, todas com redação que declara o artefato como não versionado
-- [ ] Nenhum ID de regra mudou: o conjunto de IDs `normativo` por artefato é
+- [x] Nenhum ID de regra mudou: o conjunto de IDs `normativo` por artefato é
   idêntico antes e depois
-- [ ] Nenhum marcador `ephemeral-ref-ok` sobra sem objeto
-- [ ] As citações novas a `rfc-dmpf-foundation-v0.1.md:N` resolvem para o
+- [x] Nenhum marcador `ephemeral-ref-ok` sobra sem objeto
+- [x] As citações novas a `rfc-dmpf-foundation-v0.1.md:N` resolvem para o
   conteúdo afirmado
-- [ ] **Integridade das referências físicas de terceiros** (obrigação herdada de
+- [x] **Integridade das referências físicas de terceiros** (obrigação herdada de
   SPEC-4W1BQK93, RF5-C4): esta entrega altera `inventario-as-is.md:6` e
   `politicas-transporte.md:178`, e os dois arquivos são alvo de referência física
   a partir de linhas **posteriores** a essas. Sete grupos estão em risco de

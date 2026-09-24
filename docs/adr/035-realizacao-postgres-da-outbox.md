@@ -133,7 +133,7 @@ inventariação.
 | Testes de banco sem build tag, como a spec original previa | Colocaria teste que exige Postgres no `go test ./...` comum, contrariando `.claude/rules/testing-conventions.md` e quebrando o `pre-push` de quem não tem o compose no ar. |
 | `testcontainers-go` no lugar do Postgres do CI | Acrescenta dependência pesada a um módulo cujo `go.mod` tem duas entradas. O primeiro push confirmou que o `gitea-runner` tem Docker, então o impedimento restante é o peso, não a capacidade. |
 | Manter `services:` e mirar o gateway da bridge com a porta publicada | Funcionaria, mas amarra o DSN a um IP de gateway que varia por runner e por configuração de rede do host. |
-| Vetores de célula como fixtures sintéticas sob `testdata/` | Tocaria o `dmpf-conformance`, fora do escopo desta história, e provaria a regra genérica que o verificador já cobre em vez das células que este módulo torna alcançáveis. |
+| Vetores de célula como fixtures sintéticas sob `testdata/` | Tocaria o `conformance`, fora do escopo desta história, e provaria a regra genérica que o verificador já cobre em vez das células que este módulo torna alcançáveis. |
 | Provar as células com fixture na árvore de trabalho, como o `dmpf-gate-check.sh` faz | Lá o fixture só precisa sobreviver ao `depguard`; aqui ele precisa sobreviver a um `go list` sobre o módulo inteiro, e um `.go` proibido visível na árvore real quebraria o build de quem trabalha em paralelo. |
 | Confiar só no `cache: false` do Nx para o `test-race` | São dois caches: o do `go test` também devolveria resultado antigo, porque indexa binário e variáveis consultadas, nunca o estado do banco. |
 
@@ -183,8 +183,8 @@ at-least-once, e a deduplicação é do consumidor, via inbox (KRN-07).
 - `docs/adr/034-fronteira-de-uow-em-go.md` — a fronteira que este ADR realiza.
 - `docs/adr/033-*.md` — marca de baseline dos contratos (`BUF-08`).
 - `docs/guides/dmpf-manifesto.md` — `external[]` e classificação de unidades.
-- `libs/backend/go/dmpf-provider-postgres/README.md` — como rodar localmente.
+- `libs/backend/go/postgres/README.md` — como rodar localmente.
 
 ## Addendum — 2026-09-08
 
-O KRN-12 (ADR-041, SPEC-6QT9SBAS) realizou o contexto de mensagem que esta decisão deixou ao FND-07: `dmpfports.OutboxEntry` ganhou o campo `Context MessageContext` (`correlationid`, `causationid`, `traceparent`), e `Enqueue` serializa em `metadata` **exatamente o que o adapter autorou** — chave ausente é ausente, nunca `""`, porque o predicado de claim exige string não vazia e uma chave vazia produziria linha que nunca drena. `metadata` continua a nascer `'{}'` quando ninguém autora; o provider segue sem inventar (OBX-02). A prova fim a fim está em `claim_test.go`: uma linha escrita por `Enqueue` com contexto é a que `Claim` seleciona, sem SQL à mão.
+O KRN-12 (ADR-041, SPEC-6QT9SBAS) realizou o contexto de mensagem que esta decisão deixou ao FND-07: `ports.OutboxEntry` ganhou o campo `Context MessageContext` (`correlationid`, `causationid`, `traceparent`), e `Enqueue` serializa em `metadata` **exatamente o que o adapter autorou** — chave ausente é ausente, nunca `""`, porque o predicado de claim exige string não vazia e uma chave vazia produziria linha que nunca drena. `metadata` continua a nascer `'{}'` quando ninguém autora; o provider segue sem inventar (OBX-02). A prova fim a fim está em `claim_test.go`: uma linha escrita por `Enqueue` com contexto é a que `Claim` seleciona, sem SQL à mão.

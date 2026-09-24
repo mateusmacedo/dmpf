@@ -52,6 +52,7 @@ plans
 .serena
 .tokensave/
 .headroom/
+.obsidian/
 
 # build info
 *.tsbuildinfo

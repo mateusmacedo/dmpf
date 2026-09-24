@@ -16,11 +16,11 @@ casos=0
 novo_sandbox() {
   local dir
   dir="$(mktemp -d)" || exit 2
-  mkdir -p "$dir/tools" "$dir/libs/backend/go/dmpf-contracts"
+  mkdir -p "$dir/tools" "$dir/libs/backend/go/contracts"
   cp -R "$ROOT/contracts" "$dir/contracts"
   cp "$ROOT/tools/buf.sh" "$ROOT/tools/buf-gate.sh" "$dir/tools/"
-  cp "$ROOT/libs/backend/go/dmpf-contracts/go.mod" "$ROOT/libs/backend/go/dmpf-contracts/go.sum" "$dir/libs/backend/go/dmpf-contracts/"
-  cp -R "$ROOT/libs/backend/go/dmpf-contracts/gen" "$dir/libs/backend/go/dmpf-contracts/gen"
+  cp "$ROOT/libs/backend/go/contracts/go.mod" "$ROOT/libs/backend/go/contracts/go.sum" "$dir/libs/backend/go/contracts/"
+  cp -R "$ROOT/libs/backend/go/contracts/gen" "$dir/libs/backend/go/contracts/gen"
   git -C "$dir" init -q -b main
   git -C "$dir" config user.email "$AUTOR"
   git -C "$dir" config user.name autor
@@ -130,7 +130,7 @@ verificar "exactly-once em artefato de contrato" 1 "$S" lint "P0-3"
 
 echo "== generate-check =="
 S="$(novo_sandbox)"; commitar "$S" "contratos"
-printf '\n// drift\n' >> "$S/libs/backend/go/dmpf-contracts/gen/go/company/orders/event/v1/order_placed.pb.go"
+printf '\n// drift\n' >> "$S/libs/backend/go/contracts/gen/go/company/orders/event/v1/order_placed.pb.go"
 verificar "byte alterado no gerado (drift)" 1 "$S" generate-check "drift"
 
 echo "== pins =="
@@ -139,7 +139,7 @@ sed -i 's/@v[0-9.]*/@latest/' "$S/tools/buf.sh"
 verificar "@latest na CLI" 1 "$S" pins "BUF-06"
 
 S="$(novo_sandbox)"
-sed -i -E 's/(google\.golang\.org\/protobuf v[0-9]+\.[0-9]+\.)[0-9]+/\10/' "$S/libs/backend/go/dmpf-contracts/go.mod"
+sed -i -E 's/(google\.golang\.org\/protobuf v[0-9]+\.[0-9]+\.)[0-9]+/\10/' "$S/libs/backend/go/contracts/go.mod"
 verificar "plugin e runtime protobuf divergentes" 1 "$S" pins "difere de google.golang.org/protobuf"
 
 S="$(novo_sandbox)"

@@ -54,6 +54,7 @@
       "!.gemini",
       "!.github/skills",
       "!.github/prompts",
+      "!.obsidian",
       "!.opencode",
       "!.tokensave",
       "!.remember"

@@ -15,7 +15,7 @@ created: 2026-09-08
 ## Resumo
 
 Terceira sub-spec de `SPEC-8HWBWJCB` (`KRN-12`). Entrega o **modelo** do BOM
-(`dmpf/bom@1`), o validador `dmpf-bom` no `dmpf-conformance` — diagnósticos
+(`dmpf/bom@1`), o validador `dmpf-bom` no `conformance` — diagnósticos
 `B001` a `B011`, fail-closed —, e o **escape hatch instrumentado**: um schema de
 exceção com os quatro itens de `GOV-30`, o ciclo de vida de `GOV-34` com
 `history[]`, a admissão de `GOV-32` por catálogo fechado N1–N7, aplicada ponta a
@@ -37,7 +37,7 @@ pedido de exceção pode sequer ser examinado.
   não têm instrumento.
 - **Impacto**: o BOM passa a ser verificável no CI; a exceção passa a ter
   admissão mecânica; a sub-spec 4 tem onde gravar a certificação.
-- **Inspiração**: `dmpf-conformance/fitness` (package exportado, unidade
+- **Inspiração**: `conformance/fitness` (package exportado, unidade
   `app`); `dmpf-units.json` e `units-baseline.json` (JSON como formato de
   dado verificável); `tools/adr-verify.mjs` (verificador de acervo com
   vetores).
@@ -57,8 +57,8 @@ pedido de exceção pode sequer ser examinado.
 | "o BOM referencia os registros autoritativos sem duplicá-los (`BOM-06`)" | `BOM-03` exige `version` exata por entrada | Entrada com registro autoritativo leva `registry_ref` (`{file, selector}`) **e** `version`; `B007` resolve o valor pela referência e reprova divergência. A coexistência é registrada no ADR-041 |
 | "entrada vencida é lida como `candidata` (`BOM-08`)" | `BOM-07`: "nenhuma transição ocorre por decurso de prazo sem ato declarado" | `B008` é **erro**: entrada `certificada` com `valid_until` vencido reprova o BOM até o commit que declara `state: candidata`; o validador não aceita a certificação vencida (`BOM-08`) e a transição continua sendo ato (`BOM-07`) |
 | "métricas junto do BOM (`GOV-36`)" | nada persiste renovações | `history[]` por exceção; métricas derivadas; `B010` reprova valor declarado divergente |
-| — | `include` do manifesto é import path exato; `internal/manifest` é unidade `domain` (`dmpf-conformance/dmpf-units.json`) | `internal/exception` é unidade **nova** `dmpf-conformance/exception`, bloco `domain`, recebe `now` por valor; `manifest` (domain) pode importá-la; `bom` (app) também |
-| — | `libs/backend/go/dmpf-conformance/internal/rule/codes.go` não existe; os códigos vivem em `internal/rule/diagnostic.go` | Caminho corrigido |
+| — | `include` do manifesto é import path exato; `internal/manifest` é unidade `domain` (`conformance/dmpf-units.json`) | `internal/exception` é unidade **nova** `conformance/exception`, bloco `domain`, recebe `now` por valor; `manifest` (domain) pode importá-la; `bom` (app) também |
+| — | `libs/backend/go/conformance/internal/rule/codes.go` não existe; os códigos vivem em `internal/rule/diagnostic.go` | Caminho corrigido |
 
 ### Fontes normativas
 
@@ -107,11 +107,11 @@ pedido de exceção pode sequer ser examinado.
   `cve[]` (sempre presente; `{id, state: corrigida|mitigada|aberta, owner}`).
   `semantic_conventions_messaging` é uma entrada como as outras, com `owner`
   (`BOM-10`).
-- [ ] **[P0] Package `bom` e `cmd/dmpf-bom`** no `dmpf-conformance` — duas
-  unidades novas, ambas bloco `app`, com `include` exato: `dmpf-conformance/bom`
-  e `dmpf-conformance/cmd-bom` (a unidade `dmpf-conformance/cmd` existente
-  cobre só `cmd/dmpf-conformance`). Invocação: `go run
-  ./libs/backend/go/dmpf-conformance/cmd/dmpf-bom --root . [--release <semver>]
+- [ ] **[P0] Package `bom` e `cmd/bom`** no `conformance` — duas
+  unidades novas, ambas bloco `app`, com `include` exato: `conformance/bom`
+  e `conformance/cmd-bom` (a unidade `conformance/cmd` existente
+  cobre só `cmd/conformance`). Invocação: `go run
+  ./libs/backend/go/conformance/cmd/bom --root . [--release <semver>]
   [--now <RFC3339>]`. `--now` existe para os testes; ausente usa o relógio do
   sistema **no `cmd`**, passado por valor ao package. Diagnósticos:
 
@@ -135,10 +135,10 @@ pedido de exceção pode sequer ser examinado.
   require:<pacote>`), `<módulo>/package.json` (`selector: version`),
   `package.json` (`selector: packageManager|engines.node`),
   `pnpm-workspace.yaml` (`selector: catalog:<pacote>`),
-  `libs/backend/go/dmpf-observability/otelboot/start.go` (`selector:
+  `libs/backend/go/observability/otelboot/start.go` (`selector:
   semconv`).
   - Sai com 0 sem diagnóstico; 1 com diagnóstico; 2 com erro de leitura.
-  - Roda no `ci.yml` logo após o `dmpf-conformance`, no bloco "Gates DMPF".
+  - Roda no `ci.yml` logo após o `conformance`, no bloco "Gates DMPF".
 - [ ] **[P0] Schema de exceção** (comum; `internal/exception/schema.go`):
   `id` (nominal, `^X-[a-z0-9-]+$`), `object` (`{kind:
   external-dependency|bom-combination|governance-instrument, unit, identity}`),
@@ -174,15 +174,15 @@ pedido de exceção pode sequer ser examinado.
   `check_e2e_test.go`: manifesto com E1 completa autoriza exatamente o import
   nominal; com E1 sem `adr`, o import reprova como se a exceção não existisse
   e o relatório traz `X001`.
-- [ ] **[P0] Unidade `dmpf-conformance/exception`**, bloco `domain`, `include`
-  `…/dmpf-conformance/internal/exception`; sem `time` (o `now` é valor);
-  baseline em commit próprio. Unidades `dmpf-conformance/bom` e
-  `dmpf-conformance/cmd-bom`, bloco `app`.
+- [ ] **[P0] Unidade `conformance/exception`**, bloco `domain`, `include`
+  `…/conformance/internal/exception`; sem `time` (o `now` é valor);
+  baseline em commit próprio. Unidades `conformance/bom` e
+  `conformance/cmd-bom`, bloco `app`.
 - [ ] **[P1] BOM inicial vazio** `bom/dmpf/0.1.0.json` com as seis seções, todas
   as entradas em `candidata` ou `proposta`, sem evidência; `dmpf-bom` passa
   (nada `certificada`); a sub-spec 4 promove. `bom/README.md` explica o
   schema, a máquina de estados, como pedir exceção e os códigos.
-- [ ] **[P1] Documentação**: `dmpf-conformance/README.md` (dmpf-bom, códigos);
+- [ ] **[P1] Documentação**: `conformance/README.md` (dmpf-bom, códigos);
   `docs/guides/dmpf-composicao.md` seção "Divergir do golden path" com um pedido
   admitido e um recusado; `AGENTS.md` Comandos; addendum no ADR-041 com a
   reconciliação `BOM-03`/`BOM-06` e a leitura de `BOM-07`/`BOM-08`.
@@ -205,7 +205,7 @@ pedido de exceção pode sequer ser examinado.
 | `port` | [ ] | — |
 | `contract` | [ ] | — |
 | `provider` | [x] | `internal/fsstore/manifest.go` (decodifica campos novos e legados) |
-| `app` | [x] | `bom/` package, `cmd/dmpf-bom`; `cmd/dmpf-conformance` (`--now`) |
+| `app` | [x] | `bom/` package, `cmd/bom`; `cmd/conformance` (`--now`) |
 | Workspace | [x] | `bom/` (raiz), `ci.yml`, `units-baseline.json` (commit próprio), docs |
 
 ## Localização de código
@@ -214,12 +214,12 @@ pedido de exceção pode sequer ser examinado.
 bom/                                                  — NOVO
   README.md                                           — schema, estados, exceção, códigos
   dmpf/0.1.0.json                                     — BOM inicial (sem certificada); a sub-spec 4 promove
-libs/backend/go/dmpf-conformance/
-  bom/                                                — NOVO package; unidade dmpf-conformance/bom (app)
+libs/backend/go/conformance/
+  bom/                                                — NOVO package; unidade conformance/bom (app)
     schema.go, decode.go, validate.go, digest.go, registry.go, transitions.go, metrics.go, *_test.go, testdata/
-  cmd/dmpf-bom/main.go                                — NOVO: --root, --release, --now; unidade dmpf-conformance/cmd-bom (app)
-  cmd/dmpf-conformance/main.go                        — MODIFICAR: --now (default relógio) passado ao Check
-  internal/exception/                                 — NOVO; unidade dmpf-conformance/exception (domain)
+  cmd/bom/main.go                                — NOVO: --root, --release, --now; unidade conformance/cmd-bom (app)
+  cmd/conformance/main.go                        — MODIFICAR: --now (default relógio) passado ao Check
+  internal/exception/                                 — NOVO; unidade conformance/exception (domain)
     schema.go, admit.go, denied.go, lifecycle.go, admit_test.go, testdata/
   internal/manifest/schema.go                          — MODIFICAR: Exception com campos novos (+ Present*)
   internal/manifest/validate.go                        — MODIFICAR: delega exceptions[] a exception.Admit
@@ -230,7 +230,7 @@ libs/backend/go/dmpf-conformance/
   dmpf-units.json                                      — MODIFICAR: 3 unidades novas
   README.md                                            — MODIFICAR
 tools/dmpf-baseline/units-baseline.json                — MODIFICAR em commit próprio
-.github/workflows/ci.yml                               — MODIFICAR: dmpf-bom após dmpf-conformance
+.github/workflows/ci.yml                               — MODIFICAR: dmpf-bom após conformance
 docs/guides/dmpf-composicao.md, AGENTS.md, docs/adr/041-*.md — MODIFICAR
 ```
 
@@ -254,7 +254,7 @@ docs/guides/dmpf-composicao.md, AGENTS.md, docs/adr/041-*.md — MODIFICAR
 
 ### Fluxo 1 — validação do BOM
 
-1. `cmd/dmpf-bom` lê `--root`, resolve `--release` (único arquivo em
+1. `cmd/bom` lê `--root`, resolve `--release` (único arquivo em
    `bom/dmpf/` ou erro `B011`), lê `now`.
 2. `bom.Decode` → `bom.Validate(doc, now, fs)`: seções (`B001`), campos
    (`B002`), estados e transições (`B003`, `B008`), evidência (`B004`,
@@ -265,7 +265,7 @@ docs/guides/dmpf-composicao.md, AGENTS.md, docs/adr/041-*.md — MODIFICAR
 ### Fluxo 2 — admissão de uma exceção E1
 
 1. A squad adiciona a exceção ao `exceptions[]` do manifesto da unidade.
-2. `dmpf-conformance` decodifica, `manifest.Validate` chama
+2. `conformance` decodifica, `manifest.Validate` chama
    `exception.Admit`: `X001`..`X007`.
 3. Só a exceção admitida entra na `ExternalPolicy`; o import nominal passa;
    qualquer outro import externo da unidade continua reprovado.
@@ -289,7 +289,7 @@ docs/guides/dmpf-composicao.md, AGENTS.md, docs/adr/041-*.md — MODIFICAR
 
 ## Decisões técnicas
 
-- **Validador em Go no `dmpf-conformance`** porque `BOM-06` cruza `go.work` e
+- **Validador em Go no `conformance`** porque `BOM-06` cruza `go.work` e
   manifestos que o verificador já lê, e `GOV-35` exige admissão comum a E1 e
   E2/E3. Alternativa descartada: `tools/bom-verify.mjs`, porque duplicaria o
   parser de manifesto em Node.
@@ -329,21 +329,21 @@ docs/guides/dmpf-composicao.md, AGENTS.md, docs/adr/041-*.md — MODIFICAR
 
 ### Critérios de aceite
 
-- [ ] O BOM está versionado e é revisável por PR; nenhum dos seis itens está
+- [x] O BOM está versionado e é revisável por PR; nenhum dos seis itens está
   ausente, e item sem instância aparece declarado vazio (critério 3 do ticket,
   parte do modelo).
-- [ ] Nenhuma entrada `certificada` existe sem `evidence_uri`, `evidence_digest`,
+- [x] Nenhuma entrada `certificada` existe sem `evidence_uri`, `evidence_digest`,
   `approved_by`, `certified_at` e `valid_until`; entrada vencida reprova até o
   ato que a rebaixa (critério 4, parte do validador).
-- [ ] Pedido de escape hatch sem plano de convergência **com prazo** (ou sem
+- [x] Pedido de escape hatch sem plano de convergência **com prazo** (ou sem
   revisão com aprovação dual), ou sobre constraint P0, é recusado na admissão
   (critério 5).
-- [ ] Um vetor negativo por `B001`..`B011` e por `X001`..`X007`, incluindo um
+- [x] Um vetor negativo por `B001`..`B011` e por `X001`..`X007`, incluindo um
   por N1–N7.
-- [ ] `check_e2e_test.go`: E1 admitida autoriza só o import nominal; E1 sem
+- [x] `check_e2e_test.go`: E1 admitida autoriza só o import nominal; E1 sem
   `adr` não autoriza e emite `X001`.
-- [ ] `dmpf-bom` roda no CI e passa sobre `bom/dmpf/0.1.0.json` inicial.
-- [ ] Unidades `exception`, `bom`, `cmd-bom` no baseline em commit próprio;
+- [x] `dmpf-bom` roda no CI e passa sobre `bom/dmpf/0.1.0.json` inicial.
+- [x] Unidades `exception`, `bom`, `cmd-bom` no baseline em commit próprio;
   verificador sem diagnóstico; cadeia verde.
 
 ### Cenários de teste

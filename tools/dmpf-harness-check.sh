@@ -20,7 +20,7 @@
 # com --parallel=1 (os harnesses truncam tabelas do kernel).
 #
 # A fase `self-test` não usa LLM: sobre o golden commitado, retira
-# dmpf-kernel/domain de shared_kernel_units e exige que o verificador reprove
+# kernel/domain de shared_kernel_units e exige que o verificador reprove
 # com DMPF-D002 apontando bookings/domain — o cenário 4 da spec do harness.
 set -uo pipefail
 
@@ -33,20 +33,21 @@ cd "$ROOT" || exit 2
 SPEC=SPEC-AHPRBZCT # ephemeral-ref-ok: a prova regenera o golden a partir da sua spec, por natureza
 NOME=bookings
 CONTEXTO=resource-scheduling
-# Um dirName por bloco (ADR-030, addendum): o contexto mora em uma pasta e
-# cada bloco é um subdiretório dela, não um módulo irmão de nome composto.
-MODULOS=(domain ports application provider app)
-PROJETOS=(bookings-domain-go bookings-ports-go bookings-application-go bookings-provider-postgres-go bookings-app-go)
-PROJETOS_POSTGRES=(bookings-provider-postgres-go bookings-app-go)
+# Um módulo por contexto e um package por bloco (ADR-045): o golden é o
+# projeto Nx `bookings`, e cada bloco é um subdiretório do módulo.
+MODULO="apps/backend/$NOME"
+BLOCOS=(domain ports application provider app)
+PROJETOS=("$NOME")
+PROJETOS_POSTGRES=("$NOME")
 CAMINHOS_GOLDEN=(
   "contracts/proto/company/$NOME"
   "contracts/openapi/$NOME"
-  "libs/backend/go/dmpf-contracts/gen/go/company/$NOME"
+  "libs/backend/go/contracts/gen/go/company/$NOME"
 )
-MANIFESTO_CONTRATOS=libs/backend/go/dmpf-contracts/dmpf-units.json
+MANIFESTO_CONTRATOS=libs/backend/go/contracts/dmpf-units.json
 BASELINE=tools/dmpf-baseline/units-baseline.json
 UNIDADE_CONTRATO="$CONTEXTO/contract"
-UNIDADE_SABOTADA=dmpf-kernel/domain
+UNIDADE_SABOTADA=kernel/domain
 
 AGENT_CMD="${DMPF_HARNESS_CHECK_AGENT_CMD:-claude -p --dangerously-skip-permissions \"/dmpf-new-context $SPEC — prova em worktree: não rode pnpm install\"}"
 
@@ -71,7 +72,7 @@ uso: tools/dmpf-harness-check.sh --phase regen|self-test
              spec, roda o rito Buf, classifica em commit próprio, roda a cadeia
              Go e o verificador, e reporta divergências contra o golden
   self-test  sem LLM: sabota shared_kernel_units sobre o golden commitado e
-             exige DMPF-D002 em bookings-domain
+             exige DMPF-D002 em bookings/domain
 FIM
 }
 
@@ -141,25 +142,27 @@ abrir_worktree() {
 }
 
 conferir_golden_presente() {
-  local modulo
-  for modulo in "${MODULOS[@]}"; do
-    [ -d "$ROOT/libs/backend/go/$NOME/$modulo" ] \
-      || falha "o golden não está no HEAD: libs/backend/go/$NOME/$modulo ausente — a prova compara contra ele"
+  local bloco
+  [ -f "$ROOT/$MODULO/go.mod" ] \
+    || falha "o golden não está no HEAD: $MODULO/go.mod ausente — a prova compara contra ele"
+  for bloco in "${BLOCOS[@]}"; do
+    [ -d "$ROOT/$MODULO/$bloco" ] \
+      || falha "o golden não está no HEAD: $MODULO/$bloco ausente — a prova compara contra ele"
   done
   jq -e --arg u "$UNIDADE_CONTRATO" '.units[] | select(.id == $u)' "$ROOT/$MANIFESTO_CONTRATOS" >/dev/null \
     || falha "a unidade $UNIDADE_CONTRATO não está em $MANIFESTO_CONTRATOS"
-  ok "golden presente: ${MODULOS[*]} e a unidade $UNIDADE_CONTRATO"
+  ok "golden presente: $MODULO com ${BLOCOS[*]} e a unidade $UNIDADE_CONTRATO"
 }
 
 # O estado "sem golden" é o ponto de partida do agente e o --base do
 # verificador. A unidade `contract` sai do manifesto junto com o gen/go, senão
 # o --write-baseline vê unidade sem package.
 remover_golden() {
-  local modulo caminho tmp
-  for modulo in "${MODULOS[@]}"; do
-    git -C "$WT" rm -rq -- "libs/backend/go/$NOME/$modulo" || falha "não consegui remover $modulo do worktree"
-    sed -i "\#^\t./libs/backend/go/$NOME/$modulo\$#d" "$WT/go.work" || falha "não consegui editar o go.work"
-  done
+  local caminho tmp
+  git -C "$WT" rm -rq -- "$MODULO" || falha "não consegui remover $MODULO do worktree"
+  sed -i "\#^\t./$MODULO\$#d" "$WT/go.work" || falha "não consegui editar o go.work"
+  go run ./tools/dmpf-conformance/cmd/modsync --root "$WT" --write >/dev/null 2>&1 \
+    || falha "o modsync não conseguiu retirar $NOME do replace do go.work"
   for caminho in "${CAMINHOS_GOLDEN[@]}"; do
     [ -e "$WT/$caminho" ] || continue
     git -C "$WT" rm -rq -- "$caminho" || falha "não consegui remover $caminho do worktree"
@@ -171,7 +174,7 @@ remover_golden() {
     && mv "$tmp" "$WT/$MANIFESTO_CONTRATOS" || falha "não consegui retirar $UNIDADE_CONTRATO do manifesto"
   (cd "$WT" && pnpm biome format --write "$MANIFESTO_CONTRATOS" >/dev/null 2>&1) || true
 
-  (cd "$WT" && go run ./libs/backend/go/dmpf-conformance/cmd/dmpf-conformance --root . --write-baseline >/dev/null 2>&1) \
+  (cd "$WT" && go run ./tools/dmpf-conformance/cmd/conformance --root . --write-baseline >/dev/null 2>&1) \
     || falha "--write-baseline reprovou ao classificar o estado sem o golden"
   git -C "$WT" add -A >/dev/null || falha "git add do estado sem o golden"
   git_gate commit -q -m "chore(workspace): estado sem o golden bookings (efêmero)" \
@@ -208,12 +211,13 @@ coletar_gerados() {
     esac
   done < <(git -C "$WT" status --porcelain -z --untracked-files=all)
   [ "${#ARQUIVOS_GERADOS[@]}" -gt 0 ] || falha "o agente não deixou nenhum arquivo no worktree"
-  for modulo in "${MODULOS[@]}"; do
-    [ -d "$WT/libs/backend/go/$NOME/$modulo" ] || falha "o agente não produziu libs/backend/go/$NOME/$modulo"
+  [ -f "$WT/$MODULO/go.mod" ] || falha "o agente não produziu o módulo $MODULO"
+  for modulo in "${BLOCOS[@]}"; do
+    [ -d "$WT/$MODULO/$modulo" ] || falha "o agente não produziu $MODULO/$modulo"
   done
-  grep -q "$NOME" "$WT/go.work" || falha "go.work não registra os módulos de $NOME: o esqueleto não passou pelo generator"
+  grep -q "$NOME" "$WT/go.work" || falha "go.work não registra o módulo de $NOME: o esqueleto não passou pelo generator"
   [ -d "$WT/contracts/proto/company/$NOME" ] || falha "o agente não escreveu contracts/proto/company/$NOME"
-  ok "${#ARQUIVOS_GERADOS[@]} arquivo(s) tocado(s); cinco módulos, go.work e .proto presentes"
+  ok "${#ARQUIVOS_GERADOS[@]} arquivo(s) tocado(s); um módulo com cinco blocos, go.work e .proto presentes"
 }
 
 checar_sem_escrita() {
@@ -236,9 +240,9 @@ rito_buf() {
   jq -e --arg u "$UNIDADE_CONTRATO" '.units[] | select(.id == $u)' "$WT/$MANIFESTO_CONTRATOS" >/dev/null \
     || falha "o agente não declarou a unidade $UNIDADE_CONTRATO em $MANIFESTO_CONTRATOS (sem ela o gen/go cai em DMPF-U001)"
   (cd "$WT/contracts" && bash ../tools/buf.sh generate) || falha "buf generate reprovou"
-  (cd "$WT" && pnpm nx run dmpf-contracts-go:buf-lint && pnpm nx run dmpf-contracts-go:buf-pins \
-    && pnpm nx run dmpf-contracts-go:buf-generate-check) || falha "um gate Buf reprovou"
-  [ -d "$WT/libs/backend/go/dmpf-contracts/gen/go/company/$NOME" ] \
+  (cd "$WT" && pnpm nx run contracts:buf-lint && pnpm nx run contracts:buf-pins \
+    && pnpm nx run contracts:buf-generate-check) || falha "um gate Buf reprovou"
+  [ -d "$WT/libs/backend/go/contracts/gen/go/company/$NOME" ] \
     || falha "o rito Buf não produziu gen/go/company/$NOME"
   ok "rito Buf: generate, buf-lint, buf-pins, buf-generate-check"
 }
@@ -247,7 +251,7 @@ commitar_classificacao() {
   local saida status
   git -C "$WT" add -- $(git -C "$WT" ls-files -o -m --exclude-standard -- '*/dmpf-units.json' "$MANIFESTO_CONTRATOS") \
     || falha "git add dos manifestos de unidade"
-  saida="$(cd "$WT" && go run ./libs/backend/go/dmpf-conformance/cmd/dmpf-conformance --root . --write-baseline 2>&1)"
+  saida="$(cd "$WT" && go run ./tools/dmpf-conformance/cmd/conformance --root . --write-baseline 2>&1)"
   status=$?
   [ "$status" -eq 0 ] || { printf '%s\n' "$saida" >&2; falha "--write-baseline reprovou (exit $status)"; }
   git -C "$WT" add -- "$BASELINE" || falha "git add do baseline"
@@ -281,7 +285,7 @@ cadeia_nx() {
 
 verificar_conformidade() {
   local saida status
-  saida="$(go run ./libs/backend/go/dmpf-conformance/cmd/dmpf-conformance --root "$WT" --base "$HEAD0" 2>&1)"
+  saida="$(go run ./tools/dmpf-conformance/cmd/conformance --root "$WT" --base "$HEAD0" 2>&1)"
   status=$?
   printf '%s\n' "$saida"
   [ "$status" -eq 0 ] || falha "o verificador de conformidade reprovou o contexto regenerado (exit $status)"
@@ -302,11 +306,11 @@ conferir_arvore_limpa() {
 relatar_divergencia() {
   local so_golden so_regen
   so_golden="$(comm -23 \
-    <(git -C "$ROOT" ls-tree -r --name-only HEAD -- "libs/backend/go/$NOME" "${CAMINHOS_GOLDEN[@]}" 2>/dev/null | sort) \
-    <(git -C "$WT" ls-tree -r --name-only HEAD -- "libs/backend/go/$NOME" "${CAMINHOS_GOLDEN[@]}" 2>/dev/null | sort))"
+    <(git -C "$ROOT" ls-tree -r --name-only HEAD -- "apps/backend/$NOME" "${CAMINHOS_GOLDEN[@]}" 2>/dev/null | sort) \
+    <(git -C "$WT" ls-tree -r --name-only HEAD -- "apps/backend/$NOME" "${CAMINHOS_GOLDEN[@]}" 2>/dev/null | sort))"
   so_regen="$(comm -13 \
-    <(git -C "$ROOT" ls-tree -r --name-only HEAD -- "libs/backend/go/$NOME" "${CAMINHOS_GOLDEN[@]}" 2>/dev/null | sort) \
-    <(git -C "$WT" ls-tree -r --name-only HEAD -- "libs/backend/go/$NOME" "${CAMINHOS_GOLDEN[@]}" 2>/dev/null | sort))"
+    <(git -C "$ROOT" ls-tree -r --name-only HEAD -- "apps/backend/$NOME" "${CAMINHOS_GOLDEN[@]}" 2>/dev/null | sort) \
+    <(git -C "$WT" ls-tree -r --name-only HEAD -- "apps/backend/$NOME" "${CAMINHOS_GOLDEN[@]}" 2>/dev/null | sort))"
   printf '\nDivergência de forma contra o golden commitado (informativo):\n'
   printf '  só no golden:      %s\n' "${so_golden:-nenhum}"
   printf '  só no regenerado:  %s\n' "${so_regen:-nenhum}"
@@ -374,14 +378,14 @@ fase_self_test() {
   # Regravar preserva a lista do arquivo atual e recalcula o digest
   # (baseline.go, Regravar): sem este passo o verificador reprovaria por
   # digest, não por D002.
-  (cd "$WT" && go run ./libs/backend/go/dmpf-conformance/cmd/dmpf-conformance --root . --write-baseline >/dev/null 2>&1) \
+  (cd "$WT" && go run ./tools/dmpf-conformance/cmd/conformance --root . --write-baseline >/dev/null 2>&1) \
     || falha "--write-baseline reprovou ao fechar o digest do baseline sabotado"
   ! jq -e --arg u "$UNIDADE_SABOTADA" '.shared_kernel_units | index($u)' "$WT/$BASELINE" >/dev/null \
     || falha "o --write-baseline restaurou $UNIDADE_SABOTADA: a sabotagem não pegou"
   ok "baseline sem $UNIDADE_SABOTADA, digest fechado"
 
   passo "o verificador precisa reprovar com DMPF-D002 em $NOME/domain"
-  saida="$(go run ./libs/backend/go/dmpf-conformance/cmd/dmpf-conformance --root "$WT" 2>&1)"
+  saida="$(go run ./tools/dmpf-conformance/cmd/conformance --root "$WT" 2>&1)"
   status=$?
   if [ "$status" -eq 0 ]; then
     printf '%s\n' "$saida" >&2

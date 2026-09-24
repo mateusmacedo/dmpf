@@ -2,7 +2,7 @@
 
 Este guia é para quem cria um módulo Go novo sob o gate do DMPF — os módulos de
 `KRN-03` a `KRN-12` e os que vierem depois. Ele não reabre a RFC: descreve o que
-o verificador `dmpf-conformance` exige e por quê, e cita a seção normativa de
+o verificador `conformance` exige e por quê, e cita a seção normativa de
 cada exigência para quem quiser ir à fonte.
 
 ## O mínimo que faz o gate passar
@@ -166,7 +166,7 @@ homônima de outro manifesto.
 
 O bloco `contract` admite só `pure` e `wire.codec` (RFC §6.2), e é o único
 lugar do código gerado de Protobuf. O primeiro manifesto real desse bloco é o de
-`libs/backend/go/dmpf-contracts`, e ele mostra os dois pontos que todo módulo
+`libs/backend/go/contracts`, e ele mostra os dois pontos que todo módulo
 `contract` vai repetir.
 
 O runtime Protobuf entra pela allowlist, declarado `wire.codec` e restrito aos
@@ -201,8 +201,8 @@ aprovação de Arquitetura e Plataforma e a condição amarrada ao plugin:
 ```json
 "exceptions": [
   {
-    "id": "X-dmpf-contracts-gen-reflect",
-    "object": { "kind": "external-dependency", "unit": "dmpf-contracts/gen", "identity": "reflect" },
+    "id": "X-contracts-gen-reflect",
+    "object": { "kind": "external-dependency", "unit": "contracts/gen", "identity": "reflect" },
     "adr": "ADR-033",
     "owner": "team:tech-leads",
     "justification": "import emitido pelo protoc-gen-go v1.36.12 em todo arquivo gerado; plumbing do runtime Protobuf, não uso de framework (RFC 6.4)",
@@ -240,7 +240,7 @@ regulados (RFC §10.2 T4/T6; ADR-028). Todos exigem:
 Para regravar o baseline depois de uma mudança legítima:
 
 ```bash
-go run ./libs/backend/go/dmpf-conformance/cmd/dmpf-conformance --root . --write-baseline
+go run ./tools/dmpf-conformance/cmd/conformance --root . --write-baseline
 pnpm biome format --write tools/dmpf-baseline/units-baseline.json
 ```
 
@@ -256,8 +256,8 @@ Lefthook faz o mesmo nos arquivos em stage.
 Uma unidade designada como **shared kernel** pode ser importada por qualquer
 bounded context. É a exceção que torna o kernel DMPF consumível como SDK: sem
 ela, importar qualquer bloco do kernel de outro contexto emite `DMPF-D002`,
-porque `dmpfapplication.Outcome[R]` e `dmpfports.OutboxEntry` expõem tipos de
-`dmpfdomain` e arrastam o `domain` do kernel junto (ADR-042).
+porque `application.Outcome[R]` e `ports.OutboxEntry` expõem tipos de
+`domain` e arrastam o `domain` do kernel junto (ADR-042).
 
 A designação **não fica no manifesto**. Ela vive na chave `shared_kernel_units`
 do baseline, e lista chaves canônicas de unidade — o mesmo valor do campo `unit`
@@ -268,8 +268,8 @@ de cada entrada:
   "schema": "dmpf/units-baseline@1",
   "digest": "sha256:…",
   "shared_kernel_units": [
-    "dmpf-kernel/domain",
-    "dmpf-kernel/port"
+    "kernel/domain",
+    "kernel/port"
   ],
   "entries": [ … ]
 }
@@ -295,8 +295,9 @@ Continua valendo tudo o mais:
   (`DMPF-M002`). Designar não é declarar superfície pública, e uma coisa não
   substitui a outra.
 - O interior do contexto segue privado por default (ADR-017). Designa-se
-  unidade nominal, nunca o bounded context inteiro: os agregados de exemplo e as
-  composition roots do kernel permanecem privados.
+  unidade nominal, nunca o bounded context inteiro: os contextos de referência
+  em `apps/backend` (`orders`, `reservations`, `bookings`) e as suas composition
+  roots permanecem privados.
 
 ### Como designar
 
@@ -308,7 +309,7 @@ próprio, separado de código, aprovado por revisor distinto do autor. Alterar
 2. Regrave o baseline, porque o digest incorpora a lista:
 
 ```bash
-go run ./libs/backend/go/dmpf-conformance/cmd/dmpf-conformance --root . --write-baseline
+go run ./tools/dmpf-conformance/cmd/conformance --root . --write-baseline
 pnpm biome format --write tools/dmpf-baseline/units-baseline.json
 ```
 
@@ -333,7 +334,7 @@ por ser ambíguo entre as duas intenções.
 ## Rodar o verificador localmente
 
 ```bash
-go run ./libs/backend/go/dmpf-conformance/cmd/dmpf-conformance --root .
+go run ./tools/dmpf-conformance/cmd/conformance --root .
 ```
 
 Saída `conforme` e exit 0 significa aprovado. Exit 1 é reprovação; exit 2 é falha

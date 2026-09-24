@@ -1,0 +1,48 @@
+package app
+
+import (
+	"context"
+
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/boot"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/logging"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/tracing"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
+)
+
+// TelemetryOf is what this process declares about itself to the telemetry.
+func TelemetryOf(cfg Config) boot.Telemetry {
+	return boot.Telemetry{
+		Service:  cfg.Service,
+		Version:  cfg.Version,
+		Instance: cfg.Instance,
+		Endpoint: cfg.OTLPEndpoint,
+		Insecure: cfg.OTLPInsecure,
+		Class:    tracing.ClassWrite,
+		Fields:   requestFields,
+	}
+}
+
+// WHY: the tenant comes from the context the edge mounted, never from a literal
+// this package holds — a fixed value would put one tenancy's name on every line,
+// including the lines of another tenant's request (IDN-20).
+func carrierSubject(ctx context.Context) string {
+	execution, ok := ports.ExecutionContextFrom(ctx)
+	if !ok {
+		return ""
+	}
+	subject, _ := execution.Subject()
+	return string(subject)
+}
+
+func requestFields(ctx context.Context) logging.Fields {
+	fields := logging.Fields{}
+	if execution, ok := ports.ExecutionContextFrom(ctx); ok {
+		if tenant, scoped := execution.Tenant(); scoped {
+			fields[logging.KeyTenantID] = string(tenant)
+		}
+	}
+	if mc, ok := ports.MessageContextFrom(ctx); ok {
+		fields[logging.KeyCorrelationID] = mc.CorrelationID
+	}
+	return fields
+}

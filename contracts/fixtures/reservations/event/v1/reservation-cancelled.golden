@@ -1,0 +1,115 @@
+{
+  "format_version": "1",
+  "identity": {
+    "fixture": "reservations/event/v1/reservation-cancelled",
+    "contract": {
+      "package": "company.reservations.event.v1",
+      "message": "ReservationCancelled"
+    },
+    "type": "com.company.reservations.reservation-cancelled.v1",
+    "dataschema": "type.googleapis.com/company.reservations.event.v1.ReservationCancelled"
+  },
+  "covers": {
+    "profile_major": "1",
+    "contract_major": "v1"
+  },
+  "cases": [
+    {
+      "name": "all-conditionals-present",
+      "doc": "Caminho típico com os três atributos condicionais presentes (aggregateversion, tenantid, tracestate).",
+      "envelope": {
+        "aggregateversion": "7",
+        "causationid": "evt-0001",
+        "correlationid": "corr-0001",
+        "datacontenttype": "application/protobuf",
+        "dataschema": "type.googleapis.com/company.reservations.event.v1.ReservationCancelled",
+        "id": "evt-0001",
+        "partitionkey": "c-42",
+        "source": "urn:dmpf:orders",
+        "specversion": "1.0",
+        "subject": "order/o-1001",
+        "tenantid": "tenant-a",
+        "time": "2026-09-02T12:00:00Z",
+        "traceparent": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+        "tracestate": "vendor=1",
+        "type": "com.company.reservations.reservation-cancelled.v1"
+      },
+      "payload": {
+        "order_id": "o-1001"
+      },
+      "payload_bytes_hex": "0a066f2d31303031",
+      "payload_hash": "5923c195064b67e20f98d8c33e28634d2dae20ede0bf9e2113100b90cdf65470"
+    },
+    {
+      "name": "all-conditionals-absent",
+      "doc": "Os três condicionais ausentes: nenhum entra no mapa de atributos (ENV-12, sem valor de preenchimento).",
+      "envelope": {
+        "causationid": "evt-0001",
+        "correlationid": "corr-0001",
+        "datacontenttype": "application/protobuf",
+        "dataschema": "type.googleapis.com/company.reservations.event.v1.ReservationCancelled",
+        "id": "evt-0002",
+        "partitionkey": "c-42",
+        "source": "urn:dmpf:orders",
+        "specversion": "1.0",
+        "subject": "order/o-1001",
+        "time": "2026-09-02T12:00:00Z",
+        "traceparent": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+        "type": "com.company.reservations.reservation-cancelled.v1"
+      },
+      "payload": {
+        "order_id": "o-1002"
+      },
+      "payload_bytes_hex": "0a066f2d31303032",
+      "payload_hash": "deaeef4abfce700bb8daa30b3e4c1331b8d08339efb3ec4c64e1292903fa7be3"
+    }
+  ],
+  "discriminators": [
+    {
+      "name": "unknown-field",
+      "doc": "Bytes canônicos mais um campo de número 7 (varint 42) que o contrato não conhece: a desserialização o preserva (PTB-10) e o hash o cobre (ENV-17).",
+      "envelope": {
+        "causationid": "evt-0001",
+        "correlationid": "corr-0001",
+        "datacontenttype": "application/protobuf",
+        "dataschema": "type.googleapis.com/company.reservations.event.v1.ReservationCancelled",
+        "id": "evt-2001",
+        "partitionkey": "c-42",
+        "source": "urn:dmpf:orders",
+        "specversion": "1.0",
+        "subject": "order/o-1001",
+        "time": "2026-09-02T12:00:00Z",
+        "traceparent": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+        "type": "com.company.reservations.reservation-cancelled.v1"
+      },
+      "payload": {
+        "order_id": "o-2001"
+      },
+      "payload_bytes_hex": "0a066f2d32303031382a",
+      "payload_hash": "11fac395cc7d67416c82f65f9121eabed6bfdbaf6dc71aa778136817f9532739"
+    },
+    {
+      "name": "non-canonical-field-order",
+      "doc": "O único campo emitido duas vezes com o mesmo valor: decodifica no mesmo valor, mas o hash é o dos bytes transportados e difere do hash de uma reserialização (ENV-18).",
+      "envelope": {
+        "causationid": "evt-0001",
+        "correlationid": "corr-0001",
+        "datacontenttype": "application/protobuf",
+        "dataschema": "type.googleapis.com/company.reservations.event.v1.ReservationCancelled",
+        "id": "evt-2002",
+        "partitionkey": "c-42",
+        "source": "urn:dmpf:orders",
+        "specversion": "1.0",
+        "subject": "order/o-1001",
+        "time": "2026-09-02T12:00:00Z",
+        "traceparent": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+        "type": "com.company.reservations.reservation-cancelled.v1"
+      },
+      "payload": {
+        "order_id": "o-2002"
+      },
+      "payload_bytes_hex": "0a066f2d323030320a066f2d32303032",
+      "payload_hash": "490bc293513a9b7f0014d02b30cdb276042943cc5d79c65df4655eae4ad582b5"
+    }
+  ]
+}

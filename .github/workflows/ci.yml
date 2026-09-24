@@ -30,6 +30,9 @@ jobs:
       NX_EXCLUDE: "@mateusmacedo/dmpf-source"
       DMPF_PG_DSN: "postgres://dmpf:dmpf@localhost:5432/dmpf?sslmode=disable"
       DMPF_KAFKA_BROKERS: "localhost:9092"
+      DMPF_KAFKA_SASL_BROKERS: "localhost:19092"
+      DMPF_KAFKA_SASL_USERNAME: "dmpf-ci"
+      DMPF_KAFKA_SASL_PASSWORD: "dmpf-ci-secret"
       DMPF_SQS_ENDPOINT: "http://localhost:4566"
       AWS_REGION: "us-east-1"
       AWS_ACCESS_KEY_ID: "test"
@@ -73,11 +76,12 @@ jobs:
       # dos project.json; `--affected` mantém o regime do resto do pipeline.
       # Os estágios selecionam por `layer:*`; um módulo Go sem a tag perderia
       # fmt-check, vet e test-race sem ninguém reclamar. A diferença entre
-      # `stack:go` e a união das cinco camadas tem de ser vazia.
+      # `stack:go` (menos o tooling, que tem step próprio) e a união das cinco
+      # camadas tem de ser vazia.
       - name: Toda lib Go declara exatamente uma camada
         run: |
           set -euo pipefail
-          go_all="$(pnpm nx show projects --projects=tag:stack:go --json | jq -r '.[]' | sort)"
+          go_all="$(pnpm nx show projects --projects=tag:stack:go --exclude=conformance --json | jq -r '.[]' | sort)"
           layered="$(for l in domain services contract providers apps; do pnpm nx show projects --projects=tag:layer:$l --json | jq -r '.[]'; done | sort)"
           if [ -n "$(comm -23 <(echo "$go_all") <(echo "$layered"))" ]; then
             echo "módulos Go sem tag layer:*:" >&2
@@ -106,6 +110,16 @@ jobs:
           lista="$(pnpm nx show projects --affected --base=$NX_BASE --head=$NX_HEAD --projects=tag:layer:services --json | jq -r 'join(",")')"
           if [ -z "$lista" ]; then
             echo "estágio 2 (services): nenhum projeto afetado"
+            exit 0
+          fi
+          pnpm nx run-many -t fmt-check,vet,test-race -p "$lista" --parallel=3
+
+      - name: Tooling Go — conformance (sem layer:*, antes dos gates que o executam)
+        run: |
+          set -euo pipefail
+          lista="$(pnpm nx show projects --affected --base=$NX_BASE --head=$NX_HEAD --projects=conformance --json | jq -r 'join(",")')"
+          if [ -z "$lista" ]; then
+            echo "tooling (conformance): nenhum projeto afetado"
             exit 0
           fi
           pnpm nx run-many -t fmt-check,vet,test-race -p "$lista" --parallel=3
@@ -155,6 +169,20 @@ jobs:
       - name: DMPF generator check (self-test)
         run: bash tools/dmpf-generator-check.sh --phase self-test
 
+      # Sem `if: steps.go_affected`: o layout de um contexto se rompe ao mover
+      # arquivo ou ao mexer em project.json e dmpf-units.json, que não são Go.
+      - name: DMPF context check (structural)
+        run: bash tools/dmpf-context-check.sh --phase structural
+
+      # Os sete vetores negativos, pela mesma razão do self-test acima.
+      - name: DMPF context check (self-test)
+        run: bash tools/dmpf-context-check.sh --phase self-test
+
+      # Sem `if: steps.go_affected`: import sem `require` compila no workspace pelo
+      # `go.work` e só quebra para quem consome o módulo por tag.
+      - name: DMPF modsync gate
+        run: go run ./tools/dmpf-conformance/cmd/modsync --root . --check
+
       # GATE, fail-closed. Sem `continue-on-error` e sem `|| true`: a partir
       # daqui o verificador reprova o PR. O passo shadow que existia aqui foi
       # removido NESTE MESMO COMMIT, para que não exista estado em que os dois
@@ -169,7 +197,7 @@ jobs:
       # o tempo, sem mudança de código, e precisa reprovar em qualquer PR.
       - name: DMPF conformance gate
         run: |
-          go run ./libs/backend/go/dmpf-conformance/cmd/dmpf-conformance --root . --base "$NX_BASE"
+          go run ./tools/dmpf-conformance/cmd/conformance --root . --base "$NX_BASE"
 
       # Sem `if: steps.go_affected`, como o generator check: um PR que só toca
       # `bom/` não afeta projeto Go nenhum e pularia o gate. Os BOMs antigos ficam
@@ -182,7 +210,7 @@ jobs:
           case "$BASE_REF" in
             master | release/*) base="origin/develop" ;;
           esac
-          go run ./libs/backend/go/dmpf-conformance/cmd/dmpf-bom --root . --release latest --base "$base"
+          go run ./tools/dmpf-conformance/cmd/bom --root . --release latest --base "$base"
 
       # O bloco `services:` não serve aqui: o act_runner põe serviço e job na
       # bridge default do Docker, que não resolve nome de container, e declara
@@ -234,6 +262,38 @@ jobs:
           docker logs "$nome" >&2
           exit 1
 
+      # Segundo broker, que exige SASL SCRAM (IDN-04): prova que o cliente se
+      # autentica e que o broker recusa quem não se autentica. Portas próprias
+      # porque os contêineres dividem o namespace de rede do job.
+      - name: Subir Redpanda com SASL para o teste de autenticação de cliente
+        run: |
+          set -euo pipefail
+          nome="dmpf-redpanda-sasl-$(hostname)"
+          docker rm -f "$nome" 2>/dev/null || true
+          docker run -d --name "$nome" \
+            --network "container:$(hostname)" \
+            redpandadata/redpanda:v26.2.2@sha256:468bd13a9f2bd24794cb7fddc867c767fb1008b9a07b297b89fde48c564d7d96 \
+            redpanda start --mode dev-container --smp 1 \
+            --advertise-kafka-addr sasl://localhost:19092 \
+            --rpc-addr 0.0.0.0:43145 --advertise-rpc-addr localhost:43145 \
+            --pandaproxy-addr 0.0.0.0:18082 --schema-registry-addr 0.0.0.0:18081 \
+            --set 'redpanda.admin=[{"address":"0.0.0.0","port":19644}]' \
+            --set 'redpanda.kafka_api=[{"name":"sasl","address":"0.0.0.0","port":19092,"authentication_method":"sasl"}]' \
+            --set "redpanda.superusers=[\"${DMPF_KAFKA_SASL_USERNAME}\"]" \
+            --set redpanda.kafka_enable_authorization=true
+          for _ in $(seq 1 30); do
+            if docker exec "$nome" rpk cluster health -X admin.hosts=localhost:19644 2>/dev/null | grep -q 'Healthy:.*true'; then
+              docker exec "$nome" rpk security user create "$DMPF_KAFKA_SASL_USERNAME" -p "$DMPF_KAFKA_SASL_PASSWORD" \
+                --mechanism SCRAM-SHA-256 -X admin.hosts=localhost:19644
+              echo "redpanda com SASL pronto em localhost:19092 ($nome)"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "redpanda com SASL nao respondeu em 60s" >&2
+          docker logs "$nome" >&2
+          exit 1
+
       # SQS e SNS no mesmo emulador, para o hop SNS → SQS com raw delivery. As
       # filas e tópicos são criados pelo próprio teste de integração; o floci
       # aceita qualquer credencial não vazia, e /_floci/health lista os serviços.
@@ -267,7 +327,7 @@ jobs:
           pnpm nx run-many -t fmt-check,vet,test-race -p "$lista" --parallel=3
 
       # Gates Buf dos contratos (contracts/README.md, "Gates e baseline"): só o
-      # dmpf-contracts-go os declara, com contracts/** nos inputs, então um PR que
+      # contracts os declara, com contracts/** nos inputs, então um PR que
       # toque só um .proto entra no affected; buf-breaking lê NX_BASE como baseline.
       # Fecham o estágio 3 (KIT-09: uma quebra contratual barra providers e apps)
       # e correm DEPOIS dos gates DMPF, que já passaram antes da infra — a falha
@@ -324,4 +384,4 @@ jobs:
       # de cada step nunca alcança o resíduo de um job anterior; quem limpa é este.
       - name: Derrubar a infraestrutura do job
         if: always()
-        run: docker rm -f "dmpf-postgres-$(hostname)" "dmpf-redpanda-$(hostname)" "dmpf-floci-$(hostname)" >/dev/null 2>&1 || true
+        run: docker rm -f "dmpf-postgres-$(hostname)" "dmpf-redpanda-$(hostname)" "dmpf-redpanda-sasl-$(hostname)" "dmpf-floci-$(hostname)" >/dev/null 2>&1 || true

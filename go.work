@@ -1,24 +1,42 @@
 go 1.26.6
 
 use (
-	./apps/backend/dmpf-reference
-	./libs/backend/go/bookings/app
-	./libs/backend/go/bookings/application
-	./libs/backend/go/bookings/domain
-	./libs/backend/go/bookings/ports
-	./libs/backend/go/bookings/provider
-	./libs/backend/go/dmpf-app
-	./libs/backend/go/dmpf-application
-	./libs/backend/go/dmpf-conformance
-	./libs/backend/go/dmpf-contracts
-	./libs/backend/go/dmpf-domain
-	./libs/backend/go/dmpf-observability
-	./libs/backend/go/dmpf-ports
-	./libs/backend/go/dmpf-provider-grpc
-	./libs/backend/go/dmpf-provider-http
-	./libs/backend/go/dmpf-provider-kafka
-	./libs/backend/go/dmpf-provider-postgres
-	./libs/backend/go/dmpf-provider-sqs
-	./libs/backend/go/dmpf-testkit
-	./libs/backend/go/dmpf-transport
+	./apps/backend/bff
+	./apps/backend/bookings
+	./apps/backend/orders
+	./apps/backend/reservations
+	./libs/backend/go/app
+	./libs/backend/go/application
+	./libs/backend/go/authn
+	./libs/backend/go/contracts
+	./libs/backend/go/domain
+	./libs/backend/go/grpc
+	./libs/backend/go/http
+	./libs/backend/go/kafka
+	./libs/backend/go/memory
+	./libs/backend/go/observability
+	./libs/backend/go/ports
+	./libs/backend/go/postgres
+	./libs/backend/go/sqs
+	./libs/backend/go/testkit
+	./libs/backend/go/transport
+	./tools/dmpf-conformance
+)
+
+replace (
+	github.com/mateusmacedo/dmpf/libs/backend/go/app v0.1.0 => ./libs/backend/go/app
+	github.com/mateusmacedo/dmpf/libs/backend/go/application v0.1.0 => ./libs/backend/go/application
+	github.com/mateusmacedo/dmpf/libs/backend/go/authn v0.1.0 => ./libs/backend/go/authn
+	github.com/mateusmacedo/dmpf/libs/backend/go/contracts v0.1.0 => ./libs/backend/go/contracts
+	github.com/mateusmacedo/dmpf/libs/backend/go/domain v0.1.0 => ./libs/backend/go/domain
+	github.com/mateusmacedo/dmpf/libs/backend/go/grpc v0.1.0 => ./libs/backend/go/grpc
+	github.com/mateusmacedo/dmpf/libs/backend/go/http v0.1.0 => ./libs/backend/go/http
+	github.com/mateusmacedo/dmpf/libs/backend/go/kafka v0.1.0 => ./libs/backend/go/kafka
+	github.com/mateusmacedo/dmpf/libs/backend/go/memory v0.1.0 => ./libs/backend/go/memory
+	github.com/mateusmacedo/dmpf/libs/backend/go/observability v0.1.0 => ./libs/backend/go/observability
+	github.com/mateusmacedo/dmpf/libs/backend/go/ports v0.1.0 => ./libs/backend/go/ports
+	github.com/mateusmacedo/dmpf/libs/backend/go/postgres v0.1.0 => ./libs/backend/go/postgres
+	github.com/mateusmacedo/dmpf/libs/backend/go/testkit v0.1.0 => ./libs/backend/go/testkit
+	github.com/mateusmacedo/dmpf/libs/backend/go/transport v0.1.0 => ./libs/backend/go/transport
+	github.com/mateusmacedo/dmpf/tools/dmpf-conformance v0.1.0 => ./tools/dmpf-conformance
 )

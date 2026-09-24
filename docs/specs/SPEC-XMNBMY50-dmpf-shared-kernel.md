@@ -14,37 +14,37 @@ created: 2026-09-09
 
 ## Resumo
 
-Pela norma vigente, nenhum bounded context fora de `dmpf-kernel` consegue
+Pela norma vigente, nenhum bounded context fora de `kernel` consegue
 consumir o kernel de runtime: a condição C2 da regra de dependência só libera
 uma aresta entre contextos quando o destino é `contract` ou declara
 `public_integration_surface: true`, e essa declaração é inválida em bloco
-`domain` (`DMPF-M002`). Como `dmpfapplication.Outcome[R]` e
-`dmpfports.OutboxEntry` expõem tipos de `dmpfdomain`, importar qualquer bloco
+`domain` (`DMPF-M002`). Como `application.Outcome[R]` e
+`ports.OutboxEntry` expõem tipos de `domain`, importar qualquer bloco
 do kernel obriga a importar o seu `domain` — e o verificador emite `DMPF-D002`.
 Esta spec introduz a noção de **shared kernel**: um conjunto nominal de
 unidades do kernel — inclusive as de `domain` — designado por ato de
 classificação como importável por qualquer outro contexto. A designação é por
-**unidade**, nunca pelo contexto inteiro: `dmpf-kernel` também classifica os
+**unidade**, nunca pelo contexto inteiro: `kernel` também classifica os
 agregados de exemplo (`example-orders`, `example-reservations`) e a composition
 root de referência (`reference-app`), que continuam privados. A lista vive no
 baseline governado, não no manifesto do produtor, para que a proibição de
 RFC §7.2 continue fechada aos domínios de negócio.
 
-Como squad que cria um bounded context novo, quero usar `dmpfdomain`,
-`dmpfports`, `dmpfapplication` e os providers do kernel e ser aprovada pelo
-verificador sem declarar meu contexto como `dmpf-kernel`.
+Como squad que cria um bounded context novo, quero usar `domain`,
+`ports`, `application` e os providers do kernel e ser aprovada pelo
+verificador sem declarar meu contexto como `kernel`.
 
 ## Contexto
 
 - **Problema**: a prova do generator `bounded-context` (SPEC-H1A190Y8) gerou o
   contexto `genproofctx` e o verificador reprovou com dois `DMPF-D002`
-  (`genproof-domain/{request,fulfillment} → dmpf-kernel/domain`). Todos os
-  manifestos do workspace declaram `bounded_context: dmpf-kernel` (exceto o do
+  (`genproof-domain/{request,fulfillment} → kernel/domain`). Todos os
+  manifestos do workspace declaram `bounded_context: kernel` (exceto o do
   próprio verificador), então a condição C2 nunca havia sido exercitada por um
   consumidor externo. O kernel foi desenhado para ser consumido, mas a norma
   que o classifica o trata como um contexto de negócio qualquer.
 - **Impacto**: sem esta spec, o único caminho para um contexto novo é
-  declarar-se `dmpf-kernel` — o que apaga a identidade de limite que o
+  declarar-se `kernel` — o que apaga a identidade de limite que o
   ADR-017 existe para tornar verificável — ou reescrever o desfecho da UPR e
   os tipos de porta em cada contexto.
 - **Inspiração**: o padrão *Shared Kernel* de DDD (Evans, cap. 14): um
@@ -60,14 +60,14 @@ verificador sem declarar meu contexto como `dmpf-kernel`.
   - `SPEC-WTAXFV8B` — KRN-02, o verificador e o baseline
   - `SPEC-H1A190Y8` — o generator que expôs o bloqueio; primeira consumidora
 - **Evidência no código** (verificada em 2026-09-09):
-  - `libs/backend/go/dmpf-conformance/internal/rule/decide.go:35` — C2 =
+  - `libs/backend/go/conformance/internal/rule/decide.go:35` — C2 =
     `SameBoundedContext || PublicIntegrationSurface(target)`
-  - `libs/backend/go/dmpf-conformance/internal/manifest/validate.go:95` —
+  - `libs/backend/go/conformance/internal/manifest/validate.go:95` —
     `public_integration_surface: true` em `domain` emite `DMPF-M002`
-  - `libs/backend/go/dmpf-application/outcome.go:14,25,37` —
-    `Outcome[R]` carrega `*dmpfdomain.Rejection`
-  - `libs/backend/go/dmpf-ports/outbox.go:33` — `Event dmpfdomain.DomainEvent`
-  - `libs/backend/go/dmpf-conformance/internal/baseline/{baseline.go:32-36,digest.go:15-29,authorization.go:12-18}`
+  - `libs/backend/go/application/outcome.go:14,25,37` —
+    `Outcome[R]` carrega `*domain.Rejection`
+  - `libs/backend/go/ports/outbox.go:33` — `Event domain.DomainEvent`
+  - `libs/backend/go/conformance/internal/baseline/{baseline.go:32-36,digest.go:15-29,authorization.go:12-18}`
     — `Document`/`Digest`/`Entries` e os cinco `Ato`s do T002
 
 <constraints>
@@ -85,11 +85,11 @@ verificador sem declarar meu contexto como `dmpf-kernel`.
 - [ ] **[P0] Designação de shared kernel no baseline governado**: o arquivo
   `tools/dmpf-baseline/units-baseline.json` ganha a chave `shared_kernel_units`
   (array de chaves canônicas de unidade, default `[]`), com o valor inicial
-  cobrindo a API de runtime do kernel — `dmpf-kernel/domain`,
-  `dmpf-kernel/port`, `dmpf-kernel/application`, `dmpf-kernel/provider-postgres`,
-  `dmpf-kernel/app-consumer`, `dmpf-kernel/app-relay`, `dmpf-kernel/observability`,
-  `dmpf-kernel/transport`, as unidades dos providers de transporte e os
-  contratos (`dmpf-contracts/*`, já públicos por construção) — e **excluindo**
+  cobrindo a API de runtime do kernel — `kernel/domain`,
+  `kernel/port`, `kernel/application`, `kernel/provider-postgres`,
+  `kernel/app-consumer`, `kernel/app-relay`, `kernel/observability`,
+  `kernel/transport`, as unidades dos providers de transporte e os
+  contratos (`contracts/*`, já públicos por construção) — e **excluindo**
   `example-*`, `example-memory` e `reference-app`.
   A chave vive no `Document` do baseline (`internal/baseline/baseline.go`), e o
   `Digest` passa a cobri-la junto com `Entries` (`internal/baseline/digest.go`
@@ -115,20 +115,20 @@ verificador sem declarar meu contexto como `dmpf-kernel`.
   dependências externas.
   - Edge case: source dentro do kernel importando contexto de negócio → C2
     continua exigindo superfície pública (a relação é unidirecional).
-  - Edge case: `X/domain → dmpf-kernel/example-orders` → `D002` (unidade do
-    kernel fora da lista); `X/application → dmpf-kernel/reference-app` →
+  - Edge case: `X/domain → kernel/example-orders` → `D002` (unidade do
+    kernel fora da lista); `X/application → kernel/reference-app` →
     `D001` e `D002`.
 - [ ] **[P0] `DMPF-M002` inalterado**: `public_integration_surface: true` em
   bloco `domain` continua inválido, inclusive dentro do shared kernel.
 - [ ] **[P0] Testes do verificador**: vetores em `internal/rule` e
-  `internal/conformance` cobrindo: contexto X → `dmpf-kernel/domain` aprovado;
-  X → `dmpf-kernel/example-orders` reprovado com `D002`; X → Y/`domain` (Y de
+  `internal/conformance` cobrindo: contexto X → `kernel/domain` aprovado;
+  X → `kernel/example-orders` reprovado com `D002`; X → Y/`domain` (Y de
   negócio) reprovado com `D002`; lista com chave inexistente reprovada;
   designação misturada com código → `T002`; baseline sem a chave → digest
   legado aceito; baseline com a chave e digest antigo → `T001`.
 - [ ] **[P0] Gate mecânico**: `tools/dmpf-gate-check.sh` (ou script irmão)
-  ganha vetores que provam a aprovação de X → `dmpf-kernel/domain` e a
-  reprovação de X → Y/`domain` **e** de X → `dmpf-kernel/example-orders`, num
+  ganha vetores que provam a aprovação de X → `kernel/domain` e a
+  reprovação de X → Y/`domain` **e** de X → `kernel/example-orders`, num
   repositório descartável, no mesmo molde dos vetores existentes.
 - [ ] **[P1] ADR-042 "Shared kernel"**: registra a decisão, a alternativa
   descartada (flag por unidade) e a relação com ADR-017; ADR-017 ganha a nota
@@ -141,25 +141,25 @@ verificador sem declarar meu contexto como `dmpf-kernel`.
 ### Não-funcionais
 
 - [ ] Compatibilidade: baselines sem a chave continuam válidos; nenhum
-  diagnóstico novo aparece nos 15 módulos existentes (todos são `dmpf-kernel`
-  ou `dmpf-conformance`).
+  diagnóstico novo aparece nos 15 módulos existentes (todos são `kernel`
+  ou `conformance`).
 - [ ] Determinismo: o verificador continua idempotente; `--write-baseline`
   produz a mesma saída para a mesma árvore.
-- [ ] Sem dependência externa nova no `dmpf-conformance`.
+- [ ] Sem dependência externa nova no `conformance`.
 
 ## Camadas afetadas
 
 | Camada (bloco DMPF) | Afetada? | O que muda |
 | --- | --- | --- |
-| `domain`, `port`, `application`, `provider`, `app` do kernel | [ ] | Nenhum código muda; só a classificação do contexto `dmpf-kernel` |
-| Verificador (`dmpf-conformance`) | [x] | Regra C2, leitura/escrita do baseline, validação, diagnóstico novo, testes |
+| `domain`, `port`, `application`, `provider`, `app` do kernel | [ ] | Nenhum código muda; só a classificação do contexto `kernel` |
+| Verificador (`conformance`) | [x] | Regra C2, leitura/escrita do baseline, validação, diagnóstico novo, testes |
 | Baseline governado | [x] | `shared_kernel_units` em `tools/dmpf-baseline/units-baseline.json` |
 | Documentação normativa | [x] | ADR-042, nota no ADR-017, guia do manifesto |
 
 ## Localização de código
 
 ```text
-libs/backend/go/dmpf-conformance/
+libs/backend/go/conformance/
   internal/rule/decide.go              — MODIFICAR: C2 com shared kernels
   internal/rule/diagnostic.go          — MODIFICAR: código novo (shared kernel inexistente)
   internal/manifest/validate.go        — MANTER M002; validar a lista contra os contextos declarados
@@ -181,7 +181,7 @@ docs/guides/dmpf-manifesto.md          — MODIFICAR: seção "Shared kernel"
 ### Arquitetura
 
 ```text
- units-baseline.json ── shared_kernel_units: [dmpf-kernel/domain, …] ──► conformance.check ──► rule.Decide(source, target, sharedUnits)
+ units-baseline.json ── shared_kernel_units: [kernel/domain, …] ──► conformance.check ──► rule.Decide(source, target, sharedUnits)
                                                                                    C1: AllowedByMatrix(blocks)        (inalterada)
                                                                                    C2: same || public(target) || target.key ∈ sharedUnits
  manifest.validate ── M002: domain + public_integration_surface → inválido    (inalterada)
@@ -190,12 +190,12 @@ docs/guides/dmpf-manifesto.md          — MODIFICAR: seção "Shared kernel"
 
 ### Fluxo principal
 
-1. A squad gera ou escreve um contexto `X` que importa `dmpfdomain`,
-   `dmpfports` e `dmpfapplication`.
+1. A squad gera ou escreve um contexto `X` que importa `domain`,
+   `ports` e `application`.
 2. O verificador lê `shared_kernel_units` do baseline; as unidades de runtime
    do kernel estão na lista.
-3. Para cada aresta `X/* → dmpf-kernel/<unidade listada>`, C1 decide pelo par
-   de blocos e C2 passa; `X/* → dmpf-kernel/example-orders` reprova em `D002`.
+3. Para cada aresta `X/* → kernel/<unidade listada>`, C1 decide pelo par
+   de blocos e C2 passa; `X/* → kernel/example-orders` reprova em `D002`.
 4. Para uma aresta `X/domain → Y/domain` com `Y` de negócio, C2 reprova com
    `DMPF-D002`, como hoje.
 5. Alterar a lista exige commit próprio; misturada com código, o verificador
@@ -209,7 +209,7 @@ docs/guides/dmpf-manifesto.md          — MODIFICAR: seção "Shared kernel"
   designação é ato de classificação auditável, com a mesma proteção
   `T001`/`T002` do restante. Alternativa descartada: `shared_kernel: true` no
   `dmpf-units.json` do kernel, porque qualquer contexto poderia marcar o seu.
-- **Lista de unidades, não de contextos** porque `dmpf-kernel` classifica
+- **Lista de unidades, não de contextos** porque `kernel` classifica
   também `example-orders`, `example-reservations`, `example-memory` e
   `reference-app`: uma designação por contexto tornaria importável tudo o que
   C1 permitir, inclusive agregados de exemplo e a composition root — o oposto
@@ -234,29 +234,29 @@ docs/guides/dmpf-manifesto.md          — MODIFICAR: seção "Shared kernel"
 
 ### Critérios de aceite
 
-- [ ] `pnpm nx run dmpf-conformance-go:test-race` verde com os vetores novos,
+- [x] `pnpm nx run conformance:test-race` verde com os vetores novos,
   incluindo: `Digest` muda quando `shared_kernel_units` muda; lista alterada sem
   recalcular → `T001`; `Ato` "designar shared kernel" detectado.
-- [ ] Um contexto de teste `X` (fixture) importando `dmpf-kernel/domain`,
+- [x] Um contexto de teste `X` (fixture) importando `kernel/domain`,
   `port` e `application` é aprovado com `--base`; o mesmo `X` importando
-  `Y/domain` ou `dmpf-kernel/example-orders` reprova com `D002`.
-- [ ] `tools/dmpf-baseline/units-baseline.json` contém `shared_kernel_units`
-  com a lista nominal em commit próprio; `dmpf-conformance
+  `Y/domain` ou `kernel/example-orders` reprova com `D002`.
+- [x] `tools/dmpf-baseline/units-baseline.json` contém `shared_kernel_units`
+  com a lista nominal em commit próprio; `conformance
   --root . --base <antes>` aprova o workspace.
-- [ ] `bash tools/dmpf-gate-check.sh` passa com o vetor novo.
-- [ ] ADR-042 criado; ADR-017 anotado; guia atualizado; `pt-reviewer` ✓.
-- [ ] Cadeia do workspace verde; nenhum diagnóstico novo nos módulos existentes.
+- [x] `bash tools/dmpf-gate-check.sh` passa com o vetor novo.
+- [x] ADR-042 criado; ADR-017 anotado; guia atualizado; `pt-reviewer` ✓.
+- [x] Cadeia do workspace verde; nenhum diagnóstico novo nos módulos existentes.
 
 ### Cenários de teste
 
 ```text
-DADO um baseline com shared_kernel_units contendo dmpf-kernel/domain e um contexto X com bloco domain importando dmpf-kernel/domain
-QUANDO dmpf-conformance --root . --base HEAD0 roda
+DADO um baseline com shared_kernel_units contendo kernel/domain e um contexto X com bloco domain importando kernel/domain
+QUANDO conformance --root . --base HEAD0 roda
 ENTÃO nenhum D002 é emitido e a saída é "conforme"
 
-DADO o mesmo baseline e um contexto X importando dmpf-kernel/example-orders (fora da lista)
+DADO o mesmo baseline e um contexto X importando kernel/example-orders (fora da lista)
 QUANDO o verificador roda
-ENTÃO D002 nomeia X → dmpf-kernel/example-orders e a saída é REPROVADO
+ENTÃO D002 nomeia X → kernel/example-orders e a saída é REPROVADO
 
 DADO o mesmo baseline e um contexto X importando Y/domain, com Y fora da lista
 QUANDO o verificador roda
@@ -284,7 +284,7 @@ ENTÃO a lista é tratada como vazia, o digest legado (só entries) é aceito e 
 - **Superfície pública por unidade de negócio**: continua sendo
   `public_integration_surface: true` fora de `domain` (ADR-017); esta spec não
   a altera.
-- **Refatorar o kernel para não expor `dmpfdomain` em `ports`/`application`**:
+- **Refatorar o kernel para não expor `domain` em `ports`/`application`**:
   seria a alternativa sem mudança normativa, mas quebraria a API de 14 módulos
   e a forma canônica do desfecho da UPR (ADR-032); fica registrada como
   alternativa não escolhida no ADR-042.

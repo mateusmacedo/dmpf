@@ -5,11 +5,11 @@ kernel (ARQ-553) ou na construção do golden `bookings` (ARQ-554). Quando o
 golden for regenerado e algo novo morder, a entrada nova vem para cá.
 
 1. **`time` no bloco `domain` reprova.** O verificador classifica o package
-   `time` inteiro como `io.clock` (`dmpf-conformance/internal/rule/stdlib.go`,
+   `time` inteiro como `io.clock` (`conformance/internal/rule/stdlib.go`,
    `capability.go`), e o `depguard` do bloco nega o import. O instante chega
    por parâmetro, como inteiro de nanossegundos. `errors.New`, `fmt.Errorf`,
    `panic` e `fmt.Print*` são os outros red controls do `forbidigo`, restritos
-   a `-domain/`.
+   a `/domain/`.
 2. **`golangci-lint` ignora arquivo com cabeçalho `DO NOT EDIT` por default**
    (`exclusions.generated: strict`). Quem quer provar o lint sobre código
    gerado precisa desligar esse filtro — a prova do generator faz isso.
@@ -21,14 +21,16 @@ golden for regenerado e algo novo morder, a entrada nova vem para cá.
    os regrava.
 5. **`.proto` publicado nunca é regravado.** Drift entre a definição e o
    `.proto` existente é recusa nomeando o evento; evolução é rito próprio.
-6. **Sem a unidade `<ctx>/contract` no manifesto do `dmpf-contracts`, o
+6. **Sem a unidade `<ctx>/contract` no manifesto do `contracts`, o
    `gen/go` novo cai em `DMPF-U001`** e o `--write-baseline` aborta. A
    unidade entra antes do `generate`.
-7. **`pnpm install` é obrigatório depois de gerar.** O módulo novo tem
-   `package.json` (`private: true`) e vira importer do pnpm; sem o install os
-   targets falham de forma obscura.
+7. **`pnpm install` deixou de ser passo do rito.** Enquanto o contexto nascia
+   em `libs/backend/go`, o `package.json` gerado o tornava importer do pnpm e
+   os targets falhavam de forma obscura sem o install. Em `apps/backend/<name>`
+   o módulo fica fora dos globs do `pnpm-workspace.yaml` (`apps/*`): o
+   `package.json` continua a existir para o Nx, e só ele o lê.
 8. **A composition root fica fora do generator.** Cabear processo é copiar
-   `apps/backend/dmpf-reference/cmd/dmpf-reference`; a skill aponta o passo,
+   `apps/backend/orders/cmd/orders`; a skill aponta o passo,
    não o executa.
 9. **Sem pluralização automática.** O identificador vai literal para tabela,
    rota e package: `<ctx>_<agregado>`, `/<ctx>/<agregado>`.
@@ -40,44 +42,45 @@ golden for regenerado e algo novo morder, a entrada nova vem para cá.
     reinstalar por baixo de um worktree).
 12. **`tb/pg.OpenPool` é do kernel, não do contexto.** O `resetStatement` é
     constante com as cinco tabelas do kernel e a migração chamada é
-    `dmpfpostgres.Migrate` (`libs/backend/go/dmpf-testkit/tb/pg/pool.go:22`).
+    `postgres.Migrate` (`libs/backend/go/testkit/tb/pg/pool.go:22`).
     Ele não migra nem reseta `<ctx>_*`: teste verde por vacuidade ou linhas
     vazadas entre casos. O contexto tem harness próprio, no molde de
-    `dmpf-provider-postgres/example/orders/testing_test.go`, que migra o kernel
+    `apps/backend/orders/provider/testing_test.go`, que migra o kernel
     **e** o contexto e trunca as tabelas de ambos.
 13. **Os harnesses Postgres truncam tabelas do kernel** (`dmpf_outbox`,
     `dmpf_inbox`, `dmpf_quarantine`), que todo contexto compartilha. O CI já
     serializa por estágio (`.github/workflows/ci.yml`, `--parallel=1` nos
     `test-race` com `cache: false`); localmente, `nx run-many -t test-race`
     sem `--parallel=1` faz duas suítes truncarem a outbox uma da outra. O
-    `dependsOn` inter-contexto (`<ctx>-provider-postgres-go` →
-    `dmpf-provider-postgres-go`) dá paridade parcial; `--parallel=1` é a
-    garantia.
-14. **D002 sem shared kernel.** Sem `dmpf-kernel/*` em `shared_kernel_units`
-    do baseline, `bookings/domain → dmpf-kernel/domain` reprova com
-    `DMPF-D002`. Hoje a designação existe (ARQ-553, quinze unidades); o
+    `dependsOn` inter-contexto (`<ctx>` → `postgres`) dá paridade parcial;
+    `--parallel=1` é a garantia.
+14. **D002 sem shared kernel.** Sem `kernel/*` em `shared_kernel_units`
+    do baseline, `bookings/domain → kernel/domain` reprova com
+    `DMPF-D002`. Hoje a designação existe (ARQ-553, dezesseis unidades com o
+    `kernel/provider-memory`); o
     `self-test` do `tools/dmpf-harness-check.sh` sabota a lista para provar
     que o gate ainda morde.
-15. **Um package por bloco, na raiz do módulo.** O agente tende a criar
-    subpackages por agregado (`bookings/`, `resources/`) dentro do bloco. A
-    unidade do manifesto aponta o import path do módulo, então subpackage vira
-    unidade não declarada e o verificador reprova com `DMPF-U*`. Um agregado é
-    um par de arquivos na raiz (`booking.go`, `resource.go`), não um diretório.
+15. **Um package por bloco.** O agente tende a criar subpackages por agregado
+    (`bookings/`, `resources/`) dentro do bloco. A unidade do manifesto aponta
+    o import path do package do bloco (`<módulo>/<bloco>`), então subpackage
+    vira unidade não declarada e o verificador reprova com `DMPF-U*`. Um
+    agregado é um par de arquivos no package (`booking.go`, `resource.go`),
+    não um diretório.
 16. **O contexto mora em uma pasta; cada bloco é um subdiretório dela.**
-    `libs/<scope>/<stack>/<ctx>/<bloco>` — não `<ctx>-<bloco>` como módulo
-    irmão. O `dirName` de cada bloco está em
+    `apps/<scope>/<ctx>/<bloco>` — não `<ctx>-<bloco>` como módulo irmão, e
+    não em `libs/backend/go`, que só guarda o kernel de reuso. O `dirName` de cada bloco está em
     `tools/dmpf-plugin/src/generators/bounded-context/blocks.ts` (`LAYOUTS`), e
-    é o generator que decide o caminho. O nome do **projeto Nx** continua
-    composto e com sufixo de stack (`bookings-domain-go`), porque nome de
-    projeto é chave única no workspace; só o caminho mudou.
+    é o generator que decide o caminho. O contexto é **um** módulo Go
+    (`go.mod` na raiz de `<ctx>`), e o nome do projeto Nx é `<ctx>`, sem
+    prefixo nem sufixo (ADR-045).
 17. **`gofmt` reprova import fora de ordem alfabética dentro do grupo.** O
     agente agrupa por origem (kernel primeiro, contexto depois), o que é
-    legítimo, mas erra a ordem dentro do grupo — `dmpf-domain` antes de
+    legítimo, mas erra a ordem dentro do grupo — `domain` antes de
     `bookings/domain` parece certo pela leitura e é errado pelo alfabeto. Foi
     a única reprovação de `fmt-check` em toda a entrega, e em seis arquivos de
     uma vez. `gofmt -w` resolve; rodá-lo antes do `fmt-check` evita o ciclo.
 18. **Bloco `port` sem superfície é bloco morto.** Os genéricos do kernel
-    (`dmpfports.Repository[ID,S]`, `Outbox`, `Reader[ID,S]`, `UnitOfWork[R]`)
+    (`ports.Repository[ID,S]`, `Outbox`, `Reader[ID,S]`, `UnitOfWork[R]`)
     expressam quase toda a fronteira por instanciação, sem tipo novo. O que
     eles não expressam é a consulta que atravessa uma relação — e ela tende a
     ser declarada onde é consumida, no `application`. O resultado compila, passa
@@ -91,7 +94,7 @@ golden for regenerado e algo novo morder, a entrada nova vem para cá.
     alcance `gen/go` se conclui **regerando** pelo rito Buf, nunca editando.
 20. **Suíte sem `BaselineStore` precisa declarar o shared kernel.**
     `Input.SharedKernelUnits` só vale quando `Baseline` é nil
-    (`libs/backend/go/dmpf-conformance/internal/conformance/check.go:30`) — que
+    (`tools/dmpf-conformance/internal/conformance/check.go:30`) — que
     é exatamente o caso do `fitness` e do `selfcheck`, por desenho (`FIT-03`:
     a suíte julga a regra de dependência, não a autoridade sobre a
     classificação). Enquanto só existe o kernel, a omissão não aparece; o

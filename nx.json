@@ -69,7 +69,26 @@
   ],
   "release": {
     "projectsRelationship": "independent",
-    "projects": ["tag:type:lib"],
+    "groups": {
+      "go-libs": {
+        "projects": ["directory:libs/backend/go/*", "!tag:type:app"],
+        "releaseTag": {
+          "pattern": "libs/backend/go/{projectName}/v{version}"
+        }
+      },
+      "go-tools": {
+        "projects": ["conformance"],
+        "releaseTag": {
+          "pattern": "tools/dmpf-conformance/v{version}"
+        }
+      },
+      "npm": {
+        "projects": ["tag:type:lib", "!tag:stack:go"],
+        "releaseTag": {
+          "pattern": "{projectName}@{version}"
+        }
+      }
+    },
     "releaseTag": {
       "pattern": "{projectName}@{version}"
     },
@@ -88,13 +107,6 @@
       "automaticFromRef": true,
       "projectChangelogs": {
         "entryWhenNoChanges": "Initial release"
-      }
-    },
-    "docker": {
-      "registryUrl": "ghcr.io",
-      "versionSchemes": {
-        "production": "{currentDate|YYMM.DD}.{shortCommitSha}",
-        "hotfix": "{currentDate|YYMM.DD}.{shortCommitSha}-hotfix"
       }
     }
   },

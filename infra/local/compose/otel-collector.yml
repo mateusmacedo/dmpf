@@ -1,4 +1,4 @@
-# Collector OTLP/gRPC: recebe a telemetria dos papéis (dmpf-observability
+# Collector OTLP/gRPC: recebe a telemetria dos papéis (observability
 # exporta por otelboot/otlp) e a encaminha ao Tempo (traces) e ao Prometheus
 # (métricas). A configuração é a mesma que os manifestos Kubernetes usam.
 services:
@@ -18,5 +18,5 @@ services:
         condition: service_healthy
     deploy:
       resources:
-        limits: { cpus: '0.50', memory: 256M }
+        limits: { cpus: '0.30', memory: 256M }
         reservations: { cpus: '0.05', memory: 64M }

@@ -46,8 +46,8 @@ inbox — sem eu escrever proto, mapper ou consumer à mão.
   (`buf-lint`, `buf-generate-check`, baseline BUF-08) continua o guardião do
   `gen/go`.
 - **Inspiração**: `contracts/README.md` (árvore, proveniência do envelope,
-  máquina de estados BUF-08); `dmpf-provider-postgres/example/orders/mapper.go`;
-  `dmpf-app/example/reservations/consumer.go`; `dmpf-reference` (relay e
+  máquina de estados BUF-08); `postgres/example/orders/mapper.go`;
+  `app/example/reservations/consumer.go`; `reference` (relay e
   consumer).
 - **Links relevantes**:
   - `SPEC-VZ16X0MS` — templates dos cinco blocos (esta spec acrescenta o que
@@ -96,14 +96,14 @@ inbox — sem eu escrever proto, mapper ou consumer à mão.
   código — `(cd contracts && bash ../tools/buf.sh generate)`, o único passo que
   escreve em `gen/go` (`buf-generate-check` apenas gera em diretórios
   temporários e compara, `tools/buf-gate.sh:69-78`) — depois os quatro gates
-  `pnpm nx run dmpf-contracts-go:buf-lint`, `buf-pins`, `buf-generate-check` e
+  `pnpm nx run contracts:buf-lint`, `buf-pins`, `buf-generate-check` e
   `NX_BASE=<base> … buf-breaking`, e a nota BUF-08 sobre o baseline dos
   contratos — tudo ANTES de compilar os módulos gerados que importam `gen/go`.
 - [ ] **[P0] Unidade `contract` do contexto**: o `gen/go` novo
-  (`dmpf-contracts/gen/go/company/<goIdent>/event/v1`) precisa de dono no
-  universo — hoje `libs/backend/go/dmpf-contracts/dmpf-units.json` enumera
+  (`contracts/gen/go/company/<goIdent>/event/v1`) precisa de dono no
+  universo — hoje `libs/backend/go/contracts/dmpf-units.json` enumera
   exatamente três packages, e um package sem unidade recebe `DMPF-U001`, o que
-  faz o próprio `--write-baseline` abortar (`cmd/dmpf-conformance/main.go`). O
+  faz o próprio `--write-baseline` abortar (`cmd/conformance/main.go`). O
   generator faz merge por campo nesse manifesto acrescentando a unidade
   `{id: "<boundedContext>/contract", block: "contract", bounded_context:
   "<boundedContext>", include: [<import path do gen/go do contexto>],
@@ -126,7 +126,7 @@ inbox — sem eu escrever proto, mapper ou consumer à mão.
   `Failure(Validation)` em `ErrSchemaMismatch`/`ErrMalformed` sem UoW,
   chamada a `service.Consume<Event>` com `MessageID`, `MessageType`,
   `PayloadHash`, `ReceivedAt` e os campos traduzidos pelo `fieldMap` para o
-  comando local — o precedente nominal é `dmpf-app/example/reservations/consumer.go`;
+  comando local — o precedente nominal é `app/example/reservations/consumer.go`;
   `NewConsumer`; teste de envelope de outro contrato → `R1D4` e contenção.
 - [ ] **[P0] Fases `integration` e `self-test` da prova**:
   `tools/dmpf-generator-check.sh --phase integration` roda `test-race` dos
@@ -140,7 +140,7 @@ inbox — sem eu escrever proto, mapper ou consumer à mão.
   `.proto` já existente → o generator recusa por drift. A fase `structural` passa a
   materializar `gen/go` no worktree (`buf.sh generate`), rodar os quatro gates
   Buf, hashear e commitar o contrato gerado (fonte `.proto` + `gen/go` +
-  manifesto do `dmpf-contracts`) num commit próprio anterior ao de
+  manifesto do `contracts`) num commit próprio anterior ao de
   classificação, e só então seguir com a cadeia Go.
 - [ ] **[P0] CI**: `ci.yml` ganha "DMPF generator check (structural)" e
   "(self-test)" no bloco Gates DMPF (após `dmpf-cell-check.sh`) e
@@ -150,7 +150,7 @@ inbox — sem eu escrever proto, mapper ou consumer à mão.
   definição; gerar; rodar o rito Buf; classificar (baseline em commit próprio);
   preencher os stubs (`_rules.go`, `config.go`); `pnpm install` (o módulo
   gerado vira importer do pnpm); cabear o composition root copiando
-  `dmpf-reference`; subir Postgres e Redpanda; rodar cadeia e verificador;
+  `reference`; subir Postgres e Redpanda; rodar cadeia e verificador;
   regenerar com `--update`. Seções "O que o generator nunca toca" (baselines,
   `gen/go`, stubs), "Divergir do golden path" (sub-spec 3 do KRN-12) e
   "Contrato próprio" (esta spec). Indexado em `docs/dmpf/README.md` e
@@ -184,8 +184,8 @@ inbox — sem eu escrever proto, mapper ou consumer à mão.
 ```text
 tools/dmpf-plugin/src/generators/bounded-context/
     files/contract/event.proto__tmpl__                                   — NOVO (módulo Buf único; sem buf.yaml por contexto)
-  generator.ts                                                         — MODIFICAR: leitura do .proto existente (drift), merge da unidade contract em dmpf-contracts/dmpf-units.json
-libs/backend/go/dmpf-contracts/dmpf-units.json                         — MODIFICAR (pelo generator, merge por campo): unidade <boundedContext>/contract
+  generator.ts                                                         — MODIFICAR: leitura do .proto existente (drift), merge da unidade contract em contracts/dmpf-units.json
+libs/backend/go/contracts/dmpf-units.json                         — MODIFICAR (pelo generator, merge por campo): unidade <boundedContext>/contract
   files/provider/aggregate_mapper.go__tmpl__, mapper_test.go__tmpl__   — NOVO
   files/app/consumer.go__tmpl__, consumer_test.go__tmpl__              — MODIFICAR: envelope.Unpack, R1D4, comando local
   generator.ts                                                         — MODIFICAR: .proto só se ausente; instrução do rito Buf
@@ -203,7 +203,7 @@ docs/adr/041-*.md                                                      — MODIF
 ```text
  DomainModel.integration.publishes ──► contracts/proto/company/<goIdent>/event/v1/<event>.proto (fonte; só se ausente)
                                                                                 │ rito Buf (humano/CI): buf.sh generate → gen/go; depois buf-lint, buf-pins, buf-generate-check, buf-breaking
-                                        │ drift DSL × .proto existente → recusa; unidade <ctx>/contract no manifesto do dmpf-contracts
+                                        │ drift DSL × .proto existente → recusa; unidade <ctx>/contract no manifesto do contracts
                                         ▼
  provider: <aggregate>_mapper.go ── evento de domínio → eventv1.<Event> (Any) ──► outbox (ADR-035)
  app: Handler ── envelope.Unpack(env, &msg) ── ErrSchemaMismatch/ErrMalformed → R1D4 (sem UoW)
@@ -215,7 +215,7 @@ docs/adr/041-*.md                                                      — MODIF
 
 1. A squad gera `bookings` com `publishes: [BookingReserved]`.
 2. O generator escreve `contracts/proto/company/bookings/event/v1/booking_reserved.proto`,
-   a unidade `resource-scheduling/contract` no manifesto do `dmpf-contracts`,
+   a unidade `resource-scheduling/contract` no manifesto do `contracts`,
    e termina com a instrução do rito Buf.
 3. A squad roda `buf.sh generate` (materializa `gen/go`), depois `buf-lint`,
    `buf-pins`, `buf-generate-check` e `buf-breaking`; commit do contrato
@@ -240,7 +240,7 @@ docs/adr/041-*.md                                                      — MODIF
   mecânico e seria recalculado a partir da definição divergente — deixaria
   de compilar ou publicaria payload diferente do contrato. Alternativa
   descartada: regravar o `.proto`, porque contrato publicado é imutável.
-- **Unidade `contract` do contexto no manifesto do `dmpf-contracts`** porque
+- **Unidade `contract` do contexto no manifesto do `contracts`** porque
   o `gen/go` novo é package de produção e precisa de dono no universo; sem
   isso `--write-baseline` nem roda.
 - **`.proto` existente nunca é regravado** porque contrato publicado é
@@ -293,8 +293,8 @@ DADO o mesmo contexto e uma definição em que BookingReserved ganhou um campo n
 QUANDO o generator roda com --update
 ENTÃO recusa por drift nomeando BookingReserved, indica o rito de evolução e nada é escrito
 
-DADO o gen/go novo do contexto sem a unidade contract no manifesto do dmpf-contracts (vetor da prova)
-QUANDO dmpf-conformance --write-baseline roda
+DADO o gen/go novo do contexto sem a unidade contract no manifesto do contracts (vetor da prova)
+QUANDO conformance --write-baseline roda
 ENTÃO aborta com U001 nomeando o package, e a prova reprova nomeando o passo
 
 DADO um consumer gerado para BookingReserved e um envelope com DataSchema de orders.event.v1.OrderPlaced
@@ -322,4 +322,4 @@ ENTÃO a prova reprova nomeando "rito Buf" e o módulo que não compila
 - **Evolução de contrato (`v2`, campos novos em proto publicado)**: rito Buf e
   BUF-08; o generator nunca regrava `.proto` existente.
 - **Composition root e canais Kafka por ambiente**: golden path
-  (`dmpf-reference`, `infra/`); a sub-spec 3 do KRN-12 cobre divergências.
+  (`reference`, `infra/`); a sub-spec 3 do KRN-12 cobre divergências.

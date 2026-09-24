@@ -16,7 +16,7 @@ created: 2026-09-08
 
 Quarta e última sub-spec de `SPEC-8HWBWJCB` (`KRN-12`). Entrega o instrumento
 que transforma uma execução da suíte de `KRN-11` em **evidência endereçável e
-hasheável** — `cmd/dmpf-evidence`, que roda a suíte por subject, junta os
+hasheável** — `cmd/evidence`, que roda a suíte por subject, junta os
 veredictos que os testes gravam e publica um envelope canônico em
 `bom/evidence/<release>/` —, promove as entradas do BOM com
 execução real a `certificada`, cunha a tag `dmpf@0.1.0`, consolida o ADR-041 e o
@@ -29,7 +29,7 @@ que estou prestes a usar.
 ## Contexto
 
 - **Problema**: o `golden.Report` nasce dentro do processo de teste e é
-  consumido por `tb.RequireReport` (`dmpf-contracts/golden/golden_test.go:135`);
+  consumido por `tb.RequireReport` (`contracts/golden/golden_test.go:135`);
   nada o grava em disco; `providerkit`/`serviceskit`/`domainkit` devolvem
   `Verdict` por valor; `appkit` e `distkit` exigem `testing.TB`. `go test -json`
   emite eventos com `Time` e `Elapsed`, não o `Report`. Sem instrumento, o
@@ -45,14 +45,14 @@ que estou prestes a usar.
   - `SPEC-SJ66880S` / ADR-040 — "o `Report` é a evidência que `KRN-12`
     consome"; `test-race` cobre tudo menos `distkit`, que roda em
     `test-distributed`
-  - `SPEC-6QT9SBAS` — `dmpf-reference` como entrada do BOM
+  - `SPEC-6QT9SBAS` — `reference` como entrada do BOM
   - `SPEC-H1A190Y8` — plugin como entrada do BOM
 
 ### Divergências entre o ticket e o repositório
 
 | O ticket diz | O repositório tem | O que esta spec adota |
 | --- | --- | --- |
-| "promovendo só as entradas com evidência da suíte de `KRN-11`" | nenhum kit grava relatório; `go test -json` não carrega o `Report` | os testes dos kits gravam o `Report` e o `Verdict` sob `DMPF_EVIDENCE_DIR` (`evidence.RecordReport` e `RecordVerdict`); `cmd/dmpf-evidence` roda `go test -json` por subject, junta os registros e grava envelope canônico, **filtrando** `Time`/`Elapsed` do stream e guardando `Action`/`Test`/`Package` |
+| "promovendo só as entradas com evidência da suíte de `KRN-11`" | nenhum kit grava relatório; `go test -json` não carrega o `Report` | os testes dos kits gravam o `Report` e o `Verdict` sob `DMPF_EVIDENCE_DIR` (`evidence.RecordReport` e `RecordVerdict`); `cmd/evidence` roda `go test -json` por subject, junta os registros e grava envelope canônico, **filtrando** `Time`/`Elapsed` do stream e guardando `Action`/`Test`/`Package` |
 | — | `test-race` do testkit não cobre `distkit`; `test-distributed` é target próprio com `integration,distributed` | A evidência de Kafka/`franz-go` só existe se `test-distributed` rodou; a combinação que o inclui só entra em `compatible_with` com essa evidência |
 | "BOM da release" | `package.json` em `0.0.0`; app não versiona | `version` efetiva (guarda-chuva): módulos `0.0.0`, app = SHA curto, externas do `go.mod` |
 | "aprovador" | `BOM-05`: Plataforma com revisão de Arquitetura | `approved_by: "team:plataforma"` + `promoted: {by, reviewed_by, pr}` na entrada (`DMPF-B002`) |
@@ -84,10 +84,10 @@ que estou prestes a usar.
 
 ### Funcionais
 
-- [x] **[P0] Package `evidence` e `cmd/dmpf-evidence`** no `dmpf-testkit`
-  (unidades `dmpf-kernel/testkit-evidence` e `dmpf-kernel/testkit-cmd-evidence`,
+- [x] **[P0] Package `evidence` e `cmd/evidence`** no `testkit`
+  (unidades `kernel/testkit-evidence` e `kernel/testkit-cmd-evidence`,
   bloco `app`). Invocação: `go run
-  ./libs/backend/go/dmpf-testkit/cmd/dmpf-evidence --root . --release 0.1.0
+  ./libs/backend/go/testkit/cmd/evidence --root . --release 0.1.0
   --out bom/evidence/0.1.0 [--subjects golden,provider,domain,services,app,dist,reference]`.
   - `header`: `{schema: "dmpf/evidence@1", release, subject, commit (SHA
     completo), goversion, tags, packages, modules: [{path, version do
@@ -111,9 +111,9 @@ que estou prestes a usar.
   - Saída: um arquivo por subject em `<out>/<subject>.json`, cada um com o
     `header` e o corpo; `index.json` com `{subject, sha256}` de cada; exit 1 se
     qualquer `Verdict`/`Report`/`Action` reprovar.
-  - Target Nx `evidence` no `dmpf-testkit-go` (`cache: false`, `dependsOn`
-    `dmpf-provider-postgres-go:test-race`, `dmpf-app-go:test-race`,
-    `dmpf-reference-go:test-race`), que roda o comando com `--release` lido
+  - Target Nx `evidence` no `testkit` (`cache: false`, `dependsOn`
+    `postgres:test-race`, `app:test-race`,
+    `reference-go:test-race`), que roda o comando com `--release` lido
     de `bom/dmpf/`.
   - Edge case: `--subjects dist` sem `DMPF_KAFKA_BROKERS` sob `CI` → exit 1
     nomeando a variável; fora de `CI`, o subject é gravado como
@@ -136,7 +136,7 @@ que estou prestes a usar.
     registrada), `otel` (`app`), `protobuf` (`golden`), `golangci-lint` e
     `govulncheck` (`candidata`, ferramentas), os 14 módulos do kernel
     (`version` `0.0.0`, `certificada` pela suíte que os cobre),
-    `dmpf-reference` (`version` SHA curto, `certificada` por `app` +
+    `reference` (`version` SHA curto, `certificada` por `app` +
     e2e), `@mateusmacedo/dmpf-plugin` (`candidata`, exercitado por
     `dmpf-generator-check.sh` — `reason`).
   - `compatible_combinations`: a combinação Go × pgx × protobuf × otel ×
@@ -174,7 +174,7 @@ que estou prestes a usar.
 - [x] Conformidade: `evidence` e `cmd-evidence` aprovados; baseline em commit
   próprio.
 - [ ] Cadeia verde; `adr-verify`; `dmpf-verify`; `biome ci`.
-  Pendente fora do escopo desta sub-spec: `biome ci`, `dmpf-conformance` e
+  Pendente fora do escopo desta sub-spec: `biome ci`, `conformance` e
   `dmpf-bom` passam; `adr-verify` reprova com 50 violações (49 já na `develop`
   e 1 da regra que só admite um addendum por ADR, no ADR-041); `dmpf-verify`
   reprova no `C4` e o harness dele num teste histórico, ambos já na `develop`;
@@ -190,16 +190,16 @@ que estou prestes a usar.
 | Camada (bloco DMPF) | Afetada? | O que muda |
 | --- | --- | --- |
 | `domain` … `provider` | [ ] | — |
-| `app` | [x] | `dmpf-testkit/evidence`, `cmd/dmpf-evidence` |
+| `app` | [x] | `testkit/evidence`, `cmd/evidence` |
 | Workspace | [x] | `bom/dmpf/0.1.0.json` (promoção), `bom/evidence/0.1.0/`, tag, `dmpf-evidence.yml` (reprodução por `workflow_dispatch`), `ci.yml` (gate do BOM nos PRs de promoção), docs, ADRs |
 
 ## Localização de código
 
 ```text
-libs/backend/go/dmpf-testkit/
-  evidence/                                            — NOVO; unidade dmpf-kernel/testkit-evidence (app)
+libs/backend/go/testkit/
+  evidence/                                            — NOVO; unidade kernel/testkit-evidence (app)
     doc.go, header.go, record.go, gotest.go, write.go, evidence_test.go
-  cmd/dmpf-evidence/main.go, cmd_test.go               — NOVO; unidade dmpf-kernel/testkit-cmd-evidence (app)
+  cmd/evidence/main.go, cmd_test.go               — NOVO; unidade kernel/testkit-cmd-evidence (app)
   project.json                                         — MODIFICAR: target evidence
   dmpf-units.json                                      — MODIFICAR: 2 unidades
   README.md                                            — MODIFICAR
@@ -233,7 +233,7 @@ docs/specs/SPEC-8HWBWJCB-*.md, SPEC-YRJRADY9-*.md      — MODIFICAR: stage/chec
 
 ### Fluxo — da suíte à tag
 
-1. No commit candidato, `pnpm nx run dmpf-testkit-go:evidence` gera
+1. No commit candidato, `pnpm nx run testkit:evidence` gera
    `bom/evidence/0.1.0/*.json` e `index.json`; exit 0.
 2. Roda de novo; `index.json` idêntico (prova local do determinismo).
 3. O PR de certificação commita a evidência e preenche o BOM com os digests e

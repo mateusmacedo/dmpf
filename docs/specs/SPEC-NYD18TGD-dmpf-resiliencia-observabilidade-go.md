@@ -14,7 +14,7 @@ created: 2026-09-04
 
 ## Resumo
 
-Criar o módulo Go `dmpf-observability-go` (`libs/backend/go/dmpf-observability`,
+Criar o módulo Go `observability` (`libs/backend/go/observability`,
 bloco `provider`) que realiza a baseline de resiliência e observabilidade do
 DMPF (FND-08, ADR-026) sem acrescentar um único import de telemetria a `domain`
 nem a `port`: o bootstrap OpenTelemetry com propagador W3C Trace Context
@@ -25,7 +25,7 @@ construção; o avaliador de retry como função pura sobre os quatro fatores de
 `RES-27`, com orçamento **por execução** e backoff que consome orçamento; o
 catálogo de métricas de dependência e de serviço com nome, unidade e fórmula; e
 o canal de auditoria separado do log. A instrumentação do application service
-do `KRN-04` entra por um gancho **puro** declarado em `dmpf-application`
+do `KRN-04` entra por um gancho **puro** declarado em `application`
 (`Instrumentation`), que o provider satisfaz estruturalmente e o composition root
 liga — porque a matriz de blocos proíbe `application → provider` **e**
 `provider → application`.
@@ -65,7 +65,7 @@ convenções que esta spec fixa em código.
   `provider` dentro de um módulo `application`, e o vínculo entre transação e
   recursos é função de composição escrita pelo composition root
   (`SPEC-ZHE7DN1H`, "Divergências", linha 5). Esta spec repete o gesto: o gancho
-  de instrumentação é interface pura em `dmpfapplication`, a realização OTel é
+  de instrumentação é interface pura em `application`, a realização OTel é
   `provider`, e quem liga os dois é `app`. Na comunidade Go, o padrão de
   decorator por composição explícita — `sony/gobreaker`, `failsafe-go`,
   `cenkalti/backoff` — confirma a forma, mas nenhum deles decide retry por
@@ -75,7 +75,7 @@ convenções que esta spec fixa em código.
   - [SPEC-YRJRADY9](./SPEC-YRJRADY9-dmpf-kernel-sdk-go.md) — guarda-chuva;
     Incremento 4, linhas `KRN-09` e `KRN-10` da decomposição.
   - [SPEC-ZHE7DN1H](./SPEC-ZHE7DN1H-dmpf-kernel-aplicacao-go.md) — `KRN-04`:
-    `dmpf-ports`, `dmpf-application`, `example/orders` e `example/memory`, o
+    `ports`, `application`, `example/orders` e `example/memory`, o
     que esta spec instrumenta.
   - [SPEC-WTAXFV8B](./SPEC-WTAXFV8B-dmpf-verificador-conformidade-go.md) —
     `KRN-02`: o verificador que decide capability e matriz sobre o módulo novo.
@@ -90,7 +90,7 @@ convenções que esta spec fixa em código.
     `docs/adr/010-*.md` e `docs/adr/014-*.md` (matriz e aresta `domain → port`),
     `docs/adr/031-verificador-de-conformidade-dmpf-em-go.md` (leitura do
     complemento: `observability` passa em `application`).
-  - `libs/backend/go/dmpf-conformance/internal/rule/capability.go:46-53` —
+  - `libs/backend/go/conformance/internal/rule/capability.go:46-53` —
     política por bloco; `matrix.go:57-62` — as células.
 - **Referências externas**:
   - OpenTelemetry Go — `go.opentelemetry.io/otel` `v1.46.0` (publicado em
@@ -112,7 +112,7 @@ contratos que não compilavam ou contradiziam o SDK:
 2. `retry.Input` ganha `MaxAttempts` e `Rand`; `resilience.Operation` ganha
    `Kind`, `EffectAbsent` e `EstimatedDuration`; `RES-07` sai do `Compose` e
    vira `ValidateRoute(remaining, hops)`.
-3. `EndOperation` recebe `Result{Outcome, Err}`; `dmpfapplication.ErrDenied` é
+3. `EndOperation` recebe `Result{Outcome, Err}`; `application.ErrDenied` é
    o sentinela que distingue negação de falha técnica do autorizador; o
    provider classifica `error_category` com `Classifier` injetado.
 4. `otelboot.Config` ganha `Transport` (TLS/insecure explícito) e `Sheets`
@@ -120,7 +120,7 @@ contratos que não compilavam ou contradiziam o SDK:
    (nunca `Drop`) e um único `classAwareProcessor` é dono do exporter.
 5. `logging.Config.Fields` é o extractor injetado de `correlation_id`,
    `request_id` e `tenant_id`; o tempo do provider é `clock.Clock` (fake
-   avançável), com `dmpf-ports` intocado.
+   avançável), com `ports` intocado.
 6. Todos os packages nascem no walking skeleton e a membership é classificada
    em um único commit; o cenário de esgotamento do orçamento fixa
    `EstimatedDuration` e durações; o cenário de amostragem usa `TraceID`s
@@ -131,9 +131,9 @@ contratos que não compilavam ou contradiziam o SDK:
 Aprovada pelo dono da spec durante a Fase 1, após medição em código. Corrige uma
 premissa que a linguagem não sustenta.
 
-7. **O gancho de instrumentação vive em `dmpf-ports`, não em `dmpf-application`.**
+7. **O gancho de instrumentação vive em `ports`, não em `application`.**
    Esta spec afirmava que o provider "satisfaz a interface estruturalmente, sem
-   importar `dmpf-application`". Go satisfaz interface por assinaturas
+   importar `application`". Go satisfaz interface por assinaturas
    **idênticas**, nunca por estrutura: um provider que declarasse o seu próprio
    `Result` não satisfaria a interface, e `provider → application` é célula
    proibida (`matrix.go:58,61`). Medido em módulo descartável:
@@ -145,19 +145,19 @@ premissa que a linguagem não sustenta.
    ```
 
    `Instrumentation`, `EndOperation`, `Result`, `OutcomeCategory`, `AuditEvent`
-   e `ErrDenied` passam a viver em `dmpfports`. Ambos os blocos já importam
+   e `ErrDenied` passam a viver em `ports`. Ambos os blocos já importam
    ports (`application → port` e `provider → port` são células permitidas), então
    a satisfação é direta, com tipos nomeados, sem shim e sem alargar a matriz —
    o mesmo arranjo que o kernel já usa para `UnitOfWork`, `Repository`, `Outbox`
    e `Clock`: necessidade declarada acima, realizada abaixo.
 
-   Consequências: onde esta spec escreve `dmpfapplication.<símbolo do gancho>`,
-   leia-se `dmpfports.<símbolo>`; o item 5 desta errata deixa de valer quanto a
-   "`dmpf-ports` intocado" — o módulo ganha `instrumentation.go` e
-   `instrumentation_test.go`. O `dmpf-units.json` e o baseline de `dmpf-ports`
+   Consequências: onde esta spec escreve `application.<símbolo do gancho>`,
+   leia-se `ports.<símbolo>`; o item 5 desta errata deixa de valer quanto a
+   "`ports` intocado" — o módulo ganha `instrumentation.go` e
+   `instrumentation_test.go`. O `dmpf-units.json` e o baseline de `ports`
    **não** mudam: o `include` é por import path do package, e o package raiz
-   `dmpfports` já está declarado. O `clock` do provider segue em
-   `dmpf-observability`, porque `dmpf-ports` não pode importar `time`.
+   `ports` já está declarado. O `clock` do provider segue em
+   `observability`, porque `ports` não pode importar `time`.
 
 8. **`version_test.go` não usa `debug.ReadBuildInfo`.** Sob o `go.work` deste
    repositório, `ReadBuildInfo()` devolve `Deps` vazio no binário de teste
@@ -175,12 +175,12 @@ repositório e ficam fixados aqui, sem reabrir decisão alguma:
 
 | Ticket diz | Repositório | Esta spec fixa |
 | --- | --- | --- |
-| "Criar `libs/backend/dmpf-observability`" | A convenção do ADR-030 e do `KRN-01` é `libs/<scope>/<stack>/<módulo>`, com o nome do projeto Nx sufixado pela stack | `libs/backend/go/dmpf-observability`, projeto Nx `dmpf-observability-go`, unidade `dmpf-kernel/observability` |
-| "Instrumentar o application service de `KRN-04` sem tocar os tipos de `domain`" | A matriz (`matrix.go:58,61`) proíbe `application → provider` **e** `provider → application`; o application service não pode importar OTel diretamente sem o `.golangci.yml` abrir a `allow` estrita de `application`, e o provider não pode importar `dmpf-application` | Gancho **puro** `dmpfapplication.Instrumentation` (só `context` e tipos do próprio bloco); o provider satisfaz a interface estruturalmente, sem importar `dmpf-application`; o composition root (aqui, a suíte de integração) liga os dois. `dmpf-application` **não ganha `require`** |
+| "Criar `libs/backend/observability`" | A convenção do ADR-030 e do `KRN-01` é `libs/<scope>/<stack>/<módulo>`, com o nome do projeto Nx sufixado pela stack | `libs/backend/go/observability`, projeto Nx `observability`, unidade `kernel/observability` |
+| "Instrumentar o application service de `KRN-04` sem tocar os tipos de `domain`" | A matriz (`matrix.go:58,61`) proíbe `application → provider` **e** `provider → application`; o application service não pode importar OTel diretamente sem o `.golangci.yml` abrir a `allow` estrita de `application`, e o provider não pode importar `application` | Gancho **puro** `application.Instrumentation` (só `context` e tipos do próprio bloco); o provider satisfaz a interface estruturalmente, sem importar `application`; o composition root (aqui, a suíte de integração) liga os dois. `application` **não ganha `require`** |
 | "Erro retentável" como primeiro fator da conjunção | Não existe taxonomia de erro no kernel Go: a realização de FND-07 não é história do épico, e o `KRN-04` a deixou fora de propósito | O avaliador recebe um predicado `Classifier func(error) Retryability` injetado pelo composition root; classificação ausente ou indeterminada resolve para **não retentável** (`ERR-11`, `RES-29`). A taxonomia é consumida, nunca definida aqui |
 | "Orçamento **por execução**" | O `context.Context` transporta só cancelamento e deadline (`CTX-20`, `CTX-21`; `SPEC-ZHE7DN1H`, constraint P1), a porta não pode carregar tipo de política (`RES-24`) e o application service não pode importar o provider | O `Budget` vive no package `retry` do provider e é criado pela **borda** (`app`) com `retry.WithBudget(ctx)`; é o único valor de contexto que o kernel admite, e sua **ausência** só restringe (fator 3 falso, nenhum retry). Nunca é fonte de correção do resultado de negócio |
 | "Decorators no `provider` (`RES-05` a `RES-24`): timeout, breaker, bulkhead e degradação" | A ordem canônica de `RES-22` tem nove posições, incluindo rate limiting e cache-aside; a admissão por rota e tenant é do `KRN-10` e a modelagem de cache está `encaminhada` (FND-08 §1.4) | `Compose` aceita as nove posições na ordem de `RES-22`; rate limiting e cache são posições **opcionais** que esta spec deixa vazias, e a `Sheet` as marca «não se aplica» com motivo, como `RES-21` exige |
-| "Versão das *semantic conventions* lida de pin declarado (`TRC-03`)" | O BOM é do `KRN-12`; não existe ainda | O pin é o import path `go.opentelemetry.io/otel/semconv/v1.43.0`, re-exportado como constante `dmpfobservability.SemconvVersion = "1.43.0"` e repetido no campo `versions` da allowlist do manifesto; o `KRN-12` o copia para o BOM |
+| "Versão das *semantic conventions* lida de pin declarado (`TRC-03`)" | O BOM é do `KRN-12`; não existe ainda | O pin é o import path `go.opentelemetry.io/otel/semconv/v1.43.0`, re-exportado como constante `observability.SemconvVersion = "1.43.0"` e repetido no campo `versions` da allowlist do manifesto; o `KRN-12` o copia para o BOM |
 | "Registrar em ADR a escolha de exportador e destino de coleta" e "ADR a partir de `029`" | `034` é do `KRN-04`; o `KRN-06` (ARQ-525, em branch paralela) pode reivindicar `035` | O ADR desta história é o **`035`**. A colisão possível com o `KRN-06` fica em "Escopo fora": quem mergear por último renumera, como o `KRN-05` fez com o `033` |
 | "Métricas com nome, unidade e fórmula (`MET-03`)" sem enumerar quais | FND-08 §6 tem trinta métricas, distribuídas entre `app`, `provider`, relay, inbox e pool | Esta spec realiza **seis regras, dez séries**: `MET-28` (três séries) e `MET-29` (duas) nos decorators; `MET-08`, `MET-09`, `MET-10` e `MET-13` (duas) pelo gancho do application service. `MET-11`, `MET-12` (admissão) e `MET-30` (pool) são do `KRN-10` e do `KRN-06` |
 | "Erro sempre amostrado (`TRC-14`)" | A decisão de amostragem do SDK OTel ocorre no início do span, antes de o desfecho ser conhecido; os samplers de fábrica devolvem `Drop` no ramo negativo | Regra equivalente em processo, como `TRC-14` admite: `classSampler` próprio devolve `RecordAndSample` na taxa da classe e `RecordOnly` fora dela (nunca `Drop`); um único `classAwareProcessor`, dono do exporter, exporta **todo** span encerrado com `sampled` ou com status de erro. A garantia é do **span** em erro; o trace completo é do tail sampling no collector (ADR-035) |
@@ -214,18 +214,18 @@ Regras que esta spec realiza, com a força que cada fonte declara:
 <constraints>
 - [P0] Sujeito da baseline (`RES-01`, `RES-24`, `TRC-16`, `LOG-11`): nenhuma
   linha desta entrega acrescenta import de telemetria, decorator, parâmetro de
-  retry, prazo ou política de falha a `dmpf-domain` nem a `dmpf-ports`. O
+  retry, prazo ou política de falha a `domain` nem a `ports`. O
   fechamento transitivo de imports de toda unidade `domain` e `port` NÃO alcança
   `go.opentelemetry.io/*`, `log`, `log/slog` nem o módulo novo.
-- [P0] Matriz de blocos (`matrix.go:58,61`; ADR-010): `dmpf-observability`
-  NUNCA importa `dmpf-application` em código de produção
-  (`provider → application` proibida) e `dmpf-application` NUNCA importa
-  `dmpf-observability` (`application → provider` proibida). O gancho
+- [P0] Matriz de blocos (`matrix.go:58,61`; ADR-010): `observability`
+  NUNCA importa `application` em código de produção
+  (`provider → application` proibida) e `application` NUNCA importa
+  `observability` (`application → provider` proibida). O gancho
   `Instrumentation` é satisfeito estruturalmente; o vínculo é do composition
   root.
-- [P0] `dmpf-application` permanece com fechamento `pure` + `observability`
+- [P0] `application` permanece com fechamento `pure` + `observability`
   segundo `internal/rule/stdlib.go`: o gancho usa APENAS `context` e tipos do
-  próprio bloco e de `dmpfports`. O `go.mod` de `dmpf-application` NÃO ganha
+  próprio bloco e de `ports`. O `go.mod` de `application` NÃO ganha
   `require`.
 - [P0] Conjunção de retry (`RES-27`, `RES-28`, `RES-29`): uma tentativa só é
   autorizada com os QUATRO fatores verdadeiros, verificados antes de CADA
@@ -256,7 +256,7 @@ Regras que esta spec realiza, com a força que cada fonte declara:
   com valor, motivo e data, e o valor efetivo é exposto como metadado de
   telemetria. Default alterado sem registro é defeito.
 - [P0] Classificação declarada (ADR-012; RFC §10.2): a unidade
-  `dmpf-kernel/observability` cobre cada package de produção por import path
+  `kernel/observability` cobre cada package de produção por import path
   exato; as entradas `external[]` declaram pacote, faixa, entrypoints e
   capability `observability`; manifesto e baseline vêm em COMMIT PRÓPRIO, sem
   código Go.
@@ -269,9 +269,9 @@ Regras que esta spec realiza, com a força que cada fonte declara:
   `go.sum` do módulo e `go.work.sum` são commitados.
 - [P1] Determinismo dos testes: tempo por `clock.Clock` do provider (`Now`,
   `After`, `NewTimer`, `WithTimeout`) com realização fake avançável — a porta
-  `dmpfports.Clock` só expõe `Now()` e não desbloqueia `select` nem cancela
+  `ports.Clock` só expõe `Now()` e não desbloqueia `select` nem cancela
   contexto; jitter por semente explícita; espera por `Sleeper` injetado; NENHUM
-  teste depende de relógio de parede nem de `time.Sleep` real. `dmpf-ports`
+  teste depende de relógio de parede nem de `time.Sleep` real. `ports`
   permanece intocado.
 </constraints>
 
@@ -301,13 +301,13 @@ Regras que esta spec realiza, com a força que cada fonte declara:
 
 #### Módulo e governança
 
-- [ ] **[P0] Módulo `dmpf-observability-go`**: criar `libs/backend/go/dmpf-observability`
-  com `go.mod` (`module github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability`,
-  `go 1.26.8`), `package.json` (`@mateusmacedo/dmpf-observability-go`,
+- [ ] **[P0] Módulo `observability`**: criar `libs/backend/go/observability`
+  com `go.mod` (`module github.com/mateusmacedo/dmpf/libs/backend/go/observability`,
+  `go 1.26.8`), `package.json` (`@mateusmacedo/observability`,
   `private: true`), `project.json` (tags `type:lib`, `scope:backend`,
   `stack:go`; os cinco targets `fmt-check`, `vet`, `build`, `test-race`,
-  `govulncheck` idênticos aos de `dmpf-application`) e entrada
-  `./libs/backend/go/dmpf-observability` no bloco `use` do `go.work`.
+  `govulncheck` idênticos aos de `application`) e entrada
+  `./libs/backend/go/observability` no bloco `use` do `go.work`.
   - Edge case: `go.work.sum` muda ao resolver os módulos OTel; o arquivo é
     commitado no mesmo commit do `go.mod`/`go.sum`.
 - [ ] **[P0] Dependências OTel pinadas**: `require` de `go.opentelemetry.io/otel`,
@@ -317,11 +317,11 @@ Regras que esta spec realiza, com a força que cada fonte declara:
   - Sub-item: `go.opentelemetry.io/otel/semconv/v1.43.0` é o único package
     `semconv` importado; um teste falha se qualquer arquivo importar outra
     versão de `semconv`.
-  - Sub-item: `dmpfobservability.SemconvVersion = "1.43.0"` e
-    `dmpfobservability.OTelVersion = "1.46.0"`; um teste compara
+  - Sub-item: `observability.SemconvVersion = "1.43.0"` e
+    `observability.OTelVersion = "1.46.0"`; um teste compara
     `OTelVersion` com a versão resolvida em `debug.ReadBuildInfo()`.
-- [ ] **[P0] Manifesto `dmpf-units.json`**: uma unidade `dmpf-kernel/observability`,
-  `block: provider`, `bounded_context: dmpf-kernel`,
+- [ ] **[P0] Manifesto `dmpf-units.json`**: uma unidade `kernel/observability`,
+  `block: provider`, `bounded_context: kernel`,
   `public_integration_surface: false`, `include` com o import path de CADA
   package de produção do módulo (raiz, `clock`, `otelboot`, `otelboot/otlp`,
   `resilience`, `retry`, `metrics`, `tracing`, `logging`, `audit`, `redact`,
@@ -571,13 +571,13 @@ Regras que esta spec realiza, com a força que cada fonte declara:
   as mesmas classes de `TRC-13`; `error` nunca é amostrado.
 - [ ] **[P0] Canal de auditoria separado (`LOG-13`, `LOG-14`, `DAT-25`)**:
   `audit.Sink` é interface própria (`Emit(ctx, Event) error`);
-  `audit.Event{Subject, Object, Action, Outcome string; At dmpfports.Instant}`;
+  `audit.Event{Subject, Object, Action, Outcome string; At ports.Instant}`;
   `audit.NewJSONSink(w)` e `audit.Recording` (para testes); nenhum construtor
   aceita `slog.Handler`, e o `Sink` ignora `Config.Sampling`.
 
-#### Gancho do application service (`dmpf-application` + `usecase`)
+#### Gancho do application service (`application` + `usecase`)
 
-- [ ] **[P0] `dmpfapplication.Instrumentation` (novo, bloco `application`)**:
+- [ ] **[P0] `application.Instrumentation` (novo, bloco `application`)**:
   ```go
   type Instrumentation interface {
       BeginOperation(ctx context.Context, operation string) (context.Context, EndOperation)
@@ -586,11 +586,11 @@ Regras que esta spec realiza, com a força que cada fonte declara:
   type EndOperation func(result Result)
   type Result struct { Outcome OutcomeCategory; Err error } // Err só em Failed
   type OutcomeCategory string // Accepted | Rejected | Denied | Failed
-  type AuditEvent struct { Object, Action string; Outcome OutcomeCategory; At dmpfports.Instant }
-  var ErrDenied = errors.New("dmpfapplication: authorization denied")
+  type AuditEvent struct { Object, Action string; Outcome OutcomeCategory; At ports.Instant }
+  var ErrDenied = errors.New("application: authorization denied")
   ```
   com `NoInstrumentation()` como realização vazia. Só `context`, `errors` e
-  `dmpfports` são importados; o package permanece `pure`. `Result.Err` carrega
+  `ports` são importados; o package permanece `pure`. `Result.Err` carrega
   o erro técnico cru para que o **provider** o classifique (`error_category`
   de MET-10) com um `Classifier` injetado — a taxonomia é de FND-07 e não
   entra no bloco `application`. `ErrDenied` é o único sentinela: um
@@ -598,7 +598,7 @@ Regras que esta spec realiza, com a força que cada fonte declara:
   ErrDenied)`; qualquer outro erro do autorizador é falha técnica (`Failed`),
   nunca `Denied` por suposição.
 - [ ] **[P0] `ordersapp.Service` instrumentado (`TRC-16`, `LOG-14`, `MET-08`
-  a `MET-10`)**: campo `Instrumentation dmpfapplication.Instrumentation` (nil ⇒
+  a `MET-10`)**: campo `Instrumentation application.Instrumentation` (nil ⇒
   `NoInstrumentation`); `AddItem` e `PlaceOrder` chamam `BeginOperation` ANTES
   do passo 1 (autorização) e `EndOperation` DEPOIS do passo 9 com a categoria
   do desfecho; `Audit` é emitido após o commit, com `Object = OrderID`,
@@ -618,7 +618,7 @@ Regras que esta spec realiza, com a força que cada fonte declara:
   com `error_category` resolvida por `Classifier func(error) string` injetado
   (`nil` ou desconhecido → `"unclassified"`, nunca a mensagem do erro);
   `Audit` encaminha ao `audit.Sink` com `Subject` resolvido por `SubjectFunc`
-  injetado. NÃO importa `dmpf-application`; o teste de integração em
+  injetado. NÃO importa `application`; o teste de integração em
   `usecase/orders_integration_test.go` importa `ordersapp` e `memory` e faz o
   papel do composition root. No walking skeleton, `usecase` nasce com span +
   auditoria sobre `sdktrace.TracerProvider` + `tracetest.SpanRecorder`
@@ -633,7 +633,7 @@ Regras que esta spec realiza, com a força que cada fonte declara:
   contexto; regra equivalente de `TRC-14` em processo. Índice em
   `docs/adr/README.md`.
 - [ ] **[P0] `AGENTS.md`**: inventário passa a "Seis, todos Go" com o item
-  `dmpf-observability-go`; `README.md` de `dmpf-application` ganha a seção do
+  `observability`; `README.md` de `application` ganha a seção do
   gancho `Instrumentation`.
 
 ### Não-funcionais
@@ -642,7 +642,7 @@ Regras que esta spec realiza, com a força que cada fonte declara:
   `golangci-lint v2.13.2`, `go build`, `go test -count=2 -shuffle=on`,
   `go test -race`, `govulncheck v1.7.0` (sem CVE aberta nos módulos OTel).
 - [ ] `bash tools/dmpf-gate-check.sh` e
-  `go run ./libs/backend/go/dmpf-conformance/cmd/dmpf-conformance --root . --base develop`
+  `go run ./libs/backend/go/conformance/cmd/conformance --root . --base develop`
   aprovam: nenhum `DMPF-D001`, `DMPF-D002`, `DMPF-E001` ou `DMPF-E002`.
 - [ ] `pnpm biome ci .` e `pnpm nx affected -t lint,typecheck,test,build --exclude=@mateusmacedo/dmpf-source` verdes.
 - [ ] Determinismo: nenhum teste usa `time.Now()`, `time.Sleep()` nem `math/rand`
@@ -664,15 +664,15 @@ Regras que esta spec realiza, com a força que cada fonte declara:
 
 | Camada | Impacto |
 | --- | --- |
-| **Módulo Go `dmpf-observability`** (novo) | Bloco `provider`: bootstrap OTel, decorators, avaliador de retry, catálogo de métricas, tracing, logging, auditoria, redaction e a realização do gancho |
-| **Módulo Go `dmpf-application`** | Gancho puro `Instrumentation`, `OutcomeCategory`, `AuditEvent`, `NoInstrumentation` no raiz; `ordersapp.Service` ganha o campo e as chamadas nos passos 1 e 9; nenhuma mudança de manifesto ou baseline |
-| **Módulos Go `dmpf-domain`, `dmpf-ports`, `dmpf-contracts`, `dmpf-conformance`** | Só a diretiva `go 1.26.8` no `go.mod` (Fase 0); nenhum símbolo, teste ou manifesto tocado |
+| **Módulo Go `observability`** (novo) | Bloco `provider`: bootstrap OTel, decorators, avaliador de retry, catálogo de métricas, tracing, logging, auditoria, redaction e a realização do gancho |
+| **Módulo Go `application`** | Gancho puro `Instrumentation`, `OutcomeCategory`, `AuditEvent`, `NoInstrumentation` no raiz; `ordersapp.Service` ganha o campo e as chamadas nos passos 1 e 9; nenhuma mudança de manifesto ou baseline |
+| **Módulos Go `domain`, `ports`, `contracts`, `conformance`** | Só a diretiva `go 1.26.8` no `go.mod` (Fase 0); nenhum símbolo, teste ou manifesto tocado |
 | **Workspace Go (`go.work`, `go.work.sum`)** | Diretiva `go 1.26.8` (Fase 0); uma entrada nova em `use`; `go.work.sum` regravado |
 | **Governança (manifesto + baseline)** | Um manifesto novo com uma unidade e sete entradas `external`; baseline regravado; commit próprio |
 | **Lint** | `.golangci.yml` **sem mudança**: nenhum glob casa `*-observability/`; `tools/dmpf-gate-check.sh` **sem mudança**: módulo só-`provider` é pulado (linha 165) |
 | **CI** | Nenhuma mudança em `ci.yml`: `Go gates (affected)` e `DMPF conformance gate` já cobrem projetos `stack:go` afetados |
 | **Nx** | Um `project.json` novo com tags e cinco targets; nenhuma mudança em `nx.json` |
-| **Documentação** | `README.md` do módulo, seção nova no `README.md` de `dmpf-application`, ADR-035, índice de ADRs, `AGENTS.md` |
+| **Documentação** | `README.md` do módulo, seção nova no `README.md` de `application`, ADR-035, índice de ADRs, `AGENTS.md` |
 
 Nenhuma camada de produto é afetada: não há app, endpoint, banco, fila nem
 broker nesta entrega. A borda que cria o `Budget` e o composition root que liga
@@ -683,20 +683,20 @@ do `KRN-12`.
 
 ```text
 dmpf/
-├── go.work                                              # MODIFICAR — use ./libs/backend/go/dmpf-observability
+├── go.work                                              # MODIFICAR — use ./libs/backend/go/observability
 ├── go.work.sum                                          # MODIFICAR — somas dos módulos OTel
 ├── go.work                                              # MODIFICAR (Fase 0) — go 1.26.8
-├── libs/backend/go/{dmpf-domain,dmpf-conformance,dmpf-contracts,dmpf-ports,dmpf-application}/go.mod  # MODIFICAR (Fase 0) — go 1.26.8
+├── libs/backend/go/{domain,conformance,contracts,ports,application}/go.mod  # MODIFICAR (Fase 0) — go 1.26.8
 ├── docs/adr/030-granularidade-modulo-go-e-bom.md        # MODIFICAR (Fase 0) — nota: pin do toolchain passa a 1.26.8
 ├── docs/nx-reference/tasks.md                           # MODIFICAR (Fase 0) — go mod edit -go=1.26.8
-├── libs/backend/go/dmpf-observability/                  # CRIAR — projeto Nx dmpf-observability-go, bloco provider
-│   ├── go.mod                                           # module .../dmpf-observability, go 1.26.8, require otel* v1.46.0 (+ testcontainers-go v0.44.0 e moby/go-archive v0.3.3 para testes)
+├── libs/backend/go/observability/                  # CRIAR — projeto Nx observability, bloco provider
+│   ├── go.mod                                           # module .../observability, go 1.26.8, require otel* v1.46.0 (+ testcontainers-go v0.44.0 e moby/go-archive v0.3.3 para testes)
 │   ├── go.sum                                           # CRIAR — commitado
-│   ├── package.json                                     # @mateusmacedo/dmpf-observability-go, private: true
+│   ├── package.json                                     # @mateusmacedo/observability, private: true
 │   ├── project.json                                     # tags 3D, 5 targets
-│   ├── dmpf-units.json                                  # unidade dmpf-kernel/observability + external[] (commit próprio)
+│   ├── dmpf-units.json                                  # unidade kernel/observability + external[] (commit próprio)
 │   ├── README.md                                        # regra → código; defaults; at-least-once
-│   ├── doc.go                                           # package dmpfobservability
+│   ├── doc.go                                           # package observability
 │   ├── version.go                                       # OTelVersion, SemconvVersion
 │   ├── version_test.go                                  # bate com debug.ReadBuildInfo e com o import de semconv
 │   ├── otelboot/                                        # bootstrap
@@ -708,7 +708,7 @@ dmpf/
 │   │   ├── start_test.go                                # propagador obrigatório, recurso incompleto, duplo Start
 │   │   ├── sampler_test.go                              # taxas por classe, unclassified
 │   │   └── processor_test.go                            # RecordOnly com erro chega ao exportador; fila cheia; ForceFlush; Shutdown ordenado
-│   ├── clock/                                           # tempo do provider (dmpf-ports intocado)
+│   ├── clock/                                           # tempo do provider (ports intocado)
 │   │   ├── clock.go                                     # Clock{Now, After, NewTimer, WithTimeout}, System()
 │   │   ├── fake.go                                      # Fake avançável e determinista para testes
 │   │   └── fake_test.go                                 # Advance desbloqueia After/timers na ordem
@@ -760,11 +760,11 @@ dmpf/
 │   ├── audit/
 │   │   ├── sink.go                                      # Sink, Event, NewJSONSink, Recording
 │   │   └── sink_test.go                                 # canal separado; sem amostragem; campos obrigatórios
-│   └── usecase/                                         # realização do gancho de dmpfapplication
+│   └── usecase/                                         # realização do gancho de application
 │       ├── instrumentation.go                           # Instrumentation, New, SubjectFunc, BeginOperation, Audit
 │       ├── instrumentation_test.go                      # satisfaz a interface estruturalmente (var _ = ...)
 │       └── orders_integration_test.go                   # composition root: ordersapp + memory + Budget + OTel em memória
-├── libs/backend/go/dmpf-application/
+├── libs/backend/go/application/
 │   ├── instrumentation.go                               # CRIAR — Instrumentation, EndOperation, OutcomeCategory, AuditEvent, NoInstrumentation
 │   ├── instrumentation_test.go                          # CRIAR — NoInstrumentation é inerte
 │   ├── README.md                                        # MODIFICAR — seção "Instrumentação do caso de uso"
@@ -780,16 +780,16 @@ dmpf/
 ├── AGENTS.md                                            # MODIFICAR — inventário de libs (seis)
 ├── .golangci.yml                                        # INTOCADO — nenhum glob casa o módulo
 ├── tools/dmpf-gate-check.sh                             # INTOCADO — módulo só-provider é pulado
-├── libs/backend/go/dmpf-domain/                         # INTOCADO
-├── libs/backend/go/dmpf-ports/                          # INTOCADO
-├── libs/backend/go/dmpf-contracts/                      # INTOCADO
-├── libs/backend/go/dmpf-conformance/                    # INTOCADO — instrumento, não objeto
+├── libs/backend/go/domain/                         # INTOCADO
+├── libs/backend/go/ports/                          # INTOCADO
+├── libs/backend/go/contracts/                      # INTOCADO
+├── libs/backend/go/conformance/                    # INTOCADO — instrumento, não objeto
 └── docs/dmpf/                                           # INTOCADO — acervo normativo
 ```
 
 Import path canônico da unidade nova (a `canonical_key`):
 
-- `github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-observability`
+- `github.com/mateusmacedo/dmpf/libs/backend/go/observability`
   e cada subpackage de produção listado acima em `include`.
 
 ## Design
@@ -804,20 +804,20 @@ Import path canônico da unidade nova (a `canonical_key`):
         └───────────────┬───────────────────────────────┬────────────────┘
                         │ chama                          │ liga (estrutural)
    application ┌────────▼─────────────────┐   provider  ┌▼───────────────────────────┐
-   (pure +     │ ordersapp.Service        │   (permis-  │ dmpf-observability         │
+   (pure +     │ ordersapp.Service        │   (permis-  │ observability         │
    observab.)  │  Begin ─ passos 1..9 ─ End│   sivo)     │  usecase.Instrumentation   │
                │  Audit após commit        │             │  otelboot · resilience     │
-               │ dmpfapplication.          │             │  retry · metrics · tracing │
+               │ application.          │             │  retry · metrics · tracing │
                │  Instrumentation (iface)  │             │  logging · audit · redact  │
                └────────┬──────────────────┘             └──────────┬─────────────────┘
                         │ usa (permitida)                           │ usa (permitida)
    port        ┌────────▼──────────┐                     ┌──────────▼──────────┐
-   (pure)      │ dmpfports          │◄────────────────────┤ dmpfports.Clock      │
+   (pure)      │ ports          │◄────────────────────┤ ports.Clock      │
                │ UnitOfWork, Outbox │  provider → port    │ (relógio injetado)   │
                └────────┬───────────┘                     └─────────────────────┘
                         │
    domain      ┌────────▼──────────┐
-   (pure)      │ dmpfdomain, orders │      ✗ nenhuma seta chega aqui vinda do provider
+   (pure)      │ domain, orders │      ✗ nenhuma seta chega aqui vinda do provider
                └────────────────────┘
 
    Setas proibidas e ausentes: application → provider, provider → application.
@@ -954,15 +954,15 @@ func Compose(sheet Sheet, s Slots) (Call, error) {
 | `LOG-01`, `LOG-02`, `LOG-04`, `LOG-10`, `LOG-12` | `handler_test.go`, `sampling_test.go`: registro JSON com os campos do contexto; `tenant_id` ausente registrado como ausente; `error` 100 % |
 | `LOG-06`, `LOG-07`, `DAT-22`, `DAT-23` | `redact_test.go`: erro com texto sensível — o texto não aparece em log, span nem label; o campo aparece redigido |
 | `LOG-13`, `LOG-14`, `DAT-25` | `sink_test.go` e integração: evento após commit com os cinco campos; nenhum evento sob `Denied`; `Sink` recebe 100 % sob amostragem de `leitura` |
-| Matriz e capabilities | Verificador do `KRN-02` no CI; `instrumentation_test.go` em `usecase` prova a satisfação estrutural sem import de `dmpf-application` em produção (`go list -deps` do package de produção não contém `dmpf-application`) |
+| Matriz e capabilities | Verificador do `KRN-02` no CI; `instrumentation_test.go` em `usecase` prova a satisfação estrutural sem import de `application` em produção (`go list -deps` do package de produção não contém `application`) |
 
 ## Decisões técnicas
 
-- **Gancho puro em `dmpfapplication`, realização no provider, vínculo no
+- **Gancho puro em `application`, realização no provider, vínculo no
   composition root**: a matriz proíbe as duas setas entre `application` e
   `provider`, e a `allow` estrita do `.golangci.yml` para `application` não
   inclui OTel. A interface com `context` e tipos próprios mantém
-  `dmpf-application` `pure`; Go a satisfaz estruturalmente sem import.
+  `application` `pure`; Go a satisfaz estruturalmente sem import.
   Alternativa descartada: abrir `go.opentelemetry.io/otel` na `allow` de
   `application` e declarar `external` no seu manifesto — permitido pela
   política (`observability` passa em `application`), mas faria o caso de uso
@@ -973,7 +973,7 @@ func Compose(sheet Sheet, s Slots) (Call, error) {
   importar o provider, e o orçamento precisa atravessar todas as dependências
   da execução (`RES-30`). O valor de contexto **só restringe** — ausente,
   nenhum retry ocorre —, o que preserva `CTX-03`/`CTX-05`: nunca é fonte de
-  correção do resultado. Alternativa descartada: `Budget` em `dmpfports` —
+  correção do resultado. Alternativa descartada: `Budget` em `ports` —
   viola `RES-24` pelo caminho mais discreto. Alternativa descartada: orçamento
   por chamada — é exatamente o efeito multiplicativo que `RES-30` proíbe.
   Registrado no ADR-035.
@@ -1016,12 +1016,12 @@ func Compose(sheet Sheet, s Slots) (Call, error) {
   o `KRN-12` teria de inferir a versão do código.
 - **Tempo por `clock.Clock` do provider (`Now`, `After`, `NewTimer`,
   `WithTimeout`) e `Sleeper` injetado**: o provider pode usar `time`, mas o
-  teste determinista não pode; e a porta `dmpfports.Clock` só expõe `Now()`
-  (`dmpf-ports/clock.go:5-10`) — um relógio que só lê o instante não
+  teste determinista não pode; e a porta `ports.Clock` só expõe `Now()`
+  (`ports/clock.go:5-10`) — um relógio que só lê o instante não
   desbloqueia o `select` do bulkhead nem substitui `context.WithTimeout` do
   timeout. O package `clock` traz `System()` e um `Fake` avançável; a porta do
   kernel segue intocada. `Sleeper func(ctx, d) error` isola a espera do
-  backoff. Alternativas descartadas: estender `dmpfports.Clock` — viola
+  backoff. Alternativas descartadas: estender `ports.Clock` — viola
   `RES-24` e toca módulo fora do escopo; `time.Now()` direto com testes
   tolerantes — viola o não-funcional de determinismo.
 - **`Defer` reprovado nesta entrega**: o modo `difere` de `RES-37` é a outbox
@@ -1060,12 +1060,12 @@ func Compose(sheet Sheet, s Slots) (Call, error) {
 
 - [x] O fechamento de imports de toda unidade `domain` e `port` do workspace não
   alcança biblioteca de trace, log ou métrica: o verificador do `KRN-02` não
-  emite `DMPF-E001` para essas unidades, e `go list -deps` de `dmpf-domain` e
-  `dmpf-ports` não contém `go.opentelemetry.io` nem `log/slog`.
+  emite `DMPF-E001` para essas unidades, e `go list -deps` de `domain` e
+  `ports` não contém `go.opentelemetry.io` nem `log/slog`.
 - [x] Uma porta que declare política de retry na assinatura reprova: fixture em
   `testdata/` do verificador (`KRN-02`) já cobre `DMPF-E001` por capability;
   esta spec acrescenta o vetor de forma em `compose_test.go` — `Operation.Kind
-  == UnitOfWork` reprova em `Compose` — e documenta no README que `dmpfports`
+  == UnitOfWork` reprova em `Compose` — e documenta no README que `ports`
   segue sem parâmetro de política.
 - [x] Removida a configuração do propagador, `otelboot.Start` devolve
   `ErrPropagatorRequired` e `otel.GetTextMapPropagator()` permanece o valor
@@ -1086,8 +1086,8 @@ func Compose(sheet Sheet, s Slots) (Call, error) {
   ao `InMemoryExporter`).
 - [x] O span do caso de uso é aberto pelo application service (`TRC-16`):
   `orders_integration_test.go` observa `dmpf.usecase.orders.AddItem` como pai
-  do span da dependência e nenhum span criado por `dmpf-domain` ou
-  `dmpf-ports`.
+  do span da dependência e nenhum span criado por `domain` ou
+  `ports`.
 - [x] O evento de auditoria é emitido pelo application service após o commit,
   com sujeito, objeto, ação, desfecho e instante, e **não** passa pelo handler
   de log: `audit.Recording` recebe 1 evento em `Accepted` e `Rejected`, 0 em
@@ -1099,7 +1099,7 @@ func Compose(sheet Sheet, s Slots) (Call, error) {
 - [x] Um erro cujo `Error()` contém `"cpf=123.456.789-00"` não aparece em nenhum
   registro de log, atributo de span ou label de métrica dos três pipelines em
   memória; o campo aparece como `error_category` e `error_code`.
-- [x] `dmpfobservability.SemconvVersion == "1.43.0"` e o único import `semconv`
+- [x] `observability.SemconvVersion == "1.43.0"` e o único import `semconv`
   do módulo é `go.opentelemetry.io/otel/semconv/v1.43.0`; todos os `require`
   `go.opentelemetry.io/otel*` são `v1.46.0`.
 - [x] Manifesto e baseline vêm em commit próprio, sem código Go; o verificador
@@ -1109,7 +1109,7 @@ func Compose(sheet Sheet, s Slots) (Call, error) {
   (`grep -ri "exactly.once"` só encontra negações).
 - [x] Testes unitários para `otelboot`, `resilience`, `retry`, `metrics`,
   `tracing`, `logging`, `redact`, `audit`, `usecase` e para o gancho em
-  `dmpfapplication` e `ordersapp`.
+  `application` e `ordersapp`.
 - [x] Validação do projeto passando: cadeia Go completa nos módulos tocados,
   `dmpf-gate-check.sh`, verificador de conformidade, `biome ci` e
   `nx affected` de lint, typecheck, test e build.
@@ -1200,12 +1200,12 @@ ENTÃO devolve erro nomeando o campo RateLimit
 <critical_constraints>
 - [P0] Sujeito da baseline (`RES-01`, `RES-24`, `TRC-16`, `LOG-11`): nenhuma
   linha desta entrega acrescenta import de telemetria, decorator, parâmetro de
-  retry, prazo ou política de falha a `dmpf-domain` nem a `dmpf-ports`.
-- [P0] Matriz de blocos: `dmpf-observability` NUNCA importa `dmpf-application`
-  em produção; `dmpf-application` NUNCA importa `dmpf-observability`. O gancho é
+  retry, prazo ou política de falha a `domain` nem a `ports`.
+- [P0] Matriz de blocos: `observability` NUNCA importa `application`
+  em produção; `application` NUNCA importa `observability`. O gancho é
   satisfeito estruturalmente; o vínculo é do composition root.
-- [P0] `dmpf-application` permanece `pure` + `observability`, sem `require`; o
-  gancho usa só `context` e tipos do bloco e de `dmpfports`.
+- [P0] `application` permanece `pure` + `observability`, sem `require`; o
+  gancho usa só `context` e tipos do bloco e de `ports`.
 - [P0] Conjunção de retry (`RES-27`..`RES-29`): quatro fatores antes de CADA
   tentativa; indeterminado é falso; o veredicto nomeia o fator falso; nenhuma
   configuração inverte o default.
@@ -1229,7 +1229,7 @@ ENTÃO devolve erro nomeando o campo RateLimit
 - [P1] Pin único `v1.46.0` em todos os módulos OTel; `semconv/v1.43.0`;
   `SemconvVersion` bate com o import; `go.sum` e `go.work.sum` commitados.
 - [P1] Testes deterministas: tempo por `clock.Clock` do provider (fake
-  avançável), jitter por semente e espera injetada; `dmpf-ports` intocado.
+  avançável), jitter por semente e espera injetada; `ports` intocado.
 </critical_constraints>
 
 ## Escopo fora
@@ -1244,7 +1244,7 @@ ENTÃO devolve erro nomeando o campo RateLimit
   inbox e contenção** (`MET-14` a `MET-27`): sinais dos mecanismos do `KRN-06`,
   `KRN-07` e `KRN-08`, que os emitem com os construtores deste módulo.
 - **Saturação do próprio serviço** (`MET-11`) e **span de borda** (`TRC-02`,
-  `TRC-05`): são do bloco `app`, que nasce em `apps/backend/dmpf-reference` no
+  `TRC-05`): são do bloco `app`, que nasce em `apps/backend/reference` no
   `KRN-08`/`KRN-12`. A suíte de integração desempenha o papel, não o entrega.
 - **Continuidade no salto assíncrono** (`TRC-07`, `TRC-08`, links entre F2 e
   F3): depende do envelope de `KRN-05` atravessar um transporte (`KRN-10`).
@@ -1266,11 +1266,11 @@ ENTÃO devolve erro nomeando o campo RateLimit
   paralela e pode reivindicar `035`. Esta spec ocupa o `035`; quem mergear
   por último renumera, como o `KRN-05` fez com o `033`. Não é resolvido aqui.
 - **Test kit exportado dos decorators e do avaliador** (fixtures pareadas
-  Go ↔ TS, vetores de `RES-27` como golden): `KRN-11` (`dmpf-testkit`).
+  Go ↔ TS, vetores de `RES-27` como golden): `KRN-11` (`testkit`).
 - **Consumo do módulo fora do workspace** (`require` com versão publicada,
   tags): `KRN-12`. Aqui a resolução é do `go.work`.
 - **Alterar `.golangci.yml`, `tools/dmpf-gate-check.sh`, `nx.json`, `ci.yml`
   ou os targets inferidos**: nenhum glob casa o módulo novo; o gate
   autoritativo é o verificador; a cadeia já cobre projetos `stack:go` afetados.
-- **Instrumentar `dmpf-conformance`**: é instrumento, não objeto; o módulo
+- **Instrumentar `conformance`**: é instrumento, não objeto; o módulo
   não é sujeito da baseline nesta entrega.

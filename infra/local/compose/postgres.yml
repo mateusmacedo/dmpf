@@ -1,5 +1,6 @@
-# Postgres compartilhado pelas apps: o kernel DMPF cria o schema por
-# `dmpfpostgres.Migrate` (DMPF_MIGRATE=true no papel api), não por init script.
+# Postgres compartilhado pelas apps. Os bancos dmpf_orders e dmpf_reservations
+# nascem no postgres-init (profile dmpf); o schema, por `postgres.Migrate`
+# (DMPF_MIGRATE=true no papel api de cada contexto), não por init script.
 services:
   postgres:
     image: postgres:16-alpine
@@ -19,7 +20,7 @@ services:
       retries: 5
     deploy:
       resources:
-        limits: { cpus: '0.75', memory: 512M }
+        limits: { cpus: '0.40', memory: 512M }
         reservations: { cpus: '0.10', memory: 128M }
 
 volumes:

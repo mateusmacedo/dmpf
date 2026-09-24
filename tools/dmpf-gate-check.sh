@@ -1,19 +1,8 @@
 #!/usr/bin/env bash
-# Prova que o gate de dependência reprova o que deve reprovar, nos quatro
-# blocos que o `.golangci.yml` conhece: `domain`, `port`, `application` e
-# `contract`. A camada por package (depguard, VETORES_*) vale para os quatro; a
-# camada por símbolo (forbidigo, SIMBOLOS) só para `domain`, porque fora dele
-# `errors.New`, `fmt.Errorf` e `panic` são legítimos.
-#
-# Descobre os módulos pelo `dmpf-units.json` (a classificação autoritativa da
-# RFC), e não por caminho fixo: quando um módulo novo nascer, ele entra aqui
-# sozinho. Sem isso o gate seguiria verde sem nunca ter sido exercido nele.
-#
-# Os fixtures .go são artefatos de runtime deste script: nascem e morrem dentro
-# de uma execução. Para retirá-los do módulo o script os MOVE para um diretório
-# temporário, em vez de apagá-los — assim não depende de utilitário de lixeira,
-# que o runner de CI não tem. O diretório fica em /tmp, que o runner descarta ao
-# fim do job e a máquina local limpa no boot.
+# Prova que o depguard (VETORES_*, quatro blocos e o provider de contexto) e o forbidigo (SIMBOLOS, só
+# `domain`) reprovam o que devem. Módulos vêm do `dmpf-units.json`, não de lista
+# fixa: módulo novo entra no gate sozinho. Os fixtures .go são movidos para /tmp
+# em vez de apagados — o runner não tem utilitário de lixeira.
 set -uo pipefail
 
 ROOT="$(git rev-parse --show-toplevel)" || { echo "fora de um repositorio git" >&2; exit 1; }
@@ -41,16 +30,11 @@ retirar_fixture() {
 }
 trap retirar_fixture EXIT INT TERM
 
-# pacote|capability|origem. `dentro` = listado na `deny` do .golangci.yml, prova
-# a mensagem por capability. `fora` = ausente da `deny`, prova que a regra é
-# fechada (`list-mode: strict`) e não uma mera denylist — sem estes dois, um
-# `list-mode` removido por engano passaria despercebido.
-#
-# Um array por bloco porque as `allow` divergem, e um vetor aplicado ao bloco
-# errado inverteria o resultado: `time` é permitido como import no `domain` (a
-# distinção de símbolo fica com o forbidigo) e negado em `port` e `application`;
-# `log` é negado em `domain` e `port` e PERMITIDO em `application`, cuja
-# capability inclui observability (`capability.go:47`).
+# pacote|capability|origem. `dentro` = está na `deny`; `fora` = não está, e prova
+# que a regra é fechada (`list-mode: strict`), não uma denylist. Um array por
+# bloco porque as `allow` divergem: `time` passa em `domain` e cai em `port`/
+# `application`; `log` cai em `domain`/`port` e passa em `application`
+# (`capability.go:47`) — o vetor no bloco errado inverteria o resultado.
 VETORES_DOMAIN=(
   "net/http|io.network|dentro"
   "os|io.filesystem|dentro"
@@ -87,9 +71,18 @@ VETORES_CONTRACT=(
 # os VETORES_* espelham as `deny`. Exigir reprovacao neles seria exigir o que a
 # configuracao deliberadamente nao faz; usa-los como alvo de fixture faria o
 # gate reportar falha onde nao existe.
+# pacote|motivo. Provider de contexto (`apps/**/provider`): a regra
+# `context-provider` é uma denylist (`list-mode: lax`), então só há vetores
+# `dentro`. Todos precisam cair: sem o `pgxpool` negado, `pool.Query` volta a
+# existir para o contexto e o isolamento passa a depender de convenção (IDN-14).
+VETORES_CONTEXT_PROVIDER=(
+  "github.com/jackc/pgx/v5|driver"
+  "github.com/jackc/pgx/v5/pgxpool|pool do driver"
+  "database/sql|driver generico"
+)
+
 FORA_DO_DEPGUARD=(
-  "dmpf-application/example/memory/"
-  "dmpf-contracts/gen/"
+  "contracts/gen/"
 )
 
 fora_do_depguard() {
@@ -121,7 +114,7 @@ includes_do_modulo() {
 # import|corpo|familia. O import é permitido pelo depguard; só o símbolo cai.
 # Uma família por vetor: remover um padrão do .golangci.yml reprova aqui. Só
 # `domain`: o `exclusions.rules` do .golangci.yml restringe o forbidigo a
-# `-domain/`.
+# `/domain/`.
 SIMBOLOS=(
   'time|var _ = time.Now()|io.clock'
   'fmt|func init() { fmt.Println("x") }|io.stdout'
@@ -139,29 +132,17 @@ modulos_application=0
 modulos_contract=0
 fora_de_alcance=0
 
-# Alcance das regras do .golangci.yml, espelhado aqui como os VETORES_*
-# espelham as `deny`: as regras selecionam por `**/*-domain/**`,
-# `**/*-ports/**` e `**/*-application/**` (kernel) e `**/domain/**`, `**/ports/**`,
-# `**/application/**` (contextos em pasta propria, ADR-030), isto e, por nome de
-# diretorio.
-# Modulo cujo caminho nao casa nenhum dos tres NAO e coberto pelo depguard, e
-# provar o gate nele seria provar o que nao existe.
-#
-# Isso nao e o modulo ficar sem protecao: e a limitacao que o proprio
-# .golangci.yml declara e que o verificador do KRN-02 fecha, lendo a
-# classificacao autoritativa em vez do nome do diretorio.
-#
-# A escolha do array vem DESTE caminho, e nao do bloco declarado no manifesto,
-# porque e o caminho que o depguard usa para decidir qual regra aplicar. Num
-# modulo multi-bloco a leitura pelo manifesto seria ambigua: o
-# `dmpf-application` declara unidades `application` e `provider`, e a regra que
-# de fato incide sobre as duas e a `application`.
+# Espelha o alcance do depguard, que seleciona por diretorio (`**/domain/**`,
+# `**/ports/**`, `**/application/**`, `**/contracts/**` e as formas com hifen).
+# Modulo fora desses caminhos nao e coberto pelo depguard — o verificador do
+# KRN-02 o cobre — e provar o gate nele seria provar o que nao existe. O array
+# vem do CAMINHO, nao do manifesto: e o caminho que decide a regra aplicada.
 bloco_do_caminho() {
   case "/$1/" in
     *-domain/* | */domain/*)           echo "domain" ;;
     *-ports/* | */ports/*)             echo "port" ;;
     *-application/* | */application/*) echo "application" ;;
-    *-contracts/*)                     echo "contract" ;;
+    *-contracts/* | */contracts/*)     echo "contract" ;;
     *)               echo "" ;;
   esac
 }
@@ -186,7 +167,7 @@ while IFS= read -r manifesto; do
 
   bloco="$(bloco_do_caminho "$module_dir")"
   if [ -z "$bloco" ]; then
-    echo "-- $module_dir: fora do alcance do depguard (**/*-domain/**, **/*-ports/**, **/*-application/**, **/*-contracts/**); coberto pelo verificador do KRN-02"
+    echo "-- $module_dir: fora do alcance do depguard (**/domain/**, **/ports/**, **/application/**, **/contracts/**); coberto pelo verificador do KRN-02"
     fora_de_alcance=$((fora_de_alcance + 1))
     continue
   fi
@@ -208,7 +189,7 @@ while IFS= read -r manifesto; do
   # O fixture de package precisa de um diretorio com .go, e a clausula vem do
   # proprio codigo: fixa-la aqui quebraria o fixture em modulo com outro nome de
   # package. A raiz e a primeira escolha; quando ela nao tem codigo, vale o
-  # primeiro `include` que tenha — o dmpf-contracts declara tres unidades e
+  # primeiro `include` que tenha — o contracts declara tres unidades e
   # nenhum .go na raiz.
   fixture_dir=""
   pkg_clause=""
@@ -302,16 +283,11 @@ while IFS= read -r manifesto; do
     done
   fi
 
-  # Cada `include` fora da raiz do modulo e uma unidade propria (RFC 3.3). Um
-  # fixture em cada uma prova que o glob do depguard chega ao subpackage, em vez
-  # de presumi-lo a partir da raiz. Em `domain` o fixture e de simbolo
-  # (forbidigo); nos outros blocos e de package, porque o forbidigo esta
-  # restrito a `-domain/`.
-  #
-  # Subpackage cujo bloco declarado nao tem politica local — `provider` e `app`,
-  # que o verificador deixa irrestritos — e DECLARADO como fora do gate, nunca
-  # exercitado: ele esta excluido do depguard em `linters.exclusions.rules`, e
-  # exigir reprovacao ali seria exigir o que a config deliberadamente nao faz.
+  # Um fixture por `include` fora da raiz prova que o glob chega ao subpackage.
+  # Em `domain` o fixture e de simbolo (forbidigo, restrito a `/domain/`); nos
+  # demais, de package. Subpackage de bloco sem politica local (`provider`,
+  # `app`) e declarado fora do gate: exigir reprovacao ali seria exigir o que
+  # `linters.exclusions.rules` deliberadamente nao faz.
   module_path="$(awk '/^module /{print $2; exit}' "$module_dir/go.mod" 2>/dev/null)"
   while IFS= read -r linha; do
     inc="${linha%%|*}"
@@ -384,6 +360,77 @@ while IFS= read -r manifesto; do
   fi
 done < <(git ls-files '*dmpf-units.json')
 
+# O laço acima pula os módulos de contexto (o caminho do módulo não é de bloco),
+# então o provider de cada app é exercitado aqui, pelo include do manifesto.
+providers_de_contexto=0
+while IFS= read -r manifesto; do
+  module_dir="$(dirname "$manifesto")"
+  case "/$module_dir/" in
+    */apps/*) ;;
+    *) continue ;;
+  esac
+  module_path="$(awk '/^module /{print $2; exit}' "$module_dir/go.mod" 2>/dev/null)"
+  project="$(node -p 'require(process.argv[1]).name' "$ROOT/$module_dir/project.json" 2>/dev/null)"
+
+  while IFS= read -r inc; do
+    rel="${inc#"$module_path"}"
+    rel="${rel#/}"
+    case "/$rel/" in
+      */provider/) ;;
+      *) continue ;;
+    esac
+    sub_dir="$module_dir/$rel"
+    sub_clause="$(clausula_de_package "$sub_dir")"
+    if [ -z "$project" ] || [ -z "$sub_clause" ]; then
+      echo "FALHA  $sub_dir: sem projeto Nx ou sem .go com clausula de package"
+      falhas=$((falhas + 1))
+      continue
+    fi
+    providers_de_contexto=$((providers_de_contexto + 1))
+    echo "== $project ($sub_dir) [provider de contexto]"
+
+    for vetor in "${VETORES_CONTEXT_PROVIDER[@]}"; do
+      pkg="${vetor%%|*}"
+      motivo="${vetor#*|}"
+      FIXTURE="$(mktemp "$sub_dir/zz_gate_XXXXXX.go")" || {
+        echo "FALHA  $project: nao consegui criar o fixture em $rel"
+        falhas=$((falhas + 1))
+        break
+      }
+      printf '%s\n\nimport _ "%s"\n' "$sub_clause" "$pkg" > "$FIXTURE"
+
+      saida="$(pnpm nx run "$project":lint --skip-nx-cache 2>&1)"
+      status=$?
+      retirar_fixture
+
+      if [ "$status" -eq 0 ]; then
+        echo "  FALHA  $pkg ($motivo): o lint passou, mas deveria reprovar"
+        falhas=$((falhas + 1))
+      elif ! grep -q "context-provider" <<<"$saida"; then
+        echo "  FALHA  $pkg ($motivo): reprovou por outro motivo que nao a regra context-provider"
+        falhas=$((falhas + 1))
+      else
+        echo "  ok     $pkg ($motivo)"
+      fi
+    done
+
+    if pnpm nx run "$project":lint --skip-nx-cache >/dev/null 2>&1; then
+      echo "  ok     arvore limpa: aprovada"
+    else
+      echo "  FALHA  arvore limpa: reprovada, mas deveria passar"
+      falhas=$((falhas + 1))
+    fi
+  done < <(node -e '
+    const m = require(process.argv[1]);
+    for (const u of m.units ?? []) if (u.block === "provider") for (const i of u.include ?? []) console.log(i);
+  ' "$ROOT/$manifesto" 2>/dev/null)
+done < <(git ls-files '*dmpf-units.json')
+
+if [ "$providers_de_contexto" -eq 0 ]; then
+  echo "FALHA: nenhum provider de contexto encontrado; a regra context-provider nao foi exercitada." >&2
+  exit 1
+fi
+
 if [ "$modulos" -eq 0 ]; then
   echo "FALHA: nenhum modulo com bloco domain, port, application ou contract encontrado; o gate nao exercitou nada." >&2
   exit 1
@@ -397,7 +444,7 @@ fi
 
 echo
 echo "Gate de dependencia: $modulos modulo(s) — domain: $modulos_domain, port: $modulos_port, application: $modulos_application, contract: $modulos_contract."
-echo "Vetores de package por bloco: domain ${#VETORES_DOMAIN[@]}, port ${#VETORES_PORT[@]}, application ${#VETORES_APPLICATION[@]}, contract ${#VETORES_CONTRACT[@]}; ${#SIMBOLOS[@]} de simbolo em domain; 1 positivo por modulo. Todos conformes."
+echo "Vetores de package por bloco: domain ${#VETORES_DOMAIN[@]}, port ${#VETORES_PORT[@]}, application ${#VETORES_APPLICATION[@]}, contract ${#VETORES_CONTRACT[@]}; ${#SIMBOLOS[@]} de simbolo em domain; 1 positivo por modulo; provider de contexto ${#VETORES_CONTEXT_PROVIDER[@]} em $providers_de_contexto package(s). Todos conformes."
 if [ "$fora_de_alcance" -gt 0 ]; then
   # Declarado, nunca silencioso: um gate que esconde o proprio alcance passa a
   # informar cobertura que nao tem.

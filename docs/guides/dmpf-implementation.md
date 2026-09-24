@@ -58,8 +58,8 @@ contexto (RFC §2.3, §4, §6, §7):
 | Setup da máquina e primeiro PR | [`docs/onboarding.md`](../onboarding.md) |
 | Verificador de conformidade rodando local | [`dmpf-manifesto.md`](./dmpf-manifesto.md) |
 
-O kernel que você vai consumir já existe — do `dmpf-domain-go` ao
-`dmpf-testkit-go`, com inventário em [`AGENTS.md`](../../AGENTS.md), seção
+O kernel que você vai consumir já existe — do `domain` ao
+`testkit`, com inventário em [`AGENTS.md`](../../AGENTS.md), seção
 *Libs*.
 
 ### 1.3 Pré-requisitos de processo
@@ -155,8 +155,8 @@ camada de domínio não admite infraestrutura (`PIR-04`) nem duplo de teste
 (`ORA-36`). O pipeline roda em estágios ordenados com gate por estágio
 (`KIT-09`), herda de FND-05 os gates de contrato (`KIT-10`) e põe a camada
 distribuída em pipeline separado (`KIT-11`). O instrumento pronto é o
-[`dmpf-testkit-go`](../../libs/backend/go/dmpf-testkit/README.md), com roteiro na
-skill [`dmpf-testkit`](../../.agents/skills/dmpf-testkit/SKILL.md). Insumos de QA
+[`testkit`](../../libs/backend/go/testkit/README.md), com roteiro na
+skill [`testkit`](../../.agents/skills/dmpf-testkit/SKILL.md). Insumos de QA
 (fixture de projeção e handoff): [playbook](./dmpf-qa-playbook.md) e
 [workshop `orders`/`reservations`](./dmpf-qa-workshop-orders-reservations.md).
 
@@ -171,8 +171,8 @@ composition root por último.
 estável, estados, UPRs, rejeições, eventos publicados e consumidos, critérios de
 aceite. O QA versiona o aceite como fixture — [playbook](./dmpf-qa-playbook.md).
 
-**2 — gere o esqueleto.** Um módulo Go por bloco, já com tags,
-`dmpf-units.json` e entrada no `go.work`:
+**2 — gere o esqueleto.** Um módulo Go por contexto em `apps/backend/<name>`,
+um package por bloco, já com tags, `dmpf-units.json` e entrada no `go.work`:
 
 ```bash
 pnpm nx g @mateusmacedo/dmpf-plugin:bounded-context ordering \
@@ -189,7 +189,7 @@ revisor distinto do autor. Misturar os dois emite `DMPF-T002`; divergência entr
 manifesto e baseline emite `DMPF-T001`.
 
 ```bash
-go run ./libs/backend/go/dmpf-conformance/cmd/dmpf-conformance --root . --write-baseline
+go run ./tools/dmpf-conformance/cmd/conformance --root . --write-baseline
 ```
 
 **4 — escreva o contrato.** Um `.proto` por evento publicado, no caminho de
@@ -197,9 +197,9 @@ go run ./libs/backend/go/dmpf-conformance/cmd/dmpf-conformance --root . --write-
 ([`contracts/README.md`](../../contracts/README.md)):
 
 ```bash
-pnpm nx run dmpf-contracts-go:buf-lint
-pnpm nx run dmpf-contracts-go:buf-generate-check
-NX_BASE=develop pnpm nx run dmpf-contracts-go:buf-breaking
+pnpm nx run contracts:buf-lint
+pnpm nx run contracts:buf-generate-check
+NX_BASE=develop pnpm nx run contracts:buf-breaking
 ```
 
 **5 a 10 — escreva o código, de dentro para fora.** A ordem importa porque cada
@@ -209,7 +209,7 @@ passo fecha as decisões do seguinte:
   Nada de porta, relógio, banco ou log — `domain` só admite capability `pure`, e
   **`domain` não importa `port`**, sem condicional e sem exceção (ADR-014).
 - **6, portas:** só o que o caso de uso precisa e o kernel não oferece.
-  `dmpfports` já traz `UnitOfWork[R]`, `Repository`, `Reader`, `Outbox`,
+  `ports` já traz `UnitOfWork[R]`, `Repository`, `Reader`, `Outbox`,
   `Clock`, `IDGenerator`, `Instrumentation`, `Acknowledger`, `Containment` e a
   porta de inbox.
 - **7, application service:** a sequência canônica de escrita (FND-04 §3.2,
@@ -221,20 +221,20 @@ passo fecha as decisões do seguinte:
   algo (FND-04 §6.3, detalhada em [7.3](#73-modo-consumer)).
 - **10, composição:** a composition root é a única unidade que instancia provider
   concreto (ADR-015); use
-  [`apps/backend/dmpf-reference`](../../apps/backend/dmpf-reference/README.md)
+  [`apps/backend/reservations`](../../apps/backend/reservations/README.md)
   como referência de forma, não como código a copiar.
 
 **11 — valide.** A cadeia por módulo é a de [`AGENTS.md`](../../AGENTS.md), e é a
 mesma que o [checklist](#8-checklist-final) cobra:
 
 ```bash
-pnpm nx run <modulo>-go:fmt-check
-pnpm nx run <modulo>-go:vet
-pnpm nx run <modulo>-go:lint
-pnpm nx run <modulo>-go:build
-pnpm nx run <modulo>-go:test-race
-pnpm nx run <modulo>-go:govulncheck
-go run ./libs/backend/go/dmpf-conformance/cmd/dmpf-conformance --root .
+pnpm nx run <modulo>:fmt-check
+pnpm nx run <modulo>:vet
+pnpm nx run <modulo>:lint
+pnpm nx run <modulo>:build
+pnpm nx run <modulo>:test-race
+pnpm nx run <modulo>:govulncheck
+go run ./tools/dmpf-conformance/cmd/conformance --root .
 ```
 
 O `govulncheck` roda sem cache porque consulta base remota — é o passo mais
@@ -361,7 +361,7 @@ valor, a rejeição como ponteiro:
 
 ```go
 // Ilustrativo: a forma do desfecho, não um recorte compilável.
-func (o *Order) Confirm(cmd ConfirmOrder, now Instant) (dmpfdomain.Accepted[Confirmation], *dmpfdomain.Rejection)
+func (o *Order) Confirm(cmd ConfirmOrder, now Instant) (domain.Accepted[Confirmation], *domain.Rejection)
 ```
 
 `Accepted[R]` carrega a resposta de domínio e a **sequência ordenada e fechada**
@@ -448,7 +448,7 @@ desqualifica o replay.
 | Kafka | transporte-alvo do evento de domínio (§11); commit só do prefixo contíguo (`TRP-29`) |
 | SNS/SQS | transporte normatizado do acervo (§12); Base64 aplicado **uma única vez** (`TRP-19`) |
 
-Os quatro compartilham as primitivas de `dmpf-transport-go`: orçamento de prazo,
+Os quatro compartilham as primitivas de `transport`: orçamento de prazo,
 catálogo de canal, metadado de tentativa, admissão e as três posições de
 observabilidade de `RES-23`.
 
@@ -458,14 +458,16 @@ observabilidade de `RES-23`.
 campos**, exatamente uma das quatro ações da matriz. Sujeito e permissões não
 atravessam o *fan-out* como valor do contexto: a identidade com que este serviço
 chama outro é a sua própria, e a do sujeito original é proveniência (`CTX-12`).
-`dmpf-observability-go` realiza FND-08 sobre OpenTelemetry
+`observability` realiza FND-08 sobre OpenTelemetry
 ([ADR-037](../adr/037-observabilidade-otel-e-retry-por-conjuncao-em-go.md)).
 
-Para provar o que você escreveu, **`dmpf-testkit-go`** tem um kit por camada —
-`domainkit`, `golden`, `serviceskit`, `providerkit`, `appkit`, `distkit` e
-`fitness` —, todos devolvendo veredicto por valor
-([README do módulo](../../libs/backend/go/dmpf-testkit/README.md)). E
-**`dmpf-conformance`** é o gate *fail-closed* sobre o grafo real de imports:
+Para provar o que você escreveu, **`testkit`** tem um kit por camada —
+`domainkit`, `golden`, `serviceskit`, `providerkit` e `fitness` —, todos
+devolvendo veredicto por valor
+([README do módulo](../../libs/backend/go/testkit/README.md)); os harnesses
+borda a borda e distribuído (`appkit`, `distkit`) são do contexto que os
+exercita, em `apps/backend/reservations`. E
+**`conformance`** é o gate *fail-closed* sobre o grafo real de imports:
 exit 0 é aprovação, exit 1 é reprovação, exit 2 é falha de execução — que
 **nunca** pode ser lida como conformidade.
 
@@ -475,8 +477,9 @@ exit 0 é aprovação, exit 1 é reprovação, exit 2 é falha de execução —
 
 Exemplo **didático**, que não existe no código: serve para mostrar como cinco
 contextos autônomos colaboram sem que nenhum importe o domínio do outro. Os
-exemplos que existem no repositório — `orders` e `reservations` — são referência
-**técnica** do kernel, não modelagem a copiar.
+contextos de referência que existem no repositório — `orders` e `reservations`,
+em `apps/backend` — são referência **técnica** do kernel, não modelagem a
+copiar.
 
 Os cinco são `ordering`, `payment`, `preparation`, `collection` e `delivery`.
 Cada um é dono do próprio agregado, da própria inbox e da própria outbox: quem
@@ -1062,7 +1065,7 @@ consequência mecânica do ramo. A ordem do passo 7 separa duplicidade de perda:
 
 - [ ] `dmpf-units.json` em todo módulo de produção, com os quatro campos por unidade e `include` enumerando import paths **exatos**.
 - [ ] Nenhuma dependência externa fora da allowlist, com as quatro chaves.
-- [ ] Verificador `dmpf-conformance` verde (exit 0) na raiz.
+- [ ] Verificador `conformance` verde (exit 0) na raiz.
 - [ ] Provider concreto instanciado **só** na composition root (ADR-015), e nenhum import de domínio entre bounded contexts.
 
 ### Mecanismo
@@ -1131,9 +1134,11 @@ consequência mecânica do ramo. A ordem do passo 7 separa duplicidade de perda:
 | [`development-workflow.md`](./development-workflow.md) | Branches, commits, PRs e validação local |
 | [`tools/dmpf-plugin/README.md`](../../tools/dmpf-plugin/README.md) | Generator do esqueleto de bounded context |
 | [`contracts/README.md`](../../contracts/README.md) | Árvore de contratos e rito Buf |
-| [`apps/backend/dmpf-reference/README.md`](../../apps/backend/dmpf-reference/README.md) | Composition root de referência dos três papéis |
-| [`libs/backend/go/dmpf-app/README.md`](../../libs/backend/go/dmpf-app/README.md) | Consumer adapter e relay |
-| [`libs/backend/go/dmpf-testkit/README.md`](../../libs/backend/go/dmpf-testkit/README.md) | Kits de teste por camada |
+| [`apps/backend/bff/README.md`](../../apps/backend/bff/README.md) | BFF REST público da topologia de referência |
+| [`apps/backend/orders/README.md`](../../apps/backend/orders/README.md) | Contexto `orders`: `api` gRPC e `relay` |
+| [`apps/backend/reservations/README.md`](../../apps/backend/reservations/README.md) | Contexto `reservations`: `api` gRPC, `relay` e `consumer` |
+| [`libs/backend/go/app/README.md`](../../libs/backend/go/app/README.md) | Consumer adapter e relay |
+| [`libs/backend/go/testkit/README.md`](../../libs/backend/go/testkit/README.md) | Kits de teste por camada |
 | [`dmpf-qa-playbook.md`](./dmpf-qa-playbook.md) | Insumos de QA: template de projeção e checklist de handoff |
 | [`dmpf-qa-workshop-orders-reservations.md`](./dmpf-qa-workshop-orders-reservations.md) | Workshop no exemplo `orders` / `reservations` |
 | [`infra/README.md`](../../infra/README.md) | Ambiente local e manifestos |

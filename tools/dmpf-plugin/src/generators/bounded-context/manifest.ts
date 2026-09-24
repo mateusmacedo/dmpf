@@ -3,6 +3,13 @@ import type { ExternalDependency } from './blocks';
 const LINE_WIDTH = 100;
 const INDENT = '  ';
 
+export type ManifestUnit = {
+  id: string;
+  block: string;
+  boundedContext: string;
+  include: readonly string[];
+};
+
 // Biome collapses a JSON array onto one line when it fits lineWidth (biome.json: 100),
 // expands it otherwise and never re-collapses a multi-line object; reproducing that
 // decision keeps `biome ci` a no-op on the generated manifest for any context name.
@@ -31,13 +38,27 @@ const stringArray = ({
   return `${head}[\n${body}\n${pad}]${trailing}`;
 };
 
-export const includeFragment = ({
+export const unitsFragment = ({
   level,
-  packages,
+  units,
 }: {
   level: number;
-  packages: readonly string[];
-}): string => stringArray({ level, key: 'include', items: packages, trailing: '' });
+  units: readonly ManifestUnit[];
+}): string => {
+  const pad = INDENT.repeat(level);
+  const entries = units.map((unit) =>
+    [
+      `${pad}{`,
+      `${pad}${INDENT}"id": ${JSON.stringify(unit.id)},`,
+      `${pad}${INDENT}"block": ${JSON.stringify(unit.block)},`,
+      `${pad}${INDENT}"bounded_context": ${JSON.stringify(unit.boundedContext)},`,
+      `${pad}${INDENT}"public_integration_surface": false,`,
+      stringArray({ level: level + 1, key: 'include', items: unit.include, trailing: '' }),
+      `${pad}}`,
+    ].join('\n'),
+  );
+  return entries.join(',\n');
+};
 
 export const externalFragment = ({
   level,

@@ -1,27 +1,37 @@
-# <%- projectName %>
+# <%- name %>
 
-Bloco `<%- block %>` do bounded context `<%- boundedContext %>`, gerado pelo generator
-`bounded-context` (`tools/dmpf-plugin`).
-<%- blockSummary %>
+Bounded context `<%- boundedContext %>`, gerado pelo generator `bounded-context`
+(`tools/dmpf-plugin`): um módulo Go, um package por bloco.
 
-Projeto Nx `<%- projectName %>`, tags `type:lib`, `scope:backend`, `stack:go` e
-`layer:<%- layer %>`. Import path do módulo:
+Projeto Nx `<%- name %>`, tags `type:app`, `scope:backend`, `stack:go` e
+`layer:<%- layer %>` — a camada é a do estágio mais alto entre os blocos, porque é
+o primeiro em que toda dependência do módulo está de pé. Import path do módulo:
 `<%- modulePath %>`.
 
-## Unidades do manifesto
+## Blocos e unidades
 
-| Unidade | Bloco | `bounded_context` | Package |
+| Package | Bloco | Unidade | Resumo |
 | --- | --- | --- | --- |
-| `<%- unitId %>` | `<%- block %>` | `<%- boundedContext %>` | `<%- goPackage %>` (raiz) |
+<%- blocksTable %>
 
 `block` e `bounded_context` vêm das opções do generator e vão literalmente ao
 `dmpf-units.json` — nunca são inferidos do nome do diretório (ADR-012).
 
 ## Resolução de dependências
 
-O módulo é workspace-only: o `go.mod` declara apenas `module` e `go`, sem
-`require`. Quem resolve as dependências é o `go.work` da raiz, onde o generator
-já registrou a entrada `use`. Nenhum `go.sum` nasce aqui.
+O `go.mod` nasce com `module` e `go` apenas, porque o módulo ainda não importa
+irmão nenhum. A partir do primeiro import, o `require` do irmão é gravado pelo
+`dmpf-modsync` — que o generator já rodou uma vez ao criar o módulo e que você
+roda de novo a cada import novo:
+
+```bash
+go run ./tools/dmpf-conformance/cmd/modsync --root . --write
+```
+
+Dentro do workspace quem resolve é o `go.work` da raiz, onde o generator
+registrou a entrada `use` e o modsync mantém o `replace` versionado; fora dele,
+o `require` resolve pela tag publicada do irmão. O CI confere os dois lados com
+`--check`. Nenhum `go.sum` nasce aqui.
 
 ## Antes do primeiro commit
 
@@ -29,5 +39,5 @@ Unidade nova é ato de classificação (`AUT-01`): o baseline do verificador é
 regravado em commit próprio, separado do commit do código.
 
 ```bash
-go run ./libs/backend/go/dmpf-conformance/cmd/dmpf-conformance --root . --write-baseline
+go run ./tools/dmpf-conformance/cmd/conformance --root . --write-baseline
 ```

@@ -35,6 +35,22 @@ execução e exceções vigentes — vive em [`bom/`](../../bom/README.md), na r
 repositório, e realiza o §4 e o §5.1 de
 [governanca-bom-pilotos.md](./governanca-bom-pilotos.md).
 
+## Convenção de citação
+
+Uma citação nova entre artefatos do acervo aponta a **âncora semântica**: a
+seção e o identificador da regra, como `FND-04 §5.3` ou `OBX-12`. A âncora
+semântica sobrevive à reescrita do texto ao redor; `arquivo:linha` não.
+
+A forma `arquivo:linha` fica reservada para quando não há âncora semântica a
+citar — uma linha de tabela, um trecho sem identificador próprio. As citações
+por linha que já existem permanecem válidas e passam a ser verificadas
+mecanicamente: a checagem C4 de [`tools/dmpf-verify.mjs`](../../tools/dmpf-verify.mjs)
+resolve cada referência física contra o manifesto `line-refs.json` e acusa
+quando o conteúdo apontado deixou de conferir.
+
+Quem cita por linha assume o custo dessa manutenção; quem cita por seção e por
+ID não assume nenhum.
+
 ## Guia prático derivado
 
 Para começar a implementar um novo bounded context, consulte o

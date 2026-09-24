@@ -241,9 +241,20 @@ projetos_gerados() {
         ;;
     esac
   done
-  [ "${#PROJETOS[@]}" -eq "$BLOCOS_PEDIDOS" ] \
-    || falha "${#PROJETOS[@]} módulo(s) gerado(s) para $BLOCOS_PEDIDOS bloco(s) pedido(s): a lista --blocks não chegou inteira ao generator"
-  ok "módulos gerados: ${PROJETOS[*]}"
+  [ "${#PROJETOS[@]}" -eq 1 ] \
+    || falha "${#PROJETOS[@]} project.json gerado(s): o contexto é um único módulo (ADR-045)"
+  [ "${PROJETOS[0]}" = "$NOME" ] \
+    || falha "o projeto gerado chama-se ${PROJETOS[0]}, e devia ser $NOME, sem prefixo nem sufixo"
+  local bloco blocos=() faltando=()
+  IFS=',' read -r -a blocos <<<"$BLOCOS"
+  for bloco in "${blocos[@]}"; do
+    [ -n "$bloco" ] || continue
+    case "$bloco" in port) bloco=ports ;; esac
+    [ -d "$WT/apps/backend/$NOME/$bloco" ] || faltando+=("$bloco")
+  done
+  [ "${#faltando[@]}" -eq 0 ] \
+    || falha "bloco(s) pedido(s) sem diretório no módulo gerado: ${faltando[*]} — a lista --blocks não chegou inteira ao generator"
+  ok "módulo gerado: ${PROJETOS[0]} com $BLOCOS_PEDIDOS bloco(s)"
 }
 
 checar_sem_escrita() {
@@ -302,7 +313,7 @@ commitar_classificacao() {
   [ "${#manifestos[@]}" -gt 0 ] || falha "nenhum dmpf-units.json entre os arquivos gerados"
 
   git -C "$WT" add -- "${manifestos[@]}" || falha "git add dos manifestos de unidade"
-  saida="$(cd "$WT" && go run ./libs/backend/go/dmpf-conformance/cmd/dmpf-conformance \
+  saida="$(cd "$WT" && go run ./tools/dmpf-conformance/cmd/conformance \
     --root . --write-baseline 2>&1)"
   status=$?
   if [ "$status" -ne 0 ]; then
@@ -350,7 +361,7 @@ cadeia_nx() {
 
 verificar_conformidade() {
   local saida status
-  saida="$(go run ./libs/backend/go/dmpf-conformance/cmd/dmpf-conformance \
+  saida="$(go run ./tools/dmpf-conformance/cmd/conformance \
     --root "$WT" --base "$HEAD0" 2>&1)"
   status=$?
   printf '%s\n' "$saida"

@@ -132,7 +132,7 @@ coexistam durante a migração.
 
 ### Critérios de aceite
 
-- [ ] **[P0] Perfil organizacional promovido para `docs/dmpf/cloudevents-protobuf-buf.md` e aprovado em PR**
+- [x] **[P0] Perfil organizacional promovido para `docs/dmpf/cloudevents-protobuf-buf.md` e aprovado em PR**
 - [x] **[P0] Skeleton/estrutura inicial do repo de contratos especificada**
 - [x] **[P0] Checks Buf descritos de forma executável**
 
