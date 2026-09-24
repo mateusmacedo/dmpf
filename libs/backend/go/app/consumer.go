@@ -147,7 +147,16 @@ func (c Consumer) Consume(ctx context.Context, d Delivery, ack ports.Acknowledge
 	defer cancel()
 	execution, err := c.executionOf(handleCtx, env, attempt)
 	if err != nil {
-		return Outcome{}, err
+		// Without a context the handler cannot run, and returning the error
+		// alone would leave the message to be redelivered forever.
+		return c.contain(ctx, ack, Outcome{Reason: ports.ReasonInvalidEnvelope}, ports.Contained{
+			Consumer:  c.Name,
+			MessageID: receipt.MessageID,
+			Reason:    ports.ReasonInvalidEnvelope,
+			Envelope:  d.Raw,
+			Error:     "app: the envelope produced no execution context",
+			At:        receipt.ReceivedAt,
+		}, nil)
 	}
 	disposition, handleErr := c.Handle(ports.WithExecutionContext(handleCtx, execution), receipt, env)
 	outcome := Outcome{Disposition: disposition, Classified: true}

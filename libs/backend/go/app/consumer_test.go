@@ -567,3 +567,22 @@ func TestUnknownDispositionIsAnErrorNotAPanic(t *testing.T) {
 		t.Fatal("a defective disposition must leave the message untouched: no ack, no release, no containment")
 	}
 }
+
+// CTX-11, retry column for subject and permissions: §3.6 reconstructs the
+// consumption with the consumer's own workload identity (CTX-25), so what the
+// producer's subject could do never reaches the decision on this side.
+func TestTheConsumerActsWithoutTheProducersIdentity(t *testing.T) {
+	t.Parallel()
+	raw, _ := validRaw(t)
+	handler := &fakeHandler{disposition: application.R1D1}
+
+	if _, err := newConsumer(handler, &fakeContainment{}, 3).Consume(context.Background(), app.Delivery{Raw: raw, Attempt: 2}, &fakeAck{}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if subject, ok := handler.execution.Subject(); ok {
+		t.Fatalf("subject = %q on a redelivery; provenance is not identity (CTX-25)", subject)
+	}
+	if permissions := handler.execution.Permissions(); permissions != nil {
+		t.Fatalf("permissions = %v on a redelivery; none is carried from the producer (CTX-12)", permissions)
+	}
+}
