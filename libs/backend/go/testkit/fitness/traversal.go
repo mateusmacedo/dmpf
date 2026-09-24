@@ -31,6 +31,10 @@ type Crossing struct {
 	RejectsInput  bool
 	Proof         string
 	ProofEnvelope bool
+
+	// Realization says how the action is carried out when its form is not
+	// evident from the name alone, so a reader does not take it literally.
+	Realization string
 }
 
 const (
@@ -38,6 +42,8 @@ const (
 	bffHandlers   = "apps/backend/bff/api/handlers_test.go::"
 	ordersRPC     = "apps/backend/orders/app/rpc/interceptors_test.go::"
 	consumerCtx   = "libs/backend/go/app/consumer_test.go::TestTheHandlerReceivesTheContextRebuiltFromTheEnvelope"
+	consumerOwn   = "libs/backend/go/app/consumer_test.go::TestTheConsumerActsWithoutTheProducersIdentity"
+	ownWorkload   = "reconstruído por §3.6 com a identidade do workload consumidor (CTX-25): o contexto não porta sujeito nem permissões do produtor"
 	relayRecord   = "libs/backend/go/app/relay/record_test.go::"
 	kernelHTTP    = "libs/backend/go/http/identity_test.go::"
 	consumerGold  = "libs/backend/go/app/consumer_golden_test.go::"
@@ -70,7 +76,7 @@ var Traversal = []Crossing{
 
 	{Field: "authenticated_subject", Boundary: Ingress, Action: Regenerate, RejectsInput: true, Proof: kernelHTTP + "TestAnAssertedIdentityThatDivergesIsRefused"},
 	{Field: "authenticated_subject", Boundary: FanOut, Action: Reduce, ProofEnvelope: true},
-	{Field: "authenticated_subject", Boundary: Retry, Action: Regenerate, Proof: consumerCtx},
+	{Field: "authenticated_subject", Boundary: Retry, Action: Regenerate, Proof: consumerOwn, Realization: ownWorkload},
 	{Field: "authenticated_subject", Boundary: Downstream, Action: Reduce, Proof: bffIdentity + "TestTheTenantCrossesTheFanOutAndTheSubjectNeverDoes"},
 
 	{Field: "tenant_id", Boundary: Ingress, Action: Regenerate, RejectsInput: true, Proof: bffIdentity + "TestAHeaderAssertingAnotherTenantIsRefused"},
@@ -80,7 +86,7 @@ var Traversal = []Crossing{
 
 	{Field: "permissions", Boundary: Ingress, Action: Regenerate, Proof: authnIdentity + "TestDevAuthenticatorResolvesTheIdentityTheCredentialDeclares"},
 	{Field: "permissions", Boundary: FanOut, Action: Reduce, ProofEnvelope: true},
-	{Field: "permissions", Boundary: Retry, Action: Regenerate, Proof: consumerCtx},
+	{Field: "permissions", Boundary: Retry, Action: Regenerate, Proof: consumerOwn, Realization: ownWorkload},
 	{Field: "permissions", Boundary: Downstream, Action: Reduce, Proof: ordersRPC + "TestMetadataAssertingASubjectResolvesNone"},
 
 	{Field: "deadline", Boundary: Ingress, Action: Regenerate, Proof: bffHandlers + "TestARequestWithoutDeadlineReachesTheContextBelowTheRouteBudget"},
