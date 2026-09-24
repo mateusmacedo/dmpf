@@ -45,7 +45,7 @@ on:
         description: "Runner para execução"
         required: false
         type: string
-        default: "ubuntu-latest"
+        default: "ubuntu-26.04"
       build_target:
         description: "Target do Nx para build (ex: build)"
         required: false

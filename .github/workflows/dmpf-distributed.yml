@@ -28,7 +28,7 @@ permissions:
 jobs:
   distributed:
     name: Reentrega deliberada sobre o broker (V32)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 20
     env:
       CI: "true"

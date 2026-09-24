@@ -22,7 +22,7 @@ permissions:
 jobs:
   bom:
     name: Gates do BOM
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     outputs:
       release: ${{ steps.release.outputs.release }}
@@ -80,7 +80,7 @@ jobs:
   tag:
     name: Cunhar dmpf@<release>
     needs: [bom, evidence]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     env:
       RELEASE: ${{ needs.bom.outputs.release }}

@@ -26,7 +26,7 @@ on:
         description: "Runner para execução"
         required: false
         type: string
-        default: "ubuntu-latest"
+        default: "ubuntu-26.04"
     outputs:
       apps:
         description: "JSON array de apps detectadas"
