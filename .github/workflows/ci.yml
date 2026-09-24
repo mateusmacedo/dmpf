@@ -175,6 +175,12 @@ jobs:
         run: bash tools/dmpf-context-check.sh --phase structural
 
       # Os sete vetores negativos, pela mesma razão do self-test acima.
+      - name: Instalar trash-cli para o self-test do context check
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y --no-install-recommends trash-cli
+          command -v trash
+
       - name: DMPF context check (self-test)
         run: bash tools/dmpf-context-check.sh --phase self-test
 
@@ -212,20 +218,15 @@ jobs:
           esac
           go run ./tools/dmpf-conformance/cmd/bom --root . --release latest --base "$base"
 
-      # O bloco `services:` não serve aqui: o act_runner põe serviço e job na
-      # bridge default do Docker, que não resolve nome de container, e declara
-      # ignorar rede customizada. Compartilhar o namespace de rede do próprio job
-      # dispensa DNS, IP de gateway e porta publicada — ver ADR-035.
+      # No runner hospedado do GitHub o job roda na VM, sem container próprio:
+      # `--network host` publica cada serviço em localhost, como os testes esperam.
       - name: Subir Postgres para os testes de integração
         run: |
           set -euo pipefail
-          # O nome carrega o id do container do job porque o socket do Docker vem
-          # do host: um nome fixo colidiria entre jobs concorrentes, ou com o
-          # resíduo de um job morto sem limpeza.
           nome="dmpf-postgres-$(hostname)"
           docker rm -f "$nome" >/dev/null 2>&1 || true
           docker run -d --name "$nome" \
-            --network "container:$(hostname)" \
+            --network host \
             -e POSTGRES_USER=dmpf -e POSTGRES_PASSWORD=dmpf -e POSTGRES_DB=dmpf \
             postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
           for _ in $(seq 1 30); do
@@ -239,7 +240,7 @@ jobs:
           docker logs "$nome" >&2
           exit 1
 
-      # Mesmo gesto do Postgres (ADR-035). `--mode dev-container` agrupa as flags
+      # Mesma rede do Postgres. `--mode dev-container` agrupa as flags
       # de desenvolvimento e `--smp 1` é repassado ao binário (confirmado em
       # v26.2.2 pelo exec logado); sem ele o broker toma todos os cores do runner.
       - name: Subir Redpanda para os testes de integração
@@ -248,7 +249,7 @@ jobs:
           nome="dmpf-redpanda-$(hostname)"
           docker rm -f "$nome" >/dev/null 2>&1 || true
           docker run -d --name "$nome" \
-            --network "container:$(hostname)" \
+            --network host \
             redpandadata/redpanda:v26.2.2@sha256:468bd13a9f2bd24794cb7fddc867c767fb1008b9a07b297b89fde48c564d7d96 \
             redpanda start --mode dev-container --smp 1
           for _ in $(seq 1 30); do
@@ -264,14 +265,14 @@ jobs:
 
       # Segundo broker, que exige SASL SCRAM (IDN-04): prova que o cliente se
       # autentica e que o broker recusa quem não se autentica. Portas próprias
-      # porque os contêineres dividem o namespace de rede do job.
+      # porque os contêineres dividem a rede do host.
       - name: Subir Redpanda com SASL para o teste de autenticação de cliente
         run: |
           set -euo pipefail
           nome="dmpf-redpanda-sasl-$(hostname)"
           docker rm -f "$nome" 2>/dev/null || true
           docker run -d --name "$nome" \
-            --network "container:$(hostname)" \
+            --network host \
             redpandadata/redpanda:v26.2.2@sha256:468bd13a9f2bd24794cb7fddc867c767fb1008b9a07b297b89fde48c564d7d96 \
             redpanda start --mode dev-container --smp 1 \
             --advertise-kafka-addr sasl://localhost:19092 \
@@ -303,7 +304,7 @@ jobs:
           nome="dmpf-floci-$(hostname)"
           docker rm -f "$nome" >/dev/null 2>&1 || true
           docker run -d --name "$nome" \
-            --network "container:$(hostname)" \
+            --network host \
             floci/floci:2.0.1@sha256:4e451c39c7bb88e3cd4f87e8fc0c25d5b47695a51185d521e2241fa00486e8eb
           for _ in $(seq 1 30); do
             if curl -sf -o /dev/null "http://localhost:4566/_floci/health"; then
