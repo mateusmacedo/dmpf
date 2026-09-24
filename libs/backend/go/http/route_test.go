@@ -26,6 +26,7 @@ func route(method string) provider.Route {
 			EstimatedDuration: 100 * time.Millisecond,
 		},
 		RetryableStatus: []int{http.StatusServiceUnavailable},
+		Permission:      "orders:read",
 	}
 }
 
@@ -153,5 +154,19 @@ func TestRouteRequirementUnknownValueIsRefused(t *testing.T) {
 
 	if err := unknown.Validate(); !errors.Is(err, provider.ErrRequirementUnknown) {
 		t.Fatalf("Validate() err = %v, want %v", err, provider.ErrRequirementUnknown)
+	}
+}
+
+// An inbound edge refuses to start with a route that demands a subject and
+// declares no permission, instead of denying every request at runtime (IDN-17).
+func TestValidateEdgeRefusesASubjectRouteWithoutPermission(t *testing.T) {
+	r := route(http.MethodPost)
+	r.Permission = ""
+	if err := r.ValidateEdge(); !errors.Is(err, provider.ErrPermissionRequired) {
+		t.Fatalf("ValidateEdge() = %v, want ErrPermissionRequired", err)
+	}
+	r.Permission = "orders:write"
+	if err := r.ValidateEdge(); err != nil {
+		t.Fatalf("ValidateEdge() = %v, want nil", err)
 	}
 }

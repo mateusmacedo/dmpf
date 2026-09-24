@@ -186,3 +186,56 @@ func TestAnAssertedTenantOverAnAbsentOneIsRefused(t *testing.T) {
 		t.Fatalf("status = %d, want 403", status)
 	}
 }
+
+// IDN-16 at the edge: the subject is authorized here, against the permission
+// the route declares, because CTX-12 keeps both from crossing the fan-out.
+func TestResolveIdentityDeniesASubjectWithoutTheRoutesPermission(t *testing.T) {
+	r := route(http.MethodPost)
+	r.Permission = "orders:write"
+
+	_, status, code := provider.ResolveIdentity(t.Context(), stubAuthenticator{identity: resolvedIdentity()}, r, presented())
+
+	if status != http.StatusForbidden || code != "permission-denied" {
+		t.Fatalf("status = %d, code = %q, want 403 permission-denied (IDN-08)", status, code)
+	}
+}
+
+func TestResolveIdentityLetsTheDeclaredPermissionThrough(t *testing.T) {
+	r := route(http.MethodGet)
+	r.Permission = "orders:read"
+
+	if _, status, code := provider.ResolveIdentity(t.Context(), stubAuthenticator{identity: resolvedIdentity()}, r, presented()); status != 0 {
+		t.Fatalf("status = %d, code = %q, want the request to proceed", status, code)
+	}
+}
+
+// IDN-17: a route demanding a subject and declaring no permission closes.
+func TestResolveIdentityDeniesARouteThatDeclaresNoPermission(t *testing.T) {
+	r := route(http.MethodGet)
+	r.Permission = ""
+
+	if _, status, code := provider.ResolveIdentity(t.Context(), stubAuthenticator{identity: resolvedIdentity()}, r, presented()); status != http.StatusForbidden || code != "permission-undeclared" {
+		t.Fatalf("status = %d, code = %q, want 403 permission-undeclared", status, code)
+	}
+}
+
+// CTX-06 reads every value a field carries: a repeated header or query key
+// whose later value diverges, or an assertion present but empty, is refused
+// the same way as a single divergent value.
+func TestEveryAssertedValueIsChecked(t *testing.T) {
+	subject, tenant := ports.SubjectID("alice"), ports.TenantID("acme")
+	resolved := provider.Resolved{Subject: &subject, Tenant: &tenant}
+
+	repeated := httptest.NewRequest(http.MethodGet, "/orders/o-1", nil)
+	repeated.Header.Add("X-Tenant-ID", "acme")
+	repeated.Header.Add("X-Tenant-ID", "globex")
+	empty := httptest.NewRequest(http.MethodGet, "/orders/o-1", nil)
+	empty.Header["X-Tenant-Id"] = []string{""}
+	query := httptest.NewRequest(http.MethodGet, "/orders/o-1?tenant_id=acme&tenant_id=globex", nil)
+
+	for name, r := range map[string]*http.Request{"repeated header": repeated, "empty assertion": empty, "repeated query": query} {
+		if status, _ := provider.RefuseAssertedIdentity(r, resolved); status != http.StatusForbidden {
+			t.Errorf("%s: status = %d, want 403", name, status)
+		}
+	}
+}

@@ -91,7 +91,7 @@ func TestAdmissionRefusesWith429BeforeReadingTheBody(t *testing.T) {
 
 	second := &countingBody{Reader: strings.NewReader(strings.Repeat("x", 1<<20))}
 	rec = httptest.NewRecorder()
-	middleware.ServeHTTP(rec, post("umbrella", second))
+	middleware.ServeHTTP(rec, post("initech", second))
 	if rec.Code != http.StatusTooManyRequests {
 		t.Fatalf("second request = %d, want 429 (RES-17)", rec.Code)
 	}
@@ -132,7 +132,9 @@ func TestAdmissionRefusesWith429BeforeReadingTheBody(t *testing.T) {
 	}
 }
 
-func TestAdmissionResolvesTenantsAgainstTheAllowlist(t *testing.T) {
+// RES-16: each tenant owns its bucket, declared in the label allowlist or not;
+// the allowlist only collapses the metric label (MET-07).
+func TestAdmissionKeepsABucketPerTenantWhateverTheAllowlist(t *testing.T) {
 	ctrl := admissionController(t, admission.Limit{PerSecond: 1, Burst: 1, Concurrency: 10})
 	ok := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
 	middleware := provider.Admission(ctrl, nil, tenantHeader, nil)(ok)
@@ -145,11 +147,11 @@ func TestAdmissionResolvesTenantsAgainstTheAllowlist(t *testing.T) {
 	if serve("acme") != http.StatusNoContent {
 		t.Fatal("acme refused on its first request")
 	}
-	if serve("") != http.StatusNoContent {
-		t.Fatal("absent tenant refused on its first request: it is its own bucket under other")
+	if serve("initech") != http.StatusNoContent {
+		t.Fatal("initech refused on its first request: an undeclared tenant still owns its bucket")
 	}
-	if serve("initech") != http.StatusTooManyRequests {
-		t.Fatal("initech admitted: undeclared tenants share the other bucket with the absent one (MET-07)")
+	if serve("umbrella") != http.StatusNoContent {
+		t.Fatal("umbrella refused because initech used its bucket: the buckets are per tenant")
 	}
 	if serve("acme") != http.StatusTooManyRequests {
 		t.Fatal("acme admitted twice within the burst")
