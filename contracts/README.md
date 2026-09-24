@@ -115,10 +115,16 @@ git tag -a contracts-baseline/proto -m "baseline estabelecido" <commit-na-branch
 git push origin contracts-baseline/proto
 ```
 
-No Gitea, a tag protegida `contracts-baseline/*` (Settings → Tags) deve permitir
-criação apenas às equipes `tech-leads` e `Owners`. Um repositório com um único
-aprovador não consegue sair de `sem baseline`; a norma trata isso como
-pré-requisito organizacional, não como defeito do gate.
+A plataforma é o GitHub (`github.com/mateusmacedo/dmpf`, ADR-043). O
+ADR-008 removeu as proteções de branch e de tag do repositório para destravar
+o release, e o ADR-043 manteve essa remoção ao migrar de plataforma — hoje não
+há ruleset de tag protegendo `contracts-baseline/*`, e a exigência de que a
+marca seja criada por alguém que não é o autor do módulo é imposta pelo
+processo do time, não pelo servidor. Quando um ruleset de tag for configurado
+no GitHub (Settings → Tags → Rulesets) para `contracts-baseline/*`, restrinja a
+criação aos times com direito de aprovar a promoção; um repositório com um
+único aprovador não consegue sair de `sem baseline` nesse caso, e a norma trata
+isso como pré-requisito organizacional, não como defeito do gate.
 
 ## O que é e o que não é normatizado
 
