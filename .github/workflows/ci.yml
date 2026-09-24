@@ -30,6 +30,9 @@ jobs:
       NX_EXCLUDE: "@mateusmacedo/dmpf-source"
       DMPF_PG_DSN: "postgres://dmpf:dmpf@localhost:5432/dmpf?sslmode=disable"
       DMPF_KAFKA_BROKERS: "localhost:9092"
+      DMPF_KAFKA_SASL_BROKERS: "localhost:19092"
+      DMPF_KAFKA_SASL_USERNAME: "dmpf-ci"
+      DMPF_KAFKA_SASL_PASSWORD: "dmpf-ci-secret"
       DMPF_SQS_ENDPOINT: "http://localhost:4566"
       AWS_REGION: "us-east-1"
       AWS_ACCESS_KEY_ID: "test"
@@ -259,6 +262,38 @@ jobs:
           docker logs "$nome" >&2
           exit 1
 
+      # Segundo broker, que exige SASL SCRAM (IDN-04): prova que o cliente se
+      # autentica e que o broker recusa quem não se autentica. Portas próprias
+      # porque os contêineres dividem o namespace de rede do job.
+      - name: Subir Redpanda com SASL para o teste de autenticação de cliente
+        run: |
+          set -euo pipefail
+          nome="dmpf-redpanda-sasl-$(hostname)"
+          docker rm -f "$nome" 2>/dev/null || true
+          docker run -d --name "$nome" \
+            --network "container:$(hostname)" \
+            redpandadata/redpanda:v26.2.2@sha256:468bd13a9f2bd24794cb7fddc867c767fb1008b9a07b297b89fde48c564d7d96 \
+            redpanda start --mode dev-container --smp 1 \
+            --advertise-kafka-addr sasl://localhost:19092 \
+            --rpc-addr 0.0.0.0:43145 --advertise-rpc-addr localhost:43145 \
+            --pandaproxy-addr 0.0.0.0:18082 --schema-registry-addr 0.0.0.0:18081 \
+            --set 'redpanda.admin=[{"address":"0.0.0.0","port":19644}]' \
+            --set 'redpanda.kafka_api=[{"name":"sasl","address":"0.0.0.0","port":19092,"authentication_method":"sasl"}]' \
+            --set "redpanda.superusers=[\"${DMPF_KAFKA_SASL_USERNAME}\"]" \
+            --set redpanda.kafka_enable_authorization=true
+          for _ in $(seq 1 30); do
+            if docker exec "$nome" rpk cluster health -X admin.hosts=localhost:19644 2>/dev/null | grep -q 'Healthy:.*true'; then
+              docker exec "$nome" rpk security user create "$DMPF_KAFKA_SASL_USERNAME" -p "$DMPF_KAFKA_SASL_PASSWORD" \
+                --mechanism SCRAM-SHA-256 -X admin.hosts=localhost:19644
+              echo "redpanda com SASL pronto em localhost:19092 ($nome)"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "redpanda com SASL nao respondeu em 60s" >&2
+          docker logs "$nome" >&2
+          exit 1
+
       # SQS e SNS no mesmo emulador, para o hop SNS → SQS com raw delivery. As
       # filas e tópicos são criados pelo próprio teste de integração; o floci
       # aceita qualquer credencial não vazia, e /_floci/health lista os serviços.
@@ -349,4 +384,4 @@ jobs:
       # de cada step nunca alcança o resíduo de um job anterior; quem limpa é este.
       - name: Derrubar a infraestrutura do job
         if: always()
-        run: docker rm -f "dmpf-postgres-$(hostname)" "dmpf-redpanda-$(hostname)" "dmpf-floci-$(hostname)" >/dev/null 2>&1 || true
+        run: docker rm -f "dmpf-postgres-$(hostname)" "dmpf-redpanda-$(hostname)" "dmpf-redpanda-sasl-$(hostname)" "dmpf-floci-$(hostname)" >/dev/null 2>&1 || true

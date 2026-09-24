@@ -423,7 +423,10 @@ linters:
         # segue governado pelo verificador. `!$test` porque os harnesses de
         # teste semeiam e inspecionam o banco cru, fora do caminho da aplicação.
         # Exceção nominal: a DDL do contexto é aplicada pelo `app`, por
-        # `postgres.Migrate(ctx, pool, provider.Schema)`.
+        # `postgres.Migrate(ctx, pool, provider.Schema)`. Os ORMs e drivers que
+        # importam `database/sql` só de forma transitiva estão listados porque o
+        # depguard vê apenas o import direto; os que não estão no `go.mod` não
+        # compilam num vetor, e a porta real para eles é a revisão do `go.mod`.
         context-provider:
           list-mode: lax
           files:
@@ -435,4 +438,16 @@ linters:
             - pkg: database/sql
               desc: 'IDN-14: o provider de contexto nao escreve SQL; declare postgres.Table e receba postgres.ReadPool'
             - pkg: gorm.io/gorm
+              desc: 'IDN-14: o provider de contexto nao escreve SQL; declare postgres.Table e receba postgres.ReadPool'
+            - pkg: github.com/jmoiron/sqlx
+              desc: 'IDN-14: o provider de contexto nao escreve SQL; declare postgres.Table e receba postgres.ReadPool'
+            - pkg: github.com/uptrace/bun
+              desc: 'IDN-14: o provider de contexto nao escreve SQL; declare postgres.Table e receba postgres.ReadPool'
+            - pkg: entgo.io/ent
+              desc: 'IDN-14: o provider de contexto nao escreve SQL; declare postgres.Table e receba postgres.ReadPool'
+            - pkg: github.com/Masterminds/squirrel
+              desc: 'IDN-14: o provider de contexto nao escreve SQL; declare postgres.Table e receba postgres.ReadPool'
+            - pkg: github.com/lib/pq
+              desc: 'IDN-14: o provider de contexto nao escreve SQL; declare postgres.Table e receba postgres.ReadPool'
+            - pkg: github.com/go-pg/pg
               desc: 'IDN-14: o provider de contexto nao escreve SQL; declare postgres.Table e receba postgres.ReadPool'
