@@ -3,6 +3,7 @@ package app
 import (
 	"errors"
 	"fmt"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/kafka"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/envconfig"
 	"strings"
 	"time"
@@ -30,24 +31,26 @@ var (
 )
 
 const (
-	envDSN            = "DMPF_PG_DSN"
-	envGRPCAddr       = "DMPF_GRPC_ADDR"
-	envGRPCInsecure   = "DMPF_GRPC_INSECURE"
-	envGRPCCertFile   = "DMPF_GRPC_TLS_CERT_FILE"
-	envGRPCKeyFile    = "DMPF_GRPC_TLS_KEY_FILE"
-	envMigrate        = "DMPF_MIGRATE"
-	envBrokers        = "DMPF_KAFKA_BROKERS"
-	envMetricTenants  = "DMPF_METRIC_TENANTS"
-	envKafkaInsecure  = "DMPF_KAFKA_INSECURE"
-	envOrdersTopic    = "DMPF_KAFKA_ORDERS_TOPIC"
-	envOrdersDLQ      = "DMPF_KAFKA_ORDERS_DLQ"
-	envGroup          = "DMPF_KAFKA_GROUP"
-	envOTLPEndpoint   = "DMPF_OTLP_ENDPOINT"
-	envOTLPInsecure   = "DMPF_OTLP_INSECURE"
-	envService        = "DMPF_SERVICE"
-	envServiceVersion = "DMPF_SERVICE_VERSION"
-	envInstanceID     = "DMPF_INSTANCE_ID"
-	envItemLimit      = "DMPF_ITEM_LIMIT"
+	envDSN                = "DMPF_PG_DSN"
+	envGRPCAddr           = "DMPF_GRPC_ADDR"
+	envGRPCInsecure       = "DMPF_GRPC_INSECURE"
+	envGRPCCertFile       = "DMPF_GRPC_TLS_CERT_FILE"
+	envGRPCKeyFile        = "DMPF_GRPC_TLS_KEY_FILE"
+	envGRPCClientCAFile   = "DMPF_GRPC_CLIENT_CA_FILE"
+	envGRPCTrustedClients = "DMPF_GRPC_TRUSTED_CLIENTS"
+	envMigrate            = "DMPF_MIGRATE"
+	envBrokers            = "DMPF_KAFKA_BROKERS"
+	envMetricTenants      = "DMPF_METRIC_TENANTS"
+	envKafkaInsecure      = "DMPF_KAFKA_INSECURE"
+	envOrdersTopic        = "DMPF_KAFKA_ORDERS_TOPIC"
+	envOrdersDLQ          = "DMPF_KAFKA_ORDERS_DLQ"
+	envGroup              = "DMPF_KAFKA_GROUP"
+	envOTLPEndpoint       = "DMPF_OTLP_ENDPOINT"
+	envOTLPInsecure       = "DMPF_OTLP_INSECURE"
+	envService            = "DMPF_SERVICE"
+	envServiceVersion     = "DMPF_SERVICE_VERSION"
+	envInstanceID         = "DMPF_INSTANCE_ID"
+	envItemLimit          = "DMPF_ITEM_LIMIT"
 
 	// DefaultItemLimit is the ceiling a process takes when it declares none.
 	DefaultItemLimit = 10
@@ -65,15 +68,24 @@ type Config struct {
 	GRPCCertFile string
 	GRPCKeyFile  string
 
+	// GRPCClientCAFile and GRPCTrustedClients authenticate the caller (IDN-03):
+	// the metadata it propagates is only read from a workload they verified.
+	GRPCClientCAFile   string
+	GRPCTrustedClients []string
+
 	Service  string
 	Version  string
 	Instance string
 
 	Brokers       []string
 	KafkaInsecure bool
-	OrdersTopic   string
-	OrdersDLQ     string
-	Group         string
+
+	// KafkaAuth is the principal this process presents to the
+	// broker, required whenever TLS is on (IDN-04).
+	KafkaAuth   kafka.ClientAuth
+	OrdersTopic string
+	OrdersDLQ   string
+	Group       string
 
 	OTLPEndpoint string
 	OTLPInsecure bool
@@ -121,10 +133,13 @@ func FromEnv(role Role, lookup func(string) string) (Config, error) {
 	cfg.GRPCAddr = envconfig.OrDefault(lookup(envGRPCAddr), cfg.GRPCAddr)
 	cfg.GRPCCertFile = lookup(envGRPCCertFile)
 	cfg.GRPCKeyFile = lookup(envGRPCKeyFile)
+	cfg.GRPCClientCAFile = lookup(envGRPCClientCAFile)
+	cfg.GRPCTrustedClients = envconfig.SplitList(lookup(envGRPCTrustedClients))
 	cfg.Service = envconfig.OrDefault(lookup(envService), cfg.Service)
 	cfg.Version = envconfig.OrDefault(lookup(envServiceVersion), cfg.Version)
 	cfg.Instance = envconfig.OrDefault(lookup(envInstanceID), envconfig.Hostname())
 	cfg.Brokers = envconfig.SplitList(lookup(envBrokers))
+	cfg.KafkaAuth = kafka.ReadClientAuth(lookup)
 	cfg.MetricTenants = envconfig.SplitList(lookup(envMetricTenants))
 	cfg.OrdersTopic = lookup(envOrdersTopic)
 	cfg.OrdersDLQ = lookup(envOrdersDLQ)
@@ -190,6 +205,7 @@ func (c Config) requirements() ([]requirement, error) {
 			requirement{envOrdersTopic, c.OrdersTopic == ""},
 			requirement{envOrdersDLQ, c.OrdersDLQ == ""},
 			requirement{envGroup, c.Group == ""},
+			c.kafkaClientAuth(),
 		), nil
 	case "consumer":
 		return nil, fmt.Errorf("%w: %q: the orders context consumes no channel (use %s)", ErrUnknownRole, c.Role, roleList())
@@ -207,7 +223,10 @@ func (c Config) transport() []requirement {
 	case c.GRPCCertFile == "" && c.GRPCKeyFile == "":
 		return []requirement{{envGRPCInsecure + " or " + envGRPCCertFile + " and " + envGRPCKeyFile, true}}
 	default:
-		return []requirement{{envGRPCCertFile, c.GRPCCertFile == ""}, {envGRPCKeyFile, c.GRPCKeyFile == ""}}
+		return []requirement{
+			{envGRPCCertFile, c.GRPCCertFile == ""}, {envGRPCKeyFile, c.GRPCKeyFile == ""},
+			{envGRPCClientCAFile, c.GRPCClientCAFile == ""}, {envGRPCTrustedClients, len(c.GRPCTrustedClients) == 0},
+		}
 	}
 }
 
@@ -217,4 +236,10 @@ func roleList() string {
 		names[i] = string(role)
 	}
 	return strings.Join(names, "|")
+}
+
+// kafkaClientAuth is the requirement of IDN-04 on a role that talks to the
+// broker: with TLS on, the client authenticates; only the opt-out waives it.
+func (c Config) kafkaClientAuth() requirement {
+	return requirement{"DMPF_KAFKA_SASL_MECHANISM or DMPF_KAFKA_CLIENT_CERT_FILE", !c.KafkaInsecure && c.KafkaAuth.SASL == nil && c.KafkaAuth.CertFile == ""}
 }

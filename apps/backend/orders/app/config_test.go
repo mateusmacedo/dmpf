@@ -37,10 +37,25 @@ func TestTheAPIRequiresATransportPolicy(t *testing.T) {
 
 func TestTheAPIAcceptsATLSPair(t *testing.T) {
 	_, err := app.FromEnv(app.RoleAPI,
-		lookup("DMPF_PG_DSN", "postgres://x", "DMPF_GRPC_TLS_CERT_FILE", "/tls/cert.pem", "DMPF_GRPC_TLS_KEY_FILE", "/tls/key.pem"))
+		lookup("DMPF_PG_DSN", "postgres://x", "DMPF_GRPC_TLS_CERT_FILE", "/tls/cert.pem", "DMPF_GRPC_TLS_KEY_FILE", "/tls/key.pem",
+			"DMPF_GRPC_CLIENT_CA_FILE", "/tls/clients.pem", "DMPF_GRPC_TRUSTED_CLIENTS", "spiffe://dmpf/bff"))
 
 	if err != nil {
 		t.Fatalf("FromEnv() = %v, want nil", err)
+	}
+}
+
+// IDN-03: a TLS server that does not authenticate its caller would read the
+// tenant any process on the network chose to send.
+func TestATLSPairWithoutClientAuthenticationNamesWhatIsMissing(t *testing.T) {
+	pair := []string{"DMPF_PG_DSN", "postgres://x", "DMPF_GRPC_TLS_CERT_FILE", "/tls/cert.pem", "DMPF_GRPC_TLS_KEY_FILE", "/tls/key.pem"}
+
+	if _, err := app.FromEnv(app.RoleAPI, lookup(pair...)); !errors.Is(err, app.ErrMissingVariable) || !strings.Contains(err.Error(), "DMPF_GRPC_CLIENT_CA_FILE") {
+		t.Fatalf("FromEnv() = %v, want DMPF_GRPC_CLIENT_CA_FILE named", err)
+	}
+	withCA := append(pair, "DMPF_GRPC_CLIENT_CA_FILE", "/tls/clients.pem")
+	if _, err := app.FromEnv(app.RoleAPI, lookup(withCA...)); !errors.Is(err, app.ErrMissingVariable) || !strings.Contains(err.Error(), "DMPF_GRPC_TRUSTED_CLIENTS") {
+		t.Fatalf("FromEnv() = %v, want DMPF_GRPC_TRUSTED_CLIENTS named", err)
 	}
 }
 
@@ -55,7 +70,7 @@ func TestHalfATLSPairNamesTheMissingFile(t *testing.T) {
 
 func TestTheRelayNamesEachMissingVariable(t *testing.T) {
 	full := []string{
-		"DMPF_PG_DSN", "postgres://x", "DMPF_KAFKA_BROKERS", "b:9092",
+		"DMPF_PG_DSN", "postgres://x", "DMPF_KAFKA_BROKERS", "b:9092", "DMPF_KAFKA_SASL_MECHANISM", "SCRAM-SHA-256",
 		"DMPF_KAFKA_ORDERS_TOPIC", "orders", "DMPF_KAFKA_ORDERS_DLQ", "orders.dlq", "DMPF_KAFKA_GROUP", "g",
 	}
 	if _, err := app.FromEnv(app.RoleRelay, lookup(full...)); err != nil {

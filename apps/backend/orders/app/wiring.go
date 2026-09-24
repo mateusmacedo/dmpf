@@ -78,12 +78,14 @@ func serveAPI(ctx context.Context, cfg Config, rt *otelboot.Runtime, out io.Writ
 		return err
 	}
 	serverConfig, err := kernel.APIServerConfig(kernel.APIServer{
-		CertFile:     cfg.GRPCCertFile,
-		KeyFile:      cfg.GRPCKeyFile,
-		Insecure:     cfg.GRPCInsecure,
-		Services:     kernel.HealthServices(rpc.ServiceName),
-		Interceptors: rpc.Interceptors(rt.Tracer(), ctrl, rt.Instruments(), rt.Logger()),
-		Logger:       rt.Logger(),
+		CertFile:       cfg.GRPCCertFile,
+		KeyFile:        cfg.GRPCKeyFile,
+		ClientCAFile:   cfg.GRPCClientCAFile,
+		TrustedClients: cfg.GRPCTrustedClients,
+		Insecure:       cfg.GRPCInsecure,
+		Services:       kernel.HealthServices(rpc.ServiceName),
+		Interceptors:   rpc.Interceptors(rt.Tracer(), ctrl, rt.Instruments(), rt.Logger()),
+		Logger:         rt.Logger(),
 	})
 	if err != nil {
 		return err
@@ -126,7 +128,11 @@ func runRelay(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {
 	if err := postgres.AssertOwnOutbox(ctx, pool, slices.Collect(maps.Keys(catalog))); err != nil {
 		return err
 	}
-	publisher, err := kafka.NewPublisher(kafka.NewConfig(ctx, rt, catalog, cfg.Brokers, cfg.Service, cfg.KafkaInsecure), nil)
+	kafkaConfig, err := kafka.NewConfig(ctx, rt, catalog, cfg.Brokers, cfg.Service, cfg.KafkaInsecure, cfg.KafkaAuth)
+	if err != nil {
+		return err
+	}
+	publisher, err := kafka.NewPublisher(kafkaConfig, nil)
 	if err != nil {
 		return err
 	}
