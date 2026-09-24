@@ -56,8 +56,8 @@ func (l Limit) Validate() error {
 	return nil
 }
 
-// Config declares the limits per route, the tenant allowlist the keys are
-// resolved against, the ceiling on the number of live buckets and the clock.
+// Config declares the limits per route, the tenant allowlist the metric label
+// is resolved against, the ceiling on the number of live buckets and the clock.
 type Config struct {
 	Limits  map[string]Limit
 	Tenants metrics.Tenants
@@ -121,7 +121,7 @@ func New(cfg Config) (*Controller, error) {
 
 // Admit decides for one request. The returned release is never nil: it frees
 // the concurrency slot exactly once and is a no-op on a refusal, so the caller
-// may always defer it. The tenant is resolved against the allowlist first.
+// may always defer it. The bucket is the tenant's own; MaxKeys bounds them.
 func (c *Controller) Admit(route, tenant string) (release func(), reason Reason) {
 	noop := func() {}
 
@@ -129,7 +129,7 @@ func (c *Controller) Admit(route, tenant string) (release func(), reason Reason)
 	if !declared {
 		return noop, UndeclaredRoute
 	}
-	k := key{route: route, tenant: c.cfg.Tenants.Resolve(tenant)}
+	k := key{route: route, tenant: tenant}
 	now := c.cfg.Clock.Now()
 
 	c.mu.Lock()

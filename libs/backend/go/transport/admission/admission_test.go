@@ -110,7 +110,11 @@ func TestConcurrencyCeilingAndRelease(t *testing.T) {
 	admit(t, ctrl, "/orders", "acme", admission.Admitted)()
 }
 
-func TestTenantsAreIsolatedAndUndeclaredOnesShareOther(t *testing.T) {
+// RES-16: the bucket is per route and per tenant, declared in the label
+// allowlist or not; the allowlist only bounds the metric label (MET-07), and
+// the key ceiling bounds the buckets. An undeclared tenant exhausting its own
+// bucket refuses nobody else.
+func TestEveryTenantHasItsOwnBucketWhateverTheLabelAllowlist(t *testing.T) {
 	c := clock.NewFake(start)
 	ctrl := controller(t, c, 10, map[string]admission.Limit{"/orders": {PerSecond: 1, Burst: 1, Concurrency: 10}})
 
@@ -119,11 +123,14 @@ func TestTenantsAreIsolatedAndUndeclaredOnesShareOther(t *testing.T) {
 	admit(t, ctrl, "/orders", "globex", admission.Admitted)()
 
 	admit(t, ctrl, "/orders", "initech", admission.Admitted)()
-	admit(t, ctrl, "/orders", "umbrella", admission.RateLimited)()
-	admit(t, ctrl, "/orders", "", admission.RateLimited)()
+	admit(t, ctrl, "/orders", "initech", admission.RateLimited)()
+	admit(t, ctrl, "/orders", "umbrella", admission.Admitted)()
 
-	if ctrl.Keys() != 3 {
-		t.Fatalf("Keys() = %d, want 3 (acme, globex, other)", ctrl.Keys())
+	if ctrl.Keys() != 4 {
+		t.Fatalf("Keys() = %d, want 4: acme, globex, initech and umbrella each own a bucket", ctrl.Keys())
+	}
+	if got := ctrl.Tenants().Resolve("initech"); got != "other" {
+		t.Fatalf("label of an undeclared tenant = %q, want other: the allowlist still bounds the label", got)
 	}
 }
 
