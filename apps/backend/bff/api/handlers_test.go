@@ -392,7 +392,7 @@ func TestAnIdempotencyKeyTheWireRejectsNeverReachesAContext(t *testing.T) {
 // so one tenant exhausting its own does not refuse another's request.
 func TestOneTenantExhaustingItsBucketDoesNotRefuseAnother(t *testing.T) {
 	f := newFixture(t, &fakeContexts{}, withLimit(admission.Limit{PerSecond: 0.001, Burst: 1, Concurrency: 10}))
-	other := `Bearer {"sub":"tester","tenant":"globex","permissions":["orders:write","orders:read"]}`
+	other := `Bearer {"sub":"tester","tenant":"globex","permissions":["orders:write","orders:read","reservations:write","reservations:read"]}`
 
 	if rec := f.do(t, http.MethodGet, "/reservations/o-1", nil); rec.Code != http.StatusOK {
 		t.Fatalf("first request = %d, want 200", rec.Code)

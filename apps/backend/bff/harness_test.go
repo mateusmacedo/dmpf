@@ -23,7 +23,7 @@ import (
 	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/credentials"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 
 	"github.com/mateusmacedo/dmpf/apps/backend/bff/rpc"
@@ -278,18 +278,31 @@ func (top *topology) boot(t *testing.T, bin binaries) {
 	ordersDSN := top.ordersPool.Config().ConnString()
 	reservationsDSN := top.reservationsPool.Config().ConnString()
 
-	ordersAPI := start(t, "orders api", bin.orders, with(map[string]string{
-		"DMPF_PG_DSN": ordersDSN, "DMPF_MIGRATE": "true", "DMPF_GRPC_ADDR": "127.0.0.1:0", "DMPF_GRPC_INSECURE": "true",
+	// IDN-03 end to end: the contexts only serve the workloads they trust, over
+	// certificates the test mints, so the hop the e2e crosses is the real one.
+	pki := tb.NewPKI(t)
+	bffCert, bffKey := pki.Client(t, "bff")
+	mutual := func(name string) map[string]string {
+		cert, key := pki.Server(t, name)
+		return map[string]string{
+			"DMPF_GRPC_TLS_CERT_FILE": cert, "DMPF_GRPC_TLS_KEY_FILE": key,
+			"DMPF_GRPC_CLIENT_CA_FILE": pki.CAFile, "DMPF_GRPC_TRUSTED_CLIENTS": tb.Identity("bff"),
+		}
+	}
+	probe := mutualProbe(t, pki.CAFile, bffCert, bffKey)
+
+	ordersAPI := start(t, "orders api", bin.orders, with(merge(mutual("orders-api"), map[string]string{
+		"DMPF_PG_DSN": ordersDSN, "DMPF_MIGRATE": "true", "DMPF_GRPC_ADDR": "127.0.0.1:0",
 		"DMPF_INSTANCE_ID": "e2e-orders-api", "DMPF_ITEM_LIMIT": "3",
-	}), "--role", "api")
-	reservationsAPI := start(t, "reservations api", bin.reservations, with(map[string]string{
-		"DMPF_PG_DSN": reservationsDSN, "DMPF_MIGRATE": "true", "DMPF_GRPC_ADDR": "127.0.0.1:0", "DMPF_GRPC_INSECURE": "true",
+	})), "--role", "api")
+	reservationsAPI := start(t, "reservations api", bin.reservations, with(merge(mutual("reservations-api"), map[string]string{
+		"DMPF_PG_DSN": reservationsDSN, "DMPF_MIGRATE": "true", "DMPF_GRPC_ADDR": "127.0.0.1:0",
 		"DMPF_INSTANCE_ID": "e2e-reservations-api",
-	}), "--role", "api")
+	})), "--role", "api")
 	ordersAddr := ordersAPI.waitLog(t, "grpc listening")["addr"].(string)
 	reservationsAddr := reservationsAPI.waitLog(t, "grpc listening")["addr"].(string)
-	waitServing(t, ordersAddr, rpc.OrdersServiceName)
-	waitServing(t, reservationsAddr, rpc.ReservationsServiceName)
+	waitServing(t, ordersAddr, rpc.OrdersServiceName, probe)
+	waitServing(t, reservationsAddr, rpc.ReservationsServiceName, probe)
 
 	start(t, "orders relay", bin.orders, with(map[string]string{
 		"DMPF_PG_DSN": ordersDSN, "DMPF_KAFKA_ORDERS_TOPIC": top.ordersTopic, "DMPF_KAFKA_ORDERS_DLQ": top.ordersDLQ,
@@ -305,7 +318,9 @@ func (top *topology) boot(t *testing.T, bin binaries) {
 	}), "--role", "consumer").waitLog(t, "consumer joining")
 
 	bff := start(t, "bff", bin.bff, map[string]string{
-		"DMPF_HTTP_ADDR": "127.0.0.1:0", "DMPF_GRPC_INSECURE": "true", "DMPF_INSTANCE_ID": "e2e-bff",
+		"DMPF_HTTP_ADDR": "127.0.0.1:0", "DMPF_INSTANCE_ID": "e2e-bff",
+		"DMPF_GRPC_CA_FILE": pki.CAFile, "DMPF_GRPC_SERVER_NAME": "localhost",
+		"DMPF_GRPC_CLIENT_CERT_FILE": bffCert, "DMPF_GRPC_CLIENT_KEY_FILE": bffKey,
 		"DMPF_ORDERS_GRPC_TARGET":       "dns:///" + ordersAddr,
 		"DMPF_RESERVATIONS_GRPC_TARGET": "dns:///" + reservationsAddr,
 		"DMPF_AUTH_DEV_MOCK":            "true",
@@ -315,9 +330,9 @@ func (top *topology) boot(t *testing.T, bin binaries) {
 
 // waitServing is the readiness the contexts declare: they log "grpc listening"
 // before Ping and Migrate and turn SERVING only after both.
-func waitServing(t *testing.T, addr, service string) {
+func waitServing(t *testing.T, addr, service string, creds credentials.TransportCredentials) {
 	t.Helper()
-	conn, err := grpc.NewClient("dns:///"+addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient("dns:///"+addr, grpc.WithTransportCredentials(creds))
 	if err != nil {
 		t.Fatalf("grpc.NewClient(%s) = %v", addr, err)
 	}
@@ -339,6 +354,27 @@ func waitServing(t *testing.T, addr, service string) {
 		time.Sleep(pollEvery)
 	}
 	t.Fatalf("%s at %s did not turn SERVING within %v: last status %v, last error %v", service, addr, e2eTimeout, last, lastErr)
+}
+
+// mutualProbe presents the edge's own certificate: the contexts answer nothing,
+// health included, to a workload they do not trust.
+func mutualProbe(t *testing.T, caFile, certFile, keyFile string) credentials.TransportCredentials {
+	t.Helper()
+	config, err := rpc.ClientTLS(caFile, "localhost", certFile, keyFile)
+	if err != nil {
+		t.Fatalf("ClientTLS() = %v", err)
+	}
+	return credentials.NewTLS(config)
+}
+
+func merge(maps ...map[string]string) map[string]string {
+	out := map[string]string{}
+	for _, m := range maps {
+		for k, v := range m {
+			out[k] = v
+		}
+	}
+	return out
 }
 
 func (top *topology) waitUntil(t *testing.T, what string, condition func() bool) {

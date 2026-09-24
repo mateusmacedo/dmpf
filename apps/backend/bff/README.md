@@ -55,6 +55,7 @@ Retry só em `FindOrder` e `FindReservation`, com `UNAVAILABLE` retentável; com
 | `DMPF_ORDERS_GRPC_TARGET`, `DMPF_RESERVATIONS_GRPC_TARGET` | sim | Alvos gRPC dos contextos (`dns:///host:porta`) |
 | `DMPF_GRPC_INSECURE` | uma das duas | `true` só em desenvolvimento |
 | `DMPF_GRPC_CA_FILE`, `DMPF_GRPC_SERVER_NAME` | uma das duas | CA que valida os contextos e nome esperado no certificado |
+| `DMPF_GRPC_CLIENT_CERT_FILE`, `DMPF_GRPC_CLIENT_KEY_FILE` | com `DMPF_GRPC_CA_FILE` | Certificado de cliente do BFF (URI `spiffe://dmpf/bff`): os contextos só servem workload verificado (ADR-052) |
 | `DMPF_HTTP_ADDR` | não | Default `:8080`; `127.0.0.1:0` escolhe porta livre e o log `http listening` traz o endereço |
 | `DMPF_CORS_ORIGINS` | não | Origens aceitas pelo navegador (Swagger UI local) |
 | `DMPF_METRIC_TENANTS` | não | Tenants que têm bucket de admissão e rótulo de métrica próprios (`MET-07`), separados por vírgula; os demais compartilham `other` |

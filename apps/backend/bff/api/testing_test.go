@@ -228,7 +228,7 @@ func newFixture(t *testing.T, fake *fakeContexts, options ...option) fixture {
 // Every route declares RequireSubjectAndTenant, so a request without it is
 // denied before reaching a context — which is what the 401 cases assert by
 // passing an empty Authorization explicitly.
-const testCredential = `Bearer {"sub":"tester","tenant":"acme","permissions":["orders:write","orders:read"]}`
+const testCredential = `Bearer {"sub":"tester","tenant":"acme","permissions":["orders:write","orders:read","reservations:write","reservations:read"]}`
 
 // testTenant is the tenant testCredential resolves, declared so its bucket and
 // label are its own (MET-07).

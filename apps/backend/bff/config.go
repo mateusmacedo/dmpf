@@ -28,6 +28,8 @@ const (
 	envGRPCInsecure             = "DMPF_GRPC_INSECURE"
 	envGRPCCAFile               = "DMPF_GRPC_CA_FILE"
 	envGRPCServerName           = "DMPF_GRPC_SERVER_NAME"
+	envGRPCClientCertFile       = "DMPF_GRPC_CLIENT_CERT_FILE"
+	envGRPCClientKeyFile        = "DMPF_GRPC_CLIENT_KEY_FILE"
 	envCORSOrigins              = "DMPF_CORS_ORIGINS"
 	envMetricTenants            = "DMPF_METRIC_TENANTS"
 	envOrdersContractPath       = "DMPF_OPENAPI_ORDERS_PATH"
@@ -47,6 +49,8 @@ type Config struct {
 	GRPCInsecure       bool
 	CAFile             string
 	ServerName         string
+	ClientCertFile     string
+	ClientKeyFile      string
 
 	CORSOrigins              []string
 	OrdersContractPath       string
@@ -93,6 +97,8 @@ func FromEnv(lookup func(string) string) (Config, error) {
 	cfg.ReservationsTarget = lookup(envReservationsTarget)
 	cfg.CAFile = lookup(envGRPCCAFile)
 	cfg.ServerName = lookup(envGRPCServerName)
+	cfg.ClientCertFile = lookup(envGRPCClientCertFile)
+	cfg.ClientKeyFile = lookup(envGRPCClientKeyFile)
 	cfg.CORSOrigins = envconfig.SplitList(lookup(envCORSOrigins))
 	cfg.MetricTenants = envconfig.SplitList(lookup(envMetricTenants))
 	cfg.OrdersContractPath = lookup(envOrdersContractPath)
@@ -130,6 +136,8 @@ func (c Config) Validate() error {
 		return fmt.Errorf("%w: %s", ErrMissingVariable, envReservationsTarget)
 	case !c.GRPCInsecure && c.CAFile == "":
 		return fmt.Errorf("%w: %s=true or %s", ErrMissingVariable, envGRPCInsecure, envGRPCCAFile)
+	case c.CAFile != "" && (c.ClientCertFile == "" || c.ClientKeyFile == ""):
+		return fmt.Errorf("%w: %s and %s", ErrMissingVariable, envGRPCClientCertFile, envGRPCClientKeyFile)
 	}
 	if err := c.RouteBudget.Validate(); err != nil {
 		return err

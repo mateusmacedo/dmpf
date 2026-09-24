@@ -152,3 +152,19 @@ func TestTheEdgeMintsItsRequestIDAndSendsItAsTheCausation(t *testing.T) {
 		t.Fatal("the causation downstream is what the client named; the edge must regenerate it")
 	}
 }
+
+// IDN-16 at the edge: an authenticated subject of the right tenant without the
+// route's permission is refused before any context is called, because CTX-12
+// keeps the subject from reaching the context that would otherwise decide.
+func TestASubjectWithoutTheRoutesPermissionIsRefusedAtTheEdge(t *testing.T) {
+	f := newFixture(t, &fakeContexts{})
+	readOnly := `Bearer {"sub":"tester","tenant":"acme","permissions":["orders:read"]}`
+
+	rec := f.do(t, http.MethodPost, "/orders/o-1/items", strings.NewReader(`{"sku":"A","quantity":1}`),
+		"Idempotency-Key", "k-1", "Content-Type", "application/json", "Authorization", readOnly)
+
+	requireRejection(t, rec, http.StatusForbidden, "permission-denied")
+	if n := f.fake.total(); n != 0 {
+		t.Fatalf("calls = %d, want 0", n)
+	}
+}

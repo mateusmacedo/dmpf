@@ -137,7 +137,7 @@ func ClientOptions(ctx context.Context, cfg Config, rt *otelboot.Runtime) (rpc.O
 		opts.Insecure = true
 		return opts, nil
 	}
-	clientTLS, err := rpc.ClientTLS(cfg.CAFile, cfg.ServerName)
+	clientTLS, err := rpc.ClientTLS(cfg.CAFile, cfg.ServerName, cfg.ClientCertFile, cfg.ClientKeyFile)
 	if err != nil {
 		return rpc.Options{}, err
 	}

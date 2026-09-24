@@ -74,13 +74,24 @@ func TestFromEnvRequiresATransportPolicy(t *testing.T) {
 }
 
 func TestFromEnvAcceptsATrustAuthority(t *testing.T) {
-	cfg, err := bff.FromEnv(lookup(append(targets, "DMPF_GRPC_CA_FILE", "/etc/ca.pem", "DMPF_GRPC_SERVER_NAME", "orders.internal", "DMPF_CORS_ORIGINS", "http://a, http://b", devMock, "true")...))
+	cfg, err := bff.FromEnv(lookup(append(targets, "DMPF_GRPC_CA_FILE", "/etc/ca.pem", "DMPF_GRPC_SERVER_NAME", "orders.internal",
+		"DMPF_GRPC_CLIENT_CERT_FILE", "/etc/bff.crt", "DMPF_GRPC_CLIENT_KEY_FILE", "/etc/bff.key", "DMPF_CORS_ORIGINS", "http://a, http://b", devMock, "true")...))
 
 	if err != nil {
 		t.Fatalf("FromEnv() = %v", err)
 	}
 	if cfg.GRPCInsecure || cfg.CAFile != "/etc/ca.pem" || cfg.ServerName != "orders.internal" || len(cfg.CORSOrigins) != 2 {
 		t.Fatalf("cfg = %+v", cfg)
+	}
+}
+
+// IDN-03: the contexts only trust a verified workload, so an edge that trusts
+// their authority also has to present its own certificate.
+func TestFromEnvRefusesATrustAuthorityWithoutAClientPair(t *testing.T) {
+	_, err := bff.FromEnv(lookup(append(targets, "DMPF_GRPC_CA_FILE", "/etc/ca.pem", devMock, "true")...))
+
+	if !errors.Is(err, bff.ErrMissingVariable) || !strings.Contains(err.Error(), "DMPF_GRPC_CLIENT_CERT_FILE") {
+		t.Fatalf("FromEnv() = %v, want the client pair named", err)
 	}
 }
 
