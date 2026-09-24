@@ -36,7 +36,7 @@ esgotamento do pool no cenário exato que a regra existe para conter.
 ## Decisão
 
 **A classificação de recepção é um tipo concreto fechado, e o ramificador exige
-os quatro casos.** `dmpfports.Reception` tem construtores exportados —
+os quatro casos.** `ports.Reception` tem construtores exportados —
 `FirstReception(Pending)`, `ProcessedReception()`, `RejectedReception()`,
 `CollisionReception()` — e um único método de consumo, `Match(first, processed,
 rejected, collision)`, que panica se qualquer ramo for `nil`. Acrescentar uma
@@ -78,10 +78,10 @@ conexão continua viva e a transação cai em estado abortado, que o `Within` j�
 trata com rollback. O spike confirmou: a espera da inserção especulativa do
 `ON CONFLICT DO NOTHING` por transação concorrente é interrompida com SQLSTATE
 `55P03` em ~319 ms para um teto de 300 ms, e a segunda transação comprovadamente
-bloqueou até então. O provider traduz `55P03` para `dmpfports.ErrRegisterTimeout`
+bloqueou até então. O provider traduz `55P03` para `ports.ErrRegisterTimeout`
 com dois `%w`, como `ErrDuplicateMessage` faz com `23505`.
 
-**O consumer adapter vive em módulo próprio do bloco `app`.** `dmpf-app` é a
+**O consumer adapter vive em módulo próprio do bloco `app`.** `app` é a
 primeira unidade `app` do workspace, e não por preferência: só a linha `app` da
 matriz de blocos permite as arestas para `contract` e para `application` ao
 mesmo tempo. A composition root do consumo, que antes existia apenas dentro de
@@ -90,24 +90,24 @@ código de produção verificado.
 
 **O adapter recebe os bytes brutos e nunca resserializa.** `Delivery{Raw []byte,
 Attempt int}`; a decodificação fica em `contract`, por `envelope.Unmarshal(raw)`
-e `envelope.Unpack(env, msg)` — simétricos a `Pack` —, de modo que o `dmpf-app`
+e `envelope.Unpack(env, msg)` — simétricos a `Pack` —, de modo que o `app`
 não importa `google.golang.org/protobuf` e o seu manifesto declara
 `external: []` com verdade. Toda contenção grava `Raw`: um re-marshal do
 `CloudEvent` decodificado descartaria campos desconhecidos e quebraria a
 identidade byte a byte de `GAR-07`. O teste de `GAR-07` anexa um campo
 desconhecido ao `Raw` justamente para que um re-marshal falhe.
 
-**Quarantine é realizada; DLQ é declarada.** `dmpfports.Containment` é porta;
-`dmpfpostgres.NewQuarantine(pool)` a realiza fora de qualquer UoW, com envelope
+**Quarantine é realizada; DLQ é declarada.** `ports.Containment` é porta;
+`postgres.NewQuarantine(pool)` a realiza fora de qualquer UoW, com envelope
 `bytea` e erro sanitizado. A DLQ é destino terminal do transporte e depende de
 broker — é do KRN-10. O mapeamento situação → mecanismo de `GAR-11` é dado
-revisável em código (`dmpfapp.ContainmentMap`), conferido por teste de
+revisável em código (`app.ContainmentMap`), conferido por teste de
 totalidade, e o `Consume` o consulta antes de conter. Os sinais de `GAR-12`
 saem da própria tabela, por `GROUP BY reason`: R4 e R1×D4 são `reason`s, não
 contadores em memória.
 
 **O efeito de broker é uma porta de duas operações, aplicada depois do
-desfecho.** `dmpfports.Acknowledger{Ack, Release}` vive em `port` para que o
+desfecho.** `ports.Acknowledger{Ack, Release}` vive em `port` para que o
 KRN-10 a realize de qualquer bloco. D1, D2, R2 e R3 confirmam; D3 libera para
 redelivery, ou contém como `attempts-exhausted` quando `Attempt` alcança o
 `MaxAttempts` declarado pelo chamador (`GAR-08`); D4 e R4 contêm e então
@@ -118,7 +118,7 @@ commitada.
 
 **A taxonomia de erros é consumida, não declarada.** O ticket previa declará-la;
 FND-07 §5.3 já a fixou e `ERR-11` fecha o placeholder de `INB-09`.
-`dmpfapplication.Failure{Category, retryable}` transporta a retryability
+`application.Failure{Category, retryable}` transporta a retryability
 resolvida na classificação (`MAP-07`) e `Classify` deriva a disposição
 fail-closed: `Failure` pela sua retryability, `ErrRegisterTimeout` → R1×D3,
 `context.DeadlineExceeded`/`Canceled` → R1×D4 (`CTX-23`), tudo o mais →
@@ -139,7 +139,7 @@ real (`GAR-04`, `GAR-10`).
 
 **Dois módulos com teste de banco não rodam `test-race` em paralelo.** O CI usa
 `--parallel=3`, e cada harness faz `TRUNCATE` das mesmas tabelas; isolados, os
-dois módulos passam, juntos interferem. O `test-race` do `dmpf-app` declara
+dois módulos passam, juntos interferem. O `test-race` do `app` declara
 `dependsOn` sobre o do provider e o Nx os sequencia. É o custo de compartilhar o
 Postgres do job, aceito porque um banco por módulo exigiria mudar o CI para
 cada módulo novo.
@@ -153,8 +153,8 @@ cada módulo novo.
 | `status` admitindo `NULL` entre `Register` e `Complete` | Reintroduz no schema o estado intermediário que `INB-02` remove; o provisório dentro da transação é invisível por `INB-18`, o `NULL` seria visível para sempre. |
 | `context.WithTimeout` como primeira linha do teto | O pgx fecha a conexão ao expirar o `context`; sob pressão isso esgota o pool em vez de o conter. |
 | `CancelRequestContextWatcherHandler` no pool | Configuração global que muda o comportamento de todo o módulo; o problema é resolvido no servidor por `lock_timeout`. Fica como escoteiro para KRN-09/10. |
-| Adapter dentro de `dmpf-application` ou de `dmpf-provider-postgres` | Células 12 e 26 da matriz, ambas proibidas e provadas por `tools/dmpf-cell-check.sh`. |
-| `payloadhash` movido para `dmpf-ports` para a `application` hashear | Viola a autoria do `payload_hash` (ANC-03) e desfaz a razão de o KRN-05 existir. |
+| Adapter dentro de `application` ou de `postgres` | Células 12 e 26 da matriz, ambas proibidas e provadas por `tools/dmpf-cell-check.sh`. |
+| `payloadhash` movido para `ports` para a `application` hashear | Viola a autoria do `payload_hash` (ANC-03) e desfaz a razão de o KRN-05 existir. |
 | Preservar o envelope por `proto.Marshal` do `CloudEvent` decodificado | Não é byte-idêntico ao transportado (campos desconhecidos, ordem, produtores heterogêneos) — reabriria no consumo o que o ADR-021 fechou na escrita. |
 | Estender `ordersapp.Resources` com `Inbox` e `Reservations` | Mistura produtor e consumidor e altera o exemplo do KRN-04/06. |
 | Contenção em memória ou em log | Falha `GAR-07` (nada preservado) e `GAR-12` (nada consultável). |
@@ -206,5 +206,5 @@ redelivery e a chave natural do domínio sustenta o resto (`GAR-01`, `GAR-04`).
 - `docs/adr/032-realizacao-go-do-desfecho-da-upr.md` — o precedente de forma.
 - `docs/adr/034-fronteira-de-uow-em-go.md` — a fronteira em que a inbox entra.
 - `docs/adr/035-realizacao-postgres-da-outbox.md` — a outbox que o consumo deriva.
-- `libs/backend/go/dmpf-app/README.md` — o adapter e as tabelas de efeito e de contenção.
-- `libs/backend/go/dmpf-provider-postgres/README.md` — como rodar os testes de banco.
+- `libs/backend/go/app/README.md` — o adapter e as tabelas de efeito e de contenção.
+- `libs/backend/go/postgres/README.md` — como rodar os testes de banco.

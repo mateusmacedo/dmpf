@@ -123,7 +123,7 @@ Ambos versionados junto ao adapter que os implementa.
 
 ### Critérios de aceite
 
-- [ ] **[P0] Matriz de transporte promovida para `docs/dmpf/politicas-transporte.md` e aprovada em PR**
+- [x] **[P0] Matriz de transporte promovida para `docs/dmpf/politicas-transporte.md` e aprovada em PR**
 - [x] **[P0] Convenções por broker documentadas no artefato promovido**
 - [x] **[P0] Alinhamento com perfil CloudEvents/Protobuf de FND-05**
 

@@ -1,0 +1,14 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orders-api
+spec:
+  template:
+    spec:
+      containers:
+        - name: api
+          env:
+            # Em dev o api aplica o schema na partida (postgres.Migrate é
+            # idempotente); o relay reinicia até as tabelas existirem.
+            - name: DMPF_MIGRATE
+              value: 'true'

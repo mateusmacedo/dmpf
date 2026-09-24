@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: orders
+data:
+  # Kafka gerenciado com TLS (o default da app já é TLS ≥ 1.2; fica explícito) e
+  # o gRPC do api com o certificado montado de orders-grpc-tls.
+  DMPF_KAFKA_INSECURE: 'false'
+  DMPF_GRPC_TLS_CERT_FILE: /etc/dmpf/grpc/tls.crt
+  DMPF_GRPC_TLS_KEY_FILE: /etc/dmpf/grpc/tls.key
+  # mTLS (IDN-03): só o workload do BFF, assinado pela CA de clientes montada
+  # de grpc-client-ca, é servido; e o principal Kafka se autentica por SASL
+  # SCRAM com o usuário e a senha do Secret do contexto (IDN-04).
+  DMPF_GRPC_CLIENT_CA_FILE: /etc/dmpf/grpc-clients/ca.crt
+  DMPF_GRPC_TRUSTED_CLIENTS: spiffe://dmpf/bff
+  DMPF_KAFKA_SASL_MECHANISM: SCRAM-SHA-512
+  DMPF_SERVICE_VERSION: hmg

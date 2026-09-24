@@ -37,7 +37,7 @@ harness:
 | `SPEC-F7S5B6KV` (KRN-12.2c) | Integração por contrato gerado | **deferida** |
 
 `SPEC-XMNBMY50` (shared kernel) é pré-requisito normativo: sem ela, qualquer
-contexto fora de `dmpf-kernel` que importe o kernel reprova com `DMPF-D002`.
+contexto fora de `kernel` que importe o kernel reprova com `DMPF-D002`.
 Esta spec só fecha (`stage: done`) quando `SPEC-VDP9XX65` fechar.
 
 Como usuário de uma squad, quero escrever a spec do meu bounded context,
@@ -82,7 +82,7 @@ negócio escrita — restando a mim o rito de classificação e a revisão do PR
 | "Generator Nx em `tools/`" | nenhum plugin local; `@nx/plugin`/`@nx/devkit` ausentes; `tsconfig.base.json` com `paths: {}` | Plugin criado por `nx g @nx/plugin:plugin tools/dmpf-plugin`; `@nx/plugin` e `@nx/devkit` 23.1.0 no `catalog:` e no `package.json` raiz; resolução pelo workspace pnpm (`tools/*`), sem `paths` |
 | "um módulo por bloco" | `.golangci.yml` seleciona por sufixo `*-domain`, `*-ports`, `*-application` | `<ctx>-{domain,ports,application,provider-postgres,app}`; `contract` só como fonte `.proto` (sub-spec c), nunca `gen/go` |
 | "esqueleto de testes dos kits" | kits de `KRN-11` prontos | Testes gerados por agregado e por invariante declarada (sub-spec b), rodando de fato |
-| "aprovado pelo verificador, sem edição manual" | sem `--base` → "não verificado"; autorização lida em `base..HEAD`; `DMPF-T002` se classificação e código no mesmo commit; **C2 reprova todo contexto fora de `dmpf-kernel` que importe o kernel** | A prova commita duas vezes e verifica com `--base`; a aprovação depende do shared kernel (`SPEC-XMNBMY50`) |
+| "aprovado pelo verificador, sem edição manual" | sem `--base` → "não verificado"; autorização lida em `base..HEAD`; `DMPF-T002` se classificação e código no mesmo commit; **C2 reprova todo contexto fora de `kernel` que importe o kernel** | A prova commita duas vezes e verifica com `--base`; a aprovação depende do shared kernel (`SPEC-XMNBMY50`) |
 | — | `CI`, `DMPF_PG_DSN`, `DMPF_KAFKA_BROKERS` no `env` do job; `tb.Env` falha sob `CI` sem infra | Prova em duas fases, as duas antes da infra: `structural` e `self-test`. O esqueleto não tem código de negócio para integrar; a integração com infra é do golden `bookings` (`SPEC-VDP9XX65`) |
 | `private: true` exclui do release | ADR-030: `private` exclui **publicação**, não versionamento | O plugin é `type:lib`, **versionado** pelo `nx release` e não publicado — `@nx/js` nem cria o target `nx-release-publish` para pacote privado |
 
@@ -146,7 +146,7 @@ negócio escrita — restando a mim o rito de classificação e a revisão do PR
   | `<ctx>-domain` | `domain` | `layer:domain` | `[]` |
   | `<ctx>-ports` | `port` | `layer:domain` | `[]` |
   | `<ctx>-application` | `application` | `layer:services` | `[]` |
-  | `<ctx>-provider-postgres` | `provider` | `layer:providers` | pgx `io.storage` + protobuf `wire.codec` (copiados de `dmpf-provider-postgres`) |
+  | `<ctx>-provider-postgres` | `provider` | `layer:providers` | pgx `io.storage` + protobuf `wire.codec` (copiados de `postgres`) |
   | `<ctx>-app` | `app` | `layer:apps` | `[]` |
 
   - Opções: `name` (posicional, `^[a-z][a-z0-9-]*$`), `--bounded-context`
@@ -179,7 +179,7 @@ negócio escrita — restando a mim o rito de classificação e a revisão do PR
   5. Commit 2 (código): o resto + `go.work` → `feat(genproof): scaffold`.
      Identidade de automação por `git -c`; hooks do Lefthook ativos.
   6. **Fase `structural`**: `fmt-check`, `vet`, `build`, `lint`;
-     `dmpf-conformance --root . --base $HEAD0`; manifesto; `git diff
+     `conformance --root . --base $HEAD0`; manifesto; `git diff
      --exit-code`; `status --porcelain` vazio.
     7. **Fase `self-test`** (quatro vetores: edição pós-commit; classificação
      misturada → `T002`; instrução do baseline ausente; JSON fora do padrão
@@ -250,7 +250,7 @@ docs/** e AGENTS.md                                    — SPEC-VDP9XX65
 
  tools/dmpf-generator-check.sh (worktree descartável em HEAD)
    HEAD0 ── generator ── checks sem escrita + manifesto ── commit1(manifestos+baseline) ── commit2(código+go.work)
-         ── structural: fmt/vet/build/lint + dmpf-conformance --base HEAD0 + manifesto + diff/status
+         ── structural: fmt/vet/build/lint + conformance --base HEAD0 + manifesto + diff/status
          ── self-test: 4 vetores reprovando pelo motivo esperado
 ```
 
@@ -263,7 +263,7 @@ docs/** e AGENTS.md                                    — SPEC-VDP9XX65
    cadeia e o verificador até passar, e imprime o rito humano.
 3. A squad roda o rito Buf e commita o contrato; roda `--write-baseline` e
    commita só manifestos e baseline; commita o código; abre o PR.
-4. `dmpf-conformance --root . --base <antes>` aprova: unidades criadas em
+4. `conformance --root . --base <antes>` aprova: unidades criadas em
    commit próprio (`T4`/`T6`), unidades do kernel designadas como shared
    kernel, nada fora do `include`.
 
@@ -275,7 +275,7 @@ docs/** e AGENTS.md                                    — SPEC-VDP9XX65
 | C2 / shared kernel | prova com `--base`, com o kernel já designado no baseline — o contexto gerado importa o kernel e é aprovado; o vetor negativo (unidade não designada e outro bounded context → `D002`) é do `dmpf-shared-kernel-check.sh` | CI (esta spec + `SPEC-XMNBMY50`) |
 | `AUT-01`, `T001`/`T002` | dois commits na prova; `self-test` mistura e reprova | CI |
 | "Sem edição manual" | manifesto SHA-256 + `git diff --exit-code` + `status --porcelain`; `self-test` | CI |
-| Tags 3D + `layer:*`, cinco targets, sem `lint` | `generator.spec.ts` compara com `dmpf-domain/project.json` | plugin `test` |
+| Tags 3D + `layer:*`, cinco targets, sem `lint` | `generator.spec.ts` compara com `domain/project.json` | plugin `test` |
 | ADR-034 (sem `require`) | `generator.spec.ts` lê o `go.mod` gerado | plugin `test` |
 | Determinismo | `generator.spec.ts` gera duas vezes e compara bytes | plugin `test` |
 
@@ -300,7 +300,7 @@ docs/** e AGENTS.md                                    — SPEC-VDP9XX65
   plugin não existe em `develop`, e o pre-commit corrige arquivo fora do
   padrão sem que o `git diff` posterior acuse.
 - **Shared kernel como pré-requisito, não contorno** porque declarar o
-  contexto gerado como `dmpf-kernel` apagaria a identidade de limite (ADR-017)
+  contexto gerado como `kernel` apagaria a identidade de limite (ADR-017)
   e re-escopar para um esqueleto sem kernel cumpriria o critério 1 de
   ARQ-531 de forma trivial. Alternativas descartadas registradas no
   ADR-041 e na `SPEC-XMNBMY50`.
@@ -343,7 +343,7 @@ docs/** e AGENTS.md                                    — SPEC-VDP9XX65
   do zero passou a cadeia `fmt-check,vet,build,lint` nos cinco módulos, o
   `test-race` do provider e do app, e o verificador devolveu `conforme`.
 - [x] `structural` e `self-test` passam: `structural` com os cinco blocos gera
-  31 arquivos, `dmpf-conformance` devolve `conforme`, o manifesto confere e `git
+  31 arquivos, `conformance` devolve `conforme`, o manifesto confere e `git
   diff`/`status --porcelain` saem vazios; `self-test` reprova nos quatro vetores
   pelo motivo esperado. Os dois passos estão no `ci.yml`; o verde no runner sai
   no PR.
@@ -367,11 +367,11 @@ ENTÃO recusa contendo "ADR-012" e nenhuma mudança no Tree
 
 DADO o worktree da prova com o plugin commitado e sem shared kernel no baseline
 QUANDO --phase structural roda
-ENTÃO commit 1 e commit 2 acontecem com hooks ativos, a cadeia Go passa e o verificador reprova com D002 nomeando <ctx>-domain → dmpf-kernel/domain
+ENTÃO commit 1 e commit 2 acontecem com hooks ativos, a cadeia Go passa e o verificador reprova com D002 nomeando <ctx>-domain → kernel/domain
 
-DADO o mesmo worktree com shared_kernels ["dmpf-kernel"] no baseline (SPEC-XMNBMY50)
+DADO o mesmo worktree com shared_kernels ["kernel"] no baseline (SPEC-XMNBMY50)
 QUANDO --phase structural roda
-ENTÃO dmpf-conformance devolve "conforme", git diff --exit-code passa e status --porcelain é vazio
+ENTÃO conformance devolve "conforme", git diff --exit-code passa e status --porcelain é vazio
 ```
 
 <critical_constraints>
@@ -395,7 +395,7 @@ ENTÃO dmpf-conformance devolve "conforme", git diff --exit-code passa e status 
 - **Bloco `contract` além da fonte `.proto`**: `gen/go`, `buf generate`,
   baseline BUF-08 continuam do rito Buf.
 - **Generator de composition root**: o binário com `--role api|relay|consumer`
-  continua fora — `dmpf-reference` é o exemplo a copiar; `cmd/` não é gerado.
+  continua fora — `reference` é o exemplo a copiar; `cmd/` não é gerado.
 - **Executors Nx**: nenhum target novo precisa de executor; `nx:run-commands`
   cobre.
 - **Portal do desenvolvedor**: FND-10 remete aos épicos de tooling.

@@ -19,7 +19,7 @@ CI em estágios com a camada distribuída em pipeline separado (`KIT-09` a
 `KRN-02` a `KRN-10` entregaram o kernel Go com testes por módulo, mas sem o
 instrumento: cada módulo tinha o seu relógio fake, o seu gerador de
 identificadores e o seu harness; a suíte de contrato de `UnitOfWork` e de
-`Inbox` vivia em `_test.go` de `dmpf-ports`, duplicada à mão pelas realizações
+`Inbox` vivia em `_test.go` de `ports`, duplicada à mão pelas realizações
 em memória e Postgres porque um `_test.go` não é importável; o oráculo 3 do
 round-trip era um `t.Log` informativo; e as 36 células da matriz eram provadas
 no oráculo interno do `decide` do verificador, não por par de vetores
@@ -35,14 +35,14 @@ TypeScript está fora do ticket; e o CI corre em `act_runner`, onde o bloco
 
 ## Decisão
 
-**Um módulo, onze unidades, quatro blocos.** `dmpf-testkit` declara uma unidade
+**Um módulo, onze unidades, quatro blocos.** `testkit` declara uma unidade
 por package, cada uma no bloco que as arestas daquele package permitem:
 `domainkit` é `domain`; `golden` é `contract`; `serviceskit`, `providerkit`,
 `clock`, `ids` e `stable` são `provider`; `appkit`, `distkit`, `fitness` e `tb`
 são `app`. Um kit único de bloco `app` não provaria nada sobre a camada que
 certifica — um `domainkit` só é kit de domínio se ele próprio for `domain`
-(célula 1). O precedente é `dmpf-kernel/example-memory`, unidade `provider`
-dentro de `dmpf-application`.
+(célula 1). O precedente é `kernel/example-memory`, unidade `provider`
+dentro de `application`.
 
 **Veredicto por valor; `testing.TB` é adaptador.** Cada kit devolve uma lista
 de diagnósticos com a regra violada, vazia no passe; `tb.Require` a converte em
@@ -52,12 +52,12 @@ importar `testing`. A interface `Verdict` do `tb` é estrutural
 pode importar `tb` (domain → app) e `golden` não pode importar `domainkit`
 (contract → domain).
 
-**Package exportado `fitness` no `dmpf-conformance`, sem mover `internal/`.**
+**Package exportado `fitness` no `conformance`, sem mover `internal/`.**
 Expõe `Workspace`, `Units`, `Diagnostics`, `Diagnose`, `Graph` e
 `StandardCapability`, com aliases dos tipos e dos dezesseis códigos, e omite o
 baseline e o `--base` — a fronteira de `FIT-03`. É unidade `app` com
 `public_integration_surface: true`, porque o kit é `bounded_context:
-dmpf-kernel` e o verificador é `dmpf-conformance`: sem a superfície pública a
+kernel` e o verificador é `conformance`: sem a superfície pública a
 aresta reprovaria por `DMPF-D002`.
 
 **As duas direções do round-trip no lado Go.** O consumidor lê os bytes
@@ -87,10 +87,10 @@ provider para o fechamento do teste de domínio; o pool foi para `tb/pg`.
 
 **Suítes de conformidade exportadas, duplicatas removidas.**
 `providerkit.UnitOfWork`, `Inbox` e `Outbox` substituem os `_contract_test.go`
-de `dmpf-ports`, de `example/memory` e do exemplo Postgres de reservas;
-`dmpf-ports` não passa a depender do kit — é o bloco mais baixo. `OutboxStore`
+de `ports`, de `example/memory` e do exemplo Postgres de reservas;
+`ports` não passa a depender do kit — é o bloco mais baixo. `OutboxStore`
 é genérico em `Claimed` e estrutural, porque `provider` não importa
-`dmpf-app/relay`. Cláusula que um candidato não consegue exercitar vai para
+`app/relay`. Cláusula que um candidato não consegue exercitar vai para
 `Skipped`, nunca fica ausente em silêncio.
 
 **Processos OS reais sobre Redpanda no harness distribuído.** `PIR-14` exige
@@ -142,7 +142,7 @@ falham.
 
 ## Alternativas descartadas
 
-- **Um módulo por camada** (`dmpf-testkit-domain`, …): cinco `go.mod` sem
+- **Um módulo por camada** (`testkit-domain`, …): cinco `go.mod` sem
   ganho sobre a unidade por package.
 - **Kits recebendo `*testing.T`**: amarraria o contrato ao framework e violaria
   a capability de `domain` e `contract`.
@@ -179,7 +179,7 @@ falham.
   processos reais e o consumidor ingênuo reprovado com `DMPF-R004`.
 - O vetor `V29`/`V30` já pagou por si: encontrou duplos de infraestrutura em
   testes de duas unidades `domain` do verificador e, depois, no próprio kit.
-- As três realizações de `UnitOfWork`/`Inbox` (`dmpf-ports` fakes, memória,
+- As três realizações de `UnitOfWork`/`Inbox` (`ports` fakes, memória,
   Postgres) deixaram de duplicar a suíte; a corrida de duas inserções passou a
   correr de verdade contra o Postgres.
 - Os estágios do CI deixam uma regressão de domínio reprovar sem subir Postgres;
@@ -193,9 +193,9 @@ falham.
   alcancem os dois últimos e o verificador não exija a declaração em bloco
   permissivo: sem ela, a dependência entraria no workspace sem capability nem
   faixa, ao contrário dos módulos irmãos.
-- **Custo aceito:** o `test-race` do `dmpf-provider-postgres-go` roda duas vezes
+- **Custo aceito:** o `test-race` do `postgres` roda duas vezes
   no `ci.yml` — no estágio 4, junto do kit, e de novo no estágio 5, porque o
-  `dependsOn` do `dmpf-app-go` o arrasta e o Nx não deduplica entre invocações
+  `dependsOn` do `app` o arrasta e o Nx não deduplica entre invocações
   distintas de um target sem cache (~20 s). Fundir os dois estágios numa só
   invocação eliminaria a repetição, mas apagaria a fronteira que `KIT-09` exige
   entre providers e apps; remover o `dependsOn` reabriria a decisão do KRN-07
@@ -212,14 +212,14 @@ falham.
   destrutivo, e um Postgres compartilhado nunca é fixture de teste. As actions
   dos workflows e as imagens dos serviços do CI ficam presas por SHA e digest,
   porque os steps alcançam o socket do Docker do host.
-- O `depguard` não alcança `dmpf-testkit/domainkit` (a regra `domain` seleciona
+- O `depguard` não alcança `testkit/domainkit` (a regra `domain` seleciona
   por `**/*-domain/**`); o verificador e o teste de capability do kit são as
   linhas de defesa. Estender o glob fica registrado, não incluído.
 - A cláusula de falha de commit da suíte de UoW não é exercitável contra o
   Postgres (pgx não injeta a falha) e fica declarada em `Skipped`.
-- O grafo de projetos do Nx conta imports de `_test.go`: `dmpf-application`,
-  `dmpf-contracts` e `dmpf-provider-postgres` passam a apontar para o kit, e o
-  kit aponta para `dmpf-app`, `dmpf-application` e `dmpf-provider-postgres` em
+- O grafo de projetos do Nx conta imports de `_test.go`: `application`,
+  `contracts` e `postgres` passam a apontar para o kit, e o
+  kit aponta para `app`, `application` e `postgres` em
   produção. Com `dependsOn: ^build` dos `targetDefaults` isso fecha um ciclo de
   tasks que o compilador Go não vê. O `build` do kit declara `dependsOn: []` —
   `go build` resolve os irmãos do `go.work` por fonte — e as arestas dos

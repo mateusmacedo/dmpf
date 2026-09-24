@@ -143,13 +143,13 @@ created: 2026-09-10
 - **Autorização**: pelo gancho de autorização do bloco `application`, antes da
   transação (FND-04 §3.2).
 - **Auditoria**: pela trilha de auditoria do kernel (FND-08;
-  `dmpf-observability/audit`).
+  `observability/audit`).
 
 ## Critérios de aceite
 
-- [x] Os gates do workspace verdes para `bookings-domain-go`,
-  `bookings-ports-go`, `bookings-application-go`,
-  `bookings-provider-postgres-go` e `bookings-app-go` (`fmt-check`, `vet`,
+- [x] Os gates do workspace verdes para `bookings`,
+  `bookings`, `bookings`,
+  `bookings` e `bookings` (`fmt-check`, `vet`,
   `build`, `lint`, `test-race` com Postgres, verificador com `--base`).
 - [x] Cenários:
 
@@ -195,5 +195,5 @@ ENTÃO devolve exatamente as duas, fora de qualquer UoW
   consumer.
 - **Publicação de `BookingCancelled` e `ResourceRegistered`**: ficam como
   eventos de domínio; só `BookingReserved` vira integration event nesta versão.
-- **Composition root** (`cmd/` com `--role`): copiar `dmpf-reference`, fora do
+- **Composition root** (`cmd/` com `--role`): copiar `reference`, fora do
   harness.

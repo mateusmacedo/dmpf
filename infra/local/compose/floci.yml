@@ -1,4 +1,4 @@
-# floci emula SQS e SNS num único endpoint (dmpf-provider-sqs). Aceita qualquer
+# floci emula SQS e SNS num único endpoint (sqs). Aceita qualquer
 # credencial não vazia; /_floci/health lista os serviços — mesmo gesto do CI.
 # Não expõe métricas Prometheus: quem o observa é o blackbox, por probe.
 services:
@@ -16,7 +16,7 @@ services:
       retries: 6
     deploy:
       resources:
-        limits: { cpus: '0.50', memory: 512M }
+        limits: { cpus: '0.25', memory: 512M }
         reservations: { cpus: '0.10', memory: 128M }
 
 volumes:

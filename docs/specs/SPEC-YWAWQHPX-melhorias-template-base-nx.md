@@ -228,20 +228,21 @@ rodar pnpm install e conferir lockfile sem downgrade de versões
 
 ### Critérios de aceite
 
-- [ ] `.gitignore` ignora `.env*` (verificável: `git check-ignore .env`)
-- [ ] `pnpm-workspace.yaml` tem `catalog:` e `package.json` usa `catalog:`;
+- [x] `.gitignore` ignora `.env*` (verificável: `git check-ignore .env`)
+- [x] `pnpm-workspace.yaml` tem `catalog:` e `package.json` usa `catalog:`;
   `pnpm install` mantém lockfile sem downgrade de versões
-- [ ] `renovate.json` válido (`npx --yes renovate-config-validator`)
-- [ ] `package.json` tem `packageManager` e `engines`; `.nvmrc` presente
-- [ ] README com seções Quick Start, Pré-requisitos, Testes, Troubleshooting
-- [ ] Existem CONTRIBUTING.md, CODE_OF_CONDUCT.md, LICENSE, SECURITY.md e
+- [x] `renovate.json` válido (`npx --yes renovate-config-validator`)
+- [x] `package.json` tem `packageManager` e `engines`; `.nvmrc` presente
+- [x] README com seções Quick Start, Pré-requisitos, Testes, Troubleshooting
+- [x] Existem CONTRIBUTING.md, CODE_OF_CONDUCT.md, LICENSE, SECURITY.md e
   `.github/CODEOWNERS`
-- [ ] `.github/workflows/ci.yml` ativo e passa `actionlint`
+- [x] `.github/workflows/ci.yml` ativo e passa `actionlint`
 - [ ] Existe `.dockerignore`, um Dockerfile de referência e `docker-compose.yml`;
   `docker build` do exemplo conclui
-- [ ] Diretórios `libs/{backend,frontend,data-access}` existem
-- [ ] `nx affected -t lint typecheck test build` verde ao final
-- [ ] Validação do projeto passando (lint, typecheck, test)
+- [x] Diretórios `libs/{backend,frontend,shared}` existem — a terceira camada
+  foi nomeada `shared`, não `data-access` como esta spec previa
+- [x] `nx affected -t lint typecheck test build` verde ao final
+- [x] Validação do projeto passando (lint, typecheck, test)
 
 ### Cenários de teste (mínimo 3)
 

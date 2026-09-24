@@ -1,9 +1,0 @@
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: dmpf-reference
-data:
-  # O Redpanda e o Collector da base rodam sem TLS em dev.
-  DMPF_KAFKA_INSECURE: 'true'
-  DMPF_OTLP_INSECURE: 'true'
-  DMPF_SERVICE_VERSION: dev

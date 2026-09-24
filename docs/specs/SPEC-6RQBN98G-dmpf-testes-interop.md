@@ -155,7 +155,7 @@ Arquivo de fixture como **fonte única**, consumido pelas duas stacks:
 
 ### Critérios de aceite
 
-- [ ] **[P0] Estratégia de testes promovida para `docs/dmpf/testes-interop.md` e aprovada em PR**
+- [x] **[P0] Estratégia de testes promovida para `docs/dmpf/testes-interop.md` e aprovada em PR**
       — o artefato está escrito e em `draft normativo`; este critério fecha no **aceite do PR**, não antes
 - [x] **[P0] Conjunto inicial de golden fixtures especificado (formato de arquivo, oráculo executável, pipeline e diagnóstico; ownership conforme FND-05 §8.4)**
 - [x] **[P0] Os seis cenários do AC-10 cobertos no catálogo, com proveniência citada** (o backpressure fechou com a publicação de FND-08)

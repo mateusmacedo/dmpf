@@ -8,7 +8,7 @@
 # no baseline, e o mecanismo mínimo de RFC §10.2 (DMPF-T002) reprova quando a
 # designação muda no mesmo commit que código. Nem dmpf-gate-check.sh (decide
 # por nome de diretório, sem aresta) nem dmpf-cell-check.sh (fixa blocos e
-# bounded context, sem shared kernel) nem o `dmpf-conformance --root .` do CI
+# bounded context, sem shared kernel) nem o `conformance --root .` do CI
 # (sem aresta de outro contexto para o kernel enquanto o consumidor não existe,
 # e a designação muda raramente) exercitam este caminho.
 #
@@ -24,7 +24,7 @@ set -uo pipefail
 ROOT="$(git rev-parse --show-toplevel)" || { echo "fora de um repositorio git" >&2; exit 2; }
 cd "$ROOT" || exit 2
 
-VERIFICADOR="./libs/backend/go/dmpf-conformance/cmd/dmpf-conformance"
+VERIFICADOR="./tools/dmpf-conformance/cmd/conformance"
 BASE_IMPORT="github.com/mateusmacedo/dmpf/libs/backend/go"
 
 PROBE_X_DIR="libs/backend/go/probe-x"
@@ -32,11 +32,11 @@ PROBE_Y_DIR="libs/backend/go/probe-y"
 PROBE_X_PKG="$BASE_IMPORT/probe-x"
 PROBE_Y_PKG="$BASE_IMPORT/probe-y"
 
-# dmpf-kernel/domain e dmpf-kernel/example-orders, os dois pela chave real de
-# libs/backend/go/dmpf-domain/dmpf-units.json: o primeiro é a unidade
-# designada nos vetores, o segundo a não designada do mesmo módulo.
-DESIGNADA="$BASE_IMPORT/dmpf-domain"
-NAO_DESIGNADA="$BASE_IMPORT/dmpf-domain/example/orders"
+# kernel/domain e kernel/testkit-domain, os dois pela chave real dos manifestos
+# de libs/backend/go/domain e libs/backend/go/testkit: o primeiro é a unidade
+# designada nos vetores, o segundo a não designada do mesmo bounded context.
+DESIGNADA="$BASE_IMPORT/domain"
+NAO_DESIGNADA="$BASE_IMPORT/testkit/domainkit"
 
 WORKTREE=""
 descartar_worktree() {
@@ -115,20 +115,20 @@ regravar_baseline() {
 # (HasSharedKernelUnits): por isso a designação exige regravar, editar com jq e
 # regravar de novo — editar o JSON à mão sem o segundo passe deixa o digest
 # sem fechar e todo vetor positivo cairia em DMPF-T001.
-designar_shared_kernel() { # lista-json, ex: ["dmpf-kernel/domain"]
+designar_shared_kernel() { # lista-json, ex: ["kernel/domain"]
   local baseline="$WORKTREE/tools/dmpf-baseline/units-baseline.json" lista="$1"
   regravar_baseline
-  jq --argjson lista "$lista" '.shared_kernel_units = $lista' "$baseline" > "$baseline.tmp" \
+  jq --argjson lista "$lista" '.shared_kernel_units += ($lista - (.shared_kernel_units // []))' "$baseline" > "$baseline.tmp" \
     || falha_setup "jq nao conseguiu editar shared_kernel_units"
   mv "$baseline.tmp" "$baseline" || falha_setup "mv do baseline editado"
-  jq -e --argjson lista "$lista" '.shared_kernel_units == $lista' "$baseline" >/dev/null \
+  jq -e --argjson lista "$lista" '($lista - .shared_kernel_units) == []' "$baseline" >/dev/null \
     || falha_setup "jq nao encontrou shared_kernel_units apos a edicao"
   regravar_baseline
 }
 
 # Monta o worktree comum aos quatro cenários: dois módulos sintéticos com
 # go.mod e fonte de produção (commit 1, sem manifesto), depois manifesto e
-# baseline designando dmpf-kernel/domain como shared kernel (commit 2).
+# baseline designando kernel/domain como shared kernel (commit 2).
 # BASE_REF é capturado ANTES do commit 1: CommitsQueTocaram(base) precisa
 # enxergar os commits do próprio worktree, o que NX_BASE=develop não faria
 # aqui, porque os commits nunca existiram em develop.
@@ -145,7 +145,7 @@ preparar_ambiente() {
 
   escrever_manifesto "$PROBE_X_DIR" "probe-x/domain" gateprobe "$PROBE_X_PKG"
   escrever_manifesto "$PROBE_Y_DIR" "probe-y/domain" gateprobe-y "$PROBE_Y_PKG"
-  designar_shared_kernel '["dmpf-kernel/domain"]'
+  designar_shared_kernel '["kernel/domain"]'
   commitar "docs(probe): declare manifest and designate shared kernel" \
     "$PROBE_X_DIR/dmpf-units.json" "$PROBE_Y_DIR/dmpf-units.json" tools/dmpf-baseline/units-baseline.json
 }
@@ -168,7 +168,7 @@ TOTAL_CENARIOS=4
 VETORES_D002=(
   # nome|import-alvo|exit-esperado|codigos-esperados(sep. por espaço, vazio = nenhum)|par chave->alvo (vazio = não conferir)
   "designada (shared kernel)|$DESIGNADA|0||"
-  "nao-designada (mesmo modulo dmpf-domain)|$NAO_DESIGNADA|1|DMPF-D002|$PROBE_X_PKG -> $NAO_DESIGNADA"
+  "nao-designada (mesmo bounded context kernel)|$NAO_DESIGNADA|1|DMPF-D002|$PROBE_X_PKG -> $NAO_DESIGNADA"
   "outro bounded context (probe-y)|$PROBE_Y_PKG|1|DMPF-D002|$PROBE_X_PKG -> $PROBE_Y_PKG"
 )
 
@@ -207,7 +207,7 @@ done
 # gate — se DMPF-T002 não disparar aqui, é sinal de buraco na tarefa 1.5, não
 # motivo para afrouxar a checagem até o script ficar verde.
 preparar_ambiente
-designar_shared_kernel '["dmpf-kernel/domain", "dmpf-kernel/example-orders"]'
+designar_shared_kernel '["kernel/domain", "kernel/testkit-domain"]'
 printf '\nconst MarkerV2 = "probe-x-v2"\n' >> "$WORKTREE/$PROBE_X_DIR/probe.go" \
   || falha_setup "editar probe.go do sexto ato"
 commitar "refactor(probe): rotate shared kernel designation and touch code" \

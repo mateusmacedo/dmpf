@@ -1,27 +1,41 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-# hmg: Postgres e Kafka são serviços fora do cluster; só a app e a plataforma
-# de observabilidade sobem daqui. Dois Secrets vêm de fora — `dmpf-reference`
-# (DSN e brokers) e `grafana-admin` (senha do administrador) — por
-# ExternalSecret/SealedSecret com esses nomes; secret.dmpf-reference.example.yaml.tmpl
-# mostra a forma e não é aplicado. Sem eles os pods ficam em
-# CreateContainerConfigError, que é a falha certa.
+# hmg: Postgres e Kafka são serviços fora do cluster; só as três apps e a
+# plataforma de observabilidade sobem daqui. Os Secrets vêm de fora — DSN e
+# brokers de cada contexto, o certificado gRPC de cada api, a CA do BFF e a
+# senha do Grafana — por ExternalSecret/SealedSecret com os nomes de
+# secrets.example.yaml.tmpl, que mostra a forma e não é aplicado. Sem eles os
+# pods ficam em CreateContainerConfigError, que é a falha certa.
 
 namespace: dmpf-hmg
 
 resources:
   - ../../../observability
-  - ../../base/dmpf-reference
+  - ../../base/orders
+  - ../../base/reservations
+  - ../../base/bff
 
 images:
-  - name: ghcr.io/mateusmacedo/dmpf-reference
+  - name: ghcr.io/mateusmacedo/bff
+    newTag: hmg
+  - name: ghcr.io/mateusmacedo/orders
+    newTag: hmg
+  - name: ghcr.io/mateusmacedo/reservations
     newTag: hmg
 
 replicas:
-  - name: dmpf-reference-api
+  - name: bff
+    count: 2
+  - name: orders-api
+    count: 2
+  - name: reservations-api
     count: 2
 
 patches:
-  - path: configmap-patch.yaml
-  - path: resources-patch.yaml
+  - path: configmap-orders-patch.yaml
+  - path: configmap-reservations-patch.yaml
+  - path: configmap-bff-patch.yaml
+  - path: deployment-orders-api-patch.yaml
+  - path: deployment-reservations-api-patch.yaml
+  - path: deployment-bff-patch.yaml

@@ -1,0 +1,113 @@
+name: DMPF Release
+
+# Cunha a tag anotada dmpf@<release> no merge commit de master depois dos gates
+# do rito: BOM válido (B001–B012), evidência reproduzida e tag inexistente. É o
+# único caminho da tag do produto; nx-release.yml recusa qualquer dmpf@*.
+
+on:
+  workflow_dispatch:
+    inputs:
+      release:
+        description: "Release do produto (X.Y.Z): bom/dmpf/<release>.json vira a tag dmpf@<release>"
+        required: true
+        type: string
+
+concurrency:
+  group: dmpf-release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  bom:
+    name: Gates do BOM
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      release: ${{ steps.release.outputs.release }}
+      commit: ${{ steps.release.outputs.commit }}
+    steps:
+      - name: Validate manual dispatch branch
+        run: |
+          if [[ "${GITHUB_REF_NAME}" != "master" ]]; then
+            echo "::error::A tag do produto nasce só de master. Ref atual: ${GITHUB_REF_NAME}"
+            exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      - name: Resolver release, BOM e tag inexistente
+        id: release
+        env:
+          RELEASE: ${{ inputs.release }}
+        run: |
+          set -euo pipefail
+          if ! printf '%s' "$RELEASE" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::release inválida: $RELEASE (esperado X.Y.Z)"
+            exit 1
+          fi
+          test -f "bom/dmpf/$RELEASE.json" || { echo "::error::sem BOM em bom/dmpf/$RELEASE.json"; exit 1; }
+          if git rev-parse --verify --quiet "refs/tags/dmpf@$RELEASE" >/dev/null; then
+            echo "::error::dmpf@$RELEASE já existe em $(git rev-list -n1 "dmpf@$RELEASE"): a tag do produto é imutável"
+            exit 1
+          fi
+          echo "release=$RELEASE" >> "$GITHUB_OUTPUT"
+          echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      # Sem --base: o B003 já correu no PR do BOM contra develop. O --commit HEAD
+      # é o merge commit de master, que a tag de cada módulo kernel precisa
+      # alcançar (DMPF-B012).
+      - name: dmpf-bom
+        env:
+          RELEASE: ${{ steps.release.outputs.release }}
+        run: go run ./tools/dmpf-conformance/cmd/bom --root . --release "$RELEASE" --commit HEAD
+
+  evidence:
+    name: Evidência publicada
+    needs: bom
+    uses: ./.github/workflows/dmpf-evidence.yml
+    with:
+      release: ${{ needs.bom.outputs.release }}
+
+  tag:
+    name: Cunhar dmpf@<release>
+    needs: [bom, evidence]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      RELEASE: ${{ needs.bom.outputs.release }}
+      COMMIT: ${{ needs.bom.outputs.commit }}
+    steps:
+      - name: Checkout do commit validado
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ needs.bom.outputs.commit }}
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Configure git identity
+        run: |
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+
+      # Tag anotada no commit que passou nos gates e push só dela: nenhuma outra
+      # ref sai deste workflow.
+      - name: Tag e push
+        run: |
+          set -euo pipefail
+          if git rev-parse --verify --quiet "refs/tags/dmpf@$RELEASE" >/dev/null; then
+            echo "::error::dmpf@$RELEASE apareceu durante a execução; nada a cunhar"
+            exit 1
+          fi
+          git tag -a "dmpf@$RELEASE" -m "DMPF release $RELEASE — BOM bom/dmpf/$RELEASE.json" "$COMMIT"
+          git cat-file -t "dmpf@$RELEASE"
+          git rev-list -n1 "dmpf@$RELEASE"
+          git push origin "refs/tags/dmpf@$RELEASE"

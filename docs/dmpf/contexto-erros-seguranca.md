@@ -493,7 +493,7 @@ decidível, e o **par de vetores** — o caso que a satisfaz e o caso que a viol
 
 | # | ID | Regras | Predicado ou diagnóstico | Vetor positivo | Vetor negativo |
 |---|----|--------|--------------------------|----------------|----------------|
-| 1 | `EC-1` | `CTX-01`, `CTX-03`, `CTX-14` | o contexto é argumento explícito do application service e não sobrevive à execução | contexto montado no adapter e recebido como parâmetro (§9.1) | service que obtém o contexto de variável de módulo |
+| 1 | `EC-1` | `CTX-01`, `CTX-03`, `CTX-14` | o contexto viaja no portador de escopo da requisição e não sobrevive à execução | contexto montado no adapter, depositado no portador e obtido dele a jusante (§9.1) | service que obtém o contexto de variável de módulo |
 | 2 | `EC-2` | `CTX-20`, `CTX-21`, `CTX-22` | o sinal é observável, e nenhuma I/O é iniciada com contexto cancelado ou expirado | provider consulta o sinal antes da chamada remota | chamada remota concluída depois do instante do `deadline`, visível no registro do dependente |
 | 3 | `EC-3` | `CTX-18`, `CTX-19` | `deadline` é instante, e o derivado é menor ou igual ao corrente | contexto filho com prazo igual ou menor | duração de 30 s reiniciada a cada salto (contraprova 7) |
 | 4 | `EC-4` | `CTX-07` | preserva de fronteira confiável, gera quando ausente, malformado ou de origem não confiável | header preservado de gateway com identidade verificada (exemplo 1) | header preservado de origem cuja confiança não foi estabelecida |
@@ -553,9 +553,9 @@ que a requisição seguinte seja atendida com o tenant da anterior.
 |----|-------|
 | `CTX-01` | O contexto de execução tem os **nove** campos de Parte-1 §11 — `request_id`, `correlation_id`, `causation_id`, `trace_context`, `authenticated_subject`, `tenant_id`, `permissions`, `deadline`, `locale` — com a presença declarada em §3.1. Um contexto que omita campo de presença `obrigatória` é defeito de construção, e a operação não prossegue |
 | `CTX-02` | O **tipo** do contexto é declarado no `port`; a **instância** é montada no `app`, na borda; o valor que exige I/O para ser resolvido vem de `provider`. Nenhum outro bloco monta contexto |
-| `CTX-03` | O contexto é passado **explicitamente** como argumento ao `application service`. A UPR não o recebe: FND-03 `FRT-03` fica preservada, e o que alcança o `domain` são **valores extraídos**, nunca o contexto |
+| `CTX-03` | O contexto viaja no **portador de escopo da requisição**, do ingress ao `provider`, e todo bloco que dele dependa o obtém de lá. A UPR não o recebe: FND-03 `FRT-03` fica preservada, e o que alcança o `domain` são **valores extraídos**, nunca o contexto |
 | `CTX-04` | O contexto é **imutável** depois de montado. Nenhum bloco a jusante altera campo. Derivar contexto para uma sub-operação é montar **outro** contexto, cujos campos obedecem à matriz de §3.3 |
-| `CTX-05` | Mecanismo ambiental — `AsyncLocalStorage`, valores de `context.Context`, thread-local ou equivalente — **não** é fonte de valor de que a correção dependa. Ele pode enriquecer log e trace; um campo do contexto lido de lá em vez do argumento é defeito |
+| `CTX-05` | O portador é o que **nasce e morre com a requisição** — `context.Context`, `AsyncLocalStorage` ou equivalente — e é a **fonte única** do contexto: não há segundo caminho para o mesmo campo. Portador que **sobreviva** à requisição — variável de módulo, singleton de processo, cache de sessão — é proibido como fonte. Quem não encontra o contexto no portador **nega** (`IDN-15`); inventar valor é defeito (`IDN-20`) |
 
 `normativo` — **Presença por campo.** A coluna vale para o contexto montado no
 ingress síncrono; §3.6 declara a do consumidor assíncrono.
@@ -1821,7 +1821,7 @@ de RFC §14.5:
 
 | Grupo | Modo | Como se verifica |
 |-------|------|------------------|
-| `CTX-02`, `CTX-03`, `CTX-05`, `IDN-10` | `import-verifiable` e `structurally reviewable` | inspeção de onde o contexto é montado e de como ele chega ao service; ausência de leitura ambiental |
+| `CTX-02`, `CTX-03`, `CTX-05`, `IDN-10` | `import-verifiable` e `structurally reviewable` | inspeção de onde o contexto é montado, de onde ele é depositado no portador, e de que nenhum consumidor prossegue sem encontrá-lo; ausência de segunda fonte para o mesmo campo |
 | `CTX-06`, `CTX-07`, `CTX-11` a `CTX-13`, `IDN-01` a `IDN-08` | `structurally reviewable` | inspeção da borda: origem de cada valor e presença das duas verificações independentes |
 | `CTX-15` a `CTX-17`, `CTX-21`, `CTX-22`, `IDN-11` a `IDN-14` | `runtime-testable` | exigem execução: tempo de vida do contexto, respeito ao cancelamento, e o resultado fail-closed do isolamento |
 | `ERR-01` a `ERR-28`, `MAP-01` a `MAP-07` | `structurally reviewable`, com parte `runtime-testable` | o catálogo e o mapeamento se conferem por inspeção; a totalidade de `ERR-02` e o default de `ERR-11` exigem exercício das bordas |

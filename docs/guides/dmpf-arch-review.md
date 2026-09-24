@@ -30,26 +30,32 @@
 
 ### Implementação de Referência
 
-| Caminho Exato                                            | Linhas | O que documenta                                                                                                                                           |
-| -------------------------------------------------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `apps/backend/dmpf-reference/README.md`                  | 250+   | **Arquitetura prática**: 3 papéis (api, relay, consumer), fluxos E2E, exemplo orders/reservations, containers, processes, UoW + outbox + inbox na prática |
-| `apps/backend/dmpf-reference/cmd/dmpf-reference/main.go` | 59     | Entry point, parse de flags `--role`, configuração por variável de ambiente                                                                               |
-| `apps/backend/dmpf-reference/wiring.go`                  | 262    | Instanciação de providers concretos, composição de blocos, factories                                                                                      |
+| Caminho Exato                                                                         | Linhas | O que documenta                                                                                                                                                                    |
+| ------------------------------------------------------------------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/backend/bff/README.md`                                        | 89     | **Borda pública**: rotas REST traduzidas em gRPC, cadeia de uma requisição (admissão, trace, correlação, prazo, idempotência), mapeamento de status e e2e caixa-preta da topologia |
+| `apps/backend/orders/README.md`                                     | 57     | Contexto `orders`: papéis `api` (gRPC) e `relay`, interceptors, saúde e configuração por papel                                                                                     |
+| `apps/backend/reservations/README.md`                               | 67     | Contexto `reservations`: papéis `api`, `relay` e `consumer`, primeira decisão vencendo entre `Reserve` e `Cancel`, consumo pela inbox                                              |
+| `apps/backend/bff/cmd/bff/main.go`                   | 47     | Entry point do BFF, configuração por variável de ambiente                                                                                                                          |
+| `apps/backend/orders/cmd/orders/main.go`             | 58     | Entry point, parse de `--role`, configuração por variável de ambiente                                                                                                              |
+| `apps/backend/reservations/cmd/reservations/main.go` | 58     | Entry point, parse de `--role`, configuração por variável de ambiente                                                                                                              |
+| `apps/backend/bff/wiring.go`                                        | 152    | Clientes gRPC dos contextos, cadeia HTTP e ciclo de vida do servidor                                                                                                               |
+| `apps/backend/orders/wiring.go`                                     | 233    | Instanciação de providers concretos por papel (`api`, `relay`), servidor gRPC e saúde                                                                                              |
+| `apps/backend/reservations/wiring.go`                               | 284    | Instanciação de providers concretos por papel (`api`, `relay`, `consumer`)                                                                                                         |
 
 ### Código-Exemplo (Padrões Concretos)
 
 | Caminho Exato                                                     | Linhas | Padrão                                                                                            |
 | ----------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------- |
-| `libs/backend/go/dmpf-domain/example/orders/order.go`             | ~80    | Agregado Order (id, status, items, itemLimit), NewOrder(), FromSnapshot(), clone()                |
-| `libs/backend/go/dmpf-domain/example/orders/add_item.go`          | ~30    | **UPR AddItem**: decide-over-copy, Accepted[ItemAccepted]/Rejected, eventos                       |
-| `libs/backend/go/dmpf-domain/example/orders/place.go`             | ~25    | **UPR Place**: mesmo padrão, ciclo de vida                                                        |
-| `libs/backend/go/dmpf-domain/example/orders/rejections.go`        | ~15    | Rejection codes: `orders/item-limit-exceeded`, `orders/empty-order`, `orders/order-not-open`      |
-| `libs/backend/go/dmpf-domain/example/orders/messages.go`          | ~40    | Tipos: OrderID, SKU, Item, Status (enum), Instant, AddItem, PlaceOrder, ItemAccepted, OrderPlaced |
-| `libs/backend/go/dmpf-domain/example/reservations/reservation.go` | ~40    | Agregado Reservation (order: OrderID, items, status), chave natural **permanente**                |
-| `libs/backend/go/dmpf-domain/example/reservations/reserve.go`     | ~25    | **UPR Reserve**: mesmo padrão decide-over-copy                                                    |
-| `libs/backend/go/dmpf-domain/decision.go`                         | ~50    | **Tipo Decision[R]**: Accepted[R] (response, events), Rejected, imutabilidade                     |
-| `libs/backend/go/dmpf-domain/rejection.go`                        | ~40    | **Tipo Rejection**: Code (context/reason), Details, métodos                                       |
-| `libs/backend/go/dmpf-domain/doc.go`                              | ~30    | Contrato de imutabilidade, comparable types, no pointers/slices/maps                              |
+| `apps/backend/orders/domain/order.go`                        | ~80    | Agregado Order (id, status, items, itemLimit), NewOrder(), FromSnapshot(), clone()                |
+| `apps/backend/orders/domain/add_item.go`                     | ~30    | **UPR AddItem**: decide-over-copy, Accepted[ItemAccepted]/Rejected, eventos                       |
+| `apps/backend/orders/domain/place.go`                        | ~25    | **UPR Place**: mesmo padrão, ciclo de vida                                                        |
+| `apps/backend/orders/domain/rejections.go`                   | ~15    | Rejection codes: `orders/item-limit-exceeded`, `orders/empty-order`, `orders/order-not-open`      |
+| `apps/backend/orders/domain/messages.go`                     | ~40    | Tipos: OrderID, SKU, Item, Status (enum), Instant, AddItem, PlaceOrder, ItemAccepted, OrderPlaced |
+| `apps/backend/reservations/domain/reservation.go`            | ~40    | Agregado Reservation (order: OrderID, items, status), chave natural **permanente**                |
+| `apps/backend/reservations/domain/reserve.go`                | ~25    | **UPR Reserve**: mesmo padrão decide-over-copy                                                    |
+| `libs/backend/go/domain/decision.go`                         | ~50    | **Tipo Decision[R]**: Accepted[R] (response, events), Rejected, imutabilidade                     |
+| `libs/backend/go/domain/rejection.go`                        | ~40    | **Tipo Rejection**: Code (context/reason), Details, métodos                                       |
+| `libs/backend/go/domain/doc.go`                              | ~30    | Contrato de imutabilidade, comparable types, no pointers/slices/maps                              |
 
 ---
 
@@ -372,21 +378,21 @@ Formato: `{ "origin_unit": "...", "target_unit": "...", "reason": "..." }`
 **Padrão Decidir-sobre-Cópia (Decide-over-Copy):**
 
 ```go
-func (o *Order) AddItem(cmd AddItem) (dmpfdomain.Accepted[ItemAccepted], *dmpfdomain.Rejection) {
+func (o *Order) AddItem(cmd AddItem) (domain.Accepted[ItemAccepted], *domain.Rejection) {
     next := o.clone()           // 1. Clone imediato
     if next.status != Open {    // 2. Valida sobre cópia
-        return dmpfdomain.Accepted[ItemAccepted]{},
-               dmpfdomain.Reject(CodeOrderNotOpen, "order is not open")
+        return domain.Accepted[ItemAccepted]{},
+               domain.Reject(CodeOrderNotOpen, "order is not open")
     }
     attempted := len(next.items) + 1
     if attempted > next.itemLimit {
-        return dmpfdomain.Accepted[ItemAccepted]{},
-               dmpfdomain.Reject(CodeItemLimitExceeded, "item limit exceeded")
+        return domain.Accepted[ItemAccepted]{},
+               domain.Reject(CodeItemLimitExceeded, "item limit exceeded")
     }
     next.status = Placed
     next.items = append(next.items, Item{SKU: cmd.SKU, Qty: cmd.Quantity})
     *o = next                   // 3. Commit só se Accepted
-    return dmpfdomain.Accept(
+    return domain.Accept(
         ItemAccepted{Order: o.id, Items: len(o.items)},
         ItemAdded{Order: o.id, SKU: cmd.SKU, Qty: cmd.Quantity, At: cmd.At},
     ), nil
@@ -465,13 +471,13 @@ func (s *OrderService) PlaceOrder(ctx context.Context, cmd PlaceOrder) (*Outcome
         // 2. Invoca UPR
         acc, rej := order.Place(cmd)
         if rej != nil {
-            return dmpfapplication.Fail(rej), nil
+            return application.Fail(rej), nil
         }
         // 3. Persiste + outbox
         err = tx.Repository().Store(order)
         err = tx.Outbox().Write(outboxMessage{...})
         // 4. Return — COMMIT automaticamente
-        return dmpfapplication.Accept(acc.Response(), acc.Events()), nil
+        return application.Accept(acc.Response(), acc.Events()), nil
     })
 }
 ```
@@ -708,7 +714,7 @@ type ExecutionContext struct {
 | **Collection**  | OrderID (mesma de Order)                                | Pending → Collected → Failed                                      | PickupOrder, FailCollection                                | OrderCollected     |
 | **Delivery**    | OrderID (mesma de Order)                                | Assigned → InTransit → Delivered → Failed                         | AssignDelivery, MarkInTransit, MarkDelivered, FailDelivery | DeliveryAssigned   |
 
-**Nota:** Todos os agregados compartilham OrderID como chave natural permanente (idêntico ao padrão de reservations no dmpf-reference).
+**Nota:** Todos os agregados compartilham OrderID como chave natural permanente (idêntico ao padrão de reservations em reservations).
 
 ### 5.2 Estrutura de Packages Go
 
@@ -1025,7 +1031,7 @@ stateDiagram-v2
 sequenceDiagram
     autonumber
     participant Kafka as Kafka / SQS
-    participant Adapter as dmpf-app Adapter
+    participant Adapter as app Adapter
     participant DB as Postgres (inbox)
     participant App as PreparationService
 
@@ -1106,7 +1112,7 @@ flowchart LR
 | **Links Normativos**      | Todo ID de regra (`UPR-I-1`, `OBX-12`, etc.) tem referência ao artefato dono | ✓ Link com âncora na seção correta                                             |
 | **Exemplo Diferenciado**  | Delivery usa nomes **completamente diferentes** de orders/reservations       | ✓ Order, Payment, Preparation, Collection, Delivery (não Orders, Reservations) |
 | **Diagramas Compiláveis** | Mermaid syntax é válido e renderiza corretamente                             | ✓ Teste com `mermaid-cli` ou Live Editor                                       |
-| **Código Real**           | Snippets em Go são idiomáticos, copiáveis, não pseudocódigo                  | ✓ Usa padrões reais do dmpf-domain-go                                          |
+| **Código Real**           | Snippets em Go são idiomáticos, copiáveis, não pseudocódigo                  | ✓ Usa padrões reais do domain                                          |
 | **Índices Atualizados**   | 5 arquivos de navegação incluem link ao novo guia                            | ✓ Verificação manual pós-escrita                                               |
 
 ### 7.2 Validação de Cobertura
@@ -1138,7 +1144,7 @@ flowchart LR
 | **Copy-Paste-Ready**        | Snippets de código podem ser copiados sem ajuste | ✓ Goimports resolvem sem erro; compilam com `go build`    |
 | **Diagramas Reproduzíveis** | Qualquer um consegue renderizar Mermaid          | ✓ Sem dependências externas, pastas em Markdown ou `.mmd` |
 | **dmpf-units.json Usável**  | Manifesto pode ser copiado e ajustado            | ✓ Testado com `pnpm nx run delivery-go:conformance-check` |
-| **Fluxos Testáveis**        | Sequências descrevem cenários com assertions     | ✓ Correspondem a testes no dmpf-testkit-go                |
+| **Fluxos Testáveis**        | Sequências descrevem cenários com assertions     | ✓ Correspondem a testes no testkit                |
 
 ---
 
@@ -1148,7 +1154,7 @@ flowchart LR
 
 - **9 artefatos normativos DMPF** (RFC, FND-03 a FND-10)
 - **2 guias** (manifesto, onboarding)
-- **1 implementação de referência** (dmpf-reference-go)
+- **1 topologia de referência** (bff, orders e reservations)
 - **~30 arquivos Go** (padrões concretos de agregados, UPRs, Decision)
 
 ### Destino e Navegação

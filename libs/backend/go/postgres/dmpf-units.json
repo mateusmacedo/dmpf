@@ -1,0 +1,33 @@
+{
+  "schema": "dmpf/units@1",
+  "units": [
+    {
+      "id": "kernel/provider-postgres",
+      "block": "provider",
+      "bounded_context": "kernel",
+      "public_integration_surface": false,
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/postgres"]
+    }
+  ],
+  "external": [
+    {
+      "package": "github.com/jackc/pgx/v5",
+      "versions": ">=5.10 <6",
+      "entrypoints": [".", "github.com/jackc/pgx/v5/pgxpool", "github.com/jackc/pgx/v5/pgconn"],
+      "capability": "io.storage"
+    },
+    {
+      "package": "google.golang.org/protobuf",
+      "versions": ">=1.36.12 <2",
+      "entrypoints": ["google.golang.org/protobuf/proto"],
+      "capability": "wire.codec"
+    },
+    {
+      "package": "go.opentelemetry.io/otel/trace",
+      "versions": ">=1.46.0 <2",
+      "entrypoints": ["."],
+      "capability": "observability"
+    }
+  ],
+  "exceptions": []
+}

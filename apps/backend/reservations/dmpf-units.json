@@ -1,0 +1,119 @@
+{
+  "schema": "dmpf/units@1",
+  "units": [
+    {
+      "id": "reservations/domain",
+      "block": "domain",
+      "bounded_context": "reservations",
+      "public_integration_surface": false,
+      "include": ["github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"]
+    },
+    {
+      "id": "reservations/application",
+      "block": "application",
+      "bounded_context": "reservations",
+      "public_integration_surface": false,
+      "include": ["github.com/mateusmacedo/dmpf/apps/backend/reservations/application"]
+    },
+    {
+      "id": "reservations/provider-postgres",
+      "block": "provider",
+      "bounded_context": "reservations",
+      "public_integration_surface": false,
+      "include": ["github.com/mateusmacedo/dmpf/apps/backend/reservations/provider"]
+    },
+    {
+      "id": "reservations/app",
+      "block": "app",
+      "bounded_context": "reservations",
+      "public_integration_surface": false,
+      "include": [
+        "github.com/mateusmacedo/dmpf/apps/backend/reservations/app",
+        "github.com/mateusmacedo/dmpf/apps/backend/reservations/app/rpc",
+        "github.com/mateusmacedo/dmpf/apps/backend/reservations/cmd"
+      ]
+    },
+    {
+      "id": "reservations/appkit",
+      "block": "app",
+      "bounded_context": "reservations",
+      "public_integration_surface": false,
+      "include": ["github.com/mateusmacedo/dmpf/apps/backend/reservations/appkit"]
+    },
+    {
+      "id": "reservations/distkit",
+      "block": "app",
+      "bounded_context": "reservations",
+      "public_integration_surface": false,
+      "include": ["github.com/mateusmacedo/dmpf/apps/backend/reservations/distkit"]
+    }
+  ],
+  "external": [
+    {
+      "package": "github.com/jackc/pgx/v5",
+      "versions": ">=5.10 <6",
+      "entrypoints": [".", "github.com/jackc/pgx/v5/pgxpool"],
+      "capability": "io.storage"
+    },
+    {
+      "package": "github.com/twmb/franz-go",
+      "versions": ">=1.21.6 <2",
+      "entrypoints": ["github.com/twmb/franz-go/pkg/kgo"],
+      "capability": "io.messaging"
+    },
+    {
+      "package": "github.com/twmb/franz-go/pkg/kadm",
+      "versions": ">=1.18 <2",
+      "entrypoints": ["github.com/twmb/franz-go/pkg/kadm"],
+      "capability": "io.messaging"
+    },
+    {
+      "package": "go.opentelemetry.io/otel",
+      "versions": ">=1.46.0 <2",
+      "entrypoints": ["go.opentelemetry.io/otel", "go.opentelemetry.io/otel/propagation"],
+      "capability": "observability"
+    },
+    {
+      "package": "go.opentelemetry.io/otel/trace",
+      "versions": ">=1.46.0 <2",
+      "entrypoints": ["go.opentelemetry.io/otel/trace"],
+      "capability": "observability"
+    },
+    {
+      "package": "go.opentelemetry.io/otel/sdk",
+      "versions": ">=1.46.0 <2",
+      "entrypoints": ["go.opentelemetry.io/otel/sdk/trace/tracetest"],
+      "capability": "observability"
+    },
+    {
+      "package": "go.opentelemetry.io/otel/sdk/metric",
+      "versions": ">=1.46.0 <2",
+      "entrypoints": ["go.opentelemetry.io/otel/sdk/metric"],
+      "capability": "observability"
+    },
+    {
+      "package": "google.golang.org/grpc",
+      "versions": ">=1.83.1 <2",
+      "entrypoints": [
+        ".",
+        "google.golang.org/grpc/codes",
+        "google.golang.org/grpc/health",
+        "google.golang.org/grpc/health/grpc_health_v1",
+        "google.golang.org/grpc/metadata",
+        "google.golang.org/grpc/status"
+      ],
+      "capability": "io.network"
+    },
+    {
+      "package": "google.golang.org/protobuf",
+      "versions": ">=1.36.12 <2",
+      "entrypoints": [
+        "google.golang.org/protobuf/proto",
+        "google.golang.org/protobuf/reflect/protoreflect",
+        "google.golang.org/protobuf/types/known/timestamppb"
+      ],
+      "capability": "wire.codec"
+    }
+  ],
+  "exceptions": []
+}

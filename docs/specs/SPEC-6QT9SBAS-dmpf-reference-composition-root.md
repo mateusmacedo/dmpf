@@ -1,7 +1,7 @@
 ---
 id: SPEC-6QT9SBAS
 slug: dmpf-reference-composition-root
-title: DMPF KRN-12.1 — Composition root de referência dmpf-reference
+title: DMPF KRN-12.1 — Composition root de referência reference
 stage: done
 priority: P2
 depends_on: [SPEC-MQA5HAXF, SPEC-WTAXFV8B, SPEC-XF9TF9A0, SPEC-ZHE7DN1H, SPEC-WYX5GW87, SPEC-3R80KNMS, SPEC-ANZX2WPG, SPEC-CGPX20NP, SPEC-NYD18TGD, SPEC-EAGAXQN1, SPEC-SJ66880S]
@@ -10,41 +10,41 @@ subtask_urls: []
 created: 2026-09-08
 ---
 
-# SPEC-6QT9SBAS: DMPF KRN-12.1 — Composition root de referência dmpf-reference
+# SPEC-6QT9SBAS: DMPF KRN-12.1 — Composition root de referência reference
 
 ## Resumo
 
 Primeira sub-spec de `SPEC-8HWBWJCB` (`KRN-12`). Entrega o serviço de
-referência `apps/backend/dmpf-reference` — o primeiro projeto Nx sob `apps/` e o
+referência `apps/backend/reference` — o primeiro projeto Nx sob `apps/` e o
 único lugar onde instanciar provider concreto é permissivo (ADR-015). Um binário,
 três papéis por flag: `api` serve a borda HTTP de `orders`, `relay` drena a
 outbox para Kafka, `consumer` lê de Kafka e alimenta `reservations` pela inbox.
 Reutiliza os agregados de exemplo do kernel e o padrão que
-`dmpf-app/example/reservations/` já provou em miniatura.
+`app/example/reservations/` já provou em miniatura.
 
-Como usuário de uma squad, quero abrir `dmpf-reference` e ver, arquivo por
+Como usuário de uma squad, quero abrir `reference` e ver, arquivo por
 arquivo, como os blocos do kernel se cabeiam num processo real — e copiar.
 
 ## Contexto
 
 - **Problema**: `apps/backend` é um `.gitkeep`. Nenhum serviço mostra a
-  composição completa: `dmpf-app/example/reservations/` cabeia consumer e relay,
+  composição completa: `app/example/reservations/` cabeia consumer e relay,
   mas não tem borda síncrona, não sobe como processo e não roda observabilidade.
 - **Impacto**: o guia de composição da sub-spec 2 aponta para arquivos reais;
-  o BOM da sub-spec 4 lista `dmpf-reference` como a coordenada exercitada do
+  o BOM da sub-spec 4 lista `reference` como a coordenada exercitada do
   composition root.
-- **Inspiração**: `dmpf-app/example/reservations/{consumer.go,relay.go}`
+- **Inspiração**: `app/example/reservations/{consumer.go,relay.go}`
   (`NewService`, `NewConsumer`, `NewRelay` com `RandomClaimIDs` e
-  `SystemClock`); `dmpf-testkit/distkit/roles.go` (`adapterSink`, a ponte
-  `dmpfkafka.Sink` → `dmpfapp.Consumer`).
+  `SystemClock`); `testkit/distkit/roles.go` (`adapterSink`, a ponte
+  `kafka.Sink` → `app.Consumer`).
 - **Links relevantes**:
   - `SPEC-8HWBWJCB` — guarda-chuva; decisões transversais (identidade da
     release, um transporte por processo)
   - `SPEC-ZHE7DN1H` — `ordersapp.Service` e os nove passos de FND-04 §3.2
   - `SPEC-ANZX2WPG` — `reservationsapp.Service.Consume` e as sete disposições
   - `SPEC-CGPX20NP` — `relay.New`, `relay.Config`
-  - `SPEC-EAGAXQN1` — `dmpfhttp.Route` (outbound), `dmpfhttp.Admission`,
-    `dmpfkafka.Publisher`, `dmpfkafka.Consumer`, `Sink`
+  - `SPEC-EAGAXQN1` — `http.Route` (outbound), `http.Admission`,
+    `kafka.Publisher`, `kafka.Consumer`, `Sink`
   - `SPEC-NYD18TGD` — `otelboot.Start`
   - ADR-015, ADR-034 (`UOW-11`: query lê fora da UoW), ADR-035, ADR-039
 
@@ -54,9 +54,9 @@ arquivo, como os blocos do kernel se cabeiam num processo real — e copiar.
 | --- | --- | --- |
 | "cabeia os providers de `KRN-10`" | sem contrato OpenAPI nem serviço gRPC publicado | HTTP com contrato OpenAPI mínimo publicado aqui; Kafka; Postgres; OTel. gRPC e SQS fora (guarda-chuva) |
 | "escrita" via `PlaceOrder` | `Service.PlaceOrder` só **carrega** (`place_order.go:32-35`) — ordem ausente é erro técnico; `Order.Place` rejeita ordem sem itens (`domain/orders/place.go:11-13`). `AddItem` faz `loadOrCreate` (`add_item.go:31`) | Rotas: `POST /orders/{id}/items` (cria ou carrega e adiciona), `POST /orders/{id}/place` (coloca) e `GET /orders/{id}` |
-| idempotência de POST | `dmpfhttp.Route` é **outbound** (`route.go:31-33`): `IdempotencyKey` só torna o POST elegível a retry e o `Client` gera o header quando falta (`client.go:149-151`); `Validate` não recusa request de entrada | O handler de entrada exige o header `Idempotency-Key` (400 sem ele) e o propaga ao contexto; `Route` é usado para declarar o contrato (RST-04) e o orçamento. Replay persistido de resposta é escopo fora |
-| `GET /orders/{id}` | `FindOrder` lê por `Service.Reader` fora da UoW (`find_order.go:11-16`, `UOW-11`); `orderspg` só tem `NewRepository(tx *dmpfpostgres.Tx)` (`repository.go:36`) | Esta spec adiciona `orderspg.NewReader(pool *pgxpool.Pool) dmpfports.Reader[...]` ao provider Postgres, com teste; a leitura roda em `pool.Query`, sem transação |
-| targets para subir os papéis | `@nx-go/nx-go` deriva o nome do projeto do último segmento do diretório (`create-nodes-v2.js:34-36`), então `cmd/dmpf-reference/main.go` ativa a inferência de `build` e `serve` mesmo com o projeto chamado `dmpf-reference-go` (confirmado na implementação: o `serve` inferido aparece assim que `cmd/` existe) | Targets declarados `serve-api`, `serve-relay`, `serve-consumer` (`nx:run-commands`, `go run ./cmd/dmpf-reference --role <papel>`); o `build` explícito sobrescreve o inferido (merge do Nx) e o `serve` inferido existe, fica sem uso e não é redeclarado |
+| idempotência de POST | `http.Route` é **outbound** (`route.go:31-33`): `IdempotencyKey` só torna o POST elegível a retry e o `Client` gera o header quando falta (`client.go:149-151`); `Validate` não recusa request de entrada | O handler de entrada exige o header `Idempotency-Key` (400 sem ele) e o propaga ao contexto; `Route` é usado para declarar o contrato (RST-04) e o orçamento. Replay persistido de resposta é escopo fora |
+| `GET /orders/{id}` | `FindOrder` lê por `Service.Reader` fora da UoW (`find_order.go:11-16`, `UOW-11`); `orderspg` só tem `NewRepository(tx *postgres.Tx)` (`repository.go:36`) | Esta spec adiciona `orderspg.NewReader(pool *pgxpool.Pool) ports.Reader[...]` ao provider Postgres, com teste; a leitura roda em `pool.Query`, sem transação |
+| targets para subir os papéis | `@nx-go/nx-go` deriva o nome do projeto do último segmento do diretório (`create-nodes-v2.js:34-36`), então `cmd/reference/main.go` ativa a inferência de `build` e `serve` mesmo com o projeto chamado `reference-go` (confirmado na implementação: o `serve` inferido aparece assim que `cmd/` existe) | Targets declarados `serve-api`, `serve-relay`, `serve-consumer` (`nx:run-commands`, `go run ./cmd/reference --role <papel>`); o `build` explícito sobrescreve o inferido (merge do Nx) e o `serve` inferido existe, fica sem uso e não é redeclarado |
 | `type:app` | `nx-release.yml` trata todo `tag:type:app` como candidato Docker | Filtro passa a `tag:type:app,!tag:stack:go`, precedente do `build_projects_filter` de `nx-publish-libs.yml` |
 
 ### Fontes normativas
@@ -74,43 +74,43 @@ arquivo, como os blocos do kernel se cabeiam num processo real — e copiar.
 | `AGENTS.md` §Convenções | Tags 3D + `layer:*`; targets Go via `nx:run-commands`; sem redeclarar target inferido |
 
 <constraints>
-- [P0] NUNCA construir `pgxpool`, `franz-go`, `net/http` ou `otel` fora deste módulo: `dmpf-reference` é a única unidade `app` de produção que instancia provider concreto (ADR-015).
+- [P0] NUNCA construir `pgxpool`, `franz-go`, `net/http` ou `otel` fora deste módulo: `reference` é a única unidade `app` de produção que instancia provider concreto (ADR-015).
 - [P0] NUNCA abrir transação para `GET /orders/{id}`: a leitura passa por `orderspg.NewReader(pool)` (`UOW-11`).
 - [P0] NUNCA aplicar `Ack`, `Release` ou contenção antes do retorno de `UoW.Within` no consumer (`INB-08`).
 - [P0] NUNCA declarar exactly-once: o e2e republica a mesma entrega e prova idempotência pela inbox.
 - [P0] NUNCA subir publisher no papel `api` nem servidor HTTP no papel `relay`: um papel por processo (`BLK-02`).
 - [P1] Toda rota HTTP declara `ContractRef` para `contracts/openapi/orders/v1/openapi.yaml` (RST-04); `Route.Validate` roda na construção e falha o processo.
-- [P1] `MaxAttempts` do `dmpfapp.Consumer` é lido do `channel.Catalog`, nunca duplicado como literal (ADR-039).
+- [P1] `MaxAttempts` do `app.Consumer` é lido do `channel.Catalog`, nunca duplicado como literal (ADR-039).
 </constraints>
 
 ## Requisitos
 
 ### Funcionais
 
-- [ ] **[P0] Módulo e projeto**: `apps/backend/dmpf-reference` com `go.mod`
-  (`module github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference`,
+- [ ] **[P0] Módulo e projeto**: `apps/backend/reference` com `go.mod`
+  (`module github.com/mateusmacedo/dmpf/apps/backend/reference`,
   `go 1.26.6`, sem `require` de irmão — ADR-034), entrada `use
-  ./apps/backend/dmpf-reference` no `go.work`, `project.json` `dmpf-reference-go`
+  ./apps/backend/reference` no `go.work`, `project.json` `reference-go`
   com tags `["type:app", "scope:backend", "stack:go", "layer:apps"]` e targets
   `fmt-check`, `vet`, `build`, `test-race` (`cache: false`, `dependsOn`
-  `dmpf-provider-postgres-go:test-race` e `dmpf-app-go:test-race` — partilham
+  `postgres:test-race` e `app:test-race` — partilham
   o Postgres do job), `govulncheck`, `serve-api`, `serve-relay`,
-  `serve-consumer`; `package.json` `@mateusmacedo/dmpf-reference-go` `0.0.0`
-  `private: true`; `dmpf-units.json` com a unidade `dmpf-kernel/reference-app`,
-  bloco `app`, `bounded_context` `dmpf-kernel`, `external` com `pgx/v5`
+  `serve-consumer`; `package.json` `@mateusmacedo/reference-go` `0.0.0`
+  `private: true`; `dmpf-units.json` com a unidade `kernel/reference-app`,
+  bloco `app`, `bounded_context` `kernel`, `external` com `pgx/v5`
   (`io.storage`), `franz-go` (`io.messaging`), `go.opentelemetry.io/otel`
   (`observability`) e os exporters OTLP (`io.network`), copiados dos providers
   que já os declaram.
   - Baseline: a unidade entra em `tools/dmpf-baseline/units-baseline.json` em
     commit próprio (`chore(workspace): [ARQ-…] Registrar a unidade do
-    dmpf-reference no baseline`).
+    reference no baseline`).
   - Edge case: `pnpm nx show projects --projects=tag:layer:apps` lista
-    `dmpf-app-go` e `dmpf-reference-go`; a guarda de cobertura de tags do
+    `app` e `reference-go`; a guarda de cobertura de tags do
     `ci.yml` passa.
-- [ ] **[P0] Binário e papéis**: `cmd/dmpf-reference/main.go` lê `--role
+- [ ] **[P0] Binário e papéis**: `cmd/reference/main.go` lê `--role
   api|relay|consumer`; ausente ou desconhecido → exit 2 com mensagem listando os
   três. `config.go` lê `DMPF_PG_DSN`, `DMPF_KAFKA_BROKERS`, `DMPF_HTTP_ADDR`
-  (default `:8080`), `DMPF_SERVICE` (default `dmpf-reference`) e, para o
+  (default `:8080`), `DMPF_SERVICE` (default `reference`) e, para o
   canal, `DMPF_KAFKA_TOPIC`, `DMPF_KAFKA_GROUP` e `DMPF_KAFKA_DLQ` — o **nome**
   do canal não é configurável: é `ordersapp.Destination` (`orders.events`),
   porque o publisher resolve pelo destino que o caso de uso autorou (achado B
@@ -118,11 +118,11 @@ arquivo, como os blocos do kernel se cabeiam num processo real — e copiar.
   ausente para o papel → exit 2 nomeando-a. Todo papel chama `otelboot.Start` e faz graceful
   shutdown por `SIGTERM`/`SIGINT` com prazo de 10 s.
 - [ ] **[P0] Papel `api`**: `wiring.NewOrdersService(pool, clock, ids)` monta
-  `ordersapp.Service{UoW: dmpfpostgres.NewUnitOfWork(pool, bindOrders),
+  `ordersapp.Service{UoW: postgres.NewUnitOfWork(pool, bindOrders),
   Reader: orderspg.NewReader(pool), Clock, IDs, Authorize: AllowAll,
-  ItemLimit}`. Rotas em `api/routes.go`, cada uma um `dmpfhttp.Route`
+  ItemLimit}`. Rotas em `api/routes.go`, cada uma um `http.Route`
   validado na construção, servidas por `net/http.ServeMux` com o middleware
-  `dmpfhttp.Admission` (`RES-17`) antes do handler:
+  `http.Admission` (`RES-17`) antes do handler:
   - `POST /orders/{id}/items` → `Service.AddItem` (`loadOrCreate`; corpo
     `{sku, quantity}`); `201` quando aceito, `422` com o código da rejeição,
     `409` em conflito de versão.
@@ -141,24 +141,24 @@ arquivo, como os blocos do kernel se cabeiam num processo real — e copiar.
   `Idempotency-Key` obrigatório nos POST, e os códigos de resposta acima. É a
   fonte que `RST-04` exige; não gera código.
 - [ ] **[P0] `orderspg.NewReader`**: em
-  `libs/backend/go/dmpf-provider-postgres/example/orders/reader.go`,
-  `NewReader(pool *pgxpool.Pool) dmpfports.Reader[orders.OrderID,
+  `libs/backend/go/postgres/example/orders/reader.go`,
+  `NewReader(pool *pgxpool.Pool) ports.Reader[orders.OrderID,
   orders.Snapshot]`, `Load` por `pool.QueryRow` reutilizando o `SELECT` e o
   mapeador de `repository.go`; teste `reader_test.go` (build tag `integration`)
   prova que `Load` não abre transação (sem `BEGIN` no log do pool de teste) e
   devolve `ErrNotFound` para id ausente.
 - [ ] **[P0] Papel `relay`**: `wiring.NewRelay(pool, publisher, cfg)` chama
-  `relay.New(dmpfpostgres.NewOutboxStore(pool, clock), publisher, claimIDs,
+  `relay.New(postgres.NewOutboxStore(pool, clock), publisher, claimIDs,
   clock, relay.Config{Source, Interval, BatchSize, Lease, Concurrency})`;
-  `publisher` é `dmpfkafka.NewPublisher(dmpfkafka.Config{Brokers, Catalog,
+  `publisher` é `kafka.NewPublisher(kafka.Config{Brokers, Catalog,
   Sheet, Service, Clock, Tracer}, observer)`; `claimIDs` e `clock` são os
-  mesmos `RandomClaimIDs`/`SystemClock` de `dmpf-app/example/reservations`,
-  promovidos a `dmpf-reference/ports.go`.
+  mesmos `RandomClaimIDs`/`SystemClock` de `app/example/reservations`,
+  promovidos a `reference/ports.go`.
 - [ ] **[P0] Papel `consumer`**: `wiring.NewReservationsConsumer(pool, clock,
   ids, wait, maxAttempts)` monta `reservationsconsumer.NewConsumer(...)`
-  (reutilizado de `dmpf-app/example/reservations`) e `sink.go` realiza
-  `dmpfkafka.Sink` chamando `consumer.Consume(ctx, dmpfapp.Delivery{Raw,
-  Attempt}, ack)`; `dmpfkafka.Consumer{Config, Channel, Sink}` roda
+  (reutilizado de `app/example/reservations`) e `sink.go` realiza
+  `kafka.Sink` chamando `consumer.Consume(ctx, app.Delivery{Raw,
+  Attempt}, ack)`; `kafka.Consumer{Config, Channel, Sink}` roda
   `Run(ctx)`. `maxAttempts` = teto do canal no `channel.Catalog`.
 - [ ] **[P0] E2e** (`e2e_test.go`, build tag `integration`, exige
   `DMPF_PG_DSN` e `DMPF_KAFKA_BROKERS`): sobe os três papéis em goroutines do
@@ -170,16 +170,16 @@ arquivo, como os blocos do kernel se cabeiam num processo real — e copiar.
 - [ ] **[P1] `nx-release.yml`**: filtro de candidatos Docker →
   `tag:type:app,!tag:stack:go`, comentário de uma linha citando o precedente.
 - [ ] **[P1] ADR-041** criado com as decisões transversais da guarda-chuva e
-  as desta spec; **`AGENTS.md`**: seção Apps lista `dmpf-reference-go`; seção
-  Libs corrige `dmpf-app-go` para três unidades (`app-consumer`, `app-relay`,
-  `example-reservations-app`); tabela `layer:*` ganha `dmpf-reference-go`;
-  Comandos ganham `serve-*`. **`libs/backend/go/dmpf-app/README.md`** e
+  as desta spec; **`AGENTS.md`**: seção Apps lista `reference-go`; seção
+  Libs corrige `app` para três unidades (`app-consumer`, `app-relay`,
+  `example-reservations-app`); tabela `layer:*` ganha `reference-go`;
+  Comandos ganham `serve-*`. **`libs/backend/go/app/README.md`** e
   **`doc.go`** passam a listar o relay como entregue. `README.md` da app
   documenta papéis, variáveis e como subir local com Postgres e Redpanda.
 
 ### Não-funcionais
 
-- [ ] Conformidade: `dmpf-conformance` aprova o módulo; `dmpf-gate-check.sh` e
+- [ ] Conformidade: `conformance` aprova o módulo; `dmpf-gate-check.sh` e
   `dmpf-cell-check.sh` continuam verdes.
 - [ ] Cadeia verde: `fmt-check`, `vet`, `lint`, `build`, `test-race`,
   `govulncheck`; `biome ci`; `adr-verify`.
@@ -198,33 +198,33 @@ arquivo, como os blocos do kernel se cabeiam num processo real — e copiar.
 | `application` | [ ] | — |
 | `port` | [ ] | — |
 | `contract` | [x] | `contracts/openapi/orders/v1/openapi.yaml` (fonte, sem código gerado) |
-| `provider` | [x] | `dmpf-provider-postgres/example/orders/reader.go` (`NewReader`) |
-| `app` | [x] | `apps/backend/dmpf-reference` (novo) |
-| Workspace | [x] | `go.work`, `units-baseline.json` (commit próprio), `nx-release.yml`, `AGENTS.md`, `dmpf-app/README.md` e `doc.go`, ADR-041 |
+| `provider` | [x] | `postgres/example/orders/reader.go` (`NewReader`) |
+| `app` | [x] | `apps/backend/reference` (novo) |
+| Workspace | [x] | `go.work`, `units-baseline.json` (commit próprio), `nx-release.yml`, `AGENTS.md`, `app/README.md` e `doc.go`, ADR-041 |
 
 ## Localização de código
 
 ```text
-apps/backend/dmpf-reference/                          — NOVO; projeto dmpf-reference-go; unidade dmpf-kernel/reference-app (app)
+apps/backend/reference/                          — NOVO; projeto reference-go; unidade kernel/reference-app (app)
   go.mod, project.json, package.json, dmpf-units.json, README.md, doc.go
   config.go                                           — Config{DSN, Brokers, HTTPAddr, Service, Channel}; FromEnv(role); Validate
   ports.go                                            — RandomClaimIDs (io.random), SystemClock (io.clock)
   wiring.go                                           — NewPool, NewOrdersService, NewRelay, NewPublisher, NewReservationsConsumer, NewTelemetry
-  sink.go                                             — adapterSink: dmpfkafka.Sink → dmpfapp.Consumer.Consume
-  api/routes.go                                       — Routes(): 3 dmpfhttp.Route com ContractRef; Handler(service) http.Handler; Admission
+  sink.go                                             — adapterSink: kafka.Sink → app.Consumer.Consume
+  api/routes.go                                       — Routes(): 3 http.Route com ContractRef; Handler(service) http.Handler; Admission
   api/idempotency.go                                  — requireIdempotencyKey middleware (400 sem header)
   api/routes_test.go                                  — contrato × status; header obrigatório; Route.Validate
-  cmd/dmpf-reference/main.go                          — --role; otelboot.Start; graceful shutdown
+  cmd/reference/main.go                          — --role; otelboot.Start; graceful shutdown
   e2e_test.go                                         — integration: items → place → outbox → relay → Kafka → consumer → inbox; reentrega
   testing_test.go                                     — harness: pool, brokers, TRUNCATE, canal
 contracts/openapi/orders/v1/openapi.yaml               — NOVO
-libs/backend/go/dmpf-provider-postgres/example/orders/reader.go, reader_test.go — NOVO: NewReader(pool)
-go.work                                                — MODIFICAR: use ./apps/backend/dmpf-reference
+libs/backend/go/postgres/example/orders/reader.go, reader_test.go — NOVO: NewReader(pool)
+go.work                                                — MODIFICAR: use ./apps/backend/reference
 tools/dmpf-baseline/units-baseline.json                — MODIFICAR em commit próprio
 .github/workflows/nx-release.yml                       — MODIFICAR: tag:type:app,!tag:stack:go
 docs/adr/041-sdk-de-referencia-generator-e-bom-certificado.md — NOVO
-AGENTS.md, README.md                                   — MODIFICAR: Apps, Libs (dmpf-app: 3 unidades), layer:*, Comandos
-libs/backend/go/dmpf-app/README.md, doc.go             — MODIFICAR: relay entregue; 3 unidades
+AGENTS.md, README.md                                   — MODIFICAR: Apps, Libs (app: 3 unidades), layer:*, Comandos
+libs/backend/go/app/README.md, doc.go             — MODIFICAR: relay entregue; 3 unidades
 ```
 
 **Arquivos a modificar, e o que muda**
@@ -233,7 +233,7 @@ libs/backend/go/dmpf-app/README.md, doc.go             — MODIFICAR: relay entr
 `nx.json` já cobre o arquivo inteiro. `nx-release.yml` muda um filtro. O
 provider Postgres ganha um construtor de leitura fora de transação, o único
 gesto que `UOW-11` exige e que faltava para uma query real. `AGENTS.md` fecha a
-lacuna preexistente do `dmpf-app` e registra a app.
+lacuna preexistente do `app` e registra a app.
 
 ## Design
 
@@ -242,9 +242,9 @@ lacuna preexistente do `dmpf-app` e registra a app.
 ```text
  --role api                          --role relay                        --role consumer
  ┌──────────────────────────────┐    ┌──────────────────────────────┐    ┌──────────────────────────────────┐
- │ ServeMux                     │    │ relay.New(                   │    │ dmpfkafka.Consumer               │
+ │ ServeMux                     │    │ relay.New(                   │    │ kafka.Consumer               │
  │  Admission (RES-17)          │    │   OutboxStore(pool, clock),  │    │   Sink = adapterSink             │
- │  requireIdempotencyKey       │    │   Publisher(kafka),          │    │     → dmpfapp.Consumer.Consume   │
+ │  requireIdempotencyKey       │    │   Publisher(kafka),          │    │     → app.Consumer.Consume   │
  │  POST /orders/{id}/items ───►│    │   RandomClaimIDs, clock, cfg)│    │       → reservationsapp.Service  │
  │  POST /orders/{id}/place ───►│    │ claim → publish → mark       │    │         → UoW(pg): inbox+outbox  │
  │  GET  /orders/{id} ─────────►│    └──────────────┬───────────────┘    │   Containment = Quarantine(pool) │
@@ -264,10 +264,10 @@ lacuna preexistente do `dmpf-app` e registra a app.
    `loadOrCreate` e percorre os nove passos dentro de `UoW.Within`.
 2. `POST /orders/{id}/place`: `Service.PlaceOrder` carrega, decide
    (`Order.Place`), grava e **enfileira `OrderPlaced` na mesma transação**.
-3. O papel `relay` faz `claim` por lease, publica pelo `dmpfkafka.Publisher`
+3. O papel `relay` faz `claim` por lease, publica pelo `kafka.Publisher`
    no canal catalogado e marca publicado.
 4. O papel `consumer` recebe os bytes; `adapterSink` entrega
-   `Delivery{Raw, Attempt}` ao `dmpfapp.Consumer`, que decodifica, calcula
+   `Delivery{Raw, Attempt}` ao `app.Consumer`, que decodifica, calcula
    `payload_hash` e invoca `reservationsapp.Service.Consume` na UoW: inbox
    deduplica, reserva é criada, efeito de broker depois do commit.
 5. A mesma mensagem republicada termina em `DuplicateIgnored`.
@@ -281,7 +281,7 @@ lacuna preexistente do `dmpf-app` e registra a app.
 
 | Regra | Instrumento | Onde |
 | --- | --- | --- |
-| ADR-015 | verificador sobre `dmpf-reference` | CI Gates DMPF |
+| ADR-015 | verificador sobre `reference` | CI Gates DMPF |
 | `RST-02`, `RST-04` | `api/routes_test.go`: POST sem header → 400; `Route.Validate` sem `ContractRef` reprova | `test-race` |
 | `RES-17` | `Admission` com limite 1 → segundo request 429 antes do corpo | `test-race` |
 | `UOW-11` | `reader_test.go`: sem `BEGIN`; `ErrNotFound` | `test-race` (integration) |
@@ -307,7 +307,7 @@ lacuna preexistente do `dmpf-app` e registra a app.
   fora do escopo. Alternativa descartada: reusar `Route.IdempotencyKey` como
   validação de entrada, porque o tipo não tem essa semântica.
 - **Targets `serve-*` declarados** porque o papel entra por `--role`, e o
-  `serve` que o `nx-go` infere (a partir de `cmd/dmpf-reference/main.go`, pelo
+  `serve` que o `nx-go` infere (a partir de `cmd/reference/main.go`, pelo
   nome do diretório) não recebe flag; ele existe, fica sem uso e não é
   redeclarado, e o `build` explícito sobrescreve o inferido. Alternativa
   descartada: um `cmd/` por papel, porque `BLK-02` pede processo, não binário.
@@ -334,9 +334,9 @@ lacuna preexistente do `dmpf-app` e registra a app.
 - [ ] `--role` ausente → exit 2 listando os três papéis; variável obrigatória
   ausente → exit 2 nomeando-a.
 - [ ] `pnpm nx show projects --projects="tag:type:app,!tag:stack:go"` não lista
-  `dmpf-reference-go`.
-- [ ] `AGENTS.md` lista a app e as três unidades do `dmpf-app-go`;
-  `dmpf-app/README.md` e `doc.go` coerentes.
+  `reference-go`.
+- [ ] `AGENTS.md` lista a app e as três unidades do `app`;
+  `app/README.md` e `doc.go` coerentes.
 - [ ] ADR-041 criado; `adr-verify` passa; verificador sem diagnóstico; cadeia
   Go e `biome ci` verdes.
 
@@ -374,7 +374,7 @@ lacuna preexistente do `dmpf-app` e registra a app.
 - Dado `DMPF_PG_DSN` ausente e `CI` definida, quando o e2e roda, então falha
   nomeando a variável; sem `CI`, `t.Skip`.
 
-**Papéis (`cmd/dmpf-reference/main_test.go`)**
+**Papéis (`cmd/reference/main_test.go`)**
 
 - Dado `--role` ausente, quando o binário sobe, então exit 2 e a mensagem lista
   `api|relay|consumer`.
@@ -382,13 +382,13 @@ lacuna preexistente do `dmpf-app` e registra a app.
   construído; dado `--role relay`, nenhuma porta HTTP é aberta.
 
 <critical_constraints>
-- [P0] NUNCA construir `pgxpool`, `franz-go`, `net/http` ou `otel` fora deste módulo: `dmpf-reference` é a única unidade `app` de produção que instancia provider concreto (ADR-015).
+- [P0] NUNCA construir `pgxpool`, `franz-go`, `net/http` ou `otel` fora deste módulo: `reference` é a única unidade `app` de produção que instancia provider concreto (ADR-015).
 - [P0] NUNCA abrir transação para `GET /orders/{id}`: a leitura passa por `orderspg.NewReader(pool)` (`UOW-11`).
 - [P0] NUNCA aplicar `Ack`, `Release` ou contenção antes do retorno de `UoW.Within` no consumer (`INB-08`).
 - [P0] NUNCA declarar exactly-once: o e2e republica a mesma entrega e prova idempotência pela inbox.
 - [P0] NUNCA subir publisher no papel `api` nem servidor HTTP no papel `relay`: um papel por processo (`BLK-02`).
 - [P1] Toda rota HTTP declara `ContractRef` para `contracts/openapi/orders/v1/openapi.yaml` (RST-04); `Route.Validate` roda na construção e falha o processo.
-- [P1] `MaxAttempts` do `dmpfapp.Consumer` é lido do `channel.Catalog`, nunca duplicado como literal (ADR-039).
+- [P1] `MaxAttempts` do `app.Consumer` é lido do `channel.Catalog`, nunca duplicado como literal (ADR-039).
 </critical_constraints>
 
 ## Escopo fora

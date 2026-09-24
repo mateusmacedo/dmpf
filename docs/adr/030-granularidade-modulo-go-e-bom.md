@@ -2,7 +2,7 @@
 
 ## Status
 
-Aceito — 2026-08-31. Implementa SPEC-MQA5HAXF.
+Aceito — 2026-08-31. Implementa SPEC-MQA5HAXF. **Parcialmente supersedido pelo ADR-045 (2026-09-16)**: a nomenclatura dos projetos (prefixo `dmpf-`, sufixo `-go`) e o addendum de 2026-09-10 (um módulo por bloco nos contextos de negócio) deixaram de valer; um módulo Go por lib do kernel, o BOM declarado e a segregação de stack no caminho permanecem.
 
 ## Contexto
 
@@ -18,9 +18,9 @@ de produção a portar um `metadata_container`, e §5.4 exige que a `canonical_k
 tarde é reescrita de `canonical_key` em cascata.
 
 O épico de ordem 2 do ARQ-436 entrega o kernel **TypeScript**, com os mesmos
-nomes conceituais do kernel Go (`dmpf-domain`, `dmpf-application`, `dmpf-ports`,
-`dmpf-contracts`). No Nx o nome de projeto é chave única no workspace, então as
-duas stacks não podem ocupar `libs/backend/dmpf-domain`.
+nomes conceituais do kernel Go (`domain`, `application`, `ports`,
+`contracts`). No Nx o nome de projeto é chave única no workspace, então as
+duas stacks não podem ocupar `libs/backend/domain`.
 
 ## Decisão
 
@@ -31,7 +31,7 @@ por lib, o versionamento independente no Nx Release e um alvo natural para
 
 **Segregação de stack no caminho.** Módulos ficam em
 `libs/<scope>/<stack>/<módulo>`, e o nome do projeto Nx leva o sufixo da stack.
-O primeiro é `libs/backend/go/dmpf-domain`, projeto `dmpf-domain-go`. A raiz por
+O primeiro é `libs/backend/go/domain`, projeto `domain`. A raiz por
 `scope` que o `AGENTS.md` documenta (`libs/backend`, `libs/frontend`,
 `libs/shared`) é preservada; a dimensão `stack:` da tag 3D continua sendo a fonte
 canônica para filtros do Nx, e o caminho apenas deixa de colidir.
@@ -109,7 +109,7 @@ seja lida como restrição vigente.
 | Um `go.mod` único para todo o kernel | Colapsaria os onze módulos em um `ownership_module`, com um manifesto só, enfraquecendo a fronteira de ownership que a RFC §3.6 usa para portar a classificação |
 | `versionActions` customizado para Go | Conceitualmente mais correto — versionaria a partir do `go.mod`, sem manifesto npm em módulo Go —, mas é código de release novo a escrever e manter dentro de uma tarefa de terreno. Reavaliar quando houver mais de uma lib Go |
 | Tirar Go do `release.projects` | Sem risco, mas desfaria o versionamento independente que motivou um `go.mod` por lib, e contraria o critério de aceite da ARQ-520 |
-| Sufixo de stack no módulo (`dmpf-domain-go/`) | Levaria a stack para dentro da `canonical_key` de cada package, e não apenas para a fronteira de ownership |
+| Sufixo de stack no módulo (`domain/`) | Levaria a stack para dentro da `canonical_key` de cada package, e não apenas para a fronteira de ownership |
 | `libs/<stack>/<scope>/` | Segue o precedente de `legado-sync-services/libs/node` (RFC §10.1), mas inverteria a hierarquia por `scope` já documentada no `AGENTS.md` |
 | Binário do golangci-lint instalado no CI | Duplicaria a versão entre o target e o instalador, abrindo divergência entre o que roda local e o que roda no CI |
 | Formatar no `pre-commit` com `gofmt -w` | Simétrico ao `biome`, mas reescreveria o código sem o autor ver. O gancho reprova e mostra os arquivos fora do formato |
@@ -140,8 +140,8 @@ seja lida como restrição vigente.
   use I/O passa verde: o import interno não está na `deny`, e os arquivos do
   outro módulo não entram no `./...` analisado. O enforcement transitivo da
   RFC §6.3 é do `KRN-02`; esta entrega não o reivindica.
-- A tag gerada pelo Nx Release é `dmpf-domain-go@0.1.0`, mas o proxy de módulos
-  do Go exige `libs/backend/go/dmpf-domain/vX.Y.Z` para módulo em subdiretório.
+- A tag gerada pelo Nx Release é `domain@0.1.0`, mas o proxy de módulos
+  do Go exige `libs/backend/go/domain/vX.Y.Z` para módulo em subdiretório.
   O module path foi reescrito para o host Gitea pensando em consumo remoto, e o
   versionamento roda — mas o esquema de tag que tornaria o módulo buscável por
   versão ainda não existe. Enquanto não existir, o `version` do `package.json`
@@ -180,13 +180,13 @@ segunda forma de caminho, decidida no ARQ-554 (harness de bounded contexts).
 negócio ficam em `libs/<scope>/<stack>/<contexto>/<bloco>` — `domain`, `ports`,
 `application`, `provider`, `app` —, e não como cinco irmãos com prefixo
 (`<contexto>-domain`, …). O primeiro é `libs/backend/go/bookings/domain`,
-projeto `bookings-domain-go`. O nome do projeto Nx, a unidade do manifesto
-(`<bounded_context>/<bloco>`) e o package Go raiz (`bookingsdomain`) seguem como
+projeto `bookings`. O nome do projeto Nx, a unidade do manifesto
+(`<bounded_context>/<bloco>`) e o package Go raiz (`domain`) seguem como
 antes: o que muda é só o diretório. O motivo é a leitura: um contexto é uma
 coisa só, e a árvore deve dizê-lo; cinco pastas irmãs espalham o contexto entre
 os módulos do kernel.
 
-**O kernel permanece plano.** `dmpf-domain`, `dmpf-ports`, … não são gerados
+**O kernel permanece plano.** `domain`, `ports`, … não são gerados
 pelo generator e não mudam de lugar: o import path é a chave canônica da
 unidade e a RFC a exige estável.
 

@@ -53,7 +53,7 @@ constante do verificador e como linha da matriz.
 - **Links relevantes**:
   - [SPEC-YRJRADY9](./SPEC-YRJRADY9-dmpf-kernel-sdk-go.md) — guarda-chuva; o
     requisito `KRN-05` (linhas 153–163), a linha da tabela de histórias (390) e
-    a árvore de localização (250–271), que reserva `libs/backend/go/dmpf-contracts/`
+    a árvore de localização (250–271), que reserva `libs/backend/go/contracts/`
     e `contracts/` na raiz.
   - [SPEC-MQA5HAXF](./SPEC-MQA5HAXF-dmpf-fundacao-nx-go.md) — `KRN-01`: convenção
     `libs/<scope>/<stack>/<módulo>`, tags 3D, `package.json` privado, BOM por
@@ -135,7 +135,7 @@ abaixo diz de onde vem cada exigência:
   duas gerações consecutivas, ou entre o gerado e o versionado, REPROVA
   (`BUF-11`, `REP-02`).
 - [P0] O bloco `contract` só depende de `contract`. Nenhuma unidade desta lib
-  importa `dmpf-domain-go` nem qualquer outro bloco; nenhuma unidade `domain`,
+  importa `domain` nem qualquer outro bloco; nenhuma unidade `domain`,
   `application` ou `port` importa esta lib (RFC §7.4, células 6, 12, 24 e 31;
   `CTR-02`).
 - [P0] O bloco `contract` admite apenas as capabilities `pure` e `wire.codec`.
@@ -199,10 +199,10 @@ abaixo diz de onde vem cada exigência:
 - [ ] **[P0] Geração determinística em managed mode** (`BUF-06`, `BUF-10`,
   `BUF-11`, `REP-02`): `contracts/buf.gen.yaml` v2 com `managed.enabled: true`,
   `override` de `go_package_prefix` para
-  `github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts/gen/go`,
+  `github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go`,
   plugin `protoc-gen-go` invocado como `local: [go, run,
   google.golang.org/protobuf/cmd/protoc-gen-go@v<X.Y.Z>]` com `opt:
-  paths=source_relative`, `out: ../libs/backend/go/dmpf-contracts/gen/go` e
+  paths=source_relative`, `out: ../libs/backend/go/contracts/gen/go` e
   `clean: true`.
   - A CLI Buf é invocada exclusivamente por `tools/buf.sh`, que executa
     `go run github.com/bufbuild/buf/cmd/buf@v<A.B.C> "$@"`. O pin da CLI vive
@@ -211,14 +211,14 @@ abaixo diz de onde vem cada exigência:
   - As versões concretas são resolvidas no plano pela última release estável
     listada por `go list -m -versions` de cada módulo, e a versão do plugin é
     IGUAL à de `google.golang.org/protobuf` no `go.mod` da lib.
-  - O gerado é versionado em `libs/backend/go/dmpf-contracts/gen/go/io/cloudevents/v1/cloudevents.pb.go`
+  - O gerado é versionado em `libs/backend/go/contracts/gen/go/io/cloudevents/v1/cloudevents.pb.go`
     e `.../gen/go/company/orders/event/v1/order_placed.pb.go`.
-- [ ] **[P0] Lib `dmpf-contracts-go`** (`KRN-01`; ADR-030): criar
-  `libs/backend/go/dmpf-contracts/` como módulo Go
-  `github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts`,
-  `go 1.26.4`, registrado no `go.work`, projeto Nx `dmpf-contracts-go` com tags
+- [ ] **[P0] Lib `contracts`** (`KRN-01`; ADR-030): criar
+  `libs/backend/go/contracts/` como módulo Go
+  `github.com/mateusmacedo/dmpf/libs/backend/go/contracts`,
+  `go 1.26.4`, registrado no `go.work`, projeto Nx `contracts` com tags
   `["type:lib", "scope:backend", "stack:go"]`, `package.json`
-  `{"name": "@mateusmacedo/dmpf-contracts-go", "version": "0.0.0", "private": true}`,
+  `{"name": "@mateusmacedo/contracts", "version": "0.0.0", "private": true}`,
   targets `fmt-check`, `vet`, `build`, `test-race`, `govulncheck` declarados
   como nos dois módulos existentes, e `lint`/`test` herdados dos `targetDefaults`.
   - Os `inputs` de todos os targets incluem `{workspaceRoot}/contracts/**` e
@@ -227,20 +227,20 @@ abaixo diz de onde vem cada exigência:
   - `go.mod` declara `google.golang.org/protobuf` como única dependência direta;
     `go.sum` é versionado.
 - [ ] **[P0] Manifesto `dmpf/units@1` e baseline** (`KRN-02`; RFC §6.3, §6.4,
-  §10.2): `libs/backend/go/dmpf-contracts/dmpf-units.json` declara três unidades,
-  todas `block: "contract"`, `bounded_context: "dmpf-kernel"`,
+  §10.2): `libs/backend/go/contracts/dmpf-units.json` declara três unidades,
+  todas `block: "contract"`, `bounded_context: "kernel"`,
   `public_integration_surface: true`:
-  - `dmpf-contracts/gen` — `include` com os dois import paths gerados;
-  - `dmpf-contracts/envelope` — `include` `.../dmpf-contracts/envelope`;
-  - `dmpf-contracts/payloadhash` — `include` `.../dmpf-contracts/payloadhash`.
+  - `contracts/gen` — `include` com os dois import paths gerados;
+  - `contracts/envelope` — `include` `.../contracts/envelope`;
+  - `contracts/payloadhash` — `include` `.../contracts/payloadhash`.
   - `external[]` com uma entrada para `google.golang.org/protobuf`,
     `capability: "wire.codec"`, `versions` igual à faixa da major pinada e
     `entrypoints` listando exatamente os subpacotes importados pelo gerado e pelo
     codec (`proto`, `types/known/anypb`, `types/known/timestamppb`,
     `reflect/protoreflect`, `runtime/protoimpl`) — a lista final é a dos imports
     efetivamente emitidos pelo plugin pinado, verificada no plano.
-  - `exceptions[]` com uma entrada nominal por par (`dmpf-contracts/gen`,
-    `reflect`) e (`dmpf-contracts/gen`, `unsafe`): o `protoc-gen-go` emite esses
+  - `exceptions[]` com uma entrada nominal por par (`contracts/gen`,
+    `reflect`) e (`contracts/gen`, `unsafe`): o `protoc-gen-go` emite esses
     imports em todo arquivo gerado e o verificador os classifica
     `runtime.framework` (`stdlib.go:64-65`); `reason` cita o plugin pinado,
     `owner` é a equipe dona do bounded context, `review_by` é `2027-03-02`
@@ -251,7 +251,7 @@ abaixo diz de onde vem cada exigência:
     T2; `DMPF-T002`).
 - [ ] **[P0] Codec do envelope** (`ENV-08`, `ENV-09`, `ENV-12`, `ENV-15`,
   `ENV-16`, `ENV-22`): pacote `envelope` em
-  `libs/backend/go/dmpf-contracts/envelope/` com:
+  `libs/backend/go/contracts/envelope/` com:
   - `type Envelope struct` com os quinze atributos: `ID`, `Source`,
     `SpecVersion`, `Type`, `Subject`, `Time *timestamppb.Timestamp`,
     `DataSchema`, `DataContentType`, `CorrelationID`, `CausationID`,
@@ -293,7 +293,7 @@ abaixo diz de onde vem cada exigência:
     `google.golang.org/protobuf` listados no `external[]` e os pacotes gerados
     da própria lib. Não importa `time` (`io.clock`) nem `encoding/json`.
 - [ ] **[P0] `payload_hash` versão 1** (`ENV-17`..`ENV-20`; ADR-022): pacote
-  `payloadhash` em `libs/backend/go/dmpf-contracts/payloadhash/` com
+  `payloadhash` em `libs/backend/go/contracts/payloadhash/` com
   `const FormulaVersion = 1` e `func Sum(anyValue []byte) string` que devolve
   `hex.EncodeToString(sha256.Sum256(anyValue))`. Não há função que receba
   `proto.Message`, `*anypb.Any` nem `*cloudeventsv1.CloudEvent`; quem precisa do
@@ -330,7 +330,7 @@ abaixo diz de onde vem cada exigência:
   - O arquivo carrega apenas valores literais: nenhum relógio, aleatório ou
     ordem de `map` (`FIX-08`).
 - [ ] **[P0] Teste de fixture em Go** (§8.3 oráculos 1 e 2): pacote de teste
-  `libs/backend/go/dmpf-contracts/golden/golden_test.go` carrega o `.golden` por
+  `libs/backend/go/contracts/golden/golden_test.go` carrega o `.golden` por
   caminho relativo, falha em `format_version` desconhecida (`FIX-09`) e, para
   cada caso: decodifica `payload_bytes_hex` no tipo gerado e confere campo a
   campo com `payload`; confere `payloadhash.Sum(bytes) == payload_hash`; monta
@@ -340,12 +340,12 @@ abaixo diz de onde vem cada exigência:
   (identidade de bytes) é reportado como informativo e não reprova (§8.3).
 - [ ] **[P0] Gates Buf no CI, fail-closed** (`BUF-03`..`BUF-06`, `BUF-08`,
   `BUF-11`, `BUF-12`): `tools/buf-gate.sh` com quatro subcomandos, cada um
-  exposto como target Nx do projeto `dmpf-contracts-go` e todos executados por
+  exposto como target Nx do projeto `contracts` e todos executados por
   um passo novo do `ci.yml`, `Contracts gates (affected)`, via `pnpm nx affected
   -t buf-lint,buf-breaking,buf-generate-check,buf-pins`:
   - `lint`: `buf format --diff --exit-code contracts` seguido de `buf lint
     contracts`; depois, varredura estrutural de P0-3: `grep -riE "exactly[ -]once"`
-    em `contracts/` e `libs/backend/go/dmpf-contracts/` reprova em qualquer
+    em `contracts/` e `libs/backend/go/contracts/` reprova em qualquer
     ocorrência.
   - `breaking`: implementa `BUF-08`. Para cada módulo declarado em `buf.yaml`,
     a marca de baseline é a tag anotada `contracts-baseline/<path do módulo>`.
@@ -361,7 +361,7 @@ abaixo diz de onde vem cada exigência:
     adicionou o diretório do módulo REPROVA.
   - `generate-check`: duas execuções de `buf generate contracts -o <tmp1>` e
     `-o <tmp2>` em diretórios limpos; `diff -r` entre as duas REPROVA em
-    divergência; `diff -r` entre `<tmp1>/libs/backend/go/dmpf-contracts/gen/go`
+    divergência; `diff -r` entre `<tmp1>/libs/backend/go/contracts/gen/go`
     e o versionado REPROVA em divergência (drift).
   - `pins`: `tools/buf.sh` contém exatamente um `@v<major>.<minor>.<patch>`;
     `buf.gen.yaml` tem todo plugin `local` com `@v<major>.<minor>.<patch>`
@@ -387,7 +387,7 @@ abaixo diz de onde vem cada exigência:
 - [ ] **[P1] Documentação de apoio**: `docs/guides/dmpf-manifesto.md` ganha uma
   seção curta "Bloco `contract` e código gerado" com o exemplo de `external[]`
   para `google.golang.org/protobuf` e das exceções nominais para `reflect` e
-  `unsafe`; `AGENTS.md` ("Libs" e "Comandos") passa a listar `dmpf-contracts-go`
+  `unsafe`; `AGENTS.md` ("Libs" e "Comandos") passa a listar `contracts`
   e os quatro subcomandos de `tools/buf-gate.sh`; `docs/nx-reference/tasks.md`
   registra que Go é `scope:backend` neste workspace e lista os targets `buf-*`.
 
@@ -408,7 +408,7 @@ abaixo diz de onde vem cada exigência:
   envolvendo unidade `contract`, zero `DMPF-E001` após allowlist e exceções,
   `DMPF-T001`/`DMPF-T002` ausentes com o baseline atualizado em commit próprio.
 - [ ] Tempo: o passo `Contracts gates (affected)` só roda quando
-  `dmpf-contracts-go` está no `affected`; um PR só de TypeScript não paga por
+  `contracts` está no `affected`; um PR só de TypeScript não paga por
   ele.
 
 ## Camadas afetadas
@@ -416,7 +416,7 @@ abaixo diz de onde vem cada exigência:
 | Camada | Afetada? | Descrição |
 |--------|----------|-----------|
 | Contratos (`contracts/`) | [x] | Nasce: workspace Buf v2, envelope vendorizado, contrato de exemplo, fixture, pins, README |
-| Bloco `contract` (lib Go) | [x] | Nasce `dmpf-contracts-go`: gerado, codec do envelope, `payload_hash`, teste de fixture |
+| Bloco `contract` (lib Go) | [x] | Nasce `contracts`: gerado, codec do envelope, `payload_hash`, teste de fixture |
 | Workspace Go | [x] | `go.work` ganha o terceiro módulo; primeiro módulo com dependência externa (`go.sum`) |
 | Nx | [x] | Novo projeto `scope:backend`; targets `buf-*` e `buf-gate-selftest`; `inputs` cobrindo `contracts/**` |
 | Governança DMPF | [x] | Primeira unidade real do bloco `contract`; `external[]` e `exceptions[]` inaugurados; baseline com três unidades novas |
@@ -431,22 +431,22 @@ abaixo diz de onde vem cada exigência:
 
 ```text
 dmpf/
-├── go.work                                   — MODIFICAR: use ./libs/backend/go/dmpf-contracts
+├── go.work                                   — MODIFICAR: use ./libs/backend/go/contracts
 ├── go.work.sum                               — CRIAR (gerado pelo toolchain ao resolver a dependência)
 ├── contracts/                                — CRIAR (fonte e governança; neutro de stack)
 │   ├── README.md                             — árvore, proveniência do envelope, ciclo do baseline
 │   ├── buf.yaml                              — workspace v2: modules [proto]; lint STANDARD; breaking FILE; deps []
-│   ├── buf.gen.yaml                          — managed mode; protoc-gen-go local pinado; out ../libs/backend/go/dmpf-contracts/gen/go
+│   ├── buf.gen.yaml                          — managed mode; protoc-gen-go local pinado; out ../libs/backend/go/contracts/gen/go
 │   ├── proto/
 │   │   ├── io/cloudevents/v1/cloudevents.proto           — envelope oficial vendorizado, íntegro
 │   │   └── company/orders/event/v1/order_placed.proto    — contrato de exemplo (PTB-01..PTB-09)
 │   ├── fixtures/orders/event/v1/order-placed.golden      — golden fixture JSON (FIX-05..FIX-11, ORA-08)
 │   ├── openapi/.gitkeep                      — registrado, não normatizado (REP-06)
 │   └── asyncapi/.gitkeep                     — registrado, não normatizado (REP-06)
-├── libs/backend/go/dmpf-contracts/            — CRIAR (bloco contract; projeto Nx dmpf-contracts-go)
-│   ├── go.mod                                — module .../libs/backend/go/dmpf-contracts; go 1.26.4; require google.golang.org/protobuf
+├── libs/backend/go/contracts/            — CRIAR (bloco contract; projeto Nx contracts)
+│   ├── go.mod                                — module .../libs/backend/go/contracts; go 1.26.4; require google.golang.org/protobuf
 │   ├── go.sum
-│   ├── package.json                          — @mateusmacedo/dmpf-contracts-go, private
+│   ├── package.json                          — @mateusmacedo/contracts, private
 │   ├── project.json                          — tags [type:lib, scope:backend, stack:go]; targets Go + buf-* + buf-gate-selftest
 │   ├── dmpf-units.json                       — 3 unidades contract; external[protobuf]; exceptions[reflect, unsafe]
 │   ├── gen/go/                               — GERADO, nunca editado (REP-02)
@@ -474,10 +474,10 @@ dmpf/
 ```
 
 Import path canônico do módulo:
-`github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-contracts`.
+`github.com/mateusmacedo/dmpf/libs/backend/go/contracts`.
 
 **Arquivos a modificar**:
-- `go.work` — adicionar `./libs/backend/go/dmpf-contracts` ao bloco `use`.
+- `go.work` — adicionar `./libs/backend/go/contracts` ao bloco `use`.
 - `tools/dmpf-baseline/units-baseline.json` — três entradas novas e `digest`
   recalculado, em commit separado do código (RFC §10.2 T2).
 - `.github/workflows/ci.yml` — novo passo após `Go gates (affected)`:
@@ -494,7 +494,7 @@ Import path canônico do módulo:
 ### Arquitetura
 
 ```text
-             contracts/ (fonte, neutro de stack)                 libs/backend/go/dmpf-contracts (bloco contract)
+             contracts/ (fonte, neutro de stack)                 libs/backend/go/contracts (bloco contract)
  ┌──────────────────────────────────────────────┐    buf generate    ┌──────────────────────────────────────┐
  │ buf.yaml  buf.gen.yaml  tools/buf.sh (pins)  │ ────────────────▶ │ gen/go/io/cloudevents/v1   (gerado)  │
  │ proto/io/cloudevents/v1/cloudevents.proto    │  managed mode      │ gen/go/company/orders/event/v1       │
@@ -505,7 +505,7 @@ Import path canônico do módulo:
             │ lint       │ breaking    │ generate-check / pins       └──────────────────────────────────────┘
       tools/buf-gate.sh (4 subcomandos, fail-closed) ◀── tools/tests/buf-gate/*.test.sh (autoteste)
             ▲
-      ci.yml "Contracts gates (affected)"  ·  dmpf-conformance (matriz, capabilities, baseline)
+      ci.yml "Contracts gates (affected)"  ·  conformance (matriz, capabilities, baseline)
 
  Consumidores futuros (fora desta história): provider (KRN-06/07) → contract   [célula 30, permitida]
  Nunca:                                       domain/application/port → contract [células 6, 12, 24]
@@ -545,7 +545,7 @@ A fixture é lida pelo teste Go hoje e será lida pelo teste TypeScript em
 buf-gate.sh lint
   buf format --diff --exit-code contracts  → diff ≠ ∅ → REPROVA
   buf lint contracts (STANDARD)            → achado   → REPROVA
-  grep -riE "exactly[ -]once" contracts/ libs/backend/go/dmpf-contracts/ → match → REPROVA
+  grep -riE "exactly[ -]once" contracts/ libs/backend/go/contracts/ → match → REPROVA
 
 buf-gate.sh breaking
   [ -z "$NX_BASE" ] → REPROVA ("baseline não declarado")
@@ -564,7 +564,7 @@ buf-gate.sh breaking
 buf-gate.sh generate-check
   buf generate contracts -o T1 ; buf generate contracts -o T2
   diff -r T1 T2 → ≠ → REPROVA (geração não reprodutível)
-  diff -r T1/libs/backend/go/dmpf-contracts/gen/go libs/backend/go/dmpf-contracts/gen/go → ≠ → REPROVA (drift)
+  diff -r T1/libs/backend/go/contracts/gen/go libs/backend/go/contracts/gen/go → ≠ → REPROVA (drift)
 
 buf-gate.sh pins
   tools/buf.sh sem exatamente 1 "@vX.Y.Z"           → REPROVA
@@ -606,7 +606,7 @@ diferentes.
 
 | Decisão | Alternativas descartadas |
 |---------|--------------------------|
-| **`contracts/` na raiz como fonte; gerado dentro da lib.** A fonte (`.proto`, Buf, fixtures, pins) é neutra de stack e fica onde a guarda-chuva a desenhou (`SPEC-YRJRADY9:268`); o gerado Go fica em `libs/backend/go/dmpf-contracts/gen/go/`, porque o verificador classifica pacotes Go de módulos Nx e o bloco `contract` precisa ser um módulo com `dmpf-units.json`. É a adaptação de `REP-02`/§7.1 (`contracts/gen/go/`) à fase monorepo: a semântica — `gen/<stack>/`, nunca editado, drift reprova — é preservada; muda só o diretório-raiz do `gen/`. O ticket pediu que esta escolha fosse feita no refinamento e registrada; vira ADR-033. | `contracts/gen/go/` como módulo Go próprio: quebraria `libs/<scope>/<stack>/<módulo>` e criaria um módulo fora do Nx. `contracts/` inteiro dentro da lib: acopla a fonte neutra de stack à stack Go e obriga `KRN-11` a gerar TypeScript a partir de dentro de uma lib Go. |
+| **`contracts/` na raiz como fonte; gerado dentro da lib.** A fonte (`.proto`, Buf, fixtures, pins) é neutra de stack e fica onde a guarda-chuva a desenhou (`SPEC-YRJRADY9:268`); o gerado Go fica em `libs/backend/go/contracts/gen/go/`, porque o verificador classifica pacotes Go de módulos Nx e o bloco `contract` precisa ser um módulo com `dmpf-units.json`. É a adaptação de `REP-02`/§7.1 (`contracts/gen/go/`) à fase monorepo: a semântica — `gen/<stack>/`, nunca editado, drift reprova — é preservada; muda só o diretório-raiz do `gen/`. O ticket pediu que esta escolha fosse feita no refinamento e registrada; vira ADR-033. | `contracts/gen/go/` como módulo Go próprio: quebraria `libs/<scope>/<stack>/<módulo>` e criaria um módulo fora do Nx. `contracts/` inteiro dentro da lib: acopla a fonte neutra de stack à stack Go e obriga `KRN-11` a gerar TypeScript a partir de dentro de uma lib Go. |
 | **Envelope oficial vendorizado e gerado pelo mesmo toolchain.** `io.cloudevents.v1` entra como arquivo íntegro em `proto/io/cloudevents/v1/`, com proveniência (URL, tag, SHA-256) no README, e é gerado pelo `protoc-gen-go` pinado, sob o mesmo oráculo de drift que o contrato da organização. | Depender do `pb` do `cloudevents/sdk-go`: traz um módulo grande cuja geração não passa por `BUF-11`, e fixa a versão do envelope à do SDK. Depender de módulo no BSR: exige rede na resolução e uma entrada em `deps`, para um arquivo que não muda. |
 | **Um só módulo Buf (`proto`).** O workspace v2 lista explicitamente `proto`, que contém o envelope vendorizado e o contrato de exemplo. `BUF-01` exige lista explícita, não exige mais de um módulo. | Módulo separado para o envelope: duplica marca de baseline, `CODEOWNERS` e estado de `BUF-08` para um arquivo cuja evolução é externa. |
 | **Buf CLI e `protoc-gen-go` por `go run <pacote>@<versão>`.** Mesmo padrão do BOM de `KRN-01` (`golangci-lint`, `govulncheck`): nenhum binário instalado no runner, pin exato em arquivo versionado, cache no `GOMODCACHE`. O pin da CLI vive só em `tools/buf.sh`; o do plugin, só em `buf.gen.yaml`. | Download do binário `buf` das releases com checksum: funciona, mas introduz um segundo mecanismo de BOM. Plugin remoto do BSR: geração dependente de rede e de disponibilidade externa, contra o espírito de `BUF-09` (validação local). |
@@ -614,13 +614,13 @@ diferentes.
 | **Este PR entra em estado `sem baseline`.** É a transição prevista por `BUF-08` para o primeiro conteúdo: `breaking` é dispensado só para o módulo `proto` e só até a marca existir; `lint`, `format`, `generate-check` e `pins` são obrigatórios desde o primeiro commit. A criação da marca exige uma segunda pessoa com direito de push de tag na forge — pré-requisito organizacional registrado no README e no ADR-033, não relaxado aqui. | Criar a marca no próprio PR: reprova por autoria = autorização (vetor 3). Rodar `breaking` contra um `NX_BASE` sem `contracts/`: falha por irresolução, o que é correto para `baseline estabelecido` e errado para bootstrap — é exatamente a ambiguidade que `BUF-08` elimina. |
 | **`reflect` e `unsafe` do gerado por exceção nominal.** O `protoc-gen-go` emite `reflect`, `sync` e `unsafe` em todo arquivo; o verificador classifica `reflect`/`unsafe` como `runtime.framework` (`stdlib.go:64-65`), não admitida em `contract`. A exceção por par (unidade, dependência) com razão, owner e `review_by` é o instrumento que a RFC §6.4 criou para isso, e mantém o verificador intocado. | Reclassificar `reflect`/`unsafe` como `wire.codec` ou `pure` no verificador: reabre `KRN-02`/ADR-031 e afrouxa a tabela para todo bloco. Excluir arquivos `// Code generated` da análise: heurística por texto, contra ADR-012. Se a experiência mostrar que toda unidade `contract` repete as duas exceções, a proposta de tratar código gerado no verificador é uma história futura, não esta. |
 | **`google.golang.org/protobuf` declarado `wire.codec` com entrypoints explícitos.** A allowlist exige os quatro elementos (`capability.go:115-118`); `wire.codec` não é submetida à pureza transitiva (`external.go:110-117`), então a entrada vale pelos subpacotes que o gerado e o codec importam. | `entrypoints: ["."]`: autoriza só a raiz do módulo, que ninguém importa; o gerado importa subpacotes. Declarar `pure`: reprovaria por `DMPF-E002`, porque o fechamento do runtime Protobuf alcança `reflect`. |
-| **`bounded_context: "dmpf-kernel"` e `public_integration_surface: true`.** A lib é infraestrutura do kernel, como `dmpf-domain-go`; o contrato é superfície pública por construção (`decide.go:27-29`), e a declaração explícita torna o manifesto honesto. O bounded context `orders` do exemplo é do contrato, não do módulo Go. | `bounded_context: "orders"`: confundiria o exemplo com o kernel e faria `provider` de outro contexto depender de C2 pela superfície pública — que já é verdadeira. |
+| **`bounded_context: "kernel"` e `public_integration_surface: true`.** A lib é infraestrutura do kernel, como `domain`; o contrato é superfície pública por construção (`decide.go:27-29`), e a declaração explícita torna o manifesto honesto. O bounded context `orders` do exemplo é do contrato, não do módulo Go. | `bounded_context: "orders"`: confundiria o exemplo com o kernel e faria `provider` de outro contexto depender de C2 pela superfície pública — que já é verdadeira. |
 | **Codec com `Envelope` tipado e `Payload []byte`.** O tipo de mão expõe os quinze atributos com presença modelada no tipo (ponteiro = condicional) e mantém os bytes do payload opacos; `Pack` é o único caminho de mensagem para bytes. Isso torna impossível, pela assinatura, calcular o hash de estrutura desserializada. | Expor `*anypb.Any` diretamente: empurra a validação de `ENV-16` para cada chamador. Aceitar `proto.Message` em `Sum`: viola `ENV-18` por construção. |
 | **`Pack` serializa com `Deterministic: true`.** Elimina a única fonte de não-determinismo do `proto.Marshal` (ordem de `map`), o que torna o oráculo 3 (identidade de bytes) reproduzível dentro da stack Go, ainda que §8.3 não o exija entre produtores independentes. | `proto.Marshal` puro: correto, mas deixa o caso de identidade de bytes ao acaso. |
 | **Fixture carrega `payload_bytes_hex` e `payload_hash` por caso.** `FIX-05` fixa o seccionamento e §8.2 o conteúdo; o hash declarado só é oráculo se os bytes sobre os quais foi calculado também forem literais no arquivo — senão o hash passaria a depender do serializador da stack que lê. Os bytes ficam na seção de casos, ao lado do payload campo a campo. | Hash sem bytes: o teste teria de reserializar para conferir, que é o que `ENV-18` proíbe. Bytes em arquivo binário separado: perde a legibilidade e a diffabilidade de `FIX-08`. |
 | **Caso `non-canonical-field-order` como prova de `ENV-18`.** Bytes válidos em ordem de campo decrescente decodificam no mesmo valor, mas a reserialização em Go emite ordem crescente; o hash dos bytes transportados difere do hash da reserialização. É um teste que falha se alguém trocar `Sum(bytes)` por `Sum(marshal(unmarshal(bytes)))`. | Testar `ENV-18` só por assinatura: prova que a API não aceita mensagem, não prova que a implementação não reserializa por dentro. |
-| **Gate em bash (`tools/buf-gate.sh`) com autoteste.** Segue `tools/dmpf-gate-check.sh`: prova negativa versionada, sem framework. | Gate em Go dentro da lib: introduziria uma unidade `app` numa lib `contract`. Gate no verificador `dmpf-conformance`: outro objeto (grafo de imports), outra história. |
-| **`buf-*` como targets Nx do projeto `dmpf-contracts-go`, com `inputs` em `contracts/**`.** Mudança só em `.proto` torna a lib afetada e dispara os gates pelo mesmo `nx affected` do resto do CI; nenhum passo do `ci.yml` precisa de lista fixa. | Passo do CI chamando `tools/buf-gate.sh` direto, sem Nx: perde `affected` e obriga a decidir na mão quando rodar. |
+| **Gate em bash (`tools/buf-gate.sh`) com autoteste.** Segue `tools/dmpf-gate-check.sh`: prova negativa versionada, sem framework. | Gate em Go dentro da lib: introduziria uma unidade `app` numa lib `contract`. Gate no verificador `conformance`: outro objeto (grafo de imports), outra história. |
+| **`buf-*` como targets Nx do projeto `contracts`, com `inputs` em `contracts/**`.** Mudança só em `.proto` torna a lib afetada e dispara os gates pelo mesmo `nx affected` do resto do CI; nenhum passo do `ci.yml` precisa de lista fixa. | Passo do CI chamando `tools/buf-gate.sh` direto, sem Nx: perde `affected` e obriga a decidir na mão quando rodar. |
 | **`CODEOWNERS` no arquivo que a forge lê.** `REP-03` quer owner efetivo, e o Gitea não lê um `contracts/CODEOWNERS` aninhado; o caminho lido e o handle da equipe são confirmados no plano contra a documentação e a API do Gitea. | Criar `contracts/CODEOWNERS` como em §7.1: satisfaz a figura, não a regra — ninguém seria acionado na revisão. |
 | **ADR-033 na finalização.** Registra, num só documento, as adaptações da fase monorepo: raiz do `gen/` dentro da lib, marca de `BUF-08` como tag anotada, exceções nominais para imports do gerado e pré-requisito de segunda pessoa para a marca. | Um ADR por adaptação: quatro documentos para uma decisão coesa. |
 
@@ -642,66 +642,69 @@ diferentes.
 
 ### Critérios de aceite
 
-- [ ] `contracts/buf.yaml` é v2, lista `proto` explicitamente, usa `STANDARD` com
+- [x] `contracts/buf.yaml` é v2, lista `proto` explicitamente, usa `STANDARD` com
   `enum_zero_value_suffix: _UNSPECIFIED`, `FILE` e `deps: []`; `tools/buf.sh
   lint contracts` e `tools/buf.sh format --diff --exit-code contracts` saem com 0.
-- [ ] O envelope carrega os quinze atributos de `ENV-08` com a presença
+- [x] O envelope carrega os quinze atributos de `ENV-08` com a presença
   declarada: teste de `Encode`/`Decode` para cada obrigatório ausente devolve
   `ErrMissingAttribute` com o nome; para cada condicional presente e vazio,
   `ErrEmptyConditional`; para cada condicional ausente, sucesso sem entrada no
   mapa.
-- [ ] A modalidade do `data` é `proto_data`: `Decode` de `CloudEvent` com
+- [x] A modalidade do `data` é `proto_data`: `Decode` de `CloudEvent` com
   `binary_data` e com `text_data` devolve `ErrModality`; `Encode` nunca produz
   outra modalidade.
-- [ ] `datacontenttype` é `application/protobuf` e o *type URL* do `Any` é
+- [x] `datacontenttype` é `application/protobuf` e o *type URL* do `Any` é
   literalmente igual a `dataschema`: um único caractere de diferença devolve
   `ErrSchemaMismatch`; `type` em `v2` com `dataschema` em `v1` devolve
   `ErrMajorMismatch`; `dataschema` e `type` de majors iguais com strings
   distintas passam (b).
-- [ ] `payloadhash.Sum` devolve 64 caracteres em `[0-9a-f]`; para o mesmo
+- [x] `payloadhash.Sum` devolve 64 caracteres em `[0-9a-f]`; para o mesmo
   `Payload`, variar cada um dos quinze atributos do envelope não altera o valor
   (teste parametrizado por atributo).
-- [ ] Existe teste que falha se o hash for recomputado a partir de estrutura
+- [x] Existe teste que falha se o hash for recomputado a partir de estrutura
   desserializada: caso (8) da fixture — `Sum(bytes) == payload_hash` e
   `Sum(proto.Marshal(decodificado)) != payload_hash`.
-- [ ] O valor calculado em Go coincide com o hash declarado em cada caso da
+- [x] O valor calculado em Go coincide com o hash declarado em cada caso da
   golden fixture, e cada caso decodifica campo a campo no valor declarado,
   inclusive `total_cents = 9007199254740993` e o campo desconhecido preservado
   (`PTB-10`).
-- [ ] A fixture tem ao menos um caso presente e um ausente para cada um de
+- [x] A fixture tem ao menos um caso presente e um ausente para cada um de
   `aggregateversion`, `tenantid` e `tracestate` (§8.2), o enum em `UNSPECIFIED`, em
   valor conhecido e em valor desconhecido, e um caso de campo desconhecido
   (§8.2; `ORA-08`); todo escalar é string; `format_version` desconhecida faz o
   carregador falhar.
-- [ ] `buf lint` roda em `STANDARD` e `buf breaking` em `FILE` no CI; nenhuma
+- [x] `buf lint` roda em `STANDARD` e `buf breaking` em `FILE` no CI; nenhuma
   regra é desabilitada por diretório; com marca de baseline presente, `NX_BASE`
   vazio ou irresolvível reprova (provado pelo autoteste); com marca ausente em
   módulo já presente em `NX_BASE`, reprova; em módulo novo, o gate registra
   `sem baseline` e segue.
-- [ ] Duas gerações consecutivas em ambiente limpo produzem artefatos idênticos
+- [x] Duas gerações consecutivas em ambiente limpo produzem artefatos idênticos
   byte a byte, e a edição de um byte em `gen/go/` faz `generate-check` reprovar
   (autoteste).
-- [ ] `buf-pins` reprova `latest`, faixa e divergência entre a versão do plugin e
+- [x] `buf-pins` reprova `latest`, faixa e divergência entre a versão do plugin e
   a do runtime no `go.mod` (autoteste); passa na configuração versionada.
-- [ ] Nenhum artefato desta entrega declara ou sugere exactly-once fim a fim: a
+- [x] Nenhum artefato desta entrega declara ou sugere exactly-once fim a fim: a
   varredura de `lint` sai com 0 sobre `contracts/` e a lib.
 - [ ] O verificador de conformidade não reporta aresta de `contract` para
   `domain` nem para qualquer outro bloco: `go run
-  ./libs/backend/go/dmpf-conformance/cmd/dmpf-conformance --root . --base
+  ./libs/backend/go/conformance/cmd/conformance --root . --base
   origin/develop` sai com 0 com as três unidades no manifesto e no baseline.
-- [ ] Teste negativo de matriz: um pacote de teste temporário em
-  `dmpf-domain-go` importando `dmpf-contracts/envelope` reprova com `DMPF-D001`
+- [x] Teste negativo de matriz: um pacote de teste temporário em
+  `domain` importando `contracts/envelope` reprova com `DMPF-D001`
   (célula 6), executado como caso do autoteste do gate ou como teste do
   verificador, e removido em seguida.
-- [ ] Cadeia Go verde na lib: `pnpm nx run-many -t fmt-check,vet,lint,build,test,test-race,govulncheck -p dmpf-contracts-go`.
-- [ ] `pnpm biome ci .` e `pnpm nx affected -t lint,typecheck,test,build
+- [x] Cadeia Go verde na lib: `pnpm nx run-many -t fmt-check,vet,lint,build,test,test-race,govulncheck -p contracts`.
+- [x] `pnpm biome ci .` e `pnpm nx affected -t lint,typecheck,test,build
   --exclude=@mateusmacedo/dmpf-source` verdes.
-- [ ] `tools/dmpf-baseline/units-baseline.json` atualizado em commit próprio;
+- [x] `tools/dmpf-baseline/units-baseline.json` atualizado em commit próprio;
   `bash tools/dmpf-gate-check.sh` continua verde (o módulo novo não é `domain`
   e é reportado fora do alcance do depguard, sem reprovar).
-- [ ] `CODEOWNERS` lido pela forge tem owner de equipe para `orders`; o handle é
-  uma equipe existente em `mateusmacedo`.
-- [ ] `docs/guides/dmpf-manifesto.md`, `docs/nx-reference/tasks.md` e
+- [x] `CODEOWNERS` lido pela forge declara owner para os contratos de `orders`.
+  A redação original exigia uma **equipe**; o repositório tem mantenedor único e
+  a conta é pessoal, sem organização onde criar equipe. Enquanto isso valer, o
+  handle individual é o owner correto — a exigência de equipe volta a fazer
+  sentido quando houver mais de um mantenedor.
+- [x] `docs/guides/dmpf-manifesto.md`, `docs/nx-reference/tasks.md` e
   `AGENTS.md` atualizados; ADR-033 criado na finalização.
 
 ### Cenários de teste
@@ -763,8 +766,8 @@ diferentes.
     `generate-check` reprova nomeando o arquivo.
 24. **Pin inválido.** Autoteste: `@latest` em `tools/buf.sh` → `pins` reprova;
     plugin `v1.36.0` com runtime `v1.36.1` no `go.mod` → reprova.
-25. **Aresta proibida.** Pacote temporário em `dmpf-domain-go` importando
-    `.../dmpf-contracts/envelope` → verificador emite `DMPF-D001`.
+25. **Aresta proibida.** Pacote temporário em `domain` importando
+    `.../contracts/envelope` → verificador emite `DMPF-D001`.
 26. **Exactly-once no artefato.** Autoteste: linha `// exactly-once delivery`
     em arquivo temporário sob `contracts/` → `lint` reprova (P0-3).
 
@@ -787,7 +790,7 @@ diferentes.
   duas gerações consecutivas, ou entre o gerado e o versionado, REPROVA
   (`BUF-11`, `REP-02`).
 - [P0] O bloco `contract` só depende de `contract`. Nenhuma unidade desta lib
-  importa `dmpf-domain-go` nem qualquer outro bloco; nenhuma unidade `domain`,
+  importa `domain` nem qualquer outro bloco; nenhuma unidade `domain`,
   `application` ou `port` importa esta lib (RFC §7.4, células 6, 12, 24 e 31;
   `CTR-02`).
 - [P0] O bloco `contract` admite apenas as capabilities `pure` e `wire.codec`.

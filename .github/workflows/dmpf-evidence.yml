@@ -2,10 +2,16 @@ name: DMPF Evidence
 
 # Reprova a evidência publicada de uma release que não se reproduz no commit
 # registrado no próprio header (BOM-03). Separado do ci.yml porque não depende
-# do intervalo do PR: roda sob demanda, sobre o que já está em bom/evidence.
+# do PR: roda sob demanda ou como gate do dmpf-release.yml, sobre bom/evidence.
 
 on:
   workflow_dispatch:
+    inputs:
+      release:
+        description: "Release cuja evidência publicada em bom/evidence/<release> é reproduzida"
+        required: true
+        type: string
+  workflow_call:
     inputs:
       release:
         description: "Release cuja evidência publicada em bom/evidence/<release> é reproduzida"
@@ -108,7 +114,7 @@ jobs:
           work="$RUNNER_TEMP/evidence-worktree"
           git worktree add --detach "$work" "$COMMIT"
           cd "$work"
-          GOTOOLCHAIN=go1.26.6 go run ./libs/backend/go/dmpf-testkit/cmd/dmpf-evidence \
+          GOTOOLCHAIN=go1.26.6 go run ./libs/backend/go/testkit/cmd/evidence \
             --root . --release "$RELEASE" --subjects "$SUBJECTS" \
             --out "$RUNNER_TEMP/evidence-regenerated/$RELEASE"
 

@@ -1,0 +1,251 @@
+openapi: 3.1.0
+info:
+  title: Reservations — reference API of the DMPF kernel
+  version: 1.0.0
+  description: >-
+    Public REST edge of the reservations example, served by
+    apps/backend/bff, which calls the reservations context over
+    gRPC (ADR-024). Every route of the edge references one operation of this
+    document (RST-04). Writes require an Idempotency-Key (RST-02); reads run
+    outside any transaction (UOW-11). The first decision on a pending
+    reservation wins: once reserved or canceled, it admits no other decision. The
+    contract is registered under contracts/openapi/ (REP-06) and is not covered by
+    the Buf gates.
+servers:
+  - url: http://localhost:8080
+    description: local bff
+paths:
+  /reservations/{order_id}:
+    get:
+      operationId: findReservation
+      summary: Read the observable state of the reservation of an order
+      parameters:
+        - $ref: '#/components/parameters/OrderID'
+        - $ref: '#/components/parameters/CorrelationID'
+      responses:
+        '200':
+          description: Current state of the reservation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reservation'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/AdmissionRefused'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '504':
+          $ref: '#/components/responses/Timeout'
+        default:
+          $ref: '#/components/responses/Failure'
+  /reservations/{order_id}/reserve:
+    post:
+      operationId: reserve
+      summary: Reserve the items of an order, creating the reservation if needed
+      parameters:
+        - $ref: '#/components/parameters/OrderID'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/CorrelationID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReserveRequest'
+      responses:
+        '200':
+          description: Reservation confirmed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reserved'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/VersionConflict'
+        '422':
+          $ref: '#/components/responses/Rejected'
+        '429':
+          $ref: '#/components/responses/AdmissionRefused'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '504':
+          $ref: '#/components/responses/Timeout'
+        default:
+          $ref: '#/components/responses/Failure'
+  /reservations/{order_id}/cancel:
+    post:
+      operationId: cancel
+      summary: Cancel the pending reservation of an order, creating it if needed
+      parameters:
+        - $ref: '#/components/parameters/OrderID'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/CorrelationID'
+      responses:
+        '200':
+          description: Reservation canceled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Canceled'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/VersionConflict'
+        '422':
+          $ref: '#/components/responses/Rejected'
+        '429':
+          $ref: '#/components/responses/AdmissionRefused'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '504':
+          $ref: '#/components/responses/Timeout'
+        default:
+          $ref: '#/components/responses/Failure'
+components:
+  parameters:
+    OrderID:
+      name: order_id
+      in: path
+      required: true
+      description: Identifier of the order the reservation belongs to; its permanent natural key
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+        pattern: '^[A-Za-z0-9._:-]+$'
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: >-
+        Client-chosen key that makes the POST idempotent (RST-02). A POST
+        without it is refused with 400 before any call to the context.
+      schema:
+        type: string
+        minLength: 1
+    CorrelationID:
+      name: X-Correlation-ID
+      in: header
+      required: false
+      description: >-
+        Correlation of the whole chain the request starts (ENV-08). When absent
+        or outside this shape the edge mints one; the value used is echoed back
+        in the same header and written to the outbox as correlationid.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+        pattern: '^[A-Za-z0-9._-]+$'
+  schemas:
+    ReserveRequest:
+      type: object
+      required: [items]
+      additionalProperties: false
+      properties:
+        items:
+          type: integer
+          minimum: 1
+          description: Number of items to reserve
+    Reserved:
+      type: object
+      required: [order, items]
+      properties:
+        order:
+          type: string
+        items:
+          type: integer
+          description: Item count the reservation confirmed
+    Canceled:
+      type: object
+      required: [order]
+      properties:
+        order:
+          type: string
+    Reservation:
+      type: object
+      required: [order, status, items]
+      properties:
+        order:
+          type: string
+        status:
+          type: string
+          enum: [confirmed, canceled]
+        items:
+          type: integer
+    Rejection:
+      type: object
+      required: [code, message]
+      description: >-
+        A refusal the domain or the edge declared. Domain codes take the
+        "context/reason" form (FND-03 §5.3); the edge adds its own for
+        requests it refuses before calling the context.
+      properties:
+        code:
+          type: string
+          examples:
+            - reservations/nothing-to-reserve
+            - reservations/already-reserved
+            - reservations/already-canceled
+            - reservations/reservation-canceled
+            - missing-idempotency-key
+            - invalid-request
+            - malformed-body
+        message:
+          type: string
+  responses:
+    BadRequest:
+      description: The request is malformed or is missing the Idempotency-Key header
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Rejection'
+    NotFound:
+      description: No reservation for this order
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Rejection'
+    VersionConflict:
+      description: A concurrent write advanced the reservation; replay the request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Rejection'
+    Rejected:
+      description: The domain refused the command (a business rejection, not a failure)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Rejection'
+    AdmissionRefused:
+      description: Admission control refused the request before reading the body (RES-17)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Rejection'
+    Unavailable:
+      description: The reservations context is unavailable
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Rejection'
+    Timeout:
+      description: The deadline of the request expired before the context answered (GRP-04)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Rejection'
+    Failure:
+      description: Technical failure; the body carries no internal detail (ERR-20)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Rejection'

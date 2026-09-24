@@ -115,11 +115,11 @@ valida e é verificado pela regra de dependência no CI".
   - Divergência com o `legado-golibs` (`go 1.25.0`) é aceita e registrada: um módulo de
     piso maior consome um de piso menor sem impedimento.
 
-- [x] **[P0] Primeiro módulo Go criado**: `libs/backend/go/dmpf-domain`, gerado por
-  `@nx-go/nx-go:library`, declarado no `go.work` via `use ./libs/backend/go/dmpf-domain`.
+- [x] **[P0] Primeiro módulo Go criado**: `libs/backend/go/domain`, gerado por
+  `@nx-go/nx-go:library`, declarado no `go.work` via `use ./libs/backend/go/domain`.
   - Module path reescrito para
-    `github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-domain`.
-    O generator emite `module libs/backend/go/dmpf-domain` literal, que não resolve
+    `github.com/mateusmacedo/dmpf/libs/backend/go/domain`.
+    O generator emite `module libs/backend/go/domain` literal, que não resolve
     remotamente. `GOPRIVATE=github.com` cobre o host, mas isso vale
     no ambiente local, onde vem do `go env` do desenvolvedor — no CI a variável
     é declarada pelo composite `setup-go`, senão o runner sai sem ela.
@@ -129,10 +129,10 @@ valida e é verificado pela regra de dependência no CI".
     `Decision` e `Rejection`.
 
 - [x] **[P0] Manifesto `dmpf-units.json` no módulo**: presente na raiz de
-  `libs/backend/go/dmpf-domain` desde a criação, schema `dmpf/units@1`, com
-  `block: domain` (já fixado pela guarda-chuva) e `bounded_context: dmpf-kernel`.
+  `libs/backend/go/domain` desde a criação, schema `dmpf/units@1`, com
+  `block: domain` (já fixado pela guarda-chuva) e `bounded_context: kernel`.
   - `include` usa **import paths**, não globs (RFC §3.3, §10.1).
-  - `bounded_context: dmpf-kernel` é a convenção que esta spec fixa para
+  - `bounded_context: kernel` é a convenção que esta spec fixa para
     unidades de kernel; unidades de negócio declararão os seus próprios.
 
 - [x] **[P0] Cadeia de sete passos integrada ao Nx**: `gofmt`, `go vet`,
@@ -216,8 +216,8 @@ valida e é verificado pela regra de dependência no CI".
 
 | Camada | Afetada? | Descrição |
 |--------|----------|-----------|
-| Workspace Go (`go.work`) | [x] | Ganha `use ./libs/backend/go/dmpf-domain` e piso `go 1.26.4` |
-| Módulo de domínio (`libs/backend/go/dmpf-domain`) | [x] | Criado: `go.mod`, package mínimo, teste, `project.json` com as 3 tags, `dmpf-units.json` |
+| Workspace Go (`go.work`) | [x] | Ganha `use ./libs/backend/go/domain` e piso `go 1.26.4` |
+| Módulo de domínio (`libs/backend/go/domain`) | [x] | Criado: `go.mod`, package mínimo, teste, `project.json` com as 3 tags, `dmpf-units.json` |
 | Configuração de tasks (`nx.json`) | [x] | Targets Go adicionais em `targetDefaults`, sem redeclarar o inferido |
 | CI (`.github/workflows/ci.yml`) | [x] | Setup do Go (com `cache: false` declarado — ver Decisões técnicas), gates Go em `nx affected` e execução do gate de dependência |
 | Release (`.github/workflows/nx-publish-libs.yml`) | [x] | `build_projects_filter` exclui `stack:go` |
@@ -232,12 +232,12 @@ valida e é verificado pela regra de dependência no CI".
 
 ```text
 dmpf/
-├── go.work                                  — piso go 1.26.4 + use ./libs/backend/go/dmpf-domain
+├── go.work                                  — piso go 1.26.4 + use ./libs/backend/go/domain
 ├── .golangci.yml                            — NOVO: linters habilitados, versionado
 ├── libs/backend/go/                          — NOVO: nível de stack (o TS entra em libs/backend/ts/)
-│   └── dmpf-domain/                         — NOVO: 1º módulo Go (projeto Nx: dmpf-domain-go)
-│       ├── go.mod                           — module github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-domain
-│       ├── project.json                     — nome dmpf-domain-go, tags e os targets não inferidos
+│   └── domain/                         — NOVO: 1º módulo Go (projeto Nx: domain)
+│       ├── go.mod                           — module github.com/mateusmacedo/dmpf/libs/backend/go/domain
+│       ├── project.json                     — nome domain, tags e os targets não inferidos
 │       ├── package.json                     — private: true, apenas para o Nx Release resolver a versão
 │       ├── dmpf-units.json                  — metadata_container, schema dmpf/units@1
 │       ├── <package>.go                     — package mínimo compilável
@@ -270,7 +270,7 @@ dmpf/
 
 **Arquivos a criar**:
 
-- `libs/backend/go/dmpf-domain/` — o módulo, com `go.mod`, `project.json`,
+- `libs/backend/go/domain/` — o módulo, com `go.mod`, `project.json`,
   `dmpf-units.json`, fonte e teste
 - `.golangci.yml` — configuração versionada do linter
 - `docs/adr/030-granularidade-modulo-go-e-bom.md` — o ADR
@@ -284,10 +284,10 @@ esta entrega acrescenta é a materialização em Go, com o import path como
 `canonical_key`.
 
 ```text
-ownership_module            = diretório com go.mod   → libs/backend/go/dmpf-domain
+ownership_module            = diretório com go.mod   → libs/backend/go/domain
   └── verification_unit     = package Go             → cada diretório de package
         canonical_key       = import path completo   → github.com/mateusmacedo/
-                                                        dmpf/libs/backend/go/dmpf-domain
+                                                        dmpf/libs/backend/go/domain
         metadata_container  = dmpf-units.json        → na raiz do ownership_module
 ```
 
@@ -297,9 +297,9 @@ Nx Release, e um alvo natural para `nx affected`.
 
 ### Fluxo principal — o que acontece quando o módulo nasce
 
-1. `@nx-go/nx-go:library` cria `libs/backend/go/dmpf-domain/go.mod` e acrescenta a
+1. `@nx-go/nx-go:library` cria `libs/backend/go/domain/go.mod` e acrescenta a
    entrada ao bloco `use` do `go.work`.
-2. O module path emitido pelo generator (`module libs/backend/go/dmpf-domain`,
+2. O module path emitido pelo generator (`module libs/backend/go/domain`,
    literal) é reescrito para o host Gitea, que `GOPRIVATE` já cobre.
 3. O plugin descobre o projeto pelo glob `**/go.mod` e infere `test`, `lint`,
    `tidy` e `generate`. Não infere `build`, porque o módulo é lib e não tem
@@ -370,24 +370,24 @@ senão:
   diretórios em vez do endereço público.
 
 - **Segregação por stack no path — `libs/backend/<stack>/<módulo>`**: o módulo
-  nasce em `libs/backend/go/dmpf-domain`, com nome de projeto Nx `dmpf-domain-go`.
+  nasce em `libs/backend/go/domain`, com nome de projeto Nx `domain`.
   Motivo: o épico de ordem 2 do ARQ-436 entrega o kernel TypeScript com os mesmos
-  nomes conceituais (`dmpf-domain`, `dmpf-application`, `dmpf-ports`,
-  `dmpf-contracts`), e no Nx o nome de projeto é chave única — as duas stacks não
-  coexistiriam sob `libs/backend/dmpf-domain`. Como a `canonical_key` é o import
+  nomes conceituais (`domain`, `application`, `ports`,
+  `contracts`), e no Nx o nome de projeto é chave única — as duas stacks não
+  coexistiriam sob `libs/backend/domain`. Como a `canonical_key` é o import
   path (RFC §5.4, que a exige estável), fixar a convenção agora custa um módulo;
   fixá-la no épico TS custaria reescrever os onze módulos da guarda-chuva.
   A raiz por `scope` que o `AGENTS.md` documenta (`libs/backend`, `libs/frontend`,
   `libs/shared`) é preservada; a stack entra como segundo nível, e a dimensão
   `stack:` da tag 3D continua sendo a fonte canônica para filtros do Nx.
-  Alternativa descartada: sufixo no módulo (`dmpf-domain-go/`), porque levaria a
+  Alternativa descartada: sufixo no módulo (`domain/`), porque levaria a
   stack para dentro da `canonical_key` de cada package, e não apenas para a
   fronteira de ownership.
   Alternativa descartada: `libs/<stack>/<scope>/`, que segue o precedente de
   `legado-sync-services/libs/node` (RFC §10.1) mas inverteria a hierarquia já
   documentada no `AGENTS.md`.
 
-- **Primeiro módulo — `libs/backend/go/dmpf-domain`**: é o primeiro da ordem de
+- **Primeiro módulo — `libs/backend/go/domain`**: é o primeiro da ordem de
   dependências da guarda-chuva, e `KRN-03` o preenche. Alternativa descartada:
   criar um módulo de terreno descartável, porque seria removido logo depois e
   deixaria o `go.work` com histórico de entrada morta.
@@ -439,7 +439,7 @@ senão:
   Quando houver `go.sum`, trocar por `actions/cache` sobre `GOMODCACHE` e
   `GOCACHE`.
 
-- **`bounded_context: dmpf-kernel`**: convenção fixada por esta spec para
+- **`bounded_context: kernel`**: convenção fixada por esta spec para
   unidades de kernel, que não são bounded context de negócio. A RFC exige string
   estável e única no universo (§5.4); esta satisfaz sem fingir domínio de
   negócio onde não há.
@@ -478,30 +478,30 @@ senão:
 
 ### Critérios de aceite
 
-- [x] `pnpm nx show projects` lista `dmpf-domain-go`, e o projeto carrega as três
+- [x] `pnpm nx show projects` lista `domain`, e o projeto carrega as três
   tags 3D `type:lib`, `scope:backend` e `stack:go`. O Nx acrescenta a elas a tag
   derivada `npm:private`, que vem do `private: true` do `package.json` e não é
   declarada por ninguém — por isso o critério é sobre as três dimensões, não
   sobre o total de tags.
-- [x] `go build ./libs/backend/go/dmpf-domain/...` compila a partir da raiz do
+- [x] `go build ./libs/backend/go/domain/...` compila a partir da raiz do
   repositório, e `go work sync` conclui sem erro. O padrão `./...` na raiz
   **não** serve: a raiz não é um módulo, e o Go reprova com `directory prefix .
   does not contain modules listed in go.work`. Da raiz vale o padrão de
   subárvore ou o module path completo; dentro do módulo, `./...` funciona — que
   é como os targets rodam, com `cwd` no `projectRoot`.
-- [x] O `go.work` declara `go 1.26.4` e contém `use ./libs/backend/go/dmpf-domain`.
+- [x] O `go.work` declara `go 1.26.4` e contém `use ./libs/backend/go/domain`.
 - [x] O `go.mod` do módulo declara
-  `module github.com/mateusmacedo/dmpf/libs/backend/go/dmpf-domain`.
+  `module github.com/mateusmacedo/dmpf/libs/backend/go/domain`.
 - [x] Os sete passos rodam por `pnpm nx` e reprovam diante de arquivo mal
   formatado, achado do `vet`, achado do `golangci-lint` ou teste falhando.
-- [x] `pnpm nx show project dmpf-domain-go --json` mostra os targets inferidos
+- [x] `pnpm nx show project domain --json` mostra os targets inferidos
   (`test`, `lint`, `tidy`, `generate`) com `cache: true` e os `inputs` do plugin
   preservados — nenhum deles zerado por redeclaração.
-- [x] `pnpm nx show project dmpf-domain-go --json` mostra o target `lint`
+- [x] `pnpm nx show project domain --json` mostra o target `lint`
   resolvendo para o executor do `@nx-go/nx-go`, e **não** para o
   `targetDefaults.lint` do `nx.json`, que roda `biome lint {projectRoot}` e não
   processa Go.
-- [x] `libs/backend/go/dmpf-domain/dmpf-units.json` existe, valida contra o schema
+- [x] `libs/backend/go/domain/dmpf-units.json` existe, valida contra o schema
   `dmpf/units@1`, declara `block` e `bounded_context`, e usa import paths em
   `include`.
 - [x] O `ci.yml` instala o toolchain Go na versão do BOM e roda os targets Go em
@@ -524,20 +524,20 @@ senão:
 ### Cenários de teste
 
 ```text
-DADO o módulo libs/backend/go/dmpf-domain criado, com go.work declarando
+DADO o módulo libs/backend/go/domain criado, com go.work declarando
      go 1.26.4 e a entrada use, e o toolchain go1.26.4 disponível
-QUANDO rodar pnpm nx run dmpf-domain-go:fmt-check, :vet, :lint, :build, :test,
+QUANDO rodar pnpm nx run domain:fmt-check, :vet, :lint, :build, :test,
      :test-race e :govulncheck
 ENTÃO os sete passos concluem com êxito e o projeto aparece em
      pnpm nx show projects com as três tags 3D
 
 DADO um arquivo .go do módulo com indentação por espaços em vez de tabulação
-QUANDO rodar pnpm nx run dmpf-domain-go:fmt-check
+QUANDO rodar pnpm nx run domain:fmt-check
 ENTÃO o target REPROVA imprimindo o caminho do arquivo, e o arquivo
      permanece inalterado no disco (o gate é read-only, não reformata)
 
 DADO o targetDefaults.lint do nx.json, que roda biome lint {projectRoot}
-QUANDO rodar pnpm nx show project dmpf-domain-go --json
+QUANDO rodar pnpm nx show project domain --json
 ENTÃO o target lint resolve para o executor do @nx-go/nx-go com
      options.linter igual a golangci-lint, e não para o comando do Biome
 
@@ -559,12 +559,12 @@ ENTÃO o gate REPROVA — e, enquanto o verificador de KRN-02 não existir, a
      no .golangci.yml
 
 DADO uma dependência do módulo com CVE conhecida
-QUANDO rodar pnpm nx run dmpf-domain-go:govulncheck
+QUANDO rodar pnpm nx run domain:govulncheck
 ENTÃO o target REPROVA reportando a vulnerabilidade, e o passo NÃO é
      desligado nem tem a versão fixada para trás sem decisão registrada
 
 DADO um desenvolvedor com go1.26.0 instalado e GOTOOLCHAIN=auto
-QUANDO rodar go build ./libs/backend/go/dmpf-domain/... na raiz, com o go.work
+QUANDO rodar go build ./libs/backend/go/domain/... na raiz, com o go.work
      declarando go 1.26.4
 ENTÃO o Go baixa o toolchain 1.26.4 automaticamente e a compilação conclui,
      sem exigir instalação manual
@@ -612,12 +612,12 @@ ENTÃO o projeto é descoberto pelo plugin (que usa o glob **/go.mod), mas o
   `dmpf-verify.yml`, que verificam o acervo `docs/dmpf/` e nada têm com Go.
 
 - **Conteúdo do domínio — UPR, `Decision`, `Rejection`**: pertence a `KRN-03`.
-  Esta entrega cria o módulo `dmpf-domain-go` com package mínimo e teste, apenas o
+  Esta entrega cria o módulo `domain` com package mínimo e teste, apenas o
   suficiente para exercitar a cadeia.
 
-- **Demais módulos da árvore** (`dmpf-application`, `dmpf-ports`, os
-  `dmpf-provider-*`, `dmpf-observability`, `dmpf-contracts`, `dmpf-testkit`,
-  `dmpf-reference`): cada um nasce na sua sub-spec. `KRN-01` fixa a convenção
+- **Demais módulos da árvore** (`application`, `ports`, os
+  `dmpf-provider-*`, `observability`, `contracts`, `testkit`,
+  `reference`): cada um nasce na sua sub-spec. `KRN-01` fixa a convenção
   que todos seguirão, e materializa apenas o primeiro.
 
 - **`.proto`, `buf.yaml` e gates do Buf**: pertencem a `KRN-05`. O `catalog:` do

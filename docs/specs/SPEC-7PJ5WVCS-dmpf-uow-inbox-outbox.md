@@ -586,32 +586,32 @@ convenção própria para isso.
 
 ### Critérios de aceite
 
-- [ ] **[P0] Sequências e failure modes AC-07 documentados no artefato promovido para `docs/dmpf/uow-inbox-outbox.md`**
-- [ ] **[P0] At-least-once explícito; exactly-once E2E proibido na especificação**
-- [ ] **[P0] Autorização pela ANC-02 declarada no artefato, com escopo permitido, invariantes, monotonicidade e cláusula de precedência da RFC**
-- [ ] **[P0] Atribuição de blocos de RFC §7.5 honrada, com a escrita da outbox por porta e a célula 11 preservada**
-- [ ] **[P0] Schemas mínimos de outbox e inbox normatizados, com a chave `(consumer_name, message_id)` e o `payload_hash`**
-- [ ] **[P0] Disposições de consumo em dois eixos com precedência declarada — 7 disposições, cada uma com efeito na inbox, efeito no broker e se produz derivada**
-- [ ] **[P0] Bloco do mapeamento decidido e justificado, com a cadeia de células da matriz explicitada — obrigação delegada pelo FND-03 §6.3**
-- [ ] **[P0] Autoria dos campos da outbox declarada por grupo, separando roteamento de formato**
-- [ ] **[P0] Porta de inbox com semântica de retorno de classificação, não de erro de constraint**
-- [ ] **[P0] Status da inbox restrito a `{processed, rejected}`, com a divergência com Parte-1 §10.6 declarada**
-- [ ] **[P0] Transição do relay condicional ao claim corrente, com `locked_by` identificando a execução do claim**
-- [ ] **[P0] Idempotência de negócio normatizada como camada distinta da deduplicação por inbox**
-- [ ] **[P0] `payload_hash` com as duas propriedades declaradas, sem definir algoritmo**
-- [ ] **[P0] Invariante `retenção_inbox ≥ janela_redelivery` e as duas zonas de proteção do replay declaradas**
-- [ ] **[P0] Failure modes com categoria de desfecho declarada (recuperação, contenção, reparação assistida)**
-- [ ] **[P0] Fronteira com FND-08 respeitada: capacidade de observação aqui, catálogo de métricas e runbook encaminhados**
-- [ ] **[P0] Dois ADRs acionados no formato de 7 colunas de RFC §13.2, com alternativa descartada registrada para cada um**
-- [ ] **[P0] Sucessão da Parte-1 §§9–10 declarada sob ANC-02 por subseção e com coluna de ressalva, com a pendência de RFC §14.4 registrada**
-- [ ] **[P0] Diagramas de sequência dos fluxos e dos failure modes críticos presentes, em Mermaid e declarados derivados do texto**
-- [ ] **[P0] Janela de retenção da inbox declarada, com a relação com o prazo de redelivery do transporte**
-- [ ] **[P0] Corrida de inbox coberta no catálogo com semântica implementável no baseline PostgreSQL**
-- [ ] **[P0] Sobrescrita tardia por claimant expirado coberta no catálogo de failure modes**
-- [ ] **[P1] Índice de termos publicado, ligando cada termo novo à seção que o define**
-- [ ] **[P0] Baseline PostgreSQL + Kafka/SNS/SQS viável sem recurso exclusivo de vendor**
-- [ ] **[P0] Catálogo de failure modes encaminhado como insumo de ARQ-446 (SPEC-6RQBN98G)**
-- [ ] **[P1] Política de sagas/process managers referenciada (sem implementação)**
+- [x] **[P0] Sequências e failure modes AC-07 documentados no artefato promovido para `docs/dmpf/uow-inbox-outbox.md`**
+- [x] **[P0] At-least-once explícito; exactly-once E2E proibido na especificação**
+- [x] **[P0] Autorização pela ANC-02 declarada no artefato, com escopo permitido, invariantes, monotonicidade e cláusula de precedência da RFC**
+- [x] **[P0] Atribuição de blocos de RFC §7.5 honrada, com a escrita da outbox por porta e a célula 11 preservada**
+- [x] **[P0] Schemas mínimos de outbox e inbox normatizados, com a chave `(consumer_name, message_id)` e o `payload_hash`**
+- [x] **[P0] Disposições de consumo em dois eixos com precedência declarada — 7 disposições, cada uma com efeito na inbox, efeito no broker e se produz derivada**
+- [x] **[P0] Bloco do mapeamento decidido e justificado, com a cadeia de células da matriz explicitada — obrigação delegada pelo FND-03 §6.3**
+- [x] **[P0] Autoria dos campos da outbox declarada por grupo, separando roteamento de formato**
+- [x] **[P0] Porta de inbox com semântica de retorno de classificação, não de erro de constraint**
+- [x] **[P0] Status da inbox restrito a `{processed, rejected}`, com a divergência com Parte-1 §10.6 declarada**
+- [x] **[P0] Transição do relay condicional ao claim corrente, com `locked_by` identificando a execução do claim**
+- [x] **[P0] Idempotência de negócio normatizada como camada distinta da deduplicação por inbox**
+- [x] **[P0] `payload_hash` com as duas propriedades declaradas, sem definir algoritmo**
+- [x] **[P0] Invariante `retenção_inbox ≥ janela_redelivery` e as duas zonas de proteção do replay declaradas**
+- [x] **[P0] Failure modes com categoria de desfecho declarada (recuperação, contenção, reparação assistida)**
+- [x] **[P0] Fronteira com FND-08 respeitada: capacidade de observação aqui, catálogo de métricas e runbook encaminhados**
+- [x] **[P0] Dois ADRs acionados no formato de 7 colunas de RFC §13.2, com alternativa descartada registrada para cada um**
+- [x] **[P0] Sucessão da Parte-1 §§9–10 declarada sob ANC-02 por subseção e com coluna de ressalva, com a pendência de RFC §14.4 registrada**
+- [x] **[P0] Diagramas de sequência dos fluxos e dos failure modes críticos presentes, em Mermaid e declarados derivados do texto**
+- [x] **[P0] Janela de retenção da inbox declarada, com a relação com o prazo de redelivery do transporte**
+- [x] **[P0] Corrida de inbox coberta no catálogo com semântica implementável no baseline PostgreSQL**
+- [x] **[P0] Sobrescrita tardia por claimant expirado coberta no catálogo de failure modes**
+- [x] **[P1] Índice de termos publicado, ligando cada termo novo à seção que o define**
+- [x] **[P0] Baseline PostgreSQL + Kafka/SNS/SQS viável sem recurso exclusivo de vendor**
+- [x] **[P0] Catálogo de failure modes encaminhado como insumo de ARQ-446 (SPEC-6RQBN98G)**
+- [x] **[P1] Política de sagas/process managers referenciada (sem implementação)**
 
 ### Cenários de teste (mínimo 3)
 

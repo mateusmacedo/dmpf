@@ -1,9 +1,9 @@
 {
   "name": <%- projectNameJson %>,
   "$schema": <%- nxSchemaJson %>,
-  "projectType": "library",
+  "projectType": "application",
   "sourceRoot": <%- sourceRootJson %>,
-  "tags": ["type:lib", "scope:backend", "stack:go", <%- layerTagJson %>],
+  "tags": ["type:app", "scope:backend", "stack:go", <%- layerTagJson %>],
   "targets": {
     "fmt-check": {
       "executor": "nx:run-commands",
@@ -55,6 +55,35 @@
         "command": "go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 ./...",
         "cwd": "{projectRoot}"
       }
-    }
+    }<% if (hasApp) { %>,
+    "serve-api": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "go run ./cmd --role api",
+        "cwd": "{projectRoot}"
+      }
+    },
+    "serve-relay": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "go run ./cmd --role relay",
+        "cwd": "{projectRoot}"
+      }
+    },
+    "test-distributed": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "inputs": ["go", "^go"],
+      "dependsOn": [
+        {
+          "projects": ["postgres", "app"],
+          "target": "test-race"
+        }
+      ],
+      "options": {
+        "command": "go test -race -count=1 -p 1 -tags=integration,distributed ./distkit/...",
+        "cwd": "{projectRoot}"
+      }
+    }<% } %>
   }
 }

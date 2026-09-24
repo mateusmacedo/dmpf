@@ -13,7 +13,7 @@ services:
       - loki-data:/loki
     deploy:
       resources:
-        limits: { cpus: '0.75', memory: 768M }
+        limits: { cpus: '0.30', memory: 768M }
         reservations: { cpus: '0.10', memory: 128M }
 
 volumes:

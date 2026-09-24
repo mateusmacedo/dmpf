@@ -2,11 +2,11 @@
 
 ## Status
 
-Aceito — 2026-09-08. Implementa SPEC-6QT9SBAS, primeira sub-spec de SPEC-8HWBWJCB (KRN-12). As sub-specs seguintes — generator (SPEC-H1A190Y8), BOM e validador (SPEC-538MS2D4), evidência e tag (SPEC-JPP31095) — acrescentam addenda a este ADR em vez de abrir outro; a consolidação final é da última.
+Aceito — 2026-09-08. **Parcialmente supersedido pelo ADR-047 (2026-09-17)**: o `go.mod` de um módulo deixa de ser workspace-only e passa a declarar `require` versionado dos irmãos que importa; o `replace` versionado fica no `go.work`, e o generator roda o `dmpf-modsync` ao final. O resto segue válido. Implementa SPEC-6QT9SBAS, primeira sub-spec de SPEC-8HWBWJCB (KRN-12). As sub-specs seguintes — generator (SPEC-H1A190Y8), BOM e validador (SPEC-538MS2D4), evidência e tag (SPEC-JPP31095) — acrescentam addenda a este ADR em vez de abrir outro; a consolidação final é da última.
 
 ## Contexto
 
-O KRN-02 a KRN-11 entregaram o kernel DMPF em Go como quatorze libs, cada uma provada por suíte própria, mas nenhum serviço mostrava os blocos cabeados num processo real: `apps/backend` era um `.gitkeep`, e o único lugar onde instanciar provider concreto é permissivo — a linha `app` da matriz de blocos (ADR-010, ADR-015) — só existia como composition root de exemplo dentro de `dmpf-app`. O ticket ARQ-531 pede o SDK de referência, o generator de bounded context, o BOM de combinação certificada (FND-10) e a evidência da release `0.1.0`; a spec guarda-chuva dividiu isso em quatro sub-specs porque a revisão externa mostrou blockers independentes entre os subsistemas.
+O KRN-02 a KRN-11 entregaram o kernel DMPF em Go como quatorze libs, cada uma provada por suíte própria, mas nenhum serviço mostrava os blocos cabeados num processo real: `apps/backend` era um `.gitkeep`, e o único lugar onde instanciar provider concreto é permissivo — a linha `app` da matriz de blocos (ADR-010, ADR-015) — só existia como composition root de exemplo dentro de `app`. O ticket ARQ-531 pede o SDK de referência, o generator de bounded context, o BOM de combinação certificada (FND-10) e a evidência da release `0.1.0`; a spec guarda-chuva dividiu isso em quatro sub-specs porque a revisão externa mostrou blockers independentes entre os subsistemas.
 
 Duas lacunas do kernel apareceram ao cabear: (1) ninguém gravava o contexto de mensagem de ENV-08 — o provider Postgres escrevia `metadata = '{}'` (ADR-035) e o relay só reivindica linhas com `correlationid`, `causationid` e `traceparent` (ADR-038), então nenhuma escrita real drenaria; (2) o `orders` autora dois eventos (`ItemAdded`, `OrderPlaced`) para um único destino lógico, e o consumer de `reservations` só entende o segundo.
 
@@ -14,17 +14,17 @@ Restrições herdadas: provider concreto só no bloco `app` (ADR-015); `Ack` est
 
 ## Decisão
 
-**Um binário, três papéis, um módulo `type:app`.** `apps/backend/dmpf-reference` é o projeto `dmpf-reference-go` (`type:app`, `scope:backend`, `stack:go`, `layer:apps`) e a unidade `dmpf-kernel/reference-app` do bloco `app`. O `--role api|relay|consumer` escolhe o processo — a relay nunca divide processo com o caminho da requisição (BLK-02) — e a configuração entra só por variável de ambiente, validada por papel na partida, com exit 2 nomeando a variável ausente. Os três papéis reutilizam os agregados de exemplo do kernel (`orders`, `reservations`) e o padrão de `dmpf-app/example/reservations`.
+**Um binário, três papéis, um módulo `type:app`.** `apps/backend/reference` é o projeto `reference-go` (`type:app`, `scope:backend`, `stack:go`, `layer:apps`) e a unidade `kernel/reference-app` do bloco `app`. O `--role api|relay|consumer` escolhe o processo — a relay nunca divide processo com o caminho da requisição (BLK-02) — e a configuração entra só por variável de ambiente, validada por papel na partida, com exit 2 nomeando a variável ausente. Os três papéis reutilizam os agregados de exemplo do kernel (`orders`, `reservations`) e o padrão de `app/example/reservations`.
 
-**O contexto de mensagem é autorado na borda e atravessa o kernel.** `dmpf-ports` ganhou `MessageContext{CorrelationID, CausationID, Traceparent}` com `WithMessageContext`/`MessageContextFrom` e o campo `OutboxEntry.Context`; o provider Postgres serializa o que foi autorado em `metadata` (chave ausente é ausente, nunca `""`, para não produzir linha que o relay rejeitaria); `dmpfapplication.MessageContextFor(ctx, id)` copia o contexto e preenche só a causação de quem inicia a cadeia — o próprio `id`, como FND-05 exige para ENV-08; `dmpf-app.Consumer` põe no contexto do handler o `correlationid`, o `id` recebido como causação e o `traceparent` do envelope. Na `api`, o middleware abre o span de servidor, injeta o `traceparent` pelo propagador W3C e usa `X-Correlation-ID` do cliente ou cunha um. Com isso a linha escrita pelo `api` é drenada de fato — o critério 2 do ticket.
+**O contexto de mensagem é autorado na borda e atravessa o kernel.** `ports` ganhou `MessageContext{CorrelationID, CausationID, Traceparent}` com `WithMessageContext`/`MessageContextFrom` e o campo `OutboxEntry.Context`; o provider Postgres serializa o que foi autorado em `metadata` (chave ausente é ausente, nunca `""`, para não produzir linha que o relay rejeitaria); `application.MessageContextFor(ctx, id)` copia o contexto e preenche só a causação de quem inicia a cadeia — o próprio `id`, como FND-05 exige para ENV-08; `app.Consumer` põe no contexto do handler o `correlationid`, o `id` recebido como causação e o `traceparent` do envelope. Na `api`, o middleware abre o span de servidor, injeta o `traceparent` pelo propagador W3C e usa `X-Correlation-ID` do cliente ou cunha um. Com isso a linha escrita pelo `api` é drenada de fato — o critério 2 do ticket.
 
-**`api` sobre `net/http.ServeMux`, com a cadeia por rota dentro do mux.** Cada rota é um `dmpfhttp.Route` com `ContractRef` apontando para `contracts/openapi/orders/v1/openapi.yaml` (JSON pointer), validado na construção; a cadeia `Admission → requireIdempotencyKey → withMessageContext → handler` é montada por rota, e não em volta do mux, para que a admissão seja chaveada por `r.Pattern` — três chaves, cardinalidade limitada (MET-07) — e decida antes de ler o corpo (RES-17). `GET /orders/{id}` lê por `orderspg.NewReader(pool)` sem abrir transação (UOW-11), provado por `QueryTracer`. `DMPF_MIGRATE=true` aplica o schema antes de servir.
+**`api` sobre `net/http.ServeMux`, com a cadeia por rota dentro do mux.** Cada rota é um `http.Route` com `ContractRef` apontando para `contracts/openapi/orders/v1/openapi.yaml` (JSON pointer), validado na construção; a cadeia `Admission → requireIdempotencyKey → withMessageContext → handler` é montada por rota, e não em volta do mux, para que a admissão seja chaveada por `r.Pattern` — três chaves, cardinalidade limitada (MET-07) — e decida antes de ler o corpo (RES-17). `GET /orders/{id}` lê por `orderspg.NewReader(pool)` sem abrir transação (UOW-11), provado por `QueryTracer`. `DMPF_MIGRATE=true` aplica o schema antes de servir.
 
 **Canal nomeado pelo destino do caso de uso; assinatura por tipo na ponte.** O canal Kafka chama-se `ordersapp.Destination` (`orders.events`), porque o publisher resolve pelo destino que o application service autorou; só `Address`, `Group` e `Containment` vêm do ambiente. Como o destino carrega os dois eventos do agregado, o `Sink` da app — a ponte transporte→adapter de FND-06 §11 — confirma sem inbox as entregas de tipo diferente do assinado (`EventType` + major do canal) e entrega ao adapter o tipo assinado e o que não decodifica (INB-10 intacto). Um canal por tipo de evento é matéria do generator (SPEC-H1A190Y8), não desta entrega.
 
 **Telemetria com um runtime por processo e fallback em memória.** `otelboot.Start` roda uma vez por processo; `Run` faz o boot e `RunWith` recebe o runtime pronto, que é como o e2e hospeda os três papéis num binário só. Com `DMPF_OTLP_ENDPOINT` os exportadores são OTLP/gRPC; sem ele, `tracetest` e `ManualReader` em memória, com aviso de modo de desenvolvimento — a app sobe sem Collector.
 
-**Nx e release.** `build`, `fmt-check`, `vet`, `test-race` (com `dependsOn` sobre `dmpf-provider-postgres-go` e `dmpf-app-go`, porque os três compartilham o Postgres do job) e `govulncheck` seguem o padrão das libs; `serve-api`, `serve-relay` e `serve-consumer` são `nx:run-commands`. O `@nx-go/nx-go` deriva o nome do projeto do último segmento do diretório, então infere `build` e `serve` assim que `cmd/dmpf-reference/main.go` existe: o `build` explícito sobrescreve o inferido e o `serve` inferido fica sem uso, documentado. O `nx-release.yml` passa a selecionar candidatos Docker por `tag:type:app,!tag:stack:go` — a imagem é do golden path, não desta app.
+**Nx e release.** `build`, `fmt-check`, `vet`, `test-race` (com `dependsOn` sobre `postgres` e `app`, porque os três compartilham o Postgres do job) e `govulncheck` seguem o padrão das libs; `serve-api`, `serve-relay` e `serve-consumer` são `nx:run-commands`. O `@nx-go/nx-go` deriva o nome do projeto do último segmento do diretório, então infere `build` e `serve` assim que `cmd/reference/main.go` existe: o `build` explícito sobrescreve o inferido e o `serve` inferido fica sem uso, documentado. O `nx-release.yml` passa a selecionar candidatos Docker por `tag:type:app,!tag:stack:go` — a imagem é do golden path, não desta app.
 
 **Identidade da release do produto (transversal, da guarda-chuva).** A release do produto DMPF é uma tag git anotada `dmpf@<semver>` em `master`, cunhada pelo rito do BOM, distinta das tags por projeto do `nx release`; um BOM por tag em `bom/dmpf/<semver>.json`, com `version` **efetiva** por entrada (o `package.json` das libs, o SHA curto do commit para a app, o `go.mod` para dependências externas). "Sem edição manual" significa que nenhum byte gerado muda entre o generator e a aprovação pelo verificador — o rito de classificação em commit próprio é ato humano exigido por AUT-01, não edição. O escape hatch admite pedido só por catálogo fechado N1–N7 reconhecido por regra, nunca por texto. Um transporte assíncrono por processo. As sub-specs 2 a 4 realizam esses itens e registram aqui o que decidirem além deles.
 
@@ -33,7 +33,7 @@ Restrições herdadas: provider concreto só no bloco `app` (ADR-015); `Ack` est
 | Alternativa | Por que foi rejeitada |
 | ----------- | --------------------- |
 | Um `cmd/` por papel | BLK-02 pede processo, não binário; três binários triplicariam config, telemetria e cablagem sem separar nada que o `--role` não separe |
-| Framework HTTP (chi, gin) ou helper server-side em `dmpf-provider-http` | Dependência Go nova, ou mudança no KRN-10 fora de rito; o `ServeMux` de Go ≥ 1.22 já casa método e path |
+| Framework HTTP (chi, gin) ou helper server-side em `http` | Dependência Go nova, ou mudança no KRN-10 fora de rito; o `ServeMux` de Go ≥ 1.22 já casa método e path |
 | Mux envolto pela admissão, como o plano previa | Fora do mux `r.Pattern` está vazio e a chave de admissão teria de ser o path bruto — cardinalidade aberta (MET-07) |
 | Deixar o contexto de mensagem como task bloqueante ou gravá-lo por SQL no e2e | O critério 2 do ticket exige a drenagem real; sem a plumbing o e2e provaria uma linha que nunca sai da outbox |
 | Quarentenar o `ItemAdded` no consumer de `reservations` | Toda escrita geraria uma contenção por desenho; o filtro por tipo na ponte é o gesto do transporte, e a inbox continua a ver só o que é do consumidor |
@@ -72,7 +72,7 @@ A revisão de segurança, robustez e performance da entrega, feita com tráfego 
 - **Todo destino que os casos de uso autoram tem canal.** `reservationsapp.Destination` (`reservations.events`) não estava no catálogo e cada `ReservationConfirmed` terminava `failed` após dez tentativas. O catálogo passou a ter dois canais (`DMPF_KAFKA_RESERVATIONS_TOPIC/DLQ`), e o e2e exige `failed = 0`.
 - **W3C explícito nos dois lados.** O kernel já recusava propagador sem `traceparent`/`tracestate` (`ErrPropagatorNotW3C`); a app declara `TraceContext + Baggage` e o Collector `propagators: [tracecontext, baggage]`.
 - **Um envelope de log.** A trilha de auditoria saía como `audit.Event` cru (sem `time`, `level`, `service`) e o SDK OpenTelemetry reportava falhas de exportação por `log.Printf`. A auditoria continua canal separado e não amostrado, mas no mesmo envelope do handler (`kind: "audit"`, com `trace_id` e `correlation_id` da requisição), e o `otel.ErrorHandler` passa pelo logger da plataforma. O `Fields` de LOG-01 passou a ser preenchido (`correlation_id`, `tenant_id`).
-- **Buckets do histograma em segundos** (`dmpf-observability/metrics/instruments.go`). A série `dmpf_service_request_duration_seconds` gravava segundos com os buckets default do SDK (`5, 10 … 10000`, feitos para milissegundos): toda requisição caía em `(0, 5]` e `histogram_quantile` respondia 2,5 s para uma chamada de 0,5 ms. É a única mudança fora da app; um teste fixa a escala.
+- **Buckets do histograma em segundos** (`observability/metrics/instruments.go`). A série `dmpf_service_request_duration_seconds` gravava segundos com os buckets default do SDK (`5, 10 … 10000`, feitos para milissegundos): toda requisição caía em `(0, 5]` e `histogram_quantile` respondia 2,5 s para uma chamada de 0,5 ms. É a única mudança fora da app; um teste fixa a escala.
 - **Grafana fail-closed no Kubernetes.** A base exige login (`grafana-admin`) e o acesso anônimo é patch do overlay `dev`; antes ele estava na base e o `hmg` herdava — um Admin anônimo cria datasource, e datasource é proxy HTTP para qualquer endereço do cluster. `DMPF_OTLP_INSECURE` seguiu o mesmo caminho (base `false`, `dev` liga). No Compose, o anônimo continua (é desenvolvimento) e o formulário de login abre a administração do servidor.
 - **NetworkPolicy como controle compensatório da borda sem identidade.** Ingress na api só de pods rotulados como cliente; nenhum ingress em `relay` e `consumer`. O Secret de exemplo do `hmg` deixou de ser resource (um `apply -k` sobrescrevia o Secret real com placeholders) e o ClusterRole do Alloy perdeu `nodes`/`nodes/proxy`, que a coleta pela API não usa.
 - **Orçamento de recursos** em todo serviço do Compose, com `tools/infra-budget.sh` reprovando acima de 60% do host: 8,00 vCPU (57,1%) e 7,9 GiB (50,5%) para 20 serviços.
@@ -88,12 +88,12 @@ A revisão de segurança, robustez e performance da entrega, feita com tráfego 
 
 ## Addendum — 2026-09-09 (generator `bounded-context` da sub-spec 2)
 
-A implementação da SPEC-H1A190Y8 mudou de desenho duas vezes no mesmo dia, e o resultado final é o que segue. Um mini bounded context fixo (`Request`/`Fulfillment`) gerado em todo contexto foi descartado por produzir sempre o mesmo código; um generator orientado ao domínio, com DSL própria, foi especificado, revisado por duas revisões externas (24 achados, 16 bloqueantes) e deferido pelo custo (`SPEC-8FSD8505`, `SPEC-VZ16X0MS`, `SPEC-F7S5B6KV`). A prova em worktree também expôs que a norma vigente impede qualquer contexto fora de `dmpf-kernel` de consumir o kernel (`DMPF-D002`; `domain` nunca é superfície pública), o que virou spec normativa própria.
+A implementação da SPEC-H1A190Y8 mudou de desenho duas vezes no mesmo dia, e o resultado final é o que segue. Um mini bounded context fixo (`Request`/`Fulfillment`) gerado em todo contexto foi descartado por produzir sempre o mesmo código; um generator orientado ao domínio, com DSL própria, foi especificado, revisado por duas revisões externas (24 achados, 16 bloqueantes) e deferido pelo custo (`SPEC-8FSD8505`, `SPEC-VZ16X0MS`, `SPEC-F7S5B6KV`). A prova em worktree também expôs que a norma vigente impede qualquer contexto fora de `kernel` de consumir o kernel (`DMPF-D002`; `domain` nunca é superfície pública), o que virou spec normativa própria.
 
 **Decidido e aplicado:**
 
 - **O generator gera só o esqueleto; o código de negócio é do harness de agentes.** Por bloco pedido, um módulo com `README.md`, `doc.go`, `go.mod`, `project.json`, `package.json` e `dmpf-units.json`, mais a entrada no `go.work` e a instrução do baseline — a parte que não admite erro e é trivialmente determinística. Agregados, UPRs, casos de uso, repositórios, rotas, OpenAPI e o contrato `.proto` (pelo rito Buf) são escritos por um agente a partir de uma spec de bounded context em template próprio (`SPEC-VDP9XX65`), e a garantia não é bytes idênticos, mas os gates que o repositório já tem: verificador, cadeia Go, prova, `biome`/`gofmt`, testes. Alternativas descartadas: mini contexto fixo (mesmo código em todo contexto) e generator orientado ao domínio (custo da DSL).
-- **Shared kernel como pré-requisito, não contorno.** Declarar o contexto gerado como `dmpf-kernel` apagaria a identidade de limite do ADR-017; re-escopar para um esqueleto sem kernel cumpriria o critério 1 de ARQ-531 de forma trivial. A designação de unidades do kernel como importáveis por qualquer contexto é a `SPEC-XMNBMY50`.
+- **Shared kernel como pré-requisito, não contorno.** Declarar o contexto gerado como `kernel` apagaria a identidade de limite do ADR-017; re-escopar para um esqueleto sem kernel cumpriria o critério 1 de ARQ-531 de forma trivial. A designação de unidades do kernel como importáveis por qualquer contexto é a `SPEC-XMNBMY50`.
 - **`formatFiles` não é chamado.** O Prettier não está instalado no workspace e o `formatFiles` do devkit é no-op quando falta, o que faria a saída do generator depender do ambiente e quebrar o determinismo exigido. Os templates saem no formato final, e valores de opção que entram em JSON passam por `JSON.stringify` com `<%- %>` em vez de interpolação crua.
 - **O nome entra literal, sem pluralização automática.** `order-fulfillment` produz diretórios e nomes de projeto em kebab-case e package Go raiz `orderfulfillment<bloco>`; não há pluralização (`Category` → `Categories` quebraria um `+s` ingênuo) e identificadores de tabela e de rota são do código de negócio, escrito pelo harness a partir da spec do contexto.
 - **A prova roda em worktree sobre `HEAD`, com manifesto de hashes.** Um worktree em `develop` não teria o plugin. E como o pre-commit do Lefthook roda `biome check --write` com `stage_fixed`, um JSON gerado fora do padrão seria corrigido no ato do commit e o `git diff --exit-code` posterior nada acusaria: por isso a prova checa sem escrita antes de commitar e guarda o SHA-256 de cada arquivo gerado fora do worktree, conferindo depois. Os commits declaram identidade de automação por `git -c`, porque o job do CI não tem autor configurado.
@@ -103,14 +103,14 @@ A implementação da SPEC-H1A190Y8 mudou de desenho duas vezes no mesmo dia, e o
 
 **Dívida registrada** (fora do escopo desta sub-spec):
 
-- Geração do composition root: `cmd/` com `--role api|relay|consumer` continua fora, e cabear processo segue sendo copiar `dmpf-reference` à mão. É matéria do golden path (sub-spec 3).
+- Geração do composition root: `cmd/` com `--role api|relay|consumer` continua fora, e cabear processo segue sendo copiar `reference` à mão. É matéria do golden path (sub-spec 3).
 - `require` externos quando um módulo gerado sair do workspace (publicação independente); hoje a ausência de `require` presume `go.work`.
 
 ## Addendum — 2026-09-12 (harness de bounded contexts da sub-spec 2h)
 
 O addendum anterior decidiu que o generator entrega só o esqueleto e o código de
 negócio vem de um agente. A `SPEC-VDP9XX65` realizou esse harness e o exercitou
-produzindo `bookings`, o primeiro contexto fora de `dmpf-kernel`. O que o
+produzindo `bookings`, o primeiro contexto fora de `kernel`. O que o
 exercício decidiu, além do que já estava escrito:
 
 - **A prova do harness tem duas fases, e só uma roda sem LLM.** `self-test`
@@ -168,7 +168,7 @@ do que já deu errado, em
 - `docs/adr/015-*.md` — provider concreto só no bloco `app`.
 - `docs/adr/035-realizacao-postgres-da-outbox.md` e `docs/adr/038-*.md` — os ADRs cuja lacuna de `metadata` esta entrega fecha (ver os addenda).
 - `docs/adr/039-*.md` — ponte por `Sink`, catálogo de canal, admissão.
-- `apps/backend/dmpf-reference/README.md` — como rodar os três papéis localmente.
+- `apps/backend/reference/README.md` — como rodar os três papéis localmente.
 
 ## Addendum — 2026-09-12 (BOM, validador e escape hatch da sub-spec 3)
 
@@ -235,8 +235,8 @@ O schema e os códigos estão em `bom/README.md`; o rito de pedir exceção, em
 ## Addendum — 2026-09-13 (evidência e certificação da sub-spec 4)
 
 A `SPEC-JPP31095` entregou o instrumento que transforma uma execução da suíte em
-evidência endereçável e hasheável — `dmpf-testkit/evidence` e
-`cmd/dmpf-evidence` — e publicou a evidência da release `0.1.0`. O que a
+evidência endereçável e hasheável — `testkit/evidence` e
+`cmd/evidence` — e publicou a evidência da release `0.1.0`. O que a
 execução decidiu:
 
 - **Os testes gravam, o comando orquestra.** A spec previa invocar os kits por
@@ -288,12 +288,12 @@ execução decidiu:
 - **Certificação pelo alcance, com duas leituras declaradas.** Vai a
   `certificada` a entrada cuja `identity` e `version` constam do header de um
   subject aprovado; o `dmpf-bom` confere o digest, não o alcance. Duas entradas
-  pedem leitura. O `product` `dmpf-reference@560ae8e` aparece no header como
+  pedem leitura. O `product` `reference@560ae8e` aparece no header como
   módulo `0.0.0`, mas `560ae8e` é o último commit que tocou a app, e a árvore
   dela é idêntica no commit da evidência. O semconv `v1.43.0` é package do módulo
   otel `v1.46.0` que o `reference` alcança, importado por `otelboot/start.go`.
-  Ficam `candidata` o que nenhum subject exercita — `dmpf-conformance`,
-  `dmpf-provider-grpc`, `dmpf-provider-sqs`, aws-sdk-go-v2, golangci-lint, o
+  Ficam `candidata` o que nenhum subject exercita — `conformance`,
+  `grpc`, `sqs`, aws-sdk-go-v2, golangci-lint, o
   plugin, TypeScript, pnpm e Nx — e o grpc, que aparece no header do `reference`
   só transitivamente.
 - **A combinação vive na entrada do runtime.** `compatible_combinations` fica

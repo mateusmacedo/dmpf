@@ -23,13 +23,13 @@ contracts/
 ├── fixtures/
 │   ├── orders/event/v1/order-placed.golden           golden fixture JSON, fonte única das stacks (INT-01)
 │   ├── orders/projection/v1/order.golden             fixture de projeção observável (FND-09 ORA-30): estado, comando e desfecho esperado, sem bytes de wire
-│   └── reservations/projection/v1/reservation.golden idem, para o agregado de reservas; consumidas por `dmpf-testkit/domainkit`
+│   └── reservations/projection/v1/reservation.golden idem, para o agregado de reservas; consumidas pelos testes de projeção de `apps/backend/orders/domain` e `apps/backend/reservations/domain`
 ├── openapi/            registrado, não normatizado (REP-06)
 └── asyncapi/           registrado, não normatizado (REP-06)
 ```
 
 O código gerado **não** fica aqui: `buf.gen.yaml` escreve em
-`libs/backend/go/dmpf-contracts/gen/go/`, dentro do módulo Go do bloco
+`libs/backend/go/contracts/gen/go/`, dentro do módulo Go do bloco
 `contract`, porque é esse módulo que o verificador de conformidade classifica.
 A semântica de `REP-02` é preservada: o gerado é versionado, nunca editado à
 mão, e a divergência entre gerado e versionado reprova o PR.
@@ -78,7 +78,7 @@ managed mode as sobrescreve na geração, e por isso o arquivo não é editado.
 ## Gates e baseline
 
 Os quatro gates de `tools/buf-gate.sh` rodam como targets Nx do projeto
-`dmpf-contracts-go` e no passo `Contracts gates (affected)` do CI; nenhum é
+`contracts` e no passo `Contracts gates (affected)` do CI; nenhum é
 advisory e nenhum tem bypass (`BUF-12`):
 
 | Subcomando | O que prova |

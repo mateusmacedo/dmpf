@@ -1,0 +1,14 @@
+{
+  "schema": "dmpf/units@1",
+  "units": [
+    {
+      "id": "kernel/provider-http",
+      "block": "provider",
+      "bounded_context": "kernel",
+      "public_integration_surface": false,
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/http"]
+    }
+  ],
+  "external": [],
+  "exceptions": []
+}

@@ -17,7 +17,7 @@ decisões anteriores já fixaram fronteiras que a norma não previa:
 
 - o ADR-030 exige que todo módulo Go seja um projeto Nx em
   `libs/<scope>/<stack>/<módulo>`;
-- o ADR-031 entregou o verificador `dmpf-conformance`, que classifica packages
+- o ADR-031 entregou o verificador `conformance`, que classifica packages
   Go a partir de um `dmpf-units.json` por módulo e nega `runtime.framework` ao
   bloco `contract`;
 - a forge é o Gitea (ADR-005), que lê `CODEOWNERS` em `.gitea/` e protege tags
@@ -37,7 +37,7 @@ preservada e verificada pelos gates.
 
 `contracts/` na raiz guarda o que é neutro de stack: `.proto`, `buf.yaml`,
 `buf.gen.yaml`, fixtures e a proveniência do envelope vendorizado. O gerado Go
-fica em `libs/backend/go/dmpf-contracts/gen/go/`, onde o `buf.gen.yaml` o
+fica em `libs/backend/go/contracts/gen/go/`, onde o `buf.gen.yaml` o
 emite com `go_package_prefix` gerenciado.
 
 O que `REP-02` exige — `gen/<stack>/`, nunca editado à mão, drift reprova —
@@ -46,7 +46,7 @@ o verificador classifica packages de módulos Nx, e o bloco `contract` precisa
 existir como um módulo com `dmpf-units.json` para entrar no grafo. Um `gen/`
 solto em `contracts/` seria um módulo Go fora do Nx, contra o ADR-030.
 
-O projeto `dmpf-contracts-go` declara `contracts/**` nos `inputs` dos targets
+O projeto `contracts` declara `contracts/**` nos `inputs` dos targets
 `buf-*`; um PR que toque só um `.proto` torna a lib afetada e dispara os gates
 pelo mesmo `nx affected` do resto do CI.
 
@@ -80,7 +80,7 @@ conteúdo, não uma exceção.
 O `protoc-gen-go` emite `reflect`, `sync` e `unsafe` em todo arquivo gerado. O
 verificador classifica `reflect` e `unsafe` como `runtime.framework`
 (`internal/rule/stdlib.go`), capability que a tabela de RFC §6.2 nega ao bloco
-`contract`. Sem tratamento, a unidade `dmpf-contracts/gen` reprova por
+`contract`. Sem tratamento, a unidade `contracts/gen` reprova por
 `DMPF-E001`.
 
 A saída é o instrumento que a RFC §6.4 criou para isso: uma exceção por par
@@ -159,7 +159,7 @@ heurística textual, contra o ADR-012.
 
 ## Consequências
 
-- O bloco `contract` nasce sob os dois gates: o verificador `dmpf-conformance`
+- O bloco `contract` nasce sob os dois gates: o verificador `conformance`
   (grafo de imports, três unidades `contract` declaradas) e os quatro gates Buf
   (`lint`, `pins`, `generate-check`, `breaking`), todos fail-closed e sem bypass
   (`BUF-12`).
@@ -180,7 +180,7 @@ heurística textual, contra o ADR-012.
 ## Addendum — 2026-09-12 (as exceções do gerado pelo rito de governança)
 
 A seção «`reflect` e `unsafe` do gerado entram por exceção nominal» registrou
-duas entradas, ambas de `dmpf-contracts/gen`. O manifesto tem quatro:
+duas entradas, ambas de `contracts/gen`. O manifesto tem quatro:
 `resource-scheduling/contract`, a unidade de contrato de `bookings` declarada no
 mesmo `dmpf-units.json`, é gerada pelo mesmo `protoc-gen-go` e recebe as mesmas
 duas exceções, pela mesma razão. Esta decisão é a proveniência das quatro.

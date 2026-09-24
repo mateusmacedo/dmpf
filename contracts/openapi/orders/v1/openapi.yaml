@@ -3,14 +3,16 @@ info:
   title: Orders — reference API of the DMPF kernel
   version: 1.0.0
   description: >-
-    HTTP edge of the orders example served by apps/backend/dmpf-reference.
+    Public REST edge of the orders example, served by
+    apps/backend/bff, which calls the orders context over
+    gRPC (ADR-024).
     Every route of the service references one operation of this document
     (RST-04). Writes are idempotent by Idempotency-Key (RST-02); reads run
     outside any transaction (UOW-11). The contract is registered under
     contracts/openapi/ (REP-06) and is not covered by the Buf gates.
 servers:
   - url: http://localhost:8080
-    description: local dmpf-reference --role api
+    description: local bff
 paths:
   /orders/{id}/items:
     post:
@@ -35,12 +37,18 @@ paths:
                 $ref: '#/components/schemas/ItemAccepted'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/VersionConflict'
         '422':
           $ref: '#/components/responses/Rejected'
         '429':
           $ref: '#/components/responses/AdmissionRefused'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '504':
+          $ref: '#/components/responses/Timeout'
         default:
           $ref: '#/components/responses/Failure'
   /orders/{id}/place:
@@ -62,10 +70,16 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/VersionConflict'
         '422':
           $ref: '#/components/responses/Rejected'
         '429':
           $ref: '#/components/responses/AdmissionRefused'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '504':
+          $ref: '#/components/responses/Timeout'
         default:
           $ref: '#/components/responses/Failure'
   /orders/{id}:
@@ -82,10 +96,16 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Order'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotFound'
         '429':
           $ref: '#/components/responses/AdmissionRefused'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '504':
+          $ref: '#/components/responses/Timeout'
         default:
           $ref: '#/components/responses/Failure'
 components:
@@ -106,7 +126,7 @@ components:
       required: true
       description: >-
         Client-chosen key that makes the POST idempotent (RST-02). A POST
-        without it is refused with 400 before the service runs.
+        without it is refused with 400 before any call to the context.
       schema:
         type: string
         minLength: 1
@@ -195,7 +215,7 @@ components:
           type: string
   responses:
     BadRequest:
-      description: The request is malformed or misses Idempotency-Key
+      description: The request is malformed or is missing the Idempotency-Key header
       content:
         application/json:
           schema:
@@ -220,6 +240,18 @@ components:
             $ref: '#/components/schemas/Rejection'
     AdmissionRefused:
       description: Admission control refused the request before reading the body (RES-17)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Rejection'
+    Unavailable:
+      description: The orders context is unavailable
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Rejection'
+    Timeout:
+      description: The deadline of the request expired before the context answered (GRP-04)
       content:
         application/json:
           schema:

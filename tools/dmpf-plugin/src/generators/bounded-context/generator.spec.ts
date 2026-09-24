@@ -1,64 +1,79 @@
+import * as childProcess from 'node:child_process';
 import type { Tree } from '@nx/devkit';
 import { logger, output } from '@nx/devkit';
 import { createTreeWithEmptyWorkspace } from '@nx/devkit/testing';
 import { boundedContextGenerator } from './generator';
 import type { BoundedContextGeneratorSchema } from './schema';
 
+jest.mock('node:child_process', () => ({
+  ...jest.requireActual<typeof import('node:child_process')>('node:child_process'),
+  execFileSync: jest.fn(),
+}));
+
 const GO_VERSION = '1.26.6';
-const DIRECTORY = 'libs/backend/go';
+const DIRECTORY = 'apps/backend';
 const MODULE_PREFIX = 'github.com/mateusmacedo/dmpf';
-const NX_PROJECT_SCHEMA = '../../../../../node_modules/nx/schemas/project-schema.json';
+const NX_PROJECT_SCHEMA = '../../../node_modules/nx/schemas/project-schema.json';
 const GOFMT_COMMAND = String.raw`saida="$(gofmt -l . 2>&1)"; status=$?; [ $status -eq 0 ] || { printf '%s\n' "$saida" >&2; exit $status; }; [ -z "$saida" ] || { printf '%s\n' "$saida" >&2; exit 1; }`;
 
 const GO_WORK = [
   `go ${GO_VERSION}`,
   '',
   'use (',
-  '\t./libs/backend/go/dmpf-app',
-  '\t./libs/backend/go/dmpf-domain',
-  '\t./libs/backend/go/dmpf-ports',
+  '\t./libs/backend/go/app',
+  '\t./libs/backend/go/domain',
+  '\t./libs/backend/go/ports',
   ')',
   '',
 ].join('\n');
 
+type CompanionUnit = {
+  unitSuffix: string;
+  dirName: string;
+  summary: string;
+};
+
 type BlockLayout = {
   block: string;
-  suffix: string;
+  unitSuffix: string;
   dirName: string;
   layer: string;
-  integration: boolean;
+  companions?: readonly CompanionUnit[];
 };
 
 const LAYOUT: readonly BlockLayout[] = [
-  { block: 'domain', suffix: 'domain', dirName: 'domain', layer: 'domain', integration: false },
-  { block: 'port', suffix: 'ports', dirName: 'ports', layer: 'domain', integration: false },
+  { block: 'domain', unitSuffix: 'domain', dirName: 'domain', layer: 'domain' },
+  { block: 'port', unitSuffix: 'ports', dirName: 'ports', layer: 'domain' },
+  { block: 'application', unitSuffix: 'application', dirName: 'application', layer: 'services' },
+  { block: 'provider', unitSuffix: 'provider-postgres', dirName: 'provider', layer: 'providers' },
   {
-    block: 'application',
-    suffix: 'application',
-    dirName: 'application',
-    layer: 'services',
-    integration: false,
+    block: 'app',
+    unitSuffix: 'app',
+    dirName: 'app',
+    layer: 'apps',
+    companions: [
+      { unitSuffix: 'appkit', dirName: 'appkit', summary: '' },
+      { unitSuffix: 'distkit', dirName: 'distkit', summary: '' },
+    ],
   },
-  {
-    block: 'provider',
-    suffix: 'provider-postgres',
-    dirName: 'provider',
-    layer: 'providers',
-    integration: true,
-  },
-  { block: 'app', suffix: 'app', dirName: 'app', layer: 'apps', integration: true },
 ];
 
 const ALL_BLOCKS: readonly string[] = LAYOUT.map((entry) => entry.block);
+const BLOCK_DIRS: readonly string[] = LAYOUT.map((entry) => entry.dirName);
 
 const MODULE_FILES: readonly string[] = [
   'README.md',
   'dmpf-units.json',
-  'doc.go',
   'go.mod',
   'package.json',
   'project.json',
 ];
+
+// The binary lives beside the blocks and only exists when the context has an
+// app block: there is nothing to serve without one.
+const CMD_DIR = 'cmd';
+const APPKIT_DIR = 'appkit';
+const DISTKIT_DIR = 'distkit';
 
 const FULL_OPTIONS: BoundedContextGeneratorSchema = {
   name: 'checkout',
@@ -66,6 +81,8 @@ const FULL_OPTIONS: BoundedContextGeneratorSchema = {
   blocks: [...ALL_BLOCKS],
   directory: DIRECTORY,
 };
+
+const MODULE_DIR = `${DIRECTORY}/${FULL_OPTIONS.name}`;
 
 type ProjectConfig = {
   name: string;
@@ -125,24 +142,6 @@ const readText = (tree: Tree, path: string): string => {
 
 const readJsonFile = <T>(tree: Tree, path: string): T => JSON.parse(readText(tree, path)) as T;
 
-const dirNameOf = (suffix: string): string =>
-  LAYOUT.find((layout) => layout.suffix === suffix)?.dirName ??
-  (() => {
-    throw new Error(`unknown suffix ${suffix}`);
-  })();
-
-const moduleDir = ({
-  suffix,
-  name = FULL_OPTIONS.name,
-  directory = DIRECTORY,
-}: {
-  suffix: string;
-  name?: string;
-  directory?: string;
-}): string => `${directory}/${name}/${dirNameOf(suffix)}`;
-
-const dirOf = (suffix: string): string => moduleDir({ suffix });
-
 const generate = async (
   overrides: Partial<BoundedContextGeneratorSchema> = {},
   prepare?: (tree: Tree) => void,
@@ -152,6 +151,12 @@ const generate = async (
   await boundedContextGenerator(tree, { ...FULL_OPTIONS, ...overrides });
   return tree;
 };
+
+const projectOf = (tree: Tree): ProjectConfig =>
+  readJsonFile<ProjectConfig>(tree, `${MODULE_DIR}/project.json`);
+
+const manifestOf = (tree: Tree): Manifest =>
+  readJsonFile<Manifest>(tree, `${MODULE_DIR}/dmpf-units.json`);
 
 const goTarget = ({
   command,
@@ -173,12 +178,19 @@ const goTarget = ({
   return target;
 };
 
+const serveTarget = (role: string): Record<string, unknown> => ({
+  executor: 'nx:run-commands',
+  options: { command: `go run ./cmd --role ${role}`, cwd: '{projectRoot}' },
+});
+
 const expectedTargets = ({
   integration,
-  dependsOnProject,
+  dependsOnProjects,
+  app = true,
 }: {
   integration: boolean;
-  dependsOnProject?: string;
+  dependsOnProjects?: string[];
+  app?: boolean;
 }): Record<string, unknown> => {
   const testRace = goTarget({
     command: integration
@@ -186,8 +198,8 @@ const expectedTargets = ({
       : 'go test -race ./...',
     cache: !integration,
   });
-  if (dependsOnProject !== undefined) {
-    testRace.dependsOn = [{ projects: [dependsOnProject], target: 'test-race' }];
+  if (dependsOnProjects !== undefined) {
+    testRace.dependsOn = [{ projects: dependsOnProjects, target: 'test-race' }];
   }
   return {
     'fmt-check': goTarget({ command: GOFMT_COMMAND, cache: true }),
@@ -199,6 +211,22 @@ const expectedTargets = ({
       cache: false,
       withInputs: false,
     }),
+    ...(app
+      ? {
+          'serve-api': serveTarget('api'),
+          'serve-relay': serveTarget('relay'),
+          'test-distributed': {
+            executor: 'nx:run-commands',
+            cache: false,
+            inputs: ['go', '^go'],
+            dependsOn: [{ projects: ['postgres', 'app'], target: 'test-race' }],
+            options: {
+              command: 'go test -race -count=1 -p 1 -tags=integration,distributed ./distkit/...',
+              cwd: '{projectRoot}',
+            },
+          },
+        }
+      : {}),
   };
 };
 
@@ -244,129 +272,192 @@ afterEach(() => {
 });
 
 describe('[generator] bounded-context — generation', () => {
-  it('should create one Go module directory per requested block', async () => {
+  it('should create one Go module holding one directory per requested block', async () => {
     const tree = await generate();
 
-    expect(tree.children(`${DIRECTORY}/checkout`).sort()).toEqual([
-      'app',
-      'application',
-      'domain',
-      'ports',
-      'provider',
-    ]);
+    expect(tree.children(MODULE_DIR).sort()).toEqual(
+      [...MODULE_FILES, ...BLOCK_DIRS, CMD_DIR, APPKIT_DIR, DISTKIT_DIR].sort(),
+    );
   });
 
-  it('should fill every module with the six skeleton files and no other source', async () => {
+  it('should place only doc.go inside every block directory but app', async () => {
     const tree = await generate();
 
-    for (const { suffix } of LAYOUT) {
-      expect(tree.children(dirOf(suffix)).sort()).toEqual(MODULE_FILES);
+    for (const { dirName } of LAYOUT) {
+      const want = dirName === 'app' ? ['doc.go', 'run.go'] : ['doc.go'];
+      expect(tree.children(`${MODULE_DIR}/${dirName}`).sort()).toEqual(want);
     }
   });
 
-  it('should identify every project by its module directory', async () => {
+  it('should give the app block a composition root the binary enters by', async () => {
     const tree = await generate();
+    const run = readText(tree, `${MODULE_DIR}/app/run.go`);
+    const main = readText(tree, `${MODULE_DIR}/${CMD_DIR}/main.go`);
 
-    for (const { suffix } of LAYOUT) {
-      const project = readJsonFile<ProjectConfig>(tree, `${dirOf(suffix)}/project.json`);
-
-      expect(project.name).toBe(`checkout-${suffix}-go`);
-      expect(project.$schema).toBe(NX_PROJECT_SCHEMA);
-      expect(project.projectType).toBe('library');
-      expect(project.sourceRoot).toBe(dirOf(suffix));
-    }
+    expect(run).toContain('func Run(ctx context.Context, cfg Config, out io.Writer) error');
+    expect(run).toContain('func FromEnv(role Role, lookup func(string) string) (Config, error)');
+    expect(run).toContain('has no composition root yet');
+    expect(main).toContain('app.FromEnv(app.Role(o.role), o.lookup)');
+    expect(main).toContain('--role api|relay');
   });
 
-  it('should tag every project with the three taxonomy dimensions plus its layer', async () => {
-    const tree = await generate();
+  it('should leave no binary and no serve target when the context has no app block', async () => {
+    const tree = await generate({ blocks: ['domain', 'port', 'application'] });
 
-    for (const { suffix, layer } of LAYOUT) {
-      const project = readJsonFile<ProjectConfig>(tree, `${dirOf(suffix)}/project.json`);
-
-      expect(project.tags).toEqual(['type:lib', 'scope:backend', 'stack:go', `layer:${layer}`]);
-    }
+    expect(tree.children(MODULE_DIR)).not.toContain(CMD_DIR);
+    expect(Object.keys(projectOf(tree).targets)).not.toContain('serve-api');
   });
 
-  it('should declare the five Go targets and no lint target', async () => {
+  it('should identify the project by the bare context name', async () => {
     const tree = await generate();
+    const project = projectOf(tree);
 
-    for (const { suffix } of LAYOUT) {
-      const project = readJsonFile<ProjectConfig>(tree, `${dirOf(suffix)}/project.json`);
+    expect(project.name).toBe('checkout');
+    expect(project.$schema).toBe(NX_PROJECT_SCHEMA);
+    expect(project.projectType).toBe('application');
+    expect(project.sourceRoot).toBe(MODULE_DIR);
+  });
 
-      expect(Object.keys(project.targets).sort()).toEqual([
-        'build',
-        'fmt-check',
-        'govulncheck',
-        'test-race',
-        'vet',
+  it('should tag the project with the three dimensions plus the highest layer of its blocks', async () => {
+    const cases: readonly [string[], string][] = [
+      [['domain', 'port'], 'domain'],
+      [['domain', 'port', 'application'], 'services'],
+      [['domain', 'port', 'application', 'provider'], 'providers'],
+      [[...ALL_BLOCKS], 'apps'],
+    ];
+
+    for (const [blocks, layer] of cases) {
+      const tree = await generate({ blocks });
+
+      expect(projectOf(tree).tags).toEqual([
+        'type:app',
+        'scope:backend',
+        'stack:go',
+        `layer:${layer}`,
       ]);
     }
   });
 
-  it('should shape every target like dmpf-domain, with integration test-race on provider and app', async () => {
+  it('should declare the five Go targets, the two serve targets, the distributed one and no lint target', async () => {
     const tree = await generate();
 
-    for (const { suffix, integration } of LAYOUT) {
-      const project = readJsonFile<ProjectConfig>(tree, `${dirOf(suffix)}/project.json`);
-
-      expect(project.targets).toEqual(
-        expectedTargets({
-          integration,
-          dependsOnProject: suffix === 'app' ? 'checkout-provider-postgres-go' : undefined,
-        }),
-      );
-    }
+    expect(Object.keys(projectOf(tree).targets).sort()).toEqual([
+      'build',
+      'fmt-check',
+      'govulncheck',
+      'serve-api',
+      'serve-relay',
+      'test-distributed',
+      'test-race',
+      'vet',
+    ]);
   });
 
-  it('should declare one unit per module carrying the block of that module', async () => {
+  it('should serve each role by the single binary of the context', async () => {
     const tree = await generate();
+    const targets = projectOf(tree).targets as Record<string, { options: { command: string } }>;
 
-    for (const { suffix, block } of LAYOUT) {
-      const manifest = readJsonFile<Manifest>(tree, `${dirOf(suffix)}/dmpf-units.json`);
-
-      expect(manifest.schema).toBe('dmpf/units@1');
-      expect(manifest.exceptions).toEqual([]);
-      expect(manifest.units).toHaveLength(1);
-      expect(manifest.units[0].block).toBe(block);
-      expect(manifest.units[0].public_integration_surface).toBe(false);
-      expect(manifest.units[0].id.startsWith('sales/')).toBe(true);
-      expect(manifest.units[0].include.length).toBeGreaterThan(0);
-      for (const included of manifest.units[0].include) {
-        expect(included.startsWith(`${MODULE_PREFIX}/${dirOf(suffix)}`)).toBe(true);
-      }
-    }
+    expect(targets['serve-api'].options.command).toBe('go run ./cmd --role api');
+    expect(targets['serve-relay'].options.command).toBe('go run ./cmd --role relay');
   });
 
-  it('should declare the pgx external dependency on the provider manifest only', async () => {
+  it('should run test-race with the integration tag after postgres when provider is generated', async () => {
     const tree = await generate();
 
-    for (const { suffix } of LAYOUT) {
-      const manifest = readJsonFile<Manifest>(tree, `${dirOf(suffix)}/dmpf-units.json`);
-
-      if (suffix === 'provider-postgres') {
-        expect(manifest.external).toContainEqual(
-          expect.objectContaining({
-            package: 'github.com/jackc/pgx/v5',
-            capability: 'io.storage',
-          }),
-        );
-      } else {
-        expect(manifest.external).toEqual([]);
-      }
-    }
+    expect(projectOf(tree).targets).toEqual(
+      expectedTargets({ integration: true, dependsOnProjects: ['postgres'] }),
+    );
   });
 
-  it('should write a workspace-only go.mod for every module', async () => {
+  it('should run a cached, tag-free test-race when no block touches infrastructure', async () => {
+    const tree = await generate({ blocks: ['domain', 'port', 'application'] });
+
+    expect(projectOf(tree).targets).toEqual(expectedTargets({ integration: false, app: false }));
+  });
+
+  it('should declare one unit per block and one per companion, in block order', async () => {
+    const tree = await generate();
+    const manifest = manifestOf(tree);
+    const expected = LAYOUT.flatMap((entry) => [
+      { block: entry.block, unitSuffix: entry.unitSuffix, dirName: entry.dirName },
+      ...(entry.companions ?? []).map((companion) => ({
+        block: entry.block,
+        unitSuffix: companion.unitSuffix,
+        dirName: companion.dirName,
+      })),
+    ]);
+
+    expect(manifest.schema).toBe('dmpf/units@1');
+    expect(manifest.exceptions).toEqual([]);
+    expect(manifest.units).toHaveLength(expected.length);
+    manifest.units.forEach((unit, index) => {
+      const { block, unitSuffix, dirName } = expected[index];
+      expect(unit.id).toBe(`sales/${unitSuffix}`);
+      expect(unit.block).toBe(block);
+      expect(unit.bounded_context).toBe('sales');
+      expect(unit.public_integration_surface).toBe(false);
+      // The binary belongs to the unit of the app block: it is a composition
+      // root, not a unit of its own.
+      const include =
+        dirName === 'app'
+          ? [`${MODULE_PREFIX}/${MODULE_DIR}/app`, `${MODULE_PREFIX}/${MODULE_DIR}/cmd`]
+          : [`${MODULE_PREFIX}/${MODULE_DIR}/${dirName}`];
+      expect(unit.include).toEqual(include);
+    });
+  });
+
+  it('should give the app block both test kits, each in a directory of its own', async () => {
     const tree = await generate();
 
-    for (const { suffix } of LAYOUT) {
-      const goMod = readText(tree, `${dirOf(suffix)}/go.mod`);
+    expect(tree.children(`${MODULE_DIR}/${APPKIT_DIR}`)).toEqual(['doc.go']);
+    expect(readText(tree, `${MODULE_DIR}/${APPKIT_DIR}/doc.go`)).toContain('package appkit');
+    expect(tree.children(`${MODULE_DIR}/${DISTKIT_DIR}`)).toEqual(['doc.go']);
+    expect(readText(tree, `${MODULE_DIR}/${DISTKIT_DIR}/doc.go`)).toContain('package distkit');
+  });
 
-      expect(goMod).toContain(`module ${MODULE_PREFIX}/${dirOf(suffix)}`);
-      expect(goMod).toContain(`go ${GO_VERSION}`);
-      expect(goMod).not.toContain('require');
-      expect(goMod).not.toContain('replace');
-    }
+  it('should run the distributed vector by its own target, after the shared infrastructure', async () => {
+    const tree = await generate();
+    const target = (projectOf(tree).targets as Record<string, Record<string, unknown>>)[
+      'test-distributed'
+    ];
+
+    expect(target.cache).toBe(false);
+    expect(target.dependsOn).toEqual([{ projects: ['postgres', 'app'], target: 'test-race' }]);
+    expect((target.options as { command: string }).command).toBe(
+      'go test -race -count=1 -p 1 -tags=integration,distributed ./distkit/...',
+    );
+  });
+
+  it('should leave no test kit when the context has no app block', async () => {
+    const tree = await generate({ blocks: ['domain', 'port', 'application'] });
+
+    expect(tree.children(MODULE_DIR)).not.toContain(APPKIT_DIR);
+    expect(tree.children(MODULE_DIR)).not.toContain(DISTKIT_DIR);
+    const ids = manifestOf(tree).units.map((unit) => unit.id);
+    expect(ids).not.toContain('sales/appkit');
+    expect(ids).not.toContain('sales/distkit');
+  });
+
+  it('should declare the pgx external dependency only when provider is generated', async () => {
+    const withProvider = manifestOf(await generate());
+    const withoutProvider = manifestOf(
+      await generate({ blocks: ['domain', 'port', 'application'] }),
+    );
+
+    expect(withProvider.external).toContainEqual(
+      expect.objectContaining({ package: 'github.com/jackc/pgx/v5', capability: 'io.storage' }),
+    );
+    expect(withoutProvider.external).toEqual([]);
+  });
+
+  it('should write a go.mod with only module and go: a fresh context imports no siblings', async () => {
+    const tree = await generate();
+    const goMod = readText(tree, `${MODULE_DIR}/go.mod`);
+
+    expect(goMod).toContain(`module ${MODULE_PREFIX}/${MODULE_DIR}`);
+    expect(goMod).toContain(`go ${GO_VERSION}`);
+    expect(goMod).not.toContain('require');
+    expect(goMod).not.toContain('replace');
   });
 
   it('should read the Go version of the generated go.mod from go.work', async () => {
@@ -374,50 +465,39 @@ describe('[generator] bounded-context — generation', () => {
 
     await boundedContextGenerator(tree, FULL_OPTIONS);
 
-    expect(readText(tree, `${dirOf('domain')}/go.mod`)).toContain('go 1.27.0');
+    expect(readText(tree, `${MODULE_DIR}/go.mod`)).toContain('go 1.27.0');
   });
 
-  it('should register the new modules in go.work in sorted order', async () => {
+  it('should register the single module in go.work in sorted order', async () => {
     const tree = await generate();
 
     expect(useEntries(readText(tree, 'go.work'))).toEqual([
-      './libs/backend/go/checkout/app',
-      './libs/backend/go/checkout/application',
-      './libs/backend/go/checkout/domain',
-      './libs/backend/go/checkout/ports',
-      './libs/backend/go/checkout/provider',
-      './libs/backend/go/dmpf-app',
-      './libs/backend/go/dmpf-domain',
-      './libs/backend/go/dmpf-ports',
+      './apps/backend/checkout',
+      './libs/backend/go/app',
+      './libs/backend/go/domain',
+      './libs/backend/go/ports',
     ]);
     expect(readText(tree, 'go.work').startsWith(`go ${GO_VERSION}`)).toBe(true);
   });
 
-  it('should write a private, unpublished package.json for every module', async () => {
+  it('should write a private, unpublished package.json named after the context', async () => {
     const tree = await generate();
 
-    for (const { suffix } of LAYOUT) {
-      const manifest = readJsonFile<PackageManifest>(tree, `${dirOf(suffix)}/package.json`);
-
-      expect(manifest).toEqual({
-        name: `@mateusmacedo/checkout-${suffix}-go`,
-        version: '0.0.0',
-        private: true,
-      });
-    }
+    expect(readJsonFile<PackageManifest>(tree, `${MODULE_DIR}/package.json`)).toEqual({
+      name: '@mateusmacedo/checkout',
+      version: '0.0.0',
+      private: true,
+    });
   });
 
-  it('should create only the requested blocks when a subset is asked for', async () => {
+  it('should create only the requested block directories when a subset is asked for', async () => {
     const withoutApp = await generate({
       blocks: ['domain', 'port', 'application', 'provider'],
     });
 
-    expect(withoutApp.children(`${DIRECTORY}/checkout`).sort()).toEqual([
-      'application',
-      'domain',
-      'ports',
-      'provider',
-    ]);
+    expect(withoutApp.children(MODULE_DIR).sort()).toEqual(
+      [...MODULE_FILES, 'application', 'domain', 'ports', 'provider'].sort(),
+    );
   });
 
   it('should fall back to the schema defaults when blocks and directory are omitted', async () => {
@@ -428,51 +508,43 @@ describe('[generator] bounded-context — generation', () => {
       boundedContext: FULL_OPTIONS.boundedContext,
     });
 
-    expect(tree.children(`${DIRECTORY}/checkout`).sort()).toEqual([
-      'app',
-      'application',
-      'domain',
-      'ports',
-      'provider',
-    ]);
+    expect(tree.children(MODULE_DIR).sort()).toEqual(
+      [...MODULE_FILES, ...BLOCK_DIRS, CMD_DIR, APPKIT_DIR, DISTKIT_DIR].sort(),
+    );
   });
 });
 
 describe('[generator] bounded-context — identifiers', () => {
   const name = 'order-fulfillment';
 
-  it('should slug the module directories from the name', async () => {
+  it('should slug the module directory from the name', async () => {
     const tree = await generate({ name });
 
     expect(tree.children(DIRECTORY)).toEqual(['order-fulfillment']);
-    expect(tree.children(`${DIRECTORY}/order-fulfillment`).sort()).toEqual([
-      'app',
-      'application',
-      'domain',
-      'ports',
-      'provider',
-    ]);
+    expect(tree.children(`${DIRECTORY}/order-fulfillment`).sort()).toEqual(
+      [...MODULE_FILES, ...BLOCK_DIRS, CMD_DIR, APPKIT_DIR, DISTKIT_DIR].sort(),
+    );
   });
 
-  it('should derive the Go package identifier by dropping the hyphens', async () => {
+  it('should name every Go package after its block directory, with no prefix', async () => {
     const tree = await generate({ name });
 
-    expect(readText(tree, `${moduleDir({ suffix: 'ports', name })}/doc.go`)).toContain(
-      'package orderfulfillmentports',
-    );
+    for (const { dirName } of LAYOUT) {
+      const doc = readText(tree, `${DIRECTORY}/${name}/${dirName}/doc.go`);
+
+      expect(doc).toContain(`package ${dirName}\n`);
+      expect(doc).not.toContain('orderfulfillment');
+    }
   });
 
   it('should keep the declared bounded context independent from the name', async () => {
     const tree = await generate();
+    const manifest = manifestOf(tree);
 
-    for (const { suffix } of LAYOUT) {
-      const manifest = readJsonFile<Manifest>(tree, `${dirOf(suffix)}/dmpf-units.json`);
-
-      expect(manifest.units.map((unit) => unit.bounded_context)).toEqual(['sales']);
-      expect(readText(tree, `${dirOf(suffix)}/dmpf-units.json`)).not.toContain(
-        '"bounded_context": "checkout"',
-      );
-    }
+    expect(new Set(manifest.units.map((unit) => unit.bounded_context))).toEqual(new Set(['sales']));
+    expect(readText(tree, `${MODULE_DIR}/dmpf-units.json`)).not.toContain(
+      '"bounded_context": "checkout"',
+    );
   });
 });
 
@@ -542,9 +614,9 @@ describe('[generator] bounded-context — refusals', () => {
   it('should refuse an existing module directory', async () => {
     await expectRefusal({
       overrides: {},
-      message: /checkout\/domain/,
+      message: /checkout/,
       prepare: (tree) => {
-        tree.write(`${dirOf('domain')}/go.mod`, `module ${MODULE_PREFIX}/${dirOf('domain')}\n`);
+        tree.write(`${MODULE_DIR}/go.mod`, `module ${MODULE_PREFIX}/${MODULE_DIR}\n`);
       },
     });
   });
@@ -557,8 +629,8 @@ describe('[generator] bounded-context — refusals', () => {
         tree.write(
           'go.work',
           GO_WORK.replace(
-            '\t./libs/backend/go/dmpf-app\n',
-            '\t./libs/backend/go/checkout/domain\n\t./libs/backend/go/dmpf-app\n',
+            '\t./libs/backend/go/app\n',
+            '\t./apps/backend/checkout\n\t./libs/backend/go/app\n',
           ),
         );
       },
@@ -589,9 +661,92 @@ describe('[generator] bounded-context — refusals', () => {
       }
       expect(() => JSON.parse(content)).not.toThrow();
     }
-    expect(
-      readJsonFile<Manifest>(tree, `${dirOf('domain')}/dmpf-units.json`).units[0].bounded_context,
-    ).toBe(unsafe);
+    expect(manifestOf(tree).units[0].bounded_context).toBe(unsafe);
+  });
+});
+
+describe('[generator] bounded-context — release groups and module sync', () => {
+  const MODSYNC_ARGS = ['run', './tools/dmpf-conformance/cmd/modsync', '--root', '.', '--write'];
+
+  const NX_JSON = JSON.stringify(
+    {
+      release: {
+        groups: {
+          'go-libs': {
+            projects: ['directory:libs/backend/go/*'],
+            releaseTag: { pattern: 'libs/backend/go/{projectName}/v{version}' },
+          },
+          'go-tools': {
+            projects: ['conformance'],
+            releaseTag: { pattern: 'tools/dmpf-conformance/v{version}' },
+          },
+          npm: {
+            projects: ['tag:type:lib', '!tag:stack:go'],
+            releaseTag: { pattern: '{projectName}@{version}' },
+          },
+        },
+      },
+    },
+    null,
+    2,
+  );
+
+  const modsync = childProcess.execFileSync as jest.MockedFunction<
+    typeof childProcess.execFileSync
+  >;
+
+  beforeEach(() => {
+    modsync.mockClear();
+  });
+
+  it('should never write to nx.json, so no release group is edited during generation', async () => {
+    const tree = treeWithGoWork();
+    tree.write('nx.json', NX_JSON);
+
+    await boundedContextGenerator(tree, FULL_OPTIONS);
+
+    expect(projectOf(tree).tags).toContain('type:app');
+    expect(readText(tree, 'nx.json')).toBe(NX_JSON);
+  });
+
+  it('should defer the modsync run to the post-flush callback', async () => {
+    const tree = treeWithGoWork();
+
+    const callback = await boundedContextGenerator(tree, FULL_OPTIONS);
+
+    expect(typeof callback).toBe('function');
+    expect(modsync).not.toHaveBeenCalled();
+  });
+
+  it('should write the sibling requires by running dmpf-modsync from the workspace root', async () => {
+    const tree = treeWithGoWork();
+
+    const callback = await boundedContextGenerator(tree, FULL_OPTIONS);
+    await callback();
+
+    expect(modsync).toHaveBeenCalledTimes(1);
+    expect(modsync).toHaveBeenCalledWith('go', MODSYNC_ARGS, {
+      cwd: tree.root,
+      stdio: 'inherit',
+    });
+  });
+
+  it('should point to the manual recovery when the modsync run fails', async () => {
+    const cause = new Error('spawnSync go ENOENT');
+    modsync.mockImplementation(() => {
+      throw cause;
+    });
+    const tree = treeWithGoWork();
+
+    const callback = await boundedContextGenerator(tree, FULL_OPTIONS);
+
+    expect(callback).toThrow(MODULE_DIR);
+    expect(callback).toThrow(`go ${MODSYNC_ARGS.join(' ')}`);
+    try {
+      callback();
+    } catch (error) {
+      expect((error as Error).cause).toBe(cause);
+    }
   });
 });
 
@@ -608,6 +763,7 @@ describe('[generator] bounded-context — determinism and output', () => {
 
     await generate();
 
+    expect(printed()).toContain('1 módulo gerado');
     expect(printed()).toContain('--write-baseline');
     expect(printed()).toContain('AUT-01');
   });

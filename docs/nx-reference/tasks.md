@@ -122,7 +122,7 @@ dois conjuntos e reprova quando algum projeto Go fica de fora
 | `layer:services` | Casos de uso e primitivas de transporte |
 | `layer:contract` | Contratos de wire |
 | `layer:providers` | Realizações que exigem infraestrutura (Postgres, Kafka, SQS) |
-| `layer:apps` | Composition roots e bordas |
+| `layer:apps` | Composition roots, bordas e os bounded contexts de `apps/backend` |
 
 A camada é a do **estágio em que o módulo precisa rodar**, não a do bloco DMPF
 de cada unidade que ele declara. Um módulo com unidades em quatro blocos, cujas
@@ -134,11 +134,13 @@ o teste pede.
 pnpm nx show projects --projects=tag:layer:domain --json | jq -r 'join(",")'
 ```
 
-Um bounded context distribui seus cinco módulos pelas camadas conforme o bloco:
-`domain` e `ports` em `layer:domain`, `application` em `layer:services`,
-`provider` em `layer:providers` e `app` em `layer:apps`. O generator
-`bounded-context` já emite a tag correta em cada `project.json`; ver
-`docs/guides/dmpf-composicao.md`.
+Um bounded context é **um** módulo em `apps/backend/<ctx>` (`type:app`), com um
+package por bloco, e recebe a camada do seu bloco mais alto: `layer:apps` quando
+tem `app`, `layer:providers` quando para no `provider`, e assim por diante. O
+generator `bounded-context` já emite a tag correta no `project.json`; ver
+`docs/guides/dmpf-composicao.md`. O módulo `conformance`
+(`tools/dmpf-conformance`) é a exceção deliberada: tooling de workspace, sem
+`layer:*`, excluído do guard e rodado em step próprio do `ci.yml`.
 
 ---
 
@@ -190,7 +192,7 @@ o kernel DMPF terá contrapartes Go e TypeScript com os mesmos nomes conceituais
 e o nome de projeto é chave única no Nx.
 
 Go é `scope:backend` neste workspace: os oito módulos existentes vivem em
-`libs/backend/go/`. O módulo `dmpf-contracts` (projeto `dmpf-contracts-go`) é o
+`libs/backend/go/`. O módulo `contracts` (projeto `contracts`) é o
 único com targets além da cadeia Go — `buf-lint`, `buf-pins`,
 `buf-generate-check` e `buf-breaking` chamam os subcomandos de
 `tools/buf-gate.sh`, `buf-gate-selftest` roda

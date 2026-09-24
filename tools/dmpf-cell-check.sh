@@ -36,8 +36,8 @@ trap descartar_worktree EXIT INT TERM
 # D001 é diagnóstico de ARESTA, e aresta liga packages. A chave por unidade
 # aparece nos diagnósticos de classificação (T001), que são outra coisa.
 VETORES=(
-  "26|libs/backend/go/dmpf-provider-postgres|$BASE/dmpf-application|$BASE/dmpf-provider-postgres|$BASE/dmpf-application"
-  "12|libs/backend/go/dmpf-application|$BASE/dmpf-contracts/envelope|$BASE/dmpf-application|$BASE/dmpf-contracts/envelope"
+  "26|libs/backend/go/postgres|$BASE/application|$BASE/postgres|$BASE/application"
+  "12|libs/backend/go/application|$BASE/contracts/envelope|$BASE/application|$BASE/contracts/envelope"
 )
 
 abrir_worktree() {
@@ -54,7 +54,7 @@ abrir_worktree() {
 }
 
 verificar() {
-  go run ./libs/backend/go/dmpf-conformance/cmd/dmpf-conformance \
+  go run ./tools/dmpf-conformance/cmd/conformance \
     --root "$WORKTREE" --base "$NX_BASE" 2>&1
 }
 

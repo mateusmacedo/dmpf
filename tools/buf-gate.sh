@@ -11,7 +11,7 @@ CONTRACTS=contracts
 BUF_YAML="$CONTRACTS/buf.yaml"
 BUF_GEN="$CONTRACTS/buf.gen.yaml"
 BUF_SH="$ROOT/tools/buf.sh"
-LIB=libs/backend/go/dmpf-contracts
+LIB=libs/backend/go/contracts
 GEN_DIR="$LIB/gen/go"
 MARK_PREFIX=contracts-baseline
 

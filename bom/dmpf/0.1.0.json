@@ -11,12 +11,31 @@
         "version": "1.26.6",
         "state": "certificada",
         "compatible_with": [
-          { "identity": "github.com/jackc/pgx/v5", "version": "v5.10.0", "evidence": "provider" },
-          { "identity": "google.golang.org/protobuf", "version": "v1.36.12", "evidence": "golden" },
-          { "identity": "go.opentelemetry.io/otel", "version": "v1.46.0", "evidence": "reference" },
-          { "identity": "github.com/twmb/franz-go", "version": "v1.21.6", "evidence": "dist" }
+          {
+            "identity": "github.com/jackc/pgx/v5",
+            "version": "v5.10.0",
+            "evidence": "provider"
+          },
+          {
+            "identity": "google.golang.org/protobuf",
+            "version": "v1.36.12",
+            "evidence": "golden"
+          },
+          {
+            "identity": "go.opentelemetry.io/otel",
+            "version": "v1.46.0",
+            "evidence": "reference"
+          },
+          {
+            "identity": "github.com/twmb/franz-go",
+            "version": "v1.21.6",
+            "evidence": "dist"
+          }
         ],
-        "registry_ref": { "file": "go.work", "selector": "go" },
+        "registry_ref": {
+          "file": "go.work",
+          "selector": "go"
+        },
         "evidence_uri": "https://github.com/mateusmacedo/dmpf/blob/8e171d31eb903a6b2153da53bc4aa05d058a1263/bom/evidence/0.1.0/provider.json",
         "evidence_digest": "sha256:189255a1030f5e2dbe9dd7571afdb16b0a7929acf7a4643762468ed8906c6fbc",
         "approved_by": "team:plataforma",
@@ -35,7 +54,10 @@
         "version": "6.0.3",
         "state": "candidata",
         "compatible_with": [],
-        "registry_ref": { "file": "pnpm-workspace.yaml", "selector": "catalog:typescript" },
+        "registry_ref": {
+          "file": "pnpm-workspace.yaml",
+          "selector": "catalog:typescript"
+        },
         "cve": []
       },
       {
@@ -44,7 +66,10 @@
         "version": "11.14.0",
         "state": "candidata",
         "compatible_with": [],
-        "registry_ref": { "file": "package.json", "selector": "packageManager" },
+        "registry_ref": {
+          "file": "package.json",
+          "selector": "packageManager"
+        },
         "cve": []
       },
       {
@@ -53,7 +78,10 @@
         "version": "23.1.0",
         "state": "candidata",
         "compatible_with": [],
-        "registry_ref": { "file": "pnpm-workspace.yaml", "selector": "catalog:nx" },
+        "registry_ref": {
+          "file": "pnpm-workspace.yaml",
+          "selector": "catalog:nx"
+        },
         "cve": []
       }
     ],
@@ -67,7 +95,10 @@
         "version": "v1.72.0",
         "state": "certificada",
         "compatible_with": [],
-        "registry_ref": { "file": "tools/buf.sh", "selector": "buf" },
+        "registry_ref": {
+          "file": "tools/buf.sh",
+          "selector": "buf"
+        },
         "evidence_uri": "https://github.com/mateusmacedo/dmpf/blob/8e171d31eb903a6b2153da53bc4aa05d058a1263/bom/evidence/0.1.0/golden.json",
         "evidence_digest": "sha256:bf01eb1a1664f983dac9a0d3ccaf7f75ea1cec711cb6d8d1ad23a26b4aacd76e",
         "approved_by": "team:plataforma",
@@ -86,7 +117,10 @@
         "version": "v1.36.12",
         "state": "certificada",
         "compatible_with": [],
-        "registry_ref": { "file": "contracts/buf.gen.yaml", "selector": "plugin:protoc-gen-go" },
+        "registry_ref": {
+          "file": "contracts/buf.gen.yaml",
+          "selector": "plugin:protoc-gen-go"
+        },
         "evidence_uri": "https://github.com/mateusmacedo/dmpf/blob/8e171d31eb903a6b2153da53bc4aa05d058a1263/bom/evidence/0.1.0/golden.json",
         "evidence_digest": "sha256:bf01eb1a1664f983dac9a0d3ccaf7f75ea1cec711cb6d8d1ad23a26b4aacd76e",
         "approved_by": "team:plataforma",
@@ -105,7 +139,10 @@
         "version": "v2.13.2",
         "state": "candidata",
         "compatible_with": [],
-        "registry_ref": { "file": "nx.json", "selector": "golangci-lint" },
+        "registry_ref": {
+          "file": "nx.json",
+          "selector": "golangci-lint"
+        },
         "cve": []
       },
       {
@@ -114,7 +151,10 @@
         "version": "0.0.0",
         "state": "candidata",
         "compatible_with": [],
-        "registry_ref": { "file": "tools/dmpf-plugin/package.json", "selector": "version" },
+        "registry_ref": {
+          "file": "tools/dmpf-plugin/package.json",
+          "selector": "version"
+        },
         "cve": []
       }
     ],
@@ -129,7 +169,7 @@
         "state": "certificada",
         "compatible_with": [],
         "registry_ref": {
-          "file": "libs/backend/go/dmpf-provider-postgres/go.mod",
+          "file": "libs/backend/go/postgres/go.mod",
           "selector": "require:github.com/jackc/pgx/v5"
         },
         "evidence_uri": "https://github.com/mateusmacedo/dmpf/blob/8e171d31eb903a6b2153da53bc4aa05d058a1263/bom/evidence/0.1.0/provider.json",
@@ -151,7 +191,7 @@
         "state": "certificada",
         "compatible_with": [],
         "registry_ref": {
-          "file": "libs/backend/go/dmpf-provider-kafka/go.mod",
+          "file": "libs/backend/go/kafka/go.mod",
           "selector": "require:github.com/twmb/franz-go"
         },
         "evidence_uri": "https://github.com/mateusmacedo/dmpf/blob/8e171d31eb903a6b2153da53bc4aa05d058a1263/bom/evidence/0.1.0/dist.json",
@@ -170,10 +210,18 @@
         "subject": "client",
         "identity": "google.golang.org/grpc",
         "version": "v1.83.1",
+        "state": "rejeitada",
+        "compatible_with": [],
+        "cve": []
+      },
+      {
+        "subject": "client",
+        "identity": "google.golang.org/grpc",
+        "version": "v1.83.2",
         "state": "candidata",
         "compatible_with": [],
         "registry_ref": {
-          "file": "libs/backend/go/dmpf-provider-grpc/go.mod",
+          "file": "libs/backend/go/grpc/go.mod",
           "selector": "require:google.golang.org/grpc"
         },
         "cve": []
@@ -185,7 +233,7 @@
         "state": "candidata",
         "compatible_with": [],
         "registry_ref": {
-          "file": "libs/backend/go/dmpf-provider-sqs/go.mod",
+          "file": "libs/backend/go/sqs/go.mod",
           "selector": "require:github.com/aws/aws-sdk-go-v2"
         },
         "cve": []
@@ -197,7 +245,7 @@
         "state": "certificada",
         "compatible_with": [],
         "registry_ref": {
-          "file": "libs/backend/go/dmpf-observability/go.mod",
+          "file": "libs/backend/go/observability/go.mod",
           "selector": "require:go.opentelemetry.io/otel"
         },
         "evidence_uri": "https://github.com/mateusmacedo/dmpf/blob/8e171d31eb903a6b2153da53bc4aa05d058a1263/bom/evidence/0.1.0/reference.json",
@@ -219,7 +267,7 @@
         "state": "certificada",
         "compatible_with": [],
         "registry_ref": {
-          "file": "libs/backend/go/dmpf-contracts/go.mod",
+          "file": "libs/backend/go/contracts/go.mod",
           "selector": "require:google.golang.org/protobuf"
         },
         "evidence_uri": "https://github.com/mateusmacedo/dmpf/blob/8e171d31eb903a6b2153da53bc4aa05d058a1263/bom/evidence/0.1.0/golden.json",
@@ -240,7 +288,10 @@
         "version": "23.1.0",
         "state": "candidata",
         "compatible_with": [],
-        "registry_ref": { "file": "pnpm-workspace.yaml", "selector": "catalog:@nx/devkit" },
+        "registry_ref": {
+          "file": "pnpm-workspace.yaml",
+          "selector": "catalog:@nx/devkit"
+        },
         "cve": []
       },
       {
@@ -249,7 +300,10 @@
         "version": "23.1.0",
         "state": "candidata",
         "compatible_with": [],
-        "registry_ref": { "file": "pnpm-workspace.yaml", "selector": "catalog:@nx/plugin" },
+        "registry_ref": {
+          "file": "pnpm-workspace.yaml",
+          "selector": "catalog:@nx/plugin"
+        },
         "cve": []
       },
       {
@@ -478,7 +532,7 @@
         "subject": "product",
         "identity": "github.com/mateusmacedo/dmpf/apps/backend/dmpf-reference",
         "version": "560ae8e",
-        "state": "certificada",
+        "state": "depreciada",
         "compatible_with": [],
         "evidence_uri": "https://github.com/mateusmacedo/dmpf/blob/8e171d31eb903a6b2153da53bc4aa05d058a1263/bom/evidence/0.1.0/reference.json",
         "evidence_digest": "sha256:33d95317456c2d518cc59cb45b2fdbc32d0bbe7233dcb384ac1cf1eb54985e2e",
@@ -490,10 +544,36 @@
           "reviewed_by": "mateusmacedo",
           "pr": "local-merge:feat/ARQ-548-evidencia-certificacao-release"
         },
+        "cve": [],
+        "deprecated_at": "2026-09-15",
+        "successor": "github.com/mateusmacedo/dmpf/apps/backend/bff"
+      },
+      {
+        "subject": "product",
+        "identity": "github.com/mateusmacedo/dmpf/apps/backend/bff",
+        "version": "26a9907",
+        "state": "candidata",
+        "compatible_with": [],
+        "cve": []
+      },
+      {
+        "subject": "product",
+        "identity": "github.com/mateusmacedo/dmpf/apps/backend/orders",
+        "version": "26a9907",
+        "state": "candidata",
+        "compatible_with": [],
+        "cve": []
+      },
+      {
+        "subject": "product",
+        "identity": "github.com/mateusmacedo/dmpf/apps/backend/reservations",
+        "version": "26a9907",
+        "state": "candidata",
+        "compatible_with": [],
         "cve": []
       }
     ],
-    "reason": "grpc, aws-sdk-go-v2, @nx/devkit, @nx/plugin, dmpf-conformance, dmpf-provider-grpc e dmpf-provider-sqs ficam no estado candidata: nenhum subject do dmpf-evidence da 0.1.0 os exercita (o grpc aparece no header do reference só transitivamente; @nx/devkit e @nx/plugin sustentam o plugin dmpf)"
+    "reason": "grpc, aws-sdk-go-v2, @nx/devkit, @nx/plugin, conformance, grpc e sqs ficam no estado candidata: nenhum subject do dmpf-evidence da 0.1.0 os exercita (o grpc aparece no header do reference só transitivamente; @nx/devkit e @nx/plugin sustentam o plugin dmpf)"
   },
   "compatible_combinations": {
     "entries": [],
@@ -515,7 +595,7 @@
     "owner": "team:plataforma",
     "compatible_with": [],
     "registry_ref": {
-      "file": "libs/backend/go/dmpf-observability/otelboot/start.go",
+      "file": "libs/backend/go/observability/otelboot/start.go",
       "selector": "semconv"
     },
     "evidence_uri": "https://github.com/mateusmacedo/dmpf/blob/8e171d31eb903a6b2153da53bc4aa05d058a1263/bom/evidence/0.1.0/reference.json",
