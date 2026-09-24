@@ -79,12 +79,14 @@ func serveAPI(ctx context.Context, cfg Config, rt *otelboot.Runtime, out io.Writ
 		return err
 	}
 	serverConfig, err := provider.APIServerConfig(provider.APIServer{
-		CertFile:     cfg.GRPCCertFile,
-		KeyFile:      cfg.GRPCKeyFile,
-		Insecure:     cfg.GRPCInsecure,
-		Services:     provider.HealthServices(rpc.ServiceName),
-		Interceptors: rpc.Interceptors(rt.Tracer(), ctrl, rt.Instruments(), rt.Logger()),
-		Logger:       rt.Logger(),
+		CertFile:       cfg.GRPCCertFile,
+		KeyFile:        cfg.GRPCKeyFile,
+		ClientCAFile:   cfg.GRPCClientCAFile,
+		TrustedClients: cfg.GRPCTrustedClients,
+		Insecure:       cfg.GRPCInsecure,
+		Services:       provider.HealthServices(rpc.ServiceName),
+		Interceptors:   rpc.Interceptors(rt.Tracer(), ctrl, rt.Instruments(), rt.Logger()),
+		Logger:         rt.Logger(),
 	})
 	if err != nil {
 		return err
@@ -112,17 +114,17 @@ func serveAPI(ctx context.Context, cfg Config, rt *otelboot.Runtime, out io.Writ
 
 // NewReservationsConsumer is the consumer adapter with the attempt limit of the
 // channel it consumes (ADR-039: the two must agree).
-func NewReservationsConsumer(pool *pgxpool.Pool, cfg Config, ch channel.Channel) app.Consumer {
-	return NewConsumer(pool, idclock.SystemClock{}, idclock.NewMessageIDs("reservations"), cfg.Wait, cfg.ConsumerTimeout, ch.Retry.MaxAttempts, OrdersBoundary(cfg))
+func NewReservationsConsumer(pool *pgxpool.Pool, cfg Config, ch channel.Channel, authenticated bool) app.Consumer {
+	return NewConsumer(pool, idclock.SystemClock{}, idclock.NewMessageIDs("reservations"), cfg.Wait, cfg.ConsumerTimeout, ch.Retry.MaxAttempts, OrdersBoundary(cfg, authenticated))
 }
 
 // OrdersBoundary is the one place the consumer's trust is declared: the orders
-// producer, over a transport the Kafka config already refused to leave
-// unsecured unless the development opt-out says so.
-func OrdersBoundary(cfg Config) app.Boundary {
-	transport := app.TransportVerified
-	if cfg.KafkaInsecure {
-		transport = app.TransportDevelopmentOnly
+// producer, and a transport called verified only when TLS checks the broker
+// and this client authenticates to it (IDN-03, IDN-04).
+func OrdersBoundary(cfg Config, authenticated bool) app.Boundary {
+	transport := app.TransportDevelopmentOnly
+	if authenticated {
+		transport = app.TransportVerified
 	}
 	return app.Boundary{Transport: transport, Sources: []string{cfg.OrdersSource}}
 }
@@ -142,11 +144,15 @@ func runConsumer(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {
 	if err != nil {
 		return err
 	}
+	kafkaConfig, err := kafka.NewConfig(ctx, rt, catalog, cfg.Brokers, cfg.Service, cfg.KafkaInsecure, cfg.KafkaAuth)
+	if err != nil {
+		return err
+	}
 	consumer := &kafka.Consumer{
-		Config:  kafka.NewConfig(ctx, rt, catalog, cfg.Brokers, cfg.Service, cfg.KafkaInsecure),
+		Config:  kafkaConfig,
 		Channel: ch,
 		Sink: Sink{
-			Consumer:  NewReservationsConsumer(pool, cfg, ch),
+			Consumer:  NewReservationsConsumer(pool, cfg, ch, kafkaConfig.ClientAuthenticated()),
 			EventType: channel.EventTypeOf(ch),
 			Logger:    rt.Logger(),
 			Tracer:    rt.Tracer(),
@@ -187,7 +193,11 @@ func runRelay(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {
 	if err := postgres.AssertOwnOutbox(ctx, pool, slices.Collect(maps.Keys(catalog))); err != nil {
 		return err
 	}
-	publisher, err := kafka.NewPublisher(kafka.NewConfig(ctx, rt, catalog, cfg.Brokers, cfg.Service, cfg.KafkaInsecure), nil)
+	kafkaConfig, err := kafka.NewConfig(ctx, rt, catalog, cfg.Brokers, cfg.Service, cfg.KafkaInsecure, cfg.KafkaAuth)
+	if err != nil {
+		return err
+	}
+	publisher, err := kafka.NewPublisher(kafkaConfig, nil)
 	if err != nil {
 		return err
 	}

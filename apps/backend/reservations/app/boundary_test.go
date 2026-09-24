@@ -10,22 +10,21 @@ import (
 func TestOrdersBoundaryAdmitsTheConfiguredProducer(t *testing.T) {
 	cfg := Defaults(RoleConsumer)
 
-	boundary := OrdersBoundary(cfg)
+	boundary := OrdersBoundary(cfg, true)
 
 	if !slices.Equal(boundary.Sources, []string{"urn:dmpf:reference-orders"}) {
 		t.Fatalf("Sources = %v, want the source the orders relay stamps by default", boundary.Sources)
 	}
 	if boundary.Transport != kernel.TransportVerified {
-		t.Fatalf("Transport = %q, want verified: a secured Kafka is the default", boundary.Transport)
+		t.Fatalf("Transport = %q, want verified: TLS with an authenticated client", boundary.Transport)
 	}
 }
 
-func TestOrdersBoundaryFollowsTheKafkaDevelopmentOptOut(t *testing.T) {
-	cfg := Defaults(RoleConsumer)
-	cfg.KafkaInsecure = true
-
-	if got := OrdersBoundary(cfg).Transport; got != kernel.TransportDevelopmentOnly {
-		t.Fatalf("Transport = %q, want development-only: the boundary cannot claim more than the transport", got)
+// IDN-04: a boundary is verified only on what the transport proved, never on a
+// variable saying TLS is on.
+func TestOrdersBoundaryWithoutAnAuthenticatedClientIsDevelopmentOnly(t *testing.T) {
+	if got := OrdersBoundary(Defaults(RoleConsumer), false).Transport; got != kernel.TransportDevelopmentOnly {
+		t.Fatalf("Transport = %q, want development-only: the boundary cannot claim more than the transport proved", got)
 	}
 }
 

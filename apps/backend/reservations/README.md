@@ -51,8 +51,10 @@ A ponte `Sink` confirma sem inbox a entrega de tipo diferente do assinado e abre
 | `DMPF_PG_DSN` | todos | Banco `dmpf_reservations` |
 | `DMPF_GRPC_ADDR` | `api` | Default `:9090` |
 | `DMPF_GRPC_INSECURE` ou `DMPF_GRPC_TLS_CERT_FILE` + `DMPF_GRPC_TLS_KEY_FILE` | `api` | Transporte; sem nenhum, exit 2 |
+| `DMPF_GRPC_CLIENT_CA_FILE`, `DMPF_GRPC_TRUSTED_CLIENTS` | `api`, com TLS | CA dos clientes e allowlist de identidades (ex.: `spiffe://dmpf/bff`); o `x-tenant-id` só é lido de peer verificado (ADR-052) |
 | `DMPF_MIGRATE` | `api` | Aplica o schema antes de servir |
 | `DMPF_KAFKA_BROKERS`, `DMPF_KAFKA_INSECURE` | `relay`, `consumer` | Brokers e opt-out de TLS |
+| `DMPF_KAFKA_SASL_MECHANISM`, `DMPF_KAFKA_SASL_USERNAME`, `DMPF_KAFKA_SASL_PASSWORD` ou `DMPF_KAFKA_CLIENT_CERT_FILE` + `DMPF_KAFKA_CLIENT_KEY_FILE` | papéis com Kafka, com TLS | Autenticação do cliente no broker (SCRAM-SHA-256/512 ou certificado); `DMPF_KAFKA_CA_FILE` quando a CA do broker é privada (ADR-052) |
 | `DMPF_KAFKA_RESERVATIONS_TOPIC`, `DMPF_KAFKA_RESERVATIONS_DLQ`, `DMPF_KAFKA_GROUP` | `relay` | Canal `reservations.events` |
 | `DMPF_KAFKA_ORDERS_TOPIC`, `DMPF_KAFKA_ORDERS_DLQ`, `DMPF_KAFKA_GROUP` | `consumer` | Canal inbound `orders.events` e grupo |
 | `DMPF_ORDERS_SOURCE` | `consumer` | Produtor admitido na fronteira do consumo, pelo atributo `source` do envelope (`CTX-27`); default `urn:dmpf:reference-orders`, o do relay de `orders` |
