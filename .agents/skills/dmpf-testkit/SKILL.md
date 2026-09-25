@@ -100,12 +100,15 @@ borda a borda e distribuído são targets do contexto `reservations`; para a
 prova distribuída, use Postgres e Redpanda reais:
 
 ```bash
-PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' \
+PG_DSN='postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable' \
 pnpm nx run reservations:test-race
-PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' \
+PG_DSN='postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable' \
 KAFKA_BROKERS=localhost:9092 \
 pnpm nx run reservations:test-distributed
 ```
+
+`PG_DSN` aponta o servidor com um usuário que cria bancos: o `tb/pg` deriva
+dele o banco `<projeto>_test` de cada projeto (ADR-053).
 
 Inclua na validação os módulos consumidores modificados. Não afirme que uma
 integração passou quando ela apenas foi pulada por ausência de infraestrutura.
