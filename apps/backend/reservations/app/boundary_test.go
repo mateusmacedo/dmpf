@@ -39,6 +39,6 @@ func TestTheAdmittedProducerIsReadFromTheEnvironment(t *testing.T) {
 		t.Fatalf("FromEnv() = %v, want nil", err)
 	}
 	if cfg.OrdersSource != "urn:dmpf:another-orders" {
-		t.Fatalf("OrdersSource = %q, want the one DMPF_ORDERS_SOURCE declares", cfg.OrdersSource)
+		t.Fatalf("OrdersSource = %q, want the one ORDERS_SOURCE declares", cfg.OrdersSource)
 	}
 }

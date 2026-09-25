@@ -35,7 +35,7 @@ const (
 	EnvGroup   = "DMPF_TESTKIT_GROUP"
 	EnvDLQ     = "DMPF_TESTKIT_DLQ"
 	EnvPlan    = "DMPF_TESTKIT_PLAN"
-	EnvBrokers = "DMPF_KAFKA_BROKERS"
+	EnvBrokers = "KAFKA_BROKERS"
 )
 
 // Role is what a child process does: publish the plan, consume through the
