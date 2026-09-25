@@ -8,16 +8,15 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/application"
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/provider"
 	kernelapp "github.com/mateusmacedo/dmpf/libs/backend/go/app"
 	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/contracts/envelope"
 	eventv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/orders/event/v1"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
-
-	"github.com/mateusmacedo/dmpf/apps/backend/reservations/application"
-	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
-	"github.com/mateusmacedo/dmpf/apps/backend/reservations/provider"
 )
 
 // ConsumerName is the logical, stable identity of INB-01: shared by every

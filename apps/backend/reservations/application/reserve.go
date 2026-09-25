@@ -3,10 +3,9 @@ package application
 import (
 	"context"
 
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
 	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
-
-	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
 )
 
 // Reserve confirms Items for the reservation of Order, creating it when absent.

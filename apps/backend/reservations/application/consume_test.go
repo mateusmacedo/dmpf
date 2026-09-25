@@ -5,12 +5,11 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/application"
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
 	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/memory"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
-
-	"github.com/mateusmacedo/dmpf/apps/backend/reservations/application"
-	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
 )
 
 var reservationTable = memory.Table[domain.OrderID, domain.Snapshot]{Name: "reservations"}

@@ -5,11 +5,10 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
 	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
-
-	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
 )
 
 type decision[R any] func(*domain.Reservation, domain.Instant) (kernel.Accepted[R], *kernel.Rejection)

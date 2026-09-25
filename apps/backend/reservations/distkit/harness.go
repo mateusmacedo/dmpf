@@ -20,10 +20,9 @@ import (
 	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kgo"
 
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/appkit"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/pg"
-
-	"github.com/mateusmacedo/dmpf/apps/backend/reservations/appkit"
 )
 
 // The variables the parent hands the re-executed child. Role selects which

@@ -5,7 +5,6 @@ package provider_test
 import (
 	"context"
 	"errors"
-	"github.com/mateusmacedo/dmpf/apps/backend/reservations/appkit"
 	"strings"
 	"sync"
 	"testing"
@@ -13,10 +12,10 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/appkit"
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/provider"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
-
-	"github.com/mateusmacedo/dmpf/apps/backend/reservations/provider"
 )
 
 // sqlRecorder keeps every statement the connection sent, begin and commit

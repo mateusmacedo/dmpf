@@ -5,17 +5,16 @@ package provider_test
 import (
 	"context"
 	"errors"
-	"github.com/mateusmacedo/dmpf/apps/backend/reservations/appkit"
 	"sync"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
-
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/appkit"
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/provider"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
 )
 
 const repoOrderID = domain.OrderID("order-1")

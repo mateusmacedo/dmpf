@@ -16,6 +16,9 @@ import (
 	"google.golang.org/grpc/test/bufconn"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/app/rpc"
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/application"
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
 	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	kernelgrpc "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/memory"
@@ -23,10 +26,6 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/metrics"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/admission"
-
-	"github.com/mateusmacedo/dmpf/apps/backend/reservations/app/rpc"
-	"github.com/mateusmacedo/dmpf/apps/backend/reservations/application"
-	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
 )
 
 var reservationTable = memory.Table[domain.OrderID, domain.Snapshot]{Name: "reservations"}

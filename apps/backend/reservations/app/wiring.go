@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/boot"
 	"io"
 	"maps"
 	"net"
@@ -13,11 +12,15 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/app/rpc"
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/application"
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/provider"
 	kernelapp "github.com/mateusmacedo/dmpf/libs/backend/go/app"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/app/relay"
 	kernelgrpc "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/kafka"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/audit"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/boot"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/idclock"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/otelboot"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/retry"
@@ -25,10 +28,6 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/admission"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/channel"
-
-	"github.com/mateusmacedo/dmpf/apps/backend/reservations/app/rpc"
-	"github.com/mateusmacedo/dmpf/apps/backend/reservations/application"
-	"github.com/mateusmacedo/dmpf/apps/backend/reservations/provider"
 )
 
 const (

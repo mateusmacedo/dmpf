@@ -3,9 +3,8 @@ package domain_test
 import (
 	"testing"
 
-	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
-
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
+	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
 )
 
 func TestReserveAccepts(t *testing.T) {

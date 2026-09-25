@@ -5,9 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
-
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
 
 func TestFindReservationReadsOutsideTheUnitOfWork(t *testing.T) {

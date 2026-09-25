@@ -4,10 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
-
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/application"
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
 
 func TestCancelCreatesACanceledReservationAndAuthorsTheOutboxEntry(t *testing.T) {

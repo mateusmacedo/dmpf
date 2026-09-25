@@ -15,6 +15,9 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/app"
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/appkit"
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
 	kernelapp "github.com/mateusmacedo/dmpf/libs/backend/go/app"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/contracts/envelope"
 	eventv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/orders/event/v1"
@@ -28,10 +31,6 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/pg"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/channel"
-
-	"github.com/mateusmacedo/dmpf/apps/backend/reservations/app"
-	"github.com/mateusmacedo/dmpf/apps/backend/reservations/appkit"
-	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
 )
 
 const (

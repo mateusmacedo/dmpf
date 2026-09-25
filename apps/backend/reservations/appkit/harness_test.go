@@ -6,13 +6,12 @@ import (
 	"context"
 	"testing"
 
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/appkit"
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/clock"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/ids"
-
-	"github.com/mateusmacedo/dmpf/apps/backend/reservations/appkit"
-	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
 )
 
 const at = ports.Instant(1_757_000_000_000_000_000)

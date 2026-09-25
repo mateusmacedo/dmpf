@@ -3,10 +3,9 @@
 package application
 
 import (
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
 	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
-
-	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
 )
 
 const (

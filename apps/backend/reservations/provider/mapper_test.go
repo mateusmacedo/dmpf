@@ -4,11 +4,10 @@ import (
 	"errors"
 	"testing"
 
-	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
-
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/provider"
+	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
 )
 
 func TestMapperMapsReservationConfirmed(t *testing.T) {
