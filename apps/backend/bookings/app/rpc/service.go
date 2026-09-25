@@ -18,9 +18,8 @@ import (
 )
 
 const (
-	maxResourceID = 128
-	minQuantity   = 1
-	maxQuantity   = 100
+	minQuantity = 1
+	maxQuantity = 100
 )
 
 // WHY: the absence of what the interceptor mounted is a wiring defect of this
@@ -238,8 +237,8 @@ func bookingID(raw string) (domain.BookingID, error) {
 }
 
 func resourceID(raw string) (string, error) {
-	if raw == "" || len(raw) > maxResourceID {
-		return "", status.Error(codes.InvalidArgument, "resource_id must have 1 to 128 characters")
+	if !bookingIDFormat.MatchString(raw) {
+		return "", status.Error(codes.InvalidArgument, "resource_id must have 1 to 128 characters of [A-Za-z0-9._:-]")
 	}
 	return raw, nil
 }

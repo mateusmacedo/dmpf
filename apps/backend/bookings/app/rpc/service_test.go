@@ -134,6 +134,14 @@ func TestMalformedRequestsAreRefusedBeforeTheUseCase(t *testing.T) {
 			var r servicev1.RegisterResourceResponse
 			return h.invoke(withTenant(t), "RegisterResource", &servicev1.RegisterResourceRequest{ResourceId: ""}, &r)
 		}},
+		{"resource to register with a space", func() error {
+			var r servicev1.RegisterResourceResponse
+			return h.invoke(withTenant(t), "RegisterResource", &servicev1.RegisterResourceRequest{ResourceId: "sala 12"}, &r)
+		}},
+		{"resource to find with a space", func() error {
+			var r servicev1.FindBookingsByResourceResponse
+			return h.invoke(withTenant(t), "FindBookingsByResource", &servicev1.FindBookingsByResourceRequest{ResourceId: "sala 12"}, &r)
+		}},
 		{"resource id too long", func() error {
 			var r servicev1.FindBookingsByResourceResponse
 			return h.invoke(withTenant(t), "FindBookingsByResource", &servicev1.FindBookingsByResourceRequest{ResourceId: long}, &r)
