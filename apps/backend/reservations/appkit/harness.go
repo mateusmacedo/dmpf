@@ -64,7 +64,7 @@ type Ack struct {
 func (a *Ack) Ack(ctx context.Context) error {
 	a.Acks++
 	return a.pool.QueryRow(ctx,
-		"SELECT count(*) FROM dmpf_inbox WHERE consumer_name = $1 AND message_id = $2",
+		"SELECT count(*) FROM inbox WHERE consumer_name = $1 AND message_id = $2",
 		app.ConsumerName, a.messageID).Scan(&a.InboxAtAck)
 }
 
@@ -95,10 +95,10 @@ func (h Harness) Effects(t testing.TB) Effects {
 	t.Helper()
 	var e Effects
 	const stmt = `SELECT
-		(SELECT count(*) FROM dmpf_inbox),
+		(SELECT count(*) FROM inbox),
 		(SELECT count(*) FROM dmpf_example_reservations),
-		(SELECT count(*) FROM dmpf_outbox),
-		(SELECT count(*) FROM dmpf_quarantine)`
+		(SELECT count(*) FROM outbox),
+		(SELECT count(*) FROM quarantine)`
 	ctx, cancel := context.WithTimeout(context.Background(), queryTimeout)
 	defer cancel()
 	if err := h.Pool.QueryRow(ctx, stmt).Scan(&e.Inbox, &e.Reservations, &e.Outbox, &e.Quarantine); err != nil {
@@ -114,7 +114,7 @@ func (h Harness) InboxRow(t testing.TB, messageID string) (status string, lastEr
 	ctx, cancel := context.WithTimeout(context.Background(), queryTimeout)
 	defer cancel()
 	err := h.Pool.QueryRow(ctx,
-		"SELECT status, last_error FROM dmpf_inbox WHERE consumer_name = $1 AND message_id = $2",
+		"SELECT status, last_error FROM inbox WHERE consumer_name = $1 AND message_id = $2",
 		app.ConsumerName, messageID).Scan(&status, &lastError)
 	if err != nil {
 		t.Fatalf("appkit.InboxRow %s: %v", messageID, err)

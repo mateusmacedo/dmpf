@@ -69,7 +69,7 @@ type recordingAck struct {
 
 func (a *recordingAck) Ack(ctx context.Context) error {
 	a.acks++
-	return a.pool.QueryRow(ctx, "SELECT count(*) FROM dmpf_inbox WHERE message_id = $1", string(a.messageIDSeen)).Scan(&a.inboxAtAck)
+	return a.pool.QueryRow(ctx, "SELECT count(*) FROM inbox WHERE message_id = $1", string(a.messageIDSeen)).Scan(&a.inboxAtAck)
 }
 
 func (a *recordingAck) Release(context.Context) error {
@@ -83,10 +83,10 @@ func counts(t *testing.T, pool *pgxpool.Pool) tableCounts {
 	t.Helper()
 	var c tableCounts
 	const stmt = `SELECT
-		(SELECT count(*) FROM dmpf_inbox),
+		(SELECT count(*) FROM inbox),
 		(SELECT count(*) FROM dmpf_example_reservations),
-		(SELECT count(*) FROM dmpf_outbox),
-		(SELECT count(*) FROM dmpf_quarantine)`
+		(SELECT count(*) FROM outbox),
+		(SELECT count(*) FROM quarantine)`
 	if err := pool.QueryRow(context.Background(), stmt).Scan(&c.inbox, &c.reservations, &c.outbox, &c.quarantine); err != nil {
 		t.Fatalf("counts: %v", err)
 	}
@@ -96,7 +96,7 @@ func counts(t *testing.T, pool *pgxpool.Pool) tableCounts {
 func inboxRow(t *testing.T, pool *pgxpool.Pool, messageID string) (status string, lastError *string) {
 	t.Helper()
 	err := pool.QueryRow(context.Background(),
-		"SELECT status, last_error FROM dmpf_inbox WHERE consumer_name = $1 AND message_id = $2",
+		"SELECT status, last_error FROM inbox WHERE consumer_name = $1 AND message_id = $2",
 		app.ConsumerName, messageID).Scan(&status, &lastError)
 	if err != nil {
 		t.Fatalf("inbox row %s: %v", messageID, err)
@@ -109,7 +109,7 @@ func quarantinedEnvelope(t *testing.T, pool *pgxpool.Pool, messageID string) ([]
 	var raw []byte
 	var reason string
 	err := pool.QueryRow(context.Background(),
-		"SELECT envelope, reason FROM dmpf_quarantine WHERE consumer_name = $1 AND message_id = $2",
+		"SELECT envelope, reason FROM quarantine WHERE consumer_name = $1 AND message_id = $2",
 		app.ConsumerName, messageID).Scan(&raw, &reason)
 	if err != nil {
 		t.Fatalf("quarantine row %s: %v", messageID, err)
@@ -182,7 +182,7 @@ func TestFirstReceptionAppliesConfirmsAndDerivesTheOutbox(t *testing.T) {
 		t.Fatalf("inbox = (%s, %v), want (processed, nil)", status, lastError)
 	}
 	var messageType string
-	if err := pool.QueryRow(context.Background(), "SELECT message_type FROM dmpf_outbox").Scan(&messageType); err != nil {
+	if err := pool.QueryRow(context.Background(), "SELECT message_type FROM outbox").Scan(&messageType); err != nil {
 		t.Fatalf("outbox: %v", err)
 	}
 	if messageType != "com.company.reservations.reservation-confirmed.v1" {

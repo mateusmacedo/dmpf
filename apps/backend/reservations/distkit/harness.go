@@ -197,10 +197,10 @@ func (h Harness) Effects(t testing.TB) Effects {
 	t.Helper()
 	var e Effects
 	const counts = `SELECT
-		(SELECT count(*) FROM dmpf_inbox),
+		(SELECT count(*) FROM inbox),
 		(SELECT count(*) FROM dmpf_example_reservations),
-		(SELECT count(*) FROM dmpf_outbox),
-		(SELECT count(*) FROM dmpf_quarantine)`
+		(SELECT count(*) FROM outbox),
+		(SELECT count(*) FROM quarantine)`
 	ctx, cancel := context.WithTimeout(context.Background(), queryTimeout)
 	defer cancel()
 	if err := h.Pool.QueryRow(ctx, counts).Scan(&e.Inbox, &e.Reservations, &e.Outbox, &e.Quarantine); err != nil {

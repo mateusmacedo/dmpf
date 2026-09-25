@@ -126,7 +126,7 @@ func enqueueOrderPlaced(t *testing.T, pool *pgxpool.Pool) {
 	// have no column of their own and producing them is KRN-09's. Until then a
 	// record without them is not claimable, so the test supplies them.
 	if _, err := pool.Exec(context.Background(),
-		`UPDATE dmpf_outbox SET metadata = $2::jsonb WHERE message_id = $1`, relayMessageID, relayContextMeta); err != nil {
+		`UPDATE outbox SET metadata = $2::jsonb WHERE message_id = $1`, relayMessageID, relayContextMeta); err != nil {
 		t.Fatalf("inject metadata = %v, want nil", err)
 	}
 }
@@ -149,7 +149,7 @@ func outboxStatus(t *testing.T, pool *pgxpool.Pool) (status string, attempts int
 	t.Helper()
 
 	err := pool.QueryRow(context.Background(),
-		`SELECT status, attempt_count FROM dmpf_outbox WHERE message_id = $1`, relayMessageID).Scan(&status, &attempts)
+		`SELECT status, attempt_count FROM outbox WHERE message_id = $1`, relayMessageID).Scan(&status, &attempts)
 	if err != nil {
 		t.Fatalf("read outbox = %v, want nil", err)
 	}
