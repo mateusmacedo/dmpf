@@ -164,7 +164,7 @@ jobs:
       - name: DMPF generator check (structural)
         run: bash tools/dmpf-generator-check.sh --phase structural
 
-      # Os quatro vetores negativos. Sem eles, um guard que pare de reprovar passa
+      # Os vetores negativos. Sem eles, um guard que pare de reprovar passa
       # a não acusar nada em silêncio e a fase `structural` viraria carimbo.
       - name: DMPF generator check (self-test)
         run: bash tools/dmpf-generator-check.sh --phase self-test
@@ -174,7 +174,7 @@ jobs:
       - name: DMPF context check (structural)
         run: bash tools/dmpf-context-check.sh --phase structural
 
-      # Os sete vetores negativos, pela mesma razão do self-test acima.
+      # Os vetores negativos, pela mesma razão do self-test acima.
       - name: Instalar trash-cli para o self-test do context check
         run: |
           sudo apt-get update -q
@@ -183,6 +183,11 @@ jobs:
 
       - name: DMPF context check (self-test)
         run: bash tools/dmpf-context-check.sh --phase self-test
+
+      # A fase `regen` exige LLM e roda à mão; o self-test prova, sem agente,
+      # que o gate normativo ainda reprova o golden sem o shared kernel.
+      - name: DMPF harness check (self-test)
+        run: bash tools/dmpf-harness-check.sh --phase self-test
 
       # Sem `if: steps.go_affected`: import sem `require` compila no workspace pelo
       # `go.work` e só quebra para quem consome o módulo por tag.
