@@ -261,3 +261,92 @@ func TestRelationReportsAValueHeldOnlyByAnotherTenant(t *testing.T) {
 		t.Fatalf("Query() of a value nobody holds = %v, %v; want an empty answer", rows, err)
 	}
 }
+
+// tagged is the hybrid shape: the label is a typed column because a query
+// filters by it, and everything else travels in the snapshot.
+type tagged struct {
+	Label string
+	Items int
+}
+
+type taggedState struct {
+	Items int `json:"items"`
+}
+
+var taggedTable = postgres.Table[string, tagged]{
+	Name:     "tagged_probes",
+	IDColumn: "probe_id",
+	Columns:  []string{"label", "snapshot"},
+	Encode: func(p tagged) ([]any, error) {
+		raw, err := json.Marshal(taggedState{Items: p.Items})
+		if err != nil {
+			return nil, err
+		}
+		return []any{p.Label, raw}, nil
+	},
+	Decode: func(scan func(dest ...any) error) (tagged, error) {
+		var (
+			label string
+			raw   []byte
+		)
+		if err := scan(&label, &raw); err != nil {
+			return tagged{}, err
+		}
+		var state taggedState
+		if err := json.Unmarshal(raw, &state); err != nil {
+			return tagged{}, err
+		}
+		return tagged{Label: label, Items: state.Items}, nil
+	},
+}
+
+func saveTagged(t *testing.T, ctx context.Context, pool *pgxpool.Pool, id string, state tagged) {
+	t.Helper()
+	uow := postgres.NewUnitOfWork(pool, func(tx *postgres.Tx) ports.Repository[string, tagged] {
+		return taggedTable.Repository(tx)
+	})
+	if err := uow.Within(ctx, func(ctx context.Context, repo ports.Repository[string, tagged]) error {
+		return repo.Save(ctx, id, state, 0)
+	}); err != nil {
+		t.Fatalf("Save(%s) = %v", id, err)
+	}
+}
+
+func TestATypedColumnAndTheSnapshotRoundTripTogether(t *testing.T) {
+	pool := openPool(t)
+	ctx := scopedTo(t, "acme")
+	saveTagged(t, ctx, pool, "T-1", tagged{Label: "blue", Items: 4})
+
+	got, version, err := taggedTable.Reader(postgres.NewReadPool(pool)).Load(ctx, "T-1")
+	if err != nil {
+		t.Fatalf("Load() = %v", err)
+	}
+	if got != (tagged{Label: "blue", Items: 4}) || version != 1 {
+		t.Fatalf("Load() = %+v at %d, want {blue 4} at 1", got, version)
+	}
+	var column string
+	if err := pool.QueryRow(context.Background(), "SELECT label FROM tagged_probes WHERE probe_id = 'T-1'").Scan(&column); err != nil || column != "blue" {
+		t.Fatalf("label column = %q, %v; want the typed value stored outside the snapshot", column, err)
+	}
+}
+
+func TestARelationFiltersByTheTypedColumn(t *testing.T) {
+	pool := openPool(t)
+	ctx := scopedTo(t, "acme")
+	saveTagged(t, ctx, pool, "T-1", tagged{Label: "blue", Items: 1})
+	saveTagged(t, ctx, pool, "T-2", tagged{Label: "blue", Items: 2})
+	saveTagged(t, ctx, pool, "T-3", tagged{Label: "red", Items: 3})
+
+	rows, err := taggedTable.Relation("label").Query(ctx, postgres.NewReadPool(pool), "blue")
+	if err != nil {
+		t.Fatalf("Query() = %v", err)
+	}
+	if len(rows) != 2 {
+		t.Fatalf("Query(blue) = %+v, want the two rows labelled blue", rows)
+	}
+	for _, row := range rows {
+		if row.Label != "blue" {
+			t.Fatalf("Query(blue) returned %+v", row)
+		}
+	}
+}

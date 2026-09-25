@@ -31,7 +31,20 @@ CREATE TABLE IF NOT EXISTS probes (
   CONSTRAINT probes_pkey PRIMARY KEY (tenant_id, probe_id)
 );
 
-CREATE INDEX IF NOT EXISTS probes_probe_id_idx ON probes (probe_id);`
+CREATE INDEX IF NOT EXISTS probes_probe_id_idx ON probes (probe_id);
+
+CREATE TABLE IF NOT EXISTS tagged_probes (
+  tenant_id text   NOT NULL,
+  probe_id  text   NOT NULL,
+  version   bigint NOT NULL,
+  label     text   NOT NULL,
+  snapshot  jsonb  NOT NULL,
+  CONSTRAINT tagged_probes_pkey PRIMARY KEY (tenant_id, probe_id)
+);
+
+CREATE INDEX IF NOT EXISTS tagged_probes_tenant_id_label_idx ON tagged_probes (tenant_id, label);
+CREATE INDEX IF NOT EXISTS tagged_probes_probe_id_idx ON tagged_probes (probe_id);
+CREATE INDEX IF NOT EXISTS tagged_probes_label_idx ON tagged_probes (label);`
 
 var allCapabilities = []postgres.Capability{postgres.Outbox, postgres.Inbox}
 
@@ -121,7 +134,7 @@ func ensureDatabase(t *testing.T, ctx context.Context, admin *pgx.ConnConfig) {
 func truncate(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
 	t.Helper()
 
-	if _, err := pool.Exec(ctx, "TRUNCATE outbox, inbox, quarantine, probes"); err != nil {
+	if _, err := pool.Exec(ctx, "TRUNCATE outbox, inbox, quarantine, probes, tagged_probes"); err != nil {
 		t.Fatalf("TRUNCATE = %v, want nil", err)
 	}
 }

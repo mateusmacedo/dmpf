@@ -24,8 +24,8 @@ import (
 // this package keep their own finer clauses; these are the shared contract.
 
 var (
-	kitTables  = append(postgres.Tables(allCapabilities...), "probes")
-	kitOptions = pg.Options{Project: "postgres", Capabilities: allCapabilities, Schemas: []string{probeSchema}, Tables: []string{"probes"}}
+	kitTables  = append(postgres.Tables(allCapabilities...), "probes", "tagged_probes")
+	kitOptions = pg.Options{Project: "postgres", Capabilities: allCapabilities, Schemas: []string{probeSchema}, Tables: []string{"probes", "tagged_probes"}}
 )
 
 func TestUnitOfWorkConformsToTheKit(t *testing.T) {
