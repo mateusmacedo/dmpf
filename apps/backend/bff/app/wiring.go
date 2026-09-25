@@ -141,7 +141,7 @@ func ClientOptions(ctx context.Context, cfg Config, rt *otelboot.Runtime) (rpc.O
 		if !cfg.GRPCInsecure {
 			return rpc.Options{}, ErrInsecureNotDeclared
 		}
-		rt.Logger().WarnContext(ctx, "grpc clients without TLS: DMPF_GRPC_INSECURE is set (development and CI only)")
+		rt.Logger().WarnContext(ctx, "grpc clients without TLS: GRPC_INSECURE is set (development and CI only)")
 		opts.Insecure = true
 		return opts, nil
 	}

@@ -97,7 +97,7 @@ func workspaceRoot(t *testing.T) string {
 
 func newTopology(t *testing.T) *topology {
 	t.Helper()
-	brokers := strings.Split(tb.Env(t, "DMPF_KAFKA_BROKERS"), ",")
+	brokers := strings.Split(tb.Env(t, "KAFKA_BROKERS"), ",")
 	admin := openAdmin(t)
 	suffix := fmt.Sprintf("%d", time.Now().UnixNano())
 
@@ -177,7 +177,7 @@ func dsnFor(t *testing.T, database string) string {
 	t.Helper()
 	u, err := url.Parse(tb.Env(t, pg.PostgresDSN))
 	if err != nil {
-		t.Fatalf("DMPF_PG_DSN: %v", err)
+		t.Fatalf("PG_DSN: %v", err)
 	}
 	u.Path = "/" + database
 	return u.String()
@@ -258,7 +258,7 @@ func (p *process) waitLog(t *testing.T, message string) map[string]any {
 
 func (top *topology) boot(t *testing.T, bin binaries) {
 	t.Helper()
-	common := map[string]string{"DMPF_KAFKA_BROKERS": strings.Join(top.brokers, ","), "DMPF_KAFKA_INSECURE": "true"}
+	common := map[string]string{"KAFKA_BROKERS": strings.Join(top.brokers, ","), "KAFKA_INSECURE": "true"}
 	with := func(extra map[string]string) map[string]string {
 		env := map[string]string{}
 		for k, v := range common {
@@ -278,19 +278,19 @@ func (top *topology) boot(t *testing.T, bin binaries) {
 	mutual := func(name string) map[string]string {
 		cert, key := pki.Server(t, name)
 		return map[string]string{
-			"DMPF_GRPC_TLS_CERT_FILE": cert, "DMPF_GRPC_TLS_KEY_FILE": key,
-			"DMPF_GRPC_CLIENT_CA_FILE": pki.CAFile, "DMPF_GRPC_TRUSTED_CLIENTS": tb.Identity("bff"),
+			"GRPC_TLS_CERT_FILE": cert, "GRPC_TLS_KEY_FILE": key,
+			"GRPC_CLIENT_CA_FILE": pki.CAFile, "GRPC_TRUSTED_CLIENTS": tb.Identity("bff"),
 		}
 	}
 	probe := mutualProbe(t, pki.CAFile, bffCert, bffKey)
 
 	ordersAPI := start(t, "orders api", bin.orders, with(merge(mutual("orders-api"), map[string]string{
-		"DMPF_PG_DSN": ordersDSN, "DMPF_MIGRATE": "true", "DMPF_GRPC_ADDR": "127.0.0.1:0",
-		"DMPF_INSTANCE_ID": "e2e-orders-api", "DMPF_ITEM_LIMIT": "3",
+		"PG_DSN": ordersDSN, "MIGRATE": "true", "GRPC_ADDR": "127.0.0.1:0",
+		"INSTANCE_ID": "e2e-orders-api", "ITEM_LIMIT": "3",
 	})), "--role", "api")
 	reservationsAPI := start(t, "reservations api", bin.reservations, with(merge(mutual("reservations-api"), map[string]string{
-		"DMPF_PG_DSN": reservationsDSN, "DMPF_MIGRATE": "true", "DMPF_GRPC_ADDR": "127.0.0.1:0",
-		"DMPF_INSTANCE_ID": "e2e-reservations-api",
+		"PG_DSN": reservationsDSN, "MIGRATE": "true", "GRPC_ADDR": "127.0.0.1:0",
+		"INSTANCE_ID": "e2e-reservations-api",
 	})), "--role", "api")
 	ordersAddr := ordersAPI.waitLog(t, "grpc listening")["addr"].(string)
 	reservationsAddr := reservationsAPI.waitLog(t, "grpc listening")["addr"].(string)
@@ -298,27 +298,27 @@ func (top *topology) boot(t *testing.T, bin binaries) {
 	waitServing(t, reservationsAddr, rpc.ReservationsServiceName, probe)
 
 	start(t, "orders relay", bin.orders, with(map[string]string{
-		"DMPF_PG_DSN": ordersDSN, "DMPF_KAFKA_ORDERS_TOPIC": top.ordersTopic, "DMPF_KAFKA_ORDERS_DLQ": top.ordersDLQ,
-		"DMPF_KAFKA_GROUP": top.group, "DMPF_INSTANCE_ID": "e2e-orders-relay",
+		"PG_DSN": ordersDSN, "KAFKA_ORDERS_TOPIC": top.ordersTopic, "KAFKA_ORDERS_DLQ": top.ordersDLQ,
+		"KAFKA_GROUP": top.group, "INSTANCE_ID": "e2e-orders-relay",
 	}), "--role", "relay").waitLog(t, "relay draining")
 	start(t, "reservations relay", bin.reservations, with(map[string]string{
-		"DMPF_PG_DSN": reservationsDSN, "DMPF_KAFKA_RESERVATIONS_TOPIC": top.reservationsTopic, "DMPF_KAFKA_RESERVATIONS_DLQ": top.reservationsDLQ,
-		"DMPF_KAFKA_GROUP": top.group, "DMPF_INSTANCE_ID": "e2e-reservations-relay",
+		"PG_DSN": reservationsDSN, "KAFKA_RESERVATIONS_TOPIC": top.reservationsTopic, "KAFKA_RESERVATIONS_DLQ": top.reservationsDLQ,
+		"KAFKA_GROUP": top.group, "INSTANCE_ID": "e2e-reservations-relay",
 	}), "--role", "relay").waitLog(t, "relay draining")
 	start(t, "reservations consumer", bin.reservations, with(map[string]string{
-		"DMPF_PG_DSN": reservationsDSN, "DMPF_KAFKA_ORDERS_TOPIC": top.ordersTopic, "DMPF_KAFKA_ORDERS_DLQ": top.ordersDLQ,
-		"DMPF_KAFKA_GROUP": top.group, "DMPF_INSTANCE_ID": "e2e-reservations-consumer",
+		"PG_DSN": reservationsDSN, "KAFKA_ORDERS_TOPIC": top.ordersTopic, "KAFKA_ORDERS_DLQ": top.ordersDLQ,
+		"KAFKA_GROUP": top.group, "INSTANCE_ID": "e2e-reservations-consumer",
 	}), "--role", "consumer").waitLog(t, "consumer joining")
 
 	bff := start(t, "bff", bin.bff, map[string]string{
-		"DMPF_HTTP_ADDR": "127.0.0.1:0", "DMPF_INSTANCE_ID": "e2e-bff",
-		"DMPF_GRPC_CA_FILE": pki.CAFile, "DMPF_GRPC_SERVER_NAME": "localhost",
-		"DMPF_GRPC_CLIENT_CERT_FILE": bffCert, "DMPF_GRPC_CLIENT_KEY_FILE": bffKey,
-		"DMPF_ORDERS_GRPC_TARGET":       "dns:///" + ordersAddr,
-		"DMPF_RESERVATIONS_GRPC_TARGET": "dns:///" + reservationsAddr,
+		"HTTP_ADDR": "127.0.0.1:0", "INSTANCE_ID": "e2e-bff",
+		"GRPC_CA_FILE": pki.CAFile, "GRPC_SERVER_NAME": "localhost",
+		"GRPC_CLIENT_CERT_FILE": bffCert, "GRPC_CLIENT_KEY_FILE": bffKey,
+		"ORDERS_GRPC_TARGET":       "dns:///" + ordersAddr,
+		"RESERVATIONS_GRPC_TARGET": "dns:///" + reservationsAddr,
 		// The client dials lazily and this scenario calls no bookings route.
-		"DMPF_BOOKINGS_GRPC_TARGET": "dns:///127.0.0.1:1",
-		"DMPF_AUTH_DEV_MOCK":        "true",
+		"BOOKINGS_GRPC_TARGET": "dns:///127.0.0.1:1",
+		"AUTH_DEV_MOCK":        "true",
 	})
 	top.bffAddr = bff.waitLog(t, "http listening")["addr"].(string)
 }

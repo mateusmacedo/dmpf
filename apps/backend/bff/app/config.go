@@ -17,30 +17,30 @@ var (
 	ErrInvalidVariable = envconfig.ErrInvalidVariable
 
 	// ErrInsecureNotDeclared refuses a clear-text dial that no one asked for:
-	// without a CA file, DMPF_GRPC_INSECURE has to say so explicitly.
-	ErrInsecureNotDeclared = errors.New("bff: no CA file and DMPF_GRPC_INSECURE is not set")
+	// without a CA file, GRPC_INSECURE has to say so explicitly.
+	ErrInsecureNotDeclared = errors.New("bff: no CA file and GRPC_INSECURE is not set")
 )
 
 const (
-	envHTTPAddr                 = "DMPF_HTTP_ADDR"
-	envOrdersTarget             = "DMPF_ORDERS_GRPC_TARGET"
-	envReservationsTarget       = "DMPF_RESERVATIONS_GRPC_TARGET"
-	envBookingsTarget           = "DMPF_BOOKINGS_GRPC_TARGET"
-	envGRPCInsecure             = "DMPF_GRPC_INSECURE"
-	envGRPCCAFile               = "DMPF_GRPC_CA_FILE"
-	envGRPCServerName           = "DMPF_GRPC_SERVER_NAME"
-	envGRPCClientCertFile       = "DMPF_GRPC_CLIENT_CERT_FILE"
-	envGRPCClientKeyFile        = "DMPF_GRPC_CLIENT_KEY_FILE"
-	envCORSOrigins              = "DMPF_CORS_ORIGINS"
-	envMetricTenants            = "DMPF_METRIC_TENANTS"
-	envOrdersContractPath       = "DMPF_OPENAPI_ORDERS_PATH"
-	envReservationsContractPath = "DMPF_OPENAPI_RESERVATIONS_PATH"
-	envBookingsContractPath     = "DMPF_OPENAPI_BOOKINGS_PATH"
-	envOTLPEndpoint             = "DMPF_OTLP_ENDPOINT"
-	envOTLPInsecure             = "DMPF_OTLP_INSECURE"
-	envService                  = "DMPF_SERVICE"
-	envServiceVersion           = "DMPF_SERVICE_VERSION"
-	envInstanceID               = "DMPF_INSTANCE_ID"
+	envHTTPAddr                 = "HTTP_ADDR"
+	envOrdersTarget             = "ORDERS_GRPC_TARGET"
+	envReservationsTarget       = "RESERVATIONS_GRPC_TARGET"
+	envBookingsTarget           = "BOOKINGS_GRPC_TARGET"
+	envGRPCInsecure             = "GRPC_INSECURE"
+	envGRPCCAFile               = "GRPC_CA_FILE"
+	envGRPCServerName           = "GRPC_SERVER_NAME"
+	envGRPCClientCertFile       = "GRPC_CLIENT_CERT_FILE"
+	envGRPCClientKeyFile        = "GRPC_CLIENT_KEY_FILE"
+	envCORSOrigins              = "CORS_ORIGINS"
+	envMetricTenants            = "METRIC_TENANTS"
+	envOrdersContractPath       = "OPENAPI_ORDERS_PATH"
+	envReservationsContractPath = "OPENAPI_RESERVATIONS_PATH"
+	envBookingsContractPath     = "OPENAPI_BOOKINGS_PATH"
+	envOTLPEndpoint             = "OTLP_ENDPOINT"
+	envOTLPInsecure             = "OTLP_INSECURE"
+	envService                  = "SERVICE"
+	envServiceVersion           = "SERVICE_VERSION"
+	envInstanceID               = "INSTANCE_ID"
 )
 
 type Config struct {

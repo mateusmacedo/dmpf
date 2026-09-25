@@ -15,7 +15,7 @@ import (
 )
 
 func TestTheReadinessLineCarriesThePortTheKernelChose(t *testing.T) {
-	cfg, err := app.FromEnv(lookup(append(targets, "DMPF_GRPC_INSECURE", "true", "DMPF_HTTP_ADDR", "127.0.0.1:0", devMock, "true")...))
+	cfg, err := app.FromEnv(lookup(append(targets, "GRPC_INSECURE", "true", "HTTP_ADDR", "127.0.0.1:0", devMock, "true")...))
 	if err != nil {
 		t.Fatalf("FromEnv() = %v", err)
 	}
