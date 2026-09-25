@@ -30,7 +30,7 @@ func TestMigrateIsIdempotent(t *testing.T) {
 func TestMigrateAppliesTheSchemaOfAContext(t *testing.T) {
 	pool := openPool(t)
 	ctx := context.Background()
-	const index = "dmpf_migrate_context_schema_idx"
+	const index = "migrate_context_schema_idx"
 	t.Cleanup(func() { _, _ = pool.Exec(context.Background(), "DROP INDEX IF EXISTS "+index) })
 
 	if err := postgres.Migrate(ctx, pool, "CREATE INDEX IF NOT EXISTS "+index+" ON dmpf_example_orders (version)"); err != nil {
@@ -46,7 +46,7 @@ func TestMigrateCreatesTheOutboxSchema(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("tables", func(t *testing.T) {
-		for _, table := range []string{"dmpf_outbox", "dmpf_inbox", "dmpf_quarantine", "dmpf_example_orders", "dmpf_example_reservations"} {
+		for _, table := range []string{"outbox", "inbox", "quarantine", "dmpf_example_orders", "dmpf_example_reservations"} {
 			if !exists(t, ctx, pool, tableExistsQuery, table) {
 				t.Errorf("table %s does not exist", table)
 			}
@@ -59,13 +59,13 @@ func TestMigrateCreatesTheOutboxSchema(t *testing.T) {
 			name           string
 			constraintType string
 		}{
-			{"dmpf_outbox", "dmpf_outbox_message_id_unique", "UNIQUE"},
-			{"dmpf_outbox", "dmpf_outbox_status_check", "CHECK"},
-			{"dmpf_outbox", "dmpf_outbox_available_at_check", "CHECK"},
-			{"dmpf_outbox", "dmpf_outbox_payload_not_empty", "CHECK"},
-			{"dmpf_inbox", "dmpf_inbox_key", "UNIQUE"},
-			{"dmpf_inbox", "dmpf_inbox_status_check", "CHECK"},
-			{"dmpf_quarantine", "dmpf_quarantine_envelope_not_empty", "CHECK"},
+			{"outbox", "outbox_message_id_key", "UNIQUE"},
+			{"outbox", "outbox_status_check", "CHECK"},
+			{"outbox", "outbox_available_at_check", "CHECK"},
+			{"outbox", "outbox_payload_check", "CHECK"},
+			{"inbox", "inbox_consumer_name_message_id_key", "UNIQUE"},
+			{"inbox", "inbox_status_check", "CHECK"},
+			{"quarantine", "quarantine_envelope_check", "CHECK"},
 		}
 		for _, c := range cases {
 			if !exists(t, ctx, pool, constraintExistsQuery, c.table, c.name, c.constraintType) {
@@ -75,7 +75,7 @@ func TestMigrateCreatesTheOutboxSchema(t *testing.T) {
 	})
 
 	t.Run("indexes", func(t *testing.T) {
-		for _, idx := range []string{"dmpf_outbox_published_at_idx", "dmpf_outbox_claim_idx", "dmpf_inbox_retention_idx", "dmpf_quarantine_reason_idx", "dmpf_example_orders_order_id_idx", "dmpf_example_reservations_order_id_idx"} {
+		for _, idx := range []string{"outbox_published_at_idx", "outbox_claim_idx", "inbox_retention_idx", "quarantine_consumer_name_reason_idx", "dmpf_example_orders_order_id_idx", "dmpf_example_reservations_order_id_idx"} {
 			if !exists(t, ctx, pool, indexExistsQuery, idx) {
 				t.Errorf("index %s does not exist", idx)
 			}
@@ -87,7 +87,7 @@ func TestMigrateInboxStatusCheckRejectsInvalidStatus(t *testing.T) {
 	pool := openPool(t)
 
 	_, err := pool.Exec(context.Background(), `
-		INSERT INTO dmpf_inbox (consumer_name, message_id, message_type, payload_hash, received_at, processed_at, status)
+		INSERT INTO inbox (consumer_name, message_id, message_type, payload_hash, received_at, processed_at, status)
 		VALUES ('test', 'm-1', 'example', 'h1', 100, 100, 'processing')`)
 	if err == nil {
 		t.Fatal("INSERT with status 'processing' should fail, want CHECK violation (23514)")

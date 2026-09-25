@@ -18,7 +18,7 @@ func seedOutboxRow(t *testing.T, pool *pgxpool.Pool, id, status string, publishe
 	t.Helper()
 
 	_, err := pool.Exec(context.Background(), `
-		INSERT INTO dmpf_outbox (
+		INSERT INTO outbox (
 			message_id, message_type, schema_version, aggregate_type, aggregate_id,
 			aggregate_version, destination, payload, payload_hash,
 			occurred_at, available_at, status, published_at
@@ -84,7 +84,7 @@ func TestPurgePublishedReportsAnEmptyPurge(t *testing.T) {
 func seedInboxRow(t *testing.T, pool *pgxpool.Pool, consumer, id, status string, processedAt int64) {
 	t.Helper()
 	_, err := pool.Exec(context.Background(), `
-		INSERT INTO dmpf_inbox (consumer_name, message_id, message_type, payload_hash, received_at, processed_at, status)
+		INSERT INTO inbox (consumer_name, message_id, message_type, payload_hash, received_at, processed_at, status)
 		VALUES ($1, $2, 'example', 'h1', 100, $3, $4)`, consumer, id, processedAt, status)
 	if err != nil {
 		t.Fatalf("seedInboxRow %s/%s: %v", consumer, id, err)
@@ -95,7 +95,7 @@ func inboxCount(t *testing.T, pool *pgxpool.Pool, consumer string) int {
 	t.Helper()
 	var count int
 	if err := pool.QueryRow(context.Background(),
-		`SELECT count(*) FROM dmpf_inbox WHERE consumer_name = $1`, consumer).Scan(&count); err != nil {
+		`SELECT count(*) FROM inbox WHERE consumer_name = $1`, consumer).Scan(&count); err != nil {
 		t.Fatalf("count inbox = %v", err)
 	}
 	return count
@@ -149,7 +149,7 @@ func survived(t *testing.T, pool *pgxpool.Pool, id string) bool {
 
 	var found bool
 	if err := pool.QueryRow(context.Background(),
-		"SELECT EXISTS (SELECT 1 FROM dmpf_outbox WHERE message_id = $1)", id).Scan(&found); err != nil {
+		"SELECT EXISTS (SELECT 1 FROM outbox WHERE message_id = $1)", id).Scan(&found); err != nil {
 		t.Fatalf("EXISTS = %v, want nil", err)
 	}
 	return found

@@ -44,11 +44,11 @@ func openConcurrencyPool(t *testing.T) *pgxpool.Pool {
 		t.Fatalf("Migrate() = %v", err)
 	}
 
-	if _, err := pool.Exec(ctx, "TRUNCATE dmpf_outbox, dmpf_inbox, dmpf_quarantine, dmpf_example_orders, dmpf_example_reservations"); err != nil {
+	if _, err := pool.Exec(ctx, "TRUNCATE outbox, inbox, quarantine, dmpf_example_orders, dmpf_example_reservations"); err != nil {
 		t.Fatalf("TRUNCATE = %v", err)
 	}
 	t.Cleanup(func() {
-		_, _ = pool.Exec(context.Background(), "TRUNCATE dmpf_outbox, dmpf_inbox, dmpf_quarantine, dmpf_example_orders, dmpf_example_reservations")
+		_, _ = pool.Exec(context.Background(), "TRUNCATE outbox, inbox, quarantine, dmpf_example_orders, dmpf_example_reservations")
 	})
 	return pool
 }

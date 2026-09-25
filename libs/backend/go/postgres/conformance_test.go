@@ -90,7 +90,7 @@ func TestInboxConformsToTheKit(t *testing.T) {
 			ConsumerMismatch: postgres.ErrInboxConsumerMismatch,
 			Rows: func() int {
 				var n int
-				if err := pool.QueryRow(context.Background(), "SELECT count(*) FROM dmpf_inbox").Scan(&n); err != nil {
+				if err := pool.QueryRow(context.Background(), "SELECT count(*) FROM inbox").Scan(&n); err != nil {
 					t.Fatalf("inbox rows: %v", err)
 				}
 				return n
@@ -131,7 +131,7 @@ func TestOutboxStoreConformsToTheKit(t *testing.T) {
 				)
 				err := pool.QueryRow(context.Background(), `
 					SELECT status, locked_by, locked_until, available_at, attempt_count, published_at, last_error
-					  FROM dmpf_outbox WHERE id = $1`, id).
+					  FROM outbox WHERE id = $1`, id).
 					Scan(&st.Status, &lockedBy, &lockedUntil, &availableAt, &st.Attempts, &publishedAt, &lastError)
 				st.AvailableAt = ports.Instant(availableAt)
 				if lockedBy != nil {
@@ -169,7 +169,7 @@ func committedStatus(t *testing.T, pool *pgxpool.Pool, consumer string, id ports
 	t.Helper()
 	var raw string
 	err := pool.QueryRow(context.Background(),
-		`SELECT status FROM dmpf_inbox WHERE consumer_name = $1 AND message_id = $2`, consumer, string(id)).Scan(&raw)
+		`SELECT status FROM inbox WHERE consumer_name = $1 AND message_id = $2`, consumer, string(id)).Scan(&raw)
 	if err != nil {
 		return 0, false
 	}

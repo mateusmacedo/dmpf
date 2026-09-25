@@ -32,7 +32,7 @@ func TestQuarantinePreservesEnvelopeByteIdentical(t *testing.T) {
 
 	var stored []byte
 	if err := pool.QueryRow(ctx,
-		`SELECT envelope FROM dmpf_quarantine WHERE consumer_name = 'orders' AND message_id = 'm-1'`).Scan(&stored); err != nil {
+		`SELECT envelope FROM quarantine WHERE consumer_name = 'orders' AND message_id = 'm-1'`).Scan(&stored); err != nil {
 		t.Fatalf("SELECT envelope = %v", err)
 	}
 	if !bytes.Equal(stored, raw) {
@@ -58,7 +58,7 @@ func TestQuarantineStoresLastError(t *testing.T) {
 
 	var lastError *string
 	if err := pool.QueryRow(ctx,
-		`SELECT last_error FROM dmpf_quarantine WHERE consumer_name = 'orders' AND message_id = 'm-2'`).Scan(&lastError); err != nil {
+		`SELECT last_error FROM quarantine WHERE consumer_name = 'orders' AND message_id = 'm-2'`).Scan(&lastError); err != nil {
 		t.Fatalf("SELECT last_error = %v", err)
 	}
 	if lastError == nil || *lastError != "hash mismatch" {
@@ -83,7 +83,7 @@ func TestQuarantineNullLastErrorWhenEmpty(t *testing.T) {
 
 	var lastError *string
 	if err := pool.QueryRow(ctx,
-		`SELECT last_error FROM dmpf_quarantine WHERE consumer_name = 'orders' AND message_id = 'm-3'`).Scan(&lastError); err != nil {
+		`SELECT last_error FROM quarantine WHERE consumer_name = 'orders' AND message_id = 'm-3'`).Scan(&lastError); err != nil {
 		t.Fatalf("SELECT last_error = %v", err)
 	}
 	if lastError != nil {

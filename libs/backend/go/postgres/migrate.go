@@ -12,8 +12,8 @@ var schema string
 
 const migrateLockID = 0x646d7066
 
-// Migrate applies schema.sql, creating dmpf_outbox, dmpf_inbox,
-// dmpf_quarantine, dmpf_example_orders and dmpf_example_reservations, and then
+// Migrate applies schema.sql, creating outbox, inbox,
+// quarantine, dmpf_example_orders and dmpf_example_reservations, and then
 // each schema a context declares, under the same lock and in the same
 // transaction. Every statement is CREATE TABLE/INDEX IF NOT EXISTS, so calling
 // it more than once is a no-op: there is no external migration tool and no
