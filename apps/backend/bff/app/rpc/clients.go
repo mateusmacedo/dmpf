@@ -14,6 +14,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/reflect/protoreflect"
 
+	bookingsv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/bookings/service/v1"
 	ordersv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/orders/service/v1"
 	reservationsv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/reservations/service/v1"
 	provider "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
@@ -32,9 +33,11 @@ const (
 var (
 	ordersService       = ordersv1.File_company_orders_service_v1_orders_service_proto.Services().ByName("OrdersService")
 	reservationsService = reservationsv1.File_company_reservations_service_v1_reservations_service_proto.Services().ByName("ReservationsService")
+	bookingsService     = bookingsv1.File_company_bookings_service_v1_bookings_service_proto.Services().ByName("BookingsService")
 
 	OrdersServiceName       = string(ordersService.FullName())
 	ReservationsServiceName = string(reservationsService.FullName())
+	BookingsServiceName     = string(bookingsService.FullName())
 
 	MethodAddItem         = fullMethod(ordersService, "AddItem")
 	MethodPlaceOrder      = fullMethod(ordersService, "PlaceOrder")
@@ -42,6 +45,12 @@ var (
 	MethodReserve         = fullMethod(reservationsService, "Reserve")
 	MethodCancel          = fullMethod(reservationsService, "Cancel")
 	MethodFindReservation = fullMethod(reservationsService, "FindReservation")
+
+	MethodReserveBooking         = fullMethod(bookingsService, "ReserveBooking")
+	MethodCancelBooking          = fullMethod(bookingsService, "CancelBooking")
+	MethodRegisterResource       = fullMethod(bookingsService, "RegisterResource")
+	MethodFindBooking            = fullMethod(bookingsService, "FindBooking")
+	MethodFindBookingsByResource = fullMethod(bookingsService, "FindBookingsByResource")
 )
 
 func fullMethod(service protoreflect.ServiceDescriptor, name protoreflect.Name) string {
@@ -77,6 +86,16 @@ func ReservationsConfig(opts Options) provider.Config {
 		MethodReserve:         policy("reservations", MethodReserve, false),
 		MethodCancel:          policy("reservations", MethodCancel, false),
 		MethodFindReservation: policy("reservations", MethodFindReservation, true),
+	})
+}
+
+func BookingsConfig(opts Options) provider.Config {
+	return config("bookings", BookingsServiceName, opts, map[string]provider.MethodPolicy{
+		MethodReserveBooking:         policy("bookings", MethodReserveBooking, false),
+		MethodCancelBooking:          policy("bookings", MethodCancelBooking, false),
+		MethodRegisterResource:       policy("bookings", MethodRegisterResource, false),
+		MethodFindBooking:            policy("bookings", MethodFindBooking, true),
+		MethodFindBookingsByResource: policy("bookings", MethodFindBookingsByResource, true),
 	})
 }
 
@@ -149,6 +168,30 @@ func (r Reservations) Cancel(ctx context.Context, req *reservationsv1.CancelRequ
 
 func (r Reservations) FindReservation(ctx context.Context, req *reservationsv1.FindReservationRequest) (*reservationsv1.FindReservationResponse, error) {
 	return invoke[reservationsv1.FindReservationResponse](ctx, r.conn, MethodFindReservation, req)
+}
+
+type Bookings struct{ conn grpc.ClientConnInterface }
+
+func NewBookings(conn grpc.ClientConnInterface) Bookings { return Bookings{conn: conn} }
+
+func (b Bookings) ReserveBooking(ctx context.Context, req *bookingsv1.ReserveBookingRequest) (*bookingsv1.ReserveBookingResponse, error) {
+	return invoke[bookingsv1.ReserveBookingResponse](ctx, b.conn, MethodReserveBooking, req)
+}
+
+func (b Bookings) CancelBooking(ctx context.Context, req *bookingsv1.CancelBookingRequest) (*bookingsv1.CancelBookingResponse, error) {
+	return invoke[bookingsv1.CancelBookingResponse](ctx, b.conn, MethodCancelBooking, req)
+}
+
+func (b Bookings) RegisterResource(ctx context.Context, req *bookingsv1.RegisterResourceRequest) (*bookingsv1.RegisterResourceResponse, error) {
+	return invoke[bookingsv1.RegisterResourceResponse](ctx, b.conn, MethodRegisterResource, req)
+}
+
+func (b Bookings) FindBooking(ctx context.Context, req *bookingsv1.FindBookingRequest) (*bookingsv1.FindBookingResponse, error) {
+	return invoke[bookingsv1.FindBookingResponse](ctx, b.conn, MethodFindBooking, req)
+}
+
+func (b Bookings) FindBookingsByResource(ctx context.Context, req *bookingsv1.FindBookingsByResourceRequest) (*bookingsv1.FindBookingsByResourceResponse, error) {
+	return invoke[bookingsv1.FindBookingsByResourceResponse](ctx, b.conn, MethodFindBookingsByResource, req)
 }
 
 func invoke[Resp any](ctx context.Context, conn grpc.ClientConnInterface, method string, req any) (*Resp, error) {

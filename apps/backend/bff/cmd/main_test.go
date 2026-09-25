@@ -22,7 +22,8 @@ func TestRunRefusesToStartWithoutConfiguration(t *testing.T) {
 	}{
 		{"orders target", lookup("DMPF_GRPC_INSECURE", "true", "DMPF_RESERVATIONS_GRPC_TARGET", "r:9090"), "DMPF_ORDERS_GRPC_TARGET"},
 		{"reservations target", lookup("DMPF_GRPC_INSECURE", "true", "DMPF_ORDERS_GRPC_TARGET", "o:9090"), "DMPF_RESERVATIONS_GRPC_TARGET"},
-		{"transport policy", lookup("DMPF_ORDERS_GRPC_TARGET", "o:9090", "DMPF_RESERVATIONS_GRPC_TARGET", "r:9090"), "DMPF_GRPC_CA_FILE"},
+		{"bookings target", lookup("DMPF_GRPC_INSECURE", "true", "DMPF_ORDERS_GRPC_TARGET", "o:9090", "DMPF_RESERVATIONS_GRPC_TARGET", "r:9090"), "DMPF_BOOKINGS_GRPC_TARGET"},
+		{"transport policy", lookup("DMPF_ORDERS_GRPC_TARGET", "o:9090", "DMPF_RESERVATIONS_GRPC_TARGET", "r:9090", "DMPF_BOOKINGS_GRPC_TARGET", "b:9090"), "DMPF_GRPC_CA_FILE"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

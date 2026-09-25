@@ -1,6 +1,6 @@
-// Package api is the public REST edge: six routes, each a provider.Route that
+// Package api is the public REST edge: each route is a provider.Route that
 // references a published OpenAPI operation (RST-04) and forwards to one gRPC
-// call of the orders or reservations context.
+// call of the orders, reservations or bookings context.
 package api
 
 import (
@@ -10,6 +10,7 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
+	bookingsv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/bookings/service/v1"
 	ordersv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/orders/service/v1"
 	reservationsv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/reservations/service/v1"
 	provider "github.com/mateusmacedo/dmpf/libs/backend/go/http"
@@ -29,9 +30,11 @@ const (
 
 	OrdersContractPath       = "/openapi/orders/v1/openapi.yaml"
 	ReservationsContractPath = "/openapi/reservations/v1/openapi.yaml"
+	BookingsContractPath     = "/openapi/bookings/v1/openapi.yaml"
 
 	ordersContract       = "contracts/openapi/orders/v1/openapi.yaml#/paths/"
 	reservationsContract = "contracts/openapi/reservations/v1/openapi.yaml#/paths/"
+	bookingsContract     = "contracts/openapi/bookings/v1/openapi.yaml#/paths/"
 )
 
 type OrdersClient interface {
@@ -46,6 +49,14 @@ type ReservationsClient interface {
 	FindReservation(context.Context, *reservationsv1.FindReservationRequest) (*reservationsv1.FindReservationResponse, error)
 }
 
+type BookingsClient interface {
+	ReserveBooking(context.Context, *bookingsv1.ReserveBookingRequest) (*bookingsv1.ReserveBookingResponse, error)
+	CancelBooking(context.Context, *bookingsv1.CancelBookingRequest) (*bookingsv1.CancelBookingResponse, error)
+	RegisterResource(context.Context, *bookingsv1.RegisterResourceRequest) (*bookingsv1.RegisterResourceResponse, error)
+	FindBooking(context.Context, *bookingsv1.FindBookingRequest) (*bookingsv1.FindBookingResponse, error)
+	FindBookingsByResource(context.Context, *bookingsv1.FindBookingsByResourceRequest) (*bookingsv1.FindBookingsByResourceResponse, error)
+}
+
 // Options is what the composition root decides beyond the clients: the route
 // budget the request deadline derives from, the contracts to serve (nil serves
 // nothing) and the browser origins allowed to call the edge (none by default).
@@ -54,6 +65,7 @@ type Options struct {
 	Authenticator        ports.Authenticator
 	OrdersContract       []byte
 	ReservationsContract []byte
+	BookingsContract     []byte
 	CORSOrigins          []string
 }
 
@@ -65,6 +77,11 @@ func Routes(budget deadline.Budget) []provider.Route {
 		{Name: "findReservation", Method: http.MethodGet, Path: "/reservations/{order_id}", ContractRef: reservationsContract + "~1reservations~1{order_id}/get", Budget: budget, Requires: provider.RequireSubjectAndTenant, Permission: "reservations:read"},
 		{Name: "reserve", Method: http.MethodPost, Path: "/reservations/{order_id}/reserve", ContractRef: reservationsContract + "~1reservations~1{order_id}~1reserve/post", Budget: budget, IdempotencyKey: IdempotencyHeader, Requires: provider.RequireSubjectAndTenant, Permission: "reservations:write"},
 		{Name: "cancel", Method: http.MethodPost, Path: "/reservations/{order_id}/cancel", ContractRef: reservationsContract + "~1reservations~1{order_id}~1cancel/post", Budget: budget, IdempotencyKey: IdempotencyHeader, Requires: provider.RequireSubjectAndTenant, Permission: "reservations:write"},
+		{Name: "reserveBooking", Method: http.MethodPost, Path: "/bookings/booking", ContractRef: bookingsContract + "~1bookings~1booking/post", Budget: budget, IdempotencyKey: IdempotencyHeader, Requires: provider.RequireSubjectAndTenant, Permission: "bookings:write"},
+		{Name: "findBookingByResource", Method: http.MethodGet, Path: "/bookings/booking", ContractRef: bookingsContract + "~1bookings~1booking/get", Budget: budget, Requires: provider.RequireSubjectAndTenant, Permission: "bookings:read"},
+		{Name: "findBooking", Method: http.MethodGet, Path: "/bookings/booking/{id}", ContractRef: bookingsContract + "~1bookings~1booking~1{id}/get", Budget: budget, Requires: provider.RequireSubjectAndTenant, Permission: "bookings:read"},
+		{Name: "cancelBooking", Method: http.MethodPost, Path: "/bookings/booking/{id}/cancel", ContractRef: bookingsContract + "~1bookings~1booking~1{id}~1cancel/post", Budget: budget, IdempotencyKey: IdempotencyHeader, Requires: provider.RequireSubjectAndTenant, Permission: "bookings:write"},
+		{Name: "registerResource", Method: http.MethodPost, Path: "/bookings/resource", ContractRef: bookingsContract + "~1bookings~1resource/post", Budget: budget, IdempotencyKey: IdempotencyHeader, Requires: provider.RequireSubjectAndTenant, Permission: "bookings:write"},
 	}
 }
 
@@ -90,6 +107,7 @@ var ErrAuthenticatorRequired = errors.New("api: no authenticator provided")
 func NewHandler(
 	orders OrdersClient,
 	reservations ReservationsClient,
+	bookings BookingsClient,
 	ctrl *admission.Controller,
 	tracer trace.Tracer,
 	instruments *metrics.Instruments,
@@ -99,7 +117,7 @@ func NewHandler(
 		return nil, ErrAuthenticatorRequired
 	}
 
-	h := handlers{orders: orders, reservations: reservations}
+	h := handlers{orders: orders, reservations: reservations, bookings: bookings}
 	serve := map[string]http.HandlerFunc{
 		"addItem":         h.addItem,
 		"placeOrder":      h.placeOrder,
@@ -107,6 +125,12 @@ func NewHandler(
 		"findReservation": h.findReservation,
 		"reserve":         h.reserve,
 		"cancel":          h.cancel,
+
+		"reserveBooking":        h.reserveBooking,
+		"findBookingByResource": h.findBookingByResource,
+		"findBooking":           h.findBooking,
+		"cancelBooking":         h.cancelBooking,
+		"registerResource":      h.registerResource,
 	}
 
 	admit := provider.Admission(ctrl, routeOf, tenantOf, instruments, refuseAsRejection)
@@ -124,6 +148,9 @@ func NewHandler(
 	}
 	if len(opts.ReservationsContract) > 0 {
 		mux.Handle("GET "+ReservationsContractPath, serveContract(opts.ReservationsContract))
+	}
+	if len(opts.BookingsContract) > 0 {
+		mux.Handle("GET "+BookingsContractPath, serveContract(opts.BookingsContract))
 	}
 	return withCORS(opts.CORSOrigins, mux), nil
 }

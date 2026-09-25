@@ -25,6 +25,7 @@ const (
 	envHTTPAddr                 = "DMPF_HTTP_ADDR"
 	envOrdersTarget             = "DMPF_ORDERS_GRPC_TARGET"
 	envReservationsTarget       = "DMPF_RESERVATIONS_GRPC_TARGET"
+	envBookingsTarget           = "DMPF_BOOKINGS_GRPC_TARGET"
 	envGRPCInsecure             = "DMPF_GRPC_INSECURE"
 	envGRPCCAFile               = "DMPF_GRPC_CA_FILE"
 	envGRPCServerName           = "DMPF_GRPC_SERVER_NAME"
@@ -34,6 +35,7 @@ const (
 	envMetricTenants            = "DMPF_METRIC_TENANTS"
 	envOrdersContractPath       = "DMPF_OPENAPI_ORDERS_PATH"
 	envReservationsContractPath = "DMPF_OPENAPI_RESERVATIONS_PATH"
+	envBookingsContractPath     = "DMPF_OPENAPI_BOOKINGS_PATH"
 	envOTLPEndpoint             = "DMPF_OTLP_ENDPOINT"
 	envOTLPInsecure             = "DMPF_OTLP_INSECURE"
 	envService                  = "DMPF_SERVICE"
@@ -46,6 +48,7 @@ type Config struct {
 
 	OrdersTarget       string
 	ReservationsTarget string
+	BookingsTarget     string
 	GRPCInsecure       bool
 	CAFile             string
 	ServerName         string
@@ -55,6 +58,7 @@ type Config struct {
 	CORSOrigins              []string
 	OrdersContractPath       string
 	ReservationsContractPath string
+	BookingsContractPath     string
 
 	OTLPEndpoint string
 	OTLPInsecure bool
@@ -95,6 +99,7 @@ func FromEnv(lookup func(string) string) (Config, error) {
 	cfg.HTTPAddr = envconfig.OrDefault(lookup(envHTTPAddr), cfg.HTTPAddr)
 	cfg.OrdersTarget = lookup(envOrdersTarget)
 	cfg.ReservationsTarget = lookup(envReservationsTarget)
+	cfg.BookingsTarget = lookup(envBookingsTarget)
 	cfg.CAFile = lookup(envGRPCCAFile)
 	cfg.ServerName = lookup(envGRPCServerName)
 	cfg.ClientCertFile = lookup(envGRPCClientCertFile)
@@ -103,6 +108,7 @@ func FromEnv(lookup func(string) string) (Config, error) {
 	cfg.MetricTenants = envconfig.SplitList(lookup(envMetricTenants))
 	cfg.OrdersContractPath = lookup(envOrdersContractPath)
 	cfg.ReservationsContractPath = lookup(envReservationsContractPath)
+	cfg.BookingsContractPath = lookup(envBookingsContractPath)
 	cfg.OTLPEndpoint = lookup(envOTLPEndpoint)
 	cfg.Service = envconfig.OrDefault(lookup(envService), cfg.Service)
 	cfg.Version = envconfig.OrDefault(lookup(envServiceVersion), cfg.Version)
@@ -134,6 +140,8 @@ func (c Config) Validate() error {
 		return fmt.Errorf("%w: %s", ErrMissingVariable, envOrdersTarget)
 	case c.ReservationsTarget == "":
 		return fmt.Errorf("%w: %s", ErrMissingVariable, envReservationsTarget)
+	case c.BookingsTarget == "":
+		return fmt.Errorf("%w: %s", ErrMissingVariable, envBookingsTarget)
 	case !c.GRPCInsecure && c.CAFile == "":
 		return fmt.Errorf("%w: %s=true or %s", ErrMissingVariable, envGRPCInsecure, envGRPCCAFile)
 	case c.CAFile != "" && (c.ClientCertFile == "" || c.ClientKeyFile == ""):

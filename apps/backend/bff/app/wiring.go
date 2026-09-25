@@ -62,6 +62,11 @@ func RunWith(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {
 		return err
 	}
 	defer func() { _ = reservationsConn.Close() }()
+	bookingsConn, err := rpc.Dial(cfg.BookingsTarget, rpc.BookingsConfig(opts))
+	if err != nil {
+		return err
+	}
+	defer func() { _ = bookingsConn.Close() }()
 
 	ctrl, err := admission.NewController(api.Limits(cfg.Admission), cfg.MetricTenants, admission.DefaultMaxKeys)
 	if err != nil {
@@ -78,7 +83,10 @@ func RunWith(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {
 	if options.ReservationsContract, err = readContract(cfg.ReservationsContractPath); err != nil {
 		return err
 	}
-	handler, err := api.NewHandler(rpc.NewOrders(ordersConn), rpc.NewReservations(reservationsConn), ctrl, rt.Tracer(), rt.Instruments(), options)
+	if options.BookingsContract, err = readContract(cfg.BookingsContractPath); err != nil {
+		return err
+	}
+	handler, err := api.NewHandler(rpc.NewOrders(ordersConn), rpc.NewReservations(reservationsConn), rpc.NewBookings(bookingsConn), ctrl, rt.Tracer(), rt.Instruments(), options)
 	if err != nil {
 		return err
 	}
@@ -101,7 +109,7 @@ func RunWith(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {
 	failed := make(chan error, 1)
 	go func() { failed <- server.Serve(listener) }()
 	rt.Logger().InfoContext(ctx, "http listening", "addr", listener.Addr().String(),
-		"orders", cfg.OrdersTarget, "reservations", cfg.ReservationsTarget)
+		"orders", cfg.OrdersTarget, "reservations", cfg.ReservationsTarget, "bookings", cfg.BookingsTarget)
 
 	select {
 	case <-ctx.Done():

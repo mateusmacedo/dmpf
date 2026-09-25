@@ -316,7 +316,9 @@ func (top *topology) boot(t *testing.T, bin binaries) {
 		"DMPF_GRPC_CLIENT_CERT_FILE": bffCert, "DMPF_GRPC_CLIENT_KEY_FILE": bffKey,
 		"DMPF_ORDERS_GRPC_TARGET":       "dns:///" + ordersAddr,
 		"DMPF_RESERVATIONS_GRPC_TARGET": "dns:///" + reservationsAddr,
-		"DMPF_AUTH_DEV_MOCK":            "true",
+		// The client dials lazily and this scenario calls no bookings route.
+		"DMPF_BOOKINGS_GRPC_TARGET": "dns:///127.0.0.1:1",
+		"DMPF_AUTH_DEV_MOCK":        "true",
 	})
 	top.bffAddr = bff.waitLog(t, "http listening")["addr"].(string)
 }

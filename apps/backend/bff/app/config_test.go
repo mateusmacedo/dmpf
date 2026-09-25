@@ -16,7 +16,7 @@ func lookup(pairs ...string) func(string) string {
 	return func(name string) string { return values[name] }
 }
 
-var targets = []string{"DMPF_ORDERS_GRPC_TARGET", "orders:9090", "DMPF_RESERVATIONS_GRPC_TARGET", "reservations:9090"}
+var targets = []string{"DMPF_ORDERS_GRPC_TARGET", "orders:9090", "DMPF_RESERVATIONS_GRPC_TARGET", "reservations:9090", "DMPF_BOOKINGS_GRPC_TARGET", "bookings:9090"}
 
 // devMock declares how these starts resolve identity. Since the edge demands a
 // subject on every route, a start that declares no verifier and no mock is
@@ -49,7 +49,7 @@ func TestFromEnvAppliesTheDefaults(t *testing.T) {
 }
 
 func TestFromEnvNamesEachMissingTarget(t *testing.T) {
-	for _, variable := range []string{"DMPF_ORDERS_GRPC_TARGET", "DMPF_RESERVATIONS_GRPC_TARGET"} {
+	for _, variable := range []string{"DMPF_ORDERS_GRPC_TARGET", "DMPF_RESERVATIONS_GRPC_TARGET", "DMPF_BOOKINGS_GRPC_TARGET"} {
 		t.Run(variable, func(t *testing.T) {
 			env := []string{"DMPF_GRPC_INSECURE", "true"}
 			for i := 0; i < len(targets); i += 2 {

@@ -23,16 +23,19 @@ import (
 
 func TestRoutesReferenceThePublishedContracts(t *testing.T) {
 	routes := api.Routes(routeBudget)
-	if len(routes) != 6 {
-		t.Fatalf("Routes() has %d routes, want 6", len(routes))
+	if len(routes) != 11 {
+		t.Fatalf("Routes() has %d routes, want 11", len(routes))
 	}
 	for _, route := range routes {
 		if err := route.Validate(); err != nil {
 			t.Fatalf("%s: Validate() = %v", route.Name, err)
 		}
 		context := "orders"
-		if strings.HasPrefix(route.Path, "/reservations/") {
+		switch {
+		case strings.HasPrefix(route.Path, "/reservations/"):
 			context = "reservations"
+		case strings.HasPrefix(route.Path, "/bookings/"):
+			context = "bookings"
 		}
 		if !strings.HasPrefix(route.ContractRef, "contracts/openapi/"+context+"/v1/openapi.yaml#/paths/") {
 			t.Fatalf("%s: ContractRef = %q, want the %s contract (RST-04)", route.Name, route.ContractRef, context)

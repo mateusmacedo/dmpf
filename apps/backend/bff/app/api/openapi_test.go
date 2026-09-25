@@ -56,12 +56,17 @@ func TestTheContractsDeclareEveryRouteTheEdgeServes(t *testing.T) {
 	// route, so every write declares both 404 and 409; a read never answers 409
 	// because optimistic locking only rejects a write.
 	statuses := map[string][]string{
-		"addItem":         {"201", "400", "404", "409", "422", "429", "503", "504", "default"},
-		"placeOrder":      {"200", "400", "404", "409", "422", "429", "503", "504", "default"},
-		"findOrder":       {"200", "400", "404", "429", "503", "504", "default"},
-		"findReservation": {"200", "400", "404", "429", "503", "504", "default"},
-		"reserve":         {"200", "400", "404", "409", "422", "429", "503", "504", "default"},
-		"cancel":          {"200", "400", "404", "409", "422", "429", "503", "504", "default"},
+		"addItem":               {"201", "400", "404", "409", "422", "429", "503", "504", "default"},
+		"placeOrder":            {"200", "400", "404", "409", "422", "429", "503", "504", "default"},
+		"findOrder":             {"200", "400", "404", "429", "503", "504", "default"},
+		"findReservation":       {"200", "400", "404", "429", "503", "504", "default"},
+		"reserve":               {"200", "400", "404", "409", "422", "429", "503", "504", "default"},
+		"cancel":                {"200", "400", "404", "409", "422", "429", "503", "504", "default"},
+		"reserveBooking":        {"201", "400", "404", "409", "422", "429", "503", "504", "default"},
+		"cancelBooking":         {"200", "400", "404", "409", "422", "429", "503", "504", "default"},
+		"registerResource":      {"201", "400", "404", "409", "422", "429", "503", "504", "default"},
+		"findBooking":           {"200", "400", "404", "429", "503", "504", "default"},
+		"findBookingByResource": {"200", "400", "404", "429", "503", "504", "default"},
 	}
 	for _, route := range api.Routes(routeBudget) {
 		t.Run(route.Name, func(t *testing.T) {

@@ -21,6 +21,7 @@ import (
 	"google.golang.org/grpc/test/bufconn"
 	"google.golang.org/protobuf/proto"
 
+	bookingsv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/bookings/service/v1"
 	ordersv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/orders/service/v1"
 	reservationsv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/reservations/service/v1"
 	obsclock "github.com/mateusmacedo/dmpf/libs/backend/go/observability/clock"
@@ -137,9 +138,25 @@ func (f *fakeContexts) serve(t *testing.T) func(context.Context, string) (net.Co
 			}}),
 		},
 	}, f)
+	srv.RegisterService(&grpc.ServiceDesc{
+		ServiceName: rpc.BookingsServiceName,
+		HandlerType: (*any)(nil),
+		Methods: []grpc.MethodDesc{
+			unary[bookingsv1.ReserveBookingRequest](f, "ReserveBooking", &bookingsv1.ReserveBookingResponse{Result: &bookingsv1.ReserveBookingResponse_Reserved{Reserved: &bookingsv1.Reserved{BookingId: "b-1"}}}),
+			unary[bookingsv1.CancelBookingRequest](f, "CancelBooking", &bookingsv1.CancelBookingResponse{Result: &bookingsv1.CancelBookingResponse_Cancelled{Cancelled: &bookingsv1.Cancelled{BookingId: "b-1"}}}),
+			unary[bookingsv1.RegisterResourceRequest](f, "RegisterResource", &bookingsv1.RegisterResourceResponse{Result: &bookingsv1.RegisterResourceResponse_Registered{Registered: &bookingsv1.Registered{ResourceId: "room-1"}}}),
+			unary[bookingsv1.FindBookingRequest](f, "FindBooking", &bookingsv1.FindBookingResponse{Booking: &bookingsv1.Booking{
+				BookingId: "b-1", ResourceId: "room-1", Quantity: 2, Status: bookingsv1.BookingStatus_BOOKING_STATUS_RESERVED, ReservedAt: 1_755_432_000_000_000_000,
+			}}),
+			unary[bookingsv1.FindBookingsByResourceRequest](f, "FindBookingsByResource", &bookingsv1.FindBookingsByResourceResponse{Bookings: []*bookingsv1.Booking{{
+				BookingId: "b-1", ResourceId: "room-1", Quantity: 2, Status: bookingsv1.BookingStatus_BOOKING_STATUS_CANCELLED, ReservedAt: 1_755_432_000_000_000_000,
+			}}}),
+		},
+	}, f)
 	h := health.NewServer()
 	h.SetServingStatus(rpc.OrdersServiceName, healthpb.HealthCheckResponse_SERVING)
 	h.SetServingStatus(rpc.ReservationsServiceName, healthpb.HealthCheckResponse_SERVING)
+	h.SetServingStatus(rpc.BookingsServiceName, healthpb.HealthCheckResponse_SERVING)
 	healthpb.RegisterHealthServer(srv, h)
 
 	listener := bufconn.Listen(1 << 20)
@@ -201,6 +218,11 @@ func newFixture(t *testing.T, fake *fakeContexts, options ...option) fixture {
 		t.Fatalf("Dial(reservations) = %v", err)
 	}
 	t.Cleanup(func() { _ = reservationsConn.Close() })
+	bookingsConn, err := rpc.Dial("passthrough:///bookings", rpc.BookingsConfig(opts), grpc.WithContextDialer(dialer))
+	if err != nil {
+		t.Fatalf("Dial(bookings) = %v", err)
+	}
+	t.Cleanup(func() { _ = bookingsConn.Close() })
 
 	tenants, err := metrics.DeclareTenants(testTenant)
 	if err != nil {
@@ -211,7 +233,7 @@ func newFixture(t *testing.T, fake *fakeContexts, options ...option) fixture {
 		t.Fatalf("admission.New() = %v", err)
 	}
 
-	handler, err := api.NewHandler(rpc.NewOrders(ordersConn), rpc.NewReservations(reservationsConn), ctrl, tracer, nil, api.Options{
+	handler, err := api.NewHandler(rpc.NewOrders(ordersConn), rpc.NewReservations(reservationsConn), rpc.NewBookings(bookingsConn), ctrl, tracer, nil, api.Options{
 		Budget:               cfg.budget,
 		Authenticator:        authn.DevAuthenticator{},
 		OrdersContract:       cfg.ordersContract,
@@ -228,7 +250,7 @@ func newFixture(t *testing.T, fake *fakeContexts, options ...option) fixture {
 // Every route declares RequireSubjectAndTenant, so a request without it is
 // denied before reaching a context — which is what the 401 cases assert by
 // passing an empty Authorization explicitly.
-const testCredential = `Bearer {"sub":"tester","tenant":"acme","permissions":["orders:write","orders:read","reservations:write","reservations:read"]}`
+const testCredential = `Bearer {"sub":"tester","tenant":"acme","permissions":["orders:write","orders:read","reservations:write","reservations:read","bookings:write","bookings:read"]}`
 
 // testTenant is the tenant testCredential resolves, declared so its bucket and
 // label are its own (MET-07).

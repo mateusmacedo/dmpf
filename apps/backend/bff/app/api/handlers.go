@@ -29,6 +29,7 @@ var (
 type handlers struct {
 	orders       OrdersClient
 	reservations ReservationsClient
+	bookings     BookingsClient
 }
 
 type rejection struct {

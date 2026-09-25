@@ -30,5 +30,6 @@ COPY --from=build /out/bff /bff
 COPY contracts/openapi /contracts/openapi
 ENV DMPF_OPENAPI_ORDERS_PATH=/contracts/openapi/orders/v1/openapi.yaml
 ENV DMPF_OPENAPI_RESERVATIONS_PATH=/contracts/openapi/reservations/v1/openapi.yaml
+ENV DMPF_OPENAPI_BOOKINGS_PATH=/contracts/openapi/bookings/v1/openapi.yaml
 EXPOSE 8080
 ENTRYPOINT ["/bff"]
