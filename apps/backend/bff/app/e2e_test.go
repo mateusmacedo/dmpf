@@ -22,6 +22,7 @@ const (
 	orderPlacedType          = "com.company.orders.order-placed.v1"
 	reservationConfirmedType = "com.company.reservations.reservation-confirmed.v1"
 	reservationCancelledType = "com.company.reservations.reservation-cancelled.v1"
+	bookingReservedType      = "com.company.bookings.booking-reserved.v1"
 
 	correlation = "corr-e2e-1"
 	traceID     = "4bf92f3577b34da6a3ce929d0e0e4736"
@@ -104,7 +105,23 @@ func TestTopologyEndToEnd(t *testing.T) {
 	requireTypePrefix(t, top.recordsUntilEnd(t, top.ordersTopic), "com.company.orders.")
 	requireTypePrefix(t, top.recordsUntilEnd(t, top.reservationsTopic), "com.company.reservations.")
 
-	t.Log("7. the same call without a credential is refused as identity, not as an internal failure")
+	t.Log("7. a booking reserved through the BFF crosses to the bookings context and leaves as a fact")
+	if status, body := top.call(t, http.MethodPost, "/bookings/resource", `{"code":"room-e2e"}`, nil); status != http.StatusCreated {
+		t.Fatalf("POST resource: status = %d, body %s", status, body)
+	}
+	if status, body := top.call(t, http.MethodPost, "/bookings/booking", `{"bookingId":"b-e2e","resourceId":"room-e2e","quantity":2}`, headers); status != http.StatusCreated {
+		t.Fatalf("POST booking: status = %d, body %s", status, body)
+	}
+	if status, body := top.call(t, http.MethodGet, "/bookings/booking/b-e2e", "", nil); status != http.StatusOK || !strings.Contains(string(body), `"status":"reserved"`) {
+		t.Fatalf("GET booking: status = %d, body %s, want the reserved booking", status, body)
+	}
+	reservedBooking := top.envelopeOf(t, top.bookingsTopic, bookingReservedType, "b-e2e")
+	if reservedBooking.CorrelationID != correlation {
+		t.Fatalf("BookingReserved correlationid = %q, want %q from the BFF edge", reservedBooking.CorrelationID, correlation)
+	}
+	requireTypePrefix(t, top.recordsUntilEnd(t, top.bookingsTopic), "com.company.bookings.")
+
+	t.Log("8. the same call without a credential is refused as identity, not as an internal failure")
 	if status, body := top.callAnonymous(t, http.MethodGet, "/orders/"+reservedOrder); status != http.StatusUnauthorized {
 		t.Fatalf("GET order without credential: status = %d, want %d (IDN-01, IDN-06), body %s", status, http.StatusUnauthorized, body)
 	}
@@ -123,7 +140,7 @@ func (top *topology) placeOrder(t *testing.T, order string, headers map[string]s
 // e2eCredential is what the development authenticator reads back. The tenant
 // matches the one admission declares, so the identity the edge resolves and the
 // bucket it charges stay the same until Phase 7 removes the literal.
-const e2eCredential = `Bearer {"sub":"e2e-tester","tenant":"acme","permissions":["orders:write","orders:read","reservations:write","reservations:read"]}`
+const e2eCredential = `Bearer {"sub":"e2e-tester","tenant":"acme","permissions":["orders:write","orders:read","reservations:write","reservations:read","bookings:write","bookings:read"]}`
 
 func (top *topology) call(t *testing.T, method, path, body string, headers map[string]string) (int, []byte) {
 	t.Helper()

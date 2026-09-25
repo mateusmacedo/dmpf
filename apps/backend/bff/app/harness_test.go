@@ -47,16 +47,17 @@ type topology struct {
 	brokers []string
 	admin   *kadm.Client
 
-	ordersDSN, reservationsDSN string
+	ordersDSN, reservationsDSN, bookingsDSN string
 
 	ordersTopic, ordersDLQ             string
 	reservationsTopic, reservationsDLQ string
+	bookingsTopic, bookingsDLQ         string
 	group                              string
 
 	bffAddr string
 }
 
-type binaries struct{ bff, orders, reservations string }
+type binaries struct{ bff, orders, reservations, bookings string }
 
 func buildBinaries(t *testing.T) binaries {
 	t.Helper()
@@ -66,11 +67,13 @@ func buildBinaries(t *testing.T) binaries {
 		bff:          filepath.Join(dir, "bff"),
 		orders:       filepath.Join(dir, "orders"),
 		reservations: filepath.Join(dir, "reservations"),
+		bookings:     filepath.Join(dir, "bookings"),
 	}
 	for path, pkg := range map[string]string{
 		out.bff:          modulePrefix + "bff/cmd",
 		out.orders:       modulePrefix + "orders/cmd",
 		out.reservations: modulePrefix + "reservations/cmd",
+		out.bookings:     modulePrefix + "bookings/cmd",
 	} {
 		cmd := exec.Command("go", "build", "-race", "-o", path, pkg)
 		cmd.Dir = root
@@ -108,9 +111,12 @@ func newTopology(t *testing.T) *topology {
 		reservationsTopic: "dmpf-e2e-reservations-" + suffix,
 		reservationsDLQ:   "dmpf-e2e-reservations-" + suffix + "-dlq",
 		group:             "dmpf-e2e-reservations-group-" + suffix,
+		bookingsTopic:     "dmpf-e2e-bookings-" + suffix,
+		bookingsDLQ:       "dmpf-e2e-bookings-" + suffix + "-dlq",
 	}
 	top.ordersDSN = createDatabase(t, admin, "e2e_orders_"+suffix)
 	top.reservationsDSN = createDatabase(t, admin, "e2e_reservations_"+suffix)
+	top.bookingsDSN = createDatabase(t, admin, "e2e_bookings_"+suffix)
 
 	cl, err := kgo.NewClient(kgo.SeedBrokers(brokers...))
 	if err != nil {
@@ -118,7 +124,7 @@ func newTopology(t *testing.T) *topology {
 	}
 	t.Cleanup(cl.Close)
 	top.admin = kadm.NewClient(cl)
-	topics := []string{top.ordersTopic, top.ordersDLQ, top.reservationsTopic, top.reservationsDLQ}
+	topics := []string{top.ordersTopic, top.ordersDLQ, top.reservationsTopic, top.reservationsDLQ, top.bookingsTopic, top.bookingsDLQ}
 	ctx, cancel := context.WithTimeout(context.Background(), adminWindow)
 	defer cancel()
 	if _, err := top.admin.CreateTopics(ctx, 1, 1, nil, topics...); err != nil {
@@ -269,7 +275,7 @@ func (top *topology) boot(t *testing.T, bin binaries) {
 		}
 		return env
 	}
-	ordersDSN, reservationsDSN := top.ordersDSN, top.reservationsDSN
+	ordersDSN, reservationsDSN, bookingsDSN := top.ordersDSN, top.reservationsDSN, top.bookingsDSN
 
 	// IDN-03 end to end: the contexts only serve the workloads they trust, over
 	// certificates the test mints, so the hop the e2e crosses is the real one.
@@ -292,10 +298,16 @@ func (top *topology) boot(t *testing.T, bin binaries) {
 		"PG_DSN": reservationsDSN, "MIGRATE": "true", "GRPC_ADDR": "127.0.0.1:0",
 		"INSTANCE_ID": "e2e-reservations-api",
 	})), "--role", "api")
+	bookingsAPI := start(t, "bookings api", bin.bookings, with(merge(mutual("bookings-api"), map[string]string{
+		"PG_DSN": bookingsDSN, "MIGRATE": "true", "GRPC_ADDR": "127.0.0.1:0",
+		"INSTANCE_ID": "e2e-bookings-api",
+	})), "--role", "api")
 	ordersAddr := ordersAPI.waitLog(t, "grpc listening")["addr"].(string)
 	reservationsAddr := reservationsAPI.waitLog(t, "grpc listening")["addr"].(string)
+	bookingsAddr := bookingsAPI.waitLog(t, "grpc listening")["addr"].(string)
 	waitServing(t, ordersAddr, rpc.OrdersServiceName, probe)
 	waitServing(t, reservationsAddr, rpc.ReservationsServiceName, probe)
+	waitServing(t, bookingsAddr, rpc.BookingsServiceName, probe)
 
 	start(t, "orders relay", bin.orders, with(map[string]string{
 		"PG_DSN": ordersDSN, "KAFKA_ORDERS_TOPIC": top.ordersTopic, "KAFKA_ORDERS_DLQ": top.ordersDLQ,
@@ -304,6 +316,10 @@ func (top *topology) boot(t *testing.T, bin binaries) {
 	start(t, "reservations relay", bin.reservations, with(map[string]string{
 		"PG_DSN": reservationsDSN, "KAFKA_RESERVATIONS_TOPIC": top.reservationsTopic, "KAFKA_RESERVATIONS_DLQ": top.reservationsDLQ,
 		"KAFKA_GROUP": top.group, "INSTANCE_ID": "e2e-reservations-relay",
+	}), "--role", "relay").waitLog(t, "relay draining")
+	start(t, "bookings relay", bin.bookings, with(map[string]string{
+		"PG_DSN": bookingsDSN, "KAFKA_BOOKINGS_TOPIC": top.bookingsTopic, "KAFKA_BOOKINGS_DLQ": top.bookingsDLQ,
+		"KAFKA_GROUP": top.group, "INSTANCE_ID": "e2e-bookings-relay",
 	}), "--role", "relay").waitLog(t, "relay draining")
 	start(t, "reservations consumer", bin.reservations, with(map[string]string{
 		"PG_DSN": reservationsDSN, "KAFKA_ORDERS_TOPIC": top.ordersTopic, "KAFKA_ORDERS_DLQ": top.ordersDLQ,
@@ -316,9 +332,8 @@ func (top *topology) boot(t *testing.T, bin binaries) {
 		"GRPC_CLIENT_CERT_FILE": bffCert, "GRPC_CLIENT_KEY_FILE": bffKey,
 		"ORDERS_GRPC_TARGET":       "dns:///" + ordersAddr,
 		"RESERVATIONS_GRPC_TARGET": "dns:///" + reservationsAddr,
-		// The client dials lazily and this scenario calls no bookings route.
-		"BOOKINGS_GRPC_TARGET": "dns:///127.0.0.1:1",
-		"AUTH_DEV_MOCK":        "true",
+		"BOOKINGS_GRPC_TARGET":     "dns:///" + bookingsAddr,
+		"AUTH_DEV_MOCK":            "true",
 	})
 	top.bffAddr = bff.waitLog(t, "http listening")["addr"].(string)
 }
