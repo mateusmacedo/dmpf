@@ -22,7 +22,7 @@ const PostgresDSN = "DMPF_PG_DSN"
 // kernelTables are the tables every DMPF context shares. A context with tables
 // of its own names them at the call, because the kit cannot know a schema it
 // does not own.
-var kernelTables = []string{"dmpf_outbox", "dmpf_inbox", "dmpf_quarantine", "dmpf_example_orders", "dmpf_example_reservations"}
+var kernelTables = []string{"outbox", "inbox", "quarantine", "dmpf_example_orders", "dmpf_example_reservations"}
 
 // resetTimeout bounds every reset, so a lock left behind by a failed clause
 // fails the cleanup instead of holding the binary until go test's -timeout.
