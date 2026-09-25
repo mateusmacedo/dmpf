@@ -13,11 +13,17 @@
 #
 # DMPF_HARNESS_CHECK_AGENT_CMD é o comando que regenera o contexto dentro do
 # worktree (default: `claude -p --dangerously-skip-permissions "/dmpf-new-context
-# <SPEC>"`). Qualquer agente serve, desde que escreva no cwd. `true` liga o modo
-# manual: a prova imprime o worktree, espera Enter e julga o que estiver lá.
+# <SPEC> --regen"`). Qualquer agente serve, desde que escreva no cwd. `true` liga
+# o modo manual: a prova imprime o worktree, espera Enter e julga o que estiver
+# lá.
 #
-# PG_DSN, quando definido, acrescenta o test-race das suítes Postgres,
-# com --parallel=1 (os harnesses truncam tabelas do kernel).
+# O `bff` entra na cadeia sem ser removido: ele compila contra o contrato que o
+# agente regenerou, então uma quebra do fio aparece nele. O agente não pode
+# editar outra app além do golden.
+#
+# PG_DSN, quando definido, acrescenta test-race e test-distributed. Cada
+# projeto testa no seu banco `<projeto>_test` do servidor apontado (ADR-053),
+# então os projetos rodam em paralelo.
 #
 # A fase `self-test` não usa LLM: sobre o golden commitado, retira
 # kernel/domain de shared_kernel_units e exige que o verificador reprove
@@ -37,19 +43,28 @@ CONTEXTO=resource-scheduling
 # projeto Nx `bookings`, e cada bloco é um subdiretório do módulo.
 MODULO="apps/backend/$NOME"
 BLOCOS=(domain ports application provider app)
-PROJETOS=("$NOME")
-PROJETOS_POSTGRES=("$NOME")
+PROJETOS=("$NOME" bff)
+PROJETOS_POSTGRES=("$NOME" bff)
+BORDA="apps/backend/bff"
 CAMINHOS_GOLDEN=(
   "contracts/proto/company/$NOME"
   "contracts/openapi/$NOME"
   "libs/backend/go/contracts/gen/go/company/$NOME"
+)
+# O que o relatório de divergência compara, além do que a prova remove: a borda
+# que consome o contexto no bff.
+CAMINHOS_COMPARADOS=(
+  "$MODULO"
+  "${CAMINHOS_GOLDEN[@]}"
+  "$BORDA/app/api/handlers_bookings.go"
+  "$BORDA/app/api/handlers_bookings_test.go"
 )
 MANIFESTO_CONTRATOS=libs/backend/go/contracts/dmpf-units.json
 BASELINE=tools/dmpf-baseline/units-baseline.json
 UNIDADE_CONTRATO="$CONTEXTO/contract"
 UNIDADE_SABOTADA=kernel/domain
 
-AGENT_CMD="${DMPF_HARNESS_CHECK_AGENT_CMD:-claude -p --dangerously-skip-permissions \"/dmpf-new-context $SPEC — prova em worktree: não rode pnpm install\"}"
+AGENT_CMD="${DMPF_HARNESS_CHECK_AGENT_CMD:-claude -p --dangerously-skip-permissions \"/dmpf-new-context $SPEC --regen — prova em worktree: não rode pnpm install\"}"
 
 export NX_DAEMON=false
 export NX_NO_CLOUD=true
@@ -69,8 +84,9 @@ uso() {
 uso: tools/dmpf-harness-check.sh --phase regen|self-test
 
   regen      remove o golden bookings num worktree, aciona o agente sobre a mesma
-             spec, roda o rito Buf, classifica em commit próprio, roda a cadeia
-             Go e o verificador, e reporta divergências contra o golden
+             spec, confere a forma canônica, roda o rito Buf, classifica em
+             commit próprio, roda a cadeia Go do bookings e do bff e o
+             verificador, e reporta divergências contra o golden
   self-test  sem LLM: sabota shared_kernel_units sobre o golden commitado e
              exige DMPF-D002 em bookings/domain
 FIM
@@ -217,6 +233,15 @@ coletar_gerados() {
   done
   grep -q "$NOME" "$WT/go.work" || falha "go.work não registra o módulo de $NOME: o esqueleto não passou pelo generator"
   [ -d "$WT/contracts/proto/company/$NOME" ] || falha "o agente não escreveu contracts/proto/company/$NOME"
+  local fora=()
+  for caminho in "${ARQUIVOS_GERADOS[@]}"; do
+    case "$caminho" in
+      "$MODULO"/*) ;;
+      apps/*) fora+=("$caminho") ;;
+    esac
+  done
+  [ "${#fora[@]}" -eq 0 ] \
+    || falha "o agente editou outra app além de $MODULO: ${fora[*]} — o fio é preservado, e a borda compila contra ele sem mudança"
   ok "${#ARQUIVOS_GERADOS[@]} arquivo(s) tocado(s); um módulo com cinco blocos, go.work e .proto presentes"
 }
 
@@ -275,11 +300,11 @@ cadeia_nx() {
   ok "cadeia fmt-check,vet,build,lint aprovada em $lista"
   if [ -n "${PG_DSN:-}" ]; then
     lista="$(IFS=,; printf '%s' "${PROJETOS_POSTGRES[*]}")"
-    (cd "$WT" && pnpm nx run-many -t test-race --projects="$lista" --parallel=1) \
-      || falha "test-race reprovou em $lista"
-    ok "test-race aprovado em $lista (--parallel=1)"
+    (cd "$WT" && pnpm nx run-many -t test-race,test-distributed --projects="$lista" --parallel=3) \
+      || falha "test-race ou test-distributed reprovou em $lista"
+    ok "test-race e test-distributed aprovados em $lista, cada um no seu banco de teste"
   else
-    printf '  aviso  PG_DSN ausente: test-race das suítes Postgres não rodou\n'
+    printf '  aviso  PG_DSN ausente: as suítes Postgres não rodaram\n'
   fi
 }
 
@@ -304,16 +329,16 @@ conferir_arvore_limpa() {
 # Informativo: a garantia é pelos gates; a lista mostra onde o agente divergiu
 # em forma do golden commitado, para quem for ler.
 relatar_divergencia() {
-  local so_golden so_regen
-  so_golden="$(comm -23 \
-    <(git -C "$ROOT" ls-tree -r --name-only HEAD -- "apps/backend/$NOME" "${CAMINHOS_GOLDEN[@]}" 2>/dev/null | sort) \
-    <(git -C "$WT" ls-tree -r --name-only HEAD -- "apps/backend/$NOME" "${CAMINHOS_GOLDEN[@]}" 2>/dev/null | sort))"
-  so_regen="$(comm -13 \
-    <(git -C "$ROOT" ls-tree -r --name-only HEAD -- "apps/backend/$NOME" "${CAMINHOS_GOLDEN[@]}" 2>/dev/null | sort) \
-    <(git -C "$WT" ls-tree -r --name-only HEAD -- "apps/backend/$NOME" "${CAMINHOS_GOLDEN[@]}" 2>/dev/null | sort))"
-  printf '\nDivergência de forma contra o golden commitado (informativo):\n'
-  printf '  só no golden:      %s\n' "${so_golden:-nenhum}"
-  printf '  só no regenerado:  %s\n' "${so_regen:-nenhum}"
+  local golden regen so_golden so_regen diferentes
+  golden="$(git -C "$ROOT" rev-parse HEAD)"
+  regen="$(git -C "$WT" rev-parse HEAD)"
+  so_golden="$(git -C "$ROOT" diff --name-only --diff-filter=D "$golden" "$regen" -- "${CAMINHOS_COMPARADOS[@]}")"
+  so_regen="$(git -C "$ROOT" diff --name-only --diff-filter=A "$golden" "$regen" -- "${CAMINHOS_COMPARADOS[@]}")"
+  diferentes="$(git -C "$ROOT" diff --stat=100 --diff-filter=M "$golden" "$regen" -- "${CAMINHOS_COMPARADOS[@]}")"
+  printf '\nDivergência contra o golden commitado (informativo):\n'
+  printf '  só no golden:\n%s\n' "$(printf '%s' "${so_golden:-nenhum}" | sed 's/^/    /')"
+  printf '  só no regenerado:\n%s\n' "$(printf '%s' "${so_regen:-nenhum}" | sed 's/^/    /')"
+  printf '  conteúdo diferente:\n%s\n' "$(printf '%s' "${diferentes:-nenhum}" | sed 's/^/    /')"
 }
 
 fase_regen() {
@@ -335,6 +360,11 @@ fase_regen() {
 
   passo "checagem sem escrita"
   checar_sem_escrita
+
+  passo "forma canônica do contexto regenerado"
+  bash "$WT/tools/dmpf-context-check.sh" --context "$WT/$MODULO" \
+    || falha "o dmpf-context-check reprovou o contexto regenerado (acima)"
+  ok "dmpf-context-check aprovou $MODULO"
 
   passo "rito Buf"
   rito_buf
