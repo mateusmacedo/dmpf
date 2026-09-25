@@ -363,6 +363,8 @@ jobs:
             pnpm nx run-many -t fmt-check,vet,test-race -p "${stateful#,}" --parallel=1
           fi
 
+      # Cada app testa no próprio banco (<projeto>_test) e em tópicos com sufixo
+      # da execução, então as apps não disputam estado e correm em paralelo.
       - name: Estágio 5 — apps (layer:apps)
         run: |
           set -euo pipefail
@@ -371,7 +373,7 @@ jobs:
             echo "estágio 5 (apps): nenhum projeto afetado"
             exit 0
           fi
-          pnpm nx run-many -t fmt-check,vet,test-race -p "$lista" --parallel=1
+          pnpm nx run-many -t fmt-check,vet,test-race -p "$lista" --parallel=3
 
       # govulncheck consulta base remota e não tem cache; corre uma vez sobre
       # todo o Go afetado, fora dos estágios.
