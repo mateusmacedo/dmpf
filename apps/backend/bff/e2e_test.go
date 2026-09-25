@@ -92,7 +92,7 @@ func TestTopologyEndToEnd(t *testing.T) {
 	if n := count(t, top.reservationsPool, "inbox", fmt.Sprintf("message_id = '%s'", placed.MessageID)); n != 1 {
 		t.Fatalf("inbox rows for the redelivered message = %d, want 1 (DuplicateIgnored)", n)
 	}
-	if n := count(t, top.reservationsPool, "dmpf_example_reservations", "true"); n != 2 {
+	if n := count(t, top.reservationsPool, "reservations", "true"); n != 2 {
 		t.Fatalf("reservations = %d, want 2", n)
 	}
 	if n := count(t, top.reservationsPool, "quarantine", "true"); n != 0 {
