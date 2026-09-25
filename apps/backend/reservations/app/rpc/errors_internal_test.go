@@ -20,7 +20,6 @@ func TestStatusOfMapsEveryTechnicalOutcome(t *testing.T) {
 		want codes.Code
 	}{
 		"absent aggregate":        {ports.ErrNotFound, codes.NotFound},
-		"denied":                  {ports.ErrDenied, codes.PermissionDenied},
 		"classified as not found": {application.NewFailure(application.NotFound, false, errors.New("secret")), codes.NotFound},
 		"version conflict":        {ports.ErrVersionConflict, codes.Aborted},
 		"classified as conflict":  {application.NewFailure(application.Conflict, true, errors.New("secret")), codes.Aborted},
@@ -28,6 +27,16 @@ func TestStatusOfMapsEveryTechnicalOutcome(t *testing.T) {
 		"deadline":                {context.DeadlineExceeded, codes.DeadlineExceeded},
 		"cancellation":            {context.Canceled, codes.Canceled},
 		"anything else":           {errors.New("secret"), codes.Internal},
+
+		// IDN-06 keeps the two apart: a subject that authenticated and lacks
+		// what the operation needs must not be told it is unauthenticated.
+		"denied authorization":          {ports.ErrDenied, codes.PermissionDenied},
+		"classified as forbidden":       {application.NewFailure(application.Forbidden, false, errors.New("secret")), codes.PermissionDenied},
+		"wrapped denial":                {fmt.Errorf("authorize: %w", ports.ErrDenied), codes.PermissionDenied},
+		"credential absent":             {ports.ErrCredentialAbsent, codes.Unauthenticated},
+		"credential rejected":           {ports.ErrCredentialRejected, codes.Unauthenticated},
+		"subject unresolved":            {ports.ErrSubjectUnresolved, codes.Unauthenticated},
+		"classified as unauthenticated": {application.NewFailure(application.Unauthenticated, false, errors.New("secret")), codes.Unauthenticated},
 	}
 
 	for name, tc := range cases {
