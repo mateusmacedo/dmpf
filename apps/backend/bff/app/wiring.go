@@ -1,4 +1,4 @@
-package bff
+package app
 
 import (
 	"context"
@@ -18,8 +18,8 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/admission"
 
-	"github.com/mateusmacedo/dmpf/apps/backend/bff/api"
-	"github.com/mateusmacedo/dmpf/apps/backend/bff/rpc"
+	"github.com/mateusmacedo/dmpf/apps/backend/bff/app/api"
+	"github.com/mateusmacedo/dmpf/apps/backend/bff/app/rpc"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/authn"
 )
 

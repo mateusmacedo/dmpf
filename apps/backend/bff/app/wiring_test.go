@@ -1,4 +1,4 @@
-package bff_test
+package app_test
 
 import (
 	"bytes"
@@ -10,26 +10,26 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mateusmacedo/dmpf/apps/backend/bff"
+	"github.com/mateusmacedo/dmpf/apps/backend/bff/app"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/boot"
 )
 
 func TestTheReadinessLineCarriesThePortTheKernelChose(t *testing.T) {
-	cfg, err := bff.FromEnv(lookup(append(targets, "DMPF_GRPC_INSECURE", "true", "DMPF_HTTP_ADDR", "127.0.0.1:0", devMock, "true")...))
+	cfg, err := app.FromEnv(lookup(append(targets, "DMPF_GRPC_INSECURE", "true", "DMPF_HTTP_ADDR", "127.0.0.1:0", devMock, "true")...))
 	if err != nil {
 		t.Fatalf("FromEnv() = %v", err)
 	}
 	var logs logSink
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	runtime, err := boot.StartTelemetry(ctx, &logs, bff.TelemetryOf(cfg))
+	runtime, err := boot.StartTelemetry(ctx, &logs, app.TelemetryOf(cfg))
 	if err != nil {
 		t.Fatalf("StartTelemetry() = %v", err)
 	}
 	t.Cleanup(func() { _ = runtime.Shutdown(context.Background()) })
 
 	done := make(chan error, 1)
-	go func() { done <- bff.RunWith(ctx, cfg, runtime) }()
+	go func() { done <- app.RunWith(ctx, cfg, runtime) }()
 
 	addr := listeningAddr(t, &logs)
 	if _, port, err := net.SplitHostPort(addr); err != nil || port == "0" || port == "" {

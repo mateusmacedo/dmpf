@@ -1,10 +1,10 @@
-package bff
+package app
 
 import (
 	"context"
 	"testing"
 
-	"github.com/mateusmacedo/dmpf/apps/backend/bff/rpc"
+	"github.com/mateusmacedo/dmpf/apps/backend/bff/app/rpc"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/logging"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )

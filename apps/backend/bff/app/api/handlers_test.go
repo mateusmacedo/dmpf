@@ -18,7 +18,7 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/admission"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/deadline"
 
-	"github.com/mateusmacedo/dmpf/apps/backend/bff/api"
+	"github.com/mateusmacedo/dmpf/apps/backend/bff/app/api"
 )
 
 func TestRoutesReferenceThePublishedContracts(t *testing.T) {

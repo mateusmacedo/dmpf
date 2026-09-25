@@ -1,4 +1,4 @@
-package bff
+package app
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/tracing"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 
-	"github.com/mateusmacedo/dmpf/apps/backend/bff/rpc"
+	"github.com/mateusmacedo/dmpf/apps/backend/bff/app/rpc"
 )
 
 // TelemetryOf is what this process declares about itself to the telemetry.

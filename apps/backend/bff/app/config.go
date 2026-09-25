@@ -1,4 +1,4 @@
-package bff
+package app
 
 import (
 	"errors"

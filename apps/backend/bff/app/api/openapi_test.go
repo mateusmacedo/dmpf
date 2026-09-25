@@ -9,7 +9,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/mateusmacedo/dmpf/apps/backend/bff/api"
+	"github.com/mateusmacedo/dmpf/apps/backend/bff/app/api"
 )
 
 type document struct {
@@ -33,7 +33,7 @@ type parameter struct {
 
 func loadDocument(t *testing.T, file string) document {
 	t.Helper()
-	raw, err := os.ReadFile("../../../../" + file)
+	raw, err := os.ReadFile("../../../../../" + file)
 	if err != nil {
 		t.Fatalf("ReadFile(%s) = %v", file, err)
 	}

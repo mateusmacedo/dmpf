@@ -19,7 +19,7 @@ import (
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb"
 
-	"github.com/mateusmacedo/dmpf/apps/backend/bff/rpc"
+	"github.com/mateusmacedo/dmpf/apps/backend/bff/app/rpc"
 )
 
 func findOrderOver(t *testing.T, target string, opts rpc.Options) error {

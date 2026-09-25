@@ -1,6 +1,6 @@
 //go:build integration
 
-package bff_test
+package app_test
 
 import (
 	"context"

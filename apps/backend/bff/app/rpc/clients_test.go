@@ -21,7 +21,7 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/retry"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/deadline"
 
-	"github.com/mateusmacedo/dmpf/apps/backend/bff/rpc"
+	"github.com/mateusmacedo/dmpf/apps/backend/bff/app/rpc"
 )
 
 type harness struct {

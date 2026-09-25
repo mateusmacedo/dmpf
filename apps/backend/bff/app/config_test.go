@@ -1,11 +1,11 @@
-package bff_test
+package app_test
 
 import (
 	"errors"
 	"strings"
 	"testing"
 
-	"github.com/mateusmacedo/dmpf/apps/backend/bff"
+	"github.com/mateusmacedo/dmpf/apps/backend/bff/app"
 )
 
 func lookup(pairs ...string) func(string) string {
@@ -24,7 +24,7 @@ var targets = []string{"DMPF_ORDERS_GRPC_TARGET", "orders:9090", "DMPF_RESERVATI
 const devMock = "DMPF_AUTH_DEV_MOCK"
 
 func TestFromEnvRefusesAStartThatDeclaresNoIdentity(t *testing.T) {
-	_, err := bff.FromEnv(lookup(append(targets, "DMPF_GRPC_INSECURE", "true")...))
+	_, err := app.FromEnv(lookup(append(targets, "DMPF_GRPC_INSECURE", "true")...))
 
 	if err == nil {
 		t.Fatal("FromEnv() = nil: a start that could authenticate nobody must be refused")
@@ -35,7 +35,7 @@ func TestFromEnvRefusesAStartThatDeclaresNoIdentity(t *testing.T) {
 }
 
 func TestFromEnvAppliesTheDefaults(t *testing.T) {
-	cfg, err := bff.FromEnv(lookup(append(targets, "DMPF_GRPC_INSECURE", "true", devMock, "true")...))
+	cfg, err := app.FromEnv(lookup(append(targets, "DMPF_GRPC_INSECURE", "true", devMock, "true")...))
 
 	if err != nil {
 		t.Fatalf("FromEnv() = %v", err)
@@ -57,8 +57,8 @@ func TestFromEnvNamesEachMissingTarget(t *testing.T) {
 					env = append(env, targets[i], targets[i+1])
 				}
 			}
-			_, err := bff.FromEnv(lookup(env...))
-			if !errors.Is(err, bff.ErrMissingVariable) || !strings.Contains(err.Error(), variable) {
+			_, err := app.FromEnv(lookup(env...))
+			if !errors.Is(err, app.ErrMissingVariable) || !strings.Contains(err.Error(), variable) {
 				t.Fatalf("FromEnv() = %v, want %s named", err, variable)
 			}
 		})
@@ -66,15 +66,15 @@ func TestFromEnvNamesEachMissingTarget(t *testing.T) {
 }
 
 func TestFromEnvRequiresATransportPolicy(t *testing.T) {
-	_, err := bff.FromEnv(lookup(targets...))
+	_, err := app.FromEnv(lookup(targets...))
 
-	if !errors.Is(err, bff.ErrMissingVariable) || !strings.Contains(err.Error(), "DMPF_GRPC_INSECURE") || !strings.Contains(err.Error(), "DMPF_GRPC_CA_FILE") {
+	if !errors.Is(err, app.ErrMissingVariable) || !strings.Contains(err.Error(), "DMPF_GRPC_INSECURE") || !strings.Contains(err.Error(), "DMPF_GRPC_CA_FILE") {
 		t.Fatalf("FromEnv() = %v, want both transport variables named (GRP-15)", err)
 	}
 }
 
 func TestFromEnvAcceptsATrustAuthority(t *testing.T) {
-	cfg, err := bff.FromEnv(lookup(append(targets, "DMPF_GRPC_CA_FILE", "/etc/ca.pem", "DMPF_GRPC_SERVER_NAME", "orders.internal",
+	cfg, err := app.FromEnv(lookup(append(targets, "DMPF_GRPC_CA_FILE", "/etc/ca.pem", "DMPF_GRPC_SERVER_NAME", "orders.internal",
 		"DMPF_GRPC_CLIENT_CERT_FILE", "/etc/bff.crt", "DMPF_GRPC_CLIENT_KEY_FILE", "/etc/bff.key", "DMPF_CORS_ORIGINS", "http://a, http://b", devMock, "true")...))
 
 	if err != nil {
@@ -88,17 +88,17 @@ func TestFromEnvAcceptsATrustAuthority(t *testing.T) {
 // IDN-03: the contexts only trust a verified workload, so an edge that trusts
 // their authority also has to present its own certificate.
 func TestFromEnvRefusesATrustAuthorityWithoutAClientPair(t *testing.T) {
-	_, err := bff.FromEnv(lookup(append(targets, "DMPF_GRPC_CA_FILE", "/etc/ca.pem", devMock, "true")...))
+	_, err := app.FromEnv(lookup(append(targets, "DMPF_GRPC_CA_FILE", "/etc/ca.pem", devMock, "true")...))
 
-	if !errors.Is(err, bff.ErrMissingVariable) || !strings.Contains(err.Error(), "DMPF_GRPC_CLIENT_CERT_FILE") {
+	if !errors.Is(err, app.ErrMissingVariable) || !strings.Contains(err.Error(), "DMPF_GRPC_CLIENT_CERT_FILE") {
 		t.Fatalf("FromEnv() = %v, want the client pair named", err)
 	}
 }
 
 func TestFromEnvRefusesAnInvalidBoolean(t *testing.T) {
-	_, err := bff.FromEnv(lookup(append(targets, "DMPF_GRPC_INSECURE", "maybe")...))
+	_, err := app.FromEnv(lookup(append(targets, "DMPF_GRPC_INSECURE", "maybe")...))
 
-	if !errors.Is(err, bff.ErrInvalidVariable) {
+	if !errors.Is(err, app.ErrInvalidVariable) {
 		t.Fatalf("FromEnv() = %v, want ErrInvalidVariable", err)
 	}
 }

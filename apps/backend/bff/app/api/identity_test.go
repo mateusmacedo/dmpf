@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mateusmacedo/dmpf/apps/backend/bff/api"
+	"github.com/mateusmacedo/dmpf/apps/backend/bff/app/api"
 )
 
 const (

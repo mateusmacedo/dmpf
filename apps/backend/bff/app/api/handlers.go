@@ -11,7 +11,7 @@ import (
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/tracing"
 
-	"github.com/mateusmacedo/dmpf/apps/backend/bff/rpc"
+	"github.com/mateusmacedo/dmpf/apps/backend/bff/app/rpc"
 )
 
 const (

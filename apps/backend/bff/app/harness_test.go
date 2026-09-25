@@ -1,6 +1,6 @@
 //go:build integration
 
-package bff_test
+package app_test
 
 import (
 	"bufio"
@@ -26,7 +26,7 @@ import (
 	"google.golang.org/grpc/credentials"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 
-	"github.com/mateusmacedo/dmpf/apps/backend/bff/rpc"
+	"github.com/mateusmacedo/dmpf/apps/backend/bff/app/rpc"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/pg"
 )
