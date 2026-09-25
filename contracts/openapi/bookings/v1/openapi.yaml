@@ -201,6 +201,7 @@ components:
         type: string
         minLength: 1
         maxLength: 128
+        pattern: '^[A-Za-z0-9._:-]+$'
     IdempotencyKey:
       name: Idempotency-Key
       in: header
@@ -233,10 +234,12 @@ components:
           type: string
           minLength: 1
           maxLength: 128
+          pattern: '^[A-Za-z0-9._:-]+$'
         resourceId:
           type: string
           minLength: 1
           maxLength: 128
+          pattern: '^[A-Za-z0-9._:-]+$'
         quantity:
           type: integer
           minimum: 1
@@ -262,6 +265,7 @@ components:
           type: string
           minLength: 1
           maxLength: 128
+          pattern: '^[A-Za-z0-9._:-]+$'
     RegisteredResponse:
       type: object
       required: [code]
@@ -289,7 +293,7 @@ components:
       required: [code, message]
       description: >-
         A refusal the domain or the edge declared. Domain codes take the
-        "context/reason" form (FND-03 §5.3).
+        "context/aggregate/reason" form (FND-03 §5.3; ADR-053).
       properties:
         code:
           type: string
