@@ -35,7 +35,7 @@ func CredentialFrom(r *http.Request) ports.Credential {
 // DevAuthenticator resolves identity from the credential itself, which means
 // any caller can forge any subject and tenant. It exists for development and
 // for the black-box end-to-end suite, and the start refuses it unless
-// DMPF_AUTH_DEV_MOCK declares it (IDN-01 is satisfied by no part of this).
+// AUTH_DEV_MOCK declares it (IDN-01 is satisfied by no part of this).
 type DevAuthenticator struct{}
 
 type devIdentity struct {

@@ -40,10 +40,10 @@ monta.
 - **`config.go`** — `Config{Issuer, Audience, TenantClaim, PermissionClaims,
   DiscoveryTimeout, DevMock}`. `Defaults()` assume um access token de Keycloak:
   `scope` como string separada por espaço e roles de realm aninhadas em
-  `realm_access.roles`. `ReadEnv(lookup)` lê `DMPF_OIDC_ISSUER`,
-  `DMPF_OIDC_AUDIENCE`, `DMPF_OIDC_TENANT_CLAIM`, `DMPF_OIDC_PERMISSION_CLAIMS`
-  (lista separada por vírgula), `DMPF_OIDC_DISCOVERY_TIMEOUT_SECONDS` (default
-  10 s) e `DMPF_AUTH_DEV_MOCK`; `FromEnv` lê e valida em um só passo.
+  `realm_access.roles`. `ReadEnv(lookup)` lê `OIDC_ISSUER`,
+  `OIDC_AUDIENCE`, `OIDC_TENANT_CLAIM`, `OIDC_PERMISSION_CLAIMS`
+  (lista separada por vírgula), `OIDC_DISCOVERY_TIMEOUT_SECONDS` (default
+  10 s) e `AUTH_DEV_MOCK`; `FromEnv` lê e valida em um só passo.
   `Validate` recusa a partida sem nenhum meio de resolver identidade
   (`ErrVerifierNotDeclared`: nem issuer, nem o mock de desenvolvimento), os
   dois meios juntos (`ErrMockWithVerifier`) e um issuer sem audiência ou sem
@@ -63,7 +63,7 @@ monta.
   nem o tenant, que só a verificação resolve (`CTX-06`). `DevAuthenticator`
   resolve identidade **do próprio credencial**, que a requisição declara como
   JSON (`{"sub", "tenant", "permissions"}`) — qualquer chamador forja qualquer
-  sujeito e tenant, e por isso a partida a recusa sem `DMPF_AUTH_DEV_MOCK`
+  sujeito e tenant, e por isso a partida a recusa sem `AUTH_DEV_MOCK`
   declarado; nenhuma parte de `IDN-01` é satisfeita por ela. Existe para
   desenvolvimento e para a suíte e2e caixa-preta do BFF (`bff:test-race`).
 - **`claims.go`** — `claimValue`/`stringClaim`/`permissionsFrom`: toda claim é
