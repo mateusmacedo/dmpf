@@ -31,7 +31,7 @@ func TestTwoDrainsPublishEveryRecordExactlyOnce(t *testing.T) {
 
 	var pending int
 	if err := h.Pool.QueryRow(context.Background(),
-		"SELECT count(*) FROM dmpf_outbox WHERE status = 'pending'").Scan(&pending); err != nil {
+		"SELECT count(*) FROM outbox WHERE status = 'pending'").Scan(&pending); err != nil {
 		t.Fatalf("counting the outbox: %v", err)
 	}
 	if pending != reservations {
@@ -45,7 +45,7 @@ func TestTwoDrainsPublishEveryRecordExactlyOnce(t *testing.T) {
 	t.Cleanup(func() {
 		if t.Failed() {
 			rows, err := h.Pool.Query(context.Background(),
-				"SELECT message_id, status, attempt_count, coalesce(last_error, '') FROM dmpf_outbox ORDER BY id")
+				"SELECT message_id, status, attempt_count, coalesce(last_error, '') FROM outbox ORDER BY id")
 			if err == nil {
 				defer rows.Close()
 				for rows.Next() {

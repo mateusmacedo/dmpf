@@ -18,7 +18,20 @@ import (
 
 // Tables of this context, which the kit cannot know: it resets the shared
 // DMPF tables and the ones named here.
-var Tables = []string{"bookings_booking", "bookings_resource"}
+var Tables = []string{"bookings", "resources"}
+
+// OpenPool opens the suite's pool with this context's schema migrated before its
+// tables are reset: truncating first would fail on a database that has never
+// seen the schema.
+func OpenPool(t testing.TB) *pgxpool.Pool {
+	t.Helper()
+	pool := pg.OpenPool(t)
+	if err := postgres.Migrate(context.Background(), pool, provider.Schema); err != nil {
+		t.Fatalf("appkit.OpenPool: Migrate: %v", err)
+	}
+	pg.ResetTables(t, pool, Tables...)
+	return pool
+}
 
 // Harness is the application service composed over the Postgres the suite
 // runs against, with the clock and identifiers the test injects (KIT-07).
@@ -31,11 +44,7 @@ type Harness struct {
 // the instrumentation: a harness observes effects, not telemetry.
 func NewBookings(t testing.TB, clock ports.Clock, ids ports.IDGenerator) Harness {
 	t.Helper()
-	pool := pg.OpenPool(t, Tables...)
-	if err := postgres.Migrate(context.Background(), pool, provider.Schema); err != nil {
-		t.Fatalf("appkit.NewBookings: Migrate: %v", err)
-	}
-	pg.ResetTables(t, pool, Tables...)
+	pool := OpenPool(t)
 	return Harness{
 		Service: application.Service{
 			UoW:            postgres.NewUnitOfWork(pool, bind),
@@ -72,7 +81,7 @@ type Enqueued struct {
 func (h Harness) Outbox(t testing.TB) []Enqueued {
 	t.Helper()
 	const query = `SELECT message_id, message_type, aggregate_version, destination, status
-		FROM dmpf_outbox ORDER BY id`
+		FROM outbox ORDER BY id`
 
 	rows, err := h.Pool.Query(context.Background(), query)
 	if err != nil {

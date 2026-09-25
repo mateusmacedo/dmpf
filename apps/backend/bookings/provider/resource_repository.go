@@ -9,8 +9,8 @@ import (
 // resourceTable declares how the Resource snapshot maps to typed columns, under
 // the same kernel statements as bookingTable (IDN-14).
 var resourceTable = postgres.Table[domain.ResourceCode, domain.ResourceSnapshot]{
-	Name:     "bookings_resource",
-	IDColumn: "code",
+	Name:     "resources",
+	IDColumn: "resource_id",
 	Columns:  []string{"registered_at"},
 
 	Encode: func(s domain.ResourceSnapshot) ([]any, error) {

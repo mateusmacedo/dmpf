@@ -166,7 +166,7 @@ func (p *Process) Stop(t testing.TB, timeout time.Duration) {
 // assembly.
 func (h Harness) Settled(t testing.TB, want int, timeout time.Duration) map[string]string {
 	t.Helper()
-	const query = `SELECT message_id, payload_hash FROM dmpf_outbox WHERE status = 'published'`
+	const query = `SELECT message_id, payload_hash FROM outbox WHERE status = 'published'`
 	deadline := time.Now().Add(timeout)
 	for {
 		settled := map[string]string{}

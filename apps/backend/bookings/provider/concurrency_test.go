@@ -5,7 +5,7 @@ package provider_test
 import (
 	"context"
 	"errors"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/pg"
+	"github.com/mateusmacedo/dmpf/apps/backend/bookings/appkit"
 	"sync"
 	"testing"
 
@@ -14,7 +14,7 @@ import (
 )
 
 func TestConcurrentSaveLetsExactlyOneWriterThrough(t *testing.T) {
-	pool := pg.OpenPool(t, "bookings_booking", "bookings_resource")
+	pool := appkit.OpenPool(t)
 	seed(t, pool)
 
 	const writers = 2

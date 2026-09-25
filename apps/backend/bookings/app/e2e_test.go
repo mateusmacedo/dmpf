@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/app"
 	httpedge "github.com/mateusmacedo/dmpf/apps/backend/bookings/app/http"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/pg"
+	"github.com/mateusmacedo/dmpf/apps/backend/bookings/appkit"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -87,7 +87,7 @@ var e2eBudget = deadline.Budget{
 }
 
 func TestReserveBookingHTTPEndToEnd(t *testing.T) {
-	pool := pg.OpenPool(t, "bookings_booking", "bookings_resource")
+	pool := appkit.OpenPool(t)
 	mux := newMux(t, pool)
 
 	body, _ := json.Marshal(map[string]any{"bookingId": "http-b-001", "resourceId": "http-r-001", "quantity": 3})
@@ -112,7 +112,7 @@ func TestReserveBookingHTTPEndToEnd(t *testing.T) {
 
 	t.Run("outbox has a row", func(t *testing.T) {
 		var count int
-		err := pool.QueryRow(context.Background(), "SELECT count(*) FROM dmpf_outbox").Scan(&count)
+		err := pool.QueryRow(context.Background(), "SELECT count(*) FROM outbox").Scan(&count)
 		if err != nil {
 			t.Fatalf("count outbox: %v", err)
 		}
@@ -177,7 +177,7 @@ func TestReserveBookingHTTPEndToEnd(t *testing.T) {
 }
 
 func TestReserveBookingHTTPRejectsInvalidQuantity(t *testing.T) {
-	pool := pg.OpenPool(t, "bookings_booking", "bookings_resource")
+	pool := appkit.OpenPool(t)
 	mux := newMux(t, pool)
 
 	body, _ := json.Marshal(map[string]any{"bookingId": "http-b-002", "resourceId": "http-r-002", "quantity": 0})
@@ -197,7 +197,7 @@ func TestReserveBookingHTTPRejectsInvalidQuantity(t *testing.T) {
 // without the write permission is refused as forbidden, never as unauthenticated
 // and never as an internal failure, and nothing is written.
 func TestReserveBookingWithoutThePermissionIsForbidden(t *testing.T) {
-	pool := pg.OpenPool(t, "bookings_booking", "bookings_resource")
+	pool := appkit.OpenPool(t)
 	mux := newMux(t, pool)
 
 	body, _ := json.Marshal(map[string]any{"bookingId": "http-b-403", "resourceId": "http-r-403", "quantity": 1})
@@ -212,7 +212,7 @@ func TestReserveBookingWithoutThePermissionIsForbidden(t *testing.T) {
 		t.Fatalf("status = %d, want 403; body: %s", rec.Code, rec.Body.String())
 	}
 	var count int
-	if err := pool.QueryRow(context.Background(), "SELECT count(*) FROM dmpf_outbox").Scan(&count); err != nil {
+	if err := pool.QueryRow(context.Background(), "SELECT count(*) FROM outbox").Scan(&count); err != nil {
 		t.Fatalf("count outbox: %v", err)
 	}
 	if count != 0 {
@@ -223,7 +223,7 @@ func TestReserveBookingWithoutThePermissionIsForbidden(t *testing.T) {
 // CTX-06 at the edge: a header asserting another tenant than the credential
 // resolved is refused, and nothing is written under either tenant.
 func TestAHeaderAssertingAnotherTenantIsRefused(t *testing.T) {
-	pool := pg.OpenPool(t, "bookings_booking", "bookings_resource")
+	pool := appkit.OpenPool(t)
 	mux := newMux(t, pool)
 
 	body, _ := json.Marshal(map[string]any{"bookingId": "http-b-406", "resourceId": "http-r-406", "quantity": 1})
@@ -239,7 +239,7 @@ func TestAHeaderAssertingAnotherTenantIsRefused(t *testing.T) {
 		t.Fatalf("status = %d, want 403; body: %s", rec.Code, rec.Body.String())
 	}
 	var count int
-	if err := pool.QueryRow(context.Background(), "SELECT count(*) FROM dmpf_outbox").Scan(&count); err != nil {
+	if err := pool.QueryRow(context.Background(), "SELECT count(*) FROM outbox").Scan(&count); err != nil {
 		t.Fatalf("count outbox: %v", err)
 	}
 	if count != 0 {
