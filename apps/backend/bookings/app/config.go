@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/kafka"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/app/relay"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/authn"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/envconfig"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/admission"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/deadline"
 )
 
@@ -33,21 +35,29 @@ var (
 )
 
 const (
-	envDSN             = "DMPF_PG_DSN"
-	envHTTPAddr        = "DMPF_HTTP_ADDR"
-	envMigrate         = "DMPF_MIGRATE"
-	envBrokers         = "DMPF_KAFKA_BROKERS"
-	envKafkaInsecure   = "DMPF_KAFKA_INSECURE"
-	envBookingsTopic   = "DMPF_KAFKA_BOOKINGS_TOPIC"
-	envBookingsDLQ     = "DMPF_KAFKA_BOOKINGS_DLQ"
-	envGroup           = "DMPF_KAFKA_GROUP"
-	envOTLPEndpoint    = "DMPF_OTLP_ENDPOINT"
-	envOTLPInsecure    = "DMPF_OTLP_INSECURE"
-	envService         = "DMPF_SERVICE"
-	envServiceVersion  = "DMPF_SERVICE_VERSION"
-	envInstanceID      = "DMPF_INSTANCE_ID"
-	defaultHTTPAddr    = ":8080"
-	defaultServiceName = "bookings"
+	envDSN            = "DMPF_PG_DSN"
+	envHTTPAddr       = "DMPF_HTTP_ADDR"
+	envMigrate        = "DMPF_MIGRATE"
+	envBrokers        = "DMPF_KAFKA_BROKERS"
+	envKafkaInsecure  = "DMPF_KAFKA_INSECURE"
+	envBookingsTopic  = "DMPF_KAFKA_BOOKINGS_TOPIC"
+	envBookingsDLQ    = "DMPF_KAFKA_BOOKINGS_DLQ"
+	envGroup          = "DMPF_KAFKA_GROUP"
+	envOTLPEndpoint   = "DMPF_OTLP_ENDPOINT"
+	envOTLPInsecure   = "DMPF_OTLP_INSECURE"
+	envService        = "DMPF_SERVICE"
+	envServiceVersion = "DMPF_SERVICE_VERSION"
+	envInstanceID     = "DMPF_INSTANCE_ID"
+
+	envGRPCAddr           = "DMPF_GRPC_ADDR"
+	envGRPCInsecure       = "DMPF_GRPC_INSECURE"
+	envGRPCCertFile       = "DMPF_GRPC_TLS_CERT_FILE"
+	envGRPCKeyFile        = "DMPF_GRPC_TLS_KEY_FILE"
+	envGRPCClientCAFile   = "DMPF_GRPC_CLIENT_CA_FILE"
+	envGRPCTrustedClients = "DMPF_GRPC_TRUSTED_CLIENTS"
+	envMetricTenants      = "DMPF_METRIC_TENANTS"
+	defaultHTTPAddr       = ":8080"
+	defaultServiceName    = "bookings"
 )
 
 // Config is every operational value the two roles need, resolved once at
@@ -59,6 +69,17 @@ type Config struct {
 	HTTPAddr    string
 	Migrate     bool
 	RouteBudget deadline.Budget
+
+	// GRPCAddr turns the gRPC edge on beside the HTTP one while both coexist;
+	// empty keeps the api on HTTP alone.
+	GRPCAddr           string
+	GRPCInsecure       bool
+	GRPCCertFile       string
+	GRPCKeyFile        string
+	GRPCClientCAFile   string
+	GRPCTrustedClients []string
+	Admission          admission.Limit
+	MetricTenants      []string
 
 	Brokers       []string
 	KafkaInsecure bool
@@ -97,6 +118,15 @@ func FromEnv(role Role, lookup func(string) string) (Config, error) {
 		Version:       envconfig.OrDefault(lookup(envServiceVersion), "0.0.0"),
 		Instance:      envconfig.OrDefault(lookup(envInstanceID), envconfig.Hostname()),
 		Brokers:       envconfig.SplitList(lookup(envBrokers)),
+
+		GRPCAddr:           lookup(envGRPCAddr),
+		GRPCCertFile:       lookup(envGRPCCertFile),
+		GRPCKeyFile:        lookup(envGRPCKeyFile),
+		GRPCClientCAFile:   lookup(envGRPCClientCAFile),
+		GRPCTrustedClients: envconfig.SplitList(lookup(envGRPCTrustedClients)),
+		Admission:          admission.Limit{PerSecond: 50, Burst: 100, Concurrency: 32},
+		MetricTenants:      envconfig.SplitList(lookup(envMetricTenants)),
+
 		RouteBudget: deadline.Budget{
 			Dependency:        "postgres",
 			Method:            "route",
@@ -126,6 +156,9 @@ func FromEnv(role Role, lookup func(string) string) (Config, error) {
 		return Config{}, err
 	}
 	if cfg.OTLPInsecure, err = envconfig.ParseBool(envOTLPInsecure, lookup(envOTLPInsecure)); err != nil {
+		return Config{}, err
+	}
+	if cfg.GRPCInsecure, err = envconfig.ParseBool(envGRPCInsecure, lookup(envGRPCInsecure)); err != nil {
 		return Config{}, err
 	}
 	if cfg.Auth, err = authn.ReadEnv(lookup); err != nil {
@@ -160,6 +193,9 @@ func (c Config) validate() error {
 			missing = append(missing, envGroup)
 		}
 	}
+	if c.Role == RoleAPI && c.GRPCAddr != "" {
+		missing = append(missing, c.grpcTransport()...)
+	}
 	if len(missing) > 0 {
 		return fmt.Errorf("%w: %s", ErrMissingVariable, strings.Join(missing, ", "))
 	}
@@ -177,4 +213,28 @@ func (c Config) validate() error {
 		return fmt.Errorf("%w: %q (want api|relay)", ErrUnknownRole, c.Role)
 	}
 	return nil
+}
+
+// grpcTransport is the gRPC edge's security policy: mutual TLS, whose client CA
+// and allowlist authenticate the caller (IDN-03), or the development opt-out.
+func (c Config) grpcTransport() []string {
+	if c.GRPCInsecure {
+		return nil
+	}
+	if c.GRPCCertFile == "" && c.GRPCKeyFile == "" {
+		return []string{envGRPCInsecure + " or " + envGRPCCertFile + " and " + envGRPCKeyFile}
+	}
+	var missing []string
+	for name, absent := range map[string]bool{
+		envGRPCCertFile:       c.GRPCCertFile == "",
+		envGRPCKeyFile:        c.GRPCKeyFile == "",
+		envGRPCClientCAFile:   c.GRPCClientCAFile == "",
+		envGRPCTrustedClients: len(c.GRPCTrustedClients) == 0,
+	} {
+		if absent {
+			missing = append(missing, name)
+		}
+	}
+	slices.Sort(missing)
+	return missing
 }

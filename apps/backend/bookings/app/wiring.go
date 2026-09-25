@@ -5,14 +5,17 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"net"
 	"net/http"
 	"slices"
 
 	httpedge "github.com/mateusmacedo/dmpf/apps/backend/bookings/app/http"
+	"github.com/mateusmacedo/dmpf/apps/backend/bookings/app/rpc"
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/application"
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/provider"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/app/relay"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/authn"
+	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/kafka"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/audit"
@@ -22,6 +25,7 @@ import (
 	obsusecase "github.com/mateusmacedo/dmpf/libs/backend/go/observability/usecase"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/admission"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/deadline"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -104,12 +108,20 @@ func serveAPI(ctx context.Context, cfg Config, rt *otelboot.Runtime, out io.Writ
 	if err != nil {
 		return fmt.Errorf("authenticator: %w", err)
 	}
-	mux, err := NewMux(NewBookingsService(pool, rt, cfg, out), cfg.RouteBudget, authenticator)
+	service := NewBookingsService(pool, rt, cfg, out)
+	mux, err := NewMux(service, cfg.RouteBudget, authenticator)
 	if err != nil {
 		return fmt.Errorf("routes: %w", err)
 	}
 	server := &http.Server{Addr: cfg.HTTPAddr, Handler: mux}
-	failed := make(chan error, 1)
+	failed := make(chan error, 2)
+	if cfg.GRPCAddr != "" {
+		grpcServe, err := grpcEdge(cfg, rt, pool, service)
+		if err != nil {
+			return fmt.Errorf("grpc: %w", err)
+		}
+		go func() { failed <- grpcServe(ctx) }()
+	}
 	go func() { failed <- server.ListenAndServe() }()
 	rt.Logger().InfoContext(ctx, "http listening", "addr", cfg.HTTPAddr)
 
@@ -122,6 +134,43 @@ func serveAPI(ctx context.Context, cfg Config, rt *otelboot.Runtime, out io.Writ
 		}
 		return err
 	}
+}
+
+// grpcEdge builds the gRPC server of the api over the same service the HTTP
+// edge uses, with the kernel's server chain.
+func grpcEdge(cfg Config, rt *otelboot.Runtime, pool *pgxpool.Pool, service application.Service) (func(context.Context) error, error) {
+	ctrl, err := admission.NewController(kernel.MethodLimits(rpc.ServiceName, rpc.Methods(), cfg.Admission), cfg.MetricTenants, admission.DefaultMaxKeys)
+	if err != nil {
+		return nil, err
+	}
+	serverConfig, err := kernel.APIServerConfig(kernel.APIServer{
+		CertFile:       cfg.GRPCCertFile,
+		KeyFile:        cfg.GRPCKeyFile,
+		ClientCAFile:   cfg.GRPCClientCAFile,
+		TrustedClients: cfg.GRPCTrustedClients,
+		Insecure:       cfg.GRPCInsecure,
+		Services:       kernel.HealthServices(rpc.ServiceName),
+		Interceptors:   kernel.ServerInterceptors(rpc.ServiceName, rt.Tracer(), ctrl, rt.Instruments(), rt.Logger()),
+		Logger:         rt.Logger(),
+	})
+	if err != nil {
+		return nil, err
+	}
+	server, healthServer, err := kernel.NewServer(serverConfig)
+	if err != nil {
+		return nil, err
+	}
+	server.RegisterService(&rpc.ServiceDesc, rpc.Server{Service: service})
+	listen := func() (net.Listener, error) { return net.Listen("tcp", cfg.GRPCAddr) }
+	ready := func(ctx context.Context) error {
+		if err := pool.Ping(ctx); err != nil {
+			return fmt.Errorf("postgres: %w", err)
+		}
+		return nil
+	}
+	return func(ctx context.Context) error {
+		return kernel.Serve(ctx, listen, server, healthServer, kernel.HealthServices(rpc.ServiceName), ready, rt.Logger())
+	}, nil
 }
 
 // drain stops accepting and lets the requests in flight finish, because a
