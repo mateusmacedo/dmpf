@@ -33,7 +33,7 @@ const (
 	EnvTopic   = "DMPF_TESTKIT_TOPIC"
 	EnvGroup   = "DMPF_TESTKIT_GROUP"
 	EnvDLQ     = "DMPF_TESTKIT_DLQ"
-	EnvBrokers = "DMPF_KAFKA_BROKERS"
+	EnvBrokers = "KAFKA_BROKERS"
 )
 
 // Role is what a child process does. A producing context has one: drain the
@@ -118,11 +118,11 @@ func (h Harness) Start(t testing.TB, role Role) *Process {
 		EnvRole+"="+string(role),
 		// The child reads its configuration the way the binary does, so these
 		// are the variables of the app, not names of the harness.
-		"DMPF_KAFKA_BOOKINGS_TOPIC="+h.Topic,
-		"DMPF_KAFKA_BOOKINGS_DLQ="+h.DLQ,
-		"DMPF_KAFKA_GROUP="+h.Group,
-		"DMPF_KAFKA_INSECURE=true",
-		"DMPF_SERVICE=bookings-distkit",
+		"KAFKA_BOOKINGS_TOPIC="+h.Topic,
+		"KAFKA_BOOKINGS_DLQ="+h.DLQ,
+		"KAFKA_GROUP="+h.Group,
+		"KAFKA_INSECURE=true",
+		"SERVICE=bookings-distkit",
 		EnvBrokers+"="+strings.Join(h.Brokers, ","),
 		pg.PostgresDSN+"="+pg.DSN(t, appkit.PoolOptions.Project),
 	)

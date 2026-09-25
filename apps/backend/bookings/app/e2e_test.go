@@ -70,7 +70,7 @@ func newMux(t *testing.T, pool *pgxpool.Pool) *http.ServeMux {
 
 // e2eCredential is what a caller presents: the development mock resolves the
 // identity from the declaration itself, which is why the start refuses it
-// outside DMPF_AUTH_DEV_MOCK.
+// outside AUTH_DEV_MOCK.
 const e2eCredential = `Bearer {"sub":"s-e2e","tenant":"acme","permissions":["bookings:write","bookings:read"]}`
 
 // e2eReadOnly authenticates in the same tenant without the write permission.

@@ -63,8 +63,8 @@ sujeito sem declarar permissão recusaria o processo antes de servir (`IDN-16`,
 
 ## Autenticação, autorização e tenant
 
-O próprio `httpedge` autentica: um verificador OIDC (`DMPF_OIDC_*`) ou o mock
-de desenvolvimento (`DMPF_AUTH_DEV_MOCK`), nunca os dois ao mesmo tempo — a
+O próprio `httpedge` autentica: um verificador OIDC (`OIDC_*`) ou o mock
+de desenvolvimento (`AUTH_DEV_MOCK`), nunca os dois ao mesmo tempo — a
 mesma configuração (`authn.Config`) que o `bff` usa. O contexto de execução de
 nove campos (`CTX-01`) é montado por requisição — sujeito, tenant, permissões,
 `request_id`, `correlation_id`, prazo e o `locale` fixo `en`, porque a borda não
@@ -85,18 +85,18 @@ de segurança auditado, nunca `PermissionDenied` (`IDN-12`, `IDN-13`).
 
 | Variável | Papel | Efeito |
 | --- | --- | --- |
-| `DMPF_PG_DSN` | todos | Banco do contexto |
-| `DMPF_HTTP_ADDR` | `api` | Default `:8080` |
-| `DMPF_OIDC_ISSUER`, `DMPF_OIDC_AUDIENCE`, `DMPF_OIDC_TENANT_CLAIM` | `api`, uma das duas linhas de autenticação | Emissor, audiência e claim de tenant do access token |
-| `DMPF_OIDC_PERMISSION_CLAIMS` | `api` | Caminhos das claims de permissão, separados por vírgula; default `scope,realm_access.roles` |
-| `DMPF_OIDC_DISCOVERY_TIMEOUT_SECONDS` | `api` | Default 10 |
-| `DMPF_AUTH_DEV_MOCK` | `api`, uma das duas linhas de autenticação | `true` lê a identidade declarada no próprio Bearer, sem verificação — só desenvolvimento; não pode coexistir com `DMPF_OIDC_ISSUER` |
-| `DMPF_MIGRATE` | `api` | Aplica o schema antes de servir |
-| `DMPF_KAFKA_BROKERS`, `DMPF_KAFKA_INSECURE` | `relay` | Brokers e opt-out de TLS |
-| `DMPF_KAFKA_SASL_MECHANISM`, `DMPF_KAFKA_SASL_USERNAME`, `DMPF_KAFKA_SASL_PASSWORD` ou `DMPF_KAFKA_CLIENT_CERT_FILE` + `DMPF_KAFKA_CLIENT_KEY_FILE` | `relay`, com TLS | Autenticação do cliente no broker, obrigatória sempre que `DMPF_KAFKA_INSECURE` não está ligado (ADR-052) |
-| `DMPF_KAFKA_BOOKINGS_TOPIC`, `DMPF_KAFKA_BOOKINGS_DLQ`, `DMPF_KAFKA_GROUP` | `relay` | Endereço, contenção e grupo do canal `bookings.events` |
-| `DMPF_OTLP_ENDPOINT`, `DMPF_OTLP_INSECURE` | não | Exportação OTLP; sem endpoint, telemetria em memória |
-| `DMPF_SERVICE`, `DMPF_SERVICE_VERSION`, `DMPF_INSTANCE_ID` | todos | Identidade do recurso OTel; default de `DMPF_SERVICE` é `bookings` |
+| `PG_DSN` | todos | Banco do contexto |
+| `HTTP_ADDR` | `api` | Default `:8080` |
+| `OIDC_ISSUER`, `OIDC_AUDIENCE`, `OIDC_TENANT_CLAIM` | `api`, uma das duas linhas de autenticação | Emissor, audiência e claim de tenant do access token |
+| `OIDC_PERMISSION_CLAIMS` | `api` | Caminhos das claims de permissão, separados por vírgula; default `scope,realm_access.roles` |
+| `OIDC_DISCOVERY_TIMEOUT_SECONDS` | `api` | Default 10 |
+| `AUTH_DEV_MOCK` | `api`, uma das duas linhas de autenticação | `true` lê a identidade declarada no próprio Bearer, sem verificação — só desenvolvimento; não pode coexistir com `OIDC_ISSUER` |
+| `MIGRATE` | `api` | Aplica o schema antes de servir |
+| `KAFKA_BROKERS`, `KAFKA_INSECURE` | `relay` | Brokers e opt-out de TLS |
+| `KAFKA_SASL_MECHANISM`, `KAFKA_SASL_USERNAME`, `KAFKA_SASL_PASSWORD` ou `KAFKA_CLIENT_CERT_FILE` + `KAFKA_CLIENT_KEY_FILE` | `relay`, com TLS | Autenticação do cliente no broker, obrigatória sempre que `KAFKA_INSECURE` não está ligado (ADR-052) |
+| `KAFKA_BOOKINGS_TOPIC`, `KAFKA_BOOKINGS_DLQ`, `KAFKA_GROUP` | `relay` | Endereço, contenção e grupo do canal `bookings.events` |
+| `OTLP_ENDPOINT`, `OTLP_INSECURE` | não | Exportação OTLP; sem endpoint, telemetria em memória |
+| `SERVICE`, `SERVICE_VERSION`, `INSTANCE_ID` | todos | Identidade do recurso OTel; default de `SERVICE` é `bookings` |
 
 Variável obrigatória ausente, ou `api` sem nenhuma política de autenticação,
 encerra a partida com exit 2 nomeando o que falta.
@@ -109,10 +109,10 @@ isolado contra o banco `app` do profile `postgres`, o mesmo que `test-race` usa:
 
 ```bash
 docker compose -f infra/local/docker-compose.yml --profile postgres up -d
-DMPF_PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' DMPF_MIGRATE=true DMPF_AUTH_DEV_MOCK=true \
+PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' MIGRATE=true AUTH_DEV_MOCK=true \
   pnpm nx run bookings:serve-api
-DMPF_PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' DMPF_KAFKA_BROKERS=localhost:9092 DMPF_KAFKA_INSECURE=true \
-  DMPF_KAFKA_BOOKINGS_TOPIC=bookings.events DMPF_KAFKA_BOOKINGS_DLQ=bookings.events.dlq DMPF_KAFKA_GROUP=bookings \
+PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' KAFKA_BROKERS=localhost:9092 KAFKA_INSECURE=true \
+  KAFKA_BOOKINGS_TOPIC=bookings.events KAFKA_BOOKINGS_DLQ=bookings.events.dlq KAFKA_GROUP=bookings \
   pnpm nx run bookings:serve-relay
 ```
 
@@ -126,7 +126,7 @@ DMPF_PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' DMPF_KAFKA_B
 Unitários, sem banco: as UPRs do `domain`, a sequência canônica e a autorização
 por permissão da `application` sobre o `memory`, e o binding, a autenticação, a
 recusa de identidade asserida e o ciclo de vida HTTP do `app/http` sobre o
-store em memória. `test-race` roda com `-tags=integration` e `DMPF_PG_DSN`, e
+store em memória. `test-race` roda com `-tags=integration` e `PG_DSN`, e
 declara `dependsOn` sobre o `test-race` do `postgres`: os dois harnesses
 truncam as mesmas tabelas do mesmo banco. Prova o `provider` (escopo de tenant
 e acesso cruzado inclusos), o `appkit` e o e2e HTTP até a outbox — inclusive a
@@ -135,5 +135,5 @@ validação das rotas na partida e a consulta por relação entre tenants.
 `integration,distributed`.
 
 ```bash
-DMPF_PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' pnpm nx run bookings:test-race
+PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' pnpm nx run bookings:test-race
 ```

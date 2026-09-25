@@ -35,27 +35,27 @@ var (
 )
 
 const (
-	envDSN            = "DMPF_PG_DSN"
-	envHTTPAddr       = "DMPF_HTTP_ADDR"
-	envMigrate        = "DMPF_MIGRATE"
-	envBrokers        = "DMPF_KAFKA_BROKERS"
-	envKafkaInsecure  = "DMPF_KAFKA_INSECURE"
-	envBookingsTopic  = "DMPF_KAFKA_BOOKINGS_TOPIC"
-	envBookingsDLQ    = "DMPF_KAFKA_BOOKINGS_DLQ"
-	envGroup          = "DMPF_KAFKA_GROUP"
-	envOTLPEndpoint   = "DMPF_OTLP_ENDPOINT"
-	envOTLPInsecure   = "DMPF_OTLP_INSECURE"
-	envService        = "DMPF_SERVICE"
-	envServiceVersion = "DMPF_SERVICE_VERSION"
-	envInstanceID     = "DMPF_INSTANCE_ID"
+	envDSN            = "PG_DSN"
+	envHTTPAddr       = "HTTP_ADDR"
+	envMigrate        = "MIGRATE"
+	envBrokers        = "KAFKA_BROKERS"
+	envKafkaInsecure  = "KAFKA_INSECURE"
+	envBookingsTopic  = "KAFKA_BOOKINGS_TOPIC"
+	envBookingsDLQ    = "KAFKA_BOOKINGS_DLQ"
+	envGroup          = "KAFKA_GROUP"
+	envOTLPEndpoint   = "OTLP_ENDPOINT"
+	envOTLPInsecure   = "OTLP_INSECURE"
+	envService        = "SERVICE"
+	envServiceVersion = "SERVICE_VERSION"
+	envInstanceID     = "INSTANCE_ID"
 
-	envGRPCAddr           = "DMPF_GRPC_ADDR"
-	envGRPCInsecure       = "DMPF_GRPC_INSECURE"
-	envGRPCCertFile       = "DMPF_GRPC_TLS_CERT_FILE"
-	envGRPCKeyFile        = "DMPF_GRPC_TLS_KEY_FILE"
-	envGRPCClientCAFile   = "DMPF_GRPC_CLIENT_CA_FILE"
-	envGRPCTrustedClients = "DMPF_GRPC_TRUSTED_CLIENTS"
-	envMetricTenants      = "DMPF_METRIC_TENANTS"
+	envGRPCAddr           = "GRPC_ADDR"
+	envGRPCInsecure       = "GRPC_INSECURE"
+	envGRPCCertFile       = "GRPC_TLS_CERT_FILE"
+	envGRPCKeyFile        = "GRPC_TLS_KEY_FILE"
+	envGRPCClientCAFile   = "GRPC_CLIENT_CA_FILE"
+	envGRPCTrustedClients = "GRPC_TRUSTED_CLIENTS"
+	envMetricTenants      = "METRIC_TENANTS"
 	defaultHTTPAddr       = ":8080"
 	defaultServiceName    = "bookings"
 )
@@ -181,7 +181,7 @@ func (c Config) validate() error {
 			missing = append(missing, envBrokers)
 		}
 		if !c.KafkaInsecure && c.KafkaAuth.SASL == nil && c.KafkaAuth.CertFile == "" {
-			missing = append(missing, "DMPF_KAFKA_SASL_MECHANISM or DMPF_KAFKA_CLIENT_CERT_FILE")
+			missing = append(missing, "KAFKA_SASL_MECHANISM or KAFKA_CLIENT_CERT_FILE")
 		}
 		if c.BookingsTopic == "" {
 			missing = append(missing, envBookingsTopic)
