@@ -45,10 +45,8 @@ func Database(project string) string { return project + "_test" }
 var cleaned sync.Map
 
 // OpenPool migrates the project's test database and resets the declared tables
-// before and after the test. Without the DSN it skips — or fails in CI, where an
-// integration suite must never pass by skipping. The DSN must point at a
-// loopback host: the reset is destructive, and a shared instance is never a
-// test fixture.
+// around the test. Without the DSN it skips, or fails in CI. The DSN must be a
+// loopback host: the reset is destructive.
 func OpenPool(t testing.TB, opts Options) *pgxpool.Pool {
 	t.Helper()
 	if opts.Project == "" {
