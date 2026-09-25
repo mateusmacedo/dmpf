@@ -1,6 +1,6 @@
 # Servidor Postgres das apps. Cada app tem banco e role com o próprio nome
 # (orders, reservations, bookings), criados no postgres-init (profile dmpf);
-# o schema, por `postgres.Migrate` (DMPF_MIGRATE=true no papel api de cada
+# o schema, por `postgres.Migrate` (MIGRATE=true no papel api de cada
 # contexto), não por init script. O usuário do container é só administrativo.
 services:
   postgres:

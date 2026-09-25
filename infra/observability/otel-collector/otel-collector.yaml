@@ -1,4 +1,4 @@
-# O Collector é o único destino que a app conhece (DMPF_OTLP_ENDPOINT): daqui
+# O Collector é o único destino que a app conhece (OTLP_ENDPOINT): daqui
 # os traces seguem para o Tempo e as métricas para o receptor OTLP nativo do
 # Prometheus. Os logs não passam por aqui — o kernel os escreve em stdout e o
 # Alloy os coleta.

@@ -5,9 +5,9 @@ metadata:
 data:
   # O BFF verifica os `api` pela CA montada de bff-grpc-ca; o
   # nome verificado é o host do alvo (o Service de cada contexto).
-  DMPF_GRPC_CA_FILE: /etc/dmpf/grpc/ca.crt
+  GRPC_CA_FILE: /etc/dmpf/grpc/ca.crt
   # O BFF apresenta o próprio certificado (URI spiffe://dmpf/bff), montado de
   # bff-grpc-client: os `api` não servem workload que não verificaram.
-  DMPF_GRPC_CLIENT_CERT_FILE: /etc/dmpf/grpc-client/tls.crt
-  DMPF_GRPC_CLIENT_KEY_FILE: /etc/dmpf/grpc-client/tls.key
-  DMPF_SERVICE_VERSION: hmg
+  GRPC_CLIENT_CERT_FILE: /etc/dmpf/grpc-client/tls.crt
+  GRPC_CLIENT_KEY_FILE: /etc/dmpf/grpc-client/tls.key
+  SERVICE_VERSION: hmg

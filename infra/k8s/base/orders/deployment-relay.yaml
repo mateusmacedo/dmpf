@@ -31,7 +31,7 @@ spec:
             - secretRef:
                 name: orders
           env:
-            - name: DMPF_INSTANCE_ID
+            - name: INSTANCE_ID
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
