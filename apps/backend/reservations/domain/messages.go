@@ -17,7 +17,7 @@ const (
 	Cancelled
 )
 
-// Instant is a point in time in Unix seconds, resolved by the application
+// Instant is a point in time in Unix nanoseconds, resolved by the application
 // service and carried as a value (RFC §9.3): the domain never consults a clock.
 type Instant int64
 

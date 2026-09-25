@@ -15,10 +15,9 @@ type reservationState struct {
 	Status int `json:"status"`
 }
 
-// reservationTable declares how the Reservation snapshot maps to columns,
-// under the kernel statements and their tenant predicate (IDN-14). No query
-// filters a reservation by anything but its order, so the whole state is the
-// snapshot.
+// reservationTable maps the Reservation snapshot to columns under the kernel
+// statements and their tenant predicate (IDN-14). No query filters a reservation
+// by anything but its order, so the whole state is the snapshot.
 var reservationTable = postgres.Table[domain.OrderID, domain.Snapshot]{
 	Name:     "reservations",
 	IDColumn: "order_id",
