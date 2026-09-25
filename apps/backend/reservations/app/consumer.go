@@ -59,7 +59,7 @@ func Handler(service application.Service) app.Handler {
 		if err := envelope.Unpack(env, &placed); err != nil {
 			return usecase.R1D4, usecase.NewFailure(usecase.Validation, false, err)
 		}
-		return service.Consume(ctx, application.ConsumeOrderPlaced{
+		return service.ConsumeOrderPlaced(ctx, application.ConsumeOrderPlaced{
 			MessageID:   receipt.MessageID,
 			MessageType: receipt.MessageType,
 			PayloadHash: receipt.PayloadHash,

@@ -100,7 +100,7 @@ func TestConsumeFirstReceptionAppliesAndConfirms(t *testing.T) {
 	store := memory.New()
 	svc := newService(store)
 
-	disp, err := svc.Consume(withExecution(t, context.Background()), consumeOrderPlaced("m-ext-1", "h1", "P-100", 3))
+	disp, err := svc.ConsumeOrderPlaced(withExecution(t, context.Background()), consumeOrderPlaced("m-ext-1", "h1", "P-100", 3))
 
 	if err != nil {
 		t.Fatalf("Consume() error = %v, want nil", err)
@@ -154,7 +154,7 @@ func TestConsumeCopiesTheMessageContextIntoTheOutboxEntry(t *testing.T) {
 			store := memory.New()
 			svc := newService(store)
 
-			if _, err := svc.Consume(withExecution(t, tt.ctx), consumeOrderPlaced("m-ext-1", "h1", "P-100", 3)); err != nil {
+			if _, err := svc.ConsumeOrderPlaced(withExecution(t, tt.ctx), consumeOrderPlaced("m-ext-1", "h1", "P-100", 3)); err != nil {
 				t.Fatalf("Consume() error = %v, want nil", err)
 			}
 
@@ -173,7 +173,7 @@ func TestConsumeZeroItemsRejects(t *testing.T) {
 	store := memory.New()
 	svc := newService(store)
 
-	disp, err := svc.Consume(withExecution(t, context.Background()), consumeOrderPlaced("m-ext-1", "h1", "P-100", 0))
+	disp, err := svc.ConsumeOrderPlaced(withExecution(t, context.Background()), consumeOrderPlaced("m-ext-1", "h1", "P-100", 0))
 
 	if err != nil {
 		t.Fatalf("Consume() error = %v, want nil", err)
@@ -201,7 +201,7 @@ func TestConsumeATransientSaveFailureIsD3AndPersistsNothing(t *testing.T) {
 	failure := usecase.NewFailure(usecase.TransientDependency, true, errors.New("consume_test: dependency down"))
 	svc := newServiceWithFailingSave(store, failure)
 
-	disp, err := svc.Consume(withExecution(t, context.Background()), consumeOrderPlaced("m-ext-1", "h1", "P-100", 3))
+	disp, err := svc.ConsumeOrderPlaced(withExecution(t, context.Background()), consumeOrderPlaced("m-ext-1", "h1", "P-100", 3))
 
 	if !errors.Is(err, failure) {
 		t.Fatalf("Consume() error = %v, want the injected failure", err)
@@ -217,7 +217,7 @@ func TestConsumeATerminalSaveFailureIsD4AndPersistsNothing(t *testing.T) {
 	failure := usecase.NewFailure(usecase.Unexpected, false, errors.New("consume_test: boom"))
 	svc := newServiceWithFailingSave(store, failure)
 
-	disp, err := svc.Consume(withExecution(t, context.Background()), consumeOrderPlaced("m-ext-1", "h1", "P-100", 3))
+	disp, err := svc.ConsumeOrderPlaced(withExecution(t, context.Background()), consumeOrderPlaced("m-ext-1", "h1", "P-100", 3))
 
 	if !errors.Is(err, failure) {
 		t.Fatalf("Consume() error = %v, want the injected failure", err)
@@ -231,11 +231,11 @@ func TestConsumeATerminalSaveFailureIsD4AndPersistsNothing(t *testing.T) {
 func TestConsumeRedeliveryOfAProcessedMessageIsR2(t *testing.T) {
 	store := memory.New()
 	svc := newService(store)
-	if _, err := svc.Consume(withExecution(t, context.Background()), consumeOrderPlaced("m-ext-1", "h1", "P-100", 3)); err != nil {
+	if _, err := svc.ConsumeOrderPlaced(withExecution(t, context.Background()), consumeOrderPlaced("m-ext-1", "h1", "P-100", 3)); err != nil {
 		t.Fatalf("setup Consume() = %v, want nil", err)
 	}
 
-	disp, err := svc.Consume(withExecution(t, context.Background()), consumeOrderPlaced("m-ext-1", "h1", "P-100", 3))
+	disp, err := svc.ConsumeOrderPlaced(withExecution(t, context.Background()), consumeOrderPlaced("m-ext-1", "h1", "P-100", 3))
 
 	if err != nil {
 		t.Fatalf("Consume() error = %v, want nil", err)
@@ -251,11 +251,11 @@ func TestConsumeRedeliveryOfAProcessedMessageIsR2(t *testing.T) {
 func TestConsumeRedeliveryOfARejectedMessageIsR3(t *testing.T) {
 	store := memory.New()
 	svc := newService(store)
-	if _, err := svc.Consume(withExecution(t, context.Background()), consumeOrderPlaced("m-ext-1", "h1", "P-100", 0)); err != nil {
+	if _, err := svc.ConsumeOrderPlaced(withExecution(t, context.Background()), consumeOrderPlaced("m-ext-1", "h1", "P-100", 0)); err != nil {
 		t.Fatalf("setup Consume() = %v, want nil", err)
 	}
 
-	disp, err := svc.Consume(withExecution(t, context.Background()), consumeOrderPlaced("m-ext-1", "h1", "P-100", 0))
+	disp, err := svc.ConsumeOrderPlaced(withExecution(t, context.Background()), consumeOrderPlaced("m-ext-1", "h1", "P-100", 0))
 
 	if err != nil {
 		t.Fatalf("Consume() error = %v, want nil", err)
@@ -271,11 +271,11 @@ func TestConsumeRedeliveryOfARejectedMessageIsR3(t *testing.T) {
 func TestConsumeADivergentHashOnAPresentKeyIsR4(t *testing.T) {
 	store := memory.New()
 	svc := newService(store)
-	if _, err := svc.Consume(withExecution(t, context.Background()), consumeOrderPlaced("m-ext-1", "h1", "P-100", 3)); err != nil {
+	if _, err := svc.ConsumeOrderPlaced(withExecution(t, context.Background()), consumeOrderPlaced("m-ext-1", "h1", "P-100", 3)); err != nil {
 		t.Fatalf("setup Consume() = %v, want nil", err)
 	}
 
-	disp, err := svc.Consume(withExecution(t, context.Background()), consumeOrderPlaced("m-ext-1", "h2", "P-100", 3))
+	disp, err := svc.ConsumeOrderPlaced(withExecution(t, context.Background()), consumeOrderPlaced("m-ext-1", "h2", "P-100", 3))
 
 	if err != nil {
 		t.Fatalf("Consume() error = %v, want nil", err)
@@ -293,7 +293,7 @@ func TestConsumeAFailedCommitClassifiesToR1D4AndPersistsNothing(t *testing.T) {
 	store.FailNextCommit(errors.New("consume_test: commit refused"))
 	svc := newService(store)
 
-	disp, err := svc.Consume(withExecution(t, context.Background()), consumeOrderPlaced("m-ext-1", "h1", "P-100", 3))
+	disp, err := svc.ConsumeOrderPlaced(withExecution(t, context.Background()), consumeOrderPlaced("m-ext-1", "h1", "P-100", 3))
 
 	if err == nil {
 		t.Fatal("Consume() error = nil, want the commit failure")
@@ -308,7 +308,7 @@ func TestConsumeAPendingLeftUncompletedIsR1D4AndPersistsNothing(t *testing.T) {
 	store := memory.New()
 	svc := newServiceWithBrokenInbox(store)
 
-	disp, err := svc.Consume(withExecution(t, context.Background()), consumeOrderPlaced("m-ext-1", "h1", "P-100", 3))
+	disp, err := svc.ConsumeOrderPlaced(withExecution(t, context.Background()), consumeOrderPlaced("m-ext-1", "h1", "P-100", 3))
 
 	if !errors.Is(err, ports.ErrPendingNotCompleted) {
 		t.Fatalf("Consume() error = %v, want ErrPendingNotCompleted", err)
@@ -322,11 +322,11 @@ func TestConsumeAPendingLeftUncompletedIsR1D4AndPersistsNothing(t *testing.T) {
 func TestConsumeTwoMessagesForTheSameOrderReserveOnlyOnce(t *testing.T) {
 	store := memory.New()
 	svc := newService(store)
-	if _, err := svc.Consume(withExecution(t, context.Background()), consumeOrderPlaced("m-ext-1", "h1", "P-100", 3)); err != nil {
+	if _, err := svc.ConsumeOrderPlaced(withExecution(t, context.Background()), consumeOrderPlaced("m-ext-1", "h1", "P-100", 3)); err != nil {
 		t.Fatalf("first Consume() = %v, want nil", err)
 	}
 
-	disp, err := svc.Consume(withExecution(t, context.Background()), consumeOrderPlaced("m-ext-2", "h2", "P-100", 5))
+	disp, err := svc.ConsumeOrderPlaced(withExecution(t, context.Background()), consumeOrderPlaced("m-ext-2", "h2", "P-100", 5))
 
 	if err != nil {
 		t.Fatalf("second Consume() error = %v, want nil", err)
@@ -353,7 +353,7 @@ func TestConsumeAuthorizeDenyingNeverOpensATransaction(t *testing.T) {
 		return errors.New("consume_test: not authorized")
 	}
 
-	disposition, err := svc.Consume(withExecution(t, context.Background()), consumeOrderPlaced("m-ext-1", "h1", "P-100", 3))
+	disposition, err := svc.ConsumeOrderPlaced(withExecution(t, context.Background()), consumeOrderPlaced("m-ext-1", "h1", "P-100", 3))
 
 	if err == nil {
 		t.Fatal("Consume() error = nil, want the authorization failure")
@@ -375,7 +375,7 @@ func TestConsumeAuthorizeDenyingWithACategoryKeepsIt(t *testing.T) {
 		return usecase.NewFailure(usecase.Forbidden, false, errors.New("consume_test: forbidden"))
 	}
 
-	disposition, err := svc.Consume(withExecution(t, context.Background()), consumeOrderPlaced("m-ext-2", "h1", "P-100", 3))
+	disposition, err := svc.ConsumeOrderPlaced(withExecution(t, context.Background()), consumeOrderPlaced("m-ext-2", "h1", "P-100", 3))
 
 	var failure *usecase.Failure
 	if !errors.As(err, &failure) || failure.Category() != usecase.Forbidden {
@@ -394,7 +394,7 @@ func TestConsumeOnACanceledReservationIsR1D2WithoutWriting(t *testing.T) {
 	}
 	entriesBefore := len(store.Entries())
 
-	disp, err := svc.Consume(withExecution(t, context.Background()), consumeOrderPlaced("msg-1", "hash-1", "o-1", 2))
+	disp, err := svc.ConsumeOrderPlaced(withExecution(t, context.Background()), consumeOrderPlaced("msg-1", "hash-1", "o-1", 2))
 
 	if err != nil {
 		t.Fatalf("Consume() error = %v, want nil — a refusal is not a technical failure", err)
