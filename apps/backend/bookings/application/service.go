@@ -5,12 +5,11 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/mateusmacedo/dmpf/apps/backend/bookings/domain"
+	"github.com/mateusmacedo/dmpf/apps/backend/bookings/ports"
 	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
 	port "github.com/mateusmacedo/dmpf/libs/backend/go/ports"
-
-	"github.com/mateusmacedo/dmpf/apps/backend/bookings/domain"
-	"github.com/mateusmacedo/dmpf/apps/backend/bookings/ports"
 )
 
 const (

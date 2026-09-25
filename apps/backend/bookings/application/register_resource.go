@@ -5,10 +5,9 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/mateusmacedo/dmpf/apps/backend/bookings/domain"
 	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
-
-	"github.com/mateusmacedo/dmpf/apps/backend/bookings/domain"
 )
 
 func (s Service) RegisterResource(ctx context.Context, cmd RegisterResource) (usecase.Outcome[domain.RegisteredResponse], error) {

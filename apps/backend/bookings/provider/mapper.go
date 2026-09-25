@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"time"
 
-	eventv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/bookings/event/v1"
-	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/domain"
+	eventv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/bookings/event/v1"
+	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
 )
 
 const (

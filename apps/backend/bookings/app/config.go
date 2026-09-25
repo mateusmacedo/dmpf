@@ -3,12 +3,12 @@ package app
 import (
 	"errors"
 	"fmt"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/kafka"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/observability"
 	"strings"
 	"time"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/app/relay"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/kafka"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/envconfig"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/admission"
 )

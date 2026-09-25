@@ -8,6 +8,8 @@ import (
 	"net"
 	"slices"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/app/rpc"
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/application"
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/provider"
@@ -21,8 +23,6 @@ import (
 	obsusecase "github.com/mateusmacedo/dmpf/libs/backend/go/observability/usecase"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/admission"
-
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func Run(ctx context.Context, cfg Config, out io.Writer) error {

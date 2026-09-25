@@ -5,9 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
-
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/domain"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
 
 func (s Service) FindBookingByResource(ctx context.Context, resourceID domain.ResourceID) ([]domain.BookingSnapshot, error) {

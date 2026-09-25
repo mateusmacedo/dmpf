@@ -5,19 +5,18 @@ package provider_test
 import (
 	"context"
 	"fmt"
-	"github.com/mateusmacedo/dmpf/apps/backend/bookings/appkit"
 	"sync"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
-
+	"github.com/mateusmacedo/dmpf/apps/backend/bookings/appkit"
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/application"
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/domain"
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/provider"
+	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
 )
 
 const (

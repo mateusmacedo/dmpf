@@ -5,10 +5,10 @@ package provider_test
 import (
 	"context"
 	"errors"
-	"github.com/mateusmacedo/dmpf/apps/backend/bookings/appkit"
 	"sync"
 	"testing"
 
+	"github.com/mateusmacedo/dmpf/apps/backend/bookings/appkit"
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/domain"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )

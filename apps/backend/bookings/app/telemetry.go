@@ -5,11 +5,10 @@ import (
 	"errors"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/application"
-	obsusecase "github.com/mateusmacedo/dmpf/libs/backend/go/observability/usecase"
-
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/boot"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/logging"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/tracing"
+	obsusecase "github.com/mateusmacedo/dmpf/libs/backend/go/observability/usecase"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
 

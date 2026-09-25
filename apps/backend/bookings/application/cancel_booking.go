@@ -4,10 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/mateusmacedo/dmpf/apps/backend/bookings/domain"
 	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
-
-	"github.com/mateusmacedo/dmpf/apps/backend/bookings/domain"
 )
 
 func (s Service) CancelBooking(ctx context.Context, cmd CancelBooking) (usecase.Outcome[domain.CancelledResponse], error) {

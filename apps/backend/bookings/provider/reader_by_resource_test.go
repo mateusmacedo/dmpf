@@ -4,12 +4,12 @@ package provider_test
 
 import (
 	"context"
-	"github.com/mateusmacedo/dmpf/apps/backend/bookings/appkit"
 	"sort"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/mateusmacedo/dmpf/apps/backend/bookings/appkit"
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/domain"
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/provider"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"

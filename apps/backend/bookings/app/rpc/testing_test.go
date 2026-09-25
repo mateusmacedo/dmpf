@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"go.opentelemetry.io/otel/trace/noop"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
@@ -21,7 +22,6 @@ import (
 	obsclock "github.com/mateusmacedo/dmpf/libs/backend/go/observability/clock"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/admission"
-	"go.opentelemetry.io/otel/trace/noop"
 )
 
 var (
