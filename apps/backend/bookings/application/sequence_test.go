@@ -36,7 +36,7 @@ func TestCancelWalksTheNineStepsInOrder(t *testing.T) {
 	h := newHarness(t)
 	h.seedBooking(t, domain.BookingSnapshot{
 		ID: testBookingID, ResourceID: testResourceID, Quantity: 5,
-		Status: domain.BookingReservedStatus, ReservedAt: 1000,
+		Status: domain.Reserved, ReservedAt: 1000,
 	}, 1)
 
 	if _, err := h.service.CancelBooking(withExecution(t, context.Background()), application.CancelBooking{
@@ -87,7 +87,7 @@ func TestRegisterWalksTheNineStepsInOrder(t *testing.T) {
 func TestCancelRejectsWhenBookingNotReserved(t *testing.T) {
 	h := newHarness(t)
 	h.seedBooking(t, domain.BookingSnapshot{
-		ID: testBookingID, Status: domain.BookingCancelled,
+		ID: testBookingID, Status: domain.Cancelled,
 	}, 2)
 
 	outcome, err := h.service.CancelBooking(withExecution(t, context.Background()), application.CancelBooking{
@@ -100,8 +100,8 @@ func TestCancelRejectsWhenBookingNotReserved(t *testing.T) {
 	if !refused {
 		t.Fatal("expected Rejected, got Accepted")
 	}
-	if rej.Code() != domain.CodeNotReserved {
-		t.Fatalf("Code() = %q, want %q", rej.Code(), domain.CodeNotReserved)
+	if rej.Code() != domain.CodeBookingNotReserved {
+		t.Fatalf("Code() = %q, want %q", rej.Code(), domain.CodeBookingNotReserved)
 	}
 }
 
@@ -109,7 +109,7 @@ func TestCancelEnqueuesTheCancellationInTheSameTransaction(t *testing.T) {
 	h := newHarness(t)
 	h.seedBooking(t, domain.BookingSnapshot{
 		ID: testBookingID, ResourceID: testResourceID, Quantity: 5,
-		Status: domain.BookingReservedStatus, ReservedAt: 1000,
+		Status: domain.Reserved, ReservedAt: 1000,
 	}, 1)
 
 	if _, err := h.service.CancelBooking(withExecution(t, context.Background()), application.CancelBooking{BookingID: testBookingID}); err != nil {
@@ -121,7 +121,7 @@ func TestCancelEnqueuesTheCancellationInTheSameTransaction(t *testing.T) {
 		t.Fatalf("outbox entries = %d, want 1", len(entries))
 	}
 	entry := entries[0]
-	if _, ok := entry.Event.(domain.BookingCancelledEvent); !ok || entry.AggregateType != application.AggregateTypeBooking ||
+	if _, ok := entry.Event.(domain.BookingCancelled); !ok || entry.AggregateType != application.AggregateTypeBooking ||
 		entry.AggregateID != string(testBookingID) || entry.AggregateVersion != 2 {
 		t.Fatalf("outbox entry = %+v, want the cancellation of the booking at version 2", entry)
 	}

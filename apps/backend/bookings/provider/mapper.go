@@ -32,7 +32,7 @@ func (Mapper) Map(event kernel.DomainEvent) (postgres.Mapped, error) {
 			},
 			Type: bookingReservedType,
 		}, nil
-	case domain.BookingCancelledEvent:
+	case domain.BookingCancelled:
 		return postgres.Mapped{
 			Message: &eventv1.BookingCancelled{
 				BookingId:   string(e.BookingID),

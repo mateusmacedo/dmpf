@@ -20,8 +20,8 @@ func (f readerFunc) LoadByResource(ctx context.Context, resourceID domain.Resour
 
 func TestLoadByResourceAnswersWithEveryBookingHeldByTheResource(t *testing.T) {
 	held := []domain.BookingSnapshot{
-		{ID: "booking-1", ResourceID: "room-1", Quantity: 2, Status: domain.BookingReservedStatus, ReservedAt: 1},
-		{ID: "booking-2", ResourceID: "room-1", Quantity: 1, Status: domain.BookingReservedStatus, ReservedAt: 2},
+		{ID: "booking-1", ResourceID: "room-1", Quantity: 2, Status: domain.Reserved, ReservedAt: 1},
+		{ID: "booking-2", ResourceID: "room-1", Quantity: 1, Status: domain.Reserved, ReservedAt: 2},
 	}
 	var asked domain.ResourceID
 	var reader ports.BookingsByResourceReader = readerFunc(

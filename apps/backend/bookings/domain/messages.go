@@ -13,9 +13,9 @@ type Instant int64
 type BookingStatus int
 
 const (
-	BookingNew BookingStatus = iota
-	BookingReservedStatus
-	BookingCancelled
+	New BookingStatus = iota
+	Reserved
+	Cancelled
 )
 
 type ResourceRegisteredAt = Instant
@@ -56,12 +56,12 @@ type BookingReserved struct {
 
 func (BookingReserved) EventName() string { return "bookings.booking-reserved" }
 
-type BookingCancelledEvent struct {
+type BookingCancelled struct {
 	BookingID BookingID
 	At        Instant
 }
 
-func (BookingCancelledEvent) EventName() string { return "bookings.booking-cancelled" }
+func (BookingCancelled) EventName() string { return "bookings.booking-cancelled" }
 
 type ResourceRegistered struct {
 	Code ResourceCode
@@ -72,6 +72,6 @@ func (ResourceRegistered) EventName() string { return "bookings.resource-registe
 
 var (
 	_ domain.DomainEvent = BookingReserved{}
-	_ domain.DomainEvent = BookingCancelledEvent{}
+	_ domain.DomainEvent = BookingCancelled{}
 	_ domain.DomainEvent = ResourceRegistered{}
 )

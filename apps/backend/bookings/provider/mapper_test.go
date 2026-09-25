@@ -50,7 +50,7 @@ func TestMapperMapsBookingReserved(t *testing.T) {
 func TestMapperMapsBookingCancelled(t *testing.T) {
 	t.Parallel()
 
-	mapped, err := provider.Mapper{}.Map(domain.BookingCancelledEvent{BookingID: "B-100", At: 1_755_432_000_000_000_001})
+	mapped, err := provider.Mapper{}.Map(domain.BookingCancelled{BookingID: "B-100", At: 1_755_432_000_000_000_001})
 
 	if err != nil {
 		t.Fatalf("Map() = %v, want nil", err)

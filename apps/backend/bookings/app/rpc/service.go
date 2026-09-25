@@ -256,9 +256,9 @@ func bookingOf(s domain.BookingSnapshot) *servicev1.Booking {
 
 func bookingStatus(s domain.BookingStatus) servicev1.BookingStatus {
 	switch s {
-	case domain.BookingReservedStatus:
+	case domain.Reserved:
 		return servicev1.BookingStatus_BOOKING_STATUS_RESERVED
-	case domain.BookingCancelled:
+	case domain.Cancelled:
 		return servicev1.BookingStatus_BOOKING_STATUS_CANCELLED
 	default:
 		return servicev1.BookingStatus_BOOKING_STATUS_UNSPECIFIED

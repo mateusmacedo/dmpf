@@ -35,7 +35,7 @@ func (r *Resource) clone() Resource {
 func (r *Resource) Register(cmd RegisterResource) (domain.Accepted[RegisteredResponse], *domain.Rejection) {
 	next := r.clone()
 	if cmd.Code == "" {
-		return domain.Accepted[RegisteredResponse]{}, domain.Reject(CodeCodeEmpty, "code must not be empty")
+		return domain.Accepted[RegisteredResponse]{}, domain.Reject(CodeResourceCodeEmpty, "code must not be empty")
 	}
 	// WHY: spec says "when present: accept without changing or emitting".
 	if next.registeredAt != 0 {

@@ -28,7 +28,7 @@ func saveBooking(t *testing.T, pool *pgxpool.Pool, id domain.BookingID, resource
 			ID:         id,
 			ResourceID: resource,
 			Quantity:   3,
-			Status:     domain.BookingReservedStatus,
+			Status:     domain.Reserved,
 			ReservedAt: 1755432000,
 		}, 0)
 	})

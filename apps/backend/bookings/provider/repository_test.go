@@ -31,7 +31,7 @@ func snap(quantity int) domain.BookingSnapshot {
 		ID:         repoBookingID,
 		ResourceID: "r-200",
 		Quantity:   quantity,
-		Status:     domain.BookingReservedStatus,
+		Status:     domain.Reserved,
 		ReservedAt: 1755432000,
 	}
 }
@@ -87,7 +87,7 @@ func TestSaveUpdatesWithCorrectVersion(t *testing.T) {
 	seed(t, pool)
 
 	updated := snap(10)
-	updated.Status = domain.BookingCancelled
+	updated.Status = domain.Cancelled
 	if err := withRepo(t, pool, func(ctx context.Context, repo ports.Repository[domain.BookingID, domain.BookingSnapshot]) error {
 		return repo.Save(ctx, repoBookingID, updated, 1)
 	}); err != nil {
@@ -98,8 +98,8 @@ func TestSaveUpdatesWithCorrectVersion(t *testing.T) {
 	if version != 2 {
 		t.Fatalf("version = %d, want 2", version)
 	}
-	if got.Status != domain.BookingCancelled {
-		t.Fatalf("Status = %v, want BookingCancelled", got.Status)
+	if got.Status != domain.Cancelled {
+		t.Fatalf("Status = %v, want Cancelled", got.Status)
 	}
 }
 

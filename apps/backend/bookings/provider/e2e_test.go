@@ -92,7 +92,7 @@ func TestReserveBookingEndToEnd(t *testing.T) {
 		if version != 1 {
 			t.Fatalf("version = %d, want 1", version)
 		}
-		if snap.Quantity != 3 || snap.ResourceID != e2eResourceID || snap.Status != domain.BookingReservedStatus {
+		if snap.Quantity != 3 || snap.ResourceID != e2eResourceID || snap.Status != domain.Reserved {
 			t.Fatalf("snapshot = %+v", snap)
 		}
 	})
@@ -131,13 +131,13 @@ func TestReserveBookingEndToEnd(t *testing.T) {
 		if version != 2 {
 			t.Fatalf("version = %d, want 2", version)
 		}
-		if snap.Status != domain.BookingCancelled {
-			t.Fatalf("Status = %v, want BookingCancelled", snap.Status)
+		if snap.Status != domain.Cancelled {
+			t.Fatalf("Status = %v, want Cancelled", snap.Status)
 		}
 
 		_, outboxAfter := counts(t, pool)
 		if outboxAfter != outboxBefore+1 {
-			t.Fatalf("outbox count on cancel: %d→%d, want one BookingCancelled in the same transaction", outboxBefore, outboxAfter)
+			t.Fatalf("outbox count on cancel: %d→%d, want one Cancelled in the same transaction", outboxBefore, outboxAfter)
 		}
 	})
 }

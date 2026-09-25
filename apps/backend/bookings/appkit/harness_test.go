@@ -70,7 +70,7 @@ func TestARejectedDecisionLeavesNothingBehind(t *testing.T) {
 	before := len(h.Outbox(t))
 
 	// A quantity outside the range is the rejection the aggregate declares
-	// (CodeQuantityOutOfRange), and a rejection never reaches the outbox.
+	// (CodeBookingQuantityOutOfRange), and a rejection never reaches the outbox.
 	reserved, err := h.Service.ReserveBooking(withExecution(t, context.Background()),
 		application.ReserveBooking{BookingID: bookingUnderTest, ResourceID: resource, Quantity: 0})
 
