@@ -10,11 +10,11 @@ import (
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/domain"
 )
 
-func (s Service) ReserveBooking(ctx context.Context, cmd Reserve) (application.Outcome[domain.ReservedResponse], error) {
+func (s Service) ReserveBooking(ctx context.Context, cmd ReserveBooking) (application.Outcome[domain.ReservedResponse], error) {
 	var zero application.Outcome[domain.ReservedResponse]
 
 	instrumentation := s.instrumentation()
-	ctx, end := instrumentation.BeginOperation(ctx, OperationReserve)
+	ctx, end := instrumentation.BeginOperation(ctx, OperationReserveBooking)
 
 	if err := s.Authorize(ctx, cmd); err != nil {
 		end(authorizationResult(err))

@@ -140,7 +140,7 @@ func (s Server) ReserveBooking(ctx context.Context, req *servicev1.ReserveBookin
 	if _, err := executionOf(ctx); err != nil {
 		return nil, err
 	}
-	out, err := s.Service.ReserveBooking(ctx, application.Reserve{
+	out, err := s.Service.ReserveBooking(ctx, application.ReserveBooking{
 		BookingID:  booking,
 		ResourceID: domain.ResourceID(req.GetResourceId()),
 		Quantity:   int(req.GetQuantity()),
@@ -164,7 +164,7 @@ func (s Server) CancelBooking(ctx context.Context, req *servicev1.CancelBookingR
 	if _, err := executionOf(ctx); err != nil {
 		return nil, err
 	}
-	out, err := s.Service.CancelBooking(ctx, application.Cancel{BookingID: booking})
+	out, err := s.Service.CancelBooking(ctx, application.CancelBooking{BookingID: booking})
 	if err != nil {
 		return nil, statusOf(err)
 	}
@@ -184,7 +184,7 @@ func (s Server) RegisterResource(ctx context.Context, req *servicev1.RegisterRes
 	if _, err := executionOf(ctx); err != nil {
 		return nil, err
 	}
-	out, err := s.Service.RegisterResource(ctx, application.Register{Code: domain.ResourceCode(resource)})
+	out, err := s.Service.RegisterResource(ctx, application.RegisterResource{Code: domain.ResourceCode(resource)})
 	if err != nil {
 		return nil, statusOf(err)
 	}

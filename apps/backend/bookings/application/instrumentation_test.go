@@ -33,7 +33,7 @@ func TestReserveDeniedReportsDeniedWithoutTheError(t *testing.T) {
 		return errors.Join(errors.New("policy engine refused"), ports.ErrDenied)
 	})
 
-	_, err := h.service.ReserveBooking(withExecution(t, context.Background()), application.Reserve{BookingID: testBookingID, ResourceID: testResourceID, Quantity: 1})
+	_, err := h.service.ReserveBooking(withExecution(t, context.Background()), application.ReserveBooking{BookingID: testBookingID, ResourceID: testResourceID, Quantity: 1})
 
 	if !errors.Is(err, ports.ErrDenied) {
 		t.Fatalf("ReserveBooking() error = %v, want a denial", err)
@@ -47,7 +47,7 @@ func TestReserveAuthorizerFailureReportsFailedNotDenied(t *testing.T) {
 	failure := errors.New("policy engine unreachable")
 	h, instr := instrumentedWith(t, func(context.Context, application.Operation) error { return failure })
 
-	_, err := h.service.ReserveBooking(withExecution(t, context.Background()), application.Reserve{BookingID: testBookingID, ResourceID: testResourceID, Quantity: 1})
+	_, err := h.service.ReserveBooking(withExecution(t, context.Background()), application.ReserveBooking{BookingID: testBookingID, ResourceID: testResourceID, Quantity: 1})
 
 	if !errors.Is(err, failure) {
 		t.Fatalf("ReserveBooking() error = %v, want the authorizer failure", err)

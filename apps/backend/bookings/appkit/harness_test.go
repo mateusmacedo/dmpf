@@ -27,7 +27,7 @@ func harness(t *testing.T) appkit.Harness {
 func registerResource(t *testing.T, h appkit.Harness) domain.ResourceID {
 	t.Helper()
 	registered, err := h.Service.RegisterResource(withExecution(t, context.Background()),
-		application.Register{Code: resourceUnderTest})
+		application.RegisterResource{Code: resourceUnderTest})
 	if err != nil {
 		t.Fatalf("RegisterResource() = %v, want nil", err)
 	}
@@ -42,7 +42,7 @@ func TestTheUseCaseLeavesOneOutboxRecordPerDecision(t *testing.T) {
 	resource := registerResource(t, h)
 
 	reserved, err := h.Service.ReserveBooking(withExecution(t, context.Background()),
-		application.Reserve{BookingID: bookingUnderTest, ResourceID: resource, Quantity: 2})
+		application.ReserveBooking{BookingID: bookingUnderTest, ResourceID: resource, Quantity: 2})
 
 	if err != nil {
 		t.Fatalf("ReserveBooking() = %v, want nil", err)
@@ -72,7 +72,7 @@ func TestARejectedDecisionLeavesNothingBehind(t *testing.T) {
 	// A quantity outside the range is the rejection the aggregate declares
 	// (CodeQuantityOutOfRange), and a rejection never reaches the outbox.
 	reserved, err := h.Service.ReserveBooking(withExecution(t, context.Background()),
-		application.Reserve{BookingID: bookingUnderTest, ResourceID: resource, Quantity: 0})
+		application.ReserveBooking{BookingID: bookingUnderTest, ResourceID: resource, Quantity: 0})
 
 	if err != nil {
 		t.Fatalf("ReserveBooking() = %v, want the rejection on the business channel, not an error", err)

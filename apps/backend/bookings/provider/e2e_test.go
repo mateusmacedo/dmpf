@@ -72,7 +72,7 @@ func TestReserveBookingEndToEnd(t *testing.T) {
 	service := newService(pool)
 	ctx := context.Background()
 
-	outcome, err := service.ReserveBooking(withExecution(t, ctx), application.Reserve{
+	outcome, err := service.ReserveBooking(withExecution(t, ctx), application.ReserveBooking{
 		BookingID:  e2eBookingID,
 		ResourceID: e2eResourceID,
 		Quantity:   3,
@@ -114,7 +114,7 @@ func TestReserveBookingEndToEnd(t *testing.T) {
 	t.Run("cancel commits without outbox row", func(t *testing.T) {
 		_, outboxBefore := counts(t, pool)
 
-		cancelOutcome, err := service.CancelBooking(withExecution(t, ctx), application.Cancel{
+		cancelOutcome, err := service.CancelBooking(withExecution(t, ctx), application.CancelBooking{
 			BookingID: e2eBookingID,
 		})
 		if err != nil {

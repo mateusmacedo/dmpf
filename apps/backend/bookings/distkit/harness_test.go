@@ -91,7 +91,7 @@ func enqueue(t *testing.T, n int) {
 	})
 
 	resource := domain.ResourceCode("room-distkit")
-	registered, err := h.Service.RegisterResource(withExecution(t, ctx), application.Register{Code: resource})
+	registered, err := h.Service.RegisterResource(withExecution(t, ctx), application.RegisterResource{Code: resource})
 	if err != nil {
 		t.Fatalf("RegisterResource() = %v, want nil", err)
 	}
@@ -101,7 +101,7 @@ func enqueue(t *testing.T, n int) {
 
 	for i := range n {
 		booking := domain.BookingID(fmt.Sprintf("b-distkit-%d", i))
-		reserved, err := h.Service.ReserveBooking(withExecution(t, ctx), application.Reserve{
+		reserved, err := h.Service.ReserveBooking(withExecution(t, ctx), application.ReserveBooking{
 			BookingID: booking, ResourceID: domain.ResourceID(resource), Quantity: 1,
 		})
 		if err != nil {

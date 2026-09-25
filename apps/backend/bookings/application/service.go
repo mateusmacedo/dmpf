@@ -19,11 +19,11 @@ const (
 
 	Destination = "bookings.events"
 
-	OperationReserve        = "bookings.Reserve"
-	OperationCancel         = "bookings.Cancel"
-	OperationRegister       = "bookings.Register"
-	OperationFindBooking    = "bookings.FindBooking"
-	OperationFindByResource = "bookings.FindByResource"
+	OperationReserveBooking        = "bookings.ReserveBooking"
+	OperationCancelBooking         = "bookings.CancelBooking"
+	OperationRegisterResource      = "bookings.RegisterResource"
+	OperationFindBooking           = "bookings.FindBooking"
+	OperationFindBookingByResource = "bookings.FindBookingByResource"
 )
 
 const maxEventsPerCommand = 1
@@ -36,25 +36,25 @@ type Resources struct {
 
 type Operation interface{ isOperation() }
 
-type Reserve struct {
+type ReserveBooking struct {
 	BookingID  domain.BookingID
 	ResourceID domain.ResourceID
 	Quantity   int
 }
 
-func (Reserve) isOperation() {}
+func (ReserveBooking) isOperation() {}
 
-type Cancel struct {
+type CancelBooking struct {
 	BookingID domain.BookingID
 }
 
-func (Cancel) isOperation() {}
+func (CancelBooking) isOperation() {}
 
-type Register struct {
+type RegisterResource struct {
 	Code domain.ResourceCode
 }
 
-func (Register) isOperation() {}
+func (RegisterResource) isOperation() {}
 
 // FindBooking and FindBookingByResource ask for state without changing it. A
 // query is an entry point like any other: authenticating at the route does not
