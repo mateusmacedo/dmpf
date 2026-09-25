@@ -40,7 +40,7 @@ func TestAddItemRejects(t *testing.T) {
 		{
 			name:    "item limit exceeded",
 			order:   func(t *testing.T) *domain.Order { return newOpenOrder(t, 3, 3) },
-			code:    domain.CodeItemLimitExceeded,
+			code:    domain.CodeOrderItemLimitExceeded,
 			details: []kernel.Detail{{Key: "limit", Value: "3"}, {Key: "attempted", Value: "4"}},
 		},
 		{

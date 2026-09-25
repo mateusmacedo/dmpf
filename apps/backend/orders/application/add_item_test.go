@@ -122,8 +122,8 @@ func TestAddItemRejectedCommitsWithoutWriting(t *testing.T) {
 	if !refused {
 		t.Fatal("Rejection() reported no refusal, want orders/item-limit-exceeded")
 	}
-	if rej.Code() != domain.CodeItemLimitExceeded {
-		t.Fatalf("Code() = %q, want %q", rej.Code(), domain.CodeItemLimitExceeded)
+	if rej.Code() != domain.CodeOrderItemLimitExceeded {
+		t.Fatalf("Code() = %q, want %q", rej.Code(), domain.CodeOrderItemLimitExceeded)
 	}
 	if got := out.Response(); got != (domain.ItemAccepted{}) {
 		t.Fatalf("Response() = %+v, want the zero response", got)

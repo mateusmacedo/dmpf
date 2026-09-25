@@ -56,8 +56,8 @@ func TestPlaceOrderRejectedCommitsWithoutWriting(t *testing.T) {
 	if !refused {
 		t.Fatal("Rejection() reported no refusal, want orders/empty-order")
 	}
-	if rej.Code() != domain.CodeEmptyOrder {
-		t.Fatalf("Code() = %q, want %q", rej.Code(), domain.CodeEmptyOrder)
+	if rej.Code() != domain.CodeOrderEmpty {
+		t.Fatalf("Code() = %q, want %q", rej.Code(), domain.CodeOrderEmpty)
 	}
 	if got := h.serviceWithinCalls(); got != 1 {
 		t.Fatalf("transactions opened = %d, want 1", got)

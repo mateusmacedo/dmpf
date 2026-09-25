@@ -15,7 +15,7 @@ func (o *Order) AddItem(cmd AddItem) (domain.Accepted[ItemAccepted], *domain.Rej
 	}
 	attempted := len(next.items) + 1
 	if attempted > next.itemLimit {
-		return domain.Accepted[ItemAccepted]{}, domain.Reject(CodeItemLimitExceeded, "item limit exceeded",
+		return domain.Accepted[ItemAccepted]{}, domain.Reject(CodeOrderItemLimitExceeded, "item limit exceeded",
 			domain.Detail{Key: "limit", Value: strconv.Itoa(next.itemLimit)},
 			domain.Detail{Key: "attempted", Value: strconv.Itoa(attempted)},
 		)

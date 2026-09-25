@@ -55,5 +55,5 @@ func TestFromSnapshotRestoresTheItemLimitAsBehaviour(t *testing.T) {
 	reconstituted := domain.FromSnapshot(full)
 
 	acc, rej := reconstituted.AddItem(domain.AddItem{SKU: "ZZZ", Quantity: 1, At: at})
-	requireRejected(t, acc, rej, domain.CodeItemLimitExceeded)
+	requireRejected(t, acc, rej, domain.CodeOrderItemLimitExceeded)
 }
