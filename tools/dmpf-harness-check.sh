@@ -78,6 +78,7 @@ NM_ANCORA=""
 ARQUIVOS_GERADOS=()
 ARQUIVOS_FORMATO=()
 ARQUIVOS_GO=()
+EXCECOES_CONTRATO=""
 
 uso() {
   cat <<'FIM'
@@ -172,7 +173,9 @@ conferir_golden_presente() {
 
 # O estado "sem golden" é o ponto de partida do agente e o --base do
 # verificador. A unidade `contract` sai do manifesto junto com o gen/go, senão
-# o --write-baseline vê unidade sem package.
+# o --write-baseline vê unidade sem package; as exceções dela saem junto (GOV-35
+# recusa exceção de unidade não declarada) e voltam na classificação, porque
+# exceção é governança humana, não saída do agente.
 remover_golden() {
   local caminho tmp
   git -C "$WT" rm -rq -- "$MODULO" || falha "não consegui remover $MODULO do worktree"
@@ -185,8 +188,12 @@ remover_golden() {
   done
   ! grep -q "$NOME" "$WT/go.work" || falha "go.work ainda cita $NOME depois da remoção"
 
+  EXCECOES_CONTRATO="$(mktemp)" || falha "não consegui criar arquivo temporário"
+  jq --arg u "$UNIDADE_CONTRATO" '[.exceptions[] | select(.unit == $u)]' "$WT/$MANIFESTO_CONTRATOS" >"$EXCECOES_CONTRATO" \
+    || falha "não consegui guardar as exceções de $UNIDADE_CONTRATO"
   tmp="$(mktemp)" || falha "não consegui criar arquivo temporário"
-  jq --arg u "$UNIDADE_CONTRATO" '.units |= map(select(.id != $u))' "$WT/$MANIFESTO_CONTRATOS" >"$tmp" \
+  jq --arg u "$UNIDADE_CONTRATO" '.units |= map(select(.id != $u)) | .exceptions |= map(select(.unit != $u))' \
+    "$WT/$MANIFESTO_CONTRATOS" >"$tmp" \
     && mv "$tmp" "$WT/$MANIFESTO_CONTRATOS" || falha "não consegui retirar $UNIDADE_CONTRATO do manifesto"
   (cd "$WT" && pnpm biome format --write "$MANIFESTO_CONTRATOS" >/dev/null 2>&1) || true
 
@@ -272,8 +279,21 @@ rito_buf() {
   ok "rito Buf: generate, buf-lint, buf-pins, buf-generate-check"
 }
 
+devolver_excecoes() {
+  local tmp
+  [ -s "$EXCECOES_CONTRATO" ] || return 0
+  tmp="$(mktemp)" || falha "não consegui criar arquivo temporário"
+  jq --slurpfile guardadas "$EXCECOES_CONTRATO" --arg u "$UNIDADE_CONTRATO" \
+    '.exceptions = ([.exceptions[] | select(.unit != $u)] + $guardadas[0])' \
+    "$WT/$MANIFESTO_CONTRATOS" >"$tmp" \
+    && mv "$tmp" "$WT/$MANIFESTO_CONTRATOS" || falha "não consegui devolver as exceções de $UNIDADE_CONTRATO"
+  (cd "$WT" && pnpm biome format --write "$MANIFESTO_CONTRATOS" >/dev/null 2>&1) || true
+  ok "exceções de $UNIDADE_CONTRATO devolvidas ao manifesto"
+}
+
 commitar_classificacao() {
   local saida status
+  devolver_excecoes
   git -C "$WT" add -- $(git -C "$WT" ls-files -o -m --exclude-standard -- '*/dmpf-units.json' "$MANIFESTO_CONTRATOS") \
     || falha "git add dos manifestos de unidade"
   saida="$(cd "$WT" && go run ./tools/dmpf-conformance/cmd/conformance --root . --write-baseline 2>&1)"
