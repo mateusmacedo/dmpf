@@ -36,14 +36,15 @@ const (
 	envMigrate        = "MIGRATE"
 	envBrokers        = "KAFKA_BROKERS"
 	envKafkaInsecure  = "KAFKA_INSECURE"
-	envBookingsTopic  = "KAFKA_BOOKINGS_TOPIC"
-	envBookingsDLQ    = "KAFKA_BOOKINGS_DLQ"
 	envGroup          = "KAFKA_GROUP"
 	envOTLPEndpoint   = "OTLP_ENDPOINT"
 	envOTLPInsecure   = "OTLP_INSECURE"
 	envService        = "SERVICE"
 	envServiceVersion = "SERVICE_VERSION"
 	envInstanceID     = "INSTANCE_ID"
+
+	envBookingsTopic = "KAFKA_BOOKINGS_TOPIC"
+	envBookingsDLQ   = "KAFKA_BOOKINGS_DLQ"
 
 	envGRPCAddr           = "GRPC_ADDR"
 	envGRPCInsecure       = "GRPC_INSECURE"
@@ -76,10 +77,11 @@ type Config struct {
 
 	// KafkaAuth is the principal this process presents to the
 	// broker, required whenever TLS is on (IDN-04).
-	KafkaAuth     kafka.ClientAuth
+	KafkaAuth kafka.ClientAuth
+	Group     string
+
 	BookingsTopic string
 	BookingsDLQ   string
-	Group         string
 
 	OTLPEndpoint string
 	OTLPInsecure bool
