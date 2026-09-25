@@ -1,5 +1,5 @@
 # O relay drena por claim com lease (OBX-09) só a outbox do banco
-# dmpf_reservations, onde o consumer enfileira ReservationConfirmed.
+# reservations, onde o consumer enfileira ReservationConfirmed.
 apiVersion: apps/v1
 kind: Deployment
 metadata:

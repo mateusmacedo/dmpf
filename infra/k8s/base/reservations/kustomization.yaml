@@ -3,7 +3,7 @@ kind: Kustomization
 
 # Contexto reservations: api gRPC, relay e consumer como Deployments de uma
 # mesma imagem. O Secret `reservations` (DMPF_PG_DSN do banco
-# dmpf_reservations, DMPF_KAFKA_BROKERS) vem do overlay.
+# reservations, DMPF_KAFKA_BROKERS) vem do overlay.
 
 labels:
   - includeSelectors: true

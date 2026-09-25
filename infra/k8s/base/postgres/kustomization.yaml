@@ -3,6 +3,8 @@ kind: Kustomization
 
 # Postgres de desenvolvimento/homologação: um StatefulSet sem operador nem
 # réplica. Em produção o banco é serviço gerenciado e esta base fica de fora.
+# O usuário do Secret é só administrativo: cada app usa banco e role com o
+# próprio nome, criados pelo overlay.
 
 labels:
   - includeSelectors: true
@@ -17,8 +19,8 @@ resources:
 secretGenerator:
   - name: postgres
     literals:
-      - POSTGRES_USER=app
-      - POSTGRES_PASSWORD=app
-      - POSTGRES_DB=app
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=postgres
     options:
       disableNameSuffixHash: true
