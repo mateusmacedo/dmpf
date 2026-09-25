@@ -12,7 +12,7 @@ import (
 // and with them the tenant predicate, are the kernel's: a read or write written
 // here could not omit the scope even by mistake (IDN-14).
 var ordersTable = postgres.Table[domain.OrderID, domain.Snapshot]{
-	Name:     "dmpf_example_orders",
+	Name:     "orders",
 	IDColumn: "order_id",
 	Columns:  []string{"snapshot"},
 

@@ -17,6 +17,7 @@ import (
 	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kgo"
 
+	"github.com/mateusmacedo/dmpf/apps/backend/orders/appkit"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/contracts/envelope"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/contracts/payloadhash"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb"
@@ -59,7 +60,7 @@ type Harness struct {
 func New(t testing.TB) Harness {
 	t.Helper()
 	seeds := strings.Split(tb.Env(t, EnvBrokers), ",")
-	pool := pg.OpenPool(t)
+	pool := pg.OpenPool(t, appkit.PoolOptions)
 	suffix := fmt.Sprintf("%d", time.Now().UnixNano())
 	h := Harness{
 		Brokers: seeds,
@@ -122,6 +123,7 @@ func (h Harness) Start(t testing.TB, role Role) *Process {
 		"DMPF_KAFKA_INSECURE=true",
 		"DMPF_SERVICE=orders-distkit",
 		EnvBrokers+"="+strings.Join(h.Brokers, ","),
+		pg.PostgresDSN+"="+pg.DSN(t, appkit.PoolOptions.Project),
 	)
 	p := &Process{Role: role, cmd: cmd, finished: make(chan struct{})}
 	cmd.Stdout, cmd.Stderr = &p.output, &p.output

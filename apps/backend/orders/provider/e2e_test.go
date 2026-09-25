@@ -5,7 +5,7 @@ package provider_test
 import (
 	"context"
 	"fmt"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/pg"
+	"github.com/mateusmacedo/dmpf/apps/backend/orders/appkit"
 	"sync"
 	"testing"
 
@@ -72,7 +72,7 @@ func newService(pool *pgxpool.Pool) application.Service {
 // PlaceOrder only loads, and Place refuses an order with no items, so AddItem
 // is what creates the order and OrderPlaced can only come second.
 func TestTheUseCaseRunsEndToEndOverPostgres(t *testing.T) {
-	pool := pg.OpenPool(t)
+	pool := appkit.OpenPool(t)
 	service := newService(pool)
 	ctx := context.Background()
 
@@ -169,7 +169,7 @@ func counts(t *testing.T, pool *pgxpool.Pool) (int, int) {
 
 	var ordersCount, outboxCount int
 	err := pool.QueryRow(context.Background(), `
-		SELECT (SELECT count(*) FROM dmpf_example_orders), (SELECT count(*) FROM outbox)`).
+		SELECT (SELECT count(*) FROM orders), (SELECT count(*) FROM outbox)`).
 		Scan(&ordersCount, &outboxCount)
 	if err != nil {
 		t.Fatalf("counts = %v, want nil", err)

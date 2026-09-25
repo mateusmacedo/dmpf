@@ -102,7 +102,7 @@ func serveAPI(ctx context.Context, cfg Config, rt *otelboot.Runtime, out io.Writ
 			return fmt.Errorf("postgres: %w", err)
 		}
 		if cfg.Migrate {
-			if err := postgres.Migrate(ctx, pool); err != nil {
+			if err := postgres.Migrate(ctx, pool, []postgres.Capability{postgres.Outbox}, provider.Schema); err != nil {
 				return fmt.Errorf("migrate: %w", err)
 			}
 		}
