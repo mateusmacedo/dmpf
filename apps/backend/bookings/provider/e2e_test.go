@@ -136,8 +136,8 @@ func TestReserveBookingEndToEnd(t *testing.T) {
 		}
 
 		_, outboxAfter := counts(t, pool)
-		if outboxAfter != outboxBefore {
-			t.Fatalf("outbox count moved on cancel: %d→%d (internal event must not enqueue)", outboxBefore, outboxAfter)
+		if outboxAfter != outboxBefore+1 {
+			t.Fatalf("outbox count on cancel: %d→%d, want one BookingCancelled in the same transaction", outboxBefore, outboxAfter)
 		}
 	})
 }

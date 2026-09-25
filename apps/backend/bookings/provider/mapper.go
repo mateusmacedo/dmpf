@@ -12,7 +12,11 @@ import (
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/domain"
 )
 
-const bookingReservedType = "com.company.bookings.booking-reserved.v1"
+const (
+	bookingReservedType    = "com.company.bookings.booking-reserved.v1"
+	bookingCancelledType   = "com.company.bookings.booking-cancelled.v1"
+	resourceRegisteredType = "com.company.bookings.resource-registered.v1"
+)
 
 type Mapper struct{}
 
@@ -27,6 +31,22 @@ func (Mapper) Map(event kernel.DomainEvent) (postgres.Mapped, error) {
 				ReservedAt: timestamppb.New(time.Unix(0, int64(e.At))),
 			},
 			Type: bookingReservedType,
+		}, nil
+	case domain.BookingCancelledEvent:
+		return postgres.Mapped{
+			Message: &eventv1.BookingCancelled{
+				BookingId:   string(e.BookingID),
+				CancelledAt: timestamppb.New(time.Unix(0, int64(e.At))),
+			},
+			Type: bookingCancelledType,
+		}, nil
+	case domain.ResourceRegistered:
+		return postgres.Mapped{
+			Message: &eventv1.ResourceRegistered{
+				ResourceId:   string(e.Code),
+				RegisteredAt: timestamppb.New(time.Unix(0, int64(e.At))),
+			},
+			Type: resourceRegisteredType,
 		}, nil
 	default:
 		return postgres.Mapped{}, fmt.Errorf("%w: %s", postgres.ErrUnmappedEvent, event.EventName())

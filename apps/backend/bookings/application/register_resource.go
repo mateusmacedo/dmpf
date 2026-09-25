@@ -42,6 +42,9 @@ func (s Service) RegisterResource(ctx context.Context, cmd Register) (applicatio
 		if err := res.Resources.Save(ctx, cmd.Code, r.Snapshot(), stored); err != nil {
 			return fmt.Errorf("application: register %s: %w", cmd.Code, err)
 		}
+		if err := enqueueAll(ctx, res.Outbox, identity, AggregateTypeResource, string(cmd.Code), stored+1, accepted.Events()); err != nil {
+			return fmt.Errorf("application: register %s: enqueue: %w", cmd.Code, err)
+		}
 		outcome = application.Accepted(accepted.Response())
 		return nil
 	})

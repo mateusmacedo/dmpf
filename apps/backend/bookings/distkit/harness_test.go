@@ -21,6 +21,10 @@ import (
 // start, so both have something to compete for.
 const reservations = 6
 
+// records is what the outbox holds before the drains start: the registration of
+// the resource the reservations use, plus one record per reservation.
+const records = reservations + 1
+
 // TestDistkitRole is the entry point of a re-executed child; it is inert in a
 // normal run.
 func TestDistkitRole(t *testing.T) { distkit.RunRole(t) }
@@ -34,8 +38,8 @@ func TestTwoDrainsPublishEveryRecordExactlyOnce(t *testing.T) {
 		"SELECT count(*) FROM outbox WHERE status = 'pending'").Scan(&pending); err != nil {
 		t.Fatalf("counting the outbox: %v", err)
 	}
-	if pending != reservations {
-		t.Fatalf("outbox holds %d pending records before the drains start, want %d: the vector needs something to compete for", pending, reservations)
+	if pending != records {
+		t.Fatalf("outbox holds %d pending records before the drains start, want %d: the vector needs something to compete for", pending, records)
 	}
 
 	relays := make([]*distkit.Process, distkit.Relays)
@@ -60,7 +64,7 @@ func TestTwoDrainsPublishEveryRecordExactlyOnce(t *testing.T) {
 			}
 		}
 	})
-	settled := h.Settled(t, reservations, 30*time.Second)
+	settled := h.Settled(t, records, 30*time.Second)
 	published := h.Collect(t, len(settled), 60*time.Second)
 	for _, r := range relays {
 		r.Stop(t, 30*time.Second)

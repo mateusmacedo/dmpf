@@ -47,6 +47,34 @@ func TestMapperMapsBookingReserved(t *testing.T) {
 	}
 }
 
+func TestMapperMapsBookingCancelled(t *testing.T) {
+	t.Parallel()
+
+	mapped, err := provider.Mapper{}.Map(domain.BookingCancelledEvent{BookingID: "B-100", At: 1_755_432_000_000_000_001})
+
+	if err != nil {
+		t.Fatalf("Map() = %v, want nil", err)
+	}
+	want := &eventv1.BookingCancelled{BookingId: "B-100", CancelledAt: &timestamppb.Timestamp{Seconds: 1_755_432_000, Nanos: 1}}
+	if !proto.Equal(mapped.Message, want) || mapped.Type != "com.company.bookings.booking-cancelled.v1" {
+		t.Errorf("Map() = %v %q, want %v com.company.bookings.booking-cancelled.v1", mapped.Message, mapped.Type, want)
+	}
+}
+
+func TestMapperMapsResourceRegistered(t *testing.T) {
+	t.Parallel()
+
+	mapped, err := provider.Mapper{}.Map(domain.ResourceRegistered{Code: "R-200", At: 1_755_432_000_000_000_002})
+
+	if err != nil {
+		t.Fatalf("Map() = %v, want nil", err)
+	}
+	want := &eventv1.ResourceRegistered{ResourceId: "R-200", RegisteredAt: &timestamppb.Timestamp{Seconds: 1_755_432_000, Nanos: 2}}
+	if !proto.Equal(mapped.Message, want) || mapped.Type != "com.company.bookings.resource-registered.v1" {
+		t.Errorf("Map() = %v %q, want %v com.company.bookings.resource-registered.v1", mapped.Message, mapped.Type, want)
+	}
+}
+
 func TestMapperReportsUnmappedEvent(t *testing.T) {
 	t.Parallel()
 

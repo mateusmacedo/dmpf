@@ -52,6 +52,7 @@ func TestCancelWalksTheNineStepsInOrder(t *testing.T) {
 		"within",
 		"bookings.Load",
 		"bookings.Save",
+		"outbox.Enqueue",
 		"commit",
 	}
 	if !slices.Equal(h.rec.observed, want) {
@@ -75,6 +76,7 @@ func TestRegisterWalksTheNineStepsInOrder(t *testing.T) {
 		"within",
 		"resources.Load",
 		"resources.Save",
+		"outbox.Enqueue",
 		"commit",
 	}
 	if !slices.Equal(h.rec.observed, want) {
@@ -100,5 +102,45 @@ func TestCancelRejectsWhenBookingNotReserved(t *testing.T) {
 	}
 	if rej.Code() != domain.CodeNotReserved {
 		t.Fatalf("Code() = %q, want %q", rej.Code(), domain.CodeNotReserved)
+	}
+}
+
+func TestCancelEnqueuesTheCancellationInTheSameTransaction(t *testing.T) {
+	h := newHarness(t)
+	h.seedBooking(t, domain.BookingSnapshot{
+		ID: testBookingID, ResourceID: testResourceID, Quantity: 5,
+		Status: domain.BookingReservedStatus, ReservedAt: 1000,
+	}, 1)
+
+	if _, err := h.service.CancelBooking(withExecution(t, context.Background()), application.Cancel{BookingID: testBookingID}); err != nil {
+		t.Fatalf("CancelBooking() error = %v, want nil", err)
+	}
+
+	entries := h.store.outbox
+	if len(entries) != 1 {
+		t.Fatalf("outbox entries = %d, want 1", len(entries))
+	}
+	entry := entries[0]
+	if _, ok := entry.Event.(domain.BookingCancelledEvent); !ok || entry.AggregateType != application.AggregateTypeBooking ||
+		entry.AggregateID != string(testBookingID) || entry.AggregateVersion != 2 {
+		t.Fatalf("outbox entry = %+v, want the cancellation of the booking at version 2", entry)
+	}
+}
+
+func TestRegisterEnqueuesTheRegistrationInTheSameTransaction(t *testing.T) {
+	h := newHarness(t)
+
+	if _, err := h.service.RegisterResource(withExecution(t, context.Background()), application.Register{Code: testResCode}); err != nil {
+		t.Fatalf("RegisterResource() error = %v, want nil", err)
+	}
+
+	entries := h.store.outbox
+	if len(entries) != 1 {
+		t.Fatalf("outbox entries = %d, want 1", len(entries))
+	}
+	entry := entries[0]
+	if _, ok := entry.Event.(domain.ResourceRegistered); !ok || entry.AggregateType != application.AggregateTypeResource ||
+		entry.AggregateID != string(testResCode) || entry.AggregateVersion != 1 {
+		t.Fatalf("outbox entry = %+v, want the registration of the resource at version 1", entry)
 	}
 }

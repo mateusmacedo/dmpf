@@ -41,6 +41,9 @@ func (s Service) CancelBooking(ctx context.Context, cmd Cancel) (application.Out
 		if err := res.Bookings.Save(ctx, cmd.BookingID, b.Snapshot(), stored); err != nil {
 			return fmt.Errorf("application: cancel %s: %w", cmd.BookingID, err)
 		}
+		if err := enqueueAll(ctx, res.Outbox, identity, AggregateTypeBooking, string(cmd.BookingID), stored+1, accepted.Events()); err != nil {
+			return fmt.Errorf("application: cancel %s: enqueue: %w", cmd.BookingID, err)
+		}
 		outcome = application.Accepted(accepted.Response())
 		return nil
 	})
