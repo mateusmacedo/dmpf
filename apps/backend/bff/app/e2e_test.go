@@ -14,8 +14,11 @@ import (
 
 	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kgo"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/contracts/envelope"
+	bookingsevent "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/bookings/event/v1"
 )
 
 const (
@@ -23,6 +26,8 @@ const (
 	reservationConfirmedType = "com.company.reservations.reservation-confirmed.v1"
 	reservationCancelledType = "com.company.reservations.reservation-cancelled.v1"
 	bookingReservedType      = "com.company.bookings.booking-reserved.v1"
+	bookingCancelledType     = "com.company.bookings.booking-cancelled.v1"
+	resourceRegisteredType   = "com.company.bookings.resource-registered.v1"
 
 	correlation = "corr-e2e-1"
 	traceID     = "4bf92f3577b34da6a3ce929d0e0e4736"
@@ -119,6 +124,17 @@ func TestTopologyEndToEnd(t *testing.T) {
 	if reservedBooking.CorrelationID != correlation {
 		t.Fatalf("BookingReserved correlationid = %q, want %q from the BFF edge", reservedBooking.CorrelationID, correlation)
 	}
+	var reserved bookingsevent.BookingReserved
+	requireOccurredAt(t, reservedBooking, &reserved, reserved.GetReservedAt)
+
+	t.Log("7b. cancel and register leave as facts too, each instant equal to its OccurredAt to the nanosecond")
+	if status, body := top.call(t, http.MethodPost, "/bookings/booking/b-e2e/cancel", "", nil); status != http.StatusOK {
+		t.Fatalf("POST cancel booking: status = %d, body %s", status, body)
+	}
+	var cancelled bookingsevent.BookingCancelled
+	requireOccurredAt(t, top.envelopeOf(t, top.bookingsTopic, bookingCancelledType, "b-e2e"), &cancelled, cancelled.GetCancelledAt)
+	var registered bookingsevent.ResourceRegistered
+	requireOccurredAt(t, top.envelopeOf(t, top.bookingsTopic, resourceRegisteredType, "room-e2e"), &registered, registered.GetRegisteredAt)
 	requireTypePrefix(t, top.recordsUntilEnd(t, top.bookingsTopic), "com.company.bookings.")
 
 	t.Log("8. the same call without a credential is refused as identity, not as an internal failure")
@@ -219,6 +235,16 @@ func traceOf(parent string) string {
 		return ""
 	}
 	return parts[1]
+}
+
+func requireOccurredAt(t *testing.T, env envelope.Envelope, payload proto.Message, at func() *timestamppb.Timestamp) {
+	t.Helper()
+	if err := envelope.Unpack(env, payload); err != nil {
+		t.Fatalf("unpack %s: %v", env.Type, err)
+	}
+	if got, want := at().AsTime(), env.Time.AsTime(); !got.Equal(want) {
+		t.Fatalf("%s instant = %s, want the OccurredAt %s", env.Type, got.Format(time.RFC3339Nano), want.Format(time.RFC3339Nano))
+	}
 }
 
 func (top *topology) envelopeOf(t *testing.T, topic, eventType, aggregate string) envelope.Envelope {
