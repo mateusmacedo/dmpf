@@ -24,7 +24,7 @@ import (
 // PostgresDSN is the variable every Postgres-backed suite reads. It names the
 // server and an administrative database; each project's suite runs in a
 // database of its own on that server.
-const PostgresDSN = "DMPF_PG_DSN"
+const PostgresDSN = "PG_DSN"
 
 // resetTimeout bounds every reset, so a lock left behind by a failed clause
 // fails the cleanup instead of holding the binary until go test's -timeout.
