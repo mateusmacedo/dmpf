@@ -82,20 +82,20 @@ func TestTopologyEndToEnd(t *testing.T) {
 		t.Fatalf("canceled reservation status = %q, want canceled", status)
 	}
 	top.envelopeOf(t, top.reservationsTopic, reservationCancelledType, canceledOrder)
-	if n := count(t, top.reservationsPool, "dmpf_outbox", fmt.Sprintf("message_type = '%s' AND aggregate_id = '%s'", reservationConfirmedType, canceledOrder)); n != 0 {
+	if n := count(t, top.reservationsPool, "outbox", fmt.Sprintf("message_type = '%s' AND aggregate_id = '%s'", reservationConfirmedType, canceledOrder)); n != 0 {
 		t.Fatalf("ReservationConfirmed rows for the canceled order = %d, want 0", n)
 	}
 
 	t.Log("5. redeliver the first OrderPlaced: nothing changes")
 	top.republish(t, top.ordersTopic, orderPlacedType, reservedOrder)
 	top.waitUntil(t, "the group consumed the redelivery", func() bool { return top.consumedEverything(t, top.ordersTopic) })
-	if n := count(t, top.reservationsPool, "dmpf_inbox", fmt.Sprintf("message_id = '%s'", placed.MessageID)); n != 1 {
+	if n := count(t, top.reservationsPool, "inbox", fmt.Sprintf("message_id = '%s'", placed.MessageID)); n != 1 {
 		t.Fatalf("inbox rows for the redelivered message = %d, want 1 (DuplicateIgnored)", n)
 	}
 	if n := count(t, top.reservationsPool, "dmpf_example_reservations", "true"); n != 2 {
 		t.Fatalf("reservations = %d, want 2", n)
 	}
-	if n := count(t, top.reservationsPool, "dmpf_quarantine", "true"); n != 0 {
+	if n := count(t, top.reservationsPool, "quarantine", "true"); n != 0 {
 		t.Fatalf("quarantine rows = %d, want 0", n)
 	}
 
@@ -103,7 +103,7 @@ func TestTopologyEndToEnd(t *testing.T) {
 	requireDestinations(t, top.ordersPool, "orders.events")
 	requireDestinations(t, top.reservationsPool, "reservations.events")
 	for name, pool := range map[string]*pgxpool.Pool{"orders": top.ordersPool, "reservations": top.reservationsPool} {
-		if n := count(t, pool, "dmpf_outbox", "status = 'failed'"); n != 0 {
+		if n := count(t, pool, "outbox", "status = 'failed'"); n != 0 {
 			t.Fatalf("%s outbox rows failed = %d, want 0", name, n)
 		}
 	}
@@ -200,7 +200,7 @@ func outboxRow(t *testing.T, pool *pgxpool.Pool, messageType, aggregate string) 
 		raw []byte
 	)
 	err := pool.QueryRow(context.Background(),
-		"SELECT message_id, metadata FROM dmpf_outbox WHERE message_type = $1 AND aggregate_id = $2", messageType, aggregate,
+		"SELECT message_id, metadata FROM outbox WHERE message_type = $1 AND aggregate_id = $2", messageType, aggregate,
 	).Scan(&row.MessageID, &raw)
 	if err != nil {
 		t.Fatalf("outbox row %s of %s: %v", messageType, aggregate, err)
@@ -214,7 +214,7 @@ func outboxRow(t *testing.T, pool *pgxpool.Pool, messageType, aggregate string) 
 func inboxStatus(t *testing.T, pool *pgxpool.Pool, messageID string) string {
 	t.Helper()
 	var status string
-	if err := pool.QueryRow(context.Background(), "SELECT status FROM dmpf_inbox WHERE message_id = $1", messageID).Scan(&status); err != nil {
+	if err := pool.QueryRow(context.Background(), "SELECT status FROM inbox WHERE message_id = $1", messageID).Scan(&status); err != nil {
 		return ""
 	}
 	return status
@@ -231,7 +231,7 @@ func count(t *testing.T, pool *pgxpool.Pool, table, where string) int {
 
 func requireDestinations(t *testing.T, pool *pgxpool.Pool, want string) {
 	t.Helper()
-	rows, err := pool.Query(context.Background(), "SELECT DISTINCT destination FROM dmpf_outbox")
+	rows, err := pool.Query(context.Background(), "SELECT DISTINCT destination FROM outbox")
 	if err != nil {
 		t.Fatalf("destinations: %v", err)
 	}
