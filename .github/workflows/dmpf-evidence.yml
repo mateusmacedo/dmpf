@@ -29,7 +29,7 @@ jobs:
     env:
       CI: "true"
       RELEASE: ${{ inputs.release }}
-      DMPF_PG_DSN: "postgres://dmpf:dmpf@localhost:5432/dmpf?sslmode=disable"
+      DMPF_PG_DSN: "postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable"
       DMPF_KAFKA_BROKERS: "localhost:9092"
       DMPF_REDPANDA_ADMIN: "http://localhost:9644"
 
@@ -72,10 +72,10 @@ jobs:
           docker rm -f "$nome" >/dev/null 2>&1 || true
           docker run -d --name "$nome" \
             --network "container:$(hostname)" \
-            -e POSTGRES_USER=dmpf -e POSTGRES_PASSWORD=dmpf -e POSTGRES_DB=dmpf \
+            -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=postgres \
             postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
           for _ in $(seq 1 30); do
-            if docker exec "$nome" pg_isready -U dmpf -q; then
+            if docker exec "$nome" pg_isready -U postgres -q; then
               echo "postgres pronto em localhost:5432 ($nome)"
               exit 0
             fi
