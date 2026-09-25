@@ -173,8 +173,8 @@ const naiveUpsert = `
 INSERT INTO reservations (tenant_id, order_id, version, snapshot) VALUES ($4, $1, 1, $2)
 ON CONFLICT (tenant_id, order_id) DO UPDATE
    SET version  = reservations.version + 1,
-       snapshot = jsonb_set(reservations.snapshot, '{Items}',
-                            to_jsonb((reservations.snapshot->>'Items')::int + $3))`
+       snapshot = jsonb_set(reservations.snapshot, '{items}',
+                            to_jsonb((reservations.snapshot->>'items')::int + $3))`
 
 func (s naiveSink) Handle(ctx context.Context, raw []byte, _ int, ack ports.Acknowledger) error {
 	env, err := envelope.Unmarshal(raw)
@@ -188,7 +188,7 @@ func (s naiveSink) Handle(ctx context.Context, raw []byte, _ int, ack ports.Ackn
 	if env.TenantID == nil {
 		return errors.New("distkit: the naive consumer received an envelope without tenant")
 	}
-	snapshot, err := json.Marshal(domain.Snapshot{Order: domain.OrderID(placed.GetOrderId()), Items: int(placed.GetItemCount()), Status: domain.Confirmed})
+	snapshot, err := json.Marshal(map[string]int{"items": int(placed.GetItemCount()), "status": int(domain.Confirmed)})
 	if err != nil {
 		return err
 	}

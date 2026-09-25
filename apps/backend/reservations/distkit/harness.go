@@ -210,7 +210,7 @@ func (h Harness) Effects(t testing.TB) Effects {
 		t.Fatalf("distkit: effects: %v", err)
 	}
 	row := h.Pool.QueryRow(ctx,
-		`SELECT version, (snapshot->>'Items')::int FROM reservations WHERE order_id = $1`, h.Plan.Order)
+		`SELECT version, (snapshot->>'items')::int FROM reservations WHERE order_id = $1`, h.Plan.Order)
 	if err := row.Scan(&e.Version, &e.Items); err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		t.Fatalf("distkit: reservation of %s: %v", h.Plan.Order, err)
 	}
