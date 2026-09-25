@@ -10,10 +10,8 @@ import (
 	"time"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/app/relay"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/authn"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/envconfig"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/admission"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/deadline"
 )
 
 // Role selects which process the binary becomes (BLK-02: the relay never
@@ -36,7 +34,6 @@ var (
 
 const (
 	envDSN            = "PG_DSN"
-	envHTTPAddr       = "HTTP_ADDR"
 	envMigrate        = "MIGRATE"
 	envBrokers        = "KAFKA_BROKERS"
 	envKafkaInsecure  = "KAFKA_INSECURE"
@@ -56,7 +53,7 @@ const (
 	envGRPCClientCAFile   = "GRPC_CLIENT_CA_FILE"
 	envGRPCTrustedClients = "GRPC_TRUSTED_CLIENTS"
 	envMetricTenants      = "METRIC_TENANTS"
-	defaultHTTPAddr       = ":8080"
+	defaultGRPCAddr       = ":9090"
 	defaultServiceName    = "bookings"
 )
 
@@ -65,13 +62,9 @@ const (
 type Config struct {
 	Role Role
 
-	DSN         string
-	HTTPAddr    string
-	Migrate     bool
-	RouteBudget deadline.Budget
+	DSN     string
+	Migrate bool
 
-	// GRPCAddr turns the gRPC edge on beside the HTTP one while both coexist;
-	// empty keeps the api on HTTP alone.
 	GRPCAddr           string
 	GRPCInsecure       bool
 	GRPCCertFile       string
@@ -99,7 +92,6 @@ type Config struct {
 	Instance string
 
 	Relay relay.Config
-	Auth  authn.Config
 }
 
 // FromEnv resolves the configuration of the role and refuses to start when a
@@ -109,7 +101,6 @@ func FromEnv(role Role, lookup func(string) string) (Config, error) {
 	cfg := Config{
 		Role:          role,
 		DSN:           lookup(envDSN),
-		HTTPAddr:      envconfig.OrDefault(lookup(envHTTPAddr), defaultHTTPAddr),
 		BookingsTopic: lookup(envBookingsTopic),
 		BookingsDLQ:   lookup(envBookingsDLQ),
 		Group:         lookup(envGroup),
@@ -119,7 +110,7 @@ func FromEnv(role Role, lookup func(string) string) (Config, error) {
 		Instance:      envconfig.OrDefault(lookup(envInstanceID), envconfig.Hostname()),
 		Brokers:       envconfig.SplitList(lookup(envBrokers)),
 
-		GRPCAddr:           lookup(envGRPCAddr),
+		GRPCAddr:           envconfig.OrDefault(lookup(envGRPCAddr), defaultGRPCAddr),
 		GRPCCertFile:       lookup(envGRPCCertFile),
 		GRPCKeyFile:        lookup(envGRPCKeyFile),
 		GRPCClientCAFile:   lookup(envGRPCClientCAFile),
@@ -127,13 +118,6 @@ func FromEnv(role Role, lookup func(string) string) (Config, error) {
 		Admission:          admission.Limit{PerSecond: 50, Burst: 100, Concurrency: 32},
 		MetricTenants:      envconfig.SplitList(lookup(envMetricTenants)),
 
-		RouteBudget: deadline.Budget{
-			Dependency:        "postgres",
-			Method:            "route",
-			Limit:             2 * time.Second,
-			Slack:             200 * time.Millisecond,
-			EstimatedDuration: 200 * time.Millisecond,
-		},
 		Relay: relay.Config{
 			Source:         "urn:dmpf:reference-bookings",
 			Interval:       500 * time.Millisecond,
@@ -159,9 +143,6 @@ func FromEnv(role Role, lookup func(string) string) (Config, error) {
 		return Config{}, err
 	}
 	if cfg.GRPCInsecure, err = envconfig.ParseBool(envGRPCInsecure, lookup(envGRPCInsecure)); err != nil {
-		return Config{}, err
-	}
-	if cfg.Auth, err = authn.ReadEnv(lookup); err != nil {
 		return Config{}, err
 	}
 
@@ -193,7 +174,7 @@ func (c Config) validate() error {
 			missing = append(missing, envGroup)
 		}
 	}
-	if c.Role == RoleAPI && c.GRPCAddr != "" {
+	if c.Role == RoleAPI {
 		missing = append(missing, c.grpcTransport()...)
 	}
 	if len(missing) > 0 {
@@ -201,11 +182,6 @@ func (c Config) validate() error {
 	}
 	if c.Role == RoleRelay {
 		if err := c.Relay.Validate(); err != nil {
-			return err
-		}
-	}
-	if c.Role == RoleAPI {
-		if err := c.Auth.Validate(); err != nil {
 			return err
 		}
 	}
