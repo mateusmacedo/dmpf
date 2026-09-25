@@ -39,7 +39,7 @@ infra/
 
 ## Desenvolvimento local (Compose)
 
-Os profiles são cumulativos. `observability` sobe a plataforma inteira; `dmpf` sobe os seis processos da topologia de referência — o BFF, `api` e `relay` de orders, `api`, `relay` e `consumer` de reservations — **com** tudo o que eles precisam e observam, inclusive o `postgres-init` (cria `dmpf_orders` e `dmpf_reservations` sem falhar quando já existem), o `redpanda-init` (usuários SASL, tópicos e ACLs) e o `pki-init` (CA e certificados do mTLS interno); `all` sobe a infraestrutura toda menos as apps. Diferente do BFF e dos dois contextos da topologia de referência, `bookings` não faz parte de nenhum profile local — sobe isolado contra o profile `postgres` (ver `apps/backend/bookings/README.md`).
+Os profiles são cumulativos. `observability` sobe a plataforma inteira; `dmpf` sobe os seis processos da topologia de referência — o BFF, `api` e `relay` de orders, `api`, `relay` e `consumer` de reservations — **com** tudo o que eles precisam e observam, inclusive o `postgres-init` (cria banco e role de mesmo nome para `orders`, `reservations` e `bookings`, com o banco pertencendo ao role, sem falhar quando já existem), o `redpanda-init` (usuários SASL, tópicos e ACLs) e o `pki-init` (CA e certificados do mTLS interno); `all` sobe a infraestrutura toda menos as apps. Diferente do BFF e dos dois contextos da topologia de referência, `bookings` não faz parte de nenhum profile local — sobe isolado contra o profile `postgres` (ver `apps/backend/bookings/README.md`).
 
 ```bash
 # só o banco (o que os testes de integração dos módulos Go precisam)
@@ -56,6 +56,25 @@ pnpm nx run bff:infra-down
 ```
 
 Pelo Nx: `infra-up` (Postgres, Redpanda e floci), `observability-up` (plataforma + exporters), `infra-down` e `infra-budget`.
+
+### Bancos por app
+
+O servidor Postgres tem um usuário só administrativo (`POSTGRES_USER`, padrão `postgres`). Cada app tem banco e role com o próprio nome, e só as estruturas do próprio schema: `orders` (`outbox` e `orders`), `reservations` (`outbox`, `inbox`, `quarantine` e `reservations`) e `bookings` (`outbox`, `bookings` e `resources`). Cada app conecta com o próprio role:
+
+| App | `DMPF_PG_DSN` |
+|---|---|
+| `orders` | `postgres://orders:${DMPF_ORDERS_PG_PASSWORD:-orders-local}@postgres:5432/orders` |
+| `reservations` | `postgres://reservations:${DMPF_RESERVATIONS_PG_PASSWORD:-reservations-local}@postgres:5432/reservations` |
+| `bookings` | `postgres://bookings:${DMPF_BOOKINGS_PG_PASSWORD:-bookings-local}@postgres:5432/bookings` |
+
+Os testes de integração dos módulos Go apontam `DMPF_PG_DSN` para o servidor, com um usuário que pode criar bancos (`postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable`): cada projeto cria e usa o próprio `<projeto>_test`.
+
+Não há migração a partir do layout antigo (banco `app` compartilhado e bancos e tabelas com o prefixo `dmpf`). Um volume criado antes precisa ser recriado, e o do PKI também, porque o `pki-init` só emite certificados na primeira subida:
+
+```bash
+docker compose -f infra/local/docker-compose.yml --profile dmpf down -v
+docker compose -f infra/local/docker-compose.yml --profile dmpf up -d --build
+```
 
 ### mTLS interno e SASL no Kafka (profile `dmpf`)
 
@@ -130,7 +149,7 @@ kubectl apply -k infra/k8s/overlays/dev
 
 | Overlay | Namespace | O que sobe | Credenciais |
 | --- | --- | --- | --- |
-| `dev` | `dmpf-dev` | Postgres, Redpanda, a plataforma de observabilidade e as três apps; Job `dmpf-databases` cria `dmpf_orders` e `dmpf_reservations`; Kafka, OTLP e gRPC interno sem TLS, `DMPF_MIGRATE=true` nos `api`, Grafana anônimo | `secretGenerator` com valores de desenvolvimento (`orders`, `reservations`, `grafana-admin`) |
+| `dev` | `dmpf-dev` | Postgres, Redpanda, a plataforma de observabilidade e as três apps; Job `dmpf-databases` cria banco e role de `orders`, `reservations` e `bookings`; Kafka, OTLP e gRPC interno sem TLS, `DMPF_MIGRATE=true` nos `api`, Grafana anônimo | `secretGenerator` com valores de desenvolvimento (`orders`, `reservations`, `dmpf-databases`, `grafana-admin`) |
 | `hmg` | `dmpf-hmg` | Observabilidade e as três apps (2 réplicas do BFF e de cada `api`); bancos e Kafka externos, mTLS no gRPC interno e SASL no Kafka, Grafana só com login | `orders`, `reservations` (com `DMPF_KAFKA_SASL_USERNAME`/`_PASSWORD`), `orders-grpc-tls`, `reservations-grpc-tls`, `bff-grpc-ca`, `bff-grpc-client`, `grpc-client-ca`, `bff-oidc` e `grafana-admin` vêm de ExternalSecret/SealedSecret com esses nomes; `secrets.example.yaml.tmpl` mostra a forma e **não** é resource |
 
 As bases são fail-closed e o overlay `dev` relaxa o que precisa: `DMPF_KAFKA_INSECURE`, `DMPF_OTLP_INSECURE` e o acesso anônimo do Grafana nascem desligados, e o transporte gRPC interno não tem default — `dev` declara `DMPF_GRPC_INSECURE=true` por patch. Em `hmg`, o mTLS é bidirecional: cada `api` monta o próprio certificado de servidor (`orders-grpc-tls`, `reservations-grpc-tls`) e a CA que verifica o cliente (`grpc-client-ca`, comum aos dois contextos porque o único cliente confiável é o BFF), e o BFF monta a CA que verifica os `api` (`bff-grpc-ca`) e o próprio certificado de cliente (`bff-grpc-client`); o Kafka gerenciado exige SASL SCRAM-SHA-512 por contexto, com usuário e senha no Secret do próprio contexto. A ACL do broker por principal do ADR-052 é **pré-requisito externo**, registrada como comentário no `secrets.example.yaml.tmpl`: sem ela, `hmg` não tem como impor que só `orders` publique em `orders.events`. As bases dos contextos não conhecem credencial: `DMPF_PG_DSN`, `DMPF_KAFKA_BROKERS` e as credenciais SASL vêm sempre do Secret do overlay; o resto vem do ConfigMap. Os seis Deployments têm `securityContext` restritivo (não root, sistema de arquivos só leitura, sem capabilities) e `terminationGracePeriodSeconds` acima do prazo interno de encerramento de cada papel.
