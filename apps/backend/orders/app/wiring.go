@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"fmt"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/boot"
 	"io"
 	"maps"
 	"net"
@@ -18,6 +17,7 @@ import (
 	kernelgrpc "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/kafka"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/audit"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/boot"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/idclock"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/otelboot"
 	obsusecase "github.com/mateusmacedo/dmpf/libs/backend/go/observability/usecase"

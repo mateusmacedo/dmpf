@@ -5,12 +5,12 @@ package provider_test
 import (
 	"context"
 	"fmt"
-	"github.com/mateusmacedo/dmpf/apps/backend/orders/appkit"
 	"sync"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/mateusmacedo/dmpf/apps/backend/orders/appkit"
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/application"
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/domain"
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/provider"

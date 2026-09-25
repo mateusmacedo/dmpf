@@ -5,11 +5,11 @@ package provider_test
 import (
 	"context"
 	"errors"
-	"github.com/mateusmacedo/dmpf/apps/backend/orders/appkit"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/mateusmacedo/dmpf/apps/backend/orders/appkit"
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/domain"
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/provider"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
