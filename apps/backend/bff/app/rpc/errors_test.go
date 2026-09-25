@@ -22,7 +22,7 @@ func TestClassifyMapsFailuresWithoutInternalDetail(t *testing.T) {
 		status int
 		code   string
 	}{
-		{"not found", status.Error(codes.NotFound, "row absent in dmpf_example_orders"), http.StatusNotFound, "not-found"},
+		{"not found", status.Error(codes.NotFound, "row absent in orders"), http.StatusNotFound, "not-found"},
 		{"version conflict", status.Error(codes.Aborted, "version 3"), http.StatusConflict, "version-conflict"},
 		{"remote deadline", status.Error(codes.DeadlineExceeded, "late"), http.StatusGatewayTimeout, "deadline-exceeded"},
 		{"local context deadline", fmt.Errorf("call: %w", context.DeadlineExceeded), http.StatusGatewayTimeout, "deadline-exceeded"},

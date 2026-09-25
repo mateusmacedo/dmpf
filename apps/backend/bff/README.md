@@ -25,8 +25,10 @@ flowchart LR
   client[cliente HTTP] --> bff[bff]
   bff -->|gRPC + mTLS| orders[orders api]
   bff -->|gRPC + mTLS| reservations[reservations api]
-  orders --> ordersdb[(dmpf_orders)]
-  reservations --> reservationsdb[(dmpf_reservations)]
+  bff -->|gRPC + mTLS| bookings[bookings api]
+  orders --> ordersdb[(orders)]
+  reservations --> reservationsdb[(reservations)]
+  bookings --> bookingsdb[(bookings)]
 ```
 
 ## Unidade do manifesto
@@ -101,6 +103,6 @@ A topologia inteira sobe por `docker compose -f infra/local/docker-compose.yml -
 - E2e caixa-preta (build tag `integration`): compila os quatro binários com `-race`, cria três bancos e seis tópicos por execução, sobe os oito processos e fala só HTTP com o BFF. Prova a cadeia de contexto até `ReservationConfirmed` e até o `BookingReserved` que sai do `bookings`, o cancelamento que vence um `OrderPlaced` posterior, a reentrega que termina em `DuplicateIgnored`, uma outbox por contexto e a recusa de uma chamada sem credencial. Exige `PG_DSN` (usuário com `CREATE DATABASE`) e `KAFKA_BROKERS`.
 
 ```bash
-PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' KAFKA_BROKERS=localhost:9092 \
+PG_DSN='postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable' KAFKA_BROKERS=localhost:9092 \
   pnpm nx run bff:test-race
 ```
