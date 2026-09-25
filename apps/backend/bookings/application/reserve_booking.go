@@ -4,14 +4,14 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/mateusmacedo/dmpf/libs/backend/go/application"
+	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/domain"
 )
 
-func (s Service) ReserveBooking(ctx context.Context, cmd ReserveBooking) (application.Outcome[domain.ReservedResponse], error) {
-	var zero application.Outcome[domain.ReservedResponse]
+func (s Service) ReserveBooking(ctx context.Context, cmd ReserveBooking) (usecase.Outcome[domain.ReservedResponse], error) {
+	var zero usecase.Outcome[domain.ReservedResponse]
 
 	instrumentation := s.instrumentation()
 	ctx, end := instrumentation.BeginOperation(ctx, OperationReserveBooking)
@@ -21,7 +21,7 @@ func (s Service) ReserveBooking(ctx context.Context, cmd ReserveBooking) (applic
 		return zero, err
 	}
 
-	identity := application.ResolveIdentity(s.Clock, s.IDs, maxEventsPerCommand)
+	identity := usecase.ResolveIdentity(s.Clock, s.IDs, maxEventsPerCommand)
 
 	outcome := zero
 	err := s.UoW.Within(ctx, func(ctx context.Context, res Resources) error {
@@ -32,7 +32,7 @@ func (s Service) ReserveBooking(ctx context.Context, cmd ReserveBooking) (applic
 			At:         domain.Instant(identity.OccurredAt),
 		})
 		if rejection != nil {
-			outcome = application.Rejected[domain.ReservedResponse](rejection)
+			outcome = usecase.Rejected[domain.ReservedResponse](rejection)
 			return nil
 		}
 		if err := res.Bookings.Save(ctx, cmd.BookingID, b.Snapshot(), 0); err != nil {
@@ -42,7 +42,7 @@ func (s Service) ReserveBooking(ctx context.Context, cmd ReserveBooking) (applic
 		if err := enqueueAll(ctx, res.Outbox, identity, AggregateTypeBooking, string(cmd.BookingID), written, accepted.Events()); err != nil {
 			return fmt.Errorf("application: reserve %s: enqueue: %w", cmd.BookingID, err)
 		}
-		outcome = application.Accepted(accepted.Response())
+		outcome = usecase.Accepted(accepted.Response())
 		return nil
 	})
 	if err != nil {

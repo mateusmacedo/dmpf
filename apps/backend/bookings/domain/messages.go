@@ -1,6 +1,6 @@
 package domain
 
-import "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
+import kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
 
 type BookingID string
 
@@ -71,7 +71,7 @@ type ResourceRegistered struct {
 func (ResourceRegistered) EventName() string { return "bookings.resource-registered" }
 
 var (
-	_ domain.DomainEvent = BookingReserved{}
-	_ domain.DomainEvent = BookingCancelled{}
-	_ domain.DomainEvent = ResourceRegistered{}
+	_ kernel.DomainEvent = BookingReserved{}
+	_ kernel.DomainEvent = BookingCancelled{}
+	_ kernel.DomainEvent = ResourceRegistered{}
 )

@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/mateusmacedo/dmpf/libs/backend/go/application"
+	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
 	port "github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 
@@ -77,7 +77,7 @@ type Service struct {
 	ResourceReader ports.BookingsByResourceReader
 	Clock          port.Clock
 	IDs            port.IDGenerator
-	Authorize      application.Authorize[Operation]
+	Authorize      usecase.Authorize[Operation]
 
 	Instrumentation port.Instrumentation
 }
@@ -103,7 +103,7 @@ func authorizationResult(err error) port.Result {
 
 // outcomeCategory reads the terminal category off the outcome, which is the
 // only place that knows which branch of the UPR was taken.
-func outcomeCategory[R any](outcome application.Outcome[R]) port.OutcomeCategory {
+func outcomeCategory[R any](outcome usecase.Outcome[R]) port.OutcomeCategory {
 	if _, refused := outcome.Rejection(); refused {
 		return port.OutcomeRejected
 	}
@@ -113,7 +113,7 @@ func outcomeCategory[R any](outcome application.Outcome[R]) port.OutcomeCategory
 func enqueueAll(
 	ctx context.Context,
 	outbox port.Outbox,
-	identity application.Identity,
+	identity usecase.Identity,
 	aggregateType string,
 	aggregateID string,
 	written port.Version,
@@ -133,7 +133,7 @@ func enqueueAll(
 			AggregateID:      aggregateID,
 			AggregateVersion: written,
 			Event:            event,
-			Context:          application.MessageContextFor(ctx, identity.MessageIDs[i]),
+			Context:          usecase.MessageContextFor(ctx, identity.MessageIDs[i]),
 		}
 		if err := outbox.Enqueue(ctx, entry); err != nil {
 			return err

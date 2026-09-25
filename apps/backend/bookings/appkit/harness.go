@@ -10,7 +10,7 @@ import (
 
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/application"
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/provider"
-	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/application"
+	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/pg"
@@ -52,7 +52,7 @@ func NewBookings(t testing.TB, clock ports.Clock, ids ports.IDGenerator) Harness
 			ResourceReader: provider.NewBookingsByResourceReader(postgres.NewReadPool(pool)),
 			Clock:          clock,
 			IDs:            ids,
-			Authorize:      kernel.AllowAll[application.Operation](),
+			Authorize:      usecase.AllowAll[application.Operation](),
 		},
 		Pool: pool,
 	}

@@ -25,7 +25,7 @@ import (
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/application"
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/provider"
 	servicev1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/bookings/service/v1"
-	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
+	kernelgrpc "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
 	obsclock "github.com/mateusmacedo/dmpf/libs/backend/go/observability/clock"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
@@ -69,14 +69,14 @@ func dial(t *testing.T, pool *pgxpool.Pool) *grpc.ClientConn {
 	}
 
 	limit := admission.Limit{PerSecond: 1000, Burst: 1000, Concurrency: 64}
-	ctrl, err := admission.New(admission.Config{Limits: kernel.MethodLimits(rpc.ServiceName, rpc.Methods(), limit), MaxKeys: 16, Clock: obsclock.System()})
+	ctrl, err := admission.New(admission.Config{Limits: kernelgrpc.MethodLimits(rpc.ServiceName, rpc.Methods(), limit), MaxKeys: 16, Clock: obsclock.System()})
 	if err != nil {
 		t.Fatalf("admission.New() = %v", err)
 	}
-	server, _, err := kernel.NewServer(kernel.ServerConfig{
+	server, _, err := kernelgrpc.NewServer(kernelgrpc.ServerConfig{
 		InsecureForDevelopmentOnly: true,
 		Services:                   []string{rpc.ServiceName},
-		UnaryInterceptors:          kernel.ServerInterceptors(rpc.ServiceName, noop.NewTracerProvider().Tracer("e2e"), ctrl, nil, nil),
+		UnaryInterceptors:          kernelgrpc.ServerInterceptors(rpc.ServiceName, noop.NewTracerProvider().Tracer("e2e"), ctrl, nil, nil),
 	})
 	if err != nil {
 		t.Fatalf("NewServer() = %v", err)
@@ -107,7 +107,7 @@ func call(t *testing.T, tenant string) context.Context {
 	if tenant == "" {
 		return ctx
 	}
-	return metadata.AppendToOutgoingContext(ctx, kernel.TenantKey, tenant)
+	return metadata.AppendToOutgoingContext(ctx, kernelgrpc.TenantKey, tenant)
 }
 
 func outboxRows(t *testing.T, pool *pgxpool.Pool) int {

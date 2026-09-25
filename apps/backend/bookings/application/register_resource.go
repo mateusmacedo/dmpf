@@ -5,14 +5,14 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/mateusmacedo/dmpf/libs/backend/go/application"
+	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/domain"
 )
 
-func (s Service) RegisterResource(ctx context.Context, cmd RegisterResource) (application.Outcome[domain.RegisteredResponse], error) {
-	var zero application.Outcome[domain.RegisteredResponse]
+func (s Service) RegisterResource(ctx context.Context, cmd RegisterResource) (usecase.Outcome[domain.RegisteredResponse], error) {
+	var zero usecase.Outcome[domain.RegisteredResponse]
 
 	instrumentation := s.instrumentation()
 	ctx, end := instrumentation.BeginOperation(ctx, OperationRegisterResource)
@@ -22,7 +22,7 @@ func (s Service) RegisterResource(ctx context.Context, cmd RegisterResource) (ap
 		return zero, err
 	}
 
-	identity := application.ResolveIdentity(s.Clock, s.IDs, maxEventsPerCommand)
+	identity := usecase.ResolveIdentity(s.Clock, s.IDs, maxEventsPerCommand)
 
 	outcome := zero
 	err := s.UoW.Within(ctx, func(ctx context.Context, res Resources) error {
@@ -36,7 +36,7 @@ func (s Service) RegisterResource(ctx context.Context, cmd RegisterResource) (ap
 			At:   domain.Instant(identity.OccurredAt),
 		})
 		if rejection != nil {
-			outcome = application.Rejected[domain.RegisteredResponse](rejection)
+			outcome = usecase.Rejected[domain.RegisteredResponse](rejection)
 			return nil
 		}
 		if err := res.Resources.Save(ctx, cmd.Code, r.Snapshot(), stored); err != nil {
@@ -45,7 +45,7 @@ func (s Service) RegisterResource(ctx context.Context, cmd RegisterResource) (ap
 		if err := enqueueAll(ctx, res.Outbox, identity, AggregateTypeResource, string(cmd.Code), stored+1, accepted.Events()); err != nil {
 			return fmt.Errorf("application: register %s: enqueue: %w", cmd.Code, err)
 		}
-		outcome = application.Accepted(accepted.Response())
+		outcome = usecase.Accepted(accepted.Response())
 		return nil
 	})
 	if err != nil {

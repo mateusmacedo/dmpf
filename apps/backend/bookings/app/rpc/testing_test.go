@@ -16,7 +16,7 @@ import (
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/application"
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/domain"
 	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
-	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
+	kernelgrpc "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/memory"
 	obsclock "github.com/mateusmacedo/dmpf/libs/backend/go/observability/clock"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
@@ -68,14 +68,14 @@ func newHarness(t *testing.T, planted byResource) *harness {
 		Authorize:      usecase.AllowAll[application.Operation](),
 	}
 
-	ctrl, err := admission.New(admission.Config{Limits: kernel.MethodLimits(rpc.ServiceName, rpc.Methods(), unlimited), MaxKeys: 16, Clock: obsclock.System()})
+	ctrl, err := admission.New(admission.Config{Limits: kernelgrpc.MethodLimits(rpc.ServiceName, rpc.Methods(), unlimited), MaxKeys: 16, Clock: obsclock.System()})
 	if err != nil {
 		t.Fatalf("admission.New() = %v", err)
 	}
-	server, _, err := kernel.NewServer(kernel.ServerConfig{
+	server, _, err := kernelgrpc.NewServer(kernelgrpc.ServerConfig{
 		InsecureForDevelopmentOnly: true,
 		Services:                   []string{rpc.ServiceName},
-		UnaryInterceptors:          kernel.ServerInterceptors(rpc.ServiceName, noop.NewTracerProvider().Tracer("rpc-test"), ctrl, nil, nil),
+		UnaryInterceptors:          kernelgrpc.ServerInterceptors(rpc.ServiceName, noop.NewTracerProvider().Tracer("rpc-test"), ctrl, nil, nil),
 	})
 	if err != nil {
 		t.Fatalf("NewServer() = %v", err)
@@ -112,5 +112,5 @@ func withTenant(t *testing.T) context.Context {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	t.Cleanup(cancel)
-	return metadata.AppendToOutgoingContext(ctx, kernel.TenantKey, testTenant)
+	return metadata.AppendToOutgoingContext(ctx, kernelgrpc.TenantKey, testTenant)
 }

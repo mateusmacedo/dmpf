@@ -4,14 +4,14 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/mateusmacedo/dmpf/libs/backend/go/application"
+	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/domain"
 )
 
-func (s Service) CancelBooking(ctx context.Context, cmd CancelBooking) (application.Outcome[domain.CancelledResponse], error) {
-	var zero application.Outcome[domain.CancelledResponse]
+func (s Service) CancelBooking(ctx context.Context, cmd CancelBooking) (usecase.Outcome[domain.CancelledResponse], error) {
+	var zero usecase.Outcome[domain.CancelledResponse]
 
 	instrumentation := s.instrumentation()
 	ctx, end := instrumentation.BeginOperation(ctx, OperationCancelBooking)
@@ -21,7 +21,7 @@ func (s Service) CancelBooking(ctx context.Context, cmd CancelBooking) (applicat
 		return zero, err
 	}
 
-	identity := application.ResolveIdentity(s.Clock, s.IDs, maxEventsPerCommand)
+	identity := usecase.ResolveIdentity(s.Clock, s.IDs, maxEventsPerCommand)
 
 	outcome := zero
 	err := s.UoW.Within(ctx, func(ctx context.Context, res Resources) error {
@@ -35,7 +35,7 @@ func (s Service) CancelBooking(ctx context.Context, cmd CancelBooking) (applicat
 			At: domain.Instant(identity.OccurredAt),
 		})
 		if rejection != nil {
-			outcome = application.Rejected[domain.CancelledResponse](rejection)
+			outcome = usecase.Rejected[domain.CancelledResponse](rejection)
 			return nil
 		}
 		if err := res.Bookings.Save(ctx, cmd.BookingID, b.Snapshot(), stored); err != nil {
@@ -44,7 +44,7 @@ func (s Service) CancelBooking(ctx context.Context, cmd CancelBooking) (applicat
 		if err := enqueueAll(ctx, res.Outbox, identity, AggregateTypeBooking, string(cmd.BookingID), stored+1, accepted.Events()); err != nil {
 			return fmt.Errorf("application: cancel %s: enqueue: %w", cmd.BookingID, err)
 		}
-		outcome = application.Accepted(accepted.Response())
+		outcome = usecase.Accepted(accepted.Response())
 		return nil
 	})
 	if err != nil {
