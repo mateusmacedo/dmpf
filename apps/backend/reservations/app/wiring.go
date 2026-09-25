@@ -75,7 +75,7 @@ func serveAPI(ctx context.Context, cfg Config, rt *otelboot.Runtime, out io.Writ
 	}
 	defer pool.Close()
 
-	ctrl, err := admission.NewController(rpc.Limits(cfg.Admission), cfg.MetricTenants, admission.DefaultMaxKeys)
+	ctrl, err := admission.NewController(kernel.MethodLimits(rpc.ServiceName, rpc.Methods(), cfg.Admission), cfg.MetricTenants, admission.DefaultMaxKeys)
 	if err != nil {
 		return err
 	}
@@ -86,7 +86,7 @@ func serveAPI(ctx context.Context, cfg Config, rt *otelboot.Runtime, out io.Writ
 		TrustedClients: cfg.GRPCTrustedClients,
 		Insecure:       cfg.GRPCInsecure,
 		Services:       kernel.HealthServices(rpc.ServiceName),
-		Interceptors:   rpc.Interceptors(rt.Tracer(), ctrl, rt.Instruments(), rt.Logger()),
+		Interceptors:   kernel.ServerInterceptors(rpc.ServiceName, rt.Tracer(), ctrl, rt.Instruments(), rt.Logger()),
 		Logger:         rt.Logger(),
 	})
 	if err != nil {

@@ -22,7 +22,7 @@ import (
 // server, never a fault of the caller, so it answers Internal rather than
 // leaving the handler to invent a context (CTX-03).
 func executionOf(ctx context.Context) (ports.ExecutionContext, error) {
-	execution, ok := ExecutionContextFrom(ctx)
+	execution, ok := ports.ExecutionContextFrom(ctx)
 	if !ok {
 		return ports.ExecutionContext{}, status.Error(codes.Internal, "the execution context was not assembled")
 	}
@@ -35,6 +35,17 @@ var descriptor = servicev1.File_company_reservations_service_v1_reservations_ser
 var ServiceName = string(descriptor.FullName())
 
 var orderIDFormat = regexp.MustCompile(`^[A-Za-z0-9._:-]{1,128}$`)
+
+// Methods names every method of the service: admission declares a limit for
+// each one (RES-16).
+func Methods() []string {
+	methods := descriptor.Methods()
+	names := make([]string, 0, methods.Len())
+	for i := range methods.Len() {
+		names = append(names, string(methods.Get(i).Name()))
+	}
+	return names
+}
 
 // FullMethod is the wire name of a method of the service: /<service>/<method>.
 func FullMethod(name string) string {

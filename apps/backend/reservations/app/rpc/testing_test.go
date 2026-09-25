@@ -57,7 +57,7 @@ type capture struct {
 }
 
 func (c *capture) intercept(ctx context.Context, req any, _ *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
-	if execution, ok := rpc.ExecutionContextFrom(ctx); ok {
+	if execution, ok := ports.ExecutionContextFrom(ctx); ok {
 		c.execution, c.present = execution, true
 	}
 	return handler(ctx, req)
@@ -87,7 +87,7 @@ func newHarness(t *testing.T, limit admission.Limit) *harness {
 	if err != nil {
 		t.Fatalf("DeclareTenants() = %v", err)
 	}
-	ctrl, err := admission.New(admission.Config{Limits: rpc.Limits(limit), Tenants: tenants, MaxKeys: 16, Clock: obsclock.System()})
+	ctrl, err := admission.New(admission.Config{Limits: kernel.MethodLimits(rpc.ServiceName, rpc.Methods(), limit), Tenants: tenants, MaxKeys: 16, Clock: obsclock.System()})
 	if err != nil {
 		t.Fatalf("admission.New() = %v", err)
 	}
@@ -96,7 +96,7 @@ func newHarness(t *testing.T, limit admission.Limit) *harness {
 		InsecureForDevelopmentOnly: true,
 		Services:                   []string{rpc.ServiceName},
 		UnaryInterceptors: append(
-			rpc.Interceptors(provider.Tracer("rpc-test"), ctrl, nil, slog.New(slog.NewJSONHandler(logs, nil))),
+			kernel.ServerInterceptors(rpc.ServiceName, provider.Tracer("rpc-test"), ctrl, nil, slog.New(slog.NewJSONHandler(logs, nil))),
 			execution.intercept,
 		),
 	})
@@ -140,5 +140,5 @@ func withDeadline(t *testing.T) context.Context {
 // call (IDN-15).
 func withTenant(t *testing.T) context.Context {
 	t.Helper()
-	return metadata.AppendToOutgoingContext(withDeadline(t), rpc.TenantKey, testTenant)
+	return metadata.AppendToOutgoingContext(withDeadline(t), kernel.TenantKey, testTenant)
 }
