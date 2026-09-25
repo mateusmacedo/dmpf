@@ -53,7 +53,7 @@ var (
 	cleanSchemaErr  error
 )
 
-// openPool fails the run in CI when DMPF_PG_DSN is unset (fail-closed: an
+// openPool fails the run in CI when PG_DSN is unset (fail-closed: an
 // integration suite must never pass by skipping) and skips with setup
 // instructions everywhere else. Tables are truncated before and after so
 // package tests, forced to -p 1 (R10), never observe another test's rows.
@@ -65,12 +65,12 @@ func openPool(t *testing.T) *pgxpool.Pool {
 func openPoolWith(t *testing.T, configure func(*pgxpool.Config)) *pgxpool.Pool {
 	t.Helper()
 
-	dsn := os.Getenv("DMPF_PG_DSN")
+	dsn := os.Getenv("PG_DSN")
 	if dsn == "" {
 		if os.Getenv("CI") != "" {
-			t.Fatal("DMPF_PG_DSN is empty in CI: integration tests must not skip silently")
+			t.Fatal("PG_DSN is empty in CI: integration tests must not skip silently")
 		}
-		t.Skip("DMPF_PG_DSN not set; run `docker compose -f infra/local/docker-compose.yml --profile postgres up -d` and export DMPF_PG_DSN=postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable")
+		t.Skip("PG_DSN not set; run `docker compose -f infra/local/docker-compose.yml --profile postgres up -d` and export PG_DSN=postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable")
 	}
 
 	ctx := context.Background()

@@ -140,12 +140,12 @@ inbox; a idempotência do efeito é do domínio, por chave natural (`GAR-03`).
 ## Como rodar os testes localmente
 
 Os testes de banco levam a build tag `integration` e só rodam no target
-`test-race`. Sem `DMPF_PG_DSN` eles pulam com instrução fora do CI, e **falham**
+`test-race`. Sem `PG_DSN` eles pulam com instrução fora do CI, e **falham**
 dentro dele — um skip silencioso deixaria a outbox sem prova executável.
 
 ```bash
 docker compose -f infra/local/docker-compose.yml --profile postgres up -d
-export DMPF_PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable'
+export PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable'
 pnpm nx run postgres:test-race
 ```
 
