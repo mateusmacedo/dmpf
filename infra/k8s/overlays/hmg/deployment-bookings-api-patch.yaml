@@ -1,0 +1,39 @@
+# A sonda gRPC do kubelet não fala TLS, então com o certificado ativo o api
+# volta à sonda de socket; recursos de homologação e o certificado montado.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bookings-api
+spec:
+  template:
+    spec:
+      containers:
+        - name: api
+          readinessProbe:
+            grpc: null
+            tcpSocket:
+              port: grpc
+          livenessProbe:
+            grpc: null
+            tcpSocket:
+              port: grpc
+          volumeMounts:
+            - name: grpc-tls
+              mountPath: /etc/dmpf/grpc
+              readOnly: true
+            - name: grpc-client-ca
+              mountPath: /etc/dmpf/grpc-clients
+              readOnly: true
+          resources:
+            requests:
+              cpu: 200m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+      volumes:
+        - name: grpc-tls
+          secret:
+            secretName: bookings-grpc-tls
+        - name: grpc-client-ca
+          secret:
+            secretName: grpc-client-ca

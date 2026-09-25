@@ -15,6 +15,7 @@ resources:
   - ../../../observability
   - ../../base/orders
   - ../../base/reservations
+  - ../../base/bookings
   - ../../base/bff
   - job-databases.yaml
 
@@ -24,6 +25,8 @@ images:
   - name: ghcr.io/mateusmacedo/orders
     newTag: dev
   - name: ghcr.io/mateusmacedo/reservations
+    newTag: dev
+  - name: ghcr.io/mateusmacedo/bookings
     newTag: dev
 
 secretGenerator:
@@ -36,6 +39,12 @@ secretGenerator:
   - name: reservations
     literals:
       - PG_DSN=postgres://reservations:reservations-dev@postgres-0.postgres:5432/reservations?sslmode=disable
+      - KAFKA_BROKERS=redpanda-0.redpanda:9092
+    options:
+      disableNameSuffixHash: true
+  - name: bookings
+    literals:
+      - PG_DSN=postgres://bookings:bookings-dev@postgres-0.postgres:5432/bookings?sslmode=disable
       - KAFKA_BROKERS=redpanda-0.redpanda:9092
     options:
       disableNameSuffixHash: true
@@ -58,4 +67,6 @@ patches:
   - path: configmap-bff-patch.yaml
   - path: deployment-orders-api-patch.yaml
   - path: deployment-reservations-api-patch.yaml
+  - path: configmap-bookings-patch.yaml
+  - path: deployment-bookings-api-patch.yaml
   - path: grafana-anonymous-patch.yaml
