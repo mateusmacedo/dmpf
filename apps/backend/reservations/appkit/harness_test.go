@@ -45,7 +45,7 @@ func TestRejectedShowsNothingButTheInboxRow(t *testing.T) {
 	if got := h.Effects(t); got != (appkit.Effects{Inbox: 1}) {
 		t.Fatalf("effects = %+v, want only the inbox row", got)
 	}
-	if status, lastError := h.InboxRow(t, "evt-2"); status != "rejected" || lastError == nil || *lastError != string(domain.CodeNothingToReserve) {
+	if status, lastError := h.InboxRow(t, "evt-2"); status != "rejected" || lastError == nil || *lastError != string(domain.CodeReservationNothingToReserve) {
 		t.Fatalf("inbox = (%s, %v)", status, lastError)
 	}
 }
@@ -65,7 +65,7 @@ func TestRedeliveryWithANewMessageIDDoesNotDuplicateTheEffect(t *testing.T) {
 	if got := h.Effects(t); got != (appkit.Effects{Inbox: 2, Reservations: 1, Outbox: 1}) {
 		t.Fatalf("effects = %+v, want two inbox rows and still one reservation and one event", got)
 	}
-	if status, lastError := h.InboxRow(t, "evt-9"); status != "rejected" || lastError == nil || *lastError != string(domain.CodeAlreadyReserved) {
+	if status, lastError := h.InboxRow(t, "evt-9"); status != "rejected" || lastError == nil || *lastError != string(domain.CodeReservationAlreadyReserved) {
 		t.Fatalf("inbox evt-9 = (%s, %v)", status, lastError)
 	}
 	if ack.Acks != 1 {

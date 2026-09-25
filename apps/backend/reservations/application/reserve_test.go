@@ -84,8 +84,8 @@ func TestReserveOnACanceledReservationRejectsWithoutWriting(t *testing.T) {
 		t.Fatalf("Reserve() error = %v, want nil — a refusal is not a technical failure (DEC-04)", err)
 	}
 	rej, refused := out.Rejection()
-	if !refused || rej.Code() != domain.CodeReservationCanceled {
-		t.Fatalf("Rejection() = %v, %v; want %q", rej, refused, domain.CodeReservationCanceled)
+	if !refused || rej.Code() != domain.CodeReservationCancelled {
+		t.Fatalf("Rejection() = %v, %v; want %q", rej, refused, domain.CodeReservationCancelled)
 	}
 	if _, version, _ := reservationsTable.Reader(h.store).Load(withExecution(t, context.Background()), syncOrder); version != 1 {
 		t.Fatalf("version = %d, want 1 — a refusal writes nothing", version)

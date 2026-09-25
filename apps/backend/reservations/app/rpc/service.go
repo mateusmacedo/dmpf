@@ -191,7 +191,7 @@ func reservationStatus(s domain.Status) servicev1.ReservationStatus {
 	switch s {
 	case domain.Confirmed:
 		return servicev1.ReservationStatus_RESERVATION_STATUS_CONFIRMED
-	case domain.Canceled:
+	case domain.Cancelled:
 		return servicev1.ReservationStatus_RESERVATION_STATUS_CANCELED
 	default:
 		return servicev1.ReservationStatus_RESERVATION_STATUS_UNSPECIFIED

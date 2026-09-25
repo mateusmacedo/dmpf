@@ -10,10 +10,10 @@ import (
 
 func TestDeclaredCodesAreValid(t *testing.T) {
 	codes := map[string]kernel.Code{
-		"CodeNothingToReserve":    domain.CodeNothingToReserve,
-		"CodeAlreadyReserved":     domain.CodeAlreadyReserved,
-		"CodeAlreadyCanceled":     domain.CodeAlreadyCanceled,
-		"CodeReservationCanceled": domain.CodeReservationCanceled,
+		"CodeReservationNothingToReserve": domain.CodeReservationNothingToReserve,
+		"CodeReservationAlreadyReserved":  domain.CodeReservationAlreadyReserved,
+		"CodeReservationAlreadyCancelled": domain.CodeReservationAlreadyCancelled,
+		"CodeReservationCancelled":        domain.CodeReservationCancelled,
 	}
 	for name, code := range codes {
 		t.Run(name, func(t *testing.T) {

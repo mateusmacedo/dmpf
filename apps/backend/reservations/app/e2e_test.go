@@ -207,8 +207,8 @@ func TestBusinessRejectionCommitsRejectedAndConfirms(t *testing.T) {
 		t.Fatalf("counts = %+v, want only the inbox row", got)
 	}
 	status, lastError := inboxRow(t, pool, "evt-2")
-	if status != "rejected" || lastError == nil || *lastError != string(domain.CodeNothingToReserve) {
-		t.Fatalf("inbox = (%s, %v), want (rejected, %s)", status, lastError, domain.CodeNothingToReserve)
+	if status != "rejected" || lastError == nil || *lastError != string(domain.CodeReservationNothingToReserve) {
+		t.Fatalf("inbox = (%s, %v), want (rejected, %s)", status, lastError, domain.CodeReservationNothingToReserve)
 	}
 	if ack.acks != 1 || ack.inboxAtAck != 1 {
 		t.Fatalf("ack=%d inboxAtAck=%d", ack.acks, ack.inboxAtAck)
@@ -414,7 +414,7 @@ func TestRedeliveryWithANewMessageIDDoesNotDuplicateTheEffect(t *testing.T) {
 	if got := counts(t, pool); got != (tableCounts{inbox: 2, reservations: 1, outbox: 1}) {
 		t.Fatalf("counts = %+v, want two inbox rows and still one reservation and one event", got)
 	}
-	if status, lastError := inboxRow(t, pool, "evt-9"); status != "rejected" || lastError == nil || *lastError != string(domain.CodeAlreadyReserved) {
+	if status, lastError := inboxRow(t, pool, "evt-9"); status != "rejected" || lastError == nil || *lastError != string(domain.CodeReservationAlreadyReserved) {
 		t.Fatalf("inbox evt-9 = (%s, %v)", status, lastError)
 	}
 	if ack.acks != 1 {

@@ -23,7 +23,7 @@ func TestCancelCreatesACanceledReservationAndAuthorsTheOutboxEntry(t *testing.T)
 	}
 
 	snapshot, version, err := reservationsTable.Reader(h.store).Load(withExecution(t, context.Background()), syncOrder)
-	if err != nil || version != 1 || snapshot.Status != domain.Canceled {
+	if err != nil || version != 1 || snapshot.Status != domain.Cancelled {
 		t.Fatalf("stored = %+v v%d (%v), want canceled at v1", snapshot, version, err)
 	}
 
@@ -56,8 +56,8 @@ func TestCancelOnAConfirmedReservationRejectsWithoutWriting(t *testing.T) {
 		t.Fatalf("Cancel() error = %v, want nil — a refusal is not a technical failure (DEC-04)", err)
 	}
 	rej, refused := out.Rejection()
-	if !refused || rej.Code() != domain.CodeAlreadyReserved {
-		t.Fatalf("Rejection() = %v, %v; want %q — the first decision won", rej, refused, domain.CodeAlreadyReserved)
+	if !refused || rej.Code() != domain.CodeReservationAlreadyReserved {
+		t.Fatalf("Rejection() = %v, %v; want %q — the first decision won", rej, refused, domain.CodeReservationAlreadyReserved)
 	}
 	if got := h.store.Entries(); len(got) != 0 {
 		t.Fatalf("Entries() = %+v, want empty", got)

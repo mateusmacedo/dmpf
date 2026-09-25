@@ -41,13 +41,13 @@ func TestReserveRejects(t *testing.T) {
 			name:        "zero items",
 			reservation: func(t *testing.T) *domain.Reservation { return domain.NewReservation(orderID) },
 			items:       0,
-			code:        domain.CodeNothingToReserve,
+			code:        domain.CodeReservationNothingToReserve,
 		},
 		{
 			name:        "negative items",
 			reservation: func(t *testing.T) *domain.Reservation { return domain.NewReservation(orderID) },
 			items:       -1,
-			code:        domain.CodeNothingToReserve,
+			code:        domain.CodeReservationNothingToReserve,
 		},
 		{
 			name: "already reserved",
@@ -59,7 +59,7 @@ func TestReserveRejects(t *testing.T) {
 				return r
 			},
 			items: 1,
-			code:  domain.CodeAlreadyReserved,
+			code:  domain.CodeReservationAlreadyReserved,
 		},
 		{
 			name: "canceled",
@@ -71,7 +71,7 @@ func TestReserveRejects(t *testing.T) {
 				return r
 			},
 			items: 1,
-			code:  domain.CodeReservationCanceled,
+			code:  domain.CodeReservationCancelled,
 		},
 	}
 	for _, tt := range tests {

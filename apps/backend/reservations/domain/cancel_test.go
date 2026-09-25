@@ -25,8 +25,8 @@ func TestCancelAccepts(t *testing.T) {
 	if events[0] != want {
 		t.Fatalf("Events()[0] = %+v, want %+v", events[0], want)
 	}
-	if got := r.Snapshot().Status; got != domain.Canceled {
-		t.Fatalf("Snapshot().Status = %v, want Canceled", got)
+	if got := r.Snapshot().Status; got != domain.Cancelled {
+		t.Fatalf("Snapshot().Status = %v, want Cancelled", got)
 	}
 }
 
@@ -45,7 +45,7 @@ func TestCancelRejects(t *testing.T) {
 				}
 				return r
 			},
-			code: domain.CodeAlreadyReserved,
+			code: domain.CodeReservationAlreadyReserved,
 		},
 		{
 			name: "already canceled",
@@ -56,7 +56,7 @@ func TestCancelRejects(t *testing.T) {
 				}
 				return r
 			},
-			code: domain.CodeAlreadyCanceled,
+			code: domain.CodeReservationAlreadyCancelled,
 		},
 	}
 	for _, tt := range tests {

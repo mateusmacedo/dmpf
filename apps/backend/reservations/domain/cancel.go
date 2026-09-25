@@ -8,11 +8,11 @@ func (r *Reservation) Cancel(cmd Cancel) (kernel.Accepted[CancelledResponse], *k
 	next := r.clone()
 	switch next.status {
 	case Confirmed:
-		return kernel.Accepted[CancelledResponse]{}, kernel.Reject(CodeAlreadyReserved, "reservation is already confirmed")
-	case Canceled:
-		return kernel.Accepted[CancelledResponse]{}, kernel.Reject(CodeAlreadyCanceled, "reservation is already canceled")
+		return kernel.Accepted[CancelledResponse]{}, kernel.Reject(CodeReservationAlreadyReserved, "reservation is already confirmed")
+	case Cancelled:
+		return kernel.Accepted[CancelledResponse]{}, kernel.Reject(CodeReservationAlreadyCancelled, "reservation is already canceled")
 	}
-	next.status = Canceled
+	next.status = Cancelled
 	*r = next
 	return kernel.Accept(
 		CancelledResponse{Order: r.order},

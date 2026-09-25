@@ -168,5 +168,5 @@ func confirmedSnapshot(items int) domain.Snapshot {
 }
 
 func canceledSnapshot() domain.Snapshot {
-	return domain.Snapshot{Order: syncOrder, Status: domain.Canceled}
+	return domain.Snapshot{Order: syncOrder, Status: domain.Cancelled}
 }

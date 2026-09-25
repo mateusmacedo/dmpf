@@ -185,8 +185,8 @@ func TestConsumeZeroItemsRejects(t *testing.T) {
 	if !ok || status != ports.StatusRejected {
 		t.Fatalf("InboxStatus() = (%v, %v), want (rejected, true)", status, ok)
 	}
-	if got, _ := store.InboxLastError(consumer, "m-ext-1"); got != string(domain.CodeNothingToReserve) {
-		t.Fatalf("InboxLastError() = %q, want %q", got, domain.CodeNothingToReserve)
+	if got, _ := store.InboxLastError(consumer, "m-ext-1"); got != string(domain.CodeReservationNothingToReserve) {
+		t.Fatalf("InboxLastError() = %q, want %q", got, domain.CodeReservationNothingToReserve)
 	}
 	if got := len(store.Entries()); got != 0 {
 		t.Fatalf("Entries() has %d elements, want 0", got)
@@ -334,8 +334,8 @@ func TestConsumeTwoMessagesForTheSameOrderReserveOnlyOnce(t *testing.T) {
 	if disp != usecase.R1D2 {
 		t.Fatalf("second Consume() disposition = %v, want %v (GAR-10)", disp, usecase.R1D2)
 	}
-	if got, _ := store.InboxLastError(consumer, "m-ext-2"); got != string(domain.CodeAlreadyReserved) {
-		t.Fatalf("InboxLastError() = %q, want %q", got, domain.CodeAlreadyReserved)
+	if got, _ := store.InboxLastError(consumer, "m-ext-2"); got != string(domain.CodeReservationAlreadyReserved) {
+		t.Fatalf("InboxLastError() = %q, want %q", got, domain.CodeReservationAlreadyReserved)
 	}
 	snapshot, _, err := reservationsTable.Reader(store).Load(withExecution(t, context.Background()), "P-100")
 	if err != nil {
@@ -405,8 +405,8 @@ func TestConsumeOnACanceledReservationIsR1D2WithoutWriting(t *testing.T) {
 	if status, _ := store.InboxStatus(consumer, "msg-1"); status != ports.StatusRejected {
 		t.Fatalf("inbox status = %v, want rejected", status)
 	}
-	if last, _ := store.InboxLastError(consumer, "msg-1"); last != string(domain.CodeReservationCanceled) {
-		t.Fatalf("inbox last error = %q, want %q", last, domain.CodeReservationCanceled)
+	if last, _ := store.InboxLastError(consumer, "msg-1"); last != string(domain.CodeReservationCancelled) {
+		t.Fatalf("inbox last error = %q, want %q", last, domain.CodeReservationCancelled)
 	}
 	if got := len(store.Entries()); got != entriesBefore {
 		t.Fatalf("Entries() = %d, want %d — a refused consumption enqueues nothing", got, entriesBefore)
