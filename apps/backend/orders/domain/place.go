@@ -1,19 +1,19 @@
 package domain
 
-import "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
+import kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
 
 // Place is a UPR: same decide-over-copy shape as AddItem.
-func (o *Order) Place(cmd PlaceOrder) (domain.Accepted[PlacedResponse], *domain.Rejection) {
+func (o *Order) Place(cmd PlaceOrder) (kernel.Accepted[PlacedResponse], *kernel.Rejection) {
 	next := o.clone()
 	if next.status != Open {
-		return domain.Accepted[PlacedResponse]{}, domain.Reject(CodeOrderNotOpen, "order is not open")
+		return kernel.Accepted[PlacedResponse]{}, kernel.Reject(CodeOrderNotOpen, "order is not open")
 	}
 	if len(next.items) == 0 {
-		return domain.Accepted[PlacedResponse]{}, domain.Reject(CodeOrderEmpty, "order has no items")
+		return kernel.Accepted[PlacedResponse]{}, kernel.Reject(CodeOrderEmpty, "order has no items")
 	}
 	next.status = Placed
 	*o = next
-	return domain.Accept(
+	return kernel.Accept(
 		PlacedResponse{Order: o.id},
 		OrderPlaced{Order: o.id, Items: len(o.items), At: cmd.At},
 	), nil

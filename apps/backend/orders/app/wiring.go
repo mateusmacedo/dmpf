@@ -15,7 +15,7 @@ import (
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/application"
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/provider"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/app/relay"
-	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
+	kernelgrpc "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/kafka"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/audit"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/idclock"
@@ -73,24 +73,24 @@ func serveAPI(ctx context.Context, cfg Config, rt *otelboot.Runtime, out io.Writ
 	}
 	defer pool.Close()
 
-	ctrl, err := admission.NewController(kernel.MethodLimits(rpc.ServiceName, rpc.Methods(), cfg.Admission), cfg.MetricTenants, admission.DefaultMaxKeys)
+	ctrl, err := admission.NewController(kernelgrpc.MethodLimits(rpc.ServiceName, rpc.Methods(), cfg.Admission), cfg.MetricTenants, admission.DefaultMaxKeys)
 	if err != nil {
 		return err
 	}
-	serverConfig, err := kernel.APIServerConfig(kernel.APIServer{
+	serverConfig, err := kernelgrpc.APIServerConfig(kernelgrpc.APIServer{
 		CertFile:       cfg.GRPCCertFile,
 		KeyFile:        cfg.GRPCKeyFile,
 		ClientCAFile:   cfg.GRPCClientCAFile,
 		TrustedClients: cfg.GRPCTrustedClients,
 		Insecure:       cfg.GRPCInsecure,
-		Services:       kernel.HealthServices(rpc.ServiceName),
-		Interceptors:   kernel.ServerInterceptors(rpc.ServiceName, rt.Tracer(), ctrl, rt.Instruments(), rt.Logger()),
+		Services:       kernelgrpc.HealthServices(rpc.ServiceName),
+		Interceptors:   kernelgrpc.ServerInterceptors(rpc.ServiceName, rt.Tracer(), ctrl, rt.Instruments(), rt.Logger()),
 		Logger:         rt.Logger(),
 	})
 	if err != nil {
 		return err
 	}
-	server, healthServer, err := kernel.NewServer(serverConfig)
+	server, healthServer, err := kernelgrpc.NewServer(serverConfig)
 	if err != nil {
 		return err
 	}
@@ -108,7 +108,7 @@ func serveAPI(ctx context.Context, cfg Config, rt *otelboot.Runtime, out io.Writ
 		}
 		return nil
 	}
-	return kernel.Serve(ctx, listen, server, healthServer, kernel.HealthServices(rpc.ServiceName), ready, rt.Logger())
+	return kernelgrpc.Serve(ctx, listen, server, healthServer, kernelgrpc.HealthServices(rpc.ServiceName), ready, rt.Logger())
 }
 
 func runRelay(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {

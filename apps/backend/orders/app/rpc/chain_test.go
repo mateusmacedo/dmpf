@@ -14,7 +14,7 @@ import (
 
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/app/rpc"
 	servicev1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/orders/service/v1"
-	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
+	kernelgrpc "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/tracing"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/admission"
 )
@@ -46,7 +46,7 @@ func TestACallWithoutDeadlineIsRefusedBeforeTheUseCase(t *testing.T) {
 func TestMetadataBecomesTheMessageContextOfTheOutbox(t *testing.T) {
 	h := newHarness(t, unlimited)
 	ctx := metadata.AppendToOutgoingContext(withTenant(t),
-		kernel.CorrelationKey, "corr-1", kernel.CausationKey, "bff-req-1", "traceparent", traceparent)
+		kernelgrpc.CorrelationKey, "corr-1", kernelgrpc.CausationKey, "bff-req-1", "traceparent", traceparent)
 
 	addItem(t, h, ctx)
 
@@ -73,7 +73,7 @@ func TestMetadataBecomesTheMessageContextOfTheOutbox(t *testing.T) {
 func TestTheServerRebuildsTheExecutionContextFromTheMetadata(t *testing.T) {
 	h := newHarness(t, unlimited)
 	ctx := metadata.AppendToOutgoingContext(withDeadline(t),
-		kernel.CorrelationKey, "corr-1", kernel.CausationKey, "bff-req-1", kernel.TenantKey, "acme", "traceparent", traceparent)
+		kernelgrpc.CorrelationKey, "corr-1", kernelgrpc.CausationKey, "bff-req-1", kernelgrpc.TenantKey, "acme", "traceparent", traceparent)
 
 	addItem(t, h, ctx)
 
@@ -102,15 +102,15 @@ func TestTheServerRebuildsTheExecutionContextFromTheMetadata(t *testing.T) {
 	if execution.Deadline() <= 0 {
 		t.Fatalf("Deadline() = %d, want the instant the call is governed by (GRP-04)", execution.Deadline())
 	}
-	if execution.Locale() != kernel.DefaultLocale {
-		t.Fatalf("Locale() = %q, want %q", execution.Locale(), kernel.DefaultLocale)
+	if execution.Locale() != kernelgrpc.DefaultLocale {
+		t.Fatalf("Locale() = %q, want %q", execution.Locale(), kernelgrpc.DefaultLocale)
 	}
 }
 
 func TestMetadataAssertingASubjectResolvesNone(t *testing.T) {
 	h := newHarness(t, unlimited)
 	ctx := metadata.AppendToOutgoingContext(withDeadline(t),
-		kernel.TenantKey, "acme", "x-subject-id", "forged", "authorization", "Bearer forged")
+		kernelgrpc.TenantKey, "acme", "x-subject-id", "forged", "authorization", "Bearer forged")
 
 	addItem(t, h, ctx)
 
@@ -147,7 +147,7 @@ func TestWhatTheCallerLeavesOutStaysAbsent(t *testing.T) {
 
 func TestAnEmptyTenantIsAbsenceAndNotADefect(t *testing.T) {
 	h := newHarness(t, unlimited)
-	ctx := metadata.AppendToOutgoingContext(withDeadline(t), kernel.TenantKey, "")
+	ctx := metadata.AppendToOutgoingContext(withDeadline(t), kernelgrpc.TenantKey, "")
 
 	var resp servicev1.AddItemResponse
 	err := h.invoke(ctx, "AddItem", &servicev1.AddItemRequest{OrderId: "o-1", Sku: "A", Quantity: 1}, &resp)
@@ -165,7 +165,7 @@ func TestAnEmptyTenantIsAbsenceAndNotADefect(t *testing.T) {
 
 func TestAMalformedCorrelationIsReplaced(t *testing.T) {
 	h := newHarness(t, unlimited)
-	ctx := metadata.AppendToOutgoingContext(withTenant(t), kernel.CorrelationKey, "not valid!")
+	ctx := metadata.AppendToOutgoingContext(withTenant(t), kernelgrpc.CorrelationKey, "not valid!")
 
 	addItem(t, h, ctx)
 
@@ -230,7 +230,7 @@ func TestTheHealthProbePassesThroughTheChain(t *testing.T) {
 
 func TestTheIdempotencyKeyReachesTheLog(t *testing.T) {
 	h := newHarness(t, unlimited)
-	ctx := metadata.AppendToOutgoingContext(withTenant(t), kernel.IdempotencyKey, "k-42")
+	ctx := metadata.AppendToOutgoingContext(withTenant(t), kernelgrpc.IdempotencyKey, "k-42")
 
 	addItem(t, h, ctx)
 
@@ -254,7 +254,7 @@ func spanCarries(h *harness, key, value string) bool {
 // one tenant exhausting its own does not refuse another's call.
 func TestOneTenantExhaustingItsBucketDoesNotRefuseAnother(t *testing.T) {
 	h := newHarness(t, admission.Limit{PerSecond: 1, Burst: 1, Concurrency: 1})
-	other := metadata.AppendToOutgoingContext(withDeadline(t), kernel.TenantKey, "globex")
+	other := metadata.AppendToOutgoingContext(withDeadline(t), kernelgrpc.TenantKey, "globex")
 
 	var a, b, c servicev1.FindOrderResponse
 	first := h.invoke(withTenant(t), "FindOrder", &servicev1.FindOrderRequest{OrderId: "o-1"}, &a)
@@ -274,15 +274,15 @@ func TestOneTenantExhaustingItsBucketDoesNotRefuseAnother(t *testing.T) {
 func TestTheServerPreservesTheLocaleTheEdgeResolved(t *testing.T) {
 	cases := map[string]struct{ sent, want string }{
 		"declared":  {"pt-BR", "pt-BR"},
-		"absent":    {"", kernel.DefaultLocale},
-		"malformed": {"pt BR", kernel.DefaultLocale},
+		"absent":    {"", kernelgrpc.DefaultLocale},
+		"malformed": {"pt BR", kernelgrpc.DefaultLocale},
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
 			h := newHarness(t, unlimited)
 			ctx := withTenant(t)
 			if c.sent != "" {
-				ctx = metadata.AppendToOutgoingContext(ctx, kernel.LocaleKey, c.sent)
+				ctx = metadata.AppendToOutgoingContext(ctx, kernelgrpc.LocaleKey, c.sent)
 			}
 
 			addItem(t, h, ctx)

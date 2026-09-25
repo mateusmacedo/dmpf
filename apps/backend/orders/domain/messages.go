@@ -1,6 +1,6 @@
 package domain
 
-import "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
+import kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
 
 // OrderID identifies the aggregate; it arrives already generated (RFC §9.3).
 type OrderID string
@@ -73,5 +73,5 @@ type PlacedResponse struct {
 	Order OrderID
 }
 
-var _ domain.DomainEvent = ItemAdded{}
-var _ domain.DomainEvent = OrderPlaced{}
+var _ kernel.DomainEvent = ItemAdded{}
+var _ kernel.DomainEvent = OrderPlaced{}

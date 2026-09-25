@@ -11,7 +11,7 @@ import (
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/app"
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/application"
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/provider"
-	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/application"
+	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/pg"
@@ -52,7 +52,7 @@ func NewOrders(t testing.TB, clock ports.Clock, ids ports.IDGenerator) Harness {
 			Reader:    provider.NewOrderReader(postgres.NewReadPool(pool)),
 			Clock:     clock,
 			IDs:       ids,
-			Authorize: kernel.AllowAll[application.Operation](),
+			Authorize: usecase.AllowAll[application.Operation](),
 			ItemLimit: app.DefaultItemLimit,
 		},
 		Pool: pool,
