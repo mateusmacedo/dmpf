@@ -74,6 +74,15 @@ const MODULE_FILES: readonly string[] = [
 const CMD_DIR = 'cmd';
 const APPKIT_DIR = 'appkit';
 const DISTKIT_DIR = 'distkit';
+const DOCKERFILE = 'Dockerfile';
+
+const BLOCK_FILES: Record<string, readonly string[]> = {
+  domain: ['doc.go'],
+  ports: ['doc.go'],
+  application: ['doc.go'],
+  provider: ['doc.go', 'schema.go', 'schema.sql'],
+  app: ['catalog.go', 'config.go', 'config_test.go', 'doc.go', 'rpc', 'telemetry.go', 'wiring.go'],
+};
 
 const FULL_OPTIONS: BoundedContextGeneratorSchema = {
   name: 'checkout',
@@ -185,11 +194,9 @@ const serveTarget = (role: string): Record<string, unknown> => ({
 
 const expectedTargets = ({
   integration,
-  dependsOnProjects,
   app = true,
 }: {
   integration: boolean;
-  dependsOnProjects?: string[];
   app?: boolean;
 }): Record<string, unknown> => {
   const testRace = goTarget({
@@ -198,9 +205,6 @@ const expectedTargets = ({
       : 'go test -race ./...',
     cache: !integration,
   });
-  if (dependsOnProjects !== undefined) {
-    testRace.dependsOn = [{ projects: dependsOnProjects, target: 'test-race' }];
-  }
   return {
     'fmt-check': goTarget({ command: GOFMT_COMMAND, cache: true }),
     vet: goTarget({ command: 'go vet ./...', cache: true }),
@@ -219,7 +223,7 @@ const expectedTargets = ({
             executor: 'nx:run-commands',
             cache: false,
             inputs: ['go', '^go'],
-            dependsOn: [{ projects: ['postgres', 'app'], target: 'test-race' }],
+            dependsOn: [{ projects: ['postgres', 'app'], target: 'test-race' }, 'test-race'],
             options: {
               command: 'go test -race -count=1 -p 1 -tags=integration,distributed ./distkit/...',
               cwd: '{projectRoot}',
@@ -276,29 +280,85 @@ describe('[generator] bounded-context — generation', () => {
     const tree = await generate();
 
     expect(tree.children(MODULE_DIR).sort()).toEqual(
-      [...MODULE_FILES, ...BLOCK_DIRS, CMD_DIR, APPKIT_DIR, DISTKIT_DIR].sort(),
+      [...MODULE_FILES, ...BLOCK_DIRS, CMD_DIR, APPKIT_DIR, DISTKIT_DIR, DOCKERFILE].sort(),
     );
   });
 
-  it('should place only doc.go inside every block directory but app', async () => {
+  it('should give every block its doc.go, the provider its schema and the app its canonical files', async () => {
     const tree = await generate();
 
     for (const { dirName } of LAYOUT) {
-      const want = dirName === 'app' ? ['doc.go', 'run.go'] : ['doc.go'];
-      expect(tree.children(`${MODULE_DIR}/${dirName}`).sort()).toEqual(want);
+      expect(tree.children(`${MODULE_DIR}/${dirName}`).sort()).toEqual(BLOCK_FILES[dirName]);
     }
+    expect(tree.children(`${MODULE_DIR}/app/rpc`).sort()).toEqual([
+      'errors.go',
+      'errors_internal_test.go',
+      'service.go',
+    ]);
   });
 
   it('should give the app block a composition root the binary enters by', async () => {
     const tree = await generate();
-    const run = readText(tree, `${MODULE_DIR}/app/run.go`);
+    const config = readText(tree, `${MODULE_DIR}/app/config.go`);
+    const wiring = readText(tree, `${MODULE_DIR}/app/wiring.go`);
     const main = readText(tree, `${MODULE_DIR}/${CMD_DIR}/main.go`);
 
-    expect(run).toContain('func Run(ctx context.Context, cfg Config, out io.Writer) error');
-    expect(run).toContain('func FromEnv(role Role, lookup func(string) string) (Config, error)');
-    expect(run).toContain('has no composition root yet');
+    expect(wiring).toContain('func Run(ctx context.Context, cfg Config, out io.Writer) error');
+    expect(config).toContain('func Defaults(role Role) Config');
+    expect(config).toContain('func FromEnv(role Role, lookup func(string) string) (Config, error)');
+    expect(config).toContain('func (c Config) Validate() error');
     expect(main).toContain('app.FromEnv(app.Role(o.role), o.lookup)');
     expect(main).toContain('--role api|relay');
+  });
+
+  it('should serve gRPC only, with the kernel chain and the migrate of the outbox and the context schema', async () => {
+    const tree = await generate();
+    const wiring = readText(tree, `${MODULE_DIR}/app/wiring.go`);
+
+    expect(wiring).toContain('kernelgrpc.ServerInterceptors(rpc.ServiceName');
+    expect(wiring).toContain('server.RegisterService(&rpc.ServiceDesc, rpc.Server{})');
+    expect(wiring).toContain(
+      'postgres.Migrate(ctx, pool, []postgres.Capability{postgres.Outbox}, provider.Schema)',
+    );
+    expect(wiring).not.toContain('net/http');
+    expect(tree.exists(`${MODULE_DIR}/app/http`)).toBe(false);
+  });
+
+  it('should name the service after the context unless serviceName is given', async () => {
+    const derived = await generate();
+    const given = await generate({ serviceName: 'company.sales.service.v1.CheckoutService' });
+
+    expect(readText(derived, `${MODULE_DIR}/app/rpc/service.go`)).toContain(
+      'const ServiceName = "company.checkout.service.v1.CheckoutService"',
+    );
+    expect(readText(given, `${MODULE_DIR}/app/rpc/service.go`)).toContain(
+      'const ServiceName = "company.sales.service.v1.CheckoutService"',
+    );
+  });
+
+  it('should read the configuration without the DMPF_ prefix, with the topic named after the context', async () => {
+    const tree = await generate({ name: 'order-fulfillment' });
+    const config = readText(tree, `${DIRECTORY}/order-fulfillment/app/config.go`);
+
+    expect(config).toMatch(/envDSN\s+= "PG_DSN"/);
+    expect(config).toContain('"KAFKA_ORDER_FULFILLMENT_TOPIC"');
+    expect(config).toContain('OrderFulfillmentTopic string');
+    expect(config).not.toContain('DMPF_');
+  });
+
+  it('should embed the context schema in the provider for the composition root to migrate', async () => {
+    const tree = await generate();
+
+    expect(readText(tree, `${MODULE_DIR}/provider/schema.go`)).toContain('//go:embed schema.sql');
+    expect(readText(tree, `${MODULE_DIR}/provider/schema.sql`)).toContain('snapshot');
+  });
+
+  it('should build the image of the binary from the workspace root', async () => {
+    const tree = await generate();
+    const dockerfile = readText(tree, `${MODULE_DIR}/${DOCKERFILE}`);
+
+    expect(dockerfile).toContain(`./${MODULE_DIR}/cmd`);
+    expect(dockerfile).toContain('EXPOSE 9090');
   });
 
   it('should leave no binary and no serve target when the context has no app block', async () => {
@@ -306,6 +366,7 @@ describe('[generator] bounded-context — generation', () => {
 
     expect(tree.children(MODULE_DIR)).not.toContain(CMD_DIR);
     expect(Object.keys(projectOf(tree).targets)).not.toContain('serve-api');
+    expect(tree.children(MODULE_DIR)).not.toContain(DOCKERFILE);
   });
 
   it('should identify the project by the bare context name', async () => {
@@ -361,12 +422,10 @@ describe('[generator] bounded-context — generation', () => {
     expect(targets['serve-relay'].options.command).toBe('go run ./cmd --role relay');
   });
 
-  it('should run test-race with the integration tag after postgres when provider is generated', async () => {
+  it('should run test-race with the integration tag and no serialization, the database being its own', async () => {
     const tree = await generate();
 
-    expect(projectOf(tree).targets).toEqual(
-      expectedTargets({ integration: true, dependsOnProjects: ['postgres'] }),
-    );
+    expect(projectOf(tree).targets).toEqual(expectedTargets({ integration: true }));
   });
 
   it('should run a cached, tag-free test-race when no block touches infrastructure', async () => {
@@ -400,7 +459,11 @@ describe('[generator] bounded-context — generation', () => {
       // root, not a unit of its own.
       const include =
         dirName === 'app'
-          ? [`${MODULE_PREFIX}/${MODULE_DIR}/app`, `${MODULE_PREFIX}/${MODULE_DIR}/cmd`]
+          ? [
+              `${MODULE_PREFIX}/${MODULE_DIR}/app`,
+              `${MODULE_PREFIX}/${MODULE_DIR}/app/rpc`,
+              `${MODULE_PREFIX}/${MODULE_DIR}/cmd`,
+            ]
           : [`${MODULE_PREFIX}/${MODULE_DIR}/${dirName}`];
       expect(unit.include).toEqual(include);
     });
@@ -409,8 +472,14 @@ describe('[generator] bounded-context — generation', () => {
   it('should give the app block both test kits, each in a directory of its own', async () => {
     const tree = await generate();
 
-    expect(tree.children(`${MODULE_DIR}/${APPKIT_DIR}`)).toEqual(['doc.go']);
+    expect(tree.children(`${MODULE_DIR}/${APPKIT_DIR}`).sort()).toEqual(['doc.go', 'pool.go']);
     expect(readText(tree, `${MODULE_DIR}/${APPKIT_DIR}/doc.go`)).toContain('package appkit');
+    expect(readText(tree, `${MODULE_DIR}/${APPKIT_DIR}/pool.go`)).toContain(
+      'Project:      "checkout"',
+    );
+    expect(readText(tree, `${MODULE_DIR}/${APPKIT_DIR}/pool.go`)).toContain(
+      'var Tables = []string{}',
+    );
     expect(tree.children(`${MODULE_DIR}/${DISTKIT_DIR}`)).toEqual(['doc.go']);
     expect(readText(tree, `${MODULE_DIR}/${DISTKIT_DIR}/doc.go`)).toContain('package distkit');
   });
@@ -422,7 +491,10 @@ describe('[generator] bounded-context — generation', () => {
     ];
 
     expect(target.cache).toBe(false);
-    expect(target.dependsOn).toEqual([{ projects: ['postgres', 'app'], target: 'test-race' }]);
+    expect(target.dependsOn).toEqual([
+      { projects: ['postgres', 'app'], target: 'test-race' },
+      'test-race',
+    ]);
     expect((target.options as { command: string }).command).toBe(
       'go test -race -count=1 -p 1 -tags=integration,distributed ./distkit/...',
     );
@@ -509,7 +581,7 @@ describe('[generator] bounded-context — generation', () => {
     });
 
     expect(tree.children(MODULE_DIR).sort()).toEqual(
-      [...MODULE_FILES, ...BLOCK_DIRS, CMD_DIR, APPKIT_DIR, DISTKIT_DIR].sort(),
+      [...MODULE_FILES, ...BLOCK_DIRS, CMD_DIR, APPKIT_DIR, DISTKIT_DIR, DOCKERFILE].sort(),
     );
   });
 });
@@ -522,7 +594,7 @@ describe('[generator] bounded-context — identifiers', () => {
 
     expect(tree.children(DIRECTORY)).toEqual(['order-fulfillment']);
     expect(tree.children(`${DIRECTORY}/order-fulfillment`).sort()).toEqual(
-      [...MODULE_FILES, ...BLOCK_DIRS, CMD_DIR, APPKIT_DIR, DISTKIT_DIR].sort(),
+      [...MODULE_FILES, ...BLOCK_DIRS, CMD_DIR, APPKIT_DIR, DISTKIT_DIR, DOCKERFILE].sort(),
     );
   });
 
@@ -601,6 +673,13 @@ describe('[generator] bounded-context — refusals', () => {
 
     expect(messages).toMatch(/application/);
     expect(messages).toMatch(/provider/);
+  });
+
+  it('should refuse a serviceName that is not a qualified proto service name', async () => {
+    await expectRefusal({
+      overrides: { serviceName: 'company.sales.checkoutService' },
+      message: /option serviceName .* must match/,
+    });
   });
 
   it('should refuse a directory that escapes the workspace root', async () => {
