@@ -98,9 +98,10 @@ services:
       PGPASSWORD: ${POSTGRES_PASSWORD:-postgres}
       PGDATABASE: postgres
     entrypoint: ['/bin/sh', '-c']
-    # Idempotente: só cria o role e o banco que ainda não existem, então
-    # reexecutar o profile não falha. O banco pertence ao role da app, que
-    # assim cria o próprio schema sem privilégio administrativo.
+    # Idempotente: cria o role e o banco que ainda não existem e reconcilia a
+    # senha do role a cada execução, para que trocar a senha com o volume mantido
+    # não deixe a app sem conexão. O banco pertence ao role da app, que assim cria
+    # o próprio schema sem privilégio administrativo.
     command:
       - >-
         set -e; for pair in orders:${ORDERS_PG_PASSWORD:-orders-local}
@@ -108,7 +109,8 @@ services:
         bookings:${BOOKINGS_PG_PASSWORD:-bookings-local}; do
         app=$${pair%%:*}; pass=$${pair#*:};
         if ! psql -tAc "SELECT 1 FROM pg_roles WHERE rolname = '$$app'" | grep -q 1; then
-        psql -c "CREATE ROLE \"$$app\" LOGIN PASSWORD '$$pass'"; fi;
+        psql -c "CREATE ROLE \"$$app\" LOGIN"; fi;
+        psql -c "ALTER ROLE \"$$app\" PASSWORD '$$pass'";
         if ! psql -tAc "SELECT 1 FROM pg_database WHERE datname = '$$app'" | grep -q 1; then
         psql -c "CREATE DATABASE \"$$app\" OWNER \"$$app\""; fi; done
     deploy:
@@ -126,10 +128,12 @@ services:
     # A ligação entre principal e source que o consumer admite é a ACL (ADR-052):
     # cada processo só escreve no próprio tópico e na DLQ que alimenta, e só o
     # reservations lê orders.events. A autorização liga por último, com as ACLs já
-    # gravadas; o superusuário vazio é o principal do listener externo.
+    # gravadas; o superusuário vazio é o principal do listener externo. Criar
+    # usuário e tópico tolera o "já existe", mas a presença de cada um é conferida
+    # antes das ACLs: qualquer falha interrompe o init sem ligar a autorização.
     command:
       - |
-        set -u
+        set -eu
         admin="-X admin.hosts=redpanda:9644"
         su="-X brokers=redpanda:29092 -X user=console -X pass=${KAFKA_CONSOLE_PASSWORD:-console-local} -X sasl.mechanism=SCRAM-SHA-256"
         for user in orders:${KAFKA_ORDERS_PASSWORD:-orders-local} \
@@ -138,11 +142,19 @@ services:
           console:${KAFKA_CONSOLE_PASSWORD:-console-local}; do
           rpk security user create "$${user%%:*}" -p "$${user#*:}" --mechanism SCRAM-SHA-256 $$admin || true
         done
+        for user in orders reservations bookings console; do
+          rpk security user list $$admin | grep -qw "$$user"
+        done
         rpk cluster config set superusers '["console",""]' $$admin
         rpk topic create ${KAFKA_ORDERS_TOPIC:-orders.events} ${KAFKA_ORDERS_DLQ:-orders.events.dlq} \
           ${KAFKA_RESERVATIONS_TOPIC:-reservations.events} ${KAFKA_RESERVATIONS_DLQ:-reservations.events.dlq} \
           ${KAFKA_BOOKINGS_TOPIC:-bookings.events} ${KAFKA_BOOKINGS_DLQ:-bookings.events.dlq} \
           $$su -p 1 -r 1 || true
+        for topic in ${KAFKA_ORDERS_TOPIC:-orders.events} ${KAFKA_ORDERS_DLQ:-orders.events.dlq} \
+          ${KAFKA_RESERVATIONS_TOPIC:-reservations.events} ${KAFKA_RESERVATIONS_DLQ:-reservations.events.dlq} \
+          ${KAFKA_BOOKINGS_TOPIC:-bookings.events} ${KAFKA_BOOKINGS_DLQ:-bookings.events.dlq}; do
+          rpk topic describe "$$topic" $$su >/dev/null
+        done
         rpk security acl create --allow-principal User:orders --operation write,describe \
           --topic ${KAFKA_ORDERS_TOPIC:-orders.events} --topic ${KAFKA_ORDERS_DLQ:-orders.events.dlq} $$su
         rpk security acl create --allow-principal User:reservations --operation write,describe \
