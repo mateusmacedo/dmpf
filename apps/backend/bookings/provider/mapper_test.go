@@ -25,7 +25,7 @@ func TestMapperMapsBookingReserved(t *testing.T) {
 		BookingID:  "B-100",
 		ResourceID: "R-200",
 		Quantity:   5,
-		At:         1_755_432_000,
+		At:         1_755_432_000_123_456_789,
 	}
 
 	mapped, err := provider.Mapper{}.Map(event)
@@ -37,7 +37,7 @@ func TestMapperMapsBookingReserved(t *testing.T) {
 		BookingId:  "B-100",
 		ResourceId: "R-200",
 		Quantity:   5,
-		ReservedAt: &timestamppb.Timestamp{Seconds: 1_755_432_000},
+		ReservedAt: &timestamppb.Timestamp{Seconds: 1_755_432_000, Nanos: 123_456_789},
 	}
 	if !proto.Equal(mapped.Message, want) {
 		t.Errorf("Map().Message = %v, want %v", mapped.Message, want)

@@ -24,7 +24,7 @@ func (Mapper) Map(event kernel.DomainEvent) (postgres.Mapped, error) {
 				BookingId:  string(e.BookingID),
 				ResourceId: string(e.ResourceID),
 				Quantity:   int32(e.Quantity),
-				ReservedAt: timestamppb.New(time.Unix(int64(e.At), 0)),
+				ReservedAt: timestamppb.New(time.Unix(0, int64(e.At))),
 			},
 			Type: bookingReservedType,
 		}, nil
