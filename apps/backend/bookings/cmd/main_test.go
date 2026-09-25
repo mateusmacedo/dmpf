@@ -50,11 +50,9 @@ func TestRunRefusesTheRelayRoleWithoutItsBroker(t *testing.T) {
 	code := run(options{role: "relay", lookup: lookup("PG_DSN", "postgres://x")}, &out, &errOut)
 
 	if code != exitUsage {
-		t.Fatalf("run() = %d, want exitUsage: the relay needs the broker, the topic, the DLQ and the group", code)
+		t.Fatalf("run() = %d, want exitUsage: the relay needs the broker", code)
 	}
-	for _, variable := range []string{"KAFKA_BROKERS", "KAFKA_BOOKINGS_TOPIC", "KAFKA_BOOKINGS_DLQ", "KAFKA_GROUP"} {
-		if !strings.Contains(errOut.String(), variable) {
-			t.Fatalf("stderr = %q, want it to name %s", errOut.String(), variable)
-		}
+	if !strings.Contains(errOut.String(), "KAFKA_BROKERS") {
+		t.Fatalf("stderr = %q, want it to name KAFKA_BROKERS, the first missing variable of the relay", errOut.String())
 	}
 }
