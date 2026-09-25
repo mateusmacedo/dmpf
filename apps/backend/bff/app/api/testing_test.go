@@ -21,6 +21,9 @@ import (
 	"google.golang.org/grpc/test/bufconn"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/mateusmacedo/dmpf/apps/backend/bff/app/api"
+	"github.com/mateusmacedo/dmpf/apps/backend/bff/app/rpc"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/authn"
 	bookingsv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/bookings/service/v1"
 	ordersv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/orders/service/v1"
 	reservationsv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/reservations/service/v1"
@@ -28,10 +31,6 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/metrics"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/admission"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/deadline"
-
-	"github.com/mateusmacedo/dmpf/apps/backend/bff/app/api"
-	"github.com/mateusmacedo/dmpf/apps/backend/bff/app/rpc"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/authn"
 )
 
 var routeBudget = deadline.Budget{Dependency: "edge", Method: "route", Limit: 2 * time.Second, Slack: 200 * time.Millisecond, EstimatedDuration: 100 * time.Millisecond}

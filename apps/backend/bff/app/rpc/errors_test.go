@@ -10,10 +10,9 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/mateusmacedo/dmpf/apps/backend/bff/app/rpc"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/deadline"
-
-	"github.com/mateusmacedo/dmpf/apps/backend/bff/app/rpc"
 )
 
 func TestClassifyMapsFailuresWithoutInternalDetail(t *testing.T) {

@@ -9,9 +9,8 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/tracing"
-
 	"github.com/mateusmacedo/dmpf/apps/backend/bff/app/rpc"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/tracing"
 )
 
 const (

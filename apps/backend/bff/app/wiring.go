@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/observability"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/boot"
 	"io"
 	"log/slog"
 	"net"
@@ -13,14 +11,15 @@ import (
 	"os"
 	"time"
 
+	"github.com/mateusmacedo/dmpf/apps/backend/bff/app/api"
+	"github.com/mateusmacedo/dmpf/apps/backend/bff/app/rpc"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/authn"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/boot"
 	obsclock "github.com/mateusmacedo/dmpf/libs/backend/go/observability/clock"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/otelboot"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/admission"
-
-	"github.com/mateusmacedo/dmpf/apps/backend/bff/app/api"
-	"github.com/mateusmacedo/dmpf/apps/backend/bff/app/rpc"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/authn"
 )
 
 const (

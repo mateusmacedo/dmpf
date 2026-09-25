@@ -3,13 +3,12 @@ package app
 import (
 	"errors"
 	"fmt"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/envconfig"
 	"time"
 
+	"github.com/mateusmacedo/dmpf/libs/backend/go/authn"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/envconfig"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/admission"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/deadline"
-
-	"github.com/mateusmacedo/dmpf/libs/backend/go/authn"
 )
 
 var (

@@ -12,14 +12,13 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/mateusmacedo/dmpf/apps/backend/bff/app/rpc"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/authn"
 	kernelhttp "github.com/mateusmacedo/dmpf/libs/backend/go/http"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/retry"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/tracing"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/deadline"
-
-	"github.com/mateusmacedo/dmpf/apps/backend/bff/app/rpc"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/authn"
 )
 
 const identifierBytes = 16
