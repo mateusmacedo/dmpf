@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/app/relay"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/admission"
 )
 
@@ -130,7 +131,7 @@ func Defaults(role Role) Config {
 			MaxAttempts:    10,
 			BackoffBase:    200 * time.Millisecond,
 			BackoffCeiling: 30 * time.Second,
-			ShutdownGrace:  10 * time.Second,
+			ShutdownGrace:  observability.ShutdownGrace,
 		},
 		OrdersSource:    "urn:dmpf:reference-orders",
 		Wait:            2 * time.Second,
