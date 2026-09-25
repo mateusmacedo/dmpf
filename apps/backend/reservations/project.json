@@ -56,7 +56,8 @@
         {
           "projects": ["postgres", "app"],
           "target": "test-race"
-        }
+        },
+        "test-race"
       ],
       "options": {
         "command": "go test -race -count=1 -p 1 -tags=integration,distributed ./distkit/...",
