@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/application"
@@ -90,8 +91,23 @@ func (s Service) instrumentation() port.Instrumentation {
 	return s.Instrumentation
 }
 
+// authorizationResult categorises a step 1 error. Only a declared denial is
+// Denied; anything else is technical failure, because inferring a refusal from
+// an unrelated error would report a false negative of access.
 func authorizationResult(err error) port.Result {
+	if errors.Is(err, port.ErrDenied) {
+		return port.Result{Outcome: port.OutcomeDenied}
+	}
 	return port.Result{Outcome: port.OutcomeFailed, Err: err}
+}
+
+// outcomeCategory reads the terminal category off the outcome, which is the
+// only place that knows which branch of the UPR was taken.
+func outcomeCategory[R any](outcome application.Outcome[R]) port.OutcomeCategory {
+	if _, refused := outcome.Rejection(); refused {
+		return port.OutcomeRejected
+	}
+	return port.OutcomeAccepted
 }
 
 func enqueueAll(

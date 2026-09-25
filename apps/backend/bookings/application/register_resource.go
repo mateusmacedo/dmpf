@@ -53,11 +53,7 @@ func (s Service) RegisterResource(ctx context.Context, cmd Register) (applicatio
 		return zero, err
 	}
 
-	category := ports.OutcomeAccepted
-	if _, refused := outcome.Rejection(); refused {
-		category = ports.OutcomeRejected
-	}
-	end(ports.Result{Outcome: category})
+	end(ports.Result{Outcome: outcomeCategory(outcome)})
 	return outcome, nil
 }
 

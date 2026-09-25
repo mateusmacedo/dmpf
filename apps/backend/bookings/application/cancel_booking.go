@@ -52,10 +52,6 @@ func (s Service) CancelBooking(ctx context.Context, cmd Cancel) (application.Out
 		return zero, err
 	}
 
-	category := ports.OutcomeAccepted
-	if _, refused := outcome.Rejection(); refused {
-		category = ports.OutcomeRejected
-	}
-	end(ports.Result{Outcome: category})
+	end(ports.Result{Outcome: outcomeCategory(outcome)})
 	return outcome, nil
 }

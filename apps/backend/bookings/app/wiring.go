@@ -65,7 +65,7 @@ func NewBookingsService(pool *pgxpool.Pool, rt *otelboot.Runtime, cfg Config, au
 		Authorize:      Authorization(),
 		Instrumentation: obsusecase.New(rt,
 			audit.NewEnvelopeSink(auditOut, audit.Identity{Service: cfg.Service, Version: cfg.Version, Instance: cfg.Instance}),
-			carrierSubject, nil, application.OperationFindBooking, application.OperationFindByResource),
+			subject, classify, application.OperationFindBooking, application.OperationFindByResource),
 	}
 }
 
