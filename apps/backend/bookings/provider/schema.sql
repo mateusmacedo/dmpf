@@ -1,13 +1,14 @@
 -- IDN-14: the tenant scope is a column of the key, not a condition each query
 -- has to remember to include. Two tenants may legitimately use the same id.
+-- The state lives in snapshot; a field only becomes a typed column when a query
+-- filters by it.
 CREATE TABLE IF NOT EXISTS bookings (
-  tenant_id   text    NOT NULL,
-  booking_id  text    NOT NULL,
-  version     bigint  NOT NULL DEFAULT 0,
-  resource_id text    NOT NULL DEFAULT '',
-  quantity    integer NOT NULL DEFAULT 0,
-  status      integer NOT NULL DEFAULT 0,
-  reserved_at bigint  NOT NULL DEFAULT 0,
+  tenant_id   text   NOT NULL,
+  booking_id  text   NOT NULL,
+  version     bigint NOT NULL DEFAULT 0,
+  -- Typed because FindBookingsByResource filters by it.
+  resource_id text   NOT NULL,
+  snapshot    jsonb  NOT NULL,
   CONSTRAINT bookings_pkey PRIMARY KEY (tenant_id, booking_id)
 );
 
@@ -21,10 +22,10 @@ CREATE INDEX IF NOT EXISTS bookings_booking_id_idx ON bookings (booking_id);
 CREATE INDEX IF NOT EXISTS bookings_resource_id_idx ON bookings (resource_id);
 
 CREATE TABLE IF NOT EXISTS resources (
-  tenant_id     text   NOT NULL,
-  resource_id   text   NOT NULL,
-  version       bigint NOT NULL DEFAULT 0,
-  registered_at bigint NOT NULL DEFAULT 0,
+  tenant_id   text   NOT NULL,
+  resource_id text   NOT NULL,
+  version     bigint NOT NULL DEFAULT 0,
+  snapshot    jsonb  NOT NULL,
   CONSTRAINT resources_pkey PRIMARY KEY (tenant_id, resource_id)
 );
 
