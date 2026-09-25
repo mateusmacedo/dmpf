@@ -156,7 +156,7 @@ func outboxRowOf(t *testing.T, pool *pgxpool.Pool, messageID string) outboxRow {
 	var row outboxRow
 	err := pool.QueryRow(context.Background(), `
 		SELECT message_type, schema_version, aggregate_version, destination, status
-		FROM dmpf_outbox WHERE message_id = $1`, messageID).Scan(
+		FROM outbox WHERE message_id = $1`, messageID).Scan(
 		&row.MessageType, &row.SchemaVersion, &row.AggregateVersion, &row.Destination, &row.Status)
 	if err != nil {
 		t.Fatalf("SELECT outbox row %s = %v, want nil", messageID, err)
@@ -169,7 +169,7 @@ func counts(t *testing.T, pool *pgxpool.Pool) (int, int) {
 
 	var ordersCount, outboxCount int
 	err := pool.QueryRow(context.Background(), `
-		SELECT (SELECT count(*) FROM dmpf_example_orders), (SELECT count(*) FROM dmpf_outbox)`).
+		SELECT (SELECT count(*) FROM dmpf_example_orders), (SELECT count(*) FROM outbox)`).
 		Scan(&ordersCount, &outboxCount)
 	if err != nil {
 		t.Fatalf("counts = %v, want nil", err)

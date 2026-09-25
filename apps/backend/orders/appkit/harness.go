@@ -64,7 +64,7 @@ type Enqueued struct {
 func (h Harness) Outbox(t testing.TB) []Enqueued {
 	t.Helper()
 	const query = `SELECT message_id, message_type, aggregate_version, destination, status
-		FROM dmpf_outbox ORDER BY id`
+		FROM outbox ORDER BY id`
 
 	rows, err := h.Pool.Query(context.Background(), query)
 	if err != nil {
