@@ -49,10 +49,9 @@ func Tables(caps ...Capability) []string {
 	return tables
 }
 
-// Migrate applies the kernel schema of each capability and then each schema a
-// context declares, under the same lock and in the same transaction. Every
-// statement is CREATE TABLE/INDEX IF NOT EXISTS, so calling it more than once
-// is a no-op: there is no external migration tool and no version table.
+// Migrate applies each capability's kernel schema, then the context's schemas,
+// in one locked transaction. Every statement is IF NOT EXISTS, so a repeated call
+// is a no-op: there is no migration tool and no version table.
 //
 // WHY: IF NOT EXISTS is not concurrency-safe — two replicas racing on the same
 // schema make one fail with a unique violation on pg_type. The lock is
