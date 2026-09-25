@@ -17,7 +17,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
-	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
+	kernelgrpc "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/memory"
 	obsclock "github.com/mateusmacedo/dmpf/libs/backend/go/observability/clock"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/metrics"
@@ -87,16 +87,16 @@ func newHarness(t *testing.T, limit admission.Limit) *harness {
 	if err != nil {
 		t.Fatalf("DeclareTenants() = %v", err)
 	}
-	ctrl, err := admission.New(admission.Config{Limits: kernel.MethodLimits(rpc.ServiceName, rpc.Methods(), limit), Tenants: tenants, MaxKeys: 16, Clock: obsclock.System()})
+	ctrl, err := admission.New(admission.Config{Limits: kernelgrpc.MethodLimits(rpc.ServiceName, rpc.Methods(), limit), Tenants: tenants, MaxKeys: 16, Clock: obsclock.System()})
 	if err != nil {
 		t.Fatalf("admission.New() = %v", err)
 	}
 	execution := &capture{}
-	server, _, err := kernel.NewServer(kernel.ServerConfig{
+	server, _, err := kernelgrpc.NewServer(kernelgrpc.ServerConfig{
 		InsecureForDevelopmentOnly: true,
 		Services:                   []string{rpc.ServiceName},
 		UnaryInterceptors: append(
-			kernel.ServerInterceptors(rpc.ServiceName, provider.Tracer("rpc-test"), ctrl, nil, slog.New(slog.NewJSONHandler(logs, nil))),
+			kernelgrpc.ServerInterceptors(rpc.ServiceName, provider.Tracer("rpc-test"), ctrl, nil, slog.New(slog.NewJSONHandler(logs, nil))),
 			execution.intercept,
 		),
 	})
@@ -140,5 +140,5 @@ func withDeadline(t *testing.T) context.Context {
 // call (IDN-15).
 func withTenant(t *testing.T) context.Context {
 	t.Helper()
-	return metadata.AppendToOutgoingContext(withDeadline(t), kernel.TenantKey, testTenant)
+	return metadata.AppendToOutgoingContext(withDeadline(t), kernelgrpc.TenantKey, testTenant)
 }

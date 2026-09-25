@@ -15,7 +15,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/app"
+	kernelapp "github.com/mateusmacedo/dmpf/libs/backend/go/app"
 	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/contracts/envelope"
 	eventv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/orders/event/v1"
@@ -116,10 +116,10 @@ func quarantinedEnvelope(t *testing.T, pool *pgxpool.Pool, messageID string) ([]
 	return raw, reason
 }
 
-func consume(t *testing.T, pool *pgxpool.Pool, consumer kernel.Consumer, messageID string, raw []byte, attempt int) (kernel.Outcome, error, *recordingAck) {
+func consume(t *testing.T, pool *pgxpool.Pool, consumer kernelapp.Consumer, messageID string, raw []byte, attempt int) (kernelapp.Outcome, error, *recordingAck) {
 	t.Helper()
 	ack := &recordingAck{pool: pool, messageIDSeen: ports.MessageID(messageID)}
-	outcome, err := consumer.Consume(context.Background(), kernel.Delivery{Raw: raw, Attempt: attempt}, ack)
+	outcome, err := consumer.Consume(context.Background(), kernelapp.Delivery{Raw: raw, Attempt: attempt}, ack)
 	return outcome, err, ack
 }
 
@@ -138,7 +138,7 @@ type failingOutbox struct{ err error }
 
 func (f failingOutbox) Enqueue(context.Context, ports.OutboxEntry) error { return f.err }
 
-func consumerWith(pool *pgxpool.Pool, decorate func(application.Resources) application.Resources) kernel.Consumer {
+func consumerWith(pool *pgxpool.Pool, decorate func(application.Resources) application.Resources) kernelapp.Consumer {
 	bind := func(tx *postgres.Tx) application.Resources {
 		return decorate(app.Bind(e2eWait)(tx))
 	}
@@ -149,7 +149,7 @@ func consumerWith(pool *pgxpool.Pool, decorate func(application.Resources) appli
 		Authorize: usecase.AllowAll[application.Operation](),
 		Consumer:  app.ConsumerName,
 	}
-	return kernel.Consumer{
+	return kernelapp.Consumer{
 		Name:        app.ConsumerName,
 		MaxAttempts: e2eAttempts,
 		Handle:      app.Handler(service),
@@ -161,7 +161,7 @@ func consumerWith(pool *pgxpool.Pool, decorate func(application.Resources) appli
 	}
 }
 
-var e2eBoundary = kernel.Boundary{Transport: kernel.TransportDevelopmentOnly, Sources: []string{"urn:dmpf:orders"}}
+var e2eBoundary = kernelapp.Boundary{Transport: kernelapp.TransportDevelopmentOnly, Sources: []string{"urn:dmpf:orders"}}
 
 func TestFirstReceptionAppliesConfirmsAndDerivesTheOutbox(t *testing.T) {
 	pool := appkit.OpenPool(t)

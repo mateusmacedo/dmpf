@@ -15,7 +15,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/app"
+	kernelapp "github.com/mateusmacedo/dmpf/libs/backend/go/app"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/contracts/envelope"
 	eventv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/orders/event/v1"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/kafka"
@@ -158,10 +158,10 @@ func consume(t *testing.T, ctx context.Context, cfg kafka.Config, ch channel.Cha
 // its transaction (TRP-26), and that gesture — not the error — is what the
 // worker applies; the error goes back whole so the worker can log the cause of
 // an acknowledged failure or of a delivery left without a gesture.
-type adapterSink struct{ consumer kernel.Consumer }
+type adapterSink struct{ consumer kernelapp.Consumer }
 
 func (s adapterSink) Handle(ctx context.Context, raw []byte, attempt int, ack ports.Acknowledger) error {
-	_, err := s.consumer.Consume(ctx, kernel.Delivery{Raw: raw, Attempt: attempt}, ack)
+	_, err := s.consumer.Consume(ctx, kernelapp.Delivery{Raw: raw, Attempt: attempt}, ack)
 	return err
 }
 

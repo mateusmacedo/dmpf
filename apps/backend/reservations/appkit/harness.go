@@ -11,7 +11,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/app"
+	kernelapp "github.com/mateusmacedo/dmpf/libs/backend/go/app"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/contracts/envelope"
 	eventv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/orders/event/v1"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
@@ -52,7 +52,7 @@ func OpenPool(t testing.TB) *pgxpool.Pool {
 }
 
 type Harness struct {
-	Consumer kernel.Consumer
+	Consumer kernelapp.Consumer
 	Pool     *pgxpool.Pool
 }
 
@@ -95,9 +95,9 @@ func (a *Ack) Release(context.Context) error {
 // Deliver hands the raw bytes of one delivery to the adapter and returns what
 // it did, with the acknowledger that saw the gesture. messageID only tells the
 // acknowledger which inbox row to watch.
-func (h Harness) Deliver(ctx context.Context, messageID string, raw []byte, attempt int) (kernel.Outcome, *Ack, error) {
+func (h Harness) Deliver(ctx context.Context, messageID string, raw []byte, attempt int) (kernelapp.Outcome, *Ack, error) {
 	ack := &Ack{pool: h.Pool, messageID: messageID}
-	outcome, err := h.Consumer.Consume(ctx, kernel.Delivery{Raw: raw, Attempt: attempt}, ack)
+	outcome, err := h.Consumer.Consume(ctx, kernelapp.Delivery{Raw: raw, Attempt: attempt}, ack)
 	return outcome, ack, err
 }
 
@@ -168,7 +168,7 @@ func ptr[T any](v T) *T { return &v }
 // production one does (CTX-27).
 const OrdersSource = "urn:dmpf:orders"
 
-var Boundary = kernel.Boundary{Transport: kernel.TransportDevelopmentOnly, Sources: []string{OrdersSource}}
+var Boundary = kernelapp.Boundary{Transport: kernelapp.TransportDevelopmentOnly, Sources: []string{OrdersSource}}
 
 func rawOrderPlaced(t testing.TB, messageID, orderID string, items int32, tenant *string) []byte {
 	t.Helper()

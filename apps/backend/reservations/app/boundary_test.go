@@ -4,7 +4,7 @@ import (
 	"slices"
 	"testing"
 
-	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/app"
+	kernelapp "github.com/mateusmacedo/dmpf/libs/backend/go/app"
 )
 
 func TestOrdersBoundaryAdmitsTheConfiguredProducer(t *testing.T) {
@@ -15,7 +15,7 @@ func TestOrdersBoundaryAdmitsTheConfiguredProducer(t *testing.T) {
 	if !slices.Equal(boundary.Sources, []string{"urn:dmpf:reference-orders"}) {
 		t.Fatalf("Sources = %v, want the source the orders relay stamps by default", boundary.Sources)
 	}
-	if boundary.Transport != kernel.TransportVerified {
+	if boundary.Transport != kernelapp.TransportVerified {
 		t.Fatalf("Transport = %q, want verified: TLS with an authenticated client", boundary.Transport)
 	}
 }
@@ -23,7 +23,7 @@ func TestOrdersBoundaryAdmitsTheConfiguredProducer(t *testing.T) {
 // IDN-04: a boundary is verified only on what the transport proved, never on a
 // variable saying TLS is on.
 func TestOrdersBoundaryWithoutAnAuthenticatedClientIsDevelopmentOnly(t *testing.T) {
-	if got := OrdersBoundary(Defaults(RoleConsumer), false).Transport; got != kernel.TransportDevelopmentOnly {
+	if got := OrdersBoundary(Defaults(RoleConsumer), false).Transport; got != kernelapp.TransportDevelopmentOnly {
 		t.Fatalf("Transport = %q, want development-only: the boundary cannot claim more than the transport proved", got)
 	}
 }

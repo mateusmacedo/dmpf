@@ -3,7 +3,7 @@
 package application
 
 import (
-	"github.com/mateusmacedo/dmpf/libs/backend/go/application"
+	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
@@ -87,7 +87,7 @@ type Service struct {
 
 	Clock     ports.Clock
 	IDs       ports.IDGenerator
-	Authorize application.Authorize[Operation]
+	Authorize usecase.Authorize[Operation]
 	Consumer  string
 
 	Instrumentation ports.Instrumentation

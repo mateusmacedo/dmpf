@@ -8,7 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/mateusmacedo/dmpf/libs/backend/go/app"
+	kernelapp "github.com/mateusmacedo/dmpf/libs/backend/go/app"
 	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/contracts/envelope"
 	eventv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/orders/event/v1"
@@ -53,7 +53,7 @@ func NewService(pool *pgxpool.Pool, clock ports.Clock, ids ports.IDGenerator, wa
 // Handler unpacks OrderPlaced and hands it to Consume. A payload that is not
 // this consumer's contract is terminal (Validation, ERR-11): nothing would be
 // written under R1×D4, so no unit of work is opened for it.
-func Handler(service application.Service) app.Handler {
+func Handler(service application.Service) kernelapp.Handler {
 	return func(ctx context.Context, receipt ports.Receipt, env envelope.Envelope) (usecase.Disposition, error) {
 		var placed eventv1.OrderPlaced
 		if err := envelope.Unpack(env, &placed); err != nil {
@@ -77,8 +77,8 @@ const consumerLocale = "en"
 // NewConsumer is the whole consumer: adapter, service and Postgres quarantine.
 // maxAttempts <= 0 disables the attempt limit (GAR-08 fixes that one exists;
 // the value is FND-08's).
-func NewConsumer(pool *pgxpool.Pool, clock ports.Clock, ids ports.IDGenerator, wait, timeout time.Duration, maxAttempts int, boundary app.Boundary) app.Consumer {
-	return app.Consumer{
+func NewConsumer(pool *pgxpool.Pool, clock ports.Clock, ids ports.IDGenerator, wait, timeout time.Duration, maxAttempts int, boundary kernelapp.Boundary) kernelapp.Consumer {
+	return kernelapp.Consumer{
 		Name:        ConsumerName,
 		MaxAttempts: maxAttempts,
 		Handle:      Handler(NewService(pool, clock, ids, wait)),
