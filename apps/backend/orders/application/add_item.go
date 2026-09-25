@@ -36,7 +36,7 @@ func (s Service) AddItem(ctx context.Context, cmd AddItem) (application.Outcome[
 		accepted, rejection := order.AddItem(domain.AddItem{
 			SKU:      cmd.SKU,
 			Quantity: cmd.Quantity,
-			At:       domain.Instant(identity.OccurredAt.Unix()),
+			At:       domain.Instant(identity.OccurredAt),
 		})
 		if rejection != nil {
 			// Returning nil commits a transaction with no effect, on purpose:

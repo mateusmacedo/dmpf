@@ -33,7 +33,7 @@ func (s Service) PlaceOrder(ctx context.Context, cmd PlaceOrder) (application.Ou
 		}
 
 		order := domain.FromSnapshot(snapshot)
-		accepted, rejection := order.Place(domain.PlaceOrder{At: domain.Instant(identity.OccurredAt.Unix())})
+		accepted, rejection := order.Place(domain.PlaceOrder{At: domain.Instant(identity.OccurredAt)})
 		if rejection != nil {
 			outcome = application.Rejected[domain.PlacedResponse](rejection)
 			return nil

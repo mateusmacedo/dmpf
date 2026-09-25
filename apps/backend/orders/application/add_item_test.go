@@ -51,7 +51,7 @@ func TestAddItemCreatesTheAggregateAndAuthorsTheOutboxEntry(t *testing.T) {
 		AggregateType:    application.AggregateType,
 		AggregateID:      string(orderID),
 		AggregateVersion: 1,
-		Event:            domain.ItemAdded{Order: orderID, SKU: "ABC", Quantity: 1, At: domain.Instant(occurred.Unix())},
+		Event:            domain.ItemAdded{Order: orderID, SKU: "ABC", Quantity: 1, At: domain.Instant(occurred)},
 		Context:          ports.MessageContext{CausationID: "m-000001"},
 	}
 	if got != want {
