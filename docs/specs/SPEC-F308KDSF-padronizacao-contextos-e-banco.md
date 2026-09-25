@@ -232,18 +232,18 @@ As seis fases são entregues numa única branch e num único PR. Cada fase só t
 
 ### Critérios de aceite
 
-- [ ] A busca por `dmpf` ou `example` em nome de objeto de banco não retorna nada em `*.sql`, `infra/`, `.github/` nem no código Go.
-- [ ] Depois do `Migrate`, cada banco contém exatamente estas tabelas, e um teste por contexto confere via `information_schema.tables`:
+- [x] A busca por `dmpf` ou `example` em nome de objeto de banco não retorna nada em `*.sql`, `infra/`, `.github/` nem no código Go.
+- [x] Depois do `Migrate`, cada banco contém exatamente estas tabelas, e um teste por contexto confere via `information_schema.tables`:
   - `orders`: `orders` e `outbox`;
   - `bookings`: `bookings`, `resources` e `outbox`;
   - `reservations`: `reservations`, `outbox`, `inbox` e `quarantine`.
-- [ ] Nenhum arquivo de teste do `bff` contém SQL.
-- [ ] O e2e do `bff` passa com os oito processos sobre três bancos: `bff`; `api`/`relay` de `orders`; `api`/`relay`/`consumer` de `reservations`; `api`/`relay` de `bookings`.
-- [ ] O instante publicado pelos três contextos coincide com o `OccurredAt` em nanossegundos, e Cancel e Register do `bookings` publicam evento no tópico.
-- [ ] Passam o `conformance`, o `dmpf-context-check.sh` (incluindo o `self-test`), o `buf-breaking` e o `pnpm nx affected -t lint,test,build,fmt-check,vet,test-race`.
+- [x] Nenhum arquivo de teste do `bff` contém SQL.
+- [x] O e2e do `bff` passa com os oito processos sobre três bancos: `bff`; `api`/`relay` de `orders`; `api`/`relay`/`consumer` de `reservations`; `api`/`relay` de `bookings`.
+- [x] O instante publicado pelos três contextos coincide com o `OccurredAt` em nanossegundos, e Cancel e Register do `bookings` publicam evento no tópico.
+- [x] Passam o `conformance`, o `dmpf-context-check.sh` (incluindo o `self-test`), o `buf-breaking` e o `pnpm nx affected -t lint,test,build,fmt-check,vet,test-race`.
 - [ ] Os testes do generator, o `dmpf-harness-check.sh --phase self-test` e o `dmpf-context-check.sh --self-test` passam, e o contexto gerado pelo generator difere do `bookings` só no conteúdo de domínio.
-- [ ] Nenhuma instrução de AI cita nome de banco, borda, alias ou layout antigos.
-- [ ] Em cada categoria de componente, os três contextos diferem só nas idiossincrasias listadas em "Escopo fora".
+- [x] Nenhuma instrução de AI cita nome de banco, borda, alias ou layout antigos.
+- [x] Em cada categoria de componente, os três contextos diferem só nas idiossincrasias listadas em "Escopo fora".
 
 ### Cenários de teste
 
