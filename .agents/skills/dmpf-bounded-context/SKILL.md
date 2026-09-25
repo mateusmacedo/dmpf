@@ -81,6 +81,6 @@ em inglês; comentário só quando explica um porquê que o código não diz.
 
 ```bash
 pnpm nx run-many -t fmt-check,vet,build,lint -p <name>
-DMPF_PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' pnpm nx run <name>:test-race
+PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' pnpm nx run <name>:test-race
 go run ./tools/dmpf-conformance/cmd/conformance --root . --base origin/develop
 ```

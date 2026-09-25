@@ -83,7 +83,7 @@ pnpm nx g @mateusmacedo/dmpf-plugin:bounded-context <name> --boundedContext <ctx
 | Harness de teste próprio (migra o kernel **e** o contexto; trunca as tabelas do kernel **e** as do contexto) | `orders/provider/testing_test.go` |
 | Testes de repositório, concorrência, e2e (build tag `integration`) | `orders/provider/{repository_test,concurrency_test,e2e_test}.go` |
 
-- Norma: ADR-034, ADR-035; `DMPF_PG_DSN` para a suíte.
+- Norma: ADR-034, ADR-035; `PG_DSN` para a suíte.
 - No `project.json` do módulo, `test-race` com `cache: false` e `dependsOn`
   sobre `postgres:test-race` (paridade local; ver armadilhas).
 
@@ -137,7 +137,7 @@ git add tools/dmpf-baseline/units-baseline.json && git commit   # só o baseline
 
 ```bash
 pnpm nx run-many -t fmt-check,vet,build,lint -p <name>
-DMPF_PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' pnpm nx run <name>:test-race
+PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' pnpm nx run <name>:test-race
 go run ./tools/dmpf-conformance/cmd/conformance --root . --base <ref-base>
 pnpm biome ci .
 ```

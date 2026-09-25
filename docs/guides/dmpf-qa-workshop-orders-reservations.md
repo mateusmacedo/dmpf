@@ -128,7 +128,7 @@ Depois rode o que já está verde (sem o caso novo):
 pnpm nx run testkit:test-race
 ```
 
-O teste `TestTheCounterMatchesTheProjectionFixture` tem de passar. Os testes que consumiam `order.golden` e `reservation.golden` saíram do kit junto com os exemplos (ADR-046); reescrevê-los no molde do `counter`, dentro do `domain` de cada contexto (`pnpm nx run orders:test-race`), é item aberto dos contextos — até lá, as duas fixtures ficam sem consumidor. Sem `DMPF_PG_DSN`, suítes de infra fazem skip **local**; não trate skip como aceite de `appkit`.
+O teste `TestTheCounterMatchesTheProjectionFixture` tem de passar. Os testes que consumiam `order.golden` e `reservation.golden` saíram do kit junto com os exemplos (ADR-046); reescrevê-los no molde do `counter`, dentro do `domain` de cada contexto (`pnpm nx run orders:test-race`), é item aberto dos contextos — até lá, as duas fixtures ficam sem consumidor. Sem `PG_DSN`, suítes de infra fazem skip **local**; não trate skip como aceite de `appkit`.
 
 Opcional, só contratos:
 

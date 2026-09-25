@@ -16,7 +16,7 @@
 # <SPEC>"`). Qualquer agente serve, desde que escreva no cwd. `true` liga o modo
 # manual: a prova imprime o worktree, espera Enter e julga o que estiver lá.
 #
-# DMPF_PG_DSN, quando definido, acrescenta o test-race das suítes Postgres,
+# PG_DSN, quando definido, acrescenta o test-race das suítes Postgres,
 # com --parallel=1 (os harnesses truncam tabelas do kernel).
 #
 # A fase `self-test` não usa LLM: sobre o golden commitado, retira
@@ -273,13 +273,13 @@ cadeia_nx() {
   (cd "$WT" && pnpm nx run-many -t fmt-check,vet,build,lint --projects="$lista" --parallel=3) \
     || falha "a cadeia fmt-check,vet,build,lint reprovou em $lista"
   ok "cadeia fmt-check,vet,build,lint aprovada em $lista"
-  if [ -n "${DMPF_PG_DSN:-}" ]; then
+  if [ -n "${PG_DSN:-}" ]; then
     lista="$(IFS=,; printf '%s' "${PROJETOS_POSTGRES[*]}")"
     (cd "$WT" && pnpm nx run-many -t test-race --projects="$lista" --parallel=1) \
       || falha "test-race reprovou em $lista"
     ok "test-race aprovado em $lista (--parallel=1)"
   else
-    printf '  aviso  DMPF_PG_DSN ausente: test-race das suítes Postgres não rodou\n'
+    printf '  aviso  PG_DSN ausente: test-race das suítes Postgres não rodou\n'
   fi
 }
 

@@ -178,7 +178,7 @@ contexto compartilha.
 
 ```bash
 pnpm nx run bff:infra-up
-DMPF_PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' \
+PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' \
   pnpm nx run <ctx>:test-race
 ```
 
@@ -324,8 +324,8 @@ está em [`bom/README.md`](../../bom/README.md).
 
    ```bash
    CI=true GOTOOLCHAIN=go1.26.6 \
-     DMPF_PG_DSN='postgres://dmpf:dmpf@localhost:5432/dmpf?sslmode=disable' \
-     DMPF_KAFKA_BROKERS=localhost:9092 DMPF_REDPANDA_ADMIN=http://localhost:9644 \
+     PG_DSN='postgres://dmpf:dmpf@localhost:5432/dmpf?sslmode=disable' \
+     KAFKA_BROKERS=localhost:9092 REDPANDA_ADMIN=http://localhost:9644 \
      go run ./libs/backend/go/testkit/cmd/evidence --root . --release <semver> --out /tmp/evidence-a/<semver>
    ```
 

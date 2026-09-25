@@ -134,7 +134,7 @@ tabela de plataforma com métrica e com código de exemplo.
 
 - [ ] **[P0] Criar o contrato de serviço do `bookings`**: `contracts/proto/company/bookings/service/v1/bookings_service.proto`, com métodos equivalentes às rotas REST atuais, gerado em `libs/backend/go/contracts/gen/go`.
 - [ ] **[P0] Substituir `app/http` por `app/rpc` no `bookings`**: servidor, interceptors e mapeamento de erro na mesma forma de `orders`/`reservations`.
-- [ ] **[P0] Mover as rotas REST de `bookings` para o `bff`**: `app/api/handlers_bookings.go`, com `ContractRef` para `contracts/openapi/bookings/v1/openapi.yaml`, cliente gRPC e `DMPF_BOOKINGS_GRPC_TARGET`.
+- [ ] **[P0] Mover as rotas REST de `bookings` para o `bff`**: `app/api/handlers_bookings.go`, com `ContractRef` para `contracts/openapi/bookings/v1/openapi.yaml`, cliente gRPC e `BOOKINGS_GRPC_TARGET`.
 - [ ] **[P0] Incluir o `bookings` na topologia**: papéis `api` e `relay` no compose e no k8s, tópico `bookings.events` com DLQ, principal Kafka `bookings` com ACLs (ADR-052) e certificado mTLS.
 
 #### Fase 5: Padronização dos componentes
@@ -248,7 +248,7 @@ As seis fases são entregues numa única branch e num único PR. Cada fase só t
 
 **Cenário 1: isolamento (caminho feliz)**
 DADO um banco vazio de `orders`
-QUANDO o `serve-api` sobe com `DMPF_MIGRATE=true`
+QUANDO o `serve-api` sobe com `MIGRATE=true`
 ENTÃO o banco contém só `orders` e `outbox`, com nomes de índice e constraint na convenção.
 
 **Cenário 2: rota REST de bookings via bff (caminho feliz)**

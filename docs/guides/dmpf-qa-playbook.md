@@ -166,7 +166,7 @@ Fitness/`conformance`, fakes de relógio, harness Postgres, `Skipped` de provide
 | Projeção | `domainkit` | `pnpm nx run testkit:test-race` (`TestTheCounterMatchesTheProjectionFixture`, o molde) e `pnpm nx run <ctx>:test-race` (o teste de projeção do `domain` do contexto) |
 | Wire | `golden` | mesmo target; dono das fixtures: `contracts` |
 | `.proto` | Buf | `pnpm nx run contracts:buf-lint` (e demais gates do módulo) |
-| Consumo / reentrega | `appkit`, `distkit` (em `apps/backend/reservations`) | `pnpm nx run reservations:test-race` com `DMPF_PG_DSN`; `reservations:test-distributed` com Redpanda |
+| Consumo / reentrega | `appkit`, `distkit` (em `apps/backend/reservations`) | `pnpm nx run reservations:test-race` com `PG_DSN`; `reservations:test-distributed` com Redpanda |
 
 Veredicto por valor: lista de diagnósticos com o ID da regra. `tb.Require` converte em falha de teste.
 
