@@ -21,10 +21,9 @@ type itemState struct {
 	Quantity int    `json:"quantity"`
 }
 
-// orderTable declares how the Order snapshot maps to columns. The statements,
-// and with them the tenant predicate, are the kernel's: a read or write written
-// here could not omit the scope even by mistake (IDN-14). No query filters an
-// order by anything but its id, so the whole state is the snapshot.
+// orderTable maps the Order snapshot to columns under the kernel statements and
+// their tenant predicate (IDN-14). No query filters an order by anything but its
+// id, so the whole state is the snapshot.
 var orderTable = postgres.Table[domain.OrderID, domain.Snapshot]{
 	Name:     "orders",
 	IDColumn: "order_id",
