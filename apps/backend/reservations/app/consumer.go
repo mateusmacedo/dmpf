@@ -31,7 +31,7 @@ func Bind(wait time.Duration) func(tx *postgres.Tx) application.Resources {
 	return func(tx *postgres.Tx) application.Resources {
 		return application.Resources{
 			Inbox:        tx.Inbox(ConsumerName, wait),
-			Reservations: provider.NewRepository(tx),
+			Reservations: provider.NewReservationRepository(tx),
 			Outbox:       tx.Outbox(provider.Mapper{}),
 		}
 	}
@@ -42,7 +42,7 @@ func Bind(wait time.Duration) func(tx *postgres.Tx) application.Resources {
 func NewService(pool *pgxpool.Pool, clock ports.Clock, ids ports.IDGenerator, wait time.Duration) application.Service {
 	return application.Service{
 		UoW:       postgres.NewUnitOfWork(pool, Bind(wait)),
-		Reader:    provider.NewReader(postgres.NewReadPool(pool)),
+		Reader:    provider.NewReservationReader(postgres.NewReadPool(pool)),
 		Clock:     clock,
 		IDs:       ids,
 		Authorize: Authorization(),

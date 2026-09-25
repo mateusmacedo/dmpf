@@ -13,14 +13,14 @@ import (
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
 )
 
-var reservationsTable = memory.Table[domain.OrderID, domain.Snapshot]{Name: "reservations"}
+var reservationTable = memory.Table[domain.OrderID, domain.Snapshot]{Name: "reservations"}
 
 const consumer = "reservations"
 
 func bind(tx *memory.Tx) application.Resources {
 	return application.Resources{
 		Inbox:        tx.Inbox(consumer),
-		Reservations: reservationsTable.Repository(tx),
+		Reservations: reservationTable.Repository(tx),
 		Outbox:       tx.Outbox(),
 	}
 }
@@ -108,7 +108,7 @@ func TestConsumeFirstReceptionAppliesAndConfirms(t *testing.T) {
 	if disp != usecase.R1D1 {
 		t.Fatalf("Consume() disposition = %v, want %v", disp, usecase.R1D1)
 	}
-	snapshot, _, err := reservationsTable.Reader(store).Load(withExecution(t, context.Background()), "P-100")
+	snapshot, _, err := reservationTable.Reader(store).Load(withExecution(t, context.Background()), "P-100")
 	if err != nil {
 		t.Fatalf("Load() = %v, want nil", err)
 	}
@@ -191,7 +191,7 @@ func TestConsumeZeroItemsRejects(t *testing.T) {
 	if got := len(store.Entries()); got != 0 {
 		t.Fatalf("Entries() has %d elements, want 0", got)
 	}
-	if _, _, err := reservationsTable.Reader(store).Load(withExecution(t, context.Background()), "P-100"); !errors.Is(err, ports.ErrNotFound) {
+	if _, _, err := reservationTable.Reader(store).Load(withExecution(t, context.Background()), "P-100"); !errors.Is(err, ports.ErrNotFound) {
 		t.Fatalf("Load() = %v, want ErrNotFound — a rejection persists no reservation", err)
 	}
 }
@@ -337,7 +337,7 @@ func TestConsumeTwoMessagesForTheSameOrderReserveOnlyOnce(t *testing.T) {
 	if got, _ := store.InboxLastError(consumer, "m-ext-2"); got != string(domain.CodeReservationAlreadyReserved) {
 		t.Fatalf("InboxLastError() = %q, want %q", got, domain.CodeReservationAlreadyReserved)
 	}
-	snapshot, _, err := reservationsTable.Reader(store).Load(withExecution(t, context.Background()), "P-100")
+	snapshot, _, err := reservationTable.Reader(store).Load(withExecution(t, context.Background()), "P-100")
 	if err != nil {
 		t.Fatalf("Load() = %v, want nil", err)
 	}

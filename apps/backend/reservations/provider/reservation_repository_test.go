@@ -25,7 +25,7 @@ type repoResources struct {
 }
 
 func bindRepo(tx *postgres.Tx) repoResources {
-	return repoResources{Reservations: provider.NewRepository(tx)}
+	return repoResources{Reservations: provider.NewReservationRepository(tx)}
 }
 
 func snapshot(items int) domain.Snapshot {

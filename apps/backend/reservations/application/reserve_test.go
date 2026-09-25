@@ -26,7 +26,7 @@ func TestReserveCreatesTheReservationAndAuthorsTheOutboxEntry(t *testing.T) {
 		t.Fatalf("Response() = %+v, want %+v", got, want)
 	}
 
-	snapshot, version, err := reservationsTable.Reader(h.store).Load(withExecution(t, context.Background()), syncOrder)
+	snapshot, version, err := reservationTable.Reader(h.store).Load(withExecution(t, context.Background()), syncOrder)
 	if err != nil {
 		t.Fatalf("Load() = %v, want nil", err)
 	}
@@ -87,7 +87,7 @@ func TestReserveOnACanceledReservationRejectsWithoutWriting(t *testing.T) {
 	if !refused || rej.Code() != domain.CodeReservationCancelled {
 		t.Fatalf("Rejection() = %v, %v; want %q", rej, refused, domain.CodeReservationCancelled)
 	}
-	if _, version, _ := reservationsTable.Reader(h.store).Load(withExecution(t, context.Background()), syncOrder); version != 1 {
+	if _, version, _ := reservationTable.Reader(h.store).Load(withExecution(t, context.Background()), syncOrder); version != 1 {
 		t.Fatalf("version = %d, want 1 — a refusal writes nothing", version)
 	}
 	if got := h.store.Entries(); len(got) != 0 {

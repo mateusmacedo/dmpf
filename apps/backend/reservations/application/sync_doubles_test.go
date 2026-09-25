@@ -130,7 +130,7 @@ func newSyncHarness(t *testing.T, options ...syncOption) *syncHarness {
 		h.binds++
 		return application.Resources{
 			Inbox:        tx.Inbox(consumer),
-			Reservations: syncRepository{inner: reservationsTable.Repository(tx), h: h, saveErr: cfg.saveErr},
+			Reservations: syncRepository{inner: reservationTable.Repository(tx), h: h, saveErr: cfg.saveErr},
 			Outbox:       syncOutbox{inner: tx.Outbox(), h: h},
 		}
 	}
@@ -138,7 +138,7 @@ func newSyncHarness(t *testing.T, options ...syncOption) *syncHarness {
 	authorize := cfg.authorize
 	h.service = application.Service{
 		UoW:    syncUnitOfWork{inner: memory.NewUnitOfWork(h.store, bindSync), rec: h.rec},
-		Reader: reservationsTable.Reader(h.store),
+		Reader: reservationTable.Reader(h.store),
 		Clock:  syncClock{inner: memory.FixedClock{At: syncOccurred}, rec: h.rec},
 		IDs:    syncIDs{inner: &memory.SequenceIDs{Prefix: "m-"}, rec: h.rec},
 		Authorize: func(ctx context.Context, cmd application.Operation) error {

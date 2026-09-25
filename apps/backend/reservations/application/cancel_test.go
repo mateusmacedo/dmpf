@@ -22,7 +22,7 @@ func TestCancelCreatesACanceledReservationAndAuthorsTheOutboxEntry(t *testing.T)
 		t.Fatalf("Response() = %+v, want %+v", got, want)
 	}
 
-	snapshot, version, err := reservationsTable.Reader(h.store).Load(withExecution(t, context.Background()), syncOrder)
+	snapshot, version, err := reservationTable.Reader(h.store).Load(withExecution(t, context.Background()), syncOrder)
 	if err != nil || version != 1 || snapshot.Status != domain.Cancelled {
 		t.Fatalf("stored = %+v v%d (%v), want canceled at v1", snapshot, version, err)
 	}

@@ -3,10 +3,9 @@ package provider
 import (
 	"encoding/json"
 
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
-
-	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
 )
 
 // reservationState is the snapshot column. The JSON names are fixed here so a
@@ -16,11 +15,11 @@ type reservationState struct {
 	Status int `json:"status"`
 }
 
-// reservationsTable declares how the Reservation snapshot maps to columns,
+// reservationTable declares how the Reservation snapshot maps to columns,
 // under the kernel statements and their tenant predicate (IDN-14). No query
 // filters a reservation by anything but its order, so the whole state is the
 // snapshot.
-var reservationsTable = postgres.Table[domain.OrderID, domain.Snapshot]{
+var reservationTable = postgres.Table[domain.OrderID, domain.Snapshot]{
 	Name:     "reservations",
 	IDColumn: "order_id",
 	Columns:  []string{"snapshot"},
@@ -51,15 +50,9 @@ var reservationsTable = postgres.Table[domain.OrderID, domain.Snapshot]{
 	},
 }
 
-// NewRepository binds the repository to an open transaction, because every read
+// NewReservationRepository binds the repository to an open transaction, because every read
 // and write of the aggregate has to run on the same transaction as the outbox
 // row (UOW-01).
-func NewRepository(tx *postgres.Tx) ports.Repository[domain.OrderID, domain.Snapshot] {
-	return reservationsTable.Repository(tx)
-}
-
-// NewReader serves the read side without the write side (UOW-11): it takes the
-// pool because a query must not open a transaction.
-func NewReader(pool postgres.ReadPool) ports.Reader[domain.OrderID, domain.Snapshot] {
-	return reservationsTable.Reader(pool)
+func NewReservationRepository(tx *postgres.Tx) ports.Repository[domain.OrderID, domain.Snapshot] {
+	return reservationTable.Repository(tx)
 }
