@@ -1,5 +1,5 @@
 # Topologia de referência (ADR-044): o BFF é a única borda HTTP publicada no
-# host; orders e reservations servem gRPC só na rede do projeto, cada um com o
+# host; orders, reservations e bookings servem gRPC só na rede do projeto, cada um com o
 # próprio banco e role, e cada relay drena apenas a outbox do seu contexto. Os
 # bancos nascem no postgres-init; o schema, no papel api (MIGRATE=true). Relay e
 # consumer reiniciam até as tabelas existirem. Os tópicos vêm do redpanda-init.
@@ -18,6 +18,12 @@ x-reservations-image: &reservations-image
     context: ../../..
     dockerfile: apps/backend/reservations/Dockerfile
   image: ${RESERVATIONS_IMAGE:-reservations:local}
+
+x-bookings-image: &bookings-image
+  build:
+    context: ../../..
+    dockerfile: apps/backend/bookings/Dockerfile
+  image: ${BOOKINGS_IMAGE:-bookings:local}
 
 x-dmpf-env: &dmpf-env
   OTLP_ENDPOINT: otel-collector:4317
@@ -41,6 +47,10 @@ x-kafka-reservations: &kafka-reservations
   KAFKA_SASL_USERNAME: reservations
   KAFKA_SASL_PASSWORD: ${KAFKA_RESERVATIONS_PASSWORD:-reservations-local}
 
+x-kafka-bookings: &kafka-bookings
+  KAFKA_SASL_USERNAME: bookings
+  KAFKA_SASL_PASSWORD: ${KAFKA_BOOKINGS_PASSWORD:-bookings-local}
+
 x-orders-env: &orders-env
   SERVICE: orders
   PG_DSN: postgres://orders:${ORDERS_PG_PASSWORD:-orders-local}@postgres:5432/orders?sslmode=disable
@@ -48,6 +58,10 @@ x-orders-env: &orders-env
 x-reservations-env: &reservations-env
   SERVICE: reservations
   PG_DSN: postgres://reservations:${RESERVATIONS_PG_PASSWORD:-reservations-local}@postgres:5432/reservations?sslmode=disable
+
+x-bookings-env: &bookings-env
+  SERVICE: bookings
+  PG_DSN: postgres://bookings:${BOOKINGS_PG_PASSWORD:-bookings-local}@postgres:5432/bookings?sslmode=disable
 
 # gRPC interno com mTLS (IDN-03): cada api apresenta o próprio certificado e só
 # serve o workload que a CA local assinou e a allowlist nomeia — o BFF. Os
@@ -120,12 +134,14 @@ services:
         su="-X brokers=redpanda:29092 -X user=console -X pass=${KAFKA_CONSOLE_PASSWORD:-console-local} -X sasl.mechanism=SCRAM-SHA-256"
         for user in orders:${KAFKA_ORDERS_PASSWORD:-orders-local} \
           reservations:${KAFKA_RESERVATIONS_PASSWORD:-reservations-local} \
+          bookings:${KAFKA_BOOKINGS_PASSWORD:-bookings-local} \
           console:${KAFKA_CONSOLE_PASSWORD:-console-local}; do
           rpk security user create "$${user%%:*}" -p "$${user#*:}" --mechanism SCRAM-SHA-256 $$admin || true
         done
         rpk cluster config set superusers '["console",""]' $$admin
         rpk topic create ${KAFKA_ORDERS_TOPIC:-orders.events} ${KAFKA_ORDERS_DLQ:-orders.events.dlq} \
           ${KAFKA_RESERVATIONS_TOPIC:-reservations.events} ${KAFKA_RESERVATIONS_DLQ:-reservations.events.dlq} \
+          ${KAFKA_BOOKINGS_TOPIC:-bookings.events} ${KAFKA_BOOKINGS_DLQ:-bookings.events.dlq} \
           $$su -p 1 -r 1 || true
         rpk security acl create --allow-principal User:orders --operation write,describe \
           --topic ${KAFKA_ORDERS_TOPIC:-orders.events} --topic ${KAFKA_ORDERS_DLQ:-orders.events.dlq} $$su
@@ -134,6 +150,8 @@ services:
           --topic ${KAFKA_ORDERS_DLQ:-orders.events.dlq} $$su
         rpk security acl create --allow-principal User:reservations --operation read,describe \
           --topic ${KAFKA_ORDERS_TOPIC:-orders.events} --group ${KAFKA_GROUP:-reservations} $$su
+        rpk security acl create --allow-principal User:bookings --operation write,describe \
+          --topic ${KAFKA_BOOKINGS_TOPIC:-bookings.events} --topic ${KAFKA_BOOKINGS_DLQ:-bookings.events.dlq} $$su
         rpk cluster config set kafka_enable_authorization true $$admin
     deploy:
       resources:
@@ -222,6 +240,40 @@ services:
         condition: service_started
     deploy: *worker-limits
 
+  dmpf-bookings-api:
+    <<: [*app, *bookings-image]
+    command: ['--role', 'api']
+    environment:
+      <<: [*dmpf-env, *bookings-env, *grpc-server-env]
+      INSTANCE_ID: bookings-api
+      GRPC_TLS_CERT_FILE: /pki/dmpf-bookings-api.crt
+      GRPC_TLS_KEY_FILE: /pki/dmpf-bookings-api.key
+    volumes: *pki
+    depends_on:
+      pki-init:
+        condition: service_completed_successfully
+      postgres-init:
+        condition: service_completed_successfully
+      otel-collector:
+        condition: service_started
+    deploy: *app-limits
+
+  dmpf-bookings-relay:
+    <<: [*app, *bookings-image]
+    command: ['--role', 'relay']
+    environment:
+      <<: [*dmpf-env, *bookings-env, *kafka-env, *kafka-bookings]
+      INSTANCE_ID: bookings-relay
+      KAFKA_GROUP: bookings
+      KAFKA_BOOKINGS_TOPIC: ${KAFKA_BOOKINGS_TOPIC:-bookings.events}
+      KAFKA_BOOKINGS_DLQ: ${KAFKA_BOOKINGS_DLQ:-bookings.events.dlq}
+    depends_on:
+      redpanda-init:
+        condition: service_completed_successfully
+      dmpf-bookings-api:
+        condition: service_started
+    deploy: *worker-limits
+
   dmpf-bff:
     <<: *app
     build:
@@ -235,6 +287,7 @@ services:
       HTTP_ADDR: ':8080'
       ORDERS_GRPC_TARGET: dns:///dmpf-orders-api:9090
       RESERVATIONS_GRPC_TARGET: dns:///dmpf-reservations-api:9090
+      BOOKINGS_GRPC_TARGET: dns:///dmpf-bookings-api:9090
       # Autenticador de desenvolvimento (IDN-01): lê a identidade declarada no
       # próprio Bearer; fora do compose a partida exige OIDC_ISSUER.
       AUTH_DEV_MOCK: 'true'
@@ -244,6 +297,7 @@ services:
       GRPC_CLIENT_KEY_FILE: /pki/bff-client.key
       OPENAPI_ORDERS_PATH: /contracts/openapi/orders/v1/openapi.yaml
       OPENAPI_RESERVATIONS_PATH: /contracts/openapi/reservations/v1/openapi.yaml
+      OPENAPI_BOOKINGS_PATH: /contracts/openapi/bookings/v1/openapi.yaml
       # Só o Swagger UI local chama o BFF de outro origin; fora do
       # desenvolvimento a variável fica vazia e a borda é same-origin.
       CORS_ORIGINS: http://localhost:${SWAGGER_PORT:-8082},http://127.0.0.1:${SWAGGER_PORT:-8082}
@@ -256,6 +310,8 @@ services:
       dmpf-orders-api:
         condition: service_started
       dmpf-reservations-api:
+        condition: service_started
+      dmpf-bookings-api:
         condition: service_started
       otel-collector:
         condition: service_started

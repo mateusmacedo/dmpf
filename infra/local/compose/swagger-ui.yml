@@ -1,5 +1,5 @@
-# Swagger UI sobre os dois contratos que o BFF serve em
-# /openapi/{orders,reservations}/v1/openapi.yaml: URLS lista as specs no seletor
+# Swagger UI sobre os três contratos que o BFF serve em
+# /openapi/{orders,reservations,bookings}/v1/openapi.yaml: URLS lista as specs no seletor
 # da barra superior (swagger-ui, docs/usage/configuration.md). O "Try it out"
 # chama o BFF de outro origin, por isso o BFF recebe CORS_ORIGINS com este
 # endereço — só no compose local.
@@ -8,7 +8,7 @@ services:
     image: swaggerapi/swagger-ui:v5.31.0
     profiles: [dmpf]
     environment:
-      URLS: "[{ url: 'http://localhost:${HTTP_PORT:-8080}/openapi/orders/v1/openapi.yaml', name: 'orders' }, { url: 'http://localhost:${HTTP_PORT:-8080}/openapi/reservations/v1/openapi.yaml', name: 'reservations' }]"
+      URLS: "[{ url: 'http://localhost:${HTTP_PORT:-8080}/openapi/orders/v1/openapi.yaml', name: 'orders' }, { url: 'http://localhost:${HTTP_PORT:-8080}/openapi/reservations/v1/openapi.yaml', name: 'reservations' }, { url: 'http://localhost:${HTTP_PORT:-8080}/openapi/bookings/v1/openapi.yaml', name: 'bookings' }]"
       TRY_IT_OUT_ENABLED: 'true'
     ports:
       - '${SWAGGER_PORT:-8082}:8080'

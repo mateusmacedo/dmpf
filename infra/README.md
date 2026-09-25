@@ -39,7 +39,7 @@ infra/
 
 ## Desenvolvimento local (Compose)
 
-Os profiles são cumulativos. `observability` sobe a plataforma inteira; `dmpf` sobe os seis processos da topologia de referência — o BFF, `api` e `relay` de orders, `api`, `relay` e `consumer` de reservations — **com** tudo o que eles precisam e observam, inclusive o `postgres-init` (cria banco e role de mesmo nome para `orders`, `reservations` e `bookings`, com o banco pertencendo ao role, sem falhar quando já existem), o `redpanda-init` (usuários SASL, tópicos e ACLs) e o `pki-init` (CA e certificados do mTLS interno); `all` sobe a infraestrutura toda menos as apps. Diferente do BFF e dos dois contextos da topologia de referência, `bookings` não faz parte de nenhum profile local — sobe isolado contra o profile `postgres` (ver `apps/backend/bookings/README.md`).
+Os profiles são cumulativos. `observability` sobe a plataforma inteira; `dmpf` sobe os oito processos da topologia de referência — o BFF, `api` e `relay` de orders, `api`, `relay` e `consumer` de reservations, `api` e `relay` de bookings — **com** tudo o que eles precisam e observam, inclusive o `postgres-init` (cria banco e role de mesmo nome para `orders`, `reservations` e `bookings`, com o banco pertencendo ao role, sem falhar quando já existem), o `redpanda-init` (usuários SASL, tópicos e ACLs) e o `pki-init` (CA e certificados do mTLS interno); `all` sobe a infraestrutura toda menos as apps.
 
 ```bash
 # só o banco (o que os testes de integração dos módulos Go precisam)
@@ -48,7 +48,7 @@ docker compose -f infra/local/docker-compose.yml --profile postgres up -d
 # a plataforma de observabilidade e os exporters
 pnpm nx run bff:observability-up
 
-# os seis processos com dependências, exporters e painéis (constrói as três imagens)
+# os oito processos com dependências, exporters e painéis (constrói as quatro imagens)
 docker compose -f infra/local/docker-compose.yml --profile dmpf up -d --build
 
 # derrubar (os volumes ficam; `-v` apaga os dados)
@@ -78,7 +78,7 @@ docker compose -f infra/local/docker-compose.yml --profile dmpf up -d --build
 
 ### mTLS interno e SASL no Kafka (profile `dmpf`)
 
-O `pki-init` gera, num volume nomeado e só na primeira subida, uma CA de desenvolvimento, o certificado de servidor de cada `api` (`dmpf-orders-api`, `dmpf-reservations-api`) e o certificado de cliente do BFF, com a URI `spiffe://dmpf/bff` no SAN. Os `api` exigem e verificam esse certificado (`GRPC_CLIENT_CA_FILE`, `GRPC_TRUSTED_CLIENTS`); o BFF apresenta o seu (`GRPC_CA_FILE`, `GRPC_CLIENT_CERT_FILE`/`_KEY_FILE`) e autentica localmente por `AUTH_DEV_MOCK=true` — sem verificação real de identidade, só para o desenvolvimento (ver `apps/backend/bff/README.md`). O listener Kafka interno (`redpanda:29092`) exige SASL SCRAM-SHA-256; o `redpanda-init` cria um principal por processo (`orders`, `reservations`, `console`) e as ACLs por principal do ADR-052 — cada um só escreve no próprio tópico e na DLQ que alimenta, e só `reservations` lê `orders.events`. O listener externo (`localhost:${REDPANDA_PORT:-9092}`), que os testes de integração dos módulos Go usam, continua sem autenticação — é o mesmo cluster, alcançável por qualquer container da rede, e o principal desse listener é superusuário; serve só ao desenvolvimento local.
+O `pki-init` gera, num volume nomeado e só na primeira subida, uma CA de desenvolvimento, o certificado de servidor de cada `api` (`dmpf-orders-api`, `dmpf-reservations-api`, `dmpf-bookings-api`) e o certificado de cliente do BFF, com a URI `spiffe://dmpf/bff` no SAN. Os `api` exigem e verificam esse certificado (`GRPC_CLIENT_CA_FILE`, `GRPC_TRUSTED_CLIENTS`); o BFF apresenta o seu (`GRPC_CA_FILE`, `GRPC_CLIENT_CERT_FILE`/`_KEY_FILE`) e autentica localmente por `AUTH_DEV_MOCK=true` — sem verificação real de identidade, só para o desenvolvimento (ver `apps/backend/bff/README.md`). O listener Kafka interno (`redpanda:29092`) exige SASL SCRAM-SHA-256; o `redpanda-init` cria um principal por processo (`orders`, `reservations`, `bookings`, `console`) e as ACLs por principal do ADR-052 — cada um só escreve no próprio tópico e na DLQ que alimenta, e só `reservations` lê `orders.events`. O listener externo (`localhost:${REDPANDA_PORT:-9092}`), que os testes de integração dos módulos Go usam, continua sem autenticação — é o mesmo cluster, alcançável por qualquer container da rede, e o principal desse listener é superusuário; serve só ao desenvolvimento local.
 
 ### Portas no host
 
@@ -121,7 +121,7 @@ Todo serviço declara `deploy.resources` com teto (`limits`) e mínimo (`reserva
 pnpm nx run bff:infra-budget
 ```
 
-Na máquina de referência (14 vCPU, 15,36 GiB) a soma dá **4,55 vCPU (32,5%)** e **8,22 GiB (53,5%)** com os 25 serviços: os seis processos da topologia dividem o mesmo 0,75 vCPU que os três papéis do app único usavam (0,15 no BFF e em cada `api`, 0,10 em cada relay e no consumer), e `postgres-init`, `redpanda-init` e `pki-init` ficam em 0,05–0,10 vCPU cada, todos de execução única. O teto é relativo ao host: num host de 8 vCPU os 60% (4,80 vCPU) comportam a soma com folga. O maior teto é do Redpanda (0,60 vCPU / 1,5 GiB, com `--memory=1G` no próprio broker); os exporters ficam em 0,05 vCPU / 64 MiB cada. O uso real em regime é da ordem de 0,15 vCPU e 1,2 GiB — os tetos protegem o host, não dimensionam o normal.
+A soma dos tetos dá **4,80 vCPU** e **8,53 GiB** com os 27 serviços: os oito processos da topologia somam 1,00 vCPU (0,15 no BFF e em cada `api`, 0,10 em cada relay e no consumer), e `postgres-init`, `redpanda-init` e `pki-init` ficam em 0,05–0,10 vCPU cada, todos de execução única. O teto é relativo ao host: num host de 8 vCPU os 60% (4,80 vCPU) comportam a soma sem folga, no limite. O maior teto é do Redpanda (0,60 vCPU / 1,5 GiB, com `--memory=1G` no próprio broker); os exporters ficam em 0,05 vCPU / 64 MiB cada. O uso real em regime é da ordem de 0,15 vCPU e 1,2 GiB — os tetos protegem o host, não dimensionam o normal.
 
 ### O que observa o quê
 
