@@ -49,7 +49,7 @@ func NewOrders(t testing.TB, clock ports.Clock, ids ports.IDGenerator) Harness {
 	return Harness{
 		Service: application.Service{
 			UoW:       postgres.NewUnitOfWork(pool, bind),
-			Reader:    provider.NewReader(postgres.NewReadPool(pool)),
+			Reader:    provider.NewOrderReader(postgres.NewReadPool(pool)),
 			Clock:     clock,
 			IDs:       ids,
 			Authorize: kernel.AllowAll[application.Operation](),
@@ -61,7 +61,7 @@ func NewOrders(t testing.TB, clock ports.Clock, ids ports.IDGenerator) Harness {
 
 func bind(tx *postgres.Tx) application.Resources {
 	return application.Resources{
-		Orders: provider.NewRepository(tx),
+		Orders: provider.NewOrderRepository(tx),
 		Outbox: tx.Outbox(provider.Mapper{}),
 	}
 }

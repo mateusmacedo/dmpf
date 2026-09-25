@@ -47,7 +47,7 @@ func RunWith(ctx context.Context, cfg Config, rt *otelboot.Runtime, out io.Write
 
 func bindOrders(tx *postgres.Tx) application.Resources {
 	return application.Resources{
-		Orders: provider.NewRepository(tx),
+		Orders: provider.NewOrderRepository(tx),
 		Outbox: tx.Outbox(provider.Mapper{}),
 	}
 }
@@ -57,7 +57,7 @@ func bindOrders(tx *postgres.Tx) application.Resources {
 func NewOrdersService(pool *pgxpool.Pool, rt *otelboot.Runtime, cfg Config, auditOut io.Writer) application.Service {
 	return application.Service{
 		UoW:             postgres.NewUnitOfWork(pool, bindOrders),
-		Reader:          provider.NewReader(postgres.NewReadPool(pool)),
+		Reader:          provider.NewOrderReader(postgres.NewReadPool(pool)),
 		Clock:           idclock.SystemClock{},
 		IDs:             idclock.NewMessageIDs("orders"),
 		Authorize:       Authorization(),

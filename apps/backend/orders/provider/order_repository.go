@@ -21,11 +21,11 @@ type itemState struct {
 	Quantity int    `json:"quantity"`
 }
 
-// ordersTable declares how the Order snapshot maps to columns. The statements,
+// orderTable declares how the Order snapshot maps to columns. The statements,
 // and with them the tenant predicate, are the kernel's: a read or write written
 // here could not omit the scope even by mistake (IDN-14). No query filters an
 // order by anything but its id, so the whole state is the snapshot.
-var ordersTable = postgres.Table[domain.OrderID, domain.Snapshot]{
+var orderTable = postgres.Table[domain.OrderID, domain.Snapshot]{
 	Name:     "orders",
 	IDColumn: "order_id",
 	Columns:  []string{"snapshot"},
@@ -64,15 +64,9 @@ var ordersTable = postgres.Table[domain.OrderID, domain.Snapshot]{
 	},
 }
 
-// NewRepository binds the repository to an open transaction, because every read
+// NewOrderRepository binds the repository to an open transaction, because every read
 // and write of the aggregate has to run on the same transaction as the outbox
 // row (UOW-01).
-func NewRepository(tx *postgres.Tx) ports.Repository[domain.OrderID, domain.Snapshot] {
-	return ordersTable.Repository(tx)
-}
-
-// NewReader serves the read side without the write side (UOW-11): it takes the
-// pool because a query must not open a transaction.
-func NewReader(pool postgres.ReadPool) ports.Reader[domain.OrderID, domain.Snapshot] {
-	return ordersTable.Reader(pool)
+func NewOrderRepository(tx *postgres.Tx) ports.Repository[domain.OrderID, domain.Snapshot] {
+	return orderTable.Repository(tx)
 }

@@ -23,7 +23,7 @@ type repoResources struct {
 }
 
 func bindRepo(tx *postgres.Tx) repoResources {
-	return repoResources{Orders: provider.NewRepository(tx)}
+	return repoResources{Orders: provider.NewOrderRepository(tx)}
 }
 
 func snapshot(quantity int) domain.Snapshot {

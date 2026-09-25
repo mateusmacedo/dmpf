@@ -29,7 +29,7 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/admission"
 )
 
-var ordersTable = memory.Table[domain.OrderID, domain.Snapshot]{
+var orderTable = memory.Table[domain.OrderID, domain.Snapshot]{
 	Name:  "orders",
 	Clone: func(s domain.Snapshot) domain.Snapshot { s.Items = slices.Clone(s.Items); return s },
 }
@@ -72,9 +72,9 @@ func newHarness(t *testing.T, limit admission.Limit) *harness {
 	store := memory.New()
 	service := application.Service{
 		UoW: memory.NewUnitOfWork(store, func(tx *memory.Tx) application.Resources {
-			return application.Resources{Orders: ordersTable.Repository(tx), Outbox: tx.Outbox()}
+			return application.Resources{Orders: orderTable.Repository(tx), Outbox: tx.Outbox()}
 		}),
-		Reader:    ordersTable.Reader(store),
+		Reader:    orderTable.Reader(store),
 		Clock:     memory.FixedClock{At: occurred},
 		IDs:       &memory.SequenceIDs{Prefix: "m-"},
 		Authorize: usecase.AllowAll[application.Operation](),

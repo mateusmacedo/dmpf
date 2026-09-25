@@ -53,7 +53,7 @@ type outboxRow struct {
 func newService(pool *pgxpool.Pool) application.Service {
 	bind := func(tx *postgres.Tx) application.Resources {
 		return application.Resources{
-			Orders: provider.NewRepository(tx),
+			Orders: provider.NewOrderRepository(tx),
 			Outbox: tx.Outbox(provider.Mapper{}),
 		}
 	}
