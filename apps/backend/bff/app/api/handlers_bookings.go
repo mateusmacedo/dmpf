@@ -2,15 +2,11 @@ package api
 
 import (
 	"net/http"
-	"unicode/utf8"
 
 	bookingsv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/bookings/service/v1"
 )
 
-const (
-	maxResourceLength = 128
-	maxQuantity       = 100
-)
+const maxQuantity = 100
 
 type reserveBookingRequest struct {
 	BookingID  string `json:"bookingId"`
@@ -41,12 +37,6 @@ type bookingView struct {
 var bookingStatuses = map[bookingsv1.BookingStatus]string{
 	bookingsv1.BookingStatus_BOOKING_STATUS_RESERVED:  "reserved",
 	bookingsv1.BookingStatus_BOOKING_STATUS_CANCELLED: "cancelled",
-}
-
-// WHY: maxLength in JSON Schema counts code points, so len would refuse a value
-// the contract accepts as soon as it carries a non-ASCII character.
-func withinResourceLength(value string) bool {
-	return value != "" && utf8.RuneCountInString(value) <= maxResourceLength
 }
 
 func (h handlers) reserveBooking(w http.ResponseWriter, r *http.Request) {
@@ -101,8 +91,8 @@ func (h handlers) registerResource(w http.ResponseWriter, r *http.Request) {
 		writeRejection(r, w, http.StatusBadRequest, "malformed-body", "the body is not the RegisterRequest of the contract")
 		return
 	}
-	if !withinResourceLength(req.Code) {
-		writeRejection(r, w, http.StatusBadRequest, "invalid-request", "code must have 1 to 128 characters")
+	if !idFormat.MatchString(req.Code) {
+		writeRejection(r, w, http.StatusBadRequest, "invalid-request", "code must have 1 to 128 characters of [A-Za-z0-9._:-]")
 		return
 	}
 
@@ -141,8 +131,8 @@ func (h handlers) findBooking(w http.ResponseWriter, r *http.Request) {
 
 func (h handlers) findBookingByResource(w http.ResponseWriter, r *http.Request) {
 	resource := r.URL.Query().Get("resourceId")
-	if !withinResourceLength(resource) {
-		writeRejection(r, w, http.StatusBadRequest, "invalid-request", "resourceId must have 1 to 128 characters")
+	if !idFormat.MatchString(resource) {
+		writeRejection(r, w, http.StatusBadRequest, "invalid-request", "resourceId must have 1 to 128 characters of [A-Za-z0-9._:-]")
 		return
 	}
 	resp, err := h.bookings.FindBookingsByResource(r.Context(), &bookingsv1.FindBookingsByResourceRequest{ResourceId: resource})

@@ -66,7 +66,9 @@ func TestMalformedBookingsRequestsNeverCallTheContext(t *testing.T) {
 		"booking id with a space":    {http.MethodPost, "/bookings/booking", `{"bookingId":"b 1","resourceId":"room-1","quantity":1}`},
 		"unknown field":              {http.MethodPost, "/bookings/booking", `{"bookingId":"b-1","resourceId":"room-1","quantity":1,"extra":true}`},
 		"empty code":                 {http.MethodPost, "/bookings/resource", `{"code":""}`},
+		"code with a space":          {http.MethodPost, "/bookings/resource", `{"code":"sala 12"}`},
 		"missing resource filter":    {http.MethodGet, "/bookings/booking", ""},
+		"resource filter with space": {http.MethodGet, "/bookings/booking?resourceId=sala%2012", ""},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
