@@ -28,12 +28,12 @@ jobs:
       # em vez de pular quando uma variável de integração falta.
       CI: "true"
       NX_EXCLUDE: "@mateusmacedo/dmpf-source"
-      DMPF_PG_DSN: "postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable"
-      DMPF_KAFKA_BROKERS: "localhost:9092"
-      DMPF_KAFKA_SASL_BROKERS: "localhost:19092"
-      DMPF_KAFKA_SASL_USERNAME: "dmpf-ci"
-      DMPF_KAFKA_SASL_PASSWORD: "dmpf-ci-secret"
-      DMPF_SQS_ENDPOINT: "http://localhost:4566"
+      PG_DSN: "postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable"
+      KAFKA_BROKERS: "localhost:9092"
+      KAFKA_SASL_BROKERS: "localhost:19092"
+      KAFKA_SASL_USERNAME: "dmpf-ci"
+      KAFKA_SASL_PASSWORD: "dmpf-ci-secret"
+      SQS_ENDPOINT: "http://localhost:4566"
       AWS_REGION: "us-east-1"
       AWS_ACCESS_KEY_ID: "test"
       AWS_SECRET_ACCESS_KEY: "test"
@@ -280,11 +280,11 @@ jobs:
             --pandaproxy-addr 0.0.0.0:18082 --schema-registry-addr 0.0.0.0:18081 \
             --set 'redpanda.admin=[{"address":"0.0.0.0","port":19644}]' \
             --set 'redpanda.kafka_api=[{"name":"sasl","address":"0.0.0.0","port":19092,"authentication_method":"sasl"}]' \
-            --set "redpanda.superusers=[\"${DMPF_KAFKA_SASL_USERNAME}\"]" \
+            --set "redpanda.superusers=[\"${KAFKA_SASL_USERNAME}\"]" \
             --set redpanda.kafka_enable_authorization=true
           for _ in $(seq 1 30); do
             if docker exec "$nome" rpk cluster health -X admin.hosts=localhost:19644 2>/dev/null | grep -q 'Healthy:.*true'; then
-              docker exec "$nome" rpk security user create "$DMPF_KAFKA_SASL_USERNAME" -p "$DMPF_KAFKA_SASL_PASSWORD" \
+              docker exec "$nome" rpk security user create "$KAFKA_SASL_USERNAME" -p "$KAFKA_SASL_PASSWORD" \
                 --mechanism SCRAM-SHA-256 -X admin.hosts=localhost:19644
               echo "redpanda com SASL pronto em localhost:19092 ($nome)"
               exit 0
