@@ -50,10 +50,9 @@ var (
 	localeFormat      = regexp.MustCompile(`^[A-Za-z]{1,8}(-[A-Za-z0-9]{1,8})*$`)
 )
 
-// ServerInterceptors is the server chain of a context's service in the order
-// SPEC-ACYKBF9V fixes: span, admission, deadline, context. Methods of other
-// services — the health probe declares no admission limit and no deadline, and
-// Kubernetes calls it before the service is ready (ADR-044) — pass untouched.
+// ServerInterceptors is the chain of SPEC-ACYKBF9V: span, admission, deadline,
+// context. Other services' methods pass untouched: the health probe has no limit
+// nor deadline and is called before the service is ready (ADR-044).
 func ServerInterceptors(service string, tracer trace.Tracer, ctrl *admission.Controller, instruments *metrics.Instruments, logger *slog.Logger) []grpc.UnaryServerInterceptor {
 	own := ownMethods(service)
 	return []grpc.UnaryServerInterceptor{
