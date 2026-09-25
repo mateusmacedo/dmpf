@@ -5,7 +5,7 @@ Bounded context `reservations` da topologia de referência do kernel DMPF (ADR-0
 | Papel | O que faz | Blocos cabeados |
 | --- | --- | --- |
 | `api` | Serve `company.reservations.service.v1.ReservationsService` por gRPC: `Reserve`, `Cancel`, `FindReservation` | `grpc` (servidor, mTLS, admissão) → `application` do contexto (autorização, UPR) → `provider` do contexto (repositório, reader, escopados por tenant) sobre `postgres` do kernel (UoW, outbox) |
-| `relay` | Drena a outbox de `dmpf_reservations` para `reservations.events`, autenticado no broker | `app/relay` → `postgres` (claim) + `kafka` (publisher) |
+| `relay` | Drena a outbox do banco `reservations` para `reservations.events`, autenticado no broker | `app/relay` → `postgres` (claim) + `kafka` (publisher) |
 | `consumer` | Consome `OrderPlaced` de `orders.events` pela inbox, só de fronteira verificada | `kafka` (consumer) → `app` (adapter) → `application` do contexto → `provider` do contexto sobre `postgres` (inbox, outbox) |
 
 Criado pela `docs/specs/SPEC-ACYKBF9V-dmpf-reference-bff-contextos.md`; o layout canônico e a composition root em `app/` vêm do ADR-048. Autenticação de workload, tenant e autorização por permissão vêm da `SPEC-9B6SHEH8` (ADR-049 a ADR-052).
@@ -22,7 +22,7 @@ Uma reserva pendente vira `Confirmed`, por `Reserve` síncrono ou pelo consumo d
 | --- | --- | --- | --- |
 | `domain` | `domain` | `reservations/domain` | Agregado `Reservation` com chave natural permanente (o identificador do pedido) e as UPRs `Reserve` e `Cancel` |
 | `application` | `application` | `reservations/application` | `Service` com `Reserve`, `Cancel`, `FindReservation` e o consumo `ConsumeOrderPlaced`/`Consume`, que ramifica pelas sete disposições de FND-04 §6.4 sobre a inbox; cada operação declara a permissão que exige (`app/authorization.go`) |
-| `provider` | `provider` | `reservations/provider-postgres` | Repositório escopado por `tenant_id` via `postgres.Table` (ADR-051), por chave natural (`order_id`, `ON CONFLICT DO NOTHING`, `GAR-10`) sobre `dmpf_example_reservations`, `Reader`, mapeador para `company.reservations.event.v1` |
+| `provider` | `provider` | `reservations/provider-postgres` | Repositório escopado por `tenant_id` via `postgres.Table` (ADR-051), por chave natural (`order_id`, `ON CONFLICT DO NOTHING`, `GAR-10`) sobre a tabela `reservations` (estado em `snapshot` `jsonb`, ADR-053), `Reader`, mapeador para `company.reservations.event.v1` |
 | `app`, `app/rpc`, `cmd` | `app` | `reservations/app` | Composition root: o único lugar onde os providers concretos de `reservations` são instanciados (ADR-015); consumer adapter (`NewConsumer`, `Handler`), `Sink`, servidor gRPC e binário |
 | `appkit` | `app` | `reservations/appkit` | Harness borda a borda (`KIT-05`): `app.Consumer` real sobre Postgres, alimentado com bytes na borda de protocolo; `Effects` e `Ack` depois do commit |
 | `distkit` | `app` | `reservations/distkit` | Harness distribuído (`KIT-06`): dois processos OS sobre Redpanda, reentrega deliberada e `DMPF-R004` (`V32`) |
@@ -52,7 +52,7 @@ A ponte `Sink` confirma sem inbox a entrega de tipo diferente do assinado e abre
 
 | Variável | Papel | Efeito |
 | --- | --- | --- |
-| `PG_DSN` | todos | Banco `dmpf_reservations` |
+| `PG_DSN` | todos | Banco e role `reservations` (ADR-053) |
 | `GRPC_ADDR` | `api` | Default `:9090` |
 | `GRPC_INSECURE` ou `GRPC_TLS_CERT_FILE` + `GRPC_TLS_KEY_FILE` | `api` | Transporte; sem nenhum, exit 2 |
 | `GRPC_CLIENT_CA_FILE`, `GRPC_TRUSTED_CLIENTS` | `api`, com TLS | CA dos clientes e allowlist de identidades por URI/DNS SAN (nunca CN — ex.: `spiffe://dmpf/bff`); com TLS ligado os dois são obrigatórios (ADR-052), e o `x-tenant-id` só é lido de peer verificado |
@@ -70,13 +70,13 @@ Variável obrigatória ausente encerra a partida com exit 2 nomeando-a.
 ## Rodar localmente
 
 ```bash
-docker compose -f infra/local/docker-compose.yml exec postgres psql -U app -d app -c 'CREATE DATABASE dmpf_reservations'
-PG_DSN='postgres://app:app@localhost:5432/dmpf_reservations?sslmode=disable' MIGRATE=true GRPC_ADDR=:9091 GRPC_INSECURE=true \
+docker compose -f infra/local/docker-compose.yml --profile postgres --profile dmpf up -d postgres-init
+PG_DSN='postgres://reservations:reservations-local@localhost:5432/reservations?sslmode=disable' MIGRATE=true GRPC_ADDR=:9091 GRPC_INSECURE=true \
   pnpm nx run reservations:serve-api
-PG_DSN='postgres://app:app@localhost:5432/dmpf_reservations?sslmode=disable' KAFKA_BROKERS=localhost:9092 KAFKA_INSECURE=true \
+PG_DSN='postgres://reservations:reservations-local@localhost:5432/reservations?sslmode=disable' KAFKA_BROKERS=localhost:9092 KAFKA_INSECURE=true \
   KAFKA_RESERVATIONS_TOPIC=reservations.events KAFKA_RESERVATIONS_DLQ=reservations.events.dlq KAFKA_GROUP=reservations \
   pnpm nx run reservations:serve-relay
-PG_DSN='postgres://app:app@localhost:5432/dmpf_reservations?sslmode=disable' KAFKA_BROKERS=localhost:9092 KAFKA_INSECURE=true \
+PG_DSN='postgres://reservations:reservations-local@localhost:5432/reservations?sslmode=disable' KAFKA_BROKERS=localhost:9092 KAFKA_INSECURE=true \
   KAFKA_ORDERS_TOPIC=orders.events KAFKA_ORDERS_DLQ=orders.events.dlq KAFKA_GROUP=reservations \
   pnpm nx run reservations:serve-consumer
 ```
@@ -91,10 +91,10 @@ PG_DSN='postgres://app:app@localhost:5432/dmpf_reservations?sslmode=disable' KAF
 
 Unitários, sem banco: as UPRs do `domain`, as sete disposições do consumo e a sequência canônica da `application` sobre o `memory`, e o binding e os interceptors do `rpc` por `bufconn` sobre o store em memória, ciclo de saúde, tracer de banco, `Sink` (span com pai remoto, filtro por tipo e classificação da fronteira), catálogos por papel e partida do binário.
 
-Com a build tag `integration` e `PG_DSN`, o `test-race` cobre o `provider` (escopo de tenant e acesso cruzado inclusos), o e2e do consumer adapter e do relay no package raiz e o `appkit`; declara `dependsOn` sobre o `test-race` do `postgres`, porque os harnesses truncam as mesmas tabelas. O `test-distributed` roda só o `distkit`, com as tags `integration,distributed`, e exige Redpanda (`KAFKA_BROKERS`); é o que o `dmpf-distributed.yml` executa em pipeline próprio (`KIT-11`). A topologia inteira é provada pelo e2e do `bff`.
+Com a build tag `integration` e `PG_DSN`, o `test-race` cobre o `provider` (escopo de tenant e acesso cruzado inclusos), o e2e do consumer adapter e do relay no package raiz e o `appkit`; cada suíte roda no banco `reservations_test`, que o `tb/pg` cria no servidor de `PG_DSN`, e o `test-distributed` roda depois do `test-race`, porque usa o mesmo banco. O `test-distributed` roda só o `distkit`, com as tags `integration,distributed`, e exige Redpanda (`KAFKA_BROKERS`); é o que o `dmpf-distributed.yml` executa em pipeline próprio (`KIT-11`). A topologia inteira é provada pelo e2e do `bff`.
 
 ```bash
-PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' pnpm nx run reservations:test-race
-PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' KAFKA_BROKERS=localhost:9092 \
+PG_DSN='postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable' pnpm nx run reservations:test-race
+PG_DSN='postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable' KAFKA_BROKERS=localhost:9092 \
   pnpm nx run reservations:test-distributed
 ```
