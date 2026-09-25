@@ -41,16 +41,16 @@ integração**, para criar os tópicos.
   processo declara sobre a própria identidade perante o broker — um principal
   SASL ou um certificado de cliente — mais a autoridade do certificado do
   broker quando ele é privado. `ReadClientAuth(lookup)` lê
-  `DMPF_KAFKA_SASL_MECHANISM`, `DMPF_KAFKA_SASL_USERNAME`,
-  `DMPF_KAFKA_SASL_PASSWORD`, `DMPF_KAFKA_CLIENT_CERT_FILE`,
-  `DMPF_KAFKA_CLIENT_KEY_FILE` e `DMPF_KAFKA_CA_FILE` do ambiente, para que os
+  `KAFKA_SASL_MECHANISM`, `KAFKA_SASL_USERNAME`,
+  `KAFKA_SASL_PASSWORD`, `KAFKA_CLIENT_CERT_FILE`,
+  `KAFKA_CLIENT_KEY_FILE` e `KAFKA_CA_FILE` do ambiente, para que os
   três processos que falam com o Kafka (`api`, `relay`, `consumer`) leiam a
   declaração do mesmo jeito. A ACL do broker que liga o principal ao `source`
   que o consumer admite é da plataforma, não deste módulo (ADR-052).
 - **`newconfig.go`** — `NewConfig(ctx, rt, catalog, brokers, service,
   insecure, auth)`: monta o `Config` de um processo a partir do runtime de
   observabilidade e da declaração de `ClientAuth`, com TLS 1.2+ como default —
-  o opt-out (`DMPF_KAFKA_INSECURE`) só serve desenvolvimento e CI, e o log
+  o opt-out (`KAFKA_INSECURE`) só serve desenvolvimento e CI, e o log
   registra quando ele é usado.
 - **`client.go`** — a interface `client` sobre `*kgo.Client`, o que permite o
   fake dos testes. O commit é `CommitRecords`: síncrono, commita `offset + 1`
@@ -141,20 +141,20 @@ produzidos, partições pausadas) e não precisam de broker. A `hops_test.go`
 realiza as linhas Kafka da matriz FND-06 §5.2 com par positivo e negativo.
 
 Os testes de integração levam a build tag `integration`, exigem
-`DMPF_KAFKA_BROKERS` (sem ela fazem `t.Skip` nomeando-a) e criam tópicos com
+`KAFKA_BROKERS` (sem ela fazem `t.Skip` nomeando-a) e criam tópicos com
 sufixo único por execução:
 
 ```bash
 docker run -d --name rp -p 9092:9092 redpandadata/redpanda:v26.2.2 \
   redpanda start --mode dev-container --smp 1 \
   --kafka-addr internal://0.0.0.0:9092 --advertise-kafka-addr internal://localhost:9092
-export DMPF_KAFKA_BROKERS=localhost:9092
+export KAFKA_BROKERS=localhost:9092
 pnpm nx run kafka:test-race
 ```
 
 `sasl_integration_test.go` é um segundo alvo, também sob `integration`, mas
-independente: pede `DMPF_KAFKA_SASL_BROKERS`, o endereço de um broker que
-**exige** SASL, e fica em `t.Skip` sem essa variável — o `DMPF_KAFKA_BROKERS`
+independente: pede `KAFKA_SASL_BROKERS`, o endereço de um broker que
+**exige** SASL, e fica em `t.Skip` sem essa variável — o `KAFKA_BROKERS`
 comum não basta porque o Redpanda de desenvolvimento do teste acima não pede
 autenticação.
 
