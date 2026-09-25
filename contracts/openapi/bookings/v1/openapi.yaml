@@ -3,12 +3,15 @@ info:
   title: Bookings — resource-scheduling bounded context
   version: 1.0.0
   description: >-
-    HTTP edge of the bookings bounded context. Every route references one
-    operation of this document (RST-04). Writes are idempotent by
-    Idempotency-Key (RST-02); reads run outside any transaction (UOW-11).
+    Public REST edge of the bookings context, served by apps/backend/bff,
+    which calls the bookings context over gRPC (ADR-024).
+    Every route of the service references one operation of this document
+    (RST-04). Writes are idempotent by Idempotency-Key (RST-02); reads run
+    outside any transaction (UOW-11). The contract is registered under
+    contracts/openapi/ (REP-06) and is not covered by the Buf gates.
 servers:
   - url: http://localhost:8080
-    description: local bookings API
+    description: local bff
 paths:
   /bookings/booking:
     post:
@@ -32,12 +35,18 @@ paths:
                 $ref: '#/components/schemas/ReservedResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/VersionConflict'
         '422':
           $ref: '#/components/responses/Rejected'
         '429':
           $ref: '#/components/responses/AdmissionRefused'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '504':
+          $ref: '#/components/responses/Timeout'
         default:
           $ref: '#/components/responses/Failure'
     get:
@@ -57,8 +66,14 @@ paths:
                   $ref: '#/components/schemas/BookingView'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
         '429':
           $ref: '#/components/responses/AdmissionRefused'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '504':
+          $ref: '#/components/responses/Timeout'
         default:
           $ref: '#/components/responses/Failure'
   /bookings/booking/{id}:
@@ -75,10 +90,16 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/BookingView'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotFound'
         '429':
           $ref: '#/components/responses/AdmissionRefused'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '504':
+          $ref: '#/components/responses/Timeout'
         default:
           $ref: '#/components/responses/Failure'
   /bookings/booking/{id}/cancel:
@@ -100,10 +121,16 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/VersionConflict'
         '422':
           $ref: '#/components/responses/Rejected'
         '429':
           $ref: '#/components/responses/AdmissionRefused'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '504':
+          $ref: '#/components/responses/Timeout'
         default:
           $ref: '#/components/responses/Failure'
   /bookings/resource:
@@ -128,10 +155,18 @@ paths:
                 $ref: '#/components/schemas/RegisteredResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/VersionConflict'
         '422':
           $ref: '#/components/responses/Rejected'
         '429':
           $ref: '#/components/responses/AdmissionRefused'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '504':
+          $ref: '#/components/responses/Timeout'
         default:
           $ref: '#/components/responses/Failure'
 components:
@@ -276,6 +311,18 @@ components:
             $ref: '#/components/schemas/Rejection'
     AdmissionRefused:
       description: Admission control refused the request before reading the body (RES-17)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Rejection'
+    Unavailable:
+      description: The bookings context is unavailable
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Rejection'
+    Timeout:
+      description: The deadline of the request expired before the context answered (GRP-04)
       content:
         application/json:
           schema:
