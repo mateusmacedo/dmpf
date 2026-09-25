@@ -19,7 +19,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5"
 	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"google.golang.org/grpc"
@@ -47,8 +47,7 @@ type topology struct {
 	brokers []string
 	admin   *kadm.Client
 
-	ordersPool       *pgxpool.Pool
-	reservationsPool *pgxpool.Pool
+	ordersDSN, reservationsDSN string
 
 	ordersTopic, ordersDLQ             string
 	reservationsTopic, reservationsDLQ string
@@ -110,8 +109,8 @@ func newTopology(t *testing.T) *topology {
 		reservationsDLQ:   "dmpf-e2e-reservations-" + suffix + "-dlq",
 		group:             "dmpf-e2e-reservations-group-" + suffix,
 	}
-	top.ordersPool = createDatabase(t, admin, "dmpf_e2e_orders_"+suffix)
-	top.reservationsPool = createDatabase(t, admin, "dmpf_e2e_reservations_"+suffix)
+	top.ordersDSN = createDatabase(t, admin, "e2e_orders_"+suffix)
+	top.reservationsDSN = createDatabase(t, admin, "e2e_reservations_"+suffix)
 
 	cl, err := kgo.NewClient(kgo.SeedBrokers(brokers...))
 	if err != nil {
@@ -133,23 +132,23 @@ func newTopology(t *testing.T) *topology {
 	return top
 }
 
-// openAdmin is not pg.OpenPool on purpose: that one truncates the shared tables
-// the provider and app suites run against, and this run only creates databases.
-func openAdmin(t *testing.T) *pgxpool.Pool {
+// openAdmin is not pg.OpenPool on purpose: that one migrates and truncates a
+// project's test database, and this run only creates databases.
+func openAdmin(t *testing.T) *pgx.Conn {
 	t.Helper()
-	cfg, err := pgxpool.ParseConfig(tb.Env(t, pg.PostgresDSN))
+	cfg, err := pgx.ParseConfig(tb.Env(t, pg.PostgresDSN))
 	if err != nil {
 		t.Fatalf("parse %s: %v", pg.PostgresDSN, err)
 	}
-	if host := cfg.ConnConfig.Host; !loopback(host) {
+	if host := cfg.Host; !loopback(host) {
 		t.Fatalf("%s points at %q; the e2e creates and drops databases and only accepts a loopback host", pg.PostgresDSN, host)
 	}
-	pool, err := pgxpool.NewWithConfig(context.Background(), cfg)
+	conn, err := pgx.ConnectConfig(context.Background(), cfg)
 	if err != nil {
-		t.Fatalf("pgxpool.NewWithConfig() = %v", err)
+		t.Fatalf("pgx.ConnectConfig() = %v", err)
 	}
-	t.Cleanup(pool.Close)
-	return pool
+	t.Cleanup(func() { _ = conn.Close(context.Background()) })
+	return conn
 }
 
 func loopback(host string) bool {
@@ -160,7 +159,7 @@ func loopback(host string) bool {
 	return ip != nil && ip.IsLoopback()
 }
 
-func createDatabase(t *testing.T, admin *pgxpool.Pool, name string) *pgxpool.Pool {
+func createDatabase(t *testing.T, admin *pgx.Conn, name string) string {
 	t.Helper()
 	ctx := context.Background()
 	if _, err := admin.Exec(ctx, "CREATE DATABASE "+name); err != nil {
@@ -171,12 +170,7 @@ func createDatabase(t *testing.T, admin *pgxpool.Pool, name string) *pgxpool.Poo
 			t.Errorf("DROP DATABASE %s: %v", name, err)
 		}
 	})
-	pool, err := pgxpool.New(ctx, dsnFor(t, name))
-	if err != nil {
-		t.Fatalf("pgxpool.New(%s) = %v", name, err)
-	}
-	t.Cleanup(pool.Close)
-	return pool
+	return dsnFor(t, name)
 }
 
 func dsnFor(t *testing.T, database string) string {
@@ -275,8 +269,7 @@ func (top *topology) boot(t *testing.T, bin binaries) {
 		}
 		return env
 	}
-	ordersDSN := top.ordersPool.Config().ConnString()
-	reservationsDSN := top.reservationsPool.Config().ConnString()
+	ordersDSN, reservationsDSN := top.ordersDSN, top.reservationsDSN
 
 	// IDN-03 end to end: the contexts only serve the workloads they trust, over
 	// certificates the test mints, so the hop the e2e crosses is the real one.
