@@ -1,7 +1,7 @@
 # Topologia de referência (ADR-044): o BFF é a única borda HTTP publicada no
 # host; orders e reservations servem gRPC só na rede do projeto, cada um com o
-# próprio banco, e cada relay drena apenas a outbox do seu contexto. Os bancos
-# nascem no postgres-init; o schema, no papel api (DMPF_MIGRATE=true). Relay e
+# próprio banco e role, e cada relay drena apenas a outbox do seu contexto. Os
+# bancos nascem no postgres-init; o schema, no papel api (DMPF_MIGRATE=true). Relay e
 # consumer reiniciam até as tabelas existirem. Os tópicos vêm do redpanda-init.
 x-app: &app
   profiles: [dmpf]
@@ -43,11 +43,11 @@ x-kafka-reservations: &kafka-reservations
 
 x-orders-env: &orders-env
   DMPF_SERVICE: orders
-  DMPF_PG_DSN: postgres://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-app}@postgres:5432/${DMPF_ORDERS_DB:-dmpf_orders}?sslmode=disable
+  DMPF_PG_DSN: postgres://orders:${DMPF_ORDERS_PG_PASSWORD:-orders-local}@postgres:5432/orders?sslmode=disable
 
 x-reservations-env: &reservations-env
   DMPF_SERVICE: reservations
-  DMPF_PG_DSN: postgres://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-app}@postgres:5432/${DMPF_RESERVATIONS_DB:-dmpf_reservations}?sslmode=disable
+  DMPF_PG_DSN: postgres://reservations:${DMPF_RESERVATIONS_PG_PASSWORD:-reservations-local}@postgres:5432/reservations?sslmode=disable
 
 # gRPC interno com mTLS (IDN-03): cada api apresenta o próprio certificado e só
 # serve o workload que a CA local assinou e a allowlist nomeia — o BFF. Os
@@ -80,17 +80,23 @@ services:
         condition: service_healthy
     environment:
       PGHOST: postgres
-      PGUSER: ${POSTGRES_USER:-app}
-      PGPASSWORD: ${POSTGRES_PASSWORD:-app}
-      PGDATABASE: ${POSTGRES_DB:-app}
+      PGUSER: ${POSTGRES_USER:-postgres}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      PGDATABASE: postgres
     entrypoint: ['/bin/sh', '-c']
-    # Idempotente: só cria o banco que ainda não existe, então reexecutar o
-    # profile não falha.
+    # Idempotente: só cria o role e o banco que ainda não existem, então
+    # reexecutar o profile não falha. O banco pertence ao role da app, que
+    # assim cria o próprio schema sem privilégio administrativo.
     command:
       - >-
-        set -e; for db in ${DMPF_ORDERS_DB:-dmpf_orders} ${DMPF_RESERVATIONS_DB:-dmpf_reservations}; do
-        if ! psql -tAc "SELECT 1 FROM pg_database WHERE datname = '$$db'" | grep -q 1; then
-        psql -c "CREATE DATABASE \"$$db\""; fi; done
+        set -e; for pair in orders:${DMPF_ORDERS_PG_PASSWORD:-orders-local}
+        reservations:${DMPF_RESERVATIONS_PG_PASSWORD:-reservations-local}
+        bookings:${DMPF_BOOKINGS_PG_PASSWORD:-bookings-local}; do
+        app=$${pair%%:*}; pass=$${pair#*:};
+        if ! psql -tAc "SELECT 1 FROM pg_roles WHERE rolname = '$$app'" | grep -q 1; then
+        psql -c "CREATE ROLE \"$$app\" LOGIN PASSWORD '$$pass'"; fi;
+        if ! psql -tAc "SELECT 1 FROM pg_database WHERE datname = '$$app'" | grep -q 1; then
+        psql -c "CREATE DATABASE \"$$app\" OWNER \"$$app\""; fi; done
     deploy:
       resources:
         limits: { cpus: '0.05', memory: 32M }
