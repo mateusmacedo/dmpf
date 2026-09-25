@@ -35,12 +35,6 @@
       "executor": "nx:run-commands",
       "cache": false,
       "inputs": ["go", "^go"],
-      "dependsOn": [
-        {
-          "projects": ["postgres", "app"],
-          "target": "test-race"
-        }
-      ],
       "options": {
         "command": "go test -race -count=1 -p 1 -tags=integration ./...",
         "cwd": "{projectRoot}"
