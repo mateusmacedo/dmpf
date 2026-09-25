@@ -1,9 +1,8 @@
 package rule_test
 
 import (
-	"testing"
-
 	"strings"
+	"testing"
 
 	"github.com/mateusmacedo/dmpf/tools/dmpf-conformance/internal/manifest"
 	"github.com/mateusmacedo/dmpf/tools/dmpf-conformance/internal/rule"
