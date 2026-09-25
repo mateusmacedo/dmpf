@@ -15,7 +15,7 @@ import (
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/app"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/app/relay"
-	provider "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
+	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/kafka"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/audit"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/idclock"
@@ -28,6 +28,7 @@ import (
 
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/app/rpc"
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/application"
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/provider"
 )
 
 const (
@@ -78,20 +79,20 @@ func serveAPI(ctx context.Context, cfg Config, rt *otelboot.Runtime, out io.Writ
 	if err != nil {
 		return err
 	}
-	serverConfig, err := provider.APIServerConfig(provider.APIServer{
+	serverConfig, err := kernel.APIServerConfig(kernel.APIServer{
 		CertFile:       cfg.GRPCCertFile,
 		KeyFile:        cfg.GRPCKeyFile,
 		ClientCAFile:   cfg.GRPCClientCAFile,
 		TrustedClients: cfg.GRPCTrustedClients,
 		Insecure:       cfg.GRPCInsecure,
-		Services:       provider.HealthServices(rpc.ServiceName),
+		Services:       kernel.HealthServices(rpc.ServiceName),
 		Interceptors:   rpc.Interceptors(rt.Tracer(), ctrl, rt.Instruments(), rt.Logger()),
 		Logger:         rt.Logger(),
 	})
 	if err != nil {
 		return err
 	}
-	server, healthServer, err := provider.NewServer(serverConfig)
+	server, healthServer, err := kernel.NewServer(serverConfig)
 	if err != nil {
 		return err
 	}
@@ -103,13 +104,13 @@ func serveAPI(ctx context.Context, cfg Config, rt *otelboot.Runtime, out io.Writ
 			return fmt.Errorf("postgres: %w", err)
 		}
 		if cfg.Migrate {
-			if err := postgres.Migrate(ctx, pool); err != nil {
+			if err := postgres.Migrate(ctx, pool, []postgres.Capability{postgres.Outbox, postgres.Inbox}, provider.Schema); err != nil {
 				return fmt.Errorf("migrate: %w", err)
 			}
 		}
 		return nil
 	}
-	return provider.Serve(ctx, listen, server, healthServer, provider.HealthServices(rpc.ServiceName), ready, rt.Logger())
+	return kernel.Serve(ctx, listen, server, healthServer, kernel.HealthServices(rpc.ServiceName), ready, rt.Logger())
 }
 
 // NewReservationsConsumer is the consumer adapter with the attempt limit of the

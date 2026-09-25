@@ -22,6 +22,8 @@ import (
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/pg"
+
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/appkit"
 )
 
 // The variables the parent hands the re-executed child. Role selects which
@@ -64,7 +66,7 @@ type Harness struct {
 func New(t testing.TB) Harness {
 	t.Helper()
 	seeds := strings.Split(tb.Env(t, EnvBrokers), ",")
-	pool := pg.OpenPool(t)
+	pool := pg.OpenPool(t, appkit.PoolOptions)
 	suffix := fmt.Sprintf("%d", time.Now().UnixNano())
 	h := Harness{
 		Brokers: seeds,
@@ -135,6 +137,7 @@ func (h Harness) Start(t testing.TB, role Role) *Process {
 		EnvDLQ+"="+h.DLQ,
 		EnvPlan+"="+string(plan),
 		EnvBrokers+"="+strings.Join(h.Brokers, ","),
+		pg.PostgresDSN+"="+pg.DSN(t, appkit.PoolOptions.Project),
 	)
 	p := &Process{Role: role, cmd: cmd, finished: make(chan struct{})}
 	cmd.Stdout, cmd.Stderr = &p.output, &p.output
@@ -198,7 +201,7 @@ func (h Harness) Effects(t testing.TB) Effects {
 	var e Effects
 	const counts = `SELECT
 		(SELECT count(*) FROM inbox),
-		(SELECT count(*) FROM dmpf_example_reservations),
+		(SELECT count(*) FROM reservations),
 		(SELECT count(*) FROM outbox),
 		(SELECT count(*) FROM quarantine)`
 	ctx, cancel := context.WithTimeout(context.Background(), queryTimeout)
@@ -207,7 +210,7 @@ func (h Harness) Effects(t testing.TB) Effects {
 		t.Fatalf("distkit: effects: %v", err)
 	}
 	row := h.Pool.QueryRow(ctx,
-		`SELECT version, (snapshot->>'Items')::int FROM dmpf_example_reservations WHERE order_id = $1`, h.Plan.Order)
+		`SELECT version, (snapshot->>'Items')::int FROM reservations WHERE order_id = $1`, h.Plan.Order)
 	if err := row.Scan(&e.Version, &e.Items); err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		t.Fatalf("distkit: reservation of %s: %v", h.Plan.Order, err)
 	}

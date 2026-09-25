@@ -5,7 +5,7 @@ package provider_test
 import (
 	"context"
 	"errors"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/pg"
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/appkit"
 	"strings"
 	"sync"
 	"testing"
@@ -56,7 +56,7 @@ func tracedPool(t *testing.T, pool *pgxpool.Pool) (*pgxpool.Pool, *sqlRecorder) 
 }
 
 func TestNewReaderLoadsWhatTheRepositoryWrote(t *testing.T) {
-	pool := pg.OpenPool(t)
+	pool := appkit.OpenPool(t)
 	seed(t, pool)
 	want, wantVersion := load(t, pool)
 
@@ -71,7 +71,7 @@ func TestNewReaderLoadsWhatTheRepositoryWrote(t *testing.T) {
 }
 
 func TestNewReaderReportsAnAbsentReservation(t *testing.T) {
-	pool := pg.OpenPool(t)
+	pool := appkit.OpenPool(t)
 
 	_, _, err := provider.NewReader(postgres.NewReadPool(pool)).Load(withExecution(t, context.Background()), "o-absent")
 
@@ -82,7 +82,7 @@ func TestNewReaderReportsAnAbsentReservation(t *testing.T) {
 
 // UOW-11: one SELECT on the pool, no begin, no commit.
 func TestNewReaderNeverOpensATransaction(t *testing.T) {
-	pool := pg.OpenPool(t)
+	pool := appkit.OpenPool(t)
 	seed(t, pool)
 	traced, recorder := tracedPool(t, pool)
 

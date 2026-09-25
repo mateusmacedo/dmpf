@@ -13,7 +13,7 @@ import (
 // statements, and with them the tenant predicate, are the kernel's: a read or
 // write written here could not omit the scope even by mistake (IDN-14).
 var reservationsTable = postgres.Table[domain.OrderID, domain.Snapshot]{
-	Name:     "dmpf_example_reservations",
+	Name:     "reservations",
 	IDColumn: "order_id",
 	Columns:  []string{"snapshot"},
 

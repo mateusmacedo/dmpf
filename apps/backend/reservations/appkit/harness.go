@@ -15,9 +15,11 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/contracts/envelope"
 	eventv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/orders/event/v1"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/pg"
 
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/app"
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/provider"
 )
 
 const (
@@ -32,6 +34,23 @@ const (
 // Harness is KIT-05: the consumer adapter composed with its concrete
 // realizations, fed raw bytes at the protocol edge, observed at the effect
 // edge — the four tables.
+// Tables of this context, which the kit cannot know: it resets the kernel
+// tables and the ones named here.
+var Tables = []string{"reservations"}
+
+// PoolOptions is the database this context's suites run in.
+var PoolOptions = pg.Options{
+	Project:      "reservations",
+	Capabilities: []postgres.Capability{postgres.Outbox, postgres.Inbox},
+	Schemas:      []string{provider.Schema},
+	Tables:       Tables,
+}
+
+func OpenPool(t testing.TB) *pgxpool.Pool {
+	t.Helper()
+	return pg.OpenPool(t, PoolOptions)
+}
+
 type Harness struct {
 	Consumer kernel.Consumer
 	Pool     *pgxpool.Pool
@@ -42,7 +61,7 @@ type Harness struct {
 // injects (KIT-07).
 func NewReservations(t testing.TB, clock ports.Clock, ids ports.IDGenerator) Harness {
 	t.Helper()
-	pool := pg.OpenPool(t)
+	pool := OpenPool(t)
 	return Harness{
 		Consumer: app.NewConsumer(pool, clock, ids, Wait, Timeout, MaxAttempts, Boundary),
 		Pool:     pool,
@@ -96,7 +115,7 @@ func (h Harness) Effects(t testing.TB) Effects {
 	var e Effects
 	const stmt = `SELECT
 		(SELECT count(*) FROM inbox),
-		(SELECT count(*) FROM dmpf_example_reservations),
+		(SELECT count(*) FROM reservations),
 		(SELECT count(*) FROM outbox),
 		(SELECT count(*) FROM quarantine)`
 	ctx, cancel := context.WithTimeout(context.Background(), queryTimeout)

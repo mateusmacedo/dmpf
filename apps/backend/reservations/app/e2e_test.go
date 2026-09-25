@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/pg"
 	"sync"
 	"testing"
 	"time"
@@ -84,7 +83,7 @@ func counts(t *testing.T, pool *pgxpool.Pool) tableCounts {
 	var c tableCounts
 	const stmt = `SELECT
 		(SELECT count(*) FROM inbox),
-		(SELECT count(*) FROM dmpf_example_reservations),
+		(SELECT count(*) FROM reservations),
 		(SELECT count(*) FROM outbox),
 		(SELECT count(*) FROM quarantine)`
 	if err := pool.QueryRow(context.Background(), stmt).Scan(&c.inbox, &c.reservations, &c.outbox, &c.quarantine); err != nil {
@@ -165,7 +164,7 @@ func consumerWith(pool *pgxpool.Pool, decorate func(application.Resources) appli
 var e2eBoundary = kernel.Boundary{Transport: kernel.TransportDevelopmentOnly, Sources: []string{"urn:dmpf:orders"}}
 
 func TestFirstReceptionAppliesConfirmsAndDerivesTheOutbox(t *testing.T) {
-	pool := pg.OpenPool(t)
+	pool := appkit.OpenPool(t)
 	consumer := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eTimeout, e2eAttempts, e2eBoundary)
 
 	outcome, err, ack := consume(t, pool, consumer, "evt-1", appkit.RawOrderPlaced(t, "evt-1", "o-1", 2), 1)
@@ -194,7 +193,7 @@ func TestFirstReceptionAppliesConfirmsAndDerivesTheOutbox(t *testing.T) {
 }
 
 func TestBusinessRejectionCommitsRejectedAndConfirms(t *testing.T) {
-	pool := pg.OpenPool(t)
+	pool := appkit.OpenPool(t)
 	consumer := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eTimeout, e2eAttempts, e2eBoundary)
 
 	outcome, err, ack := consume(t, pool, consumer, "evt-2", appkit.RawOrderPlaced(t, "evt-2", "o-2", 0), 1)
@@ -217,7 +216,7 @@ func TestBusinessRejectionCommitsRejectedAndConfirms(t *testing.T) {
 }
 
 func TestRedeliveriesShortCircuit(t *testing.T) {
-	pool := pg.OpenPool(t)
+	pool := appkit.OpenPool(t)
 	consumer := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eTimeout, e2eAttempts, e2eBoundary)
 	applied := appkit.RawOrderPlaced(t, "evt-1", "o-1", 2)
 	rejected := appkit.RawOrderPlaced(t, "evt-2", "o-2", 0)
@@ -269,7 +268,7 @@ func TestRedeliveriesShortCircuit(t *testing.T) {
 }
 
 func TestTransientFailureRollsBackAndReleases(t *testing.T) {
-	pool := pg.OpenPool(t)
+	pool := appkit.OpenPool(t)
 	consumer := consumerWith(pool, func(r application.Resources) application.Resources {
 		r.Reservations = failingReservations{r.Reservations, usecase.NewFailure(usecase.TransientDependency, true, errBoom)}
 		return r
@@ -288,7 +287,7 @@ func TestTransientFailureRollsBackAndReleases(t *testing.T) {
 }
 
 func TestExhaustedAttemptsContainThePoisonMessage(t *testing.T) {
-	pool := pg.OpenPool(t)
+	pool := appkit.OpenPool(t)
 	consumer := consumerWith(pool, func(r application.Resources) application.Resources {
 		r.Reservations = failingReservations{r.Reservations, usecase.NewFailure(usecase.TransientDependency, true, errBoom)}
 		return r
@@ -315,7 +314,7 @@ func TestExhaustedAttemptsContainThePoisonMessage(t *testing.T) {
 }
 
 func TestTerminalFailureIsContained(t *testing.T) {
-	pool := pg.OpenPool(t)
+	pool := appkit.OpenPool(t)
 	consumer := consumerWith(pool, func(r application.Resources) application.Resources {
 		r.Reservations = failingReservations{r.Reservations, usecase.NewFailure(usecase.Forbidden, false, errBoom)}
 		return r
@@ -334,7 +333,7 @@ func TestTerminalFailureIsContained(t *testing.T) {
 }
 
 func TestOutboxFailureRollsBackDeduplicationAndState(t *testing.T) {
-	pool := pg.OpenPool(t)
+	pool := appkit.OpenPool(t)
 	consumer := consumerWith(pool, func(r application.Resources) application.Resources {
 		r.Outbox = failingOutbox{errBoom}
 		return r
@@ -350,7 +349,7 @@ func TestOutboxFailureRollsBackDeduplicationAndState(t *testing.T) {
 }
 
 func TestInvalidEnvelopeIsContainedWithoutTouchingTheInbox(t *testing.T) {
-	pool := pg.OpenPool(t)
+	pool := appkit.OpenPool(t)
 	consumer := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eTimeout, e2eAttempts, e2eBoundary)
 	garbage := []byte("definitely not a cloudevent")
 
@@ -367,7 +366,7 @@ func TestInvalidEnvelopeIsContainedWithoutTouchingTheInbox(t *testing.T) {
 }
 
 func TestPayloadOfAnotherContractIsTerminal(t *testing.T) {
-	pool := pg.OpenPool(t)
+	pool := appkit.OpenPool(t)
 	consumer := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eTimeout, e2eAttempts, e2eBoundary)
 	payload, typeURL, err := envelope.Pack(&eventv1.ItemAdded{OrderId: "o-8", Sku: "sku", Quantity: 1})
 	if err != nil {
@@ -400,7 +399,7 @@ func TestPayloadOfAnotherContractIsTerminal(t *testing.T) {
 }
 
 func TestRedeliveryWithANewMessageIDDoesNotDuplicateTheEffect(t *testing.T) {
-	pool := pg.OpenPool(t)
+	pool := appkit.OpenPool(t)
 	consumer := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eTimeout, e2eAttempts, e2eBoundary)
 	if _, err, _ := consume(t, pool, consumer, "evt-1", appkit.RawOrderPlaced(t, "evt-1", "o-1", 2), 1); err != nil {
 		t.Fatalf("first: %v", err)
@@ -424,7 +423,7 @@ func TestRedeliveryWithANewMessageIDDoesNotDuplicateTheEffect(t *testing.T) {
 }
 
 func TestSignalsExposeTheConsumerSide(t *testing.T) {
-	pool := pg.OpenPool(t)
+	pool := appkit.OpenPool(t)
 	consumer := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eTimeout, e2eAttempts, e2eBoundary)
 	if _, err, _ := consume(t, pool, consumer, "evt-1", appkit.RawOrderPlaced(t, "evt-1", "o-1", 2), 1); err != nil {
 		t.Fatalf("seed: %v", err)
@@ -448,7 +447,7 @@ func TestSignalsExposeTheConsumerSide(t *testing.T) {
 // CTX-27 end to end: an OrderPlaced that is intact and well-formed, but from a
 // producer the boundary does not admit, writes nothing but its quarantine row.
 func TestAnOrderPlacedFromOutsideTheBoundaryWritesNothing(t *testing.T) {
-	pool := pg.OpenPool(t)
+	pool := appkit.OpenPool(t)
 	consumer := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eTimeout, e2eAttempts, e2eBoundary)
 	payload, typeURL, err := envelope.Pack(&eventv1.OrderPlaced{OrderId: "o-9", ItemCount: 1})
 	if err != nil {
@@ -487,7 +486,7 @@ func TestAnOrderPlacedFromOutsideTheBoundaryWritesNothing(t *testing.T) {
 // IDN-08) instead of widening the query. With no predicate that makes it
 // retryable the refusal is terminal: contained once, nothing written.
 func TestAPlatformChainOrderPlacedIsRefusedTerminallyWithoutWriting(t *testing.T) {
-	pool := pg.OpenPool(t)
+	pool := appkit.OpenPool(t)
 	consumer := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eTimeout, e2eAttempts, e2eBoundary)
 
 	outcome, err, ack := consume(t, pool, consumer, "evt-10", appkit.RawOrderPlacedWithoutTenant(t, "evt-10", "o-10", 1), 1)

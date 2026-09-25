@@ -5,7 +5,6 @@ package app_test
 import (
 	"context"
 	"fmt"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/pg"
 	"sync"
 	"testing"
 	"time"
@@ -157,7 +156,7 @@ func outboxStatus(t *testing.T, pool *pgxpool.Pool) (status string, attempts int
 }
 
 func TestTheRelayDrainsWhatTheWriterCommitted(t *testing.T) {
-	pool := pg.OpenPool(t)
+	pool := appkit.OpenPool(t)
 	enqueueOrderPlaced(t, pool)
 
 	publisher := &capturingPublisher{}
@@ -200,7 +199,7 @@ func TestTheRelayDrainsWhatTheWriterCommitted(t *testing.T) {
 // next cycle. The duplicate is expected under at-least-once — it is not a
 // defect to be fixed here; it is the property the inbox of KRN-07 absorbs.
 func TestAFailureBetweenPublishingAndMarkingRepublishesAndTheInboxAbsorbsIt(t *testing.T) {
-	pool := pg.OpenPool(t)
+	pool := appkit.OpenPool(t)
 	enqueueOrderPlaced(t, pool)
 
 	publisher := &capturingPublisher{entered: make(chan struct{})}

@@ -26,6 +26,7 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/clock"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/ids"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/pg"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/channel"
 
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/app"
@@ -67,7 +68,7 @@ func RunRole(t *testing.T) {
 // openPool connects without resetting: the tables belong to the parent.
 func openPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
-	pool, err := pgxpool.New(context.Background(), tb.Env(t, "DMPF_PG_DSN"))
+	pool, err := pgxpool.NewWithConfig(context.Background(), pg.Config(t, appkit.PoolOptions.Project))
 	if err != nil {
 		t.Fatalf("distkit: pgxpool.New: %v", err)
 	}
@@ -169,11 +170,11 @@ func (s adapterSink) Handle(ctx context.Context, raw []byte, attempt int, ack po
 type naiveSink struct{ pool *pgxpool.Pool }
 
 const naiveUpsert = `
-INSERT INTO dmpf_example_reservations (tenant_id, order_id, version, snapshot) VALUES ($4, $1, 1, $2)
+INSERT INTO reservations (tenant_id, order_id, version, snapshot) VALUES ($4, $1, 1, $2)
 ON CONFLICT (tenant_id, order_id) DO UPDATE
-   SET version  = dmpf_example_reservations.version + 1,
-       snapshot = jsonb_set(dmpf_example_reservations.snapshot, '{Items}',
-                            to_jsonb((dmpf_example_reservations.snapshot->>'Items')::int + $3))`
+   SET version  = reservations.version + 1,
+       snapshot = jsonb_set(reservations.snapshot, '{Items}',
+                            to_jsonb((reservations.snapshot->>'Items')::int + $3))`
 
 func (s naiveSink) Handle(ctx context.Context, raw []byte, _ int, ack ports.Acknowledger) error {
 	env, err := envelope.Unmarshal(raw)
