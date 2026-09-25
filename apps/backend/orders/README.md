@@ -33,7 +33,7 @@ Os packages do kernel `domain` e `application` têm o mesmo nome dos deste módu
 ## Servidor gRPC
 
 - **Binding no bloco `app`.** O `grpc.ServiceDesc` é montado a partir do descriptor gerado em `contracts`; o contrato não carrega código gRPC porque o bloco `contract` não admite `io.network`. Um teste reprova método do descriptor que não esteja no `ServiceDesc`.
-- **Interceptors, nesta ordem:** span de servidor com pai extraído da metadata (`traceparent`) → mTLS do peer contra `DMPF_GRPC_TRUSTED_CLIENTS` (quando TLS está ligado) → admissão por método → deadline obrigatório (sem prazo, `INVALID_ARGUMENT` antes do caso de uso, `GRP-04`) → contexto de execução (`x-correlation-id` preservado ou cunhado, `request_id` próprio como causação, `x-tenant-id` lido só de peer verificado, `idempotency-key` recebida só registrada no log) → handler. A cadeia vale só para os métodos de `OrdersService`: a checagem de saúde passa direto, sem admissão nem prazo obrigatório.
+- **Interceptors, nesta ordem:** span de servidor com pai extraído da metadata (`traceparent`) → mTLS do peer contra `GRPC_TRUSTED_CLIENTS` (quando TLS está ligado) → admissão por método → deadline obrigatório (sem prazo, `INVALID_ARGUMENT` antes do caso de uso, `GRP-04`) → contexto de execução (`x-correlation-id` preservado ou cunhado, `request_id` próprio como causação, `x-tenant-id` lido só de peer verificado, `idempotency-key` recebida só registrada no log) → handler. A cadeia vale só para os métodos de `OrdersService`: a checagem de saúde passa direto, sem admissão nem prazo obrigatório.
 - **Desfechos:** a rejeição de domínio volta no `oneof result`; `ErrNotFound` (inclusive acesso a identificador de outro tenant) vira `NOT_FOUND`, conflito de versão `ABORTED`, ausência de tenant ou de permissão `PERMISSION_DENIED`, prazo `DEADLINE_EXCEEDED` e o resto `INTERNAL` sem detalhe.
 - **Saúde:** o serviço começa `NOT_SERVING` e passa a `SERVING` depois do ping no pool e do `Migrate` opcional; volta a `NOT_SERVING` no shutdown. O log `grpc listening` traz o endereço real do listener.
 - **Banco observável:** um `pgx.QueryTracer` abre um span por consulta, sem SQL nem argumentos.
@@ -42,17 +42,17 @@ Os packages do kernel `domain` e `application` têm o mesmo nome dos deste módu
 
 | Variável | Papel | Efeito |
 | --- | --- | --- |
-| `DMPF_PG_DSN` | todos | Banco `dmpf_orders` |
-| `DMPF_GRPC_ADDR` | `api` | Default `:9090` |
-| `DMPF_GRPC_INSECURE` ou `DMPF_GRPC_TLS_CERT_FILE` + `DMPF_GRPC_TLS_KEY_FILE` | `api` | Transporte; sem nenhum, exit 2 |
-| `DMPF_GRPC_CLIENT_CA_FILE`, `DMPF_GRPC_TRUSTED_CLIENTS` | `api`, com TLS | CA dos clientes e allowlist de identidades por URI/DNS SAN (nunca CN — ex.: `spiffe://dmpf/bff`); com TLS ligado os dois são obrigatórios (ADR-052), e o `x-tenant-id` só é lido de peer verificado |
-| `DMPF_MIGRATE` | `api` | Aplica o schema antes de servir |
-| `DMPF_ITEM_LIMIT` | `api` | Default 10 |
-| `DMPF_METRIC_TENANTS` | `api` | Tenants com bucket de admissão e rótulo de métrica próprios (`MET-07`), separados por vírgula; os demais compartilham `other` |
-| `DMPF_KAFKA_BROKERS`, `DMPF_KAFKA_INSECURE` | `relay` | Brokers e opt-out de TLS |
-| `DMPF_KAFKA_SASL_MECHANISM`, `DMPF_KAFKA_SASL_USERNAME`, `DMPF_KAFKA_SASL_PASSWORD` ou `DMPF_KAFKA_CLIENT_CERT_FILE` + `DMPF_KAFKA_CLIENT_KEY_FILE` | `relay`, com TLS | Autenticação do cliente no broker (SCRAM-SHA-256/512 ou certificado), obrigatória sempre que `DMPF_KAFKA_INSECURE` não está ligado (ADR-052); `DMPF_KAFKA_CA_FILE` quando a CA do broker é privada |
-| `DMPF_KAFKA_ORDERS_TOPIC`, `DMPF_KAFKA_ORDERS_DLQ`, `DMPF_KAFKA_GROUP` | `relay` | Endereço, contenção e grupo do canal `orders.events` |
-| `DMPF_OTLP_ENDPOINT`, `DMPF_OTLP_INSECURE`, `DMPF_SERVICE`, `DMPF_SERVICE_VERSION`, `DMPF_INSTANCE_ID` | todos | Telemetria e identidade |
+| `PG_DSN` | todos | Banco `dmpf_orders` |
+| `GRPC_ADDR` | `api` | Default `:9090` |
+| `GRPC_INSECURE` ou `GRPC_TLS_CERT_FILE` + `GRPC_TLS_KEY_FILE` | `api` | Transporte; sem nenhum, exit 2 |
+| `GRPC_CLIENT_CA_FILE`, `GRPC_TRUSTED_CLIENTS` | `api`, com TLS | CA dos clientes e allowlist de identidades por URI/DNS SAN (nunca CN — ex.: `spiffe://dmpf/bff`); com TLS ligado os dois são obrigatórios (ADR-052), e o `x-tenant-id` só é lido de peer verificado |
+| `MIGRATE` | `api` | Aplica o schema antes de servir |
+| `ITEM_LIMIT` | `api` | Default 10 |
+| `METRIC_TENANTS` | `api` | Tenants com bucket de admissão e rótulo de métrica próprios (`MET-07`), separados por vírgula; os demais compartilham `other` |
+| `KAFKA_BROKERS`, `KAFKA_INSECURE` | `relay` | Brokers e opt-out de TLS |
+| `KAFKA_SASL_MECHANISM`, `KAFKA_SASL_USERNAME`, `KAFKA_SASL_PASSWORD` ou `KAFKA_CLIENT_CERT_FILE` + `KAFKA_CLIENT_KEY_FILE` | `relay`, com TLS | Autenticação do cliente no broker (SCRAM-SHA-256/512 ou certificado), obrigatória sempre que `KAFKA_INSECURE` não está ligado (ADR-052); `KAFKA_CA_FILE` quando a CA do broker é privada |
+| `KAFKA_ORDERS_TOPIC`, `KAFKA_ORDERS_DLQ`, `KAFKA_GROUP` | `relay` | Endereço, contenção e grupo do canal `orders.events` |
+| `OTLP_ENDPOINT`, `OTLP_INSECURE`, `SERVICE`, `SERVICE_VERSION`, `INSTANCE_ID` | todos | Telemetria e identidade |
 
 Variável obrigatória ausente encerra a partida com exit 2 nomeando-a.
 
@@ -61,14 +61,14 @@ Variável obrigatória ausente encerra a partida com exit 2 nomeando-a.
 ```bash
 pnpm nx run bff:infra-up
 docker compose -f infra/local/docker-compose.yml exec postgres psql -U app -d app -c 'CREATE DATABASE dmpf_orders'
-DMPF_PG_DSN='postgres://app:app@localhost:5432/dmpf_orders?sslmode=disable' DMPF_MIGRATE=true DMPF_GRPC_INSECURE=true \
+PG_DSN='postgres://app:app@localhost:5432/dmpf_orders?sslmode=disable' MIGRATE=true GRPC_INSECURE=true \
   pnpm nx run orders:serve-api
-DMPF_PG_DSN='postgres://app:app@localhost:5432/dmpf_orders?sslmode=disable' DMPF_KAFKA_BROKERS=localhost:9092 DMPF_KAFKA_INSECURE=true \
-  DMPF_KAFKA_ORDERS_TOPIC=orders.events DMPF_KAFKA_ORDERS_DLQ=orders.events.dlq DMPF_KAFKA_GROUP=orders \
+PG_DSN='postgres://app:app@localhost:5432/dmpf_orders?sslmode=disable' KAFKA_BROKERS=localhost:9092 KAFKA_INSECURE=true \
+  KAFKA_ORDERS_TOPIC=orders.events KAFKA_ORDERS_DLQ=orders.events.dlq KAFKA_GROUP=orders \
   pnpm nx run orders:serve-relay
 ```
 
-`DMPF_GRPC_INSECURE=true` e `DMPF_KAFKA_INSECURE=true` são o opt-out de desenvolvimento (ADR-052); a topologia completa via `docker compose --profile dmpf` já sobe com mTLS entre `api` e BFF e SASL no Kafka interno (`infra/README.md`).
+`GRPC_INSECURE=true` e `KAFKA_INSECURE=true` são o opt-out de desenvolvimento (ADR-052); a topologia completa via `docker compose --profile dmpf` já sobe com mTLS entre `api` e BFF e SASL no Kafka interno (`infra/README.md`).
 
 ## Targets Nx
 
@@ -76,8 +76,8 @@ DMPF_PG_DSN='postgres://app:app@localhost:5432/dmpf_orders?sslmode=disable' DMPF
 
 ## Testes
 
-Unitários, sem banco: as UPRs do `domain` (pré-condição, efeito, determinismo, snapshot), a sequência canônica, a autorização por permissão e a instrumentação da `application` sobre o `memory` (`memory.Table` por agregado, escopado por tenant como o `postgres.Table`), e o binding e os interceptors do `rpc` por `bufconn` sobre o store em memória (cobertura do descriptor, desfechos, mTLS do peer, deadline obrigatório, contexto de execução gravado na outbox, admissão), ciclo de saúde, tracer de banco e partida do binário por papel. Com a build tag `integration` e `DMPF_PG_DSN`, o `provider` prova repositório, escopo de tenant, acesso cruzado (`CrossTenantAccess`), concorrência (dois escritores, um `ErrVersionConflict`) e o e2e até a outbox; o `test-race` declara `dependsOn` sobre o do `postgres`, porque os dois harnesses truncam as mesmas tabelas. A topologia inteira é provada pelo e2e do `bff`.
+Unitários, sem banco: as UPRs do `domain` (pré-condição, efeito, determinismo, snapshot), a sequência canônica, a autorização por permissão e a instrumentação da `application` sobre o `memory` (`memory.Table` por agregado, escopado por tenant como o `postgres.Table`), e o binding e os interceptors do `rpc` por `bufconn` sobre o store em memória (cobertura do descriptor, desfechos, mTLS do peer, deadline obrigatório, contexto de execução gravado na outbox, admissão), ciclo de saúde, tracer de banco e partida do binário por papel. Com a build tag `integration` e `PG_DSN`, o `provider` prova repositório, escopo de tenant, acesso cruzado (`CrossTenantAccess`), concorrência (dois escritores, um `ErrVersionConflict`) e o e2e até a outbox; o `test-race` declara `dependsOn` sobre o do `postgres`, porque os dois harnesses truncam as mesmas tabelas. A topologia inteira é provada pelo e2e do `bff`.
 
 ```bash
-DMPF_PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' pnpm nx run orders:test-race
+PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' pnpm nx run orders:test-race
 ```
