@@ -31,17 +31,24 @@ Leia, nesta ordem, e siga:
   `pnpm install`, o módulo não é importer do pnpm).
 - Escreve, por agregado e por comando, os blocos `domain`, `port`,
   `application`, `provider-postgres` e `app`, copiando a **forma** de
-  `apps/backend/orders` (produtor) e `apps/backend/reservations` (consumidor,
-  só se o contexto consome).
-- Escreve o `.proto` de cada evento publicado em
+  `apps/backend/bookings`, o golden da forma canônica (ADR-053), e de
+  `apps/backend/reservations` só no que o contexto consome (inbox e consumer).
+- Preenche o esqueleto que o generator deixou: o `ServiceDesc` de
+  `app/rpc/service.go` com cada método do serviço, o `app/wiring.go` com o
+  serviço de aplicação, o catálogo com o canal que o relay drena, o
+  `provider/schema.sql` e o `Tables` do `appkit`.
+- Escreve o `.proto` do serviço em
+  `contracts/proto/company/<name>/service/v1/`, o de cada evento publicado em
   `contracts/proto/company/<name>/event/v1/` e o OpenAPI em
-  `contracts/openapi/<name>/v1/`.
+  `contracts/openapi/<name>/v1/`. A borda REST é do `bff`, fora desta tarefa.
 - Acrescenta a unidade `<ctx>/contract` e os packages novos ao `include` dos
   manifestos, por merge de campo.
 - Escreve o teste **antes** do código de cada UPR, caso de uso, repositório e
   rota: um cenário de aceite e um por rejeição, como a spec declara.
-- Roda `fmt-check`, `vet`, `build`, `lint`, `test-race` (com `--parallel=1`
-  nas suítes Postgres) e `conformance --base`; corrige até passar.
+- Roda `fmt-check`, `vet`, `build`, `lint`, `test-race`, `test-distributed`,
+  `bash tools/dmpf-context-check.sh --context apps/backend/<name>` e
+  `conformance --base`; corrige até passar. Cada projeto testa no seu banco
+  `<projeto>_test`, então as suítes Postgres não precisam de `--parallel=1`.
 
 ## O que você nunca faz
 
@@ -51,6 +58,8 @@ Leia, nesta ordem, e siga:
   `libs/backend/go/contracts/gen/go/` — classificação e rito Buf são
   passos humanos.
 - Executar `git commit`, `git push` ou qualquer comando que altere o histórico.
+- Editar outra app (`bff`, outro contexto) ou mudar um valor de fio já
+  publicado; em modo regeneração, isso reprova a prova.
 - Afrouxar um gate, adicionar exceção de lint ou `t.Skip` para passar.
 - Contornar um gate normativo: `DMPF-D002`, `DMPF-U001` ou célula proibida
   reprovando é **parada** — reporte o gate, o arquivo e o import, e encerre.
