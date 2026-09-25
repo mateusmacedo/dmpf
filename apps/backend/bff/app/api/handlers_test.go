@@ -14,7 +14,7 @@ import (
 
 	ordersv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/orders/service/v1"
 	reservationsv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/reservations/service/v1"
-	provider "github.com/mateusmacedo/dmpf/libs/backend/go/http"
+	kernelhttp "github.com/mateusmacedo/dmpf/libs/backend/go/http"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/admission"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/deadline"
 
@@ -46,7 +46,7 @@ func TestRoutesReferenceThePublishedContracts(t *testing.T) {
 	}
 	stripped := routes[0]
 	stripped.ContractRef = ""
-	if err := stripped.Validate(); !errors.Is(err, provider.ErrContractRequired) {
+	if err := stripped.Validate(); !errors.Is(err, kernelhttp.ErrContractRequired) {
 		t.Fatalf("Validate() without ContractRef = %v, want ErrContractRequired", err)
 	}
 }

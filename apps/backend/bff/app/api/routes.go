@@ -13,7 +13,7 @@ import (
 	bookingsv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/bookings/service/v1"
 	ordersv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/orders/service/v1"
 	reservationsv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/reservations/service/v1"
-	provider "github.com/mateusmacedo/dmpf/libs/backend/go/http"
+	kernelhttp "github.com/mateusmacedo/dmpf/libs/backend/go/http"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/metrics"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/admission"
@@ -69,19 +69,19 @@ type Options struct {
 	CORSOrigins          []string
 }
 
-func Routes(budget deadline.Budget) []provider.Route {
-	return []provider.Route{
-		{Name: "addItem", Method: http.MethodPost, Path: "/orders/{id}/items", ContractRef: ordersContract + "~1orders~1{id}~1items/post", Budget: budget, IdempotencyKey: IdempotencyHeader, Requires: provider.RequireSubjectAndTenant, Permission: "orders:write"},
-		{Name: "placeOrder", Method: http.MethodPost, Path: "/orders/{id}/place", ContractRef: ordersContract + "~1orders~1{id}~1place/post", Budget: budget, IdempotencyKey: IdempotencyHeader, Requires: provider.RequireSubjectAndTenant, Permission: "orders:write"},
-		{Name: "findOrder", Method: http.MethodGet, Path: "/orders/{id}", ContractRef: ordersContract + "~1orders~1{id}/get", Budget: budget, Requires: provider.RequireSubjectAndTenant, Permission: "orders:read"},
-		{Name: "findReservation", Method: http.MethodGet, Path: "/reservations/{order_id}", ContractRef: reservationsContract + "~1reservations~1{order_id}/get", Budget: budget, Requires: provider.RequireSubjectAndTenant, Permission: "reservations:read"},
-		{Name: "reserve", Method: http.MethodPost, Path: "/reservations/{order_id}/reserve", ContractRef: reservationsContract + "~1reservations~1{order_id}~1reserve/post", Budget: budget, IdempotencyKey: IdempotencyHeader, Requires: provider.RequireSubjectAndTenant, Permission: "reservations:write"},
-		{Name: "cancel", Method: http.MethodPost, Path: "/reservations/{order_id}/cancel", ContractRef: reservationsContract + "~1reservations~1{order_id}~1cancel/post", Budget: budget, IdempotencyKey: IdempotencyHeader, Requires: provider.RequireSubjectAndTenant, Permission: "reservations:write"},
-		{Name: "reserveBooking", Method: http.MethodPost, Path: "/bookings/booking", ContractRef: bookingsContract + "~1bookings~1booking/post", Budget: budget, IdempotencyKey: IdempotencyHeader, Requires: provider.RequireSubjectAndTenant, Permission: "bookings:write"},
-		{Name: "findBookingByResource", Method: http.MethodGet, Path: "/bookings/booking", ContractRef: bookingsContract + "~1bookings~1booking/get", Budget: budget, Requires: provider.RequireSubjectAndTenant, Permission: "bookings:read"},
-		{Name: "findBooking", Method: http.MethodGet, Path: "/bookings/booking/{id}", ContractRef: bookingsContract + "~1bookings~1booking~1{id}/get", Budget: budget, Requires: provider.RequireSubjectAndTenant, Permission: "bookings:read"},
-		{Name: "cancelBooking", Method: http.MethodPost, Path: "/bookings/booking/{id}/cancel", ContractRef: bookingsContract + "~1bookings~1booking~1{id}~1cancel/post", Budget: budget, IdempotencyKey: IdempotencyHeader, Requires: provider.RequireSubjectAndTenant, Permission: "bookings:write"},
-		{Name: "registerResource", Method: http.MethodPost, Path: "/bookings/resource", ContractRef: bookingsContract + "~1bookings~1resource/post", Budget: budget, IdempotencyKey: IdempotencyHeader, Requires: provider.RequireSubjectAndTenant, Permission: "bookings:write"},
+func Routes(budget deadline.Budget) []kernelhttp.Route {
+	return []kernelhttp.Route{
+		{Name: "addItem", Method: http.MethodPost, Path: "/orders/{id}/items", ContractRef: ordersContract + "~1orders~1{id}~1items/post", Budget: budget, IdempotencyKey: IdempotencyHeader, Requires: kernelhttp.RequireSubjectAndTenant, Permission: "orders:write"},
+		{Name: "placeOrder", Method: http.MethodPost, Path: "/orders/{id}/place", ContractRef: ordersContract + "~1orders~1{id}~1place/post", Budget: budget, IdempotencyKey: IdempotencyHeader, Requires: kernelhttp.RequireSubjectAndTenant, Permission: "orders:write"},
+		{Name: "findOrder", Method: http.MethodGet, Path: "/orders/{id}", ContractRef: ordersContract + "~1orders~1{id}/get", Budget: budget, Requires: kernelhttp.RequireSubjectAndTenant, Permission: "orders:read"},
+		{Name: "findReservation", Method: http.MethodGet, Path: "/reservations/{order_id}", ContractRef: reservationsContract + "~1reservations~1{order_id}/get", Budget: budget, Requires: kernelhttp.RequireSubjectAndTenant, Permission: "reservations:read"},
+		{Name: "reserve", Method: http.MethodPost, Path: "/reservations/{order_id}/reserve", ContractRef: reservationsContract + "~1reservations~1{order_id}~1reserve/post", Budget: budget, IdempotencyKey: IdempotencyHeader, Requires: kernelhttp.RequireSubjectAndTenant, Permission: "reservations:write"},
+		{Name: "cancel", Method: http.MethodPost, Path: "/reservations/{order_id}/cancel", ContractRef: reservationsContract + "~1reservations~1{order_id}~1cancel/post", Budget: budget, IdempotencyKey: IdempotencyHeader, Requires: kernelhttp.RequireSubjectAndTenant, Permission: "reservations:write"},
+		{Name: "reserveBooking", Method: http.MethodPost, Path: "/bookings/booking", ContractRef: bookingsContract + "~1bookings~1booking/post", Budget: budget, IdempotencyKey: IdempotencyHeader, Requires: kernelhttp.RequireSubjectAndTenant, Permission: "bookings:write"},
+		{Name: "findBookingByResource", Method: http.MethodGet, Path: "/bookings/booking", ContractRef: bookingsContract + "~1bookings~1booking/get", Budget: budget, Requires: kernelhttp.RequireSubjectAndTenant, Permission: "bookings:read"},
+		{Name: "findBooking", Method: http.MethodGet, Path: "/bookings/booking/{id}", ContractRef: bookingsContract + "~1bookings~1booking~1{id}/get", Budget: budget, Requires: kernelhttp.RequireSubjectAndTenant, Permission: "bookings:read"},
+		{Name: "cancelBooking", Method: http.MethodPost, Path: "/bookings/booking/{id}/cancel", ContractRef: bookingsContract + "~1bookings~1booking~1{id}~1cancel/post", Budget: budget, IdempotencyKey: IdempotencyHeader, Requires: kernelhttp.RequireSubjectAndTenant, Permission: "bookings:write"},
+		{Name: "registerResource", Method: http.MethodPost, Path: "/bookings/resource", ContractRef: bookingsContract + "~1bookings~1resource/post", Budget: budget, IdempotencyKey: IdempotencyHeader, Requires: kernelhttp.RequireSubjectAndTenant, Permission: "bookings:write"},
 	}
 }
 
@@ -94,7 +94,7 @@ func Limits(limit admission.Limit) map[string]admission.Limit {
 	return limits
 }
 
-func pattern(route provider.Route) string { return route.Method + " " + route.Path }
+func pattern(route kernelhttp.Route) string { return route.Method + " " + route.Path }
 
 // ErrAuthenticatorRequired refuses a handler that could not authenticate: every
 // route here demands a subject, and a nil verifier would deny all of them at
@@ -133,7 +133,7 @@ func NewHandler(
 		"registerResource":      h.registerResource,
 	}
 
-	admit := provider.Admission(ctrl, routeOf, tenantOf, instruments, refuseAsRejection)
+	admit := kernelhttp.Admission(ctrl, routeOf, tenantOf, instruments, refuseAsRejection)
 	mux := http.NewServeMux()
 	for _, route := range Routes(opts.Budget) {
 		if err := route.ValidateEdge(); err != nil {

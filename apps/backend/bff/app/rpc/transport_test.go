@@ -14,7 +14,7 @@ import (
 	"google.golang.org/grpc/credentials"
 
 	ordersv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/orders/service/v1"
-	provider "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
+	kernelgrpc "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
 	obsclock "github.com/mateusmacedo/dmpf/libs/backend/go/observability/clock"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb"
@@ -38,7 +38,7 @@ func findOrderOver(t *testing.T, target string, opts rpc.Options) error {
 func TestAClientWithoutTransportPolicyIsRefused(t *testing.T) {
 	_, err := rpc.Dial("127.0.0.1:1", rpc.OrdersConfig(rpc.Options{Clock: obsclock.System()}))
 
-	if !errors.Is(err, provider.ErrTLSRequired) {
+	if !errors.Is(err, kernelgrpc.ErrTLSRequired) {
 		t.Fatalf("Dial() = %v, want ErrTLSRequired (GRP-15)", err)
 	}
 }

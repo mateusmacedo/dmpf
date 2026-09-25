@@ -12,7 +12,7 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 
-	provider "github.com/mateusmacedo/dmpf/libs/backend/go/http"
+	kernelhttp "github.com/mateusmacedo/dmpf/libs/backend/go/http"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/retry"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/tracing"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
@@ -36,7 +36,7 @@ var idempotencyFormat = regexp.MustCompile(`^[A-Za-z0-9._-]{1,128}$`)
 // withExecutionContext authenticates and mounts the nine-field context. It runs
 // inside withRouteDeadline, never outside: deadline is mandatory in CTX-01, and
 // mounting before the timeout existed would leave the field unresolvable.
-func withExecutionContext(tracer trace.Tracer, authenticator ports.Authenticator, route provider.Route, next http.Handler) http.Handler {
+func withExecutionContext(tracer trace.Tracer, authenticator ports.Authenticator, route kernelhttp.Route, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := extractTrustedTrace(r)
 
@@ -60,9 +60,9 @@ func withExecutionContext(tracer trace.Tracer, authenticator ports.Authenticator
 			return
 		}
 
-		identity, status, code := provider.ResolveIdentity(ctx, authenticator, route, authn.CredentialFrom(r))
+		identity, status, code := kernelhttp.ResolveIdentity(ctx, authenticator, route, authn.CredentialFrom(r))
 		if status == 0 {
-			status, code = provider.RefuseAssertedIdentity(r, identity)
+			status, code = kernelhttp.RefuseAssertedIdentity(r, identity)
 		}
 		if status != 0 {
 			tracing.RecordError(span, code)
@@ -97,7 +97,7 @@ func withExecutionContext(tracer trace.Tracer, authenticator ports.Authenticator
 			call.TenantID = string(tenant)
 		}
 
-		ctx = provider.WithExecutionContext(ctx, execution)
+		ctx = kernelhttp.WithExecutionContext(ctx, execution)
 		ctx = rpc.WithCall(ctx, call)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})

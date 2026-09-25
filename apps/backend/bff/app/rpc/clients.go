@@ -17,7 +17,7 @@ import (
 	bookingsv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/bookings/service/v1"
 	ordersv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/orders/service/v1"
 	reservationsv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/reservations/service/v1"
-	provider "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
+	kernelgrpc "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/clock"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/metrics"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/resilience"
@@ -73,24 +73,24 @@ type Options struct {
 	Service     string
 }
 
-func OrdersConfig(opts Options) provider.Config {
-	return config("orders", OrdersServiceName, opts, map[string]provider.MethodPolicy{
+func OrdersConfig(opts Options) kernelgrpc.Config {
+	return config("orders", OrdersServiceName, opts, map[string]kernelgrpc.MethodPolicy{
 		MethodAddItem:    policy("orders", MethodAddItem, false),
 		MethodPlaceOrder: policy("orders", MethodPlaceOrder, false),
 		MethodFindOrder:  policy("orders", MethodFindOrder, true),
 	})
 }
 
-func ReservationsConfig(opts Options) provider.Config {
-	return config("reservations", ReservationsServiceName, opts, map[string]provider.MethodPolicy{
+func ReservationsConfig(opts Options) kernelgrpc.Config {
+	return config("reservations", ReservationsServiceName, opts, map[string]kernelgrpc.MethodPolicy{
 		MethodReserve:         policy("reservations", MethodReserve, false),
 		MethodCancel:          policy("reservations", MethodCancel, false),
 		MethodFindReservation: policy("reservations", MethodFindReservation, true),
 	})
 }
 
-func BookingsConfig(opts Options) provider.Config {
-	return config("bookings", BookingsServiceName, opts, map[string]provider.MethodPolicy{
+func BookingsConfig(opts Options) kernelgrpc.Config {
+	return config("bookings", BookingsServiceName, opts, map[string]kernelgrpc.MethodPolicy{
 		MethodReserveBooking:         policy("bookings", MethodReserveBooking, false),
 		MethodCancelBooking:          policy("bookings", MethodCancelBooking, false),
 		MethodRegisterResource:       policy("bookings", MethodRegisterResource, false),
@@ -99,8 +99,8 @@ func BookingsConfig(opts Options) provider.Config {
 	})
 }
 
-func policy(dependency, method string, read bool) provider.MethodPolicy {
-	p := provider.MethodPolicy{
+func policy(dependency, method string, read bool) kernelgrpc.MethodPolicy {
+	p := kernelgrpc.MethodPolicy{
 		Budget: deadline.Budget{
 			Dependency:        dependency,
 			Method:            method,
@@ -116,8 +116,8 @@ func policy(dependency, method string, read bool) provider.MethodPolicy {
 	return p
 }
 
-func config(dependency, healthService string, opts Options, methods map[string]provider.MethodPolicy) provider.Config {
-	return provider.Config{
+func config(dependency, healthService string, opts Options, methods map[string]kernelgrpc.MethodPolicy) kernelgrpc.Config {
+	return kernelgrpc.Config{
 		TLS:                        opts.TLS,
 		InsecureForDevelopmentOnly: opts.Insecure,
 		Sheet:                      resilience.Defaults(dependency),
@@ -133,9 +133,9 @@ func config(dependency, healthService string, opts Options, methods map[string]p
 
 // Dial opens a client with the edge's context interceptor innermost, so the
 // traceparent written to the metadata is the one of the client span.
-func Dial(target string, cfg provider.Config, extra ...grpc.DialOption) (*grpc.ClientConn, error) {
+func Dial(target string, cfg kernelgrpc.Config, extra ...grpc.DialOption) (*grpc.ClientConn, error) {
 	options := append([]grpc.DialOption{grpc.WithChainUnaryInterceptor(contextInterceptor)}, extra...)
-	return provider.Dial(target, cfg, options...)
+	return kernelgrpc.Dial(target, cfg, options...)
 }
 
 type Orders struct{ conn grpc.ClientConnInterface }

@@ -16,7 +16,7 @@ import (
 
 	ordersv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/orders/service/v1"
 	reservationsv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/reservations/service/v1"
-	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
+	kernelgrpc "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
 	obsclock "github.com/mateusmacedo/dmpf/libs/backend/go/observability/clock"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/retry"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/deadline"
@@ -87,7 +87,7 @@ func TestMethodNamesComeFromTheGeneratedDescriptor(t *testing.T) {
 
 func TestOnlyTheReadsAreDeclaredIdempotent(t *testing.T) {
 	opts := rpc.Options{Insecure: true, Clock: obsclock.System()}
-	policies := map[string]kernel.MethodPolicy{}
+	policies := map[string]kernelgrpc.MethodPolicy{}
 	for method, policy := range rpc.OrdersConfig(opts).Methods {
 		policies[method] = policy
 	}
