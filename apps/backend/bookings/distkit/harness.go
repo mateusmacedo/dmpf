@@ -21,6 +21,8 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/contracts/payloadhash"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/pg"
+
+	"github.com/mateusmacedo/dmpf/apps/backend/bookings/appkit"
 )
 
 // The variables the parent hands the re-executed child. Role selects which
@@ -59,7 +61,7 @@ type Harness struct {
 func New(t testing.TB) Harness {
 	t.Helper()
 	seeds := strings.Split(tb.Env(t, EnvBrokers), ",")
-	pool := pg.OpenPool(t)
+	pool := pg.OpenPool(t, appkit.PoolOptions)
 	suffix := fmt.Sprintf("%d", time.Now().UnixNano())
 	h := Harness{
 		Brokers: seeds,
@@ -122,6 +124,7 @@ func (h Harness) Start(t testing.TB, role Role) *Process {
 		"DMPF_KAFKA_INSECURE=true",
 		"DMPF_SERVICE=bookings-distkit",
 		EnvBrokers+"="+strings.Join(h.Brokers, ","),
+		pg.PostgresDSN+"="+pg.DSN(t, appkit.PoolOptions.Project),
 	)
 	p := &Process{Role: role, cmd: cmd, finished: make(chan struct{})}
 	cmd.Stdout, cmd.Stderr = &p.output, &p.output

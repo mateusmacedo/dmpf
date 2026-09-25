@@ -20,17 +20,17 @@ import (
 // DMPF tables and the ones named here.
 var Tables = []string{"bookings", "resources"}
 
-// OpenPool opens the suite's pool with this context's schema migrated before its
-// tables are reset: truncating first would fail on a database that has never
-// seen the schema.
+// PoolOptions is the database this context's suites run in.
+var PoolOptions = pg.Options{
+	Project:      "bookings",
+	Capabilities: []postgres.Capability{postgres.Outbox},
+	Schemas:      []string{provider.Schema},
+	Tables:       Tables,
+}
+
 func OpenPool(t testing.TB) *pgxpool.Pool {
 	t.Helper()
-	pool := pg.OpenPool(t)
-	if err := postgres.Migrate(context.Background(), pool, provider.Schema); err != nil {
-		t.Fatalf("appkit.OpenPool: Migrate: %v", err)
-	}
-	pg.ResetTables(t, pool, Tables...)
-	return pool
+	return pg.OpenPool(t, PoolOptions)
 }
 
 // Harness is the application service composed over the Postgres the suite
