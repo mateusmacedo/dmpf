@@ -19,8 +19,8 @@ type probe struct {
 }
 
 var probeTable = postgres.Table[string, probe]{
-	Name:     "dmpf_example_orders",
-	IDColumn: "order_id",
+	Name:     "probes",
+	IDColumn: "probe_id",
 	Columns:  []string{"snapshot"},
 	Encode: func(p probe) ([]any, error) {
 		raw, err := json.Marshal(p)
@@ -210,19 +210,19 @@ func TestTableRefusesAMalformedDeclaration(t *testing.T) {
 	}{
 		{
 			name:  "name that is not an identifier",
-			table: postgres.Table[string, probe]{Name: "orders; DROP TABLE x", IDColumn: "order_id", Columns: []string{"snapshot"}, Encode: probeTable.Encode, Decode: probeTable.Decode},
+			table: postgres.Table[string, probe]{Name: "probes; DROP TABLE x", IDColumn: "probe_id", Columns: []string{"snapshot"}, Encode: probeTable.Encode, Decode: probeTable.Decode},
 		},
 		{
 			name:  "column the table owns",
-			table: postgres.Table[string, probe]{Name: "dmpf_example_orders", IDColumn: "order_id", Columns: []string{"tenant_id"}, Encode: probeTable.Encode, Decode: probeTable.Decode},
+			table: postgres.Table[string, probe]{Name: "probes", IDColumn: "probe_id", Columns: []string{"tenant_id"}, Encode: probeTable.Encode, Decode: probeTable.Decode},
 		},
 		{
 			name:  "no state column",
-			table: postgres.Table[string, probe]{Name: "dmpf_example_orders", IDColumn: "order_id", Encode: probeTable.Encode, Decode: probeTable.Decode},
+			table: postgres.Table[string, probe]{Name: "probes", IDColumn: "probe_id", Encode: probeTable.Encode, Decode: probeTable.Decode},
 		},
 		{
 			name:  "no codec",
-			table: postgres.Table[string, probe]{Name: "dmpf_example_orders", IDColumn: "order_id", Columns: []string{"snapshot"}},
+			table: postgres.Table[string, probe]{Name: "probes", IDColumn: "probe_id", Columns: []string{"snapshot"}},
 		},
 	}
 
@@ -246,7 +246,7 @@ func TestRelationReportsAValueHeldOnlyByAnotherTenant(t *testing.T) {
 	if err := saveProbe(t, scopedTo(t, "acme"), pool, "P-9", probe{Items: 1}, 0); err != nil {
 		t.Fatalf("Save() = %v", err)
 	}
-	relation := probeTable.Relation("order_id")
+	relation := probeTable.Relation("probe_id")
 	read := postgres.NewReadPool(pool)
 
 	if rows, err := relation.Query(scopedTo(t, "acme"), read, "P-9"); err != nil || len(rows) != 1 {

@@ -22,7 +22,7 @@ const (
 func TestMigrateIsIdempotent(t *testing.T) {
 	pool := openPool(t)
 
-	if err := postgres.Migrate(context.Background(), pool); err != nil {
+	if err := postgres.Migrate(context.Background(), pool, allCapabilities, probeSchema); err != nil {
 		t.Fatalf("second Migrate() = %v, want nil", err)
 	}
 }
@@ -33,7 +33,7 @@ func TestMigrateAppliesTheSchemaOfAContext(t *testing.T) {
 	const index = "migrate_context_schema_idx"
 	t.Cleanup(func() { _, _ = pool.Exec(context.Background(), "DROP INDEX IF EXISTS "+index) })
 
-	if err := postgres.Migrate(ctx, pool, "CREATE INDEX IF NOT EXISTS "+index+" ON dmpf_example_orders (version)"); err != nil {
+	if err := postgres.Migrate(ctx, pool, allCapabilities, "CREATE INDEX IF NOT EXISTS "+index+" ON probes (version)"); err != nil {
 		t.Fatalf("Migrate() with a context schema = %v, want nil", err)
 	}
 	if !exists(t, ctx, pool, indexExistsQuery, index) {
@@ -46,7 +46,7 @@ func TestMigrateCreatesTheOutboxSchema(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("tables", func(t *testing.T) {
-		for _, table := range []string{"outbox", "inbox", "quarantine", "dmpf_example_orders", "dmpf_example_reservations"} {
+		for _, table := range []string{"outbox", "inbox", "quarantine"} {
 			if !exists(t, ctx, pool, tableExistsQuery, table) {
 				t.Errorf("table %s does not exist", table)
 			}
@@ -59,12 +59,14 @@ func TestMigrateCreatesTheOutboxSchema(t *testing.T) {
 			name           string
 			constraintType string
 		}{
+			{"outbox", "outbox_pkey", "PRIMARY KEY"},
 			{"outbox", "outbox_message_id_key", "UNIQUE"},
 			{"outbox", "outbox_status_check", "CHECK"},
 			{"outbox", "outbox_available_at_check", "CHECK"},
 			{"outbox", "outbox_payload_check", "CHECK"},
 			{"inbox", "inbox_consumer_name_message_id_key", "UNIQUE"},
 			{"inbox", "inbox_status_check", "CHECK"},
+			{"quarantine", "quarantine_pkey", "PRIMARY KEY"},
 			{"quarantine", "quarantine_envelope_check", "CHECK"},
 		}
 		for _, c := range cases {
@@ -75,12 +77,20 @@ func TestMigrateCreatesTheOutboxSchema(t *testing.T) {
 	})
 
 	t.Run("indexes", func(t *testing.T) {
-		for _, idx := range []string{"outbox_published_at_idx", "outbox_claim_idx", "inbox_retention_idx", "quarantine_consumer_name_reason_idx", "dmpf_example_orders_order_id_idx", "dmpf_example_reservations_order_id_idx"} {
+		for _, idx := range []string{"outbox_published_at_idx", "outbox_claim_idx", "inbox_retention_idx", "quarantine_consumer_name_reason_idx"} {
 			if !exists(t, ctx, pool, indexExistsQuery, idx) {
 				t.Errorf("index %s does not exist", idx)
 			}
 		}
 	})
+}
+
+func TestMigrateRefusesAnUnknownCapability(t *testing.T) {
+	pool := openPool(t)
+
+	if err := postgres.Migrate(context.Background(), pool, []postgres.Capability{"ledger"}); err == nil {
+		t.Fatal("Migrate() with an unknown capability = nil, want an error naming it")
+	}
 }
 
 func TestMigrateInboxStatusCheckRejectsInvalidStatus(t *testing.T) {

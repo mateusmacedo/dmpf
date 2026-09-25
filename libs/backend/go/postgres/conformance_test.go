@@ -23,10 +23,15 @@ import (
 // passes, run against Postgres (§8.1.1). The unit-of-work and outbox tests of
 // this package keep their own finer clauses; these are the shared contract.
 
+var (
+	kitTables  = append(postgres.Tables(allCapabilities...), "probes")
+	kitOptions = pg.Options{Project: "postgres", Capabilities: allCapabilities, Schemas: []string{probeSchema}, Tables: []string{"probes"}}
+)
+
 func TestUnitOfWorkConformsToTheKit(t *testing.T) {
-	pool := pg.OpenPool(t)
+	pool := pg.OpenPool(t, kitOptions)
 	v := providerkit.UnitOfWork(func() providerkit.UnitOfWorkSubject[writer] {
-		pg.ResetTables(t, pool)
+		pg.ResetTables(t, pool, kitTables...)
 		n := 0
 		return providerkit.UnitOfWorkSubject[writer]{
 			UoW: postgres.NewUnitOfWork(pool, bindWriter),
@@ -48,9 +53,9 @@ func TestUnitOfWorkConformsToTheKit(t *testing.T) {
 }
 
 func TestRepositoryConformsToTheKit(t *testing.T) {
-	pool := pg.OpenPool(t)
+	pool := pg.OpenPool(t, kitOptions)
 	v := providerkit.Repository(func() providerkit.RepositorySubject[string, probe] {
-		pg.ResetTables(t, pool)
+		pg.ResetTables(t, pool, kitTables...)
 		return providerkit.RepositorySubject[string, probe]{
 			Within: func(ctx context.Context, fn func(ctx context.Context, repo ports.Repository[string, probe]) error) error {
 				uow := postgres.NewUnitOfWork(pool, func(tx *postgres.Tx) ports.Repository[string, probe] {
@@ -73,9 +78,9 @@ func TestRepositoryConformsToTheKit(t *testing.T) {
 }
 
 func TestInboxConformsToTheKit(t *testing.T) {
-	pool := pg.OpenPool(t)
+	pool := pg.OpenPool(t, kitOptions)
 	v := providerkit.Inbox(func() providerkit.InboxSubject {
-		pg.ResetTables(t, pool)
+		pg.ResetTables(t, pool, kitTables...)
 		return providerkit.InboxSubject{
 			Within: func(ctx context.Context, consumer string, fn func(ctx context.Context, inbox ports.Inbox) error) error {
 				uow := postgres.NewUnitOfWork(pool, func(tx *postgres.Tx) ports.Inbox {
@@ -105,9 +110,9 @@ func TestInboxConformsToTheKit(t *testing.T) {
 }
 
 func TestOutboxStoreConformsToTheKit(t *testing.T) {
-	pool := pg.OpenPool(t)
+	pool := pg.OpenPool(t, kitOptions)
 	v := providerkit.Outbox(func() providerkit.OutboxSubject[postgres.Claimed] {
-		pg.ResetTables(t, pool)
+		pg.ResetTables(t, pool, kitTables...)
 		fake := clock.New(ports.Instant(1_000_000))
 		store := postgres.NewOutboxStore(pool, fake)
 		return providerkit.OutboxSubject[postgres.Claimed]{
