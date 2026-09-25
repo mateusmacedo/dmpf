@@ -31,7 +31,7 @@ instâncias de `Table[ID,S]` no bloco `provider` de cada contexto —
   por uma coluna que não é a chave —, com a mesma disciplina de tenant.
 - **`pool.go`** — `NewPool` monta o `*pgxpool.Pool` com o tracer de query do
   processo (`dbtrace.go`, um span por query só dentro de operação já traçada,
-  nunca a carga do relay); `AssertOwnOutbox` recusa a partida se a `dmpf_outbox`
+  nunca a carga do relay); `AssertOwnOutbox` recusa a partida se a `outbox`
   tiver registro pendente de um destino que o contexto não publica — a
   proteção contra banco compartilhado entre contextos, promovida da
   composition root para o kernel.
@@ -47,19 +47,18 @@ instâncias de `Table[ID,S]` no bloco `provider` de cada contexto —
   mapeamento concreto é de cada bounded context.
 - **`destination.go`** — a forma de `BLK-04`: nome de fluxo lógico em segmentos
   minúsculos separados por ponto. ARN, URL, caminho e maiúscula são recusados.
-- **`schema.sql` / `migrate.go`** — os dezoito campos de FND-04 §4.1 mais
-  `payload_hash`, com `UNIQUE (message_id)` e três `CHECK`; a `dmpf_inbox` de
-  §6.1 com `UNIQUE (consumer_name, message_id)` e `CHECK` de dois valores
-  terminais (`INB-01`, `INB-02`); a `dmpf_quarantine` com o envelope em `bytea`.
+- **`outbox.sql` / `inbox.sql` / `migrate.go`** — as capacidades `Outbox` e
+  `Inbox` que `Migrate` aplica sob pedido, seguidas do schema do contexto
+  (ADR-053): na `outbox`, os dezoito campos de FND-04 §4.1 mais
+  `payload_hash`, com `UNIQUE (message_id)` e três `CHECK`; na `inbox` de
+  §6.1, `UNIQUE (consumer_name, message_id)` e `CHECK` de dois valores
+  terminais (`INB-01`, `INB-02`); na `quarantine`, o envelope em `bytea`.
   As três ficam **fora** do escopo de tenant (ADR-050): o relay reivindica por
   lease sem contexto de requisição, a inbox dedupe pela identidade da mensagem
-  e a quarantine guarda até envelope cujo tenant não é confiável. Já
-  `dmpf_example_orders` e `dmpf_example_reservations` — cujos repositórios
-  vivem em `apps/backend/{orders,reservations}/provider` — ganharam `tenant_id
-  NOT NULL` e chave primária composta `(tenant_id, order_id)`; a migração
-  recusa a alteração se encontrar linha sem tenant, em vez de inventar um
-  valor (`IDN-20`). `Migrate` é idempotente e não há tabela de versão: não
-  existe ferramenta de migração aqui.
+  e a quarantine guarda até envelope cujo tenant não é confiável. As tabelas
+  de agregado são de cada contexto, em `apps/backend/<ctx>/provider/schema.sql`,
+  com `tenant_id NOT NULL` à frente da chave primária. `Migrate` é idempotente
+  e não há tabela de versão: não existe ferramenta de migração aqui.
 - **`inbox.go`** — `Tx.Inbox(consumer, wait)`, `Register` e `Pending.Complete`
   (`KRN-07`). `Register` é `INSERT … ON CONFLICT DO NOTHING` seguido de leitura:
   devolve a classificação (R1, R2, R3 ou R4), nunca erro de constraint, e a
@@ -145,7 +144,7 @@ dentro dele — um skip silencioso deixaria a outbox sem prova executável.
 
 ```bash
 docker compose -f infra/local/docker-compose.yml --profile postgres up -d
-export PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable'
+export PG_DSN='postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable'
 pnpm nx run postgres:test-race
 ```
 
@@ -183,7 +182,7 @@ mira `apps/**/provider/**`, não `postgres` em si.
 - `docs/adr/035-realizacao-postgres-da-outbox.md` — as decisões deste módulo.
 - `docs/adr/034-fronteira-de-uow-em-go.md` — a fronteira que ele realiza.
 - `docs/adr/050-tabelas-de-infraestrutura-fora-do-escopo-de-tenant.md` — por
-  que `dmpf_outbox`, `dmpf_inbox` e `dmpf_quarantine` ficam fora do escopo.
+  que `outbox`, `inbox` e `quarantine` ficam fora do escopo.
 - `docs/adr/051-escopo-de-tenant-por-choke-point-em-go.md` — `Table`, `ReadPool`
   e o gate `context-provider`.
 - `docs/dmpf/uow-inbox-outbox.md` (FND-04) — §2.3, §3.1 a §3.3, §4.1, §4.2.
