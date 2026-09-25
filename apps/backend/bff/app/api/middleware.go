@@ -169,7 +169,7 @@ func withCORS(origins []string, next http.Handler) http.Handler {
 		header.Set("Access-Control-Expose-Headers", CorrelationHeader)
 		if r.Method == http.MethodOptions {
 			header.Set("Access-Control-Allow-Methods", strings.Join([]string{http.MethodGet, http.MethodPost, http.MethodOptions}, ", "))
-			header.Set("Access-Control-Allow-Headers", strings.Join([]string{"Content-Type", IdempotencyHeader, CorrelationHeader}, ", "))
+			header.Set("Access-Control-Allow-Headers", strings.Join([]string{"Authorization", "Content-Type", IdempotencyHeader, CorrelationHeader}, ", "))
 			header.Set("Access-Control-Max-Age", "600")
 			w.WriteHeader(http.StatusNoContent)
 			return

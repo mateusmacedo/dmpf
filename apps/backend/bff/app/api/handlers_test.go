@@ -362,8 +362,10 @@ func TestCORSAnswersThePreflightOfDeclaredOrigins(t *testing.T) {
 	if rec.Code != http.StatusNoContent || rec.Header().Get("Access-Control-Allow-Origin") != "http://localhost:8082" {
 		t.Fatalf("preflight = %d %v, want 204 with the origin allowed", rec.Code, rec.Header())
 	}
-	if !strings.Contains(rec.Header().Get("Access-Control-Allow-Headers"), api.IdempotencyHeader) {
-		t.Fatalf("Access-Control-Allow-Headers = %q, want %s", rec.Header().Get("Access-Control-Allow-Headers"), api.IdempotencyHeader)
+	for _, header := range []string{api.IdempotencyHeader, "Authorization"} {
+		if !strings.Contains(rec.Header().Get("Access-Control-Allow-Headers"), header) {
+			t.Fatalf("Access-Control-Allow-Headers = %q, want %s", rec.Header().Get("Access-Control-Allow-Headers"), header)
+		}
 	}
 
 	other := f.do(t, http.MethodOptions, "/reservations/o-1/reserve", nil, "Origin", "http://evil.example")
