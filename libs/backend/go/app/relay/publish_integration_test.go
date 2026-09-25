@@ -55,7 +55,7 @@ func openSingleConnPool(t *testing.T) *pgxpool.Pool {
 func truncateOutbox(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 
-	const stmt = "TRUNCATE dmpf_outbox, dmpf_inbox, dmpf_quarantine, dmpf_example_orders, dmpf_example_reservations"
+	const stmt = "TRUNCATE outbox, inbox, quarantine, dmpf_example_orders, dmpf_example_reservations"
 	if _, err := pool.Exec(context.Background(), stmt); err != nil {
 		t.Fatalf("TRUNCATE = %v, want nil", err)
 	}
@@ -108,7 +108,7 @@ func seedOutboxRow(t *testing.T, pool *pgxpool.Pool) {
 
 	record := publishableRecord(t)
 	_, err := pool.Exec(context.Background(), `
-		INSERT INTO dmpf_outbox (
+		INSERT INTO outbox (
 			message_id, message_type, schema_version,
 			aggregate_type, aggregate_id, aggregate_version,
 			partition_key, destination,
