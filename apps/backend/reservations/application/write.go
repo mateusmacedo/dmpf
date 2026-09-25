@@ -37,7 +37,7 @@ func write[R any](ctx context.Context, s Service, operation string, cmd Operatio
 			return err
 		}
 
-		accepted, rejection := decide(reservation, domain.Instant(identity.OccurredAt.Unix()))
+		accepted, rejection := decide(reservation, domain.Instant(identity.OccurredAt))
 		if rejection != nil {
 			// Committing a transaction with no effect keeps a refusal apart from a
 			// technical failure, which DEC-04 forbids to conflate (FND-04 §3.2).

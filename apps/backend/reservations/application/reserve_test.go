@@ -45,7 +45,7 @@ func TestReserveCreatesTheReservationAndAuthorsTheOutboxEntry(t *testing.T) {
 		AggregateType:    application.AggregateType,
 		AggregateID:      string(syncOrder),
 		AggregateVersion: 1,
-		Event:            domain.ReservationConfirmed{Order: syncOrder, Items: 2, At: domain.Instant(syncOccurred.Unix())},
+		Event:            domain.ReservationConfirmed{Order: syncOrder, Items: 2, At: domain.Instant(syncOccurred)},
 		Context:          ports.MessageContext{CausationID: "m-000001"},
 	}
 	if entries[0] != want {

@@ -73,7 +73,7 @@ func (s Service) consumeFirst(
 
 	accepted, rejection := reservation.Reserve(domain.Reserve{
 		Items: cmd.Items,
-		At:    domain.Instant(identity.OccurredAt.Unix()),
+		At:    domain.Instant(identity.OccurredAt),
 	})
 	if rejection != nil {
 		*disposition = application.R1D2
