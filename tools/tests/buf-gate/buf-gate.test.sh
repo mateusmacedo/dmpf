@@ -34,18 +34,31 @@ commitar() { # dir mensagem
   git -C "$1" commit -q -m "$2" || exit 2
 }
 
-marcar_baseline() { # dir email-do-tagger
+marcar_baseline() { # dir email-do-tagger [projeto]
   GIT_COMMITTER_EMAIL="$2" GIT_COMMITTER_NAME=tagger \
-    git -C "$1" tag -a "contracts-baseline/proto" -m "baseline estabelecido"
+    git -C "$1" tag -a "contracts-baseline/${3:-contracts}" -m "baseline estabelecido"
 }
 
-# Executa o gate dentro do sandbox, sem herdar GIT_* do ambiente atual.
+# Leva um pacote do módulo contracts/ para um módulo novo, com buf.yaml, buf.gen.yaml e
+# go.mod próprios, mantendo o caminho relativo à raiz do módulo (REP-01).
+mover_para_modulo() { # dir destino pacote-relativo
+  local dir="$1" destino="$2" pacote="$3"
+  mkdir -p "$dir/$destino/proto/$(dirname "$pacote")" || exit 2
+  cp "$dir/contracts/buf.yaml" "$dir/$destino/buf.yaml" || exit 2
+  sed -e 's|value: .*gen/go$|value: example.test/'"$destino"'/gen/go|' \
+    -e 's|out: .*|out: gen/go|' "$dir/contracts/buf.gen.yaml" > "$dir/$destino/buf.gen.yaml" || exit 2
+  cp "$dir/libs/backend/go/contracts/go.mod" "$dir/$destino/go.mod" || exit 2
+  mv "$dir/contracts/proto/$pacote" "$dir/$destino/proto/$pacote" || exit 2
+}
+
+# Executa o gate dentro do sandbox, sem herdar GIT_* do ambiente atual. MODULO e
+# PROJETO escolhem o módulo verificado (padrão: contracts, projeto contracts).
 gate() { # dir subcomando [NX_BASE]
-  local dir="$1" sub="$2" base="${3-__unset__}"
+  local dir="$1" sub="$2" base="${3-__unset__}" mod="${MODULO:-contracts}" proj="${PROJETO:-contracts}"
   if [ "$base" = "__unset__" ]; then
-    (cd "$dir" && env -u NX_BASE -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE bash tools/buf-gate.sh "$sub")
+    (cd "$dir" && env -u NX_BASE -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE bash tools/buf-gate.sh "$sub" "$mod" --project "$proj")
   else
-    (cd "$dir" && env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE NX_BASE="$base" bash tools/buf-gate.sh "$sub")
+    (cd "$dir" && env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE NX_BASE="$base" bash tools/buf-gate.sh "$sub" "$mod" --project "$proj")
   fi
 }
 
@@ -79,8 +92,8 @@ verificar "pins na configuracao versionada" 0 "$S" pins
 verificar "generate-check sem drift" 0 "$S" generate-check
 
 echo "== breaking: bootstrap e estado estabelecido =="
-S="$(novo_sandbox)"; mv "$S/contracts" "$S/.contracts-futuro"; commitar "$S" "base sem contratos"
-mv "$S/.contracts-futuro" "$S/contracts"; commitar "$S" "primeiro conteudo do modulo"
+S="$(novo_sandbox)"; mv "$S/contracts" "$S.contracts-futuro"; commitar "$S" "base sem contratos"
+mv "$S.contracts-futuro" "$S/contracts"; commitar "$S" "primeiro conteudo do modulo"
 saida="$(gate "$S" breaking HEAD~1 2>&1)"; status=$?
 esperar "bootstrap legitimo (modulo novo, sem marca) libera" 0 $status "$saida"
 casos=$((casos + 1))
@@ -88,6 +101,8 @@ if echo "$saida" | grep -q "sem baseline"; then echo "PASS  bootstrap avisa 'sem
 
 S="$(novo_sandbox)"; commitar "$S" "contratos"; marcar_baseline "$S" "$REVISOR"
 verificar "estado estabelecido sem mudanca incompativel" 0 "$S" breaking HEAD
+S2="$(novo_sandbox)"; commitar "$S2" "contratos"; marcar_baseline "$S2" "$REVISOR" proto
+verificar "marca legada contracts-baseline/proto no commit que contem o modulo" 0 "$S2" breaking HEAD
 verificar "NX_BASE vazio com marca presente" 1 "$S" breaking "" "baseline nao declarado"
 verificar "NX_BASE ausente com marca presente" 1 "$S" breaking
 verificar "baseline irresolvivel" 1 "$S" breaking refs/heads/nao-existe "baseline irresolvivel"
@@ -100,12 +115,13 @@ verificar "marca ausente em modulo com historico" 1 "$S" breaking HEAD~1 "sem ma
 S="$(novo_sandbox)"; commitar "$S" "contratos"; marcar_baseline "$S" "$AUTOR"
 verificar "tagger igual ao autor do modulo" 1 "$S" breaking HEAD "autoria e autorizacao coincidem"
 
-# Renomear o módulo (diretório + path no buf.yaml) faria o novo nome nascer 'sem
-# baseline'; os pacotes publicados na base é que denunciam a falsificação.
-S="$(novo_sandbox)"; commitar "$S" "contratos"
+# Renomear o módulo não o faz renascer 'sem baseline': a identidade é o pacote, e o
+# pacote publicado na base continua sob buf breaking no módulo renomeado.
+S="$(novo_sandbox)"; commitar "$S" "contratos"; marcar_baseline "$S" "$REVISOR"
 git -C "$S" mv contracts/proto contracts/proto2
-sed -i 's/path: proto$/path: proto2/' "$S/contracts/buf.yaml"; commitar "$S" "renomeia modulo"
-verificar "modulo renomeado para renascer sem baseline" 1 "$S" breaking HEAD~1 "diretorio de pacote publicado"
+sed -i 's/path: proto$/path: proto2/' "$S/contracts/buf.yaml"
+sed -i 's/int64 total_cents/int32 total_cents/' "$S/contracts/proto2/company/orders/event/v1/order_placed.proto"; commitar "$S" "renomeia e quebra"
+verificar "modulo renomeado continua sob buf breaking" 1 "$S" breaking HEAD~1 "buf breaking (FILE) reprovou"
 
 S="$(novo_sandbox)"; commitar "$S" "contratos"; marcar_baseline "$S" "$REVISOR"
 sed -i 's/int64 total_cents/int32 total_cents/' "$S/contracts/proto/company/orders/event/v1/order_placed.proto"; commitar "$S" "tipo"
@@ -118,6 +134,29 @@ verificar "buf.yaml sem modulos declarados" 1 "$S" breaking HEAD "sem modulos de
 S="$(novo_sandbox)"; commitar "$S" "contratos"
 mv "$S/contracts/buf.yaml" "$S/contracts/buf.yaml.fora"
 verificar "buf.yaml ausente" 1 "$S" breaking HEAD "ausente"
+
+echo "== breaking: identidade por pacote entre modulos =="
+S="$(novo_sandbox)"; commitar "$S" "contratos"; marcar_baseline "$S" "$REVISOR"
+mover_para_modulo "$S" apps/orders/contract company/orders; commitar "$S" "orders em modulo proprio"
+MODULO=apps/orders/contract PROJETO=orders-contract verificar "pacote relocado para modulo novo roda contra a base" 0 "$S" breaking HEAD~1
+saida="$(MODULO=apps/orders/contract PROJETO=orders-contract gate "$S" breaking HEAD~1 2>&1)"
+casos=$((casos + 1))
+if echo "$saida" | grep -q "breaking: OK (apps/orders/contract"; then echo "PASS  relocacao executa buf breaking herdado"; else echo "FAIL  relocacao sem buf breaking herdado"; echo "$saida" | tail -3 | sed 's/^/      /'; falhas=$((falhas + 1)); fi
+verificar "modulo de origem apos a relocacao" 0 "$S" breaking HEAD~1
+
+S="$(novo_sandbox)"; commitar "$S" "contratos"; marcar_baseline "$S" "$REVISOR"
+mover_para_modulo "$S" apps/orders/contract company/orders
+sed -i 's/int64 total_cents/int32 total_cents/' "$S/apps/orders/contract/proto/company/orders/event/v1/order_placed.proto"; commitar "$S" "relocado e quebrado"
+MODULO=apps/orders/contract PROJETO=orders-contract verificar "quebra FILE apos relocar" 1 "$S" breaking HEAD~1 "buf breaking (FILE) reprovou"
+
+S="$(novo_sandbox)"; commitar "$S" "contratos"; marcar_baseline "$S" "$REVISOR"
+mv "$S/contracts/proto/company/orders" "$S.pacote-fora"; commitar "$S" "remove pacote"
+verificar "pacote publicado ausente de todos os modulos" 1 "$S" breaking HEAD~1 "pacote publicado"
+
+S="$(novo_sandbox)"; commitar "$S" "contratos"
+mover_para_modulo "$S" apps/orders/contract company/orders; commitar "$S" "modulo novo"
+marcar_baseline "$S" "$REVISOR" orders-contract
+MODULO=apps/orders/contract PROJETO=orders-contract verificar "marca por projeto contracts-baseline/<projeto>" 0 "$S" breaking HEAD
 
 echo "== lint =="
 S="$(novo_sandbox)"
@@ -145,6 +184,17 @@ verificar "plugin e runtime protobuf divergentes" 1 "$S" pins "difere de google.
 S="$(novo_sandbox)"
 sed -i 's/^deps: \[\]/deps:\n  - buf.build\/exemplo\/dep/' "$S/contracts/buf.yaml"
 verificar "deps declaradas sem buf.lock" 1 "$S" pins "sem buf.lock"
+
+S="$(novo_sandbox)"
+mover_para_modulo "$S" apps/orders/contract company/orders
+sed -i 's/protoc-gen-go@v[0-9.]*/protoc-gen-go@v1.36.0/' "$S/apps/orders/contract/buf.gen.yaml"
+verificar "pins divergentes entre modulos" 1 "$S" pins "" "diverge entre modulos"
+
+echo "== uso =="
+S="$(novo_sandbox)"
+saida="$(cd "$S" && bash tools/buf-gate.sh lint 2>&1)"; status=$?
+casos=$((casos + 1))
+if [ "$status" -eq 2 ]; then echo "PASS  gate sem diretorio do modulo sai com 2"; else echo "FAIL  gate sem diretorio: exit $status"; falhas=$((falhas + 1)); fi
 
 echo
 echo "casos: $casos, falhas: $falhas"

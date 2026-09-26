@@ -52,7 +52,7 @@
       "executor": "nx:run-commands",
       "cache": false,
       "options": {
-        "command": "bash tools/buf-gate.sh warmup"
+        "command": "bash tools/buf-gate.sh warmup contracts --project contracts"
       }
     },
     "buf-lint": {
@@ -66,7 +66,7 @@
         "{projectRoot}/**/*"
       ],
       "options": {
-        "command": "bash tools/buf-gate.sh lint"
+        "command": "bash tools/buf-gate.sh lint contracts --project contracts"
       }
     },
     "buf-pins": {
@@ -79,7 +79,7 @@
         "{projectRoot}/go.mod"
       ],
       "options": {
-        "command": "bash tools/buf-gate.sh pins"
+        "command": "bash tools/buf-gate.sh pins contracts --project contracts"
       }
     },
     "buf-generate-check": {
@@ -94,7 +94,7 @@
         "{projectRoot}/go.mod"
       ],
       "options": {
-        "command": "bash tools/buf-gate.sh generate-check"
+        "command": "bash tools/buf-gate.sh generate-check contracts --project contracts"
       }
     },
     "buf-breaking": {
@@ -106,7 +106,7 @@
         "{workspaceRoot}/tools/buf-gate.sh"
       ],
       "options": {
-        "command": "bash tools/buf-gate.sh breaking"
+        "command": "bash tools/buf-gate.sh breaking contracts --project contracts"
       }
     },
     "buf-gate-selftest": {
