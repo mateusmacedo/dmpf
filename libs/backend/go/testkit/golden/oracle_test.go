@@ -11,7 +11,7 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	eventv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/orders/event/v1"
+	eventv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/dmpf/testing/v1"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/contracts/payloadhash"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/golden"
 )
@@ -125,7 +125,7 @@ func TestInt64BeyondDoubleSurvivesBothDirections(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f := golden.Fixture{FormatVersion: "1", Identity: golden.Identity{Fixture: "synthetic/order-placed", DataSchema: "type.googleapis.com/company.orders.event.v1.OrderPlaced", Type: "com.company.orders.order-placed.v1"}}
+	f := golden.Fixture{FormatVersion: "1", Identity: golden.Identity{Fixture: "synthetic/order-placed", DataSchema: "type.googleapis.com/dmpf.testing.v1.OrderPlaced", Type: "com.company.orders.order-placed.v1"}}
 	_, base := conformingCase(t)
 	env := map[string]string{}
 	for k, v := range base.Envelope {
