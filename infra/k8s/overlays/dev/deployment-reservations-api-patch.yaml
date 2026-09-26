@@ -10,5 +10,5 @@ spec:
           env:
             # Em dev o api aplica o schema na partida (postgres.Migrate é
             # idempotente); relay e consumer reiniciam até as tabelas existirem.
-            - name: DMPF_MIGRATE
+            - name: MIGRATE
               value: 'true'

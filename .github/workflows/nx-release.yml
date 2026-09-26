@@ -35,12 +35,12 @@ jobs:
           startsWith(github.event.pull_request.head.ref, 'hotfix/')
         )
       )
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 30
 
     steps:
       - name: Checkout master
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: master
           fetch-depth: 0
@@ -185,7 +185,7 @@ jobs:
 
       - name: Log in to GitHub Container Registry
         if: steps.docker-candidates.outputs.has_docker_apps == 'true'
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}

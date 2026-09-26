@@ -5,24 +5,23 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/mateusmacedo/dmpf/libs/backend/go/application"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
-
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/domain"
+	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
 
-func (s Service) RegisterResource(ctx context.Context, cmd Register) (application.Outcome[domain.RegisteredResponse], error) {
-	var zero application.Outcome[domain.RegisteredResponse]
+func (s Service) RegisterResource(ctx context.Context, cmd RegisterResource) (usecase.Outcome[domain.RegisteredResponse], error) {
+	var zero usecase.Outcome[domain.RegisteredResponse]
 
 	instrumentation := s.instrumentation()
-	ctx, end := instrumentation.BeginOperation(ctx, OperationRegister)
+	ctx, end := instrumentation.BeginOperation(ctx, OperationRegisterResource)
 
 	if err := s.Authorize(ctx, cmd); err != nil {
 		end(authorizationResult(err))
 		return zero, err
 	}
 
-	identity := application.ResolveIdentity(s.Clock, s.IDs, maxEventsPerCommand)
+	identity := usecase.ResolveIdentity(s.Clock, s.IDs, maxEventsPerCommand)
 
 	outcome := zero
 	err := s.UoW.Within(ctx, func(ctx context.Context, res Resources) error {
@@ -36,13 +35,16 @@ func (s Service) RegisterResource(ctx context.Context, cmd Register) (applicatio
 			At:   domain.Instant(identity.OccurredAt),
 		})
 		if rejection != nil {
-			outcome = application.Rejected[domain.RegisteredResponse](rejection)
+			outcome = usecase.Rejected[domain.RegisteredResponse](rejection)
 			return nil
 		}
 		if err := res.Resources.Save(ctx, cmd.Code, r.Snapshot(), stored); err != nil {
 			return fmt.Errorf("application: register %s: %w", cmd.Code, err)
 		}
-		outcome = application.Accepted(accepted.Response())
+		if err := enqueueAll(ctx, res.Outbox, identity, AggregateTypeResource, string(cmd.Code), stored+1, accepted.Events()); err != nil {
+			return fmt.Errorf("application: register %s: enqueue: %w", cmd.Code, err)
+		}
+		outcome = usecase.Accepted(accepted.Response())
 		return nil
 	})
 	if err != nil {
@@ -50,11 +52,7 @@ func (s Service) RegisterResource(ctx context.Context, cmd Register) (applicatio
 		return zero, err
 	}
 
-	category := ports.OutcomeAccepted
-	if _, refused := outcome.Rejection(); refused {
-		category = ports.OutcomeRejected
-	}
-	end(ports.Result{Outcome: category})
+	end(ports.Result{Outcome: outcomeCategory(outcome)})
 	return outcome, nil
 }
 

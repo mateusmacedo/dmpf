@@ -68,8 +68,8 @@ func TestAddItemRejectionTravelsInTheResponse(t *testing.T) {
 	if err != nil {
 		t.Fatalf("AddItem() = %v, want nil — a domain refusal is not a gRPC error", err)
 	}
-	if got := resp.GetRejection(); got.GetCode() != string(domain.CodeItemLimitExceeded) || got.GetMessage() == "" {
-		t.Fatalf("rejection = %v, want %q with a message", got, domain.CodeItemLimitExceeded)
+	if got := resp.GetRejection(); got.GetCode() != string(domain.CodeOrderItemLimitExceeded) || got.GetMessage() == "" {
+		t.Fatalf("rejection = %v, want %q with a message", got, domain.CodeOrderItemLimitExceeded)
 	}
 }
 

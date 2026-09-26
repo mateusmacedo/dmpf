@@ -6,13 +6,13 @@ kind: ConfigMap
 metadata:
   name: reservations
 data:
-  DMPF_SERVICE: reservations
-  DMPF_GRPC_ADDR: ':9090'
-  DMPF_KAFKA_ORDERS_TOPIC: orders.events
-  DMPF_KAFKA_ORDERS_DLQ: orders.events.dlq
-  DMPF_KAFKA_RESERVATIONS_TOPIC: reservations.events
-  DMPF_KAFKA_RESERVATIONS_DLQ: reservations.events.dlq
-  DMPF_KAFKA_GROUP: reservations
-  DMPF_KAFKA_INSECURE: 'false'
-  DMPF_OTLP_ENDPOINT: otel-collector:4317
-  DMPF_OTLP_INSECURE: 'false'
+  SERVICE: reservations
+  GRPC_ADDR: ':9090'
+  KAFKA_ORDERS_TOPIC: orders.events
+  KAFKA_ORDERS_DLQ: orders.events.dlq
+  KAFKA_RESERVATIONS_TOPIC: reservations.events
+  KAFKA_RESERVATIONS_DLQ: reservations.events.dlq
+  KAFKA_GROUP: reservations
+  KAFKA_INSECURE: 'false'
+  OTLP_ENDPOINT: otel-collector:4317
+  OTLP_INSECURE: 'false'

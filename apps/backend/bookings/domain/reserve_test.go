@@ -26,7 +26,7 @@ func TestReserveAccepts(t *testing.T) {
 		t.Fatalf("BookingReserved = %+v", ev)
 	}
 	snap := b.Snapshot()
-	if snap.Status != domain.BookingReservedStatus || snap.Quantity != 5 || snap.ResourceID != resourceID {
+	if snap.Status != domain.Reserved || snap.Quantity != 5 || snap.ResourceID != resourceID {
 		t.Fatalf("Snapshot = %+v", snap)
 	}
 }
@@ -48,7 +48,7 @@ func TestReserveRejectsQuantityOutOfRange(t *testing.T) {
 
 			acc, rej := b.Reserve(domain.ReserveBooking{ResourceID: resourceID, Quantity: tt.quantity, At: at})
 
-			requireRejected(t, acc, rej, domain.CodeQuantityOutOfRange)
+			requireRejected(t, acc, rej, domain.CodeBookingQuantityOutOfRange)
 			if got := rej.Details(); !slices.Equal(got, tt.details) {
 				t.Fatalf("Details() = %v, want %v", got, tt.details)
 			}

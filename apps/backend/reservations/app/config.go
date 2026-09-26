@@ -3,12 +3,13 @@ package app
 import (
 	"errors"
 	"fmt"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/kafka"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/envconfig"
 	"strings"
 	"time"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/app/relay"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/kafka"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/envconfig"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/admission"
 )
 
@@ -32,28 +33,28 @@ var (
 )
 
 const (
-	envDSN                = "DMPF_PG_DSN"
-	envGRPCAddr           = "DMPF_GRPC_ADDR"
-	envGRPCInsecure       = "DMPF_GRPC_INSECURE"
-	envGRPCCertFile       = "DMPF_GRPC_TLS_CERT_FILE"
-	envGRPCKeyFile        = "DMPF_GRPC_TLS_KEY_FILE"
-	envGRPCClientCAFile   = "DMPF_GRPC_CLIENT_CA_FILE"
-	envGRPCTrustedClients = "DMPF_GRPC_TRUSTED_CLIENTS"
-	envMigrate            = "DMPF_MIGRATE"
-	envBrokers            = "DMPF_KAFKA_BROKERS"
-	envMetricTenants      = "DMPF_METRIC_TENANTS"
-	envKafkaInsecure      = "DMPF_KAFKA_INSECURE"
-	envOrdersTopic        = "DMPF_KAFKA_ORDERS_TOPIC"
-	envOrdersDLQ          = "DMPF_KAFKA_ORDERS_DLQ"
-	envOrdersSource       = "DMPF_ORDERS_SOURCE"
-	envReservationsTopic  = "DMPF_KAFKA_RESERVATIONS_TOPIC"
-	envReservationsDLQ    = "DMPF_KAFKA_RESERVATIONS_DLQ"
-	envGroup              = "DMPF_KAFKA_GROUP"
-	envOTLPEndpoint       = "DMPF_OTLP_ENDPOINT"
-	envOTLPInsecure       = "DMPF_OTLP_INSECURE"
-	envService            = "DMPF_SERVICE"
-	envServiceVersion     = "DMPF_SERVICE_VERSION"
-	envInstanceID         = "DMPF_INSTANCE_ID"
+	envDSN                = "PG_DSN"
+	envGRPCAddr           = "GRPC_ADDR"
+	envGRPCInsecure       = "GRPC_INSECURE"
+	envGRPCCertFile       = "GRPC_TLS_CERT_FILE"
+	envGRPCKeyFile        = "GRPC_TLS_KEY_FILE"
+	envGRPCClientCAFile   = "GRPC_CLIENT_CA_FILE"
+	envGRPCTrustedClients = "GRPC_TRUSTED_CLIENTS"
+	envMigrate            = "MIGRATE"
+	envBrokers            = "KAFKA_BROKERS"
+	envMetricTenants      = "METRIC_TENANTS"
+	envKafkaInsecure      = "KAFKA_INSECURE"
+	envOrdersTopic        = "KAFKA_ORDERS_TOPIC"
+	envOrdersDLQ          = "KAFKA_ORDERS_DLQ"
+	envOrdersSource       = "ORDERS_SOURCE"
+	envReservationsTopic  = "KAFKA_RESERVATIONS_TOPIC"
+	envReservationsDLQ    = "KAFKA_RESERVATIONS_DLQ"
+	envGroup              = "KAFKA_GROUP"
+	envOTLPEndpoint       = "OTLP_ENDPOINT"
+	envOTLPInsecure       = "OTLP_INSECURE"
+	envService            = "SERVICE"
+	envServiceVersion     = "SERVICE_VERSION"
+	envInstanceID         = "INSTANCE_ID"
 )
 
 // Config is every operational value the three roles need, resolved once at
@@ -130,7 +131,7 @@ func Defaults(role Role) Config {
 			MaxAttempts:    10,
 			BackoffBase:    200 * time.Millisecond,
 			BackoffCeiling: 30 * time.Second,
-			ShutdownGrace:  10 * time.Second,
+			ShutdownGrace:  observability.ShutdownGrace,
 		},
 		OrdersSource:    "urn:dmpf:reference-orders",
 		Wait:            2 * time.Second,
@@ -260,5 +261,5 @@ func roleList() string {
 // kafkaClientAuth is the requirement of IDN-04 on a role that talks to the
 // broker: with TLS on, the client authenticates; only the opt-out waives it.
 func (c Config) kafkaClientAuth() requirement {
-	return requirement{"DMPF_KAFKA_SASL_MECHANISM or DMPF_KAFKA_CLIENT_CERT_FILE", !c.KafkaInsecure && c.KafkaAuth.SASL == nil && c.KafkaAuth.CertFile == ""}
+	return requirement{"KAFKA_SASL_MECHANISM or KAFKA_CLIENT_CERT_FILE", !c.KafkaInsecure && c.KafkaAuth.SASL == nil && c.KafkaAuth.CertFile == ""}
 }

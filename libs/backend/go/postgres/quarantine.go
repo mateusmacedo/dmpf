@@ -9,7 +9,7 @@ import (
 )
 
 const insertQuarantine = `
-INSERT INTO dmpf_quarantine (consumer_name, message_id, reason, envelope, last_error, contained_at)
+INSERT INTO quarantine (consumer_name, message_id, reason, envelope, last_error, contained_at)
 VALUES ($1, $2, $3, $4, $5, $6)`
 
 // NewQuarantine takes the pool, not a transaction: containment is outside any

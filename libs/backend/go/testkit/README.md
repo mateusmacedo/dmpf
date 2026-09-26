@@ -3,11 +3,13 @@
 Instrumento de teste do kernel DMPF fixado por FND-09
 (`docs/dmpf/testes-interop.md`): um kit por camada da pirâmide, o carregador
 de golden fixture com os três oráculos reportados em separado, a regra de
-dependência como *fitness function* na suíte, as primitivas de determinismo e o
+dependência como *fitness function* na suíte, a matriz de travessia de
+contexto de execução (FND-07 §3.3), as primitivas de determinismo e o
 adaptador de `testing.TB` que transforma um veredicto em falha de teste.
 
 Criado por `KRN-11` (ARQ-530, `docs/specs/SPEC-SJ66880S-dmpf-testes-interop-go.md`);
-decisões em `docs/adr/040-test-kits-golden-e-fitness-function-em-go.md`.
+decisões em `docs/adr/040-test-kits-golden-e-fitness-function-em-go.md`. A
+matriz de travessia é de `docs/specs/SPEC-9B6SHEH8-contexto-execucao-identidade-tenant.md`.
 
 ## Por que um módulo próprio
 
@@ -31,14 +33,14 @@ arestas permitem: um `domainkit` só é kit de domínio se ele próprio for
 | `kernel/testkit-clock` | `provider` | `clock` | `KIT-07` — relógio fake com avanço explícito |
 | `kernel/testkit-ids` | `provider` | `ids` | `KIT-07` — identificadores em sequência ou por seed |
 | `kernel/testkit-stable` | `provider` | `stable` | `KIT-08` — ordenação estável de coleções comparadas |
-| `kernel/testkit-fitness` | `app` | `fitness` | `FIT-01..FIT-04` — regra de dependência na suíte |
-| `kernel/testkit-tb` | `app` | `tb`, `tb/pg` | adaptador de `testing.TB`, fixtures, codec de projeção, pool Postgres |
+| `kernel/testkit-fitness` | `app` | `fitness` | `FIT-01..FIT-04` — regra de dependência e matriz de travessia na suíte |
+| `kernel/testkit-tb` | `app` | `tb`, `tb/pg` | adaptador de `testing.TB`, fixtures, codec de projeção, pool Postgres, autoridade de certificados descartável |
 | `kernel/testkit-evidence` | `app` | `evidence` | gravação dos veredictos e montagem da evidência da release (`BOM-03`) |
 | `kernel/testkit-cmd-evidence` | `app` | `cmd/evidence` | comando que publica `bom/evidence/<release>/` |
 
 Os harnesses `appkit` (`KIT-05`, borda a borda) e `distkit` (`KIT-06`, dois
 processos sobre o broker, `DMPF-R004`) não são genéricos: só provam o contexto
-`reservations` — `NewReservations`, SQL em `dmpf_example_reservations`,
+`reservations` — `NewReservations`, a tabela `reservations`,
 `RawOrderPlaced` de `orders`. Por isso vivem com o contexto, em
 `apps/backend/reservations/{appkit,distkit}`, como as unidades
 `reservations/appkit` e `reservations/distkit` (ADR-046). Este módulo guarda só
@@ -46,6 +48,14 @@ o que qualquer contexto importa; `kernel/testkit-tb`, `kernel/testkit-clock` e
 `kernel/testkit-ids` declaram `public_integration_surface: true` para que esses
 harnesses, agora de outro contexto, continuem alcançando `tb`, `tb/pg`, `clock`
 e `ids`.
+
+`tb.PKI` (`tb/pki.go`) é a mesma superfície pública: uma autoridade de
+certificados descartável, que grava PEM do jeito que um processo os lê de um
+segredo montado, sem nenhuma chave sobrevivendo ao teste. Hoje só
+`apps/backend/bff` a consome, no harness de mTLS ponta a ponta; um provider
+como `grpc` não alcança este módulo — está no bloco `app`, e um `provider` não
+importa `app` — e por isso mantém a própria autoridade de teste, local e
+duplicada por desenho (`libs/backend/go/grpc/pki_test.go`).
 
 ## Os kits — o que exigem, o que exercitam, o que aprovam
 
@@ -61,11 +71,16 @@ adaptador é um package `app` à parte.
 | `serviceskit` | Um service composto sobre `Fakes.UnitOfWork` — os fakes envolvem o `memory` e registram cada gesto no `Ledger` com a identidade da transação que o fez | O caso de uso real, aceito e recusado | `Decide` sem diagnóstico: em cada transação commitada, escrita e enfileiramento vêm juntos e a outbox ganhou o que foi enfileirado (`UOW-07`); uma porta escapada de outra transação é nomeada; nenhum `publish` (`UOW-08`); exatamente um commit, vazio sob recusa (`UOW-06`); uma transação por caso de uso (`UOW-01`) |
 | `providerkit` | `UnitOfWorkSubject` (UoW, uma escrita, contagem do que persistiu, commits), `RepositorySubject` (`Within` que entrega o repositório, o `Reader`, geradores de identificador e de estado com marcador, e a sentinela de tenant não resolvido), `InboxSubject` (`Within` sob o `context.Context` da suíte, leitura do status, linhas, erro de consumer divergente), `OutboxSubject` (store, enfileirar, relógio fake, estado inteiro do registro, `Pending`, `Purge`) — com uma função que devolve o candidato **limpo** | As cláusulas de `Within` (UOW-01/02/06/07/09, CTX-21, ERR-22), as sete de `Repository`/`Reader` — round-trip, versão armazenada (`UOW-09/11`) e as quatro do escopo: leitura de outro tenant indistinguível de inexistência (`IDN-13`), mesmo identificador apartado por tenant e escrita cruzada recusada (`IDN-12`), carrier sem tenant e sem contexto recusando (`IDN-15`) —, as recepções R1-R4 e a corrida de duas inserções com sobreposição garantida no retorno do `Register` (`INB-06`), o lease e as três transições condicionadas ao claimant (`OBX-09/10/11/18/06`), a purga (`OBX-17`) e o sinal `Pending` (`OBX-12`) | Sem diagnóstico. Cláusula que o candidato não consegue exercitar (Postgres não injeta falha de commit; `memory` serializa e não corre; realização sem sentinela de tenant não resolvido) vai para `Skipped`, nunca fica ausente em silêncio |
 
+O negativo de `providerkit` é uma realização que chaveia linha só por
+identificador, sem tenant: passa as três cláusulas mecânicas e reprova em
+`IDN-13` — sem esse duplo escopado não haveria contra o que contrastar o
+gate de tenant.
+
 Os dois harnesses de `apps/backend/reservations` completam a pirâmide:
-`appkit` exige Postgres (`DMPF_PG_DSN`), compõe o `app.Consumer` real sobre as
+`appkit` exige Postgres (`PG_DSN`), compõe o `app.Consumer` real sobre as
 realizações e alimenta bytes na borda de protocolo — `Effects` mostra o desfecho
 nas quatro tabelas e `Ack` prova que o gesto veio depois do commit (`INB-08`);
-`distkit` exige Redpanda (`DMPF_KAFKA_BROKERS`) e Postgres, sobe dois processos
+`distkit` exige Redpanda (`KAFKA_BROKERS`) e Postgres, sobe dois processos
 OS (`producer` publica `evt-1`, `evt-1`, `evt-9`; `consumer` consome pelo
 adapter) sobre um tópico único por execução, e `Decide` sem `DMPF-R004` prova
 uma reserva escrita uma vez (`V32`), com o papel `consumer-naive` reprovando ao
@@ -145,6 +160,30 @@ As fixtures de **projeção observável** (`ORA-30`) vivem em
   READMEs e manifestos por promessa de *exactly-once* sem frase de vedação;
   `docs/` fica fora porque cada menção ali é negação em prosa livre.
 
+## Matriz de travessia CTX-11 (`Traversal`)
+
+`fitness/traversal.go` transcreve à mão, de
+`docs/dmpf/contexto-erros-seguranca.md`, a matriz de FND-07 §3.3: os nove
+campos do contexto de execução (`request_id`, `correlation_id`, `causation_id`,
+`trace_context`, `authenticated_subject`, `tenant_id`, `permissions`,
+`deadline`, `locale`) cruzados com as quatro fronteiras que `CTX-11` governa
+(`Ingress`, `FanOut`, `Retry`, `Downstream`) — 36 células, cada uma com a ação
+que a norma fixa (`Preserve`, `Regenerate`, `Reject`, `Reduce`), se a norma
+acrescenta recusa do valor de entrada (`RejectsInput`) e a prova executável, um
+caminho `pacote_test.go::TestNome` relativo à raiz do workspace — inclusive em
+`grpc`, `http`, `authn` e `app`, os módulos que realizam as próprias pontas da
+travessia.
+
+- `TestEveryFieldResolvesExactlyOneActionAtEveryBoundary` prova que a matriz
+  cobre as 36 células sem duplicidade.
+- `TestEveryCrossingIsProvenByATestThatExists` confere que todo caminho de
+  prova aponta um teste que existe de fato — uma célula sem `ProofEnvelope`
+  nomeia um teste real, não um texto solto.
+- `TestTheEnvelopeCarriesNoFieldTheFanOutReduces` prova que nenhum campo
+  marcado `Reduce` no fan-out (`authenticated_subject`, `permissions`,
+  `deadline`, `locale`) tem atributo correspondente no envelope CloudEvents —
+  a redução é estrutural, não um filtro que alguém poderia esquecer.
+
 ## `evidence` — evidência da release
 
 - Os testes que decidem um veredicto gravam-no quando `DMPF_EVIDENCE_DIR` está
@@ -165,12 +204,12 @@ As fixtures de **projeção observável** (`ORA-30`) vivem em
 | Subject | Pacotes | Tags | Variáveis |
 | --- | --- | --- | --- |
 | `golden` | `contracts/golden` | — | — |
-| `provider` | `postgres`, `memory` | `integration` | `DMPF_PG_DSN` |
+| `provider` | `postgres`, `memory` | `integration` | `PG_DSN` |
 | `domain` | `testkit/domainkit` | — | — |
 | `services` | `testkit/serviceskit` | — | — |
-| `app` | `apps/backend/reservations/appkit` | `integration` | `DMPF_PG_DSN` |
-| `dist` | `apps/backend/reservations/distkit` | `integration`, `distributed` | `DMPF_PG_DSN`, `DMPF_KAFKA_BROKERS`, `DMPF_REDPANDA_ADMIN` |
-| `reference` | `apps/backend/{bff,bookings,orders,reservations}/...` | `integration` | `DMPF_PG_DSN`, `DMPF_KAFKA_BROKERS`, `DMPF_REDPANDA_ADMIN` |
+| `app` | `apps/backend/reservations/appkit` | `integration` | `PG_DSN` |
+| `dist` | `apps/backend/reservations/distkit` | `integration`, `distributed` | `PG_DSN`, `KAFKA_BROKERS`, `REDPANDA_ADMIN` |
+| `reference` | `apps/backend/{bff,bookings,orders,reservations}/...` | `integration` | `PG_DSN`, `KAFKA_BROKERS`, `REDPANDA_ADMIN` |
 
 - Teste que pula por construção fica fora do subject por `-skip` com o nome
   exato, porque sob `CI` o skip reprovaria o subject: no `golden`,
@@ -209,22 +248,22 @@ ganho de decidibilidade.
 
 ```bash
 # sem infra: clock, ids, stable, domainkit, golden, serviceskit, providerkit (memória), fitness, tb, evidence
-# (o test-race leva -tags=integration; sem DMPF_PG_DSN, as suítes de banco fazem skip fora do CI)
+# (o test-race leva -tags=integration; sem PG_DSN, as suítes de banco fazem skip fora do CI)
 pnpm nx run testkit:test-race
 
 # com Postgres (providerkit sobre Postgres via postgres, tb/pg)
 docker compose -f infra/local/docker-compose.yml --profile postgres up -d
-DMPF_PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' pnpm nx run testkit:test-race
+PG_DSN='postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable' pnpm nx run testkit:test-race
 
 # borda a borda (appkit) e distribuído (distkit; build tag `distributed`) — harnesses do contexto reservations
-DMPF_PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' pnpm nx run reservations:test-race
-DMPF_PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' DMPF_KAFKA_BROKERS=localhost:9092 \
+PG_DSN='postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable' pnpm nx run reservations:test-race
+PG_DSN='postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable' KAFKA_BROKERS=localhost:9092 \
   pnpm nx run reservations:test-distributed
 
 # evidência da release (infra de pé; --out não pode existir)
 pnpm nx run bff:infra-up
-DMPF_PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' DMPF_KAFKA_BROKERS=localhost:9092 \
-  DMPF_REDPANDA_ADMIN=http://localhost:9644 pnpm nx run testkit:evidence --out="$(mktemp -d)/0.1.0"
+PG_DSN='postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable' KAFKA_BROKERS=localhost:9092 \
+  REDPANDA_ADMIN=http://localhost:9644 pnpm nx run testkit:evidence --out="$(mktemp -d)/0.1.0"
 ```
 
 Sem a variável, os testes de integração fazem `t.Skip` nomeando-a; com `CI`
@@ -255,3 +294,10 @@ rodam as suítes do kit apontam para ele e o kit aponta para `application`,
 `memory`, `postgres` e os demais módulos que as suas suítes exercem. O `build` deste módulo declara
 `dependsOn: []` para quebrar o ciclo de tasks que `^build` formaria; as arestas
 de projeto continuam e o `affected` as vê.
+
+## Referências
+
+- `docs/dmpf/testes-interop.md` (FND-09) — os kits, os oráculos, `FIT-*`, `KIT-*`.
+- `docs/dmpf/contexto-erros-seguranca.md` (FND-07) — §3.3, `CTX-11`, a matriz de travessia.
+- `docs/adr/040-test-kits-golden-e-fitness-function-em-go.md` — decisões desta realização.
+- `docs/adr/049-contexto-de-execucao-viaja-no-context-context.md` — o carrier que a matriz de travessia verifica.

@@ -3,17 +3,16 @@ package domain_test
 import (
 	"testing"
 
-	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
-
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
+	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
 )
 
 func TestDeclaredCodesAreValid(t *testing.T) {
 	codes := map[string]kernel.Code{
-		"CodeNothingToReserve":    domain.CodeNothingToReserve,
-		"CodeAlreadyReserved":     domain.CodeAlreadyReserved,
-		"CodeAlreadyCanceled":     domain.CodeAlreadyCanceled,
-		"CodeReservationCanceled": domain.CodeReservationCanceled,
+		"CodeReservationNothingToReserve": domain.CodeReservationNothingToReserve,
+		"CodeReservationAlreadyReserved":  domain.CodeReservationAlreadyReserved,
+		"CodeReservationAlreadyCancelled": domain.CodeReservationAlreadyCancelled,
+		"CodeReservationCancelled":        domain.CodeReservationCancelled,
 	}
 	for name, code := range codes {
 		t.Run(name, func(t *testing.T) {

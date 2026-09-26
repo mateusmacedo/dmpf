@@ -28,7 +28,7 @@ func NewPool(ctx context.Context, dsn string, tracer trace.Tracer) (*pgxpool.Poo
 // It takes the destinations rather than the channel catalogue so the storage
 // provider does not depend on the transport module to read the keys of a map.
 func AssertOwnOutbox(ctx context.Context, pool *pgxpool.Pool, destinations []string) error {
-	const query = `SELECT destination FROM dmpf_outbox
+	const query = `SELECT destination FROM outbox
 		WHERE status IN ('pending', 'publishing') AND destination <> ALL($1)
 		LIMIT 1`
 

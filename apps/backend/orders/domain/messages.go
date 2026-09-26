@@ -1,6 +1,6 @@
 package domain
 
-import "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
+import kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
 
 // OrderID identifies the aggregate; it arrives already generated (RFC §9.3).
 type OrderID string
@@ -24,7 +24,7 @@ const (
 	Placed
 )
 
-// Instant is a point in time in Unix seconds, resolved by the application
+// Instant is a point in time in Unix nanoseconds, resolved by the application
 // service and carried as a value (RFC §9.3): the domain never consults a clock.
 type Instant int64
 
@@ -73,5 +73,5 @@ type PlacedResponse struct {
 	Order OrderID
 }
 
-var _ domain.DomainEvent = ItemAdded{}
-var _ domain.DomainEvent = OrderPlaced{}
+var _ kernel.DomainEvent = ItemAdded{}
+var _ kernel.DomainEvent = OrderPlaced{}

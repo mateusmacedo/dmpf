@@ -7,6 +7,12 @@ spec:
     spec:
       containers:
         - name: bff
+          # envFrom não tem chave de merge: o patch substitui a lista da base.
+          envFrom:
+            - configMapRef:
+                name: bff
+            - secretRef:
+                name: bff-oidc
           volumeMounts:
             - name: grpc-ca
               mountPath: /etc/dmpf/grpc

@@ -3,11 +3,10 @@ package provider
 import (
 	"fmt"
 
-	reservationsv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/reservations/event/v1"
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
+	eventv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/reservations/event/v1"
 	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
-
-	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
 )
 
 const (
@@ -23,7 +22,7 @@ func (Mapper) Map(event kernel.DomainEvent) (postgres.Mapped, error) {
 	switch e := event.(type) {
 	case domain.ReservationConfirmed:
 		return postgres.Mapped{
-			Message: &reservationsv1.ReservationConfirmed{
+			Message: &eventv1.ReservationConfirmed{
 				OrderId:   string(e.Order),
 				ItemCount: int32(e.Items),
 			},
@@ -31,7 +30,7 @@ func (Mapper) Map(event kernel.DomainEvent) (postgres.Mapped, error) {
 		}, nil
 	case domain.ReservationCancelled:
 		return postgres.Mapped{
-			Message: &reservationsv1.ReservationCancelled{OrderId: string(e.Order)},
+			Message: &eventv1.ReservationCancelled{OrderId: string(e.Order)},
 			Type:    reservationCancelledType,
 		}, nil
 	default:

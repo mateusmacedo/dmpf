@@ -367,7 +367,7 @@ func TestInboxStatusCheckRejectsDirectUpdate(t *testing.T) {
 	}
 
 	_, err = pool.Exec(context.Background(),
-		`UPDATE dmpf_inbox SET status = 'processing' WHERE consumer_name = 'orders' AND message_id = 'm-1'`)
+		`UPDATE inbox SET status = 'processing' WHERE consumer_name = 'orders' AND message_id = 'm-1'`)
 	if err == nil {
 		t.Fatal("UPDATE to 'processing' should fail — CHECK allows only processed/rejected (INB-02)")
 	}
@@ -406,7 +406,7 @@ func TestInboxLastErrorStoredOnRejected(t *testing.T) {
 
 	var lastError *string
 	if err := pool.QueryRow(ctx,
-		`SELECT last_error FROM dmpf_inbox WHERE consumer_name = 'orders' AND message_id = 'm-1'`).Scan(&lastError); err != nil {
+		`SELECT last_error FROM inbox WHERE consumer_name = 'orders' AND message_id = 'm-1'`).Scan(&lastError); err != nil {
 		t.Fatalf("SELECT last_error = %v", err)
 	}
 	if lastError == nil || *lastError != "business rule violated" {
@@ -432,7 +432,7 @@ func TestInboxLastErrorNullOnProcessed(t *testing.T) {
 
 	var lastError *string
 	if err := pool.QueryRow(ctx,
-		`SELECT last_error FROM dmpf_inbox WHERE consumer_name = 'orders' AND message_id = 'm-1'`).Scan(&lastError); err != nil {
+		`SELECT last_error FROM inbox WHERE consumer_name = 'orders' AND message_id = 'm-1'`).Scan(&lastError); err != nil {
 		t.Fatalf("SELECT last_error = %v", err)
 	}
 	if lastError != nil {
@@ -446,7 +446,7 @@ func readStatus(t *testing.T, pool interface {
 	t.Helper()
 	var status string
 	if err := pool.QueryRow(context.Background(),
-		`SELECT status FROM dmpf_inbox WHERE consumer_name = $1 AND message_id = $2`, consumer, id).Scan(&status); err != nil {
+		`SELECT status FROM inbox WHERE consumer_name = $1 AND message_id = $2`, consumer, id).Scan(&status); err != nil {
 		t.Fatalf("readStatus() = %v, want nil", err)
 	}
 	if status != want {

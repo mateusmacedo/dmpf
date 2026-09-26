@@ -29,31 +29,32 @@ golden for regenerado e algo novo morder, a entrada nova vem para cá.
    os targets falhavam de forma obscura sem o install. Em `apps/backend/<name>`
    o módulo fica fora dos globs do `pnpm-workspace.yaml` (`apps/*`): o
    `package.json` continua a existir para o Nx, e só ele o lê.
-8. **A composition root fica fora do generator.** Cabear processo é copiar
-   `apps/backend/orders/cmd/orders`; a skill aponta o passo,
-   não o executa.
-9. **Sem pluralização automática.** O identificador vai literal para tabela,
-   rota e package: `<ctx>_<agregado>`, `/<ctx>/<agregado>`.
+8. **O esqueleto do composition root vem do generator, mas nasce vazio.**
+   `app/wiring.go` sobe o gRPC sem nenhum método, e o `NewCatalog` recusa o
+   relay com `ErrNoChannel` até o canal existir. Compilar e passar no lint não
+   quer dizer que o contexto serve alguma coisa: preencher o `ServiceDesc`, o
+   serviço de aplicação e o catálogo é parte do trabalho.
+9. **Sem pluralização automática.** O nome da tabela é o agregado no plural,
+   escrito pelo autor (`bookings`, `resources`); o plural também contorna a
+   palavra reservada `order`. O generator não deriva nome de tabela.
 10. **Renomear contexto ou agregado é rito próprio** (ADR-017): `bounded_context`
     é identidade estável; não se renomeia por refactor.
 11. **A prova em worktree precisa preservar o `node_modules` da raiz**:
     `pnpm_config_verify_deps_before_run=false`, sem definir `CI`, com guard
     sobre `node_modules/*` e `node_modules/@*/*` (o pnpm corrompe symlinks se
     reinstalar por baixo de um worktree).
-12. **`tb/pg.OpenPool` é do kernel, não do contexto.** O `resetStatement` é
-    constante com as cinco tabelas do kernel e a migração chamada é
-    `postgres.Migrate` (`libs/backend/go/testkit/tb/pg/pool.go:22`).
-    Ele não migra nem reseta `<ctx>_*`: teste verde por vacuidade ou linhas
-    vazadas entre casos. O contexto tem harness próprio, no molde de
-    `apps/backend/orders/provider/testing_test.go`, que migra o kernel
-    **e** o contexto e trunca as tabelas de ambos.
-13. **Os harnesses Postgres truncam tabelas do kernel** (`dmpf_outbox`,
-    `dmpf_inbox`, `dmpf_quarantine`), que todo contexto compartilha. O CI já
-    serializa por estágio (`.github/workflows/ci.yml`, `--parallel=1` nos
-    `test-race` com `cache: false`); localmente, `nx run-many -t test-race`
-    sem `--parallel=1` faz duas suítes truncarem a outbox uma da outra. O
-    `dependsOn` inter-contexto (`<ctx>` → `postgres`) dá paridade parcial;
-    `--parallel=1` é a garantia.
+12. **O `tb/pg` só migra e reseta o que recebe.** `pg.OpenPool(t, pg.Options{...})`
+    abre o banco `<projeto>_test`, migra as `Capabilities` e os `Schemas`
+    pedidos e trunca só as `Tables` declaradas
+    (`libs/backend/go/testkit/tb/pg/pool.go`). Tabela do contexto fora de
+    `appkit.Tables` vaza linhas entre casos; schema fora de `Schemas` deixa o
+    teste verde por vacuidade. O `appkit.OpenPool(t)` gerado já passa
+    `provider.Schema`; o autor acrescenta as tabelas.
+13. **Truncar antes de migrar reprova em banco novo.** Um teste que trunca as
+    tabelas do contexto antes de o schema existir falha na primeira execução
+    contra um `<projeto>_test` recém-criado. Use `appkit.OpenPool`, que migra
+    antes do reset. `test-race` e `test-distributed` do mesmo projeto usam o
+    mesmo banco, por isso o segundo depende do primeiro no `project.json`.
 14. **D002 sem shared kernel.** Sem `kernel/*` em `shared_kernel_units`
     do baseline, `bookings/domain → kernel/domain` reprova com
     `DMPF-D002`. Hoje a designação existe (ARQ-553, dezesseis unidades com o
@@ -102,8 +103,25 @@ golden for regenerado e algo novo morder, a entrada nova vem para cá.
     aresta. A correção é ler a designação do baseline governado e passá-la na
     `Input`, sem adotar o store — restar a lista no teste a faria divergir.
 21. **A prova de regressão também envelhece.** O `tools/dmpf-harness-check.sh`
-    carrega o layout do golden em `MODULOS` e nos globs de comparação. Depois
+    carrega o layout do golden em `MODULO`, `BLOCOS` e nos caminhos de
+    comparação. Depois
     da virada para pasta por contexto, ele seguiu procurando
     `libs/backend/go/<ctx>-<bloco>` e casando o diagnóstico por `<ctx>-domain`,
     quando o verificador imprime `<ctx>/domain`. Rodar o `self-test` a cada
     mudança de forma é o que expõe isso — foi ele que apontou os dois.
+22. **Template com nome interpolado precisa de seção própria no gofmt.** O
+    gofmt alinha declarações contíguas; uma linha `env<Nome>Topic = ...` no meio
+    de um bloco sai alinhada só para o nome com que o template foi escrito. As
+    linhas interpoladas ficam num bloco separado por linha em branco, com o
+    alinhamento relativo entre elas (`Topic`/`DLQ`), e o golden segue o mesmo
+    layout do template.
+23. **Renomear no Go não é renomear no fio.** Trocar `Canceled` por
+    `Cancelled` ou padronizar `Code<Agregado><Motivo>` muda o identificador,
+    não o valor publicado. Um teste que congela as strings de fio (códigos de
+    rejeição, enums, nomes de evento) antes do rename é o que impede a troca de
+    vazar para o contrato; `wire_test.go` e `rejections_test.go` fazem isso.
+24. **Banco compartilhado some da infra pelo gate, não pela memória.** O
+    `tools/dmpf-context-check.sh` confere cada DSN, `POSTGRES_DB` e laço de
+    criação de banco em `infra/` e `.github/workflows`: banco e role com o nome
+    da app, ou o par administrativo `postgres`. Um contexto novo sem entrada no
+    `postgres-init` e no job de databases reprova ali.

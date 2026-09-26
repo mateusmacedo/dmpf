@@ -31,8 +31,21 @@ transporte. O módulo é bloco `provider`, sem I/O. A única dependência extern
 | `channel` | `Channel`, `Catalog`, `RedeliveryWindow`, `KafkaWindow`, `SQSWindow`, `SNSSQSWindow` | 1.3 |
 | `attempt` | `Header`, `Encode`, `Decode`, `WithContext`, `FromContext` — o consumidor grava a tentativa no contexto antes de `Sink.Handle`, e a DLQ a lê para o header ou atributo `dmpf-attempt` (TRP-52) | 1.4 |
 | `observe` | `Config`, `Slots`, `Tracing`, `Metrics`, `Logging` — as posições de observabilidade de RES-22 que o KRN-09 deixa ao chamador; a categoria de falha é o único ponto por transporte. Os conjuntos de atributos são memorizados por `(método, categoria)` — espaço limitado por MET-07, com teto de 4096 entradas — para o caminho quente não os reconstruir e reordenar a cada chamada | 3.2 |
-| `admission` | `Limit`, `Config`, `Controller.Admit` — bucket por `(rota, tenant)` com teto de chaves e evicção LRU do ocioso; tenant colapsado pela allowlist de `metrics.Tenants` | 2.1b |
+| `admission` | `Limit`, `Config`, `Controller.Admit` — bucket por `(rota, tenant)`, teto de chaves (`MaxKeys`) e evicção LRU do ocioso | 2.1b |
 | `compose` | `Config`, `Build`, `Shared`, `Retry`, `Operation` — a ordem dos decorators de RES-22 (observe → breaker → bulkhead → timeout → retry), `Timeout` reservando `Backoff.Base`, `Retry` declarado `false` como identidade, `RateLimit` recusado; o provider passa só a sheet, o classificador e a categoria de falha | code review |
+
+## Admissão: bucket real por tenant, allowlist só no rótulo
+
+`Controller.Admit(route, tenant)` chaveia o bucket pelo par `(route, tenant)`
+literal — todo tenant, declarado na allowlist ou não, tem o próprio bucket, e o
+esgotamento de um não recusa nenhum outro. A allowlist de `Config.Tenants`
+(`metrics.Tenants`) não colapsa a chave do bucket: ela só limita a
+cardinalidade do **rótulo de métrica** (`MET-07`) — um tenant fora dela
+continua com bucket próprio, mas aparece na métrica como `"other"` via
+`Tenants().Resolve(tenant)`. Quem impede a explosão de chaves é `MaxKeys`, com
+evicção LRU do bucket ocioso (`DefaultMaxKeys = 64`, `NewController`). Uma
+allowlist vazia é configuração válida — todo tenant cai em `"other"` no
+rótulo, sem que isso afete a admissão.
 
 ## Do documento de canal ao `channel.Channel`
 
@@ -75,3 +88,10 @@ Exemplos: `SQSWindow(5, 30s, 4d)` → 150 s; com `retention` de 60 s → 60 s;
 `SNSSQSWindow(1h, SQSWindow(5, 30s, 4d))` → 1 h 2 min 30 s; `KafkaWindow` com
 `RetentionByTime: 7d, CleanupPolicy: "delete"` → 7 d. Replay operacional
 (`TRP-25`) não entra em nenhuma das três.
+
+## Referências
+
+- `docs/specs/SPEC-EAGAXQN1-dmpf-providers-transporte.md` — spec do `KRN-10`
+- `docs/adr/039-providers-de-transporte-sink-e-gesto-de-release.md` — decisões deste módulo
+- `docs/adr/051-escopo-de-tenant-por-choke-point-em-go.md` — o tenant que chaveia o bucket de admissão
+- `libs/backend/go/ports/README.md` — `ExecutionContext.Tenant()`, a fonte do tenant que a borda passa a `Admit`

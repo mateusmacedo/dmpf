@@ -7,10 +7,9 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	servicev1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/reservations/service/v1"
-
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/app/rpc"
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
+	servicev1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/reservations/service/v1"
 )
 
 func TestServiceDescCoversEveryMethodOfTheDescriptor(t *testing.T) {
@@ -83,8 +82,8 @@ func TestCancelAfterReserveTravelsAsARejection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Cancel() = %v, want nil — a domain refusal is not a gRPC error", err)
 	}
-	if got := resp.GetRejection(); got.GetCode() != string(domain.CodeAlreadyReserved) || got.GetMessage() == "" {
-		t.Fatalf("rejection = %v, want %q — the first decision won", got, domain.CodeAlreadyReserved)
+	if got := resp.GetRejection(); got.GetCode() != string(domain.CodeReservationAlreadyReserved) || got.GetMessage() == "" {
+		t.Fatalf("rejection = %v, want %q — the first decision won", got, domain.CodeReservationAlreadyReserved)
 	}
 }
 

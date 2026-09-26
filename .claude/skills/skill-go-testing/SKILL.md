@@ -14,6 +14,8 @@ model: opus
 
 # Go testing (backend)
 
+> **Override DMPF.** Num bounded context deste workspace, a forma é a de `.claude/rules/dmpf-bounded-context.md` e do `apps/backend/bookings` (ADR-053), e prevalece sobre o genérico descrito aqui: o Postgres de teste vem do `tb/pg` (banco `<projeto>_test` no servidor de `PG_DSN`, por `appkit.OpenPool`), e não de container por suíte nem de banco compartilhado.
+
 ## Objetivo
 
 Testes em Go backend: setup do toolchain, table-driven idiomático, testes de use cases/handlers/repositórios e padrões de mock.

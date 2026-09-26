@@ -2,9 +2,9 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 # dev: tudo dentro do cluster — Postgres e Redpanda das bases, sem TLS nem no
-# Kafka nem no gRPC interno, bancos dos contextos criados pelo Job
+# Kafka nem no gRPC interno, banco e role de cada app criados pelo Job
 # dmpf-databases, schema aplicado pelo papel api de cada contexto
-# (DMPF_MIGRATE), Grafana anônimo. Credenciais de desenvolvimento geradas aqui;
+# (MIGRATE), Grafana anônimo. Credenciais de desenvolvimento geradas aqui;
 # nada disto vale para outro ambiente.
 
 namespace: dmpf-dev
@@ -15,6 +15,7 @@ resources:
   - ../../../observability
   - ../../base/orders
   - ../../base/reservations
+  - ../../base/bookings
   - ../../base/bff
   - job-databases.yaml
 
@@ -25,18 +26,33 @@ images:
     newTag: dev
   - name: ghcr.io/mateusmacedo/reservations
     newTag: dev
+  - name: ghcr.io/mateusmacedo/bookings
+    newTag: dev
 
 secretGenerator:
   - name: orders
     literals:
-      - DMPF_PG_DSN=postgres://app:app@postgres-0.postgres:5432/dmpf_orders?sslmode=disable
-      - DMPF_KAFKA_BROKERS=redpanda-0.redpanda:9092
+      - PG_DSN=postgres://orders:orders-dev@postgres-0.postgres:5432/orders?sslmode=disable
+      - KAFKA_BROKERS=redpanda-0.redpanda:9092
     options:
       disableNameSuffixHash: true
   - name: reservations
     literals:
-      - DMPF_PG_DSN=postgres://app:app@postgres-0.postgres:5432/dmpf_reservations?sslmode=disable
-      - DMPF_KAFKA_BROKERS=redpanda-0.redpanda:9092
+      - PG_DSN=postgres://reservations:reservations-dev@postgres-0.postgres:5432/reservations?sslmode=disable
+      - KAFKA_BROKERS=redpanda-0.redpanda:9092
+    options:
+      disableNameSuffixHash: true
+  - name: bookings
+    literals:
+      - PG_DSN=postgres://bookings:bookings-dev@postgres-0.postgres:5432/bookings?sslmode=disable
+      - KAFKA_BROKERS=redpanda-0.redpanda:9092
+    options:
+      disableNameSuffixHash: true
+  - name: dmpf-databases
+    literals:
+      - orders=orders-dev
+      - reservations=reservations-dev
+      - bookings=bookings-dev
     options:
       disableNameSuffixHash: true
   - name: grafana-admin
@@ -51,4 +67,6 @@ patches:
   - path: configmap-bff-patch.yaml
   - path: deployment-orders-api-patch.yaml
   - path: deployment-reservations-api-patch.yaml
+  - path: configmap-bookings-patch.yaml
+  - path: deployment-bookings-api-patch.yaml
   - path: grafana-anonymous-patch.yaml

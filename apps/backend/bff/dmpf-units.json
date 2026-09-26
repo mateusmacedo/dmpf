@@ -7,9 +7,9 @@
       "bounded_context": "bff",
       "public_integration_surface": false,
       "include": [
-        "github.com/mateusmacedo/dmpf/apps/backend/bff",
-        "github.com/mateusmacedo/dmpf/apps/backend/bff/api",
-        "github.com/mateusmacedo/dmpf/apps/backend/bff/rpc",
+        "github.com/mateusmacedo/dmpf/apps/backend/bff/app",
+        "github.com/mateusmacedo/dmpf/apps/backend/bff/app/api",
+        "github.com/mateusmacedo/dmpf/apps/backend/bff/app/rpc",
         "github.com/mateusmacedo/dmpf/apps/backend/bff/cmd"
       ]
     }

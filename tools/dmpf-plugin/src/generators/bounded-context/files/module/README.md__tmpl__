@@ -17,6 +17,25 @@ o primeiro em que toda dependência do módulo está de pé. Import path do mód
 `block` e `bounded_context` vêm das opções do generator e vão literalmente ao
 `dmpf-units.json` — nunca são inferidos do nome do diretório (ADR-012).
 
+<% if (hasApp) { -%>
+## Borda, banco e configuração
+
+O contexto serve só gRPC (`<%- serviceName %>`), atrás da cadeia de
+interceptors do kernel; o REST público é do `bff` (ADR-044, ADR-053). O
+`ServiceDesc` de `app/rpc/service.go` nasce vazio: cada método entra ali quando
+o serviço é publicado em `contracts/proto`.
+
+O banco é próprio: database e role `<%- name %>`, schema `public`, tabelas sem
+prefixo e agregado no plural. O DDL vive em `provider/schema.sql` e é aplicado
+no ready do `api` quando `MIGRATE=true`, junto com a outbox do kernel.
+
+A configuração vem só do ambiente, sem prefixo `DMPF_`: `PG_DSN`, `GRPC_ADDR`
+(`:9090`), `GRPC_INSECURE` ou o trio mTLS (`GRPC_TLS_CERT_FILE`,
+`GRPC_TLS_KEY_FILE`, `GRPC_CLIENT_CA_FILE` e `GRPC_TRUSTED_CLIENTS`) e, no
+relay, `KAFKA_BROKERS`, `KAFKA_<%- envName %>_TOPIC`, `KAFKA_<%- envName %>_DLQ` e
+`KAFKA_GROUP`. A falta de uma variável obrigatória recusa a partida nomeando-a.
+
+<% } -%>
 ## Resolução de dependências
 
 O `go.mod` nasce com `module` e `go` apenas, porque o módulo ainda não importa

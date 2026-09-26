@@ -8,7 +8,7 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/mateusmacedo/dmpf/libs/backend/go/app"
+	kernelapp "github.com/mateusmacedo/dmpf/libs/backend/go/app"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/contracts/envelope"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/tracing"
@@ -20,7 +20,7 @@ import (
 // aggregate and this consumer takes one type — the rest is acknowledged as
 // received, never quarantined, because it is not addressed to it.
 type Sink struct {
-	Consumer  app.Consumer
+	Consumer  kernelapp.Consumer
 	EventType string
 	Logger    *slog.Logger
 	Tracer    trace.Tracer
@@ -43,7 +43,7 @@ func (s Sink) Handle(ctx context.Context, raw []byte, attempt int, ack ports.Ack
 	ctx, span := s.tracer().Start(ctx, "dmpf.kafka.consume "+s.EventType, trace.WithSpanKind(trace.SpanKindConsumer))
 	defer span.End()
 
-	outcome, err := s.Consumer.Consume(ctx, app.Delivery{Raw: raw, Attempt: attempt}, ack)
+	outcome, err := s.Consumer.Consume(ctx, kernelapp.Delivery{Raw: raw, Attempt: attempt}, ack)
 	if err != nil {
 		// WHY: R1D3 is the healthy retry path and still returns a non-nil error
 		// joined with the release, so marking every error would report the

@@ -438,7 +438,7 @@ func TestPublishRefusesAnExistingDestination(t *testing.T) {
 func TestPublishIndexesEveryPublishedSubjectAndNoSkippedOne(t *testing.T) {
 	dest := filepath.Join(t.TempDir(), "0.1.0")
 	golden := sampleSubject(t, "golden", 2)
-	dist := evidence.Subject{Header: evidence.Header{Schema: evidence.Schema, Release: "0.1.0", Subject: "dist"}, Skipped: "DMPF_KAFKA_BROKERS"}
+	dist := evidence.Subject{Header: evidence.Header{Schema: evidence.Schema, Release: "0.1.0", Subject: "dist"}, Skipped: "KAFKA_BROKERS"}
 
 	index, err := evidence.Publish(dest, []string{"dist", "golden"}, []evidence.Subject{golden, dist})
 	if err != nil {

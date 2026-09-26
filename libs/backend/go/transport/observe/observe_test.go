@@ -4,12 +4,12 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"go.opentelemetry.io/otel/attribute"
 	"log/slog"
 	"strings"
 	"testing"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"

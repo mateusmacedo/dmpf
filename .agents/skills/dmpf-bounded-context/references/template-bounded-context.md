@@ -95,6 +95,15 @@ quando não existe (`inicializa se ausente`); os demais o exigem existente.]
 - **Consome**: [nenhum | por contrato: `messageFQN`, comando local, mapa de
   campos, disposições de consumo (FND-04 §6.4)]
 
+## Borda e persistência
+
+[Opcional; sem ela vale a forma canônica do ADR-053.]
+
+- **Borda**: [serviço gRPC `company.<name>.service.v1.<Name>Service`, um RPC por
+  comando e por consulta; as rotas REST ficam no `bff`]
+- **Banco**: [tabelas no plural; quais campos viram coluna tipada, e qual
+  consulta filtra por cada um]
+
 ## Políticas transversais
 
 [Por referência à norma, sem reescrever.]
@@ -105,8 +114,9 @@ quando não existe (`inicializa se ausente`); os demais o exigem existente.]
 
 ## Critérios de aceite
 
-- [ ] Os gates do workspace verdes para os módulos do contexto
-  (`fmt-check`, `vet`, `build`, `lint`, `test-race`, verificador com `--base`).
+- [ ] Os gates do workspace verdes para o módulo do contexto
+  (`fmt-check`, `vet`, `build`, `lint`, `test-race`, `test-distributed`,
+  `dmpf-context-check.sh`, verificador com `--base`).
 - [ ] [Um cenário por comando: o aceite e cada rejeição, no formato
   DADO / QUANDO / ENTÃO.]
 

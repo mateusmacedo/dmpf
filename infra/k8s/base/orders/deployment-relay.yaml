@@ -1,4 +1,4 @@
-# O relay drena por claim com lease (OBX-09) só a outbox do banco dmpf_orders:
+# O relay drena por claim com lease (OBX-09) só a outbox do banco orders:
 # mais de uma réplica é seguro, mas uma basta para o volume de referência.
 apiVersion: apps/v1
 kind: Deployment
@@ -31,7 +31,7 @@ spec:
             - secretRef:
                 name: orders
           env:
-            - name: DMPF_INSTANCE_ID
+            - name: INSTANCE_ID
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name

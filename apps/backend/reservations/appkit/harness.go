@@ -11,13 +11,14 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/app"
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/app"
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/provider"
+	kernelapp "github.com/mateusmacedo/dmpf/libs/backend/go/app"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/contracts/envelope"
 	eventv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/orders/event/v1"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/pg"
-
-	"github.com/mateusmacedo/dmpf/apps/backend/reservations/app"
 )
 
 const (
@@ -32,8 +33,25 @@ const (
 // Harness is KIT-05: the consumer adapter composed with its concrete
 // realizations, fed raw bytes at the protocol edge, observed at the effect
 // edge — the four tables.
+// Tables of this context, which the kit cannot know: it resets the kernel
+// tables and the ones named here.
+var Tables = []string{"reservations"}
+
+// PoolOptions is the database this context's suites run in.
+var PoolOptions = pg.Options{
+	Project:      "reservations",
+	Capabilities: []postgres.Capability{postgres.Outbox, postgres.Inbox},
+	Schemas:      []string{provider.Schema},
+	Tables:       Tables,
+}
+
+func OpenPool(t testing.TB) *pgxpool.Pool {
+	t.Helper()
+	return pg.OpenPool(t, PoolOptions)
+}
+
 type Harness struct {
-	Consumer kernel.Consumer
+	Consumer kernelapp.Consumer
 	Pool     *pgxpool.Pool
 }
 
@@ -42,7 +60,7 @@ type Harness struct {
 // injects (KIT-07).
 func NewReservations(t testing.TB, clock ports.Clock, ids ports.IDGenerator) Harness {
 	t.Helper()
-	pool := pg.OpenPool(t)
+	pool := OpenPool(t)
 	return Harness{
 		Consumer: app.NewConsumer(pool, clock, ids, Wait, Timeout, MaxAttempts, Boundary),
 		Pool:     pool,
@@ -64,7 +82,7 @@ type Ack struct {
 func (a *Ack) Ack(ctx context.Context) error {
 	a.Acks++
 	return a.pool.QueryRow(ctx,
-		"SELECT count(*) FROM dmpf_inbox WHERE consumer_name = $1 AND message_id = $2",
+		"SELECT count(*) FROM inbox WHERE consumer_name = $1 AND message_id = $2",
 		app.ConsumerName, a.messageID).Scan(&a.InboxAtAck)
 }
 
@@ -76,9 +94,9 @@ func (a *Ack) Release(context.Context) error {
 // Deliver hands the raw bytes of one delivery to the adapter and returns what
 // it did, with the acknowledger that saw the gesture. messageID only tells the
 // acknowledger which inbox row to watch.
-func (h Harness) Deliver(ctx context.Context, messageID string, raw []byte, attempt int) (kernel.Outcome, *Ack, error) {
+func (h Harness) Deliver(ctx context.Context, messageID string, raw []byte, attempt int) (kernelapp.Outcome, *Ack, error) {
 	ack := &Ack{pool: h.Pool, messageID: messageID}
-	outcome, err := h.Consumer.Consume(ctx, kernel.Delivery{Raw: raw, Attempt: attempt}, ack)
+	outcome, err := h.Consumer.Consume(ctx, kernelapp.Delivery{Raw: raw, Attempt: attempt}, ack)
 	return outcome, ack, err
 }
 
@@ -95,10 +113,10 @@ func (h Harness) Effects(t testing.TB) Effects {
 	t.Helper()
 	var e Effects
 	const stmt = `SELECT
-		(SELECT count(*) FROM dmpf_inbox),
-		(SELECT count(*) FROM dmpf_example_reservations),
-		(SELECT count(*) FROM dmpf_outbox),
-		(SELECT count(*) FROM dmpf_quarantine)`
+		(SELECT count(*) FROM inbox),
+		(SELECT count(*) FROM reservations),
+		(SELECT count(*) FROM outbox),
+		(SELECT count(*) FROM quarantine)`
 	ctx, cancel := context.WithTimeout(context.Background(), queryTimeout)
 	defer cancel()
 	if err := h.Pool.QueryRow(ctx, stmt).Scan(&e.Inbox, &e.Reservations, &e.Outbox, &e.Quarantine); err != nil {
@@ -114,7 +132,7 @@ func (h Harness) InboxRow(t testing.TB, messageID string) (status string, lastEr
 	ctx, cancel := context.WithTimeout(context.Background(), queryTimeout)
 	defer cancel()
 	err := h.Pool.QueryRow(ctx,
-		"SELECT status, last_error FROM dmpf_inbox WHERE consumer_name = $1 AND message_id = $2",
+		"SELECT status, last_error FROM inbox WHERE consumer_name = $1 AND message_id = $2",
 		app.ConsumerName, messageID).Scan(&status, &lastError)
 	if err != nil {
 		t.Fatalf("appkit.InboxRow %s: %v", messageID, err)
@@ -149,7 +167,7 @@ func ptr[T any](v T) *T { return &v }
 // production one does (CTX-27).
 const OrdersSource = "urn:dmpf:orders"
 
-var Boundary = kernel.Boundary{Transport: kernel.TransportDevelopmentOnly, Sources: []string{OrdersSource}}
+var Boundary = kernelapp.Boundary{Transport: kernelapp.TransportDevelopmentOnly, Sources: []string{OrdersSource}}
 
 func rawOrderPlaced(t testing.TB, messageID, orderID string, items int32, tenant *string) []byte {
 	t.Helper()

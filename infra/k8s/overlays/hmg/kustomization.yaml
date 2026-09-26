@@ -1,10 +1,10 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-# hmg: Postgres e Kafka são serviços fora do cluster; só as três apps e a
+# hmg: Postgres e Kafka são serviços fora do cluster; só as quatro apps e a
 # plataforma de observabilidade sobem daqui. Os Secrets vêm de fora — DSN e
-# brokers de cada contexto, o certificado gRPC de cada api, a CA do BFF e a
-# senha do Grafana — por ExternalSecret/SealedSecret com os nomes de
+# brokers de cada contexto, o certificado gRPC de cada api, a CA do BFF, o
+# servidor OIDC do BFF e a senha do Grafana — por ExternalSecret/SealedSecret com os nomes de
 # secrets.example.yaml.tmpl, que mostra a forma e não é aplicado. Sem eles os
 # pods ficam em CreateContainerConfigError, que é a falha certa.
 
@@ -14,6 +14,7 @@ resources:
   - ../../../observability
   - ../../base/orders
   - ../../base/reservations
+  - ../../base/bookings
   - ../../base/bff
 
 images:
@@ -23,6 +24,8 @@ images:
     newTag: hmg
   - name: ghcr.io/mateusmacedo/reservations
     newTag: hmg
+  - name: ghcr.io/mateusmacedo/bookings
+    newTag: hmg
 
 replicas:
   - name: bff
@@ -30,6 +33,8 @@ replicas:
   - name: orders-api
     count: 2
   - name: reservations-api
+    count: 2
+  - name: bookings-api
     count: 2
 
 patches:
@@ -39,3 +44,5 @@ patches:
   - path: deployment-orders-api-patch.yaml
   - path: deployment-reservations-api-patch.yaml
   - path: deployment-bff-patch.yaml
+  - path: configmap-bookings-patch.yaml
+  - path: deployment-bookings-api-patch.yaml
