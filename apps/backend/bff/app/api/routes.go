@@ -10,8 +10,8 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
+	ordersv1 "github.com/mateusmacedo/dmpf/apps/backend/orders/contract/gen/go/company/orders/service/v1"
 	bookingsv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/bookings/service/v1"
-	ordersv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/orders/service/v1"
 	reservationsv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/reservations/service/v1"
 	kernelhttp "github.com/mateusmacedo/dmpf/libs/backend/go/http"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/metrics"
@@ -32,7 +32,7 @@ const (
 	ReservationsContractPath = "/openapi/reservations/v1/openapi.yaml"
 	BookingsContractPath     = "/openapi/bookings/v1/openapi.yaml"
 
-	ordersContract       = "contracts/openapi/orders/v1/openapi.yaml#/paths/"
+	ordersContract       = "apps/backend/orders/contract/openapi/v1/openapi.yaml#/paths/"
 	reservationsContract = "contracts/openapi/reservations/v1/openapi.yaml#/paths/"
 	bookingsContract     = "contracts/openapi/bookings/v1/openapi.yaml#/paths/"
 )

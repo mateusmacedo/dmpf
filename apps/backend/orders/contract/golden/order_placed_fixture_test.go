@@ -7,11 +7,11 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	eventv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/orders/event/v1"
+	eventv1 "github.com/mateusmacedo/dmpf/apps/backend/orders/contract/gen/go/company/orders/event/v1"
 )
 
-// The fixture lives in the contracts tree (FIX-10), five directories above this package.
-const orderPlacedPath = "../../../../../contracts/fixtures/orders/event/v1/order-placed.golden"
+// The fixture lives in this contract module (FIX-10); the path climbs to the repository root.
+const orderPlacedPath = "../../../../../apps/backend/orders/contract/fixtures/event/v1/order-placed.golden"
 
 var orderPlacedSpec = fixtureSpec{
 	path: orderPlacedPath,

@@ -18,7 +18,7 @@ linters:
       # módulo, com owner e `review_by`; o verificador é quem as honra.
       # Repeti-las aqui poria a mesma norma em dois lugares, e o daqui não tem
       # prazo de revisão.
-      - path: 'contracts/gen/'
+      - path: 'contracts?/gen/'
         linters:
           - depguard
 
@@ -329,6 +329,7 @@ linters:
           files:
             - '**/*-contracts/**'
             - '**/contracts/**'
+            - '**/contract/**'
             - '!$test'
           allow:
             # o próprio universo verificável do repositório
@@ -463,4 +464,4 @@ formatters:
         - prefix(github.com/mateusmacedo/dmpf)
   exclusions:
     paths:
-      - contracts/gen/
+      - contracts?/gen/

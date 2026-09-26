@@ -10,7 +10,7 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	testingv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/dmpf/testing/v1"
+	eventv1 "github.com/mateusmacedo/dmpf/apps/backend/orders/contract/gen/go/company/orders/event/v1"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/contracts/payloadhash"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/evidence"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/golden"
@@ -181,8 +181,8 @@ func TestHashOverBytesNotOverStructure(t *testing.T) {
 }
 
 func TestUnknownEnumValueDecodes(t *testing.T) {
-	c := findCase(t, loadFixture(t, testingOrderPlacedSpec), "enum-unknown-value")
-	var decoded testingv1.OrderPlaced
+	c := findCase(t, loadFixture(t, orderPlacedSpec), "enum-unknown-value")
+	var decoded eventv1.OrderPlaced
 	if err := proto.Unmarshal(decodeHex(t, c.PayloadBytesHex), &decoded); err != nil {
 		t.Fatal(err)
 	}
@@ -192,8 +192,8 @@ func TestUnknownEnumValueDecodes(t *testing.T) {
 }
 
 func TestInt64BeyondDoublePrecision(t *testing.T) {
-	c := findCase(t, loadFixture(t, testingOrderPlacedSpec), "total-cents-beyond-double")
-	var decoded testingv1.OrderPlaced
+	c := findCase(t, loadFixture(t, orderPlacedSpec), "total-cents-beyond-double")
+	var decoded eventv1.OrderPlaced
 	if err := proto.Unmarshal(decodeHex(t, c.PayloadBytesHex), &decoded); err != nil {
 		t.Fatal(err)
 	}

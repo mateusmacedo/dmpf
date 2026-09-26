@@ -27,5 +27,4 @@
 # Contratos de wire, por bounded context (REP-03 de docs/dmpf/cloudevents-protobuf-buf.md).
 # Regra migrada de .gitea/CODEOWNERS na troca de plataforma: o GitHub lê
 # CODEOWNERS em .github/, na raiz ou em docs/ — nunca em .gitea/.
-contracts/proto/company/orders/.*     @mateusmacedo
-contracts/fixtures/orders/.*          @mateusmacedo
+/apps/backend/orders/contract/        @mateusmacedo

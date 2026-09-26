@@ -743,8 +743,8 @@ const file_company_orders_service_v1_orders_service_proto_rawDesc = "" +
 	"\aAddItem\x12).company.orders.service.v1.AddItemRequest\x1a*.company.orders.service.v1.AddItemResponse\x12i\n" +
 	"\n" +
 	"PlaceOrder\x12,.company.orders.service.v1.PlaceOrderRequest\x1a-.company.orders.service.v1.PlaceOrderResponse\x12f\n" +
-	"\tFindOrder\x12+.company.orders.service.v1.FindOrderRequest\x1a,.company.orders.service.v1.FindOrderResponseB\x9d\x02\n" +
-	"\x1dcom.company.orders.service.v1B\x12OrdersServiceProtoP\x01Zagithub.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/orders/service/v1;servicev1\xa2\x02\x03COS\xaa\x02\x19Company.Orders.Service.V1\xca\x02\x19Company\\Orders\\Service\\V1\xe2\x02%Company\\Orders\\Service\\V1\\GPBMetadata\xea\x02\x1cCompany::Orders::Service::V1b\x06proto3"
+	"\tFindOrder\x12+.company.orders.service.v1.FindOrderRequest\x1a,.company.orders.service.v1.FindOrderResponseB\xa0\x02\n" +
+	"\x1dcom.company.orders.service.v1B\x12OrdersServiceProtoP\x01Zdgithub.com/mateusmacedo/dmpf/apps/backend/orders/contract/gen/go/company/orders/service/v1;servicev1\xa2\x02\x03COS\xaa\x02\x19Company.Orders.Service.V1\xca\x02\x19Company\\Orders\\Service\\V1\xe2\x02%Company\\Orders\\Service\\V1\\GPBMetadata\xea\x02\x1cCompany::Orders::Service::V1b\x06proto3"
 
 var (
 	file_company_orders_service_v1_orders_service_proto_rawDescOnce sync.Once

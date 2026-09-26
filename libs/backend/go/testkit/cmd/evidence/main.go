@@ -50,11 +50,14 @@ type subjectSpec struct {
 
 var catalog = []subjectSpec{
 	{
-		name:     "golden",
-		packages: []string{modulePrefix + "libs/backend/go/contracts/golden"},
-		skip:     []string{"TestUpdateGolden"},
-		records:  true,
-		tools:    true,
+		name: "golden",
+		packages: []string{
+			modulePrefix + "libs/backend/go/contracts/golden",
+			modulePrefix + "apps/backend/orders/contract/golden",
+		},
+		skip:    []string{"TestUpdateGolden"},
+		records: true,
+		tools:   true,
 	},
 	{
 		name: "provider",

@@ -29,7 +29,7 @@ func sprintf(format string, args ...any) string {
 }
 
 func TestReadFixtureResolvesFromTheRepoRoot(t *testing.T) {
-	raw := tb.ReadFixture(t, "contracts/fixtures/orders/event/v1/item-added.golden")
+	raw := tb.ReadFixture(t, "libs/backend/go/contracts/fixtures/testing/v1/item-added.golden")
 	if !strings.Contains(string(raw), `"format_version": "1"`) {
 		t.Fatalf("unexpected fixture content: %.80s", raw)
 	}

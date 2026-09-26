@@ -83,6 +83,7 @@ VETORES_CONTEXT_PROVIDER=(
 
 FORA_DO_DEPGUARD=(
   "contracts/gen/"
+  "contract/gen/"
 )
 
 fora_do_depguard() {
@@ -94,6 +95,15 @@ fora_do_depguard() {
     esac
   done
   return 1
+}
+
+# Modulo de contrato cujos `include` sao todos codigo gerado: o depguard exclui o
+# gerado, entao nao ha onde provar a politica local.
+so_codigo_gerado() {
+  local inc
+  while IFS= read -r inc; do
+    fora_do_depguard "$inc" || return 1
+  done < <(includes_do_modulo "$1" "$2")
 }
 
 # Diretorios dos `include` do manifesto, relativos a raiz do repositorio.
@@ -133,7 +143,7 @@ modulos_contract=0
 fora_de_alcance=0
 
 # Espelha o alcance do depguard, que seleciona por diretorio (`**/domain/**`,
-# `**/ports/**`, `**/application/**`, `**/contracts/**` e as formas com hifen).
+# `**/ports/**`, `**/application/**`, `**/contracts/**`, `**/contract/**` e as formas com hifen).
 # Modulo fora desses caminhos nao e coberto pelo depguard — o verificador do
 # KRN-02 o cobre — e provar o gate nele seria provar o que nao existe. O array
 # vem do CAMINHO, nao do manifesto: e o caminho que decide a regra aplicada.
@@ -142,7 +152,7 @@ bloco_do_caminho() {
     *-domain/* | */domain/*)           echo "domain" ;;
     *-ports/* | */ports/*)             echo "port" ;;
     *-application/* | */application/*) echo "application" ;;
-    *-contracts/* | */contracts/*)     echo "contract" ;;
+    *-contracts/* | */contracts/* | */contract/*) echo "contract" ;;
     *)               echo "" ;;
   esac
 }
@@ -202,6 +212,11 @@ while IFS= read -r manifesto; do
       break
     fi
   done
+  if [ -z "$pkg_clause" ] && so_codigo_gerado "$manifesto" "$module_dir"; then
+    echo "-- $module_dir: so codigo gerado, fora do depguard por exclusao; coberto pelo verificador do KRN-02"
+    fora_de_alcance=$((fora_de_alcance + 1))
+    continue
+  fi
   if [ -z "$pkg_clause" ]; then
     echo "FALHA  $module_dir: nenhum .go com clausula de package dentro do alcance do depguard"
     falhas=$((falhas + 1))

@@ -4,6 +4,7 @@ go 1.26.6
 
 require (
 	github.com/jackc/pgx/v5 v5.10.0
+	github.com/mateusmacedo/dmpf/apps/backend/orders/contract v0.1.0
 	github.com/mateusmacedo/dmpf/libs/backend/go/app v0.1.0
 	github.com/mateusmacedo/dmpf/libs/backend/go/application v0.1.0
 	github.com/mateusmacedo/dmpf/libs/backend/go/contracts v0.1.0

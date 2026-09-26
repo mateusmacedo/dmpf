@@ -4,6 +4,7 @@ use (
 	./apps/backend/bff
 	./apps/backend/bookings
 	./apps/backend/orders
+	./apps/backend/orders/contract
 	./apps/backend/reservations
 	./libs/backend/go/app
 	./libs/backend/go/application
@@ -24,6 +25,7 @@ use (
 )
 
 replace (
+	github.com/mateusmacedo/dmpf/apps/backend/orders/contract v0.1.0 => ./apps/backend/orders/contract
 	github.com/mateusmacedo/dmpf/libs/backend/go/app v0.1.0 => ./libs/backend/go/app
 	github.com/mateusmacedo/dmpf/libs/backend/go/application v0.1.0 => ./libs/backend/go/application
 	github.com/mateusmacedo/dmpf/libs/backend/go/authn v0.1.0 => ./libs/backend/go/authn

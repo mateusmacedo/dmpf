@@ -4,7 +4,7 @@
 
 | Rota | Contrato | RPC | Permissão |
 | --- | --- | --- | --- |
-| `POST /orders/{id}/items` | `contracts/openapi/orders/v1/openapi.yaml` | `OrdersService/AddItem` | `orders:write` |
+| `POST /orders/{id}/items` | `apps/backend/orders/contract/openapi/v1/openapi.yaml` | `OrdersService/AddItem` | `orders:write` |
 | `POST /orders/{id}/place` | idem | `OrdersService/PlaceOrder` | `orders:write` |
 | `GET /orders/{id}` | idem | `OrdersService/FindOrder` | `orders:read` |
 | `GET /reservations/{order_id}` | `contracts/openapi/reservations/v1/openapi.yaml` | `ReservationsService/FindReservation` | `reservations:read` |

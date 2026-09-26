@@ -91,8 +91,8 @@ const file_company_orders_event_v1_item_added_proto_rawDesc = "" +
 	"\tItemAdded\x12\x19\n" +
 	"\border_id\x18\x01 \x01(\tR\aorderId\x12\x10\n" +
 	"\x03sku\x18\x02 \x01(\tR\x03sku\x12\x1a\n" +
-	"\bquantity\x18\x03 \x01(\x05R\bquantityB\x8b\x02\n" +
-	"\x1bcom.company.orders.event.v1B\x0eItemAddedProtoP\x01Z]github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/orders/event/v1;eventv1\xa2\x02\x03COE\xaa\x02\x17Company.Orders.Event.V1\xca\x02\x17Company\\Orders\\Event\\V1\xe2\x02#Company\\Orders\\Event\\V1\\GPBMetadata\xea\x02\x1aCompany::Orders::Event::V1b\x06proto3"
+	"\bquantity\x18\x03 \x01(\x05R\bquantityB\x8e\x02\n" +
+	"\x1bcom.company.orders.event.v1B\x0eItemAddedProtoP\x01Z`github.com/mateusmacedo/dmpf/apps/backend/orders/contract/gen/go/company/orders/event/v1;eventv1\xa2\x02\x03COE\xaa\x02\x17Company.Orders.Event.V1\xca\x02\x17Company\\Orders\\Event\\V1\xe2\x02#Company\\Orders\\Event\\V1\\GPBMetadata\xea\x02\x1aCompany::Orders::Event::V1b\x06proto3"
 
 var (
 	file_company_orders_event_v1_item_added_proto_rawDescOnce sync.Once

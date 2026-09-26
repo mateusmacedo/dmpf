@@ -109,7 +109,7 @@ verificar "baseline irresolvivel" 1 "$S" breaking refs/heads/nao-existe "baselin
 
 echo "== breaking: vetores negativos de BUF-08 =="
 S="$(novo_sandbox)"; commitar "$S" "contratos"
-echo "// comentario" >> "$S/contracts/proto/company/orders/event/v1/order_placed.proto"; commitar "$S" "mudanca"
+echo "// comentario" >> "$S/contracts/proto/dmpf/testing/v1/order_placed.proto"; commitar "$S" "mudanca"
 verificar "marca ausente em modulo com historico" 1 "$S" breaking HEAD~1 "sem marca"
 
 S="$(novo_sandbox)"; commitar "$S" "contratos"; marcar_baseline "$S" "$AUTOR"
@@ -120,11 +120,11 @@ verificar "tagger igual ao autor do modulo" 1 "$S" breaking HEAD "autoria e auto
 S="$(novo_sandbox)"; commitar "$S" "contratos"; marcar_baseline "$S" "$REVISOR"
 git -C "$S" mv contracts/proto contracts/proto2
 sed -i 's/path: proto$/path: proto2/' "$S/contracts/buf.yaml"
-sed -i 's/int64 total_cents/int32 total_cents/' "$S/contracts/proto2/company/orders/event/v1/order_placed.proto"; commitar "$S" "renomeia e quebra"
+sed -i 's/int64 total_cents/int32 total_cents/' "$S/contracts/proto2/dmpf/testing/v1/order_placed.proto"; commitar "$S" "renomeia e quebra"
 verificar "modulo renomeado continua sob buf breaking" 1 "$S" breaking HEAD~1 "buf breaking (FILE) reprovou"
 
 S="$(novo_sandbox)"; commitar "$S" "contratos"; marcar_baseline "$S" "$REVISOR"
-sed -i 's/int64 total_cents/int32 total_cents/' "$S/contracts/proto/company/orders/event/v1/order_placed.proto"; commitar "$S" "tipo"
+sed -i 's/int64 total_cents/int32 total_cents/' "$S/contracts/proto/dmpf/testing/v1/order_placed.proto"; commitar "$S" "tipo"
 verificar "breaking FILE: int64 -> int32" 1 "$S" breaking HEAD~1 "buf breaking (FILE) reprovou"
 
 S="$(novo_sandbox)"; commitar "$S" "contratos"
@@ -137,7 +137,7 @@ verificar "buf.yaml ausente" 1 "$S" breaking HEAD "ausente"
 
 echo "== breaking: identidade por pacote entre modulos =="
 S="$(novo_sandbox)"; commitar "$S" "contratos"; marcar_baseline "$S" "$REVISOR"
-mover_para_modulo "$S" apps/orders/contract company/orders; commitar "$S" "orders em modulo proprio"
+mover_para_modulo "$S" apps/orders/contract dmpf/testing; commitar "$S" "orders em modulo proprio"
 MODULO=apps/orders/contract PROJETO=orders-contract verificar "pacote relocado para modulo novo roda contra a base" 0 "$S" breaking HEAD~1
 saida="$(MODULO=apps/orders/contract PROJETO=orders-contract gate "$S" breaking HEAD~1 2>&1)"
 casos=$((casos + 1))
@@ -145,22 +145,22 @@ if echo "$saida" | grep -q "breaking: OK (apps/orders/contract"; then echo "PASS
 verificar "modulo de origem apos a relocacao" 0 "$S" breaking HEAD~1
 
 S="$(novo_sandbox)"; commitar "$S" "contratos"; marcar_baseline "$S" "$REVISOR"
-mover_para_modulo "$S" apps/orders/contract company/orders
-sed -i 's/int64 total_cents/int32 total_cents/' "$S/apps/orders/contract/proto/company/orders/event/v1/order_placed.proto"; commitar "$S" "relocado e quebrado"
+mover_para_modulo "$S" apps/orders/contract dmpf/testing
+sed -i 's/int64 total_cents/int32 total_cents/' "$S/apps/orders/contract/proto/dmpf/testing/v1/order_placed.proto"; commitar "$S" "relocado e quebrado"
 MODULO=apps/orders/contract PROJETO=orders-contract verificar "quebra FILE apos relocar" 1 "$S" breaking HEAD~1 "buf breaking (FILE) reprovou"
 
 S="$(novo_sandbox)"; commitar "$S" "contratos"; marcar_baseline "$S" "$REVISOR"
-mv "$S/contracts/proto/company/orders" "$S.pacote-fora"; commitar "$S" "remove pacote"
+mv "$S/contracts/proto/dmpf/testing" "$S.pacote-fora"; commitar "$S" "remove pacote"
 verificar "pacote publicado ausente de todos os modulos" 1 "$S" breaking HEAD~1 "pacote publicado"
 
 S="$(novo_sandbox)"; commitar "$S" "contratos"
-mover_para_modulo "$S" apps/orders/contract company/orders; commitar "$S" "modulo novo"
+mover_para_modulo "$S" apps/orders/contract dmpf/testing; commitar "$S" "modulo novo"
 marcar_baseline "$S" "$REVISOR" orders-contract
 MODULO=apps/orders/contract PROJETO=orders-contract verificar "marca por projeto contracts-baseline/<projeto>" 0 "$S" breaking HEAD
 
 echo "== lint =="
 S="$(novo_sandbox)"
-printf 'syntax = "proto3";\n\npackage company.orders.event.v1;\n\nenum Foo {\n  A = 0;\n}\n' > "$S/contracts/proto/company/orders/event/v1/foo.proto"
+printf 'syntax = "proto3";\n\npackage dmpf.testing.v1;\n\nenum Foo {\n  A = 0;\n}\n' > "$S/contracts/proto/dmpf/testing/v1/foo.proto"
 verificar "enum sem sufixo _UNSPECIFIED" 1 "$S" lint "buf lint (STANDARD) reprovou"
 
 S="$(novo_sandbox)"
@@ -169,7 +169,7 @@ verificar "exactly-once em artefato de contrato" 1 "$S" lint "P0-3"
 
 echo "== generate-check =="
 S="$(novo_sandbox)"; commitar "$S" "contratos"
-printf '\n// drift\n' >> "$S/libs/backend/go/contracts/gen/go/company/orders/event/v1/order_placed.pb.go"
+printf '\n// drift\n' >> "$S/libs/backend/go/contracts/gen/go/dmpf/testing/v1/order_placed.pb.go"
 verificar "byte alterado no gerado (drift)" 1 "$S" generate-check "drift"
 
 echo "== pins =="
@@ -186,7 +186,7 @@ sed -i 's/^deps: \[\]/deps:\n  - buf.build\/exemplo\/dep/' "$S/contracts/buf.yam
 verificar "deps declaradas sem buf.lock" 1 "$S" pins "sem buf.lock"
 
 S="$(novo_sandbox)"
-mover_para_modulo "$S" apps/orders/contract company/orders
+mover_para_modulo "$S" apps/orders/contract dmpf/testing
 sed -i 's/protoc-gen-go@v[0-9.]*/protoc-gen-go@v1.36.0/' "$S/apps/orders/contract/buf.gen.yaml"
 verificar "pins divergentes entre modulos" 1 "$S" pins "" "diverge entre modulos"
 

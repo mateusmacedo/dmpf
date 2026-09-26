@@ -5,10 +5,10 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	eventv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/orders/event/v1"
+	eventv1 "github.com/mateusmacedo/dmpf/apps/backend/orders/contract/gen/go/company/orders/event/v1"
 )
 
-const itemAddedPath = "../../../../../contracts/fixtures/orders/event/v1/item-added.golden"
+const itemAddedPath = "../../../../../apps/backend/orders/contract/fixtures/event/v1/item-added.golden"
 
 var itemAddedSpec = fixtureSpec{
 	path: itemAddedPath,
