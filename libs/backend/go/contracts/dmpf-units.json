@@ -6,7 +6,10 @@
       "block": "contract",
       "bounded_context": "kernel",
       "public_integration_surface": true,
-      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/io/cloudevents/v1"]
+      "include": [
+        "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/dmpf/testing/v1",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/io/cloudevents/v1"
+      ]
     },
     {
       "id": "orders/contract",

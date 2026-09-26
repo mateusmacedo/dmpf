@@ -1,6 +1,6 @@
 {
   "schema": "dmpf/units-baseline@1",
-  "digest": "sha256:d85866fda4ad3727a857bbd8d0b0d21c4bc5909503b6ac1eb3b6f834fa9b0b69",
+  "digest": "sha256:f1df721a09f5f4cbdcd850f21d4812f91e50fe9c7d9bbe8f86d7c0e2188189a6",
   "entries": [
     {
       "unit": "bff/app",
@@ -200,6 +200,7 @@
       "block": "contract",
       "bounded_context": "kernel",
       "membership": [
+        "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/dmpf/testing/v1",
         "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/io/cloudevents/v1"
       ]
     },
