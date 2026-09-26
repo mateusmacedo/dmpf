@@ -2,7 +2,7 @@
 id: SPEC-F308KDSF
 slug: padronizacao-contextos-e-banco
 title: DMPF — Padronização dos componentes dos contextos e nomenclatura e isolamento de banco
-stage: building
+stage: done
 priority: P1
 depends_on: []
 ticket_url: null
