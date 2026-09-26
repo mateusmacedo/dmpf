@@ -3,34 +3,38 @@
 package app_test
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"github.com/mateusmacedo/dmpf/apps/backend/bookings/app"
-	httpedge "github.com/mateusmacedo/dmpf/apps/backend/bookings/app/http"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/pg"
-	"net/http"
-	"net/http/httptest"
+	"net"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/deadline"
-
 	"github.com/jackc/pgx/v5/pgxpool"
+	"go.opentelemetry.io/otel/trace/noop"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
+	"google.golang.org/grpc/test/bufconn"
 
-	"github.com/mateusmacedo/dmpf/libs/backend/go/authn"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
-
+	"github.com/mateusmacedo/dmpf/apps/backend/bookings/app"
+	"github.com/mateusmacedo/dmpf/apps/backend/bookings/app/rpc"
+	"github.com/mateusmacedo/dmpf/apps/backend/bookings/appkit"
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/application"
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/provider"
+	servicev1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/bookings/service/v1"
+	kernelgrpc "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
+	obsclock "github.com/mateusmacedo/dmpf/libs/backend/go/observability/clock"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/admission"
 )
 
 type fixedClock struct{}
 
-func (fixedClock) Now() ports.Instant { return 1_755_432_000 }
+func (fixedClock) Now() ports.Instant { return 1_755_432_000_000_000_000 }
 
 type sequenceIDs struct {
 	mu     sync.Mutex
@@ -44,7 +48,9 @@ func (g *sequenceIDs) NewMessageID() ports.MessageID {
 	return ports.MessageID(fmt.Sprintf("m-%06d", g.issued))
 }
 
-func newMux(t *testing.T, pool *pgxpool.Pool) *http.ServeMux {
+// dial serves the use cases over Postgres through the server chain the api
+// mounts, so the suite crosses the same hop the BFF does.
+func dial(t *testing.T, pool *pgxpool.Pool) *grpc.ClientConn {
 	t.Helper()
 	bind := func(tx *postgres.Tx) application.Resources {
 		return application.Resources{
@@ -61,188 +67,129 @@ func newMux(t *testing.T, pool *pgxpool.Pool) *http.ServeMux {
 		IDs:            &sequenceIDs{},
 		Authorize:      app.Authorization(),
 	}
-	mux, err := httpedge.Mux(service, e2eBudget, authn.DevAuthenticator{})
+
+	limit := admission.Limit{PerSecond: 1000, Burst: 1000, Concurrency: 64}
+	ctrl, err := admission.New(admission.Config{Limits: kernelgrpc.MethodLimits(rpc.ServiceName, rpc.Methods(), limit), MaxKeys: 16, Clock: obsclock.System()})
 	if err != nil {
-		t.Fatalf("Mux() = %v", err)
+		t.Fatalf("admission.New() = %v", err)
 	}
-	return mux
-}
-
-// e2eCredential is what a caller presents: the development mock resolves the
-// identity from the declaration itself, which is why the start refuses it
-// outside DMPF_AUTH_DEV_MOCK.
-const e2eCredential = `Bearer {"sub":"s-e2e","tenant":"acme","permissions":["bookings:write","bookings:read"]}`
-
-// e2eReadOnly authenticates in the same tenant without the write permission.
-const e2eReadOnly = `Bearer {"sub":"s-e2e","tenant":"acme","permissions":["bookings:read"]}`
-
-// WHY: the suite exercises the mux the process serves, middleware included, so
-// a route that only answers without the edge's time policy fails here.
-var e2eBudget = deadline.Budget{
-	Dependency:        "postgres",
-	Method:            "route",
-	Limit:             5 * time.Second,
-	Slack:             200 * time.Millisecond,
-	EstimatedDuration: 200 * time.Millisecond,
-}
-
-func TestReserveBookingHTTPEndToEnd(t *testing.T) {
-	pool := pg.OpenPool(t, "bookings_booking", "bookings_resource")
-	mux := newMux(t, pool)
-
-	body, _ := json.Marshal(map[string]any{"bookingId": "http-b-001", "resourceId": "http-r-001", "quantity": 3})
-	req := httptest.NewRequest(http.MethodPost, "/bookings/booking", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", e2eCredential)
-	req.Header.Set("Idempotency-Key", "idem-001")
-	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusCreated {
-		t.Fatalf("status = %d, want 201; body: %s", rec.Code, rec.Body.String())
+	server, _, err := kernelgrpc.NewServer(kernelgrpc.ServerConfig{
+		InsecureForDevelopmentOnly: true,
+		Services:                   []string{rpc.ServiceName},
+		UnaryInterceptors:          kernelgrpc.ServerInterceptors(rpc.ServiceName, noop.NewTracerProvider().Tracer("e2e"), ctrl, nil, nil),
+	})
+	if err != nil {
+		t.Fatalf("NewServer() = %v", err)
 	}
-
-	var resp map[string]string
-	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
-		t.Fatalf("decode response: %v", err)
-	}
-	if resp["bookingId"] != "http-b-001" {
-		t.Fatalf("bookingId = %q, want http-b-001", resp["bookingId"])
-	}
-
-	t.Run("outbox has a row", func(t *testing.T) {
-		var count int
-		err := pool.QueryRow(context.Background(), "SELECT count(*) FROM dmpf_outbox").Scan(&count)
-		if err != nil {
-			t.Fatalf("count outbox: %v", err)
-		}
-		if count != 1 {
-			t.Fatalf("outbox count = %d, want 1", count)
-		}
+	server.RegisterService(&rpc.ServiceDesc, rpc.Server{Service: service})
+	listener := bufconn.Listen(1 << 20)
+	go func() { _ = server.Serve(listener) }()
+	t.Cleanup(func() {
+		server.Stop()
+		_ = listener.Close()
 	})
 
-	t.Run("find booking by id via HTTP", func(t *testing.T) {
-		findReq := httptest.NewRequest(http.MethodGet, "/bookings/booking/http-b-001", nil)
-		findReq.Header.Set("Authorization", e2eCredential)
-		findRec := httptest.NewRecorder()
-		mux.ServeHTTP(findRec, findReq)
-
-		if findRec.Code != http.StatusOK {
-			t.Fatalf("status = %d, want 200; body: %s", findRec.Code, findRec.Body.String())
-		}
-		var view map[string]any
-		if err := json.NewDecoder(findRec.Body).Decode(&view); err != nil {
-			t.Fatalf("decode: %v", err)
-		}
-		if view["id"] != "http-b-001" {
-			t.Fatalf("id = %v, want http-b-001", view["id"])
-		}
-		if view["status"] != "reserved" {
-			t.Fatalf("status = %v, want reserved", view["status"])
-		}
-	})
-
-	t.Run("cancel via HTTP", func(t *testing.T) {
-		cancelReq := httptest.NewRequest(http.MethodPost, "/bookings/booking/http-b-001/cancel", nil)
-		cancelReq.Header.Set("Authorization", e2eCredential)
-		cancelReq.Header.Set("Idempotency-Key", "idem-002")
-		cancelRec := httptest.NewRecorder()
-		mux.ServeHTTP(cancelRec, cancelReq)
-
-		if cancelRec.Code != http.StatusOK {
-			t.Fatalf("status = %d, want 200; body: %s", cancelRec.Code, cancelRec.Body.String())
-		}
-	})
-
-	t.Run("find by resource via HTTP", func(t *testing.T) {
-		findReq := httptest.NewRequest(http.MethodGet, "/bookings/booking?resourceId=http-r-001", nil)
-		findReq.Header.Set("Authorization", e2eCredential)
-		findRec := httptest.NewRecorder()
-		mux.ServeHTTP(findRec, findReq)
-
-		if findRec.Code != http.StatusOK {
-			t.Fatalf("status = %d, want 200; body: %s", findRec.Code, findRec.Body.String())
-		}
-		var views []map[string]any
-		if err := json.NewDecoder(findRec.Body).Decode(&views); err != nil {
-			t.Fatalf("decode: %v", err)
-		}
-		if len(views) != 1 {
-			t.Fatalf("len = %d, want 1", len(views))
-		}
-		if views[0]["status"] != "cancelled" {
-			t.Fatalf("status = %v, want cancelled", views[0]["status"])
-		}
-	})
+	conn, err := grpc.NewClient("passthrough:///bufnet",
+		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) { return listener.DialContext(ctx) }),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	if err != nil {
+		t.Fatalf("NewClient() = %v", err)
+	}
+	t.Cleanup(func() { _ = conn.Close() })
+	return conn
 }
 
-func TestReserveBookingHTTPRejectsInvalidQuantity(t *testing.T) {
-	pool := pg.OpenPool(t, "bookings_booking", "bookings_resource")
-	mux := newMux(t, pool)
-
-	body, _ := json.Marshal(map[string]any{"bookingId": "http-b-002", "resourceId": "http-r-002", "quantity": 0})
-	req := httptest.NewRequest(http.MethodPost, "/bookings/booking", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", e2eCredential)
-	req.Header.Set("Idempotency-Key", "idem-003")
-	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d, want 400; body: %s", rec.Code, rec.Body.String())
+func call(t *testing.T, tenant string) context.Context {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	t.Cleanup(cancel)
+	if tenant == "" {
+		return ctx
 	}
+	return metadata.AppendToOutgoingContext(ctx, kernelgrpc.TenantKey, tenant)
 }
 
-// IDN-06 and IDN-08 at the edge: an authenticated subject of the right tenant
-// without the write permission is refused as forbidden, never as unauthenticated
-// and never as an internal failure, and nothing is written.
-func TestReserveBookingWithoutThePermissionIsForbidden(t *testing.T) {
-	pool := pg.OpenPool(t, "bookings_booking", "bookings_resource")
-	mux := newMux(t, pool)
-
-	body, _ := json.Marshal(map[string]any{"bookingId": "http-b-403", "resourceId": "http-r-403", "quantity": 1})
-	req := httptest.NewRequest(http.MethodPost, "/bookings/booking", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", e2eReadOnly)
-	req.Header.Set("Idempotency-Key", "idem-403")
-	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusForbidden {
-		t.Fatalf("status = %d, want 403; body: %s", rec.Code, rec.Body.String())
-	}
+func outboxRows(t *testing.T, pool *pgxpool.Pool) int {
+	t.Helper()
 	var count int
-	if err := pool.QueryRow(context.Background(), "SELECT count(*) FROM dmpf_outbox").Scan(&count); err != nil {
+	if err := pool.QueryRow(context.Background(), "SELECT count(*) FROM outbox").Scan(&count); err != nil {
 		t.Fatalf("count outbox: %v", err)
 	}
-	if count != 0 {
-		t.Fatalf("outbox rows = %d, want 0: authorization is step 1, before any write (IDN-07)", count)
+	return count
+}
+
+func TestReserveBookingEndToEndOverGRPC(t *testing.T) {
+	pool := appkit.OpenPool(t)
+	conn := dial(t, pool)
+
+	var reserved servicev1.ReserveBookingResponse
+	if err := conn.Invoke(call(t, "acme"), rpc.FullMethod("ReserveBooking"),
+		&servicev1.ReserveBookingRequest{BookingId: "e2e-b-001", ResourceId: "e2e-r-001", Quantity: 3}, &reserved); err != nil {
+		t.Fatalf("ReserveBooking() = %v", err)
+	}
+	if reserved.GetReserved().GetBookingId() != "e2e-b-001" {
+		t.Fatalf("ReserveBooking() = %v, want Reserved e2e-b-001", &reserved)
+	}
+	if n := outboxRows(t, pool); n != 1 {
+		t.Fatalf("outbox rows = %d, want 1", n)
+	}
+
+	var found servicev1.FindBookingResponse
+	if err := conn.Invoke(call(t, "acme"), rpc.FullMethod("FindBooking"), &servicev1.FindBookingRequest{BookingId: "e2e-b-001"}, &found); err != nil {
+		t.Fatalf("FindBooking() = %v", err)
+	}
+	if found.GetBooking().GetStatus() != servicev1.BookingStatus_BOOKING_STATUS_RESERVED {
+		t.Fatalf("FindBooking() = %v, want RESERVED", found.GetBooking())
+	}
+
+	var cancelled servicev1.CancelBookingResponse
+	if err := conn.Invoke(call(t, "acme"), rpc.FullMethod("CancelBooking"), &servicev1.CancelBookingRequest{BookingId: "e2e-b-001"}, &cancelled); err != nil {
+		t.Fatalf("CancelBooking() = %v", err)
+	}
+	if cancelled.GetCancelled().GetBookingId() != "e2e-b-001" {
+		t.Fatalf("CancelBooking() = %v, want Cancelled e2e-b-001", &cancelled)
+	}
+
+	var byResource servicev1.FindBookingsByResourceResponse
+	if err := conn.Invoke(call(t, "acme"), rpc.FullMethod("FindBookingsByResource"), &servicev1.FindBookingsByResourceRequest{ResourceId: "e2e-r-001"}, &byResource); err != nil {
+		t.Fatalf("FindBookingsByResource() = %v", err)
+	}
+	if b := byResource.GetBookings(); len(b) != 1 || b[0].GetStatus() != servicev1.BookingStatus_BOOKING_STATUS_CANCELLED {
+		t.Fatalf("FindBookingsByResource() = %v, want the one booking, cancelled", b)
 	}
 }
 
-// CTX-06 at the edge: a header asserting another tenant than the credential
-// resolved is refused, and nothing is written under either tenant.
-func TestAHeaderAssertingAnotherTenantIsRefused(t *testing.T) {
-	pool := pg.OpenPool(t, "bookings_booking", "bookings_resource")
-	mux := newMux(t, pool)
+func TestAnInvalidQuantityIsRefusedAndNothingIsWritten(t *testing.T) {
+	pool := appkit.OpenPool(t)
+	conn := dial(t, pool)
 
-	body, _ := json.Marshal(map[string]any{"bookingId": "http-b-406", "resourceId": "http-r-406", "quantity": 1})
-	req := httptest.NewRequest(http.MethodPost, "/bookings/booking", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", e2eCredential)
-	req.Header.Set("Idempotency-Key", "idem-406")
-	req.Header.Set("X-Tenant-ID", "globex")
-	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, req)
+	var resp servicev1.ReserveBookingResponse
+	err := conn.Invoke(call(t, "acme"), rpc.FullMethod("ReserveBooking"),
+		&servicev1.ReserveBookingRequest{BookingId: "e2e-b-002", ResourceId: "e2e-r-002", Quantity: 0}, &resp)
 
-	if rec.Code != http.StatusForbidden {
-		t.Fatalf("status = %d, want 403; body: %s", rec.Code, rec.Body.String())
+	if status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("ReserveBooking(quantity 0) = %v, want InvalidArgument", err)
 	}
-	var count int
-	if err := pool.QueryRow(context.Background(), "SELECT count(*) FROM dmpf_outbox").Scan(&count); err != nil {
-		t.Fatalf("count outbox: %v", err)
+	if n := outboxRows(t, pool); n != 0 {
+		t.Fatalf("outbox rows = %d, want 0", n)
 	}
-	if count != 0 {
-		t.Fatalf("outbox rows = %d, want 0", count)
+}
+
+// IDN-15 over the hop: a call the edge sent without a tenant resolves no scope,
+// and persistence refuses it rather than writing under an invented one.
+func TestACallWithoutATenantIsRefusedAndNothingIsWritten(t *testing.T) {
+	pool := appkit.OpenPool(t)
+	conn := dial(t, pool)
+
+	var resp servicev1.ReserveBookingResponse
+	err := conn.Invoke(call(t, ""), rpc.FullMethod("ReserveBooking"),
+		&servicev1.ReserveBookingRequest{BookingId: "e2e-b-003", ResourceId: "e2e-r-003", Quantity: 1}, &resp)
+
+	if err == nil {
+		t.Fatalf("ReserveBooking() without a tenant = %v, want the call refused", &resp)
+	}
+	if n := outboxRows(t, pool); n != 0 {
+		t.Fatalf("outbox rows = %d, want 0", n)
 	}
 }

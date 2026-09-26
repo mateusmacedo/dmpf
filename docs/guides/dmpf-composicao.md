@@ -100,18 +100,19 @@ arquivo importa o package do kernel e o do contexto com o mesmo nome, o import
 do kernel recebe alias pelo papel — `kernel`, `usecase`, `port`, e `kernelapp`
 quando `kernel` já nomeia o `domain`.
 
-O layout canônico do ADR-048 completa a lista: a **raiz do contexto não tem
-código Go**, a borda do transporte fica em subpacote de `app/` (`app/rpc/` em
-gRPC, `app/http/` em HTTP, com o package chamado `httpedge` para não colidir
-com `net/http`), o binário fica em `cmd/main.go` — um por contexto, com os
-papéis em `--role` — e os kits `appkit/` e `distkit/` são obrigatórios. O
-`tools/dmpf-context-check.sh` reprova o que fugir disso, e o generator já
-emite tudo:
+O layout canônico do ADR-048, com a forma do ADR-053, completa a lista: a
+**raiz do contexto não tem código Go**, a borda é só gRPC, em `app/rpc/` (o
+REST público é do `bff`), `app/config.go` e `app/wiring.go` seguem a mesma
+forma nos contextos, o DDL fica em `provider/schema.sql`, o binário fica em
+`cmd/main.go` — um por contexto, com os papéis em `--role` — e os kits
+`appkit/` e `distkit/` são obrigatórios. O `tools/dmpf-context-check.sh`
+reprova o que fugir disso, inclusive `app/http/` e nomes de banco fora da
+convenção, e o generator já emite o esqueleto:
 
 ```text
 <ctx>/
-  domain/  ports/ (condicional)  application/  provider/
-  app/  →  rpc/ ou http/
+  domain/  ports/ (condicional)  application/  provider/schema.sql
+  app/  →  config.go  wiring.go  rpc/
   appkit/  distkit/
   cmd/main.go
 ```
@@ -173,13 +174,13 @@ pnpm nx run-many -t fmt-check,vet,lint,build,test -p <ctx>
 ```
 
 Os testes que tocam Postgres levam a build tag `integration` e exigem o DSN.
-Rode-os com `--parallel=1`: os harnesses truncam as tabelas do kernel, que todo
-contexto compartilha.
+O `PG_DSN` aponta o servidor com um usuário que cria bancos: cada projeto
+testa no seu `<ctx>_test`, e projetos distintos rodam em paralelo (ADR-053).
 
 ```bash
 pnpm nx run bff:infra-up
-DMPF_PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' \
-  pnpm nx run <ctx>:test-race
+PG_DSN='postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable' \
+  pnpm nx run-many -t test-race,test-distributed -p <ctx>
 ```
 
 Por fim, o gate autoritativo entre módulos, com a base do intervalo em revisão:
@@ -324,8 +325,8 @@ está em [`bom/README.md`](../../bom/README.md).
 
    ```bash
    CI=true GOTOOLCHAIN=go1.26.6 \
-     DMPF_PG_DSN='postgres://dmpf:dmpf@localhost:5432/dmpf?sslmode=disable' \
-     DMPF_KAFKA_BROKERS=localhost:9092 DMPF_REDPANDA_ADMIN=http://localhost:9644 \
+     PG_DSN='postgres://dmpf:dmpf@localhost:5432/dmpf?sslmode=disable' \
+     KAFKA_BROKERS=localhost:9092 REDPANDA_ADMIN=http://localhost:9644 \
      go run ./libs/backend/go/testkit/cmd/evidence --root . --release <semver> --out /tmp/evidence-a/<semver>
    ```
 

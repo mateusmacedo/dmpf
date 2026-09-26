@@ -1,0 +1,32 @@
+package rpc
+
+import "google.golang.org/grpc"
+
+// ServiceName is the full name of the service in the contract; the descriptor
+// generated from contracts/proto replaces it once the service is published.
+const ServiceName = "<%- serviceName %>"
+
+// Methods names every method of the service: admission declares a limit for
+// each one (RES-16).
+func Methods() []string {
+	names := make([]string, 0, len(ServiceDesc.Methods))
+	for _, method := range ServiceDesc.Methods {
+		names = append(names, method.MethodName)
+	}
+	return names
+}
+
+// <%- pascalName %>Server is the handler type ServiceDesc registers.
+type <%- pascalName %>Server interface{}
+
+// ServiceDesc binds the service in the app block: protoc-gen-go-grpc would put
+// io.network into the contract block, which admits only wire.codec (ADR-015).
+var ServiceDesc = grpc.ServiceDesc{
+	ServiceName: ServiceName,
+	HandlerType: (*<%- pascalName %>Server)(nil),
+	Methods:     []grpc.MethodDesc{},
+	Streams:     []grpc.StreamDesc{},
+}
+
+// Server realizes <%- pascalName %>Server over the use cases of the context.
+type Server struct{}

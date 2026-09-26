@@ -10,6 +10,8 @@ paths:
 
 # Convenções de teste
 
+> **Override DMPF.** Num bounded context deste workspace, a forma é a de `.claude/rules/dmpf-bounded-context.md` e do `apps/backend/bookings` (ADR-053), e prevalece sobre o genérico descrito aqui: cada projeto testa no seu banco `<projeto>_test`, derivado de `PG_DSN` pelo `tb/pg`, e as suítes de projetos distintos rodam em paralelo.
+
 ## Stack (exemplos)
 
 - **Runner**: Jest é comum em projetos Node/TypeScript; alternativas incluem Vitest.

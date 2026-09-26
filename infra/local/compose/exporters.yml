@@ -2,12 +2,14 @@
 # métricas Prometheus nativamente em :9644/public_metrics; o floci não expõe
 # nenhuma, então o blackbox mede o que dá — disponibilidade e latência do
 # endpoint de saúde. cAdvisor cobre CPU, memória e rede de todos os containers.
+# O postgres-exporter conecta ao banco administrativo: pg_stat_database já
+# traz uma série por banco (datname), então um exporter cobre as três apps.
 services:
   postgres-exporter:
     image: quay.io/prometheuscommunity/postgres-exporter:v0.20.1
     profiles: [exporters, observability, dmpf, all]
     environment:
-      DATA_SOURCE_NAME: postgresql://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-app}@postgres:5432/${POSTGRES_DB:-app}?sslmode=disable
+      DATA_SOURCE_NAME: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/postgres?sslmode=disable
     ports:
       - '${POSTGRES_EXPORTER_PORT:-9187}:9187'
     depends_on:

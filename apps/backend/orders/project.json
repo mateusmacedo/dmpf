@@ -35,12 +35,6 @@
       "executor": "nx:run-commands",
       "cache": false,
       "inputs": ["go", "^go"],
-      "dependsOn": [
-        {
-          "projects": ["postgres"],
-          "target": "test-race"
-        }
-      ],
       "options": {
         "command": "go test -race -count=1 -p 1 -tags=integration ./...",
         "cwd": "{projectRoot}"
@@ -57,7 +51,7 @@
     "serve-api": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "DMPF_GRPC_INSECURE=true go run ./cmd --role api",
+        "command": "GRPC_INSECURE=true go run ./cmd --role api",
         "cwd": "{projectRoot}"
       }
     },
@@ -76,7 +70,8 @@
         {
           "projects": ["postgres", "app"],
           "target": "test-race"
-        }
+        },
+        "test-race"
       ],
       "options": {
         "command": "go test -race -count=1 -p 1 -tags=integration,distributed ./distkit/...",

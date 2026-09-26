@@ -451,3 +451,16 @@ linters:
               desc: 'IDN-14: o provider de contexto nao escreve SQL; declare postgres.Table e receba postgres.ReadPool'
             - pkg: github.com/go-pg/pg
               desc: 'IDN-14: o provider de contexto nao escreve SQL; declare postgres.Table e receba postgres.ReadPool'
+
+formatters:
+  enable:
+    - gci
+  settings:
+    gci:
+      sections:
+        - standard
+        - default
+        - prefix(github.com/mateusmacedo/dmpf)
+  exclusions:
+    paths:
+      - contracts/gen/

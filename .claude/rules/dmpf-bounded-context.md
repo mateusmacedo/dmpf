@@ -83,13 +83,46 @@ skill `.agents/skills/dmpf-bounded-context/`.
 - A unidade `<ctx>/contract` entra no manifesto do `contracts` **antes**
   do `generate`; sem ela o gerado cai em `DMPF-U001`.
 
-## REST (RST-02, RST-04)
+## Borda (ADR-044, ADR-053)
 
-- Toda rota declara `ContractRef` para o OpenAPI publicado em
-  `contracts/openapi/<name>/v1/` (RST-04).
+- O contexto serve só gRPC, em `app/rpc`: `ServiceDesc` no bloco `app`,
+  `rpc.Methods()` para os limites por método e `errors.go` mapeando para
+  status gRPC. A cadeia de interceptors é a do kernel
+  (`kernelgrpc.ServerInterceptors`). `app/http` em contexto reprova no
+  `tools/dmpf-context-check.sh`.
+- O REST público é do `bff`. Toda rota declara `ContractRef` para o OpenAPI
+  publicado em `contracts/openapi/<name>/v1/` (RST-04), que declara
+  `bearerAuth`.
 - Idempotência por método: `POST` de criação só com chave de idempotência
   declarada; `PATCH` nunca é idempotente (RST-02). Handlers validam a forma
   do corpo (`maxLength`, `pattern`, `additionalProperties: false`).
+
+## Banco e persistência (ADR-053)
+
+- Banco próprio por app: database e role com o nome da app, schema `public`.
+  Tabela do kernel é substantivo sem prefixo (`outbox`, `inbox`,
+  `quarantine`); tabela de agregado é o agregado no plural, sem prefixo;
+  coluna de id `<agregado>_id`; índice `<tabela>_<colunas>_idx`; constraint
+  `<tabela>_<colunas>_{pkey,key,check,fkey}`. O
+  `tools/dmpf-context-check.sh` reprova DDL, DSN e banco fora disso.
+- O DDL do contexto vive em `provider/schema.sql`; o composition root o aplica
+  com `postgres.Migrate`, pedindo só as capacidades que usa (`Outbox`; `Inbox`
+  se consome).
+- Persistência híbrida: coluna tipada só para o que uma consulta filtra; o
+  resto do estado vai em `snapshot` `jsonb`, por um struct de estado privado
+  do provider com tags JSON estáveis.
+- Cada projeto testa no seu banco `<projeto>_test`, derivado do servidor de
+  `PG_DSN` pelo `tb/pg`; suítes de projetos distintos rodam em paralelo.
+
+## Configuração e nomes (ADR-053)
+
+- A configuração vem só do ambiente, sem prefixo `DMPF_` (`PG_DSN`,
+  `GRPC_ADDR`, `KAFKA_BROKERS`), pela forma `Defaults(role)`, `FromEnv` e
+  `Validate`; a falta de uma variável obrigatória recusa a partida.
+- Imports do kernel com o alias do papel: `kernel` (domain), `usecase`
+  (application), `port` (ports), `kernelgrpc`, `kernelhttp` e `kernelapp`.
+- Nomes Go canônicos (`Code<Agregado><Motivo>`, evento no passado sem sufixo,
+  status curto); o valor publicado no fio não muda com o nome Go.
 
 ## Observabilidade mínima (FND-08)
 
@@ -104,6 +137,6 @@ skill `.agents/skills/dmpf-bounded-context/`.
 - Regravar baseline ou `gen/go` (classificação e rito Buf são passos humanos).
 - Afrouxar um gate para o contexto passar — o contexto passa pelos mesmos
   gates de qualquer módulo.
-- Rodar `test-race` de contextos Postgres em paralelo localmente: os harnesses
-  truncam `dmpf_outbox`/`dmpf_inbox`/`dmpf_quarantine`, tabelas do kernel.
-  `--parallel=1`, como o CI faz por estágio.
+- Servir REST no contexto ou dividir um banco entre apps.
+- Mudar um valor de fio já publicado (código de rejeição, enum, nome de
+  evento) por causa de um rename no Go.

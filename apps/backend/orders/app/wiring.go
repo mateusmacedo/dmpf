@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"fmt"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/boot"
 	"io"
 	"maps"
 	"net"
@@ -15,9 +14,10 @@ import (
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/application"
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/provider"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/app/relay"
-	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
+	kernelgrpc "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/kafka"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/audit"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/boot"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/idclock"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/otelboot"
 	obsusecase "github.com/mateusmacedo/dmpf/libs/backend/go/observability/usecase"
@@ -47,7 +47,7 @@ func RunWith(ctx context.Context, cfg Config, rt *otelboot.Runtime, out io.Write
 
 func bindOrders(tx *postgres.Tx) application.Resources {
 	return application.Resources{
-		Orders: provider.NewRepository(tx),
+		Orders: provider.NewOrderRepository(tx),
 		Outbox: tx.Outbox(provider.Mapper{}),
 	}
 }
@@ -57,7 +57,7 @@ func bindOrders(tx *postgres.Tx) application.Resources {
 func NewOrdersService(pool *pgxpool.Pool, rt *otelboot.Runtime, cfg Config, auditOut io.Writer) application.Service {
 	return application.Service{
 		UoW:             postgres.NewUnitOfWork(pool, bindOrders),
-		Reader:          provider.NewReader(postgres.NewReadPool(pool)),
+		Reader:          provider.NewOrderReader(postgres.NewReadPool(pool)),
 		Clock:           idclock.SystemClock{},
 		IDs:             idclock.NewMessageIDs("orders"),
 		Authorize:       Authorization(),
@@ -73,24 +73,24 @@ func serveAPI(ctx context.Context, cfg Config, rt *otelboot.Runtime, out io.Writ
 	}
 	defer pool.Close()
 
-	ctrl, err := admission.NewController(rpc.Limits(cfg.Admission), cfg.MetricTenants, admission.DefaultMaxKeys)
+	ctrl, err := admission.NewController(kernelgrpc.MethodLimits(rpc.ServiceName, rpc.Methods(), cfg.Admission), cfg.MetricTenants, admission.DefaultMaxKeys)
 	if err != nil {
 		return err
 	}
-	serverConfig, err := kernel.APIServerConfig(kernel.APIServer{
+	serverConfig, err := kernelgrpc.APIServerConfig(kernelgrpc.APIServer{
 		CertFile:       cfg.GRPCCertFile,
 		KeyFile:        cfg.GRPCKeyFile,
 		ClientCAFile:   cfg.GRPCClientCAFile,
 		TrustedClients: cfg.GRPCTrustedClients,
 		Insecure:       cfg.GRPCInsecure,
-		Services:       kernel.HealthServices(rpc.ServiceName),
-		Interceptors:   rpc.Interceptors(rt.Tracer(), ctrl, rt.Instruments(), rt.Logger()),
+		Services:       kernelgrpc.HealthServices(rpc.ServiceName),
+		Interceptors:   kernelgrpc.ServerInterceptors(rpc.ServiceName, rt.Tracer(), ctrl, rt.Instruments(), rt.Logger()),
 		Logger:         rt.Logger(),
 	})
 	if err != nil {
 		return err
 	}
-	server, healthServer, err := kernel.NewServer(serverConfig)
+	server, healthServer, err := kernelgrpc.NewServer(serverConfig)
 	if err != nil {
 		return err
 	}
@@ -102,13 +102,13 @@ func serveAPI(ctx context.Context, cfg Config, rt *otelboot.Runtime, out io.Writ
 			return fmt.Errorf("postgres: %w", err)
 		}
 		if cfg.Migrate {
-			if err := postgres.Migrate(ctx, pool); err != nil {
+			if err := postgres.Migrate(ctx, pool, []postgres.Capability{postgres.Outbox}, provider.Schema); err != nil {
 				return fmt.Errorf("migrate: %w", err)
 			}
 		}
 		return nil
 	}
-	return kernel.Serve(ctx, listen, server, healthServer, kernel.HealthServices(rpc.ServiceName), ready, rt.Logger())
+	return kernelgrpc.Serve(ctx, listen, server, healthServer, kernelgrpc.HealthServices(rpc.ServiceName), ready, rt.Logger())
 }
 
 func runRelay(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {

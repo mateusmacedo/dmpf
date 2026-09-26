@@ -23,6 +23,7 @@ pnpm nx g @mateusmacedo/dmpf-plugin:bounded-context <name> \
   --bounded-context <ctx> \
   [--blocks domain,port,application,provider,app] \
   [--directory apps/backend] \
+  [--service-name company.<name>.service.v1.<Name>Service] \
   [--dry-run]
 ```
 
@@ -32,6 +33,7 @@ pnpm nx g @mateusmacedo/dmpf-plugin:bounded-context <name> \
 | `--bounded-context` | sim | — | `^[a-z][a-z0-9-]*$`; valor literal de `bounded_context` nos manifestos, nunca derivado do nome nem do diretório (ADR-012) |
 | `--blocks` | não | os cinco | subconjunto precisa fechar as dependências entre blocos; `contract` é recusado |
 | `--directory` | não | `apps/backend` | relativo à raiz, sem `..` |
+| `--service-name` | não | `company.<name sem hífens>.service.v1.<Name>Service` | nome qualificado do serviço gRPC; o package proto mais o serviço em PascalCase |
 | `--dry-run` | não | — | flag do próprio Nx: lista e não escreve |
 
 O `name` é usado literalmente em kebab-case como pasta do módulo e nome do
@@ -54,10 +56,12 @@ recém-criado ainda não importa irmão nenhum),
 (privado, `0.0.0`) e `dmpf-units.json` (`schema: dmpf/units@1`, uma unidade
 `<ctx>/<sufixo>` por bloco, com `include` do package do bloco). Os blocos
 `domain`, `port` e `application` viram cada um um package `<name>/<bloco>` com
-um `doc.go` compilável (godoc de três linhas). A tag `layer:*` é a do bloco
-mais alto gerado; `test-race` leva `-tags=integration` e `dependsOn` em
-`postgres` quando `provider` entra; o `external` do manifesto é a união dos
-blocos. O `go.work` recebe um `use` em ordem. Depois do flush em disco, o
+um `doc.go` compilável (godoc de três linhas); o `provider` recebe também
+`schema.sql` e `schema.go`, que embute o DDL do contexto para o composition root
+aplicar por `postgres.Migrate` (ADR-053). A tag `layer:*` é a do bloco mais alto
+gerado; `test-race` leva `-tags=integration` quando `provider` entra, sem
+`dependsOn`: cada projeto testa no seu próprio banco `<projeto>_test`; o
+`external` do manifesto é a união dos blocos. O `go.work` recebe um `use` em ordem. Depois do flush em disco, o
 generator devolve um callback que roda
 `go run ./tools/dmpf-conformance/cmd/modsync --root . --write` a partir da raiz
 do workspace — é ele que grava os `require` dos irmãos e o bloco `replace` do
@@ -71,26 +75,33 @@ release group, então o generator nunca escreve no `nx.json`.
 | `port` | `ports` | `<ctx>/ports` | `layer:domain` | `[]` |
 | `application` | `application` | `<ctx>/application` | `layer:services` | `[]` |
 | `provider` | `provider` | `<ctx>/provider-postgres` | `layer:providers` | pgx `io.storage`, protobuf `wire.codec` (copiados de `postgres`) |
-| `app` | `app/` + `cmd/` | `<ctx>/app` | `layer:apps` | `[]` |
+| `app` | `app/` + `app/rpc/` + `cmd/` | `<ctx>/app` | `layer:apps` | `[]` |
 | `app` (companion) | `appkit/` | `<ctx>/appkit` | `layer:apps` | `[]` |
 | `app` (companion) | `distkit/` | `<ctx>/distkit` | `layer:apps` | `[]` |
 
 O bloco `app`, quando selecionado (o default), gera mais do que um `doc.go`: a
-raiz do contexto **não recebe código Go** (ADR-048) — o composition root fica
-em `app/run.go` (`Role`, `Config`, `FromEnv`, `Run`, ainda sem realização
-concreta), o binário em `cmd/main.go` (`--role api|relay`), e os harnesses
-`appkit/` e `distkit/` nascem como unidades companion próprias no manifesto
-(`<ctx>/appkit`, `<ctx>/distkit`), cada uma com um `doc.go` que documenta o seu
-papel (KIT-05 e KIT-06). Nesse caso o `project.json` ganha três targets além
+raiz do contexto **não recebe código Go** (ADR-048). O app nasce na forma
+canônica dos três contextos (ADR-053): `app/config.go` (`Defaults`, `FromEnv`,
+`Validate`, com as variáveis sem prefixo `DMPF_` e o tópico
+`KAFKA_<NAME>_TOPIC`), `app/wiring.go` (borda só gRPC com a cadeia
+`kernelgrpc.ServerInterceptors`, migrate da outbox e do schema do contexto no
+ready, e o relay), `app/telemetry.go`, `app/catalog.go` (recusa o relay até o
+canal existir), `app/rpc/errors.go` (mapeamento de erro para status gRPC, com
+teste) e `app/rpc/service.go` (`ServiceName` e um `ServiceDesc` vazio, que o
+contexto preenche ao publicar o serviço). O binário fica em `cmd/main.go`
+(`--role api|relay`), a imagem em `Dockerfile`, e os harnesses `appkit/` e
+`distkit/` nascem como unidades companion próprias no manifesto
+(`<ctx>/appkit`, `<ctx>/distkit`); o `appkit/pool.go` declara `Tables` e o banco
+de teste do projeto (KIT-05 e KIT-06). Nesse caso o `project.json` ganha três targets além
 dos cinco de sempre: `serve-api` (`go run ./cmd --role api`), `serve-relay`
 (`go run ./cmd --role relay`) e `test-distributed` (`./distkit/...` sob as
-build tags `integration,distributed`, com `dependsOn` em `postgres` e no
-próprio projeto). Sem o bloco `app`, nenhum desses oito targets extras nem os
-diretórios `app/`, `cmd/`, `appkit/`, `distkit/` são gerados.
+build tags `integration,distributed`, depois do `test-race` de `postgres`, de
+`app` e do próprio projeto, que usa o mesmo banco de teste). Sem o bloco `app`,
+nenhum desses três targets extras nem os diretórios `app/`, `cmd/`, `appkit/`,
+`distkit/` e o `Dockerfile` são gerados.
 
 O `test-race` de `provider-postgres` e `app` sai com `cache: false` e
-`-tags=integration`, e o do módulo depende do `postgres` do kernel quando o
-bloco `provider` está presente — como nos módulos reais. O bloco `contract`
+`-tags=integration` — como nos módulos reais. O bloco `contract`
 fica fora: a fonte vive em `contracts/` pelo rito Buf, e é o harness que
 escreve o `.proto` do contexto.
 
@@ -150,7 +161,8 @@ tools/dmpf-plugin/
     ├── generator.spec.ts                # contrato: esqueleto, identificadores, recusas, determinismo
     ├── files/module/                    # os cinco templates EJS (__tmpl__) da raiz do módulo
     ├── files/block/                     # o doc.go de domain, port, application e provider
-    └── files/app/                       # app/run.go, cmd/main.go, appkit/doc.go, distkit/doc.go — só quando o bloco app entra
+    ├── files/provider/                  # schema.sql e schema.go do provider
+    └── files/app/                       # app/ (config, wiring, telemetry, catalog, rpc), cmd/main.go, appkit, distkit e Dockerfile — só quando o bloco app entra
 ```
 
 `typecheck`, `test` e `build` são inferidos pelos plugins do workspace

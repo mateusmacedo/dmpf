@@ -22,8 +22,8 @@ func TestFromBookingSnapshotRestoresStatusAsBehaviour(t *testing.T) {
 
 	reconstituted := domain.FromBookingSnapshot(reserved)
 
-	if got := reconstituted.Snapshot().Status; got != domain.BookingReservedStatus {
-		t.Fatalf("Status = %v, want BookingReservedStatus", got)
+	if got := reconstituted.Snapshot().Status; got != domain.Reserved {
+		t.Fatalf("Status = %v, want Reserved", got)
 	}
 	acc, rej := reconstituted.Cancel(domain.CancelBooking{At: at})
 	requireAccepted[domain.CancelledResponse](t, rej)

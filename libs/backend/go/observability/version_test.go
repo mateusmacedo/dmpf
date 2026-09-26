@@ -5,15 +5,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mateusmacedo/dmpf/libs/backend/go/observability"
-
-	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
-
 	_ "go.opentelemetry.io/otel"
 	_ "go.opentelemetry.io/otel/metric"
 	_ "go.opentelemetry.io/otel/sdk"
 	_ "go.opentelemetry.io/otel/sdk/metric"
+	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
 	_ "go.opentelemetry.io/otel/trace"
+
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability"
 )
 
 // WHY: the pin is read from go.mod, not from debug.ReadBuildInfo. Under a

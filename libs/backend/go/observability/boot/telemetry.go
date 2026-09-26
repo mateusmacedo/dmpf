@@ -64,14 +64,14 @@ func StartTelemetry(ctx context.Context, out io.Writer, t Telemetry) (*otelboot.
 	}
 
 	if t.Endpoint == "" {
-		logger.WarnContext(ctx, "telemetry kept in memory (development mode): DMPF_OTLP_ENDPOINT is unset")
+		logger.WarnContext(ctx, "telemetry kept in memory (development mode): OTLP_ENDPOINT is unset")
 		config.TraceExporter = tracetest.NewInMemoryExporter()
 		config.MetricReader = sdkmetric.NewManualReader()
 		return otelboot.Start(ctx, config)
 	}
 
 	if t.Insecure {
-		logger.WarnContext(ctx, "telemetry exported without TLS: DMPF_OTLP_INSECURE is set (development and CI only)", "endpoint", t.Endpoint)
+		logger.WarnContext(ctx, "telemetry exported without TLS: OTLP_INSECURE is set (development and CI only)", "endpoint", t.Endpoint)
 	}
 	config.Transport = otelboot.Transport{Endpoint: t.Endpoint, Insecure: t.Insecure}
 	config.AllowInsecure = t.Insecure

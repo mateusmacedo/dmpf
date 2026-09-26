@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/pg"
 	"sync"
 	"testing"
 	"time"
@@ -16,17 +15,16 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/app"
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/app"
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/appkit"
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/application"
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
+	kernelapp "github.com/mateusmacedo/dmpf/libs/backend/go/app"
 	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/contracts/envelope"
 	eventv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/orders/event/v1"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
-
-	"github.com/mateusmacedo/dmpf/apps/backend/reservations/app"
-	"github.com/mateusmacedo/dmpf/apps/backend/reservations/appkit"
-	"github.com/mateusmacedo/dmpf/apps/backend/reservations/application"
-	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
 )
 
 const (
@@ -69,7 +67,7 @@ type recordingAck struct {
 
 func (a *recordingAck) Ack(ctx context.Context) error {
 	a.acks++
-	return a.pool.QueryRow(ctx, "SELECT count(*) FROM dmpf_inbox WHERE message_id = $1", string(a.messageIDSeen)).Scan(&a.inboxAtAck)
+	return a.pool.QueryRow(ctx, "SELECT count(*) FROM inbox WHERE message_id = $1", string(a.messageIDSeen)).Scan(&a.inboxAtAck)
 }
 
 func (a *recordingAck) Release(context.Context) error {
@@ -83,10 +81,10 @@ func counts(t *testing.T, pool *pgxpool.Pool) tableCounts {
 	t.Helper()
 	var c tableCounts
 	const stmt = `SELECT
-		(SELECT count(*) FROM dmpf_inbox),
-		(SELECT count(*) FROM dmpf_example_reservations),
-		(SELECT count(*) FROM dmpf_outbox),
-		(SELECT count(*) FROM dmpf_quarantine)`
+		(SELECT count(*) FROM inbox),
+		(SELECT count(*) FROM reservations),
+		(SELECT count(*) FROM outbox),
+		(SELECT count(*) FROM quarantine)`
 	if err := pool.QueryRow(context.Background(), stmt).Scan(&c.inbox, &c.reservations, &c.outbox, &c.quarantine); err != nil {
 		t.Fatalf("counts: %v", err)
 	}
@@ -96,7 +94,7 @@ func counts(t *testing.T, pool *pgxpool.Pool) tableCounts {
 func inboxRow(t *testing.T, pool *pgxpool.Pool, messageID string) (status string, lastError *string) {
 	t.Helper()
 	err := pool.QueryRow(context.Background(),
-		"SELECT status, last_error FROM dmpf_inbox WHERE consumer_name = $1 AND message_id = $2",
+		"SELECT status, last_error FROM inbox WHERE consumer_name = $1 AND message_id = $2",
 		app.ConsumerName, messageID).Scan(&status, &lastError)
 	if err != nil {
 		t.Fatalf("inbox row %s: %v", messageID, err)
@@ -109,7 +107,7 @@ func quarantinedEnvelope(t *testing.T, pool *pgxpool.Pool, messageID string) ([]
 	var raw []byte
 	var reason string
 	err := pool.QueryRow(context.Background(),
-		"SELECT envelope, reason FROM dmpf_quarantine WHERE consumer_name = $1 AND message_id = $2",
+		"SELECT envelope, reason FROM quarantine WHERE consumer_name = $1 AND message_id = $2",
 		app.ConsumerName, messageID).Scan(&raw, &reason)
 	if err != nil {
 		t.Fatalf("quarantine row %s: %v", messageID, err)
@@ -117,10 +115,10 @@ func quarantinedEnvelope(t *testing.T, pool *pgxpool.Pool, messageID string) ([]
 	return raw, reason
 }
 
-func consume(t *testing.T, pool *pgxpool.Pool, consumer kernel.Consumer, messageID string, raw []byte, attempt int) (kernel.Outcome, error, *recordingAck) {
+func consume(t *testing.T, pool *pgxpool.Pool, consumer kernelapp.Consumer, messageID string, raw []byte, attempt int) (kernelapp.Outcome, error, *recordingAck) {
 	t.Helper()
 	ack := &recordingAck{pool: pool, messageIDSeen: ports.MessageID(messageID)}
-	outcome, err := consumer.Consume(context.Background(), kernel.Delivery{Raw: raw, Attempt: attempt}, ack)
+	outcome, err := consumer.Consume(context.Background(), kernelapp.Delivery{Raw: raw, Attempt: attempt}, ack)
 	return outcome, err, ack
 }
 
@@ -139,7 +137,7 @@ type failingOutbox struct{ err error }
 
 func (f failingOutbox) Enqueue(context.Context, ports.OutboxEntry) error { return f.err }
 
-func consumerWith(pool *pgxpool.Pool, decorate func(application.Resources) application.Resources) kernel.Consumer {
+func consumerWith(pool *pgxpool.Pool, decorate func(application.Resources) application.Resources) kernelapp.Consumer {
 	bind := func(tx *postgres.Tx) application.Resources {
 		return decorate(app.Bind(e2eWait)(tx))
 	}
@@ -150,7 +148,7 @@ func consumerWith(pool *pgxpool.Pool, decorate func(application.Resources) appli
 		Authorize: usecase.AllowAll[application.Operation](),
 		Consumer:  app.ConsumerName,
 	}
-	return kernel.Consumer{
+	return kernelapp.Consumer{
 		Name:        app.ConsumerName,
 		MaxAttempts: e2eAttempts,
 		Handle:      app.Handler(service),
@@ -162,10 +160,10 @@ func consumerWith(pool *pgxpool.Pool, decorate func(application.Resources) appli
 	}
 }
 
-var e2eBoundary = kernel.Boundary{Transport: kernel.TransportDevelopmentOnly, Sources: []string{"urn:dmpf:orders"}}
+var e2eBoundary = kernelapp.Boundary{Transport: kernelapp.TransportDevelopmentOnly, Sources: []string{"urn:dmpf:orders"}}
 
 func TestFirstReceptionAppliesConfirmsAndDerivesTheOutbox(t *testing.T) {
-	pool := pg.OpenPool(t)
+	pool := appkit.OpenPool(t)
 	consumer := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eTimeout, e2eAttempts, e2eBoundary)
 
 	outcome, err, ack := consume(t, pool, consumer, "evt-1", appkit.RawOrderPlaced(t, "evt-1", "o-1", 2), 1)
@@ -182,7 +180,7 @@ func TestFirstReceptionAppliesConfirmsAndDerivesTheOutbox(t *testing.T) {
 		t.Fatalf("inbox = (%s, %v), want (processed, nil)", status, lastError)
 	}
 	var messageType string
-	if err := pool.QueryRow(context.Background(), "SELECT message_type FROM dmpf_outbox").Scan(&messageType); err != nil {
+	if err := pool.QueryRow(context.Background(), "SELECT message_type FROM outbox").Scan(&messageType); err != nil {
 		t.Fatalf("outbox: %v", err)
 	}
 	if messageType != "com.company.reservations.reservation-confirmed.v1" {
@@ -194,7 +192,7 @@ func TestFirstReceptionAppliesConfirmsAndDerivesTheOutbox(t *testing.T) {
 }
 
 func TestBusinessRejectionCommitsRejectedAndConfirms(t *testing.T) {
-	pool := pg.OpenPool(t)
+	pool := appkit.OpenPool(t)
 	consumer := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eTimeout, e2eAttempts, e2eBoundary)
 
 	outcome, err, ack := consume(t, pool, consumer, "evt-2", appkit.RawOrderPlaced(t, "evt-2", "o-2", 0), 1)
@@ -208,8 +206,8 @@ func TestBusinessRejectionCommitsRejectedAndConfirms(t *testing.T) {
 		t.Fatalf("counts = %+v, want only the inbox row", got)
 	}
 	status, lastError := inboxRow(t, pool, "evt-2")
-	if status != "rejected" || lastError == nil || *lastError != string(domain.CodeNothingToReserve) {
-		t.Fatalf("inbox = (%s, %v), want (rejected, %s)", status, lastError, domain.CodeNothingToReserve)
+	if status != "rejected" || lastError == nil || *lastError != string(domain.CodeReservationNothingToReserve) {
+		t.Fatalf("inbox = (%s, %v), want (rejected, %s)", status, lastError, domain.CodeReservationNothingToReserve)
 	}
 	if ack.acks != 1 || ack.inboxAtAck != 1 {
 		t.Fatalf("ack=%d inboxAtAck=%d", ack.acks, ack.inboxAtAck)
@@ -217,7 +215,7 @@ func TestBusinessRejectionCommitsRejectedAndConfirms(t *testing.T) {
 }
 
 func TestRedeliveriesShortCircuit(t *testing.T) {
-	pool := pg.OpenPool(t)
+	pool := appkit.OpenPool(t)
 	consumer := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eTimeout, e2eAttempts, e2eBoundary)
 	applied := appkit.RawOrderPlaced(t, "evt-1", "o-1", 2)
 	rejected := appkit.RawOrderPlaced(t, "evt-2", "o-2", 0)
@@ -269,7 +267,7 @@ func TestRedeliveriesShortCircuit(t *testing.T) {
 }
 
 func TestTransientFailureRollsBackAndReleases(t *testing.T) {
-	pool := pg.OpenPool(t)
+	pool := appkit.OpenPool(t)
 	consumer := consumerWith(pool, func(r application.Resources) application.Resources {
 		r.Reservations = failingReservations{r.Reservations, usecase.NewFailure(usecase.TransientDependency, true, errBoom)}
 		return r
@@ -288,7 +286,7 @@ func TestTransientFailureRollsBackAndReleases(t *testing.T) {
 }
 
 func TestExhaustedAttemptsContainThePoisonMessage(t *testing.T) {
-	pool := pg.OpenPool(t)
+	pool := appkit.OpenPool(t)
 	consumer := consumerWith(pool, func(r application.Resources) application.Resources {
 		r.Reservations = failingReservations{r.Reservations, usecase.NewFailure(usecase.TransientDependency, true, errBoom)}
 		return r
@@ -315,7 +313,7 @@ func TestExhaustedAttemptsContainThePoisonMessage(t *testing.T) {
 }
 
 func TestTerminalFailureIsContained(t *testing.T) {
-	pool := pg.OpenPool(t)
+	pool := appkit.OpenPool(t)
 	consumer := consumerWith(pool, func(r application.Resources) application.Resources {
 		r.Reservations = failingReservations{r.Reservations, usecase.NewFailure(usecase.Forbidden, false, errBoom)}
 		return r
@@ -334,7 +332,7 @@ func TestTerminalFailureIsContained(t *testing.T) {
 }
 
 func TestOutboxFailureRollsBackDeduplicationAndState(t *testing.T) {
-	pool := pg.OpenPool(t)
+	pool := appkit.OpenPool(t)
 	consumer := consumerWith(pool, func(r application.Resources) application.Resources {
 		r.Outbox = failingOutbox{errBoom}
 		return r
@@ -350,7 +348,7 @@ func TestOutboxFailureRollsBackDeduplicationAndState(t *testing.T) {
 }
 
 func TestInvalidEnvelopeIsContainedWithoutTouchingTheInbox(t *testing.T) {
-	pool := pg.OpenPool(t)
+	pool := appkit.OpenPool(t)
 	consumer := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eTimeout, e2eAttempts, e2eBoundary)
 	garbage := []byte("definitely not a cloudevent")
 
@@ -367,7 +365,7 @@ func TestInvalidEnvelopeIsContainedWithoutTouchingTheInbox(t *testing.T) {
 }
 
 func TestPayloadOfAnotherContractIsTerminal(t *testing.T) {
-	pool := pg.OpenPool(t)
+	pool := appkit.OpenPool(t)
 	consumer := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eTimeout, e2eAttempts, e2eBoundary)
 	payload, typeURL, err := envelope.Pack(&eventv1.ItemAdded{OrderId: "o-8", Sku: "sku", Quantity: 1})
 	if err != nil {
@@ -400,7 +398,7 @@ func TestPayloadOfAnotherContractIsTerminal(t *testing.T) {
 }
 
 func TestRedeliveryWithANewMessageIDDoesNotDuplicateTheEffect(t *testing.T) {
-	pool := pg.OpenPool(t)
+	pool := appkit.OpenPool(t)
 	consumer := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eTimeout, e2eAttempts, e2eBoundary)
 	if _, err, _ := consume(t, pool, consumer, "evt-1", appkit.RawOrderPlaced(t, "evt-1", "o-1", 2), 1); err != nil {
 		t.Fatalf("first: %v", err)
@@ -415,7 +413,7 @@ func TestRedeliveryWithANewMessageIDDoesNotDuplicateTheEffect(t *testing.T) {
 	if got := counts(t, pool); got != (tableCounts{inbox: 2, reservations: 1, outbox: 1}) {
 		t.Fatalf("counts = %+v, want two inbox rows and still one reservation and one event", got)
 	}
-	if status, lastError := inboxRow(t, pool, "evt-9"); status != "rejected" || lastError == nil || *lastError != string(domain.CodeAlreadyReserved) {
+	if status, lastError := inboxRow(t, pool, "evt-9"); status != "rejected" || lastError == nil || *lastError != string(domain.CodeReservationAlreadyReserved) {
 		t.Fatalf("inbox evt-9 = (%s, %v)", status, lastError)
 	}
 	if ack.acks != 1 {
@@ -424,7 +422,7 @@ func TestRedeliveryWithANewMessageIDDoesNotDuplicateTheEffect(t *testing.T) {
 }
 
 func TestSignalsExposeTheConsumerSide(t *testing.T) {
-	pool := pg.OpenPool(t)
+	pool := appkit.OpenPool(t)
 	consumer := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eTimeout, e2eAttempts, e2eBoundary)
 	if _, err, _ := consume(t, pool, consumer, "evt-1", appkit.RawOrderPlaced(t, "evt-1", "o-1", 2), 1); err != nil {
 		t.Fatalf("seed: %v", err)
@@ -448,7 +446,7 @@ func TestSignalsExposeTheConsumerSide(t *testing.T) {
 // CTX-27 end to end: an OrderPlaced that is intact and well-formed, but from a
 // producer the boundary does not admit, writes nothing but its quarantine row.
 func TestAnOrderPlacedFromOutsideTheBoundaryWritesNothing(t *testing.T) {
-	pool := pg.OpenPool(t)
+	pool := appkit.OpenPool(t)
 	consumer := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eTimeout, e2eAttempts, e2eBoundary)
 	payload, typeURL, err := envelope.Pack(&eventv1.OrderPlaced{OrderId: "o-9", ItemCount: 1})
 	if err != nil {
@@ -487,7 +485,7 @@ func TestAnOrderPlacedFromOutsideTheBoundaryWritesNothing(t *testing.T) {
 // IDN-08) instead of widening the query. With no predicate that makes it
 // retryable the refusal is terminal: contained once, nothing written.
 func TestAPlatformChainOrderPlacedIsRefusedTerminallyWithoutWriting(t *testing.T) {
-	pool := pg.OpenPool(t)
+	pool := appkit.OpenPool(t)
 	consumer := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eTimeout, e2eAttempts, e2eBoundary)
 
 	outcome, err, ack := consume(t, pool, consumer, "evt-10", appkit.RawOrderPlacedWithoutTenant(t, "evt-10", "o-10", 1), 1)

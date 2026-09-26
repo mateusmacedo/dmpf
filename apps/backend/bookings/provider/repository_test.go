@@ -5,11 +5,11 @@ package provider_test
 import (
 	"context"
 	"errors"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/pg"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/mateusmacedo/dmpf/apps/backend/bookings/appkit"
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/domain"
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/provider"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
@@ -31,7 +31,7 @@ func snap(quantity int) domain.BookingSnapshot {
 		ID:         repoBookingID,
 		ResourceID: "r-200",
 		Quantity:   quantity,
-		Status:     domain.BookingReservedStatus,
+		Status:     domain.Reserved,
 		ReservedAt: 1755432000,
 	}
 }
@@ -64,7 +64,7 @@ func loadFromPool(t *testing.T, pool *pgxpool.Pool) (domain.BookingSnapshot, por
 }
 
 func TestSaveCreatesAndLoadReturnsIt(t *testing.T) {
-	pool := pg.OpenPool(t, "bookings_booking", "bookings_resource")
+	pool := appkit.OpenPool(t)
 
 	if err := withRepo(t, pool, func(ctx context.Context, repo ports.Repository[domain.BookingID, domain.BookingSnapshot]) error {
 		return repo.Save(ctx, repoBookingID, snap(5), 0)
@@ -83,11 +83,11 @@ func TestSaveCreatesAndLoadReturnsIt(t *testing.T) {
 }
 
 func TestSaveUpdatesWithCorrectVersion(t *testing.T) {
-	pool := pg.OpenPool(t, "bookings_booking", "bookings_resource")
+	pool := appkit.OpenPool(t)
 	seed(t, pool)
 
 	updated := snap(10)
-	updated.Status = domain.BookingCancelled
+	updated.Status = domain.Cancelled
 	if err := withRepo(t, pool, func(ctx context.Context, repo ports.Repository[domain.BookingID, domain.BookingSnapshot]) error {
 		return repo.Save(ctx, repoBookingID, updated, 1)
 	}); err != nil {
@@ -98,13 +98,13 @@ func TestSaveUpdatesWithCorrectVersion(t *testing.T) {
 	if version != 2 {
 		t.Fatalf("version = %d, want 2", version)
 	}
-	if got.Status != domain.BookingCancelled {
-		t.Fatalf("Status = %v, want BookingCancelled", got.Status)
+	if got.Status != domain.Cancelled {
+		t.Fatalf("Status = %v, want Cancelled", got.Status)
 	}
 }
 
 func TestSaveConflictsOnStaleVersion(t *testing.T) {
-	pool := pg.OpenPool(t, "bookings_booking", "bookings_resource")
+	pool := appkit.OpenPool(t)
 	seed(t, pool)
 
 	err := withRepo(t, pool, func(ctx context.Context, repo ports.Repository[domain.BookingID, domain.BookingSnapshot]) error {
@@ -116,7 +116,7 @@ func TestSaveConflictsOnStaleVersion(t *testing.T) {
 }
 
 func TestLoadReturnsNotFoundForAbsentBooking(t *testing.T) {
-	pool := pg.OpenPool(t, "bookings_booking", "bookings_resource")
+	pool := appkit.OpenPool(t)
 
 	err := withRepo(t, pool, func(ctx context.Context, repo ports.Repository[domain.BookingID, domain.BookingSnapshot]) error {
 		_, _, err := repo.Load(ctx, "nonexistent")

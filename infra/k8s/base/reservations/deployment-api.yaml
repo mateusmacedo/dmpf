@@ -32,7 +32,7 @@ spec:
             - secretRef:
                 name: reservations
           env:
-            - name: DMPF_INSTANCE_ID
+            - name: INSTANCE_ID
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name

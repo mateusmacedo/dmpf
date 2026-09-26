@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package company.bookings.event.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// A resource was registered in the resource-scheduling bounded context.
+// Envelope type: com.company.bookings.resource-registered.v1 (PTB-03).
+message ResourceRegistered {
+  string resource_id = 1;
+  google.protobuf.Timestamp registered_at = 2;
+}

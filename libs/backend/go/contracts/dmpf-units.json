@@ -34,7 +34,8 @@
       "bounded_context": "resource-scheduling",
       "public_integration_surface": true,
       "include": [
-        "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/bookings/event/v1"
+        "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/bookings/event/v1",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/bookings/service/v1"
       ]
     },
     {

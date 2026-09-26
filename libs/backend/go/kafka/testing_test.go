@@ -18,9 +18,9 @@ import (
 // broker there is nothing to prove, and the CI sets it (ci.yml).
 func brokers(t *testing.T) []string {
 	t.Helper()
-	value := os.Getenv("DMPF_KAFKA_BROKERS")
+	value := os.Getenv("KAFKA_BROKERS")
 	if value == "" {
-		t.Skip("DMPF_KAFKA_BROKERS is not set: the integration tests need a Kafka-compatible broker")
+		t.Skip("KAFKA_BROKERS is not set: the integration tests need a Kafka-compatible broker")
 	}
 	return strings.Split(value, ",")
 }

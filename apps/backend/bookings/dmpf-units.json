@@ -36,7 +36,7 @@
       "public_integration_surface": false,
       "include": [
         "github.com/mateusmacedo/dmpf/apps/backend/bookings/app",
-        "github.com/mateusmacedo/dmpf/apps/backend/bookings/app/http",
+        "github.com/mateusmacedo/dmpf/apps/backend/bookings/app/rpc",
         "github.com/mateusmacedo/dmpf/apps/backend/bookings/cmd"
       ]
     },

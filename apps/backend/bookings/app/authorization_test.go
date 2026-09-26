@@ -17,9 +17,9 @@ func TestEveryOperationDeclaresItsPermission(t *testing.T) {
 		op   application.Operation
 		want ports.Permission
 	}{
-		"Reserve":               {application.Reserve{}, "bookings:write"},
-		"Cancel":                {application.Cancel{}, "bookings:write"},
-		"Register":              {application.Register{}, "bookings:write"},
+		"Reserve":               {application.ReserveBooking{}, "bookings:write"},
+		"Cancel":                {application.CancelBooking{}, "bookings:write"},
+		"Register":              {application.RegisterResource{}, "bookings:write"},
 		"FindBooking":           {application.FindBooking{}, "bookings:read"},
 		"FindBookingByResource": {application.FindBookingByResource{}, "bookings:read"},
 	}

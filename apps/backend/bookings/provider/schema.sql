@@ -1,74 +1,32 @@
-CREATE TABLE IF NOT EXISTS bookings_booking (
-  booking_id  text    NOT NULL PRIMARY KEY,
-  version     bigint  NOT NULL DEFAULT 0,
-  resource_id text    NOT NULL DEFAULT '',
-  quantity    integer NOT NULL DEFAULT 0,
-  status      integer NOT NULL DEFAULT 0,
-  reserved_at bigint  NOT NULL DEFAULT 0
-);
-
-CREATE INDEX IF NOT EXISTS bookings_booking_resource_id_idx
-  ON bookings_booking (resource_id);
-
-CREATE TABLE IF NOT EXISTS bookings_resource (
-  code          text   NOT NULL PRIMARY KEY,
-  version       bigint NOT NULL DEFAULT 0,
-  registered_at bigint NOT NULL DEFAULT 0
-);
-
 -- IDN-14: the tenant scope is a column of the key, not a condition each query
--- has to remember to include. Both tables were born with a global PK, and
--- CREATE TABLE IF NOT EXISTS does not alter an existing table, so the promotion
--- is explicit and idempotent. Same treatment as the kernel schema.
-ALTER TABLE bookings_booking  ADD COLUMN IF NOT EXISTS tenant_id text;
-ALTER TABLE bookings_resource ADD COLUMN IF NOT EXISTS tenant_id text;
+-- has to remember to include. Two tenants may legitimately use the same id.
+-- The state lives in snapshot; a field only becomes a typed column when a query
+-- filters by it.
+CREATE TABLE IF NOT EXISTS bookings (
+  tenant_id   text   NOT NULL,
+  booking_id  text   NOT NULL,
+  version     bigint NOT NULL DEFAULT 0,
+  -- Typed because FindBookingsByResource filters by it.
+  resource_id text   NOT NULL,
+  snapshot    jsonb  NOT NULL,
+  CONSTRAINT bookings_pkey PRIMARY KEY (tenant_id, booking_id)
+);
 
--- IDN-20 forbids a synthetic tenant, so there is no backfill: the migration
--- stops rather than assigning a filler value to data whose owner is unknown.
-DO $$
-BEGIN
-  IF EXISTS (SELECT 1 FROM bookings_booking WHERE tenant_id IS NULL) THEN
-    RAISE EXCEPTION 'bookings_booking has rows without tenant_id; IDN-20 forbids a synthetic backfill, so resolve each row''s tenant before migrating';
-  END IF;
-  IF EXISTS (SELECT 1 FROM bookings_resource WHERE tenant_id IS NULL) THEN
-    RAISE EXCEPTION 'bookings_resource has rows without tenant_id; IDN-20 forbids a synthetic backfill, so resolve each row''s tenant before migrating';
-  END IF;
-END $$;
+-- The index behind the relation query leads with the tenant for the same reason
+-- the PK does: without it, a search by resource_id scans every tenant's rows.
+CREATE INDEX IF NOT EXISTS bookings_tenant_id_resource_id_idx ON bookings (tenant_id, resource_id);
 
-ALTER TABLE bookings_booking  ALTER COLUMN tenant_id SET NOT NULL;
-ALTER TABLE bookings_resource ALTER COLUMN tenant_id SET NOT NULL;
+-- The cross-tenant probes of the kernel Table and Relation (IDN-12) look the
+-- value up without the tenant, which an index led by tenant_id cannot serve.
+CREATE INDEX IF NOT EXISTS bookings_booking_id_idx ON bookings (booking_id);
+CREATE INDEX IF NOT EXISTS bookings_resource_id_idx ON bookings (resource_id);
 
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint c JOIN pg_class t ON t.oid = c.conrelid
-    WHERE t.relname = 'bookings_booking' AND c.contype = 'p' AND cardinality(c.conkey) = 2
-  ) THEN
-    ALTER TABLE bookings_booking DROP CONSTRAINT IF EXISTS bookings_booking_pkey;
-    ALTER TABLE bookings_booking ADD PRIMARY KEY (tenant_id, booking_id);
-  END IF;
+CREATE TABLE IF NOT EXISTS resources (
+  tenant_id   text   NOT NULL,
+  resource_id text   NOT NULL,
+  version     bigint NOT NULL DEFAULT 0,
+  snapshot    jsonb  NOT NULL,
+  CONSTRAINT resources_pkey PRIMARY KEY (tenant_id, resource_id)
+);
 
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint c JOIN pg_class t ON t.oid = c.conrelid
-    WHERE t.relname = 'bookings_resource' AND c.contype = 'p' AND cardinality(c.conkey) = 2
-  ) THEN
-    ALTER TABLE bookings_resource DROP CONSTRAINT IF EXISTS bookings_resource_pkey;
-    ALTER TABLE bookings_resource ADD PRIMARY KEY (tenant_id, code);
-  END IF;
-END $$;
-
--- The index behind the relation query becomes composite for the same reason the
--- PK does: with the tenant outside it, a search by resource_id scans every
--- tenant's rows before the scope predicate discards them.
-DROP INDEX IF EXISTS bookings_booking_resource_id_idx;
-CREATE INDEX IF NOT EXISTS bookings_booking_tenant_resource_idx
-  ON bookings_booking (tenant_id, resource_id);
-
--- The cross-tenant probe of the kernel Table (IDN-12) looks the identifier up
--- without the tenant, and the composite PK leads with tenant_id.
-CREATE INDEX IF NOT EXISTS bookings_booking_booking_id_idx ON bookings_booking (booking_id);
-CREATE INDEX IF NOT EXISTS bookings_resource_code_idx ON bookings_resource (code);
-
--- The cross-tenant probe of the relation (IDN-12) looks the filter value up
--- without the tenant, which the composite index above cannot serve.
-CREATE INDEX IF NOT EXISTS bookings_booking_resource_probe_idx ON bookings_booking (resource_id);
+CREATE INDEX IF NOT EXISTS resources_resource_id_idx ON resources (resource_id);

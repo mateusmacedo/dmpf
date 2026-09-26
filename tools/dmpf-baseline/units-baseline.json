@@ -1,6 +1,6 @@
 {
   "schema": "dmpf/units-baseline@1",
-  "digest": "sha256:f9fa75911879d1fd8856a2a5bfce3fc759321dc20dbb8dfac85980ef29c937d3",
+  "digest": "sha256:d85866fda4ad3727a857bbd8d0b0d21c4bc5909503b6ac1eb3b6f834fa9b0b69",
   "entries": [
     {
       "unit": "bff/app",
@@ -8,10 +8,10 @@
       "block": "app",
       "bounded_context": "bff",
       "membership": [
-        "github.com/mateusmacedo/dmpf/apps/backend/bff",
-        "github.com/mateusmacedo/dmpf/apps/backend/bff/api",
-        "github.com/mateusmacedo/dmpf/apps/backend/bff/cmd",
-        "github.com/mateusmacedo/dmpf/apps/backend/bff/rpc"
+        "github.com/mateusmacedo/dmpf/apps/backend/bff/app",
+        "github.com/mateusmacedo/dmpf/apps/backend/bff/app/api",
+        "github.com/mateusmacedo/dmpf/apps/backend/bff/app/rpc",
+        "github.com/mateusmacedo/dmpf/apps/backend/bff/cmd"
       ]
     },
     {
@@ -21,7 +21,7 @@
       "bounded_context": "resource-scheduling",
       "membership": [
         "github.com/mateusmacedo/dmpf/apps/backend/bookings/app",
-        "github.com/mateusmacedo/dmpf/apps/backend/bookings/app/http",
+        "github.com/mateusmacedo/dmpf/apps/backend/bookings/app/rpc",
         "github.com/mateusmacedo/dmpf/apps/backend/bookings/cmd"
       ]
     },
@@ -236,7 +236,8 @@
       "block": "contract",
       "bounded_context": "resource-scheduling",
       "membership": [
-        "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/bookings/event/v1"
+        "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/bookings/event/v1",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/bookings/service/v1"
       ]
     },
     {

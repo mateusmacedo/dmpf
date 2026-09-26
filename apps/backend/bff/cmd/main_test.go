@@ -20,9 +20,10 @@ func TestRunRefusesToStartWithoutConfiguration(t *testing.T) {
 		env   func(string) string
 		named string
 	}{
-		{"orders target", lookup("DMPF_GRPC_INSECURE", "true", "DMPF_RESERVATIONS_GRPC_TARGET", "r:9090"), "DMPF_ORDERS_GRPC_TARGET"},
-		{"reservations target", lookup("DMPF_GRPC_INSECURE", "true", "DMPF_ORDERS_GRPC_TARGET", "o:9090"), "DMPF_RESERVATIONS_GRPC_TARGET"},
-		{"transport policy", lookup("DMPF_ORDERS_GRPC_TARGET", "o:9090", "DMPF_RESERVATIONS_GRPC_TARGET", "r:9090"), "DMPF_GRPC_CA_FILE"},
+		{"orders target", lookup("GRPC_INSECURE", "true", "RESERVATIONS_GRPC_TARGET", "r:9090"), "ORDERS_GRPC_TARGET"},
+		{"reservations target", lookup("GRPC_INSECURE", "true", "ORDERS_GRPC_TARGET", "o:9090"), "RESERVATIONS_GRPC_TARGET"},
+		{"bookings target", lookup("GRPC_INSECURE", "true", "ORDERS_GRPC_TARGET", "o:9090", "RESERVATIONS_GRPC_TARGET", "r:9090"), "BOOKINGS_GRPC_TARGET"},
+		{"transport policy", lookup("ORDERS_GRPC_TARGET", "o:9090", "RESERVATIONS_GRPC_TARGET", "r:9090", "BOOKINGS_GRPC_TARGET", "b:9090"), "GRPC_CA_FILE"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

@@ -36,7 +36,7 @@ func TestSplitListTrimsAndDropsTheEmptyEntries(t *testing.T) {
 }
 
 func TestParseBoolReadsTheUnsetVariableAsFalse(t *testing.T) {
-	got, err := envconfig.ParseBool("DMPF_GRPC_INSECURE", "")
+	got, err := envconfig.ParseBool("GRPC_INSECURE", "")
 
 	if err != nil || got {
 		t.Fatalf("ParseBool(\"\") = (%v, %v), want (false, nil)", got, err)
@@ -44,18 +44,18 @@ func TestParseBoolReadsTheUnsetVariableAsFalse(t *testing.T) {
 }
 
 func TestParseBoolRefusesWhatIsNotABoolean(t *testing.T) {
-	_, err := envconfig.ParseBool("DMPF_GRPC_INSECURE", "yes-please")
+	_, err := envconfig.ParseBool("GRPC_INSECURE", "yes-please")
 
 	if !errors.Is(err, envconfig.ErrInvalidVariable) {
 		t.Fatalf("ParseBool() = %v, want ErrInvalidVariable", err)
 	}
-	if !strings.Contains(err.Error(), "DMPF_GRPC_INSECURE") {
+	if !strings.Contains(err.Error(), "GRPC_INSECURE") {
 		t.Fatalf("ParseBool() = %v, want the message to name the variable", err)
 	}
 }
 
 func TestParsePositiveAnswersTheFallbackForTheUnsetVariable(t *testing.T) {
-	got, err := envconfig.ParsePositive("DMPF_ITEM_LIMIT", "", 7)
+	got, err := envconfig.ParsePositive("ITEM_LIMIT", "", 7)
 
 	if err != nil || got != 7 {
 		t.Fatalf("ParsePositive(\"\") = (%d, %v), want (7, nil)", got, err)
@@ -64,7 +64,7 @@ func TestParsePositiveAnswersTheFallbackForTheUnsetVariable(t *testing.T) {
 
 func TestParsePositiveRefusesZeroAndBelow(t *testing.T) {
 	for _, value := range []string{"0", "-1", "three"} {
-		if _, err := envconfig.ParsePositive("DMPF_ITEM_LIMIT", value, 7); !errors.Is(err, envconfig.ErrInvalidVariable) {
+		if _, err := envconfig.ParsePositive("ITEM_LIMIT", value, 7); !errors.Is(err, envconfig.ErrInvalidVariable) {
 			t.Fatalf("ParsePositive(%q) = %v, want ErrInvalidVariable", value, err)
 		}
 	}

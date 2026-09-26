@@ -32,6 +32,11 @@
       "type": "string",
       "description": "Diretório que recebe o módulo do contexto, relativo à raiz do workspace.",
       "default": "apps/backend"
+    },
+    "serviceName": {
+      "type": "string",
+      "description": "Nome qualificado do serviço gRPC do contexto (package proto mais o serviço). Sem a opção, vira company.<name sem hífens>.service.v1.<Name>Service.",
+      "pattern": "^[a-z][a-z0-9]*(\\.[a-z][a-z0-9]*)*\\.[A-Z][A-Za-z0-9]*$"
     }
   },
   "required": ["name", "boundedContext"]

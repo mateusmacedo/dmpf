@@ -34,7 +34,7 @@ Carregadas como contexto de conduta. Descrevem o que é esperado em cada área.
 | Organização de arquivos | `rules/file-organization.md` | Colocalização e separação em camadas. |
 | Limites de tamanho | `rules/file-size-limits.md` | Heurísticas de tamanho para arquivos e funções. |
 | Segurança Git | `rules/git-safety.md` | Hooks, force push seguro, revisão pré-commit e proteção das branches compartilhadas. |
-| Bounded context DMPF | `rules/dmpf-bounded-context.md` | Normas para escrever um contexto sobre o kernel: matriz de blocos, condição C2 e classificação por manifesto declarado. |
+| Bounded context DMPF | `rules/dmpf-bounded-context.md` | Normas para escrever um contexto sobre o kernel: matriz de blocos, classificação por manifesto declarado, borda gRPC, banco próprio com nomes canônicos, persistência híbrida e config sem `DMPF_` (ADR-053). |
 | Performance | `rules/performance.md` | Banco de dados, cache, filas, N+1 e otimizações comuns. |
 | Processo e qualidade | `rules/process-enforcement.md` | Quando exigir especificação e plano antes de implementar. |
 | Revisão de idioma | `rules/language-review.md` | Revisão PT-BR/EN uma vez, ao final da entrega — não após cada escrita. |

@@ -5,13 +5,14 @@ package app_test
 import (
 	"context"
 	"fmt"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/pg"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/app"
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/appkit"
 	kernelapp "github.com/mateusmacedo/dmpf/libs/backend/go/app"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/app/relay"
 	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
@@ -20,9 +21,6 @@ import (
 	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
-
-	"github.com/mateusmacedo/dmpf/apps/backend/reservations/app"
-	"github.com/mateusmacedo/dmpf/apps/backend/reservations/appkit"
 )
 
 const (
@@ -126,7 +124,7 @@ func enqueueOrderPlaced(t *testing.T, pool *pgxpool.Pool) {
 	// have no column of their own and producing them is KRN-09's. Until then a
 	// record without them is not claimable, so the test supplies them.
 	if _, err := pool.Exec(context.Background(),
-		`UPDATE dmpf_outbox SET metadata = $2::jsonb WHERE message_id = $1`, relayMessageID, relayContextMeta); err != nil {
+		`UPDATE outbox SET metadata = $2::jsonb WHERE message_id = $1`, relayMessageID, relayContextMeta); err != nil {
 		t.Fatalf("inject metadata = %v, want nil", err)
 	}
 }
@@ -149,7 +147,7 @@ func outboxStatus(t *testing.T, pool *pgxpool.Pool) (status string, attempts int
 	t.Helper()
 
 	err := pool.QueryRow(context.Background(),
-		`SELECT status, attempt_count FROM dmpf_outbox WHERE message_id = $1`, relayMessageID).Scan(&status, &attempts)
+		`SELECT status, attempt_count FROM outbox WHERE message_id = $1`, relayMessageID).Scan(&status, &attempts)
 	if err != nil {
 		t.Fatalf("read outbox = %v, want nil", err)
 	}
@@ -157,7 +155,7 @@ func outboxStatus(t *testing.T, pool *pgxpool.Pool) (status string, attempts int
 }
 
 func TestTheRelayDrainsWhatTheWriterCommitted(t *testing.T) {
-	pool := pg.OpenPool(t)
+	pool := appkit.OpenPool(t)
 	enqueueOrderPlaced(t, pool)
 
 	publisher := &capturingPublisher{}
@@ -200,7 +198,7 @@ func TestTheRelayDrainsWhatTheWriterCommitted(t *testing.T) {
 // next cycle. The duplicate is expected under at-least-once — it is not a
 // defect to be fixed here; it is the property the inbox of KRN-07 absorbs.
 func TestAFailureBetweenPublishingAndMarkingRepublishesAndTheInboxAbsorbsIt(t *testing.T) {
-	pool := pg.OpenPool(t)
+	pool := appkit.OpenPool(t)
 	enqueueOrderPlaced(t, pool)
 
 	publisher := &capturingPublisher{entered: make(chan struct{})}

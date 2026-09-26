@@ -74,8 +74,9 @@ uso() {
 uso: tools/dmpf-generator-check.sh --phase structural|self-test
 
   structural   gera o bounded context de prova, commita classificação e código,
-               roda fmt-check/vet/build/lint e o verificador de conformidade
-  self-test    roda a fase structural quatro vezes, cada uma com um ponto
+               roda o dmpf-context-check, fmt-check/vet/build/lint e o verificador
+               de conformidade
+  self-test    roda a fase structural cinco vezes, cada uma com um ponto
                sabotado, e exige que todas reprovem pelo motivo esperado
 FIM
 }
@@ -348,6 +349,30 @@ commitar_codigo() {
   ok "commit 2: código gerado, go.work e o que o pnpm ajustou"
 }
 
+# O context-check só vale para o contexto completo: um subconjunto de blocos
+# não tem app/ nem provider/, e o gate os exige.
+verificar_forma_canonica() {
+  case ",$BLOCOS," in
+    *,app,*) ;;
+    *)
+      ok "forma canônica dispensada: blocos parciais ($BLOCOS)"
+      return 0
+      ;;
+  esac
+  bash "$WT/tools/dmpf-context-check.sh" --context "$WT/apps/backend/$NOME" \
+    || falha "o dmpf-context-check reprovou o contexto gerado (acima)"
+  ok "dmpf-context-check aprovou apps/backend/$NOME"
+}
+
+# Vetor (e) do self-test: uma borda HTTP ao lado da gRPC, que o context-check
+# recusa antes de a cadeia Go ou o verificador olharem o package novo.
+sabotar_borda_http() {
+  mkdir -p "$WT/apps/backend/$NOME/app/http" || falha "não consegui criar app/http"
+  printf 'package http\n' >"$WT/apps/backend/$NOME/app/http/doc.go" \
+    || falha "não consegui sabotar app/http"
+  ok "sabotagem: app/http no contexto gerado"
+}
+
 cadeia_nx() {
   local lista
   lista="$(
@@ -439,6 +464,10 @@ fase_structural() {
   commitar_codigo
   [ -z "${DMPF_GENERATOR_CHECK_SIMULAR_EDICAO_POS_COMMIT:-}" ] || sabotar_edicao_pos_commit
 
+  passo "forma canônica do contexto gerado"
+  [ -z "${DMPF_GENERATOR_CHECK_SIMULAR_BORDA_HTTP:-}" ] || sabotar_borda_http
+  verificar_forma_canonica
+
   passo "cadeia Go dos módulos gerados"
   cadeia_nx
   conferir_node_modules
@@ -458,9 +487,9 @@ fase_structural() {
 # a reprovação daqui exigiria desmontar o contrato de erro do script. O processo
 # próprio também dá worktree e trap próprios, que é o isolamento que o vetor pede.
 vetor() {
-  local nome="$1" variavel="$2" esperado="$3"
+  local nome="$1" variavel="$2" esperado="$3" blocos="${4:-$BLOCOS_SELF_TEST}"
   local saida status
-  local ambiente=("$variavel=1" "DMPF_GENERATOR_CHECK_BLOCKS=$BLOCOS_SELF_TEST")
+  local ambiente=("$variavel=1" "DMPF_GENERATOR_CHECK_BLOCKS=$blocos")
   [ -z "${DMPF_GENERATOR_CHECK_WORKING_TREE:-}" ] \
     || ambiente+=("DMPF_GENERATOR_CHECK_WORKING_TREE=$DMPF_GENERATOR_CHECK_WORKING_TREE")
   saida="$(env "${ambiente[@]}" bash "$ORIGEM" --phase structural 2>&1)"
@@ -493,7 +522,11 @@ fase_self_test() {
   vetor "JSON fora do padrão" DMPF_GENERATOR_CHECK_SIMULAR_JSON_FORA_DO_PADRAO \
     "biome ci reprovou arquivo gerado"
 
-  printf '\nProva do generator (self-test): OK — 4 vetor(es) reprovaram pelo motivo esperado.\n'
+  passo "vetor 5 — borda HTTP no contexto gerado"
+  vetor "borda HTTP" DMPF_GENERATOR_CHECK_SIMULAR_BORDA_HTTP \
+    "borda HTTP em app/http" "domain,port,application,provider,app"
+
+  printf '\nProva do generator (self-test): OK — 5 vetor(es) reprovaram pelo motivo esperado.\n'
 }
 
 FASE=""

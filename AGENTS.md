@@ -13,7 +13,7 @@ Este arquivo guarda só o que é específico do repositório e não está em out
 
 `dmpf` (workspace `@mateusmacedo/dmpf-source`) é um monorepo **Nx + pnpm** que contém o kernel DMPF em Go e as apps que o exercitam. Fonte de verdade dos projetos: `pnpm nx show projects`. Estrutura de diretórios: `README.md`.
 
-- **Apps** (`apps/backend/<app>`, Go, `type:app`): `bff` (única borda REST pública), `orders` e `reservations` (contextos gRPC da topologia de referência, ADR-044) e `bookings` (golden do harness de bounded contexts). Um contexto de negócio é **uma app** com um package por bloco, não uma lib (ADR-046, ADR-048). Configuração, targets `serve-*` e testes: `README.md` de cada app. Ficam fora do release Docker (`nx-release.yml` filtra `!tag:stack:go`).
+- **Apps** (`apps/backend/<app>`, Go, `type:app`): `bff` (única borda REST pública) e os contextos gRPC `orders`, `reservations` e `bookings` (ADR-044); `bookings` é também o golden da forma canônica e do harness de bounded contexts (ADR-053). Um contexto de negócio é **uma app** com um package por bloco, não uma lib (ADR-046, ADR-048). Configuração, targets `serve-*` e testes: `README.md` de cada app. Ficam fora do release Docker (`nx-release.yml` filtra `!tag:stack:go`).
 - **Libs** (`libs/backend/go/<módulo>`, só kernel de reuso): `domain`, `ports`, `application`, `contracts`, `memory`, `postgres`, `app`, `authn`, `observability`, `transport`, `grpc`, `http`, `kafka`, `sqs`, `testkit`. Detalhe: `README.md` de cada módulo e ADRs 030–052. Todo módulo Go tem `dmpf-units.json` e um `package.json` com `private: true` (o Nx Release exige manifesto npm, ADR-030).
 - **Tooling:** `tools/dmpf-conformance` (verificador, BOM, modsync, fitness; sem `layer:*`) e `tools/dmpf-plugin`.
 - **Infra:** `infra/README.md` (Compose local, observabilidade, Kustomize). **Contratos:** `contracts/README.md` (gates Buf). **Release do produto:** `bom/README.md`.
@@ -27,6 +27,7 @@ Este arquivo guarda só o que é específico do repositório e não está em out
 - **Escopo npm:** `@mateusmacedo/`, em minúsculas. O casing precisa bater entre o `name` do `package.json`, o `tsconfig.base.json` e o `scope` do reusable de publicação; divergência faz o `pnpm publish` cair no registry público.
 - **Lib TypeScript nova:** acrescenta a própria entrada em `paths` (`tsconfig.base.json`) e `references` (`tsconfig.json`). Passo a passo em `docs/nx-reference/tasks.md`.
 - **`import type`** é obrigatório para imports só de tipos (`useImportType: error` no Biome).
+- **Forma do contexto (ADR-053):** banco e role com o nome da app, tabelas sem prefixo (agregado no plural), persistência híbrida, borda só gRPC em `app/rpc`, config sem prefixo `DMPF_`. O `tools/dmpf-context-check.sh` reprova o que fugir disso; o detalhe está em `.claude/rules/dmpf-bounded-context.md`.
 - **Commits (Conventional Commits, em PT-BR):** `<tipo>(<scope>): <descrição imperativa>`, máx. 72 caracteres no assunto. `scope` é o nome do projeto Nx sem o prefixo da org. Projetos distintos vão em commits separados. Detalhes na skill `.agents/skills/nx-commit/`.
 
 ## Comandos

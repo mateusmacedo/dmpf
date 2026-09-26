@@ -22,7 +22,7 @@ import (
 // claimEligibility mirrors the predicate Claim runs, so the applicability proof
 // below cannot drift from the statement it is meant to cover.
 const claimEligibility = `
-SELECT id FROM dmpf_outbox
+SELECT id FROM outbox
 WHERE available_at <= $1
   AND ( status = 'pending'
      OR ( status = 'publishing'
@@ -63,7 +63,7 @@ func defaultRow(messageID string) row {
 const fullMetadata = `{"correlationid":"corr-1","causationid":"caus-1","traceparent":"00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01"}`
 
 const insertRow = `
-INSERT INTO dmpf_outbox (
+INSERT INTO outbox (
 	message_id, message_type, schema_version,
 	aggregate_type, aggregate_id, aggregate_version,
 	partition_key, destination,
@@ -111,8 +111,8 @@ func TestClaimIndexIsApplicableToTheEligibilityPredicate(t *testing.T) {
 	}
 
 	plan := explain(t, ctx, tx, claimEligibility, int64(2_000), 10)
-	if !strings.Contains(plan, "dmpf_outbox_claim_idx") {
-		t.Fatalf("plan does not use dmpf_outbox_claim_idx:\n%s", plan)
+	if !strings.Contains(plan, "outbox_claim_idx") {
+		t.Fatalf("plan does not use outbox_claim_idx:\n%s", plan)
 	}
 }
 
@@ -265,7 +265,7 @@ func TestClaimWritesTheFourFieldsInOneCommit(t *testing.T) {
 		lockedUntil *int64
 		attempts    int
 	)
-	err = pool.QueryRow(ctx, `SELECT status, locked_by, locked_until, attempt_count FROM dmpf_outbox WHERE id = $1`, id).
+	err = pool.QueryRow(ctx, `SELECT status, locked_by, locked_until, attempt_count FROM outbox WHERE id = $1`, id).
 		Scan(&status, &lockedBy, &lockedUntil, &attempts)
 	if err != nil {
 		t.Fatalf("read back = %v, want nil", err)
@@ -302,7 +302,7 @@ func TestClaimNeverLeavesPublishingWithoutALease(t *testing.T) {
 	}
 
 	var orphans int
-	err := pool.QueryRow(ctx, `SELECT count(*) FROM dmpf_outbox WHERE status = 'publishing' AND locked_until IS NULL`).Scan(&orphans)
+	err := pool.QueryRow(ctx, `SELECT count(*) FROM outbox WHERE status = 'publishing' AND locked_until IS NULL`).Scan(&orphans)
 	if err != nil {
 		t.Fatalf("count orphans = %v, want nil", err)
 	}
@@ -372,7 +372,7 @@ func TestClaimReadsTheLeaseInstantAfterAcquiringTheConnection(t *testing.T) {
 	}
 
 	var lockedUntil int64
-	if err := pool.QueryRow(ctx, `SELECT locked_until FROM dmpf_outbox WHERE id = $1`, claimed[0].ID).Scan(&lockedUntil); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT locked_until FROM outbox WHERE id = $1`, claimed[0].ID).Scan(&lockedUntil); err != nil {
 		t.Fatalf("read back = %v, want nil", err)
 	}
 	if lockedUntil <= time.Now().UnixNano() {
@@ -457,7 +457,7 @@ func TestClaimSkipsRecordsWithoutTheContextAttributes(t *testing.T) {
 				status   string
 				attempts int
 			)
-			if err := pool.QueryRow(ctx, `SELECT status, attempt_count FROM dmpf_outbox WHERE id = $1`, id).Scan(&status, &attempts); err != nil {
+			if err := pool.QueryRow(ctx, `SELECT status, attempt_count FROM outbox WHERE id = $1`, id).Scan(&status, &attempts); err != nil {
 				t.Fatalf("read back = %v, want nil", err)
 			}
 			if status != "pending" || attempts != 0 {
@@ -612,7 +612,7 @@ func statusOf(t *testing.T, ctx context.Context, pool *pgxpool.Pool, id int64) s
 	t.Helper()
 
 	var status string
-	if err := pool.QueryRow(ctx, `SELECT status FROM dmpf_outbox WHERE id = $1`, id).Scan(&status); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT status FROM outbox WHERE id = $1`, id).Scan(&status); err != nil {
 		t.Fatalf("read status = %v, want nil", err)
 	}
 	return status
@@ -640,7 +640,7 @@ func snapshot(t *testing.T, ctx context.Context, pool *pgxpool.Pool, id int64) r
 	)
 	err := pool.QueryRow(ctx, `
 		SELECT status, locked_by, locked_until, available_at, attempt_count, published_at, last_error
-		  FROM dmpf_outbox WHERE id = $1`, id).
+		  FROM outbox WHERE id = $1`, id).
 		Scan(&s.status, &lockedBy, &lockedUntil, &s.availableAt, &s.attempts, &publishedAt, &lastError)
 	if err != nil {
 		t.Fatalf("snapshot = %v, want nil", err)
@@ -708,7 +708,7 @@ func TestMarkPublishedLeavesNoLiveLeaseBehind(t *testing.T) {
 	}
 
 	var lockedUntil *int64
-	if err := pool.QueryRow(ctx, `SELECT locked_until FROM dmpf_outbox WHERE id = $1`, claimed.ID).Scan(&lockedUntil); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT locked_until FROM outbox WHERE id = $1`, claimed.ID).Scan(&lockedUntil); err != nil {
 		t.Fatalf("read back = %v, want nil", err)
 	}
 	if lockedUntil != nil {

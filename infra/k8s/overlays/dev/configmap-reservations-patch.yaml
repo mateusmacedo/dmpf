@@ -4,7 +4,7 @@ metadata:
   name: reservations
 data:
   # O Redpanda e o Collector da base rodam sem TLS em dev, e o gRPC interno também.
-  DMPF_KAFKA_INSECURE: 'true'
-  DMPF_OTLP_INSECURE: 'true'
-  DMPF_GRPC_INSECURE: 'true'
-  DMPF_SERVICE_VERSION: dev
+  KAFKA_INSECURE: 'true'
+  OTLP_INSECURE: 'true'
+  GRPC_INSECURE: 'true'
+  SERVICE_VERSION: dev
