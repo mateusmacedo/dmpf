@@ -16,11 +16,11 @@ func Authorization() usecase.Authorize[application.Operation] {
 // (IDN-17): adding an operation without a line here closes it, never opens it.
 func permissionOf(op application.Operation) ports.Permission {
 	switch op.(type) {
-	case application.Reserve:
+	case application.ReserveBooking:
 		return "bookings:write"
-	case application.Cancel:
+	case application.CancelBooking:
 		return "bookings:write"
-	case application.Register:
+	case application.RegisterResource:
 		return "bookings:write"
 	case application.FindBooking:
 		return "bookings:read"

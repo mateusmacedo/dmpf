@@ -9,9 +9,9 @@ import (
 
 func TestDeclaredCodesAreValid(t *testing.T) {
 	codes := map[string]kernel.Code{
-		"CodeItemLimitExceeded": domain.CodeItemLimitExceeded,
-		"CodeEmptyOrder":        domain.CodeEmptyOrder,
-		"CodeOrderNotOpen":      domain.CodeOrderNotOpen,
+		"CodeOrderItemLimitExceeded": domain.CodeOrderItemLimitExceeded,
+		"CodeOrderEmpty":             domain.CodeOrderEmpty,
+		"CodeOrderNotOpen":           domain.CodeOrderNotOpen,
 	}
 	for name, code := range codes {
 		t.Run(name, func(t *testing.T) {

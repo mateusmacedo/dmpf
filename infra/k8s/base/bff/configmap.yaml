@@ -6,11 +6,13 @@ kind: ConfigMap
 metadata:
   name: bff
 data:
-  DMPF_SERVICE: bff
-  DMPF_HTTP_ADDR: ':8080'
-  DMPF_ORDERS_GRPC_TARGET: dns:///orders-api:9090
-  DMPF_RESERVATIONS_GRPC_TARGET: dns:///reservations-api:9090
-  DMPF_OPENAPI_ORDERS_PATH: /contracts/openapi/orders/v1/openapi.yaml
-  DMPF_OPENAPI_RESERVATIONS_PATH: /contracts/openapi/reservations/v1/openapi.yaml
-  DMPF_OTLP_ENDPOINT: otel-collector:4317
-  DMPF_OTLP_INSECURE: 'false'
+  SERVICE: bff
+  HTTP_ADDR: ':8080'
+  ORDERS_GRPC_TARGET: dns:///orders-api:9090
+  RESERVATIONS_GRPC_TARGET: dns:///reservations-api:9090
+  BOOKINGS_GRPC_TARGET: dns:///bookings-api:9090
+  OPENAPI_ORDERS_PATH: /contracts/openapi/orders/v1/openapi.yaml
+  OPENAPI_RESERVATIONS_PATH: /contracts/openapi/reservations/v1/openapi.yaml
+  OPENAPI_BOOKINGS_PATH: /contracts/openapi/bookings/v1/openapi.yaml
+  OTLP_ENDPOINT: otel-collector:4317
+  OTLP_INSECURE: 'false'

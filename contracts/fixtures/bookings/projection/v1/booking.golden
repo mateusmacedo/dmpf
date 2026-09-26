@@ -1,0 +1,153 @@
+{
+  "format_version": "1",
+  "identity": {
+    "context": "bookings",
+    "aggregate": "booking"
+  },
+  "cases": [
+    {
+      "name": "reserve-accepted",
+      "doc": "Ramo Accepted de Reserve: reserva nova de três unidades do recurso; um booking-reserved na sequência.",
+      "state_before": {
+        "booking": "b-1",
+        "resource": "",
+        "quantity": "0",
+        "status": "new",
+        "reserved_at": "0"
+      },
+      "command": {
+        "upr": "reserve",
+        "resource": "r-1",
+        "quantity": "3",
+        "at": "1755432000000000000"
+      },
+      "expected": {
+        "branch": "accepted",
+        "response": {
+          "booking": "b-1"
+        },
+        "events": [
+          {
+            "name": "bookings.booking-reserved",
+            "fields": {
+              "booking": "b-1",
+              "resource": "r-1",
+              "quantity": "3",
+              "at": "1755432000000000000"
+            }
+          }
+        ],
+        "state_after": {
+          "booking": "b-1",
+          "resource": "r-1",
+          "quantity": "3",
+          "status": "reserved",
+          "reserved_at": "1755432000000000000"
+        }
+      }
+    },
+    {
+      "name": "reserve-quantity-out-of-range",
+      "doc": "Ramo Rejected de Reserve: quantidade acima do teto não reserva nada; estado inalterado.",
+      "state_before": {
+        "booking": "b-1",
+        "resource": "",
+        "quantity": "0",
+        "status": "new",
+        "reserved_at": "0"
+      },
+      "command": {
+        "upr": "reserve",
+        "resource": "r-1",
+        "quantity": "101",
+        "at": "1755432000000000000"
+      },
+      "expected": {
+        "branch": "rejected",
+        "rejection": {
+          "code": "resource-scheduling/booking/quantity-out-of-range",
+          "message": "quantity must be between 1 and 100",
+          "details": {
+            "quantity": "101"
+          }
+        },
+        "events": [],
+        "state_after": {
+          "booking": "b-1",
+          "resource": "",
+          "quantity": "0",
+          "status": "new",
+          "reserved_at": "0"
+        }
+      }
+    },
+    {
+      "name": "cancel-accepted",
+      "doc": "Ramo Accepted de Cancel: reserva confirmada é cancelada; um booking-cancelled na sequência.",
+      "state_before": {
+        "booking": "b-1",
+        "resource": "r-1",
+        "quantity": "3",
+        "status": "reserved",
+        "reserved_at": "1755432000000000000"
+      },
+      "command": {
+        "upr": "cancel",
+        "at": "1755435600000000000"
+      },
+      "expected": {
+        "branch": "accepted",
+        "response": {
+          "booking": "b-1"
+        },
+        "events": [
+          {
+            "name": "bookings.booking-cancelled",
+            "fields": {
+              "booking": "b-1",
+              "at": "1755435600000000000"
+            }
+          }
+        ],
+        "state_after": {
+          "booking": "b-1",
+          "resource": "r-1",
+          "quantity": "3",
+          "status": "cancelled",
+          "reserved_at": "1755432000000000000"
+        }
+      }
+    },
+    {
+      "name": "cancel-not-reserved",
+      "doc": "Ramo Rejected de Cancel: reserva que nunca foi confirmada não se cancela; estado inalterado.",
+      "state_before": {
+        "booking": "b-1",
+        "resource": "",
+        "quantity": "0",
+        "status": "new",
+        "reserved_at": "0"
+      },
+      "command": {
+        "upr": "cancel",
+        "at": "1755435600000000000"
+      },
+      "expected": {
+        "branch": "rejected",
+        "rejection": {
+          "code": "resource-scheduling/booking/not-reserved",
+          "message": "booking is not reserved",
+          "details": {}
+        },
+        "events": [],
+        "state_after": {
+          "booking": "b-1",
+          "resource": "",
+          "quantity": "0",
+          "status": "new",
+          "reserved_at": "0"
+        }
+      }
+    }
+  ]
+}

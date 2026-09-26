@@ -1,6 +1,6 @@
 package domain
 
-import "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
+import kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
 
 type Resource struct {
 	code         ResourceCode
@@ -32,18 +32,18 @@ func (r *Resource) clone() Resource {
 	return Resource{code: r.code, registeredAt: r.registeredAt}
 }
 
-func (r *Resource) Register(cmd RegisterResource) (domain.Accepted[RegisteredResponse], *domain.Rejection) {
+func (r *Resource) Register(cmd RegisterResource) (kernel.Accepted[RegisteredResponse], *kernel.Rejection) {
 	next := r.clone()
 	if cmd.Code == "" {
-		return domain.Accepted[RegisteredResponse]{}, domain.Reject(CodeCodeEmpty, "code must not be empty")
+		return kernel.Accepted[RegisteredResponse]{}, kernel.Reject(CodeResourceCodeEmpty, "code must not be empty")
 	}
 	// WHY: spec says "when present: accept without changing or emitting".
 	if next.registeredAt != 0 {
-		return domain.Accept(RegisteredResponse{Code: r.code}), nil
+		return kernel.Accept(RegisteredResponse{Code: r.code}), nil
 	}
 	next.registeredAt = cmd.At
 	*r = next
-	return domain.Accept(
+	return kernel.Accept(
 		RegisteredResponse{Code: r.code},
 		ResourceRegistered{Code: r.code, At: cmd.At},
 	), nil

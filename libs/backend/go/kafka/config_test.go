@@ -149,8 +149,8 @@ func TestClientAuthenticatedIsWhatTheBoundaryMayClaim(t *testing.T) {
 
 func TestReadClientAuthResolvesTheDeclaredVariables(t *testing.T) {
 	env := map[string]string{
-		"DMPF_KAFKA_SASL_MECHANISM": "SCRAM-SHA-512", "DMPF_KAFKA_SASL_USERNAME": "orders",
-		"DMPF_KAFKA_SASL_PASSWORD": "s3", "DMPF_KAFKA_CA_FILE": "/etc/kafka/ca.crt",
+		"KAFKA_SASL_MECHANISM": "SCRAM-SHA-512", "KAFKA_SASL_USERNAME": "orders",
+		"KAFKA_SASL_PASSWORD": "s3", "KAFKA_CA_FILE": "/etc/kafka/ca.crt",
 	}
 	auth := kafka.ReadClientAuth(func(k string) string { return env[k] })
 

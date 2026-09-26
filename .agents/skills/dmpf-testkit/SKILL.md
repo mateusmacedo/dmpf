@@ -94,18 +94,21 @@ pnpm nx run testkit:test-race
 pnpm nx run testkit:govulncheck
 ```
 
-`test-race` inclui a build tag `integration`; sem `DMPF_PG_DSN`, os casos de
+`test-race` inclui a build tag `integration`; sem `PG_DSN`, os casos de
 infraestrutura fazem skip local e falham com `CI` definido. Os harnesses
 borda a borda e distribuído são targets do contexto `reservations`; para a
 prova distribuída, use Postgres e Redpanda reais:
 
 ```bash
-DMPF_PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' \
+PG_DSN='postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable' \
 pnpm nx run reservations:test-race
-DMPF_PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' \
-DMPF_KAFKA_BROKERS=localhost:9092 \
+PG_DSN='postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable' \
+KAFKA_BROKERS=localhost:9092 \
 pnpm nx run reservations:test-distributed
 ```
+
+`PG_DSN` aponta o servidor com um usuário que cria bancos: o `tb/pg` deriva
+dele o banco `<projeto>_test` de cada projeto (ADR-053).
 
 Inclua na validação os módulos consumidores modificados. Não afirme que uma
 integração passou quando ela apenas foi pulada por ausência de infraestrutura.

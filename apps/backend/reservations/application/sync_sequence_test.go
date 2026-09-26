@@ -6,9 +6,8 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
-
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/application"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
 
 var nineSteps = []string{

@@ -45,5 +45,5 @@ func TestRegisterRejectsEmptyCode(t *testing.T) {
 
 	acc, rej := r.Register(domain.RegisterResource{Code: "", At: at})
 
-	requireRejected(t, acc, rej, domain.CodeCodeEmpty)
+	requireRejected(t, acc, rej, domain.CodeResourceCodeEmpty)
 }

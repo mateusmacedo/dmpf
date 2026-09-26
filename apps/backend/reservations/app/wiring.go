@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/boot"
 	"io"
 	"maps"
 	"net"
@@ -13,11 +12,15 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/mateusmacedo/dmpf/libs/backend/go/app"
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/app/rpc"
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/application"
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/provider"
+	kernelapp "github.com/mateusmacedo/dmpf/libs/backend/go/app"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/app/relay"
-	provider "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
+	kernelgrpc "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/kafka"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/audit"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/boot"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/idclock"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/otelboot"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/retry"
@@ -25,9 +28,6 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/admission"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/channel"
-
-	"github.com/mateusmacedo/dmpf/apps/backend/reservations/app/rpc"
-	"github.com/mateusmacedo/dmpf/apps/backend/reservations/application"
 )
 
 const (
@@ -74,24 +74,24 @@ func serveAPI(ctx context.Context, cfg Config, rt *otelboot.Runtime, out io.Writ
 	}
 	defer pool.Close()
 
-	ctrl, err := admission.NewController(rpc.Limits(cfg.Admission), cfg.MetricTenants, admission.DefaultMaxKeys)
+	ctrl, err := admission.NewController(kernelgrpc.MethodLimits(rpc.ServiceName, rpc.Methods(), cfg.Admission), cfg.MetricTenants, admission.DefaultMaxKeys)
 	if err != nil {
 		return err
 	}
-	serverConfig, err := provider.APIServerConfig(provider.APIServer{
+	serverConfig, err := kernelgrpc.APIServerConfig(kernelgrpc.APIServer{
 		CertFile:       cfg.GRPCCertFile,
 		KeyFile:        cfg.GRPCKeyFile,
 		ClientCAFile:   cfg.GRPCClientCAFile,
 		TrustedClients: cfg.GRPCTrustedClients,
 		Insecure:       cfg.GRPCInsecure,
-		Services:       provider.HealthServices(rpc.ServiceName),
-		Interceptors:   rpc.Interceptors(rt.Tracer(), ctrl, rt.Instruments(), rt.Logger()),
+		Services:       kernelgrpc.HealthServices(rpc.ServiceName),
+		Interceptors:   kernelgrpc.ServerInterceptors(rpc.ServiceName, rt.Tracer(), ctrl, rt.Instruments(), rt.Logger()),
 		Logger:         rt.Logger(),
 	})
 	if err != nil {
 		return err
 	}
-	server, healthServer, err := provider.NewServer(serverConfig)
+	server, healthServer, err := kernelgrpc.NewServer(serverConfig)
 	if err != nil {
 		return err
 	}
@@ -103,30 +103,30 @@ func serveAPI(ctx context.Context, cfg Config, rt *otelboot.Runtime, out io.Writ
 			return fmt.Errorf("postgres: %w", err)
 		}
 		if cfg.Migrate {
-			if err := postgres.Migrate(ctx, pool); err != nil {
+			if err := postgres.Migrate(ctx, pool, []postgres.Capability{postgres.Outbox, postgres.Inbox}, provider.Schema); err != nil {
 				return fmt.Errorf("migrate: %w", err)
 			}
 		}
 		return nil
 	}
-	return provider.Serve(ctx, listen, server, healthServer, provider.HealthServices(rpc.ServiceName), ready, rt.Logger())
+	return kernelgrpc.Serve(ctx, listen, server, healthServer, kernelgrpc.HealthServices(rpc.ServiceName), ready, rt.Logger())
 }
 
 // NewReservationsConsumer is the consumer adapter with the attempt limit of the
 // channel it consumes (ADR-039: the two must agree).
-func NewReservationsConsumer(pool *pgxpool.Pool, cfg Config, ch channel.Channel, authenticated bool) app.Consumer {
+func NewReservationsConsumer(pool *pgxpool.Pool, cfg Config, ch channel.Channel, authenticated bool) kernelapp.Consumer {
 	return NewConsumer(pool, idclock.SystemClock{}, idclock.NewMessageIDs("reservations"), cfg.Wait, cfg.ConsumerTimeout, ch.Retry.MaxAttempts, OrdersBoundary(cfg, authenticated))
 }
 
 // OrdersBoundary is the one place the consumer's trust is declared: the orders
 // producer, and a transport called verified only when TLS checks the broker
 // and this client authenticates to it (IDN-03, IDN-04).
-func OrdersBoundary(cfg Config, authenticated bool) app.Boundary {
-	transport := app.TransportDevelopmentOnly
+func OrdersBoundary(cfg Config, authenticated bool) kernelapp.Boundary {
+	transport := kernelapp.TransportDevelopmentOnly
 	if authenticated {
-		transport = app.TransportVerified
+		transport = kernelapp.TransportVerified
 	}
-	return app.Boundary{Transport: transport, Sources: []string{cfg.OrdersSource}}
+	return kernelapp.Boundary{Transport: transport, Sources: []string{cfg.OrdersSource}}
 }
 
 func runConsumer(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {

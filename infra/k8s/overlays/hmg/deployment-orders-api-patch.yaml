@@ -9,6 +9,11 @@ spec:
     spec:
       containers:
         - name: api
+          env:
+            # O banco gerenciado nasce vazio (ADR-053 recria os bancos): o api
+            # aplica o schema na partida, e postgres.Migrate é idempotente.
+            - name: MIGRATE
+              value: 'true'
           readinessProbe:
             grpc: null
             tcpSocket:

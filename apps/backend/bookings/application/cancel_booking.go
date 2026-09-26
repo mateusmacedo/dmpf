@@ -4,24 +4,23 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/mateusmacedo/dmpf/libs/backend/go/application"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
-
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/domain"
+	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
 
-func (s Service) CancelBooking(ctx context.Context, cmd Cancel) (application.Outcome[domain.CancelledResponse], error) {
-	var zero application.Outcome[domain.CancelledResponse]
+func (s Service) CancelBooking(ctx context.Context, cmd CancelBooking) (usecase.Outcome[domain.CancelledResponse], error) {
+	var zero usecase.Outcome[domain.CancelledResponse]
 
 	instrumentation := s.instrumentation()
-	ctx, end := instrumentation.BeginOperation(ctx, OperationCancel)
+	ctx, end := instrumentation.BeginOperation(ctx, OperationCancelBooking)
 
 	if err := s.Authorize(ctx, cmd); err != nil {
 		end(authorizationResult(err))
 		return zero, err
 	}
 
-	identity := application.ResolveIdentity(s.Clock, s.IDs, maxEventsPerCommand)
+	identity := usecase.ResolveIdentity(s.Clock, s.IDs, maxEventsPerCommand)
 
 	outcome := zero
 	err := s.UoW.Within(ctx, func(ctx context.Context, res Resources) error {
@@ -35,13 +34,16 @@ func (s Service) CancelBooking(ctx context.Context, cmd Cancel) (application.Out
 			At: domain.Instant(identity.OccurredAt),
 		})
 		if rejection != nil {
-			outcome = application.Rejected[domain.CancelledResponse](rejection)
+			outcome = usecase.Rejected[domain.CancelledResponse](rejection)
 			return nil
 		}
 		if err := res.Bookings.Save(ctx, cmd.BookingID, b.Snapshot(), stored); err != nil {
 			return fmt.Errorf("application: cancel %s: %w", cmd.BookingID, err)
 		}
-		outcome = application.Accepted(accepted.Response())
+		if err := enqueueAll(ctx, res.Outbox, identity, AggregateTypeBooking, string(cmd.BookingID), stored+1, accepted.Events()); err != nil {
+			return fmt.Errorf("application: cancel %s: enqueue: %w", cmd.BookingID, err)
+		}
+		outcome = usecase.Accepted(accepted.Response())
 		return nil
 	})
 	if err != nil {
@@ -49,10 +51,6 @@ func (s Service) CancelBooking(ctx context.Context, cmd Cancel) (application.Out
 		return zero, err
 	}
 
-	category := ports.OutcomeAccepted
-	if _, refused := outcome.Rejection(); refused {
-		category = ports.OutcomeRejected
-	}
-	end(ports.Result{Outcome: category})
+	end(ports.Result{Outcome: outcomeCategory(outcome)})
 	return outcome, nil
 }

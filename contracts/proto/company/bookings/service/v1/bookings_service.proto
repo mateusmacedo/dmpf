@@ -1,0 +1,97 @@
+syntax = "proto3";
+
+package company.bookings.service.v1;
+
+// Internal synchronous surface of the bookings bounded context (GRP-01). A
+// domain refusal travels as `rejection` in the response; a technical failure is
+// a gRPC status.
+service BookingsService {
+  rpc ReserveBooking(ReserveBookingRequest) returns (ReserveBookingResponse);
+  rpc CancelBooking(CancelBookingRequest) returns (CancelBookingResponse);
+  rpc RegisterResource(RegisterResourceRequest) returns (RegisterResourceResponse);
+  rpc FindBooking(FindBookingRequest) returns (FindBookingResponse);
+  rpc FindBookingsByResource(FindBookingsByResourceRequest) returns (FindBookingsByResourceResponse);
+}
+
+message ReserveBookingRequest {
+  string booking_id = 1;
+  string resource_id = 2;
+  int32 quantity = 3;
+}
+
+message ReserveBookingResponse {
+  oneof result {
+    Reserved reserved = 1;
+    Rejection rejection = 2;
+  }
+}
+
+message Reserved {
+  string booking_id = 1;
+}
+
+message CancelBookingRequest {
+  string booking_id = 1;
+}
+
+message CancelBookingResponse {
+  oneof result {
+    Cancelled cancelled = 1;
+    Rejection rejection = 2;
+  }
+}
+
+message Cancelled {
+  string booking_id = 1;
+}
+
+message RegisterResourceRequest {
+  string resource_id = 1;
+}
+
+message RegisterResourceResponse {
+  oneof result {
+    Registered registered = 1;
+    Rejection rejection = 2;
+  }
+}
+
+message Registered {
+  string resource_id = 1;
+}
+
+message FindBookingRequest {
+  string booking_id = 1;
+}
+
+message FindBookingResponse {
+  Booking booking = 1;
+}
+
+message FindBookingsByResourceRequest {
+  string resource_id = 1;
+}
+
+message FindBookingsByResourceResponse {
+  repeated Booking bookings = 1;
+}
+
+message Booking {
+  string booking_id = 1;
+  string resource_id = 2;
+  int32 quantity = 3;
+  BookingStatus status = 4;
+  // Nanoseconds since the Unix epoch, the domain's instant (D1).
+  int64 reserved_at = 5;
+}
+
+enum BookingStatus {
+  BOOKING_STATUS_UNSPECIFIED = 0;
+  BOOKING_STATUS_RESERVED = 1;
+  BOOKING_STATUS_CANCELLED = 2;
+}
+
+message Rejection {
+  string code = 1;
+  string message = 2;
+}

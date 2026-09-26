@@ -1,20 +1,21 @@
-# Postgres compartilhado pelas apps. Os bancos dmpf_orders e dmpf_reservations
-# nascem no postgres-init (profile dmpf); o schema, por `postgres.Migrate`
-# (DMPF_MIGRATE=true no papel api de cada contexto), não por init script.
+# Servidor Postgres das apps. Cada app tem banco e role com o próprio nome
+# (orders, reservations, bookings), criados no postgres-init (profile dmpf);
+# o schema, por `postgres.Migrate` (MIGRATE=true no papel api de cada
+# contexto), não por init script. O usuário do container é só administrativo.
 services:
   postgres:
     image: postgres:16-alpine
     profiles: [postgres, dmpf, all]
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-app}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-app}
-      POSTGRES_DB: ${POSTGRES_DB:-app}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: postgres
     ports:
       - '${POSTGRES_PORT:-5432}:5432'
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-app}']
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-postgres}']
       interval: 10s
       timeout: 5s
       retries: 5

@@ -29,9 +29,9 @@ const (
 )
 
 const (
-	envPostgres      = "DMPF_PG_DSN"
-	envKafka         = "DMPF_KAFKA_BROKERS"
-	envRedpandaAdmin = "DMPF_REDPANDA_ADMIN"
+	envPostgres      = "PG_DSN"
+	envKafka         = "KAFKA_BROKERS"
+	envRedpandaAdmin = "REDPANDA_ADMIN"
 )
 
 const modulePrefix = "github.com/mateusmacedo/dmpf/"

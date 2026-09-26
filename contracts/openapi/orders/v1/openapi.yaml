@@ -13,6 +13,8 @@ info:
 servers:
   - url: http://localhost:8080
     description: local bff
+security:
+  - bearerAuth: []
 paths:
   /orders/{id}/items:
     post:
@@ -109,6 +111,15 @@ paths:
         default:
           $ref: '#/components/responses/Failure'
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: >-
+        Access token do servidor de autorização que o BFF verifica (OIDC). No
+        compose local o BFF roda com AUTH_DEV_MOCK=true e lê a identidade do
+        próprio token, sem verificação — informe um JSON como
+        {"sub":"dev","tenant":"acme","permissions":["orders:write","orders:read"]}.
   parameters:
     OrderID:
       name: id

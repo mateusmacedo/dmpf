@@ -92,7 +92,7 @@ func enqueued(t *testing.T, pool *pgxpool.Pool) int {
 	t.Helper()
 
 	var count int
-	if err := pool.QueryRow(context.Background(), "SELECT count(*) FROM dmpf_outbox").Scan(&count); err != nil {
+	if err := pool.QueryRow(context.Background(), "SELECT count(*) FROM outbox").Scan(&count); err != nil {
 		t.Fatalf("count(*) = %v, want nil", err)
 	}
 	return count
@@ -133,7 +133,7 @@ func TestEnqueueWritesTheInitialValues(t *testing.T) {
 		       aggregate_version, partition_key, destination, payload, payload_hash,
 		       metadata::text, occurred_at, available_at, attempt_count, status,
 		       locked_by, locked_until, published_at, last_error
-		FROM dmpf_outbox`).Scan(
+		FROM outbox`).Scan(
 		&messageID, &messageType, &schemaVersion, &aggregateType, &aggregateID,
 		&aggregateVersion, &partitionKey, &destination, &payload, &hash,
 		&metadata, &occurredAt, &availableAt, &attemptCount, &status,
@@ -219,8 +219,8 @@ func TestEnqueueRejectsADuplicateMessageID(t *testing.T) {
 	if pgErr.Code != "23505" {
 		t.Errorf("SQLSTATE = %q, want \"23505\"", pgErr.Code)
 	}
-	if pgErr.ConstraintName != "dmpf_outbox_message_id_unique" {
-		t.Errorf("constraint = %q, want \"dmpf_outbox_message_id_unique\" — the schema is what refuses", pgErr.ConstraintName)
+	if pgErr.ConstraintName != "outbox_message_id_key" {
+		t.Errorf("constraint = %q, want \"outbox_message_id_key\" — the schema is what refuses", pgErr.ConstraintName)
 	}
 	if got := enqueued(t, pool); got != 0 {
 		t.Errorf("kept %d rows after the rollback, want 0", got)
@@ -371,7 +371,7 @@ func metadataOf(t *testing.T, pool *pgxpool.Pool, id ports.MessageID) map[string
 
 	var raw []byte
 	if err := pool.QueryRow(context.Background(),
-		"SELECT metadata FROM dmpf_outbox WHERE message_id = $1", string(id)).Scan(&raw); err != nil {
+		"SELECT metadata FROM outbox WHERE message_id = $1", string(id)).Scan(&raw); err != nil {
 		t.Fatalf("SELECT metadata = %v, want nil", err)
 	}
 	metadata := map[string]string{}
@@ -422,7 +422,7 @@ func payloadOf(t *testing.T, pool *pgxpool.Pool, id ports.MessageID) []byte {
 
 	var payload []byte
 	if err := pool.QueryRow(context.Background(),
-		"SELECT payload FROM dmpf_outbox WHERE message_id = $1", string(id)).Scan(&payload); err != nil {
+		"SELECT payload FROM outbox WHERE message_id = $1", string(id)).Scan(&payload); err != nil {
 		t.Fatalf("SELECT payload = %v, want nil", err)
 	}
 	return payload
@@ -433,7 +433,7 @@ func hashOf(t *testing.T, pool *pgxpool.Pool, id ports.MessageID) string {
 
 	var hash string
 	if err := pool.QueryRow(context.Background(),
-		"SELECT payload_hash FROM dmpf_outbox WHERE message_id = $1", string(id)).Scan(&hash); err != nil {
+		"SELECT payload_hash FROM outbox WHERE message_id = $1", string(id)).Scan(&hash); err != nil {
 		t.Fatalf("SELECT payload_hash = %v, want nil", err)
 	}
 	return hash

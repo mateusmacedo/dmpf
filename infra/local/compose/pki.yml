@@ -1,5 +1,5 @@
 # Autoridade de desenvolvimento para o mTLS do gRPC interno (IDN-03): uma CA, os
-# certificados de servidor de orders-api e reservations-api e o de cliente do
+# certificados de servidor de orders-api, reservations-api e bookings-api e o de cliente do
 # BFF, cuja identidade é a URI spiffe://dmpf/bff que os contextos confiam.
 # Tudo nasce num volume nomeado, só na primeira subida; nenhuma chave é
 # versionada, e as chaves ficam legíveis porque as imagens rodam como nonroot.
@@ -35,6 +35,7 @@ services:
         }
         server dmpf-orders-api
         server dmpf-reservations-api
+        server dmpf-bookings-api
         client bff
         chmod 0644 ./*.key ./*.crt
     volumes:

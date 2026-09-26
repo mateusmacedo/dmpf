@@ -10,7 +10,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/mateusmacedo/dmpf/apps/backend/bff"
+	"github.com/mateusmacedo/dmpf/apps/backend/bff/app"
 )
 
 // A refused start must never read as a failed run to whoever only checks
@@ -30,7 +30,7 @@ type options struct {
 }
 
 func run(o options, out, errOut io.Writer) int {
-	cfg, err := bff.FromEnv(o.lookup)
+	cfg, err := app.FromEnv(o.lookup)
 	if err != nil {
 		_, _ = fmt.Fprintf(errOut, "bff: %v\n", err)
 		return exitUsage
@@ -39,7 +39,7 @@ func run(o options, out, errOut io.Writer) int {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
 
-	if err := bff.Run(ctx, cfg, out); err != nil {
+	if err := app.Run(ctx, cfg, out); err != nil {
 		_, _ = fmt.Fprintf(errOut, "bff: %v\n", err)
 		return exitFailure
 	}

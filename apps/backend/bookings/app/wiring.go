@@ -5,26 +5,24 @@ import (
 	"fmt"
 	"io"
 	"maps"
-	"net/http"
+	"net"
 	"slices"
 
-	httpedge "github.com/mateusmacedo/dmpf/apps/backend/bookings/app/http"
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/mateusmacedo/dmpf/apps/backend/bookings/app/rpc"
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/application"
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/provider"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/app/relay"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/authn"
+	kernelgrpc "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/kafka"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/observability"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/audit"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/boot"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/idclock"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/otelboot"
 	obsusecase "github.com/mateusmacedo/dmpf/libs/backend/go/observability/usecase"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/deadline"
-
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/admission"
 )
 
 func Run(ctx context.Context, cfg Config, out io.Writer) error {
@@ -67,22 +65,8 @@ func NewBookingsService(pool *pgxpool.Pool, rt *otelboot.Runtime, cfg Config, au
 		Authorize:      Authorization(),
 		Instrumentation: obsusecase.New(rt,
 			audit.NewEnvelopeSink(auditOut, audit.Identity{Service: cfg.Service, Version: cfg.Version, Instance: cfg.Instance}),
-			carrierSubject, nil, application.OperationFindBooking, application.OperationFindByResource),
+			subject, classify, application.OperationFindBooking, application.OperationFindBookingByResource),
 	}
-}
-
-func NewMux(service application.Service, budget deadline.Budget, authenticator ports.Authenticator) (*http.ServeMux, error) {
-	return httpedge.Mux(service, budget, authenticator)
-}
-
-// Authenticator resolves how this process verifies identity. The development
-// mock is only reachable through the opt-out the config already refused to
-// combine with an issuer, so one start never has two ways of resolving it.
-func Authenticator(ctx context.Context, cfg Config) (ports.Authenticator, error) {
-	if cfg.Auth.DevMock {
-		return authn.DevAuthenticator{}, nil
-	}
-	return authn.NewVerifier(ctx, cfg.Auth)
 }
 
 func serveAPI(ctx context.Context, cfg Config, rt *otelboot.Runtime, out io.Writer) error {
@@ -91,49 +75,43 @@ func serveAPI(ctx context.Context, cfg Config, rt *otelboot.Runtime, out io.Writ
 		return err
 	}
 	defer pool.Close()
-	if cfg.Migrate {
-		if err := postgres.Migrate(ctx, pool, provider.Schema); err != nil {
-			return fmt.Errorf("migrate: %w", err)
-		}
-	}
-	if err := pool.Ping(ctx); err != nil {
-		return fmt.Errorf("postgres: %w", err)
-	}
 
-	authenticator, err := Authenticator(ctx, cfg)
+	ctrl, err := admission.NewController(kernelgrpc.MethodLimits(rpc.ServiceName, rpc.Methods(), cfg.Admission), cfg.MetricTenants, admission.DefaultMaxKeys)
 	if err != nil {
-		return fmt.Errorf("authenticator: %w", err)
-	}
-	mux, err := NewMux(NewBookingsService(pool, rt, cfg, out), cfg.RouteBudget, authenticator)
-	if err != nil {
-		return fmt.Errorf("routes: %w", err)
-	}
-	server := &http.Server{Addr: cfg.HTTPAddr, Handler: mux}
-	failed := make(chan error, 1)
-	go func() { failed <- server.ListenAndServe() }()
-	rt.Logger().InfoContext(ctx, "http listening", "addr", cfg.HTTPAddr)
-
-	select {
-	case <-ctx.Done():
-		return drain(server, rt)
-	case err := <-failed:
-		if err == http.ErrServerClosed {
-			return nil
-		}
 		return err
 	}
-}
-
-// drain stops accepting and lets the requests in flight finish, because a
-// forced close cuts answers the caller is waiting for.
-func drain(server *http.Server, rt *otelboot.Runtime) error {
-	grace, cancel := context.WithTimeout(context.WithoutCancel(context.Background()), observability.ShutdownGrace)
-	defer cancel()
-	if err := server.Shutdown(grace); err != nil {
-		rt.Logger().WarnContext(grace, "http shutdown grace expired", "error", err.Error())
-		return server.Close()
+	serverConfig, err := kernelgrpc.APIServerConfig(kernelgrpc.APIServer{
+		CertFile:       cfg.GRPCCertFile,
+		KeyFile:        cfg.GRPCKeyFile,
+		ClientCAFile:   cfg.GRPCClientCAFile,
+		TrustedClients: cfg.GRPCTrustedClients,
+		Insecure:       cfg.GRPCInsecure,
+		Services:       kernelgrpc.HealthServices(rpc.ServiceName),
+		Interceptors:   kernelgrpc.ServerInterceptors(rpc.ServiceName, rt.Tracer(), ctrl, rt.Instruments(), rt.Logger()),
+		Logger:         rt.Logger(),
+	})
+	if err != nil {
+		return err
 	}
-	return nil
+	server, healthServer, err := kernelgrpc.NewServer(serverConfig)
+	if err != nil {
+		return err
+	}
+	server.RegisterService(&rpc.ServiceDesc, rpc.Server{Service: NewBookingsService(pool, rt, cfg, out)})
+
+	listen := func() (net.Listener, error) { return net.Listen("tcp", cfg.GRPCAddr) }
+	ready := func(ctx context.Context) error {
+		if err := pool.Ping(ctx); err != nil {
+			return fmt.Errorf("postgres: %w", err)
+		}
+		if cfg.Migrate {
+			if err := postgres.Migrate(ctx, pool, []postgres.Capability{postgres.Outbox}, provider.Schema); err != nil {
+				return fmt.Errorf("migrate: %w", err)
+			}
+		}
+		return nil
+	}
+	return kernelgrpc.Serve(ctx, listen, server, healthServer, kernelgrpc.HealthServices(rpc.ServiceName), ready, rt.Logger())
 }
 
 func runRelay(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {

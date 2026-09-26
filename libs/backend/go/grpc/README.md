@@ -116,12 +116,12 @@ o CN**, que não tem semântica de nome e que a própria CA pode emitir livre. S
 depois desse interceptor a metadata `x-tenant-id` chega a ser lida.
 
 A identidade do BFF, o único cliente destes servidores hoje, é
-`spiffe://dmpf/bff`. `orders` e `reservations` a leem em `DMPF_GRPC_TRUSTED_CLIENTS`,
-e a CA de clientes em `DMPF_GRPC_CLIENT_CA_FILE` — as duas variáveis são lidas
+`spiffe://dmpf/bff`. `orders` e `reservations` a leem em `GRPC_TRUSTED_CLIENTS`,
+e a CA de clientes em `GRPC_CLIENT_CA_FILE` — as duas variáveis são lidas
 pelo composition root de cada contexto (`apps/backend/{orders,reservations}/app/config.go`),
 não por este módulo, que só declara os campos de `APIServer`. No compose local
 a CA é de desenvolvimento, emitida pelo `pki-init` (`infra/local`); o opt-out
-continua existindo como `DMPF_GRPC_INSECURE`, registrado no log quando usado.
+continua existindo como `GRPC_INSECURE`, registrado no log quando usado.
 
 A sonda gRPC do kubelet não apresenta certificado de cliente: com mTLS ativo os
 processos `api` trocam para sonda de socket TCP, e é por isso que `Serve`
@@ -138,7 +138,7 @@ decorator do KRN-09 ainda sem realização); a resolução da identidade do
 sujeito — a autenticação e a autorização por permissão vivem na borda REST
 (`libs/backend/go/http`, `libs/backend/go/authn`); o tenant chega por
 `TenantFunc` injetada pelo composition root, e a leitura de
-`DMPF_GRPC_CLIENT_CA_FILE`/`DMPF_GRPC_TRUSTED_CLIENTS` é do composition root de
+`GRPC_CLIENT_CA_FILE`/`GRPC_TRUSTED_CLIENTS` é do composition root de
 cada contexto, não deste módulo.
 
 ## Como rodar os testes localmente

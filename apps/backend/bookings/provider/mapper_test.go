@@ -25,7 +25,7 @@ func TestMapperMapsBookingReserved(t *testing.T) {
 		BookingID:  "B-100",
 		ResourceID: "R-200",
 		Quantity:   5,
-		At:         1_755_432_000,
+		At:         1_755_432_000_123_456_789,
 	}
 
 	mapped, err := provider.Mapper{}.Map(event)
@@ -37,13 +37,41 @@ func TestMapperMapsBookingReserved(t *testing.T) {
 		BookingId:  "B-100",
 		ResourceId: "R-200",
 		Quantity:   5,
-		ReservedAt: &timestamppb.Timestamp{Seconds: 1_755_432_000},
+		ReservedAt: &timestamppb.Timestamp{Seconds: 1_755_432_000, Nanos: 123_456_789},
 	}
 	if !proto.Equal(mapped.Message, want) {
 		t.Errorf("Map().Message = %v, want %v", mapped.Message, want)
 	}
 	if mapped.Type != "com.company.bookings.booking-reserved.v1" {
 		t.Errorf("Map().Type = %q, want %q (PTB-03)", mapped.Type, "com.company.bookings.booking-reserved.v1")
+	}
+}
+
+func TestMapperMapsBookingCancelled(t *testing.T) {
+	t.Parallel()
+
+	mapped, err := provider.Mapper{}.Map(domain.BookingCancelled{BookingID: "B-100", At: 1_755_432_000_000_000_001})
+
+	if err != nil {
+		t.Fatalf("Map() = %v, want nil", err)
+	}
+	want := &eventv1.BookingCancelled{BookingId: "B-100", CancelledAt: &timestamppb.Timestamp{Seconds: 1_755_432_000, Nanos: 1}}
+	if !proto.Equal(mapped.Message, want) || mapped.Type != "com.company.bookings.booking-cancelled.v1" {
+		t.Errorf("Map() = %v %q, want %v com.company.bookings.booking-cancelled.v1", mapped.Message, mapped.Type, want)
+	}
+}
+
+func TestMapperMapsResourceRegistered(t *testing.T) {
+	t.Parallel()
+
+	mapped, err := provider.Mapper{}.Map(domain.ResourceRegistered{Code: "R-200", At: 1_755_432_000_000_000_002})
+
+	if err != nil {
+		t.Fatalf("Map() = %v, want nil", err)
+	}
+	want := &eventv1.ResourceRegistered{ResourceId: "R-200", RegisteredAt: &timestamppb.Timestamp{Seconds: 1_755_432_000, Nanos: 2}}
+	if !proto.Equal(mapped.Message, want) || mapped.Type != "com.company.bookings.resource-registered.v1" {
+		t.Errorf("Map() = %v %q, want %v com.company.bookings.resource-registered.v1", mapped.Message, mapped.Type, want)
 	}
 }
 

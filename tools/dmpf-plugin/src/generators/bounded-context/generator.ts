@@ -23,6 +23,7 @@ const DEFAULT_DIRECTORY = 'apps/backend';
 const GO_WORK = 'go.work';
 const NPM_SCOPE = '@mateusmacedo';
 const MODSYNC_ARGS = ['run', './tools/dmpf-conformance/cmd/modsync', '--root', '.', '--write'];
+const SERVICE_NAME_PATTERN = /^[a-z][a-z0-9]*(\.[a-z][a-z0-9]*)*\.[A-Z][A-Za-z0-9]*$/;
 
 const BASELINE_INSTRUCTION = [
   'Unidades novas são ato de classificação (AUT-01). Regrave o baseline em commit próprio:',
@@ -85,6 +86,30 @@ const validatedDirectory = (directory: string | undefined): string => {
   return value;
 };
 
+const pascalOf = (name: string): string =>
+  name
+    .split('-')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join('');
+
+const validatedServiceName = ({
+  serviceName,
+  name,
+}: {
+  serviceName: string | undefined;
+  name: string;
+}): string => {
+  if (serviceName === undefined || serviceName.length === 0) {
+    return `company.${name.replaceAll('-', '')}.service.v1.${pascalOf(name)}Service`;
+  }
+  if (!SERVICE_NAME_PATTERN.test(serviceName)) {
+    return refuse(
+      `option serviceName ${JSON.stringify(serviceName)} must match ${SERVICE_NAME_PATTERN.source}`,
+    );
+  }
+  return serviceName;
+};
+
 const validatedBlocks = (blocks: readonly string[] | undefined): Block[] => {
   const requested = blocks === undefined ? [...BLOCK_NAMES] : [...new Set(blocks)];
   if (requested.includes(CONTRACT_BLOCK)) {
@@ -134,12 +159,14 @@ const planModule = ({
   directory,
   blocks,
   goVersion,
+  serviceName,
 }: {
   name: string;
   boundedContext: string;
   directory: string;
   blocks: readonly Block[];
   goVersion: string;
+  serviceName: string;
 }): Omit<Plan, 'goWork'> => {
   const moduleDirectory = `${directory}/${name}`;
   const modulePath = `${MODULE_PREFIX}/${moduleDirectory}`;
@@ -147,7 +174,6 @@ const planModule = ({
   const layouts = blocks.map(layoutOf);
   const layer = highestLayer(layouts);
   const integration = layouts.some((layout) => layout.integration);
-  const dependsOnProjects = [...new Set(layouts.flatMap((layout) => layout.dependsOnProjects))];
 
   return {
     directory: moduleDirectory,
@@ -155,6 +181,10 @@ const planModule = ({
     substitutions: {
       tmpl: '',
       name,
+      pascalName: pascalOf(name),
+      envName: name.replaceAll('-', '_').toUpperCase(),
+      serviceName,
+      moduleDirectory,
       projectNameJson: JSON.stringify(name),
       packageNameJson: JSON.stringify(`${NPM_SCOPE}/${name}`),
       sourceRootJson: JSON.stringify(moduleDirectory),
@@ -183,7 +213,7 @@ const planModule = ({
             // não unidade de si mesmo.
             include:
               unit.dirName === 'app'
-                ? [`${modulePath}/app`, `${modulePath}/cmd`]
+                ? [`${modulePath}/app`, `${modulePath}/app/rpc`, `${modulePath}/cmd`]
                 : [`${modulePath}/${unit.dirName}`],
           })),
         ),
@@ -192,8 +222,6 @@ const planModule = ({
       hasApp: blocks.includes('app'),
       testRaceCacheJson: integration ? 'false' : 'true',
       testRaceCommandJson: JSON.stringify(testRaceCommandOf(integration)),
-      hasTestRaceDependsOn: dependsOnProjects.length > 0,
-      testRaceDependsOnJson: dependsOnProjects.map((project) => JSON.stringify(project)).join(', '),
     },
     blocks: layouts.map((layout) => ({
       layout,
@@ -214,12 +242,13 @@ const planGeneration = (tree: Tree, options: BoundedContextGeneratorSchema): Pla
   const boundedContext = validatedBoundedContext(options.boundedContext);
   const directory = validatedDirectory(options.directory);
   const blocks = validatedBlocks(options.blocks);
+  const serviceName = validatedServiceName({ serviceName: options.serviceName, name });
 
   const goWorkContent =
     tree.read(GO_WORK, 'utf-8') ?? refuse(`${GO_WORK} was not found at the workspace root`);
   const { goVersion, useEntries } = parseGoWork(goWorkContent);
 
-  const module = planModule({ name, boundedContext, directory, blocks, goVersion });
+  const module = planModule({ name, boundedContext, directory, blocks, goVersion, serviceName });
 
   if (tree.exists(module.directory)) {
     refuse(`${module.directory} already exists: refusing to overwrite a module in place`);
@@ -250,6 +279,9 @@ export const boundedContextGenerator = async (
   }
   for (const block of plan.blocks) {
     generateFiles(tree, templateDir('block'), block.directory, block.substitutions);
+    if (block.layout.block === 'provider') {
+      generateFiles(tree, templateDir('provider'), block.directory, plan.substitutions);
+    }
   }
 
   tree.write(GO_WORK, plan.goWork);

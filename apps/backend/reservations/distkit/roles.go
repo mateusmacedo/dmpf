@@ -15,7 +15,10 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/app"
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/app"
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/appkit"
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
+	kernelapp "github.com/mateusmacedo/dmpf/libs/backend/go/app"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/contracts/envelope"
 	eventv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/orders/event/v1"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/kafka"
@@ -26,11 +29,8 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/clock"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/ids"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/pg"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/channel"
-
-	"github.com/mateusmacedo/dmpf/apps/backend/reservations/app"
-	"github.com/mateusmacedo/dmpf/apps/backend/reservations/appkit"
-	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
 )
 
 const (
@@ -67,7 +67,7 @@ func RunRole(t *testing.T) {
 // openPool connects without resetting: the tables belong to the parent.
 func openPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
-	pool, err := pgxpool.New(context.Background(), tb.Env(t, "DMPF_PG_DSN"))
+	pool, err := pgxpool.NewWithConfig(context.Background(), pg.Config(t, appkit.PoolOptions.Project))
 	if err != nil {
 		t.Fatalf("distkit: pgxpool.New: %v", err)
 	}
@@ -157,10 +157,10 @@ func consume(t *testing.T, ctx context.Context, cfg kafka.Config, ch channel.Cha
 // its transaction (TRP-26), and that gesture — not the error — is what the
 // worker applies; the error goes back whole so the worker can log the cause of
 // an acknowledged failure or of a delivery left without a gesture.
-type adapterSink struct{ consumer kernel.Consumer }
+type adapterSink struct{ consumer kernelapp.Consumer }
 
 func (s adapterSink) Handle(ctx context.Context, raw []byte, attempt int, ack ports.Acknowledger) error {
-	_, err := s.consumer.Consume(ctx, kernel.Delivery{Raw: raw, Attempt: attempt}, ack)
+	_, err := s.consumer.Consume(ctx, kernelapp.Delivery{Raw: raw, Attempt: attempt}, ack)
 	return err
 }
 
@@ -169,11 +169,11 @@ func (s adapterSink) Handle(ctx context.Context, raw []byte, attempt int, ack po
 type naiveSink struct{ pool *pgxpool.Pool }
 
 const naiveUpsert = `
-INSERT INTO dmpf_example_reservations (tenant_id, order_id, version, snapshot) VALUES ($4, $1, 1, $2)
+INSERT INTO reservations (tenant_id, order_id, version, snapshot) VALUES ($4, $1, 1, $2)
 ON CONFLICT (tenant_id, order_id) DO UPDATE
-   SET version  = dmpf_example_reservations.version + 1,
-       snapshot = jsonb_set(dmpf_example_reservations.snapshot, '{Items}',
-                            to_jsonb((dmpf_example_reservations.snapshot->>'Items')::int + $3))`
+   SET version  = reservations.version + 1,
+       snapshot = jsonb_set(reservations.snapshot, '{items}',
+                            to_jsonb((reservations.snapshot->>'items')::int + $3))`
 
 func (s naiveSink) Handle(ctx context.Context, raw []byte, _ int, ack ports.Acknowledger) error {
 	env, err := envelope.Unmarshal(raw)
@@ -187,7 +187,7 @@ func (s naiveSink) Handle(ctx context.Context, raw []byte, _ int, ack ports.Ackn
 	if env.TenantID == nil {
 		return errors.New("distkit: the naive consumer received an envelope without tenant")
 	}
-	snapshot, err := json.Marshal(domain.Snapshot{Order: domain.OrderID(placed.GetOrderId()), Items: int(placed.GetItemCount()), Status: domain.Confirmed})
+	snapshot, err := json.Marshal(map[string]int{"items": int(placed.GetItemCount()), "status": int(domain.Confirmed)})
 	if err != nil {
 		return err
 	}

@@ -13,7 +13,7 @@ import (
 )
 
 const insertPending = `
-INSERT INTO dmpf_outbox (
+INSERT INTO outbox (
 	message_id, message_type, schema_version,
 	aggregate_type, aggregate_id, aggregate_version,
 	partition_key, destination,

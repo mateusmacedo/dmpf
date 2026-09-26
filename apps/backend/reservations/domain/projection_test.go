@@ -74,7 +74,7 @@ func reservationState(r *domain.Reservation) domainkit.Fields {
 	switch s.Status {
 	case domain.Confirmed:
 		status = "confirmed"
-	case domain.Canceled:
+	case domain.Cancelled:
 		status = "canceled"
 	}
 	return domainkit.Fields{"order": string(s.Order), "items": strconv.Itoa(s.Items), "status": status}
@@ -87,7 +87,7 @@ func reservationFromState(f domainkit.Fields) *domain.Reservation {
 	case "confirmed":
 		s.Status = domain.Confirmed
 	case "canceled":
-		s.Status = domain.Canceled
+		s.Status = domain.Cancelled
 	}
 	return domain.FromSnapshot(s)
 }

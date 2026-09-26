@@ -1,6 +1,7 @@
-# Cria os bancos dos dois contextos no Postgres do overlay. Idempotente: só cria
-# o que falta, então reaplicar o overlay não falha; os `api` reiniciam até o
-# banco existir e aplicam o schema na partida (DMPF_MIGRATE).
+# Cria banco e role de cada app no Postgres do overlay, com o banco pertencendo
+# ao role. Idempotente: só cria o que falta, então reaplicar o overlay não
+# falha; os `api` reiniciam até o banco existir e aplicam o schema na partida
+# (MIGRATE).
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -22,9 +23,14 @@ spec:
           args:
             - >-
               set -e; until pg_isready; do sleep 2; done;
-              for db in dmpf_orders dmpf_reservations; do
-              if ! psql -tAc "SELECT 1 FROM pg_database WHERE datname = '$db'" | grep -q 1; then
-              psql -c "CREATE DATABASE \"$db\""; fi; done
+              for pair in orders:$ORDERS_PASSWORD reservations:$RESERVATIONS_PASSWORD
+              bookings:$BOOKINGS_PASSWORD; do
+              app=${pair%%:*}; pass=${pair#*:};
+              if ! psql -tAc "SELECT 1 FROM pg_roles WHERE rolname = '$app'" | grep -q 1; then
+              psql -c "CREATE ROLE \"$app\" LOGIN"; fi;
+              psql -c "ALTER ROLE \"$app\" PASSWORD '$pass'";
+              if ! psql -tAc "SELECT 1 FROM pg_database WHERE datname = '$app'" | grep -q 1; then
+              psql -c "CREATE DATABASE \"$app\" OWNER \"$app\""; fi; done
           env:
             - name: PGHOST
               value: postgres-0.postgres
@@ -43,6 +49,21 @@ spec:
                 secretKeyRef:
                   name: postgres
                   key: POSTGRES_DB
+            - name: ORDERS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: dmpf-databases
+                  key: orders
+            - name: RESERVATIONS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: dmpf-databases
+                  key: reservations
+            - name: BOOKINGS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: dmpf-databases
+                  key: bookings
           resources:
             requests:
               cpu: 10m

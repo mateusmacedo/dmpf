@@ -118,8 +118,8 @@ header grava a versão real de cada um, e outra imagem não reproduz no workflow
 
 ```bash
 CI=true GOTOOLCHAIN=go1.26.6 \
-  DMPF_PG_DSN='postgres://dmpf:dmpf@localhost:5432/dmpf?sslmode=disable' \
-  DMPF_KAFKA_BROKERS=localhost:9092 DMPF_REDPANDA_ADMIN=http://localhost:9644 \
+  PG_DSN='postgres://dmpf:dmpf@localhost:5432/dmpf?sslmode=disable' \
+  KAFKA_BROKERS=localhost:9092 REDPANDA_ADMIN=http://localhost:9644 \
   go run ./libs/backend/go/testkit/cmd/evidence --root . --release 0.1.0 --out bom/evidence/0.1.0
 ```
 

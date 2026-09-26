@@ -1,9 +1,9 @@
 package domain
 
-import "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
+import kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
 
 const (
-	CodeQuantityOutOfRange domain.Code = "resource-scheduling/booking/quantity-out-of-range"
-	CodeNotReserved        domain.Code = "resource-scheduling/booking/not-reserved"
-	CodeCodeEmpty          domain.Code = "resource-scheduling/resource/code-empty"
+	CodeBookingQuantityOutOfRange kernel.Code = "resource-scheduling/booking/quantity-out-of-range"
+	CodeBookingNotReserved        kernel.Code = "resource-scheduling/booking/not-reserved"
+	CodeResourceCodeEmpty         kernel.Code = "resource-scheduling/resource/code-empty"
 )

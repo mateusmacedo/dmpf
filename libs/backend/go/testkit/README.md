@@ -40,7 +40,7 @@ arestas permitem: um `domainkit` só é kit de domínio se ele próprio for
 
 Os harnesses `appkit` (`KIT-05`, borda a borda) e `distkit` (`KIT-06`, dois
 processos sobre o broker, `DMPF-R004`) não são genéricos: só provam o contexto
-`reservations` — `NewReservations`, SQL em `dmpf_example_reservations`,
+`reservations` — `NewReservations`, a tabela `reservations`,
 `RawOrderPlaced` de `orders`. Por isso vivem com o contexto, em
 `apps/backend/reservations/{appkit,distkit}`, como as unidades
 `reservations/appkit` e `reservations/distkit` (ADR-046). Este módulo guarda só
@@ -77,10 +77,10 @@ identificador, sem tenant: passa as três cláusulas mecânicas e reprova em
 gate de tenant.
 
 Os dois harnesses de `apps/backend/reservations` completam a pirâmide:
-`appkit` exige Postgres (`DMPF_PG_DSN`), compõe o `app.Consumer` real sobre as
+`appkit` exige Postgres (`PG_DSN`), compõe o `app.Consumer` real sobre as
 realizações e alimenta bytes na borda de protocolo — `Effects` mostra o desfecho
 nas quatro tabelas e `Ack` prova que o gesto veio depois do commit (`INB-08`);
-`distkit` exige Redpanda (`DMPF_KAFKA_BROKERS`) e Postgres, sobe dois processos
+`distkit` exige Redpanda (`KAFKA_BROKERS`) e Postgres, sobe dois processos
 OS (`producer` publica `evt-1`, `evt-1`, `evt-9`; `consumer` consome pelo
 adapter) sobre um tópico único por execução, e `Decide` sem `DMPF-R004` prova
 uma reserva escrita uma vez (`V32`), com o papel `consumer-naive` reprovando ao
@@ -204,12 +204,12 @@ travessia.
 | Subject | Pacotes | Tags | Variáveis |
 | --- | --- | --- | --- |
 | `golden` | `contracts/golden` | — | — |
-| `provider` | `postgres`, `memory` | `integration` | `DMPF_PG_DSN` |
+| `provider` | `postgres`, `memory` | `integration` | `PG_DSN` |
 | `domain` | `testkit/domainkit` | — | — |
 | `services` | `testkit/serviceskit` | — | — |
-| `app` | `apps/backend/reservations/appkit` | `integration` | `DMPF_PG_DSN` |
-| `dist` | `apps/backend/reservations/distkit` | `integration`, `distributed` | `DMPF_PG_DSN`, `DMPF_KAFKA_BROKERS`, `DMPF_REDPANDA_ADMIN` |
-| `reference` | `apps/backend/{bff,bookings,orders,reservations}/...` | `integration` | `DMPF_PG_DSN`, `DMPF_KAFKA_BROKERS`, `DMPF_REDPANDA_ADMIN` |
+| `app` | `apps/backend/reservations/appkit` | `integration` | `PG_DSN` |
+| `dist` | `apps/backend/reservations/distkit` | `integration`, `distributed` | `PG_DSN`, `KAFKA_BROKERS`, `REDPANDA_ADMIN` |
+| `reference` | `apps/backend/{bff,bookings,orders,reservations}/...` | `integration` | `PG_DSN`, `KAFKA_BROKERS`, `REDPANDA_ADMIN` |
 
 - Teste que pula por construção fica fora do subject por `-skip` com o nome
   exato, porque sob `CI` o skip reprovaria o subject: no `golden`,
@@ -248,22 +248,22 @@ ganho de decidibilidade.
 
 ```bash
 # sem infra: clock, ids, stable, domainkit, golden, serviceskit, providerkit (memória), fitness, tb, evidence
-# (o test-race leva -tags=integration; sem DMPF_PG_DSN, as suítes de banco fazem skip fora do CI)
+# (o test-race leva -tags=integration; sem PG_DSN, as suítes de banco fazem skip fora do CI)
 pnpm nx run testkit:test-race
 
 # com Postgres (providerkit sobre Postgres via postgres, tb/pg)
 docker compose -f infra/local/docker-compose.yml --profile postgres up -d
-DMPF_PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' pnpm nx run testkit:test-race
+PG_DSN='postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable' pnpm nx run testkit:test-race
 
 # borda a borda (appkit) e distribuído (distkit; build tag `distributed`) — harnesses do contexto reservations
-DMPF_PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' pnpm nx run reservations:test-race
-DMPF_PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' DMPF_KAFKA_BROKERS=localhost:9092 \
+PG_DSN='postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable' pnpm nx run reservations:test-race
+PG_DSN='postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable' KAFKA_BROKERS=localhost:9092 \
   pnpm nx run reservations:test-distributed
 
 # evidência da release (infra de pé; --out não pode existir)
 pnpm nx run bff:infra-up
-DMPF_PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' DMPF_KAFKA_BROKERS=localhost:9092 \
-  DMPF_REDPANDA_ADMIN=http://localhost:9644 pnpm nx run testkit:evidence --out="$(mktemp -d)/0.1.0"
+PG_DSN='postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable' KAFKA_BROKERS=localhost:9092 \
+  REDPANDA_ADMIN=http://localhost:9644 pnpm nx run testkit:evidence --out="$(mktemp -d)/0.1.0"
 ```
 
 Sem a variável, os testes de integração fazem `t.Skip` nomeando-a; com `CI`

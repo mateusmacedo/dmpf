@@ -10,6 +10,11 @@
 | `GET /reservations/{order_id}` | `contracts/openapi/reservations/v1/openapi.yaml` | `ReservationsService/FindReservation` | `reservations:read` |
 | `POST /reservations/{order_id}/reserve` | idem | `ReservationsService/Reserve` | `reservations:write` |
 | `POST /reservations/{order_id}/cancel` | idem | `ReservationsService/Cancel` | `reservations:write` |
+| `POST /bookings/booking` | `contracts/openapi/bookings/v1/openapi.yaml` | `BookingsService/ReserveBooking` | `bookings:write` |
+| `GET /bookings/booking?resourceId=` | idem | `BookingsService/FindBookingsByResource` | `bookings:read` |
+| `GET /bookings/booking/{id}` | idem | `BookingsService/FindBooking` | `bookings:read` |
+| `POST /bookings/booking/{id}/cancel` | idem | `BookingsService/CancelBooking` | `bookings:write` |
+| `POST /bookings/resource` | idem | `BookingsService/RegisterResource` | `bookings:write` |
 
 Toda rota exige sujeito e tenant resolvidos (`RequireSubjectAndTenant`); `ValidateEdge` recusa na partida uma rota que exigisse sujeito sem declarar permissão (`IDN-16`, `IDN-17`). Criado pela `docs/specs/SPEC-ACYKBF9V-dmpf-reference-bff-contextos.md`; decisões em `docs/adr/044-bff-rest-e-contextos-grpc-de-referencia.md` e, para autenticação e tenant, na `SPEC-9B6SHEH8` (`docs/adr/049` a `052`).
 
@@ -20,13 +25,15 @@ flowchart LR
   client[cliente HTTP] --> bff[bff]
   bff -->|gRPC + mTLS| orders[orders api]
   bff -->|gRPC + mTLS| reservations[reservations api]
-  orders --> ordersdb[(dmpf_orders)]
-  reservations --> reservationsdb[(dmpf_reservations)]
+  bff -->|gRPC + mTLS| bookings[bookings api]
+  orders --> ordersdb[(orders)]
+  reservations --> reservationsdb[(reservations)]
+  bookings --> bookingsdb[(bookings)]
 ```
 
 ## Unidade do manifesto
 
-`bff/app`, bloco `app`, `bounded_context` `bff`. O BFF alcança só o contrato gerado de `company.{orders,reservations}.service.v1` — superfície pública por construção — e o shared kernel: `http`, `grpc`, `transport`, `observability`, `authn` e `ports`. Importar domínio ou aplicação dos contextos reprova no verificador com `DMPF-D002`; o `external` não declara `pgx` nem `franz-go`.
+`bff/app`, bloco `app`, `bounded_context` `bff`. O BFF alcança só o contrato gerado de `company.{orders,reservations,bookings}.service.v1` — superfície pública por construção — e o shared kernel: `http`, `grpc`, `transport`, `observability`, `authn` e `ports`. Importar domínio ou aplicação dos contextos reprova no verificador com `DMPF-D002`; o `external` não declara `pgx` nem `franz-go`.
 
 ## Cadeia de uma requisição
 
@@ -51,36 +58,37 @@ Retry só em `FindOrder` e `FindReservation`, com `UNAVAILABLE` retentável; com
 
 ## Autenticação
 
-O BFF é a única borda que resolve identidade (`ResolveIdentity`, pacote `authn` do kernel): um verificador OIDC (`DMPF_OIDC_*`) ou o mock de desenvolvimento (`DMPF_AUTH_DEV_MOCK`), nunca os dois ao mesmo tempo. O sujeito e as permissões não atravessam o fan-out para `orders` e `reservations` (`CTX-12`) — o que chega a cada contexto é o tenant, verificado por mTLS na origem (ver `apps/backend/orders/README.md` e `apps/backend/reservations/README.md`).
+O BFF é a única borda que resolve identidade (`ResolveIdentity`, pacote `authn` do kernel): um verificador OIDC (`OIDC_*`) ou o mock de desenvolvimento (`AUTH_DEV_MOCK`), nunca os dois ao mesmo tempo. O sujeito e as permissões não atravessam o fan-out para `orders` e `reservations` (`CTX-12`) — o que chega a cada contexto é o tenant, verificado por mTLS na origem (ver `apps/backend/orders/README.md` e `apps/backend/reservations/README.md`).
 
 ## Configuração
 
 | Variável | Obrigatória | Efeito |
 | --- | --- | --- |
-| `DMPF_ORDERS_GRPC_TARGET`, `DMPF_RESERVATIONS_GRPC_TARGET` | sim | Alvos gRPC dos contextos (`dns:///host:porta`) |
-| `DMPF_GRPC_INSECURE` | uma das duas | `true` só em desenvolvimento |
-| `DMPF_GRPC_CA_FILE`, `DMPF_GRPC_SERVER_NAME` | uma das duas | CA que valida os contextos e nome esperado no certificado |
-| `DMPF_GRPC_CLIENT_CERT_FILE`, `DMPF_GRPC_CLIENT_KEY_FILE` | com `DMPF_GRPC_CA_FILE` | Certificado de cliente do BFF (URI `spiffe://dmpf/bff`): os contextos só servem workload verificado (ADR-052) |
-| `DMPF_OIDC_ISSUER`, `DMPF_OIDC_AUDIENCE`, `DMPF_OIDC_TENANT_CLAIM` | uma das duas linhas de autenticação | Emissor, audiência e claim de tenant do access token |
-| `DMPF_OIDC_PERMISSION_CLAIMS` | não | Caminhos das claims de permissão, separados por vírgula; default `scope,realm_access.roles` (formato Keycloak) |
-| `DMPF_OIDC_DISCOVERY_TIMEOUT_SECONDS` | não | Default 10 |
-| `DMPF_AUTH_DEV_MOCK` | uma das duas linhas de autenticação | `true` lê a identidade declarada no próprio Bearer, sem verificação — só desenvolvimento; não pode coexistir com `DMPF_OIDC_ISSUER` |
-| `DMPF_HTTP_ADDR` | não | Default `:8080`; `127.0.0.1:0` escolhe porta livre e o log `http listening` traz o endereço |
-| `DMPF_CORS_ORIGINS` | não | Origens aceitas pelo navegador (Swagger UI local) |
-| `DMPF_METRIC_TENANTS` | não | Tenants que têm bucket de admissão e rótulo de métrica próprios (`MET-07`), separados por vírgula; os demais compartilham `other` |
-| `DMPF_OPENAPI_ORDERS_PATH`, `DMPF_OPENAPI_RESERVATIONS_PATH` | não | Servem os contratos em `/openapi/<ctx>/v1/openapi.yaml` |
-| `DMPF_OTLP_ENDPOINT`, `DMPF_OTLP_INSECURE` | não | Exportação OTLP; sem endpoint, telemetria em memória |
-| `DMPF_SERVICE`, `DMPF_SERVICE_VERSION`, `DMPF_INSTANCE_ID` | não | Identidade do recurso OTel |
+| `ORDERS_GRPC_TARGET`, `RESERVATIONS_GRPC_TARGET`, `BOOKINGS_GRPC_TARGET` | sim | Alvos gRPC dos contextos (`dns:///host:porta`) |
+| `GRPC_INSECURE` | uma das duas | `true` só em desenvolvimento |
+| `GRPC_CA_FILE`, `GRPC_SERVER_NAME` | uma das duas | CA que valida os contextos e nome esperado no certificado |
+| `GRPC_CLIENT_CERT_FILE`, `GRPC_CLIENT_KEY_FILE` | com `GRPC_CA_FILE` | Certificado de cliente do BFF (URI `spiffe://dmpf/bff`): os contextos só servem workload verificado (ADR-052) |
+| `OIDC_ISSUER`, `OIDC_AUDIENCE`, `OIDC_TENANT_CLAIM` | uma das duas linhas de autenticação | Emissor, audiência e claim de tenant do access token |
+| `OIDC_PERMISSION_CLAIMS` | não | Caminhos das claims de permissão, separados por vírgula; default `scope,realm_access.roles` (formato Keycloak) |
+| `OIDC_DISCOVERY_TIMEOUT_SECONDS` | não | Default 10 |
+| `AUTH_DEV_MOCK` | uma das duas linhas de autenticação | `true` lê a identidade declarada no próprio Bearer, sem verificação — só desenvolvimento; não pode coexistir com `OIDC_ISSUER` |
+| `HTTP_ADDR` | não | Default `:8080`; `127.0.0.1:0` escolhe porta livre e o log `http listening` traz o endereço |
+| `CORS_ORIGINS` | não | Origens aceitas pelo navegador (Swagger UI local) |
+| `METRIC_TENANTS` | não | Tenants que têm bucket de admissão e rótulo de métrica próprios (`MET-07`), separados por vírgula; os demais compartilham `other` |
+| `OPENAPI_ORDERS_PATH`, `OPENAPI_RESERVATIONS_PATH`, `OPENAPI_BOOKINGS_PATH` | não | Servem os contratos em `/openapi/<ctx>/v1/openapi.yaml` |
+| `OTLP_ENDPOINT`, `OTLP_INSECURE` | não | Exportação OTLP; sem endpoint, telemetria em memória |
+| `SERVICE`, `SERVICE_VERSION`, `INSTANCE_ID` | não | Identidade do recurso OTel |
 
 Variável obrigatória ausente, ou nenhuma política de transporte gRPC ou de autenticação, encerra a partida com exit 2 nomeando o que falta.
 
 ## Rodar localmente
 
-Com os dois contextos no ar (ver os README deles):
+Com os três contextos no ar (ver os README deles):
 
 ```bash
-DMPF_ORDERS_GRPC_TARGET=dns:///localhost:9090 DMPF_RESERVATIONS_GRPC_TARGET=dns:///localhost:9091 \
-  DMPF_GRPC_INSECURE=true DMPF_AUTH_DEV_MOCK=true pnpm nx run bff:serve
+ORDERS_GRPC_TARGET=dns:///localhost:9090 RESERVATIONS_GRPC_TARGET=dns:///localhost:9091 \
+BOOKINGS_GRPC_TARGET=dns:///localhost:9092 \
+  GRPC_INSECURE=true AUTH_DEV_MOCK=true pnpm nx run bff:serve
 ```
 
 A topologia inteira sobe por `docker compose -f infra/local/docker-compose.yml --profile dmpf up -d --build`, com mTLS entre o BFF e os `api` e SASL no Kafka interno (ver `infra/README.md`).
@@ -91,10 +99,10 @@ A topologia inteira sobe por `docker compose -f infra/local/docker-compose.yml -
 
 ## Testes
 
-- Unitários: rotas e contrato (inclusive o teste estrutural dos dois OpenAPI), resolução e recusa de identidade (credencial ausente, expirada, asserção divergente via `X-Subject-ID`/`X-Tenant-ID`/`tenant_id`), mapeamento de status, clientes gRPC contra servidores falsos por `bufconn` (retry por idempotência, prazo decrescente, metadata, mTLS e hierarquia de spans) e partida do binário.
-- E2e caixa-preta (build tag `integration`): compila os três binários com `-race`, cria dois bancos e quatro tópicos por execução, sobe os seis processos e fala só HTTP com o BFF. Prova a cadeia de contexto até `ReservationConfirmed`, o cancelamento que vence um `OrderPlaced` posterior, a reentrega que termina em `DuplicateIgnored`, uma outbox por contexto e a recusa de uma chamada sem credencial. Exige `DMPF_PG_DSN` (usuário com `CREATE DATABASE`) e `DMPF_KAFKA_BROKERS`.
+- Unitários: rotas e contrato (inclusive o teste estrutural dos três OpenAPI), resolução e recusa de identidade (credencial ausente, expirada, asserção divergente via `X-Subject-ID`/`X-Tenant-ID`/`tenant_id`), mapeamento de status, clientes gRPC contra servidores falsos por `bufconn` (retry por idempotência, prazo decrescente, metadata, mTLS e hierarquia de spans) e partida do binário.
+- E2e caixa-preta (build tag `integration`): compila os quatro binários com `-race`, cria três bancos e seis tópicos por execução, sobe os oito processos e fala só HTTP com o BFF. Prova a cadeia de contexto até `ReservationConfirmed` e até o `BookingReserved` que sai do `bookings`, o cancelamento que vence um `OrderPlaced` posterior, a reentrega que termina em `DuplicateIgnored`, uma outbox por contexto e a recusa de uma chamada sem credencial. Exige `PG_DSN` (usuário com `CREATE DATABASE`) e `KAFKA_BROKERS`.
 
 ```bash
-DMPF_PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' DMPF_KAFKA_BROKERS=localhost:9092 \
+PG_DSN='postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable' KAFKA_BROKERS=localhost:9092 \
   pnpm nx run bff:test-race
 ```

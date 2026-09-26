@@ -5,7 +5,7 @@ Bounded context `reservations` da topologia de referência do kernel DMPF (ADR-0
 | Papel | O que faz | Blocos cabeados |
 | --- | --- | --- |
 | `api` | Serve `company.reservations.service.v1.ReservationsService` por gRPC: `Reserve`, `Cancel`, `FindReservation` | `grpc` (servidor, mTLS, admissão) → `application` do contexto (autorização, UPR) → `provider` do contexto (repositório, reader, escopados por tenant) sobre `postgres` do kernel (UoW, outbox) |
-| `relay` | Drena a outbox de `dmpf_reservations` para `reservations.events`, autenticado no broker | `app/relay` → `postgres` (claim) + `kafka` (publisher) |
+| `relay` | Drena a outbox do banco `reservations` para `reservations.events`, autenticado no broker | `app/relay` → `postgres` (claim) + `kafka` (publisher) |
 | `consumer` | Consome `OrderPlaced` de `orders.events` pela inbox, só de fronteira verificada | `kafka` (consumer) → `app` (adapter) → `application` do contexto → `provider` do contexto sobre `postgres` (inbox, outbox) |
 
 Criado pela `docs/specs/SPEC-ACYKBF9V-dmpf-reference-bff-contextos.md`; o layout canônico e a composition root em `app/` vêm do ADR-048. Autenticação de workload, tenant e autorização por permissão vêm da `SPEC-9B6SHEH8` (ADR-049 a ADR-052).
@@ -22,7 +22,7 @@ Uma reserva pendente vira `Confirmed`, por `Reserve` síncrono ou pelo consumo d
 | --- | --- | --- | --- |
 | `domain` | `domain` | `reservations/domain` | Agregado `Reservation` com chave natural permanente (o identificador do pedido) e as UPRs `Reserve` e `Cancel` |
 | `application` | `application` | `reservations/application` | `Service` com `Reserve`, `Cancel`, `FindReservation` e o consumo `ConsumeOrderPlaced`/`Consume`, que ramifica pelas sete disposições de FND-04 §6.4 sobre a inbox; cada operação declara a permissão que exige (`app/authorization.go`) |
-| `provider` | `provider` | `reservations/provider-postgres` | Repositório escopado por `tenant_id` via `postgres.Table` (ADR-051), por chave natural (`order_id`, `ON CONFLICT DO NOTHING`, `GAR-10`) sobre `dmpf_example_reservations`, `Reader`, mapeador para `company.reservations.event.v1` |
+| `provider` | `provider` | `reservations/provider-postgres` | Repositório escopado por `tenant_id` via `postgres.Table` (ADR-051), por chave natural (`order_id`, `ON CONFLICT DO NOTHING`, `GAR-10`) sobre a tabela `reservations` (estado em `snapshot` `jsonb`, ADR-053), `Reader`, mapeador para `company.reservations.event.v1` |
 | `app`, `app/rpc`, `cmd` | `app` | `reservations/app` | Composition root: o único lugar onde os providers concretos de `reservations` são instanciados (ADR-015); consumer adapter (`NewConsumer`, `Handler`), `Sink`, servidor gRPC e binário |
 | `appkit` | `app` | `reservations/appkit` | Harness borda a borda (`KIT-05`): `app.Consumer` real sobre Postgres, alimentado com bytes na borda de protocolo; `Effects` e `Ack` depois do commit |
 | `distkit` | `app` | `reservations/distkit` | Harness distribuído (`KIT-06`): dois processos OS sobre Redpanda, reentrega deliberada e `DMPF-R004` (`V32`) |
@@ -40,48 +40,48 @@ Os packages do kernel `domain` e `application` têm o mesmo nome dos deste módu
 ## Servidor gRPC
 
 - **Binding no bloco `app`.** O `grpc.ServiceDesc` é montado a partir do descriptor gerado em `contracts`; um teste reprova método do descriptor que não esteja no `ServiceDesc`.
-- **Interceptors, nesta ordem:** span de servidor com pai extraído da metadata → mTLS do peer contra `DMPF_GRPC_TRUSTED_CLIENTS` (quando TLS está ligado) → admissão por método → deadline obrigatório (`INVALID_ARGUMENT` antes do caso de uso) → contexto de execução (`x-correlation-id` preservado ou cunhado, `request_id` próprio como causação, `x-tenant-id` lido só de peer verificado, `idempotency-key` recebida só registrada no log) → handler. A cadeia vale só para os métodos de `ReservationsService`: a checagem de saúde passa direto, sem admissão nem prazo obrigatório.
+- **Interceptors, nesta ordem:** span de servidor com pai extraído da metadata → mTLS do peer contra `GRPC_TRUSTED_CLIENTS` (quando TLS está ligado) → admissão por método → deadline obrigatório (`INVALID_ARGUMENT` antes do caso de uso) → contexto de execução (`x-correlation-id` preservado ou cunhado, `request_id` próprio como causação, `x-tenant-id` lido só de peer verificado, `idempotency-key` recebida só registrada no log) → handler. A cadeia vale só para os métodos de `ReservationsService`: a checagem de saúde passa direto, sem admissão nem prazo obrigatório.
 - **Desfechos:** rejeição de domínio no `oneof result`; `NOT_FOUND` (inclusive acesso a identificador de outro tenant), `ABORTED`, ausência de tenant ou permissão `PERMISSION_DENIED`, `DEADLINE_EXCEEDED` e `INTERNAL` sem detalhe para as falhas técnicas.
 - **Saúde:** `NOT_SERVING` até o ping no pool e o `Migrate` opcional, `SERVING` depois, `NOT_SERVING` no shutdown; o log `grpc listening` traz o endereço real.
 
 ## Consumo
 
-A ponte `Sink` confirma sem inbox a entrega de tipo diferente do assinado e abre um span de consumo cujo pai é o `traceparent` do envelope (`TRC-07`). A fronteira só é `Verified` quando o transporte prova as duas coisas — TLS **e** cliente autenticado por SASL ou certificado (ADR-052): com o opt-out de desenvolvimento (`DMPF_KAFKA_INSECURE`), a fronteira fica `development-only`, nunca `Verified`. `OrdersBoundary` admite só o produtor declarado em `DMPF_ORDERS_SOURCE` (`CTX-27`); a ligação real entre principal e `source` é a ACL do broker (só o principal de `orders` publica em `orders.events`), pré-requisito de todo ambiente com a fronteira verificada. O adapter reconstrói o `ExecutionContext` do envelope — tenant incluído — e o deposita no `context.Context` (ADR-049), com `correlationid` e o `id` recebido como causação, então o `ReservationConfirmed` herda a cadeia do `OrderPlaced`.
+A ponte `Sink` confirma sem inbox a entrega de tipo diferente do assinado e abre um span de consumo cujo pai é o `traceparent` do envelope (`TRC-07`). A fronteira só é `Verified` quando o transporte prova as duas coisas — TLS **e** cliente autenticado por SASL ou certificado (ADR-052): com o opt-out de desenvolvimento (`KAFKA_INSECURE`), a fronteira fica `development-only`, nunca `Verified`. `OrdersBoundary` admite só o produtor declarado em `ORDERS_SOURCE` (`CTX-27`); a ligação real entre principal e `source` é a ACL do broker (só o principal de `orders` publica em `orders.events`), pré-requisito de todo ambiente com a fronteira verificada. O adapter reconstrói o `ExecutionContext` do envelope — tenant incluído — e o deposita no `context.Context` (ADR-049), com `correlationid` e o `id` recebido como causação, então o `ReservationConfirmed` herda a cadeia do `OrderPlaced`.
 
 ## Configuração
 
 | Variável | Papel | Efeito |
 | --- | --- | --- |
-| `DMPF_PG_DSN` | todos | Banco `dmpf_reservations` |
-| `DMPF_GRPC_ADDR` | `api` | Default `:9090` |
-| `DMPF_GRPC_INSECURE` ou `DMPF_GRPC_TLS_CERT_FILE` + `DMPF_GRPC_TLS_KEY_FILE` | `api` | Transporte; sem nenhum, exit 2 |
-| `DMPF_GRPC_CLIENT_CA_FILE`, `DMPF_GRPC_TRUSTED_CLIENTS` | `api`, com TLS | CA dos clientes e allowlist de identidades por URI/DNS SAN (nunca CN — ex.: `spiffe://dmpf/bff`); com TLS ligado os dois são obrigatórios (ADR-052), e o `x-tenant-id` só é lido de peer verificado |
-| `DMPF_MIGRATE` | `api` | Aplica o schema antes de servir |
-| `DMPF_KAFKA_BROKERS`, `DMPF_KAFKA_INSECURE` | `relay`, `consumer` | Brokers e opt-out de TLS |
-| `DMPF_KAFKA_SASL_MECHANISM`, `DMPF_KAFKA_SASL_USERNAME`, `DMPF_KAFKA_SASL_PASSWORD` ou `DMPF_KAFKA_CLIENT_CERT_FILE` + `DMPF_KAFKA_CLIENT_KEY_FILE` | papéis com Kafka, com TLS | Autenticação do cliente no broker (SCRAM-SHA-256/512 ou certificado), obrigatória sempre que `DMPF_KAFKA_INSECURE` não está ligado (ADR-052); `DMPF_KAFKA_CA_FILE` quando a CA do broker é privada |
-| `DMPF_KAFKA_RESERVATIONS_TOPIC`, `DMPF_KAFKA_RESERVATIONS_DLQ`, `DMPF_KAFKA_GROUP` | `relay` | Canal `reservations.events` |
-| `DMPF_KAFKA_ORDERS_TOPIC`, `DMPF_KAFKA_ORDERS_DLQ`, `DMPF_KAFKA_GROUP` | `consumer` | Canal inbound `orders.events` e grupo |
-| `DMPF_ORDERS_SOURCE` | `consumer` | Produtor admitido na fronteira do consumo, pelo atributo `source` do envelope (`CTX-27`); default `urn:dmpf:reference-orders`, o do relay de `orders`; a ACL do broker por principal é quem garante que só ele o produz (ADR-052) |
-| `DMPF_METRIC_TENANTS` | `api` | Tenants com bucket de admissão e rótulo de métrica próprios (`MET-07`), separados por vírgula; os demais compartilham `other` |
-| `DMPF_OTLP_ENDPOINT`, `DMPF_OTLP_INSECURE`, `DMPF_SERVICE`, `DMPF_SERVICE_VERSION`, `DMPF_INSTANCE_ID` | todos | Telemetria e identidade |
+| `PG_DSN` | todos | Banco e role `reservations` (ADR-053) |
+| `GRPC_ADDR` | `api` | Default `:9090` |
+| `GRPC_INSECURE` ou `GRPC_TLS_CERT_FILE` + `GRPC_TLS_KEY_FILE` | `api` | Transporte; sem nenhum, exit 2 |
+| `GRPC_CLIENT_CA_FILE`, `GRPC_TRUSTED_CLIENTS` | `api`, com TLS | CA dos clientes e allowlist de identidades por URI/DNS SAN (nunca CN — ex.: `spiffe://dmpf/bff`); com TLS ligado os dois são obrigatórios (ADR-052), e o `x-tenant-id` só é lido de peer verificado |
+| `MIGRATE` | `api` | Aplica o schema antes de servir |
+| `KAFKA_BROKERS`, `KAFKA_INSECURE` | `relay`, `consumer` | Brokers e opt-out de TLS |
+| `KAFKA_SASL_MECHANISM`, `KAFKA_SASL_USERNAME`, `KAFKA_SASL_PASSWORD` ou `KAFKA_CLIENT_CERT_FILE` + `KAFKA_CLIENT_KEY_FILE` | papéis com Kafka, com TLS | Autenticação do cliente no broker (SCRAM-SHA-256/512 ou certificado), obrigatória sempre que `KAFKA_INSECURE` não está ligado (ADR-052); `KAFKA_CA_FILE` quando a CA do broker é privada |
+| `KAFKA_RESERVATIONS_TOPIC`, `KAFKA_RESERVATIONS_DLQ`, `KAFKA_GROUP` | `relay` | Canal `reservations.events` |
+| `KAFKA_ORDERS_TOPIC`, `KAFKA_ORDERS_DLQ`, `KAFKA_GROUP` | `consumer` | Canal inbound `orders.events` e grupo |
+| `ORDERS_SOURCE` | `consumer` | Produtor admitido na fronteira do consumo, pelo atributo `source` do envelope (`CTX-27`); default `urn:dmpf:reference-orders`, o do relay de `orders`; a ACL do broker por principal é quem garante que só ele o produz (ADR-052) |
+| `METRIC_TENANTS` | `api` | Tenants com bucket de admissão e rótulo de métrica próprios (`MET-07`), separados por vírgula; os demais compartilham `other` |
+| `OTLP_ENDPOINT`, `OTLP_INSECURE`, `SERVICE`, `SERVICE_VERSION`, `INSTANCE_ID` | todos | Telemetria e identidade |
 
 Variável obrigatória ausente encerra a partida com exit 2 nomeando-a.
 
 ## Rodar localmente
 
 ```bash
-docker compose -f infra/local/docker-compose.yml exec postgres psql -U app -d app -c 'CREATE DATABASE dmpf_reservations'
-DMPF_PG_DSN='postgres://app:app@localhost:5432/dmpf_reservations?sslmode=disable' DMPF_MIGRATE=true DMPF_GRPC_ADDR=:9091 DMPF_GRPC_INSECURE=true \
+docker compose -f infra/local/docker-compose.yml --profile postgres --profile dmpf up -d postgres-init
+PG_DSN='postgres://reservations:reservations-local@localhost:5432/reservations?sslmode=disable' MIGRATE=true GRPC_ADDR=:9091 GRPC_INSECURE=true \
   pnpm nx run reservations:serve-api
-DMPF_PG_DSN='postgres://app:app@localhost:5432/dmpf_reservations?sslmode=disable' DMPF_KAFKA_BROKERS=localhost:9092 DMPF_KAFKA_INSECURE=true \
-  DMPF_KAFKA_RESERVATIONS_TOPIC=reservations.events DMPF_KAFKA_RESERVATIONS_DLQ=reservations.events.dlq DMPF_KAFKA_GROUP=reservations \
+PG_DSN='postgres://reservations:reservations-local@localhost:5432/reservations?sslmode=disable' KAFKA_BROKERS=localhost:9092 KAFKA_INSECURE=true \
+  KAFKA_RESERVATIONS_TOPIC=reservations.events KAFKA_RESERVATIONS_DLQ=reservations.events.dlq KAFKA_GROUP=reservations \
   pnpm nx run reservations:serve-relay
-DMPF_PG_DSN='postgres://app:app@localhost:5432/dmpf_reservations?sslmode=disable' DMPF_KAFKA_BROKERS=localhost:9092 DMPF_KAFKA_INSECURE=true \
-  DMPF_KAFKA_ORDERS_TOPIC=orders.events DMPF_KAFKA_ORDERS_DLQ=orders.events.dlq DMPF_KAFKA_GROUP=reservations \
+PG_DSN='postgres://reservations:reservations-local@localhost:5432/reservations?sslmode=disable' KAFKA_BROKERS=localhost:9092 KAFKA_INSECURE=true \
+  KAFKA_ORDERS_TOPIC=orders.events KAFKA_ORDERS_DLQ=orders.events.dlq KAFKA_GROUP=reservations \
   pnpm nx run reservations:serve-consumer
 ```
 
-`DMPF_GRPC_INSECURE=true` e `DMPF_KAFKA_INSECURE=true` são o opt-out de desenvolvimento (ADR-052) — a fronteira do consumer fica `development-only`; a topologia completa via `docker compose --profile dmpf` já sobe com mTLS entre `api` e BFF e SASL no Kafka interno (`infra/README.md`).
+`GRPC_INSECURE=true` e `KAFKA_INSECURE=true` são o opt-out de desenvolvimento (ADR-052) — a fronteira do consumer fica `development-only`; a topologia completa via `docker compose --profile dmpf` já sobe com mTLS entre `api` e BFF e SASL no Kafka interno (`infra/README.md`).
 
 ## Targets Nx
 
@@ -91,10 +91,10 @@ DMPF_PG_DSN='postgres://app:app@localhost:5432/dmpf_reservations?sslmode=disable
 
 Unitários, sem banco: as UPRs do `domain`, as sete disposições do consumo e a sequência canônica da `application` sobre o `memory`, e o binding e os interceptors do `rpc` por `bufconn` sobre o store em memória, ciclo de saúde, tracer de banco, `Sink` (span com pai remoto, filtro por tipo e classificação da fronteira), catálogos por papel e partida do binário.
 
-Com a build tag `integration` e `DMPF_PG_DSN`, o `test-race` cobre o `provider` (escopo de tenant e acesso cruzado inclusos), o e2e do consumer adapter e do relay no package raiz e o `appkit`; declara `dependsOn` sobre o `test-race` do `postgres`, porque os harnesses truncam as mesmas tabelas. O `test-distributed` roda só o `distkit`, com as tags `integration,distributed`, e exige Redpanda (`DMPF_KAFKA_BROKERS`); é o que o `dmpf-distributed.yml` executa em pipeline próprio (`KIT-11`). A topologia inteira é provada pelo e2e do `bff`.
+Com a build tag `integration` e `PG_DSN`, o `test-race` cobre o `provider` (escopo de tenant e acesso cruzado inclusos), o e2e do consumer adapter e do relay no package raiz e o `appkit`; cada suíte roda no banco `reservations_test`, que o `tb/pg` cria no servidor de `PG_DSN`, e o `test-distributed` roda depois do `test-race`, porque usa o mesmo banco. O `test-distributed` roda só o `distkit`, com as tags `integration,distributed`, e exige Redpanda (`KAFKA_BROKERS`); é o que o `dmpf-distributed.yml` executa em pipeline próprio (`KIT-11`). A topologia inteira é provada pelo e2e do `bff`.
 
 ```bash
-DMPF_PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' pnpm nx run reservations:test-race
-DMPF_PG_DSN='postgres://app:app@localhost:5432/app?sslmode=disable' DMPF_KAFKA_BROKERS=localhost:9092 \
+PG_DSN='postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable' pnpm nx run reservations:test-race
+PG_DSN='postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable' KAFKA_BROKERS=localhost:9092 \
   pnpm nx run reservations:test-distributed
 ```

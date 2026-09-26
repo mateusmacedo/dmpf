@@ -44,7 +44,7 @@ type Claimed struct {
 const claimStatement = `
 WITH eligible AS (
 	SELECT id
-	  FROM dmpf_outbox
+	  FROM outbox
 	 WHERE available_at <= $1
 	   AND ( status = 'pending'
 	      OR ( status = 'publishing'
@@ -56,7 +56,7 @@ WITH eligible AS (
 	 LIMIT $2
 	 FOR UPDATE SKIP LOCKED
 )
-UPDATE dmpf_outbox AS o
+UPDATE outbox AS o
    SET status = 'publishing',
        locked_by = $3,
        locked_until = $4,
@@ -73,7 +73,7 @@ const (
 	// and leaving the deadline behind would show a live lease on a row nobody
 	// is draining. locked_by stays as the audit trail of which claim published.
 	markPublishedStatement = `
-UPDATE dmpf_outbox SET status = 'published', published_at = $3, locked_until = NULL, last_error = NULL
+UPDATE outbox SET status = 'published', published_at = $3, locked_until = NULL, last_error = NULL
  WHERE id = $1 AND locked_by = $2`
 
 	// status stays publishing: OBX-04 forbids writing pending over it, and the
@@ -89,14 +89,14 @@ UPDATE dmpf_outbox SET status = 'published', published_at = $3, locked_until = N
 	// claim without a failure of its own, and overwriting the reason the last
 	// delivery failed would erase the only diagnosis the row carries.
 	rescheduleStatement = `
-UPDATE dmpf_outbox
+UPDATE outbox
    SET available_at = GREATEST($3, occurred_at),
        locked_until = NULL,
        last_error = COALESCE(NULLIF($4, ''), last_error)
  WHERE id = $1 AND locked_by = $2`
 
 	failStatement = `
-UPDATE dmpf_outbox SET status = 'failed', locked_until = NULL, last_error = $3
+UPDATE outbox SET status = 'failed', locked_until = NULL, last_error = $3
  WHERE id = $1 AND locked_by = $2`
 )
 

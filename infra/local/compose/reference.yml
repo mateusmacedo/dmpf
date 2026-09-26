@@ -1,7 +1,7 @@
 # Topologia de referência (ADR-044): o BFF é a única borda HTTP publicada no
-# host; orders e reservations servem gRPC só na rede do projeto, cada um com o
-# próprio banco, e cada relay drena apenas a outbox do seu contexto. Os bancos
-# nascem no postgres-init; o schema, no papel api (DMPF_MIGRATE=true). Relay e
+# host; orders, reservations e bookings servem gRPC só na rede do projeto, cada um com o
+# próprio banco e role, e cada relay drena apenas a outbox do seu contexto. Os
+# bancos nascem no postgres-init; o schema, no papel api (MIGRATE=true). Relay e
 # consumer reiniciam até as tabelas existirem. Os tópicos vêm do redpanda-init.
 x-app: &app
   profiles: [dmpf]
@@ -11,52 +11,66 @@ x-orders-image: &orders-image
   build:
     context: ../../..
     dockerfile: apps/backend/orders/Dockerfile
-  image: ${DMPF_ORDERS_IMAGE:-orders:local}
+  image: ${ORDERS_IMAGE:-orders:local}
 
 x-reservations-image: &reservations-image
   build:
     context: ../../..
     dockerfile: apps/backend/reservations/Dockerfile
-  image: ${DMPF_RESERVATIONS_IMAGE:-reservations:local}
+  image: ${RESERVATIONS_IMAGE:-reservations:local}
+
+x-bookings-image: &bookings-image
+  build:
+    context: ../../..
+    dockerfile: apps/backend/bookings/Dockerfile
+  image: ${BOOKINGS_IMAGE:-bookings:local}
 
 x-dmpf-env: &dmpf-env
-  DMPF_OTLP_ENDPOINT: otel-collector:4317
-  DMPF_OTLP_INSECURE: 'true'
-  DMPF_SERVICE_VERSION: ${DMPF_SERVICE_VERSION:-local}
+  OTLP_ENDPOINT: otel-collector:4317
+  OTLP_INSECURE: 'true'
+  SERVICE_VERSION: ${SERVICE_VERSION:-local}
 
 # Sem TLS no broker local (opt-out de desenvolvimento), mas com o cliente
 # autenticado por SASL SCRAM no listener interno: cada processo tem o próprio
 # principal, criado no redpanda-init (IDN-04).
 x-kafka-env: &kafka-env
-  DMPF_KAFKA_BROKERS: redpanda:29092
-  DMPF_KAFKA_INSECURE: 'true'
-  DMPF_KAFKA_GROUP: ${DMPF_KAFKA_GROUP:-reservations}
-  DMPF_KAFKA_SASL_MECHANISM: SCRAM-SHA-256
+  KAFKA_BROKERS: redpanda:29092
+  KAFKA_INSECURE: 'true'
+  KAFKA_GROUP: ${KAFKA_GROUP:-reservations}
+  KAFKA_SASL_MECHANISM: SCRAM-SHA-256
 
 x-kafka-orders: &kafka-orders
-  DMPF_KAFKA_SASL_USERNAME: orders
-  DMPF_KAFKA_SASL_PASSWORD: ${DMPF_KAFKA_ORDERS_PASSWORD:-orders-local}
+  KAFKA_SASL_USERNAME: orders
+  KAFKA_SASL_PASSWORD: ${KAFKA_ORDERS_PASSWORD:-orders-local}
 
 x-kafka-reservations: &kafka-reservations
-  DMPF_KAFKA_SASL_USERNAME: reservations
-  DMPF_KAFKA_SASL_PASSWORD: ${DMPF_KAFKA_RESERVATIONS_PASSWORD:-reservations-local}
+  KAFKA_SASL_USERNAME: reservations
+  KAFKA_SASL_PASSWORD: ${KAFKA_RESERVATIONS_PASSWORD:-reservations-local}
+
+x-kafka-bookings: &kafka-bookings
+  KAFKA_SASL_USERNAME: bookings
+  KAFKA_SASL_PASSWORD: ${KAFKA_BOOKINGS_PASSWORD:-bookings-local}
 
 x-orders-env: &orders-env
-  DMPF_SERVICE: orders
-  DMPF_PG_DSN: postgres://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-app}@postgres:5432/${DMPF_ORDERS_DB:-dmpf_orders}?sslmode=disable
+  SERVICE: orders
+  PG_DSN: postgres://orders:${ORDERS_PG_PASSWORD:-orders-local}@postgres:5432/orders?sslmode=disable
 
 x-reservations-env: &reservations-env
-  DMPF_SERVICE: reservations
-  DMPF_PG_DSN: postgres://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-app}@postgres:5432/${DMPF_RESERVATIONS_DB:-dmpf_reservations}?sslmode=disable
+  SERVICE: reservations
+  PG_DSN: postgres://reservations:${RESERVATIONS_PG_PASSWORD:-reservations-local}@postgres:5432/reservations?sslmode=disable
+
+x-bookings-env: &bookings-env
+  SERVICE: bookings
+  PG_DSN: postgres://bookings:${BOOKINGS_PG_PASSWORD:-bookings-local}@postgres:5432/bookings?sslmode=disable
 
 # gRPC interno com mTLS (IDN-03): cada api apresenta o próprio certificado e só
 # serve o workload que a CA local assinou e a allowlist nomeia — o BFF. Os
 # arquivos vêm do volume do pki-init.
 x-grpc-server-env: &grpc-server-env
-  DMPF_GRPC_ADDR: ':9090'
-  DMPF_GRPC_CLIENT_CA_FILE: /pki/ca.crt
-  DMPF_GRPC_TRUSTED_CLIENTS: spiffe://dmpf/bff
-  DMPF_MIGRATE: 'true'
+  GRPC_ADDR: ':9090'
+  GRPC_CLIENT_CA_FILE: /pki/ca.crt
+  GRPC_TRUSTED_CLIENTS: spiffe://dmpf/bff
+  MIGRATE: 'true'
 
 x-pki: &pki
   - dmpf-pki:/pki:ro
@@ -80,17 +94,25 @@ services:
         condition: service_healthy
     environment:
       PGHOST: postgres
-      PGUSER: ${POSTGRES_USER:-app}
-      PGPASSWORD: ${POSTGRES_PASSWORD:-app}
-      PGDATABASE: ${POSTGRES_DB:-app}
+      PGUSER: ${POSTGRES_USER:-postgres}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      PGDATABASE: postgres
     entrypoint: ['/bin/sh', '-c']
-    # Idempotente: só cria o banco que ainda não existe, então reexecutar o
-    # profile não falha.
+    # Idempotente: cria o role e o banco que ainda não existem e reconcilia a
+    # senha do role a cada execução, para que trocar a senha com o volume mantido
+    # não deixe a app sem conexão. O banco pertence ao role da app, que assim cria
+    # o próprio schema sem privilégio administrativo.
     command:
       - >-
-        set -e; for db in ${DMPF_ORDERS_DB:-dmpf_orders} ${DMPF_RESERVATIONS_DB:-dmpf_reservations}; do
-        if ! psql -tAc "SELECT 1 FROM pg_database WHERE datname = '$$db'" | grep -q 1; then
-        psql -c "CREATE DATABASE \"$$db\""; fi; done
+        set -e; for pair in orders:${ORDERS_PG_PASSWORD:-orders-local}
+        reservations:${RESERVATIONS_PG_PASSWORD:-reservations-local}
+        bookings:${BOOKINGS_PG_PASSWORD:-bookings-local}; do
+        app=$${pair%%:*}; pass=$${pair#*:};
+        if ! psql -tAc "SELECT 1 FROM pg_roles WHERE rolname = '$$app'" | grep -q 1; then
+        psql -c "CREATE ROLE \"$$app\" LOGIN"; fi;
+        psql -c "ALTER ROLE \"$$app\" PASSWORD '$$pass'";
+        if ! psql -tAc "SELECT 1 FROM pg_database WHERE datname = '$$app'" | grep -q 1; then
+        psql -c "CREATE DATABASE \"$$app\" OWNER \"$$app\""; fi; done
     deploy:
       resources:
         limits: { cpus: '0.05', memory: 32M }
@@ -106,28 +128,42 @@ services:
     # A ligação entre principal e source que o consumer admite é a ACL (ADR-052):
     # cada processo só escreve no próprio tópico e na DLQ que alimenta, e só o
     # reservations lê orders.events. A autorização liga por último, com as ACLs já
-    # gravadas; o superusuário vazio é o principal do listener externo.
+    # gravadas; o superusuário vazio é o principal do listener externo. Criar
+    # usuário e tópico tolera o "já existe", mas a presença de cada um é conferida
+    # antes das ACLs: qualquer falha interrompe o init sem ligar a autorização.
     command:
       - |
-        set -u
+        set -eu
         admin="-X admin.hosts=redpanda:9644"
-        su="-X brokers=redpanda:29092 -X user=console -X pass=${DMPF_KAFKA_CONSOLE_PASSWORD:-console-local} -X sasl.mechanism=SCRAM-SHA-256"
-        for user in orders:${DMPF_KAFKA_ORDERS_PASSWORD:-orders-local} \
-          reservations:${DMPF_KAFKA_RESERVATIONS_PASSWORD:-reservations-local} \
-          console:${DMPF_KAFKA_CONSOLE_PASSWORD:-console-local}; do
+        su="-X brokers=redpanda:29092 -X user=console -X pass=${KAFKA_CONSOLE_PASSWORD:-console-local} -X sasl.mechanism=SCRAM-SHA-256"
+        for user in orders:${KAFKA_ORDERS_PASSWORD:-orders-local} \
+          reservations:${KAFKA_RESERVATIONS_PASSWORD:-reservations-local} \
+          bookings:${KAFKA_BOOKINGS_PASSWORD:-bookings-local} \
+          console:${KAFKA_CONSOLE_PASSWORD:-console-local}; do
           rpk security user create "$${user%%:*}" -p "$${user#*:}" --mechanism SCRAM-SHA-256 $$admin || true
         done
+        for user in orders reservations bookings console; do
+          rpk security user list $$admin | grep -qw "$$user"
+        done
         rpk cluster config set superusers '["console",""]' $$admin
-        rpk topic create ${DMPF_KAFKA_ORDERS_TOPIC:-orders.events} ${DMPF_KAFKA_ORDERS_DLQ:-orders.events.dlq} \
-          ${DMPF_KAFKA_RESERVATIONS_TOPIC:-reservations.events} ${DMPF_KAFKA_RESERVATIONS_DLQ:-reservations.events.dlq} \
+        rpk topic create ${KAFKA_ORDERS_TOPIC:-orders.events} ${KAFKA_ORDERS_DLQ:-orders.events.dlq} \
+          ${KAFKA_RESERVATIONS_TOPIC:-reservations.events} ${KAFKA_RESERVATIONS_DLQ:-reservations.events.dlq} \
+          ${KAFKA_BOOKINGS_TOPIC:-bookings.events} ${KAFKA_BOOKINGS_DLQ:-bookings.events.dlq} \
           $$su -p 1 -r 1 || true
+        for topic in ${KAFKA_ORDERS_TOPIC:-orders.events} ${KAFKA_ORDERS_DLQ:-orders.events.dlq} \
+          ${KAFKA_RESERVATIONS_TOPIC:-reservations.events} ${KAFKA_RESERVATIONS_DLQ:-reservations.events.dlq} \
+          ${KAFKA_BOOKINGS_TOPIC:-bookings.events} ${KAFKA_BOOKINGS_DLQ:-bookings.events.dlq}; do
+          rpk topic describe "$$topic" $$su >/dev/null
+        done
         rpk security acl create --allow-principal User:orders --operation write,describe \
-          --topic ${DMPF_KAFKA_ORDERS_TOPIC:-orders.events} --topic ${DMPF_KAFKA_ORDERS_DLQ:-orders.events.dlq} $$su
+          --topic ${KAFKA_ORDERS_TOPIC:-orders.events} --topic ${KAFKA_ORDERS_DLQ:-orders.events.dlq} $$su
         rpk security acl create --allow-principal User:reservations --operation write,describe \
-          --topic ${DMPF_KAFKA_RESERVATIONS_TOPIC:-reservations.events} --topic ${DMPF_KAFKA_RESERVATIONS_DLQ:-reservations.events.dlq} \
-          --topic ${DMPF_KAFKA_ORDERS_DLQ:-orders.events.dlq} $$su
+          --topic ${KAFKA_RESERVATIONS_TOPIC:-reservations.events} --topic ${KAFKA_RESERVATIONS_DLQ:-reservations.events.dlq} \
+          --topic ${KAFKA_ORDERS_DLQ:-orders.events.dlq} $$su
         rpk security acl create --allow-principal User:reservations --operation read,describe \
-          --topic ${DMPF_KAFKA_ORDERS_TOPIC:-orders.events} --group ${DMPF_KAFKA_GROUP:-reservations} $$su
+          --topic ${KAFKA_ORDERS_TOPIC:-orders.events} --group ${KAFKA_GROUP:-reservations} $$su
+        rpk security acl create --allow-principal User:bookings --operation write,describe \
+          --topic ${KAFKA_BOOKINGS_TOPIC:-bookings.events} --topic ${KAFKA_BOOKINGS_DLQ:-bookings.events.dlq} $$su
         rpk cluster config set kafka_enable_authorization true $$admin
     deploy:
       resources:
@@ -139,10 +175,10 @@ services:
     command: ['--role', 'api']
     environment:
       <<: [*dmpf-env, *orders-env, *grpc-server-env]
-      DMPF_INSTANCE_ID: orders-api
-      DMPF_ITEM_LIMIT: ${DMPF_ITEM_LIMIT:-10}
-      DMPF_GRPC_TLS_CERT_FILE: /pki/dmpf-orders-api.crt
-      DMPF_GRPC_TLS_KEY_FILE: /pki/dmpf-orders-api.key
+      INSTANCE_ID: orders-api
+      ITEM_LIMIT: ${ITEM_LIMIT:-10}
+      GRPC_TLS_CERT_FILE: /pki/dmpf-orders-api.crt
+      GRPC_TLS_KEY_FILE: /pki/dmpf-orders-api.key
     volumes: *pki
     depends_on:
       pki-init:
@@ -158,9 +194,9 @@ services:
     command: ['--role', 'relay']
     environment:
       <<: [*dmpf-env, *orders-env, *kafka-env, *kafka-orders]
-      DMPF_INSTANCE_ID: orders-relay
-      DMPF_KAFKA_ORDERS_TOPIC: ${DMPF_KAFKA_ORDERS_TOPIC:-orders.events}
-      DMPF_KAFKA_ORDERS_DLQ: ${DMPF_KAFKA_ORDERS_DLQ:-orders.events.dlq}
+      INSTANCE_ID: orders-relay
+      KAFKA_ORDERS_TOPIC: ${KAFKA_ORDERS_TOPIC:-orders.events}
+      KAFKA_ORDERS_DLQ: ${KAFKA_ORDERS_DLQ:-orders.events.dlq}
     depends_on:
       redpanda-init:
         condition: service_completed_successfully
@@ -173,9 +209,9 @@ services:
     command: ['--role', 'api']
     environment:
       <<: [*dmpf-env, *reservations-env, *grpc-server-env]
-      DMPF_INSTANCE_ID: reservations-api
-      DMPF_GRPC_TLS_CERT_FILE: /pki/dmpf-reservations-api.crt
-      DMPF_GRPC_TLS_KEY_FILE: /pki/dmpf-reservations-api.key
+      INSTANCE_ID: reservations-api
+      GRPC_TLS_CERT_FILE: /pki/dmpf-reservations-api.crt
+      GRPC_TLS_KEY_FILE: /pki/dmpf-reservations-api.key
     volumes: *pki
     depends_on:
       pki-init:
@@ -191,9 +227,9 @@ services:
     command: ['--role', 'relay']
     environment:
       <<: [*dmpf-env, *reservations-env, *kafka-env, *kafka-reservations]
-      DMPF_INSTANCE_ID: reservations-relay
-      DMPF_KAFKA_RESERVATIONS_TOPIC: ${DMPF_KAFKA_RESERVATIONS_TOPIC:-reservations.events}
-      DMPF_KAFKA_RESERVATIONS_DLQ: ${DMPF_KAFKA_RESERVATIONS_DLQ:-reservations.events.dlq}
+      INSTANCE_ID: reservations-relay
+      KAFKA_RESERVATIONS_TOPIC: ${KAFKA_RESERVATIONS_TOPIC:-reservations.events}
+      KAFKA_RESERVATIONS_DLQ: ${KAFKA_RESERVATIONS_DLQ:-reservations.events.dlq}
     depends_on:
       redpanda-init:
         condition: service_completed_successfully
@@ -206,13 +242,47 @@ services:
     command: ['--role', 'consumer']
     environment:
       <<: [*dmpf-env, *reservations-env, *kafka-env, *kafka-reservations]
-      DMPF_INSTANCE_ID: reservations-consumer
-      DMPF_KAFKA_ORDERS_TOPIC: ${DMPF_KAFKA_ORDERS_TOPIC:-orders.events}
-      DMPF_KAFKA_ORDERS_DLQ: ${DMPF_KAFKA_ORDERS_DLQ:-orders.events.dlq}
+      INSTANCE_ID: reservations-consumer
+      KAFKA_ORDERS_TOPIC: ${KAFKA_ORDERS_TOPIC:-orders.events}
+      KAFKA_ORDERS_DLQ: ${KAFKA_ORDERS_DLQ:-orders.events.dlq}
     depends_on:
       redpanda-init:
         condition: service_completed_successfully
       dmpf-reservations-api:
+        condition: service_started
+    deploy: *worker-limits
+
+  dmpf-bookings-api:
+    <<: [*app, *bookings-image]
+    command: ['--role', 'api']
+    environment:
+      <<: [*dmpf-env, *bookings-env, *grpc-server-env]
+      INSTANCE_ID: bookings-api
+      GRPC_TLS_CERT_FILE: /pki/dmpf-bookings-api.crt
+      GRPC_TLS_KEY_FILE: /pki/dmpf-bookings-api.key
+    volumes: *pki
+    depends_on:
+      pki-init:
+        condition: service_completed_successfully
+      postgres-init:
+        condition: service_completed_successfully
+      otel-collector:
+        condition: service_started
+    deploy: *app-limits
+
+  dmpf-bookings-relay:
+    <<: [*app, *bookings-image]
+    command: ['--role', 'relay']
+    environment:
+      <<: [*dmpf-env, *bookings-env, *kafka-env, *kafka-bookings]
+      INSTANCE_ID: bookings-relay
+      KAFKA_GROUP: bookings
+      KAFKA_BOOKINGS_TOPIC: ${KAFKA_BOOKINGS_TOPIC:-bookings.events}
+      KAFKA_BOOKINGS_DLQ: ${KAFKA_BOOKINGS_DLQ:-bookings.events.dlq}
+    depends_on:
+      redpanda-init:
+        condition: service_completed_successfully
+      dmpf-bookings-api:
         condition: service_started
     deploy: *worker-limits
 
@@ -221,28 +291,30 @@ services:
     build:
       context: ../../..
       dockerfile: apps/backend/bff/Dockerfile
-    image: ${DMPF_BFF_IMAGE:-bff:local}
+    image: ${BFF_IMAGE:-bff:local}
     environment:
       <<: *dmpf-env
-      DMPF_SERVICE: bff
-      DMPF_INSTANCE_ID: bff
-      DMPF_HTTP_ADDR: ':8080'
-      DMPF_ORDERS_GRPC_TARGET: dns:///dmpf-orders-api:9090
-      DMPF_RESERVATIONS_GRPC_TARGET: dns:///dmpf-reservations-api:9090
+      SERVICE: bff
+      INSTANCE_ID: bff
+      HTTP_ADDR: ':8080'
+      ORDERS_GRPC_TARGET: dns:///dmpf-orders-api:9090
+      RESERVATIONS_GRPC_TARGET: dns:///dmpf-reservations-api:9090
+      BOOKINGS_GRPC_TARGET: dns:///dmpf-bookings-api:9090
       # Autenticador de desenvolvimento (IDN-01): lê a identidade declarada no
-      # próprio Bearer; fora do compose a partida exige DMPF_OIDC_ISSUER.
-      DMPF_AUTH_DEV_MOCK: 'true'
-      # Sem DMPF_GRPC_SERVER_NAME: cada alvo é verificado pelo próprio host.
-      DMPF_GRPC_CA_FILE: /pki/ca.crt
-      DMPF_GRPC_CLIENT_CERT_FILE: /pki/bff-client.crt
-      DMPF_GRPC_CLIENT_KEY_FILE: /pki/bff-client.key
-      DMPF_OPENAPI_ORDERS_PATH: /contracts/openapi/orders/v1/openapi.yaml
-      DMPF_OPENAPI_RESERVATIONS_PATH: /contracts/openapi/reservations/v1/openapi.yaml
+      # próprio Bearer; fora do compose a partida exige OIDC_ISSUER.
+      AUTH_DEV_MOCK: 'true'
+      # Sem GRPC_SERVER_NAME: cada alvo é verificado pelo próprio host.
+      GRPC_CA_FILE: /pki/ca.crt
+      GRPC_CLIENT_CERT_FILE: /pki/bff-client.crt
+      GRPC_CLIENT_KEY_FILE: /pki/bff-client.key
+      OPENAPI_ORDERS_PATH: /contracts/openapi/orders/v1/openapi.yaml
+      OPENAPI_RESERVATIONS_PATH: /contracts/openapi/reservations/v1/openapi.yaml
+      OPENAPI_BOOKINGS_PATH: /contracts/openapi/bookings/v1/openapi.yaml
       # Só o Swagger UI local chama o BFF de outro origin; fora do
       # desenvolvimento a variável fica vazia e a borda é same-origin.
-      DMPF_CORS_ORIGINS: http://localhost:${SWAGGER_PORT:-8082},http://127.0.0.1:${SWAGGER_PORT:-8082}
+      CORS_ORIGINS: http://localhost:${SWAGGER_PORT:-8082},http://127.0.0.1:${SWAGGER_PORT:-8082}
     ports:
-      - '${DMPF_HTTP_PORT:-8080}:8080'
+      - '${HTTP_PORT:-8080}:8080'
     volumes: *pki
     depends_on:
       pki-init:
@@ -250,6 +322,8 @@ services:
       dmpf-orders-api:
         condition: service_started
       dmpf-reservations-api:
+        condition: service_started
+      dmpf-bookings-api:
         condition: service_started
       otel-collector:
         condition: service_started

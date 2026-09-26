@@ -20,7 +20,7 @@ const uniqueViolation = "23505"
 // initial values are drain state, and the writer has no business authoring them
 // (BLK-05). available_at is written because it anchors on occurred_at (OBX-05).
 const insertOutbox = `
-INSERT INTO dmpf_outbox (
+INSERT INTO outbox (
 	message_id, message_type, schema_version,
 	aggregate_type, aggregate_id, aggregate_version,
 	partition_key, destination,

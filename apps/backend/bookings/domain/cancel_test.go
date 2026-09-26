@@ -19,12 +19,12 @@ func TestCancelAccepts(t *testing.T) {
 	if len(events) != 1 {
 		t.Fatalf("Events() len = %d, want 1", len(events))
 	}
-	ev := events[0].(domain.BookingCancelledEvent)
+	ev := events[0].(domain.BookingCancelled)
 	if ev.BookingID != bookingID || ev.At != at {
-		t.Fatalf("BookingCancelledEvent = %+v", ev)
+		t.Fatalf("BookingCancelled = %+v", ev)
 	}
-	if got := b.Snapshot().Status; got != domain.BookingCancelled {
-		t.Fatalf("Status = %v, want BookingCancelled", got)
+	if got := b.Snapshot().Status; got != domain.Cancelled {
+		t.Fatalf("Status = %v, want Cancelled", got)
 	}
 }
 
@@ -34,7 +34,7 @@ func TestCancelRejectsWhenNotReserved(t *testing.T) {
 
 	acc, rej := b.Cancel(domain.CancelBooking{At: at})
 
-	requireRejected(t, acc, rej, domain.CodeNotReserved)
+	requireRejected(t, acc, rej, domain.CodeBookingNotReserved)
 	requireBookingUnchanged(t, before, b.Snapshot())
 }
 
@@ -47,6 +47,6 @@ func TestCancelRejectsWhenAlreadyCancelled(t *testing.T) {
 
 	acc, rej := b.Cancel(domain.CancelBooking{At: at})
 
-	requireRejected(t, acc, rej, domain.CodeNotReserved)
+	requireRejected(t, acc, rej, domain.CodeBookingNotReserved)
 	requireBookingUnchanged(t, before, b.Snapshot())
 }

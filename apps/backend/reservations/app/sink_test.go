@@ -12,7 +12,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/app"
-	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/app"
+	kernelapp "github.com/mateusmacedo/dmpf/libs/backend/go/app"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/contracts/envelope"
 	eventv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/orders/event/v1"
@@ -89,14 +89,14 @@ const sinkTimeout = 10 * time.Second
 
 func newSink(handler *fakeHandler, containment *fakeContainment, tracer trace.Tracer) app.Sink {
 	return app.Sink{
-		Consumer: kernel.Consumer{
+		Consumer: kernelapp.Consumer{
 			Name:        "reservations",
 			MaxAttempts: 2,
 			Handle:      handler.handle,
 			Containment: containment,
 			Clock:       fixedClock{},
 			Timeout:     sinkTimeout,
-			Boundary:    kernel.Boundary{Transport: kernel.TransportDevelopmentOnly, Sources: []string{"urn:dmpf:reference-orders"}},
+			Boundary:    kernelapp.Boundary{Transport: kernelapp.TransportDevelopmentOnly, Sources: []string{"urn:dmpf:reference-orders"}},
 			Locale:      "en",
 		},
 		EventType: orderPlacedV1,

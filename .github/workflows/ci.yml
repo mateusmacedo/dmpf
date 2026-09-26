@@ -28,12 +28,12 @@ jobs:
       # em vez de pular quando uma variável de integração falta.
       CI: "true"
       NX_EXCLUDE: "@mateusmacedo/dmpf-source"
-      DMPF_PG_DSN: "postgres://dmpf:dmpf@localhost:5432/dmpf?sslmode=disable"
-      DMPF_KAFKA_BROKERS: "localhost:9092"
-      DMPF_KAFKA_SASL_BROKERS: "localhost:19092"
-      DMPF_KAFKA_SASL_USERNAME: "dmpf-ci"
-      DMPF_KAFKA_SASL_PASSWORD: "dmpf-ci-secret"
-      DMPF_SQS_ENDPOINT: "http://localhost:4566"
+      PG_DSN: "postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable"
+      KAFKA_BROKERS: "localhost:9092"
+      KAFKA_SASL_BROKERS: "localhost:19092"
+      KAFKA_SASL_USERNAME: "dmpf-ci"
+      KAFKA_SASL_PASSWORD: "dmpf-ci-secret"
+      SQS_ENDPOINT: "http://localhost:4566"
       AWS_REGION: "us-east-1"
       AWS_ACCESS_KEY_ID: "test"
       AWS_SECRET_ACCESS_KEY: "test"
@@ -164,7 +164,7 @@ jobs:
       - name: DMPF generator check (structural)
         run: bash tools/dmpf-generator-check.sh --phase structural
 
-      # Os quatro vetores negativos. Sem eles, um guard que pare de reprovar passa
+      # Os vetores negativos. Sem eles, um guard que pare de reprovar passa
       # a não acusar nada em silêncio e a fase `structural` viraria carimbo.
       - name: DMPF generator check (self-test)
         run: bash tools/dmpf-generator-check.sh --phase self-test
@@ -174,7 +174,7 @@ jobs:
       - name: DMPF context check (structural)
         run: bash tools/dmpf-context-check.sh --phase structural
 
-      # Os sete vetores negativos, pela mesma razão do self-test acima.
+      # Os vetores negativos, pela mesma razão do self-test acima.
       - name: Instalar trash-cli para o self-test do context check
         run: |
           sudo apt-get update -q
@@ -183,6 +183,11 @@ jobs:
 
       - name: DMPF context check (self-test)
         run: bash tools/dmpf-context-check.sh --phase self-test
+
+      # A fase `regen` exige LLM e roda à mão; o self-test prova, sem agente,
+      # que o gate normativo ainda reprova o golden sem o shared kernel.
+      - name: DMPF harness check (self-test)
+        run: bash tools/dmpf-harness-check.sh --phase self-test
 
       # Sem `if: steps.go_affected`: import sem `require` compila no workspace pelo
       # `go.work` e só quebra para quem consome o módulo por tag.
@@ -227,10 +232,10 @@ jobs:
           docker rm -f "$nome" >/dev/null 2>&1 || true
           docker run -d --name "$nome" \
             --network host \
-            -e POSTGRES_USER=dmpf -e POSTGRES_PASSWORD=dmpf -e POSTGRES_DB=dmpf \
+            -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=postgres \
             postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
           for _ in $(seq 1 30); do
-            if docker exec "$nome" pg_isready -U dmpf -q; then
+            if docker exec "$nome" pg_isready -U postgres -q; then
               echo "postgres pronto em localhost:5432 ($nome)"
               exit 0
             fi
@@ -280,11 +285,11 @@ jobs:
             --pandaproxy-addr 0.0.0.0:18082 --schema-registry-addr 0.0.0.0:18081 \
             --set 'redpanda.admin=[{"address":"0.0.0.0","port":19644}]' \
             --set 'redpanda.kafka_api=[{"name":"sasl","address":"0.0.0.0","port":19092,"authentication_method":"sasl"}]' \
-            --set "redpanda.superusers=[\"${DMPF_KAFKA_SASL_USERNAME}\"]" \
+            --set "redpanda.superusers=[\"${KAFKA_SASL_USERNAME}\"]" \
             --set redpanda.kafka_enable_authorization=true
           for _ in $(seq 1 30); do
             if docker exec "$nome" rpk cluster health -X admin.hosts=localhost:19644 2>/dev/null | grep -q 'Healthy:.*true'; then
-              docker exec "$nome" rpk security user create "$DMPF_KAFKA_SASL_USERNAME" -p "$DMPF_KAFKA_SASL_PASSWORD" \
+              docker exec "$nome" rpk security user create "$KAFKA_SASL_USERNAME" -p "$KAFKA_SASL_PASSWORD" \
                 --mechanism SCRAM-SHA-256 -X admin.hosts=localhost:19644
               echo "redpanda com SASL pronto em localhost:19092 ($nome)"
               exit 0
@@ -363,6 +368,8 @@ jobs:
             pnpm nx run-many -t fmt-check,vet,test-race -p "${stateful#,}" --parallel=1
           fi
 
+      # Cada app testa no próprio banco (<projeto>_test) e em tópicos com sufixo
+      # da execução, então as apps não disputam estado e correm em paralelo.
       - name: Estágio 5 — apps (layer:apps)
         run: |
           set -euo pipefail
@@ -371,7 +378,7 @@ jobs:
             echo "estágio 5 (apps): nenhum projeto afetado"
             exit 0
           fi
-          pnpm nx run-many -t fmt-check,vet,test-race -p "$lista" --parallel=1
+          pnpm nx run-many -t fmt-check,vet,test-race -p "$lista" --parallel=3
 
       # govulncheck consulta base remota e não tem cache; corre uma vez sobre
       # todo o Go afetado, fora dos estágios.

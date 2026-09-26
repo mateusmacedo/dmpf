@@ -1,0 +1,15 @@
+package app
+
+import (
+	"errors"
+
+	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/channel"
+)
+
+// ErrNoChannel refuses the relay until the channel of this context exists.
+var ErrNoChannel = errors.New("<%- name %>: no channel is declared yet; declare the one the relay drains in NewCatalog")
+
+// NewCatalog is the catalog of ASY-01 with the channels this context drains.
+func NewCatalog(Config) (channel.Catalog, error) {
+	return nil, ErrNoChannel
+}
