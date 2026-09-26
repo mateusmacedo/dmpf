@@ -73,8 +73,8 @@ const file_company_reservations_event_v1_reservation_cancelled_proto_rawDesc = "
 	"\n" +
 	"9company/reservations/event/v1/reservation_cancelled.proto\x12\x1dcompany.reservations.event.v1\"1\n" +
 	"\x14ReservationCancelled\x12\x19\n" +
-	"\border_id\x18\x01 \x01(\tR\aorderIdB\xba\x02\n" +
-	"!com.company.reservations.event.v1B\x19ReservationCancelledProtoP\x01Zcgithub.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/reservations/event/v1;eventv1\xa2\x02\x03CRE\xaa\x02\x1dCompany.Reservations.Event.V1\xca\x02\x1dCompany\\Reservations\\Event\\V1\xe2\x02)Company\\Reservations\\Event\\V1\\GPBMetadata\xea\x02 Company::Reservations::Event::V1b\x06proto3"
+	"\border_id\x18\x01 \x01(\tR\aorderIdB\xc3\x02\n" +
+	"!com.company.reservations.event.v1B\x19ReservationCancelledProtoP\x01Zlgithub.com/mateusmacedo/dmpf/apps/backend/reservations/contract/gen/go/company/reservations/event/v1;eventv1\xa2\x02\x03CRE\xaa\x02\x1dCompany.Reservations.Event.V1\xca\x02\x1dCompany\\Reservations\\Event\\V1\xe2\x02)Company\\Reservations\\Event\\V1\\GPBMetadata\xea\x02 Company::Reservations::Event::V1b\x06proto3"
 
 var (
 	file_company_reservations_event_v1_reservation_cancelled_proto_rawDescOnce sync.Once

@@ -7,7 +7,7 @@
 | `POST /orders/{id}/items` | `apps/backend/orders/contract/openapi/v1/openapi.yaml` | `OrdersService/AddItem` | `orders:write` |
 | `POST /orders/{id}/place` | idem | `OrdersService/PlaceOrder` | `orders:write` |
 | `GET /orders/{id}` | idem | `OrdersService/FindOrder` | `orders:read` |
-| `GET /reservations/{order_id}` | `contracts/openapi/reservations/v1/openapi.yaml` | `ReservationsService/FindReservation` | `reservations:read` |
+| `GET /reservations/{order_id}` | `apps/backend/reservations/contract/openapi/v1/openapi.yaml` | `ReservationsService/FindReservation` | `reservations:read` |
 | `POST /reservations/{order_id}/reserve` | idem | `ReservationsService/Reserve` | `reservations:write` |
 | `POST /reservations/{order_id}/cancel` | idem | `ReservationsService/Cancel` | `reservations:write` |
 | `POST /bookings/booking` | `contracts/openapi/bookings/v1/openapi.yaml` | `BookingsService/ReserveBooking` | `bookings:write` |

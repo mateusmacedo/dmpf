@@ -14,7 +14,7 @@ import (
 
 	"github.com/mateusmacedo/dmpf/apps/backend/bff/app/api"
 	ordersv1 "github.com/mateusmacedo/dmpf/apps/backend/orders/contract/gen/go/company/orders/service/v1"
-	reservationsv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/reservations/service/v1"
+	reservationsv1 "github.com/mateusmacedo/dmpf/apps/backend/reservations/contract/gen/go/company/reservations/service/v1"
 	kernelhttp "github.com/mateusmacedo/dmpf/libs/backend/go/http"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/admission"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/deadline"
@@ -38,7 +38,7 @@ func TestRoutesReferenceThePublishedContracts(t *testing.T) {
 		}
 		contractFile := map[string]string{
 			"orders":       "apps/backend/orders/contract/openapi/v1/openapi.yaml",
-			"reservations": "contracts/openapi/reservations/v1/openapi.yaml",
+			"reservations": "apps/backend/reservations/contract/openapi/v1/openapi.yaml",
 			"bookings":     "contracts/openapi/bookings/v1/openapi.yaml",
 		}[context]
 		if !strings.HasPrefix(route.ContractRef, contractFile+"#/paths/") {

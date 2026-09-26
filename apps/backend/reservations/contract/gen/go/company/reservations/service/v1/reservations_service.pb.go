@@ -670,8 +670,8 @@ const file_company_reservations_service_v1_reservations_service_proto_rawDesc = 
 	"\x13ReservationsService\x12l\n" +
 	"\aReserve\x12/.company.reservations.service.v1.ReserveRequest\x1a0.company.reservations.service.v1.ReserveResponse\x12i\n" +
 	"\x06Cancel\x12..company.reservations.service.v1.CancelRequest\x1a/.company.reservations.service.v1.CancelResponse\x12\x84\x01\n" +
-	"\x0fFindReservation\x127.company.reservations.service.v1.FindReservationRequest\x1a8.company.reservations.service.v1.FindReservationResponseB\xc7\x02\n" +
-	"#com.company.reservations.service.v1B\x18ReservationsServiceProtoP\x01Zggithub.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/reservations/service/v1;servicev1\xa2\x02\x03CRS\xaa\x02\x1fCompany.Reservations.Service.V1\xca\x02\x1fCompany\\Reservations\\Service\\V1\xe2\x02+Company\\Reservations\\Service\\V1\\GPBMetadata\xea\x02\"Company::Reservations::Service::V1b\x06proto3"
+	"\x0fFindReservation\x127.company.reservations.service.v1.FindReservationRequest\x1a8.company.reservations.service.v1.FindReservationResponseB\xd0\x02\n" +
+	"#com.company.reservations.service.v1B\x18ReservationsServiceProtoP\x01Zpgithub.com/mateusmacedo/dmpf/apps/backend/reservations/contract/gen/go/company/reservations/service/v1;servicev1\xa2\x02\x03CRS\xaa\x02\x1fCompany.Reservations.Service.V1\xca\x02\x1fCompany\\Reservations\\Service\\V1\xe2\x02+Company\\Reservations\\Service\\V1\\GPBMetadata\xea\x02\"Company::Reservations::Service::V1b\x06proto3"
 
 var (
 	file_company_reservations_service_v1_reservations_service_proto_rawDescOnce sync.Once

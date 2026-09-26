@@ -29,6 +29,7 @@ FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=build /out/bff /bff
 COPY contracts/openapi /contracts/openapi
 COPY apps/backend/orders/contract/openapi /contracts/openapi/orders
+COPY apps/backend/reservations/contract/openapi /contracts/openapi/reservations
 ENV OPENAPI_ORDERS_PATH=/contracts/openapi/orders/v1/openapi.yaml
 ENV OPENAPI_RESERVATIONS_PATH=/contracts/openapi/reservations/v1/openapi.yaml
 ENV OPENAPI_BOOKINGS_PATH=/contracts/openapi/bookings/v1/openapi.yaml
