@@ -186,7 +186,7 @@ func ToolVersions(bufScript, bufGen []byte) ([]Tool, error) {
 	}
 	plugin := protocGenGoPin.FindSubmatch(bufGen)
 	if plugin == nil {
-		return nil, errors.New("contracts/buf.gen.yaml pins no protoc-gen-go version")
+		return nil, errors.New("libs/backend/go/contracts/buf.gen.yaml pins no protoc-gen-go version")
 	}
 	return []Tool{
 		{Identity: BufIdentity, Version: string(buf[1])},

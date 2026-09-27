@@ -29,7 +29,7 @@ type selectorRule struct {
 var selectorRules = []selectorRule{
 	{exactRef("go.work", "go"), fromRegexp(`(?m)^go\s+(\S+)\s*$`), identityIs("go")},
 	{exactRef("tools/buf.sh", "buf"), fromRegexp(`github\.com/bufbuild/buf/cmd/buf@(\S+)`), baseIs("buf")},
-	{prefixedRef("contracts/buf.gen.yaml", "plugin:"), pluginVersion, baseIsSelector("plugin:")},
+	{prefixedRef("libs/backend/go/contracts/buf.gen.yaml", "plugin:"), pluginVersion, baseIsSelector("plugin:")},
 	{exactRef("nx.json", "golangci-lint"), fromRegexp(`/golangci-lint@([^\s"]+)`), baseIs("golangci-lint")},
 	{inModule("go.mod", func(s string) bool { return strings.HasPrefix(s, "require:") && len(s) > len("require:") }), requireVersion, identityIsSelector("require:")},
 	{exactRef("package.json", "packageManager"), fromJSON("packageManager"), managerIs},

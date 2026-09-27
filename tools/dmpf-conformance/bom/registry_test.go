@@ -10,7 +10,7 @@ func registros() fstest.MapFS {
 	return fstest.MapFS{
 		"go.work":      {Data: []byte("// workspace\ngo 1.26.6\n\nuse (\n\t./libs/a\n)\n")},
 		"tools/buf.sh": {Data: []byte("#!/usr/bin/env bash\n# pin antigo: github.com/bufbuild/buf/cmd/buf@v1.60.0\nexec go run github.com/bufbuild/buf/cmd/buf@v1.72.0 \"$@\"\n")},
-		"contracts/buf.gen.yaml": {Data: []byte("version: v2\nplugins:\n  - local:\n      - go\n      - run\n" +
+		"libs/backend/go/contracts/buf.gen.yaml": {Data: []byte("version: v2\nplugins:\n  - local:\n      - go\n      - run\n" +
 			"      - google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.5.1\n  - local:\n      - go\n      - run\n" +
 			"      # - google.golang.org/protobuf/cmd/protoc-gen-go@v1.30.0\n" +
 			"      - google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.12\n    out: gen/go\n")},
@@ -34,7 +34,7 @@ func TestCadaSeletorResolve(t *testing.T) {
 	}{
 		{RegistryRef{File: "go.work", Selector: "go"}, "go", "1.26.6"},
 		{RegistryRef{File: "tools/buf.sh", Selector: "buf"}, "github.com/bufbuild/buf/cmd/buf", "v1.72.0"},
-		{RegistryRef{File: "contracts/buf.gen.yaml", Selector: "plugin:protoc-gen-go"}, "google.golang.org/protobuf/cmd/protoc-gen-go", "v1.36.12"},
+		{RegistryRef{File: "libs/backend/go/contracts/buf.gen.yaml", Selector: "plugin:protoc-gen-go"}, "google.golang.org/protobuf/cmd/protoc-gen-go", "v1.36.12"},
 		{RegistryRef{File: "nx.json", Selector: "golangci-lint"}, "github.com/golangci/golangci-lint/v2/cmd/golangci-lint", "v2.13.2"},
 		{RegistryRef{File: "libs/a/go.mod", Selector: "require:github.com/jackc/pgx/v5"}, "github.com/jackc/pgx/v5", "v5.10.0"},
 		{RegistryRef{File: "libs/a/package.json", Selector: "version"}, "a", "0.0.0"},
@@ -59,7 +59,7 @@ func TestSeletorQueNaoResolveViraProblema(t *testing.T) {
 		identity string
 	}{
 		"fora do conjunto aceito":       {RegistryRef{File: "go.mod", Selector: "go"}, "go"},
-		"plugin inexistente":            {RegistryRef{File: "contracts/buf.gen.yaml", Selector: "plugin:protoc-gen-ts"}, "protoc-gen-ts"},
+		"plugin inexistente":            {RegistryRef{File: "libs/backend/go/contracts/buf.gen.yaml", Selector: "plugin:protoc-gen-ts"}, "protoc-gen-ts"},
 		"registro ausente":              {RegistryRef{File: "libs/b/go.mod", Selector: "require:github.com/jackc/pgx/v5"}, "github.com/jackc/pgx/v5"},
 		"caminho fora da raiz":          {RegistryRef{File: "../go.work", Selector: "go"}, "go"},
 		"pacote fora do catálogo":       {RegistryRef{File: "pnpm-workspace.yaml", Selector: "catalog:nx"}, "nx"},
@@ -68,7 +68,7 @@ func TestSeletorQueNaoResolveViraProblema(t *testing.T) {
 		"catálogo de outra identity":    {RegistryRef{File: "pnpm-workspace.yaml", Selector: "catalog:typescript"}, "pnpm"},
 		"gerenciador de outra identity": {RegistryRef{File: "package.json", Selector: "packageManager"}, "npm"},
 		"go.work para outra identity":   {RegistryRef{File: "go.work", Selector: "go"}, "node"},
-		"plugin de outra identity":      {RegistryRef{File: "contracts/buf.gen.yaml", Selector: "plugin:protoc-gen-go"}, "github.com/bufbuild/buf/cmd/buf"},
+		"plugin de outra identity":      {RegistryRef{File: "libs/backend/go/contracts/buf.gen.yaml", Selector: "plugin:protoc-gen-go"}, "github.com/bufbuild/buf/cmd/buf"},
 		"package.json de outro pacote":  {RegistryRef{File: "libs/a/package.json", Selector: "version"}, "b"},
 	}
 	for nome, c := range casos {

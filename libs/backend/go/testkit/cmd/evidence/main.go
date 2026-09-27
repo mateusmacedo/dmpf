@@ -362,7 +362,7 @@ func collect(ctx context.Context, opts options, s subjectSpec, header evidence.H
 		if err != nil {
 			return evidence.Subject{}, err
 		}
-		bufGen, err := os.ReadFile(filepath.Join(opts.root, "contracts", "buf.gen.yaml"))
+		bufGen, err := os.ReadFile(filepath.Join(opts.root, "libs", "backend", "go", "contracts", "buf.gen.yaml"))
 		if err != nil {
 			return evidence.Subject{}, err
 		}
