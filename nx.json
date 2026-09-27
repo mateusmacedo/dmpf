@@ -20,7 +20,12 @@
       "{workspaceRoot}/pnpm-workspace.yaml",
       "{workspaceRoot}/pnpm-lock.yaml"
     ],
-    "go": ["{projectRoot}/**/*", "{workspaceRoot}/go.work", "{workspaceRoot}/go.work.sum"]
+    "go": [
+      "{projectRoot}/**/*",
+      "!{projectRoot}/deploy/**/*",
+      "{workspaceRoot}/go.work",
+      "{workspaceRoot}/go.work.sum"
+    ]
   },
   "plugins": [
     {
