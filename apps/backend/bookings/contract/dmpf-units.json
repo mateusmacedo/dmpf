@@ -2,28 +2,14 @@
   "schema": "dmpf/units@1",
   "units": [
     {
-      "id": "contracts/gen",
+      "id": "resource-scheduling/contract",
       "block": "contract",
-      "bounded_context": "kernel",
+      "bounded_context": "resource-scheduling",
       "public_integration_surface": true,
       "include": [
-        "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/dmpf/testing/v1",
-        "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/io/cloudevents/v1"
+        "github.com/mateusmacedo/dmpf/apps/backend/bookings/contract/gen/go/company/bookings/event/v1",
+        "github.com/mateusmacedo/dmpf/apps/backend/bookings/contract/gen/go/company/bookings/service/v1"
       ]
-    },
-    {
-      "id": "contracts/envelope",
-      "block": "contract",
-      "bounded_context": "kernel",
-      "public_integration_surface": true,
-      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/contracts/envelope"]
-    },
-    {
-      "id": "contracts/payloadhash",
-      "block": "contract",
-      "bounded_context": "kernel",
-      "public_integration_surface": true,
-      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/contracts/payloadhash"]
     }
   ],
   "external": [
@@ -42,15 +28,15 @@
   ],
   "exceptions": [
     {
-      "unit": "contracts/gen",
+      "unit": "resource-scheduling/contract",
       "dependency": "reflect",
       "reason": "import emitido pelo protoc-gen-go v1.36.12 em todo arquivo gerado; plumbing do runtime Protobuf, não uso de framework (RFC 6.4)",
       "owner": "team:tech-leads",
       "review_by": "2027-03-02",
-      "id": "X-contracts-gen-reflect",
+      "id": "X-resource-scheduling-contract-reflect",
       "object": {
         "kind": "external-dependency",
-        "unit": "contracts/gen",
+        "unit": "resource-scheduling/contract",
         "identity": "reflect"
       },
       "adr": "ADR-033",
@@ -72,15 +58,15 @@
       ]
     },
     {
-      "unit": "contracts/gen",
+      "unit": "resource-scheduling/contract",
       "dependency": "unsafe",
       "reason": "import emitido pelo protoc-gen-go v1.36.12 em todo arquivo gerado; plumbing do runtime Protobuf, não uso de framework (RFC 6.4)",
       "owner": "team:tech-leads",
       "review_by": "2027-03-02",
-      "id": "X-contracts-gen-unsafe",
+      "id": "X-resource-scheduling-contract-unsafe",
       "object": {
         "kind": "external-dependency",
-        "unit": "contracts/gen",
+        "unit": "resource-scheduling/contract",
         "identity": "unsafe"
       },
       "adr": "ADR-033",

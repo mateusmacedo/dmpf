@@ -1,6 +1,6 @@
 {
   "schema": "dmpf/units-baseline@1",
-  "digest": "sha256:426ac41627047fb051b8442c889de0be998c0242240005729f8618985106f010",
+  "digest": "sha256:81fdb906fe1d922e7d997a5c7d1ba3a952846e84f9c6d3a28a613092bd7b607c",
   "entries": [
     {
       "unit": "bff/app",
@@ -66,6 +66,16 @@
       "block": "provider",
       "bounded_context": "resource-scheduling",
       "membership": ["github.com/mateusmacedo/dmpf/apps/backend/bookings/provider"]
+    },
+    {
+      "unit": "resource-scheduling/contract",
+      "module": "github.com/mateusmacedo/dmpf/apps/backend/bookings/contract",
+      "block": "contract",
+      "bounded_context": "resource-scheduling",
+      "membership": [
+        "github.com/mateusmacedo/dmpf/apps/backend/bookings/contract/gen/go/company/bookings/event/v1",
+        "github.com/mateusmacedo/dmpf/apps/backend/bookings/contract/gen/go/company/bookings/service/v1"
+      ]
     },
     {
       "unit": "orders/app",
@@ -230,16 +240,6 @@
       "block": "contract",
       "bounded_context": "kernel",
       "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/contracts/payloadhash"]
-    },
-    {
-      "unit": "resource-scheduling/contract",
-      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/contracts",
-      "block": "contract",
-      "bounded_context": "resource-scheduling",
-      "membership": [
-        "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/bookings/event/v1",
-        "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/bookings/service/v1"
-      ]
     },
     {
       "unit": "kernel/domain",
