@@ -13,20 +13,10 @@ resources:
   - ../../base/postgres
   - ../../base/redpanda
   - ../../../observability
-  - ../../../../apps/backend/orders/deploy/k8s/overlays/dev
-  - ../../../../apps/backend/reservations/deploy/k8s/overlays/dev
-  - ../../../../apps/backend/bookings/deploy/k8s/overlays/dev
-  - ../../../../apps/backend/bff/deploy/k8s/overlays/dev
-  - job-databases.yaml
+  - apps
+  - databases
 
 secretGenerator:
-  - name: dmpf-databases
-    literals:
-      - orders=orders-dev
-      - reservations=reservations-dev
-      - bookings=bookings-dev
-    options:
-      disableNameSuffixHash: true
   - name: grafana-admin
     literals:
       - password=admin

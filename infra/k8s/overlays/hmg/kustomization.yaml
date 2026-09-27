@@ -12,7 +12,4 @@ namespace: dmpf-hmg
 
 resources:
   - ../../../observability
-  - ../../../../apps/backend/orders/deploy/k8s/overlays/hmg
-  - ../../../../apps/backend/reservations/deploy/k8s/overlays/hmg
-  - ../../../../apps/backend/bookings/deploy/k8s/overlays/hmg
-  - ../../../../apps/backend/bff/deploy/k8s/overlays/hmg
+  - apps

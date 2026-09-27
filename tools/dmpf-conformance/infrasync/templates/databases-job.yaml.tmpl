@@ -1,3 +1,4 @@
+# {{generatedBy}}
 # Cria banco e role de cada app no Postgres do overlay, com o banco pertencendo
 # ao role. Idempotente: só cria o que falta, então reaplicar o overlay não
 # falha; os `api` reiniciam até o banco existir e aplicam o schema na partida
@@ -23,8 +24,7 @@ spec:
           args:
             - >-
               set -e; until pg_isready; do sleep 2; done;
-              for pair in orders:$ORDERS_PASSWORD reservations:$RESERVATIONS_PASSWORD
-              bookings:$BOOKINGS_PASSWORD; do
+              for pair in{{range .WithDatabase}} {{.App}}:${{.Database.PasswordEnv}}{{end}}; do
               app=${pair%%:*}; pass=${pair#*:};
               if ! psql -tAc "SELECT 1 FROM pg_roles WHERE rolname = '$app'" | grep -q 1; then
               psql -c "CREATE ROLE \"$app\" LOGIN"; fi;
@@ -49,21 +49,12 @@ spec:
                 secretKeyRef:
                   name: postgres
                   key: POSTGRES_DB
-            - name: ORDERS_PASSWORD
+{{- range .WithDatabase}}
+            - name: {{.Database.PasswordEnv}}
               valueFrom:
                 secretKeyRef:
                   name: dmpf-databases
-                  key: orders
-            - name: RESERVATIONS_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: dmpf-databases
-                  key: reservations
-            - name: BOOKINGS_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: dmpf-databases
-                  key: bookings
+                  key: {{.App}}{{end}}
           resources:
             requests:
               cpu: 10m

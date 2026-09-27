@@ -1,0 +1,9 @@
+# {{generatedBy}}
+# Overlays {{$.Overlay}} de cada app; namespace, observabilidade e provisionamento ficam no
+# overlay da plataforma, um nível acima.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+{{- range .Manifests}}
+  - ../../../../../apps/backend/{{.App}}/deploy/k8s/overlays/{{$.Overlay}}{{end}}

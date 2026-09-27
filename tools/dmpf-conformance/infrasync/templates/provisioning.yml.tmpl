@@ -1,0 +1,73 @@
+# {{generatedBy}}
+# Provisionamento da topologia de referência (ADR-044, ADR-052, ADR-053): banco e
+# role de cada app no postgres-init, usuários, tópicos e ACLs no redpanda-init.
+services:
+  postgres-init:
+    image: postgres:16-alpine
+    profiles: [dmpf]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER:-postgres}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      PGDATABASE: postgres
+    entrypoint: ['/bin/sh', '-c']
+    # Idempotente: cria o role e o banco que ainda não existem e reconcilia a
+    # senha do role a cada execução, para que trocar a senha com o volume mantido
+    # não deixe a app sem conexão. O banco pertence ao role da app, que assim cria
+    # o próprio schema sem privilégio administrativo.
+    command:
+      - >-
+        set -e; for pair in{{range .WithDatabase}} {{.App}}:${{"{"}}{{.Database.PasswordEnv}}:-{{.Database.Local}}}{{end}}; do
+        app=$${pair%%:*}; pass=$${pair#*:};
+        if ! psql -tAc "SELECT 1 FROM pg_roles WHERE rolname = '$$app'" | grep -q 1; then
+        psql -c "CREATE ROLE \"$$app\" LOGIN"; fi;
+        psql -c "ALTER ROLE \"$$app\" PASSWORD '$$pass'";
+        if ! psql -tAc "SELECT 1 FROM pg_database WHERE datname = '$$app'" | grep -q 1; then
+        psql -c "CREATE DATABASE \"$$app\" OWNER \"$$app\""; fi; done
+    deploy:
+      resources:
+        limits: { cpus: '0.05', memory: 32M }
+        reservations: { cpus: '0.01', memory: 16M }
+
+  redpanda-init:
+    image: redpandadata/redpanda:v26.2.2
+    profiles: [dmpf]
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    entrypoint: ['/bin/sh', '-c']
+    # A ligação entre principal e source que o consumer admite é a ACL (ADR-052):
+    # cada processo só escreve no próprio tópico e na DLQ que alimenta, e só quem
+    # consome lê o tópico de outra app. A autorização liga por último, com as ACLs
+    # já gravadas; o superusuário vazio é o principal do listener externo. Criar
+    # usuário e tópico tolera o "já existe", mas a presença de cada um é conferida
+    # antes das ACLs: qualquer falha interrompe o init sem ligar a autorização.
+    command:
+      - |
+        set -eu
+        admin="-X admin.hosts=redpanda:9644"
+        su="-X brokers=redpanda:29092 -X user=console -X pass=${KAFKA_CONSOLE_PASSWORD:-console-local} -X sasl.mechanism=SCRAM-SHA-256"
+        for user in{{range .WithKafka}} {{.App}}:${{"{"}}{{.Kafka.PasswordEnv}}:-{{.Kafka.Local}}}{{end}} console:${KAFKA_CONSOLE_PASSWORD:-console-local}; do
+          rpk security user create "$${user%%:*}" -p "$${user#*:}" --mechanism SCRAM-SHA-256 $$admin || true
+        done
+        for user in{{range .WithKafka}} {{.App}}{{end}} console; do
+          rpk security user list $$admin | grep -qw "$$user"
+        done
+        rpk cluster config set superusers '["console",""]' $$admin
+        rpk topic create{{range .Topics}} {{$.Ref .Name}}{{end}} $$su -p 1 -r 1 || true
+        for topic in{{range .Topics}} {{$.Ref .Name}}{{end}}; do
+          rpk topic describe "$$topic" $$su >/dev/null
+        done
+{{- range $m := .WithKafka}}{{range $m.Kafka.ACLs}}
+        rpk security acl create --allow-principal User:{{$m.App}} --operation {{join .Operations ","}}
+          {{- range .Topics}} --topic {{$.Ref .}}{{end}}
+          {{- with .Group}} --group ${{"{"}}{{.Env}}:-{{.Name}}}{{end}} $$su
+{{- end}}{{end}}
+        rpk cluster config set kafka_enable_authorization true $$admin
+    deploy:
+      resources:
+        limits: { cpus: '0.05', memory: 64M }
+        reservations: { cpus: '0.01', memory: 16M }

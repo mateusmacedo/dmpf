@@ -1,0 +1,296 @@
+// Package infrasync lê o manifesto deploy/infra.json de cada app e gera os
+// arquivos de infra/ que agregam todas as apps: o provisionamento de banco e de
+// Kafka, os certificados do PKI local, o Swagger UI, o .env.example do Compose e
+// as listas de apps dos overlays Kubernetes.
+package infrasync
+
+import (
+	"bytes"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"slices"
+	"sort"
+	"strings"
+)
+
+const (
+	schema       = "dmpf/infra@1"
+	manifestGlob = "apps/backend/*/deploy/infra.json"
+	platformEnv  = "infra/local/env.platform.example"
+)
+
+type Manifest struct {
+	Schema   string            `json:"schema"`
+	App      string            `json:"app"`
+	Image    Setting           `json:"image"`
+	Database *Database         `json:"database,omitempty"`
+	Kafka    *Kafka            `json:"kafka,omitempty"`
+	GRPC     GRPC              `json:"grpc"`
+	OpenAPI  bool              `json:"openapi,omitempty"`
+	Env      map[string]string `json:"env,omitempty"`
+}
+
+type Setting struct {
+	Env   string `json:"env"`
+	Local string `json:"local"`
+}
+
+type Database struct {
+	PasswordEnv string `json:"passwordEnv"`
+	Local       string `json:"local"`
+	Dev         string `json:"dev"`
+}
+
+type Kafka struct {
+	PasswordEnv string  `json:"passwordEnv"`
+	Local       string  `json:"local"`
+	Topics      []Topic `json:"topics"`
+	ACLs        []ACL   `json:"acls"`
+}
+
+type Topic struct {
+	Name string `json:"name"`
+	Env  string `json:"env"`
+}
+
+type ACL struct {
+	Operations []string `json:"operations"`
+	Topics     []string `json:"topics"`
+	Group      *Topic   `json:"group,omitempty"`
+}
+
+type GRPC struct {
+	Server string `json:"server,omitempty"`
+	Client string `json:"client,omitempty"`
+}
+
+type File struct {
+	Path    string
+	Content []byte
+}
+
+type Finding struct {
+	Path   string
+	Detail string
+}
+
+func (f Finding) String() string { return f.Path + ": " + f.Detail }
+
+// Load lê os manifestos em ordem de app e recusa o que não gera infra coerente.
+func Load(root string) ([]Manifest, error) {
+	paths, err := filepath.Glob(filepath.Join(root, manifestGlob))
+	if err != nil {
+		return nil, err
+	}
+	sort.Strings(paths)
+	var manifests []Manifest
+	for _, p := range paths {
+		m, err := read(p)
+		if err != nil {
+			return nil, err
+		}
+		manifests = append(manifests, m)
+	}
+	if err := checkTopics(manifests); err != nil {
+		return nil, err
+	}
+	return manifests, nil
+}
+
+func read(path string) (Manifest, error) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return Manifest{}, err
+	}
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.DisallowUnknownFields()
+	var m Manifest
+	if err := dec.Decode(&m); err != nil {
+		return Manifest{}, fmt.Errorf("%s: %w", path, err)
+	}
+	dir := filepath.Base(filepath.Dir(filepath.Dir(path)))
+	var problems []string
+	if m.Schema != schema {
+		problems = append(problems, fmt.Sprintf("schema %q, esperado %q", m.Schema, schema))
+	}
+	if m.App != dir {
+		problems = append(problems, fmt.Sprintf("app %q difere do diretório %q", m.App, dir))
+	}
+	if m.Image.Env == "" || m.Image.Local == "" {
+		problems = append(problems, "image exige env e local")
+	}
+	if d := m.Database; d != nil && (d.PasswordEnv == "" || d.Local == "" || d.Dev == "") {
+		problems = append(problems, "database exige passwordEnv, local e dev")
+	}
+	if k := m.Kafka; k != nil {
+		if k.PasswordEnv == "" || k.Local == "" {
+			problems = append(problems, "kafka exige passwordEnv e local")
+		}
+		for _, t := range k.Topics {
+			if t.Name == "" || t.Env == "" {
+				problems = append(problems, "tópico exige name e env")
+			}
+		}
+	}
+	if len(problems) > 0 {
+		return Manifest{}, fmt.Errorf("%s: %s", path, strings.Join(problems, "; "))
+	}
+	return m, nil
+}
+
+func checkTopics(manifests []Manifest) error {
+	declared := topicIndex(manifests)
+	var problems []string
+	for _, m := range manifests {
+		if m.Kafka == nil {
+			continue
+		}
+		for _, acl := range m.Kafka.ACLs {
+			for _, t := range acl.Topics {
+				if _, ok := declared[t]; !ok {
+					problems = append(problems, fmt.Sprintf("%s: ACL em tópico não declarado por nenhuma app: %s", m.App, t))
+				}
+			}
+		}
+	}
+	if len(problems) > 0 {
+		return errors.New(strings.Join(problems, "; "))
+	}
+	return nil
+}
+
+func topicIndex(manifests []Manifest) map[string]Topic {
+	index := map[string]Topic{}
+	for _, m := range manifests {
+		if m.Kafka != nil {
+			for _, t := range m.Kafka.Topics {
+				index[t.Name] = t
+			}
+		}
+	}
+	return index
+}
+
+// Render gera os arquivos agregados, sempre na mesma ordem e com o mesmo conteúdo
+// para os mesmos manifestos.
+func Render(root string, manifests []Manifest) ([]File, error) {
+	platform, err := os.ReadFile(filepath.Join(root, platformEnv))
+	if err != nil {
+		return nil, fmt.Errorf("plataforma do .env.example: %w", err)
+	}
+	var files []File
+	for _, t := range templates {
+		v := view{Manifests: manifests, Overlay: t.env, topics: topicIndex(manifests)}
+		var buf bytes.Buffer
+		if err := parsed.ExecuteTemplate(&buf, t.template, v); err != nil {
+			return nil, fmt.Errorf("%s: %w", t.path, err)
+		}
+		content := buf.Bytes()
+		if t.path == envExamplePath {
+			content = append(append(bytes.TrimRight(platform, "\n"), '\n', '\n'), content...)
+		}
+		files = append(files, File{Path: t.path, Content: content})
+	}
+	return files, nil
+}
+
+func Write(root string, files []File) error {
+	for _, f := range files {
+		path := filepath.Join(root, f.Path)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			return err
+		}
+		if err := os.WriteFile(path, f.Content, 0o644); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func Check(root string, files []File) []Finding {
+	var findings []Finding
+	for _, f := range files {
+		got, err := os.ReadFile(filepath.Join(root, f.Path))
+		switch {
+		case errors.Is(err, os.ErrNotExist):
+			findings = append(findings, Finding{f.Path, "ausente; rode infrasync --write"})
+		case err != nil:
+			findings = append(findings, Finding{f.Path, err.Error()})
+		case !bytes.Equal(got, f.Content):
+			findings = append(findings, Finding{f.Path, "diverge dos manifestos deploy/infra.json; rode infrasync --write"})
+		}
+	}
+	return findings
+}
+
+type view struct {
+	Manifests []Manifest
+	Overlay   string
+	topics    map[string]Topic
+}
+
+func (v view) WithDatabase() []Manifest {
+	return slices.DeleteFunc(slices.Clone(v.Manifests), func(m Manifest) bool { return m.Database == nil })
+}
+
+func (v view) WithKafka() []Manifest {
+	return slices.DeleteFunc(slices.Clone(v.Manifests), func(m Manifest) bool { return m.Kafka == nil })
+}
+
+func (v view) WithOpenAPI() []Manifest {
+	return slices.DeleteFunc(slices.Clone(v.Manifests), func(m Manifest) bool { return !m.OpenAPI })
+}
+
+func (v view) Topics() []Topic {
+	var out []Topic
+	for _, m := range v.WithKafka() {
+		out = append(out, m.Kafka.Topics...)
+	}
+	return out
+}
+
+// Ref é a referência Compose ao tópico: a variável da app dona, com o nome como default.
+func (v view) Ref(name string) string {
+	t := v.topics[name]
+	return fmt.Sprintf("${%s:-%s}", t.Env, t.Name)
+}
+
+func (v view) EnvLines() []string {
+	var lines []string
+	for _, m := range v.Manifests {
+		lines = append(lines, m.Image.Env+"="+m.Image.Local)
+	}
+	for _, m := range v.Manifests {
+		if m.Database != nil {
+			lines = append(lines, m.Database.PasswordEnv+"="+m.Database.Local)
+		}
+	}
+	for _, m := range v.Manifests {
+		if m.Kafka == nil {
+			continue
+		}
+		lines = append(lines, m.Kafka.PasswordEnv+"="+m.Kafka.Local)
+		for _, t := range m.Kafka.Topics {
+			lines = append(lines, t.Env+"="+t.Name)
+		}
+		for _, acl := range m.Kafka.ACLs {
+			if acl.Group != nil {
+				lines = append(lines, acl.Group.Env+"="+acl.Group.Name)
+			}
+		}
+	}
+	for _, m := range v.Manifests {
+		keys := make([]string, 0, len(m.Env))
+		for k := range m.Env {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			lines = append(lines, k+"="+m.Env[k])
+		}
+	}
+	return lines
+}

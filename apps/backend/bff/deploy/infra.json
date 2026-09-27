@@ -1,0 +1,14 @@
+{
+  "schema": "dmpf/infra@1",
+  "app": "bff",
+  "image": {
+    "env": "BFF_IMAGE",
+    "local": "bff:local"
+  },
+  "grpc": {
+    "client": "bff"
+  },
+  "env": {
+    "HTTP_PORT": "8080"
+  }
+}

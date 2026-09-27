@@ -21,7 +21,7 @@ include:
   - compose/tempo.yml
   - compose/alloy.yml
   - compose/grafana.yml
-  - compose/reference.yml
+  - compose/provisioning.generated.yml
   - ../../apps/backend/orders/deploy/compose.yml
   - ../../apps/backend/reservations/deploy/compose.yml
   - ../../apps/backend/bookings/deploy/compose.yml

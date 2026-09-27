@@ -1,0 +1,20 @@
+{
+  "schema": "dmpf/infra@1",
+  "app": "alpha",
+  "image": { "env": "ALPHA_IMAGE", "local": "alpha:local" },
+  "database": { "passwordEnv": "ALPHA_PG_PASSWORD", "local": "alpha-local", "dev": "alpha-dev" },
+  "kafka": {
+    "passwordEnv": "KAFKA_ALPHA_PASSWORD",
+    "local": "alpha-local",
+    "topics": [
+      { "name": "alpha.events", "env": "KAFKA_ALPHA_TOPIC" },
+      { "name": "alpha.events.dlq", "env": "KAFKA_ALPHA_DLQ" }
+    ],
+    "acls": [
+      { "operations": ["write", "describe"], "topics": ["alpha.events", "alpha.events.dlq"] }
+    ]
+  },
+  "grpc": { "server": "dmpf-alpha-api" },
+  "openapi": true,
+  "env": { "ITEM_LIMIT": "10" }
+}

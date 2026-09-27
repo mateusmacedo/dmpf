@@ -194,6 +194,11 @@ jobs:
       - name: DMPF modsync gate
         run: go run ./tools/dmpf-conformance/cmd/modsync --root . --check
 
+      # Sem `if: steps.go_affected`: um manifesto deploy/infra.json alterado sem
+      # regerar deixa a infra agregada divergente sem tocar código Go.
+      - name: DMPF infrasync gate
+        run: go run ./tools/dmpf-conformance/cmd/infrasync --root . --check
+
       # GATE, fail-closed. Sem `continue-on-error` e sem `|| true`: a partir
       # daqui o verificador reprova o PR. O passo shadow que existia aqui foi
       # removido NESTE MESMO COMMIT, para que não exista estado em que os dois
