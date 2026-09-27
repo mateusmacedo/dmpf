@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+
+images:
+  - name: ghcr.io/mateusmacedo/bookings
+    newTag: dev
+
+secretGenerator:
+  - name: bookings
+    literals:
+      - PG_DSN=postgres://bookings:bookings-dev@postgres-0.postgres:5432/bookings?sslmode=disable
+      - KAFKA_BROKERS=redpanda-0.redpanda:9092
+    options:
+      disableNameSuffixHash: true
+
+patches:
+  - path: configmap-bookings-patch.yaml
+  - path: deployment-bookings-api-patch.yaml

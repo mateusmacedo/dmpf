@@ -1,0 +1,53 @@
+# Serviços-base das apps (ADR-044). Nenhum deles sobe: o docker-compose.yml não
+# inclui este arquivo, e cada apps/backend/<app>/deploy/compose.yml os usa por
+# `extends`, porque anchors YAML não atravessam o `include`.
+services:
+  dmpf-app:
+    profiles: [dmpf]
+    restart: on-failure
+    environment:
+      OTLP_ENDPOINT: otel-collector:4317
+      OTLP_INSECURE: 'true'
+      SERVICE_VERSION: ${SERVICE_VERSION:-local}
+
+  # gRPC interno com mTLS (IDN-03): cada api apresenta o próprio certificado e só
+  # serve o workload que a CA local assinou e a allowlist nomeia — o BFF. Os
+  # arquivos vêm do volume do pki-init.
+  dmpf-grpc-api:
+    extends: dmpf-app
+    command: ['--role', 'api']
+    environment:
+      GRPC_ADDR: ':9090'
+      GRPC_CLIENT_CA_FILE: /pki/ca.crt
+      GRPC_TRUSTED_CLIENTS: spiffe://dmpf/bff
+      MIGRATE: 'true'
+    volumes:
+      - dmpf-pki:/pki:ro
+    deploy:
+      resources:
+        limits: { cpus: '0.15', memory: 192M }
+        reservations: { cpus: '0.03', memory: 32M }
+
+  # Sem TLS no broker local (opt-out de desenvolvimento), mas com o cliente
+  # autenticado por SASL SCRAM no listener interno: cada processo tem o próprio
+  # principal, criado no redpanda-init (IDN-04).
+  dmpf-kafka-worker:
+    extends: dmpf-app
+    environment:
+      KAFKA_BROKERS: redpanda:29092
+      KAFKA_INSECURE: 'true'
+      KAFKA_GROUP: ${KAFKA_GROUP:-reservations}
+      KAFKA_SASL_MECHANISM: SCRAM-SHA-256
+    deploy:
+      resources:
+        limits: { cpus: '0.10', memory: 128M }
+        reservations: { cpus: '0.02', memory: 32M }
+
+  dmpf-http-edge:
+    extends: dmpf-app
+    volumes:
+      - dmpf-pki:/pki:ro
+    deploy:
+      resources:
+        limits: { cpus: '0.15', memory: 192M }
+        reservations: { cpus: '0.03', memory: 32M }

@@ -22,4 +22,8 @@ include:
   - compose/alloy.yml
   - compose/grafana.yml
   - compose/reference.yml
+  - ../../apps/backend/orders/deploy/compose.yml
+  - ../../apps/backend/reservations/deploy/compose.yml
+  - ../../apps/backend/bookings/deploy/compose.yml
+  - ../../apps/backend/bff/deploy/compose.yml
   - compose/swagger-ui.yml

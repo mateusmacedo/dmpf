@@ -12,37 +12,7 @@ namespace: dmpf-hmg
 
 resources:
   - ../../../observability
-  - ../../base/orders
-  - ../../base/reservations
-  - ../../base/bookings
-  - ../../base/bff
-
-images:
-  - name: ghcr.io/mateusmacedo/bff
-    newTag: hmg
-  - name: ghcr.io/mateusmacedo/orders
-    newTag: hmg
-  - name: ghcr.io/mateusmacedo/reservations
-    newTag: hmg
-  - name: ghcr.io/mateusmacedo/bookings
-    newTag: hmg
-
-replicas:
-  - name: bff
-    count: 2
-  - name: orders-api
-    count: 2
-  - name: reservations-api
-    count: 2
-  - name: bookings-api
-    count: 2
-
-patches:
-  - path: configmap-orders-patch.yaml
-  - path: configmap-reservations-patch.yaml
-  - path: configmap-bff-patch.yaml
-  - path: deployment-orders-api-patch.yaml
-  - path: deployment-reservations-api-patch.yaml
-  - path: deployment-bff-patch.yaml
-  - path: configmap-bookings-patch.yaml
-  - path: deployment-bookings-api-patch.yaml
+  - ../../../../apps/backend/orders/deploy/k8s/overlays/hmg
+  - ../../../../apps/backend/reservations/deploy/k8s/overlays/hmg
+  - ../../../../apps/backend/bookings/deploy/k8s/overlays/hmg
+  - ../../../../apps/backend/bff/deploy/k8s/overlays/hmg
