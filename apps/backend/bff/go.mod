@@ -22,6 +22,7 @@ require (
 )
 
 require (
+	github.com/mateusmacedo/dmpf/apps/backend/bookings/contract v0.1.0
 	github.com/mateusmacedo/dmpf/apps/backend/orders/contract v0.1.0
 	github.com/mateusmacedo/dmpf/apps/backend/reservations/contract v0.1.0
 	github.com/mateusmacedo/dmpf/libs/backend/go/authn v0.1.0

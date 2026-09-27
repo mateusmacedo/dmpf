@@ -10,7 +10,7 @@
 | `GET /reservations/{order_id}` | `apps/backend/reservations/contract/openapi/v1/openapi.yaml` | `ReservationsService/FindReservation` | `reservations:read` |
 | `POST /reservations/{order_id}/reserve` | idem | `ReservationsService/Reserve` | `reservations:write` |
 | `POST /reservations/{order_id}/cancel` | idem | `ReservationsService/Cancel` | `reservations:write` |
-| `POST /bookings/booking` | `contracts/openapi/bookings/v1/openapi.yaml` | `BookingsService/ReserveBooking` | `bookings:write` |
+| `POST /bookings/booking` | `apps/backend/bookings/contract/openapi/v1/openapi.yaml` | `BookingsService/ReserveBooking` | `bookings:write` |
 | `GET /bookings/booking?resourceId=` | idem | `BookingsService/FindBookingsByResource` | `bookings:read` |
 | `GET /bookings/booking/{id}` | idem | `BookingsService/FindBooking` | `bookings:read` |
 | `POST /bookings/booking/{id}/cancel` | idem | `BookingsService/CancelBooking` | `bookings:write` |

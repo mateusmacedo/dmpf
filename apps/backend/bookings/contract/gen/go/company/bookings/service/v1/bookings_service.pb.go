@@ -973,8 +973,8 @@ const file_company_bookings_service_v1_bookings_service_proto_rawDesc = "" +
 	"\rCancelBooking\x121.company.bookings.service.v1.CancelBookingRequest\x1a2.company.bookings.service.v1.CancelBookingResponse\x12\x7f\n" +
 	"\x10RegisterResource\x124.company.bookings.service.v1.RegisterResourceRequest\x1a5.company.bookings.service.v1.RegisterResourceResponse\x12p\n" +
 	"\vFindBooking\x12/.company.bookings.service.v1.FindBookingRequest\x1a0.company.bookings.service.v1.FindBookingResponse\x12\x91\x01\n" +
-	"\x16FindBookingsByResource\x12:.company.bookings.service.v1.FindBookingsByResourceRequest\x1a;.company.bookings.service.v1.FindBookingsByResourceResponseB\xab\x02\n" +
-	"\x1fcom.company.bookings.service.v1B\x14BookingsServiceProtoP\x01Zcgithub.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/bookings/service/v1;servicev1\xa2\x02\x03CBS\xaa\x02\x1bCompany.Bookings.Service.V1\xca\x02\x1bCompany\\Bookings\\Service\\V1\xe2\x02'Company\\Bookings\\Service\\V1\\GPBMetadata\xea\x02\x1eCompany::Bookings::Service::V1b\x06proto3"
+	"\x16FindBookingsByResource\x12:.company.bookings.service.v1.FindBookingsByResourceRequest\x1a;.company.bookings.service.v1.FindBookingsByResourceResponseB\xb0\x02\n" +
+	"\x1fcom.company.bookings.service.v1B\x14BookingsServiceProtoP\x01Zhgithub.com/mateusmacedo/dmpf/apps/backend/bookings/contract/gen/go/company/bookings/service/v1;servicev1\xa2\x02\x03CBS\xaa\x02\x1bCompany.Bookings.Service.V1\xca\x02\x1bCompany\\Bookings\\Service\\V1\xe2\x02'Company\\Bookings\\Service\\V1\\GPBMetadata\xea\x02\x1eCompany::Bookings::Service::V1b\x06proto3"
 
 var (
 	file_company_bookings_service_v1_bookings_service_proto_rawDescOnce sync.Once

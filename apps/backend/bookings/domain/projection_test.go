@@ -12,7 +12,7 @@ import (
 )
 
 func TestBookingsMatchTheProjectionFixture(t *testing.T) {
-	f := tb.LoadProjection(t, "contracts/fixtures/bookings/projection/v1/booking.golden")
+	f := tb.LoadProjection(t, "apps/backend/bookings/contract/fixtures/projection/v1/booking.golden")
 	if f.Identity.Aggregate != "booking" || len(f.Cases) != 4 {
 		t.Fatalf("fixture identity/cases = %+v/%d", f.Identity, len(f.Cases))
 	}

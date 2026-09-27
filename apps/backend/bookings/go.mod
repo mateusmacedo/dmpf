@@ -4,6 +4,7 @@ go 1.26.6
 
 require (
 	github.com/jackc/pgx/v5 v5.10.0
+	github.com/mateusmacedo/dmpf/apps/backend/bookings/contract v0.1.0
 	github.com/mateusmacedo/dmpf/libs/backend/go/app v0.1.0
 	github.com/mateusmacedo/dmpf/libs/backend/go/application v0.1.0
 	github.com/mateusmacedo/dmpf/libs/backend/go/authn v0.1.0

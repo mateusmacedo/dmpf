@@ -36,12 +36,7 @@ func TestRoutesReferenceThePublishedContracts(t *testing.T) {
 		case strings.HasPrefix(route.Path, "/bookings/"):
 			context = "bookings"
 		}
-		contractFile := map[string]string{
-			"orders":       "apps/backend/orders/contract/openapi/v1/openapi.yaml",
-			"reservations": "apps/backend/reservations/contract/openapi/v1/openapi.yaml",
-			"bookings":     "contracts/openapi/bookings/v1/openapi.yaml",
-		}[context]
-		if !strings.HasPrefix(route.ContractRef, contractFile+"#/paths/") {
+		if !strings.HasPrefix(route.ContractRef, "apps/backend/"+context+"/contract/openapi/v1/openapi.yaml#/paths/") {
 			t.Fatalf("%s: ContractRef = %q, want the %s contract (RST-04)", route.Name, route.ContractRef, context)
 		}
 		if route.Method == http.MethodPost && (route.IdempotencyKey != api.IdempotencyHeader || !route.Idempotent()) {

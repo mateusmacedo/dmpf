@@ -57,7 +57,7 @@ portas. Os packages do contexto ficam bare.
 | `FindBooking` | `GET /bookings/booking/{id}` | `bookings:read` |
 | `FindBookingsByResource` | `GET /bookings/booking?resourceId=` | `bookings:read` |
 
-O contrato REST publicado é `contracts/openapi/bookings/v1/openapi.yaml`, servido
+O contrato REST publicado é `apps/backend/bookings/contract/openapi/v1/openapi.yaml`, servido
 pelo `bff`. Uma recusa de domínio volta como `rejection` na resposta; uma falha
 técnica é um status gRPC (`NOT_FOUND`, `ABORTED` para conflito de versão,
 `INVALID_ARGUMENT` para entrada malformada).

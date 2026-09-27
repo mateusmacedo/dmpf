@@ -84,8 +84,8 @@ const file_company_bookings_event_v1_booking_cancelled_proto_rawDesc = "" +
 	"\x10BookingCancelled\x12\x1d\n" +
 	"\n" +
 	"booking_id\x18\x01 \x01(\tR\tbookingId\x12=\n" +
-	"\fcancelled_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\vcancelledAtB\x9e\x02\n" +
-	"\x1dcom.company.bookings.event.v1B\x15BookingCancelledProtoP\x01Z_github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/bookings/event/v1;eventv1\xa2\x02\x03CBE\xaa\x02\x19Company.Bookings.Event.V1\xca\x02\x19Company\\Bookings\\Event\\V1\xe2\x02%Company\\Bookings\\Event\\V1\\GPBMetadata\xea\x02\x1cCompany::Bookings::Event::V1b\x06proto3"
+	"\fcancelled_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\vcancelledAtB\xa3\x02\n" +
+	"\x1dcom.company.bookings.event.v1B\x15BookingCancelledProtoP\x01Zdgithub.com/mateusmacedo/dmpf/apps/backend/bookings/contract/gen/go/company/bookings/event/v1;eventv1\xa2\x02\x03CBE\xaa\x02\x19Company.Bookings.Event.V1\xca\x02\x19Company\\Bookings\\Event\\V1\xe2\x02%Company\\Bookings\\Event\\V1\\GPBMetadata\xea\x02\x1cCompany::Bookings::Event::V1b\x06proto3"
 
 var (
 	file_company_bookings_event_v1_booking_cancelled_proto_rawDescOnce sync.Once

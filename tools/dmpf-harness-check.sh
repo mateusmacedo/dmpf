@@ -46,11 +46,8 @@ BLOCOS=(domain ports application provider app)
 PROJETOS=("$NOME" bff)
 PROJETOS_POSTGRES=("$NOME" bff)
 BORDA="apps/backend/bff"
-CAMINHOS_GOLDEN=(
-  "contracts/proto/company/$NOME"
-  "contracts/openapi/$NOME"
-  "libs/backend/go/contracts/gen/go/company/$NOME"
-)
+CONTRATO="$MODULO/contract"
+CAMINHOS_GOLDEN=("$CONTRATO")
 # O que o relatório de divergência compara, além do que a prova remove: a borda
 # que consome o contexto no bff.
 CAMINHOS_COMPARADOS=(
@@ -59,7 +56,7 @@ CAMINHOS_COMPARADOS=(
   "$BORDA/app/api/handlers_bookings.go"
   "$BORDA/app/api/handlers_bookings_test.go"
 )
-MANIFESTO_CONTRATOS=libs/backend/go/contracts/dmpf-units.json
+MANIFESTO_CONTRATOS="$CONTRATO/dmpf-units.json"
 BASELINE=tools/dmpf-baseline/units-baseline.json
 UNIDADE_CONTRATO="$CONTEXTO/contract"
 UNIDADE_SABOTADA=kernel/domain
@@ -172,14 +169,16 @@ conferir_golden_presente() {
 }
 
 # O estado "sem golden" é o ponto de partida do agente e o --base do
-# verificador. A unidade `contract` sai do manifesto junto com o gen/go, senão
-# o --write-baseline vê unidade sem package; as exceções dela saem junto (GOV-35
-# recusa exceção de unidade não declarada) e voltam na classificação, porque
-# exceção é governança humana, não saída do agente.
+# verificador. O manifesto do contrato sai junto com o módulo; as exceções da
+# unidade `contract` são guardadas antes e voltam na classificação, porque
+# exceção é governança humana, não saída do agente (GOV-35).
 remover_golden() {
-  local caminho tmp
+  local caminho
+  EXCECOES_CONTRATO="$(mktemp)" || falha "não consegui criar arquivo temporário"
+  jq --arg u "$UNIDADE_CONTRATO" '[.exceptions[] | select(.unit == $u)]' "$WT/$MANIFESTO_CONTRATOS" >"$EXCECOES_CONTRATO" \
+    || falha "não consegui guardar as exceções de $UNIDADE_CONTRATO"
   git -C "$WT" rm -rq -- "$MODULO" || falha "não consegui remover $MODULO do worktree"
-  sed -i "\#^\t./$MODULO\$#d" "$WT/go.work" || falha "não consegui editar o go.work"
+  sed -i -e "\#^\t./$MODULO\$#d" -e "\#^\t./$CONTRATO\$#d" "$WT/go.work" || falha "não consegui editar o go.work"
   go run ./tools/dmpf-conformance/cmd/modsync --root "$WT" --write >/dev/null 2>&1 \
     || falha "o modsync não conseguiu retirar $NOME do replace do go.work"
   for caminho in "${CAMINHOS_GOLDEN[@]}"; do
@@ -187,15 +186,6 @@ remover_golden() {
     git -C "$WT" rm -rq -- "$caminho" || falha "não consegui remover $caminho do worktree"
   done
   ! grep -q "$NOME" "$WT/go.work" || falha "go.work ainda cita $NOME depois da remoção"
-
-  EXCECOES_CONTRATO="$(mktemp)" || falha "não consegui criar arquivo temporário"
-  jq --arg u "$UNIDADE_CONTRATO" '[.exceptions[] | select(.unit == $u)]' "$WT/$MANIFESTO_CONTRATOS" >"$EXCECOES_CONTRATO" \
-    || falha "não consegui guardar as exceções de $UNIDADE_CONTRATO"
-  tmp="$(mktemp)" || falha "não consegui criar arquivo temporário"
-  jq --arg u "$UNIDADE_CONTRATO" '.units |= map(select(.id != $u)) | .exceptions |= map(select(.unit != $u))' \
-    "$WT/$MANIFESTO_CONTRATOS" >"$tmp" \
-    && mv "$tmp" "$WT/$MANIFESTO_CONTRATOS" || falha "não consegui retirar $UNIDADE_CONTRATO do manifesto"
-  (cd "$WT" && pnpm biome format --write "$MANIFESTO_CONTRATOS" >/dev/null 2>&1) || true
 
   (cd "$WT" && go run ./tools/dmpf-conformance/cmd/conformance --root . --write-baseline >/dev/null 2>&1) \
     || falha "--write-baseline reprovou ao classificar o estado sem o golden"
@@ -239,7 +229,7 @@ coletar_gerados() {
     [ -d "$WT/$MODULO/$modulo" ] || falha "o agente não produziu $MODULO/$modulo"
   done
   grep -q "$NOME" "$WT/go.work" || falha "go.work não registra o módulo de $NOME: o esqueleto não passou pelo generator"
-  [ -d "$WT/contracts/proto/company/$NOME" ] || falha "o agente não escreveu contracts/proto/company/$NOME"
+  [ -d "$WT/$CONTRATO/proto/company/$NOME" ] || falha "o agente não escreveu $CONTRATO/proto/company/$NOME"
   local fora=()
   for caminho in "${ARQUIVOS_GERADOS[@]}"; do
     case "$caminho" in
@@ -271,10 +261,10 @@ checar_sem_escrita() {
 rito_buf() {
   jq -e --arg u "$UNIDADE_CONTRATO" '.units[] | select(.id == $u)' "$WT/$MANIFESTO_CONTRATOS" >/dev/null \
     || falha "o agente não declarou a unidade $UNIDADE_CONTRATO em $MANIFESTO_CONTRATOS (sem ela o gen/go cai em DMPF-U001)"
-  (cd "$WT/contracts" && bash ../tools/buf.sh generate) || falha "buf generate reprovou"
-  (cd "$WT" && pnpm nx run contracts:buf-lint && pnpm nx run contracts:buf-pins \
-    && pnpm nx run contracts:buf-generate-check) || falha "um gate Buf reprovou"
-  [ -d "$WT/libs/backend/go/contracts/gen/go/company/$NOME" ] \
+  (cd "$WT/$CONTRATO" && bash "$WT/tools/buf.sh" generate) || falha "buf generate reprovou"
+  (cd "$WT" && pnpm nx run "$NOME-contract:buf-lint" && pnpm nx run "$NOME-contract:buf-pins" \
+    && pnpm nx run "$NOME-contract:buf-generate-check") || falha "um gate Buf reprovou"
+  [ -d "$WT/$CONTRATO/gen/go/company/$NOME" ] \
     || falha "o rito Buf não produziu gen/go/company/$NOME"
   ok "rito Buf: generate, buf-lint, buf-pins, buf-generate-check"
 }

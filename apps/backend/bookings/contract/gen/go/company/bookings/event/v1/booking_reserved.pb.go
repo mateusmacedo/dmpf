@@ -104,8 +104,8 @@ const file_company_bookings_event_v1_booking_reserved_proto_rawDesc = "" +
 	"resourceId\x12\x1a\n" +
 	"\bquantity\x18\x03 \x01(\x05R\bquantity\x12;\n" +
 	"\vreserved_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"reservedAtB\x9d\x02\n" +
-	"\x1dcom.company.bookings.event.v1B\x14BookingReservedProtoP\x01Z_github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/bookings/event/v1;eventv1\xa2\x02\x03CBE\xaa\x02\x19Company.Bookings.Event.V1\xca\x02\x19Company\\Bookings\\Event\\V1\xe2\x02%Company\\Bookings\\Event\\V1\\GPBMetadata\xea\x02\x1cCompany::Bookings::Event::V1b\x06proto3"
+	"reservedAtB\xa2\x02\n" +
+	"\x1dcom.company.bookings.event.v1B\x14BookingReservedProtoP\x01Zdgithub.com/mateusmacedo/dmpf/apps/backend/bookings/contract/gen/go/company/bookings/event/v1;eventv1\xa2\x02\x03CBE\xaa\x02\x19Company.Bookings.Event.V1\xca\x02\x19Company\\Bookings\\Event\\V1\xe2\x02%Company\\Bookings\\Event\\V1\\GPBMetadata\xea\x02\x1cCompany::Bookings::Event::V1b\x06proto3"
 
 var (
 	file_company_bookings_event_v1_booking_reserved_proto_rawDescOnce sync.Once
