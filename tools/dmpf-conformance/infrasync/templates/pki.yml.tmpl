@@ -17,7 +17,7 @@ services:
         [ -f ca.crt ] && exit 0
         apk add --no-cache openssl >/dev/null
         openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes -days 365 \
-          -subj /CN=dmpf-local-ca -keyout ca.key -out ca.crt
+          -subj /CN=local-ca -keyout ca.key -out ca.crt
         sign() {
           openssl x509 -req -in "/tmp/$$1.csr" -CA ca.crt -CAkey ca.key -CAserial /tmp/ca.srl -CAcreateserial \
             -days 365 -copy_extensions copy -out "$$1.crt"
@@ -40,11 +40,11 @@ services:
         client {{.}}{{end}}{{end}}
         chmod 0644 ./*.key ./*.crt
     volumes:
-      - dmpf-pki:/pki
+      - pki:/pki
     deploy:
       resources:
         limits: { cpus: '0.10', memory: 64M }
         reservations: { cpus: '0.01', memory: 16M }
 
 volumes:
-  dmpf-pki:
+  pki:
