@@ -4,10 +4,12 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"log/slog"
 	"net/http"
 	"regexp"
 	"slices"
 	"strings"
+	"time"
 
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
@@ -35,9 +37,10 @@ var idempotencyFormat = regexp.MustCompile(`^[A-Za-z0-9._-]{1,128}$`)
 // withExecutionContext authenticates and mounts the nine-field context. It runs
 // inside withRouteDeadline, never outside: deadline is mandatory in CTX-01, and
 // mounting before the timeout existed would leave the field unresolvable.
-func withExecutionContext(tracer trace.Tracer, authenticator ports.Authenticator, route kernelhttp.Route, next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+func withExecutionContext(tracer trace.Tracer, logger *slog.Logger, authenticator ports.Authenticator, route kernelhttp.Route, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		ctx := extractTrustedTrace(r)
+		started := time.Now()
 
 		correlation := r.Header.Get(CorrelationHeader)
 		if !correlationFormat.MatchString(correlation) {
@@ -49,6 +52,9 @@ func withExecutionContext(tracer trace.Tracer, authenticator ports.Authenticator
 			trace.WithSpanKind(trace.SpanKindServer),
 			trace.WithAttributes(tracing.Attributes{}.CorrelationID(correlation).RequestID(requestID).KeyValues()...))
 		defer span.End()
+
+		w := &statusRecorder{ResponseWriter: rw, status: http.StatusOK}
+		defer logAccess(ctx, logger, route, r, w, started)
 
 		w.Header().Set(CorrelationHeader, correlation)
 
@@ -100,6 +106,34 @@ func withExecutionContext(tracer trace.Tracer, authenticator ports.Authenticator
 		ctx = rpc.WithCall(ctx, call)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
+}
+
+type statusRecorder struct {
+	http.ResponseWriter
+	status int
+}
+
+func (s *statusRecorder) WriteHeader(status int) {
+	s.status = status
+	s.ResponseWriter.WriteHeader(status)
+}
+
+func (s *statusRecorder) Unwrap() http.ResponseWriter { return s.ResponseWriter }
+
+func logAccess(ctx context.Context, logger *slog.Logger, route kernelhttp.Route, r *http.Request, w *statusRecorder, started time.Time) {
+	level := slog.LevelDebug
+	switch {
+	case w.status >= http.StatusInternalServerError:
+		level = slog.LevelWarn
+	case w.status >= http.StatusBadRequest:
+		level = slog.LevelInfo
+	}
+	logger.LogAttrs(ctx, level, "http request",
+		slog.String("route", route.Name),
+		slog.String("method", r.Method),
+		slog.String("pattern", r.Pattern),
+		slog.Int("status", w.status),
+		slog.Float64("duration_ms", float64(time.Since(started).Microseconds())/1000))
 }
 
 func rejectionMessage(status int) string {

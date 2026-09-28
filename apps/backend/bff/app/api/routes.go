@@ -6,6 +6,7 @@ package api
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 
 	"go.opentelemetry.io/otel/trace"
@@ -67,6 +68,7 @@ type Options struct {
 	ReservationsContract []byte
 	BookingsContract     []byte
 	CORSOrigins          []string
+	Logger               *slog.Logger
 }
 
 func Routes(budget deadline.Budget) []kernelhttp.Route {
@@ -117,6 +119,11 @@ func NewHandler(
 		return nil, ErrAuthenticatorRequired
 	}
 
+	logger := opts.Logger
+	if logger == nil {
+		logger = slog.New(slog.DiscardHandler)
+	}
+
 	h := handlers{orders: orders, reservations: reservations, bookings: bookings}
 	serve := map[string]http.HandlerFunc{
 		"addItem":         h.addItem,
@@ -140,7 +147,7 @@ func NewHandler(
 			return nil, err
 		}
 		handler := requireIdempotencyKey(serve[route.Name])
-		mounted := withExecutionContext(tracer, opts.Authenticator, route, admit(handler))
+		mounted := withExecutionContext(tracer, logger, opts.Authenticator, route, admit(handler))
 		mux.Handle(pattern(route), withRecover(withRouteDeadline(route.Budget, mounted)))
 	}
 	if len(opts.OrdersContract) > 0 {

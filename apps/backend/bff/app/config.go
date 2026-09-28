@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/authn"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/boot"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/envconfig"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/admission"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/deadline"
@@ -61,6 +62,7 @@ type Config struct {
 
 	OTLPEndpoint string
 	OTLPInsecure bool
+	Signals      boot.Signals
 
 	Service  string
 	Version  string
@@ -121,6 +123,10 @@ func FromEnv(lookup func(string) string) (Config, error) {
 		return Config{}, err
 	}
 	if cfg.Auth, err = authn.ReadEnv(lookup); err != nil {
+		return Config{}, err
+	}
+
+	if cfg.Signals, err = boot.SignalsFromEnv(lookup); err != nil {
 		return Config{}, err
 	}
 

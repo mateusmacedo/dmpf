@@ -1,9 +1,11 @@
 package api_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -171,6 +173,7 @@ type fixture struct {
 	fake    *fakeContexts
 	handler http.Handler
 	spans   *tracetest.InMemoryExporter
+	logs    *bytes.Buffer
 }
 
 type setup struct {
@@ -200,6 +203,7 @@ func newFixture(t *testing.T, fake *fakeContexts, options ...option) fixture {
 		apply(cfg)
 	}
 
+	logs := &bytes.Buffer{}
 	spans := tracetest.NewInMemoryExporter()
 	provider := sdktrace.NewTracerProvider(sdktrace.WithSyncer(spans))
 	t.Cleanup(func() { _ = provider.Shutdown(context.Background()) })
@@ -238,11 +242,12 @@ func newFixture(t *testing.T, fake *fakeContexts, options ...option) fixture {
 		OrdersContract:       cfg.ordersContract,
 		ReservationsContract: cfg.reservationsContract,
 		CORSOrigins:          cfg.cors,
+		Logger:               slog.New(slog.NewJSONHandler(logs, &slog.HandlerOptions{Level: slog.LevelDebug})),
 	})
 	if err != nil {
 		t.Fatalf("NewHandler() = %v", err)
 	}
-	return fixture{fake: fake, handler: handler, spans: spans}
+	return fixture{fake: fake, handler: handler, spans: spans, logs: logs}
 }
 
 // testCredential is what the development authenticator reads back as identity.

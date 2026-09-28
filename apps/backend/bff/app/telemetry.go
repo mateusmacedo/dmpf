@@ -18,6 +18,7 @@ func TelemetryOf(cfg Config) boot.Telemetry {
 		Instance: cfg.Instance,
 		Endpoint: cfg.OTLPEndpoint,
 		Insecure: cfg.OTLPInsecure,
+		Signals:  cfg.Signals,
 		Class:    tracing.ClassWrite,
 		Fields:   requestFields,
 	}

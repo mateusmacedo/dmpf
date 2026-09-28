@@ -75,7 +75,7 @@ func RunWith(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {
 	if err != nil {
 		return err
 	}
-	options := api.Options{Budget: cfg.RouteBudget, Authenticator: authenticator, CORSOrigins: cfg.CORSOrigins}
+	options := api.Options{Budget: cfg.RouteBudget, Authenticator: authenticator, CORSOrigins: cfg.CORSOrigins, Logger: rt.Logger()}
 	if options.OrdersContract, err = readContract(cfg.OrdersContractPath); err != nil {
 		return err
 	}

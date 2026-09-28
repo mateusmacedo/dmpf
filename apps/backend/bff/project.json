@@ -36,7 +36,7 @@
       "cache": false,
       "inputs": ["go", "^go"],
       "options": {
-        "command": "go test -race -count=1 -p 1 -tags=integration ./...",
+        "command": "bash ../../../tools/test-env.sh go test -race -count=1 -p 1 -tags=integration ./...",
         "cwd": "{projectRoot}"
       }
     },
@@ -57,7 +57,7 @@
       },
       "continuous": true,
       "dependsOn": [
-        "infra-up",
+        "infra-session",
         {
           "projects": ["orders", "reservations", "bookings"],
           "target": "serve-api"
@@ -75,7 +75,7 @@
     "infra-up": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "docker compose -f infra/local/docker-compose.yml --profile postgres --profile redpanda --profile floci --profile provisioning up -d --wait",
+        "command": "bash tools/infra-session.sh up",
         "cwd": "{workspaceRoot}"
       }
     },
@@ -109,6 +109,15 @@
           "kubectl kustomize infra/k8s/overlays/hmg > /dev/null"
         ],
         "parallel": false,
+        "cwd": "{workspaceRoot}"
+      }
+    },
+    "infra-session": {
+      "executor": "nx:run-commands",
+      "continuous": true,
+      "dependsOn": ["infra-up"],
+      "options": {
+        "command": "bash tools/infra-session.sh session",
         "cwd": "{workspaceRoot}"
       }
     }
