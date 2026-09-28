@@ -65,7 +65,7 @@
     "observability-up": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "docker compose -f infra/local/docker-compose.yml --profile observability --profile exporters up -d --wait",
+        "command": "docker compose -f infra/local/docker-compose.yml --profile postgres --profile observability --profile exporters up -d --wait",
         "cwd": "{workspaceRoot}"
       }
     },
