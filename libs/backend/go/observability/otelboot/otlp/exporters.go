@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 
+	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+	sdklog "go.opentelemetry.io/otel/sdk/log"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"google.golang.org/grpc/credentials"
@@ -56,6 +58,24 @@ func MetricReader(ctx context.Context, config otelboot.Config, options ...sdkmet
 		return nil, err
 	}
 	return sdkmetric.NewPeriodicReader(exporter, options...), nil
+}
+
+// LogExporter builds the OTLP/gRPC log exporter, which otelboot.NewLoggerProvider
+// takes.
+func LogExporter(ctx context.Context, config otelboot.Config) (sdklog.Exporter, error) {
+	if err := check(config); err != nil {
+		return nil, err
+	}
+
+	options := []otlploggrpc.Option{otlploggrpc.WithEndpoint(config.Transport.Endpoint)}
+	switch {
+	case config.Transport.Insecure:
+		options = append(options, otlploggrpc.WithInsecure())
+	case config.Transport.TLS != nil:
+		options = append(options, otlploggrpc.WithTLSCredentials(credentials.NewTLS(config.Transport.TLS)))
+	}
+
+	return otlploggrpc.New(ctx, options...)
 }
 
 // check applies the transport rule of the bootstrap rather than restating it:

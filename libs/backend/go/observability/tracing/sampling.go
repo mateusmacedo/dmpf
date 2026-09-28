@@ -35,6 +35,18 @@ func DefaultRates() Rates {
 	}
 }
 
+// UniformRates samples every class at rate, except errors, which TRC-14 keeps
+// at 1.0 whatever the rate.
+func UniformRates(rate float64) Rates {
+	return Rates{
+		ClassError:        1.0,
+		ClassWrite:        rate,
+		ClassRead:         rate,
+		ClassMaintenance:  1.0,
+		ClassUnclassified: rate,
+	}
+}
+
 // RateFor is the rate of a class. An absent class takes the most restrictive
 // rate rather than passing everything through by omission.
 func (r Rates) RateFor(class Class) float64 {

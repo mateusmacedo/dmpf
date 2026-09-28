@@ -54,3 +54,15 @@ func TestDefaultRatesReturnsAFreshMap(t *testing.T) {
 		t.Fatalf("RateFor(read) = %v after a caller rewrote the map, want 0.01", got)
 	}
 }
+
+func TestUniformRatesKeepsErrorsAtFullRate(t *testing.T) {
+	rates := tracing.UniformRates(0.5)
+	for class, want := range map[tracing.Class]float64{
+		tracing.ClassError: 1, tracing.ClassMaintenance: 1,
+		tracing.ClassWrite: 0.5, tracing.ClassRead: 0.5, tracing.ClassUnclassified: 0.5,
+	} {
+		if got := rates.RateFor(class); got != want {
+			t.Fatalf("RateFor(%s) = %v, want %v", class, got, want)
+		}
+	}
+}
