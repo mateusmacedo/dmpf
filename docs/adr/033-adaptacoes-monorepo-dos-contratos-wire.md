@@ -2,7 +2,7 @@
 
 ## Status
 
-Aceito — 2026-09-03. Implementa SPEC-WYX5GW87 (`KRN-05`, ARQ-524).
+Aceito — 2026-09-03. Implementa SPEC-WYX5GW87 (`KRN-05`, ARQ-524). **Parcialmente supersedido pelo [ADR-054](./054-apps-autocontidos-e-infras-separadas.md) (2026-09-28)**: `contracts/` deixa de ser o módulo Buf único; o kernel tem `proto/` e Buf em `libs/backend/go/contracts`, e cada contexto publica o contrato no módulo `apps/backend/<ctx>/contract`, com `buf.yaml` e `buf.gen.yaml` próprios. O gate Buf passa a rodar por módulo e por pacote.
 
 ## Contexto
 
