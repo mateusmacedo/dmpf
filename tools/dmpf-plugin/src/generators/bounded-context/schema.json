@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/schema",
   "$id": "DmpfBoundedContext",
   "title": "Gera um bounded context DMPF em um módulo Go, um package por bloco",
-  "description": "Gera um bounded context DMPF como um único módulo Go — um package por bloco —, com manifesto declarado e entrada no go.work. contract fica fora (contracts/ pelo rito Buf).",
+  "description": "Gera um bounded context DMPF como um módulo Go — um package por bloco — com o módulo de contrato em contract/ e o deploy em deploy/, manifestos declarados, entradas no go.work e o release group do contrato no nx.json.",
   "type": "object",
   "properties": {
     "name": {
@@ -22,7 +22,7 @@
     },
     "blocks": {
       "type": "array",
-      "description": "Blocos DMPF a gerar, cada um como package do módulo. contract fica fora (fonte em contracts/ pelo rito Buf); um subconjunto precisa fechar as dependências entre blocos.",
+      "description": "Blocos DMPF a gerar, cada um como package do módulo. contract é sempre o módulo de contrato ao lado, aceito aqui sem efeito; um subconjunto precisa fechar as dependências entre blocos.",
       "items": {
         "type": "string"
       },
@@ -32,6 +32,13 @@
       "type": "string",
       "description": "Diretório que recebe o módulo do contexto, relativo à raiz do workspace.",
       "default": "apps/backend"
+    },
+    "grpcPort": {
+      "type": "integer",
+      "description": "Porta gRPC do processo no host, no deploy/.env.example; escolha uma livre ao lado das dos outros contextos (9191 a 9193).",
+      "default": 9194,
+      "minimum": 1024,
+      "maximum": 65535
     },
     "serviceName": {
       "type": "string",

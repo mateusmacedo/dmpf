@@ -1,0 +1,17 @@
+{
+  "schema": "dmpf/units@1",
+  "units": [
+    {
+      "id": <%- contractUnitIdJson %>,
+      "block": "contract",
+      "bounded_context": <%- boundedContextJson %>,
+      "public_integration_surface": true,
+      "include": [
+        <%- contractModulePathJson %>,
+        <%- contractServicePackageJson %>
+      ]
+    }
+  ],
+  "external": [],
+  "exceptions": []
+}

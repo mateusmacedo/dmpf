@@ -1,0 +1,4 @@
+// Package contract is the published contract of <%- name %>: the Protobuf source
+// in proto/ becomes gen/go only through tools/buf.sh generate, and another
+// context imports those packages, never the module of the app.
+package contract

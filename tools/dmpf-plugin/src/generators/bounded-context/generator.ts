@@ -23,6 +23,12 @@ const DEFAULT_DIRECTORY = 'apps/backend';
 const GO_WORK = 'go.work';
 const NPM_SCOPE = '@mateusmacedo';
 const MODSYNC_ARGS = ['run', './tools/dmpf-conformance/cmd/modsync', '--root', '.', '--write'];
+const INFRASYNC_ARGS = ['run', './tools/dmpf-conformance/cmd/infrasync', '--root', '.', '--write'];
+const NX_JSON = 'nx.json';
+const LOCAL_COMPOSE = 'infra/local/docker-compose.yml';
+const CONTRACT_DIRECTORY = 'contract';
+const DEPLOY_DIRECTORY = 'deploy';
+const DEFAULT_GRPC_PORT = 9194;
 const SERVICE_NAME_PATTERN = /^[a-z][a-z0-9]*(\.[a-z][a-z0-9]*)*\.[A-Z][A-Za-z0-9]*$/;
 
 const BASELINE_INSTRUCTION = [
@@ -40,7 +46,8 @@ type PlannedBlock = {
 
 type Plan = {
   directory: string;
-  useEntry: string;
+  contractDirectory: string;
+  useEntries: readonly string[];
   substitutions: Substitutions;
   blocks: readonly PlannedBlock[];
   goWork: string;
@@ -110,13 +117,12 @@ const validatedServiceName = ({
   return serviceName;
 };
 
+// The contract is never a package of the context module: it is always generated
+// as the contract module beside it, so naming the block asks for nothing more.
 const validatedBlocks = (blocks: readonly string[] | undefined): Block[] => {
-  const requested = blocks === undefined ? [...BLOCK_NAMES] : [...new Set(blocks)];
-  if (requested.includes(CONTRACT_BLOCK)) {
-    return refuse(
-      `block "${CONTRACT_BLOCK}" is not generated here: the contract source lives in contracts/ and is published by the Buf rite`,
-    );
-  }
+  const requested = (blocks === undefined ? [...BLOCK_NAMES] : [...new Set(blocks)]).filter(
+    (block) => block !== CONTRACT_BLOCK,
+  );
   const unknown = requested.filter((block) => !isBlock(block));
   if (unknown.length > 0) {
     return refuse(
@@ -136,8 +142,21 @@ const validatedBlocks = (blocks: readonly string[] | undefined): Block[] => {
   return orderBlocks(selected);
 };
 
-const testRaceCommandOf = (integration: boolean): string =>
-  integration ? 'go test -race -count=1 -p 1 -tags=integration ./...' : 'go test -race ./...';
+const toolOf = (depth: number, script: string): string =>
+  `bash ${'../'.repeat(depth)}tools/${script}`;
+
+const testRaceCommandOf = (integration: boolean, depth: number): string =>
+  integration
+    ? `${toolOf(depth, 'test-env.sh')} go test -race -count=1 -p 1 -tags=integration ./...`
+    : 'go test -race ./...';
+
+const validatedGrpcPort = (port: number | undefined): number => {
+  const value = port ?? DEFAULT_GRPC_PORT;
+  if (!Number.isInteger(value) || value < 1024 || value > 65535) {
+    return refuse(`option grpcPort ${JSON.stringify(port)} must be an integer from 1024 to 65535`);
+  }
+  return value;
+};
 
 const blocksTableOf = ({
   layouts,
@@ -160,6 +179,7 @@ const planModule = ({
   blocks,
   goVersion,
   serviceName,
+  grpcPort,
 }: {
   name: string;
   boundedContext: string;
@@ -167,9 +187,13 @@ const planModule = ({
   blocks: readonly Block[];
   goVersion: string;
   serviceName: string;
+  grpcPort: number;
 }): Omit<Plan, 'goWork'> => {
   const moduleDirectory = `${directory}/${name}`;
   const modulePath = `${MODULE_PREFIX}/${moduleDirectory}`;
+  const contractDirectory = `${moduleDirectory}/${CONTRACT_DIRECTORY}`;
+  const contractModulePath = `${modulePath}/${CONTRACT_DIRECTORY}`;
+  const contractProjectName = `${name}-${CONTRACT_DIRECTORY}`;
   const depth = moduleDirectory.split('/').length;
   const layouts = blocks.map(layoutOf);
   const layer = highestLayer(layouts);
@@ -177,10 +201,35 @@ const planModule = ({
 
   return {
     directory: moduleDirectory,
-    useEntry: useEntryOf(moduleDirectory),
+    contractDirectory,
+    useEntries: [useEntryOf(moduleDirectory), useEntryOf(contractDirectory)],
     substitutions: {
       tmpl: '',
       name,
+      grpcPort: String(grpcPort),
+      contractDirectory,
+      contractModulePath,
+      contractProjectName,
+      contractProjectNameJson: JSON.stringify(contractProjectName),
+      contractPackageNameJson: JSON.stringify(`${NPM_SCOPE}/${contractProjectName}`),
+      contractSourceRootJson: JSON.stringify(contractDirectory),
+      contractNxSchemaJson: JSON.stringify(
+        `${'../'.repeat(depth + 1)}node_modules/nx/schemas/project-schema.json`,
+      ),
+      contractTidyCommandJson: JSON.stringify(toolOf(depth + 1, 'go-tidy.sh')),
+      contractUnitIdJson: JSON.stringify(`${boundedContext}/${CONTRACT_BLOCK}`),
+      contractModulePathJson: JSON.stringify(contractModulePath),
+      contractServicePackageJson: JSON.stringify(
+        `${contractModulePath}/gen/go/${serviceName.split('.').slice(0, -1).join('/')}`,
+      ),
+      boundedContextJson: JSON.stringify(boundedContext),
+      tidyCommandJson: JSON.stringify(toolOf(depth, 'go-tidy.sh')),
+      serveRelayCommandJson: JSON.stringify(
+        `set -a; [ ! -f deploy/.env ] || . deploy/.env; set +a; until go run ./cmd --role relay; do echo "${name} relay: nova tentativa em 2s (o serve-api aplica o schema)" >&2; sleep 2; done`,
+      ),
+      testDistributedCommandJson: JSON.stringify(
+        `${toolOf(depth, 'test-env.sh')} go test -race -count=1 -p 1 -tags=integration,distributed ./distkit/...`,
+      ),
       pascalName: pascalOf(name),
       envName: name.replaceAll('-', '_').toUpperCase(),
       serviceName,
@@ -221,7 +270,7 @@ const planModule = ({
       externalFragment: externalFragment({ level: 1, external: externalOf(layouts) }),
       hasApp: blocks.includes('app'),
       testRaceCacheJson: integration ? 'false' : 'true',
-      testRaceCommandJson: JSON.stringify(testRaceCommandOf(integration)),
+      testRaceCommandJson: JSON.stringify(testRaceCommandOf(integration, depth)),
     },
     blocks: layouts.map((layout) => ({
       layout,
@@ -243,24 +292,105 @@ const planGeneration = (tree: Tree, options: BoundedContextGeneratorSchema): Pla
   const directory = validatedDirectory(options.directory);
   const blocks = validatedBlocks(options.blocks);
   const serviceName = validatedServiceName({ serviceName: options.serviceName, name });
+  const grpcPort = validatedGrpcPort(options.grpcPort);
 
   const goWorkContent =
     tree.read(GO_WORK, 'utf-8') ?? refuse(`${GO_WORK} was not found at the workspace root`);
   const { goVersion, useEntries } = parseGoWork(goWorkContent);
 
-  const module = planModule({ name, boundedContext, directory, blocks, goVersion, serviceName });
+  const module = planModule({
+    name,
+    boundedContext,
+    directory,
+    blocks,
+    goVersion,
+    serviceName,
+    grpcPort,
+  });
 
   if (tree.exists(module.directory)) {
     refuse(`${module.directory} already exists: refusing to overwrite a module in place`);
   }
-  if (useEntries.includes(module.useEntry)) {
-    refuse(`${GO_WORK} already registers ${module.useEntry}: refusing to duplicate the entry`);
+  for (const entry of module.useEntries) {
+    if (useEntries.includes(entry)) {
+      refuse(`${GO_WORK} already registers ${entry}: refusing to duplicate the entry`);
+    }
   }
 
   return {
     ...module,
-    goWork: registerModules({ content: goWorkContent, modules: [module.useEntry] }),
+    goWork: registerModules({ content: goWorkContent, modules: module.useEntries }),
   };
+};
+
+// nx.json is edited as text, one group inserted at the top of release.groups,
+// so the rest of the file keeps its formatting; a group already there is left.
+const withReleaseGroup = ({
+  content,
+  name,
+  contractDirectory,
+}: {
+  content: string;
+  name: string;
+  contractDirectory: string;
+}): string => {
+  const group = `go-contract-${name}`;
+  const parsed = JSON.parse(content) as { release?: { groups?: Record<string, unknown> } };
+  if (parsed.release?.groups?.[group] !== undefined) {
+    return content;
+  }
+  const releaseGroup = {
+    projects: [`${name}-${CONTRACT_DIRECTORY}`],
+    releaseTag: { pattern: `${contractDirectory}/v{version}` },
+  };
+  const anchor = /^([ \t]*)"groups": \{\n/m.exec(content);
+  if (anchor === null) {
+    const release = parsed.release ?? {};
+    const updated = { ...parsed, release: { ...release, groups: { [group]: releaseGroup } } };
+    return `${JSON.stringify(updated, null, 2)}\n`;
+  }
+  const indent = `${anchor[1]}  `;
+  const entry = [
+    `${indent}"${group}": {`,
+    `${indent}  "projects": ["${name}-${CONTRACT_DIRECTORY}"],`,
+    `${indent}  "releaseTag": {`,
+    `${indent}    "pattern": "${contractDirectory}/v{version}"`,
+    `${indent}  }`,
+    `${indent}},`,
+    '',
+  ].join('\n');
+  const at = anchor.index + anchor[0].length;
+  return content.slice(0, at) + entry + content.slice(at);
+};
+
+const withComposeInclude = ({ content, directory }: { content: string; directory: string }) => {
+  const include = `../../${directory}/${DEPLOY_DIRECTORY}/compose.yml`;
+  const lines = content.split('\n');
+  if (lines.some((line) => line.trim() === `- ${include}`)) {
+    return content;
+  }
+  const last = lines.reduce(
+    (found, line, index) =>
+      /^\s*- \.\.\/\.\.\/.*\/deploy\/compose\.yml$/.test(line) ? index : found,
+    -1,
+  );
+  const at = last >= 0 ? last + 1 : lines.findIndex((line) => line.trim() === 'include:') + 1;
+  if (at <= 0) {
+    return refuse(`${LOCAL_COMPOSE} has no include list to add ${include} to`);
+  }
+  lines.splice(at, 0, `  - ${include}`);
+  return lines.join('\n');
+};
+
+const runGo = ({ root, args, directory }: { root: string; args: string[]; directory: string }) => {
+  try {
+    execFileSync('go', args, { cwd: root, stdio: 'inherit' });
+  } catch (cause) {
+    throw new Error(
+      `bounded-context: the module was written to ${directory}, but go ${args[1]} did not run. Fix the cause above, then run: go ${args.join(' ')}`,
+      { cause },
+    );
+  }
 };
 
 const templateDir = (name: string): string => join(__dirname, 'files', name);
@@ -272,10 +402,24 @@ export const boundedContextGenerator = async (
   const plan = planGeneration(tree, options);
 
   generateFiles(tree, templateDir('module'), plan.directory, plan.substitutions);
+  generateFiles(tree, templateDir('contract'), plan.contractDirectory, plan.substitutions);
   if (plan.substitutions.hasApp) {
-    // The binary and its composition root only exist when the context has an
-    // app block: there is nothing to serve without one.
+    // The binary, its composition root and its deploy only exist when the
+    // context has an app block: there is nothing to serve without one.
     generateFiles(tree, templateDir('app'), plan.directory, plan.substitutions);
+    generateFiles(
+      tree,
+      templateDir('deploy'),
+      `${plan.directory}/${DEPLOY_DIRECTORY}`,
+      plan.substitutions,
+    );
+    const compose = tree.read(LOCAL_COMPOSE, 'utf-8');
+    if (compose !== null) {
+      tree.write(
+        LOCAL_COMPOSE,
+        withComposeInclude({ content: compose, directory: plan.directory }),
+      );
+    }
   }
   for (const block of plan.blocks) {
     generateFiles(tree, templateDir('block'), block.directory, block.substitutions);
@@ -285,22 +429,29 @@ export const boundedContextGenerator = async (
   }
 
   tree.write(GO_WORK, plan.goWork);
+  const nxJson = tree.read(NX_JSON, 'utf-8');
+  if (nxJson !== null) {
+    tree.write(
+      NX_JSON,
+      withReleaseGroup({
+        content: nxJson,
+        name: String(plan.substitutions.name),
+        contractDirectory: plan.contractDirectory,
+      }),
+    );
+  }
 
   const blocks = plan.blocks.map((block) => block.layout.dirName).join(', ');
   logger.info(
-    `\nbounded-context: 1 módulo gerado em ${plan.directory} com ${plan.blocks.length} bloco(s): ${blocks}.\n${BASELINE_INSTRUCTION}`,
+    `\nbounded-context: 2 módulos gerados, ${plan.directory} com ${plan.blocks.length} bloco(s) (${blocks}) e ${plan.contractDirectory}.\n${BASELINE_INSTRUCTION}`,
   );
 
-  // WHY: o modsync lê `go.mod` e `go.work` do disco, não da Tree — só o
-  // callback pós-flush enxerga o módulo novo.
+  // WHY: o modsync e o infrasync leem o disco, não a Tree — só o callback
+  // pós-flush enxerga os módulos e o deploy novos.
   return () => {
-    try {
-      execFileSync('go', MODSYNC_ARGS, { cwd: tree.root, stdio: 'inherit' });
-    } catch (cause) {
-      throw new Error(
-        `bounded-context: the module was written to ${plan.directory}, but dmpf-modsync did not run. Fix the cause above, then run: go ${MODSYNC_ARGS.join(' ')}`,
-        { cause },
-      );
+    runGo({ root: tree.root, args: MODSYNC_ARGS, directory: plan.directory });
+    if (plan.substitutions.hasApp) {
+      runGo({ root: tree.root, args: INFRASYNC_ARGS, directory: plan.directory });
     }
   };
 };

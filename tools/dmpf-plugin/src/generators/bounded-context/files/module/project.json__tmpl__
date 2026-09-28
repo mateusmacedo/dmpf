@@ -5,6 +5,14 @@
   "sourceRoot": <%- sourceRootJson %>,
   "tags": ["type:app", "scope:backend", "stack:go", <%- layerTagJson %>],
   "targets": {
+    "tidy": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": <%- tidyCommandJson %>,
+        "cwd": "{projectRoot}"
+      }
+    },
     "fmt-check": {
       "executor": "nx:run-commands",
       "cache": true,
@@ -51,16 +59,31 @@
     "serve-api": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "go run ./cmd --role api",
-        "cwd": "{projectRoot}"
-      }
+        "command": "set -a; [ ! -f deploy/.env ] || . deploy/.env; set +a; exec go run ./cmd --role api",
+        "cwd": "{projectRoot}",
+        "envFile": "{projectRoot}/deploy/.env.example"
+      },
+      "continuous": true,
+      "dependsOn": [
+        {
+          "projects": ["bff"],
+          "target": "infra-up"
+        },
+        {
+          "projects": ["bff"],
+          "target": "infra-session"
+        }
+      ]
     },
     "serve-relay": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "go run ./cmd --role relay",
-        "cwd": "{projectRoot}"
-      }
+        "command": <%- serveRelayCommandJson %>,
+        "cwd": "{projectRoot}",
+        "envFile": "{projectRoot}/deploy/.env.example"
+      },
+      "continuous": true,
+      "dependsOn": ["serve-api"]
     },
     "test-distributed": {
       "executor": "nx:run-commands",
@@ -74,7 +97,7 @@
         "test-race"
       ],
       "options": {
-        "command": "go test -race -count=1 -p 1 -tags=integration,distributed ./distkit/...",
+        "command": <%- testDistributedCommandJson %>,
         "cwd": "{projectRoot}"
       }
     }<% } %>

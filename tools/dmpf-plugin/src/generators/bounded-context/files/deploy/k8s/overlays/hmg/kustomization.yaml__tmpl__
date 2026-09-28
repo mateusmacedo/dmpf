@@ -1,0 +1,17 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+
+images:
+  - name: ghcr.io/mateusmacedo/<%- name %>
+    newTag: hmg
+
+replicas:
+  - name: <%- name %>-api
+    count: 2
+
+patches:
+  - path: configmap-<%- name %>-patch.yaml
+  - path: deployment-<%- name %>-api-patch.yaml
