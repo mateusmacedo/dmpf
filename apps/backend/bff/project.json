@@ -54,12 +54,28 @@
         "command": "set -a; [ ! -f deploy/.env ] || . deploy/.env; set +a; exec go run ./cmd",
         "cwd": "{projectRoot}",
         "envFile": "{projectRoot}/deploy/.env.example"
-      }
+      },
+      "continuous": true,
+      "dependsOn": [
+        "infra-up",
+        {
+          "projects": ["orders", "reservations", "bookings"],
+          "target": "serve-api"
+        },
+        {
+          "projects": ["orders", "reservations", "bookings"],
+          "target": "serve-relay"
+        },
+        {
+          "projects": ["reservations"],
+          "target": "serve-consumer"
+        }
+      ]
     },
     "infra-up": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "docker compose -f infra/local/docker-compose.yml --profile postgres --profile redpanda --profile floci up -d --wait",
+        "command": "docker compose -f infra/local/docker-compose.yml --profile postgres --profile redpanda --profile floci --profile provisioning up -d --wait",
         "cwd": "{workspaceRoot}"
       }
     },

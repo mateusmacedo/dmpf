@@ -70,23 +70,28 @@
         "command": "set -a; [ ! -f deploy/.env ] || . deploy/.env; set +a; exec go run ./cmd --role api",
         "cwd": "{projectRoot}",
         "envFile": "{projectRoot}/deploy/.env.example"
-      }
+      },
+      "continuous": true
     },
     "serve-relay": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "set -a; [ ! -f deploy/.env ] || . deploy/.env; set +a; exec go run ./cmd --role relay",
+        "command": "set -a; [ ! -f deploy/.env ] || . deploy/.env; set +a; until go run ./cmd --role relay; do echo \"reservations relay: nova tentativa em 2s (o serve-api aplica o schema)\" >&2; sleep 2; done",
         "cwd": "{projectRoot}",
         "envFile": "{projectRoot}/deploy/.env.example"
-      }
+      },
+      "continuous": true,
+      "dependsOn": ["serve-api"]
     },
     "serve-consumer": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "set -a; [ ! -f deploy/.env ] || . deploy/.env; set +a; exec go run ./cmd --role consumer",
+        "command": "set -a; [ ! -f deploy/.env ] || . deploy/.env; set +a; until go run ./cmd --role consumer; do echo \"reservations consumer: nova tentativa em 2s (o serve-api aplica o schema)\" >&2; sleep 2; done",
         "cwd": "{projectRoot}",
         "envFile": "{projectRoot}/deploy/.env.example"
-      }
+      },
+      "continuous": true,
+      "dependsOn": ["serve-api"]
     }
   }
 }
