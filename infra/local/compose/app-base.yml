@@ -8,6 +8,8 @@ services:
     environment:
       OTLP_ENDPOINT: otel-collector:4317
       OTLP_INSECURE: 'true'
+      TRACE_SAMPLE_RATE: '1'
+      LOG_LEVEL: debug
       SERVICE_VERSION: ${SERVICE_VERSION:-local}
 
   # gRPC interno com mTLS (IDN-03): cada api apresenta o próprio certificado e só
@@ -22,7 +24,7 @@ services:
       GRPC_TRUSTED_CLIENTS: spiffe://dmpf/bff
       MIGRATE: 'true'
     volumes:
-      - dmpf-pki:/pki:ro
+      - pki:/pki:ro
     deploy:
       resources:
         limits: { cpus: '0.15', memory: 192M }
@@ -46,7 +48,7 @@ services:
   dmpf-http-edge:
     extends: dmpf-app
     volumes:
-      - dmpf-pki:/pki:ro
+      - pki:/pki:ro
     deploy:
       resources:
         limits: { cpus: '0.15', memory: 192M }

@@ -1,7 +1,8 @@
 # O Collector é o único destino que a app conhece (OTLP_ENDPOINT): daqui
-# os traces seguem para o Tempo e as métricas para o receptor OTLP nativo do
-# Prometheus. Os logs não passam por aqui — o kernel os escreve em stdout e o
-# Alloy os coleta.
+# os traces seguem para o Tempo, as métricas para o receptor OTLP nativo do
+# Prometheus e os logs para o endpoint OTLP do Loki. Só exporta log por OTLP
+# a app com OTLP_LOGS=true (a que roda no host); a que roda em container
+# escreve em stdout e o Alloy coleta, sem gravar o registro duas vezes.
 receivers:
   otlp:
     protocols:
@@ -18,6 +19,10 @@ exporters:
       insecure: true
   otlphttp/prometheus:
     endpoint: http://prometheus:9090/api/v1/otlp
+    tls:
+      insecure: true
+  otlphttp/loki:
+    endpoint: http://loki:3100/otlp
     tls:
       insecure: true
   debug:
@@ -49,3 +54,7 @@ service:
       receivers: [otlp]
       processors: [batch]
       exporters: [otlphttp/prometheus]
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlphttp/loki]

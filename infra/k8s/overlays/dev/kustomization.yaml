@@ -3,7 +3,7 @@ kind: Kustomization
 
 # dev: tudo dentro do cluster — Postgres e Redpanda das bases, sem TLS nem no
 # Kafka nem no gRPC interno, banco e role de cada app criados pelo Job
-# dmpf-databases, schema aplicado pelo papel api de cada contexto
+# databases, schema aplicado pelo papel api de cada contexto
 # (MIGRATE), Grafana anônimo. Credenciais de desenvolvimento geradas aqui;
 # nada disto vale para outro ambiente.
 

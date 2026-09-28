@@ -6,7 +6,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: dmpf-databases
+  name: databases
 spec:
   backoffLimit: 10
   template:
@@ -52,17 +52,17 @@ spec:
             - name: BOOKINGS_PG_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: dmpf-databases
+                  name: databases
                   key: bookings
             - name: ORDERS_PG_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: dmpf-databases
+                  name: databases
                   key: orders
             - name: RESERVATIONS_PG_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: dmpf-databases
+                  name: databases
                   key: reservations
           resources:
             requests:

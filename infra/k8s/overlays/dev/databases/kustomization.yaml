@@ -8,7 +8,7 @@ resources:
   - job.yaml
 
 secretGenerator:
-  - name: dmpf-databases
+  - name: databases
     literals:
       - bookings=bookings-dev
       - orders=orders-dev
