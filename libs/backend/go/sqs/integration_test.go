@@ -53,8 +53,8 @@ func TestIntegrationFIFORedrivesToTheDLQOnTheThirdDelivery(t *testing.T) {
 	cfg := integrationConfig(t)
 	api := provider.NewSQSClient(cfg)
 	suffix := uniqueSuffix()
-	dlqURL := createQueue(t, api, "dmpf-it-dlq-"+suffix+".fifo", "", 0)
-	queueURL := createQueue(t, api, "dmpf-it-"+suffix+".fifo", queueARN(t, api, dlqURL), 2)
+	dlqURL := createQueue(t, api, "it-dlq-"+suffix+".fifo", "", 0)
+	queueURL := createQueue(t, api, "it-"+suffix+".fifo", queueARN(t, api, dlqURL), 2)
 
 	ch := fifoChannel()
 	ch.Address, ch.Containment = queueURL, dlqURL
@@ -99,8 +99,8 @@ func TestIntegrationAckDeletesAndEmptiesTheQueue(t *testing.T) {
 	cfg := integrationConfig(t)
 	api := provider.NewSQSClient(cfg)
 	suffix := uniqueSuffix()
-	queueURL := createQueue(t, api, "dmpf-it-std-"+suffix, "", 0)
-	dlqURL := createQueue(t, api, "dmpf-it-std-dlq-"+suffix, "", 0)
+	queueURL := createQueue(t, api, "it-std-"+suffix, "", 0)
+	dlqURL := createQueue(t, api, "it-std-dlq-"+suffix, "", 0)
 
 	ch := standardChannel()
 	ch.Address, ch.Containment = queueURL, dlqURL
@@ -153,9 +153,9 @@ func TestIntegrationSNSToSQSRawDeliveryIsRequiredAndPreservesTheEnvelope(t *test
 	snsAPI := provider.NewSNSClient(cfg)
 	suffix := uniqueSuffix()
 
-	rawQueue := createQueue(t, sqsAPI, "dmpf-it-sns-raw-"+suffix, "", 0)
-	wrappedQueue := createQueue(t, sqsAPI, "dmpf-it-sns-wrapped-"+suffix, "", 0)
-	topicARN := createTopic(t, snsAPI, "dmpf-it-topic-"+suffix)
+	rawQueue := createQueue(t, sqsAPI, "it-sns-raw-"+suffix, "", 0)
+	wrappedQueue := createQueue(t, sqsAPI, "it-sns-wrapped-"+suffix, "", 0)
+	topicARN := createTopic(t, snsAPI, "it-topic-"+suffix)
 	subscribe(t, snsAPI, topicARN, queueARN(t, sqsAPI, rawQueue), true)
 	wrappedSub := subscribe(t, snsAPI, topicARN, queueARN(t, sqsAPI, wrappedQueue), false)
 

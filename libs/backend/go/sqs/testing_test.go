@@ -139,6 +139,11 @@ func subscribe(t *testing.T, api *sns.Client, topicARN, queueARN string, raw boo
 	if err != nil {
 		t.Fatalf("Subscribe: %v", err)
 	}
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		_, _ = api.Unsubscribe(ctx, &sns.UnsubscribeInput{SubscriptionArn: out.SubscriptionArn})
+	})
 	return *out.SubscriptionArn
 }
 
