@@ -44,7 +44,7 @@ golden for regenerado e algo novo morder, a entrada nova vem para cá.
     sobre `node_modules/*` e `node_modules/@*/*` (o pnpm corrompe symlinks se
     reinstalar por baixo de um worktree).
 12. **O `tb/pg` só migra e reseta o que recebe.** `pg.OpenPool(t, pg.Options{...})`
-    abre o banco `<projeto>_test`, migra as `Capabilities` e os `Schemas`
+    abre o banco `<projeto>_test_<id>` do teste, migra as `Capabilities` e os `Schemas`
     pedidos e trunca só as `Tables` declaradas
     (`libs/backend/go/testkit/tb/pg/pool.go`). Tabela do contexto fora de
     `appkit.Tables` vaza linhas entre casos; schema fora de `Schemas` deixa o
@@ -52,7 +52,7 @@ golden for regenerado e algo novo morder, a entrada nova vem para cá.
     `provider.Schema`; o autor acrescenta as tabelas.
 13. **Truncar antes de migrar reprova em banco novo.** Um teste que trunca as
     tabelas do contexto antes de o schema existir falha na primeira execução
-    contra um `<projeto>_test` recém-criado. Use `appkit.OpenPool`, que migra
+    contra um `<projeto>_test_<id>` recém-criado. Use `appkit.OpenPool`, que migra
     antes do reset. `test-race` e `test-distributed` do mesmo projeto usam o
     mesmo banco, por isso o segundo depende do primeiro no `project.json`.
 14. **D002 sem shared kernel.** Sem `kernel/*` em `shared_kernel_units`

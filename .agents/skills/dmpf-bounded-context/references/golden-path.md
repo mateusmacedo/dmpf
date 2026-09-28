@@ -124,22 +124,22 @@ pnpm nx g @mateusmacedo/dmpf-plugin:bounded-context <name> --boundedContext <ctx
 ## 8. Contrato
 
 1. O serviço em
-   `contracts/proto/company/<name>/service/v1/<name>_service.proto`. Molde:
-   `contracts/proto/company/bookings/service/v1/bookings_service.proto`.
+   `apps/backend/<name>/contract/proto/company/<name>/service/v1/<name>_service.proto`. Molde:
+   `apps/backend/bookings/contract/proto/company/bookings/service/v1/bookings_service.proto`.
 2. Um `.proto` por evento **publicado**, em
-   `contracts/proto/company/<name>/event/v1/<evento>.proto`, package
+   `apps/backend/<name>/contract/proto/company/<name>/event/v1/<evento>.proto`, package
    `company.<name>.event.v1`, `option go_package`, comentários mínimos para o
-   lint STANDARD. Molde: `contracts/proto/company/bookings/event/v1/booking_reserved.proto`.
-3. OpenAPI em `contracts/openapi/<name>/v1/openapi.yaml`, com `bearerAuth`;
+   lint STANDARD. Molde: `apps/backend/bookings/contract/proto/company/bookings/event/v1/booking_reserved.proto`.
+3. OpenAPI em `apps/backend/<name>/contract/openapi/v1/openapi.yaml`, com `bearerAuth`;
    é o contrato que o `bff` serve.
 4. Unidade `<ctx>/contract` no `libs/backend/go/contracts/dmpf-units.json`,
    por merge de campo — **antes** do `generate`.
-5. Passo humano: `(cd contracts && bash ../tools/buf.sh generate)`, depois
+5. Passo humano: `(cd apps/backend/<name>/contract && bash ../../../../tools/buf.sh generate)`, depois
    `pnpm nx run contracts:buf-lint`, `buf-pins`, `buf-generate-check`,
    `NX_BASE=<base> buf-breaking`.
 
 - Norma: ADR-033; PTB-01/REP-01 (`company` fixo). `.proto` publicado é
-  imutável; `contracts/buf.yaml` é módulo único.
+  imutável; cada contexto tem o próprio `contract/buf.yaml`.
 
 ## 9. `include`
 

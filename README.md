@@ -51,7 +51,7 @@ dmpf/
 
 Detalhe módulo a módulo no README de cada lib/app (`libs/backend/go/<módulo>/README.md`,
 `apps/backend/<app>/README.md`), infraestrutura em [`infra/README.md`](infra/README.md),
-contratos em [`contracts/README.md`](contracts/README.md) e o BOM da release em
+contratos em [`libs/backend/go/contracts/README.md`](libs/backend/go/contracts/README.md) (kernel) e em `apps/backend/<ctx>/contract/` (cada contexto), e o BOM da release em
 [`bom/README.md`](bom/README.md).
 
 ## Comandos essenciais

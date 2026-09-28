@@ -123,7 +123,7 @@ O `.proto` do contexto é escrito pelo agente; o código gerado, não. `gen/go` 
 é escrito pelo rito:
 
 ```bash
-cd contracts && bash ../tools/buf.sh generate
+cd apps/backend/<name>/contract && bash ../../../../tools/buf.sh generate
 ```
 
 Depois, os quatro gates:

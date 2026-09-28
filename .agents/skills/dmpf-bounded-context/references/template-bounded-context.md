@@ -91,7 +91,7 @@ quando não existe (`inicializa se ausente`); os demais o exigem existente.]
 ## Integração
 
 - **Publica** (integration events): [`<Evento>` — vira
-  `contracts/proto/company/<name>/event/v1/<evento>.proto`]
+  `apps/backend/<name>/contract/proto/company/<name>/event/v1/<evento>.proto`]
 - **Consome**: [nenhum | por contrato: `messageFQN`, comando local, mapa de
   campos, disposições de consumo (FND-04 §6.4)]
 
