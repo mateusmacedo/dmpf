@@ -4,7 +4,7 @@
 services:
   postgres-init:
     image: postgres:16-alpine
-    profiles: [dmpf]
+    profiles: [dmpf, provisioning]
     depends_on:
       postgres:
         condition: service_healthy
@@ -34,7 +34,7 @@ services:
 
   redpanda-init:
     image: redpandadata/redpanda:v26.2.2
-    profiles: [dmpf]
+    profiles: [dmpf, provisioning]
     depends_on:
       redpanda:
         condition: service_healthy
