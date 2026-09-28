@@ -248,33 +248,33 @@ ganho de decidibilidade.
 
 ```bash
 # sem infra: clock, ids, stable, domainkit, golden, serviceskit, providerkit (memória), fitness, tb, evidence
-# (o test-race leva -tags=integration; sem PG_DSN, as suítes de banco fazem skip fora do CI)
+(cd libs/backend/go/testkit && go test ./...)
+
+# com a infra de testes (Postgres, Redpanda e floci em tmpfs, portas 15432,
+# 19092 e 14566): os targets de integração leem os valores do .env.example da
+# raiz por tools/test-env.sh, sem export manual
+pnpm nx run testkit:test-infra-up
 pnpm nx run testkit:test-race
 
-# com Postgres (providerkit sobre Postgres via postgres, tb/pg)
-docker compose -f infra/local/docker-compose.yml --profile postgres up -d
-PG_DSN='postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable' pnpm nx run testkit:test-race
-
 # borda a borda (appkit) e distribuído (distkit; build tag `distributed`) — harnesses do contexto reservations
-PG_DSN='postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable' pnpm nx run reservations:test-race
-PG_DSN='postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable' KAFKA_BROKERS=localhost:9092 \
-  pnpm nx run reservations:test-distributed
+pnpm nx run reservations:test-race
+pnpm nx run reservations:test-distributed
 
-# evidência da release (infra de pé; --out não pode existir)
-pnpm nx run bff:infra-up
-PG_DSN='postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable' KAFKA_BROKERS=localhost:9092 \
-  REDPANDA_ADMIN=http://localhost:9644 pnpm nx run testkit:evidence --out="$(mktemp -d)/0.1.0"
+# evidência da release (grava em dist/evidence/<commit>; --out troca o destino, que não pode existir)
+pnpm nx run testkit:evidence
+pnpm nx run testkit:test-infra-down
 ```
 
 Sem a variável, os testes de integração fazem `t.Skip` nomeando-a; com `CI`
 definido — os dois workflows o declaram no `env:` do job, sem depender do
-runner —, falham (`tb.Env`, fail-closed). `tb/pg.OpenPool` só aceita DSN de
-host loopback (`localhost`, `127.0.0.1`, `::1` ou socket Unix): o reset das
-tabelas é destrutivo, e um Postgres compartilhado nunca é fixture de teste. O
+runner —, falham (`tb.Env`, fail-closed). `tb/pg` só aceita DSN de
+host loopback (`localhost`, `127.0.0.1`, `::1` ou socket Unix) cujo servidor
+tenha `cluster_name=test`: cada teste ganha um banco `<projeto>_test_<id>`,
+criado para ele e apagado com `DROP DATABASE ... WITH (FORCE)` ao fim, e o
+servidor da infra de runtime local nunca é fixture de teste. O
 erro de conexão do pgx que chega ao log traz host, usuário e nome do banco —
 nunca a senha, que o pgx redige. O `test-distributed` de `reservations` depende
-do `test-race` de `postgres` e `app`, porque os três compartilham o
-Postgres do job. No CI, o `ci.yml` roda a cadeia por estágio (`layer:domain` →
+do `test-race` de `postgres` e `app`, que usam o mesmo servidor. No CI, o `ci.yml` roda a cadeia por estágio (`layer:domain` →
 `services` → infra → `contract` → `providers` → `apps`); dentro do estágio 4,
 os providers cujo `test-race` tem `cache: false` — os que exigem a infra do
 job — correm em `--parallel=1`, e os demais em `--parallel=3`. O
