@@ -36,7 +36,7 @@
       "cache": false,
       "inputs": ["go", "^go"],
       "options": {
-        "command": "go test -race -count=1 -p 1 -tags=integration ./...",
+        "command": "bash ../../../tools/test-env.sh go test -race -count=1 -p 1 -tags=integration ./...",
         "cwd": "{projectRoot}"
       }
     },
@@ -60,7 +60,7 @@
         "test-race"
       ],
       "options": {
-        "command": "go test -race -count=1 -p 1 -tags=integration,distributed ./distkit/...",
+        "command": "bash ../../../tools/test-env.sh go test -race -count=1 -p 1 -tags=integration,distributed ./distkit/...",
         "cwd": "{projectRoot}"
       }
     },
@@ -71,7 +71,17 @@
         "cwd": "{projectRoot}",
         "envFile": "{projectRoot}/deploy/.env.example"
       },
-      "continuous": true
+      "continuous": true,
+      "dependsOn": [
+        {
+          "projects": ["bff"],
+          "target": "infra-up"
+        },
+        {
+          "projects": ["bff"],
+          "target": "infra-session"
+        }
+      ]
     },
     "serve-relay": {
       "executor": "nx:run-commands",

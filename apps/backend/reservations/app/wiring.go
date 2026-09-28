@@ -138,6 +138,9 @@ func runConsumer(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {
 	if err := pool.Ping(ctx); err != nil {
 		return fmt.Errorf("postgres: %w", err)
 	}
+	if err := postgres.WaitForTables(ctx, pool, time.Second, append(postgres.Tables(postgres.Outbox, postgres.Inbox), "reservations")...); err != nil {
+		return err
+	}
 
 	ch := OrdersChannel(cfg)
 	catalog, err := NewCatalog(ch)
@@ -183,6 +186,9 @@ func runRelay(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {
 	defer pool.Close()
 	if err := pool.Ping(ctx); err != nil {
 		return fmt.Errorf("postgres: %w", err)
+	}
+	if err := postgres.WaitForTables(ctx, pool, time.Second, postgres.Tables(postgres.Outbox)...); err != nil {
+		return err
 	}
 
 	ch := ReservationsChannel(cfg)

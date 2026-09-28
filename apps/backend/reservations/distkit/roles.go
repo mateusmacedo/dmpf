@@ -64,10 +64,11 @@ func RunRole(t *testing.T) {
 	}
 }
 
-// openPool connects without resetting: the tables belong to the parent.
+// openPool connects to the database the parent created and passed in PG_DSN:
+// the tables, and the database itself, belong to the parent.
 func openPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
-	pool, err := pgxpool.NewWithConfig(context.Background(), pg.Config(t, appkit.PoolOptions.Project))
+	pool, err := pgxpool.New(context.Background(), tb.Env(t, pg.PostgresDSN))
 	if err != nil {
 		t.Fatalf("distkit: pgxpool.New: %v", err)
 	}
