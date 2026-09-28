@@ -186,7 +186,7 @@ travessia.
 
 ## `evidence` — evidência da release
 
-- Os testes que decidem um veredicto gravam-no quando `DMPF_EVIDENCE_DIR` está
+- Os testes que decidem um veredicto gravam-no quando `EVIDENCE_DIR` está
   definido: `evidence.RecordReport` no round-trip golden e `evidence.RecordVerdict`
   nas suítes de domínio, serviços e provider. Sem a variável, não gravam nada;
   o mesmo nome gravado duas vezes na mesma execução reprova.

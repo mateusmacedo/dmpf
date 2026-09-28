@@ -43,7 +43,7 @@
         }
       ],
       "options": {
-        "command": "go test -race -count=1 -p 1 -tags=integration ./...",
+        "command": "bash ../../../../tools/test-env.sh go test -race -count=1 -p 1 -tags=integration ./...",
         "cwd": "{projectRoot}"
       }
     },
@@ -66,7 +66,23 @@
         }
       ],
       "options": {
-        "command": "GOTOOLCHAIN=go1.26.6 go run ./libs/backend/go/testkit/cmd/evidence --root . --release latest",
+        "command": "bash tools/test-env.sh env GOTOOLCHAIN=go1.26.6 go run ./libs/backend/go/testkit/cmd/evidence --root . --release latest",
+        "cwd": "{workspaceRoot}"
+      }
+    },
+    "test-infra-up": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bash tools/test-infra.sh up",
+        "cwd": "{workspaceRoot}"
+      }
+    },
+    "test-infra-down": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bash tools/test-infra.sh down",
         "cwd": "{workspaceRoot}"
       }
     }

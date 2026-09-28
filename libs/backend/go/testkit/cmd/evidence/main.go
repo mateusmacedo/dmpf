@@ -154,7 +154,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		}
 	}
 
-	records, err := os.MkdirTemp("", "dmpf-evidence-records-")
+	records, err := os.MkdirTemp("", "evidence-records-")
 	if err != nil {
 		say(stderr, "dmpf-evidence: %v\n", err)
 		return exitReproved

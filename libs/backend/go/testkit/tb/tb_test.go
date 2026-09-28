@@ -36,18 +36,18 @@ func TestReadFixtureResolvesFromTheRepoRoot(t *testing.T) {
 }
 
 func TestEnvReturnsTheValueWhenSet(t *testing.T) {
-	t.Setenv("DMPF_TB_TEST", "x")
-	if got := tb.Env(t, "DMPF_TB_TEST"); got != "x" {
+	t.Setenv("TB_TEST", "x")
+	if got := tb.Env(t, "TB_TEST"); got != "x" {
 		t.Fatalf("Env = %q", got)
 	}
 }
 
 func TestEnvFailsInCIWhenUnset(t *testing.T) {
 	t.Setenv("CI", "1")
-	t.Setenv("DMPF_TB_MISSING", "")
+	t.Setenv("TB_MISSING", "")
 	s := &spy{TB: t}
-	tb.Env(s, "DMPF_TB_MISSING")
-	if !strings.Contains(s.fatal, "DMPF_TB_MISSING") || !strings.Contains(s.fatal, "CI") {
+	tb.Env(s, "TB_MISSING")
+	if !strings.Contains(s.fatal, "TB_MISSING") || !strings.Contains(s.fatal, "CI") {
 		t.Fatalf("Env in CI did not fail naming the variable: %q", s.fatal)
 	}
 }
