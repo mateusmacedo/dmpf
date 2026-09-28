@@ -10,8 +10,9 @@ import (
 	"github.com/mateusmacedo/dmpf/tools/dmpf-conformance/internal/rule"
 )
 
-// Ancestry responde se uma tag de módulo Go alcança o commit alvo da
-// validação. Nil desliga o B012, como Base nil desliga o B003.
+// Ancestry responde se a tag de um módulo Go — do kernel ou do contrato de um
+// contexto — alcança o commit alvo da validação. Nil desliga o B012, como Base
+// nil desliga o B003.
 type Ancestry interface {
 	Reach(tag string) (TagReach, error)
 }
@@ -37,7 +38,7 @@ func (v *validator) checkModuleTags() error {
 	}
 	for _, l := range v.doc.located() {
 		e := l.entry
-		if e.Subject != SubjectKernel || e.State == StateRejeitada {
+		if (e.Subject != SubjectKernel && e.Subject != SubjectContract) || e.State == StateRejeitada {
 			continue
 		}
 		dir, ok := dirs[e.Identity]
