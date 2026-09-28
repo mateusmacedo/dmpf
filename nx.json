@@ -63,7 +63,9 @@
       "plugin": "@nx/docker",
       "options": {
         "buildTarget": {
-          "name": "docker:build"
+          "name": "docker:build",
+          "cwd": ".",
+          "args": ["-f {projectRoot}/Dockerfile"]
         },
         "runTarget": {
           "name": "docker:run"
@@ -137,6 +139,11 @@
     "applyChanges": true
   },
   "targetDefaults": {
+    "@nx-go/nx-go:generate": {
+      "options": {
+        "args": ["./..."]
+      }
+    },
     "@nx-go/nx-go:lint": {
       "inputs": ["go", "^go", "{workspaceRoot}/.golangci.yml"],
       "options": {
