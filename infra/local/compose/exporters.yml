@@ -61,5 +61,5 @@ services:
       - /dev/disk/:/dev/disk:ro
     deploy:
       resources:
-        limits: { cpus: '0.15', memory: 256M }
+        limits: { cpus: '0.15', memory: 512M }
         reservations: { cpus: '0.05', memory: 64M }
