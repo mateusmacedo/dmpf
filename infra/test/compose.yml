@@ -35,6 +35,7 @@ services:
       - --advertise-kafka-addr=localhost:19092
     ports:
       - '19092:9092'
+      - '19644:9644'
     volumes:
       - { type: tmpfs, target: /var/lib/redpanda/data, tmpfs: { mode: 01777 } }
     healthcheck:
