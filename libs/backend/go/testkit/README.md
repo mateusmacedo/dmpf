@@ -134,7 +134,7 @@ O `contracts/golden` continua dono das fixtures de wire e do gerador
 (`GOLDEN_UPDATE=1`); só delega o carregador e os oráculos ao kit (FND-05 §8.4).
 
 As fixtures de **projeção observável** (`ORA-30`) vivem em
-`contracts/fixtures/<ctx>/projection/v1/*.golden` e são lidas por
+`apps/backend/<ctx>/contract/fixtures/projection/v1/*.golden` e são lidas por
 `tb.LoadProjection`; o codec fica em `tb` porque `encoding/json` é capability
 `wire.codec`, vedada ao bloco `domain`.
 
