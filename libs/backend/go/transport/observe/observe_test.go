@@ -184,3 +184,15 @@ func TestMetricsKeepsOneSeriesPerMethodAndCategoryAcrossRepeatedCalls(t *testing
 	}
 	t.Fatalf("series %q not recorded", metrics.RequestsTotal)
 }
+
+func TestLoggingRecordsASuccessfulCallAtDebug(t *testing.T) {
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
+
+	_ = observe.Logging(observe.Config{Logger: logger})(resilience.Direct)(context.Background(), op(), func(context.Context) error { return nil })
+
+	out := buf.String()
+	if !strings.Contains(out, "level=DEBUG") || !strings.Contains(out, "dependency=orders") || !strings.Contains(out, "outcome_category=ok") {
+		t.Fatalf("log = %q, want the call at DEBUG with dependency and outcome", out)
+	}
+}
