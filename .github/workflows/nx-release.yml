@@ -87,7 +87,8 @@ jobs:
 
       # Sem projeto com tag:type:lib o nx release sai com exit 1 ("Release group
       # \"<nome>\" matches no projects"), não vazio — e com os grupos nomeados do
-      # nx.json (go-libs, go-tools, npm) cada um precisa casar ao menos um projeto.
+      # nx.json (go-libs, go-contract-*, go-tools, npm) cada um precisa casar ao
+      # menos um projeto.
       # Esta detecção é o que mantém o pipeline ocioso — mesmo padrão dos
       # candidatos Docker abaixo.
       - name: Detect lib release candidates

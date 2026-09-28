@@ -81,6 +81,24 @@
           "pattern": "libs/backend/go/{projectName}/v{version}"
         }
       },
+      "go-contract-orders": {
+        "projects": ["orders-contract"],
+        "releaseTag": {
+          "pattern": "apps/backend/orders/contract/v{version}"
+        }
+      },
+      "go-contract-reservations": {
+        "projects": ["reservations-contract"],
+        "releaseTag": {
+          "pattern": "apps/backend/reservations/contract/v{version}"
+        }
+      },
+      "go-contract-bookings": {
+        "projects": ["bookings-contract"],
+        "releaseTag": {
+          "pattern": "apps/backend/bookings/contract/v{version}"
+        }
+      },
       "go-tools": {
         "projects": ["conformance"],
         "releaseTag": {
