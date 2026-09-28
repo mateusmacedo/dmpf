@@ -51,8 +51,9 @@
     "serve": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "OPENAPI_ORDERS_PATH=../orders/contract/openapi/v1/openapi.yaml OPENAPI_RESERVATIONS_PATH=../reservations/contract/openapi/v1/openapi.yaml OPENAPI_BOOKINGS_PATH=../bookings/contract/openapi/v1/openapi.yaml go run ./cmd",
-        "cwd": "{projectRoot}"
+        "command": "set -a; [ ! -f deploy/.env ] || . deploy/.env; set +a; exec go run ./cmd",
+        "cwd": "{projectRoot}",
+        "envFile": "{projectRoot}/deploy/.env.example"
       }
     },
     "infra-up": {

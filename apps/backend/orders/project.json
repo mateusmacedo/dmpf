@@ -51,15 +51,17 @@
     "serve-api": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "GRPC_INSECURE=true go run ./cmd --role api",
-        "cwd": "{projectRoot}"
+        "command": "set -a; [ ! -f deploy/.env ] || . deploy/.env; set +a; exec go run ./cmd --role api",
+        "cwd": "{projectRoot}",
+        "envFile": "{projectRoot}/deploy/.env.example"
       }
     },
     "serve-relay": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "go run ./cmd --role relay",
-        "cwd": "{projectRoot}"
+        "command": "set -a; [ ! -f deploy/.env ] || . deploy/.env; set +a; exec go run ./cmd --role relay",
+        "cwd": "{projectRoot}",
+        "envFile": "{projectRoot}/deploy/.env.example"
       }
     },
     "test-distributed": {
