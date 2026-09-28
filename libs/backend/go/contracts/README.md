@@ -1,11 +1,14 @@
-# Contratos de wire do DMPF
+# Kernel de contratos de wire do DMPF
 
-Este diretório é a **fonte** dos contratos de integração da plataforma: os
-arquivos `.proto`, a configuração do Buf e as golden fixtures. Ele é neutro de
-stack — nenhuma opção de linguagem vive aqui; o pacote Go é aplicado na geração,
-pelo managed mode (`BUF-10`).
+Este módulo é o **kernel** dos contratos de integração: o envelope CloudEvents
+vendorizado, o `envelope` e o `payloadhash` que o empacotam, o proto de teste
+`dmpf.testing.v1` com as golden fixtures dele e os testes golden. O contrato de
+cada contexto não mora aqui: ele é o módulo `apps/backend/<ctx>/contract`, com
+`buf.yaml`, `buf.gen.yaml`, `proto/`, `openapi/`, `fixtures/` e `gen/go/`
+próprios (ADR-054). A fonte `.proto` é neutra de stack; o pacote Go é aplicado
+na geração, pelo managed mode (`BUF-10`).
 
-A norma que este diretório implementa é `docs/dmpf/cloudevents-protobuf-buf.md`
+A norma que este módulo implementa é `docs/dmpf/cloudevents-protobuf-buf.md`
 (perfil CloudEvents `ENV-*`, política Protobuf `PTB-*`, governança Buf `BUF-*`,
 layout `REP-*`, fixtures `INT-*`), com o codec e a fórmula do `payload_hash`
 fixados em `docs/adr/022-codec-cloudevents-proto-data-e-payload-hash.md` e a
@@ -14,40 +17,38 @@ autoridade de validação em `docs/adr/023-autoridade-de-validacao-e-registry.md
 ## Árvore
 
 ```text
-contracts/
-├── buf.yaml            workspace Buf v2: módulo `proto`, lint STANDARD, breaking FILE, deps vazias (BUF-01, BUF-02)
-├── buf.gen.yaml        geração em managed mode; plugin protoc-gen-go pinado (BUF-06, BUF-10)
+libs/backend/go/contracts/
+├── buf.yaml            módulo Buf `proto`: lint STANDARD, breaking FILE, deps vazias (BUF-01, BUF-02)
+├── buf.gen.yaml        geração em managed mode para gen/go; plugin protoc-gen-go pinado (BUF-06, BUF-10)
 ├── proto/
-│   ├── io/cloudevents/v1/cloudevents.proto           envelope oficial do CloudEvents, vendorizado (ENV-07)
-│   └── company/orders/event/v1/order_placed.proto    contrato de exemplo (§5.1 da norma)
-├── fixtures/
-│   ├── orders/event/v1/order-placed.golden           golden fixture JSON, fonte única das stacks (INT-01)
-│   ├── orders/projection/v1/order.golden             fixture de projeção observável (FND-09 ORA-30): estado, comando e desfecho esperado, sem bytes de wire
-│   └── reservations/projection/v1/reservation.golden idem, para o agregado de reservas; consumidas pelos testes de projeção de `apps/backend/orders/domain` e `apps/backend/reservations/domain`
-├── openapi/            registrado, não normatizado (REP-06)
-└── asyncapi/           registrado, não normatizado (REP-06)
+│   ├── io/cloudevents/v1/cloudevents.proto   envelope oficial do CloudEvents, vendorizado (ENV-07)
+│   └── dmpf/testing/v1/*.proto               eventos de teste do kernel, sem vínculo com nenhum app
+├── fixtures/testing/v1/*.golden              golden fixtures JSON dos eventos de teste (INT-01)
+├── gen/go/                                   gerado, nunca editado à mão (REP-02)
+├── envelope/, payloadhash/                   empacotamento CloudEvents e hash do payload
+└── golden/                                   testes golden sobre o proto de teste
 ```
 
-O código gerado **não** fica aqui: `buf.gen.yaml` escreve em
-`libs/backend/go/contracts/gen/go/`, dentro do módulo Go do bloco
-`contract`, porque é esse módulo que o verificador de conformidade classifica.
-A semântica de `REP-02` é preservada: o gerado é versionado, nunca editado à
-mão, e a divergência entre gerado e versionado reprova o PR.
+A semântica de `REP-02` vale aqui e em cada módulo de contrato: o gerado é
+versionado, nunca editado à mão, e a divergência entre gerado e versionado
+reprova o PR.
 
 ## Toolchain
 
 Nenhum binário é instalado. A CLI entra por `tools/buf.sh`, que executa
 `go run github.com/bufbuild/buf/cmd/buf@<versão>`; o plugin `protoc-gen-go`
 entra pelo `local` de `buf.gen.yaml`, também por `go run`. Os dois pins são
-exatos e ficam num único lugar cada; `tools/buf-gate.sh pins` reprova `latest`,
-faixa ou divergência entre a versão do plugin e a do runtime no `go.mod`.
+exatos; `tools/buf-gate.sh pins` reprova `latest`, faixa ou divergência entre
+a versão do plugin e a do runtime no `go.mod`, e exige o mesmo plugin em todos
+os `buf.gen.yaml` do repositório.
 
-Comandos do dia a dia, sempre a partir da raiz do repositório:
+Comandos do dia a dia, a partir da raiz do repositório (troque o diretório pelo
+`apps/backend/<ctx>/contract` de um contexto):
 
 ```bash
-bash tools/buf.sh lint contracts
-bash tools/buf.sh format --diff --exit-code contracts
-(cd contracts && bash ../tools/buf.sh generate)
+bash tools/buf.sh lint libs/backend/go/contracts
+bash tools/buf.sh format --diff --exit-code libs/backend/go/contracts
+(cd libs/backend/go/contracts && bash ../../../../tools/buf.sh generate)
 ```
 
 ## Proveniência do envelope vendorizado
@@ -69,7 +70,7 @@ Para reproduzir a conferência:
 curl -sSL -o /tmp/cloudevents.proto \
   https://raw.githubusercontent.com/cloudevents/spec/v1.0.2/cloudevents/formats/cloudevents.proto
 sha256sum /tmp/cloudevents.proto
-sha256sum contracts/proto/io/cloudevents/v1/cloudevents.proto
+sha256sum libs/backend/go/contracts/proto/io/cloudevents/v1/cloudevents.proto
 ```
 
 O arquivo oficial carrega `option go_package` e opções de outras linguagens; o
@@ -77,42 +78,44 @@ managed mode as sobrescreve na geração, e por isso o arquivo não é editado.
 
 ## Gates e baseline
 
-Os quatro gates de `tools/buf-gate.sh` rodam como targets Nx do projeto
-`contracts` e no passo `Contracts gates (affected)` do CI; nenhum é
-advisory e nenhum tem bypass (`BUF-12`):
+Os gates de `tools/buf-gate.sh <cmd> <moddir> --project <nome>` rodam como
+targets Nx de cada projeto de contrato — `contracts` e os `<ctx>-contract` — e
+no CI; nenhum é advisory e nenhum tem bypass (`BUF-12`):
 
 | Subcomando | O que prova |
 |------------|-------------|
 | `lint` | `buf format --diff --exit-code`, `buf lint` em `STANDARD` e varredura textual de P0-3 (nenhum artefato promete entrega única fim a fim) |
-| `pins` | pin exato da CLI em `tools/buf.sh`, do plugin em `buf.gen.yaml`, igualdade plugin × runtime no `go.mod` e `buf.lock` presente quando há `deps` |
+| `pins` | pin exato da CLI em `tools/buf.sh`, do plugin em `buf.gen.yaml`, igualdade plugin × runtime no `go.mod`, o mesmo plugin em todos os módulos e `buf.lock` presente quando há `deps` |
 | `generate-check` | duas gerações idênticas byte a byte e ausência de drift entre gerado e versionado (`BUF-11`) |
-| `breaking` | `buf breaking` em `FILE` contra `NX_BASE`, sob a máquina de estados de `BUF-08` |
+| `breaking` | `buf breaking` em `FILE` contra `NX_BASE`, por pacote, sob a máquina de estados de `BUF-08` |
 
 O subcomando `warmup` não é gate: compila a CLI e o plugin uma única vez, e os
 targets `buf-lint`, `buf-generate-check` e `buf-gate-selftest` dependem dele
 (`dependsOn`). Sem isso, os três `go run` a frio em paralelo estouravam o
 timeout do job no runner.
 
-`buf breaking` segue `BUF-08`: cada módulo do workspace está em um de dois
+O `breaking` identifica cada `.proto` publicado pelo pacote: um pacote que
+mudou de módulo é comparado com o recorte dele em `NX_BASE`, e um pacote
+publicado que some de todos os módulos reprova. Cada módulo está em um de dois
 estados, reconhecidos pela **marca de baseline** — a tag anotada
-`contracts-baseline/<módulo>` (para o módulo `proto`, `contracts-baseline/proto`).
+`contracts-baseline/<projeto>` (a legada `contracts-baseline/proto` só vale para
+o módulo cuja raiz existe no commit da tag).
 
-- **`sem baseline`** — a marca não existe e o módulo também não existe em
-  `NX_BASE`: é o primeiro conteúdo do módulo; `breaking` é dispensado só para
-  ele, com aviso na saída. `lint`, `format`, `generate-check` e `pins` seguem
-  obrigatórios. É o estado deste repositório enquanto a marca não for criada.
-- **`baseline estabelecido`** — a marca existe: `breaking` é obrigatório;
-  `NX_BASE` vazio, irresolvível ou sem `contracts/` reprova.
+- **`sem baseline`** — a marca não existe e o módulo não tem pacote publicado
+  em `NX_BASE`: `breaking` é dispensado só para ele, com aviso na saída.
+  `lint`, `format`, `generate-check` e `pins` seguem obrigatórios.
+- **`baseline estabelecido`** — a marca existe: `breaking` é obrigatório, e
+  `NX_BASE` vazio ou irresolvível reprova.
 
-Três situações reprovam por construção: marca ausente em módulo que já existe em
-`NX_BASE`; diretório de pacote publicado que mude de caminho; e marca cujo
-`tagger` seja o autor do primeiro commit do módulo — a autorização precisa vir
-de outra pessoa. Para criar a marca, alguém que **não** seja o autor do módulo
-executa, após o merge:
+Três situações reprovam por construção: marca ausente em módulo cujos pacotes
+já existem em `NX_BASE`; pacote publicado que desapareça; e marca cujo `tagger`
+seja o autor do primeiro commit do módulo — a autorização precisa vir de outra
+pessoa. Para criar a marca, alguém que **não** seja o autor do módulo executa,
+após o merge:
 
 ```bash
-git tag -a contracts-baseline/proto -m "baseline estabelecido" <commit-na-branch-principal>
-git push origin contracts-baseline/proto
+git tag -a contracts-baseline/<projeto> -m "baseline estabelecido" <commit-na-branch-principal>
+git push origin contracts-baseline/<projeto>
 ```
 
 A plataforma é o GitHub (`github.com/mateusmacedo/dmpf`, ADR-043). O
@@ -132,8 +135,8 @@ isso como pré-requisito organizacional, não como defeito do gate.
   (`REP-01`), uma fixture por contrato `event` (`INT-02`), enum começa em
   `_UNSPECIFIED` (`PTB-09`), campo removido é `reserved` por número e nome
   (`PTB-06`).
-- `openapi/` e `asyncapi/` existem porque a norma os registra (`REP-06`); nada
-  aqui obriga sobre o seu conteúdo, versionamento ou gates.
-- Semântica de entrega não é assunto deste diretório: ela é fixada pela RFC
+- O `openapi/` de cada módulo de contrato existe porque a norma o registra
+  (`REP-06`); nada aqui obriga sobre o seu conteúdo, versionamento ou gates.
+- Semântica de entrega não é assunto deste módulo: ela é fixada pela RFC
   DMPF §2.3 e pelos artefatos de mensageria, e o gate `lint` só garante que
   nenhum arquivo daqui a contradiga.
