@@ -5,6 +5,14 @@
   "sourceRoot": "apps/backend/bff",
   "tags": ["type:app", "scope:backend", "stack:go", "layer:apps"],
   "targets": {
+    "tidy": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bash ../../../tools/go-tidy.sh",
+        "cwd": "{projectRoot}"
+      }
+    },
     "fmt-check": {
       "executor": "nx:run-commands",
       "cache": true,

@@ -5,6 +5,14 @@
   "sourceRoot": "libs/backend/go/application",
   "tags": ["type:lib", "scope:backend", "stack:go", "layer:services"],
   "targets": {
+    "tidy": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bash ../../../../tools/go-tidy.sh",
+        "cwd": "{projectRoot}"
+      }
+    },
     "fmt-check": {
       "executor": "nx:run-commands",
       "cache": true,

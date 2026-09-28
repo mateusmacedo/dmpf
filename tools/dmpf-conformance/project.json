@@ -5,6 +5,14 @@
   "sourceRoot": "tools/dmpf-conformance",
   "tags": ["type:lib", "scope:shared", "stack:go"],
   "targets": {
+    "tidy": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bash ../go-tidy.sh",
+        "cwd": "{projectRoot}"
+      }
+    },
     "fmt-check": {
       "executor": "nx:run-commands",
       "cache": true,

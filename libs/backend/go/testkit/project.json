@@ -5,6 +5,14 @@
   "sourceRoot": "libs/backend/go/testkit",
   "tags": ["type:lib", "scope:backend", "stack:go", "layer:providers"],
   "targets": {
+    "tidy": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bash ../../../../tools/go-tidy.sh",
+        "cwd": "{projectRoot}"
+      }
+    },
     "fmt-check": {
       "executor": "nx:run-commands",
       "cache": true,
@@ -66,7 +74,7 @@
         }
       ],
       "options": {
-        "command": "bash tools/test-env.sh env GOTOOLCHAIN=go1.26.6 go run ./libs/backend/go/testkit/cmd/evidence --root . --release latest",
+        "command": "bash tools/test-env.sh env GOTOOLCHAIN=go1.26.6 go run ./libs/backend/go/testkit/cmd/evidence --root . --release latest --out dist/evidence/$(git rev-parse --short HEAD)",
         "cwd": "{workspaceRoot}"
       }
     },
