@@ -1,6 +1,6 @@
 {
   "schema": "dmpf/units-baseline@1",
-  "digest": "sha256:81fdb906fe1d922e7d997a5c7d1ba3a952846e84f9c6d3a28a613092bd7b607c",
+  "digest": "sha256:1bd8907d9259a7d579526d5fd85c27528726244a7d39e337a6da81dee505cb83",
   "entries": [
     {
       "unit": "bff/app",
@@ -445,6 +445,13 @@
       "membership": ["github.com/mateusmacedo/dmpf/tools/dmpf-conformance/cmd/bom"]
     },
     {
+      "unit": "conformance/cmd-infrasync",
+      "module": "github.com/mateusmacedo/dmpf/tools/dmpf-conformance",
+      "block": "app",
+      "bounded_context": "conformance",
+      "membership": ["github.com/mateusmacedo/dmpf/tools/dmpf-conformance/cmd/infrasync"]
+    },
+    {
       "unit": "conformance/cmd-modsync",
       "module": "github.com/mateusmacedo/dmpf/tools/dmpf-conformance",
       "block": "app",
@@ -485,6 +492,13 @@
       "block": "provider",
       "bounded_context": "conformance",
       "membership": ["github.com/mateusmacedo/dmpf/tools/dmpf-conformance/internal/golist"]
+    },
+    {
+      "unit": "conformance/infrasync",
+      "module": "github.com/mateusmacedo/dmpf/tools/dmpf-conformance",
+      "block": "app",
+      "bounded_context": "conformance",
+      "membership": ["github.com/mateusmacedo/dmpf/tools/dmpf-conformance/infrasync"]
     },
     {
       "unit": "conformance/manifest",
