@@ -1,0 +1,107 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "orders api",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "program": "${workspaceFolder}/apps/backend/orders/cmd",
+      "cwd": "${workspaceFolder}/apps/backend/orders",
+      "envFile": "${workspaceFolder}/apps/backend/orders/deploy/.env.example",
+      "args": ["--role", "api"]
+    },
+    {
+      "name": "orders relay",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "program": "${workspaceFolder}/apps/backend/orders/cmd",
+      "cwd": "${workspaceFolder}/apps/backend/orders",
+      "envFile": "${workspaceFolder}/apps/backend/orders/deploy/.env.example",
+      "args": ["--role", "relay"]
+    },
+    {
+      "name": "reservations api",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "program": "${workspaceFolder}/apps/backend/reservations/cmd",
+      "cwd": "${workspaceFolder}/apps/backend/reservations",
+      "envFile": "${workspaceFolder}/apps/backend/reservations/deploy/.env.example",
+      "args": ["--role", "api"]
+    },
+    {
+      "name": "reservations relay",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "program": "${workspaceFolder}/apps/backend/reservations/cmd",
+      "cwd": "${workspaceFolder}/apps/backend/reservations",
+      "envFile": "${workspaceFolder}/apps/backend/reservations/deploy/.env.example",
+      "args": ["--role", "relay"]
+    },
+    {
+      "name": "reservations consumer",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "program": "${workspaceFolder}/apps/backend/reservations/cmd",
+      "cwd": "${workspaceFolder}/apps/backend/reservations",
+      "envFile": "${workspaceFolder}/apps/backend/reservations/deploy/.env.example",
+      "args": ["--role", "consumer"]
+    },
+    {
+      "name": "bookings api",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "program": "${workspaceFolder}/apps/backend/bookings/cmd",
+      "cwd": "${workspaceFolder}/apps/backend/bookings",
+      "envFile": "${workspaceFolder}/apps/backend/bookings/deploy/.env.example",
+      "args": ["--role", "api"]
+    },
+    {
+      "name": "bookings relay",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "program": "${workspaceFolder}/apps/backend/bookings/cmd",
+      "cwd": "${workspaceFolder}/apps/backend/bookings",
+      "envFile": "${workspaceFolder}/apps/backend/bookings/deploy/.env.example",
+      "args": ["--role", "relay"]
+    },
+    {
+      "name": "bff",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "program": "${workspaceFolder}/apps/backend/bff/cmd",
+      "cwd": "${workspaceFolder}/apps/backend/bff",
+      "envFile": "${workspaceFolder}/apps/backend/bff/deploy/.env.example"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "BFF + contextos",
+      "configurations": [
+        "orders api",
+        "orders relay",
+        "reservations api",
+        "reservations relay",
+        "reservations consumer",
+        "bookings api",
+        "bookings relay",
+        "bff"
+      ],
+      "preLaunchTask": "infra-up",
+      "stopAll": true
+    },
+    {
+      "name": "Contextos (api) + BFF",
+      "configurations": ["orders api", "reservations api", "bookings api", "bff"],
+      "preLaunchTask": "infra-up",
+      "stopAll": true
+    }
+  ]
+}
