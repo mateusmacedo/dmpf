@@ -33,7 +33,7 @@ func newPKI(t *testing.T) *pki {
 	}
 	template := &x509.Certificate{
 		SerialNumber:          big.NewInt(1),
-		Subject:               pkix.Name{CommonName: "dmpf-test-ca"},
+		Subject:               pkix.Name{CommonName: "test-ca"},
 		NotBefore:             time.Now().Add(-time.Hour),
 		NotAfter:              time.Now().Add(time.Hour),
 		IsCA:                  true,

@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"regexp"
 	"strings"
+	"time"
 
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
@@ -50,13 +51,14 @@ var (
 	localeFormat      = regexp.MustCompile(`^[A-Za-z]{1,8}(-[A-Za-z0-9]{1,8})*$`)
 )
 
-// ServerInterceptors is the chain of SPEC-ACYKBF9V: span, admission, deadline,
-// context. Other services' methods pass untouched: the health probe has no limit
-// nor deadline and is called before the service is ready (ADR-044).
+// ServerInterceptors is the chain of SPEC-ACYKBF9V: span, call log, admission,
+// deadline, context. Other services' methods pass untouched: the health probe
+// has no limit nor deadline and is called before the service is ready (ADR-044).
 func ServerInterceptors(service string, tracer trace.Tracer, ctrl *admission.Controller, instruments *metrics.Instruments, logger *slog.Logger) []grpc.UnaryServerInterceptor {
 	own := ownMethods(service)
 	return []grpc.UnaryServerInterceptor{
 		own(serverSpan(tracer)),
+		own(callLog(logger)),
 		own(Admission(ctrl, admissionTenant, instruments)),
 		own(requireDeadline),
 		own(requestContext(logger)),
@@ -97,6 +99,29 @@ func serverSpan(tracer trace.Tracer) grpc.UnaryServerInterceptor {
 		if err != nil {
 			tracing.RecordError(span, status.Code(err).String())
 		}
+		return resp, err
+	}
+}
+
+// callLog records every call with its code and never its message, which would
+// leave the process without redaction (LOG-13). A success is DEBUG, so only a
+// process that asks for it pays for one line per call.
+func callLog(logger *slog.Logger) grpc.UnaryServerInterceptor {
+	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
+		if logger == nil {
+			return handler(ctx, req)
+		}
+		started := time.Now()
+		resp, err := handler(ctx, req)
+		code := status.Code(err)
+		level := slog.LevelDebug
+		if code != codes.OK {
+			level = slog.LevelWarn
+		}
+		logger.LogAttrs(ctx, level, "grpc call",
+			slog.String("operation", info.FullMethod),
+			slog.String("code", code.String()),
+			slog.Float64("duration_ms", float64(time.Since(started).Microseconds())/1000))
 		return resp, err
 	}
 }
