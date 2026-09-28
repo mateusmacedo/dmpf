@@ -47,4 +47,21 @@ func createTopics(t *testing.T, seeds []string, partitions int32, topics ...stri
 	})
 }
 
+// deleteGroupAfter removes the consumer group the test created, which the
+// broker would otherwise keep with its committed offsets after the topic is gone.
+func deleteGroupAfter(t *testing.T, seeds []string, group string) {
+	t.Helper()
+	t.Cleanup(func() {
+		cl, err := kgo.NewClient(kgo.SeedBrokers(seeds...))
+		if err != nil {
+			t.Errorf("kgo.NewClient: %v", err)
+			return
+		}
+		defer cl.Close()
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		_, _ = kadm.NewClient(cl).DeleteGroups(ctx, group)
+	})
+}
+
 func uniqueSuffix() string { return fmt.Sprintf("%d", time.Now().UnixNano()) }
