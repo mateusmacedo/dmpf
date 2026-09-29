@@ -38,7 +38,6 @@ services:
     environment:
       KAFKA_BROKERS: redpanda:29092
       KAFKA_INSECURE: 'true'
-      KAFKA_GROUP: ${KAFKA_GROUP:-reservations}
       KAFKA_SASL_MECHANISM: SCRAM-SHA-256
     deploy:
       resources:
