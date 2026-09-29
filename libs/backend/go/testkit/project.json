@@ -45,6 +45,7 @@
       "cache": false,
       "inputs": ["go", "^go"],
       "dependsOn": [
+        "test-infra-up",
         {
           "projects": ["postgres"],
           "target": "test-race"
@@ -68,6 +69,7 @@
       "cache": false,
       "inputs": ["go", "^go"],
       "dependsOn": [
+        "test-infra-up",
         {
           "projects": ["postgres", "app", "bff"],
           "target": "test-race"

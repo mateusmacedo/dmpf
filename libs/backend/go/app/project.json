@@ -45,6 +45,10 @@
       "inputs": ["go", "^go"],
       "dependsOn": [
         {
+          "projects": ["testkit"],
+          "target": "test-infra-up"
+        },
+        {
           "projects": ["postgres"],
           "target": "test-race"
         }

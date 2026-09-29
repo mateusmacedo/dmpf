@@ -46,7 +46,13 @@
       "options": {
         "command": "bash ../../../../tools/test-env.sh go test -race -count=1 -p 1 -tags=integration ./...",
         "cwd": "{projectRoot}"
-      }
+      },
+      "dependsOn": [
+        {
+          "projects": ["testkit"],
+          "target": "test-infra-up"
+        }
+      ]
     },
     "govulncheck": {
       "executor": "nx:run-commands",

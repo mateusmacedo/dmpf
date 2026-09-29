@@ -6,6 +6,11 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 compose=(docker compose -f infra/test/compose.yml)
 
+if [ -n "${CI:-}" ]; then
+  echo "test-infra: no CI a infra de testes é a do job (ci.yml)" >&2
+  exit 0
+fi
+
 case "${1:-}" in
   up)
     "${compose[@]}" up -d --wait postgres redpanda redpanda-sasl floci
