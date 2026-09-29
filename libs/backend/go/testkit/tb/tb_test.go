@@ -12,8 +12,9 @@ import (
 // spy records what a kit helper reports without failing the real test.
 type spy struct {
 	testing.TB
-	errors []string
-	fatal  string
+	errors  []string
+	fatal   string
+	skipped string
 }
 
 func (s *spy) Helper() {}
@@ -21,6 +22,7 @@ func (s *spy) Errorf(format string, args ...any) {
 	s.errors = append(s.errors, sprintf(format, args...))
 }
 func (s *spy) Fatalf(format string, args ...any) { s.fatal = sprintf(format, args...) }
+func (s *spy) Skipf(format string, args ...any)  { s.skipped = sprintf(format, args...) }
 
 func sprintf(format string, args ...any) string {
 	var b strings.Builder
