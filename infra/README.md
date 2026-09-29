@@ -59,6 +59,8 @@ pnpm nx run bff:infra-down
 
 Pelo Nx: `infra-up` (Postgres, Redpanda e floci), `observability-up` (plataforma + exporters), `infra-down` e `infra-budget`.
 
+O `deploy/compose.yml` de cada app não roda sozinho: ele estende os serviços-base de `compose/app-base.yml` e depende de serviços definidos em outros arquivos (`pki-init`, `postgres-init`, `otel-collector` e o `api` dos contextos que chama). Suba-o sempre pelo `include` de `infra/local/docker-compose.yml`.
+
 ### Bancos por app
 
 O servidor Postgres tem um usuário só administrativo (`POSTGRES_USER`, padrão `postgres`). Cada app tem banco e role com o próprio nome, e só as estruturas do próprio schema: `orders` (`outbox` e `orders`), `reservations` (`outbox`, `inbox`, `quarantine` e `reservations`) e `bookings` (`outbox`, `bookings` e `resources`). Cada app conecta com o próprio role:
