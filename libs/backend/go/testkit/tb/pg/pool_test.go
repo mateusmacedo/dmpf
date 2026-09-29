@@ -5,6 +5,7 @@ package pg
 import (
 	"context"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/jackc/pgx/v5"
@@ -66,6 +67,22 @@ func TestEachTestGetsADatabaseOfItsOwnThatIsDroppedAfterIt(t *testing.T) {
 	for _, database := range []string{first, second} {
 		if databaseExists(t, database) {
 			t.Errorf("%s survived its test", database)
+		}
+	}
+}
+
+func TestConcurrentCallsOfOneTestShareItsDatabase(t *testing.T) {
+	const callers = 8
+	names := make([]string, callers)
+	var wg sync.WaitGroup
+	for i := range callers {
+		wg.Go(func() { names[i] = DSN(t, "pgkit_race") })
+	}
+	wg.Wait()
+
+	for _, name := range names[1:] {
+		if name != names[0] {
+			t.Fatalf("DSN() = %v, want one database for every call of the test", names)
 		}
 	}
 }

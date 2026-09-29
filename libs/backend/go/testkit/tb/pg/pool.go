@@ -54,6 +54,11 @@ type scope struct {
 	project string
 }
 
+type testDatabase struct {
+	once sync.Once
+	dsn  string
+}
+
 var databases sync.Map
 
 // OpenPool migrates the project's test database and resets the declared tables
@@ -104,9 +109,17 @@ func Config(t testing.TB, project string) *pgxpool.Config {
 // dropped when the test ends. The server's DSN must be a URL.
 func DSN(t testing.TB, project string) string {
 	t.Helper()
-	if dsn, ok := databases.Load(scope{t, project}); ok {
-		return dsn.(string)
+	entry, _ := databases.LoadOrStore(scope{t, project}, &testDatabase{})
+	db := entry.(*testDatabase)
+	db.once.Do(func() { db.dsn = create(t, project) })
+	if db.dsn == "" {
+		t.Fatalf("pg.DSN: the %s database of this test was not created", project)
 	}
+	return db.dsn
+}
+
+func create(t testing.TB, project string) string {
+	t.Helper()
 	dsn := tb.Env(t, PostgresDSN)
 	admin, err := pgxpool.ParseConfig(dsn)
 	if err != nil {
@@ -130,7 +143,6 @@ func DSN(t testing.TB, project string) string {
 		databases.Delete(scope{t, project})
 	})
 	u.Path = "/" + database
-	databases.Store(scope{t, project}, u.String())
 	return u.String()
 }
 
