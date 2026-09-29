@@ -7,7 +7,7 @@ name: testinfra
 
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
     command: ['postgres', '-c', 'cluster_name=test', '-c', 'fsync=off', '-c', 'max_connections=300']
     environment:
       POSTGRES_USER: postgres
@@ -24,7 +24,7 @@ services:
       retries: 30
 
   redpanda:
-    image: redpandadata/redpanda:v26.2.2
+    image: redpandadata/redpanda:v26.2.2@sha256:468bd13a9f2bd24794cb7fddc867c767fb1008b9a07b297b89fde48c564d7d96
     command:
       - redpanda
       - start
@@ -47,7 +47,7 @@ services:
   # Segundo broker, que exige SASL SCRAM (IDN-04), para o teste de
   # autenticação de cliente; o usuário nasce no redpanda-sasl-init.
   redpanda-sasl:
-    image: redpandadata/redpanda:v26.2.2
+    image: redpandadata/redpanda:v26.2.2@sha256:468bd13a9f2bd24794cb7fddc867c767fb1008b9a07b297b89fde48c564d7d96
     command:
       - redpanda
       - start
@@ -72,7 +72,7 @@ services:
       retries: 30
 
   redpanda-sasl-init:
-    image: redpandadata/redpanda:v26.2.2
+    image: redpandadata/redpanda:v26.2.2@sha256:468bd13a9f2bd24794cb7fddc867c767fb1008b9a07b297b89fde48c564d7d96
     profiles: [init]
     entrypoint:
       - sh
@@ -82,7 +82,7 @@ services:
         rpk security user create it -p it-secret --mechanism SCRAM-SHA-256 -X admin.hosts=redpanda-sasl:9644
 
   floci:
-    image: floci/floci:2.0.1
+    image: floci/floci:2.0.1@sha256:4e451c39c7bb88e3cd4f87e8fc0c25d5b47695a51185d521e2241fa00486e8eb
     ports:
       - '14566:4566'
     tmpfs:
