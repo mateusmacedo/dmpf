@@ -57,7 +57,7 @@ func run(o opcoes, saida, erros io.Writer) int {
 		return exitConforme
 	}
 
-	findings := infrasync.Check(o.raiz, files)
+	findings := append(infrasync.Check(o.raiz, files), infrasync.CheckDevSecrets(o.raiz, manifests)...)
 	w := bufio.NewWriter(saida)
 	for _, f := range findings {
 		_, _ = fmt.Fprintln(w, f.String())

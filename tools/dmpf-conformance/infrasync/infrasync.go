@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"slices"
@@ -20,6 +21,7 @@ const (
 	schema       = "dmpf/infra@1"
 	manifestGlob = "apps/backend/*/deploy/infra.json"
 	platformEnv  = "infra/local/env.platform.example"
+	devOverlay   = "apps/backend/%s/deploy/k8s/overlays/dev/kustomization.yaml"
 )
 
 type Manifest struct {
@@ -94,7 +96,7 @@ func Load(root string) ([]Manifest, error) {
 		}
 		manifests = append(manifests, m)
 	}
-	if err := checkTopics(manifests); err != nil {
+	if err := errors.Join(checkUnique(manifests), checkTopics(manifests)); err != nil {
 		return nil, err
 	}
 	return manifests, nil
@@ -110,6 +112,10 @@ func read(path string) (Manifest, error) {
 	var m Manifest
 	if err := dec.Decode(&m); err != nil {
 		return Manifest{}, fmt.Errorf("%s: %w", path, err)
+	}
+	var trailing json.RawMessage
+	if err := dec.Decode(&trailing); !errors.Is(err, io.EOF) {
+		return Manifest{}, fmt.Errorf("%s: conteúdo depois do objeto do manifesto", path)
 	}
 	dir := filepath.Base(filepath.Dir(filepath.Dir(path)))
 	var problems []string
@@ -134,6 +140,17 @@ func read(path string) (Manifest, error) {
 				problems = append(problems, "tópico exige name e env")
 			}
 		}
+		for _, acl := range k.ACLs {
+			if len(acl.Operations) == 0 {
+				problems = append(problems, "ACL exige operations")
+			}
+			if len(acl.Topics) == 0 && acl.Group == nil {
+				problems = append(problems, "ACL exige topics ou group")
+			}
+			if g := acl.Group; g != nil && (g.Name == "" || g.Env == "") {
+				problems = append(problems, "group da ACL exige name e env")
+			}
+		}
 	}
 	if len(problems) > 0 {
 		return Manifest{}, fmt.Errorf("%s: %s", path, strings.Join(problems, "; "))
@@ -155,6 +172,35 @@ func checkTopics(manifests []Manifest) error {
 				}
 			}
 		}
+	}
+	if len(problems) > 0 {
+		return errors.New(strings.Join(problems, "; "))
+	}
+	return nil
+}
+
+func checkUnique(manifests []Manifest) error {
+	var problems []string
+	owners := map[string]string{}
+	for _, m := range manifests {
+		if m.Kafka == nil {
+			continue
+		}
+		for _, t := range m.Kafka.Topics {
+			if owner, taken := owners[t.Name]; taken {
+				problems = append(problems, fmt.Sprintf("tópico %s declarado por %s e por %s", t.Name, owner, m.App))
+				continue
+			}
+			owners[t.Name] = m.App
+		}
+	}
+	declared := map[string]bool{}
+	for _, line := range (view{Manifests: manifests}).EnvLines() {
+		key, _, _ := strings.Cut(line, "=")
+		if declared[key] {
+			problems = append(problems, fmt.Sprintf("variável %s declarada mais de uma vez no .env.example", key))
+		}
+		declared[key] = true
 	}
 	if len(problems) > 0 {
 		return errors.New(strings.Join(problems, "; "))
@@ -221,6 +267,27 @@ func Check(root string, files []File) []Finding {
 			findings = append(findings, Finding{f.Path, err.Error()})
 		case !bytes.Equal(got, f.Content):
 			findings = append(findings, Finding{f.Path, "diverge dos manifestos deploy/infra.json; rode infrasync --write"})
+		}
+	}
+	return findings
+}
+
+// CheckDevSecrets confere que o Secret do overlay dev de cada app com banco usa a
+// senha database.dev do manifesto, a mesma com que o Job de bancos cria o role.
+func CheckDevSecrets(root string, manifests []Manifest) []Finding {
+	var findings []Finding
+	for _, m := range manifests {
+		if m.Database == nil {
+			continue
+		}
+		rel := fmt.Sprintf(devOverlay, m.App)
+		raw, err := os.ReadFile(filepath.Join(root, rel))
+		if err != nil {
+			findings = append(findings, Finding{rel, err.Error()})
+			continue
+		}
+		if !bytes.Contains(raw, []byte("PG_DSN=postgres://"+m.App+":"+m.Database.Dev+"@")) {
+			findings = append(findings, Finding{rel, "o PG_DSN não usa a senha database.dev do deploy/infra.json"})
 		}
 	}
 	return findings

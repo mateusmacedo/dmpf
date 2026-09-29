@@ -73,6 +73,66 @@ func TestLoadRefusesAnUnknownField(t *testing.T) {
 	}
 }
 
+func TestLoadRefusesContentAfterTheManifest(t *testing.T) {
+	root := workspace(t)
+	rewrite(t, root, "apps/backend/edge/deploy/infra.json", `"env": { "HTTP_PORT": "8080" }
+}`, `"env": { "HTTP_PORT": "8080" }
+}
+{ "app": "ghost" }`)
+	if _, err := infrasync.Load(root); err == nil || !strings.Contains(err.Error(), "edge") {
+		t.Fatalf("Load = %v, want the manifest with trailing content named", err)
+	}
+}
+
+func TestLoadRefusesATopicDeclaredByTwoApps(t *testing.T) {
+	root := workspace(t)
+	rewrite(t, root, "apps/backend/beta/deploy/infra.json", `{ "name": "beta.events", "env": "KAFKA_BETA_TOPIC" }`, `{ "name": "alpha.events", "env": "KAFKA_BETA_TOPIC" }`)
+	if _, err := infrasync.Load(root); err == nil || !strings.Contains(err.Error(), "alpha.events") {
+		t.Fatalf("Load = %v, want the topic declared twice named", err)
+	}
+}
+
+func TestLoadRefusesAVariableDeclaredTwice(t *testing.T) {
+	root := workspace(t)
+	rewrite(t, root, "apps/backend/edge/deploy/infra.json", `"HTTP_PORT": "8080"`, `"ITEM_LIMIT": "5"`)
+	if _, err := infrasync.Load(root); err == nil || !strings.Contains(err.Error(), "ITEM_LIMIT") {
+		t.Fatalf("Load = %v, want the variable declared twice named", err)
+	}
+}
+
+func TestLoadRefusesAnACLWithoutOperations(t *testing.T) {
+	root := workspace(t)
+	rewrite(t, root, "apps/backend/alpha/deploy/infra.json", `{ "operations": ["write", "describe"], "topics": ["alpha.events", "alpha.events.dlq"] }`, `{ "operations": [], "topics": ["alpha.events", "alpha.events.dlq"] }`)
+	if _, err := infrasync.Load(root); err == nil || !strings.Contains(err.Error(), "operations") {
+		t.Fatalf("Load = %v, want the ACL without operations refused", err)
+	}
+}
+
+func TestLoadRefusesAGroupWithoutEnv(t *testing.T) {
+	root := workspace(t)
+	rewrite(t, root, "apps/backend/beta/deploy/infra.json", `"group": { "name": "beta", "env": "KAFKA_GROUP" }`, `"group": { "name": "beta", "env": "" }`)
+	if _, err := infrasync.Load(root); err == nil || !strings.Contains(err.Error(), "group") {
+		t.Fatalf("Load = %v, want the group without env refused", err)
+	}
+}
+
+func TestCheckDevSecretsReportsADevPasswordThatDiverges(t *testing.T) {
+	root := workspace(t)
+	manifests, err := infrasync.Load(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if findings := infrasync.CheckDevSecrets(root, manifests); len(findings) != 0 {
+		t.Fatalf("CheckDevSecrets = %v, want none while the overlays agree", findings)
+	}
+
+	rewrite(t, root, "apps/backend/beta/deploy/k8s/overlays/dev/kustomization.yaml", "beta:beta-dev@", "beta:outra@")
+	findings := infrasync.CheckDevSecrets(root, manifests)
+	if len(findings) != 1 || !strings.Contains(findings[0].Path, "beta") {
+		t.Fatalf("CheckDevSecrets = %v, want the beta overlay named", findings)
+	}
+}
+
 func TestRenderProvisionsEveryDatabaseUserTopicAndACL(t *testing.T) {
 	files := render(t, workspace(t))
 	prov := files["infra/local/compose/provisioning.generated.yml"]
