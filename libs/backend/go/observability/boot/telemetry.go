@@ -115,6 +115,7 @@ func StartTelemetry(ctx context.Context, out io.Writer, t Telemetry) (*otelboot.
 	runtime, err := otelboot.Start(ctx, config)
 	if err != nil {
 		_ = exporter.Shutdown(ctx)
+		_ = reader.Shutdown(ctx)
 		shutdownLogs()
 	}
 	return runtime, err
