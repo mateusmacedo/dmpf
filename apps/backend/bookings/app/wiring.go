@@ -124,7 +124,7 @@ func runRelay(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {
 	if err := pool.Ping(ctx); err != nil {
 		return fmt.Errorf("postgres: %w", err)
 	}
-	if err := postgres.WaitForTables(ctx, pool, time.Second, postgres.Tables(postgres.Outbox)...); err != nil {
+	if err := postgres.WaitForTables(ctx, pool, time.Second, rt.Logger(), postgres.Tables(postgres.Outbox)...); err != nil {
 		return err
 	}
 

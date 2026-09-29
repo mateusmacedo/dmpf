@@ -3,8 +3,11 @@
 package postgres_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -20,7 +23,9 @@ func TestWaitForTablesReturnsOnceEveryTableExists(t *testing.T) {
 	t.Cleanup(func() { _, _ = pool.Exec(context.Background(), "DROP TABLE IF EXISTS late_probes") })
 
 	done := make(chan error, 1)
-	go func() { done <- postgres.WaitForTables(ctx, pool, 20*time.Millisecond, "outbox", "late_probes") }()
+	go func() {
+		done <- postgres.WaitForTables(ctx, pool, 20*time.Millisecond, slog.New(slog.DiscardHandler), "outbox", "late_probes")
+	}()
 
 	select {
 	case err := <-done:
@@ -44,8 +49,20 @@ func TestWaitForTablesStopsWithTheContext(t *testing.T) {
 	pool := openPool(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
-	err := postgres.WaitForTables(ctx, pool, 20*time.Millisecond, "never_created")
+	err := postgres.WaitForTables(ctx, pool, 20*time.Millisecond, slog.New(slog.DiscardHandler), "never_created")
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("WaitForTables() = %v, want context.DeadlineExceeded", err)
+	}
+}
+
+func TestWaitForTablesNamesTheTableItWaitsFor(t *testing.T) {
+	pool := openPool(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	var out bytes.Buffer
+	_ = postgres.WaitForTables(ctx, pool, 20*time.Millisecond, slog.New(slog.NewTextHandler(&out, nil)), "never_created")
+
+	if lines := strings.Count(out.String(), "waiting for table"); lines != 1 || !strings.Contains(out.String(), "never_created") {
+		t.Fatalf("log = %q, want one line naming never_created", out.String())
 	}
 }
