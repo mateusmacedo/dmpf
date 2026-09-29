@@ -42,6 +42,7 @@ services:
       INSTANCE_ID: orders-relay
       KAFKA_SASL_USERNAME: orders
       KAFKA_SASL_PASSWORD: ${KAFKA_ORDERS_PASSWORD:-orders-local}
+      KAFKA_GROUP: orders
       KAFKA_ORDERS_TOPIC: ${KAFKA_ORDERS_TOPIC:-orders.events}
       KAFKA_ORDERS_DLQ: ${KAFKA_ORDERS_DLQ:-orders.events.dlq}
     depends_on:

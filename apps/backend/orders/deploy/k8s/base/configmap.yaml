@@ -10,7 +10,7 @@ data:
   GRPC_ADDR: ':9090'
   KAFKA_ORDERS_TOPIC: orders.events
   KAFKA_ORDERS_DLQ: orders.events.dlq
-  KAFKA_GROUP: reservations
+  KAFKA_GROUP: orders
   KAFKA_INSECURE: 'false'
   OTLP_ENDPOINT: otel-collector:4317
   OTLP_INSECURE: 'false'
