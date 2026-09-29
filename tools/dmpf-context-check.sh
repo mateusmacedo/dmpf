@@ -155,6 +155,7 @@ verificar_borda() {
   exigir "$base/app/wiring.go" "$app: o composition root em app/wiring.go"
   exigir "$base/app/api" "$app: as rotas REST em app/api"
   exigir "$base/app/rpc" "$app: os clientes gRPC em app/rpc"
+  exigir "$base/deploy/infra.json" "$app: o manifesto de infra em deploy/infra.json"
   recusar "$base/provider" "$app: provider na borda (a borda não tem banco)"
 }
 
@@ -393,7 +394,10 @@ services:
       PG_DSN: postgres://probe:${PROBE_PG_PASSWORD:-probe-local}@postgres:5432/probe?sslmode=disable
 YAML
 
-  mkdir -p "$bff"/{app/api,app/rpc,cmd}
+  mkdir -p "$bff"/{app/api,app/rpc,cmd,deploy}
+  cat > "$bff/deploy/infra.json" <<'JSON'
+{"schema":"dmpf/infra@1","app":"bff"}
+JSON
   : > "$bff/app/config.go"
   : > "$bff/app/wiring.go"
   : > "$bff/app/api/routes.go"
@@ -443,6 +447,7 @@ sabotar() {
     sem-unidade) printf '{"units":[{"id":"probe/app"},{"id":"probe/distkit"}]}\n' > "$ctx/dmpf-units.json" ;;
     bff-sem-api) trash "$repo/$APPS/bff/app/api" ;;
     bff-com-provider) mkdir -p "$repo/$APPS/bff/provider" ;;
+    bff-sem-manifesto) trash "$repo/$APPS/bff/deploy/infra.json" ;;
     tabela-prefixada) sed -i 's/probes/dmpf_probes/g' "$ctx/provider/schema.sql" ;;
     tabela-example) printf 'CREATE TABLE IF NOT EXISTS dmpf_example_x (id bigint);\n' >> "$ctx/provider/schema.sql" ;;
     indice-example) sed -i 's/probes_probe_id_idx/probes_example_idx/' "$ctx/provider/schema.sql" ;;
@@ -477,7 +482,7 @@ fase_self_test() {
 
   local -a sabotagens=(
     sem-binario sem-appkit sem-distkit sem-rpc sem-config sem-wiring sem-schema
-    com-http solto sem-target sem-unidade bff-sem-api bff-com-provider
+    com-http solto sem-target sem-unidade bff-sem-api bff-com-provider bff-sem-manifesto
     tabela-prefixada tabela-example indice-example tabela-do-kernel indice-fora constraint-fora kernel-prefixado
     dsn-compartilhado postgres-db init-incompleto ci-compartilhado
     manifesto-ausente manifesto-sem-banco dsn-no-deploy
