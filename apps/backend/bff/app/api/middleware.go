@@ -136,6 +136,9 @@ func logAccess(ctx context.Context, logger *slog.Logger, route kernelhttp.Route,
 	case w.status >= http.StatusBadRequest:
 		level = slog.LevelInfo
 	}
+	if !logger.Enabled(ctx, level) {
+		return
+	}
 	logger.LogAttrs(ctx, level, "http request",
 		slog.String("route", route.Name),
 		slog.String("method", r.Method),
