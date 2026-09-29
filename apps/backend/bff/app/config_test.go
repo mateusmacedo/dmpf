@@ -4,6 +4,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/mateusmacedo/dmpf/apps/backend/bff/app"
 )
@@ -100,5 +101,23 @@ func TestFromEnvRefusesAnInvalidBoolean(t *testing.T) {
 
 	if !errors.Is(err, app.ErrInvalidVariable) {
 		t.Fatalf("FromEnv() = %v, want ErrInvalidVariable", err)
+	}
+}
+
+func TestFromEnvReadsTheDrainDelay(t *testing.T) {
+	base := append(targets, "GRPC_INSECURE", "true", devMock, "true")
+
+	cfg, err := app.FromEnv(lookup(base...))
+	if err != nil || cfg.DrainDelay != 0 {
+		t.Fatalf("FromEnv() = %v, %v; want no drain by default", cfg.DrainDelay, err)
+	}
+	cfg, err = app.FromEnv(lookup(append(base, "DRAIN_DELAY", "5s")...))
+	if err != nil || cfg.DrainDelay != 5*time.Second {
+		t.Fatalf("FromEnv() = %v, %v; want 5s", cfg.DrainDelay, err)
+	}
+	for _, invalid := range []string{"soon", "-1s"} {
+		if _, err := app.FromEnv(lookup(append(base, "DRAIN_DELAY", invalid)...)); err == nil || !strings.Contains(err.Error(), "DRAIN_DELAY") {
+			t.Fatalf("FromEnv(DRAIN_DELAY=%s) = %v, want the variable named", invalid, err)
+		}
 	}
 }

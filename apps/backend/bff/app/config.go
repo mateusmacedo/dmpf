@@ -41,6 +41,7 @@ const (
 	envService                  = "SERVICE"
 	envServiceVersion           = "SERVICE_VERSION"
 	envInstanceID               = "INSTANCE_ID"
+	envDrainDelay               = "DRAIN_DELAY"
 )
 
 type Config struct {
@@ -74,6 +75,10 @@ type Config struct {
 	// admission bucket and label. Every other tenant shares "other".
 	MetricTenants []string
 	RouteBudget   deadline.Budget
+
+	// DrainDelay is how long the edge keeps serving, already unready, before
+	// closing the listener: the time the load balancer takes to stop routing.
+	DrainDelay time.Duration
 
 	Auth authn.Config
 }
@@ -128,6 +133,11 @@ func FromEnv(lookup func(string) string) (Config, error) {
 
 	if cfg.Signals, err = boot.SignalsFromEnv(lookup); err != nil {
 		return Config{}, err
+	}
+	if value := lookup(envDrainDelay); value != "" {
+		if cfg.DrainDelay, err = time.ParseDuration(value); err != nil || cfg.DrainDelay < 0 {
+			return Config{}, fmt.Errorf("%w: %s=%q is not a non-negative duration", ErrInvalidVariable, envDrainDelay, value)
+		}
 	}
 
 	if err := cfg.Validate(); err != nil {

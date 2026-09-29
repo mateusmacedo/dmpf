@@ -58,4 +58,4 @@ spec:
             readOnlyRootFilesystem: true
             capabilities:
               drop: [ALL]
-      terminationGracePeriodSeconds: 15
+      terminationGracePeriodSeconds: 20

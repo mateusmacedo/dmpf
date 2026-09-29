@@ -23,19 +23,20 @@ func serveLiveness() http.Handler {
 }
 
 type readiness struct {
-	check   func(context.Context) error
-	logger  *slog.Logger
-	mu      sync.Mutex
-	checked time.Time
-	err     error
+	check    func(context.Context) error
+	draining func() bool
+	logger   *slog.Logger
+	mu       sync.Mutex
+	checked  time.Time
+	err      error
 }
 
-func serveReadiness(check func(context.Context) error, logger *slog.Logger) http.Handler {
-	return &readiness{check: check, logger: logger}
+func serveReadiness(check func(context.Context) error, draining func() bool, logger *slog.Logger) http.Handler {
+	return &readiness{check: check, draining: draining, logger: logger}
 }
 
 func (h *readiness) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if h.result(r.Context()) != nil {
+	if (h.draining != nil && h.draining()) || h.result(r.Context()) != nil {
 		http.Error(w, "not ready", http.StatusServiceUnavailable)
 		return
 	}

@@ -185,6 +185,7 @@ type setup struct {
 	cors                 []string
 	ready                func(context.Context) error
 	authenticator        ports.Authenticator
+	draining             func() bool
 }
 
 type option func(*setup)
@@ -202,6 +203,8 @@ func withCORS(origins ...string) option { return func(s *setup) { s.cors = origi
 func withReady(ready func(context.Context) error) option { return func(s *setup) { s.ready = ready } }
 
 func withAuthenticator(a ports.Authenticator) option { return func(s *setup) { s.authenticator = a } }
+
+func withDraining(draining func() bool) option { return func(s *setup) { s.draining = draining } }
 
 func newFixture(t *testing.T, fake *fakeContexts, options ...option) fixture {
 	t.Helper()
@@ -251,6 +254,7 @@ func newFixture(t *testing.T, fake *fakeContexts, options ...option) fixture {
 		CORSOrigins:          cfg.cors,
 		Logger:               slog.New(slog.NewJSONHandler(logs, &slog.HandlerOptions{Level: slog.LevelDebug})),
 		Ready:                cfg.ready,
+		Draining:             cfg.draining,
 	})
 	if err != nil {
 		t.Fatalf("NewHandler() = %v", err)

@@ -16,3 +16,4 @@ data:
   OPENAPI_BOOKINGS_PATH: /contracts/openapi/bookings/v1/openapi.yaml
   OTLP_ENDPOINT: otel-collector:4317
   OTLP_INSECURE: 'false'
+  DRAIN_DELAY: '5s'

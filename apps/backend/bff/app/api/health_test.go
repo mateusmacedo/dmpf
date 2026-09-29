@@ -72,3 +72,16 @@ func TestReadinessProbesWithinASecondShareOneCheck(t *testing.T) {
 		t.Fatalf("checks = %d, want 1 for probes within the cache window", got)
 	}
 }
+
+func TestReadinessRefusesWhileTheEdgeDrains(t *testing.T) {
+	var draining atomic.Bool
+	f := newFixture(t, &fakeContexts{}, withReady(func(context.Context) error { return nil }), withDraining(draining.Load))
+
+	if rec := f.do(t, http.MethodGet, api.ReadinessPath, nil, "Authorization", ""); rec.Code != http.StatusNoContent {
+		t.Fatalf("%s = %d before the drain, want 204", api.ReadinessPath, rec.Code)
+	}
+	draining.Store(true)
+	if rec := f.do(t, http.MethodGet, api.ReadinessPath, nil, "Authorization", ""); rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("%s = %d while draining, want 503 despite the cached check", api.ReadinessPath, rec.Code)
+	}
+}

@@ -84,6 +84,7 @@ O BFF é a única borda que resolve identidade (`ResolveIdentity`, pacote `authn
 | `OIDC_DISCOVERY_TIMEOUT_SECONDS` | não | Default 10 |
 | `AUTH_DEV_MOCK` | uma das duas linhas de autenticação | `true` lê a identidade declarada no próprio Bearer, sem verificação — só desenvolvimento; não pode coexistir com `OIDC_ISSUER` |
 | `HTTP_ADDR` | não | Default `:8080`; `127.0.0.1:0` escolhe porta livre e o log `http listening` traz o endereço |
+| `DRAIN_DELAY` | não | Default `0`; no `SIGTERM`, o `/readyz` passa a `503` e o listener só fecha depois desse tempo (`5s` no Kubernetes) |
 | `CORS_ORIGINS` | não | Origens aceitas pelo navegador (Swagger UI local) |
 | `METRIC_TENANTS` | não | Tenants que têm bucket de admissão e rótulo de métrica próprios (`MET-07`), separados por vírgula; os demais compartilham `other` |
 | `OPENAPI_ORDERS_PATH`, `OPENAPI_RESERVATIONS_PATH`, `OPENAPI_BOOKINGS_PATH` | não | Servem os contratos em `/openapi/<ctx>/v1/openapi.yaml` |

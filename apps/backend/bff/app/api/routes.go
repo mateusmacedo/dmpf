@@ -71,6 +71,7 @@ type Options struct {
 	CORSOrigins          []string
 	Logger               *slog.Logger
 	Ready                func(context.Context) error
+	Draining             func() bool
 }
 
 func Routes(budget deadline.Budget) []kernelhttp.Route {
@@ -163,7 +164,7 @@ func NewHandler(
 	}
 	mux.Handle("GET "+LivenessPath, serveLiveness())
 	if opts.Ready != nil {
-		mux.Handle("GET "+ReadinessPath, serveReadiness(opts.Ready, logger))
+		mux.Handle("GET "+ReadinessPath, serveReadiness(opts.Ready, opts.Draining, logger))
 	}
 	return withCORS(opts.CORSOrigins, mux), nil
 }
