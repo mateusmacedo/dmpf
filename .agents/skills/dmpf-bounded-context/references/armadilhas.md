@@ -21,9 +21,10 @@ golden for regenerado e algo novo morder, a entrada nova vem para cá.
    os regrava.
 5. **`.proto` publicado nunca é regravado.** Drift entre a definição e o
    `.proto` existente é recusa nomeando o evento; evolução é rito próprio.
-6. **Sem a unidade `<ctx>/contract` no manifesto do `contracts`, o
+6. **Sem o pacote gerado no `include` da unidade `<ctx>/contract`, o
    `gen/go` novo cai em `DMPF-U001`** e o `--write-baseline` aborta. A
-   unidade entra antes do `generate`.
+   unidade mora no `contract/dmpf-units.json` do app e o pacote entra antes
+   do `generate`.
 7. **`pnpm install` deixou de ser passo do rito.** Enquanto o contexto nascia
    em `libs/backend/go`, o `package.json` gerado o tornava importer do pnpm e
    os targets falhavam de forma obscura sem o install. Em `apps/backend/<name>`
@@ -53,8 +54,8 @@ golden for regenerado e algo novo morder, a entrada nova vem para cá.
 13. **Truncar antes de migrar reprova em banco novo.** Um teste que trunca as
     tabelas do contexto antes de o schema existir falha na primeira execução
     contra um `<projeto>_test_<id>` recém-criado. Use `appkit.OpenPool`, que migra
-    antes do reset. `test-race` e `test-distributed` do mesmo projeto usam o
-    mesmo banco, por isso o segundo depende do primeiro no `project.json`.
+    antes do reset. `test-race` e `test-distributed` do mesmo projeto não
+    dividem banco: cada teste cria o seu.
 14. **D002 sem shared kernel.** Sem `kernel/*` em `shared_kernel_units`
     do baseline, `bookings/domain → kernel/domain` reprova com
     `DMPF-D002`. Hoje a designação existe (ARQ-553, dezesseis unidades com o
