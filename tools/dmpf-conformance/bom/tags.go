@@ -4,7 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"path"
+	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/mateusmacedo/dmpf/tools/dmpf-conformance/internal/rule"
@@ -27,6 +30,8 @@ const (
 
 // O BOM 0.1.0 certificou os módulos em 0.0.0, antes de existir tag de módulo.
 const firstTaggedRelease = "0.2.0"
+
+var contractDir = regexp.MustCompile(`^apps/backend/[^/]+/contract$`)
 
 func (v *validator) checkModuleTags() error {
 	if v.in.Ancestry == nil || !semverRe.MatchString(v.doc.Release) || compareSemver(v.doc.Release, firstTaggedRelease) < 0 {
@@ -58,6 +63,7 @@ func (v *validator) checkModuleTags() error {
 			v.add(rule.CodeB012, l.path, e.Identity, fmt.Sprintf("tag %s não é ancestral do commit alvo", tag))
 		}
 	}
+	v.checkContractEntries(dirs)
 	return nil
 }
 
@@ -116,4 +122,19 @@ func goWorkUses(fsys fs.FS) ([]string, error) {
 		}
 	}
 	return uses, nil
+}
+
+func (v *validator) checkContractEntries(dirs map[string]string) {
+	declared := map[string]bool{}
+	for _, l := range v.doc.located() {
+		if l.entry.Subject == SubjectContract {
+			declared[l.entry.Identity] = true
+		}
+	}
+	identities := slices.Sorted(maps.Keys(dirs))
+	for _, identity := range identities {
+		if contractDir.MatchString(dirs[identity]) && !declared[identity] {
+			v.add(rule.CodeB012, "", identity, fmt.Sprintf("módulo de contrato %s sem entrada subject: contract", dirs[identity]))
+		}
+	}
 }

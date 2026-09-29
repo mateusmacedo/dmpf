@@ -247,7 +247,7 @@ derivam de `exceptions[].history`, e valor declarado divergente reprova
 | `DMPF-B009` | `BOM-03`, `BOM-09` | `cve` ausente; CVE `aberta` sem `owner` |
 | `DMPF-B010` | `GOV-36` | `metrics` diferentes das derivadas de `exceptions[].history` |
 | `DMPF-B011` | `BOM-02` | Mais de um BOM sem `--release`; `release` diferente do nome do arquivo ou fora de semver; `tag` diferente de `dmpf@<release>` |
-| `DMPF-B012` | `KRN-14` | Release a partir de `0.2.0` com entrada `kernel` ou `contract` cuja tag de módulo Go — `<diretório do módulo>/v<versão>`, pelo `go.mod` de cada `use` do `go.work` — está ausente ou não é ancestral do `--commit`; módulo fora do `go.work`. `rejeitada` fica de fora |
+| `DMPF-B012` | `KRN-14` | Release a partir de `0.2.0` com entrada `kernel` ou `contract` cuja tag de módulo Go — `<diretório do módulo>/v<versão>`, pelo `go.mod` de cada `use` do `go.work` — está ausente ou não é ancestral do `--commit`; módulo fora do `go.work`; módulo de contrato do `go.work` (`apps/backend/<ctx>/contract`) sem entrada `contract`. `rejeitada` fica de fora da tag, mas conta como entrada |
 
 As exceções do BOM trazem ainda os `DMPF-X001` a `DMPF-X007` da admissão comum.
 A tabela completa, com seção normativa, vive em
