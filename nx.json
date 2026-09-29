@@ -140,9 +140,18 @@
     "applyChanges": true
   },
   "targetDefaults": {
+    "deploy-env": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "[ -f deploy/.env ] || cp deploy/.env.example deploy/.env",
+        "cwd": "{projectRoot}"
+      }
+    },
     "docker:run": {
       "continuous": true,
       "dependsOn": [
+        "deploy-env",
         "docker:build",
         {
           "projects": ["bff"],
