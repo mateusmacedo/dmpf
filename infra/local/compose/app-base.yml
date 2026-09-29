@@ -23,6 +23,7 @@ services:
       GRPC_CLIENT_CA_FILE: /pki/ca.crt
       GRPC_TRUSTED_CLIENTS: spiffe://dmpf/bff
       MIGRATE: 'true'
+      GOMEMLIMIT: 160MiB
     volumes:
       - pki:/pki:ro
     deploy:
@@ -39,6 +40,7 @@ services:
       KAFKA_BROKERS: redpanda:29092
       KAFKA_INSECURE: 'true'
       KAFKA_SASL_MECHANISM: SCRAM-SHA-256
+      GOMEMLIMIT: 108MiB
     deploy:
       resources:
         limits: { cpus: '0.10', memory: 128M }
@@ -46,6 +48,8 @@ services:
 
   dmpf-http-edge:
     extends: dmpf-app
+    environment:
+      GOMEMLIMIT: 160MiB
     volumes:
       - pki:/pki:ro
     deploy:
