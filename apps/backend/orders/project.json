@@ -94,6 +94,7 @@
       "continuous": true,
       "dependsOn": ["serve-api"]
     },
+    "deploy-env": {},
     "docker:run-relay": {
       "executor": "nx:run-commands",
       "options": {
