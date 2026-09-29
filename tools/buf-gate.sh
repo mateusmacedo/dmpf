@@ -160,17 +160,14 @@ pacotes_em() { # ref raiz
   git ls-tree -r --name-only "$1" -- "$2/" | grep -E '\.proto$' | sed "s|^$2/||" | xargs -rn1 dirname | sort -u
 }
 
-# Marca de baseline válida para a raiz: tag anotada cujo commit contém a raiz.
-# Aceita contracts-baseline/<projeto> e, como legado, contracts-baseline/<path do módulo>.
-marca_da_raiz() { # raiz modulo
-  local raiz="$1" modulo="$2" nome
-  for nome in "$PROJECT" "$modulo"; do
-    if git rev-parse --verify --quiet "refs/tags/$MARK_PREFIX/$nome" >/dev/null \
-      && git ls-tree -d "refs/tags/$MARK_PREFIX/$nome^{commit}" -- "$raiz" | grep -q .; then
-      echo "refs/tags/$MARK_PREFIX/$nome"
-      return
-    fi
-  done
+# Marca de baseline válida para a raiz: a tag anotada contracts-baseline/<projeto>
+# cujo commit contém a raiz.
+marca_da_raiz() { # raiz
+  local raiz="$1" marca="refs/tags/$MARK_PREFIX/$PROJECT"
+  if git rev-parse --verify --quiet "$marca" >/dev/null \
+    && git ls-tree -d "$marca^{commit}" -- "$raiz" | grep -q .; then
+    echo "$marca"
+  fi
 }
 
 gate_breaking() {
@@ -193,7 +190,7 @@ gate_breaking() {
 
   while IFS= read -r modulo; do
     raiz="$MOD/$modulo"
-    marca="$(marca_da_raiz "$raiz" "$modulo")"
+    marca="$(marca_da_raiz "$raiz")"
     if [ -n "$marca" ]; then
       tagger="$(git for-each-ref --format='%(taggeremail)' "$marca")"
       [ -n "$tagger" ] || reprovar "marca $marca nao e uma tag anotada (sem tagger) (BUF-08)"

@@ -114,7 +114,7 @@ if echo "$saida" | grep -q "sem baseline"; then echo "PASS  bootstrap avisa 'sem
 S="$(novo_sandbox)"; commitar "$S" "contratos"; marcar_baseline "$S" "$REVISOR"
 verificar "estado estabelecido sem mudanca incompativel" 0 "$S" breaking HEAD
 S2="$(novo_sandbox)"; commitar "$S2" "contratos"; marcar_baseline "$S2" "$REVISOR" proto
-verificar "marca legada contracts-baseline/proto no commit que contem o modulo" 0 "$S2" breaking HEAD
+verificar "marca legada contracts-baseline/<path do modulo> nao vale como marca" 1 "$S2" breaking HEAD "sem marca"
 verificar "NX_BASE vazio com marca presente" 1 "$S" breaking "" "baseline nao declarado"
 verificar "NX_BASE ausente com marca presente" 1 "$S" breaking
 verificar "baseline irresolvivel" 1 "$S" breaking refs/heads/nao-existe "baseline irresolvivel"
