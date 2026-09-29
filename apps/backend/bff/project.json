@@ -8,6 +8,7 @@
     "nx-release-publish": {
       "executor": "nx:noop"
     },
+    "deploy-env": {},
     "docker:run": {
       "options": {
         "args": [
@@ -21,6 +22,7 @@
         ]
       },
       "dependsOn": [
+        "deploy-env",
         "docker:build",
         "infra-up",
         {
