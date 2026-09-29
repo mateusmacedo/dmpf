@@ -112,18 +112,34 @@ func callLog(logger *slog.Logger) grpc.UnaryServerInterceptor {
 			return handler(ctx, req)
 		}
 		started := time.Now()
-		resp, err := handler(ctx, req)
+		slot := &assembled{}
+		resp, err := handler(context.WithValue(ctx, assembledKey{}, slot), req)
 		code := status.Code(err)
 		level := slog.LevelDebug
 		if code != codes.OK {
 			level = slog.LevelWarn
 		}
-		logger.LogAttrs(ctx, level, "grpc call",
+		logger.LogAttrs(slot.onto(ctx), level, "grpc call",
 			slog.String("operation", info.FullMethod),
 			slog.String("code", code.String()),
 			slog.Float64("duration_ms", float64(time.Since(started).Microseconds())/1000))
 		return resp, err
 	}
+}
+
+type assembled struct {
+	execution ports.ExecutionContext
+	message   ports.MessageContext
+	ok        bool
+}
+
+type assembledKey struct{}
+
+func (a *assembled) onto(ctx context.Context) context.Context {
+	if !a.ok {
+		return ctx
+	}
+	return ports.WithMessageContext(ports.WithExecutionContext(ctx, a.execution), a.message)
 }
 
 func requireDeadline(ctx context.Context, req any, _ *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
@@ -165,12 +181,15 @@ func requestContext(logger *slog.Logger) grpc.UnaryServerInterceptor {
 			return nil, status.Error(codes.Internal, "the execution context could not be assembled")
 		}
 
-		ctx = ports.WithExecutionContext(ctx, execution)
-		ctx = ports.WithMessageContext(ctx, ports.MessageContext{
+		message := ports.MessageContext{
 			CorrelationID: correlation,
 			CausationID:   requestID,
 			Traceparent:   carrier.Get("traceparent"),
-		})
+		}
+		if slot, ok := ctx.Value(assembledKey{}).(*assembled); ok {
+			*slot = assembled{execution: execution, message: message, ok: true}
+		}
+		ctx = ports.WithMessageContext(ports.WithExecutionContext(ctx, execution), message)
 		if key := incoming.Get(IdempotencyKey); key != "" && logger != nil {
 			logger.InfoContext(ctx, "grpc request", "operation", info.FullMethod, "idempotency_key", key)
 		}
