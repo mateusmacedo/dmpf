@@ -76,6 +76,7 @@ const CONTRACT_DIR = 'contract';
 const DEPLOY_DIR = 'deploy';
 const TEST_ENV = 'bash ../../../tools/test-env.sh';
 const GO_TIDY = 'bash ../../../tools/go-tidy.sh';
+const TEST_INFRA = { projects: ['testkit'], target: 'test-infra-up' };
 const APPKIT_DIR = 'appkit';
 const DISTKIT_DIR = 'distkit';
 const DOCKERFILE = 'Dockerfile';
@@ -211,12 +212,15 @@ const expectedTargets = ({
   integration: boolean;
   app?: boolean;
 }): Record<string, unknown> => {
-  const testRace = goTarget({
-    command: integration
-      ? `${TEST_ENV} go test -race -count=1 -p 1 -tags=integration ./...`
-      : 'go test -race ./...',
-    cache: !integration,
-  });
+  const testRace = {
+    ...goTarget({
+      command: integration
+        ? `${TEST_ENV} go test -race -count=1 -p 1 -tags=integration ./...`
+        : 'go test -race ./...',
+      cache: !integration,
+    }),
+    ...(integration ? { dependsOn: [TEST_INFRA] } : {}),
+  };
   return {
     tidy: {
       executor: 'nx:run-commands',
@@ -243,7 +247,11 @@ const expectedTargets = ({
             executor: 'nx:run-commands',
             cache: false,
             inputs: ['go', '^go'],
-            dependsOn: [{ projects: ['postgres', 'app'], target: 'test-race' }, 'test-race'],
+            dependsOn: [
+              TEST_INFRA,
+              { projects: ['postgres', 'app'], target: 'test-race' },
+              'test-race',
+            ],
             options: {
               command: `${TEST_ENV} go test -race -count=1 -p 1 -tags=integration,distributed ./distkit/...`,
               cwd: '{projectRoot}',
@@ -522,6 +530,7 @@ describe('[generator] bounded-context — generation', () => {
 
     expect(target.cache).toBe(false);
     expect(target.dependsOn).toEqual([
+      TEST_INFRA,
       { projects: ['postgres', 'app'], target: 'test-race' },
       'test-race',
     ]);

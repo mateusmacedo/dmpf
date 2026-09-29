@@ -46,7 +46,13 @@
       "options": {
         "command": <%- testRaceCommandJson %>,
         "cwd": "{projectRoot}"
-      }
+      }<% if (testRaceCacheJson === 'false') { %>,
+      "dependsOn": [
+        {
+          "projects": ["testkit"],
+          "target": "test-infra-up"
+        }
+      ]<% } %>
     },
     "govulncheck": {
       "executor": "nx:run-commands",
@@ -90,6 +96,10 @@
       "cache": false,
       "inputs": ["go", "^go"],
       "dependsOn": [
+        {
+          "projects": ["testkit"],
+          "target": "test-infra-up"
+        },
         {
           "projects": ["postgres", "app"],
           "target": "test-race"
