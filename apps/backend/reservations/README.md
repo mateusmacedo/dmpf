@@ -27,7 +27,7 @@ Uma reserva pendente vira `Confirmed`, por `Reserve` síncrono ou pelo consumo d
 | `appkit` | `app` | `reservations/appkit` | Harness borda a borda (`KIT-05`): `app.Consumer` real sobre Postgres, alimentado com bytes na borda de protocolo; `Effects` e `Ack` depois do commit |
 | `distkit` | `app` | `reservations/distkit` | Harness distribuído (`KIT-06`): dois processos OS sobre Redpanda, reentrega deliberada e `DMPF-R004` (`V32`) |
 
-Todas com `bounded_context` `reservations`. O contrato (`company.reservations.event.v1`, `company.reservations.service.v1`) é a unidade `reservations/contract`, no manifesto de `libs/backend/go/contracts`. O lado `orders` da conversa entra só pela superfície pública: o catálogo nomeia `orders.events` por literal próprio, e o relay e2e produz `OrderPlaced` pelo contrato gerado — nada deste módulo importa `apps/backend/orders`.
+Todas com `bounded_context` `reservations`. O contrato (`company.reservations.event.v1`, `company.reservations.service.v1`) é a unidade `reservations/contract`, no manifesto do módulo `apps/backend/reservations/contract`. O lado `orders` da conversa entra só pela superfície pública: o catálogo nomeia `orders.events` por literal próprio, e o relay e2e produz `OrderPlaced` pelo contrato gerado — nada deste módulo importa `apps/backend/orders`.
 
 ## Aliases de import
 
@@ -39,7 +39,7 @@ Os packages do kernel `domain` e `application` têm o mesmo nome dos deste módu
 
 ## Servidor gRPC
 
-- **Binding no bloco `app`.** O `grpc.ServiceDesc` é montado a partir do descriptor gerado em `contracts`; um teste reprova método do descriptor que não esteja no `ServiceDesc`.
+- **Binding no bloco `app`.** O `grpc.ServiceDesc` é montado a partir do descriptor gerado em `apps/backend/reservations/contract`; um teste reprova método do descriptor que não esteja no `ServiceDesc`.
 - **Interceptors, nesta ordem:** span de servidor com pai extraído da metadata → mTLS do peer contra `GRPC_TRUSTED_CLIENTS` (quando TLS está ligado) → admissão por método → deadline obrigatório (`INVALID_ARGUMENT` antes do caso de uso) → contexto de execução (`x-correlation-id` preservado ou cunhado, `request_id` próprio como causação, `x-tenant-id` lido só de peer verificado, `idempotency-key` recebida só registrada no log) → handler. A cadeia vale só para os métodos de `ReservationsService`: a checagem de saúde passa direto, sem admissão nem prazo obrigatório.
 - **Desfechos:** rejeição de domínio no `oneof result`; `NOT_FOUND` (inclusive acesso a identificador de outro tenant), `ABORTED`, ausência de tenant ou permissão `PERMISSION_DENIED`, `DEADLINE_EXCEEDED` e `INTERNAL` sem detalhe para as falhas técnicas.
 - **Saúde:** `NOT_SERVING` até o ping no pool e o `Migrate` opcional, `SERVING` depois, `NOT_SERVING` no shutdown; o log `grpc listening` traz o endereço real.
