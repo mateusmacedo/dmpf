@@ -165,7 +165,7 @@ func (w *partitionWorker) process(record *kgo.Record) {
 		switch ack.decision() {
 		case acked:
 			if err == nil {
-				w.consumer.Config.logger().DebugContext(w.ctx, "kafka: record processed",
+				w.consumer.Config.logger().LogAttrs(w.ctx, slog.LevelDebug, "kafka: record processed",
 					slog.String("topic", w.key.topic), slog.Int("partition", int(w.key.partition)), slog.Int64("offset", record.Offset),
 					slog.Int("attempt", attemptNo))
 			}
