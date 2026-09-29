@@ -174,13 +174,14 @@ pnpm nx run-many -t fmt-check,vet,lint,build,test -p <ctx>
 ```
 
 Os testes que tocam Postgres levam a build tag `integration` e exigem o DSN.
-O `PG_DSN` aponta o servidor com um usuário que cria bancos: cada projeto
-testa no seu `<ctx>_test`, e projetos distintos rodam em paralelo (ADR-053).
+O `PG_DSN` aponta o servidor com um usuário que cria bancos: cada teste roda
+num `<ctx>_test_<id>` próprio, e projetos distintos rodam em paralelo (ADR-053).
+Os targets sobem a infra de testes (`testkit:test-infra-up`), e o
+`tools/test-env.sh` preenche `PG_DSN` e `KAFKA_BROKERS` com o Postgres (15432) e
+o Redpanda (19092) dela, a partir do `.env.example` da raiz:
 
 ```bash
-pnpm nx run bff:infra-up
-PG_DSN='postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable' \
-  pnpm nx run-many -t test-race,test-distributed -p <ctx>
+pnpm nx run-many -t test-race,test-distributed -p <ctx>
 ```
 
 Por fim, o gate autoritativo entre módulos, com a base do intervalo em revisão:
@@ -325,7 +326,7 @@ está em [`bom/README.md`](../../bom/README.md).
 
    ```bash
    CI=true GOTOOLCHAIN=go1.26.6 \
-     PG_DSN='postgres://dmpf:dmpf@localhost:5432/dmpf?sslmode=disable' \
+     PG_DSN='postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable' \
      KAFKA_BROKERS=localhost:9092 REDPANDA_ADMIN=http://localhost:9644 \
      go run ./libs/backend/go/testkit/cmd/evidence --root . --release <semver> --out /tmp/evidence-a/<semver>
    ```
