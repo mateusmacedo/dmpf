@@ -5,6 +5,9 @@
   "sourceRoot": "apps/backend/orders",
   "tags": ["type:app", "scope:backend", "stack:go", "layer:apps"],
   "targets": {
+    "nx-release-publish": {
+      "executor": "nx:noop"
+    },
     "tidy": {
       "executor": "nx:run-commands",
       "cache": false,
