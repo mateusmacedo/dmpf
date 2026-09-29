@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -55,15 +56,16 @@ type scope struct {
 }
 
 type testDatabase struct {
-	once sync.Once
-	dsn  string
+	once  sync.Once
+	dsn   string
+	opens atomic.Int32
 }
 
 var databases sync.Map
 
-// OpenPool migrates the project's test database and resets the declared tables
-// around the test. Without the DSN it skips, or fails in CI. The DSN must be a
-// loopback host: the reset is destructive.
+// OpenPool migrates the project's test database, which starts empty, and resets
+// the declared tables when the test opens it again. Without the DSN it skips, or
+// fails in CI. The DSN must be a loopback host: the reset is destructive.
 func OpenPool(t testing.TB, opts Options) *pgxpool.Pool {
 	t.Helper()
 	if opts.Project == "" {
@@ -80,15 +82,9 @@ func OpenPool(t testing.TB, opts Options) *pgxpool.Pool {
 	if err := postgres.Migrate(ctx, pool, opts.Capabilities, opts.Schemas...); err != nil {
 		t.Fatalf("pg.OpenPool: Migrate: %v", err)
 	}
-	tables := append(postgres.Tables(opts.Capabilities...), opts.Tables...)
-	ResetTables(t, pool, tables...)
-	t.Cleanup(func() {
-		// Errorf, not Fatalf: FailNow inside a cleanup skips the cleanups still
-		// pending, and pool.Close is one of them.
-		if err := reset(pool, tables); err != nil {
-			t.Errorf("pg.OpenPool: reset after the test: %v", err)
-		}
-	})
+	if testDatabaseOf(t, opts.Project).opens.Add(1) > 1 {
+		ResetTables(t, pool, append(postgres.Tables(opts.Capabilities...), opts.Tables...)...)
+	}
 	return pool
 }
 
@@ -109,13 +105,18 @@ func Config(t testing.TB, project string) *pgxpool.Config {
 // dropped when the test ends. The server's DSN must be a URL.
 func DSN(t testing.TB, project string) string {
 	t.Helper()
+	return testDatabaseOf(t, project).dsn
+}
+
+func testDatabaseOf(t testing.TB, project string) *testDatabase {
+	t.Helper()
 	entry, _ := databases.LoadOrStore(scope{t, project}, &testDatabase{})
 	db := entry.(*testDatabase)
 	db.once.Do(func() { db.dsn = create(t, project) })
 	if db.dsn == "" {
 		t.Fatalf("pg.DSN: the %s database of this test was not created", project)
 	}
-	return db.dsn
+	return db
 }
 
 func create(t testing.TB, project string) string {
