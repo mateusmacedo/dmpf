@@ -90,6 +90,11 @@ const validatedDirectory = (directory: string | undefined): string => {
       `option directory ${JSON.stringify(value)} must be a path relative to the workspace root, with no ".." segment`,
     );
   }
+  if (value !== DEFAULT_DIRECTORY) {
+    return refuse(
+      `option directory ${JSON.stringify(value)} must be ${DEFAULT_DIRECTORY}: the Dockerfile, the deploy compose and infrasync read ${DEFAULT_DIRECTORY}/<name>`,
+    );
+  }
   return value;
 };
 
@@ -155,10 +160,25 @@ const testRaceCommandOf = (integration: boolean, depth: number): string =>
     ? `${toolOf(depth, 'test-env.sh')} go test -race -count=1 -p 1 -tags=integration ./...`
     : 'go test -race ./...';
 
-const validatedGrpcPort = (port: number | undefined): number => {
-  const value = port ?? DEFAULT_GRPC_PORT;
+const GRPC_ADDR_PATTERN = /^GRPC_ADDR=:(\d+)$/m;
+
+const declaredGrpcPorts = (tree: Tree): number[] =>
+  tree.children(DEFAULT_DIRECTORY).flatMap((app) => {
+    const env = tree.read(`${DEFAULT_DIRECTORY}/${app}/${DEPLOY_DIRECTORY}/.env.example`, 'utf-8');
+    const match = env === null ? null : GRPC_ADDR_PATTERN.exec(env);
+    return match === null ? [] : [Number(match[1])];
+  });
+
+const validatedGrpcPort = (tree: Tree, port: number | undefined): number => {
+  const taken = declaredGrpcPorts(tree);
+  const value = port ?? Math.max(DEFAULT_GRPC_PORT - 1, ...taken) + 1;
   if (!Number.isInteger(value) || value < 1024 || value > 65535) {
     return refuse(`option grpcPort ${JSON.stringify(port)} must be an integer from 1024 to 65535`);
+  }
+  if (taken.includes(value)) {
+    return refuse(
+      `option grpcPort ${value} is taken by another context; omit it to take the next free one`,
+    );
   }
   return value;
 };
@@ -300,7 +320,7 @@ const planGeneration = (tree: Tree, options: BoundedContextGeneratorSchema): Pla
   const directory = validatedDirectory(options.directory);
   const blocks = validatedBlocks(options.blocks);
   const serviceName = validatedServiceName({ serviceName: options.serviceName, name });
-  const grpcPort = validatedGrpcPort(options.grpcPort);
+  const grpcPort = validatedGrpcPort(tree, options.grpcPort);
 
   const goWorkContent =
     tree.read(GO_WORK, 'utf-8') ?? refuse(`${GO_WORK} was not found at the workspace root`);

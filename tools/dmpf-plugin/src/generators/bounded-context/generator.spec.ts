@@ -774,6 +774,29 @@ describe('[generator] bounded-context — refusals', () => {
     await expectRefusal({ overrides: { directory: '../outside' }, message: /directory/i });
   });
 
+  it('should refuse a directory other than apps/backend, which the deploy and infrasync read', async () => {
+    await expectRefusal({ overrides: { directory: 'services' }, message: /directory/i });
+  });
+
+  it('should take the next free gRPC port after the contexts declared', async () => {
+    const tree = await generate({}, (t) => {
+      t.write('apps/backend/orders/deploy/.env.example', 'GRPC_ADDR=:9191\n');
+      t.write('apps/backend/bookings/deploy/.env.example', 'GRPC_ADDR=:9196\n');
+    });
+
+    expect(readText(tree, `${DEPLOY_MODULE_DIR}/.env.example`).split('\n')).toContain(
+      'GRPC_ADDR=:9197',
+    );
+  });
+
+  it('should refuse a gRPC port another context declares', async () => {
+    await expectRefusal({
+      overrides: { grpcPort: 9191 },
+      message: /grpcPort/,
+      prepare: (t) => t.write('apps/backend/orders/deploy/.env.example', 'GRPC_ADDR=:9191\n'),
+    });
+  });
+
   it('should refuse an absolute directory', async () => {
     await expectRefusal({ overrides: { directory: '/tmp/outside' }, message: /directory/i });
   });

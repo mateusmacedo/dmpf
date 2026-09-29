@@ -30,13 +30,12 @@
     },
     "directory": {
       "type": "string",
-      "description": "Diretório que recebe o módulo do contexto, relativo à raiz do workspace.",
+      "description": "Diretório que recebe o módulo do contexto, relativo à raiz do workspace. Só apps/backend é aceito: o Dockerfile, o compose do deploy e o infrasync leem apps/backend/<name>.",
       "default": "apps/backend"
     },
     "grpcPort": {
       "type": "integer",
-      "description": "Porta gRPC do processo no host, no deploy/.env.example; escolha uma livre ao lado das dos outros contextos (9191 a 9193).",
-      "default": 9194,
+      "description": "Porta gRPC do processo no host, no deploy/.env.example. Sem a opção, é a próxima livre depois das que os outros contextos declaram; uma porta já declarada é recusada.",
       "minimum": 1024,
       "maximum": 65535
     },
