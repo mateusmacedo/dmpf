@@ -102,11 +102,13 @@ BOOKINGS_GRPC_TARGET=dns:///localhost:9092 \
   GRPC_INSECURE=true AUTH_DEV_MOCK=true pnpm nx run bff:serve
 ```
 
+Em containers na rede do host, com os `deploy/.env` de cada app, `pnpm nx run bff:docker:run` sobe a infra local e as imagens do BFF e dos papéis de cada contexto: o `docker:run` (papel `api`) e o `docker:run-relay` dos três, e o `docker:run-consumer` do `reservations`. O container do BFF fica `healthy` só depois que os três contextos respondem `SERVING`.
+
 A topologia inteira sobe por `docker compose -f infra/local/docker-compose.yml --profile dmpf up -d --build`, com mTLS entre o BFF e os `api` e SASL no Kafka interno (ver `infra/README.md`).
 
 ## Targets Nx
 
-`fmt-check`, `vet`, `build`, `test-race`, `govulncheck` e `serve`, mais os de infraestrutura do workspace: `infra-up`, `observability-up`, `infra-down`, `infra-budget` e `k8s-render`.
+`fmt-check`, `vet`, `build`, `test-race`, `govulncheck`, `serve`, `docker:build` e `docker:run`, mais os de infraestrutura do workspace: `infra-up`, `observability-up`, `infra-down`, `infra-budget` e `k8s-render`.
 
 ## Testes
 

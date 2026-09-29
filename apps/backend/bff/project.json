@@ -19,7 +19,23 @@
           "-e OPENAPI_RESERVATIONS_PATH=/contracts/openapi/reservations/v1/openapi.yaml",
           "-e OPENAPI_BOOKINGS_PATH=/contracts/openapi/bookings/v1/openapi.yaml"
         ]
-      }
+      },
+      "dependsOn": [
+        "docker:build",
+        "infra-up",
+        {
+          "projects": ["orders", "reservations", "bookings"],
+          "target": "docker:run"
+        },
+        {
+          "projects": ["orders", "reservations", "bookings"],
+          "target": "docker:run-relay"
+        },
+        {
+          "projects": ["reservations"],
+          "target": "docker:run-consumer"
+        }
+      ]
     },
     "tidy": {
       "executor": "nx:run-commands",
