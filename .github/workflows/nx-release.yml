@@ -114,14 +114,15 @@ jobs:
       # A detecção de primeira release olha os padrões das PRÓPRIAS famílias de
       # release, nunca `*@*`: a tag do produto `dmpf@X.Y.Z` casa esse glob e
       # mascararia a primeira release das libs, que nunca receberia
-      # --first-release. As famílias são as três declaradas em nx.json:
-      # `libs/backend/go/<lib>/vX.Y.Z`, `tools/dmpf-conformance/vX.Y.Z` e o npm
-      # `<projeto>@X.Y.Z` (com `dmpf@*` excluído).
+      # --first-release. As famílias são as quatro declaradas em nx.json:
+      # `libs/backend/go/<lib>/vX.Y.Z`, `apps/backend/<ctx>/contract/vX.Y.Z`,
+      # `tools/dmpf-conformance/vX.Y.Z` e o npm `<projeto>@X.Y.Z` (com `dmpf@*`
+      # excluído).
       - name: Nx Release (skip publish)
         if: steps.lib-candidates.outputs.has_libs == 'true'
         run: |
           set -euo pipefail
-          GO_TAGS=$(git tag -l 'libs/backend/go/*/v*' 'tools/dmpf-conformance/v*' | head -n 1)
+          GO_TAGS=$(git tag -l 'libs/backend/go/*/v*' 'apps/backend/*/contract/v*' 'tools/dmpf-conformance/v*' | head -n 1)
           NPM_TAGS=$(git tag -l '*@*' | grep -v '^dmpf@' | head -n 1 || true)
 
           # A estreia leva a versão EXPLÍCITA: sem tag das famílias o resolver
