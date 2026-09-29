@@ -18,7 +18,9 @@ novo_sandbox() {
   dir="$(mktemp -d)" || exit 2
   mkdir -p "$dir/tools" "$dir/libs/backend/go/contracts"
   cp -R "$ROOT/libs/backend/go/contracts/proto" "$dir/libs/backend/go/contracts/proto"
-  cp "$ROOT/libs/backend/go/contracts/buf.yaml" "$ROOT/libs/backend/go/contracts/buf.gen.yaml" "$dir/libs/backend/go/contracts/"
+  cp -R "$ROOT/libs/backend/go/contracts/testdata/proto/dmpf" "$dir/libs/backend/go/contracts/proto/dmpf"
+  grep -v '^  - path: testdata/proto$' "$ROOT/libs/backend/go/contracts/buf.yaml" > "$dir/libs/backend/go/contracts/buf.yaml"
+  grep -v '^  - directory: testdata/proto$' "$ROOT/libs/backend/go/contracts/buf.gen.yaml" > "$dir/libs/backend/go/contracts/buf.gen.yaml"
   cp "$ROOT/tools/buf.sh" "$ROOT/tools/buf-gate.sh" "$dir/tools/"
   cp "$ROOT/libs/backend/go/contracts/go.mod" "$ROOT/libs/backend/go/contracts/go.sum" "$dir/libs/backend/go/contracts/"
   cp -R "$ROOT/libs/backend/go/contracts/gen" "$dir/libs/backend/go/contracts/gen"
@@ -50,6 +52,15 @@ mover_para_modulo() { # dir destino pacote-relativo
     -e 's|out: .*|out: gen/go|' "$dir/libs/backend/go/contracts/buf.gen.yaml" > "$dir/$destino/buf.gen.yaml" || exit 2
   cp "$dir/libs/backend/go/contracts/go.mod" "$dir/$destino/go.mod" || exit 2
   mv "$dir/libs/backend/go/contracts/proto/$pacote" "$dir/$destino/proto/$pacote" || exit 2
+}
+
+# Leva um pacote do módulo publicado para um módulo sem name no mesmo buf.yaml.
+nao_publicar() { # dir pacote-relativo
+  local mod="$1/libs/backend/go/contracts" pacote="$2"
+  mkdir -p "$mod/testdata/proto/$(dirname "$pacote")" || exit 2
+  mv "$mod/proto/$pacote" "$mod/testdata/proto/$pacote" || exit 2
+  sed -i 's|^    name: buf.build/mateusmacedo/dmpf$|&\n  - path: testdata/proto|' "$mod/buf.yaml" || exit 2
+  sed -i 's|^  - directory: proto$|&\n  - directory: testdata/proto|' "$mod/buf.gen.yaml" || exit 2
 }
 
 # Executa o gate dentro do sandbox, sem herdar GIT_* do ambiente atual. MODULO e
@@ -158,6 +169,22 @@ S="$(novo_sandbox)"; commitar "$S" "contratos"
 mover_para_modulo "$S" apps/orders/contract dmpf/testing; commitar "$S" "modulo novo"
 marcar_baseline "$S" "$REVISOR" orders-contract
 MODULO=apps/orders/contract PROJETO=orders-contract verificar "marca por projeto contracts-baseline/<projeto>" 0 "$S" breaking HEAD
+
+echo "== breaking: modulo sem name nao e publicado =="
+S="$(novo_sandbox)"; nao_publicar "$S" dmpf/testing; commitar "$S" "contratos"; marcar_baseline "$S" "$REVISOR"
+sed -i 's/int64 total_cents/int32 total_cents/' "$S/libs/backend/go/contracts/testdata/proto/dmpf/testing/v1/order_placed.proto"; commitar "$S" "tipo no pacote de teste"
+verificar "quebra FILE em modulo sem name libera" 0 "$S" breaking HEAD~1
+
+S="$(novo_sandbox)"; nao_publicar "$S" dmpf/testing; commitar "$S" "contratos"; marcar_baseline "$S" "$REVISOR"
+mv "$S/libs/backend/go/contracts/testdata/proto/dmpf/testing" "$S.teste-fora"
+printf 'syntax = "proto3";\n\npackage dmpf.testing.v2;\n\nmessage Probe {\n  string id = 1;\n}\n' > "$S.probe"
+mkdir -p "$S/libs/backend/go/contracts/testdata/proto/dmpf/testing/v2"; mv "$S.probe" "$S/libs/backend/go/contracts/testdata/proto/dmpf/testing/v2/probe.proto"
+commitar "$S" "troca o pacote de teste"
+verificar "pacote de modulo sem name removido nao conta como publicado" 0 "$S" breaking HEAD~1
+
+S="$(novo_sandbox)"; nao_publicar "$S" dmpf/testing; commitar "$S" "contratos"; marcar_baseline "$S" "$REVISOR"
+sed -i 's/string spec_version = 3;/int32 spec_version = 3;/' "$S/libs/backend/go/contracts/proto/io/cloudevents/v1/cloudevents.proto"; commitar "$S" "quebra o publicado"
+verificar "quebra FILE no modulo publicado ao lado de um sem name reprova" 1 "$S" breaking HEAD~1 "buf breaking (FILE) reprovou"
 
 echo "== lint =="
 S="$(novo_sandbox)"

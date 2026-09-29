@@ -18,11 +18,10 @@ autoridade de validação em `docs/adr/023-autoridade-de-validacao-e-registry.md
 
 ```text
 libs/backend/go/contracts/
-├── buf.yaml            módulo Buf `proto`: lint STANDARD, breaking FILE, deps vazias (BUF-01, BUF-02)
+├── buf.yaml            módulo publicado `proto` e módulo de teste `testdata/proto`, sem name: lint STANDARD, breaking FILE, deps vazias (BUF-01, BUF-02)
 ├── buf.gen.yaml        geração em managed mode para gen/go; plugin protoc-gen-go pinado (BUF-06, BUF-10)
-├── proto/
-│   ├── io/cloudevents/v1/cloudevents.proto   envelope oficial do CloudEvents, vendorizado (ENV-07)
-│   └── dmpf/testing/v1/*.proto               eventos de teste do kernel, sem vínculo com nenhum app
+├── proto/io/cloudevents/v1/cloudevents.proto  envelope oficial do CloudEvents, vendorizado (ENV-07)
+├── testdata/proto/dmpf/testing/v1/*.proto     eventos de teste do kernel, sem vínculo com nenhum app e fora do buf-breaking
 ├── fixtures/testing/v1/*.golden              golden fixtures JSON dos eventos de teste (INT-01)
 ├── gen/go/                                   gerado, nunca editado à mão (REP-02)
 ├── envelope/, payloadhash/                   empacotamento CloudEvents e hash do payload

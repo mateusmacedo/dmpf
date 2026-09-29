@@ -34,8 +34,26 @@ buf() { bash "$BUF_SH" "$@"; }
 reprovar() { echo "REPROVADO: $*" >&2; exit 1; }
 aviso() { echo "AVISO: $*" >&2; }
 
-modulos() {
-  grep -E '^\s*-\s*path:' "$BUF_YAML" | sed -E 's/^\s*-\s*path:\s*//; s/\s*$//'
+# Caminhos dos módulos com name, os publicados, de um buf.yaml lido da entrada padrão.
+publicados() {
+  awk '
+    function fecha() { if (p != "" && n) print p; p = ""; n = 0 }
+    /^[[:space:]]*-[[:space:]]*path:/ { fecha(); p = $0; sub(/^[[:space:]]*-[[:space:]]*path:[[:space:]]*/, "", p); sub(/[[:space:]]*$/, "", p); next }
+    /^[[:space:]]+name:/ { if (p != "") n = 1; next }
+    /^[^[:space:]]/ { fecha() }
+    END { fecha() }
+  '
+}
+
+modulos() { publicados <"$BUF_YAML"; }
+
+# O buf.yaml de BUF_YAML só com a entrada do módulo informado em modules[].
+so_modulo() { # modulo
+  awk -v alvo="$1" '
+    /^[[:space:]]*-[[:space:]]*path:/ { v = $0; sub(/^[[:space:]]*-[[:space:]]*path:[[:space:]]*/, "", v); sub(/[[:space:]]*$/, "", v); dentro = 1; manter = (v == alvo) }
+    dentro && /^[^[:space:]-]/ { dentro = 0 }
+    !dentro || manter { print }
+  ' "$BUF_YAML"
 }
 
 # Diretório do gerado, relativo à raiz, a partir do primeiro `out` do buf.gen.yaml.
@@ -133,7 +151,7 @@ raizes_em() { # ref
     while IFS= read -r p; do
       [ -n "$p" ] || continue
       if [ "$dir" = "." ]; then echo "$p"; else echo "$dir/$p"; fi
-    done < <(git show "$ref:$arquivo" | grep -E '^\s*-\s*path:' | sed -E 's/^\s*-\s*path:\s*//; s/\s*$//')
+    done < <(git show "$ref:$arquivo" | publicados)
   done < <(git ls-tree -r --name-only "$ref" | grep -E '(^|/)buf\.yaml$')
 }
 
@@ -163,7 +181,7 @@ gate_breaking() {
   [ -f "$BUF_YAML" ] || reprovar "$BUF_YAML ausente: sem workspace nao ha modulo a verificar (BUF-01)"
   lista="$(modulos)"
   # Lista vazia deixaria o laço sem iterar e o gate sairia 0 sem olhar nada.
-  [ -n "$lista" ] || reprovar "$BUF_YAML sem modulos declarados em 'modules[].path' (BUF-01)"
+  [ -n "$lista" ] || reprovar "$BUF_YAML sem modulos declarados em 'modules[].path' com 'name' (BUF-01)"
 
   # A identidade de um .proto publicado é o pacote: indexa, por diretório relativo à
   # raiz do módulo (REP-01), onde cada pacote estava na base.
@@ -185,7 +203,7 @@ gate_breaking() {
     fi
 
     against="$(mktemp -d)" || reprovar "mktemp"
-    cp "$BUF_YAML" "$against/buf.yaml" || reprovar "copia de $BUF_YAML"
+    so_modulo "$modulo" >"$against/buf.yaml" || reprovar "copia de $BUF_YAML"
     mkdir -p "$against/$modulo"
     herdado=0
     origens=""
