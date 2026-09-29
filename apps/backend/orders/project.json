@@ -94,6 +94,15 @@
       "continuous": true,
       "dependsOn": ["serve-api"]
     },
+    "docker:run-relay": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "until docker run --rm --name orders-relay --network host --env-file deploy/.env apps-backend-orders --role relay; do echo \"orders relay: nova tentativa em 2s (o docker:run aplica o schema)\" >&2; sleep 2; done",
+        "cwd": "{projectRoot}"
+      },
+      "continuous": true,
+      "dependsOn": ["docker:run"]
+    },
     "test-distributed": {
       "executor": "nx:run-commands",
       "cache": false,

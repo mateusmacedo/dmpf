@@ -72,7 +72,7 @@ PG_DSN='postgres://orders:orders-local@localhost:5432/orders?sslmode=disable' KA
 
 ## Targets Nx
 
-`fmt-check`, `vet`, `build`, `test-race`, `govulncheck`, `serve-api` e `serve-relay`.
+`fmt-check`, `vet`, `build`, `test-race`, `govulncheck`, `serve-api` e `serve-relay`, mais os de container: `docker:build`, `docker:run` (papel `api`) e `docker:run-relay`, que o `bff:docker:run` sobe.
 
 ## Testes
 
