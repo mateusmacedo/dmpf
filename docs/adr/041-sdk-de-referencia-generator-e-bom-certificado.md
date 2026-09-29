@@ -300,3 +300,25 @@ execução decidiu:
   vazia com `reason`; o `compatible_with` do `go` nomeia pgx (`provider`),
   protobuf (`golden`), otel (`reference`) e franz-go (`dist`), cada par presente
   no header do subject citado.
+
+## Addendum — 2026-09-29 (rota de saúde do BFF)
+
+A dívida "rota de saúde na api (sondas por socket hoje)" fica paga no BFF, a
+borda HTTP. `GET /livez` responde enquanto o processo serve; `GET /readyz`
+responde `503` nomeando cada contexto cujo canal gRPC não tem backend `SERVING`
+no `grpc.health.v1`. A leitura é o estado do canal, não uma chamada
+`Health/Check`: a política por método do cliente recusa método não declarado
+(`GRP-16`), e o health check do service config (`GRP-13`) já só deixa o canal
+`READY` quando o backend responde `SERVING`.
+
+- **Imagem.** O subcomando `bff healthcheck` consulta o `/readyz` e sai só com
+  `0` ou `1`, porque o `HEALTHCHECK` do Docker reserva o `2`; a imagem
+  distroless não tem shell nem curl.
+- **Kubernetes.** A readiness do BFF usa `/readyz` e a liveness usa `/livez`:
+  um contexto fora do ar tira o BFF do balanceamento sem reiniciá-lo.
+- **Nx.** O `bff:docker:run` passa a subir os papéis de cada contexto em
+  container: `docker:run` (papel `api`), `docker:run-relay` e, no
+  `reservations`, `docker:run-consumer`. O generator emite o
+  `docker:run-relay` em todo contexto com bloco `app`.
+- **Fora daqui.** Os contextos já expõem `grpc.health.v1` por serviço; o pool
+  pgx e o `INFRA_BUDGET_FRACTION` seguem como dívida.
