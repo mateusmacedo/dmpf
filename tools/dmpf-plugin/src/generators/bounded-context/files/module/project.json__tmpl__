@@ -62,6 +62,9 @@
         "cwd": "{projectRoot}"
       }
     }<% if (hasApp) { %>,
+    "nx-release-publish": {
+      "executor": "nx:noop"
+    },
     "serve-api": {
       "executor": "nx:run-commands",
       "options": {

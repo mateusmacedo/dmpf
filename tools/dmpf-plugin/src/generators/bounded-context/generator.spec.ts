@@ -238,6 +238,7 @@ const expectedTargets = ({
     }),
     ...(app
       ? {
+          'nx-release-publish': { executor: 'nx:noop' },
           'serve-api': serveTarget(SERVE_API, [
             { projects: ['bff'], target: 'infra-up' },
             { projects: ['bff'], target: 'infra-session' },
@@ -443,6 +444,7 @@ describe('[generator] bounded-context — generation', () => {
       'build',
       'fmt-check',
       'govulncheck',
+      'nx-release-publish',
       'serve-api',
       'serve-relay',
       'test-distributed',
