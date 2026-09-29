@@ -117,7 +117,8 @@ A imagem nasce do `Dockerfile` na raiz do repositório:
 ## Targets Nx
 
 `fmt-check`, `vet`, `build`, `test-race`, `test-distributed`, `govulncheck`,
-`serve-api` e `serve-relay`.
+`serve-api` e `serve-relay`, mais os de container: `docker:build`, `docker:run`
+(papel `api`) e `docker:run-relay`, que o `bff:docker:run` sobe.
 
 ## Testes
 
