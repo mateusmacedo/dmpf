@@ -169,7 +169,7 @@ func Logging(cfg Config) resilience.Decorator {
 		return func(ctx context.Context, op resilience.Operation, do func(context.Context) error) error {
 			err := next(ctx, op, do)
 			if err == nil {
-				logger.DebugContext(ctx, "transport: call",
+				logger.LogAttrs(ctx, slog.LevelDebug, "transport: call",
 					slog.String("dependency", op.Dependency),
 					slog.String("operation", op.Method),
 					slog.String("outcome_category", CategoryOK))
