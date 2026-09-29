@@ -108,7 +108,7 @@ func serverSpan(tracer trace.Tracer) grpc.UnaryServerInterceptor {
 // process that asks for it pays for one line per call.
 func callLog(logger *slog.Logger) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
-		if logger == nil {
+		if logger == nil || !logger.Enabled(ctx, slog.LevelWarn) {
 			return handler(ctx, req)
 		}
 		started := time.Now()
@@ -118,6 +118,9 @@ func callLog(logger *slog.Logger) grpc.UnaryServerInterceptor {
 		level := slog.LevelDebug
 		if code != codes.OK {
 			level = slog.LevelWarn
+		}
+		if !logger.Enabled(ctx, level) {
+			return resp, err
 		}
 		logger.LogAttrs(slot.onto(ctx), level, "grpc call",
 			slog.String("operation", info.FullMethod),
