@@ -171,7 +171,9 @@
       "dependsOn": ["^build"],
       "cache": true,
       "inputs": ["go", "^go"],
-      "options": { "cover": true }
+      "options": {
+        "cover": true
+      }
     },
     "build": {
       "dependsOn": ["^build"],
