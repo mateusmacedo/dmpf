@@ -85,7 +85,7 @@ PG_DSN='postgres://reservations:reservations-local@localhost:5432/reservations?s
 
 ## Targets Nx
 
-`fmt-check`, `vet`, `build`, `test-race`, `test-distributed`, `govulncheck`, `serve-api`, `serve-relay` e `serve-consumer`.
+`fmt-check`, `vet`, `build`, `test-race`, `test-distributed`, `govulncheck`, `serve-api`, `serve-relay` e `serve-consumer`, mais os de container: `docker:build`, `docker:run` (papel `api`), `docker:run-relay` e `docker:run-consumer`, que o `bff:docker:run` sobe.
 
 ## Testes
 

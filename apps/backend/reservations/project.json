@@ -114,6 +114,15 @@
       "continuous": true,
       "dependsOn": ["serve-api"]
     },
+    "docker:run-relay": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "until docker run --rm --name reservations-relay --network host --env-file deploy/.env apps-backend-reservations --role relay; do echo \"reservations relay: nova tentativa em 2s (o docker:run aplica o schema)\" >&2; sleep 2; done",
+        "cwd": "{projectRoot}"
+      },
+      "continuous": true,
+      "dependsOn": ["docker:run"]
+    },
     "serve-consumer": {
       "executor": "nx:run-commands",
       "options": {
@@ -123,6 +132,15 @@
       },
       "continuous": true,
       "dependsOn": ["serve-api"]
+    },
+    "docker:run-consumer": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "until docker run --rm --name reservations-consumer --network host --env-file deploy/.env apps-backend-reservations --role consumer; do echo \"reservations consumer: nova tentativa em 2s (o docker:run aplica o schema)\" >&2; sleep 2; done",
+        "cwd": "{projectRoot}"
+      },
+      "continuous": true,
+      "dependsOn": ["docker:run"]
     }
   }
 }
