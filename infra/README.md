@@ -5,7 +5,7 @@ Manifestos da plataforma do workspace, modulares: um recurso por arquivo, compos
 ```text
 infra/
 ├── local/                          # desenvolvimento local (Docker Compose)
-│   ├── docker-compose.yml          # projeto `local`: só `name` + `include:` dos recursos e dos deploy/compose.yml das apps
+│   ├── docker-compose.yml          # projeto `lidercap-local`: só `name` + `include:` dos recursos e dos deploy/compose.yml das apps
 │   ├── .env.example                # gerado pelo infrasync: variáveis da plataforma e das apps
 │   └── compose/                    # um arquivo por recurso
 │       ├── postgres.yml            # profile postgres
@@ -35,7 +35,7 @@ infra/
 ├── k8s/                            # deploy (Kustomize)
 │   ├── base/{postgres,redpanda}/
 │   └── overlays/{dev,hmg}/         # compõem apps/backend/<app>/deploy/k8s/overlays/<env>; listas geradas
-├── test/compose.yml                # infra dos testes de integração (projeto `testinfra`, só tmpfs)
+├── test/compose.yml                # infra dos testes de integração (projeto `lidercap-testinfra`, só tmpfs)
 └── docker/Dockerfile.node.example  # referência para apps Node
 ```
 
