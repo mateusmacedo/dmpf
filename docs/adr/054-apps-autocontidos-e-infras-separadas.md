@@ -60,5 +60,5 @@ Depois do ADR-053, cada contexto tinha banco, borda e forma próprios, mas o mat
 **Negativas:**
 
 - São três módulos Go e três projetos Nx a mais, cada um com a sua cadeia.
-- Os testes de integração locais exigem `testkit:test-infra-up` antes.
+- Todo target de integração depende de `testkit:test-infra-up`, que sobe a infra de testes localmente e não faz nada no CI; a primeira execução paga a subida dos containers.
 - O diretório temporário de registros do `dmpf-evidence` não é removido pelo próprio comando.
