@@ -2,7 +2,7 @@
 id: SPEC-VJMM2DE5
 slug: apps-autocontidos
 title: DMPF — Apps autocontidos com contrato e deploy dentro do contexto
-stage: building
+stage: done
 priority: P1
 depends_on: []
 ticket_url: null
