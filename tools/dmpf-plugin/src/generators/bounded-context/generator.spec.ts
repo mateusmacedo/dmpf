@@ -196,9 +196,9 @@ const goTarget = ({
 
 const LOAD_ENV = 'set -a; [ ! -f deploy/.env ] || . deploy/.env; set +a;';
 const SERVE_API = `${LOAD_ENV} exec go run ./cmd --role api`;
-const SERVE_RELAY = `${LOAD_ENV} until go run ./cmd --role relay; do echo "checkout relay: nova tentativa em 2s (o serve-api aplica o schema)" >&2; sleep 2; done`;
+const SERVE_RELAY = `${LOAD_ENV} exec go run ./cmd --role relay`;
 const DOCKER_RUN_RELAY =
-  'until docker run --rm --name checkout-relay --network host --env-file deploy/.env apps-backend-checkout --role relay; do echo "checkout relay: nova tentativa em 2s (o docker:run aplica o schema)" >&2; sleep 2; done';
+  'docker run --rm --name checkout-relay --network host --env-file deploy/.env apps-backend-checkout --role relay';
 
 const serveTarget = (command: string, dependsOn: unknown[]): Record<string, unknown> => ({
   executor: 'nx:run-commands',

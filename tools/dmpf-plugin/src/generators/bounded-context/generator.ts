@@ -230,10 +230,10 @@ const planModule = ({
       boundedContextJson: JSON.stringify(boundedContext),
       tidyCommandJson: JSON.stringify(toolOf(depth, 'go-tidy.sh')),
       serveRelayCommandJson: JSON.stringify(
-        `set -a; [ ! -f deploy/.env ] || . deploy/.env; set +a; until go run ./cmd --role relay; do echo "${name} relay: nova tentativa em 2s (o serve-api aplica o schema)" >&2; sleep 2; done`,
+        `set -a; [ ! -f deploy/.env ] || . deploy/.env; set +a; exec go run ./cmd --role relay`,
       ),
       dockerRunRelayCommandJson: JSON.stringify(
-        `until docker run --rm --name ${name}-relay --network host --env-file deploy/.env ${imageRefOf(moduleDirectory)} --role relay; do echo "${name} relay: nova tentativa em 2s (o docker:run aplica o schema)" >&2; sleep 2; done`,
+        `docker run --rm --name ${name}-relay --network host --env-file deploy/.env ${imageRefOf(moduleDirectory)} --role relay`,
       ),
       testDistributedCommandJson: JSON.stringify(
         `${toolOf(depth, 'test-env.sh')} go test -race -count=1 -p 1 -tags=integration,distributed ./distkit/...`,
