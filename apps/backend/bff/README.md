@@ -94,17 +94,15 @@ Variável obrigatória ausente, ou nenhuma política de transporte gRPC ou de au
 
 ## Rodar localmente
 
-Com os três contextos no ar (ver os README deles):
+`pnpm nx run bff:serve` sobe a infra local, os papéis dos três contextos (`serve-api`, `serve-relay` e o `serve-consumer` do `reservations`) e o BFF no host, cada processo com o `deploy/.env.example` da app; um `deploy/.env` ao lado sobrepõe os valores. Os contextos ouvem gRPC sem TLS em 9191 (`orders`), 9192 (`reservations`) e 9193 (`bookings`), e o BFF ouve HTTP em 8080.
 
 ```bash
-ORDERS_GRPC_TARGET=dns:///localhost:9090 RESERVATIONS_GRPC_TARGET=dns:///localhost:9091 \
-BOOKINGS_GRPC_TARGET=dns:///localhost:9092 \
-  GRPC_INSECURE=true AUTH_DEV_MOCK=true pnpm nx run bff:serve
+pnpm nx run bff:serve
 ```
 
-Em containers na rede do host, com os `deploy/.env` de cada app, `pnpm nx run bff:docker:run` sobe a infra local e as imagens do BFF e dos papéis de cada contexto: o `docker:run` (papel `api`) e o `docker:run-relay` dos três, e o `docker:run-consumer` do `reservations`. O container do BFF fica `healthy` só depois que os três contextos respondem `SERVING`.
-
 A topologia inteira sobe por `docker compose -f infra/local/docker-compose.yml --profile dmpf up -d --build`, com mTLS entre o BFF e os `api` e SASL no Kafka interno (ver `infra/README.md`).
+
+Em containers na rede do host, com os `deploy/.env` de cada app, `pnpm nx run bff:docker:run` sobe a infra local e as imagens do BFF e dos papéis de cada contexto: o `docker:run` (papel `api`) e o `docker:run-relay` dos três, e o `docker:run-consumer` do `reservations`. O container do BFF fica `healthy` só depois que os três contextos respondem `SERVING`.
 
 ## Targets Nx
 
@@ -113,9 +111,8 @@ A topologia inteira sobe por `docker compose -f infra/local/docker-compose.yml -
 ## Testes
 
 - Unitários: rotas e contrato (inclusive o teste estrutural dos três OpenAPI), resolução e recusa de identidade (credencial ausente, expirada, asserção divergente via `X-Subject-ID`/`X-Tenant-ID`/`tenant_id`), mapeamento de status, clientes gRPC contra servidores falsos por `bufconn` (retry por idempotência, prazo decrescente, metadata, mTLS e hierarquia de spans) e partida do binário.
-- E2e caixa-preta (build tag `integration`): compila os quatro binários com `-race`, cria três bancos e seis tópicos por execução, sobe os oito processos e fala só HTTP com o BFF. Prova a cadeia de contexto até `ReservationConfirmed` e até o `BookingReserved` que sai do `bookings`, o cancelamento que vence um `OrderPlaced` posterior, a reentrega que termina em `DuplicateIgnored`, uma outbox por contexto e a recusa de uma chamada sem credencial. Exige `PG_DSN` (usuário com `CREATE DATABASE`) e `KAFKA_BROKERS`.
+- E2e caixa-preta (build tag `integration`): compila os quatro binários com `-race`, cria três bancos e seis tópicos por execução, sobe os oito processos e fala só HTTP com o BFF. Prova a cadeia de contexto até `ReservationConfirmed` e até o `BookingReserved` que sai do `bookings`, o cancelamento que vence um `OrderPlaced` posterior, a reentrega que termina em `DuplicateIgnored`, uma outbox por contexto e a recusa de uma chamada sem credencial. Exige `PG_DSN` (usuário com `CREATE DATABASE`) e `KAFKA_BROKERS`; o target sobe a infra de testes (`testkit:test-infra-up`) e o `tools/test-env.sh` preenche os dois com o Postgres (15432) e o Redpanda (19092) dela, a partir do `.env.example` da raiz.
 
 ```bash
-PG_DSN='postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable' KAFKA_BROKERS=localhost:9092 \
-  pnpm nx run bff:test-race
+pnpm nx run bff:test-race
 ```
