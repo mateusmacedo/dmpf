@@ -9,6 +9,6 @@ spec:
         - name: api
           env:
             # Em dev o api aplica o schema na partida (postgres.Migrate é
-            # idempotente); relay e consumer reiniciam até as tabelas existirem.
+            # idempotente); relay e consumer esperam as tabelas existirem.
             - name: MIGRATE
               value: 'true'
