@@ -60,7 +60,7 @@ um `doc.go` compilável (godoc de três linhas); o `provider` recebe também
 `schema.sql` e `schema.go`, que embute o DDL do contexto para o composition root
 aplicar por `postgres.Migrate` (ADR-053). A tag `layer:*` é a do bloco mais alto
 gerado; `test-race` leva `-tags=integration` quando `provider` entra, sem
-`dependsOn`: cada projeto testa no seu próprio banco `<projeto>_test`; o
+`dependsOn`: cada teste ganha o próprio banco `<projeto>_test_<id>`; o
 `external` do manifesto é a união dos blocos. O `go.work` recebe um `use` em ordem. Depois do flush em disco, o
 generator devolve um callback que roda
 `go run ./tools/dmpf-conformance/cmd/modsync --root . --write` a partir da raiz
