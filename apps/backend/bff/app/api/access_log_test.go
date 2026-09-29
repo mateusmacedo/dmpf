@@ -1,9 +1,13 @@
 package api_test
 
 import (
+	"context"
 	"encoding/json"
+	"net/http"
 	"strings"
 	"testing"
+
+	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
 
 func accessLogs(t *testing.T, f fixture) []map[string]any {
@@ -44,5 +48,25 @@ func TestARefusedRequestIsLoggedAtInfo(t *testing.T) {
 	records := accessLogs(t, f)
 	if len(records) != 1 || records[0]["status"] != float64(401) || records[0]["level"] != "INFO" {
 		t.Fatalf("access log = %v, want one 401 at INFO", f.logs.String())
+	}
+}
+
+type panickingAuthenticator struct{}
+
+func (panickingAuthenticator) Authenticate(context.Context, ports.Credential) (ports.Identity, error) {
+	panic("authenticator bug")
+}
+
+func TestAPanickingRequestIsLoggedAsAServerFailure(t *testing.T) {
+	f := newFixture(t, &fakeContexts{}, withAuthenticator(panickingAuthenticator{}))
+
+	response := f.do(t, "GET", "/orders/o-1", nil)
+
+	if response.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500", response.Code)
+	}
+	records := accessLogs(t, f)
+	if len(records) != 1 || records[0]["status"] != float64(500) || records[0]["level"] != "WARN" {
+		t.Fatalf("access log = %v, want one 500 at WARN", f.logs.String())
 	}
 }

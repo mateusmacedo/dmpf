@@ -55,6 +55,7 @@ func withExecutionContext(tracer trace.Tracer, logger *slog.Logger, authenticato
 
 		w := &statusRecorder{ResponseWriter: rw, status: http.StatusOK}
 		defer logAccess(ctx, logger, route, r, w, started)
+		defer recordPanicStatus(w)
 
 		w.Header().Set(CorrelationHeader, correlation)
 
@@ -119,6 +120,13 @@ func (s *statusRecorder) WriteHeader(status int) {
 }
 
 func (s *statusRecorder) Unwrap() http.ResponseWriter { return s.ResponseWriter }
+
+func recordPanicStatus(w *statusRecorder) {
+	if recovered := recover(); recovered != nil {
+		w.status = http.StatusInternalServerError
+		panic(recovered)
+	}
+}
 
 func logAccess(ctx context.Context, logger *slog.Logger, route kernelhttp.Route, r *http.Request, w *statusRecorder, started time.Time) {
 	level := slog.LevelDebug

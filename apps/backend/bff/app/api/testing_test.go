@@ -31,6 +31,7 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/authn"
 	obsclock "github.com/mateusmacedo/dmpf/libs/backend/go/observability/clock"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/metrics"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/admission"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/deadline"
 )
@@ -183,6 +184,7 @@ type setup struct {
 	reservationsContract []byte
 	cors                 []string
 	ready                func(context.Context) error
+	authenticator        ports.Authenticator
 }
 
 type option func(*setup)
@@ -199,9 +201,11 @@ func withCORS(origins ...string) option { return func(s *setup) { s.cors = origi
 
 func withReady(ready func(context.Context) error) option { return func(s *setup) { s.ready = ready } }
 
+func withAuthenticator(a ports.Authenticator) option { return func(s *setup) { s.authenticator = a } }
+
 func newFixture(t *testing.T, fake *fakeContexts, options ...option) fixture {
 	t.Helper()
-	cfg := &setup{budget: routeBudget, limit: admission.Limit{PerSecond: 1000, Burst: 1000, Concurrency: 100}}
+	cfg := &setup{budget: routeBudget, limit: admission.Limit{PerSecond: 1000, Burst: 1000, Concurrency: 100}, authenticator: authn.DevAuthenticator{}}
 	for _, apply := range options {
 		apply(cfg)
 	}
@@ -241,7 +245,7 @@ func newFixture(t *testing.T, fake *fakeContexts, options ...option) fixture {
 
 	handler, err := api.NewHandler(rpc.NewOrders(ordersConn), rpc.NewReservations(reservationsConn), rpc.NewBookings(bookingsConn), ctrl, tracer, nil, api.Options{
 		Budget:               cfg.budget,
-		Authenticator:        authn.DevAuthenticator{},
+		Authenticator:        cfg.authenticator,
 		OrdersContract:       cfg.ordersContract,
 		ReservationsContract: cfg.reservationsContract,
 		CORSOrigins:          cfg.cors,
