@@ -71,7 +71,7 @@ Variável obrigatória ausente encerra a partida com exit 2 nomeando-a.
 
 ```bash
 docker compose -f infra/local/docker-compose.yml --profile postgres --profile dmpf up -d postgres-init
-PG_DSN='postgres://reservations:reservations-local@localhost:5432/reservations?sslmode=disable' MIGRATE=true GRPC_ADDR=:9192 GRPC_INSECURE=true \
+PG_DSN='postgres://reservations:reservations-local@localhost:5432/reservations?sslmode=disable' MIGRATE=true GRPC_ADDR=127.0.0.1:9192 GRPC_INSECURE=true \
   pnpm nx run reservations:serve-api
 PG_DSN='postgres://reservations:reservations-local@localhost:5432/reservations?sslmode=disable' KAFKA_BROKERS=localhost:9092 KAFKA_INSECURE=true \
   KAFKA_RESERVATIONS_TOPIC=reservations.events KAFKA_RESERVATIONS_DLQ=reservations.events.dlq KAFKA_GROUP=reservations \
