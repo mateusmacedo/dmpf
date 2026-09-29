@@ -160,7 +160,7 @@ const testRaceCommandOf = (integration: boolean, depth: number): string =>
     ? `${toolOf(depth, 'test-env.sh')} go test -race -count=1 -p 1 -tags=integration ./...`
     : 'go test -race ./...';
 
-const GRPC_ADDR_PATTERN = /^GRPC_ADDR=:(\d+)$/m;
+const GRPC_ADDR_PATTERN = /^GRPC_ADDR=[^:\n]*:(\d+)$/m;
 
 const declaredGrpcPorts = (tree: Tree): number[] =>
   tree.children(DEFAULT_DIRECTORY).flatMap((app) => {

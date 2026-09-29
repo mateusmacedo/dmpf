@@ -781,11 +781,11 @@ describe('[generator] bounded-context — refusals', () => {
   it('should take the next free gRPC port after the contexts declared', async () => {
     const tree = await generate({}, (t) => {
       t.write('apps/backend/orders/deploy/.env.example', 'GRPC_ADDR=:9191\n');
-      t.write('apps/backend/bookings/deploy/.env.example', 'GRPC_ADDR=:9196\n');
+      t.write('apps/backend/bookings/deploy/.env.example', 'GRPC_ADDR=127.0.0.1:9196\n');
     });
 
     expect(readText(tree, `${DEPLOY_MODULE_DIR}/.env.example`).split('\n')).toContain(
-      'GRPC_ADDR=:9197',
+      'GRPC_ADDR=127.0.0.1:9197',
     );
   });
 
