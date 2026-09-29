@@ -14,7 +14,7 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: postgres
     ports:
-      - '15432:5432'
+      - '127.0.0.1:15432:5432'
     tmpfs:
       - /var/lib/postgresql/data
     healthcheck:
@@ -34,8 +34,8 @@ services:
       - --kafka-addr=0.0.0.0:9092
       - --advertise-kafka-addr=localhost:19092
     ports:
-      - '19092:9092'
-      - '19644:9644'
+      - '127.0.0.1:19092:9092'
+      - '127.0.0.1:19644:9644'
     volumes:
       - { type: tmpfs, target: /var/lib/redpanda/data, tmpfs: { mode: 01777 } }
     healthcheck:
@@ -62,7 +62,7 @@ services:
       - --set
       - redpanda.kafka_enable_authorization=true
     ports:
-      - '19093:9092'
+      - '127.0.0.1:19093:9092'
     volumes:
       - { type: tmpfs, target: /var/lib/redpanda/data, tmpfs: { mode: 01777 } }
     healthcheck:
@@ -84,7 +84,7 @@ services:
   floci:
     image: floci/floci:2.0.1@sha256:4e451c39c7bb88e3cd4f87e8fc0c25d5b47695a51185d521e2241fa00486e8eb
     ports:
-      - '14566:4566'
+      - '127.0.0.1:14566:4566'
     tmpfs:
       - /app/data
     healthcheck:
