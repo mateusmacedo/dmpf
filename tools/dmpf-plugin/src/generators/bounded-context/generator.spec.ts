@@ -1144,6 +1144,17 @@ describe('[generator] bounded-context — contract module', () => {
     ]);
   });
 
+  it('should declare the protobuf runtime that the generated code imports as the contract external', async () => {
+    const manifest = readJsonFile<{ external: { package: string; capability: string }[] }>(
+      await generate(),
+      `${CONTRACT_MODULE_DIR}/dmpf-units.json`,
+    );
+
+    expect(manifest.external.map(({ package: pkg, capability }) => ({ pkg, capability }))).toEqual([
+      { pkg: 'google.golang.org/protobuf', capability: 'wire.codec' },
+    ]);
+  });
+
   it('should write a private package.json named after the contract project', async () => {
     expect(
       readJsonFile<PackageManifest>(await generate(), `${CONTRACT_MODULE_DIR}/package.json`),
