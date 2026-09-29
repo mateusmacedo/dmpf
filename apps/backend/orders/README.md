@@ -20,7 +20,7 @@ Projeto Nx `orders`, tags `type:app`, `scope:backend`, `stack:go` e `layer:apps`
 | `provider` | `provider` | `orders/provider-postgres` | Repositório escopado por `tenant_id` via `postgres.Table` (ADR-051) sobre a tabela `orders` (estado em `snapshot` `jsonb`, ADR-053), `Reader`, mapeador para `company.orders.event.v1` |
 | `app`, `app/rpc`, `cmd` | `app` | `orders/app` | Composition root: o único lugar onde os providers concretos de `orders` são instanciados (ADR-015); servidor gRPC e binário |
 
-Todas com `bounded_context` `orders`. O contrato (`company.orders.event.v1`, `company.orders.service.v1`) é a unidade `orders/contract`, declarada no manifesto de `libs/backend/go/contracts`, onde o código gerado mora; é superfície pública, e é por ela que `bff` e `reservations` alcançam `orders` sem importar o seu domínio.
+Todas com `bounded_context` `orders`. O contrato (`company.orders.event.v1`, `company.orders.service.v1`) é a unidade `orders/contract`, declarada no manifesto do módulo `apps/backend/orders/contract`, onde o código gerado mora; é superfície pública, e é por ela que `bff` e `reservations` alcançam `orders` sem importar o seu domínio.
 
 ## Aliases de import
 
