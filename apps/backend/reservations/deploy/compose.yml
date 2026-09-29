@@ -13,6 +13,7 @@ x-env: &env
 x-kafka: &kafka
   KAFKA_SASL_USERNAME: reservations
   KAFKA_SASL_PASSWORD: ${KAFKA_RESERVATIONS_PASSWORD:-reservations-local}
+  KAFKA_GROUP: reservations
 
 services:
   dmpf-reservations-api:
