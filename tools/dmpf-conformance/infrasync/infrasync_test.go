@@ -116,6 +116,31 @@ func TestLoadRefusesAGroupWithoutEnv(t *testing.T) {
 	}
 }
 
+func TestLoadRefusesAValueThatWouldBreakOutOfTheGeneratedFiles(t *testing.T) {
+	for _, tc := range []struct {
+		name, file, old, new, field string
+	}{
+		{"variável de senha com comando", "alpha", `"passwordEnv": "ALPHA_PG_PASSWORD"`, `"passwordEnv": "X; id > /tmp/evil; :"`, "passwordEnv"},
+		{"senha de dev com aspas", "alpha", `"dev": "alpha-dev"`, `"dev": "alpha'dev"`, "dev"},
+		{"senha local com quebra de linha", "alpha", `"local": "alpha-local", "dev"`, `"local": "alpha\nlocal", "dev"`, "local"},
+		{"imagem com separador de comando", "alpha", `"local": "alpha:local"`, `"local": "alpha:local; x"`, "image"},
+		{"servidor gRPC fora de rótulo DNS", "alpha", `"server": "dmpf-alpha-api"`, `"server": "api; touch /pki/pwned"`, "grpc"},
+		{"operação fora do rpk", "alpha", `"operations": ["write", "describe"]`, `"operations": ["write --allow-principal User:*", "describe"]`, "operations"},
+		{"tópico com espaço", "alpha", `{ "name": "alpha.events.dlq", "env": "KAFKA_ALPHA_DLQ" }`, `{ "name": "alpha events", "env": "KAFKA_ALPHA_DLQ" }`, "alpha events"},
+		{"chave de ambiente minúscula", "alpha", `"ITEM_LIMIT": "10"`, `"item limit": "10"`, "item limit"},
+		{"valor de ambiente com substituição", "alpha", `"ITEM_LIMIT": "10"`, `"ITEM_LIMIT": "$(id)"`, "ITEM_LIMIT"},
+		{"grupo com aspas", "beta", `"group": { "name": "beta", "env": "KAFKA_GROUP" }`, `"group": { "name": "beta'", "env": "KAFKA_GROUP" }`, "group"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			root := workspace(t)
+			rewrite(t, root, "apps/backend/"+tc.file+"/deploy/infra.json", tc.old, tc.new)
+			if _, err := infrasync.Load(root); err == nil || !strings.Contains(err.Error(), tc.field) {
+				t.Fatalf("Load = %v, want the value refused naming %q", err, tc.field)
+			}
+		})
+	}
+}
+
 func TestCheckDevSecretsReportsADevPasswordThatDiverges(t *testing.T) {
 	root := workspace(t)
 	manifests, err := infrasync.Load(root)

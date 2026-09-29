@@ -10,8 +10,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"sort"
 	"strings"
@@ -22,6 +24,14 @@ const (
 	manifestGlob = "apps/backend/*/deploy/infra.json"
 	platformEnv  = "infra/local/env.platform.example"
 	devOverlay   = "apps/backend/%s/deploy/k8s/overlays/dev/kustomization.yaml"
+)
+
+var (
+	envNamePattern  = regexp.MustCompile(`^[A-Z_][A-Z0-9_]*$`)
+	namePattern     = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
+	dnsLabelPattern = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
+	valuePattern    = regexp.MustCompile(`^[A-Za-z0-9._:/@+=,-]+$`)
+	aclOperations   = []string{"all", "read", "write", "create", "delete", "alter", "describe", "describe_configs", "alter_configs"}
 )
 
 type Manifest struct {
@@ -152,10 +162,63 @@ func read(path string) (Manifest, error) {
 			}
 		}
 	}
+	problems = append(problems, formatProblems(m)...)
 	if len(problems) > 0 {
 		return Manifest{}, fmt.Errorf("%s: %s", path, strings.Join(problems, "; "))
 	}
 	return m, nil
+}
+
+// formatProblems recusa o valor que sairia do seu lugar nos arquivos gerados, onde
+// ele entra sem escape em shell, SQL, YAML e comandos do rpk.
+func formatProblems(m Manifest) []string {
+	var problems []string
+	check := func(field, value string, pattern *regexp.Regexp, secret bool) {
+		if value == "" || pattern.MatchString(value) {
+			return
+		}
+		if secret {
+			problems = append(problems, fmt.Sprintf("%s fora do formato %s", field, pattern))
+			return
+		}
+		problems = append(problems, fmt.Sprintf("%s %q fora do formato %s", field, value, pattern))
+	}
+	check("image.env", m.Image.Env, envNamePattern, false)
+	check("image.local", m.Image.Local, valuePattern, false)
+	if d := m.Database; d != nil {
+		check("database.passwordEnv", d.PasswordEnv, envNamePattern, false)
+		check("database.local", d.Local, valuePattern, true)
+		check("database.dev", d.Dev, valuePattern, true)
+	}
+	if k := m.Kafka; k != nil {
+		check("kafka.passwordEnv", k.PasswordEnv, envNamePattern, false)
+		check("kafka.local", k.Local, valuePattern, true)
+		for _, t := range k.Topics {
+			check("topic.name", t.Name, namePattern, false)
+			check("topic.env", t.Env, envNamePattern, false)
+		}
+		for _, acl := range k.ACLs {
+			for _, op := range acl.Operations {
+				if !slices.Contains(aclOperations, op) {
+					problems = append(problems, fmt.Sprintf("operations %q fora de %v", op, aclOperations))
+				}
+			}
+			for _, t := range acl.Topics {
+				check("acl.topic", t, namePattern, false)
+			}
+			if g := acl.Group; g != nil {
+				check("group.name", g.Name, namePattern, false)
+				check("group.env", g.Env, envNamePattern, false)
+			}
+		}
+	}
+	check("grpc.server", m.GRPC.Server, dnsLabelPattern, false)
+	check("grpc.client", m.GRPC.Client, dnsLabelPattern, false)
+	for _, key := range slices.Sorted(maps.Keys(m.Env)) {
+		check("env", key, envNamePattern, false)
+		check("env."+key, m.Env[key], valuePattern, false)
+	}
+	return problems
 }
 
 func checkTopics(manifests []Manifest) error {
