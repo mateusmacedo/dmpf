@@ -82,7 +82,11 @@
       "inputs": [
         "{workspaceRoot}/tools/buf.sh",
         "{workspaceRoot}/tools/buf-gate.sh",
-        "{projectRoot}/go.mod"
+        "{projectRoot}/go.mod",
+        "{projectRoot}/buf.yaml",
+        "{projectRoot}/buf.gen.yaml",
+        "{projectRoot}/buf.lock",
+        "{workspaceRoot}/**/buf.gen.yaml"
       ],
       "options": {
         "command": "bash tools/buf-gate.sh pins libs/backend/go/contracts --project contracts"
@@ -96,7 +100,8 @@
         "{workspaceRoot}/tools/buf.sh",
         "{workspaceRoot}/tools/buf-gate.sh",
         "{projectRoot}/gen/**/*",
-        "{projectRoot}/go.mod"
+        "{projectRoot}/go.mod",
+        "{projectRoot}/**/*"
       ],
       "options": {
         "command": "bash tools/buf-gate.sh generate-check libs/backend/go/contracts --project contracts"
