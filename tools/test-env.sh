@@ -6,6 +6,6 @@ set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
 while IFS='=' read -r key value; do
   [[ "$key" =~ ^[A-Z_][A-Z0-9_]*$ ]] || continue
-  [ -n "${!key:-}" ] || export "$key=$value"
+  [ -n "${!key+x}" ] || export "$key=$value"
 done < "$root/.env.example"
 exec "$@"
