@@ -279,6 +279,44 @@ func TestRunGoTestLeavesOnlyTheExactlyNamedTestsOutOfTheStream(t *testing.T) {
 	}
 }
 
+func TestRunGoTestLeavesTheExcludedPackagesOutOfThePattern(t *testing.T) {
+	dir := t.TempDir()
+	files := map[string]string{
+		"go.mod":                              "module example.com/exclude\n\ngo 1.26\n",
+		"apps/orders/app/app_test.go":         "package app\n\nimport \"testing\"\n\nfunc TestApp(t *testing.T) {}\n",
+		"apps/orders/contract/golden_test.go": "package contract\n\nimport \"testing\"\n\nfunc TestGolden(t *testing.T) {}\n",
+		"apps/orders/contract/v1/v1_test.go":  "package v1\n\nimport \"testing\"\n\nfunc TestV1(t *testing.T) {}\n",
+	}
+	for name, content := range files {
+		path := filepath.Join(dir, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	results, err := evidence.RunGoTest(context.Background(), evidence.GoTest{
+		Dir:      dir,
+		Packages: []string{"example.com/exclude/apps/..."},
+		Exclude:  []string{"example.com/exclude/apps/*/contract/..."},
+		Env:      []string{"GOWORK=off"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, r := range results {
+		if strings.Contains(r.Package, "/contract") {
+			t.Fatalf("an excluded package reached the stream: %+v", results)
+		}
+	}
+	if !slices.Contains(results, evidence.TestResult{Package: "example.com/exclude/apps/orders/app", Test: "TestApp", Action: "pass"}) {
+		t.Fatalf("TestApp did not pass: %+v", results)
+	}
+}
+
 func TestGoVersionRefusesAToolchainOtherThanTheWorkspaces(t *testing.T) {
 	work := []byte("go 1.26.6\n\nuse (\n\t./a\n)\n")
 	if got, err := evidence.GoVersion(work, "go1.26.6"); err != nil || got != "1.26.6" {

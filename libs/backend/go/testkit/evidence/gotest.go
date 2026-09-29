@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path"
 	"regexp"
 	"slices"
 	"strings"
@@ -81,6 +82,7 @@ type GoTest struct {
 	Dir      string
 	Tags     []string
 	Packages []string
+	Exclude  []string
 	Skip     []string
 	Env      []string
 }
@@ -99,7 +101,11 @@ func RunGoTest(ctx context.Context, spec GoTest) ([]TestResult, error) {
 		}
 		args = append(args, "-skip=^("+strings.Join(quoted, "|")+")$")
 	}
-	args = append(args, spec.Packages...)
+	packages, err := included(ctx, spec)
+	if err != nil {
+		return nil, err
+	}
+	args = append(args, packages...)
 	cmd := exec.CommandContext(ctx, "go", args...)
 	cmd.Dir = spec.Dir
 	cmd.Env = append(os.Environ(), spec.Env...)
@@ -114,4 +120,41 @@ func RunGoTest(ctx context.Context, spec GoTest) ([]TestResult, error) {
 		return nil, fmt.Errorf("go %s: no test result (%v): %s", strings.Join(args, " "), runErr, strings.TrimSpace(stderr.String()))
 	}
 	return results, nil
+}
+
+func included(ctx context.Context, spec GoTest) ([]string, error) {
+	if len(spec.Exclude) == 0 {
+		return spec.Packages, nil
+	}
+	args := []string{"list", "-f", "{{.ImportPath}}"}
+	if len(spec.Tags) > 0 {
+		args = append(args, "-tags="+strings.Join(spec.Tags, ","))
+	}
+	cmd := exec.CommandContext(ctx, "go", append(args, spec.Packages...)...)
+	cmd.Dir = spec.Dir
+	cmd.Env = append(os.Environ(), spec.Env...)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("go %s: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(stderr.String()))
+	}
+	var kept []string
+	for _, pkg := range strings.Fields(string(out)) {
+		if !slices.ContainsFunc(spec.Exclude, func(pattern string) bool { return excluded(pattern, pkg) }) {
+			kept = append(kept, pkg)
+		}
+	}
+	return kept, nil
+}
+
+func excluded(pattern, pkg string) bool {
+	base, below := strings.CutSuffix(pattern, "/...")
+	segments := strings.Split(pkg, "/")
+	for n := len(segments); n > 0; n-- {
+		if matched, _ := path.Match(base, strings.Join(segments[:n], "/")); matched {
+			return below || n == len(segments)
+		}
+	}
+	return false
 }

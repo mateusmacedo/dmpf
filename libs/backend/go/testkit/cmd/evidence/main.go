@@ -39,6 +39,7 @@ const modulePrefix = "github.com/mateusmacedo/dmpf/"
 type subjectSpec struct {
 	name     string
 	packages []string
+	exclude  []string
 	tags     []string
 	skip     []string
 	env      []string
@@ -105,6 +106,7 @@ var catalog = []subjectSpec{
 			modulePrefix + "apps/backend/orders/...",
 			modulePrefix + "apps/backend/reservations/...",
 		},
+		exclude:  []string{modulePrefix + "apps/backend/*/contract/..."},
 		tags:     []string{"integration"},
 		env:      []string{envPostgres, envKafka, envRedpandaAdmin},
 		postgres: true,
@@ -375,6 +377,7 @@ func collect(ctx context.Context, opts options, s subjectSpec, header evidence.H
 		Dir:      opts.root,
 		Tags:     s.tags,
 		Packages: s.packages,
+		Exclude:  s.exclude,
 		Skip:     s.skip,
 		Env:      []string{evidence.DirEnv + "=" + records},
 	})
