@@ -145,6 +145,11 @@ const validatedBlocks = (blocks: readonly string[] | undefined): Block[] => {
 const toolOf = (depth: number, script: string): string =>
   `bash ${'../'.repeat(depth)}tools/${script}`;
 
+// The tag the @nx/docker plugin gives the image of a project root
+// (getProjectNameFromPath in its plugin.js).
+const imageRefOf = (projectRoot: string): string =>
+  projectRoot.replace(/[\\/\s]+/g, '-').toLowerCase();
+
 const testRaceCommandOf = (integration: boolean, depth: number): string =>
   integration
     ? `${toolOf(depth, 'test-env.sh')} go test -race -count=1 -p 1 -tags=integration ./...`
@@ -226,6 +231,9 @@ const planModule = ({
       tidyCommandJson: JSON.stringify(toolOf(depth, 'go-tidy.sh')),
       serveRelayCommandJson: JSON.stringify(
         `set -a; [ ! -f deploy/.env ] || . deploy/.env; set +a; until go run ./cmd --role relay; do echo "${name} relay: nova tentativa em 2s (o serve-api aplica o schema)" >&2; sleep 2; done`,
+      ),
+      dockerRunRelayCommandJson: JSON.stringify(
+        `until docker run --rm --name ${name}-relay --network host --env-file deploy/.env ${imageRefOf(moduleDirectory)} --role relay; do echo "${name} relay: nova tentativa em 2s (o docker:run aplica o schema)" >&2; sleep 2; done`,
       ),
       testDistributedCommandJson: JSON.stringify(
         `${toolOf(depth, 'test-env.sh')} go test -race -count=1 -p 1 -tags=integration,distributed ./distkit/...`,

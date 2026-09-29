@@ -94,6 +94,15 @@
       "continuous": true,
       "dependsOn": ["serve-api"]
     },
+    "docker:run-relay": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": <%- dockerRunRelayCommandJson %>,
+        "cwd": "{projectRoot}"
+      },
+      "continuous": true,
+      "dependsOn": ["docker:run"]
+    },
     "test-distributed": {
       "executor": "nx:run-commands",
       "cache": false,

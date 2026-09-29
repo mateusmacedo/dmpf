@@ -197,6 +197,8 @@ const goTarget = ({
 const LOAD_ENV = 'set -a; [ ! -f deploy/.env ] || . deploy/.env; set +a;';
 const SERVE_API = `${LOAD_ENV} exec go run ./cmd --role api`;
 const SERVE_RELAY = `${LOAD_ENV} until go run ./cmd --role relay; do echo "checkout relay: nova tentativa em 2s (o serve-api aplica o schema)" >&2; sleep 2; done`;
+const DOCKER_RUN_RELAY =
+  'until docker run --rm --name checkout-relay --network host --env-file deploy/.env apps-backend-checkout --role relay; do echo "checkout relay: nova tentativa em 2s (o docker:run aplica o schema)" >&2; sleep 2; done';
 
 const serveTarget = (command: string, dependsOn: unknown[]): Record<string, unknown> => ({
   executor: 'nx:run-commands',
@@ -244,6 +246,12 @@ const expectedTargets = ({
             { projects: ['bff'], target: 'infra-session' },
           ]),
           'serve-relay': serveTarget(SERVE_RELAY, ['serve-api']),
+          'docker:run-relay': {
+            executor: 'nx:run-commands',
+            options: { command: DOCKER_RUN_RELAY, cwd: '{projectRoot}' },
+            continuous: true,
+            dependsOn: ['docker:run'],
+          },
           'test-distributed': {
             executor: 'nx:run-commands',
             cache: false,
@@ -437,11 +445,12 @@ describe('[generator] bounded-context — generation', () => {
     }
   });
 
-  it('should declare the six Go targets, the two serve targets, the distributed one and no lint target', async () => {
+  it('should declare the six Go targets, the two serve targets, the relay container, the distributed one and no lint target', async () => {
     const tree = await generate();
 
     expect(Object.keys(projectOf(tree).targets).sort()).toEqual([
       'build',
+      'docker:run-relay',
       'fmt-check',
       'govulncheck',
       'nx-release-publish',
@@ -460,6 +469,7 @@ describe('[generator] bounded-context — generation', () => {
 
     expect(targets['serve-api'].options.command).toBe(SERVE_API);
     expect(targets['serve-relay'].options.command).toBe(SERVE_RELAY);
+    expect(targets['docker:run-relay'].options.command).toBe(DOCKER_RUN_RELAY);
   });
 
   it('should run test-race with the integration tag and no serialization, the database being its own', async () => {
