@@ -120,15 +120,15 @@ O ADR-045 fixa o nome do projeto no basename e o glob `**/contracts/**` do lint
 
 **Deploy por app**
 - [ ] **[P0] Diretório `deploy/`**: Cada app (`bff`, `orders`, `reservations`, `bookings`) ganha `deploy/k8s/base/`, `deploy/k8s/overlays/{dev,hmg}/` e `deploy/compose.yml`, com o conteúdo hoje em `infra/k8s/base/<app>/`, nos patches por app e em `reference.yml`.
-- [ ] **[P0] Manifesto `infra.yaml`**: Cada app declara em `deploy/infra.yaml` o que precisa da plataforma: banco e role (ADR-053), user, tópicos, DLQ e ACLs do Kafka (ADR-052), certificado de workload, imagem e réplicas por ambiente, e a URL da OpenAPI quando houver.
+- [ ] **[P0] Manifesto `infra.json`**: Cada app declara em `deploy/infra.json` o que precisa da plataforma: banco e role (ADR-053), user, tópicos, DLQ e ACLs do Kafka (ADR-052), certificado de workload, imagem e réplicas por ambiente, e a URL da OpenAPI quando houver.
 - [ ] **[P0] Gerador de infra**: Criar `tools/dmpf-conformance/cmd/infrasync` com `--write` e `--check`, que lê os manifestos e gera os arquivos compartilhados: script do `postgres-init`, `job-databases.yaml`, `redpanda-init`, lista de certificados do `pki.yml`, `swagger-ui.yml`, `.env.example`, template de secrets do `hmg` e listas de recursos, imagens e réplicas dos overlays.
 - [ ] **[P0] Compose por app**: `infra/local/docker-compose.yml` inclui os `deploy/compose.yml` dos apps; os anchors compartilhados (`x-app`, `x-dmpf-env`, `x-kafka-env`, `x-grpc-server-env`, `x-pki`) viram serviços base num fragmento comum usado por `extends`.
 - [ ] **[P0] Overlays compostos**: `infra/k8s/overlays/{dev,hmg}` referenciam `apps/backend/<app>/deploy/k8s/overlays/<env>` como recursos; namespace e observabilidade continuam na plataforma.
-- [ ] **[P0] Gate de contexto**: `tools/dmpf-context-check.sh` valida os manifestos `deploy/infra.yaml` e varre também `apps/backend/*/deploy/`, em vez da lista `for pair in` (`:210-259`).
+- [ ] **[P0] Gate de contexto**: `tools/dmpf-context-check.sh` valida os manifestos `deploy/infra.json` e varre também `apps/backend/*/deploy/`, em vez da lista `for pair in` (`:210-259`).
 
 **Release, generator e normas**
 - [ ] **[P1] Release group por contrato**: Criar um grupo por módulo de contrato (`go-contract-<ctx>`) com padrão literal `apps/backend/<ctx>/contract/v{version}`, porque o Nx Release não tem placeholder de diretório (`releaseTag` só por grupo, `nx-schema.json:218-224`), o mesmo mecanismo do `go-tools` (ADR-047); `contracts` segue no `go-libs` só com o kernel; o BOM ganha entradas `subject: contract` e a regra DMPF-B012 cobre essas tags.
-- [ ] **[P1] Generator**: O generator `bounded-context` emite o esqueleto de `contract/` e de `deploy/` (incluindo `infra.yaml`), acrescenta o release group do contrato no `nx.json` e deixa de recusar o bloco de contrato (`generator.ts:115-118`).
+- [ ] **[P1] Generator**: O generator `bounded-context` emite o esqueleto de `contract/` e de `deploy/` (incluindo `infra.json`), acrescenta o release group do contrato no `nx.json` e deixa de recusar o bloco de contrato (`generator.ts:115-118`).
 - [ ] **[P1] Skill e agente**: `/dmpf-new-context`, `dmpf-context-author` e `.agents/skills/dmpf-bounded-context` passam a ensinar o layout novo, incluindo `infrasync --write` no rito.
 - [ ] **[P1] ADR-054**: Registrar a decisão, substituindo o ADR-046 (`:44`, `:62`) e o ADR-033 (`:36-51`) e emendando o ADR-045 (exceção de nome `<app>-contract` e glob de lint), o ADR-048 (`contract/` e `deploy/` na raiz do contexto), o ADR-053 (local da infra por app) e o ADR-047 (release group novo).
 - [ ] **[P1] Documentação e rastros**: Atualizar os caminhos em `.claude/rules/dmpf-bounded-context.md`, `docs/guides/dmpf-composicao.md`, ADR-040, ADR-041, ADR-051, `infra/README.md`, READMEs dos apps e libs afetados, `CODEOWNERS`, `.golangci.yml`, `tools/dmpf-harness-check.sh:49-62`, `tools/dmpf-gate-check.sh`, `tools/dmpf-baseline/units-baseline.json`, `dmpf-conformance/bom/registry.go:32`, `.github/actions/setup-go/action.yml:22,37` e o catálogo de evidências do testkit.
@@ -144,7 +144,7 @@ O ADR-045 fixa o nome do projeto no basename e o glob `**/contracts/**` do lint
 | Caminho | Ação |
 |---------|------|
 | `apps/backend/{orders,reservations,bookings}/contract/` | Criar (módulo de contrato) |
-| `apps/backend/{bff,orders,reservations,bookings}/deploy/` | Criar (k8s, compose, `infra.yaml`) |
+| `apps/backend/{bff,orders,reservations,bookings}/deploy/` | Criar (k8s, compose, `infra.json`) |
 | `libs/backend/go/contracts/` | Reduzir ao kernel; receber `proto/`, `buf.yaml`, `buf.gen.yaml` |
 | `contracts/` | Remover ao fim |
 | `infra/k8s/base/{bff,orders,reservations,bookings}/` | Mover para `deploy/` |
@@ -174,7 +174,7 @@ apps/backend/orders/
 │   ├── gen/go/company/orders/...
 │   └── golden/                    # testes golden do contexto
 └── deploy/
-    ├── infra.yaml                 # necessidades de plataforma
+    ├── infra.json                 # necessidades de plataforma
     ├── compose.yml
     └── k8s/{base,overlays/{dev,hmg}}/
 ```
@@ -185,7 +185,7 @@ exclui subdiretórios com `go.mod` próprio. `bff` e `reservations` importam
 
 ### Fluxo do provisionamento
 
-`deploy/infra.yaml` (por app) → `infrasync --write` → arquivos gerados em `infra/`
+`deploy/infra.json` (por app) → `infrasync --write` → arquivos gerados em `infra/`
 (versionados). O CI roda `infrasync --check`, e o `dmpf-context-check.sh` valida
 os manifestos. O que roda em Compose e Kubernetes continua sendo YAML e shell
 comuns, revisáveis no diff.
@@ -204,7 +204,7 @@ pacote preexistente: estado "sem baseline", como hoje.
 1. **F1 — Gate e ferramentas**: `buf-gate.sh` parametrizado, identidade por pacote, pins iguais, selftest.
 2. **F2 — Kernel**: `proto/` e Buf na lib `contracts`, proto de teste, libs do kernel desacopladas do `orders`.
 3. **F3 — Contratos por contexto**: os três `contract/`, imports, fixtures, OpenAPI, unidades, rastros de tooling; remoção de `contracts/`.
-4. **F4 — Deploy por app**: `deploy/`, `infra.yaml`, `infrasync`, compose e overlays compostos, gate de contexto, named input.
+4. **F4 — Deploy por app**: `deploy/`, `infra.json`, `infrasync`, compose e overlays compostos, gate de contexto, named input.
 5. **F5 — Release**: um grupo por contrato, BOM e DMPF-B012.
 6. **F6 — Generator e normas**: generator, skill, agente, ADR-054, emendas e documentação.
 
@@ -215,7 +215,7 @@ pacote preexistente: estado "sem baseline", como hoje.
 | Onde fica o contrato | Módulo Go próprio em `apps/backend/<ctx>/contract/` | Tudo no módulo do app (viola ADR-044); só a fonte no app (app parcialmente autocontido) |
 | Organização do Buf | Um `buf.yaml`/`buf.gen.yaml` por módulo de contrato | Workspace Buf único com vários módulos (config fora do app, gate dispara para todos) |
 | Transição do BUF-08 | Identidade por pacote, `buf breaking` contra o recorte da base | Reset declarado (janela sem `buf breaking`) |
-| Infra por app | Tudo, inclusive o provisionamento declarado em `infra.yaml` | Só k8s/compose do app; só `k8s/base` |
+| Infra por app | Tudo, inclusive o provisionamento declarado em `infra.json` | Só k8s/compose do app; só `k8s/base` |
 | Consumo dos manifestos | Arquivos gerados e versionados, com `--check` no CI | Leitura em tempo de execução com `yq` |
 | Generator | No escopo desta spec | Spec seguinte (contextos novos nasceriam fora da norma) |
 | Release dos contratos | Um grupo por contrato com tag literal `apps/backend/<ctx>/contract/v{version}` | Grupo único (Nx sem placeholder de diretório); projeto `<ctx>/contract` com barra (exige spike); sem release (perde consumo externo) |
@@ -230,10 +230,10 @@ pacote preexistente: estado "sem baseline", como hoje.
 - [ ] Nenhum arquivo em `libs/backend/go/**` importa `apps/backend/**`.
 - [ ] Nenhum pacote em `apps/backend/<x>` importa `apps/backend/<y>` com `x ≠ y`, exceto `apps/backend/<y>/contract/**`.
 - [ ] `pnpm nx run-many -t buf-lint,buf-pins,buf-generate-check,buf-breaking -p orders-contract,reservations-contract,bookings-contract,contracts` passa contra `NX_BASE` anterior à migração.
-- [ ] `go run ./tools/dmpf-conformance/cmd/infrasync --root . --check` passa, e alterar um `infra.yaml` sem `--write` reprova.
+- [ ] `go run ./tools/dmpf-conformance/cmd/infrasync --root . --check` passa, e alterar um `infra.json` sem `--write` reprova.
 - [ ] `pnpm nx run bff:infra-up` sobe a topologia local, e `pnpm nx run bff:k8s-render` renderiza os overlays `dev` e `hmg` sem erro.
 - [ ] `go run ./tools/dmpf-conformance/cmd/conformance --root . --base develop` e `tools/dmpf-context-check.sh` passam.
-- [ ] Um contexto gerado pelo `/dmpf-new-context` nasce com `contract/` e `deploy/infra.yaml` e passa em todos os gates.
+- [ ] Um contexto gerado pelo `/dmpf-new-context` nasce com `contract/` e `deploy/infra.json` e passa em todos os gates.
 - [ ] O release group de cada contrato produz a tag `apps/backend/<ctx>/contract/v<versão>` num dry-run do Nx Release.
 
 ### Cenários de teste
@@ -242,7 +242,7 @@ pacote preexistente: estado "sem baseline", como hoje.
 2. **Mudança incompatível após migrar**: alterar um campo `int64 → int32` em `orders-contract` reprova com `buf breaking (FILE)`.
 3. **Pacote desaparecido**: remover `company/reservations/event/v1` de todos os módulos reprova com a regra de pacote publicado.
 4. **Pins divergentes**: `protoc-gen-go` diferente num único módulo reprova em `buf-pins`.
-5. **Drift de infra**: acrescentar um tópico no `infra.yaml` do `reservations` sem `infrasync --write` reprova no `--check`.
+5. **Drift de infra**: acrescentar um tópico no `infra.json` do `reservations` sem `infrasync --write` reprova no `--check`.
 6. **Cache de deploy**: editar `apps/backend/orders/deploy/k8s/base/deployment-api.yaml` não torna `orders:build` afetado.
 7. **Consumo entre contextos**: o `reservations` consome `OrderPlaced` do `orders-contract` no e2e com Kafka, e o `bff` atende as rotas dos três contextos no e2e.
 8. **Kernel isolado**: `pnpm nx run-many -t test -p app,postgres,testkit,contracts` passa sem nenhum módulo de `apps/` no grafo dessas libs.
