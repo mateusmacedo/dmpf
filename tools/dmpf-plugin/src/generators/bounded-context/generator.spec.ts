@@ -246,6 +246,7 @@ const expectedTargets = ({
             { projects: ['bff'], target: 'infra-session' },
           ]),
           'serve-relay': serveTarget(SERVE_RELAY, ['serve-api']),
+          'deploy-env': {},
           'docker:run-relay': {
             executor: 'nx:run-commands',
             options: { command: DOCKER_RUN_RELAY, cwd: '{projectRoot}' },
@@ -445,11 +446,12 @@ describe('[generator] bounded-context — generation', () => {
     }
   });
 
-  it('should declare the six Go targets, the two serve targets, the relay container, the distributed one and no lint target', async () => {
+  it('should declare the six Go targets, the two serve targets, the env file, the relay container, the distributed one and no lint target', async () => {
     const tree = await generate();
 
     expect(Object.keys(projectOf(tree).targets).sort()).toEqual([
       'build',
+      'deploy-env',
       'docker:run-relay',
       'fmt-check',
       'govulncheck',
