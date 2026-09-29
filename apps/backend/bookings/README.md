@@ -33,7 +33,8 @@ primeiro em que toda dependência do módulo está de pé. Import path do módul
 | `app`, `app/rpc`, `cmd` | `app` | `resource-scheduling/app` | Composition root: `config.go`, `catalog.go`, `wiring.go`, `telemetry.go`, borda gRPC (`app/rpc`) e binário (`cmd/main.go`) |
 
 A sexta unidade do contexto, `resource-scheduling/contract`, vive no manifesto
-de `libs/backend/go/contracts`, porque o código gerado do Protobuf mora lá. Os
+do módulo `apps/backend/bookings/contract`, onde o código gerado do Protobuf
+mora. Os
 harnesses `appkit` (borda a borda sobre Postgres) e `distkit` (dois processos
 sobre Redpanda) completam o módulo — todo contexto tem os dois (ADR-048).
 
