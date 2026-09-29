@@ -82,7 +82,11 @@
       "inputs": [
         "{workspaceRoot}/tools/buf.sh",
         "{workspaceRoot}/tools/buf-gate.sh",
-        "{projectRoot}/go.mod"
+        "{projectRoot}/go.mod",
+        "{projectRoot}/buf.yaml",
+        "{projectRoot}/buf.gen.yaml",
+        "{projectRoot}/buf.lock",
+        "{workspaceRoot}/**/buf.gen.yaml"
       ],
       "options": {
         "command": "bash tools/buf-gate.sh pins apps/backend/reservations/contract --project reservations-contract"
