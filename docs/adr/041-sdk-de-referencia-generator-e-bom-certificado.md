@@ -305,8 +305,9 @@ execução decidiu:
 
 A dívida "rota de saúde na api (sondas por socket hoje)" fica paga no BFF, a
 borda HTTP. `GET /livez` responde enquanto o processo serve; `GET /readyz`
-responde `503` nomeando cada contexto cujo canal gRPC não tem backend `SERVING`
-no `grpc.health.v1`. A leitura é o estado do canal, não uma chamada
+responde `503` quando algum contexto não tem backend `SERVING` no canal gRPC
+(`grpc.health.v1`). O corpo não nomeia os contextos, que vão para o log, e o
+resultado vale por 1 s. A leitura é o estado do canal, não uma chamada
 `Health/Check`: a política por método do cliente recusa método não declarado
 (`GRP-16`), e o health check do service config (`GRP-13`) já só deixa o canal
 `READY` quando o backend responde `SERVING`.
