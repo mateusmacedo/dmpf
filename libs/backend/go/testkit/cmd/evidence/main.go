@@ -54,8 +54,7 @@ var catalog = []subjectSpec{
 		name: "golden",
 		packages: []string{
 			modulePrefix + "libs/backend/go/contracts/golden",
-			modulePrefix + "apps/backend/orders/contract/golden",
-			modulePrefix + "apps/backend/reservations/contract/golden",
+			modulePrefix + "apps/backend/.../contract/golden",
 		},
 		skip:    []string{"TestUpdateGolden"},
 		records: true,
