@@ -5,6 +5,19 @@
   "sourceRoot": "apps/backend/bff",
   "tags": ["type:app", "scope:backend", "stack:go", "layer:apps"],
   "targets": {
+    "docker:run": {
+      "options": {
+        "args": [
+          "--rm",
+          "--name bff",
+          "--network host",
+          "--env-file deploy/.env",
+          "-e OPENAPI_ORDERS_PATH=/contracts/openapi/orders/v1/openapi.yaml",
+          "-e OPENAPI_RESERVATIONS_PATH=/contracts/openapi/reservations/v1/openapi.yaml",
+          "-e OPENAPI_BOOKINGS_PATH=/contracts/openapi/bookings/v1/openapi.yaml"
+        ]
+      }
+    },
     "tidy": {
       "executor": "nx:run-commands",
       "cache": false,

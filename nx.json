@@ -68,7 +68,8 @@
           "args": ["-f {projectRoot}/Dockerfile"]
         },
         "runTarget": {
-          "name": "docker:run"
+          "name": "docker:run",
+          "args": ["--rm", "--name {projectName}", "--network host", "--env-file deploy/.env"]
         }
       }
     },
@@ -139,6 +140,16 @@
     "applyChanges": true
   },
   "targetDefaults": {
+    "docker:run": {
+      "continuous": true,
+      "dependsOn": [
+        "docker:build",
+        {
+          "projects": ["bff"],
+          "target": "infra-up"
+        }
+      ]
+    },
     "@nx-go/nx-go:generate": {
       "options": {
         "args": ["./..."]
