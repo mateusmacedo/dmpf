@@ -22,7 +22,7 @@
 # editar outra app além do golden.
 #
 # PG_DSN, quando definido, acrescenta test-race e test-distributed. Cada
-# projeto testa no seu banco `<projeto>_test` do servidor apontado (ADR-053),
+# teste ganha um banco `<projeto>_test_<id>` no servidor apontado (ADR-054),
 # então os projetos rodam em paralelo.
 #
 # A fase `self-test` não usa LLM: sobre o golden commitado, retira

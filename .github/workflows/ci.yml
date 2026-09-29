@@ -374,8 +374,8 @@ jobs:
             pnpm nx run-many -t fmt-check,vet,test-race -p "${stateful#,}" --parallel=1
           fi
 
-      # Cada app testa no próprio banco (<projeto>_test) e em tópicos com sufixo
-      # da execução, então as apps não disputam estado e correm em paralelo.
+      # Cada teste ganha o próprio banco (<projeto>_test_<id>) e tópicos com
+      # sufixo da execução, então as apps não disputam estado e correm em paralelo.
       - name: Estágio 5 — apps (layer:apps)
         run: |
           set -euo pipefail
