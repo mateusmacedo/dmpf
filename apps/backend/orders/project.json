@@ -87,7 +87,7 @@
     "serve-relay": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "set -a; [ ! -f deploy/.env ] || . deploy/.env; set +a; until go run ./cmd --role relay; do echo \"orders relay: nova tentativa em 2s (o serve-api aplica o schema)\" >&2; sleep 2; done",
+        "command": "set -a; [ ! -f deploy/.env ] || . deploy/.env; set +a; exec go run ./cmd --role relay",
         "cwd": "{projectRoot}",
         "envFile": "{projectRoot}/deploy/.env.example"
       },
@@ -97,7 +97,7 @@
     "docker:run-relay": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "until docker run --rm --name orders-relay --network host --env-file deploy/.env apps-backend-orders --role relay; do echo \"orders relay: nova tentativa em 2s (o docker:run aplica o schema)\" >&2; sleep 2; done",
+        "command": "docker run --rm --name orders-relay --network host --env-file deploy/.env apps-backend-orders --role relay",
         "cwd": "{projectRoot}"
       },
       "continuous": true,
