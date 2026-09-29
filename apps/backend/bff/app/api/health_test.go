@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/mateusmacedo/dmpf/apps/backend/bff/app/api"
@@ -38,8 +39,11 @@ func TestReadinessFollowsTheContexts(t *testing.T) {
 			if rec.Code != tc.code {
 				t.Fatalf("%s = %d %q, want %d", api.ReadinessPath, rec.Code, rec.Body.String(), tc.code)
 			}
-			if tc.code != http.StatusNoContent && !strings.Contains(rec.Body.String(), "orders") {
-				t.Fatalf("body = %q, want the context that is down", rec.Body.String())
+			if tc.code != http.StatusNoContent && strings.Contains(rec.Body.String(), "orders") {
+				t.Fatalf("body = %q, want no context named to the caller", rec.Body.String())
+			}
+			if tc.code != http.StatusNoContent && !strings.Contains(f.logs.String(), "orders") {
+				t.Fatalf("log = %q, want the context that is down", f.logs.String())
 			}
 		})
 	}
@@ -50,5 +54,21 @@ func TestReadinessIsNotServedWithoutAProbe(t *testing.T) {
 
 	if rec := f.do(t, http.MethodGet, api.ReadinessPath, nil); rec.Code != http.StatusNotFound {
 		t.Fatalf("%s without probe = %d, want 404", api.ReadinessPath, rec.Code)
+	}
+}
+
+func TestReadinessProbesWithinASecondShareOneCheck(t *testing.T) {
+	var checks atomic.Int32
+	f := newFixture(t, &fakeContexts{}, withReady(func(context.Context) error {
+		checks.Add(1)
+		return nil
+	}))
+
+	for range 3 {
+		f.do(t, http.MethodGet, api.ReadinessPath, nil, "Authorization", "")
+	}
+
+	if got := checks.Load(); got != 1 {
+		t.Fatalf("checks = %d, want 1 for probes within the cache window", got)
 	}
 }

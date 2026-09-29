@@ -163,7 +163,7 @@ func NewHandler(
 	}
 	mux.Handle("GET "+LivenessPath, serveLiveness())
 	if opts.Ready != nil {
-		mux.Handle("GET "+ReadinessPath, serveReadiness(opts.Ready))
+		mux.Handle("GET "+ReadinessPath, serveReadiness(opts.Ready, logger))
 	}
 	return withCORS(opts.CORSOrigins, mux), nil
 }
