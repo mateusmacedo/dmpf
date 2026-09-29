@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 )
@@ -39,6 +41,36 @@ func TestRunRefusesToStartWithoutConfiguration(t *testing.T) {
 			}
 			if out.Len() != 0 {
 				t.Fatalf("stdout = %q, want nothing on a refused start", out.String())
+			}
+		})
+	}
+}
+
+func TestHealthcheckAnswersOnlyHealthyOrUnhealthy(t *testing.T) {
+	edge := func(code int) string {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(code) }))
+		t.Cleanup(srv.Close)
+		return srv.Listener.Addr().String()
+	}
+	configured := func(addr string) func(string) string {
+		return lookup("GRPC_INSECURE", "true", "AUTH_DEV_MOCK", "true", "HTTP_ADDR", addr,
+			"ORDERS_GRPC_TARGET", "o:9090", "RESERVATIONS_GRPC_TARGET", "r:9090", "BOOKINGS_GRPC_TARGET", "b:9090")
+	}
+	cases := []struct {
+		name string
+		env  func(string) string
+		want int
+	}{
+		{"edge ready", configured(edge(http.StatusNoContent)), exitOK},
+		{"edge not ready", configured(edge(http.StatusServiceUnavailable)), exitFailure},
+		{"no configuration", lookup(), exitFailure},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var out, errOut bytes.Buffer
+
+			if code := run(options{lookup: tc.env, args: []string{"healthcheck"}}, &out, &errOut); code != tc.want {
+				t.Fatalf("run(healthcheck) = %d, want %d (stderr %q)", code, tc.want, errOut.String())
 			}
 		})
 	}

@@ -18,6 +18,17 @@
 
 Toda rota exige sujeito e tenant resolvidos (`RequireSubjectAndTenant`); `ValidateEdge` recusa na partida uma rota que exigisse sujeito sem declarar permissão (`IDN-16`, `IDN-17`). Criado pela `docs/specs/SPEC-ACYKBF9V-dmpf-reference-bff-contextos.md`; decisões em `docs/adr/044-bff-rest-e-contextos-grpc-de-referencia.md` e, para autenticação e tenant, na `SPEC-9B6SHEH8` (`docs/adr/049` a `052`).
 
+## Saúde
+
+Fora do contrato e sem autenticação, para as sondas:
+
+| Rota | Responde |
+| --- | --- |
+| `GET /livez` | `204` enquanto o processo serve HTTP |
+| `GET /readyz` | `204` quando os três contextos respondem `SERVING` no `grpc.health.v1`; `503` nomeando os que não respondem, em até 2 s |
+
+O `/readyz` lê o estado do canal gRPC de cada contexto: com o health check do service config (`GRP-13`), o canal só fica `READY` quando algum backend responde `SERVING`. O subcomando `bff healthcheck` consulta o `/readyz` no endereço de `HTTP_ADDR` e sai com `0` ou `1`; é o `HEALTHCHECK` da imagem, que não tem shell. No Kubernetes, a readiness usa `/readyz` e a liveness usa `/livez`, para um contexto fora do ar tirar o BFF do balanceamento sem reiniciá-lo.
+
 ## Topologia
 
 ```mermaid

@@ -182,6 +182,7 @@ type setup struct {
 	ordersContract       []byte
 	reservationsContract []byte
 	cors                 []string
+	ready                func(context.Context) error
 }
 
 type option func(*setup)
@@ -195,6 +196,8 @@ func withContracts(orders, reservations string) option {
 }
 
 func withCORS(origins ...string) option { return func(s *setup) { s.cors = origins } }
+
+func withReady(ready func(context.Context) error) option { return func(s *setup) { s.ready = ready } }
 
 func newFixture(t *testing.T, fake *fakeContexts, options ...option) fixture {
 	t.Helper()
@@ -243,6 +246,7 @@ func newFixture(t *testing.T, fake *fakeContexts, options ...option) fixture {
 		ReservationsContract: cfg.reservationsContract,
 		CORSOrigins:          cfg.cors,
 		Logger:               slog.New(slog.NewJSONHandler(logs, &slog.HandlerOptions{Level: slog.LevelDebug})),
+		Ready:                cfg.ready,
 	})
 	if err != nil {
 		t.Fatalf("NewHandler() = %v", err)

@@ -60,7 +60,8 @@ type BookingsClient interface {
 
 // Options is what the composition root decides beyond the clients: the route
 // budget the request deadline derives from, the contracts to serve (nil serves
-// nothing) and the browser origins allowed to call the edge (none by default).
+// nothing), the browser origins allowed to call the edge (none by default) and
+// the readiness of the contexts (nil serves no readiness route).
 type Options struct {
 	Budget               deadline.Budget
 	Authenticator        ports.Authenticator
@@ -69,6 +70,7 @@ type Options struct {
 	BookingsContract     []byte
 	CORSOrigins          []string
 	Logger               *slog.Logger
+	Ready                func(context.Context) error
 }
 
 func Routes(budget deadline.Budget) []kernelhttp.Route {
@@ -158,6 +160,10 @@ func NewHandler(
 	}
 	if len(opts.BookingsContract) > 0 {
 		mux.Handle("GET "+BookingsContractPath, serveContract(opts.BookingsContract))
+	}
+	mux.Handle("GET "+LivenessPath, serveLiveness())
+	if opts.Ready != nil {
+		mux.Handle("GET "+ReadinessPath, serveReadiness(opts.Ready))
 	}
 	return withCORS(opts.CORSOrigins, mux), nil
 }

@@ -33,13 +33,17 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
-          # O BFF não expõe rota de saúde: a sonda é o socket.
+          # A prontidão cai enquanto algum contexto não responde SERVING; a
+          # vivacidade só olha o processo, para um contexto fora não reiniciar o BFF.
           readinessProbe:
-            tcpSocket:
+            httpGet:
+              path: /readyz
               port: http
             periodSeconds: 5
+            timeoutSeconds: 3
           livenessProbe:
-            tcpSocket:
+            httpGet:
+              path: /livez
               port: http
             initialDelaySeconds: 10
             periodSeconds: 20

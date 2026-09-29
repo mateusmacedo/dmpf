@@ -34,4 +34,5 @@ ENV OPENAPI_ORDERS_PATH=/contracts/openapi/orders/v1/openapi.yaml
 ENV OPENAPI_RESERVATIONS_PATH=/contracts/openapi/reservations/v1/openapi.yaml
 ENV OPENAPI_BOOKINGS_PATH=/contracts/openapi/bookings/v1/openapi.yaml
 EXPOSE 8080
+HEALTHCHECK --interval=5s --timeout=4s --start-period=5s --retries=3 CMD ["/bff", "healthcheck"]
 ENTRYPOINT ["/bff"]
