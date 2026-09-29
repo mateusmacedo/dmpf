@@ -71,7 +71,7 @@ Variável obrigatória ausente encerra a partida com exit 2 nomeando-a.
 
 ```bash
 docker compose -f infra/local/docker-compose.yml --profile postgres --profile dmpf up -d postgres-init
-PG_DSN='postgres://reservations:reservations-local@localhost:5432/reservations?sslmode=disable' MIGRATE=true GRPC_ADDR=:9091 GRPC_INSECURE=true \
+PG_DSN='postgres://reservations:reservations-local@localhost:5432/reservations?sslmode=disable' MIGRATE=true GRPC_ADDR=:9192 GRPC_INSECURE=true \
   pnpm nx run reservations:serve-api
 PG_DSN='postgres://reservations:reservations-local@localhost:5432/reservations?sslmode=disable' KAFKA_BROKERS=localhost:9092 KAFKA_INSECURE=true \
   KAFKA_RESERVATIONS_TOPIC=reservations.events KAFKA_RESERVATIONS_DLQ=reservations.events.dlq KAFKA_GROUP=reservations \
@@ -91,10 +91,11 @@ PG_DSN='postgres://reservations:reservations-local@localhost:5432/reservations?s
 
 Unitários, sem banco: as UPRs do `domain`, as sete disposições do consumo e a sequência canônica da `application` sobre o `memory`, e o binding e os interceptors do `rpc` por `bufconn` sobre o store em memória, ciclo de saúde, tracer de banco, `Sink` (span com pai remoto, filtro por tipo e classificação da fronteira), catálogos por papel e partida do binário.
 
-Com a build tag `integration` e `PG_DSN`, o `test-race` cobre o `provider` (escopo de tenant e acesso cruzado inclusos), o e2e do consumer adapter e do relay no package raiz e o `appkit`; cada suíte roda no banco `reservations_test`, que o `tb/pg` cria no servidor de `PG_DSN`, e o `test-distributed` roda depois do `test-race`, porque usa o mesmo banco. O `test-distributed` roda só o `distkit`, com as tags `integration,distributed`, e exige Redpanda (`KAFKA_BROKERS`); é o que o `dmpf-distributed.yml` executa em pipeline próprio (`KIT-11`). A topologia inteira é provada pelo e2e do `bff`.
+Com a build tag `integration` e `PG_DSN`, o `test-race` cobre o `provider` (escopo de tenant e acesso cruzado inclusos), o e2e do consumer adapter e do relay no package raiz e o `appkit`; cada teste roda num banco `reservations_test_<id>` próprio, que o `tb/pg` cria e apaga no servidor de `PG_DSN`, e o `test-distributed` roda depois do `test-race`, porque usa o mesmo banco. O `test-distributed` roda só o `distkit`, com as tags `integration,distributed`, e exige Redpanda (`KAFKA_BROKERS`); é o que o `dmpf-distributed.yml` executa em pipeline próprio (`KIT-11`). A topologia inteira é provada pelo e2e do `bff`.
+
+Os dois targets sobem a infra de testes (`testkit:test-infra-up`), e o `tools/test-env.sh` preenche `PG_DSN` e `KAFKA_BROKERS` com o Postgres (15432) e o Redpanda (19092) dela, a partir do `.env.example` da raiz:
 
 ```bash
-PG_DSN='postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable' pnpm nx run reservations:test-race
-PG_DSN='postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable' KAFKA_BROKERS=localhost:9092 \
-  pnpm nx run reservations:test-distributed
+pnpm nx run reservations:test-race
+pnpm nx run reservations:test-distributed
 ```
