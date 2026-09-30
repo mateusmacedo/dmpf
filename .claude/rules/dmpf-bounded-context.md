@@ -71,17 +71,21 @@ skill `.agents/skills/dmpf-bounded-context/`.
 - O efeito de broker (`Ack`, `Release`, contenção) vem sempre depois do
   retorno da transação (`INB-08`).
 
-## Contrato (ADR-033; PTB-01, REP-01)
+## Contrato (ADR-033, ADR-054; PTB-01, REP-01)
 
-- A fonte é `contracts/proto/company/<name>/event/v1/<evento>.proto`, package
-  `company.<name>.event.v1` — `company` é fixo (PTB-01, REP-01). O gerado
-  vive em `libs/backend/go/contracts/gen/go/` e só nasce pelo rito
-  `tools/buf.sh generate`; nunca à mão (ADR-033).
+- O contrato é o módulo Go `apps/backend/<name>/contract/` (projeto
+  `<name>-contract`). A fonte é
+  `contract/proto/company/<name>/event/v1/<evento>.proto`, package
+  `company.<name>.event.v1` — `company` é fixo (PTB-01, REP-01). O gerado vive
+  em `contract/gen/go/` e só nasce pelo rito
+  `(cd apps/backend/<name>/contract && bash ../../../../tools/buf.sh generate)`;
+  nunca à mão.
 - Contrato publicado é imutável: `.proto` existente não é regravado; evolução
-  é rito próprio. `contracts/buf.yaml` é módulo único — não se cria um por
-  contexto.
-- A unidade `<ctx>/contract` entra no manifesto do `contracts` **antes**
-  do `generate`; sem ela o gerado cai em `DMPF-U001`.
+  é rito próprio. Cada contexto tem o seu `contract/buf.yaml`, e o kernel tem
+  o dele em `libs/backend/go/contracts`.
+- A unidade `<ctx>/contract` fica no `dmpf-units.json` do módulo `contract/`
+  e entra **antes** do `generate`; sem ela o gerado cai em `DMPF-U001`. O
+  generator já a declara.
 
 ## Borda (ADR-044, ADR-053)
 
@@ -91,7 +95,7 @@ skill `.agents/skills/dmpf-bounded-context/`.
   (`kernelgrpc.ServerInterceptors`). `app/http` em contexto reprova no
   `tools/dmpf-context-check.sh`.
 - O REST público é do `bff`. Toda rota declara `ContractRef` para o OpenAPI
-  publicado em `contracts/openapi/<name>/v1/` (RST-04), que declara
+  publicado em `apps/backend/<name>/contract/openapi/v1/` (RST-04), que declara
   `bearerAuth`.
 - Idempotência por método: `POST` de criação só com chave de idempotência
   declarada; `PATCH` nunca é idempotente (RST-02). Handlers validam a forma
@@ -111,8 +115,9 @@ skill `.agents/skills/dmpf-bounded-context/`.
 - Persistência híbrida: coluna tipada só para o que uma consulta filtra; o
   resto do estado vai em `snapshot` `jsonb`, por um struct de estado privado
   do provider com tags JSON estáveis.
-- Cada projeto testa no seu banco `<projeto>_test`, derivado do servidor de
-  `PG_DSN` pelo `tb/pg`; suítes de projetos distintos rodam em paralelo.
+- Cada teste roda num banco `<projeto>_test_<id>`, que o `tb/pg` cria no
+  servidor de `PG_DSN` (a infra de testes, `cluster_name=test`) e apaga ao
+  fim; suítes de projetos distintos rodam em paralelo.
 
 ## Configuração e nomes (ADR-053)
 

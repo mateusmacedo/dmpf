@@ -9,6 +9,7 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/app/relay"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/kafka"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/boot"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/envconfig"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/admission"
 )
@@ -99,6 +100,7 @@ type Config struct {
 
 	OTLPEndpoint string
 	OTLPInsecure bool
+	Signals      boot.Signals
 
 	Migrate bool
 
@@ -181,6 +183,12 @@ func FromEnv(role Role, lookup func(string) string) (Config, error) {
 		}
 		*flag.into = value
 	}
+
+	signals, err := boot.SignalsFromEnv(lookup)
+	if err != nil {
+		return Config{}, err
+	}
+	cfg.Signals = signals
 
 	if err := cfg.Validate(); err != nil {
 		return Config{}, err

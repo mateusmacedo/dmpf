@@ -11,8 +11,8 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/application"
+	servicev1 "github.com/mateusmacedo/dmpf/apps/backend/bookings/contract/gen/go/company/bookings/service/v1"
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/domain"
-	servicev1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/bookings/service/v1"
 	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )

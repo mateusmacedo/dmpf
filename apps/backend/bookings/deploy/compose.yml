@@ -1,0 +1,50 @@
+# Processos do bookings na topologia local (ADR-044): api gRPC, que aplica o
+# schema (MIGRATE=true), e relay da própria outbox.
+x-image: &image
+  build:
+    context: ../../../..
+    dockerfile: apps/backend/bookings/Dockerfile
+  image: ${BOOKINGS_IMAGE:-bookings:local}
+
+x-env: &env
+  SERVICE: bookings
+  PG_DSN: postgres://bookings:${BOOKINGS_PG_PASSWORD:-bookings-local}@postgres:5432/bookings?sslmode=disable
+
+services:
+  dmpf-bookings-api:
+    <<: *image
+    extends:
+      file: ../../../../infra/local/compose/app-base.yml
+      service: dmpf-grpc-api
+    environment:
+      <<: *env
+      INSTANCE_ID: bookings-api
+      GRPC_TLS_CERT_FILE: /pki/dmpf-bookings-api.crt
+      GRPC_TLS_KEY_FILE: /pki/dmpf-bookings-api.key
+    depends_on:
+      pki-init:
+        condition: service_completed_successfully
+      postgres-init:
+        condition: service_completed_successfully
+      otel-collector:
+        condition: service_started
+
+  dmpf-bookings-relay:
+    <<: *image
+    extends:
+      file: ../../../../infra/local/compose/app-base.yml
+      service: dmpf-kafka-worker
+    command: ['--role', 'relay']
+    environment:
+      <<: *env
+      INSTANCE_ID: bookings-relay
+      KAFKA_SASL_USERNAME: bookings
+      KAFKA_SASL_PASSWORD: ${KAFKA_BOOKINGS_PASSWORD:-bookings-local}
+      KAFKA_GROUP: bookings
+      KAFKA_BOOKINGS_TOPIC: ${KAFKA_BOOKINGS_TOPIC:-bookings.events}
+      KAFKA_BOOKINGS_DLQ: ${KAFKA_BOOKINGS_DLQ:-bookings.events.dlq}
+    depends_on:
+      redpanda-init:
+        condition: service_completed_successfully
+      dmpf-bookings-api:
+        condition: service_started

@@ -39,6 +39,7 @@ const modulePrefix = "github.com/mateusmacedo/dmpf/"
 type subjectSpec struct {
 	name     string
 	packages []string
+	exclude  []string
 	tags     []string
 	skip     []string
 	env      []string
@@ -50,11 +51,14 @@ type subjectSpec struct {
 
 var catalog = []subjectSpec{
 	{
-		name:     "golden",
-		packages: []string{modulePrefix + "libs/backend/go/contracts/golden"},
-		skip:     []string{"TestUpdateGolden"},
-		records:  true,
-		tools:    true,
+		name: "golden",
+		packages: []string{
+			modulePrefix + "libs/backend/go/contracts/golden",
+			modulePrefix + "apps/backend/.../contract/golden",
+		},
+		skip:    []string{"TestUpdateGolden"},
+		records: true,
+		tools:   true,
 	},
 	{
 		name: "provider",
@@ -101,6 +105,7 @@ var catalog = []subjectSpec{
 			modulePrefix + "apps/backend/orders/...",
 			modulePrefix + "apps/backend/reservations/...",
 		},
+		exclude:  []string{modulePrefix + "apps/backend/*/contract/..."},
 		tags:     []string{"integration"},
 		env:      []string{envPostgres, envKafka, envRedpandaAdmin},
 		postgres: true,
@@ -150,7 +155,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		}
 	}
 
-	records, err := os.MkdirTemp("", "dmpf-evidence-records-")
+	records, err := os.MkdirTemp("", "evidence-records-")
 	if err != nil {
 		say(stderr, "dmpf-evidence: %v\n", err)
 		return exitReproved
@@ -358,7 +363,7 @@ func collect(ctx context.Context, opts options, s subjectSpec, header evidence.H
 		if err != nil {
 			return evidence.Subject{}, err
 		}
-		bufGen, err := os.ReadFile(filepath.Join(opts.root, "contracts", "buf.gen.yaml"))
+		bufGen, err := os.ReadFile(filepath.Join(opts.root, "libs", "backend", "go", "contracts", "buf.gen.yaml"))
 		if err != nil {
 			return evidence.Subject{}, err
 		}
@@ -371,6 +376,7 @@ func collect(ctx context.Context, opts options, s subjectSpec, header evidence.H
 		Dir:      opts.root,
 		Tags:     s.tags,
 		Packages: s.packages,
+		Exclude:  s.exclude,
 		Skip:     s.skip,
 		Env:      []string{evidence.DirEnv + "=" + records},
 	})

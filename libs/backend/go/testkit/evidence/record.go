@@ -14,7 +14,7 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb"
 )
 
-const DirEnv = "DMPF_EVIDENCE_DIR"
+const DirEnv = "EVIDENCE_DIR"
 
 func RecordReport(t testing.TB, subject, name string, r golden.Report) {
 	t.Helper()

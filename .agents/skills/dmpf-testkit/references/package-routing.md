@@ -139,6 +139,6 @@ Use `tb.Require` para tipos que implementam `Failures() []string` e
 `tb.RequireReport` para `golden.Report`. `tb.Env` faz skip local e falha no CI
 quando falta a variável. `tb/pg.OpenPool` e `ResetTables` centralizam o acesso
 Postgres; não replique bootstrap e limpeza em cada suíte. `pg.Options` declara
-o projeto (que nomeia o banco `<projeto>_test`), as capacidades do kernel, os
+o projeto (que prefixa o banco `<projeto>_test_<id>` de cada teste), as capacidades do kernel, os
 schemas e as tabelas que o reset trunca; cada contexto o expõe como
 `appkit.PoolOptions` e `appkit.OpenPool`.

@@ -38,9 +38,9 @@ Leia, nesta ordem, e siga:
   serviço de aplicação, o catálogo com o canal que o relay drena, o
   `provider/schema.sql` e o `Tables` do `appkit`.
 - Escreve o `.proto` do serviço em
-  `contracts/proto/company/<name>/service/v1/`, o de cada evento publicado em
-  `contracts/proto/company/<name>/event/v1/` e o OpenAPI em
-  `contracts/openapi/<name>/v1/`. A borda REST é do `bff`, fora desta tarefa.
+  `apps/backend/<name>/contract/proto/company/<name>/service/v1/`, o de cada evento publicado em
+  `apps/backend/<name>/contract/proto/company/<name>/event/v1/` e o OpenAPI em
+  `apps/backend/<name>/contract/openapi/v1/`. A borda REST é do `bff`, fora desta tarefa.
 - Acrescenta a unidade `<ctx>/contract` e os packages novos ao `include` dos
   manifestos, por merge de campo.
 - Escreve o teste **antes** do código de cada UPR, caso de uso, repositório e
@@ -48,7 +48,7 @@ Leia, nesta ordem, e siga:
 - Roda `fmt-check`, `vet`, `build`, `lint`, `test-race`, `test-distributed`,
   `bash tools/dmpf-context-check.sh --context apps/backend/<name>` e
   `conformance --base`; corrige até passar. Cada projeto testa no seu banco
-  `<projeto>_test`, então as suítes Postgres não precisam de `--parallel=1`.
+  `<projeto>_test_<id>` por teste, então as suítes Postgres não precisam de `--parallel=1`.
 
 ## O que você nunca faz
 
@@ -71,6 +71,7 @@ Leia, nesta ordem, e siga:
 
 Imprima, nesta ordem: o módulo, os packages e os arquivos criados; o resultado de cada gate
 (comando e exit); qualquer gate normativo que tenha parado o trabalho; e o rito
-humano restante — `(cd contracts && bash ../tools/buf.sh generate)` com os
-quatro gates Buf, `conformance --write-baseline` em commit próprio, um
+humano restante — `(cd apps/backend/<name>/contract && bash ../../../../tools/buf.sh generate)` com os
+quatro gates Buf do `<name>-contract`, `infrasync --write` depois de ajustar o
+`deploy/infra.json`, `conformance --write-baseline` em commit próprio, um
 commit por projeto Nx, PR para `develop`.

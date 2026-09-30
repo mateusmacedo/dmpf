@@ -8,8 +8,8 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/app/rpc"
+	servicev1 "github.com/mateusmacedo/dmpf/apps/backend/reservations/contract/gen/go/company/reservations/service/v1"
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
-	servicev1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/reservations/service/v1"
 )
 
 func TestServiceDescCoversEveryMethodOfTheDescriptor(t *testing.T) {

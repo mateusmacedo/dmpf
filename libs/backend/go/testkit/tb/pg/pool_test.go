@@ -4,11 +4,15 @@ package pg
 
 import (
 	"context"
+	"strings"
+	"sync"
 	"testing"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb"
 )
 
 func tableExists(t *testing.T, pool *pgxpool.Pool, table string) bool {
@@ -45,23 +49,56 @@ func TestAConsumerDatabaseCarriesTheInboxAndTheQuarantine(t *testing.T) {
 	}
 }
 
-func TestATableOfAnEarlierRunDoesNotSurvive(t *testing.T) {
-	const project = "pgkit_clean"
-	leftover, err := pgxpool.NewWithConfig(context.Background(), Config(t, project))
+func TestEachTestGetsADatabaseOfItsOwnThatIsDroppedAfterIt(t *testing.T) {
+	var first, second string
+	t.Run("first", func(t *testing.T) {
+		first = Config(t, "pgkit_scope").ConnConfig.Database
+		if again := Config(t, "pgkit_scope").ConnConfig.Database; again != first {
+			t.Fatalf("Config() = %s then %s, want one database per test", first, again)
+		}
+	})
+	t.Run("second", func(t *testing.T) {
+		second = Config(t, "pgkit_scope").ConnConfig.Database
+	})
+
+	if first == second || !strings.HasPrefix(first, "pgkit_scope_test_") {
+		t.Fatalf("databases = %s, %s; want two distinct pgkit_scope_test_<id>", first, second)
+	}
+	for _, database := range []string{first, second} {
+		if databaseExists(t, database) {
+			t.Errorf("%s survived its test", database)
+		}
+	}
+}
+
+func TestConcurrentCallsOfOneTestShareItsDatabase(t *testing.T) {
+	const callers = 8
+	names := make([]string, callers)
+	var wg sync.WaitGroup
+	for i := range callers {
+		wg.Go(func() { names[i] = DSN(t, "pgkit_race") })
+	}
+	wg.Wait()
+
+	for _, name := range names[1:] {
+		if name != names[0] {
+			t.Fatalf("DSN() = %v, want one database for every call of the test", names)
+		}
+	}
+}
+
+func databaseExists(t *testing.T, database string) bool {
+	t.Helper()
+	admin, err := pgx.Connect(context.Background(), tb.Env(t, PostgresDSN))
 	if err != nil {
-		t.Fatalf("pgxpool.NewWithConfig: %v", err)
+		t.Fatalf("connect: %v", err)
 	}
-	t.Cleanup(leftover.Close)
-	if _, err := leftover.Exec(context.Background(), "CREATE TABLE IF NOT EXISTS leftovers (id text)"); err != nil {
-		t.Fatalf("create leftovers: %v", err)
+	defer func() { _ = admin.Close(context.Background()) }()
+	var found bool
+	if err := admin.QueryRow(context.Background(), "SELECT EXISTS (SELECT 1 FROM pg_database WHERE datname = $1)", database).Scan(&found); err != nil {
+		t.Fatalf("look up %s: %v", database, err)
 	}
-	cleaned.Delete(Database(project))
-
-	pool := OpenPool(t, Options{Project: project, Capabilities: []postgres.Capability{postgres.Outbox}})
-
-	if tableExists(t, pool, "leftovers") {
-		t.Error("a table no schema declares survived the first open of the process")
-	}
+	return found
 }
 
 func TestTheProjectTablesAreMigratedAndReset(t *testing.T) {

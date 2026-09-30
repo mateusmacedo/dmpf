@@ -27,9 +27,12 @@ RUN --mount=type=cache,target=/root/go/pkg/mod \
 
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=build /out/bff /bff
-COPY contracts/openapi /contracts/openapi
+COPY apps/backend/orders/contract/openapi /contracts/openapi/orders
+COPY apps/backend/reservations/contract/openapi /contracts/openapi/reservations
+COPY apps/backend/bookings/contract/openapi /contracts/openapi/bookings
 ENV OPENAPI_ORDERS_PATH=/contracts/openapi/orders/v1/openapi.yaml
 ENV OPENAPI_RESERVATIONS_PATH=/contracts/openapi/reservations/v1/openapi.yaml
 ENV OPENAPI_BOOKINGS_PATH=/contracts/openapi/bookings/v1/openapi.yaml
 EXPOSE 8080
+HEALTHCHECK --interval=5s --timeout=4s --start-period=5s --retries=3 CMD ["/bff", "healthcheck"]
 ENTRYPOINT ["/bff"]

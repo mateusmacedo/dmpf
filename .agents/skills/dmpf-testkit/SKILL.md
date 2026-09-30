@@ -107,8 +107,9 @@ KAFKA_BROKERS=localhost:9092 \
 pnpm nx run reservations:test-distributed
 ```
 
-`PG_DSN` aponta o servidor com um usuário que cria bancos: o `tb/pg` deriva
-dele o banco `<projeto>_test` de cada projeto (ADR-053).
+`PG_DSN` aponta o servidor da infra de testes com um usuário que cria bancos:
+o `tb/pg` cria nele um banco `<projeto>_test_<id>` por teste e o apaga ao fim
+(ADR-054).
 
 Inclua na validação os módulos consumidores modificados. Não afirme que uma
 integração passou quando ela apenas foi pulada por ausência de infraestrutura.

@@ -1,9 +1,11 @@
 package api_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -23,12 +25,13 @@ import (
 
 	"github.com/mateusmacedo/dmpf/apps/backend/bff/app/api"
 	"github.com/mateusmacedo/dmpf/apps/backend/bff/app/rpc"
+	bookingsv1 "github.com/mateusmacedo/dmpf/apps/backend/bookings/contract/gen/go/company/bookings/service/v1"
+	ordersv1 "github.com/mateusmacedo/dmpf/apps/backend/orders/contract/gen/go/company/orders/service/v1"
+	reservationsv1 "github.com/mateusmacedo/dmpf/apps/backend/reservations/contract/gen/go/company/reservations/service/v1"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/authn"
-	bookingsv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/bookings/service/v1"
-	ordersv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/orders/service/v1"
-	reservationsv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/reservations/service/v1"
 	obsclock "github.com/mateusmacedo/dmpf/libs/backend/go/observability/clock"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/metrics"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/admission"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/deadline"
 )
@@ -171,6 +174,7 @@ type fixture struct {
 	fake    *fakeContexts
 	handler http.Handler
 	spans   *tracetest.InMemoryExporter
+	logs    *bytes.Buffer
 }
 
 type setup struct {
@@ -179,6 +183,9 @@ type setup struct {
 	ordersContract       []byte
 	reservationsContract []byte
 	cors                 []string
+	ready                func(context.Context) error
+	authenticator        ports.Authenticator
+	draining             func() bool
 }
 
 type option func(*setup)
@@ -193,13 +200,20 @@ func withContracts(orders, reservations string) option {
 
 func withCORS(origins ...string) option { return func(s *setup) { s.cors = origins } }
 
+func withReady(ready func(context.Context) error) option { return func(s *setup) { s.ready = ready } }
+
+func withAuthenticator(a ports.Authenticator) option { return func(s *setup) { s.authenticator = a } }
+
+func withDraining(draining func() bool) option { return func(s *setup) { s.draining = draining } }
+
 func newFixture(t *testing.T, fake *fakeContexts, options ...option) fixture {
 	t.Helper()
-	cfg := &setup{budget: routeBudget, limit: admission.Limit{PerSecond: 1000, Burst: 1000, Concurrency: 100}}
+	cfg := &setup{budget: routeBudget, limit: admission.Limit{PerSecond: 1000, Burst: 1000, Concurrency: 100}, authenticator: authn.DevAuthenticator{}}
 	for _, apply := range options {
 		apply(cfg)
 	}
 
+	logs := &bytes.Buffer{}
 	spans := tracetest.NewInMemoryExporter()
 	provider := sdktrace.NewTracerProvider(sdktrace.WithSyncer(spans))
 	t.Cleanup(func() { _ = provider.Shutdown(context.Background()) })
@@ -234,15 +248,18 @@ func newFixture(t *testing.T, fake *fakeContexts, options ...option) fixture {
 
 	handler, err := api.NewHandler(rpc.NewOrders(ordersConn), rpc.NewReservations(reservationsConn), rpc.NewBookings(bookingsConn), ctrl, tracer, nil, api.Options{
 		Budget:               cfg.budget,
-		Authenticator:        authn.DevAuthenticator{},
+		Authenticator:        cfg.authenticator,
 		OrdersContract:       cfg.ordersContract,
 		ReservationsContract: cfg.reservationsContract,
 		CORSOrigins:          cfg.cors,
+		Logger:               slog.New(slog.NewJSONHandler(logs, &slog.HandlerOptions{Level: slog.LevelDebug})),
+		Ready:                cfg.ready,
+		Draining:             cfg.draining,
 	})
 	if err != nil {
 		t.Fatalf("NewHandler() = %v", err)
 	}
-	return fixture{fake: fake, handler: handler, spans: spans}
+	return fixture{fake: fake, handler: handler, spans: spans, logs: logs}
 }
 
 // testCredential is what the development authenticator reads back as identity.

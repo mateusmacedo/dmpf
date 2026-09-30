@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"regexp"
 	"strings"
+	"time"
 
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
@@ -50,13 +51,14 @@ var (
 	localeFormat      = regexp.MustCompile(`^[A-Za-z]{1,8}(-[A-Za-z0-9]{1,8})*$`)
 )
 
-// ServerInterceptors is the chain of SPEC-ACYKBF9V: span, admission, deadline,
-// context. Other services' methods pass untouched: the health probe has no limit
-// nor deadline and is called before the service is ready (ADR-044).
+// ServerInterceptors is the chain of SPEC-ACYKBF9V: span, call log, admission,
+// deadline, context. Other services' methods pass untouched: the health probe
+// has no limit nor deadline and is called before the service is ready (ADR-044).
 func ServerInterceptors(service string, tracer trace.Tracer, ctrl *admission.Controller, instruments *metrics.Instruments, logger *slog.Logger) []grpc.UnaryServerInterceptor {
 	own := ownMethods(service)
 	return []grpc.UnaryServerInterceptor{
 		own(serverSpan(tracer)),
+		own(callLog(logger)),
 		own(Admission(ctrl, admissionTenant, instruments)),
 		own(requireDeadline),
 		own(requestContext(logger)),
@@ -101,6 +103,48 @@ func serverSpan(tracer trace.Tracer) grpc.UnaryServerInterceptor {
 	}
 }
 
+// callLog records every call with its code and never its message, which would
+// leave the process without redaction (LOG-13). A success is DEBUG, so only a
+// process that asks for it pays for one line per call.
+func callLog(logger *slog.Logger) grpc.UnaryServerInterceptor {
+	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
+		if logger == nil || !logger.Enabled(ctx, slog.LevelWarn) {
+			return handler(ctx, req)
+		}
+		started := time.Now()
+		slot := &assembled{}
+		resp, err := handler(context.WithValue(ctx, assembledKey{}, slot), req)
+		code := status.Code(err)
+		level := slog.LevelDebug
+		if code != codes.OK {
+			level = slog.LevelWarn
+		}
+		if !logger.Enabled(ctx, level) {
+			return resp, err
+		}
+		logger.LogAttrs(slot.onto(ctx), level, "grpc call",
+			slog.String("operation", info.FullMethod),
+			slog.String("code", code.String()),
+			slog.Float64("duration_ms", float64(time.Since(started).Microseconds())/1000))
+		return resp, err
+	}
+}
+
+type assembled struct {
+	execution ports.ExecutionContext
+	message   ports.MessageContext
+	ok        bool
+}
+
+type assembledKey struct{}
+
+func (a *assembled) onto(ctx context.Context) context.Context {
+	if !a.ok {
+		return ctx
+	}
+	return ports.WithMessageContext(ports.WithExecutionContext(ctx, a.execution), a.message)
+}
+
 func requireDeadline(ctx context.Context, req any, _ *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 	if _, err := deadline.Require(ctx); err != nil {
 		return nil, status.Error(codes.InvalidArgument, "the call declares no deadline (GRP-04)")
@@ -140,12 +184,15 @@ func requestContext(logger *slog.Logger) grpc.UnaryServerInterceptor {
 			return nil, status.Error(codes.Internal, "the execution context could not be assembled")
 		}
 
-		ctx = ports.WithExecutionContext(ctx, execution)
-		ctx = ports.WithMessageContext(ctx, ports.MessageContext{
+		message := ports.MessageContext{
 			CorrelationID: correlation,
 			CausationID:   requestID,
 			Traceparent:   carrier.Get("traceparent"),
-		})
+		}
+		if slot, ok := ctx.Value(assembledKey{}).(*assembled); ok {
+			*slot = assembled{execution: execution, message: message, ok: true}
+		}
+		ctx = ports.WithMessageContext(ports.WithExecutionContext(ctx, execution), message)
 		if key := incoming.Get(IdempotencyKey); key != "" && logger != nil {
 			logger.InfoContext(ctx, "grpc request", "operation", info.FullMethod, "idempotency_key", key)
 		}

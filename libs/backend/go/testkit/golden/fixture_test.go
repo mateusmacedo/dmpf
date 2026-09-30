@@ -9,7 +9,7 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/golden"
 )
 
-const itemAddedPath = "../../../../../contracts/fixtures/orders/event/v1/item-added.golden"
+const itemAddedPath = "../../../../../libs/backend/go/contracts/fixtures/testing/v1/item-added.golden"
 
 func readItemAdded(t *testing.T) golden.Fixture {
 	t.Helper()

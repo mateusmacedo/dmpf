@@ -15,12 +15,12 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	eventv1 "github.com/mateusmacedo/dmpf/apps/backend/orders/contract/gen/go/company/orders/event/v1"
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/app"
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/appkit"
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
 	kernelapp "github.com/mateusmacedo/dmpf/libs/backend/go/app"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/contracts/envelope"
-	eventv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/orders/event/v1"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/kafka"
 	obsclock "github.com/mateusmacedo/dmpf/libs/backend/go/observability/clock"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/resilience"
@@ -64,10 +64,11 @@ func RunRole(t *testing.T) {
 	}
 }
 
-// openPool connects without resetting: the tables belong to the parent.
+// openPool connects to the database the parent created and passed in PG_DSN:
+// the tables, and the database itself, belong to the parent.
 func openPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
-	pool, err := pgxpool.NewWithConfig(context.Background(), pg.Config(t, appkit.PoolOptions.Project))
+	pool, err := pgxpool.New(context.Background(), tb.Env(t, pg.PostgresDSN))
 	if err != nil {
 		t.Fatalf("distkit: pgxpool.New: %v", err)
 	}

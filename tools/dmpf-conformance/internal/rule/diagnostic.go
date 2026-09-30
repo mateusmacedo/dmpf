@@ -112,7 +112,7 @@ var bomSpecs = []CodeSpec{
 	{CodeB009, "cve ausente; CVE aberta sem owner", "BOM-03, BOM-09", true},
 	{CodeB010, "metrics declaradas diferentes das derivadas de exceptions[].history", "GOV-36", true},
 	{CodeB011, "Mais de um arquivo em bom/dmpf/ sem --release; release do documento diferente do nome do arquivo; tag diferente de dmpf@<release>", "BOM-02", true},
-	{CodeB012, "Entrada kernel de release a partir de 0.2.0 com tag de módulo Go ausente ou não ancestral do commit alvo, ou módulo fora do go.work", "KRN-14", true},
+	{CodeB012, "Entrada kernel ou contract de release a partir de 0.2.0 com tag de módulo Go ausente ou não ancestral do commit alvo, ou módulo fora do go.work; módulo de contrato do go.work sem entrada contract", "KRN-14", true},
 }
 
 // CodeSpecs devolve só as dezesseis de §10.3: é o conjunto que a RFC fixa, e

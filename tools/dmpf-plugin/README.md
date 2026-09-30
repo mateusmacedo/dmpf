@@ -60,7 +60,7 @@ um `doc.go` compilável (godoc de três linhas); o `provider` recebe também
 `schema.sql` e `schema.go`, que embute o DDL do contexto para o composition root
 aplicar por `postgres.Migrate` (ADR-053). A tag `layer:*` é a do bloco mais alto
 gerado; `test-race` leva `-tags=integration` quando `provider` entra, sem
-`dependsOn`: cada projeto testa no seu próprio banco `<projeto>_test`; o
+`dependsOn`: cada teste ganha o próprio banco `<projeto>_test_<id>`; o
 `external` do manifesto é a união dos blocos. O `go.work` recebe um `use` em ordem. Depois do flush em disco, o
 generator devolve um callback que roda
 `go run ./tools/dmpf-conformance/cmd/modsync --root . --write` a partir da raiz
@@ -92,12 +92,14 @@ contexto preenche ao publicar o serviço). O binário fica em `cmd/main.go`
 (`--role api|relay`), a imagem em `Dockerfile`, e os harnesses `appkit/` e
 `distkit/` nascem como unidades companion próprias no manifesto
 (`<ctx>/appkit`, `<ctx>/distkit`); o `appkit/pool.go` declara `Tables` e o banco
-de teste do projeto (KIT-05 e KIT-06). Nesse caso o `project.json` ganha três targets além
-dos cinco de sempre: `serve-api` (`go run ./cmd --role api`), `serve-relay`
-(`go run ./cmd --role relay`) e `test-distributed` (`./distkit/...` sob as
-build tags `integration,distributed`, depois do `test-race` de `postgres`, de
-`app` e do próprio projeto, que usa o mesmo banco de teste). Sem o bloco `app`,
-nenhum desses três targets extras nem os diretórios `app/`, `cmd/`, `appkit/`,
+de teste do projeto (KIT-05 e KIT-06). Nesse caso o `project.json` ganha cinco targets além
+dos seis de sempre: `serve-api` (`go run ./cmd --role api`), `serve-relay`
+(`go run ./cmd --role relay`), `docker:run-relay` (a imagem com `--role relay`,
+depois do `docker:run` inferido, que roda o papel `api`), `test-distributed`
+(`./distkit/...` sob as build tags `integration,distributed`, depois do
+`test-race` de `postgres`, de `app` e do próprio projeto, que usa o mesmo banco
+de teste) e `nx-release-publish` como `nx:noop`. Sem o bloco `app`, nenhum
+desses cinco targets extras nem os diretórios `app/`, `cmd/`, `appkit/`,
 `distkit/` e o `Dockerfile` são gerados.
 
 O `test-race` de `provider-postgres` e `app` sai com `cache: false` e

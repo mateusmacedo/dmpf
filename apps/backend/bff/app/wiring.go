@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"sync/atomic"
 	"time"
 
 	"github.com/mateusmacedo/dmpf/apps/backend/bff/app/api"
@@ -75,7 +76,9 @@ func RunWith(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {
 	if err != nil {
 		return err
 	}
-	options := api.Options{Budget: cfg.RouteBudget, Authenticator: authenticator, CORSOrigins: cfg.CORSOrigins}
+	readiness := rpc.Readiness{"orders": ordersConn, "reservations": reservationsConn, "bookings": bookingsConn}
+	var draining atomic.Bool
+	options := api.Options{Budget: cfg.RouteBudget, Authenticator: authenticator, CORSOrigins: cfg.CORSOrigins, Logger: rt.Logger(), Ready: readiness.Check, Draining: draining.Load}
 	if options.OrdersContract, err = readContract(cfg.OrdersContractPath); err != nil {
 		return err
 	}
@@ -112,6 +115,11 @@ func RunWith(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {
 
 	select {
 	case <-ctx.Done():
+		draining.Store(true)
+		if cfg.DrainDelay > 0 {
+			rt.Logger().InfoContext(ctx, "http draining", "delay", cfg.DrainDelay.String())
+			time.Sleep(cfg.DrainDelay)
+		}
 		grace, cancel := context.WithTimeout(context.WithoutCancel(ctx), observability.ShutdownGrace)
 		defer cancel()
 		return server.Shutdown(grace)

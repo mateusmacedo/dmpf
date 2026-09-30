@@ -31,8 +31,8 @@ jobs:
       PG_DSN: "postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable"
       KAFKA_BROKERS: "localhost:9092"
       KAFKA_SASL_BROKERS: "localhost:19092"
-      KAFKA_SASL_USERNAME: "dmpf-ci"
-      KAFKA_SASL_PASSWORD: "dmpf-ci-secret"
+      KAFKA_SASL_USERNAME: "ci"
+      KAFKA_SASL_PASSWORD: "ci-secret"
       SQS_ENDPOINT: "http://localhost:4566"
       AWS_REGION: "us-east-1"
       AWS_ACCESS_KEY_ID: "test"
@@ -194,6 +194,11 @@ jobs:
       - name: DMPF modsync gate
         run: go run ./tools/dmpf-conformance/cmd/modsync --root . --check
 
+      # Sem `if: steps.go_affected`: um manifesto deploy/infra.json alterado sem
+      # regerar deixa a infra agregada divergente sem tocar código Go.
+      - name: DMPF infrasync gate
+        run: go run ./tools/dmpf-conformance/cmd/infrasync --root . --check
+
       # GATE, fail-closed. Sem `continue-on-error` e sem `|| true`: a partir
       # daqui o verificador reprova o PR. O passo shadow que existia aqui foi
       # removido NESTE MESMO COMMIT, para que não exista estado em que os dois
@@ -228,12 +233,13 @@ jobs:
       - name: Subir Postgres para os testes de integração
         run: |
           set -euo pipefail
-          nome="dmpf-postgres-$(hostname)"
+          nome="test-postgres-$(hostname)"
           docker rm -f "$nome" >/dev/null 2>&1 || true
           docker run -d --name "$nome" \
             --network host \
             -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=postgres \
-            postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+            postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685 \
+            -c cluster_name=test
           for _ in $(seq 1 30); do
             if docker exec "$nome" pg_isready -U postgres -q; then
               echo "postgres pronto em localhost:5432 ($nome)"
@@ -251,7 +257,7 @@ jobs:
       - name: Subir Redpanda para os testes de integração
         run: |
           set -euo pipefail
-          nome="dmpf-redpanda-$(hostname)"
+          nome="test-redpanda-$(hostname)"
           docker rm -f "$nome" >/dev/null 2>&1 || true
           docker run -d --name "$nome" \
             --network host \
@@ -274,7 +280,7 @@ jobs:
       - name: Subir Redpanda com SASL para o teste de autenticação de cliente
         run: |
           set -euo pipefail
-          nome="dmpf-redpanda-sasl-$(hostname)"
+          nome="test-redpanda-sasl-$(hostname)"
           docker rm -f "$nome" 2>/dev/null || true
           docker run -d --name "$nome" \
             --network host \
@@ -306,7 +312,7 @@ jobs:
       - name: Subir floci (SQS e SNS) para os testes de integração
         run: |
           set -euo pipefail
-          nome="dmpf-floci-$(hostname)"
+          nome="test-floci-$(hostname)"
           docker rm -f "$nome" >/dev/null 2>&1 || true
           docker run -d --name "$nome" \
             --network host \
@@ -368,8 +374,8 @@ jobs:
             pnpm nx run-many -t fmt-check,vet,test-race -p "${stateful#,}" --parallel=1
           fi
 
-      # Cada app testa no próprio banco (<projeto>_test) e em tópicos com sufixo
-      # da execução, então as apps não disputam estado e correm em paralelo.
+      # Cada teste ganha o próprio banco (<projeto>_test_<id>) e tópicos com
+      # sufixo da execução, então as apps não disputam estado e correm em paralelo.
       - name: Estágio 5 — apps (layer:apps)
         run: |
           set -euo pipefail
@@ -392,4 +398,4 @@ jobs:
       # de cada step nunca alcança o resíduo de um job anterior; quem limpa é este.
       - name: Derrubar a infraestrutura do job
         if: always()
-        run: docker rm -f "dmpf-postgres-$(hostname)" "dmpf-redpanda-$(hostname)" "dmpf-redpanda-sasl-$(hostname)" "dmpf-floci-$(hostname)" >/dev/null 2>&1 || true
+        run: docker rm -f "test-postgres-$(hostname)" "test-redpanda-$(hostname)" "test-redpanda-sasl-$(hostname)" "test-floci-$(hostname)" >/dev/null 2>&1 || true

@@ -1,0 +1,16 @@
+# {{generatedBy}}
+# Banco e role de cada app no Postgres do overlay (ADR-053), com as senhas de
+# desenvolvimento no Secret que o Job lê.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - job.yaml
+
+secretGenerator:
+  - name: databases
+    literals:
+{{- range .WithDatabase}}
+      - {{.App}}={{.Database.Dev}}{{end}}
+    options:
+      disableNameSuffixHash: true

@@ -98,6 +98,20 @@
       "bounded_context": "conformance",
       "public_integration_surface": false,
       "include": ["github.com/mateusmacedo/dmpf/tools/dmpf-conformance/cmd/modsync"]
+    },
+    {
+      "id": "conformance/infrasync",
+      "block": "app",
+      "bounded_context": "conformance",
+      "public_integration_surface": false,
+      "include": ["github.com/mateusmacedo/dmpf/tools/dmpf-conformance/infrasync"]
+    },
+    {
+      "id": "conformance/cmd-infrasync",
+      "block": "app",
+      "bounded_context": "conformance",
+      "public_integration_surface": false,
+      "include": ["github.com/mateusmacedo/dmpf/tools/dmpf-conformance/cmd/infrasync"]
     }
   ],
   "external": [],

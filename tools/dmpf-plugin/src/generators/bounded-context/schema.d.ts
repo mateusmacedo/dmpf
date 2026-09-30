@@ -6,4 +6,5 @@ export type BoundedContextGeneratorSchema = {
   blocks?: string[];
   directory?: string;
   serviceName?: string;
+  grpcPort?: number;
 };

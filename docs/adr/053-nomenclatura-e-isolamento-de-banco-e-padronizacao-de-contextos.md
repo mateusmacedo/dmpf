@@ -2,7 +2,7 @@
 
 ## Status
 
-Aceito — 2026-09-25. Implementa [SPEC-F308KDSF](../specs/SPEC-F308KDSF-padronizacao-contextos-e-banco.md). Supersede parcialmente o [ADR-046](./046-libs-somente-kernel-de-reuso.md), no parágrafo que mantinha as tabelas `dmpf_example_*`, e estende o [ADR-044](./044-bff-rest-e-contextos-grpc-de-referencia.md) com o terceiro banco e o `bookings` na topologia.
+Aceito — 2026-09-25. Implementa [SPEC-F308KDSF](../specs/SPEC-F308KDSF-padronizacao-contextos-e-banco.md). Supersede parcialmente o [ADR-046](./046-libs-somente-kernel-de-reuso.md), no parágrafo que mantinha as tabelas `dmpf_example_*`, e estende o [ADR-044](./044-bff-rest-e-contextos-grpc-de-referencia.md) com o terceiro banco e o `bookings` na topologia. **Emendado pelo [ADR-054](./054-apps-autocontidos-e-infras-separadas.md) (2026-09-28)**: a infra de cada app vive em `apps/backend/<app>/deploy/`, e a agregada é gerada pelo `infrasync`; o banco de teste deixa de ser `<projeto>_test` compartilhado e passa a um banco por teste, apagado ao fim, num servidor com `cluster_name=test`; o tooling de teste perde o prefixo `DMPF_` (`TESTKIT_*`, `TB_*`, `EVIDENCE_DIR`).
 
 ## Contexto
 

@@ -3,7 +3,7 @@ package api
 import (
 	"net/http"
 
-	reservationsv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/reservations/service/v1"
+	reservationsv1 "github.com/mateusmacedo/dmpf/apps/backend/reservations/contract/gen/go/company/reservations/service/v1"
 )
 
 type reserveRequest struct {

@@ -48,6 +48,14 @@ services:
     image: gcr.io/cadvisor/cadvisor:v0.52.1
     profiles: [exporters, observability, dmpf, all]
     privileged: true
+    restart: unless-stopped
+    # Só os containers do Docker e sem os grupos por CPU, processo e socket: sem
+    # isso o cAdvisor segue todo cgroup do host e passa de 512M (OOM medido).
+    command:
+      - --docker_only=true
+      - --housekeeping_interval=30s
+      - --store_container_labels=false
+      - --disable_metrics=advtcp,cpu_topology,cpuset,hugetlb,memory_numa,percpu,process,referenced_memory,resctrl,sched,tcp,udp
     # 8081 no host porque 8080 é do papel api; dentro da rede continua 8080.
     ports:
       - '${CADVISOR_PORT:-8081}:8080'
@@ -61,5 +69,5 @@ services:
       - /dev/disk/:/dev/disk:ro
     deploy:
       resources:
-        limits: { cpus: '0.15', memory: 256M }
+        limits: { cpus: '0.15', memory: 512M }
         reservations: { cpus: '0.05', memory: 64M }

@@ -5,6 +5,48 @@
   "sourceRoot": "apps/backend/bff",
   "tags": ["type:app", "scope:backend", "stack:go", "layer:apps"],
   "targets": {
+    "nx-release-publish": {
+      "executor": "nx:noop"
+    },
+    "deploy-env": {},
+    "docker:run": {
+      "options": {
+        "args": [
+          "--rm",
+          "--name bff",
+          "--network host",
+          "--env-file deploy/.env",
+          "-e OPENAPI_ORDERS_PATH=/contracts/openapi/orders/v1/openapi.yaml",
+          "-e OPENAPI_RESERVATIONS_PATH=/contracts/openapi/reservations/v1/openapi.yaml",
+          "-e OPENAPI_BOOKINGS_PATH=/contracts/openapi/bookings/v1/openapi.yaml"
+        ]
+      },
+      "dependsOn": [
+        "deploy-env",
+        "docker:build",
+        "infra-up",
+        {
+          "projects": ["orders", "reservations", "bookings"],
+          "target": "docker:run"
+        },
+        {
+          "projects": ["orders", "reservations", "bookings"],
+          "target": "docker:run-relay"
+        },
+        {
+          "projects": ["reservations"],
+          "target": "docker:run-consumer"
+        }
+      ]
+    },
+    "tidy": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bash ../../../tools/go-tidy.sh",
+        "cwd": "{projectRoot}"
+      }
+    },
     "fmt-check": {
       "executor": "nx:run-commands",
       "cache": true,
@@ -36,9 +78,15 @@
       "cache": false,
       "inputs": ["go", "^go"],
       "options": {
-        "command": "go test -race -count=1 -p 1 -tags=integration ./...",
+        "command": "bash ../../../tools/test-env.sh go test -race -count=1 -p 1 -tags=integration ./...",
         "cwd": "{projectRoot}"
-      }
+      },
+      "dependsOn": [
+        {
+          "projects": ["testkit"],
+          "target": "test-infra-up"
+        }
+      ]
     },
     "govulncheck": {
       "executor": "nx:run-commands",
@@ -51,21 +99,38 @@
     "serve": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "OPENAPI_ORDERS_PATH=../../../contracts/openapi/orders/v1/openapi.yaml OPENAPI_RESERVATIONS_PATH=../../../contracts/openapi/reservations/v1/openapi.yaml OPENAPI_BOOKINGS_PATH=../../../contracts/openapi/bookings/v1/openapi.yaml go run ./cmd",
-        "cwd": "{projectRoot}"
-      }
+        "command": "set -a; [ ! -f deploy/.env ] || . deploy/.env; set +a; exec go run ./cmd",
+        "cwd": "{projectRoot}",
+        "envFile": "{projectRoot}/deploy/.env.example"
+      },
+      "continuous": true,
+      "dependsOn": [
+        "infra-session",
+        {
+          "projects": ["orders", "reservations", "bookings"],
+          "target": "serve-api"
+        },
+        {
+          "projects": ["orders", "reservations", "bookings"],
+          "target": "serve-relay"
+        },
+        {
+          "projects": ["reservations"],
+          "target": "serve-consumer"
+        }
+      ]
     },
     "infra-up": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "docker compose -f infra/local/docker-compose.yml --profile postgres --profile redpanda --profile floci up -d --wait",
+        "command": "bash tools/infra-session.sh up",
         "cwd": "{workspaceRoot}"
       }
     },
     "observability-up": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "docker compose -f infra/local/docker-compose.yml --profile observability --profile exporters up -d --wait",
+        "command": "docker compose -f infra/local/docker-compose.yml --profile postgres --profile observability --profile exporters up -d --wait",
         "cwd": "{workspaceRoot}"
       }
     },
@@ -92,6 +157,15 @@
           "kubectl kustomize infra/k8s/overlays/hmg > /dev/null"
         ],
         "parallel": false,
+        "cwd": "{workspaceRoot}"
+      }
+    },
+    "infra-session": {
+      "executor": "nx:run-commands",
+      "continuous": true,
+      "dependsOn": ["infra-up"],
+      "options": {
+        "command": "bash tools/infra-session.sh session",
         "cwd": "{workspaceRoot}"
       }
     }

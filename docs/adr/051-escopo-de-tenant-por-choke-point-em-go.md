@@ -2,7 +2,7 @@
 
 ## Status
 
-Aceito — 2026-09-23. Implementa [SPEC-9B6SHEH8](../specs/SPEC-9B6SHEH8-contexto-execucao-identidade-tenant.md).
+Aceito — 2026-09-23. Implementa [SPEC-9B6SHEH8](../specs/SPEC-9B6SHEH8-contexto-execucao-identidade-tenant.md). **Caminhos atualizados pelo [ADR-054](./054-apps-autocontidos-e-infras-separadas.md) (2026-09-28)**: o Kubernetes de cada app está em `apps/backend/<app>/deploy/k8s/`, e o Postgres usa o banco e as credenciais padrão, com banco e role por app.
 
 ## Contexto
 

@@ -17,8 +17,8 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	bookingsevent "github.com/mateusmacedo/dmpf/apps/backend/bookings/contract/gen/go/company/bookings/event/v1"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/contracts/envelope"
-	bookingsevent "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/bookings/event/v1"
 )
 
 const (

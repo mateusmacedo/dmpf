@@ -20,7 +20,7 @@ Projeto Nx `orders`, tags `type:app`, `scope:backend`, `stack:go` e `layer:apps`
 | `provider` | `provider` | `orders/provider-postgres` | Repositório escopado por `tenant_id` via `postgres.Table` (ADR-051) sobre a tabela `orders` (estado em `snapshot` `jsonb`, ADR-053), `Reader`, mapeador para `company.orders.event.v1` |
 | `app`, `app/rpc`, `cmd` | `app` | `orders/app` | Composition root: o único lugar onde os providers concretos de `orders` são instanciados (ADR-015); servidor gRPC e binário |
 
-Todas com `bounded_context` `orders`. O contrato (`company.orders.event.v1`, `company.orders.service.v1`) é a unidade `orders/contract`, declarada no manifesto de `libs/backend/go/contracts`, onde o código gerado mora; é superfície pública, e é por ela que `bff` e `reservations` alcançam `orders` sem importar o seu domínio.
+Todas com `bounded_context` `orders`. O contrato (`company.orders.event.v1`, `company.orders.service.v1`) é a unidade `orders/contract`, declarada no manifesto do módulo `apps/backend/orders/contract`, onde o código gerado mora; é superfície pública, e é por ela que `bff` e `reservations` alcançam `orders` sem importar o seu domínio.
 
 ## Aliases de import
 
@@ -72,12 +72,14 @@ PG_DSN='postgres://orders:orders-local@localhost:5432/orders?sslmode=disable' KA
 
 ## Targets Nx
 
-`fmt-check`, `vet`, `build`, `test-race`, `govulncheck`, `serve-api` e `serve-relay`.
+`fmt-check`, `vet`, `build`, `test-race`, `govulncheck`, `serve-api` e `serve-relay`, mais os de container: `docker:build`, `docker:run` (papel `api`) e `docker:run-relay`, que o `bff:docker:run` sobe.
 
 ## Testes
 
-Unitários, sem banco: as UPRs do `domain` (pré-condição, efeito, determinismo, snapshot), a sequência canônica, a autorização por permissão e a instrumentação da `application` sobre o `memory` (`memory.Table` por agregado, escopado por tenant como o `postgres.Table`), e o binding e os interceptors do `rpc` por `bufconn` sobre o store em memória (cobertura do descriptor, desfechos, mTLS do peer, deadline obrigatório, contexto de execução gravado na outbox, admissão), ciclo de saúde, tracer de banco e partida do binário por papel. Com a build tag `integration` e `PG_DSN`, o `provider` prova repositório, escopo de tenant, acesso cruzado (`CrossTenantAccess`), concorrência (dois escritores, um `ErrVersionConflict`) e o e2e até a outbox; cada suíte roda no banco `orders_test`, que o `tb/pg` cria no servidor de `PG_DSN`. A topologia inteira é provada pelo e2e do `bff`.
+Unitários, sem banco: as UPRs do `domain` (pré-condição, efeito, determinismo, snapshot), a sequência canônica, a autorização por permissão e a instrumentação da `application` sobre o `memory` (`memory.Table` por agregado, escopado por tenant como o `postgres.Table`), e o binding e os interceptors do `rpc` por `bufconn` sobre o store em memória (cobertura do descriptor, desfechos, mTLS do peer, deadline obrigatório, contexto de execução gravado na outbox, admissão), ciclo de saúde, tracer de banco e partida do binário por papel. Com a build tag `integration` e `PG_DSN`, o `provider` prova repositório, escopo de tenant, acesso cruzado (`CrossTenantAccess`), concorrência (dois escritores, um `ErrVersionConflict`) e o e2e até a outbox; cada teste roda num banco `orders_test_<id>` próprio, que o `tb/pg` cria e apaga no servidor de `PG_DSN`. A topologia inteira é provada pelo e2e do `bff`.
+
+O target sobe a infra de testes (`testkit:test-infra-up`) e o `tools/test-env.sh` preenche o `PG_DSN` com o Postgres dela, na porta 15432, a partir do `.env.example` da raiz:
 
 ```bash
-PG_DSN='postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable' pnpm nx run orders:test-race
+pnpm nx run orders:test-race
 ```

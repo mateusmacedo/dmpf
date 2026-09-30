@@ -3,8 +3,8 @@ package provider
 import (
 	"fmt"
 
+	eventv1 "github.com/mateusmacedo/dmpf/apps/backend/reservations/contract/gen/go/company/reservations/event/v1"
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
-	eventv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/reservations/event/v1"
 	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
 )

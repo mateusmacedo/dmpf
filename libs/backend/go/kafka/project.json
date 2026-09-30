@@ -5,6 +5,14 @@
   "sourceRoot": "libs/backend/go/kafka",
   "tags": ["type:lib", "scope:backend", "stack:go", "layer:providers"],
   "targets": {
+    "tidy": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bash ../../../../tools/go-tidy.sh",
+        "cwd": "{projectRoot}"
+      }
+    },
     "fmt-check": {
       "executor": "nx:run-commands",
       "cache": true,
@@ -36,9 +44,15 @@
       "cache": false,
       "inputs": ["go", "^go"],
       "options": {
-        "command": "go test -race -count=1 -p 1 -tags=integration ./...",
+        "command": "bash ../../../../tools/test-env.sh go test -race -count=1 -p 1 -tags=integration ./...",
         "cwd": "{projectRoot}"
-      }
+      },
+      "dependsOn": [
+        {
+          "projects": ["testkit"],
+          "target": "test-infra-up"
+        }
+      ]
     },
     "govulncheck": {
       "executor": "nx:run-commands",

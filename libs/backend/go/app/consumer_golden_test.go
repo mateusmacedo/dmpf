@@ -15,7 +15,7 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/golden"
 )
 
-const orderPlacedFixture = "../../../../contracts/fixtures/orders/event/v1/order-placed.golden"
+const orderPlacedFixture = "../../../../libs/backend/go/contracts/fixtures/testing/v1/order-placed.golden"
 
 // The canonical fixtures carry tenantid in both states (TestFixtureShape
 // requires it), so running every case through the adapter proves the tenant

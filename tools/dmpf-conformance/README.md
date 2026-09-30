@@ -76,7 +76,7 @@ go run ./tools/dmpf-conformance/cmd/bom --root . --release 0.2.0 --commit HEAD
 | `--release` | Release a validar: `<semver>`, ou `latest` para a maior semver de `bom/dmpf/` (default: o único arquivo) |
 | `--now` | Instante RFC3339 contra o qual as validades vencem (default: relógio) |
 | `--base` | Ref git do BOM anterior: o mesmo arquivo ou, se ausente, a maior semver no ref (`BOM-03`) |
-| `--commit` | Commit alvo do `DMPF-B012`: a tag `<diretório>/v<versão>` de cada módulo `kernel` não rejeitado precisa ser ancestral dele (default: `HEAD`) |
+| `--commit` | Commit alvo do `DMPF-B012`: a tag `<diretório>/v<versão>` de cada módulo `kernel` ou `contract` não rejeitado precisa ser ancestral dele, e todo módulo de contrato do `go.work` precisa de entrada `contract` (default: `HEAD`) |
 
 Valida `bom/dmpf/<semver>.json` contra `BOM-01` a `BOM-10` (`DMPF-B001` a
 `DMPF-B011`) e admite as exceções E2 e E3 pela mesma `internal/exception`. Lê o

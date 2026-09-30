@@ -2,7 +2,7 @@
 
 ## Status
 
-Aceito — 2026-09-17. Supersede parcialmente o ADR-041 (2026-09-13): o `go.mod` de um módulo deixa de ser workspace-only e passa a declarar `require` versionado dos irmãos que importa. Resolve o tema que o ADR-034 adiou para a task sucessora ARQ-550 (`KRN-14`). Mantém do ADR-030 o `package.json` privado por módulo Go, sem o qual o Nx Release aborta o versionamento de um `tag:type:lib`.
+Aceito — 2026-09-17. Supersede parcialmente o ADR-041 (2026-09-13): o `go.mod` de um módulo deixa de ser workspace-only e passa a declarar `require` versionado dos irmãos que importa. Resolve o tema que o ADR-034 adiou para a task sucessora ARQ-550 (`KRN-14`). Mantém do ADR-030 o `package.json` privado por módulo Go, sem o qual o Nx Release aborta o versionamento de um `tag:type:lib`. **Emendado pelo [ADR-054](./054-apps-autocontidos-e-infras-separadas.md) (2026-09-28)**: cada contrato de contexto tem o release group `go-contract-<ctx>`, com tag literal `apps/backend/<ctx>/contract/v{version}`, pelo mesmo mecanismo do `go-tools`; o `tidy` de cada módulo põe os `replace` do `go.work` no `go.mod` só durante o `go mod tidy`, e o `go.mod` publicado segue sem `replace`.
 
 ## Contexto
 

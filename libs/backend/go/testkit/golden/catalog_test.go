@@ -38,10 +38,10 @@ func TestCatalogKeepsDistinctMajorsApart(t *testing.T) {
 	if err := errors.Join(c.Add("v1.golden", f), c.Add("v2.golden", v2)); err != nil {
 		t.Fatal(err)
 	}
-	if _, path, ok := c.Lookup("company.orders.event.v1", "ItemAdded", "v2"); !ok || path != "v2.golden" {
+	if _, path, ok := c.Lookup("dmpf.testing.v1", "ItemAdded", "v2"); !ok || path != "v2.golden" {
 		t.Fatalf("Lookup v2 = (%q, %v)", path, ok)
 	}
-	if keys := c.Keys(); len(keys) != 2 || keys[0] != "company.orders.event.v1.ItemAdded@v1" {
+	if keys := c.Keys(); len(keys) != 2 || keys[0] != "dmpf.testing.v1.ItemAdded@v1" {
 		t.Fatalf("Keys = %v", keys)
 	}
 }

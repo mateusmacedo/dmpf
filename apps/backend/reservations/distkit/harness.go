@@ -29,11 +29,11 @@ import (
 // side of the harness the child plays; the others name the channel the two
 // processes share so the catalogue is identical on both ends (ASY-02).
 const (
-	EnvRole    = "DMPF_TESTKIT_ROLE"
-	EnvTopic   = "DMPF_TESTKIT_TOPIC"
-	EnvGroup   = "DMPF_TESTKIT_GROUP"
-	EnvDLQ     = "DMPF_TESTKIT_DLQ"
-	EnvPlan    = "DMPF_TESTKIT_PLAN"
+	EnvRole    = "TESTKIT_ROLE"
+	EnvTopic   = "TESTKIT_TOPIC"
+	EnvGroup   = "TESTKIT_GROUP"
+	EnvDLQ     = "TESTKIT_DLQ"
+	EnvPlan    = "TESTKIT_PLAN"
 	EnvBrokers = "KAFKA_BROKERS"
 )
 
@@ -70,16 +70,16 @@ func New(t testing.TB) Harness {
 	h := Harness{
 		Brokers: seeds,
 		Pool:    pool,
-		Topic:   "dmpf-distkit-" + suffix,
-		Group:   "dmpf-distkit-group-" + suffix,
-		DLQ:     "dmpf-distkit-" + suffix + "-dlq",
+		Topic:   "distkit-" + suffix,
+		Group:   "distkit-group-" + suffix,
+		DLQ:     "distkit-" + suffix + "-dlq",
 		Plan:    Default,
 	}
-	createTopics(t, seeds, h.Topic, h.DLQ)
+	createTopics(t, seeds, h.Group, h.Topic, h.DLQ)
 	return h
 }
 
-func createTopics(t testing.TB, seeds []string, topics ...string) {
+func createTopics(t testing.TB, seeds []string, group string, topics ...string) {
 	t.Helper()
 	cl, err := kgo.NewClient(kgo.SeedBrokers(seeds...))
 	if err != nil {
@@ -96,6 +96,7 @@ func createTopics(t testing.TB, seeds []string, topics ...string) {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		_, _ = admin.DeleteTopics(ctx, topics...)
+		_, _ = admin.DeleteGroups(ctx, group)
 	})
 }
 

@@ -13,8 +13,8 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/mateusmacedo/dmpf/apps/backend/bff/app/api"
-	ordersv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/orders/service/v1"
-	reservationsv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/reservations/service/v1"
+	ordersv1 "github.com/mateusmacedo/dmpf/apps/backend/orders/contract/gen/go/company/orders/service/v1"
+	reservationsv1 "github.com/mateusmacedo/dmpf/apps/backend/reservations/contract/gen/go/company/reservations/service/v1"
 	kernelhttp "github.com/mateusmacedo/dmpf/libs/backend/go/http"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/admission"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/deadline"
@@ -36,7 +36,7 @@ func TestRoutesReferenceThePublishedContracts(t *testing.T) {
 		case strings.HasPrefix(route.Path, "/bookings/"):
 			context = "bookings"
 		}
-		if !strings.HasPrefix(route.ContractRef, "contracts/openapi/"+context+"/v1/openapi.yaml#/paths/") {
+		if !strings.HasPrefix(route.ContractRef, "apps/backend/"+context+"/contract/openapi/v1/openapi.yaml#/paths/") {
 			t.Fatalf("%s: ContractRef = %q, want the %s contract (RST-04)", route.Name, route.ContractRef, context)
 		}
 		if route.Method == http.MethodPost && (route.IdempotencyKey != api.IdempotencyHeader || !route.Idempotent()) {

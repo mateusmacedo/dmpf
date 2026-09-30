@@ -1,0 +1,11 @@
+# Gerado por tools/dmpf-conformance/cmd/infrasync a partir de apps/backend/*/deploy/infra.json; não edite.
+# Overlays hmg de cada app; namespace, observabilidade e provisionamento ficam no
+# overlay da plataforma, um nível acima.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../../../../apps/backend/bff/deploy/k8s/overlays/hmg
+  - ../../../../../apps/backend/bookings/deploy/k8s/overlays/hmg
+  - ../../../../../apps/backend/orders/deploy/k8s/overlays/hmg
+  - ../../../../../apps/backend/reservations/deploy/k8s/overlays/hmg

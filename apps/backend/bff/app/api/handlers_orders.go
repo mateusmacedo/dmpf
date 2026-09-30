@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"unicode/utf8"
 
-	ordersv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/orders/service/v1"
+	ordersv1 "github.com/mateusmacedo/dmpf/apps/backend/orders/contract/gen/go/company/orders/service/v1"
 )
 
 type addItemRequest struct {

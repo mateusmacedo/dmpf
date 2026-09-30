@@ -3,8 +3,8 @@ package rpc
 import (
 	"testing"
 
+	servicev1 "github.com/mateusmacedo/dmpf/apps/backend/reservations/contract/gen/go/company/reservations/service/v1"
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
-	servicev1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/reservations/service/v1"
 )
 
 // The Go name reads Cancelled, the published enum keeps CANCELED (D2).

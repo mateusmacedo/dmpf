@@ -1,0 +1,52 @@
+# Processos do orders na topologia local (ADR-044): api gRPC, que aplica o schema
+# (MIGRATE=true), e relay, que drena a outbox. Banco e role nascem no
+# postgres-init; o tópico, no redpanda-init.
+x-image: &image
+  build:
+    context: ../../../..
+    dockerfile: apps/backend/orders/Dockerfile
+  image: ${ORDERS_IMAGE:-orders:local}
+
+x-env: &env
+  SERVICE: orders
+  PG_DSN: postgres://orders:${ORDERS_PG_PASSWORD:-orders-local}@postgres:5432/orders?sslmode=disable
+
+services:
+  dmpf-orders-api:
+    <<: *image
+    extends:
+      file: ../../../../infra/local/compose/app-base.yml
+      service: dmpf-grpc-api
+    environment:
+      <<: *env
+      INSTANCE_ID: orders-api
+      ITEM_LIMIT: ${ITEM_LIMIT:-10}
+      GRPC_TLS_CERT_FILE: /pki/dmpf-orders-api.crt
+      GRPC_TLS_KEY_FILE: /pki/dmpf-orders-api.key
+    depends_on:
+      pki-init:
+        condition: service_completed_successfully
+      postgres-init:
+        condition: service_completed_successfully
+      otel-collector:
+        condition: service_started
+
+  dmpf-orders-relay:
+    <<: *image
+    extends:
+      file: ../../../../infra/local/compose/app-base.yml
+      service: dmpf-kafka-worker
+    command: ['--role', 'relay']
+    environment:
+      <<: *env
+      INSTANCE_ID: orders-relay
+      KAFKA_SASL_USERNAME: orders
+      KAFKA_SASL_PASSWORD: ${KAFKA_ORDERS_PASSWORD:-orders-local}
+      KAFKA_GROUP: orders
+      KAFKA_ORDERS_TOPIC: ${KAFKA_ORDERS_TOPIC:-orders.events}
+      KAFKA_ORDERS_DLQ: ${KAFKA_ORDERS_DLQ:-orders.events.dlq}
+    depends_on:
+      redpanda-init:
+        condition: service_completed_successfully
+      dmpf-orders-api:
+        condition: service_started

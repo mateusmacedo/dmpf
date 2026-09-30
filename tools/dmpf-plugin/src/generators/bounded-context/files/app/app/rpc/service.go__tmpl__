@@ -3,7 +3,7 @@ package rpc
 import "google.golang.org/grpc"
 
 // ServiceName is the full name of the service in the contract; the descriptor
-// generated from contracts/proto replaces it once the service is published.
+// generated from contract/proto replaces it once the service is published.
 const ServiceName = "<%- serviceName %>"
 
 // Methods names every method of the service: admission declares a limit for

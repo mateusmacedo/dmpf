@@ -94,7 +94,7 @@ ConfigMap e de secrets externos definidos no repositório de infraestrutura — 
 | Workflow | Papel |
 | --- | --- |
 | `.github/workflows/ci.yml` | CI em PR (Nx affected) |
-| `.github/workflows/nx-release.yml` | Versionamento Nx Release (release groups `go-libs`, `go-tools`, `npm`); cunha as tags de módulo |
+| `.github/workflows/nx-release.yml` | Versionamento Nx Release (release groups `go-libs`, `go-contract-<ctx>`, `go-tools`, `npm`); cunha as tags de módulo |
 | `.github/workflows/nx-publish-libs.yml` | Publica libs npm no GitHub Packages (dispara no push de tag `**@*`, exceto `dmpf@*`), pelo reusable `publish-libs.yaml` |
 | `.github/workflows/create-release.yml` | Cria a branch `release/<versão>` a partir de `develop` |
 | `.github/workflows/dmpf-release.yml` | Cunha a tag do produto `dmpf@<release>` sob os gates de BOM e evidência (`workflow_dispatch`) |

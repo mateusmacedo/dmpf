@@ -7,8 +7,9 @@
 #
 # Além do layout, o gate confere os nomes de banco: o DDL dos contextos e do
 # kernel segue a tabela de nomes canônicos, e todo DSN, POSTGRES_DB e script de
-# criação de banco em infra/ e .github/workflows usa banco e role com o nome da
-# app, ou o par administrativo `postgres`.
+# criação de banco em infra/, apps/backend/*/deploy e .github/workflows usa banco
+# e role com o nome da app, ou o par administrativo `postgres`; e cada contexto
+# declara o próprio banco no deploy/infra.json.
 #
 # O critério de descoberta é a presença de `domain/`: um contexto tem domínio,
 # uma borda como o `bff` não tem. Isso separa os dois sem lista fixa e passa a
@@ -154,6 +155,7 @@ verificar_borda() {
   exigir "$base/app/wiring.go" "$app: o composition root em app/wiring.go"
   exigir "$base/app/api" "$app: as rotas REST em app/api"
   exigir "$base/app/rpc" "$app: os clientes gRPC em app/rpc"
+  exigir "$base/deploy/infra.json" "$app: o manifesto de infra em deploy/infra.json"
   recusar "$base/provider" "$app: provider na borda (a borda não tem banco)"
 }
 
@@ -212,6 +214,7 @@ verificar_infra() {
   local repo="$1"
   shift
   python3 - "$repo" "$@" <<'PY'
+import json
 import pathlib
 import re
 import sys
@@ -229,10 +232,19 @@ def literal(value):
 
 achados = []
 arquivos = []
-for raiz in ('infra', '.github/workflows'):
-    base = repo / raiz
+raizes = [repo / 'infra', repo / '.github/workflows'] + sorted((repo / 'apps/backend').glob('*/deploy'))
+for base in raizes:
     if base.is_dir():
         arquivos += [p for p in sorted(base.rglob('*')) if p.is_file() and p.suffix != '.md']
+for app in sorted(apps):
+    manifesto = repo / 'apps/backend' / app / 'deploy/infra.json'
+    try:
+        declarado = json.loads(manifesto.read_text(encoding='utf-8'))
+    except (OSError, ValueError) as erro:
+        achados.append(f'{manifesto.relative_to(repo)}: manifesto de infra ilegível ou ausente ({erro})')
+        continue
+    if declarado.get('app') != app or not declarado.get('database'):
+        achados.append(f'{manifesto.relative_to(repo)}: o contexto {app} precisa declarar app "{app}" e o próprio database')
 for arquivo in arquivos:
     try:
         texto = arquivo.read_text(encoding='utf-8')
@@ -306,7 +318,7 @@ fase_estrutural() {
     relatar "kernel: DDL nos nomes canônicos" "$saida" "$status"
   fi
 
-  printf '\n== banco e role em infra/ e .github/workflows ==\n'
+  printf '\n== banco e role em infra/, apps/backend/*/deploy e .github/workflows ==\n'
   saida="$(verificar_infra "$repo" "${ctxs[@]}")"
   status=$?
   relatar "banco e role com o nome da app, ou o par administrativo" "$saida" "$status"
@@ -371,7 +383,21 @@ JSON
 {"units":[{"id":"probe/app"},{"id":"probe/appkit"},{"id":"probe/distkit"}]}
 JSON
 
-  mkdir -p "$bff"/{app/api,app/rpc,cmd}
+  mkdir -p "$ctx/deploy"
+  cat > "$ctx/deploy/infra.json" <<'JSON'
+{"schema":"dmpf/infra@1","app":"probe","database":{"passwordEnv":"PROBE_PG_PASSWORD","local":"probe-local","dev":"probe-dev"}}
+JSON
+  cat > "$ctx/deploy/compose.yml" <<'YAML'
+services:
+  probe-api:
+    environment:
+      PG_DSN: postgres://probe:${PROBE_PG_PASSWORD:-probe-local}@postgres:5432/probe?sslmode=disable
+YAML
+
+  mkdir -p "$bff"/{app/api,app/rpc,cmd,deploy}
+  cat > "$bff/deploy/infra.json" <<'JSON'
+{"schema":"dmpf/infra@1","app":"bff"}
+JSON
   : > "$bff/app/config.go"
   : > "$bff/app/wiring.go"
   : > "$bff/app/api/routes.go"
@@ -421,6 +447,7 @@ sabotar() {
     sem-unidade) printf '{"units":[{"id":"probe/app"},{"id":"probe/distkit"}]}\n' > "$ctx/dmpf-units.json" ;;
     bff-sem-api) trash "$repo/$APPS/bff/app/api" ;;
     bff-com-provider) mkdir -p "$repo/$APPS/bff/provider" ;;
+    bff-sem-manifesto) trash "$repo/$APPS/bff/deploy/infra.json" ;;
     tabela-prefixada) sed -i 's/probes/dmpf_probes/g' "$ctx/provider/schema.sql" ;;
     tabela-example) printf 'CREATE TABLE IF NOT EXISTS dmpf_example_x (id bigint);\n' >> "$ctx/provider/schema.sql" ;;
     indice-example) sed -i 's/probes_probe_id_idx/probes_example_idx/' "$ctx/provider/schema.sql" ;;
@@ -432,6 +459,9 @@ sabotar() {
     postgres-db) sed -i 's/POSTGRES_DB: postgres/POSTGRES_DB: dmpf/' "$repo/infra/local/compose.yml" ;;
     init-incompleto) sed -i 's/for pair in probe:/for pair in other:/' "$repo/infra/local/compose.yml" ;;
     ci-compartilhado) sed -i 's#localhost:5432/postgres#localhost:5432/dmpf#' "$repo/.github/workflows/ci.yml" ;;
+    manifesto-ausente) trash "$ctx/deploy/infra.json" ;;
+    manifesto-sem-banco) printf '{"schema":"dmpf/infra@1","app":"probe"}\n' > "$ctx/deploy/infra.json" ;;
+    dsn-no-deploy) sed -i 's#@postgres:5432/probe#@postgres:5432/dmpf#' "$ctx/deploy/compose.yml" ;;
   esac
 }
 
@@ -452,9 +482,10 @@ fase_self_test() {
 
   local -a sabotagens=(
     sem-binario sem-appkit sem-distkit sem-rpc sem-config sem-wiring sem-schema
-    com-http solto sem-target sem-unidade bff-sem-api bff-com-provider
+    com-http solto sem-target sem-unidade bff-sem-api bff-com-provider bff-sem-manifesto
     tabela-prefixada tabela-example indice-example tabela-do-kernel indice-fora constraint-fora kernel-prefixado
     dsn-compartilhado postgres-db init-incompleto ci-compartilhado
+    manifesto-ausente manifesto-sem-banco dsn-no-deploy
   )
   for sabotagem in "${sabotagens[@]}"; do
     tmp="$(mktemp -d)" || return 2
@@ -482,7 +513,8 @@ uso() {
 uso: tools/dmpf-context-check.sh [--phase structural|self-test] [--root <dir>]
 
   structural  (default) verifica todo bounded context de apps/backend, a borda,
-              os nomes do DDL e banco e role em infra/ e .github/workflows
+              os nomes do DDL, o deploy/infra.json de cada contexto e banco e
+              role em infra/, apps/backend/*/deploy e .github/workflows
   self-test   prova o gate contra fixture sintética, um vetor por sabotagem
   --root      raiz do repositório a verificar (default: a do git)
   --context   verifica só o layout e o DDL de um contexto, sem a infra

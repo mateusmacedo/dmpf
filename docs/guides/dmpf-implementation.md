@@ -194,7 +194,7 @@ go run ./tools/dmpf-conformance/cmd/conformance --root . --write-baseline
 
 **4 — escreva o contrato.** Um `.proto` por evento publicado, no caminho de
 `REP-01`, e os gates antes de qualquer consumidor
-([`contracts/README.md`](../../contracts/README.md)):
+([`libs/backend/go/contracts/README.md`](../../libs/backend/go/contracts/README.md)):
 
 ```bash
 pnpm nx run contracts:buf-lint
@@ -770,7 +770,7 @@ Cada evento publicado tem um `.proto` cujo caminho espelha o pacote (`REP-01`),
 e o `type` do envelope segue a forma de `PTB-03`:
 
 ```text
-contracts/proto/company/ordering/event/v1/order_confirmed.proto
+apps/backend/ordering/contract/proto/company/ordering/event/v1/order_confirmed.proto
   package company.ordering.event.v1;
   message OrderConfirmed { ... }
   # type do envelope: com.company.ordering.order-confirmed.v1
@@ -1133,7 +1133,7 @@ consequência mecânica do ramo. A ordem do passo 7 separa duplicidade de perda:
 | [`dmpf-manifesto.md`](./dmpf-manifesto.md) | Escrever o `dmpf-units.json` e o rito do baseline |
 | [`development-workflow.md`](./development-workflow.md) | Branches, commits, PRs e validação local |
 | [`tools/dmpf-plugin/README.md`](../../tools/dmpf-plugin/README.md) | Generator do esqueleto de bounded context |
-| [`contracts/README.md`](../../contracts/README.md) | Árvore de contratos e rito Buf |
+| [`libs/backend/go/contracts/README.md`](../../libs/backend/go/contracts/README.md) | Kernel de contratos e rito Buf; o contrato de cada contexto vive em `apps/backend/<ctx>/contract/` |
 | [`apps/backend/bff/README.md`](../../apps/backend/bff/README.md) | BFF REST público da topologia de referência |
 | [`apps/backend/orders/README.md`](../../apps/backend/orders/README.md) | Contexto `orders`: `api` gRPC e `relay` |
 | [`apps/backend/reservations/README.md`](../../apps/backend/reservations/README.md) | Contexto `reservations`: `api` gRPC, `relay` e `consumer` |
