@@ -61,7 +61,11 @@ integração**, para criar os tópicos.
   `dmpf-published-at` (TRP-18). O `Observer` recebe um `Record` com cópias —
   pode ler, não pode substituir (TRP-17). Produção pela composição de RES-22
   (`transport/compose`), com acks de todas as réplicas em sincronia e
-  escrita idempotente.
+  escrita idempotente, travadas por `producer_options_test.go`. A escrita
+  idempotente só vale dentro de uma sessão do produtor: a republicação pelo
+  relay, depois de um timeout ambíguo ou de um restart, pode repetir o registro
+  no tópico, e quem absorve essa repetição é a inbox do consumidor, pelo
+  `message_id` estável (TRP-06, TRP-42).
 - **`consumer.go` / `worker.go`** — `Consumer.Run` entra no grupo do canal com
   `DisableAutoCommit` (TRP-28) e `BlockRebalanceOnPoll`. **Um worker
   persistente por partição** (KFK-09): o laço de poll só enfileira — sem

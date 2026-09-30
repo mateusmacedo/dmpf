@@ -204,6 +204,17 @@ func (c *Consumer) StalledAt(topic string, partition int32) bool {
 	return ok && w.Stalled()
 }
 
+func ProducerOptionsFor(cfg Config) (kgo.Acks, bool, error) {
+	cl, err := newClient(cfg, producerOptions()...)
+	if err != nil {
+		return kgo.Acks{}, false, err
+	}
+	defer cl.Close()
+	acks, _ := cl.OptValue(kgo.RequiredAcks).(kgo.Acks)
+	disabled, _ := cl.OptValue(kgo.DisableIdempotentWrite).(bool)
+	return acks, disabled, nil
+}
+
 func NewClientFor(cfg Config) error {
 	cl, err := newClient(cfg)
 	if cl != nil {
