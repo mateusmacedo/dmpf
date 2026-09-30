@@ -93,6 +93,20 @@ só aparecem em `_test.go`, que o verificador não classifica.
   do handler (RES-17) e conta `dmpf_service_admission_rejections_total{route,
   tenant}` com o tenant colapsado pela allowlist (MET-07, MET-12); rota sem
   limite declarado responde `UNIMPLEMENTED` (RES-16).
+- **`interceptor_context.go`, comandos** — `ServerInterceptors(..., opts...)`
+  aceita `WithCommands(métodos...)`, que declara os métodos de comando do
+  serviço. Neles, a metadata `idempotency-key` é obrigatória e segue
+  `ports.IdempotencyKeyPattern`: ausente ou fora do formato, a chamada é
+  recusada com `InvalidArgument` antes do handler (`IDM-01`, `IDM-02`). A chave
+  segue ao caso de uso pelo portador do `ports`, e o replay bem-sucedido
+  responde com o header `idempotent-replayed: true` (`IDM-08`).
+- **`idempotency_status.go`** — `IdempotencyStatus(err)` traduz os desfechos
+  do comando: divergência em `FailedPrecondition`, em andamento em `Aborted`,
+  chave ausente em `InvalidArgument` e `ports.ErrAlreadyExists` em
+  `AlreadyExists`. Cada status leva um `ErrorInfo` de domínio `dmpf`
+  (`REUSED_IDEMPOTENCY_KEY`, `IN_FLIGHT_IDEMPOTENCY_KEY`,
+  `MISSING_IDEMPOTENCY_KEY`, `INVALID_IDEMPOTENCY_KEY`), que o BFF lê por
+  `ReasonOf` para escolher o código REST.
 - **`status.go`** — `HTTPStatus(codes.Code)`: a tabela canônica de GRP-14
   (`Canceled → 499`), o resto conforme o grpc-gateway, fora da tabela → 500.
 - **`serve.go`** — `Serve(ctx, listen, server, healthServer, services, ready,
