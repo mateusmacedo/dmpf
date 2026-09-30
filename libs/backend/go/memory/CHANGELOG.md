@@ -1,0 +1,15 @@
+## 0.1.0 (2026-09-30)
+
+### 🚀 Features
+
+- **memory:** report a cross-tenant miss like the postgres table ([eec1cad](https://github.com/mateusmacedo/dmpf/commit/eec1cad))
+- **memory:** scope the in-memory double by tenant ([7e8b400](https://github.com/mateusmacedo/dmpf/commit/7e8b400))
+
+### 🧱 Updated Dependencies
+
+- Updated testkit to 0.1.0
+- Updated ports to 0.1.0
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
