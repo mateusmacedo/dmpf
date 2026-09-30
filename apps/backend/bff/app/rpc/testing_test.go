@@ -17,6 +17,7 @@ import (
 	"github.com/mateusmacedo/dmpf/apps/backend/bff/app/rpc"
 	ordersv1 "github.com/mateusmacedo/dmpf/apps/backend/orders/contract/gen/go/company/orders/service/v1"
 	reservationsv1 "github.com/mateusmacedo/dmpf/apps/backend/reservations/contract/gen/go/company/reservations/service/v1"
+	kernelgrpc "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
 )
 
 type received struct {
@@ -30,8 +31,9 @@ type fakeContexts struct {
 	mu    sync.Mutex
 	calls []received
 
-	findOrder func(n int) (*ordersv1.FindOrderResponse, error)
-	reserve   func(n int) (*reservationsv1.ReserveResponse, error)
+	findOrder     func(n int) (*ordersv1.FindOrderResponse, error)
+	reserve       func(n int) (*reservationsv1.ReserveResponse, error)
+	replayReserve bool
 }
 
 func (f *fakeContexts) record(ctx context.Context, method string) int {
@@ -99,7 +101,10 @@ func (f *fakeContexts) register(srv *grpc.Server) {
 		ServiceName: rpc.ReservationsServiceName,
 		HandlerType: (*any)(nil),
 		Methods: []grpc.MethodDesc{
-			unary[reservationsv1.ReserveRequest](f, "Reserve", func(_ context.Context, n int) (any, error) {
+			unary[reservationsv1.ReserveRequest](f, "Reserve", func(ctx context.Context, n int) (any, error) {
+				if f.replayReserve {
+					_ = grpc.SetHeader(ctx, metadata.Pairs(kernelgrpc.ReplayedHeader, "true"))
+				}
 				if f.reserve != nil {
 					return f.reserve(n)
 				}

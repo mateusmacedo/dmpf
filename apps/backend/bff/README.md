@@ -52,20 +52,31 @@ flowchart LR
 2. Span de servidor com pai no `traceparent` recebido, quando houver (`TRC-02`); `X-Correlation-ID` válido é preservado, senão cunhado, e volta no mesmo header (`CTX-07`); a requisição ganha `request_id` próprio.
 3. **Autenticação e autorização** (`ResolveIdentity`, `libs/backend/go/http/identity.go`): sem credencial ou credencial inválida em rota que exige sujeito ou tenant → 401 `unauthenticated`; tenant não resolvido → 403 `tenant-unresolved`; rota sem `Permission` declarada → 403 `permission-undeclared`; sujeito sem a permissão exigida → 403 `permission-denied`. Em seguida, `RefuseAssertedIdentity` recusa com 403 `identity-mismatch` quando `X-Subject-ID`, `X-Tenant-ID` ou o query `tenant_id` divergem do que a verificação resolveu (`CTX-06`) — o cliente nunca pode afirmar uma identidade diferente da autenticada.
 4. O contexto de execução de nove campos (`CTX-01`) é montado — sujeito, tenant, permissões, `request_id`, `correlation_id`, `trace_id`, prazo e `locale` (primeira língua de `Accept-Language`, com `en` como default) — e depositado no `context.Context` da requisição, o único caminho até o provider (ADR-049).
-5. `Idempotency-Key` obrigatório nos POST; sem ele, 400 antes de qualquer RPC (`RST-02`).
+5. `Idempotency-Key` obrigatório nos POST, no formato `^[A-Za-z0-9._-]{1,128}$`: sem ele, 400 `missing-idempotency-key`, e fora do formato, 400 `invalid-idempotency-key`, antes de qualquer RPC (`RST-02`, `IDM-01`, `IDM-02`). O BFF envia ao contexto a chave derivada `hex(sha256(sujeito ‖ 0x00 ‖ chave do cliente))`, com 64 caracteres, para que dois sujeitos com a mesma chave nunca dividam uma entrada; o sujeito não atravessa (`CTX-12`, `IDM-03`). O log de acesso registra as duas chaves.
 6. O handler converte JSON em Protobuf e chama o contexto por gRPC com mTLS. A metadata leva `x-correlation-id`, `x-causation-id` (o `request_id` do BFF), `x-tenant-id`, `traceparent` do span de cliente e `idempotency-key`.
 
-Retry só em `FindOrder` e `FindReservation`, com `UNAVAILABLE` retentável; comandos não são repetidos (`GRP-08`, `GRP-09`). O prazo de cada método é menor que o da rota (`GRP-17`). O breaker de cada contexto conta só indisponibilidade (`UNAVAILABLE`, `DEADLINE_EXCEEDED`, `RESOURCE_EXHAUSTED`, `INTERNAL`, `UNKNOWN`, `DATA_LOSS` e erro de transporte): um `NOT_FOUND` repetido não o abre (`RES-10`, `RES-12`). A admissão (RES-16/17) roda depois do contexto e é chaveada pelo tenant que ele resolveu, não pela requisição bruta.
+Todo método, leitura ou comando, é repetido em `UNAVAILABLE`: a leitura não tem efeito, e o comando leva a mesma chave em toda tentativa, que o contexto deduplica pela inbox (`GRP-08`, `GRP-09`, FND-04 §7.6). O prazo de cada método é menor que o da rota (`GRP-17`). O breaker de cada contexto conta só indisponibilidade (`UNAVAILABLE`, `DEADLINE_EXCEEDED`, `RESOURCE_EXHAUSTED`, `INTERNAL`, `UNKNOWN`, `DATA_LOSS` e erro de transporte): um `NOT_FOUND` repetido não o abre (`RES-10`, `RES-12`). A admissão (RES-16/17) roda depois do contexto e é chaveada pelo tenant que ele resolveu, não pela requisição bruta.
 
 | Resultado do contexto | HTTP | `code` |
 | --- | --- | --- |
 | `Rejection` no `oneof result` | 422 | código de domínio |
 | `NOT_FOUND` (inclusive identificador de outro tenant) | 404 | `not-found` |
+| `FAILED_PRECONDITION` com reason `REUSED_IDEMPOTENCY_KEY` | 422 | `reused-idempotency-key` |
+| `ABORTED` com reason `IN_FLIGHT_IDEMPOTENCY_KEY` | 409 | `in-flight-idempotency-key` |
+| `INVALID_ARGUMENT` com reason `MISSING_IDEMPOTENCY_KEY` ou `INVALID_IDEMPOTENCY_KEY` | 400 | `missing-idempotency-key`, `invalid-idempotency-key` |
+| `ALREADY_EXISTS` | 409 | `already-exists` |
 | `ABORTED` | 409 | `version-conflict` |
 | `DEADLINE_EXCEEDED` ou prazo esgotado no BFF | 504 | `deadline-exceeded` |
 | `UNAVAILABLE` | 503 | `unavailable` |
 | `RESOURCE_EXHAUSTED` | 429 | — |
 | demais | 500 | `internal-failure` |
+
+O reason do `ErrorInfo` é lido antes do código gRPC, porque `FAILED_PRECONDITION` e
+`ABORTED` também significam outras coisas. Quando o contexto responde com o header
+`idempotent-replayed: true`, a resposta REST repete o status e o corpo gravados,
+inclusive um 422 de recusa, com `Idempotent-Replayed: true`; a primeira resposta
+não leva o header. A entrada vale 24h. O CORS expõe `X-Correlation-ID` e
+`Idempotent-Replayed` em `Access-Control-Expose-Headers`.
 
 ## Autenticação
 

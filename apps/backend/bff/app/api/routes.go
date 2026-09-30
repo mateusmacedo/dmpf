@@ -23,6 +23,7 @@ import (
 
 const (
 	IdempotencyHeader = "Idempotency-Key"
+	ReplayedHeader    = "Idempotent-Replayed"
 	CorrelationHeader = "X-Correlation-ID"
 
 	// DefaultLocale resolves CTX-01's mandatory field when the caller states no

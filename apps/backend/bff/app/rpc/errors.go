@@ -42,6 +42,15 @@ var (
 		codes.Unimplemented:      {"unimplemented", "the context does not implement this operation"},
 		codes.Canceled:           {"client-closed-request", "the caller went away before the context answered"},
 	}
+
+	// reasonFailures reads the idempotency outcome off the status detail before
+	// the code: FailedPrecondition and Aborted also mean other things (IDM-04, IDM-07).
+	reasonFailures = map[string]Failure{
+		grpc.ReasonReusedIdempotencyKey:   {http.StatusUnprocessableEntity, "reused-idempotency-key", "the idempotency key was already used with another request"},
+		grpc.ReasonInFlightIdempotencyKey: {http.StatusConflict, "in-flight-idempotency-key", "a request with this idempotency key is still in progress; retry with the same key"},
+		grpc.ReasonMissingIdempotencyKey:  {http.StatusBadRequest, "missing-idempotency-key", "the request requires an idempotency key"},
+		grpc.ReasonInvalidIdempotencyKey:  {http.StatusBadRequest, "invalid-idempotency-key", "the idempotency key is outside the accepted format"},
+	}
 )
 
 // Classify reads the local deadline errors before status.Code, which would
@@ -52,6 +61,9 @@ func Classify(err error) Failure {
 		return internalFailure
 	case errors.Is(err, deadline.ErrDeadlineExhausted), errors.Is(err, context.DeadlineExceeded):
 		return deadlineFailure
+	}
+	if failure, ok := reasonFailures[grpc.ReasonOf(err)]; ok {
+		return failure
 	}
 	s, isStatus := status.FromError(err)
 	if !isStatus {
