@@ -101,6 +101,7 @@ ConfigMap e de secrets externos definidos no repositório de infraestrutura — 
 | `.github/workflows/dmpf-verify.yml` | Gate de congruência horizontal do acervo `docs/dmpf/` |
 | `.github/workflows/dmpf-evidence.yml` | Reproduz e compara a evidência publicada de uma release |
 | `.github/workflows/dmpf-distributed.yml` | Camada distribuída da pirâmide de testes (build tag `distributed`) |
+| `.github/workflows/load.yml` | Carga k6 pela borda do BFF sobre a topologia do próprio runner (`workflow_dispatch`; `apps/backend/load/README.md`) |
 
 Decisões relacionadas: [ADR-004](../adr/004-workflows-verdaccio-release.md) (split
 version/publish, parcialmente supersedido) e [ADR-043](../adr/043-migracao-para-github-licenca-e-autoria.md)

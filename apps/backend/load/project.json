@@ -1,0 +1,66 @@
+{
+  "name": "load",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "sourceRoot": "apps/backend/load/src",
+  "tags": ["type:e2e", "scope:backend", "stack:universal"],
+  "targets": {
+    "lint": {},
+    "smoke": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bash apps/backend/load/scripts/run.sh smoke",
+        "cwd": "{workspaceRoot}"
+      }
+    },
+    "average": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bash apps/backend/load/scripts/run.sh average",
+        "cwd": "{workspaceRoot}"
+      }
+    },
+    "stress": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bash apps/backend/load/scripts/run.sh stress",
+        "cwd": "{workspaceRoot}"
+      }
+    },
+    "spike": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bash apps/backend/load/scripts/run.sh spike",
+        "cwd": "{workspaceRoot}"
+      }
+    },
+    "soak": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bash apps/backend/load/scripts/run.sh soak",
+        "cwd": "{workspaceRoot}"
+      }
+    },
+    "breakpoint": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bash apps/backend/load/scripts/run.sh breakpoint",
+        "cwd": "{workspaceRoot}"
+      }
+    },
+    "admission": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bash apps/backend/load/scripts/run.sh admission",
+        "cwd": "{workspaceRoot}"
+      }
+    }
+  }
+}

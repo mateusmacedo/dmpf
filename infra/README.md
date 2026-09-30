@@ -23,6 +23,7 @@ infra/
 │       ├── redpanda-console.yml    # profile console (+ ../redpanda-console.yaml): UI do Kafka, autenticado por SASL
 │       ├── app-base.yml            # serviços-base que o deploy/compose.yml de cada app estende
 │       ├── provisioning.generated.yml  # gerado: postgres-init e redpanda-init a partir dos infra.json
+│       ├── k6.yml                  # profile load: gerador de carga k6 (apps/backend/load)
 │       └── swagger-ui.yml          # gerado: Swagger UI sobre as specs publicadas pelo BFF
 ├── observability/                  # config + manifestos K8s, um diretório por componente
 │   ├── kustomization.yaml          # agrega os seis
@@ -58,6 +59,8 @@ pnpm nx run bff:infra-down
 ```
 
 Pelo Nx: `infra-up` (Postgres, Redpanda e floci), `observability-up` (plataforma + exporters), `infra-down` e `infra-budget`.
+
+O profile `load` tem só o gerador de carga k6 (`compose/k6.yml`), fora de `all` e `dmpf` e, por isso, fora do `infra-budget`. Ele roda pelos targets do projeto `load` (`pnpm nx run load:<perfil>`) com a topologia `dmpf` já no ar; ver `apps/backend/load/README.md`.
 
 O `deploy/compose.yml` de cada app não roda sozinho: ele estende os serviços-base de `compose/app-base.yml` e depende de serviços definidos em outros arquivos (`pki-init`, `postgres-init`, `otel-collector` e o `api` dos contextos que chama). Suba-o sempre pelo `include` de `infra/local/docker-compose.yml`.
 
