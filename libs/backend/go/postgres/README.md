@@ -36,7 +36,8 @@ instâncias de `Table[ID,S]` no bloco `provider` de cada contexto —
   proteção contra banco compartilhado entre contextos, promovida da
   composition root para o kernel.
 - **`uow.go`** — `NewUnitOfWork[R]`, `Tx` e `Within`. Uma transação por
-  chamada, o callback invocado uma única vez, e as seis cláusulas do
+  chamada, em `READ COMMITTED` explícito qualquer que seja o padrão do
+  servidor, o callback invocado uma única vez, e as seis cláusulas do
   contrato provadas em `uow_test.go`.
 - **`outbox.go`** — `Tx.Outbox(mapper)` e `Enqueue`. Grava na mesma `pgx.Tx` do
   estado de negócio: um commit torna os dois visíveis, ou nenhum. A `metadata`
@@ -69,16 +70,30 @@ instâncias de `Table[ID,S]` no bloco `provider` de cada contexto —
   (`INB-17`). Entre `Register` e `Complete` a linha existe com `status`
   provisório dentro da transação — ninguém a observa (ver
   `docs/adr/036-classificacao-de-recepcao-e-fronteira-pending.md`).
+- **`inbox.go`, comandos** — `Tx.CommandInbox(consumer, wait)` é a mesma inbox
+  para comandos (FND-04 §7.6, ADR-056). O `message_id` é `<tenant>/<chave>`,
+  com o tenant do contexto de execução, e o comando sem tenant ou sem
+  `ExpiresAt` é recusado. A `inbox` ganha `outcome` e `expires_at`, anuláveis:
+  a entrada de comando vencida é substituída na inserção
+  (`ON CONFLICT … DO UPDATE WHERE expires_at <= received_at`), e R2 e R3
+  devolvem o `outcome` gravado. A espera é `WaitUntil − ReceivedAt`, limitada
+  por `wait`, com `lock_timeout` de pelo menos 1ms.
 - **`quarantine.go`** — `NewQuarantine(pool)`, a realização de
   `ports.Containment` fora de qualquer UoW: grava o envelope byte a byte
-  como foi publicado (`GAR-07`) e o erro sanitizado (`ERR-20`, `ERR-21`).
+  como foi publicado (`GAR-07`) e o erro sanitizado (`ERR-20`, `ERR-21`), uma
+  vez por `(consumer_name, envelope_digest)`: a mesma mensagem contida de novo
+  não gera outra linha.
 - **`signals.go`** — `InboxSignals(pool, consumer)`: profundidade da quarantine
   e contagens por motivo (`terminal-failure`, `collision`,
   `attempts-exhausted`, `invalid-envelope`, `untrusted-boundary`), lidas da
   própria tabela (`GAR-12`).
-- **`purge.go`** — `PurgePublished` e `PurgeInbox`, que devolvem o que purgaram,
-  de qual consumidor e até quando (`OBX-17`, `INB-16`). A invariante
-  `retenção_inbox ≥ janela_redelivery` (`INB-14`) é do operador.
+- **`purge.go`** — `PurgePublished`, `PurgeInbox` e `PurgeExpiredInbox`, que
+  devolvem o que purgaram, de qual consumidor e até quando (`OBX-17`, `INB-16`,
+  `IDM-09`). Cada chamada remove no máximo um lote, com `FOR UPDATE SKIP LOCKED`,
+  para que réplicas purguem ao mesmo tempo sem se bloquear; `PurgeExpiredInbox`
+  remove só as entradas de comando vencidas. O laço que as chama é o
+  `app.RunPurge`, e a invariante `retenção_inbox ≥ janela_redelivery`
+  (`INB-14`) é conferida pelo contexto que consome.
 
 O que `memory` declara não provar — isolamento e conflito de serialização
 entre transações concorrentes — é provado sobre este módulo, em
