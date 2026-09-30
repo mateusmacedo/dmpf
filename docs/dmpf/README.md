@@ -96,8 +96,8 @@ O artefato aciona **dois** ADRs, sem redigir nem aceitar nenhum: `ADR-DMPF-K`
 obrigação delegada por escrito em `upr-decision-mensagens.md` §6.3. Os
 identificadores são provisórios: a numeração definitiva é do FND-11.
 
-As 64 regras `normativo` substantivas têm **ID estável** (`BLK`, `UOW`, `OBX`,
-`INB`, `GAR`), marcado no bloco que enuncia cada uma e indexado em §11.2 — é
+As 74 regras `normativo` substantivas têm **ID estável** (`BLK`, `UOW`, `OBX`,
+`INB`, `GAR`, `IDM`), marcado no bloco que enuncia cada uma e indexado em §11.2 — é
 por esse ID que o FND-09 vai nomear o cenário que a verifica.
 
 Três pendências ficam registradas no próprio artefato (§11.5):
