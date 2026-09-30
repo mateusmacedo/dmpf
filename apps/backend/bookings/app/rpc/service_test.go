@@ -40,15 +40,15 @@ func TestReserveBookingAnswersTheReservedBooking(t *testing.T) {
 	}
 }
 
-func TestReservingTheSameBookingTwiceIsAConflict(t *testing.T) {
+func TestReservingTheSameBookingUnderAnotherKeyAlreadyExists(t *testing.T) {
 	h := newHarness(t, nil)
 	reserve(t, h, "b-1")
 
 	var resp servicev1.ReserveBookingResponse
 	err := h.invoke(withTenant(t), "ReserveBooking", &servicev1.ReserveBookingRequest{BookingId: "b-1", ResourceId: "room-1", Quantity: 1}, &resp)
 
-	if status.Code(err) != codes.Aborted {
-		t.Fatalf("second ReserveBooking() = %v, want Aborted: the booking already exists", err)
+	if status.Code(err) != codes.AlreadyExists {
+		t.Fatalf("second ReserveBooking() = %v, want AlreadyExists: a retry that never converges is not a conflict", err)
 	}
 }
 

@@ -28,6 +28,12 @@ func TestStatusOfMapsEveryTechnicalOutcome(t *testing.T) {
 		"cancellation":            {context.Canceled, codes.Canceled},
 		"anything else":           {errors.New("secret"), codes.Internal},
 
+		"reused key":     {fmt.Errorf("register: %w", ports.ErrIdempotencyMismatch), codes.FailedPrecondition},
+		"key in flight":  {fmt.Errorf("register: %w", ports.ErrIdempotencyInFlight), codes.Aborted},
+		"key absent":     {ports.ErrIdempotencyKeyAbsent, codes.InvalidArgument},
+		"key invalid":    {ports.ErrIdempotencyKeyInvalid, codes.InvalidArgument},
+		"booking exists": {fmt.Errorf("reserve: %w", ports.ErrAlreadyExists), codes.AlreadyExists},
+
 		// IDN-06 keeps the two apart: a subject that authenticated and lacks
 		// what the operation needs must not be told it is unauthenticated.
 		"denied authorization":          {ports.ErrDenied, codes.PermissionDenied},

@@ -30,7 +30,15 @@ func classify(err error) string {
 	if failure, ok := errors.AsType[*application.Failure](err); ok {
 		return string(failure.Category())
 	}
-	return obsusecase.CategoryUnclassified
+	switch {
+	case errors.Is(err, ports.ErrIdempotencyKeyAbsent), errors.Is(err, ports.ErrIdempotencyKeyInvalid),
+		errors.Is(err, ports.ErrIdempotencyMismatch):
+		return string(application.Validation)
+	case errors.Is(err, ports.ErrIdempotencyInFlight), errors.Is(err, ports.ErrAlreadyExists):
+		return string(application.Conflict)
+	default:
+		return obsusecase.CategoryUnclassified
+	}
 }
 
 // subject is read from the carrier, the one source of identity (CTX-03). Over

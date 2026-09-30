@@ -3,6 +3,7 @@ package application_test
 import (
 	"context"
 	"fmt"
+	"maps"
 	"sync"
 	"testing"
 
@@ -41,10 +42,17 @@ type resourceRecord struct {
 	version  ports.Version
 }
 
+type commandRecord struct {
+	hash    string
+	status  ports.Status
+	outcome []byte
+}
+
 type memStore struct {
 	mu        sync.Mutex
 	bookings  map[domain.BookingID]bookingRecord
 	resources map[domain.ResourceCode]resourceRecord
+	commands  map[ports.MessageID]commandRecord
 	outbox    []ports.OutboxEntry
 }
 
@@ -52,6 +60,7 @@ func newStore() *memStore {
 	return &memStore{
 		bookings:  map[domain.BookingID]bookingRecord{},
 		resources: map[domain.ResourceCode]resourceRecord{},
+		commands:  map[ports.MessageID]commandRecord{},
 	}
 }
 
@@ -59,38 +68,69 @@ type memTx struct {
 	store     *memStore
 	bookings  map[domain.BookingID]bookingRecord
 	resources map[domain.ResourceCode]resourceRecord
+	commands  map[ports.MessageID]commandRecord
 	outbox    []ports.OutboxEntry
 }
 
 func (s *memStore) newTx() *memTx {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	bk := make(map[domain.BookingID]bookingRecord, len(s.bookings))
-	for k, v := range s.bookings {
-		bk[k] = v
-	}
-	rs := make(map[domain.ResourceCode]resourceRecord, len(s.resources))
-	for k, v := range s.resources {
-		rs[k] = v
-	}
-	return &memTx{store: s, bookings: bk, resources: rs}
+	return &memTx{store: s, bookings: maps.Clone(s.bookings), resources: maps.Clone(s.resources), commands: maps.Clone(s.commands)}
 }
 
 func (t *memTx) commit() {
 	t.store.mu.Lock()
 	defer t.store.mu.Unlock()
-	bk := make(map[domain.BookingID]bookingRecord, len(t.bookings))
-	for k, v := range t.bookings {
-		bk[k] = v
-	}
-	t.store.bookings = bk
-	rs := make(map[domain.ResourceCode]resourceRecord, len(t.resources))
-	for k, v := range t.resources {
-		rs[k] = v
-	}
-	t.store.resources = rs
+	t.store.bookings = maps.Clone(t.bookings)
+	t.store.resources = maps.Clone(t.resources)
+	t.store.commands = maps.Clone(t.commands)
 	t.store.outbox = append(t.store.outbox, t.outbox...)
 }
+
+type txCommands struct {
+	tx          *memTx
+	registerErr error
+	rec         *recorder
+}
+
+func (c txCommands) Register(_ context.Context, r ports.Receipt) (ports.Reception, error) {
+	if c.rec != nil {
+		c.rec.record("commands.Register")
+	}
+	if c.registerErr != nil {
+		return ports.Reception{}, c.registerErr
+	}
+	existing, ok := c.tx.commands[r.MessageID]
+	switch {
+	case !ok:
+		return ports.FirstReception(&commandPending{tx: c.tx, id: r.MessageID, hash: r.PayloadHash, rec: c.rec}), nil
+	case existing.hash != r.PayloadHash:
+		return ports.CollisionReception(), nil
+	case existing.status == ports.StatusRejected:
+		return ports.RejectedReception().WithStored(existing.outcome), nil
+	default:
+		return ports.ProcessedReception().WithStored(existing.outcome), nil
+	}
+}
+
+type commandPending struct {
+	tx        *memTx
+	id        ports.MessageID
+	hash      string
+	rec       *recorder
+	completed bool
+}
+
+func (p *commandPending) Complete(_ context.Context, c ports.Completion) error {
+	if p.rec != nil {
+		p.rec.record("commands.Complete")
+	}
+	p.tx.commands[p.id] = commandRecord{hash: p.hash, status: c.Status, outcome: c.Outcome}
+	p.completed = true
+	return nil
+}
+
+func (p *commandPending) Completed() bool { return p.completed }
 
 type txBookings struct{ tx *memTx }
 
@@ -144,11 +184,12 @@ func (o txOutbox) Enqueue(_ context.Context, entry ports.OutboxEntry) error {
 }
 
 type memUoW struct {
-	store *memStore
-	rec   *recorder
+	store       *memStore
+	rec         *recorder
+	registerErr error
 }
 
-func (u memUoW) Within(ctx context.Context, fn func(context.Context, application.Resources) error) error {
+func (u *memUoW) Within(ctx context.Context, fn func(context.Context, application.Resources) error) error {
 	if u.rec != nil {
 		u.rec.record("within")
 	}
@@ -157,6 +198,7 @@ func (u memUoW) Within(ctx context.Context, fn func(context.Context, application
 		Bookings:  recordingBookingRepo{inner: txBookings{tx: tx}, rec: u.rec},
 		Resources: recordingResourceRepo{inner: txResources{tx: tx}, rec: u.rec},
 		Outbox:    recordingOutbox{inner: txOutbox{tx: tx}, rec: u.rec},
+		Commands:  txCommands{tx: tx, registerErr: u.registerErr, rec: u.rec},
 	}
 	if err := fn(ctx, res); err != nil {
 		return err
@@ -268,7 +310,16 @@ func (g *recordingIDs) NewMessageID() ports.MessageID {
 type harness struct {
 	store   *memStore
 	rec     *recorder
+	uow     *memUoW
 	service application.Service
+}
+
+func foldDigest(canonical []byte) ports.Fingerprint {
+	var fingerprint ports.Fingerprint
+	for i, b := range canonical {
+		fingerprint[i%len(fingerprint)] = fingerprint[i%len(fingerprint)]*31 + b
+	}
+	return fingerprint
 }
 
 func newHarness(t *testing.T) *harness {
@@ -276,14 +327,15 @@ func newHarness(t *testing.T) *harness {
 	store := newStore()
 	rec := &recorder{}
 
-	h := &harness{store: store, rec: rec}
+	h := &harness{store: store, rec: rec, uow: &memUoW{store: store, rec: rec}}
 	h.service = application.Service{
-		UoW:            memUoW{store: store, rec: rec},
+		UoW:            h.uow,
 		Reader:         storeReader{store: store},
 		ResourceReader: stubResourceReader{},
 		Clock:          recordingClock{at: testOccurred, rec: rec},
 		IDs:            &recordingIDs{prefix: "m-", rec: rec},
 		Authorize:      recordingAuthorize(rec, usecase.AllowAll[application.Operation]()),
+		Idempotency:    usecase.IdempotencyPolicy{Wait: 1_000_000_000, Retention: 86_400_000_000_000, Digest: foldDigest},
 	}
 	return h
 }

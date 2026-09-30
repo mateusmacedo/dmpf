@@ -84,3 +84,26 @@ func TestARejectedDecisionLeavesNothingBehind(t *testing.T) {
 		t.Fatalf("outbox went from %d to %d records after a rejection, want no change: the transaction never committed", before, after)
 	}
 }
+
+func TestARepeatedCommandWithTheSameKeyLeavesOneEffectAndOneEvent(t *testing.T) {
+	h := harness(t)
+	resource := registerResource(t, h)
+	before := len(h.Outbox(t))
+	reserve := application.ReserveBooking{BookingID: bookingUnderTest, ResourceID: resource, Quantity: 2}
+
+	first, err := h.Service.ReserveBooking(withKey(t, context.Background(), "k-appkit"), reserve)
+	if err != nil {
+		t.Fatalf("ReserveBooking() = %v, want nil", err)
+	}
+	again, err := h.Service.ReserveBooking(withKey(t, context.Background(), "k-appkit"), reserve)
+	if err != nil {
+		t.Fatalf("repeated ReserveBooking() = %v, want the stored outcome", err)
+	}
+
+	if again.Response() != first.Response() {
+		t.Fatalf("replay = %+v, want %+v", again.Response(), first.Response())
+	}
+	if after := len(h.Outbox(t)); after != before+1 {
+		t.Fatalf("outbox went from %d to %d records, want exactly one more: one effect and one event per key", before, after)
+	}
+}
