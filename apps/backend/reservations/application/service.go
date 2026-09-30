@@ -16,6 +16,10 @@ const (
 	// or broker address, which are the provider's and the relay's choice (BLK-04).
 	Destination = "reservations.events"
 
+	// CommandConsumer names the inbox entries of Reserve and Cancel, apart from
+	// the delivered messages the consumer records under its own name (IDM-03).
+	CommandConsumer = "reservations.commands"
+
 	// OperationReserve, OperationCancel and OperationFindReservation name the
 	// synchronous operations for BeginOperation and for the audit action.
 	OperationReserve         = "reservations.Reserve"
@@ -33,6 +37,7 @@ type Resources struct {
 	Inbox        ports.Inbox
 	Reservations ports.Repository[domain.OrderID, domain.Snapshot]
 	Outbox       ports.Outbox
+	Commands     ports.Inbox
 }
 
 // Operation is the closed union of this service's entry points, writes and
@@ -84,10 +89,11 @@ type Service struct {
 	UoW    ports.UnitOfWork[Resources]
 	Reader ports.Reader[domain.OrderID, domain.Snapshot]
 
-	Clock     ports.Clock
-	IDs       ports.IDGenerator
-	Authorize usecase.Authorize[Operation]
-	Consumer  string
+	Clock       ports.Clock
+	IDs         ports.IDGenerator
+	Authorize   usecase.Authorize[Operation]
+	Consumer    string
+	Idempotency usecase.IdempotencyPolicy
 
 	Instrumentation ports.Instrumentation
 }

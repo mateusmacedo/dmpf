@@ -2,6 +2,8 @@ package application_test
 
 import (
 	"context"
+	"fmt"
+	"sync/atomic"
 	"testing"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
@@ -11,7 +13,14 @@ import (
 // a test exercises the same path production does (CTX-03, ADR-049).
 func withExecution(t *testing.T, ctx context.Context) context.Context {
 	t.Helper()
-	return ports.WithExecutionContext(ctx, testExecution(t))
+	return withKey(t, ctx, fmt.Sprintf("k-%d", keys.Add(1)))
+}
+
+var keys atomic.Int64
+
+func withKey(t *testing.T, ctx context.Context, key string) context.Context {
+	t.Helper()
+	return ports.WithIdempotencyKey(ports.WithIdempotencySlot(ports.WithExecutionContext(ctx, testExecution(t))), key)
 }
 
 // testExecution is what the edge would have mounted: every mandatory field of

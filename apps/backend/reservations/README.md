@@ -40,7 +40,8 @@ Os packages do kernel `domain` e `application` têm o mesmo nome dos deste módu
 ## Servidor gRPC
 
 - **Binding no bloco `app`.** O `grpc.ServiceDesc` é montado a partir do descriptor gerado em `apps/backend/reservations/contract`; um teste reprova método do descriptor que não esteja no `ServiceDesc`.
-- **Interceptors, nesta ordem:** span de servidor com pai extraído da metadata → mTLS do peer contra `GRPC_TRUSTED_CLIENTS` (quando TLS está ligado) → admissão por método → deadline obrigatório (`INVALID_ARGUMENT` antes do caso de uso) → contexto de execução (`x-correlation-id` preservado ou cunhado, `request_id` próprio como causação, `x-tenant-id` lido só de peer verificado, `idempotency-key` recebida só registrada no log) → handler. A cadeia vale só para os métodos de `ReservationsService`: a checagem de saúde passa direto, sem admissão nem prazo obrigatório.
+- **Interceptors, nesta ordem:** span de servidor com pai extraído da metadata → mTLS do peer contra `GRPC_TRUSTED_CLIENTS` (quando TLS está ligado) → admissão por método → deadline obrigatório (`INVALID_ARGUMENT` antes do caso de uso) → contexto de execução (`x-correlation-id` preservado ou cunhado, `request_id` próprio como causação, `x-tenant-id` lido só de peer verificado, `idempotency-key` exigida nos comandos e levada ao caso de uso) → handler. A cadeia vale só para os métodos de `ReservationsService`: a checagem de saúde passa direto, sem admissão nem prazo obrigatório.
+- **Idempotência dos comandos:** `Reserve` e `Cancel` exigem a metadata `idempotency-key`, no formato `^[A-Za-z0-9._-]{1,128}$` (FND-04 §7.6, ADR-056). Cada comando passa pela inbox do contexto, com `consumer_name` `reservations.commands`, separado das mensagens que o consumidor registra como `reservations`. Metadata ausente é `INVALID_ARGUMENT` com reason `MISSING_IDEMPOTENCY_KEY`, e fora do formato é `INVALID_IDEMPOTENCY_KEY`. A mesma chave com o mesmo pedido devolve a resposta gravada, aceite ou recusa, com o header `idempotent-replayed: true` e sem nova auditoria. Com outro pedido, é `FAILED_PRECONDITION` com `REUSED_IDEMPOTENCY_KEY`; em andamento além da espera, `ABORTED` com `IN_FLIGHT_IDEMPOTENCY_KEY`. A entrada vale 24h.
 - **Desfechos:** rejeição de domínio no `oneof result`; `NOT_FOUND` (inclusive acesso a identificador de outro tenant), `ABORTED`, ausência de tenant ou permissão `PERMISSION_DENIED`, `DEADLINE_EXCEEDED` e `INTERNAL` sem detalhe para as falhas técnicas.
 - **Saúde:** `NOT_SERVING` até o ping no pool e o `Migrate` opcional, `SERVING` depois, `NOT_SERVING` no shutdown; o log `grpc listening` traz o endereço real.
 
@@ -66,6 +67,24 @@ A ponte `Sink` confirma sem inbox a entrega de tipo diferente do assinado e abre
 | `OTLP_ENDPOINT`, `OTLP_INSECURE`, `SERVICE`, `SERVICE_VERSION`, `INSTANCE_ID` | todos | Telemetria e identidade |
 
 Variável obrigatória ausente encerra a partida com exit 2 nomeando-a.
+
+Os prazos de idempotência e de purga vêm de `Defaults()`, sem variável de
+ambiente, e `Validate` recusa valor não positivo com `ErrInvalidPolicy`:
+
+| Campo | Padrão | Uso |
+| --- | --- | --- |
+| `IdempotencyWait` | 1s | Espera máxima por comando concorrente da mesma chave |
+| `IdempotencyRetention` | 24h | Vida da entrada de comando na inbox |
+| `OutboxRetention` | 168h | Idade a partir da qual a outbox publicada é purgada |
+| `InboxRetention` | 192h | Idade a partir da qual a entrada de mensagem é purgada |
+| `PurgeInterval`, `PurgeBatch` | 15min, 1000 | Intervalo e lote de cada purga |
+
+Cada processo purga o que é dele: o `api` as entradas de comando vencidas, depois
+do `Migrate`; o `relay` a outbox publicada; o `consumer` as entradas de mensagem.
+As purgas param antes de o pool fechar. O `consumer` recusa iniciar com
+`InboxRetention` menor que a janela de redelivery do canal, de 7 dias
+(`INB-14`): uma entrada purgada antes disso deixaria passar como nova uma
+reentrega.
 
 ## Rodar localmente
 

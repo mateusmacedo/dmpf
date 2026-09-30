@@ -87,6 +87,28 @@ func (o syncOutbox) Enqueue(ctx context.Context, entry ports.OutboxEntry) error 
 	return o.inner.Enqueue(ctx, entry)
 }
 
+type syncCommands struct {
+	inner       ports.Inbox
+	rec         *syncRecorder
+	registerErr error
+}
+
+func (c syncCommands) Register(ctx context.Context, r ports.Receipt) (ports.Reception, error) {
+	c.rec.record("commands.Register")
+	if c.registerErr != nil {
+		return ports.Reception{}, c.registerErr
+	}
+	return c.inner.Register(ctx, r)
+}
+
+func foldDigest(canonical []byte) ports.Fingerprint {
+	var fingerprint ports.Fingerprint
+	for i, b := range canonical {
+		fingerprint[i%len(fingerprint)] = fingerprint[i%len(fingerprint)]*31 + b
+	}
+	return fingerprint
+}
+
 type syncUnitOfWork struct {
 	inner ports.UnitOfWork[application.Resources]
 	rec   *syncRecorder
@@ -104,8 +126,13 @@ func (u syncUnitOfWork) Within(ctx context.Context, fn func(context.Context, app
 type syncOption func(*syncSetup)
 
 type syncSetup struct {
-	saveErr   error
-	authorize usecase.Authorize[application.Operation]
+	saveErr     error
+	registerErr error
+	authorize   usecase.Authorize[application.Operation]
+}
+
+func withSyncRegisterError(err error) syncOption {
+	return func(s *syncSetup) { s.registerErr = err }
 }
 
 func withSyncSaveError(err error) syncOption {
@@ -131,6 +158,9 @@ func newSyncHarness(t *testing.T, options ...syncOption) *syncHarness {
 			Inbox:        tx.Inbox(consumer),
 			Reservations: syncRepository{inner: reservationTable.Repository(tx), h: h, saveErr: cfg.saveErr},
 			Outbox:       syncOutbox{inner: tx.Outbox(), h: h},
+			Commands: syncCommands{
+				inner: tx.CommandInbox(application.CommandConsumer), rec: h.rec, registerErr: cfg.registerErr,
+			},
 		}
 	}
 
@@ -145,6 +175,9 @@ func newSyncHarness(t *testing.T, options ...syncOption) *syncHarness {
 			return authorize(ctx, cmd)
 		},
 		Consumer: consumer,
+		Idempotency: usecase.IdempotencyPolicy{
+			Wait: 1_000_000_000, Retention: 86_400_000_000_000, Digest: foldDigest,
+		},
 	}
 	return h
 }

@@ -13,8 +13,10 @@ import (
 
 	eventv1 "github.com/mateusmacedo/dmpf/apps/backend/orders/contract/gen/go/company/orders/event/v1"
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/app"
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/application"
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/provider"
 	kernelapp "github.com/mateusmacedo/dmpf/libs/backend/go/app"
+	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/contracts/envelope"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
@@ -24,6 +26,8 @@ import (
 const (
 	// Wait is the INB-17 ceiling the harness declares for the inbox.
 	Wait = 2 * time.Second
+	// CommandWait is the IDM-07 ceiling the harness declares for a command's key.
+	CommandWait = time.Second
 	// MaxAttempts is the GAR-08 limit the harness declares.
 	MaxAttempts = 2
 	// Timeout is the consumer's own time policy, which CTX-28 makes mandatory.
@@ -52,6 +56,7 @@ func OpenPool(t testing.TB) *pgxpool.Pool {
 
 type Harness struct {
 	Consumer kernelapp.Consumer
+	Service  application.Service
 	Pool     *pgxpool.Pool
 }
 
@@ -61,8 +66,16 @@ type Harness struct {
 func NewReservations(t testing.TB, clock ports.Clock, ids ports.IDGenerator) Harness {
 	t.Helper()
 	pool := OpenPool(t)
+	policy, err := kernelapp.IdempotencyPolicy(CommandWait, 24*time.Hour)
+	if err != nil {
+		t.Fatalf("appkit.NewReservations: %v", err)
+	}
+	service := app.NewService(pool, clock, ids, app.Waits{Message: Wait, Command: CommandWait})
+	service.Authorize = usecase.AllowAll[application.Operation]()
+	service.Idempotency = policy
 	return Harness{
 		Consumer: app.NewConsumer(pool, clock, ids, Wait, Timeout, MaxAttempts, Boundary),
+		Service:  service,
 		Pool:     pool,
 	}
 }

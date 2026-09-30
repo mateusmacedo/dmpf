@@ -31,6 +31,7 @@ var (
 	ErrUnknownRole     = errors.New("reservations: unknown role")
 	ErrMissingVariable = errors.New("reservations: required variable is not set")
 	ErrInvalidVariable = envconfig.ErrInvalidVariable
+	ErrInvalidPolicy   = errors.New("reservations: invalid idempotency or purge policy")
 )
 
 const (
@@ -115,6 +116,13 @@ type Config struct {
 	// MetricTenants is the allowlist of MET-07: the tenants that keep their own
 	// admission bucket and label. Every other tenant shares "other".
 	MetricTenants []string
+
+	IdempotencyWait      time.Duration
+	IdempotencyRetention time.Duration
+	OutboxRetention      time.Duration
+	InboxRetention       time.Duration
+	PurgeInterval        time.Duration
+	PurgeBatch           int
 }
 
 // Defaults are the values a role runs with when the environment says nothing.
@@ -139,6 +147,13 @@ func Defaults(role Role) Config {
 		Wait:            2 * time.Second,
 		ConsumerTimeout: 30 * time.Second,
 		Admission:       admission.Limit{PerSecond: 50, Burst: 100, Concurrency: 32},
+
+		IdempotencyWait:      time.Second,
+		IdempotencyRetention: 24 * time.Hour,
+		OutboxRetention:      168 * time.Hour,
+		InboxRetention:       192 * time.Hour,
+		PurgeInterval:        15 * time.Minute,
+		PurgeBatch:           1000,
 	}
 }
 
@@ -208,7 +223,36 @@ func (c Config) Validate() error {
 			return fmt.Errorf("%w: %s", ErrMissingVariable, r.variable)
 		}
 	}
+	if err := c.policies(); err != nil {
+		return err
+	}
 	return c.Relay.Validate()
+}
+
+func (c Config) policies() error {
+	for _, p := range []struct {
+		name  string
+		value time.Duration
+	}{
+		{"IdempotencyWait", c.IdempotencyWait},
+		{"IdempotencyRetention", c.IdempotencyRetention},
+		{"OutboxRetention", c.OutboxRetention},
+		{"InboxRetention", c.InboxRetention},
+		{"PurgeInterval", c.PurgeInterval},
+	} {
+		if p.value <= 0 {
+			return fmt.Errorf("%w: %s %v", ErrInvalidPolicy, p.name, p.value)
+		}
+	}
+	if c.PurgeBatch <= 0 {
+		return fmt.Errorf("%w: PurgeBatch %d", ErrInvalidPolicy, c.PurgeBatch)
+	}
+	// INB-14: an entry purged before the broker stops redelivering its message
+	// would let that message through as new.
+	if window := OrdersChannel(c).Redelivery.UpperBound; c.Role == RoleConsumer && c.InboxRetention < window {
+		return fmt.Errorf("%w: InboxRetention %v is below the redelivery window %v (INB-14)", ErrInvalidPolicy, c.InboxRetention, window)
+	}
+	return nil
 }
 
 type requirement struct {

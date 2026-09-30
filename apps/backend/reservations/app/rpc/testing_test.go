@@ -3,8 +3,10 @@ package rpc_test
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"log/slog"
 	"net"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -19,6 +21,7 @@ import (
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/app/rpc"
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/application"
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
+	kernelapp "github.com/mateusmacedo/dmpf/libs/backend/go/app"
 	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	kernelgrpc "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/memory"
@@ -66,15 +69,23 @@ func newHarness(t *testing.T, limit admission.Limit) *harness {
 	t.Helper()
 
 	store := memory.New()
+	policy, err := kernelapp.IdempotencyPolicy(time.Second, time.Hour)
+	if err != nil {
+		t.Fatalf("IdempotencyPolicy() = %v", err)
+	}
 	service := application.Service{
 		UoW: memory.NewUnitOfWork(store, func(tx *memory.Tx) application.Resources {
-			return application.Resources{Inbox: tx.Inbox("reservations"), Reservations: reservationTable.Repository(tx), Outbox: tx.Outbox()}
+			return application.Resources{
+				Inbox: tx.Inbox("reservations"), Reservations: reservationTable.Repository(tx), Outbox: tx.Outbox(),
+				Commands: tx.CommandInbox(application.CommandConsumer),
+			}
 		}),
-		Reader:    reservationTable.Reader(store),
-		Clock:     memory.FixedClock{At: occurred},
-		IDs:       &memory.SequenceIDs{Prefix: "m-"},
-		Authorize: usecase.AllowAll[application.Operation](),
-		Consumer:  "reservations",
+		Reader:      reservationTable.Reader(store),
+		Clock:       memory.FixedClock{At: occurred},
+		IDs:         &memory.SequenceIDs{Prefix: "m-"},
+		Authorize:   usecase.AllowAll[application.Operation](),
+		Consumer:    "reservations",
+		Idempotency: policy,
 	}
 
 	logs := &bytes.Buffer{}
@@ -95,7 +106,8 @@ func newHarness(t *testing.T, limit admission.Limit) *harness {
 		InsecureForDevelopmentOnly: true,
 		Services:                   []string{rpc.ServiceName},
 		UnaryInterceptors: append(
-			kernelgrpc.ServerInterceptors(rpc.ServiceName, provider.Tracer("rpc-test"), ctrl, nil, slog.New(slog.NewJSONHandler(logs, nil))),
+			kernelgrpc.ServerInterceptors(rpc.ServiceName, provider.Tracer("rpc-test"), ctrl, nil, slog.New(slog.NewJSONHandler(logs, nil)),
+				kernelgrpc.WithCommands(rpc.Commands()...)),
 			execution.intercept,
 		),
 	})
@@ -123,15 +135,34 @@ func newHarness(t *testing.T, limit admission.Limit) *harness {
 	return &harness{store: store, conn: conn, spans: spans, logs: logs, execution: execution}
 }
 
-func (h *harness) invoke(ctx context.Context, method string, req, resp proto.Message) error {
-	return h.conn.Invoke(ctx, rpc.FullMethod(method), req, resp)
+func (h *harness) invoke(ctx context.Context, method string, req, resp proto.Message, opts ...grpc.CallOption) error {
+	return h.conn.Invoke(ctx, rpc.FullMethod(method), req, resp, opts...)
 }
 
-func withDeadline(t *testing.T) context.Context {
+var keys atomic.Int64
+
+func deadlineOnly(t *testing.T) context.Context {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	t.Cleanup(cancel)
 	return ctx
+}
+
+// withDeadline also carries a key of its own, which every command requires
+// (IDM-01) and the queries ignore.
+func withDeadline(t *testing.T) context.Context {
+	t.Helper()
+	return metadata.AppendToOutgoingContext(deadlineOnly(t), kernelgrpc.IdempotencyKey, fmt.Sprintf("k-%d", keys.Add(1)))
+}
+
+func withKey(t *testing.T, key string) context.Context {
+	t.Helper()
+	return metadata.AppendToOutgoingContext(withoutKey(t), kernelgrpc.IdempotencyKey, key)
+}
+
+func withoutKey(t *testing.T) context.Context {
+	t.Helper()
+	return metadata.AppendToOutgoingContext(deadlineOnly(t), kernelgrpc.TenantKey, testTenant)
 }
 
 // withTenant is what the BFF puts on the wire: the deadline GRP-04 requires

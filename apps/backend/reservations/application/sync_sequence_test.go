@@ -15,6 +15,7 @@ var nineSteps = []string{
 	"clock.Now",
 	"ids.NewMessageID",
 	"within",
+	"commands.Register",
 	"domain.Load",
 	"domain.Save",
 	"outbox.Enqueue",

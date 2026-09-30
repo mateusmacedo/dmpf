@@ -8,12 +8,16 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/application"
+	kernelgrpc "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
 
 // statusOf maps the technical channel to a gRPC status whose message carries
 // no internal detail (ERR-20); a classified failure keeps its code when wrapped.
 func statusOf(err error) error {
+	if mapped, ok := kernelgrpc.IdempotencyStatus(err); ok {
+		return mapped
+	}
 	failure, classified := errors.AsType[*application.Failure](err)
 	switch {
 	case errors.Is(err, ports.ErrNotFound), classified && failure.Category() == application.NotFound:
