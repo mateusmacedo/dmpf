@@ -111,13 +111,14 @@ determinísticos do heartbeat. A `hops_test.go` realiza as linhas SQS e SNS da
 matriz FND-06 §5.2 com par positivo e negativo.
 
 Os testes de integração levam a build tag `integration`, exigem
-`DMPF_SQS_ENDPOINT` (sem ela fazem `t.Skip` nomeando-a), leem as credenciais
+`SQS_ENDPOINT` (sem ela fazem `t.Skip` nomeando-a), leem as credenciais
 pelo SDK (`AWS_*`) e criam filas e tópicos com sufixo único por execução:
 
+O target sobe a infra de testes (`testkit:test-infra-up`) e o
+`tools/test-env.sh` preenche `SQS_ENDPOINT` e as `AWS_*` com o floci dela, na
+porta 14566, a partir do `.env.example` da raiz:
+
 ```bash
-docker run -d --name floci -p 4566:4566 floci/floci:2.0.1
-export DMPF_SQS_ENDPOINT=http://localhost:4566 AWS_REGION=us-east-1 \
-  AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test
 pnpm nx run sqs:test-race
 ```
 

@@ -28,7 +28,7 @@ func (c *capturedResult) Audit(context.Context, ports.AuditEvent) {}
 // instrumentation still receives the access to record it.
 func TestFindByResourceOfAnotherTenantAnswersEmptyAndReportsTheAccess(t *testing.T) {
 	h := newHarness(t)
-	access := ports.CrossTenantAccess{Object: "bookings_booking?resource_id=r-1", ContextTenant: "globex", DataTenant: "acme"}
+	access := ports.CrossTenantAccess{Object: "bookings?resource_id=r-1", ContextTenant: "globex", DataTenant: "acme"}
 	h.service.ResourceReader = crossTenantResource{access: access}
 	captured := &capturedResult{}
 	h.service.Instrumentation = captured

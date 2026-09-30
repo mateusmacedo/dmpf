@@ -5,11 +5,10 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/mateusmacedo/dmpf/libs/backend/go/application"
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
+	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
-
-	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
 )
 
 type decision[R any] func(*domain.Reservation, domain.Instant) (kernel.Accepted[R], *kernel.Rejection)
@@ -17,8 +16,8 @@ type decision[R any] func(*domain.Reservation, domain.Instant) (kernel.Accepted[
 // write is the nine steps of FND-04 §3.2 shared by Reserve and Cancel. Identity
 // is resolved before the transaction, because a re-execution would mint new
 // identity for the same fact (UOW-09).
-func write[R any](ctx context.Context, s Service, operation string, cmd Operation, order domain.OrderID, decide decision[R]) (application.Outcome[R], error) {
-	var zero application.Outcome[R]
+func write[R any](ctx context.Context, s Service, operation string, cmd Operation, order domain.OrderID, decide decision[R]) (usecase.Outcome[R], error) {
+	var zero usecase.Outcome[R]
 
 	instrumentation := s.instrumentation()
 	ctx, end := instrumentation.BeginOperation(ctx, operation)
@@ -28,7 +27,7 @@ func write[R any](ctx context.Context, s Service, operation string, cmd Operatio
 		return zero, err
 	}
 
-	identity := application.ResolveIdentity(s.Clock, s.IDs, maxEventsPerCommand)
+	identity := usecase.ResolveIdentity(s.Clock, s.IDs, maxEventsPerCommand)
 
 	outcome := zero
 	err := s.UoW.Within(ctx, func(ctx context.Context, res Resources) error {
@@ -37,11 +36,11 @@ func write[R any](ctx context.Context, s Service, operation string, cmd Operatio
 			return err
 		}
 
-		accepted, rejection := decide(reservation, domain.Instant(identity.OccurredAt.Unix()))
+		accepted, rejection := decide(reservation, domain.Instant(identity.OccurredAt))
 		if rejection != nil {
 			// Committing a transaction with no effect keeps a refusal apart from a
 			// technical failure, which DEC-04 forbids to conflate (FND-04 §3.2).
-			outcome = application.Rejected[R](rejection)
+			outcome = usecase.Rejected[R](rejection)
 			return nil
 		}
 
@@ -52,7 +51,7 @@ func write[R any](ctx context.Context, s Service, operation string, cmd Operatio
 			return err
 		}
 
-		outcome = application.Accepted(accepted.Response())
+		outcome = usecase.Accepted(accepted.Response())
 		return nil
 	})
 	if err != nil {

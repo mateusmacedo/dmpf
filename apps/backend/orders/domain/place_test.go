@@ -38,7 +38,7 @@ func TestPlaceRejects(t *testing.T) {
 		{
 			name:  "empty order",
 			order: func(t *testing.T) *domain.Order { return newOpenOrder(t, 0, 3) },
-			code:  domain.CodeEmptyOrder,
+			code:  domain.CodeOrderEmpty,
 		},
 		{
 			name: "order not open",

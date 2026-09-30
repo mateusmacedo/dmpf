@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package company.bookings.event.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// A reserved booking was cancelled in the resource-scheduling bounded context.
+// Envelope type: com.company.bookings.booking-cancelled.v1 (PTB-03).
+message BookingCancelled {
+  string booking_id = 1;
+  google.protobuf.Timestamp cancelled_at = 2;
+}

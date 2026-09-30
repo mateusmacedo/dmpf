@@ -15,6 +15,8 @@ model: opus
 
 # Go — padrões e convenções
 
+> **Override DMPF.** Num bounded context deste workspace, a forma é a de `.claude/rules/dmpf-bounded-context.md` e do `apps/backend/bookings` (ADR-053), e prevalece sobre o genérico descrito aqui: um package por bloco no módulo do contexto, em vez de `internal/` e `pkg/`; binário em `cmd/` com `--role`; config sem prefixo `DMPF_` por `Defaults`, `FromEnv` e `Validate`.
+
 Guia de referência com padrões idiomáticos de Go em backend. Adapte ao padrão vigente do projeto — quando houver divergência, preserve o padrão local.
 
 ## Preferências recomendadas

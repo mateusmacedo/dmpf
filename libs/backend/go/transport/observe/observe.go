@@ -162,12 +162,18 @@ func (c *cache[T]) get(key cacheKey, build func() T) T {
 }
 
 // Logging logs a failed call with its category and no message: the message
-// would leave the process without redaction (LOG-13).
+// would leave the process without redaction (LOG-13). A success is DEBUG.
 func Logging(cfg Config) resilience.Decorator {
 	logger := cfg.logger()
 	return func(next resilience.Call) resilience.Call {
 		return func(ctx context.Context, op resilience.Operation, do func(context.Context) error) error {
 			err := next(ctx, op, do)
+			if err == nil {
+				logger.LogAttrs(ctx, slog.LevelDebug, "transport: call",
+					slog.String("dependency", op.Dependency),
+					slog.String("operation", op.Method),
+					slog.String("outcome_category", CategoryOK))
+			}
 			if err != nil {
 				logger.WarnContext(ctx, "transport: call failed",
 					slog.String("dependency", op.Dependency),

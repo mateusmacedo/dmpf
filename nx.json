@@ -20,7 +20,12 @@
       "{workspaceRoot}/pnpm-workspace.yaml",
       "{workspaceRoot}/pnpm-lock.yaml"
     ],
-    "go": ["{projectRoot}/**/*", "{workspaceRoot}/go.work", "{workspaceRoot}/go.work.sum"]
+    "go": [
+      "{projectRoot}/**/*",
+      "!{projectRoot}/deploy/**/*",
+      "{workspaceRoot}/go.work",
+      "{workspaceRoot}/go.work.sum"
+    ]
   },
   "plugins": [
     {
@@ -58,10 +63,13 @@
       "plugin": "@nx/docker",
       "options": {
         "buildTarget": {
-          "name": "docker:build"
+          "name": "docker:build",
+          "cwd": ".",
+          "args": ["-f {projectRoot}/Dockerfile"]
         },
         "runTarget": {
-          "name": "docker:run"
+          "name": "docker:run",
+          "args": ["--rm", "--name {projectName}", "--network host", "--env-file deploy/.env"]
         }
       }
     },
@@ -74,6 +82,24 @@
         "projects": ["directory:libs/backend/go/*", "!tag:type:app"],
         "releaseTag": {
           "pattern": "libs/backend/go/{projectName}/v{version}"
+        }
+      },
+      "go-contract-orders": {
+        "projects": ["orders-contract"],
+        "releaseTag": {
+          "pattern": "apps/backend/orders/contract/v{version}"
+        }
+      },
+      "go-contract-reservations": {
+        "projects": ["reservations-contract"],
+        "releaseTag": {
+          "pattern": "apps/backend/reservations/contract/v{version}"
+        }
+      },
+      "go-contract-bookings": {
+        "projects": ["bookings-contract"],
+        "releaseTag": {
+          "pattern": "apps/backend/bookings/contract/v{version}"
         }
       },
       "go-tools": {
@@ -114,6 +140,30 @@
     "applyChanges": true
   },
   "targetDefaults": {
+    "deploy-env": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "[ -f deploy/.env ] || cp deploy/.env.example deploy/.env",
+        "cwd": "{projectRoot}"
+      }
+    },
+    "docker:run": {
+      "continuous": true,
+      "dependsOn": [
+        "deploy-env",
+        "docker:build",
+        {
+          "projects": ["bff"],
+          "target": "infra-up"
+        }
+      ]
+    },
+    "@nx-go/nx-go:generate": {
+      "options": {
+        "args": ["./..."]
+      }
+    },
     "@nx-go/nx-go:lint": {
       "inputs": ["go", "^go", "{workspaceRoot}/.golangci.yml"],
       "options": {
@@ -130,7 +180,9 @@
       "dependsOn": ["^build"],
       "cache": true,
       "inputs": ["go", "^go"],
-      "options": { "cover": true }
+      "options": {
+        "cover": true
+      }
     },
     "build": {
       "dependsOn": ["^build"],
@@ -156,5 +208,5 @@
       "cache": true
     }
   },
-  "nxCloudId": "6a5d373ddbc8c8c89a15bb24"
+  "neverConnectToCloud": true
 }

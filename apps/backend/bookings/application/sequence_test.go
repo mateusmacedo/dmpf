@@ -12,7 +12,7 @@ import (
 func TestReserveWalksTheNineStepsInOrder(t *testing.T) {
 	h := newHarness(t)
 
-	if _, err := h.service.ReserveBooking(withExecution(t, context.Background()), application.Reserve{
+	if _, err := h.service.ReserveBooking(withExecution(t, context.Background()), application.ReserveBooking{
 		BookingID: testBookingID, ResourceID: testResourceID, Quantity: 5,
 	}); err != nil {
 		t.Fatalf("ReserveBooking() error = %v, want nil", err)
@@ -36,10 +36,10 @@ func TestCancelWalksTheNineStepsInOrder(t *testing.T) {
 	h := newHarness(t)
 	h.seedBooking(t, domain.BookingSnapshot{
 		ID: testBookingID, ResourceID: testResourceID, Quantity: 5,
-		Status: domain.BookingReservedStatus, ReservedAt: 1000,
+		Status: domain.Reserved, ReservedAt: 1000,
 	}, 1)
 
-	if _, err := h.service.CancelBooking(withExecution(t, context.Background()), application.Cancel{
+	if _, err := h.service.CancelBooking(withExecution(t, context.Background()), application.CancelBooking{
 		BookingID: testBookingID,
 	}); err != nil {
 		t.Fatalf("CancelBooking() error = %v, want nil", err)
@@ -52,6 +52,7 @@ func TestCancelWalksTheNineStepsInOrder(t *testing.T) {
 		"within",
 		"bookings.Load",
 		"bookings.Save",
+		"outbox.Enqueue",
 		"commit",
 	}
 	if !slices.Equal(h.rec.observed, want) {
@@ -62,7 +63,7 @@ func TestCancelWalksTheNineStepsInOrder(t *testing.T) {
 func TestRegisterWalksTheNineStepsInOrder(t *testing.T) {
 	h := newHarness(t)
 
-	if _, err := h.service.RegisterResource(withExecution(t, context.Background()), application.Register{
+	if _, err := h.service.RegisterResource(withExecution(t, context.Background()), application.RegisterResource{
 		Code: testResCode,
 	}); err != nil {
 		t.Fatalf("RegisterResource() error = %v, want nil", err)
@@ -75,6 +76,7 @@ func TestRegisterWalksTheNineStepsInOrder(t *testing.T) {
 		"within",
 		"resources.Load",
 		"resources.Save",
+		"outbox.Enqueue",
 		"commit",
 	}
 	if !slices.Equal(h.rec.observed, want) {
@@ -85,10 +87,10 @@ func TestRegisterWalksTheNineStepsInOrder(t *testing.T) {
 func TestCancelRejectsWhenBookingNotReserved(t *testing.T) {
 	h := newHarness(t)
 	h.seedBooking(t, domain.BookingSnapshot{
-		ID: testBookingID, Status: domain.BookingCancelled,
+		ID: testBookingID, Status: domain.Cancelled,
 	}, 2)
 
-	outcome, err := h.service.CancelBooking(withExecution(t, context.Background()), application.Cancel{
+	outcome, err := h.service.CancelBooking(withExecution(t, context.Background()), application.CancelBooking{
 		BookingID: testBookingID,
 	})
 	if err != nil {
@@ -98,7 +100,47 @@ func TestCancelRejectsWhenBookingNotReserved(t *testing.T) {
 	if !refused {
 		t.Fatal("expected Rejected, got Accepted")
 	}
-	if rej.Code() != domain.CodeNotReserved {
-		t.Fatalf("Code() = %q, want %q", rej.Code(), domain.CodeNotReserved)
+	if rej.Code() != domain.CodeBookingNotReserved {
+		t.Fatalf("Code() = %q, want %q", rej.Code(), domain.CodeBookingNotReserved)
+	}
+}
+
+func TestCancelEnqueuesTheCancellationInTheSameTransaction(t *testing.T) {
+	h := newHarness(t)
+	h.seedBooking(t, domain.BookingSnapshot{
+		ID: testBookingID, ResourceID: testResourceID, Quantity: 5,
+		Status: domain.Reserved, ReservedAt: 1000,
+	}, 1)
+
+	if _, err := h.service.CancelBooking(withExecution(t, context.Background()), application.CancelBooking{BookingID: testBookingID}); err != nil {
+		t.Fatalf("CancelBooking() error = %v, want nil", err)
+	}
+
+	entries := h.store.outbox
+	if len(entries) != 1 {
+		t.Fatalf("outbox entries = %d, want 1", len(entries))
+	}
+	entry := entries[0]
+	if _, ok := entry.Event.(domain.BookingCancelled); !ok || entry.AggregateType != application.AggregateTypeBooking ||
+		entry.AggregateID != string(testBookingID) || entry.AggregateVersion != 2 {
+		t.Fatalf("outbox entry = %+v, want the cancellation of the booking at version 2", entry)
+	}
+}
+
+func TestRegisterEnqueuesTheRegistrationInTheSameTransaction(t *testing.T) {
+	h := newHarness(t)
+
+	if _, err := h.service.RegisterResource(withExecution(t, context.Background()), application.RegisterResource{Code: testResCode}); err != nil {
+		t.Fatalf("RegisterResource() error = %v, want nil", err)
+	}
+
+	entries := h.store.outbox
+	if len(entries) != 1 {
+		t.Fatalf("outbox entries = %d, want 1", len(entries))
+	}
+	entry := entries[0]
+	if _, ok := entry.Event.(domain.ResourceRegistered); !ok || entry.AggregateType != application.AggregateTypeResource ||
+		entry.AggregateID != string(testResCode) || entry.AggregateVersion != 1 {
+		t.Fatalf("outbox entry = %+v, want the registration of the resource at version 1", entry)
 	}
 }

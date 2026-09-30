@@ -26,7 +26,7 @@ type writer struct{ tx *postgres.Tx }
 
 func (w writer) write(ctx context.Context, id string) error {
 	_, err := postgres.ConnOf(w.tx).Exec(ctx,
-		`INSERT INTO dmpf_example_orders (tenant_id, order_id, version, snapshot) VALUES ('acme', $1, 1, '{}')`, id)
+		`INSERT INTO probes (tenant_id, probe_id, version, snapshot) VALUES ('acme', $1, 1, '{}')`, id)
 	return err
 }
 
@@ -39,7 +39,7 @@ func kept(t *testing.T, pool *pgxpool.Pool) int {
 	// Background, never the test's ctx: the cancelled-commit clause asserts
 	// through a context it has just cancelled.
 	if err := pool.QueryRow(context.Background(),
-		"SELECT count(*) FROM dmpf_example_orders").Scan(&count); err != nil {
+		"SELECT count(*) FROM probes").Scan(&count); err != nil {
 		t.Fatalf("count(*) = %v, want nil", err)
 	}
 	return count

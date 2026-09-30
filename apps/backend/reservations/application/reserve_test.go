@@ -5,10 +5,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
-
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/application"
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
 
 func TestReserveCreatesTheReservationAndAuthorsTheOutboxEntry(t *testing.T) {
@@ -26,7 +25,7 @@ func TestReserveCreatesTheReservationAndAuthorsTheOutboxEntry(t *testing.T) {
 		t.Fatalf("Response() = %+v, want %+v", got, want)
 	}
 
-	snapshot, version, err := reservationsTable.Reader(h.store).Load(withExecution(t, context.Background()), syncOrder)
+	snapshot, version, err := reservationTable.Reader(h.store).Load(withExecution(t, context.Background()), syncOrder)
 	if err != nil {
 		t.Fatalf("Load() = %v, want nil", err)
 	}
@@ -45,7 +44,7 @@ func TestReserveCreatesTheReservationAndAuthorsTheOutboxEntry(t *testing.T) {
 		AggregateType:    application.AggregateType,
 		AggregateID:      string(syncOrder),
 		AggregateVersion: 1,
-		Event:            domain.ReservationConfirmed{Order: syncOrder, Items: 2, At: domain.Instant(syncOccurred.Unix())},
+		Event:            domain.ReservationConfirmed{Order: syncOrder, Items: 2, At: domain.Instant(syncOccurred)},
 		Context:          ports.MessageContext{CausationID: "m-000001"},
 	}
 	if entries[0] != want {
@@ -84,10 +83,10 @@ func TestReserveOnACanceledReservationRejectsWithoutWriting(t *testing.T) {
 		t.Fatalf("Reserve() error = %v, want nil — a refusal is not a technical failure (DEC-04)", err)
 	}
 	rej, refused := out.Rejection()
-	if !refused || rej.Code() != domain.CodeReservationCanceled {
-		t.Fatalf("Rejection() = %v, %v; want %q", rej, refused, domain.CodeReservationCanceled)
+	if !refused || rej.Code() != domain.CodeReservationCancelled {
+		t.Fatalf("Rejection() = %v, %v; want %q", rej, refused, domain.CodeReservationCancelled)
 	}
-	if _, version, _ := reservationsTable.Reader(h.store).Load(withExecution(t, context.Background()), syncOrder); version != 1 {
+	if _, version, _ := reservationTable.Reader(h.store).Load(withExecution(t, context.Background()), syncOrder); version != 1 {
 		t.Fatalf("version = %d, want 1 — a refusal writes nothing", version)
 	}
 	if got := h.store.Entries(); len(got) != 0 {

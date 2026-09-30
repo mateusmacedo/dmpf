@@ -1,0 +1,18 @@
+# Valores não sensíveis dos três papéis: o consumer lê o canal de orders, o
+# relay publica no de reservations. Os opt-outs de TLS nascem desligados e o
+# transporte gRPC não tem default: o overlay declara um dos dois modos.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: reservations
+data:
+  SERVICE: reservations
+  GRPC_ADDR: ':9090'
+  KAFKA_ORDERS_TOPIC: orders.events
+  KAFKA_ORDERS_DLQ: orders.events.dlq
+  KAFKA_RESERVATIONS_TOPIC: reservations.events
+  KAFKA_RESERVATIONS_DLQ: reservations.events.dlq
+  KAFKA_GROUP: reservations
+  KAFKA_INSECURE: 'false'
+  OTLP_ENDPOINT: otel-collector:4317
+  OTLP_INSECURE: 'false'

@@ -11,11 +11,28 @@ import (
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/app"
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/application"
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/provider"
-	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/application"
+	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/pg"
 )
+
+// Tables of this context, which the kit cannot know: it resets the kernel
+// tables and the ones named here.
+var Tables = []string{"orders"}
+
+// PoolOptions is the database this context's suites run in.
+var PoolOptions = pg.Options{
+	Project:      "orders",
+	Capabilities: []postgres.Capability{postgres.Outbox},
+	Schemas:      []string{provider.Schema},
+	Tables:       Tables,
+}
+
+func OpenPool(t testing.TB) *pgxpool.Pool {
+	t.Helper()
+	return pg.OpenPool(t, PoolOptions)
+}
 
 // Harness is the application service composed over the Postgres the suite
 // runs against, with the clock and identifiers the test injects (KIT-07).
@@ -28,14 +45,14 @@ type Harness struct {
 // instrumentation: a harness observes effects, not telemetry.
 func NewOrders(t testing.TB, clock ports.Clock, ids ports.IDGenerator) Harness {
 	t.Helper()
-	pool := pg.OpenPool(t)
+	pool := OpenPool(t)
 	return Harness{
 		Service: application.Service{
 			UoW:       postgres.NewUnitOfWork(pool, bind),
-			Reader:    provider.NewReader(postgres.NewReadPool(pool)),
+			Reader:    provider.NewOrderReader(postgres.NewReadPool(pool)),
 			Clock:     clock,
 			IDs:       ids,
-			Authorize: kernel.AllowAll[application.Operation](),
+			Authorize: usecase.AllowAll[application.Operation](),
 			ItemLimit: app.DefaultItemLimit,
 		},
 		Pool: pool,
@@ -44,7 +61,7 @@ func NewOrders(t testing.TB, clock ports.Clock, ids ports.IDGenerator) Harness {
 
 func bind(tx *postgres.Tx) application.Resources {
 	return application.Resources{
-		Orders: provider.NewRepository(tx),
+		Orders: provider.NewOrderRepository(tx),
 		Outbox: tx.Outbox(provider.Mapper{}),
 	}
 }
@@ -64,7 +81,7 @@ type Enqueued struct {
 func (h Harness) Outbox(t testing.TB) []Enqueued {
 	t.Helper()
 	const query = `SELECT message_id, message_type, aggregate_version, destination, status
-		FROM dmpf_outbox ORDER BY id`
+		FROM outbox ORDER BY id`
 
 	rows, err := h.Pool.Query(context.Background(), query)
 	if err != nil {

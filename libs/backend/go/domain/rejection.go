@@ -7,12 +7,13 @@ import (
 )
 
 // Code is the stable domain identifier of a rejection, in the form
-// "context/reason" (FND-03 §3.3, §5.3). It never carries a protocol status.
+// "context/reason" or "context/aggregate/reason" (FND-03 §3.3, §5.3; ADR-032).
+// It never carries a protocol status.
 type Code string
 
-var codePattern = regexp.MustCompile(`^[a-z][a-z0-9]*(-[a-z0-9]+)*/[a-z][a-z0-9]*(-[a-z0-9]+)*$`)
+var codePattern = regexp.MustCompile(`^[a-z][a-z0-9]*(-[a-z0-9]+)*(/[a-z][a-z0-9]*(-[a-z0-9]+)*){1,2}$`)
 
-// Valid reports whether the code follows the "context/reason" form. Reject does
+// Valid reports whether the code follows one of the two forms. Reject does
 // not validate: declared codes are proven valid by the aggregate's own tests.
 func (c Code) Valid() bool { return codePattern.MatchString(string(c)) }
 

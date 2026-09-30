@@ -19,14 +19,14 @@ import (
 // saslBroker is a broker that demands SASL, and the principal allowed on it.
 func saslBroker(t *testing.T) ([]string, kafka.SASL) {
 	t.Helper()
-	value := os.Getenv("DMPF_KAFKA_SASL_BROKERS")
+	value := os.Getenv("KAFKA_SASL_BROKERS")
 	if value == "" {
-		t.Skip("DMPF_KAFKA_SASL_BROKERS is not set: this test needs a broker that demands SASL")
+		t.Skip("KAFKA_SASL_BROKERS is not set: this test needs a broker that demands SASL")
 	}
 	return strings.Split(value, ","), kafka.SASL{
 		Mechanism: kafka.ScramSHA256,
-		Username:  os.Getenv("DMPF_KAFKA_SASL_USERNAME"),
-		Password:  os.Getenv("DMPF_KAFKA_SASL_PASSWORD"),
+		Username:  os.Getenv("KAFKA_SASL_USERNAME"),
+		Password:  os.Getenv("KAFKA_SASL_PASSWORD"),
 	}
 }
 

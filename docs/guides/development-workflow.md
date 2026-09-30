@@ -151,10 +151,9 @@ versionamento independente por projeto marcado com `type:lib`.
 
 - **Base padrão: `develop`.** As bases `release/**` e `master` são exceções
   declaradas explicitamente por quem abre o PR.
-- **Plataforma: Gitea** (`github.com`, organização `mateusmacedo`).
-  Automação que fala com a plataforma usa a API do Gitea em `/api/v1/...`. O
-  binário `gh` **não** opera contra este servidor — para operar a plataforma,
-  chame a API do Gitea diretamente.
+- **Plataforma: GitHub** (`github.com/mateusmacedo/dmpf`). Automação que fala
+  com a plataforma usa o `gh`
+  (`docs/adr/043-migracao-para-github-licenca-e-autoria.md`).
 - Prefira PRs pequenos e focados: uma feature ou um fix por PR.
 - Descreva o que muda e por quê, com contexto suficiente para o revisor.
 - PRs que tocam apenas arquivos Markdown não disparam o pipeline, por causa do
@@ -184,7 +183,7 @@ criada pelo workflow `create-release.yml`.
 
 O `create-release.yml` calcula o próximo número a partir das releases já
 mergeadas em `master`, deriva o incremento de versão dos commits em
-`origin/master..origin/develop` e abre o PR de release pela API do Gitea.
+`origin/master..origin/develop` e abre o PR de release com `gh pr create`.
 Como esse cálculo lê `origin/develop`, o workflow depende de `develop` existir
 no remoto — provisione-a primeiro para que a automação de release funcione.
 
@@ -202,13 +201,11 @@ Evite os padrões abaixo; a alternativa correta está indicada em cada um:
   PR; ambas são protegidas.
 - **Misturar múltiplos projetos Nx no mesmo commit** → um commit por projeto,
   para manter o versionamento por projeto correto.
-- **Contar com `gh` para operar a plataforma** → use a API do Gitea
-  (`/api/v1/...`); o `gh` não fala com este servidor.
 - **PRs grandes misturando várias features** → prefira PRs pequenos e focados.
 
 ## Referências
 
 - `AGENTS.md` — seções `Convenções obrigatórias` e `Git e release`.
 - `CONTRIBUTING.md` — entrada curta com o modelo anti-drift.
-- `docs/adr/005-plataforma-gitea.md` — decisão sobre a plataforma Gitea.
+- `docs/adr/043-migracao-para-github-licenca-e-autoria.md` — decisão sobre a plataforma GitHub.
 - `docs/ci-cd/` — guia de adoção de CI/CD e deploy.

@@ -5,7 +5,6 @@ package postgres_test
 import (
 	"context"
 	"errors"
-	"os"
 	"sync"
 	"testing"
 	"time"
@@ -19,38 +18,7 @@ import (
 
 func openConcurrencyPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
-	dsn := os.Getenv("DMPF_PG_DSN")
-	if dsn == "" {
-		if os.Getenv("CI") != "" {
-			t.Fatal("DMPF_PG_DSN is empty in CI")
-		}
-		t.Skip("DMPF_PG_DSN not set")
-	}
-
-	cfg, err := pgxpool.ParseConfig(dsn)
-	if err != nil {
-		t.Fatalf("ParseConfig() = %v", err)
-	}
-	cfg.MaxConns = 4
-
-	ctx := context.Background()
-	pool, err := pgxpool.NewWithConfig(ctx, cfg)
-	if err != nil {
-		t.Fatalf("NewWithConfig() = %v", err)
-	}
-	t.Cleanup(pool.Close)
-
-	if err := postgres.Migrate(ctx, pool); err != nil {
-		t.Fatalf("Migrate() = %v", err)
-	}
-
-	if _, err := pool.Exec(ctx, "TRUNCATE dmpf_outbox, dmpf_inbox, dmpf_quarantine, dmpf_example_orders, dmpf_example_reservations"); err != nil {
-		t.Fatalf("TRUNCATE = %v", err)
-	}
-	t.Cleanup(func() {
-		_, _ = pool.Exec(context.Background(), "TRUNCATE dmpf_outbox, dmpf_inbox, dmpf_quarantine, dmpf_example_orders, dmpf_example_reservations")
-	})
-	return pool
+	return openPoolWith(t, func(cfg *pgxpool.Config) { cfg.MaxConns = 4 })
 }
 
 func TestConcurrentRegisterProcessedUnblocksWithR2(t *testing.T) {

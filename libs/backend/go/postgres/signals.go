@@ -8,7 +8,7 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
 
-const selectSignals = `SELECT reason, count(*) FROM dmpf_quarantine WHERE consumer_name = $1 GROUP BY reason`
+const selectSignals = `SELECT reason, count(*) FROM quarantine WHERE consumer_name = $1 GROUP BY reason`
 
 // failed is excluded from pending on purpose: OBX-06 makes it terminal, so
 // counting it as backlog would report work no cycle is going to do. It gets a
@@ -24,7 +24,7 @@ SELECT
 	coalesce(min(occurred_at) FILTER (WHERE status IN ('pending', 'publishing')), 0),
 	coalesce(sum(attempt_count) FILTER (WHERE status IN ('pending', 'publishing')), 0),
 	count(*) FILTER (WHERE status = 'failed')
-  FROM dmpf_outbox`
+  FROM outbox`
 
 // Signals is the aggregated health snapshot of one consumer's quarantine,
 // derived from the reason column (GAR-12).

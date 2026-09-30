@@ -118,7 +118,7 @@
         "state": "certificada",
         "compatible_with": [],
         "registry_ref": {
-          "file": "contracts/buf.gen.yaml",
+          "file": "libs/backend/go/contracts/buf.gen.yaml",
           "selector": "plugin:protoc-gen-go"
         },
         "evidence_uri": "https://github.com/mateusmacedo/dmpf/blob/8e171d31eb903a6b2153da53bc4aa05d058a1263/bom/evidence/0.1.0/golden.json",

@@ -27,7 +27,7 @@ func TestRunRefusesToStartWithoutARole(t *testing.T) {
 func TestRunRefusesARoleThisContextDoesNotHave(t *testing.T) {
 	var out, errOut bytes.Buffer
 
-	code := run(options{role: "consumer", lookup: lookup("DMPF_PG_DSN", "postgres://x")}, &out, &errOut)
+	code := run(options{role: "consumer", lookup: lookup("PG_DSN", "postgres://x")}, &out, &errOut)
 
 	if code != exitUsage || !strings.Contains(errOut.String(), "api|relay") {
 		t.Fatalf("run() = %d, stderr %q; want the refusal to name the roles it has", code, errOut.String())
@@ -39,7 +39,7 @@ func TestRunRefusesTheApiRoleWithoutTheDatabase(t *testing.T) {
 
 	code := run(options{role: "api", lookup: lookup()}, &out, &errOut)
 
-	if code != exitUsage || !strings.Contains(errOut.String(), "DMPF_PG_DSN") {
+	if code != exitUsage || !strings.Contains(errOut.String(), "PG_DSN") {
 		t.Fatalf("run() = %d, stderr %q; want the refusal to name the missing variable", code, errOut.String())
 	}
 }
@@ -47,14 +47,12 @@ func TestRunRefusesTheApiRoleWithoutTheDatabase(t *testing.T) {
 func TestRunRefusesTheRelayRoleWithoutItsBroker(t *testing.T) {
 	var out, errOut bytes.Buffer
 
-	code := run(options{role: "relay", lookup: lookup("DMPF_PG_DSN", "postgres://x")}, &out, &errOut)
+	code := run(options{role: "relay", lookup: lookup("PG_DSN", "postgres://x")}, &out, &errOut)
 
 	if code != exitUsage {
-		t.Fatalf("run() = %d, want exitUsage: the relay needs the broker, the topic, the DLQ and the group", code)
+		t.Fatalf("run() = %d, want exitUsage: the relay needs the broker", code)
 	}
-	for _, variable := range []string{"DMPF_KAFKA_BROKERS", "DMPF_KAFKA_BOOKINGS_TOPIC", "DMPF_KAFKA_BOOKINGS_DLQ", "DMPF_KAFKA_GROUP"} {
-		if !strings.Contains(errOut.String(), variable) {
-			t.Fatalf("stderr = %q, want it to name %s", errOut.String(), variable)
-		}
+	if !strings.Contains(errOut.String(), "KAFKA_BROKERS") {
+		t.Fatalf("stderr = %q, want it to name KAFKA_BROKERS, the first missing variable of the relay", errOut.String())
 	}
 }

@@ -3,7 +3,7 @@ package application
 import (
 	"errors"
 
-	"github.com/mateusmacedo/dmpf/libs/backend/go/application"
+	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
 
@@ -23,7 +23,7 @@ func authorizationResult(err error) ports.Result {
 	return ports.Result{Outcome: ports.OutcomeFailed, Err: err}
 }
 
-func outcomeCategory[R any](outcome application.Outcome[R]) ports.OutcomeCategory {
+func outcomeCategory[R any](outcome usecase.Outcome[R]) ports.OutcomeCategory {
 	if _, refused := outcome.Rejection(); refused {
 		return ports.OutcomeRejected
 	}

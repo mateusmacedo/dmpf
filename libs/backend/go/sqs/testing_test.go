@@ -24,9 +24,9 @@ import (
 // emulator there is nothing to prove, and the CI sets it (ci.yml, floci).
 func endpoint(t *testing.T) string {
 	t.Helper()
-	value := os.Getenv("DMPF_SQS_ENDPOINT")
+	value := os.Getenv("SQS_ENDPOINT")
 	if value == "" {
-		t.Skip("DMPF_SQS_ENDPOINT is not set: the integration tests need an SQS/SNS emulator")
+		t.Skip("SQS_ENDPOINT is not set: the integration tests need an SQS/SNS emulator")
 	}
 	return value
 }
@@ -139,6 +139,11 @@ func subscribe(t *testing.T, api *sns.Client, topicARN, queueARN string, raw boo
 	if err != nil {
 		t.Fatalf("Subscribe: %v", err)
 	}
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		_, _ = api.Unsubscribe(ctx, &sns.UnsubscribeInput{SubscriptionArn: out.SubscriptionArn})
+	})
 	return *out.SubscriptionArn
 }
 

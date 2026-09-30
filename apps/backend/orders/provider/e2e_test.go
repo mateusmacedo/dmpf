@@ -5,12 +5,12 @@ package provider_test
 import (
 	"context"
 	"fmt"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/pg"
 	"sync"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/mateusmacedo/dmpf/apps/backend/orders/appkit"
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/application"
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/domain"
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/provider"
@@ -53,7 +53,7 @@ type outboxRow struct {
 func newService(pool *pgxpool.Pool) application.Service {
 	bind := func(tx *postgres.Tx) application.Resources {
 		return application.Resources{
-			Orders: provider.NewRepository(tx),
+			Orders: provider.NewOrderRepository(tx),
 			Outbox: tx.Outbox(provider.Mapper{}),
 		}
 	}
@@ -72,7 +72,7 @@ func newService(pool *pgxpool.Pool) application.Service {
 // PlaceOrder only loads, and Place refuses an order with no items, so AddItem
 // is what creates the order and OrderPlaced can only come second.
 func TestTheUseCaseRunsEndToEndOverPostgres(t *testing.T) {
-	pool := pg.OpenPool(t)
+	pool := appkit.OpenPool(t)
 	service := newService(pool)
 	ctx := context.Background()
 
@@ -156,7 +156,7 @@ func outboxRowOf(t *testing.T, pool *pgxpool.Pool, messageID string) outboxRow {
 	var row outboxRow
 	err := pool.QueryRow(context.Background(), `
 		SELECT message_type, schema_version, aggregate_version, destination, status
-		FROM dmpf_outbox WHERE message_id = $1`, messageID).Scan(
+		FROM outbox WHERE message_id = $1`, messageID).Scan(
 		&row.MessageType, &row.SchemaVersion, &row.AggregateVersion, &row.Destination, &row.Status)
 	if err != nil {
 		t.Fatalf("SELECT outbox row %s = %v, want nil", messageID, err)
@@ -169,7 +169,7 @@ func counts(t *testing.T, pool *pgxpool.Pool) (int, int) {
 
 	var ordersCount, outboxCount int
 	err := pool.QueryRow(context.Background(), `
-		SELECT (SELECT count(*) FROM dmpf_example_orders), (SELECT count(*) FROM dmpf_outbox)`).
+		SELECT (SELECT count(*) FROM orders), (SELECT count(*) FROM outbox)`).
 		Scan(&ordersCount, &outboxCount)
 	if err != nil {
 		t.Fatalf("counts = %v, want nil", err)

@@ -49,12 +49,12 @@ type ClientAuth struct {
 // processes that talk to Kafka read it the same way.
 func ReadClientAuth(lookup func(string) string) ClientAuth {
 	auth := ClientAuth{
-		CertFile: lookup("DMPF_KAFKA_CLIENT_CERT_FILE"),
-		KeyFile:  lookup("DMPF_KAFKA_CLIENT_KEY_FILE"),
-		CAFile:   lookup("DMPF_KAFKA_CA_FILE"),
+		CertFile: lookup("KAFKA_CLIENT_CERT_FILE"),
+		KeyFile:  lookup("KAFKA_CLIENT_KEY_FILE"),
+		CAFile:   lookup("KAFKA_CA_FILE"),
 	}
-	if mechanism := lookup("DMPF_KAFKA_SASL_MECHANISM"); mechanism != "" {
-		auth.SASL = &SASL{Mechanism: mechanism, Username: lookup("DMPF_KAFKA_SASL_USERNAME"), Password: lookup("DMPF_KAFKA_SASL_PASSWORD")}
+	if mechanism := lookup("KAFKA_SASL_MECHANISM"); mechanism != "" {
+		auth.SASL = &SASL{Mechanism: mechanism, Username: lookup("KAFKA_SASL_USERNAME"), Password: lookup("KAFKA_SASL_PASSWORD")}
 	}
 	return auth
 }

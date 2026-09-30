@@ -31,14 +31,14 @@ created: 2026-09-10
 - **Campos**:
   - `resourceId: id`
   - `quantity: int`
-  - `status: reserved | cancelled`
+  - `status: new | reserved | cancelled`
   - `reservedAt: instant`
-- **Estados**: `reserved`, `cancelled`
+- **Estados**: `new` (antes do primeiro `Reserve`), `reserved`, `cancelled`
 - **Transições permitidas**:
   - (novo) → `reserved` — por `Reserve`
   - `reserved` → `cancelled` — por `Cancel`
 - **Invariantes de estado**:
-  - `status` é sempre um dos dois valores; uma reserva cancelada não sai de
+  - `status` é sempre um dos três valores; uma reserva cancelada não sai de
     `cancelled` — `Cancel` sobre `cancelled` rejeita com
     `resource-scheduling/booking/not-reserved`.
   - `quantity` está sempre em `[1, 100]` — garantido na criação, porque
@@ -61,6 +61,7 @@ created: 2026-09-10
 ### Reserve
 
 - **Agregado**: `Booking`; **cria**
+- **Comando**: `ReserveBooking`
 - **Entrada**:
   - `resourceId: id`
   - `quantity: int`
@@ -77,6 +78,7 @@ created: 2026-09-10
 ### Cancel
 
 - **Agregado**: `Booking`; exige existente
+- **Comando**: `CancelBooking`
 - **Entrada**: nenhuma além da identidade do agregado
 - **Pré-condições**:
   - `status = reserved` → `resource-scheduling/booking/not-reserved`
@@ -88,6 +90,7 @@ created: 2026-09-10
 ### Register
 
 - **Agregado**: `Resource`; **inicializa se ausente**
+- **Comando**: `RegisterResource`
 - **Entrada**:
   - `code: string`
 - **Pré-condições**:
@@ -122,6 +125,7 @@ created: 2026-09-10
 
 ## Consultas
 
+- `FindBooking` — filtros: `bookingId`; cardinalidade: `one`
 - `FindBookingByResource` — filtros: `resourceId`; cardinalidade: `many`
 
 ## Relações entre agregados
@@ -130,16 +134,32 @@ created: 2026-09-10
 
 ## Integração
 
-- **Publica**: `BookingReserved` — vira
-  `contracts/proto/company/bookings/event/v1/booking_reserved.proto`, package
-  `company.bookings.event.v1`.
+- **Publica**: `BookingReserved`, `BookingCancelled` e `ResourceRegistered` —
+  viram `booking_reserved.proto`, `booking_cancelled.proto` e
+  `resource_registered.proto` em `contracts/proto/company/bookings/event/v1/`,
+  package `company.bookings.event.v1`, no tópico do contexto.
 - **Consome**: nenhum.
+
+## Borda e persistência
+
+- **Borda**: só gRPC, `company.bookings.service.v1.BookingsService`
+  (`ReserveBooking`, `CancelBooking`, `RegisterResource`, `FindBooking`,
+  `FindBookingsByResource`), atrás da cadeia de interceptors do kernel. O REST
+  público é do `bff`: `POST /bookings/booking`, `GET /bookings/booking`,
+  `GET /bookings/booking/{id}`, `POST /bookings/booking/{id}/cancel` e
+  `POST /bookings/resource`, descritos em `contracts/openapi/bookings/v1/`
+  (ADR-044, ADR-053).
+- **Banco**: database e role `bookings`, schema `public`, tabelas `bookings` e
+  `resources`, com `tenant_id` à frente da chave. Persistência híbrida:
+  `resource_id` é coluna tipada em `bookings` porque `FindBookingByResource`
+  filtra por ela; o resto do estado vai em `snapshot` `jsonb` (ADR-053).
+- **Instante**: inteiro de nanossegundos no domínio.
 
 ## Políticas transversais
 
-- **Idempotência**: o comando de criação (`Reserve`) entra por `POST` com chave
-  de idempotência declarada; os demais são idempotentes por identidade do
-  agregado (RST-02; FND-04).
+- **Idempotência**: o comando de criação (`Reserve`) entra pelo `bff` por `POST`
+  com chave de idempotência declarada, que segue na metadata gRPC só para o log;
+  os demais são idempotentes por identidade do agregado (RST-02; FND-04).
 - **Autorização**: pelo gancho de autorização do bloco `application`, antes da
   transação (FND-04 §3.2).
 - **Auditoria**: pela trilha de auditoria do kernel (FND-08;
@@ -147,10 +167,9 @@ created: 2026-09-10
 
 ## Critérios de aceite
 
-- [x] Os gates do workspace verdes para `bookings`,
-  `bookings`, `bookings`,
-  `bookings` e `bookings` (`fmt-check`, `vet`,
-  `build`, `lint`, `test-race` com Postgres, verificador com `--base`).
+- [x] Os gates do workspace verdes para `bookings` (`fmt-check`, `vet`,
+  `build`, `lint`, `test-race` e `test-distributed` com Postgres, verificador
+  com `--base` e `dmpf-context-check`).
 - [x] Cenários:
 
 ```text
@@ -193,7 +212,6 @@ ENTÃO devolve exatamente as duas, fora de qualquer UoW
   estoque; `quantity` é só um limite de forma.
 - **Consumo de eventos**: `bookings` não consome nada; sem inbox, sem
   consumer.
-- **Publicação de `BookingCancelled` e `ResourceRegistered`**: ficam como
-  eventos de domínio; só `BookingReserved` vira integration event nesta versão.
-- **Composition root** (`cmd/` com `--role`): copiar `reference`, fora do
-  harness.
+- **Composition root**: o esqueleto de `app/` (config, wiring, telemetria,
+  catálogo e `app/rpc`) e o `cmd/` com `--role` nascem do generator; o harness
+  escreve o conteúdo de domínio dentro deles.

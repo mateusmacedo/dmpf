@@ -26,7 +26,7 @@ func NewConfig(ctx context.Context, rt *otelboot.Runtime, catalog channel.Catalo
 		Logger:      rt.Logger(),
 	}
 	if insecure {
-		rt.Logger().WarnContext(ctx, "kafka transport without TLS: DMPF_KAFKA_INSECURE is set (development and CI only)")
+		rt.Logger().WarnContext(ctx, "kafka transport without TLS: KAFKA_INSECURE is set (development and CI only)")
 		cfg.InsecureForDevelopmentOnly = true
 	} else {
 		cfg.TLS = &tls.Config{MinVersion: tls.VersionTLS12}

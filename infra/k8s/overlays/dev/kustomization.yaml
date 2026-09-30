@@ -2,9 +2,9 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 # dev: tudo dentro do cluster — Postgres e Redpanda das bases, sem TLS nem no
-# Kafka nem no gRPC interno, bancos dos contextos criados pelo Job
-# dmpf-databases, schema aplicado pelo papel api de cada contexto
-# (DMPF_MIGRATE), Grafana anônimo. Credenciais de desenvolvimento geradas aqui;
+# Kafka nem no gRPC interno, banco e role de cada app criados pelo Job
+# databases, schema aplicado pelo papel api de cada contexto
+# (MIGRATE), Grafana anônimo. Credenciais de desenvolvimento geradas aqui;
 # nada disto vale para outro ambiente.
 
 namespace: dmpf-dev
@@ -13,32 +13,10 @@ resources:
   - ../../base/postgres
   - ../../base/redpanda
   - ../../../observability
-  - ../../base/orders
-  - ../../base/reservations
-  - ../../base/bff
-  - job-databases.yaml
-
-images:
-  - name: ghcr.io/mateusmacedo/bff
-    newTag: dev
-  - name: ghcr.io/mateusmacedo/orders
-    newTag: dev
-  - name: ghcr.io/mateusmacedo/reservations
-    newTag: dev
+  - apps
+  - databases
 
 secretGenerator:
-  - name: orders
-    literals:
-      - DMPF_PG_DSN=postgres://app:app@postgres-0.postgres:5432/dmpf_orders?sslmode=disable
-      - DMPF_KAFKA_BROKERS=redpanda-0.redpanda:9092
-    options:
-      disableNameSuffixHash: true
-  - name: reservations
-    literals:
-      - DMPF_PG_DSN=postgres://app:app@postgres-0.postgres:5432/dmpf_reservations?sslmode=disable
-      - DMPF_KAFKA_BROKERS=redpanda-0.redpanda:9092
-    options:
-      disableNameSuffixHash: true
   - name: grafana-admin
     literals:
       - password=admin
@@ -46,9 +24,4 @@ secretGenerator:
       disableNameSuffixHash: true
 
 patches:
-  - path: configmap-orders-patch.yaml
-  - path: configmap-reservations-patch.yaml
-  - path: configmap-bff-patch.yaml
-  - path: deployment-orders-api-patch.yaml
-  - path: deployment-reservations-api-patch.yaml
   - path: grafana-anonymous-patch.yaml

@@ -10,7 +10,7 @@ import (
 
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/application"
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/provider"
-	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/application"
+	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/pg"
@@ -18,7 +18,20 @@ import (
 
 // Tables of this context, which the kit cannot know: it resets the shared
 // DMPF tables and the ones named here.
-var Tables = []string{"bookings_booking", "bookings_resource"}
+var Tables = []string{"bookings", "resources"}
+
+// PoolOptions is the database this context's suites run in.
+var PoolOptions = pg.Options{
+	Project:      "bookings",
+	Capabilities: []postgres.Capability{postgres.Outbox},
+	Schemas:      []string{provider.Schema},
+	Tables:       Tables,
+}
+
+func OpenPool(t testing.TB) *pgxpool.Pool {
+	t.Helper()
+	return pg.OpenPool(t, PoolOptions)
+}
 
 // Harness is the application service composed over the Postgres the suite
 // runs against, with the clock and identifiers the test injects (KIT-07).
@@ -31,11 +44,7 @@ type Harness struct {
 // the instrumentation: a harness observes effects, not telemetry.
 func NewBookings(t testing.TB, clock ports.Clock, ids ports.IDGenerator) Harness {
 	t.Helper()
-	pool := pg.OpenPool(t, Tables...)
-	if err := postgres.Migrate(context.Background(), pool, provider.Schema); err != nil {
-		t.Fatalf("appkit.NewBookings: Migrate: %v", err)
-	}
-	pg.ResetTables(t, pool, Tables...)
+	pool := OpenPool(t)
 	return Harness{
 		Service: application.Service{
 			UoW:            postgres.NewUnitOfWork(pool, bind),
@@ -43,7 +52,7 @@ func NewBookings(t testing.TB, clock ports.Clock, ids ports.IDGenerator) Harness
 			ResourceReader: provider.NewBookingsByResourceReader(postgres.NewReadPool(pool)),
 			Clock:          clock,
 			IDs:            ids,
-			Authorize:      kernel.AllowAll[application.Operation](),
+			Authorize:      usecase.AllowAll[application.Operation](),
 		},
 		Pool: pool,
 	}
@@ -72,7 +81,7 @@ type Enqueued struct {
 func (h Harness) Outbox(t testing.TB) []Enqueued {
 	t.Helper()
 	const query = `SELECT message_id, message_type, aggregate_version, destination, status
-		FROM dmpf_outbox ORDER BY id`
+		FROM outbox ORDER BY id`
 
 	rows, err := h.Pool.Query(context.Background(), query)
 	if err != nil {

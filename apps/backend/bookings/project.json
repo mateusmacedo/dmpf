@@ -5,6 +5,17 @@
   "sourceRoot": "apps/backend/bookings",
   "tags": ["type:app", "scope:backend", "stack:go", "layer:apps"],
   "targets": {
+    "nx-release-publish": {
+      "executor": "nx:noop"
+    },
+    "tidy": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bash ../../../tools/go-tidy.sh",
+        "cwd": "{projectRoot}"
+      }
+    },
     "fmt-check": {
       "executor": "nx:run-commands",
       "cache": true,
@@ -35,16 +46,16 @@
       "executor": "nx:run-commands",
       "cache": false,
       "inputs": ["go", "^go"],
+      "options": {
+        "command": "bash ../../../tools/test-env.sh go test -race -count=1 -p 1 -tags=integration ./...",
+        "cwd": "{projectRoot}"
+      },
       "dependsOn": [
         {
-          "projects": ["postgres"],
-          "target": "test-race"
+          "projects": ["testkit"],
+          "target": "test-infra-up"
         }
-      ],
-      "options": {
-        "command": "go test -race -count=1 -p 1 -tags=integration ./...",
-        "cwd": "{projectRoot}"
-      }
+      ]
     },
     "govulncheck": {
       "executor": "nx:run-commands",
@@ -57,16 +68,41 @@
     "serve-api": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "go run ./cmd --role api",
-        "cwd": "{projectRoot}"
-      }
+        "command": "set -a; [ ! -f deploy/.env ] || . deploy/.env; set +a; exec go run ./cmd --role api",
+        "cwd": "{projectRoot}",
+        "envFile": "{projectRoot}/deploy/.env.example"
+      },
+      "continuous": true,
+      "dependsOn": [
+        {
+          "projects": ["bff"],
+          "target": "infra-up"
+        },
+        {
+          "projects": ["bff"],
+          "target": "infra-session"
+        }
+      ]
     },
     "serve-relay": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "go run ./cmd --role relay",
+        "command": "set -a; [ ! -f deploy/.env ] || . deploy/.env; set +a; exec go run ./cmd --role relay",
+        "cwd": "{projectRoot}",
+        "envFile": "{projectRoot}/deploy/.env.example"
+      },
+      "continuous": true,
+      "dependsOn": ["serve-api"]
+    },
+    "deploy-env": {},
+    "docker:run-relay": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "docker run --rm --name bookings-relay --network host --env-file deploy/.env apps-backend-bookings --role relay",
         "cwd": "{projectRoot}"
-      }
+      },
+      "continuous": true,
+      "dependsOn": ["docker:run"]
     },
     "test-distributed": {
       "executor": "nx:run-commands",
@@ -74,12 +110,17 @@
       "inputs": ["go", "^go"],
       "dependsOn": [
         {
+          "projects": ["testkit"],
+          "target": "test-infra-up"
+        },
+        {
           "projects": ["postgres", "app"],
           "target": "test-race"
-        }
+        },
+        "test-race"
       ],
       "options": {
-        "command": "go test -race -count=1 -p 1 -tags=integration,distributed ./distkit/...",
+        "command": "bash ../../../tools/test-env.sh go test -race -count=1 -p 1 -tags=integration,distributed ./distkit/...",
         "cwd": "{projectRoot}"
       }
     }

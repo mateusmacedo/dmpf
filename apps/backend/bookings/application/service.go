@@ -2,14 +2,14 @@ package application
 
 import (
 	"context"
+	"errors"
 	"fmt"
-
-	"github.com/mateusmacedo/dmpf/libs/backend/go/application"
-	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
-	port "github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/domain"
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/ports"
+	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
+	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
+	port "github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
 
 const (
@@ -18,11 +18,11 @@ const (
 
 	Destination = "bookings.events"
 
-	OperationReserve        = "bookings.Reserve"
-	OperationCancel         = "bookings.Cancel"
-	OperationRegister       = "bookings.Register"
-	OperationFindBooking    = "bookings.FindBooking"
-	OperationFindByResource = "bookings.FindByResource"
+	OperationReserveBooking        = "bookings.ReserveBooking"
+	OperationCancelBooking         = "bookings.CancelBooking"
+	OperationRegisterResource      = "bookings.RegisterResource"
+	OperationFindBooking           = "bookings.FindBooking"
+	OperationFindBookingByResource = "bookings.FindBookingByResource"
 )
 
 const maxEventsPerCommand = 1
@@ -35,25 +35,25 @@ type Resources struct {
 
 type Operation interface{ isOperation() }
 
-type Reserve struct {
+type ReserveBooking struct {
 	BookingID  domain.BookingID
 	ResourceID domain.ResourceID
 	Quantity   int
 }
 
-func (Reserve) isOperation() {}
+func (ReserveBooking) isOperation() {}
 
-type Cancel struct {
+type CancelBooking struct {
 	BookingID domain.BookingID
 }
 
-func (Cancel) isOperation() {}
+func (CancelBooking) isOperation() {}
 
-type Register struct {
+type RegisterResource struct {
 	Code domain.ResourceCode
 }
 
-func (Register) isOperation() {}
+func (RegisterResource) isOperation() {}
 
 // FindBooking and FindBookingByResource ask for state without changing it. A
 // query is an entry point like any other: authenticating at the route does not
@@ -76,7 +76,7 @@ type Service struct {
 	ResourceReader ports.BookingsByResourceReader
 	Clock          port.Clock
 	IDs            port.IDGenerator
-	Authorize      application.Authorize[Operation]
+	Authorize      usecase.Authorize[Operation]
 
 	Instrumentation port.Instrumentation
 }
@@ -90,14 +90,29 @@ func (s Service) instrumentation() port.Instrumentation {
 	return s.Instrumentation
 }
 
+// authorizationResult categorises a step 1 error. Only a declared denial is
+// Denied; anything else is technical failure, because inferring a refusal from
+// an unrelated error would report a false negative of access.
 func authorizationResult(err error) port.Result {
+	if errors.Is(err, port.ErrDenied) {
+		return port.Result{Outcome: port.OutcomeDenied}
+	}
 	return port.Result{Outcome: port.OutcomeFailed, Err: err}
+}
+
+// outcomeCategory reads the terminal category off the outcome, which is the
+// only place that knows which branch of the UPR was taken.
+func outcomeCategory[R any](outcome usecase.Outcome[R]) port.OutcomeCategory {
+	if _, refused := outcome.Rejection(); refused {
+		return port.OutcomeRejected
+	}
+	return port.OutcomeAccepted
 }
 
 func enqueueAll(
 	ctx context.Context,
 	outbox port.Outbox,
-	identity application.Identity,
+	identity usecase.Identity,
 	aggregateType string,
 	aggregateID string,
 	written port.Version,
@@ -117,7 +132,7 @@ func enqueueAll(
 			AggregateID:      aggregateID,
 			AggregateVersion: written,
 			Event:            event,
-			Context:          application.MessageContextFor(ctx, identity.MessageIDs[i]),
+			Context:          usecase.MessageContextFor(ctx, identity.MessageIDs[i]),
 		}
 		if err := outbox.Enqueue(ctx, entry); err != nil {
 			return err

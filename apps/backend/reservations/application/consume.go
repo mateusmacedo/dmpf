@@ -5,25 +5,24 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/mateusmacedo/dmpf/libs/backend/go/application"
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
+	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
-
-	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
 )
 
 // Consume walks the seven steps of FND-04 §6.3. Step 5 is the only branch
 // point (INB-11): R2, R3 and R4 short-circuit without writing, and only R1
 // reaches axis 2. The broker effect of §6.4 is the adapter's, not this
 // method's (INB-08).
-func (s Service) Consume(ctx context.Context, cmd ConsumeOrderPlaced) (application.Disposition, error) {
+func (s Service) ConsumeOrderPlaced(ctx context.Context, cmd ConsumeOrderPlaced) (usecase.Disposition, error) {
 	if err := s.Authorize(ctx, cmd); err != nil {
-		return application.Classify(err), err
+		return usecase.Classify(err), err
 	}
 
-	identity := application.ResolveIdentity(s.Clock, s.IDs, maxEventsPerCommand)
+	identity := usecase.ResolveIdentity(s.Clock, s.IDs, maxEventsPerCommand)
 
-	var disposition application.Disposition
+	var disposition usecase.Disposition
 	err := s.UoW.Within(ctx, func(ctx context.Context, res Resources) error {
 		reception, err := res.Inbox.Register(ctx, ports.Receipt{
 			Consumer:    s.Consumer,
@@ -39,13 +38,13 @@ func (s Service) Consume(ctx context.Context, cmd ConsumeOrderPlaced) (applicati
 			func(p ports.Pending) error {
 				return s.consumeFirst(ctx, res, cmd, identity, p, &disposition)
 			},
-			func() error { disposition = application.R2; return nil },
-			func() error { disposition = application.R3; return nil },
-			func() error { disposition = application.R4; return nil },
+			func() error { disposition = usecase.R2; return nil },
+			func() error { disposition = usecase.R3; return nil },
+			func() error { disposition = usecase.R4; return nil },
 		)
 	})
 	if err != nil {
-		return application.Classify(err), err
+		return usecase.Classify(err), err
 	}
 	return disposition, nil
 }
@@ -56,9 +55,9 @@ func (s Service) consumeFirst(
 	ctx context.Context,
 	res Resources,
 	cmd ConsumeOrderPlaced,
-	identity application.Identity,
+	identity usecase.Identity,
 	pending ports.Pending,
-	disposition *application.Disposition,
+	disposition *usecase.Disposition,
 ) error {
 	snapshot, stored, err := res.Reservations.Load(ctx, cmd.Order)
 	var reservation *domain.Reservation
@@ -73,10 +72,10 @@ func (s Service) consumeFirst(
 
 	accepted, rejection := reservation.Reserve(domain.Reserve{
 		Items: cmd.Items,
-		At:    domain.Instant(identity.OccurredAt.Unix()),
+		At:    domain.Instant(identity.OccurredAt),
 	})
 	if rejection != nil {
-		*disposition = application.R1D2
+		*disposition = usecase.R1D2
 		return pending.Complete(ctx, ports.Completion{
 			Status:    ports.StatusRejected,
 			At:        identity.OccurredAt,
@@ -88,7 +87,7 @@ func (s Service) consumeFirst(
 		if errors.Is(err, ports.ErrVersionConflict) {
 			// MAP-07: the predicate is declared here — a reread replays the
 			// decision instead of repeating one already taken.
-			return application.NewFailure(application.Conflict, true, err)
+			return usecase.NewFailure(usecase.Conflict, true, err)
 		}
 		return err
 	}
@@ -96,7 +95,7 @@ func (s Service) consumeFirst(
 		return err
 	}
 
-	*disposition = application.R1D1
+	*disposition = usecase.R1D1
 	return pending.Complete(ctx, ports.Completion{Status: ports.StatusProcessed, At: identity.OccurredAt})
 }
 
@@ -105,7 +104,7 @@ func (s Service) consumeFirst(
 func enqueueAll(
 	ctx context.Context,
 	outbox ports.Outbox,
-	identity application.Identity,
+	identity usecase.Identity,
 	order domain.OrderID,
 	written ports.Version,
 	events []kernel.DomainEvent,
@@ -125,7 +124,7 @@ func enqueueAll(
 			AggregateID:      string(order),
 			AggregateVersion: written,
 			Event:            event,
-			Context:          application.MessageContextFor(ctx, identity.MessageIDs[i]),
+			Context:          usecase.MessageContextFor(ctx, identity.MessageIDs[i]),
 		}
 		if err := outbox.Enqueue(ctx, entry); err != nil {
 			return err

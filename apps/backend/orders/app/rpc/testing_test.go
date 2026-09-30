@@ -21,7 +21,7 @@ import (
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/application"
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/domain"
 	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
-	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
+	kernelgrpc "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/memory"
 	obsclock "github.com/mateusmacedo/dmpf/libs/backend/go/observability/clock"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/metrics"
@@ -29,7 +29,7 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/admission"
 )
 
-var ordersTable = memory.Table[domain.OrderID, domain.Snapshot]{
+var orderTable = memory.Table[domain.OrderID, domain.Snapshot]{
 	Name:  "orders",
 	Clone: func(s domain.Snapshot) domain.Snapshot { s.Items = slices.Clone(s.Items); return s },
 }
@@ -60,7 +60,7 @@ type capture struct {
 }
 
 func (c *capture) intercept(ctx context.Context, req any, _ *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
-	if execution, ok := rpc.ExecutionContextFrom(ctx); ok {
+	if execution, ok := ports.ExecutionContextFrom(ctx); ok {
 		c.execution, c.present = execution, true
 	}
 	return handler(ctx, req)
@@ -72,9 +72,9 @@ func newHarness(t *testing.T, limit admission.Limit) *harness {
 	store := memory.New()
 	service := application.Service{
 		UoW: memory.NewUnitOfWork(store, func(tx *memory.Tx) application.Resources {
-			return application.Resources{Orders: ordersTable.Repository(tx), Outbox: tx.Outbox()}
+			return application.Resources{Orders: orderTable.Repository(tx), Outbox: tx.Outbox()}
 		}),
-		Reader:    ordersTable.Reader(store),
+		Reader:    orderTable.Reader(store),
 		Clock:     memory.FixedClock{At: occurred},
 		IDs:       &memory.SequenceIDs{Prefix: "m-"},
 		Authorize: usecase.AllowAll[application.Operation](),
@@ -90,16 +90,16 @@ func newHarness(t *testing.T, limit admission.Limit) *harness {
 	if err != nil {
 		t.Fatalf("DeclareTenants() = %v", err)
 	}
-	ctrl, err := admission.New(admission.Config{Limits: rpc.Limits(limit), Tenants: tenants, MaxKeys: 16, Clock: obsclock.System()})
+	ctrl, err := admission.New(admission.Config{Limits: kernelgrpc.MethodLimits(rpc.ServiceName, rpc.Methods(), limit), Tenants: tenants, MaxKeys: 16, Clock: obsclock.System()})
 	if err != nil {
 		t.Fatalf("admission.New() = %v", err)
 	}
 	execution := &capture{}
-	server, _, err := kernel.NewServer(kernel.ServerConfig{
+	server, _, err := kernelgrpc.NewServer(kernelgrpc.ServerConfig{
 		InsecureForDevelopmentOnly: true,
 		Services:                   []string{rpc.ServiceName},
 		UnaryInterceptors: append(
-			rpc.Interceptors(provider.Tracer("rpc-test"), ctrl, nil, slog.New(slog.NewJSONHandler(logs, nil))),
+			kernelgrpc.ServerInterceptors(rpc.ServiceName, provider.Tracer("rpc-test"), ctrl, nil, slog.New(slog.NewJSONHandler(logs, nil))),
 			execution.intercept,
 		),
 	})
@@ -143,5 +143,5 @@ func withDeadline(t *testing.T) context.Context {
 // call (IDN-15).
 func withTenant(t *testing.T) context.Context {
 	t.Helper()
-	return metadata.AppendToOutgoingContext(withDeadline(t), rpc.TenantKey, testTenant)
+	return metadata.AppendToOutgoingContext(withDeadline(t), kernelgrpc.TenantKey, testTenant)
 }

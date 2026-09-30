@@ -214,11 +214,21 @@ func TestValidUntilSemHoraValeODiaInteiro(t *testing.T) {
 const (
 	moduloDomain      = "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
 	moduloConformance = "github.com/mateusmacedo/dmpf/tools/dmpf-conformance"
+	moduloContrato    = "github.com/mateusmacedo/dmpf/apps/backend/orders/contract"
 )
 
-// Cópia da fixture em disco temporário com dois módulos no go.work — um em
-// libs/, outro em tools/ — e a evidência da 0.1.0 reaproveitada na release.
+// Cópia da fixture em disco temporário com três módulos no go.work — um em
+// libs/, um em tools/ e o contrato de um contexto — e a evidência da 0.1.0
+// reaproveitada na release.
 func workspaceComModulos(t *testing.T, release string) string {
+	return workspaceDaRelease(t, release, true)
+}
+
+func workspaceSoDoKernel(t *testing.T, release string) string {
+	return workspaceDaRelease(t, release, false)
+}
+
+func workspaceDaRelease(t *testing.T, release string, comContrato bool) string {
 	t.Helper()
 	dir := t.TempDir()
 	if err := os.CopyFS(dir, os.DirFS(workspace)); err != nil {
@@ -240,7 +250,12 @@ func workspaceComModulos(t *testing.T, release string) string {
 			t.Fatal(err)
 		}
 	}
-	escrever("go.work", "go 1.26.6\n\nuse (\n\t./libs/backend/go/domain\n\t./tools/dmpf-conformance\n)\n")
+	if comContrato {
+		escrever("go.work", "go 1.26.6\n\nuse (\n\t./apps/backend/orders/contract\n\t./libs/backend/go/domain\n\t./tools/dmpf-conformance\n)\n")
+		escrever("apps/backend/orders/contract/go.mod", "module "+moduloContrato+"\n\ngo 1.26.6\n")
+	} else {
+		escrever("go.work", "go 1.26.6\n\nuse (\n\t./libs/backend/go/domain\n\t./tools/dmpf-conformance\n)\n")
+	}
 	escrever("libs/backend/go/domain/go.mod", "module "+moduloDomain+"\n\ngo 1.26.6\n")
 	escrever("tools/dmpf-conformance/go.mod", "module "+moduloConformance+"\n\ngo 1.26.6\n")
 	return dir
@@ -302,7 +317,7 @@ func TestB012TagDeModuloAusenteOuForaDoAlvoReprova(t *testing.T) {
 	}
 	for _, c := range casos {
 		t.Run(c.nome, func(t *testing.T) {
-			raiz := workspaceComModulos(t, "0.2.0")
+			raiz := workspaceSoDoKernel(t, "0.2.0")
 			doc := documentoDaRelease(t, "0.2.0")
 			comKernel(&doc, entradaKernel(moduloDomain, "0.2.0", StateCandidata))
 			alcance := &alcanceFixo{por: map[string]TagReach{"libs/backend/go/domain/v0.2.0": c.alcance}}
@@ -312,7 +327,7 @@ func TestB012TagDeModuloAusenteOuForaDoAlvoReprova(t *testing.T) {
 }
 
 func TestB012ResolveATagPeloDiretorioDoModuloNoGoWork(t *testing.T) {
-	raiz := workspaceComModulos(t, "0.2.0")
+	raiz := workspaceSoDoKernel(t, "0.2.0")
 	doc := documentoDaRelease(t, "0.2.0")
 	comKernel(&doc,
 		entradaKernel(moduloDomain, "0.2.0", StateCandidata),
@@ -328,6 +343,41 @@ func TestB012ResolveATagPeloDiretorioDoModuloNoGoWork(t *testing.T) {
 	slices.Sort(alcance.pedidas)
 	if want := []string{"libs/backend/go/domain/v0.2.0", "tools/dmpf-conformance/v0.2.1"}; !slices.Equal(alcance.pedidas, want) {
 		t.Fatalf("tags perguntadas %v, esperado %v", alcance.pedidas, want)
+	}
+}
+
+func TestB012CobreOContratoDoContextoPelaTagDoSeuDiretorio(t *testing.T) {
+	casos := []struct {
+		nome    string
+		alcance TagReach
+		codigos []rule.Code
+	}{
+		{nome: "tag ausente", alcance: TagMissing, codigos: []rule.Code{rule.CodeB012}},
+		{nome: "tag ancestral", alcance: TagAncestor},
+	}
+	for _, c := range casos {
+		t.Run(c.nome, func(t *testing.T) {
+			raiz := workspaceComModulos(t, "0.2.0")
+			doc := documentoDaRelease(t, "0.2.0")
+			contrato := entradaKernel(moduloContrato, "0.1.0", StateCandidata)
+			contrato.Subject = SubjectContract
+			comKernel(&doc, contrato)
+			alcance := &alcanceFixo{por: map[string]TagReach{"apps/backend/orders/contract/v0.1.0": c.alcance}}
+			exigeCodigos(t, validarComAlcance(t, doc, "0.2.0", raiz, alcance), c.codigos...)
+			if want := []string{"apps/backend/orders/contract/v0.1.0"}; !slices.Equal(alcance.pedidas, want) {
+				t.Fatalf("tags perguntadas %v, esperado %v", alcance.pedidas, want)
+			}
+		})
+	}
+}
+
+func TestB012ReprovaModuloDeContratoSemEntradaNoBOM(t *testing.T) {
+	raiz := workspaceComModulos(t, "0.2.0")
+	doc := documentoDaRelease(t, "0.2.0")
+	ds := validarComAlcance(t, doc, "0.2.0", raiz, &alcanceFixo{})
+	exigeCodigos(t, ds, rule.CodeB012)
+	if !strings.Contains(listar(ds), moduloContrato) {
+		t.Fatalf("B012 sem o módulo de contrato ausente do BOM:\n%s", listar(ds))
 	}
 }
 
@@ -356,7 +406,7 @@ func TestB012NaoAlcancaRelease010NemRejeitadaNemSemAncestry(t *testing.T) {
 		}
 	})
 	t.Run("rejeitada ignorada", func(t *testing.T) {
-		raiz := workspaceComModulos(t, "0.2.0")
+		raiz := workspaceSoDoKernel(t, "0.2.0")
 		doc := documentoDaRelease(t, "0.2.0")
 		comKernel(&doc, entradaKernel(moduloDomain, "0.2.0", StateRejeitada))
 		if ds := validarComAlcance(t, doc, "0.2.0", raiz, &alcanceFixo{}); len(ds) > 0 {
@@ -364,7 +414,7 @@ func TestB012NaoAlcancaRelease010NemRejeitadaNemSemAncestry(t *testing.T) {
 		}
 	})
 	t.Run("sem Ancestry a regra fica desligada", func(t *testing.T) {
-		raiz := workspaceComModulos(t, "0.2.0")
+		raiz := workspaceSoDoKernel(t, "0.2.0")
 		doc := documentoDaRelease(t, "0.2.0")
 		comKernel(&doc, entradaKernel(moduloDomain, "0.2.0", StateCandidata))
 		if ds := validarComAlcance(t, doc, "0.2.0", raiz, nil); len(ds) > 0 {

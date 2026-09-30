@@ -6,13 +6,12 @@ import (
 	"context"
 	"testing"
 
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/appkit"
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/clock"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/ids"
-
-	"github.com/mateusmacedo/dmpf/apps/backend/reservations/appkit"
-	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
 )
 
 const at = ports.Instant(1_757_000_000_000_000_000)
@@ -45,7 +44,7 @@ func TestRejectedShowsNothingButTheInboxRow(t *testing.T) {
 	if got := h.Effects(t); got != (appkit.Effects{Inbox: 1}) {
 		t.Fatalf("effects = %+v, want only the inbox row", got)
 	}
-	if status, lastError := h.InboxRow(t, "evt-2"); status != "rejected" || lastError == nil || *lastError != string(domain.CodeNothingToReserve) {
+	if status, lastError := h.InboxRow(t, "evt-2"); status != "rejected" || lastError == nil || *lastError != string(domain.CodeReservationNothingToReserve) {
 		t.Fatalf("inbox = (%s, %v)", status, lastError)
 	}
 }
@@ -65,7 +64,7 @@ func TestRedeliveryWithANewMessageIDDoesNotDuplicateTheEffect(t *testing.T) {
 	if got := h.Effects(t); got != (appkit.Effects{Inbox: 2, Reservations: 1, Outbox: 1}) {
 		t.Fatalf("effects = %+v, want two inbox rows and still one reservation and one event", got)
 	}
-	if status, lastError := h.InboxRow(t, "evt-9"); status != "rejected" || lastError == nil || *lastError != string(domain.CodeAlreadyReserved) {
+	if status, lastError := h.InboxRow(t, "evt-9"); status != "rejected" || lastError == nil || *lastError != string(domain.CodeReservationAlreadyReserved) {
 		t.Fatalf("inbox evt-9 = (%s, %v)", status, lastError)
 	}
 	if ack.Acks != 1 {

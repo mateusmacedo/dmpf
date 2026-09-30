@@ -9,6 +9,7 @@ import (
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/metric"
+	sdklog "go.opentelemetry.io/otel/sdk/log"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	sdkresource "go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -39,6 +40,7 @@ var running atomic.Bool
 type Runtime struct {
 	tracerProvider *sdktrace.TracerProvider
 	meterProvider  *sdkmetric.MeterProvider
+	loggerProvider *sdklog.LoggerProvider
 	processor      *ClassAwareProcessor
 	instruments    *metrics.Instruments
 	logger         *slog.Logger
@@ -77,8 +79,22 @@ func Start(ctx context.Context, config Config) (*Runtime, error) {
 	return runtime, nil
 }
 
+func resourceOf(config Config) *sdkresource.Resource {
+	return sdkresource.NewWithAttributes(semconv.SchemaURL, config.ResourceAttributes()...)
+}
+
+// NewLoggerProvider batches the log records of the process to exporter, under
+// the same resource as its traces and metrics. It is built before Start
+// because the logger of the process exists before the pipelines do.
+func NewLoggerProvider(config Config, exporter sdklog.Exporter) *sdklog.LoggerProvider {
+	return sdklog.NewLoggerProvider(
+		sdklog.WithResource(resourceOf(config)),
+		sdklog.WithProcessor(sdklog.NewBatchProcessor(exporter)),
+	)
+}
+
 func build(config Config) (*Runtime, error) {
-	resource := sdkresource.NewWithAttributes(semconv.SchemaURL, config.ResourceAttributes()...)
+	resource := resourceOf(config)
 
 	meterOptions := []sdkmetric.Option{sdkmetric.WithResource(resource)}
 	if config.MetricReader != nil {
@@ -120,11 +136,12 @@ func build(config Config) (*Runtime, error) {
 			sdktrace.WithSampler(NewClassSampler(config.EffectiveSampling())),
 			sdktrace.WithSpanProcessor(processor),
 		),
-		meterProvider: meterProvider,
-		processor:     processor,
-		instruments:   instruments,
-		logger:        logger,
-		service:       config.Resource.ServiceName,
+		meterProvider:  meterProvider,
+		loggerProvider: config.LoggerProvider,
+		processor:      processor,
+		instruments:    instruments,
+		logger:         logger,
+		service:        config.Resource.ServiceName,
 	}, nil
 }
 
@@ -177,6 +194,9 @@ func (r *Runtime) Shutdown(ctx context.Context) error {
 			r.tracerProvider.Shutdown(ctx),
 			r.meterProvider.Shutdown(ctx),
 		)
+		if r.loggerProvider != nil {
+			r.shutdownErr = errors.Join(r.shutdownErr, r.loggerProvider.Shutdown(ctx))
+		}
 		running.Store(false)
 	})
 	return r.shutdownErr

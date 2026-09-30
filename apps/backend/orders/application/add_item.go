@@ -6,15 +6,15 @@ import (
 	"fmt"
 
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/domain"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/application"
+	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
 
 // AddItem walks the nine steps of FND-04 §3.2. Identity is resolved before the
 // transaction opens, because a re-execution would mint new identity for the
 // same fact (UOW-09).
-func (s Service) AddItem(ctx context.Context, cmd AddItem) (application.Outcome[domain.ItemAccepted], error) {
-	var zero application.Outcome[domain.ItemAccepted]
+func (s Service) AddItem(ctx context.Context, cmd AddItem) (usecase.Outcome[domain.ItemAccepted], error) {
+	var zero usecase.Outcome[domain.ItemAccepted]
 
 	instrumentation := s.instrumentation()
 	ctx, end := instrumentation.BeginOperation(ctx, OperationAddItem)
@@ -24,7 +24,7 @@ func (s Service) AddItem(ctx context.Context, cmd AddItem) (application.Outcome[
 		return zero, err
 	}
 
-	identity := application.ResolveIdentity(s.Clock, s.IDs, maxEventsPerCommand)
+	identity := usecase.ResolveIdentity(s.Clock, s.IDs, maxEventsPerCommand)
 
 	outcome := zero
 	err := s.UoW.Within(ctx, func(ctx context.Context, res Resources) error {
@@ -36,13 +36,13 @@ func (s Service) AddItem(ctx context.Context, cmd AddItem) (application.Outcome[
 		accepted, rejection := order.AddItem(domain.AddItem{
 			SKU:      cmd.SKU,
 			Quantity: cmd.Quantity,
-			At:       domain.Instant(identity.OccurredAt.Unix()),
+			At:       domain.Instant(identity.OccurredAt),
 		})
 		if rejection != nil {
 			// Returning nil commits a transaction with no effect, on purpose:
 			// aborting would make a refusal indistinguishable from a technical
 			// failure, which DEC-04 forbids (FND-04 §3.2).
-			outcome = application.Rejected[domain.ItemAccepted](rejection)
+			outcome = usecase.Rejected[domain.ItemAccepted](rejection)
 			return nil
 		}
 
@@ -53,7 +53,7 @@ func (s Service) AddItem(ctx context.Context, cmd AddItem) (application.Outcome[
 			return err
 		}
 
-		outcome = application.Accepted(accepted.Response())
+		outcome = usecase.Accepted(accepted.Response())
 		return nil
 	})
 	if err != nil {

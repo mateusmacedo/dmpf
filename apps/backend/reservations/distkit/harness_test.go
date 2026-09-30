@@ -6,9 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb"
-
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/distkit"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb"
 )
 
 // TestDistkitRole is the body of every child process; it skips in the parent.

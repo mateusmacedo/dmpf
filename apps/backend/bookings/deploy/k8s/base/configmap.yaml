@@ -1,0 +1,16 @@
+# Valores não sensíveis dos dois papéis; cada papel só lê o que lhe cabe.
+# Os opt-outs de TLS nascem desligados e o transporte gRPC não tem default:
+# o overlay declara o opt-out de desenvolvimento ou os arquivos do certificado.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: bookings
+data:
+  SERVICE: bookings
+  GRPC_ADDR: ':9090'
+  KAFKA_BOOKINGS_TOPIC: bookings.events
+  KAFKA_BOOKINGS_DLQ: bookings.events.dlq
+  KAFKA_GROUP: bookings
+  KAFKA_INSECURE: 'false'
+  OTLP_ENDPOINT: otel-collector:4317
+  OTLP_INSECURE: 'false'

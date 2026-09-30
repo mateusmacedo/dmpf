@@ -7,13 +7,13 @@ import kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
 func (r *Reservation) Reserve(cmd Reserve) (kernel.Accepted[ReservedResponse], *kernel.Rejection) {
 	next := r.clone()
 	if cmd.Items <= 0 {
-		return kernel.Accepted[ReservedResponse]{}, kernel.Reject(CodeNothingToReserve, "nothing to reserve")
+		return kernel.Accepted[ReservedResponse]{}, kernel.Reject(CodeReservationNothingToReserve, "nothing to reserve")
 	}
 	switch next.status {
 	case Confirmed:
-		return kernel.Accepted[ReservedResponse]{}, kernel.Reject(CodeAlreadyReserved, "reservation is already confirmed")
-	case Canceled:
-		return kernel.Accepted[ReservedResponse]{}, kernel.Reject(CodeReservationCanceled, "reservation is canceled")
+		return kernel.Accepted[ReservedResponse]{}, kernel.Reject(CodeReservationAlreadyReserved, "reservation is already confirmed")
+	case Cancelled:
+		return kernel.Accepted[ReservedResponse]{}, kernel.Reject(CodeReservationCancelled, "reservation is canceled")
 	}
 	next.status = Confirmed
 	next.items = cmd.Items

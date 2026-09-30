@@ -2,7 +2,7 @@
 
 Guia **derivado e não normativo**. Duração sugerida: **90 minutos**.
 Pré-requisito de leitura: [playbook QA](./dmpf-qa-playbook.md) §§1–3.
-Norma: [FND-09](../dmpf/testes-interop.md). Código: as fixtures em `contracts/fixtures/{orders,reservations}/projection/v1/` e o molde do teste em `libs/backend/go/testkit/domainkit/fixture_test.go`.
+Norma: [FND-09](../dmpf/testes-interop.md). Código: as fixtures em `apps/backend/{orders,reservations}/contract/fixtures/projection/v1/` e o molde do teste em `libs/backend/go/testkit/domainkit/fixture_test.go`.
 
 Objetivo: o time de QA abre os arquivos **já versionados**, vê como cada caso vira oráculo, e sai capaz de escrever o próximo `.golden` no mesmo formato.
 
@@ -13,10 +13,10 @@ Objetivo: o time de QA abre os arquivos **já versionados**, vê como cada caso 
 | Min | Bloco | Arquivo |
 | --- | --- | --- |
 | 0–10 | Mapa do exemplo | este guia, §1 |
-| 10–30 | Projeção `orders` | `contracts/fixtures/orders/projection/v1/order.golden` |
+| 10–30 | Projeção `orders` | `apps/backend/orders/contract/fixtures/projection/v1/order.golden` |
 | 30–45 | Ponte Dev: `domainkit` | `fixture_test.go` |
 | 45–60 | Projeção `reservations` e a costura | `reservation.golden` |
-| 60–75 | Wire (o que o QA descreve vs o que o gerador preenche) | `contracts/fixtures/*/event/v1/*.golden` |
+| 60–75 | Wire (o que o QA descreve vs o que o gerador preenche) | `apps/backend/*/contract/fixtures/event/v1/*.golden` |
 | 75–90 | Exercício + comando | §6 |
 
 Infra (Postgres/Redpanda) **não** entra neste workshop. Aqui a prova é domínio + contrato.
@@ -38,7 +38,7 @@ Os dois agregados têm fixture de projeção **e** golden de evento. O teste de 
 
 ## 2. Orders — cinco oráculos de negócio
 
-Abra `contracts/fixtures/orders/projection/v1/order.golden`.
+Abra `apps/backend/orders/contract/fixtures/projection/v1/order.golden`.
 
 Identidade: `context=orders`, `aggregate=order`. Cinco casos, duas UPRs.
 
@@ -88,7 +88,7 @@ pode depender de um contexto para provar a si mesmo.
 
 ## 4. Reservations — consumidor com chave do pedido
 
-Abra `contracts/fixtures/reservations/projection/v1/reservation.golden`.
+Abra `apps/backend/reservations/contract/fixtures/projection/v1/reservation.golden`.
 
 | Caso | Ramo | Código / evento |
 | --- | --- | --- |
@@ -112,7 +112,7 @@ A costura ponta a ponta (relay, inbox, Ack) é `appkit`/`distkit` — os harness
 
 QA descreve **campos e discriminação**. Bytes (`payload_bytes_hex`, `payload_hash`) saem do gerador em `contracts`. Três oráculos: `DMPF-R001` semântica, `DMPF-R002` hash, `DMPF-R003` bytes — reportados em separado.
 
-Proto correspondente: `contracts/proto/` (árvore em `contracts/README.md`). A golden **espelha** o caminho do contrato (`FIX-10`).
+Proto correspondente: `apps/backend/<ctx>/contract/proto/`. A golden **espelha** o caminho do contrato (`FIX-10`).
 
 ---
 
@@ -128,7 +128,7 @@ Depois rode o que já está verde (sem o caso novo):
 pnpm nx run testkit:test-race
 ```
 
-O teste `TestTheCounterMatchesTheProjectionFixture` tem de passar. Os testes que consumiam `order.golden` e `reservation.golden` saíram do kit junto com os exemplos (ADR-046); reescrevê-los no molde do `counter`, dentro do `domain` de cada contexto (`pnpm nx run orders:test-race`), é item aberto dos contextos — até lá, as duas fixtures ficam sem consumidor. Sem `DMPF_PG_DSN`, suítes de infra fazem skip **local**; não trate skip como aceite de `appkit`.
+O teste `TestTheCounterMatchesTheProjectionFixture` tem de passar. Os testes que consumiam `order.golden` e `reservation.golden` saíram do kit junto com os exemplos (ADR-046); reescrevê-los no molde do `counter`, dentro do `domain` de cada contexto (`pnpm nx run orders:test-race`), é item aberto dos contextos — até lá, as duas fixtures ficam sem consumidor. Sem `PG_DSN`, suítes de infra fazem skip **local**; não trate skip como aceite de `appkit`.
 
 Opcional, só contratos:
 

@@ -12,7 +12,7 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
 
-var ordersTable = memory.Table[domain.OrderID, domain.Snapshot]{
+var orderTable = memory.Table[domain.OrderID, domain.Snapshot]{
 	Name:  "orders",
 	Clone: func(s domain.Snapshot) domain.Snapshot { s.Items = slices.Clone(s.Items); return s },
 }
@@ -158,14 +158,14 @@ func newHarness(t *testing.T, options ...option) *harness {
 	bind := func(tx *memory.Tx) application.Resources {
 		h.binds++
 		return application.Resources{
-			Orders: recordingRepository{inner: ordersTable.Repository(tx), h: h, saveErr: cfg.saveErr},
+			Orders: recordingRepository{inner: orderTable.Repository(tx), h: h, saveErr: cfg.saveErr},
 			Outbox: recordingOutbox{inner: tx.Outbox(), h: h},
 		}
 	}
 
 	h.service = application.Service{
 		UoW:       recordingUnitOfWork[application.Resources]{inner: memory.NewUnitOfWork(h.store, bind), rec: h.rec},
-		Reader:    ordersTable.Reader(h.store),
+		Reader:    orderTable.Reader(h.store),
 		Clock:     recordingClock{inner: memory.FixedClock{At: occurred}, rec: h.rec},
 		IDs:       recordingIDs{inner: &memory.SequenceIDs{Prefix: "m-"}, rec: h.rec},
 		Authorize: recordingAuthorize(h.rec, cfg.authorize),
@@ -187,7 +187,7 @@ func recordingAuthorize(rec *recorder, inner usecase.Authorize[application.Opera
 func (h *harness) seed(t *testing.T, snapshot domain.Snapshot, expected ports.Version) {
 	t.Helper()
 	uow := memory.NewUnitOfWork(h.store, func(tx *memory.Tx) application.Resources {
-		return application.Resources{Orders: ordersTable.Repository(tx), Outbox: tx.Outbox()}
+		return application.Resources{Orders: orderTable.Repository(tx), Outbox: tx.Outbox()}
 	})
 	err := uow.Within(withExecution(t, context.Background()), func(ctx context.Context, res application.Resources) error {
 		return res.Orders.Save(ctx, snapshot.ID, snapshot, expected)

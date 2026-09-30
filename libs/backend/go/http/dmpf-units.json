@@ -9,6 +9,19 @@
       "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/http"]
     }
   ],
-  "external": [],
+  "external": [
+    {
+      "package": "go.opentelemetry.io/otel/trace",
+      "versions": ">=1.46.0 <2",
+      "entrypoints": ["."],
+      "capability": "observability"
+    },
+    {
+      "package": "go.opentelemetry.io/otel/metric",
+      "versions": ">=1.46.0 <2",
+      "entrypoints": ["."],
+      "capability": "observability"
+    }
+  ],
   "exceptions": []
 }

@@ -38,9 +38,9 @@ type Crossing struct {
 }
 
 const (
-	bffIdentity   = "apps/backend/bff/api/identity_test.go::"
-	bffHandlers   = "apps/backend/bff/api/handlers_test.go::"
-	ordersRPC     = "apps/backend/orders/app/rpc/interceptors_test.go::"
+	bffIdentity   = "apps/backend/bff/app/api/identity_test.go::"
+	bffHandlers   = "apps/backend/bff/app/api/handlers_test.go::"
+	ordersRPC     = "apps/backend/orders/app/rpc/chain_test.go::"
 	consumerCtx   = "libs/backend/go/app/consumer_test.go::TestTheHandlerReceivesTheContextRebuiltFromTheEnvelope"
 	consumerOwn   = "libs/backend/go/app/consumer_test.go::TestTheConsumerActsWithoutTheProducersIdentity"
 	ownWorkload   = "reconstruído por §3.6 com a identidade do workload consumidor (CTX-25): o contexto não porta sujeito nem permissões do produtor"

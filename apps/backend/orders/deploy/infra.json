@@ -1,0 +1,40 @@
+{
+  "schema": "dmpf/infra@1",
+  "app": "orders",
+  "image": {
+    "env": "ORDERS_IMAGE",
+    "local": "orders:local"
+  },
+  "database": {
+    "passwordEnv": "ORDERS_PG_PASSWORD",
+    "local": "orders-local",
+    "dev": "orders-dev"
+  },
+  "kafka": {
+    "passwordEnv": "KAFKA_ORDERS_PASSWORD",
+    "local": "orders-local",
+    "topics": [
+      {
+        "name": "orders.events",
+        "env": "KAFKA_ORDERS_TOPIC"
+      },
+      {
+        "name": "orders.events.dlq",
+        "env": "KAFKA_ORDERS_DLQ"
+      }
+    ],
+    "acls": [
+      {
+        "operations": ["write", "describe"],
+        "topics": ["orders.events", "orders.events.dlq"]
+      }
+    ]
+  },
+  "grpc": {
+    "server": "dmpf-orders-api"
+  },
+  "openapi": true,
+  "env": {
+    "ITEM_LIMIT": "10"
+  }
+}

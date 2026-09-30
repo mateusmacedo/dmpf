@@ -7,26 +7,6 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
 
-func TestInstantUnix(t *testing.T) {
-	tests := []struct {
-		name string
-		in   ports.Instant
-		want int64
-	}{
-		{name: "epoch", in: 0, want: 0},
-		{name: "whole second", in: 1_755_432_000_000_000_000, want: 1_755_432_000},
-		{name: "sub-second is truncated", in: 1_755_432_000_999_999_999, want: 1_755_432_000},
-		{name: "one nanosecond", in: 1, want: 0},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.in.Unix(); got != tt.want {
-				t.Fatalf("Unix() = %d, want %d", got, tt.want)
-			}
-		})
-	}
-}
-
 func TestInstantOrdersChronologically(t *testing.T) {
 	earlier := ports.Instant(1_755_432_000_000_000_000)
 	later := ports.Instant(1_755_432_000_000_000_001)

@@ -21,6 +21,10 @@ import (
 // start, so both have something to compete for.
 const reservations = 6
 
+// records is what the outbox holds before the drains start: the registration of
+// the resource the reservations use, plus one record per reservation.
+const records = reservations + 1
+
 // TestDistkitRole is the entry point of a re-executed child; it is inert in a
 // normal run.
 func TestDistkitRole(t *testing.T) { distkit.RunRole(t) }
@@ -31,11 +35,11 @@ func TestTwoDrainsPublishEveryRecordExactlyOnce(t *testing.T) {
 
 	var pending int
 	if err := h.Pool.QueryRow(context.Background(),
-		"SELECT count(*) FROM dmpf_outbox WHERE status = 'pending'").Scan(&pending); err != nil {
+		"SELECT count(*) FROM outbox WHERE status = 'pending'").Scan(&pending); err != nil {
 		t.Fatalf("counting the outbox: %v", err)
 	}
-	if pending != reservations {
-		t.Fatalf("outbox holds %d pending records before the drains start, want %d: the vector needs something to compete for", pending, reservations)
+	if pending != records {
+		t.Fatalf("outbox holds %d pending records before the drains start, want %d: the vector needs something to compete for", pending, records)
 	}
 
 	relays := make([]*distkit.Process, distkit.Relays)
@@ -45,7 +49,7 @@ func TestTwoDrainsPublishEveryRecordExactlyOnce(t *testing.T) {
 	t.Cleanup(func() {
 		if t.Failed() {
 			rows, err := h.Pool.Query(context.Background(),
-				"SELECT message_id, status, attempt_count, coalesce(last_error, '') FROM dmpf_outbox ORDER BY id")
+				"SELECT message_id, status, attempt_count, coalesce(last_error, '') FROM outbox ORDER BY id")
 			if err == nil {
 				defer rows.Close()
 				for rows.Next() {
@@ -60,7 +64,7 @@ func TestTwoDrainsPublishEveryRecordExactlyOnce(t *testing.T) {
 			}
 		}
 	})
-	settled := h.Settled(t, reservations, 30*time.Second)
+	settled := h.Settled(t, records, 30*time.Second)
 	published := h.Collect(t, len(settled), 60*time.Second)
 	for _, r := range relays {
 		r.Stop(t, 30*time.Second)
@@ -87,7 +91,7 @@ func enqueue(t *testing.T, n int) {
 	})
 
 	resource := domain.ResourceCode("room-distkit")
-	registered, err := h.Service.RegisterResource(withExecution(t, ctx), application.Register{Code: resource})
+	registered, err := h.Service.RegisterResource(withExecution(t, ctx), application.RegisterResource{Code: resource})
 	if err != nil {
 		t.Fatalf("RegisterResource() = %v, want nil", err)
 	}
@@ -97,7 +101,7 @@ func enqueue(t *testing.T, n int) {
 
 	for i := range n {
 		booking := domain.BookingID(fmt.Sprintf("b-distkit-%d", i))
-		reserved, err := h.Service.ReserveBooking(withExecution(t, ctx), application.Reserve{
+		reserved, err := h.Service.ReserveBooking(withExecution(t, ctx), application.ReserveBooking{
 			BookingID: booking, ResourceID: domain.ResourceID(resource), Quantity: 1,
 		})
 		if err != nil {

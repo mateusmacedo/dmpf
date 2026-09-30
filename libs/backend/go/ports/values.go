@@ -2,16 +2,10 @@
 
 package ports
 
-const nanosPerSecond = 1_000_000_000
-
 // Instant is a point in time as nanoseconds since the Unix epoch: available_at
 // anchors on occurred_at and the outbox drains ordered by it (FND-04 §4.2), so
 // seconds would collide under load. It arrives through Clock (RFC §9.3).
 type Instant int64
-
-// Unix truncates the instant to whole seconds, for domains whose own time value
-// is in seconds, such as orders.Instant.
-func (i Instant) Unix() int64 { return int64(i) / nanosPerSecond }
 
 // MessageID is the globally unique identifier of a message (message_id, FND-04
 // §4.1), authored by the application service before the transaction opens. The

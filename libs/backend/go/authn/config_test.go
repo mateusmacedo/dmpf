@@ -16,9 +16,9 @@ func env(pairs map[string]string) func(string) string {
 
 func keycloakEnv() map[string]string {
 	return map[string]string{
-		"DMPF_OIDC_ISSUER":       "https://keycloak.example.com/realms/dmpf",
-		"DMPF_OIDC_AUDIENCE":     "dmpf-bff",
-		"DMPF_OIDC_TENANT_CLAIM": "tenant_id",
+		"OIDC_ISSUER":       "https://keycloak.example.com/realms/dmpf",
+		"OIDC_AUDIENCE":     "dmpf-bff",
+		"OIDC_TENANT_CLAIM": "tenant_id",
 	}
 }
 
@@ -61,8 +61,8 @@ func TestFromEnvRefusesAPartiallyConfiguredVerifier(t *testing.T) {
 		name  string
 		unset string
 	}{
-		{name: "no audience", unset: "DMPF_OIDC_AUDIENCE"},
-		{name: "no tenant claim", unset: "DMPF_OIDC_TENANT_CLAIM"},
+		{name: "no audience", unset: "OIDC_AUDIENCE"},
+		{name: "no tenant claim", unset: "OIDC_TENANT_CLAIM"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -81,7 +81,7 @@ func TestFromEnvRefusesAPartiallyConfiguredVerifier(t *testing.T) {
 }
 
 func TestFromEnvAcceptsTheDeclaredDevelopmentMockAlone(t *testing.T) {
-	cfg, err := authn.FromEnv(env(map[string]string{"DMPF_AUTH_DEV_MOCK": "true"}))
+	cfg, err := authn.FromEnv(env(map[string]string{"AUTH_DEV_MOCK": "true"}))
 	if err != nil {
 		t.Fatalf("FromEnv() err = %v", err)
 	}
@@ -92,9 +92,9 @@ func TestFromEnvAcceptsTheDeclaredDevelopmentMockAlone(t *testing.T) {
 
 func TestFromEnvOverridesEveryClaimAndTheTimeout(t *testing.T) {
 	pairs := keycloakEnv()
-	pairs["DMPF_OIDC_PERMISSION_CLAIMS"] = "scope, resource_access.dmpf-bff.roles"
-	pairs["DMPF_OIDC_DISCOVERY_TIMEOUT_SECONDS"] = "30"
-	pairs["DMPF_OIDC_TENANT_CLAIM"] = "https://app.example.com/tenant_id"
+	pairs["OIDC_PERMISSION_CLAIMS"] = "scope, resource_access.dmpf-bff.roles"
+	pairs["OIDC_DISCOVERY_TIMEOUT_SECONDS"] = "30"
+	pairs["OIDC_TENANT_CLAIM"] = "https://app.example.com/tenant_id"
 
 	cfg, err := authn.FromEnv(env(pairs))
 	if err != nil {
@@ -114,7 +114,7 @@ func TestFromEnvOverridesEveryClaimAndTheTimeout(t *testing.T) {
 
 func TestFromEnvRefusesTheMockAlongsideAConfiguredVerifier(t *testing.T) {
 	pairs := keycloakEnv()
-	pairs["DMPF_AUTH_DEV_MOCK"] = "true"
+	pairs["AUTH_DEV_MOCK"] = "true"
 
 	if _, err := authn.FromEnv(env(pairs)); !errors.Is(err, authn.ErrMockWithVerifier) {
 		t.Fatalf("FromEnv() err = %v, want %v: one start resolves identity one way", err, authn.ErrMockWithVerifier)

@@ -23,7 +23,7 @@ Import path do módulo:
 
 | Package | Unidade DMPF | Bloco | Conteúdo |
 | --- | --- | --- | --- |
-| `application` (raiz) | `kernel/application` | `application` | `Outcome[R]`, `Accepted`, `Rejected`; `Identity`, `ResolveIdentity`; `AuthorizeFunc`, `AllowAll`; `Disposition` (as sete de FND-04 §6.4), `Category`, `Failure`, `Classify` |
+| `application` (raiz) | `kernel/application` | `application` | `Outcome[R]`, `Accepted`, `Rejected`; `Identity`, `ResolveIdentity`; `Authorize[C]`, `AllowAll[C]`, `Permitted[C]`; `MessageContextFor`; `Disposition` (as sete de FND-04 §6.4), `Category`, `Failure`, `Classify` |
 
 Uma unidade só, com `bounded_context: kernel`; em Go, a unidade de verificação
 é o package (RFC §3.3). Os packages que este módulo carregava como
@@ -38,6 +38,33 @@ Uma unidade só, com `bounded_context: kernel`; em Go, a unidade de verificaçã
 A realização em memória é `provider` — não `application` — porque ela
 **realiza** as portas em vez de orquestrá-las; por isso ganhou módulo próprio,
 fora do alcance da regra `application` do `depguard`.
+
+## Autorização: o gancho do passo 1
+
+```go
+type Authorize[C any] func(ctx context.Context, cmd C) error
+```
+
+`Authorize[C]` é o gancho do passo 1 (`add_item.go`, `s.Authorize(ctx, cmd)`):
+o caso de uso o invoca primeiro, e um erro interrompe a sequência antes do
+passo 2. O contexto de execução vem do carrier (`CTX-03`, ADR-049), nunca de
+parâmetro explícito — até o ADR-049, o serviço de aplicação recebia
+`execution ports.ExecutionContext` em cada método; hoje ele o lê de dentro do
+`ctx` que já recebe.
+
+Dois construtores:
+
+- `AllowAll[C]()` autoriza toda operação, qualquer que seja o carrier — a
+  escolha explícita do composition root, nunca um default silencioso.
+- `Permitted[C](required func(C) ports.Permission)` decide o passo 1 pela
+  permissão que cada operação declara (`IDN-16`), sobre as permissões já
+  resolvidas no carrier (`IDN-10`, sem consultar autoridade própria). Recusa
+  quando a operação alcança dado de tenant e nenhum foi resolvido (`IDN-08`,
+  ADR-051), quando a operação não declara permissão (`IDN-17`) ou quando o
+  sujeito identificado não a possui; uma cadeia sem sujeito passa só pelo
+  tenant, porque `IDN-18` a autoriza pelo workload que a executa, cuja
+  identidade o canal já verificou antes de o contexto existir (`IDN-03`,
+  `CTX-27`, ADR-052).
 
 ## O consumo: as sete disposições
 
@@ -68,7 +95,7 @@ No caso de uso de referência (`apps/backend/orders/application`, package
 importa os dois recebe o kernel como `usecase`, ADR-045):
 
 ```go
-func (s Service) AddItem(ctx context.Context, cmd AddItem) (application.Outcome[domain.ItemAccepted], error)
+func (s Service) AddItem(ctx context.Context, cmd application.AddItem) (application.Outcome[domain.ItemAccepted], error)
 ```
 
 `error` transporta **apenas** falha técnica: conflito de versão, erro de commit,
@@ -131,13 +158,17 @@ abre transação (`UOW-11`).
 
 ## A autoria dos campos da outbox
 
-O serviço de aplicação escreve os sete campos de `ports.OutboxEntry`
+O serviço de aplicação escreve os oito campos de `ports.OutboxEntry`
 (FND-04 §2.3, `BLK-04`, `BLK-05`): identidade e tempo (`MessageID`,
-`OccurredAt`), roteamento (`Intent.Destination`, `Intent.PartitionKey`) e origem
-de negócio (`AggregateType`, `AggregateID`, `AggregateVersion`), mais o evento.
-Neste exemplo `Destination` é `orders.events` — um nome **lógico** de fluxo, não
-um tópico — e `PartitionKey` é o identificador do pedido, para que fatos do
-mesmo agregado preservem ordem.
+`OccurredAt`), roteamento (`Intent.Destination`, `Intent.PartitionKey`), origem
+de negócio (`AggregateType`, `AggregateID`, `AggregateVersion`), o evento e o
+`Context` (`ports.MessageContext`) — o trio de `ENV-08` que
+`application.MessageContextFor(ctx, id)` monta a partir do que o adapter
+depositou no `ctx`, preenchendo `CausationID` com o próprio `MessageID` quando
+o fato abre uma cadeia nova (FND-05). Neste exemplo `Destination` é
+`orders.events` — um nome **lógico** de fluxo, não um tópico — e
+`PartitionKey` é o identificador do pedido, para que fatos do mesmo agregado
+preservem ordem.
 
 Campos de wire e de estado de drenagem não existem no tipo entregue à porta: os
 primeiros são do provider e do contrato, os segundos do schema e do relay.
@@ -222,11 +253,10 @@ Provider Postgres, schema de outbox e isolamento real (`KRN-06`, entregue em
 (`KRN-05`); a realização da inbox e a quarantine (`KRN-07`, em
 `postgres`) e o adapter que aplica o efeito de broker (`KRN-07`,
 em `app`); retry por conjunção, orçamento e telemetria (`KRN-09`);
-transportes (`KRN-10`). A autorização real e o contexto de execução de nove
-campos são do FND-07 — `AuthorizeFunc` é só o gancho que eles preencherão; da
-taxonomia de erros do FND-07 este módulo realiza apenas o subconjunto que o
-consumo precisa (`Category`, `Failure`, `Classify`). Validar a forma da entrada
-(`Quantity <= 0`, `SKU` vazio) é do bloco `app` (RFC §4.1).
+transportes (`KRN-10`). A verificação de credencial e o escopo de tenant por
+choke point também não: `Permitted[C]` só lê o que o carrier já resolveu, nunca
+verifica identidade nem impõe predicado (ADR-051, ADR-052). Validar a forma da
+entrada (`Quantity <= 0`, `SKU` vazio) é do bloco `app` (RFC §4.1).
 
 Os imports de produção são `context`, `errors`, `fmt`, `slices`, `sync`, o
 `domain` e o `ports` — todos capability `pure`. Sem `time`, sem
@@ -273,5 +303,8 @@ misturar os dois reprova no CI com `DMPF-T002`.
 - `docs/adr/034-fronteira-de-uow-em-go.md` — decisões desta realização
 - `docs/adr/018-forma-do-desfecho-da-upr.md` — por que `Outcome` e não `(R, error)`
 - `docs/adr/021-mapeamento-no-provider-serializacao-na-escrita.md` — a outbox recebe evento de domínio
+- `docs/adr/049-contexto-de-execucao-viaja-no-context-context.md` — por que `Authorize[C]` não recebe mais o contexto por parâmetro
+- `docs/adr/051-escopo-de-tenant-por-choke-point-em-go.md` — o tenant que `Permitted[C]` exige resolvido
+- `libs/backend/go/ports/README.md` — `ExecutionContext`, `Authorize`/`Permission` e o carrier
 - `docs/dmpf/uow-inbox-outbox.md` — FND-04: UoW, sequência canônica, outbox
 - `docs/dmpf/rfc-dmpf-foundation-v0.1.md` — §3.3, §4.1, §6.2, §7.3, §10.2

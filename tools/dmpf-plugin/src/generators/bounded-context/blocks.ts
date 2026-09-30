@@ -27,7 +27,6 @@ export type BlockLayout = {
   layer: Layer;
   requires: readonly Block[];
   integration: boolean;
-  dependsOnProjects: readonly string[];
   external: readonly ExternalDependency[];
   role: string;
   summary: string;
@@ -52,10 +51,6 @@ const PROTOBUF: ExternalDependency = {
 
 export const CONTRACT_BLOCK = 'contract';
 
-// The kernel Postgres provider truncates the same tables every context harness
-// truncates, so the two test-race targets must not share the job's database at once.
-const KERNEL_POSTGRES_PROJECT = 'postgres';
-
 const LAYER_ORDER: readonly Layer[] = ['domain', 'services', 'contract', 'providers', 'apps'];
 
 export const LAYOUTS: readonly BlockLayout[] = [
@@ -66,7 +61,6 @@ export const LAYOUTS: readonly BlockLayout[] = [
     layer: 'domain',
     requires: [],
     integration: false,
-    dependsOnProjects: [],
     external: [],
     role: 'the deterministic aggregates and the outcome of their UPRs',
     summary:
@@ -79,7 +73,6 @@ export const LAYOUTS: readonly BlockLayout[] = [
     layer: 'domain',
     requires: ['domain'],
     integration: false,
-    dependsOnProjects: [],
     external: [],
     role: 'the declared boundary to state, outbox and inbox, with no realization here',
     summary:
@@ -92,7 +85,6 @@ export const LAYOUTS: readonly BlockLayout[] = [
     layer: 'services',
     requires: ['domain', 'port'],
     integration: false,
-    dependsOnProjects: [],
     external: [],
     role: 'the caller side of the UPR, from the write use cases to the disposition of consumption',
     summary:
@@ -105,7 +97,6 @@ export const LAYOUTS: readonly BlockLayout[] = [
     layer: 'providers',
     requires: ['domain', 'port', 'application'],
     integration: true,
-    dependsOnProjects: [KERNEL_POSTGRES_PROJECT],
     external: [PGX, PROTOBUF],
     role: 'the PostgreSQL realization of the transactional ports of this context',
     summary:
@@ -132,11 +123,10 @@ export const LAYOUTS: readonly BlockLayout[] = [
     layer: 'apps',
     requires: ['domain', 'port', 'application', 'provider'],
     integration: true,
-    dependsOnProjects: [],
     external: [],
     role: 'the composition between the transport delivery and the application service',
     summary:
-      'Composição entre a entrega do transporte e o serviço de aplicação, com a borda HTTP do contexto.',
+      'Composição entre a entrega do transporte e o serviço de aplicação, com a borda gRPC do contexto.',
   },
 ];
 

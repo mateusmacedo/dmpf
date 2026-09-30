@@ -4,37 +4,63 @@ package postgres_test
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/pg"
 )
 
-// openPool fails the run in CI when DMPF_PG_DSN is unset (fail-closed: an
-// integration suite must never pass by skipping) and skips with setup
-// instructions everywhere else. Tables are truncated before and after so
-// package tests, forced to -p 1 (R10), never observe another test's rows.
+// probeSchema is a table of the tests, not of the kernel: the kernel owns no
+// aggregate, so the Table and the unit of work are proven over this one.
+const probeSchema = `
+CREATE TABLE IF NOT EXISTS probes (
+  tenant_id text   NOT NULL,
+  probe_id  text   NOT NULL,
+  version   bigint NOT NULL,
+  snapshot  jsonb  NOT NULL,
+  CONSTRAINT probes_pkey PRIMARY KEY (tenant_id, probe_id)
+);
+
+CREATE INDEX IF NOT EXISTS probes_probe_id_idx ON probes (probe_id);
+
+CREATE TABLE IF NOT EXISTS tagged_probes (
+  tenant_id text   NOT NULL,
+  probe_id  text   NOT NULL,
+  version   bigint NOT NULL,
+  label     text   NOT NULL,
+  snapshot  jsonb  NOT NULL,
+  CONSTRAINT tagged_probes_pkey PRIMARY KEY (tenant_id, probe_id)
+);
+
+CREATE INDEX IF NOT EXISTS tagged_probes_tenant_id_label_idx ON tagged_probes (tenant_id, label);
+CREATE INDEX IF NOT EXISTS tagged_probes_probe_id_idx ON tagged_probes (probe_id);
+CREATE INDEX IF NOT EXISTS tagged_probes_label_idx ON tagged_probes (label);`
+
+var allCapabilities = []postgres.Capability{postgres.Outbox, postgres.Inbox}
+
+// openPool runs the test in a database of its own (tb/pg), and truncates the
+// tables before and after so a test that reuses the pool starts clean.
 func openPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
+	return openPoolWith(t, func(*pgxpool.Config) {})
+}
 
-	dsn := os.Getenv("DMPF_PG_DSN")
-	if dsn == "" {
-		if os.Getenv("CI") != "" {
-			t.Fatal("DMPF_PG_DSN is empty in CI: integration tests must not skip silently")
-		}
-		t.Skip("DMPF_PG_DSN not set; run `docker compose -f infra/local/docker-compose.yml --profile postgres up -d` and export DMPF_PG_DSN=postgres://app:app@localhost:5432/app?sslmode=disable")
-	}
+func openPoolWith(t *testing.T, configure func(*pgxpool.Config)) *pgxpool.Pool {
+	t.Helper()
 
 	ctx := context.Background()
-	pool, err := pgxpool.New(ctx, dsn)
+	cfg := pg.Config(t, "postgres")
+	configure(cfg)
+
+	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
-		t.Fatalf("pgxpool.New() = %v, want nil", err)
+		t.Fatalf("pgxpool.NewWithConfig() = %v, want nil", err)
 	}
 	t.Cleanup(pool.Close)
 
-	if err := postgres.Migrate(ctx, pool); err != nil {
+	if err := postgres.Migrate(ctx, pool, allCapabilities, probeSchema); err != nil {
 		t.Fatalf("Migrate() = %v, want nil", err)
 	}
 
@@ -47,7 +73,7 @@ func openPool(t *testing.T) *pgxpool.Pool {
 func truncate(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
 	t.Helper()
 
-	if _, err := pool.Exec(ctx, "TRUNCATE dmpf_outbox, dmpf_inbox, dmpf_quarantine, dmpf_example_orders, dmpf_example_reservations"); err != nil {
+	if _, err := pool.Exec(ctx, "TRUNCATE outbox, inbox, quarantine, probes, tagged_probes"); err != nil {
 		t.Fatalf("TRUNCATE = %v, want nil", err)
 	}
 }

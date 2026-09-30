@@ -26,17 +26,17 @@ baseline — é o que permite a um contexto de `apps/backend` importá-la sem
 
 | Arquivo | Conteúdo |
 | --- | --- |
-| `store.go` | `Store`, `New`; `Table[ID, S]` com `Reader(*Store)` e `Repository(*Tx)`; inspeção para testes: `Entries`, `FailNextCommit`, `WithinCalls`, `Commits`, `InboxRows`, `InboxStatus`, `InboxLastError` |
+| `store.go` | `Store`, `New`; `Table[ID, S]` com `Reader(*Store)` e `Repository(*Tx)`, escopados por tenant; inspeção para testes: `Entries`, `FailNextCommit`, `WithinCalls`, `Commits`, `InboxRows`, `InboxStatus`, `InboxLastError` |
 | `tx.go` | `Tx` (`Inbox(consumer)`, `Outbox()`), `NewUnitOfWork[R](store, bind)` e `Within` |
 | `inbox.go` | A inbox transacional: `Register` com as classificações R1–R4 e `Pending.Complete` |
 | `clock.go` | `FixedClock` (`ports.Clock`) e `SequenceIDs` (`ports.IDGenerator`) |
-| `errors.go` | `ErrInboxConsumerRequired`, `ErrInboxConsumerMismatch`, `ErrAlreadyCompleted`, `ErrInvalidCompletion` |
+| `errors.go` | `ErrTenantUnresolved`, `ErrInboxConsumerRequired`, `ErrInboxConsumerMismatch`, `ErrAlreadyCompleted`, `ErrInvalidCompletion` |
 
 O código de produção importa só a stdlib e o `ports`; `external` é `[]`. O
 `testkit` entra apenas pelos `_test.go` — o `providerkit` roda aqui a suíte de
 conformidade de UoW e de inbox.
 
-## `Table`: uma tabela lógica por agregado
+## `Table`: uma tabela lógica por agregado, escopada por tenant
 
 ```go
 type Table[ID comparable, S any] struct {
@@ -53,6 +53,17 @@ um único par `(ID, S)` pela vida do `Store`: reusar o mesmo `Name` com outro `S
 entra em `panic` na asserção de tipo do `Load`. `Clone` é chamado em toda
 travessia da fronteira (`Load`, `Save`, abertura e commit da transação); `nil`
 significa que a cópia por valor basta — um `S` sem slice, map ou ponteiro.
+
+Todo `Load` e `Save` resolve o tenant do contexto de execução
+(`ports.RequireExecutionContext(ctx).Tenant()`), pelo mesmo contrato que o
+`postgres.Table` realiza (`IDN-14`, ADR-051): a chave interna, `rowKey`, pareia
+o tenant com o identificador, então dois tenants com o mesmo identificador são
+duas linhas e nenhum alcança a da outra. Ausência de tenant recusa —
+`ErrTenantUnresolved`, nunca um alargamento da busca (`IDN-15`) — e nenhum
+tenant é inventado para preenchê-la (`IDN-20`). Uma leitura que não encontra a
+linha, mas encontra o identificador sob outro tenant, devolve
+`ports.CrossTenantAccess` em vez de `ErrNotFound` puro, espelhando o que
+`postgres.Table` relata; ver `libs/backend/go/ports/README.md`.
 
 A API recebe o clone em vez de expor funções livres por dois motivos: a
 garantia de snapshots sem backing array compartilhado exige um clone que o
@@ -82,10 +93,13 @@ service := application.Service{
 }
 ```
 
-O `bind` que monta o `Resources` do caso de uso é de quem compõe — aqui, o
-próprio arquivo de teste —, porque `provider → application` é célula proibida
-e esta realização não pode conhecer o tipo de recursos de nenhum contexto
-(`UOW-03`, ADR-034). Para semear estado antes do cenário, o mesmo `bind` serve:
+O `ctx` passado a `Load`/`Save` precisa trazer um `ports.ExecutionContext` com
+tenant resolvido — em teste, via `ports.WithExecutionContext` sobre um
+contexto de execução construído com `ports.NewExecutionContext`. O `bind` que
+monta o `Resources` do caso de uso é de quem compõe — aqui, o próprio arquivo
+de teste —, porque `provider → application` é célula proibida e esta
+realização não pode conhecer o tipo de recursos de nenhum contexto (`UOW-03`,
+ADR-034). Para semear estado antes do cenário, o mesmo `bind` serve:
 `memory.NewUnitOfWork(store, func(tx *memory.Tx) *memory.Tx { return tx })` e
 `ordersTable.Repository(tx).Save(...)` dentro do `Within`.
 
@@ -98,7 +112,10 @@ consumida uma única vez (`FailNextCommit`), o contexto cancelado — antes de a
 e durante a espera por `txMu` — que nunca abre transação, snapshots que não
 compartilham array com o `Store` nem com o chamador, o conflito de versão
 (`ErrVersionConflict`), `ErrNotFound`, tabelas de nomes distintos que não
-compartilham linhas, e a serialização de `Within` concorrentes.
+compartilham linhas, a serialização de `Within` concorrentes, e — em
+`execution_test.go` — o escopo por tenant: duas linhas para o mesmo
+identificador sob tenants distintos, `ErrTenantUnresolved` na ausência e
+`ports.CrossTenantAccess` no cruzamento (mesmo contrato do `postgres`).
 
 Não prova **isolamento** nem conflito de serialização entre transações
 concorrentes: `Within` retém `txMu` durante todo o callback, então as transações
@@ -136,7 +153,7 @@ ciclo `memory ↔ testkit` é o mesmo que `application ↔ testkit` já tinha, e
 Criar um package novo aqui é criar uma unidade DMPF: ele precisa de entrada
 própria no `dmpf-units.json` (`include` por import path exato) e o baseline em
 `tools/dmpf-baseline/units-baseline.json` precisa ser regravado com
-`--write-baseline`. Essa mudança vai em commit separado do código (RFC §10.2);
+`--write-baseline`. Essa mudança vai em commit próprio do código (RFC §10.2);
 misturar os dois reprova no CI com `DMPF-T002`. Tirar a unidade de
 `shared_kernel_units` é ato de classificação com o mesmo rito.
 
@@ -146,8 +163,10 @@ misturar os dois reprova no CI com `DMPF-T002`. Tirar a unidade de
   por que a API é `Table`
 - `docs/adr/034-fronteira-de-uow-em-go.md` — a fronteira que realiza
 - `docs/adr/036-classificacao-de-recepcao-e-fronteira-pending.md` — a inbox
+- `docs/adr/051-escopo-de-tenant-por-choke-point-em-go.md` — o mesmo contrato
+  de escopo que `postgres.Table` realiza
 - `docs/dmpf/uow-inbox-outbox.md` — FND-04: UoW, sequência canônica, outbox,
   inbox
-- `libs/backend/go/ports/README.md` — as portas em tipos de domínio e as seis
-  cláusulas de `Within`
+- `libs/backend/go/ports/README.md` — as portas em tipos de domínio, o
+  contexto de execução e as seis cláusulas de `Within`
 - `libs/backend/go/postgres/README.md` — a realização que prova o isolamento

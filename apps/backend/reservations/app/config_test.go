@@ -18,7 +18,7 @@ func lookup(pairs ...string) func(string) string {
 }
 
 func TestTheAPIRunsWithItsDefaults(t *testing.T) {
-	cfg, err := app.FromEnv(app.RoleAPI, lookup("DMPF_PG_DSN", "postgres://x", "DMPF_GRPC_INSECURE", "true"))
+	cfg, err := app.FromEnv(app.RoleAPI, lookup("PG_DSN", "postgres://x", "GRPC_INSECURE", "true"))
 
 	if err != nil {
 		t.Fatalf("FromEnv() = %v, want nil", err)
@@ -29,9 +29,9 @@ func TestTheAPIRunsWithItsDefaults(t *testing.T) {
 }
 
 func TestTheAPIRequiresATransportPolicy(t *testing.T) {
-	_, err := app.FromEnv(app.RoleAPI, lookup("DMPF_PG_DSN", "postgres://x"))
+	_, err := app.FromEnv(app.RoleAPI, lookup("PG_DSN", "postgres://x"))
 
-	if !errors.Is(err, app.ErrMissingVariable) || !strings.Contains(err.Error(), "DMPF_GRPC_INSECURE") {
+	if !errors.Is(err, app.ErrMissingVariable) || !strings.Contains(err.Error(), "GRPC_INSECURE") {
 		t.Fatalf("FromEnv() = %v, want the missing transport policy named", err)
 	}
 }
@@ -57,20 +57,20 @@ func requireEachVariable(t *testing.T, role app.Role, full []string) {
 
 func TestTheRelayNamesEachMissingVariable(t *testing.T) {
 	requireEachVariable(t, app.RoleRelay, []string{
-		"DMPF_PG_DSN", "postgres://x", "DMPF_KAFKA_BROKERS", "b:9092", "DMPF_KAFKA_SASL_MECHANISM", "SCRAM-SHA-256",
-		"DMPF_KAFKA_RESERVATIONS_TOPIC", "reservations", "DMPF_KAFKA_RESERVATIONS_DLQ", "reservations.dlq", "DMPF_KAFKA_GROUP", "g",
+		"PG_DSN", "postgres://x", "KAFKA_BROKERS", "b:9092", "KAFKA_SASL_MECHANISM", "SCRAM-SHA-256",
+		"KAFKA_RESERVATIONS_TOPIC", "reservations", "KAFKA_RESERVATIONS_DLQ", "reservations.dlq", "KAFKA_GROUP", "g",
 	})
 }
 
 func TestTheConsumerNamesEachMissingVariable(t *testing.T) {
 	requireEachVariable(t, app.RoleConsumer, []string{
-		"DMPF_PG_DSN", "postgres://x", "DMPF_KAFKA_BROKERS", "b:9092", "DMPF_KAFKA_SASL_MECHANISM", "SCRAM-SHA-256",
-		"DMPF_KAFKA_ORDERS_TOPIC", "orders", "DMPF_KAFKA_ORDERS_DLQ", "orders.dlq", "DMPF_KAFKA_GROUP", "g",
+		"PG_DSN", "postgres://x", "KAFKA_BROKERS", "b:9092", "KAFKA_SASL_MECHANISM", "SCRAM-SHA-256",
+		"KAFKA_ORDERS_TOPIC", "orders", "KAFKA_ORDERS_DLQ", "orders.dlq", "KAFKA_GROUP", "g",
 	})
 }
 
 func TestAnUnknownRoleIsRefused(t *testing.T) {
-	_, err := app.FromEnv("worker", lookup("DMPF_PG_DSN", "postgres://x"))
+	_, err := app.FromEnv("worker", lookup("PG_DSN", "postgres://x"))
 
 	if !errors.Is(err, app.ErrUnknownRole) || !strings.Contains(err.Error(), "api|relay|consumer") {
 		t.Fatalf("FromEnv(worker) = %v, want a refusal listing api|relay|consumer", err)

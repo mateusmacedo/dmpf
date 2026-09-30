@@ -26,7 +26,7 @@ on:
         description: "Runner para execução"
         required: false
         type: string
-        default: "ubuntu-latest"
+        default: "ubuntu-26.04"
     outputs:
       apps:
         description: "JSON array de apps detectadas"
@@ -41,7 +41,7 @@ jobs:
     outputs:
       apps: ${{ steps.set.outputs.apps }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 

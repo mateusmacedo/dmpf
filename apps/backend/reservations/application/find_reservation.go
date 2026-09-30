@@ -4,9 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
-
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
 
 // FindReservation reads through Reader, never through UoW: a query neither

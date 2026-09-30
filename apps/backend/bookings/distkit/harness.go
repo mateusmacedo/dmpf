@@ -17,6 +17,7 @@ import (
 	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kgo"
 
+	"github.com/mateusmacedo/dmpf/apps/backend/bookings/appkit"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/contracts/envelope"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/contracts/payloadhash"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb"
@@ -27,11 +28,11 @@ import (
 // side the child plays; the others name the channel, so the catalogue is
 // identical on both ends (ASY-02).
 const (
-	EnvRole    = "DMPF_TESTKIT_ROLE"
-	EnvTopic   = "DMPF_TESTKIT_TOPIC"
-	EnvGroup   = "DMPF_TESTKIT_GROUP"
-	EnvDLQ     = "DMPF_TESTKIT_DLQ"
-	EnvBrokers = "DMPF_KAFKA_BROKERS"
+	EnvRole    = "TESTKIT_ROLE"
+	EnvTopic   = "TESTKIT_TOPIC"
+	EnvGroup   = "TESTKIT_GROUP"
+	EnvDLQ     = "TESTKIT_DLQ"
+	EnvBrokers = "KAFKA_BROKERS"
 )
 
 // Role is what a child process does. A producing context has one: drain the
@@ -59,20 +60,20 @@ type Harness struct {
 func New(t testing.TB) Harness {
 	t.Helper()
 	seeds := strings.Split(tb.Env(t, EnvBrokers), ",")
-	pool := pg.OpenPool(t)
+	pool := pg.OpenPool(t, appkit.PoolOptions)
 	suffix := fmt.Sprintf("%d", time.Now().UnixNano())
 	h := Harness{
 		Brokers: seeds,
 		Pool:    pool,
-		Topic:   "dmpf-distkit-bookings-" + suffix,
-		Group:   "dmpf-distkit-bookings-group-" + suffix,
-		DLQ:     "dmpf-distkit-bookings-" + suffix + "-dlq",
+		Topic:   "distkit-bookings-" + suffix,
+		Group:   "distkit-bookings-group-" + suffix,
+		DLQ:     "distkit-bookings-" + suffix + "-dlq",
 	}
-	createTopics(t, seeds, h.Topic, h.DLQ)
+	createTopics(t, seeds, h.Group, h.Topic, h.DLQ)
 	return h
 }
 
-func createTopics(t testing.TB, seeds []string, topics ...string) {
+func createTopics(t testing.TB, seeds []string, group string, topics ...string) {
 	t.Helper()
 	cl, err := kgo.NewClient(kgo.SeedBrokers(seeds...))
 	if err != nil {
@@ -89,6 +90,7 @@ func createTopics(t testing.TB, seeds []string, topics ...string) {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		_, _ = admin.DeleteTopics(ctx, topics...)
+		_, _ = admin.DeleteGroups(ctx, group)
 	})
 }
 
@@ -116,12 +118,13 @@ func (h Harness) Start(t testing.TB, role Role) *Process {
 		EnvRole+"="+string(role),
 		// The child reads its configuration the way the binary does, so these
 		// are the variables of the app, not names of the harness.
-		"DMPF_KAFKA_BOOKINGS_TOPIC="+h.Topic,
-		"DMPF_KAFKA_BOOKINGS_DLQ="+h.DLQ,
-		"DMPF_KAFKA_GROUP="+h.Group,
-		"DMPF_KAFKA_INSECURE=true",
-		"DMPF_SERVICE=bookings-distkit",
+		"KAFKA_BOOKINGS_TOPIC="+h.Topic,
+		"KAFKA_BOOKINGS_DLQ="+h.DLQ,
+		"KAFKA_GROUP="+h.Group,
+		"KAFKA_INSECURE=true",
+		"SERVICE=bookings-distkit",
 		EnvBrokers+"="+strings.Join(h.Brokers, ","),
+		pg.PostgresDSN+"="+pg.DSN(t, appkit.PoolOptions.Project),
 	)
 	p := &Process{Role: role, cmd: cmd, finished: make(chan struct{})}
 	cmd.Stdout, cmd.Stderr = &p.output, &p.output
@@ -166,7 +169,7 @@ func (p *Process) Stop(t testing.TB, timeout time.Duration) {
 // assembly.
 func (h Harness) Settled(t testing.TB, want int, timeout time.Duration) map[string]string {
 	t.Helper()
-	const query = `SELECT message_id, payload_hash FROM dmpf_outbox WHERE status = 'published'`
+	const query = `SELECT message_id, payload_hash FROM outbox WHERE status = 'published'`
 	deadline := time.Now().Add(timeout)
 	for {
 		settled := map[string]string{}

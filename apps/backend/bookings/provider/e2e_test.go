@@ -5,19 +5,18 @@ package provider_test
 import (
 	"context"
 	"fmt"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/pg"
 	"sync"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
-
+	"github.com/mateusmacedo/dmpf/apps/backend/bookings/appkit"
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/application"
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/domain"
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/provider"
+	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
 )
 
 const (
@@ -68,11 +67,11 @@ func newService(pool *pgxpool.Pool) application.Service {
 }
 
 func TestReserveBookingEndToEnd(t *testing.T) {
-	pool := pg.OpenPool(t, "bookings_booking", "bookings_resource")
+	pool := appkit.OpenPool(t)
 	service := newService(pool)
 	ctx := context.Background()
 
-	outcome, err := service.ReserveBooking(withExecution(t, ctx), application.Reserve{
+	outcome, err := service.ReserveBooking(withExecution(t, ctx), application.ReserveBooking{
 		BookingID:  e2eBookingID,
 		ResourceID: e2eResourceID,
 		Quantity:   3,
@@ -92,7 +91,7 @@ func TestReserveBookingEndToEnd(t *testing.T) {
 		if version != 1 {
 			t.Fatalf("version = %d, want 1", version)
 		}
-		if snap.Quantity != 3 || snap.ResourceID != e2eResourceID || snap.Status != domain.BookingReservedStatus {
+		if snap.Quantity != 3 || snap.ResourceID != e2eResourceID || snap.Status != domain.Reserved {
 			t.Fatalf("snapshot = %+v", snap)
 		}
 	})
@@ -114,7 +113,7 @@ func TestReserveBookingEndToEnd(t *testing.T) {
 	t.Run("cancel commits without outbox row", func(t *testing.T) {
 		_, outboxBefore := counts(t, pool)
 
-		cancelOutcome, err := service.CancelBooking(withExecution(t, ctx), application.Cancel{
+		cancelOutcome, err := service.CancelBooking(withExecution(t, ctx), application.CancelBooking{
 			BookingID: e2eBookingID,
 		})
 		if err != nil {
@@ -131,13 +130,13 @@ func TestReserveBookingEndToEnd(t *testing.T) {
 		if version != 2 {
 			t.Fatalf("version = %d, want 2", version)
 		}
-		if snap.Status != domain.BookingCancelled {
-			t.Fatalf("Status = %v, want BookingCancelled", snap.Status)
+		if snap.Status != domain.Cancelled {
+			t.Fatalf("Status = %v, want Cancelled", snap.Status)
 		}
 
 		_, outboxAfter := counts(t, pool)
-		if outboxAfter != outboxBefore {
-			t.Fatalf("outbox count moved on cancel: %d→%d (internal event must not enqueue)", outboxBefore, outboxAfter)
+		if outboxAfter != outboxBefore+1 {
+			t.Fatalf("outbox count on cancel: %d→%d, want one Cancelled in the same transaction", outboxBefore, outboxAfter)
 		}
 	})
 }
@@ -147,7 +146,7 @@ func outboxRowOf(t *testing.T, pool *pgxpool.Pool, messageID string) outboxRow {
 	var row outboxRow
 	err := pool.QueryRow(context.Background(), `
 		SELECT message_type, schema_version, aggregate_version, destination, status
-		FROM dmpf_outbox WHERE message_id = $1`, messageID).Scan(
+		FROM outbox WHERE message_id = $1`, messageID).Scan(
 		&row.MessageType, &row.SchemaVersion, &row.AggregateVersion, &row.Destination, &row.Status)
 	if err != nil {
 		t.Fatalf("SELECT outbox row %s = %v, want nil", messageID, err)
@@ -159,7 +158,7 @@ func counts(t *testing.T, pool *pgxpool.Pool) (int, int) {
 	t.Helper()
 	var bookingsCount, outboxCount int
 	err := pool.QueryRow(context.Background(), `
-		SELECT (SELECT count(*) FROM bookings_booking), (SELECT count(*) FROM dmpf_outbox)`).
+		SELECT (SELECT count(*) FROM bookings), (SELECT count(*) FROM outbox)`).
 		Scan(&bookingsCount, &outboxCount)
 	if err != nil {
 		t.Fatalf("counts = %v, want nil", err)

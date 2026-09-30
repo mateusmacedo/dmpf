@@ -2,7 +2,7 @@
 
 ## Status
 
-Aceito — 2026-09-08. **Parcialmente supersedido pelo ADR-047 (2026-09-17)**: o `go.mod` de um módulo deixa de ser workspace-only e passa a declarar `require` versionado dos irmãos que importa; o `replace` versionado fica no `go.work`, e o generator roda o `dmpf-modsync` ao final. O resto segue válido. Implementa SPEC-6QT9SBAS, primeira sub-spec de SPEC-8HWBWJCB (KRN-12). As sub-specs seguintes — generator (SPEC-H1A190Y8), BOM e validador (SPEC-538MS2D4), evidência e tag (SPEC-JPP31095) — acrescentam addenda a este ADR em vez de abrir outro; a consolidação final é da última.
+Aceito — 2026-09-08. **Parcialmente supersedido pelo ADR-047 (2026-09-17)**: o `go.mod` de um módulo deixa de ser workspace-only e passa a declarar `require` versionado dos irmãos que importa; o `replace` versionado fica no `go.work`, e o generator roda o `dmpf-modsync` ao final. O resto segue válido. Implementa SPEC-6QT9SBAS, primeira sub-spec de SPEC-8HWBWJCB (KRN-12). As sub-specs seguintes — generator (SPEC-H1A190Y8), BOM e validador (SPEC-538MS2D4), evidência e tag (SPEC-JPP31095) — acrescentam addenda a este ADR em vez de abrir outro; a consolidação final é da última. **Caminhos atualizados pelo [ADR-054](./054-apps-autocontidos-e-infras-separadas.md) (2026-09-28)**: o OpenAPI de cada contexto está em `apps/backend/<ctx>/contract/openapi/v1/`, e `contracts/` não existe mais.
 
 ## Contexto
 
@@ -300,3 +300,26 @@ execução decidiu:
   vazia com `reason`; o `compatible_with` do `go` nomeia pgx (`provider`),
   protobuf (`golden`), otel (`reference`) e franz-go (`dist`), cada par presente
   no header do subject citado.
+
+## Addendum — 2026-09-29 (rota de saúde do BFF)
+
+A dívida "rota de saúde na api (sondas por socket hoje)" fica paga no BFF, a
+borda HTTP. `GET /livez` responde enquanto o processo serve; `GET /readyz`
+responde `503` quando algum contexto não tem backend `SERVING` no canal gRPC
+(`grpc.health.v1`). O corpo não nomeia os contextos, que vão para o log, e o
+resultado vale por 1 s. A leitura é o estado do canal, não uma chamada
+`Health/Check`: a política por método do cliente recusa método não declarado
+(`GRP-16`), e o health check do service config (`GRP-13`) já só deixa o canal
+`READY` quando o backend responde `SERVING`.
+
+- **Imagem.** O subcomando `bff healthcheck` consulta o `/readyz` e sai só com
+  `0` ou `1`, porque o `HEALTHCHECK` do Docker reserva o `2`; a imagem
+  distroless não tem shell nem curl.
+- **Kubernetes.** A readiness do BFF usa `/readyz` e a liveness usa `/livez`:
+  um contexto fora do ar tira o BFF do balanceamento sem reiniciá-lo.
+- **Nx.** O `bff:docker:run` passa a subir os papéis de cada contexto em
+  container: `docker:run` (papel `api`), `docker:run-relay` e, no
+  `reservations`, `docker:run-consumer`. O generator emite o
+  `docker:run-relay` em todo contexto com bloco `app`.
+- **Fora daqui.** Os contextos já expõem `grpc.health.v1` por serviço; o pool
+  pgx e o `INFRA_BUDGET_FRACTION` seguem como dívida.

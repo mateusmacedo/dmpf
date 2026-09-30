@@ -4,7 +4,6 @@ package relay
 
 import (
 	"context"
-	"os"
 	"testing"
 	"time"
 
@@ -12,53 +11,24 @@ import (
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/pg"
 )
 
-// Duplicated from the provider's harness on purpose: a _test.go file is never
-// importable, so this package cannot reuse another package's openPool. An
-// exported test kit is KRN-11's.
 func openSingleConnPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 
-	dsn := os.Getenv("DMPF_PG_DSN")
-	if dsn == "" {
-		if os.Getenv("CI") != "" {
-			t.Fatal("DMPF_PG_DSN is empty in CI: integration tests must not skip silently")
-		}
-		t.Skip("DMPF_PG_DSN not set; run `docker compose -f infra/local/docker-compose.yml --profile postgres up -d` and export DMPF_PG_DSN=postgres://app:app@localhost:5432/app?sslmode=disable")
-	}
-
-	config, err := pgxpool.ParseConfig(dsn)
-	if err != nil {
-		t.Fatalf("ParseConfig() = %v, want nil", err)
-	}
+	migrated := pg.OpenPool(t, pg.Options{Project: "app", Capabilities: []postgres.Capability{postgres.Outbox}})
+	config := migrated.Config().Copy()
 	// One connection is what makes the proof possible: a connection the relay
 	// forgot to release is the only connection, and the probe cannot get it.
 	config.MaxConns = 1
 
-	ctx := context.Background()
-	pool, err := pgxpool.NewWithConfig(ctx, config)
+	pool, err := pgxpool.NewWithConfig(context.Background(), config)
 	if err != nil {
 		t.Fatalf("NewWithConfig() = %v, want nil", err)
 	}
 	t.Cleanup(pool.Close)
-
-	if err := postgres.Migrate(ctx, pool); err != nil {
-		t.Fatalf("Migrate() = %v, want nil", err)
-	}
-	truncateOutbox(t, pool)
-	t.Cleanup(func() { truncateOutbox(t, pool) })
-
 	return pool
-}
-
-func truncateOutbox(t *testing.T, pool *pgxpool.Pool) {
-	t.Helper()
-
-	const stmt = "TRUNCATE dmpf_outbox, dmpf_inbox, dmpf_quarantine, dmpf_example_orders, dmpf_example_reservations"
-	if _, err := pool.Exec(context.Background(), stmt); err != nil {
-		t.Fatalf("TRUNCATE = %v, want nil", err)
-	}
 }
 
 type systemClock struct{}
@@ -108,7 +78,7 @@ func seedOutboxRow(t *testing.T, pool *pgxpool.Pool) {
 
 	record := publishableRecord(t)
 	_, err := pool.Exec(context.Background(), `
-		INSERT INTO dmpf_outbox (
+		INSERT INTO outbox (
 			message_id, message_type, schema_version,
 			aggregate_type, aggregate_id, aggregate_version,
 			partition_key, destination,

@@ -4,10 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
-
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/application"
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
 
 func TestCancelCreatesACanceledReservationAndAuthorsTheOutboxEntry(t *testing.T) {
@@ -22,8 +21,8 @@ func TestCancelCreatesACanceledReservationAndAuthorsTheOutboxEntry(t *testing.T)
 		t.Fatalf("Response() = %+v, want %+v", got, want)
 	}
 
-	snapshot, version, err := reservationsTable.Reader(h.store).Load(withExecution(t, context.Background()), syncOrder)
-	if err != nil || version != 1 || snapshot.Status != domain.Canceled {
+	snapshot, version, err := reservationTable.Reader(h.store).Load(withExecution(t, context.Background()), syncOrder)
+	if err != nil || version != 1 || snapshot.Status != domain.Cancelled {
 		t.Fatalf("stored = %+v v%d (%v), want canceled at v1", snapshot, version, err)
 	}
 
@@ -38,7 +37,7 @@ func TestCancelCreatesACanceledReservationAndAuthorsTheOutboxEntry(t *testing.T)
 		AggregateType:    application.AggregateType,
 		AggregateID:      string(syncOrder),
 		AggregateVersion: 1,
-		Event:            domain.ReservationCancelled{Order: syncOrder, At: domain.Instant(syncOccurred.Unix())},
+		Event:            domain.ReservationCancelled{Order: syncOrder, At: domain.Instant(syncOccurred)},
 		Context:          ports.MessageContext{CausationID: "m-000001"},
 	}
 	if entries[0] != want {
@@ -56,8 +55,8 @@ func TestCancelOnAConfirmedReservationRejectsWithoutWriting(t *testing.T) {
 		t.Fatalf("Cancel() error = %v, want nil — a refusal is not a technical failure (DEC-04)", err)
 	}
 	rej, refused := out.Rejection()
-	if !refused || rej.Code() != domain.CodeAlreadyReserved {
-		t.Fatalf("Rejection() = %v, %v; want %q — the first decision won", rej, refused, domain.CodeAlreadyReserved)
+	if !refused || rej.Code() != domain.CodeReservationAlreadyReserved {
+		t.Fatalf("Rejection() = %v, %v; want %q — the first decision won", rej, refused, domain.CodeReservationAlreadyReserved)
 	}
 	if got := h.store.Entries(); len(got) != 0 {
 		t.Fatalf("Entries() = %+v, want empty", got)

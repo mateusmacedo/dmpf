@@ -1,0 +1,18 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "infra-up",
+      "type": "shell",
+      "command": "pnpm exec nx run bff:infra-up",
+      "problemMatcher": []
+    },
+    {
+      "label": "bff:serve",
+      "type": "shell",
+      "command": "pnpm exec nx run bff:serve",
+      "isBackground": true,
+      "problemMatcher": []
+    }
+  ]
+}

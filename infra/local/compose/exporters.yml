@@ -2,12 +2,14 @@
 # métricas Prometheus nativamente em :9644/public_metrics; o floci não expõe
 # nenhuma, então o blackbox mede o que dá — disponibilidade e latência do
 # endpoint de saúde. cAdvisor cobre CPU, memória e rede de todos os containers.
+# O postgres-exporter conecta ao banco administrativo: pg_stat_database já
+# traz uma série por banco (datname), então um exporter cobre as três apps.
 services:
   postgres-exporter:
     image: quay.io/prometheuscommunity/postgres-exporter:v0.20.1
     profiles: [exporters, observability, dmpf, all]
     environment:
-      DATA_SOURCE_NAME: postgresql://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-app}@postgres:5432/${POSTGRES_DB:-app}?sslmode=disable
+      DATA_SOURCE_NAME: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/postgres?sslmode=disable
     ports:
       - '${POSTGRES_EXPORTER_PORT:-9187}:9187'
     depends_on:
@@ -46,6 +48,14 @@ services:
     image: gcr.io/cadvisor/cadvisor:v0.52.1
     profiles: [exporters, observability, dmpf, all]
     privileged: true
+    restart: unless-stopped
+    # Só os containers do Docker e sem os grupos por CPU, processo e socket: sem
+    # isso o cAdvisor segue todo cgroup do host e passa de 512M (OOM medido).
+    command:
+      - --docker_only=true
+      - --housekeeping_interval=30s
+      - --store_container_labels=false
+      - --disable_metrics=advtcp,cpu_topology,cpuset,hugetlb,memory_numa,percpu,process,referenced_memory,resctrl,sched,tcp,udp
     # 8081 no host porque 8080 é do papel api; dentro da rede continua 8080.
     ports:
       - '${CADVISOR_PORT:-8081}:8080'
@@ -59,5 +69,5 @@ services:
       - /dev/disk/:/dev/disk:ro
     deploy:
       resources:
-        limits: { cpus: '0.15', memory: 256M }
+        limits: { cpus: '0.15', memory: 512M }
         reservations: { cpus: '0.05', memory: 64M }

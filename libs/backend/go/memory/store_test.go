@@ -5,6 +5,7 @@ import (
 	"errors"
 	"slices"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/memory"
@@ -304,7 +305,7 @@ func TestAPortThatEscapesTheCallbackCannotReachTheStore(t *testing.T) {
 func TestAContextCancelledWhileWaitingNeverOpensATransaction(t *testing.T) {
 	store := memory.New()
 	uow := memory.NewUnitOfWork(store, bind)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx := &cancelledAfterFirstCheck{Context: context.Background()}
 
 	holding := make(chan struct{})
 	release := make(chan struct{})
@@ -325,15 +326,29 @@ func TestAContextCancelledWhileWaitingNeverOpensATransaction(t *testing.T) {
 		})
 	}()
 
-	cancel()
 	close(release)
 
 	if err := <-queued; !errors.Is(err, context.Canceled) {
 		t.Fatalf("the queued Within() = %v, want context.Canceled", err)
 	}
+	if got := ctx.checks.Load(); got != 2 {
+		t.Fatalf("ctx.Err() checked %d times, want 2 — the refusal must come after the wait", got)
+	}
 	if got := store.Commits(); got != 1 {
 		t.Fatalf("Commits() = %d, want 1 — only the first transaction committed", got)
 	}
+}
+
+type cancelledAfterFirstCheck struct {
+	context.Context
+	checks atomic.Int32
+}
+
+func (c *cancelledAfterFirstCheck) Err() error {
+	if c.checks.Add(1) == 1 {
+		return nil
+	}
+	return context.Canceled
 }
 
 func TestSaveRejectsADivergentExpectedVersion(t *testing.T) {

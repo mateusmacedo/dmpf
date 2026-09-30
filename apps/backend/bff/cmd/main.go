@@ -9,8 +9,9 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
-	"github.com/mateusmacedo/dmpf/apps/backend/bff"
+	"github.com/mateusmacedo/dmpf/apps/backend/bff/app"
 )
 
 // A refused start must never read as a failed run to whoever only checks
@@ -21,16 +22,25 @@ const (
 	exitUsage   = 2
 )
 
+const (
+	healthcheckCommand = "healthcheck"
+	probeTimeout       = 3 * time.Second
+)
+
 func main() {
-	os.Exit(run(options{lookup: os.Getenv}, os.Stdout, os.Stderr))
+	os.Exit(run(options{lookup: os.Getenv, args: os.Args[1:]}, os.Stdout, os.Stderr))
 }
 
 type options struct {
 	lookup func(string) string
+	args   []string
 }
 
 func run(o options, out, errOut io.Writer) int {
-	cfg, err := bff.FromEnv(o.lookup)
+	if len(o.args) > 0 && o.args[0] == healthcheckCommand {
+		return healthcheck(o.lookup, errOut)
+	}
+	cfg, err := app.FromEnv(o.lookup)
 	if err != nil {
 		_, _ = fmt.Fprintf(errOut, "bff: %v\n", err)
 		return exitUsage
@@ -39,8 +49,25 @@ func run(o options, out, errOut io.Writer) int {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
 
-	if err := bff.Run(ctx, cfg, out); err != nil {
+	if err := app.Run(ctx, cfg, out); err != nil {
 		_, _ = fmt.Fprintf(errOut, "bff: %v\n", err)
+		return exitFailure
+	}
+	return exitOK
+}
+
+// WHY: Docker's HEALTHCHECK reads only 0 and 1 and reserves 2, so a
+// configuration the edge could not start with is a failure, not a usage error.
+func healthcheck(lookup func(string) string, errOut io.Writer) int {
+	cfg, err := app.FromEnv(lookup)
+	if err != nil {
+		_, _ = fmt.Fprintf(errOut, "bff healthcheck: %v\n", err)
+		return exitFailure
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), probeTimeout)
+	defer cancel()
+	if err := app.Probe(ctx, cfg); err != nil {
+		_, _ = fmt.Fprintf(errOut, "bff healthcheck: %v\n", err)
 		return exitFailure
 	}
 	return exitOK

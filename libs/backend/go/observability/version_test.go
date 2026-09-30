@@ -5,15 +5,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mateusmacedo/dmpf/libs/backend/go/observability"
-
-	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
-
 	_ "go.opentelemetry.io/otel"
 	_ "go.opentelemetry.io/otel/metric"
 	_ "go.opentelemetry.io/otel/sdk"
 	_ "go.opentelemetry.io/otel/sdk/metric"
+	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
 	_ "go.opentelemetry.io/otel/trace"
+
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability"
 )
 
 // WHY: the pin is read from go.mod, not from debug.ReadBuildInfo. Under a
@@ -25,7 +24,6 @@ func TestEveryOTelRequirementMatchesTheDeclaredVersion(t *testing.T) {
 		t.Fatalf("ReadFile(go.mod) = %v, want nil", err)
 	}
 
-	want := "v" + observability.OTelVersion
 	found := 0
 	for _, line := range strings.Split(string(manifest), "\n") {
 		fields := strings.Fields(line)
@@ -33,6 +31,10 @@ func TestEveryOTelRequirementMatchesTheDeclaredVersion(t *testing.T) {
 			continue
 		}
 		found++
+		want := "v" + observability.OTelVersion
+		if isLogSignal(fields[0]) {
+			want = "v" + observability.OTelLogsVersion
+		}
 		if fields[1] != want {
 			t.Errorf("%s = %s, want %s: the platform pins one OTel version", fields[0], fields[1], want)
 		}
@@ -40,6 +42,12 @@ func TestEveryOTelRequirementMatchesTheDeclaredVersion(t *testing.T) {
 	if found == 0 {
 		t.Fatal("go.mod requires no go.opentelemetry.io/otel module, so the pin proves nothing")
 	}
+}
+
+func isLogSignal(module string) bool {
+	return module == "go.opentelemetry.io/otel/log" ||
+		strings.HasPrefix(module, "go.opentelemetry.io/otel/sdk/log") ||
+		strings.HasPrefix(module, "go.opentelemetry.io/otel/exporters/otlp/otlplog")
 }
 
 func TestSemconvVersionMatchesTheImportedSchema(t *testing.T) {

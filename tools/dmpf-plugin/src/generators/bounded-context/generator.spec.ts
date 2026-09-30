@@ -72,8 +72,22 @@ const MODULE_FILES: readonly string[] = [
 // The binary lives beside the blocks and only exists when the context has an
 // app block: there is nothing to serve without one.
 const CMD_DIR = 'cmd';
+const CONTRACT_DIR = 'contract';
+const DEPLOY_DIR = 'deploy';
+const TEST_ENV = 'bash ../../../tools/test-env.sh';
+const GO_TIDY = 'bash ../../../tools/go-tidy.sh';
+const TEST_INFRA = { projects: ['testkit'], target: 'test-infra-up' };
 const APPKIT_DIR = 'appkit';
 const DISTKIT_DIR = 'distkit';
+const DOCKERFILE = 'Dockerfile';
+
+const BLOCK_FILES: Record<string, readonly string[]> = {
+  domain: ['doc.go'],
+  ports: ['doc.go'],
+  application: ['doc.go'],
+  provider: ['doc.go', 'schema.go', 'schema.sql'],
+  app: ['catalog.go', 'config.go', 'config_test.go', 'doc.go', 'rpc', 'telemetry.go', 'wiring.go'],
+};
 
 const FULL_OPTIONS: BoundedContextGeneratorSchema = {
   name: 'checkout',
@@ -83,6 +97,8 @@ const FULL_OPTIONS: BoundedContextGeneratorSchema = {
 };
 
 const MODULE_DIR = `${DIRECTORY}/${FULL_OPTIONS.name}`;
+const CONTRACT_MODULE_DIR = `${MODULE_DIR}/${CONTRACT_DIR}`;
+const DEPLOY_MODULE_DIR = `${MODULE_DIR}/${DEPLOY_DIR}`;
 
 type ProjectConfig = {
   name: string;
@@ -178,30 +194,41 @@ const goTarget = ({
   return target;
 };
 
-const serveTarget = (role: string): Record<string, unknown> => ({
+const LOAD_ENV = 'set -a; [ ! -f deploy/.env ] || . deploy/.env; set +a;';
+const SERVE_API = `${LOAD_ENV} exec go run ./cmd --role api`;
+const SERVE_RELAY = `${LOAD_ENV} exec go run ./cmd --role relay`;
+const DOCKER_RUN_RELAY =
+  'docker run --rm --name checkout-relay --network host --env-file deploy/.env apps-backend-checkout --role relay';
+
+const serveTarget = (command: string, dependsOn: unknown[]): Record<string, unknown> => ({
   executor: 'nx:run-commands',
-  options: { command: `go run ./cmd --role ${role}`, cwd: '{projectRoot}' },
+  options: { command, cwd: '{projectRoot}', envFile: '{projectRoot}/deploy/.env.example' },
+  continuous: true,
+  dependsOn,
 });
 
 const expectedTargets = ({
   integration,
-  dependsOnProjects,
   app = true,
 }: {
   integration: boolean;
-  dependsOnProjects?: string[];
   app?: boolean;
 }): Record<string, unknown> => {
-  const testRace = goTarget({
-    command: integration
-      ? 'go test -race -count=1 -p 1 -tags=integration ./...'
-      : 'go test -race ./...',
-    cache: !integration,
-  });
-  if (dependsOnProjects !== undefined) {
-    testRace.dependsOn = [{ projects: dependsOnProjects, target: 'test-race' }];
-  }
+  const testRace = {
+    ...goTarget({
+      command: integration
+        ? `${TEST_ENV} go test -race -count=1 -p 1 -tags=integration ./...`
+        : 'go test -race ./...',
+      cache: !integration,
+    }),
+    ...(integration ? { dependsOn: [TEST_INFRA] } : {}),
+  };
   return {
+    tidy: {
+      executor: 'nx:run-commands',
+      cache: false,
+      options: { command: GO_TIDY, cwd: '{projectRoot}' },
+    },
     'fmt-check': goTarget({ command: GOFMT_COMMAND, cache: true }),
     vet: goTarget({ command: 'go vet ./...', cache: true }),
     build: goTarget({ command: 'go build ./...' }),
@@ -213,15 +240,30 @@ const expectedTargets = ({
     }),
     ...(app
       ? {
-          'serve-api': serveTarget('api'),
-          'serve-relay': serveTarget('relay'),
+          'nx-release-publish': { executor: 'nx:noop' },
+          'serve-api': serveTarget(SERVE_API, [
+            { projects: ['bff'], target: 'infra-up' },
+            { projects: ['bff'], target: 'infra-session' },
+          ]),
+          'serve-relay': serveTarget(SERVE_RELAY, ['serve-api']),
+          'deploy-env': {},
+          'docker:run-relay': {
+            executor: 'nx:run-commands',
+            options: { command: DOCKER_RUN_RELAY, cwd: '{projectRoot}' },
+            continuous: true,
+            dependsOn: ['docker:run'],
+          },
           'test-distributed': {
             executor: 'nx:run-commands',
             cache: false,
             inputs: ['go', '^go'],
-            dependsOn: [{ projects: ['postgres', 'app'], target: 'test-race' }],
+            dependsOn: [
+              TEST_INFRA,
+              { projects: ['postgres', 'app'], target: 'test-race' },
+              'test-race',
+            ],
             options: {
-              command: 'go test -race -count=1 -p 1 -tags=integration,distributed ./distkit/...',
+              command: `${TEST_ENV} go test -race -count=1 -p 1 -tags=integration,distributed ./distkit/...`,
               cwd: '{projectRoot}',
             },
           },
@@ -272,33 +314,98 @@ afterEach(() => {
 });
 
 describe('[generator] bounded-context — generation', () => {
-  it('should create one Go module holding one directory per requested block', async () => {
+  it('should create one Go module holding one directory per requested block, the contract and the deploy', async () => {
     const tree = await generate();
 
     expect(tree.children(MODULE_DIR).sort()).toEqual(
-      [...MODULE_FILES, ...BLOCK_DIRS, CMD_DIR, APPKIT_DIR, DISTKIT_DIR].sort(),
+      [
+        ...MODULE_FILES,
+        ...BLOCK_DIRS,
+        CMD_DIR,
+        APPKIT_DIR,
+        DISTKIT_DIR,
+        DOCKERFILE,
+        CONTRACT_DIR,
+        DEPLOY_DIR,
+      ].sort(),
     );
   });
 
-  it('should place only doc.go inside every block directory but app', async () => {
+  it('should give every block its doc.go, the provider its schema and the app its canonical files', async () => {
     const tree = await generate();
 
     for (const { dirName } of LAYOUT) {
-      const want = dirName === 'app' ? ['doc.go', 'run.go'] : ['doc.go'];
-      expect(tree.children(`${MODULE_DIR}/${dirName}`).sort()).toEqual(want);
+      expect(tree.children(`${MODULE_DIR}/${dirName}`).sort()).toEqual(BLOCK_FILES[dirName]);
     }
+    expect(tree.children(`${MODULE_DIR}/app/rpc`).sort()).toEqual([
+      'errors.go',
+      'errors_internal_test.go',
+      'service.go',
+    ]);
   });
 
   it('should give the app block a composition root the binary enters by', async () => {
     const tree = await generate();
-    const run = readText(tree, `${MODULE_DIR}/app/run.go`);
+    const config = readText(tree, `${MODULE_DIR}/app/config.go`);
+    const wiring = readText(tree, `${MODULE_DIR}/app/wiring.go`);
     const main = readText(tree, `${MODULE_DIR}/${CMD_DIR}/main.go`);
 
-    expect(run).toContain('func Run(ctx context.Context, cfg Config, out io.Writer) error');
-    expect(run).toContain('func FromEnv(role Role, lookup func(string) string) (Config, error)');
-    expect(run).toContain('has no composition root yet');
+    expect(wiring).toContain('func Run(ctx context.Context, cfg Config, out io.Writer) error');
+    expect(config).toContain('func Defaults(role Role) Config');
+    expect(config).toContain('func FromEnv(role Role, lookup func(string) string) (Config, error)');
+    expect(config).toContain('func (c Config) Validate() error');
     expect(main).toContain('app.FromEnv(app.Role(o.role), o.lookup)');
     expect(main).toContain('--role api|relay');
+  });
+
+  it('should serve gRPC only, with the kernel chain and the migrate of the outbox and the context schema', async () => {
+    const tree = await generate();
+    const wiring = readText(tree, `${MODULE_DIR}/app/wiring.go`);
+
+    expect(wiring).toContain('kernelgrpc.ServerInterceptors(rpc.ServiceName');
+    expect(wiring).toContain('server.RegisterService(&rpc.ServiceDesc, rpc.Server{})');
+    expect(wiring).toContain(
+      'postgres.Migrate(ctx, pool, []postgres.Capability{postgres.Outbox}, provider.Schema)',
+    );
+    expect(wiring).not.toContain('net/http');
+    expect(tree.exists(`${MODULE_DIR}/app/http`)).toBe(false);
+  });
+
+  it('should name the service after the context unless serviceName is given', async () => {
+    const derived = await generate();
+    const given = await generate({ serviceName: 'company.sales.service.v1.CheckoutService' });
+
+    expect(readText(derived, `${MODULE_DIR}/app/rpc/service.go`)).toContain(
+      'const ServiceName = "company.checkout.service.v1.CheckoutService"',
+    );
+    expect(readText(given, `${MODULE_DIR}/app/rpc/service.go`)).toContain(
+      'const ServiceName = "company.sales.service.v1.CheckoutService"',
+    );
+  });
+
+  it('should read the configuration without the DMPF_ prefix, with the topic named after the context', async () => {
+    const tree = await generate({ name: 'order-fulfillment' });
+    const config = readText(tree, `${DIRECTORY}/order-fulfillment/app/config.go`);
+
+    expect(config).toMatch(/envDSN\s+= "PG_DSN"/);
+    expect(config).toContain('"KAFKA_ORDER_FULFILLMENT_TOPIC"');
+    expect(config).toContain('OrderFulfillmentTopic string');
+    expect(config).not.toContain('DMPF_');
+  });
+
+  it('should embed the context schema in the provider for the composition root to migrate', async () => {
+    const tree = await generate();
+
+    expect(readText(tree, `${MODULE_DIR}/provider/schema.go`)).toContain('//go:embed schema.sql');
+    expect(readText(tree, `${MODULE_DIR}/provider/schema.sql`)).toContain('snapshot');
+  });
+
+  it('should build the image of the binary from the workspace root', async () => {
+    const tree = await generate();
+    const dockerfile = readText(tree, `${MODULE_DIR}/${DOCKERFILE}`);
+
+    expect(dockerfile).toContain(`./${MODULE_DIR}/cmd`);
+    expect(dockerfile).toContain('EXPOSE 9090');
   });
 
   it('should leave no binary and no serve target when the context has no app block', async () => {
@@ -306,6 +413,7 @@ describe('[generator] bounded-context — generation', () => {
 
     expect(tree.children(MODULE_DIR)).not.toContain(CMD_DIR);
     expect(Object.keys(projectOf(tree).targets)).not.toContain('serve-api');
+    expect(tree.children(MODULE_DIR)).not.toContain(DOCKERFILE);
   });
 
   it('should identify the project by the bare context name', async () => {
@@ -338,17 +446,21 @@ describe('[generator] bounded-context — generation', () => {
     }
   });
 
-  it('should declare the five Go targets, the two serve targets, the distributed one and no lint target', async () => {
+  it('should declare the six Go targets, the two serve targets, the env file, the relay container, the distributed one and no lint target', async () => {
     const tree = await generate();
 
     expect(Object.keys(projectOf(tree).targets).sort()).toEqual([
       'build',
+      'deploy-env',
+      'docker:run-relay',
       'fmt-check',
       'govulncheck',
+      'nx-release-publish',
       'serve-api',
       'serve-relay',
       'test-distributed',
       'test-race',
+      'tidy',
       'vet',
     ]);
   });
@@ -357,16 +469,15 @@ describe('[generator] bounded-context — generation', () => {
     const tree = await generate();
     const targets = projectOf(tree).targets as Record<string, { options: { command: string } }>;
 
-    expect(targets['serve-api'].options.command).toBe('go run ./cmd --role api');
-    expect(targets['serve-relay'].options.command).toBe('go run ./cmd --role relay');
+    expect(targets['serve-api'].options.command).toBe(SERVE_API);
+    expect(targets['serve-relay'].options.command).toBe(SERVE_RELAY);
+    expect(targets['docker:run-relay'].options.command).toBe(DOCKER_RUN_RELAY);
   });
 
-  it('should run test-race with the integration tag after postgres when provider is generated', async () => {
+  it('should run test-race with the integration tag and no serialization, the database being its own', async () => {
     const tree = await generate();
 
-    expect(projectOf(tree).targets).toEqual(
-      expectedTargets({ integration: true, dependsOnProjects: ['postgres'] }),
-    );
+    expect(projectOf(tree).targets).toEqual(expectedTargets({ integration: true }));
   });
 
   it('should run a cached, tag-free test-race when no block touches infrastructure', async () => {
@@ -400,7 +511,11 @@ describe('[generator] bounded-context — generation', () => {
       // root, not a unit of its own.
       const include =
         dirName === 'app'
-          ? [`${MODULE_PREFIX}/${MODULE_DIR}/app`, `${MODULE_PREFIX}/${MODULE_DIR}/cmd`]
+          ? [
+              `${MODULE_PREFIX}/${MODULE_DIR}/app`,
+              `${MODULE_PREFIX}/${MODULE_DIR}/app/rpc`,
+              `${MODULE_PREFIX}/${MODULE_DIR}/cmd`,
+            ]
           : [`${MODULE_PREFIX}/${MODULE_DIR}/${dirName}`];
       expect(unit.include).toEqual(include);
     });
@@ -409,8 +524,14 @@ describe('[generator] bounded-context — generation', () => {
   it('should give the app block both test kits, each in a directory of its own', async () => {
     const tree = await generate();
 
-    expect(tree.children(`${MODULE_DIR}/${APPKIT_DIR}`)).toEqual(['doc.go']);
+    expect(tree.children(`${MODULE_DIR}/${APPKIT_DIR}`).sort()).toEqual(['doc.go', 'pool.go']);
     expect(readText(tree, `${MODULE_DIR}/${APPKIT_DIR}/doc.go`)).toContain('package appkit');
+    expect(readText(tree, `${MODULE_DIR}/${APPKIT_DIR}/pool.go`)).toContain(
+      'Project:      "checkout"',
+    );
+    expect(readText(tree, `${MODULE_DIR}/${APPKIT_DIR}/pool.go`)).toContain(
+      'var Tables = []string{}',
+    );
     expect(tree.children(`${MODULE_DIR}/${DISTKIT_DIR}`)).toEqual(['doc.go']);
     expect(readText(tree, `${MODULE_DIR}/${DISTKIT_DIR}/doc.go`)).toContain('package distkit');
   });
@@ -422,9 +543,13 @@ describe('[generator] bounded-context — generation', () => {
     ];
 
     expect(target.cache).toBe(false);
-    expect(target.dependsOn).toEqual([{ projects: ['postgres', 'app'], target: 'test-race' }]);
+    expect(target.dependsOn).toEqual([
+      TEST_INFRA,
+      { projects: ['postgres', 'app'], target: 'test-race' },
+      'test-race',
+    ]);
     expect((target.options as { command: string }).command).toBe(
-      'go test -race -count=1 -p 1 -tags=integration,distributed ./distkit/...',
+      `${TEST_ENV} go test -race -count=1 -p 1 -tags=integration,distributed ./distkit/...`,
     );
   });
 
@@ -468,11 +593,12 @@ describe('[generator] bounded-context — generation', () => {
     expect(readText(tree, `${MODULE_DIR}/go.mod`)).toContain('go 1.27.0');
   });
 
-  it('should register the single module in go.work in sorted order', async () => {
+  it('should register the context and its contract in go.work in sorted order', async () => {
     const tree = await generate();
 
     expect(useEntries(readText(tree, 'go.work'))).toEqual([
       './apps/backend/checkout',
+      './apps/backend/checkout/contract',
       './libs/backend/go/app',
       './libs/backend/go/domain',
       './libs/backend/go/ports',
@@ -496,7 +622,7 @@ describe('[generator] bounded-context — generation', () => {
     });
 
     expect(withoutApp.children(MODULE_DIR).sort()).toEqual(
-      [...MODULE_FILES, 'application', 'domain', 'ports', 'provider'].sort(),
+      [...MODULE_FILES, 'application', 'domain', 'ports', 'provider', CONTRACT_DIR].sort(),
     );
   });
 
@@ -509,7 +635,16 @@ describe('[generator] bounded-context — generation', () => {
     });
 
     expect(tree.children(MODULE_DIR).sort()).toEqual(
-      [...MODULE_FILES, ...BLOCK_DIRS, CMD_DIR, APPKIT_DIR, DISTKIT_DIR].sort(),
+      [
+        ...MODULE_FILES,
+        ...BLOCK_DIRS,
+        CMD_DIR,
+        APPKIT_DIR,
+        DISTKIT_DIR,
+        DOCKERFILE,
+        CONTRACT_DIR,
+        DEPLOY_DIR,
+      ].sort(),
     );
   });
 });
@@ -522,7 +657,16 @@ describe('[generator] bounded-context — identifiers', () => {
 
     expect(tree.children(DIRECTORY)).toEqual(['order-fulfillment']);
     expect(tree.children(`${DIRECTORY}/order-fulfillment`).sort()).toEqual(
-      [...MODULE_FILES, ...BLOCK_DIRS, CMD_DIR, APPKIT_DIR, DISTKIT_DIR].sort(),
+      [
+        ...MODULE_FILES,
+        ...BLOCK_DIRS,
+        CMD_DIR,
+        APPKIT_DIR,
+        DISTKIT_DIR,
+        DOCKERFILE,
+        CONTRACT_DIR,
+        DEPLOY_DIR,
+      ].sort(),
     );
   });
 
@@ -575,10 +719,26 @@ describe('[generator] bounded-context — refusals', () => {
     await expectRefusal({ overrides: { boundedContext: '' }, message: /ADR-012/ });
   });
 
-  it('should refuse the contract block pointing at contracts/', async () => {
+  it('should accept the contract block, which is always the contract module of the context', async () => {
+    const tree = await generate({ blocks: [...ALL_BLOCKS, 'contract'] });
+
+    expect(tree.exists(`${CONTRACT_MODULE_DIR}/go.mod`)).toBe(true);
+    expect(tree.children(MODULE_DIR)).not.toContain('contract.go');
+  });
+
+  it('should refuse a contract module already registered in go.work', async () => {
     await expectRefusal({
-      overrides: { blocks: [...ALL_BLOCKS, 'contract'] },
-      message: /contracts\//,
+      overrides: {},
+      message: /go\.work/,
+      prepare: (tree) => {
+        tree.write(
+          'go.work',
+          GO_WORK.replace(
+            '\t./libs/backend/go/app\n',
+            '\t./apps/backend/checkout/contract\n\t./libs/backend/go/app\n',
+          ),
+        );
+      },
     });
   });
 
@@ -603,8 +763,38 @@ describe('[generator] bounded-context — refusals', () => {
     expect(messages).toMatch(/provider/);
   });
 
+  it('should refuse a serviceName that is not a qualified proto service name', async () => {
+    await expectRefusal({
+      overrides: { serviceName: 'company.sales.checkoutService' },
+      message: /option serviceName .* must match/,
+    });
+  });
+
   it('should refuse a directory that escapes the workspace root', async () => {
     await expectRefusal({ overrides: { directory: '../outside' }, message: /directory/i });
+  });
+
+  it('should refuse a directory other than apps/backend, which the deploy and infrasync read', async () => {
+    await expectRefusal({ overrides: { directory: 'services' }, message: /directory/i });
+  });
+
+  it('should take the next free gRPC port after the contexts declared', async () => {
+    const tree = await generate({}, (t) => {
+      t.write('apps/backend/orders/deploy/.env.example', 'GRPC_ADDR=:9191\n');
+      t.write('apps/backend/bookings/deploy/.env.example', 'GRPC_ADDR=127.0.0.1:9196\n');
+    });
+
+    expect(readText(tree, `${DEPLOY_MODULE_DIR}/.env.example`).split('\n')).toContain(
+      'GRPC_ADDR=127.0.0.1:9197',
+    );
+  });
+
+  it('should refuse a gRPC port another context declares', async () => {
+    await expectRefusal({
+      overrides: { grpcPort: 9191 },
+      message: /grpcPort/,
+      prepare: (t) => t.write('apps/backend/orders/deploy/.env.example', 'GRPC_ADDR=:9191\n'),
+    });
   });
 
   it('should refuse an absolute directory', async () => {
@@ -699,14 +889,83 @@ describe('[generator] bounded-context — release groups and module sync', () =>
     modsync.mockClear();
   });
 
-  it('should never write to nx.json, so no release group is edited during generation', async () => {
+  const INFRASYNC_ARGS = [
+    'run',
+    './tools/dmpf-conformance/cmd/infrasync',
+    '--root',
+    '.',
+    '--write',
+  ];
+
+  it('should add the release group of the contract with the literal tag of its directory', async () => {
     const tree = treeWithGoWork();
     tree.write('nx.json', NX_JSON);
 
     await boundedContextGenerator(tree, FULL_OPTIONS);
 
-    expect(projectOf(tree).tags).toContain('type:app');
-    expect(readText(tree, 'nx.json')).toBe(NX_JSON);
+    const groups = readJsonFile<{ release: { groups: Record<string, unknown> } }>(tree, 'nx.json')
+      .release.groups;
+    expect(groups['go-contract-checkout']).toEqual({
+      projects: ['checkout-contract'],
+      releaseTag: { pattern: 'apps/backend/checkout/contract/v{version}' },
+    });
+    expect(Object.keys(groups)).toEqual(['go-contract-checkout', 'go-libs', 'go-tools', 'npm']);
+  });
+
+  it('should keep every other line of nx.json as it was', async () => {
+    const tree = treeWithGoWork();
+    tree.write('nx.json', NX_JSON);
+
+    await boundedContextGenerator(tree, FULL_OPTIONS);
+
+    const inserted = [
+      '      "go-contract-checkout": {',
+      '        "projects": ["checkout-contract"],',
+      '        "releaseTag": {',
+      '          "pattern": "apps/backend/checkout/contract/v{version}"',
+      '        }',
+      '      },',
+      '',
+    ].join('\n');
+    expect(readText(tree, 'nx.json')).toBe(
+      NX_JSON.replace('    "groups": {\n', `    "groups": {\n${inserted}`),
+    );
+  });
+
+  it('should leave nx.json alone when the release group already exists', async () => {
+    const tree = treeWithGoWork();
+    tree.write('nx.json', NX_JSON);
+    await boundedContextGenerator(tree, FULL_OPTIONS);
+    const once = readText(tree, 'nx.json');
+    const again = treeWithGoWork();
+    again.write('nx.json', once);
+
+    await boundedContextGenerator(again, FULL_OPTIONS);
+
+    expect(readText(again, 'nx.json')).toBe(once);
+  });
+
+  it('should include the deploy compose of the app in the local compose', async () => {
+    const compose = [
+      'name: local',
+      '',
+      'include:',
+      '  - compose/postgres.yml',
+      '  - ../../apps/backend/orders/deploy/compose.yml',
+      '  - compose/swagger-ui.yml',
+      '',
+    ].join('\n');
+    const tree = treeWithGoWork();
+    tree.write('infra/local/docker-compose.yml', compose);
+
+    await boundedContextGenerator(tree, FULL_OPTIONS);
+
+    expect(readText(tree, 'infra/local/docker-compose.yml')).toBe(
+      compose.replace(
+        '  - ../../apps/backend/orders/deploy/compose.yml\n',
+        '  - ../../apps/backend/orders/deploy/compose.yml\n  - ../../apps/backend/checkout/deploy/compose.yml\n',
+      ),
+    );
   });
 
   it('should defer the modsync run to the post-flush callback', async () => {
@@ -724,11 +983,35 @@ describe('[generator] bounded-context — release groups and module sync', () =>
     const callback = await boundedContextGenerator(tree, FULL_OPTIONS);
     await callback();
 
-    expect(modsync).toHaveBeenCalledTimes(1);
-    expect(modsync).toHaveBeenCalledWith('go', MODSYNC_ARGS, {
+    expect(modsync).toHaveBeenCalledTimes(2);
+    expect(modsync).toHaveBeenNthCalledWith(1, 'go', MODSYNC_ARGS, {
       cwd: tree.root,
       stdio: 'inherit',
     });
+  });
+
+  it('should regenerate the shared infra from the manifests after the module sync', async () => {
+    const tree = treeWithGoWork();
+
+    const callback = await boundedContextGenerator(tree, FULL_OPTIONS);
+    await callback();
+
+    expect(modsync).toHaveBeenNthCalledWith(2, 'go', INFRASYNC_ARGS, {
+      cwd: tree.root,
+      stdio: 'inherit',
+    });
+  });
+
+  it('should not run infrasync for a context without deploy', async () => {
+    const tree = treeWithGoWork();
+
+    const callback = await boundedContextGenerator(tree, {
+      ...FULL_OPTIONS,
+      blocks: ['domain', 'port', 'application'],
+    });
+    await callback();
+
+    expect(modsync).toHaveBeenCalledTimes(1);
   });
 
   it('should point to the manual recovery when the modsync run fails', async () => {
@@ -763,8 +1046,229 @@ describe('[generator] bounded-context — determinism and output', () => {
 
     await generate();
 
-    expect(printed()).toContain('1 módulo gerado');
+    expect(printed()).toContain('2 módulos gerados');
     expect(printed()).toContain('--write-baseline');
     expect(printed()).toContain('AUT-01');
+  });
+});
+
+describe('[generator] bounded-context — contract module', () => {
+  type ContractProject = ProjectConfig & {
+    targets: Record<string, { options: { command: string; cwd?: string } }>;
+  };
+
+  const contractProjectOf = (tree: Tree): ContractProject =>
+    readJsonFile<ContractProject>(tree, `${CONTRACT_MODULE_DIR}/project.json`);
+
+  it('should create the contract as a Go module of its own beside the blocks', async () => {
+    const tree = await generate();
+
+    expect(tree.children(CONTRACT_MODULE_DIR).sort()).toEqual([
+      'buf.gen.yaml',
+      'buf.yaml',
+      'dmpf-units.json',
+      'doc.go',
+      'go.mod',
+      'package.json',
+      'project.json',
+      'proto',
+    ]);
+    expect(readText(tree, `${CONTRACT_MODULE_DIR}/go.mod`)).toBe(
+      `module ${MODULE_PREFIX}/${CONTRACT_MODULE_DIR}\n\ngo ${GO_VERSION}\n`,
+    );
+  });
+
+  it('should name the contract project <name>-contract with the contract layer', async () => {
+    const project = contractProjectOf(await generate());
+
+    expect(project.name).toBe('checkout-contract');
+    expect(project.$schema).toBe(`../${NX_PROJECT_SCHEMA}`);
+    expect(project.projectType).toBe('library');
+    expect(project.sourceRoot).toBe(CONTRACT_MODULE_DIR);
+    expect(project.tags).toEqual(['type:lib', 'scope:backend', 'stack:go', 'layer:contract']);
+  });
+
+  it('should run the Buf gates on the contract directory with the project name', async () => {
+    const targets = contractProjectOf(await generate()).targets;
+
+    for (const gate of ['warmup', 'lint', 'pins', 'generate-check', 'breaking']) {
+      expect(targets[`buf-${gate}`].options.command).toBe(
+        `bash tools/buf-gate.sh ${gate} ${CONTRACT_MODULE_DIR} --project checkout-contract`,
+      );
+    }
+    expect(targets.tidy.options.command).toBe('bash ../../../../tools/go-tidy.sh');
+    expect(Object.keys(targets).sort()).toEqual([
+      'buf-breaking',
+      'buf-generate-check',
+      'buf-lint',
+      'buf-pins',
+      'buf-warmup',
+      'build',
+      'fmt-check',
+      'govulncheck',
+      'test-race',
+      'tidy',
+      'vet',
+    ]);
+  });
+
+  it('should publish the contract under the go_package_prefix of its own module', async () => {
+    const tree = await generate();
+
+    expect(readText(tree, `${CONTRACT_MODULE_DIR}/buf.gen.yaml`)).toContain(
+      `value: ${MODULE_PREFIX}/${CONTRACT_MODULE_DIR}/gen/go`,
+    );
+    expect(readText(tree, `${CONTRACT_MODULE_DIR}/buf.gen.yaml`)).toContain('out: gen/go');
+    expect(readText(tree, `${CONTRACT_MODULE_DIR}/buf.yaml`)).toContain(
+      'name: buf.build/mateusmacedo/checkout-contract',
+    );
+  });
+
+  it('should declare the contract unit as public integration surface of the bounded context', async () => {
+    const manifest = readJsonFile<Manifest>(
+      await generate(),
+      `${CONTRACT_MODULE_DIR}/dmpf-units.json`,
+    );
+
+    expect(manifest.units).toEqual([
+      {
+        id: 'sales/contract',
+        block: 'contract',
+        bounded_context: 'sales',
+        public_integration_surface: true,
+        include: [
+          `${MODULE_PREFIX}/${CONTRACT_MODULE_DIR}`,
+          `${MODULE_PREFIX}/${CONTRACT_MODULE_DIR}/gen/go/company/checkout/service/v1`,
+        ],
+      },
+    ]);
+  });
+
+  it('should declare the protobuf runtime that the generated code imports as the contract external', async () => {
+    const manifest = readJsonFile<{ external: { package: string; capability: string }[] }>(
+      await generate(),
+      `${CONTRACT_MODULE_DIR}/dmpf-units.json`,
+    );
+
+    expect(manifest.external.map(({ package: pkg, capability }) => ({ pkg, capability }))).toEqual([
+      { pkg: 'google.golang.org/protobuf', capability: 'wire.codec' },
+    ]);
+  });
+
+  it('should write a private package.json named after the contract project', async () => {
+    expect(
+      readJsonFile<PackageManifest>(await generate(), `${CONTRACT_MODULE_DIR}/package.json`),
+    ).toEqual({ name: '@mateusmacedo/checkout-contract', version: '0.0.0', private: true });
+  });
+});
+
+describe('[generator] bounded-context — deploy', () => {
+  type InfraManifest = {
+    schema: string;
+    app: string;
+    image: { env: string; local: string };
+    database: { passwordEnv: string; local: string; dev: string };
+    kafka: {
+      passwordEnv: string;
+      local: string;
+      topics: { name: string; env: string }[];
+      acls: { operations: string[]; topics: string[] }[];
+    };
+    grpc: { server: string };
+    openapi: boolean;
+  };
+
+  it('should give the app the deploy of Kubernetes, Compose, environment and platform needs', async () => {
+    const tree = await generate();
+
+    expect(tree.children(DEPLOY_MODULE_DIR).sort()).toEqual([
+      '.env.example',
+      'compose.yml',
+      'infra.json',
+      'k8s',
+    ]);
+    expect(tree.children(`${DEPLOY_MODULE_DIR}/k8s/base`).sort()).toEqual([
+      'configmap.yaml',
+      'deployment-api.yaml',
+      'deployment-relay.yaml',
+      'kustomization.yaml',
+      'networkpolicy.yaml',
+      'pdb-api.yaml',
+      'service-api.yaml',
+      'serviceaccount.yaml',
+    ]);
+    expect(tree.children(`${DEPLOY_MODULE_DIR}/k8s/overlays/dev`).sort()).toEqual([
+      'configmap-checkout-patch.yaml',
+      'deployment-checkout-api-patch.yaml',
+      'kustomization.yaml',
+    ]);
+    expect(tree.children(`${DEPLOY_MODULE_DIR}/k8s/overlays/hmg`).sort()).toEqual([
+      'configmap-checkout-patch.yaml',
+      'deployment-checkout-api-patch.yaml',
+      'kustomization.yaml',
+      'secrets.example.yaml.tmpl',
+    ]);
+  });
+
+  it('should declare the database, the topics and the workload the platform provisions', async () => {
+    const infra = readJsonFile<InfraManifest>(await generate(), `${DEPLOY_MODULE_DIR}/infra.json`);
+
+    expect(infra).toEqual({
+      schema: 'dmpf/infra@1',
+      app: 'checkout',
+      image: { env: 'CHECKOUT_IMAGE', local: 'checkout:local' },
+      database: {
+        passwordEnv: 'CHECKOUT_PG_PASSWORD',
+        local: 'checkout-local',
+        dev: 'checkout-dev',
+      },
+      kafka: {
+        passwordEnv: 'KAFKA_CHECKOUT_PASSWORD',
+        local: 'checkout-local',
+        topics: [
+          { name: 'checkout.events', env: 'KAFKA_CHECKOUT_TOPIC' },
+          { name: 'checkout.events.dlq', env: 'KAFKA_CHECKOUT_DLQ' },
+        ],
+        acls: [
+          {
+            operations: ['write', 'describe'],
+            topics: ['checkout.events', 'checkout.events.dlq'],
+          },
+        ],
+      },
+      grpc: { server: 'dmpf-checkout-api' },
+      openapi: false,
+    });
+  });
+
+  it('should run the local processes with full sampling, debug logs and OTLP log export', async () => {
+    const env = readText(await generate(), `${DEPLOY_MODULE_DIR}/.env.example`);
+
+    for (const line of [
+      'SERVICE=checkout',
+      'PG_DSN=postgres://checkout:checkout-local@localhost:5432/checkout?sslmode=disable',
+      'KAFKA_CHECKOUT_TOPIC=checkout.events',
+      'KAFKA_CHECKOUT_DLQ=checkout.events.dlq',
+      'TRACE_SAMPLE_RATE=1',
+      'LOG_LEVEL=debug',
+      'OTLP_LOGS=true',
+    ]) {
+      expect(env.split('\n')).toContain(line);
+    }
+  });
+
+  it('should extend the shared services of the local compose for the api and the relay', async () => {
+    const compose = readText(await generate(), `${DEPLOY_MODULE_DIR}/compose.yml`);
+
+    expect(compose).toContain('  dmpf-checkout-api:');
+    expect(compose).toContain('  dmpf-checkout-relay:');
+    expect(compose).toContain('file: ../../../../infra/local/compose/app-base.yml');
+    expect(compose).toContain('dockerfile: apps/backend/checkout/Dockerfile');
+  });
+
+  it('should leave no deploy when the context has no app block', async () => {
+    const tree = await generate({ blocks: ['domain', 'port', 'application'] });
+
+    expect(tree.children(MODULE_DIR)).not.toContain(DEPLOY_DIR);
   });
 });

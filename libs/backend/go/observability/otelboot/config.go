@@ -9,6 +9,7 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/propagation"
+	sdklog "go.opentelemetry.io/otel/sdk/log"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
@@ -76,18 +77,16 @@ type Resource struct {
 // suite runs the whole pipeline in memory, and otelboot/otlp supplies the
 // production ones from Transport.
 type Config struct {
-	Propagator    propagation.TextMapPropagator
-	Resource      Resource
-	Sampling      tracing.Rates
-	Transport     Transport
-	AllowInsecure bool
-	Sheets        []resilience.Sheet
-	TraceExporter sdktrace.SpanExporter
-	MetricReader  sdkmetric.Reader
-
-	// Logger records the start-up of the runtime. It is optional: a nil logger
-	// discards those records rather than inventing a destination.
-	Logger *slog.Logger
+	Propagator     propagation.TextMapPropagator
+	Resource       Resource
+	Sampling       tracing.Rates
+	Transport      Transport
+	AllowInsecure  bool
+	Sheets         []resilience.Sheet
+	TraceExporter  sdktrace.SpanExporter
+	MetricReader   sdkmetric.Reader
+	LoggerProvider *sdklog.LoggerProvider
+	Logger         *slog.Logger
 }
 
 // Validate reports every fault at once, so a reader fixes the configuration in

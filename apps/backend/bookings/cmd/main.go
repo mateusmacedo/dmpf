@@ -1,4 +1,4 @@
-// Command bookings runs one role of the resource-scheduling context: the HTTP
+// Command bookings runs one role of the resource-scheduling context: the gRPC
 // api or the relay, selected by --role and configured only through the
 // environment.
 package main

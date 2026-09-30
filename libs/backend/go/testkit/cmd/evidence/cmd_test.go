@@ -101,7 +101,7 @@ func TestGoldenInCIIsNotReprovedByTheFixtureMaintenanceTest(t *testing.T) {
 }
 
 func TestProviderEvidenceNamesThePostgresItRanAgainst(t *testing.T) {
-	tb.Env(t, "DMPF_PG_DSN")
+	tb.Env(t, "PG_DSN")
 	out := filepath.Join(t.TempDir(), "0.1.0")
 	if code, stderr := runCommand(t, "--release", "latest", "--subjects", "provider", "--out", out); code != exitOK {
 		t.Fatalf("exit %d: %s", code, stderr)
@@ -120,14 +120,14 @@ func TestProviderEvidenceNamesThePostgresItRanAgainst(t *testing.T) {
 
 func TestDistWithoutBrokersInCIExitsNamingTheVariable(t *testing.T) {
 	t.Setenv("CI", "true")
-	t.Setenv("DMPF_PG_DSN", "postgres://unused")
-	t.Setenv("DMPF_KAFKA_BROKERS", "")
+	t.Setenv("PG_DSN", "postgres://unused")
+	t.Setenv("KAFKA_BROKERS", "")
 	out := filepath.Join(t.TempDir(), "0.1.0")
 
 	code, stderr := runCommand(t, "--release", "latest", "--subjects", "dist", "--out", out)
 
-	if code != exitReproved || !strings.Contains(stderr, "DMPF_KAFKA_BROKERS") {
-		t.Fatalf("exit %d, stderr %q; want exit %d naming DMPF_KAFKA_BROKERS", code, stderr, exitReproved)
+	if code != exitReproved || !strings.Contains(stderr, "KAFKA_BROKERS") {
+		t.Fatalf("exit %d, stderr %q; want exit %d naming KAFKA_BROKERS", code, stderr, exitReproved)
 	}
 	if _, err := os.Stat(out); !os.IsNotExist(err) {
 		t.Fatalf("%s was published (err = %v)", out, err)
@@ -136,7 +136,7 @@ func TestDistWithoutBrokersInCIExitsNamingTheVariable(t *testing.T) {
 
 func TestDistWithoutBrokersOutsideCIIsRecordedAsSkippedAndNotIndexed(t *testing.T) {
 	t.Setenv("CI", "")
-	t.Setenv("DMPF_KAFKA_BROKERS", "")
+	t.Setenv("KAFKA_BROKERS", "")
 	out := filepath.Join(t.TempDir(), "0.1.0")
 
 	if code, stderr := runCommand(t, "--release", "latest", "--subjects", "dist", "--out", out); code != exitOK {

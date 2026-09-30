@@ -15,20 +15,20 @@ var (
 
 	// ErrVerifierNotDeclared refuses a start that resolves identity by no means
 	// at all: without an issuer, the development mock has to say so explicitly.
-	ErrVerifierNotDeclared = errors.New("auth: no issuer configured and DMPF_AUTH_DEV_MOCK is not set")
+	ErrVerifierNotDeclared = errors.New("auth: no issuer configured and AUTH_DEV_MOCK is not set")
 
 	// ErrMockWithVerifier refuses a start that declares both: one process
 	// resolves identity one way, and the ambiguity would decide itself.
-	ErrMockWithVerifier = errors.New("auth: DMPF_AUTH_DEV_MOCK cannot be set alongside a configured issuer")
+	ErrMockWithVerifier = errors.New("auth: AUTH_DEV_MOCK cannot be set alongside a configured issuer")
 )
 
 const (
-	envIssuer           = "DMPF_OIDC_ISSUER"
-	envAudience         = "DMPF_OIDC_AUDIENCE"
-	envTenantClaim      = "DMPF_OIDC_TENANT_CLAIM"
-	envPermissionClaims = "DMPF_OIDC_PERMISSION_CLAIMS"
-	envDiscoveryTimeout = "DMPF_OIDC_DISCOVERY_TIMEOUT_SECONDS"
-	envDevMock          = "DMPF_AUTH_DEV_MOCK"
+	envIssuer           = "OIDC_ISSUER"
+	envAudience         = "OIDC_AUDIENCE"
+	envTenantClaim      = "OIDC_TENANT_CLAIM"
+	envPermissionClaims = "OIDC_PERMISSION_CLAIMS"
+	envDiscoveryTimeout = "OIDC_DISCOVERY_TIMEOUT_SECONDS"
+	envDevMock          = "AUTH_DEV_MOCK"
 )
 
 const defaultDiscoveryTimeoutSeconds = 10

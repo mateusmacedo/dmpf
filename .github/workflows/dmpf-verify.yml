@@ -29,12 +29,12 @@ permissions:
 jobs:
   verify:
     name: Congruência horizontal do acervo
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           # O teste histórico monta a fixture a partir do commit base; sem o
           # histórico completo, `git show <base>:<path>` falha.

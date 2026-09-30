@@ -3,7 +3,7 @@
 # exige SASL SCRAM — cada processo se autentica com o próprio principal
 # (IDN-04) —, e `external` publicado no host em ${REDPANDA_PORT:-9092}, sem
 # autenticação, que é o endereço que os testes locais dos módulos Go usam
-# (DMPF_KAFKA_BROKERS=localhost:9092). Só para desenvolvimento: outro
+# (KAFKA_BROKERS=localhost:9092). Só para desenvolvimento: outro
 # container da rede também o alcança em redpanda:9092, e o principal dele é
 # superusuário. Usuários, ACLs e autorização nascem no redpanda-init.
 # A porta 9644 serve as métricas Prometheus nativas, que o scrape lê.

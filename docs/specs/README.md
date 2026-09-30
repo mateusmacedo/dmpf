@@ -79,7 +79,6 @@ Exemplos deste repositório:
 
 - `SPEC-YWAWQHPX-melhorias-template-base-nx.md`
 - `SPEC-W4RWD02M-evoluir-workflows-com-monorepo-referencia.md`
-- `a spec de port do monorepo de origem.md`
 
 ### Formato de requisitos (checklist com prioridade)
 

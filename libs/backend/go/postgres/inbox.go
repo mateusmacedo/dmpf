@@ -16,14 +16,14 @@ import (
 const lockNotAvailable = "55P03"
 
 const insertInbox = `
-INSERT INTO dmpf_inbox (consumer_name, message_id, message_type, payload_hash, received_at, processed_at, status)
+INSERT INTO inbox (consumer_name, message_id, message_type, payload_hash, received_at, processed_at, status)
 VALUES ($1, $2, $3, $4, $5, $5, 'processed')
 ON CONFLICT (consumer_name, message_id) DO NOTHING`
 
-const selectInbox = `SELECT payload_hash, status FROM dmpf_inbox WHERE consumer_name = $1 AND message_id = $2`
+const selectInbox = `SELECT payload_hash, status FROM inbox WHERE consumer_name = $1 AND message_id = $2`
 
 const updateInbox = `
-UPDATE dmpf_inbox SET status = $3, processed_at = $4, last_error = $5
+UPDATE inbox SET status = $3, processed_at = $4, last_error = $5
 WHERE consumer_name = $1 AND message_id = $2`
 
 // Inbox binds a consumer and a wait ceiling to this open transaction. The

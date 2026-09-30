@@ -18,9 +18,9 @@ import (
 // broker there is nothing to prove, and the CI sets it (ci.yml).
 func brokers(t *testing.T) []string {
 	t.Helper()
-	value := os.Getenv("DMPF_KAFKA_BROKERS")
+	value := os.Getenv("KAFKA_BROKERS")
 	if value == "" {
-		t.Skip("DMPF_KAFKA_BROKERS is not set: the integration tests need a Kafka-compatible broker")
+		t.Skip("KAFKA_BROKERS is not set: the integration tests need a Kafka-compatible broker")
 	}
 	return strings.Split(value, ",")
 }
@@ -44,6 +44,23 @@ func createTopics(t *testing.T, seeds []string, partitions int32, topics ...stri
 		defer cancel()
 		_, _ = admin.DeleteTopics(ctx, topics...)
 		cl.Close()
+	})
+}
+
+// deleteGroupAfter removes the consumer group the test created, which the
+// broker would otherwise keep with its committed offsets after the topic is gone.
+func deleteGroupAfter(t *testing.T, seeds []string, group string) {
+	t.Helper()
+	t.Cleanup(func() {
+		cl, err := kgo.NewClient(kgo.SeedBrokers(seeds...))
+		if err != nil {
+			t.Errorf("kgo.NewClient: %v", err)
+			return
+		}
+		defer cl.Close()
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		_, _ = kadm.NewClient(cl).DeleteGroups(ctx, group)
 	})
 }
 

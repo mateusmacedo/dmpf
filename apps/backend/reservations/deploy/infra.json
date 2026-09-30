@@ -1,0 +1,45 @@
+{
+  "schema": "dmpf/infra@1",
+  "app": "reservations",
+  "image": {
+    "env": "RESERVATIONS_IMAGE",
+    "local": "reservations:local"
+  },
+  "database": {
+    "passwordEnv": "RESERVATIONS_PG_PASSWORD",
+    "local": "reservations-local",
+    "dev": "reservations-dev"
+  },
+  "kafka": {
+    "passwordEnv": "KAFKA_RESERVATIONS_PASSWORD",
+    "local": "reservations-local",
+    "topics": [
+      {
+        "name": "reservations.events",
+        "env": "KAFKA_RESERVATIONS_TOPIC"
+      },
+      {
+        "name": "reservations.events.dlq",
+        "env": "KAFKA_RESERVATIONS_DLQ"
+      }
+    ],
+    "acls": [
+      {
+        "operations": ["write", "describe"],
+        "topics": ["reservations.events", "reservations.events.dlq", "orders.events.dlq"]
+      },
+      {
+        "operations": ["read", "describe"],
+        "topics": ["orders.events"],
+        "group": {
+          "name": "reservations",
+          "env": "KAFKA_GROUP"
+        }
+      }
+    ]
+  },
+  "grpc": {
+    "server": "dmpf-reservations-api"
+  },
+  "openapi": true
+}

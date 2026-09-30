@@ -8,7 +8,7 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
 
-const deletePublished = `DELETE FROM dmpf_outbox WHERE status = 'published' AND published_at < $1`
+const deletePublished = `DELETE FROM outbox WHERE status = 'published' AND published_at < $1`
 
 // Purge is the evidence a purge leaves behind: how many rows went and up to
 // which instant. Returning it rather than a bare count is what lets an operator
@@ -30,7 +30,7 @@ func PurgePublished(ctx context.Context, pool *pgxpool.Pool, before ports.Instan
 	return Purge{Count: tag.RowsAffected(), Before: before}, nil
 }
 
-const deleteInbox = `DELETE FROM dmpf_inbox WHERE consumer_name = $1 AND processed_at < $2`
+const deleteInbox = `DELETE FROM inbox WHERE consumer_name = $1 AND processed_at < $2`
 
 // InboxPurge is the evidence an inbox purge leaves behind, scoped to one
 // consumer (INB-16).

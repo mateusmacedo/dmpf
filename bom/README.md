@@ -21,7 +21,7 @@ go run ./tools/dmpf-conformance/cmd/bom --root . --release 0.1.0 --now 2026-09-1
 | `--release` | Qual `bom/dmpf/<release>.json` validar: uma semver, ou `latest` para a maior semver do diretório. Sem ela, o único arquivo do diretório; mais de um reprova em `DMPF-B011` |
 | `--base` | Ref git do BOM anterior; avalia as transições de `BOM-07` (`DMPF-B003`). Compara com o mesmo arquivo no ref; na release nova, com a maior semver de lá; sem BOM no ref, toda entrada é nova |
 | `--now` | Instante RFC3339 contra o qual as validades vencem. Sem ela, o relógio |
-| `--commit` | Commit alvo do `DMPF-B012` (default `HEAD`): a tag de módulo Go de cada entrada `kernel` precisa ser ancestral dele. Vale para releases a partir de `0.2.0`; o BOM `0.1.0` fica isento |
+| `--commit` | Commit alvo do `DMPF-B012` (default `HEAD`): a tag de módulo Go de cada entrada `kernel` e `contract` precisa ser ancestral dele. Vale para releases a partir de `0.2.0`; o BOM `0.1.0` fica isento |
 
 Sai com `0` sem diagnóstico, `1` com diagnóstico e `2` em erro de leitura. O
 workspace é lido por `os.Root`, que recusa symlink para fora da raiz.
@@ -78,7 +78,7 @@ divergir em silêncio.
 | --- | --- | --- | --- |
 | `go.work` | `go` | A linha `go` | `go` |
 | `tools/buf.sh` | `buf` | A versão depois de `buf@` | terminada em `buf` |
-| `contracts/buf.gen.yaml` | `plugin:<nome>` | A versão depois de `<nome>@` | terminada em `<nome>` |
+| `libs/backend/go/contracts/buf.gen.yaml` | `plugin:<nome>` | A versão depois de `<nome>@` | terminada em `<nome>` |
 | `nx.json` | `golangci-lint` | A versão depois de `golangci-lint@` | terminada em `golangci-lint` |
 | `<módulo>/go.mod` | `require:<pacote>` | A versão do `require`, ignorando `replace`, `exclude` e `retract` | `<pacote>`; o módulo precisa estar no `go.work` |
 | `<módulo>/package.json` | `version` | O campo `version` | igual ao `name` do `package.json` |
@@ -114,12 +114,14 @@ decurso de prazo: `certificada` com `valid_until` no passado reprova em
 A evidência da certificação é commitada em `bom/evidence/<release>/<subject>.json`
 e gerada pelo `dmpf-evidence` do `testkit`, sobre um commit com árvore limpa
 e com o Postgres e o Redpanda das imagens pinadas no `dmpf-evidence.yml` — o
-header grava a versão real de cada um, e outra imagem não reproduz no workflow:
+header grava a versão real de cada um, e outra imagem não reproduz no workflow.
+O Postgres sobe com `-c cluster_name=test`, que o `tb/pg` exige antes de criar o
+banco de cada teste:
 
 ```bash
 CI=true GOTOOLCHAIN=go1.26.6 \
-  DMPF_PG_DSN='postgres://dmpf:dmpf@localhost:5432/dmpf?sslmode=disable' \
-  DMPF_KAFKA_BROKERS=localhost:9092 DMPF_REDPANDA_ADMIN=http://localhost:9644 \
+  PG_DSN='postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable' \
+  KAFKA_BROKERS=localhost:9092 REDPANDA_ADMIN=http://localhost:9644 \
   go run ./libs/backend/go/testkit/cmd/evidence --root . --release 0.1.0 --out bom/evidence/0.1.0
 ```
 
@@ -245,7 +247,7 @@ derivam de `exceptions[].history`, e valor declarado divergente reprova
 | `DMPF-B009` | `BOM-03`, `BOM-09` | `cve` ausente; CVE `aberta` sem `owner` |
 | `DMPF-B010` | `GOV-36` | `metrics` diferentes das derivadas de `exceptions[].history` |
 | `DMPF-B011` | `BOM-02` | Mais de um BOM sem `--release`; `release` diferente do nome do arquivo ou fora de semver; `tag` diferente de `dmpf@<release>` |
-| `DMPF-B012` | `KRN-14` | Release a partir de `0.2.0` com entrada `kernel` cuja tag de módulo Go — `<diretório do módulo>/v<versão>`, pelo `go.mod` de cada `use` do `go.work` — está ausente ou não é ancestral do `--commit`; módulo fora do `go.work`. `rejeitada` fica de fora |
+| `DMPF-B012` | `KRN-14` | Release a partir de `0.2.0` com entrada `kernel` ou `contract` cuja tag de módulo Go — `<diretório do módulo>/v<versão>`, pelo `go.mod` de cada `use` do `go.work` — está ausente ou não é ancestral do `--commit`; módulo fora do `go.work`; módulo de contrato do `go.work` (`apps/backend/<ctx>/contract`) sem entrada `contract`. `rejeitada` fica de fora da tag, mas conta como entrada |
 
 As exceções do BOM trazem ainda os `DMPF-X001` a `DMPF-X007` da admissão comum.
 A tabela completa, com seção normativa, vive em

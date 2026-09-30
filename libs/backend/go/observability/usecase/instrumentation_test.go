@@ -452,7 +452,7 @@ func TestAReadOperationIsCountedLikeAnyOther(t *testing.T) {
 // security record comes from the carrier, the one source CTX-03 allows.
 func TestACrossTenantAccessIsRecordedAsASecurityEvent(t *testing.T) {
 	fixture := boot(t, options{subject: func(context.Context) string { return "not-the-carrier" }})
-	access := ports.CrossTenantAccess{Object: "dmpf_example_orders/o-1", ContextTenant: "globex", DataTenant: "acme"}
+	access := ports.CrossTenantAccess{Object: "probes/o-1", ContextTenant: "globex", DataTenant: "acme"}
 
 	_, end := fixture.instrumentation.BeginOperation(withExecution(t, context.Background()), operationFind)
 	end(ports.Result{Outcome: ports.OutcomeFailed, Err: fmt.Errorf("application: find order o-1: %w", access)})
@@ -468,7 +468,7 @@ func TestACrossTenantAccessIsRecordedAsASecurityEvent(t *testing.T) {
 	got.At = 0
 	want := audit.Event{
 		Subject:    "s-test",
-		Object:     "dmpf_example_orders/o-1",
+		Object:     "probes/o-1",
 		Action:     usecase.ActionCrossTenantAccess,
 		Outcome:    string(ports.OutcomeDenied),
 		Tenant:     "globex",
@@ -496,13 +496,13 @@ func TestAPlainNotFoundRecordsNoSecurityEvent(t *testing.T) {
 func TestASecurityEventTheSinkRefusesReachesTheLogWhole(t *testing.T) {
 	fixture := boot(t, options{})
 	instrumentation := usecase.New(fixture.runtime, refusingSink{err: errors.New("sink closed")}, nil, nil, readOperation)
-	access := ports.CrossTenantAccess{Object: "dmpf_example_orders/o-1", ContextTenant: "globex", DataTenant: "acme"}
+	access := ports.CrossTenantAccess{Object: "probes/o-1", ContextTenant: "globex", DataTenant: "acme"}
 
 	_, end := instrumentation.BeginOperation(withExecution(t, context.Background()), operationFind)
 	end(ports.Result{Outcome: ports.OutcomeFailed, Err: access})
 
 	logged := fixture.log.String()
-	for _, want := range []string{usecase.ActionCrossTenantAccess, "dmpf_example_orders/o-1", "globex", "acme", "s-test"} {
+	for _, want := range []string{usecase.ActionCrossTenantAccess, "probes/o-1", "globex", "acme", "s-test"} {
 		if !strings.Contains(logged, want) {
 			t.Fatalf("log = %s\nwant %q in it: the security record must survive the sink", logged, want)
 		}

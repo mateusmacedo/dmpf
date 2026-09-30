@@ -11,6 +11,7 @@ import (
 	"io"
 	"log/slog"
 
+	"go.opentelemetry.io/contrib/bridges/otelslog"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
@@ -33,26 +34,14 @@ type Telemetry struct {
 	Insecure bool
 	Class    tracing.Class
 	Fields   func(ctx context.Context) logging.Fields
+
+	Signals Signals
 }
 
 // StartTelemetry builds the logger, routes the SDK's own errors through it and
 // starts the pipelines. Without an endpoint the telemetry is kept in memory,
 // which is what makes a process runnable in development without a collector.
 func StartTelemetry(ctx context.Context, out io.Writer, t Telemetry) (*otelboot.Runtime, error) {
-	logger := slog.New(logging.NewHandler(out, logging.Config{
-		Service:  t.Service,
-		Version:  t.Version,
-		Instance: t.Instance,
-		Class:    t.Class,
-		Fields:   t.Fields,
-	}))
-
-	// The SDK's default error handler writes a bare line through package log;
-	// routing it through the platform handler keeps one record shape in Loki.
-	otel.SetErrorHandler(otel.ErrorHandlerFunc(func(err error) {
-		logger.WarnContext(ctx, "telemetry export failed", "error", err.Error())
-	}))
-
 	config := otelboot.Config{
 		Propagator: propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}),
 		Resource: otelboot.Resource{
@@ -60,23 +49,58 @@ func StartTelemetry(ctx context.Context, out io.Writer, t Telemetry) (*otelboot.
 			ServiceVersion:    t.Version,
 			ServiceInstanceID: t.Instance,
 		},
-		Logger: logger,
+		Sampling:      t.Signals.Sampling,
+		Transport:     otelboot.Transport{Endpoint: t.Endpoint, Insecure: t.Insecure},
+		AllowInsecure: t.Insecure,
 	}
 
+	var sinks []slog.Handler
+	if t.Endpoint != "" && t.Signals.ExportLogs {
+		logs, err := otlp.LogExporter(ctx, config)
+		if err != nil {
+			return nil, err
+		}
+		config.LoggerProvider = otelboot.NewLoggerProvider(config, logs)
+		sinks = []slog.Handler{otelslog.NewHandler(t.Service, otelslog.WithLoggerProvider(config.LoggerProvider))}
+	}
+
+	logger := slog.New(logging.NewHandler(out, logging.Config{
+		Service:  t.Service,
+		Version:  t.Version,
+		Instance: t.Instance,
+		Class:    t.Class,
+		Fields:   t.Fields,
+		Sampling: t.Signals.Sampling,
+		Level:    t.Signals.Level,
+		Sinks:    sinks,
+	}))
+	config.Logger = logger
+
+	// The SDK's default error handler writes a bare line through package log;
+	// routing it through the platform handler keeps one record shape in Loki.
+	otel.SetErrorHandler(otel.ErrorHandlerFunc(func(err error) {
+		logger.WarnContext(ctx, "telemetry export failed", "error", err.Error())
+	}))
+
 	if t.Endpoint == "" {
-		logger.WarnContext(ctx, "telemetry kept in memory (development mode): DMPF_OTLP_ENDPOINT is unset")
+		logger.WarnContext(ctx, "telemetry kept in memory (development mode): OTLP_ENDPOINT is unset")
+		config.Transport, config.AllowInsecure = otelboot.Transport{}, false
 		config.TraceExporter = tracetest.NewInMemoryExporter()
 		config.MetricReader = sdkmetric.NewManualReader()
 		return otelboot.Start(ctx, config)
 	}
 
 	if t.Insecure {
-		logger.WarnContext(ctx, "telemetry exported without TLS: DMPF_OTLP_INSECURE is set (development and CI only)", "endpoint", t.Endpoint)
+		logger.WarnContext(ctx, "telemetry exported without TLS: OTLP_INSECURE is set (development and CI only)", "endpoint", t.Endpoint)
 	}
-	config.Transport = otelboot.Transport{Endpoint: t.Endpoint, Insecure: t.Insecure}
-	config.AllowInsecure = t.Insecure
+	shutdownLogs := func() {
+		if config.LoggerProvider != nil {
+			_ = config.LoggerProvider.Shutdown(ctx)
+		}
+	}
 	exporter, err := otlp.TraceExporter(ctx, config)
 	if err != nil {
+		shutdownLogs()
 		return nil, err
 	}
 	reader, err := otlp.MetricReader(ctx, config)
@@ -84,8 +108,15 @@ func StartTelemetry(ctx context.Context, out io.Writer, t Telemetry) (*otelboot.
 		// WHY: the exporter above already holds a gRPC connection and its own
 		// goroutines; returning without closing it leaks both on every retry.
 		_ = exporter.Shutdown(ctx)
+		shutdownLogs()
 		return nil, err
 	}
 	config.TraceExporter, config.MetricReader = exporter, reader
-	return otelboot.Start(ctx, config)
+	runtime, err := otelboot.Start(ctx, config)
+	if err != nil {
+		_ = exporter.Shutdown(ctx)
+		_ = reader.Shutdown(ctx)
+		shutdownLogs()
+	}
+	return runtime, err
 }

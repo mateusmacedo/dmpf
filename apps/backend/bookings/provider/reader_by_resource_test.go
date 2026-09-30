@@ -4,12 +4,12 @@ package provider_test
 
 import (
 	"context"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/pg"
 	"sort"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/mateusmacedo/dmpf/apps/backend/bookings/appkit"
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/domain"
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/provider"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
@@ -28,7 +28,7 @@ func saveBooking(t *testing.T, pool *pgxpool.Pool, id domain.BookingID, resource
 			ID:         id,
 			ResourceID: resource,
 			Quantity:   3,
-			Status:     domain.BookingReservedStatus,
+			Status:     domain.Reserved,
 			ReservedAt: 1755432000,
 		}, 0)
 	})
@@ -50,7 +50,7 @@ func ids(snapshots []domain.BookingSnapshot) []string {
 // outside any unit of work, so it must not be able to join a caller's
 // transaction. Constructing it from the pool is what makes that structural.
 func TestLoadByResourceReturnsOnlyTheBookingsOfThatResource(t *testing.T) {
-	pool := pg.OpenPool(t, "bookings_booking", "bookings_resource")
+	pool := appkit.OpenPool(t)
 
 	saveBooking(t, pool, "b-query-1", queriedResource)
 	saveBooking(t, pool, "b-query-2", queriedResource)
@@ -84,7 +84,7 @@ func TestLoadByResourceReturnsOnlyTheBookingsOfThatResource(t *testing.T) {
 }
 
 func TestLoadByResourceReturnsEmptyForUnknownResource(t *testing.T) {
-	pool := pg.OpenPool(t, "bookings_booking", "bookings_resource")
+	pool := appkit.OpenPool(t)
 
 	saveBooking(t, pool, "b-query-1", queriedResource)
 

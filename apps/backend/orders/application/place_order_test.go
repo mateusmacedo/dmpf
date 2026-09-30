@@ -23,7 +23,7 @@ func TestPlaceOrderAcceptedPlacesTheOrderAndEnqueuesTheFact(t *testing.T) {
 		t.Fatalf("Response() = %+v, want %+v", got, want)
 	}
 
-	snapshot, version, _ := ordersTable.Reader(h.store).Load(withExecution(t, context.Background()), orderID)
+	snapshot, version, _ := orderTable.Reader(h.store).Load(withExecution(t, context.Background()), orderID)
 	if snapshot.Status != domain.Placed {
 		t.Fatalf("Status = %v, want Placed", snapshot.Status)
 	}
@@ -56,8 +56,8 @@ func TestPlaceOrderRejectedCommitsWithoutWriting(t *testing.T) {
 	if !refused {
 		t.Fatal("Rejection() reported no refusal, want orders/empty-order")
 	}
-	if rej.Code() != domain.CodeEmptyOrder {
-		t.Fatalf("Code() = %q, want %q", rej.Code(), domain.CodeEmptyOrder)
+	if rej.Code() != domain.CodeOrderEmpty {
+		t.Fatalf("Code() = %q, want %q", rej.Code(), domain.CodeOrderEmpty)
 	}
 	if got := h.serviceWithinCalls(); got != 1 {
 		t.Fatalf("transactions opened = %d, want 1", got)
@@ -68,7 +68,7 @@ func TestPlaceOrderRejectedCommitsWithoutWriting(t *testing.T) {
 	if h.saves != 0 || h.enqueues != 0 {
 		t.Fatalf("a refusal wrote: saves = %d, enqueues = %d, want 0 and 0", h.saves, h.enqueues)
 	}
-	snapshot, version, _ := ordersTable.Reader(h.store).Load(withExecution(t, context.Background()), orderID)
+	snapshot, version, _ := orderTable.Reader(h.store).Load(withExecution(t, context.Background()), orderID)
 	if snapshot.Status != domain.Open || version != 1 {
 		t.Fatalf("the store changed under a refusal: status = %v, version = %d", snapshot.Status, version)
 	}
@@ -87,7 +87,7 @@ func TestPlaceOrderKeepsNothingWhenTheCommitFailsWhileLoading(t *testing.T) {
 	if got := out.Response(); got != (domain.PlacedResponse{}) {
 		t.Fatalf("Response() = %+v, want the zero outcome", got)
 	}
-	snapshot, version, err := ordersTable.Reader(h.store).Load(withExecution(t, context.Background()), orderID)
+	snapshot, version, err := orderTable.Reader(h.store).Load(withExecution(t, context.Background()), orderID)
 	if err != nil {
 		t.Fatalf("Load() = %v, want the previous snapshot", err)
 	}

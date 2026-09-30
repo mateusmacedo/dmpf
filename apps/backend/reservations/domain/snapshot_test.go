@@ -33,7 +33,7 @@ func TestFromSnapshotRestoresTheStatusAsBehaviour(t *testing.T) {
 		t.Fatalf("Status = %v, want Confirmed", got)
 	}
 	acc, rej := reconstituted.Reserve(domain.Reserve{Items: 1, At: at})
-	requireRejected(t, acc, rej, domain.CodeAlreadyReserved)
+	requireRejected(t, acc, rej, domain.CodeReservationAlreadyReserved)
 }
 
 func TestFromSnapshotRestoresCanceledAsBehaviour(t *testing.T) {
@@ -45,9 +45,9 @@ func TestFromSnapshotRestoresCanceledAsBehaviour(t *testing.T) {
 
 	reconstituted := domain.FromSnapshot(canceled)
 
-	if got := reconstituted.Snapshot().Status; got != domain.Canceled {
-		t.Fatalf("Status = %v, want Canceled", got)
+	if got := reconstituted.Snapshot().Status; got != domain.Cancelled {
+		t.Fatalf("Status = %v, want Cancelled", got)
 	}
 	acc, rej := reconstituted.Reserve(domain.Reserve{Items: 1, At: at})
-	requireRejected(t, acc, rej, domain.CodeReservationCanceled)
+	requireRejected(t, acc, rej, domain.CodeReservationCancelled)
 }

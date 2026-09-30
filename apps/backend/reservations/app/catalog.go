@@ -1,9 +1,8 @@
 package app
 
 import (
-	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/channel"
-
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/application"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/channel"
 )
 
 const (

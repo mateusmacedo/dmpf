@@ -5,10 +5,18 @@
   "sourceRoot": "libs/backend/go/contracts",
   "tags": ["type:lib", "scope:backend", "stack:go", "layer:contract"],
   "targets": {
+    "tidy": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bash ../../../../tools/go-tidy.sh",
+        "cwd": "{projectRoot}"
+      }
+    },
     "fmt-check": {
       "executor": "nx:run-commands",
       "cache": true,
-      "inputs": ["go", "^go", "{workspaceRoot}/contracts/**", "{workspaceRoot}/tools/buf.sh"],
+      "inputs": ["go", "^go", "{workspaceRoot}/tools/buf.sh"],
       "options": {
         "command": "saida=\"$(gofmt -l . 2>&1)\"; status=$?; [ $status -eq 0 ] || { printf '%s\\n' \"$saida\" >&2; exit $status; }; [ -z \"$saida\" ] || { printf '%s\\n' \"$saida\" >&2; exit 1; }",
         "cwd": "{projectRoot}"
@@ -17,7 +25,7 @@
     "vet": {
       "executor": "nx:run-commands",
       "cache": true,
-      "inputs": ["go", "^go", "{workspaceRoot}/contracts/**", "{workspaceRoot}/tools/buf.sh"],
+      "inputs": ["go", "^go", "{workspaceRoot}/tools/buf.sh"],
       "options": {
         "command": "go vet ./...",
         "cwd": "{projectRoot}"
@@ -25,7 +33,7 @@
     },
     "build": {
       "executor": "nx:run-commands",
-      "inputs": ["go", "^go", "{workspaceRoot}/contracts/**", "{workspaceRoot}/tools/buf.sh"],
+      "inputs": ["go", "^go", "{workspaceRoot}/tools/buf.sh"],
       "options": {
         "command": "go build ./...",
         "cwd": "{projectRoot}"
@@ -34,7 +42,7 @@
     "test-race": {
       "executor": "nx:run-commands",
       "cache": true,
-      "inputs": ["go", "^go", "{workspaceRoot}/contracts/**", "{workspaceRoot}/tools/buf.sh"],
+      "inputs": ["go", "^go", "{workspaceRoot}/tools/buf.sh"],
       "options": {
         "command": "go test -race ./...",
         "cwd": "{projectRoot}"
@@ -52,7 +60,7 @@
       "executor": "nx:run-commands",
       "cache": false,
       "options": {
-        "command": "bash tools/buf-gate.sh warmup"
+        "command": "bash tools/buf-gate.sh warmup libs/backend/go/contracts --project contracts"
       }
     },
     "buf-lint": {
@@ -60,26 +68,28 @@
       "cache": true,
       "dependsOn": ["buf-warmup"],
       "inputs": [
-        "{workspaceRoot}/contracts/**",
         "{workspaceRoot}/tools/buf.sh",
         "{workspaceRoot}/tools/buf-gate.sh",
         "{projectRoot}/**/*"
       ],
       "options": {
-        "command": "bash tools/buf-gate.sh lint"
+        "command": "bash tools/buf-gate.sh lint libs/backend/go/contracts --project contracts"
       }
     },
     "buf-pins": {
       "executor": "nx:run-commands",
       "cache": true,
       "inputs": [
-        "{workspaceRoot}/contracts/**",
         "{workspaceRoot}/tools/buf.sh",
         "{workspaceRoot}/tools/buf-gate.sh",
-        "{projectRoot}/go.mod"
+        "{projectRoot}/go.mod",
+        "{projectRoot}/buf.yaml",
+        "{projectRoot}/buf.gen.yaml",
+        "{projectRoot}/buf.lock",
+        "{workspaceRoot}/**/buf.gen.yaml"
       ],
       "options": {
-        "command": "bash tools/buf-gate.sh pins"
+        "command": "bash tools/buf-gate.sh pins libs/backend/go/contracts --project contracts"
       }
     },
     "buf-generate-check": {
@@ -87,26 +97,22 @@
       "cache": true,
       "dependsOn": ["buf-warmup"],
       "inputs": [
-        "{workspaceRoot}/contracts/**",
         "{workspaceRoot}/tools/buf.sh",
         "{workspaceRoot}/tools/buf-gate.sh",
         "{projectRoot}/gen/**/*",
-        "{projectRoot}/go.mod"
+        "{projectRoot}/go.mod",
+        "{projectRoot}/**/*"
       ],
       "options": {
-        "command": "bash tools/buf-gate.sh generate-check"
+        "command": "bash tools/buf-gate.sh generate-check libs/backend/go/contracts --project contracts"
       }
     },
     "buf-breaking": {
       "executor": "nx:run-commands",
       "cache": false,
-      "inputs": [
-        "{workspaceRoot}/contracts/**",
-        "{workspaceRoot}/tools/buf.sh",
-        "{workspaceRoot}/tools/buf-gate.sh"
-      ],
+      "inputs": ["{workspaceRoot}/tools/buf.sh", "{workspaceRoot}/tools/buf-gate.sh"],
       "options": {
-        "command": "bash tools/buf-gate.sh breaking"
+        "command": "bash tools/buf-gate.sh breaking libs/backend/go/contracts --project contracts"
       }
     },
     "buf-gate-selftest": {
@@ -114,7 +120,6 @@
       "cache": false,
       "dependsOn": ["buf-warmup"],
       "inputs": [
-        "{workspaceRoot}/contracts/**",
         "{workspaceRoot}/tools/buf.sh",
         "{workspaceRoot}/tools/buf-gate.sh",
         "{workspaceRoot}/tools/tests/buf-gate/**",

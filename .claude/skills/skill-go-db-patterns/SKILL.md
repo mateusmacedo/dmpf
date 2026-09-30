@@ -9,6 +9,8 @@ model: opus
 
 # Go DB — padrões
 
+> **Override DMPF.** Num bounded context deste workspace, a forma é a de `.claude/rules/dmpf-bounded-context.md` e do `apps/backend/bookings` (ADR-053), e prevalece sobre o genérico descrito aqui: o provider de contexto não escreve SQL (`postgres.Table` e `ReadPool`, IDN-14), o DDL fica em `provider/schema.sql` com os nomes canônicos, e a migração é `postgres.Migrate` por capacidade.
+
 ## Objetivo
 
 Padronizar acesso a banco em Go: entities, repository pattern, queries, migrations e performance.

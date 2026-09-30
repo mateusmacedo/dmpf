@@ -22,7 +22,7 @@ permissions:
 jobs:
   bom:
     name: Gates do BOM
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     outputs:
       release: ${{ steps.release.outputs.release }}
@@ -36,7 +36,7 @@ jobs:
           fi
 
       - name: Checkout
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           fetch-depth: 0
           fetch-tags: true
@@ -80,14 +80,14 @@ jobs:
   tag:
     name: Cunhar dmpf@<release>
     needs: [bom, evidence]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     env:
       RELEASE: ${{ needs.bom.outputs.release }}
       COMMIT: ${{ needs.bom.outputs.commit }}
     steps:
       - name: Checkout do commit validado
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           ref: ${{ needs.bom.outputs.commit }}
           fetch-depth: 0

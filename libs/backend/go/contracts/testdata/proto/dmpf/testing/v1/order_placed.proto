@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package dmpf.testing.v1;
+
+// Kernel test double of an integration event, so kernel tests never depend on a
+// bounded context's contract. Envelope type: dmpf.testing.order-placed.v1.
+message OrderPlaced {
+  string order_id = 1;
+  string customer_id = 2;
+  int64 total_cents = 3;
+  OrderChannel channel = 4;
+  int32 item_count = 6;
+
+  reserved 5;
+  reserved "legacy_promo_code";
+}
+
+enum OrderChannel {
+  ORDER_CHANNEL_UNSPECIFIED = 0;
+  ORDER_CHANNEL_WEB = 1;
+  ORDER_CHANNEL_APP = 2;
+}
