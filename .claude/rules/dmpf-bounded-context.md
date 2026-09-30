@@ -62,6 +62,19 @@ skill `.agents/skills/dmpf-bounded-context/`.
   escrita; o envelope CloudEvents é montado na publicação, pelo relay
   (ADR-035).
 
+## Idempotência de comando (ADR-056; FND-04 §7.6)
+
+- Todo comando corre em `usecase.RunIdempotent`, dentro do `Within` e antes
+  de qualquer outra instrução (IDM-05). A inbox vem de `Resources.Commands`
+  (`tx.CommandInbox`) e a política de `Service.Idempotency`
+  (`kernelapp.IdempotencyPolicy`); não há tabela própria.
+- O fingerprint nasce de `usecase.NewFingerprint(Operation*)` com todos os
+  campos do comando, e a resposta volta por um codec por operação.
+- A auditoria só é emitida sem replay: o `replayed` de `RunIdempotent` diz
+  que o efeito não aconteceu de novo.
+- A borda declara os comandos em `rpc.Commands()` e os passa a
+  `kernelgrpc.WithCommands`; comando sem chave é recusado antes do handler.
+
 ## Inbox e consumo (ADR-036; FND-04 §6.4)
 
 - Só contexto que **consome** realiza a inbox. A classificação de recepção é
