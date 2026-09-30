@@ -454,6 +454,9 @@ export const boundedContextGenerator = async (
     if (block.layout.block === 'provider') {
       generateFiles(tree, templateDir('provider'), block.directory, plan.substitutions);
     }
+    if (block.layout.block === 'application') {
+      generateFiles(tree, templateDir('application'), block.directory, plan.substitutions);
+    }
   }
 
   tree.write(GO_WORK, plan.goWork);
