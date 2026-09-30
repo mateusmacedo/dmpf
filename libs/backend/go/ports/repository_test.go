@@ -8,6 +8,17 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
 
+func TestAlreadyExistsIsDistinctFromAVersionConflict(t *testing.T) {
+	wrapped := fmt.Errorf("application: reserve booking b-1: %w", ports.ErrAlreadyExists)
+
+	if !errors.Is(wrapped, ports.ErrAlreadyExists) {
+		t.Fatalf("errors.Is(%v, ErrAlreadyExists) = false", wrapped)
+	}
+	if errors.Is(wrapped, ports.ErrVersionConflict) {
+		t.Fatal("ErrAlreadyExists reads as ErrVersionConflict; the edge would answer \"replay\" to an identity that will never converge")
+	}
+}
+
 func TestCrossTenantAccessAnswersAsNotFound(t *testing.T) {
 	access := ports.CrossTenantAccess{Object: "orders/o-1", ContextTenant: "globex", DataTenant: "acme"}
 	wrapped := fmt.Errorf("application: find order o-1: %w", access)
