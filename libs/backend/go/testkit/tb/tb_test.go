@@ -12,8 +12,9 @@ import (
 // spy records what a kit helper reports without failing the real test.
 type spy struct {
 	testing.TB
-	errors []string
-	fatal  string
+	errors  []string
+	fatal   string
+	skipped string
 }
 
 func (s *spy) Helper() {}
@@ -21,6 +22,7 @@ func (s *spy) Errorf(format string, args ...any) {
 	s.errors = append(s.errors, sprintf(format, args...))
 }
 func (s *spy) Fatalf(format string, args ...any) { s.fatal = sprintf(format, args...) }
+func (s *spy) Skipf(format string, args ...any)  { s.skipped = sprintf(format, args...) }
 
 func sprintf(format string, args ...any) string {
 	var b strings.Builder
@@ -29,25 +31,25 @@ func sprintf(format string, args ...any) string {
 }
 
 func TestReadFixtureResolvesFromTheRepoRoot(t *testing.T) {
-	raw := tb.ReadFixture(t, "contracts/fixtures/orders/event/v1/item-added.golden")
+	raw := tb.ReadFixture(t, "libs/backend/go/contracts/fixtures/testing/v1/item-added.golden")
 	if !strings.Contains(string(raw), `"format_version": "1"`) {
 		t.Fatalf("unexpected fixture content: %.80s", raw)
 	}
 }
 
 func TestEnvReturnsTheValueWhenSet(t *testing.T) {
-	t.Setenv("DMPF_TB_TEST", "x")
-	if got := tb.Env(t, "DMPF_TB_TEST"); got != "x" {
+	t.Setenv("TB_TEST", "x")
+	if got := tb.Env(t, "TB_TEST"); got != "x" {
 		t.Fatalf("Env = %q", got)
 	}
 }
 
 func TestEnvFailsInCIWhenUnset(t *testing.T) {
 	t.Setenv("CI", "1")
-	t.Setenv("DMPF_TB_MISSING", "")
+	t.Setenv("TB_MISSING", "")
 	s := &spy{TB: t}
-	tb.Env(s, "DMPF_TB_MISSING")
-	if !strings.Contains(s.fatal, "DMPF_TB_MISSING") || !strings.Contains(s.fatal, "CI") {
+	tb.Env(s, "TB_MISSING")
+	if !strings.Contains(s.fatal, "TB_MISSING") || !strings.Contains(s.fatal, "CI") {
 		t.Fatalf("Env in CI did not fail naming the variable: %q", s.fatal)
 	}
 }

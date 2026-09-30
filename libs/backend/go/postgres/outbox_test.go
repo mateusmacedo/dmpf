@@ -12,7 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/contracts/envelope"
-	eventv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/orders/event/v1"
+	eventv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/dmpf/testing/v1"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/contracts/payloadhash"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/domain"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
@@ -165,7 +165,7 @@ func TestEnqueueWritesTheInitialValues(t *testing.T) {
 		if messageType != orderPlacedV1 {
 			t.Errorf("message_type = %q, want %q (PTB-03)", messageType, orderPlacedV1)
 		}
-		if want := "type.googleapis.com/company.orders.event.v1.OrderPlaced"; schemaVersion != want {
+		if want := "type.googleapis.com/dmpf.testing.v1.OrderPlaced"; schemaVersion != want {
 			t.Errorf("schema_version = %q, want %q", schemaVersion, want)
 		}
 		if aggregateType != "orders.Order" || aggregateID != outboxOrderID || aggregateVersion != 1 {

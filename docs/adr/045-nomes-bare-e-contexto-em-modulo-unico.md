@@ -2,7 +2,7 @@
 
 ## Status
 
-Aceito — 2026-09-16. Supersede parcialmente o ADR-030 (a nomenclatura dos projetos e o addendum de 2026-09-10); mantém dele um módulo Go por lib do kernel, o BOM declarado e a segregação de stack no caminho. **Parcialmente supersedido pelo ADR-046 (2026-09-16)**: o módulo único por contexto vive em `apps/backend/<contexto>`, como app, e não em `libs/backend/go/<contexto>`; o verificador passa a tooling em `tools/dmpf-conformance`, sob a mesma exceção do plugin. Nome bare, alias pelo papel e um package por bloco permanecem.
+Aceito — 2026-09-16. Supersede parcialmente o ADR-030 (a nomenclatura dos projetos e o addendum de 2026-09-10); mantém dele um módulo Go por lib do kernel, o BOM declarado e a segregação de stack no caminho. **Parcialmente supersedido pelo ADR-046 (2026-09-16)**: o módulo único por contexto vive em `apps/backend/<contexto>`, como app, e não em `libs/backend/go/<contexto>`; o verificador passa a tooling em `tools/dmpf-conformance`, sob a mesma exceção do plugin. Nome bare, alias pelo papel e um package por bloco permanecem. **Emendado pelo [ADR-054](./054-apps-autocontidos-e-infras-separadas.md) (2026-09-28)**: o projeto Nx do contrato de um contexto chama-se `<app>-contract`, exceção declarada ao nome bare, porque o diretório `contract/` não repete o contexto e o projeto precisa de nome único; o glob de lint alcança `**/contract/**`.
 
 ## Contexto
 

@@ -8,8 +8,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net"
-	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -19,7 +17,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"google.golang.org/grpc"
@@ -101,22 +98,21 @@ func workspaceRoot(t *testing.T) string {
 func newTopology(t *testing.T) *topology {
 	t.Helper()
 	brokers := strings.Split(tb.Env(t, "KAFKA_BROKERS"), ",")
-	admin := openAdmin(t)
 	suffix := fmt.Sprintf("%d", time.Now().UnixNano())
 
 	top := &topology{
 		brokers:           brokers,
-		ordersTopic:       "dmpf-e2e-orders-" + suffix,
-		ordersDLQ:         "dmpf-e2e-orders-" + suffix + "-dlq",
-		reservationsTopic: "dmpf-e2e-reservations-" + suffix,
-		reservationsDLQ:   "dmpf-e2e-reservations-" + suffix + "-dlq",
-		group:             "dmpf-e2e-reservations-group-" + suffix,
-		bookingsTopic:     "dmpf-e2e-bookings-" + suffix,
-		bookingsDLQ:       "dmpf-e2e-bookings-" + suffix + "-dlq",
+		ordersTopic:       "e2e-orders-" + suffix,
+		ordersDLQ:         "e2e-orders-" + suffix + "-dlq",
+		reservationsTopic: "e2e-reservations-" + suffix,
+		reservationsDLQ:   "e2e-reservations-" + suffix + "-dlq",
+		group:             "e2e-reservations-group-" + suffix,
+		bookingsTopic:     "e2e-bookings-" + suffix,
+		bookingsDLQ:       "e2e-bookings-" + suffix + "-dlq",
 	}
-	top.ordersDSN = createDatabase(t, admin, "e2e_orders_"+suffix)
-	top.reservationsDSN = createDatabase(t, admin, "e2e_reservations_"+suffix)
-	top.bookingsDSN = createDatabase(t, admin, "e2e_bookings_"+suffix)
+	top.ordersDSN = pg.DSN(t, "e2e_orders")
+	top.reservationsDSN = pg.DSN(t, "e2e_reservations")
+	top.bookingsDSN = pg.DSN(t, "e2e_bookings")
 
 	cl, err := kgo.NewClient(kgo.SeedBrokers(brokers...))
 	if err != nil {
@@ -134,59 +130,9 @@ func newTopology(t *testing.T) *topology {
 		ctx, cancel := context.WithTimeout(context.Background(), adminWindow)
 		defer cancel()
 		_, _ = top.admin.DeleteTopics(ctx, topics...)
+		_, _ = top.admin.DeleteGroups(ctx, top.group)
 	})
 	return top
-}
-
-// openAdmin is not pg.OpenPool on purpose: that one migrates and truncates a
-// project's test database, and this run only creates databases.
-func openAdmin(t *testing.T) *pgx.Conn {
-	t.Helper()
-	cfg, err := pgx.ParseConfig(tb.Env(t, pg.PostgresDSN))
-	if err != nil {
-		t.Fatalf("parse %s: %v", pg.PostgresDSN, err)
-	}
-	if host := cfg.Host; !loopback(host) {
-		t.Fatalf("%s points at %q; the e2e creates and drops databases and only accepts a loopback host", pg.PostgresDSN, host)
-	}
-	conn, err := pgx.ConnectConfig(context.Background(), cfg)
-	if err != nil {
-		t.Fatalf("pgx.ConnectConfig() = %v", err)
-	}
-	t.Cleanup(func() { _ = conn.Close(context.Background()) })
-	return conn
-}
-
-func loopback(host string) bool {
-	if host == "localhost" || strings.HasPrefix(host, "/") {
-		return true
-	}
-	ip := net.ParseIP(host)
-	return ip != nil && ip.IsLoopback()
-}
-
-func createDatabase(t *testing.T, admin *pgx.Conn, name string) string {
-	t.Helper()
-	ctx := context.Background()
-	if _, err := admin.Exec(ctx, "CREATE DATABASE "+name); err != nil {
-		t.Fatalf("CREATE DATABASE %s: %v", name, err)
-	}
-	t.Cleanup(func() {
-		if _, err := admin.Exec(context.Background(), "DROP DATABASE IF EXISTS "+name+" WITH (FORCE)"); err != nil {
-			t.Errorf("DROP DATABASE %s: %v", name, err)
-		}
-	})
-	return dsnFor(t, name)
-}
-
-func dsnFor(t *testing.T, database string) string {
-	t.Helper()
-	u, err := url.Parse(tb.Env(t, pg.PostgresDSN))
-	if err != nil {
-		t.Fatalf("PG_DSN: %v", err)
-	}
-	u.Path = "/" + database
-	return u.String()
 }
 
 type process struct {

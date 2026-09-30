@@ -1,0 +1,37 @@
+{
+  "schema": "dmpf/infra@1",
+  "app": "<%- name %>",
+  "image": {
+    "env": "<%- envName %>_IMAGE",
+    "local": "<%- name %>:local"
+  },
+  "database": {
+    "passwordEnv": "<%- envName %>_PG_PASSWORD",
+    "local": "<%- name %>-local",
+    "dev": "<%- name %>-dev"
+  },
+  "kafka": {
+    "passwordEnv": "KAFKA_<%- envName %>_PASSWORD",
+    "local": "<%- name %>-local",
+    "topics": [
+      {
+        "name": "<%- name %>.events",
+        "env": "KAFKA_<%- envName %>_TOPIC"
+      },
+      {
+        "name": "<%- name %>.events.dlq",
+        "env": "KAFKA_<%- envName %>_DLQ"
+      }
+    ],
+    "acls": [
+      {
+        "operations": ["write", "describe"],
+        "topics": ["<%- name %>.events", "<%- name %>.events.dlq"]
+      }
+    ]
+  },
+  "grpc": {
+    "server": "dmpf-<%- name %>-api"
+  },
+  "openapi": false
+}

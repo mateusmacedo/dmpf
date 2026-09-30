@@ -80,7 +80,7 @@ dmpf-context-author`, em foreground) com este prompt, substituindo o caminho:
 > `.agents/skills/dmpf-bounded-context/` (os doze passos de
 > `references/golden-path.md`; as armadilhas de `references/armadilhas.md`).
 > A forma canônica é a de `apps/backend/bookings` (ADR-053): borda só gRPC em
-> `app/rpc`, com o serviço em `contracts/proto/company/<name>/service/v1/`;
+> `app/rpc`, com o serviço em `apps/backend/<name>/contract/proto/company/<name>/service/v1/`;
 > config sem prefixo `DMPF_`; schema em `provider/schema.sql`; persistência
 > híbrida; instante em nanossegundos. O REST público é do `bff`, fora desta
 > tarefa. Esqueleto pelo generator; `include` por merge; nunca toque baseline
@@ -103,17 +103,19 @@ Depois do relatório, imprima sempre:
 
 ```text
 Rito restante (passos humanos):
-  1. (cd contracts && bash ../tools/buf.sh generate)  → gen/go
-     pnpm nx run contracts:buf-lint
-     pnpm nx run contracts:buf-pins
-     pnpm nx run contracts:buf-generate-check
-     NX_BASE=origin/develop pnpm nx run contracts:buf-breaking
+  1. (cd apps/backend/<name>/contract && bash ../../../../tools/buf.sh generate)  → contract/gen/go
+     pnpm nx run <name>-contract:buf-lint
+     pnpm nx run <name>-contract:buf-pins
+     pnpm nx run <name>-contract:buf-generate-check
+     NX_BASE=origin/develop pnpm nx run <name>-contract:buf-breaking
   2. go run ./tools/dmpf-conformance/cmd/conformance --root . --write-baseline
      git add tools/dmpf-baseline/units-baseline.json && git commit   (só o baseline — DMPF-T002)
   3. go run ./tools/dmpf-conformance/cmd/conformance --root . --base origin/develop
      bash tools/dmpf-context-check.sh
-  4. Banco e role <name> na infra (postgres-init, job de databases, Secrets)
-     e as rotas REST no bff, em tarefa própria.
+  4. Banco, role, tópicos, ACLs e certificado vêm do deploy/infra.json do app:
+     ajuste-o ao que o contexto publica e consome e rode
+     go run ./tools/dmpf-conformance/cmd/infrasync --root . --write
+     As rotas REST no bff ficam para uma tarefa própria.
   5. Um commit por projeto Nx (AGENTS.md §Convenções obrigatórias); PR para develop.
 ```
 

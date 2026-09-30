@@ -3,7 +3,7 @@ package api
 import (
 	"net/http"
 
-	bookingsv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/bookings/service/v1"
+	bookingsv1 "github.com/mateusmacedo/dmpf/apps/backend/bookings/contract/gen/go/company/bookings/service/v1"
 )
 
 const maxQuantity = 100

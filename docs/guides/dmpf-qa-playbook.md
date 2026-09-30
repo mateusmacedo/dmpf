@@ -15,10 +15,10 @@ Três artefatos no repositório (não planilha solta, não caso no Jira sem arqu
 | Artefato | Caminho | Prova |
 | --- | --- | --- |
 | Spec de domínio | `docs/specs/` | UPRs, rejeições, eventos, consumidores |
-| Fixture de **projeção** | `contracts/fixtures/<ctx>/projection/v1/<agregado>.golden` | `domainkit` (`ORA-30`) |
-| Fixture de **wire** + `.proto` | `contracts/proto/…` e `contracts/fixtures/<ctx>/event/v1/<evento>.golden` | `golden` + gates Buf |
+| Fixture de **projeção** | `apps/backend/<ctx>/contract/fixtures/projection/v1/<agregado>.golden` | `domainkit` (`ORA-30`) |
+| Fixture de **wire** + `.proto` | `apps/backend/<ctx>/contract/proto/…` e `apps/backend/<ctx>/contract/fixtures/event/v1/<evento>.golden` | `golden` + gates Buf |
 
-OpenAPI em `contracts/openapi/` **não** substitui a golden de evento.
+OpenAPI em `apps/backend/<ctx>/contract/openapi/` **não** substitui a golden de evento.
 
 ---
 
@@ -38,7 +38,7 @@ O Dev **não** inventa o esperado. Se o teste falhar, ou o código está errado 
 
 ## 3. Template de projeção
 
-Copie para `contracts/fixtures/<contexto>/projection/v1/<agregado>.golden`.
+Copie para `apps/backend/<contexto>/contract/fixtures/projection/v1/<agregado>.golden`.
 Troque os placeholders. Mantenha as aspas em todo escalar.
 
 ```json
@@ -111,7 +111,7 @@ Troque os placeholders. Mantenha as aspas em todo escalar.
 }
 ```
 
-Referência viva: `contracts/fixtures/orders/projection/v1/order.golden`.
+Referência viva: `apps/backend/orders/contract/fixtures/projection/v1/order.golden`.
 
 ---
 
@@ -127,7 +127,7 @@ O QA descreve, em linguagem de negócio + campos:
 
 O Dev/plataforma preenche `payload_bytes_hex` e `payload_hash` com o gerador do módulo de contratos. QA **revisa o diff**; não gera bytes à mão.
 
-Detalhe de formato: FND-09 §5 (`FIX-05`…`FIX-13`) e `contracts/README.md`.
+Detalhe de formato: FND-09 §5 (`FIX-05`…`FIX-13`) e `libs/backend/go/contracts/README.md`.
 
 ---
 
@@ -141,7 +141,7 @@ Detalhe de formato: FND-09 §5 (`FIX-05`…`FIX-13`) e `contracts/README.md`.
 - [ ] Códigos de rejeição estáveis `contexto/motivo`; `details` só com o que o domínio já expõe.
 - [ ] Eventos no passado, sem versão e sem nome de transporte (`MSG-N`).
 - [ ] Consumidor de cada evento declarado (quem, chave natural, o que é idempotente).
-- [ ] Projeção em `contracts/fixtures/…/projection/v1/` com escalares-string e `at` literal.
+- [ ] Projeção em `apps/backend/<ctx>/contract/fixtures/projection/v1/` com escalares-string e `at` literal.
 - [ ] Se publica evento: `.proto` + esboço dos casos da golden de wire no mesmo PR ou no PR imediatamente seguinte, nunca “depois do código”.
 - [ ] Controle negativo: se inverter `accepted`/`rejected` no arquivo, o teste do Dev **tem** de quebrar.
 

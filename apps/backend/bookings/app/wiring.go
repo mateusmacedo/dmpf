@@ -7,6 +7,7 @@ import (
 	"maps"
 	"net"
 	"slices"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -122,6 +123,9 @@ func runRelay(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {
 	defer pool.Close()
 	if err := pool.Ping(ctx); err != nil {
 		return fmt.Errorf("postgres: %w", err)
+	}
+	if err := postgres.WaitForTables(ctx, pool, time.Second, rt.Logger(), postgres.Tables(postgres.Outbox)...); err != nil {
+		return err
 	}
 
 	catalog, err := NewCatalog(cfg)

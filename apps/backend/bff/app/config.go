@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/authn"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/boot"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/envconfig"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/admission"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/deadline"
@@ -40,6 +41,7 @@ const (
 	envService                  = "SERVICE"
 	envServiceVersion           = "SERVICE_VERSION"
 	envInstanceID               = "INSTANCE_ID"
+	envDrainDelay               = "DRAIN_DELAY"
 )
 
 type Config struct {
@@ -61,6 +63,7 @@ type Config struct {
 
 	OTLPEndpoint string
 	OTLPInsecure bool
+	Signals      boot.Signals
 
 	Service  string
 	Version  string
@@ -72,6 +75,10 @@ type Config struct {
 	// admission bucket and label. Every other tenant shares "other".
 	MetricTenants []string
 	RouteBudget   deadline.Budget
+
+	// DrainDelay is how long the edge keeps serving, already unready, before
+	// closing the listener: the time the load balancer takes to stop routing.
+	DrainDelay time.Duration
 
 	Auth authn.Config
 }
@@ -122,6 +129,15 @@ func FromEnv(lookup func(string) string) (Config, error) {
 	}
 	if cfg.Auth, err = authn.ReadEnv(lookup); err != nil {
 		return Config{}, err
+	}
+
+	if cfg.Signals, err = boot.SignalsFromEnv(lookup); err != nil {
+		return Config{}, err
+	}
+	if value := lookup(envDrainDelay); value != "" {
+		if cfg.DrainDelay, err = time.ParseDuration(value); err != nil || cfg.DrainDelay < 0 {
+			return Config{}, fmt.Errorf("%w: %s=%q is not a non-negative duration", ErrInvalidVariable, envDrainDelay, value)
+		}
 	}
 
 	if err := cfg.Validate(); err != nil {

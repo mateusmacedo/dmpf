@@ -4,19 +4,30 @@
 
 | Rota | Contrato | RPC | Permissão |
 | --- | --- | --- | --- |
-| `POST /orders/{id}/items` | `contracts/openapi/orders/v1/openapi.yaml` | `OrdersService/AddItem` | `orders:write` |
+| `POST /orders/{id}/items` | `apps/backend/orders/contract/openapi/v1/openapi.yaml` | `OrdersService/AddItem` | `orders:write` |
 | `POST /orders/{id}/place` | idem | `OrdersService/PlaceOrder` | `orders:write` |
 | `GET /orders/{id}` | idem | `OrdersService/FindOrder` | `orders:read` |
-| `GET /reservations/{order_id}` | `contracts/openapi/reservations/v1/openapi.yaml` | `ReservationsService/FindReservation` | `reservations:read` |
+| `GET /reservations/{order_id}` | `apps/backend/reservations/contract/openapi/v1/openapi.yaml` | `ReservationsService/FindReservation` | `reservations:read` |
 | `POST /reservations/{order_id}/reserve` | idem | `ReservationsService/Reserve` | `reservations:write` |
 | `POST /reservations/{order_id}/cancel` | idem | `ReservationsService/Cancel` | `reservations:write` |
-| `POST /bookings/booking` | `contracts/openapi/bookings/v1/openapi.yaml` | `BookingsService/ReserveBooking` | `bookings:write` |
+| `POST /bookings/booking` | `apps/backend/bookings/contract/openapi/v1/openapi.yaml` | `BookingsService/ReserveBooking` | `bookings:write` |
 | `GET /bookings/booking?resourceId=` | idem | `BookingsService/FindBookingsByResource` | `bookings:read` |
 | `GET /bookings/booking/{id}` | idem | `BookingsService/FindBooking` | `bookings:read` |
 | `POST /bookings/booking/{id}/cancel` | idem | `BookingsService/CancelBooking` | `bookings:write` |
 | `POST /bookings/resource` | idem | `BookingsService/RegisterResource` | `bookings:write` |
 
 Toda rota exige sujeito e tenant resolvidos (`RequireSubjectAndTenant`); `ValidateEdge` recusa na partida uma rota que exigisse sujeito sem declarar permissão (`IDN-16`, `IDN-17`). Criado pela `docs/specs/SPEC-ACYKBF9V-dmpf-reference-bff-contextos.md`; decisões em `docs/adr/044-bff-rest-e-contextos-grpc-de-referencia.md` e, para autenticação e tenant, na `SPEC-9B6SHEH8` (`docs/adr/049` a `052`).
+
+## Saúde
+
+Fora do contrato e sem autenticação, para as sondas:
+
+| Rota | Responde |
+| --- | --- |
+| `GET /livez` | `204` enquanto o processo serve HTTP |
+| `GET /readyz` | `204` quando os três contextos respondem `SERVING` no `grpc.health.v1`; `503` em até 2 s, com os que não respondem só no log; o resultado vale por 1 s |
+
+O `/readyz` lê o estado do canal gRPC de cada contexto: com o health check do service config (`GRP-13`), o canal só fica `READY` quando algum backend responde `SERVING`. O subcomando `bff healthcheck` consulta o `/readyz` no endereço de `HTTP_ADDR` e sai com `0` ou `1`; é o `HEALTHCHECK` da imagem, que não tem shell. No Kubernetes, a readiness usa `/readyz` e a liveness usa `/livez`, para um contexto fora do ar tirar o BFF do balanceamento sem reiniciá-lo.
 
 ## Topologia
 
@@ -73,6 +84,7 @@ O BFF é a única borda que resolve identidade (`ResolveIdentity`, pacote `authn
 | `OIDC_DISCOVERY_TIMEOUT_SECONDS` | não | Default 10 |
 | `AUTH_DEV_MOCK` | uma das duas linhas de autenticação | `true` lê a identidade declarada no próprio Bearer, sem verificação — só desenvolvimento; não pode coexistir com `OIDC_ISSUER` |
 | `HTTP_ADDR` | não | Default `:8080`; `127.0.0.1:0` escolhe porta livre e o log `http listening` traz o endereço |
+| `DRAIN_DELAY` | não | Default `0`; no `SIGTERM`, o `/readyz` passa a `503` e o listener só fecha depois desse tempo (`5s` no Kubernetes) |
 | `CORS_ORIGINS` | não | Origens aceitas pelo navegador (Swagger UI local) |
 | `METRIC_TENANTS` | não | Tenants que têm bucket de admissão e rótulo de métrica próprios (`MET-07`), separados por vírgula; os demais compartilham `other` |
 | `OPENAPI_ORDERS_PATH`, `OPENAPI_RESERVATIONS_PATH`, `OPENAPI_BOOKINGS_PATH` | não | Servem os contratos em `/openapi/<ctx>/v1/openapi.yaml` |
@@ -83,26 +95,25 @@ Variável obrigatória ausente, ou nenhuma política de transporte gRPC ou de au
 
 ## Rodar localmente
 
-Com os três contextos no ar (ver os README deles):
+`pnpm nx run bff:serve` sobe a infra local, os papéis dos três contextos (`serve-api`, `serve-relay` e o `serve-consumer` do `reservations`) e o BFF no host, cada processo com o `deploy/.env.example` da app; um `deploy/.env` ao lado sobrepõe os valores. Os contextos ouvem gRPC sem TLS em 9191 (`orders`), 9192 (`reservations`) e 9193 (`bookings`), e o BFF ouve HTTP em 8080.
 
 ```bash
-ORDERS_GRPC_TARGET=dns:///localhost:9090 RESERVATIONS_GRPC_TARGET=dns:///localhost:9091 \
-BOOKINGS_GRPC_TARGET=dns:///localhost:9092 \
-  GRPC_INSECURE=true AUTH_DEV_MOCK=true pnpm nx run bff:serve
+pnpm nx run bff:serve
 ```
 
 A topologia inteira sobe por `docker compose -f infra/local/docker-compose.yml --profile dmpf up -d --build`, com mTLS entre o BFF e os `api` e SASL no Kafka interno (ver `infra/README.md`).
 
+Em containers na rede do host, com os `deploy/.env` de cada app (o target `deploy-env` copia o `.env.example` quando o `.env` não existe), `pnpm nx run bff:docker:run` sobe a infra local e as imagens do BFF e dos papéis de cada contexto: o `docker:run` (papel `api`) e o `docker:run-relay` dos três, e o `docker:run-consumer` do `reservations`. O container do BFF fica `healthy` só depois que os três contextos respondem `SERVING`.
+
 ## Targets Nx
 
-`fmt-check`, `vet`, `build`, `test-race`, `govulncheck` e `serve`, mais os de infraestrutura do workspace: `infra-up`, `observability-up`, `infra-down`, `infra-budget` e `k8s-render`.
+`fmt-check`, `vet`, `build`, `test-race`, `govulncheck`, `serve`, `docker:build` e `docker:run`, mais os de infraestrutura do workspace: `infra-up`, `observability-up`, `infra-down`, `infra-budget` e `k8s-render`.
 
 ## Testes
 
 - Unitários: rotas e contrato (inclusive o teste estrutural dos três OpenAPI), resolução e recusa de identidade (credencial ausente, expirada, asserção divergente via `X-Subject-ID`/`X-Tenant-ID`/`tenant_id`), mapeamento de status, clientes gRPC contra servidores falsos por `bufconn` (retry por idempotência, prazo decrescente, metadata, mTLS e hierarquia de spans) e partida do binário.
-- E2e caixa-preta (build tag `integration`): compila os quatro binários com `-race`, cria três bancos e seis tópicos por execução, sobe os oito processos e fala só HTTP com o BFF. Prova a cadeia de contexto até `ReservationConfirmed` e até o `BookingReserved` que sai do `bookings`, o cancelamento que vence um `OrderPlaced` posterior, a reentrega que termina em `DuplicateIgnored`, uma outbox por contexto e a recusa de uma chamada sem credencial. Exige `PG_DSN` (usuário com `CREATE DATABASE`) e `KAFKA_BROKERS`.
+- E2e caixa-preta (build tag `integration`): compila os quatro binários com `-race`, cria três bancos e seis tópicos por execução, sobe os oito processos e fala só HTTP com o BFF. Prova a cadeia de contexto até `ReservationConfirmed` e até o `BookingReserved` que sai do `bookings`, o cancelamento que vence um `OrderPlaced` posterior, a reentrega que termina em `DuplicateIgnored`, uma outbox por contexto e a recusa de uma chamada sem credencial. Exige `PG_DSN` (usuário com `CREATE DATABASE`) e `KAFKA_BROKERS`; o target sobe a infra de testes (`testkit:test-infra-up`) e o `tools/test-env.sh` preenche os dois com o Postgres (15432) e o Redpanda (19092) dela, a partir do `.env.example` da raiz.
 
 ```bash
-PG_DSN='postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable' KAFKA_BROKERS=localhost:9092 \
-  pnpm nx run bff:test-race
+pnpm nx run bff:test-race
 ```

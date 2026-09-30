@@ -5,16 +5,19 @@ package pg
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
+	"fmt"
 	"net"
 	"net/url"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
@@ -22,9 +25,16 @@ import (
 )
 
 // PostgresDSN is the variable every Postgres-backed suite reads. It names the
-// server and an administrative database; each project's suite runs in a
-// database of its own on that server.
+// server and an administrative database; each test runs in a database of its
+// own on that server, created for it and dropped after it.
 const PostgresDSN = "PG_DSN"
+
+// TestCluster is the cluster_name of the test server (infra/test/compose.yml).
+// A server under any other name is refused before a database is created or
+// dropped, so a suite pointed at the runtime infra fails instead of writing to it.
+const TestCluster = "test"
+
+var ErrNotTestCluster = errors.New("pg: the server is not the test cluster")
 
 // resetTimeout bounds every reset, so a lock left behind by a failed clause
 // fails the cleanup instead of holding the binary until go test's -timeout.
@@ -32,21 +42,30 @@ const resetTimeout = 30 * time.Second
 
 // Options is what a suite declares about the database it needs.
 type Options struct {
-	// Project names the database, <Project>_test, so projects whose suites
-	// run in parallel never truncate each other's tables.
+	// Project prefixes the database, <Project>_test_<id>, so a leftover of a
+	// crashed run is attributable to the suite that left it.
 	Project      string
 	Capabilities []postgres.Capability
 	Schemas      []string
 	Tables       []string
 }
 
-func Database(project string) string { return project + "_test" }
+type scope struct {
+	t       testing.TB
+	project string
+}
 
-var cleaned sync.Map
+type testDatabase struct {
+	once  sync.Once
+	dsn   string
+	opens atomic.Int32
+}
 
-// OpenPool migrates the project's test database and resets the declared tables
-// around the test. Without the DSN it skips, or fails in CI. The DSN must be a
-// loopback host: the reset is destructive.
+var databases sync.Map
+
+// OpenPool migrates the project's test database, which starts empty, and resets
+// the declared tables when the test opens it again. Without the DSN it skips, or
+// fails in CI. The DSN must be a loopback host: the reset is destructive.
 func OpenPool(t testing.TB, opts Options) *pgxpool.Pool {
 	t.Helper()
 	if opts.Project == "" {
@@ -60,43 +79,47 @@ func OpenPool(t testing.TB, opts Options) *pgxpool.Pool {
 	}
 	t.Cleanup(pool.Close)
 
-	// A table an earlier run created, under a name the schema no longer
-	// declares, would otherwise survive and hide a missing CREATE.
-	once, _ := cleaned.LoadOrStore(cfg.ConnConfig.Database, &cleanOnce{})
-	if err := once.(*cleanOnce).do(ctx, pool); err != nil {
-		t.Fatalf("pg.OpenPool: recreate schema public: %v", err)
-	}
 	if err := postgres.Migrate(ctx, pool, opts.Capabilities, opts.Schemas...); err != nil {
 		t.Fatalf("pg.OpenPool: Migrate: %v", err)
 	}
-	tables := append(postgres.Tables(opts.Capabilities...), opts.Tables...)
-	ResetTables(t, pool, tables...)
-	t.Cleanup(func() {
-		// Errorf, not Fatalf: FailNow inside a cleanup skips the cleanups still
-		// pending, and pool.Close is one of them.
-		if err := reset(pool, tables); err != nil {
-			t.Errorf("pg.OpenPool: reset after the test: %v", err)
-		}
-	})
+	if testDatabaseOf(t, opts.Project).opens.Add(1) > 1 {
+		ResetTables(t, pool, append(postgres.Tables(opts.Capabilities...), opts.Tables...)...)
+	}
 	return pool
 }
 
-// Config resolves the pool configuration of the project's test database,
-// creating the database on the server the DSN names when it does not exist.
-// A suite that hands the DSN to a process it starts reads it from here.
+// Config resolves the pool configuration of the test's database, creating it
+// on the first call of the test. A suite that hands the DSN to a process it
+// starts reads it from here.
 func Config(t testing.TB, project string) *pgxpool.Config {
 	t.Helper()
 	cfg, err := pgxpool.ParseConfig(DSN(t, project))
 	if err != nil {
-		t.Fatalf("pg.Config: parse the DSN of %s: %v", Database(project), err)
+		t.Fatalf("pg.Config: parse the DSN of the %s database: %v", project, err)
 	}
 	return cfg
 }
 
-// DSN is the connection string of the project's test database, for a process
-// the suite starts: it reads the database the way the binary does, from the
-// environment. The server's DSN must be a URL.
+// DSN is the connection string of the test's database, for a process the
+// suite starts. Every call of one test answers the same database, which is
+// dropped when the test ends. The server's DSN must be a URL.
 func DSN(t testing.TB, project string) string {
+	t.Helper()
+	return testDatabaseOf(t, project).dsn
+}
+
+func testDatabaseOf(t testing.TB, project string) *testDatabase {
+	t.Helper()
+	entry, _ := databases.LoadOrStore(scope{t, project}, &testDatabase{})
+	db := entry.(*testDatabase)
+	db.once.Do(func() { db.dsn = create(t, project) })
+	if db.dsn == "" {
+		t.Fatalf("pg.DSN: the %s database of this test was not created", project)
+	}
+	return db
+}
+
+func create(t testing.TB, project string) string {
 	t.Helper()
 	dsn := tb.Env(t, PostgresDSN)
 	admin, err := pgxpool.ParseConfig(dsn)
@@ -104,18 +127,30 @@ func DSN(t testing.TB, project string) string {
 		t.Fatalf("pg.DSN: parse %s: %v", PostgresDSN, err)
 	}
 	if host := admin.ConnConfig.Host; !loopback(host) {
-		t.Fatalf("pg.DSN: %s points at %q; the harness truncates tables and only accepts a loopback host", PostgresDSN, host)
-	}
-	database := Database(project)
-	if err := ensureDatabase(admin.ConnConfig, database); err != nil {
-		t.Fatalf("pg.DSN: create %s: %v", database, err)
+		t.Fatalf("pg.DSN: %s points at %q; the harness creates and drops databases and only accepts a loopback host", PostgresDSN, host)
 	}
 	u, err := url.Parse(dsn)
 	if err != nil || u.Scheme == "" {
-		t.Fatalf("pg.DSN: %s is not a URL; the database of each project is set on its path", PostgresDSN)
+		t.Fatalf("pg.DSN: %s is not a URL; the database of each test is set on its path", PostgresDSN)
 	}
+	database := project + "_test_" + suffix()
+	if err := createDatabase(admin.ConnConfig, database); err != nil {
+		t.Fatalf("pg.DSN: create %s: %v", database, err)
+	}
+	t.Cleanup(func() {
+		if err := dropDatabase(admin.ConnConfig, database); err != nil {
+			t.Errorf("pg.DSN: drop %s: %v", database, err)
+		}
+		databases.Delete(scope{t, project})
+	})
 	u.Path = "/" + database
 	return u.String()
+}
+
+func suffix() string {
+	buffer := make([]byte, 6)
+	_, _ = rand.Read(buffer)
+	return hex.EncodeToString(buffer)
 }
 
 // ResetTables empties the tables named.
@@ -126,41 +161,53 @@ func ResetTables(t testing.TB, pool *pgxpool.Pool, tables ...string) {
 	}
 }
 
-type cleanOnce struct {
-	once sync.Once
-	err  error
+func requireTestCluster(name string) error {
+	if name != TestCluster {
+		return fmt.Errorf("%w: cluster_name is %q, want %q (bash tools/test-infra.sh up)", ErrNotTestCluster, name, TestCluster)
+	}
+	return nil
 }
 
-func (c *cleanOnce) do(ctx context.Context, pool *pgxpool.Pool) error {
-	c.once.Do(func() {
-		_, c.err = pool.Exec(ctx, "DROP SCHEMA public CASCADE; CREATE SCHEMA public")
-	})
-	return c.err
+func connectAdmin(ctx context.Context, config *pgx.ConnConfig) (*pgx.Conn, error) {
+	conn, err := pgx.ConnectConfig(ctx, config)
+	if err != nil {
+		return nil, err
+	}
+	var name string
+	if err := conn.QueryRow(ctx, "SELECT current_setting('cluster_name')").Scan(&name); err != nil {
+		_ = conn.Close(ctx)
+		return nil, err
+	}
+	if err := requireTestCluster(name); err != nil {
+		_ = conn.Close(ctx)
+		return nil, err
+	}
+	return conn, nil
 }
 
-// ensureDatabase treats a concurrent creation by another process as the same
-// outcome, not a failure.
-func ensureDatabase(admin *pgx.ConnConfig, database string) error {
+func createDatabase(config *pgx.ConnConfig, database string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), resetTimeout)
 	defer cancel()
-	conn, err := pgx.ConnectConfig(ctx, admin)
+	conn, err := connectAdmin(ctx, config)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = conn.Close(ctx) }()
+	_, err = conn.Exec(ctx, "CREATE DATABASE "+pgx.Identifier{database}.Sanitize())
+	return err
+}
 
-	var found bool
-	if err := conn.QueryRow(ctx, "SELECT EXISTS (SELECT 1 FROM pg_database WHERE datname = $1)", database).Scan(&found); err != nil {
+// dropDatabase forces the drop: a connection the test leaked, or a process it
+// started that is still exiting, would otherwise keep the database alive.
+func dropDatabase(config *pgx.ConnConfig, database string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), resetTimeout)
+	defer cancel()
+	conn, err := connectAdmin(ctx, config)
+	if err != nil {
 		return err
 	}
-	if found {
-		return nil
-	}
-	_, err = conn.Exec(ctx, "CREATE DATABASE "+pgx.Identifier{database}.Sanitize())
-	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) && pgErr.Code == "42P04" {
-		return nil
-	}
+	defer func() { _ = conn.Close(ctx) }()
+	_, err = conn.Exec(ctx, "DROP DATABASE IF EXISTS "+pgx.Identifier{database}.Sanitize()+" WITH (FORCE)")
 	return err
 }
 

@@ -1,12 +1,12 @@
 # infra/
 
-Manifestos de infraestrutura do workspace, modulares: um recurso por arquivo, compostos por ambiente. As configurações dos componentes de observabilidade são **fonte única** — o Compose as monta por bind e o Kustomize as gera como ConfigMap a partir do mesmo arquivo (por isso elas vivem ao lado dos manifestos: o Kustomize recusa arquivo fora do diretório do kustomization).
+Manifestos da plataforma do workspace, modulares: um recurso por arquivo, compostos por ambiente. O que é de cada app — Kubernetes, Compose, `.env.example` e o `infra.json` com banco, tópicos, ACLs e certificado — vive em `apps/backend/<app>/deploy/` (ADR-054); a parte agregada (provisionamento, PKI, Swagger UI, `local/.env.example`, listas dos overlays e o Job de bancos do `dev`) é gerada por `go run ./tools/dmpf-conformance/cmd/infrasync --root . --write` e conferida no CI com `--check`. As configurações dos componentes de observabilidade são **fonte única** — o Compose as monta por bind e o Kustomize as gera como ConfigMap a partir do mesmo arquivo (por isso elas vivem ao lado dos manifestos: o Kustomize recusa arquivo fora do diretório do kustomization).
 
 ```text
 infra/
 ├── local/                          # desenvolvimento local (Docker Compose)
-│   ├── docker-compose.yml          # só `name` + `include:` dos recursos
-│   ├── .env.example                # todas as variáveis e portas
+│   ├── docker-compose.yml          # projeto `lidercap-local`: só `name` + `include:` dos recursos e dos deploy/compose.yml das apps
+│   ├── .env.example                # gerado pelo infrasync: variáveis da plataforma e das apps
 │   └── compose/                    # um arquivo por recurso
 │       ├── postgres.yml            # profile postgres
 │       ├── redis.yml               # profile redis
@@ -21,8 +21,9 @@ infra/
 │       ├── grafana.yml             # profile grafana
 │       ├── exporters.yml           # profile exporters (postgres, redis, blackbox, cAdvisor)
 │       ├── redpanda-console.yml    # profile console (+ ../redpanda-console.yaml): UI do Kafka, autenticado por SASL
-│       ├── swagger-ui.yml          # profile dmpf: Swagger UI sobre as duas specs do BFF
-│       └── reference.yml          # profile dmpf: BFF, orders e reservations, postgres-init, redpanda-init
+│       ├── app-base.yml            # serviços-base que o deploy/compose.yml de cada app estende
+│       ├── provisioning.generated.yml  # gerado: postgres-init e redpanda-init a partir dos infra.json
+│       └── swagger-ui.yml          # gerado: Swagger UI sobre as specs publicadas pelo BFF
 ├── observability/                  # config + manifestos K8s, um diretório por componente
 │   ├── kustomization.yaml          # agrega os seis
 │   ├── otel-collector/             # config.yaml, Deployment, Service
@@ -32,8 +33,9 @@ infra/
 │   ├── alloy/                      # config do Docker e do K8s, DaemonSet, RBAC
 │   └── grafana/                    # datasources, provider e dashboards, Deployment, Service
 ├── k8s/                            # deploy (Kustomize)
-│   ├── base/{bff,orders,reservations,postgres,redpanda}/
-│   └── overlays/{dev,hmg}/
+│   ├── base/{postgres,redpanda}/
+│   └── overlays/{dev,hmg}/         # compõem apps/backend/<app>/deploy/k8s/overlays/<env>; listas geradas
+├── test/compose.yml                # infra dos testes de integração (projeto `lidercap-testinfra`, só tmpfs)
 └── docker/Dockerfile.node.example  # referência para apps Node
 ```
 
@@ -42,8 +44,8 @@ infra/
 Os profiles são cumulativos. `observability` sobe a plataforma inteira; `dmpf` sobe os oito processos da topologia de referência — o BFF, `api` e `relay` de orders, `api`, `relay` e `consumer` de reservations, `api` e `relay` de bookings — **com** tudo o que eles precisam e observam, inclusive o `postgres-init` (cria banco e role de mesmo nome para `orders`, `reservations` e `bookings`, com o banco pertencendo ao role, sem falhar quando já existem), o `redpanda-init` (usuários SASL, tópicos e ACLs) e o `pki-init` (CA e certificados do mTLS interno); `all` sobe a infraestrutura toda menos as apps.
 
 ```bash
-# só o banco (o que os testes de integração dos módulos Go precisam)
-docker compose -f infra/local/docker-compose.yml --profile postgres up -d
+# tudo o que o runtime local precisa, mais os processos das apps no host; parar o serve derruba a infra
+pnpm nx run bff:serve
 
 # a plataforma de observabilidade e os exporters
 pnpm nx run bff:observability-up
@@ -57,6 +59,8 @@ pnpm nx run bff:infra-down
 
 Pelo Nx: `infra-up` (Postgres, Redpanda e floci), `observability-up` (plataforma + exporters), `infra-down` e `infra-budget`.
 
+O `deploy/compose.yml` de cada app não roda sozinho: ele estende os serviços-base de `compose/app-base.yml` e depende de serviços definidos em outros arquivos (`pki-init`, `postgres-init`, `otel-collector` e o `api` dos contextos que chama). Suba-o sempre pelo `include` de `infra/local/docker-compose.yml`.
+
 ### Bancos por app
 
 O servidor Postgres tem um usuário só administrativo (`POSTGRES_USER`, padrão `postgres`). Cada app tem banco e role com o próprio nome, e só as estruturas do próprio schema: `orders` (`outbox` e `orders`), `reservations` (`outbox`, `inbox`, `quarantine` e `reservations`) e `bookings` (`outbox`, `bookings` e `resources`). Cada app conecta com o próprio role:
@@ -67,7 +71,7 @@ O servidor Postgres tem um usuário só administrativo (`POSTGRES_USER`, padrão
 | `reservations` | `postgres://reservations:${RESERVATIONS_PG_PASSWORD:-reservations-local}@postgres:5432/reservations` |
 | `bookings` | `postgres://bookings:${BOOKINGS_PG_PASSWORD:-bookings-local}@postgres:5432/bookings` |
 
-Os testes de integração dos módulos Go apontam `PG_DSN` para o servidor, com um usuário que pode criar bancos (`postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable`): cada projeto cria e usa o próprio `<projeto>_test`.
+Os testes de integração não usam esta infra. Eles rodam na infra de testes (`infra/test/compose.yml`, `pnpm nx run testkit:test-infra-up`), com Postgres, Redpanda e floci em tmpfs nas portas 15432, 19092, 19093 e 14566; o `.env.example` da raiz aponta para ela, e cada teste ganha um banco `<projeto>_test_<id>`, apagado ao fim. O `tb/pg` recusa qualquer servidor cujo `cluster_name` não seja `test`, então um teste nunca escreve na infra de runtime local.
 
 Não há migração a partir do layout antigo (banco `app` compartilhado e bancos e tabelas com o prefixo `dmpf`). Um volume criado antes precisa ser recriado, e o do PKI também, porque o `pki-init` só emite certificados na primeira subida:
 
@@ -111,7 +115,7 @@ Publicar em `0.0.0.0` tem uma consequência, além de servir o Windows: pelo IP 
 
 ### Acesso pelo BFF
 
-`GET /openapi/orders/v1/openapi.yaml` e `GET /openapi/reservations/v1/openapi.yaml` devolvem os contratos publicados (`contracts/openapi/`, copiados para a imagem do BFF); o Swagger UI em `:8082` os lista no seletor da barra superior pela variável `URLS` da imagem. Como o "Try it out" chama o BFF de outro origin, o compose passa `CORS_ORIGINS=http://localhost:8082,...` ao BFF — fora do compose a variável fica vazia e a borda é same-origin. O BFF autentica com `AUTH_DEV_MOCK=true` (lê a identidade do próprio Bearer, sem verificação) e fala com os contextos por gRPC sob mTLS (`dns:///dmpf-orders-api:9090` e `dns:///dmpf-reservations-api:9090`), com o certificado de cliente e a CA que o `pki-init` gera; os `api` não publicam porta no host.
+`GET /openapi/orders/v1/openapi.yaml` e `GET /openapi/reservations/v1/openapi.yaml` devolvem os contratos publicados (`apps/backend/<ctx>/contract/openapi/v1/`, copiados para a imagem do BFF); o Swagger UI em `:8082` os lista no seletor da barra superior pela variável `URLS` da imagem. Como o "Try it out" chama o BFF de outro origin, o compose passa `CORS_ORIGINS=http://localhost:8082,...` ao BFF — fora do compose a variável fica vazia e a borda é same-origin. O BFF autentica com `AUTH_DEV_MOCK=true` (lê a identidade do próprio Bearer, sem verificação) e fala com os contextos por gRPC sob mTLS (`dns:///dmpf-orders-api:9090` e `dns:///dmpf-reservations-api:9090`), com o certificado de cliente e a CA que o `pki-init` gera; os `api` não publicam porta no host.
 
 ### Orçamento de recursos
 
@@ -149,7 +153,7 @@ kubectl apply -k infra/k8s/overlays/dev
 
 | Overlay | Namespace | O que sobe | Credenciais |
 | --- | --- | --- | --- |
-| `dev` | `dmpf-dev` | Postgres, Redpanda, a plataforma de observabilidade e as quatro apps; Job `dmpf-databases` cria banco e role de `orders`, `reservations` e `bookings`; Kafka, OTLP e gRPC interno sem TLS, `MIGRATE=true` nos `api`, Grafana anônimo | `secretGenerator` com valores de desenvolvimento (`orders`, `reservations`, `bookings`, `dmpf-databases`, `grafana-admin`) |
+| `dev` | `dmpf-dev` | Postgres, Redpanda, a plataforma de observabilidade e as quatro apps; Job `databases` cria banco e role de `orders`, `reservations` e `bookings`; Kafka, OTLP e gRPC interno sem TLS, `MIGRATE=true` nos `api`, Grafana anônimo | `secretGenerator` com valores de desenvolvimento (`orders`, `reservations`, `bookings`, `databases`, `grafana-admin`) |
 | `hmg` | `dmpf-hmg` | Observabilidade e as quatro apps (2 réplicas do BFF e de cada `api`); bancos e Kafka externos, mTLS no gRPC interno e SASL no Kafka, Grafana só com login | `orders`, `reservations`, `bookings` (com `KAFKA_SASL_USERNAME`/`_PASSWORD`), `orders-grpc-tls`, `reservations-grpc-tls`, `bookings-grpc-tls`, `bff-grpc-ca`, `bff-grpc-client`, `grpc-client-ca`, `bff-oidc` e `grafana-admin` vêm de ExternalSecret/SealedSecret com esses nomes; `secrets.example.yaml.tmpl` mostra a forma e **não** é resource |
 
 As bases são fail-closed e o overlay `dev` relaxa o que precisa: `KAFKA_INSECURE`, `OTLP_INSECURE` e o acesso anônimo do Grafana nascem desligados, e o transporte gRPC interno não tem default — `dev` declara `GRPC_INSECURE=true` por patch. Em `hmg`, o mTLS é bidirecional: cada `api` monta o próprio certificado de servidor (`orders-grpc-tls`, `reservations-grpc-tls`) e a CA que verifica o cliente (`grpc-client-ca`, comum aos dois contextos porque o único cliente confiável é o BFF), e o BFF monta a CA que verifica os `api` (`bff-grpc-ca`) e o próprio certificado de cliente (`bff-grpc-client`); o Kafka gerenciado exige SASL SCRAM-SHA-512 por contexto, com usuário e senha no Secret do próprio contexto. A ACL do broker por principal do ADR-052 é **pré-requisito externo**, registrada como comentário no `secrets.example.yaml.tmpl`: sem ela, `hmg` não tem como impor que só `orders` publique em `orders.events`. As bases dos contextos não conhecem credencial: `PG_DSN`, `KAFKA_BROKERS` e as credenciais SASL vêm sempre do Secret do overlay; o resto vem do ConfigMap. Os seis Deployments têm `securityContext` restritivo (não root, sistema de arquivos só leitura, sem capabilities) e `terminationGracePeriodSeconds` acima do prazo interno de encerramento de cada papel.

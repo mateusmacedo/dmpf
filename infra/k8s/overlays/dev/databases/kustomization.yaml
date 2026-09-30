@@ -1,0 +1,17 @@
+# Gerado por tools/dmpf-conformance/cmd/infrasync a partir de apps/backend/*/deploy/infra.json; não edite.
+# Banco e role de cada app no Postgres do overlay (ADR-053), com as senhas de
+# desenvolvimento no Secret que o Job lê.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - job.yaml
+
+secretGenerator:
+  - name: databases
+    literals:
+      - bookings=bookings-dev
+      - orders=orders-dev
+      - reservations=reservations-dev
+    options:
+      disableNameSuffixHash: true

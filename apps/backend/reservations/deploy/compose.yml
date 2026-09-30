@@ -1,0 +1,69 @@
+# Processos do reservations na topologia local (ADR-044): api gRPC, que aplica o
+# schema (MIGRATE=true), relay da própria outbox e consumer de orders.events.
+x-image: &image
+  build:
+    context: ../../../..
+    dockerfile: apps/backend/reservations/Dockerfile
+  image: ${RESERVATIONS_IMAGE:-reservations:local}
+
+x-env: &env
+  SERVICE: reservations
+  PG_DSN: postgres://reservations:${RESERVATIONS_PG_PASSWORD:-reservations-local}@postgres:5432/reservations?sslmode=disable
+
+x-kafka: &kafka
+  KAFKA_SASL_USERNAME: reservations
+  KAFKA_SASL_PASSWORD: ${KAFKA_RESERVATIONS_PASSWORD:-reservations-local}
+  KAFKA_GROUP: reservations
+
+services:
+  dmpf-reservations-api:
+    <<: *image
+    extends:
+      file: ../../../../infra/local/compose/app-base.yml
+      service: dmpf-grpc-api
+    environment:
+      <<: *env
+      INSTANCE_ID: reservations-api
+      GRPC_TLS_CERT_FILE: /pki/dmpf-reservations-api.crt
+      GRPC_TLS_KEY_FILE: /pki/dmpf-reservations-api.key
+    depends_on:
+      pki-init:
+        condition: service_completed_successfully
+      postgres-init:
+        condition: service_completed_successfully
+      otel-collector:
+        condition: service_started
+
+  dmpf-reservations-relay:
+    <<: *image
+    extends:
+      file: ../../../../infra/local/compose/app-base.yml
+      service: dmpf-kafka-worker
+    command: ['--role', 'relay']
+    environment:
+      <<: [*env, *kafka]
+      INSTANCE_ID: reservations-relay
+      KAFKA_RESERVATIONS_TOPIC: ${KAFKA_RESERVATIONS_TOPIC:-reservations.events}
+      KAFKA_RESERVATIONS_DLQ: ${KAFKA_RESERVATIONS_DLQ:-reservations.events.dlq}
+    depends_on:
+      redpanda-init:
+        condition: service_completed_successfully
+      dmpf-reservations-api:
+        condition: service_started
+
+  dmpf-reservations-consumer:
+    <<: *image
+    extends:
+      file: ../../../../infra/local/compose/app-base.yml
+      service: dmpf-kafka-worker
+    command: ['--role', 'consumer']
+    environment:
+      <<: [*env, *kafka]
+      INSTANCE_ID: reservations-consumer
+      KAFKA_ORDERS_TOPIC: ${KAFKA_ORDERS_TOPIC:-orders.events}
+      KAFKA_ORDERS_DLQ: ${KAFKA_ORDERS_DLQ:-orders.events.dlq}
+    depends_on:
+      redpanda-init:
+        condition: service_completed_successfully
+      dmpf-reservations-api:
+        condition: service_started

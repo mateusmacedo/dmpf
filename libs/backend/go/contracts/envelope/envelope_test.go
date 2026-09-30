@@ -11,13 +11,13 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/contracts/envelope"
-	eventv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/orders/event/v1"
+	eventv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/dmpf/testing/v1"
 	cloudeventsv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/io/cloudevents/v1"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/contracts/payloadhash"
 )
 
 const (
-	wantTypeURL = "type.googleapis.com/company.orders.event.v1.OrderPlaced"
+	wantTypeURL = "type.googleapis.com/dmpf.testing.v1.OrderPlaced"
 	eventType   = "com.company.orders.order-placed.v1"
 )
 
@@ -284,7 +284,7 @@ func TestMalformedMajorsAreRejected(t *testing.T) {
 		"type without dots":          {func(e *envelope.Envelope) { e.Type = "v1" }, envelope.ErrMajorMismatch},
 		"dataschema without package": {func(e *envelope.Envelope) { e.DataSchema = "type.googleapis.com/OrderPlaced" }, envelope.ErrMajorMismatch},
 		"dataschema without type URL prefix": {func(e *envelope.Envelope) {
-			e.DataSchema = "https://schemas.local/company.orders.event.v1.OrderPlaced"
+			e.DataSchema = "https://schemas.local/dmpf.testing.v1.OrderPlaced"
 		}, envelope.ErrDataSchemaForm},
 		"dataschema is only the prefix": {func(e *envelope.Envelope) { e.DataSchema = "type.googleapis.com/" }, envelope.ErrDataSchemaForm},
 	}
@@ -399,7 +399,7 @@ func TestPayloadHashIgnoresEnvelope(t *testing.T) {
 		// dataschema points at another message of the same major; Encode does not
 		// decode the payload, so the bytes stay the same and only the URL varies.
 		"dataschema": func(e *envelope.Envelope) {
-			e.DataSchema = "type.googleapis.com/company.orders.event.v1.OrderCancelled"
+			e.DataSchema = "type.googleapis.com/dmpf.testing.v1.OrderCancelled"
 		},
 		// specversion and datacontenttype are fixed by the profile: the only value
 		// Validate accepts is the one already in place, so they cannot vary alone.

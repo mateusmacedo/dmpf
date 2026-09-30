@@ -3,7 +3,7 @@ kind: Kustomization
 
 # dev: tudo dentro do cluster — Postgres e Redpanda das bases, sem TLS nem no
 # Kafka nem no gRPC interno, banco e role de cada app criados pelo Job
-# dmpf-databases, schema aplicado pelo papel api de cada contexto
+# databases, schema aplicado pelo papel api de cada contexto
 # (MIGRATE), Grafana anônimo. Credenciais de desenvolvimento geradas aqui;
 # nada disto vale para outro ambiente.
 
@@ -13,48 +13,10 @@ resources:
   - ../../base/postgres
   - ../../base/redpanda
   - ../../../observability
-  - ../../base/orders
-  - ../../base/reservations
-  - ../../base/bookings
-  - ../../base/bff
-  - job-databases.yaml
-
-images:
-  - name: ghcr.io/mateusmacedo/bff
-    newTag: dev
-  - name: ghcr.io/mateusmacedo/orders
-    newTag: dev
-  - name: ghcr.io/mateusmacedo/reservations
-    newTag: dev
-  - name: ghcr.io/mateusmacedo/bookings
-    newTag: dev
+  - apps
+  - databases
 
 secretGenerator:
-  - name: orders
-    literals:
-      - PG_DSN=postgres://orders:orders-dev@postgres-0.postgres:5432/orders?sslmode=disable
-      - KAFKA_BROKERS=redpanda-0.redpanda:9092
-    options:
-      disableNameSuffixHash: true
-  - name: reservations
-    literals:
-      - PG_DSN=postgres://reservations:reservations-dev@postgres-0.postgres:5432/reservations?sslmode=disable
-      - KAFKA_BROKERS=redpanda-0.redpanda:9092
-    options:
-      disableNameSuffixHash: true
-  - name: bookings
-    literals:
-      - PG_DSN=postgres://bookings:bookings-dev@postgres-0.postgres:5432/bookings?sslmode=disable
-      - KAFKA_BROKERS=redpanda-0.redpanda:9092
-    options:
-      disableNameSuffixHash: true
-  - name: dmpf-databases
-    literals:
-      - orders=orders-dev
-      - reservations=reservations-dev
-      - bookings=bookings-dev
-    options:
-      disableNameSuffixHash: true
   - name: grafana-admin
     literals:
       - password=admin
@@ -62,11 +24,4 @@ secretGenerator:
       disableNameSuffixHash: true
 
 patches:
-  - path: configmap-orders-patch.yaml
-  - path: configmap-reservations-patch.yaml
-  - path: configmap-bff-patch.yaml
-  - path: deployment-orders-api-patch.yaml
-  - path: deployment-reservations-api-patch.yaml
-  - path: configmap-bookings-patch.yaml
-  - path: deployment-bookings-api-patch.yaml
   - path: grafana-anonymous-patch.yaml

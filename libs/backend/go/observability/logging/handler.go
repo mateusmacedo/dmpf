@@ -88,6 +88,10 @@ type Config struct {
 	// Level is the minimum severity. A nil level means slog's default.
 	Level slog.Leveler
 
+	// Sinks receive every record the writer receives, already carrying the
+	// mandatory fields, such as the OTLP bridge that ships the log to Loki.
+	Sinks []slog.Handler
+
 	// Rand draws the sampling decision. It is injected so a test fixes the draw
 	// instead of tolerating a range.
 	Rand func() float64
@@ -138,7 +142,7 @@ func NewHandler(w io.Writer, config Config) slog.Handler {
 	}
 
 	return &handler{
-		base:     slog.NewJSONHandler(w, &slog.HandlerOptions{Level: config.Level}),
+		base:     fanOut(slog.NewJSONHandler(w, &slog.HandlerOptions{Level: config.Level}), config.Sinks),
 		config:   config,
 		sampler:  sampler{class: class, rates: rates, rand: config.Rand},
 		redactor: redact.New(config.AllowedFields...),

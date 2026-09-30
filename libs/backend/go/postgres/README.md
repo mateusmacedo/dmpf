@@ -142,13 +142,15 @@ Os testes de banco levam a build tag `integration` e só rodam no target
 `test-race`. Sem `PG_DSN` eles pulam com instrução fora do CI, e **falham**
 dentro dele — um skip silencioso deixaria a outbox sem prova executável.
 
+O target sobe a infra de testes (`testkit:test-infra-up`) e o
+`tools/test-env.sh` preenche o `PG_DSN` com o Postgres dela, na porta 15432, a
+partir do `.env.example` da raiz:
+
 ```bash
-docker compose -f infra/local/docker-compose.yml --profile postgres up -d
-export PG_DSN='postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable'
 pnpm nx run postgres:test-race
 ```
 
-Sem o compose no ar, `pnpm nx run-many -t test -p postgres`
+Sem a infra de testes no ar, `pnpm nx run-many -t test -p postgres`
 segue verde: os testes unitários (destino, mapeador) não têm a tag.
 
 O `test-race` deste módulo roda com `cache: false` no Nx **e** `-count=1` no

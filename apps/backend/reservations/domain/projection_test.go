@@ -16,7 +16,7 @@ import (
 // kernel will read against its own aggregate.
 
 func TestReservationsMatchTheProjectionFixture(t *testing.T) {
-	f := tb.LoadProjection(t, "contracts/fixtures/reservations/projection/v1/reservation.golden")
+	f := tb.LoadProjection(t, "apps/backend/reservations/contract/fixtures/projection/v1/reservation.golden")
 	if f.Identity.Aggregate != "reservation" || len(f.Cases) != 7 {
 		t.Fatalf("fixture identity/cases = %+v/%d", f.Identity, len(f.Cases))
 	}

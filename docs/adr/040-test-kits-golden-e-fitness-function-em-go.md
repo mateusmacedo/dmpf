@@ -2,7 +2,7 @@
 
 ## Status
 
-Aceito — 2026-09-07. Implementa SPEC-SJ66880S.
+Aceito — 2026-09-07. Implementa SPEC-SJ66880S. **Caminhos atualizados pelo [ADR-054](./054-apps-autocontidos-e-infras-separadas.md) (2026-09-28)**: as fixtures de projeção de cada contexto estão em `apps/backend/<ctx>/contract/fixtures/`, e as do kernel em `libs/backend/go/contracts/fixtures/`.
 
 ## Contexto
 

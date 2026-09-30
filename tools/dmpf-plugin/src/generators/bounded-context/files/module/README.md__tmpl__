@@ -23,7 +23,7 @@ o primeiro em que toda dependência do módulo está de pé. Import path do mód
 O contexto serve só gRPC (`<%- serviceName %>`), atrás da cadeia de
 interceptors do kernel; o REST público é do `bff` (ADR-044, ADR-053). O
 `ServiceDesc` de `app/rpc/service.go` nasce vazio: cada método entra ali quando
-o serviço é publicado em `contracts/proto`.
+o serviço é publicado em `contract/proto`, o módulo de contrato do contexto.
 
 O banco é próprio: database e role `<%- name %>`, schema `public`, tabelas sem
 prefixo e agregado no plural. O DDL vive em `provider/schema.sql` e é aplicado

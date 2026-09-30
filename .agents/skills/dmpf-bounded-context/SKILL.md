@@ -63,10 +63,13 @@ não executa — ele **para e imprime** o rito restante.
    o catálogo; e2e gRPC sobre Postgres. Consumer com `envelope.Unpack` **só se
    o contexto consome**. A borda REST é do `bff`, em tarefa própria.
 8. **Contrato**: `.proto` do serviço em
-   `contracts/proto/company/<name>/service/v1/` e de cada evento publicado em
-   `contracts/proto/company/<name>/event/v1/`; OpenAPI em
-   `contracts/openapi/<name>/v1/`; unidade `<ctx>/contract` no manifesto do
-   `contracts` por merge; depois o rito Buf — passo humano.
+   `apps/backend/<name>/contract/proto/company/<name>/service/v1/` e de cada evento publicado em
+   `apps/backend/<name>/contract/proto/company/<name>/event/v1/`; OpenAPI em
+   `apps/backend/<name>/contract/openapi/v1/`; a unidade `<ctx>/contract` já
+   nasce no `dmpf-units.json` do módulo `contract/`, e os packages gerados
+   entram nela por merge; depois o rito Buf — passo humano.
+   O `deploy/infra.json` declara banco, tópicos e ACLs do que o contexto
+   publica e consome; depois de ajustá-lo, `infrasync --write`.
 9. **`include`** dos packages novos no `dmpf-units.json` do módulo, na unidade do bloco certo, por merge.
 10. **Classificação**: `--write-baseline` em commit próprio — passo humano.
 11. **Gates**: `fmt-check`, `vet`, `build`, `lint`, `test-race`,

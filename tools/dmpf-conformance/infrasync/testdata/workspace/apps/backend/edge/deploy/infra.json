@@ -1,0 +1,7 @@
+{
+  "schema": "dmpf/infra@1",
+  "app": "edge",
+  "image": { "env": "EDGE_IMAGE", "local": "edge:local" },
+  "grpc": { "client": "edge" },
+  "env": { "HTTP_PORT": "8080" }
+}

@@ -1,0 +1,30 @@
+{
+  "schema": "dmpf/units@1",
+  "units": [
+    {
+      "id": <%- contractUnitIdJson %>,
+      "block": "contract",
+      "bounded_context": <%- boundedContextJson %>,
+      "public_integration_surface": true,
+      "include": [
+        <%- contractModulePathJson %>,
+        <%- contractServicePackageJson %>
+      ]
+    }
+  ],
+  "external": [
+    {
+      "package": "google.golang.org/protobuf",
+      "versions": ">=1.36.12 <2",
+      "entrypoints": [
+        "google.golang.org/protobuf/proto",
+        "google.golang.org/protobuf/types/known/anypb",
+        "google.golang.org/protobuf/types/known/timestamppb",
+        "google.golang.org/protobuf/reflect/protoreflect",
+        "google.golang.org/protobuf/runtime/protoimpl"
+      ],
+      "capability": "wire.codec"
+    }
+  ],
+  "exceptions": []
+}

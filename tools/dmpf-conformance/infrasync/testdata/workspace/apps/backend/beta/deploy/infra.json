@@ -1,0 +1,20 @@
+{
+  "schema": "dmpf/infra@1",
+  "app": "beta",
+  "image": { "env": "BETA_IMAGE", "local": "beta:local" },
+  "database": { "passwordEnv": "BETA_PG_PASSWORD", "local": "beta-local", "dev": "beta-dev" },
+  "kafka": {
+    "passwordEnv": "KAFKA_BETA_PASSWORD",
+    "local": "beta-local",
+    "topics": [{ "name": "beta.events", "env": "KAFKA_BETA_TOPIC" }],
+    "acls": [
+      { "operations": ["write", "describe"], "topics": ["beta.events"] },
+      {
+        "operations": ["read", "describe"],
+        "topics": ["alpha.events"],
+        "group": { "name": "beta", "env": "KAFKA_GROUP" }
+      }
+    ]
+  },
+  "grpc": { "server": "dmpf-beta-api" }
+}

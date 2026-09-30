@@ -1,0 +1,37 @@
+{
+  "schema": "dmpf/infra@1",
+  "app": "bookings",
+  "image": {
+    "env": "BOOKINGS_IMAGE",
+    "local": "bookings:local"
+  },
+  "database": {
+    "passwordEnv": "BOOKINGS_PG_PASSWORD",
+    "local": "bookings-local",
+    "dev": "bookings-dev"
+  },
+  "kafka": {
+    "passwordEnv": "KAFKA_BOOKINGS_PASSWORD",
+    "local": "bookings-local",
+    "topics": [
+      {
+        "name": "bookings.events",
+        "env": "KAFKA_BOOKINGS_TOPIC"
+      },
+      {
+        "name": "bookings.events.dlq",
+        "env": "KAFKA_BOOKINGS_DLQ"
+      }
+    ],
+    "acls": [
+      {
+        "operations": ["write", "describe"],
+        "topics": ["bookings.events", "bookings.events.dlq"]
+      }
+    ]
+  },
+  "grpc": {
+    "server": "dmpf-bookings-api"
+  },
+  "openapi": true
+}

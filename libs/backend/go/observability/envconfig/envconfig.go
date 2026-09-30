@@ -8,6 +8,8 @@ package envconfig
 import (
 	"errors"
 	"fmt"
+	"log/slog"
+	"math"
 	"os"
 	"strconv"
 	"strings"
@@ -63,4 +65,28 @@ func ParsePositive(variable, value string, fallback int) (int, error) {
 		return 0, fmt.Errorf("%w: %s=%q is not a positive integer", ErrInvalidVariable, variable, value)
 	}
 	return parsed, nil
+}
+
+// ParseFraction reads a rate in [0, 1]. The second result tells an unset
+// variable apart from an explicit zero.
+func ParseFraction(variable, value string) (float64, bool, error) {
+	if value == "" {
+		return 0, false, nil
+	}
+	parsed, err := strconv.ParseFloat(value, 64)
+	if err != nil || math.IsNaN(parsed) || parsed < 0 || parsed > 1 {
+		return 0, false, fmt.Errorf("%w: %s=%q is not a fraction in [0, 1]", ErrInvalidVariable, variable, value)
+	}
+	return parsed, true, nil
+}
+
+func ParseLevel(variable, value string, fallback slog.Level) (slog.Level, error) {
+	if value == "" {
+		return fallback, nil
+	}
+	var level slog.Level
+	if err := level.UnmarshalText([]byte(value)); err != nil {
+		return 0, fmt.Errorf("%w: %s=%q is not a log level", ErrInvalidVariable, variable, value)
+	}
+	return level, nil
 }

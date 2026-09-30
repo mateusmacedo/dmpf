@@ -2,7 +2,7 @@
 
 ## Status
 
-Aceito — 2026-09-19. Evolui o ADR-045 e o ADR-046 e supersede parcialmente os dois: do ADR-046, a frase "cada um segue o layout do `bookings`: (…) o bloco `app` no package raiz" — o bloco `app` passa a ser subpasta `app/`, e a raiz do contexto deixa de ter código Go — e a exclusão de `cmd/` e de target `serve` em `bookings`, que é revertida. Do ADR-045, o layout `cmd/<binário>/main.go`, que passa a `cmd/main.go`. O nome bare, o alias pelo papel, o módulo único por contexto (ADR-045) e o critério de consumo que reserva `libs/backend/go` ao kernel (ADR-046) permanecem.
+Aceito — 2026-09-19. Evolui o ADR-045 e o ADR-046 e supersede parcialmente os dois: do ADR-046, a frase "cada um segue o layout do `bookings`: (…) o bloco `app` no package raiz" — o bloco `app` passa a ser subpasta `app/`, e a raiz do contexto deixa de ter código Go — e a exclusão de `cmd/` e de target `serve` em `bookings`, que é revertida. Do ADR-045, o layout `cmd/<binário>/main.go`, que passa a `cmd/main.go`. O nome bare, o alias pelo papel, o módulo único por contexto (ADR-045) e o critério de consumo que reserva `libs/backend/go` ao kernel (ADR-046) permanecem. **Emendado pelo [ADR-054](./054-apps-autocontidos-e-infras-separadas.md) (2026-09-28)**: a raiz do contexto ganha `contract/`, módulo Go próprio, e `deploy/`, com Kubernetes, Compose, `.env.example` e `infra.json`.
 
 Implementa [SPEC-C4JMX2WM](../specs/SPEC-C4JMX2WM-normatizacao-bounded-contexts.md).
 

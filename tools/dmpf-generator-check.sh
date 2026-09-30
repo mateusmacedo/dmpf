@@ -242,10 +242,11 @@ projetos_gerados() {
         ;;
     esac
   done
-  [ "${#PROJETOS[@]}" -eq 1 ] \
-    || falha "${#PROJETOS[@]} project.json gerado(s): o contexto é um único módulo (ADR-045)"
-  [ "${PROJETOS[0]}" = "$NOME" ] \
-    || falha "o projeto gerado chama-se ${PROJETOS[0]}, e devia ser $NOME, sem prefixo nem sufixo"
+  local esperados ordenados
+  esperados="$(printf '%s\n' "$NOME" "$NOME-contract" | sort)"
+  ordenados="$(printf '%s\n' "${PROJETOS[@]}" | sort)"
+  [ "$ordenados" = "$esperados" ] \
+    || falha "projetos gerados: $(tr '\n' ' ' <<<"$ordenados")— esperados o contexto $NOME e o contrato $NOME-contract (ADR-045, ADR-054)"
   local bloco blocos=() faltando=()
   IFS=',' read -r -a blocos <<<"$BLOCOS"
   for bloco in "${blocos[@]}"; do
@@ -255,7 +256,7 @@ projetos_gerados() {
   done
   [ "${#faltando[@]}" -eq 0 ] \
     || falha "bloco(s) pedido(s) sem diretório no módulo gerado: ${faltando[*]} — a lista --blocks não chegou inteira ao generator"
-  ok "módulo gerado: ${PROJETOS[0]} com $BLOCOS_PEDIDOS bloco(s)"
+  ok "módulos gerados: $NOME com $BLOCOS_PEDIDOS bloco(s) e $NOME-contract"
 }
 
 checar_sem_escrita() {

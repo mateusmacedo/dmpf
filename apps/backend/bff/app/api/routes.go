@@ -6,13 +6,14 @@ package api
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 
 	"go.opentelemetry.io/otel/trace"
 
-	bookingsv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/bookings/service/v1"
-	ordersv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/orders/service/v1"
-	reservationsv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/company/reservations/service/v1"
+	bookingsv1 "github.com/mateusmacedo/dmpf/apps/backend/bookings/contract/gen/go/company/bookings/service/v1"
+	ordersv1 "github.com/mateusmacedo/dmpf/apps/backend/orders/contract/gen/go/company/orders/service/v1"
+	reservationsv1 "github.com/mateusmacedo/dmpf/apps/backend/reservations/contract/gen/go/company/reservations/service/v1"
 	kernelhttp "github.com/mateusmacedo/dmpf/libs/backend/go/http"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/metrics"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
@@ -32,9 +33,9 @@ const (
 	ReservationsContractPath = "/openapi/reservations/v1/openapi.yaml"
 	BookingsContractPath     = "/openapi/bookings/v1/openapi.yaml"
 
-	ordersContract       = "contracts/openapi/orders/v1/openapi.yaml#/paths/"
-	reservationsContract = "contracts/openapi/reservations/v1/openapi.yaml#/paths/"
-	bookingsContract     = "contracts/openapi/bookings/v1/openapi.yaml#/paths/"
+	ordersContract       = "apps/backend/orders/contract/openapi/v1/openapi.yaml#/paths/"
+	reservationsContract = "apps/backend/reservations/contract/openapi/v1/openapi.yaml#/paths/"
+	bookingsContract     = "apps/backend/bookings/contract/openapi/v1/openapi.yaml#/paths/"
 )
 
 type OrdersClient interface {
@@ -59,7 +60,8 @@ type BookingsClient interface {
 
 // Options is what the composition root decides beyond the clients: the route
 // budget the request deadline derives from, the contracts to serve (nil serves
-// nothing) and the browser origins allowed to call the edge (none by default).
+// nothing), the browser origins allowed to call the edge (none by default) and
+// the readiness of the contexts (nil serves no readiness route).
 type Options struct {
 	Budget               deadline.Budget
 	Authenticator        ports.Authenticator
@@ -67,6 +69,9 @@ type Options struct {
 	ReservationsContract []byte
 	BookingsContract     []byte
 	CORSOrigins          []string
+	Logger               *slog.Logger
+	Ready                func(context.Context) error
+	Draining             func() bool
 }
 
 func Routes(budget deadline.Budget) []kernelhttp.Route {
@@ -117,6 +122,11 @@ func NewHandler(
 		return nil, ErrAuthenticatorRequired
 	}
 
+	logger := opts.Logger
+	if logger == nil {
+		logger = slog.New(slog.DiscardHandler)
+	}
+
 	h := handlers{orders: orders, reservations: reservations, bookings: bookings}
 	serve := map[string]http.HandlerFunc{
 		"addItem":         h.addItem,
@@ -140,7 +150,7 @@ func NewHandler(
 			return nil, err
 		}
 		handler := requireIdempotencyKey(serve[route.Name])
-		mounted := withExecutionContext(tracer, opts.Authenticator, route, admit(handler))
+		mounted := withExecutionContext(tracer, logger, opts.Authenticator, route, admit(handler))
 		mux.Handle(pattern(route), withRecover(withRouteDeadline(route.Budget, mounted)))
 	}
 	if len(opts.OrdersContract) > 0 {
@@ -151,6 +161,10 @@ func NewHandler(
 	}
 	if len(opts.BookingsContract) > 0 {
 		mux.Handle("GET "+BookingsContractPath, serveContract(opts.BookingsContract))
+	}
+	mux.Handle("GET "+LivenessPath, serveLiveness())
+	if opts.Ready != nil {
+		mux.Handle("GET "+ReadinessPath, serveReadiness(opts.Ready, opts.Draining, logger))
 	}
 	return withCORS(opts.CORSOrigins, mux), nil
 }

@@ -33,7 +33,8 @@ primeiro em que toda dependência do módulo está de pé. Import path do módul
 | `app`, `app/rpc`, `cmd` | `app` | `resource-scheduling/app` | Composition root: `config.go`, `catalog.go`, `wiring.go`, `telemetry.go`, borda gRPC (`app/rpc`) e binário (`cmd/main.go`) |
 
 A sexta unidade do contexto, `resource-scheduling/contract`, vive no manifesto
-de `libs/backend/go/contracts`, porque o código gerado do Protobuf mora lá. Os
+do módulo `apps/backend/bookings/contract`, onde o código gerado do Protobuf
+mora. Os
 harnesses `appkit` (borda a borda sobre Postgres) e `distkit` (dois processos
 sobre Redpanda) completam o módulo — todo contexto tem os dois (ADR-048).
 
@@ -57,7 +58,7 @@ portas. Os packages do contexto ficam bare.
 | `FindBooking` | `GET /bookings/booking/{id}` | `bookings:read` |
 | `FindBookingsByResource` | `GET /bookings/booking?resourceId=` | `bookings:read` |
 
-O contrato REST publicado é `contracts/openapi/bookings/v1/openapi.yaml`, servido
+O contrato REST publicado é `apps/backend/bookings/contract/openapi/v1/openapi.yaml`, servido
 pelo `bff`. Uma recusa de domínio volta como `rejection` na resposta; uma falha
 técnica é um status gRPC (`NOT_FOUND`, `ABORTED` para conflito de versão,
 `INVALID_ARGUMENT` para entrada malformada).
@@ -117,20 +118,26 @@ A imagem nasce do `Dockerfile` na raiz do repositório:
 ## Targets Nx
 
 `fmt-check`, `vet`, `build`, `test-race`, `test-distributed`, `govulncheck`,
-`serve-api` e `serve-relay`.
+`serve-api` e `serve-relay`, mais os de container: `docker:build`, `docker:run`
+(papel `api`) e `docker:run-relay`, que o `bff:docker:run` sobe.
 
 ## Testes
 
 Unitários, sem banco: as UPRs do `domain`, a sequência canônica e a autorização
 por permissão da `application` sobre o `memory`, e o serviço gRPC do `app/rpc`
 por `bufconn` sobre o store em memória. `test-race` roda com
-`-tags=integration` e `PG_DSN` apontando o servidor: a suíte usa o próprio banco
-`bookings_test`. Prova o `provider` (escopo de tenant e acesso cruzado
+`-tags=integration` e `PG_DSN` apontando o servidor: cada teste usa um banco
+`bookings_test_<id>` próprio, criado e apagado pelo `tb/pg`. Prova o `provider` (escopo de tenant e acesso cruzado
 inclusos), o `appkit` e o e2e gRPC até a outbox, pelo mesmo salto que o `bff`
 cruza.
 `test-distributed` roda o `distkit` (dois processos sobre Redpanda) com as tags
 `integration,distributed`.
 
+Os dois targets sobem a infra de testes (`testkit:test-infra-up`), e o
+`tools/test-env.sh` preenche `PG_DSN` e `KAFKA_BROKERS` com o Postgres (15432) e
+o Redpanda (19092) dela, a partir do `.env.example` da raiz:
+
 ```bash
-PG_DSN='postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable' pnpm nx run bookings:test-race
+pnpm nx run bookings:test-race
+pnpm nx run bookings:test-distributed
 ```

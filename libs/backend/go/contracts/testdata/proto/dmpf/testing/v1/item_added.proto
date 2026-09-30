@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package dmpf.testing.v1;
+
+// Kernel test double of an integration event. Envelope type: dmpf.testing.item-added.v1.
+message ItemAdded {
+  string order_id = 1;
+  string sku = 2;
+  int32 quantity = 3;
+}

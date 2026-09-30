@@ -26,7 +26,14 @@ var (
 func TestV31NoArtifactPromisesExactlyOnce(t *testing.T) {
 	root := tb.RepoRoot(t)
 	var files []string
-	files = append(files, sweep(t, filepath.Join(root, "contracts"), func(string) bool { return true })...)
+	contractDirs, err := filepath.Glob(filepath.Join(root, "apps", "backend", "*", "contract"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	contractDirs = append(contractDirs, filepath.Join(root, "libs", "backend", "go", "contracts"))
+	for _, dir := range contractDirs {
+		files = append(files, sweep(t, dir, func(string) bool { return true })...)
+	}
 	files = append(files, sweep(t, filepath.Join(root, "libs", "backend", "go"), func(p string) bool {
 		base := filepath.Base(p)
 		return base == "README.md" || base == "dmpf-units.json"

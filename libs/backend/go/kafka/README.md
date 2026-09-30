@@ -144,19 +144,20 @@ Os testes de integração levam a build tag `integration`, exigem
 `KAFKA_BROKERS` (sem ela fazem `t.Skip` nomeando-a) e criam tópicos com
 sufixo único por execução:
 
+O target sobe a infra de testes (`testkit:test-infra-up`) e o
+`tools/test-env.sh` preenche o `KAFKA_BROKERS` com o Redpanda dela, na porta
+19092, a partir do `.env.example` da raiz:
+
 ```bash
-docker run -d --name rp -p 9092:9092 redpandadata/redpanda:v26.2.2 \
-  redpanda start --mode dev-container --smp 1 \
-  --kafka-addr internal://0.0.0.0:9092 --advertise-kafka-addr internal://localhost:9092
-export KAFKA_BROKERS=localhost:9092
 pnpm nx run kafka:test-race
 ```
 
 `sasl_integration_test.go` é um segundo alvo, também sob `integration`, mas
 independente: pede `KAFKA_SASL_BROKERS`, o endereço de um broker que
 **exige** SASL, e fica em `t.Skip` sem essa variável — o `KAFKA_BROKERS`
-comum não basta porque o Redpanda de desenvolvimento do teste acima não pede
-autenticação.
+comum não basta porque o Redpanda da porta 19092 não pede autenticação. A
+infra de testes sobe um segundo broker na 19093, com SASL SCRAM, e o
+`.env.example` da raiz aponta `KAFKA_SASL_BROKERS` e as credenciais para ele.
 
 O `test-race` roda com `cache: false` no Nx e `-count=1` no `go test`: nenhum
 dos dois caches enxerga o estado do broker. No CI o Redpanda sobe no job

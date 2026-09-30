@@ -23,7 +23,7 @@ pnpm nx g @mateusmacedo/dmpf-plugin:bounded-context <name> --boundedContext <ctx
 
 - Produz o módulo `apps/backend/<name>` com `project.json` (tags 3D com
   `type:app` + `layer:*` do bloco mais alto; `test-race` sem `dependsOn`, porque
-  cada projeto testa no seu banco), `go.mod` sem `require`, `package.json`,
+  cada teste tem o próprio banco), `go.mod` sem `require`, `package.json`,
   `dmpf-units.json` com uma unidade por bloco, `README.md`, `Dockerfile` e um
   `doc.go` por bloco. O `app` nasce na forma canônica: `config.go`,
   `wiring.go`, `telemetry.go`, `catalog.go`, `app/rpc/{errors,service}.go`; o
@@ -124,22 +124,26 @@ pnpm nx g @mateusmacedo/dmpf-plugin:bounded-context <name> --boundedContext <ctx
 ## 8. Contrato
 
 1. O serviço em
-   `contracts/proto/company/<name>/service/v1/<name>_service.proto`. Molde:
-   `contracts/proto/company/bookings/service/v1/bookings_service.proto`.
+   `apps/backend/<name>/contract/proto/company/<name>/service/v1/<name>_service.proto`. Molde:
+   `apps/backend/bookings/contract/proto/company/bookings/service/v1/bookings_service.proto`.
 2. Um `.proto` por evento **publicado**, em
-   `contracts/proto/company/<name>/event/v1/<evento>.proto`, package
+   `apps/backend/<name>/contract/proto/company/<name>/event/v1/<evento>.proto`, package
    `company.<name>.event.v1`, `option go_package`, comentários mínimos para o
-   lint STANDARD. Molde: `contracts/proto/company/bookings/event/v1/booking_reserved.proto`.
-3. OpenAPI em `contracts/openapi/<name>/v1/openapi.yaml`, com `bearerAuth`;
+   lint STANDARD. Molde: `apps/backend/bookings/contract/proto/company/bookings/event/v1/booking_reserved.proto`.
+3. OpenAPI em `apps/backend/<name>/contract/openapi/v1/openapi.yaml`, com `bearerAuth`;
    é o contrato que o `bff` serve.
-4. Unidade `<ctx>/contract` no `libs/backend/go/contracts/dmpf-units.json`,
-   por merge de campo — **antes** do `generate`.
-5. Passo humano: `(cd contracts && bash ../tools/buf.sh generate)`, depois
-   `pnpm nx run contracts:buf-lint`, `buf-pins`, `buf-generate-check`,
-   `NX_BASE=<base> buf-breaking`.
+4. Unidade `<ctx>/contract` no `apps/backend/<name>/contract/dmpf-units.json`:
+   o generator já a declara, com o `external` do protobuf; o pacote de cada
+   `.proto` novo entra no `include` por merge — **antes** do `generate`.
+5. Passo humano: `(cd apps/backend/<name>/contract && bash ../../../../tools/buf.sh generate)`,
+   depois `pnpm nx run <name>-contract:tidy`, que põe o `require` do protobuf no
+   `go.mod`, e as exceções `reflect` e `unsafe` do gerado no manifesto, pedidas
+   à arquitetura e à plataforma (molde: `apps/backend/bookings/contract/dmpf-units.json`).
+6. Gates: `pnpm nx run <name>-contract:buf-lint`, `buf-pins`,
+   `buf-generate-check` e `NX_BASE=<base> buf-breaking`.
 
 - Norma: ADR-033; PTB-01/REP-01 (`company` fixo). `.proto` publicado é
-  imutável; `contracts/buf.yaml` é módulo único.
+  imutável; cada contexto tem o próprio `contract/buf.yaml`.
 
 ## 9. `include`
 
