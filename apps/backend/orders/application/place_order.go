@@ -24,30 +24,14 @@ func (s Service) PlaceOrder(ctx context.Context, cmd PlaceOrder) (usecase.Outcom
 	}
 
 	identity := usecase.ResolveIdentity(s.Clock, s.IDs, maxEventsPerCommand)
+	fingerprint := usecase.NewFingerprint(OperationPlaceOrder).String(string(cmd.Order))
 
-	outcome := zero
+	outcome, replayed := zero, false
 	err := s.UoW.Within(ctx, func(ctx context.Context, res Resources) error {
-		snapshot, stored, err := res.Orders.Load(ctx, cmd.Order)
-		if err != nil {
-			return fmt.Errorf("application: place order %s: %w", cmd.Order, err)
-		}
-
-		order := domain.FromSnapshot(snapshot)
-		accepted, rejection := order.Place(domain.PlaceOrder{At: domain.Instant(identity.OccurredAt)})
-		if rejection != nil {
-			outcome = usecase.Rejected[domain.PlacedResponse](rejection)
-			return nil
-		}
-
-		if err := res.Orders.Save(ctx, cmd.Order, order.Snapshot(), stored); err != nil {
-			return err
-		}
-		if err := enqueueAll(ctx, res.Outbox, identity, cmd.Order, stored+1, accepted.Events()); err != nil {
-			return err
-		}
-
-		outcome = usecase.Accepted(accepted.Response())
-		return nil
+		var err error
+		outcome, replayed, err = idempotent(ctx, s, res, fingerprint, OperationPlaceOrder, identity.OccurredAt, placedCodec,
+			func() (usecase.Outcome[domain.PlacedResponse], error) { return placeOrder(ctx, res, cmd, identity) })
+		return err
 	})
 	if err != nil {
 		end(ports.Result{Outcome: ports.OutcomeFailed, Err: err})
@@ -56,11 +40,36 @@ func (s Service) PlaceOrder(ctx context.Context, cmd PlaceOrder) (usecase.Outcom
 
 	category := outcomeCategory(outcome)
 	end(ports.Result{Outcome: category})
-	instrumentation.Audit(ctx, ports.AuditEvent{
-		Object:  string(cmd.Order),
-		Action:  OperationPlaceOrder,
-		Outcome: category,
-		At:      identity.OccurredAt,
-	})
+	if !replayed {
+		instrumentation.Audit(ctx, ports.AuditEvent{
+			Object:  string(cmd.Order),
+			Action:  OperationPlaceOrder,
+			Outcome: category,
+			At:      identity.OccurredAt,
+		})
+	}
 	return outcome, nil
+}
+
+func placeOrder(ctx context.Context, res Resources, cmd PlaceOrder, identity usecase.Identity) (usecase.Outcome[domain.PlacedResponse], error) {
+	var zero usecase.Outcome[domain.PlacedResponse]
+
+	snapshot, stored, err := res.Orders.Load(ctx, cmd.Order)
+	if err != nil {
+		return zero, fmt.Errorf("application: place order %s: %w", cmd.Order, err)
+	}
+
+	order := domain.FromSnapshot(snapshot)
+	accepted, rejection := order.Place(domain.PlaceOrder{At: domain.Instant(identity.OccurredAt)})
+	if rejection != nil {
+		return usecase.Rejected[domain.PlacedResponse](rejection), nil
+	}
+
+	if err := res.Orders.Save(ctx, cmd.Order, order.Snapshot(), stored); err != nil {
+		return zero, err
+	}
+	if err := enqueueAll(ctx, res.Outbox, identity, cmd.Order, stored+1, accepted.Events()); err != nil {
+		return zero, err
+	}
+	return usecase.Accepted(accepted.Response()), nil
 }

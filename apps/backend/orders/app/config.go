@@ -30,6 +30,7 @@ var (
 	ErrUnknownRole     = errors.New("orders: unknown role")
 	ErrMissingVariable = errors.New("orders: required variable is not set")
 	ErrInvalidVariable = envconfig.ErrInvalidVariable
+	ErrInvalidPolicy   = errors.New("orders: invalid idempotency or purge policy")
 )
 
 const (
@@ -102,6 +103,12 @@ type Config struct {
 	// MetricTenants is the allowlist of MET-07: the tenants that keep their own
 	// admission bucket and label. Every other tenant shares "other".
 	MetricTenants []string
+
+	IdempotencyWait      time.Duration
+	IdempotencyRetention time.Duration
+	OutboxRetention      time.Duration
+	PurgeInterval        time.Duration
+	PurgeBatch           int
 }
 
 // Defaults are the values a role runs with when the environment says nothing.
@@ -123,7 +130,12 @@ func Defaults(role Role) Config {
 			BackoffCeiling: 30 * time.Second,
 			ShutdownGrace:  observability.ShutdownGrace,
 		},
-		Admission: admission.Limit{PerSecond: 50, Burst: 100, Concurrency: 32},
+		Admission:            admission.Limit{PerSecond: 50, Burst: 100, Concurrency: 32},
+		IdempotencyWait:      time.Second,
+		IdempotencyRetention: 24 * time.Hour,
+		OutboxRetention:      168 * time.Hour,
+		PurgeInterval:        15 * time.Minute,
+		PurgeBatch:           1000,
 	}
 }
 
@@ -193,7 +205,30 @@ func (c Config) Validate() error {
 	if c.ItemLimit <= 0 {
 		return fmt.Errorf("%w: %s must be positive", ErrInvalidVariable, envItemLimit)
 	}
+	if err := c.policies(); err != nil {
+		return err
+	}
 	return c.Relay.Validate()
+}
+
+func (c Config) policies() error {
+	for _, p := range []struct {
+		name  string
+		value time.Duration
+	}{
+		{"IdempotencyWait", c.IdempotencyWait},
+		{"IdempotencyRetention", c.IdempotencyRetention},
+		{"OutboxRetention", c.OutboxRetention},
+		{"PurgeInterval", c.PurgeInterval},
+	} {
+		if p.value <= 0 {
+			return fmt.Errorf("%w: %s %v", ErrInvalidPolicy, p.name, p.value)
+		}
+	}
+	if c.PurgeBatch <= 0 {
+		return fmt.Errorf("%w: PurgeBatch %d", ErrInvalidPolicy, c.PurgeBatch)
+	}
+	return nil
 }
 
 type requirement struct {

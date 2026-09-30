@@ -117,6 +117,28 @@ func (o recordingOutbox) Enqueue(ctx context.Context, entry ports.OutboxEntry) e
 	return o.inner.Enqueue(ctx, entry)
 }
 
+type recordingCommands struct {
+	inner       ports.Inbox
+	rec         *recorder
+	registerErr error
+}
+
+func (c recordingCommands) Register(ctx context.Context, r ports.Receipt) (ports.Reception, error) {
+	c.rec.record("commands.Register")
+	if c.registerErr != nil {
+		return ports.Reception{}, c.registerErr
+	}
+	return c.inner.Register(ctx, r)
+}
+
+func foldDigest(canonical []byte) ports.Fingerprint {
+	var fingerprint ports.Fingerprint
+	for i, b := range canonical {
+		fingerprint[i%len(fingerprint)] = fingerprint[i%len(fingerprint)]*31 + b
+	}
+	return fingerprint
+}
+
 type recordingUnitOfWork[R any] struct {
 	inner ports.UnitOfWork[R]
 	rec   *recorder
@@ -134,8 +156,13 @@ func (u recordingUnitOfWork[R]) Within(ctx context.Context, fn func(context.Cont
 type option func(*setup)
 
 type setup struct {
-	saveErr   error
-	authorize usecase.Authorize[application.Operation]
+	saveErr     error
+	registerErr error
+	authorize   usecase.Authorize[application.Operation]
+}
+
+func withRegisterError(err error) option {
+	return func(s *setup) { s.registerErr = err }
 }
 
 func withSaveError(err error) option {
@@ -160,6 +187,9 @@ func newHarness(t *testing.T, options ...option) *harness {
 		return application.Resources{
 			Orders: recordingRepository{inner: orderTable.Repository(tx), h: h, saveErr: cfg.saveErr},
 			Outbox: recordingOutbox{inner: tx.Outbox(), h: h},
+			Commands: recordingCommands{
+				inner: tx.CommandInbox(application.CommandConsumer), rec: h.rec, registerErr: cfg.registerErr,
+			},
 		}
 	}
 
@@ -170,6 +200,9 @@ func newHarness(t *testing.T, options ...option) *harness {
 		IDs:       recordingIDs{inner: &memory.SequenceIDs{Prefix: "m-"}, rec: h.rec},
 		Authorize: recordingAuthorize(h.rec, cfg.authorize),
 		ItemLimit: itemLimit,
+		Idempotency: usecase.IdempotencyPolicy{
+			Wait: 1_000_000_000, Retention: 86_400_000_000_000, Digest: foldDigest,
+		},
 	}
 	return h
 }

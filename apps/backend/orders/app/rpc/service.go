@@ -46,6 +46,12 @@ func Methods() []string {
 	return names
 }
 
+// Commands lists the methods that require an idempotency key (IDM-01); the
+// queries neither require nor read one.
+func Commands() []string {
+	return []string{"AddItem", "PlaceOrder"}
+}
+
 // FullMethod is the wire name of a method of the service: /<service>/<method>.
 func FullMethod(name string) string {
 	return "/" + ServiceName + "/" + name
