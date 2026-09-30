@@ -16,6 +16,7 @@ Este arquivo guarda só o que é específico do repositório e não está em out
 - **Apps** (`apps/backend/<app>`, Go, `type:app`): `bff` (única borda REST pública) e os contextos gRPC `orders`, `reservations` e `bookings` (ADR-044); `bookings` é também o golden da forma canônica e do harness de bounded contexts (ADR-053). Um contexto de negócio é **uma app** com um package por bloco, não uma lib (ADR-046, ADR-048). Configuração, targets `serve-*` e testes: `README.md` de cada app. Ficam fora do release Docker (`nx-release.yml` filtra `!tag:stack:go`).
 - **Libs** (`libs/backend/go/<módulo>`, só kernel de reuso): `domain`, `ports`, `application`, `contracts`, `memory`, `postgres`, `app`, `authn`, `observability`, `transport`, `grpc`, `http`, `kafka`, `sqs`, `testkit`. Detalhe: `README.md` de cada módulo e ADRs 030–052. Todo módulo Go tem `dmpf-units.json` e um `package.json` com `private: true` (o Nx Release exige manifesto npm, ADR-030).
 - **Tooling:** `tools/dmpf-conformance` (verificador, BOM, modsync, fitness; sem `layer:*`) e `tools/dmpf-plugin`.
+- **Carga:** `apps/backend/load` (k6, `type:e2e`, sem `test` nem `build`), por `pnpm nx run load:<perfil>` ou pelo workflow `load.yml`; detalhe no `README.md` do projeto.
 - **Infra:** `infra/README.md` (Compose local, observabilidade, Kustomize). **Contratos:** `contracts/README.md` (gates Buf). **Release do produto:** `bom/README.md`.
 - `apps/frontend`, `apps/serverless`, `libs/frontend` e `libs/shared` são diretórios de destino, sem projeto Nx.
 
