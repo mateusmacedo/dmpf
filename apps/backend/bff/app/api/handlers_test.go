@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/mateusmacedo/dmpf/apps/backend/bff/app/api"
+	"github.com/mateusmacedo/dmpf/apps/backend/bff/app/rpc"
 	ordersv1 "github.com/mateusmacedo/dmpf/apps/backend/orders/contract/gen/go/company/orders/service/v1"
 	reservationsv1 "github.com/mateusmacedo/dmpf/apps/backend/reservations/contract/gen/go/company/reservations/service/v1"
 	kernelhttp "github.com/mateusmacedo/dmpf/libs/backend/go/http"
@@ -183,17 +185,27 @@ func TestTheEdgeGrantsTheRetryBudgetOfARead(t *testing.T) {
 	}
 }
 
-func TestAnUnavailableReserveIs503WithoutRetry(t *testing.T) {
-	fake := (&fakeContexts{}).on("Reserve", func(int) (any, error) {
-		return nil, status.Error(codes.Unavailable, "restarting")
+func TestAnUnavailableReserveIsRetriedUnderTheSameKey(t *testing.T) {
+	fake := (&fakeContexts{}).on("Reserve", func(n int) (any, error) {
+		if n == 1 {
+			return nil, status.Error(codes.Unavailable, "restarting")
+		}
+		return &reservationsv1.ReserveResponse{Result: &reservationsv1.ReserveResponse_Reserved{Reserved: &reservationsv1.Reserved{OrderId: "o-1", ItemCount: 1}}}, nil
 	})
 	f := newFixture(t, fake)
 
 	rec := f.post(t, "/reservations/o-1/reserve", `{"items":1}`)
 
-	requireRejection(t, rec, http.StatusServiceUnavailable, "unavailable")
-	if n := len(fake.callsTo("Reserve")); n != 1 {
-		t.Fatalf("Reserve reached the context %d times, want 1 (GRP-09)", n)
+	if rec.Code >= http.StatusBadRequest {
+		t.Fatalf("status = %d, want success after one retry (body %s)", rec.Code, rec.Body.String())
+	}
+	calls := fake.callsTo("Reserve")
+	if len(calls) != 2 {
+		t.Fatalf("Reserve reached the context %d times, want 2: a command with a key is retried (GRP-09, IDM-01)", len(calls))
+	}
+	first, second := calls[0].md.Get(rpc.IdempotencyKeyKey), calls[1].md.Get(rpc.IdempotencyKeyKey)
+	if len(first) != 1 || !slices.Equal(first, second) {
+		t.Fatalf("keys = %v then %v, want the same key on both attempts", first, second)
 	}
 }
 

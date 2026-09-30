@@ -41,7 +41,7 @@ func NewPublisher(cfg Config, observer Observer) (*Publisher, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	cl, err := newClient(cfg, kgo.RequiredAcks(kgo.AllISRAcks()))
+	cl, err := newClient(cfg, producerOptions()...)
 	if err != nil {
 		return nil, fmt.Errorf("kafka: producer: %w", err)
 	}
@@ -51,6 +51,10 @@ func NewPublisher(cfg Config, observer Observer) (*Publisher, error) {
 		return nil, err
 	}
 	return p, nil
+}
+
+func producerOptions() []kgo.Opt {
+	return []kgo.Opt{kgo.RequiredAcks(kgo.AllISRAcks())}
 }
 
 func newPublisher(cfg Config, cl client, observer Observer) (*Publisher, error) {

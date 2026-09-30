@@ -11,7 +11,8 @@ import (
 // Reserve confirms Items for the reservation of Order, creating it when absent.
 // A reservation already decided refuses it, and the refusal commits nothing.
 func (s Service) Reserve(ctx context.Context, cmd Reserve) (usecase.Outcome[domain.ReservedResponse], error) {
-	return write(ctx, s, OperationReserve, cmd, cmd.Order,
+	fingerprint := usecase.NewFingerprint(OperationReserve).String(string(cmd.Order)).Int(int64(cmd.Items))
+	return write(ctx, s, OperationReserve, cmd, cmd.Order, fingerprint, reservedCodec,
 		func(r *domain.Reservation, at domain.Instant) (kernel.Accepted[domain.ReservedResponse], *kernel.Rejection) {
 			return r.Reserve(domain.Reserve{Items: cmd.Items, At: at})
 		})

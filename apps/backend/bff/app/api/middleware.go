@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"log/slog"
 	"net/http"
@@ -29,11 +30,6 @@ const identifierBytes = 16
 // to every outbox row and envelope of the chain, so anything else is replaced.
 var correlationFormat = regexp.MustCompile(`^[A-Za-z0-9._-]{1,128}$`)
 
-// idempotencyFormat bounds the key for the same reason, and one more: the value
-// reaches gRPC metadata, which refuses anything outside %x20-%x7E and answers
-// Internal. Without this the edge turns a client header into a permanent 500.
-var idempotencyFormat = regexp.MustCompile(`^[A-Za-z0-9._-]{1,128}$`)
-
 // withExecutionContext authenticates and mounts the nine-field context. It runs
 // inside withRouteDeadline, never outside: deadline is mandatory in CTX-01, and
 // mounting before the timeout existed would leave the field unresolvable.
@@ -54,7 +50,9 @@ func withExecutionContext(tracer trace.Tracer, logger *slog.Logger, authenticato
 		defer span.End()
 
 		w := &statusRecorder{ResponseWriter: rw, status: http.StatusOK}
-		defer logAccess(ctx, logger, route, r, w, started)
+		clientKey := r.Header.Get(IdempotencyHeader)
+		derivedKey := ""
+		defer func() { logAccess(ctx, logger, route, r, w, started, clientKey, derivedKey) }()
 		defer recordPanicStatus(w)
 
 		w.Header().Set(CorrelationHeader, correlation)
@@ -92,10 +90,11 @@ func withExecutionContext(tracer trace.Tracer, logger *slog.Logger, authenticato
 			return
 		}
 
+		derivedKey = deriveIdempotencyKey(identity.Subject, clientKey)
 		call := rpc.Call{
 			CorrelationID:  correlation,
 			RequestID:      requestID,
-			IdempotencyKey: r.Header.Get(IdempotencyHeader),
+			IdempotencyKey: derivedKey,
 			Locale:         execution.Locale(),
 		}
 		if tenant, ok := execution.Tenant(); ok {
@@ -104,7 +103,7 @@ func withExecutionContext(tracer trace.Tracer, logger *slog.Logger, authenticato
 		}
 
 		ctx = kernelhttp.WithExecutionContext(ctx, execution)
-		ctx = rpc.WithCall(ctx, call)
+		ctx = rpc.WithReplaySlot(rpc.WithCall(ctx, call))
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
@@ -128,7 +127,21 @@ func recordPanicStatus(w *statusRecorder) {
 	}
 }
 
-func logAccess(ctx context.Context, logger *slog.Logger, route kernelhttp.Route, r *http.Request, w *statusRecorder, started time.Time) {
+// deriveIdempotencyKey scopes the client's key to its subject, which CTX-12
+// keeps from crossing to the context: two callers never share an entry (IDM-03).
+func deriveIdempotencyKey(subject *ports.SubjectID, key string) string {
+	if key == "" {
+		return ""
+	}
+	var owner string
+	if subject != nil {
+		owner = string(*subject)
+	}
+	digest := sha256.Sum256([]byte(owner + "\x00" + key))
+	return hex.EncodeToString(digest[:])
+}
+
+func logAccess(ctx context.Context, logger *slog.Logger, route kernelhttp.Route, r *http.Request, w *statusRecorder, started time.Time, clientKey, derivedKey string) {
 	level := slog.LevelDebug
 	switch {
 	case w.status >= http.StatusInternalServerError:
@@ -139,12 +152,24 @@ func logAccess(ctx context.Context, logger *slog.Logger, route kernelhttp.Route,
 	if !logger.Enabled(ctx, level) {
 		return
 	}
-	logger.LogAttrs(ctx, level, "http request",
+	attrs := []slog.Attr{
 		slog.String("route", route.Name),
 		slog.String("method", r.Method),
 		slog.String("pattern", r.Pattern),
 		slog.Int("status", w.status),
-		slog.Float64("duration_ms", float64(time.Since(started).Microseconds())/1000))
+		slog.Float64("duration_ms", float64(time.Since(started).Microseconds())/1000),
+	}
+	switch {
+	case clientKey == "":
+	case ports.ValidIdempotencyKey(clientKey):
+		attrs = append(attrs, slog.String("idempotency_key", clientKey))
+	default:
+		attrs = append(attrs, slog.Bool("idempotency_key_invalid", true))
+	}
+	if derivedKey != "" {
+		attrs = append(attrs, slog.String("derived_idempotency_key", derivedKey))
+	}
+	logger.LogAttrs(ctx, level, "http request", attrs...)
 }
 
 func rejectionMessage(status int) string {
@@ -186,7 +211,7 @@ func requireIdempotencyKey(next http.Handler) http.Handler {
 			writeRejection(r, w, http.StatusBadRequest, "missing-idempotency-key", "POST requires the "+IdempotencyHeader+" header")
 			return
 		}
-		if key != "" && !idempotencyFormat.MatchString(key) {
+		if key != "" && !ports.ValidIdempotencyKey(key) {
 			writeRejection(r, w, http.StatusBadRequest, "invalid-idempotency-key", IdempotencyHeader+" accepts up to 128 characters of [A-Za-z0-9._-]")
 			return
 		}
@@ -211,7 +236,7 @@ func withCORS(origins []string, next http.Handler) http.Handler {
 			return
 		}
 		header.Set("Access-Control-Allow-Origin", origin)
-		header.Set("Access-Control-Expose-Headers", CorrelationHeader)
+		header.Set("Access-Control-Expose-Headers", strings.Join([]string{CorrelationHeader, ReplayedHeader}, ", "))
 		if r.Method == http.MethodOptions {
 			header.Set("Access-Control-Allow-Methods", strings.Join([]string{http.MethodGet, http.MethodPost, http.MethodOptions}, ", "))
 			header.Set("Access-Control-Allow-Headers", strings.Join([]string{"Authorization", "Content-Type", IdempotencyHeader, CorrelationHeader}, ", "))

@@ -5,12 +5,14 @@ package appkit
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/app"
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/application"
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/provider"
+	kernelapp "github.com/mateusmacedo/dmpf/libs/backend/go/app"
 	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
@@ -24,7 +26,7 @@ var Tables = []string{"orders"}
 // PoolOptions is the database this context's suites run in.
 var PoolOptions = pg.Options{
 	Project:      "orders",
-	Capabilities: []postgres.Capability{postgres.Outbox},
+	Capabilities: []postgres.Capability{postgres.Outbox, postgres.Inbox},
 	Schemas:      []string{provider.Schema},
 	Tables:       Tables,
 }
@@ -46,14 +48,19 @@ type Harness struct {
 func NewOrders(t testing.TB, clock ports.Clock, ids ports.IDGenerator) Harness {
 	t.Helper()
 	pool := OpenPool(t)
+	policy, err := kernelapp.IdempotencyPolicy(time.Second, 24*time.Hour)
+	if err != nil {
+		t.Fatalf("appkit.NewOrders: %v", err)
+	}
 	return Harness{
 		Service: application.Service{
-			UoW:       postgres.NewUnitOfWork(pool, bind),
-			Reader:    provider.NewOrderReader(postgres.NewReadPool(pool)),
-			Clock:     clock,
-			IDs:       ids,
-			Authorize: usecase.AllowAll[application.Operation](),
-			ItemLimit: app.DefaultItemLimit,
+			UoW:         postgres.NewUnitOfWork(pool, bind),
+			Reader:      provider.NewOrderReader(postgres.NewReadPool(pool)),
+			Clock:       clock,
+			IDs:         ids,
+			Authorize:   usecase.AllowAll[application.Operation](),
+			ItemLimit:   app.DefaultItemLimit,
+			Idempotency: policy,
 		},
 		Pool: pool,
 	}
@@ -61,8 +68,9 @@ func NewOrders(t testing.TB, clock ports.Clock, ids ports.IDGenerator) Harness {
 
 func bind(tx *postgres.Tx) application.Resources {
 	return application.Resources{
-		Orders: provider.NewOrderRepository(tx),
-		Outbox: tx.Outbox(provider.Mapper{}),
+		Orders:   provider.NewOrderRepository(tx),
+		Outbox:   tx.Outbox(provider.Mapper{}),
+		Commands: tx.CommandInbox(application.CommandConsumer, time.Second),
 	}
 }
 

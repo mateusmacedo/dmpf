@@ -4,6 +4,8 @@ package distkit_test
 
 import (
 	"context"
+	"fmt"
+	"sync/atomic"
 	"testing"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
@@ -13,8 +15,10 @@ import (
 // a test exercises the same path production does (CTX-03, ADR-049).
 func withExecution(t *testing.T, ctx context.Context) context.Context {
 	t.Helper()
-	return ports.WithExecutionContext(ctx, testExecution(t))
+	return ports.WithIdempotencyKey(ports.WithExecutionContext(ctx, testExecution(t)), fmt.Sprintf("k-%d", keys.Add(1)))
 }
+
+var keys atomic.Int64
 
 // testExecution is what the edge would have mounted: every mandatory field of
 // CTX-01 present, plus a subject and a tenant so a decision that reads them has

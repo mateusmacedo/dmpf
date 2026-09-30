@@ -235,6 +235,7 @@ func cloneTables(src map[string]*table) map[string]*table {
 func cloneInboxRows(src map[inboxKey]inboxRow) map[inboxKey]inboxRow {
 	out := make(map[inboxKey]inboxRow, len(src))
 	for key, row := range src {
+		row.outcome = append([]byte(nil), row.outcome...)
 		out[key] = row
 	}
 	return out

@@ -4,9 +4,11 @@ package provider_test
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -55,6 +57,7 @@ func newService(pool *pgxpool.Pool) application.Service {
 			Bookings:  provider.NewBookingRepository(tx),
 			Resources: provider.NewResourceRepository(tx),
 			Outbox:    tx.Outbox(provider.Mapper{}),
+			Commands:  tx.CommandInbox(application.CommandConsumer, time.Second),
 		}
 	}
 	return application.Service{
@@ -63,6 +66,11 @@ func newService(pool *pgxpool.Pool) application.Service {
 		Clock:     fixedClock{},
 		IDs:       &sequenceIDs{},
 		Authorize: usecase.AllowAll[application.Operation](),
+		Idempotency: usecase.IdempotencyPolicy{
+			Wait:      int64(time.Second),
+			Retention: int64(24 * time.Hour),
+			Digest:    func(canonical []byte) ports.Fingerprint { return sha256.Sum256(canonical) },
+		},
 	}
 }
 

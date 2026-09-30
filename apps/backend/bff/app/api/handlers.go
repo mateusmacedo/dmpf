@@ -86,6 +86,9 @@ func writeRejection(r *http.Request, w http.ResponseWriter, status int, code, me
 func writeJSON(r *http.Request, w http.ResponseWriter, status int, body any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
+	if status < http.StatusInternalServerError && rpc.Replayed(r.Context()) {
+		w.Header().Set(ReplayedHeader, "true")
+	}
 	w.WriteHeader(status)
 	if err := json.NewEncoder(w).Encode(body); err != nil {
 		tracing.RecordError(trace.SpanFromContext(r.Context()), "response")

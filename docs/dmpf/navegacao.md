@@ -36,6 +36,7 @@ dono — e só o dono define. As 766 regras do acervo se distribuem assim:
 | `INB` | 18 | FND-04 | Inbox: chave de deduplicação e consumo idempotente |
 | `GAR` | 12 | FND-04 | Garantias de entrega — e o que a fundação não promete |
 | `BLK` | 5 | FND-04 | Em que bloco cada responsabilidade mora |
+| `IDM` | 10 | FND-04 | Idempotência de comando: chave, fingerprint e replay pela inbox |
 | `ENV` | 25 | FND-05 | Envelope CloudEvents e o contract package |
 | `PTB` | 16 | FND-05 | Forma do pacote Protobuf e versionamento de wire |
 | `BUF` | 12 | FND-05 | Workspace Buf, módulos e governança do repositório de contratos |
@@ -80,7 +81,7 @@ dono — e só o dono define. As 766 regras do acervo se distribuem assim:
 | [rfc-dmpf-foundation-v0.1.md](./rfc-dmpf-foundation-v0.1.md) | — | — | Limites arquiteturais e regra de dependência. Obriga todo trabalho novo |
 | [inventario-as-is.md](./inventario-as-is.md) (FND-01) | — | — | Baseline candidato: o que existe hoje, com lacunas nomeadas |
 | [upr-decision-mensagens.md](./upr-decision-mensagens.md) (FND-03) | 54 | `ANC-01` | UPR, desfecho da decisão e modelo de mensagens |
-| [uow-inbox-outbox.md](./uow-inbox-outbox.md) (FND-04) | 64 | `ANC-02` | Fronteira transacional, inbox, outbox e garantias |
+| [uow-inbox-outbox.md](./uow-inbox-outbox.md) (FND-04) | 74 | `ANC-02` | Fronteira transacional, inbox, outbox e garantias |
 | [cloudevents-protobuf-buf.md](./cloudevents-protobuf-buf.md) (FND-05) | 64 | `ANC-03` | Envelope, Protobuf e governança de contratos |
 | [politicas-transporte.md](./politicas-transporte.md) (FND-06) | 131 | `ANC-04` | REST, gRPC, Kafka, SNS/SQS e AsyncAPI |
 | [contexto-erros-seguranca.md](./contexto-erros-seguranca.md) (FND-07) | 112 | `ANC-05` | Contexto, erros, segurança e multi-tenancy |

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/app"
 )
@@ -104,5 +105,36 @@ func TestAnInvalidItemLimitIsRefused(t *testing.T) {
 
 	if !errors.Is(err, app.ErrInvalidVariable) {
 		t.Fatalf("FromEnv() = %v, want ErrInvalidVariable", err)
+	}
+}
+
+func TestTheDefaultsKeepCommandsAndThePurgeWithinTheirRetention(t *testing.T) {
+	cfg := app.Defaults(app.RoleAPI)
+
+	if cfg.IdempotencyWait != time.Second || cfg.IdempotencyRetention != 24*time.Hour || cfg.OutboxRetention != 168*time.Hour {
+		t.Fatalf("wait %v, retention %v, outbox %v; want 1s, 24h and 168h", cfg.IdempotencyWait, cfg.IdempotencyRetention, cfg.OutboxRetention)
+	}
+	if cfg.PurgeInterval != 15*time.Minute || cfg.PurgeBatch != 1000 {
+		t.Fatalf("purge every %v in batches of %d, want 15m and 1000", cfg.PurgeInterval, cfg.PurgeBatch)
+	}
+}
+
+func TestANonPositivePolicyIsRefused(t *testing.T) {
+	for name, spoil := range map[string]func(*app.Config){
+		"wait":             func(c *app.Config) { c.IdempotencyWait = 0 },
+		"retention":        func(c *app.Config) { c.IdempotencyRetention = -time.Hour },
+		"outbox retention": func(c *app.Config) { c.OutboxRetention = 0 },
+		"purge interval":   func(c *app.Config) { c.PurgeInterval = 0 },
+		"purge batch":      func(c *app.Config) { c.PurgeBatch = 0 },
+	} {
+		t.Run(name, func(t *testing.T) {
+			cfg := app.Defaults(app.RoleAPI)
+			cfg.DSN, cfg.GRPCInsecure = "postgres://x", true
+			spoil(&cfg)
+
+			if err := cfg.Validate(); !errors.Is(err, app.ErrInvalidPolicy) {
+				t.Fatalf("Validate() = %v, want ErrInvalidPolicy", err)
+			}
+		})
 	}
 }

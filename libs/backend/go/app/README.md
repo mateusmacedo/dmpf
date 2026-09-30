@@ -64,6 +64,27 @@ Declarado em código como dado revisável (`ContainmentMap`) e conferido por tes
 
 Quarantine e DLQ são mecanismos distintos: a primeira retém para inspeção sem reentrega automática; a segunda é o destino terminal do transporte. O `KRN-07` realiza apenas a quarantine (sobre Postgres, em `postgres`); a DLQ depende de broker e é do `KRN-10`.
 
+## A política de idempotência e a purga
+
+`IdempotencyPolicy(wait, retention)` (`idempotency.go`) é a política que o
+composition root entrega ao application service dos comandos: o teto de espera
+(`IDM-07`), a retenção da entrada (`IDM-09`) e o SHA-256 que transforma o
+fingerprint canônico no que a inbox compara (`IDM-04`). Fica neste bloco porque o
+`depguard` do bloco `application` não admite `crypto/sha256`. Espera ou retenção
+não positiva é `ErrInvalidIdempotencyPolicy`.
+
+`RunPurge(ctx, cfg, clock, logger, fn)` (`purge.go`) é o laço que mantém uma
+tabela do kernel dentro da retenção, no processo dono dela: `serve-api` purga as
+entradas de comando vencidas, `serve-relay` a outbox publicada e
+`serve-consumer` as entradas de mensagem da inbox. A cada `Interval`, o laço
+chama `fn` com o corte `agora − Retention` e o `Batch`, e um lote cheio é
+seguido do próximo na hora. Uma falha é registrada e tentada de novo no
+intervalo seguinte. O laço devolve `nil` quando o contexto termina, e
+`ErrInvalidPurgeConfig` para configuração que ele não conseguiria rodar.
+`StartPurge` roda o mesmo laço numa goroutine própria e devolve `stop`, que só
+retorna depois que o laço terminou: o composition root o chama antes de fechar o
+pool que a purga usa.
+
 ## O relay
 
 `relay/postgres.go` traz `NewOverPostgres(pool, publisher, component, config)`, que monta o dreno de FND-04 §5.4 sobre a outbox de `postgres` com a identidade do kernel (`idclock.SystemClock`, `idclock.NewClaimIDs(component)`) — antes, `orders` e `reservations` repetiam essa montagem e cada um trazia o próprio `RandomClaimIDs`. O relay drena de todos os tenants sem distinção: a outbox fica fora do escopo de tenant (ADR-050), e é `record.go` quem lê o `tenantid` da `metadata` que `postgres` escreveu e o coloca no envelope publicado, para que o consumidor o leia de volta em `executionOf`.

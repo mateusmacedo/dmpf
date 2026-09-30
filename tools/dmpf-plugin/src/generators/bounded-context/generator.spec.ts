@@ -84,7 +84,7 @@ const DOCKERFILE = 'Dockerfile';
 const BLOCK_FILES: Record<string, readonly string[]> = {
   domain: ['doc.go'],
   ports: ['doc.go'],
-  application: ['doc.go'],
+  application: ['commands.go', 'doc.go'],
   provider: ['doc.go', 'schema.go', 'schema.sql'],
   app: ['catalog.go', 'config.go', 'config_test.go', 'doc.go', 'rpc', 'telemetry.go', 'wiring.go'],
 };
@@ -358,17 +358,38 @@ describe('[generator] bounded-context — generation', () => {
     expect(main).toContain('--role api|relay');
   });
 
-  it('should serve gRPC only, with the kernel chain and the migrate of the outbox and the context schema', async () => {
+  it('should serve gRPC only, with the kernel chain and the migrate of the outbox, the inbox and the context schema', async () => {
     const tree = await generate();
     const wiring = readText(tree, `${MODULE_DIR}/app/wiring.go`);
 
     expect(wiring).toContain('kernelgrpc.ServerInterceptors(rpc.ServiceName');
     expect(wiring).toContain('server.RegisterService(&rpc.ServiceDesc, rpc.Server{})');
     expect(wiring).toContain(
-      'postgres.Migrate(ctx, pool, []postgres.Capability{postgres.Outbox}, provider.Schema)',
+      'postgres.Migrate(ctx, pool, []postgres.Capability{postgres.Outbox, postgres.Inbox}, provider.Schema)',
     );
     expect(wiring).not.toContain('net/http');
     expect(tree.exists(`${MODULE_DIR}/app/http`)).toBe(false);
+  });
+
+  it('should route the commands through the inbox and host the purge of each role', async () => {
+    const tree = await generate();
+    const wiring = readText(tree, `${MODULE_DIR}/app/wiring.go`);
+    const config = readText(tree, `${MODULE_DIR}/app/config.go`);
+    const service = readText(tree, `${MODULE_DIR}/app/rpc/service.go`);
+    const errors = readText(tree, `${MODULE_DIR}/app/rpc/errors.go`);
+    const commands = readText(tree, `${MODULE_DIR}/application/commands.go`);
+
+    expect(commands).toContain('const CommandConsumer = "checkout.commands"');
+    expect(service).toContain('func Commands() []string');
+    expect(wiring).toContain('kernelgrpc.WithCommands(rpc.Commands()...)');
+    expect(wiring).toContain(
+      'postgres.PurgeExpiredInbox(ctx, pool, application.CommandConsumer, cutoff, batch)',
+    );
+    expect(wiring).toContain('postgres.PurgePublished(ctx, pool, cutoff, batch)');
+    expect(errors).toContain('kernelgrpc.IdempotencyStatus(err)');
+    expect(config).toContain('IdempotencyRetention: 24 * time.Hour');
+    expect(config).toContain('OutboxRetention:      168 * time.Hour');
+    expect(config).toContain('ErrInvalidPolicy');
   });
 
   it('should name the service after the context unless serviceName is given', async () => {

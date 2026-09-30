@@ -51,8 +51,10 @@ não executa — ele **para e imprime** o rito restante.
 4. **`port`**: `Repository` por agregado, `Outbox()`, `Reader` por consulta;
    `Inbox()` só se o contexto consome.
 5. **`application`**: `service.go` e um arquivo por comando percorrendo os nove
-   passos de FND-04 §3.2; consultas fora da UoW; `Consume` pelas sete
-   disposições de §6.4 **se** o contexto consome.
+   passos de FND-04 §3.2, cada comando por `usecase.RunIdempotent` sobre
+   `Resources.Commands` e `Service.Idempotency`, com um codec por operação e
+   auditoria só sem replay (ADR-056); consultas fora da UoW; `Consume` pelas
+   sete disposições de §6.4 **se** o contexto consome.
 6. **`provider-postgres`**: `schema.sql` nos nomes canônicos (agregado no
    plural, sem prefixo), persistência híbrida (coluna tipada só para o que uma
    consulta filtra, o resto em `snapshot` `jsonb`), repositórios com

@@ -139,7 +139,7 @@ func (f failingOutbox) Enqueue(context.Context, ports.OutboxEntry) error { retur
 
 func consumerWith(pool *pgxpool.Pool, decorate func(application.Resources) application.Resources) kernelapp.Consumer {
 	bind := func(tx *postgres.Tx) application.Resources {
-		return decorate(app.Bind(e2eWait)(tx))
+		return decorate(app.Bind(app.Waits{Message: e2eWait})(tx))
 	}
 	service := application.Service{
 		UoW:       postgres.NewUnitOfWork(pool, bind),

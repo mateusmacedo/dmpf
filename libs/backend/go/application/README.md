@@ -23,7 +23,7 @@ Import path do módulo:
 
 | Package | Unidade DMPF | Bloco | Conteúdo |
 | --- | --- | --- | --- |
-| `application` (raiz) | `kernel/application` | `application` | `Outcome[R]`, `Accepted`, `Rejected`; `Identity`, `ResolveIdentity`; `Authorize[C]`, `AllowAll[C]`, `Permitted[C]`; `MessageContextFor`; `Disposition` (as sete de FND-04 §6.4), `Category`, `Failure`, `Classify` |
+| `application` (raiz) | `kernel/application` | `application` | `Outcome[R]`, `Accepted`, `Rejected`; `Identity`, `ResolveIdentity`; `Authorize[C]`, `AllowAll[C]`, `Permitted[C]`; `MessageContextFor`; `Disposition` (as sete de FND-04 §6.4), `Category`, `Failure`, `Classify`; `Fingerprint`, `NewFingerprint`; `OutcomeCodec[R]`, `Encoder`, `Decoder`, `EncodeOutcome`, `DecodeOutcome`, `ErrOutcomeUnreadable`; `IdempotencyPolicy`, `IdempotentCommand[R]`, `RunIdempotent`, `ErrIncompleteCommand` |
 
 Uma unidade só, com `bounded_context: kernel`; em Go, a unidade de verificação
 é o package (RFC §3.3). Os packages que este módulo carregava como
@@ -208,6 +208,30 @@ Dois desfechos merecem atenção porque é fácil confundi-los:
 
 Uma consulta (`FindOrder`) abre e fecha operação com classe de leitura e não
 deixa trilha: consultar não acessa nada auditável.
+
+## Comando pela inbox
+
+`RunIdempotent` é chamado dentro do `Within`, antes de qualquer outra escrita
+(`IDM-05`). Ele registra o comando na inbox do contexto e ramifica pela
+classificação:
+
+| Classificação | O que acontece |
+| --- | --- |
+| R1 | `Run` executa, e o desfecho, aceito ou recusado, é gravado pelo `OutcomeCodec` (`IDM-06`) |
+| R2, R3 | O desfecho gravado volta decodificado, com `replayed = true`, sem chamar `Run` (`IDM-08`) |
+| R4 | `ErrIdempotencyMismatch`: a mesma chave chegou com outro fingerprint (`IDM-04`) |
+| Espera estourada | `ErrIdempotencyInFlight` (`IDM-07`) |
+
+O fingerprint é a codificação canônica que `NewFingerprint` acumula: a operação e
+cada campo declarado, com tipo e tamanho. O SHA-256 dela entra por
+`IdempotencyPolicy.Digest`, que o composition root recebe de
+`app.IdempotencyPolicy`, porque o `depguard` deste bloco não admite
+`crypto/sha256`. Pelo mesmo motivo, os varints do codec são escritos aqui, com o
+layout de `encoding/binary`.
+
+Com `replayed`, o caso de uso não chama `Audit`: o efeito não aconteceu de novo.
+Um desfecho gravado ilegível é `ErrOutcomeUnreadable`, e o comando nunca executa
+no lugar dele.
 
 ## Garantias de entrega
 

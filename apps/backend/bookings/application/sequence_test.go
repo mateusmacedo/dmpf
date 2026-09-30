@@ -23,8 +23,11 @@ func TestReserveWalksTheNineStepsInOrder(t *testing.T) {
 		"clock.Now",
 		"ids.NewMessageID",
 		"within",
+		"commands.Register",
+		"bookings.Load",
 		"bookings.Save",
 		"outbox.Enqueue",
+		"commands.Complete",
 		"commit",
 	}
 	if !slices.Equal(h.rec.observed, want) {
@@ -50,9 +53,11 @@ func TestCancelWalksTheNineStepsInOrder(t *testing.T) {
 		"clock.Now",
 		"ids.NewMessageID",
 		"within",
+		"commands.Register",
 		"bookings.Load",
 		"bookings.Save",
 		"outbox.Enqueue",
+		"commands.Complete",
 		"commit",
 	}
 	if !slices.Equal(h.rec.observed, want) {
@@ -74,9 +79,11 @@ func TestRegisterWalksTheNineStepsInOrder(t *testing.T) {
 		"clock.Now",
 		"ids.NewMessageID",
 		"within",
+		"commands.Register",
 		"resources.Load",
 		"resources.Save",
 		"outbox.Enqueue",
+		"commands.Complete",
 		"commit",
 	}
 	if !slices.Equal(h.rec.observed, want) {

@@ -34,9 +34,14 @@ const (
 	// a chain without a subject, and no value is invented to replace it.
 	TenantKey = "x-tenant-id"
 
-	// IdempotencyKey is propagated by the BFF for the log alone: a context keeps
-	// no replay store, so the key decides nothing here.
+	// IdempotencyKey carries a command's key (IDM-01): a method declared with
+	// WithCommands refuses its absence, and the use case receives it on the
+	// request carrier, never in the ExecutionContext (IDM-10).
 	IdempotencyKey = "idempotency-key"
+
+	// ReplayedHeader is the response header a command answers with when the
+	// inbox replayed its first outcome (IDM-08).
+	ReplayedHeader = "idempotent-replayed"
 
 	// LocaleKey carries the locale the edge resolved, which the hop preserves
 	// (CTX-11); DefaultLocale answers when none, or no valid tag, arrived.
@@ -54,14 +59,32 @@ var (
 // ServerInterceptors is the chain of SPEC-ACYKBF9V: span, call log, admission,
 // deadline, context. Other services' methods pass untouched: the health probe
 // has no limit nor deadline and is called before the service is ready (ADR-044).
-func ServerInterceptors(service string, tracer trace.Tracer, ctrl *admission.Controller, instruments *metrics.Instruments, logger *slog.Logger) []grpc.UnaryServerInterceptor {
+func ServerInterceptors(service string, tracer trace.Tracer, ctrl *admission.Controller, instruments *metrics.Instruments, logger *slog.Logger, opts ...ServerOption) []grpc.UnaryServerInterceptor {
+	options := serverOptions{commands: map[string]bool{}}
+	for _, opt := range opts {
+		opt(service, &options)
+	}
 	own := ownMethods(service)
 	return []grpc.UnaryServerInterceptor{
 		own(serverSpan(tracer)),
 		own(callLog(logger)),
 		own(Admission(ctrl, admissionTenant, instruments)),
 		own(requireDeadline),
-		own(requestContext(logger)),
+		own(requestContext(logger, options.commands)),
+	}
+}
+
+type ServerOption func(service string, options *serverOptions)
+
+type serverOptions struct{ commands map[string]bool }
+
+// WithCommands declares the service's command methods by name: each requires an
+// idempotency key (IDM-01, IDM-02) and may answer with ReplayedHeader (IDM-08).
+func WithCommands(methods ...string) ServerOption {
+	return func(service string, options *serverOptions) {
+		for _, method := range methods {
+			options.commands["/"+service+"/"+method] = true
+		}
 	}
 }
 
@@ -155,10 +178,21 @@ func requireDeadline(ctx context.Context, req any, _ *grpc.UnaryServerInfo, hand
 // requestContext authors the two contexts of this execution from what crossed
 // the hop: the nine-field context the application service takes as an argument,
 // and the message context the outbox records.
-func requestContext(logger *slog.Logger) grpc.UnaryServerInterceptor {
+func requestContext(logger *slog.Logger, commands map[string]bool) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		md, _ := metadata.FromIncomingContext(ctx)
 		incoming := metadataCarrier(md)
+
+		command := commands[info.FullMethod]
+		key := incoming.Get(IdempotencyKey)
+		if command {
+			switch {
+			case key == "":
+				return nil, KeyStatus(ReasonMissingIdempotencyKey)
+			case !ports.ValidIdempotencyKey(key):
+				return nil, KeyStatus(ReasonInvalidIdempotencyKey)
+			}
+		}
 
 		correlation := incoming.Get(CorrelationKey)
 		if !correlationFormat.MatchString(correlation) {
@@ -193,10 +227,25 @@ func requestContext(logger *slog.Logger) grpc.UnaryServerInterceptor {
 			*slot = assembled{execution: execution, message: message, ok: true}
 		}
 		ctx = ports.WithMessageContext(ports.WithExecutionContext(ctx, execution), message)
-		if key := incoming.Get(IdempotencyKey); key != "" && logger != nil {
+		switch {
+		case key == "" || logger == nil:
+		case ports.ValidIdempotencyKey(key):
 			logger.InfoContext(ctx, "grpc request", "operation", info.FullMethod, "idempotency_key", key)
+		default:
+			logger.InfoContext(ctx, "grpc request", "operation", info.FullMethod, "idempotency_key_invalid", true)
 		}
-		return handler(ctx, req)
+		if !command {
+			return handler(ctx, req)
+		}
+
+		ctx = ports.WithIdempotencySlot(ports.WithIdempotencyKey(ctx, key))
+		resp, err := handler(ctx, req)
+		if outcome, _ := ports.IdempotencyOutcomeFrom(ctx); err == nil && outcome == ports.IdempotencyReplayed {
+			if headerErr := grpc.SetHeader(ctx, metadata.Pairs(ReplayedHeader, "true")); headerErr != nil && logger != nil {
+				logger.WarnContext(ctx, "grpc replay header not sent", "operation", info.FullMethod)
+			}
+		}
+		return resp, err
 	}
 }
 

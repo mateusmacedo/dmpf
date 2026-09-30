@@ -12,8 +12,41 @@ import (
 
 	"github.com/mateusmacedo/dmpf/apps/backend/bff/app/rpc"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/deadline"
 )
+
+func idempotencyStatus(t *testing.T, err error) error {
+	t.Helper()
+	mapped, ok := grpc.IdempotencyStatus(err)
+	if !ok {
+		t.Fatalf("IdempotencyStatus(%v) mapped nothing", err)
+	}
+	return mapped
+}
+
+func TestClassifyReadsTheIdempotencyReasonBeforeTheCode(t *testing.T) {
+	cases := []struct {
+		name   string
+		err    error
+		status int
+		code   string
+	}{
+		{"reused key", idempotencyStatus(t, ports.ErrIdempotencyMismatch), http.StatusUnprocessableEntity, "reused-idempotency-key"},
+		{"key in flight", idempotencyStatus(t, ports.ErrIdempotencyInFlight), http.StatusConflict, "in-flight-idempotency-key"},
+		{"missing key", grpc.KeyStatus(grpc.ReasonMissingIdempotencyKey), http.StatusBadRequest, "missing-idempotency-key"},
+		{"invalid key", grpc.KeyStatus(grpc.ReasonInvalidIdempotencyKey), http.StatusBadRequest, "invalid-idempotency-key"},
+		{"already exists", idempotencyStatus(t, ports.ErrAlreadyExists), http.StatusConflict, "already-exists"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := rpc.Classify(tc.err)
+			if got.Status != tc.status || got.Code != tc.code || got.Message == "" {
+				t.Fatalf("Classify() = %+v, want %d %q with a public message", got, tc.status, tc.code)
+			}
+		})
+	}
+}
 
 func TestClassifyMapsFailuresWithoutInternalDetail(t *testing.T) {
 	cases := []struct {

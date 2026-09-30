@@ -25,36 +25,15 @@ func (s Service) AddItem(ctx context.Context, cmd AddItem) (usecase.Outcome[doma
 	}
 
 	identity := usecase.ResolveIdentity(s.Clock, s.IDs, maxEventsPerCommand)
+	fingerprint := usecase.NewFingerprint(OperationAddItem).
+		String(string(cmd.Order)).String(string(cmd.SKU)).Int(int64(cmd.Quantity))
 
-	outcome := zero
+	outcome, replayed := zero, false
 	err := s.UoW.Within(ctx, func(ctx context.Context, res Resources) error {
-		order, stored, err := s.loadOrCreate(ctx, res, cmd.Order)
-		if err != nil {
-			return err
-		}
-
-		accepted, rejection := order.AddItem(domain.AddItem{
-			SKU:      cmd.SKU,
-			Quantity: cmd.Quantity,
-			At:       domain.Instant(identity.OccurredAt),
-		})
-		if rejection != nil {
-			// Returning nil commits a transaction with no effect, on purpose:
-			// aborting would make a refusal indistinguishable from a technical
-			// failure, which DEC-04 forbids (FND-04 §3.2).
-			outcome = usecase.Rejected[domain.ItemAccepted](rejection)
-			return nil
-		}
-
-		if err := res.Orders.Save(ctx, cmd.Order, order.Snapshot(), stored); err != nil {
-			return err
-		}
-		if err := enqueueAll(ctx, res.Outbox, identity, cmd.Order, stored+1, accepted.Events()); err != nil {
-			return err
-		}
-
-		outcome = usecase.Accepted(accepted.Response())
-		return nil
+		var err error
+		outcome, replayed, err = idempotent(ctx, s, res, fingerprint, OperationAddItem, identity.OccurredAt, itemAcceptedCodec,
+			func() (usecase.Outcome[domain.ItemAccepted], error) { return s.addItem(ctx, res, cmd, identity) })
+		return err
 	})
 	if err != nil {
 		end(ports.Result{Outcome: ports.OutcomeFailed, Err: err})
@@ -63,13 +42,44 @@ func (s Service) AddItem(ctx context.Context, cmd AddItem) (usecase.Outcome[doma
 
 	category := outcomeCategory(outcome)
 	end(ports.Result{Outcome: category})
-	instrumentation.Audit(ctx, ports.AuditEvent{
-		Object:  string(cmd.Order),
-		Action:  OperationAddItem,
-		Outcome: category,
-		At:      identity.OccurredAt,
-	})
+	if !replayed {
+		instrumentation.Audit(ctx, ports.AuditEvent{
+			Object:  string(cmd.Order),
+			Action:  OperationAddItem,
+			Outcome: category,
+			At:      identity.OccurredAt,
+		})
+	}
 	return outcome, nil
+}
+
+func (s Service) addItem(ctx context.Context, res Resources, cmd AddItem, identity usecase.Identity) (usecase.Outcome[domain.ItemAccepted], error) {
+	var zero usecase.Outcome[domain.ItemAccepted]
+
+	order, stored, err := s.loadOrCreate(ctx, res, cmd.Order)
+	if err != nil {
+		return zero, err
+	}
+
+	accepted, rejection := order.AddItem(domain.AddItem{
+		SKU:      cmd.SKU,
+		Quantity: cmd.Quantity,
+		At:       domain.Instant(identity.OccurredAt),
+	})
+	if rejection != nil {
+		// A refusal returns no error, on purpose: the transaction commits it
+		// with no business effect, and aborting would make it indistinguishable
+		// from a technical failure, which DEC-04 forbids (FND-04 §3.2).
+		return usecase.Rejected[domain.ItemAccepted](rejection), nil
+	}
+
+	if err := res.Orders.Save(ctx, cmd.Order, order.Snapshot(), stored); err != nil {
+		return zero, err
+	}
+	if err := enqueueAll(ctx, res.Outbox, identity, cmd.Order, stored+1, accepted.Events()); err != nil {
+		return zero, err
+	}
+	return usecase.Accepted(accepted.Response()), nil
 }
 
 // loadOrCreate is the "load or create" branch: ErrNotFound is not a failure

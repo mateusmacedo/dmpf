@@ -63,6 +63,25 @@ pelo `bff`. Uma recusa de domínio volta como `rejection` na resposta; uma falha
 técnica é um status gRPC (`NOT_FOUND`, `ABORTED` para conflito de versão,
 `INVALID_ARGUMENT` para entrada malformada).
 
+## Idempotência dos comandos
+
+`ReserveBooking`, `CancelBooking` e `RegisterResource` exigem a metadata
+`idempotency-key`, no formato `^[A-Za-z0-9._-]{1,128}$` (FND-04 §7.6, ADR-056). O
+`bff` envia uma chave derivada do sujeito e da chave do cliente. Cada comando
+passa pela inbox do contexto, com `consumer_name` `bookings.commands`, na mesma
+transação do efeito:
+
+| Situação | Resposta |
+| --- | --- |
+| Metadata ausente | `INVALID_ARGUMENT`, reason `MISSING_IDEMPOTENCY_KEY` |
+| Chave fora do formato | `INVALID_ARGUMENT`, reason `INVALID_IDEMPOTENCY_KEY` |
+| Mesma chave, mesmo pedido | A resposta gravada, aceite ou recusa, com o header `idempotent-replayed: true` |
+| Mesma chave, outro pedido | `FAILED_PRECONDITION`, reason `REUSED_IDEMPOTENCY_KEY` |
+| Mesma chave em andamento além da espera | `ABORTED`, reason `IN_FLIGHT_IDEMPOTENCY_KEY` |
+| `ReserveBooking` de reserva que já existe, com outra chave | `ALREADY_EXISTS` |
+
+A entrada vale 24h. Depois disso, o mesmo comando executa como novo.
+
 ## Canal, autorização e tenant
 
 O `api` só serve o workload que a CA local assinou e a allowlist nomeia
@@ -98,6 +117,19 @@ sem tenant é recusada, e um identificador que existe para outro tenant responde
 
 Variável obrigatória ausente, ou `api` sem política de transporte gRPC,
 encerra a partida com exit 2 nomeando o que falta.
+
+Os prazos de idempotência e de purga vêm de `Defaults()`, sem variável de
+ambiente, e `Validate` recusa valor não positivo com `ErrInvalidPolicy`:
+
+| Campo | Padrão | Uso |
+| --- | --- | --- |
+| `IdempotencyWait` | 1s | Espera máxima por comando concorrente da mesma chave |
+| `IdempotencyRetention` | 24h | Vida da entrada de comando na inbox |
+| `OutboxRetention` | 168h | Idade a partir da qual a outbox publicada é purgada |
+| `PurgeInterval`, `PurgeBatch` | 15min, 1000 | Intervalo e lote de cada purga |
+
+O `api` purga as entradas de comando vencidas depois do `Migrate`, e o `relay`
+purga a outbox publicada. As duas purgas param antes de o pool fechar.
 
 ## Rodar localmente
 

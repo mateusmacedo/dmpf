@@ -4,12 +4,16 @@ package appkit_test
 
 import (
 	"context"
+	"errors"
 	"testing"
+	"time"
 
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/appkit"
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/application"
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/domain"
+	"github.com/mateusmacedo/dmpf/apps/backend/orders/provider"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/clock"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/ids"
 )
@@ -85,5 +89,63 @@ func TestARejectedDecisionLeavesNothingBehind(t *testing.T) {
 	}
 	if after := len(h.Outbox(t)); after != before {
 		t.Fatalf("outbox went from %d to %d records after a rejection, want no change: the transaction never committed", before, after)
+	}
+}
+
+func TestARepeatedCommandWithTheSameKeyLeavesOneEffectAndOneEvent(t *testing.T) {
+	h := harness(t)
+	add := application.AddItem{Order: orderUnderTest, SKU: "sku-1", Quantity: 2}
+
+	first, err := h.Service.AddItem(withKey(t, context.Background(), "k-appkit"), add)
+	if err != nil {
+		t.Fatalf("AddItem() = %v, want nil", err)
+	}
+	again, err := h.Service.AddItem(withKey(t, context.Background(), "k-appkit"), add)
+	if err != nil {
+		t.Fatalf("repeated AddItem() = %v, want the stored outcome", err)
+	}
+
+	if again.Response() != first.Response() || again.Response().Items != 1 {
+		t.Fatalf("replay = %+v, want %+v with one item", again.Response(), first.Response())
+	}
+	if enqueued := h.Outbox(t); len(enqueued) != 1 {
+		t.Fatalf("outbox holds %d records, want 1: one effect and one event per key", len(enqueued))
+	}
+}
+
+type failingOutbox struct{ err error }
+
+func (f failingOutbox) Enqueue(context.Context, ports.OutboxEntry) error { return f.err }
+
+func TestACommandWhoseRunFailsLeavesNoEntryAndRunsAgainUnderTheSameKey(t *testing.T) {
+	h := harness(t)
+	add := application.AddItem{Order: orderUnderTest, SKU: "sku-1", Quantity: 2}
+	outboxDown := errors.New("appkit_test: outbox down")
+	failing := h.Service
+	failing.UoW = postgres.NewUnitOfWork(h.Pool, func(tx *postgres.Tx) application.Resources {
+		return application.Resources{
+			Orders:   provider.NewOrderRepository(tx),
+			Outbox:   failingOutbox{err: outboxDown},
+			Commands: tx.CommandInbox(application.CommandConsumer, time.Second),
+		}
+	})
+
+	if _, err := failing.AddItem(withKey(t, context.Background(), "k-idm05"), add); !errors.Is(err, outboxDown) {
+		t.Fatalf("AddItem() over a failing outbox = %v, want the outbox error", err)
+	}
+	var entries int
+	if err := h.Pool.QueryRow(context.Background(), "SELECT count(*) FROM inbox WHERE consumer_name = $1", application.CommandConsumer).Scan(&entries); err != nil {
+		t.Fatalf("count(*) = %v", err)
+	}
+	if entries != 0 {
+		t.Fatalf("inbox holds %d entries after a failed run, want 0: the entry rolls back with the effect (IDM-05)", entries)
+	}
+
+	again, err := h.Service.AddItem(withKey(t, context.Background(), "k-idm05"), add)
+	if err != nil {
+		t.Fatalf("AddItem() under the same key = %v, want nil", err)
+	}
+	if again.Response().Items != 1 || len(h.Outbox(t)) != 1 {
+		t.Fatalf("second AddItem = %+v with %d outbox records, want it executed once: no stored outcome to replay", again.Response(), len(h.Outbox(t)))
 	}
 }

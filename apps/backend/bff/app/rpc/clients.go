@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/reflect/protoreflect"
 
 	bookingsv1 "github.com/mateusmacedo/dmpf/apps/backend/bookings/contract/gen/go/company/bookings/service/v1"
@@ -75,32 +76,34 @@ type Options struct {
 
 func OrdersConfig(opts Options) kernelgrpc.Config {
 	return config("orders", OrdersServiceName, opts, map[string]kernelgrpc.MethodPolicy{
-		MethodAddItem:    policy("orders", MethodAddItem, false),
-		MethodPlaceOrder: policy("orders", MethodPlaceOrder, false),
-		MethodFindOrder:  policy("orders", MethodFindOrder, true),
+		MethodAddItem:    policy("orders", MethodAddItem),
+		MethodPlaceOrder: policy("orders", MethodPlaceOrder),
+		MethodFindOrder:  policy("orders", MethodFindOrder),
 	})
 }
 
 func ReservationsConfig(opts Options) kernelgrpc.Config {
 	return config("reservations", ReservationsServiceName, opts, map[string]kernelgrpc.MethodPolicy{
-		MethodReserve:         policy("reservations", MethodReserve, false),
-		MethodCancel:          policy("reservations", MethodCancel, false),
-		MethodFindReservation: policy("reservations", MethodFindReservation, true),
+		MethodReserve:         policy("reservations", MethodReserve),
+		MethodCancel:          policy("reservations", MethodCancel),
+		MethodFindReservation: policy("reservations", MethodFindReservation),
 	})
 }
 
 func BookingsConfig(opts Options) kernelgrpc.Config {
 	return config("bookings", BookingsServiceName, opts, map[string]kernelgrpc.MethodPolicy{
-		MethodReserveBooking:         policy("bookings", MethodReserveBooking, false),
-		MethodCancelBooking:          policy("bookings", MethodCancelBooking, false),
-		MethodRegisterResource:       policy("bookings", MethodRegisterResource, false),
-		MethodFindBooking:            policy("bookings", MethodFindBooking, true),
-		MethodFindBookingsByResource: policy("bookings", MethodFindBookingsByResource, true),
+		MethodReserveBooking:         policy("bookings", MethodReserveBooking),
+		MethodCancelBooking:          policy("bookings", MethodCancelBooking),
+		MethodRegisterResource:       policy("bookings", MethodRegisterResource),
+		MethodFindBooking:            policy("bookings", MethodFindBooking),
+		MethodFindBookingsByResource: policy("bookings", MethodFindBookingsByResource),
 	})
 }
 
-func policy(dependency, method string, read bool) kernelgrpc.MethodPolicy {
-	p := kernelgrpc.MethodPolicy{
+// policy retries every method on Unavailable: a read has no effect, and a
+// command carries the key the context deduplicates by (GRP-09, IDM-01).
+func policy(dependency, method string) kernelgrpc.MethodPolicy {
+	return kernelgrpc.MethodPolicy{
 		Budget: deadline.Budget{
 			Dependency:        dependency,
 			Method:            method,
@@ -108,12 +111,9 @@ func policy(dependency, method string, read bool) kernelgrpc.MethodPolicy {
 			Slack:             methodSlack,
 			EstimatedDuration: methodEstimated,
 		},
-		Idempotent: read,
+		Idempotent:     true,
+		RetryableCodes: []codes.Code{codes.Unavailable},
 	}
-	if read {
-		p.RetryableCodes = []codes.Code{codes.Unavailable}
-	}
-	return p
 }
 
 func config(dependency, healthService string, opts Options, methods map[string]kernelgrpc.MethodPolicy) kernelgrpc.Config {
@@ -196,8 +196,10 @@ func (b Bookings) FindBookingsByResource(ctx context.Context, req *bookingsv1.Fi
 
 func invoke[Resp any](ctx context.Context, conn grpc.ClientConnInterface, method string, req any) (*Resp, error) {
 	resp := new(Resp)
-	if err := conn.Invoke(ctx, method, req, resp); err != nil {
+	var header metadata.MD
+	if err := conn.Invoke(ctx, method, req, resp, grpc.Header(&header)); err != nil {
 		return nil, err
 	}
+	markReplayed(ctx, header)
 	return resp, nil
 }

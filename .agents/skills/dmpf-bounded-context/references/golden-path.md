@@ -70,7 +70,8 @@ pnpm nx g @mateusmacedo/dmpf-plugin:bounded-context <name> --boundedContext <ctx
 
 | Peça | Molde |
 | --- | --- |
-| `service.go`: `AggregateType`, `Destination`, `Resources`, `Operation*`, `enqueueAll` | `apps/backend/bookings/application/service.go` |
+| `service.go`: `AggregateType`, `Destination`, `CommandConsumer`, `Resources` (com `Commands`), `Service` (com `Idempotency`), `Operation*`, `enqueueAll` e o helper `idempotent` | `apps/backend/bookings/application/service.go` |
+| Codec da resposta, um por operação de comando | `bookings/application/codecs.go` |
 | Caso de uso de criação (nove passos, ramo `creates`) | `bookings/application/reserve_booking.go` |
 | Caso de uso sobre existente | `bookings/application/cancel_booking.go` |
 | Consulta fora da UoW | `bookings/application/find_booking.go`, `find_booking_by_resource.go` |
@@ -80,6 +81,15 @@ pnpm nx g @mateusmacedo/dmpf-plugin:bounded-context <name> --boundedContext <ctx
 
 - Norma: FND-04 §3.2 (a sequência canônica), §6.4 (disposições); ADR-035
   (evento na mesma transação do estado).
+- Todo comando corre dentro do `Within` por `usecase.RunIdempotent`, antes de
+  qualquer outra instrução (IDM-05): a inbox de comandos vem de
+  `Resources.Commands`, a política de `Service.Idempotency`, o fingerprint de
+  `usecase.NewFingerprint(Operation*)` com todos os campos do comando, e a
+  resposta volta pelo codec da operação. Consulta não passa por ali.
+- O `replayed` que `RunIdempotent` devolve decide a auditoria: ela só é emitida
+  sem replay, porque o efeito não aconteceu de novo
+  (`apps/backend/orders/application/add_item.go`). Norma: FND-04 §7.6 (IDM),
+  ADR-056.
 - Aliases do kernel: `kernel` (domain), `usecase` (application), `port` (ports).
 
 ## 6. `provider-postgres`
@@ -105,7 +115,7 @@ pnpm nx g @mateusmacedo/dmpf-plugin:bounded-context <name> --boundedContext <ctx
 | Peça | Molde |
 | --- | --- |
 | Configuração: `Defaults(role)`, `FromEnv`, `Validate`, variáveis sem `DMPF_` | `apps/backend/bookings/app/config.go` |
-| Composition root: `Run`, `RunWith`, serviço de aplicação, `serveAPI` gRPC, migrate no ready, relay | `bookings/app/wiring.go` |
+| Composition root: `Run`, `RunWith`, serviço de aplicação, `serveAPI` gRPC, migrate no ready, relay; `Commands` ligado a `tx.CommandInbox`, a política por `kernelapp.IdempotencyPolicy` e a purga das entradas vencidas | `bookings/app/wiring.go` |
 | Serviço gRPC: `ServiceDesc` com um `unary` por método, `Methods()`, `Server` sobre o serviço de aplicação | `bookings/app/rpc/service.go` |
 | Mapeamento de erro para status gRPC | `bookings/app/rpc/errors.go` |
 | Catálogo do canal que o relay drena | `bookings/app/catalog.go` |

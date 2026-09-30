@@ -22,9 +22,11 @@ Import path do módulo:
 | Arquivo | Conteúdo |
 | --- | --- |
 | `uow.go` | `UnitOfWork[R]` e o contrato de `Within` |
-| `repository.go` | `ErrNotFound`, `ErrVersionConflict`, `CrossTenantAccess`, `Reader[ID,S]`, `Repository[ID,S]` |
+| `repository.go` | `ErrNotFound`, `ErrVersionConflict`, `ErrAlreadyExists`, `CrossTenantAccess`, `Reader[ID,S]`, `Repository[ID,S]` |
 | `outbox.go` | `PublishIntent`, `OutboxEntry` (oito campos, com `Context MessageContext`), `Outbox` |
-| `inbox.go` | `Status`, `Receipt`, `Completion`, `Pending`, `Reception` (com `Match` exaustivo sobre R1–R4), `Inbox`, `ErrRegisterTimeout`, `ErrPendingNotCompleted` |
+| `inbox.go` | `Status`, `Receipt` (com `WaitUntil` e `ExpiresAt`, zero para mensagem), `Completion` (com `Outcome`), `Pending`, `Reception` (com `Match` exaustivo sobre R1–R4 e `Stored`), `Inbox`, `ErrRegisterTimeout`, `ErrPendingNotCompleted` |
+| `idempotency.go` | `Fingerprint`, `ErrIdempotencyMismatch`, `ErrIdempotencyInFlight`, `ErrIdempotencyKeyAbsent`, `ErrIdempotencyKeyInvalid` |
+| `idempotency_key.go` | `IdempotencyKeyPattern`, `ValidIdempotencyKey`; o portador da chave `WithIdempotencyKey`/`IdempotencyKeyFrom`; `IdempotencyOutcome` e o slot `WithIdempotencySlot`/`MarkIdempotency`/`IdempotencyOutcomeFrom` |
 | `containment.go` | `Reason` (inclui `ReasonUntrustedBoundary`), `Contained`, `Containment` |
 | `acknowledger.go` | `Acknowledger` — o efeito de broker aplicado depois do commit (`INB-08`) |
 | `instrumentation.go` | `Result`, `AuditEvent`, `EndOperation`, `Instrumentation`, `NoInstrumentation`, `OutcomeCategory`, `ErrDenied` |
@@ -133,6 +135,19 @@ realização — `memory` e `postgres`:
 
 A sétima cláusula — `R` como único caminho até as portas transacionais — é
 estrutural: quem a garante é o compilador, não um teste.
+
+## Idempotência de comando
+
+O comando usa a mesma `Inbox` da mensagem (FND-04 §7.6, `IDM-01` a `IDM-10`).
+O `Receipt` de comando leva `WaitUntil`, o instante até o qual o registro espera
+um comando concorrente da mesma chave, e `ExpiresAt`, o vencimento da entrada. O
+`Completion` leva o desfecho codificado em `Outcome`, e R2 e R3 o devolvem por
+`Reception.Stored`. Na mensagem, os três campos ficam zerados.
+
+A chave viaja num portador próprio do `context.Context`, fora do
+`ExecutionContext`, cujos campos `CTX-01` fixa. O slot de `MarkIdempotency` é o
+que a instrumentação lê para registrar o desfecho (novo, replay, divergente, em
+andamento) sem que o caso de uso o devolva.
 
 ## Garantias de entrega
 

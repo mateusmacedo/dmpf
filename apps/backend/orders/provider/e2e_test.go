@@ -4,9 +4,11 @@ package provider_test
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -53,8 +55,9 @@ type outboxRow struct {
 func newService(pool *pgxpool.Pool) application.Service {
 	bind := func(tx *postgres.Tx) application.Resources {
 		return application.Resources{
-			Orders: provider.NewOrderRepository(tx),
-			Outbox: tx.Outbox(provider.Mapper{}),
+			Orders:   provider.NewOrderRepository(tx),
+			Outbox:   tx.Outbox(provider.Mapper{}),
+			Commands: tx.CommandInbox(application.CommandConsumer, time.Second),
 		}
 	}
 	return application.Service{
@@ -65,6 +68,11 @@ func newService(pool *pgxpool.Pool) application.Service {
 		IDs:       &sequenceIDs{},
 		Authorize: usecase.AllowAll[application.Operation](),
 		ItemLimit: 3,
+		Idempotency: usecase.IdempotencyPolicy{
+			Wait:      int64(time.Second),
+			Retention: int64(24 * time.Hour),
+			Digest:    func(canonical []byte) ports.Fingerprint { return sha256.Sum256(canonical) },
+		},
 	}
 }
 

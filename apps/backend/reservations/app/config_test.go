@@ -76,3 +76,56 @@ func TestAnUnknownRoleIsRefused(t *testing.T) {
 		t.Fatalf("FromEnv(worker) = %v, want a refusal listing api|relay|consumer", err)
 	}
 }
+
+func TestTheDefaultsKeepCommandsMessagesAndThePurgeWithinTheirRetention(t *testing.T) {
+	cfg := app.Defaults(app.RoleConsumer)
+
+	if cfg.IdempotencyWait != time.Second || cfg.IdempotencyRetention != 24*time.Hour {
+		t.Fatalf("wait %v, retention %v; want 1s and 24h", cfg.IdempotencyWait, cfg.IdempotencyRetention)
+	}
+	if cfg.OutboxRetention != 168*time.Hour || cfg.InboxRetention != 192*time.Hour {
+		t.Fatalf("outbox %v, inbox %v; want 168h and 192h", cfg.OutboxRetention, cfg.InboxRetention)
+	}
+	if cfg.PurgeInterval != 15*time.Minute || cfg.PurgeBatch != 1000 {
+		t.Fatalf("purge every %v in batches of %d, want 15m and 1000", cfg.PurgeInterval, cfg.PurgeBatch)
+	}
+}
+
+func TestANonPositivePolicyIsRefused(t *testing.T) {
+	for name, spoil := range map[string]func(*app.Config){
+		"wait":             func(c *app.Config) { c.IdempotencyWait = 0 },
+		"retention":        func(c *app.Config) { c.IdempotencyRetention = -time.Hour },
+		"outbox retention": func(c *app.Config) { c.OutboxRetention = 0 },
+		"inbox retention":  func(c *app.Config) { c.InboxRetention = 0 },
+		"purge interval":   func(c *app.Config) { c.PurgeInterval = 0 },
+		"purge batch":      func(c *app.Config) { c.PurgeBatch = 0 },
+	} {
+		t.Run(name, func(t *testing.T) {
+			cfg := app.Defaults(app.RoleAPI)
+			cfg.DSN, cfg.GRPCInsecure = "postgres://x", true
+			spoil(&cfg)
+
+			if err := cfg.Validate(); !errors.Is(err, app.ErrInvalidPolicy) {
+				t.Fatalf("Validate() = %v, want ErrInvalidPolicy", err)
+			}
+		})
+	}
+}
+
+func TestTheConsumerRefusesAnInboxRetentionShorterThanTheRedeliveryWindow(t *testing.T) {
+	env := lookup("PG_DSN", "postgres://x", "KAFKA_BROKERS", "b:9092", "KAFKA_SASL_MECHANISM", "SCRAM-SHA-256",
+		"KAFKA_ORDERS_TOPIC", "orders", "KAFKA_ORDERS_DLQ", "orders.dlq", "KAFKA_GROUP", "g")
+	cfg, err := app.FromEnv(app.RoleConsumer, env)
+	if err != nil {
+		t.Fatalf("FromEnv(consumer) = %v, want nil with the default retention", err)
+	}
+
+	cfg.InboxRetention = 6 * 24 * time.Hour
+	if err := cfg.Validate(); !errors.Is(err, app.ErrInvalidPolicy) || !strings.Contains(err.Error(), "INB-14") {
+		t.Fatalf("Validate() = %v, want ErrInvalidPolicy naming INB-14", err)
+	}
+	cfg.Role, cfg.GRPCInsecure = app.RoleAPI, true
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate(api) = %v, want nil: only the consumer keeps message entries", err)
+	}
+}

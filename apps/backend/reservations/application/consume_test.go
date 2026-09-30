@@ -21,16 +21,18 @@ func bind(tx *memory.Tx) application.Resources {
 		Inbox:        tx.Inbox(consumer),
 		Reservations: reservationTable.Repository(tx),
 		Outbox:       tx.Outbox(),
+		Commands:     tx.CommandInbox(application.CommandConsumer),
 	}
 }
 
 func newService(store *memory.Store) application.Service {
 	return application.Service{
-		UoW:       memory.NewUnitOfWork(store, bind),
-		Clock:     memory.FixedClock{At: 1_755_432_000_000_000_000},
-		IDs:       &memory.SequenceIDs{Prefix: "m-"},
-		Authorize: usecase.AllowAll[application.Operation](),
-		Consumer:  consumer,
+		UoW:         memory.NewUnitOfWork(store, bind),
+		Clock:       memory.FixedClock{At: 1_755_432_000_000_000_000},
+		IDs:         &memory.SequenceIDs{Prefix: "m-"},
+		Authorize:   usecase.AllowAll[application.Operation](),
+		Consumer:    consumer,
+		Idempotency: usecase.IdempotencyPolicy{Wait: 1_000_000_000, Retention: 86_400_000_000_000, Digest: foldDigest},
 	}
 }
 

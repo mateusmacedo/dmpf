@@ -18,6 +18,8 @@ const (
 
 	Destination = "bookings.events"
 
+	CommandConsumer = "bookings.commands"
+
 	OperationReserveBooking        = "bookings.ReserveBooking"
 	OperationCancelBooking         = "bookings.CancelBooking"
 	OperationRegisterResource      = "bookings.RegisterResource"
@@ -31,6 +33,7 @@ type Resources struct {
 	Bookings  port.Repository[domain.BookingID, domain.BookingSnapshot]
 	Resources port.Repository[domain.ResourceCode, domain.ResourceSnapshot]
 	Outbox    port.Outbox
+	Commands  port.Inbox
 }
 
 type Operation interface{ isOperation() }
@@ -77,8 +80,31 @@ type Service struct {
 	Clock          port.Clock
 	IDs            port.IDGenerator
 	Authorize      usecase.Authorize[Operation]
+	Idempotency    usecase.IdempotencyPolicy
 
 	Instrumentation port.Instrumentation
+}
+
+func idempotent[R any](
+	ctx context.Context,
+	s Service,
+	res Resources,
+	fingerprint *usecase.Fingerprint,
+	operation string,
+	now port.Instant,
+	codec usecase.OutcomeCodec[R],
+	run func() (usecase.Outcome[R], error),
+) (usecase.Outcome[R], bool, error) {
+	return usecase.RunIdempotent(ctx, usecase.IdempotentCommand[R]{
+		Inbox:       res.Commands,
+		Consumer:    CommandConsumer,
+		Operation:   operation,
+		Fingerprint: fingerprint,
+		Now:         now,
+		Policy:      s.Idempotency,
+		Codec:       codec,
+		Run:         run,
+	})
 }
 
 // A nil hook is the inert realization, so every operation opens and closes

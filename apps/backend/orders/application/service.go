@@ -19,6 +19,8 @@ const (
 	// broker address, which are the provider's and the relay's choice (BLK-04).
 	Destination = "orders.events"
 
+	CommandConsumer = "orders.commands"
+
 	// OperationAddItem, OperationPlaceOrder and OperationFindOrder name the
 	// operations for BeginOperation and for the audit action. They are exported
 	// so the composition root can declare which of them is a read (TRC-16).
@@ -34,8 +36,9 @@ const maxEventsPerCommand = 1
 // Resources is the resource set the use case declares, bound to the open
 // transaction by the composition root (UOW-03, UOW-04).
 type Resources struct {
-	Orders ports.Repository[domain.OrderID, domain.Snapshot]
-	Outbox ports.Outbox
+	Orders   ports.Repository[domain.OrderID, domain.Snapshot]
+	Outbox   ports.Outbox
+	Commands ports.Inbox
 }
 
 // Operation is the closed union of this service's entry points, writes and
@@ -75,12 +78,35 @@ type Service struct {
 	UoW    ports.UnitOfWork[Resources]
 	Reader ports.Reader[domain.OrderID, domain.Snapshot]
 
-	Clock     ports.Clock
-	IDs       ports.IDGenerator
-	Authorize usecase.Authorize[Operation]
-	ItemLimit int
+	Clock       ports.Clock
+	IDs         ports.IDGenerator
+	Authorize   usecase.Authorize[Operation]
+	ItemLimit   int
+	Idempotency usecase.IdempotencyPolicy
 
 	Instrumentation ports.Instrumentation
+}
+
+func idempotent[R any](
+	ctx context.Context,
+	s Service,
+	res Resources,
+	fingerprint *usecase.Fingerprint,
+	operation string,
+	now ports.Instant,
+	codec usecase.OutcomeCodec[R],
+	run func() (usecase.Outcome[R], error),
+) (usecase.Outcome[R], bool, error) {
+	return usecase.RunIdempotent(ctx, usecase.IdempotentCommand[R]{
+		Inbox:       res.Commands,
+		Consumer:    CommandConsumer,
+		Operation:   operation,
+		Fingerprint: fingerprint,
+		Now:         now,
+		Policy:      s.Idempotency,
+		Codec:       codec,
+		Run:         run,
+	})
 }
 
 // instrumentation resolves the nil hook to the inert realization, so every

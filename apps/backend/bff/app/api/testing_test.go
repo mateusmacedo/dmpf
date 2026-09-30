@@ -29,6 +29,7 @@ import (
 	ordersv1 "github.com/mateusmacedo/dmpf/apps/backend/orders/contract/gen/go/company/orders/service/v1"
 	reservationsv1 "github.com/mateusmacedo/dmpf/apps/backend/reservations/contract/gen/go/company/reservations/service/v1"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/authn"
+	kernelgrpc "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
 	obsclock "github.com/mateusmacedo/dmpf/libs/backend/go/observability/clock"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/metrics"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
@@ -51,6 +52,17 @@ type fakeContexts struct {
 	mu      sync.Mutex
 	calls   []received
 	respond map[string]func(n int) (any, error)
+	replays map[string]bool
+}
+
+func (f *fakeContexts) replay(methods ...string) *fakeContexts {
+	if f.replays == nil {
+		f.replays = map[string]bool{}
+	}
+	for _, method := range methods {
+		f.replays[method] = true
+	}
+	return f
 }
 
 func (f *fakeContexts) on(method string, respond func(n int) (any, error)) *fakeContexts {
@@ -106,6 +118,9 @@ func unary[Req any, PReq interface {
 				return nil, err
 			}
 			n := f.record(ctx, name, req)
+			if f.replays[name] {
+				_ = grpc.SetHeader(ctx, metadata.Pairs(kernelgrpc.ReplayedHeader, "true"))
+			}
 			if respond, declared := f.respond[name]; declared {
 				return respond(n)
 			}

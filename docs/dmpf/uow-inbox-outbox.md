@@ -1694,6 +1694,92 @@ composição de casos de uso, não um quarto mecanismo. O que dela **é** desta
 Normatizar o resto invadiria o desenho de processo de negócio, que não tem dona
 nesta RFC porque é de cada contexto.
 
+### §7.6 Idempotência de comando
+
+`normativo` — blocos `app` (borda do transporte), `application service` e
+`provider` da inbox. Decisão nova, registrada no
+[ADR-056](../adr/056-idempotencia-de-comando-pela-inbox.md).
+
+`registro` — As seções anteriores protegem a **entrada assíncrona**: a mensagem
+reentregue é classificada pela inbox (§6.4). A entrada **síncrona** — o comando
+que chega por REST ou gRPC — tem o mesmo problema com outro disparador: o
+cliente repete a chamada porque a resposta se perdeu, e sem proteção o efeito se
+aplica de novo. A proteção é a mesma inbox, com o comando no lugar da mensagem:
+`consumer_name` é `<contexto>.commands`, `message_id` é o tenant mais a chave de
+idempotência, `message_type` é a operação e `payload_hash` é o fingerprint do
+comando.
+
+`normativo` `IDM-01` — bloco `app`. **Todo comando exige chave de
+idempotência.** A borda recusa o comando sem chave antes do caso de uso, e o
+application service a recusa de novo quando ela não chega ao portador. Consultas
+não exigem nem usam a chave.
+
+`normativo` `IDM-02` — bloco `app`. **A chave tem formato fechado:**
+`^[A-Za-z0-9._-]{1,128}$`. Chave fora do formato é recusada com código próprio,
+distinto do código de chave ausente, e nunca normalizada em silêncio.
+
+`normativo` `IDM-03` — bloco `provider`. **A entrada é identificada pelo tenant
+e pela chave.** A mesma chave em outro tenant é outra entrada. A chave que
+chega ao contexto é a que a borda pública deriva do sujeito e da chave do
+cliente; o sujeito não atravessa para o contexto.
+
+`normativo` `IDM-04` — bloco `application service`. **O fingerprint é SHA-256
+sobre uma codificação canônica** da operação e dos campos que o comando declara,
+com tipo e tamanho por campo. A codificação não depende da serialização
+Protobuf, que não é canônica. A mesma chave com outra operação ou outro payload é
+divergência — R4 —, recusada sem executar o comando.
+
+`normativo` `IDM-05` — bloco `application service`. **O registro do comando é a
+primeira escrita da UoW do comando** e commita junto com o efeito e a outbox
+derivada. A falha técnica desfaz os três: nenhuma entrada sobrevive sem o efeito,
+e nenhum efeito sem a entrada. É `INB-07` aplicada ao comando.
+
+`normativo` `IDM-06` — bloco `application service`. **Aceite e recusa de negócio
+são desfechos gravados**, como `processed` e `rejected`, com a resposta
+codificada e versionada. Falha técnica não é desfecho e não grava nada. Um
+desfecho gravado que não se deixa ler é reportado, nunca substituído por nova
+execução.
+
+`normativo` `IDM-07` — bloco `provider`. **A espera por comando concorrente da
+mesma chave tem teto:** o menor entre o teto configurado e o prazo restante da
+chamada menos uma margem. O estouro é «em andamento», devolvido ao cliente para
+que repita com a mesma chave; nunca é execução paralela. É `INB-17` com o prazo
+da chamada no lugar do prazo do consumidor.
+
+`normativo` `IDM-08` — blocos `application service` e `app`. **R2 e R3 devolvem
+o desfecho gravado sem chamar o domínio**, sem `Save`, sem outbox e sem a
+auditoria do efeito, que não aconteceu de novo. A resposta sinaliza que é
+replay.
+
+`normativo` `IDM-09` — bloco `provider`. **A entrada de comando carrega o seu
+vencimento.** Vencida, é tratada como ausente, e a purga remove só as vencidas,
+em lotes que não bloqueiam as outras réplicas. As entradas de mensagem não
+vencem por esta regra: a retenção delas segue `INB-14`.
+
+`normativo` `IDM-10` — blocos `application service` e `provider`. **A chave de
+comando não se propaga.** Eventos, mensagens derivadas e chamadas a jusante
+seguem com o próprio `message_id`, e o consumidor deduplica por ele (`INB-01`).
+A chave protege a entrada que a recebeu, e só ela.
+
+`normativo` — A idempotência de comando é deduplicação por chave **dentro da
+retenção**: não substitui a idempotência de efeito (`GAR-03`) nem a chave
+natural da operação (`GAR-10`). Um comando repetido depois do vencimento da
+entrada executa como novo, e só a idempotência de efeito o protege.
+
+`rationale` — Reusar a inbox, e não criar um registro próprio, é o que mantém a
+fronteira de §6: a deduplicação é uma porta com classificação fechada, que
+serializa na chave (`INB-06`) e só classifica transação commitada (`INB-18`).
+Um segundo registro teria de reprovar tudo isso por conta própria, e a primeira
+divergência entre os dois seria um modo de falha sem cenário em §7.3.
+
+`encaminhado` — A retentativa do comando pelo transporte é de FND-06, sob
+ANC-04: um comando com chave é a operação idempotente que `RST-02`, `GRP-08` e
+`GRP-09` admitem retentar, dentro da retenção. O nome do header REST e da
+metadata gRPC, os códigos 400, 409 e 422 e o header de replay também são forma
+do transporte. O portador da chave, fora dos campos de `CTX-01`, é de FND-07,
+sob ANC-05. O valor do teto, a retenção e o intervalo da purga são de FND-08,
+sob ANC-06.
+
 ---
 
 ## §8. Diagramas derivados
@@ -2221,7 +2307,7 @@ constraint P0 / RFC / Parte-1 / decisão nova
         ↓  declaração de fonte e de bloco em cada regra (§1.3)
     cláusula normativa deste artefato
         ↓  §11.2
-    ID estável da regra — BLK, UOW, OBX, INB, GAR
+    ID estável da regra — BLK, UOW, OBX, INB, GAR, IDM
         ↓  §11.3
     critério de aceite da spec, e AC-07 do épico ARQ-436
         ↓  §11.5 — pendente: diagnóstico estável e vetores, por regra
@@ -2343,8 +2429,23 @@ o mecanismo e não há o que verificar em runtime. Eles obrigam do mesmo jeito.
 | `GAR-11` | Quarantine e DLQ são distintos; quem implementa os dois declara o mapeamento | §7.4 |
 | `GAR-12` | O lado de consumo expõe profundidade de DLQ/quarantine e taxa de recusa | §7.4 |
 
-`registro` — **64 regras com ID** — `BLK` 5, `UOW` 11, `OBX` 18, `INB` 18,
-`GAR` 12. A distribuição não é acidental: `INB` e `OBX` concentram 36 delas
+**`IDM` — idempotência de comando** (§7.6)
+
+| ID | Regra | Onde |
+|----|-------|------|
+| `IDM-01` | Todo comando exige chave de idempotência; consulta não exige | §7.6 |
+| `IDM-02` | A chave tem formato fechado, e fora dele é recusada com código próprio | §7.6 |
+| `IDM-03` | A entrada é identificada pelo tenant e pela chave | §7.6 |
+| `IDM-04` | O fingerprint é SHA-256 sobre codificação canônica; divergência é R4 | §7.6 |
+| `IDM-05` | O registro do comando é a primeira escrita da UoW e commita com o efeito | §7.6 |
+| `IDM-06` | Aceite e recusa são gravados; falha técnica não grava | §7.6 |
+| `IDM-07` | A espera por comando concorrente tem teto; o estouro é «em andamento» | §7.6 |
+| `IDM-08` | R2 e R3 devolvem o desfecho gravado sem chamar o domínio | §7.6 |
+| `IDM-09` | A entrada de comando carrega o vencimento; a purga remove só as vencidas | §7.6 |
+| `IDM-10` | A chave de comando não se propaga | §7.6 |
+
+`registro` — **74 regras com ID** — `BLK` 5, `UOW` 11, `OBX` 18, `INB` 18,
+`GAR` 12, `IDM` 10. A distribuição não é acidental: `INB` e `OBX` concentram 36 delas
 porque a deduplicação e a drenagem são onde o mecanismo tem estado persistente
 e, portanto, onde uma norma vaga vira defeito silencioso.
 

@@ -29,6 +29,7 @@ var (
 	ErrUnknownRole     = errors.New("<%- name %>: unknown role")
 	ErrMissingVariable = errors.New("<%- name %>: required variable is not set")
 	ErrInvalidVariable = envconfig.ErrInvalidVariable
+	ErrInvalidPolicy   = errors.New("<%- name %>: invalid idempotency or purge policy")
 )
 
 const (
@@ -91,6 +92,12 @@ type Config struct {
 	Instance string
 
 	Relay relay.Config
+
+	IdempotencyWait      time.Duration
+	IdempotencyRetention time.Duration
+	OutboxRetention      time.Duration
+	PurgeInterval        time.Duration
+	PurgeBatch           int
 }
 
 // Defaults are the values a role runs with when the environment says nothing.
@@ -111,7 +118,12 @@ func Defaults(role Role) Config {
 			BackoffCeiling: 30 * time.Second,
 			ShutdownGrace:  observability.ShutdownGrace,
 		},
-		Admission: admission.Limit{PerSecond: 50, Burst: 100, Concurrency: 32},
+		Admission:            admission.Limit{PerSecond: 50, Burst: 100, Concurrency: 32},
+		IdempotencyWait:      time.Second,
+		IdempotencyRetention: 24 * time.Hour,
+		OutboxRetention:      168 * time.Hour,
+		PurgeInterval:        15 * time.Minute,
+		PurgeBatch:           1000,
 	}
 }
 
@@ -171,7 +183,30 @@ func (c Config) Validate() error {
 			return fmt.Errorf("%w: %s", ErrMissingVariable, r.variable)
 		}
 	}
+	if err := c.policies(); err != nil {
+		return err
+	}
 	return c.Relay.Validate()
+}
+
+func (c Config) policies() error {
+	for _, p := range []struct {
+		name  string
+		value time.Duration
+	}{
+		{"IdempotencyWait", c.IdempotencyWait},
+		{"IdempotencyRetention", c.IdempotencyRetention},
+		{"OutboxRetention", c.OutboxRetention},
+		{"PurgeInterval", c.PurgeInterval},
+	} {
+		if p.value <= 0 {
+			return fmt.Errorf("%w: %s %v", ErrInvalidPolicy, p.name, p.value)
+		}
+	}
+	if c.PurgeBatch <= 0 {
+		return fmt.Errorf("%w: PurgeBatch %d", ErrInvalidPolicy, c.PurgeBatch)
+	}
+	return nil
 }
 
 type requirement struct {

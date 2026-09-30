@@ -25,6 +25,12 @@
       "capability": "io.network"
     },
     {
+      "package": "google.golang.org/genproto/googleapis/rpc",
+      "versions": ">=0.0.0-20260819154853-08b0e4226688",
+      "entrypoints": ["google.golang.org/genproto/googleapis/rpc/errdetails"],
+      "capability": "wire.codec"
+    },
+    {
       "package": "go.opentelemetry.io/otel/trace",
       "versions": ">=1.46.0 <2",
       "entrypoints": ["."],

@@ -31,7 +31,7 @@ func TestTheDatabaseHoldsExactlyTheTablesOfThisContext(t *testing.T) {
 		t.Fatalf("iterate tables: %v", err)
 	}
 
-	want := []string{"orders", "outbox"}
+	want := []string{"inbox", "orders", "outbox", "quarantine"}
 	if !slices.Equal(got, want) {
 		t.Fatalf("tables = %v, want %v", got, want)
 	}

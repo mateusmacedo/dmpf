@@ -24,6 +24,8 @@ const (
 	attrTrafficClass    = "dmpf.traffic_class"
 	attrOutcomeCategory = "dmpf.outcome_category"
 
+	attrIdempotencyOutcome = "dmpf.idempotency_outcome"
+
 	trafficWrite = "write"
 	trafficRead  = "read"
 )
@@ -96,6 +98,9 @@ func (i *Instrumentation) BeginOperation(ctx context.Context, operation string) 
 
 	return ctx, func(result ports.Result) {
 		span.SetAttributes(attribute.String(attrOutcomeCategory, string(result.Outcome)))
+		if claim, ok := ports.IdempotencyOutcomeFrom(ctx); ok {
+			span.SetAttributes(attribute.String(attrIdempotencyOutcome, claim.String()))
+		}
 		if result.Outcome == ports.OutcomeFailed {
 			// TRC-12: o status carrega a categoria do desfecho, nunca a mensagem
 			// do erro, que sairia do processo sem passar por redaction.

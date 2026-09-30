@@ -178,6 +178,30 @@ func TestTheTrafficClassIsSetAtStartSoTheSamplerSeesIt(t *testing.T) {
 	}
 }
 
+func TestEndOperationRecordsTheIdempotencyOutcomeOfACommand(t *testing.T) {
+	fixture := boot(t, options{})
+
+	ctx, end := fixture.instrumentation.BeginOperation(ports.WithIdempotencySlot(context.Background()), "orders.AddItem")
+	ports.MarkIdempotency(ctx, ports.IdempotencyReplayed)
+	end(ports.Result{Outcome: ports.OutcomeAccepted})
+
+	got, ok := attributeOf(fixture.onlySpan(t), "dmpf.idempotency_outcome")
+	if !ok || got != "replayed" {
+		t.Fatalf("dmpf.idempotency_outcome = %q (present=%v), want %q", got, ok, "replayed")
+	}
+}
+
+func TestEndOperationOmitsTheIdempotencyOutcomeWithoutAClaim(t *testing.T) {
+	fixture := boot(t, options{})
+
+	_, end := fixture.instrumentation.BeginOperation(ports.WithIdempotencySlot(context.Background()), "orders.FindOrder")
+	end(ports.Result{Outcome: ports.OutcomeAccepted})
+
+	if got, ok := attributeOf(fixture.onlySpan(t), "dmpf.idempotency_outcome"); ok {
+		t.Fatalf("dmpf.idempotency_outcome = %q on an operation that made no claim", got)
+	}
+}
+
 func TestEndOperationRecordsTheOutcomeCategory(t *testing.T) {
 	for _, outcome := range []ports.OutcomeCategory{
 		ports.OutcomeAccepted, ports.OutcomeRejected, ports.OutcomeDenied,

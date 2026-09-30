@@ -5,11 +5,13 @@ package appkit
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/application"
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/provider"
+	kernelapp "github.com/mateusmacedo/dmpf/libs/backend/go/app"
 	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
@@ -23,7 +25,7 @@ var Tables = []string{"bookings", "resources"}
 // PoolOptions is the database this context's suites run in.
 var PoolOptions = pg.Options{
 	Project:      "bookings",
-	Capabilities: []postgres.Capability{postgres.Outbox},
+	Capabilities: []postgres.Capability{postgres.Outbox, postgres.Inbox},
 	Schemas:      []string{provider.Schema},
 	Tables:       Tables,
 }
@@ -45,6 +47,10 @@ type Harness struct {
 func NewBookings(t testing.TB, clock ports.Clock, ids ports.IDGenerator) Harness {
 	t.Helper()
 	pool := OpenPool(t)
+	policy, err := kernelapp.IdempotencyPolicy(time.Second, 24*time.Hour)
+	if err != nil {
+		t.Fatalf("appkit.NewBookings: %v", err)
+	}
 	return Harness{
 		Service: application.Service{
 			UoW:            postgres.NewUnitOfWork(pool, bind),
@@ -53,6 +59,7 @@ func NewBookings(t testing.TB, clock ports.Clock, ids ports.IDGenerator) Harness
 			Clock:          clock,
 			IDs:            ids,
 			Authorize:      usecase.AllowAll[application.Operation](),
+			Idempotency:    policy,
 		},
 		Pool: pool,
 	}
@@ -63,6 +70,7 @@ func bind(tx *postgres.Tx) application.Resources {
 		Bookings:  provider.NewBookingRepository(tx),
 		Resources: provider.NewResourceRepository(tx),
 		Outbox:    tx.Outbox(provider.Mapper{}),
+		Commands:  tx.CommandInbox(application.CommandConsumer, time.Second),
 	}
 }
 

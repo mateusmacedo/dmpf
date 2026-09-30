@@ -11,7 +11,8 @@ import (
 // Cancel cancels the pending reservation of Order, creating it when absent so a
 // later OrderPlaced finds it canceled. A decided reservation refuses it.
 func (s Service) Cancel(ctx context.Context, cmd Cancel) (usecase.Outcome[domain.CancelledResponse], error) {
-	return write(ctx, s, OperationCancel, cmd, cmd.Order,
+	fingerprint := usecase.NewFingerprint(OperationCancel).String(string(cmd.Order))
+	return write(ctx, s, OperationCancel, cmd, cmd.Order, fingerprint, cancelledCodec,
 		func(r *domain.Reservation, at domain.Instant) (kernel.Accepted[domain.CancelledResponse], *kernel.Rejection) {
 			return r.Cancel(domain.Cancel{At: at})
 		})

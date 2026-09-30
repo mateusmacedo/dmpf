@@ -47,6 +47,24 @@ func TestUnitOfWorkConformsToTheKit(t *testing.T) {
 	evidence.RecordVerdict(t, "provider", "memory-unit-of-work", v)
 }
 
+func TestCommandInboxConformsToTheKit(t *testing.T) {
+	v := providerkit.CommandInbox(func() providerkit.CommandInboxSubject {
+		store := memory.New()
+		uow := memory.NewUnitOfWork(store, func(tx *memory.Tx) ports.Inbox { return tx.CommandInbox("kit.commands") })
+		return providerkit.CommandInboxSubject{
+			Within: uow.Within,
+			// Store.txMu serializes every transaction, so a command never waits on
+			// another; the Postgres realization runs the in-flight clause.
+			Concurrent: false,
+		}
+	})
+	tb.Require(t, v)
+	if len(v.Skipped) != 1 {
+		t.Fatalf("skipped = %v, want exactly the in-flight clause", v.Skipped)
+	}
+	evidence.RecordVerdict(t, "provider", "memory-command-inbox", v)
+}
+
 type inboxResources struct{ Inbox ports.Inbox }
 
 func TestInboxConformsToTheKit(t *testing.T) {

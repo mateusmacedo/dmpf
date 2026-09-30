@@ -230,9 +230,7 @@ func TestTheHealthProbePassesThroughTheChain(t *testing.T) {
 
 func TestTheIdempotencyKeyReachesTheLog(t *testing.T) {
 	h := newHarness(t, unlimited)
-	ctx := metadata.AppendToOutgoingContext(withTenant(t), kernelgrpc.IdempotencyKey, "k-42")
-
-	addItem(t, h, ctx)
+	addItem(t, h, withKey(t, "k-42"))
 
 	if !strings.Contains(h.logs.String(), `"k-42"`) {
 		t.Fatalf("logs = %s, want the idempotency key the BFF propagated", h.logs.String())

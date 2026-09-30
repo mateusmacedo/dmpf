@@ -16,7 +16,16 @@ type decision[R any] func(*domain.Reservation, domain.Instant) (kernel.Accepted[
 // write is the nine steps of FND-04 §3.2 shared by Reserve and Cancel. Identity
 // is resolved before the transaction, because a re-execution would mint new
 // identity for the same fact (UOW-09).
-func write[R any](ctx context.Context, s Service, operation string, cmd Operation, order domain.OrderID, decide decision[R]) (usecase.Outcome[R], error) {
+func write[R any](
+	ctx context.Context,
+	s Service,
+	operation string,
+	cmd Operation,
+	order domain.OrderID,
+	fingerprint *usecase.Fingerprint,
+	codec usecase.OutcomeCodec[R],
+	decide decision[R],
+) (usecase.Outcome[R], error) {
 	var zero usecase.Outcome[R]
 
 	instrumentation := s.instrumentation()
@@ -29,30 +38,20 @@ func write[R any](ctx context.Context, s Service, operation string, cmd Operatio
 
 	identity := usecase.ResolveIdentity(s.Clock, s.IDs, maxEventsPerCommand)
 
-	outcome := zero
+	outcome, replayed := zero, false
 	err := s.UoW.Within(ctx, func(ctx context.Context, res Resources) error {
-		reservation, stored, err := loadOrCreate(ctx, res, order)
-		if err != nil {
-			return err
-		}
-
-		accepted, rejection := decide(reservation, domain.Instant(identity.OccurredAt))
-		if rejection != nil {
-			// Committing a transaction with no effect keeps a refusal apart from a
-			// technical failure, which DEC-04 forbids to conflate (FND-04 §3.2).
-			outcome = usecase.Rejected[R](rejection)
-			return nil
-		}
-
-		if err := res.Reservations.Save(ctx, order, reservation.Snapshot(), stored); err != nil {
-			return err
-		}
-		if err := enqueueAll(ctx, res.Outbox, identity, order, stored+1, accepted.Events()); err != nil {
-			return err
-		}
-
-		outcome = usecase.Accepted(accepted.Response())
-		return nil
+		var err error
+		outcome, replayed, err = usecase.RunIdempotent(ctx, usecase.IdempotentCommand[R]{
+			Inbox:       res.Commands,
+			Consumer:    CommandConsumer,
+			Operation:   operation,
+			Fingerprint: fingerprint,
+			Now:         identity.OccurredAt,
+			Policy:      s.Idempotency,
+			Codec:       codec,
+			Run:         func() (usecase.Outcome[R], error) { return decideAndWrite(ctx, res, order, identity, decide) },
+		})
+		return err
 	})
 	if err != nil {
 		end(ports.Result{Outcome: ports.OutcomeFailed, Err: err})
@@ -61,13 +60,39 @@ func write[R any](ctx context.Context, s Service, operation string, cmd Operatio
 
 	category := outcomeCategory(outcome)
 	end(ports.Result{Outcome: category})
-	instrumentation.Audit(ctx, ports.AuditEvent{
-		Object:  string(order),
-		Action:  operation,
-		Outcome: category,
-		At:      identity.OccurredAt,
-	})
+	if !replayed {
+		instrumentation.Audit(ctx, ports.AuditEvent{
+			Object:  string(order),
+			Action:  operation,
+			Outcome: category,
+			At:      identity.OccurredAt,
+		})
+	}
 	return outcome, nil
+}
+
+func decideAndWrite[R any](ctx context.Context, res Resources, order domain.OrderID, identity usecase.Identity, decide decision[R]) (usecase.Outcome[R], error) {
+	var zero usecase.Outcome[R]
+
+	reservation, stored, err := loadOrCreate(ctx, res, order)
+	if err != nil {
+		return zero, err
+	}
+
+	accepted, rejection := decide(reservation, domain.Instant(identity.OccurredAt))
+	if rejection != nil {
+		// A refusal returns no error: the transaction commits it with no
+		// business effect, apart from a technical failure (DEC-04, FND-04 §3.2).
+		return usecase.Rejected[R](rejection), nil
+	}
+
+	if err := res.Reservations.Save(ctx, order, reservation.Snapshot(), stored); err != nil {
+		return zero, err
+	}
+	if err := enqueueAll(ctx, res.Outbox, identity, order, stored+1, accepted.Events()); err != nil {
+		return zero, err
+	}
+	return usecase.Accepted(accepted.Response()), nil
 }
 
 func loadOrCreate(ctx context.Context, res Resources, id domain.OrderID) (*domain.Reservation, ports.Version, error) {
