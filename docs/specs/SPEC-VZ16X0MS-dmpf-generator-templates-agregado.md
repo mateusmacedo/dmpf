@@ -5,7 +5,7 @@ title: DMPF KRN-12.2b — Templates por agregado nos cinco blocos
 stage: deferred
 priority: P2
 depends_on: [SPEC-8FSD8505, SPEC-XMNBMY50]
-ticket_url: null
+ticket_url: https://linear.app/mmda/issue/DEVS-56/spec-vz16x0ms-dmpf-krn-122b-templates-por-agregado-nos-cinco-blocos
 subtask_urls: []
 created: 2026-09-09
 ---

@@ -5,7 +5,7 @@ title: DMPF KRN-03 — Kernel de domínio Go: UPR, Decision e Rejection
 stage: done
 priority: P0
 depends_on: [SPEC-MQA5HAXF, SPEC-WTAXFV8B]
-ticket_url: null
+ticket_url: https://linear.app/mmda/issue/DEVS-35/spec-xf9tf9a0-dmpf-krn-03-kernel-de-dominio-go-upr-decision-e
 subtask_urls: []
 created: 2026-09-02
 ---

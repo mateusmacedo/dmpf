@@ -5,7 +5,7 @@ title: DMPF — Contexto de execução em Go, com identidade e tenant estabeleci
 stage: done
 priority: P0
 depends_on: [SPEC-YRJRADY9, SPEC-XQWGGAXF]
-ticket_url: null
+ticket_url: https://linear.app/mmda/issue/DEVS-33/spec-9b6sheh8-dmpf-contexto-de-execucao-em-go-com-identidade-e-tenant
 subtask_urls: []
 created: 2026-09-17
 ---

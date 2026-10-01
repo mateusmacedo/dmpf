@@ -5,7 +5,7 @@ title: DMPF — Perfil CloudEvents e governança Protobuf (Buf)
 stage: done
 priority: P0
 depends_on: [SPEC-8MNDEWDP, SPEC-7PJ5WVCS]
-ticket_url: null
+ticket_url: https://linear.app/mmda/issue/DEVS-34/spec-7h08rzdg-dmpf-perfil-cloudevents-e-governanca-protobuf-buf
 subtask_urls: []
 created: 2026-08-13
 ---

@@ -202,10 +202,26 @@ versionado o conhecimento que precisa sobreviver ao plano antes de descartá-lo.
 
 ## Sincronização com tracker
 
-Este template não exige campos de tracker (Linear, Jira ou equivalente): você
-pode contribuir e abrir PRs sem preencher nenhum identificador de issue externo.
-A sincronização com um tracker, se a organização adotar, fica fora do escopo
-deste repositório.
+O tracker do repositório é o projeto
+[DMPF](https://linear.app/mmda/project/dmpf-ead2d6caeff8) no Linear (team
+DevTeam, chave `DEVS`). Cada spec de `docs/specs/` tem uma issue nesse projeto, e
+o vínculo vale nos dois sentidos:
+
+- o título da issue é `[SPEC-<id>] <título da spec>`, e a descrição aponta para
+  o arquivo da spec;
+- o frontmatter da spec guarda a URL da issue em `ticket_url`;
+- spec guarda-chuva vira issue mãe, e as sub-specs, sub-issues; o `depends_on`
+  vira relação *blocked by* entre as issues.
+
+A spec continua sendo a fonte da verdade do escopo; a issue rastreia status,
+prioridade, estimativa e relações. Ao mudar o `stage` de uma spec, atualize o
+status da issue: `backlog` e `deferred` → Backlog, `planning` → Todo,
+`building` → In Progress, `done` → Done, `cancelled` → Canceled. A prioridade
+segue a mesma régua: P0 → Urgent, P1 → High, P2 → Medium, P3 → Low.
+
+Spec nova ganha issue no mesmo projeto, e a URL vai para o `ticket_url`. A branch
+de trabalho e o título do PR levam a chave da issue: `feat/DEVS-<n>-descricao-curta`
+e `tipo(scope): [DEVS-<n>] descrição`.
 
 ## Onde continuar lendo
 

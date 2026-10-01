@@ -5,7 +5,7 @@ title: DMPF KRN-12 — SDK de referência, generator Nx e BOM certificado (guard
 stage: done
 priority: P2
 depends_on: [SPEC-MQA5HAXF, SPEC-WTAXFV8B, SPEC-XF9TF9A0, SPEC-ZHE7DN1H, SPEC-WYX5GW87, SPEC-3R80KNMS, SPEC-ANZX2WPG, SPEC-CGPX20NP, SPEC-NYD18TGD, SPEC-EAGAXQN1, SPEC-SJ66880S]
-ticket_url: null
+ticket_url: https://linear.app/mmda/issue/DEVS-48/spec-8hwbwjcb-dmpf-krn-12-sdk-de-referencia-generator-nx-e-bom
 subtask_urls: [ARQ-545, ARQ-546, ARQ-547, ARQ-548]
 created: 2026-09-08
 ---

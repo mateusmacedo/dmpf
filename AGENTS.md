@@ -56,6 +56,8 @@ Testes de integração (Postgres, Kafka, SQS) e variáveis de ambiente: `README.
 
 Plataforma GitHub, via `gh` (ADR-043). Fluxo git-flow com `master` e `develop` protegidas e o modelo anti-drift de promoção para `release/X.Y.Z`: `CONTRIBUTING.md`. Versionamento independente em três release groups (ADR-047); tag do produto `dmpf@<semver>` pelo `dmpf-release.yml` (`bom/README.md`). O CI (`.github/workflows/ci.yml`) roda `biome ci` e `nx affected` mais os estágios Go por `layer:*`; `cd-dev-hmg.yml` é template de CD desligado.
 
+Tracker: projeto [DMPF](https://linear.app/mmda/project/dmpf-ead2d6caeff8) no Linear (team DevTeam, chave `DEVS`). Cada spec tem uma issue, ligada pelo `ticket_url` do frontmatter; branch e título de PR levam a chave `DEVS-<n>`. Regras de sincronização: `docs/onboarding.md`.
+
 ## Referências
 
 - `CONTRIBUTING.md` — fluxo de contribuição e anti-drift.

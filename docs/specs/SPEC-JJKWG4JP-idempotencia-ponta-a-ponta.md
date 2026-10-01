@@ -5,7 +5,7 @@ title: Idempotência de ponta a ponta — chave de comando nas bordas REST e gRP
 stage: done
 priority: P1
 depends_on: []
-ticket_url: null
+ticket_url: https://linear.app/mmda/issue/DEVS-18/spec-jjkwg4jp-idempotencia-de-ponta-a-ponta-chave-de-comando-nas
 subtask_urls: []
 created: 2026-09-30
 ---

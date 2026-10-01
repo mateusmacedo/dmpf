@@ -5,7 +5,7 @@ title: Suíte de carga k6 pela borda do BFF, com remote write e dashboard de cor
 stage: done
 priority: P1
 depends_on: []
-ticket_url: null
+ticket_url: https://linear.app/mmda/issue/DEVS-17/spec-xjwrjpvz-suite-de-carga-k6-pela-borda-do-bff-com-remote-write-e
 subtask_urls: []
 created: 2026-09-29
 ---

@@ -5,7 +5,7 @@ title: DMPF KRN-05 — Contratos wire: CloudEvents, Buf e payload_hash
 stage: done
 priority: P0
 depends_on: [SPEC-MQA5HAXF]
-ticket_url: null
+ticket_url: https://linear.app/mmda/issue/DEVS-32/spec-wyx5gw87-dmpf-krn-05-contratos-wire-cloudevents-buf-e-payload
 subtask_urls: []
 created: 2026-09-02
 ---

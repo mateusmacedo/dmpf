@@ -5,7 +5,7 @@ title: DMPF FND-07 — Revisão de Segurança do threat model e da governança d
 stage: done
 priority: P0
 depends_on: [SPEC-XQWGGAXF]
-ticket_url: null
+ticket_url: https://linear.app/mmda/issue/DEVS-30/spec-dk8qqsdq-dmpf-fnd-07-revisao-de-seguranca-do-threat-model-e-da
 subtask_urls: []
 created: 2026-08-30
 ---

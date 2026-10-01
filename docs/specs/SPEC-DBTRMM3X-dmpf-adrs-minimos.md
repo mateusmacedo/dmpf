@@ -5,7 +5,7 @@ title: DMPF — ADRs mínimos (tabela ARQ-436 §8)
 stage: done
 priority: P0
 depends_on: [SPEC-8YVF0RR5]
-ticket_url: null
+ticket_url: https://linear.app/mmda/issue/DEVS-27/spec-dbtrmm3x-dmpf-adrs-minimos-tabela-arq-436-8
 subtask_urls: [ARQ-511, ARQ-512, ARQ-513, ARQ-514, ARQ-515, ARQ-516, ARQ-517, ARQ-518]
 created: 2026-08-13
 ---

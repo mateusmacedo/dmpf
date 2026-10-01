@@ -5,7 +5,7 @@ title: DMPF — BFF REST público e contextos orders e reservations com gRPC int
 stage: done
 priority: P1
 depends_on: [SPEC-WYX5GW87, SPEC-7PJ5WVCS, SPEC-3R80KNMS, SPEC-ANZX2WPG, SPEC-CGPX20NP, SPEC-EAGAXQN1, SPEC-NYD18TGD, SPEC-SJ66880S, SPEC-6QT9SBAS, SPEC-XMNBMY50, SPEC-8HWBWJCB]
-ticket_url: null
+ticket_url: https://linear.app/mmda/issue/DEVS-55/spec-acykbf9v-dmpf-bff-rest-publico-e-contextos-orders-e-reservations
 subtask_urls: []
 created: 2026-09-14
 ---

@@ -5,7 +5,7 @@ title: Evoluir workflows do template a partir do dmpf (Verdaccio)
 stage: done
 priority: P1
 depends_on: [SPEC-YWAWQHPX]
-ticket_url: null
+ticket_url: https://linear.app/mmda/issue/DEVS-20/spec-w4rwd02m-evoluir-workflows-do-template-a-partir-do-dmpf-verdaccio
 subtask_urls: []
 created: 2026-07-20
 ---

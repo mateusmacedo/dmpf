@@ -5,7 +5,7 @@ title: Melhorias no template base NX (tooling, docs, CI/CD, infra)
 stage: done
 priority: P1
 depends_on: []
-ticket_url: null
+ticket_url: https://linear.app/mmda/issue/DEVS-9/spec-ywawqhpx-melhorias-no-template-base-nx-tooling-docs-cicd-infra
 subtask_urls: []
 created: 2026-07-19
 ---

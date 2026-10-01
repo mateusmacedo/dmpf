@@ -5,7 +5,7 @@ title: DMPF — UPR, Decision, application services e modelo de mensagens
 stage: done
 priority: P0
 depends_on: [SPEC-8YVF0RR5]
-ticket_url: null
+ticket_url: https://linear.app/mmda/issue/DEVS-25/spec-8mndewdp-dmpf-upr-decision-application-services-e-modelo-de
 subtask_urls: []
 created: 2026-08-13
 ---
