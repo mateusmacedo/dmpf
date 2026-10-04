@@ -189,7 +189,7 @@ O fechamento de imports do código de produção é `context`, `errors`, `fmt` e
 ```bash
 pnpm nx run-many -t fmt-check,vet,lint,build,test,test-race,govulncheck -p ports
 bash tools/dmpf-gate-check.sh
-go run ./tools/dmpf-conformance/cmd/conformance --root . --base origin/develop
+go run ./tools/dmpf-conformance/cmd/conformance --root .
 ```
 
 O `lint` aplica ao bloco `port` a regra `depguard` do `.golangci.yml`, com
@@ -211,8 +211,7 @@ workspace é matéria do `KRN-12`.
 Criar um package novo aqui é criar uma unidade DMPF: ele precisa de entrada
 própria no `dmpf-units.json` (`include` por import path exato) e o baseline em
 `tools/dmpf-baseline/units-baseline.json` precisa ser regravado com
-`--write-baseline`. Essa mudança vai em commit separado do código (RFC §10.2);
-misturar os dois reprova no CI com `DMPF-T002`.
+`--write-baseline`; sem isso, o CI reprova com `DMPF-T001`.
 
 ## Referências
 
