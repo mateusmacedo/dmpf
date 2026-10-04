@@ -29,8 +29,6 @@ func newClient(cfg Config, opts ...kgo.Opt) (*kgo.Client, error) {
 	options := []kgo.Opt{kgo.SeedBrokers(cfg.Brokers...)}
 	if cfg.TLS != nil {
 		options = append(options, kgo.DialTLSConfig(cfg.TLS))
-	} else {
-		cfg.logger().Warn("kafka: brokers without TLS by explicit development-only opt-out")
 	}
 	if cfg.SASL != nil {
 		mechanism, err := cfg.SASL.mechanism()

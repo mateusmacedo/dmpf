@@ -29,8 +29,9 @@ var (
 	ErrTLSTooWeak = errors.New("kafka: TLS must verify the peer and require at least TLS 1.2")
 
 	// ErrSinkPanicked is a sink that panicked inside Handle: the attempt fails
-	// without a gesture and the partition stalls; the consumer does not crash.
-	ErrSinkPanicked = errors.New("kafka: sink panicked")
+	// without a gesture and the partition stalls, recorded as Unexpected
+	// (ERR-22); the consumer does not crash.
+	ErrSinkPanicked error = &unexpected{message: "kafka: sink panicked"}
 
 	// ErrClientAuthRequired is a TLS client that does not authenticate itself:
 	// TLS verifies the broker, not who produces, which IDN-04 needs.
@@ -59,3 +60,11 @@ var (
 	// envelope: nothing to preserve (GAR-07).
 	ErrInvalidContainment = errors.New("kafka: containment needs consumer, reason and envelope")
 )
+
+type unexpected struct{ message string }
+
+func (e *unexpected) Error() string { return e.message }
+
+func (*unexpected) ErrorCategory() string { return "Unexpected" }
+
+func (*unexpected) ErrorCode() string { return "" }

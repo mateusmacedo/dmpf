@@ -3,8 +3,11 @@ package kafka_test
 import (
 	"crypto/tls"
 	"errors"
+	"log/slog"
 	"testing"
 	"time"
+
+	"go.opentelemetry.io/otel/log"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/kafka"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/clock"
@@ -52,7 +55,6 @@ func validConfig() kafka.Config {
 		SASL:    &kafka.SASL{Mechanism: kafka.ScramSHA256, Username: "billing", Password: "s3"},
 		Catalog: channel.Catalog{"orders": ordersChannel(), "reservations": sqsChannel()},
 		Sheet:   resilience.Defaults("kafka"),
-		Service: "billing",
 		Clock:   clock.NewFake(start),
 	}
 }
@@ -178,5 +180,30 @@ func TestTheClientRefusesAnUndeclaredSASLMechanism(t *testing.T) {
 
 	if err := kafka.NewClientFor(cfg); !errors.Is(err, kafka.ErrSASLMechanism) {
 		t.Fatalf("newClient() = %v, want ErrSASLMechanism", err)
+	}
+}
+
+func TestOpeningClientsUnderTheOptOutAddsNoWarningToTheOneOfNewConfig(t *testing.T) {
+	provider, exporter := otlpProvider(slog.LevelInfo)
+	cfg := kafka.Config{
+		Brokers:                    []string{"localhost:1"},
+		InsecureForDevelopmentOnly: true,
+		LoggerProvider:             provider,
+	}
+
+	for range 3 {
+		if err := kafka.NewClientFor(cfg); err != nil {
+			t.Fatalf("newClient() = %v, want nil", err)
+		}
+	}
+
+	warnings := 0
+	for _, record := range exporter.snapshot() {
+		if record.Severity() == log.SeverityWarn {
+			warnings++
+		}
+	}
+	if warnings != 0 {
+		t.Fatalf("clients wrote %d warnings, want 0: the opt-out is logged once per process by NewConfig", warnings)
 	}
 }

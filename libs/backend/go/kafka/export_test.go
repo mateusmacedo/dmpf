@@ -36,8 +36,10 @@ var _ Client = (*FakeClient)(nil)
 type FakeClient struct {
 	fetches chan kgo.Fetches
 
-	ProduceErr error
-	CommitErr  error
+	ProduceErr       error
+	CommitErr        error
+	ProducePartition int32
+	ProduceOffset    int64
 
 	mu         sync.Mutex
 	commits    []*kgo.Record
@@ -57,6 +59,10 @@ func (f *FakeClient) Feed(topic string, partition int32, records ...*kgo.Record)
 		r.Topic, r.Partition = topic, partition
 	}
 	f.fetches <- kgo.Fetches{{Topics: []kgo.FetchTopic{{Topic: topic, Partitions: []kgo.FetchPartition{{Partition: partition, Records: records}}}}}}
+}
+
+func (f *FakeClient) FeedError(topic string, partition int32, err error) {
+	f.fetches <- kgo.Fetches{{Topics: []kgo.FetchTopic{{Topic: topic, Partitions: []kgo.FetchPartition{{Partition: partition, Err: err}}}}}}
 }
 
 func (f *FakeClient) PollRecords(ctx context.Context, _ int) kgo.Fetches {
@@ -120,6 +126,7 @@ func (f *FakeClient) ProduceSync(_ context.Context, rs ...*kgo.Record) kgo.Produ
 			results = append(results, kgo.ProduceResult{Record: r, Err: f.ProduceErr})
 			continue
 		}
+		r.Partition, r.Offset = f.ProducePartition, f.ProduceOffset+int64(len(f.produced))
 		f.produced = append(f.produced, r)
 		results = append(results, kgo.ProduceResult{Record: r})
 	}
@@ -175,7 +182,13 @@ func NewDLQWith(cfg Config, ch channel.Channel, cl client) (*DLQ, error) { retur
 
 func (c *Consumer) RunWith(ctx context.Context, cl client) error { return c.run(ctx, cl) }
 
+func (c *Consumer) Attempt(ctx context.Context, record *kgo.Record) error {
+	return (&partitionWorker{consumer: c}).handle(ctx, record, 1, &acknowledger{})
+}
+
 func (c *Consumer) Revoke(ctx context.Context, lost map[string][]int32) { c.revoked(ctx, nil, lost) }
+
+func (c *Consumer) Lose(ctx context.Context, lost map[string][]int32) { c.lost(ctx, nil, lost) }
 
 func (c *Consumer) Assign(ctx context.Context, cl client, assigned map[string][]int32) {
 	c.assign(ctx, cl, assigned)
@@ -222,3 +235,5 @@ func NewClientFor(cfg Config) error {
 	}
 	return err
 }
+
+var CategoryOf = categoryOf

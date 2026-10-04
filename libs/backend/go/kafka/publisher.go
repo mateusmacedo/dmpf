@@ -6,9 +6,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/twmb/franz-go/pkg/kgo"
+	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/contracts/envelope"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/resilience"
@@ -19,6 +22,11 @@ import (
 // HeaderPublishedAt is the operational header with the instant of production
 // (TRP-18); it never enters the envelope.
 const HeaderPublishedAt = "dmpf-published-at"
+
+const (
+	headerContentType     = "content-type"
+	cloudEventsStructured = "application/cloudevents+protobuf"
+)
 
 // ErrInvalidEnvelope is what Publish reports when it cannot read the partition
 // key: what does not decode as the envelope of FND-05 is not published.
@@ -61,7 +69,7 @@ func newPublisher(cfg Config, cl client, observer Observer) (*Publisher, error) 
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	call, err := compose.Build(composition(cfg, "publish"))
+	call, err := compose.Build(composition(cfg))
 	if err != nil {
 		return nil, err
 	}
@@ -71,7 +79,7 @@ func newPublisher(cfg Config, cl client, observer Observer) (*Publisher, error) 
 // operations is one resilience.Operation per catalogued channel of the
 // transport, built once: the publish path then allocates nothing for it.
 func operations(cfg Config, prefix string, transport channel.Transport) map[string]resilience.Operation {
-	cc := composition(cfg, prefix)
+	cc := composition(cfg)
 	ops := make(map[string]resilience.Operation, len(cfg.Catalog))
 	for _, ch := range cfg.Catalog {
 		if ch.Transport == transport {
@@ -94,36 +102,43 @@ func (p *Publisher) Publish(ctx context.Context, destination string, message []b
 	}
 
 	record := &kgo.Record{
-		Topic:   ch.Address,
-		Key:     []byte(env.PartitionKey),
-		Value:   message,
-		Headers: []kgo.RecordHeader{{Key: HeaderPublishedAt, Value: []byte(p.cfg.Clock.Now().UTC().Format(time.RFC3339Nano))}},
+		Topic: ch.Address,
+		Key:   []byte(env.PartitionKey),
+		Value: message,
+		Headers: []kgo.RecordHeader{
+			{Key: HeaderPublishedAt, Value: []byte(p.cfg.Clock.Now().UTC().Format(time.RFC3339Nano))},
+			{Key: headerContentType, Value: []byte(cloudEventsStructured)},
+		},
 	}
 	if p.observer != nil {
 		p.observer(view(record))
 	}
 
 	return p.call(ctx, p.ops[ch.Name], func(ctx context.Context) error {
-		return p.client.ProduceSync(ctx, record).FirstErr()
+		results := p.client.ProduceSync(ctx, record)
+		if err := results.FirstErr(); err != nil {
+			return err
+		}
+		produced, _ := results.First()
+		trace.SpanFromContext(ctx).SetAttributes(
+			semconv.MessagingDestinationPartitionID(strconv.FormatInt(int64(produced.Partition), 10)),
+			semconv.MessagingKafkaOffset(int(produced.Offset)))
+		return nil
 	})
 }
 
 // Close releases the producer, flushing what is buffered.
 func (p *Publisher) Close() { p.client.Close() }
 
-// composition is what transport/compose needs from this provider, with the
-// Kafka error code as the failure category and the producer classifier.
-func composition(cfg Config, prefix string) compose.Config {
+func composition(cfg Config) compose.Config {
 	return compose.Config{
-		Sheet:       cfg.Sheet,
-		Service:     cfg.Service,
-		SpanPrefix:  "dmpf.kafka." + prefix + " ",
-		Clock:       cfg.Clock,
-		Tracer:      cfg.Tracer,
-		Instruments: cfg.Instruments,
-		Logger:      cfg.Logger,
-		Rand:        cfg.Rand,
-		Category:    categoryOf,
-		Classifier:  Classifier,
+		Sheet:          cfg.Sheet,
+		Clock:          cfg.Clock,
+		Tracer:         cfg.Tracer,
+		Instruments:    cfg.Instruments,
+		LoggerProvider: cfg.LoggerProvider,
+		Rand:           cfg.Rand,
+		Category:       categoryOf,
+		Classifier:     Classifier,
 	}
 }
