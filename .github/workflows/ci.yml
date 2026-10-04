@@ -153,7 +153,7 @@ jobs:
 
       # Nem os gates acima nem o `--root .` exercitam shared kernel: não há
       # aresta de outro contexto para o kernel enquanto o consumidor não existe,
-      # e mudar a designação é raro. Sem este gate, C2 e DMPF-T002 ficam sem prova.
+      # e mudar a designação é raro. Sem este gate, C2 e DMPF-M004 ficam sem prova.
       - name: DMPF shared kernel gate
         if: steps.go_affected.outputs.any == 'true'
         run: bash tools/dmpf-shared-kernel-check.sh
@@ -214,16 +214,11 @@ jobs:
       # removido NESTE MESMO COMMIT, para que não exista estado em que os dois
       # convivam e o resultado dependa de qual deles alguém leu.
       #
-      # `--base` entrega o intervalo em revisão, que o mecanismo mínimo de
-      # RFC §10.2 precisa para avaliar se a mudança normativa veio em commit
-      # próprio. Sem ele, a condição fica "não verificada" — e não verificada
-      # reprova.
-      #
       # Sem `if: steps.go_affected`: o vencimento de exceção (DMPF-X006) muda com
       # o tempo, sem mudança de código, e precisa reprovar em qualquer PR.
       - name: DMPF conformance gate
         run: |
-          go run ./tools/dmpf-conformance/cmd/conformance --root . --base "$NX_BASE"
+          go run ./tools/dmpf-conformance/cmd/conformance --root .
 
       # Sem `if: steps.go_affected`, como o generator check: um PR que só toca
       # `bom/` não afeta projeto Go nenhum e pularia o gate. Os BOMs antigos ficam

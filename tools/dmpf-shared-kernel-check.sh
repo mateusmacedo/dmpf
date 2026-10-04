@@ -5,8 +5,8 @@
 #
 # Prova que o verificador decide shared kernel pela RFC §7.2 estendida
 # (ADR-042): C2 aceita destino designado, DMPF-M004 cobre chave não resolvida
-# no baseline, e o mecanismo mínimo de RFC §10.2 (DMPF-T002) reprova quando a
-# designação muda no mesmo commit que código. Nem dmpf-gate-check.sh (decide
+# no baseline, e a designação pode mudar no mesmo commit que código (ADR-058
+# revogou o DMPF-T002). Nem dmpf-gate-check.sh (decide
 # por nome de diretório, sem aresta) nem dmpf-cell-check.sh (fixa blocos e
 # bounded context, sem shared kernel) nem o `conformance --root .` do CI
 # (sem aresta de outro contexto para o kernel enquanto o consumidor não existe,
@@ -15,10 +15,8 @@
 # Dois módulos sintéticos entram num worktree descartável, nunca na árvore de
 # trabalho: o verificador inventaria por `git ls-files` (exige go.mod
 # rastreado) mas lê imports por `go list` (exige o módulo em go.work). Cada
-# cenário abre e descarta o próprio worktree — como cada um precisa de um
-# histórico git próprio (o commit que mistura normativo com código é o próprio
-# objeto de teste do quarto cenário), reaproveitar um único worktree entre
-# cenários journalizaria o commit de um no histórico avaliado pelos outros.
+# cenário abre e descarta o próprio worktree, para que o fixture de um não
+# vaze para os outros.
 set -uo pipefail
 
 ROOT="$(git rev-parse --show-toplevel)" || { echo "fora de um repositorio git" >&2; exit 2; }
@@ -129,12 +127,8 @@ designar_shared_kernel() { # lista-json, ex: ["kernel/domain"]
 # Monta o worktree comum aos quatro cenários: dois módulos sintéticos com
 # go.mod e fonte de produção (commit 1, sem manifesto), depois manifesto e
 # baseline designando kernel/domain como shared kernel (commit 2).
-# BASE_REF é capturado ANTES do commit 1: CommitsQueTocaram(base) precisa
-# enxergar os commits do próprio worktree, o que NX_BASE=develop não faria
-# aqui, porque os commits nunca existiram em develop.
 preparar_ambiente() {
   abrir_worktree
-  BASE_REF="$(git -C "$WORKTREE" rev-parse HEAD)" || falha_setup "rev-parse HEAD no worktree"
 
   escrever_probe "$PROBE_X_DIR" "$PROBE_X_PKG" probex
   escrever_probe "$PROBE_Y_DIR" "$PROBE_Y_PKG" probey
@@ -151,11 +145,11 @@ preparar_ambiente() {
 }
 
 verificar() {
-  go run "$VERIFICADOR" --root "$WORKTREE" --base "$BASE_REF" 2>&1
+  go run "$VERIFICADOR" --root "$WORKTREE" 2>&1
 }
 
 # Conjunto exato de códigos, não grep de um único: exit 1 sai igual para
-# DMPF-D002, DMPF-M004, DMPF-T001 e DMPF-T002, e um vetor que espera um deles
+# DMPF-D002, DMPF-M004 e DMPF-T001, e um vetor que espera um deles
 # passaria por acidente se o outro aparecesse no lugar.
 codigos() {
   grep -oE 'DMPF-[A-Z][0-9]{3}' <<<"$1" | sort -u
@@ -202,14 +196,12 @@ for vetor in "${VETORES_D002[@]}"; do
   descartar_worktree
 done
 
-# Sexto ato: reprova o commit que muda shared_kernel_units de uma unidade já
-# existente na MESMA mensagem que toca código. É a asserção mais frágil do
-# gate — se DMPF-T002 não disparar aqui, é sinal de buraco na tarefa 1.5, não
-# motivo para afrouxar a checagem até o script ficar verde.
+# Quarto cenário: mudar shared_kernel_units no MESMO commit que toca código
+# aprova desde o ADR-058, que revogou o DMPF-T002.
 preparar_ambiente
 designar_shared_kernel '["kernel/domain", "kernel/testkit-domain"]'
 printf '\nconst MarkerV2 = "probe-x-v2"\n' >> "$WORKTREE/$PROBE_X_DIR/probe.go" \
-  || falha_setup "editar probe.go do sexto ato"
+  || falha_setup "editar probe.go do quarto cenario"
 commitar "refactor(probe): rotate shared kernel designation and touch code" \
   tools/dmpf-baseline/units-baseline.json "$PROBE_X_DIR/probe.go"
 
@@ -218,14 +210,11 @@ status=$?
 exercitados=$((exercitados + 1))
 obtidos="$(codigos "$saida")"
 
-if [ "$status" -ne 1 ]; then
-  echo "  FALHA  sexto ato: exit $status, esperado 1"
-  falhas=$((falhas + 1))
-elif ! grep -qx "DMPF-T002" <<<"$obtidos"; then
-  echo "  FALHA  sexto ato: DMPF-T002 nao apareceu (codigos obtidos: [$obtidos]) -- possivel buraco na tarefa 1.5"
+if [ "$status" -ne 0 ] || [ -n "$obtidos" ]; then
+  echo "  FALHA  designacao e codigo no mesmo commit: exit $status, codigos [$obtidos], esperado exit 0 sem codigo"
   falhas=$((falhas + 1))
 else
-  echo "  ok     sexto ato: exit $status, DMPF-T002 presente (codigos [$obtidos])"
+  echo "  ok     designacao e codigo no mesmo commit: exit $status, sem codigo"
 fi
 
 descartar_worktree
