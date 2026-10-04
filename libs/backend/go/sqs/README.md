@@ -17,7 +17,11 @@ Criado por `KRN-10` (ARQ-529, `docs/specs/SPEC-EAGAXQN1-dmpf-providers-transport
 
 Dependências externas declaradas (`io.messaging`): `github.com/aws/aws-sdk-go-v2`
 (`aws`), `service/sqs` (+`types`), `service/sns` (+`types`) e
-`github.com/aws/smithy-go` (só a interface `APIError`, para classificar); e
+`github.com/aws/smithy-go` (a interface `APIError`, para classificar, e o
+pacote `logging`: `NewSQSClient` e `NewSNSClient` trocam o `Logger` da
+`aws.Config`, que por default escreve no stderr, por um que grava no
+`LoggerProvider`, sob o scope `github.com/aws/aws-sdk-go-v2`, só o nível e uma
+mensagem fixa, nunca o texto do SDK); e
 `go.opentelemetry.io/otel/trace` e `otel/metric` (`observability`). O
 `aws-sdk-go-v2/config` entra **só nos testes de integração**
 (`LoadDefaultConfig`): em produção a `aws.Config` já resolvida é do
@@ -26,9 +30,10 @@ composition root.
 ## O que o módulo contém
 
 - **`config.go`** — `Config{AWS, Endpoint, InsecureForDevelopmentOnly, Catalog,
-  Sheet, Service, Clock, Tracer, Instruments, Logger, Rand}`. `Endpoint` que não
+  Sheet, Clock, Tracer, Instruments, LoggerProvider, Rand}`. `Endpoint` que não
   seja `https://` é recusado sem o opt-out (`ErrTLSRequired`): a assinatura
-  SigV4 viaja nos headers. `Channel(destino)` resolve no catálogo
+  SigV4 viaja nos headers; o opt-out sai em `warn` uma vez por processo.
+  `Channel(destino)` resolve no catálogo
   (TRP-07, ASY-01) e recusa ordenação incoerente com o tipo da fila: FIFO
   (sufixo `.fifo`) ordena por grupo, standard por nada (SQS-04).
 - **`body.go`** — `EncodeBody`/`DecodeBody`: Base64 padrão, aplicado uma vez
@@ -46,6 +51,20 @@ composition root.
   > 256 KiB → `ErrMessageTooLarge` (SQS-12, que soma os dois; sem claim-check,
   SQS-12b); > 10 atributos → `ErrTooManyAttributes` (SQS-03b). Envio pela composição de RES-22 com o
   `Classifier` do SDK (falha de servidor ou throttle e `net.Error` retentam).
+  O publisher não abre span próprio: fora do `send` do relay, o span de
+  resiliência recebe `messaging.system` e `messaging.destination.name` (RF-B7).
+  A categoria de falha (`error.type` e `dmpf.outcome_category`) é a que o erro
+  declara — a do erro de plataforma, ou `Unexpected` no panic do `Sink`
+  (ERR-22); senão, a categoria FND-07 do prazo (`DeadlineExceeded`), do
+  cancelamento (`Cancelled`), do código de erro do SDK — `RateLimited` nos
+  throttles (inclusive o `Throttled` do SNS e o `KmsThrottled`, o
+  `KMSThrottling` e o `KMS.ThrottlingException` do KMS, todos retentados pelo
+  `Classifier`), `NotFound` na fila inexistente,
+  `Forbidden` no acesso negado, `Unauthenticated` em `InvalidSecurity`,
+  `Validation` no parâmetro ou conteúdo inválido, e `TransientDependency` para
+  `ServiceUnavailable`, `InternalError` e o restante de falha de servidor — ou
+  da rede (`TransientDependency`), e `_OTHER` fora da tabela; nunca a mensagem
+  nem o código, que não tem chave própria em span nem em log.
 - **`sns.go`** — `NewSNSPublisher(ctx, cfg, api)` **descobre** as assinaturas
   de cada tópico `sns-sqs` do catálogo (`ListSubscriptionsByTopic`, paginado) e
   verifica **na construção** cada assinatura de protocolo `sqs`:
@@ -57,7 +76,9 @@ composition root.
   tanto (`MaxNumberOfMessages`), de modo que toda mensagem recebida tem worker
   e heartbeat imediatos — nada espera invisível num buffer. `WaitTime` é
   obrigatório em [1 s, 20 s] (long polling dentro do teto da API) e receive
-  que falha espera `Backoff.Next` antes de repetir. `Validate` exige
+  que falha sai em `warn` (`sqs: receive failed`), com
+  `dmpf.consumer.consecutive_failures` e `error.type`, e espera `Backoff.Next`
+  antes de repetir. `Validate` exige
   `2 × HeartbeatEvery ≤ VisibilityBase`, porque um tick pode consumir um
   intervalo inteiro antes de o próximo ser armado. Cada mensagem:
   `attempt` = `ApproximateReceiveCount` (TRP-52), gravado no contexto
@@ -67,9 +88,17 @@ composition root.
   intervalo, e um tick que falha cancela a tentativa, porque a invisibilidade
   deixou de ser garantida; corpo decodificado uma vez — indecodificável vai
   **cru** ao `Sink`, e o adapter quarentena (INB-10). Erro do `Sink` é sempre
-  logado (com o nome do canal, nunca a URL da fila), dizendo se houve gesto;
+  logado, com `messaging.system`, `messaging.destination.name` — o nome da
+  fila, último segmento do caminho de `QueueURL` ou do endereço do canal, nunca
+  a URL —, `dmpf.inbox.attempt`,
+  `dmpf.inbox.gesture_recorded`, que diz se houve gesto, e `error.type`;
   retorno sem gesto deixa a visibilidade expirar; panic do `Sink` é tentativa
-  sem gesto (`ErrSinkPanicked`), nunca queda do consumer. Não há retry inline: `MaxInlineAttempts != 0` é recusado (SQS-11b)
+  sem gesto (`ErrSinkPanicked`), nunca queda do consumer, e sai no log com
+  `error.type` `Unexpected` (ERR-22), sem o valor do panic. Um panic fora do
+  `Sink`, no heartbeat ou no restante do worker, encerra o consumer: o contexto
+  do `Run` é cancelado, as tentativas em curso terminam e o `Run` devolve
+  só `ErrPanicked`, sem o valor do panic, que o `cmd/main.go` escreve como erro de
+  término (RF-A1). Não há retry inline: `MaxInlineAttempts != 0` é recusado (SQS-11b)
   — a D3 esgotada é do redrive gerenciado pelo `maxReceiveCount` da fila.
   `MET-11`: utilização = workers ocupados / `Concurrency`; profundidade =
   recebidas ainda não entregues a um worker.
@@ -82,9 +111,10 @@ composition root.
   explícita na fila de contenção (SQS-11, D4/R4 e envelope inválido): envelope
   codificado uma vez e intacto, atributos `dmpf-reason`, `dmpf-consumer`,
   `dmpf-message-id`, `dmpf-contained-at`, `dmpf-error` e, quando o contexto
-  veio do consumer, `dmpf-attempt` (TRP-52); `dmpf-message-id` e `dmpf-error`,
-  que vêm de fora do provider, são cortados em `AttributeValueLimit` (1 KiB) e
-  contam no teto de 256 KiB; em FIFO, grupo/dedup derivados do envelope — o
+  veio do consumer, `dmpf-attempt` (TRP-52); `dmpf-message-id`, que vem de fora
+  do provider, é cortado em `AttributeValueLimit` (1 KiB), e `dmpf-error` só
+  leva uma categoria FND-07 — o texto de erro que não é uma delas vira `_OTHER`
+  (DAT-03), como no kafka; os atributos contam no teto de 256 KiB; em FIFO, grupo/dedup derivados do envelope — o
   indecodificável vai no grupo `invalid-envelope`.
   Quem chama deleta só depois do retorno (TRP-30).
 
@@ -144,5 +174,6 @@ verificador.
   `TRP-27`, `TRP-30`, `TRP-52`), §12 (`SQS-01` a `SQS-13`).
 - `docs/dmpf/resiliencia-observabilidade.md` (FND-08) — `RES-22`, `MET-11`.
 - `docs/adr/025-kafka-transporte-alvo-sns-sqs-acervo.md` — SNS/SQS normatizado.
+- `docs/specs/SPEC-1TFW24WV-observabilidade-ponta-a-ponta.md` — os `RF-*` citados aqui: o publisher sem span próprio.
 - `libs/backend/go/transport/README.md` — `channel`, `observe`.
 - `libs/backend/go/app/README.md` — o adapter que realiza o `Sink`.

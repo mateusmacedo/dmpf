@@ -22,10 +22,11 @@ type heartbeat struct {
 // startHeartbeat runs tick(ctx, remaining) every interval, each tick bounded by
 // one interval so a call stuck at the broker cannot hold the gesture; giveUp
 // runs once at the ceiling or on a failed tick: invisibility is no longer sure.
-func startHeartbeat(ctx context.Context, c clock.Clock, every time.Duration, ceiling time.Time, tick func(context.Context, time.Duration) error, giveUp func()) *heartbeat {
+func startHeartbeat(ctx context.Context, failure *fault, c clock.Clock, every time.Duration, ceiling time.Time, tick func(context.Context, time.Duration) error, giveUp func()) *heartbeat {
 	h := &heartbeat{stop: make(chan struct{}), done: make(chan struct{})}
 	go func() {
 		defer close(h.done)
+		defer failure.catch()
 		timer := c.NewTimer(every)
 		defer timer.Stop()
 		for {

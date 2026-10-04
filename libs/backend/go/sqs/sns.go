@@ -9,6 +9,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sns"
 	snstypes "github.com/aws/aws-sdk-go-v2/service/sns/types"
+	"go.opentelemetry.io/otel/attribute"
+	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/resilience"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/channel"
@@ -19,10 +21,11 @@ import (
 // as the queue publisher, on a topic whose SQS subscriptions were all found and
 // verified to deliver raw (SQS-02) and, when FIFO, to carry no filter (SQS-03c).
 type SNSPublisher struct {
-	cfg  Config
-	api  snsAPI
-	call resilience.Call
-	ops  map[string]resilience.Operation
+	cfg          Config
+	api          snsAPI
+	call         resilience.Call
+	ops          map[string]resilience.Operation
+	destinations map[string][]attribute.KeyValue
 }
 
 // NewSNSPublisher verifies, at construction, every SQS subscription the broker
@@ -43,11 +46,15 @@ func NewSNSPublisher(ctx context.Context, cfg Config, api snsAPI) (*SNSPublisher
 			return nil, err
 		}
 	}
-	call, err := compose.Build(composition(cfg, "publish"))
+	call, err := compose.Build(composition(cfg))
 	if err != nil {
 		return nil, err
 	}
-	return &SNSPublisher{cfg: cfg, api: api, call: call, ops: operations(cfg, "publish", channel.SNSSQS)}, nil
+	return &SNSPublisher{
+		cfg: cfg, api: api, call: call,
+		ops:          operations(cfg, "publish", channel.SNSSQS),
+		destinations: destinations(cfg, semconv.MessagingSystemAWSSNS, channel.SNSSQS),
+	}, nil
 }
 
 // verifyTopic lists the topic's subscriptions and checks each SQS one.
@@ -115,6 +122,7 @@ func (p *SNSPublisher) Publish(ctx context.Context, destination string, raw []by
 		in.MessageGroupId, in.MessageDeduplicationId = aws.String(m.groupID), aws.String(m.dedupID)
 	}
 	return p.call(ctx, p.ops[ch.Name], func(ctx context.Context) error {
+		annotate(ctx, p.destinations[ch.Name])
 		_, err := p.api.Publish(ctx, in)
 		return err
 	})

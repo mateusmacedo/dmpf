@@ -5,6 +5,7 @@ package sqs
 import (
 	"context"
 	"strings"
+	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/service/sns"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
@@ -39,6 +40,7 @@ var (
 func NewSQSClient(cfg Config) *sqs.Client {
 	warnPlaintext(cfg)
 	return sqs.NewFromConfig(cfg.AWS, func(o *sqs.Options) {
+		o.Logger = cfg.awsLogger()
 		if cfg.Endpoint != "" {
 			o.BaseEndpoint = &cfg.Endpoint
 		}
@@ -49,14 +51,19 @@ func NewSQSClient(cfg Config) *sqs.Client {
 func NewSNSClient(cfg Config) *sns.Client {
 	warnPlaintext(cfg)
 	return sns.NewFromConfig(cfg.AWS, func(o *sns.Options) {
+		o.Logger = cfg.awsLogger()
 		if cfg.Endpoint != "" {
 			o.BaseEndpoint = &cfg.Endpoint
 		}
 	})
 }
 
+var plaintextWarning = new(sync.Once)
+
 func warnPlaintext(cfg Config) {
 	if cfg.Endpoint != "" && !strings.HasPrefix(cfg.Endpoint, "https://") {
-		cfg.logger().Warn("sqs: endpoint without TLS by explicit development-only opt-out")
+		plaintextWarning.Do(func() {
+			cfg.logger().Warn("sqs: endpoint without TLS by explicit development-only opt-out")
+		})
 	}
 }

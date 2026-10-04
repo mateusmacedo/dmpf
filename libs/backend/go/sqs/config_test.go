@@ -16,6 +16,7 @@ import (
 var start = time.Date(2026, 9, 6, 12, 0, 0, 0, time.UTC)
 
 const (
+	fifoQueue   = "reservations.fifo"
 	fifoURL     = "http://localhost:4566/000000000000/reservations.fifo"
 	fifoDLQ     = "http://localhost:4566/000000000000/reservations-dlq.fifo"
 	standardURL = "http://localhost:4566/000000000000/notifications"
@@ -69,7 +70,6 @@ func validConfig() sqs.Config {
 		AWS:     aws.Config{Region: "us-east-1"},
 		Catalog: channel.Catalog{"reservations": fifoChannel(), "notifications": standardChannel(), "orders-fanout": snsChannel(), "orders": kafkaChannel()},
 		Sheet:   resilience.Defaults("sqs"),
-		Service: "stock",
 		Clock:   clock.NewFake(start),
 		Rand:    func() float64 { return 0 },
 	}
@@ -136,4 +136,26 @@ func TestConfigChannel(t *testing.T) {
 			t.Fatalf("Channel() = %v, want ErrOrderingMismatch (SQS-04)", err)
 		}
 	})
+}
+
+func TestAPlaintextEndpointWarnsOncePerProcess(t *testing.T) {
+	sqs.ResetPlaintextWarning()
+	records := &logRecords{}
+	cfg := validConfig()
+	cfg.Endpoint, cfg.InsecureForDevelopmentOnly = "http://localhost:4566", true
+	cfg.LoggerProvider = records.provider()
+
+	sqs.NewSQSClient(cfg)
+	sqs.NewSNSClient(cfg)
+	sqs.NewSQSClient(cfg)
+
+	warnings := 0
+	for _, record := range records.snapshot() {
+		if record["level"] == "WARN" {
+			warnings++
+		}
+	}
+	if warnings != 1 {
+		t.Fatalf("three clients wrote %d warnings, want 1 per process (RF-A6)\n%v", warnings, records.snapshot())
+	}
 }

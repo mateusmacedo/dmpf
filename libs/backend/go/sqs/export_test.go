@@ -16,6 +16,10 @@ func NewAcknowledger(api sqsAPI, queueURL, receipt string, backoff time.Duration
 
 type Acknowledger = acknowledger
 
+func (c *Consumer) Attempt(ctx context.Context, raw []byte) error {
+	return c.handle(ctx, raw, 1, &acknowledger{})
+}
+
 func VisibilitySeconds(d time.Duration) int32 { return visibilitySeconds(d) }
 
 type SQSAPI = sqsAPI
@@ -193,3 +197,7 @@ func (f *FakeSNS) Subscribe(topicARN, subscriptionARN, protocol string, attrs ma
 	})
 	f.Subscriptions[subscriptionARN] = attrs
 }
+
+func ResetPlaintextWarning() { plaintextWarning = new(sync.Once) }
+
+var CategoryOf = categoryOf

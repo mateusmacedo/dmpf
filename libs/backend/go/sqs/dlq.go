@@ -10,6 +10,8 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
+	"go.opentelemetry.io/otel/attribute"
+	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/contracts/envelope"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/contracts/payloadhash"
@@ -31,20 +33,21 @@ const (
 	AttrAttempt     = attempt.Header
 )
 
-// AttributeValueLimit bounds the two attribute values that come from outside
-// the provider — the message id of the received envelope and the adapter's
-// error — so a hostile or broken value cannot make the quarantine fail.
+// AttributeValueLimit bounds the message id of the received envelope, which
+// comes from outside the provider, so a hostile or broken value cannot make the
+// quarantine fail.
 const AttributeValueLimit = 1024
 
 // DLQ realizes ports.Containment by explicit publication on the channel's
 // containment queue (SQS-11, D4/R4 and invalid envelope): the envelope goes
 // encoded once and intact, and the caller deletes only after it returns (TRP-30).
 type DLQ struct {
-	cfg  Config
-	ch   channel.Channel
-	api  sqsAPI
-	call resilience.Call
-	op   resilience.Operation
+	cfg         Config
+	ch          channel.Channel
+	api         sqsAPI
+	call        resilience.Call
+	op          resilience.Operation
+	destination []attribute.KeyValue
 }
 
 var _ ports.Containment = (*DLQ)(nil)
@@ -63,12 +66,16 @@ func NewDLQ(cfg Config, api sqsAPI, ch channel.Channel) (*DLQ, error) {
 	if ch.Transport != channel.SQS && ch.Transport != channel.SNSSQS {
 		return nil, fmt.Errorf("%w: %s", ErrNotSQSChannel, ch.Name)
 	}
-	cc := composition(cfg, "quarantine")
+	cc := composition(cfg)
 	call, err := compose.Build(cc)
 	if err != nil {
 		return nil, err
 	}
-	return &DLQ{cfg: cfg, ch: ch, api: api, call: call, op: compose.Operation(cc, "quarantine "+ch.Name, true)}, nil
+	return &DLQ{
+		cfg: cfg, ch: ch, api: api, call: call,
+		op:          compose.Operation(cc, "quarantine "+ch.Name, true),
+		destination: destination(semconv.MessagingSystemAWSSQS, queueName(ch.Containment)),
+	}, nil
 }
 
 // Quarantine sends the contained envelope to the containment queue with the
@@ -86,7 +93,7 @@ func (d *DLQ) Quarantine(ctx context.Context, c ports.Contained) error {
 		AttrContainedAt: time.Unix(0, int64(c.At)).UTC().Format(time.RFC3339Nano),
 	}
 	if c.Error != "" {
-		attributes[AttrError] = bounded(c.Error)
+		attributes[AttrError] = categoryOfText(c.Error)
 	}
 	if n, ok := attempt.FromContext(ctx); ok {
 		attributes[AttrAttempt] = attempt.Encode(n)
@@ -108,9 +115,22 @@ func (d *DLQ) Quarantine(ctx context.Context, c ports.Contained) error {
 		in.MessageGroupId, in.MessageDeduplicationId = aws.String(group), aws.String(dedup)
 	}
 	return d.call(ctx, d.op, func(ctx context.Context) error {
+		annotate(ctx, d.destination)
 		_, err := d.api.SendMessage(ctx, in)
 		return err
 	})
+}
+
+var fnd07Categories = map[string]struct{}{
+	"Validation": {}, "DomainRejection": {}, "NotFound": {}, "Conflict": {}, "Forbidden": {}, "Unauthenticated": {},
+	"TransientDependency": {}, "RateLimited": {}, "DeadlineExceeded": {}, "Cancelled": {}, "Unexpected": {},
+}
+
+func categoryOfText(text string) string {
+	if _, ok := fnd07Categories[text]; ok {
+		return text
+	}
+	return semconv.ErrorTypeOther.Value.AsString()
 }
 
 // bounded cuts a value at AttributeValueLimit bytes, on a rune boundary.

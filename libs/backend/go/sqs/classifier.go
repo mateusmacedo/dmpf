@@ -5,11 +5,13 @@ package sqs
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net"
-	"strings"
 
 	"github.com/aws/smithy-go"
+	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
 
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/redact"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/retry"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/observe"
 )
@@ -42,15 +44,13 @@ func Classifier(err error) retry.Retryability {
 func isThrottle(code string) bool {
 	switch code {
 	case "Throttling", "ThrottlingException", "RequestThrottled", "RequestThrottledException",
-		"TooManyRequestsException", "RequestLimitExceeded", "ServiceUnavailable", "InternalError":
+		"TooManyRequestsException", "RequestLimitExceeded", "Throttled", "KmsThrottled", "KMSThrottling",
+		"KMS.ThrottlingException", "ServiceUnavailable", "InternalError":
 		return true
 	}
 	return false
 }
 
-// categoryOf returns the bounded category under which a failure is recorded:
-// a platform category, the API error code in lowercase, the context error or
-// "network" — never the message (TRC-12, MET-07).
 func categoryOf(err error) string {
 	if err == nil {
 		return observe.CategoryOK
@@ -59,21 +59,69 @@ func categoryOf(err error) string {
 	if errors.As(err, &categorized) {
 		return categorized.ErrorCategory()
 	}
+	switch {
+	case errors.Is(err, context.DeadlineExceeded):
+		return "DeadlineExceeded"
+	case errors.Is(err, context.Canceled):
+		return "Cancelled"
+	}
 	var api smithy.APIError
 	if errors.As(err, &api) {
-		return strings.ToLower(api.ErrorCode())
-	}
-	switch {
-	case errors.Is(err, ErrSinkPanicked):
-		return "panic"
-	case errors.Is(err, context.DeadlineExceeded):
-		return "deadline_exceeded"
-	case errors.Is(err, context.Canceled):
-		return "cancelled"
+		return apiCategory(api)
 	}
 	var network net.Error
 	if errors.As(err, &network) {
-		return "network"
+		return categoryTransientDependency
 	}
-	return "unknown"
+	return semconv.ErrorTypeOther.Value.AsString()
+}
+
+func errorAttr(err error) slog.Attr {
+	var categorized redact.Categorized
+	if err == nil || errors.As(err, &categorized) {
+		return redact.Error(err)
+	}
+	return slog.String(redact.KeyErrorType, categoryOf(err))
+}
+
+const categoryTransientDependency = "TransientDependency"
+
+var fnd07Codes = map[string]string{
+	"ServiceUnavailable":                      categoryTransientDependency,
+	"InternalError":                           categoryTransientDependency,
+	"Throttling":                              "RateLimited",
+	"ThrottlingException":                     "RateLimited",
+	"RequestThrottled":                        "RateLimited",
+	"RequestThrottledException":               "RateLimited",
+	"TooManyRequestsException":                "RateLimited",
+	"RequestLimitExceeded":                    "RateLimited",
+	"Throttled":                               "RateLimited",
+	"KmsThrottled":                            "RateLimited",
+	"KMSThrottling":                           "RateLimited",
+	"KMS.ThrottlingException":                 "RateLimited",
+	"QueueDoesNotExist":                       "NotFound",
+	"AWS.SimpleQueueService.NonExistentQueue": "NotFound",
+	"NotFound":                                "NotFound",
+	"AccessDeniedException":                   "Forbidden",
+	"AuthorizationError":                      "Forbidden",
+	"KmsAccessDenied":                         "Forbidden",
+	"KMSAccessDenied":                         "Forbidden",
+	"KMS.AccessDeniedException":               "Forbidden",
+	"InvalidSecurity":                         "Unauthenticated",
+	"InvalidMessageContents":                  "Validation",
+	"InvalidAttributeName":                    "Validation",
+	"InvalidAttributeValue":                   "Validation",
+	"InvalidParameter":                        "Validation",
+	"ParameterValueInvalid":                   "Validation",
+	"ValidationException":                     "Validation",
+}
+
+func apiCategory(api smithy.APIError) string {
+	if category, mapped := fnd07Codes[api.ErrorCode()]; mapped {
+		return category
+	}
+	if api.ErrorFault() == smithy.FaultServer {
+		return categoryTransientDependency
+	}
+	return semconv.ErrorTypeOther.Value.AsString()
 }

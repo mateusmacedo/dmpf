@@ -5,15 +5,20 @@ package sqs
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	sqstypes "github.com/aws/aws-sdk-go-v2/service/sqs/types"
+	"go.opentelemetry.io/otel/attribute"
+	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/contracts/envelope"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/contracts/payloadhash"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/resilience"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/tracing"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/channel"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/compose"
 )
@@ -91,10 +96,11 @@ func sqsAttributes(attributes map[string]string) map[string]sqstypes.MessageAttr
 // channel, the envelope Base64-encoded once in the body, group and dedup
 // derived for FIFO, and the send through the composition of RES-22.
 type Publisher struct {
-	cfg  Config
-	api  sqsAPI
-	call resilience.Call
-	ops  map[string]resilience.Operation
+	cfg          Config
+	api          sqsAPI
+	call         resilience.Call
+	ops          map[string]resilience.Operation
+	destinations map[string][]attribute.KeyValue
 }
 
 // NewPublisher builds the publisher over an SQS client; NewSQSClient gives the
@@ -106,11 +112,15 @@ func NewPublisher(cfg Config, api sqsAPI) (*Publisher, error) {
 	if api == nil {
 		return nil, fmt.Errorf("%w: sqs client", ErrIncompleteConfig)
 	}
-	call, err := compose.Build(composition(cfg, "publish"))
+	call, err := compose.Build(composition(cfg))
 	if err != nil {
 		return nil, err
 	}
-	return &Publisher{cfg: cfg, api: api, call: call, ops: operations(cfg, "publish", channel.SQS)}, nil
+	return &Publisher{
+		cfg: cfg, api: api, call: call,
+		ops:          operations(cfg, "publish", channel.SQS),
+		destinations: destinations(cfg, semconv.MessagingSystemAWSSQS, channel.SQS),
+	}, nil
 }
 
 // Publish routes the message by logical destination: the catalogue gives the
@@ -137,32 +147,29 @@ func (p *Publisher) Publish(ctx context.Context, destination string, raw []byte)
 		in.MessageGroupId, in.MessageDeduplicationId = aws.String(m.groupID), aws.String(m.dedupID)
 	}
 	return p.call(ctx, p.ops[ch.Name], func(ctx context.Context) error {
+		annotate(ctx, p.destinations[ch.Name])
 		_, err := p.api.SendMessage(ctx, in)
 		return err
 	})
 }
 
-// composition is what transport/compose needs from this provider, with the
-// SDK error code as the failure category and the SDK classifier.
-func composition(cfg Config, prefix string) compose.Config {
+func composition(cfg Config) compose.Config {
 	return compose.Config{
-		Sheet:       cfg.Sheet,
-		Service:     cfg.Service,
-		SpanPrefix:  "dmpf.sqs." + prefix + " ",
-		Clock:       cfg.Clock,
-		Tracer:      cfg.Tracer,
-		Instruments: cfg.Instruments,
-		Logger:      cfg.Logger,
-		Rand:        cfg.Rand,
-		Category:    categoryOf,
-		Classifier:  Classifier,
+		Sheet:          cfg.Sheet,
+		Clock:          cfg.Clock,
+		Tracer:         cfg.Tracer,
+		Instruments:    cfg.Instruments,
+		LoggerProvider: cfg.LoggerProvider,
+		Rand:           cfg.Rand,
+		Category:       categoryOf,
+		Classifier:     Classifier,
 	}
 }
 
 // operations is one resilience.Operation per catalogued channel of the given
 // transports, built once: the publish path then allocates nothing for it.
 func operations(cfg Config, prefix string, transports ...channel.Transport) map[string]resilience.Operation {
-	cc := composition(cfg, prefix)
+	cc := composition(cfg)
 	ops := make(map[string]resilience.Operation, len(cfg.Catalog))
 	for _, ch := range cfg.Catalog {
 		for _, t := range transports {
@@ -172,4 +179,35 @@ func operations(cfg Config, prefix string, transports ...channel.Transport) map[
 		}
 	}
 	return ops
+}
+
+func destinations(cfg Config, system attribute.KeyValue, transport channel.Transport) map[string][]attribute.KeyValue {
+	name := queueName
+	if transport == channel.SNSSQS {
+		name = topicName
+	}
+	out := make(map[string][]attribute.KeyValue, len(cfg.Catalog))
+	for _, ch := range cfg.Catalog {
+		if ch.Transport == transport {
+			out[ch.Name] = destination(system, name(ch.Address))
+		}
+	}
+	return out
+}
+
+func destination(system attribute.KeyValue, name string) []attribute.KeyValue {
+	return []attribute.KeyValue{system, semconv.MessagingDestinationName(name)}
+}
+
+func topicName(topicARN string) string {
+	return topicARN[strings.LastIndexAny(topicARN, ":/")+1:]
+}
+
+// The relay's send already carries its own messaging.* (app/relay/send.go);
+// only the resilience span opened outside the relay takes these (RF-B7).
+func annotate(ctx context.Context, attributes []attribute.KeyValue) {
+	if _, owned := tracing.OwnsSpan(ctx); owned {
+		return
+	}
+	trace.SpanFromContext(ctx).SetAttributes(attributes...)
 }

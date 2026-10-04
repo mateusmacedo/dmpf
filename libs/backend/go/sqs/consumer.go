@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"math/rand/v2"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -15,11 +16,11 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	sqstypes "github.com/aws/aws-sdk-go-v2/service/sqs/types"
-	"go.opentelemetry.io/otel/metric"
+	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/clock"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/metrics"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/retry"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/tracing"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/attempt"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/channel"
@@ -39,6 +40,11 @@ const MaxVisibility = channel.MaxVisibility
 // receive is short polling, which turns the loop into a busy one.
 const MaxWaitTime = 20 * time.Second
 
+const (
+	keyConsecutiveFailures = "dmpf.consumer.consecutive_failures"
+	keyGestureRecorded     = "dmpf.inbox.gesture_recorded"
+)
+
 // Consumer receives one channel's queue with a pool of workers: the receive
 // count is the attempt (TRP-52), a heartbeat keeps the message invisible
 // (SQS-08), one gesture ends it (SQS-09, SQS-10); no inline retry (SQS-11b).
@@ -57,6 +63,9 @@ type Consumer struct {
 
 	busy  atomic.Int64
 	depth atomic.Int64
+
+	logOnce sync.Once
+	logs    *slog.Logger
 }
 
 // Validate refuses a consumer the queue could not run safely: no sink or queue,
@@ -113,7 +122,7 @@ func (c *Consumer) queueURL() string {
 // Run receives until ctx is done. Slots are taken before each receive and the
 // request asks for no more than the free ones, so every message received has a
 // worker at once: nothing waits invisible with its heartbeat unstarted (SQS-08).
-func (c *Consumer) Run(ctx context.Context, api sqsAPI) error {
+func (c *Consumer) Run(ctx context.Context, api sqsAPI) (err error) {
 	if err := c.Validate(); err != nil {
 		return err
 	}
@@ -121,9 +130,17 @@ func (c *Consumer) Run(ctx context.Context, api sqsAPI) error {
 		return fmt.Errorf("%w: sqs client", ErrIncompleteConfig)
 	}
 
+	ctx, abort := context.WithCancel(ctx)
+	defer abort()
+	failure := &fault{abort: abort}
 	slots := make(chan struct{}, c.Concurrency)
 	var wg sync.WaitGroup
-	defer wg.Wait()
+	defer func() {
+		wg.Wait()
+		if panicked := failure.result(); panicked != nil {
+			err = panicked
+		}
+	}()
 	random := c.Config.Rand
 	if random == nil {
 		random = rand.Float64
@@ -164,7 +181,7 @@ func (c *Consumer) Run(ctx context.Context, api sqsAPI) error {
 		if err != nil {
 			c.release(slots, taken)
 			failures++
-			c.Config.logger().WarnContext(ctx, "sqs: receive failed", slog.Int("consecutive_failures", failures), slog.String("error_category", categoryOf(err)))
+			c.logger().WarnContext(ctx, "sqs: receive failed", c.messagingKeys(), slog.Int(keyConsecutiveFailures, failures), errorAttr(err))
 			// A queue that cannot be read must not be hammered at the RTT.
 			if err := sleep(ctx, c.Backoff.Next(failures, random)); err != nil {
 				return ctx.Err()
@@ -174,14 +191,14 @@ func (c *Consumer) Run(ctx context.Context, api sqsAPI) error {
 		failures = 0
 		c.depth.Store(int64(len(out.Messages)))
 		c.observeSaturation(ctx)
-		c.dispatch(ctx, api, slots, &wg, taken, out.Messages, receivedAt)
+		c.dispatch(ctx, api, failure, slots, &wg, taken, out.Messages, receivedAt)
 	}
 }
 
 // dispatch starts one worker per message. Should the broker hand over more
 // than the slots asked for, the extra messages wait for a slot here rather
 // than exceed the concurrency; at shutdown they are left to their visibility.
-func (c *Consumer) dispatch(ctx context.Context, api sqsAPI, slots chan struct{}, wg *sync.WaitGroup, taken int, msgs []sqstypes.Message, receivedAt time.Time) {
+func (c *Consumer) dispatch(ctx context.Context, api sqsAPI, failure *fault, slots chan struct{}, wg *sync.WaitGroup, taken int, msgs []sqstypes.Message, receivedAt time.Time) {
 	started := 0
 	defer func() {
 		c.depth.Store(0)
@@ -204,7 +221,8 @@ func (c *Consumer) dispatch(ctx context.Context, api sqsAPI, slots chan struct{}
 			defer wg.Done()
 			defer c.busy.Add(-1)
 			defer func() { <-slots }()
-			c.process(ctx, api, msg, receivedAt)
+			defer failure.catch()
+			c.process(ctx, api, failure, msg, receivedAt)
 		}(msg)
 	}
 }
@@ -218,19 +236,19 @@ func (c *Consumer) release(slots chan struct{}, n int) {
 // process handles one receipt: the attempt from the receive count (TRP-52), a
 // heartbeat until the gesture or the ceiling (SQS-08, SQS-08b), the body decoded
 // once (SQS-01) — raw to the sink when it is not the envelope — and the gesture.
-func (c *Consumer) process(ctx context.Context, api sqsAPI, msg sqstypes.Message, receivedAt time.Time) {
+func (c *Consumer) process(ctx context.Context, api sqsAPI, failure *fault, msg sqstypes.Message, receivedAt time.Time) {
 	clk := c.Config.Clock
 	queueURL, receipt := c.queueURL(), aws.ToString(msg.ReceiptHandle)
 	attemptNo := receiveCount(msg)
 
 	msgCtx, cancelMsg := context.WithCancel(ctx)
 	defer cancelMsg()
-	hb := startHeartbeat(msgCtx, clk, c.HeartbeatEvery, receivedAt.Add(MaxVisibility), func(ctx context.Context, remaining time.Duration) error {
+	hb := startHeartbeat(msgCtx, failure, clk, c.HeartbeatEvery, receivedAt.Add(MaxVisibility), func(ctx context.Context, remaining time.Duration) error {
 		_, err := api.ChangeMessageVisibility(ctx, &sqs.ChangeMessageVisibilityInput{
 			QueueUrl: aws.String(queueURL), ReceiptHandle: aws.String(receipt), VisibilityTimeout: visibilitySeconds(min(c.VisibilityBase, remaining)),
 		})
 		if err != nil {
-			c.Config.logger().WarnContext(ctx, "sqs: visibility extension failed; attempt cancelled", slog.String("error_category", categoryOf(err)))
+			c.logger().WarnContext(ctx, "sqs: visibility extension failed; attempt cancelled", c.messagingKeys(), errorAttr(err))
 		}
 		return err
 	}, cancelMsg)
@@ -254,12 +272,12 @@ func (c *Consumer) process(ctx context.Context, api sqsAPI, msg sqstypes.Message
 	err = c.handle(attemptCtx, raw, attemptNo, ack)
 	switch {
 	case err != nil:
-		c.Config.logger().WarnContext(ctx, "sqs: sink failed",
-			slog.String("channel", c.Channel.Name), slog.Int("attempt", attemptNo), slog.Bool("gesture_recorded", ack.isDisposed()),
-			slog.String("error_category", categoryOf(err)))
+		c.logger().WarnContext(ctx, "sqs: sink failed",
+			c.messagingKeys(), slog.Int(tracing.KeyInboxAttempt, attemptNo), slog.Bool(keyGestureRecorded, ack.isDisposed()),
+			errorAttr(err))
 	case !ack.isDisposed():
-		c.Config.logger().ErrorContext(ctx, "sqs: sink returned without a gesture; visibility left to expire (SQS-10)",
-			slog.String("channel", c.Channel.Name), slog.Int("attempt", attemptNo))
+		c.logger().ErrorContext(ctx, "sqs: sink returned without a gesture; visibility left to expire (SQS-10)",
+			c.messagingKeys(), slog.Int(tracing.KeyInboxAttempt, attemptNo))
 	}
 }
 
@@ -269,7 +287,7 @@ func (c *Consumer) process(ctx context.Context, api sqsAPI, msg sqstypes.Message
 func (c *Consumer) handle(ctx context.Context, raw []byte, attemptNo int, ack *acknowledger) (err error) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
-			err = fmt.Errorf("%w: %v", ErrSinkPanicked, recovered)
+			err = ErrSinkPanicked
 		}
 	}()
 	return c.Sink.Handle(attempt.WithContext(ctx, attemptNo), raw, attemptNo, ack)
@@ -279,6 +297,22 @@ func (a *acknowledger) isDisposed() bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.disposed
+}
+
+func (c *Consumer) logger() *slog.Logger {
+	c.logOnce.Do(func() { c.logs = c.Config.logger() })
+	return c.logs
+}
+
+func (c *Consumer) messagingKeys() slog.Attr {
+	return slog.Group("",
+		slog.String(string(semconv.MessagingSystemKey), semconv.MessagingSystemAWSSQS.Value.AsString()),
+		slog.String(string(semconv.MessagingDestinationNameKey), queueName(c.queueURL())))
+}
+
+func queueName(queueURL string) string {
+	trimmed := strings.TrimRight(queueURL, "/")
+	return trimmed[strings.LastIndexByte(trimmed, '/')+1:]
 }
 
 // receiveCount is the queue's own count of deliveries; one when it is absent.
@@ -296,7 +330,6 @@ func (c *Consumer) observeSaturation(ctx context.Context) {
 	if c.Config.Instruments == nil {
 		return
 	}
-	labels := metric.WithAttributes(metrics.Labels{}.Service(c.Config.Service).Attributes()...)
-	c.Config.Instruments.PoolUtilization.Record(ctx, float64(c.busy.Load())/float64(c.Concurrency), labels)
-	c.Config.Instruments.QueueDepth.Record(ctx, c.depth.Load(), labels)
+	c.Config.Instruments.PoolUtilization.Record(ctx, float64(c.busy.Load())/float64(c.Concurrency))
+	c.Config.Instruments.QueueDepth.Record(ctx, c.depth.Load())
 }
