@@ -85,7 +85,7 @@ divergir em silêncio.
 | `package.json` | `packageManager` | O campo | o gerenciador antes do `@` |
 | `package.json` | `engines.node` | O campo | `node` |
 | `pnpm-workspace.yaml` | `catalog:<pacote>` | A entrada do mapa `catalog` | `<pacote>` |
-| `libs/backend/go/observability/otelboot/start.go` | `semconv` | A versão do import `semconv` | `go.opentelemetry.io/otel/semconv` |
+| `libs/backend/go/observability/otelboot/config.go` | `semconv` | A versão do import `semconv` | `go.opentelemetry.io/otel/semconv` |
 
 Linha de comentário não é registro: um pin antigo comentado acima do atual é
 ignorado. A comparação ignora o prefixo `v`, o `<gerenciador>@` e o sufixo
