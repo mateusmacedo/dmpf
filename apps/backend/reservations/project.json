@@ -85,6 +85,10 @@
         "cwd": "{projectRoot}"
       }
     },
+    "e2e": {
+      "executor": "nx:noop",
+      "dependsOn": ["test-distributed"]
+    },
     "serve-api": {
       "executor": "nx:run-commands",
       "options": {
