@@ -43,7 +43,7 @@ O projeto tem um mantenedor só. Parte da governança herdada da RFC DMPF supõe
 **Negativas:**
 
 - Não há revisão independente da classificação nem da quebra de contrato. A proteção que sobra é mecânica: o `DMPF-T001` acusa a divergência acidental, e o `buf breaking` acusa a quebra de wire. Uma reclassificação deliberada e coerente passa sem segundo olhar.
-- O texto normativo da RFC e da governança em `docs/dmpf/` continua descrevendo os controles revogados; as seções afetadas levam uma nota que aponta para este ADR.
+- O texto normativo da RFC, da governança e da norma Buf em `docs/dmpf/` continua descrevendo os controles revogados. Cada um desses documentos termina com uma nota que aponta para este ADR: a nota fica no fim porque o `dmpf-verify` ancora definições e referências por número de linha, e uma inserção no meio deslocaria as âncoras.
 - Se o projeto ganhar um segundo mantenedor, a decisão precisa ser revista num ADR novo, em vez de religar os controles removidos.
 
 ## Referências

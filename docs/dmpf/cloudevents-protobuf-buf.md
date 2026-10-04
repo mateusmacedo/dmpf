@@ -1185,11 +1185,6 @@ quebra a compilação de quem consome, e o gate perderia a propriedade que o tor
 
 ### §6.4 A máquina de estados do bootstrap
 
-> **Revogado em parte pelo [ADR-058](../adr/058-projeto-solo-sem-controles-de-segunda-pessoa.md) (2026-10-04).**
-> Neste repositório não há marcador de baseline nem autorização de segunda
-> pessoa: o módulo com pacote publicado em `NX_BASE` está em `baseline
-> estabelecido`, e o que não tem fica em `sem baseline`.
-
 `normativo` — bloco `contract package`.
 
 `BUF-05` exige baseline resolvível, e há exatamente um momento na vida de um
@@ -1940,3 +1935,11 @@ wire — quem o produz, quando, com que garantia e sob qual observação. As dua
 defesas contra isso são estruturais e estão no início do texto: a regra do sujeito
 da norma (§1.3) e a tabela de fronteiras com dona nomeada (§1.4). Ambas existem
 para tornar o excesso visível na revisão, que é onde M4 se aplica na prática.
+
+## Nota de revogação (ADR-058)
+
+[ADR-058](../adr/058-projeto-solo-sem-controles-de-segunda-pessoa.md), de
+2026-10-04, revoga em parte o §6.4: neste repositório não há marcador de
+baseline nem autorização de segunda pessoa. O módulo com pacote publicado em
+`NX_BASE` está em `baseline estabelecido`, e o que não tem fica em `sem
+baseline`.

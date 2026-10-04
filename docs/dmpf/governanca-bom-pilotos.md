@@ -956,11 +956,6 @@ auditar.
 
 ### §5.2 Autorização da classificação
 
-
-> **Revogado pelo [ADR-058](../adr/058-projeto-solo-sem-controles-de-segunda-pessoa.md) (2026-10-04).**
-> A Autoridade de Classificação, o rito de `AUT-01`..`AUT-10` e o gate G2 não
-> valem num projeto de um mantenedor só. O texto abaixo fica como registro.
-
 `normativo` — Sob **ANC-08**. IDs `AUT-01`+. Escopo permitido, literal: «Definir
 autoridade, rito e artefato de evidência que satisfaçam T4–T6 de §10.2».
 
@@ -1851,3 +1846,10 @@ consequências» — é critério próprio da story, repetido no DoD dela como �
 status Aceito». Ele não fecha aqui: o acionamento é deste artefato, a redação e o
 aceite são de FND-11 (P8). Registrá-lo é o que impede que a contagem de nove pareça
 completa.
+
+## Nota de revogação (ADR-058)
+
+[ADR-058](../adr/058-projeto-solo-sem-controles-de-segunda-pessoa.md), de
+2026-10-04, revoga o §5.2: a Autoridade de Classificação, o rito de
+`AUT-01`..`AUT-10` e o gate G2 não valem num projeto de um mantenedor só. O
+texto do §5.2 fica como registro.
