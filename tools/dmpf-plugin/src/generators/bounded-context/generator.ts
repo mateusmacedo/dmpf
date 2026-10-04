@@ -32,7 +32,7 @@ const DEFAULT_GRPC_PORT = 9194;
 const SERVICE_NAME_PATTERN = /^[a-z][a-z0-9]*(\.[a-z][a-z0-9]*)*\.[A-Z][A-Za-z0-9]*$/;
 
 const BASELINE_INSTRUCTION = [
-  'Unidades novas são ato de classificação (AUT-01). Regrave o baseline em commit próprio:',
+  'Unidades novas mudam a classificação. Regrave o baseline:',
   '  go run ./tools/dmpf-conformance/cmd/conformance --root . --write-baseline',
 ].join('\n');
 

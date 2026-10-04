@@ -64,8 +64,7 @@ o `require` resolve pela tag publicada do irmão. O CI confere os dois lados com
 
 ## Antes do primeiro commit
 
-Unidade nova é ato de classificação (`AUT-01`): o baseline do verificador é
-regravado em commit próprio, separado do commit do código.
+Unidade nova muda a classificação: regrave o baseline do verificador.
 
 ```bash
 go run ./tools/dmpf-conformance/cmd/conformance --root . --write-baseline

@@ -118,9 +118,8 @@ idênticos: os templates saem no formato final e `formatFiles` não é chamado.
 
 ## Depois de gerar: classificar
 
-A saída termina com a instrução do baseline. Unidades novas são ato de
-classificação (AUT-01), então o baseline do verificador é regravado em commit
-próprio, separado do código:
+A saída termina com a instrução do baseline. Unidades novas mudam a
+classificação, então o baseline do verificador é regravado:
 
 ```bash
 go run ./tools/dmpf-conformance/cmd/conformance --root . --write-baseline

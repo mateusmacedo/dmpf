@@ -1176,14 +1176,13 @@ describe('[generator] bounded-context — determinism and output', () => {
     expect(changesOf(second)).toEqual(changesOf(first));
   });
 
-  it('should print the baseline instruction naming --write-baseline and AUT-01', async () => {
+  it('should print the baseline instruction naming --write-baseline', async () => {
     const printed = captureOutput();
 
     await generate();
 
     expect(printed()).toContain('2 módulos gerados');
     expect(printed()).toContain('--write-baseline');
-    expect(printed()).toContain('AUT-01');
   });
 });
 
