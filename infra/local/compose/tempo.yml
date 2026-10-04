@@ -6,14 +6,15 @@ services:
     profiles: [tempo, observability, dmpf, all]
     command: ['-config.file=/etc/tempo/tempo.yaml']
     user: root
+    stop_grace_period: 45s
     ports:
-      - '${TEMPO_HTTP_PORT:-3200}:3200'
+      - '127.0.0.1:${TEMPO_HTTP_PORT:-3200}:3200'
     volumes:
       - ../../observability/tempo/tempo.yaml:/etc/tempo/tempo.yaml:ro
       - tempo-data:/var/tempo
     deploy:
       resources:
-        limits: { cpus: '0.30', memory: 768M }
+        limits: { cpus: '0.6048', memory: 1075M }
         reservations: { cpus: '0.10', memory: 128M }
 
 volumes:

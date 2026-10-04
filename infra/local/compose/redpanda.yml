@@ -23,8 +23,8 @@ services:
       - --set
       - 'redpanda.kafka_api=[{"name":"internal","address":"0.0.0.0","port":29092,"authentication_method":"sasl"},{"name":"external","address":"0.0.0.0","port":9092,"authentication_method":"none"}]'
     ports:
-      - '${REDPANDA_PORT:-9092}:9092'
-      - '${REDPANDA_ADMIN_PORT:-9644}:9644'
+      - '127.0.0.1:${REDPANDA_PORT:-9092}:9092'
+      - '127.0.0.1:${REDPANDA_ADMIN_PORT:-9644}:9644'
     volumes:
       - redpanda-data:/var/lib/redpanda/data
     healthcheck:

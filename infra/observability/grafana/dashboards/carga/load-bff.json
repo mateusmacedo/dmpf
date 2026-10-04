@@ -1,16 +1,27 @@
 {
   "uid": "load-bff",
-  "title": "DMPF — carga pela borda do BFF (k6)",
-  "description": "Execução do k6 filtrada por testid, correlacionada com a borda do BFF, as séries de serviço do kernel e os recursos da topologia.",
-  "tags": ["dmpf", "k6", "load"],
+  "title": "DMPF · Carga pela borda do BFF (k6)",
+  "description": "Execução do k6 filtrada por testid, correlacionada com a borda do BFF (otelhttp e spans SERVER), as chamadas gRPC do BFF, o RED dos casos de uso e os recursos da topologia.",
+  "tags": ["dmpf", "k6", "load", "carga"],
+  "timezone": "browser",
   "editable": true,
+  "graphTooltip": 1,
   "schemaVersion": 39,
   "refresh": "5s",
   "time": {
     "from": "now-30m",
     "to": "now"
   },
-  "timezone": "browser",
+  "links": [
+    {
+      "title": "Dashboards DMPF",
+      "type": "dashboards",
+      "tags": ["dmpf"],
+      "asDropdown": true,
+      "keepTime": true,
+      "includeVars": true
+    }
+  ],
   "templating": {
     "list": [
       {
@@ -21,13 +32,17 @@
           "type": "prometheus",
           "uid": "prometheus"
         },
-        "query": "label_values(k6_http_reqs_total, testid)",
+        "query": "query_result(sort_desc(max by (testid) (max_over_time(timestamp(k6_vus)[$__range:1m]))))",
+        "regex": "/testid=\"([^\"]+)\"/",
         "refresh": 2,
-        "sort": 2,
         "includeAll": false,
-        "multi": false
+        "multi": false,
+        "sort": 0
       }
     ]
+  },
+  "annotations": {
+    "list": []
   },
   "panels": [
     {
@@ -40,11 +55,11 @@
         "w": 24,
         "x": 0,
         "y": 0
-      }
+      },
+      "panels": []
     },
     {
       "type": "timeseries",
-      "id": 2,
       "title": "VUs",
       "description": "VUs ativas do k6 na execução selecionada.",
       "datasource": {
@@ -88,11 +103,11 @@
           "legendFormat": "VUs",
           "refId": "A"
         }
-      ]
+      ],
+      "id": 2
     },
     {
       "type": "timeseries",
-      "id": 3,
       "title": "Requisições por jornada",
       "description": "Taxa de requisições do k6 por jornada.",
       "datasource": {
@@ -136,11 +151,11 @@
           "legendFormat": "{{journey}}",
           "refId": "A"
         }
-      ]
+      ],
+      "id": 3
     },
     {
       "type": "timeseries",
-      "id": 4,
       "title": "Requisições por rota",
       "description": "Taxa de requisições do k6 por método e template de rota.",
       "datasource": {
@@ -184,11 +199,11 @@
           "legendFormat": "{{method}} {{name}}",
           "refId": "A"
         }
-      ]
+      ],
+      "id": 4
     },
     {
       "type": "timeseries",
-      "id": 5,
       "title": "Latência por rota (p95, p99)",
       "description": "Percentis do histograma nativo do k6 por método e rota.",
       "datasource": {
@@ -241,29 +256,24 @@
           "legendFormat": "p99 {{method}} {{name}}",
           "refId": "B"
         }
-      ]
+      ],
+      "id": 5
     },
     {
       "type": "timeseries",
-      "id": 6,
       "title": "Falha técnica e recusa de admissão",
-      "description": "Fração das requisições com 5xx ou erro de transporte e fração de 429.",
+      "description": "Fração das requisições da janela com 5xx ou erro de transporte (status 0) e com 429, contando a série que nasce na janela: cada 504 do k6 cria uma série de uma amostra só, que o rate não vê.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 9
       },
       "fieldConfig": {
         "defaults": {
           "unit": "percentunit",
           "custom": {
-            "lineWidth": 1,
-            "fillOpacity": 0
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
           }
         },
         "overrides": []
@@ -285,7 +295,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(rate(k6_http_reqs_total{testid=\"$testid\", name!=\"/readyz\", status=~\"5..|0\"}[$__rate_interval])) / sum(rate(k6_http_reqs_total{testid=\"$testid\", name!=\"/readyz\"}[$__rate_interval])) or on() vector(0)",
+          "expr": "sum ((increase(k6_http_reqs_total{testid=\"$testid\", name!=\"/readyz\", status=~\"5..|0\"}[$__rate_interval]) or k6_http_reqs_total{testid=\"$testid\", name!=\"/readyz\", status=~\"5..|0\"} * 0) + ((k6_http_reqs_total{testid=\"$testid\", name!=\"/readyz\", status=~\"5..|0\"} unless k6_http_reqs_total{testid=\"$testid\", name!=\"/readyz\", status=~\"5..|0\"} offset $__rate_interval) or k6_http_reqs_total{testid=\"$testid\", name!=\"/readyz\", status=~\"5..|0\"} * 0)) / clamp_min(sum ((increase(k6_http_reqs_total{testid=\"$testid\", name!=\"/readyz\"}[$__rate_interval]) or k6_http_reqs_total{testid=\"$testid\", name!=\"/readyz\"} * 0) + ((k6_http_reqs_total{testid=\"$testid\", name!=\"/readyz\"} unless k6_http_reqs_total{testid=\"$testid\", name!=\"/readyz\"} offset $__rate_interval) or k6_http_reqs_total{testid=\"$testid\", name!=\"/readyz\"} * 0)), 1) or on() vector(0)",
           "legendFormat": "falha técnica",
           "refId": "A"
         },
@@ -294,33 +304,34 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(rate(k6_http_reqs_total{testid=\"$testid\", name!=\"/readyz\", status=\"429\"}[$__rate_interval])) / sum(rate(k6_http_reqs_total{testid=\"$testid\", name!=\"/readyz\"}[$__rate_interval])) or on() vector(0)",
+          "expr": "sum ((increase(k6_http_reqs_total{testid=\"$testid\", name!=\"/readyz\", status=\"429\"}[$__rate_interval]) or k6_http_reqs_total{testid=\"$testid\", name!=\"/readyz\", status=\"429\"} * 0) + ((k6_http_reqs_total{testid=\"$testid\", name!=\"/readyz\", status=\"429\"} unless k6_http_reqs_total{testid=\"$testid\", name!=\"/readyz\", status=\"429\"} offset $__rate_interval) or k6_http_reqs_total{testid=\"$testid\", name!=\"/readyz\", status=\"429\"} * 0)) / clamp_min(sum ((increase(k6_http_reqs_total{testid=\"$testid\", name!=\"/readyz\"}[$__rate_interval]) or k6_http_reqs_total{testid=\"$testid\", name!=\"/readyz\"} * 0) + ((k6_http_reqs_total{testid=\"$testid\", name!=\"/readyz\"} unless k6_http_reqs_total{testid=\"$testid\", name!=\"/readyz\"} offset $__rate_interval) or k6_http_reqs_total{testid=\"$testid\", name!=\"/readyz\"} * 0)), 1) or on() vector(0)",
           "legendFormat": "recusa 429",
           "refId": "B"
         }
-      ]
-    },
-    {
-      "type": "timeseries",
-      "id": 7,
-      "title": "Recusas do contexto e iterações descartadas",
-      "description": "429 vindos do contexto (sem Retry-After) e iterações que o k6 não conseguiu iniciar por falta de VU.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
+      ],
+      "id": 6,
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 0,
-        "y": 17
+        "x": 12,
+        "y": 9
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Recusas do contexto e iterações descartadas (eventos na janela)",
+      "description": "429 vindos do contexto (sem Retry-After) e iterações que o k6 não conseguiu iniciar por falta de VU, contando a série que nasce na janela.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
           "unit": "short",
           "custom": {
-            "lineWidth": 1,
-            "fillOpacity": 0
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
           }
         },
         "overrides": []
@@ -342,8 +353,8 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(rate(k6_context_admission_rejections_total{testid=\"$testid\"}[$__rate_interval])) or on() vector(0)",
-          "legendFormat": "recusa do contexto /s",
+          "expr": "sum ((increase(k6_context_admission_rejections_total{testid=\"$testid\"}[$__rate_interval]) or k6_context_admission_rejections_total{testid=\"$testid\"} * 0) + ((k6_context_admission_rejections_total{testid=\"$testid\"} unless k6_context_admission_rejections_total{testid=\"$testid\"} offset $__rate_interval) or k6_context_admission_rejections_total{testid=\"$testid\"} * 0)) or on() vector(0)",
+          "legendFormat": "recusas do contexto",
           "refId": "A"
         },
         {
@@ -351,15 +362,21 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(rate(k6_dropped_iterations_total{testid=\"$testid\"}[$__rate_interval])) or on() vector(0)",
-          "legendFormat": "iterações descartadas /s",
+          "expr": "sum ((increase(k6_dropped_iterations_total{testid=\"$testid\"}[$__rate_interval]) or k6_dropped_iterations_total{testid=\"$testid\"} * 0) + ((k6_dropped_iterations_total{testid=\"$testid\"} unless k6_dropped_iterations_total{testid=\"$testid\"} offset $__rate_interval) or k6_dropped_iterations_total{testid=\"$testid\"} * 0)) or on() vector(0)",
+          "legendFormat": "iterações descartadas",
           "refId": "B"
         }
-      ]
+      ],
+      "id": 7,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 17
+      }
     },
     {
       "type": "timeseries",
-      "id": 8,
       "title": "Convergência da reserva (p95)",
       "description": "Do fim do place à primeira leitura 200 da reserva.",
       "datasource": {
@@ -403,25 +420,26 @@
           "legendFormat": "p95",
           "refId": "A"
         }
-      ]
+      ],
+      "id": 8
     },
     {
       "type": "row",
       "id": 9,
-      "title": "Borda do BFF (span-metrics do Tempo)",
+      "title": "Borda do BFF (otelhttp e span-metrics do Tempo)",
       "collapsed": false,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
         "y": 25
-      }
+      },
+      "panels": []
     },
     {
       "type": "timeseries",
-      "id": 10,
       "title": "Requisições por rota na borda",
-      "description": "Spans de servidor HTTP do BFF, sem os endpoints de saúde.",
+      "description": "http.server.request.duration do handler otelhttp do BFF (RF-D2), por método e http.route; os endpoints de saúde não passam pelo otelhttp.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -459,17 +477,18 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (span_name) (rate(traces_spanmetrics_calls_total{service=\"bff\", span_kind=\"SPAN_KIND_SERVER\", span_name=~\"HTTP .*\", span_name!~\"HTTP GET /(readyz|livez)\"}[$__rate_interval]))",
-          "legendFormat": "{{span_name}}",
+          "expr": "sum by (http_request_method, http_route) (rate(http_server_request_duration_seconds_count{service_name=\"bff\"}[$__rate_interval]))",
+          "legendFormat": "{{http_request_method}} {{http_route}}",
           "refId": "A"
         }
-      ]
+      ],
+      "interval": "2m",
+      "id": 10
     },
     {
       "type": "timeseries",
-      "id": 11,
       "title": "Latência por rota na borda (p95)",
-      "description": "Percentil 95 dos spans de servidor HTTP do BFF.",
+      "description": "Percentil 95 de http.server.request.duration do BFF por método e http.route.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -507,17 +526,18 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.95, sum by (le, span_name) (rate(traces_spanmetrics_latency_bucket{service=\"bff\", span_kind=\"SPAN_KIND_SERVER\", span_name=~\"HTTP .*\", span_name!~\"HTTP GET /(readyz|livez)\"}[$__rate_interval])))",
-          "legendFormat": "{{span_name}}",
+          "expr": "histogram_quantile(0.95, sum by (le, http_request_method, http_route) (rate(http_server_request_duration_seconds_bucket{service_name=\"bff\"}[$__rate_interval])))",
+          "legendFormat": "{{http_request_method}} {{http_route}}",
           "refId": "A"
         }
-      ]
+      ],
+      "interval": "2m",
+      "id": 11
     },
     {
       "type": "timeseries",
-      "id": 12,
       "title": "k6 × borda",
-      "description": "Taxa total enviada pelo k6 contra a taxa vista na borda; as duas curvas devem coincidir.",
+      "description": "Taxa total enviada pelo k6 contra a vista na borda (otelhttp) e a dos spans SERVER do BFF no Tempo, as três na mesma janela; as curvas devem coincidir.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -564,47 +584,64 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(rate(traces_spanmetrics_calls_total{service=\"bff\", span_kind=\"SPAN_KIND_SERVER\", span_name=~\"HTTP .*\", span_name!~\"HTTP GET /(readyz|livez)\"}[$__rate_interval]))",
+          "expr": "sum(rate(http_server_request_duration_seconds_count{service_name=\"bff\"}[$__rate_interval]))",
           "legendFormat": "borda",
           "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(traces_spanmetrics_calls_total{service=\"bff\", span_kind=\"SPAN_KIND_SERVER\"}[$__rate_interval]))",
+          "legendFormat": "spans SERVER",
+          "refId": "C"
         }
-      ]
+      ],
+      "interval": "2m",
+      "id": 12
     },
     {
-      "type": "timeseries",
-      "id": 13,
-      "title": "k6 ÷ borda por rota",
-      "description": "Razão entre a taxa do k6 e a da borda por método e rota; 1 significa que a borda viu tudo o que o k6 enviou.",
+      "type": "bargauge",
+      "title": "k6 ÷ borda por rota no intervalo",
+      "description": "Requisições do k6 sobre as vistas na borda (otelhttp), por método e http.route, somadas no intervalo escolhido: 1 significa que a borda viu tudo o que o k6 enviou. A razão por taxa oscilava porque o k6 chega a cada 5 s e a borda a cada 60 s.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 34
-      },
       "fieldConfig": {
         "defaults": {
           "unit": "none",
-          "custom": {
-            "lineWidth": 1,
-            "fillOpacity": 0
+          "min": 0,
+          "max": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 0.95
+              },
+              {
+                "color": "red",
+                "value": 1.05
+              }
+            ]
           }
         },
         "overrides": []
       },
       "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
         },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
+        "orientation": "horizontal",
+        "displayMode": "basic"
       },
       "targets": [
         {
@@ -612,11 +649,18 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (route) (label_replace(label_join(rate(k6_http_reqs_total{testid=\"$testid\", name!=\"/readyz\"}[$__rate_interval]), \"route\", \" \", \"method\", \"name\"), \"route\", \"HTTP $1\", \"route\", \"(.*)\")) / sum by (route) (label_replace(rate(traces_spanmetrics_calls_total{service=\"bff\", span_kind=\"SPAN_KIND_SERVER\", span_name=~\"HTTP .*\", span_name!~\"HTTP GET /(readyz|livez)\"}[$__rate_interval]), \"route\", \"$1\", \"span_name\", \"(.*)\"))",
-          "legendFormat": "{{route}}",
+          "expr": "sum by (method, name) (increase(k6_http_reqs_total{testid=\"$testid\", name!=\"/readyz\"}[$__range])) / sum by (method, name) (label_replace(label_replace(increase(http_server_request_duration_seconds_count{service_name=\"bff\"}[$__range]), \"method\", \"$1\", \"http_request_method\", \"(.*)\"), \"name\", \"$1\", \"http_route\", \"(.*)\"))",
+          "legendFormat": "{{method}} {{name}}",
           "refId": "A"
         }
-      ]
+      ],
+      "id": 13,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 34
+      }
     },
     {
       "type": "row",
@@ -628,13 +672,13 @@
         "w": 24,
         "x": 0,
         "y": 42
-      }
+      },
+      "panels": []
     },
     {
       "type": "timeseries",
-      "id": 15,
-      "title": "Chamadas por operação e desfecho (MET-09)",
-      "description": "Chamadas gRPC do BFF aos contextos.",
+      "title": "Chamadas por método e status",
+      "description": "rpc.client.call.duration do otelgrpc (RF-D2): chamadas gRPC do BFF aos contextos, por método e status.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -672,17 +716,18 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (operation, outcome_category) (rate(dmpf_service_requests_total{service_name=\"bff\"}[2m]))",
-          "legendFormat": "{{operation}} · {{outcome_category}}",
+          "expr": "sum by (rpc_method, rpc_response_status_code) (rate(rpc_client_call_duration_seconds_count{service_name=\"bff\"}[$__rate_interval]))",
+          "legendFormat": "{{rpc_method}} · {{rpc_response_status_code}}",
           "refId": "A"
         }
-      ]
+      ],
+      "interval": "2m",
+      "id": 15
     },
     {
       "type": "timeseries",
-      "id": 16,
-      "title": "Latência por operação (MET-08, p95)",
-      "description": "Percentil 95 das chamadas gRPC do BFF.",
+      "title": "Latência por método (p95)",
+      "description": "Percentil 95 de rpc.client.call.duration do BFF por método.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -720,33 +765,30 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.95, sum by (le, operation) (rate(dmpf_service_request_duration_seconds_bucket{service_name=\"bff\"}[2m])))",
-          "legendFormat": "{{operation}}",
+          "expr": "histogram_quantile(0.95, sum by (le, rpc_method) (rate(rpc_client_call_duration_seconds_bucket{service_name=\"bff\"}[$__rate_interval])))",
+          "legendFormat": "{{rpc_method}}",
           "refId": "A"
         }
-      ]
+      ],
+      "interval": "2m",
+      "id": 16
     },
     {
       "type": "timeseries",
-      "id": 17,
-      "title": "Erros e resiliência",
-      "description": "MET-10 do BFF, retries, rejeições de bulkhead, prazos estourados e estado do breaker (0 fechado, 2 aberto).",
+      "title": "Status não-OK por método e código (eventos na janela)",
+      "description": "rpc.client.call.duration do otelgrpc com rpc.response.status_code diferente de OK, contando a série que nasce na janela (o primeiro DEADLINE_EXCEEDED cria a série). NOT_FOUND em FindReservation é o polling de convergência do k6, não falha.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 16,
-        "y": 43
-      },
       "fieldConfig": {
         "defaults": {
           "unit": "short",
+          "noValue": "0",
           "custom": {
-            "lineWidth": 1,
-            "fillOpacity": 0
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
           }
         },
         "overrides": []
@@ -768,8 +810,59 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (error_category) (rate(dmpf_service_errors_total{service_name=\"bff\"}[2m])) or on() vector(0)",
-          "legendFormat": "erro {{error_category}}",
+          "expr": "sum by (rpc_method, rpc_response_status_code) ((increase(rpc_client_call_duration_seconds_count{service_name=\"bff\", rpc_response_status_code!=\"OK\"}[$__rate_interval]) or rpc_client_call_duration_seconds_count{service_name=\"bff\", rpc_response_status_code!=\"OK\"} * 0) + ((rpc_client_call_duration_seconds_count{service_name=\"bff\", rpc_response_status_code!=\"OK\"} unless rpc_client_call_duration_seconds_count{service_name=\"bff\", rpc_response_status_code!=\"OK\"} offset $__rate_interval) or rpc_client_call_duration_seconds_count{service_name=\"bff\", rpc_response_status_code!=\"OK\"} * 0))",
+          "legendFormat": "{{rpc_method}} · {{rpc_response_status_code}}",
+          "refId": "A"
+        }
+      ],
+      "interval": "2m",
+      "id": 17,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 43
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Resiliência do BFF (eventos na janela)",
+      "description": "Retentativas, recusas do bulkhead e prazos estourados do BFF por dependência, contando a série que nasce no meio da janela: o primeiro evento de um contador cria a série e não entra no increase.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "0",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (dmpf_dependency) ((increase(dmpf_dependency_retries_total{service_name=\"bff\"}[$__rate_interval]) or dmpf_dependency_retries_total{service_name=\"bff\"} * 0) + ((dmpf_dependency_retries_total{service_name=\"bff\"} unless dmpf_dependency_retries_total{service_name=\"bff\"} offset $__rate_interval) or dmpf_dependency_retries_total{service_name=\"bff\"} * 0))",
+          "legendFormat": "retry {{dmpf_dependency}}",
           "refId": "A"
         },
         {
@@ -777,8 +870,8 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (dependency) (rate(dmpf_dependency_retries_total[2m])) or on() vector(0)",
-          "legendFormat": "retry {{dependency}}",
+          "expr": "sum by (dmpf_dependency) ((increase(dmpf_dependency_bulkhead_rejections_total{service_name=\"bff\"}[$__rate_interval]) or dmpf_dependency_bulkhead_rejections_total{service_name=\"bff\"} * 0) + ((dmpf_dependency_bulkhead_rejections_total{service_name=\"bff\"} unless dmpf_dependency_bulkhead_rejections_total{service_name=\"bff\"} offset $__rate_interval) or dmpf_dependency_bulkhead_rejections_total{service_name=\"bff\"} * 0))",
+          "legendFormat": "bulkhead {{dmpf_dependency}}",
           "refId": "B"
         },
         {
@@ -786,45 +879,100 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (dependency) (rate(dmpf_dependency_bulkhead_rejections_total[2m])) or on() vector(0)",
-          "legendFormat": "bulkhead {{dependency}}",
+          "expr": "sum by (dmpf_dependency) ((increase(dmpf_dependency_deadline_exceeded_total{service_name=\"bff\"}[$__rate_interval]) or dmpf_dependency_deadline_exceeded_total{service_name=\"bff\"} * 0) + ((dmpf_dependency_deadline_exceeded_total{service_name=\"bff\"} unless dmpf_dependency_deadline_exceeded_total{service_name=\"bff\"} offset $__rate_interval) or dmpf_dependency_deadline_exceeded_total{service_name=\"bff\"} * 0))",
+          "legendFormat": "prazo {{dmpf_dependency}}",
           "refId": "C"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "sum by (dependency) (rate(dmpf_dependency_deadline_exceeded_total[2m])) or on() vector(0)",
-          "legendFormat": "prazo {{dependency}}",
-          "refId": "D"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "max by (dependency) (dmpf_dependency_breaker_state_ratio) or on() vector(0)",
-          "legendFormat": "breaker {{dependency}}",
-          "refId": "E"
         }
-      ]
+      ],
+      "interval": "2m",
+      "id": 18,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 51
+      }
+    },
+    {
+      "type": "state-timeline",
+      "title": "Breaker do BFF por dependência",
+      "description": "0 fechado, 1 meio-aberto, 2 aberto.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "fechado",
+                  "color": "green",
+                  "index": 0
+                },
+                "1": {
+                  "text": "meio-aberto",
+                  "color": "yellow",
+                  "index": 1
+                },
+                "2": {
+                  "text": "aberto",
+                  "color": "red",
+                  "index": 2
+                }
+              }
+            }
+          ],
+          "custom": {
+            "fillOpacity": 80
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showValue": "auto",
+        "mergeValues": true,
+        "legend": {
+          "showLegend": false
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (dmpf_dependency) (dmpf_dependency_breaker_state{service_name=\"bff\"})",
+          "legendFormat": "breaker {{dmpf_dependency}}",
+          "refId": "A"
+        }
+      ],
+      "id": 19,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 51
+      }
     },
     {
       "type": "row",
-      "id": 18,
+      "id": 20,
       "title": "Contextos (kernel)",
       "collapsed": false,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 51
-      }
+        "y": 59
+      },
+      "panels": []
     },
     {
       "type": "timeseries",
-      "id": 19,
       "title": "Requisições por serviço e desfecho (MET-09)",
       "description": "Casos de uso de orders, reservations e bookings.",
       "datasource": {
@@ -835,11 +983,11 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 52
+        "y": 60
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "reqps",
+          "unit": "ops",
           "custom": {
             "lineWidth": 1,
             "fillOpacity": 0
@@ -864,15 +1012,16 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (service_name, outcome_category) (rate(dmpf_service_requests_total{service_name=~\"orders|reservations|bookings\"}[2m]))",
-          "legendFormat": "{{service_name}} · {{outcome_category}}",
+          "expr": "sum by (service_name, dmpf_outcome_category) (rate(dmpf_operation_duration_seconds_count{service_name=~\"orders|reservations|bookings\"}[$__rate_interval]))",
+          "legendFormat": "{{service_name}} · {{dmpf_outcome_category}}",
           "refId": "A"
         }
-      ]
+      ],
+      "interval": "2m",
+      "id": 21
     },
     {
       "type": "timeseries",
-      "id": 20,
       "title": "Latência por operação (MET-08, p95)",
       "description": "Percentil 95 dos casos de uso dos contextos.",
       "datasource": {
@@ -883,7 +1032,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 52
+        "y": 60
       },
       "fieldConfig": {
         "defaults": {
@@ -912,17 +1061,18 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.95, sum by (le, operation) (rate(dmpf_service_request_duration_seconds_bucket{service_name=~\"orders|reservations|bookings\"}[2m])))",
-          "legendFormat": "{{operation}}",
+          "expr": "histogram_quantile(0.95, sum by (le, dmpf_operation) (rate(dmpf_operation_duration_seconds_bucket{service_name=~\"orders|reservations|bookings\"}[$__rate_interval])))",
+          "legendFormat": "{{dmpf_operation}}",
           "refId": "A"
         }
-      ]
+      ],
+      "interval": "2m",
+      "id": 22
     },
     {
       "type": "timeseries",
-      "id": 21,
-      "title": "Erros e recusas de admissão (MET-10, MET-12)",
-      "description": "Erros por categoria nos contextos e recusas de admissão por serviço e rota.",
+      "title": "Erros e recusas de admissão (MET-10, MET-12, eventos na janela)",
+      "description": "Falhas técnicas por error.type nos casos de uso dos contextos e recusas de admissão por serviço e http.route ou rpc.method, em eventos na janela, contando a série que nasce nela.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -931,7 +1081,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 52
+        "y": 60
       },
       "fieldConfig": {
         "defaults": {
@@ -939,6 +1089,62 @@
           "custom": {
             "lineWidth": 1,
             "fillOpacity": 0
+          },
+          "noValue": "0"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (service_name, error_type) ((increase(dmpf_operation_duration_seconds_count{service_name=~\"orders|reservations|bookings\", dmpf_outcome_category=\"failed\"}[$__rate_interval]) or dmpf_operation_duration_seconds_count{service_name=~\"orders|reservations|bookings\", dmpf_outcome_category=\"failed\"} * 0) + ((dmpf_operation_duration_seconds_count{service_name=~\"orders|reservations|bookings\", dmpf_outcome_category=\"failed\"} unless dmpf_operation_duration_seconds_count{service_name=~\"orders|reservations|bookings\", dmpf_outcome_category=\"failed\"} offset $__rate_interval) or dmpf_operation_duration_seconds_count{service_name=~\"orders|reservations|bookings\", dmpf_outcome_category=\"failed\"} * 0))",
+          "legendFormat": "erro {{service_name}} {{error_type}}",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (service_name, http_route, rpc_method) ((increase(dmpf_admission_rejections_total{service_name=~\"orders|reservations|bookings\"}[$__rate_interval]) or dmpf_admission_rejections_total{service_name=~\"orders|reservations|bookings\"} * 0) + ((dmpf_admission_rejections_total{service_name=~\"orders|reservations|bookings\"} unless dmpf_admission_rejections_total{service_name=~\"orders|reservations|bookings\"} offset $__rate_interval) or dmpf_admission_rejections_total{service_name=~\"orders|reservations|bookings\"} * 0))",
+          "legendFormat": "recusa {{service_name}} {{http_route}}{{rpc_method}}",
+          "refId": "B"
+        }
+      ],
+      "interval": "2m",
+      "id": 23
+    },
+    {
+      "type": "timeseries",
+      "title": "Ocupação do pool do consumer",
+      "description": "MET-11: dmpf.consumer.pool.utilization do consumer de reservations (razão); 1 é saturação.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
           }
         },
         "overrides": []
@@ -960,54 +1166,148 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (service_name, error_category) (rate(dmpf_service_errors_total{service_name=~\"orders|reservations|bookings\"}[2m])) or on() vector(0)",
-          "legendFormat": "erro {{service_name}} {{error_category}}",
+          "expr": "max by (instance) (dmpf_consumer_pool_utilization_ratio)",
+          "legendFormat": "{{instance}}",
           "refId": "A"
+        }
+      ],
+      "id": 24,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 68
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Fila interna do consumer",
+      "description": "MET-11: dmpf.consumer.queue.depth, em mensagens.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
         },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
         {
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (service_name, route) (rate(dmpf_service_admission_rejections_total{service_name=~\"orders|reservations|bookings\"}[2m])) or on() vector(0)",
-          "legendFormat": "recusa {{service_name}} {{route}}",
-          "refId": "B"
+          "expr": "max by (instance) (dmpf_consumer_queue_depth)",
+          "legendFormat": "{{instance}}",
+          "refId": "A"
         }
-      ]
+      ],
+      "id": 25,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 68
+      }
     },
     {
       "type": "row",
-      "id": 22,
+      "id": 26,
       "title": "Recursos",
       "collapsed": false,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 60
+        "y": 76
+      },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "CPU por container sobre o teto",
+      "description": "cAdvisor: uso de CPU dos serviços dmpf e do k6 dividido pela quota do container.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (name) (rate(container_cpu_usage_seconds_total{name=~\"lidercap-local-(dmpf-.*|k6-run-.*)\"}[$__rate_interval])) / on (name) (max by (name) (container_spec_cpu_quota{name=~\"lidercap-local-(dmpf-.*|k6-run-.*)\"}) / max by (name) (container_spec_cpu_period{name=~\"lidercap-local-(dmpf-.*|k6-run-.*)\"}))",
+          "legendFormat": "{{name}}",
+          "refId": "A"
+        }
+      ],
+      "interval": "2m",
+      "id": 27,
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 0,
+        "y": 77
       }
     },
     {
       "type": "timeseries",
-      "id": 23,
-      "title": "CPU por container",
-      "description": "Uso de CPU (cAdvisor) dos serviços dmpf e do container do k6.",
+      "title": "Memória por container sobre o limite",
+      "description": "cAdvisor: working set dos serviços dmpf e do k6 sobre o limite do container.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 0,
-        "y": 61
-      },
       "fieldConfig": {
         "defaults": {
-          "unit": "short",
+          "unit": "percentunit",
+          "min": 0,
           "custom": {
-            "lineWidth": 1,
-            "fillOpacity": 0
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
           }
         },
         "overrides": []
@@ -1029,63 +1329,21 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (name) (rate(container_cpu_usage_seconds_total{name=~\"lidercap-local-(dmpf-.*|k6-run-.*)\"}[$__rate_interval]))",
+          "expr": "max by (name) (container_memory_working_set_bytes{name=~\"lidercap-local-(dmpf-.*|k6-run-.*)\"}) / on (name) max by (name) (container_spec_memory_limit_bytes{name=~\"lidercap-local-(dmpf-.*|k6-run-.*)\"} > 0)",
           "legendFormat": "{{name}}",
           "refId": "A"
         }
-      ]
-    },
-    {
-      "type": "timeseries",
-      "id": 24,
-      "title": "Memória por container",
-      "description": "Working set (cAdvisor) dos serviços dmpf e do container do k6.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
+      ],
+      "id": 28,
       "gridPos": {
         "h": 8,
-        "w": 8,
-        "x": 8,
-        "y": 61
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "bytes",
-          "custom": {
-            "lineWidth": 1,
-            "fillOpacity": 0
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "max by (name) (container_memory_working_set_bytes{name=~\"lidercap-local-(dmpf-.*|k6-run-.*)\"})",
-          "legendFormat": "{{name}}",
-          "refId": "A"
-        }
-      ]
+        "w": 6,
+        "x": 6,
+        "y": 77
+      }
     },
     {
       "type": "timeseries",
-      "id": 25,
       "title": "Conexões do Postgres por banco",
       "description": "Conexões por banco das apps (postgres-exporter).",
       "datasource": {
@@ -1095,8 +1353,8 @@
       "gridPos": {
         "h": 8,
         "w": 8,
-        "x": 16,
-        "y": 61
+        "x": 12,
+        "y": 77
       },
       "fieldConfig": {
         "defaults": {
@@ -1129,29 +1387,24 @@
           "legendFormat": "{{datname}}",
           "refId": "A"
         }
-      ]
+      ],
+      "id": 29
     },
     {
       "type": "timeseries",
-      "id": 26,
-      "title": "Lag do grupo reservations em orders.events",
-      "description": "Offset máximo do tópico menos o offset confirmado do grupo; exige enable_consumer_group_metrics no Redpanda.",
+      "title": "Lag por grupo e tópico",
+      "description": "Offset máximo do tópico menos o offset confirmado do grupo, por partição, somado; exige enable_consumer_group_metrics no Redpanda.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 24,
-        "x": 0,
-        "y": 69
       },
       "fieldConfig": {
         "defaults": {
           "unit": "short",
           "custom": {
-            "lineWidth": 1,
-            "fillOpacity": 0
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
           }
         },
         "overrides": []
@@ -1173,11 +1426,18 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(max by (redpanda_topic, redpanda_partition) (redpanda_kafka_max_offset{redpanda_namespace=\"kafka\", redpanda_topic=\"orders.events\"}) - on (redpanda_topic, redpanda_partition) max by (redpanda_topic, redpanda_partition) (redpanda_kafka_consumer_group_committed_offset{redpanda_group=\"reservations\", redpanda_topic=\"orders.events\"}))",
-          "legendFormat": "lag",
+          "expr": "sum by (redpanda_group, redpanda_topic) (max by (redpanda_topic, redpanda_partition) (redpanda_kafka_max_offset{redpanda_namespace=\"kafka\"}) - on (redpanda_topic, redpanda_partition) group_right max by (redpanda_group, redpanda_topic, redpanda_partition) (redpanda_kafka_consumer_group_committed_offset))",
+          "legendFormat": "{{redpanda_group}} ← {{redpanda_topic}}",
           "refId": "A"
         }
-      ]
+      ],
+      "id": 30,
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 0,
+        "y": 85
+      }
     }
   ]
 }

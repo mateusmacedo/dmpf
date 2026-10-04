@@ -1,0 +1,9 @@
+# Segundo --config do Collector: ele funde os arquivos na ordem, e este só
+# acrescenta o TLS ao receiver OTLP/gRPC do config.yaml da base.
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        tls:
+          cert_file: /etc/otelcol-tls/tls.crt
+          key_file: /etc/otelcol-tls/tls.key

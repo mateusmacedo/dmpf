@@ -1,5 +1,5 @@
 # Fail-closed: a base exige login e lê a senha do administrador do Secret
-# `grafana-admin`; o acesso anônimo é patch do overlay de desenvolvimento.
+# `grafana-admin`; nenhum overlay liga o acesso anônimo.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -34,10 +34,10 @@ spec:
                   key: password
             - name: GF_AUTH_ANONYMOUS_ENABLED
               value: 'false'
-            - name: GF_FEATURE_TOGGLES_ENABLE
-              value: traceqlEditor
             - name: GF_ANALYTICS_REPORTING_ENABLED
               value: 'false'
+            - name: GF_PLUGINS_PREINSTALL_DISABLED
+              value: 'true'
             - name: GF_LOG_LEVEL
               value: warn
           volumeMounts:
@@ -47,9 +47,17 @@ spec:
             - name: dashboards-provider
               mountPath: /etc/grafana/provisioning/dashboards
               readOnly: true
-            - name: dashboards
-              mountPath: /var/lib/grafana/dashboards
+            - name: dashboards-plataforma
+              mountPath: /var/lib/grafana/dashboards/plataforma
               readOnly: true
+            - name: dashboards-kernel
+              mountPath: /var/lib/grafana/dashboards/kernel
+              readOnly: true
+            - name: dashboards-infra
+              mountPath: /var/lib/grafana/dashboards/infra
+              readOnly: true
+            - name: dashboards-carga
+              mountPath: /var/lib/grafana/dashboards/carga
             - name: data
               mountPath: /var/lib/grafana
           readinessProbe:
@@ -75,8 +83,16 @@ spec:
         - name: dashboards-provider
           configMap:
             name: grafana-dashboards-provider
-        - name: dashboards
+        - name: dashboards-plataforma
           configMap:
-            name: grafana-dashboards
+            name: grafana-dashboards-plataforma
+        - name: dashboards-kernel
+          configMap:
+            name: grafana-dashboards-kernel
+        - name: dashboards-infra
+          configMap:
+            name: grafana-dashboards-infra
+        - name: dashboards-carga
+          emptyDir: {}
         - name: data
           emptyDir: {}
