@@ -138,3 +138,27 @@ func TestANonPositivePolicyIsRefused(t *testing.T) {
 		})
 	}
 }
+
+func TestFromEnvReadsNoLegacyTelemetryVariable(t *testing.T) {
+	cfg, err := app.FromEnv(app.RoleAPI, lookup("PG_DSN", "postgres://x", "GRPC_INSECURE", "true",
+		"SERVICE", "legacy", "SERVICE_VERSION", "9.9.9", "INSTANCE_ID", "legacy-1", "OTLP_ENDPOINT", "legacy:4317", "OTLP_INSECURE", "not-a-bool"))
+
+	if err != nil {
+		t.Fatalf("FromEnv() = %v, want the legacy telemetry variables ignored (RF-E1)", err)
+	}
+	telemetry := app.TelemetryOf(cfg)
+	if telemetry.Service != "orders" || telemetry.Version == "9.9.9" || telemetry.Instance == "legacy-1" {
+		t.Fatalf("TelemetryOf() = %+v, want the identity left to OTEL_SERVICE_NAME and OTEL_RESOURCE_ATTRIBUTES (RF-E1, RF-E3)", telemetry)
+	}
+}
+
+func TestTheIdentityOfTheProcessIsLeftToTheEnvironment(t *testing.T) {
+	cfg, err := app.FromEnv(app.RoleAPI, lookup("PG_DSN", "postgres://x", "GRPC_INSECURE", "true"))
+	if err != nil {
+		t.Fatalf("FromEnv() = %v, want nil", err)
+	}
+
+	if telemetry := app.TelemetryOf(cfg); telemetry.Version != "" || telemetry.Instance != "" {
+		t.Fatalf("TelemetryOf() declares version %q and instance %q, want neither: both come from OTEL_RESOURCE_ATTRIBUTES (RF-E3)", telemetry.Version, telemetry.Instance)
+	}
+}

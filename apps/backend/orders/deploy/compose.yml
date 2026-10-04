@@ -8,7 +8,7 @@ x-image: &image
   image: ${ORDERS_IMAGE:-orders:local}
 
 x-env: &env
-  SERVICE: orders
+  OTEL_SERVICE_NAME: orders
   PG_DSN: postgres://orders:${ORDERS_PG_PASSWORD:-orders-local}@postgres:5432/orders?sslmode=disable
 
 services:
@@ -17,12 +17,16 @@ services:
     extends:
       file: ../../../../infra/local/compose/app-base.yml
       service: dmpf-grpc-api
+    stop_grace_period: 30s
     environment:
       <<: *env
-      INSTANCE_ID: orders-api
+      OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES:-service.version=local,deployment.environment.name=local},service.instance.id=orders-api,dmpf.process.role=api
       ITEM_LIMIT: ${ITEM_LIMIT:-10}
       GRPC_TLS_CERT_FILE: /pki/dmpf-orders-api.crt
       GRPC_TLS_KEY_FILE: /pki/dmpf-orders-api.key
+    deploy:
+      resources:
+        limits: { cpus: '0.216', memory: 192M }
     depends_on:
       pki-init:
         condition: service_completed_successfully
@@ -36,10 +40,11 @@ services:
     extends:
       file: ../../../../infra/local/compose/app-base.yml
       service: dmpf-kafka-worker
+    stop_grace_period: 30s
     command: ['--role', 'relay']
     environment:
       <<: *env
-      INSTANCE_ID: orders-relay
+      OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES:-service.version=local,deployment.environment.name=local},service.instance.id=orders-relay,dmpf.process.role=relay
       KAFKA_SASL_USERNAME: orders
       KAFKA_SASL_PASSWORD: ${KAFKA_ORDERS_PASSWORD:-orders-local}
       KAFKA_GROUP: orders

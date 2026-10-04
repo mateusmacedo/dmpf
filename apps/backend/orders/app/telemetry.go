@@ -3,40 +3,62 @@ package app
 import (
 	"context"
 	"errors"
+	"log/slog"
+	"strings"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/boot"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/logging"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/tracing"
 	obsusecase "github.com/mateusmacedo/dmpf/libs/backend/go/observability/usecase"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
 )
 
 // TelemetryOf is what this process declares about itself to the telemetry.
 func TelemetryOf(cfg Config) boot.Telemetry {
 	return boot.Telemetry{
 		Service:  cfg.Service,
-		Version:  cfg.Version,
-		Instance: cfg.Instance,
-		Endpoint: cfg.OTLPEndpoint,
-		Insecure: cfg.OTLPInsecure,
+		Role:     string(cfg.Role),
 		Signals:  cfg.Signals,
 		Class:    tracing.ClassWrite,
-		Fields:   requestFields,
+		Settings: settings(cfg),
 	}
 }
 
-func requestFields(ctx context.Context) logging.Fields {
-	fields := logging.Fields{}
-	if execution, ok := ports.ExecutionContextFrom(ctx); ok {
-		if tenant, scoped := execution.Tenant(); scoped {
-			fields[logging.KeyTenantID] = string(tenant)
-		}
+func settings(cfg Config) []slog.Attr {
+	storage := []slog.Attr{slog.Any("postgres", postgres.DescribeDSN(cfg.DSN))}
+	switch cfg.Role {
+	case RoleAPI:
+		return append(storage,
+			slog.Bool("migrate", cfg.Migrate),
+			slog.String("grpc_addr", cfg.GRPCAddr),
+			slog.Bool("grpc_insecure", cfg.GRPCInsecure),
+			slog.String("grpc_tls_cert_file", cfg.GRPCCertFile),
+			slog.String("grpc_tls_key_file", presence(cfg.GRPCKeyFile)),
+			slog.String("grpc_client_ca_file", cfg.GRPCClientCAFile),
+			slog.String("grpc_trusted_clients", strings.Join(cfg.GRPCTrustedClients, ",")),
+			slog.Int("metric_tenants", len(cfg.MetricTenants)),
+			slog.Int("item_limit", cfg.ItemLimit),
+		)
+	case RoleRelay:
+		return append(storage,
+			slog.String("kafka_brokers", strings.Join(cfg.Brokers, ",")),
+			slog.Bool("kafka_insecure", cfg.KafkaInsecure),
+			slog.Any("kafka", cfg.KafkaAuth),
+			slog.String("kafka_orders_topic", cfg.OrdersTopic),
+			slog.String("kafka_orders_dlq", cfg.OrdersDLQ),
+			slog.String("kafka_group", cfg.Group),
+		)
+	default:
+		return storage
 	}
-	if mc, ok := ports.MessageContextFrom(ctx); ok {
-		fields[logging.KeyCorrelationID] = mc.CorrelationID
+}
+
+func presence(value string) string {
+	if value == "" {
+		return "unset"
 	}
-	return fields
+	return "set"
 }
 
 func classify(err error) string {
@@ -47,8 +69,11 @@ func classify(err error) string {
 	case errors.Is(err, ports.ErrIdempotencyKeyAbsent), errors.Is(err, ports.ErrIdempotencyKeyInvalid),
 		errors.Is(err, ports.ErrIdempotencyMismatch):
 		return string(application.Validation)
-	case errors.Is(err, ports.ErrIdempotencyInFlight), errors.Is(err, ports.ErrAlreadyExists):
+	case errors.Is(err, ports.ErrIdempotencyInFlight), errors.Is(err, ports.ErrAlreadyExists),
+		errors.Is(err, ports.ErrVersionConflict):
 		return string(application.Conflict)
+	case errors.Is(err, ports.ErrNotFound):
+		return string(application.NotFound)
 	default:
 		return obsusecase.CategoryUnclassified
 	}
