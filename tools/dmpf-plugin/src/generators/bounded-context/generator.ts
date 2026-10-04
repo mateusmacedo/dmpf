@@ -155,6 +155,15 @@ const toolOf = (depth: number, script: string): string =>
 const imageRefOf = (projectRoot: string): string =>
   projectRoot.replace(/[\\/\s]+/g, '-').toLowerCase();
 
+const roleResourceOf = (name: string, role: string): string =>
+  `\${OTEL_RESOURCE_ATTRIBUTES:+$OTEL_RESOURCE_ATTRIBUTES,}service.instance.id=${name}-local-${role},dmpf.process.role=${role}`;
+
+const serveCommandOf = (name: string, role: string): string =>
+  `set -a; [ ! -f deploy/.env ] || . deploy/.env; OTEL_RESOURCE_ATTRIBUTES="${roleResourceOf(name, role)}"; set +a; exec go run ./cmd --role ${role}`;
+
+const dockerRunCommandOf = (name: string, image: string, role: string): string =>
+  `[ ! -f deploy/.env ] || . deploy/.env; exec docker run --rm --name ${name}-${role} --network host --env-file deploy/.env -e OTEL_RESOURCE_ATTRIBUTES="${roleResourceOf(name, role)}" ${image} --role ${role}`;
+
 const testRaceCommandOf = (integration: boolean, depth: number): string =>
   integration
     ? `${toolOf(depth, 'test-env.sh')} go test -race -count=1 -p 1 -tags=integration ./...`
@@ -249,11 +258,10 @@ const planModule = ({
       ),
       boundedContextJson: JSON.stringify(boundedContext),
       tidyCommandJson: JSON.stringify(toolOf(depth, 'go-tidy.sh')),
-      serveRelayCommandJson: JSON.stringify(
-        `set -a; [ ! -f deploy/.env ] || . deploy/.env; set +a; exec go run ./cmd --role relay`,
-      ),
+      serveApiCommandJson: JSON.stringify(serveCommandOf(name, 'api')),
+      serveRelayCommandJson: JSON.stringify(serveCommandOf(name, 'relay')),
       dockerRunRelayCommandJson: JSON.stringify(
-        `docker run --rm --name ${name}-relay --network host --env-file deploy/.env ${imageRefOf(moduleDirectory)} --role relay`,
+        dockerRunCommandOf(name, imageRefOf(moduleDirectory), 'relay'),
       ),
       testDistributedCommandJson: JSON.stringify(
         `${toolOf(depth, 'test-env.sh')} go test -race -count=1 -p 1 -tags=integration,distributed ./distkit/...`,

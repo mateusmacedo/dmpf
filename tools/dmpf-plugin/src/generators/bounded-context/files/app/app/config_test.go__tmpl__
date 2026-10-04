@@ -24,8 +24,8 @@ func TestTheAPIRunsWithItsDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("FromEnv() = %v, want nil", err)
 	}
-	if cfg.GRPCAddr != ":9090" || cfg.Service != "<%- name %>" || cfg.Version != "dev" || !cfg.GRPCInsecure {
-		t.Fatalf("cfg = %+v, want :9090, <%- name %>, dev, insecure", cfg)
+	if cfg.GRPCAddr != ":9090" || cfg.Service != "<%- name %>" || !cfg.GRPCInsecure {
+		t.Fatalf("cfg = %+v, want :9090, <%- name %>, insecure", cfg)
 	}
 	if cfg.Relay.ShutdownGrace != observability.ShutdownGrace {
 		t.Fatalf("Relay.ShutdownGrace = %v, want the kernel's %v", cfg.Relay.ShutdownGrace, observability.ShutdownGrace)
@@ -120,5 +120,16 @@ func TestANonPositivePolicyIsRefused(t *testing.T) {
 				t.Fatalf("Validate() = %v, want ErrInvalidPolicy", err)
 			}
 		})
+	}
+}
+
+func TestTheIdentityOfTheProcessIsLeftToTheEnvironment(t *testing.T) {
+	cfg, err := app.FromEnv(app.RoleAPI, lookup("PG_DSN", "postgres://x", "GRPC_INSECURE", "true"))
+	if err != nil {
+		t.Fatalf("FromEnv() = %v, want nil", err)
+	}
+
+	if telemetry := app.TelemetryOf(cfg); telemetry.Version != "" || telemetry.Instance != "" {
+		t.Fatalf("TelemetryOf() declares version %q and instance %q, want neither: both come from OTEL_RESOURCE_ATTRIBUTES (RF-E3)", telemetry.Version, telemetry.Instance)
 	}
 }

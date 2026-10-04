@@ -9,6 +9,7 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/app/relay"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/kafka"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/boot"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/envconfig"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/admission"
 )
@@ -33,16 +34,11 @@ var (
 )
 
 const (
-	envDSN            = "PG_DSN"
-	envMigrate        = "MIGRATE"
-	envBrokers        = "KAFKA_BROKERS"
-	envKafkaInsecure  = "KAFKA_INSECURE"
-	envGroup          = "KAFKA_GROUP"
-	envOTLPEndpoint   = "OTLP_ENDPOINT"
-	envOTLPInsecure   = "OTLP_INSECURE"
-	envService        = "SERVICE"
-	envServiceVersion = "SERVICE_VERSION"
-	envInstanceID     = "INSTANCE_ID"
+	envDSN           = "PG_DSN"
+	envMigrate       = "MIGRATE"
+	envBrokers       = "KAFKA_BROKERS"
+	envKafkaInsecure = "KAFKA_INSECURE"
+	envGroup         = "KAFKA_GROUP"
 
 	env<%- pascalName %>Topic = "KAFKA_<%- envName %>_TOPIC"
 	env<%- pascalName %>DLQ   = "KAFKA_<%- envName %>_DLQ"
@@ -84,12 +80,9 @@ type Config struct {
 	<%- pascalName %>Topic string
 	<%- pascalName %>DLQ   string
 
-	OTLPEndpoint string
-	OTLPInsecure bool
+	Signals boot.Signals
 
-	Service  string
-	Version  string
-	Instance string
+	Service string
 
 	Relay relay.Config
 
@@ -106,7 +99,6 @@ func Defaults(role Role) Config {
 		Role:     role,
 		GRPCAddr: ":9090",
 		Service:  "<%- name %>",
-		Version:  "dev",
 		Relay: relay.Config{
 			Source:         "urn:dmpf:reference-<%- name %>",
 			Interval:       500 * time.Millisecond,
@@ -138,16 +130,12 @@ func FromEnv(role Role, lookup func(string) string) (Config, error) {
 	cfg.GRPCKeyFile = lookup(envGRPCKeyFile)
 	cfg.GRPCClientCAFile = lookup(envGRPCClientCAFile)
 	cfg.GRPCTrustedClients = envconfig.SplitList(lookup(envGRPCTrustedClients))
-	cfg.Service = envconfig.OrDefault(lookup(envService), cfg.Service)
-	cfg.Version = envconfig.OrDefault(lookup(envServiceVersion), cfg.Version)
-	cfg.Instance = envconfig.OrDefault(lookup(envInstanceID), envconfig.Hostname())
 	cfg.Brokers = envconfig.SplitList(lookup(envBrokers))
 	cfg.KafkaAuth = kafka.ReadClientAuth(lookup)
 	cfg.MetricTenants = envconfig.SplitList(lookup(envMetricTenants))
 	cfg.<%- pascalName %>Topic = lookup(env<%- pascalName %>Topic)
 	cfg.<%- pascalName %>DLQ = lookup(env<%- pascalName %>DLQ)
 	cfg.Group = lookup(envGroup)
-	cfg.OTLPEndpoint = lookup(envOTLPEndpoint)
 
 	var err error
 	flags := []struct {
@@ -156,13 +144,16 @@ func FromEnv(role Role, lookup func(string) string) (Config, error) {
 	}{
 		{envGRPCInsecure, &cfg.GRPCInsecure},
 		{envKafkaInsecure, &cfg.KafkaInsecure},
-		{envOTLPInsecure, &cfg.OTLPInsecure},
 		{envMigrate, &cfg.Migrate},
 	}
 	for _, flag := range flags {
 		if *flag.into, err = envconfig.ParseBool(flag.variable, lookup(flag.variable)); err != nil {
 			return Config{}, err
 		}
+	}
+
+	if cfg.Signals, err = boot.SignalsFromEnv(lookup); err != nil {
+		return Config{}, err
 	}
 
 	if err := cfg.Validate(); err != nil {

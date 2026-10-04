@@ -15,3 +15,4 @@ replicas:
 patches:
   - path: configmap-<%- name %>-patch.yaml
   - path: deployment-<%- name %>-api-patch.yaml
+  - path: deployment-<%- name %>-relay-patch.yaml

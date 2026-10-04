@@ -68,7 +68,7 @@
     "serve-api": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "set -a; [ ! -f deploy/.env ] || . deploy/.env; set +a; exec go run ./cmd --role api",
+        "command": <%- serveApiCommandJson %>,
         "cwd": "{projectRoot}",
         "envFile": "{projectRoot}/deploy/.env.example"
       },
