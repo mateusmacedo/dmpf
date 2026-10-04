@@ -51,8 +51,13 @@ jobs:
       - name: Setup Go
         uses: ./.github/actions/setup-go
 
+      # Sem main-branch-name a action procura `main`, que não existe aqui; no push
+      # em develop a base cairia na árvore vazia. O fallback é a ponta anterior.
       - name: Set Nx SHAs for affected (base/head)
         uses: nrwl/nx-set-shas@afb73a62d26e41464e9254689e1fd6122ee683c1 # v5
+        with:
+          main-branch-name: develop
+          fallback-sha: ${{ github.event.before }}
 
       # Cache local do Nx e do golangci-lint, sem Nx Cloud. O lint só existe
       # neste job, então só ele grava o cache do golangci-lint.
@@ -131,6 +136,9 @@ jobs:
 
       - name: Set Nx SHAs for affected (base/head)
         uses: nrwl/nx-set-shas@afb73a62d26e41464e9254689e1fd6122ee683c1 # v5
+        with:
+          main-branch-name: develop
+          fallback-sha: ${{ github.event.before }}
 
       - name: Cache do Nx
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -359,6 +367,9 @@ jobs:
 
       - name: Set Nx SHAs for affected (base/head)
         uses: nrwl/nx-set-shas@afb73a62d26e41464e9254689e1fd6122ee683c1 # v5
+        with:
+          main-branch-name: develop
+          fallback-sha: ${{ github.event.before }}
 
       # Os gates decidem sobre a árvore, não sobre um banco. O gate de dependência
       # roda o golangci-lint uma vez por vetor, então fica sob o mesmo regime de
@@ -413,6 +424,9 @@ jobs:
 
       - name: Set Nx SHAs for affected (base/head)
         uses: nrwl/nx-set-shas@afb73a62d26e41464e9254689e1fd6122ee683c1 # v5
+        with:
+          main-branch-name: develop
+          fallback-sha: ${{ github.event.before }}
 
       # Sem `if` de projeto Go afetado: o artefato que esta prova mede é escrito
       # pelo generator, e uma mudança só no TypeScript do plugin altera o artefato
