@@ -125,8 +125,19 @@
       }
     },
     "e2e": {
-      "executor": "nx:noop",
-      "dependsOn": ["test-distributed"]
+      "executor": "nx:run-commands",
+      "cache": false,
+      "inputs": ["go", "^go"],
+      "dependsOn": [
+        {
+          "projects": ["testkit"],
+          "target": "test-infra-up"
+        }
+      ],
+      "options": {
+        "command": "bash ../../../tools/test-env.sh go test -race -count=1 -p 1 -tags=integration,distributed ./distkit/...",
+        "cwd": "{projectRoot}"
+      }
     }
   }
 }
