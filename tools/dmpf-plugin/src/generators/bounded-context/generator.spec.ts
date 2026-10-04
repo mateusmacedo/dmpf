@@ -271,6 +271,7 @@ const expectedTargets = ({
               cwd: '{projectRoot}',
             },
           },
+          e2e: { executor: 'nx:noop', dependsOn: ['test-distributed'] },
         }
       : {}),
   };
@@ -581,13 +582,14 @@ describe('[generator] bounded-context — generation', () => {
     }
   });
 
-  it('should declare the six Go targets, the two serve targets, the env file, the relay container, the distributed one and no lint target', async () => {
+  it('should declare the six Go targets, the two serve targets, the env file, the relay container, the distributed one, the e2e over it and no lint target', async () => {
     const tree = await generate();
 
     expect(Object.keys(projectOf(tree).targets).sort()).toEqual([
       'build',
       'deploy-env',
       'docker:run-relay',
+      'e2e',
       'fmt-check',
       'govulncheck',
       'nx-release-publish',

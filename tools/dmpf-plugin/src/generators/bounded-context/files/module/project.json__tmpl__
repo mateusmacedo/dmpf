@@ -123,6 +123,10 @@
         "command": <%- testDistributedCommandJson %>,
         "cwd": "{projectRoot}"
       }
+    },
+    "e2e": {
+      "executor": "nx:noop",
+      "dependsOn": ["test-distributed"]
     }<% } %>
   }
 }
