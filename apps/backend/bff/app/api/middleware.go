@@ -10,14 +10,15 @@ import (
 	"regexp"
 	"slices"
 	"strings"
-	"time"
 
-	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/attribute"
+	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/mateusmacedo/dmpf/apps/backend/bff/app/rpc"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/authn"
 	kernelhttp "github.com/mateusmacedo/dmpf/libs/backend/go/http"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/logging"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/retry"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/tracing"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
@@ -33,10 +34,12 @@ var correlationFormat = regexp.MustCompile(`^[A-Za-z0-9._-]{1,128}$`)
 // withExecutionContext authenticates and mounts the nine-field context. It runs
 // inside withRouteDeadline, never outside: deadline is mandatory in CTX-01, and
 // mounting before the timeout existed would leave the field unresolvable.
-func withExecutionContext(tracer trace.Tracer, logger *slog.Logger, authenticator ports.Authenticator, route kernelhttp.Route, next http.Handler) http.Handler {
+func withExecutionContext(logger *slog.Logger, authenticator ports.Authenticator, route kernelhttp.Route, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		ctx := extractTrustedTrace(r)
-		started := time.Now()
+		markSelfLogged(rw)
+		ctx := r.Context()
+		span := trace.SpanFromContext(ctx)
+		span.SetAttributes(allowedHeaders(r)...)
 
 		correlation := r.Header.Get(CorrelationHeader)
 		if !correlationFormat.MatchString(correlation) {
@@ -44,22 +47,17 @@ func withExecutionContext(tracer trace.Tracer, logger *slog.Logger, authenticato
 		}
 		requestID := newIdentifier()
 
-		ctx, span := tracer.Start(ctx, "HTTP "+r.Pattern,
-			trace.WithSpanKind(trace.SpanKindServer),
-			trace.WithAttributes(tracing.Attributes{}.CorrelationID(correlation).RequestID(requestID).KeyValues()...))
-		defer span.End()
-
 		w := &statusRecorder{ResponseWriter: rw, status: http.StatusOK}
 		clientKey := r.Header.Get(IdempotencyHeader)
 		derivedKey := ""
-		defer func() { logAccess(ctx, logger, route, r, w, started, clientKey, derivedKey) }()
+		defer func() { finishRequest(ctx, span, logger, route, r, w, clientKey, derivedKey) }()
 		defer recordPanicStatus(w)
 
 		w.Header().Set(CorrelationHeader, correlation)
 
 		deadline, governed := r.Context().Deadline()
 		if !governed {
-			tracing.RecordError(span, "deadline")
+			tracing.RecordError(span, rpc.CategoryUnexpected)
 			writeRejection(r, w, http.StatusInternalServerError, "internal-failure", "the request could not be completed")
 			return
 		}
@@ -69,7 +67,6 @@ func withExecutionContext(tracer trace.Tracer, logger *slog.Logger, authenticato
 			status, code = kernelhttp.RefuseAssertedIdentity(r, identity)
 		}
 		if status != 0 {
-			tracing.RecordError(span, code)
 			writeRejection(r, w, status, code, rejectionMessage(status))
 			return
 		}
@@ -85,7 +82,7 @@ func withExecutionContext(tracer trace.Tracer, logger *slog.Logger, authenticato
 			Locale:        localeOf(r),
 		})
 		if err != nil {
-			tracing.RecordError(span, "context")
+			tracing.RecordError(span, rpc.CategoryUnexpected)
 			writeRejection(r, w, http.StatusInternalServerError, "internal-failure", "the request could not be completed")
 			return
 		}
@@ -98,19 +95,30 @@ func withExecutionContext(tracer trace.Tracer, logger *slog.Logger, authenticato
 			Locale:         execution.Locale(),
 		}
 		if tenant, ok := execution.Tenant(); ok {
-			span.SetAttributes(tracing.Attributes{}.TenantID(string(tenant)).KeyValues()...)
 			call.TenantID = string(tenant)
 		}
+		span.SetAttributes(tracing.ExecutionAttributes(execution).KeyValues()...)
 
-		ctx = kernelhttp.WithExecutionContext(ctx, execution)
+		ctx = tracing.WithExecutionBaggage(kernelhttp.WithExecutionContext(ctx, execution), execution)
 		ctx = rpc.WithReplaySlot(rpc.WithCall(ctx, call))
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
+func allowedHeaders(r *http.Request) []attribute.KeyValue {
+	var kept []attribute.KeyValue
+	for _, name := range []string{"content-type", "accept"} {
+		if values := r.Header.Values(name); len(values) > 0 {
+			kept = append(kept, semconv.HTTPRequestHeader(name, values...))
+		}
+	}
+	return kept
+}
+
 type statusRecorder struct {
 	http.ResponseWriter
-	status int
+	status     int
+	selfLogged bool
 }
 
 func (s *statusRecorder) WriteHeader(status int) {
@@ -119,6 +127,12 @@ func (s *statusRecorder) WriteHeader(status int) {
 }
 
 func (s *statusRecorder) Unwrap() http.ResponseWriter { return s.ResponseWriter }
+
+func markSelfLogged(w http.ResponseWriter) {
+	if recorder, ok := w.(*statusRecorder); ok {
+		recorder.selfLogged = true
+	}
+}
 
 func recordPanicStatus(w *statusRecorder) {
 	if recovered := recover(); recovered != nil {
@@ -141,35 +155,76 @@ func deriveIdempotencyKey(subject *ports.SubjectID, key string) string {
 	return hex.EncodeToString(digest[:])
 }
 
-func logAccess(ctx context.Context, logger *slog.Logger, route kernelhttp.Route, r *http.Request, w *statusRecorder, started time.Time, clientKey, derivedKey string) {
-	level := slog.LevelDebug
-	switch {
-	case w.status >= http.StatusInternalServerError:
-		level = slog.LevelWarn
-	case w.status >= http.StatusBadRequest:
-		level = slog.LevelInfo
-	}
+func finishRequest(ctx context.Context, span trace.Span, logger *slog.Logger, route kernelhttp.Route, r *http.Request, w *statusRecorder, clientKey, derivedKey string) {
+	outcome := outcomeOf(w.status)
+	span.SetAttributes(tracing.Attributes{}.OutcomeCategory(string(outcome)).KeyValues()...)
+
+	level := logging.Severity(logging.Server, outcome)
 	if !logger.Enabled(ctx, level) {
 		return
 	}
-	attrs := []slog.Attr{
-		slog.String("route", route.Name),
-		slog.String("method", r.Method),
-		slog.String("pattern", r.Pattern),
-		slog.Int("status", w.status),
-		slog.Float64("duration_ms", float64(time.Since(started).Microseconds())/1000),
-	}
+	attrs := accessAttrs(r.Method, route.Path, w.status, outcome)
 	switch {
 	case clientKey == "":
 	case ports.ValidIdempotencyKey(clientKey):
-		attrs = append(attrs, slog.String("idempotency_key", clientKey))
+		attrs = append(attrs, slog.String(tracing.KeyIdempotencyKey, clientKey))
 	default:
-		attrs = append(attrs, slog.Bool("idempotency_key_invalid", true))
+		attrs = append(attrs, slog.Bool(tracing.KeyIdempotencyKeyInvalid, true))
 	}
 	if derivedKey != "" {
-		attrs = append(attrs, slog.String("derived_idempotency_key", derivedKey))
+		attrs = append(attrs, slog.String(tracing.KeyIdempotencyKeyDerived, derivedKey))
 	}
 	logger.LogAttrs(ctx, level, "http request", attrs...)
+}
+
+func accessAttrs(method, route string, status int, outcome ports.OutcomeCategory) []slog.Attr {
+	attrs := []slog.Attr{slog.String(string(semconv.HTTPRequestMethodKey), semconvMethod(method))}
+	if route != "" {
+		attrs = append(attrs, slog.String(string(semconv.HTTPRouteKey), route))
+	}
+	return append(attrs,
+		slog.Int(string(semconv.HTTPResponseStatusCodeKey), status),
+		slog.String(tracing.KeyOutcomeCategory, string(outcome)),
+	)
+}
+
+func semconvMethod(method string) string {
+	switch upper := strings.ToUpper(method); upper {
+	case http.MethodConnect, http.MethodDelete, http.MethodGet, http.MethodHead, http.MethodOptions,
+		http.MethodPatch, http.MethodPost, http.MethodPut, http.MethodTrace:
+		return upper
+	}
+	return semconv.HTTPRequestMethodOther.Value.AsString()
+}
+
+func withAccessLog(logger *slog.Logger, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		w := &statusRecorder{ResponseWriter: rw, status: http.StatusOK}
+		next.ServeHTTP(w, r)
+		if w.selfLogged {
+			return
+		}
+		outcome := outcomeOf(w.status)
+		level := logging.Severity(logging.Server, outcome)
+		if !logger.Enabled(r.Context(), level) {
+			return
+		}
+		_, route, _ := strings.Cut(r.Pattern, " ")
+		logger.LogAttrs(r.Context(), level, "http request", accessAttrs(r.Method, route, w.status, outcome)...)
+	})
+}
+
+func outcomeOf(status int) ports.OutcomeCategory {
+	switch {
+	case status >= http.StatusInternalServerError:
+		return ports.OutcomeFailed
+	case status == http.StatusUnauthorized, status == http.StatusForbidden:
+		return ports.OutcomeDenied
+	case status >= http.StatusBadRequest:
+		return ports.OutcomeRejected
+	default:
+		return ports.OutcomeAccepted
+	}
 }
 
 func rejectionMessage(status int) string {
@@ -265,10 +320,6 @@ func newIdentifier() string {
 	return hex.EncodeToString(buffer)
 }
 
-func extractTrustedTrace(r *http.Request) context.Context {
-	return propagation.TraceContext{}.Extract(r.Context(), propagation.HeaderCarrier(r.Header))
-}
-
 // WHY: without this a panic reaches net/http, which closes the connection with
 // no HTTP answer at all and writes the stack to the default logger, bypassing
 // the redacting handler this process installs.
@@ -276,7 +327,7 @@ func withRecover(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() {
 			if recovered := recover(); recovered != nil {
-				tracing.RecordError(trace.SpanFromContext(r.Context()), "panic")
+				tracing.RecordError(trace.SpanFromContext(r.Context()), rpc.CategoryUnexpected)
 				writeRejection(r, w, http.StatusInternalServerError, "internal-failure", "the request could not be completed")
 			}
 		}()

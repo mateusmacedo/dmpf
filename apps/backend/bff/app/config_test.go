@@ -121,3 +121,43 @@ func TestFromEnvReadsTheDrainDelay(t *testing.T) {
 		}
 	}
 }
+
+func TestFromEnvReadsTheAdministrationAddress(t *testing.T) {
+	base := append(targets, "GRPC_INSECURE", "true", devMock, "true")
+
+	cfg, err := app.FromEnv(lookup(base...))
+	if err != nil || cfg.AdminAddr != ":8090" || cfg.AdminAddr == cfg.HTTPAddr {
+		t.Fatalf("FromEnv() = %q, %v; want :8090, apart from the public %q", cfg.AdminAddr, err, cfg.HTTPAddr)
+	}
+	cfg, err = app.FromEnv(lookup(append(base, "ADMIN_ADDR", "127.0.0.1:9100")...))
+	if err != nil || cfg.AdminAddr != "127.0.0.1:9100" {
+		t.Fatalf("FromEnv() = %q, %v; want 127.0.0.1:9100", cfg.AdminAddr, err)
+	}
+	if _, err := app.FromEnv(lookup(append(base, "ADMIN_ADDR", "8090")...)); !errors.Is(err, app.ErrInvalidVariable) || !strings.Contains(err.Error(), "ADMIN_ADDR") {
+		t.Fatalf("FromEnv(ADMIN_ADDR=8090) = %v, want ErrInvalidVariable naming ADMIN_ADDR", err)
+	}
+}
+
+func TestFromEnvReadsNoLegacyTelemetryVariable(t *testing.T) {
+	cfg, err := app.FromEnv(lookup(append(targets, "GRPC_INSECURE", "true", devMock, "true",
+		"SERVICE", "legacy", "SERVICE_VERSION", "9.9.9", "INSTANCE_ID", "legacy-1", "OTLP_ENDPOINT", "legacy:4317", "OTLP_INSECURE", "not-a-bool")...))
+
+	if err != nil {
+		t.Fatalf("FromEnv() = %v, want the legacy telemetry variables ignored (RF-E1)", err)
+	}
+	telemetry := app.TelemetryOf(cfg)
+	if telemetry.Service != "bff" || telemetry.Version == "9.9.9" || telemetry.Instance == "legacy-1" {
+		t.Fatalf("TelemetryOf() = %+v, want the identity left to OTEL_SERVICE_NAME and OTEL_RESOURCE_ATTRIBUTES (RF-E1, RF-E3)", telemetry)
+	}
+}
+
+func TestTheIdentityOfTheProcessIsLeftToTheEnvironment(t *testing.T) {
+	cfg, err := app.FromEnv(lookup(append(targets, "GRPC_INSECURE", "true", devMock, "true")...))
+	if err != nil {
+		t.Fatalf("FromEnv() = %v, want nil", err)
+	}
+
+	if telemetry := app.TelemetryOf(cfg); telemetry.Version != "" || telemetry.Instance != "" {
+		t.Fatalf("TelemetryOf() declares version %q and instance %q, want neither: both come from OTEL_RESOURCE_ATTRIBUTES (RF-E3)", telemetry.Version, telemetry.Instance)
+	}
+}

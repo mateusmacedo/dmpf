@@ -25,26 +25,32 @@ spec:
           ports:
             - name: http
               containerPort: 8080
+            - name: admin
+              containerPort: 8090
           envFrom:
             - configMapRef:
                 name: bff
           env:
-            - name: INSTANCE_ID
+            - name: K8S_POD_NAME
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: $(OTEL_RESOURCE_ATTRIBUTES),service.instance.id=$(K8S_POD_NAME),dmpf.process.role=api
+            - name: ADMIN_ADDR
+              value: ':8090'
           # A prontidão cai enquanto algum contexto não responde SERVING; a
           # vivacidade só olha o processo, para um contexto fora não reiniciar o BFF.
           readinessProbe:
             httpGet:
               path: /readyz
-              port: http
+              port: admin
             periodSeconds: 5
             timeoutSeconds: 3
           livenessProbe:
             httpGet:
               path: /livez
-              port: http
+              port: admin
             initialDelaySeconds: 10
             periodSeconds: 20
           resources:
@@ -58,4 +64,4 @@ spec:
             readOnlyRootFilesystem: true
             capabilities:
               drop: [ALL]
-      terminationGracePeriodSeconds: 20
+      terminationGracePeriodSeconds: 30

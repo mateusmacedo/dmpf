@@ -9,11 +9,15 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"go.opentelemetry.io/otel/propagation"
+	sdklog "go.opentelemetry.io/otel/sdk/log"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"google.golang.org/grpc"
@@ -31,7 +35,9 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/authn"
 	kernelgrpc "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
 	obsclock "github.com/mateusmacedo/dmpf/libs/backend/go/observability/clock"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/logging"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/metrics"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/otelboot"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/admission"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/deadline"
@@ -186,10 +192,38 @@ func (f *fakeContexts) serve(t *testing.T) func(context.Context, string) (net.Co
 }
 
 type fixture struct {
-	fake    *fakeContexts
-	handler http.Handler
-	spans   *tracetest.InMemoryExporter
-	logs    *bytes.Buffer
+	fake        *fakeContexts
+	handler     http.Handler
+	admin       http.Handler
+	spans       *tracetest.InMemoryExporter
+	logs        *bytes.Buffer
+	records     *logRecorder
+	logProvider *sdklog.LoggerProvider
+	metrics     *sdkmetric.ManualReader
+}
+
+type logRecorder struct {
+	mu      sync.Mutex
+	records []sdklog.Record
+}
+
+func (r *logRecorder) Export(_ context.Context, records []sdklog.Record) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, record := range records {
+		r.records = append(r.records, record.Clone())
+	}
+	return nil
+}
+
+func (*logRecorder) Shutdown(context.Context) error { return nil }
+
+func (*logRecorder) ForceFlush(context.Context) error { return nil }
+
+func (r *logRecorder) all() []sdklog.Record {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return slices.Clone(r.records)
 }
 
 type setup struct {
@@ -201,6 +235,7 @@ type setup struct {
 	ready                func(context.Context) error
 	authenticator        ports.Authenticator
 	draining             func() bool
+	clock                obsclock.Clock
 }
 
 type option func(*setup)
@@ -221,6 +256,8 @@ func withAuthenticator(a ports.Authenticator) option { return func(s *setup) { s
 
 func withDraining(draining func() bool) option { return func(s *setup) { s.draining = draining } }
 
+func withClock(c obsclock.Clock) option { return func(s *setup) { s.clock = c } }
+
 func newFixture(t *testing.T, fake *fakeContexts, options ...option) fixture {
 	t.Helper()
 	cfg := &setup{budget: routeBudget, limit: admission.Limit{PerSecond: 1000, Burst: 1000, Concurrency: 100}, authenticator: authn.DevAuthenticator{}}
@@ -230,12 +267,23 @@ func newFixture(t *testing.T, fake *fakeContexts, options ...option) fixture {
 
 	logs := &bytes.Buffer{}
 	spans := tracetest.NewInMemoryExporter()
-	provider := sdktrace.NewTracerProvider(sdktrace.WithSyncer(spans))
+	provider := sdktrace.NewTracerProvider(sdktrace.WithSyncer(otelboot.NewPrivacyExporter(spans)))
 	t.Cleanup(func() { _ = provider.Shutdown(context.Background()) })
 	tracer := provider.Tracer("bff")
 
+	records := &logRecorder{}
+	logProvider := otelboot.NewLoggerProvider(otelboot.Config{}, records)
+	t.Cleanup(func() { _ = logProvider.Shutdown(context.Background()) })
+	reader := sdkmetric.NewManualReader()
+	meterProvider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	t.Cleanup(func() { _ = meterProvider.Shutdown(context.Background()) })
+	logger := slog.New(slog.NewMultiHandler(
+		slog.NewJSONHandler(logs, &slog.HandlerOptions{Level: slog.LevelDebug}),
+		logging.NewLogger(logProvider, "github.com/mateusmacedo/dmpf/apps/backend/bff/app/api").Handler(),
+	))
+
 	dialer := fake.serve(t)
-	opts := rpc.Options{Insecure: true, Clock: obsclock.System(), Tracer: tracer, Service: "bff-test"}
+	opts := rpc.Options{Insecure: true, Clock: obsclock.System(), Tracer: tracer, TracerProvider: provider, Propagator: propagation.TraceContext{}}
 	ordersConn, err := rpc.Dial("passthrough:///orders", rpc.OrdersConfig(opts), grpc.WithContextDialer(dialer))
 	if err != nil {
 		t.Fatalf("Dial(orders) = %v", err)
@@ -261,20 +309,24 @@ func newFixture(t *testing.T, fake *fakeContexts, options ...option) fixture {
 		t.Fatalf("admission.New() = %v", err)
 	}
 
-	handler, err := api.NewHandler(rpc.NewOrders(ordersConn), rpc.NewReservations(reservationsConn), rpc.NewBookings(bookingsConn), ctrl, tracer, nil, api.Options{
+	handlerOptions := api.Options{
 		Budget:               cfg.budget,
 		Authenticator:        cfg.authenticator,
 		OrdersContract:       cfg.ordersContract,
 		ReservationsContract: cfg.reservationsContract,
 		CORSOrigins:          cfg.cors,
-		Logger:               slog.New(slog.NewJSONHandler(logs, &slog.HandlerOptions{Level: slog.LevelDebug})),
+		Logger:               logger,
+		TracerProvider:       provider,
+		MeterProvider:        meterProvider,
 		Ready:                cfg.ready,
 		Draining:             cfg.draining,
-	})
+		Clock:                cfg.clock,
+	}
+	handler, err := api.NewHandler(rpc.NewOrders(ordersConn), rpc.NewReservations(reservationsConn), rpc.NewBookings(bookingsConn), ctrl, nil, handlerOptions)
 	if err != nil {
 		t.Fatalf("NewHandler() = %v", err)
 	}
-	return fixture{fake: fake, handler: handler, spans: spans, logs: logs}
+	return fixture{fake: fake, handler: handler, admin: api.NewAdminHandler(handlerOptions), spans: spans, logs: logs, records: records, logProvider: logProvider, metrics: reader}
 }
 
 // testCredential is what the development authenticator reads back as identity.
@@ -289,6 +341,23 @@ const testTenant = "acme"
 
 func (f fixture) do(t *testing.T, method, path string, body io.Reader, headers ...string) *httptest.ResponseRecorder {
 	t.Helper()
+	return serve(f.handler, method, path, body, headers...)
+}
+
+func (f fixture) doAdmin(t *testing.T, method, path string, headers ...string) *httptest.ResponseRecorder {
+	t.Helper()
+	return serve(f.admin, method, path, nil, headers...)
+}
+
+func (f fixture) doOn(t *testing.T, admin bool, method, path string, headers ...string) *httptest.ResponseRecorder {
+	t.Helper()
+	if admin {
+		return f.doAdmin(t, method, path, headers...)
+	}
+	return f.do(t, method, path, nil, headers...)
+}
+
+func serve(handler http.Handler, method, path string, body io.Reader, headers ...string) *httptest.ResponseRecorder {
 	req := httptest.NewRequest(method, path, body)
 	for i := 0; i+1 < len(headers); i += 2 {
 		req.Header.Set(headers[i], headers[i+1])
@@ -297,7 +366,7 @@ func (f fixture) do(t *testing.T, method, path string, body io.Reader, headers .
 		req.Header.Set("Authorization", testCredential)
 	}
 	rec := httptest.NewRecorder()
-	f.handler.ServeHTTP(rec, req)
+	handler.ServeHTTP(rec, req)
 	return rec
 }
 

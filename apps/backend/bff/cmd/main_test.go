@@ -29,18 +29,15 @@ func TestRunRefusesToStartWithoutConfiguration(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			var out, errOut bytes.Buffer
+			var errOut bytes.Buffer
 
-			code := run(options{lookup: tc.env}, &out, &errOut)
+			code := run(options{lookup: tc.env}, &errOut)
 
 			if code != exitUsage {
 				t.Fatalf("run() = %d, want %d (usage)", code, exitUsage)
 			}
 			if !strings.Contains(errOut.String(), tc.named) {
 				t.Fatalf("stderr = %q, want %s named", errOut.String(), tc.named)
-			}
-			if out.Len() != 0 {
-				t.Fatalf("stdout = %q, want nothing on a refused start", out.String())
 			}
 		})
 	}
@@ -53,7 +50,7 @@ func TestHealthcheckAnswersOnlyHealthyOrUnhealthy(t *testing.T) {
 		return srv.Listener.Addr().String()
 	}
 	configured := func(addr string) func(string) string {
-		return lookup("GRPC_INSECURE", "true", "AUTH_DEV_MOCK", "true", "HTTP_ADDR", addr,
+		return lookup("GRPC_INSECURE", "true", "AUTH_DEV_MOCK", "true", "ADMIN_ADDR", addr,
 			"ORDERS_GRPC_TARGET", "o:9090", "RESERVATIONS_GRPC_TARGET", "r:9090", "BOOKINGS_GRPC_TARGET", "b:9090")
 	}
 	cases := []struct {
@@ -67,9 +64,9 @@ func TestHealthcheckAnswersOnlyHealthyOrUnhealthy(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			var out, errOut bytes.Buffer
+			var errOut bytes.Buffer
 
-			if code := run(options{lookup: tc.env, args: []string{"healthcheck"}}, &out, &errOut); code != tc.want {
+			if code := run(options{lookup: tc.env, args: []string{"healthcheck"}}, &errOut); code != tc.want {
 				t.Fatalf("run(healthcheck) = %d, want %d (stderr %q)", code, tc.want, errOut.String())
 			}
 		})

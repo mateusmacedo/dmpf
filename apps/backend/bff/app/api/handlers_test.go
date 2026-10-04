@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -295,7 +296,7 @@ func TestTheEdgeSpanParentsTheClientSpanAndTheMetadata(t *testing.T) {
 	byID := map[string]tracetest.SpanStub{}
 	for _, s := range f.spans.GetSpans() {
 		byID[s.SpanContext.SpanID().String()] = s
-		if s.Name == "HTTP GET /orders/{id}" {
+		if s.Name == "GET /orders/{id}" {
 			edge = s
 		}
 	}
@@ -308,7 +309,7 @@ func TestTheEdgeSpanParentsTheClientSpanAndTheMetadata(t *testing.T) {
 		t.Fatalf("traceparent %v does not continue the edge trace", traceparent)
 	}
 	client, sent := byID[parts[2]]
-	if !sent || !strings.HasPrefix(client.Name, "dmpf.grpc.client") {
+	if !sent || client.SpanKind != trace.SpanKindClient || client.Name != strings.TrimPrefix(rpc.MethodFindOrder, "/") {
 		t.Fatalf("traceparent names %q, want a client span", client.Name)
 	}
 	for span := client; span.Parent.SpanID() != edge.SpanContext.SpanID(); {
@@ -327,7 +328,7 @@ func TestAnIncomingTraceparentIsContinued(t *testing.T) {
 	f.do(t, http.MethodGet, "/reservations/o-1", nil, "traceparent", incoming)
 
 	for _, s := range f.spans.GetSpans() {
-		if s.Name == "HTTP GET /reservations/{order_id}" {
+		if s.Name == "GET /reservations/{order_id}" {
 			if s.SpanContext.TraceID().String() != "4bf92f3577b34da6a3ce929d0e0e4736" {
 				t.Fatalf("edge trace = %s, want the incoming trace", s.SpanContext.TraceID())
 			}
@@ -335,6 +336,37 @@ func TestAnIncomingTraceparentIsContinued(t *testing.T) {
 		}
 	}
 	t.Fatal("no edge span recorded")
+}
+
+func TestATracestateFromThePublicClientReachesNoSpanNorContext(t *testing.T) {
+	f := newFixture(t, &fakeContexts{})
+	const incoming = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+	members := make([]string, 32)
+	for i := range members {
+		members[i] = fmt.Sprintf("probe%d=%s", i, strings.Repeat("x", 200))
+	}
+
+	f.do(t, http.MethodGet, "/orders/o-1", nil, "traceparent", incoming, "tracestate", strings.Join(members, ","))
+
+	spans := f.spans.GetSpans()
+	if len(spans) == 0 {
+		t.Fatal("no span recorded")
+	}
+	for _, s := range spans {
+		if s.SpanContext.TraceID().String() != "4bf92f3577b34da6a3ce929d0e0e4736" {
+			t.Fatalf("%s trace = %s, want the incoming traceparent continued", s.Name, s.SpanContext.TraceID())
+		}
+		if s.SpanContext.TraceState().Len() != 0 || s.Parent.TraceState().Len() != 0 {
+			t.Fatalf("%s tracestate = %q (parent %q), want none from the public client", s.Name, s.SpanContext.TraceState(), s.Parent.TraceState())
+		}
+	}
+	md := f.fake.callsTo("FindOrder")[0].md
+	if got := md.Get("tracestate"); len(got) != 0 {
+		t.Fatalf("tracestate sent to the context = %v, want none from the public client", got)
+	}
+	if got := strings.Join(md.Get("traceparent"), ""); !strings.Contains(got, "4bf92f3577b34da6a3ce929d0e0e4736") {
+		t.Fatalf("traceparent sent to the context = %q, want the incoming trace", got)
+	}
 }
 
 func TestAMalformedCorrelationIsReplaced(t *testing.T) {

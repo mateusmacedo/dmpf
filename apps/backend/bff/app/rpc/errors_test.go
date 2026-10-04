@@ -7,11 +7,13 @@ import (
 	"net/http"
 	"testing"
 
+	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
 	"github.com/mateusmacedo/dmpf/apps/backend/bff/app/rpc"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/resilience"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/deadline"
 )
@@ -118,5 +120,45 @@ func TestAnUnknownCodeStaysInternal(t *testing.T) {
 	got := rpc.Classify(status.Error(codes.Unknown, "surprise"))
 	if got.Status != http.StatusInternalServerError {
 		t.Fatalf("Classify(Unknown).Status = %d, want 500", got.Status)
+	}
+}
+
+func TestEveryFailureIsRecordedUnderAnFND07CategoryOrOther(t *testing.T) {
+	other := semconv.ErrorTypeOther.Value.AsString()
+	cases := map[string]struct {
+		err  error
+		want string
+	}{
+		"local context deadline":   {fmt.Errorf("call: %w", context.DeadlineExceeded), "DeadlineExceeded"},
+		"local exhausted deadline": {fmt.Errorf("%w: orders", deadline.ErrDeadlineExhausted), "DeadlineExceeded"},
+		"local cancellation":       {fmt.Errorf("call: %w", context.Canceled), "Cancelled"},
+		"missing deadline":         {deadline.ErrNoDeadline, "Unexpected"},
+		"open breaker":             {fmt.Errorf("%w: orders", resilience.ErrBreakerOpen), "TransientDependency"},
+		"saturated bulkhead":       {fmt.Errorf("%w: orders", resilience.ErrBulkheadSaturated), "TransientDependency"},
+		"no time left":             {fmt.Errorf("%w: orders.FindOrder has no time left", resilience.ErrDeadlineExceeded), "DeadlineExceeded"},
+		"plain error":              {errors.New("pgx: connection refused"), other},
+		"INVALID_ARGUMENT":         {status.Error(codes.InvalidArgument, "x"), "Validation"},
+		"FAILED_PRECONDITION":      {status.Error(codes.FailedPrecondition, "x"), "DomainRejection"},
+		"NOT_FOUND":                {status.Error(codes.NotFound, "x"), "NotFound"},
+		"ABORTED":                  {status.Error(codes.Aborted, "x"), "Conflict"},
+		"ALREADY_EXISTS":           {status.Error(codes.AlreadyExists, "x"), "Conflict"},
+		"PERMISSION_DENIED":        {status.Error(codes.PermissionDenied, "x"), "Forbidden"},
+		"UNAUTHENTICATED":          {status.Error(codes.Unauthenticated, "x"), "Unauthenticated"},
+		"UNAVAILABLE":              {fmt.Errorf("dial: %w", status.Error(codes.Unavailable, "x")), "TransientDependency"},
+		"RESOURCE_EXHAUSTED":       {status.Error(codes.ResourceExhausted, "x"), "RateLimited"},
+		"DEADLINE_EXCEEDED":        {status.Error(codes.DeadlineExceeded, "x"), "DeadlineExceeded"},
+		"CANCELLED":                {status.Error(codes.Canceled, "x"), "Cancelled"},
+		"INTERNAL":                 {status.Error(codes.Internal, "x"), "Unexpected"},
+		"UNKNOWN":                  {status.Error(codes.Unknown, "x"), other},
+		"OUT_OF_RANGE":             {status.Error(codes.OutOfRange, "x"), other},
+		"UNIMPLEMENTED":            {status.Error(codes.Unimplemented, "x"), other},
+		"DATA_LOSS":                {status.Error(codes.DataLoss, "x"), other},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			if got := rpc.Category(c.err); got != c.want {
+				t.Fatalf("Category(%v) = %q, want %q: the matrix of FND-07 §6.2 read back, or %s (RF-B1)", c.err, got, c.want, other)
+			}
+		})
 	}
 }

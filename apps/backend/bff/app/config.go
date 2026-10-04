@@ -3,6 +3,7 @@ package app
 import (
 	"errors"
 	"fmt"
+	"net"
 	"time"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/authn"
@@ -23,6 +24,7 @@ var (
 
 const (
 	envHTTPAddr                 = "HTTP_ADDR"
+	envAdminAddr                = "ADMIN_ADDR"
 	envOrdersTarget             = "ORDERS_GRPC_TARGET"
 	envReservationsTarget       = "RESERVATIONS_GRPC_TARGET"
 	envBookingsTarget           = "BOOKINGS_GRPC_TARGET"
@@ -36,16 +38,12 @@ const (
 	envOrdersContractPath       = "OPENAPI_ORDERS_PATH"
 	envReservationsContractPath = "OPENAPI_RESERVATIONS_PATH"
 	envBookingsContractPath     = "OPENAPI_BOOKINGS_PATH"
-	envOTLPEndpoint             = "OTLP_ENDPOINT"
-	envOTLPInsecure             = "OTLP_INSECURE"
-	envService                  = "SERVICE"
-	envServiceVersion           = "SERVICE_VERSION"
-	envInstanceID               = "INSTANCE_ID"
 	envDrainDelay               = "DRAIN_DELAY"
 )
 
 type Config struct {
-	HTTPAddr string
+	HTTPAddr  string
+	AdminAddr string
 
 	OrdersTarget       string
 	ReservationsTarget string
@@ -61,13 +59,9 @@ type Config struct {
 	ReservationsContractPath string
 	BookingsContractPath     string
 
-	OTLPEndpoint string
-	OTLPInsecure bool
-	Signals      boot.Signals
+	Signals boot.Signals
 
-	Service  string
-	Version  string
-	Instance string
+	Service string
 
 	Admission admission.Limit
 
@@ -86,8 +80,8 @@ type Config struct {
 func Defaults() Config {
 	return Config{
 		HTTPAddr:  ":8080",
+		AdminAddr: ":8090",
 		Service:   "bff",
-		Version:   "dev",
 		Admission: admission.Limit{PerSecond: 50, Burst: 100, Concurrency: 32},
 		RouteBudget: deadline.Budget{
 			Dependency:        "contexts",
@@ -103,6 +97,7 @@ func FromEnv(lookup func(string) string) (Config, error) {
 	cfg := Defaults()
 
 	cfg.HTTPAddr = envconfig.OrDefault(lookup(envHTTPAddr), cfg.HTTPAddr)
+	cfg.AdminAddr = envconfig.OrDefault(lookup(envAdminAddr), cfg.AdminAddr)
 	cfg.OrdersTarget = lookup(envOrdersTarget)
 	cfg.ReservationsTarget = lookup(envReservationsTarget)
 	cfg.BookingsTarget = lookup(envBookingsTarget)
@@ -115,16 +110,9 @@ func FromEnv(lookup func(string) string) (Config, error) {
 	cfg.OrdersContractPath = lookup(envOrdersContractPath)
 	cfg.ReservationsContractPath = lookup(envReservationsContractPath)
 	cfg.BookingsContractPath = lookup(envBookingsContractPath)
-	cfg.OTLPEndpoint = lookup(envOTLPEndpoint)
-	cfg.Service = envconfig.OrDefault(lookup(envService), cfg.Service)
-	cfg.Version = envconfig.OrDefault(lookup(envServiceVersion), cfg.Version)
-	cfg.Instance = envconfig.OrDefault(lookup(envInstanceID), envconfig.Hostname())
 
 	var err error
 	if cfg.GRPCInsecure, err = envconfig.ParseBool(envGRPCInsecure, lookup(envGRPCInsecure)); err != nil {
-		return Config{}, err
-	}
-	if cfg.OTLPInsecure, err = envconfig.ParseBool(envOTLPInsecure, lookup(envOTLPInsecure)); err != nil {
 		return Config{}, err
 	}
 	if cfg.Auth, err = authn.ReadEnv(lookup); err != nil {
@@ -147,9 +135,12 @@ func FromEnv(lookup func(string) string) (Config, error) {
 }
 
 // Validate refuses a start the edge could not serve: a missing context target,
-// or no transport policy — TLS through a trusted authority or the explicit
-// development opt-out (GRP-15).
+// no transport policy — TLS through a trusted authority or the explicit
+// development opt-out (GRP-15) — or a health address the probe cannot reach.
 func (c Config) Validate() error {
+	if _, _, err := net.SplitHostPort(c.AdminAddr); err != nil {
+		return fmt.Errorf("%w: %s=%q is not host:port", ErrInvalidVariable, envAdminAddr, c.AdminAddr)
+	}
 	switch {
 	case c.OrdersTarget == "":
 		return fmt.Errorf("%w: %s", ErrMissingVariable, envOrdersTarget)

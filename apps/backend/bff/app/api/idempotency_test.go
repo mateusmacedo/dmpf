@@ -136,12 +136,9 @@ func TestTheAccessLogCarriesTheClientAndTheDerivedKey(t *testing.T) {
 
 	f.post(t, "/orders/o-1/items", `{"sku":"A","quantity":1}`)
 
-	records := accessLogs(t, f)
-	if len(records) != 1 {
-		t.Fatalf("access log = %v, want one record", f.logs.String())
-	}
-	if records[0]["idempotency_key"] != "k-1" || records[0]["derived_idempotency_key"] != derived("tester", "k-1") {
-		t.Fatalf("access log = %v, want the client key and the key the context received", records[0])
+	record := onlyAccessLog(t, f)
+	if record["dmpf.idempotency_key"] != "k-1" || record["dmpf.idempotency_key.derived"] != derived("tester", "k-1") {
+		t.Fatalf("access log = %v, want the client key and the key the context received", record)
 	}
 }
 
@@ -151,12 +148,9 @@ func TestTheAccessLogFlagsAnInvalidKeyWithoutRecordingIt(t *testing.T) {
 	f.do(t, http.MethodPost, "/orders/o-1/items", strings.NewReader(`{"sku":"A","quantity":1}`),
 		"Idempotency-Key", "k 1\nforged=true", "Content-Type", "application/json", "Authorization", testCredential)
 
-	records := accessLogs(t, f)
-	if len(records) != 1 {
-		t.Fatalf("access log = %v, want one record", f.logs.String())
-	}
-	if _, logged := records[0]["idempotency_key"]; logged || records[0]["idempotency_key_invalid"] != true {
-		t.Fatalf("access log = %v, want idempotency_key_invalid and no idempotency_key: the header is client input", records[0])
+	record := onlyAccessLog(t, f)
+	if _, logged := record["dmpf.idempotency_key"]; logged || record["dmpf.idempotency_key.invalid"] != true {
+		t.Fatalf("access log = %v, want dmpf.idempotency_key.invalid and no dmpf.idempotency_key: the header is client input", record)
 	}
 }
 

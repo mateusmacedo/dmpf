@@ -1,39 +1,51 @@
 package app
 
 import (
-	"context"
+	"log/slog"
+	"strings"
 
-	"github.com/mateusmacedo/dmpf/apps/backend/bff/app/rpc"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/boot"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/logging"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/tracing"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
+
+const processRole = "api"
 
 // TelemetryOf is what this process declares about itself to the telemetry.
 func TelemetryOf(cfg Config) boot.Telemetry {
 	return boot.Telemetry{
 		Service:  cfg.Service,
-		Version:  cfg.Version,
-		Instance: cfg.Instance,
-		Endpoint: cfg.OTLPEndpoint,
-		Insecure: cfg.OTLPInsecure,
+		Role:     processRole,
 		Signals:  cfg.Signals,
 		Class:    tracing.ClassWrite,
-		Fields:   requestFields,
+		Settings: settings(cfg),
 	}
 }
 
-func requestFields(ctx context.Context) logging.Fields {
-	fields := logging.Fields{}
-	if execution, ok := ports.ExecutionContextFrom(ctx); ok {
-		if tenant, scoped := execution.Tenant(); scoped {
-			fields[logging.KeyTenantID] = string(tenant)
-		}
+func settings(cfg Config) []slog.Attr {
+	return []slog.Attr{
+		slog.String("http_addr", cfg.HTTPAddr),
+		slog.String("admin_addr", cfg.AdminAddr),
+		slog.String("orders_grpc_target", cfg.OrdersTarget),
+		slog.String("reservations_grpc_target", cfg.ReservationsTarget),
+		slog.String("bookings_grpc_target", cfg.BookingsTarget),
+		slog.Bool("grpc_insecure", cfg.GRPCInsecure),
+		slog.String("grpc_ca_file", cfg.CAFile),
+		slog.String("grpc_server_name", cfg.ServerName),
+		slog.String("grpc_client_cert_file", cfg.ClientCertFile),
+		slog.String("grpc_client_key_file", presence(cfg.ClientKeyFile)),
+		slog.String("cors_origins", strings.Join(cfg.CORSOrigins, ",")),
+		slog.Int("metric_tenants", len(cfg.MetricTenants)),
+		slog.String("openapi_orders_path", cfg.OrdersContractPath),
+		slog.String("openapi_reservations_path", cfg.ReservationsContractPath),
+		slog.String("openapi_bookings_path", cfg.BookingsContractPath),
+		slog.String("drain_delay", cfg.DrainDelay.String()),
+		slog.Any("authn", cfg.Auth),
 	}
-	if call, ok := rpc.CallFrom(ctx); ok {
-		fields[logging.KeyCorrelationID] = call.CorrelationID
-		fields[logging.KeyRequestID] = call.RequestID
+}
+
+func presence(value string) string {
+	if value == "" {
+		return "unset"
 	}
-	return fields
+	return "set"
 }

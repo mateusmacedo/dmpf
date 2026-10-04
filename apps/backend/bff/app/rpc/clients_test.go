@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"go.opentelemetry.io/otel/propagation"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
@@ -38,7 +39,7 @@ func newHarness(t *testing.T, fake *fakeContexts) harness {
 	t.Cleanup(func() { _ = provider.Shutdown(context.Background()) })
 
 	dialer := fake.serveBuffered(t)
-	opts := rpc.Options{Insecure: true, Clock: obsclock.System(), Tracer: provider.Tracer("rpc_test"), Service: "bff-test"}
+	opts := rpc.Options{Insecure: true, Clock: obsclock.System(), Tracer: provider.Tracer("rpc_test"), TracerProvider: provider, Propagator: propagation.TraceContext{}}
 	extra := grpc.WithContextDialer(dialer)
 
 	ordersConn, err := rpc.Dial("passthrough:///orders", rpc.OrdersConfig(opts), extra)
@@ -216,7 +217,7 @@ func TestMetadataCarriesTheCallAndTheClientSpan(t *testing.T) {
 	if !ok {
 		t.Fatalf("traceparent span %s was not exported; spans: %v", parts[2], h.spans.GetSpans())
 	}
-	if sent.SpanContext.SpanID() == root.SpanContext().SpanID() || !strings.HasPrefix(sent.Name, "dmpf.grpc.client") {
+	if sent.SpanContext.SpanID() == root.SpanContext().SpanID() || sent.SpanKind != trace.SpanKindClient || sent.Name != strings.TrimPrefix(rpc.MethodFindOrder, "/") {
 		t.Fatalf("traceparent names span %q, want a client span of the call, not the edge span", sent.Name)
 	}
 	for span := sent; span.Parent.SpanID() != root.SpanContext().SpanID(); {

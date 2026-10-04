@@ -6,9 +6,11 @@ package rpc
 import (
 	"context"
 	"crypto/tls"
-	"log/slog"
 	"time"
 
+	"go.opentelemetry.io/otel/log"
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -65,13 +67,15 @@ func fullMethod(service protoreflect.ServiceDescriptor, name protoreflect.Name) 
 // Options is what the composition root decides for both clients: transport
 // security (TLS or the development opt-out) and where the calls record.
 type Options struct {
-	TLS         *tls.Config
-	Insecure    bool
-	Clock       clock.Clock
-	Tracer      trace.Tracer
-	Instruments *metrics.Instruments
-	Logger      *slog.Logger
-	Service     string
+	TLS            *tls.Config
+	Insecure       bool
+	Clock          clock.Clock
+	Tracer         trace.Tracer
+	TracerProvider trace.TracerProvider
+	MeterProvider  metric.MeterProvider
+	Propagator     propagation.TextMapPropagator
+	Instruments    *metrics.Instruments
+	LoggerProvider log.LoggerProvider
 }
 
 func OrdersConfig(opts Options) kernelgrpc.Config {
@@ -123,11 +127,13 @@ func config(dependency, healthService string, opts Options, methods map[string]k
 		Sheet:                      resilience.Defaults(dependency),
 		Methods:                    methods,
 		HealthServiceName:          healthService,
-		Service:                    opts.Service,
 		Clock:                      opts.Clock,
 		Tracer:                     opts.Tracer,
+		TracerProvider:             opts.TracerProvider,
+		MeterProvider:              opts.MeterProvider,
+		Propagator:                 opts.Propagator,
 		Instruments:                opts.Instruments,
-		Logger:                     opts.Logger,
+		LoggerProvider:             opts.LoggerProvider,
 	}
 }
 
