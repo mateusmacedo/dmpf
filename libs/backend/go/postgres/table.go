@@ -79,12 +79,12 @@ func (t Table[ID, S]) Relation(filterColumn string) Relation[ID, S] {
 	return Relation[ID, S]{
 		table:  t,
 		filter: filterColumn,
-		statement: fmt.Sprintf(
+		statement: declare(fmt.Sprintf(
 			"SELECT %s, version, %s FROM %s WHERE tenant_id = $1 AND %s = $2",
-			t.IDColumn, strings.Join(t.Columns, ", "), t.Name, filterColumn),
-		owner: fmt.Sprintf(
+			t.IDColumn, strings.Join(t.Columns, ", "), t.Name, filterColumn), "SELECT", t.Name),
+		owner: declare(fmt.Sprintf(
 			"SELECT tenant_id FROM %s WHERE %s = $1 AND tenant_id <> $2 ORDER BY tenant_id LIMIT 1",
-			t.Name, filterColumn),
+			t.Name, filterColumn), "SELECT", t.Name),
 	}
 }
 
@@ -171,25 +171,25 @@ func (t Table[ID, S]) compile() statements {
 	}
 
 	return statements{
-		selectOne: fmt.Sprintf(
+		selectOne: declare(fmt.Sprintf(
 			"SELECT version, %s FROM %s WHERE tenant_id = $1 AND %s = $2",
-			columns, t.Name, t.IDColumn),
+			columns, t.Name, t.IDColumn), "SELECT", t.Name),
 		// Only the owning tenant comes back, never a state column: the probe
 		// feeds the security record (IDN-12), not the caller (IDN-13).
-		owner: fmt.Sprintf(
+		owner: declare(fmt.Sprintf(
 			"SELECT tenant_id FROM %s WHERE %s = $1 AND tenant_id <> $2 ORDER BY tenant_id LIMIT 1",
-			t.Name, t.IDColumn),
+			t.Name, t.IDColumn), "SELECT", t.Name),
 		// ON CONFLICT DO NOTHING rather than an upsert: a create over an
 		// existing aggregate is the same lost update as a stale expected
 		// version, and both have to come back as ErrVersionConflict.
-		insert: fmt.Sprintf(
+		insert: declare(fmt.Sprintf(
 			"INSERT INTO %s (tenant_id, %s, version, %s) VALUES ($1, $2, $3, %s) ON CONFLICT (tenant_id, %s) DO NOTHING",
-			t.Name, t.IDColumn, columns, strings.Join(placeholders, ", "), t.IDColumn),
+			t.Name, t.IDColumn, columns, strings.Join(placeholders, ", "), t.IDColumn), "INSERT", t.Name),
 		// The version in the WHERE clause is the lock: two concurrent writers
 		// read the same version, and only the first UPDATE matches a row.
-		update: fmt.Sprintf(
+		update: declare(fmt.Sprintf(
 			"UPDATE %s SET version = $3 + 1, %s WHERE tenant_id = $1 AND %s = $2 AND version = $3",
-			t.Name, strings.Join(assignments, ", "), t.IDColumn),
+			t.Name, strings.Join(assignments, ", "), t.IDColumn), "UPDATE", t.Name),
 	}
 }
 

@@ -35,6 +35,20 @@ const updateInbox = `
 UPDATE inbox SET status = $3, processed_at = $4, last_error = $5, outcome = $6
 WHERE consumer_name = $1 AND message_id = $2`
 
+const resetLockTimeout = "SET LOCAL lock_timeout = DEFAULT"
+
+var (
+	_ = declare(insertInbox, "INSERT", "inbox")
+	_ = declare(insertCommand, "INSERT", "inbox")
+	_ = declare(selectInbox, "SELECT", "inbox")
+	_ = declare(updateInbox, "UPDATE", "inbox")
+	_ = declare(resetLockTimeout, "SET", "")
+)
+
+func lockTimeoutStatement(milliseconds int64) string {
+	return declare(fmt.Sprintf("SET LOCAL lock_timeout = '%dms'", milliseconds), "SET", "")
+}
+
 // Inbox binds a consumer and a wait ceiling to this open transaction. The
 // provisional status written by Register is invisible outside the transaction
 // and overwritten by Complete before commit (INB-02, INB-18). Under REPEATABLE
@@ -87,7 +101,7 @@ func (i *txInbox) Register(ctx context.Context, r ports.Receipt) (ports.Receptio
 		// WHY: SET does not accept parameters; the value is an integer in
 		// milliseconds, so there is no injection surface. SET LOCAL scopes to
 		// this transaction and never leaks to the pooled connection (RESEARCH §2).
-		stmt := fmt.Sprintf("SET LOCAL lock_timeout = '%dms'", wait.Milliseconds())
+		stmt := lockTimeoutStatement(wait.Milliseconds())
 		if _, err := i.tx.conn.Exec(ctx, stmt); err != nil {
 			return ports.Reception{}, err
 		}
@@ -105,7 +119,7 @@ func (i *txInbox) Register(ctx context.Context, r ports.Receipt) (ports.Receptio
 		// INB-17 is a ceiling on registering, not on the statements that follow
 		// in the same transaction: a row lock in Save or Enqueue must not turn
 		// into a 55P03 that Classify cannot recognise.
-		if _, err := i.tx.conn.Exec(ctx, "SET LOCAL lock_timeout = DEFAULT"); err != nil {
+		if _, err := i.tx.conn.Exec(ctx, resetLockTimeout); err != nil {
 			return ports.Reception{}, err
 		}
 	}

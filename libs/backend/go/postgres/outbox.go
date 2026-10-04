@@ -28,6 +28,8 @@ INSERT INTO outbox (
 	occurred_at, available_at
 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`
 
+var _ = declare(insertOutbox, "INSERT", "outbox")
+
 // Outbox binds a mapper to this open transaction: the intent to publish is
 // written on the same pgx.Tx as the business state, which is the whole point of
 // the pattern — one commit makes both visible or neither (UOW-08).
@@ -91,17 +93,19 @@ type metadataKeys struct {
 	CorrelationID string `json:"correlationid,omitempty"`
 	CausationID   string `json:"causationid,omitempty"`
 	Traceparent   string `json:"traceparent,omitempty"`
+	Tracestate    string `json:"tracestate,omitempty"`
 	TenantID      string `json:"tenantid,omitempty"`
 }
 
 // encodeMetadata takes the tenant apart from the MessageContext because the two
-// have different authors: the adapter writes the ENV-08 trio, authentication
+// have different authors: the adapter writes the ENV-08 attributes, authentication
 // resolves the tenant (CTX-13). Absence stays absent, as OBX-02 requires.
 func encodeMetadata(mc ports.MessageContext, tenant ports.TenantID) (string, error) {
 	keys := metadataKeys{
 		CorrelationID: mc.CorrelationID,
 		CausationID:   mc.CausationID,
 		Traceparent:   mc.Traceparent,
+		Tracestate:    mc.Tracestate,
 		TenantID:      string(tenant),
 	}
 	if keys == (metadataKeys{}) {

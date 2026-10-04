@@ -13,6 +13,8 @@ DELETE FROM outbox WHERE id IN (
   SELECT id FROM outbox WHERE status = 'published' AND published_at < $1
    LIMIT $2 FOR UPDATE SKIP LOCKED)`
 
+var _ = declare(deletePublished, "DELETE", "outbox")
+
 // Purge is the evidence a purge leaves behind: how many rows went and up to
 // which instant. Returning it rather than a bare count is what lets an operator
 // tell "nothing to purge" from "purged with the wrong cutoff" (OBX-17).
@@ -40,6 +42,8 @@ const deleteInbox = `
 DELETE FROM inbox WHERE ctid IN (
   SELECT ctid FROM inbox WHERE consumer_name = $1 AND processed_at < $2
    LIMIT $3 FOR UPDATE SKIP LOCKED)`
+
+var _ = declare(deleteInbox, "DELETE", "inbox")
 
 // InboxPurge is the evidence an inbox purge leaves behind, scoped to one
 // consumer (INB-16).
@@ -71,6 +75,8 @@ const deleteExpiredInbox = `
 DELETE FROM inbox WHERE ctid IN (
   SELECT ctid FROM inbox WHERE consumer_name = $1 AND expires_at <= $2
    LIMIT $3 FOR UPDATE SKIP LOCKED)`
+
+var _ = declare(deleteExpiredInbox, "DELETE", "inbox")
 
 // PurgeExpiredInbox removes a command inbox's entries whose own expiry has come,
 // one batch per call: the retention was fixed when the command was received
