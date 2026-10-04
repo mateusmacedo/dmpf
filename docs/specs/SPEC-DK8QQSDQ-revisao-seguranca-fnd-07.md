@@ -396,7 +396,7 @@ ENTÃO node tools/dmpf-verify.mjs acusa violação nos manifestos versionados de
   seções foram revisadas por Plataforma e Arquitetura no PR #10 e não são reabertas.
 - **Pendência 2 do FND-08** — validação do runbook por SRE, também sem owner
   nomeado. Usa o mesmo tratamento de `THR-03` como precedente
-  (`resiliencia-observabilidade.md:1967`), mas é gate próprio, de outra story
+  (`resiliencia-observabilidade.md:2120`), mas é gate próprio, de outra story
   (ARQ-445).
 - **Pendências 1, 2, 3 e 5 de §11.4 do FND-07**: RFC §14.4, a consolidação das
   quatro pendências acumuladas, a forma de persistir os três atributos e a

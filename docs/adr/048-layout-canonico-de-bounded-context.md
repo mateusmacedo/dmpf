@@ -99,3 +99,10 @@ O generator emite o layout completo, e `tools/dmpf-generator-check.sh` prova que
 **O `bff` consome o kernel sem mudar de layout.** Ele não é bounded context — não tem domínio — e segue como borda. Mas os helpers de ambiente, o `Boot`, o `ShutdownGrace` e o `NewController` que ele duplicava agora vêm do kernel.
 
 **O alias pelo papel ganha um caso.** Com o contexto em `app/`, o package do contexto chama-se `app`, como o bloco `app` do kernel. Onde os dois se encontram, o kernel recebe alias: `kernelapp` quando `kernel` já nomeia o `domain`. É a regra do ADR-045 aplicada a uma colisão que o layout novo criou.
+
+## Addendum — 2026-10-01 (log das libs pelo `LoggerProvider`, sem `otelboot/otlp`)
+
+A [SPEC-1TFW24WV](../specs/SPEC-1TFW24WV-observabilidade-ponta-a-ponta.md) levou o log de cada lib ao `LoggerProvider` do processo e tirou o `otelboot/otlp`. Duas passagens da seção "O que sobe ao kernel, e o que fica" ficam assim:
+
+- **`kafka.NewConfig` recebe brokers e insecure explícitos, sem service.** Os campos `Service` e `Logger` dos configs de `kafka`, `sqs`, `grpc`, `http`, `transport/compose` e `transport/observe` viraram um campo `LoggerProvider`: o composition root passa `rt.LoggerProvider()`, e a lib que emite o log cria o logger com o próprio import path; `http` e `transport/compose` só repassam o provider. O `kafka.NewConfig` tira o provider do `Runtime` que recebe.
+- **O `boot` continua package próprio, por outro motivo.** O terceiro destino alterado citava o `otelboot/otlp`, que saiu: os exportadores vêm do `autoexport`, que só o `boot` importa, e o `otelboot` segue testável sem rede (`observability/boot/telemetry.go`). O handler JSON de log também saiu ([ADR-057](./057-log-das-apps-por-otlp-e-alloy-so-para-infraestrutura.md)).

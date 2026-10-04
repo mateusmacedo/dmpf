@@ -323,3 +323,104 @@ resultado vale por 1 s. A leitura é o estado do canal, não uma chamada
   `docker:run-relay` em todo contexto com bloco `app`.
 - **Fora daqui.** Os contextos já expõem `grpc.health.v1` por serviço; o pool
   pgx e o `INFRA_BUDGET_FRACTION` seguem como dívida.
+
+## Addendum — 2026-10-01 (exporter por `OTEL_*` e auditoria por `EventName`)
+
+A [SPEC-1TFW24WV](../specs/SPEC-1TFW24WV-observabilidade-ponta-a-ponta.md)
+trocou a configuração própria da telemetria pela do SDK e levou a auditoria ao
+OTel Logs Data Model. Mudam as passagens deste ADR que cada item nomeia:
+
+- **O exporter é escolhido por `OTEL_*_EXPORTER`, e não pelo endpoint vazio.**
+  Emenda o parágrafo "Telemetria com um runtime por processo e fallback em
+  memória". O `boot` monta os três pipelines com `autoexport.NewSpanExporter`,
+  `NewMetricReader` e `NewLogExporter` (`observability/boot/telemetry.go`), que
+  leem `OTEL_{TRACES,METRICS,LOGS}_EXPORTER`, com `otlp` por default e `none`
+  para não exportar, e as `OTEL_EXPORTER_OTLP_*`. As apps não passam mais
+  endpoint ao `boot` e declaram `OTEL_EXPORTER_OTLP_PROTOCOL=grpc` com um
+  `OTEL_EXPORTER_OTLP_ENDPOINT` `http://` na porta `4317`
+  (`http://otel-collector:4317` no Compose e no Kubernetes): o default do
+  `autoexport` é `http/protobuf`, o Collector só recebe OTLP/gRPC na `4317`, e o
+  esquema `http://` desliga o TLS. O harness do e2e do `bff` declara `none` nos
+  três sinais e reprova qualquer conexão ao endpoint
+  (`apps/backend/bff/app/harness_test.go`). `OTEL_SDK_DISABLED=true` sobe o
+  processo sem exportar nada. O modo em memória por endpoint vazio saiu: o
+  `boot` não tem outra rota, e um processo sem `OTEL_*_EXPORTER` exporta por
+  OTLP com os defaults do `autoexport`. Os exportadores em memória ficam nas
+  suítes, que os injetam no `otelboot.Config`. Com o modo em memória sai
+  também a razão da alternativa descartada "OTLP obrigatório": o que evita
+  exportar sem Collector passa a ser `none` nos três sinais ou
+  `OTEL_SDK_DISABLED=true`. Cai ainda a frase do `DMPF_OTLP_INSECURE` no item
+  "Grafana fail-closed no Kubernetes" do addendum de 2026-09-08: a variável
+  saiu, e o `k8s/base/configmap.yaml` de cada app declara o endpoint
+  `http://`, que nenhum overlay troca, então o OTLP passa a sair sem TLS
+  também no `hmg`.
+- **A auditoria é um registro com `EventName` `dmpf.audit`, e não o envelope do
+  log.** Emenda o item "Um envelope de log" do addendum de 2026-09-08.
+  `audit.NewLogSink` emite pelo `LoggerProvider` do processo um registro com
+  `EventName` `dmpf.audit`, scope igual ao import path do pacote `audit`,
+  severidade `INFO`, `Body` `audit` e os atributos
+  `dmpf.audit.{subject,object,action,outcome}`, mais `dmpf.tenant_id` e
+  `dmpf.audit.data_tenant_id` no acesso entre tenants
+  (`observability/audit/envelope.go`). O registro deixa de levar
+  `kind: "audit"`, e o serializador do envelope sai. O trace do registro vem do
+  `ctx`, a correlação vem do `baggagecopy` do `LoggerProvider`, e nada do evento
+  vai ao span (`DAT-25`). `orders`, `reservations` e `bookings` montam o sink
+  com `audit.NewLogSink(rt.LoggerProvider())` no `wiring.go`.
+- **A trilha continua sem amostragem.** O processor DMPF de log não aplica a
+  amostragem de `LOG-12` ao registro com `EventName` `dmpf.audit`
+  (`otelboot/logprocessor.go`), e o painel de logs do `reference.json` exclui a
+  trilha pelo `scope_name`.
+- **O resto do item de 2026-09-08 fica assim.** O `otel.ErrorHandler` continua
+  a passar pelo logger da plataforma (`boot/telemetry.go`). No caminho OTLP, a
+  correlação do registro de log, que o `Fields` de `LOG-01` preenchia como
+  `correlation_id` e `tenant_id`, chega pelo `baggagecopy` como
+  `dmpf.correlation_id`, `dmpf.request_id` e `dmpf.tenant_id`.
+- **O histograma em segundos é o `dmpf.operation.duration`.** Emenda o item
+  "Buckets do histograma em segundos" do addendum de 2026-09-08. A série
+  `dmpf_service_request_duration_seconds` saiu, e o RED do caso de uso é o
+  `dmpf.operation.duration`, em `s`, com as fronteiras advisory da semconv
+  (`observability/metrics/instruments.go`, RF-D2 e RF-D4). O teste continua
+  a fixar a escala (`metrics/buckets_test.go`).
+- **O W3C explícito fica só com `tracecontext`.** Emenda o item "W3C
+  explícito nos dois lados" do addendum de 2026-09-08. O `boot` monta só
+  `propagation.TraceContext` (`boot/telemetry.go`), `OTEL_PROPAGATORS`
+  declarada só aceita `tracecontext` (`otelboot/config.go`), e o Collector
+  declara `propagators: [tracecontext]` (`otel-collector.yaml`). O baggage
+  não vai ao fio: cada processo o monta com a correlação que recebe pelo
+  contexto de execução ou pelo `metadata` da outbox, e o `baggagecopy` a
+  copia para spans e logs (RF-B8, RF-E4).
+- **O registro da semconv no BOM é `otelboot/config.go`.** Emenda o item
+  "Certificação pelo alcance, com duas leituras declaradas" do addendum de
+  2026-09-13. O import da semconv `v1.43.0` saiu de `otelboot/start.go` e
+  segue no pacote `otelboot`, em `otelboot/config.go`. O `registry_ref` da
+  entrada `semantic_conventions_messaging` (`bom/dmpf/0.1.0.json`), o arquivo
+  que o validador lê (`tools/dmpf-conformance/bom/registry.go`) e a tabela de
+  registros do [`bom/README.md`](../../bom/README.md) apontam esse arquivo.
+
+## Addendum — 2026-10-03 (porta de administração do BFF, Grafana e OTLP em hmg)
+
+Decisões da [SPEC-1TFW24WV](../specs/SPEC-1TFW24WV-observabilidade-ponta-a-ponta.md),
+tomadas no checklist de qualidade da entrega.
+
+- **Saúde do BFF na porta de administração.** `GET /livez` e `GET /readyz`
+  saem da porta pública e passam a ser servidas só em `ADMIN_ADDR` (default
+  `:8090`), que o Service não expõe; a porta pública responde `404` a esses
+  paths. Motivo: toda falha de saúde é registrada (`LOG-10`, RF-A5), e na porta
+  pública um cliente sem autenticação inundava o log durante a drenagem. O
+  `bff healthcheck` da imagem e as probes do Kubernetes consultam a porta
+  `admin`; a drenagem segue respondendo `503` no `/readyz` dela, e a porta
+  pública fecha antes da de administração.
+- **Grafana sem acesso anônimo e sem preinstall.** O acesso anônimo sai também
+  do overlay `dev` e do Compose: o Admin entra pelo login, com a senha de
+  `GRAFANA_ADMIN_PASSWORD`. Isso supera o patch anônimo do `dev` descrito em
+  "Grafana fail-closed no Kubernetes". O preinstall de plugins fica desligado
+  (`GF_PLUGINS_PREINSTALL_DISABLED`): só carregam os datasources embutidos na
+  imagem, porque o download a cada boot deixava as versões flutuando e uma
+  atualização que falhava descarregava o plugin (grafana/grafana#132528).
+- **OTLP com TLS em hmg.** O receiver OTLP/gRPC do Collector serve TLS com o
+  Secret `otel-collector-tls`, emitido pela mesma CA dos certificados de
+  servidor dos `api`; as apps exportam por `https://` com a CA montada, e a
+  NetworkPolicy `otel-collector` só admite a 4317 dos pods das apps e a 8888 do
+  Prometheus. O Compose e o `dev` seguem em texto claro, com um `warn` por
+  processo. A saída do Collector para Tempo, Prometheus e Loki e a autenticação
+  do cliente no receiver ficam como dívida.

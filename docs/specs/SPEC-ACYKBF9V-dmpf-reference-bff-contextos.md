@@ -128,7 +128,7 @@ outbox — e copiar.
 - [ ] **[P0] Cadeia de contexto**: o BFF preserva `X-Correlation-ID` válido ou cunha um (`CTX-07`), gera `request_id` próprio e envia em metadata `x-correlation-id`, `x-causation-id` (o `request_id` do BFF) e `traceparent` W3C do span de cliente gRPC. O contexto gera o próprio `request_id` e grava `MessageContext{CorrelationID, CausationID: request_id do contexto, Traceparent: span de servidor}` (`CTX-08`); o consumer mantém o contexto do envelope (`CausationID` = id do `OrderPlaced`).
 - [ ] **[P0] Spans**: BFF com span HTTP de servidor e o span de cliente de `grpc`; contexto com span gRPC de servidor filho do `traceparent` recebido, span de caso de uso distinto (`TRC-05`) e span de banco por `pgx.QueryTracer` no pool, sem SQL nem argumentos; erro sempre amostrado (`TRC-14`).
 - [ ] **[P1] Consumo**: o `Sink` de `reservations` abre span de consumo com pai remoto extraído do `traceparent` do envelope quando presente (`TRC-07`).
-- [ ] **[P1] Painéis**: `infra/observability/grafana/dashboards/reference.json` passa a filtrar pelos três serviços.
+- [ ] **[P1] Painéis**: `infra/observability/grafana/dashboards/plataforma/reference.json` passa a filtrar pelos três serviços.
 
 **Topologia, remoção e documentação**
 
@@ -187,7 +187,7 @@ apps/backend/bff/                                         — NOVO
 apps/backend/reference/                                                — REMOVER
 infra/local/compose/{reference,postgres}.yml, infra/local/.env.example — MODIFICAR
 infra/k8s/base/reference-{bff,orders,reservations}/, overlays/{dev,hmg} — NOVO/MODIFICAR; base/reference REMOVER
-infra/observability/grafana/dashboards/reference.json                  — MODIFICAR
+infra/observability/grafana/dashboards/plataforma/reference.json       — MODIFICAR
 libs/backend/go/testkit/{project.json, cmd/evidence/main.go}      — MODIFICAR
 go.work, tools/dmpf-baseline/units-baseline.json                            — MODIFICAR
 docs/adr/044-bff-rest-e-contextos-grpc-de-referencia.md, docs/adr/README.md — NOVO/MODIFICAR
