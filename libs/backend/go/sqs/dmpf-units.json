@@ -31,7 +31,7 @@
     {
       "package": "github.com/aws/smithy-go",
       "versions": ">=1.28.1 <2",
-      "entrypoints": ["."],
+      "entrypoints": [".", "github.com/aws/smithy-go/logging"],
       "capability": "io.messaging"
     },
     {
