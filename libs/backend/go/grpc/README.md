@@ -230,7 +230,7 @@ pnpm nx run grpc:test-race
 
 ```bash
 pnpm nx run-many -t fmt-check,vet,lint,build,test-race,govulncheck -p grpc
-go run ./tools/dmpf-conformance/cmd/conformance --root . --base develop
+go run ./tools/dmpf-conformance/cmd/conformance --root .
 ```
 
 O `dmpf-gate-check.sh` não alcança este módulo (o `depguard` seleciona por
