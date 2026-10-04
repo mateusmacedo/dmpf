@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT="$(git rev-parse --show-toplevel)"
 SRC="$ROOT/apps/backend/load/src"
 COMPOSE_FILE="$ROOT/infra/local/docker-compose.yml"
-FORWARDED=(RATE DURATION TENANTS WEIGHTS CANCEL_RATIO RESERVE_RATIO CONVERGENCE_TIMEOUT SEED BASE_URL)
+FORWARDED=(RATE DURATION TENANTS WEIGHTS CANCEL_RATIO RESERVE_RATIO CONVERGENCE_TIMEOUT SEED BASE_URL ADMIN_URL)
 
 usage() {
   echo "uso: run.sh [--check] <perfil>" >&2

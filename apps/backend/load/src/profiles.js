@@ -16,6 +16,8 @@ const ADMISSION_RATE = 80;
 const MAX_PREALLOCATED_VUS = 1200;
 const ITERATION_OVERHEAD_S = 2;
 const PREALLOCATION_S = 4;
+const SMOKE_PAUSE_S = 0.1;
+const SMOKE_PAUSED_JOURNEYS = ['reads', 'orders'];
 
 const abortOnFail = (threshold) => ({ threshold, abortOnFail: true, delayAbortEval: '30s' });
 
@@ -96,6 +98,10 @@ export function effectiveTenants(params) {
     return 1;
   }
   return params.tenants;
+}
+
+export function journeyPause(profile, journey) {
+  return profile === 'smoke' && SMOKE_PAUSED_JOURNEYS.includes(journey) ? SMOKE_PAUSE_S : 0;
 }
 
 function vuAllocation(peakPerSecond, convergenceTimeoutMs) {

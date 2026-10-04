@@ -1,4 +1,4 @@
-import { check } from 'k6';
+import { check, sleep } from 'k6';
 
 export function placeOrder(session, random, order, items) {
   for (let item = 1; item <= items; item++) {
@@ -25,7 +25,10 @@ export function placeOrder(session, random, order, items) {
   );
 }
 
-export function ordersJourney({ session, random, ids }) {
+export function ordersJourney({ session, random, ids, pause }) {
+  if (pause > 0) {
+    sleep(pause);
+  }
   if (!placeOrder(session, random, ids.order, random.int(1, 3))) {
     return;
   }
