@@ -94,7 +94,7 @@ const SEED = {
       pattern: '\\*\\*Total: 112 regras `normativo`\\.\\*\\*',
     },
     'resiliencia-observabilidade.md': {
-      line: 1919,
+      line: 2072,
       pattern: '`registro` — 121 regras `normativo`\\.',
     },
     'testes-interop.md': {
