@@ -171,8 +171,9 @@ pnpm nx affected -t lint,typecheck,test,build --exclude=@mateusmacedo/dmpf-sourc
 
 O `--exclude=@mateusmacedo/dmpf-source` retira o projeto raiz (targets `nx:noop`)
 das operações em lote. Os hooks reforçam a mesma validação: `pre-commit` roda
-`biome check --write` nos arquivos em stage e `pre-push` roda lint, typecheck,
-test e build nos projetos afetados. Confie nos hooks — mantenha-os ativos em vez
+`biome check --write` e `gofmt -l` nos arquivos em stage, e `pre-push` roda lint,
+typecheck, test, build, fmt-check, vet e test-race nos projetos afetados pelo que
+o push leva. Confie nos hooks — mantenha-os ativos em vez
 de contorná-los, pois eles são o que garante que todo push sai verde.
 
 ## Provisionamento das branches remotas

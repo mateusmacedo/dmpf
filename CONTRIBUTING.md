@@ -109,8 +109,10 @@ pnpm nx affected -t lint typecheck test build   # apenas o que mudou
 pnpm nx run-many -t lint typecheck test build    # tudo
 ```
 
-O hook de `pre-commit` roda `biome check --write` nos arquivos em stage; o de
-`pre-push` roda `lint`, `typecheck`, `test` e `build` nos projetos afetados.
+O hook de `pre-commit` roda `biome check --write` e `gofmt -l` nos arquivos em
+stage; o de `pre-push` roda `lint`, `typecheck`, `test`, `build`, `fmt-check`,
+`vet` e `test-race` nos projetos afetados pelo que o push leva — a base é o que
+o remoto já tem, e uma branch sem upstream compara com `origin/develop`.
 
 ## Padrões de código
 

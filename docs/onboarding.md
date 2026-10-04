@@ -131,16 +131,19 @@ pnpm nx affected -t test
 pnpm nx affected -t build
 ```
 
-O pre-push usa esse padrão e exclui `@mateusmacedo/dmpf-source`.
+O pre-push usa esse padrão numa invocação só, com a base no que o remoto já
+tem, e exclui `@mateusmacedo/dmpf-source`.
 
 ## Hooks locais
 
 O `lefthook.yml` define:
 
 - Pre-commit: `pnpm biome check --write` nos arquivos staged compatíveis, com
-  `stage_fixed: true`.
-- Pre-push: `pnpm nx affected -t lint`, `typecheck`, `test` e `build`, com
-  `--parallel=3` e `--exclude=@mateusmacedo/dmpf-source`.
+  `stage_fixed: true`, e `gofmt -l` nos `.go` staged.
+- Pre-push: `pnpm nx affected -t lint,typecheck,test,build,fmt-check,vet,test-race`
+  numa invocação só, com `--parallel=3`, `--exclude=@mateusmacedo/dmpf-source` e
+  `--base` no que o remoto já tem (`@{push}`); uma branch sem upstream compara
+  com `origin/develop`.
 
 Se um hook alterar arquivos no pre-commit, revise o diff antes de concluir o
 commit.
