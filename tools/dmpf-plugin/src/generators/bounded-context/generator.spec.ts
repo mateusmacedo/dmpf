@@ -271,7 +271,16 @@ const expectedTargets = ({
               cwd: '{projectRoot}',
             },
           },
-          e2e: { executor: 'nx:noop', dependsOn: ['test-distributed'] },
+          e2e: {
+            executor: 'nx:run-commands',
+            cache: false,
+            inputs: ['go', '^go'],
+            dependsOn: [TEST_INFRA],
+            options: {
+              command: `${TEST_ENV} go test -race -count=1 -p 1 -tags=integration,distributed ./distkit/...`,
+              cwd: '{projectRoot}',
+            },
+          },
         }
       : {}),
   };
