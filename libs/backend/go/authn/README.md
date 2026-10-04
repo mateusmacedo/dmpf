@@ -38,9 +38,9 @@ monta.
 ## O que o módulo contém
 
 - **`config.go`** — `Config{Issuer, Audience, TenantClaim, PermissionClaims,
-  DiscoveryTimeout, DevMock}`. `Defaults()` assume um access token de Keycloak:
-  `scope` como string separada por espaço e roles de realm aninhadas em
-  `realm_access.roles`. `ReadEnv(lookup)` lê `OIDC_ISSUER`,
+  DiscoveryTimeout, DevMock, LoggerProvider}`. `Defaults()` assume um access
+  token de Keycloak: `scope` como string separada por espaço e roles de realm
+  aninhadas em `realm_access.roles`. `ReadEnv(lookup)` lê `OIDC_ISSUER`,
   `OIDC_AUDIENCE`, `OIDC_TENANT_CLAIM`, `OIDC_PERMISSION_CLAIMS`
   (lista separada por vírgula), `OIDC_DISCOVERY_TIMEOUT_SECONDS` (default
   10 s) e `AUTH_DEV_MOCK`; `FromEnv` lê e valida em um só passo.
@@ -57,7 +57,20 @@ monta.
   configuração do realm, não deste módulo). `Authenticate` verifica assinatura,
   issuer e expiração pela biblioteca, recusa esquema fora de `Bearer` e token
   sem `sub` (`ErrSubjectUnresolved`), e resolve tenant e permissões pelas
-  claims declaradas em `Config`.
+  claims declaradas em `Config`. Um token recusado pela verificação, sem `sub`
+  ou com claims ilegíveis sai em `warn` (`auth: token rejected`), com `error.type` =
+  `Unauthenticated` e o motivo em `dmpf.auth.refusal_reason` — `token_expired`,
+  `audience_mismatch`, `issuer_mismatch`, `signature_invalid` ou `malformed` —,
+  nunca o token nem a mensagem da biblioteca (RF-A6). Quando o JWKS não pode
+  ser obtido (o IdP fora do ar na primeira verificação ou na busca do `kid`
+  novo de uma rotação), a falha não é recusa do token: sai em `warn`
+  (`auth: signing keys unavailable`), com `error.type` = `TransientDependency`
+  e sem `dmpf.auth.refusal_reason`, e a requisição continua recusada por
+  `ErrCredentialRejected`. O logger nasce do
+  `Config.LoggerProvider`, com o import path do módulo como scope. A
+  descoberta e o JWKS passam pelo `otelhttp.NewTransport`, que abre um CLIENT
+  `{http.request.method}` por requisição e grava `http.client.request.duration`
+  (RF-B5, RF-D2).
 - **`identity.go`** — `CredentialFrom(r *http.Request)` lê o cabeçalho
   `Authorization` sem interpretar o conteúdo — o material, nunca o sujeito
   nem o tenant, que só a verificação resolve (`CTX-06`). `DevAuthenticator`
@@ -114,5 +127,6 @@ verificador.
 - `docs/specs/SPEC-9B6SHEH8-contexto-execucao-identidade-tenant.md` — a spec que declara `ports.Authenticator` e esta realização.
 - `docs/adr/049-contexto-de-execucao-viaja-no-context-context.md` — o carrier em que a identidade resolvida aqui é depositada, na borda.
 - `docs/adr/052-identidade-de-workload-no-grpc-e-no-kafka.md` — a verificação de workload entre processos, contraste com a autenticação de sujeito deste módulo.
+- `docs/specs/SPEC-1TFW24WV-observabilidade-ponta-a-ponta.md` — os `RF-*` citados aqui: a recusa de token e o `otelhttp` da descoberta.
 - `libs/backend/go/http/README.md` — `ResolveIdentity`, `CredentialFrom` e a exigência de permissão por rota, que consomem este módulo.
 - `libs/backend/go/ports/README.md` — `Authenticator`, `Credential`, `Identity`, `ExecutionContext`.
