@@ -8,7 +8,6 @@ ROOT="$(git rev-parse --show-toplevel)" || { echo "fora de um repositorio git" >
 cd "$ROOT" || exit 2
 
 AUTOR=autor@exemplo.test
-REVISOR=revisor@exemplo.test
 falhas=0
 casos=0
 
@@ -35,11 +34,6 @@ novo_sandbox() {
 commitar() { # dir mensagem
   git -C "$1" add -A || exit 2
   git -C "$1" commit -q -m "$2" || exit 2
-}
-
-marcar_baseline() { # dir email-do-tagger [projeto]
-  GIT_COMMITTER_EMAIL="$2" GIT_COMMITTER_NAME=tagger \
-    git -C "$1" tag -a "contracts-baseline/${3:-contracts}" -m "baseline estabelecido"
 }
 
 # Leva um pacote do módulo do kernel para um módulo novo, com buf.yaml, buf.gen.yaml e
@@ -107,35 +101,33 @@ echo "== breaking: bootstrap e estado estabelecido =="
 S="$(novo_sandbox)"; mv "$S/libs/backend/go/contracts" "$S.contracts-futuro"; commitar "$S" "base sem contratos"
 mv "$S.contracts-futuro" "$S/libs/backend/go/contracts"; commitar "$S" "primeiro conteudo do modulo"
 saida="$(gate "$S" breaking HEAD~1 2>&1)"; status=$?
-esperar "bootstrap legitimo (modulo novo, sem marca) libera" 0 $status "$saida"
+esperar "bootstrap legitimo (modulo novo) libera" 0 $status "$saida"
 casos=$((casos + 1))
 if echo "$saida" | grep -q "sem baseline"; then echo "PASS  bootstrap avisa 'sem baseline'"; else echo "FAIL  bootstrap sem o aviso 'sem baseline'"; falhas=$((falhas + 1)); fi
 
-S="$(novo_sandbox)"; commitar "$S" "contratos"; marcar_baseline "$S" "$REVISOR"
+S="$(novo_sandbox)"; commitar "$S" "contratos"
 verificar "estado estabelecido sem mudanca incompativel" 0 "$S" breaking HEAD
-S2="$(novo_sandbox)"; commitar "$S2" "contratos"; marcar_baseline "$S2" "$REVISOR" proto
-verificar "marca legada contracts-baseline/<path do modulo> nao vale como marca" 1 "$S2" breaking HEAD "sem marca"
-verificar "NX_BASE vazio com marca presente" 1 "$S" breaking "" "baseline nao declarado"
-verificar "NX_BASE ausente com marca presente" 1 "$S" breaking
+verificar "NX_BASE vazio" 1 "$S" breaking "" "baseline nao declarado"
+verificar "NX_BASE ausente" 1 "$S" breaking
 verificar "baseline irresolvivel" 1 "$S" breaking refs/heads/nao-existe "baseline irresolvivel"
 
-echo "== breaking: vetores negativos de BUF-08 =="
+echo "== breaking: estado decidido pela base (BUF-08) =="
 S="$(novo_sandbox)"; commitar "$S" "contratos"
 echo "// comentario" >> "$S/libs/backend/go/contracts/proto/dmpf/testing/v1/order_placed.proto"; commitar "$S" "mudanca"
-verificar "marca ausente em modulo com historico" 1 "$S" breaking HEAD~1 "sem marca"
-
-S="$(novo_sandbox)"; commitar "$S" "contratos"; marcar_baseline "$S" "$AUTOR"
-verificar "tagger igual ao autor do modulo" 1 "$S" breaking HEAD "autoria e autorizacao coincidem"
+saida="$(gate "$S" breaking HEAD~1 2>&1)"; status=$?
+esperar "modulo publicado na base sem mudanca incompativel libera" 0 $status "$saida"
+casos=$((casos + 1))
+if echo "$saida" | grep -q "breaking: OK (libs/backend/go/contracts/proto"; then echo "PASS  modulo publicado na base executa buf breaking"; else echo "FAIL  modulo publicado na base sem buf breaking"; echo "$saida" | tail -3 | sed 's/^/      /'; falhas=$((falhas + 1)); fi
 
 # Renomear o módulo não o faz renascer 'sem baseline': a identidade é o pacote, e o
 # pacote publicado na base continua sob buf breaking no módulo renomeado.
-S="$(novo_sandbox)"; commitar "$S" "contratos"; marcar_baseline "$S" "$REVISOR"
+S="$(novo_sandbox)"; commitar "$S" "contratos"
 git -C "$S" mv libs/backend/go/contracts/proto libs/backend/go/contracts/proto2
 sed -i 's/path: proto$/path: proto2/' "$S/libs/backend/go/contracts/buf.yaml"
 sed -i 's/int64 total_cents/int32 total_cents/' "$S/libs/backend/go/contracts/proto2/dmpf/testing/v1/order_placed.proto"; commitar "$S" "renomeia e quebra"
 verificar "modulo renomeado continua sob buf breaking" 1 "$S" breaking HEAD~1 "buf breaking (FILE) reprovou"
 
-S="$(novo_sandbox)"; commitar "$S" "contratos"; marcar_baseline "$S" "$REVISOR"
+S="$(novo_sandbox)"; commitar "$S" "contratos"
 sed -i 's/int64 total_cents/int32 total_cents/' "$S/libs/backend/go/contracts/proto/dmpf/testing/v1/order_placed.proto"; commitar "$S" "tipo"
 verificar "breaking FILE: int64 -> int32" 1 "$S" breaking HEAD~1 "buf breaking (FILE) reprovou"
 
@@ -148,7 +140,7 @@ mv "$S/libs/backend/go/contracts/buf.yaml" "$S/libs/backend/go/contracts/buf.yam
 verificar "buf.yaml ausente" 1 "$S" breaking HEAD "ausente"
 
 echo "== breaking: identidade por pacote entre modulos =="
-S="$(novo_sandbox)"; commitar "$S" "contratos"; marcar_baseline "$S" "$REVISOR"
+S="$(novo_sandbox)"; commitar "$S" "contratos"
 mover_para_modulo "$S" apps/orders/contract dmpf/testing; commitar "$S" "orders em modulo proprio"
 MODULO=apps/orders/contract PROJETO=orders-contract verificar "pacote relocado para modulo novo roda contra a base" 0 "$S" breaking HEAD~1
 saida="$(MODULO=apps/orders/contract PROJETO=orders-contract gate "$S" breaking HEAD~1 2>&1)"
@@ -156,33 +148,32 @@ casos=$((casos + 1))
 if echo "$saida" | grep -q "breaking: OK (apps/orders/contract"; then echo "PASS  relocacao executa buf breaking herdado"; else echo "FAIL  relocacao sem buf breaking herdado"; echo "$saida" | tail -3 | sed 's/^/      /'; falhas=$((falhas + 1)); fi
 verificar "modulo de origem apos a relocacao" 0 "$S" breaking HEAD~1
 
-S="$(novo_sandbox)"; commitar "$S" "contratos"; marcar_baseline "$S" "$REVISOR"
+S="$(novo_sandbox)"; commitar "$S" "contratos"
 mover_para_modulo "$S" apps/orders/contract dmpf/testing
 sed -i 's/int64 total_cents/int32 total_cents/' "$S/apps/orders/contract/proto/dmpf/testing/v1/order_placed.proto"; commitar "$S" "relocado e quebrado"
 MODULO=apps/orders/contract PROJETO=orders-contract verificar "quebra FILE apos relocar" 1 "$S" breaking HEAD~1 "buf breaking (FILE) reprovou"
 
-S="$(novo_sandbox)"; commitar "$S" "contratos"; marcar_baseline "$S" "$REVISOR"
+S="$(novo_sandbox)"; commitar "$S" "contratos"
 mv "$S/libs/backend/go/contracts/proto/dmpf/testing" "$S.pacote-fora"; commitar "$S" "remove pacote"
 verificar "pacote publicado ausente de todos os modulos" 1 "$S" breaking HEAD~1 "pacote publicado"
 
 S="$(novo_sandbox)"; commitar "$S" "contratos"
 mover_para_modulo "$S" apps/orders/contract dmpf/testing; commitar "$S" "modulo novo"
-marcar_baseline "$S" "$REVISOR" orders-contract
-MODULO=apps/orders/contract PROJETO=orders-contract verificar "marca por projeto contracts-baseline/<projeto>" 0 "$S" breaking HEAD
+MODULO=apps/orders/contract PROJETO=orders-contract verificar "modulo do projeto publicado na base roda buf breaking" 0 "$S" breaking HEAD
 
 echo "== breaking: modulo sem name nao e publicado =="
-S="$(novo_sandbox)"; nao_publicar "$S" dmpf/testing; commitar "$S" "contratos"; marcar_baseline "$S" "$REVISOR"
+S="$(novo_sandbox)"; nao_publicar "$S" dmpf/testing; commitar "$S" "contratos"
 sed -i 's/int64 total_cents/int32 total_cents/' "$S/libs/backend/go/contracts/testdata/proto/dmpf/testing/v1/order_placed.proto"; commitar "$S" "tipo no pacote de teste"
 verificar "quebra FILE em modulo sem name libera" 0 "$S" breaking HEAD~1
 
-S="$(novo_sandbox)"; nao_publicar "$S" dmpf/testing; commitar "$S" "contratos"; marcar_baseline "$S" "$REVISOR"
+S="$(novo_sandbox)"; nao_publicar "$S" dmpf/testing; commitar "$S" "contratos"
 mv "$S/libs/backend/go/contracts/testdata/proto/dmpf/testing" "$S.teste-fora"
 printf 'syntax = "proto3";\n\npackage dmpf.testing.v2;\n\nmessage Probe {\n  string id = 1;\n}\n' > "$S.probe"
 mkdir -p "$S/libs/backend/go/contracts/testdata/proto/dmpf/testing/v2"; mv "$S.probe" "$S/libs/backend/go/contracts/testdata/proto/dmpf/testing/v2/probe.proto"
 commitar "$S" "troca o pacote de teste"
 verificar "pacote de modulo sem name removido nao conta como publicado" 0 "$S" breaking HEAD~1
 
-S="$(novo_sandbox)"; nao_publicar "$S" dmpf/testing; commitar "$S" "contratos"; marcar_baseline "$S" "$REVISOR"
+S="$(novo_sandbox)"; nao_publicar "$S" dmpf/testing; commitar "$S" "contratos"
 sed -i 's/string spec_version = 3;/int32 spec_version = 3;/' "$S/libs/backend/go/contracts/proto/io/cloudevents/v1/cloudevents.proto"; commitar "$S" "quebra o publicado"
 verificar "quebra FILE no modulo publicado ao lado de um sem name reprova" 1 "$S" breaking HEAD~1 "buf breaking (FILE) reprovou"
 
