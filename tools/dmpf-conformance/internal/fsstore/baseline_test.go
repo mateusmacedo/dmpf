@@ -2,7 +2,6 @@ package fsstore_test
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -140,41 +139,6 @@ func TestEscreverPreservaListaComItens(t *testing.T) {
 	}
 	if !slices.Equal(relido.SharedKernelUnits, []string{"orders"}) {
 		t.Errorf("round-trip alterou a lista: %v", relido.SharedKernelUnits)
-	}
-}
-
-func rodarGit(t *testing.T, dir string, args ...string) {
-	t.Helper()
-	cmd := exec.Command("git", args...)
-	cmd.Dir = dir
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("git %v: %v\n%s", args, err, out)
-	}
-}
-
-// TestBaselineEmUsaOMesmoDecodificadorDaBaseline: BaselineEm lê via `git show`
-// em vez de os.ReadFile, então tem seu próprio ponto de Unmarshal — sem este
-// teste, o wire de shared_kernel_units poderia divergir entre os dois.
-func TestBaselineEmUsaOMesmoDecodificadorDaBaseline(t *testing.T) {
-	raiz := t.TempDir()
-	rodarGit(t, raiz, "init", "-q")
-	rodarGit(t, raiz, "config", "user.email", "test@test.com")
-	rodarGit(t, raiz, "config", "user.name", "test")
-
-	escreverBaselineBruto(t, raiz,
-		`{"schema":"dmpf/units-baseline@1","digest":"x","entries":[],"shared_kernel_units":["u"]}`)
-	rodarGit(t, raiz, "add", ".")
-	rodarGit(t, raiz, "commit", "-q", "-m", "baseline")
-
-	doc, ok, err := fsstore.NewBaselineStore(raiz).BaselineEm("HEAD")
-	if err != nil {
-		t.Fatalf("BaselineEm: %v", err)
-	}
-	if !ok {
-		t.Fatal("baseline não encontrado no ref")
-	}
-	if !doc.HasSharedKernelUnits || !slices.Equal(doc.SharedKernelUnits, []string{"u"}) {
-		t.Errorf("BaselineEm não decodificou shared_kernel_units: %+v", doc)
 	}
 }
 

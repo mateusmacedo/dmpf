@@ -77,7 +77,9 @@ var codeSpecs = []CodeSpec{
 	{CodeM003, "Unidade duplicada no manifesto", "RFC §10.1", true},
 	{CodeM004, "Unidade de shared kernel não resolvida", "ADR-042; RFC §7.2 estendida", true},
 	{CodeT001, "Divergência entre manifesto e baseline", "RFC §10.2 T3", true},
-	{CodeT002, "Mudança normativa sem evidência de autorização", "RFC §10.2 T5", true},
+	// Revogado pelo ADR-058: projeto solo, sem autorização distinta da autoria
+	// a evidenciar; o código segue no conjunto como ausência declarada.
+	{CodeT002, "Mudança normativa sem evidência de autorização", "RFC §10.2 T5; ADR-058", false},
 	{CodeD001, "Aresta proibida entre blocos", "RFC §7.1 C1, §7.3", true},
 	{CodeD002, "Aresta proibida entre bounded contexts", "RFC §7.1 C2, §5.5", true},
 	{CodeE001, "Capability externa não permitida para o bloco", "RFC §6.2", true},

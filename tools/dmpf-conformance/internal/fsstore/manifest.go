@@ -39,12 +39,11 @@ type wireExceptionObject struct {
 }
 
 type wireExceptionConvergence struct {
-	Kind                *string  `json:"kind"`
-	Deadline            *string  `json:"deadline"`
-	Condition           *string  `json:"condition"`
-	ReviewBy            *string  `json:"review_by"`
-	ApprovedBy          []string `json:"approved_by"`
-	ReplanningCondition *string  `json:"replanning_condition"`
+	Kind                *string `json:"kind"`
+	Deadline            *string `json:"deadline"`
+	Condition           *string `json:"condition"`
+	ReviewBy            *string `json:"review_by"`
+	ReplanningCondition *string `json:"replanning_condition"`
 }
 
 type wireExceptionHistoryEntry struct {
@@ -160,7 +159,6 @@ func DecodeManifest(path, module string, raw []byte) (manifest.Document, error) 
 				Deadline:            instante("convergence.deadline", deref(x.Convergence.Deadline)),
 				Condition:           deref(x.Convergence.Condition),
 				ReviewBy:            instante("convergence.review_by", deref(x.Convergence.ReviewBy)),
-				ApprovedBy:          x.Convergence.ApprovedBy,
 				ReplanningCondition: deref(x.Convergence.ReplanningCondition),
 				PresentKind:         x.Convergence.Kind != nil,
 			}

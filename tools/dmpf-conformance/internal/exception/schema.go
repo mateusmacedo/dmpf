@@ -48,20 +48,12 @@ func IsEvent(e Event) bool {
 }
 
 // ConvergenceKind distingue os dois ramos de GOV-30: prazo com condição, ou
-// revisão com aprovação dual.
+// revisão com data e condição de replanejamento.
 type ConvergenceKind string
 
 const (
 	ConvergencePlan   ConvergenceKind = "plan"
 	ConvergenceReview ConvergenceKind = "review"
-)
-
-// Approver nomeia as duas autoridades que o ramo de revisão exige, ambas.
-type Approver string
-
-const (
-	ApproverArchitecture Approver = "arquitetura"
-	ApproverPlatform     Approver = "plataforma"
 )
 
 // Object é o que a exceção pede para autorizar. `Unit` é o ID da unidade no
@@ -87,7 +79,6 @@ type Convergence struct {
 	Condition string
 
 	ReviewBy            Instant
-	ApprovedBy          []Approver
 	ReplanningCondition string
 
 	PresentKind bool

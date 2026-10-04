@@ -22,17 +22,13 @@ type Input struct {
 	Closure   rule.Closure
 	Standard  func(string) bool
 
-	// Opcional, mas a ausência é DECLARADA: pular a conferência da autoridade
-	// sobre a classificação e dizer "conforme" mentiria por omissão.
+	// Opcional, mas a ausência é DECLARADA: pular a conferência do baseline da
+	// classificação e dizer "conforme" mentiria por omissão.
 	Baseline port.BaselineStore
 
 	// Só vale quando Baseline é nil: havendo store, ele é a única fonte
 	// autoritativa sobre shared kernel, e esta lista é ignorada.
 	SharedKernelUnits []string
-
-	// Base delimita o intervalo em revisão, para julgar se a mudança de
-	// classificação veio isolada do código.
-	Base string
 
 	// Zero não avalia o vencimento (X006), e o relatório declara a condição
 	// como não verificada.
@@ -204,7 +200,7 @@ func Check(in Input) (Report, error) {
 func conferirBaseline(in Input, units []rule.Unit, universo *rule.Universe, versionado baseline.Document, existeBaseline bool, rel *Report) {
 	if in.Baseline == nil {
 		rel.NaoVerificado = append(rel.NaoVerificado,
-			"autoridade sobre a classificação (RFC §10.2, T1-T6): nenhum BaselineStore fornecido")
+			"baseline da classificação (RFC §10.2, T1-T3): nenhum BaselineStore fornecido")
 		return
 	}
 
@@ -216,40 +212,6 @@ func conferirBaseline(in Input, units []rule.Unit, universo *rule.Universe, vers
 	}
 
 	rel.Diagnostics = append(rel.Diagnostics, baseline.Compare(versionado, derivado)...)
-
-	// A comparação é entre o baseline de ANTES e o de agora, ao longo do
-	// intervalo em revisão. Confrontar baseline e manifesto no mesmo ponto só
-	// acha quem esqueceu de atualizar um dos dois; quem altera os dois de forma
-	// coerente deixa a comparação verde, e é exatamente esse o caso que a
-	// exigência de aval existe para pegar.
-	if in.Base == "" {
-		rel.NaoVerificado = append(rel.NaoVerificado,
-			"sem base para ler o intervalo em revisão: mudança de classificação não pode ser avaliada")
-		return
-	}
-	anterior, tinha, err := in.Baseline.BaselineEm(in.Base)
-	if err != nil {
-		rel.NaoVerificado = append(rel.NaoVerificado,
-			"baseline anterior ilegível: "+err.Error())
-		return
-	}
-	if !tinha {
-		// Sem baseline no ponto de partida, tudo o que existe agora é criação
-		// de unidade — e criar unidade também exige aval.
-		anterior = baseline.Document{Schema: baseline.SchemaID}
-	}
-
-	mudancas := baseline.Detectar(anterior, versionado)
-	if len(mudancas) == 0 {
-		return
-	}
-	commits, err := in.Baseline.CommitsQueTocaram(in.Base)
-	if err != nil {
-		rel.NaoVerificado = append(rel.NaoVerificado,
-			"mudança de classificação ("+baseline.Descrever(mudancas)+") e histórico ilegível: "+err.Error())
-		return
-	}
-	rel.Diagnostics = append(rel.Diagnostics, baseline.VerificarAutorizacao(mudancas, commits)...)
 }
 
 // Exportada porque a regravação do baseline precisa da MESMA projeção que a

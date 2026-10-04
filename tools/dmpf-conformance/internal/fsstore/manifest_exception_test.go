@@ -44,7 +44,7 @@ func TestDecodeExceptionNewOnly(t *testing.T) {
 		"id":"x:y",
 		"object":{"kind":"external-dependency","unit":"u2","identity":"d2"},
 		"adr":"ADR-001","justification":"j",
-		"convergence":{"kind":"review","review_by":"2027-01-01","approved_by":["arquitetura","plataforma"],"replanning_condition":"rc"},
+		"convergence":{"kind":"review","review_by":"2027-01-01","replanning_condition":"rc"},
 		"valid_from":"2026-01-01T00:00:00Z",
 		"history":[{"event":"granted","at":"2026-01-01T00:00:00Z","by":"team:o"}]
 	}]}`)
@@ -69,9 +69,6 @@ func TestDecodeExceptionNewOnly(t *testing.T) {
 	if !x.PresentConvergence || x.Convergence.Kind != "review" {
 		t.Fatalf("convergence: %+v present=%v", x.Convergence, x.PresentConvergence)
 	}
-	if len(x.Convergence.ApprovedBy) != 2 {
-		t.Fatalf("approved_by: got %v", x.Convergence.ApprovedBy)
-	}
 	if !x.PresentValidFrom || x.ValidFrom != wantValidFrom {
 		t.Fatalf("valid_from: got %d present=%v", x.ValidFrom, x.PresentValidFrom)
 	}
@@ -86,7 +83,7 @@ func TestDecodeExceptionDual(t *testing.T) {
 		"id":"u:d",
 		"object":{"kind":"external-dependency","unit":"u","identity":"d"},
 		"adr":"ADR-033","justification":"r",
-		"convergence":{"kind":"review","review_by":"2027-01-01","approved_by":["arquitetura","plataforma"],"replanning_condition":"rc"},
+		"convergence":{"kind":"review","review_by":"2027-01-01","replanning_condition":"rc"},
 		"valid_from":"2026-09-12T00:00:00Z",
 		"history":[{"event":"granted","at":"2026-09-12T00:00:00Z","by":"team:o"}]
 	}]}`)

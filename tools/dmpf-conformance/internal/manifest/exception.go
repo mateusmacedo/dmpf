@@ -124,9 +124,6 @@ func ToException(x Exception) exception.Exception {
 			ReplanningCondition: x.Convergence.ReplanningCondition,
 			PresentKind:         x.Convergence.PresentKind,
 		}
-		for _, a := range x.Convergence.ApprovedBy {
-			exc.Convergence.ApprovedBy = append(exc.Convergence.ApprovedBy, exception.Approver(a))
-		}
 		exc.PresentConvergence = true
 	}
 

@@ -18,7 +18,7 @@ step próprio, antes dos gates que o executam. Import path do módulo:
 ## `conformance`
 
 ```bash
-go run ./tools/dmpf-conformance/cmd/conformance --root . --base develop
+go run ./tools/dmpf-conformance/cmd/conformance --root .
 go run ./tools/dmpf-conformance/cmd/conformance --root . --write-baseline
 ```
 
@@ -26,9 +26,8 @@ go run ./tools/dmpf-conformance/cmd/conformance --root . --write-baseline
 | --- | --- |
 | `--root` | Raiz do workspace |
 | `--profiles` | `build-profiles.json`; default dentro deste módulo |
-| `--base` | Ref do intervalo em revisão. Sem ela, o commit próprio de RFC §10.2 fica não verificado, e não verificado reprova |
 | `--now` | Instante RFC3339 contra o qual as exceções vencem (`DMPF-X006`). Sem ela, o relógio |
-| `--write-baseline` | Regrava `tools/dmpf-baseline/units-baseline.json`. Ato de classificação: commit próprio, executado por pessoa, nunca no gate |
+| `--write-baseline` | Regrava `tools/dmpf-baseline/units-baseline.json`. Executado por pessoa, nunca no gate |
 
 A ordem da verificação é normativa: os manifestos são validados antes de
 qualquer aresta, e um `DMPF-M*` encerra a fase. Em seguida vêm a designação de
