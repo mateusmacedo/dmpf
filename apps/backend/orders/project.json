@@ -123,6 +123,10 @@
         "command": "bash ../../../tools/test-env.sh go test -race -count=1 -p 1 -tags=integration,distributed ./distkit/...",
         "cwd": "{projectRoot}"
       }
+    },
+    "e2e": {
+      "executor": "nx:noop",
+      "dependsOn": ["test-distributed"]
     }
   }
 }
