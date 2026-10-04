@@ -7,7 +7,7 @@ x-image: &image
   image: ${BOOKINGS_IMAGE:-bookings:local}
 
 x-env: &env
-  SERVICE: bookings
+  OTEL_SERVICE_NAME: bookings
   PG_DSN: postgres://bookings:${BOOKINGS_PG_PASSWORD:-bookings-local}@postgres:5432/bookings?sslmode=disable
 
 services:
@@ -16,9 +16,10 @@ services:
     extends:
       file: ../../../../infra/local/compose/app-base.yml
       service: dmpf-grpc-api
+    stop_grace_period: 30s
     environment:
       <<: *env
-      INSTANCE_ID: bookings-api
+      OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES:-service.version=local,deployment.environment.name=local},service.instance.id=bookings-api,dmpf.process.role=api
       GRPC_TLS_CERT_FILE: /pki/dmpf-bookings-api.crt
       GRPC_TLS_KEY_FILE: /pki/dmpf-bookings-api.key
     depends_on:
@@ -34,10 +35,11 @@ services:
     extends:
       file: ../../../../infra/local/compose/app-base.yml
       service: dmpf-kafka-worker
+    stop_grace_period: 30s
     command: ['--role', 'relay']
     environment:
       <<: *env
-      INSTANCE_ID: bookings-relay
+      OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES:-service.version=local,deployment.environment.name=local},service.instance.id=bookings-relay,dmpf.process.role=relay
       KAFKA_SASL_USERNAME: bookings
       KAFKA_SASL_PASSWORD: ${KAFKA_BOOKINGS_PASSWORD:-bookings-local}
       KAFKA_GROUP: bookings

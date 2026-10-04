@@ -3,8 +3,7 @@ kind: ConfigMap
 metadata:
   name: bookings
 data:
-  # O Redpanda e o Collector da base rodam sem TLS em dev, e o gRPC interno também.
+  # O Redpanda da base roda sem TLS em dev, e o gRPC interno também.
   KAFKA_INSECURE: 'true'
-  OTLP_INSECURE: 'true'
   GRPC_INSECURE: 'true'
-  SERVICE_VERSION: dev
+  OTEL_RESOURCE_ATTRIBUTES: service.version=dev,deployment.environment.name=dev

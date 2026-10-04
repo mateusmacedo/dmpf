@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"go.opentelemetry.io/otel/trace/noop"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
@@ -85,7 +84,7 @@ func dial(t *testing.T, pool *pgxpool.Pool) *grpc.ClientConn {
 	server, _, err := kernelgrpc.NewServer(kernelgrpc.ServerConfig{
 		InsecureForDevelopmentOnly: true,
 		Services:                   []string{rpc.ServiceName},
-		UnaryInterceptors:          kernelgrpc.ServerInterceptors(rpc.ServiceName, noop.NewTracerProvider().Tracer("e2e"), ctrl, nil, nil, kernelgrpc.WithCommands(rpc.Commands()...)),
+		UnaryInterceptors:          kernelgrpc.ServerInterceptors(rpc.ServiceName, ctrl, nil, nil, kernelgrpc.WithCommands(rpc.Commands()...)),
 	})
 	if err != nil {
 		t.Fatalf("NewServer() = %v", err)

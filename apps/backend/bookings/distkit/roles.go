@@ -42,7 +42,7 @@ func drain(t *testing.T, ctx context.Context) {
 	if err != nil {
 		t.Fatalf("distkit: the drain refused its configuration: %v", err)
 	}
-	if err := app.Run(ctx, cfg, os.Stdout); err != nil && !isShutdown(err) {
+	if err := app.Run(ctx, cfg); err != nil && !isShutdown(err) {
 		t.Fatalf("distkit: the drain returned %v", err)
 	}
 }

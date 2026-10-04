@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"go.opentelemetry.io/otel/trace/noop"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
@@ -84,7 +83,7 @@ func newHarness(t *testing.T, planted byResource) *harness {
 	server, _, err := kernelgrpc.NewServer(kernelgrpc.ServerConfig{
 		InsecureForDevelopmentOnly: true,
 		Services:                   []string{rpc.ServiceName},
-		UnaryInterceptors:          kernelgrpc.ServerInterceptors(rpc.ServiceName, noop.NewTracerProvider().Tracer("rpc-test"), ctrl, nil, nil, kernelgrpc.WithCommands(rpc.Commands()...)),
+		UnaryInterceptors:          kernelgrpc.ServerInterceptors(rpc.ServiceName, ctrl, nil, nil, kernelgrpc.WithCommands(rpc.Commands()...)),
 	})
 	if err != nil {
 		t.Fatalf("NewServer() = %v", err)
