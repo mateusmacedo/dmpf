@@ -16,8 +16,10 @@ a resolução de identidade e permissão é de `docs/specs/SPEC-9B6SHEH8-context
 | --- | --- | --- |
 | `kernel/provider-http` | `provider` | raiz do módulo |
 
-Sem dependência externa declarada (`external: []`): nenhum framework HTTP —
-`net/http` basta — e os tipos que a configuração e a admissão expõem
+Dependências externas declaradas: `go.opentelemetry.io/otel/trace` e
+`go.opentelemetry.io/otel/metric` (`observability`). Nenhum framework HTTP —
+`net/http` basta; o transporte de saída é envolvido pelo `otelhttp` (contrib
+`v0.72.0`) — e os tipos que a configuração e a admissão expõem
 (`ports.Permission`, `ports.SubjectID`, `ports.TenantID`) vêm do módulo `ports`
 do próprio kernel, que não é dependência externa.
 
@@ -65,22 +67,40 @@ do próprio kernel, que não é dependência externa.
   Cada tentativa corre num contexto próprio, cancelado quando ela termina; o
   contexto da chamada só é liberado no `Close` do `Body` da resposta final, que
   por isso continua legível depois de `Do` retornar. A composição de RES-22 vem
-  de `transport/compose`.
+  de `transport/compose`: o span INTERNAL `dmpf.resilience {dmpf.dependency}`
+  cobre as tentativas, com a degradação da sheet sob ele, e o log de cada
+  tentativa leva só a categoria. Cada tentativa passa pelo
+  `otelhttp.NewTransport`, que abre o CLIENT `{http.request.method}` com
+  `http.request.resend_count` a partir do segundo envio e grava
+  `http.client.request.duration` (RF-B5, RF-D2); antes do envio, o decorador de
+  privacidade do `otelboot` reescreve o `url.full` desse span sem query nem
+  caminho concreto (RF-B3).
 - **`classifier.go`** — `Classifier`: status transiente declarado e
   `net.Error` são retentáveis; cancelamento, deadline e o resto não. A
-  categoria de falha (span, séries, log) é `status_<n>`, `network`,
-  `deadline_exceeded`, `cancelled` ou a categoria do erro de plataforma —
-  nunca a mensagem.
+  categoria de falha (`error.type` e `dmpf.outcome_category` no span de
+  resiliência e no log) é a do erro de plataforma; senão, a categoria FND-07 do
+  prazo (`DeadlineExceeded`), do cancelamento (`Cancelled`), da rede
+  (`TransientDependency`) ou do status transiente — 400 `Validation`, 401
+  `Unauthenticated`, 403 `Forbidden`, 404 `NotFound`, 409 `Conflict`, 422
+  `DomainRejection`, 429 `RateLimited` e todo 5xx `TransientDependency` —, e
+  `_OTHER` fora da tabela. Nem a mensagem nem o status entram na categoria: o
+  status fica no `http.response.status_code` do CLIENT do `otelhttp`.
 - **`admission.go`** — `Admission(ctrl, route, tenant, instruments)`:
   middleware `func(http.Handler) http.Handler` sobre
   `transport/admission`. Recusa **429** com `Retry-After` antes do
   handler e antes de ler o corpo (RES-17), conta
-  `dmpf_service_admission_rejections_total{route, tenant}` com o tenant
-  colapsado pela allowlist (MET-07, MET-12); rota sem limite declarado
+  `dmpf_admission_rejections_total{http.route, dmpf.tenant_id}` — a série
+  `dmpf.admission.rejections` — com o tenant colapsado pela allowlist
+  (MET-07, MET-12); rota sem limite declarado
   responde 404 (RES-16). `RouteFunc` mapeia a requisição para a chave
-  declarada (default `METHOD path`); a recusa de rota **não declarada** é
-  contada sob a label fixa `UndeclaredRouteLabel` (`undeclared`), de modo que
-  um path inventado por cliente nunca abre série nova (MET-07).
+  declarada (default `METHOD path`). O `http.route` da série é a chave a
+  partir da primeira `/`, sem o método, a mesma regra com que o `otelhttp`
+  grava o `http.route` do padrão (`POST /orders/{id}/place` vira
+  `/orders/{id}/place`); uma chave sem `/` vira a label como está. O balde
+  continua por chave: só a série junta métodos do mesmo path. A recusa de
+  rota **não declarada** é contada sob a label fixa `UndeclaredRouteLabel`
+  (`undeclared`), de modo que um path inventado por cliente nunca abre série
+  nova (MET-07).
 
 ## A exigência de identidade de uma rota (`Requirement`, IDN-16/17)
 
@@ -145,5 +165,6 @@ verificador.
 - `docs/adr/024-rest-externo-grpc-interno-governo-do-tempo.md` — REST na borda externa.
 - `docs/adr/049-contexto-de-execucao-viaja-no-context-context.md` — o carrier que `WithExecutionContext`/`ExecutionContextFrom` delegam a `ports`.
 - `docs/adr/052-identidade-de-workload-no-grpc-e-no-kafka.md` — por que a permissão é conferida aqui, na borda, e não nos contextos internos.
+- `docs/specs/SPEC-1TFW24WV-observabilidade-ponta-a-ponta.md` — os `RF-*` citados aqui: o `otelhttp` do cliente e o decorador de privacidade.
 - `libs/backend/go/transport/README.md` — `deadline`, `admission`, `observe`.
 - `libs/backend/go/authn/README.md` — quem realiza `ports.Authenticator`.
