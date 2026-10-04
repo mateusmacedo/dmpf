@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/mateusmacedo/dmpf/libs/backend/go/contracts/envelope"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
 )
@@ -48,16 +47,12 @@ func (d disposition) String() string {
 // publish outside any transaction, then transition conditionally on the claim.
 // No database connection is held while Publish runs, which is OBX-07.
 func (r Relay) deliver(ctx context.Context, record postgres.Claimed) (disposition, error) {
-	env, err := Assemble(record, r.Source)
-	if err != nil {
-		return r.terminal(ctx, record, ownError(err))
-	}
-	message, err := envelope.Marshal(env)
-	if err != nil {
-		return r.terminal(ctx, record, ownError(err))
+	own, publishErr := r.send(ctx, record)
+	if own != nil {
+		return r.terminal(ctx, record, ownError(own))
 	}
 
-	if publishErr := r.Publisher.Publish(ctx, record.Destination, message); publishErr != nil {
+	if publishErr != nil {
 		// A publisher cancelled by the shutdown did not fail on its own merits:
 		// charging it a backoff would delay a record that never got its turn.
 		// release() hands the claim back at once instead (OBX-13).

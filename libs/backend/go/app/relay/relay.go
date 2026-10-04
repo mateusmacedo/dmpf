@@ -3,9 +3,14 @@ package relay
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"math/bits"
 	"sync"
 	"time"
+
+	"go.opentelemetry.io/otel/log"
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
@@ -39,6 +44,15 @@ type Relay struct {
 	// cancellation: the transitions of step 3 and the release of unfinished
 	// claims. Zero falls back to a deadline of the block's own.
 	ShutdownGrace time.Duration
+
+	Tracer         trace.Tracer
+	MeterProvider  metric.MeterProvider
+	System         string
+	Address        func(destination string) string
+	LoggerProvider log.LoggerProvider
+
+	logs   *slog.Logger
+	meters *sendInstruments
 }
 
 // Signals reports the four readings of OBX-12. Exposing them is this block's
@@ -53,17 +67,27 @@ func (r Relay) Signals(ctx context.Context) (postgres.OutboxHealth, error) {
 // Run drains until ctx is done, one scan at a time: claim, publish the batch
 // under the concurrency limit, then scan again. A cancelled context ends the
 // loop without an error — stopping is not a failure.
-func (r Relay) Run(ctx context.Context) error {
+func (r Relay) Run(ctx context.Context) (err error) {
 	if err := r.validate(); err != nil {
 		return err
 	}
+	defer func() {
+		if recover() != nil {
+			err = ErrPanicked
+		}
+	}()
+	r.logs = r.logger()
+	r.meters = r.instruments()
 
 	for ctx.Err() == nil {
-		claimed, err := r.Store.Claim(ctx, r.ClaimIDs.NewClaimID(), r.BatchSize, r.Lease)
+		claimedAt := time.Now()
+		claimID := r.ClaimIDs.NewClaimID()
+		claimed, err := r.Store.Claim(ctx, claimID, r.BatchSize, r.Lease)
 		if err != nil {
 			if ctx.Err() != nil {
 				break
 			}
+			r.logClaimFailed(ctx, err)
 			return err
 		}
 
@@ -74,33 +98,51 @@ func (r Relay) Run(ctx context.Context) error {
 			continue
 		}
 
-		var (
-			group   sync.WaitGroup
-			slots   = make(chan struct{}, r.Concurrency)
-			holding = newHeld()
-		)
-		for _, record := range claimed {
-			slots <- struct{}{}
-			holding.take(record)
-			group.Add(1)
-			go func() {
-				defer func() { group.Done(); <-slots }()
-				if _, err := r.deliver(ctx, record); err != nil {
-					// The transition never landed, so the claim is still live
-					// and the release at the end of this scan hands it back.
-					return
-				}
-				holding.settled(record.ID)
-			}()
+		if err := r.scan(ctx, claimedAt, claimID, claimed); err != nil {
+			return err
 		}
-		group.Wait()
-
-		// Per scan, not per loop: a claim nobody finished goes back to the pool
-		// now rather than waiting out its lease, and the set never carries
-		// records from earlier scans into a process that runs for weeks.
-		r.release(ctx, holding.remaining())
 	}
 	return nil
+}
+
+func (r Relay) scan(ctx context.Context, claimedAt time.Time, claimID string, claimed []postgres.Claimed) error {
+	holding := newHeld()
+	for _, record := range claimed {
+		holding.take(record)
+	}
+	drainCtx, drain := ctx, trace.Span(nil)
+	// Per scan, not per loop: a claim nobody finished goes back to the pool
+	// now rather than waiting out its lease, and the set never carries
+	// records from earlier scans into a process that runs for weeks.
+	defer func() {
+		if drain != nil {
+			defer drain.End()
+		}
+		r.release(drainCtx, holding.remaining())
+	}()
+	drainCtx, drain = r.openDrain(ctx, claimedAt, claimID, claimed)
+
+	var (
+		group   sync.WaitGroup
+		slots   = make(chan struct{}, r.Concurrency)
+		failure fault
+	)
+	for _, record := range claimed {
+		slots <- struct{}{}
+		group.Add(1)
+		go func() {
+			defer func() { group.Done(); <-slots }()
+			defer failure.catch()
+			if _, err := r.deliver(drainCtx, record); err != nil {
+				// The transition never landed, so the claim is still live
+				// and the release at the end of this scan hands it back.
+				return
+			}
+			holding.settled(record.ID)
+		}()
+	}
+	group.Wait()
+	return failure.err
 }
 
 // wait sleeps out the scan interval and reports whether the loop should carry

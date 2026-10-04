@@ -7,6 +7,9 @@ import (
 	"testing"
 	"time"
 
+	"go.opentelemetry.io/otel/propagation"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -295,25 +298,47 @@ func TestHandlerReceivesTheReceiptDerivedFromTheEnvelope(t *testing.T) {
 	}
 }
 
-// The adapter is where the consumed message becomes the cause of whatever the
-// handler emits (FND-07 §8.6 item 3): the three ENV-08 attributes travel from
-// the envelope to the context before the handler runs.
-func TestHandlerReceivesTheMessageContextOfTheEnvelope(t *testing.T) {
+func TestHandlerReceivesTheMessageContextOfTheProcess(t *testing.T) {
 	t.Parallel()
-	raw, env := validRaw(t)
+	_, env := validRaw(t)
+	envelopeState := "vendor=envelope"
+	env.TraceState = &envelopeState
+	processState, err := trace.ParseTraceState("dmpf=process")
+	if err != nil {
+		t.Fatalf("ParseTraceState() = %v", err)
+	}
 	handler := &fakeHandler{disposition: application.R1D1}
+	consumer, _, recorder := tracedConsumer(handler.handle, &fakeContainment{}, tracestateSampler{state: processState})
 
-	if _, err := newConsumer(handler, &fakeContainment{}, 3).Consume(context.Background(), app.Delivery{Raw: raw, Attempt: 1}, &fakeAck{}); err != nil {
+	if _, err := consumer.Consume(context.Background(), app.Delivery{Raw: encode(t, env), Attempt: 1}, &fakeAck{}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if !handler.mcPresent {
 		t.Fatal("the handler received no message context (FND-07 §8.6 item 3)")
 	}
-	want := ports.MessageContext{CorrelationID: env.CorrelationID, CausationID: env.ID, Traceparent: env.TraceParent}
+	carrier := propagation.MapCarrier{}
+	propagation.TraceContext{}.Inject(trace.ContextWithSpanContext(context.Background(), onlyProcess(t, recorder).SpanContext()), carrier)
+	want := ports.MessageContext{
+		CorrelationID: env.CorrelationID,
+		CausationID:   env.ID,
+		Traceparent:   carrier.Get("traceparent"),
+		Tracestate:    carrier.Get("tracestate"),
+	}
+	if want.Traceparent == "" || want.Traceparent == env.TraceParent || want.Tracestate != processState.String() {
+		t.Fatalf("process carrier = %+v, want the process's own traceparent and tracestate", carrier)
+	}
 	if handler.mc != want {
-		t.Fatalf("message context = %+v, want %+v — causation is the consumed message, not its own cause", handler.mc, want)
+		t.Fatalf("message context = %+v, want %+v — causation is the consumed message, the trace is the process", handler.mc, want)
 	}
 }
+
+type tracestateSampler struct{ state trace.TraceState }
+
+func (s tracestateSampler) ShouldSample(sdktrace.SamplingParameters) sdktrace.SamplingResult {
+	return sdktrace.SamplingResult{Decision: sdktrace.RecordAndSample, Tracestate: s.state}
+}
+
+func (tracestateSampler) Description() string { return "tracestateSampler" }
 
 func TestConfirmingDispositionsOnlyAck(t *testing.T) {
 	t.Parallel()

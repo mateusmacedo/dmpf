@@ -13,13 +13,14 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
 )
 
-// The three ENV-08 attributes with no column of their own. FND-05 leaves the
+// The ENV-08 attributes with no column of their own. FND-05 leaves the
 // form of persisting them to FND-04, which hands the content back to FND-07;
 // metadata is where they land, and reading them is all this block may do.
 const (
 	metaCorrelationID = "correlationid"
 	metaCausationID   = "causationid"
 	metaTraceParent   = "traceparent"
+	metaTraceState    = "tracestate"
 	metaTenantID      = "tenantid"
 )
 
@@ -51,6 +52,10 @@ func Assemble(record postgres.Claimed, source string) (envelope.Envelope, error)
 	if tenant := attributes[metaTenantID]; tenant != "" {
 		tenantID = &tenant
 	}
+	var traceState *string
+	if state := attributes[metaTraceState]; state != "" {
+		traceState = &state
+	}
 
 	return envelope.Envelope{
 		ID:               record.MessageID,
@@ -65,6 +70,7 @@ func Assemble(record postgres.Claimed, source string) (envelope.Envelope, error)
 		CausationID:      attributes[metaCausationID],
 		PartitionKey:     record.PartitionKey,
 		TraceParent:      attributes[metaTraceParent],
+		TraceState:       traceState,
 		AggregateVersion: &aggregateVersion,
 		TenantID:         tenantID,
 		Payload:          record.Payload,
@@ -82,7 +88,7 @@ func contextAttributes(metadata []byte) (map[string]string, error) {
 		}
 	}
 
-	attributes := make(map[string]string, 4)
+	attributes := make(map[string]string, 5)
 	for _, key := range [...]string{metaCorrelationID, metaCausationID, metaTraceParent} {
 		value, ok := raw[key]
 		if !ok {
@@ -104,6 +110,12 @@ func contextAttributes(metadata []byte) (map[string]string, error) {
 			return nil, fmt.Errorf("%w: %s is present but not a non-empty string", ErrMissingContextAttributes, metaTenantID)
 		}
 		attributes[metaTenantID] = text
+	}
+	if value, ok := raw[metaTraceState]; ok {
+		var text string
+		if json.Unmarshal(value, &text) == nil && text != "" {
+			attributes[metaTraceState] = text
+		}
 	}
 	return attributes, nil
 }

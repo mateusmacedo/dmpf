@@ -4,11 +4,16 @@ package relay
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+	"go.opentelemetry.io/otel/trace"
 
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/tracing"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/pg"
@@ -186,4 +191,80 @@ func TestTheConnectionProbeFailsWhenAConnectionIsHeld(t *testing.T) {
 	// the rollback has to come before the wait.
 	_ = held.Rollback(ctx)
 	<-done
+}
+
+// cancelAfterPublish ends the loop once the first delivery is out; the
+// transition still lands, on the detached context of settleContext.
+type cancelAfterPublish struct{ cancel context.CancelFunc }
+
+func (p cancelAfterPublish) Publish(context.Context, string, []byte) error {
+	p.cancel()
+	return nil
+}
+
+func TestTheDrainQueriesRunUnderTheDrainWithItsRequestID(t *testing.T) {
+	recorder := tracetest.NewSpanRecorder()
+	provider := sdktrace.NewTracerProvider(
+		sdktrace.WithSampler(sdktrace.AlwaysSample()),
+		sdktrace.WithSpanProcessor(baggageCopier{}),
+		sdktrace.WithSpanProcessor(recorder),
+	)
+	tracer := provider.Tracer("relay-integration")
+
+	migrated := pg.OpenPool(t, pg.Options{Project: "app", Capabilities: []postgres.Capability{postgres.Outbox}})
+	config := migrated.Config().Copy()
+	config.ConnConfig.Tracer = postgres.NewQueryTracer(tracer)
+	pool, err := pgxpool.NewWithConfig(context.Background(), config)
+	if err != nil {
+		t.Fatalf("NewWithConfig() = %v, want nil", err)
+	}
+	t.Cleanup(pool.Close)
+	seedOutboxRow(t, pool)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	relay := relayOver(pool, cancelAfterPublish{cancel: cancel})
+	relay.Tracer = tracer
+	relay.ClaimIDs = &countingIDs{}
+	relay.Interval = 50 * time.Millisecond
+	relay.BatchSize = 10
+	relay.Concurrency = 1
+	if err := relay.Run(ctx); err != nil {
+		t.Fatalf("Run() = %v, want nil", err)
+	}
+
+	var drain sdktrace.ReadOnlySpan
+	var queries []sdktrace.ReadOnlySpan
+	for _, span := range recorder.Ended() {
+		switch {
+		case span.Name() == "outbox drain orders.integration":
+			drain = span
+		case !strings.HasPrefix(span.Name(), sendOperation):
+			queries = append(queries, span)
+		}
+	}
+	if drain == nil {
+		t.Fatalf("no drain among %d spans", len(recorder.Ended()))
+	}
+	requestID, _ := attributeOf(drain.Attributes(), tracing.KeyRequestID)
+	if requestID.AsString() == "" {
+		t.Fatalf("drain carries no %s", tracing.KeyRequestID)
+	}
+
+	if len(queries) == 0 {
+		t.Fatal("no query span under the drain: MarkPublished ran outside it")
+	}
+	for _, query := range queries {
+		if query.SpanKind() != trace.SpanKindClient {
+			t.Fatalf("span %q kind = %v, want a client query span", query.Name(), query.SpanKind())
+		}
+		if query.Parent().SpanID() != drain.SpanContext().SpanID() || query.Parent().TraceID() != drain.SpanContext().TraceID() {
+			t.Fatalf("query %q parent = %v, want the drain %v: the claim or a transition ran outside it",
+				query.Name(), query.Parent(), drain.SpanContext())
+		}
+		if got, _ := attributeOf(query.Attributes(), tracing.KeyRequestID); got.AsString() != requestID.AsString() {
+			t.Fatalf("query %q %s = %q, want the drain's %q from the baggage",
+				query.Name(), tracing.KeyRequestID, got.AsString(), requestID.AsString())
+		}
+	}
 }
