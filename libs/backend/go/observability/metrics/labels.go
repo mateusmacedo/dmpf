@@ -4,19 +4,26 @@ import (
 	"fmt"
 
 	"go.opentelemetry.io/otel/attribute"
+
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/tracing"
 )
 
-// Keys of the permitted labels (MET-04). No key for an identifier, message,
-// correlation, request or user: unbounded or personal (MET-07). Tenant is the
-// one exception MET-07 admits, and only through TenantWithin, a declared set.
+// Keys of the permitted labels (MET-04, RF-D3): semconv or dmpf.*. No key for
+// an identifier, message, correlation, request or user (MET-07); the tenant
+// enters only through TenantWithin, a declared set.
 const (
-	KeyDependency      = "dependency"
-	KeyOperation       = "operation"
-	KeyService         = "service"
-	KeyErrorCategory   = "error_category"
-	KeyOutcomeCategory = "outcome_category"
-	KeyRoute           = "route"
-	KeyTenant          = "tenant"
+	KeyDependency      = tracing.KeyDependency
+	KeyOperation       = tracing.KeyOperation
+	KeyErrorType       = "error.type"
+	KeyOutcomeCategory = tracing.KeyOutcomeCategory
+	KeyRoute           = "http.route"
+	KeyRPCMethod       = "rpc.method"
+	KeyTenant          = tracing.KeyTenantID
+)
+
+// KeyErrorCategory keeps the callers of the earlier vocabulary compiling.
+const (
+	KeyErrorCategory = KeyErrorType
 )
 
 // OtherTenant is the value every tenant outside the declared set collapses
@@ -76,17 +83,16 @@ func (l Labels) Dependency(value string) Labels { return l.with(KeyDependency, v
 // Operation names the operation the measurement is about.
 func (l Labels) Operation(value string) Labels { return l.with(KeyOperation, value) }
 
-// Service names the service the measurement is about.
-func (l Labels) Service(value string) Labels { return l.with(KeyService, value) }
+func (l Labels) ErrorType(value string) Labels { return l.with(KeyErrorType, value) }
 
-// ErrorCategory is the category of the failure, never its message.
-func (l Labels) ErrorCategory(value string) Labels { return l.with(KeyErrorCategory, value) }
+func (l Labels) ErrorCategory(value string) Labels { return l.ErrorType(value) }
 
 // OutcomeCategory is the terminal category of the operation.
 func (l Labels) OutcomeCategory(value string) Labels { return l.with(KeyOutcomeCategory, value) }
 
-// Route names the route or method the admission decided about (MET-12).
 func (l Labels) Route(value string) Labels { return l.with(KeyRoute, value) }
+
+func (l Labels) RPCMethod(value string) Labels { return l.with(KeyRPCMethod, value) }
 
 // TenantWithin is the only way a tenant reaches a series: resolved against the
 // declared set, so anything outside it is recorded as OtherTenant (MET-07,

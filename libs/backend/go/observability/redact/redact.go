@@ -3,6 +3,8 @@ package redact
 import (
 	"errors"
 	"log/slog"
+
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/tracing"
 )
 
 // Placeholder replaces the value of a field outside the allowlist. The field
@@ -12,14 +14,14 @@ const Placeholder = "<redacted>"
 
 // Keys of what an error is allowed to contribute to a record.
 const (
-	KeyErrorCategory = "error_category"
-	KeyErrorCode     = "error_code"
+	KeyErrorType = "error.type"
+	KeyErrorCode = tracing.KeyErrorCode
 )
 
 // CategoryUnclassified is what an error that the taxonomy did not classify
 // reports. It is never the error message: an unclassified failure is still a
 // category, and FND-07 owns the taxonomy this package consumes.
-const CategoryUnclassified = "unclassified"
+const CategoryUnclassified = "_OTHER"
 
 // Categorized is what an error implements to contribute its category and code.
 // The taxonomy lives in FND-07; this package only reads it.
@@ -72,7 +74,7 @@ func Error(err error) slog.Attr {
 
 	var categorized Categorized
 	if !errors.As(err, &categorized) {
-		return slog.String(KeyErrorCategory, CategoryUnclassified)
+		return slog.String(KeyErrorType, CategoryUnclassified)
 	}
 
 	category := categorized.ErrorCategory()
@@ -81,7 +83,7 @@ func Error(err error) slog.Attr {
 	}
 
 	if code := categorized.ErrorCode(); code != "" {
-		return slog.Group("", slog.String(KeyErrorCategory, category), slog.String(KeyErrorCode, code))
+		return slog.Group("", slog.String(KeyErrorType, category), slog.String(KeyErrorCode, code))
 	}
-	return slog.String(KeyErrorCategory, category)
+	return slog.String(KeyErrorType, category)
 }

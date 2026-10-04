@@ -1,16 +1,18 @@
 package otelboot
 
 import (
-	"crypto/tls"
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
 	"slices"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/propagation"
 	sdklog "go.opentelemetry.io/otel/sdk/log"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	sdkresource "go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
 
@@ -33,10 +35,6 @@ var (
 
 	// ErrResourceIncomplete is a resource that does not identify the service.
 	ErrResourceIncomplete = errors.New("otelboot: the resource does not identify the service")
-
-	// ErrInsecureNotAllowed is a transport that turns TLS off without saying so
-	// in the configuration. Plaintext telemetry is a choice, not a fallback.
-	ErrInsecureNotAllowed = errors.New("otelboot: an insecure transport requires AllowInsecure")
 )
 
 // The W3C Trace Context headers a conforming propagator injects. The check is
@@ -47,18 +45,13 @@ const (
 	headerTracestate  = "tracestate"
 )
 
-// SheetAttributePrefix opens the resource attribute of a resilience sheet. The
-// full key is <prefix><dependency>.<field> (RES-40).
+// SheetAttributePrefix opens the key of a field on the resilience sheet in
+// effect record: <prefix><field>, beside dmpf.dependency (RES-40).
 const SheetAttributePrefix = "dmpf.sheet."
 
-// Transport is how the exporters reach the collector. TLS is the default and
-// Insecure turns it off, which is why turning it off takes two declarations
-// (this one and Config.AllowInsecure).
-type Transport struct {
-	Endpoint string
-	Insecure bool
-	TLS      *tls.Config
-}
+// ProcessRoleAttribute is the role of the process on the resource: api, relay
+// or consumer.
+const ProcessRoleAttribute = "dmpf.process.role"
 
 // Resource is the identity of the process behind the telemetry. The three
 // service fields are mandatory because a signal nobody can attribute to a
@@ -67,6 +60,7 @@ type Resource struct {
 	ServiceName       string
 	ServiceVersion    string
 	ServiceInstanceID string
+	Role              string
 
 	// Attributes are further resource attributes, such as the deployment
 	// environment, that the caller adds on its own terms.
@@ -74,32 +68,42 @@ type Resource struct {
 }
 
 // Config is everything the bootstrap needs. The exporters are injected so the
-// suite runs the whole pipeline in memory, and otelboot/otlp supplies the
-// production ones from Transport.
+// suite runs the whole pipeline in memory, and boot supplies the production
+// ones from the OTEL_* environment. Disabled (OTEL_SDK_DISABLED) exports nothing.
 type Config struct {
+	Disabled       bool
 	Propagator     propagation.TextMapPropagator
 	Resource       Resource
 	Sampling       tracing.Rates
-	Transport      Transport
-	AllowInsecure  bool
+	Class          tracing.Class
+	Rand           func() float64
 	Sheets         []resilience.Sheet
 	TraceExporter  sdktrace.SpanExporter
 	MetricReader   sdkmetric.Reader
 	LoggerProvider *sdklog.LoggerProvider
 	Logger         *slog.Logger
+	LogLevel       slog.Leveler
 }
 
 // Validate reports every fault at once, so a reader fixes the configuration in
 // one pass instead of discovering the next fault on the next run.
 func (c Config) Validate() error {
-	faults := []error{c.validatePropagator(), c.validateResource(), c.ValidateTransport()}
+	faults := []error{c.validatePropagator(), c.validateResource()}
 	for _, sheet := range c.Sheets {
 		faults = append(faults, sheet.Validate())
 	}
 	return errors.Join(faults...)
 }
 
+// EnvPropagators may only be absent or tracecontext: baggage would carry the
+// tenant out of the process, and none or a third-party format breaks the
+// explicit W3C Trace Context of TRC-09 (RF-E4).
+const EnvPropagators = "OTEL_PROPAGATORS"
+
 func (c Config) validatePropagator() error {
+	if declared := os.Getenv(EnvPropagators); declared != "" && declared != "tracecontext" {
+		return fmt.Errorf("%w: %s=%q", ErrPropagatorNotW3C, EnvPropagators, declared)
+	}
 	if c.Propagator == nil {
 		return ErrPropagatorRequired
 	}
@@ -111,13 +115,14 @@ func (c Config) validatePropagator() error {
 }
 
 func (c Config) validateResource() error {
+	resource, err := c.resource()
+	if err != nil {
+		return err
+	}
+	identity := resource.Set()
 	missing := make([]string, 0, 3)
-	for key, value := range map[attribute.Key]string{
-		semconv.ServiceNameKey:       c.Resource.ServiceName,
-		semconv.ServiceVersionKey:    c.Resource.ServiceVersion,
-		semconv.ServiceInstanceIDKey: c.Resource.ServiceInstanceID,
-	} {
-		if value == "" {
+	for _, key := range []attribute.Key{semconv.ServiceNameKey, semconv.ServiceVersionKey, semconv.ServiceInstanceIDKey} {
+		if value, present := identity.Value(key); !present || value.AsString() == "" {
 			missing = append(missing, string(key))
 		}
 	}
@@ -128,43 +133,43 @@ func (c Config) validateResource() error {
 	return fmt.Errorf("%w: %v are blank", ErrResourceIncomplete, missing)
 }
 
-// ValidateTransport is the transport rule on its own, so the package that
-// builds the OTLP exporters applies the same one instead of restating it.
-func (c Config) ValidateTransport() error {
-	if c.Transport.Insecure && !c.AllowInsecure {
-		return fmt.Errorf("%w: %s would carry telemetry in plaintext", ErrInsecureNotAllowed, c.Transport.Endpoint)
-	}
-	return nil
+// resource puts the OTEL_SERVICE_NAME and OTEL_RESOURCE_ATTRIBUTES of the
+// environment over the declared attributes, which is why the identity is only
+// checked on what it returns.
+func (c Config) resource() (*sdkresource.Resource, error) {
+	return sdkresource.New(context.Background(),
+		sdkresource.WithSchemaURL(semconv.SchemaURL),
+		sdkresource.WithTelemetrySDK(),
+		sdkresource.WithProcessRuntimeName(),
+		sdkresource.WithProcessRuntimeVersion(),
+		sdkresource.WithAttributes(c.ResourceAttributes()...),
+		sdkresource.WithFromEnv(),
+	)
 }
 
-// EffectiveSampling is the rate table in use. An undeclared table takes the
-// platform baseline of TRC-13 rather than resolving every class to the most
-// restrictive rate, which would silently stop sampling errors.
+// EffectiveSampling is the rate table of the head; undeclared, every class is
+// at 1.0, the default of traceidratio. TRC-13 lives in the tail only: at both
+// ends it would multiply the rates and drop errors before the outcome is known.
 func (c Config) EffectiveSampling() tracing.Rates {
 	if len(c.Sampling) == 0 {
-		return tracing.DefaultRates()
+		return tracing.UniformRates(1)
 	}
 	return c.Sampling
 }
 
-// ResourceAttributes is the identity of the process plus the effective values
-// of every sheet. The resource takes no attributes after it is created, so the
-// sheets are an input of the bootstrap and not something registered later
-// (RES-40).
+// ResourceAttributes is the identity of the process. The sheets stay out of it:
+// their effective values go on the resilience sheet in effect record (RES-40).
 func (c Config) ResourceAttributes() []attribute.KeyValue {
-	attributes := make([]attribute.KeyValue, 0, 3+len(c.Resource.Attributes)+len(c.Sheets)*10)
-	attributes = append(attributes,
-		semconv.ServiceName(c.Resource.ServiceName),
-		semconv.ServiceVersion(c.Resource.ServiceVersion),
-		semconv.ServiceInstanceID(c.Resource.ServiceInstanceID),
-	)
-	attributes = append(attributes, c.Resource.Attributes...)
-
-	for _, sheet := range c.Sheets {
-		for field, value := range sheet.Effective() {
-			key := SheetAttributePrefix + sheet.Dependency + "." + field
-			attributes = append(attributes, attribute.String(key, value))
+	attributes := make([]attribute.KeyValue, 0, 4+len(c.Resource.Attributes))
+	for key, value := range map[attribute.Key]string{
+		semconv.ServiceNameKey:       c.Resource.ServiceName,
+		semconv.ServiceVersionKey:    c.Resource.ServiceVersion,
+		semconv.ServiceInstanceIDKey: c.Resource.ServiceInstanceID,
+		ProcessRoleAttribute:         c.Resource.Role,
+	} {
+		if value != "" {
+			attributes = append(attributes, key.String(value))
 		}
 	}
-	return attributes
+	return append(attributes, c.Resource.Attributes...)
 }

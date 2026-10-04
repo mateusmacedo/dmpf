@@ -7,6 +7,10 @@ import (
 	"testing"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
+
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/clock"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/metrics"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/resilience"
@@ -225,6 +229,49 @@ func TestTheStateReachesTheGauge(t *testing.T) {
 
 	if got := read(metrics.BreakerState); got != int64(resilience.BreakerOpen) {
 		t.Fatalf("%s = %d, want %d (MET-28)", metrics.BreakerState, got, resilience.BreakerOpen)
+	}
+}
+
+func TestANewBreakerReportsClosedBeforeItsFirstCall(t *testing.T) {
+	reader := sdkmetric.NewManualReader()
+	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	t.Cleanup(func() {
+		if err := provider.Shutdown(context.Background()); err != nil {
+			t.Errorf("Shutdown() = %v, want nil", err)
+		}
+	})
+	instruments, err := metrics.New(provider.Meter("observability"))
+	if err != nil {
+		t.Fatalf("metrics.New() = %v, want nil", err)
+	}
+
+	resilience.NewBreaker("payments", breakerPolicy(), clock.NewFake(start), instruments)
+
+	want := attribute.NewSet(attribute.String(metrics.KeyDependency, "payments"))
+	for _, collection := range []string{"first", "second"} {
+		var collected metricdata.ResourceMetrics
+		if err := reader.Collect(context.Background(), &collected); err != nil {
+			t.Fatalf("%s Collect() = %v, want nil", collection, err)
+		}
+
+		var points []metricdata.DataPoint[int64]
+		for _, scope := range collected.ScopeMetrics {
+			for _, series := range scope.Metrics {
+				if gauge, ok := series.Data.(metricdata.Gauge[int64]); ok && series.Name == metrics.BreakerState {
+					points = append(points, gauge.DataPoints...)
+				}
+			}
+		}
+
+		if len(points) != 1 {
+			t.Fatalf("%s collection holds %d points of %s before any call, want 1 (criterion 9)", collection, len(points), metrics.BreakerState)
+		}
+		if got := points[0].Value; got != int64(resilience.BreakerClosed) {
+			t.Fatalf("%s collection: %s = %d, want %d (closed)", collection, metrics.BreakerState, got, resilience.BreakerClosed)
+		}
+		if got := points[0].Attributes; !got.Equals(&want) {
+			t.Fatalf("%s collection: %s attributes = %v, want %v", collection, metrics.BreakerState, got.ToSlice(), want.ToSlice())
+		}
 	}
 }
 

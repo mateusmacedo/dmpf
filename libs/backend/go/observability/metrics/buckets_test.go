@@ -2,6 +2,7 @@ package metrics_test
 
 import (
 	"context"
+	"slices"
 	"testing"
 
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
@@ -24,7 +25,7 @@ func TestRequestDurationBucketsAreOnTheSecondsScale(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() = %v, want nil", err)
 	}
-	labels := metrics.Labels{}.Operation("orders.FindOrder").Service("orders")
+	labels := metrics.Labels{}.Operation("orders.FindOrder")
 	instruments.RequestDuration.Record(context.Background(), 0.003, measurement(labels))
 
 	var collected metricdata.ResourceMetrics
@@ -70,4 +71,35 @@ func TestRequestDurationBucketsAreOnTheSecondsScale(t *testing.T) {
 			t.Fatalf("the 3 ms sample fell in the bucket ending at %v s, want a sub-second bucket", point.Bounds[i])
 		}
 	}
+}
+
+func TestTheDurationBucketsAreTheSemconvAdvisoryBoundaries(t *testing.T) {
+	reader := sdkmetric.NewManualReader()
+	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	t.Cleanup(func() { _ = provider.Shutdown(context.Background()) })
+
+	instruments, err := metrics.New(provider.Meter("observability"))
+	if err != nil {
+		t.Fatalf("New() = %v, want nil", err)
+	}
+	instruments.RequestDuration.Record(context.Background(), 0.2)
+
+	var collected metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &collected); err != nil {
+		t.Fatalf("Collect() = %v, want nil", err)
+	}
+	want := []float64{0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.25, 0.5, 0.75, 1, 2.5, 5, 7.5, 10}
+	for _, scope := range collected.ScopeMetrics {
+		for _, m := range scope.Metrics {
+			if m.Name != metrics.RequestDurationSeconds {
+				continue
+			}
+			bounds := m.Data.(metricdata.Histogram[float64]).DataPoints[0].Bounds
+			if !slices.Equal(bounds, want) {
+				t.Fatalf("Bounds = %v, want the semconv advisory %v (RF-D4)", bounds, want)
+			}
+			return
+		}
+	}
+	t.Fatalf("%s did not reach the reader", metrics.RequestDurationSeconds)
 }

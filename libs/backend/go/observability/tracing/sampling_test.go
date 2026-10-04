@@ -1,6 +1,7 @@
 package tracing_test
 
 import (
+	"maps"
 	"testing"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/tracing"
@@ -9,16 +10,15 @@ import (
 func TestTheDefaultRatesAreTheBaselineOfTRC13(t *testing.T) {
 	rates := tracing.DefaultRates()
 
-	want := map[tracing.Class]float64{
-		tracing.ClassError:       1.0,
-		tracing.ClassWrite:       0.10,
-		tracing.ClassRead:        0.01,
-		tracing.ClassMaintenance: 1.0,
+	want := tracing.Rates{
+		tracing.ClassError:        1.0,
+		tracing.ClassWrite:        1.0,
+		tracing.ClassRead:         0.01,
+		tracing.ClassMaintenance:  1.0,
+		tracing.ClassUnclassified: 0.01,
 	}
-	for class, rate := range want {
-		if got := rates.RateFor(class); got != rate {
-			t.Errorf("RateFor(%q) = %v, want %v", class, got, rate)
-		}
+	if !maps.Equal(rates, want) {
+		t.Errorf("DefaultRates() = %v, want the five classes of TRC-13 declared at %v", rates, want)
 	}
 }
 

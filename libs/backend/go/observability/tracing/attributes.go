@@ -1,6 +1,11 @@
 package tracing
 
-import "go.opentelemetry.io/otel/attribute"
+import (
+	"go.opentelemetry.io/otel/attribute"
+	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
+
+	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
+)
 
 // Keys of the permitted span attributes (TRC-04). No key exists for an error, a
 // payload or a domain type: a span that carried them would leave the process
@@ -9,14 +14,25 @@ const (
 	KeyCorrelationID   = "dmpf.correlation_id"
 	KeyRequestID       = "dmpf.request_id"
 	KeyTenantID        = "dmpf.tenant_id"
-	KeyService         = "dmpf.service"
-	KeyVersion         = "dmpf.version"
 	KeyOutcomeCategory = "dmpf.outcome_category"
 	KeyTrafficClass    = "dmpf.traffic_class"
 	KeyDependency      = "dmpf.dependency"
 	KeyOperation       = "dmpf.operation"
 	KeyAttempt         = "dmpf.retry.attempt"
-	KeyErrorCategory   = "dmpf.error.category"
+
+	KeyOutboxClaimID = "dmpf.outbox.claim_id"
+	KeyOutboxAttempt = "dmpf.outbox.attempt"
+
+	KeyErrorCode             = "dmpf.error.code"
+	KeyInboxAttempt          = "dmpf.inbox.attempt"
+	KeyInboxDisposition      = "dmpf.inbox.disposition"
+	KeyInboxGesture          = "dmpf.inbox.gesture"
+	KeyIdempotencyKey        = "dmpf.idempotency_key"
+	KeyIdempotencyKeyDerived = "dmpf.idempotency_key.derived"
+	KeyIdempotencyKeyInvalid = "dmpf.idempotency_key.invalid"
+	KeyIdempotencyOutcome    = "dmpf.idempotency_outcome"
+	KeyDeadlineRemainingMS   = "dmpf.deadline.remaining_ms"
+	KeyProcessRole           = "dmpf.process.role"
 )
 
 // Attributes is a closed builder: one method per permitted key, none of them
@@ -52,12 +68,6 @@ func (a Attributes) RequestID(value string) Attributes { return a.withString(Key
 // TenantID is the tenant, omitted when absent.
 func (a Attributes) TenantID(value string) Attributes { return a.withString(KeyTenantID, value) }
 
-// Service names the service that owns the span.
-func (a Attributes) Service(value string) Attributes { return a.withString(KeyService, value) }
-
-// Version is the build of the service.
-func (a Attributes) Version(value string) Attributes { return a.withString(KeyVersion, value) }
-
 // OutcomeCategory is the terminal category of the operation.
 func (a Attributes) OutcomeCategory(value string) Attributes {
 	return a.withString(KeyOutcomeCategory, value)
@@ -71,13 +81,41 @@ func (a Attributes) TrafficClass(value string) Attributes {
 // Dependency names the dependency the span is about.
 func (a Attributes) Dependency(value string) Attributes { return a.withString(KeyDependency, value) }
 
-// Operation names the operation the span is about.
-func (a Attributes) Operation(value string) Attributes { return a.withString(KeyOperation, value) }
-
-// Attempt is the attempt number. Zero is the original call and is recorded, so
-// a reader distinguishes "first attempt" from "not instrumented".
+// Attempt is the attempt number, counted from 1, as the retry event and the
+// transport log count it (TRC-11).
 func (a Attributes) Attempt(value int) Attributes {
 	return a.with(attribute.Int(KeyAttempt, value))
+}
+
+func (a Attributes) OutboxClaimID(value string) Attributes {
+	return a.withString(KeyOutboxClaimID, value)
+}
+
+// OutboxAttempt counts the claims of a record, as outbox.attempt_count does
+// (postgres/claim.go:63), and not the calls of one retry, as Attempt does.
+func (a Attributes) OutboxAttempt(value int) Attributes {
+	return a.with(attribute.Int(KeyOutboxAttempt, value))
+}
+
+func (a Attributes) MessagingDestinationPartitionID(value string) Attributes {
+	if value == "" {
+		return a
+	}
+	return a.with(semconv.MessagingDestinationPartitionID(value))
+}
+
+func (a Attributes) MessagingKafkaOffset(value int) Attributes {
+	return a.with(semconv.MessagingKafkaOffset(value))
+}
+
+func ExecutionAttributes(execution ports.ExecutionContext) Attributes {
+	attributes := Attributes{}.
+		CorrelationID(execution.CorrelationID()).
+		RequestID(execution.RequestID())
+	if tenant, scoped := execution.Tenant(); scoped {
+		attributes = attributes.TenantID(string(tenant))
+	}
+	return attributes
 }
 
 // KeyValues is the set to pass to a span. It returns a copy, so a recorded set

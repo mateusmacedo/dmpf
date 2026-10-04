@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
+
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/metrics"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/redact"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/resilience"
@@ -161,8 +163,8 @@ func TestADegradedResultIsReadableByRedaction(t *testing.T) {
 	if !errors.As(error(degraded), &categorized) {
 		t.Fatal("a DegradedResult is not readable by redaction: the category would not reach a log")
 	}
-	if got := categorized.ErrorCategory(); got != resilience.CategoryDegraded {
-		t.Errorf("ErrorCategory() = %q, want %q", got, resilience.CategoryDegraded)
+	if got, other := categorized.ErrorCategory(), semconv.ErrorTypeOther.Value.AsString(); got != other {
+		t.Errorf("ErrorCategory() = %q, want %q: a degraded answer has no category of FND-07 (RF-B1)", got, other)
 	}
 	if categorized.ErrorCode() == "" {
 		t.Error("ErrorCode() is empty")

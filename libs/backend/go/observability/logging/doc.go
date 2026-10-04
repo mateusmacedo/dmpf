@@ -1,4 +1,3 @@
-// Package logging is the platform's slog handler: it extracts the correlation
-// fields from the context, samples what is routine and always records what
-// failed.
+// Package logging is the platform's log vocabulary: the keys of a record, the
+// severity of an outcome and the sampling that always keeps what failed.
 package logging

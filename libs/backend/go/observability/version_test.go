@@ -32,8 +32,11 @@ func TestEveryOTelRequirementMatchesTheDeclaredVersion(t *testing.T) {
 		}
 		found++
 		want := "v" + observability.OTelVersion
-		if isLogSignal(fields[0]) {
+		switch {
+		case isLogExporter(fields[0]):
 			want = "v" + observability.OTelLogsVersion
+		case fields[0] == "go.opentelemetry.io/otel/exporters/prometheus":
+			want = "v" + observability.OTelPrometheusExporterVersion
 		}
 		if fields[1] != want {
 			t.Errorf("%s = %s, want %s: the platform pins one OTel version", fields[0], fields[1], want)
@@ -44,10 +47,9 @@ func TestEveryOTelRequirementMatchesTheDeclaredVersion(t *testing.T) {
 	}
 }
 
-func isLogSignal(module string) bool {
-	return module == "go.opentelemetry.io/otel/log" ||
-		strings.HasPrefix(module, "go.opentelemetry.io/otel/sdk/log") ||
-		strings.HasPrefix(module, "go.opentelemetry.io/otel/exporters/otlp/otlplog")
+func isLogExporter(module string) bool {
+	return strings.HasPrefix(module, "go.opentelemetry.io/otel/exporters/otlp/otlplog") ||
+		module == "go.opentelemetry.io/otel/exporters/stdout/stdoutlog"
 }
 
 func TestSemconvVersionMatchesTheImportedSchema(t *testing.T) {
