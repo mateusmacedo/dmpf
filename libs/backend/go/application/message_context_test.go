@@ -8,7 +8,10 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
 
-const traceparent = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01"
+const (
+	traceparent = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01"
+	tracestate  = "congo=t61rcWkgMzE,rojo=00f067aa0ba902b7"
+)
 
 func TestMessageContextForCopiesTheAuthoredAttributesAndFillsOnlyTheCausation(t *testing.T) {
 	tests := []struct {
@@ -30,6 +33,11 @@ func TestMessageContextForCopiesTheAuthoredAttributesAndFillsOnlyTheCausation(t 
 			name: "consumption authored the causing message: it is kept",
 			ctx:  ports.WithMessageContext(context.Background(), ports.MessageContext{CorrelationID: "corr-1", CausationID: "m-ext-1", Traceparent: traceparent}),
 			want: ports.MessageContext{CorrelationID: "corr-1", CausationID: "m-ext-1", Traceparent: traceparent},
+		},
+		{
+			name: "origin authored a tracestate: it is kept verbatim",
+			ctx:  ports.WithMessageContext(context.Background(), ports.MessageContext{CorrelationID: "corr-1", Traceparent: traceparent, Tracestate: tracestate}),
+			want: ports.MessageContext{CorrelationID: "corr-1", CausationID: "m-000001", Traceparent: traceparent, Tracestate: tracestate},
 		},
 	}
 	for _, tt := range tests {
