@@ -7,13 +7,22 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
+	"reflect"
+	"slices"
+	"strings"
+	"sync"
 
+	"go.opentelemetry.io/otel/log"
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/clock"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/logging"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/metrics"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/resilience"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/deadline"
@@ -51,21 +60,50 @@ func (p MethodPolicy) Validate() error {
 	return p.Budget.Validate()
 }
 
+func (p MethodPolicy) LogValue() slog.Value {
+	retryable := make([]string, len(p.RetryableCodes))
+	for i, code := range p.RetryableCodes {
+		retryable[i] = code.String()
+	}
+	return slog.GroupValue(
+		slog.String("limit", p.Budget.Limit.String()),
+		slog.String("slack", p.Budget.Slack.String()),
+		slog.String("estimated_duration", p.Budget.EstimatedDuration.String()),
+		slog.Bool("idempotent", p.Idempotent),
+		slog.String("retryable_codes", strings.Join(retryable, ",")),
+	)
+}
+
 // Config is the client-side configuration of one dependency: transport
 // security, the sheet of RES-21, the policy per full method name, and what the
-// decorators record through; Service labels the series of MET-08 to MET-10.
+// decorators record through.
 type Config struct {
 	TLS                        *tls.Config
 	InsecureForDevelopmentOnly bool
 	Sheet                      resilience.Sheet
 	Methods                    map[string]MethodPolicy
 	HealthServiceName          string
-	Service                    string
 	Clock                      clock.Clock
 	Tracer                     trace.Tracer
+	TracerProvider             trace.TracerProvider
+	MeterProvider              metric.MeterProvider
+	Propagator                 propagation.TextMapPropagator
 	Instruments                *metrics.Instruments
-	Logger                     *slog.Logger
+	LoggerProvider             log.LoggerProvider
 	Rand                       func() float64
+}
+
+func (c Config) LogValue() slog.Value {
+	methods := make([]slog.Attr, 0, len(c.Methods))
+	for _, method := range slices.Sorted(maps.Keys(c.Methods)) {
+		methods = append(methods, slog.Any(method, c.Methods[method]))
+	}
+	return slog.GroupValue(
+		slog.Bool("tls", c.TLS != nil),
+		slog.Bool("insecure_for_development_only", c.InsecureForDevelopmentOnly),
+		slog.Any("sheet", c.Sheet),
+		slog.Attr{Key: "methods", Value: slog.GroupValue(methods...)},
+	)
 }
 
 // Validate refuses a configuration a Dial could not honour: no transport
@@ -105,11 +143,10 @@ func (c Config) Policy(method string) (MethodPolicy, error) {
 	return policy, nil
 }
 
-func (c Config) logger() *slog.Logger {
-	if c.Logger == nil {
-		return slog.Default()
-	}
-	return c.Logger
+func (c Config) logger() *slog.Logger { return loggerOf(c.LoggerProvider) }
+
+func loggerOf(provider log.LoggerProvider) *slog.Logger {
+	return logging.NewLogger(provider, reflect.TypeFor[Config]().PkgPath())
 }
 
 // validateTLS is the gate of GRP-15 shared by client and server: TLS or the
@@ -124,13 +161,16 @@ func validateTLS(cfg *tls.Config, insecureOptOut bool) error {
 	return nil
 }
 
+var insecureClientWarning = new(sync.Once)
+
 // transportCredentials is TLS when configured, and the insecure credentials
-// only under the explicit opt-out, which is logged so it never passes unseen.
+// only under the explicit opt-out, logged once per process so it never passes unseen.
 func transportCredentials(c Config) credentials.TransportCredentials {
 	if c.TLS != nil {
 		return credentials.NewTLS(c.TLS)
 	}
-	c.logger().Warn("grpc: transport without TLS by explicit development-only opt-out (GRP-15)",
-		slog.String("dependency", c.Sheet.Dependency))
+	insecureClientWarning.Do(func() {
+		c.logger().Warn("grpc: transport without TLS by explicit development-only opt-out (GRP-15)")
+	})
 	return insecure.NewCredentials()
 }

@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
+	"slices"
 	"testing"
 	"time"
 
@@ -134,6 +136,43 @@ func TestNewServerReportsHealthPerService(t *testing.T) {
 func TestNewServerRefusesToRunWithoutTLSOrOptOut(t *testing.T) {
 	if _, _, err := provider.NewServer(provider.ServerConfig{}); !errors.Is(err, provider.ErrTLSRequired) {
 		t.Fatalf("NewServer() = %v, want ErrTLSRequired (GRP-15)", err)
+	}
+}
+
+func TestTheServerWithoutTLSWarnsOncePerProcessAndRole(t *testing.T) {
+	provider.ResetInsecureServerWarning()
+	provider.ResetInsecureClientWarning()
+	loggerProvider, logs := newMemoryLogs(slog.LevelInfo)
+
+	for range 3 {
+		server, _, err := provider.NewServer(provider.ServerConfig{InsecureForDevelopmentOnly: true, LoggerProvider: loggerProvider})
+		if err != nil {
+			t.Fatalf("NewServer() = %v, want nil", err)
+		}
+		server.Stop()
+	}
+	cfg := validConfig()
+	cfg.TLS = nil
+	cfg.InsecureForDevelopmentOnly = true
+	cfg.LoggerProvider = loggerProvider
+	conn, err := provider.Dial("passthrough:///bufnet", cfg)
+	if err != nil {
+		t.Fatalf("Dial() = %v, want nil", err)
+	}
+	_ = conn.Close()
+
+	var warnings [][2]any
+	for _, record := range logs.snapshot() {
+		if record["level"] == "WARN" {
+			warnings = append(warnings, [2]any{record["scope"], record["msg"]})
+		}
+	}
+	want := [][2]any{
+		{grpcScope, "grpc: server without TLS by explicit development-only opt-out (GRP-15)"},
+		{grpcScope, "grpc: transport without TLS by explicit development-only opt-out (GRP-15)"},
+	}
+	if !slices.Equal(warnings, want) {
+		t.Fatalf("three servers and one client wrote warnings %v, want one per process and role (RF-A6) %v", warnings, want)
 	}
 }
 

@@ -4,8 +4,14 @@ package grpc
 
 import (
 	"crypto/tls"
-	"log/slog"
+	"sync"
 
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc/filters"
+	"go.opentelemetry.io/otel/log"
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
@@ -22,7 +28,10 @@ type ServerConfig struct {
 	Services                   []string
 	UnaryInterceptors          []grpc.UnaryServerInterceptor
 	StreamInterceptors         []grpc.StreamServerInterceptor
-	Logger                     *slog.Logger
+	LoggerProvider             log.LoggerProvider
+	TracerProvider             trace.TracerProvider
+	MeterProvider              metric.MeterProvider
+	Propagator                 propagation.TextMapPropagator
 }
 
 // Validate refuses a server without transport security and without the
@@ -46,10 +55,19 @@ func NewServer(cfg ServerConfig, extra ...grpc.ServerOption) (*grpc.Server, *hea
 		return nil, nil, err
 	}
 
+	logger := loggerOf(cfg.LoggerProvider)
+	traffic := filters.None(filters.HealthCheck(), filters.ServicePrefix("grpc.reflection."))
 	options := []grpc.ServerOption{
 		grpc.Creds(serverCredentials(cfg)),
-		grpc.ChainUnaryInterceptor(cfg.UnaryInterceptors...),
-		grpc.ChainStreamInterceptor(cfg.StreamInterceptors...),
+		grpc.StatsHandler(otelgrpc.NewServerHandler(
+			otelgrpc.WithTracerProvider(cfg.TracerProvider),
+			otelgrpc.WithMeterProvider(cfg.MeterProvider),
+			otelgrpc.WithPropagators(cfg.Propagator),
+			otelgrpc.WithFilter(traffic),
+		)),
+		grpc.StatsHandler(accessLog{logger: logger, filter: traffic}),
+		grpc.ChainUnaryInterceptor(append([]grpc.UnaryServerInterceptor{recoverUnary(logger)}, cfg.UnaryInterceptors...)...),
+		grpc.ChainStreamInterceptor(append([]grpc.StreamServerInterceptor{recoverStream(logger)}, cfg.StreamInterceptors...)...),
 	}
 	options = append(options, extra...)
 
@@ -62,14 +80,14 @@ func NewServer(cfg ServerConfig, extra ...grpc.ServerOption) (*grpc.Server, *hea
 	return server, healthServer, nil
 }
 
+var insecureServerWarning = new(sync.Once)
+
 func serverCredentials(c ServerConfig) credentials.TransportCredentials {
 	if c.TLS != nil {
 		return credentials.NewTLS(c.TLS)
 	}
-	logger := c.Logger
-	if logger == nil {
-		logger = slog.Default()
-	}
-	logger.Warn("grpc: server without TLS by explicit development-only opt-out (GRP-15)")
+	insecureServerWarning.Do(func() {
+		loggerOf(c.LoggerProvider).Warn("grpc: server without TLS by explicit development-only opt-out (GRP-15)")
+	})
 	return insecure.NewCredentials()
 }

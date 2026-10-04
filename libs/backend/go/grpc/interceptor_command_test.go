@@ -1,14 +1,12 @@
 package grpc_test
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"log/slog"
 	"testing"
 	"time"
 
-	"go.opentelemetry.io/otel/trace/noop"
+	"go.opentelemetry.io/otel/log"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
@@ -17,6 +15,7 @@ import (
 
 	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/clock"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/tracing"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/admission"
 )
@@ -26,7 +25,7 @@ func commandChain(t *testing.T) grpc.UnaryServerInterceptor {
 	return loggingCommandChain(t, nil)
 }
 
-func loggingCommandChain(t *testing.T, logger *slog.Logger) grpc.UnaryServerInterceptor {
+func loggingCommandChain(t *testing.T, logs log.LoggerProvider) grpc.UnaryServerInterceptor {
 	t.Helper()
 	ctrl, err := admission.New(admission.Config{
 		Limits:  kernel.MethodLimits(chainService, []string{"Probe", "Find"}, generous),
@@ -36,7 +35,7 @@ func loggingCommandChain(t *testing.T, logger *slog.Logger) grpc.UnaryServerInte
 	if err != nil {
 		t.Fatalf("admission.New() = %v", err)
 	}
-	chain := kernel.ServerInterceptors(chainService, noop.NewTracerProvider().Tracer("command-test"), ctrl, nil, logger,
+	chain := kernel.ServerInterceptors(chainService, ctrl, nil, logs,
 		kernel.WithCommands("Probe"))
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		next := handler
@@ -65,6 +64,26 @@ func TestTheChainRefusesACommandWithoutAValidKey(t *testing.T) {
 	}
 }
 
+func TestTheChainLogsTheKeyOfARefusedCommandOnlyAsInvalid(t *testing.T) {
+	provider, logs := newMemoryLogs(slog.LevelInfo)
+
+	_, err := loggingCommandChain(t, provider)(incoming(t, kernel.TenantKey, "acme", kernel.IdempotencyKey, "k 1 forged=true"), nil,
+		&grpc.UnaryServerInfo{FullMethod: chainMethod},
+		func(context.Context, any) (any, error) { return nil, nil })
+	if kernel.ReasonOf(err) != kernel.ReasonInvalidIdempotencyKey {
+		t.Fatalf("command = %v, want the refusal %s", err, kernel.ReasonInvalidIdempotencyKey)
+	}
+
+	records := logs.snapshot()
+	if len(records) != 1 || records[0]["msg"] != "grpc call" {
+		t.Fatalf("log = %v, want the one grpc call record of the refused command (RF-A5)", records)
+	}
+	record := records[0]
+	if _, logged := record[tracing.KeyIdempotencyKey]; logged || record[tracing.KeyIdempotencyKeyInvalid] != true {
+		t.Fatalf("log = %v, want %s and no %s on the refusal: the metadata is caller input", record, tracing.KeyIdempotencyKeyInvalid, tracing.KeyIdempotencyKey)
+	}
+}
+
 func TestTheChainHandsTheKeyOfACommandToTheUseCase(t *testing.T) {
 	var (
 		key     string
@@ -89,8 +108,8 @@ func TestTheChainHandsTheKeyOfACommandToTheUseCase(t *testing.T) {
 }
 
 func TestTheChainLogsAKeyOutsideItsFormatOnlyAsInvalid(t *testing.T) {
-	var logs bytes.Buffer
-	chain := loggingCommandChain(t, slog.New(slog.NewJSONHandler(&logs, nil)))
+	provider, logs := newMemoryLogs(slog.LevelInfo)
+	chain := loggingCommandChain(t, provider)
 
 	_, err := chain(incoming(t, kernel.TenantKey, "acme", kernel.IdempotencyKey, "k 1 forged=true"), nil,
 		&grpc.UnaryServerInfo{FullMethod: "/" + chainService + "/Find"},
@@ -99,12 +118,16 @@ func TestTheChainLogsAKeyOutsideItsFormatOnlyAsInvalid(t *testing.T) {
 		t.Fatalf("read = %v, want nil", err)
 	}
 
-	var record map[string]any
-	if err := json.Unmarshal(logs.Bytes(), &record); err != nil {
-		t.Fatalf("log = %q, want one JSON record: %v", logs.String(), err)
+	records := logs.snapshot()
+	if len(records) != 1 {
+		t.Fatalf("log = %v, want one record", records)
 	}
-	if _, logged := record["idempotency_key"]; logged || record["idempotency_key_invalid"] != true {
-		t.Fatalf("log = %v, want idempotency_key_invalid and no idempotency_key: the metadata is caller input", record)
+	record := records[0]
+	if record["msg"] != "grpc call" {
+		t.Fatalf("log = %v, want the grpc call record: grpc request is merged into it (RF-A5)", record)
+	}
+	if _, logged := record[tracing.KeyIdempotencyKey]; logged || record[tracing.KeyIdempotencyKeyInvalid] != true {
+		t.Fatalf("log = %v, want %s and no %s: the metadata is caller input", record, tracing.KeyIdempotencyKeyInvalid, tracing.KeyIdempotencyKey)
 	}
 }
 
@@ -147,7 +170,7 @@ func TestAReplayedCommandAnswersWithTheReplayHeader(t *testing.T) {
 			if err != nil {
 				t.Fatalf("admission.New() = %v", err)
 			}
-			chain := kernel.ServerInterceptors(healthService, noop.NewTracerProvider().Tracer("replay-test"), ctrl, nil, nil,
+			chain := kernel.ServerInterceptors(healthService, ctrl, nil, nil,
 				kernel.WithCommands("Check"))
 			client := healthpb.NewHealthClient(connect(t, serve(t, replayingHealth{outcome: c.outcome}, grpc.ChainUnaryInterceptor(chain...))))
 
