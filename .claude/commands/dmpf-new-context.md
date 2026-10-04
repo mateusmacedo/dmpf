@@ -109,8 +109,7 @@ Rito restante (passos humanos):
      pnpm nx run <name>-contract:buf-generate-check
      NX_BASE=origin/develop pnpm nx run <name>-contract:buf-breaking
   2. go run ./tools/dmpf-conformance/cmd/conformance --root . --write-baseline
-     git add tools/dmpf-baseline/units-baseline.json && git commit   (só o baseline — DMPF-T002)
-  3. go run ./tools/dmpf-conformance/cmd/conformance --root . --base origin/develop
+  3. go run ./tools/dmpf-conformance/cmd/conformance --root .
      bash tools/dmpf-context-check.sh
   4. Banco, role, tópicos, ACLs e certificado vêm do deploy/infra.json do app:
      ajuste-o ao que o contexto publica e consome e rode

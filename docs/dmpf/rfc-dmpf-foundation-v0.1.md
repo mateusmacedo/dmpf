@@ -1284,6 +1284,12 @@ o manifesto; a RFC não as adota como fonte canônica.
 
 ### §10.2 Trust model
 
+
+> **Revogado em parte pelo [ADR-058](../adr/058-projeto-solo-sem-controles-de-segunda-pessoa.md) (2026-10-04).**
+> T4–T6 e o `DMPF-T002` deixam de valer neste repositório: a mudança de
+> classificação não exige autorização distinta da autoria nem commit próprio. A
+> comparação entre manifesto e baseline (T1–T3, `DMPF-T001`) continua.
+
 O problema que esta subseção resolve: o metadado é **auto-declarado**. A unidade
 declara a classificação que deveria restringi-la. Comparar o manifesto com um
 baseline detecta divergência **acidental** — mas não impede que o autor altere os

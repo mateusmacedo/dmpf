@@ -956,6 +956,11 @@ auditar.
 
 ### §5.2 Autorização da classificação
 
+
+> **Revogado pelo [ADR-058](../adr/058-projeto-solo-sem-controles-de-segunda-pessoa.md) (2026-10-04).**
+> A Autoridade de Classificação, o rito de `AUT-01`..`AUT-10` e o gate G2 não
+> valem num projeto de um mantenedor só. O texto abaixo fica como registro.
+
 `normativo` — Sob **ANC-08**. IDs `AUT-01`+. Escopo permitido, literal: «Definir
 autoridade, rito e artefato de evidência que satisfaçam T4–T6 de §10.2».
 

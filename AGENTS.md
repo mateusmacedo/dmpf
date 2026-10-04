@@ -46,7 +46,7 @@ pnpm nx run <projeto>:test-race
 pnpm nx run <projeto>:govulncheck
 
 # Verificador DMPF e sincronização de go.work/go.mod
-go run ./tools/dmpf-conformance/cmd/conformance --root . --base develop
+go run ./tools/dmpf-conformance/cmd/conformance --root .
 go run ./tools/dmpf-conformance/cmd/modsync --root . --check
 ```
 

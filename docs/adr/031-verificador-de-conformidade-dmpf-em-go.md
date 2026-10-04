@@ -4,6 +4,8 @@
 
 Aceito — 2026-09-01. Implementa SPEC-WTAXFV8B.
 
+**Parcialmente supersedido pelo [ADR-058](./058-projeto-solo-sem-controles-de-segunda-pessoa.md) (2026-10-04)**: o verificador deixa de ler o intervalo em revisão (sem `--base` e sem `DMPF-T002`), e a aprovação por revisor distinto deixa de existir.
+
 ## Contexto
 
 A regra de dependência do DMPF era, até aqui, quase inteiramente documental. O

@@ -32,7 +32,7 @@ verificadas, em [`references/armadilhas.md`](./references/armadilhas.md).
 | --- | --- |
 | **Generator** (`bounded-context`) | `project.json`, `go.mod`, `package.json`, `dmpf-units.json`, `README.md` e `Dockerfile` do módulo; tags 3D + `layer:*` do bloco mais alto; a entrada no `go.work`; o `doc.go` de cada bloco; o esqueleto canônico do `app` (config, wiring, telemetria, catálogo, `app/rpc`), o `provider/schema.{sql,go}` e o `appkit/pool.go` |
 | **Agente / autor** | O conteúdo de domínio dos cinco blocos, preenchendo o esqueleto; o `.proto` do serviço e de cada evento publicado; o OpenAPI; o `include` de packages novos no manifesto (merge) |
-| **Pessoa** | Rito Buf (`buf.sh generate` + quatro gates); `--write-baseline` em commit próprio; `git commit`; PR |
+| **Pessoa** | Rito Buf (`buf.sh generate` + quatro gates); `--write-baseline`; `git commit`; PR |
 
 Os arquivos de configuração do módulo que o generator escreve ninguém edita à
 mão; o esqueleto Go ele deixa para ser preenchido. O que é da pessoa, o agente
@@ -73,10 +73,10 @@ não executa — ele **para e imprime** o rito restante.
    O `deploy/infra.json` declara banco, tópicos e ACLs do que o contexto
    publica e consome; depois de ajustá-lo, `infrasync --write`.
 9. **`include`** dos packages novos no `dmpf-units.json` do módulo, na unidade do bloco certo, por merge.
-10. **Classificação**: `--write-baseline` em commit próprio — passo humano.
+10. **Classificação**: `--write-baseline` — passo humano.
 11. **Gates**: `fmt-check`, `vet`, `build`, `lint`, `test-race`,
-    `test-distributed`, `dmpf-context-check.sh --context`, `conformance
-    --base`. Corrigir até passar; gate **normativo** reprovando (ex.:
+    `test-distributed`, `dmpf-context-check.sh --context`, `conformance`.
+    Corrigir até passar; gate **normativo** reprovando (ex.:
     `DMPF-D002`) é parada, não contorno.
 12. **Checklist final**: a tabela acima conferida, o rito humano impresso.
 
@@ -96,5 +96,5 @@ pnpm nx run-many -t fmt-check,vet,build,lint -p <name>
 PG_DSN='postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable' \
   pnpm nx run-many -t test-race,test-distributed -p <name>
 bash tools/dmpf-context-check.sh --context apps/backend/<name>
-go run ./tools/dmpf-conformance/cmd/conformance --root . --base origin/develop
+go run ./tools/dmpf-conformance/cmd/conformance --root .
 ```

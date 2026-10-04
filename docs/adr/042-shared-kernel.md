@@ -9,6 +9,8 @@ fixou a condição de contexto C2, e [ADR-028](./028-processo-de-autorizacao-da-
 que instituiu o ato de classificação — a designação de shared kernel é um ato
 novo sob aquele processo, não uma exceção a ele.
 
+**Parcialmente supersedido pelo [ADR-058](./058-projeto-solo-sem-controles-de-segunda-pessoa.md) (2026-10-04)**: designar shared kernel deixa de exigir commit próprio e aprovação por revisor distinto.
+
 ## Contexto
 
 O kernel DMPF existe para ser consumido. É essa a razão de `domain`,

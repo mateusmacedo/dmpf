@@ -209,7 +209,6 @@ aprovação de Arquitetura e Plataforma e a condição amarrada ao plugin:
     "convergence": {
       "kind": "review",
       "review_by": "2027-03-02",
-      "approved_by": ["arquitetura", "plataforma"],
       "replanning_condition": "elimination of reflect and unsafe imports from protoc-gen-go output"
     },
     "valid_from": "2026-09-12T00:00:00Z",
@@ -221,21 +220,16 @@ aprovação de Arquitetura e Plataforma e a condição amarrada ao plugin:
 ```
 
 A mesma entrada se repete para `unsafe`. Um módulo `contract` que troque a
-versão do plugin revisa as duas exceções no mesmo commit normativo.
+versão do plugin revisa as duas exceções juntas.
 
 ## Mudar a classificação depois
 
 Alterar `block` ou `bounded_context`, criar unidade, remover unidade **e
-remapear o `include` de modo a mudar quais packages a unidade captura** são atos
-regulados (RFC §10.2 T4/T6; ADR-028). Todos exigem:
-
-1. Atualizar o `dmpf-units.json` **e** o baseline em
-   `tools/dmpf-baseline/units-baseline.json` — divergência entre os dois emite
-   `DMPF-T001`.
-2. Apresentar a mudança em **commit próprio**, separado de mudanças de código.
-   Misturar os dois emite `DMPF-T002`.
-3. Ter o commit aprovado por revisor distinto do autor. Essa parte é verificada
-   pela revisão do PR, não pelo gate — a fronteira está declarada no ADR-031.
+remapear o `include` de modo a mudar quais packages a unidade captura** mudam a
+classificação. Todos exigem atualizar o `dmpf-units.json` **e** o baseline em
+`tools/dmpf-baseline/units-baseline.json` — divergência entre os dois emite
+`DMPF-T001`. A mudança pode ir no mesmo commit do código: o ADR-058 revogou o
+commit próprio e a aprovação por revisor distinto do autor.
 
 Para regravar o baseline depois de uma mudança legítima:
 
@@ -301,9 +295,8 @@ Continua valendo tudo o mais:
 
 ### Como designar
 
-Designar é **ato de classificação**, com o mesmo rito da seção anterior: commit
-próprio, separado de código, aprovado por revisor distinto do autor. Alterar
-`shared_kernel_units` junto com um `.go` emite `DMPF-T002`.
+Designar muda a classificação, como na seção anterior: a lista vive no
+baseline, e a mudança pode ir no mesmo commit do código (ADR-058).
 
 1. Acrescente a chave ao baseline, com as chaves canônicas das unidades.
 2. Regrave o baseline, porque o digest incorpora a lista:

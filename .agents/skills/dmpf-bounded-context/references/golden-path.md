@@ -167,10 +167,9 @@ pnpm nx g @mateusmacedo/dmpf-plugin:bounded-context <name> --boundedContext <ctx
 
 ```bash
 go run ./tools/dmpf-conformance/cmd/conformance --root . --write-baseline
-git add tools/dmpf-baseline/units-baseline.json && git commit   # só o baseline
 ```
 
-- Norma: `DMPF-T002` (commit próprio); ADR-012.
+- Norma: ADR-012; sem o baseline regravado, `DMPF-T001`.
 
 ## 11. Gates
 
@@ -179,7 +178,7 @@ pnpm nx run-many -t fmt-check,vet,build,lint -p <name>
 PG_DSN='postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable' \
   pnpm nx run-many -t test-race,test-distributed -p <name>
 bash tools/dmpf-context-check.sh --context apps/backend/<name>
-go run ./tools/dmpf-conformance/cmd/conformance --root . --base <ref-base>
+go run ./tools/dmpf-conformance/cmd/conformance --root .
 pnpm biome ci .
 ```
 
@@ -196,5 +195,5 @@ pnpm biome ci .
 - [ ] Um cenário de aceite e um por rejeição, por comando, em teste.
 - [ ] Sem `time` no `domain`; sem `Inbox`/consumer se o contexto não consome.
 - [ ] Sem `app/http`; banco, tabelas e índices nos nomes canônicos.
-- [ ] Rito humano impresso: rito Buf, `--write-baseline` em commit próprio,
+- [ ] Rito humano impresso: rito Buf, `--write-baseline`,
   banco e role na infra, rotas no `bff`, commits por projeto, PR.
