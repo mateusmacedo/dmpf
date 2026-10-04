@@ -19,7 +19,6 @@ concurrency:
 
 permissions:
   contents: write
-  pull-requests: write
 
 jobs:
   create-release:
@@ -100,7 +99,6 @@ jobs:
           echo "value=$NEXT" >> $GITHUB_OUTPUT
 
       - name: Create and push release branch
-        id: push
         run: |
           BRANCH="release/${{ steps.version.outputs.value }}"
 
@@ -111,23 +109,4 @@ jobs:
 
           git checkout -b "$BRANCH"
           git push origin "$BRANCH"
-
-      - name: Open pull request
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          VERSION="${{ steps.version.outputs.value }}"
-          BUMP="${{ steps.bump.outputs.value }}"
-
-          BODY=$(printf '## Release %s\n\n**Bump type:** %s\n\n### Checklist\n\n- [ ] Features validadas em `develop`\n- [ ] Features mergeadas nesta branch\n- [ ] QA aprovado em homologação\n- [ ] Changelog revisado\n\n---\n> Branch criada automaticamente via workflow *Create Release Branch*\n' "$VERSION" "$BUMP")
-
-          gh pr create \
-            --base master \
-            --head "release/${VERSION}" \
-            --title "release: ${VERSION}" \
-            --body "$BODY" \
-            --assignee "${{ github.actor }}"
-
-      - name: Roll back the release branch
-        if: failure() && steps.push.outcome == 'success'
-        run: git push origin --delete "release/${{ steps.version.outputs.value }}"
+          echo "::notice::$BRANCH criada a partir de master. O PR para master abre no primeiro push com commits (release-pr.yml)."
