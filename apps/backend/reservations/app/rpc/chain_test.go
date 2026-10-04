@@ -5,7 +5,9 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc/codes"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
@@ -88,7 +90,7 @@ func TestTheServerSpanContinuesThePropagatedTrace(t *testing.T) {
 
 	reserve(t, h, ctx)
 
-	want := "dmpf.grpc.server " + rpc.FullMethod("Reserve")
+	want := strings.TrimPrefix(rpc.FullMethod("Reserve"), "/")
 	for _, span := range h.spans.GetSpans() {
 		if span.Name != want {
 			continue
@@ -139,8 +141,25 @@ func TestTheIdempotencyKeyReachesTheLog(t *testing.T) {
 	h := newHarness(t, unlimited)
 	reserve(t, h, withKey(t, "k-42"))
 
-	if !strings.Contains(h.logs.String(), `"k-42"`) {
-		t.Fatalf("logs = %s, want the idempotency key the BFF propagated", h.logs.String())
+	carriesKey := func() bool {
+		for _, record := range h.logs.snapshot() {
+			key := ""
+			record.WalkAttributes(func(kv attribute.KeyValue) bool {
+				if string(kv.Key) == tracing.KeyIdempotencyKey {
+					key = kv.Value.AsString()
+				}
+				return true
+			})
+			if record.Body().AsString() == "grpc call" && key == "k-42" {
+				return true
+			}
+		}
+		return false
+	}
+	for deadline := time.Now().Add(time.Second); !carriesKey(); time.Sleep(time.Millisecond) {
+		if time.Now().After(deadline) {
+			t.Fatalf("logs = %v, want the idempotency key the BFF propagated on the grpc call record (RF-A5)", h.logs.snapshot())
+		}
 	}
 }
 

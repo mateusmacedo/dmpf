@@ -1,12 +1,18 @@
 package app_test
 
 import (
+	"bytes"
 	"context"
+	"log/slog"
+	"reflect"
+	"strings"
 	"testing"
 	"time"
 
+	"go.opentelemetry.io/otel"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -16,6 +22,8 @@ import (
 	kernelapp "github.com/mateusmacedo/dmpf/libs/backend/go/app"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/contracts/envelope"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/logging"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/otelboot"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
 
@@ -23,6 +31,7 @@ const (
 	orderPlacedV1    = "com.company.orders.order-placed.v1"
 	envelopeTraceID  = "0af7651916cd43dd8448eb211c80319c"
 	envelopeParentID = "b7ad6b7169203331"
+	ordersTopic      = "orders.events"
 )
 
 type fakeHandler struct {
@@ -98,9 +107,10 @@ func newSink(handler *fakeHandler, containment *fakeContainment, tracer trace.Tr
 			Timeout:     sinkTimeout,
 			Boundary:    kernelapp.Boundary{Transport: kernelapp.TransportDevelopmentOnly, Sources: []string{"urn:dmpf:reference-orders"}},
 			Locale:      "en",
+			Tracer:      tracer,
+			Channel:     kernelapp.Channel{Address: ordersTopic, Group: "reservations"},
 		},
 		EventType: orderPlacedV1,
-		Tracer:    tracer,
 	}
 }
 
@@ -142,10 +152,54 @@ func TestSinkLeavesAnInvalidEnvelopeToTheAdapter(t *testing.T) {
 	}
 }
 
-func TestSinkContinuesTheTraceOfTheEnvelope(t *testing.T) {
+func TestSinkLogsAnotherTypeAtDebug(t *testing.T) {
+	var out bytes.Buffer
+	sink := newSink(&fakeHandler{}, &fakeContainment{}, nil)
+	sink.Logger = slog.New(slog.NewTextHandler(&out, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	raw := rawEnvelope(t, "com.company.orders.item-added.v1", &eventv1.ItemAdded{OrderId: "o-1", Sku: "A", Quantity: 1})
+
+	if err := sink.Handle(context.Background(), raw, 1, &fakeAck{}); err != nil {
+		t.Fatalf("Handle() = %v, want nil", err)
+	}
+
+	if got := out.String(); strings.Count(got, "\n") != 1 || !strings.Contains(got, "level=DEBUG") || !strings.Contains(got, "delivery of another event type acknowledged") {
+		t.Fatalf("log = %q, want the one discard record at debug (RF-A5)", got)
+	}
+}
+
+func TestSinkLogsAnotherTypeUnderTheMessagingKeys(t *testing.T) {
+	logs := &recordingExporter{}
+	provider := otelboot.NewLoggerProvider(otelboot.Config{Resource: otelboot.Resource{
+		ServiceName: "reservations", ServiceVersion: "test", ServiceInstanceID: "reservations-consumer-1", Role: "consumer",
+	}}, logs)
+	sink := newSink(&fakeHandler{}, &fakeContainment{}, nil)
+	sink.Logger = logging.NewLogger(provider, reflect.TypeFor[app.Sink]().PkgPath())
+	raw := rawEnvelope(t, "com.company.orders.item-added.v1", &eventv1.ItemAdded{OrderId: "o-1", Sku: "A", Quantity: 1})
+
+	if err := sink.Handle(context.Background(), raw, 1, &fakeAck{}); err != nil {
+		t.Fatalf("Handle() = %v, want nil", err)
+	}
+	if err := provider.Shutdown(context.Background()); err != nil {
+		t.Fatalf("Shutdown() = %v", err)
+	}
+
+	attributes, found := recordAttributes(logs, "delivery of another event type acknowledged")
+	if !found {
+		t.Fatal("no discard record exported")
+	}
+	requireTheVocabulary(t, "delivery of another event type acknowledged", attributes, map[string]string{
+		string(semconv.CloudEventsEventTypeKey): "com.company.orders.item-added.v1",
+		string(semconv.MessagingMessageIDKey):   "evt-1",
+	})
+}
+
+func TestSinkLeavesTheProcessSpanToTheKernel(t *testing.T) {
 	spans := tracetest.NewInMemoryExporter()
 	provider := sdktrace.NewTracerProvider(sdktrace.WithSyncer(spans))
 	t.Cleanup(func() { _ = provider.Shutdown(context.Background()) })
+	previous := otel.GetTracerProvider()
+	otel.SetTracerProvider(provider)
+	t.Cleanup(func() { otel.SetTracerProvider(previous) })
 	handler, containment, ack := &fakeHandler{}, &fakeContainment{}, &fakeAck{}
 	raw := rawEnvelope(t, orderPlacedV1, &eventv1.OrderPlaced{OrderId: "o-1", ItemCount: 2})
 
@@ -153,21 +207,15 @@ func TestSinkContinuesTheTraceOfTheEnvelope(t *testing.T) {
 		t.Fatalf("Handle() = %v, want nil", err)
 	}
 
-	want := "dmpf.kafka.consume " + orderPlacedV1
-	for _, span := range spans.GetSpans() {
-		if span.Name != want {
-			continue
+	ended := spans.GetSpans()
+	if len(ended) != 1 || ended[0].Name != "process "+ordersTopic || ended[0].SpanKind != trace.SpanKindConsumer {
+		names := make([]string, 0, len(ended))
+		for _, span := range ended {
+			names = append(names, span.Name)
 		}
-		if span.SpanKind != trace.SpanKindConsumer {
-			t.Fatalf("kind = %v, want consumer", span.SpanKind)
-		}
-		if span.Parent.TraceID().String() != envelopeTraceID || span.Parent.SpanID().String() != envelopeParentID {
-			t.Fatalf("parent = %s/%s, want the envelope's traceparent (TRC-07)", span.Parent.TraceID(), span.Parent.SpanID())
-		}
-		if handler.seen.SpanID() != span.SpanContext.SpanID() {
-			t.Fatalf("handler ran under span %s, want the consume span %s", handler.seen.SpanID(), span.SpanContext.SpanID())
-		}
-		return
+		t.Fatalf("spans = %v, want only the kernel's CONSUMER process %q (RF-B9)", names, "process "+ordersTopic)
 	}
-	t.Fatalf("no span named %q among %d", want, len(spans.GetSpans()))
+	if handler.seen.SpanID() != ended[0].SpanContext.SpanID() {
+		t.Fatalf("handler ran under span %s, want the process span %s", handler.seen.SpanID(), ended[0].SpanContext.SpanID())
+	}
 }

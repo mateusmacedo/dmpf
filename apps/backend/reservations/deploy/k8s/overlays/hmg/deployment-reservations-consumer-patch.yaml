@@ -1,0 +1,17 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: reservations-consumer
+spec:
+  template:
+    spec:
+      containers:
+        - name: consumer
+          volumeMounts:
+            - name: otel-collector-ca
+              mountPath: /etc/dmpf/otel
+              readOnly: true
+      volumes:
+        - name: otel-collector-ca
+          secret:
+            secretName: otel-collector-ca

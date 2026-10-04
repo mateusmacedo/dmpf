@@ -88,7 +88,7 @@
     "serve-api": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "set -a; [ ! -f deploy/.env ] || . deploy/.env; set +a; exec go run ./cmd --role api",
+        "command": "set -a; [ ! -f deploy/.env ] || . deploy/.env; OTEL_RESOURCE_ATTRIBUTES=\"${OTEL_RESOURCE_ATTRIBUTES:+$OTEL_RESOURCE_ATTRIBUTES,}service.instance.id=reservations-local-api,dmpf.process.role=api\"; set +a; exec go run ./cmd --role api",
         "cwd": "{projectRoot}",
         "envFile": "{projectRoot}/deploy/.env.example"
       },
@@ -107,7 +107,7 @@
     "serve-relay": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "set -a; [ ! -f deploy/.env ] || . deploy/.env; set +a; exec go run ./cmd --role relay",
+        "command": "set -a; [ ! -f deploy/.env ] || . deploy/.env; OTEL_RESOURCE_ATTRIBUTES=\"${OTEL_RESOURCE_ATTRIBUTES:+$OTEL_RESOURCE_ATTRIBUTES,}service.instance.id=reservations-local-relay,dmpf.process.role=relay\"; set +a; exec go run ./cmd --role relay",
         "cwd": "{projectRoot}",
         "envFile": "{projectRoot}/deploy/.env.example"
       },
@@ -118,7 +118,7 @@
     "docker:run-relay": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "docker run --rm --name reservations-relay --network host --env-file deploy/.env apps-backend-reservations --role relay",
+        "command": "[ ! -f deploy/.env ] || . deploy/.env; exec docker run --rm --name reservations-relay --network host --env-file deploy/.env -e OTEL_RESOURCE_ATTRIBUTES=\"${OTEL_RESOURCE_ATTRIBUTES:+$OTEL_RESOURCE_ATTRIBUTES,}service.instance.id=reservations-local-relay,dmpf.process.role=relay\" apps-backend-reservations --role relay",
         "cwd": "{projectRoot}"
       },
       "continuous": true,
@@ -127,7 +127,7 @@
     "serve-consumer": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "set -a; [ ! -f deploy/.env ] || . deploy/.env; set +a; exec go run ./cmd --role consumer",
+        "command": "set -a; [ ! -f deploy/.env ] || . deploy/.env; OTEL_RESOURCE_ATTRIBUTES=\"${OTEL_RESOURCE_ATTRIBUTES:+$OTEL_RESOURCE_ATTRIBUTES,}service.instance.id=reservations-local-consumer,dmpf.process.role=consumer\"; set +a; exec go run ./cmd --role consumer",
         "cwd": "{projectRoot}",
         "envFile": "{projectRoot}/deploy/.env.example"
       },
@@ -137,7 +137,7 @@
     "docker:run-consumer": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "docker run --rm --name reservations-consumer --network host --env-file deploy/.env apps-backend-reservations --role consumer",
+        "command": "[ ! -f deploy/.env ] || . deploy/.env; exec docker run --rm --name reservations-consumer --network host --env-file deploy/.env -e OTEL_RESOURCE_ATTRIBUTES=\"${OTEL_RESOURCE_ATTRIBUTES:+$OTEL_RESOURCE_ATTRIBUTES,}service.instance.id=reservations-local-consumer,dmpf.process.role=consumer\" apps-backend-reservations --role consumer",
         "cwd": "{projectRoot}"
       },
       "continuous": true,
