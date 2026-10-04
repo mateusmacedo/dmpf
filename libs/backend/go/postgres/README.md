@@ -207,7 +207,7 @@ módulo: o Nx os sequencia mesmo com `--parallel=3`, que é como o CI roda.
 
 ```bash
 pnpm nx run-many -t fmt-check,vet,build,lint,test-race -p postgres
-go run ./tools/dmpf-conformance/cmd/conformance --root . --base develop
+go run ./tools/dmpf-conformance/cmd/conformance --root .
 bash tools/dmpf-cell-check.sh
 ```
 
