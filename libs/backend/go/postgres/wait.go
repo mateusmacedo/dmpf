@@ -26,6 +26,11 @@ func WaitForTables(ctx context.Context, pool *pgxpool.Pool, interval time.Durati
 	for {
 		missing, err := firstMissing(ctx, pool, tables)
 		if err != nil {
+			// WHY: with the deadline expiring mid-write, pgx v5.10 returns the pgproto3
+			// writeError over the i/o timeout, without the context error (pgproto3/pgproto3.go:62).
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				err = ctxErr
+			}
 			return fmt.Errorf("wait for tables: %w", err)
 		}
 		if missing == "" {
