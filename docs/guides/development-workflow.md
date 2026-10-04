@@ -183,8 +183,9 @@ Provisione `develop` no remoto ao adotar o template; a branch `release/X.Y.Z` é
 criada pelo workflow `create-release.yml`.
 
 O `create-release.yml` calcula o próximo número a partir das releases já
-mergeadas em `master`, deriva o incremento de versão dos commits em
-`origin/master..origin/develop` e abre o PR de release com `gh pr create`.
+mergeadas em `master` e deriva o incremento de versão dos commits em
+`origin/master..origin/develop`; o `release-pr.yml` abre o PR de release no
+primeiro push que leva commits à branch.
 Como esse cálculo lê `origin/develop`, o workflow depende de `develop` existir
 no remoto — provisione-a primeiro para que a automação de release funcione.
 

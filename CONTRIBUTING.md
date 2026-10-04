@@ -59,9 +59,10 @@ Na prática: o tip mergeado em `release` deve ser o tip (ou o merge commit) que 
 foi validado em `develop`, sem reeditar os mesmos arquivos "de outro jeito".
 
 O `create-release.yml` automatiza a criação da branch `release/X.Y.Z`: ele calcula
-o próximo número a partir das releases já mergeadas em `master`, deriva o
-incremento dos commits em `origin/master..origin/develop` e abre o PR de release
-com `gh pr create`.
+o próximo número a partir das releases já mergeadas em `master` e deriva o
+incremento dos commits em `origin/master..origin/develop`. A branch nasce igual a
+`master`, e o GitHub não abre PR sem commits; por isso o `release-pr.yml` abre o PR
+de release no primeiro push que leva commits à branch, e não duplica PR já aberto.
 
 ### Release do produto DMPF
 

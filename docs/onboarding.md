@@ -166,8 +166,8 @@ o pipeline e precisam de revisão humana.
   ADRs 004 e 005.
 - O versionamento (`nx-release.yml`) é separado da publicação de libs no GitHub
   Packages (`nx-publish-libs.yml`).
-- O `create-release.yml` cria a branch `release/X.Y.Z` e abre o PR de release com
-  `gh pr create`.
+- O `create-release.yml` cria a branch `release/X.Y.Z`, e o `release-pr.yml` abre
+  o PR de release no primeiro push que leva commits a ela.
 
 ## CD (deploy)
 
