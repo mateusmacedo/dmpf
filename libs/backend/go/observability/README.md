@@ -435,7 +435,7 @@ variável — em vez de silenciar um valor mal formado atrás de um default.
 ```bash
 pnpm nx run-many -t fmt-check,vet,lint,build,test,test-race,govulncheck -p observability
 bash tools/dmpf-gate-check.sh
-go run ./tools/dmpf-conformance/cmd/conformance --root . --base origin/develop
+go run ./tools/dmpf-conformance/cmd/conformance --root .
 ```
 
 O `dmpf-gate-check.sh` e o `nx affected` **não devem rodar ao mesmo tempo**: o
@@ -496,8 +496,7 @@ protocolo) — nessa ordem de suspeita.
 Criar um package novo aqui é criar membership de unidade DMPF: o import path
 exato entra no `include` do `dmpf-units.json` e o baseline em
 `tools/dmpf-baseline/units-baseline.json` precisa ser regravado com
-`--write-baseline`. Essa mudança vai em commit separado do código (RFC §10.2);
-misturar os dois reprova no CI com `DMPF-T002`.
+`--write-baseline`; sem isso, o CI reprova com `DMPF-T001`.
 
 Dependência externa nova entra na `external[]` com os quatro elementos — pacote,
 faixa de versão, entrypoints e capability — e a capability é **declarada**, nunca
