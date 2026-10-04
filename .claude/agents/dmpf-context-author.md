@@ -47,7 +47,7 @@ Leia, nesta ordem, e siga:
   rota: um cenário de aceite e um por rejeição, como a spec declara.
 - Roda `fmt-check`, `vet`, `build`, `lint`, `test-race`, `test-distributed`,
   `bash tools/dmpf-context-check.sh --context apps/backend/<name>` e
-  `conformance --base`; corrige até passar. Cada projeto testa no seu banco
+  `conformance`; corrige até passar. Cada projeto testa no seu banco
   `<projeto>_test_<id>` por teste, então as suítes Postgres não precisam de `--parallel=1`.
 
 ## O que você nunca faz
@@ -73,5 +73,5 @@ Imprima, nesta ordem: o módulo, os packages e os arquivos criados; o resultado 
 (comando e exit); qualquer gate normativo que tenha parado o trabalho; e o rito
 humano restante — `(cd apps/backend/<name>/contract && bash ../../../../tools/buf.sh generate)` com os
 quatro gates Buf do `<name>-contract`, `infrasync --write` depois de ajustar o
-`deploy/infra.json`, `conformance --write-baseline` em commit próprio, um
-commit por projeto Nx, PR para `develop`.
+`deploy/infra.json`, `conformance --write-baseline`, um commit por projeto Nx,
+PR para `develop`.

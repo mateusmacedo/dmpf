@@ -13,6 +13,7 @@ const DEFAULTS = {
   CONVERGENCE_TIMEOUT: '10s',
   SEED: '1',
   BASE_URL: 'http://dmpf-bff:8080',
+  ADMIN_URL: 'http://dmpf-bff:8090',
 };
 
 function fail(name, rule, value) {
@@ -86,9 +87,9 @@ function convergenceTimeoutMs(env) {
   return Number(raw.slice(0, -1)) * 1000;
 }
 
-function baseUrl(env) {
+function localTarget(env, name) {
   try {
-    return assertLocalTarget(read(env, 'BASE_URL'));
+    return assertLocalTarget(read(env, name), name);
   } catch (error) {
     throw new Error(`params: ${error.message}`);
   }
@@ -118,6 +119,7 @@ export function parseParams(env) {
     ...ratios(env),
     convergenceTimeoutMs: convergenceTimeoutMs(env),
     seed: integer(env, 'SEED', 0, 2147483647),
-    baseUrl: baseUrl(env),
+    baseUrl: localTarget(env, 'BASE_URL'),
+    adminUrl: localTarget(env, 'ADMIN_URL'),
   });
 }

@@ -218,13 +218,41 @@
         "subject": "client",
         "identity": "google.golang.org/grpc",
         "version": "v1.83.2",
+        "state": "rejeitada",
+        "compatible_with": [],
+        "cve": []
+      },
+      {
+        "subject": "client",
+        "identity": "google.golang.org/grpc",
+        "version": "v1.84.0",
+        "state": "candidata",
+        "compatible_with": [],
+        "cve": [
+          {
+            "id": "GO-2026-6443",
+            "state": "corrigida",
+            "owner": "team:plataforma"
+          }
+        ]
+      },
+      {
+        "subject": "client",
+        "identity": "google.golang.org/grpc",
+        "version": "v1.85.0-dev.0.20260825072537-93e31b48545e",
         "state": "candidata",
         "compatible_with": [],
         "registry_ref": {
           "file": "libs/backend/go/grpc/go.mod",
           "selector": "require:google.golang.org/grpc"
         },
-        "cve": []
+        "cve": [
+          {
+            "id": "GO-2026-6443",
+            "state": "corrigida",
+            "owner": "team:plataforma"
+          }
+        ]
       },
       {
         "subject": "sdk",
@@ -242,12 +270,8 @@
         "subject": "sdk",
         "identity": "go.opentelemetry.io/otel",
         "version": "v1.46.0",
-        "state": "certificada",
+        "state": "depreciada",
         "compatible_with": [],
-        "registry_ref": {
-          "file": "libs/backend/go/observability/go.mod",
-          "selector": "require:go.opentelemetry.io/otel"
-        },
         "evidence_uri": "https://github.com/mateusmacedo/dmpf/blob/8e171d31eb903a6b2153da53bc4aa05d058a1263/bom/evidence/0.1.0/reference.json",
         "evidence_digest": "sha256:33d95317456c2d518cc59cb45b2fdbc32d0bbe7233dcb384ac1cf1eb54985e2e",
         "approved_by": "team:plataforma",
@@ -257,6 +281,20 @@
           "by": "mateusmacedo",
           "reviewed_by": "mateusmacedo",
           "pr": "local-merge:feat/ARQ-548-evidencia-certificacao-release"
+        },
+        "cve": [],
+        "deprecated_at": "2026-10-03",
+        "successor": "go.opentelemetry.io/otel@v1.47.0"
+      },
+      {
+        "subject": "sdk",
+        "identity": "go.opentelemetry.io/otel",
+        "version": "v1.47.0",
+        "state": "candidata",
+        "compatible_with": [],
+        "registry_ref": {
+          "file": "libs/backend/go/observability/go.mod",
+          "selector": "require:go.opentelemetry.io/otel"
         },
         "cve": []
       },
@@ -573,7 +611,7 @@
         "cve": []
       }
     ],
-    "reason": "grpc, aws-sdk-go-v2, @nx/devkit, @nx/plugin, conformance, grpc e sqs ficam no estado candidata: nenhum subject do dmpf-evidence da 0.1.0 os exercita (o grpc aparece no header do reference só transitivamente; @nx/devkit e @nx/plugin sustentam o plugin dmpf)"
+    "reason": "grpc, aws-sdk-go-v2, @nx/devkit, @nx/plugin, conformance, grpc e sqs ficam no estado candidata: nenhum subject do dmpf-evidence da 0.1.0 os exercita (o grpc aparece no header do reference só transitivamente; @nx/devkit e @nx/plugin sustentam o plugin dmpf); o otel v1.47.0 também fica no estado candidata, porque sucede o v1.46.0 certificado depois da evidência da 0.1.0, e o grpc v1.83.2 fica no estado rejeitada, porque o autoexport v0.72.0 exige v1.84.0 ou superior"
   },
   "compatible_combinations": {
     "entries": [],
@@ -581,11 +619,11 @@
   },
   "deprecations": {
     "entries": [],
-    "reason": "nenhuma entrada depreciada na primeira release"
+    "reason": "a única entrada depreciada, o otel v1.46.0 certificado pelo reference, fica em drivers_clients_sdks com sucessor v1.47.0, que corrige a data race do NewPeriodicReader (sdk/metric, PR #9028)"
   },
   "cves": {
     "entries": [],
-    "reason": "govulncheck v1.7.0 sobre os 20 projetos Go do workspace, no código do commit da evidência: nenhuma vulnerabilidade encontrada"
+    "reason": "govulncheck v1.7.0 sobre os 20 projetos Go do workspace, no código do commit da evidência: nenhuma vulnerabilidade encontrada. A GO-2026-6443 (CVE-2026-84445) fica no cve das entradas do grpc em drivers_clients_sdks, corrigida no v1.84.0 que o autoexport v0.72.0 exige e na pseudo-versão fixada: o v1.84.0 traz a correção #9365 por cherry-pick (#9370, commit d5a41119e0 no histórico da tag), mas a faixa do vuln DB (introduced 1.84.0-dev, fixed 1.85.0-dev.0.20260825072537-93e31b48545e) ainda o marca como afetado; o govulncheck reprova o v1.84.0, e por isso o pin na pseudo-versão continua"
   },
   "semantic_conventions_messaging": {
     "subject": "semantic_conventions_messaging",
@@ -595,7 +633,7 @@
     "owner": "team:plataforma",
     "compatible_with": [],
     "registry_ref": {
-      "file": "libs/backend/go/observability/otelboot/start.go",
+      "file": "libs/backend/go/observability/otelboot/config.go",
       "selector": "semconv"
     },
     "evidence_uri": "https://github.com/mateusmacedo/dmpf/blob/8e171d31eb903a6b2153da53bc4aa05d058a1263/bom/evidence/0.1.0/reference.json",

@@ -1,7 +1,7 @@
 package otelboot_test
 
 import (
-	"crypto/tls"
+	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -9,6 +9,8 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/propagation"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/otelboot"
@@ -108,34 +110,7 @@ func TestEachServiceFieldIsRequiredOnItsOwn(t *testing.T) {
 	}
 }
 
-func TestAnInsecureTransportIsRefusedUnlessItWasAllowed(t *testing.T) {
-	config := validConfig()
-	config.Transport = otelboot.Transport{Endpoint: "collector:4317", Insecure: true}
-
-	err := config.Validate()
-	if !errors.Is(err, otelboot.ErrInsecureNotAllowed) {
-		t.Fatalf("Validate() = %v, want ErrInsecureNotAllowed", err)
-	}
-
-	config.AllowInsecure = true
-	if err := config.Validate(); err != nil {
-		t.Fatalf("Validate() = %v, want nil once the insecure transport is declared", err)
-	}
-}
-
-func TestATLSTransportNeedsNoAllowance(t *testing.T) {
-	config := validConfig()
-	config.Transport = otelboot.Transport{
-		Endpoint: "collector:4317",
-		TLS:      &tls.Config{MinVersion: tls.VersionTLS13},
-	}
-
-	if err := config.Validate(); err != nil {
-		t.Fatalf("Validate() = %v, want nil", err)
-	}
-}
-
-func TestABlankSheetIsRefusedBeforeItReachesTheResource(t *testing.T) {
+func TestABlankSheetIsRefusedByValidate(t *testing.T) {
 	config := validConfig()
 	blank := resilience.Defaults("payments")
 	blank.Breaker = resilience.Field[resilience.BreakerPolicy]{}
@@ -156,13 +131,13 @@ func TestValidateReportsThePropagatorAndTheResourceInOnePass(t *testing.T) {
 	}
 }
 
-func TestSamplingDefaultsToTheBaselineOfTRC13(t *testing.T) {
+func TestSamplingDefaultsToEveryClassAtOne(t *testing.T) {
 	rates := validConfig().EffectiveSampling()
 
-	want := tracing.DefaultRates()
-	for class, rate := range want {
-		if got := rates.RateFor(class); got != rate {
-			t.Errorf("RateFor(%q) = %v, want %v", class, got, rate)
+	for _, class := range []tracing.Class{tracing.ClassError, tracing.ClassWrite, tracing.ClassRead,
+		tracing.ClassMaintenance, tracing.ClassUnclassified} {
+		if got := rates.RateFor(class); got != 1 {
+			t.Errorf("RateFor(%q) = %v, want 1: the table of TRC-13 lives in the tail only (RF-E5)", class, got)
 		}
 	}
 }
@@ -204,38 +179,17 @@ func TestExtraResourceAttributesAreCarriedThrough(t *testing.T) {
 	}
 }
 
-func TestTheEffectiveSheetsBecomeResourceAttributes(t *testing.T) {
-	config := validConfig()
-	sheet := resilience.Defaults("payments")
-	sheet.Deadline = resilience.Declare(3 * time.Second)
-	config.Sheets = []resilience.Sheet{sheet}
-
-	attributes := index(config.ResourceAttributes())
-
-	deadline := attribute.Key(otelboot.SheetAttributePrefix + "payments." + resilience.FieldDeadline)
-	if got := attributes[deadline]; got != "3s" {
-		t.Errorf("%s = %q, want %q (RES-40)", deadline, got, "3s")
-	}
-
-	rateLimit := attribute.Key(otelboot.SheetAttributePrefix + "payments." + resilience.FieldRateLimit)
-	if got := attributes[rateLimit]; !strings.HasPrefix(got, resilience.NotApplicablePrefix) {
-		t.Errorf("%s = %q, want the declared absence to say why the position is empty", rateLimit, got)
-	}
-}
-
-func TestTwoSheetsDoNotCollideOnTheSameAttribute(t *testing.T) {
+func TestTheSheetsStayOutOfTheResourceAttributes(t *testing.T) {
 	config := validConfig()
 	payments := resilience.Defaults("payments")
+	payments.Deadline = resilience.Declare(3 * time.Second)
 	payments.MaxAttempts = resilience.Declare(5)
 	config.Sheets = []resilience.Sheet{payments, resilience.Defaults("ledger")}
 
-	attributes := index(config.ResourceAttributes())
-
-	if got := attributes[attribute.Key(otelboot.SheetAttributePrefix+"payments."+resilience.FieldMaxAttempts)]; got != "5" {
-		t.Errorf("payments max_attempts = %q, want %q", got, "5")
-	}
-	if got := attributes[attribute.Key(otelboot.SheetAttributePrefix+"ledger."+resilience.FieldMaxAttempts)]; got != "3" {
-		t.Errorf("ledger max_attempts = %q, want the platform default %q", got, "3")
+	for key, value := range index(config.ResourceAttributes()) {
+		if strings.HasPrefix(string(key), "dmpf.sheet.") {
+			t.Errorf("%s = %q is on the resource, want the sheets only on the resilience sheet in effect record", key, value)
+		}
 	}
 }
 
@@ -245,4 +199,90 @@ func index(attributes []attribute.KeyValue) map[attribute.Key]string {
 		indexed[attr.Key] = attr.Value.AsString()
 	}
 	return indexed
+}
+
+func resourceOfStarted(t *testing.T, mutate func(*otelboot.Config)) map[attribute.Key]string {
+	t.Helper()
+	reader := sdkmetric.NewManualReader()
+	startedRuntime(t, func(config *otelboot.Config) {
+		config.MetricReader = reader
+		if mutate != nil {
+			mutate(config)
+		}
+	})
+	var collected metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &collected); err != nil {
+		t.Fatalf("Collect() = %v", err)
+	}
+	if got := collected.Resource.SchemaURL(); got != semconv.SchemaURL {
+		t.Errorf("schema_url = %q, want %q", got, semconv.SchemaURL)
+	}
+	return index(collected.Resource.Attributes())
+}
+
+func cleanResourceEnv(t *testing.T) {
+	t.Helper()
+	t.Setenv("OTEL_SERVICE_NAME", "")
+	t.Setenv("OTEL_RESOURCE_ATTRIBUTES", "")
+}
+
+func TestTheEnvironmentOverridesTheDeclaredResource(t *testing.T) {
+	cleanResourceEnv(t)
+	t.Setenv("OTEL_SERVICE_NAME", "billing")
+	t.Setenv("OTEL_RESOURCE_ATTRIBUTES", "service.version=9.9.9,deployment.environment.name=hmg")
+
+	attributes := resourceOfStarted(t, nil)
+
+	for key, want := range map[attribute.Key]string{
+		semconv.ServiceNameKey:               "billing",
+		semconv.ServiceVersionKey:            "9.9.9",
+		semconv.ServiceInstanceIDKey:         "orders-7c9f",
+		semconv.DeploymentEnvironmentNameKey: "hmg",
+	} {
+		if got := attributes[key]; got != want {
+			t.Errorf("%s = %q, want %q", key, got, want)
+		}
+	}
+}
+
+func TestTheResourceIsValidatedAfterTheEnvironment(t *testing.T) {
+	cleanResourceEnv(t)
+	config := validConfig()
+	config.Resource.ServiceVersion = ""
+	if err := config.Validate(); !errors.Is(err, otelboot.ErrResourceIncomplete) {
+		t.Fatalf("Validate() = %v, want ErrResourceIncomplete without service.version", err)
+	}
+
+	t.Setenv("OTEL_RESOURCE_ATTRIBUTES", "service.version=2.0.0")
+	if err := config.Validate(); err != nil {
+		t.Fatalf("Validate() = %v, want nil once the environment declares service.version", err)
+	}
+}
+
+func TestTheProcessRoleIsOnTheResource(t *testing.T) {
+	cleanResourceEnv(t)
+
+	attributes := resourceOfStarted(t, func(config *otelboot.Config) { config.Resource.Role = "relay" })
+
+	if got := attributes[otelboot.ProcessRoleAttribute]; got != "relay" {
+		t.Errorf("%s = %q, want relay", otelboot.ProcessRoleAttribute, got)
+	}
+}
+
+func TestTheResourceCarriesTheSDKAndTheRuntimeButNotTheHost(t *testing.T) {
+	cleanResourceEnv(t)
+
+	attributes := resourceOfStarted(t, nil)
+
+	for _, key := range []attribute.Key{semconv.TelemetrySDKNameKey, semconv.TelemetrySDKLanguageKey,
+		semconv.TelemetrySDKVersionKey, semconv.ProcessRuntimeNameKey, semconv.ProcessRuntimeVersionKey} {
+		if attributes[key] == "" {
+			t.Errorf("%s is absent from the resource", key)
+		}
+	}
+	for _, key := range []attribute.Key{semconv.HostNameKey, semconv.ContainerIDKey} {
+		if _, present := attributes[key]; present {
+			t.Errorf("%s is on the resource, want it out", key)
+		}
+	}
 }

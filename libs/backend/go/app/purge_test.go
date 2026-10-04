@@ -3,13 +3,21 @@ package app_test
 import (
 	"context"
 	"errors"
-	"io"
 	"log/slog"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/log"
+	lognoop "go.opentelemetry.io/otel/log/noop"
+	"go.opentelemetry.io/otel/propagation"
+	sdklog "go.opentelemetry.io/otel/sdk/log"
+
 	"github.com/mateusmacedo/dmpf/libs/backend/go/app"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/otelboot"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/redact"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
 
@@ -52,7 +60,7 @@ func (r *purgeRecorder) snapshot() []purgeCall {
 	return append([]purgeCall(nil), r.calls...)
 }
 
-var purgeLog = slog.New(slog.NewTextHandler(io.Discard, nil))
+var purgeLog log.LoggerProvider = lognoop.NewLoggerProvider()
 
 func runPurge(t *testing.T, cfg app.PurgeConfig, fn app.PurgeFunc) (cancel func() error) {
 	t.Helper()
@@ -162,13 +170,17 @@ func TestRunRefusesALoopWithoutItsCollaborators(t *testing.T) {
 
 func TestStartPurgeRunsUntilStopReturns(t *testing.T) {
 	rec := newPurgeRecorder()
-	stop, err := app.StartPurge(context.Background(), app.PurgeConfig{Name: "outbox", Interval: 10 * time.Millisecond, Batch: 100}, purgeClock(1), purgeLog, rec.purge)
+	ctx, abort := context.WithCancelCause(context.Background())
+	defer abort(nil)
+	stop, err := app.StartPurge(ctx, abort, app.PurgeConfig{Name: "outbox", Interval: 10 * time.Millisecond, Batch: 100}, purgeClock(1), purgeLog, rec.purge)
 	if err != nil {
 		t.Fatalf("StartPurge() = %v, want nil", err)
 	}
 	<-rec.called
 
-	stop()
+	if err := stop(); err != nil || context.Cause(ctx) != nil {
+		t.Fatalf("stop() = %v, cause = %v, want nil and nil: stopping the purge is not a failure of the role", err, context.Cause(ctx))
+	}
 	calls := len(rec.snapshot())
 	time.Sleep(30 * time.Millisecond)
 	if after := len(rec.snapshot()); after != calls {
@@ -177,9 +189,152 @@ func TestStartPurgeRunsUntilStopReturns(t *testing.T) {
 }
 
 func TestStartPurgeRefusesAConfigBeforeStarting(t *testing.T) {
-	stop, err := app.StartPurge(context.Background(), app.PurgeConfig{Name: "outbox", Batch: 100}, purgeClock(1), purgeLog, newPurgeRecorder().purge)
+	stop, err := app.StartPurge(context.Background(), func(error) {}, app.PurgeConfig{Name: "outbox", Batch: 100}, purgeClock(1), purgeLog, newPurgeRecorder().purge)
 
 	if !errors.Is(err, app.ErrInvalidPurgeConfig) || stop != nil {
 		t.Fatalf("StartPurge() = (stop set %v, %v), want ErrInvalidPurgeConfig and no loop", stop != nil, err)
 	}
 }
+
+func runLoggedPurge(t *testing.T, role string, cfg app.PurgeConfig, fn app.PurgeFunc, called <-chan struct{}) map[string]any {
+	t.Helper()
+	logs := &purgeLogs{}
+	provider := otelboot.NewLoggerProvider(otelboot.Config{
+		Propagator: propagation.TraceContext{},
+		Resource:   otelboot.Resource{ServiceName: "reservations", ServiceVersion: "1.0.0", ServiceInstanceID: "reservations-1", Role: role},
+	}, logs)
+	ctx, stop := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		done <- app.RunPurge(ctx, cfg, purgeClock(10_000), provider, fn)
+	}()
+	<-called
+	deadline := time.Now().Add(2 * time.Second)
+	for len(logs.snapshot()) == 0 && time.Now().Before(deadline) {
+		if err := provider.ForceFlush(context.Background()); err != nil {
+			t.Fatalf("ForceFlush() = %v", err)
+		}
+		time.Sleep(time.Millisecond)
+	}
+	stop()
+	<-done
+	if err := provider.Shutdown(context.Background()); err != nil {
+		t.Fatalf("Shutdown() = %v", err)
+	}
+
+	records := logs.snapshot()
+	if len(records) == 0 {
+		t.Fatal("the purge logged no record")
+	}
+	return records[0]
+}
+
+func TestAFailedPurgeLogsTheRedactedErrorUnderCanonicalKeys(t *testing.T) {
+	rec := newPurgeRecorder()
+	rec.err = errors.New("purge_test: database away at 10.0.0.7")
+	record := runLoggedPurge(t, "relay", app.PurgeConfig{Name: "outbox", Table: "outbox", Interval: time.Hour, Batch: 100}, rec.purge, rec.called)
+
+	if record["msg"] != "purge cycle failed" || record["db.collection.name"] != "outbox" {
+		t.Fatalf("record = %v, want purge cycle failed on db.collection.name=outbox", record)
+	}
+	if _, free := record["table"]; free {
+		t.Fatalf("record = %v still carries the free key table", record)
+	}
+	for key, value := range record {
+		if text, ok := value.(string); ok && strings.Contains(text, "database away") {
+			t.Fatalf("%s = %q carries the error message", key, text)
+		}
+	}
+	reduced := []slog.Attr{redact.Error(rec.err)}
+	if reduced[0].Value.Kind() == slog.KindGroup {
+		reduced = reduced[0].Value.Group()
+	}
+	for _, attr := range reduced {
+		if record[attr.Key] != attr.Value.String() {
+			t.Fatalf("%s = %v, want %q from redact.Error; record %v", attr.Key, record[attr.Key], attr.Value.String(), record)
+		}
+	}
+}
+
+func TestAPurgedBatchIsLoggedUnderCanonicalKeys(t *testing.T) {
+	for _, role := range []string{"api", "consumer", "relay"} {
+		t.Run(role, func(t *testing.T) {
+			rec := newPurgeRecorder(3)
+			record := runLoggedPurge(t, role, app.PurgeConfig{Name: "inbox", Table: "inbox", Interval: time.Hour, Batch: 100, Retention: 4_000}, rec.purge, rec.called)
+
+			want := map[string]any{"msg": "purged", "scope": consumerScope, "db.collection.name": "inbox", "dmpf.purge.removed": int64(3), "dmpf.purge.before": int64(6_000)}
+			for key, value := range want {
+				if record[key] != value {
+					t.Fatalf("%s = %v, want %v; record %v", key, record[key], value, record)
+				}
+			}
+			for _, free := range []string{"table", "removed", "before"} {
+				if _, ok := record[free]; ok {
+					t.Fatalf("record = %v still carries the free key %s", record, free)
+				}
+			}
+		})
+	}
+}
+
+func TestAPurgeNamesItsTableApartFromItsLoop(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		removed []int64
+		err     error
+		msg     string
+	}{
+		{name: "failed cycle", err: errors.New("purge_test: database away"), msg: "purge cycle failed"},
+		{name: "purged batch", removed: []int64{3}, msg: "purged"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := newPurgeRecorder(tc.removed...)
+			rec.err = tc.err
+			cfg := app.PurgeConfig{Name: "command-inbox", Table: "inbox", Interval: time.Hour, Batch: 100}
+
+			record := runLoggedPurge(t, "api", cfg, rec.purge, rec.called)
+
+			if record["msg"] != tc.msg || record["db.collection.name"] != "inbox" || record["dmpf.purge.name"] != "command-inbox" {
+				t.Fatalf("record = %v, want %s on db.collection.name=inbox, the table of the DELETE span, and dmpf.purge.name=command-inbox", record, tc.msg)
+			}
+		})
+	}
+}
+
+func TestAPurgeWithoutATableNeverPassesItsLoopNameAsOne(t *testing.T) {
+	rec := newPurgeRecorder(3)
+
+	record := runLoggedPurge(t, "api", app.PurgeConfig{Name: "command-inbox", Interval: time.Hour, Batch: 100}, rec.purge, rec.called)
+
+	if _, named := record["db.collection.name"]; named || record["dmpf.purge.name"] != "command-inbox" {
+		t.Fatalf("record = %v, want dmpf.purge.name=command-inbox and no db.collection.name", record)
+	}
+}
+
+type purgeLogs struct {
+	mu      sync.Mutex
+	records []map[string]any
+}
+
+func (l *purgeLogs) Export(_ context.Context, records []sdklog.Record) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	for _, record := range records {
+		fields := map[string]any{"msg": record.Body().AsString(), "scope": record.InstrumentationScope().Name}
+		record.WalkAttributes(func(kv attribute.KeyValue) bool {
+			fields[string(kv.Key)] = kv.Value.AsInterface()
+			return true
+		})
+		l.records = append(l.records, fields)
+	}
+	return nil
+}
+
+func (l *purgeLogs) snapshot() []map[string]any {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return append([]map[string]any(nil), l.records...)
+}
+
+func (*purgeLogs) Shutdown(context.Context) error   { return nil }
+func (*purgeLogs) ForceFlush(context.Context) error { return nil }

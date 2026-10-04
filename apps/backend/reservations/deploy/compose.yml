@@ -7,7 +7,7 @@ x-image: &image
   image: ${RESERVATIONS_IMAGE:-reservations:local}
 
 x-env: &env
-  SERVICE: reservations
+  OTEL_SERVICE_NAME: reservations
   PG_DSN: postgres://reservations:${RESERVATIONS_PG_PASSWORD:-reservations-local}@postgres:5432/reservations?sslmode=disable
 
 x-kafka: &kafka
@@ -21,9 +21,10 @@ services:
     extends:
       file: ../../../../infra/local/compose/app-base.yml
       service: dmpf-grpc-api
+    stop_grace_period: 30s
     environment:
       <<: *env
-      INSTANCE_ID: reservations-api
+      OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES:-service.version=local,deployment.environment.name=local},service.instance.id=reservations-api,dmpf.process.role=api
       GRPC_TLS_CERT_FILE: /pki/dmpf-reservations-api.crt
       GRPC_TLS_KEY_FILE: /pki/dmpf-reservations-api.key
     depends_on:
@@ -39,10 +40,11 @@ services:
     extends:
       file: ../../../../infra/local/compose/app-base.yml
       service: dmpf-kafka-worker
+    stop_grace_period: 30s
     command: ['--role', 'relay']
     environment:
       <<: [*env, *kafka]
-      INSTANCE_ID: reservations-relay
+      OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES:-service.version=local,deployment.environment.name=local},service.instance.id=reservations-relay,dmpf.process.role=relay
       KAFKA_RESERVATIONS_TOPIC: ${KAFKA_RESERVATIONS_TOPIC:-reservations.events}
       KAFKA_RESERVATIONS_DLQ: ${KAFKA_RESERVATIONS_DLQ:-reservations.events.dlq}
     depends_on:
@@ -56,12 +58,16 @@ services:
     extends:
       file: ../../../../infra/local/compose/app-base.yml
       service: dmpf-kafka-worker
+    stop_grace_period: 30s
     command: ['--role', 'consumer']
     environment:
       <<: [*env, *kafka]
-      INSTANCE_ID: reservations-consumer
+      OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES:-service.version=local,deployment.environment.name=local},service.instance.id=reservations-consumer,dmpf.process.role=consumer
       KAFKA_ORDERS_TOPIC: ${KAFKA_ORDERS_TOPIC:-orders.events}
       KAFKA_ORDERS_DLQ: ${KAFKA_ORDERS_DLQ:-orders.events.dlq}
+    deploy:
+      resources:
+        limits: { cpus: '0.144', memory: 128M }
     depends_on:
       redpanda-init:
         condition: service_completed_successfully

@@ -1,13 +1,12 @@
 package usecase_test
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
-	"strings"
 	"testing"
 
+	"go.opentelemetry.io/otel/attribute"
+	sdklog "go.opentelemetry.io/otel/sdk/log"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
@@ -37,7 +36,8 @@ type wiring struct {
 	runtime  *otelboot.Runtime
 	exporter *tracetest.InMemoryExporter
 	reader   *sdkmetric.ManualReader
-	log      *bytes.Buffer
+	log      *recordingLogs
+	logs     *sdklog.LoggerProvider
 }
 
 func wire(t *testing.T, authorize application.Authorize[bumpCounter]) *wiring {
@@ -69,6 +69,7 @@ func wire(t *testing.T, authorize application.Authorize[bumpCounter]) *wiring {
 		exporter: fixture.exporter,
 		reader:   fixture.reader,
 		log:      fixture.log,
+		logs:     fixture.loggerProvider,
 	}
 }
 
@@ -116,14 +117,13 @@ func budgeted(t *testing.T) context.Context {
 	return ctx
 }
 
-// requestSeries indexes dmpf_service_requests_total by operation and outcome.
 func (w *wiring) requestSeries(t *testing.T) map[string]int64 {
 	t.Helper()
 
 	byKey := make(map[string]int64)
-	for _, point := range collect(t, w.reader)[metrics.RequestsTotal] {
-		labels := labelsOf(point)
-		byKey[labels[metrics.KeyOperation]+"/"+labels[metrics.KeyOutcomeCategory]] = point.Value
+	for _, point := range durationPoints(t, w.reader) {
+		labels := labelsOf(point.Attributes)
+		byKey[labels[metrics.KeyOperation]+"/"+labels[metrics.KeyOutcomeCategory]] = int64(point.Count)
 	}
 	return byKey
 }
@@ -131,18 +131,19 @@ func (w *wiring) requestSeries(t *testing.T) map[string]int64 {
 func (w *wiring) records(t *testing.T) []map[string]any {
 	t.Helper()
 
-	text := strings.TrimSpace(w.log.String())
-	if text == "" {
-		return nil
+	if err := w.logs.ForceFlush(context.Background()); err != nil {
+		t.Fatalf("ForceFlush() = %v", err)
 	}
-
-	parsed := make([]map[string]any, 0, 4)
-	for line := range strings.SplitSeq(text, "\n") {
-		var record map[string]any
-		if err := json.Unmarshal([]byte(line), &record); err != nil {
-			t.Fatalf("a log record is not JSON: %v (line %q)", err, line)
-		}
-		parsed = append(parsed, record)
+	w.log.mu.Lock()
+	defer w.log.mu.Unlock()
+	parsed := make([]map[string]any, 0, len(w.log.records))
+	for _, record := range w.log.records {
+		fields := map[string]any{"body": record.Body().AsString()}
+		record.WalkAttributes(func(kv attribute.KeyValue) bool {
+			fields[string(kv.Key)] = kv.Value.AsInterface()
+			return true
+		})
+		parsed = append(parsed, fields)
 	}
 	return parsed
 }

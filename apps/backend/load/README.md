@@ -56,6 +56,7 @@ Os thresholds de cada perfil estão em `src/profiles.js`. Os de `average` e `soa
 | `CONVERGENCE_TIMEOUT` | `10s` | espera da reserva criada pelo consumer |
 | `SEED` | `1` | semente dos valores sorteados |
 | `BASE_URL` | `http://dmpf-bff:8080` | allowlist acima |
+| `ADMIN_URL` | `http://dmpf-bff:8090` | allowlist acima; o `setup()` espera o `/readyz` responder `204` nesta porta de administração do BFF, que o Compose não publica no host |
 
 Cada perfil pode pré-alocar no máximo 1200 VUs, o que cabe no 1 GiB do container k6 (medido: 881 MiB no `breakpoint` com `RATE=10`). Acima disso, o `--check` recusa e nomeia `RATE`; no `breakpoint`, isso limita `RATE` a 10.
 
@@ -63,10 +64,10 @@ O pool de tenants para em 5 porque a admissão do BFF guarda um bucket por par (
 
 ## Jornadas
 
-- `orders`: 1 a 3 itens, `place` e leitura do pedido colocado.
+- `orders`: 1 a 3 itens, `place` e leitura do pedido colocado. No `smoke`, cada iteração começa com a mesma pausa de 0,1 s da jornada `reads`, que limita `/orders/{id}/items` a 30 req/s, abaixo do limite de 50/s por rota e tenant da admissão; sem ela, com a borda mais rápida, o VU único da jornada passa desse limite.
 - `reservations`: três variantes sorteadas numa faixa única. Na fração `CANCEL_RATIO`, cancela antes da decisão e confere que a reserva segue `canceled` depois do pedido. Na fração `RESERVE_RATIO`, reserva direto. O restante espera a reserva criada pelo consumer a partir do `OrderPlaced`. Cancelar reserva já confirmada é recusado pelo domínio (`apps/backend/reservations/domain/cancel.go`).
 - `bookings`: recurso novo, reserva, leitura, listagem com um elemento e cancelamento na fração `CANCEL_RATIO`.
-- `reads`: leituras sobre os 10 pedidos por tenant que o `setup()` cria.
+- `reads`: leituras sobre os 10 pedidos por tenant que o `setup()` cria. No `smoke`, cada iteração começa com uma pausa de 0,1 s (`journeyPause` em `src/profiles.js`), que limita a jornada a 10 req/s por rota, abaixo do limite de 50/s por rota e tenant da admissão do BFF; sem ela, o VU único da jornada passa desse limite e o threshold `admission_rejections` `rate==0` do `smoke` falha. Nos demais perfis, todos de taxa de chegada, não há pausa: quem fixa a taxa é o executor.
 
 ## Workflow
 
@@ -91,24 +92,24 @@ Métricas próprias da suíte:
 
 ## Dashboard
 
-As métricas vão por Prometheus remote write, com native histograms, para o Prometheus da topologia. O dashboard `load-bff` (`http://localhost:3000/d/load-bff`, arquivo `infra/observability/grafana/dashboards/load-bff.json`) filtra pela variável `testid` e tem cinco linhas:
+As métricas vão por Prometheus remote write, com native histograms, para o Prometheus da topologia. O dashboard `load-bff` (`http://localhost:3000/d/load-bff`, arquivo `infra/observability/grafana/dashboards/carga/load-bff.json`, pasta DMPF · Carga, só no Compose) filtra pela variável `testid` e tem cinco linhas:
 
 1. k6: VUs, taxa por jornada e rota, p95 e p99 por rota, falha técnica, recusas e convergência.
-2. Borda do BFF: taxa e p95 dos spans `HTTP <método> <rota>` (span-metrics do Tempo), a curva do k6 contra a da borda e a razão k6 ÷ borda por rota, que fica em 1 quando a borda vê tudo o que o k6 envia.
-3. BFF para os contextos: MET-08, MET-09 e MET-10 por operação, retries, bulkhead, prazos e breaker.
-4. Contextos: MET-08, MET-09, MET-10 e MET-12 de `orders`, `reservations` e `bookings`.
-5. Recursos: CPU e memória por container (cAdvisor), conexões do Postgres por banco e lag do grupo `reservations`.
+2. Borda do BFF: taxa e p95 por método e rota de `http_server_request_duration_seconds`, o histograma do `otelhttp`; a curva do k6 contra a da borda, por esse histograma e pelas chamadas dos spans SERVER nas span-metrics do Tempo (`traces_spanmetrics_calls_total`); e a razão k6 ÷ borda por rota, somada no intervalo escolhido, que fica em 1 quando a borda vê tudo o que o k6 envia.
+3. BFF para os contextos: chamadas e p95 de `rpc_client_call_duration_seconds`, do `otelgrpc`, por `rpc_method` e status; status diferente de `OK` por método e código; e, só do BFF e por dependência, `dmpf_dependency_retries_total`, `dmpf_dependency_bulkhead_rejections_total`, `dmpf_dependency_deadline_exceeded_total` e o estado de `dmpf_dependency_breaker_state`.
+4. Contextos: `dmpf_operation_duration_seconds` por serviço e desfecho, p95 por operação e erros por `error_type` (MET-08 a MET-10), e `dmpf_admission_rejections_total` por `http_route` e `rpc_method` (MET-12), de `orders`, `reservations` e `bookings`; ocupação do pool e fila interna do consumer (MET-11).
+5. Recursos: CPU e memória por container sobre o teto de cada um (cAdvisor), conexões do Postgres por banco e lag por grupo e tópico.
 
-Os painéis do kernel usam janela fixa de 2 min porque as métricas chegam por OTLP a cada 60 s. Os painéis de erro, recusa e resiliência mostram 0 quando não há evento. O lag depende de `enable_consumer_group_metrics` no Redpanda; se o painel ficar vazio, ligue com `rpk cluster config set enable_consumer_group_metrics '["group", "partition"]'`.
+Os painéis do kernel usam `[$__rate_interval]` com intervalo mínimo de 2 min no painel, porque as métricas chegam por OTLP a cada 60 s e a `rate` precisa de duas amostras na janela: o Grafana resolve o `$__rate_interval` como o maior entre o intervalo do painel somado ao `timeInterval` de 15 s do datasource e quatro vezes esse `timeInterval`, o que dá 2 min 15 s no zoom padrão e cresce no zoom-out. Com intervalo de 30 s, a janela seria de 60 s e os painéis ficariam sem dados. Os painéis de falha técnica, recusa, status diferente de `OK` e resiliência (linhas 1, 3 e 4) mostram 0 quando não há evento e contam também o evento que cria uma série nova, que o `rate` e o `increase` sozinhos não veem: cada 504 do k6, por exemplo, é uma série de uma amostra só. A falha técnica e a recusa 429 do k6 aparecem como fração das requisições da janela; os demais, como eventos na janela. O lag depende de `enable_consumer_group_metrics` no Redpanda; se o painel ficar vazio, ligue com `rpk cluster config set enable_consumer_group_metrics '["group", "partition"]'`.
 
-Para a visão genérica do k6, importe no Grafana o dashboard 18030 ("k6 Prometheus (Native Histograms)") pelo ID. O 19665 não serve aqui, porque exige trend stats em vez de native histograms.
+Para a visão genérica do k6, importe no Grafana, com o login `admin`/`admin`, o dashboard 18030 ("k6 Prometheus (Native Histograms)") pelo ID. O 19665 não serve aqui, porque exige trend stats em vez de native histograms.
 
 Depois do fim de uma execução, as séries do k6 recebem stale markers: consultas instantâneas voltam vazias, e é preciso usar intervalo ou `last_over_time`.
 
 ## Limitações
 
 - Gerador e alvo dividem o host. O container `k6` tem teto de 1 vCPU e aparece no painel de CPU; `dropped_iterations` acima de 0 indica gerador ou pool de VUs saturado, não o alvo.
-- Cada serviço da topologia tem teto de 0,15 vCPU. No `smoke`, cada VU dispara sem pausa, satura a cota e o throttling do CFS aparece como latência de dezenas de milissegundos; o `smoke` prova funcionamento, não latência.
+- Os serviços da topologia têm teto de 0,10 a 0,216 vCPU (`infra/README.md`). No `smoke`, cada VU dispara sem pausa — salvo os das jornadas `reads` e `orders`, que pausam 0,1 s por iteração —, satura a cota e o throttling do CFS aparece como latência de dezenas de milissegundos; o `smoke` prova funcionamento, não latência.
 - A topologia roda com `LOG_LEVEL=debug` e 100% de amostragem de traces, o que encarece cada requisição; a suíte mede a topologia como ela está configurada.
 - Depois de um `breakpoint` ou `spike`, o consumer de `reservations` leva minutos para drenar o lag de `orders.events`. Espere o painel de lag zerar antes da próxima rodada; senão o `setup()` sai com 107, porque a reserva dos pedidos de massa não converge.
 - Os números servem para comparar versões na mesma máquina, não para dimensionar produção.

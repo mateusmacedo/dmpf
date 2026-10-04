@@ -10,6 +10,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -26,7 +27,6 @@ import (
 func composeConfig(c *clock.Fake, idempotent bool, retryable ...codes.Code) provider.Config {
 	cfg := validConfig()
 	cfg.Clock = c
-	cfg.Service = "checkout"
 	cfg.Rand = func() float64 { return 0 }
 	cfg.Sheet.Backoff = resilience.Declare(resilience.BackoffPolicy{Base: 100 * time.Millisecond, Factor: 2, Cap: time.Second})
 	cfg.Sheet.MaxAttempts = resilience.Declare(3)
@@ -234,18 +234,26 @@ func TestComposeObservesTheCall(t *testing.T) {
 		t.Fatalf("exported %d spans, want 1", len(spans))
 	}
 	span := spans[0]
-	if span.Name != "dmpf.grpc.client "+checkMethod {
-		t.Errorf("span name = %q", span.Name)
+	if span.Name != "dmpf.resilience orders" || span.SpanKind != trace.SpanKindInternal {
+		t.Errorf("span = %q kind %v, want dmpf.resilience orders INTERNAL (RF-B5)", span.Name, span.SpanKind)
 	}
 	attrs := map[string]string{}
+	ints := map[string]int64{}
 	for _, kv := range span.Attributes {
 		attrs[string(kv.Key)] = kv.Value.AsString()
+		ints[string(kv.Key)] = kv.Value.AsInt64()
 	}
-	if attrs["dmpf.dependency"] != "orders" || attrs["dmpf.operation"] != checkMethod || attrs["dmpf.service"] != "checkout" {
-		t.Errorf("span attributes = %v, want dependency/operation/service", attrs)
+	if attrs["dmpf.dependency"] != "orders" || ints["dmpf.retry.max_attempts"] != 3 || ints["dmpf.deadline.remaining_ms"] != 30000 {
+		t.Errorf("span attributes = %v, want dependency, max attempts 3 and 30000ms remaining (RF-B5)", span.Attributes)
 	}
-	if attrs["dmpf.error.category"] != "unavailable" || attrs["dmpf.outcome_category"] != "unavailable" {
-		t.Errorf("span categories = %v, want unavailable (TRC-12)", attrs)
+	if _, present := attrs["dmpf.operation"]; present {
+		t.Errorf("span attributes = %v, want no dmpf.operation (RF-B1)", attrs)
+	}
+	if _, present := attrs["dmpf.service"]; present {
+		t.Errorf("span attributes = %v, want no dmpf.service (RF-B1)", attrs)
+	}
+	if attrs["error.type"] != "TransientDependency" || attrs["dmpf.outcome_category"] != "TransientDependency" {
+		t.Errorf("span categories = %v, want TransientDependency (TRC-12, RF-B1)", attrs)
 	}
 	if span.Status.Description != "" {
 		t.Errorf("span status carries a message %q: redaction bypassed (TRC-12)", span.Status.Description)
@@ -261,9 +269,9 @@ func TestComposeObservesTheCall(t *testing.T) {
 			recorded[m.Name] = true
 		}
 	}
-	for _, name := range []string{metrics.RequestsTotal, metrics.ErrorsTotal, metrics.RequestDurationSeconds} {
-		if !recorded[name] {
-			t.Errorf("series %q was not recorded (MET-08..10)", name)
+	for _, name := range []string{"dmpf_service_requests_total", "dmpf_service_errors_total", metrics.RequestDurationSeconds} {
+		if recorded[name] {
+			t.Errorf("series %q was recorded by the composition: the client RED is otelgrpc's (RF-D2)", name)
 		}
 	}
 }

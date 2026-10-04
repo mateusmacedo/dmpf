@@ -1,16 +1,14 @@
 package grpc_test
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"log/slog"
 	"net"
-	"strings"
 	"testing"
 	"time"
 
+	lognoop "go.opentelemetry.io/otel/log/noop"
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/test/bufconn"
@@ -53,12 +51,12 @@ func TestServeServesOnlyAfterReadyAndStopsServingOnShutdown(t *testing.T) {
 	release := make(chan struct{})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	var logs bytes.Buffer
+	provider, logs := newMemoryLogs(slog.LevelInfo)
 	done := make(chan error, 1)
 
 	go func() {
 		done <- kernel.Serve(ctx, listenBuf(), server, healthServer, []string{serveTestService},
-			func(context.Context) error { <-release; return nil }, slog.New(slog.NewJSONHandler(&logs, nil)))
+			func(context.Context) error { <-release; return nil }, provider)
 	}()
 
 	time.Sleep(20 * time.Millisecond)
@@ -80,8 +78,8 @@ func TestServeServesOnlyAfterReadyAndStopsServingOnShutdown(t *testing.T) {
 	if got := servingStatus(t, healthServer); got != healthpb.HealthCheckResponse_NOT_SERVING {
 		t.Fatalf("status after shutdown = %v, want NOT_SERVING", got)
 	}
-	if !strings.Contains(logs.String(), `"grpc listening"`) || !strings.Contains(logs.String(), `"addr"`) {
-		t.Fatalf("logs = %s, want the readiness line with the address", logs.String())
+	if addr := listeningAddr(logs); addr == "" {
+		t.Fatalf("logs = %v, want the readiness line with the address", logs.snapshot())
 	}
 }
 
@@ -93,7 +91,7 @@ func TestServeReturnsTheReadinessFailureWithoutServing(t *testing.T) {
 	unreachable := errors.New("database unreachable")
 
 	err = kernel.Serve(context.Background(), listenBuf(), server, healthServer, []string{serveTestService},
-		func(context.Context) error { return unreachable }, slog.New(slog.NewJSONHandler(&bytes.Buffer{}, nil)))
+		func(context.Context) error { return unreachable }, lognoop.NewLoggerProvider())
 
 	if !errors.Is(err, unreachable) {
 		t.Fatalf("Serve() = %v, want the readiness error", err)
@@ -108,32 +106,65 @@ func TestTheReadinessLineCarriesThePortTheListenerResolved(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Listen() = %v", err)
 	}
+	resolved := listener.Addr().(*net.TCPAddr).Port
 	server, healthServer, err := kernel.NewServer(kernel.ServerConfig{InsecureForDevelopmentOnly: true, Services: []string{serveTestService}})
 	if err != nil {
 		t.Fatalf("NewServer() = %v", err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	var logs bytes.Buffer
+	provider, exported := productionLogs(t)
 	done := make(chan error, 1)
 
 	go func() {
 		done <- kernel.Serve(ctx, func() (net.Listener, error) { return listener, nil }, server, healthServer, []string{serveTestService},
-			func(context.Context) error { return nil }, slog.New(slog.NewJSONHandler(&logs, nil)))
+			func(context.Context) error { return nil }, provider)
 	}()
 	eventually(t, healthServer, healthpb.HealthCheckResponse_SERVING)
 	cancel()
 	<-done
 
-	addr := ""
-	for _, line := range strings.Split(logs.String(), "\n") {
-		var record map[string]any
-		if json.Unmarshal([]byte(line), &record) == nil && record["msg"] == "grpc listening" {
-			addr, _ = record["addr"].(string)
-		}
+	attributes := exported("grpc listening")
+	if attributes["server.address"].AsString() != "127.0.0.1" || attributes["server.port"].AsInt64() != int64(resolved) {
+		t.Fatalf("grpc listening = %v, want server.address 127.0.0.1 and server.port %d past the processor: the address the listener resolved (RF-A3)", attributes, resolved)
 	}
-	_, port, err := net.SplitHostPort(addr)
-	if err != nil || port == "0" || port == "" {
-		t.Fatalf("addr = %q, want the address the listener resolved, not the configured one", addr)
+}
+
+func TestAnExpiredGraceIsLoggedUnderAPlatformKey(t *testing.T) {
+	const grace = 50 * time.Millisecond
+	defer kernel.SetShutdownGrace(grace)()
+	listener := bufconn.Listen(1 << 20)
+	server, healthServer, err := kernel.NewServer(kernel.ServerConfig{InsecureForDevelopmentOnly: true, Services: []string{serveTestService}})
+	if err != nil {
+		t.Fatalf("NewServer() = %v", err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	provider, exported := productionLogs(t)
+	done := make(chan error, 1)
+
+	go func() {
+		done <- kernel.Serve(ctx, func() (net.Listener, error) { return listener, nil }, server, healthServer, []string{serveTestService},
+			func(context.Context) error { return nil }, provider)
+	}()
+	eventually(t, healthServer, healthpb.HealthCheckResponse_SERVING)
+	watch, err := healthpb.NewHealthClient(connect(t, func(context.Context, string) (net.Conn, error) { return listener.Dial() })).
+		Watch(context.Background(), &healthpb.HealthCheckRequest{Service: serveTestService})
+	if err != nil {
+		t.Fatalf("Watch() = %v", err)
+	}
+	if _, err := watch.Recv(); err != nil {
+		t.Fatalf("Recv() = %v, want the stream that holds the graceful stop open", err)
+	}
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Serve() did not return after the grace expired")
+	}
+
+	attributes := exported("grpc shutdown grace expired")
+	if attributes["dmpf.shutdown.grace"].AsString() != grace.String() {
+		t.Fatalf("grpc shutdown grace expired = %v, want dmpf.shutdown.grace %s past the processor (RF-A3)", attributes, grace)
 	}
 }

@@ -116,7 +116,7 @@ quando não existe (`inicializa se ausente`); os demais o exigem existente.]
 
 - [ ] Os gates do workspace verdes para o módulo do contexto
   (`fmt-check`, `vet`, `build`, `lint`, `test-race`, `test-distributed`,
-  `dmpf-context-check.sh`, verificador com `--base`).
+  `dmpf-context-check.sh`, verificador).
 - [ ] [Um cenário por comando: o aceite e cada rejeição, no formato
   DADO / QUANDO / ENTÃO.]
 

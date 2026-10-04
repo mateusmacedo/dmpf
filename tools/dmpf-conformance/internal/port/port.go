@@ -42,10 +42,4 @@ type BaselineStore interface {
 	// O bool distingue ausência de erro: repositório sem baseline ainda não o
 	// adotou, e o que fazer com isso é decisão do domínio.
 	Baseline() (baseline.Document, bool, error)
-
-	// BaselineEm lê o baseline como ele estava no ref: é comparando o de antes
-	// com o de agora que se descobre o que mudou de classificação.
-	BaselineEm(ref string) (baseline.Document, bool, error)
-
-	CommitsQueTocaram(base string) ([]baseline.Commit, error)
 }

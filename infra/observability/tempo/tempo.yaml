@@ -25,6 +25,7 @@ storage:
       path: /var/tempo/blocks
 
 metrics_generator:
+  metrics_ingestion_time_range_slack: 2m
   storage:
     path: /var/tempo/generator/wal
     remote_write:

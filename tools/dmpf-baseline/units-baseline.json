@@ -1,6 +1,6 @@
 {
   "schema": "dmpf/units-baseline@1",
-  "digest": "sha256:1bd8907d9259a7d579526d5fd85c27528726244a7d39e337a6da81dee505cb83",
+  "digest": "sha256:7093d249b5ac678de8499df90d0e4965cc4ad87e491b3da9e58902ccf59a5780",
   "entries": [
     {
       "unit": "bff/app",
@@ -291,7 +291,6 @@
         "github.com/mateusmacedo/dmpf/libs/backend/go/observability/logging",
         "github.com/mateusmacedo/dmpf/libs/backend/go/observability/metrics",
         "github.com/mateusmacedo/dmpf/libs/backend/go/observability/otelboot",
-        "github.com/mateusmacedo/dmpf/libs/backend/go/observability/otelboot/otlp",
         "github.com/mateusmacedo/dmpf/libs/backend/go/observability/redact",
         "github.com/mateusmacedo/dmpf/libs/backend/go/observability/resilience",
         "github.com/mateusmacedo/dmpf/libs/backend/go/observability/retry",

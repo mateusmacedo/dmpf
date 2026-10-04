@@ -115,6 +115,15 @@ func TestValidateRefusesTheDeferMode(t *testing.T) {
 	}
 }
 
+func TestValidateRefusesAnUnknownDegradationMode(t *testing.T) {
+	sheet := resilience.Defaults("payments")
+	sheet.Degradation = resilience.Declare(resilience.Degradation("liquidar"))
+
+	if err := sheet.Validate(); !errors.Is(err, resilience.ErrBlankField) {
+		t.Fatalf("Validate() = %v, want ErrBlankField: RES-37 admits four modes", err)
+	}
+}
+
 func TestASkippedFieldSatisfiesTheSheet(t *testing.T) {
 	sheet := resilience.Defaults("payments")
 	sheet.Breaker = resilience.Skip[resilience.BreakerPolicy]("dependência sem histórico de falha em rajada")

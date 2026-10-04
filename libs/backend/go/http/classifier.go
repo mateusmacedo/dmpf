@@ -9,6 +9,8 @@ import (
 	"net"
 	"net/http"
 
+	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
+
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/retry"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/observe"
 )
@@ -43,9 +45,6 @@ func Classifier(err error) retry.Retryability {
 	return retry.NotRetryable
 }
 
-// categoryOf returns the bounded category under which a failure is recorded:
-// a platform category, the transient status, the context error or "network" —
-// never the message (TRC-12, MET-07).
 func categoryOf(err error) string {
 	if err == nil {
 		return observe.CategoryOK
@@ -54,19 +53,41 @@ func categoryOf(err error) string {
 	if errors.As(err, &categorized) {
 		return categorized.ErrorCategory()
 	}
-	var transient *RetryableStatusError
-	if errors.As(err, &transient) {
-		return fmt.Sprintf("status_%d", transient.Status)
-	}
 	switch {
 	case errors.Is(err, context.DeadlineExceeded):
-		return "deadline_exceeded"
+		return "DeadlineExceeded"
 	case errors.Is(err, context.Canceled):
-		return "cancelled"
+		return "Cancelled"
+	}
+	var transient *RetryableStatusError
+	if errors.As(err, &transient) {
+		return statusCategory(transient.Status)
 	}
 	var network net.Error
 	if errors.As(err, &network) {
-		return "network"
+		return categoryTransientDependency
 	}
-	return "unknown"
+	return semconv.ErrorTypeOther.Value.AsString()
+}
+
+const categoryTransientDependency = "TransientDependency"
+
+var fnd07Statuses = map[int]string{
+	http.StatusBadRequest:          "Validation",
+	http.StatusUnauthorized:        "Unauthenticated",
+	http.StatusForbidden:           "Forbidden",
+	http.StatusNotFound:            "NotFound",
+	http.StatusConflict:            "Conflict",
+	http.StatusUnprocessableEntity: "DomainRejection",
+	http.StatusTooManyRequests:     "RateLimited",
+}
+
+func statusCategory(status int) string {
+	if category, mapped := fnd07Statuses[status]; mapped {
+		return category
+	}
+	if status >= 500 && status <= 599 {
+		return categoryTransientDependency
+	}
+	return semconv.ErrorTypeOther.Value.AsString()
 }

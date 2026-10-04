@@ -112,41 +112,16 @@ func TestX001QuandoIDNaoENominal(t *testing.T) {
 	}
 }
 
-// O ramo de revisão substitui o prazo por aprovação dual; uma só autoridade
-// deixaria a equipe aprovar a própria dívida.
-func TestX001QuandoRevisaoNaoTemAprovacaoDual(t *testing.T) {
-	casos := map[string][]exception.Approver{
-		"sem nenhuma":      nil,
-		"só arquitetura":   {exception.ApproverArchitecture},
-		"só plataforma":    {exception.ApproverPlatform},
-		"outra autoridade": {exception.ApproverArchitecture, "financeiro"},
-	}
-	for nome, aprovadores := range casos {
-		t.Run(nome, func(t *testing.T) {
-			x := admissivel()
-			x.Convergence = exception.Convergence{
-				Kind:                exception.ConvergenceReview,
-				ReviewBy:            agora + 30*dia,
-				ApprovedBy:          aprovadores,
-				ReplanningCondition: "se o driver ganhar porta pura",
-				PresentKind:         true,
-			}
-			exigeCodigo(t, exception.Admit(x, agora), rule.CodeX001)
-		})
-	}
-}
-
-func TestRevisaoComAprovacaoDualEAdmitida(t *testing.T) {
+func TestRevisaoComDataECondicaoEAdmitida(t *testing.T) {
 	x := admissivel()
 	x.Convergence = exception.Convergence{
 		Kind:                exception.ConvergenceReview,
 		ReviewBy:            agora + 30*dia,
-		ApprovedBy:          []exception.Approver{exception.ApproverArchitecture, exception.ApproverPlatform},
 		ReplanningCondition: "se o driver ganhar porta pura",
 		PresentKind:         true,
 	}
 	if ds := exception.Admit(x, agora); len(ds) != 0 {
-		t.Fatalf("revisão com aprovação dual recusada por %v", codigos(ds))
+		t.Fatalf("revisão com data e condição recusada por %v", codigos(ds))
 	}
 }
 

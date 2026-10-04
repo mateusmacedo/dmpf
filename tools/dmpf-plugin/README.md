@@ -93,9 +93,14 @@ contexto preenche ao publicar o serviço). O binário fica em `cmd/main.go`
 `distkit/` nascem como unidades companion próprias no manifesto
 (`<ctx>/appkit`, `<ctx>/distkit`); o `appkit/pool.go` declara `Tables` e o banco
 de teste do projeto (KIT-05 e KIT-06). Nesse caso o `project.json` ganha cinco targets além
-dos seis de sempre: `serve-api` (`go run ./cmd --role api`), `serve-relay`
-(`go run ./cmd --role relay`), `docker:run-relay` (a imagem com `--role relay`,
-depois do `docker:run` inferido, que roda o papel `api`), `test-distributed`
+dos seis de sempre: `serve-api` e `serve-relay` (`go run ./cmd --role <papel>`
+depois de carregar o `deploy/.env`, com `service.instance.id=<ctx>-local-<papel>`
+e `dmpf.process.role=<papel>` acrescentados ao fim do `OTEL_RESOURCE_ATTRIBUTES`,
+sem vírgula inicial quando ele vem vazio, e a chave repetida fica com o último
+valor), `docker:run-relay` (depois do `docker:run` inferido, que roda o papel
+`api` com a instância declarada no `deploy/.env`, roda a imagem com
+`--role relay` e passa o mesmo acréscimo por `-e`, que prevalece sobre o
+`--env-file deploy/.env`), `test-distributed`
 (`./distkit/...` sob as build tags `integration,distributed`, depois do
 `test-race` de `postgres`, de `app` e do próprio projeto, que usa o mesmo banco
 de teste) e `nx-release-publish` como `nx:noop`. Sem o bloco `app`, nenhum
@@ -113,9 +118,8 @@ idênticos: os templates saem no formato final e `formatFiles` não é chamado.
 
 ## Depois de gerar: classificar
 
-A saída termina com a instrução do baseline. Unidades novas são ato de
-classificação (AUT-01), então o baseline do verificador é regravado em commit
-próprio, separado do código:
+A saída termina com a instrução do baseline. Unidades novas mudam a
+classificação, então o baseline do verificador é regravado:
 
 ```bash
 go run ./tools/dmpf-conformance/cmd/conformance --root . --write-baseline

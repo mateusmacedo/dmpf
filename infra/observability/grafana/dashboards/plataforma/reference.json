@@ -1,0 +1,1739 @@
+{
+  "uid": "reference",
+  "title": "DMPF · Serviço (API, relay, consumer)",
+  "description": "Um serviço por vez, separável por papel e instância: borda, caso de uso, saídas, consumo, pool de banco, resiliência, runtime e os logs OTLP correlacionados por trace_id.",
+  "tags": ["dmpf", "plataforma", "kernel"],
+  "timezone": "browser",
+  "editable": true,
+  "graphTooltip": 1,
+  "schemaVersion": 39,
+  "refresh": "30s",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "links": [
+    {
+      "title": "Dashboards DMPF",
+      "type": "dashboards",
+      "tags": ["dmpf"],
+      "asDropdown": true,
+      "keepTime": true,
+      "includeVars": true
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "service",
+        "label": "Serviço",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": "label_values(target_info{service_name!=\"\"}, service_name)",
+        "refresh": 2,
+        "includeAll": true,
+        "multi": true,
+        "sort": 1,
+        "allValue": ".+",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
+      },
+      {
+        "name": "role",
+        "label": "Papel",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": "label_values(target_info{service_name=~\"$service\"}, dmpf_process_role)",
+        "refresh": 2,
+        "includeAll": true,
+        "multi": true,
+        "sort": 1,
+        "allValue": ".+",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
+      },
+      {
+        "name": "instance",
+        "label": "Instância",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": "label_values(target_info{service_name=~\"$service\", dmpf_process_role=~\"$role\"}, instance)",
+        "refresh": 2,
+        "includeAll": true,
+        "multi": true,
+        "sort": 1,
+        "allValue": ".+",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
+      },
+      {
+        "name": "operation",
+        "label": "Operação",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": "label_values(dmpf_operation_duration_seconds_count{service_name=~\"$service\", dmpf_process_role=~\"$role\", instance=~\"$instance\"}, dmpf_operation)",
+        "refresh": 2,
+        "includeAll": true,
+        "multi": true,
+        "sort": 1,
+        "allValue": ".+",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
+      },
+      {
+        "name": "level",
+        "label": "Nível",
+        "type": "custom",
+        "query": "debug,info,warn,error",
+        "includeAll": true,
+        "multi": true,
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
+      }
+    ]
+  },
+  "annotations": {
+    "list": []
+  },
+  "panels": [
+    {
+      "type": "row",
+      "id": 1,
+      "title": "Borda",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Borda HTTP: vazão por rota e status",
+      "description": "MET-09: _count de http.server.request.duration do otelhttp (só o BFF tem borda HTTP).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (http_request_method, http_route, http_response_status_code) (rate(http_server_request_duration_seconds_count{service_name=~\"$service\", dmpf_process_role=~\"$role\", instance=~\"$instance\"}[$__rate_interval]))",
+          "legendFormat": "{{http_request_method}} {{http_route}} · {{http_response_status_code}}",
+          "refId": "A"
+        }
+      ],
+      "interval": "2m",
+      "id": 2,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 1
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Borda gRPC: vazão por método e status",
+      "description": "MET-09: _count de rpc.server.call.duration do otelgrpc.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (rpc_method, rpc_response_status_code) (rate(rpc_server_call_duration_seconds_count{service_name=~\"$service\", dmpf_process_role=~\"$role\", instance=~\"$instance\"}[$__rate_interval]))",
+          "legendFormat": "{{rpc_method}} · {{rpc_response_status_code}}",
+          "refId": "A"
+        }
+      ],
+      "interval": "2m",
+      "id": 3,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 1
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Borda: latência p95 por rota e método",
+      "description": "MET-08: percentil 95 da borda HTTP e gRPC, em segundos.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.95, sum by (le, http_request_method, http_route) (rate(http_server_request_duration_seconds_bucket{service_name=~\"$service\", dmpf_process_role=~\"$role\", instance=~\"$instance\"}[$__rate_interval])))",
+          "legendFormat": "{{http_request_method}} {{http_route}}",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.95, sum by (le, rpc_method) (rate(rpc_server_call_duration_seconds_bucket{service_name=~\"$service\", dmpf_process_role=~\"$role\", instance=~\"$instance\"}[$__rate_interval])))",
+          "legendFormat": "{{rpc_method}}",
+          "refId": "B"
+        }
+      ],
+      "interval": "2m",
+      "id": 4,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 9
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Borda HTTP: tamanho do corpo p95",
+      "description": "http.server.request.body.size e response.body.size do otelhttp.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.95, sum by (le, http_route) (rate(http_server_request_body_size_bytes_bucket{service_name=~\"$service\", dmpf_process_role=~\"$role\", instance=~\"$instance\"}[$__rate_interval])))",
+          "legendFormat": "requisição {{http_route}}",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.95, sum by (le, http_route) (rate(http_server_response_body_size_bytes_bucket{service_name=~\"$service\", dmpf_process_role=~\"$role\", instance=~\"$instance\"}[$__rate_interval])))",
+          "legendFormat": "resposta {{http_route}}",
+          "refId": "B"
+        }
+      ],
+      "interval": "2m",
+      "id": 5,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 9
+      }
+    },
+    {
+      "type": "row",
+      "id": 6,
+      "title": "Caso de uso",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 17
+      },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Vazão por operação e desfecho",
+      "description": "MET-09: _count de dmpf.operation.duration por dmpf.outcome_category.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "links": [
+            {
+              "title": "Traces deste caso de uso",
+              "url": "",
+              "internal": {
+                "datasourceUid": "tempo",
+                "datasourceName": "Tempo",
+                "query": {
+                  "queryType": "traceql",
+                  "query": "{resource.service.name=\"${__field.labels.service_name}\" && name=\"dmpf.usecase.${__field.labels.dmpf_operation}\"}"
+                }
+              }
+            }
+          ],
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (service_name, dmpf_operation, dmpf_outcome_category) (rate(dmpf_operation_duration_seconds_count{service_name=~\"$service\", dmpf_process_role=~\"$role\", instance=~\"$instance\", dmpf_operation=~\"$operation\"}[$__rate_interval]))",
+          "legendFormat": "{{dmpf_operation}} · {{dmpf_outcome_category}}",
+          "refId": "A"
+        }
+      ],
+      "interval": "2m",
+      "id": 7,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 18
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Falha técnica por operação e categoria (eventos na janela)",
+      "description": "MET-10: só failed leva error.type; conta a série que nasce na janela. NotFound em FindReservation é o polling de convergência.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "0",
+          "links": [
+            {
+              "title": "Traces deste caso de uso",
+              "url": "",
+              "internal": {
+                "datasourceUid": "tempo",
+                "datasourceName": "Tempo",
+                "query": {
+                  "queryType": "traceql",
+                  "query": "{resource.service.name=\"${__field.labels.service_name}\" && name=\"dmpf.usecase.${__field.labels.dmpf_operation}\"}"
+                }
+              }
+            }
+          ],
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (service_name, dmpf_operation, error_type) ((increase(dmpf_operation_duration_seconds_count{service_name=~\"$service\", dmpf_process_role=~\"$role\", instance=~\"$instance\", dmpf_operation=~\"$operation\", dmpf_outcome_category=\"failed\"}[$__rate_interval]) or dmpf_operation_duration_seconds_count{service_name=~\"$service\", dmpf_process_role=~\"$role\", instance=~\"$instance\", dmpf_operation=~\"$operation\", dmpf_outcome_category=\"failed\"} * 0) + ((dmpf_operation_duration_seconds_count{service_name=~\"$service\", dmpf_process_role=~\"$role\", instance=~\"$instance\", dmpf_operation=~\"$operation\", dmpf_outcome_category=\"failed\"} unless dmpf_operation_duration_seconds_count{service_name=~\"$service\", dmpf_process_role=~\"$role\", instance=~\"$instance\", dmpf_operation=~\"$operation\", dmpf_outcome_category=\"failed\"} offset $__rate_interval) or dmpf_operation_duration_seconds_count{service_name=~\"$service\", dmpf_process_role=~\"$role\", instance=~\"$instance\", dmpf_operation=~\"$operation\", dmpf_outcome_category=\"failed\"} * 0))",
+          "legendFormat": "{{dmpf_operation}} {{error_type}}",
+          "refId": "A"
+        }
+      ],
+      "interval": "2m",
+      "id": 8,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 18
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Recusas e negações por operação (eventos na janela)",
+      "description": "DEC-04: recusa (rejected) e negação (denied) não são falha. Eventos na janela móvel, contando a série que nasce no meio dela.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "0",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (dmpf_operation, dmpf_outcome_category) ((increase(dmpf_operation_duration_seconds_count{service_name=~\"$service\", dmpf_process_role=~\"$role\", instance=~\"$instance\", dmpf_operation=~\"$operation\", dmpf_outcome_category=~\"rejected|denied\"}[$__rate_interval]) or dmpf_operation_duration_seconds_count{service_name=~\"$service\", dmpf_process_role=~\"$role\", instance=~\"$instance\", dmpf_operation=~\"$operation\", dmpf_outcome_category=~\"rejected|denied\"} * 0) + ((dmpf_operation_duration_seconds_count{service_name=~\"$service\", dmpf_process_role=~\"$role\", instance=~\"$instance\", dmpf_operation=~\"$operation\", dmpf_outcome_category=~\"rejected|denied\"} unless dmpf_operation_duration_seconds_count{service_name=~\"$service\", dmpf_process_role=~\"$role\", instance=~\"$instance\", dmpf_operation=~\"$operation\", dmpf_outcome_category=~\"rejected|denied\"} offset $__rate_interval) or dmpf_operation_duration_seconds_count{service_name=~\"$service\", dmpf_process_role=~\"$role\", instance=~\"$instance\", dmpf_operation=~\"$operation\", dmpf_outcome_category=~\"rejected|denied\"} * 0))",
+          "legendFormat": "{{dmpf_operation}} · {{dmpf_outcome_category}}",
+          "refId": "A"
+        }
+      ],
+      "interval": "2m",
+      "id": 9,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 26
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Falha técnica na janela do painel",
+      "description": "Falhas sobre o total no intervalo escolhido, contando as séries que nasceram nele. Inclui o NotFound do polling de convergência.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "noValue": "0"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum ((increase(dmpf_operation_duration_seconds_count{service_name=~\"$service\", dmpf_process_role=~\"$role\", instance=~\"$instance\", dmpf_operation=~\"$operation\", dmpf_outcome_category=\"failed\"}[$__range]) or dmpf_operation_duration_seconds_count{service_name=~\"$service\", dmpf_process_role=~\"$role\", instance=~\"$instance\", dmpf_operation=~\"$operation\", dmpf_outcome_category=\"failed\"} * 0) + ((dmpf_operation_duration_seconds_count{service_name=~\"$service\", dmpf_process_role=~\"$role\", instance=~\"$instance\", dmpf_operation=~\"$operation\", dmpf_outcome_category=\"failed\"} unless dmpf_operation_duration_seconds_count{service_name=~\"$service\", dmpf_process_role=~\"$role\", instance=~\"$instance\", dmpf_operation=~\"$operation\", dmpf_outcome_category=\"failed\"} offset $__range) or dmpf_operation_duration_seconds_count{service_name=~\"$service\", dmpf_process_role=~\"$role\", instance=~\"$instance\", dmpf_operation=~\"$operation\", dmpf_outcome_category=\"failed\"} * 0)) / clamp_min(sum ((increase(dmpf_operation_duration_seconds_count{service_name=~\"$service\", dmpf_process_role=~\"$role\", instance=~\"$instance\", dmpf_operation=~\"$operation\"}[$__range]) or dmpf_operation_duration_seconds_count{service_name=~\"$service\", dmpf_process_role=~\"$role\", instance=~\"$instance\", dmpf_operation=~\"$operation\"} * 0) + ((dmpf_operation_duration_seconds_count{service_name=~\"$service\", dmpf_process_role=~\"$role\", instance=~\"$instance\", dmpf_operation=~\"$operation\"} unless dmpf_operation_duration_seconds_count{service_name=~\"$service\", dmpf_process_role=~\"$role\", instance=~\"$instance\", dmpf_operation=~\"$operation\"} offset $__range) or dmpf_operation_duration_seconds_count{service_name=~\"$service\", dmpf_process_role=~\"$role\", instance=~\"$instance\", dmpf_operation=~\"$operation\"} * 0)), 1)",
+          "legendFormat": "falha técnica",
+          "refId": "A"
+        }
+      ],
+      "id": 10,
+      "gridPos": {
+        "h": 8,
+        "w": 4,
+        "x": 8,
+        "y": 26
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Latência por operação (p95, p99)",
+      "description": "MET-08: dmpf.operation.duration, em segundos.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.95, sum by (le, dmpf_operation) (rate(dmpf_operation_duration_seconds_bucket{service_name=~\"$service\", dmpf_process_role=~\"$role\", instance=~\"$instance\", dmpf_operation=~\"$operation\"}[$__rate_interval])))",
+          "legendFormat": "p95 {{dmpf_operation}}",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.99, sum by (le, dmpf_operation) (rate(dmpf_operation_duration_seconds_bucket{service_name=~\"$service\", dmpf_process_role=~\"$role\", instance=~\"$instance\", dmpf_operation=~\"$operation\"}[$__rate_interval])))",
+          "legendFormat": "p99 {{dmpf_operation}}",
+          "refId": "B"
+        }
+      ],
+      "interval": "2m",
+      "id": 11,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 26
+      }
+    },
+    {
+      "type": "row",
+      "id": 12,
+      "title": "Saídas",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 34
+      },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "gRPC cliente: vazão por método e status",
+      "description": "rpc.client.call.duration do otelgrpc (BFF → contextos).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (rpc_method, rpc_response_status_code) (rate(rpc_client_call_duration_seconds_count{service_name=~\"$service\", dmpf_process_role=~\"$role\", instance=~\"$instance\"}[$__rate_interval]))",
+          "legendFormat": "{{rpc_method}} · {{rpc_response_status_code}}",
+          "refId": "A"
+        }
+      ],
+      "interval": "2m",
+      "id": 13,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 35
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "gRPC cliente: latência p95 por método",
+      "description": "Por tentativa, como o otelgrpc mede.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.95, sum by (le, rpc_method) (rate(rpc_client_call_duration_seconds_bucket{service_name=~\"$service\", dmpf_process_role=~\"$role\", instance=~\"$instance\"}[$__rate_interval])))",
+          "legendFormat": "{{rpc_method}}",
+          "refId": "A"
+        }
+      ],
+      "interval": "2m",
+      "id": 14,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 35
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Mensagens enviadas por destino",
+      "description": "messaging.client.sent.messages do relay.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "mps",
+          "links": [
+            {
+              "title": "Fluxo assíncrono",
+              "url": "/d/dmpf-async?${__url_time_range}"
+            }
+          ],
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (messaging_destination_name) (rate(messaging_client_sent_messages_total{service_name=~\"$service\", dmpf_process_role=~\"$role\", instance=~\"$instance\"}[$__rate_interval]))",
+          "legendFormat": "{{messaging_destination_name}}",
+          "refId": "A"
+        }
+      ],
+      "interval": "2m",
+      "id": 15,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 43
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Envio p95 por destino",
+      "description": "messaging.client.operation.duration no send.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.95, sum by (le, messaging_destination_name) (rate(messaging_client_operation_duration_seconds_bucket{service_name=~\"$service\", dmpf_process_role=~\"$role\", instance=~\"$instance\"}[$__rate_interval])))",
+          "legendFormat": "{{messaging_destination_name}}",
+          "refId": "A"
+        }
+      ],
+      "interval": "2m",
+      "id": 16,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 43
+      }
+    },
+    {
+      "type": "row",
+      "id": 17,
+      "title": "Consumo",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 51
+      },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Mensagens processadas por destino e desfecho",
+      "description": "_count de messaging.process.duration.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "mps",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (messaging_destination_name, error_type) (rate(messaging_process_duration_seconds_count{service_name=~\"$service\", dmpf_process_role=~\"$role\", instance=~\"$instance\"}[$__rate_interval]))",
+          "legendFormat": "{{messaging_destination_name}} {{error_type}}",
+          "refId": "A"
+        }
+      ],
+      "interval": "2m",
+      "id": 18,
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 0,
+        "y": 52
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Processamento p95",
+      "description": "messaging.process.duration, em segundos.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.95, sum by (le, messaging_destination_name) (rate(messaging_process_duration_seconds_bucket{service_name=~\"$service\", dmpf_process_role=~\"$role\", instance=~\"$instance\"}[$__rate_interval])))",
+          "legendFormat": "{{messaging_destination_name}}",
+          "refId": "A"
+        }
+      ],
+      "interval": "2m",
+      "id": 19,
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 6,
+        "y": 52
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Ocupação do pool do consumer",
+      "description": "MET-11: dmpf.consumer.pool.utilization (1 = saturado).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (instance) (dmpf_consumer_pool_utilization_ratio{service_name=~\"$service\", dmpf_process_role=~\"$role\", instance=~\"$instance\"})",
+          "legendFormat": "{{instance}}",
+          "refId": "A"
+        }
+      ],
+      "id": 20,
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 12,
+        "y": 52
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Fila interna do consumer",
+      "description": "MET-11: dmpf.consumer.queue.depth, em mensagens.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (instance) (dmpf_consumer_queue_depth{service_name=~\"$service\", dmpf_process_role=~\"$role\", instance=~\"$instance\"})",
+          "legendFormat": "{{instance}}",
+          "refId": "A"
+        }
+      ],
+      "id": 21,
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 18,
+        "y": 52
+      }
+    },
+    {
+      "type": "row",
+      "id": 22,
+      "title": "Pool de banco",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 60
+      },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Conexões por instância e estado contra o máximo",
+      "description": "db.client.connection.count por estado e db.client.connection.max (tracejado), por processo (RF-D6).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "B"
+            },
+            "properties": [
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [10, 10]
+                }
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 0
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (instance, db_client_connection_state) (db_client_connection_count{service_name=~\"$service\", dmpf_process_role=~\"$role\", instance=~\"$instance\"})",
+          "legendFormat": "{{instance}} {{db_client_connection_state}}",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (instance) (db_client_connection_max{service_name=~\"$service\", dmpf_process_role=~\"$role\", instance=~\"$instance\"})",
+          "legendFormat": "{{instance}} máximo",
+          "refId": "B"
+        }
+      ],
+      "id": 23,
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 0,
+        "y": 61
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Espera por conexão (p95)",
+      "description": "db.client.connection.wait_time, só na aquisição concluída (RF-D6).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.95, sum by (le, instance) (rate(db_client_connection_wait_time_seconds_bucket{service_name=~\"$service\", dmpf_process_role=~\"$role\", instance=~\"$instance\"}[$__rate_interval])))",
+          "legendFormat": "{{instance}}",
+          "refId": "A"
+        }
+      ],
+      "interval": "2m",
+      "id": 24,
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 6,
+        "y": 61
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Aquisições canceladas",
+      "description": "db.client.connection.timeouts: inclui o cancelamento pelo chamador (RF-D6).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "noValue": "0",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (instance) (rate(db_client_connection_timeouts_total{service_name=~\"$service\", dmpf_process_role=~\"$role\", instance=~\"$instance\"}[$__rate_interval]))",
+          "legendFormat": "{{instance}}",
+          "refId": "A"
+        }
+      ],
+      "interval": "2m",
+      "id": 25,
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 12,
+        "y": 61
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Aquisições à espera",
+      "description": "db.client.connection.pending_requests.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (instance) (db_client_connection_pending_requests{service_name=~\"$service\", dmpf_process_role=~\"$role\", instance=~\"$instance\"})",
+          "legendFormat": "{{instance}}",
+          "refId": "A"
+        }
+      ],
+      "id": 26,
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 18,
+        "y": 61
+      }
+    },
+    {
+      "type": "row",
+      "id": 27,
+      "title": "Resiliência e admissão",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 69
+      },
+      "panels": []
+    },
+    {
+      "type": "state-timeline",
+      "title": "Breaker por dependência",
+      "description": "MET-28: 0 fechado, 1 meio-aberto, 2 aberto.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "fechado",
+                  "color": "green",
+                  "index": 0
+                },
+                "1": {
+                  "text": "meio-aberto",
+                  "color": "yellow",
+                  "index": 1
+                },
+                "2": {
+                  "text": "aberto",
+                  "color": "red",
+                  "index": 2
+                }
+              }
+            }
+          ],
+          "custom": {
+            "fillOpacity": 80
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showValue": "auto",
+        "mergeValues": true,
+        "legend": {
+          "showLegend": false
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (instance, dmpf_dependency) (dmpf_dependency_breaker_state{service_name=~\"$service\", dmpf_process_role=~\"$role\", instance=~\"$instance\"})",
+          "legendFormat": "{{instance}} → {{dmpf_dependency}}",
+          "refId": "A"
+        }
+      ],
+      "id": 28,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 70
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Retentativas (eventos na janela)",
+      "description": "MET-28: dmpf.dependency.retries por dependência e categoria, contando a série que nasce na janela.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "0",
+          "links": [
+            {
+              "title": "Resiliência",
+              "url": "/d/dmpf-resilience?${__url_time_range}"
+            }
+          ],
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (dmpf_dependency, error_type) ((increase(dmpf_dependency_retries_total{service_name=~\"$service\", dmpf_process_role=~\"$role\", instance=~\"$instance\"}[$__rate_interval]) or dmpf_dependency_retries_total{service_name=~\"$service\", dmpf_process_role=~\"$role\", instance=~\"$instance\"} * 0) + ((dmpf_dependency_retries_total{service_name=~\"$service\", dmpf_process_role=~\"$role\", instance=~\"$instance\"} unless dmpf_dependency_retries_total{service_name=~\"$service\", dmpf_process_role=~\"$role\", instance=~\"$instance\"} offset $__rate_interval) or dmpf_dependency_retries_total{service_name=~\"$service\", dmpf_process_role=~\"$role\", instance=~\"$instance\"} * 0))",
+          "legendFormat": "{{dmpf_dependency}} {{error_type}}",
+          "refId": "A"
+        }
+      ],
+      "interval": "2m",
+      "id": 29,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 70
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Recusas de admissão (eventos na janela)",
+      "description": "MET-12: por rota HTTP, método gRPC e tenant da allowlist (MET-07), contando a série que nasce na janela.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "0",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (http_route, rpc_method, dmpf_tenant_id) ((increase(dmpf_admission_rejections_total{service_name=~\"$service\", dmpf_process_role=~\"$role\", instance=~\"$instance\"}[$__rate_interval]) or dmpf_admission_rejections_total{service_name=~\"$service\", dmpf_process_role=~\"$role\", instance=~\"$instance\"} * 0) + ((dmpf_admission_rejections_total{service_name=~\"$service\", dmpf_process_role=~\"$role\", instance=~\"$instance\"} unless dmpf_admission_rejections_total{service_name=~\"$service\", dmpf_process_role=~\"$role\", instance=~\"$instance\"} offset $__rate_interval) or dmpf_admission_rejections_total{service_name=~\"$service\", dmpf_process_role=~\"$role\", instance=~\"$instance\"} * 0))",
+          "legendFormat": "{{http_route}}{{rpc_method}} {{dmpf_tenant_id}}",
+          "refId": "A"
+        }
+      ],
+      "interval": "2m",
+      "id": 30,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 70
+      }
+    },
+    {
+      "type": "row",
+      "id": 31,
+      "title": "Runtime",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 78
+      },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Goroutines",
+      "description": "go.goroutine.count (RF-D5).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "links": [
+            {
+              "title": "Runtime",
+              "url": "/d/dmpf-runtime?${__url_time_range}"
+            }
+          ],
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (instance) (go_goroutine_count{service_name=~\"$service\", dmpf_process_role=~\"$role\", instance=~\"$instance\"})",
+          "legendFormat": "{{instance}}",
+          "refId": "A"
+        }
+      ],
+      "id": 32,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 79
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Memória usada e limite",
+      "description": "go.memory.used contra go.memory.limit (tracejado, só com GOMEMLIMIT).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "B"
+            },
+            "properties": [
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [10, 10]
+                }
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 0
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (instance) (go_memory_used_bytes{service_name=~\"$service\", dmpf_process_role=~\"$role\", instance=~\"$instance\"})",
+          "legendFormat": "{{instance}} usada",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (instance) (go_memory_limit_bytes{service_name=~\"$service\", dmpf_process_role=~\"$role\", instance=~\"$instance\"})",
+          "legendFormat": "{{instance}} limite",
+          "refId": "B"
+        }
+      ],
+      "id": 33,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 79
+      }
+    },
+    {
+      "type": "row",
+      "id": 34,
+      "title": "Traces e logs",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 87
+      },
+      "panels": []
+    },
+    {
+      "type": "table",
+      "title": "Traces recentes",
+      "description": "Clique num trace para abrir a linha do tempo; dela se chega aos logs pelo trace_id.",
+      "datasource": {
+        "type": "tempo",
+        "uid": "tempo"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 88
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "tempo",
+            "uid": "tempo"
+          },
+          "queryType": "traceqlSearch",
+          "limit": 20,
+          "filters": [
+            {
+              "id": "service-name",
+              "tag": "service.name",
+              "operator": "=~",
+              "scope": "resource",
+              "value": ["$service"],
+              "valueType": "string"
+            }
+          ],
+          "query": "{resource.service.name=~\"$service\"}"
+        }
+      ],
+      "id": 35
+    },
+    {
+      "type": "logs",
+      "title": "Logs do serviço",
+      "description": "Registros OTLP do serviço como o Loki os guarda: corpo como linha, nível em detected_level e trace_id em structured metadata. A trilha de auditoria fica de fora pelo scope_name (RF-A7).",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 97
+      },
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "sortOrder": "Descending",
+        "enableLogDetails": true
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "{service_name=~\"$service\"} | scope_name != \"github.com/mateusmacedo/dmpf/libs/backend/go/observability/audit\" | detected_level=~\"$level\"",
+          "queryType": "range"
+        }
+      ],
+      "id": 36
+    }
+  ]
+}

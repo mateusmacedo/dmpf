@@ -2,11 +2,13 @@ package grpc_test
 
 import (
 	"context"
+	"fmt"
 	"regexp"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
-	"go.opentelemetry.io/otel/trace/noop"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -32,7 +34,7 @@ func chainOf(t *testing.T, limit admission.Limit) grpc.UnaryServerInterceptor {
 	if err != nil {
 		t.Fatalf("admission.New() = %v", err)
 	}
-	chain := kernel.ServerInterceptors(chainService, noop.NewTracerProvider().Tracer("chain-test"), ctrl, nil, nil)
+	chain := kernel.ServerInterceptors(chainService, ctrl, nil, nil)
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		next := handler
 		for i := len(chain) - 1; i >= 0; i-- {
@@ -156,5 +158,82 @@ func TestMethodLimitsDeclaresEveryMethodOfTheService(t *testing.T) {
 	}
 	if len(limits) != 2 {
 		t.Errorf("limits = %v, want exactly the two methods", limits)
+	}
+}
+
+func TestTheChainCarriesThePropagatedTracestateIntoTheMessageContext(t *testing.T) {
+	const (
+		traceparent = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01"
+		tracestate  = "congo=t61rcWkgMzE,rojo=00f067aa0ba902b7"
+	)
+	cases := []struct {
+		name  string
+		pairs []string
+		want  string
+	}{
+		{name: "propagated", pairs: []string{"traceparent", traceparent, "tracestate", tracestate}, want: tracestate},
+		{name: "absent", pairs: []string{"traceparent", traceparent}, want: ""},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			var got ports.MessageContext
+			p := serveProbe(t, func(ctx context.Context) error {
+				got, _ = ports.MessageContextFrom(ctx)
+				return nil
+			})
+			if err := p.call(t, c.pairs...); err != nil {
+				t.Fatalf("call = %v", err)
+			}
+			if got.Tracestate != c.want {
+				t.Fatalf("Tracestate = %q, want %q (W3C tracestate of the active span)", got.Tracestate, c.want)
+			}
+		})
+	}
+}
+
+func tracestateOf(values ...int) string {
+	members := make([]string, len(values))
+	for i, n := range values {
+		members[i] = fmt.Sprintf("k%d=%s", i, strings.Repeat("x", n))
+	}
+	return strings.Join(members, ",")
+}
+
+func TestTheChainDropsATracestateLongerThanTheW3CFloorFromTheMessageContext(t *testing.T) {
+	const traceparent = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01"
+	cases := []struct {
+		name       string
+		tracestate string
+		length     int
+		want       bool
+	}{
+		{name: "32 members of the probe", tracestate: tracestateOf(slices.Repeat([]int{211}, 32)...), length: 6901, want: false},
+		{name: "at the floor", tracestate: tracestateOf(250, 250, 1), length: 512, want: true},
+		{name: "one byte past the floor", tracestate: tracestateOf(250, 250, 2), length: 513, want: false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if len(c.tracestate) != c.length {
+				t.Fatalf("len(tracestate) = %d, want %d", len(c.tracestate), c.length)
+			}
+			var got ports.MessageContext
+			p := serveProbe(t, func(ctx context.Context) error {
+				got, _ = ports.MessageContextFrom(ctx)
+				return nil
+			})
+			if err := p.call(t, "traceparent", traceparent, "tracestate", c.tracestate); err != nil {
+				t.Fatalf("call = %v", err)
+			}
+			want := ""
+			if c.want {
+				want = c.tracestate
+			}
+			if got.Tracestate != want {
+				t.Fatalf("Tracestate of %d bytes = %d bytes, want %d: past the 512 of W3C Trace Context §3.3.1.5 it is dropped whole, never cut inside a member", len(c.tracestate), len(got.Tracestate), len(want))
+			}
+			if got.Traceparent == "" {
+				t.Fatal("Traceparent = \"\", want it kept: only the tracestate is bounded")
+			}
+		})
 	}
 }

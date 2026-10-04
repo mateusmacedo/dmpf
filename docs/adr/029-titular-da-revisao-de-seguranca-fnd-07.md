@@ -4,6 +4,8 @@
 
 Aceito — 2026-08-30. Implementa SPEC-DK8QQSDQ.
 
+**Parcialmente supersedido pelo [ADR-058](./058-projeto-solo-sem-controles-de-segunda-pessoa.md) (2026-10-04)**: cai a re-revisão de §7 e §8 por titular independente da autoria.
+
 ## Contexto
 
 O artefato `docs/dmpf/contexto-erros-seguranca.md` (FND-07) foi promovido em

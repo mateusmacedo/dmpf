@@ -122,7 +122,11 @@ func (h Harness) Start(t testing.TB, role Role) *Process {
 		"KAFKA_ORDERS_DLQ="+h.DLQ,
 		"KAFKA_GROUP="+h.Group,
 		"KAFKA_INSECURE=true",
-		"SERVICE=orders-distkit",
+		"OTEL_SERVICE_NAME=orders-distkit",
+		"OTEL_RESOURCE_ATTRIBUTES=service.version=distkit,service.instance.id=orders-distkit-"+string(role),
+		"OTEL_TRACES_EXPORTER=none",
+		"OTEL_METRICS_EXPORTER=none",
+		"OTEL_LOGS_EXPORTER=none",
 		EnvBrokers+"="+strings.Join(h.Brokers, ","),
 		pg.PostgresDSN+"="+pg.DSN(t, appkit.PoolOptions.Project),
 	)

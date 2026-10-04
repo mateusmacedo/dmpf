@@ -239,3 +239,50 @@ func TestAssembleRejectsAMalformedTenant(t *testing.T) {
 		})
 	}
 }
+
+func TestAssembleCarriesTheTracestateOntoTheEnvelope(t *testing.T) {
+	t.Parallel()
+
+	const tracestate = "congo=t61rcWkgMzE,rojo=00f067aa0ba902b7"
+	record := publishableRecord(t)
+	record.Metadata = []byte(`{"correlationid":"corr-1","causationid":"caus-1","traceparent":"tp","tracestate":"` + tracestate + `"}`)
+
+	env, err := Assemble(record, testSource)
+	if err != nil {
+		t.Fatalf("Assemble() = %v, want nil", err)
+	}
+	if env.TraceState == nil || *env.TraceState != tracestate {
+		t.Fatalf("TraceState = %v, want a pointer to %q", env.TraceState, tracestate)
+	}
+}
+
+func TestAssembleLeavesTheTracestateNilWhenNoneWasWritten(t *testing.T) {
+	t.Parallel()
+
+	env, err := Assemble(publishableRecord(t), testSource)
+	if err != nil {
+		t.Fatalf("Assemble() = %v, want nil", err)
+	}
+	if env.TraceState != nil {
+		t.Fatalf("TraceState = %q, want nil: no tracestate was written", *env.TraceState)
+	}
+}
+
+func TestAssembleDropsAMalformedTracestateAndStillPublishes(t *testing.T) {
+	t.Parallel()
+
+	for _, malformed := range []string{`"tracestate":1`, `"tracestate":""`, `"tracestate":{}`} {
+		t.Run(malformed, func(t *testing.T) {
+			record := publishableRecord(t)
+			record.Metadata = []byte(`{"correlationid":"corr-1","causationid":"caus-1","traceparent":"tp",` + malformed + `}`)
+
+			assembled, err := Assemble(record, testSource)
+			if err != nil {
+				t.Fatalf("Assemble() = %v, want nil: telemetry never fails the drain (RF-B7)", err)
+			}
+			if assembled.TraceState != nil {
+				t.Fatalf("TraceState = %q, want nil for an unreadable tracestate", *assembled.TraceState)
+			}
+		})
+	}
+}

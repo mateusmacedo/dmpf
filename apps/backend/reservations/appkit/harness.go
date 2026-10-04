@@ -74,7 +74,7 @@ func NewReservations(t testing.TB, clock ports.Clock, ids ports.IDGenerator) Har
 	service.Authorize = usecase.AllowAll[application.Operation]()
 	service.Idempotency = policy
 	return Harness{
-		Consumer: app.NewConsumer(pool, clock, ids, Wait, Timeout, MaxAttempts, Boundary),
+		Consumer: app.NewConsumer(pool, clock, ids, Wait, Timeout, MaxAttempts, Boundary, app.ConsumerTelemetry{}),
 		Service:  service,
 		Pool:     pool,
 	}

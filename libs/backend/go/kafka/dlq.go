@@ -5,10 +5,12 @@ package kafka
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
 	"github.com/twmb/franz-go/pkg/kgo"
+	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/contracts/envelope"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/resilience"
@@ -29,20 +31,27 @@ const (
 	HeaderAttempt     = attempt.Header
 )
 
-// HeaderValueLimit bounds the two header values that come from outside the
-// provider — the message id of the received envelope and the adapter's error —
-// so a hostile or broken value cannot inflate the dead letter.
+const keyContainmentReason = "dmpf.containment.reason"
+
+var fnd07Categories = map[string]struct{}{
+	"Validation": {}, "DomainRejection": {}, "NotFound": {}, "Conflict": {}, "Forbidden": {}, "Unauthenticated": {},
+	"TransientDependency": {}, "RateLimited": {}, "DeadlineExceeded": {}, "Cancelled": {}, "Unexpected": {},
+}
+
+// HeaderValueLimit bounds the message id of the received envelope, which comes
+// from outside the provider, so a hostile or broken value cannot inflate the
+// dead letter.
 const HeaderValueLimit = 1024
 
 // DLQ realizes ports.Containment over the channel's dead-letter topic
 // (KFK-12): the envelope goes byte for byte (TRP-13) with the diagnosis in
 // headers, and the caller advances the offset only after it returns (TRP-30).
 type DLQ struct {
-	cfg    Config
 	ch     channel.Channel
 	client client
 	call   resilience.Call
 	op     resilience.Operation
+	logs   *slog.Logger
 }
 
 var _ ports.Containment = (*DLQ)(nil)
@@ -71,12 +80,12 @@ func newDLQ(cfg Config, ch channel.Channel, cl client) (*DLQ, error) {
 	if ch.Transport != channel.Kafka {
 		return nil, fmt.Errorf("%w: %s", ErrNotKafkaChannel, ch.Name)
 	}
-	cc := composition(cfg, "quarantine")
+	cc := composition(cfg)
 	call, err := compose.Build(cc)
 	if err != nil {
 		return nil, err
 	}
-	return &DLQ{cfg: cfg, ch: ch, client: cl, call: call, op: compose.Operation(cc, "quarantine "+ch.Name, true)}, nil
+	return &DLQ{ch: ch, client: cl, call: call, op: compose.Operation(cc, "quarantine "+ch.Name, true), logs: cfg.logger()}, nil
 }
 
 // Quarantine publishes the contained envelope, intact, to the dead-letter
@@ -98,16 +107,32 @@ func (d *DLQ) Quarantine(ctx context.Context, c ports.Contained) error {
 		{Key: HeaderContainedAt, Value: []byte(time.Unix(0, int64(c.At)).UTC().Format(time.RFC3339Nano))},
 	}
 	if c.Error != "" {
-		headers = append(headers, kgo.RecordHeader{Key: HeaderError, Value: []byte(bounded(c.Error))})
+		headers = append(headers, kgo.RecordHeader{Key: HeaderError, Value: []byte(categoryOfText(c.Error))})
 	}
 	if n, ok := attempt.FromContext(ctx); ok {
 		headers = append(headers, kgo.RecordHeader{Key: HeaderAttempt, Value: []byte(attempt.Encode(n))})
 	}
 	record := &kgo.Record{Topic: d.ch.Containment, Key: key, Value: c.Envelope, Headers: headers}
 
-	return d.call(ctx, d.op, func(ctx context.Context) error {
+	err := d.call(ctx, d.op, func(ctx context.Context) error {
 		return d.client.ProduceSync(ctx, record).FirstErr()
 	})
+	if err != nil {
+		return err
+	}
+	attributes := []slog.Attr{slog.String(keyContainmentReason, string(c.Reason))}
+	if c.MessageID != "" {
+		attributes = append(attributes, slog.String(string(semconv.MessagingMessageIDKey), bounded(string(c.MessageID))))
+	}
+	d.logs.LogAttrs(ctx, slog.LevelWarn, "message contained", attributes...)
+	return nil
+}
+
+func categoryOfText(text string) string {
+	if _, ok := fnd07Categories[text]; ok {
+		return text
+	}
+	return semconv.ErrorTypeOther.Value.AsString()
 }
 
 // bounded cuts a value at HeaderValueLimit bytes, on a rune boundary.

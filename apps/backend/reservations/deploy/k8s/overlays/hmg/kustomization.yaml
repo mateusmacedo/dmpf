@@ -15,3 +15,5 @@ replicas:
 patches:
   - path: configmap-reservations-patch.yaml
   - path: deployment-reservations-api-patch.yaml
+  - path: deployment-reservations-relay-patch.yaml
+  - path: deployment-reservations-consumer-patch.yaml

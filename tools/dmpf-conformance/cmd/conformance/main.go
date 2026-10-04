@@ -33,20 +33,18 @@ const (
 func main() {
 	raiz := flag.String("root", ".", "raiz do workspace")
 	perfis := flag.String("profiles", "", "caminho do build-profiles.json (default: <root>/tools/dmpf-conformance/build-profiles.json)")
-	base := flag.String("base", "", "ref base do intervalo em revisão, para avaliar o commit próprio de RFC §10.2")
 	agora := flag.String("now", "", "instante RFC3339 contra o qual as exceções vencem (default: relógio)")
 	regravar := flag.Bool("write-baseline", false, "regrava o baseline a partir da classificação declarada; NUNCA usar no gate")
 	flag.Parse()
 
 	os.Exit(run(opcoes{
-		raiz: *raiz, perfis: *perfis, base: *base, agora: *agora, regravar: *regravar,
+		raiz: *raiz, perfis: *perfis, agora: *agora, regravar: *regravar,
 	}, os.Stdout, os.Stderr))
 }
 
 type opcoes struct {
 	raiz     string
 	perfis   string
-	base     string
 	agora    string
 	regravar bool
 }
@@ -123,7 +121,6 @@ func verificar(o opcoes, now exception.Instant) (conformance.Report, error) {
 		Closure:   grafo.Closure,
 		Standard:  grafo.IsStandard,
 		Baseline:  fsstore.NewBaselineStore(abs),
-		Base:      o.base,
 		Now:       now,
 	})
 }

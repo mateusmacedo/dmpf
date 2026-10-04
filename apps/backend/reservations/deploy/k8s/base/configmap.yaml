@@ -6,7 +6,6 @@ kind: ConfigMap
 metadata:
   name: reservations
 data:
-  SERVICE: reservations
   GRPC_ADDR: ':9090'
   KAFKA_ORDERS_TOPIC: orders.events
   KAFKA_ORDERS_DLQ: orders.events.dlq
@@ -14,5 +13,12 @@ data:
   KAFKA_RESERVATIONS_DLQ: reservations.events.dlq
   KAFKA_GROUP: reservations
   KAFKA_INSECURE: 'false'
-  OTLP_ENDPOINT: otel-collector:4317
-  OTLP_INSECURE: 'false'
+  OTEL_SERVICE_NAME: reservations
+  OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+  OTEL_TRACES_SAMPLER_ARG: '1.0'
+  OTEL_LOGS_EXPORTER: otlp
+  OTEL_PROPAGATORS: tracecontext
+  OTEL_GO_X_OBSERVABILITY: 'true'
+  OTEL_BSP_EXPORT_TIMEOUT: '3000'
+  OTEL_BLRP_EXPORT_TIMEOUT: '3000'

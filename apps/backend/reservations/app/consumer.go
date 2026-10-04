@@ -7,6 +7,9 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"go.opentelemetry.io/otel/log"
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/trace"
 
 	eventv1 "github.com/mateusmacedo/dmpf/apps/backend/orders/contract/gen/go/company/orders/event/v1"
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/application"
@@ -81,18 +84,31 @@ func Handler(service application.Service) kernelapp.Handler {
 // source for: there is no caller stating a preference on this side.
 const consumerLocale = "en"
 
+type ConsumerTelemetry struct {
+	Tracer         trace.Tracer
+	MeterProvider  metric.MeterProvider
+	LoggerProvider log.LoggerProvider
+	System         string
+	Channel        kernelapp.Channel
+}
+
 // NewConsumer is the whole consumer: adapter, service and Postgres quarantine.
 // maxAttempts <= 0 disables the attempt limit (GAR-08 fixes that one exists;
 // the value is FND-08's).
-func NewConsumer(pool *pgxpool.Pool, clock ports.Clock, ids ports.IDGenerator, wait, timeout time.Duration, maxAttempts int, boundary kernelapp.Boundary) kernelapp.Consumer {
+func NewConsumer(pool *pgxpool.Pool, clock ports.Clock, ids ports.IDGenerator, wait, timeout time.Duration, maxAttempts int, boundary kernelapp.Boundary, telemetry ConsumerTelemetry) kernelapp.Consumer {
 	return kernelapp.Consumer{
-		Name:        ConsumerName,
-		MaxAttempts: maxAttempts,
-		Handle:      Handler(NewService(pool, clock, ids, Waits{Message: wait})),
-		Containment: postgres.NewQuarantine(pool),
-		Clock:       clock,
-		Timeout:     timeout,
-		Boundary:    boundary,
-		Locale:      consumerLocale,
+		Name:           ConsumerName,
+		MaxAttempts:    maxAttempts,
+		Handle:         Handler(NewService(pool, clock, ids, Waits{Message: wait})),
+		Containment:    postgres.NewQuarantine(pool, postgres.WithQuarantineLoggerProvider(telemetry.LoggerProvider)),
+		Clock:          clock,
+		Timeout:        timeout,
+		Boundary:       boundary,
+		Locale:         consumerLocale,
+		Tracer:         telemetry.Tracer,
+		MeterProvider:  telemetry.MeterProvider,
+		LoggerProvider: telemetry.LoggerProvider,
+		System:         telemetry.System,
+		Channel:        telemetry.Channel,
 	}
 }

@@ -5,7 +5,7 @@ title: DMPF KRN-07 — Inbox e consumo: deduplicação, disposições e contenç
 stage: done
 priority: P0
 depends_on: [SPEC-ZHE7DN1H, SPEC-WYX5GW87, SPEC-3R80KNMS]
-ticket_url: null
+ticket_url: https://linear.app/mmda/issue/DEVS-44/spec-anzx2wpg-dmpf-krn-07-inbox-e-consumo-deduplicacao-disposicoes-e
 subtask_urls: []
 created: 2026-09-04
 ---

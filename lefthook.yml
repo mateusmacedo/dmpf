@@ -16,22 +16,17 @@ pre-commit:
 
 pre-push:
   commands:
-    lint:
-      run: pnpm nx affected -t lint --parallel=3 --exclude=@mateusmacedo/dmpf-source
-    typecheck:
-      run: pnpm nx affected -t typecheck --parallel=3 --exclude=@mateusmacedo/dmpf-source
-    test:
-      run: pnpm nx affected -t test --parallel=3 --exclude=@mateusmacedo/dmpf-source
-    build:
-      run: pnpm nx affected -t build --parallel=3 --exclude=@mateusmacedo/dmpf-source
     # govulncheck fica só no CI: consulta base remota e não pode ser cacheado,
     # então pesaria em todo push sem dar garantia adicional local.
     # O preflight repete o do composite setup-go: sem CGO e sem compilador C o
     # `-race` falha com erro de link, que não diz o que fazer.
-    go-gates:
+    # A base é o que o remoto já tem, não o defaultBase (master): o push só
+    # verifica o que ele leva. Branch sem upstream compara com origin/develop.
+    affected:
       run: |
         if [ "$(go env CGO_ENABLED)" != "1" ] || ! command -v cc >/dev/null 2>&1; then
           echo "go test -race exige CGO_ENABLED=1 e um compilador C (cc)" >&2
           exit 1
         fi
-        pnpm nx affected -t fmt-check,vet,test-race --parallel=3 --exclude=@mateusmacedo/dmpf-source
+        base="$(git rev-parse --verify --quiet '@{push}' || git merge-base HEAD origin/develop)" || exit 1
+        pnpm nx affected -t lint,typecheck,test,build,fmt-check,vet,test-race --base="$base" --head=HEAD --parallel=3 --exclude=@mateusmacedo/dmpf-source

@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
@@ -122,8 +123,8 @@ func TestAdmissionRefusesWith429BeforeReadingTheBody(t *testing.T) {
 			}
 			route, _ := sum.DataPoints[0].Attributes.Value(metrics.KeyRoute)
 			tenant, _ := sum.DataPoints[0].Attributes.Value(metrics.KeyTenant)
-			if route.AsString() != "POST /v1/orders" || tenant.AsString() != metrics.OtherTenant {
-				t.Fatalf("labels route=%q tenant=%q, want the route key and %q (MET-12)", route.AsString(), tenant.AsString(), metrics.OtherTenant)
+			if route.AsString() != "/v1/orders" || tenant.AsString() != metrics.OtherTenant {
+				t.Fatalf("labels route=%q tenant=%q, want the route without the method and %q (MET-12, RF-D3)", route.AsString(), tenant.AsString(), metrics.OtherTenant)
 			}
 		}
 	}
@@ -243,4 +244,105 @@ func TestAnUndeclaredRouteIsCountedUnderOneLabelNotItsPath(t *testing.T) {
 		}
 	}
 	t.Fatalf("series %q not recorded", metrics.AdmissionRejectionsTotal)
+}
+
+func rejectionRoute(t *testing.T, collected metricdata.ResourceMetrics) string {
+	t.Helper()
+	for _, scope := range collected.ScopeMetrics {
+		for _, m := range scope.Metrics {
+			if m.Name != metrics.AdmissionRejectionsTotal {
+				continue
+			}
+			sum := m.Data.(metricdata.Sum[int64])
+			if len(sum.DataPoints) != 1 {
+				t.Fatalf("data points = %d, want 1", len(sum.DataPoints))
+			}
+			route, _ := sum.DataPoints[0].Attributes.Value(metrics.KeyRoute)
+			return route.AsString()
+		}
+	}
+	t.Fatalf("series %q not recorded", metrics.AdmissionRejectionsTotal)
+	return ""
+}
+
+func TestTheRefusalCarriesTheRouteOtelhttpRecords(t *testing.T) {
+	reader := sdkmetric.NewManualReader()
+	mp := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	t.Cleanup(func() { _ = mp.Shutdown(context.Background()) })
+	instruments, err := metrics.New(mp.Meter("test"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ctrl := admissionController(t, admission.Limit{PerSecond: 1, Burst: 1, Concurrency: 10})
+	byPattern := func(r *http.Request) string { return r.Pattern }
+	ok := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
+	mux := http.NewServeMux()
+	mux.Handle("POST /v1/orders", provider.Admission(ctrl, byPattern, nil, instruments)(ok))
+	edge := otelhttp.NewHandler(mux, "edge", otelhttp.WithMeterProvider(mp))
+
+	edge.ServeHTTP(httptest.NewRecorder(), post("", nil))
+	rec := httptest.NewRecorder()
+	edge.ServeHTTP(rec, post("", nil))
+	if rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("second request = %d, want 429", rec.Code)
+	}
+
+	var collected metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &collected); err != nil {
+		t.Fatal(err)
+	}
+	recorded := ""
+	for _, scope := range collected.ScopeMetrics {
+		for _, m := range scope.Metrics {
+			if m.Name != "http.server.request.duration" {
+				continue
+			}
+			for _, dp := range m.Data.(metricdata.Histogram[float64]).DataPoints {
+				if status, _ := dp.Attributes.Value("http.response.status_code"); status.AsInt64() == http.StatusTooManyRequests {
+					route, _ := dp.Attributes.Value(metrics.KeyRoute)
+					recorded = route.AsString()
+				}
+			}
+		}
+	}
+	if recorded == "" {
+		t.Fatal("otelhttp recorded no http.route for the 429")
+	}
+	if got := rejectionRoute(t, collected); got != recorded {
+		t.Fatalf("admission http.route = %q, want %q, the value otelhttp records (RF-D3)", got, recorded)
+	}
+}
+
+func TestARouteKeyWithNoPathIsTheLabelAsDeclared(t *testing.T) {
+	reader := sdkmetric.NewManualReader()
+	mp := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	t.Cleanup(func() { _ = mp.Shutdown(context.Background()) })
+	instruments, err := metrics.New(mp.Meter("test"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctrl, err := admission.New(admission.Config{
+		Limits: map[string]admission.Limit{"orders": {PerSecond: 1, Burst: 1, Concurrency: 1}}, MaxKeys: 8, Clock: clock.NewFake(start),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	byName := func(*http.Request) string { return "orders" }
+	middleware := provider.Admission(ctrl, byName, nil, instruments)(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+
+	middleware.ServeHTTP(httptest.NewRecorder(), post("", nil))
+	rec := httptest.NewRecorder()
+	middleware.ServeHTTP(rec, post("", nil))
+	if rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("second request = %d, want 429", rec.Code)
+	}
+
+	var collected metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &collected); err != nil {
+		t.Fatal(err)
+	}
+	if got := rejectionRoute(t, collected); got != "orders" {
+		t.Fatalf("admission http.route = %q, want the declared key %q: there is no method to drop", got, "orders")
+	}
 }

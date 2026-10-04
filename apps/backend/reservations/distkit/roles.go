@@ -56,7 +56,7 @@ func RunRole(t *testing.T) {
 		produce(t, ctx, cfg, plan)
 	case RoleConsumer:
 		pool := openPool(t)
-		consume(t, ctx, cfg, ch, adapterSink{consumer: app.NewConsumer(pool, clock.New(at), &ids.Sequence{Prefix: "m-"}, appkit.Wait, appkit.Timeout, appkit.MaxAttempts, appkit.Boundary)})
+		consume(t, ctx, cfg, ch, adapterSink{consumer: app.NewConsumer(pool, clock.New(at), &ids.Sequence{Prefix: "m-"}, appkit.Wait, appkit.Timeout, appkit.MaxAttempts, appkit.Boundary, app.ConsumerTelemetry{})})
 	case RoleNaiveConsumer:
 		consume(t, ctx, cfg, ch, naiveSink{pool: openPool(t)})
 	default:
@@ -105,7 +105,6 @@ func childConfig(t *testing.T) (kafka.Config, channel.Channel) {
 		InsecureForDevelopmentOnly: true,
 		Catalog:                    channel.Catalog{ch.Name: ch},
 		Sheet:                      resilience.Defaults("kafka"),
-		Service:                    "testkit",
 		Clock:                      obsclock.System(),
 	}
 	if err := cfg.Validate(); err != nil {

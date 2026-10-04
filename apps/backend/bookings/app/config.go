@@ -34,16 +34,11 @@ var (
 )
 
 const (
-	envDSN            = "PG_DSN"
-	envMigrate        = "MIGRATE"
-	envBrokers        = "KAFKA_BROKERS"
-	envKafkaInsecure  = "KAFKA_INSECURE"
-	envGroup          = "KAFKA_GROUP"
-	envOTLPEndpoint   = "OTLP_ENDPOINT"
-	envOTLPInsecure   = "OTLP_INSECURE"
-	envService        = "SERVICE"
-	envServiceVersion = "SERVICE_VERSION"
-	envInstanceID     = "INSTANCE_ID"
+	envDSN           = "PG_DSN"
+	envMigrate       = "MIGRATE"
+	envBrokers       = "KAFKA_BROKERS"
+	envKafkaInsecure = "KAFKA_INSECURE"
+	envGroup         = "KAFKA_GROUP"
 
 	envBookingsTopic = "KAFKA_BOOKINGS_TOPIC"
 	envBookingsDLQ   = "KAFKA_BOOKINGS_DLQ"
@@ -85,13 +80,9 @@ type Config struct {
 	BookingsTopic string
 	BookingsDLQ   string
 
-	OTLPEndpoint string
-	OTLPInsecure bool
-	Signals      boot.Signals
+	Signals boot.Signals
 
-	Service  string
-	Version  string
-	Instance string
+	Service string
 
 	Relay relay.Config
 
@@ -108,7 +99,6 @@ func Defaults(role Role) Config {
 		Role:     role,
 		GRPCAddr: ":9090",
 		Service:  "bookings",
-		Version:  "dev",
 		Relay: relay.Config{
 			Source:         "urn:dmpf:reference-bookings",
 			Interval:       500 * time.Millisecond,
@@ -140,16 +130,12 @@ func FromEnv(role Role, lookup func(string) string) (Config, error) {
 	cfg.GRPCKeyFile = lookup(envGRPCKeyFile)
 	cfg.GRPCClientCAFile = lookup(envGRPCClientCAFile)
 	cfg.GRPCTrustedClients = envconfig.SplitList(lookup(envGRPCTrustedClients))
-	cfg.Service = envconfig.OrDefault(lookup(envService), cfg.Service)
-	cfg.Version = envconfig.OrDefault(lookup(envServiceVersion), cfg.Version)
-	cfg.Instance = envconfig.OrDefault(lookup(envInstanceID), envconfig.Hostname())
 	cfg.Brokers = envconfig.SplitList(lookup(envBrokers))
 	cfg.KafkaAuth = kafka.ReadClientAuth(lookup)
 	cfg.MetricTenants = envconfig.SplitList(lookup(envMetricTenants))
 	cfg.BookingsTopic = lookup(envBookingsTopic)
 	cfg.BookingsDLQ = lookup(envBookingsDLQ)
 	cfg.Group = lookup(envGroup)
-	cfg.OTLPEndpoint = lookup(envOTLPEndpoint)
 
 	var err error
 	flags := []struct {
@@ -158,7 +144,6 @@ func FromEnv(role Role, lookup func(string) string) (Config, error) {
 	}{
 		{envGRPCInsecure, &cfg.GRPCInsecure},
 		{envKafkaInsecure, &cfg.KafkaInsecure},
-		{envOTLPInsecure, &cfg.OTLPInsecure},
 		{envMigrate, &cfg.Migrate},
 	}
 	for _, flag := range flags {

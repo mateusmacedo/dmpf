@@ -3,12 +3,9 @@
 package kafka_test
 
 import (
-	"bytes"
 	"context"
 	"encoding/binary"
 	"fmt"
-	"log/slog"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -238,51 +235,4 @@ func overlap(a, b map[string]string) int {
 		}
 	}
 	return n
-}
-
-func TestIntegrationEveryProcessedRecordIsLoggedAtDebug(t *testing.T) {
-	seeds := brokers(t)
-	ch := integrationChannel(uniqueSuffix())
-	createTopics(t, seeds, int32(ch.Partitions), ch.Address, ch.Containment)
-	cfg := integrationConfig(seeds, ch)
-	var logs syncBuffer
-	cfg.Logger = slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
-
-	pub, err := kafka.NewPublisher(cfg, nil)
-	if err != nil {
-		t.Fatalf("NewPublisher: %v", err)
-	}
-	defer pub.Close()
-	raw, _ := message(t, "k0", 0)
-	if err := pub.Publish(context.Background(), ch.Name, raw); err != nil {
-		t.Fatalf("Publish: %v", err)
-	}
-
-	sink := &recordingSink{perKey: map[string][]int{}, hashes: map[string]string{}}
-	stop, done := runConsumer(t, cfg, ch, sink)
-	waitFor(t, "the processed record logged", 60*time.Second, func() bool {
-		return strings.Contains(logs.String(), `"msg":"kafka: record processed"`)
-	})
-	stop()
-	<-done
-	if !strings.Contains(logs.String(), `"topic":"`+ch.Address+`"`) {
-		t.Fatalf("log = %q, want the topic of the record", logs.String())
-	}
-}
-
-type syncBuffer struct {
-	mu  sync.Mutex
-	buf bytes.Buffer
-}
-
-func (b *syncBuffer) Write(p []byte) (int, error) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.buf.Write(p)
-}
-
-func (b *syncBuffer) String() string {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.buf.String()
 }

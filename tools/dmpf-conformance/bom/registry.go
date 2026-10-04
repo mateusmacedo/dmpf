@@ -14,7 +14,7 @@ import (
 	"github.com/mateusmacedo/dmpf/tools/dmpf-conformance/internal/rule"
 )
 
-const semconvFile = "libs/backend/go/observability/otelboot/start.go"
+const semconvFile = "libs/backend/go/observability/otelboot/config.go"
 
 // As matérias da tabela de BOM-06: toolchain de stack, pins de geração e o
 // catálogo de telemetria do FND-08.

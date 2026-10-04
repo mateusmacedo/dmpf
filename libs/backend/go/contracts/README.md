@@ -95,38 +95,18 @@ timeout do job no runner.
 
 O `breaking` identifica cada `.proto` publicado pelo pacote: um pacote que
 mudou de módulo é comparado com o recorte dele em `NX_BASE`, e um pacote
-publicado que some de todos os módulos reprova. Cada módulo está em um de dois
-estados, reconhecidos pela **marca de baseline** — a tag anotada
-`contracts-baseline/<projeto>` (a legada `contracts-baseline/proto` só vale para
-o módulo cuja raiz existe no commit da tag).
+publicado que some de todos os módulos reprova. O estado de cada módulo vem só
+de `NX_BASE` (ADR-058):
 
-- **`sem baseline`** — a marca não existe e o módulo não tem pacote publicado
-  em `NX_BASE`: `breaking` é dispensado só para ele, com aviso na saída.
-  `lint`, `format`, `generate-check` e `pins` seguem obrigatórios.
-- **`baseline estabelecido`** — a marca existe: `breaking` é obrigatório, e
-  `NX_BASE` vazio ou irresolvível reprova.
+- **`sem baseline`** — nenhum pacote do módulo está publicado em `NX_BASE`:
+  `breaking` é dispensado só para ele, com aviso na saída. `lint`, `format`,
+  `generate-check` e `pins` seguem obrigatórios.
+- **`baseline estabelecido`** — algum pacote do módulo já está publicado em
+  `NX_BASE`: `breaking` é obrigatório contra essa base, e `NX_BASE` vazio ou
+  irresolvível reprova.
 
-Três situações reprovam por construção: marca ausente em módulo cujos pacotes
-já existem em `NX_BASE`; pacote publicado que desapareça; e marca cujo `tagger`
-seja o autor do primeiro commit do módulo — a autorização precisa vir de outra
-pessoa. Para criar a marca, alguém que **não** seja o autor do módulo executa,
-após o merge:
-
-```bash
-git tag -a contracts-baseline/<projeto> -m "baseline estabelecido" <commit-na-branch-principal>
-git push origin contracts-baseline/<projeto>
-```
-
-A plataforma é o GitHub (`github.com/mateusmacedo/dmpf`, ADR-043). O
-ADR-008 removeu as proteções de branch e de tag do repositório para destravar
-o release, e o ADR-043 manteve essa remoção ao migrar de plataforma — hoje não
-há ruleset de tag protegendo `contracts-baseline/*`, e a exigência de que a
-marca seja criada por alguém que não é o autor do módulo é imposta pelo
-processo do time, não pelo servidor. Quando um ruleset de tag for configurado
-no GitHub (Settings → Tags → Rulesets) para `contracts-baseline/*`, restrinja a
-criação aos times com direito de aprovar a promoção; um repositório com um
-único aprovador não consegue sair de `sem baseline` nesse caso, e a norma trata
-isso como pré-requisito organizacional, não como defeito do gate.
+Não há tag de baseline nem ato pós-merge: o módulo passa a `baseline
+estabelecido` no merge que o publica na branch-alvo.
 
 ## O que é e o que não é normatizado
 

@@ -5,7 +5,7 @@ title: DMPF KRN-04 — Kernel de aplicação Go: Unit of Work e sequência canô
 stage: done
 priority: P0
 depends_on: [SPEC-MQA5HAXF, SPEC-WTAXFV8B, SPEC-XF9TF9A0]
-ticket_url: null
+ticket_url: https://linear.app/mmda/issue/DEVS-39/spec-zhe7dn1h-dmpf-krn-04-kernel-de-aplicacao-go-unit-of-work-e
 subtask_urls: []
 created: 2026-09-03
 ---

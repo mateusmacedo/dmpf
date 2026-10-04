@@ -5,7 +5,7 @@ title: DMPF KRN-12.1 — Composition root de referência reference
 stage: done
 priority: P2
 depends_on: [SPEC-MQA5HAXF, SPEC-WTAXFV8B, SPEC-XF9TF9A0, SPEC-ZHE7DN1H, SPEC-WYX5GW87, SPEC-3R80KNMS, SPEC-ANZX2WPG, SPEC-CGPX20NP, SPEC-NYD18TGD, SPEC-EAGAXQN1, SPEC-SJ66880S]
-ticket_url: null
+ticket_url: https://linear.app/mmda/issue/DEVS-49/spec-6qt9sbas-dmpf-krn-121-composition-root-de-referencia-reference
 subtask_urls: []
 created: 2026-09-08
 ---

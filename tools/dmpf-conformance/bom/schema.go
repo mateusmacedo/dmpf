@@ -143,9 +143,8 @@ type RegistryRef struct {
 }
 
 type Promotion struct {
-	By         string `json:"by"`
-	ReviewedBy string `json:"reviewed_by"`
-	PR         string `json:"pr"`
+	By string `json:"by"`
+	PR string `json:"pr"`
 }
 
 type CVE struct {

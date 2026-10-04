@@ -3,6 +3,7 @@ package tracing
 import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
+	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -21,9 +22,11 @@ func RecordError(span trace.Span, category string) {
 	}
 
 	span.SetStatus(codes.Error, "")
-	if category != "" {
-		span.SetAttributes(attribute.String(KeyErrorCategory, category))
+	if category == "" {
+		span.SetAttributes(semconv.ErrorTypeOther)
+		return
 	}
+	span.SetAttributes(semconv.ErrorTypeKey.String(category))
 }
 
 // AttemptEvent records a repeated attempt on the span of the operation, with
@@ -54,4 +57,46 @@ func BulkheadSaturated(span trace.Span, dependency string) {
 	span.AddEvent(EventBulkheadSaturated, trace.WithAttributes(
 		attribute.String(KeyDependency, dependency),
 	))
+}
+
+const (
+	EventBreakerRejected = "dmpf.breaker.rejected"
+	EventDegraded        = "dmpf.degraded"
+)
+
+func BreakerRejected(span trace.Span, dependency string) {
+	if span == nil {
+		return
+	}
+	span.AddEvent(EventBreakerRejected, trace.WithAttributes(
+		attribute.String(KeyDependency, dependency),
+	))
+}
+
+func Degraded(span trace.Span, code string) {
+	if span == nil {
+		return
+	}
+	span.AddEvent(EventDegraded, trace.WithAttributes(
+		attribute.String(KeyErrorCode, code),
+	))
+}
+
+const (
+	EventClaimed                = "claimed"
+	EventInvalidCreationContext = "invalid_creation_context"
+)
+
+func Claimed(span trace.Span) {
+	if span == nil {
+		return
+	}
+	span.AddEvent(EventClaimed)
+}
+
+func InvalidCreationContext(span trace.Span) {
+	if span == nil {
+		return
+	}
+	span.AddEvent(EventInvalidCreationContext)
 }

@@ -15,7 +15,7 @@ Criado por `KRN-10` (ARQ-529, `docs/specs/SPEC-EAGAXQN1-dmpf-providers-transport
 gRPC e HTTP compartilham a abstração de prazo; Kafka e SQS/SNS compartilham a
 catalogação de canal e as fórmulas de janela. Nenhum dos quatro providers é
 lugar neutro para isso, e `observability` é nomeado por FND-08, não por
-transporte. O módulo é bloco `provider`, sem I/O. A única dependência externa é a API do OpenTelemetry (`otel/trace`, `otel/metric`), que o package `observe` usa para os três decorators que RES-23 exige de toda composição.
+transporte. O módulo é bloco `provider`, sem I/O. A única dependência externa é a API do OpenTelemetry — `otel/trace` (com `trace/noop`), `otel/attribute` e `otel/log` —, que os packages `observe` e `compose` usam para as posições de observabilidade que RES-23 exige de toda composição.
 
 ## Unidades do manifesto
 
@@ -30,9 +30,9 @@ transporte. O módulo é bloco `provider`, sem I/O. A única dependência extern
 | `deadline` | `Budget`, `Require`, `Outgoing`, `ErrNoDeadline`, `ErrDeadlineExhausted` | 1.2 |
 | `channel` | `Channel`, `Catalog`, `RedeliveryWindow`, `KafkaWindow`, `SQSWindow`, `SNSSQSWindow` | 1.3 |
 | `attempt` | `Header`, `Encode`, `Decode`, `WithContext`, `FromContext` — o consumidor grava a tentativa no contexto antes de `Sink.Handle`, e a DLQ a lê para o header ou atributo `dmpf-attempt` (TRP-52) | 1.4 |
-| `observe` | `Config`, `Slots`, `Tracing`, `Metrics`, `Logging` — as posições de observabilidade de RES-22 que o KRN-09 deixa ao chamador; a categoria de falha é o único ponto por transporte. Os conjuntos de atributos são memorizados por `(método, categoria)` — espaço limitado por MET-07, com teto de 4096 entradas — para o caminho quente não os reconstruir e reordenar a cada chamada | 3.2 |
+| `observe` | `Config`, `Slots`, `Tracing`, `Logging` — as posições de observabilidade de RES-22 que o KRN-09 deixa ao chamador; a categoria de falha é o único ponto por transporte. `Tracing` abre o span INTERNAL `dmpf.resilience {dmpf.dependency}` sobre as tentativas, com `dmpf.dependency`, `dmpf.retry.max_attempts`, `dmpf.deadline.remaining_ms`, `dmpf.outcome_category` e, na falha, `error.type` (RF-B5); sob o `send` que o relay possui (`tracing.OwnsSpan`), grava os mesmos atributos nele em vez de abrir span. `Logging` registra cada tentativa, com o scope do package: `transport: call` em `debug` e `transport: call failed` em `warn` — ou em `debug`, como o sucesso, quando a categoria é de rejeição de negócio (`Validation`, `DomainRejection`, `NotFound`, `Conflict`, outcome `rejected`; `Forbidden` e `Unauthenticated`, outcome `denied`, seguem em `warn`) —, com `dmpf.dependency`, `dmpf.retry.attempt`, `dmpf.outcome_category` e o erro reduzido por `redact.Error`: `error.type` com a categoria da tabela do transporte e, quando o primeiro erro da cadeia que implementa `redact.Categorized` tem código, `dmpf.error.code` (`RES-12` do breaker, `RES-14` do bulkhead); a mensagem do erro nunca entra no registro (RF-A3, RF-A5). A posição de métricas só repassa a chamada: o RED do cliente é do `otelgrpc` e do `otelhttp` (RF-D2). Os conjuntos de atributos são memorizados por dependência e por categoria — espaço limitado por MET-07, com teto de 4096 entradas — para o caminho quente não os reconstruir e reordenar a cada chamada | 3.2 |
 | `admission` | `Limit`, `Config`, `Controller.Admit` — bucket por `(rota, tenant)`, teto de chaves (`MaxKeys`) e evicção LRU do ocioso | 2.1b |
-| `compose` | `Config`, `Build`, `Shared`, `Retry`, `Operation` — a ordem dos decorators de RES-22 (observe → breaker → bulkhead → timeout → retry), `Timeout` reservando `Backoff.Base`, `Retry` declarado `false` como identidade, `RateLimit` recusado; o provider passa só a sheet, o classificador e a categoria de falha | code review |
+| `compose` | `Config`, `Build`, `Shared`, `Retry`, `Operation` — a ordem canônica de RES-22, de fora para dentro (tracing, métricas, log, bulkhead, breaker, rate limit, retry, timeout), com a degradação de `Sheet.Degradation` logo sob o span de tracing, de modo que o evento `dmpf.degraded` cai no span de resiliência; `Timeout` reservando `Backoff.Base`, `Retry` declarado `false` como identidade, `RateLimit` declarado recusado; o que varia por provider é a sheet, a categoria de falha, o classificador de retry e o que o breaker conta como falha, e o breaker registra as transições no `LoggerProvider` da `Config` | code review |
 
 ## Admissão: bucket real por tenant, allowlist só no rótulo
 
@@ -94,4 +94,5 @@ Exemplos: `SQSWindow(5, 30s, 4d)` → 150 s; com `retention` de 60 s → 60 s;
 - `docs/specs/SPEC-EAGAXQN1-dmpf-providers-transporte.md` — spec do `KRN-10`
 - `docs/adr/039-providers-de-transporte-sink-e-gesto-de-release.md` — decisões deste módulo
 - `docs/adr/051-escopo-de-tenant-por-choke-point-em-go.md` — o tenant que chaveia o bucket de admissão
+- `docs/specs/SPEC-1TFW24WV-observabilidade-ponta-a-ponta.md` — os `RF-*` citados aqui: o span INTERNAL de resiliência e o log do cliente
 - `libs/backend/go/ports/README.md` — `ExecutionContext.Tenant()`, a fonte do tenant que a borda passa a `Admit`

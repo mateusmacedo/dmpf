@@ -5,7 +5,7 @@ title: Destravar o pipeline de release do template no Gitea Actions
 stage: done
 priority: P1
 depends_on: []
-ticket_url: null
+ticket_url: https://linear.app/mmda/issue/DEVS-10/spec-bg2k2w30-destravar-o-pipeline-de-release-do-template-no-gitea
 subtask_urls: []
 created: 2026-08-11
 ---

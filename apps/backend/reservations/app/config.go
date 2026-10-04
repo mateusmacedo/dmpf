@@ -52,11 +52,6 @@ const (
 	envReservationsTopic  = "KAFKA_RESERVATIONS_TOPIC"
 	envReservationsDLQ    = "KAFKA_RESERVATIONS_DLQ"
 	envGroup              = "KAFKA_GROUP"
-	envOTLPEndpoint       = "OTLP_ENDPOINT"
-	envOTLPInsecure       = "OTLP_INSECURE"
-	envService            = "SERVICE"
-	envServiceVersion     = "SERVICE_VERSION"
-	envInstanceID         = "INSTANCE_ID"
 )
 
 // Config is every operational value the three roles need, resolved once at
@@ -76,9 +71,7 @@ type Config struct {
 	GRPCClientCAFile   string
 	GRPCTrustedClients []string
 
-	Service  string
-	Version  string
-	Instance string
+	Service string
 
 	Brokers       []string
 	KafkaInsecure bool
@@ -99,9 +92,7 @@ type Config struct {
 	// by the envelope's source attribute (CTX-27, IDN-04).
 	OrdersSource string
 
-	OTLPEndpoint string
-	OTLPInsecure bool
-	Signals      boot.Signals
+	Signals boot.Signals
 
 	Migrate bool
 
@@ -131,7 +122,6 @@ func Defaults(role Role) Config {
 		Role:     role,
 		GRPCAddr: ":9090",
 		Service:  "reservations",
-		Version:  "dev",
 		Relay: relay.Config{
 			Source:         "urn:dmpf:reference-reservations",
 			Interval:       500 * time.Millisecond,
@@ -168,9 +158,6 @@ func FromEnv(role Role, lookup func(string) string) (Config, error) {
 	cfg.GRPCKeyFile = lookup(envGRPCKeyFile)
 	cfg.GRPCClientCAFile = lookup(envGRPCClientCAFile)
 	cfg.GRPCTrustedClients = envconfig.SplitList(lookup(envGRPCTrustedClients))
-	cfg.Service = envconfig.OrDefault(lookup(envService), cfg.Service)
-	cfg.Version = envconfig.OrDefault(lookup(envServiceVersion), cfg.Version)
-	cfg.Instance = envconfig.OrDefault(lookup(envInstanceID), envconfig.Hostname())
 	cfg.Brokers = envconfig.SplitList(lookup(envBrokers))
 	cfg.KafkaAuth = kafka.ReadClientAuth(lookup)
 	cfg.MetricTenants = envconfig.SplitList(lookup(envMetricTenants))
@@ -180,7 +167,6 @@ func FromEnv(role Role, lookup func(string) string) (Config, error) {
 	cfg.OrdersSource = envconfig.OrDefault(lookup(envOrdersSource), cfg.OrdersSource)
 	cfg.ReservationsTopic = lookup(envReservationsTopic)
 	cfg.ReservationsDLQ = lookup(envReservationsDLQ)
-	cfg.OTLPEndpoint = lookup(envOTLPEndpoint)
 
 	flags := []struct {
 		variable string
@@ -188,7 +174,6 @@ func FromEnv(role Role, lookup func(string) string) (Config, error) {
 	}{
 		{envGRPCInsecure, &cfg.GRPCInsecure},
 		{envKafkaInsecure, &cfg.KafkaInsecure},
-		{envOTLPInsecure, &cfg.OTLPInsecure},
 		{envMigrate, &cfg.Migrate},
 	}
 	for _, flag := range flags {

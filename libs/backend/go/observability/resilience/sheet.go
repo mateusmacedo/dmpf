@@ -2,6 +2,8 @@ package resilience
 
 import (
 	"fmt"
+	"log/slog"
+	"maps"
 	"slices"
 	"time"
 
@@ -214,8 +216,13 @@ func (s Sheet) Validate() error {
 	if deadline, ok := s.Deadline.Get(); ok && deadline <= 0 {
 		return fmt.Errorf("%w: %s: the deadline is not positive (RES-05)", ErrBlankField, s.Dependency)
 	}
-	if mode, ok := s.Degradation.Get(); ok && mode == Defer {
-		return ErrDeferIsOutbox
+	if mode, ok := s.Degradation.Get(); ok {
+		if mode == Defer {
+			return ErrDeferIsOutbox
+		}
+		if !slices.Contains([]Degradation{Fail, Degrade, Ignore}, mode) {
+			return fmt.Errorf("%w: %s declares the unknown degradation mode %q", ErrBlankField, s.Dependency, mode)
+		}
 	}
 	return nil
 }
@@ -235,9 +242,9 @@ func (s Sheet) declarations() map[string]bool {
 	}
 }
 
-// Effective is what is in use, field by field, as strings the bootstrap exposes
-// as resource attributes and logs once at start-up. A field not applicable
-// reports its reason, so the record says why a position is empty.
+// Effective is what is in use, field by field, as strings the bootstrap logs
+// once at start-up. A field not applicable reports its reason, so the record
+// says why a position is empty.
 func (s Sheet) Effective() map[string]string {
 	effective := make(map[string]string, 10)
 
@@ -253,6 +260,16 @@ func (s Sheet) Effective() map[string]string {
 	effective[FieldDegradation] = describe(s.Degradation)
 
 	return effective
+}
+
+func (s Sheet) LogValue() slog.Value {
+	effective := s.Effective()
+	attributes := make([]slog.Attr, 0, len(effective)+1)
+	attributes = append(attributes, slog.String("dependency", s.Dependency))
+	for _, field := range slices.Sorted(maps.Keys(effective)) {
+		attributes = append(attributes, slog.String(field, effective[field]))
+	}
+	return slog.GroupValue(attributes...)
 }
 
 // NotApplicablePrefix marks an effective value that is a declared absence, so a

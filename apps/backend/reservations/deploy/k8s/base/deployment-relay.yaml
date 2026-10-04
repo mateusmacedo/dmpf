@@ -31,10 +31,12 @@ spec:
             - secretRef:
                 name: reservations
           env:
-            - name: INSTANCE_ID
+            - name: K8S_POD_NAME
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: $(OTEL_RESOURCE_ATTRIBUTES),service.instance.id=$(K8S_POD_NAME),dmpf.process.role=relay
           resources:
             requests:
               cpu: 50m
@@ -47,4 +49,4 @@ spec:
             capabilities:
               drop: [ALL]
       # ShutdownGrace do relay é 10 s; o pod espera mais que isso.
-      terminationGracePeriodSeconds: 20
+      terminationGracePeriodSeconds: 30

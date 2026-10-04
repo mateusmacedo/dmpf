@@ -322,11 +322,11 @@ Nenhuma linha de §2.2 fica sem contraparte aqui.
 |---|--------------------|----------------------|--------------------|-----------------|
 | 1 | Todo o artefato, sob `RES-01` | Existe regra `normativo` para limites, tracing, métricas, logging e operação, e nenhuma com sujeito `domain` ou `port` | Baseline com as cinco famílias e sujeito declarado por subseção | Artefato que normatize telemetria obrigando o tipo de domínio a emiti-la |
 | 2 | `LOG-02`, `LOG-11` | A trilha de execução é registro de telemetria com correlação, não campo de entidade | Alteração rastreada por log estruturado correlacionado | Campo `updated_by_trace` acrescentado à entidade para depurar |
-| 3 | `MET-02`, `MET-03` | Toda métrica obrigatória tem nome estável no formato de `MET-02` | `dmpf_outbox_lag_seconds` declarado no catálogo | Métrica descrita como «lag da outbox», sem nome |
+| 3 | `MET-02`, `MET-03` | Toda métrica obrigatória tem nome estável no formato de `MET-02` | `dmpf.outbox.lag`, em `s`, declarado no catálogo | Métrica descrita como «lag da outbox», sem nome |
 | 4 | `MET-05`, `MET-05a` | O limiar de **valor** existe onde é derivado de invariante, e onde não é, o catálogo nomeia owner e parâmetro local; condição de **forma** é parâmetro local declarado | `retenção_inbox` não inferior à `janela_redelivery`, como limiar derivado | Limiar universal de latência de serviço fixado aqui |
 | 5 | `MET-06`, `RUN-03` | Todo alarme nomeia o sinal, a condição e o procedimento que dispara | Alarme de idade da outbox apontando §8.3 | Alarme declarado sem procedimento associado |
 | 6 | `RUN-08` a `RUN-13` | Existe procedimento de inspeção, decisão, execução e auditoria de replay | Rito de replay com proteção contra duplicidade | Instrução «reprocessar a DLQ» sem gesto nem auditoria |
-| 7 | `MET-14` a `MET-17` | Os quatro sinais de `OBX-12` têm nome, unidade e fórmula | `dmpf_outbox_pending`, `_lag_seconds`, `_attempts`, `_failures_total` | Relay que exponha `lag` sem unidade declarada |
+| 7 | `MET-14` a `MET-17` | Os quatro sinais de `OBX-12` têm nome, unidade e fórmula | `dmpf.outbox.pending`, `.lag`, `.attempts`, `.failures` | Relay que exponha `lag` sem unidade declarada |
 | 8 | `MET-14` a `MET-18`, `RUN-03` | Relay observável e operável pelo catálogo, sem redefinir `OBX-12` nem `OBX-13` | Catálogo do relay mais procedimento de relay parado | Catálogo que redefina o gesto de shutdown do relay |
 | 9 | `RUN-08` a `RUN-14` | A operação da DLQ está normatizada, e o retry por transporte não é reaberto | Runbook de DLQ referenciando `KFK-12` sem o alterar | Runbook que fixe retry de Kafka contrariando FND-06 |
 | 10 | `MET-27`, `RUN-15`, `RUN-16` | Saga tem timeout observável, telemetria e replay assistido declarado | Métrica de passo de saga vencido e procedimento assistido | Saga cujo passo pendente não apareça em métrica nenhuma |
@@ -334,7 +334,7 @@ Nenhuma linha de §2.2 fica sem contraparte aqui.
 | 12 | `RES-08`, `MET-21` | O teto de espera tem valor declarado e o estouro é observado como transitório | Teto declarado, estouro contado como R1×D3 | Estouro do teto contado como erro terminal |
 | 13 | `MET-22` a `MET-24` | Profundidade de DLQ, de quarantine e taxa de recusa nomeadas | Três sinais distintos, com o mapeamento de `GAR-11` | DLQ e quarantine somadas num único gauge |
 | 14 | `RUN-15`, `RUN-16` | O replay assistido de saga é procedimento, não desfecho automático | Procedimento com decisor nomeado, por `GAR-05` | Replay de saga descrito como recuperação automática |
-| 15 | `MET-25`, `RUN-11a` | Falha de validação de contrato tem sinal próprio, alarme e procedimento de correção na origem | `dmpf_contract_validation_failures_total` por contrato | Falha de validação diluída no contador de erro do serviço |
+| 15 | `MET-25`, `RUN-11a` | Falha de validação de contrato tem sinal próprio, alarme e procedimento de correção na origem | `dmpf.contract.validation.failures` por contrato | Falha de validação diluída no contador de erro do serviço |
 | 16 | `MET-26`, `RUN-11a` | Drift tem sinal, **frequência** observável, alarme e destinatário nomeado | Contador de drift com janela de frequência e alarme dirigido ao dono do repositório | Drift detectado apenas por inspeção manual do CI |
 | 17 | `MET-26`, `RUN-11a` | Reprovação de gate é observável no mesmo eixo do drift, com alarme e procedimento | Reprovação de gate por repositório e por causa | Gate reprovado visível só no log do runner |
 | 18 | `TRC-03` a `TRC-09` | Nome de span, atributos, amostragem e propagador derivam do contexto de trace sem redefinir a sua forma | Span de consumo ligado ao produtor por `traceparent` recebido de fronteira confiável | Instrumentação que redefina a representação do `traceparent` |
@@ -378,7 +378,7 @@ citação é a forma de cumprir M1: detalhar sem reabrir.
 | `DAT-24` | FND-07 | A projeção interna de diagnóstico não é exceção à redaction — `last_error` e DLQ são lidas por operação |
 | `DAT-25` | FND-07 | Auditoria separada da observabilidade, com retenção, acesso e integridade próprios, não derivada do pipeline de log |
 | `THR-01` | FND-07 | Nenhuma regra daquele artefato normatiza limiar, orçamento, degradação, dimensionamento ou contenção de carga: é a autorização expressa de §3.5 e §4 |
-| `ENV-08` | FND-05 | `traceparent` obrigatório e `tracestate` opcional no envelope, em formato W3C. É o veículo da continuidade de `TRC-07` |
+| `ENV-08` | FND-05 | `traceparent` obrigatório e `tracestate` opcional no envelope, em formato W3C, com o contexto de criação da mensagem, imutável até o consumidor. É o veículo da continuidade de `TRC-07` e `TRC-08` |
 | `KFK-12` | FND-06 | Cada canal tem DLQ nomeada e a publicação nela precede o avanço do offset. §8.4 opera sobre esse mecanismo sem o alterar |
 | `GRP-16` a `GRP-18` | FND-06 | O prazo é declarado **por método**, é menor que o do chamador com folga, e é derivado do requisito de quem chama — nunca da latência observada. `RES-06` e `RES-09` compõem com essa regra em vez de fixar valor |
 | `TRP-49` a `TRP-51` | FND-06 | Teto de tamanho da mensagem, limite de expansão de conteúdo comprimido e limite de profundidade de aninhamento, verificados antes do decode. São os limites de **forma**; `RES-18` fixa que aqui só se normatiza o limite de **taxa** |
@@ -545,9 +545,11 @@ Breaker no caso de uso mistura política de infraestrutura com regra de aplicaç
 duplica estado quando o mesmo provider é usado por dois serviços.
 
 `normativo` `RES-12` — **Breaker aberto falha rápido, com erro categorizado, e não
-espera o timeout.** A resposta é imediata e a categoria é distinguível de falha da
-dependência: o chamador precisa saber que **não** houve tentativa. Um breaker que
-devolva o mesmo erro da chamada real torna a sua própria atuação invisível.
+espera o timeout.** A resposta é imediata, e o código estável `RES-12` (`LOG-03`)
+distingue o erro da falha transitória da dependência, que tem a mesma categoria
+de FND-07, `TransientDependency`: o chamador precisa saber que **não** houve
+tentativa. Um breaker que devolva o mesmo erro da chamada real torna a sua própria
+atuação invisível.
 
 ### §3.4 Bulkhead
 
@@ -834,11 +836,15 @@ broker receive -> inbox -> application service -> commit -> ACK
 `normativo` `TRC-01` — **Os três fluxos são traçados de ponta a ponta, e cada um
 tem os atributos mínimos da tabela abaixo.** «Ponta a ponta» significa que existe
 um trace em que todos os saltos do fluxo aparecem, ligados por relação de
-parentesco ou de link, sem interrupção no salto de processo.
+parentesco ou de link, sem interrupção no salto de processo. Nenhum dos três
+fluxos leva o identificador do agregado alvo em atributo de span, nem pelas chaves
+da semconv que o carregariam, `cloudevents.event_subject` e
+`messaging.kafka.message.key`: o atributo de trace é superfície de `DAT-01`, e o
+identificador sem classificação declarada é sensível por `DAT-03`.
 
 | Fluxo | Nome | Extensão | Atributos mínimos, além dos comuns de `TRC-04` |
 |-------|------|----------|-----------------------------------------------|
-| F1 | Entrada síncrona | `receive` → `application service` → transação → escrita na outbox | Rota ou método, código de desfecho, identificador do agregado alvo, contagem de linhas escritas na outbox |
+| F1 | Entrada síncrona | `receive` → `application service` → transação → escrita na outbox | Rota ou método, código de desfecho |
 | F2 | Drenagem | `claim` do lote → publicação no broker | Tamanho do lote, identificador do claim, canal de destino, tentativa corrente, desfecho por mensagem |
 | F3 | Consumo | recepção → inbox → `application service` → commit → ACK | Canal de origem, `message_id`, disposição da inbox, resultado do commit, gesto de ACK executado |
 
@@ -862,59 +868,111 @@ lentidão de infraestrutura de lentidão de regra.
 
 ### §5.3 Nome de span, atributos e a versão da convenção
 
-`normativo` `TRC-03` — **Nome de span e atributos seguem as *semantic conventions*
-do OpenTelemetry, na versão fixada no BOM da plataforma.** Este artefato adota a
-convenção; a **versão** é governada no BOM (Parte-1 §17.2), como a própria Parte-1
-já advertia ao notar que as convenções de mensageria ainda evoluem. Migração de
-versão é mudança governada, não ajuste local de serviço.
+`normativo` `TRC-03` — **Nome de span e chave de atributo que têm equivalente nas
+*semantic conventions* do OpenTelemetry são obrigatoriamente os da convenção, na
+versão fixada no BOM da plataforma; `dmpf.*` só nomeia conceito sem equivalente.**
+Este artefato adota a convenção; a **versão** é governada no BOM (Parte-1 §17.2) —
+a semconv v1.43.0 no BOM `0.1.0` —, como a própria Parte-1 já advertia ao notar
+que as convenções de mensageria ainda evoluem. Migração de versão é mudança
+governada, não ajuste local de serviço, e o resource a declara pelo `schema_url`.
+São conceitos sem equivalente, por exemplo, a correlação fora da mensageria, o
+`request_id`, o tenant, a classe de tráfego, a categoria de desfecho, a outbox e o
+retry lógico.
+
+`registro` — A estabilidade difere por domínio da convenção e pesa na decisão de
+migrar: mensageria e CloudEvents estão em *Development*, RPC em *Release
+Candidate*, banco de dados e HTTP em *Stable* nos spans e, no HTTP, nas durações
+`http.server.request.duration` e `http.client.request.duration`. Dentro desses
+dois domínios, a plataforma emite sinais que a semconv v1.43.0 mantém em
+*Development*: os atributos `db.client.connection.pool.name`,
+`db.client.connection.state`, `db.response.returned_rows`,
+`http.request.body.size` e `http.response.body.size`; as métricas de pool de
+`MET-30` — `db.client.connection.count`, `db.client.connection.max`,
+`db.client.connection.pending_requests`, `db.client.connection.timeouts` e
+`db.client.connection.wait_time`; e `http.server.request.body.size`,
+`http.server.response.body.size` e `http.client.request.body.size`, que a
+instrumentação HTTP do OpenTelemetry grava junto das durações.
 
 `normativo` `TRC-04` — **Todo span dos três fluxos carrega os atributos comuns
-abaixo.** Eles são o mínimo que torna o trace utilizável para diagnóstico sem
+abaixo, e o serviço, a versão e a instância são atributos do resource, não do
+span.** Eles são o mínimo que torna o trace utilizável para diagnóstico sem
 acesso a dado sensível — que é o requisito não funcional da spec desta entrega.
 
 | Atributo | Origem | Observação |
 |----------|--------|------------|
-| `correlation_id` | Contexto de execução, por `CTX-07` | Preservado de fronteira confiável, gerado na borda fora dela |
-| `request_id` | Contexto de execução; próprio por tentativa no consumo, por `CTX-28` | Nunca lido do envelope |
-| `tenant_id` | Contexto de execução, por `CTX-06` | Ausente em cadeia de plataforma sem sujeito, por `CTX-26` — ausência é informação, não zero |
-| Identificador do serviço e da versão | Configuração de deploy | Permite separar comportamento entre versões durante rollout |
-| Categoria de desfecho | Taxonomia de erro de FND-07 | A categoria, nunca a mensagem crua |
+| `dmpf.correlation_id` | Contexto de execução, por `CTX-07` | Preservado de fronteira confiável, gerado na borda fora dela. Nos spans de mensageria, a correlação é `messaging.message.conversation_id`, a chave da semconv |
+| `dmpf.request_id` | Contexto de execução; próprio por tentativa no consumo, por `CTX-28` | Nunca lido do envelope |
+| `dmpf.tenant_id` | Contexto de execução, por `CTX-06` | Ausente em cadeia de plataforma sem sujeito, por `CTX-26` — ausência é informação, não zero |
+| Resource `service.name`, `service.version` e `service.instance.id` | Configuração de deploy | Permite separar comportamento entre versões durante rollout |
+| `dmpf.outcome_category` | Taxonomia de erro de FND-07 | A categoria, nunca a mensagem crua; em erro, a categoria é também o valor de `error.type` (`TRC-12`) |
 
 `normativo` `TRC-06` — **`correlation_id` é atributo de span em todos os três
 fluxos.** É o que satisfaz o requisito de diagnosticar uma falha sem ler PII: o
 identificador liga trace, log e métrica sem transportar dado do titular.
 
 `normativo` `TRC-11` — **Cada tentativa de uma operação repetida é observável
-individualmente**, como span próprio ou como evento datado no span da operação,
-com o número da tentativa e o motivo da anterior. Um retry invisível no trace
-transforma três falhas e duas esperas numa única linha lenta e inexplicável.
+individualmente.** O span lógico da operação resiliente é INTERNAL e abrange todas
+as tentativas; cada repetição deixa nele o evento datado `dmpf.retry.attempt`, com
+o número da tentativa e a categoria da anterior. No HTTP e no gRPC, cada tentativa
+é também span CLIENT próprio, filho do INTERNAL, e no HTTP a repetição é marcada
+por `http.request.resend_count`. Onde a operação já tem span dono — o `send` do
+relay —, os atributos e eventos da resiliência vão para ele, sem INTERNAL. Um retry
+invisível no trace transforma três falhas e duas esperas numa única linha lenta e
+inexplicável.
 
 `normativo` `TRC-12` — **Erro no span é registrado por status e categoria, sem
-payload.** A mensagem de diagnóstico obedece às duas projeções de `ERR-20` e à
-redaction de `DAT-24`; o trace não é canal de exceção à classificação de dados.
+payload.** O status é `Error` sem descrição, e a categoria de FND-07 é o valor de
+`error.type` — no span de banco, o SQLSTATE; sem categoria, `_OTHER` —, enquanto
+`dmpf.outcome_category` continua registrando o desfecho. Nos spans das
+instrumentações HTTP e gRPC do OpenTelemetry, o `error.type` que a instrumentação
+grava é o da semconv do protocolo — no span CLIENT do HTTP, o código de status da
+resposta ou o tipo do erro de transporte —, e a categoria de FND-07 fica no span
+do DMPF, como o INTERNAL de `TRC-11` que envolve as tentativas. Evento de exceção
+não leva `exception.message` nem `exception.stacktrace`. A mensagem de diagnóstico
+obedece às duas projeções de `ERR-20` e à redaction de `DAT-24`; o trace não é
+canal de exceção à classificação de dados.
+
+`rationale` — O span da instrumentação é o do transporte, que `TRC-05` separa do
+caso de uso, e o seu `error.type` segue a semconv adotada por `TRC-03`. Trocá-lo
+pela categoria exigiria um processador sobre cada span, sem ganho: a categoria
+continua no span do DMPF, em `error.type` e em `dmpf.outcome_category`. O valor da
+semconv é de baixa cardinalidade e não carrega payload.
 
 ### §5.4 Continuidade no salto assíncrono
 
+`normativo` — blocos `app` (relay e adapter de consumo) e `provider` (transporte).
+**O `traceparent` do envelope é o contexto de criação da mensagem.** É a extensão
+*Distributed Tracing* do CloudEvents que `ENV-08` adota, e corresponde ao
+*creation context* das convenções de mensageria: gravado uma vez, quando a
+mensagem é criada, e imutável até o consumidor. O relay não o reescreve com o
+contexto do próprio salto, e nenhum header de transporte o substitui — nesta
+baseline, nenhum header Kafka nem atributo de mensagem SQS carrega contexto W3C.
+
 `normativo` `TRC-07` — **A continuidade do trace no salto assíncrono usa o
-`traceparent` do envelope, e apenas sob fronteira confiável.** Preservar o valor
-recebido exige que o critério de `CTX-27` seja satisfeito — integridade do
-envelope somada à confiança da fronteira de transporte que o entregou. Fora dele,
-o consumidor **inicia** trace novo e registra o valor recebido como atributo de
-proveniência, nunca como parentesco.
+`traceparent` do envelope, e só o adota como contexto confiável sob fronteira
+confiável.** Adotá-lo exige que o critério de `CTX-27` seja satisfeito —
+integridade do envelope somada à confiança da fronteira de transporte que o
+entregou —, e só então o link do consumo ao contexto recebido (`TRC-08`) pesa na
+decisão de amostragem. Fora dele, o consumidor abre raiz nova com link ao contexto
+recebido — o padrão *public endpoint* das instrumentações HTTP e gRPC do
+OpenTelemetry —, nunca parentesco, e esse link não entra na decisão de amostragem.
 
 `rationale` — Propagar `traceparent` sem esse predicado parece conformidade e é
 vetor: aceitar o contexto de trace de uma fronteira não confiável permite que um
 produtor externo injete relação de parentesco no trace do consumidor, poluindo o
-diagnóstico e, em backend com cobrança por span, o custo. O FND-07 já resolveu a
-mesma tensão para `correlation_id` em `CTX-07`, e a regra aqui é a aplicação do
-mesmo critério ao contexto de trace.
+diagnóstico e, em backend com cobrança por span, o custo. Um link que decidisse a
+amostragem daria ao mesmo produtor o poder de forçar a retenção do trace. O FND-07
+já resolveu a mesma tensão para `correlation_id` em `CTX-07`, e a regra aqui é a
+aplicação do mesmo critério ao contexto de trace.
 
-`normativo` `TRC-08` — **Quando a relação entre spans é de lote, o vínculo é
-link, não parentesco.** O span de drenagem de um lote referencia por link cada
-mensagem que publica; o span de consumo referencia por link o span de produção
-quando a distância temporal torna o parentesco enganoso. Parentesco declara
-«ocorreu dentro de»; link declara «tem relação causal com» — e a segunda é a
-verdade em F2.
+`normativo` `TRC-08` — **Todo salto assíncrono é link, não parentesco: o link é o
+vínculo default entre produtor e consumidor.** O span de drenagem de um lote
+referencia por link o contexto de criação de cada mensagem que publica; o span de
+envio de cada mensagem, filho da drenagem, tem link ao mesmo contexto; e o span de
+consumo abre raiz nova, com link ao contexto de criação que o envelope carrega. A
+semconv de mensageria admite parentesco como opção para mensagem única, e esta
+baseline não a adota. Parentesco declara «ocorreu dentro de»; link declara «tem
+relação causal com» — e a segunda é a verdade em todo salto assíncrono.
 
 `normativo` `TRC-09` — **O propagador é configurado explicitamente, na forma W3C
 Trace Context.** Nenhuma detecção automática de formato, nenhum fallback
@@ -929,15 +987,26 @@ ao mesmo `correlation_id`.
 ### §5.5 Amostragem
 
 `normativo` `TRC-13` — **A amostragem é declarada por classe de tráfego, não por
-serviço.** As classes desta baseline são quatro, e cada uma tem taxa declarada na
-configuração da plataforma.
+serviço.** As classes desta baseline são cinco, gravadas no span como
+`dmpf.traffic_class`, e cada uma tem taxa declarada na configuração da plataforma.
+A tabela vale sobre o trace completo, na decisão tardia de `TRC-14`; a cabeça não a
+aplica, porque cabeça e cauda com a mesma tabela multiplicariam as taxas e
+descartariam erro antes de o desfecho ser conhecido.
 
 | Classe | Conteúdo | Taxa default |
 |--------|----------|--------------|
-| Erro e desfecho anômalo | Qualquer trace com span em estado de erro, estouro de prazo, breaker aberto ou recusa por admissão | 100% |
-| Operação de escrita | F1 com efeito transacional, F2, F3 | 10% |
-| Leitura | Consulta sem efeito | 1% |
-| Operação de manutenção | Replay, purga, migração, job em lote | 100% |
+| `error` — erro e desfecho anômalo | Qualquer trace com span em estado de erro, estouro de prazo, breaker aberto ou recusa por admissão | 100% |
+| `write` — operação de escrita | F1 com efeito transacional, F2, F3 | 100% |
+| `read` — leitura | Consulta sem efeito | 1% |
+| `maintenance` — operação de manutenção | Replay, purga, migração, job em lote | 100% |
+| `unclassified` — sem classe declarada | Span que não declara classe, e trace sem classe ou com classe fora da taxonomia, vindo de origem fora do DMPF | 1% |
+
+`rationale` — `write` fica em 100% porque F1, F2 e F3 da mesma escrita são três
+traces, ligados por link (`TRC-08`), e a decisão tardia decide trace a trace: com
+taxa menor, cada um seria retido ou descartado por conta própria, e a escrita
+perderia a drenagem ou o consumo. A classe `unclassified` torna a omissão visível
+em vez de a fazer passar por leitura, e a taxa dela alcança também o trace que
+chega sem classe, que assim nunca é descartado em silêncio.
 
 `normativo` `TRC-14` — **Erro é sempre amostrado.** Onde a decisão de amostragem
 ocorrer antes de o desfecho ser conhecido, a implementação usa decisão tardia
@@ -951,7 +1020,16 @@ e é a alternativa que esta regra descarta explicitamente.
 atributo entra por declaração; nenhuma implementação copia o corpo da requisição,
 o envelope inteiro ou o resultado da consulta para o span. `DAT-22` alcança o
 pipeline de trace com a mesma força com que alcança o de log: o valor sensível não
-é entregue ao pipeline, e filtrar no agregador não satisfaz a regra.
+é entregue ao pipeline, e filtrar no agregador não satisfaz a regra. Ficam fora por
+`DAT-02` e `DAT-06`, embora *Recommended* na semconv, `client.address`,
+`network.peer.address`, `network.peer.port` e `user_agent.original`, e, embora
+*Required*, `url.path` com identificador e `url.full` com query ou identificador.
+Instrumentação que os emita sem opção de desligar só entra com a remoção no
+processo, antes do envio — o path trocado pelo template da rota. O valor de
+atributo tem teto de tamanho, 1024 caracteres por default em span e em registro
+de log, ajustável pelas variáveis do SDK `OTEL_ATTRIBUTE_VALUE_LENGTH_LIMIT`,
+`OTEL_SPAN_ATTRIBUTE_VALUE_LENGTH_LIMIT` e `OTEL_LOGRECORD_ATTRIBUTE_VALUE_LENGTH_LIMIT`:
+um identificador vindo de fora, como `messaging.message.id`, não dimensiona o sinal.
 
 `normativo` `TRC-16` — **Nenhuma instrumentação de trace vive em `domain` nem em
 `port`.** Span de regra de negócio, quando útil, é aberto pelo `application
@@ -978,21 +1056,40 @@ mode observável.** Métrica além do mínimo é opcional e local; métrica que 
 failure mode exija não entra no catálogo obrigatório. §9 faz a verificação em
 sentido inverso, um failure mode por vez.
 
-`normativo` `MET-02` — **O nome segue a convenção `dmpf_<componente>_<sinal>[_<unidade>]`,
-em minúsculas e com `snake_case`.** O prefixo `dmpf_` marca a origem na fundação;
-o componente é um dos desta seção; o sufixo de unidade é obrigatório onde a unidade
-não é adimensional, e `_total` marca contador monotônico.
+`normativo` `MET-02` — **O nome é o da semconv quando ela tem a métrica; senão,
+`dmpf.<componente>.<sinal>`, em minúsculas, com ponto entre os níveis e sem unidade
+nem `_total` no nome.** O prefixo `dmpf.` marca a origem na fundação; o componente
+é um dos desta seção. A unidade é declarada no instrumento, em UCUM: `s` para
+duração, anotação entre chaves para contagem — `{message}`, `{request}` — e `1` só
+para razão. O sufixo de unidade e o `_total` que o Prometheus exibe vêm da tradução
+OTLP, não do nome declarado: `dmpf.operation.duration`, em `s`, é consultado como
+`dmpf_operation_duration_seconds`.
 
 `normativo` `MET-03` — **Toda métrica obrigatória declara nome, unidade e
-fórmula.** «Fórmula» é a definição operacional do valor: o que se conta, entre
-quais instantes se mede, e o que **não** entra na conta. Métrica sem fórmula é
-nome com aparência de definição, e duas implementações a calculam diferente sem
-que ninguém perceba.
+fórmula.** A unidade é a UCUM do instrumento, por `MET-02`. «Fórmula» é a definição
+operacional do valor: o que se conta, entre quais instantes se mede, e o que
+**não** entra na conta. Métrica sem fórmula é nome com aparência de definição, e
+duas implementações a calculam diferente sem que ninguém perceba.
 
-`normativo` `MET-04` — **O conjunto de labels é uma allowlist, e `DAT-22` alcança o
-pipeline de métrica.** Nenhum valor sensível vira label, e a proibição não é
-mitigável por agregação posterior: a série temporal persiste o label no momento da
-escrita.
+`normativo` `MET-04` — **O conjunto de labels é uma allowlist de chaves semconv ou
+`dmpf.*`, e `DAT-22` alcança o pipeline de métrica.** Das chaves semconv, entram
+as que a convenção declara para a métrica — `error.type`, `http.request.method`,
+`http.route`, `http.response.status_code`, `rpc.method`,
+`rpc.response.status_code`, `messaging.operation.name`,
+`messaging.destination.name`, `db.operation.name`, entre outras —; das do DMPF,
+`dmpf.dependency`, `dmpf.operation`, `dmpf.outcome_category` e `dmpf.tenant_id`,
+este sob `MET-07`. O serviço não é label: é atributo do resource. A allowlist é
+imposta no processo, antes da exportação, por um filtro em cada instrumento: nas
+métricas `dmpf.*` do catálogo, só ficam os labels declarados, e toda outra chave
+é descartada; nas da semconv — das instrumentações e do SDK do OpenTelemetry e
+das que o DMPF grava pela convenção —, ficam os atributos que a instrumentação
+canônica grava, menos `client.address`, `network.peer.address`,
+`network.peer.port`, `user_agent.original`, `url.full`, `url.path`,
+`exception.message` e `exception.stacktrace` e, na duração e nos tamanhos de corpo
+do servidor HTTP, também `server.address` e `server.port`, que a instrumentação
+deriva do `Host` enviado pelo cliente. Nenhum valor sensível vira label, e a
+proibição não é mitigável por agregação posterior: a série temporal persiste o
+label no momento da escrita.
 
 `normativo` `MET-05` — **Limiar condicional: o valor de um limiar é fixado aqui
 quando, e somente quando, ele é derivado de invariante já normatizada.** Nos
@@ -1050,51 +1147,70 @@ produz mais séries que todo o resto deste catálogo somado.
 
 `normativo` — bloco `app` (borda) e `application service`.
 
-`normativo` `MET-08` — **`dmpf_service_request_duration_seconds`** — histograma de
-latência por serviço e operação, medida na borda. Fórmula: intervalo entre o início do estágio de telemetria do pipeline
-de entrada e a emissão da resposta, incluindo espera de backoff de retry interno —
-é o que o chamador percebeu. Unidade: segundos. Labels: serviço, operação,
-categoria de desfecho.
+`normativo` `MET-08` — **Latência na borda: `http.server.request.duration` no HTTP
+e `rpc.server.call.duration` no gRPC** — histogramas da semconv por operação,
+emitidos pela instrumentação do transporte. Fórmula: intervalo entre o
+início do estágio de telemetria do pipeline de entrada e a emissão da resposta,
+incluindo espera de backoff de retry interno — é o que o chamador percebeu.
+Unidade: `s`. Labels: os da semconv do instrumento, como a instrumentação os
+grava — `http.request.method`, `http.route` e `http.response.status_code`;
+`rpc.method` e `rpc.response.status_code` —, e `error.type` em falha, com o valor
+da semconv do protocolo e não a categoria de FND-07: no gRPC, o código de status.
+Onde a instrumentação não o grava, como no histograma do servidor HTTP, a falha se
+lê em `http.response.status_code`. Do lado do cliente, por tentativa, os pares são
+`http.client.request.duration` e `rpc.client.call.duration`.
+O caso de uso tem histograma próprio, `dmpf.operation.duration`, em `s`, com
+`dmpf.operation`, `dmpf.outcome_category` e `error.type`: mede o `application
+service`, que `TRC-05` separa do transporte.
 
-`normativo` `MET-09` — **`dmpf_service_requests_total`** — contador de throughput
-por serviço e operação. Fórmula: contagem de execuções concluídas, por desfecho. Sem limiar
-intrínseco, por `MET-05`.
+`rationale` — A série da borda é da instrumentação e segue a semconv pelo motivo
+de `TRC-12`: gravar nela a categoria exigiria um labeler que reescrevesse o
+`error.type` da instrumentação, e a categoria já tem série própria, o `error.type`
+de `dmpf.operation.duration` (`MET-10`).
 
-`normativo` `MET-10` — **`dmpf_service_errors_total`** — contador de erro por
-categoria da taxonomia de FND-07, com a categoria como label. Unidade: ocorrências. A categoria é a de §5 daquele
-artefato; a mensagem de erro não é label nem valor. É este sinal que distingue
-falha de validação, falha de autorização e falha técnica sem consultar log.
+`normativo` `MET-09` — **Throughput, derivado do histograma.** Fórmula: contagem
+de execuções concluídas, por desfecho — o `_count` dos histogramas de `MET-08`,
+sem contador próprio de requisições. Sem limiar intrínseco, por `MET-05`.
 
-`normativo` `MET-11` — **Saturação do próprio serviço**: `dmpf_service_pool_utilization`
-— gauge de utilização do pool de trabalho, e `dmpf_service_queue_depth` — gauge da
+`normativo` `MET-10` — **Erro por categoria, derivado do mesmo histograma.** No
+`_count` de `dmpf.operation.duration`, `dmpf.outcome_category` separa recusa,
+negação e falha, e `error.type`, presente só na falha, leva a categoria da
+taxonomia de FND-07; nos histogramas de borda, `error.type` segue a semconv do
+protocolo. A categoria é a de §5 daquele artefato; a mensagem de erro não é label
+nem valor. É este sinal que distingue falha de validação, falha de autorização e
+falha técnica sem consultar log.
+
+`normativo` `MET-11` — **Saturação do próprio serviço**: `dmpf.consumer.pool.utilization`
+— gauge de utilização do pool de trabalho, e `dmpf.consumer.queue.depth` — gauge da
 profundidade da fila interna, conforme Parte-1 §15.2. Fórmula da
 utilização: ocupação média na janela dividida pela capacidade declarada. Unidade:
-razão adimensional e contagem.
+`1` e `{message}`.
 
-`normativo` `MET-12` — **`dmpf_service_admission_rejections_total`** — contador de
-recusa por admissão, com label de rota e de tenant, sob o limite de `MET-07`.
-Unidade: recusas. É o sinal que `RES-17` exige, e é o
-que separa «o serviço recusou por política» de «o serviço falhou».
+`normativo` `MET-12` — **`dmpf.admission.rejections`** — contador de recusa por
+admissão, com `http.route` na borda HTTP ou `rpc.method` na gRPC, e
+`dmpf.tenant_id` sob o limite de `MET-07`. Unidade: `{request}`. É o sinal que
+`RES-17` exige, e é o que separa «o serviço recusou por política» de «o serviço
+falhou».
 
-`normativo` `MET-13` — **Degradação**: `dmpf_service_degraded_total` — contador de
-respostas servidas em modo degradado, e `dmpf_service_omitted_total` — contador de
-chamadas omitidas pelo modo `ignora`, ambos com a dependência como label.
-Fórmula: uma contagem por resposta afetada, não por chamada evitada. É o sinal que
-torna `RES-38` verificável.
+`normativo` `MET-13` — **Degradação**: `dmpf.dependency.degraded` — contador de
+respostas servidas em modo degradado, e `dmpf.dependency.omitted` — contador de
+chamadas omitidas pelo modo `ignora`, ambos com `dmpf.dependency` como label.
+Unidade: `{response}`. Fórmula: uma contagem por resposta afetada, não por chamada
+evitada. É o sinal que torna `RES-38` verificável.
 
 ### §6.3 Outbox e relay
 
 `normativo` — bloco `app` (relay); catálogo dos sinais cuja exposição `OBX-12`
 obriga.
 
-`normativo` `MET-14` — **`dmpf_outbox_pending`** — gauge. Fórmula: contagem de
+`normativo` `MET-14` — **`dmpf.outbox.pending`** — gauge. Fórmula: contagem de
 linhas da outbox em estado elegível ou em espera, excluídas as já publicadas e
-marcadas. Unidade: linhas. Sem limiar universal: volume alto e saudável é
+marcadas. Unidade: `{row}`. Sem limiar universal: volume alto e saudável é
 indistinguível de volume represado, e é `MET-15` que os separa.
 
-`normativo` `MET-15` — **`dmpf_outbox_lag_seconds`** — gauge, e o **indicador
+`normativo` `MET-15` — **`dmpf.outbox.lag`** — gauge, e o **indicador
 primário de relay parado**. Fórmula: instante atual menos o instante de criação da
-linha elegível mais antiga. Unidade: segundos. Limiar de alarme: crescimento
+linha elegível mais antiga. Unidade: `s`. Limiar de alarme: crescimento
 monotônico pela persistência declarada de `MET-05a`, ou valor acima do prazo de
 lease declarado para o relay — o segundo é derivado de invariante, porque acima do
 lease uma linha elegível deveria ter sido reivindicada.
@@ -1105,34 +1221,35 @@ outbox com dez mil linhas pendentes e lag de dois segundos está saudável; com 
 linhas e lag de uma hora, o relay está parado. Alarmar por `MET-14` exigiria
 calibrar por serviço; alarmar por `MET-15` não.
 
-`normativo` `MET-16` — **`dmpf_outbox_attempts`** — histograma de tentativas por
+`normativo` `MET-16` — **`dmpf.outbox.attempts`** — histograma de tentativas por
 linha publicada, e gauge do máximo corrente entre as pendentes. Fórmula: contagem
-de tentativas registradas na linha. Unidade: tentativas. O sinal expõe a
+de tentativas registradas na linha. Unidade: `{attempt}`. O sinal expõe a
 aproximação ao teto de `RES-33` antes de o esgotamento ocorrer.
 
-`normativo` `MET-17` — **`dmpf_outbox_failures_total`** — contador, com a categoria
-de erro como label. Fórmula: contagem de tentativas de publicação malsucedidas.
-Unidade: tentativas. **Acompanham-no `dmpf_outbox_failed` — gauge de linhas em
-estado `failed`, e `dmpf_outbox_failed_oldest_seconds` — idade da mais antiga.**
+`normativo` `MET-17` — **`dmpf.outbox.failures`** — contador, com a categoria
+de erro em `error.type`. Fórmula: contagem de tentativas de publicação malsucedidas.
+Unidade: `{attempt}`. **Acompanham-no `dmpf.outbox.failed` — gauge de linhas em
+estado `failed`, em `{row}`, e `dmpf.outbox.failed_oldest` — idade da mais antiga,
+em `s`.**
 O contador registra o evento; o par de gauges registra o **pendente**, que é o que
 `GAR-06` exige nomear: `MET-14` conta apenas linhas elegíveis ou em espera, então
 sem estes dois o fato que saiu do ciclo automático em `failed`
 (`uow-inbox-outbox.md:1543`) fica invisível, embora permaneça retomável. Alarme:
 gauge acima de zero por mais de uma janela, com procedimento em §8.3.
 
-`normativo` `MET-18` — **Leases do relay**: `dmpf_relay_claims_active` — gauge de
-claims ativos, e `dmpf_relay_leases_expired_total` — contador de leases expirados
+`normativo` `MET-18` — **Leases do relay**: `dmpf.relay.claims.active` — gauge de
+claims ativos, e `dmpf.relay.leases.expired` — contador de leases expirados
 sem conclusão. Fórmula do segundo: contagem de claims cujo prazo
-venceu com a linha ainda não marcada como publicada. Unidade: claims. É o sinal do
+venceu com a linha ainda não marcada como publicada. Unidade: `{claim}`. É o sinal do
 failure mode 4, e o que distingue relay lento de relay morto. **Um terceiro sinal
-compõe a regra: `dmpf_outbox_fencing_rejections_total`** — contador de escritas
+compõe a regra: `dmpf.outbox.fencing.rejections`** — contador de escritas
 recusadas por claim substituído. Fórmula: uma contagem por tentativa de marcação
 cujo claim já não é o corrente. É o sinal próprio do failure mode 5: sem ele, a
 escrita tardia rejeitada pelo fencing de FND-04 não se distingue de um lease que
 simplesmente venceu.
 
-`normativo` `MET-19` — **Crescimento sustentado e purga**: `dmpf_outbox_pending_rate`
-— gauge da derivada de `MET-14` na janela declarada, e `dmpf_outbox_purged_total` —
+`normativo` `MET-19` — **Crescimento sustentado e purga**: `dmpf.outbox.pending_rate`
+— gauge da derivada de `MET-14` na janela declarada, e `dmpf.outbox.purged` —
 contador de linhas purgadas. Fórmula da derivada:
 variação de pendentes por minuto. Alarme: derivada positiva sustentada por três
 pela persistência declarada de `MET-05a`. Satisfaz o alarme de crescimento que
@@ -1140,10 +1257,12 @@ pela persistência declarada de `MET-05a`. Satisfaz o alarme de crescimento que
 junto do agendamento de purga de §8.3.
 
 `normativo` `MET-20` — **Publicações por lote e desfecho por mensagem**:
-`dmpf_relay_batch_size` — histograma do tamanho do lote reivindicado, e
-`dmpf_relay_message_outcomes_total` — contador de desfechos por mensagem dentro do
-lote, com o desfecho como label. Fórmula: um registro por mensagem, não por lote — sem isso, a mensagem que
-falhou dentro de um lote bem-sucedido fica invisível.
+`dmpf.relay.batch.size` — histograma do tamanho do lote reivindicado, em
+`{message}`, e, por mensagem do lote, os sinais da semconv no envio:
+`messaging.client.operation.duration`, histograma em `s` com `error.type` na
+falha, e `messaging.client.sent.messages`, contador em `{message}` que conta só a
+mensagem que chegou ao broker. Fórmula: um registro por mensagem, não por lote —
+sem isso, a mensagem que falhou dentro de um lote bem-sucedido fica invisível.
 
 ### §6.4 Inbox e consumo
 
@@ -1154,12 +1273,12 @@ porta da inbox tem limiar derivado do default de `RES-08`.**
 
 | Nome | Sinal | Tipo | Fórmula | Unidade | Limiar |
 |------|-------|------|---------|---------|--------|
-| `dmpf_inbox_register_duration_seconds` | Espera na porta de `registrar` | histograma | Intervalo entre a chamada e o retorno da porta | segundos | Estouro acima do teto de `RES-08`; o estouro é R1×D3 por `INB-17`, contado como transitório e **não** como erro terminal |
-| `dmpf_inbox_duplicates_total` | Duplicatas descartadas | contador | Contagem de mensagens rejeitadas pela chave `(consumer_name, message_id)` de `INB-01` | mensagens | Sem limiar: duplicata é condição normal em at-least-once |
-| `dmpf_consumer_lag` | Lag de consumo | gauge | Distância entre a posição publicada e a consumida no canal | mensagens ou offsets | Crescimento sustentado pela **persistência declarada** (`MET-05a`) |
-| `dmpf_consumer_oldest_pending_seconds` | Idade da mensagem mais antiga não consumida | gauge | Instante atual menos o instante de publicação da mais antiga pendente | segundos | Acima da janela de redelivery declarada pelo transporte |
-| `dmpf_consumer_redeliveries_total` | Redeliveries | contador | Contagem de entregas subsequentes do mesmo `message_id` | entregas | Aproximação ao teto de `GAR-08` |
-| `dmpf_consumer_ack_duration_seconds` | Tempo até o ACK | histograma | Intervalo entre a recepção e o gesto de ACK | segundos | Acima da visibilidade aplicada pelo transporte |
+| `dmpf.inbox.register.duration` | Espera na porta de `registrar` | histograma | Intervalo entre a chamada e o retorno da porta | `s` | Estouro acima do teto de `RES-08`; o estouro é R1×D3 por `INB-17`, contado como transitório e **não** como erro terminal |
+| `dmpf.inbox.duplicates` | Duplicatas descartadas | contador | Contagem de mensagens rejeitadas pela chave `(consumer_name, message_id)` de `INB-01` | `{message}` | Sem limiar: duplicata é condição normal em at-least-once |
+| `dmpf.consumer.lag` | Lag de consumo | gauge | Distância entre a posição publicada e a consumida no canal | `{message}` | Crescimento sustentado pela **persistência declarada** (`MET-05a`) |
+| `dmpf.consumer.oldest_pending` | Idade da mensagem mais antiga não consumida | gauge | Instante atual menos o instante de publicação da mais antiga pendente | `s` | Acima da janela de redelivery declarada pelo transporte |
+| `dmpf.consumer.redeliveries` | Redeliveries | contador | Contagem de entregas subsequentes do mesmo `message_id` | `{delivery}` | Aproximação ao teto de `GAR-08` |
+| `messaging.process.duration` | Tempo até o ACK | histograma da semconv | Intervalo entre a recepção e o gesto de ACK, por `messaging.destination.name` e `messaging.consumer.group.name`, com `error.type` na falha | `s` | Acima da visibilidade aplicada pelo transporte |
 
 `rationale` — A espera na porta é a única linha com limiar de **valor** fixado, e a
 razão é a de `MET-05`: os 2 segundos são default desta baseline, portanto
@@ -1172,22 +1291,22 @@ em `MET-05a`.
 `normativo` — bloco `app` (consumer adapter) e operação; catálogo dos sinais cuja
 exposição `GAR-12` obriga.
 
-`normativo` `MET-22` — **Profundidade e idade da DLQ**: `dmpf_dlq_depth` — gauge de
-mensagens retidas, `dmpf_dlq_oldest_seconds` — gauge da idade da mais antiga, e
-`dmpf_dlq_replays_total` — contador de mensagens efetivamente reprocessadas, com a
+`normativo` `MET-22` — **Profundidade e idade da DLQ**: `dmpf.dlq.depth` — gauge de
+mensagens retidas, `dmpf.dlq.oldest` — gauge da idade da mais antiga, e
+`dmpf.dlq.replays` — contador de mensagens efetivamente reprocessadas, com a
 zona de `RUN-15` como label. Fórmula da idade: instante atual menos o instante de
 entrada na DLQ; fórmula do replay: uma contagem por mensagem reentregue, não por
 lote autorizado — o lote é do registro de auditoria de `RUN-14`, o sinal é do
-catálogo. Unidade: mensagens e segundos. Alarme: qualquer mensagem retida além da retenção declarada
+catálogo. Unidade: `{message}` e `s`. Alarme: qualquer mensagem retida além da retenção declarada
 em `RUN-11`, e crescimento na persistência declarada de `MET-05a`.
 
-`normativo` `MET-23` — **`dmpf_quarantine_depth`** — gauge da profundidade da
-quarantine, como sinal separado da DLQ. Unidade: mensagens.
+`normativo` `MET-23` — **`dmpf.quarantine.depth`** — gauge da profundidade da
+quarantine, como sinal separado da DLQ. Unidade: `{message}`.
 `GAR-11` fixa que os dois mecanismos são distintos e que quem implementa ambos
 declara o mapeamento; somá-los num gauge único apagaria a distinção que aquela
 regra criou.
 
-`normativo` `MET-24` — **`dmpf_consumer_rejections_total`** — contador de recusa no
+`normativo` `MET-24` — **`dmpf.consumer.rejections`** — contador de recusa no
 consumo por disposição, com as disposições R1×D4 e R4 de FND-04 como labels. Fórmula: contagem de mensagens
 recusadas por disposição, sobre o total recebido na janela. É o segundo sinal que
 `GAR-12` exige, e é o que expõe rajada de colisão de identificador.
@@ -1196,17 +1315,17 @@ recusadas por disposição, sobre o total recebido na janela. É o segundo sinal
 
 `normativo` — bloco `app` na validação, e plataforma na integração contínua.
 
-`normativo` `MET-25` — **`dmpf_contract_validation_failures_total`** — contador de
+`normativo` `MET-25` — **`dmpf.contract.validation.failures`** — contador de
 falha de validação de contrato, com labels de contrato e de causa. Fórmula: contagem de mensagens ou requisições
-recusadas por violação de contrato ou de perfil de envelope. Unidade: ocorrências.
+recusadas por violação de contrato ou de perfil de envelope. Unidade: `{failure}`.
 Alarme: primeira ocorrência em canal que estava limpo, porque a falha de validação
 em produção indica produtor fora do contrato — não carga.
 
 `normativo` `MET-26` — **Drift de código gerado e reprovação de gate**:
-`dmpf_codegen_drift_total` e `dmpf_codegen_gate_failures_total` — contadores por
-repositório e por causa, mais `dmpf_codegen_drift_ratio` — gauge da **frequência**
+`dmpf.codegen.drift` e `dmpf.codegen.gate.failures` — contadores por
+repositório e por causa, mais `dmpf.codegen.drift_ratio` — gauge da **frequência**
 de drift na janela declarada. Fórmula da frequência: ocorrências de drift divididas
-por execuções de gate na janela. Unidade: ocorrências e razão adimensional. Alarme:
+por execuções de gate na janela. Unidade: `{occurrence}` e `1`. Alarme:
 drift acima de zero na janela, ou reprovação de gate, com **destinatário no dono do
 repositório** e procedimento de correção na origem, por `RUN-03` — não é alarme de
 plantão. É a obrigação que `cloudevents-protobuf-buf.md:1339` encaminhou nomeando a
@@ -1217,9 +1336,9 @@ frequência, e não apenas a ocorrência.
 `normativo` — bloco `application service`.
 
 `normativo` `MET-27` — **Passo de saga pendente, vencido e compensado**:
-`dmpf_saga_steps_pending` — gauge dos pendentes por tipo de saga,
-`dmpf_saga_steps_overdue` — gauge dos que excederam o prazo declarado do passo, e
-`dmpf_saga_compensations_total` — contador de compensações executadas. Fórmula do vencido: instante atual menos o
+`dmpf.saga.steps.pending` — gauge dos pendentes por tipo de saga,
+`dmpf.saga.steps.overdue` — gauge dos que excederam o prazo declarado do passo, e
+`dmpf.saga.compensations` — contador de compensações executadas. Fórmula do vencido: instante atual menos o
 início do passo, comparado ao prazo declarado. É o que torna `GAR-06` verificável
 em saga: a contenção nomeia o pendente, e o pendente aparece como número.
 
@@ -1228,28 +1347,36 @@ em saga: a contenção nomeia o pendente, e o pendente aparece como número.
 `normativo` — blocos `provider` e `app`.
 
 `normativo` `MET-28` — **Repetição e estado do breaker**:
-`dmpf_dependency_retries_total` — contador de tentativas repetidas por dependência
-e por categoria de erro, `dmpf_dependency_budget_exhausted_total` — contador de
-execuções que esgotaram o orçamento de `RES-30`, e `dmpf_dependency_breaker_state`
-— gauge do estado do breaker por dependência.
+`dmpf.dependency.retries` — contador de tentativas repetidas, em `{retry}`, por
+`dmpf.dependency` e pela categoria de erro em `error.type`,
+`dmpf.dependency.budget.exhausted` — contador de execuções que esgotaram o
+orçamento de `RES-30`, em `{execution}`, e `dmpf.dependency.breaker.state` — gauge
+do estado do breaker por dependência, em `{state}`.
 Fórmula do estado: valor discreto entre fechado, meio-aberto e aberto. Alarme:
 taxa de repetição por dependência acima do declarado na ficha de `RES-21`, e
 breaker aberto por mais de um cooldown consecutivo.
 
 `normativo` `MET-29` — **Estouro de prazo e cancelamento**:
-`dmpf_dependency_deadline_exceeded_total` e `dmpf_dependency_cancellations_total` —
-contadores separados para prazo excedido e para cancelamento propagado, por
-dependência e por operação.
+`dmpf.dependency.deadline_exceeded` e `dmpf.dependency.cancellations` —
+contadores separados para prazo excedido e para cancelamento propagado, em
+`{call}`, por `dmpf.dependency` e por `dmpf.operation`.
 Fórmula: contagem de operações encerradas por cada causa. A separação é obrigatória
 porque as duas têm diagnóstico oposto — a primeira é lentidão local, a segunda é
 desistência do chamador — e a Parte-1 §15.2 as agrupava numa linha só.
 
-`normativo` `MET-30` — **Recursos e contenção de escrita**: `dmpf_pool_connections_in_use`
-e `dmpf_pool_connections_waiting` — gauges de conexões em uso e em espera,
-`dmpf_pool_acquire_duration_seconds` — histograma do tempo de espera por recurso de
-pool, e `dmpf_uow_write_conflicts_total` — contador de conflitos de escrita otimista. Fórmula da espera: intervalo entre o
-pedido de recurso e a sua concessão. É o sinal do failure mode 1, e o que
-distingue contenção de banco de lentidão de consulta.
+`normativo` `MET-30` — **Recursos e contenção de escrita**: as métricas de pool
+da semconv de banco, todas por `db.client.connection.pool.name` —
+`db.client.connection.count`, com `db.client.connection.state` `used` ou `idle`,
+para as conexões em uso; `db.client.connection.pending_requests`, para as em
+espera; `db.client.connection.wait_time`, histograma em `s` do tempo de espera por
+recurso de pool; e, do mesmo grupo, `db.client.connection.max` e
+`db.client.connection.timeouts` —, e `dmpf.uow.write_conflicts` — contador de
+conflitos de escrita otimista, em `{conflict}`. Fórmula da espera: intervalo entre
+o pedido de recurso e a sua concessão. É o sinal do failure mode 1, e o que
+distingue contenção de banco de lentidão de consulta. Fórmula dos timeouts:
+pedidos de recurso cancelados pelo contexto, o que soma ao prazo excedido o
+cancelamento propagado do chamador, porque o contador do pool não separa as duas
+causas; a contagem é mais larga que a da semconv, que só conta o prazo excedido.
 
 `registro` — **Cobertura de Parte-1 §15.2.** As treze métricas obrigatórias
 herdadas resolvem assim: duração e throughput em `MET-08` e `MET-09`; sucesso e
@@ -1276,27 +1403,40 @@ classificação do que é dado sensível permanece a de FND-07 §8.
 
 ### §7.1 Formato e campos
 
-`normativo` `LOG-01` — **O log de aplicação é estruturado, em JSON, com um evento
-por registro.** Linha livre não é log de aplicação: ela é aceitável em saída de
-processo de inicialização e em ferramenta de linha de comando, e não é consumida
-como sinal operacional.
+`normativo` `LOG-01` — **O log de aplicação é registro estruturado no OTel Logs
+Data Model, com um evento por registro, exportado por OTLP.** O registro é emitido
+pela Logs API e sai do processo pelo SDK; a saída padrão do processo não é caminho
+de coleta. Linha livre não é log de aplicação: ela é aceitável em saída de
+processo de inicialização, antes de o SDK de log partir, e em ferramenta de linha
+de comando, e não é consumida como sinal operacional — como não o é a saída local,
+não coletada, de desenvolvimento e teste.
 
-`normativo` `LOG-02` — **Todo registro carrega os campos obrigatórios abaixo.** É
-o conjunto que satisfaz o requisito de diagnosticar sem ler dado do titular, e é
-também o que fecha a obrigação recebida de FND-03: o rastro de execução é
-telemetria com correlação, e não justifica campo de auditoria no tipo de domínio
+`normativo` `LOG-02` — **Todo registro carrega os campos obrigatórios abaixo, cada
+um no seu lugar do Logs Data Model:** campo de topo do registro, atributo do
+resource ou atributo do registro, com chave semconv ou `dmpf.*`. É o conjunto que
+satisfaz o requisito de diagnosticar sem ler dado do titular, e é também o que
+fecha a obrigação recebida de FND-03: o rastro de execução é telemetria com
+correlação, e não justifica campo de auditoria no tipo de domínio
 (`upr-decision-mensagens.md:1095`).
 
 | Campo | Origem | Ausência admissível? |
 |-------|--------|----------------------|
-| Instante, em UTC e com resolução de milissegundo | Relógio do processo | Não |
-| Severidade | Emissor | Não |
-| `correlation_id` | Contexto, por `CTX-07` | Não, em execução com contexto |
-| `request_id` | Contexto, por `CTX-28` no consumo | Não, em execução com contexto |
-| `tenant_id` | Contexto, por `CTX-06` | Sim — cadeia de plataforma sem sujeito, por `CTX-26`; a ausência é registrada como tal, nunca substituída por default |
-| Serviço, versão e instância | Configuração de deploy | Não |
-| Código de erro estável | Taxonomia de FND-07 | Não, em registro de erro |
-| `trace_id` e `span_id` | Contexto de trace ativo | Não, onde há trace |
+| `Timestamp`, com `ObservedTimestamp` | Relógio do processo | Não |
+| `SeverityNumber` e `SeverityText` | Emissor, pelas faixas de `LOG-10` | Não |
+| `Body`, com a mensagem | Emissor | Não |
+| `dmpf.correlation_id` | Contexto, por `CTX-07` | Não, em execução com contexto |
+| `dmpf.request_id` | Contexto, por `CTX-28` no consumo | Não, em execução com contexto |
+| `dmpf.tenant_id` | Contexto, por `CTX-06` | Sim — cadeia de plataforma sem sujeito, por `CTX-26`; a ausência é registrada como tal, nunca substituída por default |
+| Resource `service.name`, `service.version` e `service.instance.id` | Configuração de deploy | Não |
+| `error.type`, com a categoria de FND-07, e `dmpf.error.code` quando o erro declara código estável | Taxonomia de FND-07 | Não, em registro de erro |
+| `TraceId`, `SpanId` e `TraceFlags` | Contexto de trace ativo | Não, onde há trace |
+
+`normativo` — As chaves de protocolo e de mensageria do registro são as da
+semconv — `http.route`, `rpc.method`, `messaging.destination.name`,
+`cloudevents.event_type`, entre outras —, e a correlação, o request e o tenant
+usam as chaves `dmpf.*` da tabela, inclusive no registro de mensageria. Nenhum
+campo da tabela se repete como atributo do registro: instante, severidade, serviço
+e identificadores de trace não viram `time`, `level`, `service` ou `trace_id`.
 
 `normativo` `LOG-03` — **O código de erro é estável e independente da mensagem.**
 A mensagem é texto para humano e pode mudar; o código é contrato de diagnóstico e
@@ -1352,21 +1492,31 @@ que a invocou, com o contexto que só ele tem.
 `normativo` `LOG-12` — **A amostragem de log é declarada por classe de tráfego, nas
 mesmas classes de `TRC-13`, e `error` nunca é amostrado.** Alinhar as classes é o
 que permite cruzar log e trace do mesmo evento; amostrar erro produz o pior
-resultado possível, que é ter o trace de uma falha sem o seu registro.
+resultado possível, que é ter o trace de uma falha sem o seu registro. A
+amostragem alcança só o registro emitido num trace não amostrado — inclusive o
+de um `traceparent` remoto que chegou não amostrado —, à taxa declarada para a
+classe do processo. O registro de um trace amostrado é sempre mantido, porque
+explica o trace, e o registro sem trace, como os de partida e de encerramento,
+não é tráfego e não passa por esta amostragem.
 
 ### §7.4 Auditoria
 
-`normativo` `LOG-13` — **Onde houver requisito regulatório, a auditoria é canal
-separado da observabilidade, por `DAT-25`.** O registro de auditoria tem retenção,
-controle de acesso e integridade próprios, e **não** é derivado do pipeline de log:
-derivá-lo submeteria a auditoria à amostragem de `LOG-12` e à retenção do log
-operacional.
+`normativo` `LOG-13` — **O registro de auditoria se identifica pelo `EventName`
+`dmpf.audit` e por scope próprio, e não passa pela amostragem de `LOG-12`.**
+Consultas e painéis operacionais o excluem pelo scope, e nenhum campo do evento é
+copiado para span. **Onde houver requisito regulatório, a auditoria é
+canal separado da observabilidade, por `DAT-25`.** O registro de auditoria tem
+retenção, controle de acesso e integridade próprios, e a separação lógica por
+`EventName` não os satisfaz: o canal regulatório **não** é derivado do pipeline de
+log, porque derivá-lo submeteria a auditoria à retenção do log operacional.
 
 `normativo` `LOG-14` — **O evento de auditoria é emitido pelo `application
-service`, com o sujeito, o objeto, a ação, o desfecho e o instante.** Ele registra
-o acesso a dado pessoal que `DAT-11` exige nomeado, autorizado e registrado, e as
-operações de manutenção de §8 — replay, purga e alteração de override — que
-alteram estado sem passar por caso de uso de negócio.
+service`, com o sujeito, o objeto, a ação, o desfecho e o instante** — os
+atributos `dmpf.audit.subject`, `dmpf.audit.object`, `dmpf.audit.action` e
+`dmpf.audit.outcome` e o `Timestamp` do registro, mais a correlação de `LOG-02`.
+Ele registra o acesso a dado pessoal que `DAT-11` exige nomeado, autorizado e
+registrado, e as operações de manutenção de §8 — replay, purga e alteração de
+override — que alteram estado sem passar por caso de uso de negócio.
 
 `rationale` — A separação de canais custa infraestrutura e é a única forma de
 satisfazer as duas exigências ao mesmo tempo. A observabilidade quer volume alto,
@@ -1638,22 +1788,23 @@ flowchart LR
     C --> D["escrita na outbox"]
   end
   subgraph F2["F2 — drenagem"]
-    E["span: outbox claim<br/>(link para F1, TRC-08)"] --> G["span: broker publish"]
+    E["span: outbox drain<br/>(link ao contexto de criação, TRC-08)"] --> G["span: send<br/>(link ao contexto de criação)"]
   end
   subgraph F3["F3 — consumo"]
-    H["span: broker receive<br/>(traceparent, TRC-07)"] --> I["span: inbox"]
+    H["span: process, raiz<br/>(link ao contexto de criação, TRC-07)"] --> I["span: inbox"]
     I --> J["span: application service<br/>(request_id próprio, TRC-10)"]
     J --> K["commit"] --> L["ACK"]
   end
-  D -.->|"traceparent no envelope (ENV-08)"| E
-  G -.->|"mesmo trace, sob fronteira confiável"| H
+  D -.->|"contexto de criação no envelope (ENV-08)"| E
+  G -.->|"envelope inalterado, sob fronteira confiável"| H
 ```
 
 `registro` — As duas setas tracejadas são os pontos em que a continuidade se
-perde na prática. A primeira depende de o envelope carregar o contexto — que
-`ENV-08` garante. A segunda depende do predicado de fronteira confiável de
-`CTX-27`: fora dele, `TRC-07` obriga trace novo, e o diagrama passa a ter dois
-traces ligados por atributo de proveniência.
+perde na prática. A primeira depende de o envelope carregar o contexto de criação
+inalterado — que `ENV-08` e §5.4 garantem. A segunda depende do predicado de
+fronteira confiável de `CTX-27`: dentro ou fora dele, o consumo abre raiz nova com
+link, e fora dele `TRC-07` tira o link da decisão de amostragem. Os três fluxos
+são três traces, ligados por link ao contexto de criação de F1.
 
 ### §10.2 A composição dos decorators
 
@@ -1738,14 +1889,15 @@ agregado é o que `RES-39` chama de retry storm configurada em três lugares.
 
 **Exemplo 4 — continuidade sob fronteira confiável.** Um consumidor recebe
 mensagem de um tópico interno, com integridade verificada e fronteira classificada
-como confiável por `CTX-27`. Ele preserva o `traceparent`, abre span filho e gera
-`request_id` próprio. Produtor e consumidor aparecem no mesmo trace. Satisfaz
-`TRC-07` e `TRC-10`.
+como confiável por `CTX-27`. Ele abre o span de consumo em raiz nova, com link ao
+contexto de criação que o `traceparent` do envelope carrega, e gera `request_id`
+próprio. O trace do produtor e o do consumidor ficam ligados pelo link, e a busca
+pelo trace do produtor encontra o consumo. Satisfaz `TRC-07`, `TRC-08` e `TRC-10`.
 
 **Contraprova 4 — propagação sem predicado.** O mesmo consumidor, exposto a um
-canal alimentado por parceiro externo, preserva o `traceparent` recebido porque
-«o campo existe no envelope». Um produtor externo passa a injetar relação de
-parentesco no trace do consumidor. Viola `TRC-07`.
+canal alimentado por parceiro externo, adota o `traceparent` recebido como pai
+porque «o campo existe no envelope». Um produtor externo passa a injetar relação
+de parentesco no trace do consumidor. Viola `TRC-07` e `TRC-08`.
 
 **Exemplo 5 — limiar derivado.** O catálogo fixa que a retenção da inbox não é
 inferior à janela de redelivery, porque `INB-14` já o estabelece como invariante.
@@ -1756,11 +1908,12 @@ de 300 ms dispara alarme», valor que nenhuma invariante deriva. Viola `MET-05` 
 invade o SLO por serviço, `encaminhado` em §1.4 e excluído pelo escopo da spec.
 
 **Exemplo 6 — redaction na origem, inclusive em métrica.** O serviço expõe
-`dmpf_service_errors_total` com labels de serviço, operação e categoria. O
-identificador do cliente afetado fica no trace, amostrado, e no log, com o valor
-redigido conforme a classificação. Satisfaz `MET-04`, `MET-07` e `LOG-06`.
+`dmpf.operation.duration` com `dmpf.operation`, `dmpf.outcome_category` e
+`error.type`, e o serviço vem do resource. O identificador do cliente afetado fica
+no trace, amostrado, e no log, com o valor redigido conforme a classificação.
+Satisfaz `MET-04`, `MET-07` e `LOG-06`.
 
-**Contraprova 6 — dado sensível como label.** O mesmo contador ganha o documento
+**Contraprova 6 — dado sensível como label.** O mesmo histograma ganha o documento
 do cliente como label «para facilitar a investigação». Viola `DAT-22` — o valor
 foi entregue ao pipeline de métrica — e `MET-07`, e a série temporal persiste o
 valor por toda a retenção.
@@ -1993,6 +2146,7 @@ campos obrigatórios de `LOG-02` em todo registro estruturado.
 | Limiar condicional | Valor fixado apenas quando derivado de invariante já normatizada | `MET-05` |
 | Modo de degradação | Um de `falha`, `degrada`, `difere`, `ignora` | `RES-37` |
 | Classe de tráfego | Unidade de declaração da amostragem de trace e de log | `TRC-13`, `LOG-12` |
+| Contexto de criação | O `traceparent` gravado quando a mensagem é criada, imutável até o consumidor e alvo dos links do salto assíncrono | §5.4, `TRC-08`; FND-05 `ENV-08` |
 | Consolidação proposta | Estado de sucessão que este artefato propõe e que só a RFC efetiva | §1.5 |
 | Gate externo | Exigência da story que esta entrega não pode satisfazer por si | §13.2 |
 

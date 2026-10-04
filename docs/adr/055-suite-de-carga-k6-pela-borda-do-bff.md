@@ -22,7 +22,7 @@ A topologia de referência tinha testes de correção (unitários, integração 
 4. **Pool de até 5 tenants.** 11 rotas × 5 tenants usam 55 das 64 chaves de admissão.
 5. **Native histograms.** O Prometheus 3.14 ingere sem flag, e `histogram_quantile` agrega por jornada e rota no dashboard. O número de aceite vem do `summary.json`, calculado sobre a execução inteira.
 6. **Classificação.** `http_req_failed` conta só 5xx e erro de transporte; o 429 vai para `admission_rejections`, e o 429 que o contexto devolve sem `Retry-After` também para `context_admission_rejections`.
-7. **Dashboard próprio.** `load-bff` filtra por `testid` e junta k6, span-metrics da borda, MET-08/09/10/12 do BFF e dos contextos, resiliência, cAdvisor, Postgres e lag do Redpanda. Os painéis do kernel usam janela de 2 min porque as métricas chegam por OTLP a cada 60 s.
+7. **Dashboard próprio.** `load-bff` filtra por `testid` e junta k6, span-metrics da borda, MET-08/09/10/12 do BFF e dos contextos, resiliência, cAdvisor, Postgres e lag do Redpanda. Os painéis do kernel usam `[$__rate_interval]` com intervalo mínimo de 2 min no painel, o que dá janela de 2 min 15 s (o Grafana soma o `timeInterval` de 15 s do datasource), porque as métricas chegam por OTLP a cada 60 s.
 8. **Dois gatilhos, um script.** O workflow `load.yml` (`workflow_dispatch`) valida os inputs pelo `run.sh --check` e chama o mesmo target Nx; artifact e resumo sobrevivem à saída 99 do k6.
 
 ## Desvios da spec

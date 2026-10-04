@@ -213,8 +213,8 @@ func (v *validator) checkCertification(l located) {
 	); len(missing) > 0 {
 		v.add(rule.CodeB004, l.path, e.Identity, "certificada sem "+strings.Join(missing, ", "))
 	}
-	if p := e.Promoted; p == nil || missingFields(field{"by", p.By}, field{"reviewed_by", p.ReviewedBy}, field{"pr", p.PR}) != nil {
-		v.add(rule.CodeB002, l.path, e.Identity, "certificada sem promoted {by, reviewed_by, pr}: o ato de BOM-05")
+	if p := e.Promoted; p == nil || missingFields(field{"by", p.By}, field{"pr", p.PR}) != nil {
+		v.add(rule.CodeB002, l.path, e.Identity, "certificada sem promoted {by, pr}: o ato de BOM-05")
 	}
 	// Erro, nunca aviso: BOM-07 proíbe rebaixar por decurso de prazo e BOM-08
 	// nega a certificação vencida — resta reprovar até o commit que rebaixa.

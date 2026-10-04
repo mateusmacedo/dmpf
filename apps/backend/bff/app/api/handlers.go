@@ -67,7 +67,7 @@ func decodeBody(w http.ResponseWriter, r *http.Request, into any) error {
 func writeFailure(w http.ResponseWriter, r *http.Request, err error) {
 	failure := rpc.Classify(err)
 	if failure.Status >= http.StatusInternalServerError {
-		tracing.RecordError(trace.SpanFromContext(r.Context()), failure.Code)
+		tracing.RecordError(trace.SpanFromContext(r.Context()), rpc.Category(err))
 	}
 	writeRejection(r, w, failure.Status, failure.Code, failure.Message)
 }
@@ -91,7 +91,7 @@ func writeJSON(r *http.Request, w http.ResponseWriter, status int, body any) {
 	}
 	w.WriteHeader(status)
 	if err := json.NewEncoder(w).Encode(body); err != nil {
-		tracing.RecordError(trace.SpanFromContext(r.Context()), "response")
+		tracing.RecordError(trace.SpanFromContext(r.Context()), rpc.Category(err))
 	}
 }
 

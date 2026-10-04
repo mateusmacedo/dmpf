@@ -78,8 +78,8 @@ const (
 )
 
 // Workspace is the gate's own composition (cmd/conformance) minus the
-// BaselineStore and the base ref: the suite asserts over the production
-// universe as it is, never over who authorized its classification (FIT-03).
+// BaselineStore: the suite asserts over the production universe as it is,
+// never over the versioned baseline of its classification (FIT-03).
 // An empty profilesPath resolves to the checker's build-profiles.json.
 func Workspace(root, profilesPath string) (Input, error) {
 	abs, err := filepath.Abs(root)

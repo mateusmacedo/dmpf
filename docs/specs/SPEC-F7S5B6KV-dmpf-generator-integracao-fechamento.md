@@ -5,7 +5,7 @@ title: DMPF KRN-12.2c — Integração por contrato gerado e fechamento da prova
 stage: deferred
 priority: P2
 depends_on: [SPEC-VZ16X0MS]
-ticket_url: null
+ticket_url: https://linear.app/mmda/issue/DEVS-59/spec-f7s5b6kv-dmpf-krn-122c-integracao-por-contrato-gerado-e
 subtask_urls: []
 created: 2026-09-09
 ---

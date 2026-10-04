@@ -5,7 +5,7 @@ title: DMPF — Apps autocontidos com contrato e deploy dentro do contexto
 stage: done
 priority: P1
 depends_on: []
-ticket_url: null
+ticket_url: https://linear.app/mmda/issue/DEVS-16/spec-vjmm2de5-dmpf-apps-autocontidos-com-contrato-e-deploy-dentro-do
 subtask_urls: []
 created: 2026-09-26
 ---

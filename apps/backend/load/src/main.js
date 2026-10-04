@@ -12,13 +12,15 @@ import { idsFor, setupOrderId } from './lib/ids.js';
 import { createRandom, hashSeed } from './lib/random.js';
 import { renderSummary } from './lib/summary.js';
 import { parseParams } from './params.js';
-import { buildOptions, effectiveTenants, rateLabel, shapeFor } from './profiles.js';
+import { buildOptions, effectiveTenants, journeyPause, rateLabel, shapeFor } from './profiles.js';
 
 const params = parseParams(__ENV);
 if (!params.testid) {
   throw new Error('main: TESTID ausente; rode pelo apps/backend/load/scripts/run.sh');
 }
 const tenants = effectiveTenants(params);
+const readsPause = journeyPause(params.profile, 'reads');
+const ordersPause = journeyPause(params.profile, 'orders');
 const READY_DEADLINE_S = 60;
 const SETUP_ORDERS_PER_TENANT = 10;
 
@@ -27,7 +29,7 @@ export const options = buildOptions(params);
 function waitReady() {
   const deadline = Date.now() + READY_DEADLINE_S * 1000;
   while (Date.now() < deadline) {
-    const res = http.get(`${params.baseUrl}/readyz`, {
+    const res = http.get(`${params.adminUrl}/readyz`, {
       tags: { name: '/readyz' },
       timeout: '3s',
       responseCallback: http.expectedStatuses(204, 503),
@@ -74,6 +76,7 @@ function seedReadable() {
 
 export function setup() {
   assertLocalTarget(params.baseUrl);
+  assertLocalTarget(params.adminUrl, 'ADMIN_URL');
   waitReady();
   return { readable: seedReadable() };
 }
@@ -97,7 +100,7 @@ function context(data) {
 }
 
 export function orders(data) {
-  ordersJourney(context(data));
+  ordersJourney({ ...context(data), pause: ordersPause });
 }
 
 export function reservations(data) {
@@ -109,7 +112,7 @@ export function bookings(data) {
 }
 
 export function reads(data) {
-  readsJourney(context(data));
+  readsJourney({ ...context(data), pause: readsPause });
 }
 
 export function admission(data) {

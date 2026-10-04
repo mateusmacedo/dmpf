@@ -5,7 +5,7 @@ title: DMPF Foundation — Golden Path orientado a domínio e mensagens
 stage: done
 priority: P0
 depends_on: []
-ticket_url: null
+ticket_url: https://linear.app/mmda/issue/DEVS-12/spec-qg2n8sty-dmpf-foundation-golden-path-orientado-a-dominio-e
 subtask_urls: [ARQ-438, ARQ-439, ARQ-440, ARQ-441, ARQ-442, ARQ-443, ARQ-444, ARQ-445, ARQ-446, ARQ-447, ARQ-448, ARQ-488, ARQ-490, ARQ-492]
 created: 2026-08-13
 ---

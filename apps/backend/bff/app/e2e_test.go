@@ -14,6 +14,7 @@ import (
 
 	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kgo"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -64,7 +65,7 @@ func TestTopologyEndToEnd(t *testing.T) {
 		t.Fatalf("OrderPlaced trace id = %q, want %q from the BFF edge", got, traceID)
 	}
 
-	t.Log("3. the reservation of the first order is confirmed and its fact leaves with the chain intact")
+	t.Log("3. the reservation of the first order is confirmed and its fact leaves with the correlation chain under a process root of its own")
 	top.waitUntil(t, "the first reservation is confirmed", func() bool {
 		return top.reservationStatus(t, reservedOrder) == "confirmed"
 	})
@@ -75,8 +76,8 @@ func TestTopologyEndToEnd(t *testing.T) {
 	if confirmed.CausationID != placed.ID {
 		t.Fatalf("ReservationConfirmed causationid = %q, want the OrderPlaced id %q", confirmed.CausationID, placed.ID)
 	}
-	if got := traceOf(confirmed.TraceParent); got != traceID {
-		t.Fatalf("ReservationConfirmed trace id = %q, want %q", got, traceID)
+	if got, err := trace.TraceIDFromHex(traceOf(confirmed.TraceParent)); err != nil || got.String() == traceID {
+		t.Fatalf("ReservationConfirmed traceparent = %q, want a valid root of its own, apart from %q (RF-B9)", confirmed.TraceParent, traceID)
 	}
 
 	t.Log("4. the canceled reservation refuses the later OrderPlaced: first decision wins")

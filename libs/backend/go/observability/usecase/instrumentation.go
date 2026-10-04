@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"reflect"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 
@@ -15,16 +15,13 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/clock"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/metrics"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/otelboot"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/redact"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/tracing"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
 
 const (
 	spanPrefix = "dmpf.usecase."
-
-	attrTrafficClass    = "dmpf.traffic_class"
-	attrOutcomeCategory = "dmpf.outcome_category"
-
-	attrIdempotencyOutcome = "dmpf.idempotency_outcome"
 
 	trafficWrite = "write"
 	trafficRead  = "read"
@@ -33,17 +30,22 @@ const (
 // ActionCrossTenantAccess names the security event of IDN-12 in the audit trail.
 const ActionCrossTenantAccess = "security.cross_tenant_access"
 
+const (
+	keyAuditAction       = "dmpf.audit.action"
+	keyAuditObject       = "dmpf.audit.object"
+	keyAuditSubject      = "dmpf.audit.subject"
+	keyAuditOutcome      = "dmpf.audit.outcome"
+	keyAuditDataTenantID = "dmpf.audit.data_tenant_id"
+)
+
 // CategoryUnclassified is what a failure is counted under when nobody says what
 // kind of failure it was. It is a category and never the error message, which
 // would put unbounded — and possibly personal — text on a label (MET-07).
-const CategoryUnclassified = "unclassified"
+const CategoryUnclassified = "_OTHER"
 
-// Classifier names the kind of a technical failure, so dmpf_service_errors_total
-// carries a bounded error_category. It answers with a category, which is what
-// separates it from retry.Classifier: that one answers whether an error is worth
-// another attempt. The taxonomy belongs to FND-07 and is injected, never defined
-// here; a nil classifier, or one that says nothing, resolves to
-// CategoryUnclassified.
+// Classifier gives the FND-07 category that becomes error.type; unlike
+// retry.Classifier it never says whether to retry. The taxonomy is injected,
+// and a nil classifier or an empty answer resolves to CategoryUnclassified.
 type Classifier func(err error) string
 
 // SubjectFunc resolves the authenticated subject from the context. The identity
@@ -57,7 +59,6 @@ type SubjectFunc func(ctx context.Context) string
 type Instrumentation struct {
 	tracer      trace.Tracer
 	instruments *metrics.Instruments
-	service     string
 	logger      *slog.Logger
 	clock       clock.Clock
 	sink        audit.Sink
@@ -66,12 +67,9 @@ type Instrumentation struct {
 	reads       map[string]struct{}
 }
 
-// New builds the realization over a started runtime, which supplies the tracer,
-// the platform instruments and the service name the three series are labelled
-// with. readOperations names the operations that carry read traffic; every other
-// operation is write. The names come from the use case package as exported
-// constants, so the composition root declares the class instead of this package
-// guessing it from the operation string.
+// New takes readOperations from the use case package, so the composition root
+// declares the read traffic class instead of this package guessing it from the
+// operation name; every other operation is write.
 func New(rt *otelboot.Runtime, sink audit.Sink, subject SubjectFunc, classify Classifier, readOperations ...string) *Instrumentation {
 	reads := make(map[string]struct{}, len(readOperations))
 	for _, operation := range readOperations {
@@ -80,8 +78,7 @@ func New(rt *otelboot.Runtime, sink audit.Sink, subject SubjectFunc, classify Cl
 	return &Instrumentation{
 		tracer:      rt.Tracer(),
 		instruments: rt.Instruments(),
-		service:     rt.ServiceName(),
-		logger:      rt.Logger(),
+		logger:      rt.LoggerFor(reflect.TypeFor[Instrumentation]().PkgPath()),
 		clock:       clock.System(),
 		sink:        sink,
 		subject:     subject,
@@ -93,22 +90,22 @@ func New(rt *otelboot.Runtime, sink audit.Sink, subject SubjectFunc, classify Cl
 func (i *Instrumentation) BeginOperation(ctx context.Context, operation string) (context.Context, ports.EndOperation) {
 	started := i.clock.Now()
 	ctx, span := i.tracer.Start(ctx, spanPrefix+operation, trace.WithAttributes(
-		attribute.String(attrTrafficClass, i.trafficClass(operation)),
+		attribute.String(tracing.KeyTrafficClass, i.trafficClass(operation)),
 	))
 
 	return ctx, func(result ports.Result) {
-		span.SetAttributes(attribute.String(attrOutcomeCategory, string(result.Outcome)))
+		span.SetAttributes(attribute.String(tracing.KeyOutcomeCategory, string(result.Outcome)))
 		if claim, ok := ports.IdempotencyOutcomeFrom(ctx); ok {
-			span.SetAttributes(attribute.String(attrIdempotencyOutcome, claim.String()))
+			span.SetAttributes(attribute.String(tracing.KeyIdempotencyOutcome, claim.String()))
 		}
+		errorType := ""
 		if result.Outcome == ports.OutcomeFailed {
-			// TRC-12: o status carrega a categoria do desfecho, nunca a mensagem
-			// do erro, que sairia do processo sem passar por redaction.
-			span.SetStatus(codes.Error, "")
+			errorType = i.category(result.Err)
+			tracing.RecordError(span, errorType)
 		}
 		span.End()
 
-		i.record(ctx, operation, result, i.clock.Now().Sub(started))
+		i.record(ctx, operation, result.Outcome, errorType, i.clock.Now().Sub(started))
 		i.recordCrossTenant(ctx, result)
 	}
 }
@@ -136,38 +133,22 @@ func (i *Instrumentation) recordCrossTenant(ctx context.Context, result ports.Re
 		// which leaves the process by another path; the sink's own error does
 		// not, because it may carry what redaction exists to keep out.
 		i.logger.ErrorContext(ctx, "dmpf: security event kept in the log because the audit sink refused it",
-			slog.String("action", event.Action), slog.String("object", event.Object),
-			slog.String("subject", event.Subject), slog.String("outcome", event.Outcome),
-			slog.String("tenant_id", event.Tenant), slog.String("data_tenant_id", event.DataTenant))
+			slog.String(keyAuditAction, event.Action), slog.String(keyAuditObject, event.Object),
+			slog.String(keyAuditSubject, event.Subject), slog.String(keyAuditOutcome, event.Outcome),
+			slog.String(keyAuditDataTenantID, event.DataTenant))
 	}
 }
 
-// record writes the three service series of MET-08, MET-09 and MET-10. Every
-// outcome counts as a request, including a failure; only a failure also counts
-// as an error, because a rejection is the refusing branch of the UPR and not a
-// fault (DEC-04).
-func (i *Instrumentation) record(ctx context.Context, operation string, result ports.Result, elapsed time.Duration) {
+// record writes the RED of the use case (RF-D2): every outcome is an
+// observation, and only a failure carries error.type, because a rejection is the
+// refusing branch of the UPR and not a fault (DEC-04).
+func (i *Instrumentation) record(ctx context.Context, operation string, outcome ports.OutcomeCategory, errorType string, elapsed time.Duration) {
 	labels := metrics.Labels{}.
-		Service(i.service).
 		Operation(operation).
-		OutcomeCategory(string(result.Outcome))
+		OutcomeCategory(string(outcome)).
+		ErrorType(errorType)
 
-	// Both series carry the same labels, so the attribute set is built once: it
-	// is on the path of every instrumented operation.
-	measured := metric.WithAttributes(labels.Attributes()...)
-	i.instruments.RequestDuration.Record(ctx, elapsed.Seconds(), measured)
-	i.instruments.Requests.Add(ctx, 1, measured)
-
-	if result.Outcome != ports.OutcomeFailed {
-		return
-	}
-
-	failure := metrics.Labels{}.
-		Service(i.service).
-		Operation(operation).
-		ErrorCategory(i.category(result.Err))
-
-	i.instruments.Errors.Add(ctx, 1, metric.WithAttributes(failure.Attributes()...))
+	i.instruments.RequestDuration.Record(ctx, elapsed.Seconds(), metric.WithAttributes(labels.Attributes()...))
 }
 
 func (i *Instrumentation) category(err error) string {
@@ -199,8 +180,8 @@ func (i *Instrumentation) emit(ctx context.Context, event audit.Event) bool {
 		// A porta não devolve erro, e engolir este seria perder um registro de
 		// auditoria em silêncio. Sai a categoria, não o conteúdo do evento.
 		i.logger.ErrorContext(ctx, "dmpf: the audit sink rejected the record",
-			slog.String("error_category", "audit_sink"),
-			slog.String("action", event.Action))
+			redact.Error(err),
+			slog.String(keyAuditAction, event.Action))
 		return false
 	}
 	return true

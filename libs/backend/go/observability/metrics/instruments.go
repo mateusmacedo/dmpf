@@ -15,22 +15,18 @@ type Instruments struct {
 	DeadlineExceeded    metric.Int64Counter
 	Cancellations       metric.Int64Counter
 	RequestDuration     metric.Float64Histogram
-	Requests            metric.Int64Counter
-	Errors              metric.Int64Counter
 	Degraded            metric.Int64Counter
 	Omitted             metric.Int64Counter
 	BulkheadRejections  metric.Int64Counter
-	SpansDropped        metric.Int64Counter
 	PoolUtilization     metric.Float64Gauge
 	QueueDepth          metric.Int64Gauge
 	AdmissionRejections metric.Int64Counter
 }
 
-// durationBoundaries are the histogram buckets of RequestDurationSeconds, in
-// seconds. The SDK default (5, 10, 25 … 10000) was drawn for milliseconds: with
-// it every request of a healthy service lands in the first bucket and
-// histogram_quantile answers seconds for a millisecond call.
-var durationBoundaries = []float64{0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10}
+// durationBoundaries are the advisory boundaries semconv declares for a
+// duration in seconds (RF-D4), so the series aggregates with the RED of
+// otelhttp and otelgrpc.
+var durationBoundaries = []float64{0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.25, 0.5, 0.75, 1, 2.5, 5, 7.5, 10}
 
 // New builds every series of Catalog on the meter. It fails as a whole: a
 // partially built set would leave a decorator recording into a nil instrument.
@@ -61,12 +57,9 @@ func New(meter metric.Meter) (*Instruments, error) {
 		BudgetExhausted:     counter(BudgetExhaustedTotal),
 		DeadlineExceeded:    counter(DeadlineExceededTotal),
 		Cancellations:       counter(CancellationsTotal),
-		Requests:            counter(RequestsTotal),
-		Errors:              counter(ErrorsTotal),
 		Degraded:            counter(DegradedTotal),
 		Omitted:             counter(OmittedTotal),
 		BulkheadRejections:  counter(BulkheadRejectionsTotal),
-		SpansDropped:        counter(SpansDroppedTotal),
 		AdmissionRejections: counter(AdmissionRejectionsTotal),
 	}
 

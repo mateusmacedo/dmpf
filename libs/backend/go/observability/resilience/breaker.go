@@ -4,11 +4,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
+	"reflect"
 	"sync"
 	"time"
 
+	"go.opentelemetry.io/otel/log"
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/clock"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/logging"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/metrics"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/tracing"
 )
 
 // BreakerState is what dmpf_dependency_breaker_state records, and its numbering
@@ -46,6 +53,7 @@ type Breaker struct {
 	clock      clock.Clock
 	gauge      metric64Gauge
 	failure    func(error) bool
+	logs       log.LoggerProvider
 
 	mu         sync.Mutex
 	window     []observation
@@ -77,6 +85,7 @@ func NewBreaker(dependency string, policy BreakerPolicy, c clock.Clock, instrume
 	if instruments != nil {
 		breaker.gauge = instruments.BreakerState
 	}
+	breaker.report(context.Background())
 	return breaker
 }
 
@@ -85,6 +94,13 @@ func NewBreaker(dependency string, policy BreakerPolicy, c clock.Clock, instrume
 // first call: the classifier is read without the lock.
 func (b *Breaker) CountsAsFailure(failure func(error) bool) *Breaker {
 	b.failure = failure
+	return b
+}
+
+// LogsTo names the provider the transitions are recorded on; without it they go
+// to the global one. Call it before the first call, like CountsAsFailure.
+func (b *Breaker) LogsTo(provider log.LoggerProvider) *Breaker {
+	b.logs = provider
 	return b
 }
 
@@ -124,20 +140,25 @@ func (b *Breaker) admit(ctx context.Context) (admission, error) {
 
 	if b.state == BreakerOpen {
 		if now.Sub(b.openedAt) < b.policy.Cooldown {
-			return admission{}, fmt.Errorf("%w: %s is open", ErrBreakerOpen, b.dependency)
+			return admission{}, b.refuse(ctx, "is open")
 		}
 		b.transition(ctx, BreakerHalfOpen, now)
 	}
 
 	if b.state == BreakerHalfOpen {
 		if b.probing >= b.probes() {
-			return admission{}, fmt.Errorf("%w: %s is half-open and its probes are in flight", ErrBreakerOpen, b.dependency)
+			return admission{}, b.refuse(ctx, "is half-open and its probes are in flight")
 		}
 		b.probing++
 		return admission{probe: true, generation: b.generation}, nil
 	}
 
 	return admission{generation: b.generation}, nil
+}
+
+func (b *Breaker) refuse(ctx context.Context, why string) error {
+	tracing.BreakerRejected(trace.SpanFromContext(ctx), b.dependency)
+	return fmt.Errorf("%w: %s %s", ErrBreakerOpen, b.dependency, why)
 }
 
 // record accounts for the outcome. A cancellation by the caller is not counted:
@@ -252,7 +273,18 @@ func (b *Breaker) transition(ctx context.Context, to BreakerState, now time.Time
 		b.probing = 0
 	}
 
+	b.report(ctx)
+	b.log().LogAttrs(ctx, slog.LevelWarn, "resilience: breaker state changed",
+		slog.String(tracing.KeyDependency, b.dependency),
+		slog.String(logging.KeyBreakerState, to.String()))
+}
+
+func (b *Breaker) report(ctx context.Context) {
 	if b.gauge != nil {
-		b.gauge.Record(ctx, int64(to), metricAttributes(metrics.Labels{}.Dependency(b.dependency)))
+		b.gauge.Record(ctx, int64(b.state), metricAttributes(metrics.Labels{}.Dependency(b.dependency)))
 	}
+}
+
+func (b *Breaker) log() *slog.Logger {
+	return logging.NewLogger(b.logs, reflect.TypeFor[Breaker]().PkgPath())
 }

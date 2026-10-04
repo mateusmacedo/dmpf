@@ -4,10 +4,13 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"log/slog"
 	"os"
 
 	"github.com/twmb/franz-go/pkg/sasl"
 	"github.com/twmb/franz-go/pkg/sasl/scram"
+
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/redact"
 )
 
 const (
@@ -43,6 +46,41 @@ type ClientAuth struct {
 	CertFile string
 	KeyFile  string
 	CAFile   string
+}
+
+func (a ClientAuth) LogValue() slog.Value {
+	mechanism, username, password := unset, unset, unset
+	if a.SASL != nil {
+		mechanism = orUnset(a.SASL.Mechanism)
+		username = presence(a.SASL.Username)
+		if a.SASL.Password != "" {
+			password = redact.Placeholder
+		}
+	}
+	return slog.GroupValue(
+		slog.String("sasl_mechanism", mechanism),
+		slog.String("sasl_username", username),
+		slog.String("sasl_password", password),
+		slog.String("cert_file", orUnset(a.CertFile)),
+		slog.String("key_file", presence(a.KeyFile)),
+		slog.String("ca_file", orUnset(a.CAFile)),
+	)
+}
+
+const unset = "unset"
+
+func presence(value string) string {
+	if value == "" {
+		return unset
+	}
+	return "set"
+}
+
+func orUnset(value string) string {
+	if value == "" {
+		return unset
+	}
+	return value
 }
 
 // ReadClientAuth resolves the declaration from the environment, so the three

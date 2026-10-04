@@ -27,7 +27,7 @@ apenas para *exceções* ou opções que variam por projeto (ex: `passWithNoTest
 | `test` | `dependsOn: ["^build"]`, `cache: true` |
 | `lint` | `executor`, `command: biome lint`, `cache: true`, `inputs` |
 | `typecheck` | `dependsOn: ["^typecheck"]`, `cache: true` |
-| `e2e` | `cache: true` |
+| `e2e` | `cache: true`. Nos contextos (`orders`, `reservations`, `bookings`) o `e2e` roda o harness de processos reais sobre Postgres e Redpanda (o `distkit`, o mesmo do `test-distributed`), sem depender do `test-race`, que o CI já roda antes; o e2e caixa-preta da topologia roda no `bff:test-race` |
 
 ### O que o plugin `@nx/js/typescript` já infere automaticamente
 

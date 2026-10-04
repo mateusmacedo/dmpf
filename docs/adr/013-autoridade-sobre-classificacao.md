@@ -4,6 +4,8 @@
 
 Aceito — 2026-08-28. Implementa SPEC-DBTRMM3X.
 
+**Parcialmente supersedido pelo [ADR-058](./058-projeto-solo-sem-controles-de-segunda-pessoa.md) (2026-10-04)**: a autorização distinta da autoria e o commit próprio deixam de valer; o baseline e o `DMPF-T001` ficam.
+
 ## Contexto
 
 O metadado de classificação do DMPF é **autodeclarado**: cada `verification_unit`

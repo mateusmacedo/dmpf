@@ -5,11 +5,13 @@ package kafka
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net"
-	"strings"
 
 	"github.com/twmb/franz-go/pkg/kerr"
+	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
 
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/redact"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/retry"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/observe"
 )
@@ -35,9 +37,6 @@ func Classifier(err error) retry.Retryability {
 	return retry.NotRetryable
 }
 
-// categoryOf returns the bounded category under which a failure is recorded:
-// a platform category, the Kafka error code name in lowercase, the context
-// error or "network" — never the message (TRC-12, MET-07).
 func categoryOf(err error) string {
 	if err == nil {
 		return observe.CategoryOK
@@ -46,21 +45,50 @@ func categoryOf(err error) string {
 	if errors.As(err, &categorized) {
 		return categorized.ErrorCategory()
 	}
+	switch {
+	case errors.Is(err, context.DeadlineExceeded):
+		return "DeadlineExceeded"
+	case errors.Is(err, context.Canceled):
+		return "Cancelled"
+	}
 	var broker *kerr.Error
 	if errors.As(err, &broker) {
-		return strings.ToLower(broker.Message)
-	}
-	switch {
-	case errors.Is(err, ErrSinkPanicked):
-		return "panic"
-	case errors.Is(err, context.DeadlineExceeded):
-		return "deadline_exceeded"
-	case errors.Is(err, context.Canceled):
-		return "cancelled"
+		return brokerCategory(broker)
 	}
 	var network net.Error
 	if errors.As(err, &network) {
-		return "network"
+		return categoryTransientDependency
 	}
-	return "unknown"
+	return semconv.ErrorTypeOther.Value.AsString()
+}
+
+func errorAttr(err error) slog.Attr {
+	var categorized redact.Categorized
+	if err == nil || errors.As(err, &categorized) {
+		return redact.Error(err)
+	}
+	return slog.String(redact.KeyErrorType, categoryOf(err))
+}
+
+const categoryTransientDependency = "TransientDependency"
+
+var fnd07BrokerCodes = map[int16]string{
+	kerr.ThrottlingQuotaExceeded.Code:            "RateLimited",
+	kerr.TopicAuthorizationFailed.Code:           "Forbidden",
+	kerr.GroupAuthorizationFailed.Code:           "Forbidden",
+	kerr.ClusterAuthorizationFailed.Code:         "Forbidden",
+	kerr.TransactionalIDAuthorizationFailed.Code: "Forbidden",
+	kerr.DelegationTokenAuthorizationFailed.Code: "Forbidden",
+	kerr.SaslAuthenticationFailed.Code:           "Unauthenticated",
+	kerr.InvalidRecord.Code:                      "Validation",
+}
+
+func brokerCategory(broker *kerr.Error) string {
+	if category, mapped := fnd07BrokerCodes[broker.Code]; mapped {
+		return category
+	}
+	if broker.Retriable {
+		return categoryTransientDependency
+	}
+	return semconv.ErrorTypeOther.Value.AsString()
 }

@@ -5,7 +5,7 @@ title: DMPF — Políticas REST, gRPC, Kafka, SNS/SQS e AsyncAPI
 stage: done
 priority: P0
 depends_on: [SPEC-7H08RZDG]
-ticket_url: null
+ticket_url: https://linear.app/mmda/issue/DEVS-37/spec-ywfgnpg5-dmpf-politicas-rest-grpc-kafka-snssqs-e-asyncapi
 subtask_urls: []
 created: 2026-08-13
 ---

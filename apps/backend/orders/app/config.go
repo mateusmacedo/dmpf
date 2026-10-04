@@ -48,11 +48,6 @@ const (
 	envOrdersTopic        = "KAFKA_ORDERS_TOPIC"
 	envOrdersDLQ          = "KAFKA_ORDERS_DLQ"
 	envGroup              = "KAFKA_GROUP"
-	envOTLPEndpoint       = "OTLP_ENDPOINT"
-	envOTLPInsecure       = "OTLP_INSECURE"
-	envService            = "SERVICE"
-	envServiceVersion     = "SERVICE_VERSION"
-	envInstanceID         = "INSTANCE_ID"
 	envItemLimit          = "ITEM_LIMIT"
 
 	// DefaultItemLimit is the ceiling a process takes when it declares none.
@@ -76,9 +71,7 @@ type Config struct {
 	GRPCClientCAFile   string
 	GRPCTrustedClients []string
 
-	Service  string
-	Version  string
-	Instance string
+	Service string
 
 	Brokers       []string
 	KafkaInsecure bool
@@ -90,9 +83,7 @@ type Config struct {
 	OrdersDLQ   string
 	Group       string
 
-	OTLPEndpoint string
-	OTLPInsecure bool
-	Signals      boot.Signals
+	Signals boot.Signals
 
 	Migrate   bool
 	ItemLimit int
@@ -117,7 +108,6 @@ func Defaults(role Role) Config {
 		Role:      role,
 		GRPCAddr:  ":9090",
 		Service:   "orders",
-		Version:   "dev",
 		ItemLimit: DefaultItemLimit,
 		Relay: relay.Config{
 			Source:         "urn:dmpf:reference-orders",
@@ -150,16 +140,12 @@ func FromEnv(role Role, lookup func(string) string) (Config, error) {
 	cfg.GRPCKeyFile = lookup(envGRPCKeyFile)
 	cfg.GRPCClientCAFile = lookup(envGRPCClientCAFile)
 	cfg.GRPCTrustedClients = envconfig.SplitList(lookup(envGRPCTrustedClients))
-	cfg.Service = envconfig.OrDefault(lookup(envService), cfg.Service)
-	cfg.Version = envconfig.OrDefault(lookup(envServiceVersion), cfg.Version)
-	cfg.Instance = envconfig.OrDefault(lookup(envInstanceID), envconfig.Hostname())
 	cfg.Brokers = envconfig.SplitList(lookup(envBrokers))
 	cfg.KafkaAuth = kafka.ReadClientAuth(lookup)
 	cfg.MetricTenants = envconfig.SplitList(lookup(envMetricTenants))
 	cfg.OrdersTopic = lookup(envOrdersTopic)
 	cfg.OrdersDLQ = lookup(envOrdersDLQ)
 	cfg.Group = lookup(envGroup)
-	cfg.OTLPEndpoint = lookup(envOTLPEndpoint)
 
 	var err error
 	flags := []struct {
@@ -168,7 +154,6 @@ func FromEnv(role Role, lookup func(string) string) (Config, error) {
 	}{
 		{envGRPCInsecure, &cfg.GRPCInsecure},
 		{envKafkaInsecure, &cfg.KafkaInsecure},
-		{envOTLPInsecure, &cfg.OTLPInsecure},
 		{envMigrate, &cfg.Migrate},
 	}
 	for _, flag := range flags {

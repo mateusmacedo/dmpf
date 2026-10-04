@@ -7,13 +7,14 @@ global:
   evaluation_interval: 15s
 
 otlp:
+  translation_strategy: UnderscoreEscapingWithSuffixes
   # Sem promover a identidade do serviço, toda série do kernel chegaria sem
   # como distinguir papel, versão e instância (MET-07 vale dos dois lados).
   promote_resource_attributes:
     - service.name
     - service.namespace
     - service.version
-    - service.instance.id
+    - dmpf.process.role
   keep_identifying_resource_attributes: true
 
 storage:

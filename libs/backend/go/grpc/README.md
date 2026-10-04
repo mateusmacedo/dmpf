@@ -25,8 +25,10 @@ só aparecem em `_test.go`, que o verificador não classifica.
 ## O que o módulo contém
 
 - **`config.go`** — `Config` do cliente (TLS ou `InsecureForDevelopmentOnly`,
-  `Sheet` de RES-21, `Methods` por nome completo, `Service`, `Clock`,
-  `Tracer`, `Instruments`, `Logger`) e `MethodPolicy{Budget, Idempotent,
+  `Sheet` de RES-21, `Methods` por nome completo, `HealthServiceName`, `Clock`,
+  `Tracer`, os providers e o propagador que o `otelgrpc` usa no `Dial` —
+  `TracerProvider`, `MeterProvider`, `Propagator` —, `Instruments`,
+  `LoggerProvider`, `Rand`) e `MethodPolicy{Budget, Idempotent,
   RetryableCodes}`. `Validate` recusa cliente sem TLS e sem o opt-out
   (`ErrTLSRequired`, GRP-15), TLS que não verifica o par ou admite versão
   abaixo de 1.2 (`ErrTLSTooWeak`; o mesmo gate vale para `ServerConfig`),
@@ -61,27 +63,50 @@ só aparecem em `_test.go`, que o verificador não classifica.
   declarado `false` na sheet recebe decorator identidade; `RateLimit`
   declarado é recusado, porque não há decorator que o realize (a admissão
   por rota e tenant vive no servidor).
-- **`observe.go`** — liga o módulo a `transport/observe`, que realiza os
-  três decorators que RES-23 exige e o KRN-09 não entrega (span de cliente
-  com os atributos fechados de TRC-04, séries MET-08 a MET-10, log de falha
-  só com categoria); aqui só se declara o prefixo do span e a categoria de
-  falha — o código gRPC em minúsculas, nunca a mensagem (TRC-12).
+- **`observe.go`** — liga o módulo a `transport/compose`, cujas posições de
+  observabilidade (`transport/observe`) realizam o que RES-23 exige e o KRN-09
+  não entrega: o span INTERNAL `dmpf.resilience {dmpf.dependency}` sobre as
+  tentativas, com a degradação da sheet sob ele, e o log de cada tentativa só
+  com a categoria; a posição de métricas só repassa a chamada, porque o RED do
+  cliente é o `rpc.client.call.duration` do `otelgrpc`. Aqui só se declara a
+  categoria de falha e o que o breaker conta como falha.
 - **`classifier.go`** — `StatusClassifier(codes)`: só um status com código
-  declarado é retentável (GRP-09).
+  declarado é retentável (GRP-09). A categoria de falha (`error.type` e
+  `dmpf.outcome_category`) é a do erro de plataforma; senão, a categoria FND-07
+  do prazo (`DeadlineExceeded`), do cancelamento (`Cancelled`) ou do código
+  gRPC — `InvalidArgument` → `Validation`, `FailedPrecondition` →
+  `DomainRejection`, `NotFound` → `NotFound`, `Aborted` e `AlreadyExists` →
+  `Conflict`, `PermissionDenied` → `Forbidden`, `Unauthenticated` →
+  `Unauthenticated`, `Unavailable` → `TransientDependency`,
+  `ResourceExhausted` → `RateLimited`, `Internal` → `Unexpected` —, e `_OTHER`
+  fora da tabela; nunca a mensagem (TRC-12).
 - **`dial.go`** — `ServiceConfig` (`round_robin` + `healthCheckConfig`, com o
   import em branco de `grpc/health`) e `Dial`: credenciais, service config,
-  `WithDisableRetry` — o retry nativo não vê idempotência (GRP-08) — e as
-  cadeias de interceptors.
+  `WithDisableRetry` — o retry nativo não vê idempotência (GRP-08) —, o
+  `otelgrpc.NewClientHandler`, que abre um CLIENT `{rpc.method}` por tentativa
+  sob o span de resiliência e grava `rpc.client.call.duration`, com health e
+  reflection fora pelo filtro (RF-B4), e as cadeias de interceptors.
 - **`server.go`** — `ServerConfig{TLS, InsecureForDevelopmentOnly, Services,
-  UnaryInterceptors, StreamInterceptors, Logger}` e `NewServer`:
+  UnaryInterceptors, StreamInterceptors, LoggerProvider, TracerProvider,
+  MeterProvider, Propagator}` e `NewServer`:
   `Validate` recusa servidor sem transporte seguro e sem o opt-out (GRP-15), e
   um servidor TLS cujo `ClientAuth` não é `RequireAndVerifyClientCert`
   (`ErrClientCARequired`, IDN-03) — um `ServerConfig` montado fora de
-  `APIServerConfig` não escapa dessa exigência. Cada serviço declarado começa
-  em `NOT_SERVING` (GRP-13).
+  `APIServerConfig` não escapa dessa exigência. O `otelgrpc.NewServerHandler`
+  abre um SERVER `{rpc.method}` por chamada e grava `rpc.server.call.duration`,
+  com health e reflection fora pelo filtro (RF-B4); provider ou propagador
+  ausente é o global. Cada serviço declarado começa em `NOT_SERVING` (GRP-13).
+  À frente das duas cadeias, unária e de stream, o `NewServer` põe a
+  recuperação de panic, porque o `grpc-go` não recupera o handler e o runtime
+  encerraria o processo com a pilha no stderr: a chamada responde `INTERNAL`
+  com a projeção pública `internal failure`, o SERVER fica com erro e
+  `error.type` e `dmpf.outcome_category` `Unexpected` (ERR-22), e o registro é
+  o `grpc call` da chamada, emitido no `stats.End`, em `error`, com o contexto
+  de execução que a cadeia unária já montou (o stream não monta nenhum) e sem
+  o valor nem a pilha do panic; o processo segue servindo (ERR-23, RF-A1).
 - **`server_config.go`** — a fachada de composição do servidor de API:
   `APIServer{CertFile, KeyFile, Insecure, ClientCAFile, TrustedClients,
-  Services, Interceptors, Logger}` e `APIServerConfig`, que monta o
+  Services, Interceptors, LoggerProvider}` e `APIServerConfig`, que monta o
   `ServerConfig` já com mTLS ligado — sem o composition root ter que
   encadear `requireClientAuth` e os interceptors de confiança à mão.
   `ServerTLS(certFile, keyFile)` carrega o par declarado ou devolve `nil`
@@ -90,16 +115,45 @@ só aparecem em `_test.go`, que o verificador não classifica.
   pergunta.
 - **`admission.go`** — `Admission(ctrl, tenant, instruments)`: interceptor do
   servidor sobre `transport/admission`. Recusa `RESOURCE_EXHAUSTED` antes
-  do handler (RES-17) e conta `dmpf_service_admission_rejections_total{route,
-  tenant}` com o tenant colapsado pela allowlist (MET-07, MET-12); rota sem
-  limite declarado responde `UNIMPLEMENTED` (RES-16).
+  do handler (RES-17) e conta `dmpf_admission_rejections_total{rpc.method,
+  dmpf.tenant_id}` — a série `dmpf.admission.rejections` — com o tenant
+  colapsado pela allowlist (MET-07, MET-12); rota sem limite declarado
+  responde `UNIMPLEMENTED` (RES-16). O `rpc.method` da série é o
+  `FullMethod` sem a barra inicial
+  (`company.orders.service.v1.OrdersService/PlaceOrder`), como o `otelgrpc`
+  o grava.
+- **`interceptor_context.go`** — `ServerInterceptors(service, ctrl,
+  instruments, logs, opts...)`: a cadeia do servidor sob o SERVER do
+  `otelgrpc`, só para os métodos do serviço — desfecho, registro de acesso,
+  admissão, prazo e contexto. O desfecho grava `dmpf.outcome_category` no SERVER
+  e devolve só a projeção pública do status (ERR-20), porque o `otelgrpc` copia
+  a mensagem do status para o span. O registro de acesso é um `grpc call` por
+  chamada (RF-A5), com `rpc.system.name`, `rpc.method`,
+  `rpc.response.status_code`, `dmpf.outcome_category` e, na falha,
+  `error.type`, no nível da tabela única de `logging.Severity`. O registro sai
+  só no `stats.End`, pelo `stats.Handler` que o `NewServer` registra depois do
+  `otelgrpc`, com o status com que o `grpc-go` fechou a chamada (a resposta
+  acima de `grpc.MaxSendMsgSize` sai `RESOURCE_EXHAUSTED`). A cadeia só anota
+  o contexto de execução, a chave e o erro do handler; a chamada recusada
+  antes dela (corpo que não decodifica, mensagem acima de
+  `grpc.MaxRecvMsgSize`, peer recusado pelo `TrustedPeers`) sai com o trace do
+  SERVER e sem o contexto de execução. Um servidor sem esse `stats.Handler`
+  recebe o registro da própria cadeia. O contexto de
+  execução montado do que cruzou o salto vai ao SERVER (`dmpf.correlation_id`,
+  `dmpf.request_id`, `dmpf.tenant_id`) e ao baggage (RF-B8), e o contexto de
+  mensagem leva o `traceparent` e o `tracestate` do span ativo à outbox; um
+  `tracestate` acima de 512 bytes, o piso que a W3C Trace Context (§3.3.1.5)
+  pede para propagar, é descartado inteiro, nunca cortado no meio de um membro.
 - **`interceptor_context.go`, comandos** — `ServerInterceptors(..., opts...)`
   aceita `WithCommands(métodos...)`, que declara os métodos de comando do
   serviço. Neles, a metadata `idempotency-key` é obrigatória e segue
   `ports.IdempotencyKeyPattern`: ausente ou fora do formato, a chamada é
   recusada com `InvalidArgument` antes do handler (`IDM-01`, `IDM-02`). A chave
   segue ao caso de uso pelo portador do `ports`, e o replay bem-sucedido
-  responde com o header `idempotent-replayed: true` (`IDM-08`).
+  responde com o header `idempotent-replayed: true` (`IDM-08`). O `grpc call`
+  leva a chave em `dmpf.idempotency_key` ou, fora do formato,
+  `dmpf.idempotency_key.invalid` sem o valor; o header de replay não entra em
+  span nem em log.
 - **`idempotency_status.go`** — `IdempotencyStatus(err)` traduz os desfechos
   do comando: divergência em `FailedPrecondition`, em andamento em `Aborted`,
   chave ausente em `InvalidArgument` e `ports.ErrAlreadyExists` em
@@ -110,12 +164,13 @@ só aparecem em `_test.go`, que o verificador não classifica.
 - **`status.go`** — `HTTPStatus(codes.Code)`: a tabela canônica de GRP-14
   (`Canceled → 499`), o resto conforme o grpc-gateway, fora da tabela → 500.
 - **`serve.go`** — `Serve(ctx, listen, server, healthServer, services, ready,
-  logger)`: roda `ready` **antes** de aceitar a primeira conexão — uma sonda
+  logs)`: roda `ready` **antes** de aceitar a primeira conexão — uma sonda
   que não fala o protocolo de saúde (o kubelet caindo para sonda TCP num
   listener TLS) só passa num processo que respondeu pelas próprias
-  dependências. `Drain` para de aceitar, espera as chamadas em curso e força
+  dependências —, e registra `grpc listening` com `server.address` e
+  `server.port`. `Drain` para de aceitar, espera as chamadas em curso e força
   a saída ao fim de `observability.ShutdownGrace` (10 s), a mesma janela que
-  o `boot` da telemetria usa.
+  o `boot` da telemetria usa, com um `warn` que leva `dmpf.shutdown.grace`.
 
 ## Identidade do workload por mTLS (`IDN-03`, ADR-052)
 
@@ -175,7 +230,7 @@ pnpm nx run grpc:test-race
 
 ```bash
 pnpm nx run-many -t fmt-check,vet,lint,build,test-race,govulncheck -p grpc
-go run ./tools/dmpf-conformance/cmd/conformance --root . --base develop
+go run ./tools/dmpf-conformance/cmd/conformance --root .
 ```
 
 O `dmpf-gate-check.sh` não alcança este módulo (o `depguard` seleciona por
@@ -190,6 +245,7 @@ verificador.
 - `docs/dmpf/contexto-erros-seguranca.md` (FND-07) — `IDN-03`, `IDN-04`.
 - `docs/adr/024-rest-externo-grpc-interno-governo-do-tempo.md` — o transporte síncrono interno.
 - `docs/adr/052-identidade-de-workload-no-grpc-e-no-kafka.md` — a verificação por mTLS e a allowlist de workloads.
+- `docs/specs/SPEC-1TFW24WV-observabilidade-ponta-a-ponta.md` — os `RF-*` citados aqui: `otelgrpc`, o `grpc call` e o baggage de execução.
 - `libs/backend/go/transport/README.md` — `deadline`, `admission` e `observe`.
 - `libs/backend/go/observability/README.md` — a composição do KRN-09.
 - `libs/backend/go/authn/README.md` — a autenticação do sujeito na borda REST.

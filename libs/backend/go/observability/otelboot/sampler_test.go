@@ -66,7 +66,7 @@ func sample(sampler sdktrace.Sampler, id trace.TraceID, class tracing.Class) sdk
 func TestARootSpanWithinTheRateOfItsClassIsSampled(t *testing.T) {
 	sampler := otelboot.NewClassSampler(tracing.DefaultRates())
 
-	result := sample(sampler, traceIDWithin(), tracing.ClassWrite)
+	result := sample(sampler, traceIDWithin(), tracing.ClassRead)
 	if result.Decision != sdktrace.RecordAndSample {
 		t.Errorf("Decision = %v, want RecordAndSample", result.Decision)
 	}
@@ -75,7 +75,7 @@ func TestARootSpanWithinTheRateOfItsClassIsSampled(t *testing.T) {
 func TestARootSpanOutsideTheRateOfItsClassIsRecordedButNotSampled(t *testing.T) {
 	sampler := otelboot.NewClassSampler(tracing.DefaultRates())
 
-	result := sample(sampler, traceIDOutside(), tracing.ClassWrite)
+	result := sample(sampler, traceIDOutside(), tracing.ClassRead)
 	if result.Decision != sdktrace.RecordOnly {
 		t.Errorf("Decision = %v, want RecordOnly: the span is kept so an error can still be exported (TRC-14)", result.Decision)
 	}
@@ -242,5 +242,120 @@ func TestARateThatIsNotANumberFallsBackToTheMostRestrictiveRate(t *testing.T) {
 	}
 	if decision := sample(sampler, traceIDWithin(), tracing.ClassWrite).Decision; decision != sdktrace.RecordAndSample {
 		t.Errorf("Decision = %v, want RecordAndSample: the fallback is the restrictive rate, not zero", decision)
+	}
+}
+
+func linkTo(sampled bool) trace.Link {
+	var flags trace.TraceFlags
+	if sampled {
+		flags = trace.FlagsSampled
+	}
+	return trace.Link{SpanContext: trace.NewSpanContext(trace.SpanContextConfig{
+		TraceID:    trace.TraceID{9},
+		SpanID:     trace.SpanID{9},
+		TraceFlags: flags,
+		Remote:     true,
+	})}
+}
+
+func sampleLinked(sampler sdktrace.Sampler, class tracing.Class, links ...trace.Link) sdktrace.SamplingDecision {
+	return sampler.ShouldSample(sdktrace.SamplingParameters{
+		ParentContext: context.Background(),
+		TraceID:       traceIDOutside(),
+		Name:          "reservations.consume",
+		Attributes:    []attribute.KeyValue{attribute.String(tracing.KeyTrafficClass, string(class))},
+		Links:         links,
+	}).Decision
+}
+
+func TestASampledLinkSamplesARootOfWriteOrRead(t *testing.T) {
+	sampler := otelboot.NewClassSampler(tracing.Rates{tracing.ClassWrite: 0, tracing.ClassRead: 0})
+
+	for _, class := range []tracing.Class{tracing.ClassWrite, tracing.ClassRead} {
+		if decision := sampleLinked(sampler, class, linkTo(true)); decision != sdktrace.RecordAndSample {
+			t.Errorf("Decision for %q with a sampled link = %v, want RecordAndSample", class, decision)
+		}
+		if decision := sampleLinked(sampler, class, linkTo(false)); decision != sdktrace.RecordOnly {
+			t.Errorf("Decision for %q with an unsampled link = %v, want the rate of the class", class, decision)
+		}
+	}
+}
+
+func TestASampledLinkHasNoEffectOnARefusedBoundaryRootOfClassError(t *testing.T) {
+	sampler := otelboot.NewClassSampler(tracing.Rates{tracing.ClassError: 0, tracing.ClassMaintenance: 0})
+
+	for _, class := range []tracing.Class{tracing.ClassError, tracing.ClassMaintenance, tracing.ClassUnclassified} {
+		if decision := sampleLinked(sampler, class, linkTo(true)); decision != sdktrace.RecordOnly {
+			t.Errorf("Decision for %q with a sampled link = %v, want the link ignored", class, decision)
+		}
+	}
+}
+
+func TestAnInvalidLinkHasNoEffect(t *testing.T) {
+	sampler := otelboot.NewClassSampler(tracing.Rates{tracing.ClassWrite: 0})
+	invalid := trace.Link{SpanContext: trace.NewSpanContext(trace.SpanContextConfig{TraceFlags: trace.FlagsSampled})}
+
+	if decision := sampleLinked(sampler, tracing.ClassWrite, invalid); decision != sdktrace.RecordOnly {
+		t.Errorf("Decision with an invalid sampled link = %v, want the rate of the class", decision)
+	}
+}
+
+func TestTheSamplerIsTheCanonicalDecoratedComposition(t *testing.T) {
+	first := otelboot.NewClassSampler(tracing.UniformRates(0.5)).Description()
+	second := otelboot.NewClassSampler(tracing.UniformRates(0.5)).Description()
+
+	if first != second {
+		t.Errorf("Description() = %q then %q, want it stable", first, second)
+	}
+	if !strings.HasPrefix(first, "AlwaysRecord{root:ParentBased{root:") {
+		t.Errorf("Description() = %q, want AlwaysRecord(ParentBased(root))", first)
+	}
+}
+
+func TestAChildSpanWithoutAClassIsMarkedUnclassifiedWhateverItsParent(t *testing.T) {
+	sampler := otelboot.NewClassSampler(tracing.DefaultRates())
+
+	for _, testCase := range []struct {
+		name    string
+		sampled bool
+		remote  bool
+		want    sdktrace.SamplingDecision
+	}{
+		{"remote parent sampled", true, true, sdktrace.RecordAndSample},
+		{"remote parent not sampled", false, true, sdktrace.RecordOnly},
+		{"local parent sampled", true, false, sdktrace.RecordAndSample},
+		{"local parent not sampled", false, false, sdktrace.RecordOnly},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			result := sampler.ShouldSample(sdktrace.SamplingParameters{
+				ParentContext: parentContext(t, testCase.sampled, testCase.remote),
+				TraceID:       traceIDOutside(),
+				Name:          "db.query",
+			})
+			if result.Decision != testCase.want {
+				t.Errorf("Decision = %v, want %v: the parent still decides", result.Decision, testCase.want)
+			}
+			if got := index(result.Attributes)[attribute.Key(tracing.KeyTrafficClass)]; got != string(tracing.ClassUnclassified) {
+				t.Errorf("%s = %q, want %q: the tail classifies every span of the trace (RF-E5, RF-E7)",
+					tracing.KeyTrafficClass, got, tracing.ClassUnclassified)
+			}
+		})
+	}
+}
+
+func TestAChildSpanThatDeclaresItsClassKeepsIt(t *testing.T) {
+	sampler := otelboot.NewClassSampler(tracing.DefaultRates())
+
+	for _, remote := range []bool{true, false} {
+		result := sampler.ShouldSample(sdktrace.SamplingParameters{
+			ParentContext: parentContext(t, true, remote),
+			TraceID:       traceIDOutside(),
+			Name:          "orders.place",
+			Attributes:    []attribute.KeyValue{attribute.String(tracing.KeyTrafficClass, string(tracing.ClassRead))},
+		})
+		if _, rewritten := index(result.Attributes)[attribute.Key(tracing.KeyTrafficClass)]; rewritten {
+			t.Errorf("remote=%v: the sampler added %s to a child that already declared its class",
+				remote, tracing.KeyTrafficClass)
+		}
 	}
 }

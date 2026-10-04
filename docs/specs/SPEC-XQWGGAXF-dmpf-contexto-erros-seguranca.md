@@ -5,7 +5,7 @@ title: DMPF — Execution context, erros, segurança e multi-tenancy
 stage: done
 priority: P0
 depends_on: [SPEC-8YVF0RR5]
-ticket_url: null
+ticket_url: https://linear.app/mmda/issue/DEVS-26/spec-xqwggaxf-dmpf-execution-context-erros-seguranca-e-multi-tenancy
 subtask_urls: []
 created: 2026-08-13
 ---

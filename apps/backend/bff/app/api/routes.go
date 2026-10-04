@@ -8,13 +8,18 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strings"
 
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel/metric"
+	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
 	"go.opentelemetry.io/otel/trace"
 
 	bookingsv1 "github.com/mateusmacedo/dmpf/apps/backend/bookings/contract/gen/go/company/bookings/service/v1"
 	ordersv1 "github.com/mateusmacedo/dmpf/apps/backend/orders/contract/gen/go/company/orders/service/v1"
 	reservationsv1 "github.com/mateusmacedo/dmpf/apps/backend/reservations/contract/gen/go/company/reservations/service/v1"
 	kernelhttp "github.com/mateusmacedo/dmpf/libs/backend/go/http"
+	obsclock "github.com/mateusmacedo/dmpf/libs/backend/go/observability/clock"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/metrics"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/admission"
@@ -73,6 +78,9 @@ type Options struct {
 	Logger               *slog.Logger
 	Ready                func(context.Context) error
 	Draining             func() bool
+	TracerProvider       trace.TracerProvider
+	MeterProvider        metric.MeterProvider
+	Clock                obsclock.Clock
 }
 
 func Routes(budget deadline.Budget) []kernelhttp.Route {
@@ -115,7 +123,6 @@ func NewHandler(
 	reservations ReservationsClient,
 	bookings BookingsClient,
 	ctrl *admission.Controller,
-	tracer trace.Tracer,
 	instruments *metrics.Instruments,
 	opts Options,
 ) (http.Handler, error) {
@@ -123,10 +130,7 @@ func NewHandler(
 		return nil, ErrAuthenticatorRequired
 	}
 
-	logger := opts.Logger
-	if logger == nil {
-		logger = slog.New(slog.DiscardHandler)
-	}
+	logger := loggerOf(opts)
 
 	h := handlers{orders: orders, reservations: reservations, bookings: bookings}
 	serve := map[string]http.HandlerFunc{
@@ -151,7 +155,7 @@ func NewHandler(
 			return nil, err
 		}
 		handler := requireIdempotencyKey(serve[route.Name])
-		mounted := withExecutionContext(tracer, logger, opts.Authenticator, route, admit(handler))
+		mounted := withExecutionContext(logger, opts.Authenticator, route, admit(handler))
 		mux.Handle(pattern(route), withRecover(withRouteDeadline(route.Budget, mounted)))
 	}
 	if len(opts.OrdersContract) > 0 {
@@ -163,11 +167,38 @@ func NewHandler(
 	if len(opts.BookingsContract) > 0 {
 		mux.Handle("GET "+BookingsContractPath, serveContract(opts.BookingsContract))
 	}
-	mux.Handle("GET "+LivenessPath, serveLiveness())
-	if opts.Ready != nil {
-		mux.Handle("GET "+ReadinessPath, serveReadiness(opts.Ready, opts.Draining, logger))
+	return otelhttp.NewHandler(withRoute(withAccessLog(logger, withCORS(opts.CORSOrigins, mux))), "bff", instrumentation(opts)...), nil
+}
+
+func instrumentation(opts Options) []otelhttp.Option {
+	return []otelhttp.Option{
+		otelhttp.WithTracerProvider(opts.TracerProvider),
+		otelhttp.WithMeterProvider(opts.MeterProvider),
+		otelhttp.WithPropagators(traceparentOnly{}),
 	}
-	return withCORS(opts.CORSOrigins, mux), nil
+}
+
+func loggerOf(opts Options) *slog.Logger {
+	if opts.Logger == nil {
+		return slog.New(slog.DiscardHandler)
+	}
+	return opts.Logger
+}
+
+func clockOf(opts Options) obsclock.Clock {
+	if opts.Clock == nil {
+		return obsclock.System()
+	}
+	return opts.Clock
+}
+
+func withRoute(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		next.ServeHTTP(w, r)
+		if _, route, routed := strings.Cut(r.Pattern, " "); routed {
+			trace.SpanFromContext(r.Context()).SetAttributes(semconv.HTTPRoute(route))
+		}
+	})
 }
 
 func routeOf(r *http.Request) string { return r.Pattern }

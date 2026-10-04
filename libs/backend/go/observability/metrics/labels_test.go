@@ -89,8 +89,8 @@ func TestEveryPermittedKeyHasABuilderMethod(t *testing.T) {
 	}
 
 	for _, key := range []string{
-		metrics.KeyDependency, metrics.KeyOperation, metrics.KeyService,
-		metrics.KeyErrorCategory, metrics.KeyOutcomeCategory, metrics.KeyRoute,
+		metrics.KeyDependency, metrics.KeyOperation,
+		metrics.KeyErrorType, metrics.KeyOutcomeCategory, metrics.KeyRoute, metrics.KeyRPCMethod,
 	} {
 		if !produced[key] {
 			t.Errorf("no builder method produces the permitted key %q", key)
@@ -102,13 +102,13 @@ func TestTheBuilderAccumulatesInOrder(t *testing.T) {
 	got := metrics.Labels{}.
 		Dependency("payments").
 		Operation("Authorize").
-		ErrorCategory("timeout").
+		ErrorType("timeout").
 		Attributes()
 
 	want := []attribute.KeyValue{
 		attribute.String(metrics.KeyDependency, "payments"),
 		attribute.String(metrics.KeyOperation, "Authorize"),
-		attribute.String(metrics.KeyErrorCategory, "timeout"),
+		attribute.String(metrics.KeyErrorType, "timeout"),
 	}
 	if len(got) != len(want) {
 		t.Fatalf("Attributes() has %d entries, want %d", len(got), len(want))
@@ -207,5 +207,21 @@ func TestDeclareTenantsRefusesAnEmptyDeclaration(t *testing.T) {
 	}
 	if _, err := metrics.DeclareTenants("acme", ""); err == nil {
 		t.Fatal("DeclareTenants(\"acme\", \"\") = nil error, want a refusal of the empty name")
+	}
+}
+
+func TestTheKeysAreSemconvOrDMPF(t *testing.T) {
+	for got, want := range map[string]string{
+		metrics.KeyDependency:      "dmpf.dependency",
+		metrics.KeyOperation:       "dmpf.operation",
+		metrics.KeyErrorType:       "error.type",
+		metrics.KeyOutcomeCategory: "dmpf.outcome_category",
+		metrics.KeyRoute:           "http.route",
+		metrics.KeyRPCMethod:       "rpc.method",
+		metrics.KeyTenant:          "dmpf.tenant_id",
+	} {
+		if got != want {
+			t.Errorf("key = %q, want %q (RF-D3)", got, want)
+		}
 	}
 }

@@ -36,8 +36,8 @@ skill `.agents/skills/dmpf-bounded-context/`.
 - Esqueleto — `project.json`, `go.mod`, `go.work`, `dmpf-units.json` — nasce
   do generator `bounded-context`; à mão só o `include` de packages novos, por
   merge, com `exceptions` e `public_integration_surface` preservados.
-- Regravar o baseline (`--write-baseline`) é ato de classificação: commit
-  próprio, só com o baseline, executado por pessoa (`DMPF-T002`; `docs/guides/dmpf-manifesto.md`).
+- Regravar o baseline (`--write-baseline`) é passo executado por pessoa
+  (`DMPF-T001`; `docs/guides/dmpf-manifesto.md`).
 
 ## Domínio (ADR-032; FND-04)
 

@@ -10,6 +10,8 @@ import (
 
 const selectSignals = `SELECT reason, count(*) FROM quarantine WHERE consumer_name = $1 GROUP BY reason`
 
+var _ = declare(selectSignals, "SELECT", "quarantine")
+
 // failed is excluded from pending on purpose: OBX-06 makes it terminal, so
 // counting it as backlog would report work no cycle is going to do. It gets a
 // counter of its own instead.
@@ -25,6 +27,8 @@ SELECT
 	coalesce(sum(attempt_count) FILTER (WHERE status IN ('pending', 'publishing')), 0),
 	count(*) FILTER (WHERE status = 'failed')
   FROM outbox`
+
+var _ = declare(selectOutboxSignals, "SELECT", "outbox")
 
 // Signals is the aggregated health snapshot of one consumer's quarantine,
 // derived from the reason column (GAR-12).

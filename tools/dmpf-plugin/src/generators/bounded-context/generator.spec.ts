@@ -1,4 +1,6 @@
 import * as childProcess from 'node:child_process';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import type { Tree } from '@nx/devkit';
 import { logger, output } from '@nx/devkit';
 import { createTreeWithEmptyWorkspace } from '@nx/devkit/testing';
@@ -194,11 +196,13 @@ const goTarget = ({
   return target;
 };
 
-const LOAD_ENV = 'set -a; [ ! -f deploy/.env ] || . deploy/.env; set +a;';
-const SERVE_API = `${LOAD_ENV} exec go run ./cmd --role api`;
-const SERVE_RELAY = `${LOAD_ENV} exec go run ./cmd --role relay`;
-const DOCKER_RUN_RELAY =
-  'docker run --rm --name checkout-relay --network host --env-file deploy/.env apps-backend-checkout --role relay';
+const resourceOf = (role: string): string =>
+  `\${OTEL_RESOURCE_ATTRIBUTES:+$OTEL_RESOURCE_ATTRIBUTES,}service.instance.id=checkout-local-${role},dmpf.process.role=${role}`;
+const serveOf = (role: string): string =>
+  `set -a; [ ! -f deploy/.env ] || . deploy/.env; OTEL_RESOURCE_ATTRIBUTES="${resourceOf(role)}"; set +a; exec go run ./cmd --role ${role}`;
+const SERVE_API = serveOf('api');
+const SERVE_RELAY = serveOf('relay');
+const DOCKER_RUN_RELAY = `[ ! -f deploy/.env ] || . deploy/.env; exec docker run --rm --name checkout-relay --network host --env-file deploy/.env -e OTEL_RESOURCE_ATTRIBUTES="${resourceOf('relay')}" apps-backend-checkout --role relay`;
 
 const serveTarget = (command: string, dependsOn: unknown[]): Record<string, unknown> => ({
   executor: 'nx:run-commands',
@@ -262,6 +266,16 @@ const expectedTargets = ({
               { projects: ['postgres', 'app'], target: 'test-race' },
               'test-race',
             ],
+            options: {
+              command: `${TEST_ENV} go test -race -count=1 -p 1 -tags=integration,distributed ./distkit/...`,
+              cwd: '{projectRoot}',
+            },
+          },
+          e2e: {
+            executor: 'nx:run-commands',
+            cache: false,
+            inputs: ['go', '^go'],
+            dependsOn: [TEST_INFRA],
             options: {
               command: `${TEST_ENV} go test -race -count=1 -p 1 -tags=integration,distributed ./distkit/...`,
               cwd: '{projectRoot}',
@@ -350,12 +364,122 @@ describe('[generator] bounded-context — generation', () => {
     const wiring = readText(tree, `${MODULE_DIR}/app/wiring.go`);
     const main = readText(tree, `${MODULE_DIR}/${CMD_DIR}/main.go`);
 
-    expect(wiring).toContain('func Run(ctx context.Context, cfg Config, out io.Writer) error');
+    expect(wiring).toContain('func Run(ctx context.Context, cfg Config) error');
     expect(config).toContain('func Defaults(role Role) Config');
     expect(config).toContain('func FromEnv(role Role, lookup func(string) string) (Config, error)');
     expect(config).toContain('func (c Config) Validate() error');
     expect(main).toContain('app.FromEnv(app.Role(o.role), o.lookup)');
     expect(main).toContain('--role api|relay');
+  });
+
+  it('should declare the role of the process to the telemetry, with no log fields of its own', async () => {
+    const tree = await generate();
+    const telemetry = readText(tree, `${MODULE_DIR}/app/telemetry.go`);
+
+    expect(telemetry).toContain('Role:     string(cfg.Role),');
+    expect(telemetry).not.toContain('Fields');
+    expect(telemetry).not.toContain('requestFields');
+  });
+
+  it('should leave the identity and the export of the telemetry to the OTEL_* environment', async () => {
+    const tree = await generate();
+    const config = readText(tree, `${MODULE_DIR}/app/config.go`);
+    const telemetry = readText(tree, `${MODULE_DIR}/app/telemetry.go`);
+    const configTest = readText(tree, `${MODULE_DIR}/app/config_test.go`);
+
+    for (const legacy of [
+      '"OTLP_ENDPOINT"',
+      '"OTLP_INSECURE"',
+      '"SERVICE"',
+      '"SERVICE_VERSION"',
+      '"INSTANCE_ID"',
+      'OTLPEndpoint',
+      'OTLPInsecure',
+    ]) {
+      expect(config).not.toContain(legacy);
+      expect(telemetry).not.toContain(legacy);
+    }
+    expect(config).not.toContain('Instance');
+    expect(config).not.toContain('Version');
+    expect(telemetry).not.toContain('Instance:');
+    expect(telemetry).not.toContain('Version:');
+    expect(configTest).toContain(
+      'func TestTheIdentityOfTheProcessIsLeftToTheEnvironment(t *testing.T) {',
+    );
+    expect(config).toContain('if cfg.Signals, err = boot.SignalsFromEnv(lookup); err != nil {');
+    expect(telemetry).toContain('Signals:  cfg.Signals,');
+    expect(telemetry).not.toContain('Endpoint:');
+    expect(telemetry).not.toContain('Insecure:');
+  });
+
+  it('should declare the effective configuration of each role to the process configured record', async () => {
+    const tree = await generate();
+    const telemetry = readText(tree, `${MODULE_DIR}/app/telemetry.go`);
+
+    expect(telemetry).toContain('Settings: settings(cfg),');
+    expect(telemetry).toContain('slog.Any("postgres", postgres.DescribeDSN(cfg.DSN))');
+    expect(telemetry).toContain('slog.String("grpc_tls_key_file", presence(cfg.GRPCKeyFile)),');
+    expect(telemetry).toContain('slog.Int("metric_tenants", len(cfg.MetricTenants)),');
+    expect(telemetry).toContain('slog.Any("kafka", cfg.KafkaAuth),');
+    expect(telemetry).toContain('slog.String("kafka_checkout_topic", cfg.CheckoutTopic),');
+    expect(telemetry).toContain('slog.String("kafka_checkout_dlq", cfg.CheckoutDLQ),');
+    expect(telemetry).not.toContain('cfg.Relay');
+  });
+
+  it('should hand the relay the telemetry of the runtime and the physical topic of each channel', async () => {
+    const tree = await generate();
+    const wiring = readText(tree, `${MODULE_DIR}/app/wiring.go`);
+
+    expect(wiring).toContain(
+      'func RelayConfig(cfg Config, rt *otelboot.Runtime, catalog channel.Catalog) relay.Config {',
+    );
+    for (const line of [
+      'config.Tracer = rt.Tracer()',
+      'config.System = semconv.MessagingSystemKafka.Value.AsString()',
+      'config.LoggerProvider = rt.LoggerProvider()',
+      'config.MeterProvider = rt.MeterProvider()',
+      'config.Address = topicOf(catalog)',
+      'ch, err := catalog.Resolve(destination)',
+      'return ch.Address',
+    ]) {
+      expect(wiring).toContain(line);
+    }
+    expect(wiring).toContain(
+      'relay.NewOverPostgres(pool, publisher, "checkout", RelayConfig(cfg, rt, catalog))',
+    );
+    expect(wiring).not.toContain('cfg.Relay)');
+  });
+
+  it('should hand every kernel library the logger provider of the runtime and log its own lines under its package', async () => {
+    const tree = await generate();
+    const wiring = readText(tree, `${MODULE_DIR}/app/wiring.go`);
+
+    for (const line of [
+      'idclock.SystemClock{}, rt.LoggerProvider(), fn)',
+      'kernelgrpc.ServerInterceptors(rpc.ServiceName, ctrl, rt.Instruments(), rt.LoggerProvider(), kernelgrpc.WithCommands(rpc.Commands()...))',
+      'LoggerProvider: rt.LoggerProvider(),',
+      'kernelgrpc.HealthServices(rpc.ServiceName), ready, rt.LoggerProvider())',
+      'postgres.WaitForTables(ctx, pool, time.Second, rt.LoggerProvider(), postgres.Tables(postgres.Outbox)...)',
+      'rt.LoggerFor(reflect.TypeFor[Config]().PkgPath()).LogAttrs(ctx, slog.LevelInfo, "relay draining",',
+      'slog.String(string(semconv.MessagingSystemKey), semconv.MessagingSystemKafka.Value.AsString()),',
+      'slog.String(string(semconv.MessagingDestinationNameKey), cfg.CheckoutTopic))',
+    ]) {
+      expect(wiring).toContain(line);
+    }
+    expect(wiring).not.toMatch(/\.Logger\(\)/);
+  });
+
+  it('should meter the pool of each role with the provider of the runtime', async () => {
+    const tree = await generate();
+    const wiring = readText(tree, `${MODULE_DIR}/app/wiring.go`);
+    const pools = wiring.match(/postgres\.NewPool\(/g) ?? [];
+    const metered =
+      wiring.match(
+        /postgres\.NewPool\(ctx, cfg\.DSN, rt\.Tracer\(\), postgres\.WithMeterProvider\(rt\.MeterProvider\(\)\)\)/g,
+      ) ?? [];
+
+    expect(pools).toHaveLength(2);
+    expect(metered).toHaveLength(pools.length);
   });
 
   it('should serve gRPC only, with the kernel chain and the migrate of the outbox, the inbox and the context schema', async () => {
@@ -467,13 +591,14 @@ describe('[generator] bounded-context — generation', () => {
     }
   });
 
-  it('should declare the six Go targets, the two serve targets, the env file, the relay container, the distributed one and no lint target', async () => {
+  it('should declare the six Go targets, the two serve targets, the env file, the relay container, the distributed one, the e2e over it and no lint target', async () => {
     const tree = await generate();
 
     expect(Object.keys(projectOf(tree).targets).sort()).toEqual([
       'build',
       'deploy-env',
       'docker:run-relay',
+      'e2e',
       'fmt-check',
       'govulncheck',
       'nx-release-publish',
@@ -1062,14 +1187,13 @@ describe('[generator] bounded-context — determinism and output', () => {
     expect(changesOf(second)).toEqual(changesOf(first));
   });
 
-  it('should print the baseline instruction naming --write-baseline and AUT-01', async () => {
+  it('should print the baseline instruction naming --write-baseline', async () => {
     const printed = captureOutput();
 
     await generate();
 
     expect(printed()).toContain('2 módulos gerados');
     expect(printed()).toContain('--write-baseline');
-    expect(printed()).toContain('AUT-01');
   });
 });
 
@@ -1226,6 +1350,7 @@ describe('[generator] bounded-context — deploy', () => {
     expect(tree.children(`${DEPLOY_MODULE_DIR}/k8s/overlays/hmg`).sort()).toEqual([
       'configmap-checkout-patch.yaml',
       'deployment-checkout-api-patch.yaml',
+      'deployment-checkout-relay-patch.yaml',
       'kustomization.yaml',
       'secrets.example.yaml.tmpl',
     ]);
@@ -1266,15 +1391,272 @@ describe('[generator] bounded-context — deploy', () => {
     const env = readText(await generate(), `${DEPLOY_MODULE_DIR}/.env.example`);
 
     for (const line of [
-      'SERVICE=checkout',
+      'OTEL_SERVICE_NAME=checkout',
+      'OTEL_RESOURCE_ATTRIBUTES=service.version=local,service.instance.id=checkout-local,deployment.environment.name=local',
       'PG_DSN=postgres://checkout:checkout-local@localhost:5432/checkout?sslmode=disable',
       'KAFKA_CHECKOUT_TOPIC=checkout.events',
       'KAFKA_CHECKOUT_DLQ=checkout.events.dlq',
-      'TRACE_SAMPLE_RATE=1',
+      'OTEL_EXPORTER_OTLP_PROTOCOL=grpc',
+      'OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317',
+      'OTEL_TRACES_SAMPLER_ARG=1.0',
+      'OTEL_LOGS_EXPORTER=otlp',
+      'OTEL_PROPAGATORS=tracecontext',
+      'OTEL_GO_X_OBSERVABILITY=true',
+      'OTEL_BSP_EXPORT_TIMEOUT=3000',
+      'OTEL_BLRP_EXPORT_TIMEOUT=3000',
       'LOG_LEVEL=debug',
-      'OTLP_LOGS=true',
     ]) {
       expect(env.split('\n')).toContain(line);
+    }
+  });
+
+  it('should give each served role its own instance and its role over the env file that every role shares', async () => {
+    const tree = await generate();
+    const targets = projectOf(tree).targets as Record<
+      string,
+      { options: { command: string; envFile: string } }
+    >;
+    const instances = new Set<string>();
+
+    expect(readText(tree, `${DEPLOY_MODULE_DIR}/.env.example`)).not.toContain('dmpf.process.role=');
+    for (const role of ['api', 'relay']) {
+      const { command, envFile } = targets[`serve-${role}`].options;
+      const appended =
+        /OTEL_RESOURCE_ATTRIBUTES="\$\{OTEL_RESOURCE_ATTRIBUTES:\+\$OTEL_RESOURCE_ATTRIBUTES,\}([^"]*)"/.exec(
+          command,
+        );
+      const steps = [
+        '. deploy/.env;',
+        'OTEL_RESOURCE_ATTRIBUTES=',
+        'set +a;',
+        `exec go run ./cmd --role ${role}`,
+      ].map((step) => command.indexOf(step));
+
+      expect(envFile).toBe('{projectRoot}/deploy/.env.example');
+      expect(appended?.[1].split(',')).toEqual([
+        `service.instance.id=checkout-local-${role}`,
+        `dmpf.process.role=${role}`,
+      ]);
+      expect(steps.every((at, step) => at >= 0 && (step === 0 || at > steps[step - 1]))).toBe(true);
+      instances.add(appended?.[1].split(',')[0] ?? '');
+    }
+    expect(instances.size).toBe(2);
+  });
+
+  const LAUNCH_DIR = path.join(__dirname, '../../../test-output/launch');
+  const resourceLineOf = (env: string): string =>
+    /^OTEL_RESOURCE_ATTRIBUTES=(.*)$/m.exec(env)?.[1] ?? '';
+  const envFileValues = (content: string): Record<string, string> =>
+    Object.fromEntries(
+      content
+        .split('\n')
+        .map((line) => line.trim())
+        .filter((line) => line.includes('=') && !line.startsWith('#'))
+        .map((line) => [line.slice(0, line.indexOf('=')), line.slice(line.indexOf('=') + 1)]),
+    );
+  const resourceAfterSetupOf = (setup: string, env: Record<string, string>): string => {
+    const run = childProcess.spawnSync(
+      'sh',
+      ['-c', `${setup} printf %s "$OTEL_RESOURCE_ATTRIBUTES"`],
+      {
+        cwd: __dirname,
+        env: { PATH: process.env.PATH ?? '', ...env },
+        encoding: 'utf-8',
+      },
+    );
+    expect(run.status).toBe(0);
+    return run.stdout;
+  };
+  const containerEnvOf = (
+    command: string,
+    deployEnv: string,
+    role: string,
+  ): Record<string, string> => {
+    const bin = path.join(LAUNCH_DIR, 'bin');
+    fs.mkdirSync(bin, { recursive: true });
+    fs.mkdirSync(path.join(LAUNCH_DIR, 'deploy'), { recursive: true });
+    fs.writeFileSync(path.join(bin, 'docker'), '#!/bin/sh\nprintf \'%s\\0\' "$@"\n');
+    fs.chmodSync(path.join(bin, 'docker'), 0o700);
+    fs.writeFileSync(path.join(LAUNCH_DIR, 'deploy', '.env'), deployEnv);
+    const run = childProcess.spawnSync('sh', ['-c', command], {
+      cwd: LAUNCH_DIR,
+      env: { PATH: `${bin}${path.delimiter}${process.env.PATH ?? ''}` },
+      encoding: 'utf-8',
+    });
+    const args = run.stdout.replace(/\0$/, '').split('\0');
+    const launch = ['apps-backend-checkout', '--role', role];
+    const files: string[] = [];
+    const overrides: Record<string, string> = {};
+    for (let at = 1; at < args.length - launch.length; at++) {
+      if (args[at] === '--env-file') {
+        files.push(args[++at]);
+      } else if (args[at] === '-e' || args[at] === '--env') {
+        const pair = args[++at];
+        overrides[pair.slice(0, pair.indexOf('='))] = pair.slice(pair.indexOf('=') + 1);
+      }
+    }
+
+    expect(run.status).toBe(0);
+    expect(args[0]).toBe('run');
+    expect(args.slice(-launch.length)).toEqual(launch);
+    expect(files).toEqual(['deploy/.env']);
+    return {
+      ...envFileValues(fs.readFileSync(path.join(LAUNCH_DIR, 'deploy', '.env'), 'utf-8')),
+      ...overrides,
+    };
+  };
+
+  it('should start each served role with its own instance and no leading comma when nothing declares the resource', async () => {
+    const tree = await generate();
+    const targets = projectOf(tree).targets as Record<string, { options: { command: string } }>;
+    const shared = resourceLineOf(readText(tree, `${DEPLOY_MODULE_DIR}/.env.example`));
+
+    for (const role of ['api', 'relay']) {
+      const { command } = targets[`serve-${role}`].options;
+      const launch = `exec go run ./cmd --role ${role}`;
+      const setup = command.slice(0, command.length - launch.length);
+      const own = `service.instance.id=checkout-local-${role},dmpf.process.role=${role}`;
+
+      expect(command.endsWith(launch)).toBe(true);
+      expect(resourceAfterSetupOf(setup, {})).toBe(own);
+      expect(resourceAfterSetupOf(setup, { OTEL_RESOURCE_ATTRIBUTES: shared })).toBe(
+        `${shared},${own}`,
+      );
+    }
+  });
+
+  it('should run the relay container with its own instance and role over the env file that every role shares', async () => {
+    const tree = await generate();
+    const targets = projectOf(tree).targets as Record<string, { options: { command: string } }>;
+    const shared = readText(tree, `${DEPLOY_MODULE_DIR}/.env.example`);
+    const own = 'service.instance.id=checkout-local-relay,dmpf.process.role=relay';
+    const { command } = targets['docker:run-relay'].options;
+
+    const env = containerEnvOf(command, shared, 'relay');
+    expect(env.OTEL_RESOURCE_ATTRIBUTES).toBe(`${resourceLineOf(shared)},${own}`);
+    expect(env.OTEL_SERVICE_NAME).toBe('checkout');
+    expect(
+      containerEnvOf(command, shared.replace(/^OTEL_RESOURCE_ATTRIBUTES=.*\n/m, ''), 'relay')
+        .OTEL_RESOURCE_ATTRIBUTES,
+    ).toBe(own);
+  });
+
+  it('should declare no legacy telemetry variable in any generated file', async () => {
+    const tree = await generate();
+    const legacy =
+      /(^|[^_A-Z])(OTLP_ENDPOINT|OTLP_INSECURE|OTLP_LOGS|TRACE_SAMPLE_RATE|SERVICE|SERVICE_VERSION|INSTANCE_ID)\b/m;
+    const offenders = Object.entries(changesOf(tree))
+      .filter(([path]) => path.startsWith(`${MODULE_DIR}/`))
+      .filter(([, content]) => legacy.test(content))
+      .map(([path]) => path);
+
+    expect(offenders).toEqual([]);
+  });
+
+  it('should hand every process of the cluster the OTEL_* environment of the platform', async () => {
+    const tree = await generate();
+    const configmap = readText(tree, `${DEPLOY_MODULE_DIR}/k8s/base/configmap.yaml`);
+
+    for (const line of [
+      '  OTEL_SERVICE_NAME: checkout',
+      '  OTEL_EXPORTER_OTLP_PROTOCOL: grpc',
+      '  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317',
+      "  OTEL_TRACES_SAMPLER_ARG: '1.0'",
+      '  OTEL_LOGS_EXPORTER: otlp',
+      '  OTEL_PROPAGATORS: tracecontext',
+      "  OTEL_GO_X_OBSERVABILITY: 'true'",
+      "  OTEL_BSP_EXPORT_TIMEOUT: '3000'",
+      "  OTEL_BLRP_EXPORT_TIMEOUT: '3000'",
+    ]) {
+      expect(configmap.split('\n')).toContain(line);
+    }
+    for (const environment of ['dev', 'hmg']) {
+      const patch = readText(
+        tree,
+        `${DEPLOY_MODULE_DIR}/k8s/overlays/${environment}/configmap-checkout-patch.yaml`,
+      );
+      expect(patch.split('\n')).toContain(
+        `  OTEL_RESOURCE_ATTRIBUTES: service.version=${environment},deployment.environment.name=${environment}`,
+      );
+    }
+  });
+
+  it('should export OTLP over TLS in hmg, trusting the CA mounted in every workload, and in clear text in dev', async () => {
+    const tree = await generate();
+    const hmg = readText(
+      tree,
+      `${DEPLOY_MODULE_DIR}/k8s/overlays/hmg/configmap-checkout-patch.yaml`,
+    ).split('\n');
+
+    expect(hmg).toContain('  OTEL_EXPORTER_OTLP_ENDPOINT: https://otel-collector:4317');
+    expect(hmg).toContain('  OTEL_EXPORTER_OTLP_CERTIFICATE: /etc/dmpf/otel/ca.crt');
+    expect(
+      readText(tree, `${DEPLOY_MODULE_DIR}/k8s/overlays/dev/configmap-checkout-patch.yaml`),
+    ).not.toContain('OTEL_EXPORTER_OTLP_ENDPOINT');
+    for (const role of ['api', 'relay']) {
+      const patch = readText(
+        tree,
+        `${DEPLOY_MODULE_DIR}/k8s/overlays/hmg/deployment-checkout-${role}-patch.yaml`,
+      );
+      expect(patch).toContain(
+        [
+          '            - name: otel-collector-ca',
+          '              mountPath: /etc/dmpf/otel',
+          '              readOnly: true',
+        ].join('\n'),
+      );
+      expect(patch).toContain(
+        [
+          '        - name: otel-collector-ca',
+          '          secret:',
+          '            secretName: otel-collector-ca',
+        ].join('\n'),
+      );
+    }
+    expect(
+      readText(tree, `${DEPLOY_MODULE_DIR}/k8s/overlays/hmg/kustomization.yaml`).split('\n'),
+    ).toContain('  - path: deployment-checkout-relay-patch.yaml');
+  });
+
+  it('should give every workload the time to flush its telemetry before it is killed', async () => {
+    const tree = await generate();
+
+    for (const role of ['api', 'relay']) {
+      expect(
+        readText(tree, `${DEPLOY_MODULE_DIR}/k8s/base/deployment-${role}.yaml`).split('\n'),
+      ).toContain('      terminationGracePeriodSeconds: 30');
+    }
+    expect(
+      readText(tree, `${DEPLOY_MODULE_DIR}/compose.yml`).match(/^ {4}stop_grace_period: 30s$/gm),
+    ).toHaveLength(2);
+  });
+
+  it('should name the instance and the role of each workload in the resource', async () => {
+    const tree = await generate();
+
+    for (const role of ['api', 'relay']) {
+      const deployment = readText(tree, `${DEPLOY_MODULE_DIR}/k8s/base/deployment-${role}.yaml`);
+      expect(deployment).toContain(
+        [
+          '            - name: K8S_POD_NAME',
+          '              valueFrom:',
+          '                fieldRef:',
+          '                  fieldPath: metadata.name',
+          '            - name: OTEL_RESOURCE_ATTRIBUTES',
+          `              value: $(OTEL_RESOURCE_ATTRIBUTES),service.instance.id=$(K8S_POD_NAME),dmpf.process.role=${role}`,
+        ].join('\n'),
+      );
+    }
+  });
+
+  it('should name the service, the instance and the role of each local process', async () => {
+    const compose = readText(await generate(), `${DEPLOY_MODULE_DIR}/compose.yml`);
+
+    expect(compose).toContain('  OTEL_SERVICE_NAME: checkout');
+    for (const role of ['api', 'relay']) {
+      expect(compose).toContain(
+        `      OTEL_RESOURCE_ATTRIBUTES: \${OTEL_RESOURCE_ATTRIBUTES:-service.version=local,deployment.environment.name=local},service.instance.id=checkout-${role},dmpf.process.role=${role}`,
+      );
     }
   });
 

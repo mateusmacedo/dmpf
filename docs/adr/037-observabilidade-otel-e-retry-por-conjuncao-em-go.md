@@ -253,3 +253,113 @@ concorrente os encontra no meio do caminho.
 - `docs/dmpf/resiliencia-observabilidade.md` — FND-08
 - `docs/dmpf/rfc-dmpf-foundation-v0.1.md` — §6.2, §6.3, §10.2
 - `libs/backend/go/observability/README.md` — o módulo em detalhe
+
+## Addendum — 2026-10-01 (sampler e processor do SDK, `TRC-14` na cauda)
+
+A [SPEC-1TFW24WV](../specs/SPEC-1TFW24WV-observabilidade-ponta-a-ponta.md)
+levou o SDK à forma canônica do OpenTelemetry. As seções sobre `TRC-14`, sobre
+a política de descarte, sobre o OTLP/gRPC e sobre os pins ficam emendadas pelo
+que segue.
+
+- **A justificativa do sampler próprio caiu.** O SDK `v1.47.0` tem
+  `sdktrace.AlwaysRecord` (`sdk/trace/sampling.go:316`), que converte o `Drop`
+  do sampler decorado em `RecordOnly` — o que o `classSampler` fazia à mão.
+  `otelboot.NewClassSampler` passa a devolver `AlwaysRecord(ParentBased(root))`
+  sob o decorador que grava a classe (`otelboot/sampler.go`): o filho segue o
+  pai, e a raiz despacha pela `dmpf.traffic_class` para um `TraceIDRatioBased`
+  por classe. A aritmética própria sobre os bits do `TraceID` sai. A
+  alternativa descartada abaixo,
+  `ParentBased(TraceIDRatioBased(...))`, continua descartada na forma em que foi
+  escrita, sem o `AlwaysRecord`.
+- **A cabeça tem uma taxa só, e a tabela de `TRC-13` vive na cauda.**
+  `OTEL_TRACES_SAMPLER_ARG` é a taxa de `write`, `read` e `unclassified`, com
+  `error` e `maintenance` em 1; ausente, vale `1.0`, o default de
+  `traceidratio`, e a `TRACE_SAMPLE_RATE` antiga não é lida
+  (`boot.SignalsFromEnv`, `tracing.UniformRates`). Os manifestos
+  das apps declaram `1.0`. A tabela aplicada na cabeça e na cauda multiplicaria
+  as taxas de cada classe, e uma cabeça abaixo de 1 perderia o erro antes da
+  cauda, porque o span `RecordOnly` não sai do processo. `OTEL_TRACES_SAMPLER`
+  declarado é ignorado, com um único `warn` da plataforma, que leva o valor em
+  `dmpf.sampler.declared` (`boot/telemetry.go`); os erros que o SDK reporta ao
+  interpretá-lo não chegam ao log (`boot/sampler.go`).
+- **A raiz segue o link amostrado só em `write` e `read`.** Com um link válido e
+  amostrado, a raiz dessas classes é amostrada. A raiz de fronteira recusada, de
+  classe `error`, não segue o link, para que um produtor externo não force a
+  amostragem.
+- **Todo span local leva classe.** Sem `dmpf.traffic_class` declarada, o
+  sampler grava `unclassified` nos atributos do `SamplingResult`, também quando
+  o `ParentBased` segue um pai remoto ou local. Assim a cauda classifica todo
+  trace.
+- **O processor é o `BatchSpanProcessor` do SDK.**
+  `sdktrace.NewBatchSpanProcessor` (`otelboot/processor.go`), ajustado por
+  `OTEL_BSP_*`, exporta pelo decorador de privacidade que envolve o exportador,
+  e o `SpanProcessor` do `baggagecopy` vem antes dele (`otelboot/start.go`). O
+  `baggagecopy` não exporta, e o batch continua o único dono do exportador. O
+  processo exporta só o span amostrado; o não amostrado fica de fora mesmo
+  quando termina em erro
+  (`TestAnUnsampledSpanIsNotExportedByTheProcessEvenWhenItFails`).
+- **A política de descarte sob saturação é a do SDK.** Com a fila cheia, o batch
+  recusa o span novo (`sdk/trace/batch_span_processor.go:418-433`). A perda é
+  contada em `otel.sdk.processor.span.processed` com `error.type=queue_full`,
+  que só existe com `OTEL_GO_X_OBSERVABILITY=true`
+  (`sdk/internal/x/features.go:25-31`), e os manifestos das apps declaram a
+  flag. `dmpf_otel_spans_dropped_total` sai do catálogo. Por ser experimental, o
+  nome e a ativação podem mudar num upgrade do core.
+- **`TRC-14` é do Collector, sobre o trace inteiro.** O Collector passa a
+  `otel/opentelemetry-collector-contrib:0.160.0`, numa réplica, com
+  `tail_sampling` antes do `batch` no pipeline de traces
+  (`infra/observability/otel-collector/otel-collector.yaml`). As policies retêm
+  o trace com algum span em `ERROR` e o trace com algum span de classe `error`,
+  `maintenance` ou `write`. `read` e `unclassified` passam por `probabilistic`
+  à taxa da classe, e o trace sem classe ou com classe fora da taxonomia, à
+  taxa de `unclassified`. As taxas vêm de `TAIL_SAMPLING_READ_PERCENTAGE` e
+  `TAIL_SAMPLING_UNCLASSIFIED_PERCENTAGE`: 100 no Compose e 1 no Kubernetes, o
+  default da config. Com `write` a 100%, os três traces de uma escrita, ligados
+  por link, nunca se separam (ADR-038, addendum de 2026-10-01). O trace
+  completo, que este ADR deixava para o tail sampling, passa a ser decidido ali,
+  desde que todos os spans dele cheguem à mesma réplica.
+- **Pins.** Os módulos contrib entram em `v0.72.0` — `otelgrpc` em `grpc`;
+  `otelhttp` em `http`, em `authn` e no `bff`; `exporters/autoexport` e
+  `instrumentation/runtime` em `observability` — e `processors/baggagecopy`
+  entra em `v0.17.0`, em `observability`. Os módulos estáveis do core seguem em
+  `v1.47.0`, a semconv em `v1.43.0` e o piso Go em `1.26.6`. O `autoexport`
+  traz como transitivos o exportador Prometheus
+  (`exporters/prometheus v0.69.0`) e o `client_golang`.
+- **Os exportadores vêm do `autoexport`, e o `otelboot/otlp` saiu.** Emenda
+  também a seção "Testcontainers fora da allowlist" e o parágrafo das
+  Consequências sobre o Docker. O `boot` pede os três
+  exportadores ao `autoexport` (`boot/telemetry.go`), que os escolhe e
+  configura pelas `OTEL_*` (addendum de 2026-10-01 do
+  [ADR-041](./041-sdk-de-referencia-generator-e-bom-certificado.md)). A dupla
+  declaração de `Transport{Insecure: true}` e `AllowInsecure` não existe
+  mais: o esquema `http://` do endpoint desliga o TLS, e os manifestos das
+  apps o declaram em todos os ambientes. O pacote `otelboot/otlp`, os testes
+  dele, inclusive o do Collector por `testcontainers-go`, e
+  `Transport`, `AllowInsecure` e `ValidateTransport` de `otelboot/config.go`
+  saíram, e o `testcontainers-go` deixou o `go.mod` do módulo. O
+  `Config.Propagator` continua obrigatório e W3C
+  (`ErrPropagatorRequired`, `ErrPropagatorNotW3C`). Na allowlist do módulo, o
+  `autoexport` entra com `io.network` no lugar dos dois exportadores OTLP e do
+  `google.golang.org/grpc`. O teste da exportação sobe um receiver OTLP/gRPC
+  no próprio processo (`boot/telemetry_test.go`), e a suíte do módulo deixa de
+  exigir Docker.
+- **A categoria da falha é o `error.type`, no vocabulário de FND-07.** Emenda
+  também o segundo parágrafo de "Retry por conjunção, com taxonomia
+  injetada". O `usecase.Classifier` dá a categoria de FND-07, que vai a
+  `error.type` no span e no histograma da operação; ausente ou vazia, ela
+  vira `_OTHER`, e não `"unclassified"` (`usecase/instrumentation.go`). Os
+  erros dos decoradores respondem no mesmo vocabulário
+  (`resilience/errors.go` e `resilience/degrade.go`): breaker aberto e
+  bulkhead saturado como `TransientDependency`, prazo e cancelamento como
+  `DeadlineExceeded` e `Cancelled`, e as recusas de configuração e a resposta
+  degradada como `_OTHER`. O código da norma, que separa `RES-12` de
+  `RES-14`, fica em `dmpf.error.code`.
+- **A trilha de auditoria passa pelo `LoggerProvider` do processo.** Emenda
+  também o parágrafo das Consequências que a mandava a um sink próprio, e
+  nunca ao handler de log (`LOG-14`): a separação passa a ser lógica
+  (RF-A7). A trilha é um registro com `EventName` `dmpf.audit`, que nem o
+  `LOG_LEVEL` (`otelboot/logger.go`) nem a amostragem de `LOG-12`
+  (`otelboot/logprocessor.go`) derrubam; com `OTEL_LOGS_EXPORTER=none` ou
+  `OTEL_SDK_DISABLED=true`, ela é descartada com o resto do log
+  (`boot/telemetry.go`). A forma do registro está no addendum de 2026-10-01
+  do [ADR-041](./041-sdk-de-referencia-generator-e-bom-certificado.md).

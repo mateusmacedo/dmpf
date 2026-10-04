@@ -10,10 +10,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
 	"slices"
 
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel/log"
+	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/clock"
@@ -22,8 +24,6 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/compose"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/deadline"
 )
-
-const spanPrefix = "dmpf.http.client "
 
 // maxBufferedBody bounds what is kept of a transient response so the
 // connection can be reused and the last response still reaches the caller.
@@ -49,16 +49,15 @@ var (
 // Config is the client of one external dependency: its routes, the resilience
 // sheet of RES-21, the transport, and what the decorators record through.
 type Config struct {
-	Routes      map[string]Route
-	Sheet       resilience.Sheet
-	Transport   http.RoundTripper
-	Service     string
-	Clock       clock.Clock
-	Tracer      trace.Tracer
-	Instruments *metrics.Instruments
-	Logger      *slog.Logger
-	Rand        func() float64
-	NewKey      func() string
+	Routes         map[string]Route
+	Sheet          resilience.Sheet
+	Transport      http.RoundTripper
+	Clock          clock.Clock
+	Tracer         trace.Tracer
+	Instruments    *metrics.Instruments
+	LoggerProvider log.LoggerProvider
+	Rand           func() float64
+	NewKey         func() string
 }
 
 // Validate refuses a configuration without clock or routes, a sheet with a
@@ -100,20 +99,19 @@ func NewClient(cfg Config) (*Client, error) {
 	if cfg.Transport == nil {
 		cfg.Transport = http.DefaultTransport
 	}
+	cfg.Transport = otelhttp.NewTransport(resendCounter{next: cfg.Transport}, otelhttp.WithSpanNameFormatter(spanName))
 	if cfg.NewKey == nil {
 		cfg.NewKey = randomKey
 	}
 	call, err := compose.Build(compose.Config{
-		Sheet:       cfg.Sheet,
-		Service:     cfg.Service,
-		SpanPrefix:  spanPrefix,
-		Clock:       cfg.Clock,
-		Tracer:      cfg.Tracer,
-		Instruments: cfg.Instruments,
-		Logger:      cfg.Logger,
-		Rand:        cfg.Rand,
-		Category:    categoryOf,
-		Classifier:  Classifier,
+		Sheet:          cfg.Sheet,
+		Clock:          cfg.Clock,
+		Tracer:         cfg.Tracer,
+		Instruments:    cfg.Instruments,
+		LoggerProvider: cfg.LoggerProvider,
+		Rand:           cfg.Rand,
+		Category:       categoryOf,
+		Classifier:     Classifier,
 	})
 	if err != nil {
 		return nil, err
@@ -156,10 +154,13 @@ func (c *Client) Do(ctx context.Context, routeName string, req *http.Request) (*
 
 	var final *http.Response
 	var releaseFinal context.CancelFunc
+	resends := 0
 	err = c.call(outer, op, func(attemptCtx context.Context) error {
 		reqCtx, cancelReq := context.WithCancel(outer)
 		stop := context.AfterFunc(attemptCtx, cancelReq)
-		resp, err := c.attempt(reqCtx, req, hasBody)
+		traced := context.WithValue(trace.ContextWithSpan(reqCtx, trace.SpanFromContext(attemptCtx)), resendKey{}, resends)
+		resends++
+		resp, err := c.attempt(traced, req, hasBody)
 		stop()
 		if err != nil {
 			cancelReq()
@@ -216,6 +217,22 @@ func buffer(resp *http.Response) {
 	_, _ = io.Copy(io.Discard, resp.Body)
 	_ = resp.Body.Close()
 	resp.Body = io.NopCloser(bytes.NewReader(kept))
+}
+
+// spanName is the semconv v1.43.0 client name; otelhttp@v0.72.0 defaults to "HTTP {method}".
+func spanName(_ string, r *http.Request) string { return r.Method }
+
+type resendKey struct{}
+
+// resendCounter runs under the CLIENT span otelhttp opens per attempt, which
+// does not record http.request.resend_count itself (otelhttp@v0.72.0/transport.go).
+type resendCounter struct{ next http.RoundTripper }
+
+func (r resendCounter) RoundTrip(req *http.Request) (*http.Response, error) {
+	if resends, _ := req.Context().Value(resendKey{}).(int); resends > 0 {
+		trace.SpanFromContext(req.Context()).SetAttributes(semconv.HTTPRequestResendCount(resends))
+	}
+	return r.next.RoundTrip(req)
 }
 
 type releasing struct {

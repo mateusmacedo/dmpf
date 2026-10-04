@@ -25,7 +25,7 @@ integração**, para criar os tópicos.
 ## O que o módulo contém
 
 - **`config.go`** — `Config{Brokers, TLS, SASL, InsecureForDevelopmentOnly,
-  Catalog, Sheet, Service, Clock, Tracer, Instruments, Logger, Rand}`.
+  Catalog, Sheet, Clock, Tracer, Instruments, LoggerProvider, Rand}`.
   `Validate` recusa TLS que não verifica o par ou admite versão abaixo de 1.2
   (`ErrTLSTooWeak`), TLS ligado sem `SASL` e sem certificado de cliente
   (`ErrClientAuthRequired`), mecanismo SASL fora de SCRAM-SHA-256/512
@@ -47,21 +47,29 @@ integração**, para criar os tópicos.
   três processos que falam com o Kafka (`api`, `relay`, `consumer`) leiam a
   declaração do mesmo jeito. A ACL do broker que liga o principal ao `source`
   que o consumer admite é da plataforma, não deste módulo (ADR-052).
-- **`newconfig.go`** — `NewConfig(ctx, rt, catalog, brokers, service,
-  insecure, auth)`: monta o `Config` de um processo a partir do runtime de
-  observabilidade e da declaração de `ClientAuth`, com TLS 1.2+ como default —
-  o opt-out (`KAFKA_INSECURE`) só serve desenvolvimento e CI, e o log
-  registra quando ele é usado.
+  `ClientAuth` entra no `process configured` por `LogValue`: o username SASL e
+  o caminho da chave privada saem como `set`/`unset`, e a senha declarada, como
+  `redact.Placeholder` (RF-A6, LOG-09).
+- **`newconfig.go`** — `NewConfig(ctx, rt, catalog, brokers, insecure, auth)`:
+  monta o `Config` de um processo a partir do runtime de observabilidade — o
+  `LoggerProvider` inclusive — e da declaração de `ClientAuth`, com TLS 1.2+
+  como default — o opt-out (`KAFKA_INSECURE`) só serve desenvolvimento e CI, e
+  o log registra quando ele é usado.
 - **`client.go`** — a interface `client` sobre `*kgo.Client`, o que permite o
   fake dos testes. O commit é `CommitRecords`: síncrono, commita `offset + 1`
   do registro (TRP-29) e não exige os tipos `kmsg` que `CommitOffsets` exige.
 - **`publisher.go` / `record.go`** — `Publisher.Publish(ctx, destino, bytes)`
   realiza estruturalmente o `Publisher` do relay: `Key` = `PartitionKey` do
   envelope (KFK-05), `Value` = os bytes recebidos (TRP-13), header operacional
-  `dmpf-published-at` (TRP-18). O `Observer` recebe um `Record` com cópias —
-  pode ler, não pode substituir (TRP-17). Produção pela composição de RES-22
-  (`transport/compose`), com acks de todas as réplicas em sincronia e
-  escrita idempotente, travadas por `producer_options_test.go`. A escrita
+  `dmpf-published-at` (TRP-18) e o `content-type:
+  application/cloudevents+protobuf` do binding CloudEvents Kafka; nenhum header
+  carrega contexto W3C, que viaja só no envelope (ENV-08). O `Observer` recebe
+  um `Record` com cópias — pode ler, não pode substituir (TRP-17). O publisher
+  não abre span próprio: `messaging.destination.partition.id` e
+  `messaging.kafka.offset` vão ao span ativo depois do `ProduceSync` — o `send`
+  do relay ou, fora dele, o span de resiliência (RF-B7). Produção pela
+  composição de RES-22 (`transport/compose`), com acks de todas as réplicas em
+  sincronia e escrita idempotente, travadas por `producer_options_test.go`. A escrita
   idempotente só vale dentro de uma sessão do produtor: a republicação pelo
   relay, depois de um timeout ambíguo ou de um restart, pode repetir o registro
   no tópico, e quem absorve essa repetição é a inbox do consumidor, pelo
@@ -78,15 +86,25 @@ integração**, para criar os tópicos.
   de novo com `attempt + 1` (KFK-10, TRP-47), até `Channel.Retry.MaxAttempts`.
   Retorno **sem gesto** (erro sem `Ack`/`Release`, ou nada) e limite atingido
   têm o mesmo desfecho: o registro fica pendente e a partição **para**
-  (`stalled`, pausada, com log de erro dizendo o offset e quantos registros
-  esperam atrás) — processar o próximo aplicaria efeitos fora de ordem; só a
-  revogação devolve a partição. Um panic do `Sink` é tratado como tentativa sem
-  gesto (`ErrSinkPanicked`, categoria `panic`), nunca como queda do consumer.
+  (`stalled`, pausada, com log de erro que leva o offset em
+  `messaging.kafka.offset` e quantos registros esperam atrás em
+  `dmpf.consumer.queued_behind`) — processar o próximo aplicaria efeitos fora
+  de ordem; só a revogação devolve a partição. Um panic do `Sink` é tratado
+  como tentativa sem gesto (`ErrSinkPanicked`, que o log registra com
+  `error.type` `Unexpected`, ERR-22, sem o valor do panic), nunca como queda do
+  consumer. Um panic fora do `Sink`, no worker ou na parada que levanta as
+  pausas e commita, encerra o consumer: o contexto do `Run` é cancelado, os
+  workers param e o `Run` devolve só `ErrPanicked`, sem o valor do panic, que o
+  `cmd/main.go` escreve como erro de término (RF-A1).
   Revogação ou perda da partição fecha o commit do worker, cancela a tentativa
   em curso sem drenar a fila pelo `Sink`, espera o worker sair, **levanta a
   pausa de fetch** — o kgo a mantém entre rebalances — e commita só o que já
   estava contíguo (TRP-48); o encerramento drena todos os workers sob
-  `RebalanceTimeout`. Erro devolvido junto do `Ack` é logado com categoria.
+  `RebalanceTimeout`. Atribuição, revogação e perda de partição saem em
+  `info`, com as partições no corpo (`partitions assigned [...]`, `revoked`,
+  `lost`) e `messaging.system`, `messaging.consumer.group.name` e
+  `messaging.destination.name` (RF-A6). Erro devolvido junto do `Ack` é logado
+  com categoria.
   `MET-11` por poll: utilização = workers ocupados / partições atribuídas;
   profundidade = soma das filas.
 - **`offsets.go`** — o `cursor` contíguo. **`acknowledger.go`** — o gesto
@@ -96,11 +114,23 @@ integração**, para criar os tópicos.
   **intacto** no `Containment` do canal (KFK-12, GAR-07), com a chave de
   partição quando ele ainda decodifica e os headers `dmpf-reason`,
   `dmpf-consumer`, `dmpf-message-id`, `dmpf-contained-at`, `dmpf-error` e, quando
-  o contexto veio do consumer, `dmpf-attempt` (TRP-52); `dmpf-message-id` e
-  `dmpf-error`, que vêm de fora do provider, são cortados em `HeaderValueLimit`
-  (1 KiB). Quem chama commita o offset só depois do retorno (TRP-30).
+  o contexto veio do consumer, `dmpf-attempt` (TRP-52); `dmpf-message-id`, que
+  vem de fora do provider, é cortado em `HeaderValueLimit` (1 KiB), e
+  `dmpf-error` só leva uma categoria FND-07 — o texto de erro que não é uma
+  delas vira `_OTHER` (DAT-03). Publicada a contenção, sai
+  `message contained` em `warn`, com `dmpf.containment.reason` e
+  `messaging.message.id` (RF-A6). Quem chama commita o offset só depois do
+  retorno (TRP-30).
 - **`classifier.go`** — `Classifier` do produtor (`kerr.Error.Retriable`,
-  `net.Error`) e a categoria de falha para sinais, nunca a mensagem.
+  `net.Error`) e a categoria de falha (`error.type` e `dmpf.outcome_category`),
+  nunca a mensagem nem o código do broker, que não tem chave própria em span
+  nem em log: a que o erro declara — a do erro de plataforma, ou `Unexpected`
+  no panic do `Sink` (ERR-22); senão, a categoria FND-07 do prazo
+  (`DeadlineExceeded`), do cancelamento (`Cancelled`), do código do broker —
+  `RateLimited` na cota de throttling, `Forbidden` nas falhas de autorização,
+  `Unauthenticated` na falha de SASL, `Validation` no registro inválido, e
+  `TransientDependency` para o restante que o `kerr` marca como retentável —
+  ou da rede (`TransientDependency`), e `_OTHER` fora da tabela.
 
 ### Autenticação de cliente (`ClientAuthenticated`, ADR-052)
 
@@ -171,7 +201,7 @@ dos dois caches enxerga o estado do broker. No CI o Redpanda sobe no job
 
 ```bash
 pnpm nx run-many -t fmt-check,vet,lint,build,test-race,govulncheck -p kafka
-go run ./tools/dmpf-conformance/cmd/conformance --root . --base develop
+go run ./tools/dmpf-conformance/cmd/conformance --root .
 ```
 
 O `dmpf-gate-check.sh` não alcança este módulo; o gate autoritativo é o
@@ -185,5 +215,6 @@ verificador.
 - `docs/dmpf/contexto-erros-seguranca.md` (FND-07) — `IDN-03`, `IDN-04`.
 - `docs/adr/025-kafka-transporte-alvo-sns-sqs-acervo.md` — Kafka como transporte-alvo.
 - `docs/adr/052-identidade-de-workload-no-grpc-e-no-kafka.md` — SASL/certificado de cliente e a ACL do broker.
+- `docs/specs/SPEC-1TFW24WV-observabilidade-ponta-a-ponta.md` — os `RF-*` citados aqui: o publisher sem span próprio e os registros operacionais.
 - `libs/backend/go/transport/README.md` — `channel`, `attempt`, `observe`.
 - `libs/backend/go/app/README.md` — o adapter que realiza o `Sink` e `TransportVerified`.

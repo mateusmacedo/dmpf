@@ -68,7 +68,7 @@
     "serve-api": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "set -a; [ ! -f deploy/.env ] || . deploy/.env; set +a; exec go run ./cmd --role api",
+        "command": "set -a; [ ! -f deploy/.env ] || . deploy/.env; OTEL_RESOURCE_ATTRIBUTES=\"${OTEL_RESOURCE_ATTRIBUTES:+$OTEL_RESOURCE_ATTRIBUTES,}service.instance.id=bookings-local-api,dmpf.process.role=api\"; set +a; exec go run ./cmd --role api",
         "cwd": "{projectRoot}",
         "envFile": "{projectRoot}/deploy/.env.example"
       },
@@ -87,7 +87,7 @@
     "serve-relay": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "set -a; [ ! -f deploy/.env ] || . deploy/.env; set +a; exec go run ./cmd --role relay",
+        "command": "set -a; [ ! -f deploy/.env ] || . deploy/.env; OTEL_RESOURCE_ATTRIBUTES=\"${OTEL_RESOURCE_ATTRIBUTES:+$OTEL_RESOURCE_ATTRIBUTES,}service.instance.id=bookings-local-relay,dmpf.process.role=relay\"; set +a; exec go run ./cmd --role relay",
         "cwd": "{projectRoot}",
         "envFile": "{projectRoot}/deploy/.env.example"
       },
@@ -98,7 +98,7 @@
     "docker:run-relay": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "docker run --rm --name bookings-relay --network host --env-file deploy/.env apps-backend-bookings --role relay",
+        "command": "[ ! -f deploy/.env ] || . deploy/.env; exec docker run --rm --name bookings-relay --network host --env-file deploy/.env -e OTEL_RESOURCE_ATTRIBUTES=\"${OTEL_RESOURCE_ATTRIBUTES:+$OTEL_RESOURCE_ATTRIBUTES,}service.instance.id=bookings-local-relay,dmpf.process.role=relay\" apps-backend-bookings --role relay",
         "cwd": "{projectRoot}"
       },
       "continuous": true,
@@ -118,6 +118,21 @@
           "target": "test-race"
         },
         "test-race"
+      ],
+      "options": {
+        "command": "bash ../../../tools/test-env.sh go test -race -count=1 -p 1 -tags=integration,distributed ./distkit/...",
+        "cwd": "{projectRoot}"
+      }
+    },
+    "e2e": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "inputs": ["go", "^go"],
+      "dependsOn": [
+        {
+          "projects": ["testkit"],
+          "target": "test-infra-up"
+        }
       ],
       "options": {
         "command": "bash ../../../tools/test-env.sh go test -race -count=1 -p 1 -tags=integration,distributed ./distkit/...",

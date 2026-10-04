@@ -3,7 +3,6 @@ package boot_test
 import (
 	"context"
 	"errors"
-	"io"
 	"testing"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/boot"
@@ -16,9 +15,10 @@ func telemetryUnderTest() boot.Telemetry {
 }
 
 func TestBootHandsTheRunningRuntimeToTheWork(t *testing.T) {
+	exportNothing(t)
 	var seen *otelboot.Runtime
 
-	err := boot.Boot(context.Background(), io.Discard, telemetryUnderTest(),
+	err := boot.Boot(context.Background(), telemetryUnderTest(),
 		func(_ context.Context, rt *otelboot.Runtime) error {
 			seen = rt
 			return nil
@@ -30,15 +30,16 @@ func TestBootHandsTheRunningRuntimeToTheWork(t *testing.T) {
 	if seen == nil {
 		t.Fatal("the work was handed no runtime")
 	}
-	if seen.Logger() == nil || seen.Tracer() == nil {
+	if seen.LoggerProvider() == nil || seen.Tracer() == nil {
 		t.Fatal("the runtime reached the work before its pipelines were ready")
 	}
 }
 
 func TestBootReturnsWhatTheWorkReturns(t *testing.T) {
+	exportNothing(t)
 	refused := errors.New("database unreachable")
 
-	err := boot.Boot(context.Background(), io.Discard, telemetryUnderTest(),
+	err := boot.Boot(context.Background(), telemetryUnderTest(),
 		func(context.Context, *otelboot.Runtime) error { return refused })
 
 	if !errors.Is(err, refused) {
@@ -47,9 +48,10 @@ func TestBootReturnsWhatTheWorkReturns(t *testing.T) {
 }
 
 func TestBootClosesTheTelemetryEvenWhenTheWorkFails(t *testing.T) {
+	exportNothing(t)
 	var closed *otelboot.Runtime
 
-	_ = boot.Boot(context.Background(), io.Discard, telemetryUnderTest(),
+	_ = boot.Boot(context.Background(), telemetryUnderTest(),
 		func(_ context.Context, rt *otelboot.Runtime) error {
 			closed = rt
 			return errors.New("boom")
@@ -63,15 +65,15 @@ func TestBootClosesTheTelemetryEvenWhenTheWorkFails(t *testing.T) {
 }
 
 func TestBootDoesNotRunTheWorkWhenTheTelemetryRefusesToStart(t *testing.T) {
+	cleanOTelEnv(t)
+	t.Setenv("OTEL_PROPAGATORS", "b3")
 	ran := false
-	telemetry := telemetryUnderTest()
-	telemetry.Endpoint = "\x00 not a host"
 
-	err := boot.Boot(context.Background(), io.Discard, telemetry,
+	err := boot.Boot(context.Background(), telemetryUnderTest(),
 		func(context.Context, *otelboot.Runtime) error { ran = true; return nil })
 
 	if err == nil {
-		t.Fatal("Boot() = nil with an unusable endpoint, want the startup failure")
+		t.Fatal("Boot() = nil with a propagator other than tracecontext, want the startup failure")
 	}
 	if ran {
 		t.Fatal("the work ran without telemetry; a process that lost its pipelines must refuse to start")

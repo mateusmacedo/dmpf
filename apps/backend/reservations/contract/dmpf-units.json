@@ -44,7 +44,6 @@
       "convergence": {
         "kind": "review",
         "review_by": "2027-03-02",
-        "approved_by": ["arquitetura", "plataforma"],
         "replanning_condition": "elimination of reflect and unsafe imports from protoc-gen-go output"
       },
       "valid_from": "2026-09-16T00:00:00Z",
@@ -74,7 +73,6 @@
       "convergence": {
         "kind": "review",
         "review_by": "2027-03-02",
-        "approved_by": ["arquitetura", "plataforma"],
         "replanning_condition": "elimination of reflect and unsafe imports from protoc-gen-go output"
       },
       "valid_from": "2026-09-16T00:00:00Z",

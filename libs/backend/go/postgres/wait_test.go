@@ -3,13 +3,12 @@
 package postgres_test
 
 import (
-	"bytes"
 	"context"
 	"errors"
-	"log/slog"
-	"strings"
 	"testing"
 	"time"
+
+	lognoop "go.opentelemetry.io/otel/log/noop"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
 )
@@ -24,7 +23,7 @@ func TestWaitForTablesReturnsOnceEveryTableExists(t *testing.T) {
 
 	done := make(chan error, 1)
 	go func() {
-		done <- postgres.WaitForTables(ctx, pool, 20*time.Millisecond, slog.New(slog.DiscardHandler), "outbox", "late_probes")
+		done <- postgres.WaitForTables(ctx, pool, 20*time.Millisecond, lognoop.NewLoggerProvider(), "outbox", "late_probes")
 	}()
 
 	select {
@@ -49,7 +48,7 @@ func TestWaitForTablesStopsWithTheContext(t *testing.T) {
 	pool := openPool(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
-	err := postgres.WaitForTables(ctx, pool, 20*time.Millisecond, slog.New(slog.DiscardHandler), "never_created")
+	err := postgres.WaitForTables(ctx, pool, 20*time.Millisecond, lognoop.NewLoggerProvider(), "never_created")
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("WaitForTables() = %v, want context.DeadlineExceeded", err)
 	}
@@ -59,10 +58,14 @@ func TestWaitForTablesNamesTheTableItWaitsFor(t *testing.T) {
 	pool := openPool(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
-	var out bytes.Buffer
-	_ = postgres.WaitForTables(ctx, pool, 20*time.Millisecond, slog.New(slog.NewTextHandler(&out, nil)), "never_created")
+	logs := &recordingProcessor{}
+	_ = postgres.WaitForTables(ctx, pool, 20*time.Millisecond, logs.provider(), "never_created")
 
-	if lines := strings.Count(out.String(), "waiting for table"); lines != 1 || !strings.Contains(out.String(), "never_created") {
-		t.Fatalf("log = %q, want one line naming never_created", out.String())
+	records := logs.named("waiting for table")
+	if len(records) != 1 || records[0]["db.collection.name"] != "never_created" || records[0]["scope"] != postgresScope {
+		t.Fatalf("log = %v, want one record naming never_created under db.collection.name, scoped to %s", records, postgresScope)
+	}
+	if _, free := records[0]["table"]; free {
+		t.Fatalf("log = %v still carries the free key table", records)
 	}
 }
