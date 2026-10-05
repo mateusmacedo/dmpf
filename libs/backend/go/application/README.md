@@ -23,7 +23,7 @@ Import path do módulo:
 
 | Package | Unidade DMPF | Bloco | Conteúdo |
 | --- | --- | --- | --- |
-| `application` (raiz) | `kernel/application` | `application` | `Outcome[R]`, `Accepted`, `Rejected`; `Identity`, `ResolveIdentity`; `Authorize[C]`, `AllowAll[C]`, `Permitted[C]`; `MessageContextFor`; `Disposition` (as sete de FND-04 §6.4), `Category`, `Failure`, `Classify`; `Fingerprint`, `NewFingerprint`; `OutcomeCodec[R]`, `Encoder`, `Decoder`, `EncodeOutcome`, `DecodeOutcome`, `ErrOutcomeUnreadable`; `IdempotencyPolicy`, `IdempotentCommand[R]`, `RunIdempotent`, `ErrIncompleteCommand` |
+| `application` (raiz) | `kernel/application` | `application` | `Outcome[R]`, `Accepted`, `Rejected`, `Outcome.Category`; `Origin`, `Enqueue`; `Query[Op, S]`; `Identity`, `ResolveIdentity`; `Authorize[C]`, `AllowAll[C]`, `Permitted[C]`; `MessageContextFor`; `Disposition` (as sete de FND-04 §6.4), `Category`, `Failure`, `Classify`; `Fingerprint`, `NewFingerprint`; `OutcomeCodec[R]`, `Encoder`, `Decoder`, `EncodeOutcome`, `DecodeOutcome`, `ErrOutcomeUnreadable`; `IdempotencyPolicy`, `IdempotentCommand[R]`, `RunIdempotent`, `ErrIncompleteCommand` |
 
 Uma unidade só, com `bounded_context: kernel`; em Go, a unidade de verificação
 é o package (RFC §3.3). Os packages que este módulo carregava como
@@ -133,7 +133,7 @@ nas próprias chamadas. O mapa está aqui; os arquivos são os de
 | 4. carregar | `add_item.go`, `s.loadOrCreate(...)` → `res.Orders.Load` | `ErrNotFound` vira `domain.NewOrder` com `expected == 0` |
 | 5. decidir | `add_item.go`, `order.AddItem(...)` | O único passo que ocorre no bloco `domain` |
 | 6. persistir | `add_item.go`, `res.Orders.Save(ctx, cmd.Order, order.Snapshot(), stored)` | Optimistic locking; grava como `stored + 1` |
-| 7. enfileirar | `service.go`, `enqueueAll(...)` → `res.Outbox.Enqueue` | Mesma transação do passo 6 |
+| 7. enfileirar | `add_item.go`, `usecase.Enqueue(...)` → `res.Outbox.Enqueue` | Mesma transação do passo 6 |
 | 8. commitar | `add_item.go`, o retorno `nil` do callback | O commit é do `Within`, não do caso de uso |
 | 9. responder | `add_item.go`, `return outcome, nil` | `Outcome` no caminho de negócio, `error` no técnico |
 
@@ -154,7 +154,12 @@ Três detalhes que a norma fixa e o código realiza:
   do `KRN-09`.
 
 `FindOrder` usa `s.Reader`, nunca `s.UoW`, e não toca a outbox: uma consulta não
-abre transação (`UOW-11`).
+abre transação (`UOW-11`). O esqueleto da consulta é `Query[Op, S]`: abre a
+operação, autoriza, chama o `load` do contexto e fecha com o desfecho. O erro do
+`load` volta intacto, então o prefixo da mensagem (`application: find order
+<id>: …`) continua do contexto. O chamador instancia o parâmetro de tipo
+(`usecase.Query[Operation](...)`), porque o Go não infere `Op` a partir do
+comando concreto.
 
 ## A autoria dos campos da outbox
 
@@ -169,6 +174,12 @@ o fato abre uma cadeia nova (FND-05). Neste exemplo `Destination` é
 `orders.events` — um nome **lógico** de fluxo, não um tópico — e
 `PartitionKey` é o identificador do pedido, para que fatos do mesmo agregado
 preservem ordem.
+
+Quem escreve esses campos é `Enqueue(ctx, outbox, identity, origin, written,
+events)`: uma entrada por evento, com `Origin{Destination, AggregateType,
+AggregateID}` e `AggregateID` também como `PartitionKey`. Mais eventos do que
+identificadores resolvidos é defeito de programação, e `Enqueue` entra em
+`panic` com a mensagem que manda aumentar `maxEventsPerCommand`.
 
 Campos de wire e de estado de drenagem não existem no tipo entregue à porta: os
 primeiros são do provider e do contrato, os segundos do schema e do relay.
@@ -202,7 +213,9 @@ Dois desfechos merecem atenção porque é fácil confundi-los:
 - **Negado** (`errors.Is(err, ports.ErrDenied)`) fecha a operação como
   `Denied` e **não** emite auditoria: nada foi acessado. Qualquer outro erro do
   autorizador é falha técnica e fecha como `Failed` — uma negação nunca é
-  inferida a partir de um erro que não a declarou.
+  inferida a partir de um erro que não a declarou. `ports.AuthorizationResult`
+  faz essa leitura, e `Outcome.Category` dá a categoria do desfecho aceito ou
+  rejeitado.
 - **Rejeitado** é o ramo recusante da UPR, e não é falha (`DEC-04`). Conta como
   requisição, nunca como erro, e a transação commita normalmente.
 
