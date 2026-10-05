@@ -29,7 +29,7 @@ Import path do módulo:
 | `idempotency_key.go` | `IdempotencyKeyPattern`, `ValidIdempotencyKey`; o portador da chave `WithIdempotencyKey`/`IdempotencyKeyFrom`; `IdempotencyOutcome` e o slot `WithIdempotencySlot`/`MarkIdempotency`/`IdempotencyOutcomeFrom` |
 | `containment.go` | `Reason` (inclui `ReasonUntrustedBoundary`), `Contained`, `Containment` |
 | `acknowledger.go` | `Acknowledger` — o efeito de broker aplicado depois do commit (`INB-08`) |
-| `instrumentation.go` | `Result`, `AuditEvent`, `EndOperation`, `Instrumentation`, `NoInstrumentation`, `OutcomeCategory`, `ErrDenied` |
+| `instrumentation.go` | `Result`, `AuditEvent`, `EndOperation`, `Instrumentation`, `NoInstrumentation`, `OutcomeCategory`, `ErrDenied`, `AuthorizationResult` (só um `ErrDenied` embrulhado vira `Denied`; qualquer outro erro vira `Failed`, com o erro bruto) |
 | `message_context.go` | `MessageContext` (o trio de `ENV-08`) e o carrier `WithMessageContext`/`MessageContextFrom` |
 | `execcontext.go` | `SubjectID`, `TenantID`, `Permission`; `ExecutionContext`, `ExecutionContextSpec`, `NewExecutionContext`; o carrier canônico `WithExecutionContext`, `ExecutionContextFrom`, `RequireExecutionContext`; `ErrContextFieldMissing`, `ErrContextValueEmpty`, `ErrContextPermissionsMismatch`, `ErrContextAbsent` (`ADR-049`) |
 | `authn.go` | `Credential`, `Identity`, `Authenticator`, `ErrCredentialAbsent`, `ErrCredentialRejected`, `ErrSubjectUnresolved` — as três condições de `IDN-01` |

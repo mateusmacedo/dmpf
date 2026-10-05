@@ -57,7 +57,7 @@ skill `.agents/skills/dmpf-bounded-context/`.
   composition root, pelo `bind` (ADR-034). Consultas correm fora da UoW.
 - O caso de uso produtor percorre os nove passos de FND-04 §3.2, na ordem —
   identidade antes da transação, autorização pelo gancho, evento para a outbox
-  na **mesma** transação do estado (ADR-035).
+  na **mesma** transação do estado, por `usecase.Enqueue` (ADR-035).
 - A outbox guarda os bytes do `Any` do integration event, serializados na
   escrita; o envelope CloudEvents é montado na publicação, pelo relay
   (ADR-035).
@@ -103,8 +103,8 @@ skill `.agents/skills/dmpf-bounded-context/`.
 ## Borda (ADR-044, ADR-053)
 
 - O contexto serve só gRPC, em `app/rpc`: `ServiceDesc` no bloco `app`,
-  `rpc.Methods()` para os limites por método e `errors.go` mapeando para
-  status gRPC. A cadeia de interceptors é a do kernel
+  `rpc.Methods()` para os limites por método e handlers que devolvem o erro
+  por `kernelgrpc.StatusOf`. A cadeia de interceptors é a do kernel
   (`kernelgrpc.ServerInterceptors`). `app/http` em contexto reprova no
   `tools/dmpf-context-check.sh`.
 - O REST público é do `bff`. Toda rota declara `ContractRef` para o OpenAPI
@@ -127,7 +127,8 @@ skill `.agents/skills/dmpf-bounded-context/`.
   se consome).
 - Persistência híbrida: coluna tipada só para o que uma consulta filtra; o
   resto do estado vai em `snapshot` `jsonb`, por um struct de estado privado
-  do provider com tags JSON estáveis.
+  do provider com tags JSON estáveis. Quando o estado inteiro vive no
+  `snapshot`, a tabela sai de `postgres.SnapshotTable`.
 - Cada teste roda num banco `<projeto>_test_<id>`, que o `tb/pg` cria no
   servidor de `PG_DSN` (a infra de testes, `cluster_name=test`) e apaga ao
   fim; suítes de projetos distintos rodam em paralelo.

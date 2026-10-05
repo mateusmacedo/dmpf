@@ -21,6 +21,50 @@ func openConcurrencyPool(t *testing.T) *pgxpool.Pool {
 	return openPoolWith(t, func(cfg *pgxpool.Config) { cfg.MaxConns = 4 })
 }
 
+func startBlockedRegister(t *testing.T, ctx context.Context, pool *pgxpool.Pool, aRegistered <-chan struct{}, wg *sync.WaitGroup, classified chan<- string) {
+	t.Helper()
+	go func() {
+		defer wg.Done()
+		<-aRegistered
+
+		// WHY: small sleep to ensure B's Register starts after A has inserted
+		// but before A commits, so B blocks on the unique constraint lock.
+		time.Sleep(50 * time.Millisecond)
+
+		start := time.Now()
+		pgxTx, err := pool.Begin(ctx)
+		if err != nil {
+			t.Errorf("B: Begin() = %v", err)
+			return
+		}
+		tx := postgres.NewTx(pgxTx)
+		inbox := tx.Inbox("orders", 0)
+
+		r, err := inbox.Register(ctx, receipt("orders", "m-1", "h1"))
+		if err != nil {
+			t.Errorf("B: Register() = %v", err)
+			_ = pgxTx.Rollback(ctx)
+			return
+		}
+		if waited := time.Since(start); waited < 40*time.Millisecond {
+			t.Errorf("B: Register() returned after %v, want it blocked on A's open transaction (INB-06)", waited)
+		}
+
+		var branch string
+		_ = r.Match(
+			func(p ports.Pending) error {
+				branch = "first"
+				return p.Complete(ctx, ports.Completion{Status: ports.StatusProcessed, At: 300})
+			},
+			func() error { branch = "processed"; return nil },
+			func() error { branch = "rejected"; return nil },
+			func() error { branch = "collision"; return nil },
+		)
+		classified <- branch
+		_ = pgxTx.Rollback(ctx)
+	}()
+}
+
 func TestConcurrentRegisterProcessedUnblocksWithR2(t *testing.T) {
 	pool := openConcurrencyPool(t)
 	ctx := context.Background()
@@ -63,46 +107,7 @@ func TestConcurrentRegisterProcessedUnblocksWithR2(t *testing.T) {
 		}
 	}()
 
-	go func() {
-		defer wg.Done()
-		<-aRegistered
-
-		// WHY: small sleep to ensure B's Register starts after A has inserted
-		// but before A commits, so B blocks on the unique constraint lock.
-		time.Sleep(50 * time.Millisecond)
-
-		start := time.Now()
-		pgxTx, err := pool.Begin(ctx)
-		if err != nil {
-			t.Errorf("B: Begin() = %v", err)
-			return
-		}
-		tx := postgres.NewTx(pgxTx)
-		inbox := tx.Inbox("orders", 0)
-
-		r, err := inbox.Register(ctx, receipt("orders", "m-1", "h1"))
-		if err != nil {
-			t.Errorf("B: Register() = %v", err)
-			_ = pgxTx.Rollback(ctx)
-			return
-		}
-		if waited := time.Since(start); waited < 40*time.Millisecond {
-			t.Errorf("B: Register() returned after %v, want it blocked on A's open transaction (INB-06)", waited)
-		}
-
-		var branch string
-		_ = r.Match(
-			func(p ports.Pending) error {
-				branch = "first"
-				return p.Complete(ctx, ports.Completion{Status: ports.StatusProcessed, At: 300})
-			},
-			func() error { branch = "processed"; return nil },
-			func() error { branch = "rejected"; return nil },
-			func() error { branch = "collision"; return nil },
-		)
-		bClassified <- branch
-		_ = pgxTx.Rollback(ctx)
-	}()
+	startBlockedRegister(t, ctx, pool, aRegistered, &wg, bClassified)
 
 	wg.Wait()
 	close(bClassified)
@@ -155,43 +160,7 @@ func TestConcurrentRegisterRejectedUnblocksWithR3(t *testing.T) {
 		}
 	}()
 
-	go func() {
-		defer wg.Done()
-		<-aRegistered
-		time.Sleep(50 * time.Millisecond)
-
-		start := time.Now()
-		pgxTx, err := pool.Begin(ctx)
-		if err != nil {
-			t.Errorf("B: Begin() = %v", err)
-			return
-		}
-		tx := postgres.NewTx(pgxTx)
-		inbox := tx.Inbox("orders", 0)
-
-		r, err := inbox.Register(ctx, receipt("orders", "m-1", "h1"))
-		if err != nil {
-			t.Errorf("B: Register() = %v", err)
-			_ = pgxTx.Rollback(ctx)
-			return
-		}
-		if waited := time.Since(start); waited < 40*time.Millisecond {
-			t.Errorf("B: Register() returned after %v, want it blocked on A's open transaction (INB-06)", waited)
-		}
-
-		var branch string
-		_ = r.Match(
-			func(p ports.Pending) error {
-				branch = "first"
-				return p.Complete(ctx, ports.Completion{Status: ports.StatusProcessed, At: 300})
-			},
-			func() error { branch = "processed"; return nil },
-			func() error { branch = "rejected"; return nil },
-			func() error { branch = "collision"; return nil },
-		)
-		bClassified <- branch
-		_ = pgxTx.Rollback(ctx)
-	}()
+	startBlockedRegister(t, ctx, pool, aRegistered, &wg, bClassified)
 
 	wg.Wait()
 	close(bClassified)

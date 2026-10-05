@@ -86,12 +86,12 @@ canônica dos três contextos (ADR-053): `app/config.go` (`Defaults`, `FromEnv`,
 `KAFKA_<NAME>_TOPIC`), `app/wiring.go` (borda só gRPC com a cadeia
 `kernelgrpc.ServerInterceptors`, migrate da outbox e do schema do contexto no
 ready, e o relay), `app/telemetry.go`, `app/catalog.go` (recusa o relay até o
-canal existir), `app/rpc/errors.go` (mapeamento de erro para status gRPC, com
-teste) e `app/rpc/service.go` (`ServiceName` e um `ServiceDesc` vazio, que o
-contexto preenche ao publicar o serviço). O binário fica em `cmd/main.go`
+canal existir) e `app/rpc/service.go` (`ServiceName` e um `ServiceDesc` vazio,
+que o contexto preenche ao publicar o serviço; os handlers devolvem o erro por
+`kernelgrpc.StatusOf`). O binário fica em `cmd/main.go`
 (`--role api|relay`), a imagem em `Dockerfile`, e os harnesses `appkit/` e
 `distkit/` nascem como unidades companion próprias no manifesto
-(`<ctx>/appkit`, `<ctx>/distkit`); o `appkit/pool.go` declara `Tables` e o banco
+(`<ctx>/appkit`, `<ctx>/distkit`); o `appkit/harness.go` declara `Tables` e o banco
 de teste do projeto (KIT-05 e KIT-06). Nesse caso o `project.json` ganha cinco targets além
 dos seis de sempre: `serve-api` e `serve-relay` (`go run ./cmd --role <papel>`
 depois de carregar o `deploy/.env`, com `service.instance.id=<ctx>-local-<papel>`

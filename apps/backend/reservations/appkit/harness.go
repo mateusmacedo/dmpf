@@ -34,9 +34,6 @@ const (
 	Timeout = 10 * time.Second
 )
 
-// Harness is KIT-05: the consumer adapter composed with its concrete
-// realizations, fed raw bytes at the protocol edge, observed at the effect
-// edge — the four tables.
 // Tables of this context, which the kit cannot know: it resets the kernel
 // tables and the ones named here.
 var Tables = []string{"reservations"}
@@ -54,6 +51,9 @@ func OpenPool(t testing.TB) *pgxpool.Pool {
 	return pg.OpenPool(t, PoolOptions)
 }
 
+// Harness is KIT-05: the consumer adapter composed with its concrete
+// realizations, fed raw bytes at the protocol edge, observed at the effect
+// edge — the four tables.
 type Harness struct {
 	Consumer kernelapp.Consumer
 	Service  application.Service

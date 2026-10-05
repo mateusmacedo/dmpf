@@ -34,7 +34,7 @@ arestas permitem: um `domainkit` só é kit de domínio se ele próprio for
 | `kernel/testkit-ids` | `provider` | `ids` | `KIT-07` — identificadores em sequência ou por seed |
 | `kernel/testkit-stable` | `provider` | `stable` | `KIT-08` — ordenação estável de coleções comparadas |
 | `kernel/testkit-fitness` | `app` | `fitness` | `FIT-01..FIT-04` — regra de dependência e matriz de travessia na suíte |
-| `kernel/testkit-tb` | `app` | `tb`, `tb/pg` | adaptador de `testing.TB`, fixtures, codec de projeção, pool Postgres, autoridade de certificados descartável |
+| `kernel/testkit-tb` | `app` | `tb`, `tb/pg` | adaptador de `testing.TB`, fixtures, codec de projeção, asserções de domínio, reexecução do binário de teste, pool Postgres e leitores das tabelas do kernel, autoridade de certificados descartável |
 | `kernel/testkit-evidence` | `app` | `evidence` | gravação dos veredictos e montagem da evidência da release (`BOM-03`) |
 | `kernel/testkit-cmd-evidence` | `app` | `cmd/evidence` | comando que publica `bom/evidence/<release>/` |
 
@@ -52,9 +52,10 @@ e `ids`.
 `tb.PKI` (`tb/pki.go`) é a mesma superfície pública: uma autoridade de
 certificados descartável, que grava PEM do jeito que um processo os lê de um
 segredo montado, sem nenhuma chave sobrevivendo ao teste. Hoje só
-`apps/backend/bff` a consome, no harness de mTLS ponta a ponta; um provider
-como `grpc` não alcança este módulo — está no bloco `app`, e um `provider` não
-importa `app` — e por isso mantém a própria autoridade de teste, local e
+`apps/backend/bff` a consome, no harness de mTLS ponta a ponta. O código de
+produção de um `provider` não importa `app`; `memory`, `postgres`, `kafka` e
+`sqs` requerem este módulo só pelos `_test.go`, em package de teste externo. O
+`grpc` não o requer e por isso mantém a própria autoridade de teste, local e
 duplicada por desenho (`libs/backend/go/grpc/pki_test.go`).
 
 ## Os kits — o que exigem, o que exercitam, o que aprovam
@@ -64,6 +65,24 @@ passe, cada um nomeando a regra normativa violada. `tb.Require(t, verdict)`
 converte em `t.Errorf`, um por diagnóstico. Os blocos `domain` e `contract`
 não podem importar `testing` (capability fora da allowlist), e é por isso que o
 adaptador é um package `app` à parte.
+
+O `tb` também traz o que os testes de contexto repetiam:
+
+- `RequireRejected` (recusa com o código, a resposta zero e nenhum evento),
+  `RequireAccepted` e `RequireSameEvents` (mesma sequência, o nome antes do
+  valor), para o `domain`;
+- `RunProjection`, que roda cada caso da fixture de projeção como subteste com
+  o nome do caso e devolve o veredito somado por `domainkit.Verdict.Merge`. O
+  chamador grava a evidência, porque `evidence` importa `tb`;
+- `Reexec(t, run, env...)`, que reexecuta um teste do próprio binário num
+  processo filho e devolve stdout, stderr e o término, para observar um efeito
+  sobre o processo inteiro sem sofrê-lo;
+- em `tb/pg`, os leitores das tabelas do kernel: `Outbox` (os registros em
+  ordem, como `Enqueued`), `Settled` (espera o relay publicar), `Counts` (as
+  contagens numa única instrução) e `Tables` (as tabelas do schema `public`).
+
+O `providerkit` exporta os candidatos sobre o `memory` (`MemoryUnitOfWork`,
+`MemoryInbox`), usados pelo próprio kit e por `memory/conformance_test.go`.
 
 | Kit | Exige do candidato | Exercita | Aprova quando |
 | --- | --- | --- | --- |

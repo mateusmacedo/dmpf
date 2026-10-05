@@ -99,13 +99,18 @@ que sobra para eu escrever seja a regra dentro de `Reserve`.
   mecânico.
 - [ ] **[P0] Bloco `application`**: `service.go` — `AggregateType`,
   `Destination`, `Operation*` por comando, `Resources`, `Command` selado,
-  `Service` com struct `Config` (stub protegido para campos de negócio),
-  `enqueueAll` (mecânico); `<command>.go` — os nove passos de FND-04 §3.2
+  `Service` com struct `Config` (stub protegido para campos de negócio) e o
+  `Origin` de cada agregado (mecânico). Não há `enqueueAll` gerado: o
+  enfileiramento vem de `usecase.Enqueue`, no kernel desde a Onda 1 da
+  SPEC-R8645FVR (A2). `<command>.go` — os nove passos de FND-04 §3.2
   (autorizar, resolver identidade, `UoW.Within`, carregar — ou criar se
   `creates`, ou inicializar em `ErrNotFound` se `initializesOnNotFound`, como
   `reservations.Consume` —, UPR, salvar, enfileirar `emits` que estão em
-  `integration.publishes`, `Outcome[R]`, auditoria) (mecânico);
-  `find_<aggregate>_by_<fields>.go` por `query`, fora da UoW (mecânico);
+  `integration.publishes`, `Outcome[R]`, auditoria) (mecânico), com o
+  desfecho da autorização por `ports.AuthorizationResult` e a categoria por
+  `Outcome.Category` (A7);
+  `find_<aggregate>_by_<fields>.go` por `query`, fora da UoW, sobre o
+  esqueleto `usecase.Query[Operation]` (A4) (mecânico);
   `consume_<event>.go` por `integration.consumes[]` com as sete disposições de
   FND-04 §6.4 e o mapeamento message → comando local pelo `fieldMap` da
   definição (mecânico); testes
@@ -116,7 +121,8 @@ que sobra para eu escrever seja a regra dentro de `Reserve`.
   `version`, `snapshot jsonb`, uma coluna por campo usado em `queries[].by` ou
   em `relations[].field`, **um índice composto por consulta** na ordem de
   `by[]` e um índice simples por `relations[].field`; `Migrate`; `<Aggregate>Repository` com optimistic
-  locking; `Reader` com uma consulta SQL por `query`; `Bind`; mapper de
+  locking — o agregado sem coluna de consulta declara a tabela com
+  `postgres.SnapshotTable` (P7) e não ganha codec JSON próprio; `Reader` com uma consulta SQL por `query`; `Bind`; mapper de
   integração (sub-spec C define o payload); testes `//go:build integration`
   com `tb/pg.OpenPool`, `providerkit.UnitOfWork`, `Inbox`, `Outbox` e um
   teste por consulta. Tudo mecânico.

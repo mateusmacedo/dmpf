@@ -14,6 +14,7 @@ import (
 	servicev1 "github.com/mateusmacedo/dmpf/apps/backend/orders/contract/gen/go/company/orders/service/v1"
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/domain"
 	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
+	kernelgrpc "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
 
@@ -133,7 +134,7 @@ func (s Server) AddItem(ctx context.Context, req *servicev1.AddItemRequest) (*se
 	}
 	out, err := s.Service.AddItem(ctx, application.AddItem{Order: id, SKU: domain.SKU(req.GetSku()), Quantity: int(req.GetQuantity())})
 	if err != nil {
-		return nil, statusOf(err)
+		return nil, kernelgrpc.StatusOf(err)
 	}
 	if rejection, refused := out.Rejection(); refused {
 		return &servicev1.AddItemResponse{Result: &servicev1.AddItemResponse_Rejection{Rejection: rejectionOf(rejection)}}, nil
@@ -155,7 +156,7 @@ func (s Server) PlaceOrder(ctx context.Context, req *servicev1.PlaceOrderRequest
 	}
 	out, err := s.Service.PlaceOrder(ctx, application.PlaceOrder{Order: id})
 	if err != nil {
-		return nil, statusOf(err)
+		return nil, kernelgrpc.StatusOf(err)
 	}
 	if rejection, refused := out.Rejection(); refused {
 		return &servicev1.PlaceOrderResponse{Result: &servicev1.PlaceOrderResponse_Rejection{Rejection: rejectionOf(rejection)}}, nil
@@ -176,7 +177,7 @@ func (s Server) FindOrder(ctx context.Context, req *servicev1.FindOrderRequest) 
 	}
 	snapshot, err := s.Service.FindOrder(ctx, id)
 	if err != nil {
-		return nil, statusOf(err)
+		return nil, kernelgrpc.StatusOf(err)
 	}
 	items := make([]*servicev1.Item, 0, len(snapshot.Items))
 	for _, item := range snapshot.Items {

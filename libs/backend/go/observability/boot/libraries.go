@@ -7,7 +7,6 @@ import (
 	"os"
 	"regexp"
 	"strconv"
-	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -114,16 +113,7 @@ func flushBeforeExit() {
 
 var grpcStatement = regexp.MustCompile(`^(?:\[[A-Za-z][\w #-]*\] ?)*(?:[a-z]+: )?(?:[A-Za-z][A-Za-z_., -]*)?`)
 
-// withoutValues keeps the text gRPC wrote before the first value it formatted
-// in: the peer address and the transport error never leave (DAT-02, DAT-23).
-func withoutValues(message string) string {
-	message = strings.TrimRight(message, "\n")
-	statement := grpcStatement.FindString(message)
-	if len(statement) == len(message) {
-		return message
-	}
-	return strings.TrimSpace(strings.TrimRight(statement, " ,.-") + " " + redact.Placeholder)
-}
+func withoutValues(message string) string { return redact.WithoutValues(message, grpcStatement) }
 
 type grpcLog struct{}
 

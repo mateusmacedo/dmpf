@@ -16,7 +16,7 @@ func (s Service) CancelBooking(ctx context.Context, cmd CancelBooking) (usecase.
 	ctx, end := instrumentation.BeginOperation(ctx, OperationCancelBooking)
 
 	if err := s.Authorize(ctx, cmd); err != nil {
-		end(authorizationResult(err))
+		end(ports.AuthorizationResult(err))
 		return zero, err
 	}
 
@@ -35,7 +35,7 @@ func (s Service) CancelBooking(ctx context.Context, cmd CancelBooking) (usecase.
 		return zero, err
 	}
 
-	category := outcomeCategory(outcome)
+	category := outcome.Category()
 	end(ports.Result{Outcome: category})
 	if !replayed {
 		instrumentation.Audit(ctx, ports.AuditEvent{
@@ -66,7 +66,7 @@ func cancel(ctx context.Context, res Resources, cmd CancelBooking, identity usec
 	if err := res.Bookings.Save(ctx, cmd.BookingID, b.Snapshot(), stored); err != nil {
 		return zero, fmt.Errorf("application: cancel %s: %w", cmd.BookingID, err)
 	}
-	if err := enqueueAll(ctx, res.Outbox, identity, AggregateTypeBooking, string(cmd.BookingID), stored+1, accepted.Events()); err != nil {
+	if err := usecase.Enqueue(ctx, res.Outbox, identity, origin(AggregateTypeBooking, string(cmd.BookingID)), stored+1, accepted.Events()); err != nil {
 		return zero, fmt.Errorf("application: cancel %s: enqueue: %w", cmd.BookingID, err)
 	}
 	return usecase.Accepted(accepted.Response()), nil

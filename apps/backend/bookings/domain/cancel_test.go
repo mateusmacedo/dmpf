@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/domain"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb"
 )
 
 func TestCancelAccepts(t *testing.T) {
@@ -11,7 +12,7 @@ func TestCancelAccepts(t *testing.T) {
 
 	acc, rej := b.Cancel(domain.CancelBooking{At: at})
 
-	requireAccepted[domain.CancelledResponse](t, rej)
+	tb.RequireAccepted(t, rej)
 	if got, want := acc.Response(), (domain.CancelledResponse{BookingID: bookingID}); got != want {
 		t.Fatalf("Response() = %+v, want %+v", got, want)
 	}
@@ -34,7 +35,7 @@ func TestCancelRejectsWhenNotReserved(t *testing.T) {
 
 	acc, rej := b.Cancel(domain.CancelBooking{At: at})
 
-	requireRejected(t, acc, rej, domain.CodeBookingNotReserved)
+	tb.RequireRejected(t, acc, rej, domain.CodeBookingNotReserved)
 	requireBookingUnchanged(t, before, b.Snapshot())
 }
 
@@ -47,6 +48,6 @@ func TestCancelRejectsWhenAlreadyCancelled(t *testing.T) {
 
 	acc, rej := b.Cancel(domain.CancelBooking{At: at})
 
-	requireRejected(t, acc, rej, domain.CodeBookingNotReserved)
+	tb.RequireRejected(t, acc, rej, domain.CodeBookingNotReserved)
 	requireBookingUnchanged(t, before, b.Snapshot())
 }

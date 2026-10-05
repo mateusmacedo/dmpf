@@ -19,6 +19,7 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/otelboot"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/redact"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
 )
 
 type purgeClock ports.Instant
@@ -338,3 +339,22 @@ func (l *purgeLogs) snapshot() []map[string]any {
 
 func (*purgeLogs) Shutdown(context.Context) error   { return nil }
 func (*purgeLogs) ForceFlush(context.Context) error { return nil }
+
+func TestThePurgeFunctionsRouteToTheirStatementWithItsValidation(t *testing.T) {
+	cases := map[string]struct {
+		fn    app.PurgeFunc
+		batch int
+		want  error
+	}{
+		"outbox without a batch":         {app.PurgeOutbox(nil), 0, postgres.ErrPurgeBatchRequired},
+		"command inbox without consumer": {app.PurgeCommandInbox(nil, ""), 10, postgres.ErrInboxConsumerRequired},
+		"message inbox without consumer": {app.PurgeMessageInbox(nil, ""), 10, postgres.ErrInboxConsumerRequired},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			if _, err := tc.fn(context.Background(), 100, tc.batch); !errors.Is(err, tc.want) {
+				t.Fatalf("purge = %v, want %v", err, tc.want)
+			}
+		})
+	}
+}

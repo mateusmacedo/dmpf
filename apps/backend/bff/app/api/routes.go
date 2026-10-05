@@ -31,10 +31,6 @@ const (
 	ReplayedHeader    = "Idempotent-Replayed"
 	CorrelationHeader = "X-Correlation-ID"
 
-	// DefaultLocale resolves CTX-01's mandatory field when the caller states no
-	// preference; leaving it empty would make the context a construction defect.
-	DefaultLocale = "en"
-
 	OrdersContractPath       = "/openapi/orders/v1/openapi.yaml"
 	ReservationsContractPath = "/openapi/reservations/v1/openapi.yaml"
 	BookingsContractPath     = "/openapi/bookings/v1/openapi.yaml"
@@ -154,18 +150,21 @@ func NewHandler(
 		if err := route.ValidateEdge(); err != nil {
 			return nil, err
 		}
-		handler := requireIdempotencyKey(serve[route.Name])
+		handler := requireIdempotencyKey(route, serve[route.Name])
 		mounted := withExecutionContext(logger, opts.Authenticator, route, admit(handler))
 		mux.Handle(pattern(route), withRecover(withRouteDeadline(route.Budget, mounted)))
 	}
-	if len(opts.OrdersContract) > 0 {
-		mux.Handle("GET "+OrdersContractPath, serveContract(opts.OrdersContract))
-	}
-	if len(opts.ReservationsContract) > 0 {
-		mux.Handle("GET "+ReservationsContractPath, serveContract(opts.ReservationsContract))
-	}
-	if len(opts.BookingsContract) > 0 {
-		mux.Handle("GET "+BookingsContractPath, serveContract(opts.BookingsContract))
+	for _, contract := range []struct {
+		path     string
+		document []byte
+	}{
+		{OrdersContractPath, opts.OrdersContract},
+		{ReservationsContractPath, opts.ReservationsContract},
+		{BookingsContractPath, opts.BookingsContract},
+	} {
+		if len(contract.document) > 0 {
+			mux.Handle("GET "+contract.path, serveContract(contract.document))
+		}
 	}
 	return otelhttp.NewHandler(withRoute(withAccessLog(logger, withCORS(opts.CORSOrigins, mux))), "bff", instrumentation(opts)...), nil
 }

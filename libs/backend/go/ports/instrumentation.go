@@ -35,6 +35,13 @@ type Result struct {
 	Err     error
 }
 
+func AuthorizationResult(err error) Result {
+	if errors.Is(err, ErrDenied) {
+		return Result{Outcome: OutcomeDenied}
+	}
+	return Result{Outcome: OutcomeFailed, Err: err}
+}
+
 // AuditEvent is the record of LOG-14 without the subject: the authenticated
 // identity has no realization in the kernel, and the provider resolves it.
 type AuditEvent struct {

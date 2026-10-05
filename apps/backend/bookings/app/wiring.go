@@ -28,7 +28,6 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/admission"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/channel"
 )
 
 const keyChannelName = "dmpf.channel.name"
@@ -52,42 +51,48 @@ func RunWith(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {
 	}
 }
 
-func bindBookings(wait time.Duration) func(*postgres.Tx) application.Resources {
+// Waits are the ceiling of IDM-07 for a command.
+type Waits struct {
+	Command time.Duration
+}
+
+func bind(waits Waits) func(*postgres.Tx) application.Resources {
 	return func(tx *postgres.Tx) application.Resources {
 		return application.Resources{
 			Bookings:  provider.NewBookingRepository(tx),
 			Resources: provider.NewResourceRepository(tx),
 			Outbox:    tx.Outbox(provider.Mapper{}),
-			Commands:  tx.CommandInbox(application.CommandConsumer, wait),
+			Commands:  tx.CommandInbox(application.CommandConsumer, waits.Command),
 		}
 	}
 }
 
-// NewBookingsService assembles the use cases over Postgres, which is the one
-// place the concrete providers of this context are instantiated (ADR-015),
-// with the instrumentation of FND-08 and the audit trail emitted through rt.
+// NewService is the one place the concrete providers of this context are
+// instantiated (ADR-015).
+func NewService(pool *pgxpool.Pool, clock ports.Clock, ids ports.IDGenerator, waits Waits) application.Service {
+	return application.Service{
+		UoW:            postgres.NewUnitOfWork(pool, bind(waits)),
+		Reader:         provider.NewBookingReader(postgres.NewReadPool(pool)),
+		ResourceReader: provider.NewBookingsByResourceReader(postgres.NewReadPool(pool)),
+		Clock:          clock,
+		IDs:            ids,
+		Authorize:      Authorization(),
+	}
+}
+
+// NewBookingsService assembles the use cases over Postgres, with the
+// instrumentation of FND-08 and the audit trail emitted through rt.
 func NewBookingsService(pool *pgxpool.Pool, rt *otelboot.Runtime, cfg Config) (application.Service, error) {
 	policy, err := kernelapp.IdempotencyPolicy(cfg.IdempotencyWait, cfg.IdempotencyRetention)
 	if err != nil {
 		return application.Service{}, err
 	}
-	return application.Service{
-		UoW:            postgres.NewUnitOfWork(pool, bindBookings(cfg.IdempotencyWait)),
-		Reader:         provider.NewBookingReader(postgres.NewReadPool(pool)),
-		ResourceReader: provider.NewBookingsByResourceReader(postgres.NewReadPool(pool)),
-		Clock:          idclock.SystemClock{},
-		IDs:            idclock.NewMessageIDs("bookings"),
-		Authorize:      Authorization(),
-		Idempotency:    policy,
-		Instrumentation: obsusecase.New(rt,
-			audit.NewLogSink(rt.LoggerProvider()),
-			subject, classify, application.OperationFindBooking, application.OperationFindBookingByResource),
-	}, nil
-}
-
-func startPurge(ctx context.Context, abort context.CancelCauseFunc, cfg Config, rt *otelboot.Runtime, name string, retention time.Duration, fn kernelapp.PurgeFunc) (func() error, error) {
-	return kernelapp.StartPurge(ctx, abort, kernelapp.PurgeConfig{Name: name, Interval: cfg.PurgeInterval, Batch: cfg.PurgeBatch, Retention: retention},
-		idclock.SystemClock{}, rt.LoggerProvider(), fn)
+	service := NewService(pool, idclock.SystemClock{}, idclock.NewMessageIDs("bookings"), Waits{Command: cfg.IdempotencyWait})
+	service.Idempotency = policy
+	service.Instrumentation = obsusecase.New(rt,
+		audit.NewLogSink(rt.LoggerProvider()),
+		subject, classify, application.OperationFindBooking, application.OperationFindBookingByResource)
+	return service, nil
 }
 
 func serveAPI(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {
@@ -138,10 +143,9 @@ func serveAPI(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {
 				return fmt.Errorf("migrate: %w", err)
 			}
 		}
-		stop, err := startPurge(ctx, abort, cfg, rt, "command-inbox", 0, func(ctx context.Context, cutoff ports.Instant, batch int) (int64, error) {
-			purged, err := postgres.PurgeExpiredInbox(ctx, pool, application.CommandConsumer, cutoff, batch)
-			return purged.Removed, err
-		})
+		stop, err := kernelapp.StartPurge(ctx, abort,
+			kernelapp.PurgeConfig{Name: "command-inbox", Interval: cfg.PurgeInterval, Batch: cfg.PurgeBatch},
+			idclock.SystemClock{}, rt.LoggerProvider(), kernelapp.PurgeCommandInbox(pool, application.CommandConsumer))
 		if err != nil {
 			return err
 		}
@@ -152,26 +156,6 @@ func serveAPI(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {
 		return err
 	}
 	return stopPurge()
-}
-
-func RelayConfig(cfg Config, rt *otelboot.Runtime, catalog channel.Catalog) relay.Config {
-	config := cfg.Relay
-	config.Tracer = rt.Tracer()
-	config.System = semconv.MessagingSystemKafka.Value.AsString()
-	config.LoggerProvider = rt.LoggerProvider()
-	config.MeterProvider = rt.MeterProvider()
-	config.Address = topicOf(catalog)
-	return config
-}
-
-func topicOf(catalog channel.Catalog) func(destination string) string {
-	return func(destination string) string {
-		ch, err := catalog.Resolve(destination)
-		if err != nil {
-			return ""
-		}
-		return ch.Address
-	}
 }
 
 func runRelay(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {
@@ -196,10 +180,9 @@ func runRelay(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {
 	if err := postgres.AssertOwnOutbox(ctx, pool, slices.Collect(maps.Keys(catalog))); err != nil {
 		return err
 	}
-	stopPurge, err := startPurge(ctx, abort, cfg, rt, "outbox", cfg.OutboxRetention, func(ctx context.Context, cutoff ports.Instant, batch int) (int64, error) {
-		purged, err := postgres.PurgePublished(ctx, pool, cutoff, batch)
-		return purged.Count, err
-	})
+	stopPurge, err := kernelapp.StartPurge(ctx, abort,
+		kernelapp.PurgeConfig{Name: "outbox", Interval: cfg.PurgeInterval, Batch: cfg.PurgeBatch, Retention: cfg.OutboxRetention},
+		idclock.SystemClock{}, rt.LoggerProvider(), kernelapp.PurgeOutbox(pool))
 	if err != nil {
 		return err
 	}
@@ -215,7 +198,7 @@ func runRelay(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {
 	}
 	defer publisher.Close()
 
-	drain, err := relay.NewOverPostgres(pool, publisher, "bookings", RelayConfig(cfg, rt, catalog))
+	drain, err := relay.NewOverPostgres(pool, publisher, "bookings", relay.Instrument(cfg.Relay, rt, catalog.AddressOf))
 	if err != nil {
 		return err
 	}

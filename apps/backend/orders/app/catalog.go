@@ -18,10 +18,5 @@ func OrdersChannel(cfg Config) channel.Channel {
 
 // NewCatalog is the catalog of ASY-01 with the one channel this context drains.
 func NewCatalog(cfg Config) (channel.Catalog, error) {
-	orders := OrdersChannel(cfg)
-	catalog := channel.Catalog{orders.Name: orders}
-	if err := catalog.Validate(); err != nil {
-		return nil, err
-	}
-	return catalog, nil
+	return channel.NewCatalog(OrdersChannel(cfg))
 }

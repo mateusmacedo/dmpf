@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/domain"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb"
 )
 
 func TestFromBookingSnapshotRoundTrips(t *testing.T) {
@@ -26,7 +27,7 @@ func TestFromBookingSnapshotRestoresStatusAsBehaviour(t *testing.T) {
 		t.Fatalf("Status = %v, want Reserved", got)
 	}
 	acc, rej := reconstituted.Cancel(domain.CancelBooking{At: at})
-	requireAccepted[domain.CancelledResponse](t, rej)
+	tb.RequireAccepted(t, rej)
 	if len(acc.Events()) != 1 {
 		t.Fatalf("Events() len = %d, want 1", len(acc.Events()))
 	}

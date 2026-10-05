@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/domain"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb"
 )
 
 func TestRegisterAcceptsNewResource(t *testing.T) {
@@ -11,7 +12,7 @@ func TestRegisterAcceptsNewResource(t *testing.T) {
 
 	acc, rej := r.Register(domain.RegisterResource{Code: resCode, At: at})
 
-	requireAccepted[domain.RegisteredResponse](t, rej)
+	tb.RequireAccepted(t, rej)
 	if got, want := acc.Response(), (domain.RegisteredResponse{Code: resCode}); got != want {
 		t.Fatalf("Response() = %+v, want %+v", got, want)
 	}
@@ -31,7 +32,7 @@ func TestRegisterIdempotentWhenAlreadyPresent(t *testing.T) {
 
 	acc, rej := r.Register(domain.RegisterResource{Code: resCode, At: at + 1000})
 
-	requireAccepted[domain.RegisteredResponse](t, rej)
+	tb.RequireAccepted(t, rej)
 	if len(acc.Events()) != 0 {
 		t.Fatalf("Events() len = %d, want 0 (idempotent)", len(acc.Events()))
 	}
@@ -45,5 +46,5 @@ func TestRegisterRejectsEmptyCode(t *testing.T) {
 
 	acc, rej := r.Register(domain.RegisterResource{Code: "", At: at})
 
-	requireRejected(t, acc, rej, domain.CodeResourceCodeEmpty)
+	tb.RequireRejected(t, acc, rej, domain.CodeResourceCodeEmpty)
 }

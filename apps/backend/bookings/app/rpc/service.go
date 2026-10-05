@@ -14,6 +14,7 @@ import (
 	servicev1 "github.com/mateusmacedo/dmpf/apps/backend/bookings/contract/gen/go/company/bookings/service/v1"
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/domain"
 	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
+	kernelgrpc "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
 
@@ -151,7 +152,7 @@ func (s Server) ReserveBooking(ctx context.Context, req *servicev1.ReserveBookin
 		Quantity:   int(req.GetQuantity()),
 	})
 	if err != nil {
-		return nil, statusOf(err)
+		return nil, kernelgrpc.StatusOf(err)
 	}
 	if rejection, refused := out.Rejection(); refused {
 		return &servicev1.ReserveBookingResponse{Result: &servicev1.ReserveBookingResponse_Rejection{Rejection: rejectionOf(rejection)}}, nil
@@ -171,7 +172,7 @@ func (s Server) CancelBooking(ctx context.Context, req *servicev1.CancelBookingR
 	}
 	out, err := s.Service.CancelBooking(ctx, application.CancelBooking{BookingID: booking})
 	if err != nil {
-		return nil, statusOf(err)
+		return nil, kernelgrpc.StatusOf(err)
 	}
 	if rejection, refused := out.Rejection(); refused {
 		return &servicev1.CancelBookingResponse{Result: &servicev1.CancelBookingResponse_Rejection{Rejection: rejectionOf(rejection)}}, nil
@@ -191,7 +192,7 @@ func (s Server) RegisterResource(ctx context.Context, req *servicev1.RegisterRes
 	}
 	out, err := s.Service.RegisterResource(ctx, application.RegisterResource{Code: domain.ResourceCode(resource)})
 	if err != nil {
-		return nil, statusOf(err)
+		return nil, kernelgrpc.StatusOf(err)
 	}
 	if rejection, refused := out.Rejection(); refused {
 		return &servicev1.RegisterResourceResponse{Result: &servicev1.RegisterResourceResponse_Rejection{Rejection: rejectionOf(rejection)}}, nil
@@ -211,7 +212,7 @@ func (s Server) FindBooking(ctx context.Context, req *servicev1.FindBookingReque
 	}
 	snapshot, err := s.Service.FindBooking(ctx, booking)
 	if err != nil {
-		return nil, statusOf(err)
+		return nil, kernelgrpc.StatusOf(err)
 	}
 	return &servicev1.FindBookingResponse{Booking: bookingOf(snapshot)}, nil
 }
@@ -226,7 +227,7 @@ func (s Server) FindBookingsByResource(ctx context.Context, req *servicev1.FindB
 	}
 	snapshots, err := s.Service.FindBookingByResource(ctx, domain.ResourceID(resource))
 	if err != nil {
-		return nil, statusOf(err)
+		return nil, kernelgrpc.StatusOf(err)
 	}
 	bookings := make([]*servicev1.Booking, 0, len(snapshots))
 	for _, snapshot := range snapshots {

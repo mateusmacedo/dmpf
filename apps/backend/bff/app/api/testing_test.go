@@ -231,6 +231,7 @@ type setup struct {
 	limit                admission.Limit
 	ordersContract       []byte
 	reservationsContract []byte
+	bookingsContract     []byte
 	cors                 []string
 	ready                func(context.Context) error
 	authenticator        ports.Authenticator
@@ -246,6 +247,10 @@ func withLimit(l admission.Limit) option { return func(s *setup) { s.limit = l }
 
 func withContracts(orders, reservations string) option {
 	return func(s *setup) { s.ordersContract, s.reservationsContract = []byte(orders), []byte(reservations) }
+}
+
+func withBookingsContract(bookings string) option {
+	return func(s *setup) { s.bookingsContract = []byte(bookings) }
 }
 
 func withCORS(origins ...string) option { return func(s *setup) { s.cors = origins } }
@@ -314,6 +319,7 @@ func newFixture(t *testing.T, fake *fakeContexts, options ...option) fixture {
 		Authenticator:        cfg.authenticator,
 		OrdersContract:       cfg.ordersContract,
 		ReservationsContract: cfg.reservationsContract,
+		BookingsContract:     cfg.bookingsContract,
 		CORSOrigins:          cfg.cors,
 		Logger:               logger,
 		TracerProvider:       provider,

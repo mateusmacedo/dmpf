@@ -20,7 +20,7 @@ func (s Service) AddItem(ctx context.Context, cmd AddItem) (usecase.Outcome[doma
 	ctx, end := instrumentation.BeginOperation(ctx, OperationAddItem)
 
 	if err := s.Authorize(ctx, cmd); err != nil {
-		end(authorizationResult(err))
+		end(ports.AuthorizationResult(err))
 		return zero, err
 	}
 
@@ -40,7 +40,7 @@ func (s Service) AddItem(ctx context.Context, cmd AddItem) (usecase.Outcome[doma
 		return zero, err
 	}
 
-	category := outcomeCategory(outcome)
+	category := outcome.Category()
 	end(ports.Result{Outcome: category})
 	if !replayed {
 		instrumentation.Audit(ctx, ports.AuditEvent{
@@ -76,7 +76,7 @@ func (s Service) addItem(ctx context.Context, res Resources, cmd AddItem, identi
 	if err := res.Orders.Save(ctx, cmd.Order, order.Snapshot(), stored); err != nil {
 		return zero, err
 	}
-	if err := enqueueAll(ctx, res.Outbox, identity, cmd.Order, stored+1, accepted.Events()); err != nil {
+	if err := usecase.Enqueue(ctx, res.Outbox, identity, origin(cmd.Order), stored+1, accepted.Events()); err != nil {
 		return zero, err
 	}
 	return usecase.Accepted(accepted.Response()), nil

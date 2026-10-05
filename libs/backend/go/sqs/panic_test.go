@@ -1,11 +1,9 @@
 package sqs_test
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"os"
-	"os/exec"
 	"strings"
 	"testing"
 	"time"
@@ -16,6 +14,7 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/clock"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	provider "github.com/mateusmacedo/dmpf/libs/backend/go/sqs"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb"
 )
 
 const (
@@ -153,15 +152,10 @@ func TestRunningAPanickingConsumer(t *testing.T) {
 func TestAPanickingGoroutineOfTheConsumerWritesNothingToTheStderrOfTheProcess(t *testing.T) {
 	for _, scenario := range []string{"heartbeat", "worker"} {
 		t.Run(scenario, func(t *testing.T) {
-			command := exec.Command(os.Args[0], "-test.run=^TestRunningAPanickingConsumer$", "-test.count=1")
-			command.Env = append(os.Environ(), sqsChildEnv+"="+scenario)
-			var stdout, stderr bytes.Buffer
-			command.Stdout, command.Stderr = &stdout, &stderr
+			stdout, stderr, err := tb.Reexec(t, "TestRunningAPanickingConsumer", sqsChildEnv+"="+scenario)
 
-			err := command.Run()
-
-			if err != nil || stderr.Len() != 0 {
-				t.Fatalf("process = %v, stderr = %q, stdout = %q, want exit 0 and nothing on stderr: the error leaves only through cmd/main.go (RF-A1)", err, stderr.String(), stdout.String())
+			if err != nil || stderr != "" {
+				t.Fatalf("process = %v, stderr = %q, stdout = %q, want exit 0 and nothing on stderr: the error leaves only through cmd/main.go (RF-A1)", err, stderr, stdout)
 			}
 		})
 	}

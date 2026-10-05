@@ -2,11 +2,8 @@ package grpc
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"log/slog"
-	"regexp"
 	"strconv"
 	"strings"
 
@@ -52,13 +49,6 @@ const (
 	// (CTX-11); DefaultLocale answers when none, or no valid tag, arrived.
 	LocaleKey     = "x-locale"
 	DefaultLocale = "en"
-
-	idBytes = 16
-)
-
-var (
-	correlationFormat = regexp.MustCompile(`^[A-Za-z0-9._-]{1,128}$`)
-	localeFormat      = regexp.MustCompile(`^[A-Za-z]{1,8}(-[A-Za-z0-9]{1,8})*$`)
 )
 
 // ServerInterceptors is the chain of SPEC-ACYKBF9V under the SERVER span of
@@ -251,7 +241,7 @@ func requireDeadline(ctx context.Context, req any, _ *grpc.UnaryServerInfo, hand
 func requestContext(logger *slog.Logger, commands map[string]bool) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		md, _ := metadata.FromIncomingContext(ctx)
-		incoming := metadataCarrier(md)
+		incoming := MetadataCarrier(md)
 
 		command := commands[info.FullMethod]
 		key := incoming.Get(IdempotencyKey)
@@ -270,10 +260,10 @@ func requestContext(logger *slog.Logger, commands map[string]bool) grpc.UnarySer
 		}
 
 		correlation := incoming.Get(CorrelationKey)
-		if !correlationFormat.MatchString(correlation) {
-			correlation = newID()
+		if !ValidCorrelation(correlation) {
+			correlation = NewID("grpc")
 		}
-		requestID := newID()
+		requestID := NewID("grpc")
 
 		carrier := propagation.MapCarrier{}
 		propagation.TraceContext{}.Inject(ctx, carrier)
@@ -346,7 +336,7 @@ func optional(value string) *string {
 	return &value
 }
 
-func tenantOf(incoming metadataCarrier) *ports.TenantID {
+func tenantOf(incoming MetadataCarrier) *ports.TenantID {
 	value := incoming.Get(TenantKey)
 	if value == "" {
 		return nil
@@ -360,11 +350,11 @@ func tenantOf(incoming metadataCarrier) *ports.TenantID {
 // every undeclared tenant.
 func admissionTenant(ctx context.Context) string {
 	md, _ := metadata.FromIncomingContext(ctx)
-	return metadataCarrier(md).Get(TenantKey)
+	return MetadataCarrier(md).Get(TenantKey)
 }
 
-func localeOf(incoming metadataCarrier) string {
-	if locale := incoming.Get(LocaleKey); localeFormat.MatchString(locale) {
+func localeOf(incoming MetadataCarrier) string {
+	if locale := incoming.Get(LocaleKey); ValidLocale(locale) {
 		return locale
 	}
 	return DefaultLocale
@@ -376,31 +366,4 @@ func deadlineOf(ctx context.Context) ports.Instant {
 		return 0
 	}
 	return ports.Instant(governed.UnixNano())
-}
-
-type metadataCarrier metadata.MD
-
-func (c metadataCarrier) Get(key string) string {
-	if values := metadata.MD(c).Get(key); len(values) > 0 {
-		return values[0]
-	}
-	return ""
-}
-
-func (c metadataCarrier) Set(key, value string) { metadata.MD(c).Set(key, value) }
-
-func (c metadataCarrier) Keys() []string {
-	keys := make([]string, 0, len(c))
-	for key := range c {
-		keys = append(keys, key)
-	}
-	return keys
-}
-
-func newID() string {
-	buffer := make([]byte, idBytes)
-	if _, err := rand.Read(buffer); err != nil {
-		panic("grpc: the operating system's entropy source failed: " + err.Error())
-	}
-	return hex.EncodeToString(buffer)
 }

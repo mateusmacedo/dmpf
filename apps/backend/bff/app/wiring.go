@@ -11,16 +11,18 @@ import (
 	"os"
 	"reflect"
 	"regexp"
+	"slices"
 	"strconv"
-	"strings"
 	"sync/atomic"
 	"time"
 
 	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
+	"google.golang.org/grpc"
 
 	"github.com/mateusmacedo/dmpf/apps/backend/bff/app/api"
 	"github.com/mateusmacedo/dmpf/apps/backend/bff/app/rpc"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/authn"
+	kernelgrpc "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/boot"
 	obsclock "github.com/mateusmacedo/dmpf/libs/backend/go/observability/clock"
@@ -46,6 +48,47 @@ func Run(ctx context.Context, cfg Config) error {
 	})
 }
 
+const (
+	ordersBackend       = "orders"
+	reservationsBackend = "reservations"
+	bookingsBackend     = "bookings"
+)
+
+type backend struct {
+	name   string
+	target string
+	config func(rpc.Options) kernelgrpc.Config
+}
+
+func backendsOf(cfg Config) []backend {
+	return []backend{
+		{ordersBackend, cfg.OrdersTarget, rpc.OrdersConfig},
+		{reservationsBackend, cfg.ReservationsTarget, rpc.ReservationsConfig},
+		{bookingsBackend, cfg.BookingsTarget, rpc.BookingsConfig},
+	}
+}
+
+func dialBackends(dial func(string, kernelgrpc.Config, ...grpc.DialOption) (*grpc.ClientConn, error), opts rpc.Options, backends []backend) (rpc.Readiness, error) {
+	conns := make(rpc.Readiness, len(backends))
+	for _, b := range backends {
+		conn, err := dial(b.target, b.config(opts))
+		if err != nil {
+			closeBackends(backends, conns)
+			return nil, err
+		}
+		conns[b.name] = conn
+	}
+	return conns, nil
+}
+
+func closeBackends(backends []backend, conns rpc.Readiness) {
+	for _, b := range slices.Backward(backends) {
+		if conn := conns[b.name]; conn != nil {
+			_ = conn.Close()
+		}
+	}
+}
+
 // Authenticator resolves how this process verifies identity. The development
 // mock is only reachable through the opt-out the config already refused to
 // combine with an issuer, so one start never has two ways of resolving it.
@@ -62,21 +105,12 @@ func RunWith(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {
 	if err != nil {
 		return err
 	}
-	ordersConn, err := rpc.Dial(cfg.OrdersTarget, rpc.OrdersConfig(opts))
+	backends := backendsOf(cfg)
+	conns, err := dialBackends(rpc.Dial, opts, backends)
 	if err != nil {
 		return err
 	}
-	defer func() { _ = ordersConn.Close() }()
-	reservationsConn, err := rpc.Dial(cfg.ReservationsTarget, rpc.ReservationsConfig(opts))
-	if err != nil {
-		return err
-	}
-	defer func() { _ = reservationsConn.Close() }()
-	bookingsConn, err := rpc.Dial(cfg.BookingsTarget, rpc.BookingsConfig(opts))
-	if err != nil {
-		return err
-	}
-	defer func() { _ = bookingsConn.Close() }()
+	defer closeBackends(backends, conns)
 
 	ctrl, err := admission.NewController(api.Limits(cfg.Admission), cfg.MetricTenants, admission.DefaultMaxKeys)
 	if err != nil {
@@ -87,9 +121,8 @@ func RunWith(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {
 	if err != nil {
 		return err
 	}
-	readiness := rpc.Readiness{"orders": ordersConn, "reservations": reservationsConn, "bookings": bookingsConn}
 	var draining atomic.Bool
-	options := api.Options{Budget: cfg.RouteBudget, Authenticator: authenticator, CORSOrigins: cfg.CORSOrigins, Logger: rt.LoggerFor(reflect.TypeFor[api.Options]().PkgPath()), Ready: readiness.Check, Draining: draining.Load}
+	options := api.Options{Budget: cfg.RouteBudget, Authenticator: authenticator, CORSOrigins: cfg.CORSOrigins, Logger: rt.LoggerFor(reflect.TypeFor[api.Options]().PkgPath()), Ready: conns.Check, Draining: draining.Load}
 	if options.OrdersContract, err = readContract(cfg.OrdersContractPath); err != nil {
 		return err
 	}
@@ -99,7 +132,7 @@ func RunWith(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {
 	if options.BookingsContract, err = readContract(cfg.BookingsContractPath); err != nil {
 		return err
 	}
-	handler, err := api.NewHandler(rpc.NewOrders(ordersConn), rpc.NewReservations(reservationsConn), rpc.NewBookings(bookingsConn), ctrl, rt.Instruments(), options)
+	handler, err := api.NewHandler(rpc.NewOrders(conns[ordersBackend]), rpc.NewReservations(conns[reservationsBackend]), rpc.NewBookings(conns[bookingsBackend]), ctrl, rt.Instruments(), options)
 	if err != nil {
 		return err
 	}
@@ -190,17 +223,8 @@ func serverErrorLog(rt *otelboot.Runtime) *log.Logger {
 type serverErrors struct{ logger *slog.Logger }
 
 func (s serverErrors) Write(message []byte) (int, error) {
-	s.logger.LogAttrs(context.Background(), slog.LevelWarn, withoutValues(string(message)))
+	s.logger.LogAttrs(context.Background(), slog.LevelWarn, redact.WithoutValues(string(message), serverStatement))
 	return len(message), nil
-}
-
-func withoutValues(message string) string {
-	message = strings.TrimRight(message, "\n")
-	statement := serverStatement.FindString(message)
-	if len(statement) == len(message) {
-		return message
-	}
-	return strings.TrimSpace(strings.TrimRight(statement, " ,.-") + " " + redact.Placeholder)
 }
 
 func serverAddress(addr net.Addr) []slog.Attr {

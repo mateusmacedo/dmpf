@@ -8,12 +8,14 @@ import (
 	"slices"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"go.opentelemetry.io/otel/log"
 	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/logging"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/redact"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
 )
 
 const (
@@ -129,5 +131,28 @@ func RunPurge(ctx context.Context, cfg PurgeConfig, clock ports.Clock, logs log.
 			}
 		}
 		timer.Reset(cfg.Interval)
+	}
+}
+
+func PurgeOutbox(pool *pgxpool.Pool) PurgeFunc {
+	return func(ctx context.Context, cutoff ports.Instant, batch int) (int64, error) {
+		purged, err := postgres.PurgePublished(ctx, pool, cutoff, batch)
+		return purged.Count, err
+	}
+}
+
+// PurgeCommandInbox purges the command entries of consumer whose own expiry has
+// come, so the loop runs it with no retention (IDM-09).
+func PurgeCommandInbox(pool *pgxpool.Pool, consumer string) PurgeFunc {
+	return func(ctx context.Context, cutoff ports.Instant, batch int) (int64, error) {
+		purged, err := postgres.PurgeExpiredInbox(ctx, pool, consumer, cutoff, batch)
+		return purged.Removed, err
+	}
+}
+
+func PurgeMessageInbox(pool *pgxpool.Pool, consumer string) PurgeFunc {
+	return func(ctx context.Context, cutoff ports.Instant, batch int) (int64, error) {
+		purged, err := postgres.PurgeInbox(ctx, pool, consumer, cutoff, batch)
+		return purged.Removed, err
 	}
 }

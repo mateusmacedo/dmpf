@@ -1,11 +1,9 @@
 package kafka_test
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"os"
-	"os/exec"
 	"strings"
 	"testing"
 	"time"
@@ -14,6 +12,7 @@ import (
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/kafka"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb"
 )
 
 const (
@@ -124,15 +123,10 @@ func TestRunningAPanickingConsumer(t *testing.T) {
 func TestAPanickingGoroutineOfTheConsumerWritesNothingToTheStderrOfTheProcess(t *testing.T) {
 	for _, scenario := range []string{"worker", "shutdown"} {
 		t.Run(scenario, func(t *testing.T) {
-			command := exec.Command(os.Args[0], "-test.run=^TestRunningAPanickingConsumer$", "-test.count=1")
-			command.Env = append(os.Environ(), kafkaChildEnv+"="+scenario)
-			var stdout, stderr bytes.Buffer
-			command.Stdout, command.Stderr = &stdout, &stderr
+			stdout, stderr, err := tb.Reexec(t, "TestRunningAPanickingConsumer", kafkaChildEnv+"="+scenario)
 
-			err := command.Run()
-
-			if err != nil || stderr.Len() != 0 {
-				t.Fatalf("process = %v, stderr = %q, stdout = %q, want exit 0 and nothing on stderr: the error leaves only through cmd/main.go (RF-A1)", err, stderr.String(), stdout.String())
+			if err != nil || stderr != "" {
+				t.Fatalf("process = %v, stderr = %q, stdout = %q, want exit 0 and nothing on stderr: the error leaves only through cmd/main.go (RF-A1)", err, stderr, stdout)
 			}
 		})
 	}

@@ -30,7 +30,6 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/otelboot"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/retry"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/usecase"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/admission"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/channel"
@@ -78,11 +77,6 @@ func NewReservationsService(pool *pgxpool.Pool, rt *otelboot.Runtime, cfg Config
 	service.Idempotency = policy
 	service.Instrumentation = usecase.New(rt, audit.NewLogSink(rt.LoggerProvider()), subject, classify, application.OperationFindReservation)
 	return service, nil
-}
-
-func startPurge(ctx context.Context, abort context.CancelCauseFunc, cfg Config, rt *otelboot.Runtime, name string, retention time.Duration, fn kernelapp.PurgeFunc) (func() error, error) {
-	return kernelapp.StartPurge(ctx, abort, kernelapp.PurgeConfig{Name: name, Interval: cfg.PurgeInterval, Batch: cfg.PurgeBatch, Retention: retention},
-		idclock.SystemClock{}, rt.LoggerProvider(), fn)
 }
 
 func serveAPI(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {
@@ -133,10 +127,9 @@ func serveAPI(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {
 				return fmt.Errorf("migrate: %w", err)
 			}
 		}
-		stop, err := startPurge(ctx, abort, cfg, rt, "command-inbox", 0, func(ctx context.Context, cutoff ports.Instant, batch int) (int64, error) {
-			purged, err := postgres.PurgeExpiredInbox(ctx, pool, application.CommandConsumer, cutoff, batch)
-			return purged.Removed, err
-		})
+		stop, err := kernelapp.StartPurge(ctx, abort,
+			kernelapp.PurgeConfig{Name: "command-inbox", Interval: cfg.PurgeInterval, Batch: cfg.PurgeBatch},
+			idclock.SystemClock{}, rt.LoggerProvider(), kernelapp.PurgeCommandInbox(pool, application.CommandConsumer))
 		if err != nil {
 			return err
 		}
@@ -186,17 +179,16 @@ func runConsumer(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {
 	if err := postgres.WaitForTables(ctx, pool, time.Second, rt.LoggerProvider(), append(postgres.Tables(postgres.Outbox, postgres.Inbox), "reservations")...); err != nil {
 		return err
 	}
-	stopPurge, err := startPurge(ctx, abort, cfg, rt, "message-inbox", cfg.InboxRetention, func(ctx context.Context, cutoff ports.Instant, batch int) (int64, error) {
-		purged, err := postgres.PurgeInbox(ctx, pool, ConsumerName, cutoff, batch)
-		return purged.Removed, err
-	})
+	stopPurge, err := kernelapp.StartPurge(ctx, abort,
+		kernelapp.PurgeConfig{Name: "message-inbox", Interval: cfg.PurgeInterval, Batch: cfg.PurgeBatch, Retention: cfg.InboxRetention},
+		idclock.SystemClock{}, rt.LoggerProvider(), kernelapp.PurgeMessageInbox(pool, ConsumerName))
 	if err != nil {
 		return err
 	}
 	defer func() { _ = stopPurge() }()
 
 	ch := OrdersChannel(cfg)
-	catalog, err := NewCatalog(ch)
+	catalog, err := channel.NewCatalog(ch)
 	if err != nil {
 		return err
 	}
@@ -235,26 +227,6 @@ func runConsumer(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {
 	return stopPurge()
 }
 
-func RelayConfig(cfg Config, rt *otelboot.Runtime, catalog channel.Catalog) relay.Config {
-	config := cfg.Relay
-	config.Tracer = rt.Tracer()
-	config.System = semconv.MessagingSystemKafka.Value.AsString()
-	config.LoggerProvider = rt.LoggerProvider()
-	config.MeterProvider = rt.MeterProvider()
-	config.Address = topicOf(catalog)
-	return config
-}
-
-func topicOf(catalog channel.Catalog) func(destination string) string {
-	return func(destination string) string {
-		ch, err := catalog.Resolve(destination)
-		if err != nil {
-			return ""
-		}
-		return ch.Address
-	}
-}
-
 func runRelay(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {
 	ctx, abort := context.WithCancelCause(ctx)
 	defer abort(nil)
@@ -270,17 +242,16 @@ func runRelay(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {
 		return err
 	}
 	ch := ReservationsChannel(cfg)
-	catalog, err := NewCatalog(ch)
+	catalog, err := channel.NewCatalog(ch)
 	if err != nil {
 		return err
 	}
 	if err := postgres.AssertOwnOutbox(ctx, pool, slices.Collect(maps.Keys(catalog))); err != nil {
 		return err
 	}
-	stopPurge, err := startPurge(ctx, abort, cfg, rt, "outbox", cfg.OutboxRetention, func(ctx context.Context, cutoff ports.Instant, batch int) (int64, error) {
-		purged, err := postgres.PurgePublished(ctx, pool, cutoff, batch)
-		return purged.Count, err
-	})
+	stopPurge, err := kernelapp.StartPurge(ctx, abort,
+		kernelapp.PurgeConfig{Name: "outbox", Interval: cfg.PurgeInterval, Batch: cfg.PurgeBatch, Retention: cfg.OutboxRetention},
+		idclock.SystemClock{}, rt.LoggerProvider(), kernelapp.PurgeOutbox(pool))
 	if err != nil {
 		return err
 	}
@@ -296,7 +267,7 @@ func runRelay(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {
 	}
 	defer publisher.Close()
 
-	drain, err := relay.NewOverPostgres(pool, publisher, "reservations", RelayConfig(cfg, rt, catalog))
+	drain, err := relay.NewOverPostgres(pool, publisher, "reservations", relay.Instrument(cfg.Relay, rt, catalog.AddressOf))
 	if err != nil {
 		return err
 	}

@@ -93,3 +93,14 @@ func TestEqualReprovesABranchMismatchBeforeAnythingElse(t *testing.T) {
 		t.Fatalf("diagnostics = %v", v.Failures())
 	}
 }
+
+func TestMergeKeepsTheDiagnosticsOfEveryVerdictInOrder(t *testing.T) {
+	first := domainkit.Diagnostic{Code: domainkit.CodeProjection, Field: "branch"}
+	second := domainkit.Diagnostic{Code: domainkit.CodeDeterminism, Field: "events"}
+
+	merged := domainkit.Verdict{Diagnostics: []domainkit.Diagnostic{first}}.Merge(domainkit.Verdict{}, domainkit.Verdict{Diagnostics: []domainkit.Diagnostic{second}})
+
+	if len(merged.Diagnostics) != 2 || merged.Diagnostics[0] != first || merged.Diagnostics[1] != second {
+		t.Fatalf("Merge() = %v, want [first second]", merged.Diagnostics)
+	}
+}

@@ -30,6 +30,11 @@ Autoridade de API:
   cada contexto em `apps/backend`;
 - `domainkit/violations_test.go`: red controls.
 
+Nos testes de `domain` dos contextos, use `tb.RequireRejected`,
+`tb.RequireAccepted` e `tb.RequireSameEvents` em vez de asserções locais, e
+`tb.RunProjection(t, f, run)` para percorrer os casos da fixture; grave o
+veredito devolvido com `evidence.RecordVerdict`.
+
 Use `tb.LoadProjection` para fixtures em
 `contracts/fixtures/<ctx>/projection/v1/*.golden`. O codec permanece em `tb`
 porque `encoding/json` não pertence ao bloco `domain`.
@@ -54,7 +59,8 @@ Autoridade de API:
 - `providerkit/uow.go`: `UnitOfWorkSubject` e `UnitOfWork`;
 - `providerkit/inbox.go`: `InboxSubject` e `Inbox`;
 - `providerkit/outbox.go`: `OutboxStore`, `OutboxSubject` e `Outbox`;
-- `providerkit/memory_test.go`: candidato em memória;
+- `providerkit/memory.go`: candidatos em memória (`MemoryUnitOfWork`,
+  `MemoryInbox`), usados também por `memory/conformance_test.go`;
 - `postgres/conformance_test.go`: candidato Postgres.
 
 A função passada à suíte cria e limpa um candidato para cada cláusula. Use
@@ -141,4 +147,7 @@ quando falta a variável. `tb/pg.OpenPool` e `ResetTables` centralizam o acesso
 Postgres; não replique bootstrap e limpeza em cada suíte. `pg.Options` declara
 o projeto (que prefixa o banco `<projeto>_test_<id>` de cada teste), as capacidades do kernel, os
 schemas e as tabelas que o reset trunca; cada contexto o expõe como
-`appkit.PoolOptions` e `appkit.OpenPool`.
+`appkit.PoolOptions` e `appkit.OpenPool`. Para ler o efeito nas tabelas do
+kernel, use `pg.Outbox`, `pg.Settled`, `pg.Counts` e `pg.Tables` em vez de
+consultas locais. `tb.Reexec` reexecuta um teste do binário num processo filho
+e devolve stdout, stderr e o término.

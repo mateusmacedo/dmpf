@@ -151,7 +151,7 @@ func TestReserveRetriesAnUnavailableContextUnderTheSameKey(t *testing.T) {
 		t.Fatalf("Reserve reached the context %d times, want 2", len(calls))
 	}
 	for i, call := range calls {
-		if got := call.md.Get(rpc.IdempotencyKeyKey); len(got) != 1 || got[0] != "k-derived" {
+		if got := call.md.Get(kernelgrpc.IdempotencyKey); len(got) != 1 || got[0] != "k-derived" {
 			t.Fatalf("attempt %d carried idempotency-key %v, want the same key on every attempt", i+1, got)
 		}
 	}
@@ -196,7 +196,7 @@ func TestMetadataCarriesTheCallAndTheClientSpan(t *testing.T) {
 		t.Fatalf("calls = %d, want 1", len(calls))
 	}
 	md := calls[0].md
-	for key, want := range map[string]string{rpc.CorrelationIDKey: "corr-1", rpc.CausationIDKey: "req-1", rpc.IdempotencyKeyKey: "k-1"} {
+	for key, want := range map[string]string{kernelgrpc.CorrelationKey: "corr-1", kernelgrpc.CausationKey: "req-1", kernelgrpc.IdempotencyKey: "k-1"} {
 		if got := md.Get(key); len(got) != 1 || got[0] != want {
 			t.Fatalf("metadata %s = %v, want %q", key, got, want)
 		}

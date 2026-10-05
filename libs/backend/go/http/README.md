@@ -33,7 +33,8 @@ do próprio kernel, que não é dependência externa.
   de `Requires`/`PlatformReach` (`ErrPlatformReachRequired`, IDN-19: uma rota
   de plataforma declara o alcance de dado que tem, uma rota escopada não
   declara nenhum). `ValidateEdge` é `Validate` mais a exigência de permissão
-  em toda rota que exige sujeito (`ErrPermissionRequired`, IDN-16/17).
+  em toda rota que exige sujeito (`ErrPermissionRequired`, IDN-16/17) e de
+  chave de idempotência em todo POST (`ErrIdempotencyKeyRequired`, RST-02).
   `Idempotent()` é o que RST-02 admite retentar: GET, HEAD, PUT e DELETE; POST
   só quando a rota declara a chave de idempotência que o provider envia;
   PATCH nunca.

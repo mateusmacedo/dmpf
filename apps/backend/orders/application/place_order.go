@@ -19,7 +19,7 @@ func (s Service) PlaceOrder(ctx context.Context, cmd PlaceOrder) (usecase.Outcom
 	ctx, end := instrumentation.BeginOperation(ctx, OperationPlaceOrder)
 
 	if err := s.Authorize(ctx, cmd); err != nil {
-		end(authorizationResult(err))
+		end(ports.AuthorizationResult(err))
 		return zero, err
 	}
 
@@ -38,7 +38,7 @@ func (s Service) PlaceOrder(ctx context.Context, cmd PlaceOrder) (usecase.Outcom
 		return zero, err
 	}
 
-	category := outcomeCategory(outcome)
+	category := outcome.Category()
 	end(ports.Result{Outcome: category})
 	if !replayed {
 		instrumentation.Audit(ctx, ports.AuditEvent{
@@ -68,7 +68,7 @@ func placeOrder(ctx context.Context, res Resources, cmd PlaceOrder, identity use
 	if err := res.Orders.Save(ctx, cmd.Order, order.Snapshot(), stored); err != nil {
 		return zero, err
 	}
-	if err := enqueueAll(ctx, res.Outbox, identity, cmd.Order, stored+1, accepted.Events()); err != nil {
+	if err := usecase.Enqueue(ctx, res.Outbox, identity, origin(cmd.Order), stored+1, accepted.Events()); err != nil {
 		return zero, err
 	}
 	return usecase.Accepted(accepted.Response()), nil

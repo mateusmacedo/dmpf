@@ -2,7 +2,6 @@ package app_test
 
 import (
 	"context"
-	"reflect"
 	"sync"
 	"testing"
 
@@ -14,9 +13,7 @@ import (
 
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/app"
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/application"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/app/relay"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/audit"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/logging"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/otelboot"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
@@ -89,76 +86,13 @@ func TestTheAuditTrailOfTheServiceReachesTheLoggerProviderOfTheRuntime(t *testin
 	}
 }
 
-func (e *recordingExporter) scopes() []string {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	scopes := make([]string, 0, len(e.records))
-	for _, record := range e.records {
-		scopes = append(scopes, record.InstrumentationScope().Name)
-	}
-	return scopes
-}
-
-func TestTheRelayRunsOverTheTelemetryOfTheRuntime(t *testing.T) {
-	ctx := context.Background()
-	logs := &recordingExporter{}
-	spans := tracetest.NewInMemoryExporter()
-	config := otelboot.Config{
-		Propagator:    propagation.TraceContext{},
-		Resource:      otelboot.Resource{ServiceName: "bookings", ServiceVersion: "dev", ServiceInstanceID: "bookings-relay-1"},
-		TraceExporter: spans,
-	}
-	config.LoggerProvider = otelboot.NewLoggerProvider(config, logs)
-	runtime, err := otelboot.Start(ctx, config)
-	if err != nil {
-		t.Fatalf("Start() = %v, want nil", err)
-	}
-	cfg := app.Defaults(app.RoleRelay)
-
-	got := app.RelayConfig(cfg, runtime, nil)
-
-	if got.LogValue().String() != cfg.Relay.LogValue().String() {
-		t.Fatalf("RelayConfig() = %v, want the operational values of %v", got.LogValue(), cfg.Relay.LogValue())
-	}
-	if got.System != "kafka" {
-		t.Fatalf("System = %q, want %q", got.System, "kafka")
-	}
-	if got.MeterProvider == nil || got.MeterProvider != runtime.MeterProvider() {
-		t.Fatalf("MeterProvider = %v, want the runtime's %v", got.MeterProvider, runtime.MeterProvider())
-	}
-	if got.Tracer == nil || got.LoggerProvider != runtime.LoggerProvider() {
-		t.Fatalf("Tracer = %v, LoggerProvider = %v, want both from the runtime", got.Tracer, got.LoggerProvider)
-	}
-	_, span := got.Tracer.Start(ctx, "outbox drain probe")
-	span.End()
-	logging.NewLogger(got.LoggerProvider, reflect.TypeFor[relay.Relay]().PkgPath()).WarnContext(ctx, "outbox publish failed")
-	if err := runtime.ForceFlush(ctx); err != nil {
-		t.Fatalf("ForceFlush() = %v, want nil", err)
-	}
-	exported := spans.GetSpans()
-	if err := runtime.Shutdown(ctx); err != nil {
-		t.Fatalf("Shutdown() = %v, want nil", err)
-	}
-
-	if len(exported) != 1 || exported[0].Name != "outbox drain probe" {
-		t.Fatalf("runtime exported spans %v, want the relay's probe", exported.Snapshots())
-	}
-	if scopes := logs.scopes(); len(scopes) != 1 || scopes[0] != "github.com/mateusmacedo/dmpf/libs/backend/go/app/relay" {
-		t.Fatalf("relay log scopes = %v, want [github.com/mateusmacedo/dmpf/libs/backend/go/app/relay]", scopes)
+func TestTheRelayPublishesThroughKafka(t *testing.T) {
+	if system := app.Defaults(app.RoleRelay).Relay.System; system != "kafka" {
+		t.Fatalf("Relay.System = %q, want %q", system, "kafka")
 	}
 }
 
 func TestTheRelayAddressesEachChannelByItsPhysicalTopic(t *testing.T) {
-	ctx := context.Background()
-	runtime, err := otelboot.Start(ctx, otelboot.Config{
-		Propagator:    propagation.TraceContext{},
-		Resource:      otelboot.Resource{ServiceName: "bookings", ServiceVersion: "dev", ServiceInstanceID: "bookings-relay-1"},
-		TraceExporter: tracetest.NewInMemoryExporter(),
-	})
-	if err != nil {
-		t.Fatalf("Start() = %v, want nil", err)
-	}
-	t.Cleanup(func() { _ = runtime.Shutdown(ctx) })
 	cfg := app.Defaults(app.RoleRelay)
 	cfg.BookingsTopic, cfg.BookingsDLQ, cfg.Group = "bookings.v1", "bookings.v1.dlq", "bookings-relay"
 	catalog, err := app.NewCatalog(cfg)
@@ -166,15 +100,10 @@ func TestTheRelayAddressesEachChannelByItsPhysicalTopic(t *testing.T) {
 		t.Fatalf("NewCatalog() = %v, want nil", err)
 	}
 
-	got := app.RelayConfig(cfg, runtime, catalog)
-
-	if got.Address == nil {
-		t.Fatal("Address = nil, want the topic the catalog binds each channel to")
+	if topic := catalog.AddressOf(application.Destination); topic != cfg.BookingsTopic {
+		t.Fatalf("AddressOf(%q) = %q, want the physical topic %q (RF-B7)", application.Destination, topic, cfg.BookingsTopic)
 	}
-	if topic := got.Address(application.Destination); topic != cfg.BookingsTopic {
-		t.Fatalf("Address(%q) = %q, want the physical topic %q (RF-B7)", application.Destination, topic, cfg.BookingsTopic)
-	}
-	if topic := got.Address("uncatalogued.events"); topic != "" {
-		t.Fatalf("Address(uncatalogued.events) = %q, want empty: the send never names a logical channel", topic)
+	if topic := catalog.AddressOf("uncatalogued.events"); topic != "" {
+		t.Fatalf("AddressOf(uncatalogued.events) = %q, want empty: the send never names a logical channel", topic)
 	}
 }

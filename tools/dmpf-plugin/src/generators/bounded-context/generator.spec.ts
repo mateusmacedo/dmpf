@@ -351,11 +351,7 @@ describe('[generator] bounded-context — generation', () => {
     for (const { dirName } of LAYOUT) {
       expect(tree.children(`${MODULE_DIR}/${dirName}`).sort()).toEqual(BLOCK_FILES[dirName]);
     }
-    expect(tree.children(`${MODULE_DIR}/app/rpc`).sort()).toEqual([
-      'errors.go',
-      'errors_internal_test.go',
-      'service.go',
-    ]);
+    expect(tree.children(`${MODULE_DIR}/app/rpc`).sort()).toEqual(['service.go']);
   });
 
   it('should give the app block a composition root the binary enters by', async () => {
@@ -430,24 +426,15 @@ describe('[generator] bounded-context — generation', () => {
     const tree = await generate();
     const wiring = readText(tree, `${MODULE_DIR}/app/wiring.go`);
 
+    const config = readText(tree, `${MODULE_DIR}/app/config.go`);
+
     expect(wiring).toContain(
-      'func RelayConfig(cfg Config, rt *otelboot.Runtime, catalog channel.Catalog) relay.Config {',
+      'relay.NewOverPostgres(pool, publisher, "checkout", relay.Instrument(cfg.Relay, rt, catalog.AddressOf))',
     );
-    for (const line of [
-      'config.Tracer = rt.Tracer()',
-      'config.System = semconv.MessagingSystemKafka.Value.AsString()',
-      'config.LoggerProvider = rt.LoggerProvider()',
-      'config.MeterProvider = rt.MeterProvider()',
-      'config.Address = topicOf(catalog)',
-      'ch, err := catalog.Resolve(destination)',
-      'return ch.Address',
-    ]) {
-      expect(wiring).toContain(line);
-    }
-    expect(wiring).toContain(
-      'relay.NewOverPostgres(pool, publisher, "checkout", RelayConfig(cfg, rt, catalog))',
-    );
+    expect(wiring).not.toContain('func RelayConfig');
+    expect(wiring).not.toContain('func topicOf');
     expect(wiring).not.toContain('cfg.Relay)');
+    expect(config).toContain('System:         semconv.MessagingSystemKafka.Value.AsString()');
   });
 
   it('should hand every kernel library the logger provider of the runtime and log its own lines under its package', async () => {
@@ -455,7 +442,8 @@ describe('[generator] bounded-context — generation', () => {
     const wiring = readText(tree, `${MODULE_DIR}/app/wiring.go`);
 
     for (const line of [
-      'idclock.SystemClock{}, rt.LoggerProvider(), fn)',
+      'idclock.SystemClock{}, rt.LoggerProvider(), kernelapp.PurgeCommandInbox(pool, application.CommandConsumer))',
+      'idclock.SystemClock{}, rt.LoggerProvider(), kernelapp.PurgeOutbox(pool))',
       'kernelgrpc.ServerInterceptors(rpc.ServiceName, ctrl, rt.Instruments(), rt.LoggerProvider(), kernelgrpc.WithCommands(rpc.Commands()...))',
       'LoggerProvider: rt.LoggerProvider(),',
       'kernelgrpc.HealthServices(rpc.ServiceName), ready, rt.LoggerProvider())',
@@ -500,17 +488,16 @@ describe('[generator] bounded-context — generation', () => {
     const wiring = readText(tree, `${MODULE_DIR}/app/wiring.go`);
     const config = readText(tree, `${MODULE_DIR}/app/config.go`);
     const service = readText(tree, `${MODULE_DIR}/app/rpc/service.go`);
-    const errors = readText(tree, `${MODULE_DIR}/app/rpc/errors.go`);
     const commands = readText(tree, `${MODULE_DIR}/application/commands.go`);
 
     expect(commands).toContain('const CommandConsumer = "checkout.commands"');
     expect(service).toContain('func Commands() []string');
     expect(wiring).toContain('kernelgrpc.WithCommands(rpc.Commands()...)');
-    expect(wiring).toContain(
-      'postgres.PurgeExpiredInbox(ctx, pool, application.CommandConsumer, cutoff, batch)',
-    );
-    expect(wiring).toContain('postgres.PurgePublished(ctx, pool, cutoff, batch)');
-    expect(errors).toContain('kernelgrpc.IdempotencyStatus(err)');
+    expect(wiring).toContain('kernelapp.PurgeCommandInbox(pool, application.CommandConsumer)');
+    expect(wiring).toContain('kernelapp.PurgeOutbox(pool)');
+    expect(wiring).toContain('relay.Instrument(cfg.Relay, rt, catalog.AddressOf)');
+    expect(wiring).not.toContain('func startPurge');
+    expect(config).toContain('System:         semconv.MessagingSystemKafka.Value.AsString()');
     expect(config).toContain('IdempotencyRetention: 24 * time.Hour');
     expect(config).toContain('OutboxRetention:      168 * time.Hour');
     expect(config).toContain('ErrInvalidPolicy');
@@ -670,12 +657,12 @@ describe('[generator] bounded-context — generation', () => {
   it('should give the app block both test kits, each in a directory of its own', async () => {
     const tree = await generate();
 
-    expect(tree.children(`${MODULE_DIR}/${APPKIT_DIR}`).sort()).toEqual(['doc.go', 'pool.go']);
+    expect(tree.children(`${MODULE_DIR}/${APPKIT_DIR}`).sort()).toEqual(['doc.go', 'harness.go']);
     expect(readText(tree, `${MODULE_DIR}/${APPKIT_DIR}/doc.go`)).toContain('package appkit');
-    expect(readText(tree, `${MODULE_DIR}/${APPKIT_DIR}/pool.go`)).toContain(
+    expect(readText(tree, `${MODULE_DIR}/${APPKIT_DIR}/harness.go`)).toContain(
       'Project:      "checkout"',
     );
-    expect(readText(tree, `${MODULE_DIR}/${APPKIT_DIR}/pool.go`)).toContain(
+    expect(readText(tree, `${MODULE_DIR}/${APPKIT_DIR}/harness.go`)).toContain(
       'var Tables = []string{}',
     );
     expect(tree.children(`${MODULE_DIR}/${DISTKIT_DIR}`)).toEqual(['doc.go']);

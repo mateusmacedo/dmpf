@@ -39,6 +39,14 @@ type Verdict struct {
 
 func (v Verdict) OK() bool { return len(v.Diagnostics) == 0 }
 
+func (v Verdict) Merge(others ...Verdict) Verdict {
+	merged := Verdict{Diagnostics: append([]Diagnostic(nil), v.Diagnostics...)}
+	for _, other := range others {
+		merged.Diagnostics = append(merged.Diagnostics, other.Diagnostics...)
+	}
+	return merged
+}
+
 func (v Verdict) Failures() []string {
 	out := make([]string, 0, len(v.Diagnostics))
 	for _, d := range v.Diagnostics {

@@ -263,3 +263,51 @@ func TestCatalogValidate(t *testing.T) {
 		}
 	})
 }
+
+func TestNewCatalog(t *testing.T) {
+	t.Run("indexes each channel by its name", func(t *testing.T) {
+		catalog, err := channel.NewCatalog(kafkaChannel(), sqsChannel())
+		if err != nil {
+			t.Fatalf("NewCatalog() = %v, want nil", err)
+		}
+		if len(catalog) != 2 || catalog["propostaAprovada"].Name != "propostaAprovada" || catalog["reservaSolicitada"].Name != "reservaSolicitada" {
+			t.Fatalf("NewCatalog() = %v, want both channels under their names", catalog)
+		}
+	})
+
+	t.Run("repeated name", func(t *testing.T) {
+		other := kafkaChannel()
+		other.Address = "credito.proposta.reprovada.v1"
+		if _, err := channel.NewCatalog(kafkaChannel(), other); !errors.Is(err, channel.ErrRepeatedChannel) {
+			t.Fatalf("NewCatalog() = %v, want ErrRepeatedChannel", err)
+		}
+	})
+
+	t.Run("no channel", func(t *testing.T) {
+		if _, err := channel.NewCatalog(); !errors.Is(err, channel.ErrEmptyCatalog) {
+			t.Fatalf("NewCatalog() = %v, want ErrEmptyCatalog", err)
+		}
+	})
+
+	t.Run("invalid channel", func(t *testing.T) {
+		ch := kafkaChannel()
+		ch.Containment = ""
+		if _, err := channel.NewCatalog(ch); !errors.Is(err, channel.ErrMissingItem) {
+			t.Fatalf("NewCatalog() = %v, want ErrMissingItem", err)
+		}
+	})
+}
+
+func TestCatalogAddressOf(t *testing.T) {
+	catalog := channel.Catalog{"propostaAprovada": kafkaChannel()}
+
+	if got := catalog.AddressOf("propostaAprovada"); got != "credito.proposta.aprovada.v1" {
+		t.Fatalf("AddressOf(known) = %q, want the catalogued address", got)
+	}
+	if got := catalog.AddressOf("propostaRecusada"); got != "" {
+		t.Fatalf("AddressOf(unknown) = %q, want empty", got)
+	}
+	if got := channel.Catalog(nil).AddressOf("propostaAprovada"); got != "" {
+		t.Fatalf("AddressOf on a nil catalogue = %q, want empty", got)
+	}
+}

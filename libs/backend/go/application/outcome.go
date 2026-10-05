@@ -4,6 +4,7 @@ package application
 
 import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/domain"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
 
 // Outcome separates the business channel from the technical one: a use case
@@ -36,4 +37,13 @@ func (o Outcome[R]) Response() R { return o.response }
 // exhausts both branches without inspecting error (DEC-01).
 func (o Outcome[R]) Rejection() (*domain.Rejection, bool) {
 	return o.rejection, o.rejection != nil
+}
+
+// Category is the terminal category the instrumentation records for the
+// outcome, read off the only place that knows which branch of the UPR was taken.
+func (o Outcome[R]) Category() ports.OutcomeCategory {
+	if o.rejection != nil {
+		return ports.OutcomeRejected
+	}
+	return ports.OutcomeAccepted
 }

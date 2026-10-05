@@ -4,20 +4,8 @@ import (
 	"testing"
 
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
-	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb"
 )
-
-func sameSequence(t *testing.T, a, b []kernel.DomainEvent) {
-	t.Helper()
-	if len(a) != len(b) {
-		t.Fatalf("event sequences differ in length: %d vs %d", len(a), len(b))
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			t.Fatalf("event %d differs: %+v vs %+v", i, a[i], b[i])
-		}
-	}
-}
 
 func TestReserveIsDeterministic(t *testing.T) {
 	a := domain.NewReservation(orderID)
@@ -33,7 +21,7 @@ func TestReserveIsDeterministic(t *testing.T) {
 	if accA.Response() != accB.Response() {
 		t.Fatalf("responses differ: %+v vs %+v", accA.Response(), accB.Response())
 	}
-	sameSequence(t, accA.Events(), accB.Events())
+	tb.RequireSameEvents(t, accA.Events(), accB.Events())
 	if !a.Snapshot().Equal(b.Snapshot()) {
 		t.Fatalf("final snapshots differ:\n%+v\n%+v", a.Snapshot(), b.Snapshot())
 	}
@@ -53,7 +41,7 @@ func TestCancelIsDeterministic(t *testing.T) {
 	if accA.Response() != accB.Response() {
 		t.Fatalf("responses differ: %+v vs %+v", accA.Response(), accB.Response())
 	}
-	sameSequence(t, accA.Events(), accB.Events())
+	tb.RequireSameEvents(t, accA.Events(), accB.Events())
 	if !a.Snapshot().Equal(b.Snapshot()) {
 		t.Fatalf("final snapshots differ:\n%+v\n%+v", a.Snapshot(), b.Snapshot())
 	}
