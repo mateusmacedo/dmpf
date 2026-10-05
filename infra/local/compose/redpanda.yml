@@ -16,7 +16,7 @@ services:
       - start
       - --mode=dev-container
       - --smp=1
-      - --memory=1G
+      - --memory=1280M
       - --advertise-kafka-addr=internal://redpanda:29092,external://localhost:${REDPANDA_PORT:-9092}
       # Declarado só pelo kafka_api: o --kafka-addr descartaria o método de
       # autenticação de cada listener.
@@ -34,7 +34,7 @@ services:
       retries: 6
     deploy:
       resources:
-        limits: { cpus: '0.60', memory: 1536M }
+        limits: { cpus: '0.84', memory: 1920M }
         reservations: { cpus: '0.25', memory: 512M }
 
 volumes:

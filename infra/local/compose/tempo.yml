@@ -14,7 +14,7 @@ services:
       - tempo-data:/var/tempo
     deploy:
       resources:
-        limits: { cpus: '0.6048', memory: 1075M }
+        limits: { cpus: '0.78624', memory: 1236M }
         reservations: { cpus: '0.10', memory: 128M }
 
 volumes:
