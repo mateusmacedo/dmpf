@@ -34,7 +34,7 @@ Uma unidade DMPF, `kernel/observability`, com `block: provider` e
 | `logging` | `NewLogger` (`otelslog` com o scope do pacote emissor), as chaves `Key*` dos registros, `Severity` por papel e desfecho, `NewSampler` de `LOG-12` |
 | `metrics` | `Catalog()` com as doze séries de RF-D1 — oito por dependência (`dmpf.dependency.*`), `dmpf.operation.duration` e as três de `MET-11`/`MET-12` que os providers de transporte gravam —, `Labels` fechado — `dmpf.tenant_id` só por `TenantWithin` com allowlist declarada —, `Instruments` construído uma vez |
 | `otelboot` | `Config`, `Start`, `Runtime`, `NewClassSampler`, `NewPrivacyExporter`, `NewLoggerProvider`, `NewLogProcessor`, `Leveled`, `NewMetricView` |
-| `redact` | `Attr`, `Error`, `IsSecret`, `Placeholder` — o que sai de um erro é `error.type` e `dmpf.error.code`, nunca a mensagem |
+| `redact` | `Attr`, `Error`, `IsSecret`, `Placeholder`, `WithoutValues` — o que sai de um erro é `error.type` e `dmpf.error.code`, nunca a mensagem; `WithoutValues(message, statement)` guarda o texto que uma biblioteca escreveu antes do primeiro valor formatado, conforme o regex de cada chamador, e troca o resto por `Placeholder` (DAT-02, DAT-23) |
 | `resilience` | `Sheet`, `Compose`, e os decorators de timeout, breaker, bulkhead, degradação e retry |
 | `retry` | `Evaluate` por conjunção, `Budget`, `Backoff`, `Classifier` |
 | `tracing` | `Attributes` fechado (`dmpf.*` ou constante semconv), `RecordError`, os eventos de span, `WithExecutionBaggage`, `WithOwnedSpan`/`OwnsSpan`, a taxonomia de classes |
