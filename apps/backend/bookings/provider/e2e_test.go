@@ -4,21 +4,17 @@ package provider_test
 
 import (
 	"context"
-	"crypto/sha256"
-	"fmt"
-	"sync"
 	"testing"
-	"time"
-
-	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/appkit"
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/application"
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/domain"
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/provider"
-	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/clock"
+	testids "github.com/mateusmacedo/dmpf/libs/backend/go/testkit/ids"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/pg"
 )
 
 const (
@@ -27,56 +23,9 @@ const (
 	e2eOccurred   = ports.Instant(1_755_432_000)
 )
 
-type fixedClock struct{}
-
-func (fixedClock) Now() ports.Instant { return e2eOccurred }
-
-type sequenceIDs struct {
-	mu     sync.Mutex
-	issued int
-}
-
-func (g *sequenceIDs) NewMessageID() ports.MessageID {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	g.issued++
-	return ports.MessageID(fmt.Sprintf("m-%06d", g.issued))
-}
-
-type outboxRow struct {
-	MessageType      string
-	SchemaVersion    string
-	AggregateVersion int64
-	Destination      string
-	Status           string
-}
-
-func newService(pool *pgxpool.Pool) application.Service {
-	bind := func(tx *postgres.Tx) application.Resources {
-		return application.Resources{
-			Bookings:  provider.NewBookingRepository(tx),
-			Resources: provider.NewResourceRepository(tx),
-			Outbox:    tx.Outbox(provider.Mapper{}),
-			Commands:  tx.CommandInbox(application.CommandConsumer, time.Second),
-		}
-	}
-	return application.Service{
-		UoW:       postgres.NewUnitOfWork(pool, bind),
-		Reader:    provider.NewBookingReader(postgres.NewReadPool(pool)),
-		Clock:     fixedClock{},
-		IDs:       &sequenceIDs{},
-		Authorize: usecase.AllowAll[application.Operation](),
-		Idempotency: usecase.IdempotencyPolicy{
-			Wait:      int64(time.Second),
-			Retention: int64(24 * time.Hour),
-			Digest:    func(canonical []byte) ports.Fingerprint { return sha256.Sum256(canonical) },
-		},
-	}
-}
-
 func TestReserveBookingEndToEnd(t *testing.T) {
-	pool := appkit.OpenPool(t)
-	service := newService(pool)
+	h := appkit.NewBookings(t, clock.New(e2eOccurred), &testids.Sequence{Prefix: "m-"})
+	pool, service := h.Pool, h.Service
 	ctx := context.Background()
 
 	outcome, err := service.ReserveBooking(withExecution(t, ctx), application.ReserveBooking{
@@ -105,21 +54,21 @@ func TestReserveBookingEndToEnd(t *testing.T) {
 	})
 
 	t.Run("the outbox row lands at version 1", func(t *testing.T) {
-		row := outboxRowOf(t, pool, "m-000001")
-		want := outboxRow{
+		want := pg.Enqueued{
+			MessageID:        "m-000001",
 			MessageType:      "com.company.bookings.booking-reserved.v1",
 			SchemaVersion:    "type.googleapis.com/company.bookings.event.v1.BookingReserved",
 			AggregateVersion: 1,
 			Destination:      "bookings.events",
 			Status:           "pending",
 		}
-		if row != want {
-			t.Fatalf("outbox row = %+v, want %+v", row, want)
+		if outbox := h.Outbox(t); len(outbox) != 1 || outbox[0] != want {
+			t.Fatalf("outbox = %+v, want [%+v]", outbox, want)
 		}
 	})
 
 	t.Run("cancel commits without outbox row", func(t *testing.T) {
-		_, outboxBefore := counts(t, pool)
+		before := pg.Counts(t, pool, "outbox")
 
 		cancelOutcome, err := service.CancelBooking(withExecution(t, ctx), application.CancelBooking{
 			BookingID: e2eBookingID,
@@ -142,34 +91,8 @@ func TestReserveBookingEndToEnd(t *testing.T) {
 			t.Fatalf("Status = %v, want Cancelled", snap.Status)
 		}
 
-		_, outboxAfter := counts(t, pool)
-		if outboxAfter != outboxBefore+1 {
-			t.Fatalf("outbox count on cancel: %d→%d, want one Cancelled in the same transaction", outboxBefore, outboxAfter)
+		if after := pg.Counts(t, pool, "outbox"); after["outbox"] != before["outbox"]+1 {
+			t.Fatalf("outbox count on cancel: %d→%d, want one Cancelled in the same transaction", before["outbox"], after["outbox"])
 		}
 	})
-}
-
-func outboxRowOf(t *testing.T, pool *pgxpool.Pool, messageID string) outboxRow {
-	t.Helper()
-	var row outboxRow
-	err := pool.QueryRow(context.Background(), `
-		SELECT message_type, schema_version, aggregate_version, destination, status
-		FROM outbox WHERE message_id = $1`, messageID).Scan(
-		&row.MessageType, &row.SchemaVersion, &row.AggregateVersion, &row.Destination, &row.Status)
-	if err != nil {
-		t.Fatalf("SELECT outbox row %s = %v, want nil", messageID, err)
-	}
-	return row
-}
-
-func counts(t *testing.T, pool *pgxpool.Pool) (int, int) {
-	t.Helper()
-	var bookingsCount, outboxCount int
-	err := pool.QueryRow(context.Background(), `
-		SELECT (SELECT count(*) FROM bookings), (SELECT count(*) FROM outbox)`).
-		Scan(&bookingsCount, &outboxCount)
-	if err != nil {
-		t.Fatalf("counts = %v, want nil", err)
-	}
-	return bookingsCount, outboxCount
 }

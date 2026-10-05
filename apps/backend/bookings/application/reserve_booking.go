@@ -17,7 +17,7 @@ func (s Service) ReserveBooking(ctx context.Context, cmd ReserveBooking) (usecas
 	ctx, end := instrumentation.BeginOperation(ctx, OperationReserveBooking)
 
 	if err := s.Authorize(ctx, cmd); err != nil {
-		end(authorizationResult(err))
+		end(ports.AuthorizationResult(err))
 		return zero, err
 	}
 
@@ -37,7 +37,7 @@ func (s Service) ReserveBooking(ctx context.Context, cmd ReserveBooking) (usecas
 		return zero, err
 	}
 
-	category := outcomeCategory(outcome)
+	category := outcome.Category()
 	end(ports.Result{Outcome: category})
 	if !replayed {
 		instrumentation.Audit(ctx, ports.AuditEvent{
@@ -73,7 +73,7 @@ func reserve(ctx context.Context, res Resources, cmd ReserveBooking, identity us
 		return zero, fmt.Errorf("application: reserve %s: %w", cmd.BookingID, err)
 	}
 	written := ports.Version(1)
-	if err := enqueueAll(ctx, res.Outbox, identity, AggregateTypeBooking, string(cmd.BookingID), written, accepted.Events()); err != nil {
+	if err := usecase.Enqueue(ctx, res.Outbox, identity, origin(AggregateTypeBooking, string(cmd.BookingID)), written, accepted.Events()); err != nil {
 		return zero, fmt.Errorf("application: reserve %s: enqueue: %w", cmd.BookingID, err)
 	}
 	return usecase.Accepted(accepted.Response()), nil

@@ -17,7 +17,7 @@ func (s Service) RegisterResource(ctx context.Context, cmd RegisterResource) (us
 	ctx, end := instrumentation.BeginOperation(ctx, OperationRegisterResource)
 
 	if err := s.Authorize(ctx, cmd); err != nil {
-		end(authorizationResult(err))
+		end(ports.AuthorizationResult(err))
 		return zero, err
 	}
 
@@ -36,7 +36,7 @@ func (s Service) RegisterResource(ctx context.Context, cmd RegisterResource) (us
 		return zero, err
 	}
 
-	category := outcomeCategory(outcome)
+	category := outcome.Category()
 	end(ports.Result{Outcome: category})
 	if !replayed {
 		instrumentation.Audit(ctx, ports.AuditEvent{
@@ -67,7 +67,7 @@ func register(ctx context.Context, res Resources, cmd RegisterResource, identity
 	if err := res.Resources.Save(ctx, cmd.Code, r.Snapshot(), stored); err != nil {
 		return zero, fmt.Errorf("application: register %s: %w", cmd.Code, err)
 	}
-	if err := enqueueAll(ctx, res.Outbox, identity, AggregateTypeResource, string(cmd.Code), stored+1, accepted.Events()); err != nil {
+	if err := usecase.Enqueue(ctx, res.Outbox, identity, origin(AggregateTypeResource, string(cmd.Code)), stored+1, accepted.Events()); err != nil {
 		return zero, fmt.Errorf("application: register %s: enqueue: %w", cmd.Code, err)
 	}
 	return usecase.Accepted(accepted.Response()), nil

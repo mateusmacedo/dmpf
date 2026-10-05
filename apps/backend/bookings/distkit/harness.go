@@ -186,31 +186,7 @@ func (p *Process) Stop(t testing.TB, timeout time.Duration) {
 // assembly.
 func (h Harness) Settled(t testing.TB, want int, timeout time.Duration) map[string]string {
 	t.Helper()
-	const query = `SELECT message_id, payload_hash FROM outbox WHERE status = 'published'`
-	deadline := time.Now().Add(timeout)
-	for {
-		settled := map[string]string{}
-		rows, err := h.Pool.Query(context.Background(), query)
-		if err != nil {
-			t.Fatalf("distkit.Settled: %v", err)
-		}
-		for rows.Next() {
-			var id, hash string
-			if err := rows.Scan(&id, &hash); err != nil {
-				rows.Close()
-				t.Fatalf("distkit.Settled: scan: %v", err)
-			}
-			settled[id] = hash
-		}
-		rows.Close()
-		if len(settled) >= want {
-			return settled
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("distkit.Settled: %d of %d records settled within %v", len(settled), want, timeout)
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
+	return pg.Settled(t, h.Pool, want, timeout)
 }
 
 // Collect reads the topic from the beginning and reduces every envelope to

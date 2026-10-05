@@ -2,13 +2,10 @@ package application
 
 import (
 	"context"
-	"errors"
-	"fmt"
 
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/domain"
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/ports"
 	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
-	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
 	port "github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
 
@@ -116,53 +113,6 @@ func (s Service) instrumentation() port.Instrumentation {
 	return s.Instrumentation
 }
 
-// authorizationResult categorises a step 1 error. Only a declared denial is
-// Denied; anything else is technical failure, because inferring a refusal from
-// an unrelated error would report a false negative of access.
-func authorizationResult(err error) port.Result {
-	if errors.Is(err, port.ErrDenied) {
-		return port.Result{Outcome: port.OutcomeDenied}
-	}
-	return port.Result{Outcome: port.OutcomeFailed, Err: err}
-}
-
-// outcomeCategory reads the terminal category off the outcome, which is the
-// only place that knows which branch of the UPR was taken.
-func outcomeCategory[R any](outcome usecase.Outcome[R]) port.OutcomeCategory {
-	if _, refused := outcome.Rejection(); refused {
-		return port.OutcomeRejected
-	}
-	return port.OutcomeAccepted
-}
-
-func enqueueAll(
-	ctx context.Context,
-	outbox port.Outbox,
-	identity usecase.Identity,
-	aggregateType string,
-	aggregateID string,
-	written port.Version,
-	events []kernel.DomainEvent,
-) error {
-	if len(events) > len(identity.MessageIDs) {
-		panic(fmt.Sprintf(
-			"application: the decision produced %d events but only %d identifiers were resolved; raise maxEventsPerCommand",
-			len(events), len(identity.MessageIDs)))
-	}
-	for i, event := range events {
-		entry := port.OutboxEntry{
-			MessageID:        identity.MessageIDs[i],
-			OccurredAt:       identity.OccurredAt,
-			Intent:           port.PublishIntent{Destination: Destination, PartitionKey: aggregateID},
-			AggregateType:    aggregateType,
-			AggregateID:      aggregateID,
-			AggregateVersion: written,
-			Event:            event,
-			Context:          usecase.MessageContextFor(ctx, identity.MessageIDs[i]),
-		}
-		if err := outbox.Enqueue(ctx, entry); err != nil {
-			return err
-		}
-	}
-	return nil
+func origin(aggregateType, aggregateID string) usecase.Origin {
+	return usecase.Origin{Destination: Destination, AggregateType: aggregateType, AggregateID: aggregateID}
 }

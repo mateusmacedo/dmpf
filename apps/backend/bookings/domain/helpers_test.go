@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/domain"
-	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
 )
 
 const (
@@ -32,30 +31,6 @@ func newRegisteredResource(t *testing.T) *domain.Resource {
 		t.Fatalf("setup: Register rejected: %v", rej)
 	}
 	return r
-}
-
-func requireRejected[R any](t *testing.T, acc kernel.Accepted[R], rej *kernel.Rejection, code kernel.Code) {
-	t.Helper()
-	if rej == nil {
-		t.Fatal("expected Rejected, got Accepted")
-	}
-	if rej.Code() != code {
-		t.Fatalf("Code() = %q, want %q", rej.Code(), code)
-	}
-	var zero R
-	if any(acc.Response()) != any(zero) {
-		t.Fatalf("Rejected must carry the zero response, got %v", acc.Response())
-	}
-	if n := len(acc.Events()); n != 0 {
-		t.Fatalf("Rejected must carry no events, got %d", n)
-	}
-}
-
-func requireAccepted[R any](t *testing.T, rej *kernel.Rejection) {
-	t.Helper()
-	if rej != nil {
-		t.Fatalf("expected Accepted, got Rejected %v", rej)
-	}
 }
 
 func requireBookingUnchanged(t *testing.T, before, after domain.BookingSnapshot) {
