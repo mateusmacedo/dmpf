@@ -29,6 +29,13 @@ instâncias de `Table[ID,S]` no bloco `provider` de cada contexto —
   aberta. `Relation(filterColumn)` serve a consulta por relação que os
   genéricos de `ports` não expressam — muitas linhas de uma tabela filtradas
   por uma coluna que não é a chave —, com a mesma disciplina de tenant.
+- **`snapshot_table.go`** — `SnapshotTable[ID, S, J](name, idColumn, to, from,
+  withID)` monta a `Table[ID,S]` do agregado cujo estado inteiro vive na coluna
+  `snapshot` (ADR-053): `J` é o struct de estado privado do provider, cujas tags
+  JSON fixam os bytes gravados, `to` e `from` convertem entre o snapshot do
+  domínio e `J`, e a identidade fica só em `idColumn`, devolvida por `withID`.
+  Agregado com coluna tipada além do snapshot continua com a `Table` escrita à
+  mão.
 - **`pool.go`** — `NewPool` monta o `*pgxpool.Pool` com o tracer de query do
   processo (`dbtrace.go`): um span CLIENT por query só dentro de operação já
   traçada — a query do claim do relay, que roda sem pai, não abre span; as
