@@ -28,13 +28,25 @@ o serviço é publicado em `contract/proto`, o módulo de contrato do contexto.
 O banco é próprio: database e role `<%- name %>`, schema `public`, tabelas sem
 prefixo e agregado no plural. O DDL vive em `provider/schema.sql` e é aplicado
 no ready do `api` quando `MIGRATE=true`, junto com a outbox e a inbox do kernel.
+O agregado cujo estado inteiro vive na coluna `snapshot` declara a tabela com
+`postgres.SnapshotTable`, sobre um struct de estado privado do provider cujas
+tags JSON fixam os bytes gravados:
+
+```go
+var orderTable = postgres.SnapshotTable("orders", "order_id",
+	func(s domain.Snapshot) orderState { return orderState{Status: int(s.Status)} },
+	func(state orderState) domain.Snapshot { return domain.Snapshot{Status: domain.Status(state.Status)} },
+	func(s domain.Snapshot, id domain.OrderID) domain.Snapshot { s.ID = id; return s },
+)
+```
 
 Todo comando passa pela inbox, com `consumer_name` `<%- name %>.commands`
 (`application.CommandConsumer`), na mesma transação do efeito (FND-04 §7.6,
 ADR-056). O generator não escreve casos de uso: cabe a quem escreve o contexto
 chamar `usecase.RunIdempotent` em cada comando e declarar o método em
 `rpc.Commands()`, que o interceptor usa para exigir a metadata `idempotency-key`.
-O `statusOf` já traduz a divergência, o comando em andamento e a chave ausente.
+O `kernelgrpc.StatusOf`, com que os handlers devolvem o erro, já traduz a
+divergência, o comando em andamento e a chave ausente.
 Os prazos (`IdempotencyWait` 1s, `IdempotencyRetention` 24h, `OutboxRetention`
 168h, `PurgeInterval` 15min, `PurgeBatch` 1000) vêm de `Defaults()`; o `api`
 purga as entradas de comando vencidas e o `relay`, a outbox publicada.
