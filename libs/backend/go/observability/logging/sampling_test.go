@@ -59,26 +59,20 @@ func TestADrawBelowTheRateKeepsTheRecord(t *testing.T) {
 }
 
 func TestARecordOfASampledTraceIsAlwaysKept(t *testing.T) {
-	provider := sdktrace.NewTracerProvider(sdktrace.WithSampler(sdktrace.AlwaysSample()))
-	t.Cleanup(func() {
-		if err := provider.Shutdown(context.Background()); err != nil {
-			t.Errorf("Shutdown() = %v, want nil", err)
-		}
-	})
-	ctx, span := provider.Tracer("observability").Start(context.Background(), "under.test")
-	defer span.End()
-
-	sampler := logging.NewSampler(tracing.ClassRead, nil, func() float64 { return 0.99 })
-
-	got := kept(sampler, ctx, slog.LevelInfo, 1)
-
-	if got != 1 {
+	if got := keptUnder(t, sdktrace.AlwaysSample()); got != 1 {
 		t.Fatalf("allowed %d records, want 1 — the log is sampled with the trace (LOG-12)", got)
 	}
 }
 
 func TestARecordOfAnUnsampledTraceFallsBackToTheRate(t *testing.T) {
-	provider := sdktrace.NewTracerProvider(sdktrace.WithSampler(sdktrace.NeverSample()))
+	if got := keptUnder(t, sdktrace.NeverSample()); got != 0 {
+		t.Fatalf("allowed %d records, want 0 — an unsampled trace does not exempt the record from the rate", got)
+	}
+}
+
+func keptUnder(t *testing.T, traceSampler sdktrace.Sampler) int {
+	t.Helper()
+	provider := sdktrace.NewTracerProvider(sdktrace.WithSampler(traceSampler))
 	t.Cleanup(func() {
 		if err := provider.Shutdown(context.Background()); err != nil {
 			t.Errorf("Shutdown() = %v, want nil", err)
@@ -88,12 +82,7 @@ func TestARecordOfAnUnsampledTraceFallsBackToTheRate(t *testing.T) {
 	defer span.End()
 
 	sampler := logging.NewSampler(tracing.ClassRead, nil, func() float64 { return 0.99 })
-
-	got := kept(sampler, ctx, slog.LevelInfo, 1)
-
-	if got != 0 {
-		t.Fatalf("allowed %d records, want 0 — an unsampled trace does not exempt the record from the rate", got)
-	}
+	return kept(sampler, ctx, slog.LevelInfo, 1)
 }
 
 func TestAnUndeclaredClassTakesTheMostRestrictiveRate(t *testing.T) {
