@@ -28,7 +28,7 @@ transporte. O módulo é bloco `provider`, sem I/O. A única dependência extern
 | Package | Conteúdo | Fase do plano |
 | --- | --- | --- |
 | `deadline` | `Budget`, `Require`, `Outgoing`, `ErrNoDeadline`, `ErrDeadlineExhausted` | 1.2 |
-| `channel` | `Channel`, `Catalog`, `RedeliveryWindow`, `KafkaWindow`, `SQSWindow`, `SNSSQSWindow` | 1.3 |
+| `channel` | `Channel`, `Catalog`, `NewCatalog`, `Catalog.AddressOf`, `RedeliveryWindow`, `KafkaWindow`, `SQSWindow`, `SNSSQSWindow` | 1.3 |
 | `attempt` | `Header`, `Encode`, `Decode`, `WithContext`, `FromContext` — o consumidor grava a tentativa no contexto antes de `Sink.Handle`, e a DLQ a lê para o header ou atributo `dmpf-attempt` (TRP-52) | 1.4 |
 | `observe` | `Config`, `Slots`, `Tracing`, `Logging` — as posições de observabilidade de RES-22 que o KRN-09 deixa ao chamador; a categoria de falha é o único ponto por transporte. `Tracing` abre o span INTERNAL `dmpf.resilience {dmpf.dependency}` sobre as tentativas, com `dmpf.dependency`, `dmpf.retry.max_attempts`, `dmpf.deadline.remaining_ms`, `dmpf.outcome_category` e, na falha, `error.type` (RF-B5); sob o `send` que o relay possui (`tracing.OwnsSpan`), grava os mesmos atributos nele em vez de abrir span. `Logging` registra cada tentativa, com o scope do package: `transport: call` em `debug` e `transport: call failed` em `warn` — ou em `debug`, como o sucesso, quando a categoria é de rejeição de negócio (`Validation`, `DomainRejection`, `NotFound`, `Conflict`, outcome `rejected`; `Forbidden` e `Unauthenticated`, outcome `denied`, seguem em `warn`) —, com `dmpf.dependency`, `dmpf.retry.attempt`, `dmpf.outcome_category` e o erro reduzido por `redact.Error`: `error.type` com a categoria da tabela do transporte e, quando o primeiro erro da cadeia que implementa `redact.Categorized` tem código, `dmpf.error.code` (`RES-12` do breaker, `RES-14` do bulkhead); a mensagem do erro nunca entra no registro (RF-A3, RF-A5). A posição de métricas só repassa a chamada: o RED do cliente é do `otelgrpc` e do `otelhttp` (RF-D2). Os conjuntos de atributos são memorizados por dependência e por categoria — espaço limitado por MET-07, com teto de 4096 entradas — para o caminho quente não os reconstruir e reordenar a cada chamada | 3.2 |
 | `admission` | `Limit`, `Config`, `Controller.Admit` — bucket por `(rota, tenant)`, teto de chaves (`MaxKeys`) e evicção LRU do ocioso | 2.1b |
@@ -69,6 +69,12 @@ O nome lógico (`Name`) é a chave do `Catalog`: o `Resolve(destino)` do provide
 devolve `ErrUnknownChannel` para o que não está catalogado — o canal não
 catalogado não é operado (ASY-01). Um `Catalog.Validate` também reprova dois
 endereços Kafka que difiram só por `.`/`_` (KFK-01c).
+
+`NewCatalog(channels...)` monta o catálogo pelo nome de cada canal e o valida:
+dois canais com o mesmo nome são `ErrRepeatedChannel`, porque o mapa guardaria
+só um em silêncio, e nenhum canal é `ErrEmptyCatalog`. `Catalog.AddressOf`
+devolve o endereço catalogado do destino, ou vazio fora do catálogo; é a função
+de endereço que o composition root passa a `relay.Instrument`.
 
 ## Fórmulas de `janela_redelivery`
 

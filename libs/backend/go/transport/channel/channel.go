@@ -70,6 +70,12 @@ var (
 
 	// ErrDuplicateChannel is a catalogue whose key and channel name disagree.
 	ErrDuplicateChannel = errors.New("channel: catalogue key does not match the channel name")
+
+	// ErrRepeatedChannel is NewCatalog given two channels under one name, which
+	// a map would collapse into one in silence.
+	ErrRepeatedChannel = errors.New("channel: two channels share a name")
+
+	ErrEmptyCatalog = errors.New("channel: catalogue holds no channel")
 )
 
 // Ordering is the promise of order a channel makes: the key it orders by and
@@ -227,6 +233,27 @@ func (c Channel) validateTransport() error {
 // Catalog is the set of catalogued channels indexed by logical name: the
 // destination the application names resolves here to a binding (TRP-08).
 type Catalog map[string]Channel
+
+func NewCatalog(channels ...Channel) (Catalog, error) {
+	if len(channels) == 0 {
+		return nil, ErrEmptyCatalog
+	}
+	catalog := make(Catalog, len(channels))
+	for _, ch := range channels {
+		if _, taken := catalog[ch.Name]; taken {
+			return nil, fmt.Errorf("%w: %q", ErrRepeatedChannel, ch.Name)
+		}
+		catalog[ch.Name] = ch
+	}
+	if err := catalog.Validate(); err != nil {
+		return nil, err
+	}
+	return catalog, nil
+}
+
+func (c Catalog) AddressOf(destination string) string {
+	return c[destination].Address
+}
 
 // Resolve returns the channel catalogued under the destination, or
 // ErrUnknownChannel.
