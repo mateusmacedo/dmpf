@@ -67,7 +67,7 @@ services:
       KAFKA_ORDERS_DLQ: ${KAFKA_ORDERS_DLQ:-orders.events.dlq}
     deploy:
       resources:
-        limits: { cpus: '0.144', memory: 128M }
+        limits: { cpus: '0.1872', memory: 141M }
     depends_on:
       redpanda-init:
         condition: service_completed_successfully

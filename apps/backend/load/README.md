@@ -109,7 +109,7 @@ Depois do fim de uma execução, as séries do k6 recebem stale markers: consult
 ## Limitações
 
 - Gerador e alvo dividem o host. O container `k6` tem teto de 1 vCPU e aparece no painel de CPU; `dropped_iterations` acima de 0 indica gerador ou pool de VUs saturado, não o alvo.
-- Os serviços da topologia têm teto de 0,10 a 0,216 vCPU (`infra/README.md`). No `smoke`, cada VU dispara sem pausa — salvo os das jornadas `reads` e `orders`, que pausam 0,1 s por iteração —, satura a cota e o throttling do CFS aparece como latência de dezenas de milissegundos; o `smoke` prova funcionamento, não latência.
+- Os serviços da topologia têm teto de 0,13 a 0,2808 vCPU (`infra/README.md`). No `smoke`, cada VU dispara sem pausa — salvo os das jornadas `reads` e `orders`, que pausam 0,1 s por iteração —, satura a cota e o throttling do CFS aparece como latência de dezenas de milissegundos; o `smoke` prova funcionamento, não latência.
 - A topologia roda com `LOG_LEVEL=debug` e 100% de amostragem de traces, o que encarece cada requisição; a suíte mede a topologia como ela está configurada.
 - Depois de um `breakpoint` ou `spike`, o consumer de `reservations` leva minutos para drenar o lag de `orders.events`. Espere o painel de lag zerar antes da próxima rodada; senão o `setup()` sai com 107, porque a reserva dos pedidos de massa não converge.
 - Os números servem para comparar versões na mesma máquina, não para dimensionar produção.
