@@ -163,6 +163,20 @@ só aparecem em `_test.go`, que o verificador não classifica.
   `ReasonOf` para escolher o código REST.
 - **`status.go`** — `HTTPStatus(codes.Code)`: a tabela canônica de GRP-14
   (`Canceled → 499`), o resto conforme o grpc-gateway, fora da tabela → 500.
+  `StatusOf(err)` traduz o canal técnico do caso de uso para o status que o
+  handler do contexto devolve, sem detalhe interno na mensagem (ERR-20). A
+  primeira linha que casa decide: `IdempotencyStatus`; `ErrNotFound` ou
+  categoria `NotFound` → `NotFound`; `ErrVersionConflict` ou `Conflict` →
+  `Aborted`; `context.DeadlineExceeded`; `context.Canceled`; `ErrDenied` ou
+  `Forbidden` → `PermissionDenied`; as três condições de `IDN-01` ou
+  `Unauthenticated` → `Unauthenticated`; o resto → `Internal`. A categoria é a
+  do primeiro nó da cadeia com `ErrorCategory() string`, lida sem importar
+  `application`; o teste de contrato do módulo `app` fixa as strings.
+- **`hop.go`** — o protocolo do salto, usado pelos dois lados:
+  `MetadataCarrier` (o `TextMapCarrier` sobre a metadata gRPC), `NewID(component)`
+  (16 bytes aleatórios em hex; `component` prefixa o `panic` da fonte de
+  entropia), `ValidCorrelation` e `ValidLocale`. O interceptor
+  de contexto e o cliente do BFF validam e geram os mesmos valores.
 - **`serve.go`** — `Serve(ctx, listen, server, healthServer, services, ready,
   logs)`: roda `ready` **antes** de aceitar a primeira conexão — uma sonda
   que não fala o protocolo de saúde (o kubelet caindo para sonda TCP num
