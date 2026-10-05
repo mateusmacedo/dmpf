@@ -17,29 +17,8 @@ import (
 // The in-memory realization of application is the first candidate of the
 // suites: it needs no infrastructure, and it is what serviceskit builds on.
 
-type outboxResources struct{ Outbox ports.Outbox }
-
-func entry(id ports.MessageID) ports.OutboxEntry {
-	return ports.OutboxEntry{MessageID: id, OccurredAt: 1, Intent: ports.PublishIntent{Destination: "orders.events", PartitionKey: "o-1"}, AggregateType: "orders.Order", AggregateID: "o-1", AggregateVersion: 1}
-}
-
-func memoryUoW() providerkit.UnitOfWorkSubject[outboxResources] {
-	store := memory.New()
-	n := 0
-	return providerkit.UnitOfWorkSubject[outboxResources]{
-		UoW: memory.NewUnitOfWork(store, func(tx *memory.Tx) outboxResources { return outboxResources{Outbox: tx.Outbox()} }),
-		Write: func(ctx context.Context, res outboxResources) error {
-			n++
-			return res.Outbox.Enqueue(ctx, entry(ports.MessageID("m-"+strconv.Itoa(n))))
-		},
-		Kept:             func() int { return len(store.Entries()) },
-		ArmCommitFailure: store.FailNextCommit,
-		Commits:          store.Commits,
-	}
-}
-
 func TestMemoryUnitOfWorkConforms(t *testing.T) {
-	v := providerkit.UnitOfWork(memoryUoW)
+	v := providerkit.UnitOfWork(providerkit.MemoryUnitOfWork)
 	tb.Require(t, v)
 	if len(v.Skipped) != 0 {
 		t.Fatalf("memory can inject a commit failure; nothing should be skipped: %v", v.Skipped)
@@ -164,26 +143,8 @@ func TestAScopedButSilentReaderIsReprovedOnIDN12(t *testing.T) {
 	}
 }
 
-type inboxResources struct{ Inbox ports.Inbox }
-
-func memoryInbox() providerkit.InboxSubject {
-	store := memory.New()
-	return providerkit.InboxSubject{
-		Within: func(ctx context.Context, consumer string, fn func(ctx context.Context, inbox ports.Inbox) error) error {
-			uow := memory.NewUnitOfWork(store, func(tx *memory.Tx) inboxResources { return inboxResources{Inbox: tx.Inbox(consumer)} })
-			return uow.Within(ctx, func(ctx context.Context, res inboxResources) error { return fn(ctx, res.Inbox) })
-		},
-		ReadStatus: store.InboxStatus,
-		// memory serializes every transaction on one mutex, so the race clause
-		// has nothing to observe here; Postgres runs it.
-		Concurrent:       false,
-		ConsumerMismatch: memory.ErrInboxConsumerMismatch,
-		Rows:             store.InboxRows,
-	}
-}
-
 func TestMemoryInboxConforms(t *testing.T) {
-	v := providerkit.Inbox(memoryInbox)
+	v := providerkit.Inbox(providerkit.MemoryInbox)
 	tb.Require(t, v)
 	if len(v.Skipped) != 1 {
 		t.Fatalf("expected exactly the concurrency clause skipped, got %v", v.Skipped)
@@ -194,12 +155,12 @@ func TestMemoryInboxConforms(t *testing.T) {
 // name UOW-06.
 type lenientUoW struct {
 	store *memory.Store
-	inner ports.UnitOfWork[outboxResources]
+	inner ports.UnitOfWork[providerkit.OutboxResources]
 }
 
-func (u lenientUoW) Within(ctx context.Context, fn func(context.Context, outboxResources) error) error {
+func (u lenientUoW) Within(ctx context.Context, fn func(context.Context, providerkit.OutboxResources) error) error {
 	var cbErr error
-	err := u.inner.Within(ctx, func(ctx context.Context, res outboxResources) error {
+	err := u.inner.Within(ctx, func(ctx context.Context, res providerkit.OutboxResources) error {
 		cbErr = fn(ctx, res)
 		return nil
 	})
@@ -207,10 +168,12 @@ func (u lenientUoW) Within(ctx context.Context, fn func(context.Context, outboxR
 }
 
 func TestALenientUnitOfWorkIsReproved(t *testing.T) {
-	v := providerkit.UnitOfWork(func() providerkit.UnitOfWorkSubject[outboxResources] {
-		s := memoryUoW()
+	v := providerkit.UnitOfWork(func() providerkit.UnitOfWorkSubject[providerkit.OutboxResources] {
+		s := providerkit.MemoryUnitOfWork()
 		store := memory.New()
-		s.UoW = lenientUoW{store: store, inner: memory.NewUnitOfWork(store, func(tx *memory.Tx) outboxResources { return outboxResources{Outbox: tx.Outbox()} })}
+		s.UoW = lenientUoW{store: store, inner: memory.NewUnitOfWork(store, func(tx *memory.Tx) providerkit.OutboxResources {
+			return providerkit.OutboxResources{Outbox: tx.Outbox()}
+		})}
 		s.Kept = func() int { return len(store.Entries()) }
 		s.ArmCommitFailure = store.FailNextCommit
 		return s
