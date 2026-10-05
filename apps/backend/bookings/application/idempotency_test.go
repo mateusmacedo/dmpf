@@ -20,7 +20,7 @@ func (h *harness) outboxLen() int {
 }
 
 func TestARepeatedReserveReplaysWithoutASecondEffect(t *testing.T) {
-	h := newHarness(t)
+	h, instr := newInstrumentedHarness(t)
 
 	first, err := h.service.ReserveBooking(withKey(t, context.Background(), "k-reserve"), reserve(5))
 	if err != nil {
@@ -38,13 +38,16 @@ func TestARepeatedReserveReplaysWithoutASecondEffect(t *testing.T) {
 	if got := h.outboxLen(); got != 1 {
 		t.Fatalf("outbox = %d entries, want 1: the replay produced a second event", got)
 	}
+	if len(instr.audits) != 1 {
+		t.Fatalf("Audit called %d times, want 1: a replay is not a new fact", len(instr.audits))
+	}
 	if outcome, _ := ports.IdempotencyOutcomeFrom(ctx); outcome != ports.IdempotencyReplayed {
 		t.Fatalf("idempotency outcome = %v, want replayed", outcome)
 	}
 }
 
 func TestARepeatedRefusalReplaysTheRejectionWithoutLoading(t *testing.T) {
-	h := newHarness(t)
+	h, instr := newInstrumentedHarness(t)
 	h.seedBooking(t, domain.BookingSnapshot{ID: testBookingID, ResourceID: testResourceID, Quantity: 5, Status: domain.Cancelled}, 2)
 	cancel := application.CancelBooking{BookingID: testBookingID}
 
@@ -64,22 +67,30 @@ func TestARepeatedRefusalReplaysTheRejectionWithoutLoading(t *testing.T) {
 	if slices.Contains(h.rec.observed, "bookings.Load") {
 		t.Fatalf("sequence = %v: the replay reached the aggregate", h.rec.observed)
 	}
+	if len(instr.audits) != 1 {
+		t.Fatalf("Audit called %d times, want 1: a replay is not a new fact", len(instr.audits))
+	}
 }
 
-func TestTheSameKeyWithAnotherPayloadIsAMismatch(t *testing.T) {
+func requireSecondReserveRefused(t *testing.T, firstKey, secondKey string, second application.ReserveBooking, want error) {
+	t.Helper()
 	h := newHarness(t)
-	if _, err := h.service.ReserveBooking(withKey(t, context.Background(), "k-reused"), reserve(5)); err != nil {
+	if _, err := h.service.ReserveBooking(withKey(t, context.Background(), firstKey), reserve(5)); err != nil {
 		t.Fatalf("first ReserveBooking() = %v, want nil", err)
 	}
 
-	_, err := h.service.ReserveBooking(withKey(t, context.Background(), "k-reused"), reserve(6))
+	_, err := h.service.ReserveBooking(withKey(t, context.Background(), secondKey), second)
 
-	if !errors.Is(err, ports.ErrIdempotencyMismatch) {
-		t.Fatalf("ReserveBooking(other quantity) = %v, want ErrIdempotencyMismatch", err)
+	if !errors.Is(err, want) {
+		t.Fatalf("second ReserveBooking() = %v, want %v", err, want)
 	}
 	if got := h.outboxLen(); got != 1 {
 		t.Fatalf("outbox = %d entries, want 1", got)
 	}
+}
+
+func TestTheSameKeyWithAnotherPayloadIsAMismatch(t *testing.T) {
+	requireSecondReserveRefused(t, "k-reused", "k-reused", reserve(6), ports.ErrIdempotencyMismatch)
 }
 
 func TestACommandWaitingPastTheCeilingIsInFlight(t *testing.T) {
@@ -107,23 +118,11 @@ func TestACommandWithoutAKeyIsRefusedBeforeAnyEffect(t *testing.T) {
 }
 
 func TestReservingAnExistingBookingUnderAnotherKeyAlreadyExists(t *testing.T) {
-	h := newHarness(t)
-	if _, err := h.service.ReserveBooking(withKey(t, context.Background(), "k-first"), reserve(5)); err != nil {
-		t.Fatalf("first ReserveBooking() = %v, want nil", err)
-	}
-
-	_, err := h.service.ReserveBooking(withKey(t, context.Background(), "k-second"), reserve(5))
-
-	if !errors.Is(err, ports.ErrAlreadyExists) {
-		t.Fatalf("ReserveBooking(another key) = %v, want ErrAlreadyExists", err)
-	}
-	if got := h.outboxLen(); got != 1 {
-		t.Fatalf("outbox = %d entries, want 1", got)
-	}
+	requireSecondReserveRefused(t, "k-first", "k-second", reserve(5), ports.ErrAlreadyExists)
 }
 
 func TestARepeatedRegisterReplaysWithoutASecondEvent(t *testing.T) {
-	h := newHarness(t)
+	h, instr := newInstrumentedHarness(t)
 	register := application.RegisterResource{Code: testResCode}
 
 	for range 2 {
@@ -134,5 +133,8 @@ func TestARepeatedRegisterReplaysWithoutASecondEvent(t *testing.T) {
 
 	if got := h.outboxLen(); got != 1 {
 		t.Fatalf("outbox = %d entries, want 1", got)
+	}
+	if len(instr.audits) != 1 {
+		t.Fatalf("Audit called %d times, want 1: a replay is not a new fact", len(instr.audits))
 	}
 }

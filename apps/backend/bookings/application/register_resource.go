@@ -24,10 +24,10 @@ func (s Service) RegisterResource(ctx context.Context, cmd RegisterResource) (us
 	identity := usecase.ResolveIdentity(s.Clock, s.IDs, maxEventsPerCommand)
 	fingerprint := usecase.NewFingerprint(OperationRegisterResource).String(string(cmd.Code))
 
-	outcome := zero
+	outcome, replayed := zero, false
 	err := s.UoW.Within(ctx, func(ctx context.Context, res Resources) error {
 		var err error
-		outcome, _, err = idempotent(ctx, s, res, fingerprint, OperationRegisterResource, identity.OccurredAt, registeredCodec,
+		outcome, replayed, err = idempotent(ctx, s, res, fingerprint, OperationRegisterResource, identity.OccurredAt, registeredCodec,
 			func() (usecase.Outcome[domain.RegisteredResponse], error) { return register(ctx, res, cmd, identity) })
 		return err
 	})
@@ -36,7 +36,16 @@ func (s Service) RegisterResource(ctx context.Context, cmd RegisterResource) (us
 		return zero, err
 	}
 
-	end(ports.Result{Outcome: outcomeCategory(outcome)})
+	category := outcomeCategory(outcome)
+	end(ports.Result{Outcome: category})
+	if !replayed {
+		instrumentation.Audit(ctx, ports.AuditEvent{
+			Object:  string(cmd.Code),
+			Action:  OperationRegisterResource,
+			Outcome: category,
+			At:      identity.OccurredAt,
+		})
+	}
 	return outcome, nil
 }
 

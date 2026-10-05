@@ -47,32 +47,33 @@ func TestMapperMapsBookingReserved(t *testing.T) {
 	}
 }
 
-func TestMapperMapsBookingCancelled(t *testing.T) {
-	t.Parallel()
+func requireMapped(t *testing.T, event kernel.DomainEvent, want proto.Message, wantType string) {
+	t.Helper()
 
-	mapped, err := provider.Mapper{}.Map(domain.BookingCancelled{BookingID: "B-100", At: 1_755_432_000_000_000_001})
+	mapped, err := provider.Mapper{}.Map(event)
 
 	if err != nil {
 		t.Fatalf("Map() = %v, want nil", err)
 	}
-	want := &eventv1.BookingCancelled{BookingId: "B-100", CancelledAt: &timestamppb.Timestamp{Seconds: 1_755_432_000, Nanos: 1}}
-	if !proto.Equal(mapped.Message, want) || mapped.Type != "com.company.bookings.booking-cancelled.v1" {
-		t.Errorf("Map() = %v %q, want %v com.company.bookings.booking-cancelled.v1", mapped.Message, mapped.Type, want)
+	if !proto.Equal(mapped.Message, want) || mapped.Type != wantType {
+		t.Errorf("Map() = %v %q, want %v %s", mapped.Message, mapped.Type, want, wantType)
 	}
+}
+
+func TestMapperMapsBookingCancelled(t *testing.T) {
+	t.Parallel()
+
+	requireMapped(t, domain.BookingCancelled{BookingID: "B-100", At: 1_755_432_000_000_000_001},
+		&eventv1.BookingCancelled{BookingId: "B-100", CancelledAt: &timestamppb.Timestamp{Seconds: 1_755_432_000, Nanos: 1}},
+		"com.company.bookings.booking-cancelled.v1")
 }
 
 func TestMapperMapsResourceRegistered(t *testing.T) {
 	t.Parallel()
 
-	mapped, err := provider.Mapper{}.Map(domain.ResourceRegistered{Code: "R-200", At: 1_755_432_000_000_000_002})
-
-	if err != nil {
-		t.Fatalf("Map() = %v, want nil", err)
-	}
-	want := &eventv1.ResourceRegistered{ResourceId: "R-200", RegisteredAt: &timestamppb.Timestamp{Seconds: 1_755_432_000, Nanos: 2}}
-	if !proto.Equal(mapped.Message, want) || mapped.Type != "com.company.bookings.resource-registered.v1" {
-		t.Errorf("Map() = %v %q, want %v com.company.bookings.resource-registered.v1", mapped.Message, mapped.Type, want)
-	}
+	requireMapped(t, domain.ResourceRegistered{Code: "R-200", At: 1_755_432_000_000_000_002},
+		&eventv1.ResourceRegistered{ResourceId: "R-200", RegisteredAt: &timestamppb.Timestamp{Seconds: 1_755_432_000, Nanos: 2}},
+		"com.company.bookings.resource-registered.v1")
 }
 
 func TestMapperReportsUnmappedEvent(t *testing.T) {
