@@ -93,66 +93,19 @@ func TestInboxFirstReception(t *testing.T) {
 }
 
 func TestInboxRedeliveryProcessed(t *testing.T) {
-	pool := openPool(t)
-
-	err := withInbox(t, pool, "orders", func(ctx context.Context, inbox ports.Inbox) error {
-		r, err := inbox.Register(ctx, receipt("orders", "m-1", "h1"))
-		if err != nil {
-			return err
-		}
-		matchBranch(t, r, statusPtr(ports.StatusProcessed))
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("first withInbox() = %v", err)
-	}
-
-	err = withInbox(t, pool, "orders", func(ctx context.Context, inbox ports.Inbox) error {
-		r, err := inbox.Register(ctx, receipt("orders", "m-1", "h1"))
-		if err != nil {
-			return err
-		}
-		if branch := matchBranch(t, r, nil); branch != "processed" {
-			t.Fatalf("branch = %q, want %q", branch, "processed")
-		}
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("second withInbox() = %v", err)
-	}
+	requireRedelivery(t, ports.StatusProcessed, "h1", "processed")
 }
 
 func TestInboxRedeliveryRejected(t *testing.T) {
-	pool := openPool(t)
-
-	err := withInbox(t, pool, "orders", func(ctx context.Context, inbox ports.Inbox) error {
-		r, err := inbox.Register(ctx, receipt("orders", "m-1", "h1"))
-		if err != nil {
-			return err
-		}
-		matchBranch(t, r, statusPtr(ports.StatusRejected))
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("first withInbox() = %v", err)
-	}
-
-	err = withInbox(t, pool, "orders", func(ctx context.Context, inbox ports.Inbox) error {
-		r, err := inbox.Register(ctx, receipt("orders", "m-1", "h1"))
-		if err != nil {
-			return err
-		}
-		if branch := matchBranch(t, r, nil); branch != "rejected" {
-			t.Fatalf("branch = %q, want %q", branch, "rejected")
-		}
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("second withInbox() = %v", err)
-	}
+	requireRedelivery(t, ports.StatusRejected, "h1", "rejected")
 }
 
 func TestInboxCollision(t *testing.T) {
+	requireRedelivery(t, ports.StatusProcessed, "h2", "collision")
+}
+
+func requireRedelivery(t *testing.T, first ports.Status, secondHash, want string) {
+	t.Helper()
 	pool := openPool(t)
 
 	err := withInbox(t, pool, "orders", func(ctx context.Context, inbox ports.Inbox) error {
@@ -160,7 +113,7 @@ func TestInboxCollision(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		matchBranch(t, r, statusPtr(ports.StatusProcessed))
+		matchBranch(t, r, statusPtr(first))
 		return nil
 	})
 	if err != nil {
@@ -168,12 +121,12 @@ func TestInboxCollision(t *testing.T) {
 	}
 
 	err = withInbox(t, pool, "orders", func(ctx context.Context, inbox ports.Inbox) error {
-		r, err := inbox.Register(ctx, receipt("orders", "m-1", "h2"))
+		r, err := inbox.Register(ctx, receipt("orders", "m-1", secondHash))
 		if err != nil {
 			return err
 		}
-		if branch := matchBranch(t, r, nil); branch != "collision" {
-			t.Fatalf("branch = %q, want %q", branch, "collision")
+		if branch := matchBranch(t, r, nil); branch != want {
+			t.Fatalf("branch = %q, want %q", branch, want)
 		}
 		return nil
 	})
@@ -314,25 +267,15 @@ func TestInboxCompleteTwice(t *testing.T) {
 }
 
 func TestInboxConsumerRequired(t *testing.T) {
-	pool := openPool(t)
-	ctx := context.Background()
-
-	pgxTx, err := pool.Begin(ctx)
-	if err != nil {
-		t.Fatalf("Begin() = %v", err)
-	}
-	defer func() { _ = pgxTx.Rollback(ctx) }()
-
-	tx := postgres.NewTx(pgxTx)
-	inbox := tx.Inbox("", 0)
-
-	_, err = inbox.Register(ctx, receipt("", "m-1", "h1"))
-	if !errors.Is(err, postgres.ErrInboxConsumerRequired) {
-		t.Fatalf("Register() = %v, want ErrInboxConsumerRequired", err)
-	}
+	requireRegisterRefused(t, "", "", postgres.ErrInboxConsumerRequired)
 }
 
 func TestInboxConsumerMismatch(t *testing.T) {
+	requireRegisterRefused(t, "orders", "billing", postgres.ErrInboxConsumerMismatch)
+}
+
+func requireRegisterRefused(t *testing.T, owner, receiptConsumer string, want error) {
+	t.Helper()
 	pool := openPool(t)
 	ctx := context.Background()
 
@@ -342,12 +285,10 @@ func TestInboxConsumerMismatch(t *testing.T) {
 	}
 	defer func() { _ = pgxTx.Rollback(ctx) }()
 
-	tx := postgres.NewTx(pgxTx)
-	inbox := tx.Inbox("orders", 0)
+	inbox := postgres.NewTx(pgxTx).Inbox(owner, 0)
 
-	_, err = inbox.Register(ctx, receipt("billing", "m-1", "h1"))
-	if !errors.Is(err, postgres.ErrInboxConsumerMismatch) {
-		t.Fatalf("Register() = %v, want ErrInboxConsumerMismatch", err)
+	if _, err := inbox.Register(ctx, receipt(receiptConsumer, "m-1", "h1")); !errors.Is(err, want) {
+		t.Fatalf("Register() = %v, want %v", err, want)
 	}
 }
 

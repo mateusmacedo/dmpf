@@ -6,8 +6,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
+	"sync"
 	"testing"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
@@ -109,6 +112,59 @@ func TestTableRoundTripsWithinTheTenant(t *testing.T) {
 	}
 	if state.Items != 3 || version != 1 {
 		t.Fatalf("Load() = %+v, v%d; want {Items:3}, v1", state, version)
+	}
+}
+
+// sqlRecorder keeps every statement the connection sent, begin and commit
+// included: the only witness that a read ran outside a transaction, because the
+// pool's counters cannot tell the two apart.
+type sqlRecorder struct {
+	mu   sync.Mutex
+	sent []string
+}
+
+func (r *sqlRecorder) TraceQueryStart(ctx context.Context, _ *pgx.Conn, data pgx.TraceQueryStartData) context.Context {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.sent = append(r.sent, data.SQL)
+	return ctx
+}
+
+func (r *sqlRecorder) TraceQueryEnd(context.Context, *pgx.Conn, pgx.TraceQueryEndData) {}
+
+func (r *sqlRecorder) statements() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]string(nil), r.sent...)
+}
+
+// UOW-11: a query is given read access without the write side, and that read
+// must not open a transaction.
+func TestNewReaderNeverOpensATransaction(t *testing.T) {
+	pool := openPool(t)
+	ctx := scopedTo(t, "acme")
+	if err := saveProbe(t, ctx, pool, "P-1", probe{Items: 3}, 0); err != nil {
+		t.Fatalf("Save() = %v, want nil", err)
+	}
+	recorder := &sqlRecorder{}
+	cfg := pool.Config()
+	cfg.ConnConfig.Tracer = recorder
+	traced, err := pgxpool.NewWithConfig(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("pgxpool.NewWithConfig() = %v, want nil", err)
+	}
+	t.Cleanup(traced.Close)
+
+	if _, _, err := probeTable.Reader(postgres.NewReadPool(traced)).Load(ctx, "P-1"); err != nil {
+		t.Fatalf("Load() = %v, want nil", err)
+	}
+
+	sent := recorder.statements()
+	if len(sent) != 1 {
+		t.Fatalf("the read sent %d statements %q, want exactly the SELECT", len(sent), sent)
+	}
+	if !strings.HasPrefix(strings.TrimSpace(sent[0]), "SELECT") {
+		t.Fatalf("statement = %q, want the SELECT of the aggregate", sent[0])
 	}
 }
 
