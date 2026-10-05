@@ -215,7 +215,9 @@ travessia.
   exato, porque sob `CI` o skip reprovaria o subject: no `golden`,
   `TestUpdateGolden`, que só regrava as fixtures com `GOLDEN_UPDATE=1`; no
   `dist`, `TestDistkitRole`, corpo dos processos filhos, que o harness relança
-  com argumentos próprios e por isso não herda o `-skip`.
+  com argumentos próprios e por isso não herda o `-skip`; no `reference`,
+  `TestHoldingTheAddressItWasGiven`, corpo do processo que o harness do `bff`
+  relança do mesmo jeito.
 - Variável ausente: sob `CI`, exit 1 nomeando-a antes de rodar qualquer subject;
   fora de `CI`, o subject é gravado como `{skipped}`, sem corpo e sem alcance, e
   fica fora do `index.json` — não conta como evidência.

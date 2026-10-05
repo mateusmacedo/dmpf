@@ -23,10 +23,10 @@ func (s Service) CancelBooking(ctx context.Context, cmd CancelBooking) (usecase.
 	identity := usecase.ResolveIdentity(s.Clock, s.IDs, maxEventsPerCommand)
 	fingerprint := usecase.NewFingerprint(OperationCancelBooking).String(string(cmd.BookingID))
 
-	outcome := zero
+	outcome, replayed := zero, false
 	err := s.UoW.Within(ctx, func(ctx context.Context, res Resources) error {
 		var err error
-		outcome, _, err = idempotent(ctx, s, res, fingerprint, OperationCancelBooking, identity.OccurredAt, cancelledCodec,
+		outcome, replayed, err = idempotent(ctx, s, res, fingerprint, OperationCancelBooking, identity.OccurredAt, cancelledCodec,
 			func() (usecase.Outcome[domain.CancelledResponse], error) { return cancel(ctx, res, cmd, identity) })
 		return err
 	})
@@ -35,7 +35,16 @@ func (s Service) CancelBooking(ctx context.Context, cmd CancelBooking) (usecase.
 		return zero, err
 	}
 
-	end(ports.Result{Outcome: outcomeCategory(outcome)})
+	category := outcomeCategory(outcome)
+	end(ports.Result{Outcome: category})
+	if !replayed {
+		instrumentation.Audit(ctx, ports.AuditEvent{
+			Object:  string(cmd.BookingID),
+			Action:  OperationCancelBooking,
+			Outcome: category,
+			At:      identity.OccurredAt,
+		})
+	}
 	return outcome, nil
 }
 

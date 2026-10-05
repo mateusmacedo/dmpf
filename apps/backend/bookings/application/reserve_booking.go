@@ -25,10 +25,10 @@ func (s Service) ReserveBooking(ctx context.Context, cmd ReserveBooking) (usecas
 	fingerprint := usecase.NewFingerprint(OperationReserveBooking).
 		String(string(cmd.BookingID)).String(string(cmd.ResourceID)).Int(int64(cmd.Quantity))
 
-	outcome := zero
+	outcome, replayed := zero, false
 	err := s.UoW.Within(ctx, func(ctx context.Context, res Resources) error {
 		var err error
-		outcome, _, err = idempotent(ctx, s, res, fingerprint, OperationReserveBooking, identity.OccurredAt, reservedCodec,
+		outcome, replayed, err = idempotent(ctx, s, res, fingerprint, OperationReserveBooking, identity.OccurredAt, reservedCodec,
 			func() (usecase.Outcome[domain.ReservedResponse], error) { return reserve(ctx, res, cmd, identity) })
 		return err
 	})
@@ -37,7 +37,16 @@ func (s Service) ReserveBooking(ctx context.Context, cmd ReserveBooking) (usecas
 		return zero, err
 	}
 
-	end(ports.Result{Outcome: outcomeCategory(outcome)})
+	category := outcomeCategory(outcome)
+	end(ports.Result{Outcome: category})
+	if !replayed {
+		instrumentation.Audit(ctx, ports.AuditEvent{
+			Object:  string(cmd.BookingID),
+			Action:  OperationReserveBooking,
+			Outcome: category,
+			At:      identity.OccurredAt,
+		})
+	}
 	return outcome, nil
 }
 

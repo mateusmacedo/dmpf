@@ -130,6 +130,11 @@ func (h Harness) Start(t testing.TB, role Role) *Process {
 		EnvBrokers+"="+strings.Join(h.Brokers, ","),
 		pg.PostgresDSN+"="+pg.DSN(t, appkit.PoolOptions.Project),
 	)
+	return launch(t, role, cmd)
+}
+
+func launch(t testing.TB, role Role, cmd *exec.Cmd) *Process {
+	t.Helper()
 	p := &Process{Role: role, cmd: cmd, finished: make(chan struct{})}
 	cmd.Stdout, cmd.Stderr = &p.output, &p.output
 	if err := cmd.Start(); err != nil {
@@ -151,8 +156,16 @@ func (h Harness) Start(t testing.TB, role Role) *Process {
 }
 
 // Output is what the child wrote, which is where a drain that refused to
-// start says why.
-func (p *Process) Output() string { return p.output.String() }
+// start says why. Until the child exits, it returns "(process still running)":
+// the buffer is only safe to read once cmd.Wait has joined the copy goroutines.
+func (p *Process) Output() string {
+	select {
+	case <-p.finished:
+		return p.output.String()
+	default:
+		return "(process still running)"
+	}
+}
 
 // Stop asks the child to finish and waits, so the drain closes its publisher
 // instead of being killed mid-publication.

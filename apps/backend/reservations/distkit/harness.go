@@ -142,6 +142,11 @@ func (h Harness) Start(t testing.TB, role Role) *Process {
 		EnvBrokers+"="+strings.Join(h.Brokers, ","),
 		pg.PostgresDSN+"="+pg.DSN(t, appkit.PoolOptions.Project),
 	)
+	return launch(t, role, cmd)
+}
+
+func launch(t testing.TB, role Role, cmd *exec.Cmd) *Process {
+	t.Helper()
 	p := &Process{Role: role, cmd: cmd, finished: make(chan struct{})}
 	cmd.Stdout, cmd.Stderr = &p.output, &p.output
 	if err := cmd.Start(); err != nil {
