@@ -7,7 +7,7 @@ set -euo pipefail
 
 RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPOSE="${RAIZ}/infra/local/docker-compose.yml"
-FRACAO="${INFRA_BUDGET_FRACTION:-0.80}"
+FRACAO="${INFRA_BUDGET_FRACTION:-0.97}"
 PERFIS=(--profile all --profile dmpf)
 
 cpu_host="$(nproc)"
