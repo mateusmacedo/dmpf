@@ -101,7 +101,7 @@ módulos do kernel ficam sob `libs/backend/go/`.
 
 #### Onda 1 — funções novas em packages existentes ou mudança local
 
-- [ ] **[P1] P1 — `kernelgrpc.StatusOf`**: `grpc/status.go` ganha `StatusOf(err error) error`, que reproduz o `statusOf` atual caso a caso, na mesma precedência. A primeira linha que casar decide; "categoria" é o valor de `interface{ ErrorCategory() string }`, obtido sem importar `application`:
+- [x] **[P1] P1 — `kernelgrpc.StatusOf`**: `grpc/status.go` ganha `StatusOf(err error) error`, que reproduz o `statusOf` atual caso a caso, na mesma precedência. A primeira linha que casar decide; "categoria" é o valor de `interface{ ErrorCategory() string }`, obtido sem importar `application`:
 
   | # | Condição (sentinela por `errors.Is` **ou** categoria) | Código gRPC | Mensagem |
   |---|-------------------------------------------------------|-------------|----------|
@@ -117,39 +117,40 @@ módulos do kernel ficam sob `libs/backend/go/`.
   - Saem os três `app/rpc/errors.go`, seus `errors_internal_test.go` e o template `files/app/app/rpc/errors.go__tmpl__`.
   - Um teste de tabela no kernel cobre cada linha, além de `context.DeadlineExceeded` e `context.Canceled` puros e de erros híbridos (um `application.Failure` com categoria `X` que envolve a sentinela de outra linha). Nos híbridos, vale a linha de menor número.
   - Um teste de contrato no kernel `app` fixa a correspondência por string entre as categorias de `application` e as do `StatusOf`. Para isso, o `go.mod` do `app` passa a requerer `grpc` já nesta onda.
-- [ ] **[P1] A7 — Categoria do outcome e resultado de autorização**: `func (o Outcome[R]) Category() ports.OutcomeCategory` vai para o kernel `application`, e `func AuthorizationResult(err error) Result` vai para `ports`, ao lado de `ErrDenied`. Saem `outcomeCategory` e `authorizationResult` dos três contextos.
-- [ ] **[P1] A2 — `usecase.Enqueue`**: `Origin{Destination, AggregateType, AggregateID}` e `Enqueue(ctx, outbox, id, origin, written, events)` vão para o kernel `application` e preenchem os sete campos de FND-04 §2.3. Saem os três `enqueueAll`.
-- [ ] **[P1] A4 — Esqueleto de consulta**: `Query[Op, S]` no kernel `application`, usado por `find_order.go`, `find_reservation.go` e `find_booking.go`. `FindBookingByResource` (ramo IDN-13) fica local.
-- [ ] **[P1] P4 — Helpers de wiring**: `Catalog.AddressOf` e `NewCatalog` vão para `transport/channel`; `relay.Instrument(c, rt, address)` vai para `app/relay`; `PurgeOutbox`, `PurgeCommandInbox` e `PurgeMessageInbox` vão para `app`.
-  - Saem `startPurge`, `RelayConfig`, `topicOf`, os closures de purge e o corpo de `NewCatalog` dos três `app/`.
-  - `Instrument` recebe `func(string) string`, e o `go.mod` do `app` não ganha `require` de `transport`.
+- [x] **[P1] A7 — Categoria do outcome e resultado de autorização**: `func (o Outcome[R]) Category() ports.OutcomeCategory` vai para o kernel `application`, e `func AuthorizationResult(err error) Result` vai para `ports`, ao lado de `ErrDenied`. Saem `outcomeCategory` e `authorizationResult` dos três contextos.
+- [x] **[P1] A2 — `usecase.Enqueue`**: `Origin{Destination, AggregateType, AggregateID}` e `Enqueue(ctx, outbox, id, origin, written, events)` vão para o kernel `application` e preenchem os sete campos de FND-04 §2.3. Saem os três `enqueueAll`.
+- [x] **[P1] A4 — Esqueleto de consulta**: `Query[Op, S]` no kernel `application`, usado por `find_order.go`, `find_reservation.go` e `find_booking.go`. `FindBookingByResource` (ramo IDN-13) fica local, mas usa `ports.AuthorizationResult`.
+  - Assinatura: `Query[Op, S any](ctx, inst, authz Authorize[Op], operation string, input Op, load func(context.Context) (S, error)) (S, error)`, com `inst` nulo tratado como `ports.NoInstrumentation()`.
+  - O chamador instancia o parâmetro de tipo explicitamente (`usecase.Query[Operation](...)`), porque o Go não infere `Op` quando a entrada é o comando concreto.
+- [x] **[P1] P4 — Helpers de wiring**: `Catalog.AddressOf` e `NewCatalog` vão para `transport/channel`; `relay.Instrument(c, rt, address)` vai para `app/relay`; `PurgeOutbox`, `PurgeCommandInbox` e `PurgeMessageInbox` vão para `app`.
+  - Saem `startPurge`, `RelayConfig`, `topicOf`, os closures de purge e o corpo de `NewCatalog` dos três `app/`. Cada contexto chama `kernelapp.StartPurge` inline com o `Purge*` do kernel.
+  - `channel.NewCatalog(channels ...Channel) (Catalog, error)` recusa nome de canal repetido e catálogo sem canais, com sentinelas próprias. `Catalog.AddressOf` devolve vazio para destino fora do catálogo.
+  - `PurgeCommandInbox(pool, consumer)` e `PurgeMessageInbox(pool, consumer)` recebem o nome do consumidor, que vive no `application` do contexto e o kernel não pode importar.
+  - `Instrument(c Config, rt Telemetry, address func(string) string) Config` recebe uma interface local `relay.Telemetry` (tracer, meter provider e logger provider), que `*otelboot.Runtime` satisfaz, para o fechamento de produção do `app` não importar o SDK OTel. O `go.mod` do `app` não ganha `require` direto de `transport`; o indireto vem do `grpc`, que o teste de contrato do P1 requer.
+  - `Instrument` não fixa `System`: cada contexto declara o sistema de mensageria nos `Defaults` do próprio relay, e o relay do kernel continua agnóstico de transporte.
   - O teste de `RelayConfig` dos três `app/wiring_test.go` migra para `app/relay`, junto de `Instrument` (G62).
-- [ ] **[P1] P7 — `postgres.SnapshotTable`**: `SnapshotTable[ID ~string, S, J]` no kernel `postgres`, usado por `order_repository.go`, `reservation_repository.go` e `resource_repository.go`, com o struct `J` privado do provider. A `bookingTable` fica manual, e o template do provider ganha o molde.
-- [ ] **[P1] B3 — Protocolo de hop do lado cliente**: o `bff` usa as constantes de metadata já exportadas e `kernelgrpc.DefaultLocale`. O kernel `grpc` passa a exportar `MetadataCarrier`, `NewID() string`, `ValidCorrelation(string) bool` e `ValidLocale(string) bool`. Saem do `bff` o `carrier`, `correlationFormat`, `localeFormat`, `newIdentifier` e a cópia do locale.
-- [ ] **[P1] B6 — `redact.WithoutValues`**: `WithoutValues(message string, statement *regexp.Regexp) string` vai para `observability/redact`. `bff/app/wiring.go` e `observability/boot/libraries.go` passam a usá-la, cada um com o próprio regex.
-- [ ] **[P1] B4 — Chave de idempotência pela rota**: `requireIdempotencyKey(route kernelhttp.Route, next http.Handler)` decide por `route.IdempotencyKey`. Um GET com chave inválida continua recebendo 400, fixado por teste.
-- [ ] **[P2] B5 — Access log e resposta 500**: `logRequest`, `newRecorder` e `writeInternal` ficam locais ao `bff`, usados por `finishRequest`, `withAccessLog` e `healthAccess.ServeHTTP`. A gravação de atributos de span continua em `finishRequest`.
-- [ ] **[P2] B8 — Tabela de contextos no wiring do `bff`**: um laço faz dial, close e readiness sobre `[]backend{name, target, config}`, e outro faz o `serveContract` em `NewHandler`. `Config` e os nomes de variável não mudam.
-- [ ] **[P1] T6 — Fixture de `ExecutionContext`**: `WithExecution(t, ctx, opts...)`, `WithKey(t, ctx, key)` e a opção `WithSlot()` vão para `testkit/tb`. Os 25 `_test.go` que montam o literal `ExecutionContextSpec` passam a usá-los.
-  - Os `execution_test.go` do kernel (`memory`, `observability/resilience`, `observability/usecase` e `testkit/serviceskit`) também passam a usar o `tb`, para não virarem par de clone dele (G15, G36).
-  - `WithExecution` ganha uma opção sem permissões, que os `app/authorization_test.go` usam (G54).
-- [ ] **[P1] T7 — Asserções de domínio**: `tb.RequireRejected[R comparable]`, `tb.RequireAccepted`, `tb.RequireSameEvents` e `tb.RunProjection` vão para `testkit/tb`, e `Verdict.Merge` vai para `domainkit`. Saem os `*/domain/helpers_test.go` duplicados e os laços repetidos de fixture de projeção.
+- [x] **[P1] P7 — `postgres.SnapshotTable`**: `SnapshotTable[ID ~string, S, J]` no kernel `postgres`, usado por `order_repository.go`, `reservation_repository.go` e `resource_repository.go`, com o struct `J` privado do provider. A `bookingTable` fica manual, e o template do provider ganha o molde.
+- [x] **[P1] B3 — Protocolo de hop do lado cliente**: o `bff` usa as constantes de metadata já exportadas e `kernelgrpc.DefaultLocale`. O kernel `grpc` passa a exportar `MetadataCarrier`, `NewID(component string) string`, `ValidCorrelation(string) bool` e `ValidLocale(string) bool`. O `component` prefixa o `panic` da fonte de entropia (`grpc` no interceptor e `api` no `bff`), para cada lado manter a mensagem que já tinha. Saem do `bff` o `carrier`, `correlationFormat`, `localeFormat`, `newIdentifier` e a cópia do locale.
+- [x] **[P1] B6 — `redact.WithoutValues`**: `WithoutValues(message string, statement *regexp.Regexp) string` vai para `observability/redact`. `bff/app/wiring.go` e `observability/boot/libraries.go` passam a usá-la, cada um com o próprio regex.
+- [x] **[P1] B4 — Chave de idempotência pela rota**: `requireIdempotencyKey(route kernelhttp.Route, next http.Handler)` decide por `route.IdempotencyKey`. Um GET com chave inválida continua recebendo 400, fixado por teste.
+- [x] **[P2] B5 — Access log e resposta 500**: `logRequest`, `newRecorder` e `writeInternal` ficam locais ao `bff`, usados por `finishRequest`, `withAccessLog` e `healthAccess.ServeHTTP`. A gravação de atributos de span continua em `finishRequest`.
+- [x] **[P2] B8 — Tabela de contextos no wiring do `bff`**: um laço faz dial, close e readiness sobre `[]backend{name, target, config}`, e outro faz o `serveContract` em `NewHandler`. `Config` e os nomes de variável não mudam.
+- [x] **[P1] T7 — Asserções de domínio**: `tb.RequireRejected[R comparable]`, `tb.RequireAccepted` (sem parâmetro de tipo), `tb.RequireSameEvents` e `tb.RunProjection` vão para `testkit/tb`, e `Verdict.Merge` vai para `domainkit`. Saem dos `*/domain/helpers_test.go` as cópias de `requireRejected`, `requireAccepted` e `sameSequence`, além dos laços repetidos de fixture de projeção. Os arquivos ficam, com as constantes e os construtores do contexto.
+  - `tb.RunProjection` devolve o veredito, e o chamador grava a evidência, porque o `evidence` já importa o `tb`.
   - `testkit/domainkit/fixture_test.go` também adota `tb.RunProjection` (G42).
-- [ ] **[P1] T8 — Leitores das tabelas do kernel**: `pg.Outbox`, `pg.Settled` e `pg.Counts` vão para `testkit/tb/pg`. `orders` e `bookings` exportam `app.NewService(pool, clock, ids, waits)`, como o `reservations`, e o `appkit` deixa de reimplementar o `bind`.
+- [x] **[P1] T8 — Leitores das tabelas do kernel**: `pg.Outbox`, `pg.Settled` e `pg.Counts` vão para `testkit/tb/pg`. `orders` e `bookings` exportam `app.NewService(pool, clock, ids, waits)`, como o `reservations`, e o `appkit` deixa de reimplementar o `bind`.
   - O template `files/app/appkit/pool.go__tmpl__` passa a refletir o `OpenPool` dentro de `harness.go`.
   - O comentário de doc do `Harness` em `reservations/appkit/harness.go` volta para cima do tipo.
-- [ ] **[P2] T9 — `provider/e2e_test.go` sobre o `appkit`**: `orders` e `bookings` trocam `fixedClock`, `sequenceIDs`, `outboxRow` e `newService` por `appkit.New*`, `h.Outbox`, `ids.Sequence` e `clock.New`. `Enqueued` ganha `SchemaVersion`.
-- [ ] **[P2] N1 (restante) — Arranjo repetido nos testes do kernel e do `reservations`**: helper de arranjo no próprio arquivo, com tabela e `t.Run` só onde o nome do teste de topo não muda.
+- [x] **[P2] T9 — `provider/e2e_test.go` sobre o `appkit`**: `orders` e `bookings` trocam `fixedClock`, `sequenceIDs`, `outboxRow` e `newService` por `appkit.New*`, `h.Outbox`, `ids.Sequence` e `clock.New`. `Enqueued` ganha `SchemaVersion`.
+- [x] **[P2] N1 (restante) — Arranjo repetido nos testes do kernel e do `reservations`**: helper de arranjo no próprio arquivo, com tabela e `t.Run` só onde o nome do teste de topo não muda.
   - `postgres/inbox_test.go`: dois testes que só mudam o consumidor e o erro esperado (G3) e três que só mudam o status, o hash e o ramo esperado (G35).
   - `postgres/inbox_concurrency_test.go`: a goroutine B, idêntica nos dois testes (G26).
   - `observability/logging/sampling_test.go`: o arranjo de trace e sampler (G39).
   - `reservations/application/consume_test.go`: o arranjo de reentrega de R2, R3 e R4 (G30, G56).
-- [ ] **[P2] N2 — Leitura das tabelas do schema**: `pg.Tables(t, pool) []string` vai para `testkit/tb/pg`, ao lado dos leitores de T8. Os `appkit/schema_test.go` dos contextos passam a usá-la e mantêm o `want` literal local como oráculo (G4).
-- [ ] **[P2] N3 — Prova do `Reader` no kernel**: um teste em `postgres` fixa que `Table.Reader` sobre `NewReadPool` envia só o `SELECT` (UOW-11). Saem o teste equivalente, o `tracedPool` e o `sqlRecorder` de `orders/provider/order_reader_test.go` e `reservations/provider/reservation_reader_test.go` (G45).
-- [ ] **[P2] N5 — Subjects do `memory` no `providerkit`**: `testkit/providerkit` exporta os construtores de subject sobre o `memory`, usados pelo self-test do kit e por `memory/conformance_test.go` (G12, G60). A superfície de `kernel/testkit-provider` cresce, sem unidade nova.
-- [ ] **[P2] N6 — Caso de uso de referência no `serviceskit`**: o `counterService` vai para um arquivo não-teste de `testkit/serviceskit`, e `observability/usecase/counter_service_test.go` passa a usá-lo (G44).
-  - O módulo `observability` passa a requerer `testkit`, como já fazem `memory`, `postgres`, `contracts` e `app`. O uso fica restrito a package `_test` externo.
-- [ ] **[P2] N7 — Processo filho de execução única**: um helper de reexecução do binário de teste (ex.: `tb.Reexec(t, run, env...)`, que devolve stdout, stderr e o erro) vai para `testkit/tb` e é usado pelos `panic_test.go` de `kafka` e `sqs` (G58). Os módulos `kafka` e `sqs` passam a requerer `testkit`.
+- [x] **[P2] N2 — Leitura das tabelas do schema**: `pg.Tables(t, pool) []string` vai para `testkit/tb/pg`, ao lado dos leitores de T8. Os `appkit/schema_test.go` dos contextos passam a usá-la e mantêm o `want` literal local como oráculo (G4).
+- [x] **[P2] N3 — Prova do `Reader` no kernel**: um teste em `postgres` fixa que `Table.Reader` sobre `NewReadPool` envia só o `SELECT` (UOW-11). Saem o teste equivalente, o `tracedPool` e o `sqlRecorder` de `orders/provider/order_reader_test.go` e `reservations/provider/reservation_reader_test.go` (G45).
+- [x] **[P2] N5 — Subjects do `memory` no `providerkit`**: `testkit/providerkit` exporta os construtores de subject sobre o `memory`, usados pelo self-test do kit e por `memory/conformance_test.go` (G12, G60). A superfície de `kernel/testkit-provider` cresce, sem unidade nova.
+- [x] **[P2] N7 — Processo filho de execução única**: um helper de reexecução do binário de teste (ex.: `tb.Reexec(t, run, env...)`, que devolve stdout, stderr e o erro) vai para `testkit/tb` e é usado pelos `panic_test.go` de `kafka` e `sqs` (G58). Os módulos `kafka` e `sqs` passam a requerer `testkit`.
 
 #### Onda 2 — Template Method estrutural
 
@@ -193,6 +194,7 @@ módulos do kernel ficam sob `libs/backend/go/`.
 #### Onda 3 — ADR e classificação
 
 - [ ] **[P0] ADR de produção (próximo número livre, hoje ADR-059)**: registra P3, P6, A6 e B7. Supersede em parte o ADR-048: a frase "fica no contexto: `classify`, `subject`" e a leitura de "diverge por papel" aplicada ao corpo de cada papel. Também atualiza o status do ADR-048 e o índice em `docs/adr/README.md`.
+  - Atualiza ainda o ADR-053 nas §7 e §14, que descrevem um `errors.go` por contexto e emitido pelo generator. O P1 retira esse arquivo já na Onda 1, e o PR dessa onda registra a deriva até o ADR.
 - [ ] **[P0] ADR de testes (próximo número livre, hoje ADR-060)**: registra T1 e T3, supersede em parte o ADR-046 (o "sem segundo consumidor" do `distkit`) e atualiza o status dele e o índice.
 - [ ] **[P1] P3 — `CategoryOf` e `SubjectOf`**: `application.CategoryOf(err) string`, que devolve vazio quando não classifica, e `ports.SubjectOf(ctx) string`. Saem `classify` e `subject` dos três `app/telemetry.go`.
 - [ ] **[P1] P6 — Package `app/serve`**: package novo `libs/backend/go/app/serve` com `API`, `ServeAPI` e `RunRelay`, usado pelos três `serveAPI` e `runRelay`.
@@ -218,6 +220,18 @@ módulos do kernel ficam sob `libs/backend/go/`.
   - Unidade nova em `libs/backend/go/testkit/dmpf-units.json`:
     `{"id": "kernel/testkit-obs", "block": "app", "bounded_context": "kernel", "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/testkit/obstest"], "public_integration_surface": true}`.
   - Entram também os `telemetry_fields_test.go` dos contextos (`configWithSecrets`, `processConfigured` e a asserção da allowlist por papel, com o mapa de chaves local), e o `bff` passa a usar a verificação de manifesto e o `processConfigured` do `obstest` (G21, G50, G55, G67).
+  - Entra ainda o teste da trilha de auditoria do wiring (`TestTheAuditTrailOfTheServiceReachesTheLoggerProviderOfTheRuntime`, nos três `app/wiring_test.go`). Ele vira grupo de clone quando o P4 tira dali o teste de `RelayConfig` (G62).
+- [ ] **[P1] T6 — Fixture de `ExecutionContext`**: `WithExecution(t, ctx, opts...)`, `WithKey(t, ctx, key)`, a opção `WithSlot()` e uma opção `AutoKey()` vão para `testkit/tb/execctx`, package irmão do `tb`. Os 25 `_test.go` que montam o literal `ExecutionContextSpec` (24 nos contextos e 1 no `bff`) passam a usá-los.
+  - O `tb` não recebe a fixture: ela importa `ports`, e o guard `TestDomainTestsNeedNoInfrastructureDouble` (V29/V30) reprova unidade `domain` cujo fechamento de teste alcance `port`. É o motivo pelo qual o pool Postgres vive em `tb/pg` (ADR-040).
+  - O package novo entra no `include` de `kernel/testkit-tb` e exige `--write-baseline` (`DMPF-T001`), por isso o item fica na Onda 3. O nome `execctx` evita a sombra das variáveis locais `execution` dos testes.
+  - `AutoKey()` gera a chave `k-<n>` por processo, e os wrappers locais ficam com uma linha. Sem ela, os `execution_test.go` continuam com o contador de chaves e viram dois grupos de clone novos.
+  - Os `execution_test.go` do kernel (`memory`, `observability/resilience`, `observability/usecase` e `testkit/serviceskit`) também passam a usar o `execctx`, para não virarem par de clone dele (G15, G36). O módulo `observability` passa a requerer `testkit`, só por package `_test` externo.
+  - Os `app/authorization_test.go` usam a fixture sem opção (G54), porque o padrão já não concede permissões. Uma opção sem permissões seria redundante.
+- [ ] **[P2] N6 — Caso de uso de referência do kit**: o `counterService` vai para um arquivo não-teste de um package de bloco `app` do `testkit` (package novo em `kernel/testkit-tb` ou unidade nova). `observability/usecase/counter_service_test.go` e `testkit/serviceskit/counter_service_test.go` passam a usá-lo (G44).
+  - O `serviceskit` não recebe o fixture: ele é bloco `provider`, e o `counterService` usa `application.Authorize`, `application.Outcome` e `application.ResolveIdentity`, o que viola o `DMPF-D001`.
+  - O destino exige `include` novo ou unidade nova e `--write-baseline`, por isso o item fica na Onda 3.
+  - A cópia do `usecase` é um superconjunto da do `serviceskit` (instrumentação, `Audit` e `Find`); o fixture compartilhado trata `Instrumentation` nula como `ports.NoInstrumentation()`.
+  - O módulo `observability` passa a requerer `testkit`, como já fazem `memory`, `postgres`, `contracts` e `app`. O uso fica restrito a package `_test` externo.
 - [ ] **[P2] N8 — Coletores OTLP de falha**: `UnreachableCollector(t)` e `StallingCollector(t)` vão para `testkit/obstest` e são usados pelos testes de degradação de `bff`, `grpc`, `kafka` e `sqs` (G47, G59).
   - Depende de T3 e do ADR de testes: o SDK OTel (`sdk/metric`, `sdk/log` e `sdk/trace`) vira requisito direto do `testkit`, e `kafka`, `sqs`, `grpc` e `bff` passam a requerer `testkit`.
 - [ ] **[P2] N9 — Leitores de telemetria de teste**: `testkit/obstest` ganha `MetricLabels(t, reader)`, o exportador de log em memória, a espera de span por prefixo, o runtime com leitor de métrica e a contagem de conexões do pool (G23, G46, G51, G66).
@@ -241,11 +255,16 @@ módulos do kernel ficam sob `libs/backend/go/`.
   - Os grupos que um item do catálogo já cobre são marcados com o ID do item no registro da onda e não geram requisito novo. Quando o item só elimina o grupo com escopo maior, a ampliação fica registrada no próprio item.
   - Um item do catálogo que, ao ser implementado, deixe o próprio grupo de clone de pé não conta como concluído.
   - **Registro do início da Onda 0:** 67 grupos em `ca804ba6`, numerados G1 a G67 na ordem da saída do `dupl`. São 36 cobertos por item do catálogo (13 deles com ampliação registrada no item), 21 nos requisitos N1 a N9 e 10 fora de escopo.
+  - **Registro do início da Onda 1:** 67 grupos em `e946bf7f`. A ordem da saída mudou, então a numeração G desta spec continua a de `ca804ba6`, e o registro da onda cita cada grupo por arquivo e linhas.
+    - T6 e N6 passam para a Onda 3, com os grupos deles.
+    - O grupo que surge no teste de auditoria do wiring quando o G62 sai fica coberto pelo T3, com ampliação registrada no item.
+    - A7, P7, B3, B4, B5, B6 e B8 não têm grupo no `-t 100`; a conclusão deles se prova por teste e pela busca das cópias nos critérios de aceite.
+  - **Registro do fim da Onda 1:** 50 grupos. Saíram os 18 que os itens da onda cobrem (G3, G4, G12, G14, G26, G29, G30, G35, G39, G40, G42, G45, G46, G56, G58, G60, G61 e G62). Entrou um, o teste de auditoria do wiring nos três `app/wiring_test.go`, coberto pelo T3. Os demais seguem com os mesmos arquivos, só com outras faixas de linha.
 
 ### Não-funcionais
 
 - [ ] Compatibilidade: Go `1.26.6`, a diretiva do `go.mod` dos apps.
-- [ ] Dependências: o `go.mod` do `testkit` só ganha como requisitos diretos novos o franz-go (T1), `google.golang.org/grpc` e `go.opentelemetry.io/proto/otlp` (T3) e o SDK OTel (`sdk/metric`, `sdk/log` e `sdk/trace`, N8 e N9), todos autorizados pelo ADR de testes. Entre módulos do kernel, `app` passa a requerer `grpc` (P1) e `transport` (P6); `observability` (N6), `kafka` e `sqs` (N7) passam a requerer `testkit`, assim como `grpc` (N8). O `bff` passa a requerer `testkit` (N8). O `dupl` roda por `go run` e não entra em nenhum `go.mod`.
+- [ ] Dependências: o `go.mod` do `testkit` só ganha como requisitos diretos novos o franz-go (T1), `google.golang.org/grpc` e `go.opentelemetry.io/proto/otlp` (T3) e o SDK OTel (`sdk/metric`, `sdk/log` e `sdk/trace`, N8 e N9), todos autorizados pelo ADR de testes. Entre módulos do kernel, `app` passa a requerer `grpc` (P1) e `transport` (P6); `kafka` e `sqs` (N7, Onda 1) e `observability` (T6 e N6, Onda 3) passam a requerer `testkit`, assim como `grpc` (N8). O `bff` já requer `testkit`. O `dupl` roda por `go run` e não entra em nenhum `go.mod`.
 - [ ] Reflexão: o caminho de requisição não ganha nenhum uso novo de reflexão; os esqueletos usam generics e funções.
 - [ ] Redução: ao fim da Onda 3, **a soma dos quatro apps** tem ao menos 1.000 linhas de produção e 2.500 linhas de teste a menos que a árvore de `8f544bc0`. Produção são os `.go` que não terminam em `_test.go`, e teste são os `_test.go`. Os dois excluem `contract/gen`. A contagem é física, por quebra de linha (`wc -l`), e é registrada no PR da Onda 3.
 - [ ] Duplicação: ao fim da Onda 3, a medição do `dupl` acusa no máximo 34 grupos de clone, metade da linha de base de 67. Todo grupo restante está classificado como fora de escopo, com motivo.
@@ -279,7 +298,8 @@ libs/backend/go/
   app/                    — Purge* (P4), Policies (P5), teste de contrato de StatusOf (P1)
   app/relay/              — Instrument (P4)
   app/serve/              — novo (P6)
-  testkit/tb/             — WithExecution (T6), Require* e RunProjection (T7), GoldenSuite (T2)
+  testkit/tb/             — Require* e RunProjection (T7), GoldenSuite (T2)
+  testkit/tb/execctx/     — novo (T6): WithExecution, WithKey, WithSlot e AutoKey
   testkit/tb/pg/          — Outbox, Settled, Counts (T8)
   testkit/tb/dist/        — novo (T1): Supervise e Process, Spec, Harness, RunRole e RelayVector
   testkit/obstest/        — novo (T3)
@@ -301,8 +321,10 @@ docs/specs/SPEC-VZ16X0MS-dmpf-generator-templates-agregado.md
 - `{orders,reservations,bookings}/app/rpc/errors.go` e `errors_internal_test.go`
   (P1), substituídos por `kernelgrpc.StatusOf`;
 - `tools/dmpf-plugin/src/generators/bounded-context/files/app/app/rpc/errors.go__tmpl__`
-  (P1), pelo mesmo motivo;
-- `*/domain/helpers_test.go` duplicados (T7), substituídos por `tb.Require*`.
+  (P1), pelo mesmo motivo.
+
+Os `*/domain/helpers_test.go` ficam: o T7 retira deles só as asserções que
+`tb.Require*` substitui.
 
 Os demais itens alteram arquivos existentes; os caminhos de cada um estão nos
 requisitos acima e, com a linha, no relatório (§4).
@@ -441,10 +463,10 @@ command.Run(ctx, res, identity):
 ### Critérios de aceite
 
 - [ ] Uma busca em `apps/backend` por `func statusOf`, `func outcomeCategory`, `func authorizationResult`, `func enqueueAll`, `func classify`, `func serveAPI` e `func runRelay` não retorna resultado.
-- [ ] `{orders,reservations,bookings}/app/rpc/errors.go` não existem.
+- [x] `{orders,reservations,bookings}/app/rpc/errors.go` não existem.
 - [ ] Todo caso de uso de comando dos três contextos chama `Execute`, e o `bookings` audita comando novo sem auditar replay, o que é fixado por um teste por caso de uso.
 - [ ] O `go test -race` do `distkit` de cada contexto passa com um teste que lê `Output()` enquanto o processo roda. Na Onda 0, a leitura devolve o sentinela; a partir da Onda 3, devolve o snapshot de `dist.Supervise`.
-- [ ] O teste de tabela de `kernelgrpc.StatusOf` cobre as oito linhas, `context.DeadlineExceeded` e `context.Canceled` puros e os erros híbridos.
+- [x] O teste de tabela de `kernelgrpc.StatusOf` cobre as oito linhas, `context.DeadlineExceeded` e `context.Canceled` puros e os erros híbridos.
 - [ ] Um teste fixa o pânico de `kernelgrpc.Method` para método inexistente.
 - [ ] As mensagens de erro dos casos de uso de comando são idênticas às de `8f544bc0`, com cada caminho de falha verificado por `errors.Is` e pela mensagem completa.
 - [ ] `kernel/app-serve`, `kernel/testkit-dist` e `kernel/testkit-obs` estão nos manifestos com os campos desta spec, e `kernel/app-serve` consta de `shared_kernel_units`.

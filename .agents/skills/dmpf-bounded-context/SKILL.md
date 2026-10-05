@@ -30,7 +30,7 @@ verificadas, em [`references/armadilhas.md`](./references/armadilhas.md).
 
 | Quem | O quê |
 | --- | --- |
-| **Generator** (`bounded-context`) | `project.json`, `go.mod`, `package.json`, `dmpf-units.json`, `README.md` e `Dockerfile` do módulo; tags 3D + `layer:*` do bloco mais alto; a entrada no `go.work`; o `doc.go` de cada bloco; o esqueleto canônico do `app` (config, wiring, telemetria, catálogo, `app/rpc`), o `provider/schema.{sql,go}` e o `appkit/pool.go` |
+| **Generator** (`bounded-context`) | `project.json`, `go.mod`, `package.json`, `dmpf-units.json`, `README.md` e `Dockerfile` do módulo; tags 3D + `layer:*` do bloco mais alto; a entrada no `go.work`; o `doc.go` de cada bloco; o esqueleto canônico do `app` (config, wiring, telemetria, catálogo, `app/rpc`), o `provider/schema.{sql,go}` e o `appkit/harness.go` |
 | **Agente / autor** | O conteúdo de domínio dos cinco blocos, preenchendo o esqueleto; o `.proto` do serviço e de cada evento publicado; o OpenAPI; o `include` de packages novos no manifesto (merge) |
 | **Pessoa** | Rito Buf (`buf.sh generate` + quatro gates); `--write-baseline`; `git commit`; PR |
 
@@ -57,12 +57,14 @@ não executa — ele **para e imprime** o rito restante.
    sete disposições de §6.4 **se** o contexto consome.
 6. **`provider-postgres`**: `schema.sql` nos nomes canônicos (agregado no
    plural, sem prefixo), persistência híbrida (coluna tipada só para o que uma
-   consulta filtra, o resto em `snapshot` `jsonb`), repositórios com
-   optimistic locking, `Reader`, mapper para o payload do contrato; `Tables`
-   do `appkit` com as tabelas do contexto.
+   consulta filtra, o resto em `snapshot` `jsonb`, com `postgres.SnapshotTable`
+   quando o estado inteiro vive no snapshot), repositórios com optimistic
+   locking, `Reader`, mapper para o payload do contrato; `Tables` do `appkit`
+   com as tabelas do contexto.
 7. **`app`**: o `ServiceDesc` de `app/rpc/service.go` com um método por
-   comando e por consulta, o `Server` sobre o serviço de aplicação, o wiring e
-   o catálogo; e2e gRPC sobre Postgres. Consumer com `envelope.Unpack` **só se
+   comando e por consulta, o `Server` sobre o serviço de aplicação (os
+   handlers devolvem o erro por `kernelgrpc.StatusOf`), o wiring e o catálogo;
+   e2e gRPC sobre Postgres. Consumer com `envelope.Unpack` **só se
    o contexto consome**. A borda REST é do `bff`, em tarefa própria.
 8. **Contrato**: `.proto` do serviço em
    `apps/backend/<name>/contract/proto/company/<name>/service/v1/` e de cada evento publicado em

@@ -26,8 +26,8 @@ pnpm nx g @mateusmacedo/dmpf-plugin:bounded-context <name> --boundedContext <ctx
   cada teste tem o próprio banco), `go.mod` sem `require`, `package.json`,
   `dmpf-units.json` com uma unidade por bloco, `README.md`, `Dockerfile` e um
   `doc.go` por bloco. O `app` nasce na forma canônica: `config.go`,
-  `wiring.go`, `telemetry.go`, `catalog.go`, `app/rpc/{errors,service}.go`; o
-  `provider` recebe `schema.sql` e `schema.go`; o `appkit` recebe `pool.go`.
+  `wiring.go`, `telemetry.go`, `catalog.go`, `app/rpc/service.go`; o
+  `provider` recebe `schema.sql` e `schema.go`; o `appkit` recebe `harness.go`.
   Acrescenta um `use` ao `go.work` (ADR-045). Não há `pnpm install`.
 - `--service-name` define o nome qualificado do serviço gRPC; sem ele, vira
   `company.<name>.service.v1.<Name>Service`.
@@ -70,11 +70,11 @@ pnpm nx g @mateusmacedo/dmpf-plugin:bounded-context <name> --boundedContext <ctx
 
 | Peça | Molde |
 | --- | --- |
-| `service.go`: `AggregateType`, `Destination`, `CommandConsumer`, `Resources` (com `Commands`), `Service` (com `Idempotency`), `Operation*`, `enqueueAll` e o helper `idempotent` | `apps/backend/bookings/application/service.go` |
+| `service.go`: `AggregateType`, `Destination`, `CommandConsumer`, `Resources` (com `Commands`), `Service` (com `Idempotency`), `Operation*`, o `origin` que os casos de uso passam a `usecase.Enqueue` e o helper `idempotent` | `apps/backend/bookings/application/service.go` |
 | Codec da resposta, um por operação de comando | `bookings/application/codecs.go` |
 | Caso de uso de criação (nove passos, ramo `creates`) | `bookings/application/reserve_booking.go` |
 | Caso de uso sobre existente | `bookings/application/cancel_booking.go` |
-| Consulta fora da UoW | `bookings/application/find_booking.go`, `find_booking_by_resource.go` |
+| Consulta fora da UoW, pelo esqueleto `usecase.Query[Operation]` | `bookings/application/find_booking.go`, `find_booking_by_resource.go` |
 | Caso de uso de consumo (sete disposições) — só se consome | `apps/backend/reservations/application/consume.go` |
 | Realização em memória para teste (`memory.Table[ID, S]` por agregado) | `libs/backend/go/memory/{tx,store,inbox,clock,errors}.go` |
 | Testes de sequência e instrumentação | `bookings/application/{sequence_test,instrumentation_test,doubles_test}.go` |
@@ -98,7 +98,7 @@ pnpm nx g @mateusmacedo/dmpf-plugin:bounded-context <name> --boundedContext <ctx
 | --- | --- |
 | `schema.sql`: agregado no plural, `tenant_id` à frente da chave, `<agregado>_id`, `version`, `snapshot jsonb`, coluna tipada só para o que uma consulta filtra | `apps/backend/bookings/provider/schema.sql` |
 | `schema.go`: o DDL embutido para o composition root migrar | `bookings/provider/schema.go` |
-| Repositório: struct de estado privado com tags JSON estáveis, optimistic locking | `bookings/provider/booking_repository.go` |
+| Repositório: struct de estado privado com tags JSON estáveis, optimistic locking; `postgres.SnapshotTable` quando o estado inteiro vive no `snapshot`, `Table` à mão quando há coluna tipada | `bookings/provider/resource_repository.go`, `booking_repository.go` |
 | Mapper evento → payload do contrato (instante → `google.protobuf.Timestamp` por `time.Unix(0, ns)`) | `bookings/provider/mapper.go` |
 | `Reader`, um por consulta | `bookings/provider/booking_reader.go` |
 | Testes de repositório, concorrência, leitura e e2e (build tag `integration`) | `bookings/provider/{repository_test,concurrency_test,reader_by_resource_test,e2e_test}.go` |
@@ -115,9 +115,9 @@ pnpm nx g @mateusmacedo/dmpf-plugin:bounded-context <name> --boundedContext <ctx
 | Peça | Molde |
 | --- | --- |
 | Configuração: `Defaults(role)`, `FromEnv`, `Validate`, variáveis sem `DMPF_` | `apps/backend/bookings/app/config.go` |
-| Composition root: `Run`, `RunWith`, serviço de aplicação, `serveAPI` gRPC, migrate no ready, relay; `Commands` ligado a `tx.CommandInbox`, a política por `kernelapp.IdempotencyPolicy` e a purga das entradas vencidas | `bookings/app/wiring.go` |
+| Composition root: `Run`, `RunWith`, `Waits` e `NewService`, `serveAPI` gRPC, migrate no ready, relay por `relay.Instrument(cfg.Relay, rt, catalog.AddressOf)`; `Commands` ligado a `tx.CommandInbox`, a política por `kernelapp.IdempotencyPolicy` e a purga por `kernelapp.StartPurge` com `kernelapp.Purge*` | `bookings/app/wiring.go` |
 | Serviço gRPC: `ServiceDesc` com um `unary` por método, `Methods()`, `Server` sobre o serviço de aplicação | `bookings/app/rpc/service.go` |
-| Mapeamento de erro para status gRPC | `bookings/app/rpc/errors.go` |
+| Erro do caso de uso para status gRPC: os handlers devolvem `kernelgrpc.StatusOf(err)` | `bookings/app/rpc/service.go` |
 | Catálogo do canal que o relay drena | `bookings/app/catalog.go` |
 | Autorização e instrumentação | `bookings/app/{authorization,telemetry}.go` |
 | e2e gRPC por bufconn sobre Postgres | `bookings/app/e2e_test.go` |
