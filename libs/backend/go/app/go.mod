@@ -6,6 +6,7 @@ require (
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/mateusmacedo/dmpf/libs/backend/go/application v0.1.0
 	github.com/mateusmacedo/dmpf/libs/backend/go/contracts v0.1.0
+	github.com/mateusmacedo/dmpf/libs/backend/go/grpc v0.1.0
 	github.com/mateusmacedo/dmpf/libs/backend/go/observability v0.1.0
 	github.com/mateusmacedo/dmpf/libs/backend/go/ports v0.1.0
 	github.com/mateusmacedo/dmpf/libs/backend/go/postgres v0.1.0
@@ -17,6 +18,7 @@ require (
 	go.opentelemetry.io/otel/sdk/log v1.47.0
 	go.opentelemetry.io/otel/sdk/metric v1.47.0
 	go.opentelemetry.io/otel/trace v1.47.0
+	google.golang.org/grpc v1.85.0-dev.0.20260825072537-93e31b48545e
 	google.golang.org/protobuf v1.36.12
 )
 
@@ -29,10 +31,11 @@ require (
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/mateusmacedo/dmpf/libs/backend/go/domain v0.1.0 // indirect
+	github.com/mateusmacedo/dmpf/libs/backend/go/transport v0.1.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
-	go.opentelemetry.io/contrib/bridges/otelslog v0.21.0 // indirect
-	go.opentelemetry.io/contrib/processors/baggagecopy v0.17.0 // indirect
+	golang.org/x/net v0.59.0 // indirect
 	golang.org/x/sync v0.23.0 // indirect
 	golang.org/x/sys v0.48.0 // indirect
 	golang.org/x/text v0.42.0 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260928230214-8a89bd6388cc // indirect
 )
