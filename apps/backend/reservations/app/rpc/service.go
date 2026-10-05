@@ -14,6 +14,7 @@ import (
 	servicev1 "github.com/mateusmacedo/dmpf/apps/backend/reservations/contract/gen/go/company/reservations/service/v1"
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
 	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
+	kernelgrpc "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
 
@@ -133,7 +134,7 @@ func (s Server) Reserve(ctx context.Context, req *servicev1.ReserveRequest) (*se
 	}
 	out, err := s.Service.Reserve(ctx, application.Reserve{Order: id, Items: int(req.GetItemCount())})
 	if err != nil {
-		return nil, statusOf(err)
+		return nil, kernelgrpc.StatusOf(err)
 	}
 	if rejection, refused := out.Rejection(); refused {
 		return &servicev1.ReserveResponse{Result: &servicev1.ReserveResponse_Rejection{Rejection: rejectionOf(rejection)}}, nil
@@ -155,7 +156,7 @@ func (s Server) Cancel(ctx context.Context, req *servicev1.CancelRequest) (*serv
 	}
 	out, err := s.Service.Cancel(ctx, application.Cancel{Order: id})
 	if err != nil {
-		return nil, statusOf(err)
+		return nil, kernelgrpc.StatusOf(err)
 	}
 	if rejection, refused := out.Rejection(); refused {
 		return &servicev1.CancelResponse{Result: &servicev1.CancelResponse_Rejection{Rejection: rejectionOf(rejection)}}, nil
@@ -176,7 +177,7 @@ func (s Server) FindReservation(ctx context.Context, req *servicev1.FindReservat
 	}
 	snapshot, err := s.Service.FindReservation(ctx, id)
 	if err != nil {
-		return nil, statusOf(err)
+		return nil, kernelgrpc.StatusOf(err)
 	}
 	return &servicev1.FindReservationResponse{Reservation: &servicev1.Reservation{
 		OrderId:   string(snapshot.Order),

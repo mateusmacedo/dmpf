@@ -32,7 +32,7 @@ func write[R any](
 	ctx, end := instrumentation.BeginOperation(ctx, operation)
 
 	if err := s.Authorize(ctx, cmd); err != nil {
-		end(authorizationResult(err))
+		end(ports.AuthorizationResult(err))
 		return zero, err
 	}
 
@@ -58,7 +58,7 @@ func write[R any](
 		return zero, err
 	}
 
-	category := outcomeCategory(outcome)
+	category := outcome.Category()
 	end(ports.Result{Outcome: category})
 	if !replayed {
 		instrumentation.Audit(ctx, ports.AuditEvent{
@@ -89,7 +89,7 @@ func decideAndWrite[R any](ctx context.Context, res Resources, order domain.Orde
 	if err := res.Reservations.Save(ctx, order, reservation.Snapshot(), stored); err != nil {
 		return zero, err
 	}
-	if err := enqueueAll(ctx, res.Outbox, identity, order, stored+1, accepted.Events()); err != nil {
+	if err := usecase.Enqueue(ctx, res.Outbox, identity, origin(order), stored+1, accepted.Events()); err != nil {
 		return zero, err
 	}
 	return usecase.Accepted(accepted.Response()), nil

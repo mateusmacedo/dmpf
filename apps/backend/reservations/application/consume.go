@@ -7,7 +7,6 @@ import (
 
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
 	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
-	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
 
@@ -91,7 +90,7 @@ func (s Service) consumeFirst(
 		}
 		return err
 	}
-	if err := enqueueAll(ctx, res.Outbox, identity, cmd.Order, stored+1, accepted.Events()); err != nil {
+	if err := usecase.Enqueue(ctx, res.Outbox, identity, origin(cmd.Order), stored+1, accepted.Events()); err != nil {
 		return err
 	}
 
@@ -99,36 +98,6 @@ func (s Service) consumeFirst(
 	return pending.Complete(ctx, ports.Completion{Status: ports.StatusProcessed, At: identity.OccurredAt})
 }
 
-// enqueueAll authors the seven fields the application service owns (FND-04
-// §2.3, BLK-04, BLK-05).
-func enqueueAll(
-	ctx context.Context,
-	outbox ports.Outbox,
-	identity usecase.Identity,
-	order domain.OrderID,
-	written ports.Version,
-	events []kernel.DomainEvent,
-) error {
-	if len(events) > len(identity.MessageIDs) {
-		panic(fmt.Sprintf(
-			"application: the decision produced %d events but only %d identifiers were resolved; raise maxEventsPerCommand",
-			len(events), len(identity.MessageIDs)))
-	}
-
-	for i, event := range events {
-		entry := ports.OutboxEntry{
-			MessageID:        identity.MessageIDs[i],
-			OccurredAt:       identity.OccurredAt,
-			Intent:           ports.PublishIntent{Destination: Destination, PartitionKey: string(order)},
-			AggregateType:    AggregateType,
-			AggregateID:      string(order),
-			AggregateVersion: written,
-			Event:            event,
-			Context:          usecase.MessageContextFor(ctx, identity.MessageIDs[i]),
-		}
-		if err := outbox.Enqueue(ctx, entry); err != nil {
-			return err
-		}
-	}
-	return nil
+func origin(order domain.OrderID) usecase.Origin {
+	return usecase.Origin{Destination: Destination, AggregateType: AggregateType, AggregateID: string(order)}
 }

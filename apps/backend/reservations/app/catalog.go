@@ -28,13 +28,3 @@ func OrdersChannel(cfg Config) channel.Channel {
 func ReservationsChannel(cfg Config) channel.Channel {
 	return channel.NewKafka(application.Destination, cfg.ReservationsTopic, cfg.ReservationsDLQ, cfg.Group, reservationConfirmedType, reservationConfirmedContract)
 }
-
-// NewCatalog is the catalog of ASY-01 holding the one channel a role uses,
-// validated so a missing item refuses the process at startup.
-func NewCatalog(ch channel.Channel) (channel.Catalog, error) {
-	catalog := channel.Catalog{ch.Name: ch}
-	if err := catalog.Validate(); err != nil {
-		return nil, err
-	}
-	return catalog, nil
-}

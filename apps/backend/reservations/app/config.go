@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
+
 	"github.com/mateusmacedo/dmpf/libs/backend/go/app/relay"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/kafka"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability"
@@ -132,6 +134,7 @@ func Defaults(role Role) Config {
 			BackoffBase:    200 * time.Millisecond,
 			BackoffCeiling: 30 * time.Second,
 			ShutdownGrace:  observability.ShutdownGrace,
+			System:         semconv.MessagingSystemKafka.Value.AsString(),
 		},
 		OrdersSource:    "urn:dmpf:reference-orders",
 		Wait:            2 * time.Second,

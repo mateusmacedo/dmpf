@@ -5,6 +5,7 @@ import (
 
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
 	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb"
 )
 
 func TestReserveAccepts(t *testing.T) {
@@ -12,7 +13,7 @@ func TestReserveAccepts(t *testing.T) {
 
 	acc, rej := r.Reserve(domain.Reserve{Items: 3, At: at})
 
-	requireAccepted[domain.ReservedResponse](t, rej)
+	tb.RequireAccepted(t, rej)
 	if got, want := acc.Response(), (domain.ReservedResponse{Order: orderID, Items: 3}); got != want {
 		t.Fatalf("Response() = %+v, want %+v", got, want)
 	}
@@ -80,7 +81,7 @@ func TestReserveRejects(t *testing.T) {
 
 			acc, rej := r.Reserve(domain.Reserve{Items: tt.items, At: at})
 
-			requireRejected(t, acc, rej, tt.code)
+			tb.RequireRejected(t, acc, rej, tt.code)
 			requireUnchanged(t, before, r.Snapshot())
 		})
 	}
