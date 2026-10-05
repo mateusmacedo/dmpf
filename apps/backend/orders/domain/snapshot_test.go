@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/domain"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb"
 )
 
 func TestFromSnapshotRoundTripsTheObservableState(t *testing.T) {
@@ -46,7 +47,7 @@ func TestFromSnapshotRestoresTheStatusAsBehaviour(t *testing.T) {
 		t.Fatalf("Status = %v, want Placed", got)
 	}
 	acc, rej := reconstituted.AddItem(domain.AddItem{SKU: "ZZZ", Quantity: 1, At: at})
-	requireRejected(t, acc, rej, domain.CodeOrderNotOpen)
+	tb.RequireRejected(t, acc, rej, domain.CodeOrderNotOpen)
 }
 
 func TestFromSnapshotRestoresTheItemLimitAsBehaviour(t *testing.T) {
@@ -55,5 +56,5 @@ func TestFromSnapshotRestoresTheItemLimitAsBehaviour(t *testing.T) {
 	reconstituted := domain.FromSnapshot(full)
 
 	acc, rej := reconstituted.AddItem(domain.AddItem{SKU: "ZZZ", Quantity: 1, At: at})
-	requireRejected(t, acc, rej, domain.CodeOrderItemLimitExceeded)
+	tb.RequireRejected(t, acc, rej, domain.CodeOrderItemLimitExceeded)
 }

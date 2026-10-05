@@ -3,7 +3,6 @@
 package appkit
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -52,61 +51,16 @@ func NewOrders(t testing.TB, clock ports.Clock, ids ports.IDGenerator) Harness {
 	if err != nil {
 		t.Fatalf("appkit.NewOrders: %v", err)
 	}
-	return Harness{
-		Service: application.Service{
-			UoW:         postgres.NewUnitOfWork(pool, bind),
-			Reader:      provider.NewOrderReader(postgres.NewReadPool(pool)),
-			Clock:       clock,
-			IDs:         ids,
-			Authorize:   usecase.AllowAll[application.Operation](),
-			ItemLimit:   app.DefaultItemLimit,
-			Idempotency: policy,
-		},
-		Pool: pool,
-	}
-}
-
-func bind(tx *postgres.Tx) application.Resources {
-	return application.Resources{
-		Orders:   provider.NewOrderRepository(tx),
-		Outbox:   tx.Outbox(provider.Mapper{}),
-		Commands: tx.CommandInbox(application.CommandConsumer, time.Second),
-	}
-}
-
-// Enqueued is one outbox record as the drain will read it, which is the effect
-// edge of a producing context.
-type Enqueued struct {
-	MessageID        string
-	MessageType      string
-	AggregateVersion int64
-	Destination      string
-	Status           string
+	service := app.NewService(pool, clock, ids, app.Waits{Command: time.Second})
+	service.Authorize = usecase.AllowAll[application.Operation]()
+	service.ItemLimit = app.DefaultItemLimit
+	service.Idempotency = policy
+	return Harness{Service: service, Pool: pool}
 }
 
 // Outbox reads what the use case left for the relay, ordered as it was
 // enqueued, so a test asserts the sequence and not just the presence.
-func (h Harness) Outbox(t testing.TB) []Enqueued {
+func (h Harness) Outbox(t testing.TB) []pg.Enqueued {
 	t.Helper()
-	const query = `SELECT message_id, message_type, aggregate_version, destination, status
-		FROM outbox ORDER BY id`
-
-	rows, err := h.Pool.Query(context.Background(), query)
-	if err != nil {
-		t.Fatalf("appkit.Outbox: %v", err)
-	}
-	defer rows.Close()
-
-	var out []Enqueued
-	for rows.Next() {
-		var e Enqueued
-		if err := rows.Scan(&e.MessageID, &e.MessageType, &e.AggregateVersion, &e.Destination, &e.Status); err != nil {
-			t.Fatalf("appkit.Outbox: scan: %v", err)
-		}
-		out = append(out, e)
-	}
-	if err := rows.Err(); err != nil {
-		t.Fatalf("appkit.Outbox: %v", err)
-	}
-	return out
+	return pg.Outbox(t, h.Pool)
 }
