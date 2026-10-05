@@ -166,7 +166,22 @@ func TestValidateEdgeRefusesASubjectRouteWithoutPermission(t *testing.T) {
 		t.Fatalf("ValidateEdge() = %v, want ErrPermissionRequired", err)
 	}
 	r.Permission = "orders:write"
+	r.IdempotencyKey = "Idempotency-Key"
 	if err := r.ValidateEdge(); err != nil {
 		t.Fatalf("ValidateEdge() = %v, want nil", err)
+	}
+}
+
+func TestValidateEdgeRefusesAPostWithoutIdempotencyKey(t *testing.T) {
+	r := route(http.MethodPost)
+	if err := r.ValidateEdge(); !errors.Is(err, provider.ErrIdempotencyKeyRequired) {
+		t.Fatalf("ValidateEdge() = %v, want ErrIdempotencyKeyRequired", err)
+	}
+	r.IdempotencyKey = "Idempotency-Key"
+	if err := r.ValidateEdge(); err != nil {
+		t.Fatalf("ValidateEdge() = %v, want nil", err)
+	}
+	if err := route(http.MethodGet).ValidateEdge(); err != nil {
+		t.Fatalf("ValidateEdge(GET) = %v, want nil: only POST creates", err)
 	}
 }
