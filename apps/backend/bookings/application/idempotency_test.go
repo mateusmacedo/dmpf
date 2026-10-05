@@ -16,9 +16,7 @@ func reserve(quantity int) application.ReserveBooking {
 }
 
 func (h *harness) outboxLen() int {
-	h.store.mu.Lock()
-	defer h.store.mu.Unlock()
-	return len(h.store.outbox)
+	return len(h.store.Entries())
 }
 
 func TestARepeatedReserveReplaysWithoutASecondEffect(t *testing.T) {
@@ -85,8 +83,7 @@ func TestTheSameKeyWithAnotherPayloadIsAMismatch(t *testing.T) {
 }
 
 func TestACommandWaitingPastTheCeilingIsInFlight(t *testing.T) {
-	h := newHarness(t)
-	h.uow.registerErr = ports.ErrRegisterTimeout
+	h := newHarness(t, withRegisterError(ports.ErrRegisterTimeout))
 
 	_, err := h.service.RegisterResource(withExecution(t, context.Background()), application.RegisterResource{Code: testResCode})
 

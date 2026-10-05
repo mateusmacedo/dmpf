@@ -123,7 +123,7 @@ func TestCancelEnqueuesTheCancellationInTheSameTransaction(t *testing.T) {
 		t.Fatalf("CancelBooking() error = %v, want nil", err)
 	}
 
-	entries := h.store.outbox
+	entries := h.store.Entries()
 	if len(entries) != 1 {
 		t.Fatalf("outbox entries = %d, want 1", len(entries))
 	}
@@ -141,7 +141,7 @@ func TestRegisterEnqueuesTheRegistrationInTheSameTransaction(t *testing.T) {
 		t.Fatalf("RegisterResource() error = %v, want nil", err)
 	}
 
-	entries := h.store.outbox
+	entries := h.store.Entries()
 	if len(entries) != 1 {
 		t.Fatalf("outbox entries = %d, want 1", len(entries))
 	}
