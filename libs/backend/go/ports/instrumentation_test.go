@@ -3,6 +3,7 @@ package ports_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
@@ -70,5 +71,37 @@ func TestOutcomeCategoriesAreTheFourLowercaseLabels(t *testing.T) {
 		if string(category) != label {
 			t.Fatalf("OutcomeCategory = %q, want %q: the label is the metric value of outcome_category", category, label)
 		}
+	}
+}
+
+func TestAuthorizationResultReadsADeclaredDenialAsDeniedWithoutError(t *testing.T) {
+	result := ports.AuthorizationResult(fmt.Errorf("orders: %w", ports.ErrDenied))
+
+	if result.Outcome != ports.OutcomeDenied {
+		t.Fatalf("Outcome = %q, want %q", result.Outcome, ports.OutcomeDenied)
+	}
+	if result.Err != nil {
+		t.Fatalf("Err = %v on a denial, want nil: only OutcomeFailed carries the error", result.Err)
+	}
+}
+
+func TestAuthorizationResultReadsAnyOtherErrorAsFailureWithTheRawError(t *testing.T) {
+	cause := errors.New("timeout dialing the policy engine")
+
+	result := ports.AuthorizationResult(cause)
+
+	if result.Outcome != ports.OutcomeFailed {
+		t.Fatalf("Outcome = %q, want %q", result.Outcome, ports.OutcomeFailed)
+	}
+	if result.Err != cause {
+		t.Fatalf("Err = %v, want the raw error %v", result.Err, cause)
+	}
+}
+
+func TestAuthorizationResultFindsTheDenialInsideAJoinedError(t *testing.T) {
+	result := ports.AuthorizationResult(errors.Join(errors.New("policy engine"), ports.ErrDenied))
+
+	if result.Outcome != ports.OutcomeDenied || result.Err != nil {
+		t.Fatalf("result = %+v, want a denial without error", result)
 	}
 }
