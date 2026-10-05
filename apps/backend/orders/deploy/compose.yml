@@ -26,7 +26,7 @@ services:
       GRPC_TLS_KEY_FILE: /pki/dmpf-orders-api.key
     deploy:
       resources:
-        limits: { cpus: '0.216', memory: 192M }
+        limits: { cpus: '0.2808', memory: 211M }
     depends_on:
       pki-init:
         condition: service_completed_successfully
