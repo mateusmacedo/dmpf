@@ -10,7 +10,6 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	obsclock "github.com/mateusmacedo/dmpf/libs/backend/go/observability/clock"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/logging"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/redact"
 )
 
@@ -59,16 +58,15 @@ func withHealthLog(logger *slog.Logger, clock obsclock.Clock, route string, next
 
 func (h *healthAccess) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	markSelfLogged(rw)
-	w := &statusRecorder{ResponseWriter: rw, status: http.StatusOK}
+	w := newRecorder(rw)
 	h.next.ServeHTTP(w, r)
 
-	outcome := outcomeOf(w.status)
-	level := logging.Severity(logging.Server, outcome)
+	level, enabled := accessLevel(r.Context(), h.logger, w.status)
 	succeeded := w.status >= http.StatusOK && w.status < http.StatusMultipleChoices
-	if !h.logger.Enabled(r.Context(), level) || (succeeded && !h.due()) {
+	if !enabled || (succeeded && !h.due()) {
 		return
 	}
-	h.logger.LogAttrs(r.Context(), level, "http request", accessAttrs(r.Method, h.route, w.status, outcome)...)
+	logRequest(r.Context(), r, h.logger, level, h.route, w.status)
 }
 
 func (h *healthAccess) due() bool {

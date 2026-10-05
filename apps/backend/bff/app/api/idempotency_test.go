@@ -7,7 +7,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mateusmacedo/dmpf/apps/backend/bff/app/rpc"
 	ordersv1 "github.com/mateusmacedo/dmpf/apps/backend/orders/contract/gen/go/company/orders/service/v1"
 	kernelgrpc "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
@@ -42,7 +41,7 @@ func TestTheContextReceivesTheKeyDerivedFromTheSubject(t *testing.T) {
 	if len(calls) != 1 {
 		t.Fatalf("AddItem reached the context %d times, want 1", len(calls))
 	}
-	got := calls[0].md.Get(rpc.IdempotencyKeyKey)
+	got := calls[0].md.Get(kernelgrpc.IdempotencyKey)
 	if len(got) != 1 || got[0] != derived("tester", "k-1") {
 		t.Fatalf("idempotency-key = %v, want hex(sha256(subject 0x00 key)) %s", got, derived("tester", "k-1"))
 	}
@@ -64,7 +63,7 @@ func TestTwoSubjectsWithTheSameClientKeyNeverShareAnEntry(t *testing.T) {
 	if len(calls) != 2 {
 		t.Fatalf("AddItem reached the context %d times, want 2", len(calls))
 	}
-	if first, second := calls[0].md.Get(rpc.IdempotencyKeyKey), calls[1].md.Get(rpc.IdempotencyKeyKey); first[0] == second[0] {
+	if first, second := calls[0].md.Get(kernelgrpc.IdempotencyKey), calls[1].md.Get(kernelgrpc.IdempotencyKey); first[0] == second[0] {
 		t.Fatalf("both subjects sent key %q: the second would replay the first one's answer", first[0])
 	}
 }

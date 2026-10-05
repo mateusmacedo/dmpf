@@ -18,6 +18,7 @@ import (
 	"github.com/mateusmacedo/dmpf/apps/backend/bff/app/rpc"
 	ordersv1 "github.com/mateusmacedo/dmpf/apps/backend/orders/contract/gen/go/company/orders/service/v1"
 	reservationsv1 "github.com/mateusmacedo/dmpf/apps/backend/reservations/contract/gen/go/company/reservations/service/v1"
+	kernelgrpc "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
 	kernelhttp "github.com/mateusmacedo/dmpf/libs/backend/go/http"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/admission"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/deadline"
@@ -204,7 +205,7 @@ func TestAnUnavailableReserveIsRetriedUnderTheSameKey(t *testing.T) {
 	if len(calls) != 2 {
 		t.Fatalf("Reserve reached the context %d times, want 2: a command with a key is retried (GRP-09, IDM-01)", len(calls))
 	}
-	first, second := calls[0].md.Get(rpc.IdempotencyKeyKey), calls[1].md.Get(rpc.IdempotencyKeyKey)
+	first, second := calls[0].md.Get(kernelgrpc.IdempotencyKey), calls[1].md.Get(kernelgrpc.IdempotencyKey)
 	if len(first) != 1 || !slices.Equal(first, second) {
 		t.Fatalf("keys = %v then %v, want the same key on both attempts", first, second)
 	}
@@ -385,12 +386,14 @@ func TestAMalformedCorrelationIsReplaced(t *testing.T) {
 
 func TestTheContractsAreServedOnlyWhenProvided(t *testing.T) {
 	silent := newFixture(t, &fakeContexts{})
-	if rec := silent.do(t, http.MethodGet, api.OrdersContractPath, nil); rec.Code != http.StatusNotFound {
-		t.Fatalf("contract without document = %d, want 404", rec.Code)
+	for _, path := range []string{api.OrdersContractPath, api.BookingsContractPath} {
+		if rec := silent.do(t, http.MethodGet, path, nil); rec.Code != http.StatusNotFound {
+			t.Fatalf("%s without document = %d, want 404", path, rec.Code)
+		}
 	}
 
-	f := newFixture(t, &fakeContexts{}, withContracts("orders: yes", "reservations: yes"))
-	for path, want := range map[string]string{api.OrdersContractPath: "orders: yes", api.ReservationsContractPath: "reservations: yes"} {
+	f := newFixture(t, &fakeContexts{}, withContracts("orders: yes", "reservations: yes"), withBookingsContract("bookings: yes"))
+	for path, want := range map[string]string{api.OrdersContractPath: "orders: yes", api.ReservationsContractPath: "reservations: yes", api.BookingsContractPath: "bookings: yes"} {
 		rec := f.do(t, http.MethodGet, path, nil)
 		if rec.Code != http.StatusOK || rec.Body.String() != want {
 			t.Fatalf("%s = %d %q, want 200 %q", path, rec.Code, rec.Body.String(), want)
@@ -427,6 +430,20 @@ func TestAnIdempotencyKeyTheWireRejectsNeverReachesAContext(t *testing.T) {
 		t.Run(fmt.Sprintf("%q", key), func(t *testing.T) {
 			rec := f.do(t, http.MethodPost, "/reservations/o-1/cancel", nil,
 				"Idempotency-Key", key, "Content-Type", "application/json")
+
+			requireRejection(t, rec, http.StatusBadRequest, "invalid-idempotency-key")
+		})
+	}
+	if n := f.fake.total(); n != 0 {
+		t.Fatalf("calls = %d, want 0", n)
+	}
+}
+
+func TestAGetWithAnInvalidIdempotencyKeyNeverReachesAContext(t *testing.T) {
+	f := newFixture(t, &fakeContexts{})
+	for _, key := range []string{"abcé", strings.Repeat("k", 200), " "} {
+		t.Run(fmt.Sprintf("%q", key), func(t *testing.T) {
+			rec := f.do(t, http.MethodGet, "/orders/o-1", nil, "Idempotency-Key", key)
 
 			requireRejection(t, rec, http.StatusBadRequest, "invalid-idempotency-key")
 		})
