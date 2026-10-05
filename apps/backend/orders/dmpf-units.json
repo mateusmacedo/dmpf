@@ -56,6 +56,18 @@
       "capability": "io.storage"
     },
     {
+      "package": "github.com/twmb/franz-go",
+      "versions": ">=1.21.6 <2",
+      "entrypoints": ["github.com/twmb/franz-go/pkg/kgo"],
+      "capability": "io.messaging"
+    },
+    {
+      "package": "github.com/twmb/franz-go/pkg/kadm",
+      "versions": ">=1.18 <2",
+      "entrypoints": ["github.com/twmb/franz-go/pkg/kadm"],
+      "capability": "io.messaging"
+    },
+    {
       "package": "go.opentelemetry.io/otel",
       "versions": ">=1.46.0 <2",
       "entrypoints": ["go.opentelemetry.io/otel", "go.opentelemetry.io/otel/propagation"],
