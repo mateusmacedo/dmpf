@@ -125,8 +125,8 @@ func TestRevisaoComDataECondicaoEAdmitida(t *testing.T) {
 	}
 }
 
-func TestX002QuandoClasseForaDeE1aE3(t *testing.T) {
-	for _, k := range []exception.Kind{"", "external", "EXTERNAL-DEPENDENCY", "tooling"} {
+func TestX002QuandoClasseForaDaE1(t *testing.T) {
+	for _, k := range []exception.Kind{"", "external", "EXTERNAL-DEPENDENCY", "tooling", "bom-combination", "governance-instrument"} {
 		t.Run(string(k), func(t *testing.T) {
 			x := admissivel()
 			x.Object.Kind = k
@@ -217,23 +217,6 @@ func TestSemSujeitoResolvidoAMetadeDeBlocoNaoDecide(t *testing.T) {
 	x := admissivel()
 	if ds := exception.Admit(x, agora); len(ds) != 0 {
 		t.Fatalf("pedido sem sujeito resolvido recusado por %v", codigos(ds))
-	}
-}
-
-// A metade de bloco vale só para E1: combinação do BOM e instrumento de
-// governança não falam de import, e o par (bloco, capability) não os alcança.
-func TestX003DeBlocoNaoAlcancaE2NemE3(t *testing.T) {
-	for _, k := range []exception.Kind{exception.KindBOMCombination, exception.KindGovernanceInstrument} {
-		t.Run(string(k), func(t *testing.T) {
-			x := admissivel()
-			x.Object.Kind = k
-			s := exception.Subject{Block: rule.BlockDomain, Capability: rule.CapIONetwork}
-			for _, d := range exception.AdmitIn(x, exception.RegistryBOM, s, agora) {
-				if d.Code == rule.CodeX003 {
-					t.Fatalf("X003 de bloco emitido para %s: %s", k, d.Detail)
-				}
-			}
-		})
 	}
 }
 
@@ -366,28 +349,9 @@ func TestRenovacaoAnteriorAoVencimentoNaoReabre(t *testing.T) {
 	exigeCodigo(t, exception.Admit(x, x.ValidUntil+dia), rule.CodeX006)
 }
 
-func TestX007QuandoAExcecaoEstaNoRegistroErrado(t *testing.T) {
-	t.Run("E2 no manifesto", func(t *testing.T) {
-		x := admissivel()
-		x.Object.Kind = exception.KindBOMCombination
-		exigeCodigo(t, exception.AdmitIn(x, exception.RegistryManifest, exception.Subject{}, agora), rule.CodeX007)
-	})
-	t.Run("E3 no manifesto", func(t *testing.T) {
-		x := admissivel()
-		x.Object.Kind = exception.KindGovernanceInstrument
-		exigeCodigo(t, exception.AdmitIn(x, exception.RegistryManifest, exception.Subject{}, agora), rule.CodeX007)
-	})
-	t.Run("E1 no BOM", func(t *testing.T) {
-		x := admissivel()
-		exigeCodigo(t, exception.AdmitIn(x, exception.RegistryBOM, exception.Subject{}, agora), rule.CodeX007)
-	})
-	t.Run("E2 no BOM é admitida", func(t *testing.T) {
-		x := admissivel()
-		x.Object.Kind = exception.KindBOMCombination
-		if ds := exception.AdmitIn(x, exception.RegistryBOM, exception.Subject{}, agora); len(ds) != 0 {
-			t.Fatalf("E2 no BOM recusada por %v", codigos(ds))
-		}
-	})
+func TestX007QuandoAExcecaoEstaForaDoManifesto(t *testing.T) {
+	x := admissivel()
+	exigeCodigo(t, exception.AdmitIn(x, exception.Registry("bom"), exception.Subject{}, agora), rule.CodeX007)
 }
 
 // Um pedido ruim em vários eixos precisa mostrar TODOS: corrigir um item por

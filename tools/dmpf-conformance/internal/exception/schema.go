@@ -10,18 +10,16 @@ import "slices"
 // domain não tem. O zero significa ausente — não 1970.
 type Instant int64
 
-// Kind é o conjunto E1–E3 de GOV-31. Fechado: pedido cujo objeto não cai em
-// nenhuma das três não é exceção prevista, e X002 o recusa.
+// Kind é o conjunto de GOV-31, reduzido à E1 pelo ADR-059. Fechado: pedido
+// cujo objeto não cai nele não é exceção prevista, e X002 o recusa.
 type Kind string
 
 const (
-	KindExternalDependency   Kind = "external-dependency"
-	KindBOMCombination       Kind = "bom-combination"
-	KindGovernanceInstrument Kind = "governance-instrument"
+	KindExternalDependency Kind = "external-dependency"
 )
 
 func Kinds() []Kind {
-	return []Kind{KindExternalDependency, KindBOMCombination, KindGovernanceInstrument}
+	return []Kind{KindExternalDependency}
 }
 
 func IsKind(k Kind) bool {
@@ -57,8 +55,7 @@ const (
 )
 
 // Object é o que a exceção pede para autorizar. `Unit` é o ID da unidade no
-// manifesto; `Identity` é o objeto nominal — um import path em E1, uma
-// combinação em E2, um instrumento em E3.
+// manifesto; `Identity` é o objeto nominal, o import path da E1.
 type Object struct {
 	Kind     Kind
 	Unit     string

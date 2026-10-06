@@ -42,23 +42,6 @@ const (
 	CodeX007 Code = "DMPF-X007"
 )
 
-// BOM-01..BOM-09 e GOV-36 decidem a certificação de uma combinação, não a
-// aresta: ficam fora do conjunto fechado de §10.3, como os X*.
-const (
-	CodeB001 Code = "DMPF-B001"
-	CodeB002 Code = "DMPF-B002"
-	CodeB003 Code = "DMPF-B003"
-	CodeB004 Code = "DMPF-B004"
-	CodeB005 Code = "DMPF-B005"
-	CodeB006 Code = "DMPF-B006"
-	CodeB007 Code = "DMPF-B007"
-	CodeB008 Code = "DMPF-B008"
-	CodeB009 Code = "DMPF-B009"
-	CodeB010 Code = "DMPF-B010"
-	CodeB011 Code = "DMPF-B011"
-	CodeB012 Code = "DMPF-B012"
-)
-
 type CodeSpec struct {
 	Code       Code
 	Summary    string
@@ -93,28 +76,12 @@ var codeSpecs = []CodeSpec{
 // A ordem é a do catálogo fechado N1–N7 de GOV-32.
 var governanceSpecs = []CodeSpec{
 	{CodeX001, "Pedido de exceção sem os itens obrigatórios", "GOV-30, GOV-33", true},
-	{CodeX002, "Objeto da exceção fora das classes E1–E3", "GOV-31", true},
+	{CodeX002, "Objeto da exceção fora da classe E1", "GOV-31", true},
 	{CodeX003, "Objeto que nenhuma exceção alcança: aresta, célula ou política de bloco", "GOV-32 N1, N2", true},
 	{CodeX004, "Objeto sob identidade reservada do catálogo fechado", "GOV-32 N1, N3–N7", true},
 	{CodeX005, "Ciclo de vida da exceção inconsistente", "GOV-34", true},
 	{CodeX006, "Exceção vencida sem renovação posterior", "GOV-34", true},
 	{CodeX007, "Exceção declarada fora do registro que a comporta", "GOV-35", true},
-}
-
-// A ordem é a da tabela de diagnósticos do BOM, e é a que a documentação usa.
-var bomSpecs = []CodeSpec{
-	{CodeB001, "Seção ausente, ou vazia sem reason", "BOM-01", true},
-	{CodeB002, "Campo obrigatório ausente; version com faixa; state, criticality ou subject fora do conjunto", "BOM-03", true},
-	{CodeB003, "Transição inválida entre o BOM anterior e o atual, ou depreciada sem deprecated_at/successor", "BOM-07", true},
-	{CodeB004, "Certificada sem um dos cinco campos de evidência", "BOM-07", true},
-	{CodeB005, "evidence_digest diferente do SHA-256 do arquivo em bom/evidence/<release>/", "BOM-03", true},
-	{CodeB006, "compatible_with com identity e version sem execução na evidência referenciada", "BOM-04", true},
-	{CodeB007, "Valor resolvido por registry_ref diferente da version declarada; registry_ref ausente em sujeito da tabela", "BOM-06", true},
-	{CodeB008, "Certificada com valid_until anterior a now — erro, nunca aviso", "BOM-08", true},
-	{CodeB009, "cve ausente; CVE aberta sem owner", "BOM-03, BOM-09", true},
-	{CodeB010, "metrics declaradas diferentes das derivadas de exceptions[].history", "GOV-36", true},
-	{CodeB011, "Mais de um arquivo em bom/dmpf/ sem --release; release do documento diferente do nome do arquivo; tag diferente de dmpf@<release>", "BOM-02", true},
-	{CodeB012, "Entrada kernel ou contract de release a partir de 0.2.0 com tag de módulo Go ausente ou não ancestral do commit alvo, ou módulo fora do go.work; módulo de contrato do go.work sem entrada contract", "KRN-14", true},
 }
 
 // CodeSpecs devolve só as dezesseis de §10.3: é o conjunto que a RFC fixa, e
@@ -131,12 +98,6 @@ func GovernanceCodeSpecs() []CodeSpec {
 	return out
 }
 
-func BOMCodeSpecs() []CodeSpec {
-	out := make([]CodeSpec, len(bomSpecs))
-	copy(out, bomSpecs)
-	return out
-}
-
 func LookupCode(c Code) (CodeSpec, bool) {
 	for _, s := range codeSpecs {
 		if s.Code == c {
@@ -144,11 +105,6 @@ func LookupCode(c Code) (CodeSpec, bool) {
 		}
 	}
 	for _, s := range governanceSpecs {
-		if s.Code == c {
-			return s, true
-		}
-	}
-	for _, s := range bomSpecs {
 		if s.Code == c {
 			return s, true
 		}
