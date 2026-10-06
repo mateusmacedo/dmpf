@@ -77,6 +77,9 @@ Antes de promovê-la, suba para a mesma versão o `require` de cada irmão nos
 `go.work` a partir dos `go.mod`). Sem isso, o consumidor de fora do workspace
 recebe os irmãos na versão anterior, como registra o ADR-047.
 
+Se o job falhar depois do merge, rode o `nx-release.yml` por `workflow_dispatch`
+na `master` com o input `version` (por exemplo, `1.0.0-rc.0`).
+
 ## Conventional Commits
 
 As mensagens de commit seguem o padrão [Conventional Commits](https://www.conventionalcommits.org):
