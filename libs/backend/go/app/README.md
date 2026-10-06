@@ -75,6 +75,13 @@ fingerprint canônico no que a inbox compara (`IDM-04`). Fica neste bloco porque
 `depguard` do bloco `application` não admite `crypto/sha256`. Espera ou retenção
 não positiva é `ErrInvalidIdempotencyPolicy`.
 
+`Policies` (`policies.go`) é a seção de política que a `Config` de todo contexto
+carrega: espera e retenção da idempotência, retenção da outbox e, só em contexto
+que consome, da inbox, além do intervalo e do lote da purga.
+`Validate(consumes, invalid)` recusa o primeiro valor não positivo, nomeado,
+embrulhando `invalid`, o `ErrInvalidPolicy` do contexto; regras próprias do
+contexto, como a INB-14 do `reservations`, ficam no `Validate` dele.
+
 `RunPurge(ctx, cfg, clock, logs, fn)` (`purge.go`) é o laço que mantém uma
 tabela do kernel dentro da retenção, no processo dono dela: `serve-api` purga as
 entradas de comando vencidas, `serve-relay` a outbox publicada e
