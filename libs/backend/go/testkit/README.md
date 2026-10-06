@@ -77,18 +77,40 @@ O `tb` também traz o que os testes de contexto repetiam:
 - `Reexec(t, run, env...)`, que reexecuta um teste do próprio binário num
   processo filho e devolve stdout, stderr e o término, para observar um efeito
   sobre o processo inteiro sem sofrê-lo;
+- `GoldenSuite[M](t, record, specs...)` e `UpdateGolden[M](t, specs...)`, a
+  suíte golden de contrato (`golden.go`): cada `Spec[M]` diz onde a fixture
+  vive, relativa à raiz do repositório, o que ela declara, a origem e o assunto
+  que o relay do contexto escreve no envelope e como o gerador lê o payload;
+  `PackedCase`, `UnknownFieldCase` e `NonCanonicalCase` montam os
+  casos, este último também com campo de mensagem (um `Timestamp`, por
+  exemplo). Os módulos de contrato instanciam `M` em `proto.Message` e mantêm
+  `TestUpdateGolden` como teste de topo, porque o catálogo de evidência o pula
+  pelo nome exato;
 - em `tb/pg`, os leitores das tabelas do kernel: `Outbox` (os registros em
   ordem, como `Enqueued`), `Settled` (espera o relay publicar), `Counts` (as
-  contagens numa única instrução) e `Tables` (as tabelas do schema `public`).
+  contagens numa única instrução) e `Tables` (as tabelas do schema `public`); e
+  os helpers de repositório `Within`, `Seed` e `Load`, que alcançam o
+  repositório de um provider pela única via que ele aceita, uma transação.
 
 O `providerkit` exporta os candidatos sobre o `memory` (`MemoryUnitOfWork`,
 `MemoryInbox`), usados pelo próprio kit e por `memory/conformance_test.go`.
+
+O `serviceskit` é adotável pelos testes de caso de uso dos contextos:
+`UnitOfWork[R](fakes, bind)` devolve a UoW tipada pelos recursos do contexto, e
+`Tx.CommandInbox`, `Fakes.Clock`, `Fakes.IDs`, `Authorize[C]` e `FoldDigest`
+substituem os dublês de gravação que cada contexto copiava. Os dublês gravam em
+`Steps` os passos que o `sequence_test` afirma (`within`, `commands.Register`,
+`outbox.Enqueue`, `commands.Complete`, `commit`, e os do contexto),
+`WithinCalls`, `Commits` e `Binds` contam o que o caso de uso abriu, descontado
+o arranjo marcado por `MarkSeeded`, e `FailRegister` e `Faults` (com
+`FaultyRepository` e `FaultyOutbox`) injetam as falhas de registro, carga,
+`Save` e `Enqueue` que a realização em memória nunca produz sozinha.
 
 | Kit | Exige do candidato | Exercita | Aprova quando |
 | --- | --- | --- | --- |
 | `domainkit` | `Subject[S,R]`: a UPR, a projeção da resposta, do evento e do estado, e um clone do alvo — tudo **por valor**, sem duplo (`ORA-36`) | `Run` executa a UPR e lê o desfecho duas vezes; `ReadTwice` compara duas execuções | `Equal(got, want)` sem diagnóstico: ramo, resposta ou rejeição, sequência ordenada de eventos e estado antes/depois iguais aos da fixture (`ORA-31`, `ORA-34`); sob `Rejected`, sequência vazia e estado idêntico (`ORA-38`); nenhum segundo acessor de eventos (`ORA-37`) |
 | `serviceskit` | Um service composto sobre `Fakes.UnitOfWork` — os fakes envolvem o `memory` e registram cada gesto no `Ledger` com a identidade da transação que o fez | O caso de uso real, aceito e recusado | `Decide` sem diagnóstico: em cada transação commitada, escrita e enfileiramento vêm juntos e a outbox ganhou o que foi enfileirado (`UOW-07`); uma porta escapada de outra transação é nomeada; nenhum `publish` (`UOW-08`); exatamente um commit, vazio sob recusa (`UOW-06`); uma transação por caso de uso (`UOW-01`) |
-| `providerkit` | `UnitOfWorkSubject` (UoW, uma escrita, contagem do que persistiu, commits), `RepositorySubject` (`Within` que entrega o repositório, o `Reader`, geradores de identificador e de estado com marcador, e a sentinela de tenant não resolvido), `InboxSubject` (`Within` sob o `context.Context` da suíte, leitura do status, linhas, erro de consumer divergente), `OutboxSubject` (store, enfileirar, relógio fake, estado inteiro do registro, `Pending`, `Purge`) — com uma função que devolve o candidato **limpo** | As cláusulas de `Within` (UOW-01/02/06/07/09, CTX-21, ERR-22), as sete de `Repository`/`Reader` — round-trip, versão armazenada (`UOW-09/11`) e as quatro do escopo: leitura de outro tenant indistinguível de inexistência (`IDN-13`), mesmo identificador apartado por tenant e escrita cruzada recusada (`IDN-12`), carrier sem tenant e sem contexto recusando (`IDN-15`) —, as recepções R1-R4 e a corrida de duas inserções com sobreposição garantida no retorno do `Register` (`INB-06`), o lease e as três transições condicionadas ao claimant (`OBX-09/10/11/18/06`), a purga (`OBX-17`) e o sinal `Pending` (`OBX-12`) | Sem diagnóstico. Cláusula que o candidato não consegue exercitar (Postgres não injeta falha de commit; `memory` serializa e não corre; realização sem sentinela de tenant não resolvido) vai para `Skipped`, nunca fica ausente em silêncio |
+| `providerkit` | `UnitOfWorkSubject` (UoW, uma escrita, contagem do que persistiu, commits), `RepositorySubject` (`Within` que entrega o repositório, o `Reader`, geradores de identificador e de estado com marcador, a sentinela de tenant não resolvido e `Concurrent`, que diz se duas transações correm ao mesmo tempo), `InboxSubject` (`Within` sob o `context.Context` da suíte, leitura do status, linhas, erro de consumer divergente), `OutboxSubject` (store, enfileirar, relógio fake, estado inteiro do registro, `Pending`, `Purge`) — com uma função que devolve o candidato **limpo** | As cláusulas de `Within` (UOW-01/02/06/07/09, CTX-21, ERR-22), as de `Repository`/`Reader` — round-trip, versão armazenada e criação sobre agregado existente recusada (`UOW-09/11`), dois escritores concorrentes com exatamente um passando (`KRN-06`, só com `Concurrent`; uma realização que serializa e o declara reprova em 5 s, sem travar) e as quatro do escopo: leitura de outro tenant indistinguível de inexistência (`IDN-13`), mesmo identificador apartado por tenant e escrita cruzada recusada (`IDN-12`), carrier sem tenant e sem contexto recusando (`IDN-15`) —, as recepções R1-R4 e a corrida de duas inserções com sobreposição garantida no retorno do `Register` (`INB-06`), o lease e as três transições condicionadas ao claimant (`OBX-09/10/11/18/06`), a purga (`OBX-17`) e o sinal `Pending` (`OBX-12`) | Sem diagnóstico. Cláusula que o candidato não consegue exercitar (Postgres não injeta falha de commit; `memory` serializa e não corre; realização sem sentinela de tenant não resolvido) vai para `Skipped`, nunca fica ausente em silêncio |
 
 O negativo de `providerkit` é uma realização que chaveia linha só por
 identificador, sem tenant: passa as três cláusulas mecânicas e reprova em
@@ -149,8 +171,9 @@ Toda suíte do kit passa em `go test -race -count=3`.
   teste uma vez por `Outcome` reprovado e registra no log as cláusulas que o
   candidato não exercitou (`Skipped`).
 
-O `contracts/golden` continua dono das fixtures de wire e do gerador
-(`GOLDEN_UPDATE=1`); só delega o carregador e os oráculos ao kit (FND-05 §8.4).
+O `contracts/golden` e os `contract/golden` dos contextos continuam donos das
+fixtures de wire e do gerador de cada contrato (`GOLDEN_UPDATE=1`); a suíte, o
+carregador e os oráculos são do kit (`tb.GoldenSuite`, FND-05 §8.4).
 
 As fixtures de **projeção observável** (`ORA-30`) vivem em
 `apps/backend/<ctx>/contract/fixtures/projection/v1/*.golden` e são lidas por

@@ -59,14 +59,14 @@ func TestPlaceOrderRejectedCommitsWithoutWriting(t *testing.T) {
 	if rej.Code() != domain.CodeOrderEmpty {
 		t.Fatalf("Code() = %q, want %q", rej.Code(), domain.CodeOrderEmpty)
 	}
-	if got := h.serviceWithinCalls(); got != 1 {
+	if got := h.fakes.WithinCalls(); got != 1 {
 		t.Fatalf("transactions opened = %d, want 1", got)
 	}
-	if got := h.serviceCommits(); got != 1 {
+	if got := h.fakes.Commits(); got != 1 {
 		t.Fatalf("commits = %d, want 1 — the commit occurs under a refusal", got)
 	}
-	if h.saves != 0 || h.enqueues != 0 {
-		t.Fatalf("a refusal wrote: saves = %d, enqueues = %d, want 0 and 0", h.saves, h.enqueues)
+	if h.saves != 0 || h.enqueues() != 0 {
+		t.Fatalf("a refusal wrote: saves = %d, enqueues = %d, want 0 and 0", h.saves, h.enqueues())
 	}
 	snapshot, version, _ := orderTable.Reader(h.store).Load(withExecution(t, context.Background()), orderID)
 	if snapshot.Status != domain.Open || version != 1 {

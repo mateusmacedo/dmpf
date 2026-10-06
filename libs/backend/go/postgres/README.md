@@ -128,10 +128,11 @@ instâncias de `Table[ID,S]` no bloco `provider` de cada contexto —
   (`INB-14`) é conferida pelo contexto que consome.
 
 O que `memory` declara não provar — isolamento e conflito de serialização
-entre transações concorrentes — é provado sobre este módulo, em
-`apps/backend/orders/provider/concurrency_test.go`: dois escritores leem a mesma versão, e
-exatamente um passa; o outro recebe `ErrVersionConflict` em vez de sobrescrever
-em silêncio. `inbox_concurrency_test.go` faz o mesmo para a inbox: duas
+entre transações concorrentes — é provado sobre este módulo pela cláusula de
+escritores concorrentes do `providerkit.Repository` (`Concurrent: true` em
+`conformance_test.go` e nos testes de repositório dos contextos): dois escritores
+leem a mesma versão, e exatamente um passa; o outro recebe `ErrVersionConflict`
+em vez de sobrescrever em silêncio. `inbox_concurrency_test.go` faz o mesmo para a inbox: duas
 transações registram a mesma chave, a segunda bloqueia até o desfecho da
 primeira e recebe R2, R3 ou R1 conforme ela commitou `processed`, commitou
 `rejected` ou desfez; e o teto de espera é interrompido pelo servidor.

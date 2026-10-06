@@ -9,6 +9,7 @@ import (
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/appkit"
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/application"
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/domain"
+	"github.com/mateusmacedo/dmpf/apps/backend/orders/provider"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/clock"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/ids"
@@ -38,7 +39,7 @@ func TestTheUseCaseRunsEndToEndOverPostgres(t *testing.T) {
 	}
 
 	t.Run("the item added row lands at version 1", func(t *testing.T) {
-		if _, version := load(t, pool); version != 1 {
+		if _, version := pg.Load(t, withExecution(t, ctx), pool, provider.NewOrderRepository, repoOrderID); version != 1 {
 			t.Fatalf("version = %d, want 1", version)
 		}
 		want := pg.Enqueued{
@@ -63,7 +64,7 @@ func TestTheUseCaseRunsEndToEndOverPostgres(t *testing.T) {
 	}
 
 	t.Run("the order placed row lands at version 2", func(t *testing.T) {
-		if _, version := load(t, pool); version != 2 {
+		if _, version := pg.Load(t, withExecution(t, ctx), pool, provider.NewOrderRepository, repoOrderID); version != 2 {
 			t.Fatalf("version = %d, want 2", version)
 		}
 		want := pg.Enqueued{

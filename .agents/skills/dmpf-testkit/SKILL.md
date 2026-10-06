@@ -41,7 +41,8 @@ escolher o package e localizar os exemplos canônicos.
 - Uma rejeição de domínio não muda o estado nem produz evento. Sempre prove
   também o determinismo com `ReadTwice` quando testar uma UPR.
 - O `serviceskit` observa posições no ledger. Estado e outbox ficam entre o
-  mesmo `begin` e `commit`; `publish` direto pelo service é defeito.
+  mesmo `begin` e `commit`; `publish` direto pelo service é defeito. A ordem
+  dos passos de um caso de uso se afirma por `Steps`, não por um gravador local.
 - Cada execução de `providerkit` deve receber um candidato limpo. Mantenha
   `Skipped` explícito para cláusulas impossíveis de injetar; não o trate como
   aprovação silenciosa.

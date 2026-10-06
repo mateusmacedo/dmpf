@@ -7,12 +7,11 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/reflect/protoreflect"
 
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/application"
 	servicev1 "github.com/mateusmacedo/dmpf/apps/backend/reservations/contract/gen/go/company/reservations/service/v1"
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
+	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
 	kernelgrpc "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
@@ -38,14 +37,7 @@ var orderIDFormat = regexp.MustCompile(`^[A-Za-z0-9._:-]{1,128}$`)
 
 // Methods names every method of the service: admission declares a limit for
 // each one (RES-16).
-func Methods() []string {
-	methods := descriptor.Methods()
-	names := make([]string, 0, methods.Len())
-	for i := range methods.Len() {
-		names = append(names, string(methods.Get(i).Name()))
-	}
-	return names
-}
+func Methods() []string { return kernelgrpc.MethodNames(descriptor) }
 
 // Commands lists the methods that require an idempotency key (IDM-01); the
 // queries neither require nor read one.
@@ -54,9 +46,7 @@ func Commands() []string {
 }
 
 // FullMethod is the wire name of a method of the service: /<service>/<method>.
-func FullMethod(name string) string {
-	return "/" + ServiceName + "/" + name
-}
+func FullMethod(name string) string { return kernelgrpc.FullMethod(ServiceName, name) }
 
 // ReservationsServer is the handler type ServiceDesc registers.
 type ReservationsServer interface {
@@ -71,51 +61,11 @@ var ServiceDesc = grpc.ServiceDesc{
 	ServiceName: ServiceName,
 	HandlerType: (*ReservationsServer)(nil),
 	Methods: []grpc.MethodDesc{
-		unary(method("Reserve"), ReservationsServer.Reserve),
-		unary(method("Cancel"), ReservationsServer.Cancel),
-		unary(method("FindReservation"), ReservationsServer.FindReservation),
+		kernelgrpc.Unary(ServiceName, kernelgrpc.Method(descriptor, "Reserve"), ReservationsServer.Reserve),
+		kernelgrpc.Unary(ServiceName, kernelgrpc.Method(descriptor, "Cancel"), ReservationsServer.Cancel),
+		kernelgrpc.Unary(ServiceName, kernelgrpc.Method(descriptor, "FindReservation"), ReservationsServer.FindReservation),
 	},
 	Metadata: descriptor.ParentFile().Path(),
-}
-
-func method(name protoreflect.Name) protoreflect.MethodDescriptor {
-	md := descriptor.Methods().ByName(name)
-	if md == nil {
-		panic("rpc: ReservationsService declares no method " + string(name))
-	}
-	return md
-}
-
-func unary[Req any, PReq interface {
-	*Req
-	proto.Message
-}, Resp proto.Message](md protoreflect.MethodDescriptor, call func(ReservationsServer, context.Context, PReq) (Resp, error)) grpc.MethodDesc {
-	name := string(md.Name())
-	fullMethod := FullMethod(name)
-	invoke := func(server ReservationsServer, ctx context.Context, req PReq) (any, error) {
-		resp, err := call(server, ctx, req)
-		if err != nil {
-			return nil, err
-		}
-		return resp, nil
-	}
-	return grpc.MethodDesc{
-		MethodName: name,
-		Handler: func(srv any, ctx context.Context, dec func(any) error, interceptor grpc.UnaryServerInterceptor) (any, error) {
-			in := PReq(new(Req))
-			if err := dec(in); err != nil {
-				return nil, err
-			}
-			server := srv.(ReservationsServer)
-			if interceptor == nil {
-				return invoke(server, ctx, in)
-			}
-			info := &grpc.UnaryServerInfo{Server: srv, FullMethod: fullMethod}
-			return interceptor(ctx, in, info, func(ctx context.Context, req any) (any, error) {
-				return invoke(server, ctx, req.(PReq))
-			})
-		},
-	}
 }
 
 // Server realizes ReservationsServer over the reservations use cases.
@@ -123,26 +73,32 @@ type Server struct {
 	Service application.Service
 }
 
+func command[R, Resp any](ctx context.Context, run func(context.Context) (usecase.Outcome[R], error), refused func(*servicev1.Rejection) Resp, accepted func(R) Resp) (Resp, error) {
+	var none Resp
+	if _, err := executionOf(ctx); err != nil {
+		return none, err
+	}
+	out, err := run(ctx)
+	if err != nil {
+		return none, kernelgrpc.StatusOf(err)
+	}
+	if rejection, declined := out.Rejection(); declined {
+		return refused(rejectionOf(rejection)), nil
+	}
+	return accepted(out.Response()), nil
+}
+
 func (s Server) Reserve(ctx context.Context, req *servicev1.ReserveRequest) (*servicev1.ReserveResponse, error) {
 	id, err := orderID(req.GetOrderId())
 	if err != nil {
 		return nil, err
 	}
-	_, err = executionOf(ctx)
-	if err != nil {
-		return nil, err
-	}
-	out, err := s.Service.Reserve(ctx, application.Reserve{Order: id, Items: int(req.GetItemCount())})
-	if err != nil {
-		return nil, kernelgrpc.StatusOf(err)
-	}
-	if rejection, refused := out.Rejection(); refused {
-		return &servicev1.ReserveResponse{Result: &servicev1.ReserveResponse_Rejection{Rejection: rejectionOf(rejection)}}, nil
-	}
-	reserved := out.Response()
-	return &servicev1.ReserveResponse{Result: &servicev1.ReserveResponse_Reserved{
-		Reserved: &servicev1.Reserved{OrderId: string(reserved.Order), ItemCount: int32(reserved.Items)},
-	}}, nil
+	return command(ctx,
+		func(ctx context.Context) (usecase.Outcome[domain.ReservedResponse], error) {
+			return s.Service.Reserve(ctx, application.Reserve{Order: id, Items: int(req.GetItemCount())})
+		},
+		reserveRefused,
+		reservedOf)
 }
 
 func (s Server) Cancel(ctx context.Context, req *servicev1.CancelRequest) (*servicev1.CancelResponse, error) {
@@ -150,20 +106,30 @@ func (s Server) Cancel(ctx context.Context, req *servicev1.CancelRequest) (*serv
 	if err != nil {
 		return nil, err
 	}
-	_, err = executionOf(ctx)
-	if err != nil {
-		return nil, err
-	}
-	out, err := s.Service.Cancel(ctx, application.Cancel{Order: id})
-	if err != nil {
-		return nil, kernelgrpc.StatusOf(err)
-	}
-	if rejection, refused := out.Rejection(); refused {
-		return &servicev1.CancelResponse{Result: &servicev1.CancelResponse_Rejection{Rejection: rejectionOf(rejection)}}, nil
-	}
-	return &servicev1.CancelResponse{Result: &servicev1.CancelResponse_Canceled{
-		Canceled: &servicev1.Canceled{OrderId: string(out.Response().Order)},
-	}}, nil
+	return command(ctx,
+		func(ctx context.Context) (usecase.Outcome[domain.CancelledResponse], error) {
+			return s.Service.Cancel(ctx, application.Cancel{Order: id})
+		},
+		cancelRefused,
+		canceledOf)
+}
+
+func reserveRefused(r *servicev1.Rejection) *servicev1.ReserveResponse {
+	return &servicev1.ReserveResponse{Result: &servicev1.ReserveResponse_Rejection{Rejection: r}}
+}
+
+func reservedOf(reserved domain.ReservedResponse) *servicev1.ReserveResponse {
+	return &servicev1.ReserveResponse{Result: &servicev1.ReserveResponse_Reserved{
+		Reserved: &servicev1.Reserved{OrderId: string(reserved.Order), ItemCount: int32(reserved.Items)},
+	}}
+}
+
+func cancelRefused(r *servicev1.Rejection) *servicev1.CancelResponse {
+	return &servicev1.CancelResponse{Result: &servicev1.CancelResponse_Rejection{Rejection: r}}
+}
+
+func canceledOf(c domain.CancelledResponse) *servicev1.CancelResponse {
+	return &servicev1.CancelResponse{Result: &servicev1.CancelResponse_Canceled{Canceled: &servicev1.Canceled{OrderId: string(c.Order)}}}
 }
 
 func (s Server) FindReservation(ctx context.Context, req *servicev1.FindReservationRequest) (*servicev1.FindReservationResponse, error) {

@@ -73,7 +73,7 @@ módulos do kernel ficam sob `libs/backend/go/`.
 <constraints>
 - [P0] NUNCA criar dependência de `provider` para `application` (`DMPF-D001`) nem entre contextos (`DMPF-D002`); o destino de cada item é o que o relatório indica em §4.
 - [P0] NUNCA subir ao kernel o que é igual por coincidência ou diverge por papel (critério do ADR-048); os candidatos da §6 do relatório ficam fora.
-- [P0] O comportamento observável é preservado, com exatamente duas exceções declaradas: o `bookings` passa a auditar (D1, A1) e a categoria do span cliente do kernel para `deadline.ErrNoDeadline` e `ErrDeadlineExhausted` deixa de ser `_OTHER` (B7).
+- [P0] O comportamento observável é preservado, com exatamente três exceções declaradas: o `bookings` passa a auditar (D1, A1), a categoria do span cliente do kernel para `deadline.ErrNoDeadline` e `ErrDeadlineExhausted` deixa de ser `_OTHER` (B7), e 13 textos de falha de `orders` e `reservations` passam à forma única de A3, só em log e span.
 - [P0] Nenhum item da Onda 3 entra em código antes de o ADR que o autoriza estar commitado.
 - [P0] Unidade nova exige `include` no manifesto (`DMPF-U001`); o agente prepara a unidade, e o `--write-baseline` (`DMPF-T001`) fica com a pessoa responsável.
 - [P0] Toda promoção ao kernel retira a cópia dos templates de `tools/dmpf-plugin/src/generators/bounded-context/files/` e da skill `.agents/skills/dmpf-bounded-context/` na mesma onda.
@@ -154,15 +154,20 @@ módulos do kernel ficam sob `libs/backend/go/`.
 
 #### Onda 2 — Template Method estrutural
 
-- [ ] **[P0] A1 — Esqueleto do comando**: `Executor[Res, Op]`, `Command[Res, Op, R]` e `Execute[Res, Op, R]` vão para um arquivo novo do kernel `application`. O esqueleto fixa a sequência `BeginOperation` → `Authorize` → `ResolveIdentity` → `Within{RunIdempotent}` → `end` → `Audit`, este último só sem replay. Todos os casos de uso de comando dos três contextos e os dois wrappers `idempotent[R]` passam a usá-lo.
+- [x] **[P0] A1 — Esqueleto do comando**: `Executor[Res, Op]`, `Command[Res, Op, R]` e `Execute[Res, Op, R]` vão para um arquivo novo do kernel `application`. O esqueleto fixa a sequência `BeginOperation` → `Authorize` → `ResolveIdentity` → `Within{RunIdempotent}` → `end` → `Audit`, este último só sem replay. Todos os casos de uso de comando dos três contextos e os dois wrappers `idempotent[R]` passam a usá-lo.
   - O retry continua sendo gancho do caso de uso, não decorator da UoW (ADR-034, KRN-09).
+  - O `Command` recebe o `*Fingerprint` pronto do contexto, porque derivá-lo no esqueleto mudaria o `PayloadHash`. O contexto monta o `Executor` por um método `executor()` do próprio `Service`, sem mudar os composition roots.
   - `application/README.md` reescreve o mapa de passos, que hoje aponta para os arquivos do `orders`.
-  - Os `sequence_test.go` dos três contextos passam, com o `bookings` ganhando o passo `Audit`.
-- [ ] **[P1] A3 — Passos 4 a 7 com `Loader`**: `Loader[ID, S, A]`, `OrNew`, `Existing`, `Absent` e `Decide` vão para o kernel `application`, sobre A2. `Absent` devolve `ports.ErrAlreadyExists`. A escolha do `Loader` fica no contexto, e o consumo do `reservations` reaproveita só o `Loader`.
-  - As mensagens de erro continuam idênticas byte a byte. `Decide` só envolve a falha de `Enqueue` com `enqueue: %w` e devolve as demais sem prefixo. O caso de uso envolve tudo com o prefixo atual, `application: <operação> <id>: %w` (ex.: `application: reserve %s: %w`, `application: add item to %s: %w`).
-  - Os testes verificam ao mesmo tempo o `errors.Is` e a mensagem completa de cada caminho de falha (carga, `Absent`, `Save` e `Enqueue`).
-- [ ] **[P2] A5 — UPR por cópia**: `DecideOver[A, R]` e `Refuse[R]` vão para o kernel `domain`. As sete UPRs e os doze pontos `kernel.Accepted[X]{}, kernel.Reject(...)` passam a usá-los, e o `clone` continua privado.
-- [ ] **[P1] P2 — Registro de métodos no `kernelgrpc`**: o kernel `grpc` ganha as funções abaixo. As assinaturas mantêm o descritor protobuf, que hoje garante que todo método registrado existe no `.proto`:
+  - Os `sequence_test.go` dos três contextos passam. O passo `Audit` que o `bookings` ganha é provado por um teste de ordem `begin` → … → `end` → `audit` em cada contexto, porte do teste do `orders`, e por um teste no kernel.
+- [x] **[P1] A3 — Passos 4 a 7 com `Loader`**: `Loader[ID, S, A]`, `OrNew`, `Existing`, `Absent` e `Decide` vão para o kernel `application`, sobre A2. `Absent` devolve `ports.ErrAlreadyExists`. A escolha do `Loader` fica no contexto, e o consumo do `reservations` reaproveita só o `OrNew`.
+  - A forma de erro do `bookings` vale para os três contextos. `Decide` só envolve a falha de `Enqueue` com `enqueue: %w` e devolve a carga e o `Save` sem prefixo. O caso de uso envolve tudo com `application: <operação> <id>: %w` (ex.: `application: reserve %s: %w`, `application: add item to %s: %w`).
+  - No `bookings`, os textos ficam idênticos aos de `8f544bc0`. Em `orders` e `reservations` mudam 13 textos, só em log e span, porque o `kernelgrpc.StatusOf` usa mensagem fixa:
+    - no `orders`, o `Save` e o `Enqueue` de `AddItem` e de `PlaceOrder` (4);
+    - no `reservations`, a carga, o `Save` e o `Enqueue` de `Reserve` e de `Cancel` (6), com o prefixo `load reservation` trocado por `reserve` e `cancel`;
+    - no consumo do `reservations`, o `Save`, o `Save` com conflito e o `Enqueue` (3). O `Save` e o `Enqueue` ficam inline em `consume.go`, na mesma forma (`application: consume <id>:` e `enqueue:`), com o `Failure(Conflict)` por dentro do prefixo.
+  - Os testes verificam ao mesmo tempo o `errors.Is` e a mensagem completa de cada caminho de falha (carga, `Absent`, `Save` e `Enqueue`), numa tabela por contexto: 7 caminhos no `orders`, 10 no `reservations` e 11 no `bookings`.
+- [x] **[P2] A5 — UPR por cópia**: `DecideOver[A, R]` e `Refuse[R]` vão para o kernel `domain`. As sete UPRs e os doze pontos `kernel.Accepted[X]{}, kernel.Reject(...)` passam a usá-los, e o `clone` continua privado.
+- [x] **[P1] P2 — Registro de métodos no `kernelgrpc`**: o kernel `grpc` ganha as funções abaixo. As assinaturas mantêm o descritor protobuf, que hoje garante que todo método registrado existe no `.proto`:
   - `Method(desc protoreflect.ServiceDescriptor, name protoreflect.Name) protoreflect.MethodDescriptor` entra em pânico quando o serviço não declara o método, como o `method()` atual;
   - `Unary[S, Req any, PReq interface{ *Req; proto.Message }, Resp proto.Message](service string, md protoreflect.MethodDescriptor, call func(S, context.Context, PReq) (Resp, error)) grpc.MethodDesc`;
   - `MethodNames(desc protoreflect.ServiceDescriptor) []string`;
@@ -173,23 +178,36 @@ módulos do kernel ficam sob `libs/backend/go/`.
   - O entrypoint `google.golang.org/protobuf/reflect/protoreflect` é declarado no `external` de `kernel/provider-grpc`.
   - Um teste fixa o pânico de `Method` para nome inexistente.
   - `executionOf` continua no handler.
-- [ ] **[P1] P5 — Seções comuns de `Config`**: `APIEnv`, `ReadAPIEnv` e `APIEnv.Missing` vão para o kernel `grpc`; `ClientAuth.Missing(insecure)` vai para o `kafka`; `Policies` e `Policies.Validate(consumes)` vão para o `app`. `requirements()` continua local e compõe os `Missing()`, e o `config.go__tmpl__` acompanha a mudança.
-  - Os testes de política e do par TLS (IDN-03) dos `app/config_test.go` migram para o kernel, junto de `Policies.Validate` e `APIEnv.Missing` (G7, G10).
-- [ ] **[P1] B1 — Esqueleto de handler REST**: `endpoint[Req, Resp]`, `decoder[Req]`, `fromPath`, `fromBody` e `outcome` ficam locais em `bff/app/api` e são usados pelos onze handlers. `present` mantém o type switch do oneof.
-- [ ] **[P1] B2 — Fábrica de rotas**: `surface.command`, `surface.query` e `binding` vão para `bff/app/api/routes.go`.
+- [x] **[P1] P5 — Seções comuns de `Config`**: `APIEnv`, `ReadAPIEnv` e `APIEnv.Missing` vão para o kernel `grpc`; `ClientAuth.Missing(insecure)` vai para o `kafka`; `Policies` e `Policies.Validate(consumes, invalid)` vão para o `app`. `requirements()` continua local e compõe os `Missing()`, e o `config.go__tmpl__` acompanha a mudança.
+  - A `Config` recebe os dois como campos nomeados, `API kernelgrpc.APIEnv` e `Policies kernelapp.Policies`. Embutidos, eles promoveriam `Missing` e `Validate` para a `Config`, e o literal de `Defaults()` com campo promovido exige go1.27.
+  - O contexto mantém o próprio `ErrInvalidPolicy`, com o prefixo dele, e o passa a `Policies.Validate`, que o embrulha. Um alias do kernel mudaria o texto da recusa e faria os três contextos dividirem o mesmo sentinela, o que P0 não admite.
+  - Os testes de política e do par TLS (IDN-03) dos `app/config_test.go` migram para o kernel, junto de `Policies.Validate` e `APIEnv.Missing` (G7, G10). Cada `app/config_test.go` guarda um caso que prova a delegação do `Validate` (no `reservations`, com `consumes`). O teste de variável ausente do relay continua local (G57, fora de escopo).
+- [x] **[P1] B1 — Esqueleto de handler REST**: `endpoint[Req, Resp]`, `decoder[Req]`, `fromPath`, `fromQuery`, `fromBody`, `fromPathAndBody`, `outcome` e `view` ficam locais em `bff/app/api` e são usados pelos onze handlers. `present` mantém o type switch do oneof.
+  - O construtor da requisição e o apresentador do oneof de cada handler são funções nomeadas. Com closures inline, os três comandos só de path (`placeOrder`, `cancel` e `cancelBooking`) continuam clones, e o G43 fica de pé.
+  - As respostas `malformed-body` e `invalid-request` ficam iguais byte a byte.
+- [x] **[P1] B2 — Fábrica de rotas**: `surface.command`, `surface.query` e `binding{route, build}` vão para `bff/app/api/routes.go`.
   - Todo `POST` leva `IdempotencyKey`, a permissão é `<ctx>:write` ou `<ctx>:read`, e o `ContractRef` é derivado do método e do path.
   - O mapa `serve` indexado por string sai.
-  - `Routes(budget)` continua pública e funcional sem clientes, com função literal no lugar de method value.
-- [ ] **[P1] T2 — Suíte golden de contrato**: `Spec[M]` e `GoldenSuite[M]` vão para `testkit/tb`. `orders/contract/golden` e `reservations/contract/golden` passam a usá-los, e o `bookings/contract` ganha golden para os seus três protos de evento.
+  - `Routes(budget)` continua pública e funcional sem clientes: o `build` de cada `binding` é uma method expression sobre os handlers, e só o `NewHandler` o chama.
+- [x] **[P1] T2 — Suíte golden de contrato**: `Spec[M]` e `GoldenSuite[M]` vão para `testkit/tb`. `orders/contract/golden` e `reservations/contract/golden` passam a usá-los, e o `bookings/contract` ganha golden para os seus três protos de evento.
   - O teste golden de `libs/backend/go/contracts` também adota a `GoldenSuite`, porque a cópia do oráculo ENV-18 viraria par de clone dela (G37). O módulo `contracts` já requer `testkit`, e a fixture do kernel não muda.
-- [ ] **[P1] T4 — `serviceskit` adotável**: `serviceskit.UnitOfWork[R](f, bind)`, `Tx.CommandInbox(consumer)` e `serviceskit.Authorize[C]` passam a existir. `recordingClock`, `recordingIDs`, `recordingOutbox`, `recordingUnitOfWork[R]`, `recordingAuthorize` e `foldDigest` saem dos `application/*doubles_test.go` dos três contextos.
-  - A injeção de falha também vai para o kit: `option`, `setup`, os `with*` e os contadores do harness (`serviceWithinCalls`, `serviceCommits`). Sem isso, o grupo de clone dos dublês que T5 alinha fica de pé.
-- [ ] **[P2] T10 — `providerkit.Repository` por agregado**: os testes de repositório dos três contextos chamam `providerkit.Repository` por `postgres.Table` e mantêm só o teste de ida e volta do codec.
-  - `providerkit.Repository` ganha uma cláusula de escritores concorrentes (KRN-06), que substitui os `provider/concurrency_test.go` de `orders` e `bookings` (G9).
-- [ ] **[P2] P8 — Handler gRPC de comando**: `command[R, Resp]` fica local a cada `app/rpc` e ao template, e os sete handlers de comando passam a usá-lo (dois no `orders`, dois no `reservations` e três no `bookings`); os de consulta ficam de fora.
-- [ ] **[P2] B9 — Clientes gRPC tipados**: `Call[Req, Resp]` e `unaryOf` vão para `bff/app/rpc/clients.go`. `OrdersClient` e as demais interfaces viram structs de campos func, e a política de retry continua declarada por método.
-- [ ] **[P2] T11a — Dublês de teste do `bff`**: `fakeContexts` e o restante de `bff/app/api/testing_test.go` e `bff/app/rpc/testing_test.go` passam para um helper local único.
-- [ ] **[P2] N4 — Cobertura do descritor gRPC**: `kernelgrpc.Uncovered(sd *grpc.ServiceDesc, desc protoreflect.ServiceDescriptor) []string` vai para o kernel `grpc`, e os `app/rpc/service_test.go` passam a chamá-la (G53). O teste prova que todo método declarado está registrado, o complemento do que P2 garante, e usa o entrypoint `protoreflect` que P2 declara no manifesto.
+- [x] **[P1] T4 — `serviceskit` adotável**: `serviceskit.UnitOfWork[R](f, bind)`, `Tx.CommandInbox(consumer)` e `serviceskit.Authorize[C]` passam a existir. `recordingClock`, `recordingIDs`, `recordingOutbox`, `recordingUnitOfWork[R]`, `recordingAuthorize` e `foldDigest` saem dos `application/*doubles_test.go` dos três contextos, assim como as cópias `sync*` do `reservations`.
+  - Essas três peças não bastam para retirar os dublês. O kit ganha também `Steps`, `Fakes.Clock` e `Fakes.IDs`, `FoldDigest`, `MarkSeeded`, os contadores `WithinCalls`, `Commits` e `Binds`, `Ledger.Count` e `FailRegister`.
+  - Os dublês do kit gravam em `Steps` os passos `within`, `commit`, `outbox.Enqueue`, `commands.Register` e `commands.Complete`. Os `sequence_test.go` de `orders` e `reservations` ganham o passo `commands.Complete`, que hoje só o `bookings` registra.
+  - A injeção de falha vai para o kit como decoradores genéricos de falha de `Load`, `Save` e `Enqueue`. `option`, `setup` e os `with*` ficam no contexto só como montagem sobre o kit, e o `withAuthorize` também fica, porque montá-lo no kit faria o `serviceskit` importar `application` (`DMPF-D001`).
+  - Na ordem nativa, os dublês não formam grupo no `-t 100`. A conclusão se prova pela busca das cópias nos critérios de aceite.
+- [x] **[P2] T10 — `providerkit.Repository` por agregado**: os testes de repositório dos três contextos chamam `providerkit.Repository` por `postgres.Table` e mantêm só o teste de ida e volta do codec. O `bookings` tem uma chamada por agregado (booking e resource).
+  - `RepositorySubject` ganha o campo `Concurrent`, e `providerkit.Repository` ganha duas cláusulas:
+    - recusa criar sobre agregado existente, a cobertura equivalente dos testes de conflito na criação de `orders` e `reservations`;
+    - deixa passar exatamente um de dois escritores concorrentes (KRN-06), com barreira e prazo de 5 s. Ela substitui os `provider/concurrency_test.go` de `orders` e `bookings` e o `TestConcurrentSaveReservation` (G9).
+  - A `memory` serializa as transações por desenho e declara `Concurrent: false`, então o `providerkit/memory_test.go` passa a esperar um pulo. O `postgres/conformance_test.go` declara `Concurrent: true`.
+  - `withRepo`, `seed` e `load`, que `e2e_test.go` e `order_reader_test.go` também usam, viram helpers genéricos em `testkit/tb/pg`. Sem isso, o G5 fica de pé.
+- [x] **[P2] P8 — Handler gRPC de comando**: `command[R, Resp]` fica local a cada `app/rpc`, e os sete handlers de comando passam a usá-lo (dois no `orders`, dois no `reservations` e três no `bookings`); os de consulta ficam de fora.
+  - O template não recebe o `command`: o `service.go__tmpl__` não tem handlers, e o `unused` do `golangci-lint`, que o `tools/dmpf-generator-check.sh` roda, reprovaria a função. O molde fica na skill `dmpf-bounded-context`.
+- [x] **[P2] B9 — Clientes gRPC tipados**: `Unary[Req, Resp]` e `unaryOf` vão para `bff/app/rpc/clients.go`. O nome `Call` colidiria com o `rpc.Call` que já existe, a metadata do salto. `OrdersClient` e as demais interfaces viram structs de campos func, e a política de retry continua declarada por método.
+- [x] **[P2] T11a — Dublês de teste do `bff`**: `fakeContexts` e o restante de `bff/app/api/testing_test.go` e `bff/app/rpc/testing_test.go` passam para um helper por package de teste, sobre `kernelgrpc.Unary` e `kernelgrpc.Method`. O dublê de `bff/app/degradation_test.go` entra no helper do package `app`.
+  - Um package compartilhado de dublês seria código de produção para o verificador e exigiria unidade e `--write-baseline`, por isso fica para a Onda 3.
+- [x] **[P2] N4 — Cobertura do descritor gRPC**: `kernelgrpc.Uncovered(sd *grpc.ServiceDesc, desc protoreflect.ServiceDescriptor) []string` vai para o kernel `grpc`, e os `app/rpc/service_test.go` passam a chamá-la (G53). O teste prova que todo método declarado está registrado exatamente uma vez, o complemento do que P2 garante, e usa o entrypoint `protoreflect` que P2 declara no manifesto.
 
 #### Onda 3 — ADR e classificação
 
@@ -236,6 +254,7 @@ módulos do kernel ficam sob `libs/backend/go/`.
   - Depende de T3 e do ADR de testes: o SDK OTel (`sdk/metric`, `sdk/log` e `sdk/trace`) vira requisito direto do `testkit`, e `kafka`, `sqs`, `grpc` e `bff` passam a requerer `testkit`.
 - [ ] **[P2] N9 — Leitores de telemetria de teste**: `testkit/obstest` ganha `MetricLabels(t, reader)`, o exportador de log em memória, a espera de span por prefixo, o runtime com leitor de métrica e a contagem de conexões do pool (G23, G46, G51, G66).
   - O N9 tem as mesmas dependências do N8. Para G51 e G66, a alternativa é P6 levar os e2e de papel para `app/serve`.
+- [ ] **[P2] N10 — Handler gRPC de comando no kernel**: o `command[R, Resp]` que o P8 deixou local nos três `app/rpc` forma grupo de clone no fim da Onda 2 (14 linhas em cada contexto). Promovê-lo exige rever a decisão técnica de manter o `executionOf` no handler (P2) e tratar o tipo de rejeição de cada contrato; a decisão e o destino ficam para esta onda.
 
 #### Transversais (toda onda)
 
@@ -248,6 +267,7 @@ módulos do kernel ficam sob `libs/backend/go/`.
 - [ ] **[P1] READMEs dos módulos**: todo módulo do kernel que ganha API documenta essa API no próprio `README.md`.
 - [ ] **[P0] Duplicação como oportunidade de abstração**: o catálogo do relatório não esgota o escopo. A duplicação estrutural medida também entra.
   - **Medição:** `go run github.com/mibk/dupl@v1.1.0 -t 100 -files`, sobre os `.go` de `apps/backend` e `libs/backend/go`, fora `contract/gen` e `contracts/gen`. A lista de arquivos vem de `fd -e go . apps/backend libs/backend/go -E gen`. A linha de base é de **67 grupos de clone**, medida em `689fbfce`, com código idêntico ao de `8f544bc0`. Desses, 45 cruzam áreas (15 em produção ou misto e 30 só em teste). Os outros 22 ficam dentro de uma área: 14 no kernel, todos em teste, e 8 nos apps.
+  - **Ordem da lista:** a contagem oficial usa a ordem nativa do `fd`, e a meta de 34 grupos se mede nela. O `dupl` é sensível à ordem da lista, e na ordem nativa clones de arquivo inteiro ficam ocultos. Por isso cada registro traz também, como diagnóstico, uma medição com a mesma lista embaralhada por semente fixa (`random.seed(1)` do Python 3).
   - **Quando:** no início do plano de cada onda e ao fim dela, com o número de grupos registrado no PR.
   - **Classificação:** cada grupo que nenhum item do catálogo já cobre é classificado pelo critério do ADR-048, com as restrições desta spec.
     - **Igual por natureza:** vira requisito novo `N<n>` nesta spec, com padrão (Template Method, generics ou extração), destino e onda. Entra na primeira onda cuja natureza o comporta: a Onda 0 só recebe o que cai nos arquivos que ela corrige; a Onda 1, a extração local ou a função nova em package existente; um `N<n>` que dependa de um item entra na onda desse item; e o que exige ADR ou unidade nova vai para a Onda 3.
@@ -259,7 +279,21 @@ módulos do kernel ficam sob `libs/backend/go/`.
     - T6 e N6 passam para a Onda 3, com os grupos deles.
     - O grupo que surge no teste de auditoria do wiring quando o G62 sai fica coberto pelo T3, com ampliação registrada no item.
     - A7, P7, B3, B4, B5, B6 e B8 não têm grupo no `-t 100`; a conclusão deles se prova por teste e pela busca das cópias nos critérios de aceite.
-  - **Registro do fim da Onda 1:** 50 grupos. Saíram os 18 que os itens da onda cobrem (G3, G4, G12, G14, G26, G29, G30, G35, G39, G40, G42, G45, G46, G56, G58, G60, G61 e G62). Entrou um, o teste de auditoria do wiring nos três `app/wiring_test.go`, coberto pelo T3. Os demais seguem com os mesmos arquivos, só com outras faixas de linha.
+  - **Registro do fim da Onda 1:** 50 grupos. Saíram os 18 que os itens da onda cobrem (G3, G4, G12, G13, G26, G29, G30, G35, G39, G40, G42, G45, G48, G56, G58, G60, G61 e G62). Entrou um, o teste de auditoria do wiring nos três `app/wiring_test.go`, coberto pelo T3. Os demais seguem com os mesmos arquivos, só com outras faixas de linha.
+  - **Registro do início da Onda 2:** 50 grupos em `b16188c6` na ordem nativa, e 67 com a lista embaralhada. A ordem da saída mudou de novo, então o registro cita cada grupo por arquivo e linhas e usa a numeração G de `ca804ba6` quando o grupo já existia.
+    - Doze são cobertos por itens da onda: G2 (P8), G5 e G9 (T10), G7 e G10 (P5), G14 (P2), G18 e G22 (A1), G37 (T2), G43 (B1), G53 (N4) e G64 (B9). Vinte e oito ficam com itens da Onda 3 e dez estão fora de escopo. Nenhum gera requisito `N<n>`.
+    - O G22 ganhou `orders/application/place_order.go` quando o D1 alinhou o `bookings`, e segue coberto pelo A1, com a ampliação.
+    - Dois grupos nasceram do D2 na Onda 0 e não têm número em `ca804ba6`. Ambos ficam cobertos pelo T1, com ampliação: o `launch` dos três `distkit/harness.go`, que `dist.Supervise` substitui, e os três `distkit/output_test.go`, cujo teste de `Output()` vira um só em `tb/dist`.
+    - Os 17 grupos que só a lista embaralhada mostra são clones de arquivo inteiro:
+      - os de `contract/golden` ficam com o T2, que retira o `fixture_test.go` e o `golden_test.go`; as specs `order_placed_fixture` e `item_added_fixture` do `orders` continuam como espelho das do kernel, cuja fixture fica fora de escopo;
+      - os de `distkit` (`verdict.go`, `verdict_test.go` e `roles.go`) ficam com o T1;
+      - os de `app/telemetry_*_test.go` ficam com o T3, que precisa citar também o `telemetry_usecase_test.go`;
+      - os de `app/wiring.go`, `wiring_test.go` e `wiring_e2e_test.go` ficam com o P6, o T3 e o N9;
+      - `application/codecs.go` e `codecs_test.go` de `orders` e `reservations` ficam fora de escopo por vocabulário do contexto: os tipos de resposta são do domínio de cada um, e o teste fixa o layout persistido do outcome (ADR-056).
+  - **Registro do fim da Onda 2:** 41 grupos na ordem nativa, e 57 com a lista embaralhada.
+    - Saíram os 12 que os itens da onda cobrem: G2, G5, G7, G9, G10, G14, G18, G22, G37, G43, G53 e G64.
+    - Entraram três. O `command[R, Resp]` dos três `app/rpc` é igual por natureza e vira o requisito N10 da Onda 3. O subject do `providerkit.Repository` por agregado, nos testes de repositório de `bookings` e `reservations`, fica fora de escopo por vocabulário do agregado (identificador, estado e marcador), no critério de G1 e G24. As specs golden de `BookingCancelled` e `ResourceRegistered`, eventos de mesma forma, ficam fora de escopo por vocabulário do contrato.
+    - Na medição, três clones nascidos da própria onda saíram por mudança local: os handlers gRPC de comando passam a recusa e o aceite como funções nomeadas, os três specs golden do `bookings` compartilham o construtor da fixture, e o teste de defaults dos `config_test` compara a struct `Policies`.
 
 ### Não-funcionais
 
@@ -464,11 +498,11 @@ command.Run(ctx, res, identity):
 
 - [ ] Uma busca em `apps/backend` por `func statusOf`, `func outcomeCategory`, `func authorizationResult`, `func enqueueAll`, `func classify`, `func serveAPI` e `func runRelay` não retorna resultado.
 - [x] `{orders,reservations,bookings}/app/rpc/errors.go` não existem.
-- [ ] Todo caso de uso de comando dos três contextos chama `Execute`, e o `bookings` audita comando novo sem auditar replay, o que é fixado por um teste por caso de uso.
+- [x] Todo caso de uso de comando dos três contextos chama `Execute`, e o `bookings` audita comando novo sem auditar replay, o que é fixado por um teste por caso de uso.
 - [ ] O `go test -race` do `distkit` de cada contexto passa com um teste que lê `Output()` enquanto o processo roda. Na Onda 0, a leitura devolve o sentinela; a partir da Onda 3, devolve o snapshot de `dist.Supervise`.
 - [x] O teste de tabela de `kernelgrpc.StatusOf` cobre as oito linhas, `context.DeadlineExceeded` e `context.Canceled` puros e os erros híbridos.
-- [ ] Um teste fixa o pânico de `kernelgrpc.Method` para método inexistente.
-- [ ] As mensagens de erro dos casos de uso de comando são idênticas às de `8f544bc0`, com cada caminho de falha verificado por `errors.Is` e pela mensagem completa.
+- [x] Um teste fixa o pânico de `kernelgrpc.Method` para método inexistente.
+- [x] As mensagens de erro dos casos de uso de comando seguem a forma única de A3: no `bookings` são idênticas às de `8f544bc0`, e em `orders` e `reservations` mudam só os 13 textos listados em A3. Cada caminho de falha é verificado por `errors.Is` e pela mensagem completa.
 - [ ] `kernel/app-serve`, `kernel/testkit-dist` e `kernel/testkit-obs` estão nos manifestos com os campos desta spec, e `kernel/app-serve` consta de `shared_kernel_units`.
 - [ ] O registro de cada onda lista todos os grupos de clone do `dupl` como cobertos por um item, como novos requisitos `N<n>` ou como fora de escopo com motivo, e o registro da Onda 3 acusa no máximo 34 grupos.
 - [x] `bookings/application/doubles_test.go` não declara `memStore`, `memTx`, `txCommands` nem `memUoW`.
@@ -478,7 +512,7 @@ command.Run(ctx, res, identity):
 - [ ] `tools/dmpf-context-check.sh`, `tools/dmpf-shared-kernel-check.sh` e `tools/dmpf-cell-check.sh` passam.
 - [ ] `node tools/adr-verify.mjs` passa com os dois ADRs novos e os status dos ADRs 046 e 048 atualizados.
 - [ ] O `reservations` prova `DMPF-P001` a `P003` do relay por meio de `testkit/tb/dist`.
-- [ ] O `bookings/contract` tem golden para os três protos de evento.
+- [x] O `bookings/contract` tem golden para os três protos de evento.
 - [ ] O PR de cada onda registra as divergências de digest por subject, e o da Onda 3 registra a redução de linhas do requisito não-funcional.
 
 ### Cenários de teste
@@ -528,7 +562,7 @@ ENTÃO o registro da onda o classifica como requisito N<n> nesta spec ou como fo
 <critical_constraints>
 - [P0] NUNCA criar dependência de `provider` para `application` (`DMPF-D001`) nem entre contextos (`DMPF-D002`); o destino de cada item é o que o relatório indica em §4.
 - [P0] NUNCA subir ao kernel o que é igual por coincidência ou diverge por papel (critério do ADR-048); os candidatos da §6 do relatório ficam fora.
-- [P0] O comportamento observável é preservado, com exatamente duas exceções declaradas: o `bookings` passa a auditar (D1, A1) e a categoria do span cliente do kernel para `deadline.ErrNoDeadline` e `ErrDeadlineExhausted` deixa de ser `_OTHER` (B7).
+- [P0] O comportamento observável é preservado, com exatamente três exceções declaradas: o `bookings` passa a auditar (D1, A1), a categoria do span cliente do kernel para `deadline.ErrNoDeadline` e `ErrDeadlineExhausted` deixa de ser `_OTHER` (B7), e 13 textos de falha de `orders` e `reservations` passam à forma única de A3, só em log e span.
 - [P0] Nenhum item da Onda 3 entra em código antes de o ADR que o autoriza estar commitado.
 - [P0] Unidade nova exige `include` no manifesto (`DMPF-U001`); o agente prepara a unidade, e o `--write-baseline` (`DMPF-T001`) fica com a pessoa responsável.
 - [P0] Toda promoção ao kernel retira a cópia dos templates de `tools/dmpf-plugin/src/generators/bounded-context/files/` e da skill `.agents/skills/dmpf-bounded-context/` na mesma onda.

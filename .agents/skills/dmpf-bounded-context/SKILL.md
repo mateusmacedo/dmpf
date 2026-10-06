@@ -48,13 +48,20 @@ não executa — ele **para e imprime** o rito restante.
 3. **`domain`**, no package `domain` do módulo (o que o `doc.go` gerado declara), por agregado: struct, `Snapshot`/`From*Snapshot`/`Equal`/
    `clone`, UPRs `(cmd, at) → (Accepted[R], *Rejection)`, mensagens,
    rejeições com código estável. Sem `time`, sem porta; instante inteiro.
+   Cada UPR decide por `kernel.DecideOver(alvo, (*T).clone, decide)` e recusa
+   por `kernel.Refuse[R]`; o `clone` privado copia em profundidade o que a
+   decisão pode mutar.
 4. **`port`**: `Repository` por agregado, `Outbox()`, `Reader` por consulta;
    `Inbox()` só se o contexto consome.
-5. **`application`**: `service.go` e um arquivo por comando percorrendo os nove
-   passos de FND-04 §3.2, cada comando por `usecase.RunIdempotent` sobre
-   `Resources.Commands` e `Service.Idempotency`, com um codec por operação e
-   auditoria só sem replay (ADR-056); consultas fora da UoW; `Consume` pelas
-   sete disposições de §6.4 **se** o contexto consome.
+5. **`application`**: `service.go` com o `executor()` do serviço e o alias
+   `command[R]`, e um arquivo por comando que chama `usecase.Execute` — os
+   nove passos de FND-04 §3.2, com `usecase.RunIdempotent` sobre
+   `Resources.Commands` e `Service.Idempotency`, um codec por operação e
+   auditoria só sem replay (ADR-056). O `Run` do comando chama
+   `usecase.Decide` com o `Loader` do modo (`OrNew`, `Existing` ou `Absent`)
+   e prefixa toda falha com `application: <operação> <id>: %w`; consultas por
+   `usecase.Query`, fora da UoW; `Consume` pelas sete disposições de §6.4
+   **se** o contexto consome.
 6. **`provider-postgres`**: `schema.sql` nos nomes canônicos (agregado no
    plural, sem prefixo), persistência híbrida (coluna tipada só para o que uma
    consulta filtra, o resto em `snapshot` `jsonb`, com `postgres.SnapshotTable`
@@ -62,8 +69,13 @@ não executa — ele **para e imprime** o rito restante.
    locking, `Reader`, mapper para o payload do contrato; `Tables` do `appkit`
    com as tabelas do contexto.
 7. **`app`**: o `ServiceDesc` de `app/rpc/service.go` com um método por
-   comando e por consulta, o `Server` sobre o serviço de aplicação (os
-   handlers devolvem o erro por `kernelgrpc.StatusOf`), o wiring e o catálogo;
+   comando e por consulta, cada um por
+   `kernelgrpc.Unary(ServiceName, kernelgrpc.Method(descriptor, "<Método>"), <Ctx>Server.<Método>)`,
+   o `Server` sobre o serviço de aplicação (os handlers de comando passam pelo
+   `command[R, Resp]` local, que devolve o erro por `kernelgrpc.StatusOf`), o
+   `service_test.go` com `kernelgrpc.Uncovered`, a `Config` com as seções
+   `API` (`kernelgrpc.APIEnv`) e `Policies` (`kernelapp.Policies`), o wiring e
+   o catálogo;
    e2e gRPC sobre Postgres. Consumer com `envelope.Unpack` **só se
    o contexto consome**. A borda REST é do `bff`, em tarefa própria.
 8. **Contrato**: `.proto` do serviço em

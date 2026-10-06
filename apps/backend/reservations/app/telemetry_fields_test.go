@@ -21,10 +21,10 @@ var sentinels = []string{"sentinel-pg-password", "sentinel-sasl-user", "sentinel
 func configWithSecrets(role app.Role) app.Config {
 	cfg := app.Defaults(role)
 	cfg.DSN = "postgres://reservations:sentinel-pg-password@db:5432/reservations?sslmode=require"
-	cfg.GRPCCertFile = "/tls/tls.crt"
-	cfg.GRPCKeyFile = "/tls/sentinel-grpc-key.pem"
-	cfg.GRPCClientCAFile = "/tls/ca.crt"
-	cfg.GRPCTrustedClients = []string{"bff"}
+	cfg.API.GRPCCertFile = "/tls/tls.crt"
+	cfg.API.GRPCKeyFile = "/tls/sentinel-grpc-key.pem"
+	cfg.API.GRPCClientCAFile = "/tls/ca.crt"
+	cfg.API.GRPCTrustedClients = []string{"bff"}
 	cfg.MetricTenants = []string{"sentinel-tenant-a", "sentinel-tenant-b"}
 	cfg.Brokers = []string{"kafka-1:9093", "kafka-2:9093"}
 	cfg.KafkaAuth = kafka.ClientAuth{

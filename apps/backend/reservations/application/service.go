@@ -97,3 +97,25 @@ type Service struct {
 
 	Instrumentation ports.Instrumentation
 }
+
+type command[R any] = usecase.Command[Resources, Operation, R]
+
+func (s Service) executor() usecase.Executor[Resources, Operation] {
+	return usecase.Executor[Resources, Operation]{
+		UoW:             s.UoW,
+		Inbox:           func(res Resources) ports.Inbox { return res.Commands },
+		Consumer:        CommandConsumer,
+		Clock:           s.Clock,
+		IDs:             s.IDs,
+		MaxEvents:       maxEventsPerCommand,
+		Policy:          s.Idempotency,
+		Authorize:       s.Authorize,
+		Instrumentation: s.Instrumentation,
+	}
+}
+
+func origin(order domain.OrderID) usecase.Origin {
+	return usecase.Origin{Destination: Destination, AggregateType: AggregateType, AggregateID: string(order)}
+}
+
+var loadReservation = usecase.OrNew(domain.NewReservation, domain.FromSnapshot)

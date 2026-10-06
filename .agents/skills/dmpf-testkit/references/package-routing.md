@@ -43,14 +43,29 @@ porque `encoding/json` não pertence ao bloco `domain`.
 
 Autoridade de API:
 
-- `serviceskit/fakes.go`: `NewFakes`, adaptação da UoW, repository e publisher;
-- `serviceskit/ledger.go`: gestos e posições;
+- `serviceskit/fakes.go`: `NewFakes`, `UnitOfWork[R]`, `Tx.CommandInbox`,
+  repository, publisher, `MarkSeeded`, `WithinCalls`, `Commits` e `Binds`;
+- `serviceskit/steps.go`: `Steps`, `Fakes.Clock`, `Fakes.IDs`, `Authorize[C]` e
+  `FoldDigest`;
+- `serviceskit/faults.go`: `Faults`, `FaultyRepository` e `FaultyOutbox`;
+- `serviceskit/ledger.go`: gestos, posições e `Count`;
 - `serviceskit/verdict.go`: `Decide` e `Expect`;
 - `serviceskit/verdict_test.go`: composição do service real e vetores negativos.
 
 Execute o application service real sobre `Fakes.UnitOfWork`. Para uma recusa,
 estabeleça o baseline imediatamente antes do comando recusado; do contrário o
 veredicto pode atribuir efeitos aceitos anteriores ao caso atual.
+
+Nos testes de caso de uso de um contexto, monte o service sobre
+`serviceskit.UnitOfWork(fakes, bind)`, com `fakes.Clock`, `fakes.IDs`,
+`serviceskit.Authorize` e `serviceskit.FoldDigest`, e afirme a sequência por
+`fakes.Steps.Observed()`. O repositório que grava os passos do agregado
+(`orders.Load`, `orders.Save`) e o `withAuthorize` ficam no contexto: o
+primeiro nomeia o agregado, e o segundo nomearia `application`, que o
+`serviceskit`, bloco `provider`, não importa (`DMPF-D001`). Injete falha de
+carga, `Save` e `Enqueue` por `Faults`, e de registro por `FailRegister`. Os
+moldes são o `doubles_test.go` de `apps/backend/{orders,bookings}/application` e o
+`sync_doubles_test.go` de `apps/backend/reservations/application`.
 
 ## `providerkit`
 
@@ -59,9 +74,13 @@ Autoridade de API:
 - `providerkit/uow.go`: `UnitOfWorkSubject` e `UnitOfWork`;
 - `providerkit/inbox.go`: `InboxSubject` e `Inbox`;
 - `providerkit/outbox.go`: `OutboxStore`, `OutboxSubject` e `Outbox`;
+- `providerkit/repository.go`: `RepositorySubject` e `Repository`, com as
+  cláusulas de criação sobre agregado existente e de escritores concorrentes;
 - `providerkit/memory.go`: candidatos em memória (`MemoryUnitOfWork`,
   `MemoryInbox`), usados também por `memory/conformance_test.go`;
-- `postgres/conformance_test.go`: candidato Postgres.
+- `postgres/conformance_test.go`: candidato Postgres;
+- `apps/backend/<ctx>/provider/*repository_test.go`: um `Repository` por
+  agregado do contexto, sobre `pg.Within`.
 
 A função passada à suíte cria e limpa um candidato para cada cláusula. Use
 `ArmCommitFailure` somente quando a realização realmente consegue injetar a
@@ -77,10 +96,16 @@ Autoridade de API:
 - `golden/catalog.go`: unicidade por contrato-major;
 - `golden/roundtrip.go`: `Subject`, `Consumer`, `Producer` e `Evaluate`;
 - `golden/oracle.go` e `report.go`: outcomes e relatório;
-- `contracts/golden/golden_test.go`: uso contra contratos reais.
+- `tb/golden.go`: `Spec[M]`, `GoldenSuite`, `UpdateGolden` e os construtores
+  de caso;
+- `contracts/golden/golden_test.go` e `apps/backend/<ctx>/contract/golden`: uso
+  contra contratos reais.
 
-O módulo `contracts` continua dono das fixtures e do gerador. O testkit
-carrega e julga. Consumidor roda casos canônicos e discriminadores; produtor
+Cada módulo de contrato continua dono das próprias fixtures e do gerador (o
+`Build` de cada `Spec`). O testkit carrega, roda a suíte e julga. Instancie
+`M` em `proto.Message` para misturar contratos numa suíte, e mantenha
+`TestUpdateGolden` como teste de topo: o catálogo de evidência o pula pelo
+nome exato. Consumidor roda casos canônicos e discriminadores; produtor
 roda apenas casos canônicos. Atualização com `GOLDEN_UPDATE=1` exige revisão do
 diff e não é uma correção automática de falha.
 
@@ -149,5 +174,6 @@ o projeto (que prefixa o banco `<projeto>_test_<id>` de cada teste), as capacida
 schemas e as tabelas que o reset trunca; cada contexto o expõe como
 `appkit.PoolOptions` e `appkit.OpenPool`. Para ler o efeito nas tabelas do
 kernel, use `pg.Outbox`, `pg.Settled`, `pg.Counts` e `pg.Tables` em vez de
-consultas locais. `tb.Reexec` reexecuta um teste do binário num processo filho
+consultas locais. Para alcançar o repositório de um provider fora do caso de
+uso, use `pg.Within`, `pg.Seed` e `pg.Load`. `tb.Reexec` reexecuta um teste do binário num processo filho
 e devolve stdout, stderr e o término.

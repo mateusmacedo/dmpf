@@ -39,117 +39,108 @@ var bookingStatuses = map[bookingsv1.BookingStatus]string{
 	bookingsv1.BookingStatus_BOOKING_STATUS_CANCELLED: "cancelled",
 }
 
-func (h handlers) reserveBooking(w http.ResponseWriter, r *http.Request) {
-	var req reserveBookingRequest
-	if err := decodeBody(w, r, &req); err != nil {
-		writeRejection(r, w, http.StatusBadRequest, "malformed-body", "the body is not the ReserveRequest of the contract")
-		return
-	}
-	if !idFormat.MatchString(req.BookingID) || !idFormat.MatchString(req.ResourceID) || req.Quantity < 1 || req.Quantity > maxQuantity {
-		writeRejection(r, w, http.StatusBadRequest, "invalid-request", "bookingId and resourceId must have 1 to 128 characters of [A-Za-z0-9._:-] and quantity must be 1 to 100")
-		return
-	}
+func (h handlers) reserveBooking() http.HandlerFunc {
+	return endpoint(
+		fromBody("ReserveRequest",
+			"bookingId and resourceId must have 1 to 128 characters of [A-Za-z0-9._:-] and quantity must be 1 to 100",
+			validReserveBooking, reserveBookingRequestOf),
+		h.bookings.ReserveBooking,
+		outcome(http.StatusCreated, bookingReservedOf))
+}
 
-	resp, err := h.bookings.ReserveBooking(r.Context(), &bookingsv1.ReserveBookingRequest{BookingId: req.BookingID, ResourceId: req.ResourceID, Quantity: req.Quantity})
-	if err != nil {
-		writeFailure(w, r, err)
-		return
-	}
+func validReserveBooking(b reserveBookingRequest) bool {
+	return idFormat.MatchString(b.BookingID) && idFormat.MatchString(b.ResourceID) && b.Quantity >= 1 && b.Quantity <= maxQuantity
+}
+
+func reserveBookingRequestOf(b reserveBookingRequest) *bookingsv1.ReserveBookingRequest {
+	return &bookingsv1.ReserveBookingRequest{BookingId: b.BookingID, ResourceId: b.ResourceID, Quantity: b.Quantity}
+}
+
+func bookingReservedOf(resp *bookingsv1.ReserveBookingResponse) (any, refusal) {
 	switch result := resp.GetResult().(type) {
 	case *bookingsv1.ReserveBookingResponse_Reserved:
-		writeJSON(r, w, http.StatusCreated, bookingIDResponse{BookingID: result.Reserved.GetBookingId()})
+		return bookingIDResponse{BookingID: result.Reserved.GetBookingId()}, nil
 	case *bookingsv1.ReserveBookingResponse_Rejection:
-		writeRefusal(r, w, result.Rejection)
+		return nil, result.Rejection
 	default:
-		writeFailure(w, r, errMissingResult)
+		return nil, nil
 	}
 }
 
-func (h handlers) cancelBooking(w http.ResponseWriter, r *http.Request) {
-	id, ok := pathID(w, r, "id")
-	if !ok {
-		return
-	}
-	resp, err := h.bookings.CancelBooking(r.Context(), &bookingsv1.CancelBookingRequest{BookingId: id})
-	if err != nil {
-		writeFailure(w, r, err)
-		return
-	}
+func (h handlers) cancelBooking() http.HandlerFunc {
+	return endpoint(fromPath("id", cancelBookingRequest), h.bookings.CancelBooking, outcome(http.StatusOK, bookingCancelledOf))
+}
+
+func cancelBookingRequest(id string) *bookingsv1.CancelBookingRequest {
+	return &bookingsv1.CancelBookingRequest{BookingId: id}
+}
+
+func bookingCancelledOf(resp *bookingsv1.CancelBookingResponse) (any, refusal) {
 	switch result := resp.GetResult().(type) {
 	case *bookingsv1.CancelBookingResponse_Cancelled:
-		writeJSON(r, w, http.StatusOK, bookingIDResponse{BookingID: result.Cancelled.GetBookingId()})
+		return bookingIDResponse{BookingID: result.Cancelled.GetBookingId()}, nil
 	case *bookingsv1.CancelBookingResponse_Rejection:
-		writeRefusal(r, w, result.Rejection)
+		return nil, result.Rejection
 	default:
-		writeFailure(w, r, errMissingResult)
+		return nil, nil
 	}
 }
 
-func (h handlers) registerResource(w http.ResponseWriter, r *http.Request) {
-	var req registerResourceRequest
-	if err := decodeBody(w, r, &req); err != nil {
-		writeRejection(r, w, http.StatusBadRequest, "malformed-body", "the body is not the RegisterRequest of the contract")
-		return
-	}
-	if !idFormat.MatchString(req.Code) {
-		writeRejection(r, w, http.StatusBadRequest, "invalid-request", "code must have 1 to 128 characters of [A-Za-z0-9._:-]")
-		return
-	}
+func (h handlers) registerResource() http.HandlerFunc {
+	return endpoint(
+		fromBody("RegisterRequest", "code must have 1 to 128 characters of [A-Za-z0-9._:-]",
+			validRegisterResource, registerResourceRequestOf),
+		h.bookings.RegisterResource,
+		outcome(http.StatusCreated, resourceRegisteredOf))
+}
 
-	resp, err := h.bookings.RegisterResource(r.Context(), &bookingsv1.RegisterResourceRequest{ResourceId: req.Code})
-	if err != nil {
-		writeFailure(w, r, err)
-		return
-	}
+func validRegisterResource(b registerResourceRequest) bool { return idFormat.MatchString(b.Code) }
+
+func registerResourceRequestOf(b registerResourceRequest) *bookingsv1.RegisterResourceRequest {
+	return &bookingsv1.RegisterResourceRequest{ResourceId: b.Code}
+}
+
+func resourceRegisteredOf(resp *bookingsv1.RegisterResourceResponse) (any, refusal) {
 	switch result := resp.GetResult().(type) {
 	case *bookingsv1.RegisterResourceResponse_Registered:
-		writeJSON(r, w, http.StatusCreated, registeredResource{Code: result.Registered.GetResourceId()})
+		return registeredResource{Code: result.Registered.GetResourceId()}, nil
 	case *bookingsv1.RegisterResourceResponse_Rejection:
-		writeRefusal(r, w, result.Rejection)
+		return nil, result.Rejection
 	default:
-		writeFailure(w, r, errMissingResult)
+		return nil, nil
 	}
 }
 
-func (h handlers) findBooking(w http.ResponseWriter, r *http.Request) {
-	id, ok := pathID(w, r, "id")
-	if !ok {
-		return
-	}
-	resp, err := h.bookings.FindBooking(r.Context(), &bookingsv1.FindBookingRequest{BookingId: id})
-	if err != nil {
-		writeFailure(w, r, err)
-		return
-	}
-	view, known := viewOf(resp.GetBooking())
-	if !known {
-		writeFailure(w, r, errUnknownStatus)
-		return
-	}
-	writeJSON(r, w, http.StatusOK, view)
+func (h handlers) findBooking() http.HandlerFunc {
+	return endpoint(fromPath("id", findBookingRequest), h.bookings.FindBooking, view(bookingViewOf))
 }
 
-func (h handlers) findBookingByResource(w http.ResponseWriter, r *http.Request) {
-	resource := r.URL.Query().Get("resourceId")
-	if !idFormat.MatchString(resource) {
-		writeRejection(r, w, http.StatusBadRequest, "invalid-request", "resourceId must have 1 to 128 characters of [A-Za-z0-9._:-]")
-		return
-	}
-	resp, err := h.bookings.FindBookingsByResource(r.Context(), &bookingsv1.FindBookingsByResourceRequest{ResourceId: resource})
-	if err != nil {
-		writeFailure(w, r, err)
-		return
-	}
+func findBookingRequest(id string) *bookingsv1.FindBookingRequest {
+	return &bookingsv1.FindBookingRequest{BookingId: id}
+}
+
+func bookingViewOf(resp *bookingsv1.FindBookingResponse) (any, bool) {
+	return viewOf(resp.GetBooking())
+}
+
+func (h handlers) findBookingByResource() http.HandlerFunc {
+	return endpoint(fromQuery("resourceId", findBookingsByResourceRequest), h.bookings.FindBookingsByResource, view(bookingViewsOf))
+}
+
+func findBookingsByResourceRequest(resource string) *bookingsv1.FindBookingsByResourceRequest {
+	return &bookingsv1.FindBookingsByResourceRequest{ResourceId: resource}
+}
+
+func bookingViewsOf(resp *bookingsv1.FindBookingsByResourceResponse) (any, bool) {
 	views := make([]bookingView, 0, len(resp.GetBookings()))
 	for _, booking := range resp.GetBookings() {
-		view, known := viewOf(booking)
+		v, known := viewOf(booking)
 		if !known {
-			writeFailure(w, r, errUnknownStatus)
-			return
+			return nil, false
 		}
-		views = append(views, view)
+		views = append(views, v)
 	}
-	writeJSON(r, w, http.StatusOK, views)
+	return views, true
 }
 
 func viewOf(b *bookingsv1.Booking) (bookingView, bool) {

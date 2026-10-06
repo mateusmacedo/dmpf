@@ -23,7 +23,7 @@ Import path do módulo:
 
 | Package | Unidade DMPF | Bloco | Conteúdo |
 | --- | --- | --- | --- |
-| `application` (raiz) | `kernel/application` | `application` | `Outcome[R]`, `Accepted`, `Rejected`, `Outcome.Category`; `Origin`, `Enqueue`; `Query[Op, S]`; `Identity`, `ResolveIdentity`; `Authorize[C]`, `AllowAll[C]`, `Permitted[C]`; `MessageContextFor`; `Disposition` (as sete de FND-04 §6.4), `Category`, `Failure`, `Classify`; `Fingerprint`, `NewFingerprint`; `OutcomeCodec[R]`, `Encoder`, `Decoder`, `EncodeOutcome`, `DecodeOutcome`, `ErrOutcomeUnreadable`; `IdempotencyPolicy`, `IdempotentCommand[R]`, `RunIdempotent`, `ErrIncompleteCommand` |
+| `application` (raiz) | `kernel/application` | `application` | `Outcome[R]`, `Accepted`, `Rejected`, `Outcome.Category`; `Executor[Res, Op]`, `Command[Res, Op, R]`, `Execute`; `Loader[ID, S, A]`, `OrNew`, `Existing`, `Absent`, `Decide`; `Origin`, `Enqueue`; `Query[Op, S]`; `Identity`, `ResolveIdentity`; `Authorize[C]`, `AllowAll[C]`, `Permitted[C]`; `MessageContextFor`; `Disposition` (as sete de FND-04 §6.4), `Category`, `Failure`, `Classify`; `Fingerprint`, `NewFingerprint`; `OutcomeCodec[R]`, `Encoder`, `Decoder`, `EncodeOutcome`, `DecodeOutcome`, `ErrOutcomeUnreadable`; `IdempotencyPolicy`, `IdempotentCommand[R]`, `RunIdempotent`, `ErrIncompleteCommand` |
 
 Uma unidade só, com `bounded_context: kernel`; em Go, a unidade de verificação
 é o package (RFC §3.3). Os packages que este módulo carregava como
@@ -121,25 +121,37 @@ resp := out.Response() // domain.ItemAccepted
 
 ## Os nove passos, e onde cada um está no código
 
-A sequência do FND-04 §3.2 não é comentada por número no código: ela é legível
-nas próprias chamadas. O mapa está aqui; os arquivos são os de
-`apps/backend/orders/application`.
+A sequência do FND-04 §3.2 vive em dois esqueletos deste módulo. `Execute`
+(`execute.go`) fixa os passos 1 a 3, 8 e 9 e a auditoria; `Decide`
+(`decide.go`) fixa os passos 4 a 7. O contexto declara só os ganchos: o
+`Executor` do serviço, montado por `Service.executor()`, e, por comando, o
+`Command` com a operação, o objeto auditado, a entrada, o `Fingerprint`, o codec
+e o `Run`, que chama `Decide` com o `Loader` e a decisão de domínio. `Decide`
+só aceita agregado por ponteiro: sobre um valor, a decisão mudaria uma cópia e o
+`Save` gravaria o estado anterior ao evento.
 
 | Passo | Onde | O que acontece |
 | --- | --- | --- |
-| 1. autorizar | `add_item.go`, `s.Authorize(ctx, cmd)` | Erro interrompe antes de qualquer resolução ou transação |
-| 2. resolver identidade | `add_item.go`, `application.ResolveIdentity(s.Clock, s.IDs, maxEventsPerCommand)` | Uma leitura de relógio e um identificador por evento possível, **antes** de `Within` |
-| 3. abrir a UoW | `add_item.go`, `s.UoW.Within(ctx, func(...) error {` | Uma transação sobre um recurso |
-| 4. carregar | `add_item.go`, `s.loadOrCreate(...)` → `res.Orders.Load` | `ErrNotFound` vira `domain.NewOrder` com `expected == 0` |
-| 5. decidir | `add_item.go`, `order.AddItem(...)` | O único passo que ocorre no bloco `domain` |
-| 6. persistir | `add_item.go`, `res.Orders.Save(ctx, cmd.Order, order.Snapshot(), stored)` | Optimistic locking; grava como `stored + 1` |
-| 7. enfileirar | `add_item.go`, `usecase.Enqueue(...)` → `res.Outbox.Enqueue` | Mesma transação do passo 6 |
-| 8. commitar | `add_item.go`, o retorno `nil` do callback | O commit é do `Within`, não do caso de uso |
-| 9. responder | `add_item.go`, `return outcome, nil` | `Outcome` no caminho de negócio, `error` no técnico |
+| 1. autorizar | `execute.go`, `x.Authorize(ctx, c.Input)` | Erro interrompe antes de qualquer resolução ou transação |
+| 2. resolver identidade | `execute.go`, `ResolveIdentity(x.Clock, x.IDs, x.MaxEvents)` | Uma leitura de relógio e um identificador por evento possível, **antes** de `Within` |
+| 3. abrir a UoW | `execute.go`, `x.UoW.Within(...)`, com `RunIdempotent` antes de qualquer outra instrução | Uma transação sobre um recurso |
+| 4. carregar | `decide.go`, o `Loader` do contexto sobre `repo.Load` | `OrNew` cria com `expected == 0` quando não acha; `Existing` exige o agregado; `Absent` exige que ele não exista |
+| 5. decidir | `decide.go`, o `decide` do contexto | O único passo que ocorre no bloco `domain` |
+| 6. persistir | `decide.go`, `repo.Save(ctx, id, aggregate.Snapshot(), stored)` | Optimistic locking; grava como `stored + 1` |
+| 7. enfileirar | `decide.go`, `Enqueue(...)` → `outbox.Enqueue` | Mesma transação do passo 6 |
+| 8. commitar | `execute.go`, o retorno `nil` do callback do `Within` | O commit é do `Within`, não do caso de uso |
+| 9. responder | `execute.go`, `return outcome, nil` | `Outcome` no caminho de negócio, `error` no técnico |
 
-`PlaceOrder` percorre os mesmos passos, com uma diferença no 4: só carrega. Um
-agregado ausente volta como `error` técnico embrulhado, não como rejeição —
-nenhuma UPR a produziu, e a categoria de borda é do FND-07.
+A escolha do `Loader` é do contexto. No `orders`, `AddItem` usa `OrNew` e
+`PlaceOrder` usa `Existing`: um agregado ausente volta como `error` técnico
+embrulhado, não como rejeição — nenhuma UPR a produziu, e a categoria de borda é
+do FND-07. `Absent` serve à criação que recusa o agregado existente com
+`ports.ErrAlreadyExists`, sem `Save` nem `Enqueue`.
+
+Os erros têm uma forma só nos três contextos. `Decide` devolve a falha de carga e
+a de `Save` sem prefixo e a de `Enqueue` como `enqueue: <causa>`; o caso de uso
+envolve tudo com `application: <operação> <id>: %w`. `Execute` devolve o erro
+sem embrulho e audita só quando nada foi reproduzido.
 
 Três detalhes que a norma fixa e o código realiza:
 
@@ -187,10 +199,10 @@ primeiros são do provider e do contrato, os segundos do schema e do relay.
 ## Instrumentação do caso de uso
 
 O serviço de aplicação tem o campo `Instrumentation ports.Instrumentation`.
-A ordem é fixa: abre a operação **antes** do passo 1 (autorização), o commit
-acontece, a operação é fechada com a categoria do desfecho, e só então sai a
-auditoria — com `Object`, `Action`, `Outcome` e o `OccurredAt` que a identidade
-da mensagem já resolveu. Um campo nulo vira `NoInstrumentation()`, e o serviço
+A ordem é fixa, e `Execute` a realiza: abre a operação **antes** do passo 1
+(autorização), o commit acontece, a operação é fechada com a categoria do
+desfecho, e só então sai a auditoria — com `Object`, `Action`, `Outcome` e o
+`OccurredAt` que a identidade da mensagem já resolveu. Um campo nulo vira `NoInstrumentation()`, e o serviço
 roda sem telemetria em vez de falhar.
 
 O span nasce aqui, no serviço de aplicação, e não no provider (`TRC-16`). O

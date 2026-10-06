@@ -68,6 +68,7 @@ func TestRepositoryConformsToTheKit(t *testing.T) {
 			NewState:         func(marker int) probe { return probe{Items: marker} },
 			Marker:           func(p probe) int { return p.Items },
 			TenantUnresolved: postgres.ErrTenantUnresolved,
+			Concurrent:       true,
 		}
 	})
 	tb.Require(t, v)

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/app"
+	kernelapp "github.com/mateusmacedo/dmpf/libs/backend/go/app"
 )
 
 func lookup(pairs ...string) func(string) string {
@@ -23,7 +24,7 @@ func TestTheAPIRunsWithItsDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("FromEnv() = %v, want nil", err)
 	}
-	if cfg.GRPCAddr != ":9090" || cfg.Service != "orders" || cfg.ItemLimit != 10 || !cfg.GRPCInsecure {
+	if cfg.API.GRPCAddr != ":9090" || cfg.Service != "orders" || cfg.ItemLimit != 10 || !cfg.API.GRPCInsecure {
 		t.Fatalf("cfg = %+v, want :9090, orders, item limit 10, insecure", cfg)
 	}
 }
@@ -36,36 +37,15 @@ func TestTheAPIRequiresATransportPolicy(t *testing.T) {
 	}
 }
 
-func TestTheAPIAcceptsATLSPair(t *testing.T) {
-	_, err := app.FromEnv(app.RoleAPI,
-		lookup("PG_DSN", "postgres://x", "GRPC_TLS_CERT_FILE", "/tls/cert.pem", "GRPC_TLS_KEY_FILE", "/tls/key.pem",
-			"GRPC_CLIENT_CA_FILE", "/tls/clients.pem", "GRPC_TRUSTED_CLIENTS", "spiffe://dmpf/bff"))
+func TestTheAPIRefusesANonPositivePurgeBatchUnderItsOwnSentinel(t *testing.T) {
+	cfg := app.Defaults(app.RoleAPI)
+	cfg.DSN, cfg.API.GRPCInsecure = "postgres://x", true
+	cfg.Policies.PurgeBatch = 0
 
-	if err != nil {
-		t.Fatalf("FromEnv() = %v, want nil", err)
-	}
-}
+	err := cfg.Validate()
 
-// IDN-03: a TLS server that does not authenticate its caller would read the
-// tenant any process on the network chose to send.
-func TestATLSPairWithoutClientAuthenticationNamesWhatIsMissing(t *testing.T) {
-	pair := []string{"PG_DSN", "postgres://x", "GRPC_TLS_CERT_FILE", "/tls/cert.pem", "GRPC_TLS_KEY_FILE", "/tls/key.pem"}
-
-	if _, err := app.FromEnv(app.RoleAPI, lookup(pair...)); !errors.Is(err, app.ErrMissingVariable) || !strings.Contains(err.Error(), "GRPC_CLIENT_CA_FILE") {
-		t.Fatalf("FromEnv() = %v, want GRPC_CLIENT_CA_FILE named", err)
-	}
-	withCA := append(pair, "GRPC_CLIENT_CA_FILE", "/tls/clients.pem")
-	if _, err := app.FromEnv(app.RoleAPI, lookup(withCA...)); !errors.Is(err, app.ErrMissingVariable) || !strings.Contains(err.Error(), "GRPC_TRUSTED_CLIENTS") {
-		t.Fatalf("FromEnv() = %v, want GRPC_TRUSTED_CLIENTS named", err)
-	}
-}
-
-func TestHalfATLSPairNamesTheMissingFile(t *testing.T) {
-	_, err := app.FromEnv(app.RoleAPI,
-		lookup("PG_DSN", "postgres://x", "GRPC_TLS_CERT_FILE", "/tls/cert.pem"))
-
-	if !errors.Is(err, app.ErrMissingVariable) || !strings.Contains(err.Error(), "GRPC_TLS_KEY_FILE") {
-		t.Fatalf("FromEnv() = %v, want GRPC_TLS_KEY_FILE named", err)
+	if want := "orders: invalid idempotency or purge policy: PurgeBatch 0"; !errors.Is(err, app.ErrInvalidPolicy) || err.Error() != want {
+		t.Fatalf("Validate() = %v, want %q", err, want)
 	}
 }
 
@@ -109,33 +89,15 @@ func TestAnInvalidItemLimitIsRefused(t *testing.T) {
 }
 
 func TestTheDefaultsKeepCommandsAndThePurgeWithinTheirRetention(t *testing.T) {
-	cfg := app.Defaults(app.RoleAPI)
-
-	if cfg.IdempotencyWait != time.Second || cfg.IdempotencyRetention != 24*time.Hour || cfg.OutboxRetention != 168*time.Hour {
-		t.Fatalf("wait %v, retention %v, outbox %v; want 1s, 24h and 168h", cfg.IdempotencyWait, cfg.IdempotencyRetention, cfg.OutboxRetention)
+	want := kernelapp.Policies{
+		IdempotencyWait:      time.Second,
+		IdempotencyRetention: 24 * time.Hour,
+		OutboxRetention:      168 * time.Hour,
+		PurgeInterval:        15 * time.Minute,
+		PurgeBatch:           1000,
 	}
-	if cfg.PurgeInterval != 15*time.Minute || cfg.PurgeBatch != 1000 {
-		t.Fatalf("purge every %v in batches of %d, want 15m and 1000", cfg.PurgeInterval, cfg.PurgeBatch)
-	}
-}
-
-func TestANonPositivePolicyIsRefused(t *testing.T) {
-	for name, spoil := range map[string]func(*app.Config){
-		"wait":             func(c *app.Config) { c.IdempotencyWait = 0 },
-		"retention":        func(c *app.Config) { c.IdempotencyRetention = -time.Hour },
-		"outbox retention": func(c *app.Config) { c.OutboxRetention = 0 },
-		"purge interval":   func(c *app.Config) { c.PurgeInterval = 0 },
-		"purge batch":      func(c *app.Config) { c.PurgeBatch = 0 },
-	} {
-		t.Run(name, func(t *testing.T) {
-			cfg := app.Defaults(app.RoleAPI)
-			cfg.DSN, cfg.GRPCInsecure = "postgres://x", true
-			spoil(&cfg)
-
-			if err := cfg.Validate(); !errors.Is(err, app.ErrInvalidPolicy) {
-				t.Fatalf("Validate() = %v, want ErrInvalidPolicy", err)
-			}
-		})
+	if got := app.Defaults(app.RoleAPI).Policies; got != want {
+		t.Fatalf("Policies = %+v, want %+v", got, want)
 	}
 }
 

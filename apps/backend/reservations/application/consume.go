@@ -58,15 +58,9 @@ func (s Service) consumeFirst(
 	pending ports.Pending,
 	disposition *usecase.Disposition,
 ) error {
-	snapshot, stored, err := res.Reservations.Load(ctx, cmd.Order)
-	var reservation *domain.Reservation
-	switch {
-	case errors.Is(err, ports.ErrNotFound):
-		reservation, stored = domain.NewReservation(cmd.Order), 0
-	case err != nil:
+	reservation, stored, err := loadReservation(ctx, res.Reservations, cmd.Order)
+	if err != nil {
 		return fmt.Errorf("application: consume %s: %w", cmd.Order, err)
-	default:
-		reservation = domain.FromSnapshot(snapshot)
 	}
 
 	accepted, rejection := reservation.Reserve(domain.Reserve{
@@ -86,18 +80,14 @@ func (s Service) consumeFirst(
 		if errors.Is(err, ports.ErrVersionConflict) {
 			// MAP-07: the predicate is declared here — a reread replays the
 			// decision instead of repeating one already taken.
-			return usecase.NewFailure(usecase.Conflict, true, err)
+			err = usecase.NewFailure(usecase.Conflict, true, err)
 		}
-		return err
+		return fmt.Errorf("application: consume %s: %w", cmd.Order, err)
 	}
 	if err := usecase.Enqueue(ctx, res.Outbox, identity, origin(cmd.Order), stored+1, accepted.Events()); err != nil {
-		return err
+		return fmt.Errorf("application: consume %s: enqueue: %w", cmd.Order, err)
 	}
 
 	*disposition = usecase.R1D1
 	return pending.Complete(ctx, ports.Completion{Status: ports.StatusProcessed, At: identity.OccurredAt})
-}
-
-func origin(order domain.OrderID) usecase.Origin {
-	return usecase.Origin{Destination: Destination, AggregateType: AggregateType, AggregateID: string(order)}
 }

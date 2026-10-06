@@ -1,0 +1,127 @@
+{
+  "format_version": "1",
+  "identity": {
+    "fixture": "bookings/event/v1/booking-reserved",
+    "contract": {
+      "package": "company.bookings.event.v1",
+      "message": "BookingReserved"
+    },
+    "type": "com.company.bookings.booking-reserved.v1",
+    "dataschema": "type.googleapis.com/company.bookings.event.v1.BookingReserved"
+  },
+  "covers": {
+    "profile_major": "1",
+    "contract_major": "v1"
+  },
+  "cases": [
+    {
+      "name": "all-conditionals-present",
+      "doc": "Caminho típico com os três atributos condicionais presentes (aggregateversion, tenantid, tracestate).",
+      "envelope": {
+        "aggregateversion": "7",
+        "causationid": "evt-0001",
+        "correlationid": "corr-0001",
+        "datacontenttype": "application/protobuf",
+        "dataschema": "type.googleapis.com/company.bookings.event.v1.BookingReserved",
+        "id": "evt-0001",
+        "partitionkey": "c-42",
+        "source": "urn:dmpf:reference-bookings",
+        "specversion": "1.0",
+        "subject": "b-1001",
+        "tenantid": "tenant-a",
+        "time": "2026-09-02T12:00:00Z",
+        "traceparent": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+        "tracestate": "vendor=1",
+        "type": "com.company.bookings.booking-reserved.v1"
+      },
+      "payload": {
+        "booking_id": "b-1001",
+        "quantity": "2",
+        "reserved_at": "2026-09-02T12:00:00Z",
+        "resource_id": "room-1"
+      },
+      "payload_bytes_hex": "0a06622d313030311206726f6f6d2d311802220608c09fe0d406",
+      "payload_hash": "29db5d0d1a264be4ef5f29fe81c66c092080f3a1c39443a6c639a47c14867692"
+    },
+    {
+      "name": "all-conditionals-absent",
+      "doc": "Os três condicionais ausentes: nenhum entra no mapa de atributos (ENV-12, sem valor de preenchimento).",
+      "envelope": {
+        "causationid": "evt-0001",
+        "correlationid": "corr-0001",
+        "datacontenttype": "application/protobuf",
+        "dataschema": "type.googleapis.com/company.bookings.event.v1.BookingReserved",
+        "id": "evt-0002",
+        "partitionkey": "c-42",
+        "source": "urn:dmpf:reference-bookings",
+        "specversion": "1.0",
+        "subject": "b-1001",
+        "time": "2026-09-02T12:00:00Z",
+        "traceparent": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+        "type": "com.company.bookings.booking-reserved.v1"
+      },
+      "payload": {
+        "booking_id": "b-1002",
+        "quantity": "1",
+        "reserved_at": "2026-09-02T12:00:01Z",
+        "resource_id": "room-2"
+      },
+      "payload_bytes_hex": "0a06622d313030321206726f6f6d2d321801220608c19fe0d406",
+      "payload_hash": "bb2b6b3a5038a4345f47b32eadb6fda2a9fe6bb4f8653eeb46cf0b85672f92d4"
+    }
+  ],
+  "discriminators": [
+    {
+      "name": "unknown-field",
+      "doc": "Bytes canônicos mais um campo de número 7 (varint 42) que o contrato não conhece: a desserialização o preserva (PTB-10) e o hash o cobre (ENV-17).",
+      "envelope": {
+        "causationid": "evt-0001",
+        "correlationid": "corr-0001",
+        "datacontenttype": "application/protobuf",
+        "dataschema": "type.googleapis.com/company.bookings.event.v1.BookingReserved",
+        "id": "evt-2001",
+        "partitionkey": "c-42",
+        "source": "urn:dmpf:reference-bookings",
+        "specversion": "1.0",
+        "subject": "b-1001",
+        "time": "2026-09-02T12:00:00Z",
+        "traceparent": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+        "type": "com.company.bookings.booking-reserved.v1"
+      },
+      "payload": {
+        "booking_id": "b-2001",
+        "quantity": "2",
+        "reserved_at": "2026-09-02T12:00:02Z",
+        "resource_id": "room-1"
+      },
+      "payload_bytes_hex": "0a06622d323030311206726f6f6d2d311802220608c29fe0d406382a",
+      "payload_hash": "14e8ebf7cecb0d47639325102e1f2f3648940d632424f0378bfb74ddc025312f"
+    },
+    {
+      "name": "non-canonical-field-order",
+      "doc": "Campos em ordem decrescente de número, o instante como sub-mensagem: decodifica no mesmo valor, mas o hash é o dos bytes transportados e difere do hash de uma reserialização (ENV-18).",
+      "envelope": {
+        "causationid": "evt-0001",
+        "correlationid": "corr-0001",
+        "datacontenttype": "application/protobuf",
+        "dataschema": "type.googleapis.com/company.bookings.event.v1.BookingReserved",
+        "id": "evt-2002",
+        "partitionkey": "c-42",
+        "source": "urn:dmpf:reference-bookings",
+        "specversion": "1.0",
+        "subject": "b-1001",
+        "time": "2026-09-02T12:00:00Z",
+        "traceparent": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+        "type": "com.company.bookings.booking-reserved.v1"
+      },
+      "payload": {
+        "booking_id": "b-2002",
+        "quantity": "5",
+        "reserved_at": "2026-09-02T12:00:03.123456789Z",
+        "resource_id": "room-2"
+      },
+      "payload_bytes_hex": "220b08c39fe0d40610959aef3a18051206726f6f6d2d320a06622d32303032",
+      "payload_hash": "ca83096b8c1d86a5b40ed4f73a4a6bf1865ef7a178587183785f8cc6f687216a"
+    }
+  ]
+}

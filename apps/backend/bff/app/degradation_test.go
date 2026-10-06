@@ -19,6 +19,7 @@ import (
 	"github.com/mateusmacedo/dmpf/apps/backend/bff/app"
 	"github.com/mateusmacedo/dmpf/apps/backend/bff/app/rpc"
 	ordersv1 "github.com/mateusmacedo/dmpf/apps/backend/orders/contract/gen/go/company/orders/service/v1"
+	kernelgrpc "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/boot"
 )
 
@@ -114,6 +115,8 @@ type ordersContext struct {
 	calls  atomic.Int64
 }
 
+var ordersService = ordersv1.File_company_orders_service_v1_orders_service_proto.Services().ByName("OrdersService")
+
 func serveOrders(t *testing.T) *ordersContext {
 	t.Helper()
 	return serveOrdersHeldBy(t, func(context.Context) {})
@@ -130,20 +133,16 @@ func serveOrdersHeldBy(t *testing.T, hold func(context.Context)) *ordersContext 
 	server.RegisterService(&grpc.ServiceDesc{
 		ServiceName: rpc.OrdersServiceName,
 		HandlerType: (*any)(nil),
-		Methods: []grpc.MethodDesc{{
-			MethodName: "FindOrder",
-			Handler: func(_ any, ctx context.Context, decode func(any) error, _ grpc.UnaryServerInterceptor) (any, error) {
-				req := new(ordersv1.FindOrderRequest)
-				if err := decode(req); err != nil {
-					return nil, err
-				}
-				orders.calls.Add(1)
-				hold(ctx)
-				return &ordersv1.FindOrderResponse{Order: &ordersv1.Order{
-					OrderId: req.GetOrderId(), Status: ordersv1.OrderStatus_ORDER_STATUS_OPEN, ItemLimit: 10,
-				}}, nil
-			},
-		}},
+		Methods: []grpc.MethodDesc{
+			kernelgrpc.Unary(rpc.OrdersServiceName, kernelgrpc.Method(ordersService, "FindOrder"),
+				func(_ any, ctx context.Context, req *ordersv1.FindOrderRequest) (*ordersv1.FindOrderResponse, error) {
+					orders.calls.Add(1)
+					hold(ctx)
+					return &ordersv1.FindOrderResponse{Order: &ordersv1.Order{
+						OrderId: req.GetOrderId(), Status: ordersv1.OrderStatus_ORDER_STATUS_OPEN, ItemLimit: 10,
+					}}, nil
+				}),
+		},
 	}, struct{}{})
 	healthServer := health.NewServer()
 	for _, service := range []string{rpc.OrdersServiceName, rpc.ReservationsServiceName, rpc.BookingsServiceName} {

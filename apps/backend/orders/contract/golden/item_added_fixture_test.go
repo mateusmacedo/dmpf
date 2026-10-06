@@ -6,24 +6,28 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	eventv1 "github.com/mateusmacedo/dmpf/apps/backend/orders/contract/gen/go/company/orders/event/v1"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/golden"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb"
 )
 
-const itemAddedPath = "../../../../../apps/backend/orders/contract/fixtures/event/v1/item-added.golden"
+const itemAddedPath = "apps/backend/orders/contract/fixtures/event/v1/item-added.golden"
 
-var itemAddedSpec = fixtureSpec{
-	path: itemAddedPath,
-	identity: identity{
+var itemAddedSpec = tb.Spec[proto.Message]{
+	Path:    itemAddedPath,
+	Source:  "urn:dmpf:orders",
+	Subject: "order/o-1001",
+	Identity: golden.Identity{
 		Fixture:    "orders/event/v1/item-added",
-		Contract:   contract{Package: "company.orders.event.v1", Message: "ItemAdded"},
+		Contract:   golden.Contract{Package: "company.orders.event.v1", Message: "ItemAdded"},
 		Type:       "com.company.orders.item-added.v1",
 		DataSchema: "type.googleapis.com/company.orders.event.v1.ItemAdded",
 	},
-	fieldNumbers:       fieldNumbers{unknown: 7},
-	newMessage:         func() proto.Message { return &eventv1.ItemAdded{} },
-	messageFromFields:  func(fields map[string]string) (proto.Message, error) { return itemAdded(fields) },
-	build:              buildItemAdded,
-	wantCases:          3,
-	wantDiscriminators: 2,
+	Unknown:            7,
+	New:                func() proto.Message { return &eventv1.ItemAdded{} },
+	FromFields:         func(fields map[string]string) (proto.Message, error) { return itemAdded(fields) },
+	Build:              buildItemAdded,
+	WantCases:          3,
+	WantDiscriminators: 2,
 }
 
 func itemAddedFields(orderID, sku, quantity string) map[string]string {
@@ -35,7 +39,7 @@ func itemAddedFields(orderID, sku, quantity string) map[string]string {
 }
 
 func itemAdded(fields map[string]string) (*eventv1.ItemAdded, error) {
-	quantity, err := parseInt(fields, "quantity", 32)
+	quantity, err := tb.ParseInt(fields, "quantity", 32)
 	if err != nil {
 		return nil, err
 	}
@@ -46,42 +50,39 @@ func itemAdded(fields map[string]string) (*eventv1.ItemAdded, error) {
 	}, nil
 }
 
-func buildItemAdded(t *testing.T, s fixtureSpec) fixtureDoc {
+func buildItemAdded(t *testing.T, s tb.Spec[proto.Message]) golden.Fixture {
 	t.Helper()
 
-	allPresent := s.packedCase(t, "all-conditionals-present",
+	allPresent := s.PackedCase(t, "all-conditionals-present",
 		"Caminho típico com os três atributos condicionais presentes (aggregateversion, tenantid, tracestate).",
-		withConditionals(s.baseEnvelope()), itemAddedFields("o-1001", "SKU-001", "2"))
+		tb.WithConditionals(s.BaseEnvelope()), itemAddedFields("o-1001", "SKU-001", "2"))
 
-	absentEnv := s.baseEnvelope()
+	absentEnv := s.BaseEnvelope()
 	absentEnv["id"] = "evt-0002"
-	allAbsent := s.packedCase(t, "all-conditionals-absent",
+	allAbsent := s.PackedCase(t, "all-conditionals-absent",
 		"Os três condicionais ausentes: nenhum entra no mapa de atributos (ENV-12, sem valor de preenchimento).",
 		absentEnv, itemAddedFields("o-1002", "SKU-002", "1"))
 
-	zeroEnv := s.baseEnvelope()
+	zeroEnv := s.BaseEnvelope()
 	zeroEnv["id"] = "evt-0003"
-	quantityZero := s.packedCase(t, "quantity-zero",
+	quantityZero := s.PackedCase(t, "quantity-zero",
 		"quantity no valor zero: o campo não aparece no wire, e o leitor precisa distinguir ausência de zero pelo contrato.",
 		zeroEnv, itemAddedFields("o-1003", "SKU-003", "0"))
 
-	unknownEnv := s.baseEnvelope()
+	unknownEnv := s.BaseEnvelope()
 	unknownEnv["id"] = "evt-2001"
-	unknownField := s.unknownFieldCase(t, "unknown-field",
+	unknownField := s.UnknownFieldCase(t, "unknown-field",
 		"Bytes canônicos mais um campo de número 7 (varint 42) que o contrato não conhece: a desserialização o preserva (PTB-10) e o hash o cobre (ENV-17).",
 		unknownEnv, itemAddedFields("o-2001", "SKU-001", "2"))
 
-	nonCanonicalEnv := s.baseEnvelope()
+	nonCanonicalEnv := s.BaseEnvelope()
 	nonCanonicalEnv["id"] = "evt-2002"
-	nonCanonical := s.nonCanonicalCase(t, "non-canonical-field-order",
+	nonCanonical := s.NonCanonicalCase(t, "non-canonical-field-order",
 		"Campos em ordem decrescente de número: decodifica no mesmo valor, mas o hash é o dos bytes transportados e difere do hash de uma reserialização (ENV-18).",
 		nonCanonicalEnv, itemAddedFields("o-2002", "SKU-002", "5"))
 
-	return fixtureDoc{
-		FormatVersion:  formatVersion,
-		Identity:       s.identity,
-		Covers:         covers{ProfileMajor: "1", ContractMajor: "v1"},
-		Cases:          []fixtureCase{allPresent, allAbsent, quantityZero},
-		Discriminators: []fixtureCase{unknownField, nonCanonical},
-	}
+	return s.Fixture(
+		[]golden.Case{allPresent, allAbsent, quantityZero},
+		[]golden.Case{unknownField, nonCanonical},
+	)
 }

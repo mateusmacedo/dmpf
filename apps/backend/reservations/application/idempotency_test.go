@@ -37,8 +37,8 @@ func TestARepeatedReserveReplaysWithoutASecondEffectOrAudit(t *testing.T) {
 	if again.Response() != first.Response() {
 		t.Fatalf("replay = %+v, want %+v", again.Response(), first.Response())
 	}
-	if h.saves != 1 || h.enqueues != 1 || audits.audits != 1 {
-		t.Fatalf("saves %d, enqueues %d, audits %d; want 1 each: the replay reapplied the effect", h.saves, h.enqueues, audits.audits)
+	if h.saves != 1 || h.enqueues() != 1 || audits.audits != 1 {
+		t.Fatalf("saves %d, enqueues %d, audits %d; want 1 each: the replay reapplied the effect", h.saves, h.enqueues(), audits.audits)
 	}
 	if outcome, _ := ports.IdempotencyOutcomeFrom(ctx); outcome != ports.IdempotencyReplayed {
 		t.Fatalf("idempotency outcome = %v, want replayed", outcome)
@@ -53,7 +53,7 @@ func TestARepeatedRefusalReplaysTheRejectionWithoutLoading(t *testing.T) {
 	if _, err := h.service.Reserve(withKey(t, context.Background(), "k-refused"), reserve); err != nil {
 		t.Fatalf("first Reserve() = %v, want a rejection, not an error", err)
 	}
-	h.rec.observed = nil
+	h.rec.Reset()
 	again, err := h.service.Reserve(withKey(t, context.Background(), "k-refused"), reserve)
 	if err != nil {
 		t.Fatalf("repeated Reserve() = %v, want the stored rejection", err)
@@ -62,8 +62,8 @@ func TestARepeatedRefusalReplaysTheRejectionWithoutLoading(t *testing.T) {
 	if _, rejected := again.Rejection(); !rejected {
 		t.Fatalf("replay = %+v, want the rejection of a canceled reservation", again)
 	}
-	if slices.Contains(h.rec.observed, "domain.Load") {
-		t.Fatalf("sequence = %v: the replay reached the aggregate", h.rec.observed)
+	if slices.Contains(h.rec.Observed(), "domain.Load") {
+		t.Fatalf("sequence = %v: the replay reached the aggregate", h.rec.Observed())
 	}
 }
 
@@ -78,8 +78,8 @@ func TestTheSameKeyWithAnotherPayloadIsAMismatch(t *testing.T) {
 	if !errors.Is(err, ports.ErrIdempotencyMismatch) {
 		t.Fatalf("Reserve(other items) = %v, want ErrIdempotencyMismatch", err)
 	}
-	if h.enqueues != 1 {
-		t.Fatalf("enqueues = %d, want 1", h.enqueues)
+	if h.enqueues() != 1 {
+		t.Fatalf("enqueues = %d, want 1", h.enqueues())
 	}
 }
 
@@ -102,7 +102,7 @@ func TestACommandWithoutAKeyIsRefusedBeforeAnyEffect(t *testing.T) {
 	if !errors.Is(err, ports.ErrIdempotencyKeyAbsent) {
 		t.Fatalf("Reserve() = %v, want ErrIdempotencyKeyAbsent", err)
 	}
-	if h.saves != 0 || h.enqueues != 0 {
-		t.Fatalf("saves %d, enqueues %d, want none", h.saves, h.enqueues)
+	if h.saves != 0 || h.enqueues() != 0 {
+		t.Fatalf("saves %d, enqueues %d, want none", h.saves, h.enqueues())
 	}
 }

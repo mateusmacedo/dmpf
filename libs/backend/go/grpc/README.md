@@ -172,6 +172,24 @@ só aparecem em `_test.go`, que o verificador não classifica.
   `Unauthenticated` → `Unauthenticated`; o resto → `Internal`. A categoria é a
   do primeiro nó da cadeia com `ErrorCategory() string`, lida sem importar
   `application`; o teste de contrato do módulo `app` fixa as strings.
+- **`methods.go`** — o registro de métodos do `ServiceDesc` de um contexto,
+  amarrado ao descritor protobuf. `Method(desc, name)` devolve o descritor do
+  método e entra em pânico (`grpc: <FullName> declares no method <name>`) se o
+  serviço não o declara, o que faz o erro aparecer na inicialização do package.
+  `Unary(service, md, call)` monta o `grpc.MethodDesc` unário a partir de uma
+  method expression do servidor (`OrdersServer.AddItem`), com ou sem
+  interceptor, e devolve `nil` sem tipo junto do erro. `MethodNames(desc)` lista
+  os métodos na ordem do descritor, `FullMethod(service, method)` monta
+  `/<service>/<method>`, e `Uncovered(sd, desc)` lista os métodos declarados que
+  não têm exatamente um `MethodDesc` unário registrado (o gRPC fica com o último
+  de dois com o mesmo nome): os `app/rpc/service_test.go` o chamam para provar
+  que todo método do `.proto` tem um handler só.
+- **`api_env.go`** — `APIEnv`, a seção `GRPC_*` da `Config` de todo contexto:
+  `ReadAPIEnv(lookup, defaultAddr)` lê `GRPC_ADDR`, `GRPC_INSECURE`, o par TLS,
+  `GRPC_CLIENT_CA_FILE` e `GRPC_TRUSTED_CLIENTS`; `Missing()` nomeia, em ordem,
+  o que falta à política de transporte — o opt-out de desenvolvimento ou o par
+  TLS que autentica o chamador (GRP-15, IDN-03). O `requirements()` de cada
+  contexto compõe o `Missing()` com as próprias variáveis.
 - **`hop.go`** — o protocolo do salto, usado pelos dois lados:
   `MetadataCarrier` (o `TextMapCarrier` sobre a metadata gRPC), `NewID(component)`
   (16 bytes aleatórios em hex; `component` prefixa o `panic` da fonte de

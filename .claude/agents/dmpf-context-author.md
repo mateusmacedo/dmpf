@@ -34,9 +34,11 @@ Leia, nesta ordem, e siga:
   `apps/backend/bookings`, o golden da forma canônica (ADR-053), e de
   `apps/backend/reservations` só no que o contexto consome (inbox e consumer).
 - Preenche o esqueleto que o generator deixou: o `ServiceDesc` de
-  `app/rpc/service.go` com cada método do serviço, o `app/wiring.go` com o
-  serviço de aplicação, o catálogo com o canal que o relay drena, o
-  `provider/schema.sql` e o `Tables` do `appkit`.
+  `app/rpc/service.go` com cada método do serviço por `kernelgrpc.Unary` sobre
+  `kernelgrpc.Method`, e os handlers de comando pelo `command[R, Resp]` local;
+  o `app/wiring.go` com o serviço de aplicação, cujos comandos usam
+  `usecase.Execute` e `usecase.Decide`; o catálogo com o canal que o relay
+  drena, o `provider/schema.sql` e o `Tables` do `appkit`.
 - Escreve o `.proto` do serviço em
   `apps/backend/<name>/contract/proto/company/<name>/service/v1/`, o de cada evento publicado em
   `apps/backend/<name>/contract/proto/company/<name>/event/v1/` e o OpenAPI em

@@ -13,6 +13,7 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/test/bufconn"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
 
 	"github.com/mateusmacedo/dmpf/apps/backend/bff/app/rpc"
 	ordersv1 "github.com/mateusmacedo/dmpf/apps/backend/orders/contract/gen/go/company/orders/service/v1"
@@ -63,19 +64,21 @@ func (f *fakeContexts) callsTo(method string) []received {
 	return out
 }
 
+var (
+	ordersService       = ordersv1.File_company_orders_service_v1_orders_service_proto.Services().ByName("OrdersService")
+	reservationsService = reservationsv1.File_company_reservations_service_v1_reservations_service_proto.Services().ByName("ReservationsService")
+)
+
 func unary[Req any, PReq interface {
 	*Req
 	proto.Message
-}](f *fakeContexts, name string, respond func(ctx context.Context, n int) (any, error)) grpc.MethodDesc {
-	return grpc.MethodDesc{
-		MethodName: name,
-		Handler: func(_ any, ctx context.Context, dec func(any) error, _ grpc.UnaryServerInterceptor) (any, error) {
-			if err := dec(PReq(new(Req))); err != nil {
-				return nil, err
-			}
-			return respond(ctx, f.record(ctx, name))
-		},
-	}
+}](f *fakeContexts, service protoreflect.ServiceDescriptor, name protoreflect.Name, respond func(ctx context.Context, n int) (any, error)) grpc.MethodDesc {
+	return kernelgrpc.Unary[any, Req, PReq, proto.Message](string(service.FullName()), kernelgrpc.Method(service, name),
+		func(_ any, ctx context.Context, _ PReq) (proto.Message, error) {
+			resp, err := respond(ctx, f.record(ctx, string(name)))
+			msg, _ := resp.(proto.Message)
+			return msg, err
+		})
 }
 
 func (f *fakeContexts) register(srv *grpc.Server) {
@@ -83,13 +86,13 @@ func (f *fakeContexts) register(srv *grpc.Server) {
 		ServiceName: rpc.OrdersServiceName,
 		HandlerType: (*any)(nil),
 		Methods: []grpc.MethodDesc{
-			unary[ordersv1.AddItemRequest](f, "AddItem", func(context.Context, int) (any, error) {
+			unary[ordersv1.AddItemRequest](f, ordersService, "AddItem", func(context.Context, int) (any, error) {
 				return &ordersv1.AddItemResponse{}, nil
 			}),
-			unary[ordersv1.PlaceOrderRequest](f, "PlaceOrder", func(context.Context, int) (any, error) {
+			unary[ordersv1.PlaceOrderRequest](f, ordersService, "PlaceOrder", func(context.Context, int) (any, error) {
 				return &ordersv1.PlaceOrderResponse{}, nil
 			}),
-			unary[ordersv1.FindOrderRequest](f, "FindOrder", func(_ context.Context, n int) (any, error) {
+			unary[ordersv1.FindOrderRequest](f, ordersService, "FindOrder", func(_ context.Context, n int) (any, error) {
 				if f.findOrder != nil {
 					return f.findOrder(n)
 				}
@@ -101,7 +104,7 @@ func (f *fakeContexts) register(srv *grpc.Server) {
 		ServiceName: rpc.ReservationsServiceName,
 		HandlerType: (*any)(nil),
 		Methods: []grpc.MethodDesc{
-			unary[reservationsv1.ReserveRequest](f, "Reserve", func(ctx context.Context, n int) (any, error) {
+			unary[reservationsv1.ReserveRequest](f, reservationsService, "Reserve", func(ctx context.Context, n int) (any, error) {
 				if f.replayReserve {
 					_ = grpc.SetHeader(ctx, metadata.Pairs(kernelgrpc.ReplayedHeader, "true"))
 				}
@@ -110,10 +113,10 @@ func (f *fakeContexts) register(srv *grpc.Server) {
 				}
 				return &reservationsv1.ReserveResponse{}, nil
 			}),
-			unary[reservationsv1.CancelRequest](f, "Cancel", func(context.Context, int) (any, error) {
+			unary[reservationsv1.CancelRequest](f, reservationsService, "Cancel", func(context.Context, int) (any, error) {
 				return &reservationsv1.CancelResponse{}, nil
 			}),
-			unary[reservationsv1.FindReservationRequest](f, "FindReservation", func(context.Context, int) (any, error) {
+			unary[reservationsv1.FindReservationRequest](f, reservationsService, "FindReservation", func(context.Context, int) (any, error) {
 				return &reservationsv1.FindReservationResponse{}, nil
 			}),
 		},

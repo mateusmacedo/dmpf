@@ -7,12 +7,11 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/reflect/protoreflect"
 
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/application"
 	servicev1 "github.com/mateusmacedo/dmpf/apps/backend/bookings/contract/gen/go/company/bookings/service/v1"
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/domain"
+	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
 	kernelgrpc "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
@@ -43,14 +42,7 @@ var bookingIDFormat = regexp.MustCompile(`^[A-Za-z0-9._:-]{1,128}$`)
 
 // Methods names every method of the service: admission declares a limit for
 // each one (RES-16).
-func Methods() []string {
-	methods := descriptor.Methods()
-	names := make([]string, 0, methods.Len())
-	for i := range methods.Len() {
-		names = append(names, string(methods.Get(i).Name()))
-	}
-	return names
-}
+func Methods() []string { return kernelgrpc.MethodNames(descriptor) }
 
 // Commands lists the methods that require an idempotency key (IDM-01); the
 // queries neither require nor read one.
@@ -59,9 +51,7 @@ func Commands() []string {
 }
 
 // FullMethod is the wire name of a method of the service: /<service>/<method>.
-func FullMethod(name string) string {
-	return "/" + ServiceName + "/" + name
-}
+func FullMethod(name string) string { return kernelgrpc.FullMethod(ServiceName, name) }
 
 // BookingsServer is the handler type ServiceDesc registers.
 type BookingsServer interface {
@@ -78,58 +68,33 @@ var ServiceDesc = grpc.ServiceDesc{
 	ServiceName: ServiceName,
 	HandlerType: (*BookingsServer)(nil),
 	Methods: []grpc.MethodDesc{
-		unary(method("ReserveBooking"), BookingsServer.ReserveBooking),
-		unary(method("CancelBooking"), BookingsServer.CancelBooking),
-		unary(method("RegisterResource"), BookingsServer.RegisterResource),
-		unary(method("FindBooking"), BookingsServer.FindBooking),
-		unary(method("FindBookingsByResource"), BookingsServer.FindBookingsByResource),
+		kernelgrpc.Unary(ServiceName, kernelgrpc.Method(descriptor, "ReserveBooking"), BookingsServer.ReserveBooking),
+		kernelgrpc.Unary(ServiceName, kernelgrpc.Method(descriptor, "CancelBooking"), BookingsServer.CancelBooking),
+		kernelgrpc.Unary(ServiceName, kernelgrpc.Method(descriptor, "RegisterResource"), BookingsServer.RegisterResource),
+		kernelgrpc.Unary(ServiceName, kernelgrpc.Method(descriptor, "FindBooking"), BookingsServer.FindBooking),
+		kernelgrpc.Unary(ServiceName, kernelgrpc.Method(descriptor, "FindBookingsByResource"), BookingsServer.FindBookingsByResource),
 	},
 	Metadata: descriptor.ParentFile().Path(),
-}
-
-func method(name protoreflect.Name) protoreflect.MethodDescriptor {
-	md := descriptor.Methods().ByName(name)
-	if md == nil {
-		panic("rpc: BookingsService declares no method " + string(name))
-	}
-	return md
-}
-
-func unary[Req any, PReq interface {
-	*Req
-	proto.Message
-}, Resp proto.Message](md protoreflect.MethodDescriptor, call func(BookingsServer, context.Context, PReq) (Resp, error)) grpc.MethodDesc {
-	name := string(md.Name())
-	fullMethod := FullMethod(name)
-	invoke := func(server BookingsServer, ctx context.Context, req PReq) (any, error) {
-		resp, err := call(server, ctx, req)
-		if err != nil {
-			return nil, err
-		}
-		return resp, nil
-	}
-	return grpc.MethodDesc{
-		MethodName: name,
-		Handler: func(srv any, ctx context.Context, dec func(any) error, interceptor grpc.UnaryServerInterceptor) (any, error) {
-			in := PReq(new(Req))
-			if err := dec(in); err != nil {
-				return nil, err
-			}
-			server := srv.(BookingsServer)
-			if interceptor == nil {
-				return invoke(server, ctx, in)
-			}
-			info := &grpc.UnaryServerInfo{Server: srv, FullMethod: fullMethod}
-			return interceptor(ctx, in, info, func(ctx context.Context, req any) (any, error) {
-				return invoke(server, ctx, req.(PReq))
-			})
-		},
-	}
 }
 
 // Server realizes BookingsServer over the bookings use cases.
 type Server struct {
 	Service application.Service
+}
+
+func command[R, Resp any](ctx context.Context, run func(context.Context) (usecase.Outcome[R], error), refused func(*servicev1.Rejection) Resp, accepted func(R) Resp) (Resp, error) {
+	var none Resp
+	if _, err := executionOf(ctx); err != nil {
+		return none, err
+	}
+	out, err := run(ctx)
+	if err != nil {
+		return none, kernelgrpc.StatusOf(err)
+	}
+	if rejection, declined := out.Rejection(); declined {
+		return refused(rejectionOf(rejection)), nil
+	}
+	return accepted(out.Response()), nil
 }
 
 func (s Server) ReserveBooking(ctx context.Context, req *servicev1.ReserveBookingRequest) (*servicev1.ReserveBookingResponse, error) {
@@ -143,23 +108,16 @@ func (s Server) ReserveBooking(ctx context.Context, req *servicev1.ReserveBookin
 	if q := req.GetQuantity(); q < minQuantity || q > maxQuantity {
 		return nil, status.Error(codes.InvalidArgument, "quantity must be between 1 and 100")
 	}
-	if _, err := executionOf(ctx); err != nil {
-		return nil, err
-	}
-	out, err := s.Service.ReserveBooking(ctx, application.ReserveBooking{
-		BookingID:  booking,
-		ResourceID: domain.ResourceID(req.GetResourceId()),
-		Quantity:   int(req.GetQuantity()),
-	})
-	if err != nil {
-		return nil, kernelgrpc.StatusOf(err)
-	}
-	if rejection, refused := out.Rejection(); refused {
-		return &servicev1.ReserveBookingResponse{Result: &servicev1.ReserveBookingResponse_Rejection{Rejection: rejectionOf(rejection)}}, nil
-	}
-	return &servicev1.ReserveBookingResponse{Result: &servicev1.ReserveBookingResponse_Reserved{
-		Reserved: &servicev1.Reserved{BookingId: string(out.Response().BookingID)},
-	}}, nil
+	return command(ctx,
+		func(ctx context.Context) (usecase.Outcome[domain.ReservedResponse], error) {
+			return s.Service.ReserveBooking(ctx, application.ReserveBooking{
+				BookingID:  booking,
+				ResourceID: domain.ResourceID(req.GetResourceId()),
+				Quantity:   int(req.GetQuantity()),
+			})
+		},
+		reserveBookingRefused,
+		bookingReservedOf)
 }
 
 func (s Server) CancelBooking(ctx context.Context, req *servicev1.CancelBookingRequest) (*servicev1.CancelBookingResponse, error) {
@@ -167,19 +125,12 @@ func (s Server) CancelBooking(ctx context.Context, req *servicev1.CancelBookingR
 	if err != nil {
 		return nil, err
 	}
-	if _, err := executionOf(ctx); err != nil {
-		return nil, err
-	}
-	out, err := s.Service.CancelBooking(ctx, application.CancelBooking{BookingID: booking})
-	if err != nil {
-		return nil, kernelgrpc.StatusOf(err)
-	}
-	if rejection, refused := out.Rejection(); refused {
-		return &servicev1.CancelBookingResponse{Result: &servicev1.CancelBookingResponse_Rejection{Rejection: rejectionOf(rejection)}}, nil
-	}
-	return &servicev1.CancelBookingResponse{Result: &servicev1.CancelBookingResponse_Cancelled{
-		Cancelled: &servicev1.Cancelled{BookingId: string(out.Response().BookingID)},
-	}}, nil
+	return command(ctx,
+		func(ctx context.Context) (usecase.Outcome[domain.CancelledResponse], error) {
+			return s.Service.CancelBooking(ctx, application.CancelBooking{BookingID: booking})
+		},
+		cancelBookingRefused,
+		bookingCancelledOf)
 }
 
 func (s Server) RegisterResource(ctx context.Context, req *servicev1.RegisterResourceRequest) (*servicev1.RegisterResourceResponse, error) {
@@ -187,19 +138,42 @@ func (s Server) RegisterResource(ctx context.Context, req *servicev1.RegisterRes
 	if err != nil {
 		return nil, err
 	}
-	if _, err := executionOf(ctx); err != nil {
-		return nil, err
-	}
-	out, err := s.Service.RegisterResource(ctx, application.RegisterResource{Code: domain.ResourceCode(resource)})
-	if err != nil {
-		return nil, kernelgrpc.StatusOf(err)
-	}
-	if rejection, refused := out.Rejection(); refused {
-		return &servicev1.RegisterResourceResponse{Result: &servicev1.RegisterResourceResponse_Rejection{Rejection: rejectionOf(rejection)}}, nil
-	}
+	return command(ctx,
+		func(ctx context.Context) (usecase.Outcome[domain.RegisteredResponse], error) {
+			return s.Service.RegisterResource(ctx, application.RegisterResource{Code: domain.ResourceCode(resource)})
+		},
+		registerResourceRefused,
+		resourceRegisteredOf)
+}
+
+func reserveBookingRefused(r *servicev1.Rejection) *servicev1.ReserveBookingResponse {
+	return &servicev1.ReserveBookingResponse{Result: &servicev1.ReserveBookingResponse_Rejection{Rejection: r}}
+}
+
+func bookingReservedOf(reserved domain.ReservedResponse) *servicev1.ReserveBookingResponse {
+	return &servicev1.ReserveBookingResponse{Result: &servicev1.ReserveBookingResponse_Reserved{
+		Reserved: &servicev1.Reserved{BookingId: string(reserved.BookingID)},
+	}}
+}
+
+func cancelBookingRefused(r *servicev1.Rejection) *servicev1.CancelBookingResponse {
+	return &servicev1.CancelBookingResponse{Result: &servicev1.CancelBookingResponse_Rejection{Rejection: r}}
+}
+
+func bookingCancelledOf(cancelled domain.CancelledResponse) *servicev1.CancelBookingResponse {
+	return &servicev1.CancelBookingResponse{Result: &servicev1.CancelBookingResponse_Cancelled{
+		Cancelled: &servicev1.Cancelled{BookingId: string(cancelled.BookingID)},
+	}}
+}
+
+func registerResourceRefused(r *servicev1.Rejection) *servicev1.RegisterResourceResponse {
+	return &servicev1.RegisterResourceResponse{Result: &servicev1.RegisterResourceResponse_Rejection{Rejection: r}}
+}
+
+func resourceRegisteredOf(registered domain.RegisteredResponse) *servicev1.RegisterResourceResponse {
 	return &servicev1.RegisterResourceResponse{Result: &servicev1.RegisterResourceResponse_Registered{
-		Registered: &servicev1.Registered{ResourceId: string(out.Response().Code)},
-	}}, nil
+		Registered: &servicev1.Registered{ResourceId: string(registered.Code)},
+	}}
 }
 
 func (s Server) FindBooking(ctx context.Context, req *servicev1.FindBookingRequest) (*servicev1.FindBookingResponse, error) {

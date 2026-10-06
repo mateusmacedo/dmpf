@@ -11,12 +11,14 @@ import (
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/provider"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/pg"
 )
 
 func TestNewReaderLoadsWhatTheRepositoryWrote(t *testing.T) {
 	pool := appkit.OpenPool(t)
-	seed(t, pool)
-	want, wantVersion := load(t, pool)
+	ctx := withExecution(t, context.Background())
+	pg.Seed(t, ctx, pool, provider.NewReservationRepository, repoOrderID, snapshot(5))
+	want, wantVersion := pg.Load(t, ctx, pool, provider.NewReservationRepository, repoOrderID)
 
 	got, version, err := provider.NewReservationReader(postgres.NewReadPool(pool)).Load(withExecution(t, context.Background()), repoOrderID)
 

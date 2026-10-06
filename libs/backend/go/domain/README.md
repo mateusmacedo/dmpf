@@ -17,7 +17,7 @@ Import path do módulo:
 
 | Package | Unidade DMPF | Conteúdo |
 | --- | --- | --- |
-| `domain` (raiz) | `kernel/domain` | `DomainEvent`, `Accepted[R]`, `Accept`, `Empty`, `Rejection`, `Reject`, `Code`, `Detail` |
+| `domain` (raiz) | `kernel/domain` | `DomainEvent`, `Accepted[R]`, `Accept`, `Empty`, `Rejection`, `Reject`, `Code`, `Detail`, `DecideOver`, `Refuse` |
 
 Uma unidade só, com `block: domain` e `bounded_context: kernel`
 (`dmpf-units.json`); em Go, a unidade de verificação é o package (RFC §3.3). A
@@ -59,7 +59,10 @@ Garantias que o código realiza e a suíte prova:
   mesma sequência de eventos, na mesma ordem.
 - **Pós-condição da recusa** (`DEC-10`, `DEC-11`): a UPR decide sobre uma cópia e
   só substitui o agregado no aceite; uma recusa não toca o estado e não carrega
-  evento.
+  evento. `DecideOver(target, copyOf, decide)` realiza esse ciclo, e
+  `Refuse[R](code, message, details...)` é o ramo recusante. A cópia profunda é
+  do agregado: a UPR passa o próprio `clone` privado como `copyOf`
+  (`(*Order).clone`), e uma cópia rasa deixaria a recusa vazar para o estado.
 - **Imutabilidade da sequência** (`DEC-13`): `Accept`, `Events()`, `Reject` e
   `Details()` copiam o que recebem e devolvem.
 - **Contrato de conteúdo** (`DEC-12`): a imutabilidade do conteúdo da resposta e
