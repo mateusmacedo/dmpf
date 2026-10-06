@@ -20,9 +20,8 @@ em [`docs/dmpf/`](../dmpf/) e nos ADRs; este guia é operacional e não normativ
 7. [O que o agente nunca toca](#7-o-que-o-agente-nunca-toca)
 8. [A prova de regressão](#8-a-prova-de-regressão)
 9. [Divergir do golden path](#9-divergir-do-golden-path)
-10. [Como certificar](#10-como-certificar)
-11. [Consumir os módulos fora do workspace](#11-consumir-os-módulos-fora-do-workspace)
-12. [Fontes normativas](#12-fontes-normativas)
+10. [Consumir os módulos fora do workspace](#10-consumir-os-módulos-fora-do-workspace)
+11. [Fontes normativas](#11-fontes-normativas)
 
 ---
 
@@ -222,16 +221,14 @@ layout em `MODULO` e `BLOCOS` e nos globs de comparação, e envelhece junto com
 
 Quando o contexto precisa de algo que a regra de dependência nega, o caminho é a
 exceção nominal de `GOV-30` a `GOV-36` — nunca afrouxar o gate, nem reclassificar
-a unidade para o bloco que a permitiria (`GOV-26`). A exceção vive onde o objeto
-vive: dependência externa de uma unidade (E1) no `dmpf-units.json` do módulo;
-combinação fora do BOM (E2) e instrumento de governança (E3) no BOM da release,
-`bom/dmpf/<semver>.json`.
+a unidade para o bloco que a permitiria (`GOV-26`). A exceção é a E1,
+dependência externa de uma unidade, e vive no `dmpf-units.json` do módulo.
 
 O pedido só é examinado se trouxer os quatro itens de `GOV-30` — ADR, equipe
 dona, justificativa e plano de convergência com data — e cair fora do catálogo
 fechado N1–N7 de `GOV-32`. A admissão é mecânica: o verificador emite
 `DMPF-X001` a `DMPF-X007`, e só a exceção admitida autoriza o import. O schema
-completo está em [`bom/README.md`](../../bom/README.md#pedir-exceção).
+completo está em [`dmpf-manifesto.md`](./dmpf-manifesto.md#schema-da-exceção).
 
 ### Um pedido admitido
 
@@ -293,65 +290,14 @@ conforme (`DMPF-X006`). Renovar é conceder de novo, pelo mesmo rito: um
 `valid_until` novo e um evento `renewed` no `history`, com `reason` que explique
 o atraso. `renewed` sem vigência nova reprova em `DMPF-X005`, porque renovação
 automática não existe (`GOV-34`). Um evento `revoked` ou `converged` encerra a
-exceção: ela para de autorizar, não vence mais e fica como histórico para as
-métricas de `GOV-36`. `--now` fixa o instante do vencimento quando é preciso
-reproduzir um relatório.
+exceção: ela para de autorizar, não vence mais e fica como histórico. `--now`
+fixa o instante do vencimento quando é preciso reproduzir um relatório.
 
-## 10. Como certificar
-
-A certificação promove a `certificada`, no BOM da release, as entradas que uma
-execução real da suíte alcançou. O instrumento é o `dmpf-evidence` do
-`testkit`; as normas são `BOM-03` a `BOM-08` de
-[`governanca-bom-pilotos.md`](../dmpf/governanca-bom-pilotos.md) §4, e o schema
-está em [`bom/README.md`](../../bom/README.md).
-
-1. **Gerar a evidência.** Num commit com árvore limpa, suba o Postgres e o
-   Redpanda com as imagens pinadas do `dmpf-evidence.yml` e rode o comando duas
-   vezes, em diretórios distintos: `diff -r` vazio prova o determinismo. Publique
-   uma das execuções em `bom/evidence/<semver>/` e commite só esse diretório.
-
-   ```bash
-   CI=true GOTOOLCHAIN=go1.26.6 \
-     PG_DSN='postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable' \
-     KAFKA_BROKERS=localhost:9092 REDPANDA_ADMIN=http://localhost:9644 \
-     go run ./libs/backend/go/testkit/cmd/evidence --root . --release <semver> --out /tmp/evidence-a/<semver>
-   ```
-
-2. **Promover só o que o header alcança.** Uma entrada vai a `certificada`
-   quando a sua `identity` e a sua `version` constam do header de um subject
-   aprovado — em `goversion`, `modules`, `externals` ou `tools`. O validador
-   confere o digest, não o alcance: essa é regra de quem promove. O que nenhum
-   subject exercita fica `candidata`, com `reason` nomeando onde é exercitado.
-   Cada `certificada` recebe:
-
-   | Campo | Valor |
-   | --- | --- |
-   | `evidence_uri` | `https://github.com/mateusmacedo/dmpf/blob/<sha>/bom/evidence/<semver>/<subject>.json`, no SHA do commit da evidência |
-   | `evidence_digest` | o `sha256` do subject no `index.json` |
-   | `approved_by` | `team:plataforma` (`BOM-05`) |
-   | `certified_at` | a data do commit de certificação |
-   | `valid_until` | `certified_at` + 90 dias, o default do ADR-041 |
-   | `promoted` | `{by, pr}`: quem promove e o PR da promoção |
-
-   `compatible_with` só nomeia combinação cujos dois lados constam do mesmo
-   header, com `evidence` igual ao subject.
-
-3. **Validar.** `dmpf-bom --release <semver> --base develop` sai com `0`. Um
-   digest alterado reprova em `DMPF-B005`; uma combinação sem o subject que a
-   exercita, em `DMPF-B006`.
-
-4. **Revisar e cunhar a tag.** A promoção é um PR para `develop` revisado por
-   Arquitetura e mergeado por Plataforma (`BOM-05`). A mesma árvore segue por
-   `release/<semver>` até `master`, e a tag anotada `dmpf@<semver>` é cunhada
-   pelo workflow `dmpf-release.yml`, disparado à mão com o `<semver>` da release;
-   o rito está no [`CONTRIBUTING.md`](../../CONTRIBUTING.md).
-
-## 11. Consumir os módulos fora do workspace
+## 10. Consumir os módulos fora do workspace
 
 Cada módulo Go do kernel é uma lib independente, publicada por tag própria
 (`libs/backend/go/<módulo>/vX.Y.Z`, e `tools/dmpf-conformance/vX.Y.Z` para o
-verificador). A tag do produto, `dmpf@X.Y.Z`, é outra linha e não serve ao
-toolchain Go. Há dois jeitos de consumir, e a diferença está em quem resolve o
+verificador). Há dois jeitos de consumir, e a diferença está em quem resolve o
 `require`.
 
 **Por tag.** O módulo declara no `go.mod` tudo o que importa, então um
@@ -391,7 +337,7 @@ go run ./tools/dmpf-conformance/cmd/modsync --root . --check
 Decisão e alternativas descartadas em
 [`docs/adr/047-tags-de-modulo-go-e-consumo-fora-do-workspace.md`](../adr/047-tags-de-modulo-go-e-consumo-fora-do-workspace.md).
 
-## 12. Fontes normativas
+## 11. Fontes normativas
 
 - [`docs/dmpf/rfc-dmpf-foundation-v0.1.md`](../dmpf/rfc-dmpf-foundation-v0.1.md) — a RFC
 - [`.claude/rules/dmpf-bounded-context.md`](../../.claude/rules/dmpf-bounded-context.md) — as normas do contexto

@@ -4,6 +4,8 @@
 
 Aceito — 2026-09-17. Supersede parcialmente o ADR-041 (2026-09-13): o `go.mod` de um módulo deixa de ser workspace-only e passa a declarar `require` versionado dos irmãos que importa. Resolve o tema que o ADR-034 adiou para a task sucessora ARQ-550 (`KRN-14`). Mantém do ADR-030 o `package.json` privado por módulo Go, sem o qual o Nx Release aborta o versionamento de um `tag:type:lib`. **Emendado pelo [ADR-054](./054-apps-autocontidos-e-infras-separadas.md) (2026-09-28)**: cada contrato de contexto tem o release group `go-contract-<ctx>`, com tag literal `apps/backend/<ctx>/contract/v{version}`, pelo mesmo mecanismo do `go-tools`; o `tidy` de cada módulo põe os `replace` do `go.work` no `go.mod` só durante o `go mod tidy`, e o `go.mod` publicado segue sem `replace`.
 
+**Parcialmente supersedido pelo [ADR-059](./059-remover-o-bom-e-a-release-do-produto.md) (2026-10-06)**: saem o `dmpf-release.yml` e o `DMPF-B012`; ficam as tags de módulo Go e os release groups.
+
 ## Contexto
 
 O repositório tinha uma linha só de tag. O `nx.json` declarava `release.projects: tag:type:lib` e o padrão global `{projectName}@{version}`, e a tag do produto — `dmpf@X.Y.Z`, que certifica um BOM e a sua evidência — era cunhada à mão pelo rito do `bom/README.md`. Os dois contextos competiam pelo mesmo espaço de nomes sem que nenhum servisse ao Go: para um módulo aninhado, o toolchain só reconhece a tag `<diretório>/v<semver>` (`libs/backend/go/domain/v0.1.0`), forma que `{projectName}@{version}` não produz.

@@ -4,6 +4,8 @@
 
 Aceito — 2026-09-08. **Parcialmente supersedido pelo ADR-047 (2026-09-17)**: o `go.mod` de um módulo deixa de ser workspace-only e passa a declarar `require` versionado dos irmãos que importa; o `replace` versionado fica no `go.work`, e o generator roda o `dmpf-modsync` ao final. O resto segue válido. Implementa SPEC-6QT9SBAS, primeira sub-spec de SPEC-8HWBWJCB (KRN-12). As sub-specs seguintes — generator (SPEC-H1A190Y8), BOM e validador (SPEC-538MS2D4), evidência e tag (SPEC-JPP31095) — acrescentam addenda a este ADR em vez de abrir outro; a consolidação final é da última. **Caminhos atualizados pelo [ADR-054](./054-apps-autocontidos-e-infras-separadas.md) (2026-09-28)**: o OpenAPI de cada contexto está em `apps/backend/<ctx>/contract/openapi/v1/`, e `contracts/` não existe mais.
 
+**Parcialmente supersedido pelo [ADR-059](./059-remover-o-bom-e-a-release-do-produto.md) (2026-10-06)**: saem o validador do BOM, a evidência de release e a tag anotada `dmpf@<semver>`; ficam o SDK de referência, o generator e o harness.
+
 ## Contexto
 
 O KRN-02 a KRN-11 entregaram o kernel DMPF em Go como quatorze libs, cada uma provada por suíte própria, mas nenhum serviço mostrava os blocos cabeados num processo real: `apps/backend` era um `.gitkeep`, e o único lugar onde instanciar provider concreto é permissivo — a linha `app` da matriz de blocos (ADR-010, ADR-015) — só existia como composition root de exemplo dentro de `app`. O ticket ARQ-531 pede o SDK de referência, o generator de bounded context, o BOM de combinação certificada (FND-10) e a evidência da release `0.1.0`; a spec guarda-chuva dividiu isso em quatro sub-specs porque a revisão externa mostrou blockers independentes entre os subsistemas.

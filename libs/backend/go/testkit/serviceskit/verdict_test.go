@@ -8,7 +8,6 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/clock"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/evidence"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/ids"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/serviceskit"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb"
@@ -56,7 +55,6 @@ func TestAcceptedCommitsStateAndOutboxTogether(t *testing.T) {
 	}
 	v := serviceskit.Decide(f, serviceskit.Expect{Accepted: true})
 	tb.Require(t, v)
-	evidence.RecordVerdict(t, "services", "accepted", v)
 }
 
 func TestRejectedLeavesNothingBehind(t *testing.T) {
@@ -103,7 +101,6 @@ func TestRejectedLeavesNothingBehind(t *testing.T) {
 	}
 	v := serviceskit.Decide(fresh, serviceskit.Expect{Accepted: false})
 	tb.Require(t, v)
-	evidence.RecordVerdict(t, "services", "rejected", v)
 }
 
 // The negative vector: a service that enqueues outside the transaction.

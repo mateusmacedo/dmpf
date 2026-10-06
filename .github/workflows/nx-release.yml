@@ -147,20 +147,13 @@ jobs:
           pnpm nx release $VERSION_ARGS --skip-publish
 
       # Empurra o commit de release e apenas as tags que esta execução criou. Um
-      # `git push --follow-tags` arrastaria qualquer tag anotada alcançável, o que
-      # inclui `dmpf@*` — a tag do produto tem rito próprio (dmpf-release.yml) e
-      # nunca sai daqui.
+      # `git push --follow-tags` arrastaria qualquer tag anotada alcançável.
       - name: Push version commit and tags
         if: steps.lib-candidates.outputs.has_libs == 'true'
         run: |
           set -euo pipefail
           git tag | sort > /tmp/tags-after.txt
           comm -13 /tmp/tags-before.txt /tmp/tags-after.txt > /tmp/tags-new.txt
-
-          if grep -q '^dmpf@' /tmp/tags-new.txt; then
-            echo "::error::nx release criou uma tag dmpf@*, que não lhe pertence. Abortando o push."
-            exit 1
-          fi
 
           echo "Tags criadas nesta execução:"
           cat /tmp/tags-new.txt

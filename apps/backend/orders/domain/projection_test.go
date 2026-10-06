@@ -7,7 +7,6 @@ import (
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/domain"
 	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/domainkit"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/evidence"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb"
 )
 
@@ -20,8 +19,7 @@ func TestOrdersMatchTheProjectionFixture(t *testing.T) {
 	if f.Identity.Aggregate != "order" || len(f.Cases) != 5 {
 		t.Fatalf("fixture identity/cases = %+v/%d", f.Identity, len(f.Cases))
 	}
-	decided := tb.RunProjection(t, f, runOrder)
-	evidence.RecordVerdict(t, "domain", "orders", decided)
+	tb.RunProjection(t, f, runOrder)
 }
 
 func runOrder(t *testing.T, c tb.ProjectionCase) (domainkit.Projection, domainkit.Verdict) {

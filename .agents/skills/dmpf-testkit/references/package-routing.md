@@ -32,8 +32,7 @@ Autoridade de API:
 
 Nos testes de `domain` dos contextos, use `tb.RequireRejected`,
 `tb.RequireAccepted` e `tb.RequireSameEvents` em vez de asserções locais, e
-`tb.RunProjection(t, f, run)` para percorrer os casos da fixture; grave o
-veredito devolvido com `evidence.RecordVerdict`.
+`tb.RunProjection(t, f, run)` para percorrer os casos da fixture.
 
 Use `tb.LoadProjection` para fixtures em
 `contracts/fixtures/<ctx>/projection/v1/*.golden`. O codec permanece em `tb`

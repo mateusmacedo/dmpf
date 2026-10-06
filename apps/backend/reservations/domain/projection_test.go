@@ -7,7 +7,6 @@ import (
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
 	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/domainkit"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/evidence"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb"
 )
 
@@ -20,8 +19,7 @@ func TestReservationsMatchTheProjectionFixture(t *testing.T) {
 	if f.Identity.Aggregate != "reservation" || len(f.Cases) != 7 {
 		t.Fatalf("fixture identity/cases = %+v/%d", f.Identity, len(f.Cases))
 	}
-	decided := tb.RunProjection(t, f, runReservation)
-	evidence.RecordVerdict(t, "domain", "reservations", decided)
+	tb.RunProjection(t, f, runReservation)
 }
 
 func runReservation(t *testing.T, c tb.ProjectionCase) (domainkit.Projection, domainkit.Verdict) {

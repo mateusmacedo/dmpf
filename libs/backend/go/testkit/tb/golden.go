@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strconv"
-	"strings"
 	"testing"
 
 	"google.golang.org/protobuf/encoding/protowire"
@@ -217,9 +216,8 @@ func nonCanonicalPayload(t testing.TB, msg proto.Message) []byte {
 }
 
 // GoldenSuite runs the golden oracles over every spec, so a contract added to
-// specs is covered by all of them without a second edit. record receives each
-// round-trip report: the evidence package imports tb, so the caller records.
-func GoldenSuite[M proto.Message](t *testing.T, record func(t testing.TB, name string, r golden.Report), specs ...Spec[M]) {
+// specs is covered by all of them without a second edit.
+func GoldenSuite[M proto.Message](t *testing.T, specs ...Spec[M]) {
 	t.Helper()
 	each := func(name string, body func(t *testing.T, s Spec[M])) {
 		t.Run(name, func(t *testing.T) {
@@ -267,9 +265,6 @@ func GoldenSuite[M proto.Message](t *testing.T, record func(t testing.TB, name s
 			t.Fatalf("%d outcomes, want %d (three oracles per direction)", len(report.Outcomes), want)
 		}
 		RequireReport(t, report)
-		if record != nil {
-			record(t, strings.ReplaceAll(s.Identity.Fixture, "/", "-"), report)
-		}
 	})
 
 	each("UnknownFieldIsPreservedAndHashed", func(t *testing.T, s Spec[M]) {

@@ -42,7 +42,6 @@ dmpf/
 ├── apps/backend/          # BFF REST e os bounded contexts Go (bff, orders, reservations, bookings)
 ├── libs/backend/go/       # Kernel DMPF de reuso — módulos Go (domain, ports, application, providers, testkit, ...)
 ├── contracts/             # Fonte dos contratos Protobuf (Buf), neutra de stack
-├── bom/                   # BOM da release do produto e a evidência que o certifica
 ├── infra/                 # Compose local, observabilidade, manifestos Kustomize
 ├── tools/                 # dmpf-plugin (generator), dmpf-conformance (verificador), scripts do workspace
 ├── docs/                  # ADRs, specs, regras de domínio, guias
@@ -51,8 +50,7 @@ dmpf/
 
 Detalhe módulo a módulo no README de cada lib/app (`libs/backend/go/<módulo>/README.md`,
 `apps/backend/<app>/README.md`), infraestrutura em [`infra/README.md`](infra/README.md),
-contratos em [`libs/backend/go/contracts/README.md`](libs/backend/go/contracts/README.md) (kernel) e em `apps/backend/<ctx>/contract/` (cada contexto), e o BOM da release em
-[`bom/README.md`](bom/README.md).
+contratos em [`libs/backend/go/contracts/README.md`](libs/backend/go/contracts/README.md) (kernel) e em `apps/backend/<ctx>/contract/` (cada contexto).
 
 ## Comandos essenciais
 
