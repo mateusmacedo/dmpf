@@ -1,6 +1,6 @@
 {
   "schema": "dmpf/units-baseline@1",
-  "digest": "sha256:7093d249b5ac678de8499df90d0e4965cc4ad87e491b3da9e58902ccf59a5780",
+  "digest": "sha256:8027b8f3cfe06e374b9472c515946be0ae171d19460db1ba9e247253457609b0",
   "entries": [
     {
       "unit": "bff/app",
@@ -327,25 +327,11 @@
       "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/testkit/clock"]
     },
     {
-      "unit": "kernel/testkit-cmd-evidence",
-      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/testkit",
-      "block": "app",
-      "bounded_context": "kernel",
-      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/testkit/cmd/evidence"]
-    },
-    {
       "unit": "kernel/testkit-domain",
       "module": "github.com/mateusmacedo/dmpf/libs/backend/go/testkit",
       "block": "domain",
       "bounded_context": "kernel",
       "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/testkit/domainkit"]
-    },
-    {
-      "unit": "kernel/testkit-evidence",
-      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/testkit",
-      "block": "app",
-      "bounded_context": "kernel",
-      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/testkit/evidence"]
     },
     {
       "unit": "kernel/testkit-fitness",
@@ -423,25 +409,11 @@
       "membership": ["github.com/mateusmacedo/dmpf/tools/dmpf-conformance/internal/baseline"]
     },
     {
-      "unit": "conformance/bom",
-      "module": "github.com/mateusmacedo/dmpf/tools/dmpf-conformance",
-      "block": "app",
-      "bounded_context": "conformance",
-      "membership": ["github.com/mateusmacedo/dmpf/tools/dmpf-conformance/bom"]
-    },
-    {
       "unit": "conformance/cmd",
       "module": "github.com/mateusmacedo/dmpf/tools/dmpf-conformance",
       "block": "app",
       "bounded_context": "conformance",
       "membership": ["github.com/mateusmacedo/dmpf/tools/dmpf-conformance/cmd/conformance"]
-    },
-    {
-      "unit": "conformance/cmd-bom",
-      "module": "github.com/mateusmacedo/dmpf/tools/dmpf-conformance",
-      "block": "app",
-      "bounded_context": "conformance",
-      "membership": ["github.com/mateusmacedo/dmpf/tools/dmpf-conformance/cmd/bom"]
     },
     {
       "unit": "conformance/cmd-infrasync",
