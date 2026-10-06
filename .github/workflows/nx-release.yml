@@ -120,6 +120,8 @@ jobs:
       # excluído).
       - name: Nx Release (skip publish)
         if: steps.lib-candidates.outputs.has_libs == 'true'
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: |
           set -euo pipefail
           GO_TAGS=$(git tag -l 'libs/backend/go/*/v*' 'apps/backend/*/contract/v*' 'tools/dmpf-conformance/v*' | head -n 1)
@@ -134,6 +136,9 @@ jobs:
           if [ -z "$GO_TAGS" ] && [ -z "$NPM_TAGS" ]; then
             echo "Nenhuma tag das famílias de release existente; primeira release em $FIRST_VERSION."
             VERSION_ARGS="$FIRST_VERSION --first-release"
+          elif [[ "${HEAD_REF:-}" =~ ^release/([0-9]+\.[0-9]+\.[0-9]+-[0-9A-Za-z.-]+)$ ]]; then
+            echo "Branch de pré-release $HEAD_REF; versão explícita ${BASH_REMATCH[1]} para todos os projetos."
+            VERSION_ARGS="${BASH_REMATCH[1]}"
           fi
 
           # Snapshot para empurrar depois SÓ as tags criadas nesta execução.
