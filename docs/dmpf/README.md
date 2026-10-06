@@ -30,10 +30,10 @@ ocorre no PR (reviewers de Plataforma/Arquitetura). Specs permanecem em
 
 ## BOM da release
 
-O BOM de cada release do produto — combinações certificadas, evidência de
-execução e exceções vigentes — vive em [`bom/`](../../bom/README.md), na raiz do
-repositório, e realiza o §4 e o §5.1 de
-[governanca-bom-pilotos.md](./governanca-bom-pilotos.md).
+O BOM da release do produto, previsto no §4 e no §5.1 de
+[governanca-bom-pilotos.md](./governanca-bom-pilotos.md), foi removido pelo
+[ADR-059](../adr/059-remover-o-bom-e-a-release-do-produto.md): o projeto
+versiona só as tags de módulo, e o texto normativo fica como registro histórico.
 
 ## Convenção de citação
 

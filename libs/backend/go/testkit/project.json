@@ -64,22 +64,6 @@
         "cwd": "{projectRoot}"
       }
     },
-    "evidence": {
-      "executor": "nx:run-commands",
-      "cache": false,
-      "inputs": ["go", "^go"],
-      "dependsOn": [
-        "test-infra-up",
-        {
-          "projects": ["postgres", "app", "bff"],
-          "target": "test-race"
-        }
-      ],
-      "options": {
-        "command": "bash tools/test-env.sh env GOTOOLCHAIN=go1.26.6 go run ./libs/backend/go/testkit/cmd/evidence --root . --release latest --out dist/evidence/$(git rev-parse --short HEAD)",
-        "cwd": "{workspaceRoot}"
-      }
-    },
     "test-infra-up": {
       "executor": "nx:run-commands",
       "cache": false,

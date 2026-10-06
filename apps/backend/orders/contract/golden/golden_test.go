@@ -7,7 +7,6 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	eventv1 "github.com/mateusmacedo/dmpf/apps/backend/orders/contract/gen/go/company/orders/event/v1"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/evidence"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/golden"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb"
 )
@@ -15,9 +14,7 @@ import (
 var specs = []tb.Spec[proto.Message]{orderPlacedSpec, itemAddedSpec}
 
 func TestGolden(t *testing.T) {
-	tb.GoldenSuite(t, func(t testing.TB, name string, r golden.Report) {
-		evidence.RecordReport(t, "golden", name, r)
-	}, specs...)
+	tb.GoldenSuite(t, specs...)
 }
 
 func TestUpdateGolden(t *testing.T) { tb.UpdateGolden(t, specs...) }

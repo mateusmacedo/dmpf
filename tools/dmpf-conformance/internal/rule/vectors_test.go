@@ -312,28 +312,3 @@ func TestSharedKernelChegaAoEndpoint(t *testing.T) {
 func validar(d manifest.Document) []rule.Diagnostic {
 	return manifest.Validate(d, manifest.Admission{}).Manifest
 }
-
-var codigosDoBOM = []string{
-	"DMPF-B001", "DMPF-B002", "DMPF-B003", "DMPF-B004", "DMPF-B005", "DMPF-B006",
-	"DMPF-B007", "DMPF-B008", "DMPF-B009", "DMPF-B010", "DMPF-B011", "DMPF-B012",
-}
-
-func TestConjuntoFechadoDosDozeCodigosDoBOM(t *testing.T) {
-	specs := rule.BOMCodeSpecs()
-
-	got := make([]string, 0, len(specs))
-	for _, s := range specs {
-		got = append(got, string(s.Code))
-		if s.Section == "" {
-			t.Errorf("código %s sem seção normativa rastreável", s.Code)
-		}
-	}
-	if !slices.Equal(got, codigosDoBOM) {
-		t.Fatalf("literais emitidos\n  %v\na tabela do BOM fixa\n  %v", got, codigosDoBOM)
-	}
-	for _, c := range codigosDoBOM {
-		if _, ok := rule.LookupCode(rule.Code(c)); !ok {
-			t.Errorf("literal %s ausente da busca de códigos", c)
-		}
-	}
-}

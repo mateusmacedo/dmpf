@@ -2166,3 +2166,11 @@ fronteira nesta baseline:
 - Algum ADR é referenciado por número definitivo? (§12.3)
 
 ---
+
+## Nota de revogação (ADR-059)
+
+[ADR-059](../adr/059-remover-o-bom-e-a-release-do-produto.md), de
+2026-10-06, remove o BOM da plataforma. A versão das *semantic conventions*
+continua fixada, agora só no registro real,
+`libs/backend/go/observability/otelboot/config.go`. As menções ao BOM ficam
+como registro.

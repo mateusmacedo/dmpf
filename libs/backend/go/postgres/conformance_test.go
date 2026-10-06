@@ -13,7 +13,6 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/clock"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/evidence"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/providerkit"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/pg"
@@ -49,7 +48,6 @@ func TestUnitOfWorkConformsToTheKit(t *testing.T) {
 	if len(v.Skipped) != 1 {
 		t.Fatalf("skipped = %v, want exactly the commit-failure clause", v.Skipped)
 	}
-	evidence.RecordVerdict(t, "provider", "postgres-unit-of-work", v)
 }
 
 func TestRepositoryConformsToTheKit(t *testing.T) {
@@ -75,7 +73,6 @@ func TestRepositoryConformsToTheKit(t *testing.T) {
 	if len(v.Skipped) != 0 {
 		t.Fatalf("postgres scopes by construction; nothing should be skipped: %v", v.Skipped)
 	}
-	evidence.RecordVerdict(t, "provider", "postgres-repository", v)
 }
 
 func TestInboxConformsToTheKit(t *testing.T) {
@@ -107,7 +104,6 @@ func TestInboxConformsToTheKit(t *testing.T) {
 	if len(v.Skipped) != 0 {
 		t.Fatalf("Postgres serializes on the key; nothing should be skipped: %v", v.Skipped)
 	}
-	evidence.RecordVerdict(t, "provider", "postgres-inbox", v)
 }
 
 func TestCommandInboxConformsToTheKit(t *testing.T) {
@@ -123,7 +119,6 @@ func TestCommandInboxConformsToTheKit(t *testing.T) {
 	if len(v.Skipped) != 0 {
 		t.Fatalf("Postgres waits on the key; nothing should be skipped: %v", v.Skipped)
 	}
-	evidence.RecordVerdict(t, "provider", "postgres-command-inbox", v)
 }
 
 func TestOutboxStoreConformsToTheKit(t *testing.T) {
@@ -184,7 +179,6 @@ func TestOutboxStoreConformsToTheKit(t *testing.T) {
 	if len(v.Skipped) != 0 {
 		t.Fatalf("skipped: %v", v.Skipped)
 	}
-	evidence.RecordVerdict(t, "provider", "postgres-outbox", v)
 }
 
 func committedStatus(t *testing.T, pool *pgxpool.Pool, consumer string, id ports.MessageID) (ports.Status, bool) {

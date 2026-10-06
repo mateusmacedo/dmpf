@@ -1853,3 +1853,11 @@ completa.
 2026-10-04, revoga o §5.2: a Autoridade de Classificação, o rito de
 `AUT-01`..`AUT-10` e o gate G2 não valem num projeto de um mantenedor só. O
 texto do §5.2 fica como registro.
+
+## Nota de revogação (ADR-059)
+
+[ADR-059](../adr/059-remover-o-bom-e-a-release-do-produto.md), de
+2026-10-06, revoga o §4 e as classes E2 e E3 do §5.1. Deixam de existir o BOM
+da release, a certificação por evidência de execução, as métricas de `GOV-36`
+e a tag do produto `dmpf@<semver>`. A E1, exceção nominal no `dmpf-units.json`,
+continua. O texto do §4 fica como registro.
