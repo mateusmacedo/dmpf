@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb"
 )
 
 func TestFromSnapshotRoundTripsTheObservableState(t *testing.T) {
@@ -33,7 +34,7 @@ func TestFromSnapshotRestoresTheStatusAsBehaviour(t *testing.T) {
 		t.Fatalf("Status = %v, want Confirmed", got)
 	}
 	acc, rej := reconstituted.Reserve(domain.Reserve{Items: 1, At: at})
-	requireRejected(t, acc, rej, domain.CodeReservationAlreadyReserved)
+	tb.RequireRejected(t, acc, rej, domain.CodeReservationAlreadyReserved)
 }
 
 func TestFromSnapshotRestoresCanceledAsBehaviour(t *testing.T) {
@@ -49,5 +50,5 @@ func TestFromSnapshotRestoresCanceledAsBehaviour(t *testing.T) {
 		t.Fatalf("Status = %v, want Cancelled", got)
 	}
 	acc, rej := reconstituted.Reserve(domain.Reserve{Items: 1, At: at})
-	requireRejected(t, acc, rej, domain.CodeReservationCancelled)
+	tb.RequireRejected(t, acc, rej, domain.CodeReservationCancelled)
 }

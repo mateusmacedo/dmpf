@@ -17,7 +17,7 @@ Import path do módulo:
 
 | Package | Unidade DMPF | Conteúdo |
 | --- | --- | --- |
-| `domain` (raiz) | `kernel/domain` | `DomainEvent`, `Accepted[R]`, `Accept`, `Empty`, `Rejection`, `Reject`, `Code`, `Detail` |
+| `domain` (raiz) | `kernel/domain` | `DomainEvent`, `Accepted[R]`, `Accept`, `Empty`, `Rejection`, `Reject`, `Code`, `Detail`, `DecideOver`, `Refuse` |
 
 Uma unidade só, com `block: domain` e `bounded_context: kernel`
 (`dmpf-units.json`); em Go, a unidade de verificação é o package (RFC §3.3). A
@@ -59,7 +59,10 @@ Garantias que o código realiza e a suíte prova:
   mesma sequência de eventos, na mesma ordem.
 - **Pós-condição da recusa** (`DEC-10`, `DEC-11`): a UPR decide sobre uma cópia e
   só substitui o agregado no aceite; uma recusa não toca o estado e não carrega
-  evento.
+  evento. `DecideOver(target, copyOf, decide)` realiza esse ciclo, e
+  `Refuse[R](code, message, details...)` é o ramo recusante. A cópia profunda é
+  do agregado: a UPR passa o próprio `clone` privado como `copyOf`
+  (`(*Order).clone`), e uma cópia rasa deixaria a recusa vazar para o estado.
 - **Imutabilidade da sequência** (`DEC-13`): `Accept`, `Events()`, `Reject` e
   `Details()` copiam o que recebem e devolvem.
 - **Contrato de conteúdo** (`DEC-12`): a imutabilidade do conteúdo da resposta e
@@ -84,7 +87,7 @@ não tem dependência de terceiro.
 ```bash
 pnpm nx run-many -t fmt-check,vet,lint,build,test,test-race,govulncheck -p domain
 bash tools/dmpf-gate-check.sh
-go run ./tools/dmpf-conformance/cmd/conformance --root . --base origin/develop
+go run ./tools/dmpf-conformance/cmd/conformance --root .
 ```
 
 O `lint` aplica duas camadas ao bloco `domain` (`.golangci.yml`): `depguard`
@@ -98,8 +101,7 @@ verificador `conformance` é o gate autoritativo entre módulos e roda no CI.
 Criar um package novo aqui é criar uma unidade DMPF: ele precisa de entrada
 própria no `dmpf-units.json` (`include` por import path exato) e o baseline em
 `tools/dmpf-baseline/units-baseline.json` precisa ser regravado com
-`--write-baseline`. Essa mudança vai em commit separado do código (RFC §10.2);
-misturar os dois reprova no CI com `DMPF-T002`.
+`--write-baseline`; sem isso, o CI reprova com `DMPF-T001`.
 
 ## Referências
 

@@ -12,7 +12,7 @@ services:
       - --web.enable-remote-write-receiver
       - --web.enable-lifecycle
     ports:
-      - '${PROMETHEUS_PORT:-9090}:9090'
+      - '127.0.0.1:${PROMETHEUS_PORT:-9090}:9090'
     volumes:
       - ../../observability/prometheus/prometheus.yaml:/etc/prometheus/prometheus.yaml:ro
       - prometheus-data:/prometheus
@@ -23,7 +23,7 @@ services:
       retries: 10
     deploy:
       resources:
-        limits: { cpus: '0.40', memory: 1024M }
+        limits: { cpus: '0.728', memory: 1649M }
         reservations: { cpus: '0.10', memory: 256M }
 
 volumes:

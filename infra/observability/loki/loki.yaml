@@ -6,6 +6,8 @@ auth_enabled: false
 server:
   http_listen_port: 3100
   grpc_listen_port: 9096
+  grpc_server_max_recv_msg_size: 16777216
+  grpc_server_max_send_msg_size: 16777216
   log_level: warn
 
 common:
@@ -37,6 +39,11 @@ limits_config:
   volume_enabled: true
   retention_period: 168h
   reject_old_samples: false
+
+frontend_worker:
+  grpc_client_config:
+    max_recv_msg_size: 16777216
+    max_send_msg_size: 16777216
 
 compactor:
   working_directory: /loki/compactor

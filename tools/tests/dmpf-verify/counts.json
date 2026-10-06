@@ -6,9 +6,9 @@
       "value": 54
     },
     "uow-inbox-outbox.md": {
-      "line": 2346,
-      "pattern": "`registro` — \\*\\*64 regras com ID\\*\\*",
-      "value": 64
+      "line": 2447,
+      "pattern": "`registro` — \\*\\*74 regras com ID\\*\\*",
+      "value": 74
     },
     "cloudevents-protobuf-buf.md": {
       "line": 1921,
@@ -27,7 +27,7 @@
       "value": 112
     },
     "resiliencia-observabilidade.md": {
-      "line": 1919,
+      "line": 2072,
       "pattern": "`registro` — 121 regras `normativo`\\.",
       "value": 121
     },

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/application"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/channel"
 )
 
 func TestEachRoleCatalogsOnlyTheChannelItUses(t *testing.T) {
@@ -13,7 +14,7 @@ func TestEachRoleCatalogsOnlyTheChannelItUses(t *testing.T) {
 		Group: "reservations",
 	}
 
-	consumer, err := NewCatalog(OrdersChannel(cfg))
+	consumer, err := channel.NewCatalog(OrdersChannel(cfg))
 	if err != nil {
 		t.Fatalf("NewCatalog(OrdersChannel) = %v", err)
 	}
@@ -21,7 +22,7 @@ func TestEachRoleCatalogsOnlyTheChannelItUses(t *testing.T) {
 		t.Fatalf("consumer catalog = %v, want only %q", consumer, ordersDestination)
 	}
 
-	relay, err := NewCatalog(ReservationsChannel(cfg))
+	relay, err := channel.NewCatalog(ReservationsChannel(cfg))
 	if err != nil {
 		t.Fatalf("NewCatalog(ReservationsChannel) = %v", err)
 	}

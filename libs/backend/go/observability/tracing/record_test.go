@@ -8,6 +8,7 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/tracing"
@@ -35,7 +36,7 @@ func recordedSpan(t *testing.T, record func(span trace.Span)) sdktrace.ReadOnlyS
 	return ended[0]
 }
 
-func TestRecordErrorSetsTheStatusAndTheCategory(t *testing.T) {
+func TestRecordErrorSetsTheStatusAndTheErrorType(t *testing.T) {
 	span := recordedSpan(t, func(span trace.Span) {
 		tracing.RecordError(span, "timeout")
 	})
@@ -47,18 +48,21 @@ func TestRecordErrorSetsTheStatusAndTheCategory(t *testing.T) {
 		t.Fatalf("status description = %q, want empty (TRC-12)", span.Status().Description)
 	}
 
-	found := false
+	recorded := spanAttributes(span)
+	if got, found := recorded[string(semconv.ErrorTypeKey)]; !found || got != "timeout" {
+		t.Fatalf("%s = %q (present: %v), want \"timeout\": the FND-07 category is the value", semconv.ErrorTypeKey, got, found)
+	}
+	if got, found := recorded["dmpf.error.category"]; found {
+		t.Fatalf("dmpf.error.category = %q, want it gone: error.type replaces it (RF-B1)", got)
+	}
+}
+
+func spanAttributes(span sdktrace.ReadOnlySpan) map[string]string {
+	recorded := map[string]string{}
 	for _, kv := range span.Attributes() {
-		if string(kv.Key) == tracing.KeyErrorCategory {
-			found = true
-			if got := kv.Value.AsString(); got != "timeout" {
-				t.Fatalf("%s = %q, want \"timeout\"", tracing.KeyErrorCategory, got)
-			}
-		}
+		recorded[string(kv.Key)] = kv.Value.String()
 	}
-	if !found {
-		t.Fatalf("%s is absent from the span", tracing.KeyErrorCategory)
-	}
+	return recorded
 }
 
 // TestRecordErrorLeavesNoExceptionEvent contrasts RecordError with the SDK's own
@@ -92,7 +96,7 @@ func exceptionEvents(span sdktrace.ReadOnlySpan) int {
 	return found
 }
 
-func TestRecordErrorWithoutACategoryStillMarksTheStatus(t *testing.T) {
+func TestRecordErrorWithoutACategoryRecordsTheOtherErrorType(t *testing.T) {
 	span := recordedSpan(t, func(span trace.Span) {
 		tracing.RecordError(span, "")
 	})
@@ -100,10 +104,11 @@ func TestRecordErrorWithoutACategoryStillMarksTheStatus(t *testing.T) {
 	if span.Status().Code != codes.Error {
 		t.Fatalf("status = %v, want Error even without a category", span.Status().Code)
 	}
-	for _, kv := range span.Attributes() {
-		if string(kv.Key) == tracing.KeyErrorCategory {
-			t.Fatalf("%s is present with no category, want it omitted", tracing.KeyErrorCategory)
-		}
+	if span.Status().Description != "" {
+		t.Fatalf("status description = %q, want empty (TRC-12)", span.Status().Description)
+	}
+	if got := spanAttributes(span)[string(semconv.ErrorTypeKey)]; got != semconv.ErrorTypeOther.Value.AsString() {
+		t.Fatalf("%s = %q, want %q: a failed span carries error.type (RF-B1)", semconv.ErrorTypeKey, got, semconv.ErrorTypeOther.Value.AsString())
 	}
 }
 
@@ -147,4 +152,33 @@ func TestAttemptEventOmitsAnAbsentPreviousCategory(t *testing.T) {
 func TestANilSpanIsToleratedByBothRecorders(t *testing.T) {
 	tracing.RecordError(nil, "timeout")
 	tracing.AttemptEvent(nil, 1, "timeout")
+}
+
+func TestClaimedLeavesTheClaimedEvent(t *testing.T) {
+	span := recordedSpan(t, tracing.Claimed)
+
+	events := span.Events()
+	if len(events) != 1 || events[0].Name != "claimed" {
+		t.Fatalf("events = %v, want one %q", events, "claimed")
+	}
+	if tracing.EventClaimed != "claimed" {
+		t.Fatalf("EventClaimed = %q, want the name RF-B1 declares", tracing.EventClaimed)
+	}
+}
+
+func TestInvalidCreationContextLeavesItsEvent(t *testing.T) {
+	span := recordedSpan(t, tracing.InvalidCreationContext)
+
+	events := span.Events()
+	if len(events) != 1 || events[0].Name != "invalid_creation_context" {
+		t.Fatalf("events = %v, want one %q", events, "invalid_creation_context")
+	}
+	if tracing.EventInvalidCreationContext != "invalid_creation_context" {
+		t.Fatalf("EventInvalidCreationContext = %q, want the name RF-B1 declares", tracing.EventInvalidCreationContext)
+	}
+}
+
+func TestANilSpanIsToleratedByTheOutboxRecorders(t *testing.T) {
+	tracing.Claimed(nil)
+	tracing.InvalidCreationContext(nil)
 }

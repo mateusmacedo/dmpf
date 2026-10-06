@@ -42,6 +42,12 @@ func (f *Failure) Category() Category { return f.category }
 // Retryable is the boolean FND-07 §5.4 requires every concrete error to resolve to.
 func (f *Failure) Retryable() bool { return f.retryable }
 
+// ErrorCategory and ErrorCode satisfy redact.Categorized: the FND-07 category is
+// both the error.type and the stable code of LOG-03, never the message.
+func (f *Failure) ErrorCategory() string { return string(f.category) }
+
+func (f *Failure) ErrorCode() string { return string(f.category) }
+
 // Error renders the category alone, or with the cause when one was given.
 func (f *Failure) Error() string {
 	if f.cause == nil {

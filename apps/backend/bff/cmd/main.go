@@ -28,7 +28,7 @@ const (
 )
 
 func main() {
-	os.Exit(run(options{lookup: os.Getenv, args: os.Args[1:]}, os.Stdout, os.Stderr))
+	os.Exit(run(options{lookup: os.Getenv, args: os.Args[1:]}, os.Stderr))
 }
 
 type options struct {
@@ -36,7 +36,7 @@ type options struct {
 	args   []string
 }
 
-func run(o options, out, errOut io.Writer) int {
+func run(o options, errOut io.Writer) int {
 	if len(o.args) > 0 && o.args[0] == healthcheckCommand {
 		return healthcheck(o.lookup, errOut)
 	}
@@ -49,7 +49,7 @@ func run(o options, out, errOut io.Writer) int {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
 
-	if err := app.Run(ctx, cfg, out); err != nil {
+	if err := app.Run(ctx, cfg); err != nil {
 		_, _ = fmt.Fprintf(errOut, "bff: %v\n", err)
 		return exitFailure
 	}

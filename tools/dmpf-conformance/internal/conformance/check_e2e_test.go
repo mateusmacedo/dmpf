@@ -66,7 +66,6 @@ func excecaoE1(identity string) manifest.Exception {
 		Convergence: manifest.ExceptionConvergence{
 			Kind:                "review",
 			ReviewBy:            diaUTC("2027-03-02"),
-			ApprovedBy:          []string{"arquitetura", "plataforma"},
 			ReplanningCondition: "protoc-gen-go deixar de emitir o import",
 			PresentKind:         true,
 		},
@@ -97,6 +96,10 @@ func verificarComExcecoes(t *testing.T, m manifestoComExcecoes, now exception.In
 		t.Fatalf("Check: %v", err)
 	}
 	return rel
+}
+
+func temCodigo(rel conformance.Report, c rule.Code) bool {
+	return slices.ContainsFunc(rel.Diagnostics, func(d rule.Diagnostic) bool { return d.Code == c })
 }
 
 func reprovaImport(rel conformance.Report, target string) bool {

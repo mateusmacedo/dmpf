@@ -5,7 +5,7 @@ title: DMPF KRN-11 — Testes, test kits e interoperabilidade Go ↔ TypeScript
 stage: done
 priority: P1
 depends_on: [SPEC-WTAXFV8B, SPEC-XF9TF9A0, SPEC-ZHE7DN1H, SPEC-WYX5GW87, SPEC-3R80KNMS, SPEC-ANZX2WPG, SPEC-CGPX20NP, SPEC-NYD18TGD, SPEC-EAGAXQN1]
-ticket_url: null
+ticket_url: https://linear.app/mmda/issue/DEVS-47/spec-sj66880s-dmpf-krn-11-testes-test-kits-e-interoperabilidade-go
 subtask_urls: []
 created: 2026-09-06
 ---

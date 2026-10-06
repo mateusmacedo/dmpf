@@ -6,10 +6,10 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"log/slog"
 	"os"
 	"slices"
 
+	"go.opentelemetry.io/otel/log"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
@@ -57,7 +57,7 @@ type APIServer struct {
 	TrustedClients []string
 	Services       []string
 	Interceptors   []grpc.UnaryServerInterceptor
-	Logger         *slog.Logger
+	LoggerProvider log.LoggerProvider
 }
 
 // APIServerConfig turns that declaration into the server configuration. The
@@ -83,7 +83,7 @@ func APIServerConfig(api APIServer) (ServerConfig, error) {
 		Services:                   api.Services,
 		UnaryInterceptors:          interceptors,
 		StreamInterceptors:         streams,
-		Logger:                     api.Logger,
+		LoggerProvider:             api.LoggerProvider,
 	}, nil
 }
 

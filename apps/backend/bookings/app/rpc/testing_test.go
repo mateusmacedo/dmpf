@@ -2,11 +2,12 @@ package rpc_test
 
 import (
 	"context"
+	"fmt"
 	"net"
+	"sync/atomic"
 	"testing"
 	"time"
 
-	"go.opentelemetry.io/otel/trace/noop"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
@@ -16,6 +17,7 @@ import (
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/app/rpc"
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/application"
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/domain"
+	kernelapp "github.com/mateusmacedo/dmpf/libs/backend/go/app"
 	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	kernelgrpc "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/memory"
@@ -53,12 +55,17 @@ func newHarness(t *testing.T, planted byResource) *harness {
 	t.Helper()
 
 	store := memory.New()
+	policy, err := kernelapp.IdempotencyPolicy(time.Second, time.Hour)
+	if err != nil {
+		t.Fatalf("IdempotencyPolicy() = %v", err)
+	}
 	service := application.Service{
 		UoW: memory.NewUnitOfWork(store, func(tx *memory.Tx) application.Resources {
 			return application.Resources{
 				Bookings:  bookingsTable.Repository(tx),
 				Resources: resourcesTable.Repository(tx),
 				Outbox:    tx.Outbox(),
+				Commands:  tx.CommandInbox(application.CommandConsumer),
 			}
 		}),
 		Reader:         bookingsTable.Reader(store),
@@ -66,6 +73,7 @@ func newHarness(t *testing.T, planted byResource) *harness {
 		Clock:          memory.FixedClock{At: occurred},
 		IDs:            &memory.SequenceIDs{Prefix: "m-"},
 		Authorize:      usecase.AllowAll[application.Operation](),
+		Idempotency:    policy,
 	}
 
 	ctrl, err := admission.New(admission.Config{Limits: kernelgrpc.MethodLimits(rpc.ServiceName, rpc.Methods(), unlimited), MaxKeys: 16, Clock: obsclock.System()})
@@ -75,7 +83,7 @@ func newHarness(t *testing.T, planted byResource) *harness {
 	server, _, err := kernelgrpc.NewServer(kernelgrpc.ServerConfig{
 		InsecureForDevelopmentOnly: true,
 		Services:                   []string{rpc.ServiceName},
-		UnaryInterceptors:          kernelgrpc.ServerInterceptors(rpc.ServiceName, noop.NewTracerProvider().Tracer("rpc-test"), ctrl, nil, nil),
+		UnaryInterceptors:          kernelgrpc.ServerInterceptors(rpc.ServiceName, ctrl, nil, nil, kernelgrpc.WithCommands(rpc.Commands()...)),
 	})
 	if err != nil {
 		t.Fatalf("NewServer() = %v", err)
@@ -101,14 +109,26 @@ func newHarness(t *testing.T, planted byResource) *harness {
 	return &harness{store: store, conn: conn}
 }
 
-func (h *harness) invoke(ctx context.Context, method string, req, resp proto.Message) error {
-	return h.conn.Invoke(ctx, rpc.FullMethod(method), req, resp)
+func (h *harness) invoke(ctx context.Context, method string, req, resp proto.Message, opts ...grpc.CallOption) error {
+	return h.conn.Invoke(ctx, rpc.FullMethod(method), req, resp, opts...)
 }
+
+var keys atomic.Int64
 
 // withTenant is what the BFF puts on the wire: the deadline GRP-04 requires
 // plus the tenant the edge resolved, without which persistence refuses the
-// call (IDN-15).
+// call (IDN-15), and a key of its own, which every command requires (IDM-01).
 func withTenant(t *testing.T) context.Context {
+	t.Helper()
+	return withKey(t, fmt.Sprintf("k-%d", keys.Add(1)))
+}
+
+func withKey(t *testing.T, key string) context.Context {
+	t.Helper()
+	return metadata.AppendToOutgoingContext(withoutKey(t), kernelgrpc.IdempotencyKey, key)
+}
+
+func withoutKey(t *testing.T) context.Context {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	t.Cleanup(cancel)

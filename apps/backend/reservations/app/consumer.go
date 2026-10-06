@@ -7,6 +7,9 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"go.opentelemetry.io/otel/log"
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/trace"
 
 	eventv1 "github.com/mateusmacedo/dmpf/apps/backend/orders/contract/gen/go/company/orders/event/v1"
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/application"
@@ -23,24 +26,32 @@ import (
 // replica, never a hostname or an instance id.
 const ConsumerName = "reservations"
 
+// Waits are the ceilings of INB-17 for a message and of IDM-07 for a command;
+// a role that runs no command leaves Command zero.
+type Waits struct {
+	Message time.Duration
+	Command time.Duration
+}
+
 // Bind is the composition root's half of ADR-034: it turns one open
 // transaction into the resource set application declares, so inbox,
 // business state and outbox share the same pgx.Tx (INB-07).
-func Bind(wait time.Duration) func(tx *postgres.Tx) application.Resources {
+func Bind(waits Waits) func(tx *postgres.Tx) application.Resources {
 	return func(tx *postgres.Tx) application.Resources {
 		return application.Resources{
-			Inbox:        tx.Inbox(ConsumerName, wait),
+			Inbox:        tx.Inbox(ConsumerName, waits.Message),
 			Reservations: provider.NewReservationRepository(tx),
 			Outbox:       tx.Outbox(provider.Mapper{}),
+			Commands:     tx.CommandInbox(application.CommandConsumer, waits.Command),
 		}
 	}
 }
 
-// NewService assembles the application service over Postgres. wait is the
-// ceiling of INB-17 the caller declares; its value is FND-08's.
-func NewService(pool *pgxpool.Pool, clock ports.Clock, ids ports.IDGenerator, wait time.Duration) application.Service {
+// NewService assembles the application service over Postgres, with the waits
+// the caller declares; their values are FND-08's.
+func NewService(pool *pgxpool.Pool, clock ports.Clock, ids ports.IDGenerator, waits Waits) application.Service {
 	return application.Service{
-		UoW:       postgres.NewUnitOfWork(pool, Bind(wait)),
+		UoW:       postgres.NewUnitOfWork(pool, Bind(waits)),
 		Reader:    provider.NewReservationReader(postgres.NewReadPool(pool)),
 		Clock:     clock,
 		IDs:       ids,
@@ -73,18 +84,31 @@ func Handler(service application.Service) kernelapp.Handler {
 // source for: there is no caller stating a preference on this side.
 const consumerLocale = "en"
 
+type ConsumerTelemetry struct {
+	Tracer         trace.Tracer
+	MeterProvider  metric.MeterProvider
+	LoggerProvider log.LoggerProvider
+	System         string
+	Channel        kernelapp.Channel
+}
+
 // NewConsumer is the whole consumer: adapter, service and Postgres quarantine.
 // maxAttempts <= 0 disables the attempt limit (GAR-08 fixes that one exists;
 // the value is FND-08's).
-func NewConsumer(pool *pgxpool.Pool, clock ports.Clock, ids ports.IDGenerator, wait, timeout time.Duration, maxAttempts int, boundary kernelapp.Boundary) kernelapp.Consumer {
+func NewConsumer(pool *pgxpool.Pool, clock ports.Clock, ids ports.IDGenerator, wait, timeout time.Duration, maxAttempts int, boundary kernelapp.Boundary, telemetry ConsumerTelemetry) kernelapp.Consumer {
 	return kernelapp.Consumer{
-		Name:        ConsumerName,
-		MaxAttempts: maxAttempts,
-		Handle:      Handler(NewService(pool, clock, ids, wait)),
-		Containment: postgres.NewQuarantine(pool),
-		Clock:       clock,
-		Timeout:     timeout,
-		Boundary:    boundary,
-		Locale:      consumerLocale,
+		Name:           ConsumerName,
+		MaxAttempts:    maxAttempts,
+		Handle:         Handler(NewService(pool, clock, ids, Waits{Message: wait})),
+		Containment:    postgres.NewQuarantine(pool, postgres.WithQuarantineLoggerProvider(telemetry.LoggerProvider)),
+		Clock:          clock,
+		Timeout:        timeout,
+		Boundary:       boundary,
+		Locale:         consumerLocale,
+		Tracer:         telemetry.Tracer,
+		MeterProvider:  telemetry.MeterProvider,
+		LoggerProvider: telemetry.LoggerProvider,
+		System:         telemetry.System,
+		Channel:        telemetry.Channel,
 	}
 }

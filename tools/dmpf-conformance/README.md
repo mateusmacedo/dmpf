@@ -1,9 +1,9 @@
 # conformance
 
-Os dois gates normativos do DMPF que rodam no CI: o verificador da regra de
-dependência sobre o grafo real de imports (ADR-031) e o validador do BOM da
-release (ADR-041). Os dois reprovam o PR com diagnóstico de código estável e
-saem com `0` sem diagnóstico, `1` com diagnóstico e `2` em falha de execução.
+O gate normativo do DMPF que roda no CI: o verificador da regra de dependência
+sobre o grafo real de imports (ADR-031). Ele reprova o PR com diagnóstico de
+código estável e sai com `0` sem diagnóstico, `1` com diagnóstico e `2` em falha
+de execução.
 O mesmo módulo carrega o `modsync`, que sincroniza `go.work` e os `require` dos
 `go.mod` com o grafo real de imports.
 
@@ -18,7 +18,7 @@ step próprio, antes dos gates que o executam. Import path do módulo:
 ## `conformance`
 
 ```bash
-go run ./tools/dmpf-conformance/cmd/conformance --root . --base develop
+go run ./tools/dmpf-conformance/cmd/conformance --root .
 go run ./tools/dmpf-conformance/cmd/conformance --root . --write-baseline
 ```
 
@@ -26,9 +26,8 @@ go run ./tools/dmpf-conformance/cmd/conformance --root . --write-baseline
 | --- | --- |
 | `--root` | Raiz do workspace |
 | `--profiles` | `build-profiles.json`; default dentro deste módulo |
-| `--base` | Ref do intervalo em revisão. Sem ela, o commit próprio de RFC §10.2 fica não verificado, e não verificado reprova |
 | `--now` | Instante RFC3339 contra o qual as exceções vencem (`DMPF-X006`). Sem ela, o relógio |
-| `--write-baseline` | Regrava `tools/dmpf-baseline/units-baseline.json`. Ato de classificação: commit próprio, executado por pessoa, nunca no gate |
+| `--write-baseline` | Regrava `tools/dmpf-baseline/units-baseline.json`. Executado por pessoa, nunca no gate |
 
 A ordem da verificação é normativa: os manifestos são validados antes de
 qualquer aresta, e um `DMPF-M*` encerra a fase. Em seguida vêm a designação de
@@ -59,29 +58,9 @@ mesmo relatório.
 - O `--write-baseline` passa pela mesma admissão e recusa manifesto com exceção
   não admitida.
 
-O schema da exceção está em [`bom/README.md`](../../bom/README.md#pedir-exceção);
+O schema da exceção está em [`docs/guides/dmpf-manifesto.md`](../../docs/guides/dmpf-manifesto.md#schema-da-exceção);
 um pedido admitido e um recusado, em
 [`docs/guides/dmpf-composicao.md`](../../docs/guides/dmpf-composicao.md) §9.
-
-## `dmpf-bom`
-
-```bash
-go run ./tools/dmpf-conformance/cmd/bom --root . --release latest --base develop
-go run ./tools/dmpf-conformance/cmd/bom --root . --release 0.2.0 --commit HEAD
-```
-
-| Flag | Efeito |
-| --- | --- |
-| `--root` | Raiz do workspace |
-| `--release` | Release a validar: `<semver>`, ou `latest` para a maior semver de `bom/dmpf/` (default: o único arquivo) |
-| `--now` | Instante RFC3339 contra o qual as validades vencem (default: relógio) |
-| `--base` | Ref git do BOM anterior: o mesmo arquivo ou, se ausente, a maior semver no ref (`BOM-03`) |
-| `--commit` | Commit alvo do `DMPF-B012`: a tag `<diretório>/v<versão>` de cada módulo `kernel` ou `contract` não rejeitado precisa ser ancestral dele, e todo módulo de contrato do `go.work` precisa de entrada `contract` (default: `HEAD`) |
-
-Valida `bom/dmpf/<semver>.json` contra `BOM-01` a `BOM-10` (`DMPF-B001` a
-`DMPF-B011`) e admite as exceções E2 e E3 pela mesma `internal/exception`. Lê o
-workspace por `os.Root`, que recusa symlink para fora da raiz. Schema e demais
-códigos em [`bom/README.md`](../../bom/README.md).
 
 ## `dmpf-modsync`
 
@@ -109,8 +88,7 @@ roda `--check` como gate de conformidade dos dois lados.
 | Família | Regra | Onde decide |
 | --- | --- | --- |
 | `DMPF-U*`, `DMPF-M*`, `DMPF-T*`, `DMPF-D*`, `DMPF-E*` | RFC §10.3 | `conformance` |
-| `DMPF-X001`–`DMPF-X007` | `GOV-30` a `GOV-35` | os dois |
-| `DMPF-B001`–`DMPF-B011` | `BOM-01` a `BOM-10`, `GOV-36` | `dmpf-bom` |
+| `DMPF-X001`–`DMPF-X007` | `GOV-30` a `GOV-35` | `conformance` |
 
 A tabela com resumo e seção normativa de cada código vive em
 `internal/rule/diagnostic.go`. Os testes espelho conferem os literais transcritos
@@ -130,8 +108,6 @@ A tabela com resumo e seção normativa de cada código vive em
 | `conformance/golist` | `provider` | `internal/golist` |
 | `conformance/cmd` | `app` | `cmd/conformance` |
 | `conformance/fitness` | `app` | `fitness` |
-| `conformance/bom` | `app` | `bom` |
-| `conformance/cmd-bom` | `app` | `cmd/bom` |
 | `conformance/modsync` | `app` | `modsync` |
 | `conformance/cmd-modsync` | `app` | `cmd/modsync` |
 

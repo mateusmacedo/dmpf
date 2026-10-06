@@ -25,13 +25,15 @@ type Rates map[Class]float64
 // RateMostRestrictive is what an undeclared class resolves to.
 const RateMostRestrictive = 0.01
 
-// DefaultRates is the platform baseline of TRC-13.
+// DefaultRates is the table of TRC-13, by which LOG-12 samples the log. The
+// head of the trace never applies it: the table lives in the tail (RF-E5).
 func DefaultRates() Rates {
 	return Rates{
-		ClassError:       1.0,
-		ClassWrite:       0.10,
-		ClassRead:        0.01,
-		ClassMaintenance: 1.0,
+		ClassError:        1.0,
+		ClassWrite:        1.0,
+		ClassRead:         0.01,
+		ClassMaintenance:  1.0,
+		ClassUnclassified: 0.01,
 	}
 }
 

@@ -1060,7 +1060,7 @@
     },
     {
       "source": "resiliencia-observabilidade.md",
-      "sourceLine": 572,
+      "sourceLine": 574,
       "raw": "contexto-erros-seguranca.md:1380",
       "form": "completa",
       "target": "contexto-erros-seguranca.md",
@@ -1071,7 +1071,7 @@
     },
     {
       "source": "resiliencia-observabilidade.md",
-      "sourceLine": 664,
+      "sourceLine": 666,
       "raw": "contexto-erros-seguranca.md:1035",
       "form": "completa",
       "target": "contexto-erros-seguranca.md",
@@ -1082,7 +1082,7 @@
     },
     {
       "source": "resiliencia-observabilidade.md",
-      "sourceLine": 666,
+      "sourceLine": 668,
       "raw": ":1034",
       "form": "shorthand",
       "target": "contexto-erros-seguranca.md",
@@ -1093,7 +1093,7 @@
     },
     {
       "source": "resiliencia-observabilidade.md",
-      "sourceLine": 739,
+      "sourceLine": 741,
       "raw": "politicas-transporte.md:1186-1188",
       "form": "completa",
       "target": "politicas-transporte.md",
@@ -1104,7 +1104,7 @@
     },
     {
       "source": "resiliencia-observabilidade.md",
-      "sourceLine": 740,
+      "sourceLine": 742,
       "raw": "uow-inbox-outbox.md:1645-1648",
       "form": "completa",
       "target": "uow-inbox-outbox.md",
@@ -1115,7 +1115,7 @@
     },
     {
       "source": "resiliencia-observabilidade.md",
-      "sourceLine": 761,
+      "sourceLine": 763,
       "raw": "politicas-transporte.md:1186-1188",
       "form": "completa",
       "target": "politicas-transporte.md",
@@ -1126,7 +1126,7 @@
     },
     {
       "source": "resiliencia-observabilidade.md",
-      "sourceLine": 762,
+      "sourceLine": 764,
       "raw": "uow-inbox-outbox.md:1645-1648",
       "form": "completa",
       "target": "uow-inbox-outbox.md",
@@ -1137,7 +1137,7 @@
     },
     {
       "source": "resiliencia-observabilidade.md",
-      "sourceLine": 817,
+      "sourceLine": 819,
       "raw": "cloudevents-protobuf-buf.md:566",
       "form": "completa",
       "target": "cloudevents-protobuf-buf.md",
@@ -1148,7 +1148,7 @@
     },
     {
       "source": "resiliencia-observabilidade.md",
-      "sourceLine": 822,
+      "sourceLine": 824,
       "raw": "contexto-erros-seguranca.md:617-619",
       "form": "completa",
       "target": "contexto-erros-seguranca.md",
@@ -1159,7 +1159,7 @@
     },
     {
       "source": "resiliencia-observabilidade.md",
-      "sourceLine": 970,
+      "sourceLine": 1048,
       "raw": "uow-inbox-outbox.md:167",
       "form": "completa",
       "target": "uow-inbox-outbox.md",
@@ -1170,7 +1170,7 @@
     },
     {
       "source": "resiliencia-observabilidade.md",
-      "sourceLine": 1120,
+      "sourceLine": 1237,
       "raw": "uow-inbox-outbox.md:1543",
       "form": "completa",
       "target": "uow-inbox-outbox.md",
@@ -1181,7 +1181,7 @@
     },
     {
       "source": "resiliencia-observabilidade.md",
-      "sourceLine": 1139,
+      "sourceLine": 1256,
       "raw": "uow-inbox-outbox.md:754",
       "form": "completa",
       "target": "uow-inbox-outbox.md",
@@ -1192,7 +1192,7 @@
     },
     {
       "source": "resiliencia-observabilidade.md",
-      "sourceLine": 1212,
+      "sourceLine": 1331,
       "raw": "cloudevents-protobuf-buf.md:1339",
       "form": "completa",
       "target": "cloudevents-protobuf-buf.md",
@@ -1203,7 +1203,7 @@
     },
     {
       "source": "resiliencia-observabilidade.md",
-      "sourceLine": 1288,
+      "sourceLine": 1420,
       "raw": "upr-decision-mensagens.md:1095",
       "form": "completa",
       "target": "upr-decision-mensagens.md",
@@ -1214,7 +1214,7 @@
     },
     {
       "source": "resiliencia-observabilidade.md",
-      "sourceLine": 1496,
+      "sourceLine": 1646,
       "raw": "politicas-transporte.md:1186-1188",
       "form": "completa",
       "target": "politicas-transporte.md",
@@ -1225,7 +1225,7 @@
     },
     {
       "source": "resiliencia-observabilidade.md",
-      "sourceLine": 1531,
+      "sourceLine": 1681,
       "raw": "uow-inbox-outbox.md:1378-1385",
       "form": "completa",
       "target": "uow-inbox-outbox.md",
@@ -1236,7 +1236,7 @@
     },
     {
       "source": "resiliencia-observabilidade.md",
-      "sourceLine": 1608,
+      "sourceLine": 1758,
       "raw": "uow-inbox-outbox.md:1540",
       "form": "completa",
       "target": "uow-inbox-outbox.md",
@@ -1247,7 +1247,7 @@
     },
     {
       "source": "resiliencia-observabilidade.md",
-      "sourceLine": 1846,
+      "sourceLine": 1999,
       "raw": "docs/adr/README.md:7-15",
       "form": "completa",
       "target": "docs/adr/README.md",
@@ -1258,7 +1258,7 @@
     },
     {
       "source": "resiliencia-observabilidade.md",
-      "sourceLine": 1852,
+      "sourceLine": 2005,
       "raw": "contexto-erros-seguranca.md:1756",
       "form": "completa",
       "target": "contexto-erros-seguranca.md",
@@ -1269,7 +1269,7 @@
     },
     {
       "source": "resiliencia-observabilidade.md",
-      "sourceLine": 1862,
+      "sourceLine": 2015,
       "raw": "docs/adr/README.md:7-15",
       "form": "completa",
       "target": "docs/adr/README.md",
@@ -1280,7 +1280,7 @@
     },
     {
       "source": "resiliencia-observabilidade.md",
-      "sourceLine": 1868,
+      "sourceLine": 2021,
       "raw": "rfc-dmpf-foundation-v0.1.md:1712-1714",
       "form": "completa",
       "target": "rfc-dmpf-foundation-v0.1.md",

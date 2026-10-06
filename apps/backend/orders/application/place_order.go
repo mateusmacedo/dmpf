@@ -6,61 +6,29 @@ import (
 
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/domain"
 	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
+	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
 )
 
 // PlaceOrder walks the same nine steps as AddItem, but only loads: an absent
 // aggregate comes back as a wrapped technical error, not a rejection, because
 // no UPR produced one and the edge category belongs to FND-07.
 func (s Service) PlaceOrder(ctx context.Context, cmd PlaceOrder) (usecase.Outcome[domain.PlacedResponse], error) {
-	var zero usecase.Outcome[domain.PlacedResponse]
-
-	instrumentation := s.instrumentation()
-	ctx, end := instrumentation.BeginOperation(ctx, OperationPlaceOrder)
-
-	if err := s.Authorize(ctx, cmd); err != nil {
-		end(authorizationResult(err))
-		return zero, err
-	}
-
-	identity := usecase.ResolveIdentity(s.Clock, s.IDs, maxEventsPerCommand)
-
-	outcome := zero
-	err := s.UoW.Within(ctx, func(ctx context.Context, res Resources) error {
-		snapshot, stored, err := res.Orders.Load(ctx, cmd.Order)
-		if err != nil {
-			return fmt.Errorf("application: place order %s: %w", cmd.Order, err)
-		}
-
-		order := domain.FromSnapshot(snapshot)
-		accepted, rejection := order.Place(domain.PlaceOrder{At: domain.Instant(identity.OccurredAt)})
-		if rejection != nil {
-			outcome = usecase.Rejected[domain.PlacedResponse](rejection)
-			return nil
-		}
-
-		if err := res.Orders.Save(ctx, cmd.Order, order.Snapshot(), stored); err != nil {
-			return err
-		}
-		if err := enqueueAll(ctx, res.Outbox, identity, cmd.Order, stored+1, accepted.Events()); err != nil {
-			return err
-		}
-
-		outcome = usecase.Accepted(accepted.Response())
-		return nil
+	return usecase.Execute(ctx, s.executor(), command[domain.PlacedResponse]{
+		Operation:   OperationPlaceOrder,
+		Object:      string(cmd.Order),
+		Input:       cmd,
+		Fingerprint: usecase.NewFingerprint(OperationPlaceOrder).String(string(cmd.Order)),
+		Codec:       placedCodec,
+		Run: func(ctx context.Context, res Resources, identity usecase.Identity) (usecase.Outcome[domain.PlacedResponse], error) {
+			outcome, err := usecase.Decide(ctx, res.Orders, res.Outbox, origin(cmd.Order), cmd.Order, identity,
+				usecase.Existing[domain.OrderID](domain.FromSnapshot),
+				func(o *domain.Order) (kernel.Accepted[domain.PlacedResponse], *kernel.Rejection) {
+					return o.Place(domain.PlaceOrder{At: domain.Instant(identity.OccurredAt)})
+				})
+			if err != nil {
+				return outcome, fmt.Errorf("application: place order %s: %w", cmd.Order, err)
+			}
+			return outcome, nil
+		},
 	})
-	if err != nil {
-		end(ports.Result{Outcome: ports.OutcomeFailed, Err: err})
-		return zero, err
-	}
-
-	category := outcomeCategory(outcome)
-	end(ports.Result{Outcome: category})
-	instrumentation.Audit(ctx, ports.AuditEvent{
-		Object:  string(cmd.Order),
-		Action:  OperationPlaceOrder,
-		Outcome: category,
-		At:      identity.OccurredAt,
-	})
-	return outcome, nil
 }

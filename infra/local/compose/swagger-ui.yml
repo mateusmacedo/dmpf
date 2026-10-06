@@ -11,7 +11,7 @@ services:
       URLS: "[{ url: 'http://localhost:${HTTP_PORT:-8080}/openapi/bookings/v1/openapi.yaml', name: 'bookings' }, { url: 'http://localhost:${HTTP_PORT:-8080}/openapi/orders/v1/openapi.yaml', name: 'orders' }, { url: 'http://localhost:${HTTP_PORT:-8080}/openapi/reservations/v1/openapi.yaml', name: 'reservations' }]"
       TRY_IT_OUT_ENABLED: 'true'
     ports:
-      - '${SWAGGER_PORT:-8082}:8080'
+      - '127.0.0.1:${SWAGGER_PORT:-8082}:8080'
     depends_on:
       dmpf-bff:
         condition: service_started

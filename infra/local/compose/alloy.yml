@@ -11,7 +11,7 @@ services:
       - /etc/alloy/config.alloy
     user: root
     ports:
-      - '${ALLOY_PORT:-12345}:12345'
+      - '127.0.0.1:${ALLOY_PORT:-12345}:12345'
     volumes:
       - ../../observability/alloy/alloy-docker.alloy:/etc/alloy/config.alloy:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
@@ -21,7 +21,7 @@ services:
         condition: service_started
     deploy:
       resources:
-        limits: { cpus: '0.15', memory: 256M }
+        limits: { cpus: '0.195', memory: 294M }
         reservations: { cpus: '0.05', memory: 64M }
 
 volumes:

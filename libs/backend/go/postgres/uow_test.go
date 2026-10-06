@@ -173,3 +173,21 @@ func TestWithinHonoursTheContract(t *testing.T) {
 		}
 	})
 }
+
+func TestWithinRunsReadCommittedWhateverTheServerDefault(t *testing.T) {
+	pool := openPoolWith(t, func(cfg *pgxpool.Config) {
+		cfg.ConnConfig.RuntimeParams["default_transaction_isolation"] = "repeatable read"
+	})
+	uow := postgres.NewUnitOfWork(pool, bindWriter)
+
+	var level string
+	err := uow.Within(context.Background(), func(ctx context.Context, res writer) error {
+		return postgres.ConnOf(res.tx).QueryRow(ctx, "SHOW transaction_isolation").Scan(&level)
+	})
+	if err != nil {
+		t.Fatalf("Within() = %v, want nil", err)
+	}
+	if level != "read committed" {
+		t.Fatalf("transaction_isolation = %q, want %q: INB-18 and the idempotency claim both rely on it", level, "read committed")
+	}
+}

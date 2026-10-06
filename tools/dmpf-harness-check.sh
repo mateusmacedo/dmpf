@@ -82,8 +82,8 @@ uso() {
 uso: tools/dmpf-harness-check.sh --phase regen|self-test
 
   regen      remove o golden bookings num worktree, aciona o agente sobre a mesma
-             spec, confere a forma canônica, roda o rito Buf, classifica em
-             commit próprio, roda a cadeia Go do bookings e do bff e o
+             spec, confere a forma canônica, roda o rito Buf, classifica as
+             unidades, roda a cadeia Go do bookings e do bff e o
              verificador, e reporta divergências contra o golden
   self-test  sem LLM: sabota shared_kernel_units sobre o golden commitado e
              exige DMPF-D002 em bookings/domain
@@ -292,7 +292,7 @@ commitar_classificacao() {
   git -C "$WT" add -- "$BASELINE" || falha "git add do baseline"
   git_gate commit -q -m "chore(workspace): classificar o golden regenerado" \
     || falha "o commit da classificação reprovou (os hooks estão ativos)"
-  ok "commit 1: manifestos + baseline (DMPF-T002)"
+  ok "commit 1: manifestos + baseline"
 }
 
 commitar_codigo() {
@@ -320,11 +320,11 @@ cadeia_nx() {
 
 verificar_conformidade() {
   local saida status
-  saida="$(go run ./tools/dmpf-conformance/cmd/conformance --root "$WT" --base "$HEAD0" 2>&1)"
+  saida="$(go run ./tools/dmpf-conformance/cmd/conformance --root "$WT" 2>&1)"
   status=$?
   printf '%s\n' "$saida"
   [ "$status" -eq 0 ] || falha "o verificador de conformidade reprovou o contexto regenerado (exit $status)"
-  ok "verificador de conformidade aprovado com --base $HEAD0"
+  ok "verificador de conformidade aprovado"
 }
 
 conferir_arvore_limpa() {

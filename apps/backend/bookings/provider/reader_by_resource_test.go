@@ -14,6 +14,7 @@ import (
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/provider"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/pg"
 )
 
 const (
@@ -23,7 +24,7 @@ const (
 
 func saveBooking(t *testing.T, pool *pgxpool.Pool, id domain.BookingID, resource domain.ResourceID) {
 	t.Helper()
-	err := withRepo(t, pool, func(ctx context.Context, repo ports.Repository[domain.BookingID, domain.BookingSnapshot]) error {
+	err := pg.Within(withExecution(t, context.Background()), pool, provider.NewBookingRepository, func(ctx context.Context, repo ports.Repository[domain.BookingID, domain.BookingSnapshot]) error {
 		return repo.Save(ctx, id, domain.BookingSnapshot{
 			ID:         id,
 			ResourceID: resource,

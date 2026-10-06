@@ -13,7 +13,6 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/clock"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/evidence"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/providerkit"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/pg"
@@ -49,7 +48,6 @@ func TestUnitOfWorkConformsToTheKit(t *testing.T) {
 	if len(v.Skipped) != 1 {
 		t.Fatalf("skipped = %v, want exactly the commit-failure clause", v.Skipped)
 	}
-	evidence.RecordVerdict(t, "provider", "postgres-unit-of-work", v)
 }
 
 func TestRepositoryConformsToTheKit(t *testing.T) {
@@ -68,13 +66,13 @@ func TestRepositoryConformsToTheKit(t *testing.T) {
 			NewState:         func(marker int) probe { return probe{Items: marker} },
 			Marker:           func(p probe) int { return p.Items },
 			TenantUnresolved: postgres.ErrTenantUnresolved,
+			Concurrent:       true,
 		}
 	})
 	tb.Require(t, v)
 	if len(v.Skipped) != 0 {
 		t.Fatalf("postgres scopes by construction; nothing should be skipped: %v", v.Skipped)
 	}
-	evidence.RecordVerdict(t, "provider", "postgres-repository", v)
 }
 
 func TestInboxConformsToTheKit(t *testing.T) {
@@ -106,7 +104,21 @@ func TestInboxConformsToTheKit(t *testing.T) {
 	if len(v.Skipped) != 0 {
 		t.Fatalf("Postgres serializes on the key; nothing should be skipped: %v", v.Skipped)
 	}
-	evidence.RecordVerdict(t, "provider", "postgres-inbox", v)
+}
+
+func TestCommandInboxConformsToTheKit(t *testing.T) {
+	pool := pg.OpenPool(t, kitOptions)
+	v := providerkit.CommandInbox(func() providerkit.CommandInboxSubject {
+		pg.ResetTables(t, pool, kitTables...)
+		uow := postgres.NewUnitOfWork(pool, func(tx *postgres.Tx) ports.Inbox {
+			return tx.CommandInbox("kit.commands", 2*time.Second)
+		})
+		return providerkit.CommandInboxSubject{Within: uow.Within, Concurrent: true}
+	})
+	tb.Require(t, v)
+	if len(v.Skipped) != 0 {
+		t.Fatalf("Postgres waits on the key; nothing should be skipped: %v", v.Skipped)
+	}
 }
 
 func TestOutboxStoreConformsToTheKit(t *testing.T) {
@@ -158,7 +170,7 @@ func TestOutboxStoreConformsToTheKit(t *testing.T) {
 				return health.Pending, err
 			},
 			Purge: func(before ports.Instant) (int64, error) {
-				purge, err := postgres.PurgePublished(context.Background(), pool, before)
+				purge, err := postgres.PurgePublished(context.Background(), pool, before, 1000)
 				return purge.Count, err
 			},
 		}
@@ -167,7 +179,6 @@ func TestOutboxStoreConformsToTheKit(t *testing.T) {
 	if len(v.Skipped) != 0 {
 		t.Fatalf("skipped: %v", v.Skipped)
 	}
-	evidence.RecordVerdict(t, "provider", "postgres-outbox", v)
 }
 
 func committedStatus(t *testing.T, pool *pgxpool.Pool, consumer string, id ports.MessageID) (ports.Status, bool) {

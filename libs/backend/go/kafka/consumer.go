@@ -7,13 +7,14 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
+	"strconv"
 	"sync"
 	"time"
 
 	"github.com/twmb/franz-go/pkg/kgo"
-	"go.opentelemetry.io/otel/metric"
+	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
 
-	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/metrics"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/retry"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/channel"
@@ -42,6 +43,10 @@ type Consumer struct {
 	mu      sync.Mutex
 	workers map[key]*partitionWorker
 	client  client
+	fault   fault
+
+	logOnce sync.Once
+	logs    *slog.Logger
 }
 
 type key struct {
@@ -101,7 +106,7 @@ func (c *Consumer) Run(ctx context.Context) error {
 		kgo.ConsumeResetOffset(c.initialOffset()),
 		kgo.OnPartitionsAssigned(c.assigned),
 		kgo.OnPartitionsRevoked(c.revoked),
-		kgo.OnPartitionsLost(c.revoked),
+		kgo.OnPartitionsLost(c.lost),
 	)
 	if err != nil {
 		return fmt.Errorf("kafka: consumer: %w", err)
@@ -119,16 +124,25 @@ func (c *Consumer) initialOffset() kgo.Offset {
 	return kgo.NewOffset().AtStart()
 }
 
-func (c *Consumer) run(ctx context.Context, cl client) error {
+func (c *Consumer) run(ctx context.Context, cl client) (err error) {
 	if err := c.Validate(); err != nil {
 		return err
 	}
+	ctx, abort := context.WithCancel(ctx)
+	defer abort()
+	c.fault.arm(abort)
 	c.mu.Lock()
 	c.client = cl
 	if c.workers == nil {
 		c.workers = map[key]*partitionWorker{}
 	}
 	c.mu.Unlock()
+	defer func() {
+		c.fault.record(recover())
+		if panicked := c.fault.result(); panicked != nil {
+			err = panicked
+		}
+	}()
 	defer c.stopAll(context.WithoutCancel(ctx))
 
 	maxPoll := c.MaxPollRecords
@@ -145,9 +159,8 @@ func (c *Consumer) run(ctx context.Context, cl client) error {
 			if errors.Is(fetchErr.Err, context.Canceled) {
 				continue
 			}
-			c.Config.logger().WarnContext(ctx, "kafka: fetch error",
-				slog.String("topic", fetchErr.Topic), slog.Int("partition", int(fetchErr.Partition)),
-				slog.String("error_category", categoryOf(fetchErr.Err)))
+			c.logger().WarnContext(ctx, "kafka: fetch error",
+				partitionKeys(fetchErr.Topic, fetchErr.Partition), errorAttr(fetchErr.Err))
 		}
 		fetches.EachPartition(func(p kgo.FetchTopicPartition) {
 			if len(p.Records) == 0 {
@@ -199,6 +212,7 @@ func (c *Consumer) assign(ctx context.Context, fallback client, assigned map[str
 	}
 	cl := c.client
 	c.mu.Unlock()
+	c.logRebalance(ctx, "assigned", assigned)
 	for topic, partitions := range assigned {
 		for _, partition := range partitions {
 			c.worker(ctx, cl, topic, partition)
@@ -206,11 +220,21 @@ func (c *Consumer) assign(ctx context.Context, fallback client, assigned map[str
 	}
 }
 
-// revoked cancels the work of every lost partition, waits for the worker to
+func (c *Consumer) revoked(ctx context.Context, _ *kgo.Client, revoked map[string][]int32) {
+	c.logRebalance(ctx, "revoked", revoked)
+	c.release(ctx, revoked)
+}
+
+func (c *Consumer) lost(ctx context.Context, _ *kgo.Client, lost map[string][]int32) {
+	c.logRebalance(ctx, "lost", lost)
+	c.release(ctx, lost)
+}
+
+// release cancels the work of every lost partition, waits for the worker to
 // leave — no detached work survives the revocation (TRP-48) —, lifts its fetch
 // pause and commits only what was already contiguously acknowledged (TRP-29).
-func (c *Consumer) revoked(ctx context.Context, _ *kgo.Client, lost map[string][]int32) {
-	for topic, partitions := range lost {
+func (c *Consumer) release(ctx context.Context, gone map[string][]int32) {
+	for topic, partitions := range gone {
 		for _, partition := range partitions {
 			c.mu.Lock()
 			k := key{topic: topic, partition: partition}
@@ -227,6 +251,30 @@ func (c *Consumer) revoked(ctx context.Context, _ *kgo.Client, lost map[string][
 			w.commitContiguous(ctx, cl, true)
 		}
 	}
+}
+
+func (c *Consumer) logRebalance(ctx context.Context, event string, partitions map[string][]int32) {
+	for topic, numbers := range partitions {
+		if len(numbers) == 0 {
+			continue
+		}
+		sorted := slices.Sorted(slices.Values(numbers))
+		c.logger().InfoContext(ctx, fmt.Sprintf("partitions %s %v", event, sorted),
+			slog.String(string(semconv.MessagingSystemKey), semconv.MessagingSystemKafka.Value.AsString()),
+			slog.String(string(semconv.MessagingConsumerGroupNameKey), c.Channel.Group),
+			slog.String(string(semconv.MessagingDestinationNameKey), topic))
+	}
+}
+
+func (c *Consumer) logger() *slog.Logger {
+	c.logOnce.Do(func() { c.logs = c.Config.logger() })
+	return c.logs
+}
+
+func partitionKeys(topic string, partition int32) slog.Attr {
+	return slog.Group("",
+		slog.String(string(semconv.MessagingDestinationNameKey), topic),
+		slog.String(string(semconv.MessagingDestinationPartitionIDKey), strconv.Itoa(int(partition))))
 }
 
 // stopAll drains every worker at shutdown and commits what was acknowledged,
@@ -267,7 +315,6 @@ func (c *Consumer) observeSaturation(ctx context.Context) {
 	if total == 0 {
 		return
 	}
-	labels := metric.WithAttributes(metrics.Labels{}.Service(c.Config.Service).Attributes()...)
-	c.Config.Instruments.PoolUtilization.Record(ctx, float64(busy)/float64(total), labels)
-	c.Config.Instruments.QueueDepth.Record(ctx, int64(depth), labels)
+	c.Config.Instruments.PoolUtilization.Record(ctx, float64(busy)/float64(total))
+	c.Config.Instruments.QueueDepth.Record(ctx, int64(depth))
 }

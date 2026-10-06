@@ -28,7 +28,6 @@ MOD="${MOD%/}"
 BUF_YAML="$MOD/buf.yaml"
 BUF_GEN="$MOD/buf.gen.yaml"
 BUF_SH="$ROOT/tools/buf.sh"
-MARK_PREFIX=contracts-baseline
 
 buf() { bash "$BUF_SH" "$@"; }
 reprovar() { echo "REPROVADO: $*" >&2; exit 1; }
@@ -160,18 +159,8 @@ pacotes_em() { # ref raiz
   git ls-tree -r --name-only "$1" -- "$2/" | grep -E '\.proto$' | sed "s|^$2/||" | xargs -rn1 dirname | sort -u
 }
 
-# Marca de baseline válida para a raiz: a tag anotada contracts-baseline/<projeto>
-# cujo commit contém a raiz.
-marca_da_raiz() { # raiz
-  local raiz="$1" marca="refs/tags/$MARK_PREFIX/$PROJECT"
-  if git rev-parse --verify --quiet "$marca" >/dev/null \
-    && git ls-tree -d "$marca^{commit}" -- "$raiz" | grep -q .; then
-    echo "$marca"
-  fi
-}
-
 gate_breaking() {
-  local base modulo raiz marca tagger primeiro_autor lista indice against rel origem arquivo herdado origens raizes_head presente
+  local base modulo raiz lista indice against rel origem arquivo herdado origens raizes_head presente
   base="${NX_BASE:-}"
   [ -n "$base" ] || reprovar "baseline nao declarado: NX_BASE vazio (BUF-05)"
   git rev-parse --verify --quiet "${base}^{commit}" >/dev/null || reprovar "baseline irresolvivel: $base (BUF-05)"
@@ -190,15 +179,6 @@ gate_breaking() {
 
   while IFS= read -r modulo; do
     raiz="$MOD/$modulo"
-    marca="$(marca_da_raiz "$raiz")"
-    if [ -n "$marca" ]; then
-      tagger="$(git for-each-ref --format='%(taggeremail)' "$marca")"
-      [ -n "$tagger" ] || reprovar "marca $marca nao e uma tag anotada (sem tagger) (BUF-08)"
-      primeiro_autor="$(git log --diff-filter=A --format='<%ae>' --reverse -- "$raiz" | head -1)"
-      [ -n "$primeiro_autor" ] || reprovar "sem historico de $raiz para conferir a autoria (BUF-08)"
-      [ "$tagger" != "$primeiro_autor" ] || reprovar "marca $marca criada pelo autor do modulo: autoria e autorizacao coincidem (BUF-08)"
-    fi
-
     against="$(mktemp -d)" || reprovar "mktemp"
     so_modulo "$modulo" >"$against/buf.yaml" || reprovar "copia de $BUF_YAML"
     mkdir -p "$against/$modulo"
@@ -216,12 +196,8 @@ gate_breaking() {
       done < <(git ls-tree --name-only "$base" -- "$origem/$rel/" | grep -E '\.proto$')
     done < <(find "$raiz" -name '*.proto' -printf '%h\n' 2>/dev/null | sed "s|^$raiz/\{0,1\}||; s|^$|.|" | sort -u)
 
-    if [ -z "$marca" ] && git ls-tree -r --name-only "$base" -- "$raiz/" | grep -qE '\.proto$'; then
-      reprovar "modulo $raiz existe em $base sem marca $MARK_PREFIX/$PROJECT: estado invalido, nao 'sem baseline' (BUF-08)"
-    fi
     if [ "$herdado" -eq 0 ]; then
-      [ -z "$marca" ] || reprovar "baseline $base nao contem pacotes de $raiz (BUF-05)"
-      aviso "modulo $raiz em estado 'sem baseline': buf breaking dispensado ate a marca $MARK_PREFIX/$PROJECT existir (BUF-08)"
+      aviso "modulo $raiz em estado 'sem baseline': nenhum pacote dele publicado em $base, buf breaking dispensado (BUF-08)"
       continue
     fi
     buf breaking "$MOD" --against "$against" || reprovar "buf breaking (FILE) reprovou contra $base"

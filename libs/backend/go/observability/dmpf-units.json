@@ -16,7 +16,6 @@
         "github.com/mateusmacedo/dmpf/libs/backend/go/observability/logging",
         "github.com/mateusmacedo/dmpf/libs/backend/go/observability/metrics",
         "github.com/mateusmacedo/dmpf/libs/backend/go/observability/otelboot",
-        "github.com/mateusmacedo/dmpf/libs/backend/go/observability/otelboot/otlp",
         "github.com/mateusmacedo/dmpf/libs/backend/go/observability/redact",
         "github.com/mateusmacedo/dmpf/libs/backend/go/observability/resilience",
         "github.com/mateusmacedo/dmpf/libs/backend/go/observability/retry",
@@ -32,6 +31,7 @@
       "entrypoints": [
         "go.opentelemetry.io/otel",
         "go.opentelemetry.io/otel/attribute",
+        "go.opentelemetry.io/otel/baggage",
         "go.opentelemetry.io/otel/codes",
         "go.opentelemetry.io/otel/propagation",
         "go.opentelemetry.io/otel/semconv/v1.43.0"
@@ -55,8 +55,7 @@
       "versions": ">=1.46.0 <2",
       "entrypoints": [
         "go.opentelemetry.io/otel/sdk/resource",
-        "go.opentelemetry.io/otel/sdk/trace",
-        "go.opentelemetry.io/otel/sdk/trace/tracetest"
+        "go.opentelemetry.io/otel/sdk/trace"
       ],
       "capability": "observability"
     },
@@ -67,21 +66,39 @@
       "capability": "observability"
     },
     {
-      "package": "go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc",
-      "versions": ">=1.46.0 <2",
-      "entrypoints": ["go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"],
-      "capability": "io.network"
+      "package": "go.opentelemetry.io/otel/log",
+      "versions": ">=1.47.0 <2",
+      "entrypoints": ["go.opentelemetry.io/otel/log", "go.opentelemetry.io/otel/log/embedded"],
+      "capability": "observability"
     },
     {
-      "package": "go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc",
-      "versions": ">=1.46.0 <2",
-      "entrypoints": ["go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"],
-      "capability": "io.network"
+      "package": "go.opentelemetry.io/otel/sdk/log",
+      "versions": ">=1.47.0 <2",
+      "entrypoints": ["go.opentelemetry.io/otel/sdk/log"],
+      "capability": "observability"
     },
     {
-      "package": "google.golang.org/grpc",
-      "versions": ">=1.83.1 <2",
-      "entrypoints": ["google.golang.org/grpc/credentials"],
+      "package": "go.opentelemetry.io/contrib/bridges/otelslog",
+      "versions": ">=0.21.0 <0.22.0",
+      "entrypoints": ["go.opentelemetry.io/contrib/bridges/otelslog"],
+      "capability": "observability"
+    },
+    {
+      "package": "go.opentelemetry.io/contrib/processors/baggagecopy",
+      "versions": ">=0.17.0 <0.18.0",
+      "entrypoints": ["go.opentelemetry.io/contrib/processors/baggagecopy"],
+      "capability": "observability"
+    },
+    {
+      "package": "go.opentelemetry.io/contrib/instrumentation/runtime",
+      "versions": ">=0.72.0 <0.73.0",
+      "entrypoints": ["go.opentelemetry.io/contrib/instrumentation/runtime"],
+      "capability": "observability"
+    },
+    {
+      "package": "go.opentelemetry.io/contrib/exporters/autoexport",
+      "versions": ">=0.72.0 <0.73.0",
+      "entrypoints": ["go.opentelemetry.io/contrib/exporters/autoexport"],
       "capability": "io.network"
     }
   ],

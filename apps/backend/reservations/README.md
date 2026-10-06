@@ -40,13 +40,15 @@ Os packages do kernel `domain` e `application` têm o mesmo nome dos deste módu
 ## Servidor gRPC
 
 - **Binding no bloco `app`.** O `grpc.ServiceDesc` é montado a partir do descriptor gerado em `apps/backend/reservations/contract`; um teste reprova método do descriptor que não esteja no `ServiceDesc`.
-- **Interceptors, nesta ordem:** span de servidor com pai extraído da metadata → mTLS do peer contra `GRPC_TRUSTED_CLIENTS` (quando TLS está ligado) → admissão por método → deadline obrigatório (`INVALID_ARGUMENT` antes do caso de uso) → contexto de execução (`x-correlation-id` preservado ou cunhado, `request_id` próprio como causação, `x-tenant-id` lido só de peer verificado, `idempotency-key` recebida só registrada no log) → handler. A cadeia vale só para os métodos de `ReservationsService`: a checagem de saúde passa direto, sem admissão nem prazo obrigatório.
+- **Span de servidor:** o `otelgrpc`, ligado como stats handler em `kernelgrpc.NewServer`, abre o span SERVER com pai extraído da metadata antes de qualquer interceptor (RF-B4).
+- **Interceptors, nesta ordem:** mTLS do peer contra `GRPC_TRUSTED_CLIENTS` (quando TLS está ligado) → desfecho no span e registro de acesso `grpc call` → admissão por método → deadline obrigatório (`INVALID_ARGUMENT` antes do caso de uso) → contexto de execução (`x-correlation-id` preservado ou cunhado, `request_id` próprio como causação, `x-tenant-id` lido só de peer verificado, `idempotency-key` exigida nos comandos e levada ao caso de uso) → handler. A cadeia vale só para os métodos de `ReservationsService`: a checagem de saúde passa direto, sem admissão nem prazo obrigatório.
+- **Idempotência dos comandos:** `Reserve` e `Cancel` exigem a metadata `idempotency-key`, no formato `^[A-Za-z0-9._-]{1,128}$` (FND-04 §7.6, ADR-056). Cada comando passa pela inbox do contexto, com `consumer_name` `reservations.commands`, separado das mensagens que o consumidor registra como `reservations`. Metadata ausente é `INVALID_ARGUMENT` com reason `MISSING_IDEMPOTENCY_KEY`, e fora do formato é `INVALID_IDEMPOTENCY_KEY`. A mesma chave com o mesmo pedido devolve a resposta gravada, aceite ou recusa, com o header `idempotent-replayed: true` e sem nova auditoria. Com outro pedido, é `FAILED_PRECONDITION` com `REUSED_IDEMPOTENCY_KEY`; em andamento além da espera, `ABORTED` com `IN_FLIGHT_IDEMPOTENCY_KEY`. A entrada vale 24h.
 - **Desfechos:** rejeição de domínio no `oneof result`; `NOT_FOUND` (inclusive acesso a identificador de outro tenant), `ABORTED`, ausência de tenant ou permissão `PERMISSION_DENIED`, `DEADLINE_EXCEEDED` e `INTERNAL` sem detalhe para as falhas técnicas.
-- **Saúde:** `NOT_SERVING` até o ping no pool e o `Migrate` opcional, `SERVING` depois, `NOT_SERVING` no shutdown; o log `grpc listening` traz o endereço real.
+- **Saúde:** `NOT_SERVING` até o ping no pool e o `Migrate` opcional, `SERVING` depois, `NOT_SERVING` no shutdown; o registro `grpc listening` traz o endereço real em `server.address` e `server.port`.
 
 ## Consumo
 
-A ponte `Sink` confirma sem inbox a entrega de tipo diferente do assinado e abre um span de consumo cujo pai é o `traceparent` do envelope (`TRC-07`). A fronteira só é `Verified` quando o transporte prova as duas coisas — TLS **e** cliente autenticado por SASL ou certificado (ADR-052): com o opt-out de desenvolvimento (`KAFKA_INSECURE`), a fronteira fica `development-only`, nunca `Verified`. `OrdersBoundary` admite só o produtor declarado em `ORDERS_SOURCE` (`CTX-27`); a ligação real entre principal e `source` é a ACL do broker (só o principal de `orders` publica em `orders.events`), pré-requisito de todo ambiente com a fronteira verificada. O adapter reconstrói o `ExecutionContext` do envelope — tenant incluído — e o deposita no `context.Context` (ADR-049), com `correlationid` e o `id` recebido como causação, então o `ReservationConfirmed` herda a cadeia do `OrderPlaced`.
+A ponte `Sink` confirma sem inbox, com um registro em `debug`, a entrega de tipo diferente do assinado e passa o resto ao `kernelapp.Consumer`, que abre o span `process {messaging.destination.name}` CONSUMER em raiz, com link ao contexto de criação do envelope (`TRC-07`, `TRC-08`); fora da fronteira, a raiz é de classe `error`. A fronteira só é `Verified` quando o transporte prova as duas coisas — TLS **e** cliente autenticado por SASL ou certificado (ADR-052): com o opt-out de desenvolvimento (`KAFKA_INSECURE`), a fronteira fica `development-only`, nunca `Verified`. `OrdersBoundary` admite só o produtor declarado em `ORDERS_SOURCE` (`CTX-27`); a ligação real entre principal e `source` é a ACL do broker (só o principal de `orders` publica em `orders.events`), pré-requisito de todo ambiente com a fronteira verificada. O adapter reconstrói o `ExecutionContext` do envelope — tenant incluído — e o deposita no `context.Context` (ADR-049), com `correlationid` e o `id` recebido como causação, então o `ReservationConfirmed` herda a cadeia do `OrderPlaced`.
 
 ## Configuração
 
@@ -63,9 +65,29 @@ A ponte `Sink` confirma sem inbox a entrega de tipo diferente do assinado e abre
 | `KAFKA_ORDERS_TOPIC`, `KAFKA_ORDERS_DLQ`, `KAFKA_GROUP` | `consumer` | Canal inbound `orders.events` e grupo |
 | `ORDERS_SOURCE` | `consumer` | Produtor admitido na fronteira do consumo, pelo atributo `source` do envelope (`CTX-27`); default `urn:dmpf:reference-orders`, o do relay de `orders`; a ACL do broker por principal é quem garante que só ele o produz (ADR-052) |
 | `METRIC_TENANTS` | `api` | Tenants com bucket de admissão e rótulo de métrica próprios (`MET-07`), separados por vírgula; os demais compartilham `other` |
-| `OTLP_ENDPOINT`, `OTLP_INSECURE`, `SERVICE`, `SERVICE_VERSION`, `INSTANCE_ID` | todos | Telemetria e identidade |
+| `OTEL_SERVICE_NAME`, `OTEL_RESOURCE_ATTRIBUTES` | todos | Identidade do recurso OTel (`service.version`, `service.instance.id`, `dmpf.process.role`, `deployment.environment.name`); sem `OTEL_SERVICE_NAME`, o serviço é `reservations`, e sem `dmpf.process.role` o papel vem de `--role`; versão e instância não têm default, e sem elas a partida falha com `ErrResourceIncomplete` (exit 1). O `deploy/.env.example` não declara papel, porque vale para todos; cada `serve-<papel>` e os `docker:run-relay` e `docker:run-consumer` (no container, por `-e`) acrescentam `service.instance.id=reservations-local-<papel>,dmpf.process.role=<papel>` depois de carregar o `deploy/.env`, e a chave repetida fica com o último valor |
+| `OTEL_EXPORTER_OTLP_PROTOCOL`, `OTEL_EXPORTER_OTLP_ENDPOINT` | todos | Exportação OTLP; os manifestos declaram `grpc` e `http://<collector>:4317`, e o esquema `http://` desliga o TLS; sem protocolo, vale o `http/protobuf` do `autoexport`, que o Collector não recebe |
+| `OTEL_TRACES_SAMPLER_ARG`, `OTEL_LOGS_EXPORTER`, `OTEL_PROPAGATORS`, `OTEL_GO_X_OBSERVABILITY` | todos | Os manifestos declaram `1.0`, `otlp`, `tracecontext` e `true`; com `none` em `OTEL_{TRACES,METRICS,LOGS}_EXPORTER`, o sinal não é exportado, como nos harnesses de teste |
 
 Variável obrigatória ausente encerra a partida com exit 2 nomeando-a.
+
+Os prazos de idempotência e de purga vêm de `Defaults()`, sem variável de
+ambiente, e `Validate` recusa valor não positivo com `ErrInvalidPolicy`:
+
+| Campo | Padrão | Uso |
+| --- | --- | --- |
+| `IdempotencyWait` | 1s | Espera máxima por comando concorrente da mesma chave |
+| `IdempotencyRetention` | 24h | Vida da entrada de comando na inbox |
+| `OutboxRetention` | 168h | Idade a partir da qual a outbox publicada é purgada |
+| `InboxRetention` | 192h | Idade a partir da qual a entrada de mensagem é purgada |
+| `PurgeInterval`, `PurgeBatch` | 15min, 1000 | Intervalo e lote de cada purga |
+
+Cada processo purga o que é dele: o `api` as entradas de comando vencidas, depois
+do `Migrate`; o `relay` a outbox publicada; o `consumer` as entradas de mensagem.
+As purgas param antes de o pool fechar. O `consumer` recusa iniciar com
+`InboxRetention` menor que a janela de redelivery do canal, de 7 dias
+(`INB-14`): uma entrada purgada antes disso deixaria passar como nova uma
+reentrega.
 
 ## Rodar localmente
 
@@ -89,7 +111,7 @@ PG_DSN='postgres://reservations:reservations-local@localhost:5432/reservations?s
 
 ## Testes
 
-Unitários, sem banco: as UPRs do `domain`, as sete disposições do consumo e a sequência canônica da `application` sobre o `memory`, e o binding e os interceptors do `rpc` por `bufconn` sobre o store em memória, ciclo de saúde, tracer de banco, `Sink` (span com pai remoto, filtro por tipo e classificação da fronteira), catálogos por papel e partida do binário.
+Unitários, sem banco: as UPRs do `domain`, as sete disposições do consumo e a sequência canônica da `application` sobre o `memory`, e o binding e os interceptors do `rpc` por `bufconn` sobre o store em memória, ciclo de saúde, tracer de banco, `Sink` (span `process` do kernel e filtro por tipo), classificação da fronteira, catálogos por papel e partida do binário.
 
 Com a build tag `integration` e `PG_DSN`, o `test-race` cobre o `provider` (escopo de tenant e acesso cruzado inclusos), o e2e do consumer adapter e do relay no package raiz e o `appkit`; cada teste roda num banco `reservations_test_<id>` próprio, que o `tb/pg` cria e apaga no servidor de `PG_DSN`, e o `test-distributed` roda depois do `test-race`, porque usa o mesmo banco. O `test-distributed` roda só o `distkit`, com as tags `integration,distributed`, e exige Redpanda (`KAFKA_BROKERS`); é o que o `dmpf-distributed.yml` executa em pipeline próprio (`KIT-11`). A topologia inteira é provada pelo e2e do `bff`.
 

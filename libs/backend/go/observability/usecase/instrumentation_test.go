@@ -1,22 +1,23 @@
 package usecase_test
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"strings"
+	"sync"
 	"testing"
 
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/propagation"
+	sdklog "go.opentelemetry.io/otel/sdk/log"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/audit"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/logging"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/metrics"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/otelboot"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/tracing"
@@ -35,13 +36,15 @@ type booted struct {
 	reader          *sdkmetric.ManualReader
 	exporter        *tracetest.InMemoryExporter
 	recording       *audit.Recording
-	log             *bytes.Buffer
+	log             *recordingLogs
+	loggerProvider  *sdklog.LoggerProvider
 }
 
 type options struct {
 	subject    usecase.SubjectFunc
 	classifier usecase.Classifier
 	sampling   tracing.Rates
+	logs       sdklog.Exporter
 }
 
 // boot starts a runtime in memory. Sampling is 1.0 for every class unless a
@@ -63,18 +66,7 @@ func boot(t *testing.T, opts options) booted {
 	reader := sdkmetric.NewManualReader()
 	exporter := tracetest.NewInMemoryExporter()
 
-	// The platform handler, not a bare JSON one: the tests that check what does
-	// not leak have to read the records the service would really write.
-	var written bytes.Buffer
-	logger := slog.New(logging.NewHandler(&written, logging.Config{
-		Service:  "orders",
-		Version:  "1.4.2",
-		Instance: "orders-7c9f",
-		Class:    tracing.ClassWrite,
-		Sampling: tracing.Rates{tracing.ClassWrite: 1.0},
-	}))
-
-	runtime, err := otelboot.Start(context.Background(), otelboot.Config{
+	config := otelboot.Config{
 		Propagator: propagation.TraceContext{},
 		Resource: otelboot.Resource{
 			ServiceName:       "orders",
@@ -84,8 +76,15 @@ func boot(t *testing.T, opts options) booted {
 		Sampling:      sampling,
 		TraceExporter: exporter,
 		MetricReader:  reader,
-		Logger:        logger,
-	})
+	}
+	written := &recordingLogs{}
+	var logs sdklog.Exporter = written
+	if opts.logs != nil {
+		logs = opts.logs
+	}
+	config.LoggerProvider = otelboot.NewLoggerProvider(config, logs)
+
+	runtime, err := otelboot.Start(context.Background(), config)
 	if err != nil {
 		t.Fatalf("Start() = %v", err)
 	}
@@ -98,7 +97,8 @@ func boot(t *testing.T, opts options) booted {
 		reader:          reader,
 		exporter:        exporter,
 		recording:       recording,
-		log:             &written,
+		log:             written,
+		loggerProvider:  config.LoggerProvider,
 	}
 }
 
@@ -175,6 +175,47 @@ func TestTheTrafficClassIsSetAtStartSoTheSamplerSeesIt(t *testing.T) {
 	}
 	if exported[0].Name != "dmpf.usecase."+readOperation {
 		t.Errorf("exported %q, want the read operation", exported[0].Name)
+	}
+}
+
+func TestTheUseCaseSpanInheritsTheTenantOfTheExecutionByTheBaggage(t *testing.T) {
+	fixture := boot(t, options{})
+	execution := testExecution(t)
+	ctx := tracing.WithExecutionBaggage(ports.WithExecutionContext(context.Background(), execution), execution)
+
+	_, end := fixture.instrumentation.BeginOperation(ctx, "orders.AddItem")
+	end(ports.Result{Outcome: ports.OutcomeAccepted})
+
+	span := fixture.onlySpan(t)
+	if got, ok := attributeOf(span, tracing.KeyTenantID); !ok || got != "acme" {
+		t.Errorf("span %s = %q (present=%v), want %q inherited from the baggage (RF-B8)", tracing.KeyTenantID, got, ok, "acme")
+	}
+	if author, present := attributeOf(span, "tenant_id"); present {
+		t.Errorf("span tenant_id = %q, want absent: the tenant arrives only by the baggage (RF-B8)", author)
+	}
+}
+
+func TestEndOperationRecordsTheIdempotencyOutcomeOfACommand(t *testing.T) {
+	fixture := boot(t, options{})
+
+	ctx, end := fixture.instrumentation.BeginOperation(ports.WithIdempotencySlot(context.Background()), "orders.AddItem")
+	ports.MarkIdempotency(ctx, ports.IdempotencyReplayed)
+	end(ports.Result{Outcome: ports.OutcomeAccepted})
+
+	got, ok := attributeOf(fixture.onlySpan(t), "dmpf.idempotency_outcome")
+	if !ok || got != "replayed" {
+		t.Fatalf("dmpf.idempotency_outcome = %q (present=%v), want %q", got, ok, "replayed")
+	}
+}
+
+func TestEndOperationOmitsTheIdempotencyOutcomeWithoutAClaim(t *testing.T) {
+	fixture := boot(t, options{})
+
+	_, end := fixture.instrumentation.BeginOperation(ports.WithIdempotencySlot(context.Background()), "orders.FindOrder")
+	end(ports.Result{Outcome: ports.OutcomeAccepted})
+
+	if got, ok := attributeOf(fixture.onlySpan(t), "dmpf.idempotency_outcome"); ok {
+		t.Fatalf("dmpf.idempotency_outcome = %q on an operation that made no claim", got)
 	}
 }
 
@@ -277,52 +318,60 @@ func collect(t *testing.T, reader *sdkmetric.ManualReader) map[string][]metricda
 func histogramOf(t *testing.T, reader *sdkmetric.ManualReader, name string) metricdata.HistogramDataPoint[float64] {
 	t.Helper()
 
+	points := durationPoints(t, reader)
+	if len(points) != 1 {
+		t.Fatalf("%s has %d data points, want exactly 1", name, len(points))
+	}
+	return points[0]
+}
+
+func durationPoints(t *testing.T, reader *sdkmetric.ManualReader) []metricdata.HistogramDataPoint[float64] {
+	t.Helper()
+
 	var collected metricdata.ResourceMetrics
 	if err := reader.Collect(context.Background(), &collected); err != nil {
 		t.Fatalf("Collect() = %v", err)
 	}
 	for _, scope := range collected.ScopeMetrics {
 		for _, series := range scope.Metrics {
-			if series.Name != name {
+			if series.Name != metrics.RequestDurationSeconds {
 				continue
 			}
 			histogram, ok := series.Data.(metricdata.Histogram[float64])
 			if !ok {
-				t.Fatalf("%s is a %T, want a Histogram[float64]", name, series.Data)
+				t.Fatalf("%s is a %T, want a Histogram[float64]", series.Name, series.Data)
 			}
-			if len(histogram.DataPoints) != 1 {
-				t.Fatalf("%s has %d data points, want exactly 1", name, len(histogram.DataPoints))
-			}
-			return histogram.DataPoints[0]
+			return histogram.DataPoints
 		}
 	}
-	t.Fatalf("%s was never recorded", name)
-	return metricdata.HistogramDataPoint[float64]{}
+	return nil
 }
 
-func labelsOf(point metricdata.DataPoint[int64]) map[string]string {
+func labelsOf(set attribute.Set) map[string]string {
 	labels := make(map[string]string)
-	for _, kv := range point.Attributes.ToSlice() {
+	for _, kv := range set.ToSlice() {
 		labels[string(kv.Key)] = kv.Value.AsString()
 	}
 	return labels
 }
 
-func TestAnAcceptedOperationCountsARequestAndItsDuration(t *testing.T) {
+func assertTheServiceSeriesAreGone(t *testing.T, reader *sdkmetric.ManualReader) {
+	t.Helper()
+
+	counters := collect(t, reader)
+	for _, retired := range []string{"dmpf_service_requests_total", "dmpf_service_errors_total"} {
+		if points := counters[retired]; len(points) != 0 {
+			t.Errorf("%s = %+v, want no series: the RED of the use case is %s (RF-D2)",
+				retired, points, metrics.RequestDurationSeconds)
+		}
+	}
+}
+
+func TestAnAcceptedOperationRecordsItsDurationByOperationAndOutcome(t *testing.T) {
 	fixture := boot(t, options{})
 
 	_, end := fixture.instrumentation.BeginOperation(context.Background(), "orders.AddItem")
 	end(ports.Result{Outcome: ports.OutcomeAccepted})
-
-	requests := collect(t, fixture.reader)[metrics.RequestsTotal]
-	if len(requests) != 1 || requests[0].Value != 1 {
-		t.Fatalf("%s = %+v, want a single point of 1 (MET-09)", metrics.RequestsTotal, requests)
-	}
-	if got := labelsOf(requests[0]); got[metrics.KeyService] != "orders" ||
-		got[metrics.KeyOperation] != "orders.AddItem" ||
-		got[metrics.KeyOutcomeCategory] != string(ports.OutcomeAccepted) {
-		t.Errorf("labels = %v, want service, operation and outcome_category (MET-04)", got)
-	}
 
 	duration := histogramOf(t, fixture.reader, metrics.RequestDurationSeconds)
 	if duration.Count != 1 {
@@ -331,6 +380,16 @@ func TestAnAcceptedOperationCountsARequestAndItsDuration(t *testing.T) {
 	if duration.Sum < 0 {
 		t.Errorf("%s sum = %v, want a non-negative duration", metrics.RequestDurationSeconds, duration.Sum)
 	}
+	got := labelsOf(duration.Attributes)
+	want := map[string]string{
+		tracing.KeyOperation:       "orders.AddItem",
+		tracing.KeyOutcomeCategory: string(ports.OutcomeAccepted),
+	}
+	if len(got) != len(want) || got[tracing.KeyOperation] != want[tracing.KeyOperation] ||
+		got[tracing.KeyOutcomeCategory] != want[tracing.KeyOutcomeCategory] {
+		t.Errorf("labels = %v, want exactly %v: no service, no error.type without a failure (RF-D2, RF-D3)", got, want)
+	}
+	assertTheServiceSeriesAreGone(t, fixture.reader)
 }
 
 func TestEveryOutcomeCategoryCountsAsItsOwnSeries(t *testing.T) {
@@ -343,14 +402,14 @@ func TestEveryOutcomeCategoryCountsAsItsOwnSeries(t *testing.T) {
 		end(ports.Result{Outcome: outcome})
 	}
 
-	byOutcome := map[string]int64{}
-	for _, point := range collect(t, fixture.reader)[metrics.RequestsTotal] {
-		byOutcome[labelsOf(point)[metrics.KeyOutcomeCategory]] = point.Value
+	byOutcome := map[string]uint64{}
+	for _, point := range durationPoints(t, fixture.reader) {
+		byOutcome[labelsOf(point.Attributes)[tracing.KeyOutcomeCategory]] = point.Count
 	}
 
 	for _, want := range []string{"accepted", "rejected", "denied"} {
 		if byOutcome[want] != 1 {
-			t.Errorf("%s{outcome_category=%q} = %d, want 1", metrics.RequestsTotal, want, byOutcome[want])
+			t.Errorf("%s{dmpf.outcome_category=%q} count = %d, want 1", metrics.RequestDurationSeconds, want, byOutcome[want])
 		}
 	}
 	if _, counted := byOutcome["failed"]; counted {
@@ -364,9 +423,11 @@ func TestOnlyAFailedOutcomeCountsAnError(t *testing.T) {
 	_, end := fixture.instrumentation.BeginOperation(context.Background(), "orders.AddItem")
 	end(ports.Result{Outcome: ports.OutcomeRejected})
 
-	if points := collect(t, fixture.reader)[metrics.ErrorsTotal]; len(points) != 0 {
-		t.Errorf("%s = %+v, want none: a rejection is a business outcome, not a failure (DEC-04)",
-			metrics.ErrorsTotal, points)
+	if errorType, labelled := labelsOf(histogramOf(t, fixture.reader, metrics.RequestDurationSeconds).Attributes)[metrics.KeyErrorType]; labelled {
+		t.Errorf("error.type = %q, want none: a rejection is a business outcome, not a failure (DEC-04)", errorType)
+	}
+	if errorType, present := attributeOf(fixture.onlySpan(t), metrics.KeyErrorType); present {
+		t.Errorf("span error.type = %q, want none on a rejection (DEC-04)", errorType)
 	}
 }
 
@@ -376,14 +437,21 @@ func TestAFailureIsCountedUnderTheCategoryTheClassifierGives(t *testing.T) {
 	_, end := fixture.instrumentation.BeginOperation(context.Background(), "orders.AddItem")
 	end(ports.Result{Outcome: ports.OutcomeFailed, Err: errors.New("the payment gateway timed out")})
 
-	points := collect(t, fixture.reader)[metrics.ErrorsTotal]
-	if len(points) != 1 || points[0].Value != 1 {
-		t.Fatalf("%s = %+v, want a single point of 1 (MET-10)", metrics.ErrorsTotal, points)
+	duration := histogramOf(t, fixture.reader, metrics.RequestDurationSeconds)
+	if duration.Count != 1 {
+		t.Fatalf("%s count = %d, want 1 (MET-10)", metrics.RequestDurationSeconds, duration.Count)
 	}
-	if got := labelsOf(points[0]); got[metrics.KeyErrorCategory] != "timeout" ||
-		got[metrics.KeyOperation] != "orders.AddItem" || got[metrics.KeyService] != "orders" {
-		t.Errorf("labels = %v, want the classified category with service and operation", got)
+	if got := labelsOf(duration.Attributes); got[metrics.KeyErrorType] != "timeout" ||
+		got[tracing.KeyOperation] != "orders.AddItem" ||
+		got[tracing.KeyOutcomeCategory] != string(ports.OutcomeFailed) {
+		t.Errorf("labels = %v, want the classified error.type with operation and outcome", got)
+	} else if _, labelled := got["service"]; labelled {
+		t.Errorf("labels = %v, want no service: it is a resource attribute (RF-D3)", got)
 	}
+	if got, ok := attributeOf(fixture.onlySpan(t), metrics.KeyErrorType); !ok || got != "timeout" {
+		t.Errorf("span error.type = %q (present=%v), want the category of the Classifier (RF-B1)", got, ok)
+	}
+	assertTheServiceSeriesAreGone(t, fixture.reader)
 }
 
 func TestAFailureWithoutAClassifierIsUnclassifiedAndNeverCarriesTheMessage(t *testing.T) {
@@ -403,18 +471,24 @@ func TestAFailureWithoutAClassifierIsUnclassifiedAndNeverCarriesTheMessage(t *te
 				Err:     errors.New("cpf=123.456.789-00 was refused"),
 			})
 
-			points := collect(t, fixture.reader)[metrics.ErrorsTotal]
-			if len(points) != 1 {
-				t.Fatalf("%s = %+v, want a single point", metrics.ErrorsTotal, points)
-			}
-
-			labels := labelsOf(points[0])
-			if labels[metrics.KeyErrorCategory] != usecase.CategoryUnclassified {
-				t.Errorf("error_category = %q, want %q", labels[metrics.KeyErrorCategory], usecase.CategoryUnclassified)
+			other := semconv.ErrorTypeOther.Value.AsString()
+			labels := labelsOf(histogramOf(t, fixture.reader, metrics.RequestDurationSeconds).Attributes)
+			if labels[metrics.KeyErrorType] != other {
+				t.Errorf("error.type = %q, want %q (RF-B1)", labels[metrics.KeyErrorType], other)
 			}
 			for key, value := range labels {
 				if strings.Contains(value, "123.456") {
 					t.Errorf("label %s = %q carries the error message (MET-07)", key, value)
+				}
+			}
+
+			span := fixture.onlySpan(t)
+			if got, ok := attributeOf(span, metrics.KeyErrorType); !ok || got != other {
+				t.Errorf("span error.type = %q (present=%v), want %q (RF-B1)", got, ok, other)
+			}
+			for _, kv := range span.Attributes {
+				if strings.Contains(kv.Value.String(), "123.456") {
+					t.Errorf("span attribute %s carries the error message (TRC-15)", kv.Key)
 				}
 			}
 		})
@@ -427,12 +501,13 @@ func TestAFailureAlsoCountsAsARequest(t *testing.T) {
 	_, end := fixture.instrumentation.BeginOperation(context.Background(), "orders.AddItem")
 	end(ports.Result{Outcome: ports.OutcomeFailed, Err: errors.New("boom")})
 
-	counters := collect(t, fixture.reader)
-	if points := counters[metrics.RequestsTotal]; len(points) != 1 || points[0].Value != 1 {
-		t.Errorf("%s = %+v, want the failure counted as a request too", metrics.RequestsTotal, points)
+	duration := histogramOf(t, fixture.reader, metrics.RequestDurationSeconds)
+	if duration.Count != 1 {
+		t.Errorf("%s count = %d, want the failure counted as a request too", metrics.RequestDurationSeconds, duration.Count)
 	}
-	if points := counters[metrics.ErrorsTotal]; len(points) != 1 {
-		t.Errorf("%s = %+v, want the failure counted as an error", metrics.ErrorsTotal, points)
+	if _, labelled := labelsOf(duration.Attributes)[metrics.KeyErrorType]; !labelled {
+		t.Errorf("labels = %v, want error.type: the errors come from the count by error.type (RF-D2)",
+			labelsOf(duration.Attributes))
 	}
 }
 
@@ -442,9 +517,9 @@ func TestAReadOperationIsCountedLikeAnyOther(t *testing.T) {
 	_, end := fixture.instrumentation.BeginOperation(context.Background(), readOperation)
 	end(ports.Result{Outcome: ports.OutcomeAccepted})
 
-	points := collect(t, fixture.reader)[metrics.RequestsTotal]
-	if len(points) != 1 || labelsOf(points[0])[metrics.KeyOperation] != readOperation {
-		t.Errorf("%s = %+v, want the read operation counted like any other", metrics.RequestsTotal, points)
+	duration := histogramOf(t, fixture.reader, metrics.RequestDurationSeconds)
+	if duration.Count != 1 || labelsOf(duration.Attributes)[tracing.KeyOperation] != readOperation {
+		t.Errorf("%s = %+v, want the read operation counted like any other", metrics.RequestDurationSeconds, duration)
 	}
 }
 
@@ -494,17 +569,71 @@ func TestAPlainNotFoundRecordsNoSecurityEvent(t *testing.T) {
 // the event goes to the log channel whole instead of vanishing behind a
 // category, because the log leaves the process by another path.
 func TestASecurityEventTheSinkRefusesReachesTheLogWhole(t *testing.T) {
-	fixture := boot(t, options{})
+	logs := &recordingLogs{}
+	fixture := boot(t, options{logs: logs})
 	instrumentation := usecase.New(fixture.runtime, refusingSink{err: errors.New("sink closed")}, nil, nil, readOperation)
-	access := ports.CrossTenantAccess{Object: "probes/o-1", ContextTenant: "globex", DataTenant: "acme"}
+	access := ports.CrossTenantAccess{Object: "probes/o-1", ContextTenant: "acme", DataTenant: "globex"}
+	execution := testExecution(t)
+	ctx := tracing.WithExecutionBaggage(ports.WithExecutionContext(context.Background(), execution), execution)
 
-	_, end := instrumentation.BeginOperation(withExecution(t, context.Background()), operationFind)
+	_, end := instrumentation.BeginOperation(ctx, operationFind)
 	end(ports.Result{Outcome: ports.OutcomeFailed, Err: access})
 
-	logged := fixture.log.String()
-	for _, want := range []string{usecase.ActionCrossTenantAccess, "probes/o-1", "globex", "acme", "s-test"} {
-		if !strings.Contains(logged, want) {
-			t.Fatalf("log = %s\nwant %q in it: the security record must survive the sink", logged, want)
+	record := logs.securityRecord(t, fixture.loggerProvider)
+	for key, want := range map[string]string{
+		"dmpf.audit.action":         usecase.ActionCrossTenantAccess,
+		"dmpf.audit.object":         "probes/o-1",
+		"dmpf.audit.subject":        "s-test",
+		"dmpf.audit.data_tenant_id": "globex",
+		tracing.KeyTenantID:         "acme",
+	} {
+		if record[key] != want {
+			t.Errorf("record %s = %q, want %q: the security record must survive the sink (IDN-12)", key, record[key], want)
 		}
 	}
+	if author, present := record["tenant_id"]; present {
+		t.Errorf("record tenant_id = %q, want absent: the tenant of the context arrives by the baggage (RF-B8)", author)
+	}
+}
+
+type recordingLogs struct {
+	mu      sync.Mutex
+	records []sdklog.Record
+}
+
+func (r *recordingLogs) Export(_ context.Context, records []sdklog.Record) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, record := range records {
+		r.records = append(r.records, record.Clone())
+	}
+	return nil
+}
+
+func (r *recordingLogs) Shutdown(context.Context) error   { return nil }
+func (r *recordingLogs) ForceFlush(context.Context) error { return nil }
+
+func (r *recordingLogs) securityRecord(t *testing.T, provider *sdklog.LoggerProvider) map[string]string {
+	t.Helper()
+
+	if err := provider.ForceFlush(context.Background()); err != nil {
+		t.Fatalf("ForceFlush() = %v", err)
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	var found []map[string]string
+	for _, record := range r.records {
+		attributes := map[string]string{}
+		record.WalkAttributes(func(kv attribute.KeyValue) bool {
+			attributes[string(kv.Key)] = kv.Value.String()
+			return true
+		})
+		if _, carriesTheObject := attributes["dmpf.audit.object"]; carriesTheObject {
+			found = append(found, attributes)
+		}
+	}
+	if len(found) != 1 {
+		t.Fatalf("exported %d log records carrying the object of the event, want 1", len(found))
+	}
+	return found[0]
 }

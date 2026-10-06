@@ -6,7 +6,11 @@ import (
 	"strings"
 	"time"
 
+	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
+
+	kernelapp "github.com/mateusmacedo/dmpf/libs/backend/go/app"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/app/relay"
+	kernelgrpc "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/kafka"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/boot"
@@ -30,29 +34,19 @@ var (
 	ErrUnknownRole     = errors.New("orders: unknown role")
 	ErrMissingVariable = errors.New("orders: required variable is not set")
 	ErrInvalidVariable = envconfig.ErrInvalidVariable
+	ErrInvalidPolicy   = errors.New("orders: invalid idempotency or purge policy")
 )
 
 const (
-	envDSN                = "PG_DSN"
-	envGRPCAddr           = "GRPC_ADDR"
-	envGRPCInsecure       = "GRPC_INSECURE"
-	envGRPCCertFile       = "GRPC_TLS_CERT_FILE"
-	envGRPCKeyFile        = "GRPC_TLS_KEY_FILE"
-	envGRPCClientCAFile   = "GRPC_CLIENT_CA_FILE"
-	envGRPCTrustedClients = "GRPC_TRUSTED_CLIENTS"
-	envMigrate            = "MIGRATE"
-	envBrokers            = "KAFKA_BROKERS"
-	envMetricTenants      = "METRIC_TENANTS"
-	envKafkaInsecure      = "KAFKA_INSECURE"
-	envOrdersTopic        = "KAFKA_ORDERS_TOPIC"
-	envOrdersDLQ          = "KAFKA_ORDERS_DLQ"
-	envGroup              = "KAFKA_GROUP"
-	envOTLPEndpoint       = "OTLP_ENDPOINT"
-	envOTLPInsecure       = "OTLP_INSECURE"
-	envService            = "SERVICE"
-	envServiceVersion     = "SERVICE_VERSION"
-	envInstanceID         = "INSTANCE_ID"
-	envItemLimit          = "ITEM_LIMIT"
+	envDSN           = "PG_DSN"
+	envMigrate       = "MIGRATE"
+	envBrokers       = "KAFKA_BROKERS"
+	envMetricTenants = "METRIC_TENANTS"
+	envKafkaInsecure = "KAFKA_INSECURE"
+	envOrdersTopic   = "KAFKA_ORDERS_TOPIC"
+	envOrdersDLQ     = "KAFKA_ORDERS_DLQ"
+	envGroup         = "KAFKA_GROUP"
+	envItemLimit     = "ITEM_LIMIT"
 
 	// DefaultItemLimit is the ceiling a process takes when it declares none.
 	DefaultItemLimit = 10
@@ -65,19 +59,9 @@ type Config struct {
 
 	DSN string
 
-	GRPCAddr     string
-	GRPCInsecure bool
-	GRPCCertFile string
-	GRPCKeyFile  string
+	API kernelgrpc.APIEnv
 
-	// GRPCClientCAFile and GRPCTrustedClients authenticate the caller (IDN-03):
-	// the metadata it propagates is only read from a workload they verified.
-	GRPCClientCAFile   string
-	GRPCTrustedClients []string
-
-	Service  string
-	Version  string
-	Instance string
+	Service string
 
 	Brokers       []string
 	KafkaInsecure bool
@@ -89,9 +73,7 @@ type Config struct {
 	OrdersDLQ   string
 	Group       string
 
-	OTLPEndpoint string
-	OTLPInsecure bool
-	Signals      boot.Signals
+	Signals boot.Signals
 
 	Migrate   bool
 	ItemLimit int
@@ -102,15 +84,16 @@ type Config struct {
 	// MetricTenants is the allowlist of MET-07: the tenants that keep their own
 	// admission bucket and label. Every other tenant shares "other".
 	MetricTenants []string
+
+	Policies kernelapp.Policies
 }
 
 // Defaults are the values a role runs with when the environment says nothing.
 func Defaults(role Role) Config {
 	return Config{
 		Role:      role,
-		GRPCAddr:  ":9090",
+		API:       kernelgrpc.APIEnv{GRPCAddr: ":9090"},
 		Service:   "orders",
-		Version:   "dev",
 		ItemLimit: DefaultItemLimit,
 		Relay: relay.Config{
 			Source:         "urn:dmpf:reference-orders",
@@ -122,8 +105,16 @@ func Defaults(role Role) Config {
 			BackoffBase:    200 * time.Millisecond,
 			BackoffCeiling: 30 * time.Second,
 			ShutdownGrace:  observability.ShutdownGrace,
+			System:         semconv.MessagingSystemKafka.Value.AsString(),
 		},
 		Admission: admission.Limit{PerSecond: 50, Burst: 100, Concurrency: 32},
+		Policies: kernelapp.Policies{
+			IdempotencyWait:      time.Second,
+			IdempotencyRetention: 24 * time.Hour,
+			OutboxRetention:      168 * time.Hour,
+			PurgeInterval:        15 * time.Minute,
+			PurgeBatch:           1000,
+		},
 	}
 }
 
@@ -132,31 +123,23 @@ func Defaults(role Role) Config {
 func FromEnv(role Role, lookup func(string) string) (Config, error) {
 	cfg := Defaults(role)
 
+	var err error
 	cfg.DSN = lookup(envDSN)
-	cfg.GRPCAddr = envconfig.OrDefault(lookup(envGRPCAddr), cfg.GRPCAddr)
-	cfg.GRPCCertFile = lookup(envGRPCCertFile)
-	cfg.GRPCKeyFile = lookup(envGRPCKeyFile)
-	cfg.GRPCClientCAFile = lookup(envGRPCClientCAFile)
-	cfg.GRPCTrustedClients = envconfig.SplitList(lookup(envGRPCTrustedClients))
-	cfg.Service = envconfig.OrDefault(lookup(envService), cfg.Service)
-	cfg.Version = envconfig.OrDefault(lookup(envServiceVersion), cfg.Version)
-	cfg.Instance = envconfig.OrDefault(lookup(envInstanceID), envconfig.Hostname())
+	if cfg.API, err = kernelgrpc.ReadAPIEnv(lookup, cfg.API.GRPCAddr); err != nil {
+		return Config{}, err
+	}
 	cfg.Brokers = envconfig.SplitList(lookup(envBrokers))
 	cfg.KafkaAuth = kafka.ReadClientAuth(lookup)
 	cfg.MetricTenants = envconfig.SplitList(lookup(envMetricTenants))
 	cfg.OrdersTopic = lookup(envOrdersTopic)
 	cfg.OrdersDLQ = lookup(envOrdersDLQ)
 	cfg.Group = lookup(envGroup)
-	cfg.OTLPEndpoint = lookup(envOTLPEndpoint)
 
-	var err error
 	flags := []struct {
 		variable string
 		into     *bool
 	}{
-		{envGRPCInsecure, &cfg.GRPCInsecure},
 		{envKafkaInsecure, &cfg.KafkaInsecure},
-		{envOTLPInsecure, &cfg.OTLPInsecure},
 		{envMigrate, &cfg.Migrate},
 	}
 	for _, flag := range flags {
@@ -181,59 +164,43 @@ func FromEnv(role Role, lookup func(string) string) (Config, error) {
 // Validate refuses a configuration the role could not start with, naming the
 // variable that is missing.
 func (c Config) Validate() error {
-	required, err := c.requirements()
+	missing, err := c.requirements()
 	if err != nil {
 		return err
 	}
-	for _, r := range required {
-		if r.absent {
-			return fmt.Errorf("%w: %s", ErrMissingVariable, r.variable)
-		}
+	if len(missing) > 0 {
+		return fmt.Errorf("%w: %s", ErrMissingVariable, missing[0])
 	}
 	if c.ItemLimit <= 0 {
 		return fmt.Errorf("%w: %s must be positive", ErrInvalidVariable, envItemLimit)
 	}
+	if err := c.Policies.Validate(false, ErrInvalidPolicy); err != nil {
+		return err
+	}
 	return c.Relay.Validate()
 }
 
-type requirement struct {
-	variable string
-	absent   bool
-}
-
-func (c Config) requirements() ([]requirement, error) {
-	storage := []requirement{{envDSN, c.DSN == ""}}
+func (c Config) requirements() ([]string, error) {
+	var missing []string
+	require := func(variable string, absent bool) {
+		if absent {
+			missing = append(missing, variable)
+		}
+	}
+	require(envDSN, c.DSN == "")
 	switch c.Role {
 	case RoleAPI:
-		return append(storage, c.transport()...), nil
+		return append(missing, c.API.Missing()...), nil
 	case RoleRelay:
-		return append(storage,
-			requirement{envBrokers, len(c.Brokers) == 0},
-			requirement{envOrdersTopic, c.OrdersTopic == ""},
-			requirement{envOrdersDLQ, c.OrdersDLQ == ""},
-			requirement{envGroup, c.Group == ""},
-			c.kafkaClientAuth(),
-		), nil
+		require(envBrokers, len(c.Brokers) == 0)
+		require(envOrdersTopic, c.OrdersTopic == "")
+		require(envOrdersDLQ, c.OrdersDLQ == "")
+		require(envGroup, c.Group == "")
+		return append(missing, c.KafkaAuth.Missing(c.KafkaInsecure)...), nil
 	case "consumer":
 		return nil, fmt.Errorf("%w: %q: the orders context consumes no channel (use %s)", ErrUnknownRole, c.Role, roleList())
 	default:
 		return nil, fmt.Errorf("%w: %q (use one of %s)", ErrUnknownRole, c.Role, roleList())
-	}
-}
-
-// transport is the api's security policy: TLS by a certificate pair, or the
-// explicit development-only opt-out (GRP-15); neither is refused at startup.
-func (c Config) transport() []requirement {
-	switch {
-	case c.GRPCInsecure:
-		return nil
-	case c.GRPCCertFile == "" && c.GRPCKeyFile == "":
-		return []requirement{{envGRPCInsecure + " or " + envGRPCCertFile + " and " + envGRPCKeyFile, true}}
-	default:
-		return []requirement{
-			{envGRPCCertFile, c.GRPCCertFile == ""}, {envGRPCKeyFile, c.GRPCKeyFile == ""},
-			{envGRPCClientCAFile, c.GRPCClientCAFile == ""}, {envGRPCTrustedClients, len(c.GRPCTrustedClients) == 0},
-		}
 	}
 }
 
@@ -243,10 +210,4 @@ func roleList() string {
 		names[i] = string(role)
 	}
 	return strings.Join(names, "|")
-}
-
-// kafkaClientAuth is the requirement of IDN-04 on a role that talks to the
-// broker: with TLS on, the client authenticates; only the opt-out waives it.
-func (c Config) kafkaClientAuth() requirement {
-	return requirement{"KAFKA_SASL_MECHANISM or KAFKA_CLIENT_CERT_FILE", !c.KafkaInsecure && c.KafkaAuth.SASL == nil && c.KafkaAuth.CertFile == ""}
 }

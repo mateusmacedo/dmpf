@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mateusmacedo/dmpf/apps/backend/bff/app/api"
+	kernelgrpc "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
 )
 
 const (
@@ -108,8 +108,8 @@ func TestAMalformedLocaleFallsBackToTheEdgeDefault(t *testing.T) {
 	f.do(t, http.MethodGet, "/orders/o-1", nil, "Accept-Language", "pt\x7fBR")
 
 	md := f.fake.callsTo("FindOrder")[0].md
-	if got := md.Get("x-locale"); len(got) != 1 || got[0] != api.DefaultLocale {
-		t.Fatalf("x-locale = %v, want the edge default %q", got, api.DefaultLocale)
+	if got := md.Get("x-locale"); len(got) != 1 || got[0] != kernelgrpc.DefaultLocale {
+		t.Fatalf("x-locale = %v, want the edge default %q", got, kernelgrpc.DefaultLocale)
 	}
 }
 

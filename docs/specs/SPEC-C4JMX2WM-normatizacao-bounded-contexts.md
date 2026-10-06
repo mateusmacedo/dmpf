@@ -5,7 +5,7 @@ title: DMPF — Normatização dos bounded contexts: layout, capacidades transve
 stage: done
 priority: P1
 depends_on: []
-ticket_url: null
+ticket_url: https://linear.app/mmda/issue/DEVS-14/spec-c4jmx2wm-dmpf-normatizacao-dos-bounded-contexts-layout
 subtask_urls: []
 created: 2026-09-18
 ---

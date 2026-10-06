@@ -82,7 +82,8 @@ dmpf-context-author`, em foreground) com este prompt, substituindo o caminho:
 > A forma canônica é a de `apps/backend/bookings` (ADR-053): borda só gRPC em
 > `app/rpc`, com o serviço em `apps/backend/<name>/contract/proto/company/<name>/service/v1/`;
 > config sem prefixo `DMPF_`; schema em `provider/schema.sql`; persistência
-> híbrida; instante em nanossegundos. O REST público é do `bff`, fora desta
+> híbrida; instante em nanossegundos. Os handlers de `app/rpc` devolvem o erro
+> por `kernelgrpc.StatusOf`, sem `errors.go` local. O REST público é do `bff`, fora desta
 > tarefa. Esqueleto pelo generator; `include` por merge; nunca toque baseline
 > nem `gen/go`; nunca faça `git commit`. Rode os gates até passar, incluindo
 > `bash tools/dmpf-context-check.sh --context apps/backend/<name>`; pare e
@@ -109,8 +110,7 @@ Rito restante (passos humanos):
      pnpm nx run <name>-contract:buf-generate-check
      NX_BASE=origin/develop pnpm nx run <name>-contract:buf-breaking
   2. go run ./tools/dmpf-conformance/cmd/conformance --root . --write-baseline
-     git add tools/dmpf-baseline/units-baseline.json && git commit   (só o baseline — DMPF-T002)
-  3. go run ./tools/dmpf-conformance/cmd/conformance --root . --base origin/develop
+  3. go run ./tools/dmpf-conformance/cmd/conformance --root .
      bash tools/dmpf-context-check.sh
   4. Banco, role, tópicos, ACLs e certificado vêm do deploy/infra.json do app:
      ajuste-o ao que o contexto publica e consome e rode

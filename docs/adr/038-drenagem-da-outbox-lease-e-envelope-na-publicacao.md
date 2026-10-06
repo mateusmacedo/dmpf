@@ -161,3 +161,45 @@ claim.
 
 A lacuna de `ENV-08` fechou no KRN-12 (ADR-041, SPEC-6QT9SBAS): a produção dos três atributos passou a ter dono. A borda HTTP de `reference` autora `correlationid` (do cliente ou cunhado) e `traceparent` (do span de servidor) e os põe no contexto por `ports.WithMessageContext`; `application.MessageContextFor` os copia para cada `OutboxEntry` e preenche a causação de quem inicia a cadeia com o próprio `message_id` (FND-05); no consumo, `app.Consumer` propaga o `correlationid`, o `id` recebido como causação e o `traceparent` do envelope antes de chamar o handler. O predicado de claim desta decisão fica como está — e passa a selecionar as linhas que o `api` escreve. O sinal `pending` alto deixa de ser o estado normal.
 
+## Addendum — 2026-10-01 (o envelope leva o contexto de criação)
+
+O addendum anterior deu dono à produção dos três atributos. A
+[SPEC-1TFW24WV](../specs/SPEC-1TFW24WV-observabilidade-ponta-a-ponta.md) fixou
+o que o `traceparent` do envelope significa: é o contexto de criação da
+mensagem, gravado uma vez na escrita da outbox e nunca reescrito pelo relay
+(`ENV-08`). É a forma da semconv de mensageria `v1.43.0` e da extensão
+CloudEvents Distributed Tracing.
+
+- **O contexto de criação é o do span ativo na escrita, com o `tracestate`.**
+  `ports.MessageContext` ganhou `Tracestate`. Nos contextos, o interceptor do
+  servidor gRPC preenche `Traceparent` e `Tracestate` a partir do span SERVER
+  corrente (`grpc/interceptor_context.go`), e o provider Postgres grava os dois
+  em `metadata`; chave ausente continua ausente (`postgres/outbox.go`).
+- **`Assemble` copia o contexto sem tocá-lo.** `traceparent` e `tracestate`
+  saem de `metadata` para o envelope como estão (`app/relay/record.go`). O
+  `tracestate` é opcional: ausente ou ilegível, o envelope sai sem ele, e o
+  predicado do claim continua a exigir só `correlationid`, `causationid` e
+  `traceparent` (`postgres/claim.go`).
+- **A drenagem é um trace próprio, ligado por link.** Depois de um claim não
+  vazio, o relay abre a raiz `outbox drain {destino}` INTERNAL, com início no
+  instante do claim e um link por mensagem ao contexto de criação, com
+  `messaging.message.id` no link (`app/relay/drain.go`). Cada mensagem ganha um
+  `send {tópico}` CLIENT, filho do drain e com link ao mesmo contexto
+  (`app/relay/send.go`). Nenhum dos dois reescreve o contexto do envelope. Um
+  `traceparent` ilegível em `metadata` custa só o link: a mensagem é publicada,
+  e o drain registra o evento `invalid_creation_context`.
+- **O envelope é o único portador.** O record Kafka leva o header
+  `content-type: application/cloudevents+protobuf` do binding CloudEvents e
+  nenhum header W3C (`kafka/publisher.go`).
+- **No consumo em cadeia, o contexto de criação é o do `process`.** O
+  `app.Consumer` põe no `MessageContext` do handler o `traceparent` e o
+  `tracestate` do span ativo — o `process` CONSUMER, raiz com link ao contexto
+  do envelope —, e não os do envelope recebido (`app/consumer.go`). A linha de
+  outbox escrita durante o consumo nasce ligada ao trace do consumo. Isso emenda
+  a parte do addendum de 2026-09-08 que propagava o `traceparent` do envelope.
+- **A cauda não separa os traces de uma escrita.** O trace da escrita, o da
+  drenagem e o do consumo são distintos, e o `tail_sampling` do Collector decide
+  trace a trace. O drain declara a classe `write`, e o `process`, `write` dentro
+  da fronteira confiável e `error` fora dela; a cauda retém as duas sempre
+  ([ADR-037](./037-observabilidade-otel-e-retry-por-conjuncao-em-go.md),
+  addendum de 2026-10-01).

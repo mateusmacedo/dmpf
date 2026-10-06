@@ -5,7 +5,7 @@ title: DMPF — Substituir caminhos efêmeros por âncora versionada nas fontes
 stage: done
 priority: P2
 depends_on: [SPEC-4W1BQK93]
-ticket_url: null
+ticket_url: https://linear.app/mmda/issue/DEVS-23/spec-4ckad0bc-dmpf-substituir-caminhos-efemeros-por-ancora-versionada
 subtask_urls: []
 created: 2026-08-21
 ---

@@ -1,11 +1,19 @@
 name: CI
 
+# O push em develop roda o mesmo pipeline e grava os caches que os PRs lêem:
+# um PR só lê cache da própria ref, da branch base e da default.
 on:
   pull_request:
     branches:
       - master
       - develop
       - "release/**"
+    paths-ignore:
+      - "**/*.md"
+      - ".github/ISSUE_TEMPLATE/**"
+  push:
+    branches:
+      - develop
     paths-ignore:
       - "**/*.md"
       - ".github/ISSUE_TEMPLATE/**"
@@ -18,16 +26,90 @@ permissions:
   actions: read
   contents: read
 
+env:
+  # Declarado aqui, e não herdado do runner: é o que faz tb.Env reprovar
+  # em vez de pular quando uma variável de integração falta.
+  CI: "true"
+  NX_EXCLUDE: "@mateusmacedo/dmpf-source"
+
 jobs:
-  main:
-    name: Nx Affected Pipeline
+  quality:
+    name: Qualidade (affected)
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node and pnpm
+        uses: ./.github/actions/setup-node-pnpm
+        with:
+          node-version: "24"
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      # Sem main-branch-name a action procura `main`, que não existe aqui; no push
+      # em develop a base cairia na árvore vazia. O fallback é a ponta anterior.
+      - name: Set Nx SHAs for affected (base/head)
+        uses: nrwl/nx-set-shas@afb73a62d26e41464e9254689e1fd6122ee683c1 # v5
+        with:
+          main-branch-name: develop
+          fallback-sha: ${{ github.event.before }}
+
+      # Cache local do Nx e do golangci-lint, sem Nx Cloud. O lint só existe
+      # neste job, então só ele grava o cache do golangci-lint.
+      - name: Cache do Nx e do golangci-lint
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            .nx/cache
+            ~/.cache/golangci-lint
+          key: ci-${{ runner.os }}-${{ github.job }}-${{ github.sha }}
+          restore-keys: ci-${{ runner.os }}-${{ github.job }}-
+
+      - name: Check formatting and linting
+        run: pnpm biome ci .
+
+      - name: Lint (affected)
+        run: pnpm nx affected -t lint --base=$NX_BASE --head=$NX_HEAD --parallel=3 --exclude=$NX_EXCLUDE
+
+      - name: Typecheck (affected)
+        run: pnpm nx affected -t typecheck --base=$NX_BASE --head=$NX_HEAD --parallel=3 --exclude=$NX_EXCLUDE
+
+      - name: Test (affected)
+        run: pnpm nx affected -t test --base=$NX_BASE --head=$NX_HEAD --parallel=3 --ci --coverage --exclude=$NX_EXCLUDE
+
+      - name: Build (affected)
+        run: pnpm nx affected -t build --base=$NX_BASE --head=$NX_HEAD --parallel=3 --exclude=$NX_EXCLUDE
+
+      # Os estágios da pirâmide selecionam por `layer:*`; um módulo Go sem a tag
+      # perderia fmt-check, vet e test-race sem ninguém reclamar. A diferença entre
+      # `stack:go` (menos o tooling, que tem step próprio) e a união das cinco
+      # camadas tem de ser vazia.
+      - name: Toda lib Go declara exatamente uma camada
+        run: |
+          set -euo pipefail
+          go_all="$(pnpm nx show projects --projects=tag:stack:go --exclude=conformance --json | jq -r '.[]' | sort)"
+          layered="$(for l in domain services contract providers apps; do pnpm nx show projects --projects=tag:layer:$l --json | jq -r '.[]'; done | sort)"
+          if [ -n "$(comm -23 <(echo "$go_all") <(echo "$layered"))" ]; then
+            echo "módulos Go sem tag layer:*:" >&2
+            comm -23 <(echo "$go_all") <(echo "$layered") >&2
+            exit 1
+          fi
+          if [ -n "$(echo "$layered" | uniq -d)" ]; then
+            echo "módulos em mais de uma camada:" >&2
+            echo "$layered" | uniq -d >&2
+            exit 1
+          fi
+
+  go:
+    name: Pirâmide Go (estágios 1 a 5)
     runs-on: ubuntu-26.04
     timeout-minutes: 30
     env:
-      # Declarado aqui, e não herdado do runner: é o que faz tb.Env reprovar
-      # em vez de pular quando uma variável de integração falta.
-      CI: "true"
-      NX_EXCLUDE: "@mateusmacedo/dmpf-source"
       PG_DSN: "postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable"
       KAFKA_BROKERS: "localhost:9092"
       KAFKA_SASL_BROKERS: "localhost:19092"
@@ -54,46 +136,21 @@ jobs:
 
       - name: Set Nx SHAs for affected (base/head)
         uses: nrwl/nx-set-shas@afb73a62d26e41464e9254689e1fd6122ee683c1 # v5
+        with:
+          main-branch-name: develop
+          fallback-sha: ${{ github.event.before }}
 
-      - name: Check formatting and linting
-        run: pnpm biome ci .
-
-      - name: Lint (affected)
-        run: pnpm nx affected -t lint --base=$NX_BASE --head=$NX_HEAD --parallel=3 --exclude=$NX_EXCLUDE
-
-      - name: Typecheck (affected)
-        run: pnpm nx affected -t typecheck --base=$NX_BASE --head=$NX_HEAD --parallel=3 --exclude=$NX_EXCLUDE
-
-      - name: Test (affected)
-        run: pnpm nx affected -t test --base=$NX_BASE --head=$NX_HEAD --parallel=3 --ci --coverage --exclude=$NX_EXCLUDE
-
-      - name: Build (affected)
-        run: pnpm nx affected -t build --base=$NX_BASE --head=$NX_HEAD --parallel=3 --exclude=$NX_EXCLUDE
+      - name: Cache do Nx
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .nx/cache
+          key: ci-${{ runner.os }}-${{ github.job }}-${{ github.sha }}
+          restore-keys: ci-${{ runner.os }}-${{ github.job }}-
 
       # A cadeia Go corre por estágio da pirâmide (FND-09 KIT-09..KIT-11): cada
       # estágio é gate do seguinte, e a infraestrutura só sobe depois que as
       # camadas que não precisam dela passaram. A seleção é pela tag `layer:*`
       # dos project.json; `--affected` mantém o regime do resto do pipeline.
-      # Os estágios selecionam por `layer:*`; um módulo Go sem a tag perderia
-      # fmt-check, vet e test-race sem ninguém reclamar. A diferença entre
-      # `stack:go` (menos o tooling, que tem step próprio) e a união das cinco
-      # camadas tem de ser vazia.
-      - name: Toda lib Go declara exatamente uma camada
-        run: |
-          set -euo pipefail
-          go_all="$(pnpm nx show projects --projects=tag:stack:go --exclude=conformance --json | jq -r '.[]' | sort)"
-          layered="$(for l in domain services contract providers apps; do pnpm nx show projects --projects=tag:layer:$l --json | jq -r '.[]'; done | sort)"
-          if [ -n "$(comm -23 <(echo "$go_all") <(echo "$layered"))" ]; then
-            echo "módulos Go sem tag layer:*:" >&2
-            comm -23 <(echo "$go_all") <(echo "$layered") >&2
-            exit 1
-          fi
-          if [ -n "$(echo "$layered" | uniq -d)" ]; then
-            echo "módulos em mais de uma camada:" >&2
-            echo "$layered" | uniq -d >&2
-            exit 1
-          fi
-
       - name: Estágio 1 — domínio (layer:domain)
         run: |
           set -euo pipefail
@@ -114,7 +171,7 @@ jobs:
           fi
           pnpm nx run-many -t fmt-check,vet,test-race -p "$lista" --parallel=3
 
-      - name: Tooling Go — conformance (sem layer:*, antes dos gates que o executam)
+      - name: Tooling Go — conformance (sem layer:*)
         run: |
           set -euo pipefail
           lista="$(pnpm nx show projects --affected --base=$NX_BASE --head=$NX_HEAD --projects=conformance --json | jq -r 'join(",")')"
@@ -123,110 +180,6 @@ jobs:
             exit 0
           fi
           pnpm nx run-many -t fmt-check,vet,test-race -p "$lista" --parallel=3
-
-      # Os gates DMPF correm depois dos estágios 1 e 2 e antes de qualquer
-      # infraestrutura: decidem sobre a árvore, não sobre um banco. O gate roda
-      # o golangci-lint uma vez por vetor, então fica sob o mesmo regime de
-      # `affected` do resto do pipeline: um PR só de TypeScript não paga por ele.
-      - name: Detect affected Go projects
-        id: go_affected
-        run: |
-          set -euo pipefail
-          lista="$(pnpm nx show projects --affected --base=$NX_BASE --head=$NX_HEAD --projects=tag:stack:go --json | jq -r 'join(",")')"
-          if [ -n "$lista" ]; then
-            echo "any=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "any=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      # Prova que o gate de dependência do bloco domain continua reprovando o
-      # que deve reprovar; sem rodar, o vetor negativo não protege de regressão.
-      - name: DMPF dependency gate
-        if: steps.go_affected.outputs.any == 'true'
-        run: bash tools/dmpf-gate-check.sh
-
-      # Complementa o step acima onde o depguard não alcança: ele decide por nome
-      # de diretório, e célula é aresta entre unidades, que só o verificador vê.
-      - name: DMPF cell gate
-        if: steps.go_affected.outputs.any == 'true'
-        run: bash tools/dmpf-cell-check.sh
-
-      # Nem os gates acima nem o `--root .` exercitam shared kernel: não há
-      # aresta de outro contexto para o kernel enquanto o consumidor não existe,
-      # e mudar a designação é raro. Sem este gate, C2 e DMPF-T002 ficam sem prova.
-      - name: DMPF shared kernel gate
-        if: steps.go_affected.outputs.any == 'true'
-        run: bash tools/dmpf-shared-kernel-check.sh
-
-      # Sem `if: steps.go_affected`, ao contrário dos gates acima: o artefato que
-      # esta prova mede é escrito pelo generator, e uma mudança só no TypeScript do
-      # plugin altera o artefato sem tocar em nenhum projeto `stack:go`.
-      - name: DMPF generator check (structural)
-        run: bash tools/dmpf-generator-check.sh --phase structural
-
-      # Os vetores negativos. Sem eles, um guard que pare de reprovar passa
-      # a não acusar nada em silêncio e a fase `structural` viraria carimbo.
-      - name: DMPF generator check (self-test)
-        run: bash tools/dmpf-generator-check.sh --phase self-test
-
-      # Sem `if: steps.go_affected`: o layout de um contexto se rompe ao mover
-      # arquivo ou ao mexer em project.json e dmpf-units.json, que não são Go.
-      - name: DMPF context check (structural)
-        run: bash tools/dmpf-context-check.sh --phase structural
-
-      # Os vetores negativos, pela mesma razão do self-test acima.
-      - name: Instalar trash-cli para o self-test do context check
-        run: |
-          sudo apt-get update -q
-          sudo apt-get install -y --no-install-recommends trash-cli
-          command -v trash
-
-      - name: DMPF context check (self-test)
-        run: bash tools/dmpf-context-check.sh --phase self-test
-
-      # A fase `regen` exige LLM e roda à mão; o self-test prova, sem agente,
-      # que o gate normativo ainda reprova o golden sem o shared kernel.
-      - name: DMPF harness check (self-test)
-        run: bash tools/dmpf-harness-check.sh --phase self-test
-
-      # Sem `if: steps.go_affected`: import sem `require` compila no workspace pelo
-      # `go.work` e só quebra para quem consome o módulo por tag.
-      - name: DMPF modsync gate
-        run: go run ./tools/dmpf-conformance/cmd/modsync --root . --check
-
-      # Sem `if: steps.go_affected`: um manifesto deploy/infra.json alterado sem
-      # regerar deixa a infra agregada divergente sem tocar código Go.
-      - name: DMPF infrasync gate
-        run: go run ./tools/dmpf-conformance/cmd/infrasync --root . --check
-
-      # GATE, fail-closed. Sem `continue-on-error` e sem `|| true`: a partir
-      # daqui o verificador reprova o PR. O passo shadow que existia aqui foi
-      # removido NESTE MESMO COMMIT, para que não exista estado em que os dois
-      # convivam e o resultado dependa de qual deles alguém leu.
-      #
-      # `--base` entrega o intervalo em revisão, que o mecanismo mínimo de
-      # RFC §10.2 precisa para avaliar se a mudança normativa veio em commit
-      # próprio. Sem ele, a condição fica "não verificada" — e não verificada
-      # reprova.
-      #
-      # Sem `if: steps.go_affected`: o vencimento de exceção (DMPF-X006) muda com
-      # o tempo, sem mudança de código, e precisa reprovar em qualquer PR.
-      - name: DMPF conformance gate
-        run: |
-          go run ./tools/dmpf-conformance/cmd/conformance --root . --base "$NX_BASE"
-
-      # Sem `if: steps.go_affected`, como o generator check: um PR que só toca
-      # `bom/` não afeta projeto Go nenhum e pularia o gate. Os BOMs antigos ficam
-      # no diretório; o gate valida a maior release e a compara com a do base.
-      - name: DMPF BOM gate
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          base="$NX_BASE"
-          case "$BASE_REF" in
-            master | release/*) base="origin/develop" ;;
-          esac
-          go run ./tools/dmpf-conformance/cmd/bom --root . --release latest --base "$base"
 
       # No runner hospedado do GitHub o job roda na VM, sem container próprio:
       # `--network host` publica cada serviço em localhost, como os testes esperam.
@@ -341,9 +294,8 @@ jobs:
       # Gates Buf dos contratos (contracts/README.md, "Gates e baseline"): só o
       # contracts os declara, com contracts/** nos inputs, então um PR que
       # toque só um .proto entra no affected; buf-breaking lê NX_BASE como baseline.
-      # Fecham o estágio 3 (KIT-09: uma quebra contratual barra providers e apps)
-      # e correm DEPOIS dos gates DMPF, que já passaram antes da infra — a falha
-      # aqui não suprime mais o gate autoritativo da regra de dependência.
+      # Fecham o estágio 3 (KIT-09: uma quebra contratual barra providers e apps).
+      # Os gates DMPF correm em job próprio, então a falha aqui não os suprime.
       - name: Estágio 3 — gates Buf do contrato (affected)
         run: pnpm nx affected -t buf-lint,buf-pins,buf-generate-check,buf-breaking,buf-gate-selftest --base=$NX_BASE --head=$NX_HEAD --parallel=3 --exclude=$NX_EXCLUDE
 
@@ -386,11 +338,6 @@ jobs:
           fi
           pnpm nx run-many -t fmt-check,vet,test-race -p "$lista" --parallel=3
 
-      # govulncheck consulta base remota e não tem cache; corre uma vez sobre
-      # todo o Go afetado, fora dos estágios.
-      - name: Go vulnerabilities (affected)
-        run: pnpm nx affected -t govulncheck --base=$NX_BASE --head=$NX_HEAD --parallel=3 --exclude=$NX_EXCLUDE
-
       - name: E2E (affected)
         run: pnpm nx affected -t e2e --base=$NX_BASE --head=$NX_HEAD --parallel=1 --exclude=$NX_EXCLUDE
 
@@ -399,3 +346,149 @@ jobs:
       - name: Derrubar a infraestrutura do job
         if: always()
         run: docker rm -f "test-postgres-$(hostname)" "test-redpanda-$(hostname)" "test-redpanda-sasl-$(hostname)" "test-floci-$(hostname)" >/dev/null 2>&1 || true
+
+  dmpf-gates:
+    name: Gates DMPF de dependência
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node and pnpm
+        uses: ./.github/actions/setup-node-pnpm
+        with:
+          node-version: "24"
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      - name: Set Nx SHAs for affected (base/head)
+        uses: nrwl/nx-set-shas@afb73a62d26e41464e9254689e1fd6122ee683c1 # v5
+        with:
+          main-branch-name: develop
+          fallback-sha: ${{ github.event.before }}
+
+      # Os gates decidem sobre a árvore, não sobre um banco. O gate de dependência
+      # roda o golangci-lint uma vez por vetor, então fica sob o mesmo regime de
+      # `affected` do resto do pipeline: um PR só de TypeScript não paga por ele.
+      - name: Detect affected Go projects
+        id: go_affected
+        run: |
+          set -euo pipefail
+          lista="$(pnpm nx show projects --affected --base=$NX_BASE --head=$NX_HEAD --projects=tag:stack:go --json | jq -r 'join(",")')"
+          if [ -n "$lista" ]; then
+            echo "any=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "any=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Prova que o gate de dependência do bloco domain continua reprovando o
+      # que deve reprovar; sem rodar, o vetor negativo não protege de regressão.
+      - name: DMPF dependency gate
+        if: steps.go_affected.outputs.any == 'true'
+        run: bash tools/dmpf-gate-check.sh
+
+      # Complementa o step acima onde o depguard não alcança: ele decide por nome
+      # de diretório, e célula é aresta entre unidades, que só o verificador vê.
+      - name: DMPF cell gate
+        if: steps.go_affected.outputs.any == 'true'
+        run: bash tools/dmpf-cell-check.sh
+
+      # Nem os gates acima nem o `--root .` exercitam shared kernel: não há
+      # aresta de outro contexto para o kernel enquanto o consumidor não existe,
+      # e mudar a designação é raro. Sem este gate, C2 e DMPF-M004 ficam sem prova.
+      - name: DMPF shared kernel gate
+        if: steps.go_affected.outputs.any == 'true'
+        run: bash tools/dmpf-shared-kernel-check.sh
+
+  dmpf-checks:
+    name: Checks DMPF, sincronia e segurança
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node and pnpm
+        uses: ./.github/actions/setup-node-pnpm
+        with:
+          node-version: "24"
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      - name: Set Nx SHAs for affected (base/head)
+        uses: nrwl/nx-set-shas@afb73a62d26e41464e9254689e1fd6122ee683c1 # v5
+        with:
+          main-branch-name: develop
+          fallback-sha: ${{ github.event.before }}
+
+      # Sem `if` de projeto Go afetado: o artefato que esta prova mede é escrito
+      # pelo generator, e uma mudança só no TypeScript do plugin altera o artefato
+      # sem tocar em nenhum projeto `stack:go`.
+      - name: DMPF generator check (structural)
+        run: bash tools/dmpf-generator-check.sh --phase structural
+
+      # Os vetores negativos. Sem eles, um guard que pare de reprovar passa
+      # a não acusar nada em silêncio e a fase `structural` viraria carimbo.
+      - name: DMPF generator check (self-test)
+        run: bash tools/dmpf-generator-check.sh --phase self-test
+
+      # Sem `if` de projeto Go afetado: o layout de um contexto se rompe ao mover
+      # arquivo ou ao mexer em project.json e dmpf-units.json, que não são Go.
+      - name: DMPF context check (structural)
+        run: bash tools/dmpf-context-check.sh --phase structural
+
+      # Os vetores negativos, pela mesma razão do self-test acima.
+      - name: Instalar trash-cli para o self-test do context check
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y --no-install-recommends trash-cli
+          command -v trash
+
+      - name: DMPF context check (self-test)
+        run: bash tools/dmpf-context-check.sh --phase self-test
+
+      # A fase `regen` exige LLM e roda à mão; o self-test prova, sem agente,
+      # que o gate normativo ainda reprova o golden sem o shared kernel.
+      - name: DMPF harness check (self-test)
+        run: bash tools/dmpf-harness-check.sh --phase self-test
+
+      # Sem `if` de projeto Go afetado: import sem `require` compila no workspace
+      # pelo `go.work` e só quebra para quem consome o módulo por tag.
+      - name: DMPF modsync gate
+        run: go run ./tools/dmpf-conformance/cmd/modsync --root . --check
+
+      # Sem `if` de projeto Go afetado: um manifesto deploy/infra.json alterado sem
+      # regerar deixa a infra agregada divergente sem tocar código Go.
+      - name: DMPF infrasync gate
+        run: go run ./tools/dmpf-conformance/cmd/infrasync --root . --check
+
+      - name: Grafana provisioning check
+        run: |
+          bash tools/grafana-provisioning-check.sh
+          bash tools/grafana-provisioning-check.sh --self-test
+
+      - name: OTel env check
+        run: |
+          bash tools/otel-env-check.sh
+          bash tools/otel-env-check.sh --self-test
+
+      # GATE, fail-closed. Sem `continue-on-error` e sem `|| true`: o verificador
+      # reprova o PR.
+      #
+      # Sem `if` de projeto Go afetado: o vencimento de exceção (DMPF-X006) muda
+      # com o tempo, sem mudança de código, e precisa reprovar em qualquer PR.
+      - name: DMPF conformance gate
+        run: |
+          go run ./tools/dmpf-conformance/cmd/conformance --root .
+
+      # govulncheck consulta base remota e não tem cache; corre uma vez sobre
+      # todo o Go afetado, fora da pirâmide.
+      - name: Go vulnerabilities (affected)
+        run: pnpm nx affected -t govulncheck --base=$NX_BASE --head=$NX_HEAD --parallel=3 --exclude=$NX_EXCLUDE

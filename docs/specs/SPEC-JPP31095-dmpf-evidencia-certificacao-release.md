@@ -5,7 +5,7 @@ title: DMPF KRN-12.4 — Evidência de execução e certificação da release dm
 stage: done
 priority: P2
 depends_on: [SPEC-6QT9SBAS, SPEC-H1A190Y8, SPEC-538MS2D4, SPEC-SJ66880S]
-ticket_url: null
+ticket_url: https://linear.app/mmda/issue/DEVS-52/spec-jpp31095-dmpf-krn-124-evidencia-de-execucao-e-certificacao-da
 subtask_urls: []
 created: 2026-09-08
 ---

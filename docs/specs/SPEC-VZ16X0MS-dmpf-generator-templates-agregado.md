@@ -5,7 +5,7 @@ title: DMPF KRN-12.2b — Templates por agregado nos cinco blocos
 stage: deferred
 priority: P2
 depends_on: [SPEC-8FSD8505, SPEC-XMNBMY50]
-ticket_url: null
+ticket_url: https://linear.app/mmda/issue/DEVS-56/spec-vz16x0ms-dmpf-krn-122b-templates-por-agregado-nos-cinco-blocos
 subtask_urls: []
 created: 2026-09-09
 ---
@@ -99,24 +99,40 @@ que sobra para eu escrever seja a regra dentro de `Reserve`.
   mecânico.
 - [ ] **[P0] Bloco `application`**: `service.go` — `AggregateType`,
   `Destination`, `Operation*` por comando, `Resources`, `Command` selado,
-  `Service` com struct `Config` (stub protegido para campos de negócio),
-  `enqueueAll` (mecânico); `<command>.go` — os nove passos de FND-04 §3.2
+  `Service` com struct `Config` (stub protegido para campos de negócio) e o
+  `Origin` de cada agregado (mecânico). Não há `enqueueAll` gerado: o
+  enfileiramento vem de `usecase.Enqueue`, no kernel desde a Onda 1 da
+  SPEC-R8645FVR (A2). `<command>.go` — os nove passos de FND-04 §3.2
   (autorizar, resolver identidade, `UoW.Within`, carregar — ou criar se
   `creates`, ou inicializar em `ErrNotFound` se `initializesOnNotFound`, como
   `reservations.Consume` —, UPR, salvar, enfileirar `emits` que estão em
-  `integration.publishes`, `Outcome[R]`, auditoria) (mecânico);
-  `find_<aggregate>_by_<fields>.go` por `query`, fora da UoW (mecânico);
+  `integration.publishes`, `Outcome[R]`, auditoria) (mecânico), com o
+  desfecho da autorização por `ports.AuthorizationResult` e a categoria por
+  `Outcome.Category` (A7);
+  `find_<aggregate>_by_<fields>.go` por `query`, fora da UoW, sobre o
+  esqueleto `usecase.Query[Operation]` (A4) (mecânico);
   `consume_<event>.go` por `integration.consumes[]` com as sete disposições de
   FND-04 §6.4 e o mapeamento message → comando local pelo `fieldMap` da
   definição (mecânico); testes
   com `serviceskit.NewFakes`, `Ledger`, `Decide` e repositórios em memória
   gerados por agregado.
+  - Desde a Onda 2 da SPEC-R8645FVR, os passos 1 a 3, 8 e 9 e a auditoria só
+    sem replay deixam de ser template mecânico: vêm de `usecase.Execute` (A1).
+    Os passos 4 a 7 também: vêm de `usecase.Decide` com o `Loader` do modo,
+    `Absent` para `creates`, `OrNew` para `initializesOnNotFound` e `Existing`
+    para o comando sobre agregado existente (A3). O `<command>.go` gerado seria
+    só a chamada a `Execute`, o `Run` com `Decide` e o prefixo
+    `application: <operação> <id>` do erro. A UPR do domínio idem: decide por
+    `kernel.DecideOver` e recusa por `kernel.Refuse` (A5), o que deixa defasado
+    o pseudocódigo da UPR com `clone` e `reject` explícitos; a retomada desta
+    spec decide o resto.
 - [ ] **[P0] Bloco `provider`** (Postgres): `schema.sql` — uma tabela por
   agregado (`<sql_ctx>_<sql_aggregate>`, nome literal, sem plural) com `id`,
   `version`, `snapshot jsonb`, uma coluna por campo usado em `queries[].by` ou
   em `relations[].field`, **um índice composto por consulta** na ordem de
   `by[]` e um índice simples por `relations[].field`; `Migrate`; `<Aggregate>Repository` com optimistic
-  locking; `Reader` com uma consulta SQL por `query`; `Bind`; mapper de
+  locking — o agregado sem coluna de consulta declara a tabela com
+  `postgres.SnapshotTable` (P7) e não ganha codec JSON próprio; `Reader` com uma consulta SQL por `query`; `Bind`; mapper de
   integração (sub-spec C define o payload); testes `//go:build integration`
   com `tb/pg.OpenPool`, `providerkit.UnitOfWork`, `Inbox`, `Outbox` e um
   teste por consulta. Tudo mecânico.

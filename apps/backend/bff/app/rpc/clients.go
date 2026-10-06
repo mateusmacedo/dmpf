@@ -6,12 +6,15 @@ package rpc
 import (
 	"context"
 	"crypto/tls"
-	"log/slog"
 	"time"
 
+	"go.opentelemetry.io/otel/log"
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/reflect/protoreflect"
 
 	bookingsv1 "github.com/mateusmacedo/dmpf/apps/backend/bookings/contract/gen/go/company/bookings/service/v1"
@@ -64,43 +67,47 @@ func fullMethod(service protoreflect.ServiceDescriptor, name protoreflect.Name) 
 // Options is what the composition root decides for both clients: transport
 // security (TLS or the development opt-out) and where the calls record.
 type Options struct {
-	TLS         *tls.Config
-	Insecure    bool
-	Clock       clock.Clock
-	Tracer      trace.Tracer
-	Instruments *metrics.Instruments
-	Logger      *slog.Logger
-	Service     string
+	TLS            *tls.Config
+	Insecure       bool
+	Clock          clock.Clock
+	Tracer         trace.Tracer
+	TracerProvider trace.TracerProvider
+	MeterProvider  metric.MeterProvider
+	Propagator     propagation.TextMapPropagator
+	Instruments    *metrics.Instruments
+	LoggerProvider log.LoggerProvider
 }
 
 func OrdersConfig(opts Options) kernelgrpc.Config {
 	return config("orders", OrdersServiceName, opts, map[string]kernelgrpc.MethodPolicy{
-		MethodAddItem:    policy("orders", MethodAddItem, false),
-		MethodPlaceOrder: policy("orders", MethodPlaceOrder, false),
-		MethodFindOrder:  policy("orders", MethodFindOrder, true),
+		MethodAddItem:    policy("orders", MethodAddItem),
+		MethodPlaceOrder: policy("orders", MethodPlaceOrder),
+		MethodFindOrder:  policy("orders", MethodFindOrder),
 	})
 }
 
 func ReservationsConfig(opts Options) kernelgrpc.Config {
 	return config("reservations", ReservationsServiceName, opts, map[string]kernelgrpc.MethodPolicy{
-		MethodReserve:         policy("reservations", MethodReserve, false),
-		MethodCancel:          policy("reservations", MethodCancel, false),
-		MethodFindReservation: policy("reservations", MethodFindReservation, true),
+		MethodReserve:         policy("reservations", MethodReserve),
+		MethodCancel:          policy("reservations", MethodCancel),
+		MethodFindReservation: policy("reservations", MethodFindReservation),
 	})
 }
 
 func BookingsConfig(opts Options) kernelgrpc.Config {
 	return config("bookings", BookingsServiceName, opts, map[string]kernelgrpc.MethodPolicy{
-		MethodReserveBooking:         policy("bookings", MethodReserveBooking, false),
-		MethodCancelBooking:          policy("bookings", MethodCancelBooking, false),
-		MethodRegisterResource:       policy("bookings", MethodRegisterResource, false),
-		MethodFindBooking:            policy("bookings", MethodFindBooking, true),
-		MethodFindBookingsByResource: policy("bookings", MethodFindBookingsByResource, true),
+		MethodReserveBooking:         policy("bookings", MethodReserveBooking),
+		MethodCancelBooking:          policy("bookings", MethodCancelBooking),
+		MethodRegisterResource:       policy("bookings", MethodRegisterResource),
+		MethodFindBooking:            policy("bookings", MethodFindBooking),
+		MethodFindBookingsByResource: policy("bookings", MethodFindBookingsByResource),
 	})
 }
 
-func policy(dependency, method string, read bool) kernelgrpc.MethodPolicy {
-	p := kernelgrpc.MethodPolicy{
+// policy retries every method on Unavailable: a read has no effect, and a
+// command carries the key the context deduplicates by (GRP-09, IDM-01).
+func policy(dependency, method string) kernelgrpc.MethodPolicy {
+	return kernelgrpc.MethodPolicy{
 		Budget: deadline.Budget{
 			Dependency:        dependency,
 			Method:            method,
@@ -108,12 +115,9 @@ func policy(dependency, method string, read bool) kernelgrpc.MethodPolicy {
 			Slack:             methodSlack,
 			EstimatedDuration: methodEstimated,
 		},
-		Idempotent: read,
+		Idempotent:     true,
+		RetryableCodes: []codes.Code{codes.Unavailable},
 	}
-	if read {
-		p.RetryableCodes = []codes.Code{codes.Unavailable}
-	}
-	return p
 }
 
 func config(dependency, healthService string, opts Options, methods map[string]kernelgrpc.MethodPolicy) kernelgrpc.Config {
@@ -123,11 +127,13 @@ func config(dependency, healthService string, opts Options, methods map[string]k
 		Sheet:                      resilience.Defaults(dependency),
 		Methods:                    methods,
 		HealthServiceName:          healthService,
-		Service:                    opts.Service,
 		Clock:                      opts.Clock,
 		Tracer:                     opts.Tracer,
+		TracerProvider:             opts.TracerProvider,
+		MeterProvider:              opts.MeterProvider,
+		Propagator:                 opts.Propagator,
 		Instruments:                opts.Instruments,
-		Logger:                     opts.Logger,
+		LoggerProvider:             opts.LoggerProvider,
 	}
 }
 
@@ -138,66 +144,62 @@ func Dial(target string, cfg kernelgrpc.Config, extra ...grpc.DialOption) (*grpc
 	return kernelgrpc.Dial(target, cfg, options...)
 }
 
-type Orders struct{ conn grpc.ClientConnInterface }
+type Unary[Req, Resp any] func(context.Context, *Req) (*Resp, error)
 
-func NewOrders(conn grpc.ClientConnInterface) Orders { return Orders{conn: conn} }
-
-func (o Orders) AddItem(ctx context.Context, req *ordersv1.AddItemRequest) (*ordersv1.AddItemResponse, error) {
-	return invoke[ordersv1.AddItemResponse](ctx, o.conn, MethodAddItem, req)
+type Orders struct {
+	AddItem    Unary[ordersv1.AddItemRequest, ordersv1.AddItemResponse]
+	PlaceOrder Unary[ordersv1.PlaceOrderRequest, ordersv1.PlaceOrderResponse]
+	FindOrder  Unary[ordersv1.FindOrderRequest, ordersv1.FindOrderResponse]
 }
 
-func (o Orders) PlaceOrder(ctx context.Context, req *ordersv1.PlaceOrderRequest) (*ordersv1.PlaceOrderResponse, error) {
-	return invoke[ordersv1.PlaceOrderResponse](ctx, o.conn, MethodPlaceOrder, req)
-}
-
-func (o Orders) FindOrder(ctx context.Context, req *ordersv1.FindOrderRequest) (*ordersv1.FindOrderResponse, error) {
-	return invoke[ordersv1.FindOrderResponse](ctx, o.conn, MethodFindOrder, req)
-}
-
-type Reservations struct{ conn grpc.ClientConnInterface }
-
-func NewReservations(conn grpc.ClientConnInterface) Reservations { return Reservations{conn: conn} }
-
-func (r Reservations) Reserve(ctx context.Context, req *reservationsv1.ReserveRequest) (*reservationsv1.ReserveResponse, error) {
-	return invoke[reservationsv1.ReserveResponse](ctx, r.conn, MethodReserve, req)
-}
-
-func (r Reservations) Cancel(ctx context.Context, req *reservationsv1.CancelRequest) (*reservationsv1.CancelResponse, error) {
-	return invoke[reservationsv1.CancelResponse](ctx, r.conn, MethodCancel, req)
-}
-
-func (r Reservations) FindReservation(ctx context.Context, req *reservationsv1.FindReservationRequest) (*reservationsv1.FindReservationResponse, error) {
-	return invoke[reservationsv1.FindReservationResponse](ctx, r.conn, MethodFindReservation, req)
-}
-
-type Bookings struct{ conn grpc.ClientConnInterface }
-
-func NewBookings(conn grpc.ClientConnInterface) Bookings { return Bookings{conn: conn} }
-
-func (b Bookings) ReserveBooking(ctx context.Context, req *bookingsv1.ReserveBookingRequest) (*bookingsv1.ReserveBookingResponse, error) {
-	return invoke[bookingsv1.ReserveBookingResponse](ctx, b.conn, MethodReserveBooking, req)
-}
-
-func (b Bookings) CancelBooking(ctx context.Context, req *bookingsv1.CancelBookingRequest) (*bookingsv1.CancelBookingResponse, error) {
-	return invoke[bookingsv1.CancelBookingResponse](ctx, b.conn, MethodCancelBooking, req)
-}
-
-func (b Bookings) RegisterResource(ctx context.Context, req *bookingsv1.RegisterResourceRequest) (*bookingsv1.RegisterResourceResponse, error) {
-	return invoke[bookingsv1.RegisterResourceResponse](ctx, b.conn, MethodRegisterResource, req)
-}
-
-func (b Bookings) FindBooking(ctx context.Context, req *bookingsv1.FindBookingRequest) (*bookingsv1.FindBookingResponse, error) {
-	return invoke[bookingsv1.FindBookingResponse](ctx, b.conn, MethodFindBooking, req)
-}
-
-func (b Bookings) FindBookingsByResource(ctx context.Context, req *bookingsv1.FindBookingsByResourceRequest) (*bookingsv1.FindBookingsByResourceResponse, error) {
-	return invoke[bookingsv1.FindBookingsByResourceResponse](ctx, b.conn, MethodFindBookingsByResource, req)
-}
-
-func invoke[Resp any](ctx context.Context, conn grpc.ClientConnInterface, method string, req any) (*Resp, error) {
-	resp := new(Resp)
-	if err := conn.Invoke(ctx, method, req, resp); err != nil {
-		return nil, err
+func NewOrders(conn grpc.ClientConnInterface) Orders {
+	return Orders{
+		AddItem:    unaryOf[ordersv1.AddItemRequest, ordersv1.AddItemResponse](conn, MethodAddItem),
+		PlaceOrder: unaryOf[ordersv1.PlaceOrderRequest, ordersv1.PlaceOrderResponse](conn, MethodPlaceOrder),
+		FindOrder:  unaryOf[ordersv1.FindOrderRequest, ordersv1.FindOrderResponse](conn, MethodFindOrder),
 	}
-	return resp, nil
+}
+
+type Reservations struct {
+	Reserve         Unary[reservationsv1.ReserveRequest, reservationsv1.ReserveResponse]
+	Cancel          Unary[reservationsv1.CancelRequest, reservationsv1.CancelResponse]
+	FindReservation Unary[reservationsv1.FindReservationRequest, reservationsv1.FindReservationResponse]
+}
+
+func NewReservations(conn grpc.ClientConnInterface) Reservations {
+	return Reservations{
+		Reserve:         unaryOf[reservationsv1.ReserveRequest, reservationsv1.ReserveResponse](conn, MethodReserve),
+		Cancel:          unaryOf[reservationsv1.CancelRequest, reservationsv1.CancelResponse](conn, MethodCancel),
+		FindReservation: unaryOf[reservationsv1.FindReservationRequest, reservationsv1.FindReservationResponse](conn, MethodFindReservation),
+	}
+}
+
+type Bookings struct {
+	ReserveBooking         Unary[bookingsv1.ReserveBookingRequest, bookingsv1.ReserveBookingResponse]
+	CancelBooking          Unary[bookingsv1.CancelBookingRequest, bookingsv1.CancelBookingResponse]
+	RegisterResource       Unary[bookingsv1.RegisterResourceRequest, bookingsv1.RegisterResourceResponse]
+	FindBooking            Unary[bookingsv1.FindBookingRequest, bookingsv1.FindBookingResponse]
+	FindBookingsByResource Unary[bookingsv1.FindBookingsByResourceRequest, bookingsv1.FindBookingsByResourceResponse]
+}
+
+func NewBookings(conn grpc.ClientConnInterface) Bookings {
+	return Bookings{
+		ReserveBooking:         unaryOf[bookingsv1.ReserveBookingRequest, bookingsv1.ReserveBookingResponse](conn, MethodReserveBooking),
+		CancelBooking:          unaryOf[bookingsv1.CancelBookingRequest, bookingsv1.CancelBookingResponse](conn, MethodCancelBooking),
+		RegisterResource:       unaryOf[bookingsv1.RegisterResourceRequest, bookingsv1.RegisterResourceResponse](conn, MethodRegisterResource),
+		FindBooking:            unaryOf[bookingsv1.FindBookingRequest, bookingsv1.FindBookingResponse](conn, MethodFindBooking),
+		FindBookingsByResource: unaryOf[bookingsv1.FindBookingsByResourceRequest, bookingsv1.FindBookingsByResourceResponse](conn, MethodFindBookingsByResource),
+	}
+}
+
+func unaryOf[Req, Resp any](conn grpc.ClientConnInterface, method string) Unary[Req, Resp] {
+	return func(ctx context.Context, req *Req) (*Resp, error) {
+		resp := new(Resp)
+		var header metadata.MD
+		if err := conn.Invoke(ctx, method, req, resp, grpc.Header(&header)); err != nil {
+			return nil, err
+		}
+		markReplayed(ctx, header)
+		return resp, nil
+	}
 }

@@ -122,10 +122,19 @@ func (h Harness) Start(t testing.TB, role Role) *Process {
 		"KAFKA_ORDERS_DLQ="+h.DLQ,
 		"KAFKA_GROUP="+h.Group,
 		"KAFKA_INSECURE=true",
-		"SERVICE=orders-distkit",
+		"OTEL_SERVICE_NAME=orders-distkit",
+		"OTEL_RESOURCE_ATTRIBUTES=service.version=distkit,service.instance.id=orders-distkit-"+string(role),
+		"OTEL_TRACES_EXPORTER=none",
+		"OTEL_METRICS_EXPORTER=none",
+		"OTEL_LOGS_EXPORTER=none",
 		EnvBrokers+"="+strings.Join(h.Brokers, ","),
 		pg.PostgresDSN+"="+pg.DSN(t, appkit.PoolOptions.Project),
 	)
+	return launch(t, role, cmd)
+}
+
+func launch(t testing.TB, role Role, cmd *exec.Cmd) *Process {
+	t.Helper()
 	p := &Process{Role: role, cmd: cmd, finished: make(chan struct{})}
 	cmd.Stdout, cmd.Stderr = &p.output, &p.output
 	if err := cmd.Start(); err != nil {
@@ -147,8 +156,16 @@ func (h Harness) Start(t testing.TB, role Role) *Process {
 }
 
 // Output is what the child wrote, which is where a drain that refused to
-// start says why.
-func (p *Process) Output() string { return p.output.String() }
+// start says why. Until the child exits, it returns "(process still running)":
+// the buffer is only safe to read once cmd.Wait has joined the copy goroutines.
+func (p *Process) Output() string {
+	select {
+	case <-p.finished:
+		return p.output.String()
+	default:
+		return "(process still running)"
+	}
+}
 
 // Stop asks the child to finish and waits, so the drain closes its publisher
 // instead of being killed mid-publication.
@@ -169,31 +186,7 @@ func (p *Process) Stop(t testing.TB, timeout time.Duration) {
 // assembly.
 func (h Harness) Settled(t testing.TB, want int, timeout time.Duration) map[string]string {
 	t.Helper()
-	const query = `SELECT message_id, payload_hash FROM outbox WHERE status = 'published'`
-	deadline := time.Now().Add(timeout)
-	for {
-		settled := map[string]string{}
-		rows, err := h.Pool.Query(context.Background(), query)
-		if err != nil {
-			t.Fatalf("distkit.Settled: %v", err)
-		}
-		for rows.Next() {
-			var id, hash string
-			if err := rows.Scan(&id, &hash); err != nil {
-				rows.Close()
-				t.Fatalf("distkit.Settled: scan: %v", err)
-			}
-			settled[id] = hash
-		}
-		rows.Close()
-		if len(settled) >= want {
-			return settled
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("distkit.Settled: %d of %d records settled within %v", len(settled), want, timeout)
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
+	return pg.Settled(t, h.Pool, want, timeout)
 }
 
 // Collect reads the topic from the beginning and reduces every envelope to

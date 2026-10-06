@@ -155,12 +155,43 @@ A admissão recusa o pedido incompleto ou fora do universo de `GOV-31` com
 autoriza nada: o import continua reprovando em `DMPF-E001`. Os cinco campos
 legados (`unit`, `dependency`, `reason`, `owner`, `review_by`) ainda são aceitos
 ao lado dos novos, desde que coincidam com eles. O schema completo e os códigos
-estão em [`bom/README.md`](../../bom/README.md#pedir-exceção).
+estão em [Schema da exceção](#schema-da-exceção).
 Exceção por categoria, prefixo de pacote ou diretório é proibida — ela deixaria
 de ser exceção e viraria política paralela não revisada.
 
 A exceção vale só para o **próprio módulo**. Ela não autoriza uma unidade
 homônima de outro manifesto.
+
+### Schema da exceção
+
+A única classe de exceção é a E1, dependência externa de uma unidade, e ela vive
+no `dmpf-units.json` do módulo (`GOV-35`). Exceção declarada em outro registro
+reprova em `DMPF-X007`.
+
+| Campo | Regra |
+| --- | --- |
+| `id` | `X-` seguido de minúsculas, dígitos e hífens, único no manifesto (`GOV-33`) |
+| `object` | `{kind, unit, identity}`, todos obrigatórios, com `kind` igual a `external-dependency` |
+| `adr` | `ADR-NNN` |
+| `owner` | A equipe, `team:<nome>` |
+| `justification` | O que o golden path não resolve neste caso |
+| `convergence` | `{kind: plan, deadline, condition}` ou `{kind: review, review_by, replanning_condition}` |
+| `valid_from`, `valid_until` | Vigência; `valid_until` é obrigatório, porque sem data de fim a exceção é inválida (`GOV-34`) |
+| `review_by` | Revisão, obrigatória; não pode passar de `valid_until` |
+| `history` | `[{event, at, by, reason}]`, com `event` entre `granted`, `renewed`, `revoked` e `converged`; o primeiro é `granted`, e `renewed` exige `reason` |
+
+O pedido é recusado sem exame de mérito quando o objeto cai no catálogo fechado
+de `GOV-32` — constraint P0, célula da regra de dependência, âncora, `T1`–`T6`,
+classificação, pin do Buf ou exigência de evidência (`DMPF-X003`, `DMPF-X004`).
+Campo ausente reprova em `DMPF-X001`; `kind` fora da E1, em `DMPF-X002`; e data
+que não parseia, em `DMPF-X005`.
+
+Depois de `valid_until`, a exceção deixa de autorizar (`DMPF-X006`). Renovar é
+conceder de novo: `valid_until` novo e um `renewed` com `reason`; `renewed` sem
+vigência nova reprova em `DMPF-X005`. Um `revoked` ou `converged` encerra a
+exceção, que para de autorizar e não vence mais. Um pedido admitido e um
+recusado, passo a passo, estão em
+[`dmpf-composicao.md`](./dmpf-composicao.md) §9.
 
 ## Bloco `contract` e código gerado
 
@@ -209,7 +240,6 @@ aprovação de Arquitetura e Plataforma e a condição amarrada ao plugin:
     "convergence": {
       "kind": "review",
       "review_by": "2027-03-02",
-      "approved_by": ["arquitetura", "plataforma"],
       "replanning_condition": "elimination of reflect and unsafe imports from protoc-gen-go output"
     },
     "valid_from": "2026-09-12T00:00:00Z",
@@ -221,21 +251,16 @@ aprovação de Arquitetura e Plataforma e a condição amarrada ao plugin:
 ```
 
 A mesma entrada se repete para `unsafe`. Um módulo `contract` que troque a
-versão do plugin revisa as duas exceções no mesmo commit normativo.
+versão do plugin revisa as duas exceções juntas.
 
 ## Mudar a classificação depois
 
 Alterar `block` ou `bounded_context`, criar unidade, remover unidade **e
-remapear o `include` de modo a mudar quais packages a unidade captura** são atos
-regulados (RFC §10.2 T4/T6; ADR-028). Todos exigem:
-
-1. Atualizar o `dmpf-units.json` **e** o baseline em
-   `tools/dmpf-baseline/units-baseline.json` — divergência entre os dois emite
-   `DMPF-T001`.
-2. Apresentar a mudança em **commit próprio**, separado de mudanças de código.
-   Misturar os dois emite `DMPF-T002`.
-3. Ter o commit aprovado por revisor distinto do autor. Essa parte é verificada
-   pela revisão do PR, não pelo gate — a fronteira está declarada no ADR-031.
+remapear o `include` de modo a mudar quais packages a unidade captura** mudam a
+classificação. Todos exigem atualizar o `dmpf-units.json` **e** o baseline em
+`tools/dmpf-baseline/units-baseline.json` — divergência entre os dois emite
+`DMPF-T001`. A mudança pode ir no mesmo commit do código: o ADR-058 revogou o
+commit próprio e a aprovação por revisor distinto do autor.
 
 Para regravar o baseline depois de uma mudança legítima:
 
@@ -301,9 +326,8 @@ Continua valendo tudo o mais:
 
 ### Como designar
 
-Designar é **ato de classificação**, com o mesmo rito da seção anterior: commit
-próprio, separado de código, aprovado por revisor distinto do autor. Alterar
-`shared_kernel_units` junto com um `.go` emite `DMPF-T002`.
+Designar muda a classificação, como na seção anterior: a lista vive no
+baseline, e a mudança pode ir no mesmo commit do código (ADR-058).
 
 1. Acrescente a chave ao baseline, com as chaves canônicas das unidades.
 2. Regrave o baseline, porque o digest incorpora a lista:

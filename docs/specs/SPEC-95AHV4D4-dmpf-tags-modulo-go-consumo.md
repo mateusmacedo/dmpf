@@ -5,7 +5,7 @@ title: DMPF KRN-14 — Tags de módulo Go separadas da release do produto e cons
 stage: done
 priority: P2
 depends_on: [SPEC-JPP31095]
-ticket_url: null
+ticket_url: https://linear.app/mmda/issue/DEVS-57/spec-95ahv4d4-dmpf-krn-14-tags-de-modulo-go-separadas-da-release-do
 subtask_urls: []
 created: 2026-09-14
 ---

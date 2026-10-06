@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/service/sns"
+	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/sqs"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/channel"
@@ -97,4 +98,60 @@ func TestSNSPublishSendsTheSameBodyAndAttributes(t *testing.T) {
 	if err := pub.Publish(context.Background(), "reservations", raw); !errors.Is(err, sqs.ErrNotSQSChannel) {
 		t.Fatalf("sqs channel through sns = %v, want ErrNotSQSChannel", err)
 	}
+}
+
+func TestSNSPublishOutsideTheRelayNamesTheTopicOnTheResilienceSpan(t *testing.T) {
+	api := sqs.NewFakeSNS()
+	api.Subscribe(topicARN, subARN, "sqs", map[string]string{"RawMessageDelivery": "true"})
+	cfg, recorder, _ := traced(snsOnlyConfig())
+	pub, err := sqs.NewSNSPublisher(context.Background(), cfg, api)
+	if err != nil {
+		t.Fatalf("NewSNSPublisher() = %v", err)
+	}
+	raw, _ := validRaw(t, "k1")
+
+	if err := pub.Publish(context.Background(), "orders-fanout", raw); err != nil {
+		t.Fatalf("Publish() = %v", err)
+	}
+	assertDestinationOnTheResilienceSpan(t, recorder, semconv.MessagingSystemAWSSNS, "orders-topic")
+}
+
+func TestSNSPublishNamesTheTopicOfAColonSeparatedARN(t *testing.T) {
+	const arn = "arn:aws:sns:us-east-1:000000000000:orders-topic"
+	ch := snsChannel()
+	ch.Address = arn
+	api := sqs.NewFakeSNS()
+	api.Subscribe(arn, arn+":sub-1", "sqs", map[string]string{"RawMessageDelivery": "true"})
+	cfg := validConfig()
+	cfg.Catalog = channel.Catalog{"orders-fanout": ch}
+	cfg, recorder, _ := traced(cfg)
+	pub, err := sqs.NewSNSPublisher(context.Background(), cfg, api)
+	if err != nil {
+		t.Fatalf("NewSNSPublisher() = %v", err)
+	}
+	raw, _ := validRaw(t, "k1")
+
+	if err := pub.Publish(context.Background(), "orders-fanout", raw); err != nil {
+		t.Fatalf("Publish() = %v", err)
+	}
+	assertDestinationOnTheResilienceSpan(t, recorder, semconv.MessagingSystemAWSSNS, "orders-topic")
+}
+
+func TestSNSPublishUnderTheRelaysSendReusesIt(t *testing.T) {
+	api := sqs.NewFakeSNS()
+	api.Subscribe(topicARN, subARN, "sqs", map[string]string{"RawMessageDelivery": "true"})
+	cfg, recorder, tracer := traced(snsOnlyConfig())
+	pub, err := sqs.NewSNSPublisher(context.Background(), cfg, api)
+	if err != nil {
+		t.Fatalf("NewSNSPublisher() = %v", err)
+	}
+	raw, _ := validRaw(t, "k1")
+	ctx, send := underOwnedSend(tracer)
+
+	err = pub.Publish(ctx, "orders-fanout", raw)
+	send.End()
+	if err != nil {
+		t.Fatalf("Publish() = %v", err)
+	}
+	assertTheOwnedSendIsReused(t, recorder)
 }

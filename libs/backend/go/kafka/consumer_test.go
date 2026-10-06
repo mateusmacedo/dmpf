@@ -3,6 +3,7 @@ package kafka_test
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"sync"
 	"testing"
 	"time"
@@ -168,6 +169,24 @@ func TestThreeAcknowledgedRecordsCommitThePrefix(t *testing.T) {
 
 	if got := commits(fake); len(got) != 3 || got[2] != 2 {
 		t.Fatalf("commits = %v, want the records 0, 1, 2 in order (kgo commits offset+1)", got)
+	}
+}
+
+func TestAnAcknowledgedRecordLeavesTheAccessLogToTheKernelConsumer(t *testing.T) {
+	sink := newSink()
+	sink.on(0, alwaysAck)
+	fake := kafka.NewFakeClient()
+	fake.Feed(topic, 0, recordsAt(0)...)
+	c := newConsumer(sink)
+	provider, exporter := otlpProvider(slog.LevelDebug)
+	c.Config.LoggerProvider = provider
+
+	consume(t, c, fake, func() bool { return len(fake.Commits()) >= 1 && c.PendingOf(topic, 0) == 0 })
+
+	for _, record := range exporter.snapshot() {
+		if body := record.Body().AsString(); body == "kafka: record processed" {
+			t.Fatalf("logged %q: the per-message access record is the kernel consumer's message consumed (RF-A5)", body)
+		}
 	}
 }
 

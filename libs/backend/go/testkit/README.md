@@ -34,9 +34,7 @@ arestas permitem: um `domainkit` só é kit de domínio se ele próprio for
 | `kernel/testkit-ids` | `provider` | `ids` | `KIT-07` — identificadores em sequência ou por seed |
 | `kernel/testkit-stable` | `provider` | `stable` | `KIT-08` — ordenação estável de coleções comparadas |
 | `kernel/testkit-fitness` | `app` | `fitness` | `FIT-01..FIT-04` — regra de dependência e matriz de travessia na suíte |
-| `kernel/testkit-tb` | `app` | `tb`, `tb/pg` | adaptador de `testing.TB`, fixtures, codec de projeção, pool Postgres, autoridade de certificados descartável |
-| `kernel/testkit-evidence` | `app` | `evidence` | gravação dos veredictos e montagem da evidência da release (`BOM-03`) |
-| `kernel/testkit-cmd-evidence` | `app` | `cmd/evidence` | comando que publica `bom/evidence/<release>/` |
+| `kernel/testkit-tb` | `app` | `tb`, `tb/pg` | adaptador de `testing.TB`, fixtures, codec de projeção, asserções de domínio, reexecução do binário de teste, pool Postgres e leitores das tabelas do kernel, autoridade de certificados descartável |
 
 Os harnesses `appkit` (`KIT-05`, borda a borda) e `distkit` (`KIT-06`, dois
 processos sobre o broker, `DMPF-R004`) não são genéricos: só provam o contexto
@@ -52,9 +50,10 @@ e `ids`.
 `tb.PKI` (`tb/pki.go`) é a mesma superfície pública: uma autoridade de
 certificados descartável, que grava PEM do jeito que um processo os lê de um
 segredo montado, sem nenhuma chave sobrevivendo ao teste. Hoje só
-`apps/backend/bff` a consome, no harness de mTLS ponta a ponta; um provider
-como `grpc` não alcança este módulo — está no bloco `app`, e um `provider` não
-importa `app` — e por isso mantém a própria autoridade de teste, local e
+`apps/backend/bff` a consome, no harness de mTLS ponta a ponta. O código de
+produção de um `provider` não importa `app`; `memory`, `postgres`, `kafka` e
+`sqs` requerem este módulo só pelos `_test.go`, em package de teste externo. O
+`grpc` não o requer e por isso mantém a própria autoridade de teste, local e
 duplicada por desenho (`libs/backend/go/grpc/pki_test.go`).
 
 ## Os kits — o que exigem, o que exercitam, o que aprovam
@@ -65,11 +64,48 @@ converte em `t.Errorf`, um por diagnóstico. Os blocos `domain` e `contract`
 não podem importar `testing` (capability fora da allowlist), e é por isso que o
 adaptador é um package `app` à parte.
 
+O `tb` também traz o que os testes de contexto repetiam:
+
+- `RequireRejected` (recusa com o código, a resposta zero e nenhum evento),
+  `RequireAccepted` e `RequireSameEvents` (mesma sequência, o nome antes do
+  valor), para o `domain`;
+- `RunProjection`, que roda cada caso da fixture de projeção como subteste com
+  o nome do caso e devolve o veredito somado por `domainkit.Verdict.Merge`;
+- `Reexec(t, run, env...)`, que reexecuta um teste do próprio binário num
+  processo filho e devolve stdout, stderr e o término, para observar um efeito
+  sobre o processo inteiro sem sofrê-lo;
+- `GoldenSuite[M](t, specs...)` e `UpdateGolden[M](t, specs...)`, a
+  suíte golden de contrato (`golden.go`): cada `Spec[M]` diz onde a fixture
+  vive, relativa à raiz do repositório, o que ela declara, a origem e o assunto
+  que o relay do contexto escreve no envelope e como o gerador lê o payload;
+  `PackedCase`, `UnknownFieldCase` e `NonCanonicalCase` montam os
+  casos, este último também com campo de mensagem (um `Timestamp`, por
+  exemplo). Os módulos de contrato instanciam `M` em `proto.Message`;
+- em `tb/pg`, os leitores das tabelas do kernel: `Outbox` (os registros em
+  ordem, como `Enqueued`), `Settled` (espera o relay publicar), `Counts` (as
+  contagens numa única instrução) e `Tables` (as tabelas do schema `public`); e
+  os helpers de repositório `Within`, `Seed` e `Load`, que alcançam o
+  repositório de um provider pela única via que ele aceita, uma transação.
+
+O `providerkit` exporta os candidatos sobre o `memory` (`MemoryUnitOfWork`,
+`MemoryInbox`), usados pelo próprio kit e por `memory/conformance_test.go`.
+
+O `serviceskit` é adotável pelos testes de caso de uso dos contextos:
+`UnitOfWork[R](fakes, bind)` devolve a UoW tipada pelos recursos do contexto, e
+`Tx.CommandInbox`, `Fakes.Clock`, `Fakes.IDs`, `Authorize[C]` e `FoldDigest`
+substituem os dublês de gravação que cada contexto copiava. Os dublês gravam em
+`Steps` os passos que o `sequence_test` afirma (`within`, `commands.Register`,
+`outbox.Enqueue`, `commands.Complete`, `commit`, e os do contexto),
+`WithinCalls`, `Commits` e `Binds` contam o que o caso de uso abriu, descontado
+o arranjo marcado por `MarkSeeded`, e `FailRegister` e `Faults` (com
+`FaultyRepository` e `FaultyOutbox`) injetam as falhas de registro, carga,
+`Save` e `Enqueue` que a realização em memória nunca produz sozinha.
+
 | Kit | Exige do candidato | Exercita | Aprova quando |
 | --- | --- | --- | --- |
 | `domainkit` | `Subject[S,R]`: a UPR, a projeção da resposta, do evento e do estado, e um clone do alvo — tudo **por valor**, sem duplo (`ORA-36`) | `Run` executa a UPR e lê o desfecho duas vezes; `ReadTwice` compara duas execuções | `Equal(got, want)` sem diagnóstico: ramo, resposta ou rejeição, sequência ordenada de eventos e estado antes/depois iguais aos da fixture (`ORA-31`, `ORA-34`); sob `Rejected`, sequência vazia e estado idêntico (`ORA-38`); nenhum segundo acessor de eventos (`ORA-37`) |
 | `serviceskit` | Um service composto sobre `Fakes.UnitOfWork` — os fakes envolvem o `memory` e registram cada gesto no `Ledger` com a identidade da transação que o fez | O caso de uso real, aceito e recusado | `Decide` sem diagnóstico: em cada transação commitada, escrita e enfileiramento vêm juntos e a outbox ganhou o que foi enfileirado (`UOW-07`); uma porta escapada de outra transação é nomeada; nenhum `publish` (`UOW-08`); exatamente um commit, vazio sob recusa (`UOW-06`); uma transação por caso de uso (`UOW-01`) |
-| `providerkit` | `UnitOfWorkSubject` (UoW, uma escrita, contagem do que persistiu, commits), `RepositorySubject` (`Within` que entrega o repositório, o `Reader`, geradores de identificador e de estado com marcador, e a sentinela de tenant não resolvido), `InboxSubject` (`Within` sob o `context.Context` da suíte, leitura do status, linhas, erro de consumer divergente), `OutboxSubject` (store, enfileirar, relógio fake, estado inteiro do registro, `Pending`, `Purge`) — com uma função que devolve o candidato **limpo** | As cláusulas de `Within` (UOW-01/02/06/07/09, CTX-21, ERR-22), as sete de `Repository`/`Reader` — round-trip, versão armazenada (`UOW-09/11`) e as quatro do escopo: leitura de outro tenant indistinguível de inexistência (`IDN-13`), mesmo identificador apartado por tenant e escrita cruzada recusada (`IDN-12`), carrier sem tenant e sem contexto recusando (`IDN-15`) —, as recepções R1-R4 e a corrida de duas inserções com sobreposição garantida no retorno do `Register` (`INB-06`), o lease e as três transições condicionadas ao claimant (`OBX-09/10/11/18/06`), a purga (`OBX-17`) e o sinal `Pending` (`OBX-12`) | Sem diagnóstico. Cláusula que o candidato não consegue exercitar (Postgres não injeta falha de commit; `memory` serializa e não corre; realização sem sentinela de tenant não resolvido) vai para `Skipped`, nunca fica ausente em silêncio |
+| `providerkit` | `UnitOfWorkSubject` (UoW, uma escrita, contagem do que persistiu, commits), `RepositorySubject` (`Within` que entrega o repositório, o `Reader`, geradores de identificador e de estado com marcador, a sentinela de tenant não resolvido e `Concurrent`, que diz se duas transações correm ao mesmo tempo), `InboxSubject` (`Within` sob o `context.Context` da suíte, leitura do status, linhas, erro de consumer divergente), `OutboxSubject` (store, enfileirar, relógio fake, estado inteiro do registro, `Pending`, `Purge`) — com uma função que devolve o candidato **limpo** | As cláusulas de `Within` (UOW-01/02/06/07/09, CTX-21, ERR-22), as de `Repository`/`Reader` — round-trip, versão armazenada e criação sobre agregado existente recusada (`UOW-09/11`), dois escritores concorrentes com exatamente um passando (`KRN-06`, só com `Concurrent`; uma realização que serializa e o declara reprova em 5 s, sem travar) e as quatro do escopo: leitura de outro tenant indistinguível de inexistência (`IDN-13`), mesmo identificador apartado por tenant e escrita cruzada recusada (`IDN-12`), carrier sem tenant e sem contexto recusando (`IDN-15`) —, as recepções R1-R4 e a corrida de duas inserções com sobreposição garantida no retorno do `Register` (`INB-06`), o lease e as três transições condicionadas ao claimant (`OBX-09/10/11/18/06`), a purga (`OBX-17`) e o sinal `Pending` (`OBX-12`) | Sem diagnóstico. Cláusula que o candidato não consegue exercitar (Postgres não injeta falha de commit; `memory` serializa e não corre; realização sem sentinela de tenant não resolvido) vai para `Skipped`, nunca fica ausente em silêncio |
 
 O negativo de `providerkit` é uma realização que chaveia linha só por
 identificador, sem tenant: passa as três cláusulas mecânicas e reprova em
@@ -130,8 +166,9 @@ Toda suíte do kit passa em `go test -race -count=3`.
   teste uma vez por `Outcome` reprovado e registra no log as cláusulas que o
   candidato não exercitou (`Skipped`).
 
-O `contracts/golden` continua dono das fixtures de wire e do gerador
-(`GOLDEN_UPDATE=1`); só delega o carregador e os oráculos ao kit (FND-05 §8.4).
+O `contracts/golden` e os `contract/golden` dos contextos continuam donos das
+fixtures de wire e do gerador de cada contrato (`GOLDEN_UPDATE=1`); a suíte, o
+carregador e os oráculos são do kit (`tb.GoldenSuite`, FND-05 §8.4).
 
 As fixtures de **projeção observável** (`ORA-30`) vivem em
 `apps/backend/<ctx>/contract/fixtures/projection/v1/*.golden` e são lidas por
@@ -184,51 +221,6 @@ travessia.
   `deadline`, `locale`) tem atributo correspondente no envelope CloudEvents —
   a redução é estrutural, não um filtro que alguém poderia esquecer.
 
-## `evidence` — evidência da release
-
-- Os testes que decidem um veredicto gravam-no quando `EVIDENCE_DIR` está
-  definido: `evidence.RecordReport` no round-trip golden e `evidence.RecordVerdict`
-  nas suítes de domínio, serviços e provider. Sem a variável, não gravam nada;
-  o mesmo nome gravado duas vezes na mesma execução reprova.
-- `cmd/evidence` roda `go test -json -count=1 -p 1` por subject, com a
-  variável apontando para um diretório temporário, filtra o stream para
-  `{package, test, action}` e publica `<out>/<subject>.json` (`{header, body}`)
-  e `index.json` (`[{subject, sha256}]`).
-- O header de cada subject nomeia release, commit, `goversion` (igual à linha
-  `go` do `go.work`, senão exit 2), tags, pacotes, módulos e externos que os
-  binários de teste alcançam (`go list -deps -test`), a infra usada (versão do
-  Postgres e do Redpanda) e, no `golden`, as ferramentas pinadas (buf e
-  protoc-gen-go). Não há campo temporal: duas execuções sobre o mesmo commit
-  publicam os mesmos bytes.
-
-| Subject | Pacotes | Tags | Variáveis |
-| --- | --- | --- | --- |
-| `golden` | `contracts/golden` | — | — |
-| `provider` | `postgres`, `memory` | `integration` | `PG_DSN` |
-| `domain` | `testkit/domainkit` | — | — |
-| `services` | `testkit/serviceskit` | — | — |
-| `app` | `apps/backend/reservations/appkit` | `integration` | `PG_DSN` |
-| `dist` | `apps/backend/reservations/distkit` | `integration`, `distributed` | `PG_DSN`, `KAFKA_BROKERS`, `REDPANDA_ADMIN` |
-| `reference` | `apps/backend/{bff,bookings,orders,reservations}/...` | `integration` | `PG_DSN`, `KAFKA_BROKERS`, `REDPANDA_ADMIN` |
-
-- Teste que pula por construção fica fora do subject por `-skip` com o nome
-  exato, porque sob `CI` o skip reprovaria o subject: no `golden`,
-  `TestUpdateGolden`, que só regrava as fixtures com `GOLDEN_UPDATE=1`; no
-  `dist`, `TestDistkitRole`, corpo dos processos filhos, que o harness relança
-  com argumentos próprios e por isso não herda o `-skip`.
-- Variável ausente: sob `CI`, exit 1 nomeando-a antes de rodar qualquer subject;
-  fora de `CI`, o subject é gravado como `{skipped}`, sem corpo e sem alcance, e
-  fica fora do `index.json` — não conta como evidência.
-- Saída: exit 0 quando publica; 1 quando a evidência reprova ou não é produzida
-  (teste falhou, `skip` sob `CI`, infra inacessível); 2 em pré-condição (flag,
-  toolchain, árvore com mudanças sem `--allow-dirty`, `--out` existente).
-  `--allow-dirty` grava `<sha>-dirty` no `commit` e não serve para release.
-- `--out` não pode existir: o comando monta e confere o conjunto em memória e só
-  então renomeia um diretório temporário para o destino; evidência publicada
-  nunca é substituída pelo comando.
-- `bom/evidence/` fica fora do Biome (`biome.json`): o contrato do arquivo são
-  os bytes que o `evidence_digest` do BOM prende (`DMPF-B005`).
-
 ## Tabela regra → vetor (`RAS-01`)
 
 `fitness.Vectors` transcreve `V13`..`V32` de RFC §11.3 com a célula, o código e
@@ -247,7 +239,7 @@ ganho de decidibilidade.
 ## Como rodar
 
 ```bash
-# sem infra: clock, ids, stable, domainkit, golden, serviceskit, providerkit (memória), fitness, tb, evidence
+# sem infra: clock, ids, stable, domainkit, golden, serviceskit, providerkit (memória), fitness, tb
 (cd libs/backend/go/testkit && go test ./...)
 
 # com a infra de testes (Postgres, Redpanda e floci em tmpfs, portas 15432,
@@ -260,8 +252,6 @@ pnpm nx run testkit:test-race
 pnpm nx run reservations:test-race
 pnpm nx run reservations:test-distributed
 
-# evidência da release (grava em dist/evidence/<commit>; --out troca o destino, que não pode existir)
-pnpm nx run testkit:evidence
 pnpm nx run testkit:test-infra-down
 ```
 

@@ -36,7 +36,7 @@ func probe(t *testing.T, listen string) error {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	return app.Probe(ctx, app.Config{HTTPAddr: listen})
+	return app.Probe(ctx, app.Config{AdminAddr: listen})
 }
 
 func TestProbeReachesTheEdgeOnTheLoopbackWhenItListensOnEveryAddress(t *testing.T) {
@@ -69,5 +69,21 @@ func TestProbeFailsWhenNothingListens(t *testing.T) {
 
 	if err := probe(t, addr); !errors.Is(err, app.ErrNotReady) {
 		t.Fatalf("Probe() = %v, want ErrNotReady", err)
+	}
+}
+
+func TestProbeAsksTheAdministrationPortAndNotThePublicOne(t *testing.T) {
+	public := edgeAnswering(t, http.StatusNoContent, "")
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("net.Listen() = %v", err)
+	}
+	admin := listener.Addr().String()
+	_ = listener.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := app.Probe(ctx, app.Config{HTTPAddr: "127.0.0.1:" + public, AdminAddr: admin}); !errors.Is(err, app.ErrNotReady) {
+		t.Fatalf("Probe() = %v, want ErrNotReady from the silent administration port despite the public one answering", err)
 	}
 }

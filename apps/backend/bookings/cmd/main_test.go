@@ -15,19 +15,19 @@ func lookup(pairs ...string) func(string) string {
 }
 
 func TestRunRefusesToStartWithoutARole(t *testing.T) {
-	var out, errOut bytes.Buffer
+	var errOut bytes.Buffer
 
-	code := run(options{role: "", lookup: lookup()}, &out, &errOut)
+	code := run(options{role: "", lookup: lookup()}, &errOut)
 
-	if code != exitUsage || !strings.Contains(errOut.String(), "--role api|relay") || out.Len() != 0 {
-		t.Fatalf("run() = %d, stderr %q, stdout %q; want usage listing api|relay", code, errOut.String(), out.String())
+	if code != exitUsage || !strings.Contains(errOut.String(), "--role api|relay") {
+		t.Fatalf("run() = %d, stderr %q; want usage listing api|relay", code, errOut.String())
 	}
 }
 
 func TestRunRefusesARoleThisContextDoesNotHave(t *testing.T) {
-	var out, errOut bytes.Buffer
+	var errOut bytes.Buffer
 
-	code := run(options{role: "consumer", lookup: lookup("PG_DSN", "postgres://x")}, &out, &errOut)
+	code := run(options{role: "consumer", lookup: lookup("PG_DSN", "postgres://x")}, &errOut)
 
 	if code != exitUsage || !strings.Contains(errOut.String(), "api|relay") {
 		t.Fatalf("run() = %d, stderr %q; want the refusal to name the roles it has", code, errOut.String())
@@ -35,9 +35,9 @@ func TestRunRefusesARoleThisContextDoesNotHave(t *testing.T) {
 }
 
 func TestRunRefusesTheApiRoleWithoutTheDatabase(t *testing.T) {
-	var out, errOut bytes.Buffer
+	var errOut bytes.Buffer
 
-	code := run(options{role: "api", lookup: lookup()}, &out, &errOut)
+	code := run(options{role: "api", lookup: lookup()}, &errOut)
 
 	if code != exitUsage || !strings.Contains(errOut.String(), "PG_DSN") {
 		t.Fatalf("run() = %d, stderr %q; want the refusal to name the missing variable", code, errOut.String())
@@ -45,9 +45,9 @@ func TestRunRefusesTheApiRoleWithoutTheDatabase(t *testing.T) {
 }
 
 func TestRunRefusesTheRelayRoleWithoutItsBroker(t *testing.T) {
-	var out, errOut bytes.Buffer
+	var errOut bytes.Buffer
 
-	code := run(options{role: "relay", lookup: lookup("PG_DSN", "postgres://x")}, &out, &errOut)
+	code := run(options{role: "relay", lookup: lookup("PG_DSN", "postgres://x")}, &errOut)
 
 	if code != exitUsage {
 		t.Fatalf("run() = %d, want exitUsage: the relay needs the broker", code)

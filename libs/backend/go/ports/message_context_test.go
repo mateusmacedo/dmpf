@@ -54,6 +54,7 @@ func TestMessageContextIsZero(t *testing.T) {
 		{name: "only correlation", in: ports.MessageContext{CorrelationID: "corr-1"}, want: false},
 		{name: "only causation", in: ports.MessageContext{CausationID: "caus-1"}, want: false},
 		{name: "only traceparent", in: ports.MessageContext{Traceparent: traceparent}, want: false},
+		{name: "only tracestate", in: ports.MessageContext{Tracestate: "congo=t61rcWkgMzE"}, want: false},
 		{name: "complete", in: ports.MessageContext{CorrelationID: "corr-1", CausationID: "caus-1", Traceparent: traceparent}, want: false},
 	}
 	for _, tt := range tests {

@@ -20,7 +20,7 @@ func TestFindOrderReadsOutsideTheUnitOfWork(t *testing.T) {
 	if len(snapshot.Items) != 2 {
 		t.Fatalf("snapshot has %d items, want 2", len(snapshot.Items))
 	}
-	if got := h.serviceWithinCalls(); got != 0 {
+	if got := h.fakes.WithinCalls(); got != 0 {
 		t.Fatalf("transactions opened = %d, want 0 — a query never opens one (UOW-11)", got)
 	}
 	if got := h.store.Entries(); len(got) != 0 {

@@ -28,9 +28,9 @@ baseline — é o que permite a um contexto de `apps/backend` importá-la sem
 | --- | --- |
 | `store.go` | `Store`, `New`; `Table[ID, S]` com `Reader(*Store)` e `Repository(*Tx)`, escopados por tenant; inspeção para testes: `Entries`, `FailNextCommit`, `WithinCalls`, `Commits`, `InboxRows`, `InboxStatus`, `InboxLastError` |
 | `tx.go` | `Tx` (`Inbox(consumer)`, `Outbox()`), `NewUnitOfWork[R](store, bind)` e `Within` |
-| `inbox.go` | A inbox transacional: `Register` com as classificações R1–R4 e `Pending.Complete` |
+| `inbox.go` | A inbox transacional: `Register` com as classificações R1–R4 e `Pending.Complete`; `Tx.CommandInbox(consumer)`, a mesma inbox para comandos, com o tenant na chave, o desfecho gravado e o vencimento da entrada (FND-04 §7.6) |
 | `clock.go` | `FixedClock` (`ports.Clock`) e `SequenceIDs` (`ports.IDGenerator`) |
-| `errors.go` | `ErrTenantUnresolved`, `ErrInboxConsumerRequired`, `ErrInboxConsumerMismatch`, `ErrAlreadyCompleted`, `ErrInvalidCompletion` |
+| `errors.go` | `ErrTenantUnresolved`, `ErrInboxConsumerRequired`, `ErrInboxConsumerMismatch`, `ErrAlreadyCompleted`, `ErrInvalidCompletion`, `ErrCommandExpiryRequired` |
 
 O código de produção importa só a stdlib e o `ports`; `external` é `[]`. O
 `testkit` entra apenas pelos `_test.go` — o `providerkit` roda aqui a suíte de
@@ -133,7 +133,7 @@ travar; uma porta que escapa do callback não alcança o `Store`.
 
 ```bash
 pnpm nx run-many -t fmt-check,vet,lint,build,test-race,govulncheck -p memory
-go run ./tools/dmpf-conformance/cmd/conformance --root . --base origin/develop
+go run ./tools/dmpf-conformance/cmd/conformance --root .
 ```
 
 O `test-race` roda `go test -race ./...` sem `-tags=integration` e com cache:
@@ -153,9 +153,8 @@ ciclo `memory ↔ testkit` é o mesmo que `application ↔ testkit` já tinha, e
 Criar um package novo aqui é criar uma unidade DMPF: ele precisa de entrada
 própria no `dmpf-units.json` (`include` por import path exato) e o baseline em
 `tools/dmpf-baseline/units-baseline.json` precisa ser regravado com
-`--write-baseline`. Essa mudança vai em commit próprio do código (RFC §10.2);
-misturar os dois reprova no CI com `DMPF-T002`. Tirar a unidade de
-`shared_kernel_units` é ato de classificação com o mesmo rito.
+`--write-baseline`; sem isso, o CI reprova com `DMPF-T001`. Tirar a unidade de
+`shared_kernel_units` também passa pelo baseline.
 
 ## Referências
 

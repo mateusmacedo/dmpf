@@ -211,6 +211,48 @@ func TestStatusHasExactlyTwoValues(t *testing.T) {
 	}
 }
 
+func TestAReplayedReceptionCarriesACopyOfTheStoredOutcome(t *testing.T) {
+	stored := []byte("outcome")
+	for name, reception := range map[string]ports.Reception{
+		"processed": ports.ProcessedReception().WithStored(stored),
+		"rejected":  ports.RejectedReception().WithStored(stored),
+	} {
+		t.Run(name, func(t *testing.T) {
+			got := reception.Stored()
+			if string(got) != "outcome" {
+				t.Fatalf("Stored() = %q, want %q", got, "outcome")
+			}
+			got[0] = 'X'
+			if again := reception.Stored(); string(again) != "outcome" {
+				t.Fatalf("Stored() after mutating the returned bytes = %q; the replay must not be editable by its reader", again)
+			}
+		})
+	}
+	stored[0] = 'Y'
+	if got := ports.ProcessedReception().WithStored([]byte("a")).Stored(); string(got) != "a" {
+		t.Fatalf("Stored() = %q, want %q", got, "a")
+	}
+}
+
+func TestAMessageReceptionStoresNothing(t *testing.T) {
+	if got := ports.ProcessedReception().Stored(); got != nil {
+		t.Fatalf("Stored() = %q, want nil: a message has no outcome to replay", got)
+	}
+}
+
+func TestWithStoredKeepsTheClassification(t *testing.T) {
+	branch := ""
+	err := ports.RejectedReception().WithStored([]byte("o")).Match(
+		func(ports.Pending) error { branch = "first"; return nil },
+		func() error { branch = "processed"; return nil },
+		func() error { branch = "rejected"; return nil },
+		func() error { branch = "collision"; return nil },
+	)
+	if err != nil || branch != "rejected" {
+		t.Fatalf("Match() = %v on branch %q, want nil on rejected", err, branch)
+	}
+}
+
 func TestSentinelsAreDistinguishable(t *testing.T) {
 	if errors.Is(ports.ErrRegisterTimeout, ports.ErrPendingNotCompleted) {
 		t.Fatal("ErrRegisterTimeout must not match ErrPendingNotCompleted")

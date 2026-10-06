@@ -4,6 +4,7 @@ package http
 
 import (
 	"net/http"
+	"strings"
 
 	"go.opentelemetry.io/otel/metric"
 
@@ -59,7 +60,7 @@ func Admission(ctrl *admission.Controller, route RouteFunc, tenant TenantFunc, i
 			}
 
 			if instruments != nil {
-				label := key
+				label := routeWithoutMethod(key)
 				if reason == admission.UndeclaredRoute {
 					label = UndeclaredRouteLabel
 				}
@@ -74,6 +75,13 @@ func Admission(ctrl *admission.Controller, route RouteFunc, tenant TenantFunc, i
 			write(w, r, http.StatusTooManyRequests, "admission refused: "+string(reason))
 		})
 	}
+}
+
+func routeWithoutMethod(key string) string {
+	if path := strings.IndexByte(key, '/'); path >= 0 {
+		return key[path:]
+	}
+	return key
 }
 
 func plainRefusal(w http.ResponseWriter, _ *http.Request, status int, reason string) {

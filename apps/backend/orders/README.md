@@ -33,10 +33,12 @@ Os packages do kernel `domain` e `application` têm o mesmo nome dos deste módu
 ## Servidor gRPC
 
 - **Binding no bloco `app`.** O `grpc.ServiceDesc` é montado a partir do descriptor gerado em `contracts`; o contrato não carrega código gRPC porque o bloco `contract` não admite `io.network`. Um teste reprova método do descriptor que não esteja no `ServiceDesc`.
-- **Interceptors, nesta ordem:** span de servidor com pai extraído da metadata (`traceparent`) → mTLS do peer contra `GRPC_TRUSTED_CLIENTS` (quando TLS está ligado) → admissão por método → deadline obrigatório (sem prazo, `INVALID_ARGUMENT` antes do caso de uso, `GRP-04`) → contexto de execução (`x-correlation-id` preservado ou cunhado, `request_id` próprio como causação, `x-tenant-id` lido só de peer verificado, `idempotency-key` recebida só registrada no log) → handler. A cadeia vale só para os métodos de `OrdersService`: a checagem de saúde passa direto, sem admissão nem prazo obrigatório.
+- **Span de servidor:** o `otelgrpc`, ligado como stats handler em `kernelgrpc.NewServer`, abre o span SERVER com pai extraído da metadata (`traceparent`) antes de qualquer interceptor (RF-B4).
+- **Interceptors, nesta ordem:** mTLS do peer contra `GRPC_TRUSTED_CLIENTS` (quando TLS está ligado) → desfecho no span e registro de acesso `grpc call` → admissão por método → deadline obrigatório (sem prazo, `INVALID_ARGUMENT` antes do caso de uso, `GRP-04`) → contexto de execução (`x-correlation-id` preservado ou cunhado, `request_id` próprio como causação, `x-tenant-id` lido só de peer verificado, `idempotency-key` exigida nos comandos e levada ao caso de uso) → handler. A cadeia vale só para os métodos de `OrdersService`: a checagem de saúde passa direto, sem admissão nem prazo obrigatório.
 - **Desfechos:** a rejeição de domínio volta no `oneof result`; `ErrNotFound` (inclusive acesso a identificador de outro tenant) vira `NOT_FOUND`, conflito de versão `ABORTED`, ausência de tenant ou de permissão `PERMISSION_DENIED`, prazo `DEADLINE_EXCEEDED` e o resto `INTERNAL` sem detalhe.
-- **Saúde:** o serviço começa `NOT_SERVING` e passa a `SERVING` depois do ping no pool e do `Migrate` opcional; volta a `NOT_SERVING` no shutdown. O log `grpc listening` traz o endereço real do listener.
-- **Banco observável:** um `pgx.QueryTracer` abre um span por consulta, sem SQL nem argumentos.
+- **Idempotência dos comandos:** `AddItem` e `PlaceOrder` exigem a metadata `idempotency-key`, no formato `^[A-Za-z0-9._-]{1,128}$` (FND-04 §7.6, ADR-056). Cada comando passa pela inbox do contexto, com `consumer_name` `orders.commands`, na transação do efeito. Metadata ausente é `INVALID_ARGUMENT` com reason `MISSING_IDEMPOTENCY_KEY`, e fora do formato é `INVALID_IDEMPOTENCY_KEY`. A mesma chave com o mesmo pedido devolve a resposta gravada, aceite ou recusa, com o header `idempotent-replayed: true` e sem nova auditoria. Com outro pedido, é `FAILED_PRECONDITION` com `REUSED_IDEMPOTENCY_KEY`; em andamento além da espera, `ABORTED` com `IN_FLIGHT_IDEMPOTENCY_KEY`. A entrada vale 24h.
+- **Saúde:** o serviço começa `NOT_SERVING` e passa a `SERVING` depois do ping no pool e do `Migrate` opcional; volta a `NOT_SERVING` no shutdown. O registro `grpc listening` traz o endereço real do listener em `server.address` e `server.port`.
+- **Banco observável:** um `pgx.QueryTracer` abre um span CLIENT por consulta feita sob um span, `{db.operation.name} {db.collection.name}`, com `db.query.text` parametrizado e sem os argumentos, e `error.type` = SQLSTATE na falha (RF-B6).
 
 ## Configuração
 
@@ -52,9 +54,24 @@ Os packages do kernel `domain` e `application` têm o mesmo nome dos deste módu
 | `KAFKA_BROKERS`, `KAFKA_INSECURE` | `relay` | Brokers e opt-out de TLS |
 | `KAFKA_SASL_MECHANISM`, `KAFKA_SASL_USERNAME`, `KAFKA_SASL_PASSWORD` ou `KAFKA_CLIENT_CERT_FILE` + `KAFKA_CLIENT_KEY_FILE` | `relay`, com TLS | Autenticação do cliente no broker (SCRAM-SHA-256/512 ou certificado), obrigatória sempre que `KAFKA_INSECURE` não está ligado (ADR-052); `KAFKA_CA_FILE` quando a CA do broker é privada |
 | `KAFKA_ORDERS_TOPIC`, `KAFKA_ORDERS_DLQ`, `KAFKA_GROUP` | `relay` | Endereço, contenção e grupo do canal `orders.events` |
-| `OTLP_ENDPOINT`, `OTLP_INSECURE`, `SERVICE`, `SERVICE_VERSION`, `INSTANCE_ID` | todos | Telemetria e identidade |
+| `OTEL_SERVICE_NAME`, `OTEL_RESOURCE_ATTRIBUTES` | todos | Identidade do recurso OTel (`service.version`, `service.instance.id`, `dmpf.process.role`, `deployment.environment.name`); sem `OTEL_SERVICE_NAME`, o serviço é `orders`, e sem `dmpf.process.role` o papel vem de `--role`; versão e instância não têm default, e sem elas a partida falha com `ErrResourceIncomplete` (exit 1). O `deploy/.env.example` não declara papel, porque vale para todos; cada `serve-<papel>` e o `docker:run-relay` (no container, por `-e`) acrescentam `service.instance.id=orders-local-<papel>,dmpf.process.role=<papel>` depois de carregar o `deploy/.env`, e a chave repetida fica com o último valor |
+| `OTEL_EXPORTER_OTLP_PROTOCOL`, `OTEL_EXPORTER_OTLP_ENDPOINT` | todos | Exportação OTLP; os manifestos declaram `grpc` e `http://<collector>:4317`, e o esquema `http://` desliga o TLS; sem protocolo, vale o `http/protobuf` do `autoexport`, que o Collector não recebe |
+| `OTEL_TRACES_SAMPLER_ARG`, `OTEL_LOGS_EXPORTER`, `OTEL_PROPAGATORS`, `OTEL_GO_X_OBSERVABILITY` | todos | Os manifestos declaram `1.0`, `otlp`, `tracecontext` e `true`; com `none` em `OTEL_{TRACES,METRICS,LOGS}_EXPORTER`, o sinal não é exportado, como nos harnesses de teste |
 
 Variável obrigatória ausente encerra a partida com exit 2 nomeando-a.
+
+Os prazos de idempotência e de purga vêm de `Defaults()`, sem variável de
+ambiente, e `Validate` recusa valor não positivo com `ErrInvalidPolicy`:
+
+| Campo | Padrão | Uso |
+| --- | --- | --- |
+| `IdempotencyWait` | 1s | Espera máxima por comando concorrente da mesma chave |
+| `IdempotencyRetention` | 24h | Vida da entrada de comando na inbox |
+| `OutboxRetention` | 168h | Idade a partir da qual a outbox publicada é purgada |
+| `PurgeInterval`, `PurgeBatch` | 15min, 1000 | Intervalo e lote de cada purga |
+
+O `api` purga as entradas de comando vencidas depois do `Migrate`, e o `relay`
+purga a outbox publicada. As duas purgas param antes de o pool fechar.
 
 ## Rodar localmente
 

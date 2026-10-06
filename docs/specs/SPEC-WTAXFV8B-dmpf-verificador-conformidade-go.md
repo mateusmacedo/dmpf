@@ -5,7 +5,7 @@ title: DMPF KRN-02 — Verificador de conformidade DMPF em Go
 stage: done
 priority: P0
 depends_on: [SPEC-MQA5HAXF]
-ticket_url: null
+ticket_url: https://linear.app/mmda/issue/DEVS-31/spec-wtaxfv8b-dmpf-krn-02-verificador-de-conformidade-dmpf-em-go
 subtask_urls: []
 created: 2026-09-01
 ---

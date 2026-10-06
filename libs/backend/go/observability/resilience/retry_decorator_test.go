@@ -3,9 +3,13 @@ package resilience_test
 import (
 	"context"
 	"errors"
+	"maps"
 	"testing"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
@@ -292,6 +296,51 @@ func TestEachRepeatedAttemptLeavesAnEventOnTheSpan(t *testing.T) {
 	}
 }
 
+func TestARepeatedAttemptIsNumberedAsTheAttemptItStarts(t *testing.T) {
+	recorder, provider := spanRecorder(t)
+	ctx, span := provider.Tracer("observability").Start(
+		retry.WithBudget(context.Background(), retry.WithTotal(time.Hour)), "under.test")
+
+	call := retrying(t, retryConfig(), clock.NewFake(start), instant, nil, func(context.Context, resilience.Operation, func(context.Context) error) error {
+		return errDependency
+	})
+	_ = call(ctx, idempotent(time.Hour), nil)
+	span.End()
+
+	events := eventsNamed(recorder.Ended()[0], tracing.EventAttempt)
+	want := []int64{2, 3}
+	if len(events) != len(want) {
+		t.Fatalf("events = %v, want one per repeated attempt", recorder.Ended()[0].Events())
+	}
+	for i, number := range want {
+		if got, _ := eventAttribute(events[i], tracing.KeyAttempt); got.AsInt64() != number {
+			t.Errorf("event %d: %s = %v, want %d, the attempt it starts, as the log numbers it (TRC-11)", i, tracing.KeyAttempt, got, number)
+		}
+	}
+}
+
+func TestAWaitCutShortLeavesNoEventForTheAttemptThatNeverRan(t *testing.T) {
+	recorder, provider := spanRecorder(t)
+	ctx, span := provider.Tracer("observability").Start(
+		retry.WithBudget(context.Background(), retry.WithTotal(time.Hour)), "under.test")
+
+	cut := func(context.Context, time.Duration) error { return context.Canceled }
+	invoked := 0
+	call := retrying(t, retryConfig(), clock.NewFake(start), cut, nil, func(context.Context, resilience.Operation, func(context.Context) error) error {
+		invoked++
+		return errDependency
+	})
+	_ = call(ctx, idempotent(time.Hour), nil)
+	span.End()
+
+	if invoked != 1 {
+		t.Fatalf("the call ran %d times, want 1: the wait was cut short", invoked)
+	}
+	if events := eventsNamed(recorder.Ended()[0], tracing.EventAttempt); len(events) != 0 {
+		t.Fatalf("events = %v, want none: the second attempt never ran (TRC-11)", events)
+	}
+}
+
 func TestAnExhaustedBudgetMarksTheSpanAndIsCountedOnce(t *testing.T) {
 	fake := clock.NewFake(start)
 	instruments, read := meter(t)
@@ -433,5 +482,91 @@ func TestThreeDependenciesShareOneBudgetUntilItIsSpent(t *testing.T) {
 	}
 	if got := read(metrics.BudgetExhaustedTotal); got != 1 {
 		t.Errorf("%s = %d, want exactly 1 for the execution (RES-36)", metrics.BudgetExhaustedTotal, got)
+	}
+}
+
+type declaredFailure struct{}
+
+func (declaredFailure) Error() string         { return "payments: deadline exceeded" }
+func (declaredFailure) ErrorCategory() string { return "DeadlineExceeded" }
+func (declaredFailure) ErrorCode() string     { return "PAY-01" }
+
+type undeclaredFailure struct{}
+
+func (undeclaredFailure) Error() string         { return "payments: unavailable" }
+func (undeclaredFailure) ErrorCategory() string { return "" }
+func (undeclaredFailure) ErrorCode() string     { return "PAY-02" }
+
+func TestARetriedFailureCarriesTheCategoryOfTheTransportThatClassifiedIt(t *testing.T) {
+	transport := func(err error) string {
+		if errors.Is(err, errDependency) {
+			return "TransientDependency"
+		}
+		return "Validation"
+	}
+	tests := []struct {
+		name      string
+		err       error
+		transport func(error) string
+		want      string
+	}{
+		{"uncategorized", errDependency, transport, "TransientDependency"},
+		{"categorized", declaredFailure{}, transport, "DeadlineExceeded"},
+		{"uncategorized_without_transport", errDependency, nil, "_OTHER"},
+		{"uncategorized_unclassified_by_transport", errDependency, func(error) string { return "" }, "_OTHER"},
+		{"empty_category_without_transport", undeclaredFailure{}, nil, "_OTHER"},
+		{"empty_category_classified_by_transport", undeclaredFailure{}, transport, "Validation"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reader := sdkmetric.NewManualReader()
+			meterProvider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+			t.Cleanup(func() { _ = meterProvider.Shutdown(context.Background()) })
+			instruments, err := metrics.New(meterProvider.Meter("observability"))
+			if err != nil {
+				t.Fatalf("metrics.New() = %v, want nil", err)
+			}
+			recorder, provider := spanRecorder(t)
+			ctx, span := provider.Tracer("observability").Start(
+				retry.WithBudget(context.Background(), retry.WithTotal(time.Hour)), "under.test")
+
+			config := retryConfig()
+			config.Category = tt.transport
+			call := retrying(t, config, clock.NewFake(start), instant, instruments, func(context.Context, resilience.Operation, func(context.Context) error) error {
+				return tt.err
+			})
+			_ = call(ctx, idempotent(time.Hour), nil)
+			span.End()
+
+			events := eventsNamed(recorder.Ended()[0], tracing.EventAttempt)
+			if len(events) != config.MaxAttempts-1 {
+				t.Fatalf("%d attempt events, want %d", len(events), config.MaxAttempts-1)
+			}
+			for _, event := range events {
+				if got, _ := eventAttribute(event, tracing.KeyPreviousCategory); got.AsString() != tt.want {
+					t.Errorf("%s = %q, want %q (RF-B1)", tracing.KeyPreviousCategory, got.AsString(), tt.want)
+				}
+			}
+
+			var collected metricdata.ResourceMetrics
+			if err := reader.Collect(context.Background(), &collected); err != nil {
+				t.Fatalf("Collect() = %v, want nil", err)
+			}
+			counted := map[string]int64{}
+			for _, scope := range collected.ScopeMetrics {
+				for _, series := range scope.Metrics {
+					if series.Name != metrics.RetriesTotal {
+						continue
+					}
+					for _, point := range series.Data.(metricdata.Sum[int64]).DataPoints {
+						category, _ := point.Attributes.Value(attribute.Key(metrics.KeyErrorType))
+						counted[category.AsString()] += point.Value
+					}
+				}
+			}
+			if want := map[string]int64{tt.want: int64(config.MaxAttempts - 1)}; !maps.Equal(counted, want) {
+				t.Errorf("%s by %s = %v, want %v (RF-B1)", metrics.RetriesTotal, metrics.KeyErrorType, counted, want)
+			}
+		})
 	}
 }

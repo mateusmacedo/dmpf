@@ -8,6 +8,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
+	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	provider "github.com/mateusmacedo/dmpf/libs/backend/go/sqs"
@@ -141,4 +142,74 @@ func TestQuarantineBoundsTheValuesThatComeFromOutside(t *testing.T) {
 			t.Fatalf("%s = %d bytes (valid utf-8: %v), want at most %d and valid", k, len(v), utf8.ValidString(v), provider.AttributeValueLimit)
 		}
 	}
+}
+
+func TestQuarantineCarriesTheCategoryAndNeverTheFreeTextOfTheError(t *testing.T) {
+	api := provider.NewFakeSQS()
+	dlq, err := provider.NewDLQ(validConfig(), api, standardChannel())
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := validRaw(t, "k1")
+	for i, text := range []string{"storage: timeout", "app: source outside the trusted boundary", "R1×D4", "card 4111111111111111 declined"} {
+		if err := dlq.Quarantine(context.Background(), ports.Contained{Consumer: "c", Reason: ports.ReasonTerminalFailure, Envelope: raw, Error: text}); err != nil {
+			t.Fatal(err)
+		}
+		if got := *sent(t, api, i).MessageAttributes[provider.AttrError].StringValue; got != semconv.ErrorTypeOther.Value.AsString() {
+			t.Errorf("Error %q: attribute %s = %q, want %s, never the text (DAT-03, RF-B1)", text, provider.AttrError, got, semconv.ErrorTypeOther.Value.AsString())
+		}
+	}
+}
+
+func TestQuarantineCarriesEveryFND07CategoryAsIs(t *testing.T) {
+	api := provider.NewFakeSQS()
+	dlq, err := provider.NewDLQ(validConfig(), api, standardChannel())
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := validRaw(t, "k1")
+	for i, category := range []string{"Validation", "DomainRejection", "NotFound", "Conflict", "Forbidden", "Unauthenticated", "TransientDependency", "RateLimited", "DeadlineExceeded", "Cancelled", "Unexpected"} {
+		if err := dlq.Quarantine(context.Background(), ports.Contained{Consumer: "c", Reason: ports.ReasonTerminalFailure, Envelope: raw, Error: category}); err != nil {
+			t.Fatal(err)
+		}
+		if got := *sent(t, api, i).MessageAttributes[provider.AttrError].StringValue; got != category {
+			t.Errorf("attribute %s = %q, want the FND-07 category %q", provider.AttrError, got, category)
+		}
+	}
+}
+
+func TestQuarantineOutsideTheRelayNamesTheContainmentQueueOnTheResilienceSpan(t *testing.T) {
+	cfg, recorder, _ := traced(validConfig())
+	dlq, err := provider.NewDLQ(cfg, provider.NewFakeSQS(), fifoChannel())
+	if err != nil {
+		t.Fatalf("NewDLQ() = %v", err)
+	}
+	raw, _ := validRaw(t, "k1")
+
+	err = dlq.Quarantine(context.Background(), ports.Contained{
+		Consumer: "stock-consumer", MessageID: "evt-1", Reason: ports.ReasonTerminalFailure, Envelope: raw,
+	})
+	if err != nil {
+		t.Fatalf("Quarantine() = %v", err)
+	}
+	assertDestinationOnTheResilienceSpan(t, recorder, semconv.MessagingSystemAWSSQS, "reservations-dlq.fifo")
+}
+
+func TestQuarantineUnderAnOwnedSendReusesIt(t *testing.T) {
+	cfg, recorder, tracer := traced(validConfig())
+	dlq, err := provider.NewDLQ(cfg, provider.NewFakeSQS(), fifoChannel())
+	if err != nil {
+		t.Fatalf("NewDLQ() = %v", err)
+	}
+	raw, _ := validRaw(t, "k1")
+	ctx, send := underOwnedSend(tracer)
+
+	err = dlq.Quarantine(ctx, ports.Contained{
+		Consumer: "stock-consumer", MessageID: "evt-1", Reason: ports.ReasonTerminalFailure, Envelope: raw,
+	})
+	send.End()
+	if err != nil {
+		t.Fatalf("Quarantine() = %v", err)
+	}
+	assertTheOwnedSendIsReused(t, recorder)
 }

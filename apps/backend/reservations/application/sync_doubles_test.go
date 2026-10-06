@@ -9,6 +9,7 @@ import (
 	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/memory"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/serviceskit"
 )
 
 const (
@@ -16,100 +17,55 @@ const (
 	syncOccurred = ports.Instant(1_755_432_000_000_000_000)
 )
 
-type syncRecorder struct{ observed []string }
-
-func (r *syncRecorder) record(step string) { r.observed = append(r.observed, step) }
-
 type syncHarness struct {
+	fakes   *serviceskit.Fakes
 	store   *memory.Store
 	service application.Service
-	rec     *syncRecorder
+	rec     *serviceskit.Steps
 
-	binds    int
-	saves    int
-	enqueues int
-
-	seedCalls int
+	saves int
 }
 
-func (h *syncHarness) serviceWithinCalls() int { return h.store.WithinCalls() - h.seedCalls }
-
-func (h *syncHarness) serviceCommits() int { return h.store.Commits() - h.seedCalls }
-
-type syncClock struct {
-	inner ports.Clock
-	rec   *syncRecorder
-}
-
-func (c syncClock) Now() ports.Instant {
-	c.rec.record("clock.Now")
-	return c.inner.Now()
-}
-
-type syncIDs struct {
-	inner ports.IDGenerator
-	rec   *syncRecorder
-}
-
-func (g syncIDs) NewMessageID() ports.MessageID {
-	g.rec.record("ids.NewMessageID")
-	return g.inner.NewMessageID()
-}
+func (h *syncHarness) enqueues() int { return h.fakes.Ledger.Count(serviceskit.Enqueue) }
 
 type syncRepository struct {
-	inner   ports.Repository[domain.OrderID, domain.Snapshot]
-	h       *syncHarness
-	saveErr error
+	inner ports.Repository[domain.OrderID, domain.Snapshot]
+	h     *syncHarness
 }
 
 func (r syncRepository) Load(ctx context.Context, id domain.OrderID) (domain.Snapshot, ports.Version, error) {
-	r.h.rec.record("domain.Load")
+	r.h.rec.Record("domain.Load")
 	return r.inner.Load(ctx, id)
 }
 
 func (r syncRepository) Save(ctx context.Context, id domain.OrderID, state domain.Snapshot, expected ports.Version) error {
-	r.h.rec.record("domain.Save")
+	r.h.rec.Record("domain.Save")
 	r.h.saves++
-	if r.saveErr != nil {
-		return r.saveErr
-	}
 	return r.inner.Save(ctx, id, state, expected)
-}
-
-type syncOutbox struct {
-	inner ports.Outbox
-	h     *syncHarness
-}
-
-func (o syncOutbox) Enqueue(ctx context.Context, entry ports.OutboxEntry) error {
-	o.h.rec.record("outbox.Enqueue")
-	o.h.enqueues++
-	return o.inner.Enqueue(ctx, entry)
-}
-
-type syncUnitOfWork struct {
-	inner ports.UnitOfWork[application.Resources]
-	rec   *syncRecorder
-}
-
-func (u syncUnitOfWork) Within(ctx context.Context, fn func(context.Context, application.Resources) error) error {
-	u.rec.record("within")
-	err := u.inner.Within(ctx, fn)
-	if err == nil {
-		u.rec.record("commit")
-	}
-	return err
 }
 
 type syncOption func(*syncSetup)
 
 type syncSetup struct {
-	saveErr   error
-	authorize usecase.Authorize[application.Operation]
+	faults      serviceskit.Faults
+	registerErr error
+	authorize   usecase.Authorize[application.Operation]
+}
+
+func withSyncRegisterError(err error) syncOption {
+	return func(s *syncSetup) { s.registerErr = err }
+}
+
+func withSyncLoadError(err error) syncOption {
+	return func(s *syncSetup) { s.faults.Load = err }
 }
 
 func withSyncSaveError(err error) syncOption {
-	return func(s *syncSetup) { s.saveErr = err }
+	return func(s *syncSetup) { s.faults.Save = err }
+}
+
+func withSyncEnqueueError(err error) syncOption {
+	return func(s *syncSetup) { s.faults.Enqueue = err }
 }
 
 func withSyncAuthorize(authorize usecase.Authorize[application.Operation]) syncOption {
@@ -119,32 +75,33 @@ func withSyncAuthorize(authorize usecase.Authorize[application.Operation]) syncO
 func newSyncHarness(t *testing.T, options ...syncOption) *syncHarness {
 	t.Helper()
 
-	h := &syncHarness{store: memory.New(), rec: &syncRecorder{}}
+	fakes := serviceskit.NewFakes()
+	h := &syncHarness{fakes: fakes, store: fakes.Store, rec: fakes.Steps}
 	cfg := &syncSetup{authorize: usecase.AllowAll[application.Operation]()}
 	for _, apply := range options {
 		apply(cfg)
 	}
+	fakes.FailRegister = cfg.registerErr
 
-	bindSync := func(tx *memory.Tx) application.Resources {
-		h.binds++
+	bindSync := func(tx serviceskit.Tx) application.Resources {
 		return application.Resources{
-			Inbox:        tx.Inbox(consumer),
-			Reservations: syncRepository{inner: reservationTable.Repository(tx), h: h, saveErr: cfg.saveErr},
-			Outbox:       syncOutbox{inner: tx.Outbox(), h: h},
+			Inbox:        tx.Memory().Inbox(consumer),
+			Reservations: syncRepository{inner: serviceskit.FaultyRepository(reservationTable.Repository(tx.Memory()), cfg.faults), h: h},
+			Outbox:       serviceskit.FaultyOutbox(tx.Outbox(), cfg.faults),
+			Commands:     tx.CommandInbox(application.CommandConsumer),
 		}
 	}
 
-	authorize := cfg.authorize
 	h.service = application.Service{
-		UoW:    syncUnitOfWork{inner: memory.NewUnitOfWork(h.store, bindSync), rec: h.rec},
-		Reader: reservationTable.Reader(h.store),
-		Clock:  syncClock{inner: memory.FixedClock{At: syncOccurred}, rec: h.rec},
-		IDs:    syncIDs{inner: &memory.SequenceIDs{Prefix: "m-"}, rec: h.rec},
-		Authorize: func(ctx context.Context, cmd application.Operation) error {
-			h.rec.record("authorize")
-			return authorize(ctx, cmd)
+		UoW:       serviceskit.UnitOfWork(fakes, bindSync),
+		Reader:    reservationTable.Reader(h.store),
+		Clock:     fakes.Clock(memory.FixedClock{At: syncOccurred}),
+		IDs:       fakes.IDs(&memory.SequenceIDs{Prefix: "m-"}),
+		Authorize: serviceskit.Authorize(fakes, cfg.authorize),
+		Consumer:  consumer,
+		Idempotency: usecase.IdempotencyPolicy{
+			Wait: 1_000_000_000, Retention: 86_400_000_000_000, Digest: serviceskit.FoldDigest,
 		},
-		Consumer: consumer,
 	}
 	return h
 }
@@ -158,8 +115,8 @@ func (h *syncHarness) seed(t *testing.T, snapshot domain.Snapshot, expected port
 	if err != nil {
 		t.Fatalf("seed: %v", err)
 	}
-	h.seedCalls++
-	h.rec.observed = nil
+	h.fakes.MarkSeeded()
+	h.rec.Reset()
 }
 
 func confirmedSnapshot(items int) domain.Snapshot {

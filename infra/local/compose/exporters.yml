@@ -11,13 +11,13 @@ services:
     environment:
       DATA_SOURCE_NAME: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/postgres?sslmode=disable
     ports:
-      - '${POSTGRES_EXPORTER_PORT:-9187}:9187'
+      - '127.0.0.1:${POSTGRES_EXPORTER_PORT:-9187}:9187'
     depends_on:
       postgres:
         condition: service_healthy
     deploy:
       resources:
-        limits: { cpus: '0.05', memory: 64M }
+        limits: { cpus: '0.0936', memory: 74M }
         reservations: { cpus: '0.02', memory: 16M }
 
   redis-exporter:
@@ -25,10 +25,10 @@ services:
     profiles: [exporters, observability, all]
     command: ['--redis.addr=redis://redis:6379']
     ports:
-      - '${REDIS_EXPORTER_PORT:-9121}:9121'
+      - '127.0.0.1:${REDIS_EXPORTER_PORT:-9121}:9121'
     deploy:
       resources:
-        limits: { cpus: '0.05', memory: 64M }
+        limits: { cpus: '0.065', memory: 74M }
         reservations: { cpus: '0.02', memory: 16M }
 
   blackbox-exporter:
@@ -36,12 +36,12 @@ services:
     profiles: [exporters, observability, dmpf, all]
     command: ['--config.file=/etc/blackbox/blackbox.yaml']
     ports:
-      - '${BLACKBOX_PORT:-9115}:9115'
+      - '127.0.0.1:${BLACKBOX_PORT:-9115}:9115'
     volumes:
       - ../../observability/prometheus/blackbox.yaml:/etc/blackbox/blackbox.yaml:ro
     deploy:
       resources:
-        limits: { cpus: '0.05', memory: 64M }
+        limits: { cpus: '0.065', memory: 74M }
         reservations: { cpus: '0.02', memory: 16M }
 
   cadvisor:
@@ -58,7 +58,7 @@ services:
       - --disable_metrics=advtcp,cpu_topology,cpuset,hugetlb,memory_numa,percpu,process,referenced_memory,resctrl,sched,tcp,udp
     # 8081 no host porque 8080 é do papel api; dentro da rede continua 8080.
     ports:
-      - '${CADVISOR_PORT:-8081}:8080'
+      - '127.0.0.1:${CADVISOR_PORT:-8081}:8080'
     devices:
       - /dev/kmsg
     volumes:
@@ -69,5 +69,5 @@ services:
       - /dev/disk/:/dev/disk:ro
     deploy:
       resources:
-        limits: { cpus: '0.15', memory: 512M }
+        limits: { cpus: '0.195', memory: 589M }
         reservations: { cpus: '0.05', memory: 64M }

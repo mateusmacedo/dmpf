@@ -1,0 +1,5 @@
+package application
+
+// CommandConsumer names the inbox entries of this context's commands (IDM-03):
+// the use case registers under it, and serve-api purges what expired.
+const CommandConsumer = "<%- name %>.commands"

@@ -1,18 +1,17 @@
 package otelboot_test
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
-	"log/slog"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/log"
 	"go.opentelemetry.io/otel/propagation"
+	sdklog "go.opentelemetry.io/otel/sdk/log"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
@@ -126,38 +125,14 @@ func TestTheRuntimeTracerProducesSpansThroughTheSingleProcessor(t *testing.T) {
 	}
 }
 
-func TestAnUnsampledSpanThatFailsStillLeavesTheProcess(t *testing.T) {
-	runtime, exporter := startedRuntime(t, func(config *otelboot.Config) {
-		config.Sampling = tracing.Rates{tracing.ClassRead: 0}
-	})
-
-	_, span := runtime.Tracer().Start(context.Background(), "orders.find",
-		trace.WithAttributes(tracing.Attributes{}.TrafficClass(string(tracing.ClassRead)).KeyValues()...))
-	if span.SpanContext().IsSampled() {
-		t.Fatal("the fixture sampled the span; the rate of read is zero")
-	}
-	if !span.IsRecording() {
-		t.Fatal("the span is not recording; the sampler dropped it instead of recording it")
-	}
-	span.SetStatus(codes.Error, "")
-	span.End()
-
-	if err := runtime.ForceFlush(context.Background()); err != nil {
-		t.Fatalf("ForceFlush() = %v", err)
-	}
-	if got := exportedNames(t, exporter); len(got) != 1 {
-		t.Errorf("exported = %v, want the failed span (TRC-14)", got)
-	}
-}
-
 func TestTheRuntimeMeterCarriesThePlatformInstruments(t *testing.T) {
 	reader := sdkmetric.NewManualReader()
 	runtime, _ := startedRuntime(t, func(config *otelboot.Config) { config.MetricReader = reader })
 
-	runtime.Instruments().Requests.Add(context.Background(), 1)
+	runtime.Instruments().Retries.Add(context.Background(), 1)
 
-	if got := counterValue(t, reader, metrics.RequestsTotal); got != 1 {
-		t.Errorf("%s = %d, want 1", metrics.RequestsTotal, got)
+	if got := counterValue(t, reader, metrics.RetriesTotal); got != 1 {
+		t.Errorf("%s = %d, want 1", metrics.RetriesTotal, got)
 	}
 }
 
@@ -177,35 +152,69 @@ func TestTheResourceOfTheProvidersIdentifiesTheService(t *testing.T) {
 	if got := attributes[semconv.ServiceNameKey]; got != "orders" {
 		t.Errorf("%s = %q, want %q", semconv.ServiceNameKey, got, "orders")
 	}
-	sheetKey := attribute.Key(otelboot.SheetAttributePrefix + "payments." + resilience.FieldMaxAttempts)
-	if got := attributes[sheetKey]; got != "3" {
-		t.Errorf("%s = %q, want the sheet in the resource (RES-40)", sheetKey, got)
+	for key, value := range attributes {
+		if strings.HasPrefix(string(key), "dmpf.sheet.") {
+			t.Errorf("%s = %q is on the resource, want the sheet out of it", key, value)
+		}
 	}
 }
 
 func TestTheEffectiveSheetsAreLoggedOnceAtStartUp(t *testing.T) {
-	var out bytes.Buffer
+	exporter := &recordingExporter{}
+	var logs *sdklog.LoggerProvider
 	startedRuntime(t, func(config *otelboot.Config) {
-		config.Logger = slog.New(slog.NewJSONHandler(&out, nil))
 		config.Sheets = []resilience.Sheet{resilience.Defaults("payments"), resilience.Defaults("ledger")}
+		logs = otelboot.NewLoggerProvider(*config, exporter)
+		config.LoggerProvider = logs
 	})
-
-	records := 0
-	dependencies := map[string]bool{}
-	for line := range strings.SplitSeq(strings.TrimSpace(out.String()), "\n") {
-		var record map[string]any
-		if err := json.Unmarshal([]byte(line), &record); err != nil {
-			t.Fatalf("the start-up record is not JSON: %v", err)
-		}
-		records++
-		if record["level"] != "INFO" {
-			t.Errorf("level = %v, want INFO", record["level"])
-		}
-		dependencies[record["dependency"].(string)] = true
+	if err := logs.ForceFlush(context.Background()); err != nil {
+		t.Fatalf("ForceFlush() = %v", err)
 	}
 
-	if records != 2 || !dependencies["payments"] || !dependencies["ledger"] {
-		t.Errorf("logged %d records for %v, want one per sheet", records, dependencies)
+	dependencies := map[string]bool{}
+	for _, record := range attributesOfRecords(exporter.records) {
+		dependencies[record[tracing.KeyDependency].AsString()] = true
+	}
+	for _, record := range exporter.records {
+		if record.Severity() != log.SeverityInfo {
+			t.Errorf("severity = %v, want info", record.Severity())
+		}
+	}
+
+	if len(exporter.records) != 2 || !dependencies["payments"] || !dependencies["ledger"] {
+		t.Errorf("logged %d records for %v under %s past the processor, want one per sheet (RF-A3)", len(exporter.records), dependencies, tracing.KeyDependency)
+	}
+}
+
+func TestEveryFieldOfTheSheetInEffectSurvivesTheAllowlistUnderDmpfSheet(t *testing.T) {
+	for _, role := range []string{"api", "consumer", "relay"} {
+		t.Run(role, func(t *testing.T) {
+			sheet := resilience.Defaults("payments")
+			sheet.Deadline = resilience.Declare(3 * time.Second)
+			exporter := &recordingExporter{}
+			var logs *sdklog.LoggerProvider
+			startedRuntime(t, func(config *otelboot.Config) {
+				config.Resource.Role = role
+				config.Sheets = []resilience.Sheet{sheet}
+				logs = otelboot.NewLoggerProvider(*config, exporter)
+				config.LoggerProvider = logs
+			})
+			if err := logs.ForceFlush(context.Background()); err != nil {
+				t.Fatalf("ForceFlush() = %v", err)
+			}
+
+			record := onlyRecord(t, attributesOfRecords(exporter.records))
+			effective := sheet.Effective()
+			for field, value := range effective {
+				key := "dmpf.sheet." + field
+				if got, carried := record[key]; !carried || got.AsString() != value {
+					t.Errorf("%s = %v (carried %t), want %q past the processor (RES-40, RF-A6)", key, got, carried, value)
+				}
+			}
+			if len(record) != len(effective)+1 || record[tracing.KeyDependency].AsString() != "payments" {
+				t.Errorf("record = %v, want %s and the %d fields of the sheet, nothing else", record, tracing.KeyDependency, len(effective))
+			}
+		})
 	}
 }
 
@@ -214,8 +223,8 @@ func TestARuntimeWithoutALoggerStillStarts(t *testing.T) {
 		config.Sheets = []resilience.Sheet{resilience.Defaults("payments")}
 	})
 
-	if runtime.Logger() == nil {
-		t.Error("Logger() = nil; a caller should never have to nil-check it")
+	if runtime.LoggerFor(libraryScope) == nil || runtime.LoggerProvider() == nil {
+		t.Error("LoggerFor() or LoggerProvider() = nil; a caller should never have to nil-check them")
 	}
 }
 
@@ -254,5 +263,47 @@ func TestARuntimeWithoutAMetricReaderStillStarts(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = runtime.Shutdown(context.Background()) })
 
-	runtime.Instruments().Requests.Add(context.Background(), 1)
+	runtime.Instruments().Retries.Add(context.Background(), 1)
+}
+
+type countingMetricExporter struct {
+	metrics atomic.Int64
+}
+
+func (*countingMetricExporter) Temporality(kind sdkmetric.InstrumentKind) metricdata.Temporality {
+	return sdkmetric.DefaultTemporalitySelector(kind)
+}
+
+func (*countingMetricExporter) Aggregation(kind sdkmetric.InstrumentKind) sdkmetric.Aggregation {
+	return sdkmetric.DefaultAggregationSelector(kind)
+}
+
+func (e *countingMetricExporter) Export(_ context.Context, collected *metricdata.ResourceMetrics) error {
+	for _, scope := range collected.ScopeMetrics {
+		e.metrics.Add(int64(len(scope.Metrics)))
+	}
+	return nil
+}
+
+func (*countingMetricExporter) ForceFlush(context.Context) error { return nil }
+func (*countingMetricExporter) Shutdown(context.Context) error   { return nil }
+
+func TestForceFlushExportsWhatTheTraceMetricAndLogPipelinesHold(t *testing.T) {
+	t.Setenv("OTEL_BLRP_SCHEDULE_DELAY", "3600000")
+	metricsOut, logs := &countingMetricExporter{}, &closingExporter{}
+	rt, traces := startedRuntime(t, func(config *otelboot.Config) {
+		config.MetricReader = sdkmetric.NewPeriodicReader(metricsOut, sdkmetric.WithInterval(time.Hour))
+		config.LoggerProvider = otelboot.NewLoggerProvider(*config, logs)
+	})
+	endSpan(rt, "orders.place")
+	rt.Instruments().Retries.Add(context.Background(), 1)
+	rt.LoggerFor("orders").Info("placed")
+
+	if err := rt.ForceFlush(context.Background()); err != nil {
+		t.Fatalf("ForceFlush() = %v, want nil", err)
+	}
+
+	if spans, metrics, records := len(traces.GetSpans()), metricsOut.metrics.Load(), logs.exported(); spans != 1 || metrics == 0 || records != 1 {
+		t.Fatalf("ForceFlush() exported %d spans, %d metrics and %d log records, want what each of the three pipelines held", spans, metrics, records)
+	}
 }

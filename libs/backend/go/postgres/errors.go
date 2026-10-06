@@ -66,4 +66,12 @@ var (
 	// ErrInvalidLease is what Claim reports for a non-positive lease, which
 	// would be born expired and hand the record to the next claim at once.
 	ErrInvalidLease = errors.New("postgres: claim lease must be positive")
+
+	// ErrPurgeBatchRequired is what a purge reports for a non-positive batch:
+	// an unbounded DELETE would lock the whole retention window at once.
+	ErrPurgeBatchRequired = errors.New("postgres: purge batch must be positive")
+
+	// ErrCommandExpiryRequired is what a command inbox reports for a receipt
+	// without an expiry after its reception: the entry would never be purged.
+	ErrCommandExpiryRequired = errors.New("postgres: a command receipt needs an expiry after its reception")
 )

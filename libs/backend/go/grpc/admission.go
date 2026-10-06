@@ -4,6 +4,7 @@ package grpc
 
 import (
 	"context"
+	"strings"
 
 	"go.opentelemetry.io/otel/metric"
 	"google.golang.org/grpc"
@@ -21,7 +22,7 @@ type TenantFunc func(ctx context.Context) string
 
 // Admission is the server interceptor of RES-16: it asks the controller before
 // the handler runs (RES-17), refuses with RESOURCE_EXHAUSTED and counts it by
-// route and tenant (MET-12); a route with no declared limit is UNIMPLEMENTED.
+// method and tenant (MET-12); a route with no declared limit is UNIMPLEMENTED.
 func Admission(ctrl *admission.Controller, tenant TenantFunc, instruments *metrics.Instruments) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		who := ""
@@ -36,7 +37,7 @@ func Admission(ctrl *admission.Controller, tenant TenantFunc, instruments *metri
 		}
 
 		if instruments != nil {
-			labels := metrics.Labels{}.Route(info.FullMethod).TenantWithin(ctrl.Tenants(), who)
+			labels := metrics.Labels{}.RPCMethod(strings.TrimPrefix(info.FullMethod, "/")).TenantWithin(ctrl.Tenants(), who)
 			instruments.AdmissionRejections.Add(ctx, 1, metric.WithAttributes(labels.Attributes()...))
 		}
 		if reason == admission.UndeclaredRoute {

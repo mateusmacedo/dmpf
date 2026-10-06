@@ -30,10 +30,10 @@ ocorre no PR (reviewers de Plataforma/Arquitetura). Specs permanecem em
 
 ## BOM da release
 
-O BOM de cada release do produto — combinações certificadas, evidência de
-execução e exceções vigentes — vive em [`bom/`](../../bom/README.md), na raiz do
-repositório, e realiza o §4 e o §5.1 de
-[governanca-bom-pilotos.md](./governanca-bom-pilotos.md).
+O BOM da release do produto, previsto no §4 e no §5.1 de
+[governanca-bom-pilotos.md](./governanca-bom-pilotos.md), foi removido pelo
+[ADR-059](../adr/059-remover-o-bom-e-a-release-do-produto.md): o projeto
+versiona só as tags de módulo, e o texto normativo fica como registro histórico.
 
 ## Convenção de citação
 
@@ -96,8 +96,8 @@ O artefato aciona **dois** ADRs, sem redigir nem aceitar nenhum: `ADR-DMPF-K`
 obrigação delegada por escrito em `upr-decision-mensagens.md` §6.3. Os
 identificadores são provisórios: a numeração definitiva é do FND-11.
 
-As 64 regras `normativo` substantivas têm **ID estável** (`BLK`, `UOW`, `OBX`,
-`INB`, `GAR`), marcado no bloco que enuncia cada uma e indexado em §11.2 — é
+As 74 regras `normativo` substantivas têm **ID estável** (`BLK`, `UOW`, `OBX`,
+`INB`, `GAR`, `IDM`), marcado no bloco que enuncia cada uma e indexado em §11.2 — é
 por esse ID que o FND-09 vai nomear o cenário que a verifica.
 
 Três pendências ficam registradas no próprio artefato (§11.5):

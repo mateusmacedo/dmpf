@@ -8,13 +8,12 @@ import (
 	"github.com/mateusmacedo/dmpf/tools/dmpf-conformance/internal/rule"
 )
 
-// Registry é onde a exceção foi declarada. GOV-35 amarra classe a registro: E1
-// vive no manifesto da unidade, E2 e E3 no BOM, e a troca é X007.
+// Registry é onde a exceção foi declarada. GOV-35 amarra classe a registro: a
+// E1 vive no manifesto da unidade, e outro registro é X007.
 type Registry string
 
 const (
 	RegistryManifest Registry = "manifest"
-	RegistryBOM      Registry = "bom"
 )
 
 // Subject é a unidade e a dependência que a exceção pede, já classificadas.
@@ -115,13 +114,6 @@ func convergenceDiagnostics(x Exception) []rule.Diagnostic {
 		if c.ReviewBy == 0 {
 			out = append(out, add("convergence review sem review_by"))
 		}
-		// Aprovação dual: uma só autoridade decidindo sobre a própria dívida é
-		// o que o ramo de revisão existe para impedir.
-		for _, required := range []Approver{ApproverArchitecture, ApproverPlatform} {
-			if !slices.Contains(c.ApprovedBy, required) {
-				out = append(out, add(fmt.Sprintf("convergence review sem aprovação de %s", required)))
-			}
-		}
 		if strings.TrimSpace(c.ReplanningCondition) == "" {
 			out = append(out, add("convergence review sem replanning_condition"))
 		}
@@ -138,25 +130,18 @@ func kindDiagnostics(x Exception) []rule.Diagnostic {
 	return []rule.Diagnostic{{
 		Code:   rule.CodeX002,
 		Target: x.ID,
-		Detail: fmt.Sprintf("object.kind %q fora das classes E1–E3", x.Object.Kind),
+		Detail: fmt.Sprintf("object.kind %q fora da classe E1", x.Object.Kind),
 	}}
 }
 
 func registryDiagnostics(x Exception, reg Registry) []rule.Diagnostic {
-	if !IsKind(x.Object.Kind) {
-		return nil
-	}
-	want := RegistryBOM
-	if x.Object.Kind == KindExternalDependency {
-		want = RegistryManifest
-	}
-	if want == reg {
+	if !IsKind(x.Object.Kind) || reg == RegistryManifest {
 		return nil
 	}
 	return []rule.Diagnostic{{
 		Code:   rule.CodeX007,
 		Target: x.ID,
-		Detail: fmt.Sprintf("exceção %s declarada no %s; GOV-35 a comporta no %s", x.Object.Kind, reg, want),
+		Detail: fmt.Sprintf("exceção %s declarada no %s; GOV-35 a comporta no %s", x.Object.Kind, reg, RegistryManifest),
 	}}
 }
 

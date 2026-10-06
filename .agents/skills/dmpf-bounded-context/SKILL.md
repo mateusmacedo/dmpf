@@ -30,9 +30,9 @@ verificadas, em [`references/armadilhas.md`](./references/armadilhas.md).
 
 | Quem | O quê |
 | --- | --- |
-| **Generator** (`bounded-context`) | `project.json`, `go.mod`, `package.json`, `dmpf-units.json`, `README.md` e `Dockerfile` do módulo; tags 3D + `layer:*` do bloco mais alto; a entrada no `go.work`; o `doc.go` de cada bloco; o esqueleto canônico do `app` (config, wiring, telemetria, catálogo, `app/rpc`), o `provider/schema.{sql,go}` e o `appkit/pool.go` |
+| **Generator** (`bounded-context`) | `project.json`, `go.mod`, `package.json`, `dmpf-units.json`, `README.md` e `Dockerfile` do módulo; tags 3D + `layer:*` do bloco mais alto; a entrada no `go.work`; o `doc.go` de cada bloco; o esqueleto canônico do `app` (config, wiring, telemetria, catálogo, `app/rpc`), o `provider/schema.{sql,go}` e o `appkit/harness.go` |
 | **Agente / autor** | O conteúdo de domínio dos cinco blocos, preenchendo o esqueleto; o `.proto` do serviço e de cada evento publicado; o OpenAPI; o `include` de packages novos no manifesto (merge) |
-| **Pessoa** | Rito Buf (`buf.sh generate` + quatro gates); `--write-baseline` em commit próprio; `git commit`; PR |
+| **Pessoa** | Rito Buf (`buf.sh generate` + quatro gates); `--write-baseline`; `git commit`; PR |
 
 Os arquivos de configuração do módulo que o generator escreve ninguém edita à
 mão; o esqueleto Go ele deixa para ser preenchido. O que é da pessoa, o agente
@@ -48,19 +48,35 @@ não executa — ele **para e imprime** o rito restante.
 3. **`domain`**, no package `domain` do módulo (o que o `doc.go` gerado declara), por agregado: struct, `Snapshot`/`From*Snapshot`/`Equal`/
    `clone`, UPRs `(cmd, at) → (Accepted[R], *Rejection)`, mensagens,
    rejeições com código estável. Sem `time`, sem porta; instante inteiro.
+   Cada UPR decide por `kernel.DecideOver(alvo, (*T).clone, decide)` e recusa
+   por `kernel.Refuse[R]`; o `clone` privado copia em profundidade o que a
+   decisão pode mutar.
 4. **`port`**: `Repository` por agregado, `Outbox()`, `Reader` por consulta;
    `Inbox()` só se o contexto consome.
-5. **`application`**: `service.go` e um arquivo por comando percorrendo os nove
-   passos de FND-04 §3.2; consultas fora da UoW; `Consume` pelas sete
-   disposições de §6.4 **se** o contexto consome.
+5. **`application`**: `service.go` com o `executor()` do serviço e o alias
+   `command[R]`, e um arquivo por comando que chama `usecase.Execute` — os
+   nove passos de FND-04 §3.2, com `usecase.RunIdempotent` sobre
+   `Resources.Commands` e `Service.Idempotency`, um codec por operação e
+   auditoria só sem replay (ADR-056). O `Run` do comando chama
+   `usecase.Decide` com o `Loader` do modo (`OrNew`, `Existing` ou `Absent`)
+   e prefixa toda falha com `application: <operação> <id>: %w`; consultas por
+   `usecase.Query`, fora da UoW; `Consume` pelas sete disposições de §6.4
+   **se** o contexto consome.
 6. **`provider-postgres`**: `schema.sql` nos nomes canônicos (agregado no
    plural, sem prefixo), persistência híbrida (coluna tipada só para o que uma
-   consulta filtra, o resto em `snapshot` `jsonb`), repositórios com
-   optimistic locking, `Reader`, mapper para o payload do contrato; `Tables`
-   do `appkit` com as tabelas do contexto.
+   consulta filtra, o resto em `snapshot` `jsonb`, com `postgres.SnapshotTable`
+   quando o estado inteiro vive no snapshot), repositórios com optimistic
+   locking, `Reader`, mapper para o payload do contrato; `Tables` do `appkit`
+   com as tabelas do contexto.
 7. **`app`**: o `ServiceDesc` de `app/rpc/service.go` com um método por
-   comando e por consulta, o `Server` sobre o serviço de aplicação, o wiring e
-   o catálogo; e2e gRPC sobre Postgres. Consumer com `envelope.Unpack` **só se
+   comando e por consulta, cada um por
+   `kernelgrpc.Unary(ServiceName, kernelgrpc.Method(descriptor, "<Método>"), <Ctx>Server.<Método>)`,
+   o `Server` sobre o serviço de aplicação (os handlers de comando passam pelo
+   `command[R, Resp]` local, que devolve o erro por `kernelgrpc.StatusOf`), o
+   `service_test.go` com `kernelgrpc.Uncovered`, a `Config` com as seções
+   `API` (`kernelgrpc.APIEnv`) e `Policies` (`kernelapp.Policies`), o wiring e
+   o catálogo;
+   e2e gRPC sobre Postgres. Consumer com `envelope.Unpack` **só se
    o contexto consome**. A borda REST é do `bff`, em tarefa própria.
 8. **Contrato**: `.proto` do serviço em
    `apps/backend/<name>/contract/proto/company/<name>/service/v1/` e de cada evento publicado em
@@ -71,10 +87,10 @@ não executa — ele **para e imprime** o rito restante.
    O `deploy/infra.json` declara banco, tópicos e ACLs do que o contexto
    publica e consome; depois de ajustá-lo, `infrasync --write`.
 9. **`include`** dos packages novos no `dmpf-units.json` do módulo, na unidade do bloco certo, por merge.
-10. **Classificação**: `--write-baseline` em commit próprio — passo humano.
+10. **Classificação**: `--write-baseline` — passo humano.
 11. **Gates**: `fmt-check`, `vet`, `build`, `lint`, `test-race`,
-    `test-distributed`, `dmpf-context-check.sh --context`, `conformance
-    --base`. Corrigir até passar; gate **normativo** reprovando (ex.:
+    `test-distributed`, `dmpf-context-check.sh --context`, `conformance`.
+    Corrigir até passar; gate **normativo** reprovando (ex.:
     `DMPF-D002`) é parada, não contorno.
 12. **Checklist final**: a tabela acima conferida, o rito humano impresso.
 
@@ -94,5 +110,5 @@ pnpm nx run-many -t fmt-check,vet,build,lint -p <name>
 PG_DSN='postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable' \
   pnpm nx run-many -t test-race,test-distributed -p <name>
 bash tools/dmpf-context-check.sh --context apps/backend/<name>
-go run ./tools/dmpf-conformance/cmd/conformance --root . --base origin/develop
+go run ./tools/dmpf-conformance/cmd/conformance --root .
 ```

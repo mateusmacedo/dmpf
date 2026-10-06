@@ -5,7 +5,7 @@ title: DMPF — Shared kernel, o consumo do kernel por outros bounded contexts
 stage: done
 priority: P1
 depends_on: [SPEC-WTAXFV8B]
-ticket_url: null
+ticket_url: https://linear.app/mmda/issue/DEVS-36/spec-xmnbmy50-dmpf-shared-kernel-o-consumo-do-kernel-por-outros
 subtask_urls: []
 created: 2026-09-09
 ---

@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"go.opentelemetry.io/otel/propagation"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
@@ -38,7 +39,7 @@ func newHarness(t *testing.T, fake *fakeContexts) harness {
 	t.Cleanup(func() { _ = provider.Shutdown(context.Background()) })
 
 	dialer := fake.serveBuffered(t)
-	opts := rpc.Options{Insecure: true, Clock: obsclock.System(), Tracer: provider.Tracer("rpc_test"), Service: "bff-test"}
+	opts := rpc.Options{Insecure: true, Clock: obsclock.System(), Tracer: provider.Tracer("rpc_test"), TracerProvider: provider, Propagator: propagation.TraceContext{}}
 	extra := grpc.WithContextDialer(dialer)
 
 	ordersConn, err := rpc.Dial("passthrough:///orders", rpc.OrdersConfig(opts), extra)
@@ -84,24 +85,22 @@ func TestMethodNamesComeFromTheGeneratedDescriptor(t *testing.T) {
 	}
 }
 
-func TestOnlyTheReadsAreDeclaredIdempotent(t *testing.T) {
+func TestEveryMethodIsIdempotentAndRetriesOnlyAnUnavailableContext(t *testing.T) {
 	opts := rpc.Options{Insecure: true, Clock: obsclock.System()}
 	policies := map[string]kernelgrpc.MethodPolicy{}
-	for method, policy := range rpc.OrdersConfig(opts).Methods {
-		policies[method] = policy
+	for _, cfg := range []kernelgrpc.Config{rpc.OrdersConfig(opts), rpc.ReservationsConfig(opts), rpc.BookingsConfig(opts)} {
+		for method, policy := range cfg.Methods {
+			policies[method] = policy
+		}
 	}
-	for method, policy := range rpc.ReservationsConfig(opts).Methods {
-		policies[method] = policy
-	}
-	if len(policies) != 6 {
-		t.Fatalf("declared %d methods, want 6", len(policies))
+	if len(policies) != 11 {
+		t.Fatalf("declared %d methods, want 11", len(policies))
 	}
 	for method, policy := range policies {
-		read := method == rpc.MethodFindOrder || method == rpc.MethodFindReservation
-		if policy.Idempotent != read {
-			t.Fatalf("%s: Idempotent = %v, want %v (GRP-09)", method, policy.Idempotent, read)
+		if !policy.Idempotent {
+			t.Fatalf("%s: Idempotent = false; a command carries its key, a read has no effect (GRP-09, IDM-01)", method)
 		}
-		if read && (len(policy.RetryableCodes) != 1 || policy.RetryableCodes[0] != codes.Unavailable) {
+		if len(policy.RetryableCodes) != 1 || policy.RetryableCodes[0] != codes.Unavailable {
 			t.Fatalf("%s: RetryableCodes = %v, want [Unavailable] (GRP-08)", method, policy.RetryableCodes)
 		}
 		if policy.Budget.Limit >= 2*time.Second || policy.Budget.Slack <= 0 {
@@ -133,20 +132,51 @@ func TestFindOrderRetriesAnUnavailableContext(t *testing.T) {
 	}
 }
 
-func TestReserveIsNeverRetried(t *testing.T) {
-	fake := &fakeContexts{reserve: func(int) (*reservationsv1.ReserveResponse, error) {
-		return nil, status.Error(codes.Unavailable, "restarting")
+func TestReserveRetriesAnUnavailableContextUnderTheSameKey(t *testing.T) {
+	fake := &fakeContexts{reserve: func(n int) (*reservationsv1.ReserveResponse, error) {
+		if n == 1 {
+			return nil, status.Error(codes.Unavailable, "restarting")
+		}
+		return &reservationsv1.ReserveResponse{}, nil
 	}}
 	h := newHarness(t, fake)
-	ctx := retry.WithBudget(withDeadline(t, 2*time.Second))
+	ctx := rpc.WithCall(retry.WithBudget(withDeadline(t, 2*time.Second)), rpc.Call{IdempotencyKey: "k-derived"})
 
-	_, err := h.reservations.Reserve(ctx, &reservationsv1.ReserveRequest{OrderId: "o-1", ItemCount: 1})
-
-	if status.Code(err) != codes.Unavailable {
-		t.Fatalf("Reserve() = %v, want Unavailable", err)
+	if _, err := h.reservations.Reserve(ctx, &reservationsv1.ReserveRequest{OrderId: "o-1", ItemCount: 1}); err != nil {
+		t.Fatalf("Reserve() = %v, want success after one retry", err)
 	}
-	if got := len(fake.callsTo("Reserve")); got != 1 {
-		t.Fatalf("Reserve reached the context %d times, want 1 (GRP-09)", got)
+
+	calls := fake.callsTo("Reserve")
+	if len(calls) != 2 {
+		t.Fatalf("Reserve reached the context %d times, want 2", len(calls))
+	}
+	for i, call := range calls {
+		if got := call.md.Get(kernelgrpc.IdempotencyKey); len(got) != 1 || got[0] != "k-derived" {
+			t.Fatalf("attempt %d carried idempotency-key %v, want the same key on every attempt", i+1, got)
+		}
+	}
+}
+
+func TestTheReplayHeaderOfTheContextReachesTheCaller(t *testing.T) {
+	fake := &fakeContexts{reserve: func(int) (*reservationsv1.ReserveResponse, error) {
+		return &reservationsv1.ReserveResponse{}, nil
+	}, replayReserve: true}
+	h := newHarness(t, fake)
+
+	replayed := rpc.WithReplaySlot(withDeadline(t, 2*time.Second))
+	if _, err := h.reservations.Reserve(replayed, &reservationsv1.ReserveRequest{OrderId: "o-1", ItemCount: 1}); err != nil {
+		t.Fatalf("Reserve() = %v", err)
+	}
+	fresh := rpc.WithReplaySlot(withDeadline(t, 2*time.Second))
+	if _, err := h.orders.AddItem(fresh, &ordersv1.AddItemRequest{OrderId: "o-1", Sku: "A", Quantity: 1}); err != nil {
+		t.Fatalf("AddItem() = %v", err)
+	}
+
+	if !rpc.Replayed(replayed) {
+		t.Fatal("Replayed() = false after the context answered idempotent-replayed: true")
+	}
+	if rpc.Replayed(fresh) {
+		t.Fatal("Replayed() = true for a first answer")
 	}
 }
 
@@ -166,7 +196,7 @@ func TestMetadataCarriesTheCallAndTheClientSpan(t *testing.T) {
 		t.Fatalf("calls = %d, want 1", len(calls))
 	}
 	md := calls[0].md
-	for key, want := range map[string]string{rpc.CorrelationIDKey: "corr-1", rpc.CausationIDKey: "req-1", rpc.IdempotencyKeyKey: "k-1"} {
+	for key, want := range map[string]string{kernelgrpc.CorrelationKey: "corr-1", kernelgrpc.CausationKey: "req-1", kernelgrpc.IdempotencyKey: "k-1"} {
 		if got := md.Get(key); len(got) != 1 || got[0] != want {
 			t.Fatalf("metadata %s = %v, want %q", key, got, want)
 		}
@@ -187,7 +217,7 @@ func TestMetadataCarriesTheCallAndTheClientSpan(t *testing.T) {
 	if !ok {
 		t.Fatalf("traceparent span %s was not exported; spans: %v", parts[2], h.spans.GetSpans())
 	}
-	if sent.SpanContext.SpanID() == root.SpanContext().SpanID() || !strings.HasPrefix(sent.Name, "dmpf.grpc.client") {
+	if sent.SpanContext.SpanID() == root.SpanContext().SpanID() || sent.SpanKind != trace.SpanKindClient || sent.Name != strings.TrimPrefix(rpc.MethodFindOrder, "/") {
 		t.Fatalf("traceparent names span %q, want a client span of the call, not the edge span", sent.Name)
 	}
 	for span := sent; span.Parent.SpanID() != root.SpanContext().SpanID(); {

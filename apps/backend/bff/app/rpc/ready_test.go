@@ -36,7 +36,7 @@ func refused(context.Context, string) (net.Conn, error) { return nil, errors.New
 
 func ordersChannel(t *testing.T, dialer func(context.Context, string) (net.Conn, error)) *grpc.ClientConn {
 	t.Helper()
-	opts := rpc.Options{Insecure: true, Clock: obsclock.System(), Service: "bff-test"}
+	opts := rpc.Options{Insecure: true, Clock: obsclock.System()}
 	conn, err := rpc.Dial("passthrough:///orders", rpc.OrdersConfig(opts), grpc.WithContextDialer(dialer))
 	if err != nil {
 		t.Fatalf("Dial(orders) = %v", err)

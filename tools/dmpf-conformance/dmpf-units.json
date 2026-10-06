@@ -72,20 +72,6 @@
       "include": ["github.com/mateusmacedo/dmpf/tools/dmpf-conformance/fitness"]
     },
     {
-      "id": "conformance/bom",
-      "block": "app",
-      "bounded_context": "conformance",
-      "public_integration_surface": false,
-      "include": ["github.com/mateusmacedo/dmpf/tools/dmpf-conformance/bom"]
-    },
-    {
-      "id": "conformance/cmd-bom",
-      "block": "app",
-      "bounded_context": "conformance",
-      "public_integration_surface": false,
-      "include": ["github.com/mateusmacedo/dmpf/tools/dmpf-conformance/cmd/bom"]
-    },
-    {
       "id": "conformance/modsync",
       "block": "app",
       "bounded_context": "conformance",

@@ -16,10 +16,10 @@ var ErrNotReady = errors.New("bff: not ready")
 
 const probeBodyLimit = 512
 
-// Probe asks the edge listening on cfg.HTTPAddr for its readiness: the check an
+// Probe asks the edge listening on cfg.AdminAddr for its readiness: the check an
 // image without a shell runs against itself.
 func Probe(ctx context.Context, cfg Config) error {
-	url, err := readinessURL(cfg.HTTPAddr)
+	url, err := readinessURL(cfg.AdminAddr)
 	if err != nil {
 		return err
 	}

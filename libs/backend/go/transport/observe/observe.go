@@ -1,4 +1,4 @@
-// comment-discipline-ok-file: arquivo de contrato público; cada godoc cita a regra de FND-08 (RES-23, TRC-04, TRC-12, MET-08..10, LOG-13) que o símbolo realiza, dentro do limite de 3 linhas.
+// comment-discipline-ok-file: arquivo de contrato público; cada godoc cita a regra de FND-08 (RES-23, TRC-04, TRC-11, TRC-12, LOG-13) que o símbolo realiza, dentro do limite de 3 linhas.
 
 // Package observe is the three observability positions of RES-22 — tracing,
 // metrics, logging — that RES-23 requires of every composition and the
@@ -7,35 +7,37 @@ package observe
 
 import (
 	"context"
+	"errors"
 	"log/slog"
+	"reflect"
 	"sync"
 	"sync/atomic"
 
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/log"
 	"go.opentelemetry.io/otel/trace"
 	"go.opentelemetry.io/otel/trace/noop"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/clock"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/metrics"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/logging"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/redact"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/resilience"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/tracing"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
 
 // CategoryOK is the outcome category of a call that returned no error.
 const CategoryOK = "ok"
 
-// Config is what the three decorators record through. Service labels the
-// series of MET-08 to MET-10; SpanPrefix names the span; Category maps a
-// failure to its bounded category and is the only transport-specific part.
+// Config is what the decorators record through. MaxAttempts is the retry
+// ceiling of the sheet; Category maps a failure to its bounded category and is
+// the only transport-specific part.
 type Config struct {
-	Service     string
-	SpanPrefix  string
-	Clock       clock.Clock
-	Tracer      trace.Tracer
-	Instruments *metrics.Instruments
-	Logger      *slog.Logger
-	Category    func(error) string
+	Clock          clock.Clock
+	Tracer         trace.Tracer
+	LoggerProvider log.LoggerProvider
+	Category       func(error) string
+	MaxAttempts    int
 }
 
 func (c Config) tracer() trace.Tracer {
@@ -45,11 +47,15 @@ func (c Config) tracer() trace.Tracer {
 	return c.Tracer
 }
 
-func (c Config) logger() *slog.Logger {
-	if c.Logger == nil {
-		return slog.Default()
+func (c Config) clock() clock.Clock {
+	if c.Clock == nil {
+		return clock.System()
 	}
-	return c.Logger
+	return c.Clock
+}
+
+func (c Config) logger() *slog.Logger {
+	return logging.NewLogger(c.LoggerProvider, reflect.TypeFor[Config]().PkgPath())
 }
 
 func (c Config) category(err error) string {
@@ -57,7 +63,7 @@ func (c Config) category(err error) string {
 		return CategoryOK
 	}
 	if c.Category == nil {
-		return "unclassified"
+		return redact.CategoryUnclassified
 	}
 	return c.Category(err)
 }
@@ -67,27 +73,50 @@ func (c Config) category(err error) string {
 func Slots(cfg Config) resilience.Slots {
 	return resilience.Slots{
 		Tracing: Tracing(cfg),
-		Metrics: Metrics(cfg),
+		Metrics: passThrough,
 		Logging: Logging(cfg),
 	}
 }
 
-// Tracing opens the client span of the call with the closed attribute set of
-// TRC-04 and closes it with the outcome category; a failure is a status and a
-// category, never a message (TRC-12).
+// passThrough holds the metrics position, which resilience.Compose refuses empty
+// (resilience/compose.go:129-166): the client RED is otelgrpc's and otelhttp's (RF-D2).
+func passThrough(next resilience.Call) resilience.Call { return next }
+
+const (
+	resilienceSpanPrefix = "dmpf.resilience "
+	keyRetryMaxAttempts  = "dmpf.retry.max_attempts"
+)
+
+// Tracing opens the INTERNAL span over the attempts (TRC-11, RF-B5); under the
+// send the relay owns, it records on that span instead, so the publisher's
+// partition and offset land on the send. A failure is a category, never a message.
 func Tracing(cfg Config) resilience.Decorator {
 	tracer := cfg.tracer()
 	starts := newCache[[]attribute.KeyValue]()
 	outcomes := newCache[[]attribute.KeyValue]()
 	return func(next resilience.Call) resilience.Call {
 		return func(ctx context.Context, op resilience.Operation, do func(context.Context) error) error {
-			attrs := starts.get(cacheKey{op.Dependency, op.Method}, func() []attribute.KeyValue {
-				return tracing.Attributes{}.Service(cfg.Service).Dependency(op.Dependency).Operation(op.Method).KeyValues()
+			attrs := starts.get(cacheKey{op.Dependency, ""}, func() []attribute.KeyValue {
+				kv := tracing.Attributes{}.Dependency(op.Dependency).KeyValues()
+				if cfg.MaxAttempts > 0 {
+					kv = append(kv, attribute.Int(keyRetryMaxAttempts, cfg.MaxAttempts))
+				}
+				return kv
 			})
-			ctx, span := tracer.Start(ctx, cfg.SpanPrefix+op.Method,
-				trace.WithSpanKind(trace.SpanKindClient),
-				trace.WithAttributes(attrs...))
-			defer span.End()
+			if deadline, declared := ctx.Deadline(); declared {
+				attrs = append(attrs[:len(attrs):len(attrs)],
+					attribute.Int64(tracing.KeyDeadlineRemainingMS, deadline.Sub(cfg.clock().Now()).Milliseconds()))
+			}
+
+			span, owned := tracing.OwnsSpan(ctx)
+			if owned {
+				span.SetAttributes(attrs...)
+			} else {
+				ctx, span = tracer.Start(ctx, resilienceSpanPrefix+op.Dependency,
+					trace.WithSpanKind(trace.SpanKindInternal),
+					trace.WithAttributes(attrs...))
+				defer span.End()
+			}
 
 			err := next(ctx, op, do)
 			category := cfg.category(err)
@@ -96,36 +125,6 @@ func Tracing(cfg Config) resilience.Decorator {
 			})...)
 			if err != nil {
 				tracing.RecordError(span, category)
-			}
-			return err
-		}
-	}
-}
-
-// Metrics records the call under the three service series of MET-08 to MET-10
-// with the operation as the method name. Without instruments or clock it still
-// wraps the call, so the position is never empty (RES-23).
-func Metrics(cfg Config) resilience.Decorator {
-	measured := newCache[metric.MeasurementOption]()
-	failures := newCache[metric.MeasurementOption]()
-	return func(next resilience.Call) resilience.Call {
-		return func(ctx context.Context, op resilience.Operation, do func(context.Context) error) error {
-			if cfg.Instruments == nil || cfg.Clock == nil {
-				return next(ctx, op, do)
-			}
-			started := cfg.Clock.Now()
-			err := next(ctx, op, do)
-			category := cfg.category(err)
-
-			outcome := measured.get(cacheKey{op.Method, category}, func() metric.MeasurementOption {
-				return metric.WithAttributeSet(attribute.NewSet(metrics.Labels{}.Service(cfg.Service).Operation(op.Method).OutcomeCategory(category).Attributes()...))
-			})
-			cfg.Instruments.RequestDuration.Record(ctx, cfg.Clock.Now().Sub(started).Seconds(), outcome)
-			cfg.Instruments.Requests.Add(ctx, 1, outcome)
-			if err != nil {
-				cfg.Instruments.Errors.Add(ctx, 1, failures.get(cacheKey{op.Method, category}, func() metric.MeasurementOption {
-					return metric.WithAttributeSet(attribute.NewSet(metrics.Labels{}.Service(cfg.Service).Operation(op.Method).ErrorCategory(category).Attributes()...))
-				}))
 			}
 			return err
 		}
@@ -161,26 +160,68 @@ func (c *cache[T]) get(key cacheKey, build func() T) T {
 	return v
 }
 
-// Logging logs a failed call with its category and no message: the message
-// would leave the process without redaction (LOG-13). A success is DEBUG.
+// Logging logs every attempt the retry below makes, with its category and no
+// message: the message would leave the process without redaction (LOG-13). The
+// level is Severity(Client, …) and a refusal below is the attempt it refused.
 func Logging(cfg Config) resilience.Decorator {
 	logger := cfg.logger()
 	return func(next resilience.Call) resilience.Call {
 		return func(ctx context.Context, op resilience.Operation, do func(context.Context) error) error {
-			err := next(ctx, op, do)
-			if err == nil {
-				logger.LogAttrs(ctx, slog.LevelDebug, "transport: call",
-					slog.String("dependency", op.Dependency),
-					slog.String("operation", op.Method),
-					slog.String("outcome_category", CategoryOK))
-			}
-			if err != nil {
-				logger.WarnContext(ctx, "transport: call failed",
-					slog.String("dependency", op.Dependency),
-					slog.String("operation", op.Method),
-					slog.String("error_category", cfg.category(err)))
+			attempts := 0
+			var last error
+			err := next(ctx, op, func(attemptCtx context.Context) error {
+				attempts++
+				last = do(attemptCtx)
+				logAttempt(attemptCtx, logger, cfg, op, attempts, last)
+				return last
+			})
+			if err != nil && !errors.Is(err, last) {
+				logAttempt(ctx, logger, cfg, op, attempts+1, err)
 			}
 			return err
 		}
 	}
 }
+
+func logAttempt(ctx context.Context, logger *slog.Logger, cfg Config, op resilience.Operation, attempt int, err error) {
+	if err == nil {
+		logger.LogAttrs(ctx, logging.Severity(logging.Client, ports.OutcomeAccepted), "transport: call",
+			slog.String(tracing.KeyDependency, op.Dependency),
+			slog.Int(logging.KeyAttempt, attempt),
+			slog.String(logging.KeyOutcomeCategory, CategoryOK))
+		return
+	}
+	category := cfg.category(err)
+	logger.LogAttrs(ctx, logging.Severity(logging.Client, outcomeOf(category)), "transport: call failed",
+		slog.String(tracing.KeyDependency, op.Dependency),
+		slog.Int(logging.KeyAttempt, attempt),
+		slog.String(logging.KeyOutcomeCategory, category),
+		redact.Error(failureOf(err, category)))
+}
+
+var fnd07Outcomes = map[string]ports.OutcomeCategory{
+	"Validation": ports.OutcomeRejected, "DomainRejection": ports.OutcomeRejected, "NotFound": ports.OutcomeRejected,
+	"Conflict": ports.OutcomeRejected, "Forbidden": ports.OutcomeDenied, "Unauthenticated": ports.OutcomeDenied,
+}
+
+func outcomeOf(category string) ports.OutcomeCategory {
+	if outcome, mapped := fnd07Outcomes[category]; mapped {
+		return outcome
+	}
+	return ports.OutcomeFailed
+}
+
+type attemptFailure struct{ category, code string }
+
+func failureOf(err error, category string) attemptFailure {
+	failure := attemptFailure{category: category}
+	var categorized redact.Categorized
+	if errors.As(err, &categorized) {
+		failure.code = categorized.ErrorCode()
+	}
+	return failure
+}
+
+func (f attemptFailure) Error() string         { return f.category }
+func (f attemptFailure) ErrorCategory() string { return f.category }
+func (f attemptFailure) ErrorCode() string     { return f.code }

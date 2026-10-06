@@ -27,3 +27,4 @@ include:
   - ../../apps/backend/bookings/deploy/compose.yml
   - ../../apps/backend/bff/deploy/compose.yml
   - compose/swagger-ui.yml
+  - compose/k6.yml

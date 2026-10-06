@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"slices"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -24,8 +25,9 @@ const testKeyID = "k-000001"
 // idp is a stand-in authorization server: it serves the discovery document and
 // the JWKS the verifier fetches, and signs tokens with the key it published.
 type idp struct {
-	issuer string
-	key    *rsa.PrivateKey
+	issuer   string
+	key      *rsa.PrivateKey
+	keysDown atomic.Bool
 }
 
 func newIdP(t *testing.T) *idp {
@@ -50,6 +52,10 @@ func newIdP(t *testing.T) *idp {
 		})
 	})
 	mux.HandleFunc("/jwks", func(w http.ResponseWriter, _ *http.Request) {
+		if provider.keysDown.Load() {
+			http.Error(w, "down", http.StatusServiceUnavailable)
+			return
+		}
 		writeJSON(w, map[string]any{"keys": []any{map[string]any{
 			"kty": "RSA",
 			"use": "sig",

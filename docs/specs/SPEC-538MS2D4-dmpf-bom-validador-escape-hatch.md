@@ -5,7 +5,7 @@ title: DMPF KRN-12.3 — Modelo do BOM, validador dmpf-bom e escape hatch instru
 stage: done
 priority: P2
 depends_on: [SPEC-WTAXFV8B, SPEC-VVR1X71Q]
-ticket_url: null
+ticket_url: https://linear.app/mmda/issue/DEVS-51/spec-538ms2d4-dmpf-krn-123-modelo-do-bom-validador-dmpf-bom-e-escape
 subtask_urls: []
 created: 2026-09-08
 ---

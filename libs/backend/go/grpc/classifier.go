@@ -5,8 +5,8 @@ package grpc
 import (
 	"context"
 	"errors"
-	"strings"
 
+	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -51,8 +51,8 @@ func dependencyFailure(err error) bool {
 }
 
 // categoryOf returns the bounded category under which a failure is recorded:
-// the category a platform error carries, the context error, or the lowercase
-// gRPC code — never the message (TRC-12, MET-07).
+// the category a platform error carries, or the FND-07 category its code or
+// context error maps to (§6.2), `_OTHER` outside it — never the message (TRC-12).
 func categoryOf(err error) string {
 	if err == nil {
 		return observe.CategoryOK
@@ -63,9 +63,24 @@ func categoryOf(err error) string {
 	}
 	switch {
 	case errors.Is(err, context.DeadlineExceeded):
-		return "deadline_exceeded"
+		return categoryDeadlineExceeded
 	case errors.Is(err, context.Canceled):
-		return "cancelled"
+		return categoryCancelled
 	}
-	return strings.ToLower(status.Code(err).String())
+	if category, mapped := fnd07Categories[status.Code(err)]; mapped {
+		return category
+	}
+	return semconv.ErrorTypeOther.Value.AsString()
+}
+
+const (
+	categoryDeadlineExceeded = "DeadlineExceeded"
+	categoryCancelled        = "Cancelled"
+)
+
+var fnd07Categories = map[codes.Code]string{
+	codes.InvalidArgument: "Validation", codes.FailedPrecondition: "DomainRejection", codes.NotFound: "NotFound",
+	codes.Aborted: "Conflict", codes.AlreadyExists: "Conflict", codes.PermissionDenied: "Forbidden",
+	codes.Unauthenticated: "Unauthenticated", codes.Unavailable: "TransientDependency", codes.ResourceExhausted: "RateLimited",
+	codes.DeadlineExceeded: categoryDeadlineExceeded, codes.Canceled: categoryCancelled, codes.Internal: "Unexpected",
 }

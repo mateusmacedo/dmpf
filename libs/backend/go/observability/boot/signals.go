@@ -9,31 +9,29 @@ import (
 )
 
 const (
-	EnvTraceSampleRate = "TRACE_SAMPLE_RATE"
-	EnvLogLevel        = "LOG_LEVEL"
-	EnvOTLPLogs        = "OTLP_LOGS"
+	EnvLogLevel         = "LOG_LEVEL"
+	EnvTracesSampler    = "OTEL_TRACES_SAMPLER"
+	EnvTracesSamplerArg = "OTEL_TRACES_SAMPLER_ARG"
 )
 
-// Signals is how much a process records. A nil Sampling keeps the platform
-// baseline of TRC-13. ExportLogs is opt-in because a container's stdout is
-// already shipped by Alloy, and exporting it too would store every record twice.
+// Signals is how much a process records. Sampling is the uniform head rate of
+// OTEL_TRACES_SAMPLER_ARG, else 1.0; IgnoredSampler is a declared
+// OTEL_TRACES_SAMPLER, which the platform sampler overrides.
 type Signals struct {
-	Sampling   tracing.Rates
-	Level      slog.Level
-	ExportLogs bool
+	Sampling       tracing.Rates
+	Level          slog.Level
+	IgnoredSampler string
 }
 
 func SignalsFromEnv(lookup func(string) string) (Signals, error) {
-	var signals Signals
-	rate, declared, rateErr := envconfig.ParseFraction(EnvTraceSampleRate, lookup(EnvTraceSampleRate))
-	if declared {
-		signals.Sampling = tracing.UniformRates(rate)
+	signals := Signals{Sampling: tracing.UniformRates(1), IgnoredSampler: lookup(EnvTracesSampler)}
+	arg, argDeclared, argErr := envconfig.ParseFraction(EnvTracesSamplerArg, lookup(EnvTracesSamplerArg))
+	if argDeclared {
+		signals.Sampling = tracing.UniformRates(arg)
 	}
 	level, levelErr := envconfig.ParseLevel(EnvLogLevel, lookup(EnvLogLevel), slog.LevelInfo)
 	signals.Level = level
-	exportLogs, logsErr := envconfig.ParseBool(EnvOTLPLogs, lookup(EnvOTLPLogs))
-	signals.ExportLogs = exportLogs
-	if err := errors.Join(rateErr, levelErr, logsErr); err != nil {
+	if err := errors.Join(argErr, levelErr); err != nil {
 		return Signals{}, err
 	}
 	return signals, nil

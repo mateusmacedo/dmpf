@@ -23,9 +23,9 @@ func (s sampler) allows(ctx context.Context, level slog.Level) bool {
 		return true
 	}
 
-	// A record that belongs to a sampled trace is kept, so a trace under
-	// inspection is not missing the lines that explain it (LOG-12).
-	if span := trace.SpanContextFromContext(ctx); span.IsValid() && span.IsSampled() {
+	// A record outside a trace (start-up, shutdown) is not traffic, and a sampled
+	// trace keeps the lines that explain it: neither is left to the rate (LOG-12).
+	if span := trace.SpanContextFromContext(ctx); !span.IsValid() || span.IsSampled() {
 		return true
 	}
 
@@ -42,4 +42,23 @@ func (s sampler) allows(ctx context.Context, level slog.Level) bool {
 	default:
 		return s.rand() < rate
 	}
+}
+
+// Sampler is the LOG-12 decision the log processor of the SDK applies.
+type Sampler struct {
+	inner sampler
+}
+
+func NewSampler(class tracing.Class, rates tracing.Rates, draw func() float64) Sampler {
+	if rates == nil {
+		rates = tracing.DefaultRates()
+	}
+	if class == "" {
+		class = tracing.ClassUnclassified
+	}
+	return Sampler{inner: sampler{class: class, rates: rates, rand: draw}}
+}
+
+func (s Sampler) Allows(ctx context.Context, level slog.Level) bool {
+	return s.inner.allows(ctx, level)
 }

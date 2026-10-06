@@ -8,13 +8,16 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strings"
 
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel/metric"
+	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
 	"go.opentelemetry.io/otel/trace"
 
-	bookingsv1 "github.com/mateusmacedo/dmpf/apps/backend/bookings/contract/gen/go/company/bookings/service/v1"
-	ordersv1 "github.com/mateusmacedo/dmpf/apps/backend/orders/contract/gen/go/company/orders/service/v1"
-	reservationsv1 "github.com/mateusmacedo/dmpf/apps/backend/reservations/contract/gen/go/company/reservations/service/v1"
+	"github.com/mateusmacedo/dmpf/apps/backend/bff/app/rpc"
 	kernelhttp "github.com/mateusmacedo/dmpf/libs/backend/go/http"
+	obsclock "github.com/mateusmacedo/dmpf/libs/backend/go/observability/clock"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/metrics"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/admission"
@@ -23,11 +26,8 @@ import (
 
 const (
 	IdempotencyHeader = "Idempotency-Key"
+	ReplayedHeader    = "Idempotent-Replayed"
 	CorrelationHeader = "X-Correlation-ID"
-
-	// DefaultLocale resolves CTX-01's mandatory field when the caller states no
-	// preference; leaving it empty would make the context a construction defect.
-	DefaultLocale = "en"
 
 	OrdersContractPath       = "/openapi/orders/v1/openapi.yaml"
 	ReservationsContractPath = "/openapi/reservations/v1/openapi.yaml"
@@ -37,26 +37,6 @@ const (
 	reservationsContract = "apps/backend/reservations/contract/openapi/v1/openapi.yaml#/paths/"
 	bookingsContract     = "apps/backend/bookings/contract/openapi/v1/openapi.yaml#/paths/"
 )
-
-type OrdersClient interface {
-	AddItem(context.Context, *ordersv1.AddItemRequest) (*ordersv1.AddItemResponse, error)
-	PlaceOrder(context.Context, *ordersv1.PlaceOrderRequest) (*ordersv1.PlaceOrderResponse, error)
-	FindOrder(context.Context, *ordersv1.FindOrderRequest) (*ordersv1.FindOrderResponse, error)
-}
-
-type ReservationsClient interface {
-	Reserve(context.Context, *reservationsv1.ReserveRequest) (*reservationsv1.ReserveResponse, error)
-	Cancel(context.Context, *reservationsv1.CancelRequest) (*reservationsv1.CancelResponse, error)
-	FindReservation(context.Context, *reservationsv1.FindReservationRequest) (*reservationsv1.FindReservationResponse, error)
-}
-
-type BookingsClient interface {
-	ReserveBooking(context.Context, *bookingsv1.ReserveBookingRequest) (*bookingsv1.ReserveBookingResponse, error)
-	CancelBooking(context.Context, *bookingsv1.CancelBookingRequest) (*bookingsv1.CancelBookingResponse, error)
-	RegisterResource(context.Context, *bookingsv1.RegisterResourceRequest) (*bookingsv1.RegisterResourceResponse, error)
-	FindBooking(context.Context, *bookingsv1.FindBookingRequest) (*bookingsv1.FindBookingResponse, error)
-	FindBookingsByResource(context.Context, *bookingsv1.FindBookingsByResourceRequest) (*bookingsv1.FindBookingsByResourceResponse, error)
-}
 
 // Options is what the composition root decides beyond the clients: the route
 // budget the request deadline derives from, the contracts to serve (nil serves
@@ -72,22 +52,70 @@ type Options struct {
 	Logger               *slog.Logger
 	Ready                func(context.Context) error
 	Draining             func() bool
+	TracerProvider       trace.TracerProvider
+	MeterProvider        metric.MeterProvider
+	Clock                obsclock.Clock
+}
+
+type binding struct {
+	route kernelhttp.Route
+	build func(handlers) http.HandlerFunc
+}
+
+type surface struct {
+	context  string
+	contract string
+	budget   deadline.Budget
+}
+
+func (s surface) command(name, path string, build func(handlers) http.HandlerFunc) binding {
+	route := s.route(name, http.MethodPost, path, "write")
+	route.IdempotencyKey = IdempotencyHeader
+	return binding{route: route, build: build}
+}
+
+func (s surface) query(name, path string, build func(handlers) http.HandlerFunc) binding {
+	return binding{route: s.route(name, http.MethodGet, path, "read"), build: build}
+}
+
+func (s surface) route(name, method, path, access string) kernelhttp.Route {
+	return kernelhttp.Route{
+		Name:        name,
+		Method:      method,
+		Path:        path,
+		ContractRef: s.contract + strings.ReplaceAll(path, "/", "~1") + "/" + strings.ToLower(method),
+		Budget:      s.budget,
+		Requires:    kernelhttp.RequireSubjectAndTenant,
+		Permission:  ports.Permission(s.context + ":" + access),
+	}
+}
+
+func bindings(budget deadline.Budget) []binding {
+	orders := surface{"orders", ordersContract, budget}
+	reservations := surface{"reservations", reservationsContract, budget}
+	bookings := surface{"bookings", bookingsContract, budget}
+	return []binding{
+		orders.command("addItem", "/orders/{id}/items", handlers.addItem),
+		orders.command("placeOrder", "/orders/{id}/place", handlers.placeOrder),
+		orders.query("findOrder", "/orders/{id}", handlers.findOrder),
+		reservations.query("findReservation", "/reservations/{order_id}", handlers.findReservation),
+		reservations.command("reserve", "/reservations/{order_id}/reserve", handlers.reserve),
+		reservations.command("cancel", "/reservations/{order_id}/cancel", handlers.cancel),
+		bookings.command("reserveBooking", "/bookings/booking", handlers.reserveBooking),
+		bookings.query("findBookingByResource", "/bookings/booking", handlers.findBookingByResource),
+		bookings.query("findBooking", "/bookings/booking/{id}", handlers.findBooking),
+		bookings.command("cancelBooking", "/bookings/booking/{id}/cancel", handlers.cancelBooking),
+		bookings.command("registerResource", "/bookings/resource", handlers.registerResource),
+	}
 }
 
 func Routes(budget deadline.Budget) []kernelhttp.Route {
-	return []kernelhttp.Route{
-		{Name: "addItem", Method: http.MethodPost, Path: "/orders/{id}/items", ContractRef: ordersContract + "~1orders~1{id}~1items/post", Budget: budget, IdempotencyKey: IdempotencyHeader, Requires: kernelhttp.RequireSubjectAndTenant, Permission: "orders:write"},
-		{Name: "placeOrder", Method: http.MethodPost, Path: "/orders/{id}/place", ContractRef: ordersContract + "~1orders~1{id}~1place/post", Budget: budget, IdempotencyKey: IdempotencyHeader, Requires: kernelhttp.RequireSubjectAndTenant, Permission: "orders:write"},
-		{Name: "findOrder", Method: http.MethodGet, Path: "/orders/{id}", ContractRef: ordersContract + "~1orders~1{id}/get", Budget: budget, Requires: kernelhttp.RequireSubjectAndTenant, Permission: "orders:read"},
-		{Name: "findReservation", Method: http.MethodGet, Path: "/reservations/{order_id}", ContractRef: reservationsContract + "~1reservations~1{order_id}/get", Budget: budget, Requires: kernelhttp.RequireSubjectAndTenant, Permission: "reservations:read"},
-		{Name: "reserve", Method: http.MethodPost, Path: "/reservations/{order_id}/reserve", ContractRef: reservationsContract + "~1reservations~1{order_id}~1reserve/post", Budget: budget, IdempotencyKey: IdempotencyHeader, Requires: kernelhttp.RequireSubjectAndTenant, Permission: "reservations:write"},
-		{Name: "cancel", Method: http.MethodPost, Path: "/reservations/{order_id}/cancel", ContractRef: reservationsContract + "~1reservations~1{order_id}~1cancel/post", Budget: budget, IdempotencyKey: IdempotencyHeader, Requires: kernelhttp.RequireSubjectAndTenant, Permission: "reservations:write"},
-		{Name: "reserveBooking", Method: http.MethodPost, Path: "/bookings/booking", ContractRef: bookingsContract + "~1bookings~1booking/post", Budget: budget, IdempotencyKey: IdempotencyHeader, Requires: kernelhttp.RequireSubjectAndTenant, Permission: "bookings:write"},
-		{Name: "findBookingByResource", Method: http.MethodGet, Path: "/bookings/booking", ContractRef: bookingsContract + "~1bookings~1booking/get", Budget: budget, Requires: kernelhttp.RequireSubjectAndTenant, Permission: "bookings:read"},
-		{Name: "findBooking", Method: http.MethodGet, Path: "/bookings/booking/{id}", ContractRef: bookingsContract + "~1bookings~1booking~1{id}/get", Budget: budget, Requires: kernelhttp.RequireSubjectAndTenant, Permission: "bookings:read"},
-		{Name: "cancelBooking", Method: http.MethodPost, Path: "/bookings/booking/{id}/cancel", ContractRef: bookingsContract + "~1bookings~1booking~1{id}~1cancel/post", Budget: budget, IdempotencyKey: IdempotencyHeader, Requires: kernelhttp.RequireSubjectAndTenant, Permission: "bookings:write"},
-		{Name: "registerResource", Method: http.MethodPost, Path: "/bookings/resource", ContractRef: bookingsContract + "~1bookings~1resource/post", Budget: budget, IdempotencyKey: IdempotencyHeader, Requires: kernelhttp.RequireSubjectAndTenant, Permission: "bookings:write"},
+	bound := bindings(budget)
+	routes := make([]kernelhttp.Route, len(bound))
+	for i, b := range bound {
+		routes[i] = b.route
 	}
+	return routes
 }
 
 func Limits(limit admission.Limit) map[string]admission.Limit {
@@ -110,11 +138,10 @@ var ErrAuthenticatorRequired = errors.New("api: no authenticator provided")
 // CTX-01 makes deadline mandatory and the context cannot resolve what the
 // timeout has not yet set. Admission stays inside, still ahead of the body.
 func NewHandler(
-	orders OrdersClient,
-	reservations ReservationsClient,
-	bookings BookingsClient,
+	orders rpc.Orders,
+	reservations rpc.Reservations,
+	bookings rpc.Bookings,
 	ctrl *admission.Controller,
-	tracer trace.Tracer,
 	instruments *metrics.Instruments,
 	opts Options,
 ) (http.Handler, error) {
@@ -122,51 +149,65 @@ func NewHandler(
 		return nil, ErrAuthenticatorRequired
 	}
 
-	logger := opts.Logger
-	if logger == nil {
-		logger = slog.New(slog.DiscardHandler)
-	}
+	logger := loggerOf(opts)
 
 	h := handlers{orders: orders, reservations: reservations, bookings: bookings}
-	serve := map[string]http.HandlerFunc{
-		"addItem":         h.addItem,
-		"placeOrder":      h.placeOrder,
-		"findOrder":       h.findOrder,
-		"findReservation": h.findReservation,
-		"reserve":         h.reserve,
-		"cancel":          h.cancel,
-
-		"reserveBooking":        h.reserveBooking,
-		"findBookingByResource": h.findBookingByResource,
-		"findBooking":           h.findBooking,
-		"cancelBooking":         h.cancelBooking,
-		"registerResource":      h.registerResource,
-	}
 
 	admit := kernelhttp.Admission(ctrl, routeOf, tenantOf, instruments, refuseAsRejection)
 	mux := http.NewServeMux()
-	for _, route := range Routes(opts.Budget) {
+	for _, bound := range bindings(opts.Budget) {
+		route := bound.route
 		if err := route.ValidateEdge(); err != nil {
 			return nil, err
 		}
-		handler := requireIdempotencyKey(serve[route.Name])
-		mounted := withExecutionContext(tracer, logger, opts.Authenticator, route, admit(handler))
+		handler := requireIdempotencyKey(route, bound.build(h))
+		mounted := withExecutionContext(logger, opts.Authenticator, route, admit(handler))
 		mux.Handle(pattern(route), withRecover(withRouteDeadline(route.Budget, mounted)))
 	}
-	if len(opts.OrdersContract) > 0 {
-		mux.Handle("GET "+OrdersContractPath, serveContract(opts.OrdersContract))
+	for _, contract := range []struct {
+		path     string
+		document []byte
+	}{
+		{OrdersContractPath, opts.OrdersContract},
+		{ReservationsContractPath, opts.ReservationsContract},
+		{BookingsContractPath, opts.BookingsContract},
+	} {
+		if len(contract.document) > 0 {
+			mux.Handle("GET "+contract.path, serveContract(contract.document))
+		}
 	}
-	if len(opts.ReservationsContract) > 0 {
-		mux.Handle("GET "+ReservationsContractPath, serveContract(opts.ReservationsContract))
+	return otelhttp.NewHandler(withRoute(withAccessLog(logger, withCORS(opts.CORSOrigins, mux))), "bff", instrumentation(opts)...), nil
+}
+
+func instrumentation(opts Options) []otelhttp.Option {
+	return []otelhttp.Option{
+		otelhttp.WithTracerProvider(opts.TracerProvider),
+		otelhttp.WithMeterProvider(opts.MeterProvider),
+		otelhttp.WithPropagators(traceparentOnly{}),
 	}
-	if len(opts.BookingsContract) > 0 {
-		mux.Handle("GET "+BookingsContractPath, serveContract(opts.BookingsContract))
+}
+
+func loggerOf(opts Options) *slog.Logger {
+	if opts.Logger == nil {
+		return slog.New(slog.DiscardHandler)
 	}
-	mux.Handle("GET "+LivenessPath, serveLiveness())
-	if opts.Ready != nil {
-		mux.Handle("GET "+ReadinessPath, serveReadiness(opts.Ready, opts.Draining, logger))
+	return opts.Logger
+}
+
+func clockOf(opts Options) obsclock.Clock {
+	if opts.Clock == nil {
+		return obsclock.System()
 	}
-	return withCORS(opts.CORSOrigins, mux), nil
+	return opts.Clock
+}
+
+func withRoute(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		next.ServeHTTP(w, r)
+		if _, route, routed := strings.Cut(r.Pattern, " "); routed {
+			trace.SpanFromContext(r.Context()).SetAttributes(semconv.HTTPRoute(route))
+		}
+	})
 }
 
 func routeOf(r *http.Request) string { return r.Pattern }

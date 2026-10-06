@@ -4,19 +4,16 @@ package provider_test
 
 import (
 	"context"
-	"fmt"
-	"sync"
 	"testing"
-
-	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/appkit"
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/application"
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/domain"
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/provider"
-	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/clock"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/ids"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/pg"
 )
 
 const e2eOccurred = ports.Instant(1_755_432_000_000_000_000)
@@ -25,55 +22,12 @@ const e2eOccurred = ports.Instant(1_755_432_000_000_000_000)
 // universo do verificador e a composition root é justamente o papel que um
 // teste encena. Nenhum arquivo de produção deste módulo alcança o bloco.
 
-type fixedClock struct{}
-
-func (fixedClock) Now() ports.Instant { return e2eOccurred }
-
-type sequenceIDs struct {
-	mu     sync.Mutex
-	issued int
-}
-
-func (g *sequenceIDs) NewMessageID() ports.MessageID {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	g.issued++
-	return ports.MessageID(fmt.Sprintf("m-%06d", g.issued))
-}
-
-// outboxRow is the committed row as the relay would read it.
-type outboxRow struct {
-	MessageType      string
-	SchemaVersion    string
-	AggregateVersion int64
-	Destination      string
-	Status           string
-}
-
-func newService(pool *pgxpool.Pool) application.Service {
-	bind := func(tx *postgres.Tx) application.Resources {
-		return application.Resources{
-			Orders: provider.NewOrderRepository(tx),
-			Outbox: tx.Outbox(provider.Mapper{}),
-		}
-	}
-	return application.Service{
-		UoW: postgres.NewUnitOfWork(pool, bind),
-		// Reader stays nil: it serves FindOrder (UOW-11), and no clause here
-		// queries outside a transaction.
-		Clock:     fixedClock{},
-		IDs:       &sequenceIDs{},
-		Authorize: usecase.AllowAll[application.Operation](),
-		ItemLimit: 3,
-	}
-}
-
 // The order of the two commands is fixed by the aggregate, not by preference:
 // PlaceOrder only loads, and Place refuses an order with no items, so AddItem
 // is what creates the order and OrderPlaced can only come second.
 func TestTheUseCaseRunsEndToEndOverPostgres(t *testing.T) {
-	pool := appkit.OpenPool(t)
-	service := newService(pool)
+	h := appkit.NewOrders(t, clock.New(e2eOccurred), &ids.Sequence{Prefix: "m-"})
+	pool, service := h.Pool, h.Service
 	ctx := context.Background()
 
 	added, err := service.AddItem(withExecution(t, ctx), application.AddItem{Order: repoOrderID, SKU: "sku-1", Quantity: 2})
@@ -85,19 +39,19 @@ func TestTheUseCaseRunsEndToEndOverPostgres(t *testing.T) {
 	}
 
 	t.Run("the item added row lands at version 1", func(t *testing.T) {
-		if _, version := load(t, pool); version != 1 {
+		if _, version := pg.Load(t, withExecution(t, ctx), pool, provider.NewOrderRepository, repoOrderID); version != 1 {
 			t.Fatalf("version = %d, want 1", version)
 		}
-		row := outboxRowOf(t, pool, "m-000001")
-		want := outboxRow{
+		want := pg.Enqueued{
+			MessageID:        "m-000001",
 			MessageType:      "com.company.orders.item-added.v1",
 			SchemaVersion:    "type.googleapis.com/company.orders.event.v1.ItemAdded",
 			AggregateVersion: 1,
 			Destination:      "orders.events",
 			Status:           "pending",
 		}
-		if row != want {
-			t.Fatalf("outbox row = %+v, want %+v", row, want)
+		if outbox := h.Outbox(t); len(outbox) != 1 || outbox[0] != want {
+			t.Fatalf("outbox = %+v, want [%+v]", outbox, want)
 		}
 	})
 
@@ -110,24 +64,24 @@ func TestTheUseCaseRunsEndToEndOverPostgres(t *testing.T) {
 	}
 
 	t.Run("the order placed row lands at version 2", func(t *testing.T) {
-		if _, version := load(t, pool); version != 2 {
+		if _, version := pg.Load(t, withExecution(t, ctx), pool, provider.NewOrderRepository, repoOrderID); version != 2 {
 			t.Fatalf("version = %d, want 2", version)
 		}
-		row := outboxRowOf(t, pool, "m-000002")
-		want := outboxRow{
+		want := pg.Enqueued{
+			MessageID:        "m-000002",
 			MessageType:      "com.company.orders.order-placed.v1",
 			SchemaVersion:    "type.googleapis.com/company.orders.event.v1.OrderPlaced",
 			AggregateVersion: 2,
 			Destination:      "orders.events",
 			Status:           "pending",
 		}
-		if row != want {
-			t.Fatalf("outbox row = %+v, want %+v", row, want)
+		if outbox := h.Outbox(t); len(outbox) != 2 || outbox[1] != want {
+			t.Fatalf("outbox = %+v, want %+v second", outbox, want)
 		}
 	})
 
 	t.Run("a rejection commits nothing and is not an error", func(t *testing.T) {
-		ordersBefore, outboxBefore := counts(t, pool)
+		before := pg.Counts(t, pool, "orders", "outbox")
 
 		outcome, err := service.AddItem(withExecution(t, ctx), application.AddItem{Order: repoOrderID, SKU: "sku-2", Quantity: 1})
 
@@ -142,37 +96,8 @@ func TestTheUseCaseRunsEndToEndOverPostgres(t *testing.T) {
 			t.Errorf("rejection code = %q, want %q", rejection.Code(), domain.CodeOrderNotOpen)
 		}
 
-		ordersAfter, outboxAfter := counts(t, pool)
-		if ordersAfter != ordersBefore || outboxAfter != outboxBefore {
-			t.Fatalf("counts moved on a rejection: orders %d→%d, outbox %d→%d (UOW-06)",
-				ordersBefore, ordersAfter, outboxBefore, outboxAfter)
+		if after := pg.Counts(t, pool, "orders", "outbox"); after["orders"] != before["orders"] || after["outbox"] != before["outbox"] {
+			t.Fatalf("counts moved on a rejection: %v→%v (UOW-06)", before, after)
 		}
 	})
-}
-
-func outboxRowOf(t *testing.T, pool *pgxpool.Pool, messageID string) outboxRow {
-	t.Helper()
-
-	var row outboxRow
-	err := pool.QueryRow(context.Background(), `
-		SELECT message_type, schema_version, aggregate_version, destination, status
-		FROM outbox WHERE message_id = $1`, messageID).Scan(
-		&row.MessageType, &row.SchemaVersion, &row.AggregateVersion, &row.Destination, &row.Status)
-	if err != nil {
-		t.Fatalf("SELECT outbox row %s = %v, want nil", messageID, err)
-	}
-	return row
-}
-
-func counts(t *testing.T, pool *pgxpool.Pool) (int, int) {
-	t.Helper()
-
-	var ordersCount, outboxCount int
-	err := pool.QueryRow(context.Background(), `
-		SELECT (SELECT count(*) FROM orders), (SELECT count(*) FROM outbox)`).
-		Scan(&ordersCount, &outboxCount)
-	if err != nil {
-		t.Fatalf("counts = %v, want nil", err)
-	}
-	return ordersCount, outboxCount
 }

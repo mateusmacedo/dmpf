@@ -5,7 +5,7 @@ title: DMPF — Governança, BOM, pilotos e backlog das próximas fases
 stage: done
 priority: P0
 depends_on: []
-ticket_url: null
+ticket_url: https://linear.app/mmda/issue/DEVS-22/spec-vvr1x71q-dmpf-governanca-bom-pilotos-e-backlog-das-proximas-fases
 subtask_urls: []
 created: 2026-08-13
 ---

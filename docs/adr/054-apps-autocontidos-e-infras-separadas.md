@@ -2,7 +2,9 @@
 
 ## Status
 
-Aceito — 2026-09-28. Implementa [SPEC-VJMM2DE5](../specs/SPEC-VJMM2DE5-apps-autocontidos.md). Supersede parcialmente o [ADR-033](./033-adaptacoes-monorepo-dos-contratos-wire.md), no layout de `contracts/` como módulo Buf único, e o [ADR-046](./046-libs-somente-kernel-de-reuso.md), no parágrafo que mantinha o contrato de cada contexto em `libs/backend/go/contracts`. Emenda o [ADR-045](./045-nomes-bare-e-contexto-em-modulo-unico.md), o [ADR-047](./047-tags-de-modulo-go-e-consumo-fora-do-workspace.md), o [ADR-048](./048-layout-canonico-de-bounded-context.md) e o [ADR-053](./053-nomenclatura-e-isolamento-de-banco-e-padronizacao-de-contextos.md).
+Aceito — 2026-09-28. Implementa [SPEC-VJMM2DE5](../specs/SPEC-VJMM2DE5-apps-autocontidos.md). Supersede parcialmente o [ADR-033](./033-adaptacoes-monorepo-dos-contratos-wire.md), no layout de `contracts/` como módulo Buf único, e o [ADR-046](./046-libs-somente-kernel-de-reuso.md), no parágrafo que mantinha o contrato de cada contexto em `libs/backend/go/contracts`. Emenda o [ADR-045](./045-nomes-bare-e-contexto-em-modulo-unico.md), o [ADR-047](./047-tags-de-modulo-go-e-consumo-fora-do-workspace.md), o [ADR-048](./048-layout-canonico-de-bounded-context.md) e o [ADR-053](./053-nomenclatura-e-isolamento-de-banco-e-padronizacao-de-contextos.md). **Parcialmente supersedido pelo [ADR-057](./057-log-das-apps-por-otlp-e-alloy-so-para-infraestrutura.md) (2026-10-01)**: no item 6 e na alternativa descartada «Exportar por OTLP também o log do app em container». O log da app em container deixa o stdout coletado pelo Alloy e vai por OTLP ao Collector, como o da app no host; o Alloy coleta só os containers de infraestrutura, e `TRACE_SAMPLE_RATE` e `OTLP_LOGS` saem dos manifestos das apps em favor das variáveis `OTEL_*`.
+
+**Parcialmente supersedido pelo [ADR-058](./058-projeto-solo-sem-controles-de-segunda-pessoa.md) (2026-10-04)**: sem tags `contracts-baseline/*` nem ato pós-merge de segunda pessoa; o `buf-breaking` decide o estado do módulo por `NX_BASE`.
 
 ## Contexto
 

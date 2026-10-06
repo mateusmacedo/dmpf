@@ -5,8 +5,8 @@ title: DMPF KRN-12.2 — Plugin local e generator bounded-context (guarda-chuva)
 stage: done
 priority: P2
 depends_on: [SPEC-MQA5HAXF, SPEC-WTAXFV8B, SPEC-SJ66880S, SPEC-XMNBMY50]
-ticket_url: null
-subtask_urls: []
+ticket_url: https://linear.app/mmda/issue/DEVS-50/spec-h1a190y8-dmpf-krn-122-plugin-local-e-generator-bounded-context
+subtask_urls: ["https://linear.app/mmda/issue/DEVS-53/spec-8fsd8505-dmpf-krn-122a-dsl-de-dominio-e-motor-do-generator", "https://linear.app/mmda/issue/DEVS-54/spec-vdp9xx65-dmpf-krn-122h-harness-de-agentes-para-criar-bounded", "https://linear.app/mmda/issue/DEVS-56/spec-vz16x0ms-dmpf-krn-122b-templates-por-agregado-nos-cinco-blocos", "https://linear.app/mmda/issue/DEVS-59/spec-f7s5b6kv-dmpf-krn-122c-integracao-por-contrato-gerado-e"]
 created: 2026-09-08
 ---
 

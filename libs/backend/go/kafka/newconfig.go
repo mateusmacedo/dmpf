@@ -14,19 +14,18 @@ import (
 // default; insecure opts out for development and CI only, and says so in the
 // log, because a process that silently dropped its transport security would
 // look identical to one that never had it.
-func NewConfig(ctx context.Context, rt *otelboot.Runtime, catalog channel.Catalog, brokers []string, service string, insecure bool, auth ClientAuth) (Config, error) {
+func NewConfig(ctx context.Context, rt *otelboot.Runtime, catalog channel.Catalog, brokers []string, insecure bool, auth ClientAuth) (Config, error) {
 	cfg := Config{
-		Brokers:     brokers,
-		Catalog:     catalog,
-		Sheet:       resilience.Defaults("kafka"),
-		Service:     service,
-		Clock:       obsclock.System(),
-		Tracer:      rt.Tracer(),
-		Instruments: rt.Instruments(),
-		Logger:      rt.Logger(),
+		Brokers:        brokers,
+		Catalog:        catalog,
+		Sheet:          resilience.Defaults("kafka"),
+		Clock:          obsclock.System(),
+		Tracer:         rt.Tracer(),
+		Instruments:    rt.Instruments(),
+		LoggerProvider: rt.LoggerProvider(),
 	}
 	if insecure {
-		rt.Logger().WarnContext(ctx, "kafka transport without TLS: KAFKA_INSECURE is set (development and CI only)")
+		cfg.logger().WarnContext(ctx, "kafka transport without TLS: KAFKA_INSECURE is set (development and CI only)")
 		cfg.InsecureForDevelopmentOnly = true
 	} else {
 		cfg.TLS = &tls.Config{MinVersion: tls.VersionTLS12}

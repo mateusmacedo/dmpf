@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 
+	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -42,6 +43,15 @@ var (
 		codes.Unimplemented:      {"unimplemented", "the context does not implement this operation"},
 		codes.Canceled:           {"client-closed-request", "the caller went away before the context answered"},
 	}
+
+	// reasonFailures reads the idempotency outcome off the status detail before
+	// the code: FailedPrecondition and Aborted also mean other things (IDM-04, IDM-07).
+	reasonFailures = map[string]Failure{
+		grpc.ReasonReusedIdempotencyKey:   {http.StatusUnprocessableEntity, "reused-idempotency-key", "the idempotency key was already used with another request"},
+		grpc.ReasonInFlightIdempotencyKey: {http.StatusConflict, "in-flight-idempotency-key", "a request with this idempotency key is still in progress; retry with the same key"},
+		grpc.ReasonMissingIdempotencyKey:  {http.StatusBadRequest, "missing-idempotency-key", "the request requires an idempotency key"},
+		grpc.ReasonInvalidIdempotencyKey:  {http.StatusBadRequest, "invalid-idempotency-key", "the idempotency key is outside the accepted format"},
+	}
 )
 
 // Classify reads the local deadline errors before status.Code, which would
@@ -53,6 +63,9 @@ func Classify(err error) Failure {
 	case errors.Is(err, deadline.ErrDeadlineExhausted), errors.Is(err, context.DeadlineExceeded):
 		return deadlineFailure
 	}
+	if failure, ok := reasonFailures[grpc.ReasonOf(err)]; ok {
+		return failure
+	}
 	s, isStatus := status.FromError(err)
 	if !isStatus {
 		return internalFailure
@@ -62,4 +75,38 @@ func Classify(err error) Failure {
 		return internalFailure
 	}
 	return Failure{grpc.HTTPStatus(s.Code()), named.code, named.message}
+}
+
+const (
+	CategoryUnexpected       = "Unexpected"
+	categoryDeadlineExceeded = "DeadlineExceeded"
+	categoryCancelled        = "Cancelled"
+)
+
+var categories = map[codes.Code]string{
+	codes.InvalidArgument: "Validation", codes.FailedPrecondition: "DomainRejection", codes.NotFound: "NotFound",
+	codes.Aborted: "Conflict", codes.AlreadyExists: "Conflict", codes.PermissionDenied: "Forbidden",
+	codes.Unauthenticated: "Unauthenticated", codes.Unavailable: "TransientDependency", codes.ResourceExhausted: "RateLimited",
+	codes.DeadlineExceeded: categoryDeadlineExceeded, codes.Canceled: categoryCancelled, codes.Internal: CategoryUnexpected,
+}
+
+func Category(err error) string {
+	var categorized interface{ ErrorCategory() string }
+	if errors.As(err, &categorized) {
+		return categorized.ErrorCategory()
+	}
+	switch {
+	case errors.Is(err, deadline.ErrNoDeadline):
+		return CategoryUnexpected
+	case errors.Is(err, deadline.ErrDeadlineExhausted), errors.Is(err, context.DeadlineExceeded):
+		return categoryDeadlineExceeded
+	case errors.Is(err, context.Canceled):
+		return categoryCancelled
+	}
+	if s, isStatus := status.FromError(err); isStatus {
+		if category, mapped := categories[s.Code()]; mapped {
+			return category
+		}
+	}
+	return semconv.ErrorTypeOther.Value.AsString()
 }

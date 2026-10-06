@@ -56,7 +56,6 @@ type ExceptionConvergence struct {
 	Condition string
 
 	ReviewBy            exception.Instant
-	ApprovedBy          []string
 	ReplanningCondition string
 
 	PresentKind bool

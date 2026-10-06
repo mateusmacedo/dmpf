@@ -29,6 +29,9 @@ spec:
             - name: grpc-client-ca
               mountPath: /etc/dmpf/grpc-clients
               readOnly: true
+            - name: otel-collector-ca
+              mountPath: /etc/dmpf/otel
+              readOnly: true
           resources:
             requests:
               cpu: 200m
@@ -42,3 +45,6 @@ spec:
         - name: grpc-client-ca
           secret:
             secretName: grpc-client-ca
+        - name: otel-collector-ca
+          secret:
+            secretName: otel-collector-ca

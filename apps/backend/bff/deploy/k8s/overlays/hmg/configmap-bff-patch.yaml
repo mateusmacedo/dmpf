@@ -10,4 +10,6 @@ data:
   # bff-grpc-client: os `api` não servem workload que não verificaram.
   GRPC_CLIENT_CERT_FILE: /etc/dmpf/grpc-client/tls.crt
   GRPC_CLIENT_KEY_FILE: /etc/dmpf/grpc-client/tls.key
-  SERVICE_VERSION: hmg
+  OTEL_RESOURCE_ATTRIBUTES: service.version=hmg,deployment.environment.name=hmg
+  OTEL_EXPORTER_OTLP_ENDPOINT: https://otel-collector:4317
+  OTEL_EXPORTER_OTLP_CERTIFICATE: /etc/dmpf/grpc/ca.crt

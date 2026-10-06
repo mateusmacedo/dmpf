@@ -27,6 +27,7 @@ const AttrBudgetExhausted = "dmpf.retry.budget_exhausted"
 type RetryConfig struct {
 	Dependency  string
 	Classifier  retry.Classifier
+	Category    func(error) string
 	MaxAttempts int
 	Backoff     BackoffPolicy
 	Rand        func() float64
@@ -118,15 +119,16 @@ func NewRetry(config RetryConfig, c clock.Clock, sleeper clock.Sleeper, instrume
 					claimed, waited = verdict.Need, verdict.Wait
 				}
 
-				tracing.AttemptEvent(span, attempt+1, categoryOf(err))
+				category := categoryOf(err, config.Category)
 				if retries != nil {
 					retries.Add(ctx, 1, metricAttributes(
-						metrics.Labels{}.Dependency(config.Dependency).ErrorCategory(categoryOf(err))))
+						metrics.Labels{}.Dependency(config.Dependency).ErrorCategory(category)))
 				}
 
 				if slept := sleeper(ctx, verdict.Wait); slept != nil {
 					return errors.Join(err, slept)
 				}
+				tracing.AttemptEvent(span, attempt+2, category)
 			}
 		}
 	}, nil
@@ -172,10 +174,15 @@ func reportExhaustion(ctx context.Context, span trace.Span, exhausted metric64Co
 }
 
 // categoryOf reads the category the taxonomy declared, never the message.
-func categoryOf(err error) string {
+func categoryOf(err error, transport func(error) string) string {
 	var categorized redact.Categorized
 	if errors.As(err, &categorized) {
 		if category := categorized.ErrorCategory(); category != "" {
+			return category
+		}
+	}
+	if transport != nil {
+		if category := transport(err); category != "" {
 			return category
 		}
 	}

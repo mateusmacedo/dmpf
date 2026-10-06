@@ -131,3 +131,9 @@ Ver [`docs/dmpf/governanca-bom-pilotos.md`](../governanca-bom-pilotos.md) para l
 ---
 
 **Próximos passos:** FND-11 (ADRs), monitoramento de prontidão (RDY-*).
+
+## Nota de revogação (ADR-059)
+
+O [ADR-059](../../adr/059-remover-o-bom-e-a-release-do-produto.md), de
+2026-10-06, removeu o BOM da release, a certificação por evidência e a tag
+`dmpf@<semver>`. Este resumo fica como registro; a exceção E1 continua.

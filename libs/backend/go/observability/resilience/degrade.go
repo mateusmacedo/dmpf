@@ -5,7 +5,11 @@ import (
 	"errors"
 	"fmt"
 
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/metrics"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/redact"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/tracing"
 )
 
 // DegradedResult marks an answer delivered in degraded mode. It is an error and
@@ -27,7 +31,7 @@ func (d *DegradedResult) Unwrap() error { return d.Cause }
 
 // ErrorCategory is what redaction reads, so the degradation reaches a log or a
 // span as a category and never as the message of the cause.
-func (d *DegradedResult) ErrorCategory() string { return CategoryDegraded }
+func (d *DegradedResult) ErrorCategory() string { return redact.CategoryUnclassified }
 
 // ErrorCode is the stable identifier of a degraded answer.
 func (d *DegradedResult) ErrorCode() string { return "RES-37" }
@@ -54,7 +58,9 @@ func NewDegradation(mode Degradation, dependency string, instruments *metrics.In
 				}
 
 				countDependency(ctx, degraded, dependency)
-				return &DegradedResult{Dependency: dependency, Cause: err}
+				result := &DegradedResult{Dependency: dependency, Cause: err}
+				tracing.Degraded(trace.SpanFromContext(ctx), result.ErrorCode())
+				return result
 			}
 		}, nil
 

@@ -5,7 +5,7 @@ title: DMPF — Estratégia de testes e interoperabilidade Go ↔ TypeScript
 stage: done
 priority: P0
 depends_on: [SPEC-7PJ5WVCS, SPEC-7H08RZDG]
-ticket_url: null
+ticket_url: https://linear.app/mmda/issue/DEVS-38/spec-6rqbn98g-dmpf-estrategia-de-testes-e-interoperabilidade-go
 subtask_urls: []
 created: 2026-08-13
 ---

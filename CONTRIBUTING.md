@@ -59,31 +59,23 @@ Na prática: o tip mergeado em `release` deve ser o tip (ou o merge commit) que 
 foi validado em `develop`, sem reeditar os mesmos arquivos "de outro jeito".
 
 O `create-release.yml` automatiza a criação da branch `release/X.Y.Z`: ele calcula
-o próximo número a partir das releases já mergeadas em `master`, deriva o
-incremento dos commits em `origin/master..origin/develop` e abre o PR de release
-com `gh pr create`.
+o próximo número a partir das releases já mergeadas em `master` e deriva o
+incremento dos commits em `origin/master..origin/develop`. A branch nasce igual a
+`master`, e o GitHub não abre PR sem commits; por isso o `release-pr.yml` abre o PR
+de release no primeiro push que leva commits à branch, e não duplica PR já aberto.
 
-### Release do produto DMPF
+### Pré-release
 
-Além das tags por projeto do Nx Release, o produto DMPF tem release própria: a
-tag anotada `dmpf@<semver>`, com o BOM em `bom/dmpf/<semver>.json`.
+Uma branch de release com sufixo de pré-release, como `release/1.0.0-rc.0`, fixa a
+versão de todos os projetos versionados. No merge em `master`, o `nx-release.yml`
+roda `nx release <versão>` em vez de derivar o incremento dos commits. O
+`create-release.yml` só calcula versões sem sufixo, então essa branch é criada à
+mão a partir de `master`.
 
-1. A certificação — evidência em `bom/evidence/<semver>/` e entradas promovidas
-   no BOM — entra em `develop` por PR revisado por Arquitetura e mergeado por
-   Plataforma (`BOM-05`). O passo a passo está em
-   `docs/guides/dmpf-composicao.md` §10.
-2. A mesma árvore segue por `release/<semver>` e é mergeada em `master` com
-   `--no-ff`, sem squash.
-3. A tag nasce do `dmpf-release.yml`, disparado em `master` com a release
-   (`workflow_dispatch`, input `release`). O workflow valida o BOM com
-   `dmpf-bom --release <semver> --commit HEAD` — o `DMPF-B012` exige que a tag
-   de módulo Go de cada entrada `kernel` seja ancestral do merge commit —,
-   reproduz a evidência publicada, recusa tag já existente e só então cunha a
-   tag anotada `dmpf@<semver>` no merge commit e faz push apenas dela. Não há
-   rito manual: uma `dmpf@*` cunhada à mão não passou pelos gates.
-
-Na `0.1.0`, a promoção não passou por PR: foi o merge local da branch de trabalho
-em `develop`, e `promoted.pr` registra essa branch (ADR-041).
+Antes de promovê-la, suba para a mesma versão o `require` de cada irmão nos
+`go.mod` e o `replace` correspondente no `go.work` (o `modsync --write` regrava o
+`go.work` a partir dos `go.mod`). Sem isso, o consumidor de fora do workspace
+recebe os irmãos na versão anterior, como registra o ADR-047.
 
 ## Conventional Commits
 
@@ -109,8 +101,10 @@ pnpm nx affected -t lint typecheck test build   # apenas o que mudou
 pnpm nx run-many -t lint typecheck test build    # tudo
 ```
 
-O hook de `pre-commit` roda `biome check --write` nos arquivos em stage; o de
-`pre-push` roda `lint`, `typecheck`, `test` e `build` nos projetos afetados.
+O hook de `pre-commit` roda `biome check --write` e `gofmt -l` nos arquivos em
+stage; o de `pre-push` roda `lint`, `typecheck`, `test`, `build`, `fmt-check`,
+`vet` e `test-race` nos projetos afetados pelo que o push leva — a base é o que
+o remoto já tem, e uma branch sem upstream compara com `origin/develop`.
 
 ## Padrões de código
 

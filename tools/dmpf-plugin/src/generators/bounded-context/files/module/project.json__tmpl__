@@ -68,7 +68,7 @@
     "serve-api": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "set -a; [ ! -f deploy/.env ] || . deploy/.env; set +a; exec go run ./cmd --role api",
+        "command": <%- serveApiCommandJson %>,
         "cwd": "{projectRoot}",
         "envFile": "{projectRoot}/deploy/.env.example"
       },
@@ -118,6 +118,21 @@
           "target": "test-race"
         },
         "test-race"
+      ],
+      "options": {
+        "command": <%- testDistributedCommandJson %>,
+        "cwd": "{projectRoot}"
+      }
+    },
+    "e2e": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "inputs": ["go", "^go"],
+      "dependsOn": [
+        {
+          "projects": ["testkit"],
+          "target": "test-infra-up"
+        }
       ],
       "options": {
         "command": <%- testDistributedCommandJson %>,

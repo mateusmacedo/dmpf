@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/appkit"
+	reservations "github.com/mateusmacedo/dmpf/apps/backend/reservations/application"
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
@@ -83,5 +84,39 @@ func TestInvalidBytesAreContainedWithoutTouchingTheInbox(t *testing.T) {
 	}
 	if ack.Acks != 1 {
 		t.Fatalf("ack=%d", ack.Acks)
+	}
+}
+
+func commandContext(t *testing.T, key string) context.Context {
+	t.Helper()
+	tenant := ports.TenantID("acme")
+	execution, err := ports.NewExecutionContext(ports.ExecutionContextSpec{
+		RequestID: "r-appkit", CorrelationID: "c-appkit", TraceContext: "t-appkit",
+		Tenant: &tenant, Deadline: at + 5_000_000_000, Locale: "en",
+	})
+	if err != nil {
+		t.Fatalf("NewExecutionContext() = %v", err)
+	}
+	return ports.WithIdempotencyKey(ports.WithExecutionContext(context.Background(), execution), key)
+}
+
+func TestARepeatedCommandWithTheSameKeyLeavesOneEffectAndOneEvent(t *testing.T) {
+	h := newHarness(t)
+	reserve := reservations.Reserve{Order: "o-cmd", Items: 2}
+
+	first, err := h.Service.Reserve(commandContext(t, "k-appkit"), reserve)
+	if err != nil {
+		t.Fatalf("Reserve() = %v, want nil", err)
+	}
+	again, err := h.Service.Reserve(commandContext(t, "k-appkit"), reserve)
+	if err != nil {
+		t.Fatalf("repeated Reserve() = %v, want the stored outcome", err)
+	}
+
+	if again.Response() != first.Response() {
+		t.Fatalf("replay = %+v, want %+v", again.Response(), first.Response())
+	}
+	if got := h.Effects(t); got != (appkit.Effects{Inbox: 1, Reservations: 1, Outbox: 1}) {
+		t.Fatalf("effects = %+v, want one command entry, one reservation and one event", got)
 	}
 }

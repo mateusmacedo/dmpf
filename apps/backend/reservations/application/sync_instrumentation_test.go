@@ -6,27 +6,34 @@ import (
 
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/application"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/serviceskit"
 )
 
 type syncInstrumentation struct {
+	steps   *serviceskit.Steps
 	begins  []string
 	results []ports.Result
 	audits  []ports.AuditEvent
 }
 
 func (r *syncInstrumentation) BeginOperation(ctx context.Context, operation string) (context.Context, ports.EndOperation) {
+	r.steps.Record("begin")
 	r.begins = append(r.begins, operation)
-	return ctx, func(result ports.Result) { r.results = append(r.results, result) }
+	return ctx, func(result ports.Result) {
+		r.steps.Record("end")
+		r.results = append(r.results, result)
+	}
 }
 
 func (r *syncInstrumentation) Audit(_ context.Context, event ports.AuditEvent) {
+	r.steps.Record("audit")
 	r.audits = append(r.audits, event)
 }
 
 func newInstrumentedSyncHarness(t *testing.T) (*syncHarness, *syncInstrumentation) {
 	t.Helper()
 	h := newSyncHarness(t)
-	instr := &syncInstrumentation{}
+	instr := &syncInstrumentation{steps: h.rec}
 	h.service.Instrumentation = instr
 	return h, instr
 }
@@ -82,5 +89,24 @@ func TestFindReservationReportsAcceptedWithoutAudit(t *testing.T) {
 	}
 	if len(instr.audits) != 0 {
 		t.Fatalf("audits = %+v, want none (LOG-14)", instr.audits)
+	}
+}
+
+func TestBeginPrecedesAuthorizationAndEndClosesTheSequence(t *testing.T) {
+	h, _ := newInstrumentedSyncHarness(t)
+
+	if _, err := h.service.Reserve(withExecution(t, context.Background()), application.Reserve{Order: syncOrder, Items: 1}); err != nil {
+		t.Fatalf("Reserve() error = %v, want nil", err)
+	}
+
+	observed := h.rec.Observed()
+	if len(observed) < 4 || observed[0] != "begin" {
+		t.Fatalf("observed = %v, want begin first — the span opens before step 1 (TRC-16)", observed)
+	}
+	if observed[1] != "authorize" {
+		t.Fatalf("observed = %v, want authorize right after begin", observed)
+	}
+	if got := observed[len(observed)-2:]; got[0] != "end" || got[1] != "audit" {
+		t.Fatalf("observed = %v, want the sequence to close with end then audit", observed)
 	}
 }

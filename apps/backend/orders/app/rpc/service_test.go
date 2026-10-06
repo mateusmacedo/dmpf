@@ -10,6 +10,7 @@ import (
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/app/rpc"
 	servicev1 "github.com/mateusmacedo/dmpf/apps/backend/orders/contract/gen/go/company/orders/service/v1"
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/domain"
+	kernelgrpc "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
 )
 
 func TestServiceDescCoversEveryMethodOfTheDescriptor(t *testing.T) {
@@ -18,19 +19,9 @@ func TestServiceDescCoversEveryMethodOfTheDescriptor(t *testing.T) {
 	if rpc.ServiceDesc.ServiceName != string(service.FullName()) {
 		t.Fatalf("ServiceName = %q, want %q", rpc.ServiceDesc.ServiceName, service.FullName())
 	}
-	declared := map[string]bool{}
-	for _, m := range rpc.ServiceDesc.Methods {
-		declared[m.MethodName] = true
-	}
-	methods := service.Methods()
-	if len(rpc.ServiceDesc.Methods) != methods.Len() || len(rpc.ServiceDesc.Streams) != 0 {
-		t.Fatalf("ServiceDesc has %d unary and %d stream methods, want the %d unary of the descriptor",
-			len(rpc.ServiceDesc.Methods), len(rpc.ServiceDesc.Streams), methods.Len())
-	}
-	for i := range methods.Len() {
-		if name := string(methods.Get(i).Name()); !declared[name] {
-			t.Fatalf("descriptor method %q has no handler", name)
-		}
+	if missing := kernelgrpc.Uncovered(&rpc.ServiceDesc, service); len(missing) != 0 || len(rpc.ServiceDesc.Streams) != 0 {
+		t.Fatalf("ServiceDesc leaves %v uncovered and declares %d streams, want every unary method of the descriptor",
+			missing, len(rpc.ServiceDesc.Streams))
 	}
 }
 
@@ -70,6 +61,34 @@ func TestAddItemRejectionTravelsInTheResponse(t *testing.T) {
 	}
 	if got := resp.GetRejection(); got.GetCode() != string(domain.CodeOrderItemLimitExceeded) || got.GetMessage() == "" {
 		t.Fatalf("rejection = %v, want %q with a message", got, domain.CodeOrderItemLimitExceeded)
+	}
+}
+
+func TestPlaceOrderAcceptedReturnsTheOrder(t *testing.T) {
+	h := newHarness(t, unlimited)
+	addItem(t, h, withTenant(t))
+
+	var resp servicev1.PlaceOrderResponse
+	err := h.invoke(withTenant(t), "PlaceOrder", &servicev1.PlaceOrderRequest{OrderId: "o-1"}, &resp)
+
+	if err != nil || resp.GetPlaced().GetOrderId() != "o-1" {
+		t.Fatalf("PlaceOrder() = %v, placed = %v; want order o-1 placed", err, resp.GetPlaced())
+	}
+}
+
+func TestPlacingAPlacedOrderTravelsAsARejection(t *testing.T) {
+	h := newHarness(t, unlimited)
+	addItem(t, h, withTenant(t))
+	var placed servicev1.PlaceOrderResponse
+	if err := h.invoke(withTenant(t), "PlaceOrder", &servicev1.PlaceOrderRequest{OrderId: "o-1"}, &placed); err != nil {
+		t.Fatalf("setup PlaceOrder() = %v", err)
+	}
+
+	var resp servicev1.PlaceOrderResponse
+	err := h.invoke(withTenant(t), "PlaceOrder", &servicev1.PlaceOrderRequest{OrderId: "o-1"}, &resp)
+
+	if got := resp.GetRejection(); err != nil || got.GetCode() != string(domain.CodeOrderNotOpen) || got.GetMessage() == "" {
+		t.Fatalf("PlaceOrder() = %v, rejection = %v; want %q with a message", err, got, domain.CodeOrderNotOpen)
 	}
 }
 

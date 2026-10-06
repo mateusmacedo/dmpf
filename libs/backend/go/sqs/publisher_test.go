@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
+	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/contracts/envelope"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/contracts/payloadhash"
@@ -135,4 +136,35 @@ func TestNewPublisherRefusesAnInvalidConfig(t *testing.T) {
 	if _, err := provider.NewPublisher(validConfig(), nil); !errors.Is(err, provider.ErrIncompleteConfig) {
 		t.Fatalf("NewPublisher(nil api) = %v, want ErrIncompleteConfig", err)
 	}
+}
+
+func TestPublishOutsideTheRelayNamesTheQueueOnTheResilienceSpan(t *testing.T) {
+	cfg, recorder, _ := traced(validConfig())
+	pub, err := provider.NewPublisher(cfg, provider.NewFakeSQS())
+	if err != nil {
+		t.Fatalf("NewPublisher() = %v", err)
+	}
+	raw, _ := validRaw(t, "k1")
+
+	if err := pub.Publish(context.Background(), "reservations", raw); err != nil {
+		t.Fatalf("Publish() = %v", err)
+	}
+	assertDestinationOnTheResilienceSpan(t, recorder, semconv.MessagingSystemAWSSQS, fifoQueue)
+}
+
+func TestPublishUnderTheRelaysSendReusesIt(t *testing.T) {
+	cfg, recorder, tracer := traced(validConfig())
+	pub, err := provider.NewPublisher(cfg, provider.NewFakeSQS())
+	if err != nil {
+		t.Fatalf("NewPublisher() = %v", err)
+	}
+	raw, _ := validRaw(t, "k1")
+	ctx, send := underOwnedSend(tracer)
+
+	err = pub.Publish(ctx, "reservations", raw)
+	send.End()
+	if err != nil {
+		t.Fatalf("Publish() = %v", err)
+	}
+	assertTheOwnedSendIsReused(t, recorder)
 }

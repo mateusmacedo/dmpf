@@ -5,7 +5,7 @@ title: DMPF KRN-09 — Resiliência e observabilidade Go: OpenTelemetry e retry 
 stage: done
 priority: P1
 depends_on: [SPEC-MQA5HAXF, SPEC-WTAXFV8B, SPEC-ZHE7DN1H]
-ticket_url: null
+ticket_url: https://linear.app/mmda/issue/DEVS-43/spec-nyd18tgd-dmpf-krn-09-resiliencia-e-observabilidade-go
 subtask_urls: []
 created: 2026-09-04
 ---

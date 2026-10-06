@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/domainkit"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/evidence"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb"
 )
 
@@ -18,23 +17,7 @@ func TestTheCounterMatchesTheProjectionFixture(t *testing.T) {
 	if f.Identity.Aggregate != "counter" || len(f.Cases) != 5 {
 		t.Fatalf("fixture identity/cases = %+v/%d", f.Identity, len(f.Cases))
 	}
-	var decided domainkit.Verdict
-	for _, c := range f.Cases {
-		t.Run(c.Name, func(t *testing.T) {
-			got, twice := runCounter(t, c)
-			equal := domainkit.Equal(got, c.Expected.Projection())
-			tb.Require(t, equal)
-			tb.Require(t, twice)
-			collect(&decided, equal, twice)
-		})
-	}
-	evidence.RecordVerdict(t, "domain", "counter", decided)
-}
-
-func collect(into *domainkit.Verdict, verdicts ...domainkit.Verdict) {
-	for _, v := range verdicts {
-		into.Diagnostics = append(into.Diagnostics, v.Diagnostics...)
-	}
+	tb.RunProjection(t, f, runCounter)
 }
 
 func runCounter(t *testing.T, c tb.ProjectionCase) (domainkit.Projection, domainkit.Verdict) {

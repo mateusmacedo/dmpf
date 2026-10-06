@@ -7,13 +7,13 @@ services:
     profiles: [loki, observability, dmpf, all]
     command: ['-config.file=/etc/loki/loki.yaml']
     ports:
-      - '${LOKI_PORT:-3100}:3100'
+      - '127.0.0.1:${LOKI_PORT:-3100}:3100'
     volumes:
       - ../../observability/loki/loki.yaml:/etc/loki/loki.yaml:ro
       - loki-data:/loki
     deploy:
       resources:
-        limits: { cpus: '0.30', memory: 768M }
+        limits: { cpus: '0.546', memory: 1236M }
         reservations: { cpus: '0.10', memory: 128M }
 
 volumes:

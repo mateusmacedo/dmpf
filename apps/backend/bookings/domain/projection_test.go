@@ -7,7 +7,6 @@ import (
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/domain"
 	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/domainkit"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/evidence"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb"
 )
 
@@ -16,23 +15,7 @@ func TestBookingsMatchTheProjectionFixture(t *testing.T) {
 	if f.Identity.Aggregate != "booking" || len(f.Cases) != 4 {
 		t.Fatalf("fixture identity/cases = %+v/%d", f.Identity, len(f.Cases))
 	}
-	var decided domainkit.Verdict
-	for _, c := range f.Cases {
-		t.Run(c.Name, func(t *testing.T) {
-			got, twice := runBooking(t, c)
-			equal := domainkit.Equal(got, c.Expected.Projection())
-			tb.Require(t, equal)
-			tb.Require(t, twice)
-			collect(&decided, equal, twice)
-		})
-	}
-	evidence.RecordVerdict(t, "domain", "bookings", decided)
-}
-
-func collect(into *domainkit.Verdict, verdicts ...domainkit.Verdict) {
-	for _, v := range verdicts {
-		into.Diagnostics = append(into.Diagnostics, v.Diagnostics...)
-	}
+	tb.RunProjection(t, f, runBooking)
 }
 
 func runBooking(t *testing.T, c tb.ProjectionCase) (domainkit.Projection, domainkit.Verdict) {

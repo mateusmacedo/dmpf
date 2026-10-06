@@ -29,6 +29,11 @@ func (CrossTenantAccess) Unwrap() error { return ErrNotFound }
 // policy, when it exists, belongs to the use case.
 var ErrVersionConflict = errors.New("ports: version conflict")
 
+// ErrAlreadyExists is what a use case reports when the identity it was told to
+// create is taken. Save keeps reporting ErrVersionConflict for that case, so the
+// use case that creates without loading is the one that tells them apart.
+var ErrAlreadyExists = errors.New("ports: aggregate already exists")
+
 // Reader loads persisted aggregate state. It exists apart from Repository so a
 // query can be given read access without the write side (UOW-11).
 type Reader[ID comparable, S any] interface {

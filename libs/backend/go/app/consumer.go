@@ -5,12 +5,19 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"time"
+
+	"go.opentelemetry.io/otel/log"
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/contracts/envelope"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/contracts/payloadhash"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/tracing"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
 
@@ -85,6 +92,20 @@ type Consumer struct {
 	// Locale answers the mandatory field of CTX-01 that a consumption has no
 	// caller to state; it is the consumer's declaration, like Timeout.
 	Locale string
+
+	// Tracer opens the process span of RF-B9; nil leaves the consumption untraced.
+	Tracer         trace.Tracer
+	MeterProvider  metric.MeterProvider
+	LoggerProvider log.LoggerProvider
+	System         string
+	Channel        Channel
+}
+
+// Channel is what the process span names of the channel: the broker's topic,
+// never the logical name, and the transport's consumer group (RF-B9).
+type Channel struct {
+	Address string
+	Group   string
 }
 
 // Outcome is what the adapter did with one delivery. Classified is false only
@@ -107,7 +128,7 @@ func (c Consumer) Consume(ctx context.Context, d Delivery, ack ports.Acknowledge
 
 	env, err := envelope.Unmarshal(d.Raw)
 	if err != nil {
-		return c.contain(ctx, ack, Outcome{Reason: ports.ReasonInvalidEnvelope}, ports.Contained{
+		return c.contain(ctx, &gestures{Acknowledger: ack}, Outcome{Reason: ports.ReasonInvalidEnvelope}, ports.Contained{
 			Consumer: c.Name,
 			Reason:   ports.ReasonInvalidEnvelope,
 			Envelope: d.Raw,
@@ -116,8 +137,12 @@ func (c Consumer) Consume(ctx context.Context, d Delivery, ack ports.Acknowledge
 		}, nil)
 	}
 
+	gesture := &gestures{Acknowledger: ack}
 	if !c.Boundary.admits(env.Source) {
-		return c.contain(ctx, ack, Outcome{Reason: ports.ReasonUntrustedBoundary}, ports.Contained{
+		began := time.Now()
+		ctx, span := c.openProcess(ctx, env, d.Attempt, false, "")
+		defer span.End()
+		outcome, err := c.contain(ctx, gesture, Outcome{Reason: ports.ReasonUntrustedBoundary}, ports.Contained{
 			Consumer:  c.Name,
 			MessageID: ports.MessageID(env.ID),
 			Reason:    ports.ReasonUntrustedBoundary,
@@ -125,8 +150,26 @@ func (c Consumer) Consume(ctx context.Context, d Delivery, ack ports.Acknowledge
 			Error:     "app: source outside the trusted boundary",
 			At:        c.Clock.Now(),
 		}, nil)
+		conclude(span, outcome, gesture, err)
+		c.measureProcess(ctx, began, outcome, gesture, err)
+		c.logConsumed(ctx, env, d.Attempt, outcome, gesture, err)
+		return outcome, err
 	}
 
+	attempt := Attempt{RequestID: newAttemptID(), Number: d.Attempt}
+	began := time.Now()
+	ctx, span := c.openProcess(ctx, env, d.Attempt, true, attempt.RequestID)
+	defer span.End()
+	outcome, err := c.admitted(ctx, d, env, attempt, gesture)
+	conclude(span, outcome, gesture, err)
+	c.measureProcess(ctx, began, outcome, gesture, err)
+	return outcome, err
+}
+
+// admitted runs under the process span; the execution's baggage comes after
+// its Start, so the span itself never carries the correlation (RF-B8).
+func (c Consumer) admitted(ctx context.Context, d Delivery, env envelope.Envelope, attempt Attempt, ack *gestures) (outcome Outcome, err error) {
+	defer func() { c.logConsumed(ctx, env, d.Attempt, outcome, ack, err) }()
 	receipt := ports.Receipt{
 		Consumer:    c.Name,
 		MessageID:   ports.MessageID(env.ID),
@@ -135,12 +178,14 @@ func (c Consumer) Consume(ctx context.Context, d Delivery, ack ports.Acknowledge
 		ReceivedAt:  c.Clock.Now(),
 	}
 
+	process := propagation.MapCarrier{}
+	propagation.TraceContext{}.Inject(ctx, process)
 	ctx = ports.WithMessageContext(ctx, ports.MessageContext{
 		CorrelationID: env.CorrelationID,
 		CausationID:   env.ID,
-		Traceparent:   env.TraceParent,
+		Traceparent:   process.Get("traceparent"),
+		Tracestate:    process.Get("tracestate"),
 	})
-	attempt := Attempt{RequestID: newAttemptID(), Number: d.Attempt}
 	ctx = WithAttempt(ctx, attempt)
 
 	handleCtx, cancel := context.WithTimeout(ctx, c.Timeout)
@@ -158,17 +203,19 @@ func (c Consumer) Consume(ctx context.Context, d Delivery, ack ports.Acknowledge
 			At:        receipt.ReceivedAt,
 		}, nil)
 	}
-	disposition, handleErr := c.Handle(ports.WithExecutionContext(handleCtx, execution), receipt, env)
-	outcome := Outcome{Disposition: disposition, Classified: true}
+	ctx = tracing.WithExecutionBaggage(ctx, execution)
+	handleCtx = tracing.WithExecutionBaggage(handleCtx, execution)
+	disposition, handleErr := c.handle(ports.WithExecutionContext(handleCtx, execution), receipt, env)
+	outcome = Outcome{Disposition: disposition, Classified: true}
 
 	switch disposition {
 	case application.R1D1, application.R1D2, application.R2, application.R3:
-		return outcome, errors.Join(handleErr, ack.Ack(ctx))
+		return outcome, joinPanicFirst(handleErr, ack.Ack(ctx))
 	case application.R1D3:
 		if c.MaxAttempts > 0 && d.Attempt >= c.MaxAttempts {
 			return c.contain(ctx, ack, withReason(outcome, ports.ReasonAttemptsExhausted), c.contained(receipt, d.Raw, ports.ReasonAttemptsExhausted, disposition, handleErr), handleErr)
 		}
-		return outcome, errors.Join(handleErr, ack.Release(ctx))
+		return outcome, joinPanicFirst(handleErr, ack.Release(ctx))
 	case application.R1D4:
 		return c.contain(ctx, ack, withReason(outcome, ports.ReasonTerminalFailure), c.contained(receipt, d.Raw, ports.ReasonTerminalFailure, disposition, handleErr), handleErr)
 	case application.R4:
@@ -176,6 +223,46 @@ func (c Consumer) Consume(ctx context.Context, d Delivery, ack ports.Acknowledge
 	default:
 		return Outcome{}, errors.Join(handleErr, ErrUnknownDisposition)
 	}
+}
+
+func (c Consumer) handle(ctx context.Context, receipt ports.Receipt, env envelope.Envelope) (disposition application.Disposition, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = panicked{error: application.NewFailure(application.Unexpected, false, nil), goType: fmt.Sprintf("%T", recovered)}
+			disposition = application.Classify(err)
+		}
+	}()
+	return c.Handle(ctx, receipt, env)
+}
+
+var errPanicked = application.NewFailure(application.Unexpected, false, nil)
+
+func recoverInto(err *error) {
+	if recovered := recover(); recovered != nil {
+		*err = panicked{error: errPanicked, goType: fmt.Sprintf("%T", recovered)}
+	}
+}
+
+type panicked struct {
+	error
+	goType string
+}
+
+func (p panicked) Unwrap() error { return p.error }
+
+func panicTypeOf(err error) string {
+	var p panicked
+	if errors.As(err, &p) {
+		return p.goType
+	}
+	return ""
+}
+
+func joinPanicFirst(cause, err error) error {
+	if errors.Is(err, errPanicked) {
+		return errors.Join(err, cause)
+	}
+	return errors.Join(cause, err)
 }
 
 // executionOf rebuilds the context of one consumption: correlation, causation,
@@ -220,11 +307,16 @@ func (c Consumer) contain(ctx context.Context, ack ports.Acknowledger, outcome O
 	if mechanism, ok := MechanismFor(item.Reason); !ok || mechanism != MechanismQuarantine {
 		return outcome, errors.Join(cause, ErrUnsupportedMechanism)
 	}
-	if err := c.Containment.Quarantine(ctx, item); err != nil {
-		return outcome, errors.Join(cause, err)
+	if err := c.quarantine(ctx, item); err != nil {
+		return outcome, joinPanicFirst(cause, err)
 	}
 	outcome.Contained = true
-	return outcome, errors.Join(cause, ack.Ack(ctx))
+	return outcome, joinPanicFirst(cause, ack.Ack(ctx))
+}
+
+func (c Consumer) quarantine(ctx context.Context, item ports.Contained) (err error) {
+	defer recoverInto(&err)
+	return c.Containment.Quarantine(ctx, item)
 }
 
 func (c Consumer) contained(receipt ports.Receipt, raw []byte, reason ports.Reason, disposition application.Disposition, cause error) ports.Contained {

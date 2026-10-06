@@ -5,7 +5,7 @@ title: DMPF — Unit of Work, inbox, outbox e garantias de entrega
 stage: done
 priority: P0
 depends_on: [SPEC-8MNDEWDP]
-ticket_url: null
+ticket_url: https://linear.app/mmda/issue/DEVS-29/spec-7pj5wvcs-dmpf-unit-of-work-inbox-outbox-e-garantias-de-entrega
 subtask_urls: []
 created: 2026-08-13
 ---
