@@ -125,7 +125,7 @@ jobs:
           DIST_TAG: ${{ inputs.tag }}
         run: |
           set -euo pipefail
-          publicaveis="$(pnpm nx show projects --with-target nx-release-publish --projects="$PROJECTS_FILTER" --json | jq -r 'join(",")')"
+          publicaveis="$(pnpm --silent nx show projects --with-target nx-release-publish --projects="$PROJECTS_FILTER" --json | jq -r 'join(",")')"
           if [ -z "$publicaveis" ]; then
             echo "::notice::Nenhum projeto de $PROJECTS_FILTER tem o target nx-release-publish (todos são privados): nada a publicar."
             exit 0

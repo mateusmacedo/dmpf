@@ -3,9 +3,9 @@ module github.com/mateusmacedo/dmpf/libs/backend/go/grpc
 go 1.26.6
 
 require (
-	github.com/mateusmacedo/dmpf/libs/backend/go/observability v1.0.0-rc.0
-	github.com/mateusmacedo/dmpf/libs/backend/go/ports v1.0.0-rc.0
-	github.com/mateusmacedo/dmpf/libs/backend/go/transport v1.0.0-rc.0
+	github.com/mateusmacedo/dmpf/libs/backend/go/observability v1.0.0-rc.1
+	github.com/mateusmacedo/dmpf/libs/backend/go/ports v1.0.0-rc.1
+	github.com/mateusmacedo/dmpf/libs/backend/go/transport v1.0.0-rc.1
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.72.0
 	go.opentelemetry.io/otel v1.47.0
 	go.opentelemetry.io/otel/log v1.47.0
@@ -27,7 +27,7 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.31.0 // indirect
 	github.com/klauspost/compress v1.19.1 // indirect
-	github.com/mateusmacedo/dmpf/libs/backend/go/domain v1.0.0-rc.0 // indirect
+	github.com/mateusmacedo/dmpf/libs/backend/go/domain v1.0.0-rc.1 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/bridges/otelslog v0.21.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc v0.23.0 // indirect

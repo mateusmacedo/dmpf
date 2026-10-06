@@ -97,7 +97,6 @@ ConfigMap e de secrets externos definidos no repositório de infraestrutura — 
 | `.github/workflows/nx-release.yml` | Versionamento Nx Release (release groups `go-libs`, `go-contract-<ctx>`, `go-tools`, `npm`); cunha as tags de módulo |
 | `.github/workflows/nx-publish-libs.yml` | Publica libs npm no GitHub Packages (dispara no push de tag `**@*`), pelo reusable `publish-libs.yaml` |
 | `.github/workflows/create-release.yml` | Cria a branch `release/<versão>` a partir de `master` |
-| `.github/workflows/release-pr.yml` | Abre o PR de `release/<versão>` para `master` no primeiro push com commits |
 | `.github/workflows/dmpf-verify.yml` | Gate de congruência horizontal do acervo `docs/dmpf/` |
 | `.github/workflows/dmpf-distributed.yml` | Camada distribuída da pirâmide de testes (build tag `distributed`) |
 | `.github/workflows/load.yml` | Carga k6 pela borda do BFF sobre a topologia do próprio runner (`workflow_dispatch`; `apps/backend/load/README.md`) |

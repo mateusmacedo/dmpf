@@ -61,8 +61,9 @@ foi validado em `develop`, sem reeditar os mesmos arquivos "de outro jeito".
 O `create-release.yml` automatiza a criação da branch `release/X.Y.Z`: ele calcula
 o próximo número a partir das releases já mergeadas em `master` e deriva o
 incremento dos commits em `origin/master..origin/develop`. A branch nasce igual a
-`master`, e o GitHub não abre PR sem commits; por isso o `release-pr.yml` abre o PR
-de release no primeiro push que leva commits à branch, e não duplica PR já aberto.
+`master`. Quem promove abre o PR de release para `master` com a própria conta,
+depois do primeiro push que leva commits à branch. Um PR aberto pelo `GITHUB_TOKEN`
+dispara execuções de CI que o GitHub encerra sem nenhum job.
 
 ### Pré-release
 

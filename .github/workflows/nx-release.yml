@@ -102,7 +102,7 @@ jobs:
       - name: Detect lib release candidates
         id: lib-candidates
         run: |
-          LIBS_JSON=$(pnpm nx show projects --projects="tag:type:lib" --json)
+          LIBS_JSON=$(pnpm --silent nx show projects --projects="tag:type:lib" --json)
           LIBS_COUNT=$(node -e "const projects = JSON.parse(process.argv[1] ?? '[]'); console.log(Array.isArray(projects) ? projects.length : 0);" "$LIBS_JSON")
 
           if [[ "$LIBS_COUNT" -gt 0 ]]; then
@@ -185,7 +185,7 @@ jobs:
       - name: Detect docker release candidates
         id: docker-candidates
         run: |
-          APPS_JSON=$(pnpm nx show projects --projects="tag:type:app,!tag:stack:go" --json)
+          APPS_JSON=$(pnpm --silent nx show projects --projects="tag:type:app,!tag:stack:go" --json)
           APPS_COUNT=$(node -e "const projects = JSON.parse(process.argv[1] ?? '[]'); console.log(Array.isArray(projects) ? projects.length : 0);" "$APPS_JSON")
           APPS_CSV=$(node -e "const projects = JSON.parse(process.argv[1] ?? '[]'); console.log(Array.isArray(projects) ? projects.join(',') : '');" "$APPS_JSON")
 

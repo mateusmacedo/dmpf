@@ -92,8 +92,8 @@ jobs:
       - name: Toda lib Go declara exatamente uma camada
         run: |
           set -euo pipefail
-          go_all="$(pnpm nx show projects --projects=tag:stack:go --exclude=conformance --json | jq -r '.[]' | sort)"
-          layered="$(for l in domain services contract providers apps; do pnpm nx show projects --projects=tag:layer:$l --json | jq -r '.[]'; done | sort)"
+          go_all="$(pnpm --silent nx show projects --projects=tag:stack:go --exclude=conformance --json | jq -r '.[]' | sort)"
+          layered="$(for l in domain services contract providers apps; do pnpm --silent nx show projects --projects=tag:layer:$l --json | jq -r '.[]'; done | sort)"
           if [ -n "$(comm -23 <(echo "$go_all") <(echo "$layered"))" ]; then
             echo "módulos Go sem tag layer:*:" >&2
             comm -23 <(echo "$go_all") <(echo "$layered") >&2
@@ -154,7 +154,7 @@ jobs:
       - name: Estágio 1 — domínio (layer:domain)
         run: |
           set -euo pipefail
-          lista="$(pnpm nx show projects --affected --base=$NX_BASE --head=$NX_HEAD --projects=tag:layer:domain --json | jq -r 'join(",")')"
+          lista="$(pnpm --silent nx show projects --affected --base=$NX_BASE --head=$NX_HEAD --projects=tag:layer:domain --json | jq -r 'join(",")')"
           if [ -z "$lista" ]; then
             echo "estágio 1 (domain): nenhum projeto afetado"
             exit 0
@@ -164,7 +164,7 @@ jobs:
       - name: Estágio 2 — services (layer:services)
         run: |
           set -euo pipefail
-          lista="$(pnpm nx show projects --affected --base=$NX_BASE --head=$NX_HEAD --projects=tag:layer:services --json | jq -r 'join(",")')"
+          lista="$(pnpm --silent nx show projects --affected --base=$NX_BASE --head=$NX_HEAD --projects=tag:layer:services --json | jq -r 'join(",")')"
           if [ -z "$lista" ]; then
             echo "estágio 2 (services): nenhum projeto afetado"
             exit 0
@@ -174,7 +174,7 @@ jobs:
       - name: Tooling Go — conformance (sem layer:*)
         run: |
           set -euo pipefail
-          lista="$(pnpm nx show projects --affected --base=$NX_BASE --head=$NX_HEAD --projects=conformance --json | jq -r 'join(",")')"
+          lista="$(pnpm --silent nx show projects --affected --base=$NX_BASE --head=$NX_HEAD --projects=conformance --json | jq -r 'join(",")')"
           if [ -z "$lista" ]; then
             echo "tooling (conformance): nenhum projeto afetado"
             exit 0
@@ -284,7 +284,7 @@ jobs:
       - name: Estágio 3 — contrato (layer:contract)
         run: |
           set -euo pipefail
-          lista="$(pnpm nx show projects --affected --base=$NX_BASE --head=$NX_HEAD --projects=tag:layer:contract --json | jq -r 'join(",")')"
+          lista="$(pnpm --silent nx show projects --affected --base=$NX_BASE --head=$NX_HEAD --projects=tag:layer:contract --json | jq -r 'join(",")')"
           if [ -z "$lista" ]; then
             echo "estágio 3 (contract): nenhum projeto afetado"
             exit 0
@@ -306,14 +306,14 @@ jobs:
       - name: Estágio 4 — providers (layer:providers)
         run: |
           set -euo pipefail
-          lista="$(pnpm nx show projects --affected --base=$NX_BASE --head=$NX_HEAD --projects=tag:layer:providers --json | jq -r '.[]')"
+          lista="$(pnpm --silent nx show projects --affected --base=$NX_BASE --head=$NX_HEAD --projects=tag:layer:providers --json | jq -r '.[]')"
           if [ -z "$lista" ]; then
             echo "estágio 4 (providers): nenhum projeto afetado"
             exit 0
           fi
           stateful=""; stateless=""
           for p in $lista; do
-            if [ "$(pnpm nx show project "$p" --json | jq -r '.targets["test-race"].cache')" = "false" ]; then
+            if [ "$(pnpm --silent nx show project "$p" --json | jq -r '.targets["test-race"].cache')" = "false" ]; then
               stateful="$stateful,$p"
             else
               stateless="$stateless,$p"
@@ -331,7 +331,7 @@ jobs:
       - name: Estágio 5 — apps (layer:apps)
         run: |
           set -euo pipefail
-          lista="$(pnpm nx show projects --affected --base=$NX_BASE --head=$NX_HEAD --projects=tag:layer:apps --json | jq -r 'join(",")')"
+          lista="$(pnpm --silent nx show projects --affected --base=$NX_BASE --head=$NX_HEAD --projects=tag:layer:apps --json | jq -r 'join(",")')"
           if [ -z "$lista" ]; then
             echo "estágio 5 (apps): nenhum projeto afetado"
             exit 0
@@ -378,7 +378,7 @@ jobs:
         id: go_affected
         run: |
           set -euo pipefail
-          lista="$(pnpm nx show projects --affected --base=$NX_BASE --head=$NX_HEAD --projects=tag:stack:go --json | jq -r 'join(",")')"
+          lista="$(pnpm --silent nx show projects --affected --base=$NX_BASE --head=$NX_HEAD --projects=tag:stack:go --json | jq -r 'join(",")')"
           if [ -n "$lista" ]; then
             echo "any=true" >> "$GITHUB_OUTPUT"
           else
