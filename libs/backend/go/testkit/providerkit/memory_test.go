@@ -3,10 +3,13 @@ package providerkit_test
 import (
 	"context"
 	"errors"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/memory"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
@@ -53,9 +56,58 @@ func memoryRepository() providerkit.RepositorySubject[string, probe] {
 func TestMemoryRepositoryConforms(t *testing.T) {
 	v := providerkit.Repository(memoryRepository)
 	tb.Require(t, v)
-	if len(v.Skipped) != 0 {
-		t.Fatalf("memory scopes by construction; nothing should be skipped: %v", v.Skipped)
+	if want := []string{"lets exactly one of two concurrent writers through"}; !slices.Equal(v.Skipped, want) {
+		t.Fatalf("skipped = %v, want %v: memory scopes by construction and serializes Within by design", v.Skipped, want)
 	}
+}
+
+func TestAConcurrentClaimOverASerializingRealizationFailsInsteadOfHanging(t *testing.T) {
+	defer providerkit.ShortenConcurrentBarrier(100 * time.Millisecond)()
+	forced := func() providerkit.RepositorySubject[string, probe] {
+		s := memoryRepository()
+		s.Concurrent = true
+		return s
+	}
+
+	v := providerkit.Repository(forced)
+
+	if got := concurrentDiagnostics(v); len(got) != 1 || !strings.Contains(got[0], "Within serializes callers") {
+		t.Fatalf("diagnostics = %v, want the clause to name the serialization", got)
+	}
+}
+
+func TestAConcurrentWriterWhoseTransactionNeverOpensIsNamedNotBlamedOnSerialization(t *testing.T) {
+	defer providerkit.ShortenConcurrentBarrier(100 * time.Millisecond)()
+	errBegin := errors.New("begin refused")
+	failingSecondWriter := func() providerkit.RepositorySubject[string, probe] {
+		s := memoryRepository()
+		s.Concurrent = true
+		within := s.Within
+		var calls atomic.Int32
+		s.Within = func(ctx context.Context, fn func(ctx context.Context, repo ports.Repository[string, probe]) error) error {
+			if calls.Add(1) == 3 {
+				return errBegin
+			}
+			return within(ctx, fn)
+		}
+		return s
+	}
+
+	v := providerkit.Repository(failingSecondWriter)
+
+	if got := concurrentDiagnostics(v); len(got) != 1 || !strings.Contains(got[0], errBegin.Error()) {
+		t.Fatalf("diagnostics = %v, want the clause to name %q", got, errBegin)
+	}
+}
+
+func concurrentDiagnostics(v providerkit.Verdict) []string {
+	var diagnostics []string
+	for _, d := range v.Diagnostics {
+		if d.Clause == "lets exactly one of two concurrent writers through" {
+			diagnostics = append(diagnostics, d.Detail)
+		}
+	}
+	return diagnostics
 }
 
 // unscopedRepository is the negative vector of IDN-14: it keys rows by
