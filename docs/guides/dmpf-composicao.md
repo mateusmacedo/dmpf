@@ -358,7 +358,7 @@ toolchain Go. Há dois jeitos de consumir, e a diferença está em quem resolve 
 `go get` basta — os irmãos vêm junto, cada um na versão que o `require` fixa:
 
 ```bash
-go get github.com/mateusmacedo/dmpf/libs/backend/go/domain@v0.1.0
+go get github.com/mateusmacedo/dmpf/libs/backend/go/domain@v1.0.0-rc.0
 ```
 
 **Por clone local**, quando você quer editar o kernel enquanto desenvolve

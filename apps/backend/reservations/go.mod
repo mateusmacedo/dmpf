@@ -4,20 +4,20 @@ go 1.26.6
 
 require (
 	github.com/jackc/pgx/v5 v5.10.0
-	github.com/mateusmacedo/dmpf/apps/backend/orders/contract v0.1.0
-	github.com/mateusmacedo/dmpf/apps/backend/reservations/contract v0.1.0
-	github.com/mateusmacedo/dmpf/libs/backend/go/app v0.1.0
-	github.com/mateusmacedo/dmpf/libs/backend/go/application v0.1.0
-	github.com/mateusmacedo/dmpf/libs/backend/go/contracts v0.1.0
-	github.com/mateusmacedo/dmpf/libs/backend/go/domain v0.1.0
-	github.com/mateusmacedo/dmpf/libs/backend/go/grpc v0.1.0
-	github.com/mateusmacedo/dmpf/libs/backend/go/kafka v0.1.0
-	github.com/mateusmacedo/dmpf/libs/backend/go/memory v0.1.0
-	github.com/mateusmacedo/dmpf/libs/backend/go/observability v0.1.0
-	github.com/mateusmacedo/dmpf/libs/backend/go/ports v0.1.0
-	github.com/mateusmacedo/dmpf/libs/backend/go/postgres v0.1.0
-	github.com/mateusmacedo/dmpf/libs/backend/go/testkit v0.1.0
-	github.com/mateusmacedo/dmpf/libs/backend/go/transport v0.1.0
+	github.com/mateusmacedo/dmpf/apps/backend/orders/contract v1.0.0-rc.0
+	github.com/mateusmacedo/dmpf/apps/backend/reservations/contract v1.0.0-rc.0
+	github.com/mateusmacedo/dmpf/libs/backend/go/app v1.0.0-rc.0
+	github.com/mateusmacedo/dmpf/libs/backend/go/application v1.0.0-rc.0
+	github.com/mateusmacedo/dmpf/libs/backend/go/contracts v1.0.0-rc.0
+	github.com/mateusmacedo/dmpf/libs/backend/go/domain v1.0.0-rc.0
+	github.com/mateusmacedo/dmpf/libs/backend/go/grpc v1.0.0-rc.0
+	github.com/mateusmacedo/dmpf/libs/backend/go/kafka v1.0.0-rc.0
+	github.com/mateusmacedo/dmpf/libs/backend/go/memory v1.0.0-rc.0
+	github.com/mateusmacedo/dmpf/libs/backend/go/observability v1.0.0-rc.0
+	github.com/mateusmacedo/dmpf/libs/backend/go/ports v1.0.0-rc.0
+	github.com/mateusmacedo/dmpf/libs/backend/go/postgres v1.0.0-rc.0
+	github.com/mateusmacedo/dmpf/libs/backend/go/testkit v1.0.0-rc.0
+	github.com/mateusmacedo/dmpf/libs/backend/go/transport v1.0.0-rc.0
 	github.com/twmb/franz-go v1.21.6
 	github.com/twmb/franz-go/pkg/kadm v1.18.0
 	go.opentelemetry.io/otel v1.47.0
