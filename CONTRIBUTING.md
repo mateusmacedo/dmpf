@@ -77,28 +77,6 @@ Antes de promovê-la, suba para a mesma versão o `require` de cada irmão nos
 `go.work` a partir dos `go.mod`). Sem isso, o consumidor de fora do workspace
 recebe os irmãos na versão anterior, como registra o ADR-047.
 
-### Release do produto DMPF
-
-Além das tags por projeto do Nx Release, o produto DMPF tem release própria: a
-tag anotada `dmpf@<semver>`, com o BOM em `bom/dmpf/<semver>.json`.
-
-1. A certificação — evidência em `bom/evidence/<semver>/` e entradas promovidas
-   no BOM — entra em `develop` por PR revisado por Arquitetura e mergeado por
-   Plataforma (`BOM-05`). O passo a passo está em
-   `docs/guides/dmpf-composicao.md` §10.
-2. A mesma árvore segue por `release/<semver>` e é mergeada em `master` com
-   `--no-ff`, sem squash.
-3. A tag nasce do `dmpf-release.yml`, disparado em `master` com a release
-   (`workflow_dispatch`, input `release`). O workflow valida o BOM com
-   `dmpf-bom --release <semver> --commit HEAD` — o `DMPF-B012` exige que a tag
-   de módulo Go de cada entrada `kernel` seja ancestral do merge commit —,
-   reproduz a evidência publicada, recusa tag já existente e só então cunha a
-   tag anotada `dmpf@<semver>` no merge commit e faz push apenas dela. Não há
-   rito manual: uma `dmpf@*` cunhada à mão não passou pelos gates.
-
-Na `0.1.0`, a promoção não passou por PR: foi o merge local da branch de trabalho
-em `develop`, e `promoted.pr` registra essa branch (ADR-041).
-
 ## Conventional Commits
 
 As mensagens de commit seguem o padrão [Conventional Commits](https://www.conventionalcommits.org):

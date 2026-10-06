@@ -211,9 +211,9 @@ módulos do kernel ficam sob `libs/backend/go/`.
 
 #### Onda 3 — ADR e classificação
 
-- [ ] **[P0] ADR de produção (próximo número livre, hoje ADR-059)**: registra P3, P6, A6 e B7. Supersede em parte o ADR-048: a frase "fica no contexto: `classify`, `subject`" e a leitura de "diverge por papel" aplicada ao corpo de cada papel. Também atualiza o status do ADR-048 e o índice em `docs/adr/README.md`.
+- [ ] **[P0] ADR de produção (próximo número livre, hoje ADR-060)**: registra P3, P6, A6 e B7. Supersede em parte o ADR-048: a frase "fica no contexto: `classify`, `subject`" e a leitura de "diverge por papel" aplicada ao corpo de cada papel. Também atualiza o status do ADR-048 e o índice em `docs/adr/README.md`.
   - Atualiza ainda o ADR-053 nas §7 e §14, que descrevem um `errors.go` por contexto e emitido pelo generator. O P1 retira esse arquivo já na Onda 1, e o PR dessa onda registra a deriva até o ADR.
-- [ ] **[P0] ADR de testes (próximo número livre, hoje ADR-060)**: registra T1 e T3, supersede em parte o ADR-046 (o "sem segundo consumidor" do `distkit`) e atualiza o status dele e o índice.
+- [ ] **[P0] ADR de testes (próximo número livre, hoje ADR-061)**: registra T1 e T3, supersede em parte o ADR-046 (o "sem segundo consumidor" do `distkit`) e atualiza o status dele e o índice.
 - [ ] **[P1] P3 — `CategoryOf` e `SubjectOf`**: `application.CategoryOf(err) string`, que devolve vazio quando não classifica, e `ports.SubjectOf(ctx) string`. Saem `classify` e `subject` dos três `app/telemetry.go`.
 - [ ] **[P1] P6 — Package `app/serve`**: package novo `libs/backend/go/app/serve` com `API`, `ServeAPI` e `RunRelay`, usado pelos três `serveAPI` e `runRelay`.
   - `RunWith` continua local.
