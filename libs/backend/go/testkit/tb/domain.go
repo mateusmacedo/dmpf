@@ -53,8 +53,7 @@ func RequireSameEvents(t testing.TB, a, b []domain.DomainEvent) {
 }
 
 // RunProjection runs each case of the fixture as a subtest under its name and
-// returns the merged verdict, which the caller records: evidence imports this
-// package, so it cannot be recorded from here.
+// returns the merged verdict.
 func RunProjection(t *testing.T, f ProjectionFixture, run func(*testing.T, ProjectionCase) (domainkit.Projection, domainkit.Verdict)) domainkit.Verdict {
 	t.Helper()
 	var decided domainkit.Verdict
