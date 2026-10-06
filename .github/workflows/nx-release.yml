@@ -14,6 +14,10 @@ on:
           - production
           - hotfix
         default: production
+      version:
+        description: "Versão explícita para todos os projetos (ex.: 1.0.0-rc.0); vazio deriva dos commits"
+        type: string
+        required: false
 
 concurrency:
   group: release-${{ github.workflow }}-${{ github.event.pull_request.base.ref || github.ref_name }}
@@ -37,6 +41,10 @@ jobs:
       )
     runs-on: ubuntu-26.04
     timeout-minutes: 30
+    # O `prepare` do pnpm instala o lefthook no runner, e o pre-push dele roda
+    # `test-race` sem a infra de testes: sem isto o push da release aborta.
+    env:
+      LEFTHOOK: "0"
 
     steps:
       - name: Checkout master
@@ -122,6 +130,7 @@ jobs:
         if: steps.lib-candidates.outputs.has_libs == 'true'
         env:
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          MANUAL_VERSION: ${{ inputs.version }}
         run: |
           set -euo pipefail
           GO_TAGS=$(git tag -l 'libs/backend/go/*/v*' 'apps/backend/*/contract/v*' 'tools/dmpf-conformance/v*' | head -n 1)
@@ -136,6 +145,13 @@ jobs:
           if [ -z "$GO_TAGS" ] && [ -z "$NPM_TAGS" ]; then
             echo "Nenhuma tag das famílias de release existente; primeira release em $FIRST_VERSION."
             VERSION_ARGS="$FIRST_VERSION --first-release"
+          elif [ -n "${MANUAL_VERSION:-}" ]; then
+            if [[ ! "$MANUAL_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+              echo "::error::Input version '$MANUAL_VERSION' não é semver."
+              exit 1
+            fi
+            echo "Versão explícita $MANUAL_VERSION informada no dispatch para todos os projetos."
+            VERSION_ARGS="$MANUAL_VERSION"
           elif [[ "${HEAD_REF:-}" =~ ^release/([0-9]+\.[0-9]+\.[0-9]+-[0-9A-Za-z.-]+)$ ]]; then
             echo "Branch de pré-release $HEAD_REF; versão explícita ${BASH_REMATCH[1]} para todos os projetos."
             VERSION_ARGS="${BASH_REMATCH[1]}"
