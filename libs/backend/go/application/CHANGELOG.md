@@ -1,3 +1,21 @@
+## 1.0.0-rc.0 (2026-10-06)
+
+### 🚀 Features
+
+- **application:** Adicionar Execute, Loader e Decide ao kernel ([cebfb9b](https://github.com/mateusmacedo/dmpf/commit/cebfb9b))
+- **application:** Promover Outcome.Category, Enqueue e Query ao kernel ([fee83b3](https://github.com/mateusmacedo/dmpf/commit/fee83b3))
+- **application:** Expor a categoria da falha como código estável ([52b58b5](https://github.com/mateusmacedo/dmpf/commit/52b58b5))
+- **application:** Executar comandos idempotentes pela inbox ([50a5dab](https://github.com/mateusmacedo/dmpf/commit/50a5dab))
+
+### 🧱 Updated Dependencies
+
+- Updated domain to 1.0.0-rc.0
+- Updated ports to 1.0.0-rc.0
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 0.1.0 (2026-09-30)
 
 ### 🚀 Features

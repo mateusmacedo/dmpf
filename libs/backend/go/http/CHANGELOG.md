@@ -1,3 +1,20 @@
+## 1.0.0-rc.0 (2026-10-06)
+
+### 🚀 Features
+
+- **http:** Exigir chave de idempotência em todo POST da borda ([726fe05](https://github.com/mateusmacedo/dmpf/commit/726fe05))
+- **http:** Instrumentar o cliente HTTP com otelhttp e privacidade ([28ab2a1](https://github.com/mateusmacedo/dmpf/commit/28ab2a1))
+
+### 🧱 Updated Dependencies
+
+- Updated observability to 1.0.0-rc.0
+- Updated transport to 1.0.0-rc.0
+- Updated ports to 1.0.0-rc.0
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 0.1.0 (2026-09-30)
 
 ### 🚀 Features

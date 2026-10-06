@@ -1,3 +1,27 @@
+## 1.0.0-rc.0 (2026-10-06)
+
+### 🚀 Features
+
+- **postgres:** Adicionar SnapshotTable para agregados em snapshot ([9e88084](https://github.com/mateusmacedo/dmpf/commit/9e88084))
+- **postgres:** Instrumentar consultas e pool pela semconv de banco ([6ce4e87](https://github.com/mateusmacedo/dmpf/commit/6ce4e87))
+- **postgres:** Registrar comandos na inbox com purga e quarentena única ([5311cde](https://github.com/mateusmacedo/dmpf/commit/5311cde))
+
+### 🩹 Fixes
+
+- **postgres:** Devolver o erro do contexto quando ele vence na consulta ([d2356c3](https://github.com/mateusmacedo/dmpf/commit/d2356c3))
+
+### 🧱 Updated Dependencies
+
+- Updated observability to 1.0.0-rc.0
+- Updated contracts to 1.0.0-rc.0
+- Updated testkit to 1.0.0-rc.0
+- Updated domain to 1.0.0-rc.0
+- Updated ports to 1.0.0-rc.0
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 0.1.0 (2026-09-30)
 
 ### 🚀 Features

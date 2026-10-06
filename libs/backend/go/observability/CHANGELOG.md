@@ -1,3 +1,22 @@
+## 1.0.0-rc.0 (2026-10-06)
+
+### 🚀 Features
+
+- **observability:** Adicionar redact.WithoutValues ao kernel ([70b9a21](https://github.com/mateusmacedo/dmpf/commit/70b9a21))
+- **observability:** Levar logs, traces e métricas por OTLP canônico ([68a367c](https://github.com/mateusmacedo/dmpf/commit/68a367c))
+- **observability:** Registrar o desfecho de idempotência no span ([d6f4689](https://github.com/mateusmacedo/dmpf/commit/d6f4689))
+
+### 🧱 Updated Dependencies
+
+- Updated application to 1.0.0-rc.0
+- Updated domain to 1.0.0-rc.0
+- Updated memory to 1.0.0-rc.0
+- Updated ports to 1.0.0-rc.0
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 0.1.0 (2026-09-30)
 
 ### 🚀 Features

@@ -1,3 +1,30 @@
+## 1.0.0-rc.0 (2026-10-06)
+
+### 🚀 Features
+
+- **testkit:** Adicionar GoldenSuite e ampliar serviceskit e providerkit ([edf7414](https://github.com/mateusmacedo/dmpf/commit/edf7414))
+- **testkit:** Adicionar asserções de domínio, leitores e Reexec ao kit ([1ef210d](https://github.com/mateusmacedo/dmpf/commit/1ef210d))
+- **testkit:** Cobrir a inbox de comandos na suíte de conformidade ([ca1b8e2](https://github.com/mateusmacedo/dmpf/commit/ca1b8e2))
+
+### 🩹 Fixes
+
+- **testkit:** Excluir do subject reference o filho do harness do bff ([9720cba](https://github.com/mateusmacedo/dmpf/commit/9720cba))
+
+### 🧱 Updated Dependencies
+
+- Updated observability to 1.0.0-rc.0
+- Updated application to 1.0.0-rc.0
+- Updated contracts to 1.0.0-rc.0
+- Updated postgres to 1.0.0-rc.0
+- Updated domain to 1.0.0-rc.0
+- Updated memory to 1.0.0-rc.0
+- Updated ports to 1.0.0-rc.0
+- Updated conformance to 1.0.0-rc.0
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 0.1.0 (2026-09-30)
 
 ### 🚀 Features

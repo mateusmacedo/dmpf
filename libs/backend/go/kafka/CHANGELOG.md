@@ -1,3 +1,22 @@
+## 1.0.0-rc.0 (2026-10-06)
+
+### 🚀 Features
+
+- **kafka:** Adicionar ClientAuth.Missing ao kernel ([a9d6fdd](https://github.com/mateusmacedo/dmpf/commit/a9d6fdd))
+- **kafka:** Recuperar panic e instrumentar envio e consumo ([45c12c3](https://github.com/mateusmacedo/dmpf/commit/45c12c3))
+
+### 🧱 Updated Dependencies
+
+- Updated observability to 1.0.0-rc.0
+- Updated contracts to 1.0.0-rc.0
+- Updated transport to 1.0.0-rc.0
+- Updated testkit to 1.0.0-rc.0
+- Updated ports to 1.0.0-rc.0
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 0.1.0 (2026-09-30)
 
 ### 🚀 Features

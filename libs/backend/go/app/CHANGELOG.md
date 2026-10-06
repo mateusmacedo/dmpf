@@ -1,3 +1,26 @@
+## 1.0.0-rc.0 (2026-10-06)
+
+### 🚀 Features
+
+- **app:** Adicionar Policies e a validação dela ao kernel ([fcbe9ac](https://github.com/mateusmacedo/dmpf/commit/fcbe9ac))
+- **app:** Adicionar contrato de categorias, purga e relay.Instrument ([cd291c7](https://github.com/mateusmacedo/dmpf/commit/cd291c7))
+- **app:** Instrumentar relay, consumo e purga com contenção de panic ([bb18917](https://github.com/mateusmacedo/dmpf/commit/bb18917))
+- **app:** Montar a política de idempotência e o laço de purga ([813ee62](https://github.com/mateusmacedo/dmpf/commit/813ee62))
+
+### 🧱 Updated Dependencies
+
+- Updated observability to 1.0.0-rc.0
+- Updated application to 1.0.0-rc.0
+- Updated contracts to 1.0.0-rc.0
+- Updated postgres to 1.0.0-rc.0
+- Updated testkit to 1.0.0-rc.0
+- Updated ports to 1.0.0-rc.0
+- Updated grpc to 1.0.0-rc.0
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 0.1.0 (2026-09-30)
 
 ### 🚀 Features

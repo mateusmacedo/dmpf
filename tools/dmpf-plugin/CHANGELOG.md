@@ -1,3 +1,17 @@
+## 1.0.0-rc.0 (2026-10-06)
+
+### 🚀 Features
+
+- **dmpf-plugin:** Rodar o e2e do contexto sem repetir o test-race ([1e3e935](https://github.com/mateusmacedo/dmpf/commit/1e3e935))
+- **dmpf-plugin:** Gerar o e2e do contexto sobre o harness distribuído ([d6e0c76](https://github.com/mateusmacedo/dmpf/commit/d6e0c76))
+- **dmpf-plugin:** Instruir o baseline sem AUT-01 nem commit próprio ([9fe6e9d](https://github.com/mateusmacedo/dmpf/commit/9fe6e9d))
+- **dmpf-plugin:** Gerar contextos com telemetria canônica e TLS em hmg ([604c8e8](https://github.com/mateusmacedo/dmpf/commit/604c8e8))
+- **dmpf-plugin:** Gerar contextos com comandos idempotentes ([185a46e](https://github.com/mateusmacedo/dmpf/commit/185a46e))
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 0.1.0 (2026-09-30)
 
 ### 🚀 Features

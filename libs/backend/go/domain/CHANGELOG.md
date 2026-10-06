@@ -1,3 +1,13 @@
+## 1.0.0-rc.0 (2026-10-06)
+
+### 🚀 Features
+
+- **domain:** Adicionar DecideOver e Refuse ao kernel ([68fdabd](https://github.com/mateusmacedo/dmpf/commit/68fdabd))
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 0.1.0 (2026-09-30)
 
 ### 🚀 Features

@@ -1,3 +1,18 @@
+## 1.0.0-rc.0 (2026-10-06)
+
+### 🚀 Features
+
+- **authn:** Registrar toda recusa de token com o motivo ([182244a](https://github.com/mateusmacedo/dmpf/commit/182244a))
+
+### 🧱 Updated Dependencies
+
+- Updated observability to 1.0.0-rc.0
+- Updated ports to 1.0.0-rc.0
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 0.1.0 (2026-09-30)
 
 ### 🚀 Features

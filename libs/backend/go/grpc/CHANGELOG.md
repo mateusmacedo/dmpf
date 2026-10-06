@@ -1,3 +1,22 @@
+## 1.0.0-rc.0 (2026-10-06)
+
+### 🚀 Features
+
+- **grpc:** Adicionar Unary, Method, Uncovered e APIEnv ao kernel ([0eebaed](https://github.com/mateusmacedo/dmpf/commit/0eebaed))
+- **grpc:** Adicionar StatusOf e o protocolo de hop ao kernel ([f6bfab4](https://github.com/mateusmacedo/dmpf/commit/f6bfab4))
+- **grpc:** Registrar cada chamada no stats.End e recuperar panic ([8d4f0d8](https://github.com/mateusmacedo/dmpf/commit/8d4f0d8))
+- **grpc:** Exigir a chave de idempotência nos métodos de comando ([894d3fc](https://github.com/mateusmacedo/dmpf/commit/894d3fc))
+
+### 🧱 Updated Dependencies
+
+- Updated observability to 1.0.0-rc.0
+- Updated transport to 1.0.0-rc.0
+- Updated ports to 1.0.0-rc.0
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 0.1.0 (2026-09-30)
 
 ### 🚀 Features

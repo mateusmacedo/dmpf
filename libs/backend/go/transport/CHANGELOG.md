@@ -1,3 +1,19 @@
+## 1.0.0-rc.0 (2026-10-06)
+
+### 🚀 Features
+
+- **transport:** Adicionar NewCatalog e AddressOf ao catálogo de canais ([617b36e](https://github.com/mateusmacedo/dmpf/commit/617b36e))
+- **transport:** Derivar o nível do cliente da categoria FND-07 ([abcc9fb](https://github.com/mateusmacedo/dmpf/commit/abcc9fb))
+
+### 🧱 Updated Dependencies
+
+- Updated observability to 1.0.0-rc.0
+- Updated ports to 1.0.0-rc.0
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 0.1.0 (2026-09-30)
 
 ### 🚀 Features

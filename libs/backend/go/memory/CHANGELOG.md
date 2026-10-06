@@ -1,3 +1,18 @@
+## 1.0.0-rc.0 (2026-10-06)
+
+### 🚀 Features
+
+- **memory:** Registrar comandos na inbox em memória ([dab6bd1](https://github.com/mateusmacedo/dmpf/commit/dab6bd1))
+
+### 🧱 Updated Dependencies
+
+- Updated testkit to 1.0.0-rc.0
+- Updated ports to 1.0.0-rc.0
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 0.1.0 (2026-09-30)
 
 ### 🚀 Features

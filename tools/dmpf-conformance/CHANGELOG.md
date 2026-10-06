@@ -1,3 +1,18 @@
+## 1.0.0-rc.0 (2026-10-06)
+
+### 🚀 Features
+
+- ⚠️  **conformance:** Revogar o DMPF-T002 e a aprovação dupla (ADR-058) ([349c1e5](https://github.com/mateusmacedo/dmpf/commit/349c1e5))
+- **conformance:** Apontar o semconv do BOM e publicar o swagger local ([30ffc98](https://github.com/mateusmacedo/dmpf/commit/30ffc98))
+
+### ⚠️  Breaking Changes
+
+- **conformance:** Revogar o DMPF-T002 e a aprovação dupla (ADR-058)  ([349c1e5](https://github.com/mateusmacedo/dmpf/commit/349c1e5))
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 0.1.0 (2026-09-30)
 
 ### 🚀 Features
