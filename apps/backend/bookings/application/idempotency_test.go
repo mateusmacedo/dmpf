@@ -54,7 +54,7 @@ func TestARepeatedRefusalReplaysTheRejectionWithoutLoading(t *testing.T) {
 	if _, err := h.service.CancelBooking(withKey(t, context.Background(), "k-cancel"), cancel); err != nil {
 		t.Fatalf("first CancelBooking() = %v, want a rejection, not an error", err)
 	}
-	h.rec.observed = nil
+	h.rec.Reset()
 	again, err := h.service.CancelBooking(withKey(t, context.Background(), "k-cancel"), cancel)
 	if err != nil {
 		t.Fatalf("repeated CancelBooking() = %v, want the stored rejection", err)
@@ -64,8 +64,8 @@ func TestARepeatedRefusalReplaysTheRejectionWithoutLoading(t *testing.T) {
 	if !rejected || rejection.Code() != domain.CodeBookingNotReserved {
 		t.Fatalf("replay = %+v, want the rejection %s", again, domain.CodeBookingNotReserved)
 	}
-	if slices.Contains(h.rec.observed, "bookings.Load") {
-		t.Fatalf("sequence = %v: the replay reached the aggregate", h.rec.observed)
+	if slices.Contains(h.rec.Observed(), "bookings.Load") {
+		t.Fatalf("sequence = %v: the replay reached the aggregate", h.rec.Observed())
 	}
 	if len(instr.audits) != 1 {
 		t.Fatalf("Audit called %d times, want 1: a replay is not a new fact", len(instr.audits))

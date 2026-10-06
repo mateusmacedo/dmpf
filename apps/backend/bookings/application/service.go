@@ -1,8 +1,6 @@
 package application
 
 import (
-	"context"
-
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/domain"
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/ports"
 	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
@@ -82,26 +80,20 @@ type Service struct {
 	Instrumentation port.Instrumentation
 }
 
-func idempotent[R any](
-	ctx context.Context,
-	s Service,
-	res Resources,
-	fingerprint *usecase.Fingerprint,
-	operation string,
-	now port.Instant,
-	codec usecase.OutcomeCodec[R],
-	run func() (usecase.Outcome[R], error),
-) (usecase.Outcome[R], bool, error) {
-	return usecase.RunIdempotent(ctx, usecase.IdempotentCommand[R]{
-		Inbox:       res.Commands,
-		Consumer:    CommandConsumer,
-		Operation:   operation,
-		Fingerprint: fingerprint,
-		Now:         now,
-		Policy:      s.Idempotency,
-		Codec:       codec,
-		Run:         run,
-	})
+type command[R any] = usecase.Command[Resources, Operation, R]
+
+func (s Service) executor() usecase.Executor[Resources, Operation] {
+	return usecase.Executor[Resources, Operation]{
+		UoW:             s.UoW,
+		Inbox:           func(res Resources) port.Inbox { return res.Commands },
+		Consumer:        CommandConsumer,
+		Clock:           s.Clock,
+		IDs:             s.IDs,
+		MaxEvents:       maxEventsPerCommand,
+		Policy:          s.Idempotency,
+		Authorize:       s.Authorize,
+		Instrumentation: s.Instrumentation,
+	}
 }
 
 // A nil hook is the inert realization, so every operation opens and closes
@@ -116,3 +108,9 @@ func (s Service) instrumentation() port.Instrumentation {
 func origin(aggregateType, aggregateID string) usecase.Origin {
 	return usecase.Origin{Destination: Destination, AggregateType: aggregateType, AggregateID: aggregateID}
 }
+
+var (
+	loadExistingBooking = usecase.Existing[domain.BookingID](domain.FromBookingSnapshot)
+	loadAbsentBooking   = usecase.Absent[domain.BookingSnapshot](domain.NewBooking)
+	loadResource        = usecase.OrNew(domain.NewResource, domain.FromResourceSnapshot)
+)

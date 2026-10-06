@@ -30,8 +30,8 @@ func TestReserveWalksTheNineStepsInOrder(t *testing.T) {
 		"commands.Complete",
 		"commit",
 	}
-	if !slices.Equal(h.rec.observed, want) {
-		t.Fatalf("sequence mismatch (FND-04 §3.2)\ngot:  %v\nwant: %v", h.rec.observed, want)
+	if !slices.Equal(h.rec.Observed(), want) {
+		t.Fatalf("sequence mismatch (FND-04 §3.2)\ngot:  %v\nwant: %v", h.rec.Observed(), want)
 	}
 }
 
@@ -60,8 +60,8 @@ func TestCancelWalksTheNineStepsInOrder(t *testing.T) {
 		"commands.Complete",
 		"commit",
 	}
-	if !slices.Equal(h.rec.observed, want) {
-		t.Fatalf("sequence mismatch\ngot:  %v\nwant: %v", h.rec.observed, want)
+	if !slices.Equal(h.rec.Observed(), want) {
+		t.Fatalf("sequence mismatch\ngot:  %v\nwant: %v", h.rec.Observed(), want)
 	}
 }
 
@@ -86,8 +86,8 @@ func TestRegisterWalksTheNineStepsInOrder(t *testing.T) {
 		"commands.Complete",
 		"commit",
 	}
-	if !slices.Equal(h.rec.observed, want) {
-		t.Fatalf("sequence mismatch (FND-04 §3.2)\ngot:  %v\nwant: %v", h.rec.observed, want)
+	if !slices.Equal(h.rec.Observed(), want) {
+		t.Fatalf("sequence mismatch (FND-04 §3.2)\ngot:  %v\nwant: %v", h.rec.Observed(), want)
 	}
 }
 
