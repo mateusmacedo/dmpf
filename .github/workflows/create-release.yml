@@ -109,4 +109,4 @@ jobs:
 
           git checkout -b "$BRANCH"
           git push origin "$BRANCH"
-          echo "::notice::$BRANCH criada a partir de master. O PR para master abre no primeiro push com commits (release-pr.yml)."
+          echo "::notice::$BRANCH criada a partir de master. Abra o PR para master com a sua conta depois do primeiro push com commits."
