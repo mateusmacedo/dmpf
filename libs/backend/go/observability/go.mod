@@ -39,10 +39,10 @@ require (
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.31.0 // indirect
-	github.com/mateusmacedo/dmpf/libs/backend/go/application v1.0.0-rc.0
-	github.com/mateusmacedo/dmpf/libs/backend/go/domain v1.0.0-rc.0
-	github.com/mateusmacedo/dmpf/libs/backend/go/memory v1.0.0-rc.0
-	github.com/mateusmacedo/dmpf/libs/backend/go/ports v1.0.0-rc.0
+	github.com/mateusmacedo/dmpf/libs/backend/go/application v1.0.0-rc.1
+	github.com/mateusmacedo/dmpf/libs/backend/go/domain v1.0.0-rc.1
+	github.com/mateusmacedo/dmpf/libs/backend/go/memory v1.0.0-rc.1
+	github.com/mateusmacedo/dmpf/libs/backend/go/ports v1.0.0-rc.1
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/bridges/otelslog v0.21.0
 	go.opentelemetry.io/contrib/exporters/autoexport v0.72.0
