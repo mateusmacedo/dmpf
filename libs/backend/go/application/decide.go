@@ -41,8 +41,7 @@ func Existing[ID comparable, S, A any](from func(S) A) Loader[ID, S, A] {
 	}
 }
 
-// Absent creates the aggregate and refuses with ErrAlreadyExists when it exists.
-// S comes first so a caller names it alone and lets ID and A be inferred.
+// Absent takes S first so a caller names it alone and lets ID and A be inferred.
 func Absent[S any, ID comparable, A any](fresh func(ID) A) Loader[ID, S, A] {
 	return func(ctx context.Context, reader ports.Reader[ID, S], id ID) (A, ports.Version, error) {
 		var zero A

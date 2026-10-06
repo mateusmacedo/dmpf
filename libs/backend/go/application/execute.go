@@ -6,9 +6,7 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
 
-// Executor is what a context fixes once for all its commands: the unit of work,
-// the command inbox it binds, identity sources, the idempotency policy, the
-// authorization hook and the instrumentation, which may be nil.
+// Executor is fixed once per context; a nil Instrumentation is the inert one.
 type Executor[Res, Op any] struct {
 	UoW             ports.UnitOfWork[Res]
 	Inbox           func(Res) ports.Inbox
@@ -32,9 +30,7 @@ type Command[Res, Op, R any] struct {
 	Run         func(ctx context.Context, res Res, identity Identity) (Outcome[R], error)
 }
 
-// Execute is the skeleton of FND-04 §3.2 for a command: authorization, identity
-// before the transaction, Run under RunIdempotent inside Within, and an audit
-// only when nothing was replayed. Run prefixes its failures; Execute adds none.
+// Execute runs a command through FND-04 §3.2; errors come back without a prefix.
 func Execute[Res, Op, R any](ctx context.Context, x Executor[Res, Op], c Command[Res, Op, R]) (Outcome[R], error) {
 	var zero Outcome[R]
 
