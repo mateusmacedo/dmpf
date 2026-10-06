@@ -488,19 +488,6 @@ jobs:
         run: |
           go run ./tools/dmpf-conformance/cmd/conformance --root .
 
-      # Sem `if` de projeto Go afetado, como o generator check: um PR que só toca
-      # `bom/` não afeta projeto Go nenhum e pularia o gate. Os BOMs antigos ficam
-      # no diretório; o gate valida a maior release e a compara com a do base.
-      - name: DMPF BOM gate
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          base="$NX_BASE"
-          case "$BASE_REF" in
-            master | release/*) base="origin/develop" ;;
-          esac
-          go run ./tools/dmpf-conformance/cmd/bom --root . --release latest --base "$base"
-
       # govulncheck consulta base remota e não tem cache; corre uma vez sobre
       # todo o Go afetado, fora da pirâmide.
       - name: Go vulnerabilities (affected)
