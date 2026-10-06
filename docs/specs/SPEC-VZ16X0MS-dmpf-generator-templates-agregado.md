@@ -116,6 +116,16 @@ que sobra para eu escrever seja a regra dentro de `Reserve`.
   definição (mecânico); testes
   com `serviceskit.NewFakes`, `Ledger`, `Decide` e repositórios em memória
   gerados por agregado.
+  - Desde a Onda 2 da SPEC-R8645FVR, os passos 1 a 3, 8 e 9 e a auditoria só
+    sem replay deixam de ser template mecânico: vêm de `usecase.Execute` (A1).
+    Os passos 4 a 7 também: vêm de `usecase.Decide` com o `Loader` do modo,
+    `Absent` para `creates`, `OrNew` para `initializesOnNotFound` e `Existing`
+    para o comando sobre agregado existente (A3). O `<command>.go` gerado seria
+    só a chamada a `Execute`, o `Run` com `Decide` e o prefixo
+    `application: <operação> <id>` do erro. A UPR do domínio idem: decide por
+    `kernel.DecideOver` e recusa por `kernel.Refuse` (A5), o que deixa defasado
+    o pseudocódigo da UPR com `clone` e `reject` explícitos; a retomada desta
+    spec decide o resto.
 - [ ] **[P0] Bloco `provider`** (Postgres): `schema.sql` — uma tabela por
   agregado (`<sql_ctx>_<sql_aggregate>`, nome literal, sem plural) com `id`,
   `version`, `snapshot jsonb`, uma coluna por campo usado em `queries[].by` ou

@@ -45,6 +45,9 @@ skill `.agents/skills/dmpf-bounded-context/`.
   concreto, nunca `error`. Rejeição tem código estável
   `<ctx>/<agregado>/<rejeicao>`; a pré-condição pertence ao comando, não ao
   agregado (ADR-032).
+- A UPR decide sobre uma cópia por `kernel.DecideOver(alvo, (*T).clone,
+  decide)` e recusa por `kernel.Refuse[R]`; o `clone` privado copia em
+  profundidade o que a decisão muta (DEC-10, DEC-12).
 - O bloco `domain` não importa `time` — o verificador classifica o package
   inteiro como `io.clock`; o instante entra por parâmetro como inteiro de
   nanossegundos. `errors.New`, `fmt.Errorf`, `panic` e `fmt.Print*` são
@@ -57,17 +60,21 @@ skill `.agents/skills/dmpf-bounded-context/`.
   composition root, pelo `bind` (ADR-034). Consultas correm fora da UoW.
 - O caso de uso produtor percorre os nove passos de FND-04 §3.2, na ordem —
   identidade antes da transação, autorização pelo gancho, evento para a outbox
-  na **mesma** transação do estado, por `usecase.Enqueue` (ADR-035).
+  na **mesma** transação do estado, por `usecase.Enqueue` (ADR-035). Os passos
+  vêm dos esqueletos do kernel: `usecase.Execute` com o `executor()` do serviço,
+  e no `Run` do comando `usecase.Decide` com o `Loader` do modo (`Absent`,
+  `OrNew` ou `Existing`). Toda falha leva o prefixo
+  `application: <operação> <id>:`.
 - A outbox guarda os bytes do `Any` do integration event, serializados na
   escrita; o envelope CloudEvents é montado na publicação, pelo relay
   (ADR-035).
 
 ## Idempotência de comando (ADR-056; FND-04 §7.6)
 
-- Todo comando corre em `usecase.RunIdempotent`, dentro do `Within` e antes
-  de qualquer outra instrução (IDM-05). A inbox vem de `Resources.Commands`
-  (`tx.CommandInbox`) e a política de `Service.Idempotency`
-  (`kernelapp.IdempotencyPolicy`); não há tabela própria.
+- Todo comando corre em `usecase.RunIdempotent`, que o `usecase.Execute` chama
+  dentro do `Within` e antes de qualquer outra instrução (IDM-05). A inbox vem
+  de `Resources.Commands` (`tx.CommandInbox`) e a política de
+  `Service.Idempotency` (`kernelapp.IdempotencyPolicy`); não há tabela própria.
 - O fingerprint nasce de `usecase.NewFingerprint(Operation*)` com todos os
   campos do comando, e a resposta volta por um codec por operação.
 - A auditoria só é emitida sem replay: o `replayed` de `RunIdempotent` diz
@@ -102,9 +109,11 @@ skill `.agents/skills/dmpf-bounded-context/`.
 
 ## Borda (ADR-044, ADR-053)
 
-- O contexto serve só gRPC, em `app/rpc`: `ServiceDesc` no bloco `app`,
-  `rpc.Methods()` para os limites por método e handlers que devolvem o erro
-  por `kernelgrpc.StatusOf`. A cadeia de interceptors é a do kernel
+- O contexto serve só gRPC, em `app/rpc`: `ServiceDesc` no bloco `app`, cada
+  método por `kernelgrpc.Unary` sobre `kernelgrpc.Method` (o descritor recusa
+  método que o `.proto` não declara), `rpc.Methods()` para os limites por
+  método, `kernelgrpc.Uncovered` no teste do descritor e handlers que devolvem
+  o erro por `kernelgrpc.StatusOf`. A cadeia de interceptors é a do kernel
   (`kernelgrpc.ServerInterceptors`). `app/http` em contexto reprova no
   `tools/dmpf-context-check.sh`.
 - O REST público é do `bff`. Toda rota declara `ContractRef` para o OpenAPI
