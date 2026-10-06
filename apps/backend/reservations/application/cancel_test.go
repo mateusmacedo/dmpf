@@ -61,7 +61,7 @@ func TestCancelOnAConfirmedReservationRejectsWithoutWriting(t *testing.T) {
 	if got := h.store.Entries(); len(got) != 0 {
 		t.Fatalf("Entries() = %+v, want empty", got)
 	}
-	if h.saves != 0 || h.enqueues != 0 {
-		t.Fatalf("a refusal wrote: saves = %d, enqueues = %d", h.saves, h.enqueues)
+	if h.saves != 0 || h.enqueues() != 0 {
+		t.Fatalf("a refusal wrote: saves = %d, enqueues = %d", h.saves, h.enqueues())
 	}
 }

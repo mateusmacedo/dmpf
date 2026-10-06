@@ -185,7 +185,7 @@ func TestEveryRoleReportsTheConnectionsOfItsPoolThroughTheRuntime(t *testing.T) 
 			suffix := strconv.FormatInt(time.Now().UnixNano(), 10)
 			cfg := app.Defaults(role)
 			cfg.DSN = pg.DSN(t, appkit.PoolOptions.Project)
-			cfg.GRPCAddr, cfg.GRPCInsecure = "127.0.0.1:0", true
+			cfg.API.GRPCAddr, cfg.API.GRPCInsecure = "127.0.0.1:0", true
 			cfg.Brokers, cfg.KafkaInsecure = brokers, true
 			cfg.OrdersTopic = "pool-orders-" + suffix
 			cfg.OrdersDLQ = cfg.OrdersTopic + "-dlq"

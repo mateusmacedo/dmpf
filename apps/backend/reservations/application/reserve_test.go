@@ -92,11 +92,11 @@ func TestReserveOnACanceledReservationRejectsWithoutWriting(t *testing.T) {
 	if got := h.store.Entries(); len(got) != 0 {
 		t.Fatalf("Entries() = %+v, want empty", got)
 	}
-	if h.serviceWithinCalls() != 1 || h.serviceCommits() != 1 {
-		t.Fatalf("within = %d, commits = %d; want 1 and 1 (UOW-05)", h.serviceWithinCalls(), h.serviceCommits())
+	if h.fakes.WithinCalls() != 1 || h.fakes.Commits() != 1 {
+		t.Fatalf("within = %d, commits = %d; want 1 and 1 (UOW-05)", h.fakes.WithinCalls(), h.fakes.Commits())
 	}
-	if h.saves != 0 || h.enqueues != 0 {
-		t.Fatalf("a refusal wrote: saves = %d, enqueues = %d", h.saves, h.enqueues)
+	if h.saves != 0 || h.enqueues() != 0 {
+		t.Fatalf("a refusal wrote: saves = %d, enqueues = %d", h.saves, h.enqueues())
 	}
 }
 
@@ -108,8 +108,8 @@ func TestReserveUnderAVersionConflictStopsBeforeTheOutbox(t *testing.T) {
 	if !errors.Is(err, ports.ErrVersionConflict) {
 		t.Fatalf("Reserve() error = %v, want ErrVersionConflict", err)
 	}
-	if h.binds != 1 || h.saves != 1 || h.enqueues != 0 {
-		t.Fatalf("binds = %d, saves = %d, enqueues = %d; want 1, 1 and 0 (UOW-09, UOW-10)", h.binds, h.saves, h.enqueues)
+	if h.fakes.Binds() != 1 || h.saves != 1 || h.enqueues() != 0 {
+		t.Fatalf("binds = %d, saves = %d, enqueues = %d; want 1, 1 and 0 (UOW-09, UOW-10)", h.fakes.Binds(), h.saves, h.enqueues())
 	}
 	if got := h.store.Entries(); len(got) != 0 {
 		t.Fatalf("Entries() = %+v, want empty", got)

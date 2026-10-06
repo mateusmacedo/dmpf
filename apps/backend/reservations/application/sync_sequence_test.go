@@ -19,6 +19,7 @@ var nineSteps = []string{
 	"domain.Load",
 	"domain.Save",
 	"outbox.Enqueue",
+	"commands.Complete",
 	"commit",
 }
 
@@ -29,8 +30,8 @@ func TestReserveWalksTheNineStepsInOrder(t *testing.T) {
 		t.Fatalf("Reserve() error = %v, want nil", err)
 	}
 
-	if !slices.Equal(h.rec.observed, nineSteps) {
-		t.Fatalf("sequence mismatch (FND-04 §3.2)\ngot:  %v\nwant: %v", h.rec.observed, nineSteps)
+	if !slices.Equal(h.rec.Observed(), nineSteps) {
+		t.Fatalf("sequence mismatch (FND-04 §3.2)\ngot:  %v\nwant: %v", h.rec.Observed(), nineSteps)
 	}
 }
 
@@ -41,8 +42,8 @@ func TestCancelWalksTheNineStepsInOrder(t *testing.T) {
 		t.Fatalf("Cancel() error = %v, want nil", err)
 	}
 
-	if !slices.Equal(h.rec.observed, nineSteps) {
-		t.Fatalf("sequence mismatch (FND-04 §3.2)\ngot:  %v\nwant: %v", h.rec.observed, nineSteps)
+	if !slices.Equal(h.rec.Observed(), nineSteps) {
+		t.Fatalf("sequence mismatch (FND-04 §3.2)\ngot:  %v\nwant: %v", h.rec.Observed(), nineSteps)
 	}
 }
 
@@ -55,8 +56,8 @@ func TestADeniedReserveStopsBeforeIdentityAndTransaction(t *testing.T) {
 	if !errors.Is(err, ports.ErrDenied) {
 		t.Fatalf("Reserve() error = %v, want ErrDenied", err)
 	}
-	if want := []string{"authorize"}; !slices.Equal(h.rec.observed, want) {
-		t.Fatalf("observed %v, want %v", h.rec.observed, want)
+	if want := []string{"authorize"}; !slices.Equal(h.rec.Observed(), want) {
+		t.Fatalf("observed %v, want %v", h.rec.Observed(), want)
 	}
 	if got := h.store.WithinCalls(); got != 0 {
 		t.Fatalf("WithinCalls() = %d, want 0", got)

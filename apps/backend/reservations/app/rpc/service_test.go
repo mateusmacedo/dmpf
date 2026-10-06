@@ -10,6 +10,7 @@ import (
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/app/rpc"
 	servicev1 "github.com/mateusmacedo/dmpf/apps/backend/reservations/contract/gen/go/company/reservations/service/v1"
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
+	kernelgrpc "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
 )
 
 func TestServiceDescCoversEveryMethodOfTheDescriptor(t *testing.T) {
@@ -18,19 +19,9 @@ func TestServiceDescCoversEveryMethodOfTheDescriptor(t *testing.T) {
 	if rpc.ServiceDesc.ServiceName != string(service.FullName()) {
 		t.Fatalf("ServiceName = %q, want %q", rpc.ServiceDesc.ServiceName, service.FullName())
 	}
-	declared := map[string]bool{}
-	for _, m := range rpc.ServiceDesc.Methods {
-		declared[m.MethodName] = true
-	}
-	methods := service.Methods()
-	if len(rpc.ServiceDesc.Methods) != methods.Len() || len(rpc.ServiceDesc.Streams) != 0 {
-		t.Fatalf("ServiceDesc has %d unary and %d stream methods, want the %d unary of the descriptor",
-			len(rpc.ServiceDesc.Methods), len(rpc.ServiceDesc.Streams), methods.Len())
-	}
-	for i := range methods.Len() {
-		if name := string(methods.Get(i).Name()); !declared[name] {
-			t.Fatalf("descriptor method %q has no handler", name)
-		}
+	if missing := kernelgrpc.Uncovered(&rpc.ServiceDesc, service); len(missing) != 0 || len(rpc.ServiceDesc.Streams) != 0 {
+		t.Fatalf("ServiceDesc leaves %v uncovered and declares %d streams, want every unary method of the descriptor",
+			missing, len(rpc.ServiceDesc.Streams))
 	}
 }
 

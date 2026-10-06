@@ -10,6 +10,7 @@ import (
 	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/memory"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/serviceskit"
 )
 
 var reservationTable = memory.Table[domain.OrderID, domain.Snapshot]{Name: "reservations"}
@@ -32,7 +33,7 @@ func newService(store *memory.Store) application.Service {
 		IDs:         &memory.SequenceIDs{Prefix: "m-"},
 		Authorize:   usecase.AllowAll[application.Operation](),
 		Consumer:    consumer,
-		Idempotency: usecase.IdempotencyPolicy{Wait: 1_000_000_000, Retention: 86_400_000_000_000, Digest: foldDigest},
+		Idempotency: usecase.IdempotencyPolicy{Wait: 1_000_000_000, Retention: 86_400_000_000_000, Digest: serviceskit.FoldDigest},
 	}
 }
 

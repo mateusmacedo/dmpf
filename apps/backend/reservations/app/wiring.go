@@ -69,11 +69,11 @@ func RunWith(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {
 // NewReservationsService assembles the synchronous reservations use cases over
 // Postgres, with the resource set the consumer also binds (INB-07).
 func NewReservationsService(pool *pgxpool.Pool, rt *otelboot.Runtime, cfg Config) (application.Service, error) {
-	policy, err := kernelapp.IdempotencyPolicy(cfg.IdempotencyWait, cfg.IdempotencyRetention)
+	policy, err := kernelapp.IdempotencyPolicy(cfg.Policies.IdempotencyWait, cfg.Policies.IdempotencyRetention)
 	if err != nil {
 		return application.Service{}, err
 	}
-	service := NewService(pool, idclock.SystemClock{}, idclock.NewMessageIDs("reservations"), Waits{Message: cfg.Wait, Command: cfg.IdempotencyWait})
+	service := NewService(pool, idclock.SystemClock{}, idclock.NewMessageIDs("reservations"), Waits{Message: cfg.Wait, Command: cfg.Policies.IdempotencyWait})
 	service.Idempotency = policy
 	service.Instrumentation = usecase.New(rt, audit.NewLogSink(rt.LoggerProvider()), subject, classify, application.OperationFindReservation)
 	return service, nil
@@ -95,11 +95,11 @@ func serveAPI(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {
 		return err
 	}
 	serverConfig, err := kernelgrpc.APIServerConfig(kernelgrpc.APIServer{
-		CertFile:       cfg.GRPCCertFile,
-		KeyFile:        cfg.GRPCKeyFile,
-		ClientCAFile:   cfg.GRPCClientCAFile,
-		TrustedClients: cfg.GRPCTrustedClients,
-		Insecure:       cfg.GRPCInsecure,
+		CertFile:       cfg.API.GRPCCertFile,
+		KeyFile:        cfg.API.GRPCKeyFile,
+		ClientCAFile:   cfg.API.GRPCClientCAFile,
+		TrustedClients: cfg.API.GRPCTrustedClients,
+		Insecure:       cfg.API.GRPCInsecure,
 		Services:       kernelgrpc.HealthServices(rpc.ServiceName),
 		Interceptors:   kernelgrpc.ServerInterceptors(rpc.ServiceName, ctrl, rt.Instruments(), rt.LoggerProvider(), kernelgrpc.WithCommands(rpc.Commands()...)),
 		LoggerProvider: rt.LoggerProvider(),
@@ -117,7 +117,7 @@ func serveAPI(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {
 	}
 	server.RegisterService(&rpc.ServiceDesc, rpc.Server{Service: service})
 
-	listen := func() (net.Listener, error) { return net.Listen("tcp", cfg.GRPCAddr) }
+	listen := func() (net.Listener, error) { return net.Listen("tcp", cfg.API.GRPCAddr) }
 	ready := func(ctx context.Context) error {
 		if err := pool.Ping(ctx); err != nil {
 			return fmt.Errorf("postgres: %w", err)
@@ -128,7 +128,7 @@ func serveAPI(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {
 			}
 		}
 		stop, err := kernelapp.StartPurge(ctx, abort,
-			kernelapp.PurgeConfig{Name: "command-inbox", Interval: cfg.PurgeInterval, Batch: cfg.PurgeBatch},
+			kernelapp.PurgeConfig{Name: "command-inbox", Interval: cfg.Policies.PurgeInterval, Batch: cfg.Policies.PurgeBatch},
 			idclock.SystemClock{}, rt.LoggerProvider(), kernelapp.PurgeCommandInbox(pool, application.CommandConsumer))
 		if err != nil {
 			return err
@@ -180,7 +180,7 @@ func runConsumer(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {
 		return err
 	}
 	stopPurge, err := kernelapp.StartPurge(ctx, abort,
-		kernelapp.PurgeConfig{Name: "message-inbox", Interval: cfg.PurgeInterval, Batch: cfg.PurgeBatch, Retention: cfg.InboxRetention},
+		kernelapp.PurgeConfig{Name: "message-inbox", Interval: cfg.Policies.PurgeInterval, Batch: cfg.Policies.PurgeBatch, Retention: cfg.Policies.InboxRetention},
 		idclock.SystemClock{}, rt.LoggerProvider(), kernelapp.PurgeMessageInbox(pool, ConsumerName))
 	if err != nil {
 		return err
@@ -250,7 +250,7 @@ func runRelay(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {
 		return err
 	}
 	stopPurge, err := kernelapp.StartPurge(ctx, abort,
-		kernelapp.PurgeConfig{Name: "outbox", Interval: cfg.PurgeInterval, Batch: cfg.PurgeBatch, Retention: cfg.OutboxRetention},
+		kernelapp.PurgeConfig{Name: "outbox", Interval: cfg.Policies.PurgeInterval, Batch: cfg.Policies.PurgeBatch, Retention: cfg.Policies.OutboxRetention},
 		idclock.SystemClock{}, rt.LoggerProvider(), kernelapp.PurgeOutbox(pool))
 	if err != nil {
 		return err
