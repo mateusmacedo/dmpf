@@ -43,19 +43,24 @@ var orderTable = postgres.SnapshotTable("orders", "order_id",
 Todo comando passa pela inbox, com `consumer_name` `<%- name %>.commands`
 (`application.CommandConsumer`), na mesma transação do efeito (FND-04 §7.6,
 ADR-056). O generator não escreve casos de uso: cabe a quem escreve o contexto
-chamar `usecase.RunIdempotent` em cada comando e declarar o método em
-`rpc.Commands()`, que o interceptor usa para exigir a metadata `idempotency-key`.
+passar cada comando por `usecase.Execute`, que o corre em `usecase.RunIdempotent`,
+e declarar o método em `rpc.Commands()`, que o interceptor usa para exigir a
+metadata `idempotency-key`.
 O `kernelgrpc.StatusOf`, com que os handlers devolvem o erro, já traduz a
 divergência, o comando em andamento e a chave ausente.
 Os prazos (`IdempotencyWait` 1s, `IdempotencyRetention` 24h, `OutboxRetention`
-168h, `PurgeInterval` 15min, `PurgeBatch` 1000) vêm de `Defaults()`; o `api`
-purga as entradas de comando vencidas e o `relay`, a outbox publicada.
+168h, `PurgeInterval` 15min, `PurgeBatch` 1000) são a seção `Policies` da
+`Config` (`kernelapp.Policies`) e vêm de `Defaults()`; o `api` purga as entradas
+de comando vencidas e o `relay`, a outbox publicada.
 
 A configuração vem só do ambiente, sem prefixo `DMPF_`: `PG_DSN`, `GRPC_ADDR`
 (`:9090`), `GRPC_INSECURE` ou o trio mTLS (`GRPC_TLS_CERT_FILE`,
 `GRPC_TLS_KEY_FILE`, `GRPC_CLIENT_CA_FILE` e `GRPC_TRUSTED_CLIENTS`) e, no
 relay, `KAFKA_BROKERS`, `KAFKA_<%- envName %>_TOPIC`, `KAFKA_<%- envName %>_DLQ` e
-`KAFKA_GROUP`. A falta de uma variável obrigatória recusa a partida nomeando-a.
+`KAFKA_GROUP`. As variáveis `GRPC_*` formam a seção `API` da `Config`, lida por
+`kernelgrpc.ReadAPIEnv`; o `requirements()` compõe o `Missing()` dela com o do
+Kafka e com as variáveis do contexto, e a falta de uma variável obrigatória
+recusa a partida nomeando-a.
 
 <% } -%>
 ## Resolução de dependências

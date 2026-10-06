@@ -26,12 +26,12 @@ func settings(cfg Config) []slog.Attr {
 	case RoleAPI:
 		return append(storage,
 			slog.Bool("migrate", cfg.Migrate),
-			slog.String("grpc_addr", cfg.GRPCAddr),
-			slog.Bool("grpc_insecure", cfg.GRPCInsecure),
-			slog.String("grpc_tls_cert_file", cfg.GRPCCertFile),
-			slog.String("grpc_tls_key_file", presence(cfg.GRPCKeyFile)),
-			slog.String("grpc_client_ca_file", cfg.GRPCClientCAFile),
-			slog.String("grpc_trusted_clients", strings.Join(cfg.GRPCTrustedClients, ",")),
+			slog.String("grpc_addr", cfg.API.GRPCAddr),
+			slog.Bool("grpc_insecure", cfg.API.GRPCInsecure),
+			slog.String("grpc_tls_cert_file", cfg.API.GRPCCertFile),
+			slog.String("grpc_tls_key_file", presence(cfg.API.GRPCKeyFile)),
+			slog.String("grpc_client_ca_file", cfg.API.GRPCClientCAFile),
+			slog.String("grpc_trusted_clients", strings.Join(cfg.API.GRPCTrustedClients, ",")),
 			slog.Int("metric_tenants", len(cfg.MetricTenants)),
 		)
 	case RoleRelay:

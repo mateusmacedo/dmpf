@@ -414,7 +414,7 @@ describe('[generator] bounded-context — generation', () => {
 
     expect(telemetry).toContain('Settings: settings(cfg),');
     expect(telemetry).toContain('slog.Any("postgres", postgres.DescribeDSN(cfg.DSN))');
-    expect(telemetry).toContain('slog.String("grpc_tls_key_file", presence(cfg.GRPCKeyFile)),');
+    expect(telemetry).toContain('slog.String("grpc_tls_key_file", presence(cfg.API.GRPCKeyFile)),');
     expect(telemetry).toContain('slog.Int("metric_tenants", len(cfg.MetricTenants)),');
     expect(telemetry).toContain('slog.Any("kafka", cfg.KafkaAuth),');
     expect(telemetry).toContain('slog.String("kafka_checkout_topic", cfg.CheckoutTopic),');
