@@ -8,28 +8,32 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	testingv1 "github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go/dmpf/testing/v1"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/golden"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb"
 )
 
-const testingOrderPlacedPath = "../../../../../libs/backend/go/contracts/fixtures/testing/v1/order-placed.golden"
+const testingOrderPlacedPath = "libs/backend/go/contracts/fixtures/testing/v1/order-placed.golden"
 
-var testingOrderPlacedSpec = fixtureSpec{
-	path: testingOrderPlacedPath,
-	identity: identity{
+var testingOrderPlacedSpec = tb.Spec[proto.Message]{
+	Path:    testingOrderPlacedPath,
+	Source:  "urn:dmpf:orders",
+	Subject: "order/o-1001",
+	Identity: golden.Identity{
 		Fixture:    "testing/v1/order-placed",
-		Contract:   contract{Package: "dmpf.testing.v1", Message: "OrderPlaced"},
+		Contract:   golden.Contract{Package: "dmpf.testing.v1", Message: "OrderPlaced"},
 		Type:       "dmpf.testing.order-placed.v1",
 		DataSchema: "type.googleapis.com/dmpf.testing.v1.OrderPlaced",
 	},
-	fieldNumbers: fieldNumbers{unknown: 7},
-	enum: enumDiscriminator{
-		field:  "channel",
-		values: []string{"ORDER_CHANNEL_UNSPECIFIED", "ORDER_CHANNEL_WEB", "99"},
+	Unknown: 7,
+	Enum: tb.Enum{
+		Field:  "channel",
+		Values: []string{"ORDER_CHANNEL_UNSPECIFIED", "ORDER_CHANNEL_WEB", "99"},
 	},
-	newMessage:         func() proto.Message { return &testingv1.OrderPlaced{} },
-	messageFromFields:  func(fields map[string]string) (proto.Message, error) { return testingOrderPlaced(fields) },
-	build:              buildTestingOrderPlaced,
-	wantCases:          6,
-	wantDiscriminators: 3,
+	New:                func() proto.Message { return &testingv1.OrderPlaced{} },
+	FromFields:         func(fields map[string]string) (proto.Message, error) { return testingOrderPlaced(fields) },
+	Build:              buildTestingOrderPlaced,
+	WantCases:          6,
+	WantDiscriminators: 3,
 }
 
 func testingOrderPlacedFields(orderID, customerID, totalCents, channel string) map[string]string {
@@ -42,7 +46,7 @@ func testingOrderPlacedFields(orderID, customerID, totalCents, channel string) m
 }
 
 func testingOrderPlaced(fields map[string]string) (*testingv1.OrderPlaced, error) {
-	total, err := parseInt(fields, "total_cents", 64)
+	total, err := tb.ParseInt(fields, "total_cents", 64)
 	if err != nil {
 		return nil, err
 	}
@@ -57,7 +61,7 @@ func testingOrderPlaced(fields map[string]string) (*testingv1.OrderPlaced, error
 		Channel:    channel,
 	}
 	if _, ok := fields["item_count"]; ok {
-		count, err := parseInt(fields, "item_count", 32)
+		count, err := tb.ParseInt(fields, "item_count", 32)
 		if err != nil {
 			return nil, err
 		}
@@ -77,72 +81,69 @@ func testingChannelFromString(s string) (testingv1.OrderChannel, error) {
 	return testingv1.OrderChannel(n), nil
 }
 
-func buildTestingOrderPlaced(t *testing.T, s fixtureSpec) fixtureDoc {
+func buildTestingOrderPlaced(t *testing.T, s tb.Spec[proto.Message]) golden.Fixture {
 	t.Helper()
 
-	allPresent := s.packedCase(t, "all-conditionals-present",
+	allPresent := s.PackedCase(t, "all-conditionals-present",
 		"Caminho típico com os três atributos condicionais presentes (aggregateversion, tenantid, tracestate).",
-		withConditionals(s.baseEnvelope()), testingOrderPlacedFields("o-1001", "c-42", "1999", "ORDER_CHANNEL_WEB"))
+		tb.WithConditionals(s.BaseEnvelope()), testingOrderPlacedFields("o-1001", "c-42", "1999", "ORDER_CHANNEL_WEB"))
 
-	absentEnv := s.baseEnvelope()
+	absentEnv := s.BaseEnvelope()
 	absentEnv["id"] = "evt-0002"
 	absentEnv["causationid"] = "evt-0001"
-	allAbsent := s.packedCase(t, "all-conditionals-absent",
+	allAbsent := s.PackedCase(t, "all-conditionals-absent",
 		"Os três condicionais ausentes: nenhum entra no mapa de atributos (ENV-12, sem valor de preenchimento).",
 		absentEnv, testingOrderPlacedFields("o-1002", "c-42", "250", "ORDER_CHANNEL_APP"))
 
-	unspecEnv := s.baseEnvelope()
+	unspecEnv := s.BaseEnvelope()
 	unspecEnv["id"] = "evt-0003"
-	unspecified := s.packedCase(t, "channel-unspecified",
+	unspecified := s.PackedCase(t, "channel-unspecified",
 		"Enum no valor zero (ORDER_CHANNEL_UNSPECIFIED, PTB-09): o campo não aparece no wire.",
 		unspecEnv, testingOrderPlacedFields("o-1003", "c-7", "0", "ORDER_CHANNEL_UNSPECIFIED"))
 
-	bigEnv := withConditionals(s.baseEnvelope())
+	bigEnv := tb.WithConditionals(s.BaseEnvelope())
 	bigEnv["id"] = "evt-0004"
 	bigEnv["aggregateversion"] = "2147483647"
-	beyondDouble := s.packedCase(t, "total-cents-beyond-double",
+	beyondDouble := s.PackedCase(t, "total-cents-beyond-double",
 		"total_cents = 2^53 + 1: um leitor que passar por double perde o último dígito (FIX-07).",
 		bigEnv, testingOrderPlacedFields("o-1004", "c-42", "9007199254740993", "ORDER_CHANNEL_WEB"))
 
-	nanosEnv := s.baseEnvelope()
+	nanosEnv := s.BaseEnvelope()
 	nanosEnv["id"] = "evt-0005"
 	nanosEnv["time"] = "2026-09-02T12:00:00.123456789Z"
 	nanosEnv["tracestate"] = "vendor=1,other=2"
-	withNanos := s.packedCase(t, "time-with-nanos",
+	withNanos := s.PackedCase(t, "time-with-nanos",
 		"Instante do fato com nanossegundos não nulos; tracestate presente sem os outros condicionais.",
 		nanosEnv, testingOrderPlacedFields("o-1005", "c-9", "12345", "ORDER_CHANNEL_APP"))
 
-	itemCountEnv := s.baseEnvelope()
+	itemCountEnv := s.BaseEnvelope()
 	itemCountEnv["id"] = "evt-0006"
 	itemCountFields := testingOrderPlacedFields("o-1006", "c-42", "4500", "ORDER_CHANNEL_WEB")
 	itemCountFields["item_count"] = "3"
-	itemCountPresent := s.packedCase(t, "item-count-present",
+	itemCountPresent := s.PackedCase(t, "item-count-present",
 		"Campo aditivo item_count no número 6, acrescentado depois do 5 reservado (PTB-06): os casos anteriores, que o omitem, mantêm os mesmos bytes.",
 		itemCountEnv, itemCountFields)
 
-	unknownEnv := s.baseEnvelope()
+	unknownEnv := s.BaseEnvelope()
 	unknownEnv["id"] = "evt-2001"
-	unknownField := s.unknownFieldCase(t, "unknown-field",
+	unknownField := s.UnknownFieldCase(t, "unknown-field",
 		"Bytes canônicos mais um campo de número 7 (varint 42) que o contrato não conhece: a desserialização o preserva (PTB-10) e o hash o cobre (ENV-17).",
 		unknownEnv, testingOrderPlacedFields("o-2001", "c-42", "1999", "ORDER_CHANNEL_WEB"))
 
-	unknownEnumEnv := s.baseEnvelope()
+	unknownEnumEnv := s.BaseEnvelope()
 	unknownEnumEnv["id"] = "evt-2002"
-	unknownEnum := s.packedCase(t, "enum-unknown-value",
+	unknownEnum := s.PackedCase(t, "enum-unknown-value",
 		"channel = 99, valor que o enum não declara: decodifica sem erro e é preservado numericamente.",
 		unknownEnumEnv, testingOrderPlacedFields("o-2002", "c-42", "1999", "99"))
 
-	nonCanonicalEnv := s.baseEnvelope()
+	nonCanonicalEnv := s.BaseEnvelope()
 	nonCanonicalEnv["id"] = "evt-2003"
-	nonCanonical := s.nonCanonicalCase(t, "non-canonical-field-order",
+	nonCanonical := s.NonCanonicalCase(t, "non-canonical-field-order",
 		"Campos em ordem decrescente de número: decodifica no mesmo valor, mas o hash é o dos bytes transportados e difere do hash de uma reserialização (ENV-18).",
 		nonCanonicalEnv, testingOrderPlacedFields("o-2003", "c-42", "1999", "ORDER_CHANNEL_WEB"))
 
-	return fixtureDoc{
-		FormatVersion:  formatVersion,
-		Identity:       s.identity,
-		Covers:         covers{ProfileMajor: "1", ContractMajor: "v1"},
-		Cases:          []fixtureCase{allPresent, allAbsent, unspecified, beyondDouble, withNanos, itemCountPresent},
-		Discriminators: []fixtureCase{unknownField, unknownEnum, nonCanonical},
-	}
+	return s.Fixture(
+		[]golden.Case{allPresent, allAbsent, unspecified, beyondDouble, withNanos, itemCountPresent},
+		[]golden.Case{unknownField, unknownEnum, nonCanonical},
+	)
 }
