@@ -18,7 +18,6 @@ type Fakes struct {
 	Ledger *Ledger
 	Steps  *Steps
 
-	// FailRegister fails every command-inbox Register after its step is recorded.
 	FailRegister error
 
 	// txs numbers the transactions opened, so every recording port knows which

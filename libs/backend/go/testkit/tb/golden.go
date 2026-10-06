@@ -29,9 +29,7 @@ type Enum struct {
 	Values []string
 }
 
-// Spec is one contract in a golden suite: where its fixture lives, relative to
-// the repository root, what it declares, and how the generator and the oracles
-// read its string-typed payload back (FIX-02).
+// Spec is one contract of a golden suite (FIX-02).
 type Spec[M proto.Message] struct {
 	Path     string
 	Identity golden.Identity
