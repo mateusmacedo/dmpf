@@ -27,10 +27,11 @@ func TestAddItemWalksTheNineStepsInOrder(t *testing.T) {
 		"orders.Load",
 		"orders.Save",
 		"outbox.Enqueue",
+		"commands.Complete",
 		"commit",
 	}
-	if !slices.Equal(h.rec.observed, want) {
-		t.Fatalf("sequence mismatch (FND-04 §3.2)\ngot:  %v\nwant: %v", h.rec.observed, want)
+	if !slices.Equal(h.rec.Observed(), want) {
+		t.Fatalf("sequence mismatch (FND-04 §3.2)\ngot:  %v\nwant: %v", h.rec.Observed(), want)
 	}
 }
 
@@ -51,10 +52,11 @@ func TestPlaceOrderWalksTheNineStepsInOrder(t *testing.T) {
 		"orders.Load",
 		"orders.Save",
 		"outbox.Enqueue",
+		"commands.Complete",
 		"commit",
 	}
-	if !slices.Equal(h.rec.observed, want) {
-		t.Fatalf("sequence mismatch (FND-04 §3.2)\ngot:  %v\nwant: %v", h.rec.observed, want)
+	if !slices.Equal(h.rec.Observed(), want) {
+		t.Fatalf("sequence mismatch (FND-04 §3.2)\ngot:  %v\nwant: %v", h.rec.Observed(), want)
 	}
 }
 
@@ -67,8 +69,8 @@ func TestADeniedAuthorizationStopsBeforeIdentityAndTransaction(t *testing.T) {
 	if !errors.Is(err, errDenied) {
 		t.Fatalf("AddItem() error = %v, want errDenied", err)
 	}
-	if want := []string{"authorize"}; !slices.Equal(h.rec.observed, want) {
-		t.Fatalf("observed %v, want %v — nothing runs after a denied authorization", h.rec.observed, want)
+	if want := []string{"authorize"}; !slices.Equal(h.rec.Observed(), want) {
+		t.Fatalf("observed %v, want %v — nothing runs after a denied authorization", h.rec.Observed(), want)
 	}
 	if got := h.store.WithinCalls(); got != 0 {
 		t.Fatalf("WithinCalls() = %d, want 0", got)

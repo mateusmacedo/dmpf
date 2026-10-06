@@ -1,8 +1,6 @@
 package application
 
 import (
-	"context"
-
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/domain"
 	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
@@ -84,26 +82,20 @@ type Service struct {
 	Instrumentation ports.Instrumentation
 }
 
-func idempotent[R any](
-	ctx context.Context,
-	s Service,
-	res Resources,
-	fingerprint *usecase.Fingerprint,
-	operation string,
-	now ports.Instant,
-	codec usecase.OutcomeCodec[R],
-	run func() (usecase.Outcome[R], error),
-) (usecase.Outcome[R], bool, error) {
-	return usecase.RunIdempotent(ctx, usecase.IdempotentCommand[R]{
-		Inbox:       res.Commands,
-		Consumer:    CommandConsumer,
-		Operation:   operation,
-		Fingerprint: fingerprint,
-		Now:         now,
-		Policy:      s.Idempotency,
-		Codec:       codec,
-		Run:         run,
-	})
+type command[R any] = usecase.Command[Resources, Operation, R]
+
+func (s Service) executor() usecase.Executor[Resources, Operation] {
+	return usecase.Executor[Resources, Operation]{
+		UoW:             s.UoW,
+		Inbox:           func(res Resources) ports.Inbox { return res.Commands },
+		Consumer:        CommandConsumer,
+		Clock:           s.Clock,
+		IDs:             s.IDs,
+		MaxEvents:       maxEventsPerCommand,
+		Policy:          s.Idempotency,
+		Authorize:       s.Authorize,
+		Instrumentation: s.Instrumentation,
+	}
 }
 
 // instrumentation resolves the nil hook to the inert realization, so every

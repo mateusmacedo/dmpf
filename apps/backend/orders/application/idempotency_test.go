@@ -28,8 +28,8 @@ func TestARepeatedAddItemReplaysWithoutASecondEffectOrAudit(t *testing.T) {
 	if again.Response() != first.Response() || again.Response().Items != 1 {
 		t.Fatalf("replay = %+v, want %+v with one item", again.Response(), first.Response())
 	}
-	if h.saves != 1 || h.enqueues != 1 {
-		t.Fatalf("saves %d, enqueues %d, want 1 and 1: the replay reapplied the effect", h.saves, h.enqueues)
+	if h.saves != 1 || h.enqueues() != 1 {
+		t.Fatalf("saves %d, enqueues %d, want 1 and 1: the replay reapplied the effect", h.saves, h.enqueues())
 	}
 	if len(instr.audits) != 1 {
 		t.Fatalf("Audit called %d times, want 1: a replay is not a new fact", len(instr.audits))
@@ -50,7 +50,7 @@ func TestARepeatedRefusalReplaysTheRejectionWithoutLoading(t *testing.T) {
 	if _, err := h.service.AddItem(withKey(t, context.Background(), "k-refused"), add); err != nil {
 		t.Fatalf("first AddItem() = %v, want a rejection, not an error", err)
 	}
-	h.rec.observed = nil
+	h.rec.Reset()
 	again, err := h.service.AddItem(withKey(t, context.Background(), "k-refused"), add)
 	if err != nil {
 		t.Fatalf("repeated AddItem() = %v, want the stored rejection", err)
@@ -59,8 +59,8 @@ func TestARepeatedRefusalReplaysTheRejectionWithoutLoading(t *testing.T) {
 	if _, rejected := again.Rejection(); !rejected {
 		t.Fatalf("replay = %+v, want the rejection of an order already placed", again)
 	}
-	if slices.Contains(h.rec.observed, "orders.Load") {
-		t.Fatalf("sequence = %v: the replay reached the aggregate", h.rec.observed)
+	if slices.Contains(h.rec.Observed(), "orders.Load") {
+		t.Fatalf("sequence = %v: the replay reached the aggregate", h.rec.Observed())
 	}
 }
 
@@ -75,8 +75,8 @@ func TestTheSameKeyWithAnotherPayloadIsAMismatch(t *testing.T) {
 	if !errors.Is(err, ports.ErrIdempotencyMismatch) {
 		t.Fatalf("AddItem(other quantity) = %v, want ErrIdempotencyMismatch", err)
 	}
-	if h.enqueues != 1 {
-		t.Fatalf("enqueues = %d, want 1", h.enqueues)
+	if h.enqueues() != 1 {
+		t.Fatalf("enqueues = %d, want 1", h.enqueues())
 	}
 }
 
@@ -99,8 +99,8 @@ func TestACommandWithoutAKeyIsRefusedBeforeAnyEffect(t *testing.T) {
 	if !errors.Is(err, ports.ErrIdempotencyKeyAbsent) {
 		t.Fatalf("AddItem() = %v, want ErrIdempotencyKeyAbsent", err)
 	}
-	if h.saves != 0 || h.enqueues != 0 {
-		t.Fatalf("saves %d, enqueues %d, want none", h.saves, h.enqueues)
+	if h.saves != 0 || h.enqueues() != 0 {
+		t.Fatalf("saves %d, enqueues %d, want none", h.saves, h.enqueues())
 	}
 }
 
