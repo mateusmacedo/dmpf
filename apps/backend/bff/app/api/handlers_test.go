@@ -1,6 +1,7 @@
 package api_test
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"net/http"
@@ -23,6 +24,33 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/admission"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/deadline"
 )
+
+func TestRoutesDeclareTheMethodPermissionAndKeyOfEachOperation(t *testing.T) {
+	want := []string{
+		"addItem POST /orders/{id}/items orders:write Idempotency-Key",
+		"placeOrder POST /orders/{id}/place orders:write Idempotency-Key",
+		"findOrder GET /orders/{id} orders:read -",
+		"findReservation GET /reservations/{order_id} reservations:read -",
+		"reserve POST /reservations/{order_id}/reserve reservations:write Idempotency-Key",
+		"cancel POST /reservations/{order_id}/cancel reservations:write Idempotency-Key",
+		"reserveBooking POST /bookings/booking bookings:write Idempotency-Key",
+		"findBookingByResource GET /bookings/booking bookings:read -",
+		"findBooking GET /bookings/booking/{id} bookings:read -",
+		"cancelBooking POST /bookings/booking/{id}/cancel bookings:write Idempotency-Key",
+		"registerResource POST /bookings/resource bookings:write Idempotency-Key",
+	}
+	var got []string
+	for _, route := range api.Routes(routeBudget) {
+		key := cmp.Or(route.IdempotencyKey, "-")
+		got = append(got, strings.Join([]string{route.Name, route.Method, route.Path, string(route.Permission), key}, " "))
+		if route.Requires != kernelhttp.RequireSubjectAndTenant || route.Budget != routeBudget {
+			t.Errorf("%s: Requires = %v, Budget = %v, want subject and tenant over the route budget", route.Name, route.Requires, route.Budget)
+		}
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("Routes() =\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+}
 
 func TestRoutesReferenceThePublishedContracts(t *testing.T) {
 	routes := api.Routes(routeBudget)

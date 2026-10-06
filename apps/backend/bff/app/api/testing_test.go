@@ -26,6 +26,7 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/test/bufconn"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
 
 	"github.com/mateusmacedo/dmpf/apps/backend/bff/app/api"
 	"github.com/mateusmacedo/dmpf/apps/backend/bff/app/rpc"
@@ -112,27 +113,30 @@ func (f *fakeContexts) total() int {
 	return len(f.calls)
 }
 
+var (
+	ordersService       = ordersv1.File_company_orders_service_v1_orders_service_proto.Services().ByName("OrdersService")
+	reservationsService = reservationsv1.File_company_reservations_service_v1_reservations_service_proto.Services().ByName("ReservationsService")
+	bookingsService     = bookingsv1.File_company_bookings_service_v1_bookings_service_proto.Services().ByName("BookingsService")
+)
+
 func unary[Req any, PReq interface {
 	*Req
 	proto.Message
-}](f *fakeContexts, name string, fallback any) grpc.MethodDesc {
-	return grpc.MethodDesc{
-		MethodName: name,
-		Handler: func(_ any, ctx context.Context, dec func(any) error, _ grpc.UnaryServerInterceptor) (any, error) {
-			req := PReq(new(Req))
-			if err := dec(req); err != nil {
-				return nil, err
-			}
-			n := f.record(ctx, name, req)
-			if f.replays[name] {
+}](f *fakeContexts, service protoreflect.ServiceDescriptor, name protoreflect.Name, fallback proto.Message) grpc.MethodDesc {
+	method := string(name)
+	return kernelgrpc.Unary[any, Req, PReq, proto.Message](string(service.FullName()), kernelgrpc.Method(service, name),
+		func(_ any, ctx context.Context, req PReq) (proto.Message, error) {
+			n := f.record(ctx, method, req)
+			if f.replays[method] {
 				_ = grpc.SetHeader(ctx, metadata.Pairs(kernelgrpc.ReplayedHeader, "true"))
 			}
-			if respond, declared := f.respond[name]; declared {
-				return respond(n)
+			if respond, declared := f.respond[method]; declared {
+				resp, err := respond(n)
+				msg, _ := resp.(proto.Message)
+				return msg, err
 			}
 			return fallback, nil
-		},
-	}
+		})
 }
 
 func (f *fakeContexts) serve(t *testing.T) func(context.Context, string) (net.Conn, error) {
@@ -142,9 +146,9 @@ func (f *fakeContexts) serve(t *testing.T) func(context.Context, string) (net.Co
 		ServiceName: rpc.OrdersServiceName,
 		HandlerType: (*any)(nil),
 		Methods: []grpc.MethodDesc{
-			unary[ordersv1.AddItemRequest](f, "AddItem", &ordersv1.AddItemResponse{Result: &ordersv1.AddItemResponse_Accepted{Accepted: &ordersv1.ItemAccepted{OrderId: "o-1", ItemCount: 1}}}),
-			unary[ordersv1.PlaceOrderRequest](f, "PlaceOrder", &ordersv1.PlaceOrderResponse{Result: &ordersv1.PlaceOrderResponse_Placed{Placed: &ordersv1.Placed{OrderId: "o-1"}}}),
-			unary[ordersv1.FindOrderRequest](f, "FindOrder", &ordersv1.FindOrderResponse{Order: &ordersv1.Order{
+			unary[ordersv1.AddItemRequest](f, ordersService, "AddItem", &ordersv1.AddItemResponse{Result: &ordersv1.AddItemResponse_Accepted{Accepted: &ordersv1.ItemAccepted{OrderId: "o-1", ItemCount: 1}}}),
+			unary[ordersv1.PlaceOrderRequest](f, ordersService, "PlaceOrder", &ordersv1.PlaceOrderResponse{Result: &ordersv1.PlaceOrderResponse_Placed{Placed: &ordersv1.Placed{OrderId: "o-1"}}}),
+			unary[ordersv1.FindOrderRequest](f, ordersService, "FindOrder", &ordersv1.FindOrderResponse{Order: &ordersv1.Order{
 				OrderId: "o-1", Status: ordersv1.OrderStatus_ORDER_STATUS_OPEN, ItemLimit: 10,
 				Items: []*ordersv1.Item{{Sku: "A", Quantity: 1}},
 			}}),
@@ -154,9 +158,9 @@ func (f *fakeContexts) serve(t *testing.T) func(context.Context, string) (net.Co
 		ServiceName: rpc.ReservationsServiceName,
 		HandlerType: (*any)(nil),
 		Methods: []grpc.MethodDesc{
-			unary[reservationsv1.ReserveRequest](f, "Reserve", &reservationsv1.ReserveResponse{Result: &reservationsv1.ReserveResponse_Reserved{Reserved: &reservationsv1.Reserved{OrderId: "o-1", ItemCount: 2}}}),
-			unary[reservationsv1.CancelRequest](f, "Cancel", &reservationsv1.CancelResponse{Result: &reservationsv1.CancelResponse_Canceled{Canceled: &reservationsv1.Canceled{OrderId: "o-1"}}}),
-			unary[reservationsv1.FindReservationRequest](f, "FindReservation", &reservationsv1.FindReservationResponse{Reservation: &reservationsv1.Reservation{
+			unary[reservationsv1.ReserveRequest](f, reservationsService, "Reserve", &reservationsv1.ReserveResponse{Result: &reservationsv1.ReserveResponse_Reserved{Reserved: &reservationsv1.Reserved{OrderId: "o-1", ItemCount: 2}}}),
+			unary[reservationsv1.CancelRequest](f, reservationsService, "Cancel", &reservationsv1.CancelResponse{Result: &reservationsv1.CancelResponse_Canceled{Canceled: &reservationsv1.Canceled{OrderId: "o-1"}}}),
+			unary[reservationsv1.FindReservationRequest](f, reservationsService, "FindReservation", &reservationsv1.FindReservationResponse{Reservation: &reservationsv1.Reservation{
 				OrderId: "o-1", Status: reservationsv1.ReservationStatus_RESERVATION_STATUS_CONFIRMED, ItemCount: 2,
 			}}),
 		},
@@ -165,13 +169,13 @@ func (f *fakeContexts) serve(t *testing.T) func(context.Context, string) (net.Co
 		ServiceName: rpc.BookingsServiceName,
 		HandlerType: (*any)(nil),
 		Methods: []grpc.MethodDesc{
-			unary[bookingsv1.ReserveBookingRequest](f, "ReserveBooking", &bookingsv1.ReserveBookingResponse{Result: &bookingsv1.ReserveBookingResponse_Reserved{Reserved: &bookingsv1.Reserved{BookingId: "b-1"}}}),
-			unary[bookingsv1.CancelBookingRequest](f, "CancelBooking", &bookingsv1.CancelBookingResponse{Result: &bookingsv1.CancelBookingResponse_Cancelled{Cancelled: &bookingsv1.Cancelled{BookingId: "b-1"}}}),
-			unary[bookingsv1.RegisterResourceRequest](f, "RegisterResource", &bookingsv1.RegisterResourceResponse{Result: &bookingsv1.RegisterResourceResponse_Registered{Registered: &bookingsv1.Registered{ResourceId: "room-1"}}}),
-			unary[bookingsv1.FindBookingRequest](f, "FindBooking", &bookingsv1.FindBookingResponse{Booking: &bookingsv1.Booking{
+			unary[bookingsv1.ReserveBookingRequest](f, bookingsService, "ReserveBooking", &bookingsv1.ReserveBookingResponse{Result: &bookingsv1.ReserveBookingResponse_Reserved{Reserved: &bookingsv1.Reserved{BookingId: "b-1"}}}),
+			unary[bookingsv1.CancelBookingRequest](f, bookingsService, "CancelBooking", &bookingsv1.CancelBookingResponse{Result: &bookingsv1.CancelBookingResponse_Cancelled{Cancelled: &bookingsv1.Cancelled{BookingId: "b-1"}}}),
+			unary[bookingsv1.RegisterResourceRequest](f, bookingsService, "RegisterResource", &bookingsv1.RegisterResourceResponse{Result: &bookingsv1.RegisterResourceResponse_Registered{Registered: &bookingsv1.Registered{ResourceId: "room-1"}}}),
+			unary[bookingsv1.FindBookingRequest](f, bookingsService, "FindBooking", &bookingsv1.FindBookingResponse{Booking: &bookingsv1.Booking{
 				BookingId: "b-1", ResourceId: "room-1", Quantity: 2, Status: bookingsv1.BookingStatus_BOOKING_STATUS_RESERVED, ReservedAt: 1_755_432_000_000_000_000,
 			}}),
-			unary[bookingsv1.FindBookingsByResourceRequest](f, "FindBookingsByResource", &bookingsv1.FindBookingsByResourceResponse{Bookings: []*bookingsv1.Booking{{
+			unary[bookingsv1.FindBookingsByResourceRequest](f, bookingsService, "FindBookingsByResource", &bookingsv1.FindBookingsByResourceResponse{Bookings: []*bookingsv1.Booking{{
 				BookingId: "b-1", ResourceId: "room-1", Quantity: 2, Status: bookingsv1.BookingStatus_BOOKING_STATUS_CANCELLED, ReservedAt: 1_755_432_000_000_000_000,
 			}}}),
 		},

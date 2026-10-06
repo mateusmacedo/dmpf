@@ -144,68 +144,62 @@ func Dial(target string, cfg kernelgrpc.Config, extra ...grpc.DialOption) (*grpc
 	return kernelgrpc.Dial(target, cfg, options...)
 }
 
-type Orders struct{ conn grpc.ClientConnInterface }
+type Unary[Req, Resp any] func(context.Context, *Req) (*Resp, error)
 
-func NewOrders(conn grpc.ClientConnInterface) Orders { return Orders{conn: conn} }
-
-func (o Orders) AddItem(ctx context.Context, req *ordersv1.AddItemRequest) (*ordersv1.AddItemResponse, error) {
-	return invoke[ordersv1.AddItemResponse](ctx, o.conn, MethodAddItem, req)
+type Orders struct {
+	AddItem    Unary[ordersv1.AddItemRequest, ordersv1.AddItemResponse]
+	PlaceOrder Unary[ordersv1.PlaceOrderRequest, ordersv1.PlaceOrderResponse]
+	FindOrder  Unary[ordersv1.FindOrderRequest, ordersv1.FindOrderResponse]
 }
 
-func (o Orders) PlaceOrder(ctx context.Context, req *ordersv1.PlaceOrderRequest) (*ordersv1.PlaceOrderResponse, error) {
-	return invoke[ordersv1.PlaceOrderResponse](ctx, o.conn, MethodPlaceOrder, req)
-}
-
-func (o Orders) FindOrder(ctx context.Context, req *ordersv1.FindOrderRequest) (*ordersv1.FindOrderResponse, error) {
-	return invoke[ordersv1.FindOrderResponse](ctx, o.conn, MethodFindOrder, req)
-}
-
-type Reservations struct{ conn grpc.ClientConnInterface }
-
-func NewReservations(conn grpc.ClientConnInterface) Reservations { return Reservations{conn: conn} }
-
-func (r Reservations) Reserve(ctx context.Context, req *reservationsv1.ReserveRequest) (*reservationsv1.ReserveResponse, error) {
-	return invoke[reservationsv1.ReserveResponse](ctx, r.conn, MethodReserve, req)
-}
-
-func (r Reservations) Cancel(ctx context.Context, req *reservationsv1.CancelRequest) (*reservationsv1.CancelResponse, error) {
-	return invoke[reservationsv1.CancelResponse](ctx, r.conn, MethodCancel, req)
-}
-
-func (r Reservations) FindReservation(ctx context.Context, req *reservationsv1.FindReservationRequest) (*reservationsv1.FindReservationResponse, error) {
-	return invoke[reservationsv1.FindReservationResponse](ctx, r.conn, MethodFindReservation, req)
-}
-
-type Bookings struct{ conn grpc.ClientConnInterface }
-
-func NewBookings(conn grpc.ClientConnInterface) Bookings { return Bookings{conn: conn} }
-
-func (b Bookings) ReserveBooking(ctx context.Context, req *bookingsv1.ReserveBookingRequest) (*bookingsv1.ReserveBookingResponse, error) {
-	return invoke[bookingsv1.ReserveBookingResponse](ctx, b.conn, MethodReserveBooking, req)
-}
-
-func (b Bookings) CancelBooking(ctx context.Context, req *bookingsv1.CancelBookingRequest) (*bookingsv1.CancelBookingResponse, error) {
-	return invoke[bookingsv1.CancelBookingResponse](ctx, b.conn, MethodCancelBooking, req)
-}
-
-func (b Bookings) RegisterResource(ctx context.Context, req *bookingsv1.RegisterResourceRequest) (*bookingsv1.RegisterResourceResponse, error) {
-	return invoke[bookingsv1.RegisterResourceResponse](ctx, b.conn, MethodRegisterResource, req)
-}
-
-func (b Bookings) FindBooking(ctx context.Context, req *bookingsv1.FindBookingRequest) (*bookingsv1.FindBookingResponse, error) {
-	return invoke[bookingsv1.FindBookingResponse](ctx, b.conn, MethodFindBooking, req)
-}
-
-func (b Bookings) FindBookingsByResource(ctx context.Context, req *bookingsv1.FindBookingsByResourceRequest) (*bookingsv1.FindBookingsByResourceResponse, error) {
-	return invoke[bookingsv1.FindBookingsByResourceResponse](ctx, b.conn, MethodFindBookingsByResource, req)
-}
-
-func invoke[Resp any](ctx context.Context, conn grpc.ClientConnInterface, method string, req any) (*Resp, error) {
-	resp := new(Resp)
-	var header metadata.MD
-	if err := conn.Invoke(ctx, method, req, resp, grpc.Header(&header)); err != nil {
-		return nil, err
+func NewOrders(conn grpc.ClientConnInterface) Orders {
+	return Orders{
+		AddItem:    unaryOf[ordersv1.AddItemRequest, ordersv1.AddItemResponse](conn, MethodAddItem),
+		PlaceOrder: unaryOf[ordersv1.PlaceOrderRequest, ordersv1.PlaceOrderResponse](conn, MethodPlaceOrder),
+		FindOrder:  unaryOf[ordersv1.FindOrderRequest, ordersv1.FindOrderResponse](conn, MethodFindOrder),
 	}
-	markReplayed(ctx, header)
-	return resp, nil
+}
+
+type Reservations struct {
+	Reserve         Unary[reservationsv1.ReserveRequest, reservationsv1.ReserveResponse]
+	Cancel          Unary[reservationsv1.CancelRequest, reservationsv1.CancelResponse]
+	FindReservation Unary[reservationsv1.FindReservationRequest, reservationsv1.FindReservationResponse]
+}
+
+func NewReservations(conn grpc.ClientConnInterface) Reservations {
+	return Reservations{
+		Reserve:         unaryOf[reservationsv1.ReserveRequest, reservationsv1.ReserveResponse](conn, MethodReserve),
+		Cancel:          unaryOf[reservationsv1.CancelRequest, reservationsv1.CancelResponse](conn, MethodCancel),
+		FindReservation: unaryOf[reservationsv1.FindReservationRequest, reservationsv1.FindReservationResponse](conn, MethodFindReservation),
+	}
+}
+
+type Bookings struct {
+	ReserveBooking         Unary[bookingsv1.ReserveBookingRequest, bookingsv1.ReserveBookingResponse]
+	CancelBooking          Unary[bookingsv1.CancelBookingRequest, bookingsv1.CancelBookingResponse]
+	RegisterResource       Unary[bookingsv1.RegisterResourceRequest, bookingsv1.RegisterResourceResponse]
+	FindBooking            Unary[bookingsv1.FindBookingRequest, bookingsv1.FindBookingResponse]
+	FindBookingsByResource Unary[bookingsv1.FindBookingsByResourceRequest, bookingsv1.FindBookingsByResourceResponse]
+}
+
+func NewBookings(conn grpc.ClientConnInterface) Bookings {
+	return Bookings{
+		ReserveBooking:         unaryOf[bookingsv1.ReserveBookingRequest, bookingsv1.ReserveBookingResponse](conn, MethodReserveBooking),
+		CancelBooking:          unaryOf[bookingsv1.CancelBookingRequest, bookingsv1.CancelBookingResponse](conn, MethodCancelBooking),
+		RegisterResource:       unaryOf[bookingsv1.RegisterResourceRequest, bookingsv1.RegisterResourceResponse](conn, MethodRegisterResource),
+		FindBooking:            unaryOf[bookingsv1.FindBookingRequest, bookingsv1.FindBookingResponse](conn, MethodFindBooking),
+		FindBookingsByResource: unaryOf[bookingsv1.FindBookingsByResourceRequest, bookingsv1.FindBookingsByResourceResponse](conn, MethodFindBookingsByResource),
+	}
+}
+
+func unaryOf[Req, Resp any](conn grpc.ClientConnInterface, method string) Unary[Req, Resp] {
+	return func(ctx context.Context, req *Req) (*Resp, error) {
+		resp := new(Resp)
+		var header metadata.MD
+		if err := conn.Invoke(ctx, method, req, resp, grpc.Header(&header)); err != nil {
+			return nil, err
+		}
+		markReplayed(ctx, header)
+		return resp, nil
+	}
 }
