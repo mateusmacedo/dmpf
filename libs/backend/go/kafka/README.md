@@ -145,6 +145,11 @@ Sem essa ACL — pré-requisito de todo ambiente com a fronteira verificada,
 descrita em ADR-052 —, `TransportVerified` afirmaria uma ligação que o broker
 não impõe; este módulo não a provisiona nem a confere.
 
+`ClientAuth.Missing(insecure)` é a mesma exigência na validação da `Config` de
+um contexto (IDN-04): com TLS ligado e sem SASL nem certificado, devolve
+`KAFKA_SASL_MECHANISM or KAFKA_CLIENT_CERT_FILE`, que o `requirements()` do
+contexto nomeia na recusa da partida; com o opt-out de desenvolvimento, nada.
+
 No compose local o listener interno do Redpanda exige SASL, sem TLS no broker,
 com as mesmas ACLs gravadas pelo `redpanda-init`; a fronteira do consumer fica
 `development-only`. O listener externo continua sem autenticação para os

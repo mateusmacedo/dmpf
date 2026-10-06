@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"log/slog"
+	"slices"
 	"strings"
 	"testing"
 
@@ -76,5 +77,25 @@ func TestAnUndeclaredClientAuthLogsEveryPositionUnset(t *testing.T) {
 		if logged[field] != value {
 			t.Errorf("%s = %v, want %v", field, logged[field], value)
 		}
+	}
+}
+
+func TestClientAuthMissingRequiresAPrincipalUnderTLS(t *testing.T) {
+	sasl := &kafka.SASL{Mechanism: kafka.ScramSHA256, Username: "u", Password: "p"}
+	for name, tc := range map[string]struct {
+		auth     kafka.ClientAuth
+		insecure bool
+		want     []string
+	}{
+		"nothing under TLS":     {kafka.ClientAuth{}, false, []string{"KAFKA_SASL_MECHANISM or KAFKA_CLIENT_CERT_FILE"}},
+		"SASL under TLS":        {kafka.ClientAuth{SASL: sasl}, false, nil},
+		"certificate under TLS": {kafka.ClientAuth{CertFile: "/tls/client.pem"}, false, nil},
+		"insecure opt-out":      {kafka.ClientAuth{}, true, nil},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if got := tc.auth.Missing(tc.insecure); !slices.Equal(got, tc.want) {
+				t.Fatalf("Missing(%v) = %q, want %q", tc.insecure, got, tc.want)
+			}
+		})
 	}
 }

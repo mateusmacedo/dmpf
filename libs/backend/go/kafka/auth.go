@@ -97,6 +97,15 @@ func ReadClientAuth(lookup func(string) string) ClientAuth {
 	return auth
 }
 
+// Missing is the requirement of IDN-04 on a role that talks to the broker: with
+// TLS on, the client authenticates; only the insecure opt-out waives it.
+func (a ClientAuth) Missing(insecure bool) []string {
+	if !insecure && a.SASL == nil && a.CertFile == "" {
+		return []string{"KAFKA_SASL_MECHANISM or KAFKA_CLIENT_CERT_FILE"}
+	}
+	return nil
+}
+
 // apply puts the declaration on the configuration. SASL is kept without TLS
 // only under the development opt-out, where the secret crosses in the clear.
 func (a ClientAuth) apply(cfg *Config) error {
