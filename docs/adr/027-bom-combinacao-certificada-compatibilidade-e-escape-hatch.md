@@ -4,6 +4,8 @@
 
 Aceito — 2026-08-29. Implementa SPEC-DBTRMM3X.
 
+**Parcialmente supersedido pelo [ADR-058](./058-projeto-solo-sem-controles-de-segunda-pessoa.md) (2026-10-04)**: o ato de `BOM-05` passa a `promoted {by, pr}`, e a convergência `review` de uma exceção perde o `approved_by`.
+
 ## Contexto
 
 O risco §15 do épico ARQ-436 e a advertência de `Parte-1 §17.2` apontam para o mesmo

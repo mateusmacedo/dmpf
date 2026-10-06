@@ -7,7 +7,7 @@ x-image: &image
   image: ${<%- envName %>_IMAGE:-<%- name %>:local}
 
 x-env: &env
-  SERVICE: <%- name %>
+  OTEL_SERVICE_NAME: <%- name %>
   PG_DSN: postgres://<%- name %>:${<%- envName %>_PG_PASSWORD:-<%- name %>-local}@postgres:5432/<%- name %>?sslmode=disable
 
 services:
@@ -16,9 +16,10 @@ services:
     extends:
       file: ../../../../infra/local/compose/app-base.yml
       service: dmpf-grpc-api
+    stop_grace_period: 30s
     environment:
       <<: *env
-      INSTANCE_ID: <%- name %>-api
+      OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES:-service.version=local,deployment.environment.name=local},service.instance.id=<%- name %>-api,dmpf.process.role=api
       GRPC_TLS_CERT_FILE: /pki/dmpf-<%- name %>-api.crt
       GRPC_TLS_KEY_FILE: /pki/dmpf-<%- name %>-api.key
     depends_on:
@@ -34,10 +35,11 @@ services:
     extends:
       file: ../../../../infra/local/compose/app-base.yml
       service: dmpf-kafka-worker
+    stop_grace_period: 30s
     command: ['--role', 'relay']
     environment:
       <<: *env
-      INSTANCE_ID: <%- name %>-relay
+      OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES:-service.version=local,deployment.environment.name=local},service.instance.id=<%- name %>-relay,dmpf.process.role=relay
       KAFKA_SASL_USERNAME: <%- name %>
       KAFKA_SASL_PASSWORD: ${KAFKA_<%- envName %>_PASSWORD:-<%- name %>-local}
       KAFKA_GROUP: <%- name %>

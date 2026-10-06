@@ -63,7 +63,9 @@ func (r Relay) release(ctx context.Context, records []postgres.Claimed) {
 	for _, record := range records {
 		// A rejected release means the claim was already replaced, which is
 		// the outcome OBX-10 describes and needs no repair.
-		_, _ = r.Store.Reschedule(cleanup, record.ID, record.LockedBy, now, releaseReason)
+		if _, err := r.Store.Reschedule(cleanup, record.ID, record.LockedBy, now, releaseReason); err != nil {
+			r.logReleaseFailed(cleanup, record, err)
+		}
 	}
 }
 

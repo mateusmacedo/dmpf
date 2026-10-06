@@ -1,0 +1,96 @@
+name: Load (k6)
+
+# Só manual e sobre a topologia do próprio runner: o mock de identidade do BFF
+# forja qualquer sujeito, então a carga nunca mira dev nem hmg.
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: "Perfil de carga"
+        required: true
+        type: choice
+        default: smoke
+        options: [smoke, average, stress, spike, soak, breakpoint, admission]
+      rate:
+        description: "RATE: iterações de jornada por segundo, de 1 a 1000 (vazio usa 10)"
+        required: false
+        type: string
+        default: ""
+      duration:
+        description: "DURATION: platô, como 10m (vazio usa o default do perfil); o job tem teto de 6 h"
+        required: false
+        type: string
+        default: ""
+      tenants:
+        description: "TENANTS: de 1 a 5 (vazio usa 4)"
+        required: false
+        type: string
+        default: ""
+      weights:
+        description: "WEIGHTS: orders=30,reservations=25,bookings=35,reads=10 (vazio usa o default)"
+        required: false
+        type: string
+        default: ""
+      runner:
+        description: "Label do runner; um runner dedicado torna as execuções comparáveis"
+        required: true
+        type: string
+        default: ubuntu-26.04
+
+permissions:
+  contents: read
+
+concurrency:
+  group: load-${{ inputs.runner }}
+  cancel-in-progress: false
+
+jobs:
+  load:
+    name: Carga (${{ inputs.profile }})
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 360
+    env:
+      PROFILE: ${{ inputs.profile }}
+      RATE: ${{ inputs.rate }}
+      DURATION: ${{ inputs.duration }}
+      TENANTS: ${{ inputs.tenants }}
+      WEIGHTS: ${{ inputs.weights }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - name: Setup Node and pnpm
+        uses: ./.github/actions/setup-node-pnpm
+
+      - name: Validar os parâmetros
+        run: bash apps/backend/load/scripts/run.sh --check "$PROFILE"
+
+      - name: Subir a topologia
+        run: docker compose -f infra/local/docker-compose.yml --profile dmpf up -d --build --wait
+
+      - name: Rodar a carga
+        run: pnpm nx run "load:$PROFILE"
+
+      - name: Publicar o resultado
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: load-${{ inputs.profile }}-${{ github.run_id }}
+          path: dist/load/
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Anexar o resumo ao job
+        if: ${{ !cancelled() }}
+        run: |
+          for summary in dist/load/*/summary.md; do
+            if [ -f "$summary" ]; then
+              cat "$summary" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          done
+
+      - name: Derrubar a topologia
+        if: always()
+        run: docker compose -f infra/local/docker-compose.yml --profile all --profile dmpf --profile load down -v

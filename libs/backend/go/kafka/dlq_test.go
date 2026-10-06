@@ -4,11 +4,15 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"log/slog"
 	"strings"
 	"testing"
 	"unicode/utf8"
 
 	"github.com/twmb/franz-go/pkg/kgo"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/log"
+	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/kafka"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
@@ -30,7 +34,7 @@ func TestQuarantinePublishesTheEnvelopeIntactWithDiagnosisHeaders(t *testing.T) 
 		MessageID: "evt-1",
 		Reason:    ports.ReasonAttemptsExhausted,
 		Envelope:  raw,
-		Error:     "storage: timeout",
+		Error:     "TransientDependency",
 		At:        ports.Instant(start.UnixNano()),
 	})
 	if err != nil {
@@ -60,7 +64,7 @@ func TestQuarantinePublishesTheEnvelopeIntactWithDiagnosisHeaders(t *testing.T) 
 		kafka.HeaderReason:    "attempts-exhausted",
 		kafka.HeaderConsumer:  "billing-consumer",
 		kafka.HeaderMessageID: "evt-1",
-		kafka.HeaderError:     "storage: timeout",
+		kafka.HeaderError:     "TransientDependency",
 	}
 	for k, v := range want {
 		if headers[k] != v {
@@ -163,5 +167,170 @@ func TestQuarantineBoundsTheValuesThatComeFromOutside(t *testing.T) {
 		if len(h.Value) > kafka.HeaderValueLimit || !utf8.Valid(h.Value) {
 			t.Fatalf("%s = %d bytes (valid utf-8: %v), want at most %d and valid", h.Key, len(h.Value), utf8.Valid(h.Value), kafka.HeaderValueLimit)
 		}
+	}
+}
+
+func headerValue(rec *kgo.Record, key string) (string, bool) {
+	for _, h := range rec.Headers {
+		if h.Key == key {
+			return string(h.Value), true
+		}
+	}
+	return "", false
+}
+
+func TestQuarantineCarriesTheCategoryAndNeverTheFreeTextOfTheError(t *testing.T) {
+	fake := kafka.NewFakeClient()
+	dlq, err := kafka.NewDLQWith(publishConfig(), ordersChannel(), fake)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := validRaw(t, "k1")
+	for _, text := range []string{"storage: timeout", "app: source outside the trusted boundary", "R1×D4", "card 4111111111111111 declined"} {
+		if err := dlq.Quarantine(context.Background(), ports.Contained{Consumer: "c", Reason: ports.ReasonTerminalFailure, Envelope: raw, Error: text}); err != nil {
+			t.Fatal(err)
+		}
+		rec := fake.Produced()[len(fake.Produced())-1]
+		if got, _ := headerValue(rec, kafka.HeaderError); got != semconv.ErrorTypeOther.Value.AsString() {
+			t.Errorf("Error %q: header %s = %q, want %s, never the text (DAT-03, RF-B1)", text, kafka.HeaderError, got, semconv.ErrorTypeOther.Value.AsString())
+		}
+	}
+}
+
+func TestQuarantineCarriesEveryFND07CategoryAsIs(t *testing.T) {
+	fake := kafka.NewFakeClient()
+	dlq, err := kafka.NewDLQWith(publishConfig(), ordersChannel(), fake)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := validRaw(t, "k1")
+	for _, category := range []string{"Validation", "DomainRejection", "NotFound", "Conflict", "Forbidden", "Unauthenticated", "TransientDependency", "RateLimited", "DeadlineExceeded", "Cancelled", "Unexpected"} {
+		if err := dlq.Quarantine(context.Background(), ports.Contained{Consumer: "c", Reason: ports.ReasonTerminalFailure, Envelope: raw, Error: category}); err != nil {
+			t.Fatal(err)
+		}
+		if got, _ := headerValue(fake.Produced()[len(fake.Produced())-1], kafka.HeaderError); got != category {
+			t.Errorf("header %s = %q, want the FND-07 category %q", kafka.HeaderError, got, category)
+		}
+	}
+}
+
+func TestQuarantineWithoutErrorCarriesNoErrorHeader(t *testing.T) {
+	fake := kafka.NewFakeClient()
+	dlq, err := kafka.NewDLQWith(publishConfig(), ordersChannel(), fake)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := validRaw(t, "k1")
+	if err := dlq.Quarantine(context.Background(), ports.Contained{Consumer: "c", Reason: ports.ReasonCollision, Envelope: raw}); err != nil {
+		t.Fatal(err)
+	}
+	if got, has := headerValue(fake.Produced()[0], kafka.HeaderError); has {
+		t.Fatalf("header %s = %q on a containment without error", kafka.HeaderError, got)
+	}
+}
+
+type containedRecord struct {
+	messageID, reason string
+	severity          log.Severity
+	keys              []string
+}
+
+func containedRecords(t *testing.T, exporter *recordingExporter) []containedRecord {
+	t.Helper()
+	var out []containedRecord
+	for _, record := range exporter.snapshot() {
+		if record.Body().AsString() != "message contained" {
+			continue
+		}
+		r := containedRecord{severity: record.Severity()}
+		record.WalkAttributes(func(kv attribute.KeyValue) bool {
+			r.keys = append(r.keys, string(kv.Key))
+			switch kv.Key {
+			case "messaging.message.id":
+				r.messageID = kv.Value.AsString()
+			case "dmpf.containment.reason":
+				r.reason = kv.Value.AsString()
+			}
+			return true
+		})
+		out = append(out, r)
+	}
+	return out
+}
+
+func TestQuarantineLogsMessageContainedInWarnWithTheMessageIDAndTheReason(t *testing.T) {
+	cfg := publishConfig()
+	provider, exporter := otlpProvider(slog.LevelInfo)
+	cfg.LoggerProvider = provider
+	dlq, err := kafka.NewDLQWith(cfg, ordersChannel(), kafka.NewFakeClient())
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := validRaw(t, "k1")
+	if err := dlq.Quarantine(context.Background(), ports.Contained{
+		Consumer: "billing-consumer", MessageID: "evt-1", Reason: ports.ReasonAttemptsExhausted, Envelope: raw, Error: "storage: timeout",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	records := containedRecords(t, exporter)
+	if len(records) != 1 {
+		t.Fatalf("message contained records = %+v, want one", records)
+	}
+	got := records[0]
+	if got.severity != log.SeverityWarn {
+		t.Errorf("message contained at %v, want warn (RF-A6)", got.severity)
+	}
+	if got.messageID != "evt-1" || got.reason != "attempts-exhausted" {
+		t.Errorf("messaging.message.id = %q, dmpf.containment.reason = %q; want evt-1 and attempts-exhausted", got.messageID, got.reason)
+	}
+	for _, key := range got.keys {
+		if key != "messaging.message.id" && key != "dmpf.containment.reason" {
+			t.Errorf("unexpected key %q in message contained", key)
+		}
+	}
+}
+
+func TestQuarantineWithoutMessageIDLogsNoMessageIDKey(t *testing.T) {
+	cfg := publishConfig()
+	provider, exporter := otlpProvider(slog.LevelInfo)
+	cfg.LoggerProvider = provider
+	dlq, err := kafka.NewDLQWith(cfg, ordersChannel(), kafka.NewFakeClient())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := dlq.Quarantine(context.Background(), ports.Contained{Consumer: "c", Reason: ports.ReasonInvalidEnvelope, Envelope: []byte("garbage")}); err != nil {
+		t.Fatal(err)
+	}
+	records := containedRecords(t, exporter)
+	if len(records) != 1 || records[0].reason != "invalid-envelope" {
+		t.Fatalf("records = %+v, want one message contained with the reason", records)
+	}
+	for _, key := range records[0].keys {
+		if key == "messaging.message.id" {
+			t.Fatal("messaging.message.id is present without a message id; a missing key stays absent (CTX-26)")
+		}
+	}
+}
+
+func TestQuarantineThatDoesNotReachTheBrokerLogsNothing(t *testing.T) {
+	cfg := publishConfig()
+	provider, exporter := otlpProvider(slog.LevelInfo)
+	cfg.LoggerProvider = provider
+	fake := kafka.NewFakeClient()
+	fake.ProduceErr = errors.New("broker down")
+	dlq, err := kafka.NewDLQWith(cfg, ordersChannel(), fake)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := validRaw(t, "k1")
+	if err := dlq.Quarantine(context.Background(), ports.Contained{Consumer: "c", MessageID: "evt-1", Reason: ports.ReasonCollision, Envelope: raw}); err == nil {
+		t.Fatal("Quarantine() = nil with the broker down")
+	}
+	if err := dlq.Quarantine(context.Background(), ports.Contained{Reason: ports.ReasonCollision, Envelope: raw}); !errors.Is(err, kafka.ErrInvalidContainment) {
+		t.Fatalf("Quarantine() = %v, want ErrInvalidContainment", err)
+	}
+	if records := containedRecords(t, exporter); len(records) != 0 {
+		t.Fatalf("records = %+v, want none: a message that was not contained is not reported as contained", records)
 	}
 }

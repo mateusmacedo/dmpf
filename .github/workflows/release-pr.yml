@@ -1,0 +1,54 @@
+name: Release PR
+
+# A release nasce igual a master (modelo anti-drift do CONTRIBUTING.md), e o
+# GitHub recusa PR sem commits: o PR abre no primeiro push que traz commits.
+on:
+  push:
+    branches:
+      - "release/**"
+
+concurrency:
+  group: release-pr-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  open:
+    name: Abrir o PR da release
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          fetch-depth: 0
+
+      - name: Abrir o PR para master
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH: ${{ github.ref_name }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+          VERSION="${BRANCH#release/}"
+
+          if [ "$(git rev-list --count origin/master..HEAD)" -eq 0 ]; then
+            echo "$BRANCH não tem commit à frente de master: nada a abrir."
+            exit 0
+          fi
+          if [ -n "$(gh pr list --head "$BRANCH" --base master --state open --json number --jq '.[].number')" ]; then
+            echo "$BRANCH já tem PR aberto para master."
+            exit 0
+          fi
+
+          BODY=$(printf '## Release %s\n\n### Checklist\n\n- [ ] Features validadas em `develop`\n- [ ] Features mergeadas nesta branch\n- [ ] QA aprovado em homologação\n- [ ] Changelog revisado\n\n---\n> PR aberto automaticamente pelo workflow *Release PR* no primeiro push com commits\n' "$VERSION")
+
+          gh pr create \
+            --base master \
+            --head "$BRANCH" \
+            --title "release: ${VERSION}" \
+            --body "$BODY" \
+            --assignee "$ACTOR"

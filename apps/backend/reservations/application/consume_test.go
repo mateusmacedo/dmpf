@@ -10,6 +10,7 @@ import (
 	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/memory"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/serviceskit"
 )
 
 var reservationTable = memory.Table[domain.OrderID, domain.Snapshot]{Name: "reservations"}
@@ -21,16 +22,18 @@ func bind(tx *memory.Tx) application.Resources {
 		Inbox:        tx.Inbox(consumer),
 		Reservations: reservationTable.Repository(tx),
 		Outbox:       tx.Outbox(),
+		Commands:     tx.CommandInbox(application.CommandConsumer),
 	}
 }
 
 func newService(store *memory.Store) application.Service {
 	return application.Service{
-		UoW:       memory.NewUnitOfWork(store, bind),
-		Clock:     memory.FixedClock{At: 1_755_432_000_000_000_000},
-		IDs:       &memory.SequenceIDs{Prefix: "m-"},
-		Authorize: usecase.AllowAll[application.Operation](),
-		Consumer:  consumer,
+		UoW:         memory.NewUnitOfWork(store, bind),
+		Clock:       memory.FixedClock{At: 1_755_432_000_000_000_000},
+		IDs:         &memory.SequenceIDs{Prefix: "m-"},
+		Authorize:   usecase.AllowAll[application.Operation](),
+		Consumer:    consumer,
+		Idempotency: usecase.IdempotencyPolicy{Wait: 1_000_000_000, Retention: 86_400_000_000_000, Digest: serviceskit.FoldDigest},
 	}
 }
 
@@ -228,62 +231,35 @@ func TestConsumeATerminalSaveFailureIsD4AndPersistsNothing(t *testing.T) {
 }
 
 func TestConsumeRedeliveryOfAProcessedMessageIsR2(t *testing.T) {
-	store := memory.New()
-	svc := newService(store)
-	if _, err := svc.ConsumeOrderPlaced(withExecution(t, context.Background()), consumeOrderPlaced("m-ext-1", "h1", "P-100", 3)); err != nil {
-		t.Fatalf("setup Consume() = %v, want nil", err)
-	}
-
-	disp, err := svc.ConsumeOrderPlaced(withExecution(t, context.Background()), consumeOrderPlaced("m-ext-1", "h1", "P-100", 3))
-
-	if err != nil {
-		t.Fatalf("Consume() error = %v, want nil", err)
-	}
-	if disp != usecase.R2 {
-		t.Fatalf("Consume() disposition = %v, want %v", disp, usecase.R2)
-	}
-	if got := len(store.Entries()); got != 1 {
-		t.Fatalf("Entries() has %d elements, want 1 — no new outbox write", got)
-	}
+	requireRedelivery(t, 3, "h1", usecase.R2, 1, "no new outbox write")
 }
 
 func TestConsumeRedeliveryOfARejectedMessageIsR3(t *testing.T) {
-	store := memory.New()
-	svc := newService(store)
-	if _, err := svc.ConsumeOrderPlaced(withExecution(t, context.Background()), consumeOrderPlaced("m-ext-1", "h1", "P-100", 0)); err != nil {
-		t.Fatalf("setup Consume() = %v, want nil", err)
-	}
-
-	disp, err := svc.ConsumeOrderPlaced(withExecution(t, context.Background()), consumeOrderPlaced("m-ext-1", "h1", "P-100", 0))
-
-	if err != nil {
-		t.Fatalf("Consume() error = %v, want nil", err)
-	}
-	if disp != usecase.R3 {
-		t.Fatalf("Consume() disposition = %v, want %v", disp, usecase.R3)
-	}
-	if got := len(store.Entries()); got != 0 {
-		t.Fatalf("Entries() has %d elements, want 0 (INB-12): a rejection never reemits", got)
-	}
+	requireRedelivery(t, 0, "h1", usecase.R3, 0, "(INB-12): a rejection never reemits")
 }
 
 func TestConsumeADivergentHashOnAPresentKeyIsR4(t *testing.T) {
+	requireRedelivery(t, 3, "h2", usecase.R4, 1, "nothing written by the collision")
+}
+
+func requireRedelivery(t *testing.T, items int, secondHash string, want usecase.Disposition, wantEntries int, why string) {
+	t.Helper()
 	store := memory.New()
 	svc := newService(store)
-	if _, err := svc.ConsumeOrderPlaced(withExecution(t, context.Background()), consumeOrderPlaced("m-ext-1", "h1", "P-100", 3)); err != nil {
+	if _, err := svc.ConsumeOrderPlaced(withExecution(t, context.Background()), consumeOrderPlaced("m-ext-1", "h1", "P-100", items)); err != nil {
 		t.Fatalf("setup Consume() = %v, want nil", err)
 	}
 
-	disp, err := svc.ConsumeOrderPlaced(withExecution(t, context.Background()), consumeOrderPlaced("m-ext-1", "h2", "P-100", 3))
+	disp, err := svc.ConsumeOrderPlaced(withExecution(t, context.Background()), consumeOrderPlaced("m-ext-1", secondHash, "P-100", items))
 
 	if err != nil {
 		t.Fatalf("Consume() error = %v, want nil", err)
 	}
-	if disp != usecase.R4 {
-		t.Fatalf("Consume() disposition = %v, want %v", disp, usecase.R4)
+	if disp != want {
+		t.Fatalf("Consume() disposition = %v, want %v", disp, want)
 	}
-	if got := len(store.Entries()); got != 1 {
-		t.Fatalf("Entries() has %d elements, want 1 — nothing written by the collision", got)
+	if got := len(store.Entries()); got != wantEntries {
+		t.Fatalf("Entries() has %d elements, want %d — %s", got, wantEntries, why)
 	}
 }
 

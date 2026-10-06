@@ -6,6 +6,12 @@ import (
 	"sync/atomic"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/baggage"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/trace"
+
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/tracing"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
 )
@@ -18,6 +24,8 @@ type transition struct {
 	claimID     string
 	availableAt ports.Instant
 	lastError   string
+	span        trace.SpanContext
+	requestID   string
 }
 
 // fakeStore hands out scripted batches and records every transition. affected
@@ -27,6 +35,8 @@ type fakeStore struct {
 	mu          sync.Mutex
 	batches     [][]postgres.Claimed
 	claimIDs    []string
+	claimSpans  []trace.SpanContext
+	claimedAt   []time.Time
 	transitions []transition
 	affected    int64
 	claims      atomic.Int64
@@ -46,12 +56,14 @@ func newFakeStore(batches ...[]postgres.Claimed) *fakeStore {
 	return &fakeStore{batches: batches, affected: 1}
 }
 
-func (s *fakeStore) Claim(_ context.Context, claimID string, _ int, _ time.Duration) ([]postgres.Claimed, error) {
+func (s *fakeStore) Claim(ctx context.Context, claimID string, _ int, _ time.Duration) ([]postgres.Claimed, error) {
 	s.claims.Add(1)
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.claimIDs = append(s.claimIDs, claimID)
+	s.claimSpans = append(s.claimSpans, trace.SpanContextFromContext(ctx))
+	s.claimedAt = append(s.claimedAt, time.Now())
 	if len(s.batches) == 0 {
 		return nil, nil
 	}
@@ -87,6 +99,9 @@ func (s *fakeStore) record(ctx context.Context, t transition) (int64, error) {
 		s.cancelledWrites.Add(1)
 		return 0, ctx.Err()
 	}
+
+	t.span = trace.SpanContextFromContext(ctx)
+	t.requestID = baggage.FromContext(ctx).Member(tracing.KeyRequestID).Value()
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -156,3 +171,16 @@ type testingT interface {
 	Helper()
 	Fatalf(format string, args ...any)
 }
+
+// baggageCopier does at OnStart what baggagecopy does in the process pipeline,
+// without making app depend on otelboot's exporters.
+type baggageCopier struct{}
+
+func (baggageCopier) OnStart(parent context.Context, span sdktrace.ReadWriteSpan) {
+	for _, member := range baggage.FromContext(parent).Members() {
+		span.SetAttributes(attribute.String(member.Key(), member.Value()))
+	}
+}
+func (baggageCopier) OnEnd(sdktrace.ReadOnlySpan)      {}
+func (baggageCopier) Shutdown(context.Context) error   { return nil }
+func (baggageCopier) ForceFlush(context.Context) error { return nil }

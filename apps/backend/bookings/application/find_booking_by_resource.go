@@ -13,7 +13,7 @@ func (s Service) FindBookingByResource(ctx context.Context, resourceID domain.Re
 	ctx, end := s.instrumentation().BeginOperation(ctx, OperationFindBookingByResource)
 
 	if err := s.Authorize(ctx, FindBookingByResource{Resource: resourceID}); err != nil {
-		end(authorizationResult(err))
+		end(ports.AuthorizationResult(err))
 		return nil, err
 	}
 

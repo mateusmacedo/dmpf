@@ -5,7 +5,7 @@ title: DMPF KRN-10 — Providers de transporte: gRPC, REST, Kafka e SNS/SQS
 stage: done
 priority: P1
 depends_on: [SPEC-WYX5GW87, SPEC-NYD18TGD, SPEC-ANZX2WPG, SPEC-CGPX20NP]
-ticket_url: null
+ticket_url: https://linear.app/mmda/issue/DEVS-46/spec-eagaxqn1-dmpf-krn-10-providers-de-transporte-grpc-rest-kafka-e
 subtask_urls: []
 created: 2026-09-06
 ---

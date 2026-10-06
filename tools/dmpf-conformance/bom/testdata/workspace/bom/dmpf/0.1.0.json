@@ -52,7 +52,7 @@
     "owner": "team:plataforma",
     "compatible_with": [],
     "registry_ref": {
-      "file": "libs/backend/go/observability/otelboot/start.go",
+      "file": "libs/backend/go/observability/otelboot/config.go",
       "selector": "semconv"
     },
     "cve": []

@@ -5,7 +5,7 @@ title: Endurecimento da borda e do kernel — amostragem, catálogo multi-evento
 stage: backlog
 priority: P3
 depends_on: [SPEC-ACYKBF9V]
-ticket_url: null
+ticket_url: https://linear.app/mmda/issue/DEVS-58/spec-z2hm6nap-endurecimento-da-borda-e-do-kernel-amostragem-catalogo
 subtask_urls: []
 created: 2026-09-15
 ---

@@ -879,7 +879,7 @@ interoperabilidade.
 `normativo` `RST-02` — **O `provider` HTTP não retenta método sem semântica
 idempotente.** A retentativa automática é admitida onde o método a garante — `GET`,
 `HEAD`, `PUT`, `DELETE` — e vedada em `POST`, salvo quando o endpoint declara chave
-de idempotência e o `provider` a envia.
+de idempotência e o `provider` a envia, sob a família `IDM` do FND-04 §7.6.
 
 `normativo` `RST-03` — **O `provider` HTTP aplica timeout em toda chamada de saída, e
 o timeout deriva do deadline em vigor.** Um cliente HTTP sem timeout herda a espera
@@ -999,13 +999,13 @@ implementação cabe nele — nunca para definí-lo.
 `normativo` `GRP-08` — **A política de retry é declarada por método e derivada da
 idempotência dele.** A configuração declara explicitamente os códigos de status
 retentáveis; lista vazia significa nenhum retry, e a ausência de política não é
-interpretada como retry livre.
+interpretada como retry livre. Comando com chave sob `IDM-01` é método idempotente.
 
 `normativo` `GRP-09` — **Um método sem semântica idempotente comprovada não recebe
 retry automático.** O critério é o mesmo de `UOW-10` do FND-04 para retry de
 conflito: «só em operação comprovadamente idempotente». Retentar uma operação de
 efeito colateral não idempotente porque o transporte reportou indisponibilidade
-duplica o efeito.
+duplica o efeito. A chave de `IDM-01` a `IDM-10` (FND-04 §7.6) é essa comprovação.
 
 `normativo` `GRP-10` — **O backoff é exponencial com jitter.** Sem jitter, os
 clientes que falharam ao mesmo tempo retornam ao mesmo tempo, e o retry converte uma

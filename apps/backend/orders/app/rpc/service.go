@@ -7,13 +7,13 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/reflect/protoreflect"
 
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/application"
 	servicev1 "github.com/mateusmacedo/dmpf/apps/backend/orders/contract/gen/go/company/orders/service/v1"
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/domain"
+	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
+	kernelgrpc "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
 
@@ -37,19 +37,16 @@ var orderIDFormat = regexp.MustCompile(`^[A-Za-z0-9._:-]{1,128}$`)
 
 // Methods names every method of the service: admission declares a limit for
 // each one (RES-16).
-func Methods() []string {
-	methods := descriptor.Methods()
-	names := make([]string, 0, methods.Len())
-	for i := range methods.Len() {
-		names = append(names, string(methods.Get(i).Name()))
-	}
-	return names
+func Methods() []string { return kernelgrpc.MethodNames(descriptor) }
+
+// Commands lists the methods that require an idempotency key (IDM-01); the
+// queries neither require nor read one.
+func Commands() []string {
+	return []string{"AddItem", "PlaceOrder"}
 }
 
 // FullMethod is the wire name of a method of the service: /<service>/<method>.
-func FullMethod(name string) string {
-	return "/" + ServiceName + "/" + name
-}
+func FullMethod(name string) string { return kernelgrpc.FullMethod(ServiceName, name) }
 
 // OrdersServer is the handler type ServiceDesc registers.
 type OrdersServer interface {
@@ -64,51 +61,11 @@ var ServiceDesc = grpc.ServiceDesc{
 	ServiceName: ServiceName,
 	HandlerType: (*OrdersServer)(nil),
 	Methods: []grpc.MethodDesc{
-		unary(method("AddItem"), OrdersServer.AddItem),
-		unary(method("PlaceOrder"), OrdersServer.PlaceOrder),
-		unary(method("FindOrder"), OrdersServer.FindOrder),
+		kernelgrpc.Unary(ServiceName, kernelgrpc.Method(descriptor, "AddItem"), OrdersServer.AddItem),
+		kernelgrpc.Unary(ServiceName, kernelgrpc.Method(descriptor, "PlaceOrder"), OrdersServer.PlaceOrder),
+		kernelgrpc.Unary(ServiceName, kernelgrpc.Method(descriptor, "FindOrder"), OrdersServer.FindOrder),
 	},
 	Metadata: descriptor.ParentFile().Path(),
-}
-
-func method(name protoreflect.Name) protoreflect.MethodDescriptor {
-	md := descriptor.Methods().ByName(name)
-	if md == nil {
-		panic("rpc: OrdersService declares no method " + string(name))
-	}
-	return md
-}
-
-func unary[Req any, PReq interface {
-	*Req
-	proto.Message
-}, Resp proto.Message](md protoreflect.MethodDescriptor, call func(OrdersServer, context.Context, PReq) (Resp, error)) grpc.MethodDesc {
-	name := string(md.Name())
-	fullMethod := FullMethod(name)
-	invoke := func(server OrdersServer, ctx context.Context, req PReq) (any, error) {
-		resp, err := call(server, ctx, req)
-		if err != nil {
-			return nil, err
-		}
-		return resp, nil
-	}
-	return grpc.MethodDesc{
-		MethodName: name,
-		Handler: func(srv any, ctx context.Context, dec func(any) error, interceptor grpc.UnaryServerInterceptor) (any, error) {
-			in := PReq(new(Req))
-			if err := dec(in); err != nil {
-				return nil, err
-			}
-			server := srv.(OrdersServer)
-			if interceptor == nil {
-				return invoke(server, ctx, in)
-			}
-			info := &grpc.UnaryServerInfo{Server: srv, FullMethod: fullMethod}
-			return interceptor(ctx, in, info, func(ctx context.Context, req any) (any, error) {
-				return invoke(server, ctx, req.(PReq))
-			})
-		},
-	}
 }
 
 // Server realizes OrdersServer over the orders use cases.
@@ -116,26 +73,32 @@ type Server struct {
 	Service application.Service
 }
 
+func command[R, Resp any](ctx context.Context, run func(context.Context) (usecase.Outcome[R], error), refused func(*servicev1.Rejection) Resp, accepted func(R) Resp) (Resp, error) {
+	var none Resp
+	if _, err := executionOf(ctx); err != nil {
+		return none, err
+	}
+	out, err := run(ctx)
+	if err != nil {
+		return none, kernelgrpc.StatusOf(err)
+	}
+	if rejection, declined := out.Rejection(); declined {
+		return refused(rejectionOf(rejection)), nil
+	}
+	return accepted(out.Response()), nil
+}
+
 func (s Server) AddItem(ctx context.Context, req *servicev1.AddItemRequest) (*servicev1.AddItemResponse, error) {
 	id, err := orderID(req.GetOrderId())
 	if err != nil {
 		return nil, err
 	}
-	_, err = executionOf(ctx)
-	if err != nil {
-		return nil, err
-	}
-	out, err := s.Service.AddItem(ctx, application.AddItem{Order: id, SKU: domain.SKU(req.GetSku()), Quantity: int(req.GetQuantity())})
-	if err != nil {
-		return nil, statusOf(err)
-	}
-	if rejection, refused := out.Rejection(); refused {
-		return &servicev1.AddItemResponse{Result: &servicev1.AddItemResponse_Rejection{Rejection: rejectionOf(rejection)}}, nil
-	}
-	accepted := out.Response()
-	return &servicev1.AddItemResponse{Result: &servicev1.AddItemResponse_Accepted{
-		Accepted: &servicev1.ItemAccepted{OrderId: string(accepted.Order), ItemCount: int32(accepted.Items)},
-	}}, nil
+	return command(ctx,
+		func(ctx context.Context) (usecase.Outcome[domain.ItemAccepted], error) {
+			return s.Service.AddItem(ctx, application.AddItem{Order: id, SKU: domain.SKU(req.GetSku()), Quantity: int(req.GetQuantity())})
+		},
+		addItemRefused,
+		itemAcceptedOf)
 }
 
 func (s Server) PlaceOrder(ctx context.Context, req *servicev1.PlaceOrderRequest) (*servicev1.PlaceOrderResponse, error) {
@@ -143,20 +106,30 @@ func (s Server) PlaceOrder(ctx context.Context, req *servicev1.PlaceOrderRequest
 	if err != nil {
 		return nil, err
 	}
-	_, err = executionOf(ctx)
-	if err != nil {
-		return nil, err
-	}
-	out, err := s.Service.PlaceOrder(ctx, application.PlaceOrder{Order: id})
-	if err != nil {
-		return nil, statusOf(err)
-	}
-	if rejection, refused := out.Rejection(); refused {
-		return &servicev1.PlaceOrderResponse{Result: &servicev1.PlaceOrderResponse_Rejection{Rejection: rejectionOf(rejection)}}, nil
-	}
-	return &servicev1.PlaceOrderResponse{Result: &servicev1.PlaceOrderResponse_Placed{
-		Placed: &servicev1.Placed{OrderId: string(out.Response().Order)},
-	}}, nil
+	return command(ctx,
+		func(ctx context.Context) (usecase.Outcome[domain.PlacedResponse], error) {
+			return s.Service.PlaceOrder(ctx, application.PlaceOrder{Order: id})
+		},
+		placeOrderRefused,
+		orderPlacedOf)
+}
+
+func addItemRefused(r *servicev1.Rejection) *servicev1.AddItemResponse {
+	return &servicev1.AddItemResponse{Result: &servicev1.AddItemResponse_Rejection{Rejection: r}}
+}
+
+func itemAcceptedOf(a domain.ItemAccepted) *servicev1.AddItemResponse {
+	return &servicev1.AddItemResponse{Result: &servicev1.AddItemResponse_Accepted{
+		Accepted: &servicev1.ItemAccepted{OrderId: string(a.Order), ItemCount: int32(a.Items)},
+	}}
+}
+
+func placeOrderRefused(r *servicev1.Rejection) *servicev1.PlaceOrderResponse {
+	return &servicev1.PlaceOrderResponse{Result: &servicev1.PlaceOrderResponse_Rejection{Rejection: r}}
+}
+
+func orderPlacedOf(p domain.PlacedResponse) *servicev1.PlaceOrderResponse {
+	return &servicev1.PlaceOrderResponse{Result: &servicev1.PlaceOrderResponse_Placed{Placed: &servicev1.Placed{OrderId: string(p.Order)}}}
 }
 
 func (s Server) FindOrder(ctx context.Context, req *servicev1.FindOrderRequest) (*servicev1.FindOrderResponse, error) {
@@ -170,7 +143,7 @@ func (s Server) FindOrder(ctx context.Context, req *servicev1.FindOrderRequest) 
 	}
 	snapshot, err := s.Service.FindOrder(ctx, id)
 	if err != nil {
-		return nil, statusOf(err)
+		return nil, kernelgrpc.StatusOf(err)
 	}
 	items := make([]*servicev1.Item, 0, len(snapshot.Items))
 	for _, item := range snapshot.Items {

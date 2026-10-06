@@ -5,7 +5,7 @@ title: DMPF — Consolidação horizontal do acervo (sincronização, ledger de 
 stage: done
 priority: P2
 depends_on: []
-ticket_url: null
+ticket_url: https://linear.app/mmda/issue/DEVS-13/spec-4w1bqk93-dmpf-consolidacao-horizontal-do-acervo-sincronizacao
 subtask_urls: []
 created: 2026-08-22
 ---

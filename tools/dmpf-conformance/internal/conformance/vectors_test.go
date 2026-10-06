@@ -272,6 +272,16 @@ func TestE004NaoEmitidoNoBindingGo(t *testing.T) {
 	exigeCodigos(t, decideGrafo(t, units, moduloOK(), g))
 }
 
+func TestT002RevogadoPeloADR058(t *testing.T) {
+	spec, ok := rule.LookupCode(rule.CodeT002)
+	if !ok {
+		t.Fatal("DMPF-T002 ausente do conjunto fechado dos dezesseis")
+	}
+	if spec.Applicable {
+		t.Error("DMPF-T002 marcado como aplicável, mas o ADR-058 revogou o commit próprio")
+	}
+}
+
 // ------------------------------------------------------ conjunto e ordem ---
 
 func TestSaidaEDeterministica(t *testing.T) {

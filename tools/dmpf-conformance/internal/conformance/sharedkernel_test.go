@@ -11,17 +11,13 @@ import (
 	"github.com/mateusmacedo/dmpf/tools/dmpf-conformance/internal/rule"
 )
 
-// storeSK, ao contrário de storeFalso, permite simular erro/ausência em
-// Baseline() e conta as chamadas — é o que prova a leitura única de 2.1.
+// storeSK permite simular erro/ausência em Baseline() e conta as chamadas — é
+// o que prova a leitura única de 2.1.
 type storeSK struct {
 	doc      baseline.Document
 	existe   bool
 	err      error
 	chamadas *int
-
-	antes   baseline.Document
-	tinha   bool
-	commits []baseline.Commit
 }
 
 func (s storeSK) Baseline() (baseline.Document, bool, error) {
@@ -30,12 +26,6 @@ func (s storeSK) Baseline() (baseline.Document, bool, error) {
 	}
 	return s.doc, s.existe, s.err
 }
-
-func (s storeSK) BaselineEm(string) (baseline.Document, bool, error) {
-	return s.antes, s.tinha, nil
-}
-
-func (s storeSK) CommitsQueTocaram(string) ([]baseline.Commit, error) { return s.commits, nil }
 
 var _ port.BaselineStore = storeSK{}
 
@@ -114,8 +104,7 @@ func docSK(chaves ...string) baseline.Document {
 
 func TestSharedKernelDesignadaAprovaAEdgeParaDentro(t *testing.T) {
 	in := entradaSK([]port.Edge{{From: "x/domain", To: "kernel/domain", SourceFile: "x/domain/d.go"}})
-	in.Baseline = storeSK{doc: docSK("kernel-domain"), existe: true, antes: docSK("kernel-domain"), tinha: true}
-	in.Base = "origin/develop"
+	in.Baseline = storeSK{doc: docSK("kernel-domain"), existe: true}
 
 	rel, err := conformance.Check(in)
 	if err != nil {
@@ -128,8 +117,7 @@ func TestSharedKernelDesignadaAprovaAEdgeParaDentro(t *testing.T) {
 
 func TestSharedKernelNaoDesignadaReprovaAEdge(t *testing.T) {
 	in := entradaSK([]port.Edge{{From: "x/domain", To: "kernel/domain", SourceFile: "x/domain/d.go"}})
-	in.Baseline = storeSK{doc: docSK(), existe: true, antes: docSK(), tinha: true}
-	in.Base = "origin/develop"
+	in.Baseline = storeSK{doc: docSK(), existe: true}
 
 	rel, err := conformance.Check(in)
 	if err != nil {
@@ -142,8 +130,7 @@ func TestSharedKernelNaoDesignadaReprovaAEdge(t *testing.T) {
 
 func TestSharedKernelNaoAlcancaUnidadeIrmaNaoDesignada(t *testing.T) {
 	in := entradaSK([]port.Edge{{From: "x/domain", To: "kernel/example", SourceFile: "x/domain/d.go"}})
-	in.Baseline = storeSK{doc: docSK("kernel-domain"), existe: true, antes: docSK("kernel-domain"), tinha: true}
-	in.Base = "origin/develop"
+	in.Baseline = storeSK{doc: docSK("kernel-domain"), existe: true}
 
 	rel, err := conformance.Check(in)
 	if err != nil {
@@ -156,8 +143,7 @@ func TestSharedKernelNaoAlcancaUnidadeIrmaNaoDesignada(t *testing.T) {
 
 func TestSemSharedKernelEdgeEntreContextosReprova(t *testing.T) {
 	in := entradaSK([]port.Edge{{From: "x/domain", To: "y/domain", SourceFile: "x/domain/d.go"}})
-	in.Baseline = storeSK{doc: docSK(), existe: true, antes: docSK(), tinha: true}
-	in.Base = "origin/develop"
+	in.Baseline = storeSK{doc: docSK(), existe: true}
 
 	rel, err := conformance.Check(in)
 	if err != nil {
@@ -172,8 +158,7 @@ func TestSemSharedKernelEdgeEntreContextosReprova(t *testing.T) {
 // Decide olha o destino, então a exceção não relaxa na direção inversa.
 func TestSharedKernelEUnidirecional(t *testing.T) {
 	in := entradaSK([]port.Edge{{From: "kernel/domain", To: "x/domain", SourceFile: "kernel/domain/d.go"}})
-	in.Baseline = storeSK{doc: docSK("kernel-domain"), existe: true, antes: docSK("kernel-domain"), tinha: true}
-	in.Base = "origin/develop"
+	in.Baseline = storeSK{doc: docSK("kernel-domain"), existe: true}
 
 	rel, err := conformance.Check(in)
 	if err != nil {
@@ -220,8 +205,7 @@ func TestSharedKernelBaselineIlegivelHaltaAntesDoUniverso(t *testing.T) {
 
 func TestSharedKernelBaselineLegadoSemAChaveNaoEmiteM004(t *testing.T) {
 	in := entradaSK(nil)
-	in.Baseline = storeSK{doc: docSK(), existe: true, antes: docSK(), tinha: true}
-	in.Base = "origin/develop"
+	in.Baseline = storeSK{doc: docSK(), existe: true}
 
 	rel, err := conformance.Check(in)
 	if err != nil {
@@ -251,24 +235,6 @@ func TestSharedKernelChaveComDigestAntigoEmiteT001(t *testing.T) {
 	}
 }
 
-func TestSharedKernelSoAListaMudandoComCodigoNoMesmoCommitExigeAval(t *testing.T) {
-	in := entradaSK(nil)
-	in.Baseline = storeSK{
-		doc: docSK("kernel-domain"), existe: true,
-		antes: docSK(), tinha: true,
-		commits: []baseline.Commit{{SHA: "aaa", Arquivos: []string{baseline.Path, "kernel/domain/d.go"}}},
-	}
-	in.Base = "origin/develop"
-
-	rel, err := conformance.Check(in)
-	if err != nil {
-		t.Fatalf("Check: %v", err)
-	}
-	if !temCodigo(rel, rule.CodeT002) {
-		t.Fatalf("designar shared kernel misturado com código não exigiu aval: %v", rel.Diagnostics)
-	}
-}
-
 func TestSharedKernelUnitsDaInputSemStoreAprova(t *testing.T) {
 	in := entradaSK([]port.Edge{{From: "x/domain", To: "kernel/domain", SourceFile: "x/domain/d.go"}})
 	in.SharedKernelUnits = []string{"kernel-domain"}
@@ -284,8 +250,7 @@ func TestSharedKernelUnitsDaInputSemStoreAprova(t *testing.T) {
 
 func TestSharedKernelUnitsDaInputComStoreEIgnorada(t *testing.T) {
 	in := entradaSK([]port.Edge{{From: "x/domain", To: "kernel/domain", SourceFile: "x/domain/d.go"}})
-	in.Baseline = storeSK{doc: docSK(), existe: true, antes: docSK(), tinha: true}
-	in.Base = "origin/develop"
+	in.Baseline = storeSK{doc: docSK(), existe: true}
 	in.SharedKernelUnits = []string{"kernel-domain"}
 
 	rel, err := conformance.Check(in)
@@ -304,10 +269,8 @@ func TestSharedKernelBaselineLidoUmaUnicaVezPorCheck(t *testing.T) {
 	in := entradaSK([]port.Edge{{From: "x/domain", To: "kernel/domain", SourceFile: "x/domain/d.go"}})
 	in.Baseline = storeSK{
 		doc: docSK("kernel-domain"), existe: true,
-		antes: docSK("kernel-domain"), tinha: true,
 		chamadas: &chamadas,
 	}
-	in.Base = "origin/develop"
 
 	if _, err := conformance.Check(in); err != nil {
 		t.Fatalf("Check: %v", err)

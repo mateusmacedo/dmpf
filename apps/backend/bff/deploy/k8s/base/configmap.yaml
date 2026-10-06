@@ -6,7 +6,6 @@ kind: ConfigMap
 metadata:
   name: bff
 data:
-  SERVICE: bff
   HTTP_ADDR: ':8080'
   ORDERS_GRPC_TARGET: dns:///orders-api:9090
   RESERVATIONS_GRPC_TARGET: dns:///reservations-api:9090
@@ -14,6 +13,13 @@ data:
   OPENAPI_ORDERS_PATH: /contracts/openapi/orders/v1/openapi.yaml
   OPENAPI_RESERVATIONS_PATH: /contracts/openapi/reservations/v1/openapi.yaml
   OPENAPI_BOOKINGS_PATH: /contracts/openapi/bookings/v1/openapi.yaml
-  OTLP_ENDPOINT: otel-collector:4317
-  OTLP_INSECURE: 'false'
+  OTEL_SERVICE_NAME: bff
+  OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+  OTEL_TRACES_SAMPLER_ARG: '1.0'
+  OTEL_LOGS_EXPORTER: otlp
+  OTEL_PROPAGATORS: tracecontext
+  OTEL_GO_X_OBSERVABILITY: 'true'
+  OTEL_BSP_EXPORT_TIMEOUT: '3000'
+  OTEL_BLRP_EXPORT_TIMEOUT: '3000'
   DRAIN_DELAY: '5s'

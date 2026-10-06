@@ -6,6 +6,11 @@ import (
 	"net/http"
 	"sync"
 	"time"
+
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+
+	obsclock "github.com/mateusmacedo/dmpf/libs/backend/go/observability/clock"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/redact"
 )
 
 const (
@@ -14,7 +19,66 @@ const (
 
 	readinessBudget = 2 * time.Second
 	readinessTTL    = time.Second
+
+	healthLogInterval = 5 * time.Minute
 )
+
+func NewAdminHandler(opts Options) http.Handler {
+	logger, clock := loggerOf(opts), clockOf(opts)
+	mux := http.NewServeMux()
+	mux.Handle("GET "+LivenessPath, withHealthLog(logger, clock, LivenessPath, serveLiveness()))
+	if opts.Ready != nil {
+		mux.Handle("GET "+ReadinessPath, withHealthLog(logger, clock, ReadinessPath, serveReadiness(opts.Ready, opts.Draining, logger)))
+	}
+	edge := append(instrumentation(opts), otelhttp.WithFilter(outsideHealth(mux)))
+	return otelhttp.NewHandler(withRoute(withAccessLog(logger, mux)), "bff", edge...)
+}
+
+func outsideHealth(mux *http.ServeMux) otelhttp.Filter {
+	return func(r *http.Request) bool {
+		served, _ := mux.Handler(r)
+		_, health := served.(*healthAccess)
+		return !health
+	}
+}
+
+type healthAccess struct {
+	next   http.Handler
+	logger *slog.Logger
+	clock  obsclock.Clock
+	route  string
+	mu     sync.Mutex
+	logged bool
+	last   time.Time
+}
+
+func withHealthLog(logger *slog.Logger, clock obsclock.Clock, route string, next http.Handler) *healthAccess {
+	return &healthAccess{next: next, logger: logger, clock: clock, route: route}
+}
+
+func (h *healthAccess) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
+	markSelfLogged(rw)
+	w := newRecorder(rw)
+	h.next.ServeHTTP(w, r)
+
+	level, enabled := accessLevel(r.Context(), h.logger, w.status)
+	succeeded := w.status >= http.StatusOK && w.status < http.StatusMultipleChoices
+	if !enabled || (succeeded && !h.due()) {
+		return
+	}
+	logRequest(r.Context(), r, h.logger, level, h.route, w.status)
+}
+
+func (h *healthAccess) due() bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	now := h.clock.Now()
+	if h.logged && now.Sub(h.last) < healthLogInterval {
+		return false
+	}
+	h.logged, h.last = true, now
+	return true
+}
 
 func serveLiveness() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -53,7 +117,7 @@ func (h *readiness) result(ctx context.Context) error {
 	defer cancel()
 	h.err, h.checked = h.check(probe), time.Now()
 	if h.err != nil {
-		h.logger.WarnContext(ctx, "not ready", "error", h.err.Error())
+		h.logger.WarnContext(ctx, "not ready", redact.Error(h.err))
 	}
 	return h.err
 }

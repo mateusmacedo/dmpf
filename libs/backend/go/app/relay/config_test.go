@@ -5,6 +5,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/trace/noop"
 )
 
 func validConfig() Config {
@@ -127,5 +130,34 @@ func TestNewCarriesTheConfigurationOntoTheRelay(t *testing.T) {
 	// its jitter makes an exact assertion meaningless.
 	if got := relay.Backoff(1); got < config.BackoffBase/2 || got > config.BackoffBase {
 		t.Errorf("Backoff(1) = %v, want between %v and %v", got, config.BackoffBase/2, config.BackoffBase)
+	}
+}
+
+func TestNewCarriesTheTracerAndTheMessagingSystemOntoTheRelay(t *testing.T) {
+	config := validConfig()
+	config.Tracer = sdktrace.NewTracerProvider().Tracer("relay-test")
+	config.System = "kafka"
+
+	relay, err := New(newFakeStore(), &fakePublisher{}, &countingIDs{}, fixedClock(0), config)
+	if err != nil {
+		t.Fatalf("New() = %v, want nil", err)
+	}
+
+	if relay.Tracer != config.Tracer {
+		t.Errorf("Tracer = %v, want the declared %v", relay.Tracer, config.Tracer)
+	}
+	if relay.System != config.System {
+		t.Errorf("System = %q, want %q", relay.System, config.System)
+	}
+}
+
+func TestNewFallsBackToANoopTracer(t *testing.T) {
+	relay, err := New(newFakeStore(), &fakePublisher{}, &countingIDs{}, fixedClock(0), validConfig())
+	if err != nil {
+		t.Fatalf("New() = %v, want nil", err)
+	}
+
+	if _, ok := relay.Tracer.(noop.Tracer); !ok {
+		t.Fatalf("Tracer = %T, want noop.Tracer when the caller declares none", relay.Tracer)
 	}
 }

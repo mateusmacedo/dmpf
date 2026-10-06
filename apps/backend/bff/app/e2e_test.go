@@ -14,6 +14,7 @@ import (
 
 	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kgo"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -35,6 +36,7 @@ const (
 
 	reservedOrder = "o-e2e-reserved"
 	canceledOrder = "o-e2e-canceled"
+	replayedOrder = "o-e2e-replayed"
 )
 
 func TestTopologyEndToEnd(t *testing.T) {
@@ -63,7 +65,7 @@ func TestTopologyEndToEnd(t *testing.T) {
 		t.Fatalf("OrderPlaced trace id = %q, want %q from the BFF edge", got, traceID)
 	}
 
-	t.Log("3. the reservation of the first order is confirmed and its fact leaves with the chain intact")
+	t.Log("3. the reservation of the first order is confirmed and its fact leaves with the correlation chain under a process root of its own")
 	top.waitUntil(t, "the first reservation is confirmed", func() bool {
 		return top.reservationStatus(t, reservedOrder) == "confirmed"
 	})
@@ -74,8 +76,8 @@ func TestTopologyEndToEnd(t *testing.T) {
 	if confirmed.CausationID != placed.ID {
 		t.Fatalf("ReservationConfirmed causationid = %q, want the OrderPlaced id %q", confirmed.CausationID, placed.ID)
 	}
-	if got := traceOf(confirmed.TraceParent); got != traceID {
-		t.Fatalf("ReservationConfirmed trace id = %q, want %q", got, traceID)
+	if got, err := trace.TraceIDFromHex(traceOf(confirmed.TraceParent)); err != nil || got.String() == traceID {
+		t.Fatalf("ReservationConfirmed traceparent = %q, want a valid root of its own, apart from %q (RF-B9)", confirmed.TraceParent, traceID)
 	}
 
 	t.Log("4. the canceled reservation refuses the later OrderPlaced: first decision wins")
@@ -137,7 +139,24 @@ func TestTopologyEndToEnd(t *testing.T) {
 	requireOccurredAt(t, top.envelopeOf(t, top.bookingsTopic, resourceRegisteredType, "room-e2e"), &registered, registered.GetRegisteredAt)
 	requireTypePrefix(t, top.recordsUntilEnd(t, top.bookingsTopic), "com.company.bookings.")
 
-	t.Log("8. the same call without a credential is refused as identity, not as an internal failure")
+	t.Log("8. a command repeated with its key answers the stored response, and the key reused with another body is refused")
+	key := map[string]string{"Idempotency-Key": "e2e-replay"}
+	firstStatus, firstBody, firstHeader := top.callWithHeader(t, http.MethodPost, "/orders/"+replayedOrder+"/items", `{"sku":"A","quantity":1}`, key)
+	againStatus, againBody, againHeader := top.callWithHeader(t, http.MethodPost, "/orders/"+replayedOrder+"/items", `{"sku":"A","quantity":1}`, key)
+	if firstStatus != http.StatusCreated || againStatus != http.StatusCreated || string(againBody) != string(firstBody) {
+		t.Fatalf("repeated POST items: %d %s then %d %s, want the same 201 twice", firstStatus, firstBody, againStatus, againBody)
+	}
+	if !strings.Contains(string(againBody), `"items":1`) {
+		t.Fatalf("repeated POST items body %s, want one item: the retry added the item again", againBody)
+	}
+	if firstHeader.Get("Idempotent-Replayed") != "" || againHeader.Get("Idempotent-Replayed") != "true" {
+		t.Fatalf("Idempotent-Replayed = %q then %q, want none then true", firstHeader.Get("Idempotent-Replayed"), againHeader.Get("Idempotent-Replayed"))
+	}
+	if status, body, _ := top.callWithHeader(t, http.MethodPost, "/orders/"+replayedOrder+"/items", `{"sku":"B","quantity":1}`, key); status != http.StatusUnprocessableEntity || !strings.Contains(string(body), "reused-idempotency-key") {
+		t.Fatalf("POST items with the key and another body: status = %d, body %s, want 422 reused-idempotency-key", status, body)
+	}
+
+	t.Log("9. the same call without a credential is refused as identity, not as an internal failure")
 	if status, body := top.callAnonymous(t, http.MethodGet, "/orders/"+reservedOrder); status != http.StatusUnauthorized {
 		t.Fatalf("GET order without credential: status = %d, want %d (IDN-01, IDN-06), body %s", status, http.StatusUnauthorized, body)
 	}
@@ -166,6 +185,25 @@ func (top *topology) call(t *testing.T, method, path, body string, headers map[s
 		req.Header.Set(k, v)
 	}
 	return send(t, req)
+}
+
+func (top *topology) callWithHeader(t *testing.T, method, path, body string, headers map[string]string) (int, []byte, http.Header) {
+	t.Helper()
+	req := top.request(t, method, path, body)
+	req.Header.Set("Authorization", e2eCredential)
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("%s %s: %v", method, path, err)
+	}
+	defer res.Body.Close()
+	got, err := io.ReadAll(res.Body)
+	if err != nil {
+		t.Fatalf("ReadAll() = %v", err)
+	}
+	return res.StatusCode, got, res.Header
 }
 
 // callAnonymous sends the same request without the Authorization header, which

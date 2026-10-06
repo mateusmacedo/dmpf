@@ -27,8 +27,8 @@ const SEED = {
     },
     'FND-04': {
       file: 'uow-inbox-outbox.md',
-      prefixes: ['UOW', 'OBX', 'INB', 'GAR', 'BLK'],
-      declaredTotal: 64,
+      prefixes: ['UOW', 'OBX', 'INB', 'GAR', 'BLK', 'IDM'],
+      declaredTotal: 74,
     },
     'FND-05': {
       file: 'cloudevents-protobuf-buf.md',
@@ -81,7 +81,7 @@ const SEED = {
   ],
   totalSelectors: {
     'upr-decision-mensagens.md': { line: 1394, pattern: 'São 54 regras com ID estável' },
-    'uow-inbox-outbox.md': { line: 2346, pattern: '`registro` — \\*\\*64 regras com ID\\*\\*' },
+    'uow-inbox-outbox.md': { line: 2447, pattern: '`registro` — \\*\\*74 regras com ID\\*\\*' },
     'cloudevents-protobuf-buf.md': {
       line: 1921,
       pattern: 'As 64 regras têm por sujeito o contrato',
@@ -94,7 +94,7 @@ const SEED = {
       pattern: '\\*\\*Total: 112 regras `normativo`\\.\\*\\*',
     },
     'resiliencia-observabilidade.md': {
-      line: 1919,
+      line: 2072,
       pattern: '`registro` — 121 regras `normativo`\\.',
     },
     'testes-interop.md': {

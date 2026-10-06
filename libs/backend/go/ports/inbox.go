@@ -27,22 +27,27 @@ func (s Status) String() string {
 	}
 }
 
-// Receipt is what an application service hands to Register before opening the
-// transaction: the identity of one inbound message (INB-01, §6.2).
+// Receipt is the identity of one inbound message or command, handed to Register
+// before the transaction opens (INB-01, §6.2); only a command sets WaitUntil and
+// ExpiresAt, to bound its wait and its retention (IDM-07, IDM-09).
 type Receipt struct {
 	Consumer    string
 	MessageID   MessageID
 	MessageType string
 	PayloadHash string
 	ReceivedAt  Instant
+	WaitUntil   Instant
+	ExpiresAt   Instant
 }
 
 // Completion is what Pending.Complete fixes as the terminal status of a first
-// reception, written only inside R1 (§6.1, §6.4).
+// reception, written only inside R1 (§6.1, §6.4). Outcome is the encoded answer
+// a command's R2 or R3 replays (IDM-06); a message leaves it nil.
 type Completion struct {
 	Status    Status
 	At        Instant
 	LastError string
+	Outcome   []byte
 }
 
 // Pending is the write half of a first reception, reachable only inside
@@ -70,6 +75,22 @@ const (
 type Reception struct {
 	kind    receptionKind
 	pending Pending
+	stored  []byte
+}
+
+// WithStored attaches the outcome a completed command left, so R2 and R3 can
+// replay it; the bytes are copied in and out, never shared.
+func (r Reception) WithStored(outcome []byte) Reception {
+	r.stored = append([]byte(nil), outcome...)
+	return r
+}
+
+// Stored is the outcome to replay, or nil for a reception that carries none.
+func (r Reception) Stored() []byte {
+	if r.stored == nil {
+		return nil
+	}
+	return append([]byte(nil), r.stored...)
 }
 
 // FirstReception is R1: the key was absent. p == nil is a programming defect,

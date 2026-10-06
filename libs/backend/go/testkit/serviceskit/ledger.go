@@ -63,6 +63,16 @@ func (l *Ledger) String() string {
 	return "[" + strings.Join(parts, " ") + "]"
 }
 
+func (l *Ledger) Count(g Gesture) int {
+	count := 0
+	for _, e := range l.seq.Items() {
+		if e.Gesture == g {
+			count++
+		}
+	}
+	return count
+}
+
 // Reset forgets what was recorded, so a fixture's own transactions do not count
 // against the use case under test.
 func (l *Ledger) Reset() { l.seq = stable.Sequence[Entry]{} }

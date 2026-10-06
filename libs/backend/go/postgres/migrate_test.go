@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -17,6 +18,7 @@ const (
 	tableExistsQuery      = `SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1)`
 	constraintExistsQuery = `SELECT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE table_name = $1 AND constraint_name = $2 AND constraint_type = $3)`
 	indexExistsQuery      = `SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = $1)`
+	columnExistsQuery     = `SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = $1 AND column_name = $2)`
 )
 
 func TestMigrateIsIdempotent(t *testing.T) {
@@ -83,6 +85,71 @@ func TestMigrateCreatesTheOutboxSchema(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestMigrateGivesTheInboxWhatACommandNeeds(t *testing.T) {
+	pool := openPool(t)
+	ctx := context.Background()
+
+	for _, column := range []string{"outcome", "expires_at"} {
+		if !exists(t, ctx, pool, columnExistsQuery, "inbox", column) {
+			t.Errorf("inbox.%s does not exist", column)
+		}
+	}
+	if !exists(t, ctx, pool, indexExistsQuery, "inbox_consumer_name_expires_at_idx") {
+		t.Error("index inbox_consumer_name_expires_at_idx does not exist: the purge of commands scans by expiry")
+	}
+}
+
+func TestMigrateUpgradesAnInboxFromBeforeCommands(t *testing.T) {
+	pool := openPool(t)
+	ctx := context.Background()
+
+	for _, stmt := range []string{
+		"DROP INDEX inbox_consumer_name_expires_at_idx",
+		"ALTER TABLE inbox DROP COLUMN outcome",
+		"ALTER TABLE inbox DROP COLUMN expires_at",
+		`INSERT INTO inbox (consumer_name, message_id, message_type, payload_hash, received_at, processed_at, status)
+		 VALUES ('orders', 'm-1', 'example', 'h1', 100, 100, 'processed')`,
+	} {
+		if _, err := pool.Exec(ctx, stmt); err != nil {
+			t.Fatalf("seeding the older inbox: %s: %v", stmt, err)
+		}
+	}
+
+	if err := postgres.Migrate(ctx, pool, allCapabilities, probeSchema); err != nil {
+		t.Fatalf("Migrate() over the older inbox = %v, want nil", err)
+	}
+
+	var expiresAt *int64
+	if err := pool.QueryRow(ctx, "SELECT expires_at FROM inbox WHERE message_id = 'm-1'").Scan(&expiresAt); err != nil {
+		t.Fatalf("SELECT expires_at = %v", err)
+	}
+	if expiresAt != nil {
+		t.Fatalf("expires_at = %d on a message, want NULL: a message is kept by the retention of INB-14, never by an expiry", *expiresAt)
+	}
+}
+
+func TestMigrateOverAnUpToDateSchemaTakesNoExclusiveLock(t *testing.T) {
+	pool := openPool(t)
+	ctx := context.Background()
+
+	reader, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("Begin() = %v", err)
+	}
+	t.Cleanup(func() { _ = reader.Rollback(context.Background()) })
+	for _, table := range []string{"inbox", "quarantine"} {
+		if _, err := reader.Exec(ctx, "SELECT 1 FROM "+table+" LIMIT 1"); err != nil {
+			t.Fatalf("reading %s = %v", table, err)
+		}
+	}
+
+	bounded, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	if err := postgres.Migrate(bounded, pool, allCapabilities, probeSchema); err != nil {
+		t.Fatalf("Migrate() beside an open reader = %v, want nil: a boot without schema change must not queue an ACCESS EXCLUSIVE lock", err)
+	}
 }
 
 func TestMigrateRefusesAnUnknownCapability(t *testing.T) {

@@ -5,7 +5,7 @@ title: DMPF — Resiliência, observabilidade e operação
 stage: done
 priority: P0
 depends_on: [SPEC-7PJ5WVCS, SPEC-7H08RZDG, SPEC-YWFGNPG5, SPEC-XQWGGAXF]
-ticket_url: null
+ticket_url: https://linear.app/mmda/issue/DEVS-41/spec-e15tbhcd-dmpf-resiliencia-observabilidade-e-operacao
 subtask_urls: []
 created: 2026-08-13
 ---

@@ -5,7 +5,7 @@ title: DMPF FND-07 — Revisão de Segurança do threat model e da governança d
 stage: done
 priority: P0
 depends_on: [SPEC-XQWGGAXF]
-ticket_url: null
+ticket_url: https://linear.app/mmda/issue/DEVS-30/spec-dk8qqsdq-dmpf-fnd-07-revisao-de-seguranca-do-threat-model-e-da
 subtask_urls: []
 created: 2026-08-30
 ---
@@ -396,7 +396,7 @@ ENTÃO node tools/dmpf-verify.mjs acusa violação nos manifestos versionados de
   seções foram revisadas por Plataforma e Arquitetura no PR #10 e não são reabertas.
 - **Pendência 2 do FND-08** — validação do runbook por SRE, também sem owner
   nomeado. Usa o mesmo tratamento de `THR-03` como precedente
-  (`resiliencia-observabilidade.md:1967`), mas é gate próprio, de outra story
+  (`resiliencia-observabilidade.md:2120`), mas é gate próprio, de outra story
   (ARQ-445).
 - **Pendências 1, 2, 3 e 5 de §11.4 do FND-07**: RFC §14.4, a consolidação das
   quatro pendências acumuladas, a forma de persistir os três atributos e a

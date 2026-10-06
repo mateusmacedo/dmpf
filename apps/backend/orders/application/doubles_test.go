@@ -10,6 +10,7 @@ import (
 	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/memory"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/serviceskit"
 )
 
 var orderTable = memory.Table[domain.OrderID, domain.Snapshot]{
@@ -23,123 +24,57 @@ const (
 	itemLimit = 3
 )
 
-// recorder collects the order in which the ports are touched, which is how the
-// nine-step sequence becomes observable from outside the service.
-type recorder struct{ observed []string }
-
-func (r *recorder) record(step string) { r.observed = append(r.observed, step) }
-
-// harness wires the service over the in-memory realization. The bind lives in
-// the test because the provider cannot know the resource type; the counters
-// live here because bind hands out fresh wrappers on every transaction, and
-// per-wrapper counters would hide the repetition UOW-09 forbids.
 type harness struct {
+	fakes   *serviceskit.Fakes
 	store   *memory.Store
 	service application.Service
-	rec     *recorder
+	rec     *serviceskit.Steps
 
-	binds    int
-	loads    int
-	saves    int
-	enqueues int
-
-	// seedCalls discounts the transactions the fixture itself opened, so a test
-	// asserts how many the use case opened, which is what UOW-01 is about.
-	seedCalls int
+	loads int
+	saves int
 }
 
-// serviceWithinCalls is the number of transactions opened by the service under
-// test, excluding the ones seed() opened to arrange the fixture.
-func (h *harness) serviceWithinCalls() int {
-	return h.store.WithinCalls() - h.seedCalls
-}
+func (h *harness) enqueues() int { return h.fakes.Ledger.Count(serviceskit.Enqueue) }
 
-// serviceCommits is the number of commits that actually installed state during
-// the service call. It is asserted apart from serviceWithinCalls because the
-// recording wrapper can only observe that Within returned nil, which a
-// realization that rolled back would also do.
-func (h *harness) serviceCommits() int {
-	return h.store.Commits() - h.seedCalls
-}
-
-type recordingClock struct {
-	inner ports.Clock
-	rec   *recorder
-}
-
-func (c recordingClock) Now() ports.Instant {
-	c.rec.record("clock.Now")
-	return c.inner.Now()
-}
-
-type recordingIDs struct {
-	inner ports.IDGenerator
-	rec   *recorder
-}
-
-func (g recordingIDs) NewMessageID() ports.MessageID {
-	g.rec.record("ids.NewMessageID")
-	return g.inner.NewMessageID()
-}
-
-// recordingRepository counts through the harness and can inject a Save error,
-// which is how a version conflict reaches the use case: the in-memory store
-// never produces one on its own, because txMu serializes every transaction.
 type recordingRepository struct {
-	inner   ports.Repository[domain.OrderID, domain.Snapshot]
-	h       *harness
-	saveErr error
+	inner ports.Repository[domain.OrderID, domain.Snapshot]
+	h     *harness
 }
 
 func (r recordingRepository) Load(ctx context.Context, id domain.OrderID) (domain.Snapshot, ports.Version, error) {
-	r.h.rec.record("orders.Load")
+	r.h.rec.Record("orders.Load")
 	r.h.loads++
 	return r.inner.Load(ctx, id)
 }
 
 func (r recordingRepository) Save(ctx context.Context, id domain.OrderID, state domain.Snapshot, expected ports.Version) error {
-	r.h.rec.record("orders.Save")
+	r.h.rec.Record("orders.Save")
 	r.h.saves++
-	if r.saveErr != nil {
-		return r.saveErr
-	}
 	return r.inner.Save(ctx, id, state, expected)
-}
-
-type recordingOutbox struct {
-	inner ports.Outbox
-	h     *harness
-}
-
-func (o recordingOutbox) Enqueue(ctx context.Context, entry ports.OutboxEntry) error {
-	o.h.rec.record("outbox.Enqueue")
-	o.h.enqueues++
-	return o.inner.Enqueue(ctx, entry)
-}
-
-type recordingUnitOfWork[R any] struct {
-	inner ports.UnitOfWork[R]
-	rec   *recorder
-}
-
-func (u recordingUnitOfWork[R]) Within(ctx context.Context, fn func(context.Context, R) error) error {
-	u.rec.record("within")
-	err := u.inner.Within(ctx, fn)
-	if err == nil {
-		u.rec.record("commit")
-	}
-	return err
 }
 
 type option func(*setup)
 
 type setup struct {
-	saveErr   error
-	authorize usecase.Authorize[application.Operation]
+	faults      serviceskit.Faults
+	registerErr error
+	authorize   usecase.Authorize[application.Operation]
+}
+
+func withRegisterError(err error) option {
+	return func(s *setup) { s.registerErr = err }
+}
+
+func withLoadError(err error) option {
+	return func(s *setup) { s.faults.Load = err }
 }
 
 func withSaveError(err error) option {
-	return func(s *setup) { s.saveErr = err }
+	return func(s *setup) { s.faults.Save = err }
+}
+
+func withEnqueueError(err error) option {
+	return func(s *setup) { s.faults.Enqueue = err }
 }
 
 func withAuthorize(authorize usecase.Authorize[application.Operation]) option {
@@ -149,36 +84,34 @@ func withAuthorize(authorize usecase.Authorize[application.Operation]) option {
 func newHarness(t *testing.T, options ...option) *harness {
 	t.Helper()
 
-	h := &harness{store: memory.New(), rec: &recorder{}}
+	fakes := serviceskit.NewFakes()
+	h := &harness{fakes: fakes, store: fakes.Store, rec: fakes.Steps}
 	cfg := &setup{authorize: usecase.AllowAll[application.Operation]()}
 	for _, apply := range options {
 		apply(cfg)
 	}
+	fakes.FailRegister = cfg.registerErr
 
-	bind := func(tx *memory.Tx) application.Resources {
-		h.binds++
+	bind := func(tx serviceskit.Tx) application.Resources {
 		return application.Resources{
-			Orders: recordingRepository{inner: orderTable.Repository(tx), h: h, saveErr: cfg.saveErr},
-			Outbox: recordingOutbox{inner: tx.Outbox(), h: h},
+			Orders:   recordingRepository{inner: serviceskit.FaultyRepository(orderTable.Repository(tx.Memory()), cfg.faults), h: h},
+			Outbox:   serviceskit.FaultyOutbox(tx.Outbox(), cfg.faults),
+			Commands: tx.CommandInbox(application.CommandConsumer),
 		}
 	}
 
 	h.service = application.Service{
-		UoW:       recordingUnitOfWork[application.Resources]{inner: memory.NewUnitOfWork(h.store, bind), rec: h.rec},
+		UoW:       serviceskit.UnitOfWork(fakes, bind),
 		Reader:    orderTable.Reader(h.store),
-		Clock:     recordingClock{inner: memory.FixedClock{At: occurred}, rec: h.rec},
-		IDs:       recordingIDs{inner: &memory.SequenceIDs{Prefix: "m-"}, rec: h.rec},
-		Authorize: recordingAuthorize(h.rec, cfg.authorize),
+		Clock:     fakes.Clock(memory.FixedClock{At: occurred}),
+		IDs:       fakes.IDs(&memory.SequenceIDs{Prefix: "m-"}),
+		Authorize: serviceskit.Authorize(fakes, cfg.authorize),
 		ItemLimit: itemLimit,
+		Idempotency: usecase.IdempotencyPolicy{
+			Wait: 1_000_000_000, Retention: 86_400_000_000_000, Digest: serviceskit.FoldDigest,
+		},
 	}
 	return h
-}
-
-func recordingAuthorize(rec *recorder, inner usecase.Authorize[application.Operation]) usecase.Authorize[application.Operation] {
-	return func(ctx context.Context, cmd application.Operation) error {
-		rec.record("authorize")
-		return inner(ctx, cmd)
-	}
 }
 
 // seed puts an aggregate in the store through a plain transaction, so the
@@ -195,8 +128,8 @@ func (h *harness) seed(t *testing.T, snapshot domain.Snapshot, expected ports.Ve
 	if err != nil {
 		t.Fatalf("seed: %v", err)
 	}
-	h.seedCalls++
-	h.rec.observed = nil
+	h.fakes.MarkSeeded()
+	h.rec.Reset()
 }
 
 func openSnapshot(items int) domain.Snapshot {

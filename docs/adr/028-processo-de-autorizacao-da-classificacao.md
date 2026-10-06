@@ -8,6 +8,8 @@ Estendido pelo [ADR-042](./042-shared-kernel.md) — 2026-09-09: a designação 
 shared kernel no baseline governado passa a ser ato de classificação sujeito a
 este processo, e `DMPF-T002` reprova o commit que a altera junto com código.
 
+**Supersedido pelo [ADR-058](./058-projeto-solo-sem-controles-de-segunda-pessoa.md) (2026-10-04)**: a Autoridade de Classificação, o rito de `AUT-01`..`AUT-10` e o gate G2 deixam de valer num projeto de um mantenedor só.
+
 ## Contexto
 
 A classificação de cada unidade arquitetural — o `block` e o `bounded_context`

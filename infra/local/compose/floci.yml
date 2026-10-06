@@ -4,9 +4,9 @@
 services:
   floci:
     image: floci/floci:2.0.1
-    profiles: [floci, all]
+    profiles: [floci, dmpf, all]
     ports:
-      - '${FLOCI_PORT:-4566}:4566'
+      - '127.0.0.1:${FLOCI_PORT:-4566}:4566'
     volumes:
       - floci-data:/app/data
     healthcheck:

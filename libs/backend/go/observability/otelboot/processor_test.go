@@ -2,40 +2,22 @@ package otelboot_test
 
 import (
 	"context"
-	"encoding/binary"
-	"errors"
 	"sync"
 	"testing"
+	"time"
 
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/metrics"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/otelboot"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/tracing"
 )
-
-func endedSpan(name string, sampled, failed bool) sdktrace.ReadOnlySpan {
-	var flags trace.TraceFlags
-	if sampled {
-		flags = trace.FlagsSampled
-	}
-	stub := tracetest.SpanStub{
-		Name: name,
-		SpanContext: trace.NewSpanContext(trace.SpanContextConfig{
-			TraceID:    trace.TraceID{1},
-			SpanID:     trace.SpanID{1},
-			TraceFlags: flags,
-		}),
-	}
-	if failed {
-		stub.Status = sdktrace.Status{Code: codes.Error}
-	}
-	return stub.Snapshot()
-}
 
 func exportedNames(t *testing.T, exporter *tracetest.InMemoryExporter) []string {
 	t.Helper()
@@ -48,139 +30,13 @@ func exportedNames(t *testing.T, exporter *tracetest.InMemoryExporter) []string 
 	return names
 }
 
-func newProcessor(t *testing.T, exporter sdktrace.SpanExporter, options otelboot.ProcessorOptions) *otelboot.ClassAwareProcessor {
-	t.Helper()
-
-	processor, err := otelboot.NewClassAwareProcessor(exporter, options)
-	if err != nil {
-		t.Fatalf("NewClassAwareProcessor() = %v", err)
-	}
-	t.Cleanup(func() { _ = processor.Shutdown(context.Background()) })
-	return processor
-}
-
-func TestAProcessorWithoutAnExporterIsRefused(t *testing.T) {
-	if _, err := otelboot.NewClassAwareProcessor(nil, otelboot.ProcessorOptions{}); !errors.Is(err, otelboot.ErrExporterRequired) {
-		t.Fatalf("NewClassAwareProcessor(nil) = %v, want ErrExporterRequired", err)
-	}
-}
-
-func TestASampledSpanIsExported(t *testing.T) {
-	exporter := tracetest.NewInMemoryExporter()
-	processor := newProcessor(t, exporter, otelboot.ProcessorOptions{})
-
-	processor.OnEnd(endedSpan("sampled", true, false))
-	if err := processor.ForceFlush(context.Background()); err != nil {
-		t.Fatalf("ForceFlush() = %v", err)
-	}
-
-	if got := exportedNames(t, exporter); len(got) != 1 || got[0] != "sampled" {
-		t.Errorf("exported = %v, want [sampled]", got)
-	}
-}
-
-func TestAnUnsampledSpanThatFailedIsExportedAnyway(t *testing.T) {
-	exporter := tracetest.NewInMemoryExporter()
-	processor := newProcessor(t, exporter, otelboot.ProcessorOptions{})
-
-	processor.OnEnd(endedSpan("recorded-error", false, true))
-	if err := processor.ForceFlush(context.Background()); err != nil {
-		t.Fatalf("ForceFlush() = %v", err)
-	}
-
-	if got := exportedNames(t, exporter); len(got) != 1 || got[0] != "recorded-error" {
-		t.Errorf("exported = %v, want [recorded-error]: an error is exported even unsampled (TRC-14)", got)
-	}
-}
-
-func TestAnUnsampledSpanWithoutAnErrorNeverReachesTheExporter(t *testing.T) {
-	exporter := tracetest.NewInMemoryExporter()
-	processor := newProcessor(t, exporter, otelboot.ProcessorOptions{})
-
-	processor.OnEnd(endedSpan("recorded-only", false, false))
-	if err := processor.ForceFlush(context.Background()); err != nil {
-		t.Fatalf("ForceFlush() = %v", err)
-	}
-
-	if got := exportedNames(t, exporter); len(got) != 0 {
-		t.Errorf("exported = %v, want none: a recorded span with no error is not telemetry to ship", got)
-	}
-}
-
-func TestOnStartDoesNotTouchTheSpan(t *testing.T) {
-	exporter := tracetest.NewInMemoryExporter()
-	processor := newProcessor(t, exporter, otelboot.ProcessorOptions{})
-
-	provider := sdktrace.NewTracerProvider(sdktrace.WithSampler(sdktrace.AlwaysSample()))
-	_, span := provider.Tracer("t").Start(context.Background(), "started")
-	defer span.End()
-
-	processor.OnStart(context.Background(), span.(sdktrace.ReadWriteSpan))
-
-	if got := exportedNames(t, exporter); len(got) != 0 {
-		t.Errorf("exported = %v, want none: OnStart ships nothing", got)
-	}
-}
-
-// The scenario of the spec: 1000 root write spans, 100 within the 10% rate, 10
-// of the 900 outside it end in error. The exporter must hold exactly 110.
-func TestTheSampledSpansAndTheFailedOnesAreTheOnlyOnesExported(t *testing.T) {
-	exporter := tracetest.NewInMemoryExporter()
-	processor := newProcessor(t, exporter, otelboot.ProcessorOptions{})
-	sampler := otelboot.NewClassSampler(tracing.DefaultRates())
-
-	const total, within = 1000, 100
-	sampled, failed := 0, 0
-	for i := range total {
-		var id trace.TraceID
-		id[0] = 1
-		if i < within {
-			binary.BigEndian.PutUint64(id[8:16], 0)
-		} else {
-			binary.BigEndian.PutUint64(id[8:16], ^uint64(0)-uint64(i))
-		}
-
-		decision := sampler.ShouldSample(sdktrace.SamplingParameters{
-			ParentContext: context.Background(),
-			TraceID:       id,
-			Attributes:    tracing.Attributes{}.TrafficClass(string(tracing.ClassWrite)).KeyValues(),
-		})
-		if decision.Decision == sdktrace.Drop {
-			t.Fatalf("span %d was dropped; the sampler must never drop", i)
-		}
-
-		isSampled := decision.Decision == sdktrace.RecordAndSample
-		if isSampled {
-			sampled++
-		}
-		fails := !isSampled && failed < 10
-		if fails {
-			failed++
-		}
-		processor.OnEnd(endedSpan("span", isSampled, fails))
-	}
-
-	if sampled != within || failed != 10 {
-		t.Fatalf("the fixture produced %d sampled and %d failed spans, want %d and 10", sampled, failed, within)
-	}
-	if err := processor.ForceFlush(context.Background()); err != nil {
-		t.Fatalf("ForceFlush() = %v", err)
-	}
-
-	if got := len(exporter.GetSpans()); got != within+10 {
-		t.Errorf("exported = %d spans, want %d: the sampled ones plus the failures", got, within+10)
-	}
-}
-
-// blockingExporter holds the worker inside ExportSpans until it is released, so
-// the queue fills in a way the test controls rather than races with.
 type blockingExporter struct {
 	entered chan struct{}
 	release chan struct{}
 	once    sync.Once
 
 	mu       sync.Mutex
-	exported []sdktrace.ReadOnlySpan
+	exported int
 }
 
 func newBlockingExporter() *blockingExporter {
@@ -188,105 +44,137 @@ func newBlockingExporter() *blockingExporter {
 }
 
 func (e *blockingExporter) ExportSpans(_ context.Context, spans []sdktrace.ReadOnlySpan) error {
-	e.once.Do(func() {
-		close(e.entered)
-		<-e.release
-	})
+	e.once.Do(func() { close(e.entered) })
+	<-e.release
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	e.exported = append(e.exported, spans...)
+	e.exported += len(spans)
 	return nil
 }
 
 func (e *blockingExporter) Shutdown(context.Context) error { return nil }
 
-func (e *blockingExporter) names() []string {
+func (e *blockingExporter) count() int {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	names := make([]string, 0, len(e.exported))
-	for _, span := range e.exported {
-		names = append(names, span.Name())
-	}
-	return names
+	return e.exported
 }
 
-func TestAFullQueueSacrificesTheOldestSpanThatCarriesNoError(t *testing.T) {
-	exporter := newBlockingExporter()
-	reader := sdkmetric.NewManualReader()
-	instruments, err := metrics.New(sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)).Meter("test"))
-	if err != nil {
-		t.Fatalf("metrics.New() = %v", err)
+func endSpan(runtime *otelboot.Runtime, name string) {
+	_, span := runtime.Tracer().Start(context.Background(), name,
+		trace.WithAttributes(tracing.Attributes{}.TrafficClass(string(tracing.ClassWrite)).KeyValues()...))
+	span.End()
+}
+
+func fillTheQueue(t *testing.T, runtime *otelboot.Runtime, exporter *blockingExporter) {
+	t.Helper()
+	endSpan(runtime, "first")
+	select {
+	case <-exporter.entered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the batch processor never started exporting the first span")
+	}
+	for range 10 {
+		endSpan(runtime, "queued")
+	}
+	close(exporter.release)
+}
+
+func TestASampledSpanIsExportedByTheBatchProcessor(t *testing.T) {
+	runtime, exporter := startedRuntime(t, nil)
+
+	endSpan(runtime, "orders.place")
+	if err := runtime.ForceFlush(context.Background()); err != nil {
+		t.Fatalf("ForceFlush() = %v", err)
 	}
 
-	processor := newProcessor(t, exporter, otelboot.ProcessorOptions{
-		QueueSize: 2,
-		Dropped:   instruments.SpansDropped,
+	if got := exportedNames(t, exporter); len(got) != 1 || got[0] != "orders.place" {
+		t.Errorf("exported = %v, want [orders.place]", got)
+	}
+}
+
+func TestAnUnsampledSpanIsNotExportedByTheProcessEvenWhenItFails(t *testing.T) {
+	runtime, exporter := startedRuntime(t, func(config *otelboot.Config) {
+		config.Sampling = tracing.Rates{tracing.ClassRead: 0}
 	})
 
-	processor.OnEnd(endedSpan("in-flight", true, false))
-	<-exporter.entered
-
-	processor.OnEnd(endedSpan("oldest-ok", true, false))
-	processor.OnEnd(endedSpan("newer-ok", true, false))
-	processor.OnEnd(endedSpan("failure", false, true))
-	processor.OnEnd(endedSpan("last-ok", true, false))
-
-	close(exporter.release)
-	if err := processor.ForceFlush(context.Background()); err != nil {
+	_, span := runtime.Tracer().Start(context.Background(), "orders.find",
+		trace.WithAttributes(tracing.Attributes{}.TrafficClass(string(tracing.ClassRead)).KeyValues()...))
+	if span.SpanContext().IsSampled() || !span.IsRecording() {
+		t.Fatal("the fixture wants a recorded span that is not sampled")
+	}
+	span.SetStatus(codes.Error, "")
+	span.End()
+	if err := runtime.ForceFlush(context.Background()); err != nil {
 		t.Fatalf("ForceFlush() = %v", err)
 	}
 
-	got := exporter.names()
-	want := map[string]bool{"in-flight": true, "failure": true, "last-ok": true}
-	if len(got) != len(want) {
-		t.Fatalf("exported = %v, want the three survivors of %v", got, want)
-	}
-	for _, name := range got {
-		if !want[name] {
-			t.Errorf("exported %q; the queue should have dropped it before a failure", name)
-		}
-	}
-
-	if dropped := counterValue(t, reader, metrics.SpansDroppedTotal); dropped != 2 {
-		t.Errorf("%s = %d, want 2", metrics.SpansDroppedTotal, dropped)
+	if got := exportedNames(t, exporter); len(got) != 0 {
+		t.Errorf("exported = %v, want none: TRC-14 is kept by the tail sampling of the Collector (RF-E7)", got)
 	}
 }
 
-func TestAQueueFullOfFailuresRefusesTheNewSpanInsteadOfLosingOne(t *testing.T) {
+func TestTheQueueSizeOfTheEnvironmentIsRespected(t *testing.T) {
+	t.Setenv("OTEL_BSP_MAX_QUEUE_SIZE", "2")
+	t.Setenv("OTEL_BSP_MAX_EXPORT_BATCH_SIZE", "1")
 	exporter := newBlockingExporter()
-	processor := newProcessor(t, exporter, otelboot.ProcessorOptions{QueueSize: 2})
+	runtime, _ := startedRuntime(t, func(config *otelboot.Config) { config.TraceExporter = exporter })
 
-	processor.OnEnd(endedSpan("in-flight", true, false))
-	<-exporter.entered
-
-	processor.OnEnd(endedSpan("failure-a", false, true))
-	processor.OnEnd(endedSpan("failure-b", false, true))
-	processor.OnEnd(endedSpan("refused", true, false))
-
-	close(exporter.release)
-	if err := processor.ForceFlush(context.Background()); err != nil {
-		t.Fatalf("ForceFlush() = %v", err)
+	fillTheQueue(t, runtime, exporter)
+	if err := runtime.Shutdown(context.Background()); err != nil {
+		t.Fatalf("Shutdown() = %v", err)
 	}
 
-	for _, name := range exporter.names() {
-		if name == "refused" {
-			t.Error("the new span displaced a queued failure; a failure is what the queue is for")
-		}
+	if got := exporter.count(); got != 3 {
+		t.Errorf("exported %d spans, want 3: the one in flight and the two the queue of OTEL_BSP_MAX_QUEUE_SIZE holds", got)
 	}
 }
 
-func TestTheDroppedCounterIsOptional(t *testing.T) {
+func TestAFullQueueIsCountedByTheSDKObservability(t *testing.T) {
+	t.Setenv("OTEL_GO_X_OBSERVABILITY", "true")
+	t.Setenv("OTEL_BSP_MAX_QUEUE_SIZE", "2")
+	t.Setenv("OTEL_BSP_MAX_EXPORT_BATCH_SIZE", "1")
 	exporter := newBlockingExporter()
-	processor := newProcessor(t, exporter, otelboot.ProcessorOptions{QueueSize: 1})
+	reader := sdkmetric.NewManualReader()
+	runtime, _ := startedRuntime(t, func(config *otelboot.Config) {
+		config.TraceExporter = exporter
+		config.MetricReader = reader
+	})
 
-	processor.OnEnd(endedSpan("in-flight", true, false))
-	<-exporter.entered
-
-	processor.OnEnd(endedSpan("queued", true, false))
-	processor.OnEnd(endedSpan("dropped", true, false))
-
-	close(exporter.release)
-	if err := processor.ForceFlush(context.Background()); err != nil {
+	fillTheQueue(t, runtime, exporter)
+	if err := runtime.ForceFlush(context.Background()); err != nil {
 		t.Fatalf("ForceFlush() = %v", err)
 	}
+
+	if got := queueFull(t, reader); got != 8 {
+		t.Errorf("otel.sdk.processor.span.processed{error.type=queue_full} = %d, want 8", got)
+	}
+}
+
+func queueFull(t *testing.T, reader *sdkmetric.ManualReader) int64 {
+	t.Helper()
+
+	var collected metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &collected); err != nil {
+		t.Fatalf("Collect() = %v", err)
+	}
+	for _, scope := range collected.ScopeMetrics {
+		for _, series := range scope.Metrics {
+			if series.Name != "otel.sdk.processor.span.processed" {
+				continue
+			}
+			sum, ok := series.Data.(metricdata.Sum[int64])
+			if !ok {
+				t.Fatalf("%s is a %T, want a Sum[int64]", series.Name, series.Data)
+			}
+			var total int64
+			for _, point := range sum.DataPoints {
+				if value, _ := point.Attributes.Value(semconv.ErrorTypeKey); value == attribute.StringValue("queue_full") {
+					total += point.Value
+				}
+			}
+			return total
+		}
+	}
+	return 0
 }

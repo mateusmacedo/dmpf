@@ -1,0 +1,1123 @@
+{
+  "uid": "dmpf-overview",
+  "title": "DMPF · Visão geral",
+  "description": "Primeira tela da plataforma: o que está de pé, se a borda e os contextos respondem, se o fluxo assíncrono anda e o que satura. Cada série por serviço leva ao dashboard do serviço.",
+  "tags": ["dmpf", "plataforma"],
+  "timezone": "browser",
+  "editable": true,
+  "graphTooltip": 1,
+  "schemaVersion": 39,
+  "refresh": "30s",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "links": [
+    {
+      "title": "Dashboards DMPF",
+      "type": "dashboards",
+      "tags": ["dmpf"],
+      "asDropdown": true,
+      "keepTime": true,
+      "includeVars": true
+    }
+  ],
+  "templating": {
+    "list": []
+  },
+  "annotations": {
+    "list": []
+  },
+  "panels": [
+    {
+      "type": "row",
+      "id": 1,
+      "title": "Saúde",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "title": "Processos por serviço e papel",
+      "description": "target_info por service.name e dmpf.process.role (RF-E3): um por processo que exporta OTLP.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "count by (service_name, dmpf_process_role) (target_info{service_name!=\"\"})",
+          "legendFormat": "{{service_name}} {{dmpf_process_role}}",
+          "refId": "A"
+        }
+      ],
+      "id": 2,
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 0,
+        "y": 1
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Segundos desde a última exportação OTLP",
+      "description": "Quem só empurra OTLP não tem `up`. A exportação é a cada 60 s: acima de 120 s, o processo parou ou o Collector está fora.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 90
+              },
+              {
+                "color": "red",
+                "value": 120
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "time() - max by (service_name, instance) (timestamp(target_info{service_name!=\"\"}))",
+          "legendFormat": "{{instance}}",
+          "refId": "A"
+        }
+      ],
+      "id": 3,
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 8,
+        "y": 1
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Alvos de scrape e floci",
+      "description": "`up` de cada job de scrape e o probe do blackbox no floci, que não expõe métricas.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "fora",
+                  "color": "red",
+                  "index": 0
+                },
+                "1": {
+                  "text": "no ar",
+                  "color": "green",
+                  "index": 1
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "min by (job) (up)",
+          "legendFormat": "{{job}}",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "min by (instance) (probe_success)",
+          "legendFormat": "floci",
+          "refId": "B"
+        }
+      ],
+      "id": 4,
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 16,
+        "y": 1
+      }
+    },
+    {
+      "type": "row",
+      "id": 5,
+      "title": "Borda (BFF)",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 7
+      },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Vazão da borda",
+      "description": "MET-09: _count de http.server.request.duration do otelhttp do BFF; as rotas de saúde não entram (RF-B2).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(http_server_request_duration_seconds_count{service_name=\"bff\"}[$__rate_interval]))",
+          "legendFormat": "req/s",
+          "refId": "A"
+        }
+      ],
+      "interval": "2m",
+      "id": 6,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 8
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Respostas 5xx e 429 da borda",
+      "description": "Fração das requisições da janela: 5xx é falha, 429 é recusa de admissão. Conta a série que nasce na janela, porque o primeiro 504 de uma rota cria a série. O 404 do polling de convergência fica de fora.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "noValue": "0",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum ((increase(http_server_request_duration_seconds_count{service_name=\"bff\", http_response_status_code=~\"5..\"}[$__rate_interval]) or http_server_request_duration_seconds_count{service_name=\"bff\", http_response_status_code=~\"5..\"} * 0) + ((http_server_request_duration_seconds_count{service_name=\"bff\", http_response_status_code=~\"5..\"} unless http_server_request_duration_seconds_count{service_name=\"bff\", http_response_status_code=~\"5..\"} offset $__rate_interval) or http_server_request_duration_seconds_count{service_name=\"bff\", http_response_status_code=~\"5..\"} * 0)) / clamp_min(sum ((increase(http_server_request_duration_seconds_count{service_name=\"bff\"}[$__rate_interval]) or http_server_request_duration_seconds_count{service_name=\"bff\"} * 0) + ((http_server_request_duration_seconds_count{service_name=\"bff\"} unless http_server_request_duration_seconds_count{service_name=\"bff\"} offset $__rate_interval) or http_server_request_duration_seconds_count{service_name=\"bff\"} * 0)), 1)",
+          "legendFormat": "5xx",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum ((increase(http_server_request_duration_seconds_count{service_name=\"bff\", http_response_status_code=\"429\"}[$__rate_interval]) or http_server_request_duration_seconds_count{service_name=\"bff\", http_response_status_code=\"429\"} * 0) + ((http_server_request_duration_seconds_count{service_name=\"bff\", http_response_status_code=\"429\"} unless http_server_request_duration_seconds_count{service_name=\"bff\", http_response_status_code=\"429\"} offset $__rate_interval) or http_server_request_duration_seconds_count{service_name=\"bff\", http_response_status_code=\"429\"} * 0)) / clamp_min(sum ((increase(http_server_request_duration_seconds_count{service_name=\"bff\"}[$__rate_interval]) or http_server_request_duration_seconds_count{service_name=\"bff\"} * 0) + ((http_server_request_duration_seconds_count{service_name=\"bff\"} unless http_server_request_duration_seconds_count{service_name=\"bff\"} offset $__rate_interval) or http_server_request_duration_seconds_count{service_name=\"bff\"} * 0)), 1)",
+          "legendFormat": "429",
+          "refId": "B"
+        }
+      ],
+      "interval": "2m",
+      "id": 7,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 8
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Latência da borda (p95)",
+      "description": "MET-08: percentil 95 de http.server.request.duration do BFF, em segundos.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_request_duration_seconds_bucket{service_name=\"bff\"}[$__rate_interval])))",
+          "legendFormat": "p95",
+          "refId": "A"
+        }
+      ],
+      "interval": "2m",
+      "id": 8,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 8
+      }
+    },
+    {
+      "type": "row",
+      "id": 9,
+      "title": "Contextos",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 16
+      },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Vazão gRPC por serviço",
+      "description": "MET-09: _count de rpc.server.call.duration do otelgrpc.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "links": [
+            {
+              "title": "Serviço ${__field.labels.service_name}",
+              "url": "/d/reference?var-service=${__field.labels.service_name}&${__url_time_range}"
+            }
+          ],
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (service_name) (rate(rpc_server_call_duration_seconds_count[$__rate_interval]))",
+          "legendFormat": "{{service_name}}",
+          "refId": "A"
+        }
+      ],
+      "interval": "2m",
+      "id": 10,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 17
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "gRPC não-OK por serviço e código (eventos na janela)",
+      "description": "rpc.response.status_code diferente de OK, contando a série que nasce na janela (o primeiro DEADLINE_EXCEEDED cria a série). NOT_FOUND em FindReservation é o polling de convergência.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "0",
+          "links": [
+            {
+              "title": "Serviço ${__field.labels.service_name}",
+              "url": "/d/reference?var-service=${__field.labels.service_name}&${__url_time_range}"
+            }
+          ],
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (service_name, rpc_response_status_code) ((increase(rpc_server_call_duration_seconds_count{rpc_response_status_code!=\"OK\"}[$__rate_interval]) or rpc_server_call_duration_seconds_count{rpc_response_status_code!=\"OK\"} * 0) + ((rpc_server_call_duration_seconds_count{rpc_response_status_code!=\"OK\"} unless rpc_server_call_duration_seconds_count{rpc_response_status_code!=\"OK\"} offset $__rate_interval) or rpc_server_call_duration_seconds_count{rpc_response_status_code!=\"OK\"} * 0))",
+          "legendFormat": "{{service_name}} {{rpc_response_status_code}}",
+          "refId": "A"
+        }
+      ],
+      "interval": "2m",
+      "id": 11,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 17
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Latência gRPC por serviço (p95)",
+      "description": "MET-08: percentil 95 de rpc.server.call.duration.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "links": [
+            {
+              "title": "Serviço ${__field.labels.service_name}",
+              "url": "/d/reference?var-service=${__field.labels.service_name}&${__url_time_range}"
+            }
+          ],
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.95, sum by (le, service_name) (rate(rpc_server_call_duration_seconds_bucket[$__rate_interval])))",
+          "legendFormat": "{{service_name}}",
+          "refId": "A"
+        }
+      ],
+      "interval": "2m",
+      "id": 12,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 17
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Casos de uso por serviço e desfecho",
+      "description": "MET-09: _count de dmpf.operation.duration por dmpf.outcome_category (accepted, rejected, denied, failed).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "links": [
+            {
+              "title": "Serviço ${__field.labels.service_name}",
+              "url": "/d/reference?var-service=${__field.labels.service_name}&${__url_time_range}"
+            }
+          ],
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (service_name, dmpf_outcome_category) (rate(dmpf_operation_duration_seconds_count[$__rate_interval]))",
+          "legendFormat": "{{service_name}} · {{dmpf_outcome_category}}",
+          "refId": "A"
+        }
+      ],
+      "interval": "2m",
+      "id": 13,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 25
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Falha técnica por serviço e categoria (eventos na janela)",
+      "description": "MET-10: só o desfecho failed leva error.type (categoria de FND-07), contando a série que nasce na janela. NotFound em FindReservation é o polling de convergência, contado como falha pelo kernel.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "0",
+          "links": [
+            {
+              "title": "Serviço ${__field.labels.service_name}",
+              "url": "/d/reference?var-service=${__field.labels.service_name}&${__url_time_range}"
+            }
+          ],
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (service_name, error_type) ((increase(dmpf_operation_duration_seconds_count{dmpf_outcome_category=\"failed\"}[$__rate_interval]) or dmpf_operation_duration_seconds_count{dmpf_outcome_category=\"failed\"} * 0) + ((dmpf_operation_duration_seconds_count{dmpf_outcome_category=\"failed\"} unless dmpf_operation_duration_seconds_count{dmpf_outcome_category=\"failed\"} offset $__rate_interval) or dmpf_operation_duration_seconds_count{dmpf_outcome_category=\"failed\"} * 0))",
+          "legendFormat": "{{service_name}} {{error_type}}",
+          "refId": "A"
+        }
+      ],
+      "interval": "2m",
+      "id": 14,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 25
+      }
+    },
+    {
+      "type": "row",
+      "id": 15,
+      "title": "Fluxo assíncrono",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 33
+      },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Mensagens enviadas por destino",
+      "description": "messaging.client.sent.messages do relay (RF-D2).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "mps",
+          "links": [
+            {
+              "title": "Fluxo assíncrono",
+              "url": "/d/dmpf-async?${__url_time_range}"
+            }
+          ],
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (messaging_destination_name) (rate(messaging_client_sent_messages_total[$__rate_interval]))",
+          "legendFormat": "{{messaging_destination_name}}",
+          "refId": "A"
+        }
+      ],
+      "interval": "2m",
+      "id": 16,
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 0,
+        "y": 34
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Mensagens processadas por destino e desfecho",
+      "description": "_count de messaging.process.duration do consumer.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "mps",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (messaging_destination_name, error_type) (rate(messaging_process_duration_seconds_count[$__rate_interval]))",
+          "legendFormat": "{{messaging_destination_name}} {{error_type}}",
+          "refId": "A"
+        }
+      ],
+      "interval": "2m",
+      "id": 17,
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 6,
+        "y": 34
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Lag por grupo e tópico",
+      "description": "Offset máximo do tópico menos o offset confirmado do grupo, por partição, somado (Redpanda).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (redpanda_group, redpanda_topic) (max by (redpanda_topic, redpanda_partition) (redpanda_kafka_max_offset{redpanda_namespace=\"kafka\"}) - on (redpanda_topic, redpanda_partition) group_right max by (redpanda_group, redpanda_topic, redpanda_partition) (redpanda_kafka_consumer_group_committed_offset))",
+          "legendFormat": "{{redpanda_group}} ← {{redpanda_topic}}",
+          "refId": "A"
+        }
+      ],
+      "id": 18,
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 12,
+        "y": 34
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Ocupação do pool do consumer",
+      "description": "MET-11: dmpf.consumer.pool.utilization (razão; 1 = saturado).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (service_name, instance) (dmpf_consumer_pool_utilization_ratio)",
+          "legendFormat": "{{instance}}",
+          "refId": "A"
+        }
+      ],
+      "id": 19,
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 18,
+        "y": 34
+      }
+    },
+    {
+      "type": "row",
+      "id": 20,
+      "title": "Resiliência e recursos",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 42
+      },
+      "panels": []
+    },
+    {
+      "type": "state-timeline",
+      "title": "Breakers por serviço e dependência",
+      "description": "MET-28: 0 fechado, 1 meio-aberto, 2 aberto.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "fechado",
+                  "color": "green",
+                  "index": 0
+                },
+                "1": {
+                  "text": "meio-aberto",
+                  "color": "yellow",
+                  "index": 1
+                },
+                "2": {
+                  "text": "aberto",
+                  "color": "red",
+                  "index": 2
+                }
+              }
+            }
+          ],
+          "custom": {
+            "fillOpacity": 80
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showValue": "auto",
+        "mergeValues": true,
+        "legend": {
+          "showLegend": false
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (service_name, dmpf_dependency) (dmpf_dependency_breaker_state)",
+          "legendFormat": "{{service_name}} → {{dmpf_dependency}}",
+          "refId": "A"
+        }
+      ],
+      "id": 21,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 43
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "CPU sobre o teto, containers dmpf",
+      "description": "cAdvisor: uso de CPU dividido pela quota do container (deploy.resources.limits).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (name) (rate(container_cpu_usage_seconds_total{name=~\".*dmpf-.*\"}[$__rate_interval])) / on (name) (max by (name) (container_spec_cpu_quota{name=~\".*dmpf-.*\"}) / max by (name) (container_spec_cpu_period{name=~\".*dmpf-.*\"}))",
+          "legendFormat": "{{name}}",
+          "refId": "A"
+        }
+      ],
+      "interval": "2m",
+      "id": 22,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 43
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Memória sobre o limite, containers dmpf",
+      "description": "cAdvisor: working set dividido pelo limite do container.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (name) (container_memory_working_set_bytes{name=~\".*dmpf-.*\"}) / on (name) max by (name) (container_spec_memory_limit_bytes{name=~\".*dmpf-.*\"})",
+          "legendFormat": "{{name}}",
+          "refId": "A"
+        }
+      ],
+      "id": 23,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 43
+      }
+    },
+    {
+      "type": "row",
+      "id": 24,
+      "title": "Mapa",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 51
+      },
+      "panels": []
+    },
+    {
+      "type": "nodeGraph",
+      "title": "Mapa de serviços (Tempo)",
+      "description": "Service graph do metrics_generator do Tempo. A aresta assíncrona orders → reservations não aparece: o CONSUMER liga ao produtor por link, não por parent.",
+      "datasource": {
+        "type": "tempo",
+        "uid": "tempo"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "tempo",
+            "uid": "tempo"
+          },
+          "queryType": "serviceMap",
+          "refId": "A"
+        }
+      ],
+      "id": 25,
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 52
+      }
+    }
+  ]
+}

@@ -139,7 +139,7 @@ func (f failingOutbox) Enqueue(context.Context, ports.OutboxEntry) error { retur
 
 func consumerWith(pool *pgxpool.Pool, decorate func(application.Resources) application.Resources) kernelapp.Consumer {
 	bind := func(tx *postgres.Tx) application.Resources {
-		return decorate(app.Bind(e2eWait)(tx))
+		return decorate(app.Bind(app.Waits{Message: e2eWait})(tx))
 	}
 	service := application.Service{
 		UoW:       postgres.NewUnitOfWork(pool, bind),
@@ -164,7 +164,7 @@ var e2eBoundary = kernelapp.Boundary{Transport: kernelapp.TransportDevelopmentOn
 
 func TestFirstReceptionAppliesConfirmsAndDerivesTheOutbox(t *testing.T) {
 	pool := appkit.OpenPool(t)
-	consumer := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eTimeout, e2eAttempts, e2eBoundary)
+	consumer := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eTimeout, e2eAttempts, e2eBoundary, app.ConsumerTelemetry{})
 
 	outcome, err, ack := consume(t, pool, consumer, "evt-1", appkit.RawOrderPlaced(t, "evt-1", "o-1", 2), 1)
 	if err != nil {
@@ -193,7 +193,7 @@ func TestFirstReceptionAppliesConfirmsAndDerivesTheOutbox(t *testing.T) {
 
 func TestBusinessRejectionCommitsRejectedAndConfirms(t *testing.T) {
 	pool := appkit.OpenPool(t)
-	consumer := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eTimeout, e2eAttempts, e2eBoundary)
+	consumer := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eTimeout, e2eAttempts, e2eBoundary, app.ConsumerTelemetry{})
 
 	outcome, err, ack := consume(t, pool, consumer, "evt-2", appkit.RawOrderPlaced(t, "evt-2", "o-2", 0), 1)
 	if err != nil {
@@ -216,7 +216,7 @@ func TestBusinessRejectionCommitsRejectedAndConfirms(t *testing.T) {
 
 func TestRedeliveriesShortCircuit(t *testing.T) {
 	pool := appkit.OpenPool(t)
-	consumer := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eTimeout, e2eAttempts, e2eBoundary)
+	consumer := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eTimeout, e2eAttempts, e2eBoundary, app.ConsumerTelemetry{})
 	applied := appkit.RawOrderPlaced(t, "evt-1", "o-1", 2)
 	rejected := appkit.RawOrderPlaced(t, "evt-2", "o-2", 0)
 	for _, raw := range [][]byte{applied, rejected} {
@@ -305,7 +305,7 @@ func TestExhaustedAttemptsContainThePoisonMessage(t *testing.T) {
 	}
 
 	// The next message of the same partition is not blocked by the poison one.
-	healthy := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eTimeout, e2eAttempts, e2eBoundary)
+	healthy := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eTimeout, e2eAttempts, e2eBoundary, app.ConsumerTelemetry{})
 	outcome, err, _ = consume(t, pool, healthy, "evt-5", appkit.RawOrderPlaced(t, "evt-5", "o-4", 1), 1)
 	if err != nil || outcome.Disposition != usecase.R1D1 {
 		t.Fatalf("the partition stayed blocked: outcome = %+v, err = %v", outcome, err)
@@ -349,7 +349,7 @@ func TestOutboxFailureRollsBackDeduplicationAndState(t *testing.T) {
 
 func TestInvalidEnvelopeIsContainedWithoutTouchingTheInbox(t *testing.T) {
 	pool := appkit.OpenPool(t)
-	consumer := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eTimeout, e2eAttempts, e2eBoundary)
+	consumer := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eTimeout, e2eAttempts, e2eBoundary, app.ConsumerTelemetry{})
 	garbage := []byte("definitely not a cloudevent")
 
 	outcome, err, ack := consume(t, pool, consumer, "", garbage, 1)
@@ -366,7 +366,7 @@ func TestInvalidEnvelopeIsContainedWithoutTouchingTheInbox(t *testing.T) {
 
 func TestPayloadOfAnotherContractIsTerminal(t *testing.T) {
 	pool := appkit.OpenPool(t)
-	consumer := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eTimeout, e2eAttempts, e2eBoundary)
+	consumer := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eTimeout, e2eAttempts, e2eBoundary, app.ConsumerTelemetry{})
 	payload, typeURL, err := envelope.Pack(&eventv1.ItemAdded{OrderId: "o-8", Sku: "sku", Quantity: 1})
 	if err != nil {
 		t.Fatalf("Pack: %v", err)
@@ -399,7 +399,7 @@ func TestPayloadOfAnotherContractIsTerminal(t *testing.T) {
 
 func TestRedeliveryWithANewMessageIDDoesNotDuplicateTheEffect(t *testing.T) {
 	pool := appkit.OpenPool(t)
-	consumer := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eTimeout, e2eAttempts, e2eBoundary)
+	consumer := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eTimeout, e2eAttempts, e2eBoundary, app.ConsumerTelemetry{})
 	if _, err, _ := consume(t, pool, consumer, "evt-1", appkit.RawOrderPlaced(t, "evt-1", "o-1", 2), 1); err != nil {
 		t.Fatalf("first: %v", err)
 	}
@@ -423,7 +423,7 @@ func TestRedeliveryWithANewMessageIDDoesNotDuplicateTheEffect(t *testing.T) {
 
 func TestSignalsExposeTheConsumerSide(t *testing.T) {
 	pool := appkit.OpenPool(t)
-	consumer := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eTimeout, e2eAttempts, e2eBoundary)
+	consumer := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eTimeout, e2eAttempts, e2eBoundary, app.ConsumerTelemetry{})
 	if _, err, _ := consume(t, pool, consumer, "evt-1", appkit.RawOrderPlaced(t, "evt-1", "o-1", 2), 1); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
@@ -447,7 +447,7 @@ func TestSignalsExposeTheConsumerSide(t *testing.T) {
 // producer the boundary does not admit, writes nothing but its quarantine row.
 func TestAnOrderPlacedFromOutsideTheBoundaryWritesNothing(t *testing.T) {
 	pool := appkit.OpenPool(t)
-	consumer := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eTimeout, e2eAttempts, e2eBoundary)
+	consumer := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eTimeout, e2eAttempts, e2eBoundary, app.ConsumerTelemetry{})
 	payload, typeURL, err := envelope.Pack(&eventv1.OrderPlaced{OrderId: "o-9", ItemCount: 1})
 	if err != nil {
 		t.Fatalf("Pack: %v", err)
@@ -486,7 +486,7 @@ func TestAnOrderPlacedFromOutsideTheBoundaryWritesNothing(t *testing.T) {
 // retryable the refusal is terminal: contained once, nothing written.
 func TestAPlatformChainOrderPlacedIsRefusedTerminallyWithoutWriting(t *testing.T) {
 	pool := appkit.OpenPool(t)
-	consumer := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eTimeout, e2eAttempts, e2eBoundary)
+	consumer := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eTimeout, e2eAttempts, e2eBoundary, app.ConsumerTelemetry{})
 
 	outcome, err, ack := consume(t, pool, consumer, "evt-10", appkit.RawOrderPlacedWithoutTenant(t, "evt-10", "o-10", 1), 1)
 	if !errors.Is(err, ports.ErrDenied) || outcome.Disposition != usecase.R1D4 || outcome.Reason != ports.ReasonTerminalFailure {

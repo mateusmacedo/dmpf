@@ -32,10 +32,12 @@ spec:
             - secretRef:
                 name: orders
           env:
-            - name: INSTANCE_ID
+            - name: K8S_POD_NAME
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: $(OTEL_RESOURCE_ATTRIBUTES),service.instance.id=$(K8S_POD_NAME),dmpf.process.role=api
           # Prontidão pelo health do serviço, que só vira SERVING com o banco
           # alcançado; vivacidade pelo status geral, que não depende do banco.
           readinessProbe:
@@ -59,4 +61,4 @@ spec:
             readOnlyRootFilesystem: true
             capabilities:
               drop: [ALL]
-      terminationGracePeriodSeconds: 15
+      terminationGracePeriodSeconds: 30

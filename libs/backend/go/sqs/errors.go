@@ -23,8 +23,9 @@ var (
 	ErrTLSRequired = errors.New("sqs: endpoint must be https outside development")
 
 	// ErrSinkPanicked is a sink that panicked inside Handle: the attempt ends
-	// without a gesture and the visibility expires; the consumer does not crash.
-	ErrSinkPanicked = errors.New("sqs: sink panicked")
+	// without a gesture and the visibility expires, recorded as Unexpected
+	// (ERR-22); the consumer does not crash.
+	ErrSinkPanicked error = &unexpected{message: "sqs: sink panicked"}
 
 	// ErrIncompleteConsumer is a consumer without channel, sink, concurrency or
 	// heartbeat, or one whose deadline exceeds the visibility (SQS-13).
@@ -81,3 +82,11 @@ var (
 	// ErrInvalidContainment is a quarantine without consumer, reason or envelope.
 	ErrInvalidContainment = errors.New("sqs: containment needs consumer, reason and envelope")
 )
+
+type unexpected struct{ message string }
+
+func (e *unexpected) Error() string { return e.message }
+
+func (*unexpected) ErrorCategory() string { return "Unexpected" }
+
+func (*unexpected) ErrorCode() string { return "" }

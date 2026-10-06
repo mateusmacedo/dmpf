@@ -59,10 +59,38 @@ func TestClassifyMapsErrRegisterTimeoutToR1D3(t *testing.T) {
 	}
 }
 
-func TestClassifyMapsContextDeadlineAndCancelToR1D4(t *testing.T) {
-	for _, err := range []error{context.DeadlineExceeded, context.Canceled} {
-		if got := application.Classify(err); got != application.R1D4 {
-			t.Fatalf("Classify(%v) = %v, want %v", err, got, application.R1D4)
+func TestClassifyMapsAnExpiredDeadlineToR1D3(t *testing.T) {
+	for _, err := range []error{context.DeadlineExceeded, fmt.Errorf("disposition_test: handler: %w", context.DeadlineExceeded)} {
+		if got := application.Classify(err); got != application.R1D3 {
+			t.Fatalf("Classify(%v) = %v, want %v: a slow handler is retried, not quarantined", err, got, application.R1D3)
+		}
+	}
+}
+
+func TestClassifyKeepsACancellationTerminal(t *testing.T) {
+	if got := application.Classify(context.Canceled); got != application.R1D4 {
+		t.Fatalf("Classify(Canceled) = %v, want %v: Cancelled is not retryable (CTX-23, ERR-11)", got, application.R1D4)
+	}
+}
+
+type sqlStateError string
+
+func (e sqlStateError) Error() string    { return "disposition_test: sqlstate " + string(e) }
+func (e sqlStateError) SQLState() string { return string(e) }
+
+func TestClassifyMapsATransientDatabaseFailureToR1D3(t *testing.T) {
+	for _, code := range []string{"08000", "08006", "40001", "40P01", "57P01"} {
+		err := fmt.Errorf("disposition_test: save: %w", sqlStateError(code))
+		if got := application.Classify(err); got != application.R1D3 {
+			t.Errorf("Classify(SQLSTATE %s) = %v, want %v", code, got, application.R1D3)
+		}
+	}
+}
+
+func TestClassifyKeepsAPermanentDatabaseFailureTerminal(t *testing.T) {
+	for _, code := range []string{"23505", "42P01", "22001"} {
+		if got := application.Classify(sqlStateError(code)); got != application.R1D4 {
+			t.Errorf("Classify(SQLSTATE %s) = %v, want %v", code, got, application.R1D4)
 		}
 	}
 }
@@ -99,5 +127,33 @@ func TestDispositionString(t *testing.T) {
 		if got := d.String(); got != want {
 			t.Fatalf("%d.String() = %q, want %q", d, got, want)
 		}
+	}
+}
+
+type unsentError bool
+
+func (unsentError) Error() string       { return "disposition_test: statement not sent" }
+func (e unsentError) SafeToRetry() bool { return bool(e) }
+
+type timeoutError bool
+
+func (timeoutError) Error() string   { return "disposition_test: i/o timeout" }
+func (e timeoutError) Timeout() bool { return bool(e) }
+
+func TestClassifyFollowsTheDriverOnATransientTransportFailure(t *testing.T) {
+	for name, c := range map[string]struct {
+		err  error
+		want application.Disposition
+	}{
+		"not sent to the server":    {fmt.Errorf("disposition_test: save: %w", unsentError(true)), application.R1D3},
+		"sent to the server":        {unsentError(false), application.R1D4},
+		"network timeout":           {fmt.Errorf("disposition_test: dial: %w", timeoutError(true)), application.R1D3},
+		"network failure, no timer": {timeoutError(false), application.R1D4},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if got := application.Classify(c.err); got != c.want {
+				t.Fatalf("Classify(%v) = %v, want %v", c.err, got, c.want)
+			}
+		})
 	}
 }

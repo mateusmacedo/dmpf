@@ -2,10 +2,8 @@ package conformance_test
 
 import (
 	"path/filepath"
-	"slices"
 	"testing"
 
-	"github.com/mateusmacedo/dmpf/tools/dmpf-conformance/internal/baseline"
 	"github.com/mateusmacedo/dmpf/tools/dmpf-conformance/internal/golist"
 	"github.com/mateusmacedo/dmpf/tools/dmpf-conformance/internal/rule"
 )
@@ -17,14 +15,6 @@ func caminhoDaFixture(t *testing.T, cenario, modulo string) string {
 		t.Fatal(err)
 	}
 	return p
-}
-
-func entrada(unit, block, bc string, membros ...string) baseline.Entry {
-	return baseline.Entry{Unit: unit, Module: "m", Block: block, BoundedContext: bc, Membership: membros}
-}
-
-func entradasDe(entries ...baseline.Entry) baseline.Document {
-	return baseline.Document{Schema: baseline.SchemaID, Digest: baseline.Digest(entries), Entries: entries}
 }
 
 // TestTesteNaoAlteraClassificacao: um arquivo de teste importando rede dentro de
@@ -93,46 +83,5 @@ func TestAliasProduzUmaArestaSo(t *testing.T) {
 	rel := rodar(t, "alias", "exemplo.test/al-a")
 	if len(rel.Diagnostics) != 0 {
 		t.Errorf("cenário com alias reprovou: %v", rel.Diagnostics)
-	}
-}
-
-// TestRemapeamentoDeIncludeExigeAval fecha o caso mais silencioso: mover um
-// package de uma unidade para outra muda a classificação dele sem que nenhum
-// campo seja editado.
-//
-// Um controle que olhasse só bloco e contexto por unidade não veria nada — as
-// duas unidades continuam com os mesmos valores. O que mudou foi quem classifica
-// o quê.
-func TestRemapeamentoDeIncludeExigeAval(t *testing.T) {
-	antes := entradasDe(
-		entrada("a", "domain", "bc", "m/p1", "m/p2"),
-		entrada("b", "app", "bc"),
-	)
-	agora := entradasDe(
-		entrada("a", "domain", "bc", "m/p1"),
-		entrada("b", "app", "bc", "m/p2"),
-	)
-
-	store := storeFalso{
-		agora: agora, antes: antes, tinha: true,
-		commits: []baseline.Commit{{
-			SHA:      "aaa",
-			Arquivos: []string{"tools/dmpf-baseline/units-baseline.json", "m/dmpf-units.json", "m/p2/p.go"},
-		}},
-	}
-
-	mudancas := baseline.Detectar(antes, agora)
-	if len(mudancas) == 0 {
-		t.Fatal("remapeamento não foi detectado como ato que exige aval")
-	}
-	for _, m := range mudancas {
-		if m.Ato != baseline.AtoRemapearMembership {
-			t.Errorf("ato %q, esperado remapeamento", m.Ato)
-		}
-	}
-
-	ds := baseline.VerificarAutorizacao(mudancas, store.commits)
-	if !slices.ContainsFunc(ds, func(d rule.Diagnostic) bool { return d.Code == rule.CodeT002 }) {
-		t.Fatalf("remapeamento misturado com código passou sem exigir aval: %v", ds)
 	}
 }

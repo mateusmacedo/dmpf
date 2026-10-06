@@ -15,19 +15,19 @@ func lookup(pairs ...string) func(string) string {
 }
 
 func TestRunRefusesToStartWithoutARole(t *testing.T) {
-	var out, errOut bytes.Buffer
+	var errOut bytes.Buffer
 
-	code := run(options{role: "", lookup: lookup()}, &out, &errOut)
+	code := run(options{role: "", lookup: lookup()}, &errOut)
 
-	if code != exitUsage || !strings.Contains(errOut.String(), "--role api|relay|consumer") || out.Len() != 0 {
-		t.Fatalf("run() = %d, stderr %q, stdout %q; want usage listing the three roles", code, errOut.String(), out.String())
+	if code != exitUsage || !strings.Contains(errOut.String(), "--role api|relay|consumer") {
+		t.Fatalf("run() = %d, stderr %q; want usage listing the three roles", code, errOut.String())
 	}
 }
 
 func TestRunRefusesAnUnknownRole(t *testing.T) {
-	var out, errOut bytes.Buffer
+	var errOut bytes.Buffer
 
-	code := run(options{role: "worker", lookup: lookup("PG_DSN", "postgres://x")}, &out, &errOut)
+	code := run(options{role: "worker", lookup: lookup("PG_DSN", "postgres://x")}, &errOut)
 
 	if code != exitUsage || !strings.Contains(errOut.String(), "worker") {
 		t.Fatalf("run() = %d, stderr %q; want usage naming the unknown role", code, errOut.String())
@@ -47,9 +47,9 @@ func TestRunNamesTheMissingVariable(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.role+" without "+tc.variable, func(t *testing.T) {
-			var out, errOut bytes.Buffer
+			var errOut bytes.Buffer
 
-			code := run(options{role: tc.role, lookup: tc.env}, &out, &errOut)
+			code := run(options{role: tc.role, lookup: tc.env}, &errOut)
 
 			if code != exitUsage || !strings.Contains(errOut.String(), tc.variable) {
 				t.Fatalf("run() = %d, stderr %q; want usage naming %s", code, errOut.String(), tc.variable)

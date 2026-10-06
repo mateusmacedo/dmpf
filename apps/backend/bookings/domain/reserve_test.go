@@ -6,6 +6,7 @@ import (
 
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/domain"
 	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb"
 )
 
 func TestReserveAccepts(t *testing.T) {
@@ -13,7 +14,7 @@ func TestReserveAccepts(t *testing.T) {
 
 	acc, rej := b.Reserve(domain.ReserveBooking{ResourceID: resourceID, Quantity: 5, At: at})
 
-	requireAccepted[domain.ReservedResponse](t, rej)
+	tb.RequireAccepted(t, rej)
 	if got, want := acc.Response(), (domain.ReservedResponse{BookingID: bookingID}); got != want {
 		t.Fatalf("Response() = %+v, want %+v", got, want)
 	}
@@ -48,7 +49,7 @@ func TestReserveRejectsQuantityOutOfRange(t *testing.T) {
 
 			acc, rej := b.Reserve(domain.ReserveBooking{ResourceID: resourceID, Quantity: tt.quantity, At: at})
 
-			requireRejected(t, acc, rej, domain.CodeBookingQuantityOutOfRange)
+			tb.RequireRejected(t, acc, rej, domain.CodeBookingQuantityOutOfRange)
 			if got := rej.Details(); !slices.Equal(got, tt.details) {
 				t.Fatalf("Details() = %v, want %v", got, tt.details)
 			}

@@ -3,7 +3,11 @@ package authn
 import (
 	"errors"
 	"fmt"
+	"log/slog"
+	"strings"
 	"time"
+
+	"go.opentelemetry.io/otel/log"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/envconfig"
 )
@@ -43,6 +47,7 @@ type Config struct {
 	PermissionClaims []string
 	DiscoveryTimeout time.Duration
 	DevMock          bool
+	LoggerProvider   log.LoggerProvider
 }
 
 // Defaults reads a Keycloak access token: scope as a space-separated string and
@@ -89,6 +94,17 @@ func ReadEnv(lookup func(string) string) (Config, error) {
 		return Config{}, err
 	}
 	return cfg, nil
+}
+
+func (c Config) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.String("issuer", c.Issuer),
+		slog.String("audience", c.Audience),
+		slog.String("tenant_claim", c.TenantClaim),
+		slog.String("permission_claims", strings.Join(c.PermissionClaims, ",")),
+		slog.String("discovery_timeout", c.DiscoveryTimeout.String()),
+		slog.Bool("dev_mock", c.DevMock),
+	)
 }
 
 // Validate refuses a start whose identity the edge could not resolve: no means

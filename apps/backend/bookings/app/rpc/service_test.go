@@ -1,14 +1,36 @@
 package rpc_test
 
 import (
+	"reflect"
 	"testing"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/mateusmacedo/dmpf/apps/backend/bookings/app/rpc"
 	servicev1 "github.com/mateusmacedo/dmpf/apps/backend/bookings/contract/gen/go/company/bookings/service/v1"
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/domain"
+	kernelgrpc "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
 )
+
+func TestServiceDescCoversEveryMethodOfTheDescriptor(t *testing.T) {
+	service := servicev1.File_company_bookings_service_v1_bookings_service_proto.Services().ByName("BookingsService")
+
+	if rpc.ServiceDesc.ServiceName != string(service.FullName()) {
+		t.Fatalf("ServiceName = %q, want %q", rpc.ServiceDesc.ServiceName, service.FullName())
+	}
+	if missing := kernelgrpc.Uncovered(&rpc.ServiceDesc, service); len(missing) != 0 || len(rpc.ServiceDesc.Streams) != 0 {
+		t.Fatalf("ServiceDesc leaves %v uncovered and declares %d streams, want every unary method of the descriptor",
+			missing, len(rpc.ServiceDesc.Streams))
+	}
+}
+
+func TestTheServerImplementsTheHandlerType(t *testing.T) {
+	handlerType := reflect.TypeOf(rpc.ServiceDesc.HandlerType).Elem()
+	if handlerType.Kind() != reflect.Interface || !reflect.TypeOf(rpc.Server{}).Implements(handlerType) {
+		t.Fatalf("rpc.Server does not implement %v", handlerType)
+	}
+}
 
 func reserve(t *testing.T, h *harness, booking string) *servicev1.ReserveBookingResponse {
 	t.Helper()
@@ -40,15 +62,15 @@ func TestReserveBookingAnswersTheReservedBooking(t *testing.T) {
 	}
 }
 
-func TestReservingTheSameBookingTwiceIsAConflict(t *testing.T) {
+func TestReservingTheSameBookingUnderAnotherKeyAlreadyExists(t *testing.T) {
 	h := newHarness(t, nil)
 	reserve(t, h, "b-1")
 
 	var resp servicev1.ReserveBookingResponse
 	err := h.invoke(withTenant(t), "ReserveBooking", &servicev1.ReserveBookingRequest{BookingId: "b-1", ResourceId: "room-1", Quantity: 1}, &resp)
 
-	if status.Code(err) != codes.Aborted {
-		t.Fatalf("second ReserveBooking() = %v, want Aborted: the booking already exists", err)
+	if status.Code(err) != codes.AlreadyExists {
+		t.Fatalf("second ReserveBooking() = %v, want AlreadyExists: a retry that never converges is not a conflict", err)
 	}
 }
 

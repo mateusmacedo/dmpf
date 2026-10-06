@@ -1,0 +1,32 @@
+# matchExpressions nos pares porque o Kustomize injeta os labels desta base em
+# todo matchLabels de NetworkPolicy, o que exigiria o nome do Collector no peer.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: otel-collector
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: otel-collector
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/part-of
+                operator: In
+                values: [dmpf]
+              - key: app.kubernetes.io/component
+                operator: Exists
+      ports:
+        - port: 4317
+          protocol: TCP
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values: [prometheus]
+      ports:
+        - port: 8888
+          protocol: TCP

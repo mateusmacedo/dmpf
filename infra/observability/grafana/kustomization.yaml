@@ -22,6 +22,16 @@ configMapGenerator:
   - name: grafana-dashboards-provider
     files:
       - dashboards.yaml
-  - name: grafana-dashboards
+  - name: grafana-dashboards-plataforma
     files:
-      - dashboards/reference.json
+      - dashboards/plataforma/reference.json
+      - dashboards/plataforma/visao-geral.json
+  - name: grafana-dashboards-kernel
+    files:
+      - dashboards/kernel/assincrono.json
+      - dashboards/kernel/resiliencia.json
+      - dashboards/kernel/runtime.json
+  - name: grafana-dashboards-infra
+    files:
+      - dashboards/infra/redpanda.json
+      - dashboards/infra/telemetria.json

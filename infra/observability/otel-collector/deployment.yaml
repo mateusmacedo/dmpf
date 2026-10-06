@@ -16,8 +16,11 @@ spec:
           type: RuntimeDefault
       containers:
         - name: otel-collector
-          image: otel/opentelemetry-collector:0.160.0
+          image: otel/opentelemetry-collector-contrib:0.160.0
           args: ['--config=/etc/otelcol/config.yaml']
+          env:
+            - name: GOMEMLIMIT
+              value: 204MiB
           ports:
             - name: otlp-grpc
               containerPort: 4317

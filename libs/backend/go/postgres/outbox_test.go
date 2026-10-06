@@ -359,10 +359,13 @@ func withDestination(entry ports.OutboxEntry, destination string) ports.OutboxEn
 	return entry
 }
 
-const testTraceparent = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01"
+const (
+	testTraceparent = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01"
+	testTracestate  = "congo=t61rcWkgMzE,rojo=00f067aa0ba902b7"
+)
 
 func withContext(entry ports.OutboxEntry) ports.OutboxEntry {
-	entry.Context = ports.MessageContext{CorrelationID: "corr-1", CausationID: "caus-1", Traceparent: testTraceparent}
+	entry.Context = ports.MessageContext{CorrelationID: "corr-1", CausationID: "caus-1", Traceparent: testTraceparent, Tracestate: testTracestate}
 	return entry
 }
 
@@ -381,7 +384,7 @@ func metadataOf(t *testing.T, pool *pgxpool.Pool, id ports.MessageID) map[string
 	return metadata
 }
 
-// The three ENV-08 attributes land in metadata exactly as the adapter authored
+// The ENV-08 attributes land in metadata exactly as the adapter authored
 // them (FND-07 §8.6 item 3): the writer copies, it never invents (OBX-02).
 func TestEnqueueWritesTheMessageContextAsMetadata(t *testing.T) {
 	pool := openPool(t)
@@ -391,7 +394,7 @@ func TestEnqueueWritesTheMessageContextAsMetadata(t *testing.T) {
 	}
 
 	got := metadataOf(t, pool, "m-000001")
-	want := map[string]string{"correlationid": "corr-1", "causationid": "caus-1", "traceparent": testTraceparent}
+	want := map[string]string{"correlationid": "corr-1", "causationid": "caus-1", "traceparent": testTraceparent, "tracestate": testTracestate}
 	if len(got) != len(want) {
 		t.Fatalf("metadata = %v, want exactly %v", got, want)
 	}

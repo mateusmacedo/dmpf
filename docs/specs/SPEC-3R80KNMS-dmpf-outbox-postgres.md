@@ -5,7 +5,7 @@ title: DMPF KRN-06 — Outbox Postgres: provider, mapeamento e serialização na
 stage: done
 priority: P0
 depends_on: [SPEC-MQA5HAXF, SPEC-WTAXFV8B, SPEC-ZHE7DN1H, SPEC-WYX5GW87]
-ticket_url: null
+ticket_url: https://linear.app/mmda/issue/DEVS-42/spec-3r80knms-dmpf-krn-06-outbox-postgres-provider-mapeamento-e
 subtask_urls: []
 created: 2026-09-04
 ---

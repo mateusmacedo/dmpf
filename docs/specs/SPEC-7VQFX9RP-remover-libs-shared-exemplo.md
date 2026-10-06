@@ -5,7 +5,7 @@ title: Remover as libs compartilhadas e o generator shared-lib do template
 stage: done
 priority: P2
 depends_on: []
-ticket_url: null
+ticket_url: https://linear.app/mmda/issue/DEVS-11/spec-7vqfx9rp-remover-as-libs-compartilhadas-e-o-generator-shared-lib
 subtask_urls: []
 created: 2026-08-12
 ---

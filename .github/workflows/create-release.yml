@@ -19,7 +19,6 @@ concurrency:
 
 permissions:
   contents: write
-  pull-requests: write
 
 jobs:
   create-release:
@@ -72,9 +71,10 @@ jobs:
       - name: Calculate next version
         id: version
         run: |
-          # Find the latest release cycle version from previously merged release/* branches
-          LATEST_CYCLE=$(git branch -r --merged origin/master \
-            | grep -oE 'release/[0-9]+\.[0-9]+\.[0-9]+' \
+          # WHY: release branches are deleted after the merge; master's history keeps the
+          # cycle in the merge subject ("from <owner>/release/X.Y.Z" or "release: X.Y.Z").
+          LATEST_CYCLE=$(git log origin/master --pretty=format:%s \
+            | grep -oE 'release(/|: )[0-9]+\.[0-9]+\.[0-9]+' \
             | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' \
             | sort -V | tail -1 || echo "")
 
@@ -109,19 +109,4 @@ jobs:
 
           git checkout -b "$BRANCH"
           git push origin "$BRANCH"
-
-      - name: Open pull request
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          VERSION="${{ steps.version.outputs.value }}"
-          BUMP="${{ steps.bump.outputs.value }}"
-
-          BODY=$(printf '## Release %s\n\n**Bump type:** %s\n\n### Checklist\n\n- [ ] Features validadas em `develop`\n- [ ] Features mergeadas nesta branch\n- [ ] QA aprovado em homologação\n- [ ] Changelog revisado\n\n---\n> Branch criada automaticamente via workflow *Create Release Branch*\n' "$VERSION" "$BUMP")
-
-          gh pr create \
-            --base master \
-            --head "release/${VERSION}" \
-            --title "release: ${VERSION}" \
-            --body "$BODY" \
-            --assignee "${{ github.actor }}"
+          echo "::notice::$BRANCH criada a partir de master. O PR para master abre no primeiro push com commits (release-pr.yml)."

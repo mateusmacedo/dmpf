@@ -27,7 +27,7 @@ func main() {
 	role := flag.String("role", "", "process to run: api|relay")
 	flag.Parse()
 
-	os.Exit(run(options{role: *role, lookup: os.Getenv}, os.Stdout, os.Stderr))
+	os.Exit(run(options{role: *role, lookup: os.Getenv}, os.Stderr))
 }
 
 type options struct {
@@ -35,7 +35,7 @@ type options struct {
 	lookup func(string) string
 }
 
-func run(o options, out, errOut io.Writer) int {
+func run(o options, errOut io.Writer) int {
 	if o.role == "" {
 		_, _ = fmt.Fprintln(errOut, "use --role api|relay")
 		return exitUsage
@@ -50,7 +50,7 @@ func run(o options, out, errOut io.Writer) int {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
 
-	if err := app.Run(ctx, cfg, out); err != nil {
+	if err := app.Run(ctx, cfg); err != nil {
 		_, _ = fmt.Fprintf(errOut, "orders: %s: %v\n", cfg.Role, err)
 		return exitFailure
 	}

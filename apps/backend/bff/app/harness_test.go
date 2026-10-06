@@ -3,16 +3,20 @@
 package app_test
 
 import (
-	"bufio"
 	"bytes"
 	"context"
-	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
+	"net"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -23,6 +27,7 @@ import (
 	"google.golang.org/grpc/credentials"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 
+	"github.com/mateusmacedo/dmpf/apps/backend/bff/app"
 	"github.com/mateusmacedo/dmpf/apps/backend/bff/app/rpc"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/pg"
@@ -33,6 +38,8 @@ const (
 	pollEvery   = 100 * time.Millisecond
 	adminWindow = 30 * time.Second
 	stopGrace   = 20 * time.Second
+
+	portAttempts = 3
 
 	modulePrefix = "github.com/mateusmacedo/dmpf/apps/backend/"
 )
@@ -52,6 +59,9 @@ type topology struct {
 	group                              string
 
 	bffAddr string
+
+	processes []*process
+	pick      func(*testing.T) string
 }
 
 type binaries struct{ bff, orders, reservations, bookings string }
@@ -156,7 +166,7 @@ func (p *process) logs() string {
 	return p.out.String()
 }
 
-func start(t *testing.T, name, binary string, env map[string]string, args ...string) *process {
+func (top *topology) start(t *testing.T, name, binary string, env map[string]string, args ...string) *process {
 	t.Helper()
 	cmd := exec.Command(binary, args...)
 	cmd.Env = os.Environ()
@@ -172,6 +182,7 @@ func start(t *testing.T, name, binary string, env map[string]string, args ...str
 		p.err = cmd.Wait()
 		close(p.finished)
 	}()
+	top.processes = append(top.processes, p)
 	t.Cleanup(func() {
 		_ = cmd.Process.Signal(syscall.SIGTERM)
 		select {
@@ -187,30 +198,89 @@ func start(t *testing.T, name, binary string, env map[string]string, args ...str
 	return p
 }
 
-func (p *process) waitLog(t *testing.T, message string) map[string]any {
-	t.Helper()
-	deadline := time.Now().Add(e2eTimeout)
-	for time.Now().Before(deadline) {
-		scanner := bufio.NewScanner(strings.NewReader(p.logs()))
-		for scanner.Scan() {
-			var record map[string]any
-			if json.Unmarshal(scanner.Bytes(), &record) == nil && record["msg"] == message {
-				return record
-			}
-		}
+func (top *topology) exited() *process {
+	for _, p := range top.processes {
 		select {
 		case <-p.finished:
-			t.Fatalf("%s exited (%v) before logging %q\n%s", p.name, p.err, message, p.logs())
-		case <-time.After(pollEvery):
+			return p
+		default:
 		}
 	}
-	t.Fatalf("%s did not log %q within %v\n%s", p.name, message, e2eTimeout, p.logs())
 	return nil
+}
+
+func (top *topology) await(what string, ready func() error) error {
+	var last error
+	deadline := time.Now().Add(e2eTimeout)
+	for time.Now().Before(deadline) {
+		if last = ready(); last == nil {
+			return nil
+		}
+		if p := top.exited(); p != nil {
+			return fmt.Errorf("%s exited (%v) before %s\n%s", p.name, p.err, what, p.logs())
+		}
+		time.Sleep(pollEvery)
+	}
+	return fmt.Errorf("%s did not happen within %v: %v", what, e2eTimeout, last)
+}
+
+func (top *topology) startOnFreePort(t *testing.T, name, binary, addrKey string, env map[string]string, ready func(addr string) error, args ...string) string {
+	t.Helper()
+	return top.startOnFreePorts(t, name, binary, []string{addrKey}, env, func(addrs map[string]string) error {
+		return ready(addrs[addrKey])
+	}, args...)[addrKey]
+}
+
+func (top *topology) startOnFreePorts(t *testing.T, name, binary string, addrKeys []string, env map[string]string, ready func(addrs map[string]string) error, args ...string) map[string]string {
+	t.Helper()
+	for attempt := 1; ; attempt++ {
+		addrs := map[string]string{}
+		for _, key := range addrKeys {
+			addrs[key] = top.pickAddr(t)
+		}
+		p := top.start(t, name, binary, merge(env, addrs), args...)
+		err := ready(addrs)
+		if err == nil {
+			return addrs
+		}
+		if attempt == portAttempts || !p.lostItsPort() {
+			t.Fatal(err)
+		}
+		top.processes = slices.DeleteFunc(top.processes, func(q *process) bool { return q == p })
+	}
+}
+
+func (p *process) lostItsPort() bool {
+	select {
+	case <-p.finished:
+		return strings.Contains(p.logs(), syscall.EADDRINUSE.Error())
+	default:
+		return false
+	}
+}
+
+func (top *topology) pickAddr(t *testing.T) string {
+	t.Helper()
+	if top.pick != nil {
+		return top.pick(t)
+	}
+	return freeAddr(t)
+}
+
+func freeAddr(t *testing.T) string {
+	t.Helper()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("Listen() = %v", err)
+	}
+	defer func() { _ = listener.Close() }()
+	return listener.Addr().String()
 }
 
 func (top *topology) boot(t *testing.T, bin binaries) {
 	t.Helper()
-	common := map[string]string{"KAFKA_BROKERS": strings.Join(top.brokers, ","), "KAFKA_INSECURE": "true"}
+	quiet := quietTelemetry(t)
+	common := merge(quiet, map[string]string{"KAFKA_BROKERS": strings.Join(top.brokers, ","), "KAFKA_INSECURE": "true"})
 	with := func(extra map[string]string) map[string]string {
 		env := map[string]string{}
 		for k, v := range common {
@@ -235,81 +305,108 @@ func (top *topology) boot(t *testing.T, bin binaries) {
 		}
 	}
 	probe := mutualProbe(t, pki.CAFile, bffCert, bffKey)
+	serving := func(service string) func(addr string) error {
+		return func(addr string) error { return top.waitServing(addr, service, probe) }
+	}
 
-	ordersAPI := start(t, "orders api", bin.orders, with(merge(mutual("orders-api"), map[string]string{
-		"PG_DSN": ordersDSN, "MIGRATE": "true", "GRPC_ADDR": "127.0.0.1:0",
-		"INSTANCE_ID": "e2e-orders-api", "ITEM_LIMIT": "3",
-	})), "--role", "api")
-	reservationsAPI := start(t, "reservations api", bin.reservations, with(merge(mutual("reservations-api"), map[string]string{
-		"PG_DSN": reservationsDSN, "MIGRATE": "true", "GRPC_ADDR": "127.0.0.1:0",
-		"INSTANCE_ID": "e2e-reservations-api",
-	})), "--role", "api")
-	bookingsAPI := start(t, "bookings api", bin.bookings, with(merge(mutual("bookings-api"), map[string]string{
-		"PG_DSN": bookingsDSN, "MIGRATE": "true", "GRPC_ADDR": "127.0.0.1:0",
-		"INSTANCE_ID": "e2e-bookings-api",
-	})), "--role", "api")
-	ordersAddr := ordersAPI.waitLog(t, "grpc listening")["addr"].(string)
-	reservationsAddr := reservationsAPI.waitLog(t, "grpc listening")["addr"].(string)
-	bookingsAddr := bookingsAPI.waitLog(t, "grpc listening")["addr"].(string)
-	waitServing(t, ordersAddr, rpc.OrdersServiceName, probe)
-	waitServing(t, reservationsAddr, rpc.ReservationsServiceName, probe)
-	waitServing(t, bookingsAddr, rpc.BookingsServiceName, probe)
+	ordersAddr := top.startOnFreePort(t, "orders api", bin.orders, "GRPC_ADDR", with(merge(mutual("orders-api"), map[string]string{
+		"PG_DSN": ordersDSN, "MIGRATE": "true",
+		"OTEL_RESOURCE_ATTRIBUTES": "service.version=e2e,service.instance.id=e2e-orders-api", "ITEM_LIMIT": "3",
+	})), serving(rpc.OrdersServiceName), "--role", "api")
+	reservationsAddr := top.startOnFreePort(t, "reservations api", bin.reservations, "GRPC_ADDR", with(merge(mutual("reservations-api"), map[string]string{
+		"PG_DSN": reservationsDSN, "MIGRATE": "true",
+		"OTEL_RESOURCE_ATTRIBUTES": "service.version=e2e,service.instance.id=e2e-reservations-api",
+	})), serving(rpc.ReservationsServiceName), "--role", "api")
+	bookingsAddr := top.startOnFreePort(t, "bookings api", bin.bookings, "GRPC_ADDR", with(merge(mutual("bookings-api"), map[string]string{
+		"PG_DSN": bookingsDSN, "MIGRATE": "true",
+		"OTEL_RESOURCE_ATTRIBUTES": "service.version=e2e,service.instance.id=e2e-bookings-api",
+	})), serving(rpc.BookingsServiceName), "--role", "api")
 
-	start(t, "orders relay", bin.orders, with(map[string]string{
+	top.start(t, "orders relay", bin.orders, with(map[string]string{
 		"PG_DSN": ordersDSN, "KAFKA_ORDERS_TOPIC": top.ordersTopic, "KAFKA_ORDERS_DLQ": top.ordersDLQ,
-		"KAFKA_GROUP": top.group, "INSTANCE_ID": "e2e-orders-relay",
-	}), "--role", "relay").waitLog(t, "relay draining")
-	start(t, "reservations relay", bin.reservations, with(map[string]string{
+		"KAFKA_GROUP": top.group, "OTEL_RESOURCE_ATTRIBUTES": "service.version=e2e,service.instance.id=e2e-orders-relay",
+	}), "--role", "relay")
+	top.start(t, "reservations relay", bin.reservations, with(map[string]string{
 		"PG_DSN": reservationsDSN, "KAFKA_RESERVATIONS_TOPIC": top.reservationsTopic, "KAFKA_RESERVATIONS_DLQ": top.reservationsDLQ,
-		"KAFKA_GROUP": top.group, "INSTANCE_ID": "e2e-reservations-relay",
-	}), "--role", "relay").waitLog(t, "relay draining")
-	start(t, "bookings relay", bin.bookings, with(map[string]string{
+		"KAFKA_GROUP": top.group, "OTEL_RESOURCE_ATTRIBUTES": "service.version=e2e,service.instance.id=e2e-reservations-relay",
+	}), "--role", "relay")
+	top.start(t, "bookings relay", bin.bookings, with(map[string]string{
 		"PG_DSN": bookingsDSN, "KAFKA_BOOKINGS_TOPIC": top.bookingsTopic, "KAFKA_BOOKINGS_DLQ": top.bookingsDLQ,
-		"KAFKA_GROUP": top.group, "INSTANCE_ID": "e2e-bookings-relay",
-	}), "--role", "relay").waitLog(t, "relay draining")
-	start(t, "reservations consumer", bin.reservations, with(map[string]string{
+		"KAFKA_GROUP": top.group, "OTEL_RESOURCE_ATTRIBUTES": "service.version=e2e,service.instance.id=e2e-bookings-relay",
+	}), "--role", "relay")
+	top.start(t, "reservations consumer", bin.reservations, with(map[string]string{
 		"PG_DSN": reservationsDSN, "KAFKA_ORDERS_TOPIC": top.ordersTopic, "KAFKA_ORDERS_DLQ": top.ordersDLQ,
-		"KAFKA_GROUP": top.group, "INSTANCE_ID": "e2e-reservations-consumer",
-	}), "--role", "consumer").waitLog(t, "consumer joining")
+		"KAFKA_GROUP": top.group, "OTEL_RESOURCE_ATTRIBUTES": "service.version=e2e,service.instance.id=e2e-reservations-consumer",
+	}), "--role", "consumer")
 
-	bff := start(t, "bff", bin.bff, map[string]string{
-		"HTTP_ADDR": "127.0.0.1:0", "INSTANCE_ID": "e2e-bff",
-		"GRPC_CA_FILE": pki.CAFile, "GRPC_SERVER_NAME": "localhost",
+	bffAddrs := top.startOnFreePorts(t, "bff", bin.bff, []string{"HTTP_ADDR", "ADMIN_ADDR"}, merge(quiet, map[string]string{
+		"OTEL_RESOURCE_ATTRIBUTES": "service.version=e2e,service.instance.id=e2e-bff",
+		"GRPC_CA_FILE":             pki.CAFile, "GRPC_SERVER_NAME": "localhost",
 		"GRPC_CLIENT_CERT_FILE": bffCert, "GRPC_CLIENT_KEY_FILE": bffKey,
 		"ORDERS_GRPC_TARGET":       "dns:///" + ordersAddr,
 		"RESERVATIONS_GRPC_TARGET": "dns:///" + reservationsAddr,
 		"BOOKINGS_GRPC_TARGET":     "dns:///" + bookingsAddr,
 		"AUTH_DEV_MOCK":            "true",
+	}), func(addrs map[string]string) error {
+		return top.await("bff ready", func() error {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+			return app.Probe(ctx, app.Config{AdminAddr: addrs["ADMIN_ADDR"]})
+		})
 	})
-	top.bffAddr = bff.waitLog(t, "http listening")["addr"].(string)
+	top.bffAddr = bffAddrs["HTTP_ADDR"]
+}
+
+func quietTelemetry(t *testing.T) map[string]string {
+	t.Helper()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("Listen() = %v", err)
+	}
+	var accepted atomic.Int64
+	go func() {
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				return
+			}
+			accepted.Add(1)
+			_ = conn.Close()
+		}
+	}()
+	t.Cleanup(func() {
+		_ = listener.Close()
+		if got := accepted.Load(); got != 0 {
+			t.Errorf("the topology opened %d connections to the OTLP endpoint, want none with every exporter declared none", got)
+		}
+	})
+	return map[string]string{
+		"OTEL_EXPORTER_OTLP_PROTOCOL": "grpc",
+		"OTEL_EXPORTER_OTLP_ENDPOINT": "http://" + listener.Addr().String(),
+		"OTEL_TRACES_EXPORTER":        "none",
+		"OTEL_METRICS_EXPORTER":       "none",
+		"OTEL_LOGS_EXPORTER":          "none",
+	}
 }
 
 // waitServing is the readiness the contexts declare: they log "grpc listening"
 // before Ping and Migrate and turn SERVING only after both.
-func waitServing(t *testing.T, addr, service string, creds credentials.TransportCredentials) {
-	t.Helper()
+func (top *topology) waitServing(addr, service string, creds credentials.TransportCredentials) error {
 	conn, err := grpc.NewClient("dns:///"+addr, grpc.WithTransportCredentials(creds))
 	if err != nil {
-		t.Fatalf("grpc.NewClient(%s) = %v", addr, err)
+		return fmt.Errorf("grpc.NewClient(%s) = %w", addr, err)
 	}
 	defer conn.Close()
 	client := healthpb.NewHealthClient(conn)
-	var (
-		last    healthpb.HealthCheckResponse_ServingStatus
-		lastErr error
-	)
-	deadline := time.Now().Add(e2eTimeout)
-	for time.Now().Before(deadline) {
+	return top.await(service+" at "+addr+" turning SERVING", func() error {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
 		res, err := client.Check(ctx, &healthpb.HealthCheckRequest{Service: service})
-		cancel()
-		if err == nil && res.GetStatus() == healthpb.HealthCheckResponse_SERVING {
-			return
+		if err == nil && res.GetStatus() != healthpb.HealthCheckResponse_SERVING {
+			err = fmt.Errorf("status %v", res.GetStatus())
 		}
-		last, lastErr = res.GetStatus(), err
-		time.Sleep(pollEvery)
-	}
-	t.Fatalf("%s at %s did not turn SERVING within %v: last status %v, last error %v", service, addr, e2eTimeout, last, lastErr)
+		return err
+	})
 }
 
 // mutualProbe presents the edge's own certificate: the contexts answer nothing,
@@ -335,12 +432,106 @@ func merge(maps ...map[string]string) map[string]string {
 
 func (top *topology) waitUntil(t *testing.T, what string, condition func() bool) {
 	t.Helper()
-	deadline := time.Now().Add(e2eTimeout)
-	for time.Now().Before(deadline) {
+	err := top.await(what, func() error {
 		if condition() {
-			return
+			return nil
 		}
-		time.Sleep(pollEvery)
+		return errNotYet
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
-	t.Fatalf("timed out after %v waiting until %s", e2eTimeout, what)
+}
+
+var errNotYet = errors.New("the condition does not hold yet")
+
+func TestAProcessThatDiesAtStartFailsTheBootAtOnce(t *testing.T) {
+	top := &topology{}
+	top.start(t, "dying relay", "/bin/sh", nil, "-c", "echo refused >&2; exit 3")
+	began := time.Now()
+
+	err := top.await("the dying relay draining", func() error { return errNotYet })
+
+	if err == nil || !strings.Contains(err.Error(), "dying relay exited") || !strings.Contains(err.Error(), "refused") {
+		t.Fatalf("await() = %v, want the death of the process named with its output", err)
+	}
+	if elapsed := time.Since(began); elapsed > 10*time.Second {
+		t.Fatalf("await() took %v, want the death noticed long before the %v timeout", elapsed, e2eTimeout)
+	}
+}
+
+const (
+	holderAddrKey  = "HARNESS_HOLDER_ADDR"
+	holderGreeting = "holding"
+)
+
+func TestAProcessThatLosesItsPortStartsAgainOnAnother(t *testing.T) {
+	taken, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("Listen() = %v", err)
+	}
+	t.Cleanup(func() { _ = taken.Close() })
+	picked := false
+	top := &topology{pick: func(t *testing.T) string {
+		if picked {
+			return freeAddr(t)
+		}
+		picked = true
+		return taken.Addr().String()
+	}}
+
+	addr := top.startOnFreePort(t, "holder", os.Args[0], holderAddrKey, nil, func(addr string) error {
+		return top.await("holder greeting at "+addr, func() error { return greeting(addr) })
+	}, "-test.run=^TestHoldingTheAddressItWasGiven$")
+
+	if addr == taken.Addr().String() {
+		t.Fatalf("startOnFreePort() = %s, want a port other than the one taken before the bind", addr)
+	}
+	if p := top.exited(); p != nil {
+		t.Fatalf("%s still counts as exited after starting again on %s", p.name, addr)
+	}
+}
+
+func TestHoldingTheAddressItWasGiven(t *testing.T) {
+	addr := os.Getenv(holderAddrKey)
+	if addr == "" {
+		t.Skip("runs only as the process TestAProcessThatLosesItsPortStartsAgainOnAnother starts")
+	}
+	listener, err := net.Listen("tcp", addr)
+	if err != nil {
+		t.Fatalf("Listen() = %v", err)
+	}
+	go func() {
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				return
+			}
+			_, _ = io.WriteString(conn, holderGreeting)
+			_ = conn.Close()
+		}
+	}()
+	terminated := make(chan os.Signal, 1)
+	signal.Notify(terminated, syscall.SIGTERM)
+	<-terminated
+	_ = listener.Close()
+}
+
+func greeting(addr string) error {
+	conn, err := net.DialTimeout("tcp", addr, time.Second)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = conn.Close() }()
+	if err := conn.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+		return err
+	}
+	got, err := io.ReadAll(conn)
+	if err != nil {
+		return err
+	}
+	if string(got) != holderGreeting {
+		return fmt.Errorf("greeting = %q, want %q", got, holderGreeting)
+	}
+	return nil
 }

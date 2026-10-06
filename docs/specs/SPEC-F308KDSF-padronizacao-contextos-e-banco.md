@@ -5,7 +5,7 @@ title: DMPF — Padronização dos componentes dos contextos e nomenclatura e is
 stage: done
 priority: P1
 depends_on: []
-ticket_url: null
+ticket_url: https://linear.app/mmda/issue/DEVS-15/spec-f308kdsf-dmpf-padronizacao-dos-componentes-dos-contextos-e
 subtask_urls: []
 created: 2026-09-24
 ---

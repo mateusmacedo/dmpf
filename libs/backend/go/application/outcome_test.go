@@ -5,6 +5,7 @@ import (
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/domain"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
 
 type response struct {
@@ -53,4 +54,22 @@ func TestRejectedPanicsOnNil(t *testing.T) {
 	}()
 
 	_ = application.Rejected[response](nil)
+}
+
+func TestCategoryReadsTheBranchOfTheUPR(t *testing.T) {
+	cases := map[string]struct {
+		outcome application.Outcome[response]
+		want    ports.OutcomeCategory
+	}{
+		"accepted": {application.Accepted(response{Value: "ok"}), ports.OutcomeAccepted},
+		"rejected": {application.Rejected[response](domain.Reject("orders/closed", "closed")), ports.OutcomeRejected},
+		"zero":     {application.Outcome[response]{}, ports.OutcomeAccepted},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			if got := c.outcome.Category(); got != c.want {
+				t.Fatalf("Category() = %q, want %q", got, c.want)
+			}
+		})
+	}
 }

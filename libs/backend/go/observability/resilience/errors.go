@@ -1,15 +1,14 @@
 package resilience
 
-// Categories of the failures this package produces. They are the platform's
-// own, because FND-07 has no realization in the kernel and a decorator must
-// still say what kind of failure it is (ERR-11, TRC-12).
+import "github.com/mateusmacedo/dmpf/libs/backend/go/observability/redact"
+
+// Categories of the failures this package produces, in the FND-07 vocabulary
+// that error.type carries (RF-B1); the code, and not the category, tells a
+// refusal of the breaker from one of the bulkhead (TRC-12).
 const (
-	CategoryBreakerOpen       = "breaker_open"
-	CategoryBulkheadSaturated = "bulkhead_saturated"
-	CategoryDeadlineExceeded  = "deadline_exceeded"
-	CategoryCancelled         = "cancelled"
-	CategoryConfiguration     = "configuration"
-	CategoryDegraded          = "degraded"
+	CategoryTransientDependency = "TransientDependency"
+	CategoryDeadlineExceeded    = "DeadlineExceeded"
+	CategoryCancelled           = "Cancelled"
 )
 
 // Error is a failure of a decorator. It carries a category and a code so
@@ -36,7 +35,7 @@ var (
 	// ErrBreakerOpen is a call refused because the breaker is open. It consumes
 	// neither the timeout nor an attempt (RES-12).
 	ErrBreakerOpen = &Error{
-		category: CategoryBreakerOpen,
+		category: CategoryTransientDependency,
 		code:     "RES-12",
 		message:  "resilience: the circuit breaker is open and the call was refused",
 	}
@@ -44,7 +43,7 @@ var (
 	// ErrBulkheadSaturated is a call refused because the pool and its queue are
 	// full. Saturation is a fast rejection, never a wait (RES-14).
 	ErrBulkheadSaturated = &Error{
-		category: CategoryBulkheadSaturated,
+		category: CategoryTransientDependency,
 		code:     "RES-14",
 		message:  "resilience: the bulkhead is saturated and the call was refused",
 	}
@@ -52,7 +51,7 @@ var (
 	// ErrDeferIsOutbox refuses the Defer degradation mode in this delivery: the
 	// mechanism is the outbox, which belongs to another story.
 	ErrDeferIsOutbox = &Error{
-		category: CategoryConfiguration,
+		category: redact.CategoryUnclassified,
 		code:     "RES-37",
 		message:  "resilience: the defer degradation mode is realized by the outbox and is not available here",
 	}
@@ -61,7 +60,7 @@ var (
 	// repeating a transaction is the caller's decision, never a policy the
 	// composition takes on its own (RES-25, RES-34).
 	ErrWrapsUnitOfWork = &Error{
-		category: CategoryConfiguration,
+		category: redact.CategoryUnclassified,
 		code:     "RES-25",
 		message:  "resilience: a retry decorator must not wrap a unit of work",
 	}
@@ -69,7 +68,7 @@ var (
 	// ErrOrderReasonRequired refuses a composition order other than the
 	// canonical one without a declared reason (RES-22).
 	ErrOrderReasonRequired = &Error{
-		category: CategoryConfiguration,
+		category: redact.CategoryUnclassified,
 		code:     "RES-22",
 		message:  "resilience: an order other than the canonical one requires a declared reason",
 	}
@@ -93,7 +92,7 @@ var (
 	// ErrBlankField refuses a sheet with a field that declares neither a value
 	// nor a reason: a blank is a policy nobody decided (RES-21).
 	ErrBlankField = &Error{
-		category: CategoryConfiguration,
+		category: redact.CategoryUnclassified,
 		code:     "RES-21",
 		message:  "resilience: the sheet has a blank field",
 	}
@@ -101,7 +100,7 @@ var (
 	// ErrDeadlineComposition refuses a route whose hops cannot fit in the
 	// remaining deadline (RES-07).
 	ErrDeadlineComposition = &Error{
-		category: CategoryConfiguration,
+		category: redact.CategoryUnclassified,
 		code:     "RES-07",
 		message:  "resilience: the deadlines of the route do not fit in the remaining time",
 	}

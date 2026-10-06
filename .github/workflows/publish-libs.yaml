@@ -120,4 +120,14 @@ jobs:
           pnpm nx run-many -t ${{ inputs.build_target }} --projects=${{ inputs.build_projects_filter }} $EXCLUDE_FLAG
 
       - name: Publish libs no GitHub Packages
-        run: pnpm nx release publish --tag ${{ inputs.tag }}
+        env:
+          PROJECTS_FILTER: ${{ inputs.build_projects_filter }}
+          DIST_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          publicaveis="$(pnpm nx show projects --with-target nx-release-publish --projects="$PROJECTS_FILTER" --json | jq -r 'join(",")')"
+          if [ -z "$publicaveis" ]; then
+            echo "::notice::Nenhum projeto de $PROJECTS_FILTER tem o target nx-release-publish (todos são privados): nada a publicar."
+            exit 0
+          fi
+          pnpm nx release publish --projects="$publicaveis" --tag "$DIST_TAG"

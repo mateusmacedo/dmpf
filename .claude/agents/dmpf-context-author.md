@@ -34,9 +34,11 @@ Leia, nesta ordem, e siga:
   `apps/backend/bookings`, o golden da forma canônica (ADR-053), e de
   `apps/backend/reservations` só no que o contexto consome (inbox e consumer).
 - Preenche o esqueleto que o generator deixou: o `ServiceDesc` de
-  `app/rpc/service.go` com cada método do serviço, o `app/wiring.go` com o
-  serviço de aplicação, o catálogo com o canal que o relay drena, o
-  `provider/schema.sql` e o `Tables` do `appkit`.
+  `app/rpc/service.go` com cada método do serviço por `kernelgrpc.Unary` sobre
+  `kernelgrpc.Method`, e os handlers de comando pelo `command[R, Resp]` local;
+  o `app/wiring.go` com o serviço de aplicação, cujos comandos usam
+  `usecase.Execute` e `usecase.Decide`; o catálogo com o canal que o relay
+  drena, o `provider/schema.sql` e o `Tables` do `appkit`.
 - Escreve o `.proto` do serviço em
   `apps/backend/<name>/contract/proto/company/<name>/service/v1/`, o de cada evento publicado em
   `apps/backend/<name>/contract/proto/company/<name>/event/v1/` e o OpenAPI em
@@ -47,7 +49,7 @@ Leia, nesta ordem, e siga:
   rota: um cenário de aceite e um por rejeição, como a spec declara.
 - Roda `fmt-check`, `vet`, `build`, `lint`, `test-race`, `test-distributed`,
   `bash tools/dmpf-context-check.sh --context apps/backend/<name>` e
-  `conformance --base`; corrige até passar. Cada projeto testa no seu banco
+  `conformance`; corrige até passar. Cada projeto testa no seu banco
   `<projeto>_test_<id>` por teste, então as suítes Postgres não precisam de `--parallel=1`.
 
 ## O que você nunca faz
@@ -73,5 +75,5 @@ Imprima, nesta ordem: o módulo, os packages e os arquivos criados; o resultado 
 (comando e exit); qualquer gate normativo que tenha parado o trabalho; e o rito
 humano restante — `(cd apps/backend/<name>/contract && bash ../../../../tools/buf.sh generate)` com os
 quatro gates Buf do `<name>-contract`, `infrasync --write` depois de ajustar o
-`deploy/infra.json`, `conformance --write-baseline` em commit próprio, um
-commit por projeto Nx, PR para `develop`.
+`deploy/infra.json`, `conformance --write-baseline`, um commit por projeto Nx,
+PR para `develop`.

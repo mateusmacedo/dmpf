@@ -100,6 +100,13 @@ UPDATE outbox SET status = 'failed', locked_until = NULL, last_error = $3
  WHERE id = $1 AND locked_by = $2`
 )
 
+var (
+	_ = declare(claimStatement, "UPDATE", "outbox")
+	_ = declare(markPublishedStatement, "UPDATE", "outbox")
+	_ = declare(rescheduleStatement, "UPDATE", "outbox")
+	_ = declare(failStatement, "UPDATE", "outbox")
+)
+
 // OutboxStore is the drain side of the outbox: the claim and the three
 // conditional transitions of FND-04 §5.4. It is a struct so the relay can
 // declare its own interface over it (RFC §7.5 keeps the loop in app and the

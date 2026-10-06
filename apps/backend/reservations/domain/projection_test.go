@@ -20,23 +20,8 @@ func TestReservationsMatchTheProjectionFixture(t *testing.T) {
 	if f.Identity.Aggregate != "reservation" || len(f.Cases) != 7 {
 		t.Fatalf("fixture identity/cases = %+v/%d", f.Identity, len(f.Cases))
 	}
-	var decided domainkit.Verdict
-	for _, c := range f.Cases {
-		t.Run(c.Name, func(t *testing.T) {
-			got, twice := runReservation(t, c)
-			equal := domainkit.Equal(got, c.Expected.Projection())
-			tb.Require(t, equal)
-			tb.Require(t, twice)
-			collect(&decided, equal, twice)
-		})
-	}
+	decided := tb.RunProjection(t, f, runReservation)
 	evidence.RecordVerdict(t, "domain", "reservations", decided)
-}
-
-func collect(into *domainkit.Verdict, verdicts ...domainkit.Verdict) {
-	for _, v := range verdicts {
-		into.Diagnostics = append(into.Diagnostics, v.Diagnostics...)
-	}
 }
 
 func runReservation(t *testing.T, c tb.ProjectionCase) (domainkit.Projection, domainkit.Verdict) {

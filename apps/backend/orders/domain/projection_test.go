@@ -20,23 +20,8 @@ func TestOrdersMatchTheProjectionFixture(t *testing.T) {
 	if f.Identity.Aggregate != "order" || len(f.Cases) != 5 {
 		t.Fatalf("fixture identity/cases = %+v/%d", f.Identity, len(f.Cases))
 	}
-	var decided domainkit.Verdict
-	for _, c := range f.Cases {
-		t.Run(c.Name, func(t *testing.T) {
-			got, twice := runOrder(t, c)
-			equal := domainkit.Equal(got, c.Expected.Projection())
-			tb.Require(t, equal)
-			tb.Require(t, twice)
-			collect(&decided, equal, twice)
-		})
-	}
+	decided := tb.RunProjection(t, f, runOrder)
 	evidence.RecordVerdict(t, "domain", "orders", decided)
-}
-
-func collect(into *domainkit.Verdict, verdicts ...domainkit.Verdict) {
-	for _, v := range verdicts {
-		into.Diagnostics = append(into.Diagnostics, v.Diagnostics...)
-	}
 }
 
 func runOrder(t *testing.T, c tb.ProjectionCase) (domainkit.Projection, domainkit.Verdict) {

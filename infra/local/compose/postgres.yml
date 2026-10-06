@@ -11,7 +11,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: postgres
     ports:
-      - '${POSTGRES_PORT:-5432}:5432'
+      - '127.0.0.1:${POSTGRES_PORT:-5432}:5432'
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -21,7 +21,7 @@ services:
       retries: 5
     deploy:
       resources:
-        limits: { cpus: '0.40', memory: 512M }
+        limits: { cpus: '0.56', memory: 640M }
         reservations: { cpus: '0.10', memory: 128M }
 
 volumes:

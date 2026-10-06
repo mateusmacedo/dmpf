@@ -4,13 +4,14 @@ package ports
 
 import "context"
 
-// MessageContext is the trio of ENV-08 attributes with no column of their own:
+// MessageContext is the set of ENV-08 attributes with no column of their own:
 // the adapter authors it at the edge (FND-07 §8.6 item 3) and the outbox
 // persists it, so the relay can drain the record into the envelope.
 type MessageContext struct {
 	CorrelationID string
 	CausationID   string
 	Traceparent   string
+	Tracestate    string
 }
 
 // IsZero reports whether no attribute was authored; the provider writes an

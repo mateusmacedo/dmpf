@@ -19,7 +19,7 @@ primeiro em que toda dependência do módulo está de pé. Import path do módul
 
 | Papel | O que faz | Blocos cabeados |
 | --- | --- | --- |
-| `api` | Serve o `BookingsService` por gRPC | `app/rpc` (cadeia de interceptors do kernel: span, admissão, prazo, contexto) → `application` (autorização, UPRs) → `provider` (repositórios, reader, escopados por tenant) sobre `postgres` do kernel (UoW, outbox) |
+| `api` | Serve o `BookingsService` por gRPC | `app/rpc` (span SERVER do `otelgrpc` e cadeia de interceptors do kernel: desfecho e registro de acesso, admissão, prazo, contexto) → `application` (autorização, UPRs) → `provider` (repositórios, reader, escopados por tenant) sobre `postgres` do kernel (UoW, outbox) |
 | `relay` | Drena a outbox para `bookings.events`, autenticado no broker | `app/relay` → `postgres` (claim) + `kafka` (publisher) |
 
 ## Blocos e unidades
@@ -63,6 +63,25 @@ pelo `bff`. Uma recusa de domínio volta como `rejection` na resposta; uma falha
 técnica é um status gRPC (`NOT_FOUND`, `ABORTED` para conflito de versão,
 `INVALID_ARGUMENT` para entrada malformada).
 
+## Idempotência dos comandos
+
+`ReserveBooking`, `CancelBooking` e `RegisterResource` exigem a metadata
+`idempotency-key`, no formato `^[A-Za-z0-9._-]{1,128}$` (FND-04 §7.6, ADR-056). O
+`bff` envia uma chave derivada do sujeito e da chave do cliente. Cada comando
+passa pela inbox do contexto, com `consumer_name` `bookings.commands`, na mesma
+transação do efeito:
+
+| Situação | Resposta |
+| --- | --- |
+| Metadata ausente | `INVALID_ARGUMENT`, reason `MISSING_IDEMPOTENCY_KEY` |
+| Chave fora do formato | `INVALID_ARGUMENT`, reason `INVALID_IDEMPOTENCY_KEY` |
+| Mesma chave, mesmo pedido | A resposta gravada, aceite ou recusa, com o header `idempotent-replayed: true` |
+| Mesma chave, outro pedido | `FAILED_PRECONDITION`, reason `REUSED_IDEMPOTENCY_KEY` |
+| Mesma chave em andamento além da espera | `ABORTED`, reason `IN_FLIGHT_IDEMPOTENCY_KEY` |
+| `ReserveBooking` de reserva que já existe, com outra chave | `ALREADY_EXISTS` |
+
+A entrada vale 24h. Depois disso, o mesmo comando executa como novo.
+
 ## Canal, autorização e tenant
 
 O `api` só serve o workload que a CA local assinou e a allowlist nomeia
@@ -93,11 +112,25 @@ sem tenant é recusada, e um identificador que existe para outro tenant responde
 | `KAFKA_BROKERS`, `KAFKA_INSECURE` | `relay` | Brokers e opt-out de TLS |
 | `KAFKA_SASL_MECHANISM`, `KAFKA_SASL_USERNAME`, `KAFKA_SASL_PASSWORD` ou `KAFKA_CLIENT_CERT_FILE` + `KAFKA_CLIENT_KEY_FILE` | `relay`, com TLS | Autenticação do cliente no broker, obrigatória sempre que `KAFKA_INSECURE` não está ligado (ADR-052) |
 | `KAFKA_BOOKINGS_TOPIC`, `KAFKA_BOOKINGS_DLQ`, `KAFKA_GROUP` | `relay` | Endereço, contenção e grupo do canal `bookings.events` |
-| `OTLP_ENDPOINT`, `OTLP_INSECURE` | não | Exportação OTLP; sem endpoint, telemetria em memória |
-| `SERVICE`, `SERVICE_VERSION`, `INSTANCE_ID` | todos | Identidade do recurso OTel; default de `SERVICE` é `bookings` |
+| `OTEL_SERVICE_NAME`, `OTEL_RESOURCE_ATTRIBUTES` | todos | Identidade do recurso OTel (`service.version`, `service.instance.id`, `dmpf.process.role`, `deployment.environment.name`); sem `OTEL_SERVICE_NAME`, o serviço é `bookings`, e sem `dmpf.process.role` o papel vem de `--role`; versão e instância não têm default, e sem elas a partida falha com `ErrResourceIncomplete` (exit 1). O `deploy/.env.example` não declara papel, porque vale para todos; cada `serve-<papel>` e o `docker:run-relay` (no container, por `-e`) acrescentam `service.instance.id=bookings-local-<papel>,dmpf.process.role=<papel>` depois de carregar o `deploy/.env`, e a chave repetida fica com o último valor |
+| `OTEL_EXPORTER_OTLP_PROTOCOL`, `OTEL_EXPORTER_OTLP_ENDPOINT` | todos | Exportação OTLP; os manifestos declaram `grpc` e `http://<collector>:4317`, e o esquema `http://` desliga o TLS; sem protocolo, vale o `http/protobuf` do `autoexport`, que o Collector não recebe |
+| `OTEL_TRACES_SAMPLER_ARG`, `OTEL_LOGS_EXPORTER`, `OTEL_PROPAGATORS`, `OTEL_GO_X_OBSERVABILITY` | todos | Os manifestos declaram `1.0`, `otlp`, `tracecontext` e `true`; com `none` em `OTEL_{TRACES,METRICS,LOGS}_EXPORTER`, o sinal não é exportado, como nos harnesses de teste |
 
 Variável obrigatória ausente, ou `api` sem política de transporte gRPC,
 encerra a partida com exit 2 nomeando o que falta.
+
+Os prazos de idempotência e de purga vêm de `Defaults()`, sem variável de
+ambiente, e `Validate` recusa valor não positivo com `ErrInvalidPolicy`:
+
+| Campo | Padrão | Uso |
+| --- | --- | --- |
+| `IdempotencyWait` | 1s | Espera máxima por comando concorrente da mesma chave |
+| `IdempotencyRetention` | 24h | Vida da entrada de comando na inbox |
+| `OutboxRetention` | 168h | Idade a partir da qual a outbox publicada é purgada |
+| `PurgeInterval`, `PurgeBatch` | 15min, 1000 | Intervalo e lote de cada purga |
+
+O `api` purga as entradas de comando vencidas depois do `Migrate`, e o `relay`
+purga a outbox publicada. As duas purgas param antes de o pool fechar.
 
 ## Rodar localmente
 

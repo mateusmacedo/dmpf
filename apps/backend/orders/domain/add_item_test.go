@@ -6,6 +6,7 @@ import (
 
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/domain"
 	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb"
 )
 
 func TestAddItemAccepts(t *testing.T) {
@@ -13,7 +14,7 @@ func TestAddItemAccepts(t *testing.T) {
 
 	acc, rej := o.AddItem(domain.AddItem{SKU: "ABC", Quantity: 1, At: at})
 
-	requireAccepted[domain.ItemAccepted](t, rej)
+	tb.RequireAccepted(t, rej)
 	if got, want := acc.Response(), (domain.ItemAccepted{Order: orderID, Items: 3}); got != want {
 		t.Fatalf("Response() = %+v, want %+v", got, want)
 	}
@@ -63,7 +64,7 @@ func TestAddItemRejects(t *testing.T) {
 
 			acc, rej := o.AddItem(domain.AddItem{SKU: "XYZ", Quantity: 1, At: at})
 
-			requireRejected(t, acc, rej, tt.code)
+			tb.RequireRejected(t, acc, rej, tt.code)
 			if got := rej.Details(); !slices.Equal(got, tt.details) {
 				t.Fatalf("Details() = %v, want %v", got, tt.details)
 			}

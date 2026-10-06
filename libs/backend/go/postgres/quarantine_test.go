@@ -8,6 +8,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/jackc/pgx/v5"
+
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
 )
@@ -111,5 +113,112 @@ func TestQuarantineRejectsEmptyFields(t *testing.T) {
 				t.Fatalf("Quarantine() = %v, want ErrInvalidContainment", err)
 			}
 		})
+	}
+}
+
+func quarantineRows(t *testing.T, pool interface {
+	QueryRow(context.Context, string, ...any) pgx.Row
+}) int {
+	t.Helper()
+	var n int
+	if err := pool.QueryRow(context.Background(), "SELECT count(*) FROM quarantine").Scan(&n); err != nil {
+		t.Fatalf("count(*) = %v", err)
+	}
+	return n
+}
+
+func TestQuarantineContainsTheSameEnvelopeOnce(t *testing.T) {
+	pool := openPool(t)
+	ctx := context.Background()
+	q := postgres.NewQuarantine(pool)
+	contained := ports.Contained{Consumer: "orders", MessageID: "m-1", Reason: ports.ReasonTerminalFailure, Envelope: []byte{0x0a, 0x01}, At: 100}
+
+	for attempt := 1; attempt <= 2; attempt++ {
+		contained.At = ports.Instant(100 * attempt)
+		if err := q.Quarantine(ctx, contained); err != nil {
+			t.Fatalf("Quarantine() attempt %d = %v, want nil: a redelivered poison message is contained again, not refused", attempt, err)
+		}
+	}
+	if got := quarantineRows(t, pool); got != 1 {
+		t.Fatalf("quarantine rows = %d, want 1: the same envelope is one containment", got)
+	}
+}
+
+func TestQuarantineKeepsDistinctEnvelopesAndConsumersApart(t *testing.T) {
+	pool := openPool(t)
+	ctx := context.Background()
+	q := postgres.NewQuarantine(pool)
+
+	for _, c := range []ports.Contained{
+		{Consumer: "orders", MessageID: "m-1", Reason: ports.ReasonTerminalFailure, Envelope: []byte{0x01}, At: 100},
+		{Consumer: "orders", MessageID: "m-2", Reason: ports.ReasonTerminalFailure, Envelope: []byte{0x02}, At: 100},
+		{Consumer: "billing", MessageID: "m-1", Reason: ports.ReasonTerminalFailure, Envelope: []byte{0x01}, At: 100},
+	} {
+		if err := q.Quarantine(ctx, c); err != nil {
+			t.Fatalf("Quarantine(%s, %v) = %v, want nil", c.Consumer, c.Envelope, err)
+		}
+	}
+	if got := quarantineRows(t, pool); got != 3 {
+		t.Fatalf("quarantine rows = %d, want 3", got)
+	}
+}
+
+func TestMigrateConsolidatesTheQuarantineOfAnOlderSchema(t *testing.T) {
+	pool := openPool(t)
+	ctx := context.Background()
+
+	for _, stmt := range []string{
+		"DROP INDEX quarantine_consumer_name_envelope_digest_idx",
+		"ALTER TABLE quarantine DROP COLUMN envelope_digest",
+		`INSERT INTO quarantine (consumer_name, message_id, reason, envelope, contained_at) VALUES
+		   ('orders', 'm-1', 'terminal-failure', '\x0a01', 100),
+		   ('orders', 'm-1', 'terminal-failure', '\x0a01', 200),
+		   ('orders', 'm-2', 'terminal-failure', '\x0a02', 300)`,
+	} {
+		if _, err := pool.Exec(ctx, stmt); err != nil {
+			t.Fatalf("seeding the older schema: %s: %v", stmt, err)
+		}
+	}
+
+	if err := postgres.Migrate(ctx, pool, allCapabilities, probeSchema); err != nil {
+		t.Fatalf("Migrate() over the older schema = %v, want nil", err)
+	}
+
+	if got := quarantineRows(t, pool); got != 2 {
+		t.Fatalf("quarantine rows = %d, want 2: the duplicate containment collapses into the oldest", got)
+	}
+	var contained int64
+	if err := pool.QueryRow(ctx, "SELECT contained_at FROM quarantine WHERE message_id = 'm-1'").Scan(&contained); err != nil {
+		t.Fatalf("SELECT contained_at = %v", err)
+	}
+	if contained != 100 {
+		t.Fatalf("kept contained_at %d, want 100: the first containment is the one kept", contained)
+	}
+	if !exists(t, ctx, pool, indexExistsQuery, "quarantine_consumer_name_envelope_digest_idx") {
+		t.Fatal("the unique index was not created over the consolidated table")
+	}
+}
+
+func TestMigrateLeavesTheContainmentsOfAnOlderReplicaAlone(t *testing.T) {
+	pool := openPool(t)
+	ctx := context.Background()
+
+	if err := postgres.NewQuarantine(pool).Quarantine(ctx, ports.Contained{
+		Consumer: "orders", MessageID: "m-1", Reason: ports.ReasonTerminalFailure, Envelope: []byte{0x0a, 0x01}, At: 100,
+	}); err != nil {
+		t.Fatalf("Quarantine() = %v, want nil", err)
+	}
+	for _, at := range []int64{200, 300} {
+		if _, err := pool.Exec(ctx, `INSERT INTO quarantine (consumer_name, message_id, reason, envelope, contained_at)
+			VALUES ('orders', 'm-1', 'terminal-failure', '\x0a01', $1)`, at); err != nil {
+			t.Fatalf("INSERT without envelope_digest = %v, want nil: a replica from before the digest keeps containing during the rollout", err)
+		}
+	}
+
+	if err := postgres.Migrate(ctx, pool, allCapabilities, probeSchema); err != nil {
+		t.Fatalf("Migrate() over containments without digest = %v, want nil: the backfill runs only when the column is created", err)
+	}
+	if got := quarantineRows(t, pool); got != 3 {
+		t.Fatalf("quarantine rows = %d, want 3: a boot without schema change neither backfills nor consolidates", got)
 	}
 }

@@ -6,11 +6,15 @@ services:
     profiles: [dmpf]
     restart: on-failure
     environment:
-      OTLP_ENDPOINT: otel-collector:4317
-      OTLP_INSECURE: 'true'
-      TRACE_SAMPLE_RATE: '1'
+      OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_TRACES_SAMPLER_ARG: '1.0'
+      OTEL_LOGS_EXPORTER: otlp
+      OTEL_PROPAGATORS: tracecontext
+      OTEL_GO_X_OBSERVABILITY: 'true'
+      OTEL_BSP_EXPORT_TIMEOUT: '3000'
+      OTEL_BLRP_EXPORT_TIMEOUT: '3000'
       LOG_LEVEL: debug
-      SERVICE_VERSION: ${SERVICE_VERSION:-local}
 
   # gRPC interno com mTLS (IDN-03): cada api apresenta o próprio certificado e só
   # serve o workload que a CA local assinou e a allowlist nomeia — o BFF. Os
@@ -23,12 +27,12 @@ services:
       GRPC_CLIENT_CA_FILE: /pki/ca.crt
       GRPC_TRUSTED_CLIENTS: spiffe://dmpf/bff
       MIGRATE: 'true'
-      GOMEMLIMIT: 160MiB
+      GOMEMLIMIT: 176MiB
     volumes:
       - pki:/pki:ro
     deploy:
       resources:
-        limits: { cpus: '0.15', memory: 192M }
+        limits: { cpus: '0.195', memory: 211M }
         reservations: { cpus: '0.03', memory: 32M }
 
   # Sem TLS no broker local (opt-out de desenvolvimento), mas com o cliente
@@ -40,19 +44,19 @@ services:
       KAFKA_BROKERS: redpanda:29092
       KAFKA_INSECURE: 'true'
       KAFKA_SASL_MECHANISM: SCRAM-SHA-256
-      GOMEMLIMIT: 108MiB
+      GOMEMLIMIT: 118MiB
     deploy:
       resources:
-        limits: { cpus: '0.10', memory: 128M }
+        limits: { cpus: '0.13', memory: 141M }
         reservations: { cpus: '0.02', memory: 32M }
 
   dmpf-http-edge:
     extends: dmpf-app
     environment:
-      GOMEMLIMIT: 160MiB
+      GOMEMLIMIT: 176MiB
     volumes:
       - pki:/pki:ro
     deploy:
       resources:
-        limits: { cpus: '0.15', memory: 192M }
+        limits: { cpus: '0.2808', memory: 211M }
         reservations: { cpus: '0.03', memory: 32M }

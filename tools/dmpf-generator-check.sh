@@ -198,14 +198,12 @@ gerar() {
   fi
 
   if [ -n "${DMPF_GENERATOR_CHECK_SIMULAR_SEM_INSTRUCAO:-}" ]; then
-    saida="$(printf '%s\n' "$saida" | grep -v -e 'write-baseline' -e 'AUT-01')"
+    saida="$(printf '%s\n' "$saida" | grep -v -e 'write-baseline')"
   fi
 
   grep -qF -- '--write-baseline' <<<"$saida" \
     || falha "a saída do generator não instrui a regravar o baseline (--write-baseline ausente)"
-  grep -qF 'AUT-01' <<<"$saida" \
-    || falha "a saída do generator não cita AUT-01: unidade nova é ato de classificação"
-  ok "generator concluído e instrução do baseline (AUT-01 + --write-baseline) presente"
+  ok "generator concluído e instrução do baseline (--write-baseline) presente"
 }
 
 coletar_gerados() {
@@ -324,26 +322,12 @@ commitar_classificacao() {
   fi
   git -C "$WT" add -- tools/dmpf-baseline/units-baseline.json || falha "git add do baseline"
 
-  # Vetor (b) do self-test: o código entra no mesmo commit da classificação, que
-  # é o que DMPF-T002 recusa.
-  if [ -n "${DMPF_GENERATOR_CHECK_SIMULAR_CLASSIFICACAO_MISTURADA:-}" ]; then
-    git -C "$WT" add -A || falha "git add do código junto da classificação"
-    git_gate commit -q -m "chore(genproof): classificar unidades e escrever o código" \
-      || falha "o commit misturado reprovou (os hooks estão ativos)"
-    ok "sabotagem: commit único com classificação e código"
-    return 0
-  fi
-
   git_gate commit -q -m "chore(genproof): classificar unidades" \
     || falha "o commit da classificação reprovou (os hooks estão ativos)"
   ok "commit 1: ${#manifestos[@]} manifesto(s) de unidade + baseline"
 }
 
 commitar_codigo() {
-  if [ -n "${DMPF_GENERATOR_CHECK_SIMULAR_CLASSIFICACAO_MISTURADA:-}" ]; then
-    ok "commit 2 dispensado: a sabotagem já commitou o código com a classificação"
-    return 0
-  fi
   git -C "$WT" add -A || falha "git add do código gerado"
   git_gate commit -q -m "feat(genproof): scaffold" \
     || falha "o commit do código reprovou (os hooks estão ativos)"
@@ -388,12 +372,12 @@ cadeia_nx() {
 verificar_conformidade() {
   local saida status
   saida="$(go run ./tools/dmpf-conformance/cmd/conformance \
-    --root "$WT" --base "$HEAD0" 2>&1)"
+    --root "$WT" 2>&1)"
   status=$?
   printf '%s\n' "$saida"
   [ "$status" -eq 0 ] \
     || falha "o verificador de conformidade reprovou o bounded context gerado (exit $status)"
-  ok "verificador de conformidade aprovado com --base $HEAD0"
+  ok "verificador de conformidade aprovado"
 }
 
 conferir_arvore_limpa() {
@@ -511,23 +495,19 @@ fase_self_test() {
   vetor "edição pós-commit" DMPF_GENERATOR_CHECK_SIMULAR_EDICAO_POS_COMMIT \
     "arquivo gerado mudou depois da geração"
 
-  passo "vetor 2 — classificação e código no mesmo commit"
-  vetor "classificação misturada" DMPF_GENERATOR_CHECK_SIMULAR_CLASSIFICACAO_MISTURADA \
-    "DMPF-T002"
-
-  passo "vetor 3 — instrução do baseline ausente na saída do generator"
+  passo "vetor 2 — instrução do baseline ausente na saída do generator"
   vetor "instrução ausente" DMPF_GENERATOR_CHECK_SIMULAR_SEM_INSTRUCAO \
     "não instrui a regravar o baseline"
 
-  passo "vetor 4 — JSON gerado fora do padrão do Biome"
+  passo "vetor 3 — JSON gerado fora do padrão do Biome"
   vetor "JSON fora do padrão" DMPF_GENERATOR_CHECK_SIMULAR_JSON_FORA_DO_PADRAO \
     "biome ci reprovou arquivo gerado"
 
-  passo "vetor 5 — borda HTTP no contexto gerado"
+  passo "vetor 4 — borda HTTP no contexto gerado"
   vetor "borda HTTP" DMPF_GENERATOR_CHECK_SIMULAR_BORDA_HTTP \
     "borda HTTP em app/http" "domain,port,application,provider,app"
 
-  printf '\nProva do generator (self-test): OK — 5 vetor(es) reprovaram pelo motivo esperado.\n'
+  printf '\nProva do generator (self-test): OK — 4 vetor(es) reprovaram pelo motivo esperado.\n'
 }
 
 FASE=""

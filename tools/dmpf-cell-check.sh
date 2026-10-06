@@ -14,10 +14,6 @@ cd "$ROOT" || exit 1
 
 BASE="github.com/mateusmacedo/dmpf/libs/backend/go"
 
-# O verificador exige a base para avaliar mudança de classificação; sem ela
-# reprova como "não verificado", e o vetor positivo nunca passaria.
-NX_BASE="${NX_BASE:-develop}"
-
 WORKTREE=""
 descartar_worktree() {
   local status=$?
@@ -54,8 +50,7 @@ abrir_worktree() {
 }
 
 verificar() {
-  go run ./tools/dmpf-conformance/cmd/conformance \
-    --root "$WORKTREE" --base "$NX_BASE" 2>&1
+  go run ./tools/dmpf-conformance/cmd/conformance --root "$WORKTREE" 2>&1
 }
 
 falhas=0

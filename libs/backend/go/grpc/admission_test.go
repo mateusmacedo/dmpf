@@ -46,7 +46,7 @@ func admissionController(t *testing.T, limit admission.Limit) *admission.Control
 	return ctrl
 }
 
-func TestAdmissionRefusesBeforeTheHandlerAndCountsByRouteAndTenant(t *testing.T) {
+func TestAdmissionRefusesBeforeTheHandlerAndCountsByMethodAndTenant(t *testing.T) {
 	reader := sdkmetric.NewManualReader()
 	mp := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
 	t.Cleanup(func() { _ = mp.Shutdown(context.Background()) })
@@ -90,10 +90,13 @@ func TestAdmissionRefusesBeforeTheHandlerAndCountsByRouteAndTenant(t *testing.T)
 				t.Fatalf("series has %d data points, want 1", len(sum.DataPoints))
 			}
 			dp := sum.DataPoints[0]
-			route, _ := dp.Attributes.Value(metrics.KeyRoute)
+			method, _ := dp.Attributes.Value(metrics.KeyRPCMethod)
 			tenant, _ := dp.Attributes.Value(metrics.KeyTenant)
-			if route.AsString() != checkMethod || tenant.AsString() != metrics.OtherTenant {
-				t.Fatalf("labels = route=%q tenant=%q, want the method and %q (MET-07, MET-12)", route.AsString(), tenant.AsString(), metrics.OtherTenant)
+			if method.AsString() != "grpc.health.v1.Health/Check" || tenant.AsString() != metrics.OtherTenant {
+				t.Fatalf("labels = rpc.method=%q tenant=%q, want the method without the leading slash and %q (MET-07, MET-12, RF-D3)", method.AsString(), tenant.AsString(), metrics.OtherTenant)
+			}
+			if route, ok := dp.Attributes.Value(metrics.KeyRoute); ok {
+				t.Fatalf("gRPC rejection carries %s=%q, want only %s (MET-12)", metrics.KeyRoute, route.AsString(), metrics.KeyRPCMethod)
 			}
 			if dp.Value != 1 {
 				t.Fatalf("rejections = %d, want 1", dp.Value)

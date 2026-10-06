@@ -61,7 +61,7 @@ seção; a mesma chave duas vezes reprova (`DMPF-B002`).
 | `compatible_with` | sim, ainda que `[]` | `{identity, version, evidence}` exercitados em conjunto (`DMPF-B006`) |
 | `registry_ref` | para `runtime`, `generator` e o slot de `BOM-10` | `{file, selector}` do registro autoritativo (`DMPF-B007`) |
 | `evidence_uri`, `evidence_digest`, `approved_by`, `certified_at`, `valid_until` | quando `certificada` | Os cinco juntos (`DMPF-B004`); digest `sha256:<hex>` (`DMPF-B005`); vencida reprova (`DMPF-B008`) |
-| `promoted` | quando `certificada` | `{by, reviewed_by, pr}`: o ato de `BOM-05` |
+| `promoted` | quando `certificada` | `{by, pr}`: o ato de `BOM-05` |
 | `deprecated_at`, `successor` | quando `depreciada` | `DMPF-B003` |
 | `cve` | sim, ainda que `[]` | `{id, state, owner}`, com `state` entre `corrigida`, `mitigada` e `aberta`; `aberta` exige `owner` (`DMPF-B009`) |
 
@@ -85,7 +85,7 @@ divergir em silêncio.
 | `package.json` | `packageManager` | O campo | o gerenciador antes do `@` |
 | `package.json` | `engines.node` | O campo | `node` |
 | `pnpm-workspace.yaml` | `catalog:<pacote>` | A entrada do mapa `catalog` | `<pacote>` |
-| `libs/backend/go/observability/otelboot/start.go` | `semconv` | A versão do import `semconv` | `go.opentelemetry.io/otel/semconv` |
+| `libs/backend/go/observability/otelboot/config.go` | `semconv` | A versão do import `semconv` | `go.opentelemetry.io/otel/semconv` |
 
 Linha de comentário não é registro: um pin antigo comentado acima do atual é
 ignorado. A comparação ignora o prefixo `v`, o `<gerenciador>@` e o sufixo
@@ -188,7 +188,7 @@ reprova em `DMPF-X007`.
 | `adr` | `ADR-NNN` |
 | `owner` | A equipe, `team:<nome>` |
 | `justification` | O que o golden path não resolve neste caso |
-| `convergence` | `{kind: plan, deadline, condition}` ou `{kind: review, review_by, approved_by: [arquitetura, plataforma], replanning_condition}` |
+| `convergence` | `{kind: plan, deadline, condition}` ou `{kind: review, review_by, replanning_condition}` |
 | `valid_from`, `valid_until` | Vigência; `valid_until` é obrigatório, porque sem data de fim a exceção é inválida (`GOV-34`) |
 | `review_by` | Revisão, obrigatória; não pode passar de `valid_until` |
 | `history` | `[{event, at, by, reason}]`, com `event` entre `granted`, `renewed`, `revoked` e `converged`; o primeiro é `granted`, e `renewed` exige `reason` |

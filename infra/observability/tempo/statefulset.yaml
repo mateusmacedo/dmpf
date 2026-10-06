@@ -11,6 +11,7 @@ spec:
     metadata:
       labels: {}
     spec:
+      terminationGracePeriodSeconds: 45
       securityContext:
         runAsNonRoot: true
         runAsUser: 10001

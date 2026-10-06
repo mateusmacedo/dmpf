@@ -6,12 +6,13 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"slices"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"go.opentelemetry.io/otel/trace/noop"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
@@ -25,6 +26,7 @@ import (
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/application"
 	servicev1 "github.com/mateusmacedo/dmpf/apps/backend/bookings/contract/gen/go/company/bookings/service/v1"
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/provider"
+	kernelapp "github.com/mateusmacedo/dmpf/libs/backend/go/app"
 	kernelgrpc "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
 	obsclock "github.com/mateusmacedo/dmpf/libs/backend/go/observability/clock"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
@@ -57,7 +59,12 @@ func dial(t *testing.T, pool *pgxpool.Pool) *grpc.ClientConn {
 			Bookings:  provider.NewBookingRepository(tx),
 			Resources: provider.NewResourceRepository(tx),
 			Outbox:    tx.Outbox(provider.Mapper{}),
+			Commands:  tx.CommandInbox(application.CommandConsumer, time.Second),
 		}
+	}
+	policy, err := kernelapp.IdempotencyPolicy(time.Second, 24*time.Hour)
+	if err != nil {
+		t.Fatalf("IdempotencyPolicy() = %v", err)
 	}
 	service := application.Service{
 		UoW:            postgres.NewUnitOfWork(pool, bind),
@@ -66,6 +73,7 @@ func dial(t *testing.T, pool *pgxpool.Pool) *grpc.ClientConn {
 		Clock:          fixedClock{},
 		IDs:            &sequenceIDs{},
 		Authorize:      app.Authorization(),
+		Idempotency:    policy,
 	}
 
 	limit := admission.Limit{PerSecond: 1000, Burst: 1000, Concurrency: 64}
@@ -76,7 +84,7 @@ func dial(t *testing.T, pool *pgxpool.Pool) *grpc.ClientConn {
 	server, _, err := kernelgrpc.NewServer(kernelgrpc.ServerConfig{
 		InsecureForDevelopmentOnly: true,
 		Services:                   []string{rpc.ServiceName},
-		UnaryInterceptors:          kernelgrpc.ServerInterceptors(rpc.ServiceName, noop.NewTracerProvider().Tracer("e2e"), ctrl, nil, nil),
+		UnaryInterceptors:          kernelgrpc.ServerInterceptors(rpc.ServiceName, ctrl, nil, nil, kernelgrpc.WithCommands(rpc.Commands()...)),
 	})
 	if err != nil {
 		t.Fatalf("NewServer() = %v", err)
@@ -100,10 +108,20 @@ func dial(t *testing.T, pool *pgxpool.Pool) *grpc.ClientConn {
 	return conn
 }
 
+var keys atomic.Int64
+
 func call(t *testing.T, tenant string) context.Context {
+	t.Helper()
+	return callWithKey(t, tenant, fmt.Sprintf("e2e-k-%d", keys.Add(1)))
+}
+
+func callWithKey(t *testing.T, tenant, key string) context.Context {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	t.Cleanup(cancel)
+	if key != "" {
+		ctx = metadata.AppendToOutgoingContext(ctx, kernelgrpc.IdempotencyKey, key)
+	}
 	if tenant == "" {
 		return ctx
 	}
@@ -188,6 +206,49 @@ func TestACallWithoutATenantIsRefusedAndNothingIsWritten(t *testing.T) {
 
 	if err == nil {
 		t.Fatalf("ReserveBooking() without a tenant = %v, want the call refused", &resp)
+	}
+	if n := outboxRows(t, pool); n != 0 {
+		t.Fatalf("outbox rows = %d, want 0", n)
+	}
+}
+
+func TestARepeatedReserveOverGRPCReplaysAndAnotherKeyAlreadyExists(t *testing.T) {
+	pool := appkit.OpenPool(t)
+	conn := dial(t, pool)
+	req := &servicev1.ReserveBookingRequest{BookingId: "e2e-b-004", ResourceId: "e2e-r-004", Quantity: 2}
+
+	var first, again servicev1.ReserveBookingResponse
+	var header metadata.MD
+	if err := conn.Invoke(callWithKey(t, "acme", "e2e-replay"), rpc.FullMethod("ReserveBooking"), req, &first); err != nil {
+		t.Fatalf("ReserveBooking() = %v", err)
+	}
+	if err := conn.Invoke(callWithKey(t, "acme", "e2e-replay"), rpc.FullMethod("ReserveBooking"), req, &again, grpc.Header(&header)); err != nil {
+		t.Fatalf("repeated ReserveBooking() = %v, want the stored response", err)
+	}
+	if again.GetReserved().GetBookingId() != "e2e-b-004" || !slices.Equal(header.Get(kernelgrpc.ReplayedHeader), []string{"true"}) {
+		t.Fatalf("replay = %v with header %v, want Reserved e2e-b-004 marked as replay", &again, header)
+	}
+
+	var other servicev1.ReserveBookingResponse
+	err := conn.Invoke(call(t, "acme"), rpc.FullMethod("ReserveBooking"), req, &other)
+	if status.Code(err) != codes.AlreadyExists {
+		t.Fatalf("ReserveBooking(another key) = %v, want AlreadyExists", err)
+	}
+	if n := outboxRows(t, pool); n != 1 {
+		t.Fatalf("outbox rows = %d, want 1: one effect per booking", n)
+	}
+}
+
+func TestACommandWithoutAKeyIsRefusedAndNothingIsWritten(t *testing.T) {
+	pool := appkit.OpenPool(t)
+	conn := dial(t, pool)
+
+	var resp servicev1.ReserveBookingResponse
+	err := conn.Invoke(callWithKey(t, "acme", ""), rpc.FullMethod("ReserveBooking"),
+		&servicev1.ReserveBookingRequest{BookingId: "e2e-b-005", ResourceId: "e2e-r-005", Quantity: 1}, &resp)
+
+	if status.Code(err) != codes.InvalidArgument || kernelgrpc.ReasonOf(err) != kernelgrpc.ReasonMissingIdempotencyKey {
+		t.Fatalf("ReserveBooking() without a key = %v, want InvalidArgument with %s", err, kernelgrpc.ReasonMissingIdempotencyKey)
 	}
 	if n := outboxRows(t, pool); n != 0 {
 		t.Fatalf("outbox rows = %d, want 0", n)

@@ -5,7 +5,7 @@ title: DMPF KRN-01 — Fundação Nx-Go: workspace, módulos, tags e cadeia de v
 stage: done
 priority: P0
 depends_on: []
-ticket_url: null
+ticket_url: https://linear.app/mmda/issue/DEVS-28/spec-mqa5haxf-dmpf-krn-01-fundacao-nx-go-workspace-modulos-tags-e
 subtask_urls: []
 created: 2026-08-31
 ---

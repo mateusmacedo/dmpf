@@ -36,7 +36,7 @@ func (u unitOfWork[R]) Within(ctx context.Context, fn func(context.Context, R) e
 		return err
 	}
 
-	tx, err := u.pool.BeginTx(ctx, pgx.TxOptions{})
+	tx, err := u.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.ReadCommitted})
 	if err != nil {
 		return err
 	}

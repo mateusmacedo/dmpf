@@ -3,6 +3,8 @@ package sqs_test
 import (
 	"context"
 	"errors"
+	"log/slog"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -10,8 +12,12 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	sqstypes "github.com/aws/aws-sdk-go-v2/service/sqs/types"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/log"
+	sdklog "go.opentelemetry.io/otel/sdk/log"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/clock"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/otelboot"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/retry"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	provider "github.com/mateusmacedo/dmpf/libs/backend/go/sqs"
@@ -403,4 +409,133 @@ func TestASinkPanicLeavesTheMessageToItsVisibilityAndKeepsConsuming(t *testing.T
 	if got := *deletes[0].Input.(*sqs.DeleteMessageInput).ReceiptHandle; got != "rh-q" {
 		t.Fatalf("deleted %q, want rh-q: the panicked receipt keeps its visibility, the next one is consumed", got)
 	}
+}
+
+const sqsScope = "github.com/mateusmacedo/dmpf/libs/backend/go/sqs"
+
+type logRecords struct {
+	mu      sync.Mutex
+	records []map[string]any
+}
+
+func (l *logRecords) provider() log.LoggerProvider {
+	return otelboot.Leveled(sdklog.NewLoggerProvider(sdklog.WithProcessor(l)), slog.LevelInfo)
+}
+
+func (l *logRecords) Enabled(context.Context, sdklog.EnabledParameters) bool { return true }
+func (l *logRecords) Shutdown(context.Context) error                         { return nil }
+func (l *logRecords) ForceFlush(context.Context) error                       { return nil }
+
+func (l *logRecords) OnEmit(_ context.Context, record *sdklog.Record) error {
+	fields := map[string]any{
+		"scope": record.InstrumentationScope().Name,
+		"level": record.SeverityText(),
+		"msg":   record.Body().AsString(),
+	}
+	record.WalkAttributes(func(kv attribute.KeyValue) bool {
+		fields[string(kv.Key)] = kv.Value.AsInterface()
+		return true
+	})
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.records = append(l.records, fields)
+	return nil
+}
+
+func (l *logRecords) snapshot() []map[string]any {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return append([]map[string]any(nil), l.records...)
+}
+
+func (l *logRecords) await(t *testing.T, msg string) map[string]any {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		records := l.snapshot()
+		for _, record := range records {
+			if record["msg"] == msg {
+				return record
+			}
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("no %q record in %v", msg, records)
+		}
+		time.Sleep(time.Millisecond)
+	}
+}
+
+func loggedConsumer(c *clock.Fake, sink provider.Sink) (*provider.Consumer, *logRecords) {
+	records := &logRecords{}
+	consumer := newConsumer(c, sink)
+	consumer.Config.LoggerProvider = records.provider()
+	return consumer, records
+}
+
+func assertMessagingKeys(t *testing.T, record map[string]any) {
+	t.Helper()
+	if record["scope"] != sqsScope {
+		t.Errorf("%v: scope = %v, want the import path of the emitting package %s (RF-A1)", record["msg"], record["scope"], sqsScope)
+	}
+	if record["messaging.system"] != "aws_sqs" {
+		t.Errorf("%v: messaging.system = %v, want aws_sqs (RF-A3)", record["msg"], record["messaging.system"])
+	}
+	if record["messaging.destination.name"] != fifoQueue {
+		t.Errorf("%v: messaging.destination.name = %v, want the queue name %s, not its URL (RF-A3)", record["msg"], record["messaging.destination.name"], fifoQueue)
+	}
+	for key, value := range record {
+		if text, isText := value.(string); isText && strings.Contains(text, strings.TrimSuffix(fifoURL, fifoQueue)) {
+			t.Errorf("%v: %s = %q carries the queue URL", record["msg"], key, text)
+		}
+	}
+	if _, ok := record["channel"]; ok {
+		t.Errorf("%v: the key channel stays; RF-A3 names the destination by messaging.destination.name", record["msg"])
+	}
+}
+
+func TestAFailingReceiveLogsTheQueueByMessagingKeys(t *testing.T) {
+	c := clock.NewFake(start)
+	api := provider.NewFakeSQS()
+	api.ReceiveErr = errors.New("access denied")
+	consumer, records := loggedConsumer(c, newSink(nil))
+	stop := run(t, consumer, api)
+	defer stop()
+
+	assertMessagingKeys(t, records.await(t, "sqs: receive failed"))
+}
+
+func TestAFailedExtensionAndTheSinkFailureLogTheQueueByMessagingKeys(t *testing.T) {
+	c := clock.NewFake(start)
+	api := provider.NewFakeSQS()
+	api.ChangeErr = errors.New("receipt handle expired")
+	sink := newSink(func(ctx context.Context, _ handled, _ ports.Acknowledger) error {
+		<-ctx.Done()
+		return ctx.Err()
+	})
+	consumer, records := loggedConsumer(c, sink)
+	stop := run(t, consumer, api)
+	defer stop()
+
+	raw, _ := validRaw(t, "k1")
+	api.Deliver(&sqs.ReceiveMessageOutput{Messages: []sqstypes.Message{message("rh-x", provider.EncodeBody(raw), "1")}})
+	<-sink.seen
+	awaitAlarm(t, c, 2)
+	c.Advance(10 * time.Second)
+
+	assertMessagingKeys(t, records.await(t, "sqs: visibility extension failed; attempt cancelled"))
+	assertMessagingKeys(t, records.await(t, "sqs: sink failed"))
+}
+
+func TestASinkWithoutAGestureLogsTheQueueByMessagingKeys(t *testing.T) {
+	c := clock.NewFake(start)
+	api := provider.NewFakeSQS()
+	sink := newSink(func(context.Context, handled, ports.Acknowledger) error { return nil })
+	consumer, records := loggedConsumer(c, sink)
+	stop := run(t, consumer, api)
+	defer stop()
+
+	raw, _ := validRaw(t, "k1")
+	api.Deliver(&sqs.ReceiveMessageOutput{Messages: []sqstypes.Message{message("rh-y", provider.EncodeBody(raw), "1")}})
+
+	assertMessagingKeys(t, records.await(t, "sqs: sink returned without a gesture; visibility left to expire (SQS-10)"))
 }

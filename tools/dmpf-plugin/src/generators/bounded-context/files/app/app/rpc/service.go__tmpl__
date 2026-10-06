@@ -16,6 +16,12 @@ func Methods() []string {
 	return names
 }
 
+// Commands lists the methods that require an idempotency key (IDM-01); the
+// queries neither require nor read one.
+func Commands() []string {
+	return []string{}
+}
+
 // <%- pascalName %>Server is the handler type ServiceDesc registers.
 type <%- pascalName %>Server interface{}
 

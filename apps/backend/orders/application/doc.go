@@ -2,9 +2,9 @@
 
 // Package application is the application block of the orders bounded context:
 // the caller side of the two UPRs of the Order aggregate, walking the nine
-// steps of FND-04 §3.2. It is the reference write use case of the kernel
-// topology (ADR-044), and its unit and bounded context are stated in
-// dmpf-units.json (ADR-012).
+// steps of FND-04 §3.2 through usecase.Execute and usecase.Decide. It is the
+// reference write use case of the kernel topology (ADR-044), and its unit and
+// bounded context are stated in dmpf-units.json (ADR-012).
 //
 // Each command produces at most one event, so identity is resolved once with
 // events = 1 before the transaction opens. Under acceptance, Save and Enqueue

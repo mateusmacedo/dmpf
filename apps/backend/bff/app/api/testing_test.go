@@ -9,11 +9,15 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"go.opentelemetry.io/otel/propagation"
+	sdklog "go.opentelemetry.io/otel/sdk/log"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"google.golang.org/grpc"
@@ -22,6 +26,7 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/test/bufconn"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
 
 	"github.com/mateusmacedo/dmpf/apps/backend/bff/app/api"
 	"github.com/mateusmacedo/dmpf/apps/backend/bff/app/rpc"
@@ -29,8 +34,11 @@ import (
 	ordersv1 "github.com/mateusmacedo/dmpf/apps/backend/orders/contract/gen/go/company/orders/service/v1"
 	reservationsv1 "github.com/mateusmacedo/dmpf/apps/backend/reservations/contract/gen/go/company/reservations/service/v1"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/authn"
+	kernelgrpc "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
 	obsclock "github.com/mateusmacedo/dmpf/libs/backend/go/observability/clock"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/logging"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/metrics"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/otelboot"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/admission"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/deadline"
@@ -51,6 +59,17 @@ type fakeContexts struct {
 	mu      sync.Mutex
 	calls   []received
 	respond map[string]func(n int) (any, error)
+	replays map[string]bool
+}
+
+func (f *fakeContexts) replay(methods ...string) *fakeContexts {
+	if f.replays == nil {
+		f.replays = map[string]bool{}
+	}
+	for _, method := range methods {
+		f.replays[method] = true
+	}
+	return f
 }
 
 func (f *fakeContexts) on(method string, respond func(n int) (any, error)) *fakeContexts {
@@ -94,24 +113,30 @@ func (f *fakeContexts) total() int {
 	return len(f.calls)
 }
 
+var (
+	ordersService       = ordersv1.File_company_orders_service_v1_orders_service_proto.Services().ByName("OrdersService")
+	reservationsService = reservationsv1.File_company_reservations_service_v1_reservations_service_proto.Services().ByName("ReservationsService")
+	bookingsService     = bookingsv1.File_company_bookings_service_v1_bookings_service_proto.Services().ByName("BookingsService")
+)
+
 func unary[Req any, PReq interface {
 	*Req
 	proto.Message
-}](f *fakeContexts, name string, fallback any) grpc.MethodDesc {
-	return grpc.MethodDesc{
-		MethodName: name,
-		Handler: func(_ any, ctx context.Context, dec func(any) error, _ grpc.UnaryServerInterceptor) (any, error) {
-			req := PReq(new(Req))
-			if err := dec(req); err != nil {
-				return nil, err
+}](f *fakeContexts, service protoreflect.ServiceDescriptor, name protoreflect.Name, fallback proto.Message) grpc.MethodDesc {
+	method := string(name)
+	return kernelgrpc.Unary[any, Req, PReq, proto.Message](string(service.FullName()), kernelgrpc.Method(service, name),
+		func(_ any, ctx context.Context, req PReq) (proto.Message, error) {
+			n := f.record(ctx, method, req)
+			if f.replays[method] {
+				_ = grpc.SetHeader(ctx, metadata.Pairs(kernelgrpc.ReplayedHeader, "true"))
 			}
-			n := f.record(ctx, name, req)
-			if respond, declared := f.respond[name]; declared {
-				return respond(n)
+			if respond, declared := f.respond[method]; declared {
+				resp, err := respond(n)
+				msg, _ := resp.(proto.Message)
+				return msg, err
 			}
 			return fallback, nil
-		},
-	}
+		})
 }
 
 func (f *fakeContexts) serve(t *testing.T) func(context.Context, string) (net.Conn, error) {
@@ -121,9 +146,9 @@ func (f *fakeContexts) serve(t *testing.T) func(context.Context, string) (net.Co
 		ServiceName: rpc.OrdersServiceName,
 		HandlerType: (*any)(nil),
 		Methods: []grpc.MethodDesc{
-			unary[ordersv1.AddItemRequest](f, "AddItem", &ordersv1.AddItemResponse{Result: &ordersv1.AddItemResponse_Accepted{Accepted: &ordersv1.ItemAccepted{OrderId: "o-1", ItemCount: 1}}}),
-			unary[ordersv1.PlaceOrderRequest](f, "PlaceOrder", &ordersv1.PlaceOrderResponse{Result: &ordersv1.PlaceOrderResponse_Placed{Placed: &ordersv1.Placed{OrderId: "o-1"}}}),
-			unary[ordersv1.FindOrderRequest](f, "FindOrder", &ordersv1.FindOrderResponse{Order: &ordersv1.Order{
+			unary[ordersv1.AddItemRequest](f, ordersService, "AddItem", &ordersv1.AddItemResponse{Result: &ordersv1.AddItemResponse_Accepted{Accepted: &ordersv1.ItemAccepted{OrderId: "o-1", ItemCount: 1}}}),
+			unary[ordersv1.PlaceOrderRequest](f, ordersService, "PlaceOrder", &ordersv1.PlaceOrderResponse{Result: &ordersv1.PlaceOrderResponse_Placed{Placed: &ordersv1.Placed{OrderId: "o-1"}}}),
+			unary[ordersv1.FindOrderRequest](f, ordersService, "FindOrder", &ordersv1.FindOrderResponse{Order: &ordersv1.Order{
 				OrderId: "o-1", Status: ordersv1.OrderStatus_ORDER_STATUS_OPEN, ItemLimit: 10,
 				Items: []*ordersv1.Item{{Sku: "A", Quantity: 1}},
 			}}),
@@ -133,9 +158,9 @@ func (f *fakeContexts) serve(t *testing.T) func(context.Context, string) (net.Co
 		ServiceName: rpc.ReservationsServiceName,
 		HandlerType: (*any)(nil),
 		Methods: []grpc.MethodDesc{
-			unary[reservationsv1.ReserveRequest](f, "Reserve", &reservationsv1.ReserveResponse{Result: &reservationsv1.ReserveResponse_Reserved{Reserved: &reservationsv1.Reserved{OrderId: "o-1", ItemCount: 2}}}),
-			unary[reservationsv1.CancelRequest](f, "Cancel", &reservationsv1.CancelResponse{Result: &reservationsv1.CancelResponse_Canceled{Canceled: &reservationsv1.Canceled{OrderId: "o-1"}}}),
-			unary[reservationsv1.FindReservationRequest](f, "FindReservation", &reservationsv1.FindReservationResponse{Reservation: &reservationsv1.Reservation{
+			unary[reservationsv1.ReserveRequest](f, reservationsService, "Reserve", &reservationsv1.ReserveResponse{Result: &reservationsv1.ReserveResponse_Reserved{Reserved: &reservationsv1.Reserved{OrderId: "o-1", ItemCount: 2}}}),
+			unary[reservationsv1.CancelRequest](f, reservationsService, "Cancel", &reservationsv1.CancelResponse{Result: &reservationsv1.CancelResponse_Canceled{Canceled: &reservationsv1.Canceled{OrderId: "o-1"}}}),
+			unary[reservationsv1.FindReservationRequest](f, reservationsService, "FindReservation", &reservationsv1.FindReservationResponse{Reservation: &reservationsv1.Reservation{
 				OrderId: "o-1", Status: reservationsv1.ReservationStatus_RESERVATION_STATUS_CONFIRMED, ItemCount: 2,
 			}}),
 		},
@@ -144,13 +169,13 @@ func (f *fakeContexts) serve(t *testing.T) func(context.Context, string) (net.Co
 		ServiceName: rpc.BookingsServiceName,
 		HandlerType: (*any)(nil),
 		Methods: []grpc.MethodDesc{
-			unary[bookingsv1.ReserveBookingRequest](f, "ReserveBooking", &bookingsv1.ReserveBookingResponse{Result: &bookingsv1.ReserveBookingResponse_Reserved{Reserved: &bookingsv1.Reserved{BookingId: "b-1"}}}),
-			unary[bookingsv1.CancelBookingRequest](f, "CancelBooking", &bookingsv1.CancelBookingResponse{Result: &bookingsv1.CancelBookingResponse_Cancelled{Cancelled: &bookingsv1.Cancelled{BookingId: "b-1"}}}),
-			unary[bookingsv1.RegisterResourceRequest](f, "RegisterResource", &bookingsv1.RegisterResourceResponse{Result: &bookingsv1.RegisterResourceResponse_Registered{Registered: &bookingsv1.Registered{ResourceId: "room-1"}}}),
-			unary[bookingsv1.FindBookingRequest](f, "FindBooking", &bookingsv1.FindBookingResponse{Booking: &bookingsv1.Booking{
+			unary[bookingsv1.ReserveBookingRequest](f, bookingsService, "ReserveBooking", &bookingsv1.ReserveBookingResponse{Result: &bookingsv1.ReserveBookingResponse_Reserved{Reserved: &bookingsv1.Reserved{BookingId: "b-1"}}}),
+			unary[bookingsv1.CancelBookingRequest](f, bookingsService, "CancelBooking", &bookingsv1.CancelBookingResponse{Result: &bookingsv1.CancelBookingResponse_Cancelled{Cancelled: &bookingsv1.Cancelled{BookingId: "b-1"}}}),
+			unary[bookingsv1.RegisterResourceRequest](f, bookingsService, "RegisterResource", &bookingsv1.RegisterResourceResponse{Result: &bookingsv1.RegisterResourceResponse_Registered{Registered: &bookingsv1.Registered{ResourceId: "room-1"}}}),
+			unary[bookingsv1.FindBookingRequest](f, bookingsService, "FindBooking", &bookingsv1.FindBookingResponse{Booking: &bookingsv1.Booking{
 				BookingId: "b-1", ResourceId: "room-1", Quantity: 2, Status: bookingsv1.BookingStatus_BOOKING_STATUS_RESERVED, ReservedAt: 1_755_432_000_000_000_000,
 			}}),
-			unary[bookingsv1.FindBookingsByResourceRequest](f, "FindBookingsByResource", &bookingsv1.FindBookingsByResourceResponse{Bookings: []*bookingsv1.Booking{{
+			unary[bookingsv1.FindBookingsByResourceRequest](f, bookingsService, "FindBookingsByResource", &bookingsv1.FindBookingsByResourceResponse{Bookings: []*bookingsv1.Booking{{
 				BookingId: "b-1", ResourceId: "room-1", Quantity: 2, Status: bookingsv1.BookingStatus_BOOKING_STATUS_CANCELLED, ReservedAt: 1_755_432_000_000_000_000,
 			}}}),
 		},
@@ -171,10 +196,38 @@ func (f *fakeContexts) serve(t *testing.T) func(context.Context, string) (net.Co
 }
 
 type fixture struct {
-	fake    *fakeContexts
-	handler http.Handler
-	spans   *tracetest.InMemoryExporter
-	logs    *bytes.Buffer
+	fake        *fakeContexts
+	handler     http.Handler
+	admin       http.Handler
+	spans       *tracetest.InMemoryExporter
+	logs        *bytes.Buffer
+	records     *logRecorder
+	logProvider *sdklog.LoggerProvider
+	metrics     *sdkmetric.ManualReader
+}
+
+type logRecorder struct {
+	mu      sync.Mutex
+	records []sdklog.Record
+}
+
+func (r *logRecorder) Export(_ context.Context, records []sdklog.Record) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, record := range records {
+		r.records = append(r.records, record.Clone())
+	}
+	return nil
+}
+
+func (*logRecorder) Shutdown(context.Context) error { return nil }
+
+func (*logRecorder) ForceFlush(context.Context) error { return nil }
+
+func (r *logRecorder) all() []sdklog.Record {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return slices.Clone(r.records)
 }
 
 type setup struct {
@@ -182,10 +235,12 @@ type setup struct {
 	limit                admission.Limit
 	ordersContract       []byte
 	reservationsContract []byte
+	bookingsContract     []byte
 	cors                 []string
 	ready                func(context.Context) error
 	authenticator        ports.Authenticator
 	draining             func() bool
+	clock                obsclock.Clock
 }
 
 type option func(*setup)
@@ -198,6 +253,10 @@ func withContracts(orders, reservations string) option {
 	return func(s *setup) { s.ordersContract, s.reservationsContract = []byte(orders), []byte(reservations) }
 }
 
+func withBookingsContract(bookings string) option {
+	return func(s *setup) { s.bookingsContract = []byte(bookings) }
+}
+
 func withCORS(origins ...string) option { return func(s *setup) { s.cors = origins } }
 
 func withReady(ready func(context.Context) error) option { return func(s *setup) { s.ready = ready } }
@@ -205,6 +264,8 @@ func withReady(ready func(context.Context) error) option { return func(s *setup)
 func withAuthenticator(a ports.Authenticator) option { return func(s *setup) { s.authenticator = a } }
 
 func withDraining(draining func() bool) option { return func(s *setup) { s.draining = draining } }
+
+func withClock(c obsclock.Clock) option { return func(s *setup) { s.clock = c } }
 
 func newFixture(t *testing.T, fake *fakeContexts, options ...option) fixture {
 	t.Helper()
@@ -215,12 +276,23 @@ func newFixture(t *testing.T, fake *fakeContexts, options ...option) fixture {
 
 	logs := &bytes.Buffer{}
 	spans := tracetest.NewInMemoryExporter()
-	provider := sdktrace.NewTracerProvider(sdktrace.WithSyncer(spans))
+	provider := sdktrace.NewTracerProvider(sdktrace.WithSyncer(otelboot.NewPrivacyExporter(spans)))
 	t.Cleanup(func() { _ = provider.Shutdown(context.Background()) })
 	tracer := provider.Tracer("bff")
 
+	records := &logRecorder{}
+	logProvider := otelboot.NewLoggerProvider(otelboot.Config{}, records)
+	t.Cleanup(func() { _ = logProvider.Shutdown(context.Background()) })
+	reader := sdkmetric.NewManualReader()
+	meterProvider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	t.Cleanup(func() { _ = meterProvider.Shutdown(context.Background()) })
+	logger := slog.New(slog.NewMultiHandler(
+		slog.NewJSONHandler(logs, &slog.HandlerOptions{Level: slog.LevelDebug}),
+		logging.NewLogger(logProvider, "github.com/mateusmacedo/dmpf/apps/backend/bff/app/api").Handler(),
+	))
+
 	dialer := fake.serve(t)
-	opts := rpc.Options{Insecure: true, Clock: obsclock.System(), Tracer: tracer, Service: "bff-test"}
+	opts := rpc.Options{Insecure: true, Clock: obsclock.System(), Tracer: tracer, TracerProvider: provider, Propagator: propagation.TraceContext{}}
 	ordersConn, err := rpc.Dial("passthrough:///orders", rpc.OrdersConfig(opts), grpc.WithContextDialer(dialer))
 	if err != nil {
 		t.Fatalf("Dial(orders) = %v", err)
@@ -246,20 +318,25 @@ func newFixture(t *testing.T, fake *fakeContexts, options ...option) fixture {
 		t.Fatalf("admission.New() = %v", err)
 	}
 
-	handler, err := api.NewHandler(rpc.NewOrders(ordersConn), rpc.NewReservations(reservationsConn), rpc.NewBookings(bookingsConn), ctrl, tracer, nil, api.Options{
+	handlerOptions := api.Options{
 		Budget:               cfg.budget,
 		Authenticator:        cfg.authenticator,
 		OrdersContract:       cfg.ordersContract,
 		ReservationsContract: cfg.reservationsContract,
+		BookingsContract:     cfg.bookingsContract,
 		CORSOrigins:          cfg.cors,
-		Logger:               slog.New(slog.NewJSONHandler(logs, &slog.HandlerOptions{Level: slog.LevelDebug})),
+		Logger:               logger,
+		TracerProvider:       provider,
+		MeterProvider:        meterProvider,
 		Ready:                cfg.ready,
 		Draining:             cfg.draining,
-	})
+		Clock:                cfg.clock,
+	}
+	handler, err := api.NewHandler(rpc.NewOrders(ordersConn), rpc.NewReservations(reservationsConn), rpc.NewBookings(bookingsConn), ctrl, nil, handlerOptions)
 	if err != nil {
 		t.Fatalf("NewHandler() = %v", err)
 	}
-	return fixture{fake: fake, handler: handler, spans: spans, logs: logs}
+	return fixture{fake: fake, handler: handler, admin: api.NewAdminHandler(handlerOptions), spans: spans, logs: logs, records: records, logProvider: logProvider, metrics: reader}
 }
 
 // testCredential is what the development authenticator reads back as identity.
@@ -274,6 +351,23 @@ const testTenant = "acme"
 
 func (f fixture) do(t *testing.T, method, path string, body io.Reader, headers ...string) *httptest.ResponseRecorder {
 	t.Helper()
+	return serve(f.handler, method, path, body, headers...)
+}
+
+func (f fixture) doAdmin(t *testing.T, method, path string, headers ...string) *httptest.ResponseRecorder {
+	t.Helper()
+	return serve(f.admin, method, path, nil, headers...)
+}
+
+func (f fixture) doOn(t *testing.T, admin bool, method, path string, headers ...string) *httptest.ResponseRecorder {
+	t.Helper()
+	if admin {
+		return f.doAdmin(t, method, path, headers...)
+	}
+	return f.do(t, method, path, nil, headers...)
+}
+
+func serve(handler http.Handler, method, path string, body io.Reader, headers ...string) *httptest.ResponseRecorder {
 	req := httptest.NewRequest(method, path, body)
 	for i := 0; i+1 < len(headers); i += 2 {
 		req.Header.Set(headers[i], headers[i+1])
@@ -282,7 +376,7 @@ func (f fixture) do(t *testing.T, method, path string, body io.Reader, headers .
 		req.Header.Set("Authorization", testCredential)
 	}
 	rec := httptest.NewRecorder()
-	f.handler.ServeHTTP(rec, req)
+	handler.ServeHTTP(rec, req)
 	return rec
 }
 

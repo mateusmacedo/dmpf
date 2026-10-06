@@ -39,7 +39,6 @@ func TestAdmitidasDomainIORecusadaPorN1(t *testing.T) {
 				Convergence: ExceptionConvergence{
 					Kind:                "review",
 					ReviewBy:            jan1st2027,
-					ApprovedBy:          []string{"arquitetura", "plataforma"},
 					ReplanningCondition: "cond",
 					PresentKind:         true,
 				},
@@ -88,7 +87,6 @@ func TestAdmitidasReflectAdmitida(t *testing.T) {
 				Convergence: ExceptionConvergence{
 					Kind:                "review",
 					ReviewBy:            jan1st2027,
-					ApprovedBy:          []string{"arquitetura", "plataforma"},
 					ReplanningCondition: "cond",
 					PresentKind:         true,
 				},

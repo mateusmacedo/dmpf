@@ -8,26 +8,27 @@ import (
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/application"
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/domain"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/serviceskit"
 )
 
 type instrumentationRecorder struct {
-	rec     *recorder
+	rec     *serviceskit.Steps
 	begins  []string
 	results []ports.Result
 	audits  []ports.AuditEvent
 }
 
 func (r *instrumentationRecorder) BeginOperation(ctx context.Context, operation string) (context.Context, ports.EndOperation) {
-	r.rec.record("begin")
+	r.rec.Record("begin")
 	r.begins = append(r.begins, operation)
 	return ctx, func(result ports.Result) {
-		r.rec.record("end")
+		r.rec.Record("end")
 		r.results = append(r.results, result)
 	}
 }
 
 func (r *instrumentationRecorder) Audit(_ context.Context, event ports.AuditEvent) {
-	r.rec.record("audit")
+	r.rec.Record("audit")
 	r.audits = append(r.audits, event)
 }
 
@@ -117,7 +118,7 @@ func TestAddItemDeniedReportsDeniedWithoutAuditOrTransaction(t *testing.T) {
 	if len(instr.audits) != 0 {
 		t.Fatalf("audits = %+v, want none — nothing was accessed", instr.audits)
 	}
-	if n := h.serviceWithinCalls(); n != 0 {
+	if n := h.fakes.WithinCalls(); n != 0 {
 		t.Fatalf("transactions opened = %d, want 0 — the sequence stops before step 2", n)
 	}
 }
@@ -230,7 +231,7 @@ func TestBeginPrecedesAuthorizationAndEndClosesTheSequence(t *testing.T) {
 		t.Fatalf("AddItem() error = %v, want nil", err)
 	}
 
-	observed := h.rec.observed
+	observed := h.rec.Observed()
 	if len(observed) < 4 || observed[0] != "begin" {
 		t.Fatalf("observed = %v, want begin first — the span opens before step 1 (TRC-16)", observed)
 	}

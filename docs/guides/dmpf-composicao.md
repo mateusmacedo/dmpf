@@ -151,17 +151,9 @@ As unidades do contexto novo precisam entrar no baseline governado:
 go run ./tools/dmpf-conformance/cmd/conformance --write-baseline
 ```
 
-Este é um **passo humano**, nunca do agente (ADR-028): classificar é ato de
-autoridade sobre a arquitetura, não consequência de escrever código.
-
-O commit da classificação vai **sozinho**. `DMPF-T002` reprova o commit que
-mistura mudança normativa com código, e "normativo" inclui tanto o baseline
-quanto o `dmpf-units.json` do módulo:
-
-```bash
-git add tools/dmpf-baseline/units-baseline.json '**/dmpf-units.json'
-git commit -m "chore(workspace): classificar as unidades de <ctx>"
-```
+Este é um **passo humano**, nunca do agente: classificar é decisão sobre a
+arquitetura, não consequência de escrever código. O baseline e os
+`dmpf-units.json` podem ir no mesmo commit do código (ADR-058).
 
 ## 6. Passo 5 — validar
 
@@ -184,14 +176,11 @@ o Redpanda (19092) dela, a partir do `.env.example` da raiz:
 pnpm nx run-many -t test-race,test-distributed -p <ctx>
 ```
 
-Por fim, o gate autoritativo entre módulos, com a base do intervalo em revisão:
+Por fim, o gate autoritativo entre módulos:
 
 ```bash
-go run ./tools/dmpf-conformance/cmd/conformance -base <ref>
+go run ./tools/dmpf-conformance/cmd/conformance --root .
 ```
-
-Sem `-base`, a condição de commit próprio fica **não verificada** — e condição
-não verificada nunca vira "conforme".
 
 ## 7. O que o agente nunca toca
 
@@ -262,7 +251,6 @@ aprovação de Arquitetura e Plataforma (`GOV-34`):
   "convergence": {
     "kind": "review",
     "review_by": "2027-03-02",
-    "approved_by": ["arquitetura", "plataforma"],
     "replanning_condition": "protoc-gen-go deixar de emitir reflect no código gerado"
   },
   "valid_from": "2026-09-12",
@@ -272,10 +260,8 @@ aprovação de Arquitetura e Plataforma (`GOV-34`):
 }
 ```
 
-`approved_by` é declaração: o verificador confere que as duas autoridades
-constam do array, não que aprovaram. A aprovação precisa existir de fato na
-revisão do PR que introduz a exceção. As exceções reais de `contracts` são
-desse tipo (ADR-033).
+O ramo `review` troca o prazo por uma data de revisão e uma condição de
+replanejamento. As exceções reais de `contracts` são desse tipo (ADR-033).
 
 ### Um pedido recusado
 
@@ -345,7 +331,7 @@ está em [`bom/README.md`](../../bom/README.md).
    | `approved_by` | `team:plataforma` (`BOM-05`) |
    | `certified_at` | a data do commit de certificação |
    | `valid_until` | `certified_at` + 90 dias, o default do ADR-041 |
-   | `promoted` | `{by, reviewed_by, pr}`: quem promove, quem revisou por Arquitetura e o PR da promoção |
+   | `promoted` | `{by, pr}`: quem promove e o PR da promoção |
 
    `compatible_with` só nomeia combinação cujos dois lados constam do mesmo
    header, com `evidence` igual ao subject.
@@ -372,7 +358,7 @@ toolchain Go. Há dois jeitos de consumir, e a diferença está em quem resolve 
 `go get` basta — os irmãos vêm junto, cada um na versão que o `require` fixa:
 
 ```bash
-go get github.com/mateusmacedo/dmpf/libs/backend/go/domain@v0.1.0
+go get github.com/mateusmacedo/dmpf/libs/backend/go/domain@v1.0.0-rc.0
 ```
 
 **Por clone local**, quando você quer editar o kernel enquanto desenvolve

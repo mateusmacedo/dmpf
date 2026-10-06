@@ -261,7 +261,7 @@ func TestAFailureBetweenPublishingAndMarkingRepublishesAndTheInboxAbsorbsIt(t *t
 	// The consumer of KRN-07 receives both deliveries. The first does the work;
 	// the second is absorbed by the inbox, which is what makes the duplicate
 	// harmless rather than a second reservation.
-	consumer := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eTimeout, e2eAttempts, e2eBoundary)
+	consumer := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eTimeout, e2eAttempts, e2eBoundary, app.ConsumerTelemetry{})
 	raw := appkit.RawOrderPlaced(t, relayMessageID, relayOrderID, relayItems)
 
 	for delivery := 1; delivery <= 2; delivery++ {

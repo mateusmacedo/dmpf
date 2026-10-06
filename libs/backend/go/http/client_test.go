@@ -78,11 +78,10 @@ func clientConfig(routes ...provider.Route) provider.Config {
 		byName[r.Name] = r
 	}
 	return provider.Config{
-		Routes:  byName,
-		Sheet:   sheet,
-		Service: "checkout",
-		Clock:   clock.System(),
-		Rand:    func() float64 { return 0 },
+		Routes: byName,
+		Sheet:  sheet,
+		Clock:  clock.System(),
+		Rand:   func() float64 { return 0 },
 	}
 }
 

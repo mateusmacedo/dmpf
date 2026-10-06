@@ -10,10 +10,18 @@ const (
 	Histogram Kind = "histogram"
 )
 
-// Unit values follow the OpenTelemetry convention: "1" is dimensionless.
+// Unit values are UCUM, as OpenTelemetry declares them: "1" is only for a
+// ratio, a count names what it counts in braces (RF-D1).
 const (
 	UnitDimensionless = "1"
 	UnitSeconds       = "s"
+	UnitRetry         = "{retry}"
+	UnitExecution     = "{execution}"
+	UnitCall          = "{call}"
+	UnitResponse      = "{response}"
+	UnitRequest       = "{request}"
+	UnitMessage       = "{message}"
+	UnitState         = "{state}"
 )
 
 // Threshold is the invariant a series must respect. It is nil for a counter
@@ -35,44 +43,42 @@ type Metric struct {
 	Owner     string
 }
 
-// Names of the platform series (MET-02). They are constants because a
+// Names of the platform series (MET-02, RF-D1), in the OpenTelemetry form: the
+// exporter adds the unit and the type suffix. They are constants because a
 // dashboard, an alert and a test all reference the same string.
 const (
-	RetriesTotal             = "dmpf_dependency_retries_total"
-	BudgetExhaustedTotal     = "dmpf_dependency_budget_exhausted_total"
-	BreakerState             = "dmpf_dependency_breaker_state"
-	DeadlineExceededTotal    = "dmpf_dependency_deadline_exceeded_total"
-	CancellationsTotal       = "dmpf_dependency_cancellations_total"
-	RequestDurationSeconds   = "dmpf_service_request_duration_seconds"
-	RequestsTotal            = "dmpf_service_requests_total"
-	ErrorsTotal              = "dmpf_service_errors_total"
-	DegradedTotal            = "dmpf_service_degraded_total"
-	OmittedTotal             = "dmpf_service_omitted_total"
-	BulkheadRejectionsTotal  = "dmpf_dependency_bulkhead_rejections_total"
-	SpansDroppedTotal        = "dmpf_otel_spans_dropped_total"
-	PoolUtilization          = "dmpf_service_pool_utilization"
-	QueueDepth               = "dmpf_service_queue_depth"
-	AdmissionRejectionsTotal = "dmpf_service_admission_rejections_total"
+	RetriesTotal             = "dmpf.dependency.retries"
+	BudgetExhaustedTotal     = "dmpf.dependency.budget.exhausted"
+	BreakerState             = "dmpf.dependency.breaker.state"
+	DeadlineExceededTotal    = "dmpf.dependency.deadline_exceeded"
+	CancellationsTotal       = "dmpf.dependency.cancellations"
+	RequestDurationSeconds   = "dmpf.operation.duration"
+	DegradedTotal            = "dmpf.dependency.degraded"
+	OmittedTotal             = "dmpf.dependency.omitted"
+	BulkheadRejectionsTotal  = "dmpf.dependency.bulkhead.rejections"
+	PoolUtilization          = "dmpf.consumer.pool.utilization"
+	QueueDepth               = "dmpf.consumer.queue.depth"
+	AdmissionRejectionsTotal = "dmpf.admission.rejections"
 )
 
 const ownerService = "serviço"
 
-// Catalog is the ten mandatory series of MET-02, the two local ones (bulkhead
-// rejections, dropped spans) and the three of MET-11 and MET-12 the transport
-// providers record. Returning a copy keeps a caller from rewriting the catalogue.
+// Catalog is the series of RF-D1: the dependency series of MET-02, the duration
+// of the use case and the three of MET-11 and MET-12 the transport providers
+// record. Returning a copy keeps a caller from rewriting the catalogue.
 func Catalog() []Metric {
 	catalogue := []Metric{
 		{
 			Name:    RetriesTotal,
-			Unit:    UnitDimensionless,
+			Unit:    UnitRetry,
 			Kind:    Counter,
 			Formula: "soma das tentativas repetidas por dependência e categoria de erro",
-			Labels:  []string{KeyDependency, KeyErrorCategory},
+			Labels:  []string{KeyDependency, KeyErrorType},
 			Owner:   ownerService,
 		},
 		{
 			Name:    BudgetExhaustedTotal,
-			Unit:    UnitDimensionless,
+			Unit:    UnitExecution,
 			Kind:    Counter,
 			Formula: "soma das execuções que esgotaram o orçamento de retry, uma vez por execução",
 			Labels:  []string{KeyDependency},
@@ -80,7 +86,7 @@ func Catalog() []Metric {
 		},
 		{
 			Name:      BreakerState,
-			Unit:      UnitDimensionless,
+			Unit:      UnitState,
 			Kind:      Gauge,
 			Formula:   "estado atual do disjuntor: 0 fechado, 1 meio-aberto, 2 aberto",
 			Labels:    []string{KeyDependency},
@@ -89,7 +95,7 @@ func Catalog() []Metric {
 		},
 		{
 			Name:    DeadlineExceededTotal,
-			Unit:    UnitDimensionless,
+			Unit:    UnitCall,
 			Kind:    Counter,
 			Formula: "soma das chamadas que estouraram o prazo efetivo",
 			Labels:  []string{KeyDependency, KeyOperation},
@@ -97,7 +103,7 @@ func Catalog() []Metric {
 		},
 		{
 			Name:    CancellationsTotal,
-			Unit:    UnitDimensionless,
+			Unit:    UnitCall,
 			Kind:    Counter,
 			Formula: "soma das chamadas encerradas por cancelamento do chamador",
 			Labels:  []string{KeyDependency, KeyOperation},
@@ -108,28 +114,12 @@ func Catalog() []Metric {
 			Unit:    UnitSeconds,
 			Kind:    Histogram,
 			Formula: "distribuição da duração das operações do serviço, em segundos",
-			Labels:  []string{KeyService, KeyOperation, KeyOutcomeCategory},
-			Owner:   ownerService,
-		},
-		{
-			Name:    RequestsTotal,
-			Unit:    UnitDimensionless,
-			Kind:    Counter,
-			Formula: "soma das operações do serviço por categoria de desfecho",
-			Labels:  []string{KeyService, KeyOperation, KeyOutcomeCategory},
-			Owner:   ownerService,
-		},
-		{
-			Name:    ErrorsTotal,
-			Unit:    UnitDimensionless,
-			Kind:    Counter,
-			Formula: "soma das operações que falharam tecnicamente, por categoria de erro",
-			Labels:  []string{KeyService, KeyOperation, KeyErrorCategory},
+			Labels:  []string{KeyOperation, KeyOutcomeCategory, KeyErrorType},
 			Owner:   ownerService,
 		},
 		{
 			Name:    DegradedTotal,
-			Unit:    UnitDimensionless,
+			Unit:    UnitResponse,
 			Kind:    Counter,
 			Formula: "soma das respostas entregues em modo degradado",
 			Labels:  []string{KeyDependency},
@@ -137,7 +127,7 @@ func Catalog() []Metric {
 		},
 		{
 			Name:    OmittedTotal,
-			Unit:    UnitDimensionless,
+			Unit:    UnitResponse,
 			Kind:    Counter,
 			Formula: "soma das dependências omitidas da resposta por decisão de degradação",
 			Labels:  []string{KeyDependency},
@@ -145,18 +135,10 @@ func Catalog() []Metric {
 		},
 		{
 			Name:    BulkheadRejectionsTotal,
-			Unit:    UnitDimensionless,
+			Unit:    UnitCall,
 			Kind:    Counter,
 			Formula: "soma das chamadas recusadas por saturação do bulkhead",
 			Labels:  []string{KeyDependency},
-			Owner:   ownerService,
-		},
-		{
-			Name:    SpansDroppedTotal,
-			Unit:    UnitDimensionless,
-			Kind:    Counter,
-			Formula: "soma dos spans descartados pelo processador por fila cheia",
-			Labels:  []string{KeyService},
 			Owner:   ownerService,
 		},
 		{
@@ -164,23 +146,21 @@ func Catalog() []Metric {
 			Unit:    UnitDimensionless,
 			Kind:    Gauge,
 			Formula: "ocupação média do pool de trabalho na janela dividida pela capacidade declarada (razão)",
-			Labels:  []string{KeyService},
 			Owner:   ownerService,
 		},
 		{
 			Name:    QueueDepth,
-			Unit:    UnitDimensionless,
+			Unit:    UnitMessage,
 			Kind:    Gauge,
 			Formula: "profundidade atual da fila interna de trabalho (contagem)",
-			Labels:  []string{KeyService},
 			Owner:   ownerService,
 		},
 		{
 			Name:    AdmissionRejectionsTotal,
-			Unit:    UnitDimensionless,
+			Unit:    UnitRequest,
 			Kind:    Counter,
 			Formula: "soma das recusas por admissão, por rota e por tenant declarado na allowlist",
-			Labels:  []string{KeyRoute, KeyTenant},
+			Labels:  []string{KeyRoute, KeyRPCMethod, KeyTenant},
 			Owner:   ownerService,
 		},
 	}

@@ -4,17 +4,20 @@ package kafka
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"math/rand/v2"
 	"sync"
 	"sync/atomic"
 
 	"github.com/twmb/franz-go/pkg/kgo"
+	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/clock"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/tracing"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/attempt"
 )
+
+const keyQueuedBehind = "dmpf.consumer.queued_behind"
 
 // partitionWorker processes the records of one partition in order (KFK-09):
 // one goroutine, one queue, one cursor, cancelled on revocation (TRP-48). A
@@ -92,6 +95,7 @@ func (w *partitionWorker) stop() {
 
 func (w *partitionWorker) run() {
 	defer close(w.done)
+	defer w.consumer.fault.catch()
 	for {
 		select {
 		case <-w.ctx.Done():
@@ -164,15 +168,9 @@ func (w *partitionWorker) process(record *kgo.Record) {
 
 		switch ack.decision() {
 		case acked:
-			if err == nil {
-				w.consumer.Config.logger().LogAttrs(w.ctx, slog.LevelDebug, "kafka: record processed",
-					slog.String("topic", w.key.topic), slog.Int("partition", int(w.key.partition)), slog.Int64("offset", record.Offset),
-					slog.Int("attempt", attemptNo))
-			}
 			if err != nil {
-				w.consumer.Config.logger().WarnContext(w.ctx, "kafka: sink acknowledged with an error",
-					slog.String("topic", w.key.topic), slog.Int("partition", int(w.key.partition)), slog.Int64("offset", record.Offset),
-					slog.Int("attempt", attemptNo), slog.String("error_category", categoryOf(err)))
+				w.consumer.logger().WarnContext(w.ctx, "kafka: sink acknowledged with an error",
+					w.recordKeys(record), slog.Int(tracing.KeyInboxAttempt, attemptNo), errorAttr(err))
 			}
 			w.mu.Lock()
 			w.cursor.Mark(record.Offset)
@@ -205,7 +203,7 @@ func (w *partitionWorker) process(record *kgo.Record) {
 func (w *partitionWorker) handle(ctx context.Context, record *kgo.Record, attemptNo int, ack *acknowledger) (err error) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
-			err = fmt.Errorf("%w: %v", ErrSinkPanicked, recovered)
+			err = ErrSinkPanicked
 		}
 	}()
 	return w.consumer.Sink.Handle(attempt.WithContext(ctx, attemptNo), record.Value, attemptNo, ack)
@@ -237,9 +235,8 @@ func (w *partitionWorker) stall(record *kgo.Record, attemptNo int, why string, c
 	if pause {
 		w.client.PauseFetchPartitions(w.partitions())
 	}
-	w.consumer.Config.logger().ErrorContext(w.ctx, "kafka: "+why,
-		slog.String("topic", w.key.topic), slog.Int("partition", int(w.key.partition)), slog.Int64("offset", record.Offset),
-		slog.Int("attempts", attemptNo), slog.Int("queued_behind", queued), slog.String("error_category", categoryOf(cause)))
+	w.consumer.logger().ErrorContext(w.ctx, "kafka: "+why,
+		w.recordKeys(record), slog.Int(tracing.KeyInboxAttempt, attemptNo), slog.Int(keyQueuedBehind, queued), errorAttr(cause))
 }
 
 func (w *partitionWorker) pauseForBackoff() {
@@ -279,10 +276,12 @@ func (w *partitionWorker) commitContiguous(ctx context.Context, cl client, final
 		return
 	}
 	if err := cl.CommitRecords(ctx, record); err != nil {
-		w.consumer.Config.logger().ErrorContext(ctx, "kafka: offset commit failed",
-			slog.String("topic", w.key.topic), slog.Int("partition", int(w.key.partition)),
-			slog.Int64("offset", record.Offset), slog.String("error_category", categoryOf(err)))
+		w.consumer.logger().ErrorContext(ctx, "kafka: offset commit failed", w.recordKeys(record), errorAttr(err))
 	}
+}
+
+func (w *partitionWorker) recordKeys(record *kgo.Record) slog.Attr {
+	return slog.Group("", partitionKeys(w.key.topic, w.key.partition), slog.Int64(string(semconv.MessagingKafkaOffsetKey), record.Offset))
 }
 
 // Pending reports the records of the partition tracked and not yet committed.

@@ -5,7 +5,7 @@ title: DMPF KRN-12.2h — Harness de agentes para criar bounded contexts (AI SDD
 stage: done
 priority: P2
 depends_on: [SPEC-H1A190Y8, SPEC-XMNBMY50]
-ticket_url: null
+ticket_url: https://linear.app/mmda/issue/DEVS-54/spec-vdp9xx65-dmpf-krn-122h-harness-de-agentes-para-criar-bounded
 subtask_urls: []
 created: 2026-09-09
 ---

@@ -59,9 +59,23 @@ Na prática: o tip mergeado em `release` deve ser o tip (ou o merge commit) que 
 foi validado em `develop`, sem reeditar os mesmos arquivos "de outro jeito".
 
 O `create-release.yml` automatiza a criação da branch `release/X.Y.Z`: ele calcula
-o próximo número a partir das releases já mergeadas em `master`, deriva o
-incremento dos commits em `origin/master..origin/develop` e abre o PR de release
-com `gh pr create`.
+o próximo número a partir das releases já mergeadas em `master` e deriva o
+incremento dos commits em `origin/master..origin/develop`. A branch nasce igual a
+`master`, e o GitHub não abre PR sem commits; por isso o `release-pr.yml` abre o PR
+de release no primeiro push que leva commits à branch, e não duplica PR já aberto.
+
+### Pré-release
+
+Uma branch de release com sufixo de pré-release, como `release/1.0.0-rc.0`, fixa a
+versão de todos os projetos versionados. No merge em `master`, o `nx-release.yml`
+roda `nx release <versão>` em vez de derivar o incremento dos commits. O
+`create-release.yml` só calcula versões sem sufixo, então essa branch é criada à
+mão a partir de `master`.
+
+Antes de promovê-la, suba para a mesma versão o `require` de cada irmão nos
+`go.mod` e o `replace` correspondente no `go.work` (o `modsync --write` regrava o
+`go.work` a partir dos `go.mod`). Sem isso, o consumidor de fora do workspace
+recebe os irmãos na versão anterior, como registra o ADR-047.
 
 ### Release do produto DMPF
 
@@ -109,8 +123,10 @@ pnpm nx affected -t lint typecheck test build   # apenas o que mudou
 pnpm nx run-many -t lint typecheck test build    # tudo
 ```
 
-O hook de `pre-commit` roda `biome check --write` nos arquivos em stage; o de
-`pre-push` roda `lint`, `typecheck`, `test` e `build` nos projetos afetados.
+O hook de `pre-commit` roda `biome check --write` e `gofmt -l` nos arquivos em
+stage; o de `pre-push` roda `lint`, `typecheck`, `test`, `build`, `fmt-check`,
+`vet` e `test-race` nos projetos afetados pelo que o push leva — a base é o que
+o remoto já tem, e uma branch sem upstream compara com `origin/develop`.
 
 ## Padrões de código
 

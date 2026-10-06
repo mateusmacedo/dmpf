@@ -495,8 +495,8 @@ com um sistema externo o converteria de volta, com perda.
 | `partitionkey` | `String` | obrigatório | Chave lógica de ordenação e distribuição |
 | `aggregateversion` | `Integer` | condicional — obrigatório quando o fato deriva de agregado versionado; ausente quando não deriva | Detecção de ordem e de concorrência (FND-04 §4.1) |
 | `tenantid` | `String` | condicional — §3.4 | Isolamento multi-tenant |
-| `traceparent` | `String` | obrigatório | Contexto de propagação W3C Trace Context |
-| `tracestate` | `String` | condicional — presente quando houver estado de vendor a propagar; ausente quando não houver | Estado adicional de propagação W3C |
+| `traceparent` | `String` | obrigatório | Contexto de criação da mensagem, em W3C Trace Context — o *creation context* das convenções de mensageria do OpenTelemetry, que a extensão *Distributed Tracing* carrega, não o de cada salto. Gravado uma vez pelo produtor e imutável até o consumidor: nenhum intermediário, o relay incluído, o reescreve, e nenhum header de transporte o substitui; a telemetria ligada a ele é de FND-08 §5.4 |
+| `tracestate` | `String` | condicional — presente quando houver estado de vendor a propagar; ausente quando não houver | Estado adicional de propagação W3C do contexto de criação; imutável como o `traceparent` |
 
 `normativo` — **`time` é o instante do fato, e essa distinção é normativa.** Um
 produtor que preencha `time` com o momento da serialização ou da publicação
@@ -1935,3 +1935,11 @@ wire — quem o produz, quando, com que garantia e sob qual observação. As dua
 defesas contra isso são estruturais e estão no início do texto: a regra do sujeito
 da norma (§1.3) e a tabela de fronteiras com dona nomeada (§1.4). Ambas existem
 para tornar o excesso visível na revisão, que é onde M4 se aplica na prática.
+
+## Nota de revogação (ADR-058)
+
+[ADR-058](../adr/058-projeto-solo-sem-controles-de-segunda-pessoa.md), de
+2026-10-04, revoga em parte o §6.4: neste repositório não há marcador de
+baseline nem autorização de segunda pessoa. O módulo com pacote publicado em
+`NX_BASE` está em `baseline estabelecido`, e o que não tem fica em `sem
+baseline`.

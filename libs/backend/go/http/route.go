@@ -35,6 +35,8 @@ var (
 	// ErrPermissionRequired is an inbound route that demands a subject and
 	// declares no permission: the edge would deny every call it serves (IDN-17).
 	ErrPermissionRequired = errors.New("http: inbound route demanding a subject declares no permission (IDN-16)")
+
+	ErrIdempotencyKeyRequired = errors.New("http: inbound POST route declares no idempotency key (RST-02)")
 )
 
 // Requirement is what an operation declares it needs resolved in the execution
@@ -107,13 +109,16 @@ func (r Route) Validate() error {
 }
 
 // ValidateEdge is Validate for an inbound route, which also declares the
-// permission its subject needs (IDN-16).
+// permission its subject needs (IDN-16) and, for POST, the idempotency key (RST-02).
 func (r Route) ValidateEdge() error {
 	if err := r.Validate(); err != nil {
 		return err
 	}
 	if r.RequiresSubject() && r.Permission == "" {
 		return fmt.Errorf("%w: %s", ErrPermissionRequired, r.Name)
+	}
+	if r.Method == http.MethodPost && r.IdempotencyKey == "" {
+		return fmt.Errorf("%w: %s", ErrIdempotencyKeyRequired, r.Name)
 	}
 	return nil
 }

@@ -31,6 +31,9 @@ paths:
       responses:
         '201':
           description: Booking reserved
+          headers:
+            Idempotent-Replayed:
+              $ref: '#/components/headers/IdempotentReplayed'
           content:
             application/json:
               schema:
@@ -40,7 +43,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
-          $ref: '#/components/responses/VersionConflict'
+          $ref: '#/components/responses/ReserveConflict'
         '422':
           $ref: '#/components/responses/Rejected'
         '429':
@@ -115,6 +118,9 @@ paths:
       responses:
         '200':
           description: Booking cancelled
+          headers:
+            Idempotent-Replayed:
+              $ref: '#/components/headers/IdempotentReplayed'
           content:
             application/json:
               schema:
@@ -151,6 +157,9 @@ paths:
       responses:
         '201':
           description: Resource registered
+          headers:
+            Idempotent-Replayed:
+              $ref: '#/components/headers/IdempotentReplayed'
           content:
             application/json:
               schema:
@@ -207,11 +216,19 @@ components:
       in: header
       required: true
       description: >-
-        Client-chosen key that makes the POST idempotent (RST-02). A POST
-        without it is refused with 400 before the service runs.
+        Client-chosen key that makes the POST idempotent (RST-02, FND-04 §7.6).
+        A POST without it, or with a key outside this format, is refused with
+        400 before any call to the context. The edge scopes the key to the
+        authenticated subject. Within 24h, the same key with the same request
+        answers the stored response, marked by the Idempotent-Replayed header;
+        with another request it is refused with 422 reused-idempotency-key, and
+        while the first request is still in progress with 409
+        in-flight-idempotency-key.
       schema:
         type: string
         minLength: 1
+        maxLength: 128
+        pattern: '^[A-Za-z0-9._-]{1,128}$'
     CorrelationID:
       name: X-Correlation-ID
       in: header
@@ -297,11 +314,27 @@ components:
       properties:
         code:
           type: string
+          examples:
+            - resource-scheduling/booking/not-reserved
+            - missing-idempotency-key
+            - invalid-idempotency-key
+            - reused-idempotency-key
+            - in-flight-idempotency-key
+            - already-exists
         message:
           type: string
+  headers:
+    IdempotentReplayed:
+      description: >-
+        Present with the value true when the answer is the stored response of
+        an earlier request with the same Idempotency-Key (IDM-08); absent on the
+        first answer.
+      schema:
+        type: string
+        enum: ['true']
   responses:
     BadRequest:
-      description: The request is malformed or misses Idempotency-Key
+      description: The request is malformed or misses Idempotency-Key, or carries it outside its format
       content:
         application/json:
           schema:
@@ -313,13 +346,30 @@ components:
           schema:
             $ref: '#/components/schemas/Rejection'
     VersionConflict:
-      description: A concurrent write advanced the aggregate; replay the request
+      description: >-
+        A concurrent write advanced the aggregate (replay the request), or a request with the same
+        Idempotency-Key is still in progress (in-flight-idempotency-key)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Rejection'
+    ReserveConflict:
+      description: >-
+        The booking already exists (already-exists), a request with the same
+        Idempotency-Key is still in progress (in-flight-idempotency-key), or a
+        concurrent reservation of the same booking won; replay the request
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/Rejection'
     Rejected:
-      description: The domain refused the command (a business rejection, not a failure)
+      description: >-
+        The domain refused the command (a business rejection, not a failure), or
+        the Idempotency-Key was already used with another request
+        (reused-idempotency-key)
+      headers:
+        Idempotent-Replayed:
+          $ref: '#/components/headers/IdempotentReplayed'
       content:
         application/json:
           schema:

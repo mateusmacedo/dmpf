@@ -4,6 +4,8 @@
 
 Aceito — 2026-09-03. Implementa SPEC-WYX5GW87 (`KRN-05`, ARQ-524). **Parcialmente supersedido pelo [ADR-054](./054-apps-autocontidos-e-infras-separadas.md) (2026-09-28)**: `contracts/` deixa de ser o módulo Buf único; o kernel tem `proto/` e Buf em `libs/backend/go/contracts`, e cada contexto publica o contrato no módulo `apps/backend/<ctx>/contract`, com `buf.yaml` e `buf.gen.yaml` próprios. O gate Buf passa a rodar por módulo e por pacote.
 
+**Parcialmente supersedido pelo [ADR-058](./058-projeto-solo-sem-controles-de-segunda-pessoa.md) (2026-10-04)**: a marca de baseline e a criação dela por uma segunda pessoa deixam de existir; o estado do módulo vem de `NX_BASE`.
+
 ## Contexto
 
 A norma `docs/dmpf/cloudevents-protobuf-buf.md` (FND-05) descreve o bloco

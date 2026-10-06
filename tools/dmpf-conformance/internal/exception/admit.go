@@ -115,13 +115,6 @@ func convergenceDiagnostics(x Exception) []rule.Diagnostic {
 		if c.ReviewBy == 0 {
 			out = append(out, add("convergence review sem review_by"))
 		}
-		// Aprovação dual: uma só autoridade decidindo sobre a própria dívida é
-		// o que o ramo de revisão existe para impedir.
-		for _, required := range []Approver{ApproverArchitecture, ApproverPlatform} {
-			if !slices.Contains(c.ApprovedBy, required) {
-				out = append(out, add(fmt.Sprintf("convergence review sem aprovação de %s", required)))
-			}
-		}
 		if strings.TrimSpace(c.ReplanningCondition) == "" {
 			out = append(out, add("convergence review sem replanning_condition"))
 		}

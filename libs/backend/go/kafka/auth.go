@@ -4,10 +4,13 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"log/slog"
 	"os"
 
 	"github.com/twmb/franz-go/pkg/sasl"
 	"github.com/twmb/franz-go/pkg/sasl/scram"
+
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/redact"
 )
 
 const (
@@ -45,6 +48,41 @@ type ClientAuth struct {
 	CAFile   string
 }
 
+func (a ClientAuth) LogValue() slog.Value {
+	mechanism, username, password := unset, unset, unset
+	if a.SASL != nil {
+		mechanism = orUnset(a.SASL.Mechanism)
+		username = presence(a.SASL.Username)
+		if a.SASL.Password != "" {
+			password = redact.Placeholder
+		}
+	}
+	return slog.GroupValue(
+		slog.String("sasl_mechanism", mechanism),
+		slog.String("sasl_username", username),
+		slog.String("sasl_password", password),
+		slog.String("cert_file", orUnset(a.CertFile)),
+		slog.String("key_file", presence(a.KeyFile)),
+		slog.String("ca_file", orUnset(a.CAFile)),
+	)
+}
+
+const unset = "unset"
+
+func presence(value string) string {
+	if value == "" {
+		return unset
+	}
+	return "set"
+}
+
+func orUnset(value string) string {
+	if value == "" {
+		return unset
+	}
+	return value
+}
+
 // ReadClientAuth resolves the declaration from the environment, so the three
 // processes that talk to Kafka read it the same way.
 func ReadClientAuth(lookup func(string) string) ClientAuth {
@@ -57,6 +95,15 @@ func ReadClientAuth(lookup func(string) string) ClientAuth {
 		auth.SASL = &SASL{Mechanism: mechanism, Username: lookup("KAFKA_SASL_USERNAME"), Password: lookup("KAFKA_SASL_PASSWORD")}
 	}
 	return auth
+}
+
+// Missing is the requirement of IDN-04 on a role that talks to the broker: with
+// TLS on, the client authenticates; only the insecure opt-out waives it.
+func (a ClientAuth) Missing(insecure bool) []string {
+	if !insecure && a.SASL == nil && a.CertFile == "" {
+		return []string{"KAFKA_SASL_MECHANISM or KAFKA_CLIENT_CERT_FILE"}
+	}
+	return nil
 }
 
 // apply puts the declaration on the configuration. SASL is kept without TLS

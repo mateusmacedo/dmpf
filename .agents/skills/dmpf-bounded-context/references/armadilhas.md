@@ -126,3 +126,11 @@ golden for regenerado e algo novo morder, a entrada nova vem para cá.
     criação de banco em `infra/` e `.github/workflows`: banco e role com o nome
     da app, ou o par administrativo `postgres`. Um contexto novo sem entrada no
     `postgres-init` e no job de databases reprova ali.
+10. **O `app/rpc` gerado nasce sem teste.** O mapeamento de erro é o
+    `kernelgrpc.StatusOf` do kernel, e o generator não emite mais o
+    `errors.go` nem o teste dele. Package de produção sem `_test.go` faz o
+    `go test -json` emitir `skip`, e a evidência reprova sob CI (ADR-048): o
+    autor escreve o `service_test.go` do contexto, como o golden `bookings`.
+11. **`SnapshotTable` grava o que o `to` devolve.** Uma fatia nula no struct
+    de estado vira `null` no `jsonb`, e não `[]`: o `to` monta a fatia com
+    `make(..., 0, len)` para as linhas já gravadas continuarem iguais.

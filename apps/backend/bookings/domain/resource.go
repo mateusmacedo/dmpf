@@ -33,18 +33,18 @@ func (r *Resource) clone() Resource {
 }
 
 func (r *Resource) Register(cmd RegisterResource) (kernel.Accepted[RegisteredResponse], *kernel.Rejection) {
-	next := r.clone()
-	if cmd.Code == "" {
-		return kernel.Accepted[RegisteredResponse]{}, kernel.Reject(CodeResourceCodeEmpty, "code must not be empty")
-	}
-	// WHY: spec says "when present: accept without changing or emitting".
-	if next.registeredAt != 0 {
-		return kernel.Accept(RegisteredResponse{Code: r.code}), nil
-	}
-	next.registeredAt = cmd.At
-	*r = next
-	return kernel.Accept(
-		RegisteredResponse{Code: r.code},
-		ResourceRegistered{Code: r.code, At: cmd.At},
-	), nil
+	return kernel.DecideOver(r, (*Resource).clone, func(next *Resource) (kernel.Accepted[RegisteredResponse], *kernel.Rejection) {
+		if cmd.Code == "" {
+			return kernel.Refuse[RegisteredResponse](CodeResourceCodeEmpty, "code must not be empty")
+		}
+		// WHY: spec says "when present: accept without changing or emitting".
+		if next.registeredAt != 0 {
+			return kernel.Accept(RegisteredResponse{Code: next.code}), nil
+		}
+		next.registeredAt = cmd.At
+		return kernel.Accept(
+			RegisteredResponse{Code: next.code},
+			ResourceRegistered{Code: next.code, At: cmd.At},
+		), nil
+	})
 }

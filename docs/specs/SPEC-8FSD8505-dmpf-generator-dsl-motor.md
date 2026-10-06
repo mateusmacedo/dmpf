@@ -5,7 +5,7 @@ title: DMPF KRN-12.2a — DSL de domínio e motor do generator bounded-context
 stage: deferred
 priority: P2
 depends_on: [SPEC-H1A190Y8]
-ticket_url: null
+ticket_url: https://linear.app/mmda/issue/DEVS-53/spec-8fsd8505-dmpf-krn-122a-dsl-de-dominio-e-motor-do-generator
 subtask_urls: []
 created: 2026-09-09
 ---

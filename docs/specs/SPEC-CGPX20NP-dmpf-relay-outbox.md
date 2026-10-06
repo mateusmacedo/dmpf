@@ -5,7 +5,7 @@ title: DMPF KRN-08 — Relay da outbox: claim por lease, publicação e sinais
 stage: done
 priority: P0
 depends_on: [SPEC-ZHE7DN1H, SPEC-WYX5GW87, SPEC-3R80KNMS]
-ticket_url: null
+ticket_url: https://linear.app/mmda/issue/DEVS-45/spec-cgpx20np-dmpf-krn-08-relay-da-outbox-claim-por-lease-publicacao-e
 subtask_urls: []
 created: 2026-09-05
 ---

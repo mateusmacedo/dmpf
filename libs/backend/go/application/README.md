@@ -23,7 +23,7 @@ Import path do módulo:
 
 | Package | Unidade DMPF | Bloco | Conteúdo |
 | --- | --- | --- | --- |
-| `application` (raiz) | `kernel/application` | `application` | `Outcome[R]`, `Accepted`, `Rejected`; `Identity`, `ResolveIdentity`; `Authorize[C]`, `AllowAll[C]`, `Permitted[C]`; `MessageContextFor`; `Disposition` (as sete de FND-04 §6.4), `Category`, `Failure`, `Classify` |
+| `application` (raiz) | `kernel/application` | `application` | `Outcome[R]`, `Accepted`, `Rejected`, `Outcome.Category`; `Executor[Res, Op]`, `Command[Res, Op, R]`, `Execute`; `Loader[ID, S, A]`, `OrNew`, `Existing`, `Absent`, `Decide`; `Origin`, `Enqueue`; `Query[Op, S]`; `Identity`, `ResolveIdentity`; `Authorize[C]`, `AllowAll[C]`, `Permitted[C]`; `MessageContextFor`; `Disposition` (as sete de FND-04 §6.4), `Category`, `Failure`, `Classify`; `Fingerprint`, `NewFingerprint`; `OutcomeCodec[R]`, `Encoder`, `Decoder`, `EncodeOutcome`, `DecodeOutcome`, `ErrOutcomeUnreadable`; `IdempotencyPolicy`, `IdempotentCommand[R]`, `RunIdempotent`, `ErrIncompleteCommand` |
 
 Uma unidade só, com `bounded_context: kernel`; em Go, a unidade de verificação
 é o package (RFC §3.3). Os packages que este módulo carregava como
@@ -121,25 +121,37 @@ resp := out.Response() // domain.ItemAccepted
 
 ## Os nove passos, e onde cada um está no código
 
-A sequência do FND-04 §3.2 não é comentada por número no código: ela é legível
-nas próprias chamadas. O mapa está aqui; os arquivos são os de
-`apps/backend/orders/application`.
+A sequência do FND-04 §3.2 vive em dois esqueletos deste módulo. `Execute`
+(`execute.go`) fixa os passos 1 a 3, 8 e 9 e a auditoria; `Decide`
+(`decide.go`) fixa os passos 4 a 7. O contexto declara só os ganchos: o
+`Executor` do serviço, montado por `Service.executor()`, e, por comando, o
+`Command` com a operação, o objeto auditado, a entrada, o `Fingerprint`, o codec
+e o `Run`, que chama `Decide` com o `Loader` e a decisão de domínio. `Decide`
+só aceita agregado por ponteiro: sobre um valor, a decisão mudaria uma cópia e o
+`Save` gravaria o estado anterior ao evento.
 
 | Passo | Onde | O que acontece |
 | --- | --- | --- |
-| 1. autorizar | `add_item.go`, `s.Authorize(ctx, cmd)` | Erro interrompe antes de qualquer resolução ou transação |
-| 2. resolver identidade | `add_item.go`, `application.ResolveIdentity(s.Clock, s.IDs, maxEventsPerCommand)` | Uma leitura de relógio e um identificador por evento possível, **antes** de `Within` |
-| 3. abrir a UoW | `add_item.go`, `s.UoW.Within(ctx, func(...) error {` | Uma transação sobre um recurso |
-| 4. carregar | `add_item.go`, `s.loadOrCreate(...)` → `res.Orders.Load` | `ErrNotFound` vira `domain.NewOrder` com `expected == 0` |
-| 5. decidir | `add_item.go`, `order.AddItem(...)` | O único passo que ocorre no bloco `domain` |
-| 6. persistir | `add_item.go`, `res.Orders.Save(ctx, cmd.Order, order.Snapshot(), stored)` | Optimistic locking; grava como `stored + 1` |
-| 7. enfileirar | `service.go`, `enqueueAll(...)` → `res.Outbox.Enqueue` | Mesma transação do passo 6 |
-| 8. commitar | `add_item.go`, o retorno `nil` do callback | O commit é do `Within`, não do caso de uso |
-| 9. responder | `add_item.go`, `return outcome, nil` | `Outcome` no caminho de negócio, `error` no técnico |
+| 1. autorizar | `execute.go`, `x.Authorize(ctx, c.Input)` | Erro interrompe antes de qualquer resolução ou transação |
+| 2. resolver identidade | `execute.go`, `ResolveIdentity(x.Clock, x.IDs, x.MaxEvents)` | Uma leitura de relógio e um identificador por evento possível, **antes** de `Within` |
+| 3. abrir a UoW | `execute.go`, `x.UoW.Within(...)`, com `RunIdempotent` antes de qualquer outra instrução | Uma transação sobre um recurso |
+| 4. carregar | `decide.go`, o `Loader` do contexto sobre `repo.Load` | `OrNew` cria com `expected == 0` quando não acha; `Existing` exige o agregado; `Absent` exige que ele não exista |
+| 5. decidir | `decide.go`, o `decide` do contexto | O único passo que ocorre no bloco `domain` |
+| 6. persistir | `decide.go`, `repo.Save(ctx, id, aggregate.Snapshot(), stored)` | Optimistic locking; grava como `stored + 1` |
+| 7. enfileirar | `decide.go`, `Enqueue(...)` → `outbox.Enqueue` | Mesma transação do passo 6 |
+| 8. commitar | `execute.go`, o retorno `nil` do callback do `Within` | O commit é do `Within`, não do caso de uso |
+| 9. responder | `execute.go`, `return outcome, nil` | `Outcome` no caminho de negócio, `error` no técnico |
 
-`PlaceOrder` percorre os mesmos passos, com uma diferença no 4: só carrega. Um
-agregado ausente volta como `error` técnico embrulhado, não como rejeição —
-nenhuma UPR a produziu, e a categoria de borda é do FND-07.
+A escolha do `Loader` é do contexto. No `orders`, `AddItem` usa `OrNew` e
+`PlaceOrder` usa `Existing`: um agregado ausente volta como `error` técnico
+embrulhado, não como rejeição — nenhuma UPR a produziu, e a categoria de borda é
+do FND-07. `Absent` serve à criação que recusa o agregado existente com
+`ports.ErrAlreadyExists`, sem `Save` nem `Enqueue`.
+
+Os erros têm uma forma só nos três contextos. `Decide` devolve a falha de carga e
+a de `Save` sem prefixo e a de `Enqueue` como `enqueue: <causa>`; o caso de uso
+envolve tudo com `application: <operação> <id>: %w`. `Execute` devolve o erro
+sem embrulho e audita só quando nada foi reproduzido.
 
 Três detalhes que a norma fixa e o código realiza:
 
@@ -154,7 +166,12 @@ Três detalhes que a norma fixa e o código realiza:
   do `KRN-09`.
 
 `FindOrder` usa `s.Reader`, nunca `s.UoW`, e não toca a outbox: uma consulta não
-abre transação (`UOW-11`).
+abre transação (`UOW-11`). O esqueleto da consulta é `Query[Op, S]`: abre a
+operação, autoriza, chama o `load` do contexto e fecha com o desfecho. O erro do
+`load` volta intacto, então o prefixo da mensagem (`application: find order
+<id>: …`) continua do contexto. O chamador instancia o parâmetro de tipo
+(`usecase.Query[Operation](...)`), porque o Go não infere `Op` a partir do
+comando concreto.
 
 ## A autoria dos campos da outbox
 
@@ -170,16 +187,22 @@ o fato abre uma cadeia nova (FND-05). Neste exemplo `Destination` é
 `PartitionKey` é o identificador do pedido, para que fatos do mesmo agregado
 preservem ordem.
 
+Quem escreve esses campos é `Enqueue(ctx, outbox, identity, origin, written,
+events)`: uma entrada por evento, com `Origin{Destination, AggregateType,
+AggregateID}` e `AggregateID` também como `PartitionKey`. Mais eventos do que
+identificadores resolvidos é defeito de programação, e `Enqueue` entra em
+`panic` com a mensagem que manda aumentar `maxEventsPerCommand`.
+
 Campos de wire e de estado de drenagem não existem no tipo entregue à porta: os
 primeiros são do provider e do contrato, os segundos do schema e do relay.
 
 ## Instrumentação do caso de uso
 
 O serviço de aplicação tem o campo `Instrumentation ports.Instrumentation`.
-A ordem é fixa: abre a operação **antes** do passo 1 (autorização), o commit
-acontece, a operação é fechada com a categoria do desfecho, e só então sai a
-auditoria — com `Object`, `Action`, `Outcome` e o `OccurredAt` que a identidade
-da mensagem já resolveu. Um campo nulo vira `NoInstrumentation()`, e o serviço
+A ordem é fixa, e `Execute` a realiza: abre a operação **antes** do passo 1
+(autorização), o commit acontece, a operação é fechada com a categoria do
+desfecho, e só então sai a auditoria — com `Object`, `Action`, `Outcome` e o
+`OccurredAt` que a identidade da mensagem já resolveu. Um campo nulo vira `NoInstrumentation()`, e o serviço
 roda sem telemetria em vez de falhar.
 
 O span nasce aqui, no serviço de aplicação, e não no provider (`TRC-16`). O
@@ -202,12 +225,38 @@ Dois desfechos merecem atenção porque é fácil confundi-los:
 - **Negado** (`errors.Is(err, ports.ErrDenied)`) fecha a operação como
   `Denied` e **não** emite auditoria: nada foi acessado. Qualquer outro erro do
   autorizador é falha técnica e fecha como `Failed` — uma negação nunca é
-  inferida a partir de um erro que não a declarou.
+  inferida a partir de um erro que não a declarou. `ports.AuthorizationResult`
+  faz essa leitura, e `Outcome.Category` dá a categoria do desfecho aceito ou
+  rejeitado.
 - **Rejeitado** é o ramo recusante da UPR, e não é falha (`DEC-04`). Conta como
   requisição, nunca como erro, e a transação commita normalmente.
 
 Uma consulta (`FindOrder`) abre e fecha operação com classe de leitura e não
 deixa trilha: consultar não acessa nada auditável.
+
+## Comando pela inbox
+
+`RunIdempotent` é chamado dentro do `Within`, antes de qualquer outra escrita
+(`IDM-05`). Ele registra o comando na inbox do contexto e ramifica pela
+classificação:
+
+| Classificação | O que acontece |
+| --- | --- |
+| R1 | `Run` executa, e o desfecho, aceito ou recusado, é gravado pelo `OutcomeCodec` (`IDM-06`) |
+| R2, R3 | O desfecho gravado volta decodificado, com `replayed = true`, sem chamar `Run` (`IDM-08`) |
+| R4 | `ErrIdempotencyMismatch`: a mesma chave chegou com outro fingerprint (`IDM-04`) |
+| Espera estourada | `ErrIdempotencyInFlight` (`IDM-07`) |
+
+O fingerprint é a codificação canônica que `NewFingerprint` acumula: a operação e
+cada campo declarado, com tipo e tamanho. O SHA-256 dela entra por
+`IdempotencyPolicy.Digest`, que o composition root recebe de
+`app.IdempotencyPolicy`, porque o `depguard` deste bloco não admite
+`crypto/sha256`. Pelo mesmo motivo, os varints do codec são escritos aqui, com o
+layout de `encoding/binary`.
+
+Com `replayed`, o caso de uso não chama `Audit`: o efeito não aconteceu de novo.
+Um desfecho gravado ilegível é `ErrOutcomeUnreadable`, e o comando nunca executa
+no lugar dele.
 
 ## Garantias de entrega
 
@@ -270,7 +319,7 @@ lhe permite (`capability.go:47`), mas esta entrega não usa.
 pnpm nx run-many -t fmt-check,vet,lint,build,test,test-race,govulncheck -p application
 go -C libs/backend/go/application test -race -count=2 -shuffle=on ./...
 bash tools/dmpf-gate-check.sh
-go run ./tools/dmpf-conformance/cmd/conformance --root . --base origin/develop
+go run ./tools/dmpf-conformance/cmd/conformance --root .
 ```
 
 O `lint` aplica ao bloco a regra `application` do `.golangci.yml`, com
@@ -294,8 +343,7 @@ target `tidy`, que o plugin do Nx infere, **não** faz parte da cadeia.
 Criar um package novo aqui é criar uma unidade DMPF: ele precisa de entrada
 própria no `dmpf-units.json` (`include` por import path exato) e o baseline em
 `tools/dmpf-baseline/units-baseline.json` precisa ser regravado com
-`--write-baseline`. Essa mudança vai em commit separado do código (RFC §10.2);
-misturar os dois reprova no CI com `DMPF-T002`.
+`--write-baseline`; sem isso, o CI reprova com `DMPF-T001`.
 
 ## Referências
 

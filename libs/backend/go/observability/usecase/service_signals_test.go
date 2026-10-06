@@ -10,6 +10,7 @@ import (
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/audit"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/metrics"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/redact"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/usecase"
 )
 
@@ -30,7 +31,7 @@ func TestTheServiceSeriesCountByOperationAndOutcome(t *testing.T) {
 		operationFind + "/accepted": 1,
 	} {
 		if series[key] != want {
-			t.Errorf("%s{%s} = %d, want %d (MET-09)", metrics.RequestsTotal, key, series[key], want)
+			t.Errorf("%s{%s} count = %d, want %d (MET-09)", metrics.RequestDurationSeconds, key, series[key], want)
 		}
 	}
 
@@ -45,8 +46,6 @@ func TestTheServiceSeriesCountByOperationAndOutcome(t *testing.T) {
 	}
 }
 
-// durationSeries counts the observations of dmpf_service_request_duration_seconds
-// per operation.
 func (w *wiring) durationSeries(t *testing.T) map[string]uint64 {
 	t.Helper()
 
@@ -86,12 +85,14 @@ func TestARejectionCountsAsARequestAndNeverAsAnError(t *testing.T) {
 	}
 
 	if got := w.requestSeries(t)[operationBump+"/rejected"]; got != 1 {
-		t.Errorf("%s{rejected} = %d, want 1", metrics.RequestsTotal, got)
+		t.Errorf("%s{rejected} count = %d, want 1", metrics.RequestDurationSeconds, got)
 	}
-	if points := collect(t, w.reader)[metrics.ErrorsTotal]; len(points) != 0 {
-		t.Errorf("%s = %+v, want none: the refusing branch of the UPR is not a fault (DEC-04)",
-			metrics.ErrorsTotal, points)
+	for _, point := range durationPoints(t, w.reader) {
+		if errorType, labelled := labelsOf(point.Attributes)[metrics.KeyErrorType]; labelled {
+			t.Errorf("error.type = %q, want none: the refusing branch of the UPR is not a fault (DEC-04)", errorType)
+		}
 	}
+	assertTheServiceSeriesAreGone(t, w.reader)
 }
 
 func TestATechnicalFailureCountsUnderItsCategory(t *testing.T) {
@@ -103,17 +104,18 @@ func TestATechnicalFailureCountsUnderItsCategory(t *testing.T) {
 		t.Fatal("Bump() error = nil, want the authorizer failure")
 	}
 
-	points := collect(t, w.reader)[metrics.ErrorsTotal]
-	if len(points) != 1 || points[0].Value != 1 {
-		t.Fatalf("%s = %+v, want a single point of 1 (MET-10)", metrics.ErrorsTotal, points)
+	points := durationPoints(t, w.reader)
+	if len(points) != 1 || points[0].Count != 1 {
+		t.Fatalf("%s = %+v, want a single point of 1 (MET-10)", metrics.RequestDurationSeconds, points)
 	}
-	labels := labelsOf(points[0])
-	if labels[metrics.KeyErrorCategory] != "storage" || labels[metrics.KeyOperation] != operationBump {
+	labels := labelsOf(points[0].Attributes)
+	if labels[metrics.KeyErrorType] != "storage" || labels[metrics.KeyOperation] != operationBump {
 		t.Errorf("labels = %v, want the injected category with the operation", labels)
 	}
 	if got := w.requestSeries(t)[operationBump+"/failed"]; got != 1 {
-		t.Errorf("%s{failed} = %d, want the failure counted as a request too", metrics.RequestsTotal, got)
+		t.Errorf("%s{failed} count = %d, want the failure counted as a request too", metrics.RequestDurationSeconds, got)
 	}
+	assertTheServiceSeriesAreGone(t, w.reader)
 }
 
 // LOG-14: the audit trail is a channel of its own. A record that also went to
@@ -161,8 +163,8 @@ func TestAPersonalIdentifierInAFailureLeavesThroughNoChannel(t *testing.T) {
 		}
 	}
 
-	for _, point := range collect(t, w.reader)[metrics.ErrorsTotal] {
-		for key, value := range labelsOf(point) {
+	for _, point := range durationPoints(t, w.reader) {
+		for key, value := range labelsOf(point.Attributes) {
 			if strings.Contains(value, "123.456") {
 				t.Errorf("label %s = %q carries the identifier (MET-07)", key, value)
 			}
@@ -210,8 +212,11 @@ func TestAFailingAuditSinkIsReportedByCategoryAndNeverByMessage(t *testing.T) {
 	}
 
 	record := records[0]
-	if record["error_category"] != "audit_sink" {
-		t.Errorf("error_category = %v, want %q", record["error_category"], "audit_sink")
+	if record[redact.KeyErrorType] != redact.CategoryUnclassified {
+		t.Errorf("%s = %v, want %q: the failure of the sink by redact.Error (RF-A3)", redact.KeyErrorType, record[redact.KeyErrorType], redact.CategoryUnclassified)
+	}
+	if record["dmpf.audit.action"] != operationBump {
+		t.Errorf("dmpf.audit.action = %v, want %q past the processor (RF-A3)", record["dmpf.audit.action"], operationBump)
 	}
 	for key, value := range record {
 		if text, isText := value.(string); isText && strings.Contains(text, "123.456") {

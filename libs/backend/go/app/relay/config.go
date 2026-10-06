@@ -3,8 +3,14 @@ package relay
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"math/rand/v2"
 	"time"
+
+	"go.opentelemetry.io/otel/log"
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/noop"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
@@ -43,6 +49,12 @@ type Config struct {
 	// ShutdownGrace bounds the writes that run detached from the caller's
 	// cancellation; zero falls back to the block's own deadline.
 	ShutdownGrace time.Duration
+
+	Tracer         trace.Tracer
+	MeterProvider  metric.MeterProvider
+	System         string
+	Address        func(destination string) string
+	LoggerProvider log.LoggerProvider
 }
 
 // Validate refuses the values that cannot produce a working loop. A lease that
@@ -70,6 +82,20 @@ func (c Config) Validate() error {
 	return nil
 }
 
+func (c Config) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.String("source", c.Source),
+		slog.String("interval", c.Interval.String()),
+		slog.Int("batch_size", c.BatchSize),
+		slog.String("lease", c.Lease.String()),
+		slog.Int("concurrency", c.Concurrency),
+		slog.Int("max_attempts", c.MaxAttempts),
+		slog.String("backoff_base", c.BackoffBase.String()),
+		slog.String("backoff_ceiling", c.BackoffCeiling.String()),
+		slog.String("shutdown_grace", c.ShutdownGrace.String()),
+	)
+}
+
 // New assembles the relay and validates at startup rather than at the first
 // scan: a process configured wrong should refuse to start, not drain half a
 // batch and then discover it.
@@ -80,19 +106,28 @@ func New(store Store, publisher Publisher, ids ClaimIDs, clock ports.Clock, conf
 	if err := config.Validate(); err != nil {
 		return Relay{}, err
 	}
+	tracer := config.Tracer
+	if tracer == nil {
+		tracer = noop.NewTracerProvider().Tracer("")
+	}
 
 	return Relay{
-		Store:         store,
-		Publisher:     publisher,
-		ClaimIDs:      ids,
-		Clock:         clock,
-		Source:        config.Source,
-		Interval:      config.Interval,
-		BatchSize:     config.BatchSize,
-		Lease:         config.Lease,
-		Concurrency:   config.Concurrency,
-		MaxAttempts:   config.MaxAttempts,
-		ShutdownGrace: config.ShutdownGrace,
-		Backoff:       ExponentialBackoff(config.BackoffBase, config.BackoffCeiling, rand.Float64),
+		Store:          store,
+		Publisher:      publisher,
+		ClaimIDs:       ids,
+		Clock:          clock,
+		Source:         config.Source,
+		Interval:       config.Interval,
+		BatchSize:      config.BatchSize,
+		Lease:          config.Lease,
+		Concurrency:    config.Concurrency,
+		MaxAttempts:    config.MaxAttempts,
+		ShutdownGrace:  config.ShutdownGrace,
+		Backoff:        ExponentialBackoff(config.BackoffBase, config.BackoffCeiling, rand.Float64),
+		Tracer:         tracer,
+		MeterProvider:  config.MeterProvider,
+		System:         config.System,
+		Address:        config.Address,
+		LoggerProvider: config.LoggerProvider,
 	}, nil
 }

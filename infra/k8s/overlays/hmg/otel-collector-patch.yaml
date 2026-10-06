@@ -1,0 +1,18 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: otel-collector
+spec:
+  template:
+    spec:
+      containers:
+        - name: otel-collector
+          args: ['--config=/etc/otelcol/config.yaml', '--config=/etc/otelcol/tls.yaml']
+          volumeMounts:
+            - name: tls
+              mountPath: /etc/otelcol-tls
+              readOnly: true
+      volumes:
+        - name: tls
+          secret:
+            secretName: otel-collector-tls

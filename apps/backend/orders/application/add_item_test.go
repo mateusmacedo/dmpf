@@ -136,14 +136,14 @@ func TestAddItemRejectedCommitsWithoutWriting(t *testing.T) {
 	if got := h.store.Entries(); len(got) != 0 {
 		t.Fatalf("Entries() = %+v, want empty", got)
 	}
-	if got := h.serviceWithinCalls(); got != 1 {
+	if got := h.fakes.WithinCalls(); got != 1 {
 		t.Fatalf("transactions opened = %d, want 1", got)
 	}
-	if got := h.serviceCommits(); got != 1 {
+	if got := h.fakes.Commits(); got != 1 {
 		t.Fatalf("commits = %d, want 1 — the commit occurs under a refusal (UOW-05, UOW-06)", got)
 	}
-	if h.saves != 0 || h.enqueues != 0 {
-		t.Fatalf("a refusal wrote: saves = %d, enqueues = %d, want 0 and 0", h.saves, h.enqueues)
+	if h.saves != 0 || h.enqueues() != 0 {
+		t.Fatalf("a refusal wrote: saves = %d, enqueues = %d, want 0 and 0", h.saves, h.enqueues())
 	}
 }
 
@@ -177,14 +177,14 @@ func TestAddItemUnderAVersionConflictStopsBeforeTheOutbox(t *testing.T) {
 	if !errors.Is(err, ports.ErrVersionConflict) {
 		t.Fatalf("AddItem() error = %v, want ErrVersionConflict", err)
 	}
-	if h.binds != 1 {
-		t.Fatalf("the callback received resources %d times, want 1 — Within never repeats it (UOW-09)", h.binds)
+	if h.fakes.Binds() != 1 {
+		t.Fatalf("the callback received resources %d times, want 1 — Within never repeats it (UOW-09)", h.fakes.Binds())
 	}
 	if h.saves != 1 {
 		t.Fatalf("Save called %d times, want 1 — no retry (UOW-10)", h.saves)
 	}
-	if h.enqueues != 0 {
-		t.Fatalf("Enqueue called %d times, want 0 — the conflict stops before any outbox record", h.enqueues)
+	if h.enqueues() != 0 {
+		t.Fatalf("Enqueue called %d times, want 0 — the conflict stops before any outbox record", h.enqueues())
 	}
 	if got := h.store.Entries(); len(got) != 0 {
 		t.Fatalf("Entries() = %+v, want empty", got)

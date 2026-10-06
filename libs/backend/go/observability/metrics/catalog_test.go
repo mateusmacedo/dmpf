@@ -6,68 +6,116 @@ import (
 	"strings"
 	"testing"
 
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/metric/noop"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/metrics"
 )
 
-func TestTheCatalogueDeclaresTheMandatorySeriesTheLocalOnesAndTheServiceOnes(t *testing.T) {
-	want := []string{
-		metrics.RetriesTotal,
-		metrics.BudgetExhaustedTotal,
-		metrics.BreakerState,
-		metrics.DeadlineExceededTotal,
-		metrics.CancellationsTotal,
-		metrics.RequestDurationSeconds,
-		metrics.RequestsTotal,
-		metrics.ErrorsTotal,
-		metrics.DegradedTotal,
-		metrics.OmittedTotal,
-		metrics.BulkheadRejectionsTotal,
-		metrics.SpansDroppedTotal,
-		metrics.PoolUtilization,
-		metrics.QueueDepth,
-		metrics.AdmissionRejectionsTotal,
+func TestTheCatalogueDeclaresTheSeriesOfRFD1(t *testing.T) {
+	want := map[string]string{
+		metrics.RetriesTotal:             "dmpf.dependency.retries",
+		metrics.BudgetExhaustedTotal:     "dmpf.dependency.budget.exhausted",
+		metrics.BreakerState:             "dmpf.dependency.breaker.state",
+		metrics.DeadlineExceededTotal:    "dmpf.dependency.deadline_exceeded",
+		metrics.CancellationsTotal:       "dmpf.dependency.cancellations",
+		metrics.BulkheadRejectionsTotal:  "dmpf.dependency.bulkhead.rejections",
+		metrics.DegradedTotal:            "dmpf.dependency.degraded",
+		metrics.OmittedTotal:             "dmpf.dependency.omitted",
+		metrics.RequestDurationSeconds:   "dmpf.operation.duration",
+		metrics.AdmissionRejectionsTotal: "dmpf.admission.rejections",
+		metrics.PoolUtilization:          "dmpf.consumer.pool.utilization",
+		metrics.QueueDepth:               "dmpf.consumer.queue.depth",
+	}
+	for constant, name := range want {
+		if constant != name {
+			t.Errorf("series %q, want %q (RF-D1)", constant, name)
+		}
 	}
 
-	catalogue := metrics.Catalog()
-	if len(catalogue) != len(want) {
-		t.Fatalf("Catalog() has %d series, want %d", len(catalogue), len(want))
+	declared := map[string]bool{}
+	for _, m := range metrics.Catalog() {
+		declared[m.Name] = true
 	}
-
-	declared := make([]string, 0, len(catalogue))
-	for _, m := range catalogue {
-		declared = append(declared, m.Name)
+	if len(declared) != len(want) {
+		t.Errorf("Catalog() declares %d series, want the %d of RF-D1: %v", len(declared), len(want), declared)
 	}
 	for _, name := range want {
-		if !slices.Contains(declared, name) {
-			t.Errorf("series %q is missing from the catalogue (MET-02)", name)
+		if !declared[name] {
+			t.Errorf("series %q is missing from the catalogue (RF-D1)", name)
 		}
 	}
 }
 
-func TestEverySeriesNameCarriesThePlatformPrefix(t *testing.T) {
+func TestEverySeriesNameIsInTheOTelForm(t *testing.T) {
 	for _, m := range metrics.Catalog() {
-		if !strings.HasPrefix(m.Name, "dmpf_") {
-			t.Errorf("series %q does not carry the dmpf_ prefix", m.Name)
+		if !strings.HasPrefix(m.Name, "dmpf.") {
+			t.Errorf("series %q does not carry the dmpf. prefix", m.Name)
+		}
+		for _, suffix := range []string{"_total", "_seconds", "_ratio", "_count"} {
+			if strings.HasSuffix(m.Name, suffix) {
+				t.Errorf("series %q ends in %q: the exporter adds unit and type (RF-D1, MET-02)", m.Name, suffix)
+			}
+		}
+		if strings.ToLower(m.Name) != m.Name {
+			t.Errorf("series %q is not lower case", m.Name)
 		}
 	}
 }
 
-func TestEverySeriesDeclaresAFormulaAUnitAndAnOwner(t *testing.T) {
+func TestEverySeriesDeclaresItsUCUMUnit(t *testing.T) {
+	want := map[string]string{
+		metrics.RetriesTotal:             "{retry}",
+		metrics.BudgetExhaustedTotal:     "{execution}",
+		metrics.BreakerState:             "{state}",
+		metrics.DeadlineExceededTotal:    "{call}",
+		metrics.CancellationsTotal:       "{call}",
+		metrics.BulkheadRejectionsTotal:  "{call}",
+		metrics.DegradedTotal:            "{response}",
+		metrics.OmittedTotal:             "{response}",
+		metrics.RequestDurationSeconds:   "s",
+		metrics.AdmissionRejectionsTotal: "{request}",
+		metrics.PoolUtilization:          "1",
+		metrics.QueueDepth:               "{message}",
+	}
+	for _, m := range metrics.Catalog() {
+		if m.Unit != want[m.Name] {
+			t.Errorf("unit of %q = %q, want %q (RF-D1: UCUM, 1 only for a ratio)", m.Name, m.Unit, want[m.Name])
+		}
+	}
+}
+
+func TestEverySeriesDeclaresAFormulaAndAnOwner(t *testing.T) {
 	for _, m := range metrics.Catalog() {
 		if strings.TrimSpace(m.Formula) == "" {
 			t.Errorf("series %q declares no formula: a number without one cannot be read (MET-03)", m.Name)
 		}
-		if m.Unit == "" {
-			t.Errorf("series %q declares no unit", m.Name)
-		}
 		if m.Owner == "" {
 			t.Errorf("series %q declares no owner", m.Name)
 		}
-		if len(m.Labels) == 0 {
-			t.Errorf("series %q declares no labels", m.Name)
+	}
+}
+
+func TestEverySeriesDeclaresTheLabelsOfRFD3(t *testing.T) {
+	want := map[string][]string{
+		metrics.RetriesTotal:             {"dmpf.dependency", "error.type"},
+		metrics.BudgetExhaustedTotal:     {"dmpf.dependency"},
+		metrics.BreakerState:             {"dmpf.dependency"},
+		metrics.DeadlineExceededTotal:    {"dmpf.dependency", "dmpf.operation"},
+		metrics.CancellationsTotal:       {"dmpf.dependency", "dmpf.operation"},
+		metrics.BulkheadRejectionsTotal:  {"dmpf.dependency"},
+		metrics.DegradedTotal:            {"dmpf.dependency"},
+		metrics.OmittedTotal:             {"dmpf.dependency"},
+		metrics.RequestDurationSeconds:   {"dmpf.operation", "dmpf.outcome_category", "error.type"},
+		metrics.AdmissionRejectionsTotal: {"http.route", "rpc.method", "dmpf.tenant_id"},
+		metrics.PoolUtilization:          nil,
+		metrics.QueueDepth:               nil,
+	}
+	for _, m := range metrics.Catalog() {
+		if !slices.Equal(m.Labels, want[m.Name]) {
+			t.Errorf("labels of %q = %v, want %v (RF-D3: service is a resource attribute)", m.Name, m.Labels, want[m.Name])
 		}
 	}
 }
@@ -117,8 +165,8 @@ func TestTheAdmissionSeriesCarriesRouteAndTenantOnly(t *testing.T) {
 		if m.Name != metrics.AdmissionRejectionsTotal {
 			continue
 		}
-		if !slices.Equal(m.Labels, []string{metrics.KeyRoute, metrics.KeyTenant}) {
-			t.Fatalf("Labels = %v, want [route tenant] (MET-12)", m.Labels)
+		if !slices.Equal(m.Labels, []string{metrics.KeyRoute, metrics.KeyRPCMethod, metrics.KeyTenant}) {
+			t.Fatalf("Labels = %v, want [http.route rpc.method dmpf.tenant_id] (MET-12, RF-D3)", m.Labels)
 		}
 		return
 	}
@@ -135,9 +183,9 @@ func TestCatalogReturnsACopy(t *testing.T) {
 
 func TestEveryLabelOfEverySeriesIsAPermittedKey(t *testing.T) {
 	permitted := []string{
-		metrics.KeyDependency, metrics.KeyOperation, metrics.KeyService,
-		metrics.KeyErrorCategory, metrics.KeyOutcomeCategory,
-		metrics.KeyRoute, metrics.KeyTenant,
+		metrics.KeyDependency, metrics.KeyOperation,
+		metrics.KeyErrorType, metrics.KeyOutcomeCategory,
+		metrics.KeyRoute, metrics.KeyRPCMethod, metrics.KeyTenant,
 	}
 
 	for _, m := range metrics.Catalog() {
@@ -163,7 +211,7 @@ func TestNewBuildsEverySeriesOnTheMeter(t *testing.T) {
 		t.Fatalf("New() = %v, want nil", err)
 	}
 
-	labels := metrics.Labels{}.Dependency("payments").Operation("Authorize").Service("orders")
+	labels := metrics.Labels{}.Dependency("payments").Operation("Authorize")
 	instruments.Retries.Add(context.Background(), 1, measurement(labels))
 	instruments.BreakerState.Record(context.Background(), 2, measurement(labels))
 	instruments.RequestDuration.Record(context.Background(), 0.25, measurement(labels))
@@ -189,6 +237,51 @@ func TestNewBuildsEverySeriesOnTheMeter(t *testing.T) {
 		if !recorded[name] {
 			t.Errorf("series %q did not reach the reader", name)
 		}
+	}
+}
+
+type namingMeter struct {
+	noop.Meter
+	names []string
+}
+
+func (m *namingMeter) Int64Counter(name string, options ...metric.Int64CounterOption) (metric.Int64Counter, error) {
+	m.names = append(m.names, name)
+	return m.Meter.Int64Counter(name, options...)
+}
+
+func (m *namingMeter) Int64Gauge(name string, options ...metric.Int64GaugeOption) (metric.Int64Gauge, error) {
+	m.names = append(m.names, name)
+	return m.Meter.Int64Gauge(name, options...)
+}
+
+func (m *namingMeter) Float64Gauge(name string, options ...metric.Float64GaugeOption) (metric.Float64Gauge, error) {
+	m.names = append(m.names, name)
+	return m.Meter.Float64Gauge(name, options...)
+}
+
+func (m *namingMeter) Float64Histogram(name string, options ...metric.Float64HistogramOption) (metric.Float64Histogram, error) {
+	m.names = append(m.names, name)
+	return m.Meter.Float64Histogram(name, options...)
+}
+
+func TestNewBuildsOnlyTheSeriesOfTheCatalogue(t *testing.T) {
+	meter := &namingMeter{}
+	if _, err := metrics.New(meter); err != nil {
+		t.Fatalf("New() = %v, want nil", err)
+	}
+
+	declared := map[string]bool{}
+	for _, m := range metrics.Catalog() {
+		declared[m.Name] = true
+	}
+	for _, name := range meter.names {
+		if !declared[name] {
+			t.Errorf("New() builds %q, which is not in the catalogue (RF-D1, RF-D2)", name)
+		}
+	}
+	if len(meter.names) != len(declared) {
+		t.Errorf("New() builds %d series, want the %d of the catalogue: %v", len(meter.names), len(declared), meter.names)
 	}
 }
 

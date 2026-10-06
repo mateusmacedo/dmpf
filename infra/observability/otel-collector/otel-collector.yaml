@@ -1,8 +1,3 @@
-# O Collector é o único destino que a app conhece (OTLP_ENDPOINT): daqui
-# os traces seguem para o Tempo, as métricas para o receptor OTLP nativo do
-# Prometheus e os logs para o endpoint OTLP do Loki. Só exporta log por OTLP
-# a app com OTLP_LOGS=true (a que roda no host); a que roda em container
-# escreve em stdout e o Alloy coleta, sem gravar o registro duas vezes.
 receivers:
   otlp:
     protocols:
@@ -10,18 +5,75 @@ receivers:
         endpoint: 0.0.0.0:4317
 
 processors:
-  batch: {}
+  memory_limiter:
+    check_interval: 1s
+    limit_percentage: 80
+    spike_limit_percentage: 25
+  tail_sampling:
+    policies:
+      - name: errors
+        type: status_code
+        status_code:
+          status_codes: [ERROR]
+      - name: always-sampled-classes
+        type: string_attribute
+        string_attribute:
+          key: dmpf.traffic_class
+          values: [error, maintenance, write]
+      - name: read
+        type: and
+        and:
+          and_sub_policy:
+            - name: read-class
+              type: string_attribute
+              string_attribute:
+                key: dmpf.traffic_class
+                values: [read]
+            - name: read-rate
+              type: probabilistic
+              probabilistic:
+                sampling_percentage: ${env:TAIL_SAMPLING_READ_PERCENTAGE:-1}
+      - name: unclassified
+        type: and
+        and:
+          and_sub_policy:
+            - name: unclassified-class
+              type: string_attribute
+              string_attribute:
+                key: dmpf.traffic_class
+                values: [unclassified]
+            - name: unclassified-rate
+              type: probabilistic
+              probabilistic:
+                sampling_percentage: ${env:TAIL_SAMPLING_UNCLASSIFIED_PERCENTAGE:-1}
+      - name: outside-taxonomy
+        type: and
+        and:
+          and_sub_policy:
+            - name: no-known-class
+              type: string_attribute
+              string_attribute:
+                key: dmpf.traffic_class
+                values: [error, maintenance, write, read, unclassified]
+                invert_match: true
+            - name: outside-taxonomy-rate
+              type: probabilistic
+              probabilistic:
+                sampling_percentage: ${env:TAIL_SAMPLING_UNCLASSIFIED_PERCENTAGE:-1}
+  batch:
+    send_batch_size: 2048
+    send_batch_max_size: 2048
 
 exporters:
-  otlp/tempo:
+  otlp_grpc/tempo:
     endpoint: tempo:4317
     tls:
       insecure: true
-  otlphttp/prometheus:
+  otlp_http/prometheus:
     endpoint: http://prometheus:9090/api/v1/otlp
     tls:
       insecure: true
-  otlphttp/loki:
+  otlp_http/loki:
     endpoint: http://loki:3100/otlp
     tls:
       insecure: true
@@ -44,17 +96,17 @@ service:
       # W3C explícito, o mesmo modelo que o kernel exige de quem o instrumenta:
       # otelboot reprova propagador que não injete traceparent e tracestate
       # (ErrPropagatorNotW3C). B3 e Jaeger ficam de fora por declaração.
-      propagators: [tracecontext, baggage]
+      propagators: [tracecontext]
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [batch]
-      exporters: [otlp/tempo]
+      processors: [memory_limiter, tail_sampling, batch]
+      exporters: [otlp_grpc/tempo]
     metrics:
       receivers: [otlp]
-      processors: [batch]
-      exporters: [otlphttp/prometheus]
+      processors: [memory_limiter, batch]
+      exporters: [otlp_http/prometheus]
     logs:
       receivers: [otlp]
-      processors: [batch]
-      exporters: [otlphttp/loki]
+      processors: [memory_limiter, batch]
+      exporters: [otlp_http/loki]

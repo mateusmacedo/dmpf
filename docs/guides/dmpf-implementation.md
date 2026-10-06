@@ -183,10 +183,9 @@ pnpm nx g @mateusmacedo/dmpf-plugin:bounded-context ordering \
 Rode primeiro com `--dry-run`. O bloco `contract` fica **fora**: a fonte vive em
 `contracts/` pelo rito Buf ([opções](../../tools/dmpf-plugin/README.md)).
 
-**3 — classifique, em commit próprio.** Unidade nova é ato de classificação:
-regrave o baseline e commite **só** o baseline, separado do código, aprovado por
-revisor distinto do autor. Misturar os dois emite `DMPF-T002`; divergência entre
-manifesto e baseline emite `DMPF-T001`.
+**3 — classifique.** Unidade nova muda a classificação: regrave o baseline, que
+pode ir no mesmo commit do código (ADR-058). Divergência entre manifesto e
+baseline emite `DMPF-T001`.
 
 ```bash
 go run ./tools/dmpf-conformance/cmd/conformance --root . --write-baseline
@@ -333,7 +332,8 @@ unidade são `id`, `block`, `bounded_context` e `include` — e `include` enumer
 Os dezesseis diagnósticos estáveis se agrupam em cinco faixas: `DMPF-U001`..
 `U004` para a unidade (cobertura, sobreposição, chave, manifesto ausente),
 `DMPF-M001`..`M004` para o manifesto (campo obrigatório, valor, duplicidade,
-designação), `DMPF-T001`..`T002` para o baseline (divergência, autorização),
+designação), `DMPF-T001`..`T002` para o baseline (divergência; o `T002` foi
+revogado pelo ADR-058 e nunca é emitido),
 `DMPF-D001`..`D002` para a dependência (C1 e C2) e `DMPF-E001`..`E004` para os
 externals. O guia completo — `external[]`, `exceptions[]` e o rito de mudança de
 classificação — é [`dmpf-manifesto.md`](./dmpf-manifesto.md).

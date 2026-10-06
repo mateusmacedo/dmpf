@@ -123,12 +123,14 @@ func TestRecordingIsSafeUnderConcurrentEmit(t *testing.T) {
 
 func TestNoAuditConstructorAcceptsASlogHandler(t *testing.T) {
 	handler := reflect.TypeOf((*slog.Handler)(nil)).Elem()
-	constructor := reflect.TypeOf(audit.NewJSONSink)
 
-	for i := range constructor.NumIn() {
-		param := constructor.In(i)
-		if param == handler || param.Implements(handler) {
-			t.Fatalf("NewJSONSink takes %v, which is a slog.Handler: the audit channel is separate from logging (LOG-13)", param)
+	for _, constructor := range []any{audit.NewJSONSink, audit.NewLogSink} {
+		signature := reflect.TypeOf(constructor)
+		for i := range signature.NumIn() {
+			param := signature.In(i)
+			if param == handler || param.Implements(handler) {
+				t.Fatalf("%v takes %v, which is a slog.Handler: the audit channel is separate from logging (LOG-13)", signature, param)
+			}
 		}
 	}
 }

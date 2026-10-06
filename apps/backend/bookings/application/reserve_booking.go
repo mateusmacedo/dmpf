@@ -6,49 +6,27 @@ import (
 
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/domain"
 	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
+	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
 )
 
 func (s Service) ReserveBooking(ctx context.Context, cmd ReserveBooking) (usecase.Outcome[domain.ReservedResponse], error) {
-	var zero usecase.Outcome[domain.ReservedResponse]
-
-	instrumentation := s.instrumentation()
-	ctx, end := instrumentation.BeginOperation(ctx, OperationReserveBooking)
-
-	if err := s.Authorize(ctx, cmd); err != nil {
-		end(authorizationResult(err))
-		return zero, err
-	}
-
-	identity := usecase.ResolveIdentity(s.Clock, s.IDs, maxEventsPerCommand)
-
-	outcome := zero
-	err := s.UoW.Within(ctx, func(ctx context.Context, res Resources) error {
-		b := domain.NewBooking(cmd.BookingID)
-		accepted, rejection := b.Reserve(domain.ReserveBooking{
-			ResourceID: cmd.ResourceID,
-			Quantity:   cmd.Quantity,
-			At:         domain.Instant(identity.OccurredAt),
-		})
-		if rejection != nil {
-			outcome = usecase.Rejected[domain.ReservedResponse](rejection)
-			return nil
-		}
-		if err := res.Bookings.Save(ctx, cmd.BookingID, b.Snapshot(), 0); err != nil {
-			return fmt.Errorf("application: reserve %s: %w", cmd.BookingID, err)
-		}
-		written := ports.Version(1)
-		if err := enqueueAll(ctx, res.Outbox, identity, AggregateTypeBooking, string(cmd.BookingID), written, accepted.Events()); err != nil {
-			return fmt.Errorf("application: reserve %s: enqueue: %w", cmd.BookingID, err)
-		}
-		outcome = usecase.Accepted(accepted.Response())
-		return nil
+	return usecase.Execute(ctx, s.executor(), command[domain.ReservedResponse]{
+		Operation: OperationReserveBooking,
+		Object:    string(cmd.BookingID),
+		Input:     cmd,
+		Fingerprint: usecase.NewFingerprint(OperationReserveBooking).
+			String(string(cmd.BookingID)).String(string(cmd.ResourceID)).Int(int64(cmd.Quantity)),
+		Codec: reservedCodec,
+		Run: func(ctx context.Context, res Resources, identity usecase.Identity) (usecase.Outcome[domain.ReservedResponse], error) {
+			outcome, err := usecase.Decide(ctx, res.Bookings, res.Outbox, origin(AggregateTypeBooking, string(cmd.BookingID)), cmd.BookingID, identity,
+				loadAbsentBooking,
+				func(b *domain.Booking) (kernel.Accepted[domain.ReservedResponse], *kernel.Rejection) {
+					return b.Reserve(domain.ReserveBooking{ResourceID: cmd.ResourceID, Quantity: cmd.Quantity, At: domain.Instant(identity.OccurredAt)})
+				})
+			if err != nil {
+				return outcome, fmt.Errorf("application: reserve %s: %w", cmd.BookingID, err)
+			}
+			return outcome, nil
+		},
 	})
-	if err != nil {
-		end(ports.Result{Outcome: ports.OutcomeFailed, Err: err})
-		return zero, err
-	}
-
-	end(ports.Result{Outcome: outcomeCategory(outcome)})
-	return outcome, nil
 }

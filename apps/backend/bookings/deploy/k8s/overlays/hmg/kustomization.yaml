@@ -15,3 +15,4 @@ replicas:
 patches:
   - path: configmap-bookings-patch.yaml
   - path: deployment-bookings-api-patch.yaml
+  - path: deployment-bookings-relay-patch.yaml

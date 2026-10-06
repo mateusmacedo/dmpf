@@ -5,6 +5,7 @@ package application
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
@@ -63,10 +64,41 @@ func Classify(err error) Disposition {
 	case errors.Is(err, ports.ErrRegisterTimeout):
 		// INB-17: the wait for a concurrent key is a transient condition.
 		return R1D3
-	case errors.Is(err, context.DeadlineExceeded), errors.Is(err, context.Canceled):
-		// CTX-23 + ERR-11: no declared predicate makes either retryable here.
+	case errors.Is(err, context.DeadlineExceeded), transientDatabase(err), transientTransport(err):
+		// ERR-10: under the inbox the interrupted effect is either rolled back or
+		// committed and read as R2 on redelivery, the predicate a retry needs.
+		return R1D3
+	case errors.Is(err, context.Canceled):
+		// CTX-23 + ERR-11: Cancelled has no declared predicate (FND-07 §5).
 		return R1D4
 	default:
 		return R1D4
 	}
+}
+
+// transientDatabase recognises the SQLSTATEs after which the transaction is gone
+// and nothing was kept: connection exceptions (class 08), serialization failure,
+// deadlock and administrator shutdown. The interface keeps the driver out.
+func transientDatabase(err error) bool {
+	var coded interface{ SQLState() string }
+	if !errors.As(err, &coded) {
+		return false
+	}
+	switch state := coded.SQLState(); {
+	case strings.HasPrefix(state, "08"):
+		return true
+	default:
+		return state == "40001" || state == "40P01" || state == "57P01"
+	}
+}
+
+// transientTransport recognises a driver's own verdict: a failure before the
+// statement reached the server (pgconn's SafeToRetry) or a network timeout.
+func transientTransport(err error) bool {
+	var unsent interface{ SafeToRetry() bool }
+	if errors.As(err, &unsent) && unsent.SafeToRetry() {
+		return true
+	}
+	var timeout interface{ Timeout() bool }
+	return errors.As(err, &timeout) && timeout.Timeout()
 }

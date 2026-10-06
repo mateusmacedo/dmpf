@@ -1,13 +1,8 @@
 package application
 
 import (
-	"context"
-	"errors"
-	"fmt"
-
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/domain"
 	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
-	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
 
@@ -18,6 +13,8 @@ const (
 	// Destination names the integration flow logically: never a topic, queue or
 	// broker address, which are the provider's and the relay's choice (BLK-04).
 	Destination = "orders.events"
+
+	CommandConsumer = "orders.commands"
 
 	// OperationAddItem, OperationPlaceOrder and OperationFindOrder name the
 	// operations for BeginOperation and for the audit action. They are exported
@@ -34,8 +31,9 @@ const maxEventsPerCommand = 1
 // Resources is the resource set the use case declares, bound to the open
 // transaction by the composition root (UOW-03, UOW-04).
 type Resources struct {
-	Orders ports.Repository[domain.OrderID, domain.Snapshot]
-	Outbox ports.Outbox
+	Orders   ports.Repository[domain.OrderID, domain.Snapshot]
+	Outbox   ports.Outbox
+	Commands ports.Inbox
 }
 
 // Operation is the closed union of this service's entry points, writes and
@@ -75,12 +73,29 @@ type Service struct {
 	UoW    ports.UnitOfWork[Resources]
 	Reader ports.Reader[domain.OrderID, domain.Snapshot]
 
-	Clock     ports.Clock
-	IDs       ports.IDGenerator
-	Authorize usecase.Authorize[Operation]
-	ItemLimit int
+	Clock       ports.Clock
+	IDs         ports.IDGenerator
+	Authorize   usecase.Authorize[Operation]
+	ItemLimit   int
+	Idempotency usecase.IdempotencyPolicy
 
 	Instrumentation ports.Instrumentation
+}
+
+type command[R any] = usecase.Command[Resources, Operation, R]
+
+func (s Service) executor() usecase.Executor[Resources, Operation] {
+	return usecase.Executor[Resources, Operation]{
+		UoW:             s.UoW,
+		Inbox:           func(res Resources) ports.Inbox { return res.Commands },
+		Consumer:        CommandConsumer,
+		Clock:           s.Clock,
+		IDs:             s.IDs,
+		MaxEvents:       maxEventsPerCommand,
+		Policy:          s.Idempotency,
+		Authorize:       s.Authorize,
+		Instrumentation: s.Instrumentation,
+	}
 }
 
 // instrumentation resolves the nil hook to the inert realization, so every
@@ -92,60 +107,6 @@ func (s Service) instrumentation() ports.Instrumentation {
 	return s.Instrumentation
 }
 
-// authorizationResult categorises a step 1 error. Only a declared denial is
-// Denied; anything else is technical failure, because inferring a refusal from
-// an unrelated error would report a false negative of access.
-func authorizationResult(err error) ports.Result {
-	if errors.Is(err, ports.ErrDenied) {
-		return ports.Result{Outcome: ports.OutcomeDenied}
-	}
-	return ports.Result{Outcome: ports.OutcomeFailed, Err: err}
-}
-
-// outcomeCategory reads the terminal category off the outcome, which is the
-// only place that knows which branch of the UPR was taken.
-func outcomeCategory[R any](outcome usecase.Outcome[R]) ports.OutcomeCategory {
-	if _, refused := outcome.Rejection(); refused {
-		return ports.OutcomeRejected
-	}
-	return ports.OutcomeAccepted
-}
-
-// enqueueAll authors the seven fields the application service owns (FND-04
-// §2.3, BLK-04, BLK-05) for each event the decision produced. written is the
-// version Save persisted, so a consumer can order facts of the same aggregate.
-func enqueueAll(
-	ctx context.Context,
-	outbox ports.Outbox,
-	identity usecase.Identity,
-	order domain.OrderID,
-	written ports.Version,
-	events []kernel.DomainEvent,
-) error {
-	// A identidade é resolvida antes da transação, com a contagem que o caso de
-	// uso declara. Produzir mais eventos do que isso é defeito de programação, e
-	// sem esta guarda ele apareceria como "index out of range" dentro da
-	// transação, sem dizer a causa.
-	if len(events) > len(identity.MessageIDs) {
-		panic(fmt.Sprintf(
-			"application: the decision produced %d events but only %d identifiers were resolved; raise maxEventsPerCommand",
-			len(events), len(identity.MessageIDs)))
-	}
-
-	for i, event := range events {
-		entry := ports.OutboxEntry{
-			MessageID:        identity.MessageIDs[i],
-			OccurredAt:       identity.OccurredAt,
-			Intent:           ports.PublishIntent{Destination: Destination, PartitionKey: string(order)},
-			AggregateType:    AggregateType,
-			AggregateID:      string(order),
-			AggregateVersion: written,
-			Event:            event,
-			Context:          usecase.MessageContextFor(ctx, identity.MessageIDs[i]),
-		}
-		if err := outbox.Enqueue(ctx, entry); err != nil {
-			return err
-		}
-	}
-	return nil
+func origin(order domain.OrderID) usecase.Origin {
+	return usecase.Origin{Destination: Destination, AggregateType: AggregateType, AggregateID: string(order)}
 }

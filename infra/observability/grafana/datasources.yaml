@@ -26,7 +26,12 @@ datasources:
         - name: TraceID
           matcherType: label
           matcherRegex: trace_id
-          url: '${__value.raw}'
+          url: '$${__value.raw}'
+          datasourceUid: tempo
+        - name: correlation_id
+          matcherType: label
+          matcherRegex: dmpf_correlation_id
+          url: '{ span.dmpf.correlation_id = "$${__value.raw}" || span.messaging.message.conversation_id = "$${__value.raw}" }'
           datasourceUid: tempo
 
   - name: Tempo
@@ -40,6 +45,11 @@ datasources:
         spanStartTimeShift: '-5m'
         spanEndTimeShift: '5m'
         filterByTraceID: true
+        tags:
+          - key: service.name
+            value: service_name
+        customQuery: true
+        query: '{$${__tags}} | trace_id="$${__trace.traceId}" | scope_name != "github.com/mateusmacedo/dmpf/libs/backend/go/observability/audit"'
       tracesToMetrics:
         datasourceUid: prometheus
       serviceMap:

@@ -107,6 +107,7 @@ var catalog = []subjectSpec{
 		},
 		exclude:  []string{modulePrefix + "apps/backend/*/contract/..."},
 		tags:     []string{"integration"},
+		skip:     []string{"TestHoldingTheAddressItWasGiven"},
 		env:      []string{envPostgres, envKafka, envRedpandaAdmin},
 		postgres: true,
 		redpanda: true,

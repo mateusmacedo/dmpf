@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc/filters"
 	"google.golang.org/grpc"
 	_ "google.golang.org/grpc/health" // registers the client-side health check the service config enables
 )
@@ -26,8 +28,8 @@ func ServiceConfig(healthServiceName string) string {
 }
 
 // Dial opens the client of one dependency: credentials (GRP-15), the service
-// config above, grpc's own retry disabled because it cannot see idempotency
-// (GRP-08), and the deadline and composition interceptors. Extras are appended.
+// config above, grpc's own retry off as it cannot see idempotency (GRP-08), the
+// deadline and composition interceptors and one otelgrpc CLIENT per attempt (RF-B4).
 func Dial(target string, cfg Config, extra ...grpc.DialOption) (*grpc.ClientConn, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
@@ -41,6 +43,12 @@ func Dial(target string, cfg Config, extra ...grpc.DialOption) (*grpc.ClientConn
 		grpc.WithTransportCredentials(transportCredentials(cfg)),
 		grpc.WithDefaultServiceConfig(ServiceConfig(cfg.HealthServiceName)),
 		grpc.WithDisableRetry(),
+		grpc.WithStatsHandler(otelgrpc.NewClientHandler(
+			otelgrpc.WithTracerProvider(cfg.TracerProvider),
+			otelgrpc.WithMeterProvider(cfg.MeterProvider),
+			otelgrpc.WithPropagators(cfg.Propagator),
+			otelgrpc.WithFilter(filters.None(filters.HealthCheck(), filters.ServicePrefix("grpc.reflection."))),
+		)),
 		grpc.WithChainUnaryInterceptor(DeadlineUnaryInterceptor(cfg), compose),
 		grpc.WithChainStreamInterceptor(DeadlineStreamInterceptor(cfg)),
 	}

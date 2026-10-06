@@ -5,6 +5,7 @@ import (
 
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/domain"
 	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb"
 )
 
 func TestPlaceAccepts(t *testing.T) {
@@ -12,7 +13,7 @@ func TestPlaceAccepts(t *testing.T) {
 
 	acc, rej := o.Place(domain.PlaceOrder{At: at})
 
-	requireAccepted[domain.PlacedResponse](t, rej)
+	tb.RequireAccepted(t, rej)
 	if got, want := acc.Response(), (domain.PlacedResponse{Order: orderID}); got != want {
 		t.Fatalf("Response() = %+v, want %+v", got, want)
 	}
@@ -59,7 +60,7 @@ func TestPlaceRejects(t *testing.T) {
 
 			acc, rej := o.Place(domain.PlaceOrder{At: at})
 
-			requireRejected(t, acc, rej, tt.code)
+			tb.RequireRejected(t, acc, rej, tt.code)
 			requireUnchanged(t, before, o.Snapshot())
 		})
 	}

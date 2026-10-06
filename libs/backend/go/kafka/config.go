@@ -6,10 +6,13 @@ import (
 	"crypto/tls"
 	"fmt"
 	"log/slog"
+	"reflect"
 
+	"go.opentelemetry.io/otel/log"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/clock"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/logging"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/metrics"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/resilience"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/channel"
@@ -25,11 +28,10 @@ type Config struct {
 	InsecureForDevelopmentOnly bool
 	Catalog                    channel.Catalog
 	Sheet                      resilience.Sheet
-	Service                    string
 	Clock                      clock.Clock
 	Tracer                     trace.Tracer
 	Instruments                *metrics.Instruments
-	Logger                     *slog.Logger
+	LoggerProvider             log.LoggerProvider
 	Rand                       func() float64
 }
 
@@ -82,8 +84,5 @@ func (c Config) Channel(destination string) (channel.Channel, error) {
 }
 
 func (c Config) logger() *slog.Logger {
-	if c.Logger == nil {
-		return slog.Default()
-	}
-	return c.Logger
+	return logging.NewLogger(c.LoggerProvider, reflect.TypeFor[Config]().PkgPath())
 }

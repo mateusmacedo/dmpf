@@ -6,10 +6,10 @@
 package compose
 
 import (
-	"log/slog"
 	"math/rand/v2"
 	"time"
 
+	"go.opentelemetry.io/otel/log"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/clock"
@@ -24,12 +24,10 @@ import (
 // failure category, the retry classifier and what the breaker counts as failure.
 type Config struct {
 	Sheet          resilience.Sheet
-	Service        string
-	SpanPrefix     string
 	Clock          clock.Clock
 	Tracer         trace.Tracer
 	Instruments    *metrics.Instruments
-	Logger         *slog.Logger
+	LoggerProvider log.LoggerProvider
 	Rand           func() float64
 	Category       func(error) string
 	Classifier     retry.Classifier
@@ -48,22 +46,21 @@ func Build(cfg Config) (resilience.Call, error) {
 	return resilience.Compose(cfg.Sheet, slots)
 }
 
-// Shared fills every position but retry: the observability of RES-23 and the
-// breaker, bulkhead and timeout of the sheet. Breaker and bulkhead are built
-// once here because their state is the dependency's, whatever the method.
+// Shared fills every position but retry: the observability of RES-23, with the
+// degradation of RES-37 under its span, and the sheet's breaker, bulkhead and
+// timeout, built once because their state is the dependency's, whatever the method.
 func Shared(cfg Config) resilience.Slots {
 	slots := observe.Slots(observe.Config{
-		Service:     cfg.Service,
-		SpanPrefix:  cfg.SpanPrefix,
-		Clock:       cfg.Clock,
-		Tracer:      cfg.Tracer,
-		Instruments: cfg.Instruments,
-		Logger:      cfg.Logger,
-		Category:    cfg.Category,
+		Clock:          cfg.Clock,
+		Tracer:         cfg.Tracer,
+		LoggerProvider: cfg.LoggerProvider,
+		Category:       cfg.Category,
+		MaxAttempts:    maxAttempts(cfg.Sheet),
 	})
+	slots.Tracing = degrading(slots.Tracing, cfg)
 	dependency := cfg.Sheet.Dependency
 	if policy, declared := cfg.Sheet.Breaker.Get(); declared {
-		slots.Breaker = resilience.NewBreaker(dependency, policy, cfg.Clock, cfg.Instruments).CountsAsFailure(cfg.BreakerFailure).Decorate()
+		slots.Breaker = resilience.NewBreaker(dependency, policy, cfg.Clock, cfg.Instruments).CountsAsFailure(cfg.BreakerFailure).LogsTo(cfg.LoggerProvider).Decorate()
 	}
 	if policy, declared := cfg.Sheet.Bulkhead.Get(); declared {
 		slots.Bulkhead = resilience.NewBulkhead(dependency, policy, cfg.Clock, cfg.Instruments).Decorate()
@@ -98,6 +95,7 @@ func Retry(cfg Config, classifier retry.Classifier) (resilience.Decorator, error
 	return resilience.NewRetry(resilience.RetryConfig{
 		Dependency:  cfg.Sheet.Dependency,
 		Classifier:  classifier,
+		Category:    cfg.Category,
 		MaxAttempts: maxAttempts,
 		Backoff:     backoff,
 		Rand:        random,
@@ -105,6 +103,27 @@ func Retry(cfg Config, classifier retry.Classifier) (resilience.Decorator, error
 }
 
 func identity(next resilience.Call) resilience.Call { return next }
+
+func degrading(tracing resilience.Decorator, cfg Config) resilience.Decorator {
+	mode, _ := cfg.Sheet.Degradation.Get()
+	degradation, err := resilience.NewDegradation(mode, cfg.Sheet.Dependency, cfg.Instruments)
+	if err != nil {
+		return tracing
+	}
+	return func(next resilience.Call) resilience.Call { return tracing(degradation(next)) }
+}
+
+func maxAttempts(sheet resilience.Sheet) int {
+	enabled, declared := sheet.Retry.Get()
+	if !declared {
+		return 0
+	}
+	if !enabled {
+		return 1
+	}
+	ceiling, _ := sheet.MaxAttempts.Get()
+	return ceiling
+}
 
 // Operation is one remote gesture on the dependency, bounded by the sheet's
 // deadline; the estimate is a quarter of it, what the retry budget reserves.

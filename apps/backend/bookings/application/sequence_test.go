@@ -23,12 +23,15 @@ func TestReserveWalksTheNineStepsInOrder(t *testing.T) {
 		"clock.Now",
 		"ids.NewMessageID",
 		"within",
+		"commands.Register",
+		"bookings.Load",
 		"bookings.Save",
 		"outbox.Enqueue",
+		"commands.Complete",
 		"commit",
 	}
-	if !slices.Equal(h.rec.observed, want) {
-		t.Fatalf("sequence mismatch (FND-04 §3.2)\ngot:  %v\nwant: %v", h.rec.observed, want)
+	if !slices.Equal(h.rec.Observed(), want) {
+		t.Fatalf("sequence mismatch (FND-04 §3.2)\ngot:  %v\nwant: %v", h.rec.Observed(), want)
 	}
 }
 
@@ -50,13 +53,15 @@ func TestCancelWalksTheNineStepsInOrder(t *testing.T) {
 		"clock.Now",
 		"ids.NewMessageID",
 		"within",
+		"commands.Register",
 		"bookings.Load",
 		"bookings.Save",
 		"outbox.Enqueue",
+		"commands.Complete",
 		"commit",
 	}
-	if !slices.Equal(h.rec.observed, want) {
-		t.Fatalf("sequence mismatch\ngot:  %v\nwant: %v", h.rec.observed, want)
+	if !slices.Equal(h.rec.Observed(), want) {
+		t.Fatalf("sequence mismatch\ngot:  %v\nwant: %v", h.rec.Observed(), want)
 	}
 }
 
@@ -74,13 +79,15 @@ func TestRegisterWalksTheNineStepsInOrder(t *testing.T) {
 		"clock.Now",
 		"ids.NewMessageID",
 		"within",
+		"commands.Register",
 		"resources.Load",
 		"resources.Save",
 		"outbox.Enqueue",
+		"commands.Complete",
 		"commit",
 	}
-	if !slices.Equal(h.rec.observed, want) {
-		t.Fatalf("sequence mismatch (FND-04 §3.2)\ngot:  %v\nwant: %v", h.rec.observed, want)
+	if !slices.Equal(h.rec.Observed(), want) {
+		t.Fatalf("sequence mismatch (FND-04 §3.2)\ngot:  %v\nwant: %v", h.rec.Observed(), want)
 	}
 }
 
@@ -116,7 +123,7 @@ func TestCancelEnqueuesTheCancellationInTheSameTransaction(t *testing.T) {
 		t.Fatalf("CancelBooking() error = %v, want nil", err)
 	}
 
-	entries := h.store.outbox
+	entries := h.store.Entries()
 	if len(entries) != 1 {
 		t.Fatalf("outbox entries = %d, want 1", len(entries))
 	}
@@ -134,7 +141,7 @@ func TestRegisterEnqueuesTheRegistrationInTheSameTransaction(t *testing.T) {
 		t.Fatalf("RegisterResource() error = %v, want nil", err)
 	}
 
-	entries := h.store.outbox
+	entries := h.store.Entries()
 	if len(entries) != 1 {
 		t.Fatalf("outbox entries = %d, want 1", len(entries))
 	}

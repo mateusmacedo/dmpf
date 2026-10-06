@@ -3,6 +3,7 @@ package grpc_test
 import (
 	"crypto/tls"
 	"errors"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -121,5 +122,32 @@ func TestConfigPolicy(t *testing.T) {
 	}
 	if _, err := cfg.Policy("/orders.v1.Orders/Place"); !errors.Is(err, grpc.ErrMethodNotDeclared) {
 		t.Fatalf("Policy(undeclared) = %v, want ErrMethodNotDeclared", err)
+	}
+}
+
+func TestTheClientTransportWithoutTLSWarnsOncePerProcess(t *testing.T) {
+	grpc.ResetInsecureClientWarning()
+	provider, logs := newMemoryLogs(slog.LevelInfo)
+	cfg := validConfig()
+	cfg.TLS = nil
+	cfg.InsecureForDevelopmentOnly = true
+	cfg.LoggerProvider = provider
+
+	for _, target := range []string{"passthrough:///orders:1", "passthrough:///reservations:1", "passthrough:///bookings:1"} {
+		conn, err := grpc.Dial(target, cfg)
+		if err != nil {
+			t.Fatalf("Dial(%s) = %v, want nil", target, err)
+		}
+		_ = conn.Close()
+	}
+
+	warnings := 0
+	for _, record := range logs.snapshot() {
+		if record["level"] == "WARN" {
+			warnings++
+		}
+	}
+	if warnings != 1 {
+		t.Fatalf("three clients wrote %d warnings, want 1 per process (RF-A6)\n%v", warnings, logs.snapshot())
 	}
 }

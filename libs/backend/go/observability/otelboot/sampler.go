@@ -1,7 +1,6 @@
 package otelboot
 
 import (
-	"encoding/binary"
 	"fmt"
 	"maps"
 	"math"
@@ -15,97 +14,88 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/tracing"
 )
 
-// classSampler decides by traffic class and never drops a span (TRC-13,
-// TRC-14). It is written from scratch rather than composed from ParentBased and
-// TraceIDRatioBased because the negative branch of both returns Drop, and a
-// dropped span is never created — so no processor could retain it when it later
-// fails.
-type classSampler struct {
-	upperBounds map[tracing.Class]uint64
-	rates       tracing.Rates
-	description string
-}
-
-// NewClassSampler returns the platform sampler for the given rates. A class the
-// table does not name takes the most restrictive rate, and a span that declares
-// no class is treated as unclassified and says so on the span itself.
+// NewClassSampler is AlwaysRecord(ParentBased(root)) (TRC-13, RF-E5): a child
+// follows its parent, a root takes the rate of its traffic class, no span is
+// dropped, and every local span without a class is marked unclassified.
 func NewClassSampler(rates tracing.Rates) sdktrace.Sampler {
 	own := maps.Clone(rates)
 	if own == nil {
 		own = tracing.Rates{}
 	}
 
-	upperBounds := make(map[tracing.Class]uint64, len(own)+1)
+	byClass := make(map[tracing.Class]sdktrace.Sampler, len(own)+1)
 	for class, rate := range own {
-		upperBounds[class] = upperBound(rate)
+		byClass[class] = sdktrace.TraceIDRatioBased(sanitized(rate))
 	}
-	upperBounds[tracing.ClassUnclassified] = upperBound(own.RateFor(tracing.ClassUnclassified))
+	byClass[tracing.ClassUnclassified] = sdktrace.TraceIDRatioBased(sanitized(own.RateFor(tracing.ClassUnclassified)))
 
-	return classSampler{upperBounds: upperBounds, rates: own, description: describeRates(own)}
+	root := classRoot{
+		byClass:     byClass,
+		absent:      sdktrace.TraceIDRatioBased(tracing.RateMostRestrictive),
+		description: describeRates(own),
+	}
+	return classified{inner: sdktrace.AlwaysRecord(sdktrace.ParentBased(root))}
 }
 
-// upperBound is the threshold of TraceIDRatioBased, kept bit for bit
-// (sdk/trace/sampling.go:114) so a trace sampled here would be sampled the same
-// way by any other service running the SDK sampler at the same rate.
-//
-// A rate that is not a number is refused before the arithmetic: NaN fails every
-// comparison, so it would fall through to a bound of 2^63 — above any value the
-// trace ID can produce — and quietly sample everything. It resolves to the most
-// restrictive rate instead, which is what an undeclared class already does.
-func upperBound(rate float64) uint64 {
-	if math.IsNaN(rate) {
-		rate = tracing.RateMostRestrictive
-	}
-	if rate >= 1 {
-		return ^uint64(0)
-	}
-	if rate <= 0 {
-		return 0
-	}
-	return uint64(rate * (1 << 63))
+type classified struct {
+	inner sdktrace.Sampler
 }
 
-func (s classSampler) ShouldSample(parameters sdktrace.SamplingParameters) sdktrace.SamplingResult {
-	parent := trace.SpanContextFromContext(parameters.ParentContext)
-	result := sdktrace.SamplingResult{Tracestate: parent.TraceState()}
-
-	if parent.IsValid() {
-		// A child follows its parent, local or remote: a trace that is being
-		// sampled stays whole, and one that is not still records, so an error
-		// deeper in the call keeps its own span (TRC-14).
-		result.Decision = decide(parent.IsSampled())
-		return result
+func (c classified) ShouldSample(parameters sdktrace.SamplingParameters) sdktrace.SamplingResult {
+	result := c.inner.ShouldSample(parameters)
+	if _, declared := trafficClass(parameters.Attributes); !declared {
+		result.Attributes = append(result.Attributes,
+			attribute.String(tracing.KeyTrafficClass, string(tracing.ClassUnclassified)))
 	}
-
-	class, declared := trafficClass(parameters.Attributes)
-	if !declared {
-		result.Attributes = []attribute.KeyValue{
-			attribute.String(tracing.KeyTrafficClass, string(tracing.ClassUnclassified)),
-		}
-	}
-
-	result.Decision = decide(s.within(class, parameters.TraceID))
 	return result
 }
 
-// within is the ratio test of the SDK: the same eight bytes, the same shift and
-// the same comparison.
-func (s classSampler) within(class tracing.Class, traceID trace.TraceID) bool {
-	bound, known := s.upperBounds[class]
-	if !known {
-		bound = upperBound(tracing.RateMostRestrictive)
+func (c classified) Description() string { return c.inner.Description() }
+
+// sanitized refuses a rate that is not a number: TraceIDRatioBased would turn
+// NaN into a bound above any trace ID and sample everything.
+func sanitized(rate float64) float64 {
+	if math.IsNaN(rate) {
+		return tracing.RateMostRestrictive
 	}
-	return binary.BigEndian.Uint64(traceID[8:16])>>1 < bound
+	return rate
 }
 
-// decide turns the rate test into a decision. The negative branch is RecordOnly
-// and never Drop: the span exists, unsampled, and the processor exports it if it
-// ends in error.
-func decide(sampled bool) sdktrace.SamplingDecision {
-	if sampled {
-		return sdktrace.RecordAndSample
+type classRoot struct {
+	byClass     map[tracing.Class]sdktrace.Sampler
+	absent      sdktrace.Sampler
+	description string
+}
+
+func (r classRoot) ShouldSample(parameters sdktrace.SamplingParameters) sdktrace.SamplingResult {
+	class, _ := trafficClass(parameters.Attributes)
+
+	if followsLinks(class) && anySampled(parameters.Links) {
+		return sdktrace.SamplingResult{
+			Decision:   sdktrace.RecordAndSample,
+			Tracestate: trace.SpanContextFromContext(parameters.ParentContext).TraceState(),
+		}
 	}
-	return sdktrace.RecordOnly
+	return r.samplerOf(class).ShouldSample(parameters)
+}
+
+// followsLinks keeps the link rule off the refused boundary root, of class
+// error: an external producer could otherwise force the sampling (RF-E5).
+func followsLinks(class tracing.Class) bool {
+	return class == tracing.ClassWrite || class == tracing.ClassRead
+}
+
+func anySampled(links []trace.Link) bool {
+	return slices.ContainsFunc(links, func(link trace.Link) bool {
+		return link.SpanContext.IsValid() && link.SpanContext.IsSampled()
+	})
+}
+
+func (r classRoot) samplerOf(class tracing.Class) sdktrace.Sampler {
+	if sampler, known := r.byClass[class]; known {
+		return sampler
+	}
+	return r.absent
 }
 
 func trafficClass(attributes []attribute.KeyValue) (tracing.Class, bool) {
@@ -117,7 +107,7 @@ func trafficClass(attributes []attribute.KeyValue) (tracing.Class, bool) {
 	return tracing.ClassUnclassified, false
 }
 
-func (s classSampler) Description() string { return s.description }
+func (r classRoot) Description() string { return r.description }
 
 func describeRates(rates tracing.Rates) string {
 	stated := make([]string, 0, len(rates))

@@ -5,7 +5,7 @@ title: DMPF — Kernel e SDK de Referência Go
 stage: done
 priority: P0
 depends_on: [SPEC-QG2N8STY]
-ticket_url: null
+ticket_url: https://linear.app/mmda/issue/DEVS-24/spec-yrjrady9-dmpf-kernel-e-sdk-de-referencia-go
 subtask_urls: [ARQ-520, ARQ-521, ARQ-522, ARQ-523, ARQ-524, ARQ-525, ARQ-526, ARQ-527, ARQ-528, ARQ-529, ARQ-530, ARQ-531]
 created: 2026-08-30
 ---

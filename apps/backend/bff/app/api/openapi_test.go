@@ -10,13 +10,20 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/mateusmacedo/dmpf/apps/backend/bff/app/api"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
 
 type document struct {
 	Paths      map[string]map[string]operation `yaml:"paths"`
 	Components struct {
 		Parameters map[string]parameter `yaml:"parameters"`
+		Responses  map[string]response  `yaml:"responses"`
 	} `yaml:"components"`
+}
+
+type response struct {
+	Ref     string               `yaml:"$ref"`
+	Headers map[string]yaml.Node `yaml:"headers"`
 }
 
 type operation struct {
@@ -29,6 +36,22 @@ type parameter struct {
 	Name     string `yaml:"name"`
 	In       string `yaml:"in"`
 	Required bool   `yaml:"required"`
+	Schema   struct {
+		Pattern   string `yaml:"pattern"`
+		MaxLength int    `yaml:"maxLength"`
+	} `yaml:"schema"`
+}
+
+func (d document) response(t *testing.T, node yaml.Node) response {
+	t.Helper()
+	var r response
+	if err := node.Decode(&r); err != nil {
+		t.Fatalf("response is not an object: %v", err)
+	}
+	if name, ok := strings.CutPrefix(r.Ref, "#/components/responses/"); ok {
+		return d.Components.Responses[name]
+	}
+	return r
 }
 
 func loadDocument(t *testing.T, file string) document {
@@ -93,6 +116,17 @@ func TestTheContractsDeclareEveryRouteTheEdgeServes(t *testing.T) {
 			}
 			if key, ok := byName[api.IdempotencyHeader]; route.Method == http.MethodPost && (!ok || key.In != "header" || !key.Required) {
 				t.Fatalf("%s: %s must be a required header (RST-02), got %+v", route.Name, api.IdempotencyHeader, key)
+			}
+			if key := byName[api.IdempotencyHeader]; route.Method == http.MethodPost && (key.Schema.Pattern != ports.IdempotencyKeyPattern || key.Schema.MaxLength != 128) {
+				t.Fatalf("%s: %s schema = %+v, want pattern %s and maxLength 128 (IDM-02)", route.Name, api.IdempotencyHeader, key.Schema, ports.IdempotencyKeyPattern)
+			}
+			if route.Method == http.MethodPost {
+				for code, node := range op.Responses {
+					answered := strings.HasPrefix(code, "2") || code == "422"
+					if _, marked := doc.response(t, node).Headers[api.ReplayedHeader]; answered && !marked {
+						t.Fatalf("%s: response %s does not declare %s (IDM-08)", route.Name, code, api.ReplayedHeader)
+					}
+				}
 			}
 			if correlation, ok := byName[api.CorrelationHeader]; !ok || correlation.In != "header" || correlation.Required {
 				t.Fatalf("%s: %s must be an optional header, got %+v", route.Name, api.CorrelationHeader, correlation)

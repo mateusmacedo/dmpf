@@ -3,9 +3,14 @@
 package grpc
 
 import (
+	"context"
+	"errors"
 	"net/http"
 
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
+	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
 
 // StatusClientClosedRequest is the non-standard 499 the ecosystem uses for a
@@ -41,5 +46,43 @@ func HTTPStatus(code codes.Code) int {
 		return http.StatusGatewayTimeout
 	default:
 		return http.StatusInternalServerError
+	}
+}
+
+const (
+	categoryNotFound        = "NotFound"
+	categoryConflict        = "Conflict"
+	categoryForbidden       = "Forbidden"
+	categoryUnauthenticated = "Unauthenticated"
+)
+
+// StatusOf maps the technical channel of a use case to a status whose message
+// carries no internal detail (ERR-20). The first matching row decides, and the
+// category is read off the first node of the chain that declares one.
+func StatusOf(err error) error {
+	if mapped, ok := IdempotencyStatus(err); ok {
+		return mapped
+	}
+	var category string
+	var categorized interface{ ErrorCategory() string }
+	if errors.As(err, &categorized) {
+		category = categorized.ErrorCategory()
+	}
+	switch {
+	case errors.Is(err, ports.ErrNotFound), category == categoryNotFound:
+		return status.Error(codes.NotFound, "not found")
+	case errors.Is(err, ports.ErrVersionConflict), category == categoryConflict:
+		return status.Error(codes.Aborted, "version conflict; replay the call")
+	case errors.Is(err, context.DeadlineExceeded):
+		return status.Error(codes.DeadlineExceeded, "deadline exceeded")
+	case errors.Is(err, context.Canceled):
+		return status.Error(codes.Canceled, "canceled")
+	case errors.Is(err, ports.ErrDenied), category == categoryForbidden:
+		return status.Error(codes.PermissionDenied, "permission denied")
+	case errors.Is(err, ports.ErrCredentialAbsent), errors.Is(err, ports.ErrCredentialRejected),
+		errors.Is(err, ports.ErrSubjectUnresolved), category == categoryUnauthenticated:
+		return status.Error(codes.Unauthenticated, "unauthenticated")
+	default:
+		return status.Error(codes.Internal, "internal failure")
 	}
 }

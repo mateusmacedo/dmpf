@@ -26,18 +26,15 @@ var perfilLinuxAmd64 = []fsstore.BuildProfile{
 
 var _ fitness.GraphSource = fitness.Graph{}
 
-// FIT-03: the suite never judges the authority over the classification — that
-// is the gate's job, with the baseline and the review interval it needs.
-func TestWorkspaceCarriesNoBaselineAndNoBase(t *testing.T) {
+// FIT-03: the suite never judges the classification against the baseline — that
+// is the gate's job.
+func TestWorkspaceCarriesNoBaseline(t *testing.T) {
 	in, err := fitness.Workspace(repoRoot, "")
 	if err != nil {
 		t.Fatalf("Workspace: %v", err)
 	}
 	if in.Baseline != nil {
 		t.Error("Workspace set a BaselineStore: the fitness function must not verify authority")
-	}
-	if in.Base != "" {
-		t.Errorf("Workspace set Base %q", in.Base)
 	}
 	if len(in.Modules) == 0 {
 		t.Fatal("Workspace found no module")
@@ -200,10 +197,6 @@ type storeFixo struct {
 }
 
 func (s storeFixo) Baseline() (baseline.Document, bool, error) { return s.doc, s.existe, nil }
-func (s storeFixo) BaselineEm(string) (baseline.Document, bool, error) {
-	return baseline.Document{}, false, nil
-}
-func (s storeFixo) CommitsQueTocaram(string) ([]baseline.Commit, error) { return nil, nil }
 
 var _ port.BaselineStore = storeFixo{}
 

@@ -5,7 +5,7 @@ title: DMPF — RFC, limites arquiteturais e regra de dependência
 stage: done
 priority: P0
 depends_on: []
-ticket_url: null
+ticket_url: https://linear.app/mmda/issue/DEVS-21/spec-8yvf0rr5-dmpf-rfc-limites-arquiteturais-e-regra-de-dependencia
 subtask_urls: []
 created: 2026-08-13
 ---

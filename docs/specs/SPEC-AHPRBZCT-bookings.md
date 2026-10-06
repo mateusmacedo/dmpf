@@ -5,7 +5,7 @@ title: Bounded context — bookings
 stage: done
 priority: P2
 depends_on: [SPEC-XMNBMY50]
-ticket_url: null
+ticket_url: https://linear.app/mmda/issue/DEVS-40/spec-ahprbzct-bounded-context-bookings
 subtask_urls: []
 created: 2026-09-10
 ---

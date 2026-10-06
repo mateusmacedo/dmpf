@@ -43,9 +43,6 @@ func TestTwoDrainsPublishEveryRecordExactlyOnce(t *testing.T) {
 	}
 
 	relays := make([]*distkit.Process, distkit.Relays)
-	for i := range relays {
-		relays[i] = h.Start(t, distkit.RoleRelay)
-	}
 	t.Cleanup(func() {
 		if t.Failed() {
 			rows, err := h.Pool.Query(context.Background(),
@@ -60,10 +57,15 @@ func TestTwoDrainsPublishEveryRecordExactlyOnce(t *testing.T) {
 				}
 			}
 			for i, r := range relays {
-				t.Logf("relay %d wrote: %s", i, r.Output())
+				if r != nil {
+					t.Logf("relay %d wrote: %s", i, r.Output())
+				}
 			}
 		}
 	})
+	for i := range relays {
+		relays[i] = h.Start(t, distkit.RoleRelay)
+	}
 	settled := h.Settled(t, records, 30*time.Second)
 	published := h.Collect(t, len(settled), 60*time.Second)
 	for _, r := range relays {

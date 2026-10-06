@@ -29,20 +29,51 @@ instâncias de `Table[ID,S]` no bloco `provider` de cada contexto —
   aberta. `Relation(filterColumn)` serve a consulta por relação que os
   genéricos de `ports` não expressam — muitas linhas de uma tabela filtradas
   por uma coluna que não é a chave —, com a mesma disciplina de tenant.
+- **`snapshot_table.go`** — `SnapshotTable[ID, S, J](name, idColumn, to, from,
+  withID)` monta a `Table[ID,S]` do agregado cujo estado inteiro vive na coluna
+  `snapshot` (ADR-053): `J` é o struct de estado privado do provider, cujas tags
+  JSON fixam os bytes gravados, `to` e `from` convertem entre o snapshot do
+  domínio e `J`, e a identidade fica só em `idColumn`, devolvida por `withID`.
+  Agregado com coluna tipada além do snapshot continua com a `Table` escrita à
+  mão.
 - **`pool.go`** — `NewPool` monta o `*pgxpool.Pool` com o tracer de query do
-  processo (`dbtrace.go`, um span por query só dentro de operação já traçada,
-  nunca a carga do relay); `AssertOwnOutbox` recusa a partida se a `outbox`
-  tiver registro pendente de um destino que o contexto não publica — a
-  proteção contra banco compartilhado entre contextos, promovida da
-  composition root para o kernel.
+  processo (`dbtrace.go`): um span CLIENT por query só dentro de operação já
+  traçada — a query do claim do relay, que roda sem pai, não abre span; as
+  transições sob o `outbox drain`, sim. O span se chama
+  `{db.operation.name} {db.collection.name}`, recua para
+  `{db.operation.name}` e depois para `postgresql`, e leva
+  `db.system.name=postgresql`, `db.namespace`, `server.address`,
+  `server.port`, `db.query.text` parametrizado e sem argumentos,
+  `db.response.returned_rows` no `SELECT` e `dmpf.db.rows_affected` no DML;
+  operação e coleção só saem de statement declarado (`declare`), porque a
+  semconv veda derivá-las de SQL com mais de uma, e `BEGIN`, `COMMIT` e
+  `ROLLBACK` levam `db.operation.name` no lugar de `db.query.text`. O erro é
+  o SQLSTATE, em `db.response.status_code` e `error.type`, nunca `Message`,
+  `Detail` nem `Hint` do `PgError` (RF-B6). Com `WithMeterProvider`, o pool grava as
+  métricas da semconv por `dbconv`, todas por `db.client.connection.pool.name`
+  (`{server.address}:{server.port}/{db.namespace}`):
+  `db.client.connection.count` por `db.client.connection.state` (`idle` ou
+  `used`), `db.client.connection.max`, `db.client.connection.pending_requests`
+  e `db.client.connection.timeouts` por callback — `pending_requests` das
+  aquisições em curso, os demais de `pgxpool.Stat()` —, e
+  `db.client.connection.wait_time` pela aquisição, com as fronteiras advisory
+  da semconv para segundos (RF-D6, RF-D4). `DescribeDSN` decompõe o DSN para
+  o `process configured` — host, porta, banco e `sslmode` —, com o usuário só
+  como `set` ou `unset` e nunca a senha (RF-A6, LOG-09). `AssertOwnOutbox`
+  recusa a partida se a `outbox` tiver registro pendente de um destino que o
+  contexto não publica — a proteção contra banco compartilhado entre
+  contextos, promovida da composition root para o kernel.
 - **`uow.go`** — `NewUnitOfWork[R]`, `Tx` e `Within`. Uma transação por
-  chamada, o callback invocado uma única vez, e as seis cláusulas do
+  chamada, em `READ COMMITTED` explícito qualquer que seja o padrão do
+  servidor, o callback invocado uma única vez, e as seis cláusulas do
   contrato provadas em `uow_test.go`.
 - **`outbox.go`** — `Tx.Outbox(mapper)` e `Enqueue`. Grava na mesma `pgx.Tx` do
   estado de negócio: um commit torna os dois visíveis, ou nenhum. A `metadata`
-  grava o trio de `ENV-08` que o adapter autorou mais o `tenant_id`, resolvido
-  do contexto de execução na escrita (`enqueueTenant`) — ausência é legítima
-  aqui, porque uma cadeia de plataforma não tem tenant (ADR-050).
+  grava o contexto de mensagem de `ENV-08` que o adapter autorou —
+  `correlationid`, `causationid`, `traceparent` e `tracestate`, o contexto de
+  criação que o relay leva ao envelope sem alteração — mais o `tenantid`,
+  resolvido do contexto de execução na escrita (`enqueueTenant`) — ausência é
+  legítima aqui, porque uma cadeia de plataforma não tem tenant (ADR-050).
 - **`mapper.go`** — a interface `EventMapper` e a conferência de major. O
   mapeamento concreto é de cada bounded context.
 - **`destination.go`** — a forma de `BLK-04`: nome de fluxo lógico em segmentos
@@ -69,22 +100,39 @@ instâncias de `Table[ID,S]` no bloco `provider` de cada contexto —
   (`INB-17`). Entre `Register` e `Complete` a linha existe com `status`
   provisório dentro da transação — ninguém a observa (ver
   `docs/adr/036-classificacao-de-recepcao-e-fronteira-pending.md`).
-- **`quarantine.go`** — `NewQuarantine(pool)`, a realização de
+- **`inbox.go`, comandos** — `Tx.CommandInbox(consumer, wait)` é a mesma inbox
+  para comandos (FND-04 §7.6, ADR-056). O `message_id` é `<tenant>/<chave>`,
+  com o tenant do contexto de execução, e o comando sem tenant ou sem
+  `ExpiresAt` é recusado. A `inbox` ganha `outcome` e `expires_at`, anuláveis:
+  a entrada de comando vencida é substituída na inserção
+  (`ON CONFLICT … DO UPDATE WHERE expires_at <= received_at`), e R2 e R3
+  devolvem o `outcome` gravado. A espera é `WaitUntil − ReceivedAt`, limitada
+  por `wait`, com `lock_timeout` de pelo menos 1ms.
+- **`quarantine.go`** — `NewQuarantine(pool, opts...)`, a realização de
   `ports.Containment` fora de qualquer UoW: grava o envelope byte a byte
-  como foi publicado (`GAR-07`) e o erro sanitizado (`ERR-20`, `ERR-21`).
+  como foi publicado (`GAR-07`) e o erro sanitizado (`ERR-20`, `ERR-21`), uma
+  vez por `(consumer_name, envelope_digest)`: a mesma mensagem contida de novo
+  não gera outra linha. Gravada a contenção, sai `message contained` em
+  `warn`, com `dmpf.containment.reason` e `messaging.message.id`, no
+  `LoggerProvider` de `WithQuarantineLoggerProvider` (RF-A6).
 - **`signals.go`** — `InboxSignals(pool, consumer)`: profundidade da quarantine
   e contagens por motivo (`terminal-failure`, `collision`,
   `attempts-exhausted`, `invalid-envelope`, `untrusted-boundary`), lidas da
   própria tabela (`GAR-12`).
-- **`purge.go`** — `PurgePublished` e `PurgeInbox`, que devolvem o que purgaram,
-  de qual consumidor e até quando (`OBX-17`, `INB-16`). A invariante
-  `retenção_inbox ≥ janela_redelivery` (`INB-14`) é do operador.
+- **`purge.go`** — `PurgePublished`, `PurgeInbox` e `PurgeExpiredInbox`, que
+  devolvem o que purgaram, de qual consumidor e até quando (`OBX-17`, `INB-16`,
+  `IDM-09`). Cada chamada remove no máximo um lote, com `FOR UPDATE SKIP LOCKED`,
+  para que réplicas purguem ao mesmo tempo sem se bloquear; `PurgeExpiredInbox`
+  remove só as entradas de comando vencidas. O laço que as chama é o
+  `app.RunPurge`, e a invariante `retenção_inbox ≥ janela_redelivery`
+  (`INB-14`) é conferida pelo contexto que consome.
 
 O que `memory` declara não provar — isolamento e conflito de serialização
-entre transações concorrentes — é provado sobre este módulo, em
-`apps/backend/orders/provider/concurrency_test.go`: dois escritores leem a mesma versão, e
-exatamente um passa; o outro recebe `ErrVersionConflict` em vez de sobrescrever
-em silêncio. `inbox_concurrency_test.go` faz o mesmo para a inbox: duas
+entre transações concorrentes — é provado sobre este módulo pela cláusula de
+escritores concorrentes do `providerkit.Repository` (`Concurrent: true` em
+`conformance_test.go` e nos testes de repositório dos contextos): dois escritores
+leem a mesma versão, e exatamente um passa; o outro recebe `ErrVersionConflict`
+em vez de sobrescrever em silêncio. `inbox_concurrency_test.go` faz o mesmo para a inbox: duas
 transações registram a mesma chave, a segunda bloqueia até o desfecho da
 primeira e recebe R2, R3 ou R1 conforme ela commitou `processed`, commitou
 `rejected` ou desfez; e o teto de espera é interrompido pelo servidor.
@@ -125,11 +173,12 @@ contexto de execução recusa com `ErrTenantUnresolved`, nunca alarga a consulta
 Claim, lease, `SKIP LOCKED`, transição de `status` e publicação são do `KRN-08`;
 o codec do envelope e a fórmula do `payload_hash`, do `KRN-05` — este módulo os
 chama, não os define; a tradução de destino lógico para alvo físico, o gesto de
-ACK e a DLQ, do `KRN-10`; o conteúdo de `metadata` além do trio de `ENV-08` e do
-tenant, de FND-07; métricas, o valor do teto de espera e os prazos de retenção,
-de FND-08; um test kit exportado, do `KRN-11`. O application service de consumo
-e as sete disposições são do bloco `application` do contexto
-(`apps/backend/reservations/application`); o adapter que aplica o efeito de
+ACK e a DLQ, do `KRN-10`; o conteúdo de `metadata` além do contexto de
+`ENV-08` e do tenant, de FND-07; métricas além das do pool, o valor do teto de
+espera e os prazos de retenção, de FND-08; um test kit exportado, do `KRN-11`.
+O application service de consumo e as sete disposições são do bloco
+`application` do contexto (`apps/backend/reservations/application`); o adapter
+que aplica o efeito de
 broker e que verifica se a mensagem chega de dentro da fronteira confiável é
 do bloco `app` (`app`, ADR-052).
 
@@ -166,7 +215,7 @@ módulo: o Nx os sequencia mesmo com `--parallel=3`, que é como o CI roda.
 
 ```bash
 pnpm nx run-many -t fmt-check,vet,build,lint,test-race -p postgres
-go run ./tools/dmpf-conformance/cmd/conformance --root . --base develop
+go run ./tools/dmpf-conformance/cmd/conformance --root .
 bash tools/dmpf-cell-check.sh
 ```
 
@@ -188,6 +237,8 @@ mira `apps/**/provider/**`, não `postgres` em si.
 - `docs/adr/051-escopo-de-tenant-por-choke-point-em-go.md` — `Table`, `ReadPool`
   e o gate `context-provider`.
 - `docs/dmpf/uow-inbox-outbox.md` (FND-04) — §2.3, §3.1 a §3.3, §4.1, §4.2.
+- `docs/specs/SPEC-1TFW24WV-observabilidade-ponta-a-ponta.md` — os `RF-*`
+  citados aqui: os spans `db.*`, as métricas do pool e o `process configured`.
 - `libs/backend/go/ports/README.md` — as portas em tipos de domínio, o
   contexto de execução e `CrossTenantAccess`.
 - `libs/backend/go/application/README.md` — os nove passos e quem os anda.

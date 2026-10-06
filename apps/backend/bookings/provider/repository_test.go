@@ -4,7 +4,7 @@ package provider_test
 
 import (
 	"context"
-	"errors"
+	"strconv"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -14,17 +14,12 @@ import (
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/provider"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/providerkit"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/pg"
 )
 
 const repoBookingID = domain.BookingID("b-1001")
-
-type repoResources struct {
-	Bookings ports.Repository[domain.BookingID, domain.BookingSnapshot]
-}
-
-func bindRepo(tx *postgres.Tx) repoResources {
-	return repoResources{Bookings: provider.NewBookingRepository(tx)}
-}
 
 func snap(quantity int) domain.BookingSnapshot {
 	return domain.BookingSnapshot{
@@ -36,93 +31,90 @@ func snap(quantity int) domain.BookingSnapshot {
 	}
 }
 
-func withRepo(t *testing.T, pool *pgxpool.Pool, fn func(ctx context.Context, repo ports.Repository[domain.BookingID, domain.BookingSnapshot]) error) error {
-	t.Helper()
-	uow := postgres.NewUnitOfWork(pool, bindRepo)
-	return uow.Within(withExecution(t, context.Background()), func(ctx context.Context, res repoResources) error {
-		return fn(ctx, res.Bookings)
+func TestBookingRepositoryConformsToTheKit(t *testing.T) {
+	pool := appkit.OpenPool(t)
+	v := providerkit.Repository(func() providerkit.RepositorySubject[domain.BookingID, domain.BookingSnapshot] {
+		pg.ResetTables(t, pool, appkit.Tables...)
+		return providerkit.RepositorySubject[domain.BookingID, domain.BookingSnapshot]{
+			Within: func(ctx context.Context, fn func(context.Context, ports.Repository[domain.BookingID, domain.BookingSnapshot]) error) error {
+				return pg.Within(ctx, pool, provider.NewBookingRepository, fn)
+			},
+			Reader:           provider.NewBookingReader(postgres.NewReadPool(pool)),
+			NewID:            func(n int) domain.BookingID { return domain.BookingID("kit-" + strconv.Itoa(n)) },
+			NewState:         snap,
+			Marker:           func(s domain.BookingSnapshot) int { return s.Quantity },
+			TenantUnresolved: postgres.ErrTenantUnresolved,
+			Concurrent:       true,
+		}
 	})
+	requireNothingSkipped(t, v)
 }
 
-func seed(t *testing.T, pool *pgxpool.Pool) {
-	t.Helper()
-	if err := withRepo(t, pool, func(ctx context.Context, repo ports.Repository[domain.BookingID, domain.BookingSnapshot]) error {
-		return repo.Save(ctx, repoBookingID, snap(5), 0)
-	}); err != nil {
-		t.Fatalf("seed: %v", err)
-	}
+func TestResourceRepositoryConformsToTheKit(t *testing.T) {
+	pool := appkit.OpenPool(t)
+	v := providerkit.Repository(func() providerkit.RepositorySubject[domain.ResourceCode, domain.ResourceSnapshot] {
+		pg.ResetTables(t, pool, appkit.Tables...)
+		return providerkit.RepositorySubject[domain.ResourceCode, domain.ResourceSnapshot]{
+			Within: func(ctx context.Context, fn func(context.Context, ports.Repository[domain.ResourceCode, domain.ResourceSnapshot]) error) error {
+				return pg.Within(ctx, pool, provider.NewResourceRepository, fn)
+			},
+			Reader: resourceReader{pool: pool},
+			NewID:  func(n int) domain.ResourceCode { return domain.ResourceCode("kit-" + strconv.Itoa(n)) },
+			NewState: func(marker int) domain.ResourceSnapshot {
+				return domain.ResourceSnapshot{RegisteredAt: domain.Instant(marker)}
+			},
+			Marker:           func(s domain.ResourceSnapshot) int { return int(s.RegisteredAt) },
+			TenantUnresolved: postgres.ErrTenantUnresolved,
+			Concurrent:       true,
+		}
+	})
+	requireNothingSkipped(t, v)
 }
 
-func loadFromPool(t *testing.T, pool *pgxpool.Pool) (domain.BookingSnapshot, ports.Version) {
-	t.Helper()
+func TestBookingRoundTripsTheWholeState(t *testing.T) {
+	pool := appkit.OpenPool(t)
+	ctx := withExecution(t, context.Background())
 	reader := provider.NewBookingReader(postgres.NewReadPool(pool))
-	s, v, err := reader.Load(withExecution(t, context.Background()), repoBookingID)
+
+	pg.Seed(t, ctx, pool, provider.NewBookingRepository, repoBookingID, snap(5))
+	if got, version, err := reader.Load(ctx, repoBookingID); err != nil || version != 1 || !got.Equal(snap(5)) {
+		t.Fatalf("Load() = %+v v%d, %v; want %+v v1", got, version, err, snap(5))
+	}
+
+	cancelled := snap(10)
+	cancelled.Status = domain.Cancelled
+	err := pg.Within(ctx, pool, provider.NewBookingRepository, func(ctx context.Context, repo ports.Repository[domain.BookingID, domain.BookingSnapshot]) error {
+		return repo.Save(ctx, repoBookingID, cancelled, 1)
+	})
 	if err != nil {
-		t.Fatalf("reader.Load() = %v", err)
-	}
-	return s, v
-}
-
-func TestSaveCreatesAndLoadReturnsIt(t *testing.T) {
-	pool := appkit.OpenPool(t)
-
-	if err := withRepo(t, pool, func(ctx context.Context, repo ports.Repository[domain.BookingID, domain.BookingSnapshot]) error {
-		return repo.Save(ctx, repoBookingID, snap(5), 0)
-	}); err != nil {
-		t.Fatalf("Save(create) = %v", err)
-	}
-
-	got, version := loadFromPool(t, pool)
-	if version != 1 {
-		t.Fatalf("version = %d, want 1", version)
-	}
-	want := snap(5)
-	if !got.Equal(want) {
-		t.Fatalf("Load() = %+v, want %+v", got, want)
-	}
-}
-
-func TestSaveUpdatesWithCorrectVersion(t *testing.T) {
-	pool := appkit.OpenPool(t)
-	seed(t, pool)
-
-	updated := snap(10)
-	updated.Status = domain.Cancelled
-	if err := withRepo(t, pool, func(ctx context.Context, repo ports.Repository[domain.BookingID, domain.BookingSnapshot]) error {
-		return repo.Save(ctx, repoBookingID, updated, 1)
-	}); err != nil {
 		t.Fatalf("Save(update) = %v", err)
 	}
-
-	got, version := loadFromPool(t, pool)
-	if version != 2 {
-		t.Fatalf("version = %d, want 2", version)
-	}
-	if got.Status != domain.Cancelled {
-		t.Fatalf("Status = %v, want Cancelled", got.Status)
+	if got, version, err := reader.Load(ctx, repoBookingID); err != nil || version != 2 || !got.Equal(cancelled) {
+		t.Fatalf("Load() = %+v v%d, %v; want %+v v2", got, version, err, cancelled)
 	}
 }
 
-func TestSaveConflictsOnStaleVersion(t *testing.T) {
-	pool := appkit.OpenPool(t)
-	seed(t, pool)
-
-	err := withRepo(t, pool, func(ctx context.Context, repo ports.Repository[domain.BookingID, domain.BookingSnapshot]) error {
-		return repo.Save(ctx, repoBookingID, snap(7), 0)
-	})
-	if !errors.Is(err, ports.ErrVersionConflict) {
-		t.Fatalf("Save(stale) = %v, want ErrVersionConflict", err)
+func requireNothingSkipped(t *testing.T, v providerkit.Verdict) {
+	t.Helper()
+	tb.Require(t, v)
+	if len(v.Skipped) != 0 {
+		t.Fatalf("postgres scopes by construction and runs transactions at once; nothing should be skipped: %v", v.Skipped)
 	}
 }
 
-func TestLoadReturnsNotFoundForAbsentBooking(t *testing.T) {
-	pool := appkit.OpenPool(t)
+// resourceReader reads through the repository in a transaction of its own: the
+// provider exposes no reader of resources, because no query reads one.
+type resourceReader struct{ pool *pgxpool.Pool }
 
-	err := withRepo(t, pool, func(ctx context.Context, repo ports.Repository[domain.BookingID, domain.BookingSnapshot]) error {
-		_, _, err := repo.Load(ctx, "nonexistent")
+func (r resourceReader) Load(ctx context.Context, code domain.ResourceCode) (domain.ResourceSnapshot, ports.Version, error) {
+	var (
+		state   domain.ResourceSnapshot
+		version ports.Version
+	)
+	err := pg.Within(ctx, r.pool, provider.NewResourceRepository, func(ctx context.Context, repo ports.Repository[domain.ResourceCode, domain.ResourceSnapshot]) error {
+		var err error
+		state, version, err = repo.Load(ctx, code)
 		return err
 	})
-	if !errors.Is(err, ports.ErrNotFound) {
-		t.Fatalf("Load(absent) = %v, want ErrNotFound", err)
-	}
+	return state, version, err
 }

@@ -1,24 +1,56 @@
 package api_test
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
 	"github.com/mateusmacedo/dmpf/apps/backend/bff/app/api"
+	"github.com/mateusmacedo/dmpf/apps/backend/bff/app/rpc"
 	ordersv1 "github.com/mateusmacedo/dmpf/apps/backend/orders/contract/gen/go/company/orders/service/v1"
 	reservationsv1 "github.com/mateusmacedo/dmpf/apps/backend/reservations/contract/gen/go/company/reservations/service/v1"
+	kernelgrpc "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
 	kernelhttp "github.com/mateusmacedo/dmpf/libs/backend/go/http"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/admission"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/deadline"
 )
+
+func TestRoutesDeclareTheMethodPermissionAndKeyOfEachOperation(t *testing.T) {
+	want := []string{
+		"addItem POST /orders/{id}/items orders:write Idempotency-Key",
+		"placeOrder POST /orders/{id}/place orders:write Idempotency-Key",
+		"findOrder GET /orders/{id} orders:read -",
+		"findReservation GET /reservations/{order_id} reservations:read -",
+		"reserve POST /reservations/{order_id}/reserve reservations:write Idempotency-Key",
+		"cancel POST /reservations/{order_id}/cancel reservations:write Idempotency-Key",
+		"reserveBooking POST /bookings/booking bookings:write Idempotency-Key",
+		"findBookingByResource GET /bookings/booking bookings:read -",
+		"findBooking GET /bookings/booking/{id} bookings:read -",
+		"cancelBooking POST /bookings/booking/{id}/cancel bookings:write Idempotency-Key",
+		"registerResource POST /bookings/resource bookings:write Idempotency-Key",
+	}
+	var got []string
+	for _, route := range api.Routes(routeBudget) {
+		key := cmp.Or(route.IdempotencyKey, "-")
+		got = append(got, strings.Join([]string{route.Name, route.Method, route.Path, string(route.Permission), key}, " "))
+		if route.Requires != kernelhttp.RequireSubjectAndTenant || route.Budget != routeBudget {
+			t.Errorf("%s: Requires = %v, Budget = %v, want subject and tenant over the route budget", route.Name, route.Requires, route.Budget)
+		}
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("Routes() =\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+}
 
 func TestRoutesReferenceThePublishedContracts(t *testing.T) {
 	routes := api.Routes(routeBudget)
@@ -183,17 +215,27 @@ func TestTheEdgeGrantsTheRetryBudgetOfARead(t *testing.T) {
 	}
 }
 
-func TestAnUnavailableReserveIs503WithoutRetry(t *testing.T) {
-	fake := (&fakeContexts{}).on("Reserve", func(int) (any, error) {
-		return nil, status.Error(codes.Unavailable, "restarting")
+func TestAnUnavailableReserveIsRetriedUnderTheSameKey(t *testing.T) {
+	fake := (&fakeContexts{}).on("Reserve", func(n int) (any, error) {
+		if n == 1 {
+			return nil, status.Error(codes.Unavailable, "restarting")
+		}
+		return &reservationsv1.ReserveResponse{Result: &reservationsv1.ReserveResponse_Reserved{Reserved: &reservationsv1.Reserved{OrderId: "o-1", ItemCount: 1}}}, nil
 	})
 	f := newFixture(t, fake)
 
 	rec := f.post(t, "/reservations/o-1/reserve", `{"items":1}`)
 
-	requireRejection(t, rec, http.StatusServiceUnavailable, "unavailable")
-	if n := len(fake.callsTo("Reserve")); n != 1 {
-		t.Fatalf("Reserve reached the context %d times, want 1 (GRP-09)", n)
+	if rec.Code >= http.StatusBadRequest {
+		t.Fatalf("status = %d, want success after one retry (body %s)", rec.Code, rec.Body.String())
+	}
+	calls := fake.callsTo("Reserve")
+	if len(calls) != 2 {
+		t.Fatalf("Reserve reached the context %d times, want 2: a command with a key is retried (GRP-09, IDM-01)", len(calls))
+	}
+	first, second := calls[0].md.Get(kernelgrpc.IdempotencyKey), calls[1].md.Get(kernelgrpc.IdempotencyKey)
+	if len(first) != 1 || !slices.Equal(first, second) {
+		t.Fatalf("keys = %v then %v, want the same key on both attempts", first, second)
 	}
 }
 
@@ -283,7 +325,7 @@ func TestTheEdgeSpanParentsTheClientSpanAndTheMetadata(t *testing.T) {
 	byID := map[string]tracetest.SpanStub{}
 	for _, s := range f.spans.GetSpans() {
 		byID[s.SpanContext.SpanID().String()] = s
-		if s.Name == "HTTP GET /orders/{id}" {
+		if s.Name == "GET /orders/{id}" {
 			edge = s
 		}
 	}
@@ -296,7 +338,7 @@ func TestTheEdgeSpanParentsTheClientSpanAndTheMetadata(t *testing.T) {
 		t.Fatalf("traceparent %v does not continue the edge trace", traceparent)
 	}
 	client, sent := byID[parts[2]]
-	if !sent || !strings.HasPrefix(client.Name, "dmpf.grpc.client") {
+	if !sent || client.SpanKind != trace.SpanKindClient || client.Name != strings.TrimPrefix(rpc.MethodFindOrder, "/") {
 		t.Fatalf("traceparent names %q, want a client span", client.Name)
 	}
 	for span := client; span.Parent.SpanID() != edge.SpanContext.SpanID(); {
@@ -315,7 +357,7 @@ func TestAnIncomingTraceparentIsContinued(t *testing.T) {
 	f.do(t, http.MethodGet, "/reservations/o-1", nil, "traceparent", incoming)
 
 	for _, s := range f.spans.GetSpans() {
-		if s.Name == "HTTP GET /reservations/{order_id}" {
+		if s.Name == "GET /reservations/{order_id}" {
 			if s.SpanContext.TraceID().String() != "4bf92f3577b34da6a3ce929d0e0e4736" {
 				t.Fatalf("edge trace = %s, want the incoming trace", s.SpanContext.TraceID())
 			}
@@ -323,6 +365,37 @@ func TestAnIncomingTraceparentIsContinued(t *testing.T) {
 		}
 	}
 	t.Fatal("no edge span recorded")
+}
+
+func TestATracestateFromThePublicClientReachesNoSpanNorContext(t *testing.T) {
+	f := newFixture(t, &fakeContexts{})
+	const incoming = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+	members := make([]string, 32)
+	for i := range members {
+		members[i] = fmt.Sprintf("probe%d=%s", i, strings.Repeat("x", 200))
+	}
+
+	f.do(t, http.MethodGet, "/orders/o-1", nil, "traceparent", incoming, "tracestate", strings.Join(members, ","))
+
+	spans := f.spans.GetSpans()
+	if len(spans) == 0 {
+		t.Fatal("no span recorded")
+	}
+	for _, s := range spans {
+		if s.SpanContext.TraceID().String() != "4bf92f3577b34da6a3ce929d0e0e4736" {
+			t.Fatalf("%s trace = %s, want the incoming traceparent continued", s.Name, s.SpanContext.TraceID())
+		}
+		if s.SpanContext.TraceState().Len() != 0 || s.Parent.TraceState().Len() != 0 {
+			t.Fatalf("%s tracestate = %q (parent %q), want none from the public client", s.Name, s.SpanContext.TraceState(), s.Parent.TraceState())
+		}
+	}
+	md := f.fake.callsTo("FindOrder")[0].md
+	if got := md.Get("tracestate"); len(got) != 0 {
+		t.Fatalf("tracestate sent to the context = %v, want none from the public client", got)
+	}
+	if got := strings.Join(md.Get("traceparent"), ""); !strings.Contains(got, "4bf92f3577b34da6a3ce929d0e0e4736") {
+		t.Fatalf("traceparent sent to the context = %q, want the incoming trace", got)
+	}
 }
 
 func TestAMalformedCorrelationIsReplaced(t *testing.T) {
@@ -341,12 +414,14 @@ func TestAMalformedCorrelationIsReplaced(t *testing.T) {
 
 func TestTheContractsAreServedOnlyWhenProvided(t *testing.T) {
 	silent := newFixture(t, &fakeContexts{})
-	if rec := silent.do(t, http.MethodGet, api.OrdersContractPath, nil); rec.Code != http.StatusNotFound {
-		t.Fatalf("contract without document = %d, want 404", rec.Code)
+	for _, path := range []string{api.OrdersContractPath, api.BookingsContractPath} {
+		if rec := silent.do(t, http.MethodGet, path, nil); rec.Code != http.StatusNotFound {
+			t.Fatalf("%s without document = %d, want 404", path, rec.Code)
+		}
 	}
 
-	f := newFixture(t, &fakeContexts{}, withContracts("orders: yes", "reservations: yes"))
-	for path, want := range map[string]string{api.OrdersContractPath: "orders: yes", api.ReservationsContractPath: "reservations: yes"} {
+	f := newFixture(t, &fakeContexts{}, withContracts("orders: yes", "reservations: yes"), withBookingsContract("bookings: yes"))
+	for path, want := range map[string]string{api.OrdersContractPath: "orders: yes", api.ReservationsContractPath: "reservations: yes", api.BookingsContractPath: "bookings: yes"} {
 		rec := f.do(t, http.MethodGet, path, nil)
 		if rec.Code != http.StatusOK || rec.Body.String() != want {
 			t.Fatalf("%s = %d %q, want 200 %q", path, rec.Code, rec.Body.String(), want)
@@ -383,6 +458,20 @@ func TestAnIdempotencyKeyTheWireRejectsNeverReachesAContext(t *testing.T) {
 		t.Run(fmt.Sprintf("%q", key), func(t *testing.T) {
 			rec := f.do(t, http.MethodPost, "/reservations/o-1/cancel", nil,
 				"Idempotency-Key", key, "Content-Type", "application/json")
+
+			requireRejection(t, rec, http.StatusBadRequest, "invalid-idempotency-key")
+		})
+	}
+	if n := f.fake.total(); n != 0 {
+		t.Fatalf("calls = %d, want 0", n)
+	}
+}
+
+func TestAGetWithAnInvalidIdempotencyKeyNeverReachesAContext(t *testing.T) {
+	f := newFixture(t, &fakeContexts{})
+	for _, key := range []string{"abcé", strings.Repeat("k", 200), " "} {
+		t.Run(fmt.Sprintf("%q", key), func(t *testing.T) {
+			rec := f.do(t, http.MethodGet, "/orders/o-1", nil, "Idempotency-Key", key)
 
 			requireRejection(t, rec, http.StatusBadRequest, "invalid-idempotency-key")
 		})

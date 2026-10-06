@@ -5,7 +5,7 @@ services:
     environment:
       CONFIG_FILEPATH: /etc/console/config.yaml
     ports:
-      - '${CONSOLE_PORT:-8083}:8080'
+      - '127.0.0.1:${CONSOLE_PORT:-8083}:8080'
     volumes:
       - ../redpanda-console.yaml:/etc/console/config.yaml:ro
     depends_on:

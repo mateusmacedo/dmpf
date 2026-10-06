@@ -1,14 +1,9 @@
 package application
 
 import (
-	"context"
-	"errors"
-	"fmt"
-
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/domain"
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/ports"
 	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
-	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
 	port "github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
 
@@ -17,6 +12,8 @@ const (
 	AggregateTypeResource = "bookings.Resource"
 
 	Destination = "bookings.events"
+
+	CommandConsumer = "bookings.commands"
 
 	OperationReserveBooking        = "bookings.ReserveBooking"
 	OperationCancelBooking         = "bookings.CancelBooking"
@@ -31,6 +28,7 @@ type Resources struct {
 	Bookings  port.Repository[domain.BookingID, domain.BookingSnapshot]
 	Resources port.Repository[domain.ResourceCode, domain.ResourceSnapshot]
 	Outbox    port.Outbox
+	Commands  port.Inbox
 }
 
 type Operation interface{ isOperation() }
@@ -77,8 +75,25 @@ type Service struct {
 	Clock          port.Clock
 	IDs            port.IDGenerator
 	Authorize      usecase.Authorize[Operation]
+	Idempotency    usecase.IdempotencyPolicy
 
 	Instrumentation port.Instrumentation
+}
+
+type command[R any] = usecase.Command[Resources, Operation, R]
+
+func (s Service) executor() usecase.Executor[Resources, Operation] {
+	return usecase.Executor[Resources, Operation]{
+		UoW:             s.UoW,
+		Inbox:           func(res Resources) port.Inbox { return res.Commands },
+		Consumer:        CommandConsumer,
+		Clock:           s.Clock,
+		IDs:             s.IDs,
+		MaxEvents:       maxEventsPerCommand,
+		Policy:          s.Idempotency,
+		Authorize:       s.Authorize,
+		Instrumentation: s.Instrumentation,
+	}
 }
 
 // A nil hook is the inert realization, so every operation opens and closes
@@ -90,53 +105,12 @@ func (s Service) instrumentation() port.Instrumentation {
 	return s.Instrumentation
 }
 
-// authorizationResult categorises a step 1 error. Only a declared denial is
-// Denied; anything else is technical failure, because inferring a refusal from
-// an unrelated error would report a false negative of access.
-func authorizationResult(err error) port.Result {
-	if errors.Is(err, port.ErrDenied) {
-		return port.Result{Outcome: port.OutcomeDenied}
-	}
-	return port.Result{Outcome: port.OutcomeFailed, Err: err}
+func origin(aggregateType, aggregateID string) usecase.Origin {
+	return usecase.Origin{Destination: Destination, AggregateType: aggregateType, AggregateID: aggregateID}
 }
 
-// outcomeCategory reads the terminal category off the outcome, which is the
-// only place that knows which branch of the UPR was taken.
-func outcomeCategory[R any](outcome usecase.Outcome[R]) port.OutcomeCategory {
-	if _, refused := outcome.Rejection(); refused {
-		return port.OutcomeRejected
-	}
-	return port.OutcomeAccepted
-}
-
-func enqueueAll(
-	ctx context.Context,
-	outbox port.Outbox,
-	identity usecase.Identity,
-	aggregateType string,
-	aggregateID string,
-	written port.Version,
-	events []kernel.DomainEvent,
-) error {
-	if len(events) > len(identity.MessageIDs) {
-		panic(fmt.Sprintf(
-			"application: the decision produced %d events but only %d identifiers were resolved; raise maxEventsPerCommand",
-			len(events), len(identity.MessageIDs)))
-	}
-	for i, event := range events {
-		entry := port.OutboxEntry{
-			MessageID:        identity.MessageIDs[i],
-			OccurredAt:       identity.OccurredAt,
-			Intent:           port.PublishIntent{Destination: Destination, PartitionKey: aggregateID},
-			AggregateType:    aggregateType,
-			AggregateID:      aggregateID,
-			AggregateVersion: written,
-			Event:            event,
-			Context:          usecase.MessageContextFor(ctx, identity.MessageIDs[i]),
-		}
-		if err := outbox.Enqueue(ctx, entry); err != nil {
-			return err
-		}
-	}
-	return nil
-}
+var (
+	loadExistingBooking = usecase.Existing[domain.BookingID](domain.FromBookingSnapshot)
+	loadAbsentBooking   = usecase.Absent[domain.BookingSnapshot](domain.NewBooking)
+	loadResource        = usecase.OrNew(domain.NewResource, domain.FromResourceSnapshot)
+)

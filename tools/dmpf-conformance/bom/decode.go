@@ -72,12 +72,11 @@ type wireObject struct {
 }
 
 type wireConvergence struct {
-	Kind                *string  `json:"kind"`
-	Deadline            string   `json:"deadline"`
-	Condition           string   `json:"condition"`
-	ReviewBy            string   `json:"review_by"`
-	ApprovedBy          []string `json:"approved_by"`
-	ReplanningCondition string   `json:"replanning_condition"`
+	Kind                *string `json:"kind"`
+	Deadline            string  `json:"deadline"`
+	Condition           string  `json:"condition"`
+	ReviewBy            string  `json:"review_by"`
+	ReplanningCondition string  `json:"replanning_condition"`
 }
 
 type wireHistory struct {
@@ -218,9 +217,6 @@ func (w wireException) exception() exception.Exception {
 			ReviewBy:            instante("convergence.review_by", c.ReviewBy, parseDate),
 			ReplanningCondition: c.ReplanningCondition,
 			PresentKind:         c.Kind != nil,
-		}
-		for _, a := range c.ApprovedBy {
-			x.Convergence.ApprovedBy = append(x.Convergence.ApprovedBy, exception.Approver(a))
 		}
 	}
 	if w.History != nil {

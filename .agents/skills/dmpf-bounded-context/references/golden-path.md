@@ -26,8 +26,8 @@ pnpm nx g @mateusmacedo/dmpf-plugin:bounded-context <name> --boundedContext <ctx
   cada teste tem o próprio banco), `go.mod` sem `require`, `package.json`,
   `dmpf-units.json` com uma unidade por bloco, `README.md`, `Dockerfile` e um
   `doc.go` por bloco. O `app` nasce na forma canônica: `config.go`,
-  `wiring.go`, `telemetry.go`, `catalog.go`, `app/rpc/{errors,service}.go`; o
-  `provider` recebe `schema.sql` e `schema.go`; o `appkit` recebe `pool.go`.
+  `wiring.go`, `telemetry.go`, `catalog.go`, `app/rpc/service.go`; o
+  `provider` recebe `schema.sql` e `schema.go`; o `appkit` recebe `harness.go`.
   Acrescenta um `use` ao `go.work` (ADR-045). Não há `pnpm install`.
 - `--service-name` define o nome qualificado do serviço gRPC; sem ele, vira
   `company.<name>.service.v1.<Name>Service`.
@@ -52,6 +52,11 @@ pnpm nx g @mateusmacedo/dmpf-plugin:bounded-context <name> --boundedContext <ctx
   `.golangci.yml` `depguard`/`forbidigo` do bloco `domain` (sem `time`,
   `errors.New`, `fmt.Errorf`, `panic`, `fmt.Print*`).
 - O instante chega por parâmetro (`At`), inteiro de nanossegundos (ADR-053).
+- A UPR decide sobre uma cópia por `kernel.DecideOver(alvo, (*T).clone,
+  decide)` e recusa por `kernel.Refuse[R](código, mensagem, detalhes...)`: o
+  `DecideOver` só substitui o alvo no aceite (DEC-10, DEC-11). O `clone`
+  continua privado e copia em profundidade o que a decisão pode mutar; uma
+  cópia rasa deixaria a recusa vazar para o estado (DEC-12).
 - Nomes Go canônicos: evento no passado sem sufixo (`BookingCancelled`),
   status curto (`Reserved`, `Cancelled`); o valor publicado não muda com o
   nome Go.
@@ -70,16 +75,32 @@ pnpm nx g @mateusmacedo/dmpf-plugin:bounded-context <name> --boundedContext <ctx
 
 | Peça | Molde |
 | --- | --- |
-| `service.go`: `AggregateType`, `Destination`, `Resources`, `Operation*`, `enqueueAll` | `apps/backend/bookings/application/service.go` |
-| Caso de uso de criação (nove passos, ramo `creates`) | `bookings/application/reserve_booking.go` |
-| Caso de uso sobre existente | `bookings/application/cancel_booking.go` |
-| Consulta fora da UoW | `bookings/application/find_booking.go`, `find_booking_by_resource.go` |
+| `service.go`: `AggregateType`, `Destination`, `CommandConsumer`, `Resources` (com `Commands`), `Service` (com `Idempotency`), `Operation*`, o `origin` que os casos de uso passam a `usecase.Decide`, o `executor()` e o alias `command[R] = usecase.Command[Resources, Operation, R]` | `apps/backend/bookings/application/service.go` |
+| Codec da resposta, um por operação de comando | `bookings/application/codecs.go` |
+| Caso de uso de criação (`usecase.Execute` + `usecase.Decide` com `usecase.Absent`, ramo `creates`) | `bookings/application/reserve_booking.go`; o `Loader` sem captura é `var` de `service.go` |
+| Caso de uso sobre existente (`usecase.Existing`) | `bookings/application/cancel_booking.go`; `Loader` em `service.go` |
+| Caso de uso que cria quando não acha (`usecase.OrNew`, `initializesOnNotFound`) | `bookings/application/register_resource.go`; `Loader` em `service.go` |
+| Consulta fora da UoW, pelo esqueleto `usecase.Query[Operation]` | `bookings/application/find_booking.go`, `find_booking_by_resource.go` |
 | Caso de uso de consumo (sete disposições) — só se consome | `apps/backend/reservations/application/consume.go` |
 | Realização em memória para teste (`memory.Table[ID, S]` por agregado) | `libs/backend/go/memory/{tx,store,inbox,clock,errors}.go` |
-| Testes de sequência e instrumentação | `bookings/application/{sequence_test,instrumentation_test,doubles_test}.go` |
+| Testes de sequência, instrumentação e caminhos de falha, sobre o `serviceskit` | `bookings/application/{sequence_test,instrumentation_test,failure_test,doubles_test}.go` |
 
 - Norma: FND-04 §3.2 (a sequência canônica), §6.4 (disposições); ADR-035
   (evento na mesma transação do estado).
+- Todo comando é `usecase.Execute(ctx, s.executor(), command[R]{...})`, que
+  fixa os passos 1 a 3, 8 e 9: autorização, identidade antes da transação e
+  `usecase.RunIdempotent` dentro do `Within`, antes de qualquer outra instrução
+  (IDM-05). A inbox de comandos vem de `Resources.Commands`, a política de
+  `Service.Idempotency`, o `Fingerprint` de `usecase.NewFingerprint(Operation*)`
+  com todos os campos do comando, e a resposta volta pelo codec da operação.
+  Consulta não passa por ali.
+- O `Run` do comando chama `usecase.Decide` com o `Loader` do modo — `Absent`
+  (`creates`), `OrNew` (`initializesOnNotFound`) ou `Existing` —, que fixa os
+  passos 4 a 7 com `usecase.Enqueue` na mesma transação. O `Run` prefixa toda
+  falha com `application: <operação> <id>: %w`; `Decide` só acrescenta
+  `enqueue:` à falha de `Enqueue`.
+- O `Execute` emite a auditoria só sem replay, porque o efeito não aconteceu de
+  novo. Norma: FND-04 §7.6 (IDM), ADR-056.
 - Aliases do kernel: `kernel` (domain), `usecase` (application), `port` (ports).
 
 ## 6. `provider-postgres`
@@ -88,10 +109,10 @@ pnpm nx g @mateusmacedo/dmpf-plugin:bounded-context <name> --boundedContext <ctx
 | --- | --- |
 | `schema.sql`: agregado no plural, `tenant_id` à frente da chave, `<agregado>_id`, `version`, `snapshot jsonb`, coluna tipada só para o que uma consulta filtra | `apps/backend/bookings/provider/schema.sql` |
 | `schema.go`: o DDL embutido para o composition root migrar | `bookings/provider/schema.go` |
-| Repositório: struct de estado privado com tags JSON estáveis, optimistic locking | `bookings/provider/booking_repository.go` |
+| Repositório: struct de estado privado com tags JSON estáveis, optimistic locking; `postgres.SnapshotTable` quando o estado inteiro vive no `snapshot`, `Table` à mão quando há coluna tipada | `bookings/provider/resource_repository.go`, `booking_repository.go` |
 | Mapper evento → payload do contrato (instante → `google.protobuf.Timestamp` por `time.Unix(0, ns)`) | `bookings/provider/mapper.go` |
 | `Reader`, um por consulta | `bookings/provider/booking_reader.go` |
-| Testes de repositório, concorrência, leitura e e2e (build tag `integration`) | `bookings/provider/{repository_test,concurrency_test,reader_by_resource_test,e2e_test}.go` |
+| Testes de repositório (`providerkit.Repository` por agregado, com `Concurrent: true`), ida e volta do estado, leitura e e2e (build tag `integration`) | `bookings/provider/{repository_test,reader_by_resource_test,e2e_test}.go` |
 
 - Nomes: tabela sem prefixo, índice `<tabela>_<colunas>_idx`, constraint
   `<tabela>_<colunas>_{pkey,key,check,fkey}`; `outbox`, `inbox` e `quarantine`
@@ -104,10 +125,11 @@ pnpm nx g @mateusmacedo/dmpf-plugin:bounded-context <name> --boundedContext <ctx
 
 | Peça | Molde |
 | --- | --- |
-| Configuração: `Defaults(role)`, `FromEnv`, `Validate`, variáveis sem `DMPF_` | `apps/backend/bookings/app/config.go` |
-| Composition root: `Run`, `RunWith`, serviço de aplicação, `serveAPI` gRPC, migrate no ready, relay | `bookings/app/wiring.go` |
-| Serviço gRPC: `ServiceDesc` com um `unary` por método, `Methods()`, `Server` sobre o serviço de aplicação | `bookings/app/rpc/service.go` |
-| Mapeamento de erro para status gRPC | `bookings/app/rpc/errors.go` |
+| Configuração: `Defaults(role)`, `FromEnv`, `Validate`, variáveis sem `DMPF_`; seções `API kernelgrpc.APIEnv` e `Policies kernelapp.Policies`, e o `requirements()` que compõe os `Missing()` com as variáveis do contexto | `apps/backend/bookings/app/config.go` |
+| Composition root: `Run`, `RunWith`, `Waits` e `NewService`, `serveAPI` gRPC, migrate no ready, relay por `relay.Instrument(cfg.Relay, rt, catalog.AddressOf)`; `Commands` ligado a `tx.CommandInbox`, a política por `kernelapp.IdempotencyPolicy` e a purga por `kernelapp.StartPurge` com `kernelapp.Purge*` | `bookings/app/wiring.go` |
+| Serviço gRPC: `ServiceDesc` com um `kernelgrpc.Unary(ServiceName, kernelgrpc.Method(descriptor, "<Método>"), <Ctx>Server.<Método>)` por método, `Methods()` e `FullMethod()` delegando ao kernel, `Server` sobre o serviço de aplicação | `bookings/app/rpc/service.go` |
+| Handler de comando pelo `command[R, Resp]` local: `executionOf`, o caso de uso, `kernelgrpc.StatusOf(err)` na falha e o oneof da resposta; o template não o traz, porque nasce sem handlers | `bookings/app/rpc/service.go` |
+| Cobertura do descritor: `kernelgrpc.Uncovered(&rpc.ServiceDesc, descriptor)` vazio e nenhum stream | `bookings/app/rpc/service_test.go` |
 | Catálogo do canal que o relay drena | `bookings/app/catalog.go` |
 | Autorização e instrumentação | `bookings/app/{authorization,telemetry}.go` |
 | e2e gRPC por bufconn sobre Postgres | `bookings/app/e2e_test.go` |
@@ -157,10 +179,9 @@ pnpm nx g @mateusmacedo/dmpf-plugin:bounded-context <name> --boundedContext <ctx
 
 ```bash
 go run ./tools/dmpf-conformance/cmd/conformance --root . --write-baseline
-git add tools/dmpf-baseline/units-baseline.json && git commit   # só o baseline
 ```
 
-- Norma: `DMPF-T002` (commit próprio); ADR-012.
+- Norma: ADR-012; sem o baseline regravado, `DMPF-T001`.
 
 ## 11. Gates
 
@@ -169,7 +190,7 @@ pnpm nx run-many -t fmt-check,vet,build,lint -p <name>
 PG_DSN='postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable' \
   pnpm nx run-many -t test-race,test-distributed -p <name>
 bash tools/dmpf-context-check.sh --context apps/backend/<name>
-go run ./tools/dmpf-conformance/cmd/conformance --root . --base <ref-base>
+go run ./tools/dmpf-conformance/cmd/conformance --root .
 pnpm biome ci .
 ```
 
@@ -186,5 +207,5 @@ pnpm biome ci .
 - [ ] Um cenário de aceite e um por rejeição, por comando, em teste.
 - [ ] Sem `time` no `domain`; sem `Inbox`/consumer se o contexto não consome.
 - [ ] Sem `app/http`; banco, tabelas e índices nos nomes canônicos.
-- [ ] Rito humano impresso: rito Buf, `--write-baseline` em commit próprio,
+- [ ] Rito humano impresso: rito Buf, `--write-baseline`,
   banco e role na infra, rotas no `bff`, commits por projeto, PR.

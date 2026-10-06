@@ -7,7 +7,6 @@ import (
 
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
 	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
-	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
 
@@ -59,15 +58,9 @@ func (s Service) consumeFirst(
 	pending ports.Pending,
 	disposition *usecase.Disposition,
 ) error {
-	snapshot, stored, err := res.Reservations.Load(ctx, cmd.Order)
-	var reservation *domain.Reservation
-	switch {
-	case errors.Is(err, ports.ErrNotFound):
-		reservation, stored = domain.NewReservation(cmd.Order), 0
-	case err != nil:
+	reservation, stored, err := loadReservation(ctx, res.Reservations, cmd.Order)
+	if err != nil {
 		return fmt.Errorf("application: consume %s: %w", cmd.Order, err)
-	default:
-		reservation = domain.FromSnapshot(snapshot)
 	}
 
 	accepted, rejection := reservation.Reserve(domain.Reserve{
@@ -87,48 +80,14 @@ func (s Service) consumeFirst(
 		if errors.Is(err, ports.ErrVersionConflict) {
 			// MAP-07: the predicate is declared here — a reread replays the
 			// decision instead of repeating one already taken.
-			return usecase.NewFailure(usecase.Conflict, true, err)
+			err = usecase.NewFailure(usecase.Conflict, true, err)
 		}
-		return err
+		return fmt.Errorf("application: consume %s: %w", cmd.Order, err)
 	}
-	if err := enqueueAll(ctx, res.Outbox, identity, cmd.Order, stored+1, accepted.Events()); err != nil {
-		return err
+	if err := usecase.Enqueue(ctx, res.Outbox, identity, origin(cmd.Order), stored+1, accepted.Events()); err != nil {
+		return fmt.Errorf("application: consume %s: enqueue: %w", cmd.Order, err)
 	}
 
 	*disposition = usecase.R1D1
 	return pending.Complete(ctx, ports.Completion{Status: ports.StatusProcessed, At: identity.OccurredAt})
-}
-
-// enqueueAll authors the seven fields the application service owns (FND-04
-// §2.3, BLK-04, BLK-05).
-func enqueueAll(
-	ctx context.Context,
-	outbox ports.Outbox,
-	identity usecase.Identity,
-	order domain.OrderID,
-	written ports.Version,
-	events []kernel.DomainEvent,
-) error {
-	if len(events) > len(identity.MessageIDs) {
-		panic(fmt.Sprintf(
-			"application: the decision produced %d events but only %d identifiers were resolved; raise maxEventsPerCommand",
-			len(events), len(identity.MessageIDs)))
-	}
-
-	for i, event := range events {
-		entry := ports.OutboxEntry{
-			MessageID:        identity.MessageIDs[i],
-			OccurredAt:       identity.OccurredAt,
-			Intent:           ports.PublishIntent{Destination: Destination, PartitionKey: string(order)},
-			AggregateType:    AggregateType,
-			AggregateID:      string(order),
-			AggregateVersion: written,
-			Event:            event,
-			Context:          usecase.MessageContextFor(ctx, identity.MessageIDs[i]),
-		}
-		if err := outbox.Enqueue(ctx, entry); err != nil {
-			return err
-		}
-	}
-	return nil
 }
