@@ -64,6 +64,19 @@ incremento dos commits em `origin/master..origin/develop`. A branch nasce igual 
 `master`, e o GitHub não abre PR sem commits; por isso o `release-pr.yml` abre o PR
 de release no primeiro push que leva commits à branch, e não duplica PR já aberto.
 
+### Pré-release
+
+Uma branch de release com sufixo de pré-release, como `release/1.0.0-rc.0`, fixa a
+versão de todos os projetos versionados. No merge em `master`, o `nx-release.yml`
+roda `nx release <versão>` em vez de derivar o incremento dos commits. O
+`create-release.yml` só calcula versões sem sufixo, então essa branch é criada à
+mão a partir de `master`.
+
+Antes de promovê-la, suba para a mesma versão o `require` de cada irmão nos
+`go.mod` e o `replace` correspondente no `go.work` (o `modsync --write` regrava o
+`go.work` a partir dos `go.mod`). Sem isso, o consumidor de fora do workspace
+recebe os irmãos na versão anterior, como registra o ADR-047.
+
 ### Release do produto DMPF
 
 Além das tags por projeto do Nx Release, o produto DMPF tem release própria: a
