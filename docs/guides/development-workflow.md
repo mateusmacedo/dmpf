@@ -184,8 +184,8 @@ criada pelo workflow `create-release.yml`.
 
 O `create-release.yml` calcula o próximo número a partir das releases já
 mergeadas em `master` e deriva o incremento de versão dos commits em
-`origin/master..origin/develop`; o `release-pr.yml` abre o PR de release no
-primeiro push que leva commits à branch.
+`origin/master..origin/develop`; quem promove abre o PR de release com a própria
+conta, depois do primeiro push que leva commits à branch.
 Como esse cálculo lê `origin/develop`, o workflow depende de `develop` existir
 no remoto — provisione-a primeiro para que a automação de release funcione.
 

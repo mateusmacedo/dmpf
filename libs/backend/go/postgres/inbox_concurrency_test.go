@@ -21,17 +21,22 @@ func openConcurrencyPool(t *testing.T) *pgxpool.Pool {
 	return openPoolWith(t, func(cfg *pgxpool.Config) { cfg.MaxConns = 4 })
 }
 
-func startBlockedRegister(t *testing.T, ctx context.Context, pool *pgxpool.Pool, aRegistered <-chan struct{}, wg *sync.WaitGroup, classified chan<- string) {
+func requireReleased(t *testing.T, aReleasing <-chan struct{}) {
+	t.Helper()
+	select {
+	case <-aReleasing:
+	default:
+		t.Errorf("B: Register() returned before A released its transaction, want it blocked on A's open transaction (INB-06)")
+	}
+}
+
+func startBlockedRegister(t *testing.T, ctx context.Context, pool *pgxpool.Pool, aRegistered <-chan struct{}, bRegistering chan<- struct{}, aReleasing <-chan struct{}, wg *sync.WaitGroup, classified chan<- string) {
 	t.Helper()
 	go func() {
 		defer wg.Done()
 		<-aRegistered
+		close(bRegistering)
 
-		// WHY: small sleep to ensure B's Register starts after A has inserted
-		// but before A commits, so B blocks on the unique constraint lock.
-		time.Sleep(50 * time.Millisecond)
-
-		start := time.Now()
 		pgxTx, err := pool.Begin(ctx)
 		if err != nil {
 			t.Errorf("B: Begin() = %v", err)
@@ -46,9 +51,7 @@ func startBlockedRegister(t *testing.T, ctx context.Context, pool *pgxpool.Pool,
 			_ = pgxTx.Rollback(ctx)
 			return
 		}
-		if waited := time.Since(start); waited < 40*time.Millisecond {
-			t.Errorf("B: Register() returned after %v, want it blocked on A's open transaction (INB-06)", waited)
-		}
+		requireReleased(t, aReleasing)
 
 		var branch string
 		_ = r.Match(
@@ -70,6 +73,8 @@ func TestConcurrentRegisterProcessedUnblocksWithR2(t *testing.T) {
 	ctx := context.Background()
 
 	aRegistered := make(chan struct{})
+	bRegistering := make(chan struct{})
+	aReleasing := make(chan struct{})
 	bClassified := make(chan string, 1)
 	var wg sync.WaitGroup
 
@@ -101,13 +106,15 @@ func TestConcurrentRegisterProcessedUnblocksWithR2(t *testing.T) {
 		close(aRegistered)
 		// B needs to be blocked on the key before A commits, or the assertion
 		// below would pass without ever exercising INB-06.
-		time.Sleep(100 * time.Millisecond)
+		<-bRegistering
+		time.Sleep(50 * time.Millisecond)
+		close(aReleasing)
 		if err := pgxTx.Commit(ctx); err != nil {
 			t.Errorf("A: Commit() = %v", err)
 		}
 	}()
 
-	startBlockedRegister(t, ctx, pool, aRegistered, &wg, bClassified)
+	startBlockedRegister(t, ctx, pool, aRegistered, bRegistering, aReleasing, &wg, bClassified)
 
 	wg.Wait()
 	close(bClassified)
@@ -123,6 +130,8 @@ func TestConcurrentRegisterRejectedUnblocksWithR3(t *testing.T) {
 	ctx := context.Background()
 
 	aRegistered := make(chan struct{})
+	bRegistering := make(chan struct{})
+	aReleasing := make(chan struct{})
 	bClassified := make(chan string, 1)
 	var wg sync.WaitGroup
 
@@ -154,13 +163,15 @@ func TestConcurrentRegisterRejectedUnblocksWithR3(t *testing.T) {
 		close(aRegistered)
 		// B needs to be blocked on the key before A commits, or the assertion
 		// below would pass without ever exercising INB-06.
-		time.Sleep(100 * time.Millisecond)
+		<-bRegistering
+		time.Sleep(50 * time.Millisecond)
+		close(aReleasing)
 		if err := pgxTx.Commit(ctx); err != nil {
 			t.Errorf("A: Commit() = %v", err)
 		}
 	}()
 
-	startBlockedRegister(t, ctx, pool, aRegistered, &wg, bClassified)
+	startBlockedRegister(t, ctx, pool, aRegistered, bRegistering, aReleasing, &wg, bClassified)
 
 	wg.Wait()
 	close(bClassified)
@@ -176,6 +187,8 @@ func TestConcurrentRegisterRollbackUnblocksWithR1(t *testing.T) {
 	ctx := context.Background()
 
 	aRegistered := make(chan struct{})
+	bRegistering := make(chan struct{})
+	aReleasing := make(chan struct{})
 	bResult := make(chan string, 1)
 	var wg sync.WaitGroup
 
@@ -205,16 +218,17 @@ func TestConcurrentRegisterRollbackUnblocksWithR1(t *testing.T) {
 			func() error { return nil },
 		)
 		close(aRegistered)
-		time.Sleep(100 * time.Millisecond)
+		<-bRegistering
+		time.Sleep(50 * time.Millisecond)
+		close(aReleasing)
 		_ = pgxTx.Rollback(ctx)
 	}()
 
 	go func() {
 		defer wg.Done()
 		<-aRegistered
-		time.Sleep(50 * time.Millisecond)
+		close(bRegistering)
 
-		start := time.Now()
 		pgxTx, err := pool.Begin(ctx)
 		if err != nil {
 			t.Errorf("B: Begin() = %v", err)
@@ -229,9 +243,7 @@ func TestConcurrentRegisterRollbackUnblocksWithR1(t *testing.T) {
 			_ = pgxTx.Rollback(ctx)
 			return
 		}
-		if waited := time.Since(start); waited < 40*time.Millisecond {
-			t.Errorf("B: Register() returned after %v, want it blocked on A's open transaction (INB-06)", waited)
-		}
+		requireReleased(t, aReleasing)
 
 		var branch string
 		_ = r.Match(
