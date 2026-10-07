@@ -7,13 +7,16 @@ import type { ContextCheckExecutorSchema } from './schema';
 export const KERNEL_POSTGRES_MODULE = 'github.com/mateusmacedo/dmpf/libs/backend/go/postgres';
 const LOCAL_KERNEL_DDL = 'libs/backend/go/postgres';
 
+// With a cold module cache `go list -m` leaves Dir empty; `go mod download` extracts it.
 const kernelDdlOf = (root: string, mode: 'local' | 'version'): string =>
   mode === 'local'
     ? LOCAL_KERNEL_DDL
-    : execFileSync('go', ['list', '-m', '-f', '{{.Dir}}', KERNEL_POSTGRES_MODULE], {
-        cwd: root,
-        encoding: 'utf-8',
-      }).trim();
+    : JSON.parse(
+        execFileSync('go', ['mod', 'download', '-json', KERNEL_POSTGRES_MODULE], {
+          cwd: root,
+          encoding: 'utf-8',
+        }),
+      ).Dir;
 
 const contextCheckExecutor = async (
   options: ContextCheckExecutorSchema,

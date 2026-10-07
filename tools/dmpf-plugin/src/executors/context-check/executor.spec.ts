@@ -6,7 +6,7 @@ import contextCheckExecutor, { KERNEL_POSTGRES_MODULE } from './executor';
 
 jest.mock('node:child_process', () => ({
   ...jest.requireActual<typeof import('node:child_process')>('node:child_process'),
-  execFileSync: jest.fn(() => '/gomodcache/postgres@v1.0.0\n'),
+  execFileSync: jest.fn(() => JSON.stringify({ Dir: '/gomodcache/postgres@v1.0.0' })),
 }));
 
 jest.mock('../../lib/run', () => ({
@@ -47,7 +47,7 @@ describe('[executor] context-check', () => {
 
     expect(execFileSync).toHaveBeenCalledWith(
       'go',
-      ['list', '-m', '-f', '{{.Dir}}', KERNEL_POSTGRES_MODULE],
+      ['mod', 'download', '-json', KERNEL_POSTGRES_MODULE],
       {
         cwd: root,
         encoding: 'utf-8',
