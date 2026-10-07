@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { readdirSync, statSync } from 'node:fs';
 import { basename, join, relative } from 'node:path';
 import type { GeneratorCallback, NxJsonConfiguration, Tree } from '@nx/devkit';
@@ -19,6 +20,8 @@ const KERNEL_PREFIX = 'github.com/mateusmacedo/dmpf';
 const GO_WORK = 'go.work';
 const NX_GO = '@nx-go/nx-go';
 const RENDER_ROOT = '.dmpf-init-render';
+export const RENDERED_FILE = 'dmpf.rendered.json';
+const RENDERED_SCHEMA = 'dmpf/rendered@1';
 type Source = {
   dir: readonly string[];
   kind: 'managed' | 'seed';
@@ -34,6 +37,14 @@ const PLUGIN_IN_NODE_MODULES = 'node_modules/@mateusmacedo/dmpf-plugin';
 
 type Kind = Source['kind'];
 type Rendered = Map<string, { content: string; kind: Kind }>;
+type Hashes = Record<string, string>;
+
+export type TemplatePlan = {
+  rendered: Rendered;
+  writes: [string, string][];
+  edited: string[];
+  hashes: Hashes;
+};
 
 const slugOf = (value: string): string =>
   value
@@ -168,6 +179,73 @@ const render = (tree: Tree, config: DmpfConfig, versions: DmpfVersions): Rendere
   return rendered;
 };
 
+const hashOf = (content: string): string => createHash('sha256').update(content).digest('hex');
+
+const readHashes = (tree: Tree): Hashes => {
+  const raw = tree.read(RENDERED_FILE, 'utf-8');
+  if (raw === null) {
+    return {};
+  }
+  const parsed = JSON.parse(raw);
+  if (parsed?.schema !== RENDERED_SCHEMA || typeof parsed.files !== 'object' || !parsed.files) {
+    throw new Error(`${RENDERED_FILE}: expected schema ${RENDERED_SCHEMA} with a files object`);
+  }
+  return parsed.files;
+};
+
+const hashesContent = (hashes: Hashes): string => {
+  const files = Object.fromEntries(Object.entries(hashes).sort(([a], [b]) => (a < b ? -1 : 1)));
+  return `${JSON.stringify({ schema: RENDERED_SCHEMA, files }, null, 2)}\n`;
+};
+
+// A managed file is ours while its hash matches the one recorded when it was
+// written: that holds across plugin versions, whose templates differ.
+export const planTemplates = (
+  tree: Tree,
+  config: DmpfConfig,
+  versions: DmpfVersions,
+  force = false,
+): TemplatePlan => {
+  const hashes = readHashes(tree);
+  const rendered = render(tree, config, versions);
+  const writes: [string, string][] = [];
+  const edited: string[] = [];
+  for (const [path, { content, kind }] of rendered) {
+    const current = tree.read(path, 'utf-8');
+    if (current === null) {
+      writes.push([path, content]);
+    } else if (kind === 'managed' && current !== content) {
+      if (force || hashes[path] === hashOf(current)) {
+        writes.push([path, content]);
+      } else {
+        edited.push(path);
+      }
+    }
+  }
+  return { rendered, writes, edited, hashes };
+};
+
+export const applyTemplates = (tree: Tree, { rendered, writes, hashes }: TemplatePlan): void => {
+  for (const [path, content] of writes) {
+    tree.write(path, content);
+  }
+  const next: Hashes = {};
+  for (const [path, { content, kind }] of rendered) {
+    if (kind !== 'managed') {
+      continue;
+    }
+    if (tree.read(path, 'utf-8') === content) {
+      next[path] = hashOf(content);
+    } else if (hashes[path]) {
+      next[path] = hashes[path];
+    }
+  }
+  const content = hashesContent(next);
+  if (tree.read(RENDERED_FILE, 'utf-8') !== content) {
+    tree.write(RENDERED_FILE, content);
+  }
+};
+
 const configContent = (config: DmpfConfig): string =>
   `${JSON.stringify({ schema: DMPF_CONFIG_SCHEMA, ...config }, null, 2)}\n`;
 
@@ -211,7 +289,7 @@ const GO_NAMED_INPUT = [
 ];
 
 // Only what is missing is added: rewriting nx.json would also reformat it.
-const mergeNxJson = (tree: Tree, versions: DmpfVersions): void => {
+export const mergeNxJson = (tree: Tree, versions: DmpfVersions): void => {
   const nxJson = readNxJson(tree) ?? {};
   let changed = false;
   if (!nxJson.namedInputs?.go) {
@@ -236,7 +314,7 @@ const mergeNxJson = (tree: Tree, versions: DmpfVersions): void => {
   }
 };
 
-const pinGoWork = (tree: Tree, versions: DmpfVersions): void => {
+export const pinGoWork = (tree: Tree, versions: DmpfVersions): void => {
   const directive = `go ${versions.go.directive}`;
   const current = tree.read(GO_WORK, 'utf-8');
   if (current === null) {
@@ -276,32 +354,14 @@ export const initGenerator = async (
   const previous = tree.exists(DMPF_CONFIG_FILE) ? readDmpfConfigFromTree(tree) : null;
   const config = resolveConfig(tree, options, previous);
   const versions = readVersions();
-  const next = render(tree, config, versions);
-  const before = previous ? render(tree, previous, versions) : null;
-
-  const writes: [string, string][] = [];
-  const edited: string[] = [];
-  for (const [path, { content, kind }] of next) {
-    const current = tree.read(path, 'utf-8');
-    if (current === null) {
-      writes.push([path, content]);
-    } else if (kind === 'managed' && current !== content) {
-      if (options.force || before?.get(path)?.content === current) {
-        writes.push([path, content]);
-      } else {
-        edited.push(path);
-      }
-    }
-  }
-  if (edited.length > 0) {
+  const plan = planTemplates(tree, config, versions, options.force);
+  if (plan.edited.length > 0) {
     throw new Error(
-      `init: these files were generated by init and edited since: ${edited.join(', ')}. Re-run with --force to overwrite them.`,
+      `init: these files were generated by init and edited since: ${plan.edited.join(', ')}. Re-run with --force to overwrite them.`,
     );
   }
 
-  for (const [path, content] of writes) {
-    tree.write(path, content);
-  }
+  applyTemplates(tree, plan);
   if (tree.read(DMPF_CONFIG_FILE, 'utf-8') !== configContent(config)) {
     tree.write(DMPF_CONFIG_FILE, configContent(config));
   }

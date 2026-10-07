@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Tree } from '@nx/devkit';
@@ -29,7 +30,7 @@ const consumerTree = (): Tree => {
 const snapshot = (tree: Tree, paths: readonly string[]): Record<string, string | null> =>
   Object.fromEntries(paths.map((path) => [path, tree.read(path, 'utf-8')]));
 
-const ALWAYS_WRITTEN = ['dmpf.json', 'go.work', 'nx.json', 'package.json'];
+const ALWAYS_WRITTEN = ['dmpf.json', 'dmpf.rendered.json', 'go.work', 'nx.json', 'package.json'];
 
 beforeEach(() => jest.mocked(execFileSync).mockClear());
 
@@ -108,6 +109,21 @@ describe('[generator] init — fresh consumer', () => {
     );
     expect(readJson(tree, 'package.json').devDependencies['@nx-go/nx-go']).toBe(versions.nxGo);
     expect(typeof callback).toBe('function');
+  });
+
+  it('should record the hash of each managed file it wrote and leave the seed files out', async () => {
+    const tree = consumerTree();
+
+    await initGenerator(tree, { modulePrefix: 'github.com/acme/shop' });
+    const { schema, files } = readJson(tree, 'dmpf.rendered.json');
+
+    expect(schema).toBe('dmpf/rendered@1');
+    expect(files['.golangci.yml']).toBe(
+      createHash('sha256')
+        .update(tree.read('.golangci.yml', 'utf-8') as string)
+        .digest('hex'),
+    );
+    expect(files).not.toHaveProperty(['infra/local/docker-compose.yml']);
   });
 
   it('should run infrasync by version after the flush, in version mode', async () => {
