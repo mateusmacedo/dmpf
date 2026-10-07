@@ -1,3 +1,4 @@
+// Gerado por tools/dmpf-conformance/cmd/infrasync a partir de apps/backend/*/deploy/infra.json; não edite.
 // Coleta de logs no Kubernetes: o Alloy descobre os pods pela API e lê os
 // registros pelo endpoint de log do kubelet — sem hostPath. Exige o RBAC de
 // pods e pods/log que acompanha o DaemonSet.
@@ -16,7 +17,7 @@ discovery.relabel "pods" {
 
   rule {
     source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
-    regex         = "bff|orders|reservations|bookings"
+    regex         = "bff|bookings|orders|reservations"
     action        = "drop"
   }
 
