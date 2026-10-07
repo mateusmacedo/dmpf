@@ -1,0 +1,48 @@
+name: DMPF layout
+description: Read dmpf.json and the dmpf-plugin manifests into the environment of the job
+inputs:
+  plugin-version:
+    description: Version of @mateusmacedo/dmpf-plugin the caller was written for; empty skips the check
+    required: false
+    default: ""
+runs:
+  using: composite
+  steps:
+    - name: Resolve the DMPF layout
+      shell: bash
+      env:
+        PLUGIN_VERSION: ${{ inputs.plugin-version }}
+      run: |
+        set -euo pipefail
+        modo="$(jq -r .tooling.mode dmpf.json)"
+        case "$modo" in
+          local)
+            plugin=tools/dmpf-plugin
+            ferramentas=./tools/dmpf-conformance/cmd
+            versao=""
+            ;;
+          version)
+            plugin=node_modules/@mateusmacedo/dmpf-plugin
+            ferramentas=github.com/mateusmacedo/dmpf/tools/dmpf-conformance/cmd
+            versao="@$(jq -r .conformance "$plugin/versions.json")"
+            ;;
+          *)
+            echo "dmpf.json: tooling.mode desconhecido ($modo)" >&2
+            exit 1
+            ;;
+        esac
+        if [ -n "$PLUGIN_VERSION" ]; then
+          instalado="$(jq -r .version "$plugin/package.json")"
+          if [ "$instalado" != "$PLUGIN_VERSION" ]; then
+            echo "dmpf-plugin instalado ($instalado) difere do chamador do CI ($PLUGIN_VERSION): rode as migrations do plugin" >&2
+            exit 1
+          fi
+        fi
+        {
+          echo "DMPF_TOOLING_MODE=$modo"
+          echo "DMPF_PLUGIN_DIR=$plugin"
+          echo "DMPF_APPS_DIR=$(jq -r .appsDir dmpf.json)"
+          echo "DMPF_TOOLS=$ferramentas"
+          echo "DMPF_TOOLS_VERSION=$versao"
+          echo "NX_EXCLUDE=$(jq -r .name package.json)"
+        } >> "$GITHUB_ENV"

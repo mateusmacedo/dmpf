@@ -1,9 +1,18 @@
 name: Setup Go
 description: Setup Go from the workspace BOM and check the prerequisites of the race detector
+inputs:
+  go-version:
+    description: Go version; empty reads the go directive of go.work
+    required: false
+    default: ""
+  versions-file:
+    description: versions.json of the dmpf-plugin, which carries the pins of the Go tools
+    required: false
+    default: tools/dmpf-plugin/versions.json
 runs:
   using: composite
   steps:
-    # Sem `go-version` literal: o `go-version-file` lê a diretiva do go.work,
+    # Sem `go-version` por padrão: o `go-version-file` lê a diretiva do go.work,
     # que é a fonte única do piso (BOM). Passar a versão aqui abriria uma
     # segunda fonte, que sairia do lugar no primeiro bump.
     # Cache de GOMODCACHE e GOCACHE chaveado pelos arquivos que carregam os pins:
@@ -12,29 +21,30 @@ runs:
       id: setup_go
       uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
       with:
+        go-version: ${{ inputs.go-version }}
         go-version-file: go.work
         cache: true
         cache-dependency-path: |
           go.work
           **/go.sum
-          nx.json
-          tools/dmpf-plugin/versions.json
-          libs/backend/go/contracts/buf.gen.yaml
-          .github/actions/setup-go/action.yml
+          ${{ inputs.versions-file }}
+          ${{ github.action_path }}/action.yml
 
     # O post-step do setup-go só salva em cache miss e salva o que houver: um PR sem
     # projeto Go afetado semearia um GOCACHE vazio que os hits seguintes nunca substituem.
-    # Por isso, em miss, cada ferramenta pinada é compilada aqui (pins lidos da origem).
+    # Por isso, em miss, cada ferramenta pinada é compilada aqui (pins do versions.json).
     - name: Warm Go tools on cache miss
       if: steps.setup_go.outputs.cache-hit != 'true'
       shell: bash
+      env:
+        VERSIONS_FILE: ${{ inputs.versions-file }}
       run: |
         set -euo pipefail
         pins=(
-          "$(grep -oE 'github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v[0-9.]+' nx.json | head -1)"
-          "$(grep -ohE 'golang.org/x/vuln/cmd/govulncheck@v[0-9.]+' libs/backend/go/*/project.json | sort -u | head -1)"
-          "github.com/bufbuild/buf/cmd/buf@$(jq -r .buf tools/dmpf-plugin/versions.json)"
-          "google.golang.org/protobuf/cmd/$(grep -oE 'protoc-gen-go@v[0-9.]+' libs/backend/go/contracts/buf.gen.yaml | head -1)"
+          "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(jq -r .golangciLint "$VERSIONS_FILE")"
+          "golang.org/x/vuln/cmd/govulncheck@$(jq -r .govulncheck "$VERSIONS_FILE")"
+          "github.com/bufbuild/buf/cmd/buf@$(jq -r .buf "$VERSIONS_FILE")"
+          "google.golang.org/protobuf/cmd/protoc-gen-go@$(jq -r .protocGenGo "$VERSIONS_FILE")"
         )
         for pkg in "${pins[@]}"; do
           case "$pkg" in *@v[0-9]*) ;; *) echo "pin nao encontrado: $pkg" >&2; exit 1 ;; esac
