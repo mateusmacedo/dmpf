@@ -1,7 +1,8 @@
 import { execFileSync } from 'node:child_process';
-import { join } from 'node:path';
 import type { GeneratorCallback, Tree } from '@nx/devkit';
 import { generateFiles, logger } from '@nx/devkit';
+import { templatesDir } from '../../lib/paths';
+import { readVersions } from '../../lib/versions';
 import type { BlockLayout } from './blocks';
 import {
   BLOCK_NAMES,
@@ -232,6 +233,7 @@ const planModule = ({
   const layouts = blocks.map(layoutOf);
   const layer = highestLayer(layouts);
   const integration = layouts.some((layout) => layout.integration);
+  const versions = readVersions();
 
   return {
     directory: moduleDirectory,
@@ -278,6 +280,9 @@ const planModule = ({
       ),
       modulePath,
       goVersion,
+      goImage: versions.go.image,
+      protocGenGoVersion: versions.protocGenGo,
+      govulncheckVersion: versions.govulncheck,
       boundedContext,
       layer,
       layerTagJson: JSON.stringify(`layer:${layer}`),
@@ -429,7 +434,7 @@ const runGo = ({ root, args, directory }: { root: string; args: string[]; direct
   }
 };
 
-const templateDir = (name: string): string => join(__dirname, 'files', name);
+const templateDir = (name: string): string => templatesDir('bounded-context', name);
 
 export const boundedContextGenerator = async (
   tree: Tree,

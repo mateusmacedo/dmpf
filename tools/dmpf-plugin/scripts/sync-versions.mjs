@@ -1,0 +1,136 @@
+#!/usr/bin/env node
+// Uso: node tools/dmpf-plugin/scripts/sync-versions.mjs [--root <dir>] [--target <versão>] [--workflow-ref <sha>] [--check]
+
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const VERSIONS = 'tools/dmpf-plugin/versions.json';
+const MODULE_VERSION = /^v?(\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?)$/;
+const COMMIT_SHA = /^[0-9a-f]{40}$/;
+
+// O buf.sh sai de tools/ para o pacote do plugin; os dois caminhos valem durante a transição.
+const PINS = [
+  { field: 'go.directive', sources: ['go.work'], pattern: /^go (\d+\.\d+(?:\.\d+)?)$/m },
+  {
+    field: 'go.image',
+    sources: ['apps/backend/bookings/Dockerfile'],
+    pattern: /^FROM (golang:\S+) AS build$/m,
+  },
+  {
+    field: 'buf',
+    sources: ['tools/dmpf-plugin/scripts/buf.sh', 'tools/buf.sh'],
+    pattern: /github\.com\/bufbuild\/buf\/cmd\/buf@(v\S+?)["\s]/,
+  },
+  {
+    field: 'protocGenGo',
+    sources: ['libs/backend/go/contracts/buf.gen.yaml'],
+    pattern: /google\.golang\.org\/protobuf\/cmd\/protoc-gen-go@(v\S+)/,
+  },
+  {
+    field: 'golangciLint',
+    sources: ['nx.json'],
+    pattern: /github\.com\/golangci\/golangci-lint\/v2\/cmd\/golangci-lint@(v[^"\s]+)/,
+  },
+  {
+    field: 'govulncheck',
+    sources: ['libs/backend/go/domain/project.json'],
+    pattern: /golang\.org\/x\/vuln\/cmd\/govulncheck@(v[^"\s]+)/,
+  },
+];
+
+class UsageError extends Error {}
+
+const parseArgs = (argv) => {
+  const out = {
+    root: resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..'),
+    check: false,
+  };
+  for (let i = 0; i < argv.length; i++) {
+    const flag = argv[i];
+    const value = () => {
+      if (i + 1 >= argv.length) throw new UsageError(`${flag} exige um valor`);
+      return argv[++i];
+    };
+    if (flag === '--root') out.root = resolve(value());
+    else if (flag === '--target') out.target = value();
+    else if (flag === '--workflow-ref') out.workflowRef = value();
+    else if (flag === '--check') out.check = true;
+    else throw new UsageError(`flag desconhecida: ${flag}`);
+  }
+  if (out.check && (out.target !== undefined || out.workflowRef !== undefined)) {
+    throw new UsageError('--check não aceita --target nem --workflow-ref');
+  }
+  if (out.target !== undefined && !MODULE_VERSION.test(out.target)) {
+    throw new UsageError(`--target ${JSON.stringify(out.target)} não é X.Y.Z[-pré-release]`);
+  }
+  if (out.workflowRef !== undefined && !COMMIT_SHA.test(out.workflowRef)) {
+    throw new UsageError(
+      `--workflow-ref ${JSON.stringify(out.workflowRef)} não é SHA de 40 caracteres`,
+    );
+  }
+  return out;
+};
+
+const readPin = (root, pin) => {
+  const source = pin.sources.find((path) => existsSync(join(root, path)));
+  if (source === undefined)
+    throw new Error(`${pin.field}: nenhuma fonte encontrada em ${pin.sources.join(', ')}`);
+  const match = pin.pattern.exec(readFileSync(join(root, source), 'utf-8'));
+  if (match === null) throw new Error(`${pin.field}: pin não encontrado em ${source}`);
+  return match[1];
+};
+
+const getField = (doc, field) => field.split('.').reduce((node, key) => node?.[key], doc);
+
+const setField = (doc, field, value) => {
+  const keys = field.split('.');
+  const last = keys.pop();
+  const parent = keys.reduce((node, key) => {
+    node[key] ??= {};
+    return node[key];
+  }, doc);
+  parent[last] = value;
+};
+
+const main = (argv) => {
+  let args;
+  try {
+    args = parseArgs(argv);
+  } catch (error) {
+    console.error(`sync-versions: ${error.message}`);
+    return 2;
+  }
+  const path = join(args.root, VERSIONS);
+  try {
+    const doc = JSON.parse(readFileSync(path, 'utf-8'));
+    const pins = PINS.map((pin) => ({ field: pin.field, value: readPin(args.root, pin) }));
+
+    if (args.check) {
+      const divergent = pins.filter(({ field, value }) => getField(doc, field) !== value);
+      for (const { field, value } of divergent) {
+        console.log(
+          `${VERSIONS}: ${field} ${JSON.stringify(getField(doc, field))}, a fonte fixa ${value}`,
+        );
+      }
+      console.log(divergent.length === 0 ? 'sync-versions: conforme' : 'sync-versions: REPROVADO');
+      return divergent.length === 0 ? 0 : 1;
+    }
+
+    for (const { field, value } of pins) setField(doc, field, value);
+    if (args.target !== undefined) {
+      const version = `v${MODULE_VERSION.exec(args.target)[1]}`;
+      doc.kernel = version;
+      doc.conformance = version;
+    }
+    if (args.workflowRef !== undefined) doc.workflowRef = args.workflowRef;
+    writeFileSync(path, `${JSON.stringify(doc, null, 2)}\n`);
+    console.log(`sync-versions: ${VERSIONS} gravado`);
+    return 0;
+  } catch (error) {
+    console.error(`sync-versions: ${error.message}`);
+    return 2;
+  }
+};
+
+process.exit(main(process.argv.slice(2)));

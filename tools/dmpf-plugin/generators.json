@@ -1,7 +1,7 @@
 {
   "generators": {
     "bounded-context": {
-      "factory": "./src/generators/bounded-context/generator",
+      "factory": "./dist/generators/bounded-context/generator",
       "schema": "./src/generators/bounded-context/schema.json",
       "description": "Gera um bounded context DMPF em módulos Go, um por bloco, com manifesto declarado e entradas no go.work"
     }

@@ -4,6 +4,7 @@ import * as path from 'node:path';
 import type { Tree } from '@nx/devkit';
 import { logger, output } from '@nx/devkit';
 import { createTreeWithEmptyWorkspace } from '@nx/devkit/testing';
+import * as versions from '../../lib/versions';
 import { boundedContextGenerator } from './generator';
 import type { BoundedContextGeneratorSchema } from './schema';
 
@@ -11,6 +12,11 @@ jest.mock('node:child_process', () => ({
   ...jest.requireActual<typeof import('node:child_process')>('node:child_process'),
   execFileSync: jest.fn(),
 }));
+
+jest.mock('../../lib/versions', () => {
+  const actual = jest.requireActual<typeof import('../../lib/versions')>('../../lib/versions');
+  return { ...actual, readVersions: jest.fn(actual.readVersions) };
+});
 
 const GO_VERSION = '1.26.6';
 const DIRECTORY = 'apps/backend';
@@ -325,6 +331,27 @@ const expectRefusal = async ({
 
 afterEach(() => {
   jest.restoreAllMocks();
+});
+
+describe('[generator] bounded-context — tool pins', () => {
+  it('should take every tool pin of the generated files from versions.json', async () => {
+    const published = versions.readVersions();
+    jest.mocked(versions.readVersions).mockReturnValueOnce({
+      ...published,
+      go: { ...published.go, image: 'golang:9.9.9-alpine' },
+      protocGenGo: 'v9.9.8',
+      govulncheck: 'v9.9.7',
+    });
+
+    const tree = await generate();
+
+    expect(readText(tree, `${MODULE_DIR}/${DOCKERFILE}`)).toContain(
+      'FROM golang:9.9.9-alpine AS build',
+    );
+    expect(readText(tree, `${CONTRACT_MODULE_DIR}/buf.gen.yaml`)).toContain('protoc-gen-go@v9.9.8');
+    expect(readText(tree, `${MODULE_DIR}/project.json`)).toContain('govulncheck@v9.9.7');
+    expect(readText(tree, `${CONTRACT_MODULE_DIR}/project.json`)).toContain('govulncheck@v9.9.7');
+  });
 });
 
 describe('[generator] bounded-context — generation', () => {

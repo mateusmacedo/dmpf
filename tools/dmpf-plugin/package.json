@@ -1,7 +1,17 @@
 {
   "name": "@mateusmacedo/dmpf-plugin",
   "version": "0.0.0",
-  "private": true,
+  "description": "Plugin Nx do DMPF: init, bounded-context, executors e migrations para consumir o kernel por versão",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mateusmacedo/dmpf.git",
+    "directory": "tools/dmpf-plugin"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "@mateusmacedo:registry": "https://npm.pkg.github.com"
+  },
   "type": "commonjs",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -22,13 +32,28 @@
     ]
   },
   "dependencies": {
-    "@nx/devkit": "catalog:",
     "tslib": "catalog:"
   },
+  "peerDependencies": {
+    "@nx/devkit": "^23.0.0"
+  },
+  "devDependencies": {
+    "@nx/devkit": "catalog:"
+  },
   "generators": "./generators.json",
+  "executors": "./executors.json",
+  "nx-migrations": {
+    "migrations": "./migrations.json"
+  },
   "files": [
     "dist",
     "!**/*.tsbuildinfo",
-    "generators.json"
+    "generators.json",
+    "executors.json",
+    "migrations.json",
+    "versions.json",
+    "templates",
+    "scripts",
+    "src/**/schema.json"
   ]
 }
