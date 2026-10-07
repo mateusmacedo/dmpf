@@ -6,6 +6,7 @@
   "edge": "bff",
   "spiffeTrustDomain": "dmpf",
   "composeProfile": "dmpf",
+  "composeProject": "dmpf",
   "imageRegistry": "ghcr.io/mateusmacedo",
   "bufModule": "buf.build/mateusmacedo",
   "tooling": {

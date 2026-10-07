@@ -17,7 +17,7 @@ services:
       LOG_LEVEL: debug
 
   # gRPC interno com mTLS (IDN-03): cada api apresenta o próprio certificado e só
-  # serve o workload que a CA local assinou e a allowlist nomeia — o BFF. Os
+  # serve o workload que a CA local assinou e a allowlist nomeia — a borda. Os
   # arquivos vêm do volume do pki-init.
   dmpf-grpc-api:
     extends: dmpf-app
