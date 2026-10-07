@@ -19,9 +19,14 @@ const KERNEL_PREFIX = 'github.com/mateusmacedo/dmpf';
 const GO_WORK = 'go.work';
 const NX_GO = '@nx-go/nx-go';
 const RENDER_ROOT = '.dmpf-init-render';
-const KINDS = ['managed', 'seed'] as const;
+const SOURCES = [
+  { dir: ['init', 'managed'], kind: 'managed' },
+  { dir: ['init', 'seed'], kind: 'seed' },
+  { dir: ['ai'], kind: 'managed' },
+] as const;
+const PLUGIN_IN_NODE_MODULES = 'node_modules/@mateusmacedo/dmpf-plugin';
 
-type Kind = (typeof KINDS)[number];
+type Kind = (typeof SOURCES)[number]['kind'];
 type Rendered = Map<string, { content: string; kind: Kind }>;
 
 const slugOf = (value: string): string =>
@@ -99,9 +104,9 @@ const templateFiles = (dir: string): string[] =>
   });
 
 export const renderedPaths = (): string[] =>
-  KINDS.flatMap((kind) =>
-    templateFiles(templatesDir('init', kind)).map((path) =>
-      relative(templatesDir('init', kind), path).replace(/__tmpl__$/, ''),
+  SOURCES.flatMap(({ dir }) =>
+    templateFiles(templatesDir(...dir)).map((path) =>
+      relative(templatesDir(...dir), path).replace(/__tmpl__$/, ''),
     ),
   );
 
@@ -111,11 +116,36 @@ const treeFiles = (tree: Tree, dir: string): string[] =>
     return tree.isFile(path) ? [path] : treeFiles(tree, path);
   });
 
-const render = (tree: Tree, config: DmpfConfig): Rendered => {
+// In local mode the AI assets cite the platform tree; in version mode, the same
+// files at the commit the plugin was released from.
+const substitutionsOf = (config: DmpfConfig, versions: DmpfVersions): Record<string, unknown> => {
+  const local = config.tooling.mode === 'local';
+  const pluginDir = local ? 'tools/dmpf-plugin' : PLUGIN_IN_NODE_MODULES;
+  const contextCheckScript = `${pluginDir}/scripts/dmpf-context-check.sh`;
+  return {
+    tmpl: '',
+    ...config,
+    localTooling: local,
+    tool: (name: string) =>
+      local
+        ? `go run ./tools/dmpf-conformance/cmd/${name}`
+        : `go run ${KERNEL_PREFIX}/tools/dmpf-conformance/cmd/${name}@${versions.conformance}`,
+    contextCheckScript,
+    contextCheck: local
+      ? `bash ${contextCheckScript}`
+      : `DMPF_APPS_DIR=${config.appsDir} bash ${contextCheckScript}`,
+    src: (path: string) =>
+      local
+        ? path
+        : `https://github.com/mateusmacedo/dmpf/blob/${versions.workflowRef || 'master'}/${path}`,
+  };
+};
+
+const render = (tree: Tree, config: DmpfConfig, versions: DmpfVersions): Rendered => {
   const rendered: Rendered = new Map();
-  for (const kind of KINDS) {
-    const scratch = `${RENDER_ROOT}/${kind}`;
-    generateFiles(tree, templatesDir('init', kind), scratch, { tmpl: '', ...config });
+  for (const [index, { dir, kind }] of SOURCES.entries()) {
+    const scratch = `${RENDER_ROOT}/${index}`;
+    generateFiles(tree, templatesDir(...dir), scratch, substitutionsOf(config, versions));
     for (const path of treeFiles(tree, scratch)) {
       rendered.set(path.slice(scratch.length + 1), {
         content: tree.read(path, 'utf-8') ?? '',
@@ -236,8 +266,8 @@ export const initGenerator = async (
   const previous = tree.exists(DMPF_CONFIG_FILE) ? readDmpfConfigFromTree(tree) : null;
   const config = resolveConfig(tree, options, previous);
   const versions = readVersions();
-  const next = render(tree, config);
-  const before = previous ? render(tree, previous) : null;
+  const next = render(tree, config, versions);
+  const before = previous ? render(tree, previous, versions) : null;
 
   const writes: [string, string][] = [];
   const edited: string[] = [];

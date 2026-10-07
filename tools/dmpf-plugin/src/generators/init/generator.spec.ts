@@ -131,6 +131,32 @@ describe('[generator] init — fresh consumer', () => {
   });
 });
 
+describe('[generator] init — AI assets', () => {
+  it('should write the AI assets with the layout of the workspace and the platform sources of the release', async () => {
+    const tree = consumerTree();
+    const { conformance } = readVersions();
+
+    await initGenerator(tree, { modulePrefix: 'github.com/acme/shop', appsDir: 'services' });
+    const rule = tree.read('.claude/rules/dmpf-bounded-context.md', 'utf-8') as string;
+    const goldenPath = tree.read(
+      '.agents/skills/dmpf-bounded-context/references/golden-path.md',
+      'utf-8',
+    ) as string;
+
+    expect(rule.split('---')[1]).toBe('\npaths:\n  - "services/**"\n');
+    expect(goldenPath).toContain('services/<name>');
+    expect(goldenPath).toContain('https://github.com/mateusmacedo/dmpf/blob/');
+    expect(goldenPath).toContain(
+      `go run ${KERNEL}/tools/dmpf-conformance/cmd/conformance@${conformance}`,
+    );
+    expect(goldenPath).toContain(
+      'DMPF_APPS_DIR=services bash node_modules/@mateusmacedo/dmpf-plugin/scripts/dmpf-context-check.sh',
+    );
+    expect(goldenPath).not.toMatch(/`apps\/backend\/bookings/);
+    expect(tree.read('.claude/agents/dmpf-context-author.md', 'utf-8')).not.toContain('skill-go');
+  });
+});
+
 describe('[generator] init — re-run', () => {
   it('should change nothing when run again with the same options', async () => {
     const tree = consumerTree();
