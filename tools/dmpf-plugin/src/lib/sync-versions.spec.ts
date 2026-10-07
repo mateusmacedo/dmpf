@@ -36,6 +36,18 @@ const workspace = (): string => {
   write(root, 'pnpm-workspace.yaml', 'catalog:\n  "@nx-go/nx-go": 4.0.0\n');
   write(
     root,
+    'tools/dmpf-plugin/migrations.json',
+    JSON.stringify({
+      generators: {
+        'sync-init': {
+          version: '1.0.0-rc.1',
+          implementation: './dist/migrations/sync-init/sync-init',
+        },
+      },
+    }),
+  );
+  write(
+    root,
     'tools/dmpf-plugin/versions.json',
     `${JSON.stringify(
       {
@@ -70,6 +82,9 @@ const run = (root: string, ...args: string[]): { status: number; output: string 
   }
 };
 
+const migrationsOf = (root: string): { generators: Record<string, { version: string }> } =>
+  JSON.parse(readFileSync(join(root, 'tools/dmpf-plugin/migrations.json'), 'utf-8'));
+
 const versionsOf = (root: string): Record<string, unknown> =>
   JSON.parse(readFileSync(join(root, 'tools/dmpf-plugin/versions.json'), 'utf-8'));
 
@@ -90,6 +105,27 @@ describe('[script] sync-versions', () => {
       nxGo: '4.0.0',
       workflowRef: SHA,
     });
+  });
+
+  it('should move every migration to the target version, so an upgrade runs each one once', () => {
+    const root = workspace();
+
+    expect(run(root, '--target', '1.0.0-rc.2').status).toBe(0);
+    expect(migrationsOf(root).generators['sync-init'].version).toBe('1.0.0-rc.2');
+  });
+
+  it('should fail the check, naming the migration, when it is not at the kernel version', () => {
+    const root = workspace();
+    run(root, '--target', '1.0.0-rc.2');
+    write(
+      root,
+      'tools/dmpf-plugin/migrations.json',
+      JSON.stringify({ generators: { 'sync-init': { version: '1.0.0-rc.1' } } }),
+    );
+    const check = run(root, '--check');
+
+    expect(check.status).toBe(1);
+    expect(check.output).toContain('sync-init');
   });
 
   it('should keep the kernel version and the source commit when given no target', () => {
