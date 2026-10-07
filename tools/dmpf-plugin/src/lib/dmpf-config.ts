@@ -15,6 +15,7 @@ export type DmpfConfig = {
   edge: string;
   spiffeTrustDomain: string;
   composeProfile: string;
+  composeProject: string;
   imageRegistry: string;
   bufModule: string;
   tooling: { mode: ToolingMode };
@@ -26,6 +27,7 @@ const PATH_SEGMENT = /^[A-Za-z0-9._-]+$/;
 const DNS_LABEL = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/;
 const TRUST_DOMAIN = /^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$/;
 const COMPOSE_PROFILE = /^[a-z0-9][a-z0-9_.-]*$/;
+const COMPOSE_PROJECT = /^[a-z0-9][a-z0-9_-]*$/;
 const IMAGE_REGISTRY = /^[a-z0-9.-]+(:[0-9]+)?(\/[a-z0-9._-]+)*$/;
 const BUF_MODULE = /^[a-z0-9.-]+\/[a-z0-9_-]+$/;
 const TOOLING_MODES: readonly ToolingMode[] = ['local', 'version'];
@@ -68,6 +70,7 @@ export const parseDmpfConfig = (raw: unknown, source: string): DmpfConfig => {
     edge: doc.edge === '' ? '' : matching(source, 'edge', doc.edge, DNS_LABEL),
     spiffeTrustDomain: matching(source, 'spiffeTrustDomain', doc.spiffeTrustDomain, TRUST_DOMAIN),
     composeProfile: matching(source, 'composeProfile', doc.composeProfile, COMPOSE_PROFILE),
+    composeProject: matching(source, 'composeProject', doc.composeProject, COMPOSE_PROJECT),
     imageRegistry: matching(source, 'imageRegistry', doc.imageRegistry, IMAGE_REGISTRY),
     bufModule: matching(source, 'bufModule', doc.bufModule, BUF_MODULE),
     tooling: { mode: mode ?? invalid(source, 'tooling.mode', tooling.mode) },

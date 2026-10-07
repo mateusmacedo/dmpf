@@ -9,6 +9,7 @@ const valid = {
   protocGenGo: 'v1.36.12',
   golangciLint: 'v2.13.2',
   govulncheck: 'v1.7.0',
+  nxGo: '4.0.0',
   workflowRef: '',
 };
 
@@ -34,6 +35,7 @@ describe('[lib] versions', () => {
     ['go.directive', { ...valid, go: { ...valid.go, directive: 'latest' } }],
     ['go.image', { ...valid, go: { ...valid.go, image: '' } }],
     ['buf', { ...valid, buf: 'v1.72' }],
+    ['nxGo', { ...valid, nxGo: 'latest' }],
     ['workflowRef', { ...valid, workflowRef: 'main' }],
   ])('should refuse a manifest whose %s is malformed, naming the field', (field, manifest) => {
     expect(() => parseVersions(manifest, 'versions.json')).toThrow(field);

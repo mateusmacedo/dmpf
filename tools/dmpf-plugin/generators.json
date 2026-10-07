@@ -1,5 +1,10 @@
 {
   "generators": {
+    "init": {
+      "factory": "./dist/generators/init/generator",
+      "schema": "./src/generators/init/schema.json",
+      "description": "Prepara o workspace para o DMPF: dmpf.json, go.work, nx.json, .golangci.yml, infra estática e baseline"
+    },
     "bounded-context": {
       "factory": "./dist/generators/bounded-context/generator",
       "schema": "./src/generators/bounded-context/schema.json",

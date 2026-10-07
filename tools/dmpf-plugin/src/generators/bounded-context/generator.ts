@@ -1,8 +1,15 @@
 import { execFileSync } from 'node:child_process';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { join } from 'node:path';
 import type { GeneratorCallback, Tree } from '@nx/devkit';
 import { generateFiles, logger } from '@nx/devkit';
+import {
+  type DmpfConfig,
+  RESERVED_MODULE_PREFIX,
+  readDmpfConfigFromTree,
+} from '../../lib/dmpf-config';
 import { templatesDir } from '../../lib/paths';
-import { readVersions } from '../../lib/versions';
+import { type DmpfVersions, readVersions } from '../../lib/versions';
 import type { BlockLayout } from './blocks';
 import {
   BLOCK_NAMES,
@@ -19,12 +26,8 @@ import { IDENTIFIER_PATTERN, isIdentifier } from './identifiers';
 import { externalFragment, unitsFragment } from './manifest';
 import type { Block, BoundedContextGeneratorSchema } from './schema';
 
-const MODULE_PREFIX = 'github.com/mateusmacedo/dmpf';
-const DEFAULT_DIRECTORY = 'apps/backend';
+const KERNEL_PREFIX = 'github.com/mateusmacedo/dmpf';
 const GO_WORK = 'go.work';
-const NPM_SCOPE = '@mateusmacedo';
-const MODSYNC_ARGS = ['run', './tools/dmpf-conformance/cmd/modsync', '--root', '.', '--write'];
-const INFRASYNC_ARGS = ['run', './tools/dmpf-conformance/cmd/infrasync', '--root', '.', '--write'];
 const NX_JSON = 'nx.json';
 const LOCAL_COMPOSE = 'infra/local/docker-compose.yml';
 const CONTRACT_DIRECTORY = 'contract';
@@ -32,9 +35,22 @@ const DEPLOY_DIRECTORY = 'deploy';
 const DEFAULT_GRPC_PORT = 9194;
 const SERVICE_NAME_PATTERN = /^[a-z][a-z0-9]*(\.[a-z][a-z0-9]*)*\.[A-Z][A-Za-z0-9]*$/;
 
-const BASELINE_INSTRUCTION = [
-  'Unidades novas mudam a classificação. Regrave o baseline:',
-  '  go run ./tools/dmpf-conformance/cmd/conformance --root . --write-baseline',
+const toolCommandOf = (
+  config: DmpfConfig,
+  tool: 'conformance' | 'modsync' | 'infrasync',
+): string =>
+  config.tooling.mode === 'local'
+    ? `./tools/dmpf-conformance/cmd/${tool}`
+    : `${KERNEL_PREFIX}/tools/dmpf-conformance/cmd/${tool}@${readVersions().conformance}`;
+
+const baselineCommandOf = (config: DmpfConfig): string =>
+  `go run ${toolCommandOf(config, 'conformance')} --root . --write-baseline`;
+
+const TEST_INFRA_OF_PLATFORM = [
+  '        {',
+  '          "projects": ["testkit"],',
+  '          "target": "test-infra-up"',
+  '        }',
 ].join('\n');
 
 type Substitutions = Record<string, string | boolean>;
@@ -46,6 +62,7 @@ type PlannedBlock = {
 };
 
 type Plan = {
+  config: DmpfConfig;
   directory: string;
   contractDirectory: string;
   useEntries: readonly string[];
@@ -82,8 +99,8 @@ const validatedBoundedContext = (boundedContext: string | undefined): string => 
   return boundedContext;
 };
 
-const validatedDirectory = (directory: string | undefined): string => {
-  const value = directory === undefined || directory.length === 0 ? DEFAULT_DIRECTORY : directory;
+const validatedDirectory = (directory: string | undefined, appsDir: string): string => {
+  const value = directory === undefined || directory.length === 0 ? appsDir : directory;
   const segments = value.split('/');
   const escapes = value.startsWith('/') || segments.includes('..') || segments.includes('');
   if (escapes) {
@@ -91,9 +108,9 @@ const validatedDirectory = (directory: string | undefined): string => {
       `option directory ${JSON.stringify(value)} must be a path relative to the workspace root, with no ".." segment`,
     );
   }
-  if (value !== DEFAULT_DIRECTORY) {
+  if (value !== appsDir) {
     return refuse(
-      `option directory ${JSON.stringify(value)} must be ${DEFAULT_DIRECTORY}: the Dockerfile, the deploy compose and infrasync read ${DEFAULT_DIRECTORY}/<name>`,
+      `option directory ${JSON.stringify(value)} must be ${appsDir}, the appsDir of dmpf.json: the Dockerfile, the deploy compose and infrasync read ${appsDir}/<name>`,
     );
   }
   return value;
@@ -167,15 +184,15 @@ const testRaceCommandOf = (integration: boolean): string =>
 
 const GRPC_ADDR_PATTERN = /^GRPC_ADDR=[^:\n]*:(\d+)$/m;
 
-const declaredGrpcPorts = (tree: Tree): number[] =>
-  tree.children(DEFAULT_DIRECTORY).flatMap((app) => {
-    const env = tree.read(`${DEFAULT_DIRECTORY}/${app}/${DEPLOY_DIRECTORY}/.env.example`, 'utf-8');
+const declaredGrpcPorts = (tree: Tree, appsDir: string): number[] =>
+  tree.children(appsDir).flatMap((app) => {
+    const env = tree.read(`${appsDir}/${app}/${DEPLOY_DIRECTORY}/.env.example`, 'utf-8');
     const match = env === null ? null : GRPC_ADDR_PATTERN.exec(env);
     return match === null ? [] : [Number(match[1])];
   });
 
-const validatedGrpcPort = (tree: Tree, port: number | undefined): number => {
-  const taken = declaredGrpcPorts(tree);
+const validatedGrpcPort = (tree: Tree, port: number | undefined, appsDir: string): number => {
+  const taken = declaredGrpcPorts(tree, appsDir);
   const value = port ?? Math.max(DEFAULT_GRPC_PORT - 1, ...taken) + 1;
   if (!Number.isInteger(value) || value < 1024 || value > 65535) {
     return refuse(`option grpcPort ${JSON.stringify(port)} must be an integer from 1024 to 65535`);
@@ -203,6 +220,7 @@ const blocksTableOf = ({
     .join('\n');
 
 const planModule = ({
+  config,
   name,
   boundedContext,
   directory,
@@ -211,6 +229,7 @@ const planModule = ({
   serviceName,
   grpcPort,
 }: {
+  config: DmpfConfig;
   name: string;
   boundedContext: string;
   directory: string;
@@ -218,9 +237,9 @@ const planModule = ({
   goVersion: string;
   serviceName: string;
   grpcPort: number;
-}): Omit<Plan, 'goWork'> => {
+}): Omit<Plan, 'goWork' | 'config'> => {
   const moduleDirectory = `${directory}/${name}`;
-  const modulePath = `${MODULE_PREFIX}/${moduleDirectory}`;
+  const modulePath = `${config.modulePrefix}/${moduleDirectory}`;
   const contractDirectory = `${moduleDirectory}/${CONTRACT_DIRECTORY}`;
   const contractModulePath = `${modulePath}/${CONTRACT_DIRECTORY}`;
   const contractProjectName = `${name}-${CONTRACT_DIRECTORY}`;
@@ -242,7 +261,7 @@ const planModule = ({
       contractModulePath,
       contractProjectName,
       contractProjectNameJson: JSON.stringify(contractProjectName),
-      contractPackageNameJson: JSON.stringify(`${NPM_SCOPE}/${contractProjectName}`),
+      contractPackageNameJson: JSON.stringify(`${config.npmScope}/${contractProjectName}`),
       contractSourceRootJson: JSON.stringify(contractDirectory),
       contractNxSchemaJson: JSON.stringify(
         `${'../'.repeat(depth + 1)}node_modules/nx/schemas/project-schema.json`,
@@ -266,7 +285,7 @@ const planModule = ({
       serviceName,
       moduleDirectory,
       projectNameJson: JSON.stringify(name),
-      packageNameJson: JSON.stringify(`${NPM_SCOPE}/${name}`),
+      packageNameJson: JSON.stringify(`${config.npmScope}/${name}`),
       sourceRootJson: JSON.stringify(moduleDirectory),
       nxSchemaJson: JSON.stringify(
         `${'../'.repeat(depth)}node_modules/nx/schemas/project-schema.json`,
@@ -274,6 +293,21 @@ const planModule = ({
       modulePath,
       goVersion,
       goImage: versions.go.image,
+      localTooling: config.tooling.mode === 'local',
+      appsDir: config.appsDir,
+      composeProfile: config.composeProfile,
+      edgeApp: config.edge,
+      spiffeTrustDomain: config.spiffeTrustDomain,
+      imageRegistry: config.imageRegistry,
+      bufModule: config.bufModule,
+      pluginRoot:
+        config.tooling.mode === 'local'
+          ? '{workspaceRoot}/tools/dmpf-plugin'
+          : '{workspaceRoot}/node_modules/@mateusmacedo/dmpf-plugin',
+      testInfraDependency:
+        config.tooling.mode === 'local' ? TEST_INFRA_OF_PLATFORM : '        "test-infra-up"',
+      modsyncCommand: `go run ${toolCommandOf(config, 'modsync')} --root . --write`,
+      baselineCommand: baselineCommandOf(config),
       protocGenGoVersion: versions.protocGenGo,
       govulncheckVersion: versions.govulncheck,
       boundedContext,
@@ -320,19 +354,36 @@ const planModule = ({
   };
 };
 
+const INIT_COMMAND = 'pnpm nx g @mateusmacedo/dmpf-plugin:init';
+
+const validatedConfig = (tree: Tree): DmpfConfig => {
+  const config = readDmpfConfigFromTree(tree);
+  if (config.modulePrefix === RESERVED_MODULE_PREFIX) {
+    return refuse(
+      `dmpf.json still has the reserved modulePrefix ${RESERVED_MODULE_PREFIX}; set the real one first: ${INIT_COMMAND} --modulePrefix=<path>`,
+    );
+  }
+  if (!tree.exists(LOCAL_COMPOSE)) {
+    return refuse(`${LOCAL_COMPOSE} was not found; write the local infra first: ${INIT_COMMAND}`);
+  }
+  return config;
+};
+
 const planGeneration = (tree: Tree, options: BoundedContextGeneratorSchema): Plan => {
+  const config = validatedConfig(tree);
   const name = validatedName(options.name);
   const boundedContext = validatedBoundedContext(options.boundedContext);
-  const directory = validatedDirectory(options.directory);
+  const directory = validatedDirectory(options.directory, config.appsDir);
   const blocks = validatedBlocks(options.blocks);
   const serviceName = validatedServiceName({ serviceName: options.serviceName, name });
-  const grpcPort = validatedGrpcPort(tree, options.grpcPort);
+  const grpcPort = validatedGrpcPort(tree, options.grpcPort, config.appsDir);
 
   const goWorkContent =
     tree.read(GO_WORK, 'utf-8') ?? refuse(`${GO_WORK} was not found at the workspace root`);
   const { goVersion, useEntries } = parseGoWork(goWorkContent);
 
   const module = planModule({
+    config,
     name,
     boundedContext,
     directory,
@@ -353,6 +404,7 @@ const planGeneration = (tree: Tree, options: BoundedContextGeneratorSchema): Pla
 
   return {
     ...module,
+    config,
     goWork: registerModules({ content: goWorkContent, modules: module.useEntries }),
   };
 };
@@ -414,6 +466,35 @@ const withComposeInclude = ({ content, directory }: { content: string; directory
   }
   lines.splice(at, 0, `  - ${include}`);
   return lines.join('\n');
+};
+
+const templateFiles = (dir: string): string[] =>
+  readdirSync(dir).flatMap((entry) => {
+    const path = join(dir, entry);
+    return statSync(path).isDirectory() ? templateFiles(path) : [path];
+  });
+
+// The first context of a consumer imports the kernel before any go get: modsync
+// takes the owner of each import from these requires.
+const kernelRequires = (versions: DmpfVersions): string[] => {
+  const pattern = new RegExp(
+    `${KERNEL_PREFIX.replaceAll('.', '\\.')}/libs/backend/go/([a-z]+)`,
+    'g',
+  );
+  const libs = new Set(
+    templateFiles(templatesDir('bounded-context')).flatMap((path) =>
+      [...readFileSync(path, 'utf-8').matchAll(pattern)].map((match) => match[1]),
+    ),
+  );
+  return [...libs]
+    .sort()
+    .flatMap((lib) => ['--require', `${KERNEL_PREFIX}/libs/backend/go/${lib}@${versions.kernel}`]);
+};
+
+const toolArgs = (config: DmpfConfig, tool: 'modsync' | 'infrasync'): string[] => {
+  const requires =
+    tool === 'modsync' && config.tooling.mode === 'version' ? kernelRequires(readVersions()) : [];
+  return ['run', toolCommandOf(config, tool), '--root', '.', '--write', ...requires];
 };
 
 const runGo = ({ root, args, directory }: { root: string; args: string[]; directory: string }) => {
@@ -480,15 +561,19 @@ export const boundedContextGenerator = async (
 
   const blocks = plan.blocks.map((block) => block.layout.dirName).join(', ');
   logger.info(
-    `\nbounded-context: 2 módulos gerados, ${plan.directory} com ${plan.blocks.length} bloco(s) (${blocks}) e ${plan.contractDirectory}.\n${BASELINE_INSTRUCTION}`,
+    `\nbounded-context: 2 módulos gerados, ${plan.directory} com ${plan.blocks.length} bloco(s) (${blocks}) e ${plan.contractDirectory}.\nUnidades novas mudam a classificação. Regrave o baseline:\n  ${baselineCommandOf(plan.config)}`,
   );
 
   // WHY: o modsync e o infrasync leem o disco, não a Tree — só o callback
   // pós-flush enxerga os módulos e o deploy novos.
   return () => {
-    runGo({ root: tree.root, args: MODSYNC_ARGS, directory: plan.directory });
+    runGo({ root: tree.root, args: toolArgs(plan.config, 'modsync'), directory: plan.directory });
     if (plan.substitutions.hasApp) {
-      runGo({ root: tree.root, args: INFRASYNC_ARGS, directory: plan.directory });
+      runGo({
+        root: tree.root,
+        args: toolArgs(plan.config, 'infrasync'),
+        directory: plan.directory,
+      });
     }
   };
 };

@@ -15,6 +15,7 @@ export const workspaceWithDmpfJson = (mode: ToolingMode, appsDir = 'apps/backend
       edge: '',
       spiffeTrustDomain: 'consumer',
       composeProfile: 'consumer',
+      composeProject: 'consumer',
       imageRegistry: 'ghcr.io/consumer',
       bufModule: 'buf.build/consumer',
       tooling: { mode },

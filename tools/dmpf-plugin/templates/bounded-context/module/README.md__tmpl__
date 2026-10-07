@@ -21,7 +21,7 @@ o primeiro em que toda dependência do módulo está de pé. Import path do mód
 ## Borda, banco e configuração
 
 O contexto serve só gRPC (`<%- serviceName %>`), atrás da cadeia de
-interceptors do kernel; o REST público é do `bff` (ADR-044, ADR-053). O
+interceptors do kernel; o REST público é <% if (edgeApp) { %>do `<%- edgeApp %>`<% } else { %>de uma borda à parte<% } %> (ADR-044, ADR-053). O
 `ServiceDesc` de `app/rpc/service.go` nasce vazio: cada método entra ali quando
 o serviço é publicado em `contract/proto`, o módulo de contrato do contexto.
 
@@ -71,7 +71,7 @@ irmão nenhum. A partir do primeiro import, o `require` do irmão é gravado pel
 roda de novo a cada import novo:
 
 ```bash
-go run ./tools/dmpf-conformance/cmd/modsync --root . --write
+<%- modsyncCommand %>
 ```
 
 Dentro do workspace quem resolve é o `go.work` da raiz, onde o generator
@@ -84,5 +84,5 @@ o `require` resolve pela tag publicada do irmão. O CI confere os dois lados com
 Unidade nova muda a classificação: regrave o baseline do verificador.
 
 ```bash
-go run ./tools/dmpf-conformance/cmd/conformance --root . --write-baseline
+<%- baselineCommand %>
 ```

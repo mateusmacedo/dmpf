@@ -33,6 +33,7 @@ const workspace = (): string => {
     'libs/backend/go/domain/project.json',
     JSON.stringify({ command: 'go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 ./...' }),
   );
+  write(root, 'pnpm-workspace.yaml', 'catalog:\n  "@nx-go/nx-go": 4.0.0\n');
   write(
     root,
     'tools/dmpf-plugin/versions.json',
@@ -46,6 +47,7 @@ const workspace = (): string => {
         protocGenGo: 'v1.36.11',
         golangciLint: 'v2.13.0',
         govulncheck: 'v1.6.0',
+        nxGo: '3.0.0',
         workflowRef: '',
       },
       null,
@@ -85,6 +87,7 @@ describe('[script] sync-versions', () => {
       protocGenGo: 'v1.36.12',
       golangciLint: 'v2.13.2',
       govulncheck: 'v1.7.0',
+      nxGo: '4.0.0',
       workflowRef: SHA,
     });
   });

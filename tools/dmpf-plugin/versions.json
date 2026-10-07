@@ -10,5 +10,6 @@
   "protocGenGo": "v1.36.12",
   "golangciLint": "v2.13.2",
   "govulncheck": "v1.7.0",
+  "nxGo": "4.0.0",
   "workflowRef": ""
 }

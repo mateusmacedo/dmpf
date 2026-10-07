@@ -1,7 +1,7 @@
 version: v2
 modules:
   - path: proto
-    name: buf.build/mateusmacedo/<%- name %>-contract
+    name: <%- bufModule %>/<%- name %>-contract
 lint:
   use:
     - STANDARD

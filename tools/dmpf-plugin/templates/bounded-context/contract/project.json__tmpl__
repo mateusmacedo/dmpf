@@ -15,8 +15,8 @@
       "inputs": [
         "go",
         "^go",
-        "{workspaceRoot}/tools/dmpf-plugin/scripts/buf.sh",
-        "{workspaceRoot}/tools/dmpf-plugin/versions.json"
+        "<%- pluginRoot %>/scripts/buf.sh",
+        "<%- pluginRoot %>/versions.json"
       ],
       "options": {
         "command": "saida=\"$(gofmt -l . 2>&1)\"; status=$?; [ $status -eq 0 ] || { printf '%s\\n' \"$saida\" >&2; exit $status; }; [ -z \"$saida\" ] || { printf '%s\\n' \"$saida\" >&2; exit 1; }",
@@ -29,8 +29,8 @@
       "inputs": [
         "go",
         "^go",
-        "{workspaceRoot}/tools/dmpf-plugin/scripts/buf.sh",
-        "{workspaceRoot}/tools/dmpf-plugin/versions.json"
+        "<%- pluginRoot %>/scripts/buf.sh",
+        "<%- pluginRoot %>/versions.json"
       ],
       "options": {
         "command": "go vet ./...",
@@ -42,8 +42,8 @@
       "inputs": [
         "go",
         "^go",
-        "{workspaceRoot}/tools/dmpf-plugin/scripts/buf.sh",
-        "{workspaceRoot}/tools/dmpf-plugin/versions.json"
+        "<%- pluginRoot %>/scripts/buf.sh",
+        "<%- pluginRoot %>/versions.json"
       ],
       "options": {
         "command": "go build ./...",
@@ -56,8 +56,8 @@
       "inputs": [
         "go",
         "^go",
-        "{workspaceRoot}/tools/dmpf-plugin/scripts/buf.sh",
-        "{workspaceRoot}/tools/dmpf-plugin/versions.json"
+        "<%- pluginRoot %>/scripts/buf.sh",
+        "<%- pluginRoot %>/versions.json"
       ],
       "options": {
         "command": "go test -race ./...",
@@ -84,9 +84,9 @@
       "cache": true,
       "dependsOn": ["buf-warmup"],
       "inputs": [
-        "{workspaceRoot}/tools/dmpf-plugin/scripts/buf.sh",
-        "{workspaceRoot}/tools/dmpf-plugin/versions.json",
-        "{workspaceRoot}/tools/dmpf-plugin/scripts/buf-gate.sh",
+        "<%- pluginRoot %>/scripts/buf.sh",
+        "<%- pluginRoot %>/versions.json",
+        "<%- pluginRoot %>/scripts/buf-gate.sh",
         "{projectRoot}/**/*"
       ],
       "options": {
@@ -97,9 +97,9 @@
       "executor": "@mateusmacedo/dmpf-plugin:buf-gate",
       "cache": true,
       "inputs": [
-        "{workspaceRoot}/tools/dmpf-plugin/scripts/buf.sh",
-        "{workspaceRoot}/tools/dmpf-plugin/versions.json",
-        "{workspaceRoot}/tools/dmpf-plugin/scripts/buf-gate.sh",
+        "<%- pluginRoot %>/scripts/buf.sh",
+        "<%- pluginRoot %>/versions.json",
+        "<%- pluginRoot %>/scripts/buf-gate.sh",
         "{projectRoot}/go.mod",
         "{projectRoot}/buf.yaml",
         "{projectRoot}/buf.gen.yaml",
@@ -115,9 +115,9 @@
       "cache": true,
       "dependsOn": ["buf-warmup"],
       "inputs": [
-        "{workspaceRoot}/tools/dmpf-plugin/scripts/buf.sh",
-        "{workspaceRoot}/tools/dmpf-plugin/versions.json",
-        "{workspaceRoot}/tools/dmpf-plugin/scripts/buf-gate.sh",
+        "<%- pluginRoot %>/scripts/buf.sh",
+        "<%- pluginRoot %>/versions.json",
+        "<%- pluginRoot %>/scripts/buf-gate.sh",
         "{projectRoot}/gen/**/*",
         "{projectRoot}/go.mod",
         "{projectRoot}/**/*"
@@ -130,9 +130,9 @@
       "executor": "@mateusmacedo/dmpf-plugin:buf-gate",
       "cache": false,
       "inputs": [
-        "{workspaceRoot}/tools/dmpf-plugin/scripts/buf.sh",
-        "{workspaceRoot}/tools/dmpf-plugin/versions.json",
-        "{workspaceRoot}/tools/dmpf-plugin/scripts/buf-gate.sh",
+        "<%- pluginRoot %>/scripts/buf.sh",
+        "<%- pluginRoot %>/versions.json",
+        "<%- pluginRoot %>/scripts/buf-gate.sh",
         "{projectRoot}/**/*"
       ],
       "options": {

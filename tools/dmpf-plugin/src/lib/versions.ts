@@ -12,6 +12,7 @@ export type DmpfVersions = {
   protocGenGo: string;
   golangciLint: string;
   govulncheck: string;
+  nxGo: string;
   workflowRef: string;
 };
 
@@ -19,6 +20,7 @@ const MODULE_VERSION = /^v\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/;
 const GO_DIRECTIVE = /^\d+\.\d+(\.\d+)?$/;
 const IMAGE = /^[a-z0-9][a-z0-9./_-]*:[\w.-]+$/;
 const COMMIT_SHA = /^[0-9a-f]{40}$/;
+const NPM_VERSION = /^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/;
 
 const field = (source: string, name: string, value: unknown, pattern: RegExp): string => {
   if (typeof value !== 'string' || !pattern.test(value)) {
@@ -46,6 +48,7 @@ export const parseVersions = (raw: unknown, source: string): DmpfVersions => {
     protocGenGo: field(source, 'protocGenGo', doc.protocGenGo, MODULE_VERSION),
     golangciLint: field(source, 'golangciLint', doc.golangciLint, MODULE_VERSION),
     govulncheck: field(source, 'govulncheck', doc.govulncheck, MODULE_VERSION),
+    nxGo: field(source, 'nxGo', doc.nxGo, NPM_VERSION),
     workflowRef,
   };
 };

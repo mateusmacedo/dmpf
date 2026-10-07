@@ -31,7 +31,7 @@
     ]
   },
   "grpc": {
-    "server": "dmpf-<%- name %>-api"
+    "server": "<%- composeProfile %>-<%- name %>-api"
   },
   "openapi": false
 }

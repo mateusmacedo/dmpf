@@ -3,7 +3,7 @@
 x-image: &image
   build:
     context: ../../../..
-    dockerfile: apps/backend/<%- name %>/Dockerfile
+    dockerfile: <%- moduleDirectory %>/Dockerfile
   image: ${<%- envName %>_IMAGE:-<%- name %>:local}
 
 x-env: &env
@@ -11,17 +11,17 @@ x-env: &env
   PG_DSN: postgres://<%- name %>:${<%- envName %>_PG_PASSWORD:-<%- name %>-local}@postgres:5432/<%- name %>?sslmode=disable
 
 services:
-  dmpf-<%- name %>-api:
+  <%- composeProfile %>-<%- name %>-api:
     <<: *image
     extends:
       file: ../../../../infra/local/compose/app-base.yml
-      service: dmpf-grpc-api
+      service: <%- composeProfile %>-grpc-api
     stop_grace_period: 30s
     environment:
       <<: *env
       OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES:-service.version=local,deployment.environment.name=local},service.instance.id=<%- name %>-api,dmpf.process.role=api
-      GRPC_TLS_CERT_FILE: /pki/dmpf-<%- name %>-api.crt
-      GRPC_TLS_KEY_FILE: /pki/dmpf-<%- name %>-api.key
+      GRPC_TLS_CERT_FILE: /pki/<%- composeProfile %>-<%- name %>-api.crt
+      GRPC_TLS_KEY_FILE: /pki/<%- composeProfile %>-<%- name %>-api.key
     depends_on:
       pki-init:
         condition: service_completed_successfully
@@ -30,11 +30,11 @@ services:
       otel-collector:
         condition: service_started
 
-  dmpf-<%- name %>-relay:
+  <%- composeProfile %>-<%- name %>-relay:
     <<: *image
     extends:
       file: ../../../../infra/local/compose/app-base.yml
-      service: dmpf-kafka-worker
+      service: <%- composeProfile %>-kafka-worker
     stop_grace_period: 30s
     command: ['--role', 'relay']
     environment:
@@ -48,5 +48,5 @@ services:
     depends_on:
       redpanda-init:
         condition: service_completed_successfully
-      dmpf-<%- name %>-api:
+      <%- composeProfile %>-<%- name %>-api:
         condition: service_started

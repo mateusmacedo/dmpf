@@ -28,6 +28,11 @@ const PINS = [
     pattern: /github\.com\/golangci\/golangci-lint\/v2\/cmd\/golangci-lint@(v[^"\s]+)/,
   },
   {
+    field: 'nxGo',
+    sources: ['pnpm-workspace.yaml'],
+    pattern: /^\s+"@nx-go\/nx-go": (\d+\.\d+\.\d+\S*)$/m,
+  },
+  {
     field: 'govulncheck',
     sources: ['libs/backend/go/domain/project.json'],
     pattern: /golang\.org\/x\/vuln\/cmd\/govulncheck@(v[^"\s]+)/,

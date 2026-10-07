@@ -10,16 +10,16 @@ spec:
     matchLabels:
       app.kubernetes.io/component: api
   policyTypes: [Ingress]
-  ingress:
+  ingress:<% if (edgeApp) { %>
     - from:
         - podSelector:
             matchExpressions:
               - key: app.kubernetes.io/name
                 operator: In
-                values: [bff]
+                values: [<%- edgeApp %>]
       ports:
         - port: 9090
-          protocol: TCP
+          protocol: TCP<% } else { %> []<% } %>
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

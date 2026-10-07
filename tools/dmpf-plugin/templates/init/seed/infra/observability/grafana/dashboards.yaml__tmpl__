@@ -1,0 +1,28 @@
+# Um provider por pasta, cada um com folderUid fixo: um provider na raiz leria as
+# subpastas e duplicaria os uid. O Compose monta dashboards/ inteiro; o Kubernetes
+# monta um ConfigMap por pasta no mesmo caminho (kustomization.yaml).
+apiVersion: 1
+
+providers:
+  - name: dmpf-kernel
+    orgId: 1
+    folder: DMPF · Kernel
+    folderUid: dmpf-kernel
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards/kernel
+      foldersFromFilesStructure: false
+  - name: dmpf-infra
+    orgId: 1
+    folder: DMPF · Infra
+    folderUid: dmpf-infra
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards/infra
+      foldersFromFilesStructure: false

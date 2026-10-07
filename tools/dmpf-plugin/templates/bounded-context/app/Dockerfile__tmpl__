@@ -2,10 +2,12 @@
 
 # Imagem do contexto <%- name %>: um binário, dois papéis por `--role` (api gRPC e relay).
 #
-# Build a partir da RAIZ do repositório — o go.work resolve os módulos irmãos
+<% if (localTooling) { %># Build a partir da RAIZ do repositório — o go.work resolve os módulos irmãos
 # (libs/backend/go e tools/dmpf-conformance) e recusa um `use` ausente do
 # contexto, então o COPY leva todos os módulos do workspace Go:
-#   docker build -f <%- moduleDirectory %>/Dockerfile -t <%- name %>:local .
+<% } else { %># Build a partir da RAIZ do repositório — o go.work resolve os módulos do
+# workspace, e o kernel vem por versão do proxy Go, então o COPY leva só as apps:
+<% } %>#   docker build -f <%- moduleDirectory %>/Dockerfile -t <%- name %>:local .
 #
 # Esta imagem NÃO entra no release Docker do workspace (nx-release.yml filtra
 # `tag:type:app,!tag:stack:go`, ADR-041): ela serve ao compose local
@@ -15,9 +17,9 @@ FROM <%= goImage %> AS build
 WORKDIR /src
 
 COPY go.work go.work.sum ./
-COPY libs/backend/go ./libs/backend/go
+<% if (localTooling) { %>COPY libs/backend/go ./libs/backend/go
 COPY tools/dmpf-conformance ./tools/dmpf-conformance
-COPY apps/backend ./apps/backend
+<% } %>COPY <%- appsDir %> ./<%- appsDir %>
 
 RUN --mount=type=cache,target=/root/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \

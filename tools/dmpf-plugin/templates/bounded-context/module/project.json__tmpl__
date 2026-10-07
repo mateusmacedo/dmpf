@@ -43,10 +43,7 @@
         "command": <%- testRaceCommandJson %>
       },
       "dependsOn": [
-        {
-          "projects": ["testkit"],
-          "target": "test-infra-up"
-        }
+<%- testInfraDependency %>
       ]<% } else { %>
       "executor": "nx:run-commands",
       "cache": true,
@@ -63,7 +60,21 @@
         "command": "go run golang.org/x/vuln/cmd/govulncheck@<%= govulncheckVersion %> ./...",
         "cwd": "{projectRoot}"
       }
-    }<% if (hasApp) { %>,
+    }<% if (!localTooling) { %>,
+    "test-infra-up": {
+      "executor": "@mateusmacedo/dmpf-plugin:test-infra",
+      "cache": false,
+      "options": {
+        "action": "up"
+      }
+    },
+    "test-infra-down": {
+      "executor": "@mateusmacedo/dmpf-plugin:test-infra",
+      "cache": false,
+      "options": {
+        "action": "down"
+      }
+    }<% } %><% if (hasApp) { %>,
     "nx-release-publish": {
       "executor": "nx:noop"
     },
@@ -74,17 +85,17 @@
         "cwd": "{projectRoot}",
         "envFile": "{projectRoot}/deploy/.env.example"
       },
-      "continuous": true,
+      "continuous": true<% if (localTooling) { %>,
       "dependsOn": [
         {
-          "projects": ["bff"],
+          "projects": ["<%- edgeApp %>"],
           "target": "infra-up"
         },
         {
-          "projects": ["bff"],
+          "projects": ["<%- edgeApp %>"],
           "target": "infra-session"
         }
-      ]
+      ]<% } %>
     },
     "serve-relay": {
       "executor": "nx:run-commands",
@@ -111,15 +122,12 @@
       "cache": false,
       "inputs": ["go", "^go"],
       "dependsOn": [
-        {
-          "projects": ["testkit"],
-          "target": "test-infra-up"
-        },
-        {
+<%- testInfraDependency %>,
+<% if (localTooling) { %>        {
           "projects": ["postgres", "app"],
           "target": "test-race"
         },
-        "test-race"
+<% } %>        "test-race"
       ],
       "options": {
         "command": <%- testDistributedCommandJson %>
@@ -130,10 +138,7 @@
       "cache": false,
       "inputs": ["go", "^go"],
       "dependsOn": [
-        {
-          "projects": ["testkit"],
-          "target": "test-infra-up"
-        }
+<%- testInfraDependency %>
       ],
       "options": {
         "command": <%- testDistributedCommandJson %>

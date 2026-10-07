@@ -21,7 +21,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: api
-          image: ghcr.io/mateusmacedo/<%- name %>:latest
+          image: <%- imageRegistry %>/<%- name %>:latest
           args: ['--role', 'api']
           ports:
             - name: grpc

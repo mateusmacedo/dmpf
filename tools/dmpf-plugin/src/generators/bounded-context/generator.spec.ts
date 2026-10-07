@@ -151,9 +151,36 @@ const changesOf = (tree: Tree): Changes =>
     tree.listChanges().map((change) => [change.path, change.content?.toString('utf-8') ?? '']),
   );
 
-const treeWithGoWork = (goWork: string = GO_WORK): Tree => {
+const PLATFORM_LAYOUT = {
+  schema: 'dmpf/workspace@1',
+  modulePrefix: MODULE_PREFIX,
+  npmScope: '@mateusmacedo',
+  appsDir: DIRECTORY,
+  edge: 'bff',
+  spiffeTrustDomain: 'dmpf',
+  composeProfile: 'dmpf',
+  composeProject: 'dmpf',
+  imageRegistry: 'ghcr.io/mateusmacedo',
+  bufModule: 'buf.build/mateusmacedo',
+  tooling: { mode: 'local' },
+};
+
+const LOCAL_COMPOSE_BASE = [
+  'name: dmpf-local',
+  '',
+  'include:',
+  '  - compose/postgres.yml',
+  '',
+].join('\n');
+
+const treeWithGoWork = (
+  goWork: string = GO_WORK,
+  layout: Record<string, unknown> = PLATFORM_LAYOUT,
+): Tree => {
   const tree = createTreeWithEmptyWorkspace();
   tree.write('go.work', goWork);
+  tree.write('dmpf.json', JSON.stringify(layout));
+  tree.write('infra/local/docker-compose.yml', LOCAL_COMPOSE_BASE);
   return tree;
 };
 
@@ -322,6 +349,105 @@ const expectRefusal = async ({
 
 afterEach(() => {
   jest.restoreAllMocks();
+});
+
+describe('[generator] bounded-context — workspace layout', () => {
+  const CONSUMER_LAYOUT = {
+    ...PLATFORM_LAYOUT,
+    modulePrefix: 'github.com/acme/shop',
+    npmScope: '@acme',
+    appsDir: 'services',
+    edge: '',
+    tooling: { mode: 'version' },
+  };
+
+  it('should refuse to run without dmpf.json, pointing to init', async () => {
+    await expectRefusal({
+      overrides: {},
+      prepare: (tree) => tree.delete('dmpf.json'),
+      message: /@mateusmacedo\/dmpf-plugin:init/,
+    });
+  });
+
+  it('should refuse the reserved module prefix before writing anything', async () => {
+    await expectRefusal({
+      overrides: {},
+      prepare: (tree) =>
+        tree.write(
+          'dmpf.json',
+          JSON.stringify({ ...PLATFORM_LAYOUT, modulePrefix: 'example.com/change-me' }),
+        ),
+      message: /init --modulePrefix=<path>/,
+    });
+  });
+
+  it('should refuse to run without the local compose that init writes', async () => {
+    await expectRefusal({
+      overrides: {},
+      prepare: (tree) => tree.delete('infra/local/docker-compose.yml'),
+      message: /infra\/local\/docker-compose\.yml.*@mateusmacedo\/dmpf-plugin:init/,
+    });
+  });
+
+  it('should refuse a directory other than the apps directory of dmpf.json', async () => {
+    await expectRefusal({
+      overrides: { directory: 'apps/other' },
+      message: /must be apps\/backend/,
+    });
+  });
+
+  it('should take the module path, the npm scope and the apps directory from dmpf.json', async () => {
+    const tree = treeWithGoWork(GO_WORK, CONSUMER_LAYOUT);
+
+    await boundedContextGenerator(tree, { ...FULL_OPTIONS, directory: undefined });
+
+    expect(readText(tree, 'services/checkout/go.mod')).toContain(
+      'module github.com/acme/shop/services/checkout',
+    );
+    expect(readJsonFile<{ name: string }>(tree, 'services/checkout/package.json').name).toBe(
+      '@acme/checkout',
+    );
+  });
+
+  it('should run modsync and infrasync by version, requiring the kernel the templates import', async () => {
+    const run = childProcess.execFileSync as jest.MockedFunction<typeof childProcess.execFileSync>;
+    run.mockClear();
+    const tree = treeWithGoWork(GO_WORK, CONSUMER_LAYOUT);
+    const { conformance, kernel } = versions.readVersions();
+
+    const callback = await boundedContextGenerator(tree, { ...FULL_OPTIONS, directory: undefined });
+    await callback();
+
+    const tool = (name: string) =>
+      `${MODULE_PREFIX}/tools/dmpf-conformance/cmd/${name}@${conformance}`;
+    const requires = [
+      'app',
+      'grpc',
+      'kafka',
+      'observability',
+      'postgres',
+      'testkit',
+      'transport',
+    ].flatMap((lib) => ['--require', `${MODULE_PREFIX}/libs/backend/go/${lib}@${kernel}`]);
+    expect(run).toHaveBeenNthCalledWith(
+      1,
+      'go',
+      ['run', tool('modsync'), '--root', '.', '--write', ...requires],
+      {
+        cwd: tree.root,
+        stdio: 'inherit',
+      },
+    );
+    expect(run).toHaveBeenNthCalledWith(
+      2,
+      'go',
+      ['run', tool('infrasync'), '--root', '.', '--write'],
+      {
+        cwd: tree.root,
+        stdio: 'inherit',
+      },
+    );
+  });
 });
 
 describe('[generator] bounded-context — tool pins', () => {

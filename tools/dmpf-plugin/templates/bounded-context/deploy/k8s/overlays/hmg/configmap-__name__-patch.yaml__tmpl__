@@ -12,7 +12,7 @@ data:
   # de grpc-client-ca, é servido; e o principal Kafka se autentica por SASL
   # SCRAM com o usuário e a senha do Secret do contexto (IDN-04).
   GRPC_CLIENT_CA_FILE: /etc/dmpf/grpc-clients/ca.crt
-  GRPC_TRUSTED_CLIENTS: spiffe://dmpf/bff
+  GRPC_TRUSTED_CLIENTS: <% if (edgeApp) { %>spiffe://<%- spiffeTrustDomain %>/<%- edgeApp %><% } else { %>''<% } %>
   KAFKA_SASL_MECHANISM: SCRAM-SHA-512
   OTEL_RESOURCE_ATTRIBUTES: service.version=hmg,deployment.environment.name=hmg
   OTEL_EXPORTER_OTLP_ENDPOINT: https://otel-collector:4317
