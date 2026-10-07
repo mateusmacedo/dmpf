@@ -424,9 +424,11 @@ verificar apenas unidades locais
   O `init` escreve só o esqueleto estático; os arquivos gerados a partir dos
   contextos seguem com o `infrasync`. Alternativa descartada: `include` remoto.
 - **Workflow reutilizável fixado por SHA**: ref imutável e sem ambiguidade de
-  tags com `@` e `/`; as actions internas vão por caminho completo `@<sha>`,
+  tags com `@` e `/`; as actions internas vêm do commit do próprio
+  reutilizável (checkout de `job.workflow_repository` em `job.workflow_sha`),
   porque o reutilizável chamado de outro repo resolve `uses: ./...` no
-  chamador. Alternativa descartada: copiar o `ci.yml` inteiro no consumidor.
+  chamador, e um `@<sha>` literal não aponta para o commit que o contém.
+  Alternativa descartada: copiar o `ci.yml` inteiro no consumidor.
 - **Proxy `file://` no job de PR**: a combinação plugin + kernel do PR ainda
   não tem tag; o proxy serve o kernel e o `dmpf-conformance` do PR numa
   versão efêmera e exercita o caminho por tag. Alternativa descartada:
