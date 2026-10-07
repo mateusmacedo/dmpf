@@ -283,6 +283,37 @@ func TestWriteFalhaComImportExternoSemModuloNaBuildList(t *testing.T) {
 	}
 }
 
+func TestWriteComRequireDaOrigemAoImportForaDaBuildList(t *testing.T) {
+	raiz := workspaceVersionado(t)
+	arquivo := filepath.Join(raiz, "libs", "f", "kernel.go")
+	if err := os.WriteFile(arquivo, []byte("package f\n\nimport _ \"example.test/kernel/domain\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	kernel := modsync.Requirement{Path: "example.test/kernel", Version: "v1.0.0-rc.1"}
+	if err := modsync.Write(context.Background(), raiz, derivar(t, raiz), kernel); err != nil {
+		t.Fatalf("Write com --require: %v", err)
+	}
+	if goMod := ler(t, raiz, "libs/f/go.mod"); !strings.Contains(goMod, "example.test/kernel v1.0.0-rc.1") {
+		t.Errorf("go.mod de libs/f sem o require do kernel:\n%s", goMod)
+	}
+	if goMod := ler(t, raiz, "libs/a/go.mod"); strings.Contains(goMod, "example.test/kernel") {
+		t.Errorf("require do kernel em módulo que não o importa:\n%s", goMod)
+	}
+}
+
+func TestParseRequirementExigeModuloEVersaoDeRelease(t *testing.T) {
+	got, err := modsync.ParseRequirement("example.test/kernel@v1.0.0-rc.1")
+	if err != nil || got != (modsync.Requirement{Path: "example.test/kernel", Version: "v1.0.0-rc.1"}) {
+		t.Fatalf("ParseRequirement = %+v, %v", got, err)
+	}
+	for _, invalido := range []string{"example.test/kernel", "@v1.0.0", "example.test/kernel@latest", "example.test/kernel@1.0.0"} {
+		if r, err := modsync.ParseRequirement(invalido); err == nil {
+			t.Errorf("ParseRequirement(%q) aceitou %+v", invalido, r)
+		}
+	}
+}
+
 func TestDeriveRecusaUseForaDoRepositorio(t *testing.T) {
 	raiz := workspaceVersionado(t)
 	executarGo(t, raiz, "work", "edit", "-use=../fora")

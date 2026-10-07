@@ -34,6 +34,17 @@ type ManifestSource interface {
 	Documents() ([]manifest.Document, error)
 }
 
+// KernelSource entrega o kernel recebido por versão: os módulos fora do
+// inventário que publicam dmpf-units.json.
+type KernelSource interface {
+	Kernel() (Kernel, error)
+}
+
+type Kernel struct {
+	Documents []manifest.Document
+	Packages  []rule.Package
+}
+
 type InventorySource interface {
 	Modules() ([]rule.Module, error)
 }

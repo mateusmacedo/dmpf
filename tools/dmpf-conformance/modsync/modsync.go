@@ -108,7 +108,9 @@ func Derive(ctx context.Context, root string) (Plan, error) {
 	return plan, nil
 }
 
-func Write(ctx context.Context, root string, plan Plan) error {
+// Os requires dão dono ao import que a build list ainda não conhece: o primeiro
+// contexto de um consumidor importa o kernel antes de qualquer go get.
+func Write(ctx context.Context, root string, plan Plan, requires ...Requirement) error {
 	abs, err := filepath.Abs(root)
 	if err != nil {
 		return err
@@ -143,6 +145,7 @@ func Write(ctx context.Context, root string, plan Plan) error {
 			return fmt.Errorf("%s: %w", mp.Module.Dir, err)
 		}
 		faltantes, semDono := externosSemRequire(mp, atual.versoesRequeridas(), lista)
+		faltantes, semDono = donosPorRequire(faltantes, semDono, requires)
 		if len(semDono) > 0 {
 			return fmt.Errorf("%s: import sem módulo na build list do workspace, rode go get antes: %s", mp.Module.Dir, strings.Join(semDono, ", "))
 		}
@@ -265,6 +268,40 @@ func externosSemRequire(mp ModulePlan, declarados map[string]string, lista map[s
 		requires = append(requires, Requirement{Path: path, Version: lista[path]})
 	}
 	return requires, semDono
+}
+
+func donosPorRequire(faltantes []Requirement, semDono []string, requires []Requirement) ([]Requirement, []string) {
+	versoes := make(map[string]string, len(requires))
+	for _, r := range requires {
+		versoes[r.Path] = r.Version
+	}
+	incluidos := map[string]bool{}
+	for _, f := range faltantes {
+		incluidos[f.Path] = true
+	}
+	var resto []string
+	for _, imp := range semDono {
+		dono := donoDoImport(imp, slices.Collect(maps.Keys(versoes)))
+		switch {
+		case dono == "":
+			resto = append(resto, imp)
+		case !incluidos[dono]:
+			faltantes = append(faltantes, Requirement{Path: dono, Version: versoes[dono]})
+			incluidos[dono] = true
+		}
+	}
+	return faltantes, resto
+}
+
+func ParseRequirement(s string) (Requirement, error) {
+	path, versao, ok := strings.Cut(s, "@")
+	if !ok || path == "" {
+		return Requirement{}, fmt.Errorf("--require %q: use <módulo>@<versão>", s)
+	}
+	if _, ok := parseRelease(versao); !ok {
+		return Requirement{}, fmt.Errorf("--require %q: versão %q não é vX.Y.Z[-pré-release]", s, versao)
+	}
+	return Requirement{Path: path, Version: versao}, nil
 }
 
 func ordenar(findings []Finding) []Finding {

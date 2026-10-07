@@ -297,6 +297,24 @@ func NewManifestStore(modules []ModuleDir) *ManifestStore {
 	return &ManifestStore{modules: modules}
 }
 
+// A origem é <módulo>@<versão>, não o caminho no cache do Go, que muda de uma
+// máquina para outra. O bool é false quando o módulo não publica manifesto.
+func LoadVersionedManifest(module, version, dir string) (manifest.Document, bool, error) {
+	origem := module + "@" + version + "/" + ManifestFileName
+	raw, err := os.ReadFile(filepath.Join(dir, ManifestFileName)) //nolint:gosec // diretório resolvido pelo toolchain
+	if err != nil {
+		if os.IsNotExist(err) {
+			return manifest.Document{}, false, nil
+		}
+		return manifest.Document{}, false, fmt.Errorf("ler %s: %w", origem, err)
+	}
+	doc, err := DecodeManifest(origem, module, raw)
+	if err != nil {
+		return manifest.Document{}, false, err
+	}
+	return doc, true, nil
+}
+
 // Módulo sem manifesto não é erro aqui: a ausência é DMPF-U004, decidida no
 // domínio — o provider apenas relata o que existe.
 func (s *ManifestStore) Documents() ([]manifest.Document, error) {

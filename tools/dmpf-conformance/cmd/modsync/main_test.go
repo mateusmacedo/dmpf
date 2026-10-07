@@ -83,3 +83,16 @@ func TestRaizForaDeRepositorioGitFalha(t *testing.T) {
 		t.Fatalf("exit %d, esperado %d:\n%s", code, exitFalha, out)
 	}
 }
+
+func TestRequireMalformadoOuComCheckFalha(t *testing.T) {
+	dir := workspaceDeTeste(t, true)
+	casos := []opcoes{
+		{raiz: dir, gravar: true, requires: []string{"example.test/kernel"}},
+		{raiz: dir, conferir: true, requires: []string{"example.test/kernel@v1.0.0-rc.1"}},
+	}
+	for _, o := range casos {
+		if code, out := rodar(o); code != exitFalha || !strings.Contains(out, "--require") {
+			t.Errorf("%+v: exit %d, esperado %d citando --require:\n%s", o, code, exitFalha, out)
+		}
+	}
+}

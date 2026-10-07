@@ -3,6 +3,7 @@
 package fsstore
 
 import (
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -21,31 +22,42 @@ type BuildProfile struct {
 
 const buildProfilesSchema = "dmpf/build-profiles@1"
 
+//go:embed build-profiles.json
+var embeddedBuildProfiles []byte
+
 type buildProfilesDoc struct {
 	Schema   string         `json:"schema"`
 	Profiles []BuildProfile `json:"profiles"`
 }
 
-// Conjunto vazio ou arquivo ausente é erro, não default: sem perfil declarado
-// o verificador não sabe o que excluir por build tag, e não saber reprova.
+// Caminho vazio usa os perfis embutidos. Conjunto vazio ou arquivo ausente é
+// erro, não default: sem perfil declarado o verificador não sabe o que excluir
+// por build tag, e não saber reprova.
 func LoadBuildProfiles(path string) ([]BuildProfile, error) {
+	if path == "" {
+		return decodeBuildProfiles(embeddedBuildProfiles, "perfis embutidos")
+	}
 	raw, err := os.ReadFile(filepath.Clean(path))
 	if err != nil {
 		return nil, fmt.Errorf("ler perfis de produção em %s: %w", path, err)
 	}
+	return decodeBuildProfiles(raw, path)
+}
+
+func decodeBuildProfiles(raw []byte, origem string) ([]BuildProfile, error) {
 	var doc buildProfilesDoc
 	if err := json.Unmarshal(raw, &doc); err != nil {
-		return nil, fmt.Errorf("decodificar %s: %w", path, err)
+		return nil, fmt.Errorf("decodificar %s: %w", origem, err)
 	}
 	if doc.Schema != buildProfilesSchema {
-		return nil, fmt.Errorf("%s: schema %q, esperado %q", path, doc.Schema, buildProfilesSchema)
+		return nil, fmt.Errorf("%s: schema %q, esperado %q", origem, doc.Schema, buildProfilesSchema)
 	}
 	if len(doc.Profiles) == 0 {
-		return nil, fmt.Errorf("%s: nenhum perfil de produção declarado", path)
+		return nil, fmt.Errorf("%s: nenhum perfil de produção declarado", origem)
 	}
 	for i, p := range doc.Profiles {
 		if p.ID == "" || p.GOOS == "" || p.GOARCH == "" {
-			return nil, fmt.Errorf("%s: profiles[%d] sem id, goos ou goarch", path, i)
+			return nil, fmt.Errorf("%s: profiles[%d] sem id, goos ou goarch", origem, i)
 		}
 	}
 	return doc.Profiles, nil

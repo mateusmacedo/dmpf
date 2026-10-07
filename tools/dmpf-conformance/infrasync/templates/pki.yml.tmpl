@@ -1,14 +1,14 @@
-# {{generatedBy}}
+# {{$.GeneratedBy}}
 # Autoridade de desenvolvimento para o mTLS do gRPC interno (IDN-03): uma CA, o
 # certificado de servidor de cada api e o de cliente do BFF, cuja identidade é a
-# URI spiffe://dmpf/<cliente> que os contextos confiam.
+# URI spiffe://{{$.Layout.SpiffeTrustDomain}}/<cliente> que os contextos confiam.
 # Tudo nasce num volume nomeado, só na primeira subida; nenhuma chave é
 # versionada, e as chaves ficam legíveis porque as imagens rodam como nonroot.
 # CSR e serial vão para o /tmp do container, que some com ele.
 services:
   pki-init:
     image: alpine:3.20
-    profiles: [dmpf]
+    profiles: [{{$.Layout.ComposeProfile}}]
     entrypoint: ['/bin/sh', '-c']
     command:
       - |
@@ -30,7 +30,7 @@ services:
         }
         client() {
           openssl req -new -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes -subj "/CN=$$1" \
-            -addext "subjectAltName=URI:spiffe://dmpf/$$1" -addext extendedKeyUsage=clientAuth \
+            -addext "subjectAltName=URI:spiffe://{{$.Layout.SpiffeTrustDomain}}/$$1" -addext extendedKeyUsage=clientAuth \
             -keyout "$$1-client.key" -out "/tmp/$$1-client.csr"
           sign "$$1-client"
         }
