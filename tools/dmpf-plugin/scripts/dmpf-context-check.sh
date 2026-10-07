@@ -23,8 +23,10 @@ set -uo pipefail
 ROOT="$(git rev-parse --show-toplevel)" || { echo "fora de um repositório git" >&2; exit 2; }
 cd "$ROOT" || exit 2
 
-APPS="apps/backend"
-KERNEL_DDL="libs/backend/go/postgres"
+# Layout do dmpf.json, exportado pelo executor; os defaults são os do platform. O DDL
+# do kernel é relativo à raiz (modo local) ou absoluto, no cache do Go (modo version).
+APPS="${DMPF_APPS_DIR:-apps/backend}"
+KERNEL_DDL="${DMPF_KERNEL_DDL:-libs/backend/go/postgres}"
 FALHAS=0
 
 falhar() {
@@ -215,11 +217,13 @@ verificar_infra() {
   shift
   python3 - "$repo" "$@" <<'PY'
 import json
+import os
 import pathlib
 import re
 import sys
 
 repo, apps = pathlib.Path(sys.argv[1]), set(sys.argv[2:])
+APPS = os.environ.get('DMPF_APPS_DIR', 'apps/backend')
 ADMIN = 'postgres'
 DSN = re.compile(r'postgres(?:ql)?://((?:\$\{[^}]*\}|[^:@/\s"\'])+)(?::[^@\s"\']*)?@[^/\s"\']+/([^?\s"\']+)')
 DEFAULT = re.compile(r'\$\{[A-Z_]+:-([^}]*)\}')
@@ -232,12 +236,12 @@ def literal(value):
 
 achados = []
 arquivos = []
-raizes = [repo / 'infra', repo / '.github/workflows'] + sorted((repo / 'apps/backend').glob('*/deploy'))
+raizes = [repo / 'infra', repo / '.github/workflows'] + sorted((repo / APPS).glob('*/deploy'))
 for base in raizes:
     if base.is_dir():
         arquivos += [p for p in sorted(base.rglob('*')) if p.is_file() and p.suffix != '.md']
 for app in sorted(apps):
-    manifesto = repo / 'apps/backend' / app / 'deploy/infra.json'
+    manifesto = repo / APPS / app / 'deploy/infra.json'
     try:
         declarado = json.loads(manifesto.read_text(encoding='utf-8'))
     except (OSError, ValueError) as erro:
@@ -311,7 +315,9 @@ fase_estrutural() {
     relatar "$ctx: DDL nos nomes canônicos" "$saida" "$status"
   done
   local -a kernel=()
-  mapfile -t kernel < <(find "$repo/$KERNEL_DDL" -maxdepth 1 -name '*.sql' 2>/dev/null | sort)
+  local ddl="$repo/$KERNEL_DDL"
+  [[ "$KERNEL_DDL" == /* ]] && ddl="$KERNEL_DDL"
+  mapfile -t kernel < <(find "$ddl" -maxdepth 1 -name '*.sql' 2>/dev/null | sort)
   if [ "${#kernel[@]}" -gt 0 ]; then
     saida="$(verificar_ddl kernel "${kernel[@]}")"
     status=$?
@@ -510,7 +516,7 @@ fase_self_test() {
 
 uso() {
   cat <<'TXT'
-uso: tools/dmpf-context-check.sh [--phase structural|self-test] [--root <dir>]
+uso: dmpf-context-check.sh [--phase structural|self-test] [--root <dir>]
 
   structural  (default) verifica todo bounded context de apps/backend, a borda,
               os nomes do DDL, o deploy/infra.json de cada contexto e banco e

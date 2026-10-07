@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/schema",
+  "version": 2,
+  "title": "buf",
+  "description": "Roda a CLI Buf na versão fixada pelo versions.json, no diretório do módulo de contrato.",
+  "type": "object",
+  "properties": {
+    "args": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": [],
+      "description": "Argumentos da CLI Buf, como generate."
+    }
+  },
+  "additionalProperties": false
+}

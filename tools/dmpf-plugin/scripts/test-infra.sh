@@ -3,7 +3,7 @@
 # Separada da infra de runtime local: outro projeto Compose, outras portas e
 # só tmpfs, então o down descarta tudo o que os testes criaram.
 set -euo pipefail
-cd "$(dirname "$0")/.."
+cd "${DMPF_WORKSPACE_ROOT:-$(git rev-parse --show-toplevel)}"
 compose=(docker compose -f infra/test/compose.yml)
 
 if [ -n "${CI:-}" ]; then

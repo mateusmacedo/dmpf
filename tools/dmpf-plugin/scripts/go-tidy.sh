@@ -4,7 +4,7 @@
 # os replace do go.work entram no go.mod só durante o tidy e saem ao fim, e o
 # go.mod publicado segue sem replace (ADR-047).
 set -euo pipefail
-root="$(cd "$(dirname "$0")/.." && pwd)"
+root="${DMPF_WORKSPACE_ROOT:-$(git rev-parse --show-toplevel)}"
 module="$(pwd)"
 
 added=()

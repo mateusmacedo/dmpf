@@ -82,8 +82,9 @@ const MODULE_FILES: readonly string[] = [
 const CMD_DIR = 'cmd';
 const CONTRACT_DIR = 'contract';
 const DEPLOY_DIR = 'deploy';
-const TEST_ENV = 'bash ../../../tools/test-env.sh';
-const GO_TIDY = 'bash ../../../tools/go-tidy.sh';
+const PLUGIN = '@mateusmacedo/dmpf-plugin';
+const INTEGRATION_TEST = 'go test -race -count=1 -p 1 -tags=integration ./...';
+const DISTRIBUTED_TEST = 'go test -race -count=1 -p 1 -tags=integration,distributed ./distkit/...';
 const TEST_INFRA = { projects: ['testkit'], target: 'test-infra-up' };
 const APPKIT_DIR = 'appkit';
 const DISTKIT_DIR = 'distkit';
@@ -224,21 +225,17 @@ const expectedTargets = ({
   integration: boolean;
   app?: boolean;
 }): Record<string, unknown> => {
-  const testRace = {
-    ...goTarget({
-      command: integration
-        ? `${TEST_ENV} go test -race -count=1 -p 1 -tags=integration ./...`
-        : 'go test -race ./...',
-      cache: !integration,
-    }),
-    ...(integration ? { dependsOn: [TEST_INFRA] } : {}),
-  };
+  const testRace = integration
+    ? {
+        executor: `${PLUGIN}:test-env`,
+        cache: false,
+        inputs: ['go', '^go'],
+        options: { command: INTEGRATION_TEST },
+        dependsOn: [TEST_INFRA],
+      }
+    : goTarget({ command: 'go test -race ./...', cache: true });
   return {
-    tidy: {
-      executor: 'nx:run-commands',
-      cache: false,
-      options: { command: GO_TIDY, cwd: '{projectRoot}' },
-    },
+    tidy: { executor: `${PLUGIN}:go-tidy`, cache: false },
     'fmt-check': goTarget({ command: GOFMT_COMMAND, cache: true }),
     vet: goTarget({ command: 'go vet ./...', cache: true }),
     build: goTarget({ command: 'go build ./...' }),
@@ -264,7 +261,7 @@ const expectedTargets = ({
             dependsOn: ['docker:run'],
           },
           'test-distributed': {
-            executor: 'nx:run-commands',
+            executor: `${PLUGIN}:test-env`,
             cache: false,
             inputs: ['go', '^go'],
             dependsOn: [
@@ -272,20 +269,14 @@ const expectedTargets = ({
               { projects: ['postgres', 'app'], target: 'test-race' },
               'test-race',
             ],
-            options: {
-              command: `${TEST_ENV} go test -race -count=1 -p 1 -tags=integration,distributed ./distkit/...`,
-              cwd: '{projectRoot}',
-            },
+            options: { command: DISTRIBUTED_TEST },
           },
           e2e: {
-            executor: 'nx:run-commands',
+            executor: `${PLUGIN}:test-env`,
             cache: false,
             inputs: ['go', '^go'],
             dependsOn: [TEST_INFRA],
-            options: {
-              command: `${TEST_ENV} go test -race -count=1 -p 1 -tags=integration,distributed ./distkit/...`,
-              cwd: '{projectRoot}',
-            },
+            options: { command: DISTRIBUTED_TEST },
           },
         }
       : {}),
@@ -708,9 +699,8 @@ describe('[generator] bounded-context — generation', () => {
       { projects: ['postgres', 'app'], target: 'test-race' },
       'test-race',
     ]);
-    expect((target.options as { command: string }).command).toBe(
-      `${TEST_ENV} go test -race -count=1 -p 1 -tags=integration,distributed ./distkit/...`,
-    );
+    expect(target.executor).toBe(`${PLUGIN}:test-env`);
+    expect(target.options).toEqual({ command: DISTRIBUTED_TEST });
   });
 
   it('should leave no test kit when the context has no app block', async () => {
@@ -1213,7 +1203,7 @@ describe('[generator] bounded-context — determinism and output', () => {
 
 describe('[generator] bounded-context — contract module', () => {
   type ContractProject = ProjectConfig & {
-    targets: Record<string, { options: { command: string; cwd?: string } }>;
+    targets: Record<string, { executor: string; options: Record<string, unknown> }>;
   };
 
   const contractProjectOf = (tree: Tree): ContractProject =>
@@ -1247,15 +1237,14 @@ describe('[generator] bounded-context — contract module', () => {
     expect(project.tags).toEqual(['type:lib', 'scope:backend', 'stack:go', 'layer:contract']);
   });
 
-  it('should run the Buf gates on the contract directory with the project name', async () => {
+  it('should run the Buf gates and the tidy of the contract through the plugin executors', async () => {
     const targets = contractProjectOf(await generate()).targets;
 
     for (const gate of ['warmup', 'lint', 'pins', 'generate-check', 'breaking']) {
-      expect(targets[`buf-${gate}`].options.command).toBe(
-        `bash tools/buf-gate.sh ${gate} ${CONTRACT_MODULE_DIR} --project checkout-contract`,
-      );
+      expect(targets[`buf-${gate}`].executor).toBe(`${PLUGIN}:buf-gate`);
+      expect(targets[`buf-${gate}`].options).toEqual({ gate });
     }
-    expect(targets.tidy.options.command).toBe('bash ../../../../tools/go-tidy.sh');
+    expect(targets.tidy).toEqual({ executor: `${PLUGIN}:go-tidy`, cache: false });
     expect(Object.keys(targets).sort()).toEqual([
       'buf-breaking',
       'buf-generate-check',

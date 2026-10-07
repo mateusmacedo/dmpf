@@ -16,7 +16,6 @@ const workspace = (): string => {
   const root = mkdtempSync(join(tmpdir(), 'sync-versions-'));
   write(root, 'go.work', 'go 1.26.6\n\nuse ./libs/backend/go/domain\n');
   write(root, 'apps/backend/bookings/Dockerfile', 'FROM golang:1.26.6-alpine AS build\n');
-  write(root, 'tools/buf.sh', 'exec go run github.com/bufbuild/buf/cmd/buf@v1.72.0 "$@"\n');
   write(
     root,
     'libs/backend/go/contracts/buf.gen.yaml',
@@ -82,7 +81,7 @@ describe('[script] sync-versions', () => {
       kernel: 'v1.0.0-rc.2',
       conformance: 'v1.0.0-rc.2',
       go: { directive: '1.26.6', image: 'golang:1.26.6-alpine' },
-      buf: 'v1.72.0',
+      buf: 'v1.70.0',
       protocGenGo: 'v1.36.12',
       golangciLint: 'v2.13.2',
       govulncheck: 'v1.7.0',
@@ -97,7 +96,8 @@ describe('[script] sync-versions', () => {
     expect(versionsOf(root)).toMatchObject({
       kernel: 'v1.0.0-rc.1',
       workflowRef: '',
-      buf: 'v1.72.0',
+      buf: 'v1.70.0',
+      govulncheck: 'v1.7.0',
     });
   });
 
@@ -106,11 +106,11 @@ describe('[script] sync-versions', () => {
     run(root);
 
     expect(run(root, '--check').status).toBe(0);
-    write(root, 'tools/buf.sh', 'exec go run github.com/bufbuild/buf/cmd/buf@v1.73.0 "$@"\n');
+    write(root, 'go.work', 'go 1.26.7\n\nuse ./libs/backend/go/domain\n');
     const check = run(root, '--check');
 
     expect(check.status).toBe(1);
-    expect(check.output).toContain('buf');
+    expect(check.output).toContain('go.directive');
   });
 
   it.each([

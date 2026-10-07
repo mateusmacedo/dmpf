@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Roda um comando de teste com os valores do .env.example da raiz para as
 # variáveis que o ambiente ainda não declara: localmente, os testes apontam
-# para a infra de testes (tools/test-infra.sh); no CI, prevalece o env do job.
+# para a infra de testes (test-infra.sh); no CI, prevalece o env do job.
 set -euo pipefail
-root="$(cd "$(dirname "$0")/.." && pwd)"
+root="${DMPF_WORKSPACE_ROOT:-$(git rev-parse --show-toplevel)}"
 while IFS='=' read -r key value; do
   [[ "$key" =~ ^[A-Z_][A-Z0-9_]*$ ]] || continue
   [ -n "${!key+x}" ] || export "$key=$value"

@@ -9,18 +9,13 @@ const VERSIONS = 'tools/dmpf-plugin/versions.json';
 const MODULE_VERSION = /^v?(\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?)$/;
 const COMMIT_SHA = /^[0-9a-f]{40}$/;
 
-// O buf.sh sai de tools/ para o pacote do plugin; os dois caminhos valem durante a transição.
+// O pin do buf não tem fonte fora daqui: o buf.sh do pacote lê o versions.json.
 const PINS = [
   { field: 'go.directive', sources: ['go.work'], pattern: /^go (\d+\.\d+(?:\.\d+)?)$/m },
   {
     field: 'go.image',
     sources: ['apps/backend/bookings/Dockerfile'],
     pattern: /^FROM (golang:\S+) AS build$/m,
-  },
-  {
-    field: 'buf',
-    sources: ['tools/dmpf-plugin/scripts/buf.sh', 'tools/buf.sh'],
-    pattern: /github\.com\/bufbuild\/buf\/cmd\/buf@(v\S+?)["\s]/,
   },
   {
     field: 'protocGenGo',

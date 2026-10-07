@@ -6,12 +6,8 @@
   "tags": ["type:app", "scope:backend", "stack:go", <%- layerTagJson %>],
   "targets": {
     "tidy": {
-      "executor": "nx:run-commands",
-      "cache": false,
-      "options": {
-        "command": <%- tidyCommandJson %>,
-        "cwd": "{projectRoot}"
-      }
+      "executor": "@mateusmacedo/dmpf-plugin:go-tidy",
+      "cache": false
     },
     "fmt-check": {
       "executor": "nx:run-commands",
@@ -39,20 +35,26 @@
         "cwd": "{projectRoot}"
       }
     },
-    "test-race": {
-      "executor": "nx:run-commands",
-      "cache": <%- testRaceCacheJson %>,
+    "test-race": {<% if (testRaceCacheJson === 'false') { %>
+      "executor": "@mateusmacedo/dmpf-plugin:test-env",
+      "cache": false,
       "inputs": ["go", "^go"],
       "options": {
-        "command": <%- testRaceCommandJson %>,
-        "cwd": "{projectRoot}"
-      }<% if (testRaceCacheJson === 'false') { %>,
+        "command": <%- testRaceCommandJson %>
+      },
       "dependsOn": [
         {
           "projects": ["testkit"],
           "target": "test-infra-up"
         }
-      ]<% } %>
+      ]<% } else { %>
+      "executor": "nx:run-commands",
+      "cache": true,
+      "inputs": ["go", "^go"],
+      "options": {
+        "command": <%- testRaceCommandJson %>,
+        "cwd": "{projectRoot}"
+      }<% } %>
     },
     "govulncheck": {
       "executor": "nx:run-commands",
@@ -105,7 +107,7 @@
       "dependsOn": ["docker:run"]
     },
     "test-distributed": {
-      "executor": "nx:run-commands",
+      "executor": "@mateusmacedo/dmpf-plugin:test-env",
       "cache": false,
       "inputs": ["go", "^go"],
       "dependsOn": [
@@ -120,12 +122,11 @@
         "test-race"
       ],
       "options": {
-        "command": <%- testDistributedCommandJson %>,
-        "cwd": "{projectRoot}"
+        "command": <%- testDistributedCommandJson %>
       }
     },
     "e2e": {
-      "executor": "nx:run-commands",
+      "executor": "@mateusmacedo/dmpf-plugin:test-env",
       "cache": false,
       "inputs": ["go", "^go"],
       "dependsOn": [
@@ -135,8 +136,7 @@
         }
       ],
       "options": {
-        "command": <%- testDistributedCommandJson %>,
-        "cwd": "{projectRoot}"
+        "command": <%- testDistributedCommandJson %>
       }
     }<% } %>
   }

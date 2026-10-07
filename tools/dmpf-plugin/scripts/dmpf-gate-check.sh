@@ -7,6 +7,7 @@ set -uo pipefail
 
 ROOT="$(git rev-parse --show-toplevel)" || { echo "fora de um repositorio git" >&2; exit 1; }
 cd "$ROOT" || exit 1
+APPS="${DMPF_APPS_DIR:-apps/backend}"
 DESCARTE="$(mktemp -d)" || { echo "falha ao criar diretorio temporario" >&2; exit 1; }
 
 FIXTURE=""
@@ -380,8 +381,8 @@ done < <(git ls-files '*dmpf-units.json')
 providers_de_contexto=0
 while IFS= read -r manifesto; do
   module_dir="$(dirname "$manifesto")"
-  case "/$module_dir/" in
-    */apps/*) ;;
+  case "$module_dir/" in
+    "$APPS"/*) ;;
     *) continue ;;
   esac
   module_path="$(awk '/^module /{print $2; exit}' "$module_dir/go.mod" 2>/dev/null)"

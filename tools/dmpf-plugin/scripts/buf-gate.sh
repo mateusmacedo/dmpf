@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # Gates Buf de um módulo de contrato: lint | pins | generate-check | breaking (+ warmup).
-# Uso: tools/buf-gate.sh <subcomando> <diretório com buf.yaml e buf.gen.yaml> [--project <projeto Nx>]
+# Uso: buf-gate.sh <subcomando> <diretório com buf.yaml e buf.gen.yaml> [--project <projeto Nx>]
 # Fail-closed (BUF-12): condição que o gate não consegue avaliar reprova; não há bypass.
-# Temporários ficam em /tmp (como em tools/dmpf-gate-check.sh), sem utilitário de lixeira.
+# Temporários ficam em /tmp (como em dmpf-gate-check.sh), sem utilitário de lixeira.
 set -uo pipefail
 
 ROOT="$(git rev-parse --show-toplevel)" || { echo "REPROVADO: fora de um repositorio git" >&2; exit 2; }
 cd "$ROOT" || exit 2
 
-uso() { echo "uso: tools/buf-gate.sh lint | pins | generate-check | breaking | warmup <diretorio-do-modulo> [--project <nome>]" >&2; exit 2; }
+uso() { echo "uso: buf-gate.sh lint | pins | generate-check | breaking | warmup <diretorio-do-modulo> [--project <nome>]" >&2; exit 2; }
 
 SUB="${1:-}"
 MOD="${2:-}"
@@ -27,7 +27,9 @@ MOD="${MOD%/}"
 
 BUF_YAML="$MOD/buf.yaml"
 BUF_GEN="$MOD/buf.gen.yaml"
-BUF_SH="$ROOT/tools/buf.sh"
+BUF_SH="$(dirname "$(realpath "$0")")/buf.sh"
+VERSIONS="$(dirname "$(realpath "$0")")/../versions.json"
+buf_pin() { node -p 'require(process.argv[1]).buf' "$VERSIONS"; }
 
 buf() { bash "$BUF_SH" "$@"; }
 reprovar() { echo "REPROVADO: $*" >&2; exit 1; }
@@ -88,12 +90,9 @@ gate_lint() {
 }
 
 gate_pins() {
-  local cli_pins plugin_pin plugin_ver runtime_ver deps_line lib outro outro_ver
-  cli_pins="$(grep -oE '@v[0-9]+\.[0-9]+\.[0-9]+([^0-9.]|$)' "$BUF_SH" | wc -l | tr -d ' ')"
-  [ "$cli_pins" -eq 1 ] || reprovar "$BUF_SH precisa de exatamente um pin @vX.Y.Z da CLI Buf (encontrados: $cli_pins) (BUF-06)"
-  if grep -qE '@(latest|v[0-9]+(\.[0-9]+)?([^0-9.]|$)|v[0-9]+\.[0-9]+\.x)' "$BUF_SH"; then
-    reprovar "$BUF_SH usa pin nao exato (latest, faixa ou major/minor) (BUF-06)"
-  fi
+  local cli_pin plugin_pin plugin_ver runtime_ver deps_line lib outro outro_ver
+  cli_pin="$(buf_pin)" || reprovar "$VERSIONS ilegivel (BUF-06)"
+  [[ "$cli_pin" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || reprovar "$VERSIONS: buf $cli_pin nao e pin exato vX.Y.Z (BUF-06)"
 
   plugin_pin="$(grep -oE "protoc-gen-[a-z0-9-]+@[^][:space:]\"',]+" "$BUF_GEN" || true)"
   [ -n "$plugin_pin" ] || reprovar "$BUF_GEN sem plugin local pinado (BUF-06)"
@@ -125,7 +124,7 @@ gate_pins() {
   if ! echo "$deps_line" | grep -qE '^deps:\s*\[\s*\]\s*$'; then
     [ -f "$MOD/buf.lock" ] || reprovar "deps declaradas sem buf.lock versionado (BUF-02)"
   fi
-  echo "pins: OK (buf $(grep -oE '@v[0-9.]+' "$BUF_SH"), protoc-gen-go@$plugin_ver = protobuf $runtime_ver)"
+  echo "pins: OK (buf $cli_pin, protoc-gen-go@$plugin_ver = protobuf $runtime_ver)"
 }
 
 gate_generate_check() {
@@ -222,11 +221,11 @@ gate_breaking() {
 # simultâneos estouraram o timeout de 30 min do job no gitea-runner (buf a frio custa ~2x o golangci-lint).
 gate_warmup() {
   local plugin_pin
-  buf --version >/dev/null || reprovar "CLI Buf indisponivel pelo pin de $BUF_SH"
+  buf --version >/dev/null || reprovar "CLI Buf indisponivel pelo pin de $VERSIONS"
   plugin_pin="$(grep -oE 'protoc-gen-go@v[0-9]+\.[0-9]+\.[0-9]+' "$BUF_GEN" | head -1)"
   [ -n "$plugin_pin" ] || reprovar "$BUF_GEN sem pin exato de protoc-gen-go (BUF-06)"
   go run "google.golang.org/protobuf/cmd/$plugin_pin" --version >/dev/null || reprovar "plugin $plugin_pin indisponivel"
-  echo "warmup: OK (buf $(grep -oE '@v[0-9.]+' "$BUF_SH"), $plugin_pin)"
+  echo "warmup: OK (buf $(buf_pin), $plugin_pin)"
 }
 
 case "$SUB" in

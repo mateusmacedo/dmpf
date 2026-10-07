@@ -1,0 +1,9 @@
+{
+  "$schema": "https://json-schema.org/schema",
+  "version": 2,
+  "title": "gate-check",
+  "description": "Prova que o depguard e o forbidigo reprovam o que devem em cada módulo declarado por dmpf-units.json.",
+  "type": "object",
+  "properties": {},
+  "additionalProperties": false
+}

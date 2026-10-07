@@ -148,9 +148,6 @@ const validatedBlocks = (blocks: readonly string[] | undefined): Block[] => {
   return orderBlocks(selected);
 };
 
-const toolOf = (depth: number, script: string): string =>
-  `bash ${'../'.repeat(depth)}tools/${script}`;
-
 // The tag the @nx/docker plugin gives the image of a project root
 // (getProjectNameFromPath in its plugin.js).
 const imageRefOf = (projectRoot: string): string =>
@@ -165,10 +162,8 @@ const serveCommandOf = (name: string, role: string): string =>
 const dockerRunCommandOf = (name: string, image: string, role: string): string =>
   `[ ! -f deploy/.env ] || . deploy/.env; exec docker run --rm --name ${name}-${role} --network host --env-file deploy/.env -e OTEL_RESOURCE_ATTRIBUTES="${roleResourceOf(name, role)}" ${image} --role ${role}`;
 
-const testRaceCommandOf = (integration: boolean, depth: number): string =>
-  integration
-    ? `${toolOf(depth, 'test-env.sh')} go test -race -count=1 -p 1 -tags=integration ./...`
-    : 'go test -race ./...';
+const testRaceCommandOf = (integration: boolean): string =>
+  integration ? 'go test -race -count=1 -p 1 -tags=integration ./...' : 'go test -race ./...';
 
 const GRPC_ADDR_PATTERN = /^GRPC_ADDR=[^:\n]*:(\d+)$/m;
 
@@ -252,21 +247,19 @@ const planModule = ({
       contractNxSchemaJson: JSON.stringify(
         `${'../'.repeat(depth + 1)}node_modules/nx/schemas/project-schema.json`,
       ),
-      contractTidyCommandJson: JSON.stringify(toolOf(depth + 1, 'go-tidy.sh')),
       contractUnitIdJson: JSON.stringify(`${boundedContext}/${CONTRACT_BLOCK}`),
       contractModulePathJson: JSON.stringify(contractModulePath),
       contractServicePackageJson: JSON.stringify(
         `${contractModulePath}/gen/go/${serviceName.split('.').slice(0, -1).join('/')}`,
       ),
       boundedContextJson: JSON.stringify(boundedContext),
-      tidyCommandJson: JSON.stringify(toolOf(depth, 'go-tidy.sh')),
       serveApiCommandJson: JSON.stringify(serveCommandOf(name, 'api')),
       serveRelayCommandJson: JSON.stringify(serveCommandOf(name, 'relay')),
       dockerRunRelayCommandJson: JSON.stringify(
         dockerRunCommandOf(name, imageRefOf(moduleDirectory), 'relay'),
       ),
       testDistributedCommandJson: JSON.stringify(
-        `${toolOf(depth, 'test-env.sh')} go test -race -count=1 -p 1 -tags=integration,distributed ./distkit/...`,
+        'go test -race -count=1 -p 1 -tags=integration,distributed ./distkit/...',
       ),
       pascalName: pascalOf(name),
       envName: name.replaceAll('-', '_').toUpperCase(),
@@ -311,7 +304,7 @@ const planModule = ({
       externalFragment: externalFragment({ level: 1, external: externalOf(layouts) }),
       hasApp: blocks.includes('app'),
       testRaceCacheJson: integration ? 'false' : 'true',
-      testRaceCommandJson: JSON.stringify(testRaceCommandOf(integration, depth)),
+      testRaceCommandJson: JSON.stringify(testRaceCommandOf(integration)),
     },
     blocks: layouts.map((layout) => ({
       layout,
