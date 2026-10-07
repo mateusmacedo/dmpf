@@ -177,11 +177,12 @@ copiar nada do platform à mão.
     partir dos contextos continuam pertencendo ao `infrasync`;
   - `.env.example` e `tools/dmpf-baseline/units-baseline.json` vazio;
   - `.github/workflows/dmpf-ci.yml` chamador de F1;
-  - ativos de IA (E1).
+  - ativos de IA (E1);
+  - `dmpf.rendered.json`, com o hash de cada arquivo gerenciado que escreveu.
   - Edge: segunda execução sem mudança de entrada altera 0 arquivos.
-  - Edge: arquivo gerado pelo `init` e não editado (igual à renderização do
-    `dmpf.json` anterior) é re-renderizado sem `--force`, o que cobre a
-    transição do prefixo reservado para o real. Arquivo editado não é
+  - Edge: arquivo gerado pelo `init` e não editado (hash igual ao registrado
+    em `dmpf.rendered.json`) é re-renderizado sem `--force`, o que cobre a
+    transição do prefixo reservado para o real e a troca de versão. Arquivo editado não é
     sobrescrito sem `--force`; o generator lista cada arquivo editado e sai
     com erro.
   - Edge: `modulePrefix` igual ao valor reservado `example.com/change-me`
@@ -245,6 +246,8 @@ copiar nada do platform à mão.
   `require` do kernel nos `go.mod` das apps. As migrations editam só a `Tree`,
   porque não podem rodar comando depois do flush: os comandos externos (o
   tidy pelo executor `go-tidy`) voltam em `nextSteps`, para o usuário rodar.
+  Cada migration tem uma entrada só, na versão do pacote, mantida pelo
+  `sync-versions`; arquivo editado não é sobrescrito e vai para o log.
 
 **H. Prova de consumo externo**
 
