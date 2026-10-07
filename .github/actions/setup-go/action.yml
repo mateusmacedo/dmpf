@@ -18,7 +18,7 @@ runs:
           go.work
           **/go.sum
           nx.json
-          tools/buf.sh
+          tools/dmpf-plugin/versions.json
           libs/backend/go/contracts/buf.gen.yaml
           .github/actions/setup-go/action.yml
 
@@ -33,7 +33,7 @@ runs:
         pins=(
           "$(grep -oE 'github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v[0-9.]+' nx.json | head -1)"
           "$(grep -ohE 'golang.org/x/vuln/cmd/govulncheck@v[0-9.]+' libs/backend/go/*/project.json | sort -u | head -1)"
-          "$(grep -oE 'github.com/bufbuild/buf/cmd/buf@v[0-9.]+' tools/buf.sh | head -1)"
+          "github.com/bufbuild/buf/cmd/buf@$(jq -r .buf tools/dmpf-plugin/versions.json)"
           "google.golang.org/protobuf/cmd/$(grep -oE 'protoc-gen-go@v[0-9.]+' libs/backend/go/contracts/buf.gen.yaml | head -1)"
         )
         for pkg in "${pins[@]}"; do

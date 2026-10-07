@@ -389,7 +389,7 @@ jobs:
       # que deve reprovar; sem rodar, o vetor negativo não protege de regressão.
       - name: DMPF dependency gate
         if: steps.go_affected.outputs.any == 'true'
-        run: bash tools/dmpf-gate-check.sh
+        run: bash tools/dmpf-plugin/scripts/dmpf-gate-check.sh
 
       # Complementa o step acima onde o depguard não alcança: ele decide por nome
       # de diretório, e célula é aresta entre unidades, que só o verificador vê.
@@ -442,7 +442,7 @@ jobs:
       # Sem `if` de projeto Go afetado: o layout de um contexto se rompe ao mover
       # arquivo ou ao mexer em project.json e dmpf-units.json, que não são Go.
       - name: DMPF context check (structural)
-        run: bash tools/dmpf-context-check.sh --phase structural
+        run: bash tools/dmpf-plugin/scripts/dmpf-context-check.sh --phase structural
 
       # Os vetores negativos, pela mesma razão do self-test acima.
       - name: Instalar trash-cli para o self-test do context check
@@ -452,7 +452,7 @@ jobs:
           command -v trash
 
       - name: DMPF context check (self-test)
-        run: bash tools/dmpf-context-check.sh --phase self-test
+        run: bash tools/dmpf-plugin/scripts/dmpf-context-check.sh --phase self-test
 
       # A fase `regen` exige LLM e roda à mão; o self-test prova, sem agente,
       # que o gate normativo ainda reprova o golden sem o shared kernel.

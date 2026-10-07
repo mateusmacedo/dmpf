@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# comment-discipline-ok-file: cabeçalho de gate; declara o que o script prova e por que não usa a árvore de trabalho, no mesmo molde de tools/dmpf-gate-check.sh.
+# comment-discipline-ok-file: cabeçalho de gate; declara o que o script prova e por que não usa a árvore de trabalho, no mesmo molde de tools/dmpf-plugin/scripts/dmpf-gate-check.sh.
 # Prova que o verificador reprova as células 26 (provider → application) e 12
 # (application → contract) da RFC §7.3. O `dmpf-gate-check.sh` não as alcança:
 # o depguard decide por nome de diretório e não conhece aresta entre unidades.
