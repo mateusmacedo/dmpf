@@ -5,7 +5,7 @@ import type { Tree } from '@nx/devkit';
 import { readJson } from '@nx/devkit';
 import { createTreeWithEmptyWorkspace } from '@nx/devkit/testing';
 import { packageRoot } from '../../lib/paths';
-import { readVersions } from '../../lib/versions';
+import { readPluginVersion, readVersions } from '../../lib/versions';
 import { initGenerator, renderedPaths } from './generator';
 
 jest.mock('node:child_process', () => ({
@@ -154,6 +154,35 @@ describe('[generator] init — AI assets', () => {
     );
     expect(goldenPath).not.toMatch(/`apps\/backend\/bookings/);
     expect(tree.read('.claude/agents/dmpf-context-author.md', 'utf-8')).not.toContain('skill-go');
+  });
+});
+
+describe('[generator] init — CI caller', () => {
+  it('should pin the caller of the reusable workflow to the workflowRef and the plugin version', async () => {
+    const tree = consumerTree();
+    const { workflowRef } = readVersions();
+
+    await initGenerator(tree, { modulePrefix: 'github.com/acme/shop' });
+    const caller = tree.read('.github/workflows/dmpf-ci.yml', 'utf-8') as string;
+
+    expect(caller).toContain(
+      `uses: mateusmacedo/dmpf/.github/workflows/dmpf-go-ci.yml@${workflowRef || 'master'}\n`,
+    );
+    expect(caller).toContain(`plugin-version: "${readPluginVersion()}"`);
+  });
+
+  it('should not write the caller in local mode, where ci.yml calls the reusable workflow', async () => {
+    const source = consumerTree();
+    await initGenerator(source, { modulePrefix: 'github.com/acme/shop' });
+    const tree = consumerTree();
+    tree.write(
+      'dmpf.json',
+      JSON.stringify({ ...readJson(source, 'dmpf.json'), tooling: { mode: 'local' } }),
+    );
+
+    await initGenerator(tree, {});
+
+    expect(tree.exists('.github/workflows/dmpf-ci.yml')).toBe(false);
   });
 });
 

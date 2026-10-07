@@ -55,3 +55,6 @@ export const parseVersions = (raw: unknown, source: string): DmpfVersions => {
 
 export const readVersions = (path: string = join(packageRoot(), 'versions.json')): DmpfVersions =>
   parseVersions(JSON.parse(readFileSync(path, 'utf-8')), path);
+
+export const readPluginVersion = (): string =>
+  JSON.parse(readFileSync(join(packageRoot(), 'package.json'), 'utf-8')).version;

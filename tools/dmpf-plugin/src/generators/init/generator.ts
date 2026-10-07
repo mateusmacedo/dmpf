@@ -12,21 +12,27 @@ import {
   readDmpfConfigFromTree,
 } from '../../lib/dmpf-config';
 import { templatesDir } from '../../lib/paths';
-import { type DmpfVersions, readVersions } from '../../lib/versions';
+import { type DmpfVersions, readPluginVersion, readVersions } from '../../lib/versions';
 import type { InitGeneratorSchema } from './schema';
 
 const KERNEL_PREFIX = 'github.com/mateusmacedo/dmpf';
 const GO_WORK = 'go.work';
 const NX_GO = '@nx-go/nx-go';
 const RENDER_ROOT = '.dmpf-init-render';
-const SOURCES = [
+type Source = {
+  dir: readonly string[];
+  kind: 'managed' | 'seed';
+  mode?: DmpfConfig['tooling']['mode'];
+};
+const SOURCES: readonly Source[] = [
   { dir: ['init', 'managed'], kind: 'managed' },
   { dir: ['init', 'seed'], kind: 'seed' },
+  { dir: ['init', 'version'], kind: 'managed', mode: 'version' },
   { dir: ['ai'], kind: 'managed' },
-] as const;
+];
 const PLUGIN_IN_NODE_MODULES = 'node_modules/@mateusmacedo/dmpf-plugin';
 
-type Kind = (typeof SOURCES)[number]['kind'];
+type Kind = Source['kind'];
 type Rendered = Map<string, { content: string; kind: Kind }>;
 
 const slugOf = (value: string): string =>
@@ -122,6 +128,7 @@ const substitutionsOf = (config: DmpfConfig, versions: DmpfVersions): Record<str
   const local = config.tooling.mode === 'local';
   const pluginDir = local ? 'tools/dmpf-plugin' : PLUGIN_IN_NODE_MODULES;
   const contextCheckScript = `${pluginDir}/scripts/dmpf-context-check.sh`;
+  const workflowRef = versions.workflowRef || 'master';
   return {
     tmpl: '',
     ...config,
@@ -135,15 +142,18 @@ const substitutionsOf = (config: DmpfConfig, versions: DmpfVersions): Record<str
       ? `bash ${contextCheckScript}`
       : `DMPF_APPS_DIR=${config.appsDir} bash ${contextCheckScript}`,
     src: (path: string) =>
-      local
-        ? path
-        : `https://github.com/mateusmacedo/dmpf/blob/${versions.workflowRef || 'master'}/${path}`,
+      local ? path : `https://github.com/mateusmacedo/dmpf/blob/${workflowRef}/${path}`,
+    workflowRef,
+    pluginVersion: readPluginVersion(),
   };
 };
 
 const render = (tree: Tree, config: DmpfConfig, versions: DmpfVersions): Rendered => {
   const rendered: Rendered = new Map();
-  for (const [index, { dir, kind }] of SOURCES.entries()) {
+  for (const [index, { dir, kind, mode }] of SOURCES.entries()) {
+    if (mode && mode !== config.tooling.mode) {
+      continue;
+    }
     const scratch = `${RENDER_ROOT}/${index}`;
     generateFiles(tree, templatesDir(...dir), scratch, substitutionsOf(config, versions));
     for (const path of treeFiles(tree, scratch)) {

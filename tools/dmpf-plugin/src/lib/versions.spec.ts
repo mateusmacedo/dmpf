@@ -1,4 +1,4 @@
-import { parseVersions, readVersions, VERSIONS_SCHEMA } from './versions';
+import { parseVersions, readPluginVersion, readVersions, VERSIONS_SCHEMA } from './versions';
 
 const valid = {
   schema: VERSIONS_SCHEMA,
@@ -19,6 +19,10 @@ describe('[lib] versions', () => {
 
     expect(versions.kernel).toMatch(/^v\d+\.\d+\.\d+/);
     expect(versions.go.directive).toMatch(/^\d+\.\d+/);
+  });
+
+  it('should read the version of the plugin package, which the CI caller pins', () => {
+    expect(readPluginVersion()).toMatch(/^\d+\.\d+\.\d+/);
   });
 
   it('should accept a SHA or an empty workflowRef, which the release fills in', () => {
