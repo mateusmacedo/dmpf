@@ -111,7 +111,7 @@ func identityIsClassification(o Object) bool {
 
 func identityIsBufRite(o Object) bool {
 	for _, marker := range []string{
-		"tools/buf.sh",
+		"buf.sh",
 		"buf.gen.yaml",
 		"github.com/bufbuild/buf",
 		"protoc-gen-",
