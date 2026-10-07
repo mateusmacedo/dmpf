@@ -122,7 +122,7 @@ golden for regenerado e algo novo morder, a entrada nova vem para cá.
     rejeição, enums, nomes de evento) antes do rename é o que impede a troca de
     vazar para o contrato; `wire_test.go` e `rejections_test.go` fazem isso.
 24. **Banco compartilhado some da infra pelo gate, não pela memória.** O
-    `tools/dmpf-context-check.sh` confere cada DSN, `POSTGRES_DB` e laço de
+    `tools/dmpf-plugin/scripts/dmpf-context-check.sh` confere cada DSN, `POSTGRES_DB` e laço de
     criação de banco em `infra/` e `.github/workflows`: banco e role com o nome
     da app, ou o par administrativo `postgres`. Um contexto novo sem entrada no
     `postgres-init` e no job de databases reprova ali.

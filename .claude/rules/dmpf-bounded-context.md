@@ -115,7 +115,7 @@ skill `.agents/skills/dmpf-bounded-context/`.
   método, `kernelgrpc.Uncovered` no teste do descritor e handlers que devolvem
   o erro por `kernelgrpc.StatusOf`. A cadeia de interceptors é a do kernel
   (`kernelgrpc.ServerInterceptors`). `app/http` em contexto reprova no
-  `tools/dmpf-context-check.sh`.
+  `tools/dmpf-plugin/scripts/dmpf-context-check.sh`.
 - O REST público é do `bff`. Toda rota declara `ContractRef` para o OpenAPI
   publicado em `apps/backend/<name>/contract/openapi/v1/` (RST-04), que declara
   `bearerAuth`.
@@ -130,7 +130,7 @@ skill `.agents/skills/dmpf-bounded-context/`.
   `quarantine`); tabela de agregado é o agregado no plural, sem prefixo;
   coluna de id `<agregado>_id`; índice `<tabela>_<colunas>_idx`; constraint
   `<tabela>_<colunas>_{pkey,key,check,fkey}`. O
-  `tools/dmpf-context-check.sh` reprova DDL, DSN e banco fora disso.
+  `tools/dmpf-plugin/scripts/dmpf-context-check.sh` reprova DDL, DSN e banco fora disso.
 - O DDL do contexto vive em `provider/schema.sql`; o composition root o aplica
   com `postgres.Migrate`, pedindo só as capacidades que usa (`Outbox`; `Inbox`
   se consome).
