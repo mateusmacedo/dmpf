@@ -8,6 +8,7 @@ import {
   RESERVED_MODULE_PREFIX,
   readDmpfConfigFromTree,
 } from '../../lib/dmpf-config';
+import { parseJsonOf } from '../../lib/json';
 import { templatesDir } from '../../lib/paths';
 import { type DmpfVersions, readVersions } from '../../lib/versions';
 import type { BlockLayout } from './blocks';
@@ -421,7 +422,7 @@ const withReleaseGroup = ({
   contractDirectory: string;
 }): string => {
   const group = `go-contract-${name}`;
-  const parsed = JSON.parse(content) as { release?: { groups?: Record<string, unknown> } };
+  const parsed = parseJsonOf<{ release?: { groups?: Record<string, unknown> } }>(content, NX_JSON);
   if (parsed.release?.groups?.[group] !== undefined) {
     return content;
   }

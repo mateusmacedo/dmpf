@@ -12,8 +12,14 @@ import {
   RESERVED_MODULE_PREFIX,
   readDmpfConfigFromTree,
 } from '../../lib/dmpf-config';
+import { parseJsonOf } from '../../lib/json';
 import { templatesDir } from '../../lib/paths';
-import { type DmpfVersions, readPluginVersion, readVersions } from '../../lib/versions';
+import {
+  type DmpfVersions,
+  isOlderRelease,
+  readPluginVersion,
+  readVersions,
+} from '../../lib/versions';
 import type { InitGeneratorSchema } from './schema';
 
 const KERNEL_PREFIX = 'github.com/mateusmacedo/dmpf';
@@ -85,7 +91,9 @@ const defaultsOf = (tree: Tree, modulePrefix: string): DmpfConfig => {
 
 const definedOptions = (options: InitGeneratorSchema): Partial<DmpfConfig> => {
   const { force: _force, ...values } = options;
-  return Object.fromEntries(Object.entries(values).filter(([, value]) => value !== undefined));
+  return Object.fromEntries(
+    Object.entries(values).filter(([, value]) => value !== undefined && value !== ''),
+  );
 };
 
 // A registry derived from the reserved prefix follows the real one: keeping it would
@@ -95,7 +103,7 @@ const resolveConfig = (
   options: InitGeneratorSchema,
   previous: DmpfConfig | null,
 ): DmpfConfig => {
-  const modulePrefix = options.modulePrefix ?? previous?.modulePrefix ?? RESERVED_MODULE_PREFIX;
+  const modulePrefix = options.modulePrefix || previous?.modulePrefix || RESERVED_MODULE_PREFIX;
   const kept: Partial<DmpfConfig> = { ...previous };
   if (previous) {
     const before = derivedOf(previous.modulePrefix);
@@ -186,7 +194,7 @@ const readHashes = (tree: Tree): Hashes => {
   if (raw === null) {
     return {};
   }
-  const parsed = JSON.parse(raw);
+  const parsed = parseJsonOf<{ schema?: unknown; files?: Hashes }>(raw, RENDERED_FILE);
   if (parsed?.schema !== RENDERED_SCHEMA || typeof parsed.files !== 'object' || !parsed.files) {
     throw new Error(`${RENDERED_FILE}: expected schema ${RENDERED_SCHEMA} with a files object`);
   }
@@ -314,17 +322,22 @@ export const mergeNxJson = (tree: Tree, versions: DmpfVersions): void => {
   }
 };
 
-export const pinGoWork = (tree: Tree, versions: DmpfVersions): void => {
+// Only raises: a workspace already on a newer Go keeps it, or its go.mod files
+// would ask for more than go.work declares.
+export const pinGoWork = (tree: Tree, versions: DmpfVersions, { create = true } = {}): void => {
   const directive = `go ${versions.go.directive}`;
   const current = tree.read(GO_WORK, 'utf-8');
   if (current === null) {
-    tree.write(GO_WORK, `${directive}\n`);
+    if (create) {
+      tree.write(GO_WORK, `${directive}\n`);
+    }
     return;
   }
-  const pinned = current.replace(/^go \S+$/m, directive);
-  if (pinned !== current) {
-    tree.write(GO_WORK, pinned);
+  const declared = /^go (\S+)$/m.exec(current)?.[1];
+  if (declared === undefined || !isOlderRelease(declared, versions.go.directive)) {
+    return;
   }
+  tree.write(GO_WORK, current.replace(/^go \S+$/m, directive));
 };
 
 const addNxGo = (tree: Tree, versions: DmpfVersions): boolean => {

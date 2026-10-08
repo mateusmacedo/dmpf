@@ -37,6 +37,17 @@ describe('[migration] sync-init', () => {
     await expect(initGenerator(tree, OPTIONS)).rejects.toThrow('.golangci.yml');
   });
 
+  it('should move the workflow ref and the plugin version of an edited CI caller, keeping the edits', async () => {
+    const tree = await initialized();
+    const caller = tree.read('.github/workflows/dmpf-ci.yml', 'utf-8') as string;
+    const edited = `${caller.replace(/@\S+$/m, '@old').replace(/plugin-version: "[^"]*"/, 'plugin-version: "0.0.1"')}# edição\n`;
+    tree.write('.github/workflows/dmpf-ci.yml', edited);
+
+    await syncInit(tree);
+
+    expect(tree.read('.github/workflows/dmpf-ci.yml', 'utf-8')).toBe(`${caller}# edição\n`);
+  });
+
   it('should leave a workspace that never ran init untouched', async () => {
     const tree = consumerTree();
 

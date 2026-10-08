@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join, posix } from 'node:path';
 import type { Tree } from '@nx/devkit';
+import { parseJsonOf } from './json';
 
 export const DMPF_CONFIG_SCHEMA = 'dmpf/workspace@1';
 export const DMPF_CONFIG_FILE = 'dmpf.json';
@@ -82,7 +83,7 @@ export const readDmpfConfig = (root: string): DmpfConfig => {
   if (!existsSync(path)) {
     throw new Error(`${path} not found; ${MISSING}`);
   }
-  return parseDmpfConfig(JSON.parse(readFileSync(path, 'utf-8')), path);
+  return parseDmpfConfig(parseJsonOf(readFileSync(path, 'utf-8'), path), path);
 };
 
 export const readDmpfConfigFromTree = (tree: Tree): DmpfConfig => {
@@ -90,5 +91,5 @@ export const readDmpfConfigFromTree = (tree: Tree): DmpfConfig => {
   if (content === null) {
     throw new Error(`${DMPF_CONFIG_FILE} not found; ${MISSING}`);
   }
-  return parseDmpfConfig(JSON.parse(content), DMPF_CONFIG_FILE);
+  return parseDmpfConfig(parseJsonOf(content, DMPF_CONFIG_FILE), DMPF_CONFIG_FILE);
 };

@@ -1,4 +1,10 @@
-import { parseVersions, readPluginVersion, readVersions, VERSIONS_SCHEMA } from './versions';
+import {
+  isOlderRelease,
+  parseVersions,
+  readPluginVersion,
+  readVersions,
+  VERSIONS_SCHEMA,
+} from './versions';
 
 const valid = {
   schema: VERSIONS_SCHEMA,
@@ -23,6 +29,17 @@ describe('[lib] versions', () => {
 
   it('should read the version of the plugin package, which the CI caller pins', () => {
     expect(readPluginVersion()).toMatch(/^\d+\.\d+\.\d+/);
+  });
+
+  it.each([
+    ['1.25.0', '1.26.6', true],
+    ['1.26', '1.26.6', true],
+    ['1.26.6', '1.26.6', false],
+    ['1.99.0', '1.26.6', false],
+    ['1.26rc1', '1.26.6', false],
+    ['catalog:', '4.0.0', false],
+  ])('should tell %s older than %s: %s, leaving what is not X.Y.Z alone', (current, target, older) => {
+    expect(isOlderRelease(current, target)).toBe(older);
   });
 
   it('should accept a SHA or an empty workflowRef, which the release fills in', () => {

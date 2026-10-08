@@ -20,7 +20,7 @@
 # um gate que nunca morde passaria por gate.
 set -uo pipefail
 
-ROOT="$(git rev-parse --show-toplevel)" || { echo "fora de um repositório git" >&2; exit 2; }
+ROOT="${DMPF_WORKSPACE_ROOT:-$(git rev-parse --show-toplevel)}" || { echo "fora de um repositório git" >&2; exit 2; }
 cd "$ROOT" || exit 2
 
 # Layout do dmpf.json, exportado pelo executor; os defaults são os do platform. O DDL
@@ -322,6 +322,8 @@ fase_estrutural() {
     saida="$(verificar_ddl kernel "${kernel[@]}")"
     status=$?
     relatar "kernel: DDL nos nomes canônicos" "$saida" "$status"
+  else
+    relatar "kernel: DDL nos nomes canônicos" "nenhum .sql do kernel em $ddl (DMPF_KERNEL_DDL)" 1
   fi
 
   printf '\n== banco e role em infra/, apps/backend/*/deploy e .github/workflows ==\n'

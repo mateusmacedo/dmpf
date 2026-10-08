@@ -63,6 +63,27 @@ describe('[generator] init — fresh consumer', () => {
     expect(readJson(tree, 'dmpf.json').modulePrefix).toBe('example.com/change-me');
   });
 
+  it('should take an empty module prefix, as an Enter at the prompt gives, as no prefix', async () => {
+    const tree = consumerTree();
+    await initGenerator(tree, { modulePrefix: '' });
+    const initialized = consumerTree();
+    await initGenerator(initialized, { modulePrefix: 'github.com/acme/shop' });
+
+    await initGenerator(initialized, { modulePrefix: '' });
+
+    expect(readJson(tree, 'dmpf.json').modulePrefix).toBe('example.com/change-me');
+    expect(readJson(initialized, 'dmpf.json').modulePrefix).toBe('github.com/acme/shop');
+  });
+
+  it('should keep a go directive newer than the one of versions.json', async () => {
+    const tree = consumerTree();
+    tree.write('go.work', 'go 1.99.0\n');
+
+    await initGenerator(tree, { modulePrefix: 'github.com/acme/shop' });
+
+    expect(tree.read('go.work', 'utf-8')).toBe('go 1.99.0\n');
+  });
+
   it('should allow the kernel and the module prefix in .golangci.yml and group the local imports', async () => {
     const tree = consumerTree();
 

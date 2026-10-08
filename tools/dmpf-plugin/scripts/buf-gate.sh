@@ -5,7 +5,7 @@
 # Temporários ficam em /tmp (como em dmpf-gate-check.sh), sem utilitário de lixeira.
 set -uo pipefail
 
-ROOT="$(git rev-parse --show-toplevel)" || { echo "REPROVADO: fora de um repositorio git" >&2; exit 2; }
+ROOT="${DMPF_WORKSPACE_ROOT:-$(git rev-parse --show-toplevel)}" || { echo "REPROVADO: fora de um repositorio git" >&2; exit 2; }
 cd "$ROOT" || exit 2
 
 uso() { echo "uso: buf-gate.sh lint | pins | generate-check | breaking | warmup <diretorio-do-modulo> [--project <nome>]" >&2; exit 2; }

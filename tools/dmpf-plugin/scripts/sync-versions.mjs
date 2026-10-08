@@ -143,12 +143,17 @@ const main = (argv) => {
       doc.conformance = version;
     }
     if (args.workflowRef !== undefined) doc.workflowRef = args.workflowRef;
+    const kernel = MODULE_VERSION.exec(doc.kernel ?? '')?.[1];
+    if (kernel === undefined) {
+      throw new Error(
+        `${VERSIONS}: kernel ${JSON.stringify(doc.kernel)} não é vX.Y.Z[-pré-release]`,
+      );
+    }
+    const migrations = migrationsOf(args.root);
     writeFileSync(path, `${JSON.stringify(doc, null, 2)}\n`);
     console.log(`sync-versions: ${VERSIONS} gravado`);
-    const migrations = migrationsOf(args.root);
     if (migrations !== null) {
-      const version = MODULE_VERSION.exec(doc.kernel)[1];
-      for (const entry of Object.values(migrations.generators ?? {})) entry.version = version;
+      for (const entry of Object.values(migrations.generators ?? {})) entry.version = kernel;
       writeFileSync(join(args.root, MIGRATIONS), `${JSON.stringify(migrations, null, 2)}\n`);
       console.log(`sync-versions: ${MIGRATIONS} gravado`);
     }

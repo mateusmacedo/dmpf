@@ -128,6 +128,15 @@ describe('[script] sync-versions', () => {
     expect(check.output).toContain('sync-init');
   });
 
+  it('should write nothing when migrations.json is not JSON', () => {
+    const root = workspace();
+    const before = readFileSync(join(root, 'tools/dmpf-plugin/versions.json'), 'utf-8');
+    write(root, 'tools/dmpf-plugin/migrations.json', '<<<<<<< HEAD\n');
+
+    expect(run(root, '--target', '1.0.0-rc.2').status).toBe(2);
+    expect(readFileSync(join(root, 'tools/dmpf-plugin/versions.json'), 'utf-8')).toBe(before);
+  });
+
   it('should keep the kernel version and the source commit when given no target', () => {
     const root = workspace();
 

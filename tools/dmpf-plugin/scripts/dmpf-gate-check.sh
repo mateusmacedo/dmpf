@@ -5,7 +5,7 @@
 # em vez de apagados — o runner não tem utilitário de lixeira.
 set -uo pipefail
 
-ROOT="$(git rev-parse --show-toplevel)" || { echo "fora de um repositorio git" >&2; exit 1; }
+ROOT="${DMPF_WORKSPACE_ROOT:-$(git rev-parse --show-toplevel)}" || { echo "fora de um repositorio git" >&2; exit 1; }
 cd "$ROOT" || exit 1
 APPS="${DMPF_APPS_DIR:-apps/backend}"
 DESCARTE="$(mktemp -d)" || { echo "falha ao criar diretorio temporario" >&2; exit 1; }

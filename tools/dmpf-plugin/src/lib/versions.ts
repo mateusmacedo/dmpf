@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { parseJsonOf } from './json';
 import { packageRoot } from './paths';
 
 export const VERSIONS_SCHEMA = 'dmpf/versions@1';
@@ -54,7 +55,23 @@ export const parseVersions = (raw: unknown, source: string): DmpfVersions => {
 };
 
 export const readVersions = (path: string = join(packageRoot(), 'versions.json')): DmpfVersions =>
-  parseVersions(JSON.parse(readFileSync(path, 'utf-8')), path);
+  parseVersions(parseJsonOf(readFileSync(path, 'utf-8'), path), path);
+
+export const isOlderRelease = (current: string, target: string): boolean => {
+  const parse = (version: string): number[] | null =>
+    /^\d+(\.\d+)*$/.test(version) ? version.split('.').map(Number) : null;
+  const [a, b] = [parse(current), parse(target)];
+  if (a === null || b === null) {
+    return false;
+  }
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    const diff = (a[i] ?? 0) - (b[i] ?? 0);
+    if (diff !== 0) {
+      return diff < 0;
+    }
+  }
+  return false;
+};
 
 export const readPluginVersion = (): string =>
   JSON.parse(readFileSync(join(packageRoot(), 'package.json'), 'utf-8')).version;
