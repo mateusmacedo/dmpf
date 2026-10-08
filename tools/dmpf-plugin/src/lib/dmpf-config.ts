@@ -29,7 +29,7 @@ const DNS_LABEL = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/;
 const TRUST_DOMAIN = /^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$/;
 const COMPOSE_PROFILE = /^[a-z0-9][a-z0-9_.-]*$/;
 const COMPOSE_PROJECT = /^[a-z0-9][a-z0-9_-]*$/;
-const IMAGE_REGISTRY = /^[a-z0-9.-]+(:[0-9]+)?(\/[a-z0-9._-]+)*$/;
+const IMAGE_REGISTRY = /^[a-z0-9.-]+(:\d+)?(\/[a-z0-9._-]+)*$/;
 const BUF_MODULE = /^[a-z0-9.-]+\/[a-z0-9_-]+$/;
 const TOOLING_MODES: readonly ToolingMode[] = ['local', 'version'];
 

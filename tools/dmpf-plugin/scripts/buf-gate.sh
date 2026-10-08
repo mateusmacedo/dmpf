@@ -29,7 +29,7 @@ BUF_YAML="$MOD/buf.yaml"
 BUF_GEN="$MOD/buf.gen.yaml"
 BUF_SH="$(dirname "$(realpath "$0")")/buf.sh"
 VERSIONS="$(dirname "$(realpath "$0")")/../versions.json"
-buf_pin() { node -p 'require(process.argv[1]).buf' "$VERSIONS"; }
+buf_pin() { node -p 'require(process.argv[1]).buf' "$VERSIONS"; return $?; }
 
 buf() { bash "$BUF_SH" "$@"; }
 reprovar() { echo "REPROVADO: $*" >&2; exit 1; }
@@ -155,8 +155,9 @@ raizes_em() { # ref
 
 # Diretórios de pacote (com .proto), relativos à raiz do módulo, num commit.
 pacotes_em() { # ref raiz
-  git ls-tree -r --name-only "$1" -- "$2/" | grep -E '\.proto$' \
-    | awk -v p="$2/" 'index($0, p) == 1 { print substr($0, length(p) + 1) }' | xargs -rn1 dirname | sort -u
+  local ref="$1" raiz="$2"
+  git ls-tree -r --name-only "$ref" -- "$raiz/" | grep -E '\.proto$' \
+    | awk -v p="$raiz/" 'index($0, p) == 1 { print substr($0, length(p) + 1) }' | xargs -rn1 dirname | sort -u
 }
 
 gate_breaking() {

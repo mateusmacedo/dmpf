@@ -39,7 +39,7 @@ const followPluginInCaller = (tree: Tree, plan: TemplatePlan): void => {
 
 // nextSteps are run as commands after the upgrade, so the edited files go to the
 // log instead.
-const syncInit = async (tree: Tree): Promise<void> => {
+const syncInit = (tree: Tree): void => {
   if (!tree.exists(DMPF_CONFIG_FILE)) {
     return;
   }

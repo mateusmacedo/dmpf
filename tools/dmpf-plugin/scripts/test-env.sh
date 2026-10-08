@@ -15,6 +15,7 @@ while IFS='=' read -r key value; do
       echo "test-env: ignorada a chave $key do .env.example" >&2
       continue
       ;;
+    *) ;;
   esac
   [ -n "${!key+x}" ] || export "$key=$value"
 done < "$root/.env.example"

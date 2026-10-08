@@ -298,7 +298,7 @@ fase_estrutural() {
   done < <(contextos "$raiz")
 
   if [ "$achou" -eq 0 ]; then
-    if [ "$PERMITIR_VAZIO" -eq 1 ]; then
+    if [[ "$PERMITIR_VAZIO" -eq 1 ]]; then
       echo "nenhum bounded context em $raiz ainda: nada a verificar"
       return 0
     fi
@@ -322,9 +322,9 @@ fase_estrutural() {
   local ddl="$repo/$KERNEL_DDL"
   [[ "$KERNEL_DDL" == /* ]] && ddl="$KERNEL_DDL"
   mapfile -t kernel < <(find "$ddl" -maxdepth 1 -name '*.sql' 2>/dev/null | sort)
-  if [ "$KERNEL_DDL" = none ]; then
+  if [[ "$KERNEL_DDL" = none ]]; then
     aprovar "kernel: nenhum contexto usa o postgres do kernel, sem DDL a conferir"
-  elif [ "${#kernel[@]}" -gt 0 ]; then
+  elif [[ "${#kernel[@]}" -gt 0 ]]; then
     saida="$(verificar_ddl kernel "${kernel[@]}")"
     status=$?
     relatar "kernel: DDL nos nomes canônicos" "$saida" "$status"

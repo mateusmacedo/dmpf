@@ -31,7 +31,7 @@ const PINS = [
   {
     field: 'nxGo',
     sources: ['pnpm-workspace.yaml'],
-    pattern: /^\s+"@nx-go\/nx-go": (\d+\.\d+\.\d+\S*)$/m,
+    pattern: /^[ \t]+"@nx-go\/nx-go": (\d+\.\d+\.\d+(?:[^\d\s]\S*)?)$/m,
   },
   {
     field: 'govulncheck',
@@ -104,6 +104,46 @@ const migrationsOf = (root) => {
 const divergentMigrations = (migrations, version) =>
   Object.entries(migrations?.generators ?? {}).filter(([, entry]) => entry.version !== version);
 
+const checkVersions = (root, doc, pins) => {
+  const divergent = pins.filter(({ field, value }) => getField(doc, field) !== value);
+  for (const { field, value } of divergent) {
+    console.log(
+      `${VERSIONS}: ${field} ${JSON.stringify(getField(doc, field))}, a fonte fixa ${value}`,
+    );
+  }
+  const version = MODULE_VERSION.exec(doc.kernel)?.[1];
+  const migrations = divergentMigrations(migrationsOf(root), version);
+  for (const [name, entry] of migrations) {
+    console.log(`${MIGRATIONS}: ${name} na versão ${entry.version}, o kernel está em ${version}`);
+  }
+  const ok = divergent.length === 0 && migrations.length === 0;
+  console.log(ok ? 'sync-versions: conforme' : 'sync-versions: REPROVADO');
+  return ok ? 0 : 1;
+};
+
+const writeVersions = (args, path, doc, pins) => {
+  for (const { field, value } of pins) setField(doc, field, value);
+  if (args.target !== undefined) {
+    const version = `v${MODULE_VERSION.exec(args.target)[1]}`;
+    doc.kernel = version;
+    doc.conformance = version;
+  }
+  if (args.workflowRef !== undefined) doc.workflowRef = args.workflowRef;
+  const kernel = MODULE_VERSION.exec(doc.kernel ?? '')?.[1];
+  if (kernel === undefined) {
+    throw new Error(`${VERSIONS}: kernel ${JSON.stringify(doc.kernel)} não é vX.Y.Z[-pré-release]`);
+  }
+  const migrations = migrationsOf(args.root);
+  writeFileSync(path, `${JSON.stringify(doc, null, 2)}\n`);
+  console.log(`sync-versions: ${VERSIONS} gravado`);
+  if (migrations !== null) {
+    for (const entry of Object.values(migrations.generators ?? {})) entry.version = kernel;
+    writeFileSync(join(args.root, MIGRATIONS), `${JSON.stringify(migrations, null, 2)}\n`);
+    console.log(`sync-versions: ${MIGRATIONS} gravado`);
+  }
+  return 0;
+};
+
 const main = (argv) => {
   let args;
   try {
@@ -116,48 +156,7 @@ const main = (argv) => {
   try {
     const doc = JSON.parse(readFileSync(path, 'utf-8'));
     const pins = PINS.map((pin) => ({ field: pin.field, value: readPin(args.root, pin) }));
-
-    if (args.check) {
-      const divergent = pins.filter(({ field, value }) => getField(doc, field) !== value);
-      for (const { field, value } of divergent) {
-        console.log(
-          `${VERSIONS}: ${field} ${JSON.stringify(getField(doc, field))}, a fonte fixa ${value}`,
-        );
-      }
-      const version = MODULE_VERSION.exec(doc.kernel)?.[1];
-      const migrations = divergentMigrations(migrationsOf(args.root), version);
-      for (const [name, entry] of migrations) {
-        console.log(
-          `${MIGRATIONS}: ${name} na versão ${entry.version}, o kernel está em ${version}`,
-        );
-      }
-      const ok = divergent.length === 0 && migrations.length === 0;
-      console.log(ok ? 'sync-versions: conforme' : 'sync-versions: REPROVADO');
-      return ok ? 0 : 1;
-    }
-
-    for (const { field, value } of pins) setField(doc, field, value);
-    if (args.target !== undefined) {
-      const version = `v${MODULE_VERSION.exec(args.target)[1]}`;
-      doc.kernel = version;
-      doc.conformance = version;
-    }
-    if (args.workflowRef !== undefined) doc.workflowRef = args.workflowRef;
-    const kernel = MODULE_VERSION.exec(doc.kernel ?? '')?.[1];
-    if (kernel === undefined) {
-      throw new Error(
-        `${VERSIONS}: kernel ${JSON.stringify(doc.kernel)} não é vX.Y.Z[-pré-release]`,
-      );
-    }
-    const migrations = migrationsOf(args.root);
-    writeFileSync(path, `${JSON.stringify(doc, null, 2)}\n`);
-    console.log(`sync-versions: ${VERSIONS} gravado`);
-    if (migrations !== null) {
-      for (const entry of Object.values(migrations.generators ?? {})) entry.version = kernel;
-      writeFileSync(join(args.root, MIGRATIONS), `${JSON.stringify(migrations, null, 2)}\n`);
-      console.log(`sync-versions: ${MIGRATIONS} gravado`);
-    }
-    return 0;
+    return args.check ? checkVersions(args.root, doc, pins) : writeVersions(args, path, doc, pins);
   } catch (error) {
     console.error(`sync-versions: ${error.message}`);
     return 2;

@@ -6,11 +6,11 @@ import { isOlderRelease, readVersions } from '../../lib/versions';
 
 const NX_GO = '@nx-go/nx-go';
 const KERNEL_REQUIRE =
-  /^(\s*(?:require\s+)?github\.com\/mateusmacedo\/dmpf\/libs\/backend\/go\/[a-z0-9_-]+\s+)v\S+(?![^\n]*=>)/gm;
+  /^([ \t]*(?:require[ \t]+)?github\.com\/mateusmacedo\/dmpf\/libs\/backend\/go\/[a-z0-9_-]+[ \t]+)v(?![^\n]*=>)\S+/gm;
 const GOVULNCHECK = /(golang\.org\/x\/vuln\/cmd\/govulncheck@)v[^\s"]+/g;
 const GOLANGCI_LINT = /(github\.com\/golangci\/golangci-lint\/v2\/cmd\/golangci-lint@)v[^\s"]+/g;
 // A line pinned by digest is left alone: rewriting it would drop the digest.
-const GO_IMAGE = /^FROM golang:(\d+(?:\.\d+)*)[^\s@]* AS build$/gm;
+const GO_IMAGE = /^FROM golang:(\d+(?:\.\d+)*)(?:[^\d.\s@][^\s@]*)? AS build$/gm;
 
 const rewrite = (
   tree: Tree,
@@ -45,7 +45,7 @@ const bumpNxGo = (tree: Tree, version: string): boolean => {
 
 // The go.sum of a module only follows its new require after a tidy, which runs
 // go and so cannot happen inside a migration.
-const updateVersions = async (tree: Tree): Promise<string[]> => {
+const updateVersions = (tree: Tree): string[] => {
   if (!tree.exists(DMPF_CONFIG_FILE)) {
     return [];
   }

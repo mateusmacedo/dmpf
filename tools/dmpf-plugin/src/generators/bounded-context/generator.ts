@@ -22,7 +22,7 @@ import {
   missingDependencies,
   orderBlocks,
 } from './blocks';
-import { parseGoWork, registerModules, useEntryOf } from './go-work';
+import { byCodeUnit, parseGoWork, registerModules, useEntryOf } from './go-work';
 import { IDENTIFIER_PATTERN, isIdentifier } from './identifiers';
 import { externalFragment, unitsFragment } from './manifest';
 import type { Block, BoundedContextGeneratorSchema } from './schema';
@@ -479,7 +479,7 @@ const templateFiles = (dir: string): string[] =>
 // takes the owner of each import from these requires.
 const kernelRequires = (versions: DmpfVersions): string[] => {
   const pattern = new RegExp(
-    `${KERNEL_PREFIX.replaceAll('.', '\\.')}/libs/backend/go/([a-z]+)`,
+    `${KERNEL_PREFIX.replaceAll('.', String.raw`\.`)}/libs/backend/go/([a-z]+)`,
     'g',
   );
   const libs = new Set(
@@ -488,7 +488,7 @@ const kernelRequires = (versions: DmpfVersions): string[] => {
     ),
   );
   return [...libs]
-    .sort()
+    .sort(byCodeUnit)
     .flatMap((lib) => ['--require', `${KERNEL_PREFIX}/libs/backend/go/${lib}@${versions.kernel}`]);
 };
 
