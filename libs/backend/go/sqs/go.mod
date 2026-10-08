@@ -8,10 +8,10 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sns v1.46.0
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.51.0
 	github.com/aws/smithy-go v1.28.1
-	github.com/mateusmacedo/dmpf/libs/backend/go/contracts v1.0.0-rc.1
-	github.com/mateusmacedo/dmpf/libs/backend/go/observability v1.0.0-rc.1
-	github.com/mateusmacedo/dmpf/libs/backend/go/ports v1.0.0-rc.1
-	github.com/mateusmacedo/dmpf/libs/backend/go/transport v1.0.0-rc.1
+	github.com/mateusmacedo/dmpf/libs/backend/go/contracts v1.0.0-rc.2
+	github.com/mateusmacedo/dmpf/libs/backend/go/observability v1.0.0-rc.2
+	github.com/mateusmacedo/dmpf/libs/backend/go/ports v1.0.0-rc.2
+	github.com/mateusmacedo/dmpf/libs/backend/go/transport v1.0.0-rc.2
 	go.opentelemetry.io/otel v1.47.0
 	go.opentelemetry.io/otel/log v1.47.0
 	go.opentelemetry.io/otel/sdk v1.47.0
@@ -42,8 +42,8 @@ require (
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/mateusmacedo/dmpf/libs/backend/go/domain v1.0.0-rc.1 // indirect
-	github.com/mateusmacedo/dmpf/libs/backend/go/testkit v1.0.0-rc.1
+	github.com/mateusmacedo/dmpf/libs/backend/go/domain v1.0.0-rc.2 // indirect
+	github.com/mateusmacedo/dmpf/libs/backend/go/testkit v1.0.0-rc.2
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/otel/metric v1.47.0 // indirect
 	golang.org/x/sys v0.48.0 // indirect
