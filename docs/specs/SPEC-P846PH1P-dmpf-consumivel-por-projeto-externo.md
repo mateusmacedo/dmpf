@@ -558,8 +558,10 @@ na própria entrega.
   rotulado como "kernel por versão".
 - **`modsync --require` ignorado**: um `--require` que não dá dono a nenhum
   import, ou em conflito com a build list, some sem aviso.
-- **Regex de apps no Alloy**: os nomes entram sem escape, e a lista vazia gera
-  um regex que descarta pods sem o label de app.
+- **Senha do overlay `dev`**: o template do contexto versiona a senha
+  `<name>-dev`, que o `infra.json` declara e o `infrasync` confere; quem alcança
+  o Postgres do cluster de dev a deduz pelo nome. O `hmg` já usa segredo; trocar
+  a convenção de `dev` muda o `infrasync` e todos os contextos.
 - **Layout ausente no `dmpf.json`**: o `infrasync` assume o valor do platform
   para campo ausente, e o leitor do plugin recusa o mesmo arquivo.
 - **`Unit.ReadOnly`**: gravado e nunca lido; o baseline só exclui o kernel
@@ -568,3 +570,24 @@ na própria entrega.
   shared kernel, inclusive `kernel/testkit-*`, que no platform não é.
 - **Portabilidade**: os `nextSteps` fixam `pnpm`, e `go-tidy.sh` e `buf-gate.sh`
   usam `realpath` do GNU, ausente no macOS.
+- **Cache das ferramentas Go**: no cache miss, cada job compila golangci-lint,
+  govulncheck, buf e protoc-gen-go (cerca de 10 min), e a chave muda com
+  qualquer `go.sum`. Um cache próprio das ferramentas, com chave só do
+  `versions.json` e da versão do Go, e o aquecimento só do que o job usa,
+  devolvem o `external-consumer` aos 10 min também com cache frio.
+- **Gate de dependência por contexto**: o `dmpf-gate-check.sh` roda o lint de
+  cada módulo por vetor, em série (cerca de 4 s cada); com dezenas de contextos,
+  passa de 10 min. Provar a regra uma vez por política, ou rodar o lint de todos
+  os módulos de uma vez por vetor.
+- **Grafo do Nx no workflow reutilizável**: cada estágio recalcula o grafo com
+  `nx show projects` (5 a 8 s cada, com o daemon desligado); gerar o grafo uma
+  vez e extrair as listas por estágio.
+- **Serviços de integração**: Postgres, Redpanda e floci sobem em série, sem
+  retry no pull e mesmo sem projeto afetado nos estágios que os usam.
+- **`go list` por módulo e perfil**: o `conformance` chama o `go list` em série
+  para cada combinação; uma chamada por perfil com todos os módulos reduz o custo
+  em workspace grande.
+- **Varredura da migration de versões**: o `visitNotIgnoredFiles` percorre o
+  workspace inteiro; bastam os módulos do `go.work` e as raízes dos projetos.
+- **Diagnóstico**: o proxy de teste e o `buf-gate` deixam diretórios temporários,
+  e o `go list` que falha com saída parcial descarta o stderr.
