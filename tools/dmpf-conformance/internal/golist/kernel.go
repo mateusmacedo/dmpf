@@ -14,6 +14,11 @@ import (
 
 var _ port.KernelSource = (*Source)(nil)
 
+// KernelModulePrefix delimita de onde o verificador aceita manifesto: uma
+// dependência de terceiro que publicasse dmpf-units.json passaria por kernel e
+// sairia da regra de capability.
+const KernelModulePrefix = "github.com/mateusmacedo/dmpf/"
+
 // Um módulo fora do inventário sem manifesto continua dependência externa,
 // julgada por capability.
 func (s *Source) Kernel() (port.Kernel, error) {
@@ -28,6 +33,9 @@ func (s *Source) Kernel() (port.Kernel, error) {
 	var k port.Kernel
 	comManifesto := map[string]bool{}
 	for _, m := range s.modulosForaDoInventario() {
+		if !strings.HasPrefix(m.Path, KernelModulePrefix) {
+			continue
+		}
 		doc, existe, err := fsstore.LoadVersionedManifest(m.Path, m.Version, m.Dir)
 		if err != nil {
 			return port.Kernel{}, err

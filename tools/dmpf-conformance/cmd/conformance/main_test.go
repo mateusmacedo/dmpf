@@ -104,7 +104,7 @@ func TestConsumidorDoKernelPorVersaoConformeSemGravarOKernel(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(string(raw), "exemplo.test/kernel") {
+	if strings.Contains(string(raw), "github.com/mateusmacedo/dmpf/libs/backend/go/kernel") {
 		t.Errorf("baseline gravou o kernel recebido por versão:\n%s", raw)
 	}
 

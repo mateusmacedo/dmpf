@@ -42,13 +42,13 @@ func TestKernelPorVersaoTrazManifestoEPacotes(t *testing.T) {
 		t.Fatalf("documentos = %+v, esperado só o do kernel", k.Documents)
 	}
 	doc := k.Documents[0]
-	if doc.Module != "exemplo.test/kernel" || doc.Path != "exemplo.test/kernel@v1.2.3/dmpf-units.json" {
+	if doc.Module != "github.com/mateusmacedo/dmpf/libs/backend/go/kernel" || doc.Path != "github.com/mateusmacedo/dmpf/libs/backend/go/kernel@v1.2.3/dmpf-units.json" {
 		t.Errorf("documento de %q em %q", doc.Module, doc.Path)
 	}
 	if len(doc.Units) != 1 || doc.Units[0].ID != "kernel/domain" {
 		t.Errorf("unidades = %+v", doc.Units)
 	}
-	want := []rule.Package{{CanonicalKey: "exemplo.test/kernel/domain", Module: "exemplo.test/kernel"}}
+	want := []rule.Package{{CanonicalKey: "github.com/mateusmacedo/dmpf/libs/backend/go/kernel/domain", Module: "github.com/mateusmacedo/dmpf/libs/backend/go/kernel"}}
 	if !slices.Equal(k.Packages, want) {
 		t.Errorf("pacotes = %+v, esperado %+v", k.Packages, want)
 	}
@@ -81,8 +81,34 @@ func TestKernelLidoComVendorNoConsumidor(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Kernel com vendor/: %v", err)
 	}
-	if len(k.Documents) != 1 || k.Documents[0].Module != "exemplo.test/kernel" {
+	if len(k.Documents) != 1 || k.Documents[0].Module != "github.com/mateusmacedo/dmpf/libs/backend/go/kernel" {
 		t.Fatalf("documentos = %+v, esperado o manifesto do kernel", k.Documents)
+	}
+}
+
+func TestManifestoDeDependenciaDeTerceiroNaoViraKernel(t *testing.T) {
+	base := t.TempDir()
+	if err := os.CopyFS(base, os.DirFS(filepath.Join("testdata", "kernelext"))); err != nil {
+		t.Fatal(err)
+	}
+	for _, arquivo := range []string{"kernel/go.mod", "consumer/go.mod", "consumer/domain/domain.go"} {
+		caminho := filepath.Join(base, arquivo)
+		raw, err := os.ReadFile(caminho)
+		if err != nil {
+			t.Fatal(err)
+		}
+		troca := strings.ReplaceAll(string(raw), "github.com/mateusmacedo/dmpf/libs/backend/go/kernel", "exemplo.test/terceiro")
+		if err := os.WriteFile(caminho, []byte(troca), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	k, err := consumidorEm(filepath.Join(base, "consumer")).Kernel()
+	if err != nil {
+		t.Fatalf("Kernel: %v", err)
+	}
+	if len(k.Documents) != 0 || len(k.Packages) != 0 {
+		t.Errorf("manifesto de terceiro lido como kernel: %+v", k)
 	}
 }
 
@@ -97,8 +123,8 @@ func TestManifestoInvalidoDoKernelCitaModuloEVersao(t *testing.T) {
 	}
 
 	_, err := consumidorEm(filepath.Join(base, "consumer")).Kernel()
-	if err == nil || !strings.Contains(err.Error(), "exemplo.test/kernel@v1.2.3/dmpf-units.json") {
-		t.Fatalf("erro = %v, esperado citando exemplo.test/kernel@v1.2.3/dmpf-units.json", err)
+	if err == nil || !strings.Contains(err.Error(), "github.com/mateusmacedo/dmpf/libs/backend/go/kernel@v1.2.3/dmpf-units.json") {
+		t.Fatalf("erro = %v, esperado citando github.com/mateusmacedo/dmpf/libs/backend/go/kernel@v1.2.3/dmpf-units.json", err)
 	}
 }
 

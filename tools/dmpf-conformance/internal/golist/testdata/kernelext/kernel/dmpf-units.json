@@ -5,7 +5,7 @@
       "id": "kernel/domain",
       "block": "domain",
       "bounded_context": "kernel",
-      "include": ["exemplo.test/kernel/domain"]
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/kernel/domain"]
     }
   ],
   "external": [],

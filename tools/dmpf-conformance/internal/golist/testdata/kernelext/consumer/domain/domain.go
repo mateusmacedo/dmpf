@@ -1,6 +1,6 @@
 package domain
 
-import kernel "exemplo.test/kernel/domain"
+import kernel "github.com/mateusmacedo/dmpf/libs/backend/go/kernel/domain"
 
 type Pedido struct {
 	ID kernel.ID
