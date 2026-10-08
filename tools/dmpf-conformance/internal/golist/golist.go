@@ -260,7 +260,9 @@ func (s *Source) absorver(p listPackage) {
 }
 
 func (s *Source) listar(perfil fsstore.BuildProfile, m rule.Module) ([]listPackage, error) {
-	args := []string{"list", "-e", "-deps", "-json"}
+	// Com vendor/, o go list entra em -mod=vendor e deixa o Module.Dir vazio: o
+	// manifesto do kernel não seria lido.
+	args := []string{"list", "-e", "-mod=readonly", "-deps", "-json"}
 	if len(perfil.Tags) > 0 {
 		args = append(args, "-tags", strings.Join(perfil.Tags, ","))
 	}

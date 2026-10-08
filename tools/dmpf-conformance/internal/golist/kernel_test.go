@@ -2,6 +2,7 @@ package golist_test
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -60,6 +61,28 @@ func TestKernelPorVersaoTrazManifestoEPacotes(t *testing.T) {
 		if p.Module != "exemplo.test/consumer" {
 			t.Errorf("Packages() devolveu %s: o kernel entraria na regravação do baseline", p.CanonicalKey)
 		}
+	}
+}
+
+func TestKernelLidoComVendorNoConsumidor(t *testing.T) {
+	t.Setenv("GOWORK", "off")
+	base := t.TempDir()
+	if err := os.CopyFS(base, os.DirFS(filepath.Join("testdata", "kernelext"))); err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(base, "consumer")
+	vendor := exec.Command("go", "mod", "vendor")
+	vendor.Dir = dir
+	if out, err := vendor.CombinedOutput(); err != nil {
+		t.Fatalf("go mod vendor: %v\n%s", err, out)
+	}
+
+	k, err := consumidorEm(dir).Kernel()
+	if err != nil {
+		t.Fatalf("Kernel com vendor/: %v", err)
+	}
+	if len(k.Documents) != 1 || k.Documents[0].Module != "exemplo.test/kernel" {
+		t.Fatalf("documentos = %+v, esperado o manifesto do kernel", k.Documents)
 	}
 }
 
