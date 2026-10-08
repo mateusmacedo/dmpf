@@ -298,6 +298,10 @@ fase_estrutural() {
   done < <(contextos "$raiz")
 
   if [ "$achou" -eq 0 ]; then
+    if [ "$PERMITIR_VAZIO" -eq 1 ]; then
+      echo "nenhum bounded context em $raiz ainda: nada a verificar"
+      return 0
+    fi
     echo "nenhum bounded context encontrado em $raiz" >&2
     return 2
   fi
@@ -318,7 +322,9 @@ fase_estrutural() {
   local ddl="$repo/$KERNEL_DDL"
   [[ "$KERNEL_DDL" == /* ]] && ddl="$KERNEL_DDL"
   mapfile -t kernel < <(find "$ddl" -maxdepth 1 -name '*.sql' 2>/dev/null | sort)
-  if [ "${#kernel[@]}" -gt 0 ]; then
+  if [ "$KERNEL_DDL" = none ]; then
+    aprovar "kernel: nenhum contexto usa o postgres do kernel, sem DDL a conferir"
+  elif [ "${#kernel[@]}" -gt 0 ]; then
     saida="$(verificar_ddl kernel "${kernel[@]}")"
     status=$?
     relatar "kernel: DDL nos nomes canônicos" "$saida" "$status"
@@ -518,7 +524,7 @@ fase_self_test() {
 
 uso() {
   cat <<'TXT'
-uso: dmpf-context-check.sh [--phase structural|self-test] [--root <dir>]
+uso: dmpf-context-check.sh [--phase structural|self-test] [--root <dir>] [--allow-empty]
 
   structural  (default) verifica todo bounded context de apps/backend, a borda,
               os nomes do DDL, o deploy/infra.json de cada contexto e banco e
@@ -526,12 +532,14 @@ uso: dmpf-context-check.sh [--phase structural|self-test] [--root <dir>]
   self-test   prova o gate contra fixture sintética, um vetor por sabotagem
   --root      raiz do repositório a verificar (default: a do git)
   --context   verifica só o layout e o DDL de um contexto, sem a infra
+  --allow-empty  aprova o workspace que ainda não tem bounded context
 TXT
 }
 
 FASE="structural"
 REPO="$ROOT"
 CONTEXTO=""
+PERMITIR_VAZIO=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --phase) shift; FASE="${1:-}"; [ -n "$FASE" ] || { uso >&2; exit 2; } ;;
@@ -540,6 +548,7 @@ while [ $# -gt 0 ]; do
     --root=*) REPO="${1#--root=}" ;;
     --context) shift; CONTEXTO="${1:-}"; [ -n "$CONTEXTO" ] || { uso >&2; exit 2; } ;;
     --context=*) CONTEXTO="${1#--context=}" ;;
+    --allow-empty) PERMITIR_VAZIO=1 ;;
     -h|--help) uso; exit 0 ;;
     *) printf 'argumento desconhecido: %s\n' "$1" >&2; uso >&2; exit 2 ;;
   esac

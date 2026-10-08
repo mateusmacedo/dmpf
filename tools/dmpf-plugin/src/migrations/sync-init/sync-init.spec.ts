@@ -3,6 +3,14 @@ import { initGenerator } from '../../generators/init/generator';
 import { consumerTree, renderedByAnOlderVersion } from '../../testing/rendered';
 import syncInit from './sync-init';
 
+jest.mock('../../lib/versions', () => {
+  const actual = jest.requireActual<typeof import('../../lib/versions')>('../../lib/versions');
+  return {
+    ...actual,
+    readVersions: jest.fn(() => ({ ...actual.readVersions(), workflowRef: 'f'.repeat(40) })),
+  };
+});
+
 const OPTIONS = { modulePrefix: 'github.com/acme/shop' };
 
 const initialized = async () => {

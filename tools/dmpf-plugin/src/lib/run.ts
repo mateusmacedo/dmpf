@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { join } from 'node:path';
-import type { ExecutorContext } from '@nx/devkit';
+import { type ExecutorContext, logger } from '@nx/devkit';
 import { readDmpfConfig } from './dmpf-config';
 import { packageRoot } from './paths';
 import { readVersions } from './versions';
@@ -26,7 +26,10 @@ export const runScript = ({
       stdio: 'inherit',
       env: { ...process.env, ...env },
     });
-    child.on('error', () => resolve({ success: false }));
+    child.on('error', (error) => {
+      logger.error(`dmpf-plugin: ${script} did not start: ${error.message}`);
+      resolve({ success: false });
+    });
     child.on('close', (code) => resolve({ success: code === 0 }));
   });
 

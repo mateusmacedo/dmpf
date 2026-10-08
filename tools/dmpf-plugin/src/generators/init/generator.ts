@@ -3,7 +3,14 @@ import { createHash } from 'node:crypto';
 import { readdirSync, statSync } from 'node:fs';
 import { basename, join, relative } from 'node:path';
 import type { GeneratorCallback, NxJsonConfiguration, Tree } from '@nx/devkit';
-import { generateFiles, installPackagesTask, readJson, readNxJson, updateNxJson } from '@nx/devkit';
+import {
+  generateFiles,
+  installPackagesTask,
+  logger,
+  readJson,
+  readNxJson,
+  updateNxJson,
+} from '@nx/devkit';
 import {
   DMPF_CONFIG_FILE,
   DMPF_CONFIG_SCHEMA,
@@ -32,11 +39,12 @@ type Source = {
   dir: readonly string[];
   kind: 'managed' | 'seed';
   mode?: DmpfConfig['tooling']['mode'];
+  needsWorkflowRef?: boolean;
 };
 const SOURCES: readonly Source[] = [
   { dir: ['init', 'managed'], kind: 'managed' },
   { dir: ['init', 'seed'], kind: 'seed' },
-  { dir: ['init', 'version'], kind: 'managed', mode: 'version' },
+  { dir: ['init', 'version'], kind: 'managed', mode: 'version', needsWorkflowRef: true },
   { dir: ['ai'], kind: 'managed' },
 ];
 const PLUGIN_IN_NODE_MODULES = 'node_modules/@mateusmacedo/dmpf-plugin';
@@ -169,8 +177,15 @@ const substitutionsOf = (config: DmpfConfig, versions: DmpfVersions): Record<str
 
 const render = (tree: Tree, config: DmpfConfig, versions: DmpfVersions): Rendered => {
   const rendered: Rendered = new Map();
-  for (const [index, { dir, kind, mode }] of SOURCES.entries()) {
+  for (const [index, { dir, kind, mode, needsWorkflowRef }] of SOURCES.entries()) {
     if (mode && mode !== config.tooling.mode) {
+      continue;
+    }
+    // Without the SHA the caller would run the reusable workflow from a moving branch.
+    if (needsWorkflowRef && !versions.workflowRef) {
+      logger.warn(
+        'dmpf-plugin: this build has no workflowRef, so .github/workflows/dmpf-ci.yml was not written; a released plugin always has one.',
+      );
       continue;
     }
     const scratch = `${RENDER_ROOT}/${index}`;

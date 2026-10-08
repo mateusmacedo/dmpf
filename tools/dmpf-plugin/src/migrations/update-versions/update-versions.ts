@@ -9,7 +9,8 @@ const KERNEL_REQUIRE =
   /^(\s*(?:require\s+)?github\.com\/mateusmacedo\/dmpf\/libs\/backend\/go\/[a-z0-9_-]+\s+)v\S+(?![^\n]*=>)/gm;
 const GOVULNCHECK = /(golang\.org\/x\/vuln\/cmd\/govulncheck@)v[^\s"]+/g;
 const GOLANGCI_LINT = /(github\.com\/golangci\/golangci-lint\/v2\/cmd\/golangci-lint@)v[^\s"]+/g;
-const GO_IMAGE = /^FROM golang:(\d+(?:\.\d+)*)\S* AS build$/gm;
+// A line pinned by digest is left alone: rewriting it would drop the digest.
+const GO_IMAGE = /^FROM golang:(\d+(?:\.\d+)*)[^\s@]* AS build$/gm;
 
 const rewrite = (
   tree: Tree,

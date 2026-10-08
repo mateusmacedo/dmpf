@@ -31,6 +31,9 @@ const followPluginInCaller = (tree: Tree, plan: TemplatePlan): void => {
   }
   if (next !== current) {
     tree.write(CI_CALLER, next);
+    logger.warn(
+      `dmpf-plugin: ${CI_CALLER} kept its edits, but its workflow ref and plugin version now follow the installed plugin.`,
+    );
   }
 };
 

@@ -59,6 +59,34 @@ describe('[executor] context-check', () => {
     });
   });
 
+  it('should tell the script there is no kernel DDL while no context brought the kernel postgres', async () => {
+    const root = workspaceWithDmpfJson('version');
+    jest.mocked(execFileSync).mockImplementationOnce(() => {
+      throw new Error('go: module not found');
+    });
+
+    await contextCheckExecutor({}, executorContext('apps/backend/orders', root));
+
+    expect(jest.mocked(runScript).mock.calls[0][0]).toMatchObject({
+      env: { DMPF_KERNEL_DDL: 'none' },
+    });
+  });
+
+  it('should fail, naming the cause, when the kernel postgres cannot be downloaded', async () => {
+    const root = workspaceWithDmpfJson('version');
+    jest
+      .mocked(execFileSync)
+      .mockImplementationOnce(() => '')
+      .mockImplementationOnce(() => {
+        throw new Error('dial tcp: no route to host');
+      });
+
+    const result = await contextCheckExecutor({}, executorContext('apps/backend/orders', root));
+
+    expect(result).toEqual({ success: false });
+    expect(runScript).not.toHaveBeenCalled();
+  });
+
   it('should refuse the self-test outside the platform, before running anything', async () => {
     const root = workspaceWithDmpfJson('version');
 

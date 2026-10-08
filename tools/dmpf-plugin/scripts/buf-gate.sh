@@ -155,7 +155,8 @@ raizes_em() { # ref
 
 # Diretórios de pacote (com .proto), relativos à raiz do módulo, num commit.
 pacotes_em() { # ref raiz
-  git ls-tree -r --name-only "$1" -- "$2/" | grep -E '\.proto$' | sed "s|^$2/||" | xargs -rn1 dirname | sort -u
+  git ls-tree -r --name-only "$1" -- "$2/" | grep -E '\.proto$' \
+    | awk -v p="$2/" 'index($0, p) == 1 { print substr($0, length(p) + 1) }' | xargs -rn1 dirname | sort -u
 }
 
 gate_breaking() {
@@ -173,7 +174,7 @@ gate_breaking() {
   indice="$(mktemp)" || reprovar "mktemp"
   while IFS= read -r raiz; do
     [ -n "$raiz" ] || continue
-    pacotes_em "$base" "$raiz" | sed "s|$|	$raiz|" >>"$indice"
+    pacotes_em "$base" "$raiz" | awk -v r="$raiz" '{ print $0 "\t" r }' >>"$indice"
   done < <(raizes_em "$base")
 
   while IFS= read -r modulo; do
@@ -193,7 +194,8 @@ gate_breaking() {
       while IFS= read -r arquivo; do
         git show "$base:$arquivo" >"$against/$modulo/$rel/$(basename "$arquivo")" || reprovar "nao foi possivel extrair $arquivo de $base (BUF-05)"
       done < <(git ls-tree --name-only "$base" -- "$origem/$rel/" | grep -E '\.proto$')
-    done < <(find "$raiz" -name '*.proto' -printf '%h\n' 2>/dev/null | sed "s|^$raiz/\{0,1\}||; s|^$|.|" | sort -u)
+    done < <(find "$raiz" -name '*.proto' -printf '%h\n' 2>/dev/null \
+      | awk -v p="$raiz" '$0 == p { print "."; next } index($0, p "/") == 1 { print substr($0, length(p) + 2) }' | sort -u)
 
     if [ "$herdado" -eq 0 ]; then
       aviso "modulo $raiz em estado 'sem baseline': nenhum pacote dele publicado em $base, buf breaking dispensado (BUF-08)"

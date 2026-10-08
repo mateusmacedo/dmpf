@@ -45,18 +45,21 @@ describe('[migrations] upgrade from an older version', () => {
     workflowRef: 'a'.repeat(40),
   };
 
+  const released: DmpfVersions = { ...current.readVersions(), workflowRef: 'b'.repeat(40) };
+
   it('should leave the workspace equal to the output of init in this version', async () => {
     const paths = [...renderedPaths(), ...ALWAYS_WRITTEN, ...CONTEXT];
+    jest.mocked(readVersions).mockReturnValue(released);
     const expected = consumerTree();
     await initGenerator(expected, OPTIONS);
-    addContext(expected, current.readVersions());
+    addContext(expected, released);
     jest.mocked(readVersions).mockReturnValue(older);
     jest.mocked(readPluginVersion).mockReturnValue('0.9.0');
     const tree = consumerTree();
     await initGenerator(tree, OPTIONS);
     addContext(tree, older);
     renderedByAnOlderVersion(tree, '.golangci.yml', 'version: "2"\n');
-    jest.mocked(readVersions).mockImplementation(current.readVersions);
+    jest.mocked(readVersions).mockReturnValue(released);
     jest.mocked(readPluginVersion).mockImplementation(current.readPluginVersion);
     expect(snapshot(tree, paths)).not.toEqual(snapshot(expected, paths));
 

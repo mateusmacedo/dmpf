@@ -3,11 +3,19 @@ import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Tree } from '@nx/devkit';
-import { readJson } from '@nx/devkit';
+import { logger, readJson } from '@nx/devkit';
 import { createTreeWithEmptyWorkspace } from '@nx/devkit/testing';
 import { packageRoot } from '../../lib/paths';
 import { readPluginVersion, readVersions } from '../../lib/versions';
 import { initGenerator, renderedPaths } from './generator';
+
+jest.mock('../../lib/versions', () => {
+  const actual = jest.requireActual<typeof import('../../lib/versions')>('../../lib/versions');
+  return {
+    ...actual,
+    readVersions: jest.fn(() => ({ ...actual.readVersions(), workflowRef: 'f'.repeat(40) })),
+  };
+});
 
 jest.mock('node:child_process', () => ({
   ...jest.requireActual<typeof import('node:child_process')>('node:child_process'),
@@ -203,9 +211,21 @@ describe('[generator] init — CI caller', () => {
     const caller = tree.read('.github/workflows/dmpf-ci.yml', 'utf-8') as string;
 
     expect(caller).toContain(
-      `uses: mateusmacedo/dmpf/.github/workflows/dmpf-go-ci.yml@${workflowRef || 'master'}\n`,
+      `uses: mateusmacedo/dmpf/.github/workflows/dmpf-go-ci.yml@${workflowRef}\n`,
     );
     expect(caller).toContain(`plugin-version: "${readPluginVersion()}"`);
+  });
+
+  it('should not write the caller from a build without workflowRef, which would run a moving branch', async () => {
+    const tree = consumerTree();
+    const warn = jest.spyOn(logger, 'warn').mockImplementation(() => undefined);
+    jest.mocked(readVersions).mockReturnValueOnce({ ...readVersions(), workflowRef: '' });
+
+    await initGenerator(tree, { modulePrefix: 'github.com/acme/shop' });
+
+    expect(tree.exists('.github/workflows/dmpf-ci.yml')).toBe(false);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('workflowRef'));
+    warn.mockRestore();
   });
 
   it('should not write the caller in local mode, where ci.yml calls the reusable workflow', async () => {
