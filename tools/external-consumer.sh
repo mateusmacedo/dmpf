@@ -30,6 +30,15 @@ CONSUMER="$WORK/consumer"
 [ ! -e "$CONSUMER" ] || { echo "$CONSUMER já existe: use outro --work" >&2; exit 2; }
 
 passo() { printf '\n== %s\n' "$*"; }
+# Mesma decisão do dmpf-go-ci.yml: sem contexto com provider, não há DDL do kernel.
+kernel_ddl() {
+  local postgres="$KERNEL/libs/backend/go/postgres"
+  if go list -m "$postgres" > /dev/null 2>&1; then
+    go mod download -json "$postgres" | jq -r .Dir
+  else
+    echo none
+  fi
+}
 versao_instalada() { jq -r ".$1" "node_modules/$PLUGIN/versions.json"; }
 commitar() { git add -A && git -c user.name=ci -c user.email=ci@example.com commit -q -m "$1"; }
 
@@ -47,7 +56,8 @@ if [ -z "$PLUGIN_VERSION" ]; then
   (cd tools/dmpf-plugin && pnpm pack --pack-destination "$WORK/pack")
   tar -xzf "$WORK"/pack/*.tgz -C "$WORK/pack/unpacked"
   versions="$WORK/pack/unpacked/package/versions.json"
-  jq --arg v "$VERSION" '.kernel = $v | .conformance = $v' "$versions" > "$versions.novo"
+  jq --arg v "$VERSION" --arg ref "$(git rev-parse HEAD)" '.kernel = $v | .conformance = $v | .workflowRef = $ref' \
+    "$versions" > "$versions.novo"
   mv -f "$versions.novo" "$versions"
   TARBALL="$WORK/pack/dmpf-plugin-consumer.tgz"
   tar -czf "$TARBALL" -C "$WORK/pack/unpacked" package
@@ -67,7 +77,8 @@ printf 'allowBuilds:\n  nx: true\n' > "$CONSUMER/pnpm-workspace.yaml"
 printf 'node_modules\n.nx\n' > "$CONSUMER/.gitignore"
 if [ -n "$PLUGIN_VERSION" ]; then
   printf '%s\n' '@mateusmacedo:registry=https://npm.pkg.github.com' \
-    '//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}' > "$CONSUMER/.npmrc"
+    '//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}' 'fetch-retries=5' 'fetch-retry-mintimeout=10000' \
+    > "$CONSUMER/.npmrc"
 fi
 cd "$CONSUMER"
 # O consumidor roda como um dev: sem CI, o pnpm cria o lockfile que ainda não existe
@@ -76,6 +87,15 @@ unset CI
 git init -q
 commitar "chore: workspace vazio"
 pnpm install
+
+# Logo depois do publish, o pacote pode ainda não aparecer no registry.
+if [ -n "$PLUGIN_VERSION" ]; then
+  for tentativa in $(seq 1 10); do
+    npm view "$INSTALAR" version > /dev/null 2>&1 && break
+    [ "$tentativa" -lt 10 ] || { echo "$INSTALAR não apareceu no registry" >&2; exit 1; }
+    sleep 15
+  done
+fi
 
 passo "nx add $INSTALAR: init com o prefixo reservado"
 pnpm nx add "$INSTALAR"
@@ -88,6 +108,8 @@ if grep -q 'example.com/change-me' .golangci.yml; then
   echo "o init deixou o prefixo reservado no .golangci.yml" >&2
   exit 1
 fi
+DMPF_APPS_DIR="$(jq -r .appsDir dmpf.json)" DMPF_KERNEL_DDL="$(kernel_ddl)" \
+  bash "node_modules/$PLUGIN/scripts/dmpf-context-check.sh" --phase structural --allow-empty
 
 passo "bounded-context com o agregado do template"
 pnpm nx g "$PLUGIN:bounded-context" shop --boundedContext=shop --no-interactive
@@ -142,9 +164,9 @@ done
 go run "$KERNEL/tools/dmpf-conformance/cmd/conformance@$CONFORMANCE" --root .
 go run "$KERNEL/tools/dmpf-conformance/cmd/modsync@$CONFORMANCE" --root . --check
 go run "$KERNEL/tools/dmpf-conformance/cmd/infrasync@$CONFORMANCE" --root . --check
-kernel_ddl="$(go mod download -json "$KERNEL/libs/backend/go/postgres@$KERNEL_VERSION" | jq -r .Dir)"
-[ -d "$kernel_ddl" ] || { echo "módulo postgres do kernel fora do cache: $kernel_ddl" >&2; exit 1; }
-DMPF_APPS_DIR="$(jq -r .appsDir dmpf.json)" DMPF_KERNEL_DDL="$kernel_ddl" \
+ddl="$(kernel_ddl)"
+[ -d "$ddl" ] || { echo "módulo postgres do kernel fora do cache: $ddl" >&2; exit 1; }
+DMPF_APPS_DIR="$(jq -r .appsDir dmpf.json)" DMPF_KERNEL_DDL="$ddl" \
   bash "node_modules/$PLUGIN/scripts/dmpf-context-check.sh" --phase structural
 pnpm nx run-many -t buf-lint
 

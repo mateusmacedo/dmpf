@@ -195,10 +195,10 @@ jobs:
           echo "Tags criadas nesta execução:"
           cat /tmp/tags-new.txt
 
-          git push origin master
-          if [ -s /tmp/tags-new.txt ]; then
-            xargs -r -a /tmp/tags-new.txt git push origin
-          fi
+          # Atômico: um push de tags que falhasse deixaria o master com o commit de
+          # versão sem as tags, e o publish e o consumer não rodariam.
+          mapfile -t novas < /tmp/tags-new.txt
+          git push --atomic origin master "${novas[@]}"
 
           # Tags npm são `<projeto>@<versão>`; as de módulo Go não levam `@`. Uma
           # pré-release publica em `next`, para não virar a `latest` de quem instala.

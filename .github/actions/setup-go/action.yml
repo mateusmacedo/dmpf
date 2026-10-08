@@ -9,6 +9,13 @@ inputs:
     description: versions.json of the dmpf-plugin, which carries the pins of the Go tools
     required: false
     default: tools/dmpf-plugin/versions.json
+  go-sum-paths:
+    description: Globs of the go.sum files in the cache key, rooted so the hash skips node_modules
+    required: false
+    default: |
+      apps/**/go.sum
+      libs/**/go.sum
+      tools/**/go.sum
 runs:
   using: composite
   steps:
@@ -26,7 +33,7 @@ runs:
         cache: true
         cache-dependency-path: |
           go.work
-          **/go.sum
+          ${{ inputs.go-sum-paths }}
           ${{ inputs.versions-file }}
           ${{ github.action_path }}/action.yml
 

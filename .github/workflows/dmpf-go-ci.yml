@@ -91,6 +91,10 @@ jobs:
         with:
           go-version: ${{ inputs.go-version }}
           versions-file: ${{ env.DMPF_PLUGIN_DIR }}/versions.json
+          go-sum-paths: |
+            ${{ env.DMPF_APPS_DIR }}/**/go.sum
+            libs/**/go.sum
+            tools/**/go.sum
 
       # Sem main-branch-name a action procura `main`; no push na base, sem
       # execução anterior, a base cairia na árvore vazia. O fallback é a ponta anterior.
@@ -353,6 +357,10 @@ jobs:
         with:
           go-version: ${{ inputs.go-version }}
           versions-file: ${{ env.DMPF_PLUGIN_DIR }}/versions.json
+          go-sum-paths: |
+            ${{ env.DMPF_APPS_DIR }}/**/go.sum
+            libs/**/go.sum
+            tools/**/go.sum
 
       - name: Set Nx SHAs for affected (base/head)
         uses: nrwl/nx-set-shas@afb73a62d26e41464e9254689e1fd6122ee683c1 # v5
@@ -407,10 +415,19 @@ jobs:
         run: |
           set -euo pipefail
           if [ "$DMPF_TOOLING_MODE" = version ]; then
-            DMPF_KERNEL_DDL="$(go mod download -json github.com/mateusmacedo/dmpf/libs/backend/go/postgres | jq -r .Dir)"
+            postgres=github.com/mateusmacedo/dmpf/libs/backend/go/postgres
+            # Antes do primeiro contexto com provider, o postgres do kernel não está na build list.
+            if go list -m "$postgres" > /dev/null 2>&1; then
+              DMPF_KERNEL_DDL="$(go mod download -json "$postgres" | jq -r .Dir)"
+            else
+              DMPF_KERNEL_DDL=none
+            fi
             export DMPF_KERNEL_DDL
           fi
-          bash "$DMPF_PLUGIN_DIR/scripts/dmpf-context-check.sh" --phase structural
+          # O consumidor recém-inicializado ainda não tem contexto; o platform sempre tem.
+          vazio=()
+          [ "$DMPF_TOOLING_MODE" = version ] && vazio=(--allow-empty)
+          bash "$DMPF_PLUGIN_DIR/scripts/dmpf-context-check.sh" --phase structural "${vazio[@]}"
 
       # Sem `if` de projeto Go afetado: import sem `require` compila no workspace
       # pelo `go.work` e só quebra para quem consome o módulo por tag.
