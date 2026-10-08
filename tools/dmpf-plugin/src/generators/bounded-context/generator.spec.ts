@@ -882,6 +882,14 @@ describe('[generator] bounded-context — generation', () => {
     expect(readText(tree, 'go.work').startsWith(`go ${GO_VERSION}`)).toBe(true);
   });
 
+  it('should open the use block in a go.work that has only the go directive, as init writes it', async () => {
+    const tree = await generate({}, (prepared) => prepared.write('go.work', `go ${GO_VERSION}\n`));
+
+    expect(readText(tree, 'go.work')).toBe(
+      `go ${GO_VERSION}\n\nuse (\n\t./apps/backend/checkout\n\t./apps/backend/checkout/contract\n)\n`,
+    );
+  });
+
   it('should write a private, unpublished package.json named after the context', async () => {
     const tree = await generate();
 
