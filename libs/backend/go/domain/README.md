@@ -86,7 +86,7 @@ não tem dependência de terceiro.
 
 ```bash
 pnpm nx run-many -t fmt-check,vet,lint,build,test,test-race,govulncheck -p domain
-bash tools/dmpf-gate-check.sh
+bash tools/dmpf-plugin/scripts/dmpf-gate-check.sh
 go run ./tools/dmpf-conformance/cmd/conformance --root .
 ```
 
