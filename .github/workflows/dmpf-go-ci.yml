@@ -23,11 +23,15 @@ on:
 permissions:
   actions: read
   contents: read
+  packages: read
 
 # O env do chamador não chega ao reutilizável; sem CI, tb.Env pula em vez de
 # reprovar quando falta uma variável de integração.
 env:
   CI: "true"
+  # O registry npm do GitHub Packages exige token até para pacote público; o
+  # .npmrc do consumidor o lê daqui para instalar o plugin.
+  NODE_AUTH_TOKEN: ${{ github.token }}
 
 jobs:
   go:

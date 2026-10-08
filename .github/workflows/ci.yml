@@ -87,6 +87,10 @@ jobs:
 
   dmpf:
     name: DMPF
+    permissions:
+      actions: read
+      contents: read
+      packages: read
     uses: ./.github/workflows/dmpf-go-ci.yml
     with:
       base: develop
