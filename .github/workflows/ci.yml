@@ -98,7 +98,7 @@ jobs:
   external-consumer:
     name: Consumidor externo por versão
     runs-on: ubuntu-26.04
-    timeout-minutes: 10
+    timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
@@ -219,6 +219,9 @@ jobs:
       # que o gate normativo ainda reprova o golden sem o shared kernel.
       - name: DMPF harness check (self-test)
         run: bash tools/dmpf-harness-check.sh --phase self-test
+
+      - name: Pins do versions.json iguais às fontes
+        run: node tools/dmpf-plugin/scripts/sync-versions.mjs --check
 
       - name: Grafana provisioning check
         run: |

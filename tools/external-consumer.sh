@@ -84,7 +84,10 @@ jq -e '.modulePrefix == "example.com/change-me" and .tooling.mode == "version"' 
 passo "init com o prefixo real, sem --force"
 pnpm nx g "$PLUGIN:init" --modulePrefix=example.com/consumer --no-interactive
 jq -e '.modulePrefix == "example.com/consumer"' dmpf.json > /dev/null
-! grep -rq 'example.com/change-me' .golangci.yml
+if grep -q 'example.com/change-me' .golangci.yml; then
+  echo "o init deixou o prefixo reservado no .golangci.yml" >&2
+  exit 1
+fi
 
 passo "bounded-context com o agregado do template"
 pnpm nx g "$PLUGIN:bounded-context" shop --boundedContext=shop --no-interactive
@@ -108,11 +111,14 @@ if [ -n "$UPGRADE_FROM" ]; then
   mapfile -t passos < <(awk '/Some migrations have additional information/ {f = 1; next}
     f && /^[[:space:]]*- / {sub(/^[[:space:]]*- /, ""); print}' "$WORK/migrate.log")
   for comando in "${passos[@]}"; do
-    [[ "$comando" == pnpm\ * ]] || { echo "nextStep fora do esperado: $comando" >&2; exit 1; }
+    case "$comando" in
+      "pnpm install" | "pnpm nx run-many -t tidy") ;;
+      *) echo "nextStep fora do esperado: $comando" >&2; exit 1 ;;
+    esac
     echo "nextStep: $comando"
     bash -c "$comando"
   done
-  jq -e --arg v "$PLUGIN_VERSION" '.devDependencies["@mateusmacedo/dmpf-plugin"] | test($v)' package.json > /dev/null
+  jq -e --arg v "$PLUGIN_VERSION" '.devDependencies["@mateusmacedo/dmpf-plugin"] | ltrimstr("^") | ltrimstr("~") == $v' package.json > /dev/null
   grep -qF "plugin-version: \"$PLUGIN_VERSION\"" .github/workflows/dmpf-ci.yml \
     || { echo "o chamador de CI não subiu para $PLUGIN_VERSION" >&2; exit 1; }
 fi
@@ -136,8 +142,9 @@ done
 go run "$KERNEL/tools/dmpf-conformance/cmd/conformance@$CONFORMANCE" --root .
 go run "$KERNEL/tools/dmpf-conformance/cmd/modsync@$CONFORMANCE" --root . --check
 go run "$KERNEL/tools/dmpf-conformance/cmd/infrasync@$CONFORMANCE" --root . --check
-DMPF_APPS_DIR="$(jq -r .appsDir dmpf.json)" \
-  DMPF_KERNEL_DDL="$(go mod download -json "$KERNEL/libs/backend/go/postgres@$KERNEL_VERSION" | jq -r .Dir)" \
+kernel_ddl="$(go mod download -json "$KERNEL/libs/backend/go/postgres@$KERNEL_VERSION" | jq -r .Dir)"
+[ -d "$kernel_ddl" ] || { echo "módulo postgres do kernel fora do cache: $kernel_ddl" >&2; exit 1; }
+DMPF_APPS_DIR="$(jq -r .appsDir dmpf.json)" DMPF_KERNEL_DDL="$kernel_ddl" \
   bash "node_modules/$PLUGIN/scripts/dmpf-context-check.sh" --phase structural
 pnpm nx run-many -t buf-lint
 

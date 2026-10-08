@@ -10,6 +10,10 @@ on:
         description: "Dist-tag de publicação (latest, beta, next)"
         type: string
         default: latest
+      ref:
+        description: "Commit de versão a publicar (o da tag); vazio usa a ponta da branch"
+        type: string
+        default: ""
 
 concurrency:
   group: publish-libs
@@ -39,3 +43,4 @@ jobs:
       scope: "@mateusmacedo"
       tag: ${{ inputs.tag || 'latest' }}
       build_projects_filter: "tag:type:lib,!tag:stack:go"
+      ref: ${{ inputs.ref }}

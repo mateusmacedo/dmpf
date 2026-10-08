@@ -134,9 +134,9 @@ jobs:
       - name: Tooling Go (tools/**, sem layer:*)
         run: |
           set -euo pipefail
-          lista="$(comm -12 \
-            <(pnpm --silent nx show projects --affected --base=$NX_BASE --head=$NX_HEAD --projects=tag:stack:go --json | jq -r '.[]' | sort) \
-            <(pnpm --silent nx show projects --projects='tools/**' --json | jq -r '.[]' | sort) | paste -sd, -)"
+          afetados="$(pnpm --silent nx show projects --affected --base=$NX_BASE --head=$NX_HEAD --projects=tag:stack:go --json | jq -r '.[]' | sort)"
+          tooling="$(pnpm --silent nx show projects --projects='tools/**' --json | jq -r '.[]' | sort)"
+          lista="$(comm -12 <(echo "$afetados") <(echo "$tooling") | paste -sd, -)"
           if [ -z "$lista" ]; then
             echo "tooling: nenhum projeto afetado"
             exit 0

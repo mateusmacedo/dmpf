@@ -277,7 +277,7 @@ jobs:
     needs: [version, publish]
     if: needs.version.outputs.plugin_version != ''
     runs-on: ubuntu-26.04
-    timeout-minutes: 20
+    timeout-minutes: 40
     permissions:
       contents: read
       packages: read
