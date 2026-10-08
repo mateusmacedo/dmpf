@@ -95,7 +95,7 @@ PG_DSN='postgres://orders:orders-local@localhost:5432/orders?sslmode=disable' KA
 
 Unitários, sem banco: as UPRs do `domain` (pré-condição, efeito, determinismo, snapshot), a sequência canônica, a autorização por permissão e a instrumentação da `application` sobre o `memory` (`memory.Table` por agregado, escopado por tenant como o `postgres.Table`), e o binding e os interceptors do `rpc` por `bufconn` sobre o store em memória (cobertura do descriptor, desfechos, mTLS do peer, deadline obrigatório, contexto de execução gravado na outbox, admissão), ciclo de saúde, tracer de banco e partida do binário por papel. Com a build tag `integration` e `PG_DSN`, o `provider` prova repositório, escopo de tenant, acesso cruzado (`CrossTenantAccess`), concorrência (dois escritores, um `ErrVersionConflict`) e o e2e até a outbox; cada teste roda num banco `orders_test_<id>` próprio, que o `tb/pg` cria e apaga no servidor de `PG_DSN`. A topologia inteira é provada pelo e2e do `bff`.
 
-O target sobe a infra de testes (`testkit:test-infra-up`) e o `tools/test-env.sh` preenche o `PG_DSN` com o Postgres dela, na porta 15432, a partir do `.env.example` da raiz:
+O target sobe a infra de testes (`testkit:test-infra-up`) e o `tools/dmpf-plugin/scripts/test-env.sh` preenche o `PG_DSN` com o Postgres dela, na porta 15432, a partir do `.env.example` da raiz:
 
 ```bash
 pnpm nx run orders:test-race
