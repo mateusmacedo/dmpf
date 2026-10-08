@@ -15,7 +15,7 @@ Este arquivo guarda só o que é específico do repositório e não está em out
 
 - **Apps** (`apps/backend/<app>`, Go, `type:app`): `bff` (única borda REST pública) e os contextos gRPC `orders`, `reservations` e `bookings` (ADR-044); `bookings` é também o golden da forma canônica e do harness de bounded contexts (ADR-053). Um contexto de negócio é **uma app** com um package por bloco, não uma lib (ADR-046, ADR-048). Configuração, targets `serve-*` e testes: `README.md` de cada app. Ficam fora do release Docker (`nx-release.yml` filtra `!tag:stack:go`).
 - **Libs** (`libs/backend/go/<módulo>`, só kernel de reuso): `domain`, `ports`, `application`, `contracts`, `memory`, `postgres`, `app`, `authn`, `observability`, `transport`, `grpc`, `http`, `kafka`, `sqs`, `testkit`. Detalhe: `README.md` de cada módulo e ADRs 030–052. Todo módulo Go tem `dmpf-units.json` e um `package.json` com `private: true` (o Nx Release exige manifesto npm, ADR-030).
-- **Tooling:** `tools/dmpf-conformance` (verificador, modsync, fitness; sem `layer:*`) e `tools/dmpf-plugin`.
+- **Tooling:** `tools/dmpf-conformance` (verificador, modsync, fitness; sem `layer:*`) e `tools/dmpf-plugin`, publicado no GitHub Packages e âncora de versão de quem consome o DMPF de fora (ADR-060; `docs/guides/dmpf-consumo-externo.md`).
 - **Carga:** `apps/backend/load` (k6, `type:e2e`, sem `test` nem `build`), por `pnpm nx run load:<perfil>` ou pelo workflow `load.yml`; detalhe no `README.md` do projeto.
 - **Infra:** `infra/README.md` (Compose local, observabilidade, Kustomize). **Contratos:** `contracts/README.md` (gates Buf).
 - `apps/frontend`, `apps/serverless`, `libs/frontend` e `libs/shared` são diretórios de destino, sem projeto Nx.
@@ -54,7 +54,7 @@ Testes de integração (Postgres, Kafka, SQS) e variáveis de ambiente: `README.
 
 ## Git e release
 
-Plataforma GitHub, via `gh` (ADR-043). Fluxo git-flow com `master` e `develop` protegidas e o modelo anti-drift de promoção para `release/X.Y.Z`: `CONTRIBUTING.md`. Versionamento independente em três release groups (ADR-047); não há tag nem BOM do produto (ADR-059). O CI (`.github/workflows/ci.yml`) roda `biome ci` e `nx affected` mais os estágios Go por `layer:*`; `cd-dev-hmg.yml` é template de CD desligado.
+Plataforma GitHub, via `gh` (ADR-043). Fluxo git-flow com `master` e `develop` protegidas e o modelo anti-drift de promoção para `release/X.Y.Z`: `CONTRIBUTING.md`. Versionamento independente em três release groups (ADR-047); não há tag nem BOM do produto (ADR-059). O CI (`.github/workflows/ci.yml`) roda `biome ci` e `nx affected`, chama o `dmpf-go-ci.yml` (estágios Go por `layer:*` e gates DMPF, o mesmo workflow reutilizável do consumidor externo) e prova o consumo por versão no job `external-consumer`; `cd-dev-hmg.yml` é template de CD desligado.
 
 Tracker: projeto [DMPF](https://linear.app/mmda/project/dmpf-ead2d6caeff8) no Linear (team DevTeam, chave `DEVS`). Cada spec tem uma issue, ligada pelo `ticket_url` do frontmatter; branch e título de PR levam a chave `DEVS-<n>`. Regras de sincronização: `docs/onboarding.md`.
 
@@ -66,6 +66,7 @@ Tracker: projeto [DMPF](https://linear.app/mmda/project/dmpf-ead2d6caeff8) no Li
 - `docs/nx-reference/tasks.md` — configuração de tasks e taxonomia de tags.
 - `docs/guides/development-workflow.md` — guia detalhado do fluxo.
 - `docs/guides/dmpf-composicao.md` e `docs/guides/dmpf-manifesto.md` — bounded contexts e manifesto de unidades.
+- `docs/guides/dmpf-consumo-externo.md` — o DMPF num workspace Nx de fora, por versão.
 - `docs/specs/README.md` e `docs/rules/README.md` — catálogo de specs e regras de domínio.
 - `docs/ci-cd/` — CI/CD e deploy.
 - `.claude/README.md` — agents, skills e rules; `.agents/skills/` — skills de workspace Nx.
