@@ -529,3 +529,42 @@ ENTÃO conformance sai com exit 2 e NAO VERIFICADO, nunca exit 0
 - **App de exemplo, BFF e borda REST no consumidor, suíte de carga k6**: fora
   de escopo das duas specs; a referência viva continua sendo `bookings`.
 - **Migração de projetos existentes**: a entrega vale só para projetos novos.
+
+## Pendências do code review
+
+Achados do code review da entrega que ficaram para depois, por serem decisão de
+desenho ou de baixo impacto. Os defeitos com cenário concreto foram corrigidos
+na própria entrega.
+
+- **Template removido numa versão nova**: o arquivo antigo fica no consumidor e
+  sai do `dmpf.rendered.json`; nenhuma migration o reconhece depois. Apagar o
+  arquivo quando o hash ainda bater com o registrado.
+- **`.env.example` e `.golangci.yml` preexistentes**: o `init` os trata como
+  editados, embora nunca os tenha gerado, e só `--force` (que vale para todos)
+  passa. Diferenciar "preexistente" de "editado" e aceitar `--force` por caminho.
+- **`dmpf.json` reescrito**: chaves desconhecidas e a indentação se perdem, e
+  arquivo gerenciado apagado de propósito volta a cada `init`.
+- **Placeholders de registry**: um prefixo fora do GitHub grava
+  `registry.example.com/change-me` e `buf.build/change-me` sem aviso; avisar no
+  `init` e recusar no `bounded-context`.
+- **Release com versão derivada dos commits**: as migrations ficam na versão do
+  kernel e o Nx não as roda, porque compara com a versão do pacote; hoje o
+  `nx-release.yml` só emite aviso.
+- **Dist-tag único por execução**: tags npm com versões mistas vão todas para
+  `next`.
+- **Kernel em mais de uma versão fora do `go.work`**: o `conformance` lê só o
+  manifesto da primeira; reprovar com `NAO VERIFICADO` quando divergirem.
+- **Mensagem do `conformance`**: erro de padrão de um módulo próprio sai
+  rotulado como "kernel por versão".
+- **`modsync --require` ignorado**: um `--require` que não dá dono a nenhum
+  import, ou em conflito com a build list, some sem aviso.
+- **Regex de apps no Alloy**: os nomes entram sem escape, e a lista vazia gera
+  um regex que descarta pods sem o label de app.
+- **Layout ausente no `dmpf.json`**: o `infrasync` assume o valor do platform
+  para campo ausente, e o leitor do plugin recusa o mesmo arquivo.
+- **`Unit.ReadOnly`**: gravado e nunca lido; o baseline só exclui o kernel
+  porque recebe as unidades já filtradas.
+- **`testkit` como shared kernel**: no consumidor, toda unidade do kernel vira
+  shared kernel, inclusive `kernel/testkit-*`, que no platform não é.
+- **Portabilidade**: os `nextSteps` fixam `pnpm`, e `go-tidy.sh` e `buf-gate.sh`
+  usam `realpath` do GNU, ausente no macOS.
