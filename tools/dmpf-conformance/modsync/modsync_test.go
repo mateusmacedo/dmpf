@@ -302,6 +302,26 @@ func TestWriteComRequireDaOrigemAoImportForaDaBuildList(t *testing.T) {
 	}
 }
 
+func TestWriteDaDonoAoImportDeTerceiroQueSoODoKernelTraz(t *testing.T) {
+	raiz := workspaceVersionado(t)
+	arquivo := filepath.Join(raiz, "libs", "f", "kernel.go")
+	conteudo := "package f\n\nimport (\n\t_ \"example.test/dep/x\"\n\t_ \"example.test/kerneldep/domain\"\n)\n"
+	if err := os.WriteFile(arquivo, []byte(conteudo), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	kernel := modsync.Requirement{Path: "example.test/kerneldep", Version: "v1.0.0-rc.1"}
+	if err := modsync.Write(context.Background(), raiz, derivar(t, raiz), kernel); err != nil {
+		t.Fatalf("Write com --require: %v", err)
+	}
+	goMod := ler(t, raiz, "libs/f/go.mod")
+	for _, req := range []string{"example.test/kerneldep v1.0.0-rc.1", "example.test/dep v1.0.0"} {
+		if !strings.Contains(goMod, req) {
+			t.Errorf("go.mod de libs/f sem %q:\n%s", req, goMod)
+		}
+	}
+}
+
 func TestParseRequirementExigeModuloEVersaoDeRelease(t *testing.T) {
 	got, err := modsync.ParseRequirement("example.test/kernel@v1.0.0-rc.1")
 	if err != nil || got != (modsync.Requirement{Path: "example.test/kernel", Version: "v1.0.0-rc.1"}) {

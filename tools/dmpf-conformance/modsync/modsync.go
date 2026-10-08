@@ -135,25 +135,40 @@ func Write(ctx context.Context, root string, plan Plan, requires ...Requirement)
 		return err
 	}
 
+	pendentes, err := requererExternos(ctx, abs, plan, requires, len(requires) == 0)
+	if err != nil || !pendentes {
+		return err
+	}
+	// Os requires recém-gravados trazem as próprias dependências para a build list:
+	// o import de terceiros que o template faz só ganha dono depois deles.
+	_, err = requererExternos(ctx, abs, plan, nil, true)
+	return err
+}
+
+func requererExternos(ctx context.Context, abs string, plan Plan, requires []Requirement, final bool) (bool, error) {
 	lista, err := buildList(ctx, abs)
 	if err != nil {
-		return fmt.Errorf("build list do workspace: %w", err)
+		return false, fmt.Errorf("build list do workspace: %w", err)
 	}
+	pendentes := false
 	for _, mp := range plan.Modules {
 		atual, err := lerGoMod(ctx, filepath.Join(abs, filepath.FromSlash(mp.Module.Dir)))
 		if err != nil {
-			return fmt.Errorf("%s: %w", mp.Module.Dir, err)
+			return false, fmt.Errorf("%s: %w", mp.Module.Dir, err)
 		}
 		faltantes, semDono := externosSemRequire(mp, atual.versoesRequeridas(), lista)
 		faltantes, semDono = donosPorRequire(faltantes, semDono, requires)
 		if len(semDono) > 0 {
-			return fmt.Errorf("%s: import sem módulo na build list do workspace, rode go get antes: %s", mp.Module.Dir, strings.Join(semDono, ", "))
+			if final {
+				return false, fmt.Errorf("%s: import sem módulo na build list do workspace, rode go get antes: %s", mp.Module.Dir, strings.Join(semDono, ", "))
+			}
+			pendentes = true
 		}
 		if err := requerer(ctx, abs, mp.Module, faltantes); err != nil {
-			return err
+			return false, err
 		}
 	}
-	return nil
+	return pendentes, nil
 }
 
 func requerer(ctx context.Context, abs string, m Module, requires []Requirement) error {
