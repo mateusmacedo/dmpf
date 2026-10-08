@@ -20,10 +20,7 @@ on:
         type: string
         default: ""
 
-permissions:
-  actions: read
-  contents: read
-  packages: read
+permissions: {}
 
 # O env do chamador não chega ao reutilizável; sem CI, tb.Env pula em vez de
 # reprovar quando falta uma variável de integração.
@@ -38,6 +35,10 @@ jobs:
     name: Pirâmide Go (estágios 1 a 5)
     runs-on: ubuntu-26.04
     timeout-minutes: 30
+    permissions:
+      actions: read
+      contents: read
+      packages: read
     env:
       PG_DSN: "postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable"
       KAFKA_BROKERS: "localhost:9092"
@@ -317,6 +318,10 @@ jobs:
     name: Gates DMPF
     runs-on: ubuntu-26.04
     timeout-minutes: 30
+    permissions:
+      actions: read
+      contents: read
+      packages: read
     steps:
       - name: Checkout
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0

@@ -10,18 +10,18 @@ KERNEL=github.com/mateusmacedo/dmpf
 OUT=""
 VERSION=""
 
-while [ $# -gt 0 ]; do
+while [[ $# -gt 0 ]]; do
   case "$1" in
     --out) OUT="$2"; shift 2 ;;
     --version) VERSION="$2"; shift 2 ;;
     *) echo "argumento desconhecido: $1" >&2; exit 2 ;;
   esac
 done
-[ -n "$OUT" ] || { echo "uso: kernel-file-proxy.sh --out <dir> [--version <v>]" >&2; exit 2; }
+[[ -n "$OUT" ]] || { echo "uso: kernel-file-proxy.sh --out <dir> [--version <v>]" >&2; exit 2; }
 # O prefixo `g` impede um identificador só de dígitos com zero à esquerda, que o
 # SemVer recusa; o sufixo da árvore suja evita que o cache sirva um zip antigo.
 sujo="$(git diff HEAD -- libs/backend/go tools/dmpf-conformance | sha256sum | cut -c1-8)"
-[ -n "$(git diff HEAD --name-only -- libs/backend/go tools/dmpf-conformance)" ] || sujo=""
+[[ -n "$(git diff HEAD --name-only -- libs/backend/go tools/dmpf-conformance)" ]] || sujo=""
 VERSION="${VERSION:-v0.0.0-ci.g$(git rev-parse --short=12 HEAD)${sujo:+.w$sujo}}"
 mkdir -p "$OUT"
 OUT="$(cd "$OUT" && pwd)"
@@ -70,7 +70,7 @@ verifica="$(mktemp -d)"
 for dir in "${MODULES[@]}"; do
   erro="$(cd "$verifica" && GOWORK=off GOFLAGS=-mod=mod GOPROXY="file://$OUT" GONOSUMDB="$KERNEL" \
     go mod download -json "$KERNEL/$dir@$VERSION" | jq -r '.Error // empty')"
-  [ -z "$erro" ] || { echo "$KERNEL/$dir@$VERSION: $erro" >&2; exit 1; }
+  [[ -z "$erro" ]] || { echo "$KERNEL/$dir@$VERSION: $erro" >&2; exit 1; }
 done
 echo "proxy file://$OUT com ${#MODULES[@]} módulo(s)" >&2
 echo "$VERSION"

@@ -12,7 +12,7 @@ WORK=""
 PLUGIN_VERSION=""
 UPGRADE_FROM=""
 
-while [ $# -gt 0 ]; do
+while [[ $# -gt 0 ]]; do
   case "$1" in
     --work) WORK="$2"; shift 2 ;;
     --plugin-version) PLUGIN_VERSION="$2"; shift 2 ;;
@@ -20,14 +20,14 @@ while [ $# -gt 0 ]; do
     *) echo "argumento desconhecido: $1" >&2; exit 2 ;;
   esac
 done
-[ -z "$UPGRADE_FROM" ] || [ -n "$PLUGIN_VERSION" ] || { echo "--upgrade-from exige --plugin-version" >&2; exit 2; }
-[ -z "$PLUGIN_VERSION" ] || [ -n "${NODE_AUTH_TOKEN:-}" ] || { echo "--plugin-version exige NODE_AUTH_TOKEN com read:packages" >&2; exit 2; }
+[[ -z "$UPGRADE_FROM" ]] || [[ -n "$PLUGIN_VERSION" ]] || { echo "--upgrade-from exige --plugin-version" >&2; exit 2; }
+[[ -z "$PLUGIN_VERSION" ]] || [[ -n "${NODE_AUTH_TOKEN:-}" ]] || { echo "--plugin-version exige NODE_AUTH_TOKEN com read:packages" >&2; exit 2; }
 WORK="${WORK:-$(mktemp -d "${RUNNER_TEMP:-/tmp}/dmpf-consumer.XXXXXX")}"
 mkdir -p "$WORK"
 WORK="$(cd "$WORK" && pwd)"
-case "$WORK/" in "$ROOT"/*) echo "--work precisa ficar fora da árvore do platform" >&2; exit 2 ;; esac
+case "$WORK/" in "$ROOT"/*) echo "--work precisa ficar fora da árvore do platform" >&2; exit 2 ;; *) ;; esac
 CONSUMER="$WORK/consumer"
-[ ! -e "$CONSUMER" ] || { echo "$CONSUMER já existe: use outro --work" >&2; exit 2; }
+[[ ! -e "$CONSUMER" ]] || { echo "$CONSUMER já existe: use outro --work" >&2; exit 2; }
 
 passo() { printf '\n== %s\n' "$*"; }
 # Mesma decisão do dmpf-go-ci.yml: sem contexto com provider, não há DDL do kernel.
@@ -39,12 +39,12 @@ kernel_ddl() {
     echo none
   fi
 }
-versao_instalada() { jq -r ".$1" "node_modules/$PLUGIN/versions.json"; }
-commitar() { git add -A && git -c user.name=ci -c user.email=ci@example.com commit -q -m "$1"; }
+versao_instalada() { local campo="$1"; jq -r ".$campo" "node_modules/$PLUGIN/versions.json"; }
+commitar() { local mensagem="$1"; git add -A && git -c user.name=ci -c user.email=ci@example.com commit -q -m "$mensagem"; }
 
 export NX_DAEMON=false NX_NO_CLOUD=true NX_TUI=false FORCE_COLOR=0
 
-if [ -z "$PLUGIN_VERSION" ]; then
+if [[ -z "$PLUGIN_VERSION" ]]; then
   passo "kernel e conformance do PR pelo proxy file://"
   VERSION="$(bash tools/kernel-file-proxy.sh --out "$WORK/proxy" | tail -1)"
   GOPROXY="file://$WORK/proxy,$(go env GOPROXY)"
@@ -75,7 +75,7 @@ jq -n --arg pm "$(jq -r .packageManager package.json)" --arg nx "$nx_version" \
 echo '{ "$schema": "./node_modules/nx/schemas/nx-schema.json" }' > "$CONSUMER/nx.json"
 printf 'allowBuilds:\n  nx: true\n' > "$CONSUMER/pnpm-workspace.yaml"
 printf 'node_modules\n.nx\n' > "$CONSUMER/.gitignore"
-if [ -n "$PLUGIN_VERSION" ]; then
+if [[ -n "$PLUGIN_VERSION" ]]; then
   printf '%s\n' '@mateusmacedo:registry=https://npm.pkg.github.com' \
     '//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}' 'fetch-retries=5' 'fetch-retry-mintimeout=10000' \
     > "$CONSUMER/.npmrc"
@@ -89,10 +89,10 @@ commitar "chore: workspace vazio"
 pnpm install
 
 # Logo depois do publish, o pacote pode ainda não aparecer no registry.
-if [ -n "$PLUGIN_VERSION" ]; then
+if [[ -n "$PLUGIN_VERSION" ]]; then
   for tentativa in $(seq 1 10); do
     npm view "$INSTALAR" version > /dev/null 2>&1 && break
-    [ "$tentativa" -lt 10 ] || { echo "$INSTALAR não apareceu no registry" >&2; exit 1; }
+    [[ "$tentativa" -lt 10 ]] || { echo "$INSTALAR não apareceu no registry" >&2; exit 1; }
     sleep 15
   done
 fi
@@ -122,11 +122,11 @@ printf '%s\n' 'syntax = "proto3";' '' 'package company.shop.service.v1;' '' \
   'service ShopService {' '  rpc Ping(PingRequest) returns (PingResponse);' '}' '' \
   'message PingRequest {}' '' 'message PingResponse {}' > "$proto/shop_service.proto"
 
-if [ -n "$UPGRADE_FROM" ]; then
+if [[ -n "$UPGRADE_FROM" ]]; then
   passo "nx migrate de $UPGRADE_FROM para $PLUGIN_VERSION"
   commitar "chore: consumidor em $UPGRADE_FROM"
   pnpm nx migrate "$PLUGIN@$PLUGIN_VERSION"
-  [ -f migrations.json ] || { echo "$PLUGIN@$PLUGIN_VERSION não trouxe migrations a partir de $UPGRADE_FROM" >&2; exit 1; }
+  [[ -f migrations.json ]] || { echo "$PLUGIN@$PLUGIN_VERSION não trouxe migrations a partir de $UPGRADE_FROM" >&2; exit 1; }
   pnpm install
   pnpm nx migrate --run-migrations | tee "$WORK/migrate.log"
   # O Nx lista os nextSteps das migrations sob esse título, um por linha com "- ".
@@ -159,13 +159,13 @@ while read -r dir; do
     || { echo "$dir: kernel fora de $KERNEL_VERSION ou com replace" >&2; exit 1; }
 done < <(go list -m -f '{{.Dir}}')
 for gerado in .github/workflows/dmpf-ci.yml .claude/rules/dmpf-bounded-context.md; do
-  [ -f "$gerado" ] || { echo "init não escreveu $gerado" >&2; exit 1; }
+  [[ -f "$gerado" ]] || { echo "init não escreveu $gerado" >&2; exit 1; }
 done
 go run "$KERNEL/tools/dmpf-conformance/cmd/conformance@$CONFORMANCE" --root .
 go run "$KERNEL/tools/dmpf-conformance/cmd/modsync@$CONFORMANCE" --root . --check
 go run "$KERNEL/tools/dmpf-conformance/cmd/infrasync@$CONFORMANCE" --root . --check
 ddl="$(kernel_ddl)"
-[ -d "$ddl" ] || { echo "módulo postgres do kernel fora do cache: $ddl" >&2; exit 1; }
+[[ -d "$ddl" ]] || { echo "módulo postgres do kernel fora do cache: $ddl" >&2; exit 1; }
 DMPF_APPS_DIR="$(jq -r .appsDir dmpf.json)" DMPF_KERNEL_DDL="$ddl" \
   bash "node_modules/$PLUGIN/scripts/dmpf-context-check.sh" --phase structural
 pnpm nx run-many -t buf-lint
