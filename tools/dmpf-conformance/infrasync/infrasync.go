@@ -137,6 +137,10 @@ func read(path string) (Manifest, error) {
 	if m.App != dir {
 		problems = append(problems, fmt.Sprintf("app %q difere do diretório %q", m.App, dir))
 	}
+	// O nome entra cru no regex de descarte do Alloy e nos nomes de recurso.
+	if !dnsLabelPattern.MatchString(m.App) {
+		problems = append(problems, fmt.Sprintf("app %q fora do padrão de rótulo DNS", m.App))
+	}
 	if m.Image.Env == "" || m.Image.Local == "" {
 		problems = append(problems, "image exige env e local")
 	}

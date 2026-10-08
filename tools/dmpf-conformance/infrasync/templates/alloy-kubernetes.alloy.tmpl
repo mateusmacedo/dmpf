@@ -14,12 +14,14 @@ discovery.kubernetes "pods" {
 
 discovery.relabel "pods" {
   targets = discovery.kubernetes.pods.targets
+{{- if $.Apps}}
 
   rule {
     source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
     regex         = "{{$.Apps}}"
     action        = "drop"
   }
+{{- end}}
 
   rule {
     source_labels = ["__meta_kubernetes_namespace"]

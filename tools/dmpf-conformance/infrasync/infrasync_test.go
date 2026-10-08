@@ -57,6 +57,29 @@ func TestLoadRefusesAManifestWhoseAppIsNotItsDirectory(t *testing.T) {
 	}
 }
 
+func TestLoadRefusesAnAppOutsideADNSLabel(t *testing.T) {
+	root := workspace(t)
+	if err := os.CopyFS(filepath.Join(root, "apps/backend/al.pha"), os.DirFS(filepath.Join(root, "apps/backend/alpha"))); err != nil {
+		t.Fatal(err)
+	}
+	rewrite(t, root, "apps/backend/al.pha/deploy/infra.json", `"app": "alpha"`, `"app": "al.pha"`)
+	if _, err := infrasync.Load(root); err == nil || !strings.Contains(err.Error(), "al.pha") {
+		t.Fatalf("Load = %v, want the app outside a DNS label refused", err)
+	}
+}
+
+func TestRenderWithoutAppsDropsNoPodByTheAppLabel(t *testing.T) {
+	files, err := infrasync.Render(workspace(t), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range files {
+		if strings.HasSuffix(f.Path, "alloy-kubernetes.alloy") && strings.Contains(string(f.Content), `regex         = ""`) {
+			t.Fatalf("regex vazio descartaria os pods sem o label de app:\n%s", f.Content)
+		}
+	}
+}
+
 func TestLoadRefusesAnACLOnAnUndeclaredTopic(t *testing.T) {
 	root := workspace(t)
 	rewrite(t, root, "apps/backend/beta/deploy/infra.json", `"topics": ["alpha.events"]`, `"topics": ["ghost.events"]`)
