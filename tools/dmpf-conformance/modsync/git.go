@@ -33,29 +33,85 @@ func versoesPorTag(ctx context.Context, abs string, modules []Module) (map[strin
 	return versoes, nil
 }
 
+// Pré-release só conta sem estável: com as duas, uma rc da próxima versão
+// passaria à frente da release que os consumidores de fato usam.
 func maiorRelease(tags []string, dir string) string {
-	var maior versao
-	achou := false
+	var estavel, pre *versao
 	for _, tag := range tags {
 		bruta, ok := strings.CutPrefix(tag, dir+"/")
 		if !ok {
 			continue
 		}
 		v, ok := parseRelease(bruta)
-		if ok && (!achou || slices.Compare(v[:], maior[:]) > 0) {
-			maior, achou = v, true
+		if !ok {
+			continue
+		}
+		alvo := &estavel
+		if len(v.pre) > 0 {
+			alvo = &pre
+		}
+		if *alvo == nil || v.compare(**alvo) > 0 {
+			*alvo = &v
 		}
 	}
-	if !achou {
+	switch {
+	case estavel != nil:
+		return estavel.String()
+	case pre != nil:
+		return pre.String()
+	default:
 		return versaoInicial
 	}
-	return maior.String()
 }
 
-type versao [3]int
+type versao struct {
+	nucleo [3]int
+	pre    []string
+}
 
 func (v versao) String() string {
-	return fmt.Sprintf("v%d.%d.%d", v[0], v[1], v[2])
+	s := fmt.Sprintf("v%d.%d.%d", v.nucleo[0], v.nucleo[1], v.nucleo[2])
+	if len(v.pre) > 0 {
+		s += "-" + strings.Join(v.pre, ".")
+	}
+	return s
+}
+
+// Precedência do SemVer 2.0 §11; só é chamada entre versões do mesmo tipo
+// (estável com estável, pré-release com pré-release).
+func (v versao) compare(o versao) int {
+	if c := slices.Compare(v.nucleo[:], o.nucleo[:]); c != 0 {
+		return c
+	}
+	for i := range min(len(v.pre), len(o.pre)) {
+		if c := compararIdentificador(v.pre[i], o.pre[i]); c != 0 {
+			return c
+		}
+	}
+	return len(v.pre) - len(o.pre)
+}
+
+func compararIdentificador(a, b string) int {
+	na, aNum := numerico(a)
+	nb, bNum := numerico(b)
+	switch {
+	case aNum && bNum:
+		return na - nb
+	case aNum:
+		return -1
+	case bNum:
+		return 1
+	default:
+		return strings.Compare(a, b)
+	}
+}
+
+func numerico(s string) (int, bool) {
+	if s == "" || strings.Trim(s, "0123456789") != "" {
+		return 0, false
+	}
+	n, err := strconv.Atoi(s)
+	return n, err == nil
 }
 
 func parseRelease(bruta string) (versao, bool) {
@@ -63,20 +119,30 @@ func parseRelease(bruta string) (versao, bool) {
 	if !ok {
 		return versao{}, false
 	}
-	partes := strings.Split(resto, ".")
+	nucleo, pre, temPre := strings.Cut(resto, "-")
+	partes := strings.Split(nucleo, ".")
 	if len(partes) != 3 {
 		return versao{}, false
 	}
 	var v versao
 	for i, parte := range partes {
-		if parte == "" || (len(parte) > 1 && parte[0] == '0') || strings.Trim(parte, "0123456789") != "" {
+		n, ok := numerico(parte)
+		if !ok || (len(parte) > 1 && parte[0] == '0') {
 			return versao{}, false
 		}
-		n, err := strconv.Atoi(parte)
-		if err != nil {
+		v.nucleo[i] = n
+	}
+	if !temPre {
+		return v, true
+	}
+	for _, id := range strings.Split(pre, ".") {
+		if id == "" || strings.Trim(id, "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ-") != "" {
 			return versao{}, false
 		}
-		v[i] = n
+		if _, ok := numerico(id); ok && len(id) > 1 && id[0] == '0' {
+			return versao{}, false
+		}
+		v.pre = append(v.pre, id)
 	}
 	return v, true
 }

@@ -34,7 +34,7 @@ Carregadas como contexto de conduta. Descrevem o que é esperado em cada área.
 | Organização de arquivos | `rules/file-organization.md` | Colocalização e separação em camadas. |
 | Limites de tamanho | `rules/file-size-limits.md` | Heurísticas de tamanho para arquivos e funções. |
 | Segurança Git | `rules/git-safety.md` | Hooks, force push seguro, revisão pré-commit e proteção das branches compartilhadas. |
-| Bounded context DMPF | `rules/dmpf-bounded-context.md` | Normas para escrever um contexto sobre o kernel: matriz de blocos, classificação por manifesto declarado, borda gRPC, banco próprio com nomes canônicos, persistência híbrida e config sem `DMPF_` (ADR-053). |
+| Bounded context DMPF | `rules/dmpf-bounded-context.md` | Normas para escrever um contexto sobre o kernel: matriz de blocos, classificação por manifesto declarado, borda gRPC, banco próprio com nomes canônicos, persistência híbrida e config sem `DMPF_` (ADR-053). Fonte: `tools/dmpf-plugin/templates/ai/`, renderizada pelo `init`. |
 | Performance | `rules/performance.md` | Banco de dados, cache, filas, N+1 e otimizações comuns. |
 | Processo e qualidade | `rules/process-enforcement.md` | Quando exigir especificação e plano antes de implementar. |
 | Revisão de idioma | `rules/language-review.md` | Revisão PT-BR/EN uma vez, ao final da entrega — não após cada escrita. |
@@ -131,8 +131,8 @@ kernel DMPF. Tem 11 skills; 8 delas correspondem a um comando homônimo em
 
 | Skill | Diretório | Descrição |
 | --- | --- | --- |
-| DMPF Bounded Context | `.agents/skills/dmpf-bounded-context/` | Escreve um bounded context completo sobre o kernel DMPF a partir de uma spec: esqueleto pelo generator, código dos cinco blocos por agregado, contrato Protobuf e OpenAPI, gates até passar. |
-| Testkit (DMPF) | `.agents/skills/dmpf-testkit/` | Implementa, revisa e executa testes do kernel DMPF Go: UPRs e agregados, UoW/Inbox/Outbox, golden fixtures, consumer adapters e fitness arquitetural. |
+| DMPF Bounded Context | `.agents/skills/dmpf-bounded-context/` | Escreve um bounded context completo sobre o kernel DMPF a partir de uma spec: esqueleto pelo generator, código dos cinco blocos por agregado, contrato Protobuf e OpenAPI, gates até passar. Fonte: `tools/dmpf-plugin/templates/ai/`, renderizada pelo `init`. |
+| Testkit (DMPF) | `.agents/skills/dmpf-testkit/` | Implementa, revisa e executa testes do kernel DMPF Go: UPRs e agregados, UoW/Inbox/Outbox, golden fixtures, consumer adapters e fitness arquitetural. Fonte: `tools/dmpf-plugin/templates/ai/`, renderizada pelo `init`. |
 | Fill PR Template | `.agents/skills/fill-pr-template-from-diff/` | Preenche a descrição do PR a partir do diff da branch atual. |
 | Link Workspace Packages | `.agents/skills/link-workspace-packages/` | Conecta dependências entre pacotes do monorepo (npm, yarn, pnpm, bun). |
 | Monitor CI | `.agents/skills/monitor-ci/` | Acompanha o pipeline de CI no Nx Cloud e trata correções de self-healing. |
@@ -228,7 +228,7 @@ dos arquivos no disco.
 | context-manager | `agents/context-manager.md` | Estado compartilhado e sincronização de contexto. |
 | knowledge-synthesizer | `agents/knowledge-synthesizer.md` | Extração de padrões a partir de interações anteriores. |
 | legacy-modernizer | `agents/legacy-modernizer.md` | Migração incremental de sistemas legados. |
-| dmpf-context-author | `agents/dmpf-context-author.md` | Escreve um bounded context completo sobre o kernel DMPF a partir da spec, e para em qualquer gate normativo. |
+| dmpf-context-author | `agents/dmpf-context-author.md` | Escreve um bounded context completo sobre o kernel DMPF a partir da spec, e para em qualquer gate normativo. Fonte: `tools/dmpf-plugin/templates/ai/`, renderizado pelo `init`. |
 
 ---
 
@@ -236,7 +236,7 @@ dos arquivos no disco.
 
 | Comando | Arquivo |
 | --- | --- |
-| `dmpf-new-context` | `commands/dmpf-new-context.md` |
+| `dmpf-new-context` | `commands/dmpf-new-context.md` (fonte: `tools/dmpf-plugin/templates/ai/`, renderizado pelo `init`) |
 | `fill-pr-template-from-diff` | `commands/fill-pr-template-from-diff.md` |
 | `link-workspace-packages` | `commands/link-workspace-packages.md` |
 | `monitor-ci` | `commands/monitor-ci.md` |

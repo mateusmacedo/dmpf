@@ -189,7 +189,7 @@ go run ./tools/dmpf-conformance/cmd/conformance --root . --write-baseline
 pnpm nx run-many -t fmt-check,vet,build,lint -p <name>
 PG_DSN='postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable' \
   pnpm nx run-many -t test-race,test-distributed -p <name>
-bash tools/dmpf-context-check.sh --context apps/backend/<name>
+bash tools/dmpf-plugin/scripts/dmpf-context-check.sh --context apps/backend/<name>
 go run ./tools/dmpf-conformance/cmd/conformance --root .
 pnpm biome ci .
 ```

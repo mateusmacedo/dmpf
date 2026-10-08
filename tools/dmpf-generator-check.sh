@@ -344,7 +344,7 @@ verificar_forma_canonica() {
       return 0
       ;;
   esac
-  bash "$WT/tools/dmpf-context-check.sh" --context "$WT/apps/backend/$NOME" \
+  bash "$WT/tools/dmpf-plugin/scripts/dmpf-context-check.sh" --context "$WT/apps/backend/$NOME" \
     || falha "o dmpf-context-check reprovou o contexto gerado (acima)"
   ok "dmpf-context-check aprovou apps/backend/$NOME"
 }

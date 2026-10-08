@@ -244,7 +244,7 @@ ganho de decidibilidade.
 
 # com a infra de testes (Postgres, Redpanda e floci em tmpfs, portas 15432,
 # 19092 e 14566): os targets de integração leem os valores do .env.example da
-# raiz por tools/test-env.sh, sem export manual
+# raiz por tools/dmpf-plugin/scripts/test-env.sh, sem export manual
 pnpm nx run testkit:test-infra-up
 pnpm nx run testkit:test-race
 

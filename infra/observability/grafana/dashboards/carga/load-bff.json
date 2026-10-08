@@ -1278,7 +1278,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (name) (rate(container_cpu_usage_seconds_total{name=~\"lidercap-local-(dmpf-.*|k6-run-.*)\"}[$__rate_interval])) / on (name) (max by (name) (container_spec_cpu_quota{name=~\"lidercap-local-(dmpf-.*|k6-run-.*)\"}) / max by (name) (container_spec_cpu_period{name=~\"lidercap-local-(dmpf-.*|k6-run-.*)\"}))",
+          "expr": "sum by (name) (rate(container_cpu_usage_seconds_total{name=~\"dmpf-local-(dmpf-.*|k6-run-.*)\"}[$__rate_interval])) / on (name) (max by (name) (container_spec_cpu_quota{name=~\"dmpf-local-(dmpf-.*|k6-run-.*)\"}) / max by (name) (container_spec_cpu_period{name=~\"dmpf-local-(dmpf-.*|k6-run-.*)\"}))",
           "legendFormat": "{{name}}",
           "refId": "A"
         }
@@ -1329,7 +1329,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "max by (name) (container_memory_working_set_bytes{name=~\"lidercap-local-(dmpf-.*|k6-run-.*)\"}) / on (name) max by (name) (container_spec_memory_limit_bytes{name=~\"lidercap-local-(dmpf-.*|k6-run-.*)\"} > 0)",
+          "expr": "max by (name) (container_memory_working_set_bytes{name=~\"dmpf-local-(dmpf-.*|k6-run-.*)\"}) / on (name) max by (name) (container_spec_memory_limit_bytes{name=~\"dmpf-local-(dmpf-.*|k6-run-.*)\"} > 0)",
           "legendFormat": "{{name}}",
           "refId": "A"
         }

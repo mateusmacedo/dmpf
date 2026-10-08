@@ -7,6 +7,7 @@ package conformance
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/mateusmacedo/dmpf/tools/dmpf-conformance/internal/baseline"
 	"github.com/mateusmacedo/dmpf/tools/dmpf-conformance/internal/exception"
@@ -30,6 +31,10 @@ type Input struct {
 	// autoritativa sobre shared kernel, e esta lista é ignorada.
 	SharedKernelUnits []string
 
+	// Opcional: nil mantém o kernel como dependência externa, o que só serve
+	// a quem o tem no próprio workspace.
+	Kernel port.KernelSource
+
 	// Zero não avalia o vencimento (X006), e o relatório declara a condição
 	// como não verificada.
 	Now exception.Instant
@@ -41,6 +46,10 @@ type Report struct {
 
 	// Condição não avaliada nunca vira conforme: entrada aqui reprova.
 	NaoVerificado []string
+
+	// O ambiente impediu o veredicto (kernel ilegível): o gate sai com o
+	// código de falha de execução, não com o de reprovação.
+	Falha bool
 }
 
 func (r Report) Reprovado() bool {
@@ -123,11 +132,21 @@ func Check(in Input) (Report, error) {
 		return Report{Diagnostics: diags, PhaseHalted: "designação de shared kernel"}, nil
 	}
 
+	// Depois da designação: o baseline é de quem consome, e uma chave dele que
+	// apontasse para o kernel recebido por versão seria M004.
+	kernel, falha := lerKernel(in)
+	if falha != "" {
+		rule.SortDiagnostics(diags)
+		return Report{Diagnostics: diags, NaoVerificado: []string{falha}, PhaseHalted: "leitura do kernel", Falha: true}, nil
+	}
+
 	pkgs, err := in.Graph.Packages()
 	if err != nil {
 		return Report{}, err
 	}
-	universo, cobertura := rule.BuildUniverse(units, pkgs, in.Modules)
+	universo, cobertura := rule.BuildUniverse(
+		slices.Concat(units, kernel.unidades), slices.Concat(pkgs, kernel.pacotes), in.Modules)
+	cobertura = slices.DeleteFunc(cobertura, func(d rule.Diagnostic) bool { return kernel.contem(d.CanonicalKey) })
 
 	// U004 encerra junto com os M*: módulo sem manifesto não tem classificação
 	// nenhuma. U001/U002/U003 acumulam, para o mesmo CI mostrar cobertura e
@@ -174,6 +193,16 @@ func Check(in Input) (Report, error) {
 		}
 		if universo.Discovered(e.To) {
 			// Avaliar como externo emitiria E001 sobre código do próprio universo.
+			// O package local já reprovou em U001; o do kernel só reprova aqui,
+			// porque a cobertura do kernel não é verificada no consumidor.
+			if kernel.contem(e.To) {
+				diags = append(diags, rule.Diagnostic{
+					Code:         rule.CodeU001,
+					CanonicalKey: e.To,
+					SourceFile:   e.SourceFile,
+					Detail:       "package do kernel por versão sem unidade única no manifesto do módulo",
+				})
+			}
 			continue
 		}
 
@@ -212,6 +241,41 @@ func conferirBaseline(in Input, units []rule.Unit, universo *rule.Universe, vers
 	}
 
 	rel.Diagnostics = append(rel.Diagnostics, baseline.Compare(versionado, derivado)...)
+}
+
+type kernelDeLeitura struct {
+	unidades []rule.Unit
+	pacotes  []rule.Package
+	chaves   map[string]bool
+}
+
+func (k kernelDeLeitura) contem(canonicalKey string) bool { return k.chaves[canonicalKey] }
+
+// O texto devolvido é a condição não verificada; vazio quando o kernel foi lido.
+func lerKernel(in Input) (kernelDeLeitura, string) {
+	if in.Kernel == nil {
+		return kernelDeLeitura{}, ""
+	}
+	k, err := in.Kernel.Kernel()
+	if err != nil {
+		return kernelDeLeitura{}, "kernel por versão: " + err.Error()
+	}
+	out := kernelDeLeitura{pacotes: k.Packages, chaves: map[string]bool{}}
+	for _, doc := range k.Documents {
+		v := manifest.Validate(doc, manifest.Admission{IsStandard: in.Standard, Now: in.Now})
+		if len(v.Manifest) > 0 {
+			return kernelDeLeitura{}, "manifesto do kernel inválido em " + doc.Path + ": " + v.Manifest[0].String()
+		}
+		for _, u := range UnidadesDoDocumento(doc) {
+			u.SharedKernel = true
+			u.ReadOnly = true
+			out.unidades = append(out.unidades, u)
+		}
+	}
+	for _, p := range k.Packages {
+		out.chaves[p.CanonicalKey] = true
+	}
+	return out, ""
 }
 
 // Exportada porque a regravação do baseline precisa da MESMA projeção que a

@@ -261,7 +261,7 @@ checar_sem_escrita() {
 rito_buf() {
   jq -e --arg u "$UNIDADE_CONTRATO" '.units[] | select(.id == $u)' "$WT/$MANIFESTO_CONTRATOS" >/dev/null \
     || falha "o agente não declarou a unidade $UNIDADE_CONTRATO em $MANIFESTO_CONTRATOS (sem ela o gen/go cai em DMPF-U001)"
-  (cd "$WT/$CONTRATO" && bash "$WT/tools/buf.sh" generate) || falha "buf generate reprovou"
+  (cd "$WT/$CONTRATO" && bash "$WT/tools/dmpf-plugin/scripts/buf.sh" generate) || falha "buf generate reprovou"
   (cd "$WT" && pnpm nx run "$NOME-contract:buf-lint" && pnpm nx run "$NOME-contract:buf-pins" \
     && pnpm nx run "$NOME-contract:buf-generate-check") || falha "um gate Buf reprovou"
   [ -d "$WT/$CONTRATO/gen/go/company/$NOME" ] \
@@ -372,7 +372,7 @@ fase_regen() {
   checar_sem_escrita
 
   passo "forma canônica do contexto regenerado"
-  bash "$WT/tools/dmpf-context-check.sh" --context "$WT/$MODULO" \
+  bash "$WT/tools/dmpf-plugin/scripts/dmpf-context-check.sh" --context "$WT/$MODULO" \
     || falha "o dmpf-context-check reprovou o contexto regenerado (acima)"
   ok "dmpf-context-check aprovou $MODULO"
 

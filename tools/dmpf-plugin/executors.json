@@ -1,0 +1,39 @@
+{
+  "executors": {
+    "go-tidy": {
+      "implementation": "./dist/executors/go-tidy/executor",
+      "schema": "./src/executors/go-tidy/schema.json",
+      "description": "go mod tidy do módulo com os replace do go.work aplicados só durante o tidy (ADR-047)"
+    },
+    "test-env": {
+      "implementation": "./dist/executors/test-env/executor",
+      "schema": "./src/executors/test-env/schema.json",
+      "description": "Roda um comando de teste com o .env.example da raiz preenchendo o que o ambiente não declara"
+    },
+    "test-infra": {
+      "implementation": "./dist/executors/test-infra/executor",
+      "schema": "./src/executors/test-infra/schema.json",
+      "description": "Sobe ou derruba a infra dos testes de integração; no CI é no-op"
+    },
+    "buf": {
+      "implementation": "./dist/executors/buf/executor",
+      "schema": "./src/executors/buf/schema.json",
+      "description": "CLI Buf na versão fixada pelo versions.json"
+    },
+    "buf-gate": {
+      "implementation": "./dist/executors/buf-gate/executor",
+      "schema": "./src/executors/buf-gate/schema.json",
+      "description": "Gates Buf de um módulo de contrato: warmup, lint, pins, generate-check e breaking"
+    },
+    "gate-check": {
+      "implementation": "./dist/executors/gate-check/executor",
+      "schema": "./src/executors/gate-check/schema.json",
+      "description": "Prova que o depguard e o forbidigo reprovam o que devem em cada módulo"
+    },
+    "context-check": {
+      "implementation": "./dist/executors/context-check/executor",
+      "schema": "./src/executors/context-check/schema.json",
+      "description": "Prova que todo bounded context segue a forma canônica (ADR-053)"
+    }
+  }
+}

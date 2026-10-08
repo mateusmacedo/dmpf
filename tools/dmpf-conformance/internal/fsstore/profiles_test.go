@@ -3,6 +3,7 @@ package fsstore_test
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/mateusmacedo/dmpf/tools/dmpf-conformance/internal/fsstore"
@@ -40,6 +41,20 @@ func TestPerfisInvalidosInterrompem(t *testing.T) {
 func TestArquivoDePerfisAusenteInterrompe(t *testing.T) {
 	if _, err := fsstore.LoadBuildProfiles(filepath.Join(t.TempDir(), "nao-existe.json")); err == nil {
 		t.Fatal("arquivo ausente aceito")
+	}
+}
+
+func TestCaminhoVazioUsaPerfisEmbutidos(t *testing.T) {
+	perfis, err := fsstore.LoadBuildProfiles("")
+	if err != nil {
+		t.Fatalf("perfis embutidos rejeitados: %v", err)
+	}
+	ids := make([]string, len(perfis))
+	for i, p := range perfis {
+		ids[i] = p.ID
+	}
+	if want := []string{"linux-amd64", "linux-amd64-integration"}; !slices.Equal(ids, want) {
+		t.Errorf("ids = %v, esperado %v", ids, want)
 	}
 }
 

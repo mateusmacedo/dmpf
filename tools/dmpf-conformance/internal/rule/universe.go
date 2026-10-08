@@ -18,6 +18,10 @@ type Unit struct {
 	Include                  []string
 	Module                   string
 	ManifestPath             string
+
+	// Unidade do kernel recebido por versão: destino de aresta, nunca
+	// verificada nem registrada no baseline de quem a consome.
+	ReadOnly bool
 }
 
 // Qualificado por módulo porque o `id` só é único dentro de um manifesto: dois

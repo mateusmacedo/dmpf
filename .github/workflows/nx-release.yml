@@ -41,6 +41,11 @@ jobs:
       )
     runs-on: ubuntu-26.04
     timeout-minutes: 30
+    outputs:
+      version_sha: ${{ steps.push.outputs.version_sha }}
+      has_npm: ${{ steps.push.outputs.has_npm }}
+      dist_tag: ${{ steps.push.outputs.dist_tag }}
+      plugin_version: ${{ steps.push.outputs.plugin_version }}
     # O `prepare` do pnpm instala o lefthook no runner, e o pre-push dele roda
     # `test-race` sem a infra de testes: sem isto o push da release aborta.
     env:
@@ -114,8 +119,8 @@ jobs:
           fi
 
       # Versiona (bump + changelog + commit + tag) SEM publicar e SEM empurrar. A
-      # publicação no GitHub Packages roda no nx-publish-libs.yml, disparado pelo
-      # push das tags geradas abaixo.
+      # publicação no GitHub Packages roda no job `publish`, encadeado a este: a tag
+      # empurrada com o GITHUB_TOKEN não dispara outro workflow.
       # --yes e --skip-publish são mutuamente exclusivos no Nx; usar só skip-publish.
       # Sem continue-on-error: falha real do nx release NÃO deve empurrar tags.
       #
@@ -142,9 +147,11 @@ jobs:
           FIRST_VERSION="0.1.0"
 
           VERSION_ARGS=""
+          ALVO=""
           if [ -z "$GO_TAGS" ] && [ -z "$NPM_TAGS" ]; then
             echo "Nenhuma tag das famílias de release existente; primeira release em $FIRST_VERSION."
             VERSION_ARGS="$FIRST_VERSION --first-release"
+            ALVO="$FIRST_VERSION"
           elif [ -n "${MANUAL_VERSION:-}" ]; then
             if [[ ! "$MANUAL_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
               echo "::error::Input version '$MANUAL_VERSION' não é semver."
@@ -152,10 +159,22 @@ jobs:
             fi
             echo "Versão explícita $MANUAL_VERSION informada no dispatch para todos os projetos."
             VERSION_ARGS="$MANUAL_VERSION"
+            ALVO="$MANUAL_VERSION"
           elif [[ "${HEAD_REF:-}" =~ ^release/([0-9]+\.[0-9]+\.[0-9]+-[0-9A-Za-z.-]+)$ ]]; then
             echo "Branch de pré-release $HEAD_REF; versão explícita ${BASH_REMATCH[1]} para todos os projetos."
             VERSION_ARGS="${BASH_REMATCH[1]}"
+            ALVO="${BASH_REMATCH[1]}"
           fi
+
+          # O nx release commita o que estiver no stage: o versions.json entra no commit de versão.
+          FONTE="$(git rev-parse HEAD)"
+          if [ -n "$ALVO" ]; then
+            node tools/dmpf-plugin/scripts/sync-versions.mjs --target "$ALVO" --workflow-ref "$FONTE"
+          else
+            echo "::warning::Versão derivada dos commits: o versions.json mantém kernel, conformance e migrations e só recebe o workflowRef."
+            node tools/dmpf-plugin/scripts/sync-versions.mjs --workflow-ref "$FONTE"
+          fi
+          git add tools/dmpf-plugin/versions.json tools/dmpf-plugin/migrations.json
 
           # Snapshot para empurrar depois SÓ as tags criadas nesta execução.
           git tag | sort > /tmp/tags-before.txt
@@ -165,6 +184,7 @@ jobs:
       # Empurra o commit de release e apenas as tags que esta execução criou. Um
       # `git push --follow-tags` arrastaria qualquer tag anotada alcançável.
       - name: Push version commit and tags
+        id: push
         if: steps.lib-candidates.outputs.has_libs == 'true'
         run: |
           set -euo pipefail
@@ -174,10 +194,25 @@ jobs:
           echo "Tags criadas nesta execução:"
           cat /tmp/tags-new.txt
 
-          git push origin master
-          if [ -s /tmp/tags-new.txt ]; then
-            xargs -r -a /tmp/tags-new.txt git push origin
-          fi
+          mapfile -t novas < /tmp/tags-new.txt
+          git push --atomic origin master "${novas[@]}"
+
+          # Só as tags npm (`<projeto>@<versão>`) levam `@`; pré-release não vira a `latest`.
+          npm_versoes="$(grep '@' /tmp/tags-new.txt | sed 's/.*@//' || true)"
+          plugin="$(grep '^@mateusmacedo/dmpf-plugin@' /tmp/tags-new.txt || true)"
+          {
+            echo "version_sha=$(git rev-parse HEAD)"
+            if [ -z "$npm_versoes" ]; then
+              echo "has_npm=false"
+            elif [[ "$npm_versoes" == *-* ]]; then
+              echo "has_npm=true"
+              echo "dist_tag=next"
+            else
+              echo "has_npm=true"
+              echo "dist_tag=latest"
+            fi
+            echo "plugin_version=${plugin##*@}"
+          } >> "$GITHUB_OUTPUT"
 
       # Módulos Go não geram imagem por aqui: a imagem é matéria do golden path
       # (ADR-041), e um `type:app` Go sem Dockerfile quebraria o build. Mesmo
@@ -214,3 +249,72 @@ jobs:
           PROJECTS_CSV: ${{ steps.docker-candidates.outputs.projects_csv }}
           DOCKER_SCHEME: ${{ steps.docker-scheme.outputs.value }}
         run: pnpm nx release --projects="$PROJECTS_CSV" --dockerVersionScheme="$DOCKER_SCHEME" --yes
+
+  publish:
+    name: Publicar as libs npm no GitHub Packages
+    needs: version
+    if: needs.version.outputs.has_npm == 'true'
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/publish-libs.yaml
+    with:
+      pnpm_version: ""
+      node_version: "24"
+      nx_exclude: "@mateusmacedo/dmpf-source"
+      scope: "@mateusmacedo"
+      tag: ${{ needs.version.outputs.dist_tag }}
+      build_projects_filter: "tag:type:lib,!tag:stack:go"
+      ref: ${{ needs.version.outputs.version_sha }}
+
+  consumer:
+    name: Consumidor externo da release
+    needs: [version, publish]
+    if: needs.version.outputs.plugin_version != ''
+    runs-on: ubuntu-26.04
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      packages: read
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      PLUGIN_VERSION: ${{ needs.version.outputs.plugin_version }}
+    steps:
+      - name: Checkout do commit de versão
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          ref: ${{ needs.version.outputs.version_sha }}
+
+      - name: Setup Node and pnpm
+        uses: ./.github/actions/setup-node-pnpm
+        with:
+          node-version: "24"
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      - name: Consumidor puro da versão publicada
+        run: bash tools/external-consumer.sh --plugin-version "$PLUGIN_VERSION"
+
+      # Do registry, não das tags: a tag do plugin 1.0.0-rc.1 existe sem pacote publicado.
+      - name: Versão anterior publicada do plugin
+        id: anterior
+        run: |
+          set -euo pipefail
+          npmrc="$RUNNER_TEMP/npmrc"
+          printf '%s\n' '@mateusmacedo:registry=https://npm.pkg.github.com' \
+            '//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}' > "$npmrc"
+          versoes="$(NPM_CONFIG_USERCONFIG="$npmrc" npm view @mateusmacedo/dmpf-plugin versions --json)"
+          anterior="$(node -e '
+            const semver = require(require.resolve("semver", { paths: [require.resolve("nx/package.json")] }));
+            const [lista, atual] = process.argv.slice(1);
+            const anteriores = [].concat(JSON.parse(lista)).filter((v) => semver.lt(v, atual));
+            console.log(semver.maxSatisfying(anteriores, "*", { includePrerelease: true }) ?? "");
+          ' "$versoes" "$PLUGIN_VERSION")"
+          echo "versao=$anterior" >> "$GITHUB_OUTPUT"
+
+      - name: Upgrade da versão anterior pelas migrations
+        if: steps.anterior.outputs.versao != ''
+        env:
+          PREVIOUS_PLUGIN_VERSION: ${{ steps.anterior.outputs.versao }}
+        run: bash tools/external-consumer.sh --plugin-version "$PLUGIN_VERSION" --upgrade-from "$PREVIOUS_PLUGIN_VERSION"

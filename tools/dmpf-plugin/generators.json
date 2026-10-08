@@ -1,7 +1,12 @@
 {
   "generators": {
+    "init": {
+      "factory": "./dist/generators/init/generator",
+      "schema": "./src/generators/init/schema.json",
+      "description": "Prepara o workspace para o DMPF: dmpf.json, go.work, nx.json, .golangci.yml, infra estática, baseline, ativos de IA e chamador de CI"
+    },
     "bounded-context": {
-      "factory": "./src/generators/bounded-context/generator",
+      "factory": "./dist/generators/bounded-context/generator",
       "schema": "./src/generators/bounded-context/schema.json",
       "description": "Gera um bounded context DMPF em módulos Go, um por bloco, com manifesto declarado e entradas no go.work"
     }

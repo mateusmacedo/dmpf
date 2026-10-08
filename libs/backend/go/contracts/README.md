@@ -34,10 +34,10 @@ reprova o PR.
 
 ## Toolchain
 
-Nenhum binário é instalado. A CLI entra por `tools/buf.sh`, que executa
+Nenhum binário é instalado. A CLI entra por `tools/dmpf-plugin/scripts/buf.sh`, que executa
 `go run github.com/bufbuild/buf/cmd/buf@<versão>`; o plugin `protoc-gen-go`
 entra pelo `local` de `buf.gen.yaml`, também por `go run`. Os dois pins são
-exatos; `tools/buf-gate.sh pins` reprova `latest`, faixa ou divergência entre
+exatos; `tools/dmpf-plugin/scripts/buf-gate.sh pins` reprova `latest`, faixa ou divergência entre
 a versão do plugin e a do runtime no `go.mod`, e exige o mesmo plugin em todos
 os `buf.gen.yaml` do repositório.
 
@@ -45,9 +45,9 @@ Comandos do dia a dia, a partir da raiz do repositório (troque o diretório pel
 `apps/backend/<ctx>/contract` de um contexto):
 
 ```bash
-bash tools/buf.sh lint libs/backend/go/contracts
-bash tools/buf.sh format --diff --exit-code libs/backend/go/contracts
-(cd libs/backend/go/contracts && bash ../../../../tools/buf.sh generate)
+bash tools/dmpf-plugin/scripts/buf.sh lint libs/backend/go/contracts
+bash tools/dmpf-plugin/scripts/buf.sh format --diff --exit-code libs/backend/go/contracts
+(cd libs/backend/go/contracts && bash ../../../../tools/dmpf-plugin/scripts/buf.sh generate)
 ```
 
 ## Proveniência do envelope vendorizado
@@ -77,14 +77,14 @@ managed mode as sobrescreve na geração, e por isso o arquivo não é editado.
 
 ## Gates e baseline
 
-Os gates de `tools/buf-gate.sh <cmd> <moddir> --project <nome>` rodam como
+Os gates de `tools/dmpf-plugin/scripts/buf-gate.sh <cmd> <moddir> --project <nome>` rodam como
 targets Nx de cada projeto de contrato — `contracts` e os `<ctx>-contract` — e
 no CI; nenhum é advisory e nenhum tem bypass (`BUF-12`):
 
 | Subcomando | O que prova |
 |------------|-------------|
 | `lint` | `buf format --diff --exit-code`, `buf lint` em `STANDARD` e varredura textual de P0-3 (nenhum artefato promete entrega única fim a fim) |
-| `pins` | pin exato da CLI em `tools/buf.sh`, do plugin em `buf.gen.yaml`, igualdade plugin × runtime no `go.mod`, o mesmo plugin em todos os módulos e `buf.lock` presente quando há `deps` |
+| `pins` | pin exato da CLI no `versions.json` do plugin, do plugin em `buf.gen.yaml`, igualdade plugin × runtime no `go.mod`, o mesmo plugin em todos os módulos e `buf.lock` presente quando há `deps` |
 | `generate-check` | duas gerações idênticas byte a byte e ausência de drift entre gerado e versionado (`BUF-11`) |
 | `breaking` | `buf breaking` em `FILE` contra `NX_BASE`, por pacote, sob a máquina de estados de `BUF-08` |
 

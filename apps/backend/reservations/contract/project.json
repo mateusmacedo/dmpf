@@ -6,17 +6,18 @@
   "tags": ["type:lib", "scope:backend", "stack:go", "layer:contract"],
   "targets": {
     "tidy": {
-      "executor": "nx:run-commands",
-      "cache": false,
-      "options": {
-        "command": "bash ../../../../tools/go-tidy.sh",
-        "cwd": "{projectRoot}"
-      }
+      "executor": "@mateusmacedo/dmpf-plugin:go-tidy",
+      "cache": false
     },
     "fmt-check": {
       "executor": "nx:run-commands",
       "cache": true,
-      "inputs": ["go", "^go", "{workspaceRoot}/tools/buf.sh"],
+      "inputs": [
+        "go",
+        "^go",
+        "{workspaceRoot}/tools/dmpf-plugin/scripts/buf.sh",
+        "{workspaceRoot}/tools/dmpf-plugin/versions.json"
+      ],
       "options": {
         "command": "saida=\"$(gofmt -l . 2>&1)\"; status=$?; [ $status -eq 0 ] || { printf '%s\\n' \"$saida\" >&2; exit $status; }; [ -z \"$saida\" ] || { printf '%s\\n' \"$saida\" >&2; exit 1; }",
         "cwd": "{projectRoot}"
@@ -25,7 +26,12 @@
     "vet": {
       "executor": "nx:run-commands",
       "cache": true,
-      "inputs": ["go", "^go", "{workspaceRoot}/tools/buf.sh"],
+      "inputs": [
+        "go",
+        "^go",
+        "{workspaceRoot}/tools/dmpf-plugin/scripts/buf.sh",
+        "{workspaceRoot}/tools/dmpf-plugin/versions.json"
+      ],
       "options": {
         "command": "go vet ./...",
         "cwd": "{projectRoot}"
@@ -33,7 +39,12 @@
     },
     "build": {
       "executor": "nx:run-commands",
-      "inputs": ["go", "^go", "{workspaceRoot}/tools/buf.sh"],
+      "inputs": [
+        "go",
+        "^go",
+        "{workspaceRoot}/tools/dmpf-plugin/scripts/buf.sh",
+        "{workspaceRoot}/tools/dmpf-plugin/versions.json"
+      ],
       "options": {
         "command": "go build ./...",
         "cwd": "{projectRoot}"
@@ -42,7 +53,12 @@
     "test-race": {
       "executor": "nx:run-commands",
       "cache": true,
-      "inputs": ["go", "^go", "{workspaceRoot}/tools/buf.sh"],
+      "inputs": [
+        "go",
+        "^go",
+        "{workspaceRoot}/tools/dmpf-plugin/scripts/buf.sh",
+        "{workspaceRoot}/tools/dmpf-plugin/versions.json"
+      ],
       "options": {
         "command": "go test -race ./...",
         "cwd": "{projectRoot}"
@@ -57,31 +73,33 @@
       }
     },
     "buf-warmup": {
-      "executor": "nx:run-commands",
+      "executor": "@mateusmacedo/dmpf-plugin:buf-gate",
       "cache": false,
       "options": {
-        "command": "bash tools/buf-gate.sh warmup apps/backend/reservations/contract --project reservations-contract"
+        "gate": "warmup"
       }
     },
     "buf-lint": {
-      "executor": "nx:run-commands",
+      "executor": "@mateusmacedo/dmpf-plugin:buf-gate",
       "cache": true,
       "dependsOn": ["buf-warmup"],
       "inputs": [
-        "{workspaceRoot}/tools/buf.sh",
-        "{workspaceRoot}/tools/buf-gate.sh",
+        "{workspaceRoot}/tools/dmpf-plugin/scripts/buf.sh",
+        "{workspaceRoot}/tools/dmpf-plugin/versions.json",
+        "{workspaceRoot}/tools/dmpf-plugin/scripts/buf-gate.sh",
         "{projectRoot}/**/*"
       ],
       "options": {
-        "command": "bash tools/buf-gate.sh lint apps/backend/reservations/contract --project reservations-contract"
+        "gate": "lint"
       }
     },
     "buf-pins": {
-      "executor": "nx:run-commands",
+      "executor": "@mateusmacedo/dmpf-plugin:buf-gate",
       "cache": true,
       "inputs": [
-        "{workspaceRoot}/tools/buf.sh",
-        "{workspaceRoot}/tools/buf-gate.sh",
+        "{workspaceRoot}/tools/dmpf-plugin/scripts/buf.sh",
+        "{workspaceRoot}/tools/dmpf-plugin/versions.json",
+        "{workspaceRoot}/tools/dmpf-plugin/scripts/buf-gate.sh",
         "{projectRoot}/go.mod",
         "{projectRoot}/buf.yaml",
         "{projectRoot}/buf.gen.yaml",
@@ -89,34 +107,36 @@
         "{workspaceRoot}/**/buf.gen.yaml"
       ],
       "options": {
-        "command": "bash tools/buf-gate.sh pins apps/backend/reservations/contract --project reservations-contract"
+        "gate": "pins"
       }
     },
     "buf-generate-check": {
-      "executor": "nx:run-commands",
+      "executor": "@mateusmacedo/dmpf-plugin:buf-gate",
       "cache": true,
       "dependsOn": ["buf-warmup"],
       "inputs": [
-        "{workspaceRoot}/tools/buf.sh",
-        "{workspaceRoot}/tools/buf-gate.sh",
+        "{workspaceRoot}/tools/dmpf-plugin/scripts/buf.sh",
+        "{workspaceRoot}/tools/dmpf-plugin/versions.json",
+        "{workspaceRoot}/tools/dmpf-plugin/scripts/buf-gate.sh",
         "{projectRoot}/gen/**/*",
         "{projectRoot}/go.mod",
         "{projectRoot}/**/*"
       ],
       "options": {
-        "command": "bash tools/buf-gate.sh generate-check apps/backend/reservations/contract --project reservations-contract"
+        "gate": "generate-check"
       }
     },
     "buf-breaking": {
-      "executor": "nx:run-commands",
+      "executor": "@mateusmacedo/dmpf-plugin:buf-gate",
       "cache": false,
       "inputs": [
-        "{workspaceRoot}/tools/buf.sh",
-        "{workspaceRoot}/tools/buf-gate.sh",
+        "{workspaceRoot}/tools/dmpf-plugin/scripts/buf.sh",
+        "{workspaceRoot}/tools/dmpf-plugin/versions.json",
+        "{workspaceRoot}/tools/dmpf-plugin/scripts/buf-gate.sh",
         "{projectRoot}/**/*"
       ],
       "options": {
-        "command": "bash tools/buf-gate.sh breaking apps/backend/reservations/contract --project reservations-contract"
+        "gate": "breaking"
       }
     }
   }

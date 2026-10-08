@@ -1,0 +1,52 @@
+# Processos do <%- name %> na topologia local (ADR-044): api gRPC, que aplica o
+# schema (MIGRATE=true), e relay da própria outbox.
+x-image: &image
+  build:
+    context: ../../../..
+    dockerfile: <%- moduleDirectory %>/Dockerfile
+  image: ${<%- envName %>_IMAGE:-<%- name %>:local}
+
+x-env: &env
+  OTEL_SERVICE_NAME: <%- name %>
+  PG_DSN: postgres://<%- name %>:${<%- envName %>_PG_PASSWORD:-<%- name %>-local}@postgres:5432/<%- name %>?sslmode=disable
+
+services:
+  <%- composeProfile %>-<%- name %>-api:
+    <<: *image
+    extends:
+      file: ../../../../infra/local/compose/app-base.yml
+      service: <%- composeProfile %>-grpc-api
+    stop_grace_period: 30s
+    environment:
+      <<: *env
+      OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES:-service.version=local,deployment.environment.name=local},service.instance.id=<%- name %>-api,dmpf.process.role=api
+      GRPC_TLS_CERT_FILE: /pki/<%- composeProfile %>-<%- name %>-api.crt
+      GRPC_TLS_KEY_FILE: /pki/<%- composeProfile %>-<%- name %>-api.key
+    depends_on:
+      pki-init:
+        condition: service_completed_successfully
+      postgres-init:
+        condition: service_completed_successfully
+      otel-collector:
+        condition: service_started
+
+  <%- composeProfile %>-<%- name %>-relay:
+    <<: *image
+    extends:
+      file: ../../../../infra/local/compose/app-base.yml
+      service: <%- composeProfile %>-kafka-worker
+    stop_grace_period: 30s
+    command: ['--role', 'relay']
+    environment:
+      <<: *env
+      OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES:-service.version=local,deployment.environment.name=local},service.instance.id=<%- name %>-relay,dmpf.process.role=relay
+      KAFKA_SASL_USERNAME: <%- name %>
+      KAFKA_SASL_PASSWORD: ${KAFKA_<%- envName %>_PASSWORD:-<%- name %>-local}
+      KAFKA_GROUP: <%- name %>
+      KAFKA_<%- envName %>_TOPIC: ${KAFKA_<%- envName %>_TOPIC:-<%- name %>.events}
+      KAFKA_<%- envName %>_DLQ: ${KAFKA_<%- envName %>_DLQ:-<%- name %>.events.dlq}
+    depends_on:
+      redpanda-init:
+        condition: service_completed_successfully
+      <%- composeProfile %>-<%- name %>-api:
+        condition: service_started

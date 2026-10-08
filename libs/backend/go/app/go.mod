@@ -33,6 +33,9 @@ require (
 	github.com/mateusmacedo/dmpf/libs/backend/go/domain v1.0.0-rc.1 // indirect
 	github.com/mateusmacedo/dmpf/libs/backend/go/transport v1.0.0-rc.1 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
+	go.opentelemetry.io/contrib/bridges/otelslog v0.21.0 // indirect
+	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.72.0 // indirect
+	go.opentelemetry.io/contrib/processors/baggagecopy v0.17.0 // indirect
 	golang.org/x/net v0.59.0 // indirect
 	golang.org/x/sync v0.23.0 // indirect
 	golang.org/x/sys v0.48.0 // indirect

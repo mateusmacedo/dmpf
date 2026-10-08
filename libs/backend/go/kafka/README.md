@@ -184,7 +184,7 @@ Os testes de integração levam a build tag `integration`, exigem
 sufixo único por execução:
 
 O target sobe a infra de testes (`testkit:test-infra-up`) e o
-`tools/test-env.sh` preenche o `KAFKA_BROKERS` com o Redpanda dela, na porta
+`tools/dmpf-plugin/scripts/test-env.sh` preenche o `KAFKA_BROKERS` com o Redpanda dela, na porta
 19092, a partir do `.env.example` da raiz:
 
 ```bash

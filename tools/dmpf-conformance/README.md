@@ -25,7 +25,7 @@ go run ./tools/dmpf-conformance/cmd/conformance --root . --write-baseline
 | Flag | Efeito |
 | --- | --- |
 | `--root` | Raiz do workspace |
-| `--profiles` | `build-profiles.json`; default dentro deste módulo |
+| `--profiles` | `build-profiles.json`; sem ela, os perfis embutidos no verificador |
 | `--now` | Instante RFC3339 contra o qual as exceções vencem (`DMPF-X006`). Sem ela, o relógio |
 | `--write-baseline` | Regrava `tools/dmpf-baseline/units-baseline.json`. Executado por pessoa, nunca no gate |
 
@@ -35,6 +35,17 @@ shared kernel, a cobertura (`DMPF-U*`), as arestas (`DMPF-D*`, `DMPF-E*`) e a
 autoridade sobre a classificação (`DMPF-T*`). O `include` de uma unidade só
 classifica package do próprio módulo; apontar para outro módulo reprova em
 `DMPF-M002`.
+
+### Kernel recebido por versão
+
+Num consumidor, o kernel chega por tag e fica fora do workspace. Todo módulo
+fora do inventário que publica `dmpf-units.json` entra no universo como shared
+kernel de leitura: as unidades dele servem de destino de aresta, satisfazem a
+`DMPF-D002` sem `shared_kernel_units` e não são verificadas nem gravadas no
+baseline. Aresta para package do kernel sem unidade reprova em `DMPF-U001`.
+Manifesto do kernel inválido ou build list que o toolchain não carregou (módulo
+fora do cache, sem rede) sai com `NAO VERIFICADO` e exit 2, citando
+`<módulo>@<versão>`.
 
 ### Exceção E1
 
@@ -74,8 +85,11 @@ go run ./tools/dmpf-conformance/cmd/modsync --root . --check
 | `--root` | Raiz do workspace, diretório do `go.work` (default: `.`) |
 | `--write` | Grava o `require` e o `replace` versionado dos irmãos nos `go.mod` |
 | `--check` | Confere os `go.mod` sem alterar e reprova divergência |
+| `--require` | `<módulo>@<versão>` que dá dono a um import fora da build list, como o kernel no primeiro contexto de um consumidor. Repetível, só com `--write` |
 
-Exige exatamente um entre `--write` e `--check`. Sincroniza o `go.work` (bloco
+Exige exatamente um entre `--write` e `--check`. A versão de um irmão sem
+`require` vem da maior tag de release alcançável; tag de pré-release só conta
+quando o módulo não tem release estável. Sincroniza o `go.work` (bloco
 `use` e `replace` versionado) e os `require` de cada `go.mod` com o grafo real
 de imports entre módulos irmãos (ADR-047) — sem isso, o `go.mod` gerado
 carregaria imports não declarados. O generator `bounded-context`

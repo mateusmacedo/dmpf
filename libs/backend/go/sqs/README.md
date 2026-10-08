@@ -145,7 +145,7 @@ Os testes de integração levam a build tag `integration`, exigem
 pelo SDK (`AWS_*`) e criam filas e tópicos com sufixo único por execução:
 
 O target sobe a infra de testes (`testkit:test-infra-up`) e o
-`tools/test-env.sh` preenche `SQS_ENDPOINT` e as `AWS_*` com o floci dela, na
+`tools/dmpf-plugin/scripts/test-env.sh` preenche `SQS_ENDPOINT` e as `AWS_*` com o floci dela, na
 porta 14566, a partir do `.env.example` da raiz:
 
 ```bash

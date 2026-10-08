@@ -7,7 +7,7 @@ managed:
       value: github.com/mateusmacedo/dmpf/libs/backend/go/contracts/gen/go
 plugins:
   # Pin do plugin (BUF-06): a versão precisa ser igual à de google.golang.org/protobuf
-  # no go.mod deste módulo; tools/buf-gate.sh pins confere.
+  # no go.mod deste módulo; o gate buf-pins confere.
   - local:
       - go
       - run
