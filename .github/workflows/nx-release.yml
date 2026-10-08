@@ -166,8 +166,7 @@ jobs:
             ALVO="${BASH_REMATCH[1]}"
           fi
 
-          # O versions.json entra no commit de versão: o nx release commita o que
-          # estiver no stage. Kernel e conformance numa versão só pedem versão explícita.
+          # O nx release commita o que estiver no stage: o versions.json entra no commit de versão.
           FONTE="$(git rev-parse HEAD)"
           if [ -n "$ALVO" ]; then
             node tools/dmpf-plugin/scripts/sync-versions.mjs --target "$ALVO" --workflow-ref "$FONTE"
@@ -195,13 +194,10 @@ jobs:
           echo "Tags criadas nesta execução:"
           cat /tmp/tags-new.txt
 
-          # Atômico: um push de tags que falhasse deixaria o master com o commit de
-          # versão sem as tags, e o publish e o consumer não rodariam.
           mapfile -t novas < /tmp/tags-new.txt
           git push --atomic origin master "${novas[@]}"
 
-          # Tags npm são `<projeto>@<versão>`; as de módulo Go não levam `@`. Uma
-          # pré-release publica em `next`, para não virar a `latest` de quem instala.
+          # Só as tags npm (`<projeto>@<versão>`) levam `@`; pré-release não vira a `latest`.
           npm_versoes="$(grep '@' /tmp/tags-new.txt | sed 's/.*@//' || true)"
           plugin="$(grep '^@mateusmacedo/dmpf-plugin@' /tmp/tags-new.txt || true)"
           {
@@ -271,7 +267,6 @@ jobs:
       build_projects_filter: "tag:type:lib,!tag:stack:go"
       ref: ${{ needs.version.outputs.version_sha }}
 
-  # Falha aqui marca o run como vermelho, sem rollback: a release já foi publicada.
   consumer:
     name: Consumidor externo da release
     needs: [version, publish]
@@ -301,8 +296,7 @@ jobs:
       - name: Consumidor puro da versão publicada
         run: bash tools/external-consumer.sh --plugin-version "$PLUGIN_VERSION"
 
-      # A anterior vem do registry, não das tags: uma release antiga pode ter
-      # criado a tag do plugin sem publicá-lo.
+      # Do registry, não das tags: a tag do plugin 1.0.0-rc.1 existe sem pacote publicado.
       - name: Versão anterior publicada do plugin
         id: anterior
         run: |
