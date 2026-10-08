@@ -434,7 +434,7 @@ variável — em vez de silenciar um valor mal formado atrás de um default.
 
 ```bash
 pnpm nx run-many -t fmt-check,vet,lint,build,test,test-race,govulncheck -p observability
-bash tools/dmpf-gate-check.sh
+bash tools/dmpf-plugin/scripts/dmpf-gate-check.sh
 go run ./tools/dmpf-conformance/cmd/conformance --root .
 ```
 
@@ -506,7 +506,7 @@ Esconder isso sob a capability do propósito apagaria do manifesto onde a rede
 entra.
 
 O tidy do módulo roda pelo target Nx (`pnpm nx run observability:tidy`), que
-chama `tools/go-tidy.sh`: o `go mod tidy` puro ignora o `go.work` e buscaria os
+chama `tools/dmpf-plugin/scripts/go-tidy.sh`: o `go mod tidy` puro ignora o `go.work` e buscaria os
 módulos irmãos pelo proxy, e o script põe os `replace` do `go.work` no `go.mod`
 só durante o tidy.
 
