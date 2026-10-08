@@ -91,6 +91,25 @@ jobs:
     with:
       base: develop
 
+  external-consumer:
+    name: Consumidor externo por versão
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - name: Setup Node and pnpm
+        uses: ./.github/actions/setup-node-pnpm
+        with:
+          node-version: "24"
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      - name: Prova do consumidor externo
+        run: bash tools/external-consumer.sh
+
   dmpf-gates:
     name: Gates DMPF do platform (célula e shared kernel)
     runs-on: ubuntu-26.04
