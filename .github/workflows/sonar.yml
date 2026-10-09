@@ -1,0 +1,60 @@
+name: SonarQube Cloud
+
+on:
+  pull_request:
+    branches:
+      - master
+      - develop
+      - "release/**"
+  push:
+    branches:
+      - master
+      - develop
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  sonar:
+    name: Análise com cobertura
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node and pnpm
+        uses: ./.github/actions/setup-node-pnpm
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      # Com CI vazio, tb.Env pula os testes de integração: este job não sobe infraestrutura.
+      - name: Cobertura Go (testes unitários)
+        env:
+          CI: ""
+        run: |
+          mkdir -p coverage
+          echo "mode: set" > coverage/go.out
+          while read -r module dir; do
+            rel="${dir#"$PWD"/}"
+            (cd "$dir" && go test -coverprofile="$RUNNER_TEMP/go.out" ./...)
+            tail -n +2 "$RUNNER_TEMP/go.out" | sed "s|^$module/|$rel/|" >> coverage/go.out
+          done < <(go list -m -f '{{.Path}} {{.Dir}}')
+
+      - name: Cobertura do dmpf-plugin
+        run: |
+          pnpm nx run dmpf-plugin:test --coverage --coverageReporters=lcov --outputStyle=static
+          sed 's|^SF:|SF:tools/dmpf-plugin/|' tools/dmpf-plugin/test-output/jest/coverage/lcov.info > coverage/dmpf-plugin.lcov
+
+      - name: SonarQube Cloud
+        uses: SonarSource/sonarqube-scan-action@ba9859eae8dd6bd29e412f25ddbbef3d032000f4 # v8.2.2
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
