@@ -1,12 +1,12 @@
 {
   "generators": {
     "sync-init": {
-      "version": "1.0.0-rc.1",
+      "version": "1.0.0-rc.2",
       "description": "Reaplica os templates do init (infra estática, .golangci.yml, ativos de IA e chamador de CI) sem sobrescrever arquivo editado",
       "implementation": "./dist/migrations/sync-init/sync-init"
     },
     "update-versions": {
-      "version": "1.0.0-rc.1",
+      "version": "1.0.0-rc.2",
       "description": "Sobe o require do kernel nos go.mod, os pins de govulncheck, golangci-lint e @nx-go/nx-go e a diretiva do go.work",
       "implementation": "./dist/migrations/update-versions/update-versions"
     }
