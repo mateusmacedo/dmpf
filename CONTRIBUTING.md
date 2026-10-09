@@ -36,8 +36,9 @@ Trabalhe sempre fora de `master` e `develop`.
 4. Abra o Pull Request contra `develop` descrevendo o que muda e por quê.
    `master` recebe o trabalho pela branch `release/X.Y.Z`, não diretamente.
 
-PRs que tocam apenas arquivos Markdown não disparam o pipeline, por causa do
-`paths-ignore` configurado no `ci.yml`.
+Todo PR roda o pipeline inteiro, inclusive o que só toca Markdown: o ruleset
+"CI obrigatório na develop" exige os checks verdes antes do merge, e um check que
+não dispara deixaria o PR bloqueado.
 
 ### Modelo develop → release (anti-drift)
 

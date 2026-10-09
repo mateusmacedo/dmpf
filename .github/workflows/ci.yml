@@ -1,16 +1,14 @@
 name: CI
 
 # O push em develop roda o mesmo pipeline e grava os caches que os PRs lêem:
-# um PR só lê cache da própria ref, da branch base e da default.
+# um PR só lê cache da própria ref, da branch base e da default. O PR não tem
+# paths-ignore: check obrigatório do ruleset que não dispara bloqueia o merge.
 on:
   pull_request:
     branches:
       - master
       - develop
       - "release/**"
-    paths-ignore:
-      - "**/*.md"
-      - ".github/ISSUE_TEMPLATE/**"
   push:
     branches:
       - develop
