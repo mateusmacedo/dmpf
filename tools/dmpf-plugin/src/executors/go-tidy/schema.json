@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/schema",
+  "version": 2,
+  "title": "go-tidy",
+  "description": "go mod tidy do módulo com os replace do go.work aplicados só durante o tidy (ADR-047).",
+  "type": "object",
+  "properties": {
+    "args": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": [],
+      "description": "Argumentos repassados ao go mod tidy."
+    }
+  },
+  "additionalProperties": false
+}

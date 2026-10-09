@@ -6,17 +6,13 @@ import (
 	"text/template"
 )
 
-const (
-	generatedBy    = "Gerado por tools/dmpf-conformance/cmd/infrasync a partir de apps/backend/*/deploy/infra.json; não edite."
-	envExamplePath = "infra/local/.env.example"
-)
+const envExamplePath = "infra/local/.env.example"
 
 //go:embed templates/*.tmpl
 var templateFS embed.FS
 
 var parsed = template.Must(template.New("").Funcs(template.FuncMap{
-	"join":        strings.Join,
-	"generatedBy": func() string { return generatedBy },
+	"join": strings.Join,
 }).ParseFS(templateFS, "templates/*.tmpl"))
 
 type target struct {
@@ -34,4 +30,5 @@ var templates = []target{
 	{"infra/k8s/overlays/hmg/apps/kustomization.yaml", "apps-kustomization.yaml.tmpl", "hmg"},
 	{"infra/k8s/overlays/dev/databases/kustomization.yaml", "databases-kustomization.yaml.tmpl", ""},
 	{"infra/k8s/overlays/dev/databases/job.yaml", "databases-job.yaml.tmpl", ""},
+	{"infra/observability/alloy/alloy-kubernetes.alloy", "alloy-kubernetes.alloy.tmpl", ""},
 }

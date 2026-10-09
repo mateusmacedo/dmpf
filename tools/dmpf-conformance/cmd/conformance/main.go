@@ -32,7 +32,7 @@ const (
 
 func main() {
 	raiz := flag.String("root", ".", "raiz do workspace")
-	perfis := flag.String("profiles", "", "caminho do build-profiles.json (default: <root>/tools/dmpf-conformance/build-profiles.json)")
+	perfis := flag.String("profiles", "", "caminho do build-profiles.json (default: perfis embutidos no verificador)")
 	agora := flag.String("now", "", "instante RFC3339 contra o qual as exceções vencem (default: relógio)")
 	regravar := flag.Bool("write-baseline", false, "regrava o baseline a partir da classificação declarada; NUNCA usar no gate")
 	flag.Parse()
@@ -88,6 +88,9 @@ func run(o opcoes, saida, erros io.Writer) int {
 		return exitFalha
 	}
 
+	if relatorio.Falha {
+		return exitFalha
+	}
 	if relatorio.Reprovado() {
 		return exitReprovado
 	}
@@ -121,6 +124,7 @@ func verificar(o opcoes, now exception.Instant) (conformance.Report, error) {
 		Closure:   grafo.Closure,
 		Standard:  grafo.IsStandard,
 		Baseline:  fsstore.NewBaselineStore(abs),
+		Kernel:    grafo,
 		Now:       now,
 	})
 }
@@ -130,11 +134,7 @@ func preparar(o opcoes) (string, string, error) {
 	if err != nil {
 		return "", "", err
 	}
-	perfis := o.perfis
-	if perfis == "" {
-		perfis = filepath.Join(abs, "tools", "dmpf-conformance", "build-profiles.json")
-	}
-	return abs, perfis, nil
+	return abs, o.perfis, nil
 }
 
 func montar(abs, perfis string) ([]rule.Module, *golist.Source, error) {

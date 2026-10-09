@@ -27,22 +27,22 @@ use (
 )
 
 replace (
-	github.com/mateusmacedo/dmpf/apps/backend/bookings/contract v1.0.0-rc.1 => ./apps/backend/bookings/contract
-	github.com/mateusmacedo/dmpf/apps/backend/orders/contract v1.0.0-rc.1 => ./apps/backend/orders/contract
-	github.com/mateusmacedo/dmpf/apps/backend/reservations/contract v1.0.0-rc.1 => ./apps/backend/reservations/contract
-	github.com/mateusmacedo/dmpf/libs/backend/go/app v1.0.0-rc.1 => ./libs/backend/go/app
-	github.com/mateusmacedo/dmpf/libs/backend/go/application v1.0.0-rc.1 => ./libs/backend/go/application
-	github.com/mateusmacedo/dmpf/libs/backend/go/authn v1.0.0-rc.1 => ./libs/backend/go/authn
-	github.com/mateusmacedo/dmpf/libs/backend/go/contracts v1.0.0-rc.1 => ./libs/backend/go/contracts
-	github.com/mateusmacedo/dmpf/libs/backend/go/domain v1.0.0-rc.1 => ./libs/backend/go/domain
-	github.com/mateusmacedo/dmpf/libs/backend/go/grpc v1.0.0-rc.1 => ./libs/backend/go/grpc
-	github.com/mateusmacedo/dmpf/libs/backend/go/http v1.0.0-rc.1 => ./libs/backend/go/http
-	github.com/mateusmacedo/dmpf/libs/backend/go/kafka v1.0.0-rc.1 => ./libs/backend/go/kafka
-	github.com/mateusmacedo/dmpf/libs/backend/go/memory v1.0.0-rc.1 => ./libs/backend/go/memory
-	github.com/mateusmacedo/dmpf/libs/backend/go/observability v1.0.0-rc.1 => ./libs/backend/go/observability
-	github.com/mateusmacedo/dmpf/libs/backend/go/ports v1.0.0-rc.1 => ./libs/backend/go/ports
-	github.com/mateusmacedo/dmpf/libs/backend/go/postgres v1.0.0-rc.1 => ./libs/backend/go/postgres
-	github.com/mateusmacedo/dmpf/libs/backend/go/testkit v1.0.0-rc.1 => ./libs/backend/go/testkit
-	github.com/mateusmacedo/dmpf/libs/backend/go/transport v1.0.0-rc.1 => ./libs/backend/go/transport
-	github.com/mateusmacedo/dmpf/tools/dmpf-conformance v1.0.0-rc.1 => ./tools/dmpf-conformance
+	github.com/mateusmacedo/dmpf/apps/backend/bookings/contract v1.0.0-rc.2 => ./apps/backend/bookings/contract
+	github.com/mateusmacedo/dmpf/apps/backend/orders/contract v1.0.0-rc.2 => ./apps/backend/orders/contract
+	github.com/mateusmacedo/dmpf/apps/backend/reservations/contract v1.0.0-rc.2 => ./apps/backend/reservations/contract
+	github.com/mateusmacedo/dmpf/libs/backend/go/app v1.0.0-rc.2 => ./libs/backend/go/app
+	github.com/mateusmacedo/dmpf/libs/backend/go/application v1.0.0-rc.2 => ./libs/backend/go/application
+	github.com/mateusmacedo/dmpf/libs/backend/go/authn v1.0.0-rc.2 => ./libs/backend/go/authn
+	github.com/mateusmacedo/dmpf/libs/backend/go/contracts v1.0.0-rc.2 => ./libs/backend/go/contracts
+	github.com/mateusmacedo/dmpf/libs/backend/go/domain v1.0.0-rc.2 => ./libs/backend/go/domain
+	github.com/mateusmacedo/dmpf/libs/backend/go/grpc v1.0.0-rc.2 => ./libs/backend/go/grpc
+	github.com/mateusmacedo/dmpf/libs/backend/go/http v1.0.0-rc.2 => ./libs/backend/go/http
+	github.com/mateusmacedo/dmpf/libs/backend/go/kafka v1.0.0-rc.2 => ./libs/backend/go/kafka
+	github.com/mateusmacedo/dmpf/libs/backend/go/memory v1.0.0-rc.2 => ./libs/backend/go/memory
+	github.com/mateusmacedo/dmpf/libs/backend/go/observability v1.0.0-rc.2 => ./libs/backend/go/observability
+	github.com/mateusmacedo/dmpf/libs/backend/go/ports v1.0.0-rc.2 => ./libs/backend/go/ports
+	github.com/mateusmacedo/dmpf/libs/backend/go/postgres v1.0.0-rc.2 => ./libs/backend/go/postgres
+	github.com/mateusmacedo/dmpf/libs/backend/go/testkit v1.0.0-rc.2 => ./libs/backend/go/testkit
+	github.com/mateusmacedo/dmpf/libs/backend/go/transport v1.0.0-rc.2 => ./libs/backend/go/transport
+	github.com/mateusmacedo/dmpf/tools/dmpf-conformance v1.0.0-rc.2 => ./tools/dmpf-conformance
 )

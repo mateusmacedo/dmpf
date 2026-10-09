@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/schema",
+  "version": 2,
+  "title": "context-check",
+  "description": "Prova que todo bounded context do diretório de apps segue a forma canônica (ADR-053): layout, DDL, deploy/infra.json e banco e role na infra.",
+  "type": "object",
+  "properties": {
+    "phase": {
+      "type": "string",
+      "enum": ["structural", "self-test"],
+      "default": "structural",
+      "description": "self-test prova o gate contra fixture sintética e só roda no platform (tooling.mode local)."
+    },
+    "context": {
+      "type": "string",
+      "description": "Verifica só o layout e o DDL deste contexto, relativo à raiz, sem a infra."
+    }
+  },
+  "additionalProperties": false
+}

@@ -280,12 +280,13 @@ importers:
 
   tools/dmpf-plugin:
     dependencies:
-      '@nx/devkit':
-        specifier: 'catalog:'
-        version: 23.1.0(nx@23.1.0(@swc-node/register@1.11.1(@swc/core@1.15.40(@swc/helpers@0.5.23))(@swc/types@0.1.27)(typescript@6.0.3))(@swc/core@1.15.40(@swc/helpers@0.5.23)))
       tslib:
         specifier: 'catalog:'
         version: 2.8.1
+    devDependencies:
+      '@nx/devkit':
+        specifier: 'catalog:'
+        version: 23.1.0(nx@23.1.0(@swc-node/register@1.11.1(@swc/core@1.15.40(@swc/helpers@0.5.23))(@swc/types@0.1.27)(typescript@6.0.3))(@swc/core@1.15.40(@swc/helpers@0.5.23)))
 
 packages:
 

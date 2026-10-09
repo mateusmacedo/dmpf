@@ -1,27 +1,20 @@
 name: NX Publish
 
-# Publica as libs no GitHub Packages via `nx release publish`, pelo reusable
-# interno em .github/workflows/publish-libs.yaml. O executor pula libs sem
-# versão nova e versões já no registry, então releases parciais publicam só o
-# que mudou.
-# Dispara no push das tags npm do Nx Release (nx-release.yml). As tags de
-# módulo Go (`libs/backend/go/<lib>/vX.Y.Z` e `tools/dmpf-conformance/vX.Y.Z`)
-# não casam `**@*` e por construção nunca chegam aqui: consumo Go é por tag no
-# git, sem registry.
+# Republica as libs no GitHub Packages via `nx release publish`, pelo reusable
+# interno em .github/workflows/publish-libs.yaml, quando a publicação encadeada
+# ao nx-release.yml falhar. O executor pula versões já no registry.
 on:
-  push:
-    tags:
-      - "**@*"
   workflow_dispatch:
     inputs:
       tag:
         description: "Dist-tag de publicação (latest, beta, next)"
         type: string
         default: latest
+      ref:
+        description: "Commit de versão a publicar (o da tag); vazio usa a ponta da branch"
+        type: string
+        default: ""
 
-# cancel-in-progress consolida o push de múltiplas tags (versionamento
-# independente) em um único run, que publica todas as libs pendentes do commit
-# já versionado — o nx release publish ignora as que já estão no registry.
 concurrency:
   group: publish-libs
   cancel-in-progress: true
@@ -50,3 +43,4 @@ jobs:
       scope: "@mateusmacedo"
       tag: ${{ inputs.tag || 'latest' }}
       build_projects_filter: "tag:type:lib,!tag:stack:go"
+      ref: ${{ inputs.ref }}

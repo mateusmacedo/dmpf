@@ -86,7 +86,7 @@ dmpf-context-author`, em foreground) com este prompt, substituindo o caminho:
 > por `kernelgrpc.StatusOf`, sem `errors.go` local. O REST público é do `bff`, fora desta
 > tarefa. Esqueleto pelo generator; `include` por merge; nunca toque baseline
 > nem `gen/go`; nunca faça `git commit`. Rode os gates até passar, incluindo
-> `bash tools/dmpf-context-check.sh --context apps/backend/<name>`; pare e
+> `bash tools/dmpf-plugin/scripts/dmpf-context-check.sh --context apps/backend/<name>`; pare e
 > reporte em qualquer gate normativo. Ao terminar, imprima arquivos criados,
 > resultado de cada gate e o rito humano restante.
 
@@ -111,7 +111,7 @@ Rito restante (passos humanos):
      NX_BASE=origin/develop pnpm nx run <name>-contract:buf-breaking
   2. go run ./tools/dmpf-conformance/cmd/conformance --root . --write-baseline
   3. go run ./tools/dmpf-conformance/cmd/conformance --root .
-     bash tools/dmpf-context-check.sh
+     bash tools/dmpf-plugin/scripts/dmpf-context-check.sh
   4. Banco, role, tópicos, ACLs e certificado vêm do deploy/infra.json do app:
      ajuste-o ao que o contexto publica e consome e rode
      go run ./tools/dmpf-conformance/cmd/infrasync --root . --write

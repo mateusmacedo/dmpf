@@ -188,7 +188,7 @@ O fechamento de imports do código de produção é `context`, `errors`, `fmt` e
 
 ```bash
 pnpm nx run-many -t fmt-check,vet,lint,build,test,test-race,govulncheck -p ports
-bash tools/dmpf-gate-check.sh
+bash tools/dmpf-plugin/scripts/dmpf-gate-check.sh
 go run ./tools/dmpf-conformance/cmd/conformance --root .
 ```
 

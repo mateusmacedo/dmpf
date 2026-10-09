@@ -1,0 +1,15 @@
+# Probes para serviços que não expõem métricas próprias. O floci responde o
+# estado dos serviços emulados em /_floci/health; medir isso é o que há.
+modules:
+  http_2xx:
+    prober: http
+    timeout: 5s
+    http:
+      valid_status_codes: [200]
+      preferred_ip_protocol: ip4
+
+  tcp_connect:
+    prober: tcp
+    timeout: 5s
+    tcp:
+      preferred_ip_protocol: ip4

@@ -1,0 +1,98 @@
+# Fail-closed: a base exige login e lê a senha do administrador do Secret
+# `grafana-admin`; nenhum overlay liga o acesso anônimo.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {}
+  template:
+    metadata:
+      labels: {}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 472
+        fsGroup: 472
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: grafana
+          image: grafana/grafana:13.2.1
+          ports:
+            - name: http
+              containerPort: 3000
+          env:
+            - name: GF_SECURITY_ADMIN_USER
+              value: admin
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-admin
+                  key: password
+            - name: GF_AUTH_ANONYMOUS_ENABLED
+              value: 'false'
+            - name: GF_ANALYTICS_REPORTING_ENABLED
+              value: 'false'
+            - name: GF_PLUGINS_PREINSTALL_DISABLED
+              value: 'true'
+            - name: GF_LOG_LEVEL
+              value: warn
+          volumeMounts:
+            - name: datasources
+              mountPath: /etc/grafana/provisioning/datasources
+              readOnly: true
+            - name: dashboards-provider
+              mountPath: /etc/grafana/provisioning/dashboards
+              readOnly: true
+            - name: dashboards-plataforma
+              mountPath: /var/lib/grafana/dashboards/plataforma
+              readOnly: true
+            - name: dashboards-kernel
+              mountPath: /var/lib/grafana/dashboards/kernel
+              readOnly: true
+            - name: dashboards-infra
+              mountPath: /var/lib/grafana/dashboards/infra
+              readOnly: true
+            - name: dashboards-carga
+              mountPath: /var/lib/grafana/dashboards/carga
+            - name: data
+              mountPath: /var/lib/grafana
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 768Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+      volumes:
+        - name: datasources
+          configMap:
+            name: grafana-datasources
+        - name: dashboards-provider
+          configMap:
+            name: grafana-dashboards-provider
+        - name: dashboards-plataforma
+          configMap:
+            name: grafana-dashboards-plataforma
+        - name: dashboards-kernel
+          configMap:
+            name: grafana-dashboards-kernel
+        - name: dashboards-infra
+          configMap:
+            name: grafana-dashboards-infra
+        - name: dashboards-carga
+          emptyDir: {}
+        - name: data
+          emptyDir: {}

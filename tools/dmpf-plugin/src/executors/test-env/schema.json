@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/schema",
+  "version": 2,
+  "title": "test-env",
+  "description": "Roda um comando de teste com os valores do .env.example da raiz para as variáveis que o ambiente não declara.",
+  "type": "object",
+  "properties": {
+    "command": {
+      "type": "string",
+      "description": "Comando de teste, executado por bash no diretório do projeto."
+    }
+  },
+  "required": ["command"],
+  "additionalProperties": false
+}

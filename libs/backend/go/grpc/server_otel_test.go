@@ -272,7 +272,7 @@ func TestHealthAndReflectionOpenNoServerSpan(t *testing.T) {
 }
 
 func TestTheServerAnswersOnlyThePublicProjection(t *testing.T) {
-	const secret = "pq: password authentication failed for user lidercap"
+	const secret = "pq: password authentication failed for user dmpf"
 	cases := []struct {
 		name     string
 		err      error

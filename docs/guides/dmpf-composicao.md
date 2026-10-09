@@ -104,7 +104,7 @@ O layout canônico do ADR-048, com a forma do ADR-053, completa a lista: a
 REST público é do `bff`), `app/config.go` e `app/wiring.go` seguem a mesma
 forma nos contextos, o DDL fica em `provider/schema.sql`, o binário fica em
 `cmd/main.go` — um por contexto, com os papéis em `--role` — e os kits
-`appkit/` e `distkit/` são obrigatórios. O `tools/dmpf-context-check.sh`
+`appkit/` e `distkit/` são obrigatórios. O `tools/dmpf-plugin/scripts/dmpf-context-check.sh`
 reprova o que fugir disso, inclusive `app/http/` e nomes de banco fora da
 convenção, e o generator já emite o esqueleto:
 
@@ -122,7 +122,7 @@ O `.proto` do contexto é escrito pelo agente; o código gerado, não. `gen/go` 
 é escrito pelo rito:
 
 ```bash
-cd apps/backend/<name>/contract && bash ../../../../tools/buf.sh generate
+cd apps/backend/<name>/contract && bash ../../../../tools/dmpf-plugin/scripts/buf.sh generate
 ```
 
 Depois, os quatro gates:
@@ -168,7 +168,7 @@ Os testes que tocam Postgres levam a build tag `integration` e exigem o DSN.
 O `PG_DSN` aponta o servidor com um usuário que cria bancos: cada teste roda
 num `<ctx>_test_<id>` próprio, e projetos distintos rodam em paralelo (ADR-053).
 Os targets sobem a infra de testes (`testkit:test-infra-up`), e o
-`tools/test-env.sh` preenche `PG_DSN` e `KAFKA_BROKERS` com o Postgres (15432) e
+`tools/dmpf-plugin/scripts/test-env.sh` preenche `PG_DSN` e `KAFKA_BROKERS` com o Postgres (15432) e
 o Redpanda (19092) dela, a partir do `.env.example` da raiz:
 
 ```bash
@@ -301,7 +301,9 @@ verificador). Há dois jeitos de consumir, e a diferença está em quem resolve 
 `require`.
 
 **Por tag.** O módulo declara no `go.mod` tudo o que importa, então um
-`go get` basta — os irmãos vêm junto, cada um na versão que o `require` fixa:
+`go get` basta — os irmãos vêm junto, cada um na versão que o `require` fixa.
+Num workspace Nx, o plugin faz isso pela versão que ele fixa, com generators,
+gates e CI ([consumo externo](dmpf-consumo-externo.md)):
 
 ```bash
 go get github.com/mateusmacedo/dmpf/libs/backend/go/domain@v1.0.0-rc.0

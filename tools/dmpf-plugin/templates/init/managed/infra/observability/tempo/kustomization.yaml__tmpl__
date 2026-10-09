@@ -1,0 +1,20 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Tempo monolítico: recebe OTLP do Collector e escreve as séries derivadas de
+# spans no Prometheus por remote write.
+
+labels:
+  - includeSelectors: true
+    pairs:
+      app.kubernetes.io/name: tempo
+      app.kubernetes.io/part-of: observability
+
+resources:
+  - statefulset.yaml
+  - service.yaml
+
+configMapGenerator:
+  - name: tempo
+    files:
+      - tempo.yaml

@@ -727,7 +727,7 @@ ADR fica por último, porque depende de decisão registrada antes do código.
 Em toda onda que promover algo ao kernel:
 
 - retirar a cópia dos templates do generator
-  (`tools/dmpf-plugin/src/generators/bounded-context/files/`) e ajustar o
+  (`tools/dmpf-plugin/templates/bounded-context/`) e ajustar o
   `dmpf-generator-check`;
 - atualizar a skill `.agents/skills/dmpf-bounded-context/` e as instruções do
   `/dmpf-new-context` — o `dmpf-harness-check.sh` regenera o golden `bookings`

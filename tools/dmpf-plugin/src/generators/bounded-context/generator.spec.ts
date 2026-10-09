@@ -4,6 +4,7 @@ import * as path from 'node:path';
 import type { Tree } from '@nx/devkit';
 import { logger, output } from '@nx/devkit';
 import { createTreeWithEmptyWorkspace } from '@nx/devkit/testing';
+import * as versions from '../../lib/versions';
 import { boundedContextGenerator } from './generator';
 import type { BoundedContextGeneratorSchema } from './schema';
 
@@ -11,6 +12,11 @@ jest.mock('node:child_process', () => ({
   ...jest.requireActual<typeof import('node:child_process')>('node:child_process'),
   execFileSync: jest.fn(),
 }));
+
+jest.mock('../../lib/versions', () => {
+  const actual = jest.requireActual<typeof import('../../lib/versions')>('../../lib/versions');
+  return { ...actual, readVersions: jest.fn(actual.readVersions) };
+});
 
 const GO_VERSION = '1.26.6';
 const DIRECTORY = 'apps/backend';
@@ -76,8 +82,9 @@ const MODULE_FILES: readonly string[] = [
 const CMD_DIR = 'cmd';
 const CONTRACT_DIR = 'contract';
 const DEPLOY_DIR = 'deploy';
-const TEST_ENV = 'bash ../../../tools/test-env.sh';
-const GO_TIDY = 'bash ../../../tools/go-tidy.sh';
+const PLUGIN = '@mateusmacedo/dmpf-plugin';
+const INTEGRATION_TEST = 'go test -race -count=1 -p 1 -tags=integration ./...';
+const DISTRIBUTED_TEST = 'go test -race -count=1 -p 1 -tags=integration,distributed ./distkit/...';
 const TEST_INFRA = { projects: ['testkit'], target: 'test-infra-up' };
 const APPKIT_DIR = 'appkit';
 const DISTKIT_DIR = 'distkit';
@@ -144,9 +151,36 @@ const changesOf = (tree: Tree): Changes =>
     tree.listChanges().map((change) => [change.path, change.content?.toString('utf-8') ?? '']),
   );
 
-const treeWithGoWork = (goWork: string = GO_WORK): Tree => {
+const PLATFORM_LAYOUT = {
+  schema: 'dmpf/workspace@1',
+  modulePrefix: MODULE_PREFIX,
+  npmScope: '@mateusmacedo',
+  appsDir: DIRECTORY,
+  edge: 'bff',
+  spiffeTrustDomain: 'dmpf',
+  composeProfile: 'dmpf',
+  composeProject: 'dmpf',
+  imageRegistry: 'ghcr.io/mateusmacedo',
+  bufModule: 'buf.build/mateusmacedo',
+  tooling: { mode: 'local' },
+};
+
+const LOCAL_COMPOSE_BASE = [
+  'name: dmpf-local',
+  '',
+  'include:',
+  '  - compose/postgres.yml',
+  '',
+].join('\n');
+
+const treeWithGoWork = (
+  goWork: string = GO_WORK,
+  layout: Record<string, unknown> = PLATFORM_LAYOUT,
+): Tree => {
   const tree = createTreeWithEmptyWorkspace();
   tree.write('go.work', goWork);
+  tree.write('dmpf.json', JSON.stringify(layout));
+  tree.write('infra/local/docker-compose.yml', LOCAL_COMPOSE_BASE);
   return tree;
 };
 
@@ -218,21 +252,17 @@ const expectedTargets = ({
   integration: boolean;
   app?: boolean;
 }): Record<string, unknown> => {
-  const testRace = {
-    ...goTarget({
-      command: integration
-        ? `${TEST_ENV} go test -race -count=1 -p 1 -tags=integration ./...`
-        : 'go test -race ./...',
-      cache: !integration,
-    }),
-    ...(integration ? { dependsOn: [TEST_INFRA] } : {}),
-  };
+  const testRace = integration
+    ? {
+        executor: `${PLUGIN}:test-env`,
+        cache: false,
+        inputs: ['go', '^go'],
+        options: { command: INTEGRATION_TEST },
+        dependsOn: [TEST_INFRA],
+      }
+    : goTarget({ command: 'go test -race ./...', cache: true });
   return {
-    tidy: {
-      executor: 'nx:run-commands',
-      cache: false,
-      options: { command: GO_TIDY, cwd: '{projectRoot}' },
-    },
+    tidy: { executor: `${PLUGIN}:go-tidy`, cache: false },
     'fmt-check': goTarget({ command: GOFMT_COMMAND, cache: true }),
     vet: goTarget({ command: 'go vet ./...', cache: true }),
     build: goTarget({ command: 'go build ./...' }),
@@ -258,7 +288,7 @@ const expectedTargets = ({
             dependsOn: ['docker:run'],
           },
           'test-distributed': {
-            executor: 'nx:run-commands',
+            executor: `${PLUGIN}:test-env`,
             cache: false,
             inputs: ['go', '^go'],
             dependsOn: [
@@ -266,20 +296,14 @@ const expectedTargets = ({
               { projects: ['postgres', 'app'], target: 'test-race' },
               'test-race',
             ],
-            options: {
-              command: `${TEST_ENV} go test -race -count=1 -p 1 -tags=integration,distributed ./distkit/...`,
-              cwd: '{projectRoot}',
-            },
+            options: { command: DISTRIBUTED_TEST },
           },
           e2e: {
-            executor: 'nx:run-commands',
+            executor: `${PLUGIN}:test-env`,
             cache: false,
             inputs: ['go', '^go'],
             dependsOn: [TEST_INFRA],
-            options: {
-              command: `${TEST_ENV} go test -race -count=1 -p 1 -tags=integration,distributed ./distkit/...`,
-              cwd: '{projectRoot}',
-            },
+            options: { command: DISTRIBUTED_TEST },
           },
         }
       : {}),
@@ -325,6 +349,126 @@ const expectRefusal = async ({
 
 afterEach(() => {
   jest.restoreAllMocks();
+});
+
+describe('[generator] bounded-context — workspace layout', () => {
+  const CONSUMER_LAYOUT = {
+    ...PLATFORM_LAYOUT,
+    modulePrefix: 'github.com/acme/shop',
+    npmScope: '@acme',
+    appsDir: 'services',
+    edge: '',
+    tooling: { mode: 'version' },
+  };
+
+  it('should refuse to run without dmpf.json, pointing to init', async () => {
+    await expectRefusal({
+      overrides: {},
+      prepare: (tree) => tree.delete('dmpf.json'),
+      message: /@mateusmacedo\/dmpf-plugin:init/,
+    });
+  });
+
+  it('should refuse the reserved module prefix before writing anything', async () => {
+    await expectRefusal({
+      overrides: {},
+      prepare: (tree) =>
+        tree.write(
+          'dmpf.json',
+          JSON.stringify({ ...PLATFORM_LAYOUT, modulePrefix: 'example.com/change-me' }),
+        ),
+      message: /init --modulePrefix=<path>/,
+    });
+  });
+
+  it('should refuse to run without the local compose that init writes', async () => {
+    await expectRefusal({
+      overrides: {},
+      prepare: (tree) => tree.delete('infra/local/docker-compose.yml'),
+      message: /infra\/local\/docker-compose\.yml.*@mateusmacedo\/dmpf-plugin:init/,
+    });
+  });
+
+  it('should refuse a directory other than the apps directory of dmpf.json', async () => {
+    await expectRefusal({
+      overrides: { directory: 'apps/other' },
+      message: /must be apps\/backend/,
+    });
+  });
+
+  it('should take the module path, the npm scope and the apps directory from dmpf.json', async () => {
+    const tree = treeWithGoWork(GO_WORK, CONSUMER_LAYOUT);
+
+    await boundedContextGenerator(tree, { ...FULL_OPTIONS, directory: undefined });
+
+    expect(readText(tree, 'services/checkout/go.mod')).toContain(
+      'module github.com/acme/shop/services/checkout',
+    );
+    expect(readJsonFile<{ name: string }>(tree, 'services/checkout/package.json').name).toBe(
+      '@acme/checkout',
+    );
+  });
+
+  it('should run modsync and infrasync by version, requiring the kernel the templates import', async () => {
+    const run = childProcess.execFileSync as jest.MockedFunction<typeof childProcess.execFileSync>;
+    run.mockClear();
+    const tree = treeWithGoWork(GO_WORK, CONSUMER_LAYOUT);
+    const { conformance, kernel } = versions.readVersions();
+
+    const callback = await boundedContextGenerator(tree, { ...FULL_OPTIONS, directory: undefined });
+    await callback();
+
+    const tool = (name: string) =>
+      `${MODULE_PREFIX}/tools/dmpf-conformance/cmd/${name}@${conformance}`;
+    const requires = [
+      'app',
+      'grpc',
+      'kafka',
+      'observability',
+      'postgres',
+      'testkit',
+      'transport',
+    ].flatMap((lib) => ['--require', `${MODULE_PREFIX}/libs/backend/go/${lib}@${kernel}`]);
+    expect(run).toHaveBeenNthCalledWith(
+      1,
+      'go',
+      ['run', tool('modsync'), '--root', '.', '--write', ...requires],
+      {
+        cwd: tree.root,
+        stdio: 'inherit',
+      },
+    );
+    expect(run).toHaveBeenNthCalledWith(
+      2,
+      'go',
+      ['run', tool('infrasync'), '--root', '.', '--write'],
+      {
+        cwd: tree.root,
+        stdio: 'inherit',
+      },
+    );
+  });
+});
+
+describe('[generator] bounded-context — tool pins', () => {
+  it('should take every tool pin of the generated files from versions.json', async () => {
+    const published = versions.readVersions();
+    jest.mocked(versions.readVersions).mockReturnValueOnce({
+      ...published,
+      go: { ...published.go, image: 'golang:9.9.9-alpine' },
+      protocGenGo: 'v9.9.8',
+      govulncheck: 'v9.9.7',
+    });
+
+    const tree = await generate();
+
+    expect(readText(tree, `${MODULE_DIR}/${DOCKERFILE}`)).toContain(
+      'FROM golang:9.9.9-alpine AS build',
+    );
+    expect(readText(tree, `${CONTRACT_MODULE_DIR}/buf.gen.yaml`)).toContain('protoc-gen-go@v9.9.8');
+    expect(readText(tree, `${MODULE_DIR}/project.json`)).toContain('govulncheck@v9.9.7');
+    expect(readText(tree, `${CONTRACT_MODULE_DIR}/project.json`)).toContain('govulncheck@v9.9.7');
+  });
 });
 
 describe('[generator] bounded-context — generation', () => {
@@ -681,9 +825,8 @@ describe('[generator] bounded-context — generation', () => {
       { projects: ['postgres', 'app'], target: 'test-race' },
       'test-race',
     ]);
-    expect((target.options as { command: string }).command).toBe(
-      `${TEST_ENV} go test -race -count=1 -p 1 -tags=integration,distributed ./distkit/...`,
-    );
+    expect(target.executor).toBe(`${PLUGIN}:test-env`);
+    expect(target.options).toEqual({ command: DISTRIBUTED_TEST });
   });
 
   it('should leave no test kit when the context has no app block', async () => {
@@ -737,6 +880,14 @@ describe('[generator] bounded-context — generation', () => {
       './libs/backend/go/ports',
     ]);
     expect(readText(tree, 'go.work').startsWith(`go ${GO_VERSION}`)).toBe(true);
+  });
+
+  it('should open the use block in a go.work that has only the go directive, as init writes it', async () => {
+    const tree = await generate({}, (prepared) => prepared.write('go.work', `go ${GO_VERSION}\n`));
+
+    expect(readText(tree, 'go.work')).toBe(
+      `go ${GO_VERSION}\n\nuse (\n\t./apps/backend/checkout\n\t./apps/backend/checkout/contract\n)\n`,
+    );
   });
 
   it('should write a private, unpublished package.json named after the context', async () => {
@@ -1186,7 +1337,7 @@ describe('[generator] bounded-context — determinism and output', () => {
 
 describe('[generator] bounded-context — contract module', () => {
   type ContractProject = ProjectConfig & {
-    targets: Record<string, { options: { command: string; cwd?: string } }>;
+    targets: Record<string, { executor: string; options: Record<string, unknown> }>;
   };
 
   const contractProjectOf = (tree: Tree): ContractProject =>
@@ -1220,15 +1371,14 @@ describe('[generator] bounded-context — contract module', () => {
     expect(project.tags).toEqual(['type:lib', 'scope:backend', 'stack:go', 'layer:contract']);
   });
 
-  it('should run the Buf gates on the contract directory with the project name', async () => {
+  it('should run the Buf gates and the tidy of the contract through the plugin executors', async () => {
     const targets = contractProjectOf(await generate()).targets;
 
     for (const gate of ['warmup', 'lint', 'pins', 'generate-check', 'breaking']) {
-      expect(targets[`buf-${gate}`].options.command).toBe(
-        `bash tools/buf-gate.sh ${gate} ${CONTRACT_MODULE_DIR} --project checkout-contract`,
-      );
+      expect(targets[`buf-${gate}`].executor).toBe(`${PLUGIN}:buf-gate`);
+      expect(targets[`buf-${gate}`].options).toEqual({ gate });
     }
-    expect(targets.tidy.options.command).toBe('bash ../../../../tools/go-tidy.sh');
+    expect(targets.tidy).toEqual({ executor: `${PLUGIN}:go-tidy`, cache: false });
     expect(Object.keys(targets).sort()).toEqual([
       'buf-breaking',
       'buf-generate-check',

@@ -1,0 +1,15 @@
+{
+  "schema": "dmpf/workspace@1",
+  "modulePrefix": "github.com/mateusmacedo/dmpf",
+  "npmScope": "@mateusmacedo",
+  "appsDir": "apps/backend",
+  "edge": "bff",
+  "spiffeTrustDomain": "dmpf",
+  "composeProfile": "dmpf",
+  "composeProject": "dmpf",
+  "imageRegistry": "ghcr.io/mateusmacedo",
+  "bufModule": "buf.build/mateusmacedo",
+  "tooling": {
+    "mode": "local"
+  }
+}

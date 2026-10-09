@@ -163,7 +163,7 @@ func ResetTables(t testing.TB, pool *pgxpool.Pool, tables ...string) {
 
 func requireTestCluster(name string) error {
 	if name != TestCluster {
-		return fmt.Errorf("%w: cluster_name is %q, want %q (bash tools/test-infra.sh up)", ErrNotTestCluster, name, TestCluster)
+		return fmt.Errorf("%w: cluster_name is %q, want %q (start it with the @mateusmacedo/dmpf-plugin:test-infra executor, action up)", ErrNotTestCluster, name, TestCluster)
 	}
 	return nil
 }

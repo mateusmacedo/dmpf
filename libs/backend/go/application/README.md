@@ -318,7 +318,7 @@ lhe permite (`capability.go:47`), mas esta entrega não usa.
 ```bash
 pnpm nx run-many -t fmt-check,vet,lint,build,test,test-race,govulncheck -p application
 go -C libs/backend/go/application test -race -count=2 -shuffle=on ./...
-bash tools/dmpf-gate-check.sh
+bash tools/dmpf-plugin/scripts/dmpf-gate-check.sh
 go run ./tools/dmpf-conformance/cmd/conformance --root .
 ```
 

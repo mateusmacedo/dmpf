@@ -9,12 +9,8 @@
       "executor": "nx:noop"
     },
     "tidy": {
-      "executor": "nx:run-commands",
-      "cache": false,
-      "options": {
-        "command": "bash ../../../tools/go-tidy.sh",
-        "cwd": "{projectRoot}"
-      }
+      "executor": "@mateusmacedo/dmpf-plugin:go-tidy",
+      "cache": false
     },
     "fmt-check": {
       "executor": "nx:run-commands",
@@ -43,12 +39,11 @@
       }
     },
     "test-race": {
-      "executor": "nx:run-commands",
+      "executor": "@mateusmacedo/dmpf-plugin:test-env",
       "cache": false,
       "inputs": ["go", "^go"],
       "options": {
-        "command": "bash ../../../tools/test-env.sh go test -race -count=1 -p 1 -tags=integration ./...",
-        "cwd": "{projectRoot}"
+        "command": "go test -race -count=1 -p 1 -tags=integration ./..."
       },
       "dependsOn": [
         {
@@ -66,7 +61,7 @@
       }
     },
     "test-distributed": {
-      "executor": "nx:run-commands",
+      "executor": "@mateusmacedo/dmpf-plugin:test-env",
       "cache": false,
       "inputs": ["go", "^go"],
       "dependsOn": [
@@ -81,12 +76,11 @@
         "test-race"
       ],
       "options": {
-        "command": "bash ../../../tools/test-env.sh go test -race -count=1 -p 1 -tags=integration,distributed ./distkit/...",
-        "cwd": "{projectRoot}"
+        "command": "go test -race -count=1 -p 1 -tags=integration,distributed ./distkit/..."
       }
     },
     "e2e": {
-      "executor": "nx:run-commands",
+      "executor": "@mateusmacedo/dmpf-plugin:test-env",
       "cache": false,
       "inputs": ["go", "^go"],
       "dependsOn": [
@@ -96,8 +90,7 @@
         }
       ],
       "options": {
-        "command": "bash ../../../tools/test-env.sh go test -race -count=1 -p 1 -tags=integration,distributed ./distkit/...",
-        "cwd": "{projectRoot}"
+        "command": "go test -race -count=1 -p 1 -tags=integration,distributed ./distkit/..."
       }
     },
     "serve-api": {

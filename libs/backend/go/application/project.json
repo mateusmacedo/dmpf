@@ -6,12 +6,8 @@
   "tags": ["type:lib", "scope:backend", "stack:go", "layer:services"],
   "targets": {
     "tidy": {
-      "executor": "nx:run-commands",
-      "cache": false,
-      "options": {
-        "command": "bash ../../../../tools/go-tidy.sh",
-        "cwd": "{projectRoot}"
-      }
+      "executor": "@mateusmacedo/dmpf-plugin:go-tidy",
+      "cache": false
     },
     "fmt-check": {
       "executor": "nx:run-commands",

@@ -1,11 +1,11 @@
 # infra/
 
-Manifestos da plataforma do workspace, modulares: um recurso por arquivo, compostos por ambiente. O que é de cada app — Kubernetes, Compose, `.env.example` e o `infra.json` com banco, tópicos, ACLs e certificado — vive em `apps/backend/<app>/deploy/` (ADR-054); a parte agregada (provisionamento, PKI, Swagger UI, `local/.env.example`, listas dos overlays e o Job de bancos do `dev`) é gerada por `go run ./tools/dmpf-conformance/cmd/infrasync --root . --write` e conferida no CI com `--check`. As configurações dos componentes de observabilidade são **fonte única** — o Compose as monta por bind e o Kustomize as gera como ConfigMap a partir do mesmo arquivo (por isso elas vivem ao lado dos manifestos: o Kustomize recusa arquivo fora do diretório do kustomization).
+Manifestos da plataforma do workspace, modulares: um recurso por arquivo, compostos por ambiente. O que é de cada app — Kubernetes, Compose, `.env.example` e o `infra.json` com banco, tópicos, ACLs e certificado — vive em `apps/backend/<app>/deploy/` (ADR-054); a parte agregada (provisionamento, PKI, Swagger UI, `local/.env.example`, listas dos overlays, o Job de bancos do `dev` e a lista de apps que o Alloy do Kubernetes descarta) é gerada por `go run ./tools/dmpf-conformance/cmd/infrasync --root . --write` e conferida no CI com `--check`. O esqueleto estático — `test/`, `k8s/base/` e os recursos de `local/compose/` e `observability/`, fora os gerados pelo `infrasync`, o `k6.yml` e os dashboards do platform — é saída do `init` do `dmpf-plugin`, a partir de `tools/dmpf-plugin/templates/init/`: edite o template, porque o CI reprova a cópia que diverge dele. As configurações dos componentes de observabilidade são **fonte única** — o Compose as monta por bind e o Kustomize as gera como ConfigMap a partir do mesmo arquivo (por isso elas vivem ao lado dos manifestos: o Kustomize recusa arquivo fora do diretório do kustomization).
 
 ```text
 infra/
 ├── local/                          # desenvolvimento local (Docker Compose)
-│   ├── docker-compose.yml          # projeto `lidercap-local`: só `name` + `include:` dos recursos e dos deploy/compose.yml das apps
+│   ├── docker-compose.yml          # projeto `dmpf-local`: só `name` + `include:` dos recursos e dos deploy/compose.yml das apps
 │   ├── .env.example                # gerado pelo infrasync: variáveis da plataforma e das apps
 │   └── compose/                    # um arquivo por recurso
 │       ├── postgres.yml            # profile postgres
@@ -37,7 +37,7 @@ infra/
 │   ├── base/{postgres,redpanda}/
 │   └── overlays/{dev,hmg}/         # compõem apps/backend/<app>/deploy/k8s/overlays/<env>; listas geradas
 │                                   # hmg: TLS do receiver OTLP do Collector (otel-collector-tls.yaml, otel-collector-patch.yaml)
-├── test/compose.yml                # infra dos testes de integração (projeto `lidercap-testinfra`, só tmpfs)
+├── test/compose.yml                # infra dos testes de integração (projeto `dmpf-testinfra`, só tmpfs)
 └── docker/Dockerfile.node.example  # referência para apps Node
 ```
 

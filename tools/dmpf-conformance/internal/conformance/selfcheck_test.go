@@ -3,7 +3,6 @@ package conformance_test
 import (
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -30,8 +29,7 @@ func TestMain(m *testing.M) {
 func TestVerificadorPassaNoProprioGate(t *testing.T) {
 	raiz := raizDoWorkspace(t)
 
-	perfis, err := fsstore.LoadBuildProfiles(
-		filepath.Join(raiz, "tools", "dmpf-conformance", "build-profiles.json"))
+	perfis, err := fsstore.LoadBuildProfiles("")
 	if err != nil {
 		t.Fatalf("perfis de produção: %v", err)
 	}
@@ -122,8 +120,7 @@ func TestAutoverificacaoExercitaAsCelulasQuePromete(t *testing.T) {
 	raiz := raizDoWorkspace(t)
 	const m = "github.com/mateusmacedo/dmpf/tools/dmpf-conformance"
 
-	perfis, err := fsstore.LoadBuildProfiles(
-		filepath.Join(raiz, "tools", "dmpf-conformance", "build-profiles.json"))
+	perfis, err := fsstore.LoadBuildProfiles("")
 	if err != nil {
 		t.Fatalf("perfis: %v", err)
 	}

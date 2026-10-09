@@ -167,7 +167,7 @@ cruza.
 `integration,distributed`.
 
 Os dois targets sobem a infra de testes (`testkit:test-infra-up`), e o
-`tools/test-env.sh` preenche `PG_DSN` e `KAFKA_BROKERS` com o Postgres (15432) e
+`tools/dmpf-plugin/scripts/test-env.sh` preenche `PG_DSN` e `KAFKA_BROKERS` com o Postgres (15432) e
 o Redpanda (19092) dela, a partir do `.env.example` da raiz:
 
 ```bash

@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/schema",
+  "version": 2,
+  "title": "buf-gate",
+  "description": "Gates Buf de um módulo de contrato (BUF-02, BUF-06, BUF-08): lint, pins, generate-check, breaking e o warmup que compila CLI e plugin antes das tasks paralelas.",
+  "type": "object",
+  "properties": {
+    "gate": {
+      "type": "string",
+      "enum": ["warmup", "lint", "pins", "generate-check", "breaking"],
+      "description": "Gate a executar."
+    },
+    "module": {
+      "type": "string",
+      "description": "Diretório do módulo com buf.yaml e buf.gen.yaml, relativo à raiz. Default: a raiz do projeto."
+    },
+    "project": {
+      "type": "string",
+      "description": "Projeto Nx do módulo. Default: o projeto do target."
+    }
+  },
+  "required": ["gate"],
+  "additionalProperties": false
+}

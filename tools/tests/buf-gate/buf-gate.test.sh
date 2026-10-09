@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Autoteste de tools/buf-gate.sh: cada gate reprova o que deve reprovar e libera o
+# Autoteste de tools/dmpf-plugin/scripts/buf-gate.sh: cada gate reprova o que deve reprovar e libera o
 # que deve liberar, em repositórios git descartáveis. Os repositórios ficam em /tmp
-# e não são apagados, como em tools/dmpf-gate-check.sh (sem utilitário de lixeira).
+# e não são apagados, como em tools/dmpf-plugin/scripts/dmpf-gate-check.sh (sem utilitário de lixeira).
 set -uo pipefail
 
 ROOT="$(git rev-parse --show-toplevel)" || { echo "fora de um repositorio git" >&2; exit 2; }
@@ -15,12 +15,13 @@ casos=0
 novo_sandbox() {
   local dir
   dir="$(mktemp -d)" || exit 2
-  mkdir -p "$dir/tools" "$dir/libs/backend/go/contracts"
+  mkdir -p "$dir/tools/dmpf-plugin/scripts" "$dir/libs/backend/go/contracts"
   cp -R "$ROOT/libs/backend/go/contracts/proto" "$dir/libs/backend/go/contracts/proto"
   cp -R "$ROOT/libs/backend/go/contracts/testdata/proto/dmpf" "$dir/libs/backend/go/contracts/proto/dmpf"
   grep -v '^  - path: testdata/proto$' "$ROOT/libs/backend/go/contracts/buf.yaml" > "$dir/libs/backend/go/contracts/buf.yaml"
   grep -v '^  - directory: testdata/proto$' "$ROOT/libs/backend/go/contracts/buf.gen.yaml" > "$dir/libs/backend/go/contracts/buf.gen.yaml"
-  cp "$ROOT/tools/buf.sh" "$ROOT/tools/buf-gate.sh" "$dir/tools/"
+  cp "$ROOT/tools/dmpf-plugin/scripts/buf.sh" "$ROOT/tools/dmpf-plugin/scripts/buf-gate.sh" "$dir/tools/dmpf-plugin/scripts/"
+  cp "$ROOT/tools/dmpf-plugin/versions.json" "$dir/tools/dmpf-plugin/"
   cp "$ROOT/libs/backend/go/contracts/go.mod" "$ROOT/libs/backend/go/contracts/go.sum" "$dir/libs/backend/go/contracts/"
   cp -R "$ROOT/libs/backend/go/contracts/gen" "$dir/libs/backend/go/contracts/gen"
   git -C "$dir" init -q -b main
@@ -62,9 +63,9 @@ nao_publicar() { # dir pacote-relativo
 gate() { # dir subcomando [NX_BASE]
   local dir="$1" sub="$2" base="${3-__unset__}" mod="${MODULO:-libs/backend/go/contracts}" proj="${PROJETO:-contracts}"
   if [ "$base" = "__unset__" ]; then
-    (cd "$dir" && env -u NX_BASE -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE bash tools/buf-gate.sh "$sub" "$mod" --project "$proj")
+    (cd "$dir" && env -u DMPF_BUF_VERSION -u NX_BASE -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE bash tools/dmpf-plugin/scripts/buf-gate.sh "$sub" "$mod" --project "$proj")
   else
-    (cd "$dir" && env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE NX_BASE="$base" bash tools/buf-gate.sh "$sub" "$mod" --project "$proj")
+    (cd "$dir" && env -u DMPF_BUF_VERSION -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE NX_BASE="$base" bash tools/dmpf-plugin/scripts/buf-gate.sh "$sub" "$mod" --project "$proj")
   fi
 }
 
@@ -193,7 +194,7 @@ verificar "byte alterado no gerado (drift)" 1 "$S" generate-check "drift"
 
 echo "== pins =="
 S="$(novo_sandbox)"
-sed -i 's/@v[0-9.]*/@latest/' "$S/tools/buf.sh"
+sed -i -E 's/"buf": "v[0-9.]+"/"buf": "latest"/' "$S/tools/dmpf-plugin/versions.json"
 verificar "@latest na CLI" 1 "$S" pins "BUF-06"
 
 S="$(novo_sandbox)"
@@ -211,7 +212,7 @@ verificar "pins divergentes entre modulos" 1 "$S" pins "" "diverge entre modulos
 
 echo "== uso =="
 S="$(novo_sandbox)"
-saida="$(cd "$S" && bash tools/buf-gate.sh lint 2>&1)"; status=$?
+saida="$(cd "$S" && bash tools/dmpf-plugin/scripts/buf-gate.sh lint 2>&1)"; status=$?
 casos=$((casos + 1))
 if [ "$status" -eq 2 ]; then echo "PASS  gate sem diretorio do modulo sai com 2"; else echo "FAIL  gate sem diretorio: exit $status"; falhas=$((falhas + 1)); fi
 

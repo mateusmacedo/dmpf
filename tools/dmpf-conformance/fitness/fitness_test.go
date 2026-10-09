@@ -1,6 +1,8 @@
 package fitness_test
 
 import (
+	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -283,5 +285,34 @@ func TestStandardCapabilityMirrorsTheChecker(t *testing.T) {
 		if ok != c.ok || got != c.want {
 			t.Errorf("StandardCapability(%q) = (%q, %v), want (%q, %v)", c.path, got, ok, c.want, c.ok)
 		}
+	}
+}
+
+func TestWorkspaceLeOKernelPorVersaoComoSharedKernel(t *testing.T) {
+	base := t.TempDir()
+	for _, nome := range []string{"consumer", "kernel"} {
+		if err := os.CopyFS(filepath.Join(base, nome), os.DirFS(filepath.Join(fixtures, "kernelext", nome))); err != nil {
+			t.Fatal(err)
+		}
+	}
+	repo := filepath.Join(base, "consumer")
+	for _, args := range [][]string{{"init", "-q"}, {"add", "."}} {
+		cmd := exec.Command("git", args...)
+		cmd.Dir = repo
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+
+	in, err := fitness.Workspace(repo, "")
+	if err != nil {
+		t.Fatalf("Workspace: %v", err)
+	}
+	diags, err := fitness.Diagnostics(in)
+	if err != nil {
+		t.Fatalf("Diagnostics: %v", err)
+	}
+	if len(diags) != 0 {
+		t.Fatalf("consumidor do kernel por versão reprovou: %v", diags)
 	}
 }
