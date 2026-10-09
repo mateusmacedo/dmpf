@@ -1,3 +1,28 @@
+## 1.0.0-rc.2 (2026-10-09)
+
+### 🚀 Features
+
+- **dmpf-plugin:** Atualizar o workspace consumidor por nx migrate ([fbbad59](https://github.com/mateusmacedo/dmpf/commit/fbbad59))
+- **dmpf-plugin:** Registrar em dmpf.rendered.json o que o init gera ([d42ec93](https://github.com/mateusmacedo/dmpf/commit/d42ec93))
+- **dmpf-plugin:** Escrever o chamador do CI no init em modo version ([1e62782](https://github.com/mateusmacedo/dmpf/commit/1e62782))
+- **dmpf-plugin:** Distribuir os ativos de IA pelo init ([24fda53](https://github.com/mateusmacedo/dmpf/commit/24fda53))
+- **dmpf-plugin:** Adicionar o init e desacoplar o bounded-context do platform ([748e6df](https://github.com/mateusmacedo/dmpf/commit/748e6df))
+- **dmpf-plugin:** Empacotar os scripts como executors do plugin ([1f96bdb](https://github.com/mateusmacedo/dmpf/commit/1f96bdb))
+- **dmpf-plugin:** Tornar o plugin publicável e fixar versões no versions.json ([5e7275a](https://github.com/mateusmacedo/dmpf/commit/5e7275a))
+
+### 🩹 Fixes
+
+- **dmpf-plugin:** Corrigir os achados do SonarCloud no plugin ([2c809cc](https://github.com/mateusmacedo/dmpf/commit/2c809cc))
+- **dmpf-plugin:** Endurecer scripts, migrations e init após o checklist ([c0c6135](https://github.com/mateusmacedo/dmpf/commit/c0c6135))
+- **dmpf-plugin:** Corrigir os achados do code review ([ca643bf](https://github.com/mateusmacedo/dmpf/commit/ca643bf))
+- **dmpf-plugin:** Conceder packages: read no chamador de CI do init ([33d5b0a](https://github.com/mateusmacedo/dmpf/commit/33d5b0a))
+- **dmpf-plugin:** Abrir o bloco use no go.work que o init escreve ([e220135](https://github.com/mateusmacedo/dmpf/commit/e220135))
+- **dmpf-plugin:** Ler o DDL do kernel pelo go mod download ([5b4725e](https://github.com/mateusmacedo/dmpf/commit/5b4725e))
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 1.0.0-rc.1 (2026-10-06)
 
 Initial release

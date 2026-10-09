@@ -1,3 +1,13 @@
+## 1.0.0-rc.2 (2026-10-09)
+
+### 🧱 Updated Dependencies
+
+- Updated observability to 1.0.0-rc.2
+- Updated contracts to 1.0.0-rc.2
+- Updated transport to 1.0.0-rc.2
+- Updated testkit to 1.0.0-rc.2
+- Updated ports to 1.0.0-rc.2
+
 ## 1.0.0-rc.1 (2026-10-06)
 
 ### 🧱 Updated Dependencies

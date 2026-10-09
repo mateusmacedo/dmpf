@@ -1,3 +1,20 @@
+## 1.0.0-rc.2 (2026-10-09)
+
+### 🚀 Features
+
+- **conformance:** Ler o kernel por versão e parametrizar o infrasync ([9d588b8](https://github.com/mateusmacedo/dmpf/commit/9d588b8))
+
+### 🩹 Fixes
+
+- **conformance:** Validar o nome de app no infrasync ([1dd6298](https://github.com/mateusmacedo/dmpf/commit/1dd6298))
+- **conformance:** Aceitar manifesto de kernel só sob o prefixo do DMPF ([1cc6e2e](https://github.com/mateusmacedo/dmpf/commit/1cc6e2e))
+- **conformance:** Ler o kernel com -mod=readonly mesmo com vendor/ ([12ebab5](https://github.com/mateusmacedo/dmpf/commit/12ebab5))
+- **conformance:** Recalcular a build list após os --require do modsync ([604132b](https://github.com/mateusmacedo/dmpf/commit/604132b))
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 1.0.0-rc.1 (2026-10-06)
 
 Initial release
