@@ -3,8 +3,8 @@
   "kernel": "v1.0.0-rc.1",
   "conformance": "v1.0.0-rc.1",
   "go": {
-    "directive": "1.26.6",
-    "image": "golang:1.26.6-alpine"
+    "directive": "1.26.9",
+    "image": "golang:1.26.9-alpine"
   },
   "buf": "v1.72.0",
   "protocGenGo": "v1.36.12",
