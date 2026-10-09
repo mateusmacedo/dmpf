@@ -20,11 +20,18 @@ que cada generator, executor e migration faz está em
 
 O registry npm do GitHub Packages exige token até para instalar pacote
 público. Fora do GitHub Actions, use um personal access token (classic) com o
-escopo `read:packages` e declare o registry do escopo no `.npmrc` da raiz do
-workspace:
+escopo `read:packages`.
+
+O registry do escopo vai no `.npmrc` da raiz do workspace, versionado:
 
 ```ini
 @mateusmacedo:registry=https://npm.pkg.github.com
+```
+
+A credencial vai no `.npmrc` do seu usuário (`~/.npmrc`), nunca no do
+workspace:
+
+```ini
 //npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}
 ```
 
@@ -32,9 +39,13 @@ workspace:
 export NODE_AUTH_TOKEN=<token>
 ```
 
-O `.npmrc` não guarda o token: ele lê a variável. No CI, o workflow do DMPF
-(passo 5) preenche `NODE_AUTH_TOKEN` com o `GITHUB_TOKEN` do job, que baixa
-pacote público de qualquer repositório.
+Desde a 11.5.3, o pnpm ignora `${...}` em credencial do `.npmrc` do repositório
+e avisa `Ignored project-level auth setting` (GHSA-3qhv-2rgh-x77r): o arquivo vem
+com o checkout, e expandir a variável deixaria um repositório desviar o token
+para outro registry. No `.npmrc` de usuário a variável continua valendo, e o
+arquivo não guarda o token. No CI, o workflow do DMPF (passo 5) preenche
+`NODE_AUTH_TOKEN` com o `GITHUB_TOKEN` do job, que baixa pacote público de
+qualquer repositório, e grava a credencial num `.npmrc` de usuário próprio.
 
 ## 2. Instalar e inicializar
 
@@ -144,7 +155,7 @@ com `pnpm nx g @mateusmacedo/dmpf-plugin:init --force`.
 | --- | --- |
 | `bounded-context` recusa o prefixo `example.com/change-me` | o `init` rodou sem `--modulePrefix`; rode-o com o prefixo real |
 | `init` lista arquivos editados e não escreve nada | os arquivos foram alterados depois do `init`; salve as mudanças e rode com `--force` |
-| `pnpm install` responde 401 no `npm.pkg.github.com` | `NODE_AUTH_TOKEN` ausente ou sem `read:packages` |
+| `pnpm install` responde 401 no `npm.pkg.github.com` | `NODE_AUTH_TOKEN` ausente ou sem `read:packages`, ou a credencial está no `.npmrc` do workspace (o pnpm 11.5.3+ a ignora com `Ignored project-level auth setting`); mova-a para o `~/.npmrc` |
 | CI: `dmpf-plugin instalado (X) difere do chamador do CI (Y)` | o plugin subiu sem as migrations; rode o passo 6 |
 | `conformance` com exit 2 e `NAO VERIFICADO` | um módulo do kernel não foi lido; confira a rede e o proxy Go |
 

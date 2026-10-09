@@ -27,7 +27,7 @@ permissions: {}
 env:
   CI: "true"
   # O registry npm do GitHub Packages exige token até para pacote público; o
-  # .npmrc do consumidor o lê daqui para instalar o plugin.
+  # .npmrc de usuário que cada job grava o lê daqui para instalar o plugin.
   NODE_AUTH_TOKEN: ${{ github.token }}
 
 jobs:
@@ -76,6 +76,12 @@ jobs:
           sparse-checkout: /.github/actions/
           sparse-checkout-cone-mode: false
           persist-credentials: false
+
+      # O pnpm 11.5.3+ não expande ${VAR} em credencial do .npmrc do repositório (GHSA-3qhv-2rgh-x77r).
+      - name: Credencial do GitHub Packages no .npmrc de usuário
+        run: |
+          printf '%s\n' '//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}' > "$RUNNER_TEMP/npmrc"
+          echo "NPM_CONFIG_USERCONFIG=$RUNNER_TEMP/npmrc" >> "$GITHUB_ENV"
 
       - name: Setup Node and pnpm
         uses: ./.dmpf-ci/.github/actions/setup-node-pnpm
@@ -346,6 +352,12 @@ jobs:
           sparse-checkout: /.github/actions/
           sparse-checkout-cone-mode: false
           persist-credentials: false
+
+      # O pnpm 11.5.3+ não expande ${VAR} em credencial do .npmrc do repositório (GHSA-3qhv-2rgh-x77r).
+      - name: Credencial do GitHub Packages no .npmrc de usuário
+        run: |
+          printf '%s\n' '//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}' > "$RUNNER_TEMP/npmrc"
+          echo "NPM_CONFIG_USERCONFIG=$RUNNER_TEMP/npmrc" >> "$GITHUB_ENV"
 
       - name: Setup Node and pnpm
         uses: ./.dmpf-ci/.github/actions/setup-node-pnpm
