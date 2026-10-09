@@ -110,7 +110,7 @@ jobs:
         uses: ./.github/actions/setup-go
 
       - name: Prova do consumidor externo
-        run: bash tools/external-consumer.sh
+        run: bash tools/external-consumer.sh --verdaccio
 
   dmpf-gates:
     name: Gates DMPF do platform (célula e shared kernel)
