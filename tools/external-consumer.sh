@@ -76,9 +76,11 @@ echo '{ "$schema": "./node_modules/nx/schemas/nx-schema.json" }' > "$CONSUMER/nx
 printf 'allowBuilds:\n  nx: true\n' > "$CONSUMER/pnpm-workspace.yaml"
 printf 'node_modules\n.nx\n' > "$CONSUMER/.gitignore"
 if [[ -n "$PLUGIN_VERSION" ]]; then
-  printf '%s\n' '@mateusmacedo:registry=https://npm.pkg.github.com' \
-    '//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}' 'fetch-retries=5' 'fetch-retry-mintimeout=10000' \
+  printf '%s\n' '@mateusmacedo:registry=https://npm.pkg.github.com' 'fetch-retries=5' 'fetch-retry-mintimeout=10000' \
     > "$CONSUMER/.npmrc"
+  # O pnpm 11.5.3+ não expande ${VAR} em credencial do .npmrc do projeto (GHSA-3qhv-2rgh-x77r).
+  printf '%s\n' '//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}' > "$WORK/npmrc"
+  export NPM_CONFIG_USERCONFIG="$WORK/npmrc"
 fi
 cd "$CONSUMER"
 # O consumidor roda como um dev: sem CI, o pnpm cria o lockfile que ainda não existe
