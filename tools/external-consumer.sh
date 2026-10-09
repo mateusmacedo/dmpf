@@ -1,27 +1,33 @@
 #!/usr/bin/env bash
 # Prova que um workspace Nx de fora consome o DMPF por versão: init, bounded-context e
-# gates, com o plugin do PR (pack + proxy file://) ou publicado (--plugin-version).
-# uso: external-consumer.sh [--work <dir>] [--plugin-version <v> [--upgrade-from <v>]]
+# gates, com o plugin do PR (pack + proxy file://, instalado do arquivo ou de um
+# Verdaccio local com --verdaccio) ou publicado (--plugin-version).
+# uso: external-consumer.sh [--work <dir>] [--verdaccio | --plugin-version <v> [--upgrade-from <v>]]
 set -euo pipefail
 
 ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT"
 KERNEL=github.com/mateusmacedo/dmpf
 PLUGIN=@mateusmacedo/dmpf-plugin
+VERDACCIO_IMAGE=mirror.gcr.io/verdaccio/verdaccio:6.10.4@sha256:43c4067288b050422265407ea2fe747e511fcd0c407a85ec90ab9a326d9400cd
+REGISTRY=https://npm.pkg.github.com
 WORK=""
 PLUGIN_VERSION=""
 UPGRADE_FROM=""
+VERDACCIO=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --work) WORK="$2"; shift 2 ;;
     --plugin-version) PLUGIN_VERSION="$2"; shift 2 ;;
     --upgrade-from) UPGRADE_FROM="$2"; shift 2 ;;
+    --verdaccio) VERDACCIO=1; shift ;;
     *) echo "argumento desconhecido: $1" >&2; exit 2 ;;
   esac
 done
 [[ -z "$UPGRADE_FROM" ]] || [[ -n "$PLUGIN_VERSION" ]] || { echo "--upgrade-from exige --plugin-version" >&2; exit 2; }
 [[ -z "$PLUGIN_VERSION" ]] || [[ -n "${NODE_AUTH_TOKEN:-}" ]] || { echo "--plugin-version exige NODE_AUTH_TOKEN com read:packages" >&2; exit 2; }
+[[ -z "$VERDACCIO" ]] || [[ -z "$PLUGIN_VERSION" ]] || { echo "--verdaccio não combina com --plugin-version" >&2; exit 2; }
 WORK="${WORK:-$(mktemp -d "${RUNNER_TEMP:-/tmp}/dmpf-consumer.XXXXXX")}"
 mkdir -p "$WORK"
 WORK="$(cd "$WORK" && pwd)"
@@ -41,6 +47,34 @@ kernel_ddl() {
 }
 versao_instalada() { local campo="$1"; jq -r ".$campo" "node_modules/$PLUGIN/versions.json"; }
 commitar() { local mensagem="$1"; git add -A && git -c user.name=ci -c user.email=ci@example.com commit -q -m "$mensagem"; }
+# O pnpm 11.5.3+ não expande ${VAR} em credencial do .npmrc do projeto (GHSA-3qhv-2rgh-x77r).
+credencial_de_usuario() {
+  printf '%s\n' "//${REGISTRY#*://}/:_authToken=\${NODE_AUTH_TOKEN}" > "$WORK/npmrc"
+  export NPM_CONFIG_USERCONFIG="$WORK/npmrc"
+}
+# Exige token no escopo, como o GitHub Packages, para a prova cobrir a credencial
+# do consumidor antes de existir versão publicada.
+subir_verdaccio() {
+  local porta nome config="$WORK/verdaccio/config.yaml"
+  porta="$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])')"
+  nome="dmpf-consumer-verdaccio-$$"
+  mkdir -p "$WORK/verdaccio"
+  printf '%s\n' 'storage: /verdaccio/storage/data' 'auth:' '  htpasswd:' '    file: /verdaccio/storage/htpasswd' \
+    'packages:' '  "@mateusmacedo/*":' '    access: $authenticated' '    publish: $authenticated' \
+    'log: { type: stdout, format: pretty, level: warn }' > "$config"
+  docker run -d --rm --name "$nome" -p "127.0.0.1:$porta:4873" \
+    -v "$config:/verdaccio/conf/config.yaml:ro" "$VERDACCIO_IMAGE" > /dev/null
+  trap "docker rm -f $nome > /dev/null 2>&1 || true" EXIT
+  REGISTRY="http://127.0.0.1:$porta"
+  for tentativa in $(seq 1 30); do
+    curl -fsS "$REGISTRY/-/ping" > /dev/null 2>&1 && break
+    [[ "$tentativa" -lt 30 ]] || { echo "o Verdaccio não respondeu em $REGISTRY" >&2; exit 1; }
+    sleep 1
+  done
+  NODE_AUTH_TOKEN="$(curl -fsS -X PUT "$REGISTRY/-/user/org.couchdb.user:ci" -H 'content-type: application/json' \
+    -d '{"name": "ci", "password": "ci-verdaccio"}' | jq -r .token)"
+  export NODE_AUTH_TOKEN
+}
 
 export NX_DAEMON=false NX_NO_CLOUD=true NX_TUI=false FORCE_COLOR=0
 
@@ -59,9 +93,21 @@ if [[ -z "$PLUGIN_VERSION" ]]; then
   jq --arg v "$VERSION" --arg ref "$(git rev-parse HEAD)" '.kernel = $v | .conformance = $v | .workflowRef = $ref' \
     "$versions" > "$versions.novo"
   mv -f "$versions.novo" "$versions"
+  manifesto="$WORK/pack/unpacked/package/package.json"
+  if [[ -n "$VERDACCIO" ]]; then
+    jq 'del(.publishConfig)' "$manifesto" > "$manifesto.novo"
+    mv -f "$manifesto.novo" "$manifesto"
+  fi
   TARBALL="$WORK/pack/dmpf-plugin-consumer.tgz"
   tar -czf "$TARBALL" -C "$WORK/pack/unpacked" package
   INSTALAR="$PLUGIN@file:$TARBALL"
+  if [[ -n "$VERDACCIO" ]]; then
+    passo "plugin publicado num Verdaccio local que exige token"
+    subir_verdaccio
+    credencial_de_usuario
+    (cd "$WORK" && npm publish "$TARBALL" --registry "$REGISTRY" --@mateusmacedo:registry="$REGISTRY" --tag next)
+    INSTALAR="$PLUGIN@$(jq -r .version "$manifesto")"
+  fi
 else
   INSTALAR="$PLUGIN@${UPGRADE_FROM:-$PLUGIN_VERSION}"
 fi
@@ -75,12 +121,10 @@ jq -n --arg pm "$(jq -r .packageManager package.json)" --arg nx "$nx_version" \
 echo '{ "$schema": "./node_modules/nx/schemas/nx-schema.json" }' > "$CONSUMER/nx.json"
 printf 'allowBuilds:\n  nx: true\n' > "$CONSUMER/pnpm-workspace.yaml"
 printf 'node_modules\n.nx\n' > "$CONSUMER/.gitignore"
-if [[ -n "$PLUGIN_VERSION" ]]; then
-  printf '%s\n' '@mateusmacedo:registry=https://npm.pkg.github.com' 'fetch-retries=5' 'fetch-retry-mintimeout=10000' \
+if [[ -n "$PLUGIN_VERSION" || -n "$VERDACCIO" ]]; then
+  printf '%s\n' "@mateusmacedo:registry=$REGISTRY" 'fetch-retries=5' 'fetch-retry-mintimeout=10000' \
     > "$CONSUMER/.npmrc"
-  # O pnpm 11.5.3+ não expande ${VAR} em credencial do .npmrc do projeto (GHSA-3qhv-2rgh-x77r).
-  printf '%s\n' '//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}' > "$WORK/npmrc"
-  export NPM_CONFIG_USERCONFIG="$WORK/npmrc"
+  credencial_de_usuario
 fi
 cd "$CONSUMER"
 # O consumidor roda como um dev: sem CI, o pnpm cria o lockfile que ainda não existe
