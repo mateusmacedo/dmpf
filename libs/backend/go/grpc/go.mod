@@ -1,6 +1,6 @@
 module github.com/mateusmacedo/dmpf/libs/backend/go/grpc
 
-go 1.26.6
+go 1.26.9
 
 require (
 	github.com/mateusmacedo/dmpf/libs/backend/go/observability v1.0.0-rc.2
@@ -52,7 +52,7 @@ require (
 	go.opentelemetry.io/otel/exporters/stdout/stdoutmetric v1.47.0 // indirect
 	go.opentelemetry.io/otel/exporters/stdout/stdouttrace v1.47.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.11.1 // indirect
-	golang.org/x/net v0.59.0 // indirect
+	golang.org/x/net v0.60.0 // indirect
 	golang.org/x/sys v0.48.0 // indirect
 	golang.org/x/text v0.42.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260928230214-8a89bd6388cc // indirect
