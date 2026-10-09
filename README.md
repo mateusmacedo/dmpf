@@ -16,7 +16,7 @@ para quem (humano ou agente) trabalha neste repositório.
 | Camada | Tecnologia |
 | --- | --- |
 | Orquestração | Nx `23.1.0`, workspace pnpm |
-| Kernel DMPF | Go `1.26.6` (`libs/backend/go/`, `apps/backend/`, `tools/dmpf-conformance/`) |
+| Kernel DMPF | Go `1.26.9` (`libs/backend/go/`, `apps/backend/`, `tools/dmpf-conformance/`) |
 | Tooling do workspace | TypeScript (`tools/dmpf-plugin`, scripts) |
 | Runtime | Node.js `^24`, pnpm `11.14.0` |
 | Lint/format | Biome `2.4.16` |
