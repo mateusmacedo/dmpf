@@ -11,7 +11,7 @@
 # `tag:type:app,!tag:stack:go`, ADR-041): ela serve ao compose local
 # (infra/local) e aos manifestos Kustomize (infra/k8s).
 
-FROM golang:1.26.6-alpine AS build
+FROM golang:1.26.9-alpine AS build
 WORKDIR /src
 
 COPY go.work go.work.sum ./
