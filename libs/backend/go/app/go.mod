@@ -1,6 +1,6 @@
 module github.com/mateusmacedo/dmpf/libs/backend/go/app
 
-go 1.26.6
+go 1.26.9
 
 require (
 	github.com/jackc/pgx/v5 v5.10.0
@@ -36,7 +36,7 @@ require (
 	go.opentelemetry.io/contrib/bridges/otelslog v0.21.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.72.0 // indirect
 	go.opentelemetry.io/contrib/processors/baggagecopy v0.17.0 // indirect
-	golang.org/x/net v0.59.0 // indirect
+	golang.org/x/net v0.60.0 // indirect
 	golang.org/x/sync v0.23.0 // indirect
 	golang.org/x/sys v0.48.0 // indirect
 	golang.org/x/text v0.42.0 // indirect

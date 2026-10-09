@@ -1,6 +1,6 @@
 module github.com/mateusmacedo/dmpf/libs/backend/go/kafka
 
-go 1.26.6
+go 1.26.9
 
 require (
 	github.com/mateusmacedo/dmpf/libs/backend/go/contracts v1.0.0-rc.2

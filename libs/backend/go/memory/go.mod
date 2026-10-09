@@ -1,6 +1,6 @@
 module github.com/mateusmacedo/dmpf/libs/backend/go/memory
 
-go 1.26.6
+go 1.26.9
 
 require (
 	github.com/mateusmacedo/dmpf/libs/backend/go/ports v1.0.0-rc.2
