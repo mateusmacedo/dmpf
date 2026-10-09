@@ -4,14 +4,14 @@ go 1.26.9
 
 require (
 	github.com/jackc/pgx/v5 v5.10.0
-	github.com/mateusmacedo/dmpf/libs/backend/go/application v1.0.0-rc.2
-	github.com/mateusmacedo/dmpf/libs/backend/go/contracts v1.0.0-rc.2
-	github.com/mateusmacedo/dmpf/libs/backend/go/domain v1.0.0-rc.2
-	github.com/mateusmacedo/dmpf/libs/backend/go/memory v1.0.0-rc.2
-	github.com/mateusmacedo/dmpf/libs/backend/go/observability v1.0.0-rc.2
-	github.com/mateusmacedo/dmpf/libs/backend/go/ports v1.0.0-rc.2
-	github.com/mateusmacedo/dmpf/libs/backend/go/postgres v1.0.0-rc.2
-	github.com/mateusmacedo/dmpf/tools/dmpf-conformance v1.0.0-rc.2
+	github.com/mateusmacedo/dmpf/libs/backend/go/application v1.0.0-rc.3
+	github.com/mateusmacedo/dmpf/libs/backend/go/contracts v1.0.0-rc.3
+	github.com/mateusmacedo/dmpf/libs/backend/go/domain v1.0.0-rc.3
+	github.com/mateusmacedo/dmpf/libs/backend/go/memory v1.0.0-rc.3
+	github.com/mateusmacedo/dmpf/libs/backend/go/observability v1.0.0-rc.3
+	github.com/mateusmacedo/dmpf/libs/backend/go/ports v1.0.0-rc.3
+	github.com/mateusmacedo/dmpf/libs/backend/go/postgres v1.0.0-rc.3
+	github.com/mateusmacedo/dmpf/tools/dmpf-conformance v1.0.0-rc.3
 	google.golang.org/protobuf v1.36.12
 )
 
