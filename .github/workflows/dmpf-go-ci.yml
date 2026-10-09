@@ -154,6 +154,9 @@ jobs:
           fi
           pnpm nx run-many -t fmt-check,vet,test-race -p "$lista" --parallel=3
 
+      - name: Espelho do Docker Hub
+        uses: ./.dmpf-ci/.github/actions/docker-hub-mirror
+
       # No runner hospedado do GitHub o job roda na VM, sem container próprio:
       # `--network host` publica cada serviço em localhost, como os testes esperam.
       - name: Subir Postgres para os testes de integração

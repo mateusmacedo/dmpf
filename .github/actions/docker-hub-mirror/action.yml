@@ -1,0 +1,16 @@
+name: Espelho do Docker Hub
+description: Faz o daemon do runner puxar as imagens do Docker Hub pelo mirror.gcr.io, com o Docker Hub como fallback
+
+runs:
+  using: composite
+  steps:
+    - name: Registry mirror no daemon
+      shell: bash
+      run: |
+        set -euo pipefail
+        config=/etc/docker/daemon.json
+        atual='{}'
+        if [[ -f "$config" ]]; then atual="$(sudo cat "$config")"; fi
+        jq '. + {"registry-mirrors": ["https://mirror.gcr.io"]}' <<<"$atual" | sudo tee "$config" > /dev/null
+        sudo systemctl restart docker
+        docker info --format 'registry mirrors: {{json .RegistryConfig.Mirrors}}'
