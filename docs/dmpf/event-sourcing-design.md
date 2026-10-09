@@ -337,7 +337,7 @@ CREATE TABLE IF NOT EXISTS events (
 
 - **Uma tabela por banco de contexto.** O banco já é por app (ADR-053), e
   `stream_type` separa os agregados. O nome segue ADR-053, item 2, e entra no
-  conjunto de tabelas do kernel que `tools/dmpf-context-check.sh` proíbe no DDL do
+  conjunto de tabelas do kernel que `tools/dmpf-plugin/scripts/dmpf-context-check.sh` proíbe no DDL do
   contexto.
 - **Acréscimo.** Um único `INSERT ... SELECT` grava as N linhas, condicionado a
   `coalesce(max(version), 0) = expected` no mesmo statement. Os desfechos:
@@ -559,7 +559,7 @@ verificador, e a força e o dono dependem da decisão 1 de §10.
 | Comando e agente | `.claude/commands/dmpf-new-context.md`, `.claude/agents/dmpf-context-author.md`, `SKILL.md` e `golden-path.md` da skill | Ramo ES condicional; hoje fixam a persistência híbrida | M |
 | Regra de contexto | `.claude/rules/dmpf-bounded-context.md`, `AGENTS.md` | "Persistência híbrida" passa a ser o padrão, com ES opt-in | P |
 | Generator | `tools/dmpf-plugin` (gerador `bounded-context`: `schema.json`, templates de `schema.sql`, `pool.go` e `wiring.go`) | Opção `persistence`, templates condicionais e caso ES no `dmpf-generator-check.sh` | M |
-| Gate de contexto | `tools/dmpf-context-check.sh` | `events` no conjunto de tabelas do kernel; check do contexto ES; sabotagens no self-test | P |
+| Gate de contexto | `tools/dmpf-plugin/scripts/dmpf-context-check.sh` | `events` no conjunto de tabelas do kernel; check do contexto ES; sabotagens no self-test | P |
 | Detecção declarativa | `docs/nx-reference/tasks.md` | Tag Nx `persistence:event-sourced`, a registrar na taxonomia | P |
 | Conformance | `tools/dmpf-conformance` | Nada, se a Opção A for adotada: os tipos novos ficam em unidades existentes, e `ESC-05` já é coberto por `DMPF-D002` | — |
 | Harness e evidência | `tools/dmpf-harness-check.sh`, `testkit/cmd/evidence` | Nada no piloto `orders`; parametrizar só se `bookings` virar o piloto | — ou G |
@@ -686,7 +686,7 @@ depende de ambas.
   `apps/backend/reservations`, nos blocos `domain`, `application`, `provider` e
   `app`.
 - **Tooling e configuração:**
-  - `tools/dmpf-context-check.sh`, `tools/dmpf-harness-check.sh`,
+  - `tools/dmpf-plugin/scripts/dmpf-context-check.sh`, `tools/dmpf-harness-check.sh`,
     `tools/dmpf-conformance`, `tools/dmpf-plugin`;
   - `.golangci.yml`, `docs/nx-reference/tasks.md`;
   - a skill e o agente `dmpf-bounded-context` e `dmpf-context-author`.

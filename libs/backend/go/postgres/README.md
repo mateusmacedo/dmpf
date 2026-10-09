@@ -151,7 +151,7 @@ cru, obtido por `Tx.Conn()`, e os readers tomavam o `*pgxpool.Pool` direto.
 `ReadPool` (`NewReadPool`), um handle opaco sobre o qual só rodam os
 statements que `Table` compila (ADR-051). A regra `depguard` `context-provider`
 (`.golangci.yml`) nega `github.com/jackc/pgx`, `database/sql` e
-`gorm.io/gorm` em `apps/**/provider/**`, e `tools/dmpf-gate-check.sh` prova no
+`gorm.io/gorm` em `apps/**/provider/**`, e `tools/dmpf-plugin/scripts/dmpf-gate-check.sh` prova no
 CI que ela reprova os três drivers em cada contexto; a única exceção nominal é
 a DDL de contexto, aplicada pela composition root por `postgres.Migrate`.
 
@@ -192,7 +192,7 @@ Os testes de banco levam a build tag `integration` e só rodam no target
 dentro dele — um skip silencioso deixaria a outbox sem prova executável.
 
 O target sobe a infra de testes (`testkit:test-infra-up`) e o
-`tools/test-env.sh` preenche o `PG_DSN` com o Postgres dela, na porta 15432, a
+`tools/dmpf-plugin/scripts/test-env.sh` preenche o `PG_DSN` com o Postgres dela, na porta 15432, a
 partir do `.env.example` da raiz:
 
 ```bash

@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/schema",
+  "$id": "DmpfInit",
+  "title": "Prepara o workspace para o DMPF",
+  "description": "Grava o dmpf.json, a diretiva do go.work, a configuração Go do nx.json, o .golangci.yml, o esqueleto estático da infra e o baseline vazio. Idempotente: arquivo que o init gerou e ninguém editou é regravado; arquivo editado exige --force.",
+  "type": "object",
+  "properties": {
+    "modulePrefix": {
+      "type": "string",
+      "description": "Prefixo dos módulos Go do workspace, como github.com/org/repo. Sem ele, o init grava o valor reservado example.com/change-me, que o bounded-context recusa.",
+      "x-prompt": "Qual o prefixo dos módulos Go do workspace (ex.: github.com/org/repo)?"
+    },
+    "npmScope": {
+      "type": "string",
+      "description": "Escopo npm dos projetos gerados. Default: o escopo do package.json da raiz."
+    },
+    "appsDir": {
+      "type": "string",
+      "description": "Diretório das apps, relativo à raiz. Default: apps/backend."
+    },
+    "edge": {
+      "type": "string",
+      "description": "App que é a borda pública (cliente gRPC confiável dos contextos). Vazio: o workspace não tem borda."
+    },
+    "spiffeTrustDomain": {
+      "type": "string",
+      "description": "Trust domain SPIFFE da PKI local. Default: dmpf."
+    },
+    "composeProfile": {
+      "type": "string",
+      "description": "Profile do Compose e prefixo dos serviços das apps. Default: dmpf."
+    },
+    "composeProject": {
+      "type": "string",
+      "description": "Nome do projeto Compose, com os sufixos -local e -testinfra. Default: o nome do package.json da raiz, sem escopo."
+    },
+    "imageRegistry": {
+      "type": "string",
+      "description": "Registry das imagens das apps. Default: ghcr.io/<owner> quando o prefixo é do GitHub."
+    },
+    "bufModule": {
+      "type": "string",
+      "description": "Owner dos módulos Buf dos contratos. Default: buf.build/<owner> quando o prefixo é do GitHub."
+    },
+    "force": {
+      "type": "boolean",
+      "default": false,
+      "description": "Sobrescreve os arquivos do init que foram editados à mão."
+    }
+  },
+  "additionalProperties": false
+}

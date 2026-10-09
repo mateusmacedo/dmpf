@@ -152,6 +152,7 @@ func TestCatalogoFechadoRecusaUmVetorPorItem(t *testing.T) {
 		{"N5 classificação", "block", rule.CodeX004},
 		{"N5 bounded context", "bounded_context:kernel", rule.CodeX004},
 		{"N6 rito Buf", "tools/buf.sh", rule.CodeX004},
+		{"N6 rito Buf no pacote do plugin", "tools/dmpf-plugin/scripts/buf.sh", rule.CodeX004},
 		{"N6 plugin pinado", "protoc-gen-go", rule.CodeX004},
 		{"N7 evidência", "evidence_digest", rule.CodeX004},
 	}

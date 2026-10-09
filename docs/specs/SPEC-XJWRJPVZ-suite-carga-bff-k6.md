@@ -95,7 +95,7 @@ erro técnico e ponto de ruptura antes de cada release.
     `traces_spanmetrics_*` que o Tempo deriva dele. O compose amostra 100% dos
     traces (`TRACE_SAMPLE_RATE: '1'`, `infra/local/compose/app-base.yml:11`).
 - **Infra local**:
-  - Projeto Compose `lidercap-local` (`infra/local/docker-compose.yml:8`), rede
+  - Projeto Compose `dmpf-local` (`infra/local/docker-compose.yml:8`), rede
     `default`, BFF no serviço `dmpf-bff:8080`. A pilha sobe com
     `docker compose -f infra/local/docker-compose.yml --profile dmpf up -d --build`
     (`infra/README.md:54`), e toda variável dos composes tem default.
@@ -245,7 +245,7 @@ erro técnico e ponto de ruptura antes de cada release.
   2. Borda do BFF: taxa e p95 por `span_name` de `traces_spanmetrics_calls_total` e `traces_spanmetrics_latency_bucket`, com `service="bff"`. Painel da razão k6 ÷ borda por rota, com `label_join` de `method` e `name` casando `span_name`.
   3. BFF para os contextos: MET-08, MET-09 e MET-10 com `service_name="bff"` por `operation` e `outcome_category`; `dmpf_dependency_breaker_state`, `_bulkhead_rejections_total`, `_retries_total` e `_deadline_exceeded_total` por `dependency`.
   4. Contextos: MET-08, MET-09 e MET-10 de `orders`, `reservations` e `bookings`; MET-12 por `service_name` e `route`.
-  5. Recursos: CPU e memória do cAdvisor dos containers `lidercap-local-dmpf-.*` e conexões do postgres-exporter por banco.
+  5. Recursos: CPU e memória do cAdvisor dos containers `dmpf-local-dmpf-.*` e conexões do postgres-exporter por banco.
 - [ ] **[P2] Lag do grupo `reservations`** no `load-bff`: `redpanda_kafka_max_offset` menos `redpanda_kafka_consumer_group_committed_offset`. Sem `enable_consumer_group_metrics`, o painel fica sem dados, e o README documenta o `rpk cluster config set` que o liga.
 
 #### Documentação
@@ -392,7 +392,7 @@ guard(base_url):
    indica o import do 18030 pelo ID no Grafana, para quem quiser a visão
    genérica.
 4. **k6 como serviço Compose de perfil próprio**: herda rede e DNS do
-   `lidercap-local` e fica fora do `infra-budget`, que não tem folga de CPU.
+   `dmpf-local` e fica fora do `infra-budget`, que não tem folga de CPU.
 5. **Pool de até 5 tenants, sem `METRIC_TENANTS`**: a admissão já é por tenant
    cru; o pool só multiplica o teto e fica abaixo das 64 chaves. Declarar o pool
    em `METRIC_TENANTS` exigiria mudar o compose do BFF, e o label `route` da

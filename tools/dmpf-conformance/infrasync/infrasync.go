@@ -20,10 +20,8 @@ import (
 )
 
 const (
-	schema       = "dmpf/infra@1"
-	manifestGlob = "apps/backend/*/deploy/infra.json"
-	platformEnv  = "infra/local/env.platform.example"
-	devOverlay   = "apps/backend/%s/deploy/k8s/overlays/dev/kustomization.yaml"
+	schema      = "dmpf/infra@1"
+	platformEnv = "infra/local/env.platform.example"
 )
 
 var (
@@ -93,7 +91,11 @@ func (f Finding) String() string { return f.Path + ": " + f.Detail }
 
 // Load lê os manifestos em ordem de app e recusa o que não gera infra coerente.
 func Load(root string) ([]Manifest, error) {
-	paths, err := filepath.Glob(filepath.Join(root, manifestGlob))
+	layout, err := LoadLayout(root)
+	if err != nil {
+		return nil, err
+	}
+	paths, err := filepath.Glob(filepath.Join(root, filepath.FromSlash(layout.manifestGlob())))
 	if err != nil {
 		return nil, err
 	}
@@ -134,6 +136,10 @@ func read(path string) (Manifest, error) {
 	}
 	if m.App != dir {
 		problems = append(problems, fmt.Sprintf("app %q difere do diretório %q", m.App, dir))
+	}
+	// O nome entra cru no regex de descarte do Alloy e nos nomes de recurso.
+	if !dnsLabelPattern.MatchString(m.App) {
+		problems = append(problems, fmt.Sprintf("app %q fora do padrão de rótulo DNS", m.App))
 	}
 	if m.Image.Env == "" || m.Image.Local == "" {
 		problems = append(problems, "image exige env e local")
@@ -286,13 +292,17 @@ func topicIndex(manifests []Manifest) map[string]Topic {
 // Render gera os arquivos agregados, sempre na mesma ordem e com o mesmo conteúdo
 // para os mesmos manifestos.
 func Render(root string, manifests []Manifest) ([]File, error) {
+	layout, err := LoadLayout(root)
+	if err != nil {
+		return nil, err
+	}
 	platform, err := os.ReadFile(filepath.Join(root, platformEnv))
 	if err != nil {
 		return nil, fmt.Errorf("plataforma do .env.example: %w", err)
 	}
 	var files []File
 	for _, t := range templates {
-		v := view{Manifests: manifests, Overlay: t.env, topics: topicIndex(manifests)}
+		v := view{Manifests: manifests, Overlay: t.env, Layout: layout, topics: topicIndex(manifests)}
 		var buf bytes.Buffer
 		if err := parsed.ExecuteTemplate(&buf, t.template, v); err != nil {
 			return nil, fmt.Errorf("%s: %w", t.path, err)
@@ -338,12 +348,16 @@ func Check(root string, files []File) []Finding {
 // CheckDevSecrets confere que o Secret do overlay dev de cada app com banco usa a
 // senha database.dev do manifesto, a mesma com que o Job de bancos cria o role.
 func CheckDevSecrets(root string, manifests []Manifest) []Finding {
+	layout, err := LoadLayout(root)
+	if err != nil {
+		return []Finding{{layoutFile, err.Error()}}
+	}
 	var findings []Finding
 	for _, m := range manifests {
 		if m.Database == nil {
 			continue
 		}
-		rel := fmt.Sprintf(devOverlay, m.App)
+		rel := layout.devOverlay(m.App)
 		raw, err := os.ReadFile(filepath.Join(root, rel))
 		if err != nil {
 			findings = append(findings, Finding{rel, err.Error()})
@@ -359,7 +373,21 @@ func CheckDevSecrets(root string, manifests []Manifest) []Finding {
 type view struct {
 	Manifests []Manifest
 	Overlay   string
+	Layout    Layout
 	topics    map[string]Topic
+}
+
+func (v view) GeneratedBy() string {
+	return "Gerado por tools/dmpf-conformance/cmd/infrasync a partir de " + v.Layout.manifestGlob() + "; não edite."
+}
+
+// Apps é a lista que o Alloy descarta: o log das apps chega por OTLP (ADR-057).
+func (v view) Apps() string {
+	apps := make([]string, 0, len(v.Manifests))
+	for _, m := range v.Manifests {
+		apps = append(apps, m.App)
+	}
+	return strings.Join(apps, "|")
 }
 
 func (v view) WithDatabase() []Manifest {

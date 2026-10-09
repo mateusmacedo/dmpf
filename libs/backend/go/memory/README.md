@@ -12,7 +12,7 @@ ADR-046: a realização era genérica, mas expunha `tx.Orders()` e
 `tx.Reservations()` tipados pelos agregados de exemplo, e vivia dentro do módulo
 `application` — sob o glob da regra `application` do `depguard`, precisava de
 uma exclusão no `.golangci.yml` e de uma entrada em `FORA_DO_DEPGUARD` do
-`tools/dmpf-gate-check.sh`. Em módulo próprio, a parte tipada virou `Table`, e
+`tools/dmpf-plugin/scripts/dmpf-gate-check.sh`. Em módulo próprio, a parte tipada virou `Table`, e
 as duas exceções deixaram de existir.
 
 Projeto Nx `memory`, tags `type:lib`, `scope:backend`, `stack:go` e

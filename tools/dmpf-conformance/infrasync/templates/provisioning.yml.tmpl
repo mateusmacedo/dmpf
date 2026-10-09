@@ -1,10 +1,10 @@
-# {{generatedBy}}
+# {{$.GeneratedBy}}
 # Provisionamento da topologia de referência (ADR-044, ADR-052, ADR-053): banco e
 # role de cada app no postgres-init, usuários, tópicos e ACLs no redpanda-init.
 services:
   postgres-init:
     image: postgres:16-alpine
-    profiles: [dmpf, provisioning]
+    profiles: [{{$.Layout.ComposeProfile}}, provisioning]
     depends_on:
       postgres:
         condition: service_healthy
@@ -34,7 +34,7 @@ services:
 
   redpanda-init:
     image: redpandadata/redpanda:v26.2.2
-    profiles: [dmpf, provisioning]
+    profiles: [{{$.Layout.ComposeProfile}}, provisioning]
     depends_on:
       redpanda:
         condition: service_healthy

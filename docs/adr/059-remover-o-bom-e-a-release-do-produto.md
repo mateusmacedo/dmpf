@@ -2,7 +2,7 @@
 
 ## Status
 
-Aceito — 2026-10-06. Supersede parcialmente o [ADR-027](./027-bom-combinacao-certificada-compatibilidade-e-escape-hatch.md), o [ADR-041](./041-sdk-de-referencia-generator-e-bom-certificado.md) e o [ADR-047](./047-tags-de-modulo-go-e-consumo-fora-do-workspace.md), nos pontos listados na Decisão.
+Aceito — 2026-10-06. Supersede parcialmente o [ADR-027](./027-bom-combinacao-certificada-compatibilidade-e-escape-hatch.md), o [ADR-041](./041-sdk-de-referencia-generator-e-bom-certificado.md) e o [ADR-047](./047-tags-de-modulo-go-e-consumo-fora-do-workspace.md), nos pontos listados na Decisão. **Parcialmente supersedido pelo [ADR-060](./060-o-dmpf-tem-consumidor-externo.md) (2026-10-07)**: a premissa de que não há consumidor externo deixou de valer, e a certificação não volta com o consumidor; a remoção do BOM, da evidência de release e da tag do produto permanece.
 
 ## Contexto
 

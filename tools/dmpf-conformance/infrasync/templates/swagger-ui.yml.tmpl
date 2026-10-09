@@ -1,4 +1,4 @@
-# {{generatedBy}}
+# {{$.GeneratedBy}}
 # Swagger UI sobre os contratos que o BFF serve em /openapi/<app>/v1/openapi.yaml:
 # URLS lista as specs no seletor da barra superior (swagger-ui,
 # docs/usage/configuration.md). O "Try it out" chama o BFF de outro origin, por
@@ -6,15 +6,17 @@
 services:
   swagger-ui:
     image: swaggerapi/swagger-ui:v5.31.0
-    profiles: [dmpf]
+    profiles: [{{$.Layout.ComposeProfile}}]
     environment:
       URLS: "[{{range $i, $m := .WithOpenAPI}}{{if $i}}, {{end}}{ url: 'http://localhost:${HTTP_PORT:-8080}/openapi/{{$m.App}}/v1/openapi.yaml', name: '{{$m.App}}' }{{end}}]"
       TRY_IT_OUT_ENABLED: 'true'
     ports:
       - '127.0.0.1:${SWAGGER_PORT:-8082}:8080'
+{{- with $.Layout.Edge}}
     depends_on:
-      dmpf-bff:
+      {{$.Layout.ComposeProfile}}-{{.}}:
         condition: service_started
+{{- end}}
     deploy:
       resources:
         limits: { cpus: '0.05', memory: 64M }

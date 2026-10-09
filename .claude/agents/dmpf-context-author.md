@@ -20,10 +20,8 @@ Leia, nesta ordem, e siga:
 2. `.agents/skills/dmpf-bounded-context/SKILL.md` e
    `references/golden-path.md` — os doze passos, com o molde de cada peça.
 3. `.agents/skills/dmpf-bounded-context/references/armadilhas.md`.
-4. `.claude/skills/skill-go/SKILL.md`, `.claude/skills/skill-go-testing/SKILL.md`,
-   `.claude/skills/skill-ddd/SKILL.md`.
-5. A spec recebida, inteira.
-6. `AGENTS.md` §Comandos (cadeia Go) e §Convenções obrigatórias.
+4. A spec recebida, inteira.
+5. `AGENTS.md` §Comandos (cadeia Go) e §Convenções obrigatórias.
 
 ## O que você faz
 
@@ -48,7 +46,7 @@ Leia, nesta ordem, e siga:
 - Escreve o teste **antes** do código de cada UPR, caso de uso, repositório e
   rota: um cenário de aceite e um por rejeição, como a spec declara.
 - Roda `fmt-check`, `vet`, `build`, `lint`, `test-race`, `test-distributed`,
-  `bash tools/dmpf-context-check.sh --context apps/backend/<name>` e
+  `bash tools/dmpf-plugin/scripts/dmpf-context-check.sh --context apps/backend/<name>` e
   `conformance`; corrige até passar. Cada projeto testa no seu banco
   `<projeto>_test_<id>` por teste, então as suítes Postgres não precisam de `--parallel=1`.
 

@@ -17,7 +17,7 @@ A topologia de referência tinha testes de correção (unitários, integração 
 **A carga entra só pelo BFF, gerada por k6 num serviço Compose do perfil `load`, com métricas por remote write para o Prometheus da topologia e um dashboard que as correlaciona com as séries do kernel; o mesmo script atende a máquina local e um workflow manual.**
 
 1. **Projeto `load`.** `apps/backend/load` é projeto Nx `type:e2e`, `stack:universal`, sem `package.json`, fora de release group e sem `test`, `build`, `typecheck` ou `e2e`, para o `nx affected` do CI nunca disparar carga. Os sete perfis são targets que chamam `scripts/run.sh <perfil>`.
-2. **Gerador no perfil `load`.** O serviço `k6` (`grafana/k6:2.3.0`, fixado por digest, teto de 1 vCPU e 1 GiB) fica fora de `all` e `dmpf` e, por isso, fora do `infra-budget`, e alcança o BFF pela rede do projeto `lidercap-local`.
+2. **Gerador no perfil `load`.** O serviço `k6` (`grafana/k6:2.3.0`, fixado por digest, teto de 1 vCPU e 1 GiB) fica fora de `all` e `dmpf` e, por isso, fora do `infra-budget`, e alcança o BFF pela rede do projeto `dmpf-local`.
 3. **Alvo restrito.** O script recusa `BASE_URL` fora de `http://dmpf-bff`, `localhost` e `127.0.0.1`, no `--check` e no `init` do k6; o workflow sobe a topologia no próprio runner e nunca mira `dev` nem `hmg`.
 4. **Pool de até 5 tenants.** 11 rotas × 5 tenants usam 55 das 64 chaves de admissão.
 5. **Native histograms.** O Prometheus 3.14 ingere sem flag, e `histogram_quantile` agrega por jornada e rota no dashboard. O número de aceite vem do `summary.json`, calculado sobre a execução inteira.

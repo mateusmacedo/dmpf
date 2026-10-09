@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/schema",
+  "version": 2,
+  "title": "test-infra",
+  "description": "Sobe ou derruba a infra dos testes de integração (infra/test/compose.yml); no CI é no-op, porque a infra é a do job.",
+  "type": "object",
+  "properties": {
+    "action": {
+      "type": "string",
+      "enum": ["up", "down"],
+      "description": "up sobe e provisiona; down descarta tudo o que os testes criaram."
+    }
+  },
+  "required": ["action"],
+  "additionalProperties": false
+}

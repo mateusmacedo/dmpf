@@ -80,14 +80,11 @@ const (
 // Workspace is the gate's own composition (cmd/conformance) minus the
 // BaselineStore: the suite asserts over the production universe as it is,
 // never over the versioned baseline of its classification (FIT-03).
-// An empty profilesPath resolves to the checker's build-profiles.json.
+// An empty profilesPath uses the build profiles embedded in the checker.
 func Workspace(root, profilesPath string) (Input, error) {
 	abs, err := filepath.Abs(root)
 	if err != nil {
 		return Input{}, err
-	}
-	if profilesPath == "" {
-		profilesPath = filepath.Join(abs, "tools", "dmpf-conformance", "build-profiles.json")
 	}
 	profiles, err := fsstore.LoadBuildProfiles(profilesPath)
 	if err != nil {
@@ -107,6 +104,7 @@ func Workspace(root, profilesPath string) (Input, error) {
 		Graph:     grafo,
 		Closure:   grafo.Closure,
 		Standard:  grafo.IsStandard,
+		Kernel:    grafo,
 	}, nil
 }
 

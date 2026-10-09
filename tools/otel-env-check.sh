@@ -7,7 +7,7 @@ ROOT="$(git rev-parse --show-toplevel)" || { echo "fora de um repositório git" 
 cd "$ROOT" || exit 2
 
 APPS="apps/backend"
-TEMPLATES="tools/dmpf-plugin/src/generators/bounded-context/files/deploy"
+TEMPLATES="tools/dmpf-plugin/templates/bounded-context/deploy"
 APP_BASE="infra/local/compose/app-base.yml"
 ALLOY="infra/observability/alloy"
 FALHAS=0

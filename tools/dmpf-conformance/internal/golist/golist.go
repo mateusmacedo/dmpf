@@ -41,7 +41,10 @@ type listError struct {
 }
 
 type listModule struct {
-	Path string `json:"Path"`
+	Path    string `json:"Path"`
+	Version string `json:"Version"`
+	Dir     string `json:"Dir"`
+	Main    bool   `json:"Main"`
 }
 
 // Source une as arestas por perfil de produção. Arquivo sob build tag que
@@ -57,6 +60,10 @@ type Source struct {
 	arestas   []port.Edge
 	closure   map[string][]string
 	imports   map[string]map[string]bool
+
+	// Erro no próprio padrão `<módulo>/...`: o toolchain não carregou a build
+	// list (módulo fora do cache, sem rede), e o grafo que sobra é parcial.
+	buildListFalhou map[string]bool
 }
 
 func New(root string, modules []rule.Module, profiles []fsstore.BuildProfile) *Source {
@@ -128,6 +135,7 @@ func (s *Source) carregar() error {
 	}
 	s.pacotes = map[string]listPackage{}
 	s.closure = map[string][]string{}
+	s.buildListFalhou = map[string]bool{}
 	arestas := map[[3]string]port.Edge{}
 
 	for _, perfil := range s.profiles {
@@ -137,6 +145,10 @@ func (s *Source) carregar() error {
 				return err
 			}
 			for _, p := range pkgs {
+				if p.ImportPath == m.Path+"/..." && p.Error != nil {
+					s.buildListFalhou[p.Error.Err] = true
+					continue
+				}
 				s.absorver(p)
 			}
 		}
@@ -248,7 +260,9 @@ func (s *Source) absorver(p listPackage) {
 }
 
 func (s *Source) listar(perfil fsstore.BuildProfile, m rule.Module) ([]listPackage, error) {
-	args := []string{"list", "-e", "-deps", "-json"}
+	// Com vendor/, o go list entra em -mod=vendor e deixa o Module.Dir vazio: o
+	// manifesto do kernel não seria lido.
+	args := []string{"list", "-e", "-mod=readonly", "-deps", "-json"}
 	if len(perfil.Tags) > 0 {
 		args = append(args, "-tags", strings.Join(perfil.Tags, ","))
 	}

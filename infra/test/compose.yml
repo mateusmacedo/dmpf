@@ -3,7 +3,7 @@
 # Todo dado vive em tmpfs, então nada que um teste cria sobrevive a um
 # test-infra-down. O Postgres sobe com cluster_name=test, que o tb/pg exige
 # antes de criar ou apagar um banco: a suíte recusa o servidor de runtime.
-name: lidercap-testinfra
+name: dmpf-testinfra
 
 services:
   postgres:

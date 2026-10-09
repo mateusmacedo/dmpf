@@ -115,7 +115,7 @@ Unitários, sem banco: as UPRs do `domain`, as sete disposições do consumo e a
 
 Com a build tag `integration` e `PG_DSN`, o `test-race` cobre o `provider` (escopo de tenant e acesso cruzado inclusos), o e2e do consumer adapter e do relay no package raiz e o `appkit`; cada teste roda num banco `reservations_test_<id>` próprio, que o `tb/pg` cria e apaga no servidor de `PG_DSN`, e o `test-distributed` roda depois do `test-race`, porque usa o mesmo banco. O `test-distributed` roda só o `distkit`, com as tags `integration,distributed`, e exige Redpanda (`KAFKA_BROKERS`); é o que o `dmpf-distributed.yml` executa em pipeline próprio (`KIT-11`). A topologia inteira é provada pelo e2e do `bff`.
 
-Os dois targets sobem a infra de testes (`testkit:test-infra-up`), e o `tools/test-env.sh` preenche `PG_DSN` e `KAFKA_BROKERS` com o Postgres (15432) e o Redpanda (19092) dela, a partir do `.env.example` da raiz:
+Os dois targets sobem a infra de testes (`testkit:test-infra-up`), e o `tools/dmpf-plugin/scripts/test-env.sh` preenche `PG_DSN` e `KAFKA_BROKERS` com o Postgres (15432) e o Redpanda (19092) dela, a partir do `.env.example` da raiz:
 
 ```bash
 pnpm nx run reservations:test-race

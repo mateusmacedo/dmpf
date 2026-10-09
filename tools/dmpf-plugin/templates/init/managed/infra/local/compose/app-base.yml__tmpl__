@@ -1,0 +1,62 @@
+# Serviços-base das apps (ADR-044). Nenhum deles sobe: o docker-compose.yml não
+# inclui este arquivo, e cada <%- appsDir %>/<app>/deploy/compose.yml os usa por
+# `extends`, porque anchors YAML não atravessam o `include`.
+services:
+  <%- composeProfile %>-app:
+    profiles: [<%- composeProfile %>]
+    restart: on-failure
+    environment:
+      OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_TRACES_SAMPLER_ARG: '1.0'
+      OTEL_LOGS_EXPORTER: otlp
+      OTEL_PROPAGATORS: tracecontext
+      OTEL_GO_X_OBSERVABILITY: 'true'
+      OTEL_BSP_EXPORT_TIMEOUT: '3000'
+      OTEL_BLRP_EXPORT_TIMEOUT: '3000'
+      LOG_LEVEL: debug
+
+  # gRPC interno com mTLS (IDN-03): cada api apresenta o próprio certificado e só
+  # serve o workload que a CA local assinou e a allowlist nomeia — a borda. Os
+  # arquivos vêm do volume do pki-init.
+  <%- composeProfile %>-grpc-api:
+    extends: <%- composeProfile %>-app
+    command: ['--role', 'api']
+    environment:
+      GRPC_ADDR: ':9090'
+      GRPC_CLIENT_CA_FILE: /pki/ca.crt
+      GRPC_TRUSTED_CLIENTS: <% if (edge) { %>spiffe://<%- spiffeTrustDomain %>/<%- edge %><% } else { %>''<% } %>
+      MIGRATE: 'true'
+      GOMEMLIMIT: 176MiB
+    volumes:
+      - pki:/pki:ro
+    deploy:
+      resources:
+        limits: { cpus: '0.195', memory: 211M }
+        reservations: { cpus: '0.03', memory: 32M }
+
+  # Sem TLS no broker local (opt-out de desenvolvimento), mas com o cliente
+  # autenticado por SASL SCRAM no listener interno: cada processo tem o próprio
+  # principal, criado no redpanda-init (IDN-04).
+  <%- composeProfile %>-kafka-worker:
+    extends: <%- composeProfile %>-app
+    environment:
+      KAFKA_BROKERS: redpanda:29092
+      KAFKA_INSECURE: 'true'
+      KAFKA_SASL_MECHANISM: SCRAM-SHA-256
+      GOMEMLIMIT: 118MiB
+    deploy:
+      resources:
+        limits: { cpus: '0.13', memory: 141M }
+        reservations: { cpus: '0.02', memory: 32M }
+
+  <%- composeProfile %>-http-edge:
+    extends: <%- composeProfile %>-app
+    environment:
+      GOMEMLIMIT: 176MiB
+    volumes:
+      - pki:/pki:ro
+    deploy:
+      resources:
+        limits: { cpus: '0.2808', memory: 211M }
+        reservations: { cpus: '0.03', memory: 32M }
