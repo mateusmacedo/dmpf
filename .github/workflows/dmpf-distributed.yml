@@ -46,6 +46,9 @@ jobs:
       - name: Setup Go
         uses: ./.github/actions/setup-go
 
+      - name: Espelho do Docker Hub
+        uses: ./.github/actions/docker-hub-mirror
+
       # No runner hospedado do GitHub o job roda na VM, sem container próprio:
       # `--network host` publica o serviço em localhost, como os testes esperam.
       - name: Subir Postgres para o harness distribuído

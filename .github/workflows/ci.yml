@@ -180,6 +180,9 @@ jobs:
       - name: Setup Go
         uses: ./.github/actions/setup-go
 
+      - name: Espelho do Docker Hub
+        uses: ./.github/actions/docker-hub-mirror
+
       # Sem `if` de projeto Go afetado: o artefato que esta prova mede é escrito
       # pelo generator, e uma mudança só no TypeScript do plugin altera o artefato
       # sem tocar em nenhum projeto `stack:go`.
