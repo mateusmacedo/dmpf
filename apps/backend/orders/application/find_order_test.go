@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/execctx"
 )
 
 func TestFindOrderReadsOutsideTheUnitOfWork(t *testing.T) {
@@ -58,19 +59,5 @@ func TestFindOrderOfAnotherTenantAnswersNotFoundAndHandsTheAccessToTheInstrument
 
 func asTenant(t *testing.T, tenant ports.TenantID) context.Context {
 	t.Helper()
-	subject := ports.SubjectID("s-test")
-	execution, err := ports.NewExecutionContext(ports.ExecutionContextSpec{
-		RequestID:     "r-test",
-		CorrelationID: "c-test",
-		TraceContext:  "t-test",
-		Subject:       &subject,
-		Tenant:        &tenant,
-		Permissions:   []ports.Permission{},
-		Deadline:      ports.Instant(1_755_432_000_000_000_000),
-		Locale:        "en",
-	})
-	if err != nil {
-		t.Fatalf("NewExecutionContext() = %v", err)
-	}
-	return ports.WithExecutionContext(context.Background(), execution)
+	return execctx.WithExecution(t, context.Background(), execctx.WithTenant(tenant))
 }

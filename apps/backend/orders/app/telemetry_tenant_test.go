@@ -13,7 +13,7 @@ import (
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/app"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/otelboot"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/tracing"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/execctx"
 )
 
 func recordsOfTheProcess(t *testing.T, emit func(ctx context.Context, logger *slog.Logger)) []map[string]string {
@@ -56,14 +56,7 @@ func recordsOfTheProcess(t *testing.T, emit func(ctx context.Context, logger *sl
 // when the call resolved none; a fixed value would put one tenancy's name on
 // another tenant's lines.
 func TestARecordNamesTheExecutionOfTheCallFromTheBaggage(t *testing.T) {
-	tenant := ports.TenantID("acme")
-	execution, err := ports.NewExecutionContext(ports.ExecutionContextSpec{
-		RequestID: "r-1", CorrelationID: "c-1", TraceContext: "t-1", Tenant: &tenant,
-		Deadline: ports.Instant(1_755_432_000_000_000_000), Locale: "en",
-	})
-	if err != nil {
-		t.Fatalf("NewExecutionContext() = %v", err)
-	}
+	execution := execctx.Execution(t, execctx.WithoutSubject())
 
 	records := recordsOfTheProcess(t, func(ctx context.Context, logger *slog.Logger) {
 		logger.InfoContext(tracing.WithExecutionBaggage(ctx, execution), "scoped")
@@ -78,7 +71,7 @@ func TestARecordNamesTheExecutionOfTheCallFromTheBaggage(t *testing.T) {
 	if scoped == nil || unscoped == nil {
 		t.Fatalf("records = %v, want the scoped and the unscoped line", records)
 	}
-	for key, want := range map[string]string{tracing.KeyTenantID: "acme", tracing.KeyCorrelationID: "c-1", tracing.KeyRequestID: "r-1"} {
+	for key, want := range map[string]string{tracing.KeyTenantID: "acme", tracing.KeyCorrelationID: "c-test", tracing.KeyRequestID: "r-test"} {
 		if got := scoped[key]; got != want {
 			t.Errorf("%s = %q, want %q of the call", key, got, want)
 		}

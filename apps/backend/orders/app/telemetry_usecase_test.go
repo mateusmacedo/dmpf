@@ -19,6 +19,7 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/metrics"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/otelboot"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/execctx"
 )
 
 type absentOrder struct{}
@@ -70,15 +71,7 @@ func TestAFindOfAnAbsentOrderIsNotFoundOnTheUseCaseSpanAndItsRED(t *testing.T) {
 
 func tenantScoped(t *testing.T) context.Context {
 	t.Helper()
-	tenant := ports.TenantID("acme")
-	execution, err := ports.NewExecutionContext(ports.ExecutionContextSpec{
-		RequestID: "r-1", CorrelationID: "c-1", TraceContext: "t-1", Tenant: &tenant,
-		Deadline: ports.Instant(1_755_432_000_000_000_000), Locale: "en",
-	})
-	if err != nil {
-		t.Fatalf("NewExecutionContext() = %v, want nil", err)
-	}
-	return ports.WithExecutionContext(context.Background(), execution)
+	return execctx.WithExecution(t, context.Background(), execctx.WithoutSubject())
 }
 
 func useCaseSpanErrorType(t *testing.T, spans *tracetest.InMemoryExporter, operation string) string {

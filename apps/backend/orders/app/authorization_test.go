@@ -7,6 +7,7 @@ import (
 
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/application"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/execctx"
 )
 
 // IDN-16: every operation of this context declares the permission it requires;
@@ -29,16 +30,7 @@ func TestEveryOperationDeclaresItsPermission(t *testing.T) {
 }
 
 func TestAuthorizationDeniesASubjectWithoutThePermission(t *testing.T) {
-	subject, tenant := ports.SubjectID("s-1"), ports.TenantID("acme")
-	execution, err := ports.NewExecutionContext(ports.ExecutionContextSpec{
-		RequestID: "r-1", CorrelationID: "c-1", TraceContext: "t-1",
-		Subject: &subject, Tenant: &tenant, Permissions: []ports.Permission{},
-		Deadline: ports.Instant(1_755_432_000_000_000_000), Locale: "en",
-	})
-	if err != nil {
-		t.Fatalf("NewExecutionContext() = %v", err)
-	}
-	ctx := ports.WithExecutionContext(context.Background(), execution)
+	ctx := execctx.WithExecution(t, context.Background())
 
 	if err := Authorization()(ctx, application.FindOrder{}); !errors.Is(err, ports.ErrDenied) {
 		t.Fatalf("Authorization() = %v, want ErrDenied (IDN-08)", err)
