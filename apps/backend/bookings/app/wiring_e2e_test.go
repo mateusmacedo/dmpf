@@ -12,8 +12,6 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/twmb/franz-go/pkg/kadm"
-	"github.com/twmb/franz-go/pkg/kgo"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/propagation"
 	sdklog "go.opentelemetry.io/otel/sdk/log"
@@ -29,6 +27,7 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/otelboot"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/tracing"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/dist"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/pg"
 )
 
@@ -43,7 +42,7 @@ func TestTheRelayRoleSendsUnderThePhysicalTopicOfTheChannel(t *testing.T) {
 	cfg.BookingsDLQ = cfg.BookingsTopic + "-dlq"
 	cfg.Group = "wiring-bookings-group-" + suffix
 	cfg.Relay.Interval = 10 * time.Millisecond
-	createRelayTopics(t, brokers, cfg.Group, cfg.BookingsTopic, cfg.BookingsDLQ)
+	dist.CreateTopics(t, brokers, cfg.Group, cfg.BookingsTopic, cfg.BookingsDLQ)
 	enqueueForTheRelay(t, pool, application.Destination)
 	spans := tracetest.NewInMemoryExporter()
 	logs := &recordingExporter{}
@@ -94,27 +93,6 @@ func relayRuntime(t *testing.T, spans *tracetest.InMemoryExporter, logs sdklog.E
 	}
 	t.Cleanup(func() { _ = runtime.Shutdown(context.Background()) })
 	return runtime
-}
-
-func createRelayTopics(t *testing.T, brokers []string, group string, topics ...string) {
-	t.Helper()
-	client, err := kgo.NewClient(kgo.SeedBrokers(brokers...))
-	if err != nil {
-		t.Fatalf("kgo.NewClient() = %v, want nil", err)
-	}
-	t.Cleanup(client.Close)
-	admin := kadm.NewClient(client)
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	if _, err := admin.CreateTopics(ctx, 1, 1, nil, topics...); err != nil {
-		t.Fatalf("CreateTopics() = %v, want nil", err)
-	}
-	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-		_, _ = admin.DeleteTopics(ctx, topics...)
-		_, _ = admin.DeleteGroups(ctx, group)
-	})
 }
 
 func enqueueForTheRelay(t *testing.T, pool *pgxpool.Pool, destination string) {
