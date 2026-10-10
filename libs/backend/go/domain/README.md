@@ -17,7 +17,7 @@ Import path do módulo:
 
 | Package | Unidade DMPF | Conteúdo |
 | --- | --- | --- |
-| `domain` (raiz) | `kernel/domain` | `DomainEvent`, `Accepted[R]`, `Accept`, `Empty`, `Rejection`, `Reject`, `Code`, `Detail`, `DecideOver`, `Refuse` |
+| `domain` (raiz) | `kernel/domain` | `DomainEvent`, `Accepted[R]`, `Accept`, `Empty`, `Rejection`, `Reject`, `Code`, `Detail`, `DecideOver`, `Refuse`, `Instant` |
 
 Uma unidade só, com `block: domain` e `bounded_context: kernel`
 (`dmpf-units.json`); em Go, a unidade de verificação é o package (RFC §3.3). A
