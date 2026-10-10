@@ -24,7 +24,7 @@ func TestOrdersMatchTheProjectionFixture(t *testing.T) {
 
 func runOrder(t *testing.T, c tb.ProjectionCase) (domainkit.Projection, domainkit.Verdict) {
 	t.Helper()
-	when := domain.Instant(instant(t, c.Command["at"]))
+	when := kernel.Instant(instant(t, c.Command["at"]))
 	switch c.Command["upr"] {
 	case "add-item":
 		q, _ := strconv.Atoi(c.Command["quantity"])

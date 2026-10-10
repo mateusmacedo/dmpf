@@ -18,6 +18,7 @@ import (
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/provider"
 	kernelapp "github.com/mateusmacedo/dmpf/libs/backend/go/app"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/app/relay"
+	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	kernelgrpc "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/kafka"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/audit"
@@ -85,7 +86,7 @@ func NewOrdersService(pool *pgxpool.Pool, rt *otelboot.Runtime, cfg Config) (app
 	service := NewService(pool, idclock.SystemClock{}, idclock.NewMessageIDs("orders"), Waits{Command: cfg.Policies.IdempotencyWait})
 	service.ItemLimit = cfg.ItemLimit
 	service.Idempotency = policy
-	service.Instrumentation = obsusecase.New(rt, audit.NewLogSink(rt.LoggerProvider()), subject, classify, application.OperationFindOrder)
+	service.Instrumentation = obsusecase.New(rt, audit.NewLogSink(rt.LoggerProvider()), ports.SubjectOf, usecase.CategoryOf, application.OperationFindOrder)
 	return service, nil
 }
 
