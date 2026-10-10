@@ -151,7 +151,7 @@ func awaitSend(t *testing.T, runtime *otelboot.Runtime, spans *tracetest.InMemor
 			names = append(names, span.Name)
 		}
 		if time.Now().After(deadline) {
-			t.Fatalf("no send span within %v, exported %v: the relay of runRelay does not trace through the runtime", timeout, names)
+			t.Fatalf("no send span within %v, exported %v: the relay of serve.RunRelay does not trace through the runtime", timeout, names)
 		}
 		time.Sleep(50 * time.Millisecond)
 	}

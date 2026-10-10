@@ -10,6 +10,7 @@ import (
 
 	kernelapp "github.com/mateusmacedo/dmpf/libs/backend/go/app"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/app/relay"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/app/serve"
 	kernelgrpc "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/kafka"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability"
@@ -210,4 +211,12 @@ func roleList() string {
 		names[i] = string(role)
 	}
 	return strings.Join(names, "|")
+}
+
+func apiRole(cfg Config) serve.APIRole {
+	return serve.APIRole{DSN: cfg.DSN, Server: cfg.API, Migrate: cfg.Migrate, Admission: cfg.Admission, MetricTenants: cfg.MetricTenants, Policies: cfg.Policies}
+}
+
+func relayRole(cfg Config) serve.RelayRole {
+	return serve.RelayRole{DSN: cfg.DSN, Brokers: cfg.Brokers, KafkaInsecure: cfg.KafkaInsecure, KafkaAuth: cfg.KafkaAuth, Relay: cfg.Relay, Policies: cfg.Policies}
 }
