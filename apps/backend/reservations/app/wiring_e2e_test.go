@@ -15,7 +15,6 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	sdklog "go.opentelemetry.io/otel/sdk/log"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
-	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
 
@@ -24,7 +23,7 @@ import (
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/application"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/contracts/payloadhash"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/otelboot"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/tracing"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/obstest"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/dist"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/pg"
@@ -43,55 +42,13 @@ func TestTheRelayRoleSendsUnderThePhysicalTopicOfTheChannel(t *testing.T) {
 	cfg.Relay.Interval = 10 * time.Millisecond
 	dist.CreateTopics(t, brokers, cfg.Group, cfg.ReservationsTopic, cfg.ReservationsDLQ)
 	enqueueForTheRelay(t, pool, application.Destination)
-	spans := tracetest.NewInMemoryExporter()
-	logs := &recordingExporter{}
-	runtime := relayRuntime(t, spans, logs)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	stopped := make(chan error, 1)
-	go func() { stopped <- app.RunWith(ctx, cfg, runtime) }()
-	send := awaitSend(t, runtime, spans, 15*time.Second)
-	cancel()
-	if err := <-stopped; err != nil && !errors.Is(err, context.Canceled) {
-		t.Fatalf("RunWith(relay) = %v, want nil or the cancellation", err)
-	}
-	if err := runtime.Shutdown(context.Background()); err != nil {
-		t.Fatalf("Shutdown() = %v, want nil", err)
-	}
-	if scopes := scopesOf(logs, "relay draining"); len(scopes) != 1 || scopes[0] != reflect.TypeFor[app.Config]().PkgPath() {
-		t.Fatalf("\"relay draining\" scopes = %v, want the import path of the app package that emits it (RF-A1)", scopes)
-	}
-	draining, _ := recordAttributes(logs, "relay draining")
-	requireTheVocabulary(t, "relay draining", draining, map[string]string{
-		string(semconv.MessagingSystemKey):          semconv.MessagingSystemKafka.Value.AsString(),
-		string(semconv.MessagingDestinationNameKey): cfg.ReservationsTopic,
-		"dmpf.channel.name":                         application.Destination,
-	})
-
-	if send.Name != "send "+cfg.ReservationsTopic {
-		t.Fatalf("send span = %q, want %q (RF-B7)", send.Name, "send "+cfg.ReservationsTopic)
-	}
-	if got := destinationOf(send); got != cfg.ReservationsTopic {
-		t.Fatalf("messaging.destination.name = %q, want the physical topic %q, not the channel %q (RF-B7)",
-			got, cfg.ReservationsTopic, application.Destination)
-	}
-}
-
-func relayRuntime(t *testing.T, spans *tracetest.InMemoryExporter, logs sdklog.Exporter) *otelboot.Runtime {
-	t.Helper()
-	config := otelboot.Config{
-		Propagator:    propagation.TraceContext{},
-		Resource:      otelboot.Resource{ServiceName: "reservations", ServiceVersion: "dev", ServiceInstanceID: "reservations-relay-1", Role: "relay"},
-		TraceExporter: spans,
-		Sampling:      tracing.UniformRates(1),
-	}
-	config.LoggerProvider = otelboot.NewLoggerProvider(config, logs)
-	runtime, err := otelboot.Start(context.Background(), config)
-	if err != nil {
-		t.Fatalf("otelboot.Start() = %v, want nil", err)
-	}
-	t.Cleanup(func() { _ = runtime.Shutdown(context.Background()) })
-	return runtime
+	obstest.RelayWiring{
+		Service: "reservations",
+		Scope:   reflect.TypeFor[app.Config]().PkgPath(),
+		Topic:   cfg.ReservationsTopic,
+		Channel: application.Destination,
+		Run:     func(ctx context.Context, rt *otelboot.Runtime) error { return app.RunWith(ctx, cfg, rt) },
+	}.Prove(t)
 }
 
 func enqueueForTheRelay(t *testing.T, pool *pgxpool.Pool, destination string) {
@@ -113,48 +70,6 @@ INSERT INTO outbox (
 	}
 }
 
-func awaitSend(t *testing.T, runtime *otelboot.Runtime, spans *tracetest.InMemoryExporter, timeout time.Duration) tracetest.SpanStub {
-	t.Helper()
-	deadline := time.Now().Add(timeout)
-	for {
-		if err := runtime.ForceFlush(context.Background()); err != nil {
-			t.Fatalf("ForceFlush() = %v, want nil", err)
-		}
-		names := []string{}
-		for _, span := range spans.GetSpans() {
-			if strings.HasPrefix(span.Name, "send") {
-				return span
-			}
-			names = append(names, span.Name)
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("no send span within %v, exported %v: the relay of serve.RunRelay does not trace through the runtime", timeout, names)
-		}
-		time.Sleep(50 * time.Millisecond)
-	}
-}
-
-func destinationOf(span tracetest.SpanStub) string {
-	for _, kv := range span.Attributes {
-		if kv.Key == semconv.MessagingDestinationNameKey {
-			return kv.Value.AsString()
-		}
-	}
-	return ""
-}
-
-func scopesOf(logs *recordingExporter, body string) []string {
-	logs.mu.Lock()
-	defer logs.mu.Unlock()
-	var scopes []string
-	for _, record := range logs.records {
-		if record.Body().AsString() == body {
-			scopes = append(scopes, record.InstrumentationScope().Name)
-		}
-	}
-	return scopes
-}
-
 func TestEveryRoleReportsTheConnectionsOfItsPoolThroughTheRuntime(t *testing.T) {
 	brokers := strings.Split(tb.Env(t, "KAFKA_BROKERS"), ",")
 	for _, role := range app.Roles {
@@ -174,78 +89,19 @@ func TestEveryRoleReportsTheConnectionsOfItsPoolThroughTheRuntime(t *testing.T) 
 				dist.CreateTopics(t, brokers, cfg.Group, cfg.OrdersTopic, cfg.OrdersDLQ)
 			}
 			reader := sdkmetric.NewManualReader()
-			runtime := meteredRuntime(t, string(role), reader)
+			runtime := obstest.MeteredRuntime(t, "reservations", string(role), reader)
 
 			ctx, cancel := context.WithCancel(context.Background())
 			t.Cleanup(cancel)
 			stopped := make(chan error, 1)
 			go func() { stopped <- app.RunWith(ctx, cfg, runtime) }()
-			awaitPooledConnection(t, reader, cfg.DSN, stopped, 15*time.Second)
+			obstest.AwaitPooledConnection(t, reader, cfg.DSN, stopped, 15*time.Second)
 			cancel()
 			if err := <-stopped; err != nil && !errors.Is(err, context.Canceled) {
 				t.Fatalf("RunWith(%s) = %v, want nil or the cancellation", role, err)
 			}
 		})
 	}
-}
-
-func meteredRuntime(t *testing.T, role string, reader sdkmetric.Reader) *otelboot.Runtime {
-	t.Helper()
-	runtime, err := otelboot.Start(context.Background(), otelboot.Config{
-		Propagator:    propagation.TraceContext{},
-		Resource:      otelboot.Resource{ServiceName: "reservations", ServiceVersion: "dev", ServiceInstanceID: "reservations-" + role + "-1", Role: role},
-		TraceExporter: tracetest.NewInMemoryExporter(),
-		MetricReader:  reader,
-	})
-	if err != nil {
-		t.Fatalf("otelboot.Start() = %v, want nil", err)
-	}
-	t.Cleanup(func() { _ = runtime.Shutdown(context.Background()) })
-	return runtime
-}
-
-func awaitPooledConnection(t *testing.T, reader *sdkmetric.ManualReader, dsn string, stopped <-chan error, timeout time.Duration) {
-	t.Helper()
-	config, err := pgxpool.ParseConfig(dsn)
-	if err != nil {
-		t.Fatalf("ParseConfig() = %v, want nil", err)
-	}
-	pool := config.ConnConfig.Host + ":" + strconv.Itoa(int(config.ConnConfig.Port)) + "/" + config.ConnConfig.Database
-	deadline := time.Now().Add(timeout)
-	for pooledConnections(t, reader, pool) < 1 {
-		select {
-		case err := <-stopped:
-			t.Fatalf("RunWith() = %v before the runtime reported a connection of the pool %s", err, pool)
-		default:
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("db.client.connection.count reported no connection of the pool %s within %v: the role builds its pool without the meter provider of the runtime (RF-D6)", pool, timeout)
-		}
-		time.Sleep(50 * time.Millisecond)
-	}
-}
-
-func pooledConnections(t *testing.T, reader *sdkmetric.ManualReader, pool string) int64 {
-	t.Helper()
-	var collected metricdata.ResourceMetrics
-	if err := reader.Collect(context.Background(), &collected); err != nil {
-		t.Fatalf("Collect() = %v, want nil", err)
-	}
-	var connections int64
-	for _, scope := range collected.ScopeMetrics {
-		for _, m := range scope.Metrics {
-			count, ok := m.Data.(metricdata.Sum[int64])
-			if m.Name != "db.client.connection.count" || !ok {
-				continue
-			}
-			for _, point := range count.DataPoints {
-				if name, found := point.Attributes.Value(semconv.DBClientConnectionPoolNameKey); found && name.AsString() == pool {
-					connections += point.Value
-				}
-			}
-		}
-	}
-	return connections
 }
 
 func TestTheConsumerJoiningRecordNamesItsChannelInTheVocabulary(t *testing.T) {
@@ -259,7 +115,7 @@ func TestTheConsumerJoiningRecordNamesItsChannelInTheVocabulary(t *testing.T) {
 	cfg.OrdersDLQ = cfg.OrdersTopic + "-dlq"
 	cfg.Group = "joining-reservations-group-" + suffix
 	dist.CreateTopics(t, brokers, cfg.Group, cfg.OrdersTopic, cfg.OrdersDLQ)
-	logs := &recordingExporter{}
+	logs := &obstest.MemoryLogs{}
 	config := otelboot.Config{
 		Propagator:    propagation.TraceContext{},
 		Resource:      otelboot.Resource{ServiceName: "reservations", ServiceVersion: "dev", ServiceInstanceID: "reservations-consumer-1", Role: "consumer"},
@@ -283,7 +139,7 @@ func TestTheConsumerJoiningRecordNamesItsChannelInTheVocabulary(t *testing.T) {
 		t.Fatalf("RunWith(consumer) = %v, want nil or the cancellation", err)
 	}
 
-	requireTheVocabulary(t, "consumer joining", joining, map[string]string{
+	obstest.RequireTheVocabulary(t, "consumer joining", joining, map[string]string{
 		string(semconv.MessagingSystemKey):            semconv.MessagingSystemKafka.Value.AsString(),
 		string(semconv.MessagingDestinationNameKey):   cfg.OrdersTopic,
 		string(semconv.MessagingConsumerGroupNameKey): cfg.Group,
@@ -291,14 +147,14 @@ func TestTheConsumerJoiningRecordNamesItsChannelInTheVocabulary(t *testing.T) {
 	})
 }
 
-func awaitRecord(t *testing.T, provider *sdklog.LoggerProvider, logs *recordingExporter, body string, stopped <-chan error, timeout time.Duration) map[string]string {
+func awaitRecord(t *testing.T, provider *sdklog.LoggerProvider, logs *obstest.MemoryLogs, body string, stopped <-chan error, timeout time.Duration) map[string]string {
 	t.Helper()
 	deadline := time.Now().Add(timeout)
 	for {
 		if err := provider.ForceFlush(context.Background()); err != nil {
 			t.Fatalf("ForceFlush() = %v, want nil", err)
 		}
-		if attributes, found := recordAttributes(logs, body); found {
+		if attributes, found := obstest.RecordAttributes(logs, body); found {
 			return attributes
 		}
 		select {
