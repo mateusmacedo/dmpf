@@ -1,8 +1,8 @@
 // Package distkit is the distributed harness of KIT-06 for the
 // <%- boundedContext %> context: it re-executes the test binary as separate
-// operating-system processes over a real broker (PIR-14) and decides on the
-// final effect. App block; tests build with the integration and distributed
-// tags.
+// operating-system processes over a real broker (PIR-14), supervised by the
+// kernel testkit/tb/dist, and decides on the final effect. App block; tests
+// build with the integration and distributed tags.
 //
 // The vector follows the role of the context. A consuming one injects a
 // deliberate redelivery and decides DMPF-R004 on the effect. A producing one
