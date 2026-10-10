@@ -13,6 +13,7 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/clock"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/ids"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/execctx"
 )
 
 const at = ports.Instant(1_757_000_000_000_000_000)
@@ -89,15 +90,7 @@ func TestInvalidBytesAreContainedWithoutTouchingTheInbox(t *testing.T) {
 
 func commandContext(t *testing.T, key string) context.Context {
 	t.Helper()
-	tenant := ports.TenantID("acme")
-	execution, err := ports.NewExecutionContext(ports.ExecutionContextSpec{
-		RequestID: "r-appkit", CorrelationID: "c-appkit", TraceContext: "t-appkit",
-		Tenant: &tenant, Deadline: at + 5_000_000_000, Locale: "en",
-	})
-	if err != nil {
-		t.Fatalf("NewExecutionContext() = %v", err)
-	}
-	return ports.WithIdempotencyKey(ports.WithExecutionContext(context.Background(), execution), key)
+	return execctx.WithKey(t, context.Background(), key, execctx.WithoutSubject(), execctx.WithDeadline(at+5_000_000_000))
 }
 
 func TestARepeatedCommandWithTheSameKeyLeavesOneEffectAndOneEvent(t *testing.T) {
