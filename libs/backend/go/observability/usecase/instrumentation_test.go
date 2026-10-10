@@ -23,9 +23,10 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/tracing"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/usecase"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/reference"
 )
 
-const readOperation = operationFind
+const readOperation = reference.OperationFind
 
 // booted is everything a test needs to look at what the instrumentation
 // produced: the spans that left the process, the metrics that were collected
@@ -529,7 +530,7 @@ func TestACrossTenantAccessIsRecordedAsASecurityEvent(t *testing.T) {
 	fixture := boot(t, options{subject: func(context.Context) string { return "not-the-carrier" }})
 	access := ports.CrossTenantAccess{Object: "probes/o-1", ContextTenant: "globex", DataTenant: "acme"}
 
-	_, end := fixture.instrumentation.BeginOperation(withExecution(t, context.Background()), operationFind)
+	_, end := fixture.instrumentation.BeginOperation(withExecution(t, context.Background()), reference.OperationFind)
 	end(ports.Result{Outcome: ports.OutcomeFailed, Err: fmt.Errorf("application: find order o-1: %w", access)})
 
 	events := fixture.recording.Events()
@@ -557,7 +558,7 @@ func TestACrossTenantAccessIsRecordedAsASecurityEvent(t *testing.T) {
 func TestAPlainNotFoundRecordsNoSecurityEvent(t *testing.T) {
 	fixture := boot(t, options{})
 
-	_, end := fixture.instrumentation.BeginOperation(withExecution(t, context.Background()), operationFind)
+	_, end := fixture.instrumentation.BeginOperation(withExecution(t, context.Background()), reference.OperationFind)
 	end(ports.Result{Outcome: ports.OutcomeFailed, Err: fmt.Errorf("application: find order o-1: %w", ports.ErrNotFound)})
 
 	if events := fixture.recording.Events(); len(events) != 0 {
@@ -576,7 +577,7 @@ func TestASecurityEventTheSinkRefusesReachesTheLogWhole(t *testing.T) {
 	execution := testExecution(t)
 	ctx := tracing.WithExecutionBaggage(ports.WithExecutionContext(context.Background(), execution), execution)
 
-	_, end := instrumentation.BeginOperation(ctx, operationFind)
+	_, end := instrumentation.BeginOperation(ctx, reference.OperationFind)
 	end(ports.Result{Outcome: ports.OutcomeFailed, Err: access})
 
 	record := logs.securityRecord(t, fixture.loggerProvider)
