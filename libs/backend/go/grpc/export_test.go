@@ -9,8 +9,6 @@ func ResetInsecureClientWarning() { insecureClientWarning = new(sync.Once) }
 
 func ResetInsecureServerWarning() { insecureServerWarning = new(sync.Once) }
 
-var CategoryOf = categoryOf
-
 func SetShutdownGrace(grace time.Duration) (restore func()) {
 	previous := shutdownGrace
 	shutdownGrace = grace

@@ -11,6 +11,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/retry"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/deadline"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/observe"
 )
 
@@ -50,10 +51,10 @@ func dependencyFailure(err error) bool {
 	}
 }
 
-// categoryOf returns the bounded category under which a failure is recorded:
+// Category returns the bounded category under which a failure is recorded:
 // the category a platform error carries, or the FND-07 category its code or
 // context error maps to (§6.2), `_OTHER` outside it — never the message (TRC-12).
-func categoryOf(err error) string {
+func Category(err error) string {
 	if err == nil {
 		return observe.CategoryOK
 	}
@@ -62,7 +63,9 @@ func categoryOf(err error) string {
 		return categorized.ErrorCategory()
 	}
 	switch {
-	case errors.Is(err, context.DeadlineExceeded):
+	case errors.Is(err, deadline.ErrNoDeadline):
+		return categoryUnexpected
+	case errors.Is(err, deadline.ErrDeadlineExhausted), errors.Is(err, context.DeadlineExceeded):
 		return categoryDeadlineExceeded
 	case errors.Is(err, context.Canceled):
 		return categoryCancelled
@@ -76,11 +79,12 @@ func categoryOf(err error) string {
 const (
 	categoryDeadlineExceeded = "DeadlineExceeded"
 	categoryCancelled        = "Cancelled"
+	categoryUnexpected       = "Unexpected"
 )
 
 var fnd07Categories = map[codes.Code]string{
 	codes.InvalidArgument: "Validation", codes.FailedPrecondition: "DomainRejection", codes.NotFound: "NotFound",
 	codes.Aborted: "Conflict", codes.AlreadyExists: "Conflict", codes.PermissionDenied: "Forbidden",
 	codes.Unauthenticated: "Unauthenticated", codes.Unavailable: "TransientDependency", codes.ResourceExhausted: "RateLimited",
-	codes.DeadlineExceeded: categoryDeadlineExceeded, codes.Canceled: categoryCancelled, codes.Internal: "Unexpected",
+	codes.DeadlineExceeded: categoryDeadlineExceeded, codes.Canceled: categoryCancelled, codes.Internal: categoryUnexpected,
 }

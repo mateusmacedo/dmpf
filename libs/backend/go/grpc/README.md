@@ -71,15 +71,17 @@ só aparecem em `_test.go`, que o verificador não classifica.
   cliente é o `rpc.client.call.duration` do `otelgrpc`. Aqui só se declara a
   categoria de falha e o que o breaker conta como falha.
 - **`classifier.go`** — `StatusClassifier(codes)`: só um status com código
-  declarado é retentável (GRP-09). A categoria de falha (`error.type` e
-  `dmpf.outcome_category`) é a do erro de plataforma; senão, a categoria FND-07
-  do prazo (`DeadlineExceeded`), do cancelamento (`Cancelled`) ou do código
-  gRPC — `InvalidArgument` → `Validation`, `FailedPrecondition` →
-  `DomainRejection`, `NotFound` → `NotFound`, `Aborted` e `AlreadyExists` →
-  `Conflict`, `PermissionDenied` → `Forbidden`, `Unauthenticated` →
-  `Unauthenticated`, `Unavailable` → `TransientDependency`,
-  `ResourceExhausted` → `RateLimited`, `Internal` → `Unexpected` —, e `_OTHER`
-  fora da tabela; nunca a mensagem (TRC-12).
+  declarado é retentável (GRP-09). `Category(err)` devolve a categoria de falha
+  (`error.type` e `dmpf.outcome_category`), a mesma para o kernel e para a
+  borda (ADR-061): a do erro de plataforma; senão, a categoria FND-07 do prazo
+  (`DeadlineExceeded`, que cobre também `deadline.ErrDeadlineExhausted`), do
+  contexto sem prazo (`deadline.ErrNoDeadline` → `Unexpected`), do
+  cancelamento (`Cancelled`) ou do código gRPC — `InvalidArgument` →
+  `Validation`, `FailedPrecondition` → `DomainRejection`, `NotFound` →
+  `NotFound`, `Aborted` e `AlreadyExists` → `Conflict`, `PermissionDenied` →
+  `Forbidden`, `Unauthenticated` → `Unauthenticated`, `Unavailable` →
+  `TransientDependency`, `ResourceExhausted` → `RateLimited`, `Internal` →
+  `Unexpected` —, e `_OTHER` fora da tabela; nunca a mensagem (TRC-12).
 - **`dial.go`** — `ServiceConfig` (`round_robin` + `healthCheckConfig`, com o
   import em branco de `grpc/health`) e `Dial`: credenciais, service config,
   `WithDisableRetry` — o retry nativo não vê idempotência (GRP-08) —, o
@@ -184,6 +186,15 @@ só aparecem em `_test.go`, que o verificador não classifica.
   não têm exatamente um `MethodDesc` unário registrado (o gRPC fica com o último
   de dois com o mesmo nome): os `app/rpc/service_test.go` o chamam para provar
   que todo método do `.proto` tem um handler só.
+- **`command.go`** — o handler de comando dos `app/rpc` (ADR-061).
+  `Command(ctx, run, refused, accepted)` lê o contexto de execução por
+  `ExecutionOf`, roda o caso de uso, traduz a falha técnica por `StatusOf` e
+  entrega a recusa a `refused`, com o `*domain.Rejection` do kernel, ou a
+  resposta a `accepted`. `ExecutionOf(ctx)` devolve o contexto que o
+  interceptor montou, ou `Internal` quando ele falta: é defeito de wiring do
+  servidor, não do chamador (CTX-03). `Outcome[R]` casa pela forma com o
+  `usecase.Outcome[R]`, porque este bloco `provider` não importa `application`
+  (`DMPF-D001`).
 - **`api_env.go`** — `APIEnv`, a seção `GRPC_*` da `Config` de todo contexto:
   `ReadAPIEnv(lookup, defaultAddr)` lê `GRPC_ADDR`, `GRPC_INSECURE`, o par TLS,
   `GRPC_CLIENT_CA_FILE` e `GRPC_TRUSTED_CLIENTS`; `Missing()` nomeia, em ordem,
