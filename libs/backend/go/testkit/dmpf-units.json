@@ -76,9 +76,69 @@
       "bounded_context": "kernel",
       "public_integration_surface": true,
       "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/dist"]
+    },
+    {
+      "id": "kernel/testkit-obs",
+      "block": "app",
+      "bounded_context": "kernel",
+      "public_integration_surface": true,
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/testkit/obstest"]
     }
   ],
   "external": [
+    {
+      "package": "google.golang.org/grpc",
+      "versions": ">=1.83.1 <2",
+      "entrypoints": ["."],
+      "capability": "io.network"
+    },
+    {
+      "package": "go.opentelemetry.io/proto/otlp",
+      "versions": ">=1.11.1 <2",
+      "entrypoints": [
+        "go.opentelemetry.io/proto/otlp/collector/logs/v1",
+        "go.opentelemetry.io/proto/otlp/collector/metrics/v1",
+        "go.opentelemetry.io/proto/otlp/collector/trace/v1",
+        "go.opentelemetry.io/proto/otlp/common/v1",
+        "go.opentelemetry.io/proto/otlp/logs/v1",
+        "go.opentelemetry.io/proto/otlp/resource/v1"
+      ],
+      "capability": "wire.codec"
+    },
+    {
+      "package": "go.opentelemetry.io/otel",
+      "versions": ">=1.46.0 <2",
+      "entrypoints": [
+        "go.opentelemetry.io/otel",
+        "go.opentelemetry.io/otel/attribute",
+        "go.opentelemetry.io/otel/propagation"
+      ],
+      "capability": "observability"
+    },
+    {
+      "package": "go.opentelemetry.io/otel/sdk",
+      "versions": ">=1.46.0 <2",
+      "entrypoints": [
+        "go.opentelemetry.io/otel/sdk/trace",
+        "go.opentelemetry.io/otel/sdk/trace/tracetest"
+      ],
+      "capability": "observability"
+    },
+    {
+      "package": "go.opentelemetry.io/otel/sdk/metric",
+      "versions": ">=1.46.0 <2",
+      "entrypoints": [
+        "go.opentelemetry.io/otel/sdk/metric",
+        "go.opentelemetry.io/otel/sdk/metric/metricdata"
+      ],
+      "capability": "observability"
+    },
+    {
+      "package": "go.opentelemetry.io/otel/sdk/log",
+      "versions": ">=1.46.0 <2",
+      "entrypoints": ["go.opentelemetry.io/otel/sdk/log"],
+      "capability": "observability"
+    },
     {
       "package": "github.com/twmb/franz-go",
       "versions": ">=1.21.6 <2",
