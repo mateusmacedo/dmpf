@@ -12,8 +12,6 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/twmb/franz-go/pkg/kadm"
-	"github.com/twmb/franz-go/pkg/kgo"
 	"go.opentelemetry.io/otel/propagation"
 	sdklog "go.opentelemetry.io/otel/sdk/log"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
@@ -28,6 +26,7 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/otelboot"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/tracing"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/dist"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/pg"
 )
 
@@ -42,7 +41,7 @@ func TestTheRelayRoleSendsUnderThePhysicalTopicOfTheChannel(t *testing.T) {
 	cfg.ReservationsDLQ = cfg.ReservationsTopic + "-dlq"
 	cfg.Group = "wiring-reservations-group-" + suffix
 	cfg.Relay.Interval = 10 * time.Millisecond
-	createRelayTopics(t, brokers, cfg.Group, cfg.ReservationsTopic, cfg.ReservationsDLQ)
+	dist.CreateTopics(t, brokers, cfg.Group, cfg.ReservationsTopic, cfg.ReservationsDLQ)
 	enqueueForTheRelay(t, pool, application.Destination)
 	spans := tracetest.NewInMemoryExporter()
 	logs := &recordingExporter{}
@@ -93,27 +92,6 @@ func relayRuntime(t *testing.T, spans *tracetest.InMemoryExporter, logs sdklog.E
 	}
 	t.Cleanup(func() { _ = runtime.Shutdown(context.Background()) })
 	return runtime
-}
-
-func createRelayTopics(t *testing.T, brokers []string, group string, topics ...string) {
-	t.Helper()
-	client, err := kgo.NewClient(kgo.SeedBrokers(brokers...))
-	if err != nil {
-		t.Fatalf("kgo.NewClient() = %v, want nil", err)
-	}
-	t.Cleanup(client.Close)
-	admin := kadm.NewClient(client)
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	if _, err := admin.CreateTopics(ctx, 1, 1, nil, topics...); err != nil {
-		t.Fatalf("CreateTopics() = %v, want nil", err)
-	}
-	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-		_, _ = admin.DeleteTopics(ctx, topics...)
-		_, _ = admin.DeleteGroups(ctx, group)
-	})
 }
 
 func enqueueForTheRelay(t *testing.T, pool *pgxpool.Pool, destination string) {
@@ -193,7 +171,7 @@ func TestEveryRoleReportsTheConnectionsOfItsPoolThroughTheRuntime(t *testing.T) 
 			cfg.ReservationsDLQ = cfg.ReservationsTopic + "-dlq"
 			cfg.Group = "pool-reservations-group-" + suffix
 			if role == app.RoleConsumer {
-				createRelayTopics(t, brokers, cfg.Group, cfg.OrdersTopic, cfg.OrdersDLQ)
+				dist.CreateTopics(t, brokers, cfg.Group, cfg.OrdersTopic, cfg.OrdersDLQ)
 			}
 			reader := sdkmetric.NewManualReader()
 			runtime := meteredRuntime(t, string(role), reader)
@@ -280,7 +258,7 @@ func TestTheConsumerJoiningRecordNamesItsChannelInTheVocabulary(t *testing.T) {
 	cfg.OrdersTopic = "joining-orders-" + suffix
 	cfg.OrdersDLQ = cfg.OrdersTopic + "-dlq"
 	cfg.Group = "joining-reservations-group-" + suffix
-	createRelayTopics(t, brokers, cfg.Group, cfg.OrdersTopic, cfg.OrdersDLQ)
+	dist.CreateTopics(t, brokers, cfg.Group, cfg.OrdersTopic, cfg.OrdersDLQ)
 	logs := &recordingExporter{}
 	config := otelboot.Config{
 		Propagator:    propagation.TraceContext{},
