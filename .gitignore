@@ -2,6 +2,7 @@
 
 # compiled output
 dist
+!libs/backend/go/testkit/tb/dist/
 tmp
 out-tsc
 test-output
