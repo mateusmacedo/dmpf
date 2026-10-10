@@ -65,7 +65,7 @@ func (s Service) consumeFirst(
 
 	accepted, rejection := reservation.Reserve(domain.Reserve{
 		Items: cmd.Items,
-		At:    domain.Instant(identity.OccurredAt),
+		At:    identity.OccurredAt,
 	})
 	if rejection != nil {
 		*disposition = usecase.R1D2

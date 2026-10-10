@@ -24,7 +24,7 @@ func TestReservationsMatchTheProjectionFixture(t *testing.T) {
 
 func runReservation(t *testing.T, c tb.ProjectionCase) (domainkit.Projection, domainkit.Verdict) {
 	t.Helper()
-	when := domain.Instant(instant(t, c.Command["at"]))
+	when := kernel.Instant(instant(t, c.Command["at"]))
 	switch c.Command["upr"] {
 	case "reserve":
 		items, _ := strconv.Atoi(c.Command["items"])

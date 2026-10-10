@@ -22,6 +22,7 @@ import (
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/provider"
 	kernelapp "github.com/mateusmacedo/dmpf/libs/backend/go/app"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/app/relay"
+	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	kernelgrpc "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/kafka"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/audit"
@@ -29,7 +30,8 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/idclock"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/otelboot"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/retry"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/usecase"
+	obsusecase "github.com/mateusmacedo/dmpf/libs/backend/go/observability/usecase"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/admission"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/channel"
@@ -75,7 +77,7 @@ func NewReservationsService(pool *pgxpool.Pool, rt *otelboot.Runtime, cfg Config
 	}
 	service := NewService(pool, idclock.SystemClock{}, idclock.NewMessageIDs("reservations"), Waits{Message: cfg.Wait, Command: cfg.Policies.IdempotencyWait})
 	service.Idempotency = policy
-	service.Instrumentation = usecase.New(rt, audit.NewLogSink(rt.LoggerProvider()), subject, classify, application.OperationFindReservation)
+	service.Instrumentation = obsusecase.New(rt, audit.NewLogSink(rt.LoggerProvider()), ports.SubjectOf, usecase.CategoryOf, application.OperationFindReservation)
 	return service, nil
 }
 

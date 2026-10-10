@@ -37,7 +37,7 @@ func TestCancelCreatesACanceledReservationAndAuthorsTheOutboxEntry(t *testing.T)
 		AggregateType:    application.AggregateType,
 		AggregateID:      string(syncOrder),
 		AggregateVersion: 1,
-		Event:            domain.ReservationCancelled{Order: syncOrder, At: domain.Instant(syncOccurred)},
+		Event:            domain.ReservationCancelled{Order: syncOrder, At: syncOccurred},
 		Context:          ports.MessageContext{CausationID: "m-000001"},
 	}
 	if entries[0] != want {

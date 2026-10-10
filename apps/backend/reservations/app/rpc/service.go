@@ -14,19 +14,7 @@ import (
 	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
 	kernelgrpc "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
-
-// WHY: the absence of what the interceptor mounted is a wiring defect of this
-// server, never a fault of the caller, so it answers Internal rather than
-// leaving the handler to invent a context (CTX-03).
-func executionOf(ctx context.Context) (ports.ExecutionContext, error) {
-	execution, ok := ports.ExecutionContextFrom(ctx)
-	if !ok {
-		return ports.ExecutionContext{}, status.Error(codes.Internal, "the execution context was not assembled")
-	}
-	return execution, nil
-}
 
 var descriptor = servicev1.File_company_reservations_service_v1_reservations_service_proto.Services().ByName("ReservationsService")
 
@@ -73,27 +61,12 @@ type Server struct {
 	Service application.Service
 }
 
-func command[R, Resp any](ctx context.Context, run func(context.Context) (usecase.Outcome[R], error), refused func(*servicev1.Rejection) Resp, accepted func(R) Resp) (Resp, error) {
-	var none Resp
-	if _, err := executionOf(ctx); err != nil {
-		return none, err
-	}
-	out, err := run(ctx)
-	if err != nil {
-		return none, kernelgrpc.StatusOf(err)
-	}
-	if rejection, declined := out.Rejection(); declined {
-		return refused(rejectionOf(rejection)), nil
-	}
-	return accepted(out.Response()), nil
-}
-
 func (s Server) Reserve(ctx context.Context, req *servicev1.ReserveRequest) (*servicev1.ReserveResponse, error) {
 	id, err := orderID(req.GetOrderId())
 	if err != nil {
 		return nil, err
 	}
-	return command(ctx,
+	return kernelgrpc.Command(ctx,
 		func(ctx context.Context) (usecase.Outcome[domain.ReservedResponse], error) {
 			return s.Service.Reserve(ctx, application.Reserve{Order: id, Items: int(req.GetItemCount())})
 		},
@@ -106,7 +79,7 @@ func (s Server) Cancel(ctx context.Context, req *servicev1.CancelRequest) (*serv
 	if err != nil {
 		return nil, err
 	}
-	return command(ctx,
+	return kernelgrpc.Command(ctx,
 		func(ctx context.Context) (usecase.Outcome[domain.CancelledResponse], error) {
 			return s.Service.Cancel(ctx, application.Cancel{Order: id})
 		},
@@ -114,8 +87,10 @@ func (s Server) Cancel(ctx context.Context, req *servicev1.CancelRequest) (*serv
 		canceledOf)
 }
 
-func reserveRefused(r *servicev1.Rejection) *servicev1.ReserveResponse {
-	return &servicev1.ReserveResponse{Result: &servicev1.ReserveResponse_Rejection{Rejection: r}}
+func reserveRefused(r *kernel.Rejection) *servicev1.ReserveResponse {
+	return &servicev1.ReserveResponse{Result: &servicev1.ReserveResponse_Rejection{
+		Rejection: &servicev1.Rejection{Code: string(r.Code()), Message: r.Message()},
+	}}
 }
 
 func reservedOf(reserved domain.ReservedResponse) *servicev1.ReserveResponse {
@@ -124,8 +99,10 @@ func reservedOf(reserved domain.ReservedResponse) *servicev1.ReserveResponse {
 	}}
 }
 
-func cancelRefused(r *servicev1.Rejection) *servicev1.CancelResponse {
-	return &servicev1.CancelResponse{Result: &servicev1.CancelResponse_Rejection{Rejection: r}}
+func cancelRefused(r *kernel.Rejection) *servicev1.CancelResponse {
+	return &servicev1.CancelResponse{Result: &servicev1.CancelResponse_Rejection{
+		Rejection: &servicev1.Rejection{Code: string(r.Code()), Message: r.Message()},
+	}}
 }
 
 func canceledOf(c domain.CancelledResponse) *servicev1.CancelResponse {
@@ -137,7 +114,7 @@ func (s Server) FindReservation(ctx context.Context, req *servicev1.FindReservat
 	if err != nil {
 		return nil, err
 	}
-	_, err = executionOf(ctx)
+	_, err = kernelgrpc.ExecutionOf(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -168,8 +145,4 @@ func reservationStatus(s domain.Status) servicev1.ReservationStatus {
 	default:
 		return servicev1.ReservationStatus_RESERVATION_STATUS_UNSPECIFIED
 	}
-}
-
-func rejectionOf(rejection *kernel.Rejection) *servicev1.Rejection {
-	return &servicev1.Rejection{Code: string(rejection.Code()), Message: rejection.Message()}
 }
