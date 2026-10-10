@@ -12,6 +12,7 @@ import (
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/appkit"
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/domain"
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/provider"
+	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/providerkit"
@@ -61,7 +62,7 @@ func TestResourceRepositoryConformsToTheKit(t *testing.T) {
 			Reader: resourceReader{pool: pool},
 			NewID:  func(n int) domain.ResourceCode { return domain.ResourceCode("kit-" + strconv.Itoa(n)) },
 			NewState: func(marker int) domain.ResourceSnapshot {
-				return domain.ResourceSnapshot{RegisteredAt: domain.Instant(marker)}
+				return domain.ResourceSnapshot{RegisteredAt: kernel.Instant(marker)}
 			},
 			Marker:           func(s domain.ResourceSnapshot) int { return int(s.RegisteredAt) },
 			TenantUnresolved: postgres.ErrTenantUnresolved,

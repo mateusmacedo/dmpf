@@ -118,8 +118,8 @@ func TestRegisterResourceAnswersTheRegisteredResource(t *testing.T) {
 
 func TestFindBookingsByResourceMapsEveryBooking(t *testing.T) {
 	h := newHarness(t, byResource{"room-1": {
-		{ID: "b-1", ResourceID: "room-1", Quantity: 1, Status: domain.Reserved, ReservedAt: domain.Instant(occurred)},
-		{ID: "b-2", ResourceID: "room-1", Quantity: 3, Status: domain.Cancelled, ReservedAt: domain.Instant(occurred)},
+		{ID: "b-1", ResourceID: "room-1", Quantity: 1, Status: domain.Reserved, ReservedAt: occurred},
+		{ID: "b-2", ResourceID: "room-1", Quantity: 3, Status: domain.Cancelled, ReservedAt: occurred},
 	}})
 
 	var resp servicev1.FindBookingsByResourceResponse

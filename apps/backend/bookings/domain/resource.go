@@ -4,7 +4,7 @@ import kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
 
 type Resource struct {
 	code         ResourceCode
-	registeredAt Instant
+	registeredAt kernel.Instant
 }
 
 func NewResource(code ResourceCode) *Resource {
@@ -17,7 +17,7 @@ func FromResourceSnapshot(s ResourceSnapshot) *Resource {
 
 type ResourceSnapshot struct {
 	Code         ResourceCode
-	RegisteredAt Instant
+	RegisteredAt kernel.Instant
 }
 
 func (r *Resource) Snapshot() ResourceSnapshot {

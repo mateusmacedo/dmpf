@@ -18,6 +18,7 @@ import (
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/provider"
 	kernelapp "github.com/mateusmacedo/dmpf/libs/backend/go/app"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/app/relay"
+	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	kernelgrpc "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/kafka"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/audit"
@@ -91,7 +92,7 @@ func NewBookingsService(pool *pgxpool.Pool, rt *otelboot.Runtime, cfg Config) (a
 	service.Idempotency = policy
 	service.Instrumentation = obsusecase.New(rt,
 		audit.NewLogSink(rt.LoggerProvider()),
-		subject, classify, application.OperationFindBooking, application.OperationFindBookingByResource)
+		ports.SubjectOf, usecase.CategoryOf, application.OperationFindBooking, application.OperationFindBookingByResource)
 	return service, nil
 }
 

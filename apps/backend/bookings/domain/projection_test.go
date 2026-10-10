@@ -20,7 +20,7 @@ func TestBookingsMatchTheProjectionFixture(t *testing.T) {
 
 func runBooking(t *testing.T, c tb.ProjectionCase) (domainkit.Projection, domainkit.Verdict) {
 	t.Helper()
-	when := domain.Instant(integer(t, c.Command["at"]))
+	when := kernel.Instant(integer(t, c.Command["at"]))
 	switch c.Command["upr"] {
 	case "reserve":
 		s := reserveSubject(domain.ReserveBooking{
@@ -70,7 +70,7 @@ func bookingFromState(t *testing.T, f domainkit.Fields) *domain.Booking {
 		ID:         domain.BookingID(f["booking"]),
 		ResourceID: domain.ResourceID(f["resource"]),
 		Quantity:   int(integer(t, f["quantity"])),
-		ReservedAt: domain.Instant(integer(t, f["reserved_at"])),
+		ReservedAt: kernel.Instant(integer(t, f["reserved_at"])),
 	}
 	for status, name := range statusNames {
 		if name == f["status"] {
