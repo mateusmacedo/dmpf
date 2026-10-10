@@ -1,6 +1,6 @@
 {
   "name": "@mateusmacedo/dmpf-plugin",
-  "version": "1.0.0-rc.2",
+  "version": "1.0.0-rc.3",
   "description": "Plugin Nx do DMPF: init, bounded-context, executors e migrations para consumir o kernel por versão",
   "license": "MIT",
   "repository": {

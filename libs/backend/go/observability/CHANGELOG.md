@@ -1,3 +1,20 @@
+## 1.0.0-rc.3 (2026-10-10)
+
+### 🩹 Fixes
+
+- **observability:** Subir o Go para 1.26.9 e o x/net para v0.60.0 ([a7db458b](https://github.com/mateusmacedo/dmpf/commit/a7db458b))
+
+### 🧱 Updated Dependencies
+
+- Updated application to 1.0.0-rc.3
+- Updated domain to 1.0.0-rc.3
+- Updated memory to 1.0.0-rc.3
+- Updated ports to 1.0.0-rc.3
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 1.0.0-rc.2 (2026-10-09)
 
 ### 🧱 Updated Dependencies

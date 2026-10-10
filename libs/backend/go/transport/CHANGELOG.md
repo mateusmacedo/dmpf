@@ -1,3 +1,18 @@
+## 1.0.0-rc.3 (2026-10-10)
+
+### 🩹 Fixes
+
+- **transport:** Subir o Go para 1.26.9 ([5ca34c50](https://github.com/mateusmacedo/dmpf/commit/5ca34c50))
+
+### 🧱 Updated Dependencies
+
+- Updated observability to 1.0.0-rc.3
+- Updated ports to 1.0.0-rc.3
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 1.0.0-rc.2 (2026-10-09)
 
 ### 🧱 Updated Dependencies
