@@ -5,7 +5,6 @@ import (
 	"errors"
 	"net/http"
 
-	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -77,36 +76,6 @@ func Classify(err error) Failure {
 	return Failure{grpc.HTTPStatus(s.Code()), named.code, named.message}
 }
 
-const (
-	CategoryUnexpected       = "Unexpected"
-	categoryDeadlineExceeded = "DeadlineExceeded"
-	categoryCancelled        = "Cancelled"
-)
+const CategoryUnexpected = "Unexpected"
 
-var categories = map[codes.Code]string{
-	codes.InvalidArgument: "Validation", codes.FailedPrecondition: "DomainRejection", codes.NotFound: "NotFound",
-	codes.Aborted: "Conflict", codes.AlreadyExists: "Conflict", codes.PermissionDenied: "Forbidden",
-	codes.Unauthenticated: "Unauthenticated", codes.Unavailable: "TransientDependency", codes.ResourceExhausted: "RateLimited",
-	codes.DeadlineExceeded: categoryDeadlineExceeded, codes.Canceled: categoryCancelled, codes.Internal: CategoryUnexpected,
-}
-
-func Category(err error) string {
-	var categorized interface{ ErrorCategory() string }
-	if errors.As(err, &categorized) {
-		return categorized.ErrorCategory()
-	}
-	switch {
-	case errors.Is(err, deadline.ErrNoDeadline):
-		return CategoryUnexpected
-	case errors.Is(err, deadline.ErrDeadlineExhausted), errors.Is(err, context.DeadlineExceeded):
-		return categoryDeadlineExceeded
-	case errors.Is(err, context.Canceled):
-		return categoryCancelled
-	}
-	if s, isStatus := status.FromError(err); isStatus {
-		if category, mapped := categories[s.Code()]; mapped {
-			return category
-		}
-	}
-	return semconv.ErrorTypeOther.Value.AsString()
-}
+func Category(err error) string { return grpc.Category(err) }
