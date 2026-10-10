@@ -1,3 +1,13 @@
+## 1.0.0-rc.3 (2026-10-10)
+
+### 🩹 Fixes
+
+- **conformance:** Subir o Go para 1.26.9 ([837365b7](https://github.com/mateusmacedo/dmpf/commit/837365b7))
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 1.0.0-rc.2 (2026-10-09)
 
 ### 🚀 Features

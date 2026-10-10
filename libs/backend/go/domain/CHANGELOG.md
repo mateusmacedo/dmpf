@@ -1,3 +1,13 @@
+## 1.0.0-rc.3 (2026-10-10)
+
+### 🩹 Fixes
+
+- **domain:** Subir o Go para 1.26.9 ([2c445602](https://github.com/mateusmacedo/dmpf/commit/2c445602))
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 1.0.0-rc.2 (2026-10-09)
 
 Initial release

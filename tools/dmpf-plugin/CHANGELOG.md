@@ -1,3 +1,13 @@
+## 1.0.0-rc.3 (2026-10-10)
+
+### 🩹 Fixes
+
+- **dmpf-plugin:** Fixar o Go 1.26.9 no versions.json ([84475f03](https://github.com/mateusmacedo/dmpf/commit/84475f03))
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 1.0.0-rc.2 (2026-10-09)
 
 ### 🚀 Features

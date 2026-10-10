@@ -1,3 +1,17 @@
+## 1.0.0-rc.3 (2026-10-10)
+
+### 🩹 Fixes
+
+- **orders-contract:** Subir o Go para 1.26.9 ([635912bb](https://github.com/mateusmacedo/dmpf/commit/635912bb))
+
+### 🧱 Updated Dependencies
+
+- Updated testkit to 1.0.0-rc.3
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 1.0.0-rc.2 (2026-10-09)
 
 ### 🧱 Updated Dependencies
