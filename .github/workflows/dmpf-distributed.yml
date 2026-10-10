@@ -4,8 +4,8 @@ name: DMPF Distributed
 # Redpanda e Postgres, com reentrega deliberada (V32). Pipeline separado do
 # ciclo curto por exigência de KIT-11. Sem `paths` positivo: o efeito sob
 # reentrega depende do kernel inteiro, e um filtro por caminho esconderia a
-# regressão que vier de fora do `distkit`; só o PR exclusivamente de
-# documentação fica de fora, como no ci.yml.
+# regressão que vier de fora do `distkit`. Também sem `paths-ignore`: o job é
+# check obrigatório do ruleset, e check que não dispara bloqueia o merge.
 
 on:
   pull_request:
@@ -13,9 +13,6 @@ on:
       - master
       - develop
       - "release/**"
-    paths-ignore:
-      - "**/*.md"
-      - ".github/ISSUE_TEMPLATE/**"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -48,6 +45,9 @@ jobs:
 
       - name: Setup Go
         uses: ./.github/actions/setup-go
+
+      - name: Espelho do Docker Hub
+        uses: ./.github/actions/docker-hub-mirror
 
       # No runner hospedado do GitHub o job roda na VM, sem container próprio:
       # `--network host` publica o serviço em localhost, como os testes esperam.

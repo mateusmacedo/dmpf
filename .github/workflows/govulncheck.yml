@@ -1,0 +1,38 @@
+name: govulncheck agendado
+
+# Aviso novo do banco de vulnerabilidades reprova código que já passou no PR;
+# o affected do PR só o vê quando alguém toca no projeto.
+on:
+  schedule:
+    - cron: "0 9 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  govulncheck:
+    name: govulncheck (${{ matrix.ref }})
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        ref: [develop, master]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          ref: ${{ matrix.ref }}
+
+      - name: Setup Node and pnpm
+        uses: ./.github/actions/setup-node-pnpm
+        with:
+          node-version: "24"
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      - name: govulncheck em todos os projetos Go
+        run: pnpm nx run-many -t govulncheck --parallel=3 --exclude=@mateusmacedo/dmpf-source

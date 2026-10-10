@@ -1,12 +1,93 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["config:recommended", "helpers:pinGitHubActionDigests"],
-  "baseBranchPatterns": ["master"],
+  "extends": ["config:recommended", "helpers:pinGitHubActionDigests", ":enableVulnerabilityAlerts"],
+  "baseBranchPatterns": ["develop"],
+  "osvVulnerabilityAlerts": true,
+  "ignorePaths": [
+    "**/node_modules/**",
+    "**/bower_components/**",
+    "**/vendor/**",
+    "**/examples/**",
+    "**/__tests__/**",
+    "**/test/**",
+    "**/tests/**",
+    "**/__fixtures__/**",
+    "**/testdata/**",
+    "tools/dmpf-plugin/templates/**"
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Diretiva go do go.work, que define o toolchain do CI",
+      "managerFilePatterns": ["/(^|/)go\\.work$/"],
+      "matchStrings": ["(?m)^go (?<currentValue>\\d+\\.\\d+\\.\\d+)$"],
+      "depNameTemplate": "go",
+      "datasourceTemplate": "golang-version"
+    },
+    {
+      "customType": "regex",
+      "description": "Pins de Go que o dmpf-plugin entrega ao consumidor",
+      "managerFilePatterns": ["/^tools/dmpf-plugin/versions\\.json$/"],
+      "matchStrings": [
+        "\"directive\": \"(?<currentValue>\\d+\\.\\d+\\.\\d+)\"",
+        "\"image\": \"golang:(?<currentValue>\\d+\\.\\d+\\.\\d+)-alpine\""
+      ],
+      "depNameTemplate": "go",
+      "datasourceTemplate": "golang-version"
+    }
+  ],
   "packageRules": [
     {
       "matchManagers": ["github-actions"],
       "groupName": "github-actions",
       "schedule": ["before 6am on monday"]
+    },
+    {
+      "description": "Sobe a diretiva go dos go.mod, que o Renovate não propõe por padrão",
+      "matchDatasources": ["golang-version"],
+      "rangeStrategy": "bump"
+    },
+    {
+      "description": "Patch do Go num PR só: go.work, go.mod, versions.json e imagens golang andam juntos para o sync-versions não reprovar",
+      "matchDatasources": ["golang-version"],
+      "matchUpdateTypes": ["patch"],
+      "groupName": "go-toolchain"
+    },
+    {
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["golang"],
+      "matchUpdateTypes": ["patch"],
+      "groupName": "go-toolchain"
+    },
+    {
+      "description": "Minor e major do Go mudam a linguagem e ficam para decisão manual",
+      "matchDatasources": ["golang-version", "docker"],
+      "matchPackageNames": ["go", "golang"],
+      "matchUpdateTypes": ["minor", "major"],
+      "enabled": false
+    },
+    {
+      "description": "Dependência indireta do go.mod: consultada para o alerta de vulnerabilidade",
+      "matchManagers": ["gomod"],
+      "matchDepTypes": ["indirect"],
+      "enabled": true
+    },
+    {
+      "description": "Dependência indireta do go.mod só sobe por alerta de vulnerabilidade, que força a atualização",
+      "matchManagers": ["gomod"],
+      "matchDepTypes": ["indirect"],
+      "matchUpdateTypes": [
+        "major",
+        "minor",
+        "patch",
+        "pin",
+        "digest",
+        "pinDigest",
+        "lockFileMaintenance",
+        "rollback",
+        "replacement"
+      ],
+      "enabled": false
     }
   ]
 }

@@ -1,16 +1,14 @@
 name: CI
 
 # O push em develop roda o mesmo pipeline e grava os caches que os PRs lêem:
-# um PR só lê cache da própria ref, da branch base e da default.
+# um PR só lê cache da própria ref, da branch base e da default. O PR não tem
+# paths-ignore: check obrigatório do ruleset que não dispara bloqueia o merge.
 on:
   pull_request:
     branches:
       - master
       - develop
       - "release/**"
-    paths-ignore:
-      - "**/*.md"
-      - ".github/ISSUE_TEMPLATE/**"
   push:
     branches:
       - develop
@@ -112,7 +110,7 @@ jobs:
         uses: ./.github/actions/setup-go
 
       - name: Prova do consumidor externo
-        run: bash tools/external-consumer.sh
+        run: bash tools/external-consumer.sh --verdaccio
 
   dmpf-gates:
     name: Gates DMPF do platform (célula e shared kernel)
@@ -181,6 +179,9 @@ jobs:
 
       - name: Setup Go
         uses: ./.github/actions/setup-go
+
+      - name: Espelho do Docker Hub
+        uses: ./.github/actions/docker-hub-mirror
 
       # Sem `if` de projeto Go afetado: o artefato que esta prova mede é escrito
       # pelo generator, e uma mudança só no TypeScript do plugin altera o artefato

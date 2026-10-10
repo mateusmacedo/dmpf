@@ -225,6 +225,7 @@ pnpm nx run-many -t typecheck,build,test -p @mateusmacedo/dmpf-plugin
 bash tools/dmpf-generator-check.sh --phase structural   # contexto gerado num worktree descartável
 bash tools/dmpf-generator-check.sh --phase self-test    # vetores negativos
 bash tools/external-consumer.sh                         # workspace Nx de fora, por versão
+bash tools/external-consumer.sh --verdaccio             # idem, instalando o plugin por registry
 ```
 
 O `dmpf-generator-check.sh` gera o esqueleto num worktree sobre `HEAD`, faz os
@@ -234,7 +235,11 @@ commit efêmero. O `external-consumer.sh` cria um workspace Nx vazio fora da
 árvore, instala o plugin por `pnpm pack`, resolve o kernel e o `conformance`
 do PR por um proxy `file://` (`tools/kernel-file-proxy.sh`) e roda `nx add`,
 `init`, `bounded-context` e os gates do consumidor; é o job
-`external-consumer` do CI.
+`external-consumer` do CI. Com `--verdaccio`, que é como o CI roda, o pacote vai
+para um Verdaccio local que exige token no escopo `@mateusmacedo`, e o
+consumidor o instala por versão com a credencial no `.npmrc` de usuário, como
+faria com o GitHub Packages. Assim, um erro de autenticação ou de instalação por
+registry aparece no PR, antes de existir versão publicada.
 
 ## Desenvolvimento
 

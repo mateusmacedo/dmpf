@@ -156,8 +156,8 @@ versionamento independente por projeto marcado com `type:lib`.
   (`docs/adr/043-migracao-para-github-licenca-e-autoria.md`).
 - Prefira PRs pequenos e focados: uma feature ou um fix por PR.
 - Descreva o que muda e por quê, com contexto suficiente para o revisor.
-- PRs que tocam apenas arquivos Markdown não disparam o pipeline, por causa do
-  `paths-ignore` do `ci.yml`.
+- Todo PR roda o pipeline, inclusive o que só toca Markdown: o ruleset da
+  `develop` exige os checks verdes antes do merge.
 
 ## Validação local antes do PR
 

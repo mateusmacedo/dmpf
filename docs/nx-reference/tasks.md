@@ -218,7 +218,7 @@ Depois de gerar, quatro ajustes que o generator não faz:
    ```bash
    go -C libs/backend/go/<name> mod edit \
      -module github.com/mateusmacedo/dmpf/libs/backend/go/<name>
-   go -C libs/backend/go/<name> mod edit -go=1.26.6   # o generator descarta o patch
+   go -C libs/backend/go/<name> mod edit -go=1.26.9   # o generator descarta o patch
    ```
 
 2. **`package.json` privado** — `{"name": "@mateusmacedo/<name>", "version": "0.0.0", "private": true}`.

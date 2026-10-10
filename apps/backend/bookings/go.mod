@@ -1,22 +1,22 @@
 module github.com/mateusmacedo/dmpf/apps/backend/bookings
 
-go 1.26.6
+go 1.26.9
 
 require (
 	github.com/jackc/pgx/v5 v5.10.0
-	github.com/mateusmacedo/dmpf/apps/backend/bookings/contract v1.0.0-rc.2
-	github.com/mateusmacedo/dmpf/libs/backend/go/app v1.0.0-rc.2
-	github.com/mateusmacedo/dmpf/libs/backend/go/application v1.0.0-rc.2
-	github.com/mateusmacedo/dmpf/libs/backend/go/contracts v1.0.0-rc.2
-	github.com/mateusmacedo/dmpf/libs/backend/go/domain v1.0.0-rc.2
-	github.com/mateusmacedo/dmpf/libs/backend/go/grpc v1.0.0-rc.2
-	github.com/mateusmacedo/dmpf/libs/backend/go/kafka v1.0.0-rc.2
-	github.com/mateusmacedo/dmpf/libs/backend/go/memory v1.0.0-rc.2
-	github.com/mateusmacedo/dmpf/libs/backend/go/observability v1.0.0-rc.2
-	github.com/mateusmacedo/dmpf/libs/backend/go/ports v1.0.0-rc.2
-	github.com/mateusmacedo/dmpf/libs/backend/go/postgres v1.0.0-rc.2
-	github.com/mateusmacedo/dmpf/libs/backend/go/testkit v1.0.0-rc.2
-	github.com/mateusmacedo/dmpf/libs/backend/go/transport v1.0.0-rc.2
+	github.com/mateusmacedo/dmpf/apps/backend/bookings/contract v1.0.0-rc.3
+	github.com/mateusmacedo/dmpf/libs/backend/go/app v1.0.0-rc.3
+	github.com/mateusmacedo/dmpf/libs/backend/go/application v1.0.0-rc.3
+	github.com/mateusmacedo/dmpf/libs/backend/go/contracts v1.0.0-rc.3
+	github.com/mateusmacedo/dmpf/libs/backend/go/domain v1.0.0-rc.3
+	github.com/mateusmacedo/dmpf/libs/backend/go/grpc v1.0.0-rc.3
+	github.com/mateusmacedo/dmpf/libs/backend/go/kafka v1.0.0-rc.3
+	github.com/mateusmacedo/dmpf/libs/backend/go/memory v1.0.0-rc.3
+	github.com/mateusmacedo/dmpf/libs/backend/go/observability v1.0.0-rc.3
+	github.com/mateusmacedo/dmpf/libs/backend/go/ports v1.0.0-rc.3
+	github.com/mateusmacedo/dmpf/libs/backend/go/postgres v1.0.0-rc.3
+	github.com/mateusmacedo/dmpf/libs/backend/go/testkit v1.0.0-rc.3
+	github.com/mateusmacedo/dmpf/libs/backend/go/transport v1.0.0-rc.3
 	github.com/twmb/franz-go v1.21.6
 	github.com/twmb/franz-go/pkg/kadm v1.18.0
 	go.opentelemetry.io/otel v1.47.0
@@ -70,7 +70,7 @@ require (
 	go.opentelemetry.io/otel/metric v1.47.0 // indirect
 	go.opentelemetry.io/otel/trace v1.47.0 // indirect
 	golang.org/x/crypto v0.57.0 // indirect
-	golang.org/x/net v0.59.0 // indirect
+	golang.org/x/net v0.60.0 // indirect
 	golang.org/x/sync v0.23.0 // indirect
 	golang.org/x/sys v0.48.0 // indirect
 	golang.org/x/text v0.42.0 // indirect

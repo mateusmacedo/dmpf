@@ -73,7 +73,7 @@ regex de identificador de cada contrato — ou o que **diverge por papel**.
 
 **Generics em Go, na prática.** Método não aceita parâmetro de tipo, então os
 esqueletos propostos são funções livres (`Execute[Res, Op, R]`), não métodos de
-um tipo genérico. O `go.mod` dos apps declara `go 1.26.6`, que já tem alias
+um tipo genérico. O `go.mod` dos apps declara `go 1.26.9`, que já tem alias
 genérico: `type command[R any] = usecase.Command[Resources, Operation, R]`
 encurta os argumentos de tipo no contexto.
 

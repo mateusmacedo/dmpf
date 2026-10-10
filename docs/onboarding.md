@@ -155,9 +155,9 @@ O workflow `.github/workflows/ci.yml` roda em PRs para `master`, `develop` e
 depois `nx affected` de lint, typecheck, test (com `--ci --coverage`), build e
 e2e, mais os estágios Go selecionados por `layer:*`.
 
-Nota importante: o CI ignora mudanças que sejam apenas Markdown (`paths-ignore`
-com `**/*.md` e `.github/ISSUE_TEMPLATE/**`). PRs só de documentação não disparam
-o pipeline e precisam de revisão humana.
+Nota importante: todo PR roda o pipeline, inclusive o que só muda Markdown. O
+ruleset "CI obrigatório na develop" exige PR e os checks verdes para o merge, e
+um check que não disparasse deixaria o PR bloqueado.
 
 ## Release e plataforma
 
