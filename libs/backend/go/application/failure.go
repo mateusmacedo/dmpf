@@ -2,7 +2,12 @@
 
 package application
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+
+	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
+)
 
 // Category is one of FND-07 §5.3's eleven error categories; ERR-01/ERR-02
 // make the catalog total, with Unexpected as the closing case.
@@ -58,3 +63,23 @@ func (f *Failure) Error() string {
 
 // Unwrap exposes the cause to errors.Is and errors.As.
 func (f *Failure) Unwrap() error { return f.cause }
+
+// CategoryOf is the FND-07 §5.3 category of a Failure or of a port sentinel;
+// empty means unclassified, and the caller records its own closing value.
+func CategoryOf(err error) string {
+	if failure, ok := errors.AsType[*Failure](err); ok {
+		return string(failure.Category())
+	}
+	switch {
+	case errors.Is(err, ports.ErrIdempotencyKeyAbsent), errors.Is(err, ports.ErrIdempotencyKeyInvalid),
+		errors.Is(err, ports.ErrIdempotencyMismatch):
+		return string(Validation)
+	case errors.Is(err, ports.ErrIdempotencyInFlight), errors.Is(err, ports.ErrAlreadyExists),
+		errors.Is(err, ports.ErrVersionConflict):
+		return string(Conflict)
+	case errors.Is(err, ports.ErrNotFound):
+		return string(NotFound)
+	default:
+		return ""
+	}
+}
