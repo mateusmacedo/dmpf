@@ -21,11 +21,12 @@ import (
 	"github.com/mateusmacedo/dmpf/apps/backend/bff/app"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/otelboot"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/redact"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/obstest"
 )
 
 func TestNetHTTPLogsItsServerErrorsUnderItsOwnScopeWithoutTheirValues(t *testing.T) {
 	const panicked = "sentinel-panic-value"
-	logs := &memoryLogs{}
+	logs := &obstest.MemoryLogs{}
 	telemetry := app.TelemetryOf(app.Defaults())
 	config := otelboot.Config{
 		Propagator: propagation.TraceContext{},
@@ -86,17 +87,16 @@ func TestNetHTTPLogsItsServerErrorsUnderItsOwnScopeWithoutTheirValues(t *testing
 	}
 }
 
-func serverErrors(t *testing.T, provider *sdklog.LoggerProvider, logs *memoryLogs, want map[string]string) []sdklog.Record {
+func serverErrors(t *testing.T, provider *sdklog.LoggerProvider, logs *obstest.MemoryLogs, want map[string]string) []sdklog.Record {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for {
 		if err := provider.ForceFlush(context.Background()); err != nil {
 			t.Fatalf("ForceFlush() = %v", err)
 		}
-		logs.mu.Lock()
 		var served []sdklog.Record
 		seen := map[string]bool{}
-		for _, record := range logs.records {
+		for _, record := range logs.Records() {
 			body := record.Body().AsString()
 			for prefix := range want {
 				if strings.HasPrefix(body, prefix) {
@@ -105,7 +105,6 @@ func serverErrors(t *testing.T, provider *sdklog.LoggerProvider, logs *memoryLog
 				}
 			}
 		}
-		logs.mu.Unlock()
 		if len(seen) == len(want) {
 			return served
 		}
