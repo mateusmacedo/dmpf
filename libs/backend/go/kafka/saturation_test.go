@@ -4,13 +4,12 @@ import (
 	"context"
 	"testing"
 
-	"go.opentelemetry.io/otel/attribute"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
-	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/kafka"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/metrics"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/otelboot"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/obstest"
 )
 
 func exportedInstruments(t *testing.T) (*metrics.Instruments, *sdkmetric.ManualReader) {
@@ -25,30 +24,6 @@ func exportedInstruments(t *testing.T) (*metrics.Instruments, *sdkmetric.ManualR
 	return instruments, reader
 }
 
-func exportedLabels(t *testing.T, reader *sdkmetric.ManualReader) map[string][]attribute.Set {
-	t.Helper()
-	var collected metricdata.ResourceMetrics
-	if err := reader.Collect(context.Background(), &collected); err != nil {
-		t.Fatalf("Collect() = %v", err)
-	}
-	labels := map[string][]attribute.Set{}
-	for _, scope := range collected.ScopeMetrics {
-		for _, m := range scope.Metrics {
-			switch data := m.Data.(type) {
-			case metricdata.Gauge[float64]:
-				for _, point := range data.DataPoints {
-					labels[m.Name] = append(labels[m.Name], point.Attributes)
-				}
-			case metricdata.Gauge[int64]:
-				for _, point := range data.DataPoints {
-					labels[m.Name] = append(labels[m.Name], point.Attributes)
-				}
-			}
-		}
-	}
-	return labels
-}
-
 func TestTheSaturationOfTheConsumerIsExportedWithoutALabel(t *testing.T) {
 	instruments, reader := exportedInstruments(t)
 	sink := newSink()
@@ -60,7 +35,7 @@ func TestTheSaturationOfTheConsumerIsExportedWithoutALabel(t *testing.T) {
 
 	consume(t, c, fake, func() bool { return len(fake.Commits()) >= 1 && c.PendingOf(topic, 0) == 0 })
 
-	exported := exportedLabels(t, reader)
+	exported := obstest.MetricLabels(t, reader)
 	for _, name := range []string{metrics.PoolUtilization, metrics.QueueDepth} {
 		points := exported[name]
 		if len(points) == 0 {
