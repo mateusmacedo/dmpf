@@ -65,7 +65,9 @@
       "include": [
         "github.com/mateusmacedo/dmpf/libs/backend/go/testkit",
         "github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb",
-        "github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/pg"
+        "github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/pg",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/execctx",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/reference"
       ]
     }
   ],
