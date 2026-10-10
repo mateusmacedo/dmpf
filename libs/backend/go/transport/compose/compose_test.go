@@ -24,6 +24,7 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/resilience"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/retry"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/tracing"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/obstest"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/compose"
 )
 
@@ -180,7 +181,7 @@ func TestTheComposedBreakerLogsItsTransitionOnTheConfiguredLogger(t *testing.T) 
 	}
 	for name, configure := range cases {
 		t.Run(name, func(t *testing.T) {
-			exporter := &memoryExporter{}
+			exporter := &obstest.MemoryLogs{}
 			c := clock.NewFake(start)
 			cfg := config(c)
 			configure(t, &cfg, sdklog.NewLoggerProvider(sdklog.WithProcessor(sdklog.NewSimpleProcessor(exporter))))
@@ -197,13 +198,13 @@ func TestTheComposedBreakerLogsItsTransitionOnTheConfiguredLogger(t *testing.T) 
 			}
 
 			var transitions []map[string]any
-			for _, record := range exporter.maps() {
+			for _, record := range exporter.Maps() {
 				if record["msg"] == "resilience: breaker state changed" {
 					transitions = append(transitions, record)
 				}
 			}
 			if len(transitions) != 1 {
-				t.Fatalf("transitions = %v in %v, want the one to open", transitions, exporter.maps())
+				t.Fatalf("transitions = %v in %v, want the one to open", transitions, exporter.Maps())
 			}
 			want := map[string]any{
 				"level": "WARN", "dmpf.dependency": "dep", "dmpf.breaker.state": "open",
@@ -565,7 +566,7 @@ func TestUnderTheOwnedSendTheRealDecoratorsLeaveTheirEventsOnTheSend(t *testing.
 
 func TestTheRetryEventNumbersTheAttemptAsTheLogDoes(t *testing.T) {
 	spans, tracer := spanRecorder(t)
-	exporter := &memoryExporter{}
+	exporter := &obstest.MemoryLogs{}
 	c := clock.NewFake(start)
 	cfg := config(c)
 	cfg.Tracer = tracer
@@ -590,7 +591,7 @@ func TestTheRetryEventNumbersTheAttemptAsTheLogDoes(t *testing.T) {
 	}
 
 	logged := map[int64]string{}
-	for _, record := range exporter.maps() {
+	for _, record := range exporter.Maps() {
 		if number, ok := record["dmpf.retry.attempt"].(int64); ok {
 			logged[number] = record["msg"].(string)
 		}
