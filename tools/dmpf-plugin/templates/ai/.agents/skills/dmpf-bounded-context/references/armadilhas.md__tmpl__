@@ -31,10 +31,10 @@ golden for regenerado e algo novo morder, a entrada nova vem para cá.
    o módulo fica fora dos globs do `pnpm-workspace.yaml` (`apps/*`): o
    `package.json` continua a existir para o Nx, e só ele o lê.
 8. **O esqueleto do composition root vem do generator, mas nasce vazio.**
-   `app/wiring.go` sobe o gRPC sem nenhum método, e o `NewCatalog` recusa o
+   `app/wiring.go` sobe o gRPC sem nenhum método, e o `<Ctx>Channel` recusa o
    relay com `ErrNoChannel` até o canal existir. Compilar e passar no lint não
    quer dizer que o contexto serve alguma coisa: preencher o `ServiceDesc`, o
-   serviço de aplicação e o catálogo é parte do trabalho.
+   serviço de aplicação e o canal é parte do trabalho.
 9. **Sem pluralização automática.** O nome da tabela é o agregado no plural,
    escrito pelo autor (`bookings`, `resources`); o plural também contorna a
    palavra reservada `order`. O generator não deriva nome de tabela.

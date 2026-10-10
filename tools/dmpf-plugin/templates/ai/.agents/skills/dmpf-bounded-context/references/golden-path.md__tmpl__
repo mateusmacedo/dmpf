@@ -126,11 +126,11 @@ pnpm nx g @mateusmacedo/dmpf-plugin:bounded-context <name> --boundedContext <ctx
 | Peça | Molde |
 | --- | --- |
 | Configuração: `Defaults(role)`, `FromEnv`, `Validate`, variáveis sem `DMPF_`; seções `API kernelgrpc.APIEnv` e `Policies kernelapp.Policies`, e o `requirements()` que compõe os `Missing()` com as variáveis do contexto | `<%- src('apps/backend/bookings/app/config.go') %>` |
-| Composition root: `Run`, `RunWith`, `Waits` e `NewService`, `serveAPI` gRPC, migrate no ready, relay por `relay.Instrument(cfg.Relay, rt, catalog.AddressOf)`; `Commands` ligado a `tx.CommandInbox`, a política por `kernelapp.IdempotencyPolicy` e a purga por `kernelapp.StartPurge` com `kernelapp.Purge*` | `bookings/app/wiring.go` |
+| Composition root: `Run`, `RunWith` sobre `serve.ServeAPI` e `serve.RunRelay` do kernel (gRPC, migrate no ready, relay e purga ficam no `app/serve`), `Waits` e `NewService`, e o `serve.API` com o `Register` do serviço; `Commands` ligado a `tx.CommandInbox` e a política por `kernelapp.IdempotencyPolicy` | `bookings/app/wiring.go` |
 | Serviço gRPC: `ServiceDesc` com um `kernelgrpc.Unary(ServiceName, kernelgrpc.Method(descriptor, "<Método>"), <Ctx>Server.<Método>)` por método, `Methods()` e `FullMethod()` delegando ao kernel, `Server` sobre o serviço de aplicação | `bookings/app/rpc/service.go` |
-| Handler de comando pelo `command[R, Resp]` local: `executionOf`, o caso de uso, `kernelgrpc.StatusOf(err)` na falha e o oneof da resposta; o template não o traz, porque nasce sem handlers | `bookings/app/rpc/service.go` |
+| Handler de comando pelo `kernelgrpc.Command`: o caso de uso, a recusa e o aceite no oneof da resposta, com `kernelgrpc.StatusOf(err)` na falha; `kernelgrpc.ExecutionOf` quando o handler precisa do contexto de execução. O template não o traz, porque nasce sem handlers | `bookings/app/rpc/service.go` |
 | Cobertura do descritor: `kernelgrpc.Uncovered(&rpc.ServiceDesc, descriptor)` vazio e nenhum stream | `bookings/app/rpc/service_test.go` |
-| Catálogo do canal que o relay drena | `bookings/app/catalog.go` |
+| Canal que o relay drena (`<Ctx>Channel`) | `bookings/app/catalog.go` |
 | Autorização e instrumentação | `bookings/app/{authorization,telemetry}.go` |
 | e2e gRPC por bufconn sobre Postgres | `bookings/app/e2e_test.go` |
 | Consumer adapter (`envelope.Unpack`) — **só se o contexto consome** | `<%- src('apps/backend/reservations/app/consumer.go') %>` |
