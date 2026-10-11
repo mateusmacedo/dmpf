@@ -143,6 +143,9 @@ pnpm nx g @mateusmacedo/dmpf-plugin:bounded-context <name> --boundedContext <ctx
   devolve `ErrNoChannel`. Ao declarar o canal, a assinatura passa a
   `<Ctx>Channel(Config) channel.Channel`, como no molde, o `ErrNoChannel` sai e
   o caso `RoleRelay` do `RunWith` entrega o canal direto ao `serve.Relay`.
+- Da mesma forma, o papel `api` recusa com `serve.ErrNoMethods` enquanto o
+  `ServiceDesc` não tiver método, e o `Register` só pode registrar o serviço do
+  `Desc`: outro serviço passaria sem admissão nem deadline.
 - A borda REST do contexto é do `bff` (`<%- src('apps/backend/bff/app/api/routes.go') %>`,
   `handlers_bookings.go`, `app/rpc/clients.go`), em tarefa própria. Contexto
   com `app/http` reprova no `dmpf-context-check.sh`.
