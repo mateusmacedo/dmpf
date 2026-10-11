@@ -12,6 +12,10 @@ import (
 const (
 	stopGrace = 20 * time.Second
 	waitDelay = 5 * time.Second
+
+	// A child logging in a tight loop would grow the parent without bound; the
+	// end of the output is what explains a failure, so that is what stays.
+	outputCap = 1 << 20
 )
 
 type output struct {
@@ -22,7 +26,11 @@ type output struct {
 func (o *output) Write(p []byte) (int, error) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	return o.buf.Write(p)
+	o.buf.Write(p)
+	if excess := o.buf.Len() - outputCap; excess > 0 {
+		o.buf.Next(excess)
+	}
+	return len(p), nil
 }
 
 func (o *output) String() string {

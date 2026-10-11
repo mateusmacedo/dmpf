@@ -1,9 +1,7 @@
 package dist_test
 
 import (
-	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -11,28 +9,17 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/dist"
 )
 
-func awaitFile(t *testing.T, path string, timeout time.Duration) {
-	t.Helper()
-	deadline := time.Now().Add(timeout)
-	for {
-		if _, err := os.Stat(path); err == nil {
-			return
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("%s did not appear within %v", path, timeout)
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-}
-
 func TestOutputReadsWhatTheChildWroteWhileItRuns(t *testing.T) {
-	ready := filepath.Join(t.TempDir(), "ready")
 	p := dist.Supervise(t, "ticker", exec.Command("sh", "-c",
-		`trap "exit 0" TERM; echo tick; : > "$1"; while :; do echo tick; sleep 0.01; done`, "sh", ready))
-	awaitFile(t, ready, 5*time.Second)
+		`trap "exit 0" TERM; while :; do echo tick; sleep 0.01; done`))
+	dist.WaitFor(t, "the child to write a tick", 5*time.Second, func() bool {
+		return strings.Contains(p.Output(), "tick")
+	})
 
-	if got := p.Output(); !strings.Contains(got, "tick") {
-		t.Fatalf("Output() while the child runs = %q, want what it wrote so far", got)
+	select {
+	case <-p.Done():
+		t.Fatalf("the child exited before Stop: %v", p.Err())
+	default:
 	}
 	p.Stop(t, 5*time.Second)
 	select {
@@ -51,6 +38,16 @@ func TestErrReportsTheExitOfTheChild(t *testing.T) {
 
 	if p.Err() == nil || !strings.Contains(p.Output(), "broken") {
 		t.Fatalf("Err(), Output() = %v, %q; want the exit status and what the child wrote", p.Err(), p.Output())
+	}
+}
+
+func TestOutputKeepsOnlyTheEndOfALongOutput(t *testing.T) {
+	p := dist.Supervise(t, "flood", exec.Command("sh", "-c", `yes flood | head -c 3000000; echo end`))
+	<-p.Done()
+
+	got := p.Output()
+	if len(got) > 1<<20 || !strings.HasSuffix(got, "end\n") {
+		t.Fatalf("Output() holds %d bytes ending in %q, want at most 1 MiB ending in what the child wrote last", len(got), got[max(0, len(got)-16):])
 	}
 }
 

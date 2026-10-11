@@ -280,7 +280,10 @@ func RelayVector(t testing.TB, h *Harness, want int) Verdict {
 
 	settled := h.Settled(t, want, 30*time.Second)
 	for _, r := range relays {
-		r.Stop(t, 30*time.Second)
+		_ = r.cmd.Process.Signal(syscall.SIGTERM)
+	}
+	for _, r := range relays {
+		r.Wait(t, 30*time.Second)
 	}
 	return DecideRelay(settled, h.Collect(t, 60*time.Second))
 }

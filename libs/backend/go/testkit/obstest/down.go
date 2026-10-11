@@ -196,7 +196,7 @@ func (r *Refusal) RequireLogsAndMetricsRefused(t testing.TB) {
 			t.Errorf("log flush = %v with %d records, want the records of the work refused by the collector", err, r.records.records.Load())
 			break
 		}
-		time.Sleep(time.Millisecond)
+		time.Sleep(10 * time.Millisecond)
 	}
 	if err := r.reader.ForceFlush(ctx); !errors.Is(err, errMetricsDown) || r.metrics.exports.Load() == 0 {
 		t.Errorf("metric flush = %v after %d exports, want the collection refused by the collector", err, r.metrics.exports.Load())
