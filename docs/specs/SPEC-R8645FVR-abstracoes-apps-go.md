@@ -2,7 +2,7 @@
 id: SPEC-R8645FVR
 slug: abstracoes-apps-go
 title: DMPF — Abstrações dos apps Go, com esqueletos no kernel, kits de teste e correção de deriva
-stage: building
+stage: done
 priority: P1
 depends_on: []
 ticket_url: https://linear.app/mmda/issue/DEVS-63/spec-r8645fvr-dmpf-abstracoes-dos-apps-go-com-esqueletos-no-kernel
@@ -521,7 +521,7 @@ command.Run(ctx, res, identity):
 - [x] `node tools/adr-verify.mjs --from 61` passa com os dois ADRs novos e os status dos ADRs 046, 048 e 053 atualizados; o verificador inteiro acusa 77 violações anteriores a esta spec.
 - [x] O `reservations` prova `DMPF-P001` a `P003` do relay por meio de `testkit/tb/dist`.
 - [x] O `bookings/contract` tem golden para os três protos de evento.
-- [ ] O PR de cada onda registra as divergências de digest por subject (desde o ADR-059, não aplicável), e o da Onda 3 registra a redução de linhas do requisito não-funcional.
+- [x] O PR de cada onda registra as divergências de digest por subject (desde o ADR-059, não aplicável), e o da Onda 3 registra a redução de linhas do requisito não-funcional.
 
 ### Cenários de teste
 
