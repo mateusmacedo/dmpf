@@ -38,8 +38,6 @@ func (e *Exports) LogRecords() []*logspb.LogRecord {
 	return append([]*logspb.LogRecord(nil), e.logs...)
 }
 
-// Identity is the resource of the last export of signal ("traces", "metrics"
-// or "logs") as string attributes, and false when nothing arrived for it.
 func (e *Exports) Identity(signal string) (map[string]string, bool) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -93,8 +91,6 @@ func (s logSink) Export(_ context.Context, request *collogspb.ExportLogsServiceR
 	return &collogspb.ExportLogsServiceResponse{}, nil
 }
 
-// StartCollector serves an OTLP/gRPC receiver of the three signals on a free
-// loopback port until the test ends.
 func StartCollector(t testing.TB) (string, *Exports) {
 	t.Helper()
 	listener, err := net.Listen("tcp", "127.0.0.1:0")

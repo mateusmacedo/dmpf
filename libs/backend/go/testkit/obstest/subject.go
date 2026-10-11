@@ -22,8 +22,6 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/execctx"
 )
 
-// Subject is the telemetry of an app: its configuration C, built per role R,
-// as the binary reads and boots it.
 type Subject[C any, R ~string] struct {
 	Service     string
 	Roles       []R
@@ -87,6 +85,14 @@ func SettingKeys(record map[string]*commonpb.AnyValue) []string {
 // own settings plus the Postgres ones, never a code constant.
 func (s Subject[C, R]) RunAllowlist(t *testing.T, configOf func(R) C, own map[R][]string) {
 	t.Helper()
+	if len(own) == 0 {
+		t.Fatal("RunAllowlist: no role to hold to an allowlist")
+	}
+	for _, role := range s.Roles {
+		if _, ok := own[role]; !ok {
+			t.Fatalf("RunAllowlist: no settings for the %s role, want every role of Roles held to its allowlist", role)
+		}
+	}
 	for role, settings := range own {
 		t.Run(string(role), func(t *testing.T) {
 			record, _ := s.ProcessConfigured(t, configOf(role))
@@ -174,8 +180,6 @@ func (s Subject[C, R]) RunTenantBaggage(t *testing.T) {
 	}
 }
 
-// AuditTrail proves the audit of a service goes through the logger provider of
-// the runtime that built it and never through the global one.
 func AuditTrail(t *testing.T, service string, emit func(ctx context.Context, rt *otelboot.Runtime, pool *pgxpool.Pool) error) {
 	t.Helper()
 	ctx := context.Background()

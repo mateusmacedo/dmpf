@@ -57,7 +57,7 @@ func TestErrReportsTheExitOfTheChild(t *testing.T) {
 func TestTheCleanupTerminatesAChildStillRunning(t *testing.T) {
 	var p *dist.Process
 	t.Run("supervised", func(t *testing.T) {
-		p = dist.Supervise(t, "sleeper", exec.Command("sleep", "30"))
+		p = dist.Supervise(t, "sleeper", exec.Command("sleep", "300"))
 	})
 
 	select {

@@ -2,9 +2,11 @@ package obstest_test
 
 import (
 	"context"
+	"errors"
 	"net"
 	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
 	"time"
 
@@ -49,9 +51,12 @@ func TestReadEnvFileSkipsCommentsAndBlankLines(t *testing.T) {
 func TestAnUnreachableCollectorRefusesTheConnection(t *testing.T) {
 	down := obstest.UnreachableCollector(t)
 
-	if conn, err := net.DialTimeout("tcp", down.Addr, time.Second); err == nil {
+	conn, err := net.DialTimeout("tcp", down.Addr, time.Second)
+	if err == nil {
 		_ = conn.Close()
-		t.Fatalf("dial %s succeeded, want the connection refused", down.Addr)
+	}
+	if !errors.Is(err, syscall.ECONNREFUSED) {
+		t.Fatalf("dial %s = %v, want connection refused", down.Addr, err)
 	}
 }
 
@@ -64,8 +69,9 @@ func TestAStallingCollectorAcceptsAndNeverAnswers(t *testing.T) {
 	}
 	defer func() { _ = conn.Close() }()
 	_ = conn.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
-	if n, err := conn.Read(make([]byte, 1)); err == nil || n != 0 {
-		t.Fatalf("Read() = %d, %v, want nothing before the deadline", n, err)
+	var timeout net.Error
+	if n, err := conn.Read(make([]byte, 1)); n != 0 || !errors.As(err, &timeout) || !timeout.Timeout() {
+		t.Fatalf("Read() = %d, %v, want the read deadline to expire on an open connection", n, err)
 	}
 }
 

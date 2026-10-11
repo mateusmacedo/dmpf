@@ -14,15 +14,13 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/application"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/logging"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/otelboot"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/tracing"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/execctx"
 )
 
-// NotFoundOnTheUseCase proves that find, run over a pool nobody answers and a
-// tenant-scoped call, fails NotFound and leaves NotFound as the error.type of
-// the use case span and of its RED, the category the edge answers.
 func NotFoundOnTheUseCase(t *testing.T, service, operation string, find func(ctx context.Context, rt *otelboot.Runtime, pool *pgxpool.Pool) error) {
 	t.Helper()
 	ctx := context.Background()
@@ -60,8 +58,6 @@ func NotFoundOnTheUseCase(t *testing.T, service, operation string, find func(ctx
 	}
 }
 
-// RelayWiring is the relay role of an app draining a record of Channel into
-// the physical Topic.
 type RelayWiring struct {
 	Service string
 	Scope   string
@@ -91,12 +87,18 @@ func (w RelayWiring) Prove(t *testing.T) {
 	t.Cleanup(func() { _ = runtime.Shutdown(context.Background()) })
 
 	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
 	stopped := make(chan error, 1)
 	go func() { stopped <- w.Run(ctx, runtime) }()
 	send := AwaitSpan(t, runtime, spans, "send", 15*time.Second)
 	cancel()
-	if err := <-stopped; err != nil && !errors.Is(err, context.Canceled) {
-		t.Fatalf("RunWith(relay) = %v, want nil or the cancellation", err)
+	select {
+	case err := <-stopped:
+		if err != nil && !errors.Is(err, context.Canceled) {
+			t.Fatalf("RunWith(relay) = %v, want nil or the cancellation", err)
+		}
+	case <-time.After(15 * time.Second):
+		t.Fatalf("RunWith(relay) did not return within 15s of the cancellation")
 	}
 	if err := runtime.Shutdown(context.Background()); err != nil {
 		t.Fatalf("Shutdown() = %v, want nil", err)
@@ -108,7 +110,7 @@ func (w RelayWiring) Prove(t *testing.T) {
 	RequireTheVocabulary(t, "relay draining", draining, map[string]string{
 		string(semconv.MessagingSystemKey):          semconv.MessagingSystemKafka.Value.AsString(),
 		string(semconv.MessagingDestinationNameKey): w.Topic,
-		"dmpf.channel.name":                         w.Channel,
+		logging.KeyChannelName:                      w.Channel,
 	})
 	if send.Name != "send "+w.Topic {
 		t.Fatalf("send span = %q, want %q (RF-B7)", send.Name, "send "+w.Topic)

@@ -57,10 +57,11 @@ domínio não alcance `port` (V29, V30).
 certificados descartável, que grava PEM do jeito que um processo os lê de um
 segredo montado, sem nenhuma chave sobrevivendo ao teste. Hoje só
 `apps/backend/bff` a consome, no harness de mTLS ponta a ponta. O código de
-produção de um `provider` não importa `app`; `memory`, `postgres`, `kafka` e
-`sqs` requerem este módulo só pelos `_test.go`, em package de teste externo, e
-`grpc`, `observability` e `transport` também, pelo `obstest` (ADR-062). O
-`grpc` mantém a própria autoridade de teste, local
+produção de um `provider` não importa `app`; `memory`, `postgres`, `kafka`,
+`sqs`, `grpc`, `observability` e `transport` requerem este módulo só pelos
+`_test.go`, em package de teste externo. O `obstest` (ADR-062) é usado por
+`grpc`, `kafka`, `sqs` e `transport`; o `observability` usa o `tb/execctx` e o
+`tb/reference`. O `grpc` mantém a própria autoridade de teste, local
 (`libs/backend/go/grpc/pki_test.go`).
 
 ## Os kits — o que exigem, o que exercitam, o que aprovam

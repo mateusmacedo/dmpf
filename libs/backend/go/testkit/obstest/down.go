@@ -5,7 +5,6 @@ import (
 	"errors"
 	"log/slog"
 	"net"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -38,6 +37,7 @@ func UnusedLoopbackAddr(t testing.TB) string {
 }
 
 func UnreachableCollector(t testing.TB) *DownCollector {
+	t.Helper()
 	return &DownCollector{Addr: UnusedLoopbackAddr(t)}
 }
 
@@ -50,24 +50,22 @@ func StallingCollector(t testing.TB) *DownCollector {
 		t.Fatalf("Listen() = %v", err)
 	}
 	collector := &DownCollector{Addr: listener.Addr().String(), stalls: true}
-	var mu sync.Mutex
 	var held []net.Conn
+	accepting := make(chan struct{})
 	go func() {
+		defer close(accepting)
 		for {
 			conn, err := listener.Accept()
 			if err != nil {
 				return
 			}
-			mu.Lock()
 			held = append(held, conn)
-			mu.Unlock()
 			collector.held.Add(1)
 		}
 	}()
 	t.Cleanup(func() {
 		_ = listener.Close()
-		mu.Lock()
-		defer mu.Unlock()
+		<-accepting
 		for _, conn := range held {
 			_ = conn.Close()
 		}

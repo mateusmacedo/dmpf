@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -27,6 +28,8 @@ const (
 	EnvBrokers = "KAFKA_BROKERS"
 	RoleTest   = "^TestDistkitRole$"
 	Relays     = 2
+
+	childTimeoutWithoutDeadline = 10 * time.Minute
 )
 
 type Role string
@@ -96,8 +99,6 @@ func New(t testing.TB, s Spec) *Harness {
 	return h
 }
 
-// CreateTopics creates the topics for the test and deletes them, with the
-// group, when it ends.
 func CreateTopics(t testing.TB, seeds []string, group string, topics ...string) {
 	t.Helper()
 	cl, err := kgo.NewClient(kgo.SeedBrokers(seeds...))
@@ -108,7 +109,11 @@ func CreateTopics(t testing.TB, seeds []string, group string, topics ...string) 
 	admin := kadm.NewClient(cl)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	if _, err := admin.CreateTopics(ctx, 1, 1, nil, topics...); err != nil {
+	created, err := admin.CreateTopics(ctx, 1, 1, nil, topics...)
+	if err == nil {
+		err = created.Error()
+	}
+	if err != nil {
 		t.Fatalf("dist: CreateTopics: %v", err)
 	}
 	t.Cleanup(func() {
@@ -124,12 +129,17 @@ func CreateTopics(t testing.TB, seeds []string, group string, topics ...string) 
 // so the child configures itself exactly as production does.
 func (h *Harness) Start(t testing.TB, role Role, env ...string) *Process {
 	t.Helper()
+	return h.start(t, string(role), role, env...)
+}
+
+func (h *Harness) start(t testing.TB, name string, role Role, env ...string) *Process {
+	t.Helper()
 	exe, err := os.Executable()
 	if err != nil {
 		t.Fatalf("dist: os.Executable: %v", err)
 	}
 	prefix := "KAFKA_" + strings.ToUpper(h.Spec.Name)
-	cmd := exec.Command(exe, "-test.run="+RoleTest, "-test.v", "-test.count=1")
+	cmd := exec.Command(exe, "-test.run="+RoleTest, "-test.v", "-test.count=1", "-test.timeout="+childTimeout(t).String())
 	cmd.Env = append(os.Environ(),
 		EnvRole+"="+string(role),
 		prefix+"_TOPIC="+h.Topic,
@@ -145,7 +155,19 @@ func (h *Harness) Start(t testing.TB, role Role, env ...string) *Process {
 		pg.PostgresDSN+"="+pg.DSN(t, h.Spec.Pool.Project),
 	)
 	cmd.Env = append(cmd.Env, env...)
-	return Supervise(t, string(role), cmd)
+	return Supervise(t, name, cmd)
+}
+
+// A parent killed by its own -test.timeout never runs the cleanup that stops
+// the child, so the child carries the same deadline and does not outlive it
+// holding the Kafka group and the Postgres connections.
+func childTimeout(t testing.TB) time.Duration {
+	if d, ok := t.(interface{ Deadline() (time.Time, bool) }); ok {
+		if deadline, set := d.Deadline(); set {
+			return max(time.Until(deadline), time.Second)
+		}
+	}
+	return childTimeoutWithoutDeadline
 }
 
 func (h *Harness) Settled(t testing.TB, want int, timeout time.Duration) map[string]string {
@@ -153,15 +175,14 @@ func (h *Harness) Settled(t testing.TB, want int, timeout time.Duration) map[str
 	return pg.Settled(t, h.Pool, want, timeout)
 }
 
-// Collect reads the topic from the beginning and reduces every envelope to what
-// the verdict decides on, recomputing the hash over the payload it carries.
-func (h *Harness) Collect(t testing.TB, want int, timeout time.Duration) []Published {
+// Collect reads the topic up to the end offsets it has once every writer
+// stopped, so a duplicate published after the outbox settled is still read.
+func (h *Harness) Collect(t testing.TB, timeout time.Duration) []Published {
 	t.Helper()
 	cl, err := kgo.NewClient(
 		kgo.SeedBrokers(h.Brokers...),
 		kgo.ConsumeTopics(h.Topic),
 		kgo.ConsumeResetOffset(kgo.NewOffset().AtStart()),
-		kgo.ConsumerGroup(h.Group+"-collector"),
 	)
 	if err != nil {
 		t.Fatalf("dist.Collect: kgo.NewClient: %v", err)
@@ -171,11 +192,25 @@ func (h *Harness) Collect(t testing.TB, want int, timeout time.Duration) []Publi
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
+	ends, err := kadm.NewClient(cl).ListEndOffsets(ctx, h.Topic)
+	if err == nil {
+		err = ends.Error()
+	}
+	if err != nil {
+		t.Fatalf("dist.Collect: ListEndOffsets: %v", err)
+	}
+	unread := map[int32]int64{}
+	ends.Each(func(end kadm.ListedOffset) {
+		if end.Offset > 0 {
+			unread[end.Partition] = end.Offset
+		}
+	})
+
 	var out []Published
-	for len(out) < want {
+	for len(unread) > 0 {
 		fetches := cl.PollFetches(ctx)
 		if err := ctx.Err(); err != nil {
-			t.Fatalf("dist.Collect: %d of %d envelopes within %v", len(out), want, timeout)
+			t.Fatalf("dist.Collect: %d envelopes read, partitions %v not read to their end within %v", len(out), unread, timeout)
 		}
 		if errs := fetches.Errors(); len(errs) > 0 {
 			t.Fatalf("dist.Collect: %v", errs)
@@ -186,6 +221,9 @@ func (h *Harness) Collect(t testing.TB, want int, timeout time.Duration) []Publi
 				t.Fatalf("dist.Collect: the topic carries something that is not an envelope: %v", err)
 			}
 			out = append(out, Published{MessageID: env.ID, PayloadHash: payloadhash.Sum(env.Payload)})
+			if end, ok := unread[r.Partition]; ok && r.Offset+1 >= end {
+				delete(unread, r.Partition)
+			}
 		})
 	}
 	return out
@@ -202,10 +240,14 @@ func WaitFor(t testing.TB, what string, timeout time.Duration, cond func() bool)
 	}
 }
 
-// RelayVector is the vector of a producing context (DMPF-P001 to P003): Relays
-// drains compete for an outbox holding want pending records.
+// RelayVector is the vector of a producing context (DMPF-P001 to P003). The
+// outbox stays locked until both drains block on the same claim, so they
+// compete for the same records instead of the first one draining them alone.
 func RelayVector(t testing.TB, h *Harness, want int) Verdict {
 	t.Helper()
+	if want <= 0 {
+		t.Fatalf("dist: RelayVector(want = %d): the vector needs pending records to compete for", want)
+	}
 	var pending int
 	if err := h.Pool.QueryRow(context.Background(),
 		"SELECT count(*) FROM outbox WHERE status = 'pending'").Scan(&pending); err != nil {
@@ -225,15 +267,53 @@ func RelayVector(t testing.TB, h *Harness, want int) Verdict {
 			}
 		}
 	})
+	release := h.lockOutbox(t)
+	names := make([]string, len(relays))
 	for i := range relays {
-		relays[i] = h.Start(t, RoleRelay)
+		names[i] = fmt.Sprintf("%s-%s-%d", h.Spec.Name, RoleRelay, i+1)
+		relays[i] = h.start(t, fmt.Sprintf("%s-%d", RoleRelay, i+1), RoleRelay, "PGAPPNAME="+names[i])
 	}
+	WaitFor(t, "every relay to block on the claim of the locked outbox", 60*time.Second, func() bool {
+		return h.blockedClaims(t, names) == len(names)
+	})
+	release()
+
 	settled := h.Settled(t, want, 30*time.Second)
-	published := h.Collect(t, len(settled), 60*time.Second)
 	for _, r := range relays {
 		r.Stop(t, 30*time.Second)
 	}
-	return DecideRelay(settled, published)
+	return DecideRelay(settled, h.Collect(t, 60*time.Second))
+}
+
+// EXCLUSIVE conflicts with the row locks of the claim and not with the plain
+// reads a relay runs before it, so each drain boots and then waits on the claim.
+func (h *Harness) lockOutbox(t testing.TB) (release func()) {
+	t.Helper()
+	ctx := context.Background()
+	tx, err := h.Pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("dist: begin the outbox lock: %v", err)
+	}
+	if _, err := tx.Exec(ctx, "LOCK TABLE outbox IN EXCLUSIVE MODE"); err != nil {
+		_ = tx.Rollback(ctx)
+		t.Fatalf("dist: lock the outbox: %v", err)
+	}
+	var once sync.Once
+	release = func() { once.Do(func() { _ = tx.Rollback(ctx) }) }
+	t.Cleanup(release)
+	return release
+}
+
+func (h *Harness) blockedClaims(t testing.TB, names []string) int {
+	t.Helper()
+	var blocked int
+	if err := h.Pool.QueryRow(context.Background(), `
+		SELECT count(DISTINCT application_name) FROM pg_stat_activity
+		 WHERE datname = current_database() AND application_name = ANY($1)
+		   AND wait_event_type = 'Lock' AND query LIKE '%FOR UPDATE SKIP LOCKED%'`, names).Scan(&blocked); err != nil {
+		t.Fatalf("dist: reading the claims blocked on the outbox: %v", err)
+	}
+	return blocked
 }
 
 func (h *Harness) dumpOutbox(t testing.TB) {

@@ -19,8 +19,6 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/otelboot"
 )
 
-// MetricLabels collects the gauges of reader, name by name, with the attribute
-// set of every point.
 func MetricLabels(t testing.TB, reader *sdkmetric.ManualReader) map[string][]attribute.Set {
 	t.Helper()
 	var collected metricdata.ResourceMetrics
@@ -81,8 +79,6 @@ func MeteredRuntime(t testing.TB, service, role string, reader sdkmetric.Reader)
 	return runtime
 }
 
-// AwaitPooledConnection waits for db.client.connection.count to report a
-// connection of the pool dsn names, failing early if the role stops first.
 func AwaitPooledConnection(t testing.TB, reader *sdkmetric.ManualReader, dsn string, stopped <-chan error, timeout time.Duration) {
 	t.Helper()
 	config, err := pgxpool.ParseConfig(dsn)
