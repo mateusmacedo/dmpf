@@ -23,8 +23,6 @@ var ServiceName = string(descriptor.FullName())
 
 var orderIDFormat = regexp.MustCompile(`^[A-Za-z0-9._:-]{1,128}$`)
 
-// Methods names every method of the service: admission declares a limit for
-// each one (RES-16).
 func Methods() []string { return kernelgrpc.MethodNames(descriptor) }
 
 // Commands lists the methods that require an idempotency key (IDM-01); the
@@ -89,7 +87,7 @@ func (s Server) PlaceOrder(ctx context.Context, req *servicev1.PlaceOrderRequest
 
 func addItemRefused(r *kernel.Rejection) *servicev1.AddItemResponse {
 	return &servicev1.AddItemResponse{Result: &servicev1.AddItemResponse_Rejection{
-		Rejection: &servicev1.Rejection{Code: string(r.Code()), Message: r.Message()},
+		Rejection: rejectionOf(r),
 	}}
 }
 
@@ -101,7 +99,7 @@ func itemAcceptedOf(a domain.ItemAccepted) *servicev1.AddItemResponse {
 
 func placeOrderRefused(r *kernel.Rejection) *servicev1.PlaceOrderResponse {
 	return &servicev1.PlaceOrderResponse{Result: &servicev1.PlaceOrderResponse_Rejection{
-		Rejection: &servicev1.Rejection{Code: string(r.Code()), Message: r.Message()},
+		Rejection: rejectionOf(r),
 	}}
 }
 
@@ -150,4 +148,8 @@ func orderStatus(s domain.Status) servicev1.OrderStatus {
 	default:
 		return servicev1.OrderStatus_ORDER_STATUS_UNSPECIFIED
 	}
+}
+
+func rejectionOf(r *kernel.Rejection) *servicev1.Rejection {
+	return &servicev1.Rejection{Code: string(r.Code()), Message: r.Message()}
 }

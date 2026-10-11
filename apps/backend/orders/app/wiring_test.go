@@ -11,6 +11,7 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/otelboot"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/obstest"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/channel"
 )
 
 func TestTheAuditTrailOfTheServiceReachesTheLoggerProviderOfTheRuntime(t *testing.T) {
@@ -33,7 +34,7 @@ func TestTheRelayPublishesThroughKafka(t *testing.T) {
 func TestTheRelayAddressesEachChannelByItsPhysicalTopic(t *testing.T) {
 	cfg := app.Defaults(app.RoleRelay)
 	cfg.OrdersTopic, cfg.OrdersDLQ, cfg.Group = "orders.v1", "orders.v1.dlq", "orders-relay"
-	catalog, err := app.NewCatalog(cfg)
+	catalog, err := channel.NewCatalog(app.OrdersChannel(cfg))
 	if err != nil {
 		t.Fatalf("NewCatalog() = %v, want nil", err)
 	}
