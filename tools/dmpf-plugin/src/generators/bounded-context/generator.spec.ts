@@ -578,7 +578,12 @@ describe('[generator] bounded-context — generation', () => {
     );
     expect(catalog).toContain('func CheckoutChannel(Config) (channel.Channel, error)');
     expect(catalog).toContain('return channel.Channel{}, ErrNoChannel');
-    expect(config).toContain('Relay: cfg.Relay, Policies: cfg.Policies}');
+    expect(config).toContain(
+      'return serve.APIRole{DSN: cfg.DSN, Server: cfg.API, Migrate: cfg.Migrate, Admission: cfg.Admission, MetricTenants: cfg.MetricTenants, Policies: cfg.Policies}',
+    );
+    expect(config).toContain(
+      'return serve.RelayRole{DSN: cfg.DSN, Brokers: cfg.Brokers, KafkaInsecure: cfg.KafkaInsecure, KafkaAuth: cfg.KafkaAuth, Relay: cfg.Relay, Policies: cfg.Policies}',
+    );
     expect(wiring).not.toContain('func RelayConfig');
     expect(wiring).not.toContain('func topicOf');
     expect(wiring).not.toContain('cfg.Relay)');
@@ -627,7 +632,8 @@ describe('[generator] bounded-context — generation', () => {
     expect(wiring).toContain('Commands: rpc.Commands()');
     expect(wiring).toContain('CommandConsumer: application.CommandConsumer');
     expect(wiring).not.toContain('func startPurge');
-    expect(config).toContain('Policies: cfg.Policies}');
+    expect(config).toContain('MetricTenants: cfg.MetricTenants, Policies: cfg.Policies}');
+    expect(config).toContain('Relay: cfg.Relay, Policies: cfg.Policies}');
     expect(config).toContain('System:         semconv.MessagingSystemKafka.Value.AsString()');
     expect(config).toContain('IdempotencyRetention: 24 * time.Hour');
     expect(config).toContain('OutboxRetention:      168 * time.Hour');

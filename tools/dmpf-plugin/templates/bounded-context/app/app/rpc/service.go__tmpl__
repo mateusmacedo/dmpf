@@ -6,8 +6,6 @@ import "google.golang.org/grpc"
 // generated from contract/proto replaces it once the service is published.
 const ServiceName = "<%- serviceName %>"
 
-// Methods names every method of the service: admission declares a limit for
-// each one (RES-16).
 func Methods() []string {
 	names := make([]string, 0, len(ServiceDesc.Methods))
 	for _, method := range ServiceDesc.Methods {
