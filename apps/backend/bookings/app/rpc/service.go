@@ -28,8 +28,6 @@ var ServiceName = string(descriptor.FullName())
 
 var bookingIDFormat = regexp.MustCompile(`^[A-Za-z0-9._:-]{1,128}$`)
 
-// Methods names every method of the service: admission declares a limit for
-// each one (RES-16).
 func Methods() []string { return kernelgrpc.MethodNames(descriptor) }
 
 // Commands lists the methods that require an idempotency key (IDM-01); the
@@ -121,7 +119,7 @@ func (s Server) RegisterResource(ctx context.Context, req *servicev1.RegisterRes
 
 func reserveBookingRefused(r *kernel.Rejection) *servicev1.ReserveBookingResponse {
 	return &servicev1.ReserveBookingResponse{Result: &servicev1.ReserveBookingResponse_Rejection{
-		Rejection: &servicev1.Rejection{Code: string(r.Code()), Message: r.Message()},
+		Rejection: rejectionOf(r),
 	}}
 }
 
@@ -133,7 +131,7 @@ func bookingReservedOf(reserved domain.ReservedResponse) *servicev1.ReserveBooki
 
 func cancelBookingRefused(r *kernel.Rejection) *servicev1.CancelBookingResponse {
 	return &servicev1.CancelBookingResponse{Result: &servicev1.CancelBookingResponse_Rejection{
-		Rejection: &servicev1.Rejection{Code: string(r.Code()), Message: r.Message()},
+		Rejection: rejectionOf(r),
 	}}
 }
 
@@ -145,7 +143,7 @@ func bookingCancelledOf(cancelled domain.CancelledResponse) *servicev1.CancelBoo
 
 func registerResourceRefused(r *kernel.Rejection) *servicev1.RegisterResourceResponse {
 	return &servicev1.RegisterResourceResponse{Result: &servicev1.RegisterResourceResponse_Rejection{
-		Rejection: &servicev1.Rejection{Code: string(r.Code()), Message: r.Message()},
+		Rejection: rejectionOf(r),
 	}}
 }
 
@@ -222,4 +220,8 @@ func bookingStatus(s domain.BookingStatus) servicev1.BookingStatus {
 	default:
 		return servicev1.BookingStatus_BOOKING_STATUS_UNSPECIFIED
 	}
+}
+
+func rejectionOf(r *kernel.Rejection) *servicev1.Rejection {
+	return &servicev1.Rejection{Code: string(r.Code()), Message: r.Message()}
 }

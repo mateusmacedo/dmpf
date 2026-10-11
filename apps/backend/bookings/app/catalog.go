@@ -16,8 +16,3 @@ func BookingsChannel(cfg Config) channel.Channel {
 	return channel.NewKafka(application.Destination, cfg.BookingsTopic, cfg.BookingsDLQ, cfg.Group,
 		bookingReservedEventType, bookingReservedContract)
 }
-
-// NewCatalog is the catalog of ASY-01 with the one channel this context drains.
-func NewCatalog(cfg Config) (channel.Catalog, error) {
-	return channel.NewCatalog(BookingsChannel(cfg))
-}
