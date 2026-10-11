@@ -57,12 +57,47 @@ func TestServeAPIReturnsTheRegistrationFailureWithoutServing(t *testing.T) {
 	}
 }
 
+func TestServeAPIRefusesARegisterOfAnotherService(t *testing.T) {
+	err := serve.ServeAPI(context.Background(), runtime(t),
+		serve.APIRole{
+			DSN:       unreachable,
+			Server:    kernelgrpc.APIEnv{GRPCAddr: "127.0.0.1:0", GRPCInsecure: true},
+			Admission: admission.Limit{PerSecond: 1, Burst: 1, Concurrency: 1},
+		},
+		serve.API{
+			Desc: &grpc.ServiceDesc{ServiceName: "dmpf.serve.v1.ProbeService", Methods: []grpc.MethodDesc{{MethodName: "Probe"}}},
+			Register: func(server *grpc.Server, _ *pgxpool.Pool) error {
+				server.RegisterService(&grpc.ServiceDesc{ServiceName: "dmpf.serve.v1.OtherService", HandlerType: (*any)(nil)}, struct{}{})
+				return nil
+			},
+		})
+
+	if !errors.Is(err, serve.ErrServiceNotRegistered) {
+		t.Fatalf("ServeAPI() = %v, want %v: the admission and the chain were built for ProbeService", err, serve.ErrServiceNotRegistered)
+	}
+}
+
+func TestRunRelayRefusesARelayWithoutComponentOrScope(t *testing.T) {
+	ch := channel.NewKafka("serve.events", "serve", "serve.dlq", "serve-relay", "com.company.serve.probed", "serve.v1")
+	for name, r := range map[string]serve.Relay{
+		"component": {Channel: ch, Scope: "serve"},
+		"scope":     {Component: "serve", Channel: ch},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if err := serve.RunRelay(context.Background(), runtime(t), serve.RelayRole{DSN: unreachable}, r); !errors.Is(err, serve.ErrRelayUnnamed) {
+				t.Fatalf("RunRelay() = %v, want %v before opening Postgres", err, serve.ErrRelayUnnamed)
+			}
+		})
+	}
+}
+
 func TestRunRelayStopsWhenPostgresIsUnreachable(t *testing.T) {
 	err := serve.RunRelay(context.Background(), runtime(t),
 		serve.RelayRole{DSN: unreachable},
 		serve.Relay{
 			Component: "serve",
 			Channel:   channel.NewKafka("serve.events", "serve", "serve.dlq", "serve-relay", "com.company.serve.probed", "serve.v1"),
+			Scope:     "serve",
 		})
 
 	if err == nil || !strings.HasPrefix(err.Error(), "postgres: ") {

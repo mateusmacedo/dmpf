@@ -2,6 +2,7 @@ package serve
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"maps"
@@ -18,13 +19,17 @@ import (
 	kernelgrpc "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/kafka"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/idclock"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/logging"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/otelboot"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/admission"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/channel"
 )
 
-const keyChannelName = "dmpf.channel.name"
+var (
+	ErrServiceNotRegistered = errors.New("serve: Register did not register the service specified by Desc")
+	ErrRelayUnnamed         = errors.New("serve: the relay needs a component and a scope")
+)
 
 type APIRole struct {
 	DSN           string
@@ -35,8 +40,8 @@ type APIRole struct {
 	Policies      kernelapp.Policies
 }
 
-// API carries what the context owns: the service it registers, which also
-// covers a generated context that registers no service yet (ADR-061).
+// API takes the registration as a function, not as a service value, so a
+// generated context with no service yet still serves (ADR-061).
 type API struct {
 	Desc            *grpc.ServiceDesc
 	Commands        []string
@@ -103,6 +108,9 @@ func ServeAPI(ctx context.Context, rt *otelboot.Runtime, cfg APIRole, api API) e
 	if err := api.Register(server, pool); err != nil {
 		return err
 	}
+	if _, ok := server.GetServiceInfo()[api.Desc.ServiceName]; !ok {
+		return fmt.Errorf("%w: %s", ErrServiceNotRegistered, api.Desc.ServiceName)
+	}
 
 	listen := func() (net.Listener, error) { return net.Listen("tcp", cfg.Server.GRPCAddr) }
 	ready := func(ctx context.Context) error {
@@ -130,6 +138,9 @@ func ServeAPI(ctx context.Context, rt *otelboot.Runtime, cfg APIRole, api API) e
 }
 
 func RunRelay(ctx context.Context, rt *otelboot.Runtime, cfg RelayRole, r Relay) error {
+	if r.Component == "" || r.Scope == "" {
+		return ErrRelayUnnamed
+	}
 	ctx, abort := context.WithCancelCause(ctx)
 	defer abort(nil)
 	pool, err := postgres.NewPool(ctx, cfg.DSN, rt.Tracer(), postgres.WithMeterProvider(rt.MeterProvider()))
@@ -176,7 +187,7 @@ func RunRelay(ctx context.Context, rt *otelboot.Runtime, cfg RelayRole, r Relay)
 	rt.LoggerFor(r.Scope).LogAttrs(ctx, slog.LevelInfo, "relay draining",
 		slog.String(string(semconv.MessagingSystemKey), semconv.MessagingSystemKafka.Value.AsString()),
 		slog.String(string(semconv.MessagingDestinationNameKey), r.Channel.Address),
-		slog.String(keyChannelName, r.Channel.Name))
+		slog.String(logging.KeyChannelName, r.Channel.Name))
 	if err := drain.Run(ctx); err != nil {
 		return err
 	}
