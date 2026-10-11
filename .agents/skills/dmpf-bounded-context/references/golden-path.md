@@ -137,8 +137,12 @@ pnpm nx g @mateusmacedo/dmpf-plugin:bounded-context <name> --boundedContext <ctx
 
 - Norma: ADR-044 (REST só no `bff`, contextos atrás de gRPC), ADR-053; FND-08
   (as três posições de observabilidade). A cadeia de interceptors é
-  `kernelgrpc.ServerInterceptors`; limites por método por
-  `kernelgrpc.MethodLimits(rpc.ServiceName, rpc.Methods(), ...)`.
+  `kernelgrpc.ServerInterceptors`; os limites por método, o `serve.ServeAPI`
+  deriva do `ServiceDesc` que o contexto passa em `serve.API.Desc`.
+- O template nasce com `<Ctx>Channel(Config) (channel.Channel, error)`, que
+  devolve `ErrNoChannel`. Ao declarar o canal, a assinatura passa a
+  `<Ctx>Channel(Config) channel.Channel`, como no molde, o `ErrNoChannel` sai e
+  o caso `RoleRelay` do `RunWith` entrega o canal direto ao `serve.Relay`.
 - A borda REST do contexto é do `bff` (`apps/backend/bff/app/api/routes.go`,
   `handlers_bookings.go`, `app/rpc/clients.go`), em tarefa própria. Contexto
   com `app/http` reprova no `dmpf-context-check.sh`.
