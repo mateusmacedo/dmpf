@@ -65,8 +65,6 @@ func TestV32NaiveConsumerIsReprovedWithR004(t *testing.T) {
 	}
 }
 
-// reservations is how many reservations the relay vector drains: each one
-// leaves one record in the outbox.
 const reservations = 6
 
 func TestTwoRelaysPublishEveryRecordExactlyOnce(t *testing.T) {

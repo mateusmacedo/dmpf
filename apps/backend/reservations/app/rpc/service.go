@@ -23,8 +23,6 @@ var ServiceName = string(descriptor.FullName())
 
 var orderIDFormat = regexp.MustCompile(`^[A-Za-z0-9._:-]{1,128}$`)
 
-// Methods names every method of the service: admission declares a limit for
-// each one (RES-16).
 func Methods() []string { return kernelgrpc.MethodNames(descriptor) }
 
 // Commands lists the methods that require an idempotency key (IDM-01); the
@@ -89,7 +87,7 @@ func (s Server) Cancel(ctx context.Context, req *servicev1.CancelRequest) (*serv
 
 func reserveRefused(r *kernel.Rejection) *servicev1.ReserveResponse {
 	return &servicev1.ReserveResponse{Result: &servicev1.ReserveResponse_Rejection{
-		Rejection: &servicev1.Rejection{Code: string(r.Code()), Message: r.Message()},
+		Rejection: rejectionOf(r),
 	}}
 }
 
@@ -101,7 +99,7 @@ func reservedOf(reserved domain.ReservedResponse) *servicev1.ReserveResponse {
 
 func cancelRefused(r *kernel.Rejection) *servicev1.CancelResponse {
 	return &servicev1.CancelResponse{Result: &servicev1.CancelResponse_Rejection{
-		Rejection: &servicev1.Rejection{Code: string(r.Code()), Message: r.Message()},
+		Rejection: rejectionOf(r),
 	}}
 }
 
@@ -145,4 +143,8 @@ func reservationStatus(s domain.Status) servicev1.ReservationStatus {
 	default:
 		return servicev1.ReservationStatus_RESERVATION_STATUS_UNSPECIFIED
 	}
+}
+
+func rejectionOf(r *kernel.Rejection) *servicev1.Rejection {
+	return &servicev1.Rejection{Code: string(r.Code()), Message: r.Message()}
 }

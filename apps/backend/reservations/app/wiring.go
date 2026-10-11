@@ -25,6 +25,7 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/audit"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/boot"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/idclock"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/logging"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/otelboot"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/retry"
 	obsusecase "github.com/mateusmacedo/dmpf/libs/backend/go/observability/usecase"
@@ -40,8 +41,6 @@ const (
 	processingDeadline = 5 * time.Second
 	rebalanceTimeout   = 30 * time.Second
 	queuePerPartition  = 32
-
-	keyChannelName = "dmpf.channel.name"
 )
 
 func Run(ctx context.Context, cfg Config) error {
@@ -166,7 +165,7 @@ func runConsumer(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {
 		slog.String(string(semconv.MessagingSystemKey), semconv.MessagingSystemKafka.Value.AsString()),
 		slog.String(string(semconv.MessagingDestinationNameKey), ch.Address),
 		slog.String(string(semconv.MessagingConsumerGroupNameKey), ch.Group),
-		slog.String(keyChannelName, ch.Name))
+		slog.String(logging.KeyChannelName, ch.Name))
 	// WHY: the relay returns nil on cancellation on its own, so guarding by
 	// ctx.Err() here would also swallow a broker failure that happened to land
 	// during the drain; only the cancellation itself is a clean exit.
