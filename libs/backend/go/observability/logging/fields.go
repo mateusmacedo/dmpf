@@ -21,6 +21,7 @@ const (
 	KeyStatus          = string(semconv.HTTPResponseStatusCodeKey)
 	KeyCode            = string(semconv.RPCResponseStatusCodeKey)
 	KeyChannel         = string(semconv.MessagingDestinationNameKey)
+	KeyChannelName     = "dmpf.channel.name"
 	KeyMessageID       = string(semconv.MessagingMessageIDKey)
 	KeyAttempt         = tracing.KeyAttempt
 	KeyDisposition     = tracing.KeyInboxDisposition

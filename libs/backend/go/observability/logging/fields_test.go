@@ -23,6 +23,7 @@ func TestTheLogKeysAreTheSharedVocabulary(t *testing.T) {
 		"KeyStatus":          {logging.KeyStatus, string(semconv.HTTPResponseStatusCodeKey)},
 		"KeyCode":            {logging.KeyCode, string(semconv.RPCResponseStatusCodeKey)},
 		"KeyChannel":         {logging.KeyChannel, string(semconv.MessagingDestinationNameKey)},
+		"KeyChannelName":     {logging.KeyChannelName, "dmpf.channel.name"},
 		"KeyMessageID":       {logging.KeyMessageID, string(semconv.MessagingMessageIDKey)},
 	} {
 		if pair[0] != pair[1] {
