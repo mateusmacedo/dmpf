@@ -27,8 +27,22 @@ import (
 )
 
 var (
+	ErrNoRuntime            = errors.New("serve: no runtime")
+	ErrAPIIncomplete        = errors.New("serve: the API needs Desc and Register")
+	ErrNoMethods            = errors.New("serve: Desc declares no method yet; declare the first one in the contract before serving the api role")
+	ErrStreamsNotServed     = errors.New("serve: Desc declares streams, which the unary chain of ServeAPI does not cover")
+	ErrUnknownCommand       = errors.New("serve: a command is not a method of Desc")
 	ErrServiceNotRegistered = errors.New("serve: Register did not register the service specified by Desc")
+	ErrUnexpectedService    = errors.New("serve: Register registered a service other than the one specified by Desc")
 	ErrRelayUnnamed         = errors.New("serve: the relay needs a component and a scope")
+)
+
+// Ping and Migrate run before the port listens, so without a deadline a stuck
+// connection or a migration lock held by another replica leaves the process
+// neither serving nor failing.
+const (
+	pingTimeout    = 10 * time.Second
+	migrateTimeout = 2 * time.Minute
 )
 
 type APIRole struct {
@@ -40,8 +54,8 @@ type APIRole struct {
 	Policies      kernelapp.Policies
 }
 
-// API takes the registration as a function, not as a service value, so a
-// generated context with no service yet still serves (ADR-061).
+// API takes the registration as a function because the service is built over
+// the pool that ServeAPI opens.
 type API struct {
 	Desc            *grpc.ServiceDesc
 	Commands        []string
@@ -56,6 +70,24 @@ func (api API) methods() []string {
 		names = append(names, method.MethodName)
 	}
 	return names
+}
+
+func (api API) validate() error {
+	switch {
+	case api.Desc == nil || api.Register == nil:
+		return ErrAPIIncomplete
+	case len(api.Desc.Methods) == 0:
+		return ErrNoMethods
+	case len(api.Desc.Streams) > 0:
+		return ErrStreamsNotServed
+	}
+	methods := api.methods()
+	for _, command := range api.Commands {
+		if !slices.Contains(methods, command) {
+			return fmt.Errorf("%w: %s", ErrUnknownCommand, command)
+		}
+	}
+	return nil
 }
 
 type RelayRole struct {
@@ -74,6 +106,16 @@ type Relay struct {
 }
 
 func ServeAPI(ctx context.Context, rt *otelboot.Runtime, cfg APIRole, api API) error {
+	if rt == nil {
+		return ErrNoRuntime
+	}
+	if err := api.validate(); err != nil {
+		return err
+	}
+	return stopped(ctx, serveAPI(ctx, rt, cfg, api))
+}
+
+func serveAPI(ctx context.Context, rt *otelboot.Runtime, cfg APIRole, api API) error {
 	ctx, abort := context.WithCancelCause(ctx)
 	defer abort(nil)
 	pool, err := postgres.NewPool(ctx, cfg.DSN, rt.Tracer(), postgres.WithMeterProvider(rt.MeterProvider()))
@@ -105,22 +147,17 @@ func ServeAPI(ctx context.Context, rt *otelboot.Runtime, cfg APIRole, api API) e
 	if err != nil {
 		return err
 	}
-	if err := api.Register(server, pool); err != nil {
+	if err := register(server, pool, api); err != nil {
 		return err
-	}
-	if _, ok := server.GetServiceInfo()[api.Desc.ServiceName]; !ok {
-		return fmt.Errorf("%w: %s", ErrServiceNotRegistered, api.Desc.ServiceName)
 	}
 
 	listen := func() (net.Listener, error) { return net.Listen("tcp", cfg.Server.GRPCAddr) }
 	ready := func(ctx context.Context) error {
-		if err := pool.Ping(ctx); err != nil {
-			return fmt.Errorf("postgres: %w", err)
+		if err := ping(ctx, pool); err != nil {
+			return err
 		}
-		if cfg.Migrate {
-			if err := postgres.Migrate(ctx, pool, []postgres.Capability{postgres.Outbox, postgres.Inbox}, api.Schema); err != nil {
-				return fmt.Errorf("migrate: %w", err)
-			}
+		if err := prepare(ctx, rt, pool, cfg.Migrate, api.Schema); err != nil {
+			return err
 		}
 		stop, err := kernelapp.StartPurge(ctx, abort,
 			kernelapp.PurgeConfig{Name: "command-inbox", Interval: cfg.Policies.PurgeInterval, Batch: cfg.Policies.PurgeBatch},
@@ -137,10 +174,71 @@ func ServeAPI(ctx context.Context, rt *otelboot.Runtime, cfg APIRole, api API) e
 	return stopPurge()
 }
 
+// The ownMethods filter of the chain lets any other service through without
+// admission or deadline, so Register may add only the service of Desc.
+func register(server *grpc.Server, pool *pgxpool.Pool, api API) error {
+	before := server.GetServiceInfo()
+	if err := api.Register(server, pool); err != nil {
+		return err
+	}
+	after := server.GetServiceInfo()
+	if _, ok := after[api.Desc.ServiceName]; !ok {
+		return fmt.Errorf("%w: %s", ErrServiceNotRegistered, api.Desc.ServiceName)
+	}
+	for name := range after {
+		if _, existed := before[name]; !existed && name != api.Desc.ServiceName {
+			return fmt.Errorf("%w: %s", ErrUnexpectedService, name)
+		}
+	}
+	return nil
+}
+
+func prepare(ctx context.Context, rt *otelboot.Runtime, pool *pgxpool.Pool, migrate bool, schema string) error {
+	capabilities := []postgres.Capability{postgres.Outbox, postgres.Inbox}
+	if !migrate {
+		return postgres.WaitForTables(ctx, pool, time.Second, rt.LoggerProvider(), postgres.Tables(capabilities...)...)
+	}
+	ctx, cancel := context.WithTimeout(ctx, migrateTimeout)
+	defer cancel()
+	if err := postgres.Migrate(ctx, pool, capabilities, schema); err != nil {
+		return fmt.Errorf("migrate: %w", err)
+	}
+	return nil
+}
+
+func ping(ctx context.Context, pool *pgxpool.Pool) error {
+	ctx, cancel := context.WithTimeout(ctx, pingTimeout)
+	defer cancel()
+	if err := pool.Ping(ctx); err != nil {
+		return fmt.Errorf("postgres: %w", err)
+	}
+	return nil
+}
+
+// A stop requested before the port listens is a clean exit, not a failure; an
+// abort of the purge cancels only the derived context, so it stays an error.
+func stopped(parent context.Context, err error) error {
+	if parent.Err() != nil && errors.Is(err, context.Canceled) {
+		return nil
+	}
+	return err
+}
+
 func RunRelay(ctx context.Context, rt *otelboot.Runtime, cfg RelayRole, r Relay) error {
-	if r.Component == "" || r.Scope == "" {
+	switch {
+	case rt == nil:
+		return ErrNoRuntime
+	case r.Component == "" || r.Scope == "":
 		return ErrRelayUnnamed
 	}
+	catalog, err := channel.NewCatalog(r.Channel)
+	if err != nil {
+		return err
+	}
+	return stopped(ctx, runRelay(ctx, rt, cfg, r, catalog))
+}
+
+func runRelay(ctx context.Context, rt *otelboot.Runtime, cfg RelayRole, r Relay, catalog channel.Catalog) error {
 	ctx, abort := context.WithCancelCause(ctx)
 	defer abort(nil)
 	pool, err := postgres.NewPool(ctx, cfg.DSN, rt.Tracer(), postgres.WithMeterProvider(rt.MeterProvider()))
@@ -148,17 +246,13 @@ func RunRelay(ctx context.Context, rt *otelboot.Runtime, cfg RelayRole, r Relay)
 		return err
 	}
 	defer pool.Close()
-	if err := pool.Ping(ctx); err != nil {
-		return fmt.Errorf("postgres: %w", err)
+	if err := ping(ctx, pool); err != nil {
+		return err
 	}
 	if err := postgres.WaitForTables(ctx, pool, time.Second, rt.LoggerProvider(), postgres.Tables(postgres.Outbox)...); err != nil {
 		return err
 	}
 
-	catalog, err := channel.NewCatalog(r.Channel)
-	if err != nil {
-		return err
-	}
 	if err := postgres.AssertOwnOutbox(ctx, pool, slices.Collect(maps.Keys(catalog))); err != nil {
 		return err
 	}
