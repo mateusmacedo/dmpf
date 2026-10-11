@@ -15,18 +15,23 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/app/serve"
 	kernelgrpc "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/otelboot"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/obstest"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/admission"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/channel"
 )
 
 const unreachable = "postgres://dmpf@127.0.0.1:1/serve?connect_timeout=1"
 
+var logs = &obstest.MemoryLogs{}
+
 var started = sync.OnceValues(func() (*otelboot.Runtime, error) {
-	return otelboot.Start(context.Background(), otelboot.Config{
+	config := otelboot.Config{
 		Propagator:    propagation.TraceContext{},
 		Resource:      otelboot.Resource{ServiceName: "serve", ServiceVersion: "dev", ServiceInstanceID: "serve-1"},
 		TraceExporter: tracetest.NewInMemoryExporter(),
-	})
+	}
+	config.LoggerProvider = otelboot.NewLoggerProvider(config, logs)
+	return otelboot.Start(context.Background(), config)
 })
 
 func runtime(t *testing.T) *otelboot.Runtime {
