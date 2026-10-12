@@ -2,7 +2,7 @@
 id: SPEC-P846PH1P
 slug: dmpf-consumivel-por-projeto-externo
 title: DMPF consumível por projeto externo — plugin publicado, conformance em modo consumidor e prova de consumo
-stage: building
+stage: done
 priority: P1
 depends_on: []
 ticket_url: https://linear.app/mmda/issue/DEVS-70/spec-p846ph1p-dmpf-consumivel-por-projeto-externo-plugin-publicado
@@ -591,3 +591,25 @@ na própria entrega.
   workspace inteiro; bastam os módulos do `go.work` e as raízes dos projetos.
 - **Diagnóstico**: o proxy de teste e o `buf-gate` deixam diretórios temporários,
   e o `go list` que falha com saída parcial descarta o stderr.
+
+## Pendências da release 1.0.0-rc.3
+
+O job pós-release da `1.0.0-rc.3` (run 38009151589) passou no consumidor puro
+pelo GitHub Packages. O upgrade a partir da `1.0.0-rc.2` falhou por um defeito no
+`tools/external-consumer.sh`, que rodava `pnpm install` com `frozen-lockfile`
+depois do `nx migrate`. Com o script corrigido (#35), o upgrade passou contra os
+pacotes publicados.
+
+- **`@nx/js` 23.1.0 no publish**: o `nx-release-publish` consulta
+  `npm view <pacote> versions dist-tags`, que, sem versão, resolve o dist-tag
+  `latest`. Com o pacote só em `next`, o npm sai com código 0 e saída vazia, e o
+  publish quebra no `JSON.parse`. O `@nx/js` 23.3.0 consulta `<pacote>@<versão>`
+  e trata a saída vazia. Para destravar a `rc.3`, o `latest` do
+  `@mateusmacedo/dmpf-plugin` aponta para a `1.0.0-rc.2`. Subir o Nx para 23.3.0
+  e decidir o que fazer com esse `latest`.
+- **Versão anterior no job pós-release**: o step "Versão anterior publicada" do
+  `nx-release.yml` usa `npm view <pacote> versions` e depende do mesmo `latest`;
+  consultar por um spec que não dependa de dist-tag.
+- **Upgrade no CI do consumidor**: o guia de consumo externo e o README do
+  plugin mandam `pnpm install` depois do `nx migrate`. No CI, o pnpm liga o
+  `frozen-lockfile` e reprova o passo, como no job pós-release.

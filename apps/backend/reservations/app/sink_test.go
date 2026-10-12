@@ -25,6 +25,7 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/logging"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/otelboot"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/obstest"
 )
 
 const (
@@ -168,7 +169,7 @@ func TestSinkLogsAnotherTypeAtDebug(t *testing.T) {
 }
 
 func TestSinkLogsAnotherTypeUnderTheMessagingKeys(t *testing.T) {
-	logs := &recordingExporter{}
+	logs := &obstest.MemoryLogs{}
 	provider := otelboot.NewLoggerProvider(otelboot.Config{Resource: otelboot.Resource{
 		ServiceName: "reservations", ServiceVersion: "test", ServiceInstanceID: "reservations-consumer-1", Role: "consumer",
 	}}, logs)
@@ -183,11 +184,11 @@ func TestSinkLogsAnotherTypeUnderTheMessagingKeys(t *testing.T) {
 		t.Fatalf("Shutdown() = %v", err)
 	}
 
-	attributes, found := recordAttributes(logs, "delivery of another event type acknowledged")
+	attributes, found := obstest.RecordAttributes(logs, "delivery of another event type acknowledged")
 	if !found {
 		t.Fatal("no discard record exported")
 	}
-	requireTheVocabulary(t, "delivery of another event type acknowledged", attributes, map[string]string{
+	obstest.RequireTheVocabulary(t, "delivery of another event type acknowledged", attributes, map[string]string{
 		string(semconv.CloudEventsEventTypeKey): "com.company.orders.item-added.v1",
 		string(semconv.MessagingMessageIDKey):   "evt-1",
 	})

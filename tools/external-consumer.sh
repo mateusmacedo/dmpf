@@ -173,14 +173,15 @@ if [[ -n "$UPGRADE_FROM" ]]; then
   commitar "chore: consumidor em $UPGRADE_FROM"
   pnpm nx migrate "$PLUGIN@$PLUGIN_VERSION"
   [[ -f migrations.json ]] || { echo "$PLUGIN@$PLUGIN_VERSION não trouxe migrations a partir de $UPGRADE_FROM" >&2; exit 1; }
-  pnpm install
+  pnpm install --no-frozen-lockfile
   pnpm nx migrate --run-migrations | tee "$WORK/migrate.log"
   # O Nx lista os nextSteps das migrations sob esse título, um por linha com "- ".
   mapfile -t passos < <(awk '/Some migrations have additional information/ {f = 1; next}
     f && /^[[:space:]]*- / {sub(/^[[:space:]]*- /, ""); print}' "$WORK/migrate.log")
   for comando in "${passos[@]}"; do
     case "$comando" in
-      "pnpm install" | "pnpm nx run-many -t tidy") ;;
+      "pnpm install") comando="pnpm install --no-frozen-lockfile" ;;
+      "pnpm nx run-many -t tidy") ;;
       *) echo "nextStep fora do esperado: $comando" >&2; exit 1 ;;
     esac
     echo "nextStep: $comando"

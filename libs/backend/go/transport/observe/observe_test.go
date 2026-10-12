@@ -126,7 +126,7 @@ func TestAFailureWithoutACategoryFunctionIsTheTypeOther(t *testing.T) {
 	if attrs["error.type"].AsString() != other || attrs["dmpf.outcome_category"].AsString() != other {
 		t.Errorf("span categories = %v, want error.type and dmpf.outcome_category %q (TRC-12)", attrs, other)
 	}
-	got := logs.maps()
+	got := logs.Maps()
 	if len(got) != 1 || got[0]["error.type"] != other || got[0]["dmpf.outcome_category"] != other {
 		t.Errorf("log = %v, want the failed attempt with error.type %q (RF-B1)", got, other)
 	}
@@ -319,18 +319,18 @@ func TestLoggingWritesTheCategoryAndNotTheMessage(t *testing.T) {
 
 	_ = observe.Logging(cfg)(failing)(context.Background(), op(), nil)
 
-	got := logs.maps()
+	got := logs.Maps()
 	if len(got) != 1 || got[0]["error.type"] != "boom" || got[0]["dmpf.dependency"] != "orders" || got[0]["dmpf.retry.attempt"] != int64(1) {
 		t.Fatalf("log = %v, want the refused attempt with its category and dependency", got)
 	}
 	if got[0]["scope"] != observeScope {
 		t.Fatalf("scope = %v, want the import path of the emitting package %q (RF-A1)", got[0]["scope"], observeScope)
 	}
-	if out := logs.text(); strings.Contains(out, "secret") {
+	if out := textOf(logs); strings.Contains(out, "secret") {
 		t.Fatalf("log = %q carries the error message (LOG-13)", out)
 	}
 	_ = observe.Logging(cfg)(resilience.Direct)(context.Background(), op(), func(context.Context) error { return nil })
-	if after := logs.maps(); len(after) != 1 {
+	if after := logs.Maps(); len(after) != 1 {
 		t.Fatalf("a successful call logged %v", after[1:])
 	}
 }
@@ -361,7 +361,7 @@ func TestLoggingRecordsASuccessfulCallAtDebug(t *testing.T) {
 
 	_ = observe.Logging(observe.Config{LoggerProvider: provider})(resilience.Direct)(context.Background(), op(), func(context.Context) error { return nil })
 
-	got := logs.maps()
+	got := logs.Maps()
 	if len(got) != 1 {
 		t.Fatalf("records = %v, want the one successful attempt", got)
 	}
@@ -437,7 +437,7 @@ func TestLoggingWarnsOncePerFailedAttempt(t *testing.T) {
 				t.Fatalf("call = %v, want %v", err, tc.final)
 			}
 
-			got := logs.maps()
+			got := logs.Maps()
 			if len(got) != attempts {
 				t.Fatalf("records = %v, want one per attempt (%d)", got, attempts)
 			}
@@ -489,7 +489,7 @@ func TestLoggingWarnsTheAttemptRefusedBelowItOnce(t *testing.T) {
 			_ = observe.Logging(observe.Config{LoggerProvider: provider, Category: categoryOf})(tc.next)(context.Background(), op(),
 				func(context.Context) error { return categorized{"unavailable"} })
 
-			got := logs.maps()
+			got := logs.Maps()
 			if len(got) != len(tc.attempts) {
 				t.Fatalf("records = %v, want %d", got, len(tc.attempts))
 			}
@@ -523,7 +523,7 @@ func TestLoggingRecordsABusinessRejectionAtDebugAndAFailureAtWarn(t *testing.T) 
 			_ = observe.Logging(observe.Config{LoggerProvider: provider, Category: fnd07})(resilience.Direct)(context.Background(), op(),
 				func(context.Context) error { return categorized{category} })
 
-			got := logs.maps()
+			got := logs.Maps()
 			if len(got) != 1 {
 				t.Fatalf("records = %v, want the one attempt", got)
 			}
@@ -546,7 +546,7 @@ func TestAtInfoARepeatedNotFoundLeavesNoRecordAndAFailureStays(t *testing.T) {
 		return categorized{resilience.CategoryTransientDependency}
 	})
 
-	got := logs.maps()
+	got := logs.Maps()
 	if len(got) != 1 {
 		t.Fatalf("records = %v, want only the failure: a NotFound is a response from the dependency, not a deviation (RF-A5)", got)
 	}
@@ -580,7 +580,7 @@ func TestLoggingReducesTheFailedAttemptToItsTypeAndCode(t *testing.T) {
 			_ = observe.Logging(observe.Config{LoggerProvider: provider, Category: tc.category})(tc.next)(context.Background(), op(),
 				func(context.Context) error { return nil })
 
-			got := logs.maps()
+			got := logs.Maps()
 			if len(got) != 1 {
 				t.Fatalf("records = %v, want the one refused attempt", got)
 			}
@@ -595,7 +595,7 @@ func TestLoggingReducesTheFailedAttemptToItsTypeAndCode(t *testing.T) {
 				want["dmpf.error.code"] = tc.code
 			}
 			assertRecord(t, got[0], want, absent...)
-			if out := logs.text(); strings.Contains(out, "secret") || strings.Contains(out, "refused") {
+			if out := textOf(logs); strings.Contains(out, "secret") || strings.Contains(out, "refused") {
 				t.Fatalf("log = %q carries the error message (DAT-23)", out)
 			}
 		})

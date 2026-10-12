@@ -23,7 +23,7 @@ func (s Service) PlaceOrder(ctx context.Context, cmd PlaceOrder) (usecase.Outcom
 			outcome, err := usecase.Decide(ctx, res.Orders, res.Outbox, origin(cmd.Order), cmd.Order, identity,
 				usecase.Existing[domain.OrderID](domain.FromSnapshot),
 				func(o *domain.Order) (kernel.Accepted[domain.PlacedResponse], *kernel.Rejection) {
-					return o.Place(domain.PlaceOrder{At: domain.Instant(identity.OccurredAt)})
+					return o.Place(domain.PlaceOrder{At: identity.OccurredAt})
 				})
 			if err != nil {
 				return outcome, fmt.Errorf("application: place order %s: %w", cmd.Order, err)

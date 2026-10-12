@@ -12,13 +12,14 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/metrics"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/redact"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/usecase"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/reference"
 )
 
 func TestTheServiceSeriesCountByOperationAndOutcome(t *testing.T) {
 	w := wire(t, allowAll())
 	ctx := budgeted(t)
 
-	if _, err := w.service.Bump(withExecution(t, ctx), bumpCounter{Counter: subjectID, By: 1}); err != nil {
+	if _, err := w.service.Bump(withExecution(t, ctx), reference.BumpCounter{Counter: subjectID, By: 1}); err != nil {
 		t.Fatalf("Bump() error = %v, want nil", err)
 	}
 	if _, err := w.service.Find(withExecution(t, ctx), subjectID); err != nil {
@@ -27,8 +28,8 @@ func TestTheServiceSeriesCountByOperationAndOutcome(t *testing.T) {
 
 	series := w.requestSeries(t)
 	for key, want := range map[string]int64{
-		operationBump + "/accepted": 1,
-		operationFind + "/accepted": 1,
+		reference.OperationBump + "/accepted": 1,
+		reference.OperationFind + "/accepted": 1,
 	} {
 		if series[key] != want {
 			t.Errorf("%s{%s} count = %d, want %d (MET-09)", metrics.RequestDurationSeconds, key, series[key], want)
@@ -38,7 +39,7 @@ func TestTheServiceSeriesCountByOperationAndOutcome(t *testing.T) {
 	// One histogram series per label set, so two operations give two series,
 	// each with a single observation.
 	durations := w.durationSeries(t)
-	for _, operation := range []string{operationBump, operationFind} {
+	for _, operation := range []string{reference.OperationBump, reference.OperationFind} {
 		if durations[operation] != 1 {
 			t.Errorf("%s{operation=%q} count = %d, want 1 (MET-08)",
 				metrics.RequestDurationSeconds, operation, durations[operation])
@@ -80,11 +81,11 @@ func TestARejectionCountsAsARequestAndNeverAsAnError(t *testing.T) {
 	w := wire(t, allowAll())
 	w.seed(t, counterAt(limit))
 
-	if _, err := w.service.Bump(withExecution(t, budgeted(t)), bumpCounter{Counter: subjectID, By: 1}); err != nil {
+	if _, err := w.service.Bump(withExecution(t, budgeted(t)), reference.BumpCounter{Counter: subjectID, By: 1}); err != nil {
 		t.Fatalf("Bump() error = %v, want nil", err)
 	}
 
-	if got := w.requestSeries(t)[operationBump+"/rejected"]; got != 1 {
+	if got := w.requestSeries(t)[reference.OperationBump+"/rejected"]; got != 1 {
 		t.Errorf("%s{rejected} count = %d, want 1", metrics.RequestDurationSeconds, got)
 	}
 	for _, point := range durationPoints(t, w.reader) {
@@ -96,11 +97,11 @@ func TestARejectionCountsAsARequestAndNeverAsAnError(t *testing.T) {
 }
 
 func TestATechnicalFailureCountsUnderItsCategory(t *testing.T) {
-	w := wire(t, func(context.Context, bumpCounter) error {
+	w := wire(t, func(context.Context, reference.BumpCounter) error {
 		return errors.New("timeout dialing the policy engine")
 	})
 
-	if _, err := w.service.Bump(withExecution(t, budgeted(t)), bumpCounter{Counter: subjectID, By: 1}); err == nil {
+	if _, err := w.service.Bump(withExecution(t, budgeted(t)), reference.BumpCounter{Counter: subjectID, By: 1}); err == nil {
 		t.Fatal("Bump() error = nil, want the authorizer failure")
 	}
 
@@ -109,10 +110,10 @@ func TestATechnicalFailureCountsUnderItsCategory(t *testing.T) {
 		t.Fatalf("%s = %+v, want a single point of 1 (MET-10)", metrics.RequestDurationSeconds, points)
 	}
 	labels := labelsOf(points[0].Attributes)
-	if labels[metrics.KeyErrorType] != "storage" || labels[metrics.KeyOperation] != operationBump {
+	if labels[metrics.KeyErrorType] != "storage" || labels[metrics.KeyOperation] != reference.OperationBump {
 		t.Errorf("labels = %v, want the injected category with the operation", labels)
 	}
-	if got := w.requestSeries(t)[operationBump+"/failed"]; got != 1 {
+	if got := w.requestSeries(t)[reference.OperationBump+"/failed"]; got != 1 {
 		t.Errorf("%s{failed} count = %d, want the failure counted as a request too", metrics.RequestDurationSeconds, got)
 	}
 	assertTheServiceSeriesAreGone(t, w.reader)
@@ -124,7 +125,7 @@ func TestATechnicalFailureCountsUnderItsCategory(t *testing.T) {
 func TestTheAuditTrailNeverPassesThroughTheLogHandler(t *testing.T) {
 	w := wire(t, allowAll())
 
-	if _, err := w.service.Bump(withExecution(t, budgeted(t)), bumpCounter{Counter: subjectID, By: 1}); err != nil {
+	if _, err := w.service.Bump(withExecution(t, budgeted(t)), reference.BumpCounter{Counter: subjectID, By: 1}); err != nil {
 		t.Fatalf("Bump() error = %v, want nil", err)
 	}
 
@@ -145,11 +146,11 @@ func TestTheAuditTrailNeverPassesThroughTheLogHandler(t *testing.T) {
 // the three channels.
 func TestAPersonalIdentifierInAFailureLeavesThroughNoChannel(t *testing.T) {
 	const cpf = "123.456.789-00"
-	w := wire(t, func(context.Context, bumpCounter) error {
+	w := wire(t, func(context.Context, reference.BumpCounter) error {
 		return errors.New("the policy engine refused cpf=" + cpf + " with no reason")
 	})
 
-	if _, err := w.service.Bump(withExecution(t, budgeted(t)), bumpCounter{Counter: subjectID, By: 1}); err == nil {
+	if _, err := w.service.Bump(withExecution(t, budgeted(t)), reference.BumpCounter{Counter: subjectID, By: 1}); err == nil {
 		t.Fatal("Bump() error = nil, want the authorizer failure")
 	}
 
@@ -199,10 +200,10 @@ func TestAFailingAuditSinkIsReportedByCategoryAndNeverByMessage(t *testing.T) {
 		refusingSink{err: errors.New("the trail refused the record for cpf=" + cpf)},
 		func(context.Context) string { return "svc-a" },
 		func(error) string { return "storage" },
-		operationFind,
+		reference.OperationFind,
 	)
 
-	if _, err := w.service.Bump(withExecution(t, budgeted(t)), bumpCounter{Counter: subjectID, By: 1}); err != nil {
+	if _, err := w.service.Bump(withExecution(t, budgeted(t)), reference.BumpCounter{Counter: subjectID, By: 1}); err != nil {
 		t.Fatalf("Bump() error = %v, want nil: a trail that refuses does not fail the operation", err)
 	}
 
@@ -215,8 +216,8 @@ func TestAFailingAuditSinkIsReportedByCategoryAndNeverByMessage(t *testing.T) {
 	if record[redact.KeyErrorType] != redact.CategoryUnclassified {
 		t.Errorf("%s = %v, want %q: the failure of the sink by redact.Error (RF-A3)", redact.KeyErrorType, record[redact.KeyErrorType], redact.CategoryUnclassified)
 	}
-	if record["dmpf.audit.action"] != operationBump {
-		t.Errorf("dmpf.audit.action = %v, want %q past the processor (RF-A3)", record["dmpf.audit.action"], operationBump)
+	if record["dmpf.audit.action"] != reference.OperationBump {
+		t.Errorf("dmpf.audit.action = %v, want %q past the processor (RF-A3)", record["dmpf.audit.action"], reference.OperationBump)
 	}
 	for key, value := range record {
 		if text, isText := value.(string); isText && strings.Contains(text, "123.456") {

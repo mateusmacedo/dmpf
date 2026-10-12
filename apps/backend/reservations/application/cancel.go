@@ -21,7 +21,7 @@ func (s Service) Cancel(ctx context.Context, cmd Cancel) (usecase.Outcome[domain
 		Run: func(ctx context.Context, res Resources, identity usecase.Identity) (usecase.Outcome[domain.CancelledResponse], error) {
 			outcome, err := usecase.Decide(ctx, res.Reservations, res.Outbox, origin(cmd.Order), cmd.Order, identity, loadReservation,
 				func(r *domain.Reservation) (kernel.Accepted[domain.CancelledResponse], *kernel.Rejection) {
-					return r.Cancel(domain.Cancel{At: domain.Instant(identity.OccurredAt)})
+					return r.Cancel(domain.Cancel{At: identity.OccurredAt})
 				})
 			if err != nil {
 				return outcome, fmt.Errorf("application: cancel %s: %w", cmd.Order, err)

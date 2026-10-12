@@ -4,13 +4,14 @@ import (
 	"testing"
 
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/domain"
+	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
 )
 
 const (
 	bookingID  = domain.BookingID("B-100")
 	resourceID = domain.ResourceID("R-200")
 	resCode    = domain.ResourceCode("room-101")
-	at         = domain.Instant(1755432000)
+	at         = kernel.Instant(1755432000)
 )
 
 func newReservedBooking(t *testing.T) *domain.Booking {

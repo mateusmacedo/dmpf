@@ -22,7 +22,7 @@ func (s Service) AddItem(ctx context.Context, cmd AddItem) (usecase.Outcome[doma
 			outcome, err := usecase.Decide(ctx, res.Orders, res.Outbox, origin(cmd.Order), cmd.Order, identity,
 				usecase.OrNew(func(id domain.OrderID) *domain.Order { return domain.NewOrder(id, s.ItemLimit) }, domain.FromSnapshot),
 				func(o *domain.Order) (kernel.Accepted[domain.ItemAccepted], *kernel.Rejection) {
-					return o.AddItem(domain.AddItem{SKU: cmd.SKU, Quantity: cmd.Quantity, At: domain.Instant(identity.OccurredAt)})
+					return o.AddItem(domain.AddItem{SKU: cmd.SKU, Quantity: cmd.Quantity, At: identity.OccurredAt})
 				})
 			if err != nil {
 				return outcome, fmt.Errorf("application: add item to %s: %w", cmd.Order, err)

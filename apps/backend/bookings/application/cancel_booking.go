@@ -20,7 +20,7 @@ func (s Service) CancelBooking(ctx context.Context, cmd CancelBooking) (usecase.
 			outcome, err := usecase.Decide(ctx, res.Bookings, res.Outbox, origin(AggregateTypeBooking, string(cmd.BookingID)), cmd.BookingID, identity,
 				loadExistingBooking,
 				func(b *domain.Booking) (kernel.Accepted[domain.CancelledResponse], *kernel.Rejection) {
-					return b.Cancel(domain.CancelBooking{At: domain.Instant(identity.OccurredAt)})
+					return b.Cancel(domain.CancelBooking{At: identity.OccurredAt})
 				})
 			if err != nil {
 				return outcome, fmt.Errorf("application: cancel %s: %w", cmd.BookingID, err)

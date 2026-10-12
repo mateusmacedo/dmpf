@@ -1,14 +1,10 @@
-package distkit
+package dist
 
-// The stable diagnostics of a producing context.
 const (
 	// CodeDrainedTwice is the record that reached the topic more than once:
 	// two relays claimed it, and the lease of OBX-08 did not hold.
 	CodeDrainedTwice = "DMPF-P001"
-	// CodeMissing is the record the outbox settled and the topic never saw.
-	CodeMissing = "DMPF-P002"
-	// CodeHashMismatch is the envelope whose payload_hash no longer matches
-	// the payload it carries.
+	CodeMissing      = "DMPF-P002"
 	CodeHashMismatch = "DMPF-P003"
 )
 
@@ -31,21 +27,16 @@ func (v Verdict) Failures() []string {
 	return out
 }
 
-// Published is one envelope as it reached the topic, reduced to what the
-// verdict decides on. PayloadHash is recomputed over the bytes the topic
-// carried, never read from the envelope: the digest does not travel, it is
-// what the outbox stored and the relay checked on assembly.
+// Published is one envelope as it reached the topic. PayloadHash is recomputed
+// over the bytes the topic carried, never read from the envelope: the digest
+// does not travel, it is what the outbox stored and the relay checked.
 type Published struct {
 	MessageID   string
 	PayloadHash string
 }
 
-// Decide compares what the outbox settled with what reached the topic: every
-// record exactly once, and the payload that arrived hashing to what the
-// outbox had stored for it.
-func Decide(settled map[string]string, published []Published) Verdict {
+func DecideRelay(settled map[string]string, published []Published) Verdict {
 	var v Verdict
-
 	seen := map[string]int{}
 	for _, p := range published {
 		seen[p.MessageID]++

@@ -21,7 +21,7 @@ func (s Service) ReserveBooking(ctx context.Context, cmd ReserveBooking) (usecas
 			outcome, err := usecase.Decide(ctx, res.Bookings, res.Outbox, origin(AggregateTypeBooking, string(cmd.BookingID)), cmd.BookingID, identity,
 				loadAbsentBooking,
 				func(b *domain.Booking) (kernel.Accepted[domain.ReservedResponse], *kernel.Rejection) {
-					return b.Reserve(domain.ReserveBooking{ResourceID: cmd.ResourceID, Quantity: cmd.Quantity, At: domain.Instant(identity.OccurredAt)})
+					return b.Reserve(domain.ReserveBooking{ResourceID: cmd.ResourceID, Quantity: cmd.Quantity, At: identity.OccurredAt})
 				})
 			if err != nil {
 				return outcome, fmt.Errorf("application: reserve %s: %w", cmd.BookingID, err)

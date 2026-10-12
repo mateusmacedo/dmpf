@@ -3,7 +3,6 @@
 package distkit
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -11,17 +10,16 @@ import (
 	"os"
 	"os/exec"
 	"strings"
-	"syscall"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/twmb/franz-go/pkg/kadm"
-	"github.com/twmb/franz-go/pkg/kgo"
 
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/app"
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/appkit"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/dist"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/pg"
 )
 
@@ -29,12 +27,12 @@ import (
 // side of the harness the child plays; the others name the channel the two
 // processes share so the catalogue is identical on both ends (ASY-02).
 const (
-	EnvRole    = "TESTKIT_ROLE"
+	EnvRole    = dist.EnvRole
 	EnvTopic   = "TESTKIT_TOPIC"
 	EnvGroup   = "TESTKIT_GROUP"
 	EnvDLQ     = "TESTKIT_DLQ"
 	EnvPlan    = "TESTKIT_PLAN"
-	EnvBrokers = "KAFKA_BROKERS"
+	EnvBrokers = dist.EnvBrokers
 )
 
 // Role is what a child process does: publish the plan, consume through the
@@ -75,43 +73,8 @@ func New(t testing.TB) Harness {
 		DLQ:     "distkit-" + suffix + "-dlq",
 		Plan:    Default,
 	}
-	createTopics(t, seeds, h.Group, h.Topic, h.DLQ)
+	dist.CreateTopics(t, seeds, h.Group, h.Topic, h.DLQ)
 	return h
-}
-
-func createTopics(t testing.TB, seeds []string, group string, topics ...string) {
-	t.Helper()
-	cl, err := kgo.NewClient(kgo.SeedBrokers(seeds...))
-	if err != nil {
-		t.Fatalf("distkit: kgo.NewClient: %v", err)
-	}
-	t.Cleanup(cl.Close)
-	admin := kadm.NewClient(cl)
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	if _, err := admin.CreateTopics(ctx, 1, 1, nil, topics...); err != nil {
-		t.Fatalf("distkit: CreateTopics: %v", err)
-	}
-	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-		_, _ = admin.DeleteTopics(ctx, topics...)
-		_, _ = admin.DeleteGroups(ctx, group)
-	})
-}
-
-// Process is one re-executed child: the test binary itself, running only
-// TestDistkitRole under the role the parent chose.
-type Process struct {
-	Role   Role
-	cmd    *exec.Cmd
-	output bytes.Buffer
-
-	// finished closes once cmd.Wait returned; err is that result. Only after
-	// finished is output safe to read: the copy goroutines of os/exec are joined
-	// by Wait, and ProcessState is written by it.
-	finished chan struct{}
-	err      error
 }
 
 // Start re-executes os.Executable() with explicit arguments — never the
@@ -119,7 +82,7 @@ type Process struct {
 // role variables and the plan, so the child publishes exactly what the parent
 // judges. The child cannot start a harness of its own: RunRole reads the role
 // before anything else and the parent never sets it for itself.
-func (h Harness) Start(t testing.TB, role Role) *Process {
+func (h Harness) Start(t testing.TB, role Role) *dist.Process {
 	t.Helper()
 	exe, err := os.Executable()
 	if err != nil {
@@ -142,64 +105,7 @@ func (h Harness) Start(t testing.TB, role Role) *Process {
 		EnvBrokers+"="+strings.Join(h.Brokers, ","),
 		pg.PostgresDSN+"="+pg.DSN(t, appkit.PoolOptions.Project),
 	)
-	return launch(t, role, cmd)
-}
-
-func launch(t testing.TB, role Role, cmd *exec.Cmd) *Process {
-	t.Helper()
-	p := &Process{Role: role, cmd: cmd, finished: make(chan struct{})}
-	cmd.Stdout, cmd.Stderr = &p.output, &p.output
-	if err := cmd.Start(); err != nil {
-		t.Fatalf("distkit: start %s: %v", role, err)
-	}
-	go func() {
-		p.err = cmd.Wait()
-		close(p.finished)
-	}()
-	t.Cleanup(func() {
-		select {
-		case <-p.finished:
-		default:
-			_ = cmd.Process.Kill()
-			<-p.finished
-		}
-	})
-	return p
-}
-
-// Wait blocks until the child exits and fails the test if it did not exit
-// cleanly within the timeout, printing what it wrote.
-func (p *Process) Wait(t testing.TB, timeout time.Duration) {
-	t.Helper()
-	select {
-	case <-p.finished:
-		if p.err != nil {
-			t.Fatalf("distkit: %s exited with %v\n%s", p.Role, p.err, p.output.String())
-		}
-	case <-time.After(timeout):
-		_ = p.cmd.Process.Kill()
-		<-p.finished
-		t.Fatalf("distkit: %s did not exit within %v\n%s", p.Role, timeout, p.output.String())
-	}
-}
-
-// Stop asks the child to finish (SIGTERM, which the consumer roles honour
-// through signal.NotifyContext) and waits for it.
-func (p *Process) Stop(t testing.TB, timeout time.Duration) {
-	t.Helper()
-	_ = p.cmd.Process.Signal(syscall.SIGTERM)
-	p.Wait(t, timeout)
-}
-
-// Output is what the child wrote. It is meaningful only after Wait or Stop
-// returned: before that the child may still be writing.
-func (p *Process) Output() string {
-	select {
-	case <-p.finished:
-		return p.output.String()
-	default:
-		return "(process still running)"
-	}
+	return dist.Supervise(t, string(role), cmd)
 }
 
 // Effects reads the effect edge: the four tables and the reservation of the
@@ -229,14 +135,16 @@ func (h Harness) Effects(t testing.TB) Effects {
 // answering fails the test by name instead of hanging in WaitFor's loop.
 const queryTimeout = 10 * time.Second
 
-// WaitFor polls until cond holds or the timeout passes.
-func WaitFor(t testing.TB, what string, timeout time.Duration, cond func() bool) {
-	t.Helper()
-	deadline := time.Now().Add(timeout)
-	for !cond() {
-		if time.Now().After(deadline) {
-			t.Fatalf("distkit: timed out waiting for %s", what)
+// RelaySpec drives the relay of this context through the producing vector of
+// tb/dist, which proves DMPF-P001 to P003 on the outbox the consumer writes to.
+var RelaySpec = dist.Spec{
+	Name: "reservations",
+	Pool: appkit.PoolOptions,
+	Roles: map[dist.Role]dist.RoleFunc{dist.RoleRelay: dist.Relay(func(ctx context.Context, getenv func(string) string) error {
+		cfg, err := app.FromEnv(app.RoleRelay, getenv)
+		if err != nil {
+			return err
 		}
-		time.Sleep(50 * time.Millisecond)
-	}
+		return app.Run(ctx, cfg)
+	})},
 }

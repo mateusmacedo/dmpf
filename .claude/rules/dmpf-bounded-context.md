@@ -111,11 +111,11 @@ skill `.agents/skills/dmpf-bounded-context/`.
 
 - O contexto serve só gRPC, em `app/rpc`: `ServiceDesc` no bloco `app`, cada
   método por `kernelgrpc.Unary` sobre `kernelgrpc.Method` (o descritor recusa
-  método que o `.proto` não declara), `rpc.Methods()` para os limites por
-  método, `kernelgrpc.Uncovered` no teste do descritor e handlers que devolvem
-  o erro por `kernelgrpc.StatusOf`. A cadeia de interceptors é a do kernel
-  (`kernelgrpc.ServerInterceptors`). `app/http` em contexto reprova no
-  `tools/dmpf-plugin/scripts/dmpf-context-check.sh`.
+  método que o `.proto` não declara), limites por método que o
+  `serve.ServeAPI` deriva do `ServiceDesc`, `kernelgrpc.Uncovered` no teste do
+  descritor e handlers que devolvem o erro por `kernelgrpc.StatusOf`. A cadeia
+  de interceptors é a do kernel (`kernelgrpc.ServerInterceptors`). `app/http`
+  em contexto reprova no `tools/dmpf-plugin/scripts/dmpf-context-check.sh`.
 - O REST público é do `bff`. Toda rota declara `ContractRef` para o OpenAPI
   publicado em `apps/backend/<name>/contract/openapi/v1/` (RST-04), que declara
   `bearerAuth`.

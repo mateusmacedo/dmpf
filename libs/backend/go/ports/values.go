@@ -2,10 +2,11 @@
 
 package ports
 
-// Instant is a point in time as nanoseconds since the Unix epoch: available_at
-// anchors on occurred_at and the outbox drains ordered by it (FND-04 §4.2), so
-// seconds would collide under load. It arrives through Clock (RFC §9.3).
-type Instant int64
+import "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
+
+// Instant lives in the domain kernel, the innermost block, which cannot import
+// ports (ADR-061); it arrives through Clock (RFC §9.3).
+type Instant = domain.Instant
 
 // MessageID is the globally unique identifier of a message (message_id, FND-04
 // §4.1), authored by the application service before the transaction opens. The

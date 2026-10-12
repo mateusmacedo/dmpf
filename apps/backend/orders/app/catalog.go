@@ -15,8 +15,3 @@ const (
 func OrdersChannel(cfg Config) channel.Channel {
 	return channel.NewKafka(application.Destination, cfg.OrdersTopic, cfg.OrdersDLQ, cfg.Group, orderPlacedEventType, orderPlacedContract)
 }
-
-// NewCatalog is the catalog of ASY-01 with the one channel this context drains.
-func NewCatalog(cfg Config) (channel.Catalog, error) {
-	return channel.NewCatalog(OrdersChannel(cfg))
-}

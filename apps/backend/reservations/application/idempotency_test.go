@@ -8,6 +8,7 @@ import (
 
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/application"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/execctx"
 )
 
 type auditCounter struct{ audits int }
@@ -95,7 +96,7 @@ func TestACommandWaitingPastTheCeilingIsInFlight(t *testing.T) {
 
 func TestACommandWithoutAKeyIsRefusedBeforeAnyEffect(t *testing.T) {
 	h := newSyncHarness(t)
-	ctx := ports.WithExecutionContext(context.Background(), testExecution(t))
+	ctx := ports.WithExecutionContext(context.Background(), execctx.Execution(t))
 
 	_, err := h.service.Reserve(ctx, application.Reserve{Order: syncOrder, Items: 3})
 

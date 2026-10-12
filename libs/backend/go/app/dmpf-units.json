@@ -14,6 +14,13 @@
       "bounded_context": "kernel",
       "public_integration_surface": false,
       "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/app/relay"]
+    },
+    {
+      "id": "kernel/app-serve",
+      "block": "app",
+      "bounded_context": "kernel",
+      "public_integration_surface": false,
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/app/serve"]
     }
   ],
   "external": [],

@@ -19,6 +19,7 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/otelboot"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/obstest"
 )
 
 type lockedBuffer struct {
@@ -40,7 +41,7 @@ func (b *lockedBuffer) String() string {
 
 func TestTheQuarantineOfTheWiringLogsThroughTheRuntimeAndNotTheDefaultLogger(t *testing.T) {
 	ctx := context.Background()
-	logs := &recordingExporter{}
+	logs := &obstest.MemoryLogs{}
 	config := otelboot.Config{
 		Propagator:    propagation.TraceContext{},
 		Resource:      otelboot.Resource{ServiceName: "reservations", ServiceVersion: "dev", ServiceInstanceID: "reservations-consumer-1"},
@@ -70,13 +71,11 @@ func TestTheQuarantineOfTheWiringLogsThroughTheRuntimeAndNotTheDefaultLogger(t *
 	}
 
 	var contained []string
-	logs.mu.Lock()
-	for _, record := range logs.records {
+	for _, record := range logs.Records() {
 		if record.Body().AsString() == "message contained" {
 			contained = append(contained, record.InstrumentationScope().Name)
 		}
 	}
-	logs.mu.Unlock()
 	if len(contained) != 1 || contained[0] != scope {
 		t.Fatalf("runtime \"message contained\" scopes = %v, want exactly [%s]", contained, scope)
 	}

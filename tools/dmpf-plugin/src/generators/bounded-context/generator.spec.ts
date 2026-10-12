@@ -566,14 +566,23 @@ describe('[generator] bounded-context — generation', () => {
     expect(telemetry).not.toContain('cfg.Relay');
   });
 
-  it('should hand the relay the telemetry of the runtime and the physical topic of each channel', async () => {
+  it('should hand the relay the telemetry of the runtime and the channel the context declares', async () => {
     const tree = await generate();
     const wiring = readText(tree, `${MODULE_DIR}/app/wiring.go`);
-
+    const catalog = readText(tree, `${MODULE_DIR}/app/catalog.go`);
     const config = readText(tree, `${MODULE_DIR}/app/config.go`);
 
+    expect(wiring).toContain('ch, err := CheckoutChannel(cfg)');
     expect(wiring).toContain(
-      'relay.NewOverPostgres(pool, publisher, "checkout", relay.Instrument(cfg.Relay, rt, catalog.AddressOf))',
+      'serve.RunRelay(ctx, rt, relayRole(cfg), serve.Relay{Component: "checkout", Channel: ch, Scope: reflect.TypeFor[Config]().PkgPath()})',
+    );
+    expect(catalog).toContain('func CheckoutChannel(Config) (channel.Channel, error)');
+    expect(catalog).toContain('return channel.Channel{}, ErrNoChannel');
+    expect(config).toContain(
+      'return serve.APIRole{DSN: cfg.DSN, Server: cfg.API, Migrate: cfg.Migrate, Admission: cfg.Admission, MetricTenants: cfg.MetricTenants, Policies: cfg.Policies}',
+    );
+    expect(config).toContain(
+      'return serve.RelayRole{DSN: cfg.DSN, Brokers: cfg.Brokers, KafkaInsecure: cfg.KafkaInsecure, KafkaAuth: cfg.KafkaAuth, Relay: cfg.Relay, Policies: cfg.Policies}',
     );
     expect(wiring).not.toContain('func RelayConfig');
     expect(wiring).not.toContain('func topicOf');
@@ -581,48 +590,32 @@ describe('[generator] bounded-context — generation', () => {
     expect(config).toContain('System:         semconv.MessagingSystemKafka.Value.AsString()');
   });
 
-  it('should hand every kernel library the logger provider of the runtime and log its own lines under its package', async () => {
+  it('should hand both roles the runtime and log the relay under the package of the app block', async () => {
     const tree = await generate();
     const wiring = readText(tree, `${MODULE_DIR}/app/wiring.go`);
 
-    for (const line of [
-      'idclock.SystemClock{}, rt.LoggerProvider(), kernelapp.PurgeCommandInbox(pool, application.CommandConsumer))',
-      'idclock.SystemClock{}, rt.LoggerProvider(), kernelapp.PurgeOutbox(pool))',
-      'kernelgrpc.ServerInterceptors(rpc.ServiceName, ctrl, rt.Instruments(), rt.LoggerProvider(), kernelgrpc.WithCommands(rpc.Commands()...))',
-      'LoggerProvider: rt.LoggerProvider(),',
-      'kernelgrpc.HealthServices(rpc.ServiceName), ready, rt.LoggerProvider())',
-      'postgres.WaitForTables(ctx, pool, time.Second, rt.LoggerProvider(), postgres.Tables(postgres.Outbox)...)',
-      'rt.LoggerFor(reflect.TypeFor[Config]().PkgPath()).LogAttrs(ctx, slog.LevelInfo, "relay draining",',
-      'slog.String(string(semconv.MessagingSystemKey), semconv.MessagingSystemKafka.Value.AsString()),',
-      'slog.String(string(semconv.MessagingDestinationNameKey), cfg.CheckoutTopic))',
-    ]) {
-      expect(wiring).toContain(line);
-    }
+    expect(wiring).toContain('serve.ServeAPI(ctx, rt, apiRole(cfg), api())');
+    expect(wiring).toContain('Scope: reflect.TypeFor[Config]().PkgPath()');
     expect(wiring).not.toMatch(/\.Logger\(\)/);
   });
 
-  it('should meter the pool of each role with the provider of the runtime', async () => {
+  it('should leave the pool of each role to the serve package of the kernel', async () => {
     const tree = await generate();
     const wiring = readText(tree, `${MODULE_DIR}/app/wiring.go`);
-    const pools = wiring.match(/postgres\.NewPool\(/g) ?? [];
-    const metered =
-      wiring.match(
-        /postgres\.NewPool\(ctx, cfg\.DSN, rt\.Tracer\(\), postgres\.WithMeterProvider\(rt\.MeterProvider\(\)\)\)/g,
-      ) ?? [];
 
-    expect(pools).toHaveLength(2);
-    expect(metered).toHaveLength(pools.length);
+    expect(wiring).toContain('"github.com/mateusmacedo/dmpf/libs/backend/go/app/serve"');
+    expect(wiring).not.toContain('postgres.NewPool(');
+    expect(wiring).not.toContain('func serveAPI');
+    expect(wiring).not.toContain('func runRelay');
   });
 
   it('should serve gRPC only, with the kernel chain and the migrate of the outbox, the inbox and the context schema', async () => {
     const tree = await generate();
     const wiring = readText(tree, `${MODULE_DIR}/app/wiring.go`);
 
-    expect(wiring).toContain('kernelgrpc.ServerInterceptors(rpc.ServiceName');
+    expect(wiring).toContain('Desc: &rpc.ServiceDesc');
     expect(wiring).toContain('server.RegisterService(&rpc.ServiceDesc, rpc.Server{})');
-    expect(wiring).toContain(
-      'postgres.Migrate(ctx, pool, []postgres.Capability{postgres.Outbox, postgres.Inbox}, provider.Schema)',
-    );
+    expect(wiring).toContain('Schema: provider.Schema');
     expect(wiring).not.toContain('net/http');
     expect(tree.exists(`${MODULE_DIR}/app/http`)).toBe(false);
   });
@@ -636,11 +629,11 @@ describe('[generator] bounded-context — generation', () => {
 
     expect(commands).toContain('const CommandConsumer = "checkout.commands"');
     expect(service).toContain('func Commands() []string');
-    expect(wiring).toContain('kernelgrpc.WithCommands(rpc.Commands()...)');
-    expect(wiring).toContain('kernelapp.PurgeCommandInbox(pool, application.CommandConsumer)');
-    expect(wiring).toContain('kernelapp.PurgeOutbox(pool)');
-    expect(wiring).toContain('relay.Instrument(cfg.Relay, rt, catalog.AddressOf)');
+    expect(wiring).toContain('Commands: rpc.Commands()');
+    expect(wiring).toContain('CommandConsumer: application.CommandConsumer');
     expect(wiring).not.toContain('func startPurge');
+    expect(config).toContain('MetricTenants: cfg.MetricTenants, Policies: cfg.Policies}');
+    expect(config).toContain('Relay: cfg.Relay, Policies: cfg.Policies}');
     expect(config).toContain('System:         semconv.MessagingSystemKafka.Value.AsString()');
     expect(config).toContain('IdempotencyRetention: 24 * time.Hour');
     expect(config).toContain('OutboxRetention:      168 * time.Hour');

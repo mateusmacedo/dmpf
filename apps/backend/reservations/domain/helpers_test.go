@@ -4,11 +4,12 @@ import (
 	"testing"
 
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
+	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
 )
 
 const (
 	orderID = domain.OrderID("P-100")
-	at      = domain.Instant(1755432000)
+	at      = kernel.Instant(1755432000)
 )
 
 func requireUnchanged(t *testing.T, before, after domain.Snapshot) {

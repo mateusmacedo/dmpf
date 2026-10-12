@@ -2,7 +2,7 @@
 id: SPEC-R8645FVR
 slug: abstracoes-apps-go
 title: DMPF — Abstrações dos apps Go, com esqueletos no kernel, kits de teste e correção de deriva
-stage: building
+stage: done
 priority: P1
 depends_on: []
 ticket_url: https://linear.app/mmda/issue/DEVS-63/spec-r8645fvr-dmpf-abstracoes-dos-apps-go-com-esqueletos-no-kernel
@@ -76,10 +76,10 @@ módulos do kernel ficam sob `libs/backend/go/`.
 - [P0] O comportamento observável é preservado, com exatamente três exceções declaradas: o `bookings` passa a auditar (D1, A1), a categoria do span cliente do kernel para `deadline.ErrNoDeadline` e `ErrDeadlineExhausted` deixa de ser `_OTHER` (B7), e 13 textos de falha de `orders` e `reservations` passam à forma única de A3, só em log e span.
 - [P0] Nenhum item da Onda 3 entra em código antes de o ADR que o autoriza estar commitado.
 - [P0] Unidade nova exige `include` no manifesto (`DMPF-U001`); o agente prepara a unidade, e o `--write-baseline` (`DMPF-T001`) fica com a pessoa responsável.
-- [P0] Toda promoção ao kernel retira a cópia dos templates de `tools/dmpf-plugin/src/generators/bounded-context/files/` e da skill `.agents/skills/dmpf-bounded-context/` na mesma onda.
+- [P0] Toda promoção ao kernel retira a cópia dos templates de `tools/dmpf-plugin/templates/bounded-context/` e da skill `dmpf-bounded-context`, cuja fonte é `tools/dmpf-plugin/templates/ai/`, na mesma onda.
 - [P1] Teste de comportamento só sai com cobertura equivalente no destino; alterar teste apenas para fazê-lo passar é proibido.
 - [P1] Nomes de variável de ambiente, chaves de atributo de telemetria, layout de payload persistido e valores do fio não mudam (ADR-053, ADR-056).
-- [P1] Esqueleto genérico é função livre (método não aceita parâmetro de tipo); alias genérico é permitido (`go 1.26.6`).
+- [P1] Esqueleto genérico é função livre (método não aceita parâmetro de tipo); alias genérico é permitido (`go 1.26.9`).
 - [P1] Projetos Nx distintos vão em commits separados.
 </constraints>
 
@@ -211,18 +211,18 @@ módulos do kernel ficam sob `libs/backend/go/`.
 
 #### Onda 3 — ADR e classificação
 
-- [ ] **[P0] ADR de produção (próximo número livre, hoje ADR-060)**: registra P3, P6, A6 e B7. Supersede em parte o ADR-048: a frase "fica no contexto: `classify`, `subject`" e a leitura de "diverge por papel" aplicada ao corpo de cada papel. Também atualiza o status do ADR-048 e o índice em `docs/adr/README.md`.
+- [x] **[P0] ADR de produção (ADR-061)**: registra P3, P6, A6, B7 e N10. O ADR-060 foi ocupado antes da onda, então os dois ADRs ficaram com 061 e 062. Supersede em parte o ADR-048: a frase "fica no contexto: `classify`, `subject`" e a leitura de "diverge por papel" aplicada ao corpo de cada papel. Também atualiza o status do ADR-048 e o índice em `docs/adr/README.md`.
   - Atualiza ainda o ADR-053 nas §7 e §14, que descrevem um `errors.go` por contexto e emitido pelo generator. O P1 retira esse arquivo já na Onda 1, e o PR dessa onda registra a deriva até o ADR.
-- [ ] **[P0] ADR de testes (próximo número livre, hoje ADR-061)**: registra T1 e T3, supersede em parte o ADR-046 (o "sem segundo consumidor" do `distkit`) e atualiza o status dele e o índice.
-- [ ] **[P1] P3 — `CategoryOf` e `SubjectOf`**: `application.CategoryOf(err) string`, que devolve vazio quando não classifica, e `ports.SubjectOf(ctx) string`. Saem `classify` e `subject` dos três `app/telemetry.go`.
-- [ ] **[P1] P6 — Package `app/serve`**: package novo `libs/backend/go/app/serve` com `API`, `ServeAPI` e `RunRelay`, usado pelos três `serveAPI` e `runRelay`.
+- [x] **[P0] ADR de testes (ADR-062)**: registra T1 e T3, além de T6, N6, N8 e N9, supersede em parte o ADR-046 (o "sem segundo consumidor" do `distkit`) e atualiza o status dele e o índice.
+- [x] **[P1] P3 — `CategoryOf` e `SubjectOf`**: `application.CategoryOf(err) string`, que devolve vazio quando não classifica, e `ports.SubjectOf(ctx) string`. Saem `classify` e `subject` dos três `app/telemetry.go`.
+- [x] **[P1] P6 — Package `app/serve`**: package novo `libs/backend/go/app/serve` com `API`, `ServeAPI` e `RunRelay`, usado pelos três `serveAPI` e `runRelay`.
   - `RunWith` continua local.
-  - O `go.mod` do `app` passa a requerer `transport`; o `grpc` já entrou com P1.
+  - O `go.mod` do `app` passa a requerer `transport` e `kafka`, que o relay usa para publicar; o `grpc` já entrou com P1.
   - Unidade nova em `libs/backend/go/app/dmpf-units.json`, no mesmo molde de `kernel/app-relay`, e `kernel/app-serve` entra em `shared_kernel_units` do baseline:
     `{"id": "kernel/app-serve", "block": "app", "bounded_context": "kernel", "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/app/serve"], "public_integration_surface": false}`.
-- [ ] **[P1] A6 — `Instant` no kernel `domain`**: `type Instant int64` vai para `domain`, e `ports.Instant` vira alias. Saem as três declarações dos contextos e as sete conversões `domain.Instant(identity.OccurredAt)`.
-- [ ] **[P2] B7 — `kernelgrpc.Category`**: `Category(err error) string` passa a ser exportada, com os casos `deadline.ErrNoDeadline` e `ErrDeadlineExhausted`, e `bff/app/rpc/errors.go` passa a usá-la.
-- [ ] **[P1] T1 — Núcleo do `distkit`**: package novo `testkit/tb/dist`, em duas camadas.
+- [x] **[P1] A6 — `Instant` no kernel `domain`**: `type Instant int64` vai para `domain`, e `ports.Instant` vira alias. Saem as três declarações dos contextos e as oito conversões `domain.Instant(identity.OccurredAt)`.
+- [x] **[P2] B7 — `kernelgrpc.Category`**: `Category(err error) string` passa a ser exportada, com os casos `deadline.ErrNoDeadline` e `ErrDeadlineExhausted`, e `bff/app/rpc/errors.go` passa a usá-la.
+- [x] **[P1] T1 — Núcleo do `distkit`**: package novo `testkit/tb/dist`, em duas camadas.
   - **Supervisor genérico:** `Supervise(t testing.TB, name string, cmd *exec.Cmd) *Process`, com `Process.Wait(t, timeout)` e `Process.Stop(t, timeout)` (SIGTERM, espera e kill ao fim do prazo). Também tem `Process.Output()`, que devolve um snapshot do que o filho escreveu até ali, sob mutex, sem bloquear, no molde de `bff/app/harness_test.go`. Inclui ainda o `t.Cleanup` que encerra o filho.
   - **Harness por papel:** `Spec`, `New`, `Harness.Start(t, role)`, que monta o `*exec.Cmd` de reexecução do binário de teste e chama `Supervise`, além de `RunRole` e `RelayVector`.
   - Os três `<ctx>/distkit` ficam finos: `Spec`, papéis e, no `reservations`, `Plan` e `DMPF-R004`.
@@ -232,40 +232,42 @@ módulos do kernel ficam sob `libs/backend/go/`.
     `{"id": "kernel/testkit-dist", "block": "app", "bounded_context": "kernel", "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/dist"], "public_integration_surface": true}`.
   - `testkit/README.md` e `.agents/skills/dmpf-testkit/references/package-routing.md` deixam de dizer que `appkit` e `distkit` só existem no `reservations`.
   - `dist.CreateTopics` é exportada e usada também pelos três `app/wiring_e2e_test.go` (G11).
-- [ ] **[P2] T11b — Supervisor do `bff`**: `process` e `start` de `bff/app/harness_test.go` passam a usar `dist.Supervise`. O `bff` continua montando o próprio `*exec.Cmd` (binário, argumentos e ambiente) e mantém o despejo de logs quando o teste falha.
-- [ ] **[P1] T3 — Package `testkit/obstest`**: package novo com `Subject[C, R]`, `Manifest[C, R]` e `StartCollector`. Os `telemetry_manifest_test.go`, `telemetry_tenant_test.go`, `telemetry_internal_test.go` e `subject_test.go` de cada contexto viram uma chamada, e o `bff` passa a usar `StartCollector`.
+- [x] **[P2] T11b — Supervisor do `bff`**: `process` e `start` de `bff/app/harness_test.go` passam a usar `dist.Supervise`. O `bff` continua montando o próprio `*exec.Cmd` (binário, argumentos e ambiente) e mantém o despejo de logs quando o teste falha.
+- [x] **[P1] T3 — Package `testkit/obstest`**: package novo com `Subject[C, R]`, `Manifest[C, R]` e `StartCollector`. Os `telemetry_manifest_test.go`, `telemetry_tenant_test.go`, `telemetry_internal_test.go` e `subject_test.go` de cada contexto viram uma chamada, e o `bff` passa a usar `StartCollector`.
   - O `go.mod` do `testkit` promove `google.golang.org/grpc` e `go.opentelemetry.io/proto/otlp` a requisitos diretos, com entradas `external`. O `otelboot` não é dependência nova, porque vive no módulo `observability`, que o `testkit` já requer.
   - Unidade nova em `libs/backend/go/testkit/dmpf-units.json`:
     `{"id": "kernel/testkit-obs", "block": "app", "bounded_context": "kernel", "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/testkit/obstest"], "public_integration_surface": true}`.
   - Entram também os `telemetry_fields_test.go` dos contextos (`configWithSecrets`, `processConfigured` e a asserção da allowlist por papel, com o mapa de chaves local), e o `bff` passa a usar a verificação de manifesto e o `processConfigured` do `obstest` (G21, G50, G55, G67).
   - Entra ainda o teste da trilha de auditoria do wiring (`TestTheAuditTrailOfTheServiceReachesTheLoggerProviderOfTheRuntime`, nos três `app/wiring_test.go`). Ele vira grupo de clone quando o P4 tira dali o teste de `RelayConfig` (G62).
-- [ ] **[P1] T6 — Fixture de `ExecutionContext`**: `WithExecution(t, ctx, opts...)`, `WithKey(t, ctx, key)`, a opção `WithSlot()` e uma opção `AutoKey()` vão para `testkit/tb/execctx`, package irmão do `tb`. Os 25 `_test.go` que montam o literal `ExecutionContextSpec` (24 nos contextos e 1 no `bff`) passam a usá-los.
+- [x] **[P1] T6 — Fixture de `ExecutionContext`**: `WithExecution(t, ctx, opts...)`, `WithKey(t, ctx, key)`, a opção `WithSlot()` e uma opção `AutoKey()` vão para `testkit/tb/execctx`, package irmão do `tb`. Os 25 `_test.go` que montam o literal `ExecutionContextSpec` (24 nos contextos e 1 no `bff`) passam a usá-los.
   - O `tb` não recebe a fixture: ela importa `ports`, e o guard `TestDomainTestsNeedNoInfrastructureDouble` (V29/V30) reprova unidade `domain` cujo fechamento de teste alcance `port`. É o motivo pelo qual o pool Postgres vive em `tb/pg` (ADR-040).
   - O package novo entra no `include` de `kernel/testkit-tb` e exige `--write-baseline` (`DMPF-T001`), por isso o item fica na Onda 3. O nome `execctx` evita a sombra das variáveis locais `execution` dos testes.
   - `AutoKey()` gera a chave `k-<n>` por processo, e os wrappers locais ficam com uma linha. Sem ela, os `execution_test.go` continuam com o contador de chaves e viram dois grupos de clone novos.
   - Os `execution_test.go` do kernel (`memory`, `observability/resilience`, `observability/usecase` e `testkit/serviceskit`) também passam a usar o `execctx`, para não virarem par de clone dele (G15, G36). O módulo `observability` passa a requerer `testkit`, só por package `_test` externo.
   - Os `app/authorization_test.go` usam a fixture sem opção (G54), porque o padrão já não concede permissões. Uma opção sem permissões seria redundante.
-- [ ] **[P2] N6 — Caso de uso de referência do kit**: o `counterService` vai para um arquivo não-teste de um package de bloco `app` do `testkit` (package novo em `kernel/testkit-tb` ou unidade nova). `observability/usecase/counter_service_test.go` e `testkit/serviceskit/counter_service_test.go` passam a usá-lo (G44).
+- [x] **[P2] N6 — Caso de uso de referência do kit**: o `counterService` vai para um arquivo não-teste de um package de bloco `app` do `testkit` (package novo em `kernel/testkit-tb` ou unidade nova). `observability/usecase/counter_service_test.go` e `testkit/serviceskit/counter_service_test.go` passam a usá-lo (G44).
   - O `serviceskit` não recebe o fixture: ele é bloco `provider`, e o `counterService` usa `application.Authorize`, `application.Outcome` e `application.ResolveIdentity`, o que viola o `DMPF-D001`.
   - O destino exige `include` novo ou unidade nova e `--write-baseline`, por isso o item fica na Onda 3.
   - A cópia do `usecase` é um superconjunto da do `serviceskit` (instrumentação, `Audit` e `Find`); o fixture compartilhado trata `Instrumentation` nula como `ports.NoInstrumentation()`.
   - O módulo `observability` passa a requerer `testkit`, como já fazem `memory`, `postgres`, `contracts` e `app`. O uso fica restrito a package `_test` externo.
-- [ ] **[P2] N8 — Coletores OTLP de falha**: `UnreachableCollector(t)` e `StallingCollector(t)` vão para `testkit/obstest` e são usados pelos testes de degradação de `bff`, `grpc`, `kafka` e `sqs` (G47, G59).
+- [x] **[P2] N8 — Coletores OTLP de falha**: `UnreachableCollector(t)` e `StallingCollector(t)` vão para `testkit/obstest` e são usados pelos testes de degradação de `bff`, `grpc`, `kafka` e `sqs` (G47, G59).
   - Depende de T3 e do ADR de testes: o SDK OTel (`sdk/metric`, `sdk/log` e `sdk/trace`) vira requisito direto do `testkit`, e `kafka`, `sqs`, `grpc` e `bff` passam a requerer `testkit`.
-- [ ] **[P2] N9 — Leitores de telemetria de teste**: `testkit/obstest` ganha `MetricLabels(t, reader)`, o exportador de log em memória, a espera de span por prefixo, o runtime com leitor de métrica e a contagem de conexões do pool (G23, G46, G51, G66).
+- [x] **[P2] N9 — Leitores de telemetria de teste**: `testkit/obstest` ganha `MetricLabels(t, reader)`, o exportador de log em memória, a espera de span por prefixo, o runtime com leitor de métrica e a contagem de conexões do pool (G23, G46, G51, G66).
   - O N9 tem as mesmas dependências do N8. Para G51 e G66, a alternativa é P6 levar os e2e de papel para `app/serve`.
-- [ ] **[P2] N10 — Handler gRPC de comando no kernel**: o `command[R, Resp]` que o P8 deixou local nos três `app/rpc` forma grupo de clone no fim da Onda 2 (14 linhas em cada contexto). Promovê-lo exige rever a decisão técnica de manter o `executionOf` no handler (P2) e tratar o tipo de rejeição de cada contrato; a decisão e o destino ficam para esta onda.
+- [x] **[P2] N10 — Handler gRPC de comando no kernel**: o `command[R, Resp]` que o P8 deixou local nos três `app/rpc` forma grupo de clone no fim da Onda 2 (14 linhas em cada contexto). Promovê-lo exige rever a decisão técnica de manter o `executionOf` no handler (P2) e tratar o tipo de rejeição de cada contrato; a decisão e o destino ficam para esta onda.
+  - Destino: `kernelgrpc.Command` e `kernelgrpc.ExecutionOf`, no kernel `grpc`, com uma interface `Outcome[R]` que o `application.Outcome[R]` satisfaz pela forma, sem unidade nova (ADR-061). A recusa recebe o `*domain.Rejection`, e cada contexto mapeia para a rejeição do próprio contrato.
 
 #### Transversais (toda onda)
 
-- [ ] **[P0] Generator e skill**: em cada onda que promove algo ao kernel:
-  - retirar a cópia de `tools/dmpf-plugin/src/generators/bounded-context/files/`;
+- [x] **[P0] Generator e skill**: em cada onda que promove algo ao kernel:
+  - retirar a cópia de `tools/dmpf-plugin/templates/bounded-context/`;
   - ajustar `tools/dmpf-generator-check.sh`;
-  - atualizar `.agents/skills/dmpf-bounded-context/` e `.claude/commands/dmpf-new-context.md`.
-- [ ] **[P0] Evidência e baseline**: medir os digests de evidência por subject antes e depois de cada onda e registrar, no PR (e no ADR, na Onda 3), quais divergem e por quê, como fez o ADR-048. Quando houver unidade nova, o `--write-baseline` e o `biome format` de `tools/dmpf-baseline/units-baseline.json` ficam com a pessoa responsável.
-- [ ] **[P1] SPEC-VZ16X0MS revista**: registrar na spec deferida, junto da Onda 1, que `enqueueAll` deixa de ser template mecânico e passa a ser importado de `usecase.Enqueue`. Junto da Onda 2, registrar o mesmo para os passos 4 a 7, que passam a vir de `Decide` com `Loader`.
-- [ ] **[P1] READMEs dos módulos**: todo módulo do kernel que ganha API documenta essa API no próprio `README.md`.
-- [ ] **[P0] Duplicação como oportunidade de abstração**: o catálogo do relatório não esgota o escopo. A duplicação estrutural medida também entra.
+  - atualizar os templates de `tools/dmpf-plugin/templates/ai/` (skills `dmpf-bounded-context` e `dmpf-testkit`, agente e `dmpf-new-context`) e re-renderizar as cópias pelo `init`, que o CI confere com `init --dry-run`.
+- [x] **[P0] Evidência e baseline**: medir os digests de evidência por subject antes e depois de cada onda e registrar, no PR (e no ADR, na Onda 3), quais divergem e por quê, como fez o ADR-048. Quando houver unidade nova, o `--write-baseline` e o `biome format` de `tools/dmpf-baseline/units-baseline.json` ficam com a pessoa responsável.
+  - A medição de digest por subject deixou de se aplicar: o ADR-059 removeu o `testkit/evidence`. Na Onda 3, o mantenedor regravou o baseline com `kernel/app-serve` em `shared_kernel_units`, as unidades `kernel/testkit-dist` e `kernel/testkit-obs` e o `include` ampliado de `kernel/testkit-tb`.
+- [x] **[P1] SPEC-VZ16X0MS revista**: registrar na spec deferida, junto da Onda 1, que `enqueueAll` deixa de ser template mecânico e passa a ser importado de `usecase.Enqueue`. Junto da Onda 2, registrar o mesmo para os passos 4 a 7, que passam a vir de `Decide` com `Loader`.
+- [x] **[P1] READMEs dos módulos**: todo módulo do kernel que ganha API documenta essa API no próprio `README.md`.
+- [x] **[P0] Duplicação como oportunidade de abstração**: o catálogo do relatório não esgota o escopo. A duplicação estrutural medida também entra.
   - **Medição:** `go run github.com/mibk/dupl@v1.1.0 -t 100 -files`, sobre os `.go` de `apps/backend` e `libs/backend/go`, fora `contract/gen` e `contracts/gen`. A lista de arquivos vem de `fd -e go . apps/backend libs/backend/go -E gen`. A linha de base é de **67 grupos de clone**, medida em `689fbfce`, com código idêntico ao de `8f544bc0`. Desses, 45 cruzam áreas (15 em produção ou misto e 30 só em teste). Os outros 22 ficam dentro de uma área: 14 no kernel, todos em teste, e 8 nos apps.
   - **Ordem da lista:** a contagem oficial usa a ordem nativa do `fd`, e a meta de 34 grupos se mede nela. O `dupl` é sensível à ordem da lista, e na ordem nativa clones de arquivo inteiro ficam ocultos. Por isso cada registro traz também, como diagnóstico, uma medição com a mesma lista embaralhada por semente fixa (`random.seed(1)` do Python 3).
   - **Quando:** no início do plano de cada onda e ao fim dela, com o número de grupos registrado no PR.
@@ -294,14 +296,20 @@ módulos do kernel ficam sob `libs/backend/go/`.
     - Saíram os 12 que os itens da onda cobrem: G2, G5, G7, G9, G10, G14, G18, G22, G37, G43, G53 e G64.
     - Entraram três. O `command[R, Resp]` dos três `app/rpc` é igual por natureza e vira o requisito N10 da Onda 3. O subject do `providerkit.Repository` por agregado, nos testes de repositório de `bookings` e `reservations`, fica fora de escopo por vocabulário do agregado (identificador, estado e marcador), no critério de G1 e G24. As specs golden de `BookingCancelled` e `ResourceRegistered`, eventos de mesma forma, ficam fora de escopo por vocabulário do contrato.
     - Na medição, três clones nascidos da própria onda saíram por mudança local: os handlers gRPC de comando passam a recusa e o aceite como funções nomeadas, os três specs golden do `bookings` compartilham o construtor da fixture, e o teste de defaults dos `config_test` compara a struct `Policies`.
+  - **Registro do início da Onda 3:** 41 grupos em `2ec024fd` na ordem nativa, e 57 com a lista embaralhada, os mesmos do fim da Onda 2.
+  - **Registro do fim da Onda 3:** 16 grupos em `815feb7e` na ordem nativa (meta: no máximo 34), e 24 com a lista embaralhada.
+    - Saíram os 29 que os itens da onda cobrem: P3, P6, N10, T1, T3, N8, N9, T6 e N6.
+    - Os 12 que vinham de antes seguem fora de escopo pelos motivos já registrados: `projection_test` (G1, G24), `chain_test` (G33, G6), construtores de `metrics` e `tracing` (G8, G32), `config.go` (G16), `cmd/main.go` (G19), `idempotency_test` (G31), `config_test` (G57), o subject de repositório de `bookings` e `reservations` e as specs golden de `BookingCancelled` e `ResourceRegistered`.
+    - Entraram quatro, todos fora de escopo por vocabulário do contexto. O gancho `api` dos três `app/wiring.go` nomeia o construtor do serviço de cada contexto; reduzir mais exigiria o serviço como `any`, rejeitado no ADR-061. O gancho do teste de caso de uso nos três `telemetry_usecase_test.go` nomeia o construtor, o agregado ausente e o `Find*`. A configuração do teste do relay nos três `wiring_e2e_test.go` usa os campos `<Ctx>Topic` da `Config`. O `configWithSecrets` de `orders` e `bookings`, nos `telemetry_fields_test.go`, segue o critério do G57.
 
 ### Não-funcionais
 
-- [ ] Compatibilidade: Go `1.26.6`, a diretiva do `go.mod` dos apps.
-- [ ] Dependências: o `go.mod` do `testkit` só ganha como requisitos diretos novos o franz-go (T1), `google.golang.org/grpc` e `go.opentelemetry.io/proto/otlp` (T3) e o SDK OTel (`sdk/metric`, `sdk/log` e `sdk/trace`, N8 e N9), todos autorizados pelo ADR de testes. Entre módulos do kernel, `app` passa a requerer `grpc` (P1) e `transport` (P6); `kafka` e `sqs` (N7, Onda 1) e `observability` (T6 e N6, Onda 3) passam a requerer `testkit`, assim como `grpc` (N8). O `bff` já requer `testkit`. O `dupl` roda por `go run` e não entra em nenhum `go.mod`.
-- [ ] Reflexão: o caminho de requisição não ganha nenhum uso novo de reflexão; os esqueletos usam generics e funções.
-- [ ] Redução: ao fim da Onda 3, **a soma dos quatro apps** tem ao menos 1.000 linhas de produção e 2.500 linhas de teste a menos que a árvore de `8f544bc0`. Produção são os `.go` que não terminam em `_test.go`, e teste são os `_test.go`. Os dois excluem `contract/gen`. A contagem é física, por quebra de linha (`wc -l`), e é registrada no PR da Onda 3.
-- [ ] Duplicação: ao fim da Onda 3, a medição do `dupl` acusa no máximo 34 grupos de clone, metade da linha de base de 67. Todo grupo restante está classificado como fora de escopo, com motivo.
+- [x] Compatibilidade: Go `1.26.9`, a diretiva do `go.mod` dos apps.
+- [x] Dependências: o `go.mod` do `testkit` só ganha como requisitos diretos novos o franz-go (`franz-go` e `pkg/kadm`, T1), `google.golang.org/grpc` e `go.opentelemetry.io/proto/otlp` (T3), o SDK OTel (módulos `sdk`, `sdk/metric` e `sdk/log`, N8 e N9) e a API OTel que o SDK expõe (`otel` e `otel/log`), todos autorizados pelo ADR de testes. Entre módulos do kernel, `app` passa a requerer `grpc` (P1), `transport` e `kafka` (P6); `kafka` e `sqs` (N7, Onda 1) e `observability` (T6 e N6, Onda 3) passam a requerer `testkit`, assim como `grpc` (N8) e `transport` (N9), sempre só em package `_test` externo. O `bff` já requer `testkit`. O `dupl` roda por `go run` e não entra em nenhum `go.mod`.
+- [x] Reflexão: o caminho de requisição não ganha nenhum uso novo de reflexão; os esqueletos usam generics e funções.
+- [x] Redução: ao fim da Onda 3, **a soma dos quatro apps** tem ao menos 1.000 linhas de produção e 2.500 linhas de teste a menos que a árvore de `8f544bc0`. Produção são os `.go` que não terminam em `_test.go`, e teste são os `_test.go`. Os dois excluem `contract/gen`. A contagem é física, por quebra de linha (`wc -l`), e é registrada no PR da Onda 3.
+  - Em `815feb7e`, os quatro apps somam 7.387 linhas de produção e 17.305 de teste, contra 9.725 e 23.413 em `8f544bc0`: −2.338 e −6.108.
+- [x] Duplicação: ao fim da Onda 3, a medição do `dupl` acusa no máximo 34 grupos de clone, metade da linha de base de 67. Todo grupo restante está classificado como fora de escopo, com motivo.
 
 ## Camadas afetadas
 
@@ -344,8 +352,8 @@ apps/backend/
   bff/app/api/            — B1, B2, B4, B5, B8, T11a
   bff/app/rpc/            — B3, B7, B9, T11a
   bff/app/wiring.go       — B6, B8
-tools/dmpf-plugin/src/generators/bounded-context/files/  — templates do contexto
-.agents/skills/dmpf-bounded-context/, .agents/skills/dmpf-testkit/, .claude/commands/dmpf-new-context.md
+tools/dmpf-plugin/templates/bounded-context/  — templates do contexto
+tools/dmpf-plugin/templates/ai/  — fonte da skill dmpf-bounded-context, da dmpf-testkit, do agente e do comando dmpf-new-context
 docs/adr/                 — ADR de produção, ADR de testes, status dos ADRs 046 e 048, índice
 docs/specs/SPEC-VZ16X0MS-dmpf-generator-templates-agregado.md
 ```
@@ -354,7 +362,7 @@ docs/specs/SPEC-VZ16X0MS-dmpf-generator-templates-agregado.md
 
 - `{orders,reservations,bookings}/app/rpc/errors.go` e `errors_internal_test.go`
   (P1), substituídos por `kernelgrpc.StatusOf`;
-- `tools/dmpf-plugin/src/generators/bounded-context/files/app/app/rpc/errors.go__tmpl__`
+- `tools/dmpf-plugin/templates/bounded-context/app/app/rpc/errors.go__tmpl__`
   (P1), pelo mesmo motivo.
 
 Os `*/domain/helpers_test.go` ficam: o T7 retira deles só as asserções que
@@ -487,7 +495,7 @@ command.Run(ctx, res, identity):
 - `.claude/rules/dmpf-bounded-context.md` (forma do contexto, ADR-053)
 - `docs/guides/dmpf-manifesto.md` (unidades, `include`, baseline)
 - `docs/guides/dmpf-composicao.md` (composição e generator)
-- `tools/dmpf-context-check.sh`, `tools/dmpf-generator-check.sh`,
+- `tools/dmpf-plugin/scripts/dmpf-context-check.sh`, `tools/dmpf-generator-check.sh`,
   `tools/dmpf-harness-check.sh`, `tools/dmpf-shared-kernel-check.sh` e
   `tools/dmpf-cell-check.sh`
 - SPEC-VZ16X0MS, SPEC-F308KDSF e SPEC-JJKWG4JP
@@ -496,24 +504,24 @@ command.Run(ctx, res, identity):
 
 ### Critérios de aceite
 
-- [ ] Uma busca em `apps/backend` por `func statusOf`, `func outcomeCategory`, `func authorizationResult`, `func enqueueAll`, `func classify`, `func serveAPI` e `func runRelay` não retorna resultado.
+- [x] Uma busca em `apps/backend` por `func statusOf`, `func outcomeCategory`, `func authorizationResult`, `func enqueueAll`, `func classify`, `func subject`, `func serveAPI`, `func runRelay`, `func command[` e `type Instant` não retorna resultado.
 - [x] `{orders,reservations,bookings}/app/rpc/errors.go` não existem.
 - [x] Todo caso de uso de comando dos três contextos chama `Execute`, e o `bookings` audita comando novo sem auditar replay, o que é fixado por um teste por caso de uso.
-- [ ] O `go test -race` do `distkit` de cada contexto passa com um teste que lê `Output()` enquanto o processo roda. Na Onda 0, a leitura devolve o sentinela; a partir da Onda 3, devolve o snapshot de `dist.Supervise`.
+- [x] O `go test -race` do `distkit` de cada contexto passa com um teste que lê `Output()` enquanto o processo roda. Na Onda 0, a leitura devolve o sentinela; a partir da Onda 3, devolve o snapshot de `dist.Supervise`, e o teste passa a ser um só, `TestOutputReadsWhatTheChildWroteWhileItRuns` em `testkit/tb/dist`, porque os `distkit/output_test.go` dos contextos saíram com o T1.
 - [x] O teste de tabela de `kernelgrpc.StatusOf` cobre as oito linhas, `context.DeadlineExceeded` e `context.Canceled` puros e os erros híbridos.
 - [x] Um teste fixa o pânico de `kernelgrpc.Method` para método inexistente.
 - [x] As mensagens de erro dos casos de uso de comando seguem a forma única de A3: no `bookings` são idênticas às de `8f544bc0`, e em `orders` e `reservations` mudam só os 13 textos listados em A3. Cada caminho de falha é verificado por `errors.Is` e pela mensagem completa.
-- [ ] `kernel/app-serve`, `kernel/testkit-dist` e `kernel/testkit-obs` estão nos manifestos com os campos desta spec, e `kernel/app-serve` consta de `shared_kernel_units`.
-- [ ] O registro de cada onda lista todos os grupos de clone do `dupl` como cobertos por um item, como novos requisitos `N<n>` ou como fora de escopo com motivo, e o registro da Onda 3 acusa no máximo 34 grupos.
+- [x] `kernel/app-serve`, `kernel/testkit-dist` e `kernel/testkit-obs` estão nos manifestos com os campos desta spec, e `kernel/app-serve` consta de `shared_kernel_units`.
+- [x] O registro de cada onda lista todos os grupos de clone do `dupl` como cobertos por um item, como novos requisitos `N<n>` ou como fora de escopo com motivo, e o registro da Onda 3 acusa no máximo 34 grupos.
 - [x] `bookings/application/doubles_test.go` não declara `memStore`, `memTx`, `txCommands` nem `memUoW`.
-- [ ] O contexto gerado por `tools/dmpf-generator-check.sh` não contém nenhuma das funções promovidas, e `tools/dmpf-harness-check.sh` passa.
-- [ ] Ao fim de cada onda, `go run ./tools/dmpf-conformance/cmd/conformance --root .` e `go run ./tools/dmpf-conformance/cmd/modsync --root . --check` passam.
-- [ ] `pnpm biome check .` e `pnpm nx affected -t lint,typecheck,test,build --exclude=@mateusmacedo/dmpf-source` passam, assim como `fmt-check`, `vet`, `test-race` e `govulncheck` de cada projeto Go tocado.
-- [ ] `tools/dmpf-context-check.sh`, `tools/dmpf-shared-kernel-check.sh` e `tools/dmpf-cell-check.sh` passam.
-- [ ] `node tools/adr-verify.mjs` passa com os dois ADRs novos e os status dos ADRs 046 e 048 atualizados.
-- [ ] O `reservations` prova `DMPF-P001` a `P003` do relay por meio de `testkit/tb/dist`.
+- [x] O contexto gerado por `tools/dmpf-generator-check.sh` não contém nenhuma das funções promovidas, e `tools/dmpf-harness-check.sh` passa na fase `self-test` (a fase `regen` exige um agente e não roda no CI).
+- [x] Ao fim de cada onda, `go run ./tools/dmpf-conformance/cmd/conformance --root .` e `go run ./tools/dmpf-conformance/cmd/modsync --root . --check` passam.
+- [x] `pnpm biome check .` e `pnpm nx affected -t lint,typecheck,test,build --exclude=@mateusmacedo/dmpf-source` passam, assim como `fmt-check`, `vet`, `test-race` e `govulncheck` de cada projeto Go tocado. O `govulncheck` roda com o Go da diretiva do `go.work`, como no CI.
+- [x] `tools/dmpf-plugin/scripts/dmpf-context-check.sh`, `tools/dmpf-shared-kernel-check.sh` e `tools/dmpf-cell-check.sh` passam.
+- [x] `node tools/adr-verify.mjs --from 61` passa com os dois ADRs novos e os status dos ADRs 046, 048 e 053 atualizados; o verificador inteiro acusa 77 violações anteriores a esta spec.
+- [x] O `reservations` prova `DMPF-P001` a `P003` do relay por meio de `testkit/tb/dist`.
 - [x] O `bookings/contract` tem golden para os três protos de evento.
-- [ ] O PR de cada onda registra as divergências de digest por subject, e o da Onda 3 registra a redução de linhas do requisito não-funcional.
+- [x] O PR de cada onda registra as divergências de digest por subject (desde o ADR-059, não aplicável), e o da Onda 3 registra a redução de linhas do requisito não-funcional.
 
 ### Cenários de teste
 
@@ -565,10 +573,10 @@ ENTÃO o registro da onda o classifica como requisito N<n> nesta spec ou como fo
 - [P0] O comportamento observável é preservado, com exatamente três exceções declaradas: o `bookings` passa a auditar (D1, A1), a categoria do span cliente do kernel para `deadline.ErrNoDeadline` e `ErrDeadlineExhausted` deixa de ser `_OTHER` (B7), e 13 textos de falha de `orders` e `reservations` passam à forma única de A3, só em log e span.
 - [P0] Nenhum item da Onda 3 entra em código antes de o ADR que o autoriza estar commitado.
 - [P0] Unidade nova exige `include` no manifesto (`DMPF-U001`); o agente prepara a unidade, e o `--write-baseline` (`DMPF-T001`) fica com a pessoa responsável.
-- [P0] Toda promoção ao kernel retira a cópia dos templates de `tools/dmpf-plugin/src/generators/bounded-context/files/` e da skill `.agents/skills/dmpf-bounded-context/` na mesma onda.
+- [P0] Toda promoção ao kernel retira a cópia dos templates de `tools/dmpf-plugin/templates/bounded-context/` e da skill `dmpf-bounded-context`, cuja fonte é `tools/dmpf-plugin/templates/ai/`, na mesma onda.
 - [P1] Teste de comportamento só sai com cobertura equivalente no destino; alterar teste apenas para fazê-lo passar é proibido.
 - [P1] Nomes de variável de ambiente, chaves de atributo de telemetria, layout de payload persistido e valores do fio não mudam (ADR-053, ADR-056).
-- [P1] Esqueleto genérico é função livre (método não aceita parâmetro de tipo); alias genérico é permitido (`go 1.26.6`).
+- [P1] Esqueleto genérico é função livre (método não aceita parâmetro de tipo); alias genérico é permitido (`go 1.26.9`).
 - [P1] Projetos Nx distintos vão em commits separados.
 </critical_constraints>
 

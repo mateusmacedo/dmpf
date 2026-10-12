@@ -21,7 +21,7 @@ func (s Service) Reserve(ctx context.Context, cmd Reserve) (usecase.Outcome[doma
 		Run: func(ctx context.Context, res Resources, identity usecase.Identity) (usecase.Outcome[domain.ReservedResponse], error) {
 			outcome, err := usecase.Decide(ctx, res.Reservations, res.Outbox, origin(cmd.Order), cmd.Order, identity, loadReservation,
 				func(r *domain.Reservation) (kernel.Accepted[domain.ReservedResponse], *kernel.Rejection) {
-					return r.Reserve(domain.Reserve{Items: cmd.Items, At: domain.Instant(identity.OccurredAt)})
+					return r.Reserve(domain.Reserve{Items: cmd.Items, At: identity.OccurredAt})
 				})
 			if err != nil {
 				return outcome, fmt.Errorf("application: reserve %s: %w", cmd.Order, err)

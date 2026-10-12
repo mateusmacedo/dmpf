@@ -14,24 +14,12 @@ import (
 	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
 	kernelgrpc "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
 
 const (
 	minQuantity = 1
 	maxQuantity = 100
 )
-
-// WHY: the absence of what the interceptor mounted is a wiring defect of this
-// server, never a fault of the caller, so it answers Internal rather than
-// leaving the handler to invent a context (CTX-03).
-func executionOf(ctx context.Context) (ports.ExecutionContext, error) {
-	execution, ok := ports.ExecutionContextFrom(ctx)
-	if !ok {
-		return ports.ExecutionContext{}, status.Error(codes.Internal, "the execution context was not assembled")
-	}
-	return execution, nil
-}
 
 var descriptor = servicev1.File_company_bookings_service_v1_bookings_service_proto.Services().ByName("BookingsService")
 
@@ -40,8 +28,6 @@ var ServiceName = string(descriptor.FullName())
 
 var bookingIDFormat = regexp.MustCompile(`^[A-Za-z0-9._:-]{1,128}$`)
 
-// Methods names every method of the service: admission declares a limit for
-// each one (RES-16).
 func Methods() []string { return kernelgrpc.MethodNames(descriptor) }
 
 // Commands lists the methods that require an idempotency key (IDM-01); the
@@ -82,21 +68,6 @@ type Server struct {
 	Service application.Service
 }
 
-func command[R, Resp any](ctx context.Context, run func(context.Context) (usecase.Outcome[R], error), refused func(*servicev1.Rejection) Resp, accepted func(R) Resp) (Resp, error) {
-	var none Resp
-	if _, err := executionOf(ctx); err != nil {
-		return none, err
-	}
-	out, err := run(ctx)
-	if err != nil {
-		return none, kernelgrpc.StatusOf(err)
-	}
-	if rejection, declined := out.Rejection(); declined {
-		return refused(rejectionOf(rejection)), nil
-	}
-	return accepted(out.Response()), nil
-}
-
 func (s Server) ReserveBooking(ctx context.Context, req *servicev1.ReserveBookingRequest) (*servicev1.ReserveBookingResponse, error) {
 	booking, err := bookingID(req.GetBookingId())
 	if err != nil {
@@ -108,7 +79,7 @@ func (s Server) ReserveBooking(ctx context.Context, req *servicev1.ReserveBookin
 	if q := req.GetQuantity(); q < minQuantity || q > maxQuantity {
 		return nil, status.Error(codes.InvalidArgument, "quantity must be between 1 and 100")
 	}
-	return command(ctx,
+	return kernelgrpc.Command(ctx,
 		func(ctx context.Context) (usecase.Outcome[domain.ReservedResponse], error) {
 			return s.Service.ReserveBooking(ctx, application.ReserveBooking{
 				BookingID:  booking,
@@ -125,7 +96,7 @@ func (s Server) CancelBooking(ctx context.Context, req *servicev1.CancelBookingR
 	if err != nil {
 		return nil, err
 	}
-	return command(ctx,
+	return kernelgrpc.Command(ctx,
 		func(ctx context.Context) (usecase.Outcome[domain.CancelledResponse], error) {
 			return s.Service.CancelBooking(ctx, application.CancelBooking{BookingID: booking})
 		},
@@ -138,7 +109,7 @@ func (s Server) RegisterResource(ctx context.Context, req *servicev1.RegisterRes
 	if err != nil {
 		return nil, err
 	}
-	return command(ctx,
+	return kernelgrpc.Command(ctx,
 		func(ctx context.Context) (usecase.Outcome[domain.RegisteredResponse], error) {
 			return s.Service.RegisterResource(ctx, application.RegisterResource{Code: domain.ResourceCode(resource)})
 		},
@@ -146,8 +117,10 @@ func (s Server) RegisterResource(ctx context.Context, req *servicev1.RegisterRes
 		resourceRegisteredOf)
 }
 
-func reserveBookingRefused(r *servicev1.Rejection) *servicev1.ReserveBookingResponse {
-	return &servicev1.ReserveBookingResponse{Result: &servicev1.ReserveBookingResponse_Rejection{Rejection: r}}
+func reserveBookingRefused(r *kernel.Rejection) *servicev1.ReserveBookingResponse {
+	return &servicev1.ReserveBookingResponse{Result: &servicev1.ReserveBookingResponse_Rejection{
+		Rejection: rejectionOf(r),
+	}}
 }
 
 func bookingReservedOf(reserved domain.ReservedResponse) *servicev1.ReserveBookingResponse {
@@ -156,8 +129,10 @@ func bookingReservedOf(reserved domain.ReservedResponse) *servicev1.ReserveBooki
 	}}
 }
 
-func cancelBookingRefused(r *servicev1.Rejection) *servicev1.CancelBookingResponse {
-	return &servicev1.CancelBookingResponse{Result: &servicev1.CancelBookingResponse_Rejection{Rejection: r}}
+func cancelBookingRefused(r *kernel.Rejection) *servicev1.CancelBookingResponse {
+	return &servicev1.CancelBookingResponse{Result: &servicev1.CancelBookingResponse_Rejection{
+		Rejection: rejectionOf(r),
+	}}
 }
 
 func bookingCancelledOf(cancelled domain.CancelledResponse) *servicev1.CancelBookingResponse {
@@ -166,8 +141,10 @@ func bookingCancelledOf(cancelled domain.CancelledResponse) *servicev1.CancelBoo
 	}}
 }
 
-func registerResourceRefused(r *servicev1.Rejection) *servicev1.RegisterResourceResponse {
-	return &servicev1.RegisterResourceResponse{Result: &servicev1.RegisterResourceResponse_Rejection{Rejection: r}}
+func registerResourceRefused(r *kernel.Rejection) *servicev1.RegisterResourceResponse {
+	return &servicev1.RegisterResourceResponse{Result: &servicev1.RegisterResourceResponse_Rejection{
+		Rejection: rejectionOf(r),
+	}}
 }
 
 func resourceRegisteredOf(registered domain.RegisteredResponse) *servicev1.RegisterResourceResponse {
@@ -181,7 +158,7 @@ func (s Server) FindBooking(ctx context.Context, req *servicev1.FindBookingReque
 	if err != nil {
 		return nil, err
 	}
-	if _, err := executionOf(ctx); err != nil {
+	if _, err := kernelgrpc.ExecutionOf(ctx); err != nil {
 		return nil, err
 	}
 	snapshot, err := s.Service.FindBooking(ctx, booking)
@@ -196,7 +173,7 @@ func (s Server) FindBookingsByResource(ctx context.Context, req *servicev1.FindB
 	if err != nil {
 		return nil, err
 	}
-	if _, err := executionOf(ctx); err != nil {
+	if _, err := kernelgrpc.ExecutionOf(ctx); err != nil {
 		return nil, err
 	}
 	snapshots, err := s.Service.FindBookingByResource(ctx, domain.ResourceID(resource))
@@ -245,6 +222,6 @@ func bookingStatus(s domain.BookingStatus) servicev1.BookingStatus {
 	}
 }
 
-func rejectionOf(rejection *kernel.Rejection) *servicev1.Rejection {
-	return &servicev1.Rejection{Code: string(rejection.Code()), Message: rejection.Message()}
+func rejectionOf(r *kernel.Rejection) *servicev1.Rejection {
+	return &servicev1.Rejection{Code: string(r.Code()), Message: r.Message()}
 }

@@ -29,6 +29,7 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/clock"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/ids"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/dist"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/pg"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/channel"
 )
@@ -46,6 +47,10 @@ func RunRole(t *testing.T) {
 	role := Role(os.Getenv(EnvRole))
 	if role == "" {
 		t.Skip(EnvRole + " unset: this test only runs as a re-executed child of distkit.Harness")
+	}
+	if role == Role(dist.RoleRelay) {
+		dist.RunRole(t, RelaySpec)
+		return
 	}
 	cfg, ch := childConfig(t)
 	plan := childPlan(t)

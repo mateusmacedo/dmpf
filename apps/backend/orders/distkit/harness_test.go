@@ -6,7 +6,6 @@ import (
 	"context"
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/appkit"
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/application"
@@ -15,6 +14,8 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/clock"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/ids"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/dist"
 )
 
 // orders is how many decisions the harness enqueues before the drains start,
@@ -26,51 +27,10 @@ const orders = 6
 func TestDistkitRole(t *testing.T) { distkit.RunRole(t) }
 
 func TestTwoDrainsPublishEveryRecordExactlyOnce(t *testing.T) {
-	h := distkit.New(t)
+	h := dist.New(t, distkit.Spec)
 	enqueue(t, orders)
 
-	var pending int
-	if err := h.Pool.QueryRow(context.Background(),
-		"SELECT count(*) FROM outbox WHERE status = 'pending'").Scan(&pending); err != nil {
-		t.Fatalf("counting the outbox: %v", err)
-	}
-	if pending != orders {
-		t.Fatalf("outbox holds %d pending records before the drains start, want %d: the vector needs something to compete for", pending, orders)
-	}
-
-	relays := make([]*distkit.Process, distkit.Relays)
-	t.Cleanup(func() {
-		if t.Failed() {
-			rows, err := h.Pool.Query(context.Background(),
-				"SELECT message_id, status, attempt_count, coalesce(last_error, '') FROM outbox ORDER BY id")
-			if err == nil {
-				defer rows.Close()
-				for rows.Next() {
-					var id, status, lastErr string
-					var attempts int
-					_ = rows.Scan(&id, &status, &attempts, &lastErr)
-					t.Logf("outbox %s: status=%s attempts=%d last_error=%q", id, status, attempts, lastErr)
-				}
-			}
-			for i, r := range relays {
-				if r != nil {
-					t.Logf("relay %d wrote: %s", i, r.Output())
-				}
-			}
-		}
-	})
-	for i := range relays {
-		relays[i] = h.Start(t, distkit.RoleRelay)
-	}
-	settled := h.Settled(t, orders, 30*time.Second)
-	published := h.Collect(t, len(settled), 60*time.Second)
-	for _, r := range relays {
-		r.Stop(t, 30*time.Second)
-	}
-
-	if verdict := distkit.Decide(settled, published); !verdict.OK() {
-		t.Fatalf("two drains over one outbox: %v", verdict.Failures())
-	}
+	tb.Require(t, dist.RelayVector(t, h, orders))
 }
 
 // enqueue drives the real use case, so what the drains carry is what the

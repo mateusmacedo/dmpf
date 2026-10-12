@@ -57,10 +57,16 @@ escolher o package e localizar os exemplos canônicos.
 - Use `distkit` somente quando broker, redelivery e isolamento entre processos
   forem parte do comportamento. Duas goroutines não substituem os processos OS
   do vetor distribuído, e o controle ingênuo deve reprovar com `DMPF-R004`.
-- `appkit` e `distkit` não são packages do `testkit`: são harnesses do contexto
-  `reservations`, em `apps/backend/reservations/{appkit,distkit}` (ADR-046). O
-  kit em `libs/backend/go/testkit` guarda só o que qualquer contexto importa —
+- `appkit` e `distkit` não são packages do `testkit`: são harnesses de cada
+  contexto, como `apps/backend/reservations/{appkit,distkit}` (ADR-046). O que
+  os `distkit` têm em comum — supervisão de processos, harness por papel e
+  vetor do relay (`DMPF-P001` a `DMPF-P003`) — vive em `tb/dist`, e o `distkit`
+  do contexto fica só com o `Spec`, os papéis e o veredito próprio (ADR-062).
+  O kit em `libs/backend/go/testkit` guarda só o que qualquer contexto importa —
   uma suíte do kit nunca depende de um contexto de `apps/backend`.
+- Monte o `ExecutionContext` de teste por `tb/execctx`, e a telemetria de teste
+  (coletor OTLP, manifesto por papel, coletores de falha e leitores) por
+  `obstest`; não recrie fixture nem exportador local (ADR-062).
 - A fitness function reutiliza `DMPF-D001`, `DMPF-D002` e `DMPF-E001..E004` do
   `conformance`; não crie uma taxonomia paralela nem incorpore o trust model
   do baseline ao teste da suíte.

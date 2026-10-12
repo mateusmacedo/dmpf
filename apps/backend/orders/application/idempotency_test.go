@@ -9,6 +9,7 @@ import (
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/application"
 	"github.com/mateusmacedo/dmpf/apps/backend/orders/domain"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/execctx"
 )
 
 func TestARepeatedAddItemReplaysWithoutASecondEffectOrAudit(t *testing.T) {
@@ -92,7 +93,7 @@ func TestACommandWaitingPastTheCeilingIsInFlight(t *testing.T) {
 
 func TestACommandWithoutAKeyIsRefusedBeforeAnyEffect(t *testing.T) {
 	h := newHarness(t)
-	ctx := ports.WithExecutionContext(context.Background(), testExecution(t))
+	ctx := ports.WithExecutionContext(context.Background(), execctx.Execution(t))
 
 	_, err := h.service.AddItem(ctx, application.AddItem{Order: orderID, SKU: "ABC", Quantity: 1})
 

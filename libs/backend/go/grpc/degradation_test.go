@@ -6,7 +6,6 @@ import (
 	"net"
 	"os"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -20,6 +19,7 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/clock"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/otelboot"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/tracing"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/obstest"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/admission"
 )
 
@@ -27,72 +27,6 @@ const (
 	callLimit  = 2 * time.Second
 	drainLimit = 5 * time.Second
 )
-
-type downCollector struct {
-	addr   string
-	stalls bool
-	held   atomic.Int64
-}
-
-func unusedLoopbackAddr(t *testing.T) string {
-	t.Helper()
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("Listen() = %v", err)
-	}
-	addr := listener.Addr().String()
-	_ = listener.Close()
-	return addr
-}
-
-func refusingCollector(t *testing.T) *downCollector {
-	return &downCollector{addr: unusedLoopbackAddr(t)}
-}
-
-func stallingCollector(t *testing.T) *downCollector {
-	t.Helper()
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("Listen() = %v", err)
-	}
-	collector := &downCollector{addr: listener.Addr().String(), stalls: true}
-	var mu sync.Mutex
-	var held []net.Conn
-	go func() {
-		for {
-			conn, err := listener.Accept()
-			if err != nil {
-				return
-			}
-			mu.Lock()
-			held = append(held, conn)
-			mu.Unlock()
-			collector.held.Add(1)
-		}
-	}()
-	t.Cleanup(func() {
-		_ = listener.Close()
-		mu.Lock()
-		defer mu.Unlock()
-		for _, conn := range held {
-			_ = conn.Close()
-		}
-	})
-	return collector
-}
-
-func (c *downCollector) requireEverySignalExporting(t *testing.T) {
-	t.Helper()
-	if !c.stalls {
-		return
-	}
-	for deadline := time.Now().Add(2 * time.Second); c.held.Load() < 3 && time.Now().Before(deadline); {
-		time.Sleep(5 * time.Millisecond)
-	}
-	if held := c.held.Load(); held < 3 {
-		t.Errorf("the stalled collector holds %d connections, want one per signal: traces, metrics and logs exporting to it", held)
-	}
-}
 
 func startTelemetryExportingTo(t *testing.T, collector string) *otelboot.Runtime {
 	t.Helper()
@@ -132,23 +66,9 @@ func startTelemetryExportingTo(t *testing.T, collector string) *otelboot.Runtime
 	t.Cleanup(func() {
 		grace, cancel := context.WithTimeout(context.Background(), time.Second)
 		defer cancel()
-		returnsWithin(t, drainLimit, "the telemetry shutdown", func() { _ = runtime.Shutdown(grace) })
+		obstest.ReturnsWithin(t, drainLimit, "the telemetry shutdown", func() { _ = runtime.Shutdown(grace) })
 	})
 	return runtime
-}
-
-func returnsWithin(t *testing.T, limit time.Duration, what string, run func()) {
-	t.Helper()
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		run()
-	}()
-	select {
-	case <-done:
-	case <-time.After(limit):
-		t.Errorf("%s did not return in %v with the export failing, want the telemetry never to hold it (NF Degradação)", what, limit)
-	}
 }
 
 func serveUnderTheRuntime(t *testing.T, runtime *otelboot.Runtime, handle func(context.Context) error) func(context.Context) error {
@@ -203,13 +123,13 @@ func serveUnderTheRuntime(t *testing.T, runtime *otelboot.Runtime, handle func(c
 }
 
 func TestAFailingExportNeverFailsNorHoldsACallOfTheServer(t *testing.T) {
-	for name, collector := range map[string]func(*testing.T) *downCollector{
-		"unreachable endpoint": refusingCollector,
-		"stalled collector":    stallingCollector,
+	for name, collector := range map[string]func(testing.TB) *obstest.DownCollector{
+		"unreachable endpoint": obstest.UnreachableCollector,
+		"stalled collector":    obstest.StallingCollector,
 	} {
 		t.Run(name, func(t *testing.T) {
 			down := collector(t)
-			runtime := startTelemetryExportingTo(t, down.addr)
+			runtime := startTelemetryExportingTo(t, down.Addr)
 			var handled atomic.Int64
 			call := serveUnderTheRuntime(t, runtime, func(context.Context) error {
 				handled.Add(1)
@@ -230,7 +150,7 @@ func TestAFailingExportNeverFailsNorHoldsACallOfTheServer(t *testing.T) {
 			if got := handled.Load(); got != calls {
 				t.Fatalf("the handler ran %d times for %d calls, want every call answered by it", got, calls)
 			}
-			down.requireEverySignalExporting(t)
+			down.RequireEverySignalExporting(t)
 		})
 	}
 }

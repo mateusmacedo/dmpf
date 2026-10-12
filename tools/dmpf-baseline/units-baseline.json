@@ -1,6 +1,6 @@
 {
   "schema": "dmpf/units-baseline@1",
-  "digest": "sha256:8027b8f3cfe06e374b9472c515946be0ae171d19460db1ba9e247253457609b0",
+  "digest": "sha256:4922b88f6dedaee1abca0518b6d963a22b86abef074147135cfe8a42a0ff05d9",
   "entries": [
     {
       "unit": "bff/app",
@@ -204,6 +204,13 @@
       "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/app/relay"]
     },
     {
+      "unit": "kernel/app-serve",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/app",
+      "block": "app",
+      "bounded_context": "kernel",
+      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/app/serve"]
+    },
+    {
       "unit": "kernel/application",
       "module": "github.com/mateusmacedo/dmpf/libs/backend/go/application",
       "block": "application",
@@ -327,6 +334,13 @@
       "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/testkit/clock"]
     },
     {
+      "unit": "kernel/testkit-dist",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/testkit",
+      "block": "app",
+      "bounded_context": "kernel",
+      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/dist"]
+    },
+    {
       "unit": "kernel/testkit-domain",
       "module": "github.com/mateusmacedo/dmpf/libs/backend/go/testkit",
       "block": "domain",
@@ -353,6 +367,13 @@
       "block": "provider",
       "bounded_context": "kernel",
       "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/testkit/ids"]
+    },
+    {
+      "unit": "kernel/testkit-obs",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/testkit",
+      "block": "app",
+      "bounded_context": "kernel",
+      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/testkit/obstest"]
     },
     {
       "unit": "kernel/testkit-provider",
@@ -383,7 +404,9 @@
       "membership": [
         "github.com/mateusmacedo/dmpf/libs/backend/go/testkit",
         "github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb",
-        "github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/pg"
+        "github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/execctx",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/pg",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/reference"
       ]
     },
     {
@@ -511,6 +534,7 @@
     "kernel/provider-sqs",
     "kernel/app-consumer",
     "kernel/app-relay",
+    "kernel/app-serve",
     "kernel/observability",
     "kernel/transport",
     "contracts/envelope",

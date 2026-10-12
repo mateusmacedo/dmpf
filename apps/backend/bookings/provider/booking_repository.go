@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/domain"
+	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
 )
@@ -48,7 +49,7 @@ var bookingTable = postgres.Table[domain.BookingID, domain.BookingSnapshot]{
 			ResourceID: domain.ResourceID(resourceID),
 			Quantity:   state.Quantity,
 			Status:     domain.BookingStatus(state.Status),
-			ReservedAt: domain.Instant(state.ReservedAt),
+			ReservedAt: kernel.Instant(state.ReservedAt),
 		}, nil
 	},
 

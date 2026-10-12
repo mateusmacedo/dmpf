@@ -4,13 +4,15 @@ go 1.26.9
 
 require (
 	github.com/jackc/pgx/v5 v5.10.0
-	github.com/mateusmacedo/dmpf/libs/backend/go/application v1.0.0-rc.3
-	github.com/mateusmacedo/dmpf/libs/backend/go/contracts v1.0.0-rc.3
-	github.com/mateusmacedo/dmpf/libs/backend/go/grpc v1.0.0-rc.3
-	github.com/mateusmacedo/dmpf/libs/backend/go/observability v1.0.0-rc.3
-	github.com/mateusmacedo/dmpf/libs/backend/go/ports v1.0.0-rc.3
-	github.com/mateusmacedo/dmpf/libs/backend/go/postgres v1.0.0-rc.3
-	github.com/mateusmacedo/dmpf/libs/backend/go/testkit v1.0.0-rc.3
+	github.com/mateusmacedo/dmpf/libs/backend/go/application v1.0.0-rc.4
+	github.com/mateusmacedo/dmpf/libs/backend/go/contracts v1.0.0-rc.4
+	github.com/mateusmacedo/dmpf/libs/backend/go/grpc v1.0.0-rc.4
+	github.com/mateusmacedo/dmpf/libs/backend/go/kafka v1.0.0-rc.4
+	github.com/mateusmacedo/dmpf/libs/backend/go/observability v1.0.0-rc.4
+	github.com/mateusmacedo/dmpf/libs/backend/go/ports v1.0.0-rc.4
+	github.com/mateusmacedo/dmpf/libs/backend/go/postgres v1.0.0-rc.4
+	github.com/mateusmacedo/dmpf/libs/backend/go/testkit v1.0.0-rc.4
+	github.com/mateusmacedo/dmpf/libs/backend/go/transport v1.0.0-rc.4
 	go.opentelemetry.io/otel v1.47.0
 	go.opentelemetry.io/otel/log v1.47.0
 	go.opentelemetry.io/otel/metric v1.47.0
@@ -30,8 +32,11 @@ require (
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
-	github.com/mateusmacedo/dmpf/libs/backend/go/domain v1.0.0-rc.3 // indirect
-	github.com/mateusmacedo/dmpf/libs/backend/go/transport v1.0.0-rc.3 // indirect
+	github.com/klauspost/compress v1.19.1 // indirect
+	github.com/mateusmacedo/dmpf/libs/backend/go/domain v1.0.0-rc.4 // indirect
+	github.com/pierrec/lz4/v4 v4.1.26 // indirect
+	github.com/twmb/franz-go v1.21.6 // indirect
+	github.com/twmb/franz-go/pkg/kmsg v1.13.1 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/bridges/otelslog v0.21.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.72.0 // indirect

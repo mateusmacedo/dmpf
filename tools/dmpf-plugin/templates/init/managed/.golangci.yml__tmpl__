@@ -457,6 +457,20 @@ linters:
             - pkg: github.com/go-pg/pg
               desc: 'IDN-14: o provider de contexto nao escreve SQL; declare postgres.Table e receba postgres.ReadPool'
 
+        # O verificador aceita a aresta para o `testkit` pela superfície pública
+        # e não distingue teste de produção; só os kits de teste o importam.
+        testkit:
+          list-mode: lax
+          files:
+            - '$all'
+            - '!$test'
+            - '!**/testkit/**'
+            - '!**/appkit/**'
+            - '!**/distkit/**'
+          deny:
+            - pkg: github.com/mateusmacedo/dmpf/libs/backend/go/testkit
+              desc: 'kit de teste (ADR-062): so testes, appkit e distkit o importam'
+
 formatters:
   enable:
     - gci

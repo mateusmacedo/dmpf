@@ -41,8 +41,8 @@ func recoverStream(logger *slog.Logger) grpc.StreamServerInterceptor {
 func panicked(ctx context.Context, logger *slog.Logger, fullMethod string, slot *assembled) error {
 	err := status.Error(codes.Internal, "internal failure")
 	span := trace.SpanFromContext(ctx)
-	span.SetAttributes(tracing.Attributes{}.OutcomeCategory(categoryOf(err)).KeyValues()...)
-	tracing.RecordError(span, categoryOf(err))
+	span.SetAttributes(tracing.Attributes{}.OutcomeCategory(Category(err)).KeyValues()...)
+	tracing.RecordError(span, Category(err))
 	noteCall(ctx, logger, fullMethod, slot, err)
 	return err
 }

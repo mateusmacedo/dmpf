@@ -10,17 +10,18 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/memory"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/serviceskit"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/reference"
 )
 
 type kitResources struct {
-	Counters ports.Repository[counterID, counterState]
+	Counters ports.Repository[reference.CounterID, reference.CounterState]
 	Outbox   ports.Outbox
 	Commands ports.Inbox
 }
 
 func kitBind(tx serviceskit.Tx) kitResources {
 	return kitResources{
-		Counters: countersTable.Repository(tx.Memory()),
+		Counters: reference.CountersTable.Repository(tx.Memory()),
 		Outbox:   tx.Outbox(),
 		Commands: tx.CommandInbox("counters.commands"),
 	}
@@ -58,7 +59,7 @@ func TestUnitOfWorkRecordsTheTransactionAndCountsWhatTheServiceOpened(t *testing
 	ctx := withExecution(t, context.Background())
 
 	seed := func(ctx context.Context, res kitResources) error {
-		return res.Counters.Save(ctx, "c-1", counterState{ID: "c-1", Total: 1, Limit: 2}, 0)
+		return res.Counters.Save(ctx, "c-1", reference.CounterState{ID: "c-1", Total: 1, Limit: 2}, 0)
 	}
 	if err := uow.Within(ctx, seed); err != nil {
 		t.Fatalf("seed: %v", err)
@@ -179,16 +180,16 @@ func TestFaultyPortsFailWhereTheTestAsks(t *testing.T) {
 
 	for name, tc := range map[string]struct {
 		faults serviceskit.Faults
-		run    func(context.Context, ports.Repository[counterID, counterState], ports.Outbox) error
+		run    func(context.Context, ports.Repository[reference.CounterID, reference.CounterState], ports.Outbox) error
 	}{
-		"load": {serviceskit.Faults{Load: boom}, func(ctx context.Context, r ports.Repository[counterID, counterState], _ ports.Outbox) error {
+		"load": {serviceskit.Faults{Load: boom}, func(ctx context.Context, r ports.Repository[reference.CounterID, reference.CounterState], _ ports.Outbox) error {
 			_, _, err := r.Load(ctx, "c-1")
 			return err
 		}},
-		"save": {serviceskit.Faults{Save: boom}, func(ctx context.Context, r ports.Repository[counterID, counterState], _ ports.Outbox) error {
-			return r.Save(ctx, "c-1", counterState{ID: "c-1", Total: 1, Limit: 2}, 0)
+		"save": {serviceskit.Faults{Save: boom}, func(ctx context.Context, r ports.Repository[reference.CounterID, reference.CounterState], _ ports.Outbox) error {
+			return r.Save(ctx, "c-1", reference.CounterState{ID: "c-1", Total: 1, Limit: 2}, 0)
 		}},
-		"enqueue": {serviceskit.Faults{Enqueue: boom}, func(ctx context.Context, _ ports.Repository[counterID, counterState], o ports.Outbox) error {
+		"enqueue": {serviceskit.Faults{Enqueue: boom}, func(ctx context.Context, _ ports.Repository[reference.CounterID, reference.CounterState], o ports.Outbox) error {
 			return o.Enqueue(ctx, ports.OutboxEntry{MessageID: "m-1", Event: kitEvent{}})
 		}},
 	} {
@@ -204,7 +205,7 @@ func TestFaultyPortsFailWhereTheTestAsks(t *testing.T) {
 
 	err := uow.Within(ctx, func(ctx context.Context, res kitResources) error {
 		repo := serviceskit.FaultyRepository(res.Counters, serviceskit.Faults{})
-		if err := repo.Save(ctx, "c-2", counterState{ID: "c-2", Total: 1, Limit: 2}, 0); err != nil {
+		if err := repo.Save(ctx, "c-2", reference.CounterState{ID: "c-2", Total: 1, Limit: 2}, 0); err != nil {
 			return err
 		}
 		_, version, err := repo.Load(ctx, "c-2")

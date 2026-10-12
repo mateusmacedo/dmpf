@@ -3,6 +3,8 @@ package distkit
 import (
 	"fmt"
 	"strings"
+
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/dist"
 )
 
 // CodeR004 is the stable diagnostic of V32 (RAS-13): the final effect differs
@@ -28,33 +30,14 @@ type Effects struct {
 	Version                                 int64
 }
 
-type Diagnostic struct {
-	Code   string
-	Detail string
-}
-
-func (d Diagnostic) String() string { return d.Code + ": " + d.Detail }
-
-type Verdict struct{ Diagnostics []Diagnostic }
-
-func (v Verdict) OK() bool { return len(v.Diagnostics) == 0 }
-
-func (v Verdict) Failures() []string {
-	out := make([]string, 0, len(v.Diagnostics))
-	for _, d := range v.Diagnostics {
-		out = append(out, d.String())
-	}
-	return out
-}
-
 // Decide is V32: with redelivery the final effect is the one a single delivery
 // produces — one reservation, the plan's items, written once. Anything else is
 // DMPF-R004, naming the message identity that was redelivered and the new one
 // that carried the same effect.
-func Decide(e Effects, p Plan) Verdict {
-	var v Verdict
+func Decide(e Effects, p Plan) dist.Verdict {
+	var v dist.Verdict
 	add := func(format string, args ...any) {
-		v.Diagnostics = append(v.Diagnostics, Diagnostic{Code: CodeR004, Detail: fmt.Sprintf(format, args...)})
+		v.Diagnostics = append(v.Diagnostics, dist.Diagnostic{Code: CodeR004, Detail: fmt.Sprintf(format, args...)})
 	}
 	dup, fresh := p.redeliveries()
 	switch {

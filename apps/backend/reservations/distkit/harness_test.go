@@ -3,11 +3,21 @@
 package distkit_test
 
 import (
+	"context"
+	"fmt"
 	"testing"
 	"time"
 
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/appkit"
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/application"
 	"github.com/mateusmacedo/dmpf/apps/backend/reservations/distkit"
+	"github.com/mateusmacedo/dmpf/apps/backend/reservations/domain"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/clock"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/ids"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/dist"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/execctx"
 )
 
 // TestDistkitRole is the body of every child process; it skips in the parent.
@@ -22,7 +32,7 @@ func TestV32RedeliveryDoesNotDuplicateTheEffect(t *testing.T) {
 	consumer := h.Start(t, distkit.RoleConsumer)
 	h.Start(t, distkit.RoleProducer).Wait(t, settle)
 
-	distkit.WaitFor(t, "the consumer to dispose of every delivery", settle, func() bool {
+	dist.WaitFor(t, "the consumer to dispose of every delivery", settle, func() bool {
 		return h.Effects(t).Inbox >= 2
 	})
 	consumer.Stop(t, settle)
@@ -41,7 +51,7 @@ func TestV32NaiveConsumerIsReprovedWithR004(t *testing.T) {
 	consumer := h.Start(t, distkit.RoleNaiveConsumer)
 	h.Start(t, distkit.RoleProducer).Wait(t, settle)
 
-	distkit.WaitFor(t, "the naive consumer to apply every delivery", settle, func() bool {
+	dist.WaitFor(t, "the naive consumer to apply every delivery", settle, func() bool {
 		return h.Effects(t).Version >= int64(len(h.Plan.Deliveries))
 	})
 	consumer.Stop(t, settle)
@@ -52,5 +62,33 @@ func TestV32NaiveConsumerIsReprovedWithR004(t *testing.T) {
 	}
 	if v.Diagnostics[0].Code != distkit.CodeR004 {
 		t.Fatalf("diagnostic = %+v, want DMPF-R004", v.Diagnostics[0])
+	}
+}
+
+const reservations = 6
+
+func TestTwoRelaysPublishEveryRecordExactlyOnce(t *testing.T) {
+	h := dist.New(t, distkit.RelaySpec)
+	enqueue(t, reservations)
+
+	tb.Require(t, dist.RelayVector(t, h, reservations))
+}
+
+// enqueue drives the real use case under a message context: the claim of OBX-08
+// only sees records whose metadata names correlation, causation and traceparent.
+func enqueue(t *testing.T, n int) {
+	t.Helper()
+	h := appkit.NewReservations(t, clock.New(ports.Instant(1)), &ids.Sequence{Prefix: "m-"})
+	ctx := ports.WithMessageContext(context.Background(), ports.MessageContext{
+		CorrelationID: "corr-distkit",
+		CausationID:   "caus-distkit",
+		Traceparent:   "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+	})
+	for i := range n {
+		order := domain.OrderID(fmt.Sprintf("o-distkit-%d", i))
+		key := fmt.Sprintf("k-distkit-%d", i)
+		if _, err := h.Service.Reserve(execctx.WithKey(t, ctx, key), application.Reserve{Order: order, Items: 1}); err != nil {
+			t.Fatalf("Reserve(%s) = %v, want nil", order, err)
+		}
 	}
 }

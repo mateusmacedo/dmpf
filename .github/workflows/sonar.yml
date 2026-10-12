@@ -36,16 +36,25 @@ jobs:
       - name: Setup Go
         uses: ./.github/actions/setup-go
 
-      # Com CI vazio, tb.Env pula os testes de integração: este job não sobe infraestrutura.
-      - name: Cobertura Go (testes unitários)
-        env:
-          CI: ""
+      - name: Espelho do Docker Hub
+        uses: ./.github/actions/docker-hub-mirror
+
+      # A infra e as variáveis são as dos testes locais (infra/test/compose.yml e
+      # .env.example), para a cobertura contar os testes de integração: o código
+      # que só roda com Postgres e Kafka não aparece nos unitários.
+      - name: Subir a infra dos testes de integração
+        run: |
+          docker compose -f infra/test/compose.yml up -d --wait postgres redpanda redpanda-sasl floci
+          docker compose -f infra/test/compose.yml run --rm redpanda-sasl-init
+
+      - name: Cobertura Go (unitários e integração)
         run: |
           mkdir -p coverage
           echo "mode: set" > coverage/go.out
           while read -r module dir; do
             rel="${dir#"$PWD"/}"
-            (cd "$dir" && go test -coverprofile="$RUNNER_TEMP/go.out" ./...)
+            (cd "$dir" && bash "$GITHUB_WORKSPACE/tools/dmpf-plugin/scripts/test-env.sh" \
+              go test -tags=integration -p 1 -coverprofile="$RUNNER_TEMP/go.out" ./...)
             tail -n +2 "$RUNNER_TEMP/go.out" | sed "s|^$module/|$rel/|" >> coverage/go.out
           done < <(go list -m -f '{{.Path}} {{.Dir}}')
 
@@ -58,3 +67,7 @@ jobs:
         uses: SonarSource/sonarqube-scan-action@ba9859eae8dd6bd29e412f25ddbbef3d032000f4 # v8.2.2
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+      - name: Derrubar a infra dos testes de integração
+        if: always()
+        run: docker compose -f infra/test/compose.yml --profile init down --remove-orphans

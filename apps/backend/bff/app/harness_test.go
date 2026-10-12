@@ -3,7 +3,6 @@
 package app_test
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -15,7 +14,6 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"syscall"
 	"testing"
@@ -30,6 +28,7 @@ import (
 	"github.com/mateusmacedo/dmpf/apps/backend/bff/app"
 	"github.com/mateusmacedo/dmpf/apps/backend/bff/app/rpc"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/dist"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/pg"
 )
 
@@ -37,7 +36,6 @@ const (
 	e2eTimeout  = 90 * time.Second
 	pollEvery   = 100 * time.Millisecond
 	adminWindow = 30 * time.Second
-	stopGrace   = 20 * time.Second
 
 	portAttempts = 3
 
@@ -60,7 +58,7 @@ type topology struct {
 
 	bffAddr string
 
-	processes []*process
+	processes []*dist.Process
 	pick      func(*testing.T) string
 }
 
@@ -145,63 +143,28 @@ func newTopology(t *testing.T) *topology {
 	return top
 }
 
-type process struct {
-	name     string
-	cmd      *exec.Cmd
-	mu       sync.Mutex
-	out      bytes.Buffer
-	finished chan struct{}
-	err      error
-}
-
-func (p *process) Write(b []byte) (int, error) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return p.out.Write(b)
-}
-
-func (p *process) logs() string {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return p.out.String()
-}
-
-func (top *topology) start(t *testing.T, name, binary string, env map[string]string, args ...string) *process {
+func (top *topology) start(t *testing.T, name, binary string, env map[string]string, args ...string) *dist.Process {
 	t.Helper()
 	cmd := exec.Command(binary, args...)
 	cmd.Env = os.Environ()
 	for k, v := range env {
 		cmd.Env = append(cmd.Env, k+"="+v)
 	}
-	p := &process{name: name, cmd: cmd, finished: make(chan struct{})}
-	cmd.Stdout, cmd.Stderr = p, p
-	if err := cmd.Start(); err != nil {
-		t.Fatalf("start %s: %v", name, err)
-	}
-	go func() {
-		p.err = cmd.Wait()
-		close(p.finished)
-	}()
-	top.processes = append(top.processes, p)
+	var p *dist.Process
 	t.Cleanup(func() {
-		_ = cmd.Process.Signal(syscall.SIGTERM)
-		select {
-		case <-p.finished:
-		case <-time.After(stopGrace):
-			_ = cmd.Process.Kill()
-			<-p.finished
-		}
-		if t.Failed() {
-			t.Logf("%s logs:\n%s", name, p.logs())
+		if t.Failed() && p != nil {
+			t.Logf("%s logs:\n%s", name, p.Output())
 		}
 	})
+	p = dist.Supervise(t, name, cmd)
+	top.processes = append(top.processes, p)
 	return p
 }
 
-func (top *topology) exited() *process {
+func (top *topology) exited() *dist.Process {
 	for _, p := range top.processes {
 		select {
-		case <-p.finished:
+		case <-p.Done():
 			return p
 		default:
 		}
@@ -217,7 +180,7 @@ func (top *topology) await(what string, ready func() error) error {
 			return nil
 		}
 		if p := top.exited(); p != nil {
-			return fmt.Errorf("%s exited (%v) before %s\n%s", p.name, p.err, what, p.logs())
+			return fmt.Errorf("%s exited (%v) before %s\n%s", p.Name(), p.Err(), what, p.Output())
 		}
 		time.Sleep(pollEvery)
 	}
@@ -243,17 +206,17 @@ func (top *topology) startOnFreePorts(t *testing.T, name, binary string, addrKey
 		if err == nil {
 			return addrs
 		}
-		if attempt == portAttempts || !p.lostItsPort() {
+		if attempt == portAttempts || !lostItsPort(p) {
 			t.Fatal(err)
 		}
-		top.processes = slices.DeleteFunc(top.processes, func(q *process) bool { return q == p })
+		top.processes = slices.DeleteFunc(top.processes, func(q *dist.Process) bool { return q == p })
 	}
 }
 
-func (p *process) lostItsPort() bool {
+func lostItsPort(p *dist.Process) bool {
 	select {
-	case <-p.finished:
-		return strings.Contains(p.logs(), syscall.EADDRINUSE.Error())
+	case <-p.Done():
+		return strings.Contains(p.Output(), syscall.EADDRINUSE.Error())
 	default:
 		return false
 	}
@@ -488,7 +451,7 @@ func TestAProcessThatLosesItsPortStartsAgainOnAnother(t *testing.T) {
 		t.Fatalf("startOnFreePort() = %s, want a port other than the one taken before the bind", addr)
 	}
 	if p := top.exited(); p != nil {
-		t.Fatalf("%s still counts as exited after starting again on %s", p.name, addr)
+		t.Fatalf("%s still counts as exited after starting again on %s", p.Name(), addr)
 	}
 }
 

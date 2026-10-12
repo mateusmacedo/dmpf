@@ -4,6 +4,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/mateusmacedo/dmpf/libs/backend/go/domain"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
 
@@ -19,6 +20,14 @@ func TestInstantOrdersChronologically(t *testing.T) {
 	slices.Sort(got)
 	if want := []ports.Instant{earlier, later}; !slices.Equal(got, want) {
 		t.Fatalf("slices.Sort = %v, want %v", got, want)
+	}
+}
+
+func TestInstantIsTheDomainInstant(t *testing.T) {
+	carry := func(at domain.Instant) domain.Instant { return at }
+
+	if at := carry(ports.Instant(1_755_432_000_000_000_000)); at != 1_755_432_000_000_000_000 {
+		t.Fatalf("ports.Instant must carry the domain.Instant value unchanged, got %d", at)
 	}
 }
 

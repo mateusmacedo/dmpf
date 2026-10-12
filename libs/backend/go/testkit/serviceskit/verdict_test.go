@@ -11,6 +11,7 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/ids"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/serviceskit"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/reference"
 )
 
 const at = ports.Instant(1_755_432_000_000_000_000)
@@ -23,19 +24,19 @@ func (u uowOf[R]) Within(ctx context.Context, fn func(context.Context, R) error)
 	return u.inner.Within(ctx, func(ctx context.Context, res any) error { return fn(ctx, res.(R)) })
 }
 
-func countersService(f *serviceskit.Fakes) counterService {
+func countersService(f *serviceskit.Fakes) reference.CounterService {
 	uow := f.UnitOfWork(func(tx serviceskit.Tx) any {
-		return counterResources{
-			Counters: serviceskit.Repository(tx, countersTable.Repository(tx.Memory()), func(id counterID) string { return string(id) }),
+		return reference.CounterResources{
+			Counters: serviceskit.Repository(tx, reference.CountersTable.Repository(tx.Memory()), func(id reference.CounterID) string { return string(id) }),
 			Outbox:   tx.Outbox(),
 		}
 	})
-	return counterService{
-		UoW:       uowOf[counterResources]{inner: uow},
-		Reader:    countersTable.Reader(f.Store),
+	return reference.CounterService{
+		UoW:       uowOf[reference.CounterResources]{inner: uow},
+		Reader:    reference.CountersTable.Reader(f.Store),
 		Clock:     clock.New(at),
 		IDs:       &ids.Sequence{Prefix: "m-"},
-		Authorize: application.AllowAll[bumpCounter](),
+		Authorize: application.AllowAll[reference.BumpCounter](),
 		Limit:     2,
 	}
 }
@@ -43,7 +44,7 @@ func countersService(f *serviceskit.Fakes) counterService {
 func TestAcceptedCommitsStateAndOutboxTogether(t *testing.T) {
 	f := serviceskit.NewFakes()
 	svc := countersService(f)
-	outcome, err := svc.Bump(withExecution(t, context.Background()), bumpCounter{Counter: "c-1", By: 1})
+	outcome, err := svc.Bump(withExecution(t, context.Background()), reference.BumpCounter{Counter: "c-1", By: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,19 +63,19 @@ func TestRejectedLeavesNothingBehind(t *testing.T) {
 	svc := countersService(f)
 	ctx := context.Background()
 	for range 2 {
-		if _, err := svc.Bump(withExecution(t, ctx), bumpCounter{Counter: "c-1", By: 1}); err != nil {
+		if _, err := svc.Bump(withExecution(t, ctx), reference.BumpCounter{Counter: "c-1", By: 1}); err != nil {
 			t.Fatal(err)
 		}
 	}
 	f.Ledger.Reset()
 	before := len(f.Store.Entries())
 
-	outcome, err := svc.Bump(withExecution(t, ctx), bumpCounter{Counter: "c-1", By: 1})
+	outcome, err := svc.Bump(withExecution(t, ctx), reference.BumpCounter{Counter: "c-1", By: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
 	rej, refused := outcome.Rejection()
-	if !refused || rej.Code() != codeLimitExceeded {
+	if !refused || rej.Code() != reference.CodeLimitExceeded {
 		t.Fatalf("outcome = %+v, want limit-exceeded", outcome)
 	}
 	if got := f.Ledger.String(); got != "[begin commit]" {
@@ -90,13 +91,13 @@ func TestRejectedLeavesNothingBehind(t *testing.T) {
 	fresh := serviceskit.NewFakes()
 	svc = countersService(fresh)
 	for range 2 {
-		if _, err := svc.Bump(withExecution(t, ctx), bumpCounter{Counter: "c-1", By: 1}); err != nil {
+		if _, err := svc.Bump(withExecution(t, ctx), reference.BumpCounter{Counter: "c-1", By: 1}); err != nil {
 			t.Fatal(err)
 		}
 	}
 	fresh.Ledger.Reset()
 	fresh.Baseline()
-	if _, err := svc.Bump(withExecution(t, ctx), bumpCounter{Counter: "c-1", By: 1}); err != nil {
+	if _, err := svc.Bump(withExecution(t, ctx), reference.BumpCounter{Counter: "c-1", By: 1}); err != nil {
 		t.Fatal(err)
 	}
 	v := serviceskit.Decide(fresh, serviceskit.Expect{Accepted: false})

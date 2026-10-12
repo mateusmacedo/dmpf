@@ -34,27 +34,35 @@ arestas permitem: um `domainkit` só é kit de domínio se ele próprio for
 | `kernel/testkit-ids` | `provider` | `ids` | `KIT-07` — identificadores em sequência ou por seed |
 | `kernel/testkit-stable` | `provider` | `stable` | `KIT-08` — ordenação estável de coleções comparadas |
 | `kernel/testkit-fitness` | `app` | `fitness` | `FIT-01..FIT-04` — regra de dependência e matriz de travessia na suíte |
-| `kernel/testkit-tb` | `app` | `tb`, `tb/pg` | adaptador de `testing.TB`, fixtures, codec de projeção, asserções de domínio, reexecução do binário de teste, pool Postgres e leitores das tabelas do kernel, autoridade de certificados descartável |
+| `kernel/testkit-tb` | `app` | `tb`, `tb/pg`, `tb/execctx`, `tb/reference` | adaptador de `testing.TB`, fixtures, codec de projeção, asserções de domínio, reexecução do binário de teste, pool Postgres e leitores das tabelas do kernel, autoridade de certificados descartável, contexto de execução de teste e o caso de uso de referência das libs |
+| `kernel/testkit-dist` | `app` | `tb/dist` | `KIT-06` — supervisão de processos, harness por papel e vetor do relay (`DMPF-P001..P003`) |
+| `kernel/testkit-obs` | `app` | `obstest` | manifesto de telemetria por papel, coletor OTLP de teste, coletores de falha e leitores de telemetria |
 
-Os harnesses `appkit` (`KIT-05`, borda a borda) e `distkit` (`KIT-06`, dois
-processos sobre o broker, `DMPF-R004`) não são genéricos: só provam o contexto
-`reservations` — `NewReservations`, a tabela `reservations`,
-`RawOrderPlaced` de `orders`. Por isso vivem com o contexto, em
-`apps/backend/reservations/{appkit,distkit}`, como as unidades
-`reservations/appkit` e `reservations/distkit` (ADR-046). Este módulo guarda só
-o que qualquer contexto importa; `kernel/testkit-tb`, `kernel/testkit-clock` e
-`kernel/testkit-ids` declaram `public_integration_surface: true` para que esses
-harnesses, agora de outro contexto, continuem alcançando `tb`, `tb/pg`, `clock`
-e `ids`.
+Os harnesses `appkit` (`KIT-05`, borda a borda) e `distkit` (`KIT-06`, processos
+sobre o broker) vivem com cada contexto, como as unidades `<ctx>/appkit` e
+`<ctx>/distkit` (ADR-046): só eles conhecem o serviço, as tabelas e as mensagens
+do contexto. O que os `distkit` tinham em comum — o supervisor de processo
+filho, o harness que reexecuta o binário de teste por papel e o vetor do relay —
+vive em `tb/dist`, e o `distkit` de cada contexto fica com o `Spec`, os papéis
+e, no `reservations`, o plano e o `DMPF-R004` (ADR-062). Este módulo guarda só
+o que qualquer contexto importa; `kernel/testkit-tb`, `kernel/testkit-dist`,
+`kernel/testkit-obs`, `kernel/testkit-clock` e `kernel/testkit-ids` declaram
+`public_integration_surface: true` para que esses harnesses, de outro contexto,
+continuem alcançando `tb`, `tb/pg`, `tb/execctx`, `tb/dist`, `obstest`, `clock`
+e `ids`. `tb/dist`, `obstest`, `tb/execctx` e `tb/reference` são irmãos de `tb`:
+nem `tb` nem `domainkit` os importam, para que o fechamento de um teste de
+domínio não alcance `port` (V29, V30).
 
 `tb.PKI` (`tb/pki.go`) é a mesma superfície pública: uma autoridade de
 certificados descartável, que grava PEM do jeito que um processo os lê de um
 segredo montado, sem nenhuma chave sobrevivendo ao teste. Hoje só
 `apps/backend/bff` a consome, no harness de mTLS ponta a ponta. O código de
-produção de um `provider` não importa `app`; `memory`, `postgres`, `kafka` e
-`sqs` requerem este módulo só pelos `_test.go`, em package de teste externo. O
-`grpc` não o requer e por isso mantém a própria autoridade de teste, local e
-duplicada por desenho (`libs/backend/go/grpc/pki_test.go`).
+produção de um `provider` não importa `app`; `memory`, `postgres`, `kafka`,
+`sqs`, `grpc`, `observability` e `transport` requerem este módulo só pelos
+`_test.go`, em package de teste externo. O `obstest` (ADR-062) é usado por
+`grpc`, `kafka`, `sqs` e `transport`; o `observability` usa o `tb/execctx` e o
+`tb/reference`. O `grpc` mantém a própria autoridade de teste, local
+(`libs/backend/go/grpc/pki_test.go`).
 
 ## Os kits — o que exigem, o que exercitam, o que aprovam
 
@@ -116,11 +124,13 @@ Os dois harnesses de `apps/backend/reservations` completam a pirâmide:
 `appkit` exige Postgres (`PG_DSN`), compõe o `app.Consumer` real sobre as
 realizações e alimenta bytes na borda de protocolo — `Effects` mostra o desfecho
 nas quatro tabelas e `Ack` prova que o gesto veio depois do commit (`INB-08`);
-`distkit` exige Redpanda (`KAFKA_BROKERS`) e Postgres, sobe dois processos
-OS (`producer` publica `evt-1`, `evt-1`, `evt-9`; `consumer` consome pelo
-adapter) sobre um tópico único por execução, e `Decide` sem `DMPF-R004` prova
-uma reserva escrita uma vez (`V32`), com o papel `consumer-naive` reprovando ao
-nomear o `message_id` reentregue.
+`distkit` exige Redpanda (`KAFKA_BROKERS`) e Postgres, sobe pelo `tb/dist`
+dois processos OS (`producer` publica `evt-1`, `evt-1`, `evt-9`; `consumer`
+consome pelo adapter) sobre um tópico único por execução, e `Decide` sem
+`DMPF-R004` prova uma reserva escrita uma vez (`V32`), com o papel
+`consumer-naive` reprovando ao nomear o `message_id` reentregue. O mesmo
+`distkit` prova o vetor do relay do contexto (`DMPF-P001..P003`), que o
+`tb/dist` decide.
 
 Cada kit tem, no próprio módulo, o **par de vetores** que `ORA-39` exige: o
 positivo contra um agregado de fixture do próprio kit — o `counter`, definido em
@@ -248,7 +258,7 @@ ganho de decidibilidade.
 pnpm nx run testkit:test-infra-up
 pnpm nx run testkit:test-race
 
-# borda a borda (appkit) e distribuído (distkit; build tag `distributed`) — harnesses do contexto reservations
+# borda a borda (appkit) e distribuído (distkit sobre tb/dist; build tag `distributed`) — harnesses de cada contexto
 pnpm nx run reservations:test-race
 pnpm nx run reservations:test-distributed
 
@@ -291,3 +301,4 @@ de projeto continuam e o `affected` as vê.
 - `docs/dmpf/contexto-erros-seguranca.md` (FND-07) — §3.3, `CTX-11`, a matriz de travessia.
 - `docs/adr/040-test-kits-golden-e-fitness-function-em-go.md` — decisões desta realização.
 - `docs/adr/049-contexto-de-execucao-viaja-no-context-context.md` — o carrier que a matriz de travessia verifica.
+- `docs/adr/062-promover-ao-testkit-os-kits-de-processo-telemetria-e-execucao.md` — `tb/dist`, `obstest`, `tb/execctx` e `tb/reference`.
