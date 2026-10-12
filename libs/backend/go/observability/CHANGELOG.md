@@ -1,3 +1,20 @@
+## 1.0.0-rc.4 (2026-10-12)
+
+### 🚀 Features
+
+- **observability:** Expor a chave dmpf.channel.name em logging ([d6f105fd](https://github.com/mateusmacedo/dmpf/commit/d6f105fd))
+
+### 🧱 Updated Dependencies
+
+- Updated application to 1.0.0-rc.4
+- Updated testkit to 1.0.0-rc.4
+- Updated memory to 1.0.0-rc.4
+- Updated ports to 1.0.0-rc.4
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 1.0.0-rc.3 (2026-10-10)
 
 ### 🩹 Fixes

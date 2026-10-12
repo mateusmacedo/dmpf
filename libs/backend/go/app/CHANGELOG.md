@@ -1,3 +1,30 @@
+## 1.0.0-rc.4 (2026-10-12)
+
+### 🚀 Features
+
+- **app:** Promover os papéis API e relay ao package app/serve ([7c8036e3](https://github.com/mateusmacedo/dmpf/commit/7c8036e3))
+
+### 🩹 Fixes
+
+- **app:** Recusar API incompleta e encerrar limpo na subida do serve ([029d343e](https://github.com/mateusmacedo/dmpf/commit/029d343e))
+- **app:** Conferir o serviço registrado e o nome do relay no serve ([ccc32f1b](https://github.com/mateusmacedo/dmpf/commit/ccc32f1b))
+
+### 🧱 Updated Dependencies
+
+- Updated observability to 1.0.0-rc.4
+- Updated application to 1.0.0-rc.4
+- Updated contracts to 1.0.0-rc.4
+- Updated transport to 1.0.0-rc.4
+- Updated postgres to 1.0.0-rc.4
+- Updated testkit to 1.0.0-rc.4
+- Updated kafka to 1.0.0-rc.4
+- Updated ports to 1.0.0-rc.4
+- Updated grpc to 1.0.0-rc.4
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 1.0.0-rc.3 (2026-10-10)
 
 ### 🩹 Fixes

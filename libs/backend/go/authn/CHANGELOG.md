@@ -1,3 +1,10 @@
+## 1.0.0-rc.4 (2026-10-12)
+
+### 🧱 Updated Dependencies
+
+- Updated observability to 1.0.0-rc.4
+- Updated ports to 1.0.0-rc.4
+
 ## 1.0.0-rc.3 (2026-10-10)
 
 ### 🩹 Fixes

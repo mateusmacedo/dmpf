@@ -1,3 +1,21 @@
+## 1.0.0-rc.4 (2026-10-12)
+
+### 🚀 Features
+
+- **grpc:** Exportar Category e promover Command e ExecutionOf ([ffab6d85](https://github.com/mateusmacedo/dmpf/commit/ffab6d85))
+
+### 🧱 Updated Dependencies
+
+- Updated observability to 1.0.0-rc.4
+- Updated transport to 1.0.0-rc.4
+- Updated testkit to 1.0.0-rc.4
+- Updated domain to 1.0.0-rc.4
+- Updated ports to 1.0.0-rc.4
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 1.0.0-rc.3 (2026-10-10)
 
 ### 🩹 Fixes
