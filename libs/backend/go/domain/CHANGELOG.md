@@ -1,3 +1,13 @@
+## 1.0.0-rc.4 (2026-10-12)
+
+### 🚀 Features
+
+- **domain:** Declarar Instant no kernel domain ([add00abe](https://github.com/mateusmacedo/dmpf/commit/add00abe))
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 1.0.0-rc.3 (2026-10-10)
 
 ### 🩹 Fixes

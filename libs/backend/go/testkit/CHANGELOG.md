@@ -1,3 +1,32 @@
+## 1.0.0-rc.4 (2026-10-12)
+
+### 🚀 Features
+
+- **testkit:** Promover os kits de telemetria de teste a obstest ([1766d9f9](https://github.com/mateusmacedo/dmpf/commit/1766d9f9))
+- **testkit:** Promover o supervisor e o harness distribuído a tb/dist ([9f94cbeb](https://github.com/mateusmacedo/dmpf/commit/9f94cbeb))
+- **testkit:** Promover tb/execctx e tb/reference ao kit ([0d74ea7b](https://github.com/mateusmacedo/dmpf/commit/0d74ea7b))
+
+### 🩹 Fixes
+
+- **testkit:** Estabilizar o supervisor e limitar a saída do filho ([76948bec](https://github.com/mateusmacedo/dmpf/commit/76948bec))
+- **testkit:** Garantir a disputa do vetor do relay e endurecer os kits ([1bc87189](https://github.com/mateusmacedo/dmpf/commit/1bc87189))
+- **testkit:** Versionar os fontes do tb/dist omitidos na promoção ([94da047a](https://github.com/mateusmacedo/dmpf/commit/94da047a))
+
+### 🧱 Updated Dependencies
+
+- Updated observability to 1.0.0-rc.4
+- Updated application to 1.0.0-rc.4
+- Updated contracts to 1.0.0-rc.4
+- Updated postgres to 1.0.0-rc.4
+- Updated domain to 1.0.0-rc.4
+- Updated memory to 1.0.0-rc.4
+- Updated ports to 1.0.0-rc.4
+- Updated conformance to 1.0.0-rc.4
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 1.0.0-rc.3 (2026-10-10)
 
 ### 🩹 Fixes

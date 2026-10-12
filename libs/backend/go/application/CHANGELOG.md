@@ -1,3 +1,18 @@
+## 1.0.0-rc.4 (2026-10-12)
+
+### 🚀 Features
+
+- **application:** Expor CategoryOf para a telemetria dos contextos ([77f73374](https://github.com/mateusmacedo/dmpf/commit/77f73374))
+
+### 🧱 Updated Dependencies
+
+- Updated domain to 1.0.0-rc.4
+- Updated ports to 1.0.0-rc.4
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 1.0.0-rc.3 (2026-10-10)
 
 ### 🩹 Fixes

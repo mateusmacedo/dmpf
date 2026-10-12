@@ -1,3 +1,17 @@
+## 1.0.0-rc.4 (2026-10-12)
+
+### 🚀 Features
+
+- **ports:** Tornar Instant alias do domain e expor SubjectOf ([d5b2c978](https://github.com/mateusmacedo/dmpf/commit/d5b2c978))
+
+### 🧱 Updated Dependencies
+
+- Updated domain to 1.0.0-rc.4
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 1.0.0-rc.3 (2026-10-10)
 
 ### 🩹 Fixes
