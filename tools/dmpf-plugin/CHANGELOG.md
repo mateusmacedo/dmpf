@@ -1,3 +1,14 @@
+## 1.0.0-rc.4 (2026-10-12)
+
+### 🩹 Fixes
+
+- **dmpf-plugin:** Barrar o testkit fora de teste e citar o ErrNoMethods ([149986c3](https://github.com/mateusmacedo/dmpf/commit/149986c3))
+- **dmpf-plugin:** Alinhar templates e guias ao app/serve do kernel ([88c7aaa6](https://github.com/mateusmacedo/dmpf/commit/88c7aaa6))
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 1.0.0-rc.3 (2026-10-10)
 
 ### 🩹 Fixes
