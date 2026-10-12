@@ -7,9 +7,8 @@ import (
 )
 
 // ErrNoChannel refuses the relay until the channel of this context exists.
-var ErrNoChannel = errors.New("<%- name %>: no channel is declared yet; declare the one the relay drains in NewCatalog")
+var ErrNoChannel = errors.New("<%- name %>: no channel is declared yet; declare the one the relay drains in <%- pascalName %>Channel")
 
-// NewCatalog is the catalog of ASY-01 with the channels this context drains.
-func NewCatalog(Config) (channel.Catalog, error) {
-	return nil, ErrNoChannel
+func <%- pascalName %>Channel(Config) (channel.Channel, error) {
+	return channel.Channel{}, ErrNoChannel
 }

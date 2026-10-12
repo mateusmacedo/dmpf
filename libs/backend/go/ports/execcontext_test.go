@@ -262,6 +262,37 @@ func TestCarrierReportsAbsenceRatherThanAZeroValue(t *testing.T) {
 	}
 }
 
+func TestSubjectOfIsReadFromTheCarrier(t *testing.T) {
+	spec := validSpec()
+	spec.Subject, spec.Permissions = subjectOf("s-1"), []ports.Permission{}
+	execution, err := ports.NewExecutionContext(spec)
+	if err != nil {
+		t.Fatalf("NewExecutionContext: %v", err)
+	}
+
+	if got := ports.SubjectOf(ports.WithExecutionContext(context.Background(), execution)); got != "s-1" {
+		t.Fatalf("SubjectOf() = %q, want %q: the audit trail names who acted (LOG-14)", got, "s-1")
+	}
+}
+
+func TestSubjectOfStaysAbsentWithoutOne(t *testing.T) {
+	anonymous, err := ports.NewExecutionContext(validSpec())
+	if err != nil {
+		t.Fatalf("NewExecutionContext: %v", err)
+	}
+
+	for name, ctx := range map[string]context.Context{
+		"bare context":         context.Background(),
+		"context sans subject": ports.WithExecutionContext(context.Background(), anonymous),
+	} {
+		t.Run(name, func(t *testing.T) {
+			if got := ports.SubjectOf(ctx); got != "" {
+				t.Fatalf("SubjectOf() = %q, want absent: no identity is invented for it (IDN-20)", got)
+			}
+		})
+	}
+}
+
 func TestRequireExecutionContextRefusesWhenTheCarrierIsEmpty(t *testing.T) {
 	_, err := ports.RequireExecutionContext(context.Background())
 	if !errors.Is(err, ports.ErrContextAbsent) {

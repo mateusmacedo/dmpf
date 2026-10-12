@@ -17,10 +17,11 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/otelboot"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/retry"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/reference"
 )
 
 const (
-	subjectID = counterID("C-100")
+	subjectID = reference.CounterID("C-100")
 	occurred  = ports.Instant(1_755_432_000_000_000_000)
 	limit     = 3
 )
@@ -29,7 +30,7 @@ const (
 // of the application block to the provider realization, which neither block may
 // do for itself.
 type wiring struct {
-	service counterService
+	service reference.CounterService
 	store   *memory.Store
 	trail   *audit.Recording
 
@@ -40,7 +41,7 @@ type wiring struct {
 	logs     *sdklog.LoggerProvider
 }
 
-func wire(t *testing.T, authorize application.Authorize[bumpCounter]) *wiring {
+func wire(t *testing.T, authorize application.Authorize[reference.BumpCounter]) *wiring {
 	t.Helper()
 
 	fixture := boot(t, options{
@@ -49,14 +50,14 @@ func wire(t *testing.T, authorize application.Authorize[bumpCounter]) *wiring {
 	})
 	trail := fixture.recording
 	store := memory.New()
-	bind := func(tx *memory.Tx) counterResources {
-		return counterResources{Counters: countersTable.Repository(tx), Outbox: tx.Outbox()}
+	bind := func(tx *memory.Tx) reference.CounterResources {
+		return reference.CounterResources{Counters: reference.CountersTable.Repository(tx), Outbox: tx.Outbox()}
 	}
 
 	return &wiring{
-		service: counterService{
+		service: reference.CounterService{
 			UoW:             memory.NewUnitOfWork(store, bind),
-			Reader:          countersTable.Reader(store),
+			Reader:          reference.CountersTable.Reader(store),
 			Clock:           memory.FixedClock{At: occurred},
 			IDs:             &memory.SequenceIDs{Prefix: "m-"},
 			Authorize:       authorize,
@@ -73,19 +74,19 @@ func wire(t *testing.T, authorize application.Authorize[bumpCounter]) *wiring {
 	}
 }
 
-func (w *wiring) seed(t *testing.T, state counterState) {
+func (w *wiring) seed(t *testing.T, state reference.CounterState) {
 	t.Helper()
 	err := memory.NewUnitOfWork(w.store, func(tx *memory.Tx) *memory.Tx { return tx }).
 		Within(withExecution(t, context.Background()), func(ctx context.Context, tx *memory.Tx) error {
-			return countersTable.Repository(tx).Save(ctx, subjectID, state, 0)
+			return reference.CountersTable.Repository(tx).Save(ctx, subjectID, state, 0)
 		})
 	if err != nil {
 		t.Fatalf("seed = %v, want nil", err)
 	}
 }
 
-func counterAt(total int) counterState {
-	return counterState{ID: subjectID, Total: total, Limit: limit}
+func counterAt(total int) reference.CounterState {
+	return reference.CounterState{ID: subjectID, Total: total, Limit: limit}
 }
 
 func (w *wiring) endedSpan(t *testing.T) tracetest.SpanStub {
@@ -101,8 +102,8 @@ func (w *wiring) endedSpan(t *testing.T) tracetest.SpanStub {
 	return ended[0]
 }
 
-func allowAll() application.Authorize[bumpCounter] {
-	return application.AllowAll[bumpCounter]()
+func allowAll() application.Authorize[reference.BumpCounter] {
+	return application.AllowAll[reference.BumpCounter]()
 }
 
 // budgeted is the context the platform hands a use case: the retry budget of
@@ -151,7 +152,7 @@ func (w *wiring) records(t *testing.T) []map[string]any {
 func TestAcceptedProducesOneSpanOneAuditAndOneTransaction(t *testing.T) {
 	w := wire(t, allowAll())
 
-	out, err := w.service.Bump(withExecution(t, context.Background()), bumpCounter{Counter: subjectID, By: 1})
+	out, err := w.service.Bump(withExecution(t, context.Background()), reference.BumpCounter{Counter: subjectID, By: 1})
 
 	if err != nil {
 		t.Fatalf("Bump() error = %v, want nil", err)
@@ -161,8 +162,8 @@ func TestAcceptedProducesOneSpanOneAuditAndOneTransaction(t *testing.T) {
 	}
 
 	span := w.endedSpan(t)
-	if got := span.Name; got != "dmpf.usecase."+operationBump {
-		t.Fatalf("span name = %q, want %q", got, "dmpf.usecase."+operationBump)
+	if got := span.Name; got != "dmpf.usecase."+reference.OperationBump {
+		t.Fatalf("span name = %q, want %q", got, "dmpf.usecase."+reference.OperationBump)
 	}
 	if got, ok := attributeOf(span, "dmpf.outcome_category"); !ok || got != "accepted" {
 		t.Fatalf("dmpf.outcome_category = %q (present=%v), want \"accepted\"", got, ok)
@@ -175,7 +176,7 @@ func TestAcceptedProducesOneSpanOneAuditAndOneTransaction(t *testing.T) {
 	want := audit.Event{
 		Subject: "svc-a",
 		Object:  string(subjectID),
-		Action:  operationBump,
+		Action:  reference.OperationBump,
 		Outcome: "accepted",
 		At:      occurred,
 	}
@@ -193,13 +194,13 @@ func TestRejectedProducesOneAuditAndCommitsWithoutWriting(t *testing.T) {
 	w.seed(t, counterAt(limit))
 	before := w.store.WithinCalls()
 
-	out, err := w.service.Bump(withExecution(t, context.Background()), bumpCounter{Counter: subjectID, By: 1})
+	out, err := w.service.Bump(withExecution(t, context.Background()), reference.BumpCounter{Counter: subjectID, By: 1})
 
 	if err != nil {
 		t.Fatalf("Bump() error = %v, want nil — a refusal is not a technical failure (DEC-04)", err)
 	}
 	if _, refused := out.Rejection(); !refused {
-		t.Fatalf("Rejection() reported no refusal, want %s", codeLimitExceeded)
+		t.Fatalf("Rejection() reported no refusal, want %s", reference.CodeLimitExceeded)
 	}
 	if got, ok := attributeOf(w.endedSpan(t), "dmpf.outcome_category"); !ok || got != "rejected" {
 		t.Fatalf("dmpf.outcome_category = %q (present=%v), want \"rejected\"", got, ok)
@@ -213,11 +214,11 @@ func TestRejectedProducesOneAuditAndCommitsWithoutWriting(t *testing.T) {
 }
 
 func TestDeniedProducesNoAuditAndNoTransaction(t *testing.T) {
-	w := wire(t, func(context.Context, bumpCounter) error {
+	w := wire(t, func(context.Context, reference.BumpCounter) error {
 		return errors.Join(errors.New("policy engine refused"), ports.ErrDenied)
 	})
 
-	_, err := w.service.Bump(withExecution(t, context.Background()), bumpCounter{Counter: subjectID, By: 1})
+	_, err := w.service.Bump(withExecution(t, context.Background()), reference.BumpCounter{Counter: subjectID, By: 1})
 
 	if !errors.Is(err, ports.ErrDenied) {
 		t.Fatalf("Bump() error = %v, want a denial", err)
@@ -235,9 +236,9 @@ func TestDeniedProducesNoAuditAndNoTransaction(t *testing.T) {
 
 func TestAnAuthorizerErrorThatIsNotDeniedIsReportedAsFailed(t *testing.T) {
 	broken := errors.New("timeout dialing the policy engine")
-	w := wire(t, func(context.Context, bumpCounter) error { return broken })
+	w := wire(t, func(context.Context, reference.BumpCounter) error { return broken })
 
-	_, err := w.service.Bump(withExecution(t, context.Background()), bumpCounter{Counter: subjectID, By: 1})
+	_, err := w.service.Bump(withExecution(t, context.Background()), reference.BumpCounter{Counter: subjectID, By: 1})
 
 	if !errors.Is(err, broken) {
 		t.Fatalf("Bump() error = %v, want the authorizer error", err)
@@ -261,8 +262,8 @@ func TestFindIsReadTrafficAndLeavesNoAuditTrail(t *testing.T) {
 	}
 
 	span := w.endedSpan(t)
-	if got := span.Name; got != "dmpf.usecase."+operationFind {
-		t.Fatalf("span name = %q, want %q", got, "dmpf.usecase."+operationFind)
+	if got := span.Name; got != "dmpf.usecase."+reference.OperationFind {
+		t.Fatalf("span name = %q, want %q", got, "dmpf.usecase."+reference.OperationFind)
 	}
 	if got, ok := attributeOf(span, "dmpf.traffic_class"); !ok || got != "read" {
 		t.Fatalf("dmpf.traffic_class = %q (present=%v), want \"read\"", got, ok)

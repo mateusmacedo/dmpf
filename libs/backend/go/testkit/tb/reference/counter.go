@@ -1,4 +1,4 @@
-package usecase_test
+package reference
 
 import (
 	"context"
@@ -11,65 +11,70 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
 
-// counterService is the fixture use case of this suite: the nine steps of
-// FND-04 §3.2 over the smallest aggregate with both branches, calling the hook
-// exactly where a real service does, so what the hook emits is proved end to end.
-
 const (
-	operationBump = "counters.Bump"
-	operationFind = "counters.Find"
+	OperationBump = "counters.Bump"
+	OperationFind = "counters.Find"
 )
 
-type counterID string
+type CounterID string
 
-type counterState struct {
-	ID    counterID
+type CounterState struct {
+	ID    CounterID
 	Total int
 	Limit int
 }
 
-type bumpCounter struct {
-	Counter counterID
+type BumpCounter struct {
+	Counter CounterID
 	By      int
 }
 
-type bumpResponse struct {
-	Counter counterID
+type BumpResponse struct {
+	Counter CounterID
 	Total   int
 }
 
-type counterBumped struct {
-	Counter counterID
+type CounterBumped struct {
+	Counter CounterID
 	By      int
 	Total   int
 }
 
-func (counterBumped) EventName() string { return "counters.bumped" }
+func (CounterBumped) EventName() string { return "counters.bumped" }
 
-const codeLimitExceeded domain.Code = "counters/limit-exceeded"
+const CodeLimitExceeded domain.Code = "counters/limit-exceeded"
 
-var countersTable = memory.Table[counterID, counterState]{Name: "counters"}
+var CountersTable = memory.Table[CounterID, CounterState]{Name: "counters"}
 
-type counterResources struct {
-	Counters ports.Repository[counterID, counterState]
+type CounterResources struct {
+	Counters ports.Repository[CounterID, CounterState]
 	Outbox   ports.Outbox
 }
 
-type counterService struct {
-	UoW       ports.UnitOfWork[counterResources]
-	Reader    ports.Reader[counterID, counterState]
+// CounterService walks the nine steps of FND-04 §3.2 over the smallest aggregate
+// with both branches, calling the instrumentation hook where a real service does.
+type CounterService struct {
+	UoW       ports.UnitOfWork[CounterResources]
+	Reader    ports.Reader[CounterID, CounterState]
 	Clock     ports.Clock
 	IDs       ports.IDGenerator
-	Authorize application.Authorize[bumpCounter]
+	Authorize application.Authorize[BumpCounter]
 	Limit     int
 
 	Instrumentation ports.Instrumentation
 }
 
-func (s counterService) Bump(ctx context.Context, cmd bumpCounter) (application.Outcome[bumpResponse], error) {
-	var zero application.Outcome[bumpResponse]
+func (s CounterService) instrumentation() ports.Instrumentation {
+	if s.Instrumentation == nil {
+		return ports.NoInstrumentation()
+	}
+	return s.Instrumentation
+}
 
-	ctx, end := s.Instrumentation.BeginOperation(ctx, operationBump)
+func (s CounterService) Bump(ctx context.Context, cmd BumpCounter) (application.Outcome[BumpResponse], error) {
+	var zero application.Outcome[BumpResponse]
+
+	ctx, end := s.instrumentation().BeginOperation(ctx, OperationBump)
 	if err := s.Authorize(ctx, cmd); err != nil {
 		if errors.Is(err, ports.ErrDenied) {
 			end(ports.Result{Outcome: ports.OutcomeDenied})
@@ -81,18 +86,18 @@ func (s counterService) Bump(ctx context.Context, cmd bumpCounter) (application.
 	identity := application.ResolveIdentity(s.Clock, s.IDs, 1)
 
 	outcome := zero
-	err := s.UoW.Within(ctx, func(ctx context.Context, res counterResources) error {
+	err := s.UoW.Within(ctx, func(ctx context.Context, res CounterResources) error {
 		state, stored, err := res.Counters.Load(ctx, cmd.Counter)
 		switch {
 		case errors.Is(err, ports.ErrNotFound):
-			state = counterState{ID: cmd.Counter, Limit: s.Limit}
+			state = CounterState{ID: cmd.Counter, Limit: s.Limit}
 		case err != nil:
 			return err
 		}
 
 		attempted := state.Total + cmd.By
 		if attempted > state.Limit {
-			outcome = application.Rejected[bumpResponse](domain.Reject(codeLimitExceeded, "the counter would exceed its limit"))
+			outcome = application.Rejected[BumpResponse](domain.Reject(CodeLimitExceeded, "the counter would exceed its limit"))
 			return nil
 		}
 		state.Total = attempted
@@ -107,13 +112,13 @@ func (s counterService) Bump(ctx context.Context, cmd bumpCounter) (application.
 			AggregateType:    "counters.Counter",
 			AggregateID:      string(cmd.Counter),
 			AggregateVersion: stored + 1,
-			Event:            counterBumped{Counter: cmd.Counter, By: cmd.By, Total: state.Total},
+			Event:            CounterBumped{Counter: cmd.Counter, By: cmd.By, Total: state.Total},
 			Context:          application.MessageContextFor(ctx, identity.MessageIDs[0]),
 		}
 		if err := res.Outbox.Enqueue(ctx, entry); err != nil {
 			return err
 		}
-		outcome = application.Accepted(bumpResponse{Counter: cmd.Counter, Total: state.Total})
+		outcome = application.Accepted(BumpResponse{Counter: cmd.Counter, Total: state.Total})
 		return nil
 	})
 	if err != nil {
@@ -126,23 +131,23 @@ func (s counterService) Bump(ctx context.Context, cmd bumpCounter) (application.
 		category = ports.OutcomeRejected
 	}
 	end(ports.Result{Outcome: category})
-	s.Instrumentation.Audit(ctx, ports.AuditEvent{
+	s.instrumentation().Audit(ctx, ports.AuditEvent{
 		Object:  string(cmd.Counter),
-		Action:  operationBump,
+		Action:  OperationBump,
 		Outcome: category,
 		At:      identity.OccurredAt,
 	})
 	return outcome, nil
 }
 
-func (s counterService) Find(ctx context.Context, id counterID) (counterState, error) {
-	ctx, end := s.Instrumentation.BeginOperation(ctx, operationFind)
+func (s CounterService) Find(ctx context.Context, id CounterID) (CounterState, error) {
+	ctx, end := s.instrumentation().BeginOperation(ctx, OperationFind)
 
 	state, _, err := s.Reader.Load(ctx, id)
 	if err != nil {
 		failed := fmt.Errorf("find counter %s: %w", id, err)
 		end(ports.Result{Outcome: ports.OutcomeFailed, Err: failed})
-		return counterState{}, failed
+		return CounterState{}, failed
 	}
 
 	end(ports.Result{Outcome: ports.OutcomeAccepted})

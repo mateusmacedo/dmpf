@@ -7,7 +7,6 @@ import (
 	"net"
 	"net/http"
 	"strconv"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -21,6 +20,7 @@ import (
 	ordersv1 "github.com/mateusmacedo/dmpf/apps/backend/orders/contract/gen/go/company/orders/service/v1"
 	kernelgrpc "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/boot"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/obstest"
 )
 
 const (
@@ -29,86 +29,6 @@ const (
 
 	degradedCredential = `Bearer {"sub":"tester","tenant":"acme","permissions":["orders:read"]}`
 )
-
-type downCollector struct {
-	addr   string
-	stalls bool
-	held   atomic.Int64
-}
-
-func unusedLoopbackAddr(t *testing.T) string {
-	t.Helper()
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("Listen() = %v", err)
-	}
-	addr := listener.Addr().String()
-	_ = listener.Close()
-	return addr
-}
-
-func refusingCollector(t *testing.T) *downCollector {
-	return &downCollector{addr: unusedLoopbackAddr(t)}
-}
-
-func stallingCollector(t *testing.T) *downCollector {
-	t.Helper()
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("Listen() = %v", err)
-	}
-	collector := &downCollector{addr: listener.Addr().String(), stalls: true}
-	var mu sync.Mutex
-	var held []net.Conn
-	go func() {
-		for {
-			conn, err := listener.Accept()
-			if err != nil {
-				return
-			}
-			mu.Lock()
-			held = append(held, conn)
-			mu.Unlock()
-			collector.held.Add(1)
-		}
-	}()
-	t.Cleanup(func() {
-		_ = listener.Close()
-		mu.Lock()
-		defer mu.Unlock()
-		for _, conn := range held {
-			_ = conn.Close()
-		}
-	})
-	return collector
-}
-
-func (c *downCollector) requireEverySignalExporting(t *testing.T) {
-	t.Helper()
-	if !c.stalls {
-		return
-	}
-	for deadline := time.Now().Add(2 * time.Second); c.held.Load() < 3 && time.Now().Before(deadline); {
-		time.Sleep(5 * time.Millisecond)
-	}
-	if held := c.held.Load(); held < 3 {
-		t.Errorf("the stalled collector holds %d connections, want one per signal: traces, metrics and logs exporting to it", held)
-	}
-}
-
-func returnsWithin(t *testing.T, limit time.Duration, what string, run func()) {
-	t.Helper()
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		run()
-	}()
-	select {
-	case <-done:
-	case <-time.After(limit):
-		t.Errorf("%s did not return in %v with the export failing, want the telemetry never to hold it (NF Degradação)", what, limit)
-	}
-}
 
 type ordersContext struct {
 	target string
@@ -156,7 +76,7 @@ func serveOrdersHeldBy(t *testing.T, hold func(context.Context)) *ordersContext 
 
 func startEdgeExportingTo(t *testing.T, collector string, orders *ordersContext) app.Config {
 	t.Helper()
-	env := maps.Clone(readManifest(t))
+	env := maps.Clone(obstest.ReadEnvFile(t, manifestPath))
 	maps.Copy(env, map[string]string{
 		"OTEL_EXPORTER_OTLP_ENDPOINT": "http://" + collector,
 		"OTEL_METRIC_EXPORT_INTERVAL": "10",
@@ -164,8 +84,8 @@ func startEdgeExportingTo(t *testing.T, collector string, orders *ordersContext)
 		"OTEL_BSP_MAX_QUEUE_SIZE":     "8",
 		"OTEL_BLRP_SCHEDULE_DELAY":    "10",
 		"OTEL_BLRP_MAX_QUEUE_SIZE":    "8",
-		"HTTP_ADDR":                   unusedLoopbackAddr(t),
-		"ADMIN_ADDR":                  unusedLoopbackAddr(t),
+		"HTTP_ADDR":                   obstest.UnusedLoopbackAddr(t),
+		"ADMIN_ADDR":                  obstest.UnusedLoopbackAddr(t),
 		"ORDERS_GRPC_TARGET":          orders.target,
 		"RESERVATIONS_GRPC_TARGET":    orders.target,
 		"BOOKINGS_GRPC_TARGET":        orders.target,
@@ -173,7 +93,7 @@ func startEdgeExportingTo(t *testing.T, collector string, orders *ordersContext)
 		"OPENAPI_RESERVATIONS_PATH":   "",
 		"OPENAPI_BOOKINGS_PATH":       "",
 	})
-	useOnlyTheOTelEnvironmentOf(t, env)
+	obstest.UseOnlyTheOTelEnvironmentOf(t, env)
 	cfg, err := app.FromEnv(func(key string) string { return env[key] })
 	if err != nil {
 		t.Fatalf("FromEnv() over %s = %v", manifestPath, err)
@@ -186,7 +106,7 @@ func startEdgeExportingTo(t *testing.T, collector string, orders *ordersContext)
 	t.Cleanup(func() {
 		grace, cancel := context.WithTimeout(context.Background(), time.Second)
 		defer cancel()
-		returnsWithin(t, drainLimit, "the telemetry shutdown", func() { _ = runtime.Shutdown(grace) })
+		obstest.ReturnsWithin(t, drainLimit, "the telemetry shutdown", func() { _ = runtime.Shutdown(grace) })
 	})
 	ctx, cancel := context.WithCancel(context.Background())
 	served := make(chan error, 1)
@@ -217,14 +137,14 @@ func startEdgeExportingTo(t *testing.T, collector string, orders *ordersContext)
 }
 
 func TestAFailingExportNeverFailsNorHoldsARequestOfTheEdge(t *testing.T) {
-	for name, collector := range map[string]func(*testing.T) *downCollector{
-		"unreachable endpoint": refusingCollector,
-		"stalled collector":    stallingCollector,
+	for name, collector := range map[string]func(testing.TB) *obstest.DownCollector{
+		"unreachable endpoint": obstest.UnreachableCollector,
+		"stalled collector":    obstest.StallingCollector,
 	} {
 		t.Run(name, func(t *testing.T) {
 			down := collector(t)
 			orders := serveOrders(t)
-			cfg := startEdgeExportingTo(t, down.addr, orders)
+			cfg := startEdgeExportingTo(t, down.Addr, orders)
 			client := &http.Client{Timeout: requestLimit}
 			t.Cleanup(client.CloseIdleConnections)
 
@@ -254,7 +174,7 @@ func TestAFailingExportNeverFailsNorHoldsARequestOfTheEdge(t *testing.T) {
 			if calls := orders.calls.Load(); calls != requests {
 				t.Fatalf("the orders context answered %d calls for %d requests, want every request through its handler", calls, requests)
 			}
-			down.requireEverySignalExporting(t)
+			down.RequireEverySignalExporting(t)
 		})
 	}
 }

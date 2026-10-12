@@ -190,6 +190,18 @@ func ExecutionContextFrom(ctx context.Context) (ExecutionContext, bool) {
 	return execution, ok
 }
 
+// SubjectOf is the subject on the carrier, the one source of identity (CTX-03),
+// or empty: over gRPC the fan-out never carries it (IDN-02), and absent stays
+// absent (IDN-20).
+func SubjectOf(ctx context.Context) string {
+	execution, ok := ExecutionContextFrom(ctx)
+	if !ok {
+		return ""
+	}
+	who, _ := execution.Subject()
+	return string(who)
+}
+
 // RequireExecutionContext is the fail-closed read: absence is a refusal, never a
 // permissive path (IDN-15, IDN-17). It stands in for the compiler guarantee the
 // explicit parameter gave before ADR-049.

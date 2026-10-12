@@ -17,7 +17,7 @@ func composition(cfg Config) compose.Config {
 		Instruments:    cfg.Instruments,
 		LoggerProvider: cfg.LoggerProvider,
 		Rand:           cfg.Rand,
-		Category:       categoryOf,
+		Category:       Category,
 		BreakerFailure: dependencyFailure,
 	}
 }

@@ -24,20 +24,16 @@ const (
 	Placed
 )
 
-// Instant is a point in time in Unix nanoseconds, resolved by the application
-// service and carried as a value (RFC §9.3): the domain never consults a clock.
-type Instant int64
-
 // AddItem is the command that asks the order to take one more item (FND-03 §5.3).
 type AddItem struct {
 	SKU      SKU
 	Quantity int
-	At       Instant
+	At       kernel.Instant
 }
 
 // PlaceOrder is the command that asks the order to be placed.
 type PlaceOrder struct {
-	At Instant
+	At kernel.Instant
 }
 
 // ItemAdded is the domain event of an item accepted into the order (MSG-N01).
@@ -45,7 +41,7 @@ type ItemAdded struct {
 	Order    OrderID
 	SKU      SKU
 	Quantity int
-	At       Instant
+	At       kernel.Instant
 }
 
 // EventName is stable and carries no version or transport (MSG-N02, MSG-N03).
@@ -55,7 +51,7 @@ func (ItemAdded) EventName() string { return "orders.item-added" }
 type OrderPlaced struct {
 	Order OrderID
 	Items int
-	At    Instant
+	At    kernel.Instant
 }
 
 // EventName is stable and carries no version or transport (MSG-N02, MSG-N03).

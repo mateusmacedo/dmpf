@@ -1,11 +1,13 @@
 package domain
 
+import kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
+
 type Booking struct {
 	id         BookingID
 	resourceID ResourceID
 	quantity   int
 	status     BookingStatus
-	reservedAt Instant
+	reservedAt kernel.Instant
 }
 
 func NewBooking(id BookingID) *Booking {
@@ -27,7 +29,7 @@ type BookingSnapshot struct {
 	ResourceID ResourceID
 	Quantity   int
 	Status     BookingStatus
-	ReservedAt Instant
+	ReservedAt kernel.Instant
 }
 
 func (b *Booking) Snapshot() BookingSnapshot {

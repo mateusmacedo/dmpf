@@ -11,6 +11,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/deadline"
 )
 
 func TestEveryFailureIsRecordedUnderAnFND07CategoryOrOther(t *testing.T) {
@@ -23,6 +24,8 @@ func TestEveryFailureIsRecordedUnderAnFND07CategoryOrOther(t *testing.T) {
 		"categorized":         {fmt.Errorf("wrapped: %w", categorizedFailure{}), "Unexpected"},
 		"context deadline":    {fmt.Errorf("pq: secret: %w", context.DeadlineExceeded), "DeadlineExceeded"},
 		"context cancelled":   {fmt.Errorf("pq: secret: %w", context.Canceled), "Cancelled"},
+		"missing deadline":    {deadline.ErrNoDeadline, "Unexpected"},
+		"exhausted deadline":  {fmt.Errorf("%w: orders", deadline.ErrDeadlineExhausted), "DeadlineExceeded"},
 		"plain error":         {errors.New("pq: secret"), other},
 		"INVALID_ARGUMENT":    {status.Error(codes.InvalidArgument, "x"), "Validation"},
 		"FAILED_PRECONDITION": {status.Error(codes.FailedPrecondition, "x"), "DomainRejection"},
@@ -44,8 +47,8 @@ func TestEveryFailureIsRecordedUnderAnFND07CategoryOrOther(t *testing.T) {
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
-			if got := kernel.CategoryOf(c.err); got != c.want {
-				t.Fatalf("CategoryOf(%v) = %q, want %q: the matrix of FND-07 §6.2 read back, or %s (RF-B1)", c.err, got, c.want, other)
+			if got := kernel.Category(c.err); got != c.want {
+				t.Fatalf("Category(%v) = %q, want %q: the matrix of FND-07 §6.2 read back, or %s (RF-B1)", c.err, got, c.want, other)
 			}
 		})
 	}

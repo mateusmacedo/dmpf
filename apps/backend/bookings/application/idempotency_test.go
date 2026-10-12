@@ -9,6 +9,7 @@ import (
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/application"
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/domain"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/execctx"
 )
 
 func reserve(quantity int) application.ReserveBooking {
@@ -105,7 +106,7 @@ func TestACommandWaitingPastTheCeilingIsInFlight(t *testing.T) {
 
 func TestACommandWithoutAKeyIsRefusedBeforeAnyEffect(t *testing.T) {
 	h := newHarness(t)
-	ctx := ports.WithExecutionContext(context.Background(), testExecution(t))
+	ctx := ports.WithExecutionContext(context.Background(), execctx.Execution(t))
 
 	_, err := h.service.ReserveBooking(ctx, reserve(5))
 

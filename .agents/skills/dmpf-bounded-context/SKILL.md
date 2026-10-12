@@ -72,10 +72,10 @@ não executa — ele **para e imprime** o rito restante.
    comando e por consulta, cada um por
    `kernelgrpc.Unary(ServiceName, kernelgrpc.Method(descriptor, "<Método>"), <Ctx>Server.<Método>)`,
    o `Server` sobre o serviço de aplicação (os handlers de comando passam pelo
-   `command[R, Resp]` local, que devolve o erro por `kernelgrpc.StatusOf`), o
+   `kernelgrpc.Command` do kernel, que devolve o erro por `kernelgrpc.StatusOf`), o
    `service_test.go` com `kernelgrpc.Uncovered`, a `Config` com as seções
-   `API` (`kernelgrpc.APIEnv`) e `Policies` (`kernelapp.Policies`), o wiring e
-   o catálogo;
+   `API` (`kernelgrpc.APIEnv`) e `Policies` (`kernelapp.Policies`), o wiring
+   sobre o `app/serve` do kernel e o canal do relay;
    e2e gRPC sobre Postgres. Consumer com `envelope.Unpack` **só se
    o contexto consome**. A borda REST é do `bff`, em tarefa própria.
 8. **Contrato**: `.proto` do serviço em

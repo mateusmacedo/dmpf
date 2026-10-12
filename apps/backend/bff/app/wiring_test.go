@@ -28,12 +28,13 @@ import (
 	"github.com/mateusmacedo/dmpf/apps/backend/bff/app"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/otelboot"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/tracing"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/obstest"
 )
 
 type edge struct {
 	addr     string
 	admin    string
-	logs     *memoryLogs
+	logs     *obstest.MemoryLogs
 	provider *sdklog.LoggerProvider
 	spans    *tracetest.InMemoryExporter
 	metrics  *sdkmetric.ManualReader
@@ -50,7 +51,7 @@ func startEdge(t *testing.T, env ...string) edge {
 		t.Fatalf("FromEnv() = %v", err)
 	}
 	telemetry := app.TelemetryOf(cfg)
-	e := edge{logs: &memoryLogs{}, spans: tracetest.NewInMemoryExporter(), metrics: sdkmetric.NewManualReader(), done: make(chan error, 1)}
+	e := edge{logs: &obstest.MemoryLogs{}, spans: tracetest.NewInMemoryExporter(), metrics: sdkmetric.NewManualReader(), done: make(chan error, 1)}
 	config := otelboot.Config{
 		Propagator: propagation.TraceContext{},
 		Resource: otelboot.Resource{ServiceName: telemetry.Service, ServiceVersion: "test",
@@ -92,9 +93,7 @@ func (e edge) records(t *testing.T) []sdklog.Record {
 	if err := e.provider.ForceFlush(context.Background()); err != nil {
 		t.Fatalf("ForceFlush() = %v", err)
 	}
-	e.logs.mu.Lock()
-	defer e.logs.mu.Unlock()
-	return slices.Clone(e.logs.records)
+	return e.logs.Records()
 }
 
 func (e edge) request(t *testing.T, method, path string, headers ...string) int {

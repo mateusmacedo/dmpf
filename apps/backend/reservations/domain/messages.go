@@ -17,26 +17,22 @@ const (
 	Cancelled
 )
 
-// Instant is a point in time in Unix nanoseconds, resolved by the application
-// service and carried as a value (RFC §9.3): the domain never consults a clock.
-type Instant int64
-
 // Reserve is the command that asks the reservation to confirm Items for the order.
 type Reserve struct {
 	Items int
-	At    Instant
+	At    kernel.Instant
 }
 
 // Cancel is the command that asks a pending reservation to be canceled.
 type Cancel struct {
-	At Instant
+	At kernel.Instant
 }
 
 // ReservationConfirmed is the domain event of a reservation confirmed with Items lines.
 type ReservationConfirmed struct {
 	Order OrderID
 	Items int
-	At    Instant
+	At    kernel.Instant
 }
 
 // EventName is stable and carries no version or transport (MSG-N02, MSG-N03).
@@ -45,7 +41,7 @@ func (ReservationConfirmed) EventName() string { return "reservations.reservatio
 // ReservationCancelled is the domain event of a pending reservation canceled.
 type ReservationCancelled struct {
 	Order OrderID
-	At    Instant
+	At    kernel.Instant
 }
 
 // EventName is stable and carries no version or transport (MSG-N02, MSG-N03).

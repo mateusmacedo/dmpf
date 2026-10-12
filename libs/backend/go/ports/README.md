@@ -31,10 +31,10 @@ Import path do módulo:
 | `acknowledger.go` | `Acknowledger` — o efeito de broker aplicado depois do commit (`INB-08`) |
 | `instrumentation.go` | `Result`, `AuditEvent`, `EndOperation`, `Instrumentation`, `NoInstrumentation`, `OutcomeCategory`, `ErrDenied`, `AuthorizationResult` (só um `ErrDenied` embrulhado vira `Denied`; qualquer outro erro vira `Failed`, com o erro bruto) |
 | `message_context.go` | `MessageContext` (o trio de `ENV-08`) e o carrier `WithMessageContext`/`MessageContextFrom` |
-| `execcontext.go` | `SubjectID`, `TenantID`, `Permission`; `ExecutionContext`, `ExecutionContextSpec`, `NewExecutionContext`; o carrier canônico `WithExecutionContext`, `ExecutionContextFrom`, `RequireExecutionContext`; `ErrContextFieldMissing`, `ErrContextValueEmpty`, `ErrContextPermissionsMismatch`, `ErrContextAbsent` (`ADR-049`) |
+| `execcontext.go` | `SubjectID`, `TenantID`, `Permission`; `ExecutionContext`, `ExecutionContextSpec`, `NewExecutionContext`; o carrier canônico `WithExecutionContext`, `ExecutionContextFrom`, `RequireExecutionContext`; `SubjectOf`, o subject do carrier ou vazio; `ErrContextFieldMissing`, `ErrContextValueEmpty`, `ErrContextPermissionsMismatch`, `ErrContextAbsent` (`ADR-049`) |
 | `authn.go` | `Credential`, `Identity`, `Authenticator`, `ErrCredentialAbsent`, `ErrCredentialRejected`, `ErrSubjectUnresolved` — as três condições de `IDN-01` |
 | `clock.go` | `Clock`, `IDGenerator` |
-| `values.go` | `Instant`, `MessageID`, `Version` |
+| `values.go` | `Instant` (alias de `domain.Instant`), `MessageID`, `Version` |
 
 Uma unidade só, com `block: port` e `bounded_context: kernel`
 (`dmpf-units.json`); em Go, a unidade de verificação é o package (RFC §3.3). A
@@ -49,8 +49,10 @@ O motivo é normativo antes de ser técnico: o verificador classifica o package
 apenas `pure` (RFC §6.2). Ler o relógio é I/O, então o instante entra por
 `Clock` e o domínio o recebe como valor (RFC §9.3, ADR-014, ADR-016). A
 resolução é de nanossegundos porque a drenagem da outbox ordena por
-`occurred_at` e segundos colidiriam sob carga (FND-04 §4.2); `Unix()` existe
-para os domínios cujo próprio valor de tempo é em segundos.
+`occurred_at` e segundos colidiriam sob carga (FND-04 §4.2). O tipo é declarado
+no kernel `domain`, o bloco mais interno, e `ports.Instant` é alias dele
+(ADR-061): domínio de contexto, caso de uso e porta usam o mesmo tipo, sem
+conversão.
 
 `MessageID` é o identificador global da mensagem, e o vazio é inválido.
 `Version` é a versão do agregado no optimistic locking, e o zero significa

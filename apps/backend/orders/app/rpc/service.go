@@ -14,19 +14,7 @@ import (
 	usecase "github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	kernel "github.com/mateusmacedo/dmpf/libs/backend/go/domain"
 	kernelgrpc "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
-	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
-
-// WHY: the absence of what the interceptor mounted is a wiring defect of this
-// server, never a fault of the caller, so it answers Internal rather than
-// leaving the handler to invent a context (CTX-03).
-func executionOf(ctx context.Context) (ports.ExecutionContext, error) {
-	execution, ok := ports.ExecutionContextFrom(ctx)
-	if !ok {
-		return ports.ExecutionContext{}, status.Error(codes.Internal, "the execution context was not assembled")
-	}
-	return execution, nil
-}
 
 var descriptor = servicev1.File_company_orders_service_v1_orders_service_proto.Services().ByName("OrdersService")
 
@@ -35,8 +23,6 @@ var ServiceName = string(descriptor.FullName())
 
 var orderIDFormat = regexp.MustCompile(`^[A-Za-z0-9._:-]{1,128}$`)
 
-// Methods names every method of the service: admission declares a limit for
-// each one (RES-16).
 func Methods() []string { return kernelgrpc.MethodNames(descriptor) }
 
 // Commands lists the methods that require an idempotency key (IDM-01); the
@@ -73,27 +59,12 @@ type Server struct {
 	Service application.Service
 }
 
-func command[R, Resp any](ctx context.Context, run func(context.Context) (usecase.Outcome[R], error), refused func(*servicev1.Rejection) Resp, accepted func(R) Resp) (Resp, error) {
-	var none Resp
-	if _, err := executionOf(ctx); err != nil {
-		return none, err
-	}
-	out, err := run(ctx)
-	if err != nil {
-		return none, kernelgrpc.StatusOf(err)
-	}
-	if rejection, declined := out.Rejection(); declined {
-		return refused(rejectionOf(rejection)), nil
-	}
-	return accepted(out.Response()), nil
-}
-
 func (s Server) AddItem(ctx context.Context, req *servicev1.AddItemRequest) (*servicev1.AddItemResponse, error) {
 	id, err := orderID(req.GetOrderId())
 	if err != nil {
 		return nil, err
 	}
-	return command(ctx,
+	return kernelgrpc.Command(ctx,
 		func(ctx context.Context) (usecase.Outcome[domain.ItemAccepted], error) {
 			return s.Service.AddItem(ctx, application.AddItem{Order: id, SKU: domain.SKU(req.GetSku()), Quantity: int(req.GetQuantity())})
 		},
@@ -106,7 +77,7 @@ func (s Server) PlaceOrder(ctx context.Context, req *servicev1.PlaceOrderRequest
 	if err != nil {
 		return nil, err
 	}
-	return command(ctx,
+	return kernelgrpc.Command(ctx,
 		func(ctx context.Context) (usecase.Outcome[domain.PlacedResponse], error) {
 			return s.Service.PlaceOrder(ctx, application.PlaceOrder{Order: id})
 		},
@@ -114,8 +85,10 @@ func (s Server) PlaceOrder(ctx context.Context, req *servicev1.PlaceOrderRequest
 		orderPlacedOf)
 }
 
-func addItemRefused(r *servicev1.Rejection) *servicev1.AddItemResponse {
-	return &servicev1.AddItemResponse{Result: &servicev1.AddItemResponse_Rejection{Rejection: r}}
+func addItemRefused(r *kernel.Rejection) *servicev1.AddItemResponse {
+	return &servicev1.AddItemResponse{Result: &servicev1.AddItemResponse_Rejection{
+		Rejection: rejectionOf(r),
+	}}
 }
 
 func itemAcceptedOf(a domain.ItemAccepted) *servicev1.AddItemResponse {
@@ -124,8 +97,10 @@ func itemAcceptedOf(a domain.ItemAccepted) *servicev1.AddItemResponse {
 	}}
 }
 
-func placeOrderRefused(r *servicev1.Rejection) *servicev1.PlaceOrderResponse {
-	return &servicev1.PlaceOrderResponse{Result: &servicev1.PlaceOrderResponse_Rejection{Rejection: r}}
+func placeOrderRefused(r *kernel.Rejection) *servicev1.PlaceOrderResponse {
+	return &servicev1.PlaceOrderResponse{Result: &servicev1.PlaceOrderResponse_Rejection{
+		Rejection: rejectionOf(r),
+	}}
 }
 
 func orderPlacedOf(p domain.PlacedResponse) *servicev1.PlaceOrderResponse {
@@ -137,7 +112,7 @@ func (s Server) FindOrder(ctx context.Context, req *servicev1.FindOrderRequest) 
 	if err != nil {
 		return nil, err
 	}
-	_, err = executionOf(ctx)
+	_, err = kernelgrpc.ExecutionOf(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -175,6 +150,6 @@ func orderStatus(s domain.Status) servicev1.OrderStatus {
 	}
 }
 
-func rejectionOf(rejection *kernel.Rejection) *servicev1.Rejection {
-	return &servicev1.Rejection{Code: string(rejection.Code()), Message: rejection.Message()}
+func rejectionOf(r *kernel.Rejection) *servicev1.Rejection {
+	return &servicev1.Rejection{Code: string(r.Code()), Message: r.Message()}
 }

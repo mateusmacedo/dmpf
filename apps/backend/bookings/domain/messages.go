@@ -8,8 +8,6 @@ type ResourceID string
 
 type ResourceCode string
 
-type Instant int64
-
 type BookingStatus int
 
 const (
@@ -18,21 +16,19 @@ const (
 	Cancelled
 )
 
-type ResourceRegisteredAt = Instant
-
 type ReserveBooking struct {
 	ResourceID ResourceID
 	Quantity   int
-	At         Instant
+	At         kernel.Instant
 }
 
 type CancelBooking struct {
-	At Instant
+	At kernel.Instant
 }
 
 type RegisterResource struct {
 	Code ResourceCode
-	At   Instant
+	At   kernel.Instant
 }
 
 type ReservedResponse struct {
@@ -51,21 +47,21 @@ type BookingReserved struct {
 	BookingID  BookingID
 	ResourceID ResourceID
 	Quantity   int
-	At         Instant
+	At         kernel.Instant
 }
 
 func (BookingReserved) EventName() string { return "bookings.booking-reserved" }
 
 type BookingCancelled struct {
 	BookingID BookingID
-	At        Instant
+	At        kernel.Instant
 }
 
 func (BookingCancelled) EventName() string { return "bookings.booking-cancelled" }
 
 type ResourceRegistered struct {
 	Code ResourceCode
-	At   Instant
+	At   kernel.Instant
 }
 
 func (ResourceRegistered) EventName() string { return "bookings.resource-registered" }

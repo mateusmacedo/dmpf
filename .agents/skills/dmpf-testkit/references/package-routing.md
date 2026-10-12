@@ -13,7 +13,11 @@ assinaturas no código atual antes de implementar.
 | Contrato Protobuf/CloudEvents e bytes canônicos | `golden` | duas direções e três oráculos |
 | Tempo, IDs e ordenação determinísticos | `clock`, `ids`, `stable` | seam controlável e comparação estável |
 | Consumer adapter até Postgres e gesto do broker | `appkit` (`apps/backend/reservations`) | efeitos persistidos e Ack após commit |
-| Redelivery com broker e isolamento real | `distkit` (`apps/backend/reservations`) | processos OS e `DMPF-R004` |
+| Redelivery com broker e isolamento real | `distkit` (`apps/backend/reservations`) sobre `tb/dist` | processos OS e `DMPF-R004` |
+| Supervisão de processos, harness por papel e vetor do relay | `tb/dist` | `DMPF-P001` a `DMPF-P003` |
+| Contexto de execução de teste | `tb/execctx` | subject, tenant, chave e deadline sem fixture local |
+| Caso de uso de referência para testar as libs | `tb/reference` | `CounterService` sobre a UoW real |
+| Telemetria de teste e degradação do exportador | `obstest` | manifesto por papel, coletor OTLP e coletores de falha |
 | Dependências e capacidades dos blocos | `fitness` | universo real e vetores sintéticos |
 | Adaptação a `testing.TB`, fixtures e Postgres | `tb`, `tb/pg` | falha/skip explícito no ambiente de teste |
 
@@ -138,7 +142,10 @@ no molde deste, sobre `tb`, `tb/pg`, `clock` e `ids` do kit.
 
 Autoridade de API:
 
-- `apps/backend/reservations/distkit/harness.go`: `New`, processos e espera;
+- `libs/backend/go/testkit/tb/dist`: `Supervise` e `Process`, `Spec`, `RunRole`,
+  `Harness`, `CreateTopics`, `WaitFor` e o vetor do relay (`RelayVector`,
+  `DecideRelay`);
+- `apps/backend/reservations/distkit/harness.go`: `New`, o `Spec` e o `RelaySpec` do contexto;
 - `apps/backend/reservations/distkit/roles.go`: papéis filhos;
 - `apps/backend/reservations/distkit/verdict.go`: plano, efeitos e `DMPF-R004`;
 - `apps/backend/reservations/distkit/harness_test.go`: positivo e consumer
@@ -148,6 +155,31 @@ Preserve `//go:build integration && distributed`. O processo pai inicia os
 papéis `producer`, `consumer` e `consumer-naive` pelo próprio executável de
 teste; por isso um fake compartilhado em memória invalida a prova. O target é
 `reservations:test-distributed`.
+
+## `tb/execctx` e `tb/reference`
+
+Autoridade de API:
+
+- `tb/execctx/execctx.go`: `Execution`, `WithExecution` e `WithKey`, com as
+  opções de slot, chave automática por processo e as variantes de subject,
+  tenant, requisição e deadline;
+- `tb/reference/counter.go`: o `CounterService` de referência e os tipos do
+  agregado `Counter`.
+
+Os dois são irmãos de `tb`: nem `tb` nem `domainkit` os importam, porque o
+guard dos testes de domínio (V29/V30) reprova o fechamento que alcance `port`.
+
+## `obstest`
+
+Autoridade de API:
+
+- `obstest/subject.go` e `manifest.go`: `Subject[C, R]` e `Manifest[C, R]`,
+  parametrizados pela `Config` e pelo papel do contexto, e o `AuditTrail`;
+- `obstest/collector.go`, `down.go` e `env.go`: coletor OTLP de teste,
+  coletores de falha (rede e em processo) e o ambiente OTel;
+- `obstest/logs.go`, `readers.go` e `proofs.go`: `MemoryLogs`, leitores de
+  métricas e spans, e as provas compartilhadas (`NotFoundOnTheUseCase` e
+  `RelayWiring`).
 
 ## `fitness`
 

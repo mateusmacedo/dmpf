@@ -6,15 +6,14 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	sqstypes "github.com/aws/aws-sdk-go-v2/service/sqs/types"
-	"go.opentelemetry.io/otel/attribute"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
-	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/clock"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/metrics"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/otelboot"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	provider "github.com/mateusmacedo/dmpf/libs/backend/go/sqs"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/obstest"
 )
 
 func exportedInstruments(t *testing.T) (*metrics.Instruments, *sdkmetric.ManualReader) {
@@ -27,30 +26,6 @@ func exportedInstruments(t *testing.T) (*metrics.Instruments, *sdkmetric.ManualR
 		t.Fatalf("metrics.New() = %v", err)
 	}
 	return instruments, reader
-}
-
-func exportedLabels(t *testing.T, reader *sdkmetric.ManualReader) map[string][]attribute.Set {
-	t.Helper()
-	var collected metricdata.ResourceMetrics
-	if err := reader.Collect(context.Background(), &collected); err != nil {
-		t.Fatalf("Collect() = %v", err)
-	}
-	labels := map[string][]attribute.Set{}
-	for _, scope := range collected.ScopeMetrics {
-		for _, m := range scope.Metrics {
-			switch data := m.Data.(type) {
-			case metricdata.Gauge[float64]:
-				for _, point := range data.DataPoints {
-					labels[m.Name] = append(labels[m.Name], point.Attributes)
-				}
-			case metricdata.Gauge[int64]:
-				for _, point := range data.DataPoints {
-					labels[m.Name] = append(labels[m.Name], point.Attributes)
-				}
-			}
-		}
-	}
-	return labels
 }
 
 func TestTheSaturationOfTheConsumerIsExportedWithoutALabel(t *testing.T) {
@@ -66,7 +41,7 @@ func TestTheSaturationOfTheConsumerIsExportedWithoutALabel(t *testing.T) {
 	awaitCalls(t, api, "DeleteMessage", 1)
 	stop()
 
-	exported := exportedLabels(t, reader)
+	exported := obstest.MetricLabels(t, reader)
 	for _, name := range []string{metrics.PoolUtilization, metrics.QueueDepth} {
 		points := exported[name]
 		if len(points) == 0 {

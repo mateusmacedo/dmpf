@@ -109,7 +109,7 @@ func ownMethods(service string) func(grpc.UnaryServerInterceptor) grpc.UnaryServ
 // otelgrpc copies its message into the span status (otelgrpc@v0.72.0/interceptor.go:86-97).
 func serverOutcome(ctx context.Context, req any, _ *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 	resp, err := handler(ctx, req)
-	trace.SpanFromContext(ctx).SetAttributes(tracing.Attributes{}.OutcomeCategory(categoryOf(err)).KeyValues()...)
+	trace.SpanFromContext(ctx).SetAttributes(tracing.Attributes{}.OutcomeCategory(Category(err)).KeyValues()...)
 	return resp, publicStatus(err)
 }
 
@@ -158,7 +158,7 @@ func logCall(ctx context.Context, logger *slog.Logger, fullMethod string, slot *
 		slog.String(string(semconv.RPCSystemNameKey), semconv.RPCSystemNameGRPC.Value.AsString()),
 		slog.String(string(semconv.RPCMethodKey), rpcMethod(fullMethod)),
 		slog.String(string(semconv.RPCResponseStatusCodeKey), canonicalCode(code)),
-		slog.String(tracing.KeyOutcomeCategory, categoryOf(err)),
+		slog.String(tracing.KeyOutcomeCategory, Category(err)),
 	}
 	attrs = append(attrs, slot.idempotency...)
 	if err != nil {
@@ -190,7 +190,7 @@ func errorAttr(err error) slog.Attr {
 
 type transportFailure struct{ error }
 
-func (f transportFailure) ErrorCategory() string { return categoryOf(f.error) }
+func (f transportFailure) ErrorCategory() string { return Category(f.error) }
 
 func (transportFailure) ErrorCode() string { return "" }
 
