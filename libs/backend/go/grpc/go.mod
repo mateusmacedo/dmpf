@@ -3,11 +3,11 @@ module github.com/mateusmacedo/dmpf/libs/backend/go/grpc
 go 1.26.9
 
 require (
-	github.com/mateusmacedo/dmpf/libs/backend/go/domain v1.0.0-rc.3
-	github.com/mateusmacedo/dmpf/libs/backend/go/observability v1.0.0-rc.3
-	github.com/mateusmacedo/dmpf/libs/backend/go/ports v1.0.0-rc.3
-	github.com/mateusmacedo/dmpf/libs/backend/go/testkit v1.0.0-rc.3
-	github.com/mateusmacedo/dmpf/libs/backend/go/transport v1.0.0-rc.3
+	github.com/mateusmacedo/dmpf/libs/backend/go/domain v1.0.0-rc.4
+	github.com/mateusmacedo/dmpf/libs/backend/go/observability v1.0.0-rc.4
+	github.com/mateusmacedo/dmpf/libs/backend/go/ports v1.0.0-rc.4
+	github.com/mateusmacedo/dmpf/libs/backend/go/testkit v1.0.0-rc.4
+	github.com/mateusmacedo/dmpf/libs/backend/go/transport v1.0.0-rc.4
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.72.0
 	go.opentelemetry.io/otel v1.47.0
 	go.opentelemetry.io/otel/log v1.47.0
