@@ -36,12 +36,19 @@
       }
     },
     "test-race": {
-      "executor": "nx:run-commands",
-      "cache": true,
+      "executor": "@mateusmacedo/dmpf-plugin:test-env",
+      "cache": false,
       "inputs": ["go", "^go"],
       "options": {
-        "command": "go test -race ./...",
-        "cwd": "{projectRoot}"
+        "command": "go test -race -count=1 -p 1 -tags=integration ./..."
+      },
+      "dependsOn": ["test-keycloak-up"]
+    },
+    "test-keycloak-up": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bash tools/dmpf-plugin/scripts/test-infra.sh keycloak"
       }
     },
     "govulncheck": {

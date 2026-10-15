@@ -264,6 +264,53 @@ func TestVerifierReadsTheClaimsTheOperatorDeclared(t *testing.T) {
 	}
 }
 
+func TestVerifierResolvesTheTenantFromTheNativeOrganizationClaim(t *testing.T) {
+	provider := newIdP(t)
+
+	cfg := authn.Defaults()
+	cfg.Issuer = provider.issuer
+	cfg.Audience = "dmpf-bff"
+	cfg.TenantClaim = "organization.*.tenant_id"
+
+	verifier, err := authn.NewVerifier(t.Context(), cfg)
+	if err != nil {
+		t.Fatalf("NewVerifier() err = %v", err)
+	}
+
+	acme := map[string]any{"tenant_id": []any{"t-acme"}, "id": "0b6d1f5e-7c9a-4e55-9d3a-6f1c2a8b4e10"}
+	globex := map[string]any{"tenant_id": []any{"t-globex"}, "id": "5c2e8a40-1d3b-4f77-8a69-2b9d0e7c3f21"}
+
+	tests := []struct {
+		name         string
+		organization any
+		want         string
+	}{
+		{name: "one organization", organization: map[string]any{"acme": acme}, want: "t-acme"},
+		{name: "two organizations", organization: map[string]any{"acme": acme, "globex": globex}},
+		{name: "no organization claim", organization: nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			token := provider.keycloakToken(t, map[string]any{"organization": tt.organization})
+
+			got, err := verifier.Authenticate(t.Context(), bearer(token))
+			if err != nil {
+				t.Fatalf("Authenticate() err = %v", err)
+			}
+
+			if tt.want == "" {
+				if got.Tenant != nil {
+					t.Fatalf("Tenant = %q, want nil: an ambiguous or missing organization is an absent tenant, never a guess (IDN-20)", *got.Tenant)
+				}
+				return
+			}
+			if got.Tenant == nil || string(*got.Tenant) != tt.want {
+				t.Fatalf("Tenant = %v, want %q: Keycloak's native organization claim carries the tenant as a one-item list", got.Tenant, tt.want)
+			}
+		})
+	}
+}
+
 func TestNewVerifierFailsWhenDiscoveryDoesNotAnswer(t *testing.T) {
 	unreachable := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
