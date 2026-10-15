@@ -12,6 +12,7 @@ namespace: dmpf-hmg
 
 resources:
   - ../../../observability
+  - ../../../keycloak
   - apps
 
 configMapGenerator:
