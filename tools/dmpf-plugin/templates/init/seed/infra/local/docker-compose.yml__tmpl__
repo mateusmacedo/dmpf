@@ -24,3 +24,4 @@ include:
   - compose/grafana.yml
   - compose/provisioning.generated.yml
   - compose/swagger-ui.yml
+  - compose/keycloak.yml
