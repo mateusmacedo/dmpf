@@ -239,6 +239,7 @@ for tabela in faltam:
     print(f'{sql_path}: tabela {tabela} sem grant no provider.Grants')
 sys.exit(1 if faltam else 0)
 PY
+  return $?
 }
 
 # verificar_infra confere DSN, POSTGRES_DB, o laço ou bloco que cria banco e role
@@ -764,12 +765,18 @@ YAML
       find "$repo/$APPS/other/deploy" -type f -exec sed -i 's/probe/other/g; s/PROBE/OTHER/g' {} +
       sed -i 's/^    command: .*$/&; psql -c "CREATE DATABASE \\"other\\" OWNER \\"other_migrator\\""/' "$repo/infra/local/compose.yml"
       ;;
+    *)
+      printf 'variar: tipo desconhecido: %s\n' "$tipo" >&2
+      return 2
+      ;;
   esac
+  return $?
 }
 
 migrar_no_relay() {
   local repo="$1" linha="$2"
   sed -i "/^  probe-relay:\$/,\$ s|^      <<: \\*env\$|&\\n$linha|" "$repo/$APPS/probe/deploy/compose.yml"
+  return $?
 }
 
 sabotar() {
@@ -909,7 +916,7 @@ fase_self_test() {
     if saida="$( ( FALHAS=0; fase_estrutural "$tmp" ) 2>&1 >/dev/null )"; then
       falhar "a sabotagem '$sabotagem' passou pelo gate"
       status=1
-    elif [ -n "${motivos[$sabotagem]:-}" ] && ! grep -qF -- "${motivos[$sabotagem]}" <<<"$saida"; then
+    elif [[ -n "${motivos[$sabotagem]:-}" ]] && ! grep -qF -- "${motivos[$sabotagem]}" <<<"$saida"; then
       falhar "a sabotagem '$sabotagem' reprovou por outro motivo: $(grep -m 3 FALHA <<<"$saida" | tr -s ' ')"
       status=1
     else
