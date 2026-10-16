@@ -40,6 +40,7 @@ var (
 
 const (
 	envDSN           = "PG_DSN"
+	envMigrateDSN    = "PG_MIGRATE_DSN"
 	envMigrate       = "MIGRATE"
 	envBrokers       = "KAFKA_BROKERS"
 	envKafkaInsecure = "KAFKA_INSECURE"
@@ -56,8 +57,9 @@ const (
 type Config struct {
 	Role Role
 
-	DSN     string
-	Migrate bool
+	DSN        string
+	MigrateDSN string
+	Migrate    bool
 
 	API           kernelgrpc.APIEnv
 	Admission     admission.Limit
@@ -141,6 +143,9 @@ func FromEnv(role Role, lookup func(string) string) (Config, error) {
 			return Config{}, err
 		}
 	}
+	if role == RoleAPI && cfg.Migrate {
+		cfg.MigrateDSN = lookup(envMigrateDSN)
+	}
 
 	if cfg.Signals, err = boot.SignalsFromEnv(lookup); err != nil {
 		return Config{}, err
@@ -178,6 +183,7 @@ func (c Config) requirements() ([]string, error) {
 	require(envDSN, c.DSN == "")
 	switch c.Role {
 	case RoleAPI:
+		require(envMigrateDSN, c.Migrate && c.MigrateDSN == "")
 		return append(missing, c.API.Missing()...), nil
 	case RoleRelay:
 		require(envBrokers, len(c.Brokers) == 0)
@@ -201,7 +207,7 @@ func roleList() string {
 }
 
 func apiRole(cfg Config) serve.APIRole {
-	return serve.APIRole{DSN: cfg.DSN, Server: cfg.API, Migrate: cfg.Migrate, Admission: cfg.Admission, MetricTenants: cfg.MetricTenants, Policies: cfg.Policies}
+	return serve.APIRole{DSN: cfg.DSN, MigrateDSN: cfg.MigrateDSN, Server: cfg.API, Migrate: cfg.Migrate, Admission: cfg.Admission, MetricTenants: cfg.MetricTenants, Policies: cfg.Policies}
 }
 
 func relayRole(cfg Config) serve.RelayRole {

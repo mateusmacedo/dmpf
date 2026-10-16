@@ -103,12 +103,13 @@ sem tenant é recusada, e um identificador que existe para outro tenant responde
 
 | Variável | Papel | Efeito |
 | --- | --- | --- |
-| `PG_DSN` | todos | Banco do contexto |
+| `PG_DSN` | todos | Banco `bookings`, como a role de runtime `bookings`, sem posse (ADR-053, ADR-063) |
 | `GRPC_ADDR` | `api` | Default `:9090` |
 | `GRPC_TLS_CERT_FILE`, `GRPC_TLS_KEY_FILE`, `GRPC_CLIENT_CA_FILE`, `GRPC_TRUSTED_CLIENTS` | `api`, com TLS | Certificado do servidor e autenticação do chamador por mTLS (`IDN-03`) |
 | `GRPC_INSECURE` | `api` | `true` dispensa o TLS — só desenvolvimento |
 | `METRIC_TENANTS` | `api` | Tenants com balde de admissão e rótulo próprios (`MET-07`) |
 | `MIGRATE` | `api` | Aplica o schema antes de servir |
+| `PG_MIGRATE_DSN` | `api` | Role migradora `bookings_migrator`, dona do banco, lida só com `MIGRATE`, que a exige: o `api` aplica por ela o schema e os grants da role de runtime e a desconecta antes de servir (ADR-063). Nunca chega a `relay` nem `consumer` |
 | `KAFKA_BROKERS`, `KAFKA_INSECURE` | `relay` | Brokers e opt-out de TLS |
 | `KAFKA_SASL_MECHANISM`, `KAFKA_SASL_USERNAME`, `KAFKA_SASL_PASSWORD` ou `KAFKA_CLIENT_CERT_FILE` + `KAFKA_CLIENT_KEY_FILE` | `relay`, com TLS | Autenticação do cliente no broker, obrigatória sempre que `KAFKA_INSECURE` não está ligado (ADR-052) |
 | `KAFKA_BOOKINGS_TOPIC`, `KAFKA_BOOKINGS_DLQ`, `KAFKA_GROUP` | `relay` | Endereço, contenção e grupo do canal `bookings.events` |
@@ -134,11 +135,12 @@ purga a outbox publicada. As duas purgas param antes de o pool fechar.
 
 ## Rodar localmente
 
-Com o Postgres do compose, onde o `postgres-init` cria o banco e o role
-`bookings` (profile `dmpf`, ver `infra/README.md`):
+Com o Postgres do compose, onde o `postgres-init` cria o banco `bookings`, a
+migradora `bookings_migrator`, dona dele, e a role de runtime `bookings`
+(profile `dmpf`, ver `infra/README.md`):
 
 ```bash
-PG_DSN='postgres://bookings:bookings-local@localhost:5432/bookings?sslmode=disable' MIGRATE=true GRPC_INSECURE=true \
+PG_DSN='postgres://bookings:bookings-local@localhost:5432/bookings?sslmode=disable' GRPC_INSECURE=true \
   pnpm nx run bookings:serve-api
 PG_DSN='postgres://bookings:bookings-local@localhost:5432/bookings?sslmode=disable' KAFKA_BROKERS=localhost:9092 KAFKA_INSECURE=true \
   KAFKA_BOOKINGS_TOPIC=bookings.events KAFKA_BOOKINGS_DLQ=bookings.events.dlq KAFKA_GROUP=bookings \
@@ -153,6 +155,8 @@ A imagem nasce do `Dockerfile` na raiz do repositório:
 `fmt-check`, `vet`, `build`, `test-race`, `test-distributed`, `govulncheck`,
 `serve-api` e `serve-relay`, mais os de container: `docker:build`, `docker:run`
 (papel `api`) e `docker:run-relay`, que o `bff:docker:run` sobe.
+
+O `serve-api` carrega o `deploy/.env.migrator.example` (`MIGRATE=true` e `PG_MIGRATE_DSN`) e, por cima, as cópias locais `deploy/.env` e `deploy/.env.migrator`; o `docker:run` lê as duas cópias, que o `deploy-env` cria a partir dos exemplos quando faltam. Os demais `serve-*` e os `docker:run-*` carregam só o `deploy/.env.example` e a cópia `deploy/.env`, sem a credencial da migradora.
 
 ## Testes
 

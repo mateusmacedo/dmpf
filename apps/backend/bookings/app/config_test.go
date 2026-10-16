@@ -127,3 +127,41 @@ func TestTheIdentityOfTheProcessIsLeftToTheEnvironment(t *testing.T) {
 		t.Fatalf("TelemetryOf() declares version %q and instance %q, want neither: both come from OTEL_RESOURCE_ATTRIBUTES (RF-E3)", telemetry.Version, telemetry.Instance)
 	}
 }
+
+func TestFromEnvHandsTheMigratingDSNToTheAPIOnly(t *testing.T) {
+	const migrator = "postgres://bookings_migrator:secret@db/bookings"
+	api, err := app.FromEnv(app.RoleAPI, lookup("PG_DSN", "postgres://x", "MIGRATE", "true", "PG_MIGRATE_DSN", migrator, "GRPC_INSECURE", "true"))
+	if err != nil {
+		t.Fatalf("FromEnv(api) = %v, want nil", err)
+	}
+	if api.MigrateDSN != migrator {
+		t.Fatalf("FromEnv(api).MigrateDSN = %q, want %q", api.MigrateDSN, migrator)
+	}
+
+	relay, err := app.FromEnv(app.RoleRelay, lookup("PG_DSN", "postgres://x", "MIGRATE", "true", "PG_MIGRATE_DSN", migrator,
+		"KAFKA_BROKERS", "b:9092", "KAFKA_INSECURE", "true", "KAFKA_BOOKINGS_TOPIC", "t", "KAFKA_BOOKINGS_DLQ", "d", "KAFKA_GROUP", "g"))
+	if err != nil {
+		t.Fatalf("FromEnv(relay) = %v, want nil", err)
+	}
+	if relay.MigrateDSN != "" {
+		t.Fatalf("FromEnv(relay).MigrateDSN = %q, want it never read by a role that does not migrate", relay.MigrateDSN)
+	}
+}
+
+func TestTheAPIReadsTheMigratingDSNOnlyWhenItMigrates(t *testing.T) {
+	cfg, err := app.FromEnv(app.RoleAPI, lookup("PG_DSN", "postgres://x", "PG_MIGRATE_DSN", "postgres://bookings_migrator:secret@db/bookings", "GRPC_INSECURE", "true"))
+	if err != nil {
+		t.Fatalf("FromEnv() = %v, want nil", err)
+	}
+	if cfg.MigrateDSN != "" {
+		t.Fatalf("FromEnv().MigrateDSN = %q without MIGRATE, want it left unread", cfg.MigrateDSN)
+	}
+}
+
+func TestTheMigratingAPIRequiresTheMigratingDSN(t *testing.T) {
+	_, err := app.FromEnv(app.RoleAPI, lookup("PG_DSN", "postgres://x", "MIGRATE", "true", "GRPC_INSECURE", "true"))
+
+	if !errors.Is(err, app.ErrMissingVariable) || !strings.Contains(err.Error(), "PG_MIGRATE_DSN") {
+		t.Fatalf("FromEnv() = %v, want the missing PG_MIGRATE_DSN named", err)
+	}
+}
