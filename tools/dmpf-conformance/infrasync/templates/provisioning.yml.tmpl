@@ -89,10 +89,24 @@ services:
         set -eu
         admin="-X admin.hosts=redpanda:9644"
         broker="-X brokers=redpanda:29092"
+        users=http://redpanda:9644/v1/security/users
+        scram() {
+          printf '{"username":"%s","password":"%s","algorithm":"SCRAM-SHA-256"}' "$$2" "$$3" |
+            curl -sS -o /dev/null -w '%{http_code}' -X "$$1" -H 'Content-Type: application/json' --data-binary @- "$$4"
+        }
         create_user() {
+          case $$2 in
+            *[[:cntrl:]]*) echo "redpanda-init: a senha do usuário $$1 tem caractere de controle" >&2; exit 1 ;;
+          esac
           pass=$$(printf '%s' "$$2" | sed 's/["\\]/\\&/g')
-          printf '{"username":"%s","password":"%s","algorithm":"SCRAM-SHA-256"}' "$$1" "$$pass" |
-            curl -fsS -o /dev/null -H 'Content-Type: application/json' --data-binary @- http://redpanda:9644/v1/security/users || true
+          status=$$(scram POST "$$1" "$$pass" "$$users") || status=000
+          if [ "$$status" = 500 ] && rpk security user list $$admin | grep -qx "$$1"; then
+            status=$$(scram PUT "$$1" "$$pass" "$$users/$$1") || status=000
+          fi
+          case $$status in
+            2??) ;;
+            *) echo "redpanda-init: a Admin API recusou o usuário $$1 com status $$status" >&2; exit 1 ;;
+          esac
         }
 {{- range .WithKafka}}
         create_user {{.App}} "$${{.Kafka.PasswordEnv}}"

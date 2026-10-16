@@ -201,6 +201,9 @@ func TestRenderProvisionsEveryDatabaseUserTopicAndACL(t *testing.T) {
 	if strings.Contains(prov, "edge:$") {
 		t.Error("app sem banco nem Kafka entrou no provisionamento")
 	}
+	if got := strings.Count(prov, "|| true"); got != 1 {
+		t.Errorf("provisioning com %d \"|| true\", want só o da criação de tópicos:\n%s", got, prov)
+	}
 }
 
 func TestRenderIssuesACertificatePerGRPCIdentity(t *testing.T) {
