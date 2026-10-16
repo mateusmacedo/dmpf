@@ -187,8 +187,8 @@ func TestRenderProvisionsEveryDatabaseUserTopicAndACL(t *testing.T) {
 	for _, want := range []string{
 		"for pair in alpha:${ALPHA_PG_PASSWORD:-alpha-local}",
 		"beta:${BETA_PG_PASSWORD:-beta-local}",
-		`rpk security user create "$${user%%:*}"`,
-		"alpha:${KAFKA_ALPHA_PASSWORD:-alpha-local}",
+		"      KAFKA_ALPHA_PASSWORD: ${KAFKA_ALPHA_PASSWORD:-alpha-local}\n",
+		`create_user alpha "$$KAFKA_ALPHA_PASSWORD"`,
 		"for user in alpha beta console; do",
 		"${KAFKA_ALPHA_TOPIC:-alpha.events}",
 		"--allow-principal User:beta --operation read,describe",

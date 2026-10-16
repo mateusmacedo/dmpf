@@ -38,6 +38,13 @@ services:
     depends_on:
       redpanda:
         condition: service_healthy
+    environment:
+      RPK_USER: console
+      RPK_PASS: ${KAFKA_CONSOLE_PASSWORD:-console-local}
+      RPK_SASL_MECHANISM: SCRAM-SHA-256
+      KAFKA_ALPHA_PASSWORD: ${KAFKA_ALPHA_PASSWORD:-alpha-local}
+      KAFKA_BETA_PASSWORD: ${KAFKA_BETA_PASSWORD:-beta-local}
+      KAFKA_CONSOLE_PASSWORD: ${KAFKA_CONSOLE_PASSWORD:-console-local}
     entrypoint: ['/bin/sh', '-c']
     # A ligação entre principal e source que o consumer admite é a ACL (ADR-052):
     # cada processo só escreve no próprio tópico e na DLQ que alimenta, e só quem
@@ -49,21 +56,26 @@ services:
       - |
         set -eu
         admin="-X admin.hosts=redpanda:9644"
-        su="-X brokers=redpanda:29092 -X user=console -X pass=${KAFKA_CONSOLE_PASSWORD:-console-local} -X sasl.mechanism=SCRAM-SHA-256"
-        for user in alpha:${KAFKA_ALPHA_PASSWORD:-alpha-local} beta:${KAFKA_BETA_PASSWORD:-beta-local} console:${KAFKA_CONSOLE_PASSWORD:-console-local}; do
-          rpk security user create "$${user%%:*}" -p "$${user#*:}" --mechanism SCRAM-SHA-256 $$admin || true
-        done
+        broker="-X brokers=redpanda:29092"
+        create_user() {
+          pass=$$(printf '%s' "$$2" | sed 's/["\\]/\\&/g')
+          printf '{"username":"%s","password":"%s","algorithm":"SCRAM-SHA-256"}' "$$1" "$$pass" |
+            curl -fsS -o /dev/null -H 'Content-Type: application/json' --data-binary @- http://redpanda:9644/v1/security/users || true
+        }
+        create_user alpha "$$KAFKA_ALPHA_PASSWORD"
+        create_user beta "$$KAFKA_BETA_PASSWORD"
+        create_user console "$$KAFKA_CONSOLE_PASSWORD"
         for user in alpha beta console; do
           rpk security user list $$admin | grep -qw "$$user"
         done
         rpk cluster config set superusers '["console",""]' $$admin
-        rpk topic create ${KAFKA_ALPHA_TOPIC:-alpha.events} ${KAFKA_ALPHA_DLQ:-alpha.events.dlq} ${KAFKA_BETA_TOPIC:-beta.events} $$su -p 1 -r 1 || true
+        rpk topic create ${KAFKA_ALPHA_TOPIC:-alpha.events} ${KAFKA_ALPHA_DLQ:-alpha.events.dlq} ${KAFKA_BETA_TOPIC:-beta.events} $$broker -p 1 -r 1 || true
         for topic in ${KAFKA_ALPHA_TOPIC:-alpha.events} ${KAFKA_ALPHA_DLQ:-alpha.events.dlq} ${KAFKA_BETA_TOPIC:-beta.events}; do
-          rpk topic describe "$$topic" $$su >/dev/null
+          rpk topic describe "$$topic" $$broker >/dev/null
         done
-        rpk security acl create --allow-principal User:alpha --operation write,describe --topic ${KAFKA_ALPHA_TOPIC:-alpha.events} --topic ${KAFKA_ALPHA_DLQ:-alpha.events.dlq} $$su
-        rpk security acl create --allow-principal User:beta --operation write,describe --topic ${KAFKA_BETA_TOPIC:-beta.events} $$su
-        rpk security acl create --allow-principal User:beta --operation read,describe --topic ${KAFKA_ALPHA_TOPIC:-alpha.events} --group ${KAFKA_GROUP:-beta} $$su
+        rpk security acl create --allow-principal User:alpha --operation write,describe --topic ${KAFKA_ALPHA_TOPIC:-alpha.events} --topic ${KAFKA_ALPHA_DLQ:-alpha.events.dlq} $$broker
+        rpk security acl create --allow-principal User:beta --operation write,describe --topic ${KAFKA_BETA_TOPIC:-beta.events} $$broker
+        rpk security acl create --allow-principal User:beta --operation read,describe --topic ${KAFKA_ALPHA_TOPIC:-alpha.events} --group ${KAFKA_GROUP:-beta} $$broker
         rpk cluster config set kafka_enable_authorization true $$admin
     deploy:
       resources:
