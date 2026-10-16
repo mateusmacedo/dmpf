@@ -164,7 +164,7 @@ func TestQuarantineKeepsDistinctEnvelopesAndConsumersApart(t *testing.T) {
 }
 
 func TestMigrateConsolidatesTheQuarantineOfAnOlderSchema(t *testing.T) {
-	pool := openPool(t)
+	pool := openAdminPool(t)
 	ctx := context.Background()
 
 	for _, stmt := range []string{
@@ -200,7 +200,7 @@ func TestMigrateConsolidatesTheQuarantineOfAnOlderSchema(t *testing.T) {
 }
 
 func TestMigrateLeavesTheContainmentsOfAnOlderReplicaAlone(t *testing.T) {
-	pool := openPool(t)
+	pool := openAdminPool(t)
 	ctx := context.Background()
 
 	if err := postgres.NewQuarantine(pool).Quarantine(ctx, ports.Contained{
