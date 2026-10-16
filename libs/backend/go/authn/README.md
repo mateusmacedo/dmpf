@@ -84,9 +84,17 @@ monta.
   por `.`, para que um issuer que namespaceia a claim
   (`https://app.example.com/tenant_id`, padrão do Auth0) não colida com um que
   aninha (`realm_access.roles`, padrão do Keycloak) — testar a travessia
-  primeiro quebraria o primeiro caso. `permissionsFrom` une todas as claims
-  declaradas, aceita as duas formas que um authorization server usa — string
-  separada por espaço (RFC 6749 §3.3) ou array — e devolve o conjunto
+  primeiro quebraria o primeiro caso. O segmento `*` casa exatamente uma chave
+  do objeto naquele nível (zero ou mais de uma deixam a claim ausente) e
+  `stringClaim` aceita também uma lista de um único item. A configuração de
+  referência do Keycloak, com a claim nativa `organization`, é
+  `OIDC_TENANT_CLAIM=organization.*.tenant_id`. Em `OIDC_PERMISSION_CLAIMS`, o
+  `*` lê as roles de qualquer chave que esteja sozinha naquele nível: com
+  `resource_access.*.roles`, um token que traga só as roles do client `account`
+  concede essas roles, e um que traga dois clients não concede nenhuma. Declare
+  o client pelo nome (`resource_access.dmpf-bff.roles`). `permissionsFrom` une todas as
+  claims declaradas, aceita as duas formas que um authorization server usa —
+  string separada por espaço (RFC 6749 §3.3) ou array — e devolve o conjunto
   deduplicado e ordenado.
 
 ## O que o módulo não contém
@@ -100,11 +108,21 @@ identidade de workload entre processos internos (mTLS no gRPC, SASL no Kafka
 
 ## Como rodar os testes localmente
 
-Todos unitários, sem rede: `oidc_test.go` sobe um provider OIDC falso local
-(chaves geradas na suíte, sem depender de um Keycloak real) para exercitar
-`NewVerifier`/`Authenticate`; `identity_test.go` cobre `DevAuthenticator` e
+Os unitários não usam rede: `oidc_test.go` sobe um provider OIDC falso local
+(chaves geradas na suíte) para exercitar `NewVerifier`/`Authenticate`, inclusive
+a claim `organization` nativa; `identity_test.go` cobre `DevAuthenticator` e
 `CredentialFrom`; `claims_test.go` cobre as duas formas de claim (literal e
-aninhada) e as duas formas de permissão (string e array).
+aninhada), o curinga de casamento único, a lista de um item e as duas formas de
+permissão (string e array).
+
+Os de integração (`keycloak_*_integration_test.go`, tag `integration`) rodam
+contra o Keycloak de referência da infra de testes (ADR-064): login real por
+código de autorização com PKCE seguido por HTTP, tenants por scope, recusa de
+direct grant e implicit, segundo fator, back-channel logout e admin events,
+com client e usuário descartáveis por execução onde o teste altera o realm. O
+`test-race` depende de `authn:test-keycloak-up`, que sobe só o Keycloak, e as
+variáveis `KEYCLOAK_*` vêm do `.env.example` da raiz; sem `KEYCLOAK_URL`, a
+suíte pula localmente e falha no CI.
 
 ```bash
 pnpm nx run authn:test-race

@@ -13,8 +13,12 @@ resources:
   - ../../base/postgres
   - ../../base/redpanda
   - ../../../observability
+  - ../../../keycloak
   - apps
   - databases
+
+components:
+  - ../../../keycloak/dev
 
 secretGenerator:
   - name: grafana-admin

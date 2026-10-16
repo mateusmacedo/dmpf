@@ -1,0 +1,60 @@
+# Keycloak de referência (ADR-064), fora de all e dmpf: o teto de memória dele
+# estouraria o infra-budget. O alias keycloak.localhost dá o mesmo issuer no host,
+# onde o nome resolve para loopback, e nos containers do projeto.
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.8.1@sha256:79c623a22abacf3fe6c00a5fb30f5b7843d717b234033b80995891c06116d244
+    profiles: [keycloak]
+    command:
+      ['start', '--http-enabled=true', '--health-enabled=true', '--cache=local', '--db=dev-file', '--import-realm']
+    environment:
+      KC_HOSTNAME: http://keycloak.localhost:${KEYCLOAK_PORT:-8180}
+      KC_HTTP_PORT: ${KEYCLOAK_PORT:-8180}
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USER:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      DMPF_SESSION_EVENTS_SECRET: ${KEYCLOAK_SESSION_EVENTS_SECRET:-dmpf-dev-session-events}
+      DMPF_BACKCHANNEL_LOGOUT_URL: ${KEYCLOAK_BACKCHANNEL_LOGOUT_URL:-}
+    ports:
+      - '127.0.0.1:${KEYCLOAK_PORT:-8180}:${KEYCLOAK_PORT:-8180}'
+    networks:
+      default:
+        aliases: [keycloak.localhost]
+    volumes:
+      - keycloak-data:/opt/keycloak/data
+      - ../../keycloak/dmpf-realm.json:/opt/keycloak/data/import/dmpf-realm.json:ro
+    healthcheck:
+      test:
+        - CMD
+        - bash
+        - -c
+        - '{ printf "HEAD /health/ready HTTP/1.0\r\n\r\n" >&0; grep -q "HTTP/1.0 200"; } 0<>/dev/tcp/localhost/9000'
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+    deploy:
+      resources:
+        limits: { cpus: '1.00', memory: 1024M }
+        reservations: { cpus: '0.10', memory: 512M }
+
+  keycloak-init:
+    image: quay.io/keycloak/keycloak:26.8.1@sha256:79c623a22abacf3fe6c00a5fb30f5b7843d717b234033b80995891c06116d244
+    profiles: [keycloak]
+    entrypoint: ['bash', '/seed/seed.sh']
+    environment:
+      KEYCLOAK_URL: http://keycloak.localhost:${KEYCLOAK_PORT:-8180}
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USER:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+    volumes:
+      - ../../keycloak/dev/seed.sh:/seed/seed.sh:ro
+    depends_on:
+      keycloak:
+        condition: service_healthy
+    restart: 'no'
+    deploy:
+      resources:
+        limits: { cpus: '0.50', memory: 256M }
+        reservations: { cpus: '0.05', memory: 64M }
+
+volumes:
+  keycloak-data:

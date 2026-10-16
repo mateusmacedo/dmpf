@@ -63,6 +63,27 @@ Pelo Nx: `infra-up` (Postgres, Redpanda e floci), `observability-up` (plataforma
 
 O profile `load` tem só o gerador de carga k6 (`compose/k6.yml`), fora de `all` e `dmpf` e, por isso, fora do `infra-budget`. Ele roda pelos targets do projeto `load` (`pnpm nx run load:<perfil>`) com a topologia `dmpf` já no ar; ver `apps/backend/load/README.md`.
 
+### Keycloak de referência (profile `keycloak`)
+
+O profile `keycloak` (`compose/keycloak.yml`, ADR-064) sobe o Keycloak 26.8.1 oficial com o realm `dmpf` importado de `infra/keycloak/dmpf-realm.json` e, em seguida, o `keycloak-init`, que semeia os dados de teste com `infra/keycloak/dev/seed.sh`: as organizações `acme` e `globex` (atributo `tenant_id` `t-acme` e `t-globex`) e os usuários `alice` (só `acme`), `bob` (as duas), `carol` (nenhuma) e `dave` (só `acme`, com a role `mfa-required` e OTP), todos com a senha `dmpf-dev-password`. O profile fica fora de `all` e `dmpf`, e por isso fora do `infra-budget`: o teto de 1 GiB do Keycloak não cabe na soma.
+
+```bash
+docker compose -f infra/local/docker-compose.yml --profile keycloak up -d
+```
+
+O issuer é `http://keycloak.localhost:8180/realms/dmpf`, o mesmo no host, onde `keycloak.localhost` resolve para loopback, e nos containers do projeto, pelo alias de rede do serviço. A configuração de referência do `authn` é `OIDC_ISSUER` com esse valor, `OIDC_AUDIENCE=dmpf-bff` e `OIDC_TENANT_CLAIM=organization.*.tenant_id`, com `OIDC_PERMISSION_CLAIMS` no padrão. O console administrativo fica em `http://keycloak.localhost:8180/admin` (`KEYCLOAK_ADMIN_USER`/`KEYCLOAK_ADMIN_PASSWORD`, padrão `admin`/`admin`).
+
+O import pula o realm que já existe, então uma mudança no arquivo só chega a quem recria o armazenamento:
+
+| Ambiente | Como aplicar o realm novo |
+| --- | --- |
+| Compose local | `docker compose -f infra/local/docker-compose.yml --profile keycloak down -v` e subir de novo |
+| Infra de testes | `pnpm nx run testkit:test-infra-down` e `pnpm nx run authn:test-keycloak-up` (o realm vive em tmpfs) |
+| Overlay `dev` | escalar o Deployment `keycloak` para 0, apagar o PVC `keycloak-data` e o Job `keycloak-seed` (concluído, ele não roda de novo) e reaplicar o overlay |
+| Overlay `hmg` | `kc.sh import --override true` com o servidor parado; os dados de teste nunca chegam lá |
+
+No Kubernetes, `infra/keycloak/` é a base (Postgres pelo Secret `keycloak-db`) e `infra/keycloak/dev/` é o Component do overlay `dev`, que troca o banco por `dev-file` em PVC, define `KC_HOSTNAME=http://keycloak:8080` e acrescenta o Job do seed. O `hmg` recebe de fora os Secrets `keycloak-admin`, `keycloak-db` e `keycloak-session-events` e o ConfigMap `keycloak-hostname`, com o endereço público que vira o issuer (`overlays/hmg/secrets.example.yaml.tmpl`); sem eles o pod fica em `CreateContainerConfigError`.
+
 O `deploy/compose.yml` de cada app não roda sozinho: ele estende os serviços-base de `compose/app-base.yml` e depende de serviços definidos em outros arquivos (`pki-init`, `postgres-init`, `otel-collector` e o `api` dos contextos que chama). Suba-o sempre pelo `include` de `infra/local/docker-compose.yml`.
 
 ### Bancos por app
@@ -75,7 +96,7 @@ O servidor Postgres tem um usuário só administrativo (`POSTGRES_USER`, padrão
 | `reservations` | `postgres://reservations:${RESERVATIONS_PG_PASSWORD:-reservations-local}@postgres:5432/reservations` |
 | `bookings` | `postgres://bookings:${BOOKINGS_PG_PASSWORD:-bookings-local}@postgres:5432/bookings` |
 
-Os testes de integração não usam esta infra. Eles rodam na infra de testes (`infra/test/compose.yml`, `pnpm nx run testkit:test-infra-up`), com Postgres, Redpanda e floci em tmpfs nas portas 15432, 19092, 19093 e 14566; o `.env.example` da raiz aponta para ela, e cada teste ganha um banco `<projeto>_test_<id>`, apagado ao fim. O `tb/pg` recusa qualquer servidor cujo `cluster_name` não seja `test`, então um teste nunca escreve na infra de runtime local.
+Os testes de integração não usam esta infra. Eles rodam na infra de testes (`infra/test/compose.yml`, `pnpm nx run testkit:test-infra-up`), com Postgres, Redpanda e floci em tmpfs nas portas 15432, 19092, 19093 e 14566 — o Keycloak (18180, profile `keycloak`) sobe à parte, pelo `pnpm nx run authn:test-keycloak-up`, de que só o teste do `authn` depende; o `.env.example` da raiz aponta para ela, e cada teste ganha um banco `<projeto>_test_<id>`, apagado ao fim. O `tb/pg` recusa qualquer servidor cujo `cluster_name` não seja `test`, então um teste nunca escreve na infra de runtime local.
 
 Não há migração a partir do layout antigo (banco `app` compartilhado e bancos e tabelas com o prefixo `dmpf`). Um volume criado antes precisa ser recriado, e o do PKI também, porque o `pki-init` só emite certificados na primeira subida:
 
@@ -108,6 +129,7 @@ A infraestrutura publica em `127.0.0.1`: os endereços valem no WSL (`localhost`
 | Redis | 6379 | cache |
 | Redpanda | 9092 / 9644 | Kafka (listener externo, sem autenticação, só para o host) · admin e métricas Prometheus |
 | floci | 4566 | SQS e SNS |
+| Keycloak | 8180 | IdP de referência, realm `dmpf` (profile `keycloak`), pelo nome `keycloak.localhost` |
 | cAdvisor | 8081 | métricas de container (8080 é do BFF) |
 | postgres-exporter | 9187 | métricas do Postgres |
 | redis-exporter | 9121 | métricas do Redis |
