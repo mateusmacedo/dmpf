@@ -30,13 +30,24 @@ preset focado em framework (nest, next, angular).
 | `project.json` externos (não inline)              | Melhor para generators automatizados e diffs legíveis                                       |
 | `@nx/docker` no nx.json                           | Targets docker:build e docker:run disponíveis para qualquer app Node                        |
 
+## Alternativas descartadas
+
+| Alternativa | Por que foi rejeitada |
+| --- | --- |
+| Herdar as convenções de um preset focado em framework (nest, next, angular) | O `preset=ts` tem menor acoplamento inicial e gera o tsconfig correto de início (tabela de fundamentos da Decisão). É a única alternativa que o texto original menciona |
+
 ## Consequências
 
-- Cada nova stack adicionada deve seguir o roadmap de fases documentado
-- `emitDecoratorMetadata` e `experimentalDecorators` são responsabilidade de cada app NestJS
-- Angular e Next.js entram na Fase 2 (após validação das stacks Node)
+**Positivas:**
+
 - Todos os projetos nascem com tags obrigatórias (type, scope, stack)
 - ESLint com module boundaries é enforced em CI desde o primeiro commit
+
+**Negativas:**
+
+- Cada nova stack adicionada deve seguir o roadmap de fases documentado
+- **Custo aceito:** `emitDecoratorMetadata` e `experimentalDecorators` são responsabilidade de cada app NestJS
+- Angular e Next.js entram na Fase 2 (após validação das stacks Node)
 
 ## Addendum — 2026-07-30
 

@@ -90,7 +90,7 @@ instalado, e reescreveria histórico publicado.
 
 Os demais itens da matriz do ADR-006 não são afetados.
 
-## Alternativas consideradas
+## Alternativas descartadas
 
 | Alternativa | Por que foi rejeitada |
 | --- | --- |
@@ -102,9 +102,16 @@ Os demais itens da matriz do ADR-006 não são afetados.
 
 ## Consequências
 
+**Positivas:**
+
 - Quem adota o template recebe estrutura e tooling, sem nenhuma biblioteca a
   avaliar ou apagar. `pnpm nx show projects` retorna apenas
   `@mateusmacedo/dmpf-source`.
+- Some o débito conhecido que o `docs/nx-reference/tasks.md` carregava sobre a
+  coleção não resolvível.
+
+**Negativas:**
+
 - O pipeline de release fica ocioso até a primeira lib do consumidor, graças ao
   guard. Um `nx release` chamado à mão nesse intervalo continua abortando com
   exit 1 — quem o invocar fora do workflow precisa saber disso.
@@ -112,12 +119,10 @@ Os demais itens da matriz do ADR-006 não são afetados.
   workspace deixa de ter generator próprio, e `tools/generators/` volta a ser um
   ponto de extensão vazio: quem precisar de um registra a coleção em
   `nx.generators` do `package.json`.
-- Some o débito conhecido que o `docs/nx-reference/tasks.md` carregava sobre a
-  coleção não resolvível.
 - Exemplos de comando e de escopo de commit na documentação passam a usar nomes
   genéricos (`minha-lib`), já que não há projeto real a citar.
-- As versões publicadas no Verdaccio continuam instaláveis, mas deixam de
-  receber novas versões a partir deste repositório.
+- **Custo aceito:** As versões publicadas no Verdaccio continuam instaláveis,
+  mas deixam de receber novas versões a partir deste repositório.
 
 ## Referências
 

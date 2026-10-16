@@ -32,24 +32,31 @@ A mecânica adotada é a que o repositório `golibs` da organização já usa: v
 
 ## Alternativas descartadas
 
-- **Um release group por lib, com padrão literal em cada.** Era a escolha original, necessária apenas enquanto o nome do projeto divergia do diretório. O ADR-045 alinhou os dois e um grupo único com `directory:` passou a bastar.
-- **Renomear `tools/dmpf-conformance` para `tools/conformance`**, casando `{projectName}` e dispensando o grupo `go-tools`. O module path é chave canônica e estável pela RFC, e o ADR-046 já o regravou uma vez.
-- **`VersionActions` Go próprio** (ou `@naxodev/gonx`, ou um script pós-`nx release`) para escrever a versão no `go.mod`. Código a mais sem ganho: o `package.json` privado permanece e é dele que o Nx lê a versão corrente.
-- **`replace` relativo no `go.mod` com `tidy-check` sob `GOWORK=off`.** Foi o desenho do spike; publica um `go.mod` que só compila dentro do repositório.
-- **Reescrever os `require` a cada release.** Manteria os irmãos sempre na última versão, ao custo de um `VersionActions` próprio. Os `require` ficam na versão mínima, como no `golibs`.
-- **`DMPF-B012` retroativo.** Reprovaria o BOM `0.1.0`, cujo kernel está em `0.0.0` e sem tag, e que é registro imutável de `8e171d31`.
-- **Manter o rito manual da tag do produto, com gate só no `dmpf-bom`.** Deixa um passo humano entre a validação e a tag.
+| Alternativa | Por que foi rejeitada |
+| ----------- | --------------------- |
+| Um release group por lib, com padrão literal em cada | Era a escolha original, necessária apenas enquanto o nome do projeto divergia do diretório. O ADR-045 alinhou os dois e um grupo único com `directory:` passou a bastar |
+| Renomear `tools/dmpf-conformance` para `tools/conformance`, casando `{projectName}` e dispensando o grupo `go-tools` | O module path é chave canônica e estável pela RFC, e o ADR-046 já o regravou uma vez |
+| `VersionActions` Go próprio (ou `@naxodev/gonx`, ou um script pós-`nx release`) para escrever a versão no `go.mod` | Código a mais sem ganho: o `package.json` privado permanece e é dele que o Nx lê a versão corrente |
+| `replace` relativo no `go.mod` com `tidy-check` sob `GOWORK=off` | Foi o desenho do spike; publica um `go.mod` que só compila dentro do repositório |
+| Reescrever os `require` a cada release | Manteria os irmãos sempre na última versão, ao custo de um `VersionActions` próprio. Os `require` ficam na versão mínima, como no `golibs` |
+| `DMPF-B012` retroativo | Reprovaria o BOM `0.1.0`, cujo kernel está em `0.0.0` e sem tag, e que é registro imutável de `8e171d31` |
+| Manter o rito manual da tag do produto, com gate só no `dmpf-bom` | Deixa um passo humano entre a validação e a tag |
 
 ## Consequências
+
+**Positivas:**
 
 - `release.docker` saiu da raiz do `nx.json`. Na raiz, a config de Docker alcança **todo** release group e o Nx força `releaseTag.requireSemver = false` por atribuição direta; com isso `extractTagAndVersion` leria `domain` como versão de `libs/backend/go/domain/v0.1.0`. O defeito era pré-existente e nunca apareceu porque não houve segunda release de lib. Quando existir app não-Go, ela declara `docker` no próprio grupo.
 - `nx-release.yml` detecta a primeira release por família — a tag `dmpf@0.1.0` casava o glob `*@*` e teria impedido `--first-release` na estreia das libs — e empurra só o delta de tags da execução, com guarda que aborta se uma `dmpf@*` aparecer no delta.
 - `nx-publish-libs.yml` dispara em `["**@*", "!dmpf@*"]`: as tags de módulo Go não casam `**@*` e por construção nunca acionam a publicação npm.
-- Um módulo que passe a usar API nova de um irmão sem subir o `require` compila dentro do workspace e entrega ao consumidor externo a versão antiga. Mitigação de processo: subir o `require` no mesmo PR.
-- A estreia de cada família leva a versão explícita `0.1.0` no `nx-release.yml`, porque sem tag o resolver cai no fallback `disk` (`0.0.0` do `package.json`) e o specifier de conventional commits decidiria por projeto. A guarda é **por família, não por projeto**: um módulo que nasça depois, já com a família tagueada, entra pela resolução automática a partir de `0.0.0` e pode estrear fora da numeração dos irmãos (`0.0.1`, se o primeiro commit for `fix`). Quem criar um módulo nessas condições ajusta a versão no `package.json` antes da release.
 - O grupo `go-libs` seleciona `directory:libs/backend/go/*` **menos** `tag:type:app`. O seletor de diretório não filtra por tag, e `--directory` do generator não recusa `libs/backend/go`: sem a exclusão, um bounded context criado fora da convenção do ADR-046 seria versionado como lib do kernel. Hoje a exclusão é inócua — os 14 módulos do kernel não são `type:app`.
 - `dmpf@0.2.0` é o primeiro BOM sob o `DMPF-B012`; `bom/dmpf/0.1.0.json` e a sua evidência permanecem como estão.
-- Criar um bounded context passa a executar um `go run` ao final do generator. O comando falhando derruba o `nx g` — fail-closed, deliberado.
+
+**Negativas:**
+
+- Um módulo que passe a usar API nova de um irmão sem subir o `require` compila dentro do workspace e entrega ao consumidor externo a versão antiga. Mitigação de processo: subir o `require` no mesmo PR.
+- A estreia de cada família leva a versão explícita `0.1.0` no `nx-release.yml`, porque sem tag o resolver cai no fallback `disk` (`0.0.0` do `package.json`) e o specifier de conventional commits decidiria por projeto. A guarda é **por família, não por projeto**: um módulo que nasça depois, já com a família tagueada, entra pela resolução automática a partir de `0.0.0` e pode estrear fora da numeração dos irmãos (`0.0.1`, se o primeiro commit for `fix`). Quem criar um módulo nessas condições ajusta a versão no `package.json` antes da release.
+- **Custo aceito:** Criar um bounded context passa a executar um `go run` ao final do generator. O comando falhando derruba o `nx g` — fail-closed, deliberado.
 
 ## Referências
 

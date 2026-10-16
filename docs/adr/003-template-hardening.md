@@ -36,13 +36,26 @@ monorepo de referência `jusdocs`.
 - **Infra Docker**: `.dockerignore`, um `Dockerfile` de referência e um
   `docker-compose.yml` de dev local (Postgres + Redis, por profile).
 
+## Alternativas descartadas
+
+As alternativas consideradas não foram registradas quando a decisão foi tomada.
+
+| Alternativa | Por que foi rejeitada |
+| --- | --- |
+| Nenhuma registrada | O ADR original não preservou alternativa nem motivo de rejeição |
+
 ## Consequências
+
+**Positivas:**
 
 - Dependências passam a ser atualizadas automaticamente (Renovate) e versionadas
   em um único ponto (catalog), reduzindo drift entre projetos.
-- `pnpm-workspace.yaml` e `pnpm-lock.yaml` entraram em `sharedGlobals` do
-  `nx.json`: mudanças de dependências invalidam o cache de todos os projetos —
-  comportamento correto, com custo de cache explícito.
+
+**Negativas:**
+
+- **Custo aceito:** `pnpm-workspace.yaml` e `pnpm-lock.yaml` entraram em
+  `sharedGlobals` do `nx.json`: mudanças de dependências invalidam o cache de
+  todos os projetos — comportamento correto, com custo de cache explícito.
 - Os workflows reativados assumem runner self-hosted e organização específica;
   consumidores do template precisam ajustar runner, registry e branch model.
 - Itens deixados como follow-up (escoteiros): hardening de flags do tsconfig/biome,

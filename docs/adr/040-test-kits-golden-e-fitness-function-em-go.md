@@ -142,32 +142,18 @@ falham.
 
 ## Alternativas descartadas
 
-- **Um módulo por camada** (`testkit-domain`, …): cinco `go.mod` sem
-  ganho sobre a unidade por package.
-- **Kits recebendo `*testing.T`**: amarraria o contrato ao framework e violaria
-  a capability de `domain` e `contract`.
-- **Invocar o binário do verificador por subprocesso**: não reusa `decide` nem
-  os tipos, e exige `--base` — o gate e a fitness function têm contratos
-  diferentes.
-- **Fundar o primeiro projeto TypeScript aqui**: o ticket o exclui, e um
-  consumidor TS de fixture sem kernel TS seria código sem dono.
-- **Duas goroutines com clientes Kafka distintos** no lugar de dois processos:
-  compartilham memória e não provam o que `V32` prova.
-- **floci/SQS como broker do `KIT-06`**: a reentrega em SQS depende do timeout
-  de visibilidade e tornaria o harness lento e dependente de relógio.
-- **Um target por camada** (`test-domain`, …): duplicaria `test-race` em todos
-  os módulos.
-- **Exceções declaradas no vetor `V29`/`V30`** para as unidades do verificador
-  que reprovaram: registraria a violação em vez de repará-la pelo `PIR-17`.
-- **Estender a varredura de `V31` a `docs/`**: cada menção ao termo no acervo e
-  nos ADRs é uma negação em prosa livre («não entrega exactly-once», «nada aqui
-  declara ou sugere…»), e uma varredura por expressão regular sobre prosa
-  viraria uma lista de exceções sem fim. `RAS-12` nomeia contratos, READMEs e
-  configuração, e é isso que a varredura cobre.
-- **Um package de apoio para os helpers de teste do verificador** (`codigos`,
-  `exigeCodigos`, duplicados entre `rule_test` e `conformance_test`): seria uma
-  unidade do universo com bloco e baseline próprios, só para dois helpers de
-  quinze linhas. A duplicação fica, declarada.
+| Alternativa | Por que foi rejeitada |
+| ----------- | --------------------- |
+| Um módulo por camada (`testkit-domain`, …) | Cinco `go.mod` sem ganho sobre a unidade por package |
+| Kits recebendo `*testing.T` | Amarraria o contrato ao framework e violaria a capability de `domain` e `contract` |
+| Invocar o binário do verificador por subprocesso | Não reusa `decide` nem os tipos, e exige `--base` — o gate e a fitness function têm contratos diferentes |
+| Fundar o primeiro projeto TypeScript aqui | O ticket o exclui, e um consumidor TS de fixture sem kernel TS seria código sem dono |
+| Duas goroutines com clientes Kafka distintos no lugar de dois processos | Compartilham memória e não provam o que `V32` prova |
+| floci/SQS como broker do `KIT-06` | A reentrega em SQS depende do timeout de visibilidade e tornaria o harness lento e dependente de relógio |
+| Um target por camada (`test-domain`, …) | Duplicaria `test-race` em todos os módulos |
+| Exceções declaradas no vetor `V29`/`V30` para as unidades do verificador que reprovaram | Registraria a violação em vez de repará-la pelo `PIR-17` |
+| Estender a varredura de `V31` a `docs/` | Cada menção ao termo no acervo e nos ADRs é uma negação em prosa livre («não entrega exactly-once», «nada aqui declara ou sugere…»), e uma varredura por expressão regular sobre prosa viraria uma lista de exceções sem fim. `RAS-12` nomeia contratos, READMEs e configuração, e é isso que a varredura cobre |
+| Um package de apoio para os helpers de teste do verificador (`codigos`, `exigeCodigos`, duplicados entre `rule_test` e `conformance_test`) | Seria uma unidade do universo com bloco e baseline próprios, só para dois helpers de quinze linhas. A duplicação fica, declarada |
 
 ## Consequências
 

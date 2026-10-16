@@ -139,14 +139,28 @@ da realidade medida deste workspace:
   agentes e cita `agents/architecture.md`, arquivo que não existe nem lá nem aqui.
 - `docs/adr/005-plataforma-gitea.md` e este ADR-006.
 
+## Alternativas descartadas
+
+| Alternativa | Por que foi rejeitada |
+| --- | --- |
+| Prevalência literal e irrestrita da origem | Causaria regressão objetiva: downgrade de `nx` 23.1.0 para 22.7.5, desmonte do `catalog:` do pnpm e perda do generator local |
+
 ## Consequências
+
+**Positivas:**
 
 - Projetos gerados deste template herdam as correções de tooling, segurança e CI
   já validadas em produção no repositório derivado.
-- A regra de desempate fica registrada para o próximo port entre estes dois
-  repositórios: quem for aplicar deve reavaliar as 12 exceções, porque algumas
-  deixam de valer quando a origem atualizar (o item 1, por exemplo, cai no dia em
-  que a origem passar de 23.1.0).
+- Nenhuma infraestrutura real foi importada: identificador de conta de nuvem, path
+  de parâmetro, nome de secret de produção, namespace e URL interna foram medidos
+  como ausentes (contagem zero) nos arquivos aplicados.
+
+**Negativas:**
+
+- **Custo aceito:** A regra de desempate fica registrada para o próximo port entre
+  estes dois repositórios: quem for aplicar deve reavaliar as 12 exceções, porque
+  algumas deixam de valer quando a origem atualizar (o item 1, por exemplo, cai no
+  dia em que a origem passar de 23.1.0).
 - O gate de generalização por denylist tem dois falsos-positivos conhecidos, ambos
   verificados linha a linha:
   1. O **arquivo da spec** contém o nome do repositório de origem no próprio nome
@@ -157,9 +171,6 @@ da realidade medida deste workspace:
   2. `JWT_SECRET` aparece em 4 exemplos didáticos de tipagem de variável de
      ambiente sob `.claude/skills/**/references/` — nome genérico de configuração,
      não o segredo da origem.
-- Nenhuma infraestrutura real foi importada: identificador de conta de nuvem, path
-  de parâmetro, nome de secret de produção, namespace e URL interna foram medidos
-  como ausentes (contagem zero) nos arquivos aplicados.
 
 ## Referências
 

@@ -1,4 +1,4 @@
-# ADR-051: O escopo de tenant é imposto por choke point em Go, e não por RLS
+# ADR-051: Impor o escopo de tenant por choke point em Go, e não por RLS
 
 ## Status
 
@@ -45,6 +45,6 @@ O Postgres ignora RLS incondicionalmente para superuser, e `FORCE ROW LEVEL SECU
 **Negativas:**
 
 - O `Table` cobre um filtro por coluna de uma tabela. Junção, agregação ou SQL mais amplo exige estender o kernel, nunca reabrir o driver no contexto.
-- A sonda do acesso cruzado custa uma consulta extra em toda falta de linha, servida por índice pelo identificador em cada tabela de agregado.
+- **Custo aceito:** A sonda do acesso cruzado custa uma consulta extra em toda falta de linha, servida por índice pelo identificador em cada tabela de agregado.
 
 **O híbrido continua disponível.** Quando existir um role de aplicação que não seja superuser nem dono das tabelas, RLS pode ser somada ao choke point como segunda camada, sem substituí-lo: o choke point segue sendo o que torna o isolamento independente de convenção no código.

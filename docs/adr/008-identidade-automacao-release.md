@@ -127,7 +127,7 @@ ADR-004).
 
 **Negativas:**
 
-- **As proteções que valiam para pessoas saíram junto.** `master` deixa de
+- **Custo aceito:** **As proteções que valiam para pessoas saíram junto.** `master` deixa de
   exigir os dois approvals e passa a aceitar push direto de qualquer
   colaborador com acesso de escrita; qualquer tag pode ser criada ou removida
   sem restrição. O fluxo git-flow do `AGENTS.md` e o gate de revisão passam a

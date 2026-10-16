@@ -88,6 +88,13 @@ ao final um bloco `## Addendum — AAAA-MM-DD`. Ele preserva o status e a
 narrativa originais e apenas registra o estado novo — ver o addendum do
 ADR-001.
 
+Quando o ADR acumula mais de um addendum, agrupe-os sob um único
+`## Addendum — revisões datadas`, última seção do arquivo e posterior a
+`## Referências`, e abra cada revisão como `### Addendum — AAAA-MM-DD`, em ordem
+cronológica — ver o ADR-038 e o ADR-041. O verificador (`tools/adr-verify.mjs`,
+checagem A4) admite um só heading `## Addendum` e exige que ele venha depois de
+todas as seções.
+
 ## Decisões registradas
 
 Duas séries convivem no mesmo índice: os ADRs `001`–`009` vêm do template do

@@ -1,4 +1,4 @@
-# ADR-053: Cada contexto tem banco próprio, com nomes canônicos, e os três contextos seguem uma forma única
+# ADR-053: Dar banco próprio a cada contexto, com nomes canônicos, e uma forma única aos três contextos
 
 ## Status
 
@@ -57,7 +57,7 @@ Os três contextos (`orders`, `reservations` e `bookings`) evoluíram em momento
 **Negativas:**
 
 - Cada ambiente precisa de um role e de um banco por app, criados antes da primeira partida.
-- A recriação dos bancos apaga os dados existentes; qualquer ambiente com dado real exigirá migração própria.
+- **Custo aceito:** A recriação dos bancos apaga os dados existentes; qualquer ambiente com dado real exigirá migração própria.
 - Quem tinha `DMPF_*` em `.env`, Secret ou ConfigMap precisa renomear as variáveis.
 - `contracts:buf-breaking` depende da tag `contracts-baseline/proto`, ainda ausente no remoto; até ela existir, a verificação de quebra de contrato é feita manualmente contra `develop`.
 

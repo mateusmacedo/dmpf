@@ -53,15 +53,28 @@ execução real — um defeito latente, porque o workflow só roda por
 | "Runner `gitea-runner` [...] não implica API Gitea nem troca de host GitHub" | Substituído: o host sempre foi Gitea |
 | "Manter no template: [...] `create-release.yml` via `gh`" | Substituído: `gh` sai do workflow |
 
+## Alternativas descartadas
+
+| Alternativa | Por que foi rejeitada |
+| --- | --- |
+| Manter o `gh pr create` no `create-release.yml`, como o ADR-004 mandava | O binário `gh` fala o protocolo da API do GitHub e não opera contra um servidor Gitea. O passo "Open pull request" falharia em execução real |
+
 ## Consequências
+
+**Positivas:**
 
 - O `create-release.yml` deixa de depender do `gh` estar instalado no runner e
   passa a depender de `jq` e `curl`, ambos presentes nas imagens usadas pelo
   `act_runner`.
-- O escopo do token continua sendo a variável de risco: `secrets.GITHUB_TOKEN`
-  precisa permitir a criação de pull request no repositório. Isso só se confirma
-  em execução real do workflow — a decisão assume o contrato documentado da API
-  do Gitea, não uma execução observada.
+- Projetos gerados a partir deste template herdam a automação já compatível com
+  a plataforma real da organização.
+
+**Negativas:**
+
+- **Custo aceito:** O escopo do token continua sendo a variável de risco:
+  `secrets.GITHUB_TOKEN` precisa permitir a criação de pull request no
+  repositório. Isso só se confirma em execução real do workflow — a decisão assume
+  o contrato documentado da API do Gitea, não uma execução observada.
 - Ficam registradas duas inconsistências remanescentes com a plataforma, ambas
   fora do escopo desta entrega e candidatas a um follow-up próprio:
   - `nx.json` define `release.changelog.projectChangelogs.createRelease:
@@ -69,8 +82,6 @@ execução real — um defeito latente, porque o workflow só roda por
   - `nx.json` define `release.docker.registryUrl: "ghcr.io"` e o
     `release.yml` faz login nesse mesmo registry, enquanto o Gitea oferece
     registry de contêiner próprio.
-- Projetos gerados a partir deste template herdam a automação já compatível com
-  a plataforma real da organização.
 
 ## Referências
 
