@@ -270,7 +270,7 @@ portal ──código + PKCE──> Keycloak (realm dmpf, Organizations)
 - [x] O arquivo do realm de base não tem usuário de pessoa (só a service account do `dmpf-session-events`), organização nem segredo literal, e a saída de `kubectl kustomize infra/k8s/overlays/hmg` não contém `alice`, `bob`, `carol` nem `dave`.
 - [x] O seed roda de novo sem erro e converge depois de um vínculo de organização e da credencial OTP de `dave` serem removidos.
 - [x] `pnpm nx g @mateusmacedo/dmpf-plugin:init --dry-run --no-interactive` não propõe CREATE, UPDATE nem DELETE; `bash tools/infra-budget.sh` passa; `kubectl kustomize infra/k8s/overlays/dev` e `.../hmg` renderizam.
-- [ ] O CI deste repositório roda o teste de integração do `authn` contra o Keycloak com o input `keycloak` ligado, e o `dmpf-go-ci.yml` chamado sem o input não sobe o Keycloak.
+- [x] O CI deste repositório roda o teste de integração do `authn` contra o Keycloak com o input `keycloak` ligado, e o `dmpf-go-ci.yml` chamado sem o input não sobe o Keycloak.
 
 ### Cenários de teste
 
