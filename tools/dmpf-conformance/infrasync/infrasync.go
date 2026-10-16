@@ -20,8 +20,12 @@ import (
 )
 
 const (
-	schema      = "dmpf/infra@1"
-	platformEnv = "infra/local/env.platform.example"
+	schema         = "dmpf/infra@1"
+	platformEnv    = "infra/local/env.platform.example"
+	migratorSuffix = "_migrator"
+	migratorSecret = "-migrator"
+	// WHY: Postgres trunca em silêncio o identificador acima de NAMEDATALEN-1 bytes.
+	maxIdentifier = 63
 )
 
 var (
@@ -49,6 +53,13 @@ type Setting struct {
 }
 
 type Database struct {
+	PasswordEnv string    `json:"passwordEnv"`
+	Local       string    `json:"local"`
+	Dev         string    `json:"dev"`
+	Migrator    *Migrator `json:"migrator,omitempty"`
+}
+
+type Migrator struct {
 	PasswordEnv string `json:"passwordEnv"`
 	Local       string `json:"local"`
 	Dev         string `json:"dev"`
@@ -147,6 +158,9 @@ func read(path string) (Manifest, error) {
 	if d := m.Database; d != nil && (d.PasswordEnv == "" || d.Local == "" || d.Dev == "") {
 		problems = append(problems, "database exige passwordEnv, local e dev")
 	}
+	if d := m.Database; d != nil && d.Migrator != nil {
+		problems = append(problems, migratorProblems(m.App, d)...)
+	}
 	if k := m.Kafka; k != nil {
 		if k.PasswordEnv == "" || k.Local == "" {
 			problems = append(problems, "kafka exige passwordEnv e local")
@@ -175,6 +189,24 @@ func read(path string) (Manifest, error) {
 	return m, nil
 }
 
+func migratorProblems(app string, d *Database) []string {
+	var problems []string
+	mg := d.Migrator
+	if mg.PasswordEnv == "" || mg.Local == "" || mg.Dev == "" {
+		problems = append(problems, "database.migrator exige passwordEnv, local e dev")
+	}
+	if mg.Local != "" && mg.Local == d.Local {
+		problems = append(problems, "database.migrator.local igual a database.local")
+	}
+	if mg.Dev != "" && mg.Dev == d.Dev {
+		problems = append(problems, "database.migrator.dev igual a database.dev")
+	}
+	if len(app)+len(migratorSuffix) > maxIdentifier {
+		problems = append(problems, fmt.Sprintf("app %q com database.migrator passa de %d bytes: a role %s%s passaria de %d", app, maxIdentifier-len(migratorSuffix), app, migratorSuffix, maxIdentifier))
+	}
+	return problems
+}
+
 // formatProblems recusa o valor que sairia do seu lugar nos arquivos gerados, onde
 // ele entra sem escape em shell, SQL, YAML e comandos do rpk.
 func formatProblems(m Manifest) []string {
@@ -195,6 +227,11 @@ func formatProblems(m Manifest) []string {
 		check("database.passwordEnv", d.PasswordEnv, envNamePattern, false)
 		check("database.local", d.Local, valuePattern, true)
 		check("database.dev", d.Dev, valuePattern, true)
+		if mg := d.Migrator; mg != nil {
+			check("database.migrator.passwordEnv", mg.PasswordEnv, envNamePattern, false)
+			check("database.migrator.local", mg.Local, valuePattern, true)
+			check("database.migrator.dev", mg.Dev, valuePattern, true)
+		}
 	}
 	if k := m.Kafka; k != nil {
 		check("kafka.passwordEnv", k.PasswordEnv, envNamePattern, false)
@@ -261,6 +298,15 @@ func checkUnique(manifests []Manifest) error {
 				continue
 			}
 			owners[t.Name] = m.App
+		}
+	}
+	apps := map[string]bool{}
+	for _, m := range manifests {
+		apps[m.App] = true
+	}
+	for _, m := range manifests {
+		if owner, ok := strings.CutSuffix(m.App, migratorSecret); ok && apps[owner] {
+			problems = append(problems, fmt.Sprintf("app %s tem o nome do Secret do migrador da app %s", m.App, owner))
 		}
 	}
 	declared := map[string]bool{}
@@ -366,9 +412,55 @@ func CheckDevSecrets(root string, manifests []Manifest) []Finding {
 		if !bytes.Contains(raw, []byte("PG_DSN=postgres://"+m.App+":"+m.Database.Dev+"@")) {
 			findings = append(findings, Finding{rel, "o PG_DSN não usa a senha database.dev do deploy/infra.json"})
 		}
+		if mg := m.Database.Migrator; mg != nil {
+			findings = append(findings, checkMigratorSecret(rel, raw, m.App, mg)...)
+		}
 	}
 	return findings
 }
+
+func checkMigratorSecret(rel string, overlay []byte, app string, mg *Migrator) []Finding {
+	name := app + migratorSecret
+	lines := bytes.Split(overlay, []byte("\n"))
+	start, end, ok := generatedSecret(lines, name)
+	var findings []Finding
+	if !ok {
+		findings = append(findings, Finding{rel, "sem o Secret " + name + " com o PG_MIGRATE_DSN de database.migrator"})
+	} else if !bytes.Contains(bytes.Join(lines[start:end], []byte("\n")), []byte("PG_MIGRATE_DSN=postgres://"+app+migratorSuffix+":"+mg.Dev+"@")) {
+		findings = append(findings, Finding{rel, "o PG_MIGRATE_DSN do Secret " + name + " não usa a role " + app + migratorSuffix + " com a senha database.migrator.dev do deploy/infra.json"})
+	}
+	for i, line := range lines {
+		if (!ok || i < start || i >= end) && bytes.Contains(line, []byte("PG_MIGRATE_DSN")) {
+			findings = append(findings, Finding{rel, fmt.Sprintf("linha %d: PG_MIGRATE_DSN fora do Secret %s, que só o api monta", i+1, name)})
+		}
+	}
+	return findings
+}
+
+func generatedSecret(lines [][]byte, name string) (start, end int, ok bool) {
+	for i, line := range lines {
+		key, value, found := strings.Cut(strings.TrimSpace(string(line)), ":")
+		if !found || key != "- name" || unquote(strings.TrimSpace(value)) != name {
+			continue
+		}
+		indent := indentation(line)
+		stop := i + 1
+		for stop < len(lines) && (len(bytes.TrimSpace(lines[stop])) == 0 || indentation(lines[stop]) > indent) {
+			stop++
+		}
+		return i, stop, true
+	}
+	return 0, 0, false
+}
+
+func unquote(value string) string {
+	if len(value) >= 2 && (value[0] == '"' || value[0] == '\'') && value[len(value)-1] == value[0] {
+		return value[1 : len(value)-1]
+	}
+	return value
+}
+
+func indentation(line []byte) int { return len(line) - len(bytes.TrimLeft(line, " ")) }
 
 type view struct {
 	Manifests []Manifest
@@ -392,6 +484,14 @@ func (v view) Apps() string {
 
 func (v view) WithDatabase() []Manifest {
 	return slices.DeleteFunc(slices.Clone(v.Manifests), func(m Manifest) bool { return m.Database == nil })
+}
+
+func (v view) WithoutMigrator() []Manifest {
+	return slices.DeleteFunc(v.WithDatabase(), func(m Manifest) bool { return m.Database.Migrator != nil })
+}
+
+func (v view) WithMigrator() []Manifest {
+	return slices.DeleteFunc(v.WithDatabase(), func(m Manifest) bool { return m.Database.Migrator == nil })
 }
 
 func (v view) WithKafka() []Manifest {
@@ -424,6 +524,9 @@ func (v view) EnvLines() []string {
 	for _, m := range v.Manifests {
 		if m.Database != nil {
 			lines = append(lines, m.Database.PasswordEnv+"="+m.Database.Local)
+		}
+		if m.Database != nil && m.Database.Migrator != nil {
+			lines = append(lines, m.Database.Migrator.PasswordEnv+"="+m.Database.Migrator.Local)
 		}
 	}
 	for _, m := range v.Manifests {

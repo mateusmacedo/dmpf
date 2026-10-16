@@ -13,20 +13,51 @@ services:
       PGUSER: ${POSTGRES_USER:-postgres}
       PGPASSWORD: ${POSTGRES_PASSWORD:-postgres}
       PGDATABASE: postgres
+{{- range .WithMigrator}}
+      {{.Database.PasswordEnv}}: ${{"{"}}{{.Database.PasswordEnv}}:-{{.Database.Local}}}
+      {{.Database.Migrator.PasswordEnv}}: ${{"{"}}{{.Database.Migrator.PasswordEnv}}:-{{.Database.Migrator.Local}}}
+{{- end}}
     entrypoint: ['/bin/sh', '-c']
+{{- if .WithMigrator}}
+    # Idempotente, e reconcilia as senhas a cada execução para que trocá-las com
+    # o volume mantido não deixe a app sem conexão. Com database.migrator
+    # (ADR-063), o banco pertence a <app>_migrator, e a role <app> não tem posse.
+{{- else}}
     # Idempotente: cria o role e o banco que ainda não existem e reconcilia a
     # senha do role a cada execução, para que trocar a senha com o volume mantido
     # não deixe a app sem conexão. O banco pertence ao role da app, que assim cria
     # o próprio schema sem privilégio administrativo.
+{{- end}}
     command:
       - >-
-        set -e; for pair in{{range .WithDatabase}} {{.App}}:${{"{"}}{{.Database.PasswordEnv}}:-{{.Database.Local}}}{{end}}; do
+        set -e{{if or .WithoutMigrator (not .WithMigrator)}}; for pair in{{range .WithoutMigrator}} {{.App}}:${{"{"}}{{.Database.PasswordEnv}}:-{{.Database.Local}}}{{end}}; do
         app=$${pair%%:*}; pass=$${pair#*:};
         if ! psql -tAc "SELECT 1 FROM pg_roles WHERE rolname = '$$app'" | grep -q 1; then
         psql -c "CREATE ROLE \"$$app\" LOGIN"; fi;
         psql -c "ALTER ROLE \"$$app\" PASSWORD '$$pass'";
         if ! psql -tAc "SELECT 1 FROM pg_database WHERE datname = '$$app'" | grep -q 1; then
-        psql -c "CREATE DATABASE \"$$app\" OWNER \"$$app\""; fi; done
+        psql -c "CREATE DATABASE \"$$app\" OWNER \"$$app\""; fi; done{{end}}
+{{- range .WithMigrator}};
+        if ! psql -tAc "SELECT 1 FROM pg_roles WHERE rolname = '{{.App}}_migrator'" | grep -q 1; then
+        psql -c "CREATE ROLE \"{{.App}}_migrator\" LOGIN"; fi;
+        printf '%s\n' '\getenv pass {{.Database.Migrator.PasswordEnv}}' 'SET log_min_error_statement = panic;' 'SET log_statement = none;'
+        "ALTER ROLE :\"role\" PASSWORD :'pass' LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;" | psql -v ON_ERROR_STOP=1 -v role={{.App}}_migrator;
+        if ! psql -tAc "SELECT 1 FROM pg_database WHERE datname = '{{.App}}'" | grep -q 1; then
+        psql -c "CREATE DATABASE \"{{.App}}\" OWNER \"{{.App}}_migrator\""; fi;
+        if ! psql -tAc "SELECT 1 FROM pg_database WHERE datname = '{{.App}}' AND pg_get_userbyid(datdba) = '{{.App}}_migrator'" | grep -q 1; then
+        psql -c "ALTER DATABASE \"{{.App}}\" OWNER TO \"{{.App}}_migrator\""; fi;
+        psql -d "{{.App}}" -c "GRANT CREATE ON SCHEMA public TO \"{{.App}}_migrator\"";
+        if ! psql -tAc "SELECT 1 FROM pg_roles WHERE rolname = '{{.App}}'" | grep -q 1; then
+        psql -c "CREATE ROLE \"{{.App}}\" LOGIN"; fi;
+        printf '%s\n' '\getenv pass {{.Database.PasswordEnv}}' 'SET log_min_error_statement = panic;' 'SET log_statement = none;'
+        "ALTER ROLE :\"role\" PASSWORD :'pass' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;" | psql -v ON_ERROR_STOP=1 -v role={{.App}};
+        psql -c "GRANT CONNECT ON DATABASE \"{{.App}}\" TO \"{{.App}}\"";
+        psql -c "REVOKE CONNECT ON DATABASE \"{{.App}}\" FROM PUBLIC";
+        psql -c "REVOKE TEMPORARY ON DATABASE \"{{.App}}\" FROM PUBLIC";
+        psql -d "{{.App}}" -c "REVOKE CREATE ON SCHEMA public FROM PUBLIC";
+        psql -d "{{.App}}" -c "REVOKE CREATE ON SCHEMA public FROM \"{{.App}}\"";
+        psql -d "{{.App}}" -c "GRANT USAGE ON SCHEMA public TO \"{{.App}}\""
+{{- end}}
     deploy:
       resources:
         limits: { cpus: '0.05', memory: 32M }
