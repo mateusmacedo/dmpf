@@ -149,6 +149,29 @@ Arquivo do `init` editado à mão não é sobrescrito: a migration o lista no lo
 Compare com a versão nova e, depois de salvar o que quiser manter, sobrescreva
 com `pnpm nx g @mateusmacedo/dmpf-plugin:init --force`.
 
+## 7. Keycloak de referência (opcional)
+
+O `init` e a migration trazem o Keycloak de referência do ADR-064 como
+arquivos gerenciados: `infra/keycloak/` (realm `dmpf`, base Kustomize e o
+Component `dev/` com o seed dos dados de teste), `infra/local/compose/keycloak.yml`
+(profile `keycloak`) e o serviço `keycloak` da infra de testes, no profile
+`keycloak`, que o `test-infra-up` não sobe (`test-infra.sh keycloak` o sobe e
+semeia). Três passos ficam à mão, porque os arquivos são de quem consome:
+
+- acrescente `- compose/keycloak.yml` ao `include` de
+  `infra/local/docker-compose.yml`, que o `init` só cria;
+- nos overlays do Kubernetes, componha `infra/keycloak` (e, no de
+  desenvolvimento, o Component `infra/keycloak/dev`) e forneça os Secrets
+  `keycloak-admin`, `keycloak-db` e `keycloak-session-events` e o ConfigMap
+  `keycloak-hostname` (o endereço público, que vira o issuer) onde não houver
+  dados de teste;
+- aponte o `authn` para o realm: `OIDC_ISSUER` com o issuer do ambiente,
+  `OIDC_AUDIENCE=dmpf-bff` e `OIDC_TENANT_CLAIM=organization.*.tenant_id`, que
+  lê o tenant da claim nativa `organization` sem extensão no Keycloak.
+
+O input `keycloak` do `dmpf-go-ci.yml` serve aos testes de integração do
+`authn` deste repositório; o chamador do consumidor não precisa ligá-lo.
+
 ## Solução de problemas
 
 | Sintoma | Causa e saída |
