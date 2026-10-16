@@ -62,7 +62,23 @@ Restrições herdadas: provider concreto só no bloco `app` (ADR-015); `Ack` est
 
 Nada aqui declara ou sugere entrega exactly-once fim a fim. A garantia é at-least-once com consumidor idempotente pela inbox (KRN-07).
 
-## Addendum — 2026-09-08 (checklist de qualidade da sub-spec 1)
+## Referências
+
+- `docs/specs/SPEC-8HWBWJCB-dmpf-sdk-referencia-bom.md` — guarda-chuva do KRN-12.
+- `docs/specs/SPEC-538MS2D4-dmpf-bom-validador-escape-hatch.md` — sub-spec 3: BOM, validador e escape hatch.
+- `docs/dmpf/governanca-bom-pilotos.md` (FND-10) — §4 (`BOM-01` a `BOM-10`), §5.1 (`GOV-30` a `GOV-36`).
+- `docs/specs/SPEC-6QT9SBAS-dmpf-reference-composition-root.md` — spec desta entrega.
+- `docs/dmpf/cloudevents-protobuf-buf.md` (FND-05) — ENV-08, `causationid` = `id` quando a mensagem inicia a cadeia.
+- `docs/dmpf/uow-inbox-outbox.md` (FND-04) — §3.2, §5.4, §6.3, UOW-11, INB-08.
+- `docs/dmpf/politicas-transporte.md` (FND-06) — §9 (RST-02, RST-04), §11 (ponte por `Sink`).
+- `docs/adr/015-*.md` — provider concreto só no bloco `app`.
+- `docs/adr/035-realizacao-postgres-da-outbox.md` e `docs/adr/038-*.md` — os ADRs cuja lacuna de `metadata` esta entrega fecha (ver os addenda).
+- `docs/adr/039-*.md` — ponte por `Sink`, catálogo de canal, admissão.
+- `apps/backend/reference/README.md` — como rodar os três papéis localmente.
+
+## Addendum — revisões datadas
+
+### Addendum — 2026-09-08 (checklist de qualidade da sub-spec 1)
 
 A revisão de segurança, robustez e performance da entrega, feita com tráfego real sobre o Compose de `infra/local`, decidiu o que segue e registrou o que fica.
 
@@ -88,7 +104,7 @@ A revisão de segurança, robustez e performance da entrega, feita com tráfego 
 - Publicação em `0.0.0.0` no Compose é decisão do usuário (acesso do Windows); a consequência está no `infra/README.md`.
 - Rota de saúde na api (sondas por socket hoje), pool pgx com defaults, `INFRA_BUDGET_FRACTION` sobrescrevível pelo ambiente.
 
-## Addendum — 2026-09-09 (generator `bounded-context` da sub-spec 2)
+### Addendum — 2026-09-09 (generator `bounded-context` da sub-spec 2)
 
 A implementação da SPEC-H1A190Y8 mudou de desenho duas vezes no mesmo dia, e o resultado final é o que segue. Um mini bounded context fixo (`Request`/`Fulfillment`) gerado em todo contexto foi descartado por produzir sempre o mesmo código; um generator orientado ao domínio, com DSL própria, foi especificado, revisado por duas revisões externas (24 achados, 16 bloqueantes) e deferido pelo custo (`SPEC-8FSD8505`, `SPEC-VZ16X0MS`, `SPEC-F7S5B6KV`). A prova em worktree também expôs que a norma vigente impede qualquer contexto fora de `kernel` de consumir o kernel (`DMPF-D002`; `domain` nunca é superfície pública), o que virou spec normativa própria.
 
@@ -108,7 +124,7 @@ A implementação da SPEC-H1A190Y8 mudou de desenho duas vezes no mesmo dia, e o
 - Geração do composition root: `cmd/` com `--role api|relay|consumer` continua fora, e cabear processo segue sendo copiar `reference` à mão. É matéria do golden path (sub-spec 3).
 - `require` externos quando um módulo gerado sair do workspace (publicação independente); hoje a ausência de `require` presume `go.work`.
 
-## Addendum — 2026-09-12 (harness de bounded contexts da sub-spec 2h)
+### Addendum — 2026-09-12 (harness de bounded contexts da sub-spec 2h)
 
 O addendum anterior decidiu que o generator entrega só o esqueleto e o código de
 negócio vem de um agente. A `SPEC-VDP9XX65` realizou esse harness e o exercitou
@@ -158,21 +174,7 @@ O guia operacional do fluxo está em `docs/guides/dmpf-composicao.md`; o catálo
 do que já deu errado, em
 `.agents/skills/dmpf-bounded-context/references/armadilhas.md`.
 
-## Referências
-
-- `docs/specs/SPEC-8HWBWJCB-dmpf-sdk-referencia-bom.md` — guarda-chuva do KRN-12.
-- `docs/specs/SPEC-538MS2D4-dmpf-bom-validador-escape-hatch.md` — sub-spec 3: BOM, validador e escape hatch.
-- `docs/dmpf/governanca-bom-pilotos.md` (FND-10) — §4 (`BOM-01` a `BOM-10`), §5.1 (`GOV-30` a `GOV-36`).
-- `docs/specs/SPEC-6QT9SBAS-dmpf-reference-composition-root.md` — spec desta entrega.
-- `docs/dmpf/cloudevents-protobuf-buf.md` (FND-05) — ENV-08, `causationid` = `id` quando a mensagem inicia a cadeia.
-- `docs/dmpf/uow-inbox-outbox.md` (FND-04) — §3.2, §5.4, §6.3, UOW-11, INB-08.
-- `docs/dmpf/politicas-transporte.md` (FND-06) — §9 (RST-02, RST-04), §11 (ponte por `Sink`).
-- `docs/adr/015-*.md` — provider concreto só no bloco `app`.
-- `docs/adr/035-realizacao-postgres-da-outbox.md` e `docs/adr/038-*.md` — os ADRs cuja lacuna de `metadata` esta entrega fecha (ver os addenda).
-- `docs/adr/039-*.md` — ponte por `Sink`, catálogo de canal, admissão.
-- `apps/backend/reference/README.md` — como rodar os três papéis localmente.
-
-## Addendum — 2026-09-12 (BOM, validador e escape hatch da sub-spec 3)
+### Addendum — 2026-09-12 (BOM, validador e escape hatch da sub-spec 3)
 
 A `SPEC-538MS2D4` entregou o modelo `dmpf/bom@1`, o validador `dmpf-bom` e a
 admissão mecânica das exceções, comum ao verificador (E1) e ao BOM (E2/E3). O
@@ -234,7 +236,7 @@ que a execução decidiu:
 O schema e os códigos estão em `bom/README.md`; o rito de pedir exceção, em
 `docs/guides/dmpf-composicao.md` §9.
 
-## Addendum — 2026-09-13 (evidência e certificação da sub-spec 4)
+### Addendum — 2026-09-13 (evidência e certificação da sub-spec 4)
 
 A `SPEC-JPP31095` entregou o instrumento que transforma uma execução da suíte em
 evidência endereçável e hasheável — `testkit/evidence` e
@@ -303,7 +305,7 @@ execução decidiu:
   protobuf (`golden`), otel (`reference`) e franz-go (`dist`), cada par presente
   no header do subject citado.
 
-## Addendum — 2026-09-29 (rota de saúde do BFF)
+### Addendum — 2026-09-29 (rota de saúde do BFF)
 
 A dívida "rota de saúde na api (sondas por socket hoje)" fica paga no BFF, a
 borda HTTP. `GET /livez` responde enquanto o processo serve; `GET /readyz`
@@ -326,7 +328,7 @@ resultado vale por 1 s. A leitura é o estado do canal, não uma chamada
 - **Fora daqui.** Os contextos já expõem `grpc.health.v1` por serviço; o pool
   pgx e o `INFRA_BUDGET_FRACTION` seguem como dívida.
 
-## Addendum — 2026-10-01 (exporter por `OTEL_*` e auditoria por `EventName`)
+### Addendum — 2026-10-01 (exporter por `OTEL_*` e auditoria por `EventName`)
 
 A [SPEC-1TFW24WV](../specs/SPEC-1TFW24WV-observabilidade-ponta-a-ponta.md)
 trocou a configuração própria da telemetria pela do SDK e levou a auditoria ao
@@ -399,14 +401,14 @@ OTel Logs Data Model. Mudam as passagens deste ADR que cada item nomeia:
   que o validador lê (`tools/dmpf-conformance/bom/registry.go`) e a tabela de
   registros do [`bom/README.md`](../../bom/README.md) apontam esse arquivo.
 
-## Addendum — 2026-10-03 (porta de administração do BFF, Grafana e OTLP em hmg)
+### Addendum — 2026-10-03 (porta de administração do BFF, Grafana e OTLP em hmg)
 
 Decisões da [SPEC-1TFW24WV](../specs/SPEC-1TFW24WV-observabilidade-ponta-a-ponta.md),
 tomadas no checklist de qualidade da entrega.
 
 - **Saúde do BFF na porta de administração.** `GET /livez` e `GET /readyz`
-  saem da porta pública e passam a ser servidas só em `ADMIN_ADDR` (default
-  `:8090`), que o Service não expõe; a porta pública responde `404` a esses
+  saem da porta pública e passam a ser servidas só em `ADMIN_ADDR` (default: a
+  porta `8090`), que o Service não expõe; a porta pública responde `404` a esses
   paths. Motivo: toda falha de saúde é registrada (`LOG-10`, RF-A5), e na porta
   pública um cliente sem autenticação inundava o log durante a drenagem. O
   `bff healthcheck` da imagem e as probes do Kubernetes consultam a porta

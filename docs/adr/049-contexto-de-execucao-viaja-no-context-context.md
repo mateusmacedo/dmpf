@@ -1,4 +1,4 @@
-# ADR-049: O contexto de execução viaja no `context.Context`, do ingress ao provider
+# ADR-049: Fazer o contexto de execução viajar no `context.Context`, do ingress ao provider
 
 ## Status
 
@@ -74,7 +74,7 @@ Com o parâmetro, esquecer o contexto não compilava. Sem ele, a ausência passa
 
 **Negativas:**
 
-- A garantia por compilador é trocada por verificação em execução. A mitigação é `RequireExecutionContext` com negação declarada, mas ela só age quando o caminho é exercido; uma rota sem teste que esqueça de depositar o contexto falha em execução, não em compilação.
+- **Custo aceito:** A garantia por compilador é trocada por verificação em execução. A mitigação é `RequireExecutionContext` com negação declarada, mas ela só age quando o caminho é exercido; uma rota sem teste que esqueça de depositar o contexto falha em execução, não em compilação.
 - A Fase 2B da mesma spec é parcialmente desfeita. O commit `699c662` existiu para trocar `AuthorizeFunc` por `AuthorizeWithContext`, acrescentando o parâmetro que este ADR remove. O tipo não regride ao anterior: passa a `Authorize[C] func(ctx, cmd) error`, lendo do `ctx`.
 - Dois artefatos do acervo normativo são emendados — `contexto-erros-seguranca.md` e `testes-interop.md`, este último porque registra o modo de verificação de `CTX-03` e `CTX-05`.
 - O modo de verificação dessas duas regras muda de natureza. Deixa de ser inspeção de assinatura e passa a ser inspeção de onde o `ctx` é enriquecido e de que nenhum consumidor prossegue sem contexto.

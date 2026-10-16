@@ -99,7 +99,7 @@ precisam ser provisionadas no remoto para o ciclo de release funcionar.
 
 ## Alternativas descartadas
 
-| Alternativa | Por que foi descartada |
+| Alternativa | Por que foi rejeitada |
 | --- | --- |
 | Copiar o mmda-flow inteiro para `.claude/` | Duplicaria a manutenção da pipeline e colidiria com as skills de domínio do template; a pipeline deve evoluir num único lugar. |
 | Migrar `docs/adr/` para `docs/decisions/` | Custo sem ganho: já há seis ADRs numerados e referências em `AGENTS.md`. |
@@ -109,7 +109,7 @@ precisam ser provisionadas no remoto para o ciclo de release funcionar.
 
 ## Consequências
 
-### Positivas
+**Positivas:**
 
 - Projetos derivados nascem com scaffold de engenharia (specs, regras de domínio,
   guia de workflow, índice de ADRs) alinhado ao mmda-flow e legível sem o plugin
@@ -125,9 +125,11 @@ precisam ser provisionadas no remoto para o ciclo de release funcionar.
 - A skill `c4-architecture` fica disponível a quem clona o template, sem depender
   de configuração pessoal na máquina do mantenedor.
 
-### Negativas (assumidas)
+**Negativas:**
 
-- **Incompatibilidade de fluxo git ao instalar o plugin.** A instalação do
+As negativas abaixo são assumidas pelo ADR.
+
+- **Custo aceito:** **Incompatibilidade de fluxo git ao instalar o plugin.** A instalação do
   mmda-flow carrega a rule `rules/git-workflow.md`, que declara substituir fluxos
   em que `develop` é branch de integração, impõe "PR sempre para a branch
   principal", nega precedência a `develop` como base e resolve a base via

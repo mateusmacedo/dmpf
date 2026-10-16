@@ -181,7 +181,7 @@ func TestADeclaredStatementNamesTheSpanByOperationAndCollection(t *testing.T) {
 }
 
 func TestAStatementWithoutCollectionIsNamedByItsOperation(t *testing.T) {
-	span, _ := traceStatement(t, NewQueryTracer, selectTableExists, pgx.TraceQueryEndData{})
+	span, _ := traceStatement(t, NewQueryTracer, selectFirstMissingTable, pgx.TraceQueryEndData{})
 
 	if span.Name != "SELECT" {
 		t.Fatalf("name = %q, want SELECT", span.Name)
@@ -278,7 +278,8 @@ func TestEveryKernelStatementIsDeclared(t *testing.T) {
 		"deleteExpired":    deleteExpiredInbox,
 		"selectSignals":    selectSignals,
 		"selectOutbox":     selectOutboxSignals,
-		"tableExists":      selectTableExists,
+		"firstMissing":     selectFirstMissingTable,
+		"firstUngranted":   selectFirstUngranted,
 		"assertOwnOutbox":  selectForeignDestination,
 	} {
 		if _, ok := shapeOf(sql); !ok {

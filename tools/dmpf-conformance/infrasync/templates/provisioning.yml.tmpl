@@ -13,20 +13,51 @@ services:
       PGUSER: ${POSTGRES_USER:-postgres}
       PGPASSWORD: ${POSTGRES_PASSWORD:-postgres}
       PGDATABASE: postgres
+{{- range .WithMigrator}}
+      {{.Database.PasswordEnv}}: ${{"{"}}{{.Database.PasswordEnv}}:-{{.Database.Local}}}
+      {{.Database.Migrator.PasswordEnv}}: ${{"{"}}{{.Database.Migrator.PasswordEnv}}:-{{.Database.Migrator.Local}}}
+{{- end}}
     entrypoint: ['/bin/sh', '-c']
+{{- if .WithMigrator}}
+    # Idempotente, e reconcilia as senhas a cada execução para que trocá-las com
+    # o volume mantido não deixe a app sem conexão. Com database.migrator
+    # (ADR-063), o banco pertence a <app>_migrator, e a role <app> não tem posse.
+{{- else}}
     # Idempotente: cria o role e o banco que ainda não existem e reconcilia a
     # senha do role a cada execução, para que trocar a senha com o volume mantido
     # não deixe a app sem conexão. O banco pertence ao role da app, que assim cria
     # o próprio schema sem privilégio administrativo.
+{{- end}}
     command:
       - >-
-        set -e; for pair in{{range .WithDatabase}} {{.App}}:${{"{"}}{{.Database.PasswordEnv}}:-{{.Database.Local}}}{{end}}; do
+        set -e{{if or .WithoutMigrator (not .WithMigrator)}}; for pair in{{range .WithoutMigrator}} {{.App}}:${{"{"}}{{.Database.PasswordEnv}}:-{{.Database.Local}}}{{end}}; do
         app=$${pair%%:*}; pass=$${pair#*:};
         if ! psql -tAc "SELECT 1 FROM pg_roles WHERE rolname = '$$app'" | grep -q 1; then
         psql -c "CREATE ROLE \"$$app\" LOGIN"; fi;
         psql -c "ALTER ROLE \"$$app\" PASSWORD '$$pass'";
         if ! psql -tAc "SELECT 1 FROM pg_database WHERE datname = '$$app'" | grep -q 1; then
-        psql -c "CREATE DATABASE \"$$app\" OWNER \"$$app\""; fi; done
+        psql -c "CREATE DATABASE \"$$app\" OWNER \"$$app\""; fi; done{{end}}
+{{- range .WithMigrator}};
+        if ! psql -tAc "SELECT 1 FROM pg_roles WHERE rolname = '{{.App}}_migrator'" | grep -q 1; then
+        psql -c "CREATE ROLE \"{{.App}}_migrator\" LOGIN"; fi;
+        printf '%s\n' '\getenv pass {{.Database.Migrator.PasswordEnv}}' 'SET log_min_error_statement = panic;' 'SET log_statement = none;'
+        "ALTER ROLE :\"role\" PASSWORD :'pass' LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;" | psql -v ON_ERROR_STOP=1 -v role={{.App}}_migrator;
+        if ! psql -tAc "SELECT 1 FROM pg_database WHERE datname = '{{.App}}'" | grep -q 1; then
+        psql -c "CREATE DATABASE \"{{.App}}\" OWNER \"{{.App}}_migrator\""; fi;
+        if ! psql -tAc "SELECT 1 FROM pg_database WHERE datname = '{{.App}}' AND pg_get_userbyid(datdba) = '{{.App}}_migrator'" | grep -q 1; then
+        psql -c "ALTER DATABASE \"{{.App}}\" OWNER TO \"{{.App}}_migrator\""; fi;
+        psql -d "{{.App}}" -c "GRANT CREATE ON SCHEMA public TO \"{{.App}}_migrator\"";
+        if ! psql -tAc "SELECT 1 FROM pg_roles WHERE rolname = '{{.App}}'" | grep -q 1; then
+        psql -c "CREATE ROLE \"{{.App}}\" LOGIN"; fi;
+        printf '%s\n' '\getenv pass {{.Database.PasswordEnv}}' 'SET log_min_error_statement = panic;' 'SET log_statement = none;'
+        "ALTER ROLE :\"role\" PASSWORD :'pass' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;" | psql -v ON_ERROR_STOP=1 -v role={{.App}};
+        psql -c "GRANT CONNECT ON DATABASE \"{{.App}}\" TO \"{{.App}}\"";
+        psql -c "REVOKE CONNECT ON DATABASE \"{{.App}}\" FROM PUBLIC";
+        psql -c "REVOKE TEMPORARY ON DATABASE \"{{.App}}\" FROM PUBLIC";
+        psql -d "{{.App}}" -c "REVOKE CREATE ON SCHEMA public FROM PUBLIC";
+        psql -d "{{.App}}" -c "REVOKE CREATE ON SCHEMA public FROM \"{{.App}}\"";
+        psql -d "{{.App}}" -c "GRANT USAGE ON SCHEMA public TO \"{{.App}}\""
+{{- end}}
     deploy:
       resources:
         limits: { cpus: '0.05', memory: 32M }
@@ -38,6 +69,14 @@ services:
     depends_on:
       redpanda:
         condition: service_healthy
+    environment:
+      RPK_USER: console
+      RPK_PASS: ${KAFKA_CONSOLE_PASSWORD:-console-local}
+      RPK_SASL_MECHANISM: SCRAM-SHA-256
+{{- range .WithKafka}}
+      {{.Kafka.PasswordEnv}}: ${{"{"}}{{.Kafka.PasswordEnv}}:-{{.Kafka.Local}}}
+{{- end}}
+      KAFKA_CONSOLE_PASSWORD: ${KAFKA_CONSOLE_PASSWORD:-console-local}
     entrypoint: ['/bin/sh', '-c']
     # A ligação entre principal e source que o consumer admite é a ACL (ADR-052):
     # cada processo só escreve no próprio tópico e na DLQ que alimenta, e só quem
@@ -49,22 +88,42 @@ services:
       - |
         set -eu
         admin="-X admin.hosts=redpanda:9644"
-        su="-X brokers=redpanda:29092 -X user=console -X pass=${KAFKA_CONSOLE_PASSWORD:-console-local} -X sasl.mechanism=SCRAM-SHA-256"
-        for user in{{range .WithKafka}} {{.App}}:${{"{"}}{{.Kafka.PasswordEnv}}:-{{.Kafka.Local}}}{{end}} console:${KAFKA_CONSOLE_PASSWORD:-console-local}; do
-          rpk security user create "$${user%%:*}" -p "$${user#*:}" --mechanism SCRAM-SHA-256 $$admin || true
-        done
+        broker="-X brokers=redpanda:29092"
+        users=http://redpanda:9644/v1/security/users
+        scram() {
+          printf '{"username":"%s","password":"%s","algorithm":"SCRAM-SHA-256"}' "$$2" "$$3" |
+            curl -sS -o /dev/null -w '%{http_code}' -X "$$1" -H 'Content-Type: application/json' --data-binary @- "$$4"
+        }
+        create_user() {
+          case $$2 in
+            *[[:cntrl:]]*) echo "redpanda-init: a senha do usuário $$1 tem caractere de controle" >&2; exit 1 ;;
+          esac
+          pass=$$(printf '%s' "$$2" | sed 's/["\\]/\\&/g')
+          status=$$(scram POST "$$1" "$$pass" "$$users") || status=000
+          if [ "$$status" = 500 ] && rpk security user list $$admin | grep -qx "$$1"; then
+            status=$$(scram PUT "$$1" "$$pass" "$$users/$$1") || status=000
+          fi
+          case $$status in
+            2??) ;;
+            *) echo "redpanda-init: a Admin API recusou o usuário $$1 com status $$status" >&2; exit 1 ;;
+          esac
+        }
+{{- range .WithKafka}}
+        create_user {{.App}} "$${{.Kafka.PasswordEnv}}"
+{{- end}}
+        create_user console "$$KAFKA_CONSOLE_PASSWORD"
         for user in{{range .WithKafka}} {{.App}}{{end}} console; do
           rpk security user list $$admin | grep -qw "$$user"
         done
         rpk cluster config set superusers '["console",""]' $$admin
-        rpk topic create{{range .Topics}} {{$.Ref .Name}}{{end}} $$su -p 1 -r 1 || true
+        rpk topic create{{range .Topics}} {{$.Ref .Name}}{{end}} $$broker -p 1 -r 1 || true
         for topic in{{range .Topics}} {{$.Ref .Name}}{{end}}; do
-          rpk topic describe "$$topic" $$su >/dev/null
+          rpk topic describe "$$topic" $$broker >/dev/null
         done
 {{- range $m := .WithKafka}}{{range $m.Kafka.ACLs}}
         rpk security acl create --allow-principal User:{{$m.App}} --operation {{join .Operations ","}}
           {{- range .Topics}} --topic {{$.Ref .}}{{end}}
-          {{- with .Group}} --group ${{"{"}}{{.Env}}:-{{.Name}}}{{end}} $$su
+          {{- with .Group}} --group ${{"{"}}{{.Env}}:-{{.Name}}}{{end}} $$broker
 {{- end}}{{end}}
         rpk cluster config set kafka_enable_authorization true $$admin
     deploy:

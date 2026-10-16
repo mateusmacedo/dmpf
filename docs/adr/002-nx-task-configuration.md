@@ -70,11 +70,24 @@ quando não há git tag, eliminando a necessidade de `--first-release` manual.
 Em dev, as mudanças são aplicadas automaticamente. Em CI, `nx sync:check`
 detecta divergências antes das tasks.
 
+## Alternativas descartadas
+
+As alternativas consideradas não foram registradas quando a decisão foi tomada.
+
+| Alternativa | Por que foi rejeitada |
+| --- | --- |
+| Nenhuma registrada | O ADR original não preservou alternativa nem motivo de rejeição |
+
 ## Consequências
 
-- Todo novo projeto **deve** usar o generator correspondente, que aplica as
-  regras automaticamente
-- Projetos criados manualmente **devem** seguir `docs/nx-reference/tasks.md`
+**Positivas:**
+
 - O CI detecta automaticamente projetos com referências TypeScript inconsistentes
 - `nx affected` funciona corretamente porque as tags estão padronizadas
 - Cache funciona corretamente porque `targetDefaults` não é sobrescrito
+
+**Negativas:**
+
+- Todo novo projeto **deve** usar o generator correspondente, que aplica as
+  regras automaticamente
+- **Custo aceito:** Projetos criados manualmente **devem** seguir `docs/nx-reference/tasks.md`

@@ -43,7 +43,7 @@ infra/
 
 ## Desenvolvimento local (Compose)
 
-Os profiles são cumulativos. `observability` sobe a plataforma inteira; `dmpf` sobe os oito processos da topologia de referência — o BFF, `api` e `relay` de orders, `api`, `relay` e `consumer` de reservations, `api` e `relay` de bookings — **com** tudo o que eles precisam e observam, inclusive o `postgres-init` (cria banco e role de mesmo nome para `orders`, `reservations` e `bookings`, com o banco pertencendo ao role, sem falhar quando já existem), o `redpanda-init` (usuários SASL, tópicos e ACLs) e o `pki-init` (CA e certificados do mTLS interno); `all` sobe a infraestrutura toda menos as apps.
+Os profiles são cumulativos. `observability` sobe a plataforma inteira; `dmpf` sobe os oito processos da topologia de referência — o BFF, `api` e `relay` de orders, `api`, `relay` e `consumer` de reservations, `api` e `relay` de bookings — **com** tudo o que eles precisam e observam, inclusive o `postgres-init` (cria o banco de `orders`, `reservations` e `bookings`, a role migradora `<app>_migrator`, dona do banco, e a role de runtime `<app>`, sem posse, sem falhar quando já existem; ver "Bancos por app"), o `redpanda-init` (usuários SASL, tópicos e ACLs) e o `pki-init` (CA e certificados do mTLS interno); `all` sobe a infraestrutura toda menos as apps.
 
 ```bash
 # tudo o que o runtime local precisa, mais os processos das apps no host; parar o serve derruba a infra
@@ -88,17 +88,21 @@ O `deploy/compose.yml` de cada app não roda sozinho: ele estende os serviços-b
 
 ### Bancos por app
 
-O servidor Postgres tem um usuário só administrativo (`POSTGRES_USER`, padrão `postgres`). Cada app tem banco e role com o próprio nome, e só as estruturas do próprio schema: `orders` (`outbox` e `orders`), `reservations` (`outbox`, `inbox`, `quarantine` e `reservations`) e `bookings` (`outbox`, `bookings` e `resources`). Cada app conecta com o próprio role:
+O servidor Postgres tem um usuário só administrativo (`POSTGRES_USER`, padrão `postgres`). Cada app tem banco com o próprio nome e só as estruturas do próprio schema: `orders` (`outbox` e `orders`), `reservations` (`outbox`, `inbox`, `quarantine` e `reservations`) e `bookings` (`outbox`, `bookings` e `resources`).
 
-| App | `PG_DSN` |
-|---|---|
-| `orders` | `postgres://orders:${ORDERS_PG_PASSWORD:-orders-local}@postgres:5432/orders` |
-| `reservations` | `postgres://reservations:${RESERVATIONS_PG_PASSWORD:-reservations-local}@postgres:5432/reservations` |
-| `bookings` | `postgres://bookings:${BOOKINGS_PG_PASSWORD:-bookings-local}@postgres:5432/bookings` |
+Cada app tem duas roles (ADR-063), declaradas pelo bloco `database.migrator` do `infra.json`. A migradora `<app>_migrator` é dona do banco e só o `api` com `MIGRATE=true` a usa, por `PG_MIGRATE_DSN`, para aplicar o schema e os grants. A role de runtime `<app>` serve: sem posse, com `CONNECT` no banco e `USAGE` em `public`, sem `CREATE` nem `TEMPORARY`, e com o privilégio que o kernel e o `provider.Grants` da app declaram por tabela. `CONNECT` é revogado de `PUBLIC`, então as roles de outra app não conectam no banco. `relay` e `consumer` só recebem o `PG_DSN`, e um processo que espera o schema espera também os grants.
+
+| App | `PG_DSN` (todos os processos) | `PG_MIGRATE_DSN` (só o `api`) |
+|---|---|---|
+| `orders` | `postgres://orders:${ORDERS_PG_PASSWORD:-orders-local}@postgres:5432/orders` | `postgres://orders_migrator:${ORDERS_PG_MIGRATOR_PASSWORD:-orders-migrator-local}@postgres:5432/orders` |
+| `reservations` | `postgres://reservations:${RESERVATIONS_PG_PASSWORD:-reservations-local}@postgres:5432/reservations` | `postgres://reservations_migrator:${RESERVATIONS_PG_MIGRATOR_PASSWORD:-reservations-migrator-local}@postgres:5432/reservations` |
+| `bookings` | `postgres://bookings:${BOOKINGS_PG_PASSWORD:-bookings-local}@postgres:5432/bookings` | `postgres://bookings_migrator:${BOOKINGS_PG_MIGRATOR_PASSWORD:-bookings-migrator-local}@postgres:5432/bookings` |
+
+No Kubernetes, o `PG_MIGRATE_DSN` vem do Secret `<app>-migrator`, referenciado só pelo Deployment do `api`; o overlay `dev` o gera, e o `hmg` declara a forma em `secrets.example.yaml.tmpl`. App cujo `infra.json` não declara o migrador segue com a role única, dona do banco.
 
 Os testes de integração não usam esta infra. Eles rodam na infra de testes (`infra/test/compose.yml`, `pnpm nx run testkit:test-infra-up`), com Postgres, Redpanda e floci em tmpfs nas portas 15432, 19092, 19093 e 14566 — o Keycloak (18180, profile `keycloak`) sobe à parte, pelo `pnpm nx run authn:test-keycloak-up`, de que só o teste do `authn` depende; o `.env.example` da raiz aponta para ela, e cada teste ganha um banco `<projeto>_test_<id>`, apagado ao fim. O `tb/pg` recusa qualquer servidor cujo `cluster_name` não seja `test`, então um teste nunca escreve na infra de runtime local.
 
-Não há migração a partir do layout antigo (banco `app` compartilhado e bancos e tabelas com o prefixo `dmpf`). Um volume criado antes precisa ser recriado, e o do PKI também, porque o `pki-init` só emite certificados na primeira subida:
+Não há migração a partir do layout antigo (banco `app` compartilhado e bancos e tabelas com o prefixo `dmpf`) nem da role única para as duas roles: a partida recusa uma role de runtime dona de tabela. Um volume criado antes precisa ser recriado, e o do PKI também, porque o `pki-init` só emite certificados na primeira subida:
 
 ```bash
 docker compose -f infra/local/docker-compose.yml --profile dmpf down -v
@@ -196,12 +200,15 @@ Os datasources do Grafana (`observability/grafana/datasources.yaml`) ligam log, 
 ```bash
 kubectl kustomize infra/k8s/overlays/dev     # renderizar sem cluster
 pnpm nx run bff:k8s-render     # renderiza os dois overlays
+kubectl -n dmpf-dev delete job databases --ignore-not-found     # só em cluster que ainda tem o Job anterior
 kubectl apply -k infra/k8s/overlays/dev
 ```
 
+O Job `databases` tem nome fixo, e o template do pod de um Job é imutável: num cluster que ainda guarda o Job de uma versão anterior, o `apply` é recusado até ele ser apagado. Com `database.migrator`, o Job expira 10 minutos depois de terminar (`ttlSecondsAfterFinished`), e o próximo `apply` o recria e reconcilia bancos e roles.
+
 | Overlay | Namespace | O que sobe | Credenciais |
 | --- | --- | --- | --- |
-| `dev` | `dmpf-dev` | Postgres, Redpanda, a plataforma de observabilidade e as quatro apps; Job `databases` cria banco e role de `orders`, `reservations` e `bookings`; Kafka, OTLP e gRPC interno sem TLS, `MIGRATE=true` nos `api`, Grafana só com login (`admin`/`admin`) | `secretGenerator` com valores de desenvolvimento (`orders`, `reservations`, `bookings`, `databases`, `grafana-admin`) |
+| `dev` | `dmpf-dev` | Postgres, Redpanda, a plataforma de observabilidade e as quatro apps; Job `databases` cria o banco e as duas roles de `orders`, `reservations` e `bookings`; Kafka, OTLP e gRPC interno sem TLS, `MIGRATE=true` nos `api`, Grafana só com login (`admin`/`admin`) | `secretGenerator` com valores de desenvolvimento (`orders`, `reservations`, `bookings`, `databases`, `grafana-admin`) |
 | `hmg` | `dmpf-hmg` | Observabilidade e as quatro apps (2 réplicas do BFF e de cada `api`); bancos e Kafka externos, mTLS no gRPC interno e SASL no Kafka, Grafana só com login | `orders`, `reservations`, `bookings` (com `KAFKA_SASL_USERNAME`/`_PASSWORD`), `orders-grpc-tls`, `reservations-grpc-tls`, `bookings-grpc-tls`, `bff-grpc-ca`, `bff-grpc-client`, `grpc-client-ca`, `bff-oidc` e `grafana-admin` vêm de ExternalSecret/SealedSecret com esses nomes; `secrets.example.yaml.tmpl` mostra a forma e **não** é resource |
 
 As bases são fail-closed e o overlay `dev` relaxa o que precisa: `KAFKA_INSECURE` nasce desligado, o acesso anônimo do Grafana fica desligado também em `dev`, e o transporte gRPC interno não tem default — `dev` declara `GRPC_INSECURE=true` por patch. A exportação OTLP das apps se configura só por `OTEL_*`: o ConfigMap da base aponta o endpoint de `OTEL_EXPORTER_OTLP_*` para `http://otel-collector:4317`, cujo esquema `http://` desliga o TLS em `dev`; em `hmg`, o patch do ConfigMap troca o endpoint por `https://otel-collector:4317` e declara `OTEL_EXPORTER_OTLP_CERTIFICATE`, e o receiver OTLP do Collector serve TLS com o certificado do Secret `otel-collector-tls`, montado em `/etc/otelcol-tls` e ligado por um segundo `--config` (`tls.yaml`, que o Collector funde ao `config.yaml` da base). O certificado vem da mesma CA dos certificados de servidor dos `api`, com `otel-collector` no SAN: os processos dos contextos o verificam pela CA do Secret `otel-collector-ca`, montada em `/etc/dmpf/otel`, e o BFF pela `bff-grpc-ca` que já monta (`/etc/dmpf/grpc/ca.crt`); `tools/otel-env-check.sh` reprova overlay `hmg` sem esse par e `https://` sem certificado no mesmo arquivo; o patch do overlay traz `service.version` e `deployment.environment.name` em `OTEL_RESOURCE_ATTRIBUTES`, e o Deployment acrescenta `service.instance.id` (o nome do pod) e `dmpf.process.role`. Em `hmg`, o mTLS é bidirecional: cada `api` monta o próprio certificado de servidor (`orders-grpc-tls`, `reservations-grpc-tls`) e a CA que verifica o cliente (`grpc-client-ca`, comum aos dois contextos porque o único cliente confiável é o BFF), e o BFF monta a CA que verifica os `api` (`bff-grpc-ca`) e o próprio certificado de cliente (`bff-grpc-client`); o Kafka gerenciado exige SASL SCRAM-SHA-512 por contexto, com usuário e senha no Secret do próprio contexto. A ACL do broker por principal do ADR-052 é **pré-requisito externo**, registrada como comentário no `secrets.example.yaml.tmpl`: sem ela, `hmg` não tem como impor que só `orders` publique em `orders.events`. As bases dos contextos não conhecem credencial: `PG_DSN`, `KAFKA_BROKERS` e as credenciais SASL vêm sempre do Secret do overlay; o resto vem do ConfigMap. Os seis Deployments têm `securityContext` restritivo (não root, sistema de arquivos só leitura, sem capabilities) e `terminationGracePeriodSeconds` acima do prazo interno de encerramento de cada papel: 30 s nos `api` e `relay` dos contextos e 35 s no `consumer`; no Compose, os serviços `dmpf-*` dos contextos declaram `stop_grace_period: 30s`.

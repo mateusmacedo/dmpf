@@ -48,6 +48,7 @@ type Options struct {
 	Capabilities []postgres.Capability
 	Schemas      []string
 	Tables       []string
+	Grants       []postgres.Grant
 }
 
 type scope struct {
@@ -121,30 +122,35 @@ func testDatabaseOf(t testing.TB, project string) *testDatabase {
 
 func create(t testing.TB, project string) string {
 	t.Helper()
-	dsn := tb.Env(t, PostgresDSN)
-	admin, err := pgxpool.ParseConfig(dsn)
-	if err != nil {
-		t.Fatalf("pg.DSN: parse %s: %v", PostgresDSN, err)
-	}
-	if host := admin.ConnConfig.Host; !loopback(host) {
-		t.Fatalf("pg.DSN: %s points at %q; the harness creates and drops databases and only accepts a loopback host", PostgresDSN, host)
-	}
-	u, err := url.Parse(dsn)
+	server := serverConfig(t)
+	u, err := url.Parse(tb.Env(t, PostgresDSN))
 	if err != nil || u.Scheme == "" {
 		t.Fatalf("pg.DSN: %s is not a URL; the database of each test is set on its path", PostgresDSN)
 	}
 	database := project + "_test_" + suffix()
-	if err := createDatabase(admin.ConnConfig, database); err != nil {
+	if err := createDatabase(server, database); err != nil {
 		t.Fatalf("pg.DSN: create %s: %v", database, err)
 	}
 	t.Cleanup(func() {
-		if err := dropDatabase(admin.ConnConfig, database); err != nil {
+		if err := dropDatabase(server, database); err != nil {
 			t.Errorf("pg.DSN: drop %s: %v", database, err)
 		}
 		databases.Delete(scope{t, project})
 	})
 	u.Path = "/" + database
 	return u.String()
+}
+
+func serverConfig(t testing.TB) *pgx.ConnConfig {
+	t.Helper()
+	server, err := pgx.ParseConfig(tb.Env(t, PostgresDSN))
+	if err != nil {
+		t.Fatalf("pg.DSN: parse %s: %v", PostgresDSN, err)
+	}
+	if host := server.Host; !loopback(host) {
+		t.Fatalf("pg.DSN: %s points at %q; the harness creates and drops databases and only accepts a loopback host", PostgresDSN, host)
+	}
+	return server
 }
 
 func suffix() string {
@@ -193,7 +199,11 @@ func createDatabase(config *pgx.ConnConfig, database string) error {
 		return err
 	}
 	defer func() { _ = conn.Close(ctx) }()
-	_, err = conn.Exec(ctx, "CREATE DATABASE "+pgx.Identifier{database}.Sanitize())
+	quoted := pgx.Identifier{database}.Sanitize()
+	if _, err := conn.Exec(ctx, "CREATE DATABASE "+quoted); err != nil {
+		return err
+	}
+	_, err = conn.Exec(ctx, "REVOKE TEMPORARY ON DATABASE "+quoted+" FROM PUBLIC")
 	return err
 }
 

@@ -64,6 +64,7 @@ func New(t testing.TB) Harness {
 	t.Helper()
 	seeds := strings.Split(tb.Env(t, EnvBrokers), ",")
 	pool := pg.OpenPool(t, appkit.PoolOptions)
+	pg.GrantRuntime(t, pool, appkit.PoolOptions)
 	suffix := fmt.Sprintf("%d", time.Now().UnixNano())
 	h := Harness{
 		Brokers: seeds,
@@ -103,7 +104,7 @@ func (h Harness) Start(t testing.TB, role Role) *dist.Process {
 		"OTEL_METRICS_EXPORTER=none",
 		"OTEL_LOGS_EXPORTER=none",
 		EnvBrokers+"="+strings.Join(h.Brokers, ","),
-		pg.PostgresDSN+"="+pg.DSN(t, appkit.PoolOptions.Project),
+		pg.PostgresDSN+"="+pg.RuntimeDSN(t, appkit.PoolOptions.Project),
 	)
 	return dist.Supervise(t, string(role), cmd)
 }

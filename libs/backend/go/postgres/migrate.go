@@ -32,11 +32,20 @@ const (
 type capabilityParts struct {
 	schema string
 	tables []string
+	grants []Grant
 }
 
 var capabilities = map[Capability]capabilityParts{
-	Outbox: {schema: outboxSchema, tables: []string{"outbox"}},
-	Inbox:  {schema: inboxSchema, tables: []string{"inbox", "quarantine"}},
+	Outbox: {
+		schema: outboxSchema,
+		tables: []string{"outbox"},
+		grants: []Grant{{Table: "outbox", Privileges: readWrite}},
+	},
+	Inbox: {
+		schema: inboxSchema,
+		tables: []string{"inbox", "quarantine"},
+		grants: []Grant{{Table: "inbox", Privileges: readWrite}, AppendOnly("quarantine")},
+	},
 }
 
 // Tables names the kernel tables the capabilities create, in declaration order
@@ -73,6 +82,9 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool, caps []Capability, context
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
+	if _, err := tx.Exec(ctx, pinSearchPath); err != nil {
+		return err
+	}
 	if _, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock($1)", int64(migrateLockID)); err != nil {
 		return err
 	}

@@ -1,8 +1,8 @@
-# ADR-053: Cada contexto tem banco próprio, com nomes canônicos, e os três contextos seguem uma forma única
+# ADR-053: Dar banco próprio a cada contexto, com nomes canônicos, e uma forma única aos três contextos
 
 ## Status
 
-Aceito — 2026-09-25. Implementa [SPEC-F308KDSF](../specs/SPEC-F308KDSF-padronizacao-contextos-e-banco.md). Supersede parcialmente o [ADR-046](./046-libs-somente-kernel-de-reuso.md), no parágrafo que mantinha as tabelas `dmpf_example_*`, e estende o [ADR-044](./044-bff-rest-e-contextos-grpc-de-referencia.md) com o terceiro banco e o `bookings` na topologia. **Emendado pelo [ADR-054](./054-apps-autocontidos-e-infras-separadas.md) (2026-09-28)**: a infra de cada app vive em `apps/backend/<app>/deploy/`, e a agregada é gerada pelo `infrasync`; o banco de teste deixa de ser `<projeto>_test` compartilhado e passa a um banco por teste, apagado ao fim, num servidor com `cluster_name=test`; o tooling de teste perde o prefixo `DMPF_` (`TESTKIT_*`, `TB_*`, `EVIDENCE_DIR`). **Parcialmente supersedido pelo [ADR-061](./061-promover-ao-kernel-as-copias-de-producao-dos-contextos.md) (2026-10-10)**: em §7 e §14, o contexto não tem mais `errors.go` próprio e o generator deixa de emiti-lo; a tradução de erro para status gRPC é do kernel (`kernelgrpc.StatusOf`).
+Aceito — 2026-09-25. Implementa [SPEC-F308KDSF](../specs/SPEC-F308KDSF-padronizacao-contextos-e-banco.md). Supersede parcialmente o [ADR-046](./046-libs-somente-kernel-de-reuso.md), no parágrafo que mantinha as tabelas `dmpf_example_*`, e estende o [ADR-044](./044-bff-rest-e-contextos-grpc-de-referencia.md) com o terceiro banco e o `bookings` na topologia. **Emendado pelo [ADR-054](./054-apps-autocontidos-e-infras-separadas.md) (2026-09-28)**: a infra de cada app vive em `apps/backend/<app>/deploy/`, e a agregada é gerada pelo `infrasync`; o banco de teste deixa de ser `<projeto>_test` compartilhado e passa a um banco por teste, apagado ao fim, num servidor com `cluster_name=test`; o tooling de teste perde o prefixo `DMPF_` (`TESTKIT_*`, `TB_*`, `EVIDENCE_DIR`). **Parcialmente supersedido pelo [ADR-061](./061-promover-ao-kernel-as-copias-de-producao-dos-contextos.md) (2026-10-10)**: em §7 e §14, o contexto não tem mais `errors.go` próprio e o generator deixa de emiti-lo; a tradução de erro para status gRPC é do kernel (`kernelgrpc.StatusOf`). **Emendado pelo [ADR-063](./063-duas-roles-de-banco-por-app.md) (2026-10-15)**: no item 1, em app com `database.migrator`, o banco pertence a `<app>_migrator` e a role com o nome da app serve sem posse; no item 3, o `Migrate` por capacidade é seguido do `ApplyGrants`, pela pool da migradora.
 
 ## Contexto
 
@@ -57,7 +57,7 @@ Os três contextos (`orders`, `reservations` e `bookings`) evoluíram em momento
 **Negativas:**
 
 - Cada ambiente precisa de um role e de um banco por app, criados antes da primeira partida.
-- A recriação dos bancos apaga os dados existentes; qualquer ambiente com dado real exigirá migração própria.
+- **Custo aceito:** A recriação dos bancos apaga os dados existentes; qualquer ambiente com dado real exigirá migração própria.
 - Quem tinha `DMPF_*` em `.env`, Secret ou ConfigMap precisa renomear as variáveis.
 - `contracts:buf-breaking` depende da tag `contracts-baseline/proto`, ainda ausente no remoto; até ela existir, a verificação de quebra de contrato é feita manualmente contra `develop`.
 

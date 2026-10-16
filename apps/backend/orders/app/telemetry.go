@@ -26,6 +26,7 @@ func settings(cfg Config) []slog.Attr {
 	case RoleAPI:
 		return append(storage,
 			slog.Bool("migrate", cfg.Migrate),
+			slog.String("migrator", presence(cfg.MigrateDSN)),
 			slog.String("grpc_addr", cfg.API.GRPCAddr),
 			slog.Bool("grpc_insecure", cfg.API.GRPCInsecure),
 			slog.String("grpc_tls_cert_file", cfg.API.GRPCCertFile),

@@ -93,7 +93,18 @@ O `tb` também traz o que os testes de contexto repetiam:
   ordem, como `Enqueued`), `Settled` (espera o relay publicar), `Counts` (as
   contagens numa única instrução) e `Tables` (as tabelas do schema `public`); e
   os helpers de repositório `Within`, `Seed` e `Load`, que alcançam o
-  repositório de um provider pela única via que ele aceita, uma transação.
+  repositório de um provider pela única via que ele aceita, uma transação;
+- em `tb/pg`, a role de runtime do cluster de teste (`RuntimeRole`, ADR-063):
+  `OpenRuntimePool` migra como `OpenPool`, concede a ela `KernelGrants` das
+  capacidades e `Options.Grants` e conecta como ela; `GrantRuntime` faz o mesmo
+  sobre uma pool administrativa já aberta; `RuntimeDSN` e `RuntimeConfig` dão
+  o DSN e a configuração dela para um processo filho; `AssertDenied` exige
+  SQLSTATE 42501. `MigratorDSN` passa o banco do teste para `MigratorRole`, sem
+  superuser, e devolve o DSN dela, para o teste migrar como a `<app>_migrator`.
+  A senha das duas roles é reaplicada a cada chamada, serializada por advisory
+  lock no banco do servidor de `PG_DSN`. Todo banco de teste nasce sem
+  `TEMPORARY` para `PUBLIC`. O harness de `tb/dist` aplica os grants e passa o
+  DSN da role de runtime aos filhos.
 
 O `providerkit` exporta os candidatos sobre o `memory` (`MemoryUnitOfWork`,
 `MemoryInbox`), usados pelo próprio kit e por `memory/conformance_test.go`.

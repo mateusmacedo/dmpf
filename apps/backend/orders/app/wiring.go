@@ -83,7 +83,7 @@ func NewOrdersService(pool *pgxpool.Pool, rt *otelboot.Runtime, cfg Config) (app
 
 func api(cfg Config, rt *otelboot.Runtime) serve.API {
 	return serve.API{
-		Desc: &rpc.ServiceDesc, Commands: rpc.Commands(), Schema: provider.Schema, CommandConsumer: application.CommandConsumer,
+		Desc: &rpc.ServiceDesc, Commands: rpc.Commands(), Schema: provider.Schema, Grants: provider.Grants, CommandConsumer: application.CommandConsumer,
 		Register: func(server *grpc.Server, pool *pgxpool.Pool) error {
 			service, err := NewOrdersService(pool, rt, cfg)
 			if err != nil {

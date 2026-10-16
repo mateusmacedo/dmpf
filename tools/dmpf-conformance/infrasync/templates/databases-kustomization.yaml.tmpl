@@ -10,7 +10,8 @@ resources:
 secretGenerator:
   - name: databases
     literals:
-{{- range .WithDatabase}}
-      - {{.App}}={{.Database.Dev}}{{end}}
+{{- range $m := .WithDatabase}}
+      - {{.App}}={{.Database.Dev}}{{with .Database.Migrator}}
+      - {{$m.App}}_migrator={{.Dev}}{{end}}{{end}}
     options:
       disableNameSuffixHash: true

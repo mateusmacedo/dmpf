@@ -8,7 +8,12 @@
   "database": {
     "passwordEnv": "RESERVATIONS_PG_PASSWORD",
     "local": "reservations-local",
-    "dev": "reservations-dev"
+    "dev": "reservations-dev",
+    "migrator": {
+      "passwordEnv": "RESERVATIONS_PG_MIGRATOR_PASSWORD",
+      "local": "reservations-migrator-local",
+      "dev": "reservations-migrator-dev"
+    }
   },
   "kafka": {
     "passwordEnv": "KAFKA_RESERVATIONS_PASSWORD",

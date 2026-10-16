@@ -44,7 +44,7 @@ Os packages do kernel `domain` e `application` têm o mesmo nome dos deste módu
 - **Interceptors, nesta ordem:** mTLS do peer contra `GRPC_TRUSTED_CLIENTS` (quando TLS está ligado) → desfecho no span e registro de acesso `grpc call` → admissão por método → deadline obrigatório (`INVALID_ARGUMENT` antes do caso de uso) → contexto de execução (`x-correlation-id` preservado ou cunhado, `request_id` próprio como causação, `x-tenant-id` lido só de peer verificado, `idempotency-key` exigida nos comandos e levada ao caso de uso) → handler. A cadeia vale só para os métodos de `ReservationsService`: a checagem de saúde passa direto, sem admissão nem prazo obrigatório.
 - **Idempotência dos comandos:** `Reserve` e `Cancel` exigem a metadata `idempotency-key`, no formato `^[A-Za-z0-9._-]{1,128}$` (FND-04 §7.6, ADR-056). Cada comando passa pela inbox do contexto, com `consumer_name` `reservations.commands`, separado das mensagens que o consumidor registra como `reservations`. Metadata ausente é `INVALID_ARGUMENT` com reason `MISSING_IDEMPOTENCY_KEY`, e fora do formato é `INVALID_IDEMPOTENCY_KEY`. A mesma chave com o mesmo pedido devolve a resposta gravada, aceite ou recusa, com o header `idempotent-replayed: true` e sem nova auditoria. Com outro pedido, é `FAILED_PRECONDITION` com `REUSED_IDEMPOTENCY_KEY`; em andamento além da espera, `ABORTED` com `IN_FLIGHT_IDEMPOTENCY_KEY`. A entrada vale 24h.
 - **Desfechos:** rejeição de domínio no `oneof result`; `NOT_FOUND` (inclusive acesso a identificador de outro tenant), `ABORTED`, ausência de tenant ou permissão `PERMISSION_DENIED`, `DEADLINE_EXCEEDED` e `INTERNAL` sem detalhe para as falhas técnicas.
-- **Saúde:** `NOT_SERVING` até o ping no pool e o `Migrate` (ou, sem `MIGRATE`, até a outbox e a inbox existirem), `SERVING` depois, `NOT_SERVING` no shutdown; o registro `grpc listening` traz o endereço real em `server.address` e `server.port`.
+- **Saúde:** `NOT_SERVING` até o ping no pool, o `Migrate` e os grants (ou, sem `MIGRATE`, até a role de runtime ter os grants da outbox, da inbox e de `reservations`), `SERVING` depois, `NOT_SERVING` no shutdown; o registro `grpc listening` traz o endereço real em `server.address` e `server.port`.
 
 ## Consumo
 
@@ -54,11 +54,12 @@ A ponte `Sink` confirma sem inbox, com um registro em `debug`, a entrega de tipo
 
 | Variável | Papel | Efeito |
 | --- | --- | --- |
-| `PG_DSN` | todos | Banco e role `reservations` (ADR-053) |
+| `PG_DSN` | todos | Banco `reservations`, como a role de runtime `reservations`, sem posse (ADR-053, ADR-063) |
 | `GRPC_ADDR` | `api` | Default `:9090` |
 | `GRPC_INSECURE` ou `GRPC_TLS_CERT_FILE` + `GRPC_TLS_KEY_FILE` | `api` | Transporte; sem nenhum, exit 2 |
 | `GRPC_CLIENT_CA_FILE`, `GRPC_TRUSTED_CLIENTS` | `api`, com TLS | CA dos clientes e allowlist de identidades por URI/DNS SAN (nunca CN — ex.: `spiffe://dmpf/bff`); com TLS ligado os dois são obrigatórios (ADR-052), e o `x-tenant-id` só é lido de peer verificado |
 | `MIGRATE` | `api` | Aplica o schema antes de servir |
+| `PG_MIGRATE_DSN` | `api` | Role migradora `reservations_migrator`, dona do banco, lida só com `MIGRATE`, que a exige: o `api` aplica por ela o schema e os grants da role de runtime e a desconecta antes de servir (ADR-063). Nunca chega a `relay` nem `consumer` |
 | `KAFKA_BROKERS`, `KAFKA_INSECURE` | `relay`, `consumer` | Brokers e opt-out de TLS |
 | `KAFKA_SASL_MECHANISM`, `KAFKA_SASL_USERNAME`, `KAFKA_SASL_PASSWORD` ou `KAFKA_CLIENT_CERT_FILE` + `KAFKA_CLIENT_KEY_FILE` | papéis com Kafka, com TLS | Autenticação do cliente no broker (SCRAM-SHA-256/512 ou certificado), obrigatória sempre que `KAFKA_INSECURE` não está ligado (ADR-052); `KAFKA_CA_FILE` quando a CA do broker é privada |
 | `KAFKA_RESERVATIONS_TOPIC`, `KAFKA_RESERVATIONS_DLQ`, `KAFKA_GROUP` | `relay` | Canal `reservations.events` |
@@ -93,7 +94,7 @@ reentrega.
 
 ```bash
 docker compose -f infra/local/docker-compose.yml --profile postgres --profile dmpf up -d postgres-init
-PG_DSN='postgres://reservations:reservations-local@localhost:5432/reservations?sslmode=disable' MIGRATE=true GRPC_ADDR=127.0.0.1:9192 GRPC_INSECURE=true \
+PG_DSN='postgres://reservations:reservations-local@localhost:5432/reservations?sslmode=disable' GRPC_ADDR=127.0.0.1:9192 GRPC_INSECURE=true \
   pnpm nx run reservations:serve-api
 PG_DSN='postgres://reservations:reservations-local@localhost:5432/reservations?sslmode=disable' KAFKA_BROKERS=localhost:9092 KAFKA_INSECURE=true \
   KAFKA_RESERVATIONS_TOPIC=reservations.events KAFKA_RESERVATIONS_DLQ=reservations.events.dlq KAFKA_GROUP=reservations \
@@ -108,6 +109,8 @@ PG_DSN='postgres://reservations:reservations-local@localhost:5432/reservations?s
 ## Targets Nx
 
 `fmt-check`, `vet`, `build`, `test-race`, `test-distributed`, `govulncheck`, `serve-api`, `serve-relay` e `serve-consumer`, mais os de container: `docker:build`, `docker:run` (papel `api`), `docker:run-relay` e `docker:run-consumer`, que o `bff:docker:run` sobe.
+
+O `serve-api` carrega o `deploy/.env.migrator.example` (`MIGRATE=true` e `PG_MIGRATE_DSN`) e, por cima, as cópias locais `deploy/.env` e `deploy/.env.migrator`; o `docker:run` lê as duas cópias, que o `deploy-env` cria a partir dos exemplos quando faltam. Os demais `serve-*` e os `docker:run-*` carregam só o `deploy/.env.example` e a cópia `deploy/.env`, sem a credencial da migradora.
 
 ## Testes
 

@@ -34,17 +34,24 @@ Só a tag `dmpf@0.1.0` existe no repositório; nenhum projeto tem tag própria d
 
 ## Alternativas descartadas
 
-- **Manter o sufixo `-go` para a futura contraparte TypeScript.** A contraparte, quando nascer, vive em `libs/<scope>/ts/<módulo>`; o Nx não colide porque o `project.json` fixa o nome, e o `@nx-go/nx-go` nunca infere fora de `go.mod`. Pagar o sufixo hoje por um problema que a árvore já resolve não compensa.
-- **Nomear os providers pelo diretório composto (`providergrpc`).** Elimina a colisão com a lib externa, mas reintroduz a concatenação que se quis remover e deixa o package com nome diferente do papel que cumpre em cada arquivo.
-- **Dar alias à lib externa (`googlegrpc "google.golang.org/grpc"`).** Espalha um nome inventado por 26 arquivos para preservar o nosso bare; o alias no nosso import, escolhido pelo papel local, lê melhor e mantém a lib externa como toda a comunidade a escreve.
-- **Manter `bookings-<bloco>` como namespace do contexto.** É o mesmo prefixo colado de antes, só com outro dono; e a colisão que ele evitava desaparece quando o contexto é um módulo só.
-- **Nome de projeto com barra (`bookings/domain`).** Resolveria o Nx, mas não o `package.json` do pnpm, que exige nome npm válido, e manteria cinco módulos para uma lib.
+| Alternativa | Por que foi rejeitada |
+| ----------- | --------------------- |
+| Manter o sufixo `-go` para a futura contraparte TypeScript | A contraparte, quando nascer, vive em `libs/<scope>/ts/<módulo>`; o Nx não colide porque o `project.json` fixa o nome, e o `@nx-go/nx-go` nunca infere fora de `go.mod`. Pagar o sufixo hoje por um problema que a árvore já resolve não compensa |
+| Nomear os providers pelo diretório composto (`providergrpc`) | Elimina a colisão com a lib externa, mas reintroduz a concatenação que se quis remover e deixa o package com nome diferente do papel que cumpre em cada arquivo |
+| Dar alias à lib externa (`googlegrpc "google.golang.org/grpc"`) | Espalha um nome inventado por 26 arquivos para preservar o nosso bare; o alias no nosso import, escolhido pelo papel local, lê melhor e mantém a lib externa como toda a comunidade a escreve |
+| Manter `bookings-<bloco>` como namespace do contexto | É o mesmo prefixo colado de antes, só com outro dono; e a colisão que ele evitava desaparece quando o contexto é um módulo só |
+| Nome de projeto com barra (`bookings/domain`) | Resolveria o Nx, mas não o `package.json` do pnpm, que exige nome npm válido, e manteria cinco módulos para uma lib |
 
 ## Consequências
 
+**Positivas:**
+
 - `go.work` cai de 22 para 18 entradas `use`; os `replace` são regravados pelo `modsync --write`, que passa a ser o dono dos `require` entre irmãos.
-- O baseline de unidades foi regravado (`--write-baseline`) porque ids e import paths mudaram; a mudança é normativa e vai em commit próprio (`DMPF-T002`).
 - 26 arquivos ganharam alias no import do provider do kernel e 12 no import do kernel visto do `bookings`; nenhum código de produção mudou de comportamento.
 - O `.golangci.yml` ganhou `**/contracts/**` no seletor do bloco `contract`; sem ele, o rename teria desligado esse `depguard` em silêncio.
 - Um `project.json` de contexto que perdesse o campo `name` faria o `@nx-go/nx-go` inferir `bookings` do basename — a forma correta —, e não mais um nome composto.
+
+**Negativas:**
+
+- **Custo aceito:** O baseline de unidades foi regravado (`--write-baseline`) porque ids e import paths mudaram; a mudança é normativa e vai em commit próprio (`DMPF-T002`).
 - O BOM `bom/dmpf/0.1.0.json` acompanha a árvore pela máquina de estados de `BOM-07`, sem tocar na evidência: os `registry_ref.file` apontam para os paths novos; `google.golang.org/grpc@v1.83.1` passa a `rejeitada` e `v1.83.2` entra como `candidata` (o `go.mod` já estava em `v1.83.2` antes deste ADR); o produto `apps/backend/dmpf-reference`, que o ADR-044 substituiu, passa a `depreciada` com `successor` `apps/backend/bff`, e `bff`, `orders` e `reservations` entram como `candidata`. A evidência de `bom/evidence/0.1.0/` permanece como registro do commit `8e171d31`.

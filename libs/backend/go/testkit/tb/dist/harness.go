@@ -95,6 +95,7 @@ func New(t testing.TB, s Spec) *Harness {
 		Group:   "distkit-" + s.Name + "-group-" + suffix,
 		DLQ:     "distkit-" + s.Name + "-" + suffix + "-dlq",
 	}
+	pg.GrantRuntime(t, h.Pool, s.Pool)
 	CreateTopics(t, seeds, h.Group, h.Topic, h.DLQ)
 	return h
 }
@@ -152,7 +153,7 @@ func (h *Harness) start(t testing.TB, name string, role Role, env ...string) *Pr
 		"OTEL_METRICS_EXPORTER=none",
 		"OTEL_LOGS_EXPORTER=none",
 		EnvBrokers+"="+strings.Join(h.Brokers, ","),
-		pg.PostgresDSN+"="+pg.DSN(t, h.Spec.Pool.Project),
+		pg.PostgresDSN+"="+pg.RuntimeDSN(t, h.Spec.Pool.Project),
 	)
 	cmd.Env = append(cmd.Env, env...)
 	return Supervise(t, name, cmd)

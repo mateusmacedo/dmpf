@@ -4,6 +4,7 @@ package postgres_test
 
 import (
 	"context"
+	"sync"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -40,8 +41,8 @@ CREATE INDEX IF NOT EXISTS tagged_probes_label_idx ON tagged_probes (label);`
 
 var allCapabilities = []postgres.Capability{postgres.Outbox, postgres.Inbox}
 
-// openPool runs the test in a database of its own (tb/pg), and truncates the
-// tables before and after so a test that reuses the pool starts clean.
+var probeTableGrants = []postgres.Grant{postgres.Mutable("probes"), postgres.Mutable("tagged_probes")}
+
 func openPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 	return openPoolWith(t, func(*pgxpool.Config) {})
@@ -49,29 +50,48 @@ func openPool(t *testing.T) *pgxpool.Pool {
 
 func openPoolWith(t *testing.T, configure func(*pgxpool.Config)) *pgxpool.Pool {
 	t.Helper()
-
-	ctx := context.Background()
-	cfg := pg.Config(t, "postgres")
+	admin := openAdminPool(t)
+	pg.GrantRuntime(t, admin, pg.Options{Capabilities: allCapabilities, Grants: probeTableGrants})
+	cfg := pg.RuntimeConfig(t, "postgres")
 	configure(cfg)
-
-	pool, err := pgxpool.NewWithConfig(ctx, cfg)
+	pool, err := pgxpool.NewWithConfig(context.Background(), cfg)
 	if err != nil {
 		t.Fatalf("pgxpool.NewWithConfig() = %v, want nil", err)
 	}
 	t.Cleanup(pool.Close)
+	adminOf.Store(pool, admin)
+	t.Cleanup(func() { adminOf.Delete(pool) })
+	return pool
+}
 
+var adminPools, adminOf sync.Map
+
+func openAdminPool(t *testing.T) *pgxpool.Pool {
+	t.Helper()
+	if pool, ok := adminPools.Load(t); ok {
+		return pool.(*pgxpool.Pool)
+	}
+	ctx := context.Background()
+	pool, err := pgxpool.NewWithConfig(ctx, pg.Config(t, "postgres"))
+	if err != nil {
+		t.Fatalf("pgxpool.NewWithConfig() = %v, want nil", err)
+	}
+	t.Cleanup(pool.Close)
 	if err := postgres.Migrate(ctx, pool, allCapabilities, probeSchema); err != nil {
 		t.Fatalf("Migrate() = %v, want nil", err)
 	}
-
 	truncate(t, ctx, pool)
 	t.Cleanup(func() { truncate(t, ctx, pool) })
-
+	adminPools.Store(t, pool)
+	t.Cleanup(func() { adminPools.Delete(t) })
 	return pool
 }
 
 func truncate(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
 	t.Helper()
+	if admin, ok := adminOf.Load(pool); ok {
+		pool = admin.(*pgxpool.Pool)
+	}
 
 	if _, err := pool.Exec(ctx, "TRUNCATE outbox, inbox, quarantine, probes, tagged_probes"); err != nil {
 		t.Fatalf("TRUNCATE = %v, want nil", err)

@@ -15,6 +15,11 @@ secretGenerator:
       - KAFKA_BROKERS=redpanda-0.redpanda:9092
     options:
       disableNameSuffixHash: true
+  - name: orders-migrator
+    literals:
+      - PG_MIGRATE_DSN=postgres://orders_migrator:orders-migrator-dev@postgres-0.postgres:5432/orders?sslmode=disable
+    options:
+      disableNameSuffixHash: true
 
 patches:
   - path: configmap-orders-patch.yaml

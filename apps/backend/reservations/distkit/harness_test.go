@@ -18,6 +18,7 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/dist"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/execctx"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/pg"
 )
 
 // TestDistkitRole is the body of every child process; it skips in the parent.
@@ -62,6 +63,26 @@ func TestV32NaiveConsumerIsReprovedWithR004(t *testing.T) {
 	}
 	if v.Diagnostics[0].Code != distkit.CodeR004 {
 		t.Fatalf("diagnostic = %+v, want DMPF-R004", v.Diagnostics[0])
+	}
+}
+
+func TestTheConsumerChildReachesTheDatabaseAsTheRuntimeRole(t *testing.T) {
+	h := distkit.New(t)
+	consumer := h.Start(t, distkit.RoleConsumer)
+	h.Start(t, distkit.RoleProducer).Wait(t, settle)
+
+	dist.WaitFor(t, "the consumer to dispose of every delivery", settle, func() bool {
+		return h.Effects(t).Inbox >= 2
+	})
+	var sessions int
+	if err := h.Pool.QueryRow(context.Background(),
+		"SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND usename = $1", pg.RuntimeRole).Scan(&sessions); err != nil {
+		t.Fatalf("pg_stat_activity = %v", err)
+	}
+	consumer.Stop(t, settle)
+
+	if sessions == 0 {
+		t.Fatalf("sessions of %s in the database the consumer wrote = 0, want the child connected as the runtime role\nconsumer:\n%s", pg.RuntimeRole, consumer.Output())
 	}
 }
 

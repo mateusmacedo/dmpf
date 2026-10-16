@@ -8,7 +8,12 @@
   "database": {
     "passwordEnv": "<%- envName %>_PG_PASSWORD",
     "local": "<%- name %>-local",
-    "dev": "<%- name %>-dev"
+    "dev": "<%- name %>-dev",
+    "migrator": {
+      "passwordEnv": "<%- envName %>_PG_MIGRATOR_PASSWORD",
+      "local": "<%- name %>-migrator-local",
+      "dev": "<%- name %>-migrator-dev"
+    }
   },
   "kafka": {
     "passwordEnv": "KAFKA_<%- envName %>_PASSWORD",

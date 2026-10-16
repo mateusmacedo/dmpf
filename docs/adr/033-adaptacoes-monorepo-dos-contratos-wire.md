@@ -161,18 +161,23 @@ heurística textual, contra o ADR-012.
 
 ## Consequências
 
+**Positivas:**
+
 - O bloco `contract` nasce sob os dois gates: o verificador `conformance`
   (grafo de imports, três unidades `contract` declaradas) e os quatro gates Buf
   (`lint`, `pins`, `generate-check`, `breaking`), todos fail-closed e sem bypass
   (`BUF-12`).
-- Enquanto a marca `contracts-baseline/proto` não for criada por uma segunda
-  pessoa, `buf breaking` é dispensado para `proto` com aviso. A criação da marca
-  é ato pós-merge fora deste PR; sem ela, mudanças incompatíveis em `.proto`
-  passam sem reprovação de `breaking` — e por isso os demais gates não têm
-  dispensa.
 - Cada stack futura (`KRN-11`, TypeScript) gera a partir da mesma fonte em
   `contracts/` para o seu próprio `gen/` dentro da lib correspondente; a raiz do
   `gen/` deixa de ser `contracts/` para todas as stacks, não só para Go.
+
+**Negativas:**
+
+- **Custo aceito:** Enquanto a marca `contracts-baseline/proto` não for criada por
+  uma segunda pessoa, `buf breaking` é dispensado para `proto` com aviso. A
+  criação da marca é ato pós-merge fora deste PR; sem ela, mudanças incompatíveis
+  em `.proto` passam sem reprovação de `breaking` — e por isso os demais gates não
+  têm dispensa.
 - As duas exceções nominais vencem em 2027-03-02 e precisam ser revisadas pelo
   owner; se se repetirem em cada nova unidade `contract`, isso é o sinal para
   abrir a história no `KRN-02`.

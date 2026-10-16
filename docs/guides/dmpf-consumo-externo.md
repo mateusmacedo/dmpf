@@ -149,6 +149,26 @@ Arquivo do `init` editado à mão não é sobrescrito: a migration o lista no lo
 Compare com a versão nova e, depois de salvar o que quiser manter, sobrescreva
 com `pnpm nx g @mateusmacedo/dmpf-plugin:init --force`.
 
+### Adotar as duas roles de banco (ADR-063)
+
+Um contexto gerado antes do ADR-063 segue válido com a role única, dona do
+banco. Para separar a role que migra da que serve:
+
+1. Atualize o plugin e o `dmpf-conformance` para a mesma versão: um
+   `conformance` anterior recusa o bloco novo do `infra.json`.
+2. Acrescente ao `infra.json` do contexto o bloco `database.migrator`
+   (`passwordEnv`, `local`, `dev`) e rode o `infrasync --write`.
+3. Exporte em `provider/schema.go` os `Grants` de cada tabela do `schema.sql`
+   (`postgres.Mutable` para a tabela que um `Table` escreve, `postgres.AppendOnly`
+   para a que só recebe linhas novas) e passe-os em `serve.API.Grants`.
+4. Leia `PG_MIGRATE_DSN` só no papel `api` (`serve.APIRole.MigrateDSN`) e
+   declare-o só no processo com `MIGRATE=true`: no Compose, no serviço do `api`;
+   no Kubernetes, num Secret `<ctx>-migrator` referenciado só pelo Deployment
+   do `api`.
+5. Recrie o banco: a partida recusa uma role de runtime dona de tabela. Com
+   dado real, transfira antes a posse para a migradora
+   (`REASSIGN OWNED BY "<ctx>" TO "<ctx>_migrator"`).
+
 ## 7. Keycloak de referência (opcional)
 
 O `init` e a migration trazem o Keycloak de referência do ADR-064 como

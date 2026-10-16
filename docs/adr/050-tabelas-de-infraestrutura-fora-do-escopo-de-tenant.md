@@ -1,4 +1,4 @@
-# ADR-050: As tabelas de infraestrutura ficam fora do escopo de tenant
+# ADR-050: Deixar as tabelas de infraestrutura fora do escopo de tenant
 
 ## Status
 
@@ -39,5 +39,5 @@ O tenant **atravessa** a outbox sem ser escopo dela: vai no `metadata` do regist
 
 **Negativas:**
 
-- Quem inspeciona essas tabelas vê registros de todos os tenants. Isso é acesso ao dado em repouso fora da aplicação, governado por `DAT-11` e não por `IDN-11` a `IDN-14`, e fica com a operação.
+- **Custo aceito:** Quem inspeciona essas tabelas vê registros de todos os tenants. Isso é acesso ao dado em repouso fora da aplicação, governado por `DAT-11` e não por `IDN-11` a `IDN-14`, e fica com a operação.
 - Uma consulta nova sobre essas tabelas não é pega pelo `Table`: a proteção é o gate que nega o driver nos providers de contexto, não um predicado.

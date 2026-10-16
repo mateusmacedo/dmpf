@@ -110,7 +110,7 @@ Variável obrigatória ausente, ou nenhuma política de transporte gRPC ou de au
 
 ## Rodar localmente
 
-`pnpm nx run bff:serve` sobe a infra local, os papéis dos três contextos (`serve-api`, `serve-relay` e o `serve-consumer` do `reservations`) e o BFF no host, cada processo com o `deploy/.env.example` da app; um `deploy/.env` ao lado sobrepõe os valores. Os contextos ouvem gRPC sem TLS em 9191 (`orders`), 9192 (`reservations`) e 9193 (`bookings`), e o BFF ouve HTTP em 8080, com a porta de administração em 8090.
+`pnpm nx run bff:serve` sobe a infra local, os papéis dos três contextos (`serve-api`, `serve-relay` e o `serve-consumer` do `reservations`) e o BFF no host, cada processo com o `deploy/.env.example` da app; um `deploy/.env` ao lado sobrepõe os valores. Só o `serve-api` carrega também o `deploy/.env.migrator.example`, com `MIGRATE=true` e o `PG_MIGRATE_DSN` da migradora. Os contextos ouvem gRPC sem TLS em 9191 (`orders`), 9192 (`reservations`) e 9193 (`bookings`), e o BFF ouve HTTP em 8080, com a porta de administração em 8090.
 
 ```bash
 pnpm nx run bff:serve
@@ -118,7 +118,7 @@ pnpm nx run bff:serve
 
 A topologia inteira sobe por `docker compose -f infra/local/docker-compose.yml --profile dmpf up -d --build`, com mTLS entre o BFF e os `api` e SASL no Kafka interno (ver `infra/README.md`).
 
-Em containers na rede do host, com os `deploy/.env` de cada app (o target `deploy-env` copia o `.env.example` quando o `.env` não existe), `pnpm nx run bff:docker:run` sobe a infra local e as imagens do BFF e dos papéis de cada contexto: o `docker:run` (papel `api`) e o `docker:run-relay` dos três, e o `docker:run-consumer` do `reservations`. O container do BFF fica `healthy` só depois que os três contextos respondem `SERVING`.
+Em containers na rede do host, com os `deploy/.env` de cada app (o target `deploy-env` copia o `.env.example` e o `.env.migrator.example` quando a cópia não existe; só o `docker:run` do `api` lê o `deploy/.env.migrator`), `pnpm nx run bff:docker:run` sobe a infra local e as imagens do BFF e dos papéis de cada contexto: o `docker:run` (papel `api`) e o `docker:run-relay` dos três, e o `docker:run-consumer` do `reservations`. O container do BFF fica `healthy` só depois que os três contextos respondem `SERVING`.
 
 ## Targets Nx
 

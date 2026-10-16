@@ -29,9 +29,9 @@ provider grava `metadata = '{}'`
 (`libs/backend/go/postgres/outbox.go:66-73`), porque inventar o
 conteúdo seria o provider autorando o que não lhe pertence (`OBX-02`).
 
-**A terceira é o que fazer com corrupção em repouso.** O ADR-035 (`:163-165`)
-obriga conferir `payload_hash` na drenagem, mas não classifica a divergência
-entre os três desfechos do passo 3.
+**A terceira é o que fazer com corrupção em repouso.** O ADR-035 (seção
+«Consequências») obriga conferir `payload_hash` na drenagem, mas não classifica a
+divergência entre os três desfechos do passo 3.
 
 **A quarta é o `aggregateversion`.** A coluna `aggregate_version` é `bigint`; o
 atributo do envelope é `ce_integer`, que é `int32`. A conversão entre os dois
@@ -84,66 +84,55 @@ encerramento**: ele não falhou por mérito próprio, então não é cobrado bac
 o claim é devolvido ao pool imediatamente pelo encerramento gracioso
 (`OBX-13`).
 
-## Consequências
-
-O backlog cresce enquanto ninguém gravar `metadata`, e **ninguém grava hoje**.
-O `KRN-09` (ADR-037) era o candidato natural e não o fez: aquele ADR declara que
-o `KRN-06` e o `KRN-07` "mergearam em paralelo a esta entrega e ainda não são
-instrumentados por ela". Portanto a lacuna de `ENV-08` segue aberta depois do
-`KRN-09`, e nenhuma entrega tem a produção dos três atributos no escopo.
-
-Isso é deliberado e é o comportamento correto: a alternativa — publicar um
-envelope inválido, ou queimar os registros em `failed` — perderia mensagens ou
-exigiria intervenção manual para recuperá-las. O custo é que o sinal `pending`
-fica alto e precisa ser lido com esse contexto até que a produção dos três
-atributos seja atribuída a alguém.
-
-A cláusula `locked_until IS NULL` é uma condição a mais no predicado mais quente
-do relay. O índice parcial `dmpf_outbox_claim_idx` cobre a varredura
-(`available_at, id` sob `status IN ('pending','publishing')`), e a aplicabilidade
-é provada em teste com `enable_seqscan = off` — não pela escolha do planner em
-tabela pequena, que nada diria.
-
-Um registro em `failed` não retorna ao ciclo automático. Retomá-lo é operação
-com evidência, fora desta entrega e do `KRN-08`.
-
-O relay declara `Store` e `Publisher` no consumidor e é satisfeito
-estruturalmente pelo `OutboxStore` do provider. Isso acopla o pacote `relay` ao
-tipo `postgres.Claimed`. A aresta `app → provider` é permitida pela matriz
-de blocos (ADR-010), mas um segundo provider — outro banco — exigiria ou o mesmo
-tipo ou um adaptador na composition root. A troca foi aceita para não inaugurar
-uma camada de conversão antes de existir o segundo provider que a justifique.
-
-`cmd/dmpf-relay` **não** foi entregue. Um binário sem `Publisher` concreto não
-teria o que compor, e o transporte é do `KRN-10`. `BLK-02` fica satisfeito no
-desenho: o relay tem composition root e lifecycle próprios, separados do
-processo que atende requisições, e o exemplo está em
-`libs/backend/go/app/example/reservations/relay.go`.
-
 ## Alternativas descartadas
 
-**Gravar `locked_until` igual ao novo `available_at` no desfecho transitório.**
-Evitaria a cláusula extra no predicado, mas passaria a afirmar que existe um
-lease até aquele instante, o que é falso, e reintroduziria a confusão entre
-prazo de lease e prazo de backoff que `OBX-18` existe justamente para desfazer.
+| Alternativa | Por que foi rejeitada |
+| ----------- | --------------------- |
+| Gravar `locked_until` igual ao novo `available_at` no desfecho transitório | Evitaria a cláusula extra no predicado, mas passaria a afirmar que existe um lease até aquele instante, o que é falso, e reintroduziria a confusão entre prazo de lease e prazo de backoff que `OBX-18` existe justamente para desfazer |
+| Reivindicar o registro sem os três atributos e deixá-lo falhar na montagem | O registro viraria `failed` por uma lacuna da norma, não por defeito próprio, e sairia do ciclo automático — precisaria de intervenção manual depois que a lacuna fosse fechada |
+| Tratar `payload_hash` divergente como falha transitória, por simetria com os demais erros | A simetria seria só aparente: os outros erros têm chance de sucesso numa nova tentativa, e este não tem |
+| Acrescentar `Publisher` a `ports` | Contradiria uma decisão já registrada em código (`ports/outbox.go:36-38`: aquele bloco não declara porta de publicação porque publicar acontece depois do commit e fora da unidade de trabalho) e ampliaria a superfície fechada daquele bloco sem necessidade |
+| Paginar o claim por cursor | Um cursor aberto manteria transação viva durante o I/O, violando `OBX-07`. Cada ciclo abre e fecha a sua própria transação de claim |
 
-**Reivindicar o registro sem os três atributos e deixá-lo falhar na montagem.**
-O registro viraria `failed` por uma lacuna da norma, não por defeito próprio, e
-sairia do ciclo automático — precisaria de intervenção manual depois que a
-lacuna fosse fechada.
+## Consequências
 
-**Tratar `payload_hash` divergente como falha transitória, por simetria com os
-demais erros.** A simetria seria só aparente: os outros erros têm chance de
-sucesso numa nova tentativa, e este não tem.
+**Positivas:**
 
-**Acrescentar `Publisher` a `ports`.** Contradiria uma decisão já
-registrada em código (`ports/outbox.go:36-38`: aquele bloco não declara
-porta de publicação porque publicar acontece depois do commit e fora da unidade
-de trabalho) e ampliaria a superfície fechada daquele bloco sem necessidade.
+- O índice parcial `dmpf_outbox_claim_idx` cobre a varredura
+  (`available_at, id` sob `status IN ('pending','publishing')`), e a aplicabilidade
+  é provada em teste com `enable_seqscan = off` — não pela escolha do planner em
+  tabela pequena, que nada diria.
+- `BLK-02` fica satisfeito no desenho: o relay tem composition root e lifecycle
+  próprios, separados do processo que atende requisições, e o exemplo está em
+  `libs/backend/go/app/example/reservations/relay.go`.
 
-**Paginar o claim por cursor.** Um cursor aberto manteria transação viva durante
-o I/O, violando `OBX-07`. Cada ciclo abre e fecha a sua própria transação de
-claim.
+**Negativas:**
+
+- **Custo aceito:** O backlog cresce enquanto ninguém gravar `metadata`, e
+  **ninguém grava hoje**. O `KRN-09` (ADR-037) era o candidato natural e não o
+  fez: aquele ADR declara que o `KRN-06` e o `KRN-07` "mergearam em paralelo a
+  esta entrega e ainda não são instrumentados por ela". Portanto a lacuna de
+  `ENV-08` segue aberta depois do `KRN-09`, e nenhuma entrega tem a produção dos
+  três atributos no escopo.
+
+  Isso é deliberado e é o comportamento correto: a alternativa — publicar um
+  envelope inválido, ou queimar os registros em `failed` — perderia mensagens ou
+  exigiria intervenção manual para recuperá-las. O custo é que o sinal `pending`
+  fica alto e precisa ser lido com esse contexto até que a produção dos três
+  atributos seja atribuída a alguém.
+- A cláusula `locked_until IS NULL` é uma condição a mais no predicado mais quente
+  do relay.
+- Um registro em `failed` não retorna ao ciclo automático. Retomá-lo é operação
+  com evidência, fora desta entrega e do `KRN-08`.
+- **Custo aceito:** O relay declara `Store` e `Publisher` no consumidor e é
+  satisfeito estruturalmente pelo `OutboxStore` do provider. Isso acopla o pacote
+  `relay` ao tipo `postgres.Claimed`. A aresta `app → provider` é permitida pela
+  matriz de blocos (ADR-010), mas um segundo provider — outro banco — exigiria ou
+  o mesmo tipo ou um adaptador na composition root. A troca foi aceita para não
+  inaugurar uma camada de conversão antes de existir o segundo provider que a
+  justifique.
+- `cmd/dmpf-relay` **não** foi entregue. Um binário sem `Publisher` concreto não
+  teria o que compor, e o transporte é do `KRN-10`.
 
 ## Referências
 
@@ -157,11 +146,13 @@ claim.
 - `docs/adr/036-classificacao-de-recepcao-e-fronteira-pending.md` — o consumo que absorve a republicação.
 - `docs/adr/037-observabilidade-otel-e-retry-por-conjuncao-em-go.md` — o `KRN-09`, que mergeou em paralelo a esta entrega e deixou a lacuna de `ENV-08` aberta.
 
-## Addendum — 2026-09-08
+## Addendum — revisões datadas
+
+### Addendum — 2026-09-08
 
 A lacuna de `ENV-08` fechou no KRN-12 (ADR-041, SPEC-6QT9SBAS): a produção dos três atributos passou a ter dono. A borda HTTP de `reference` autora `correlationid` (do cliente ou cunhado) e `traceparent` (do span de servidor) e os põe no contexto por `ports.WithMessageContext`; `application.MessageContextFor` os copia para cada `OutboxEntry` e preenche a causação de quem inicia a cadeia com o próprio `message_id` (FND-05); no consumo, `app.Consumer` propaga o `correlationid`, o `id` recebido como causação e o `traceparent` do envelope antes de chamar o handler. O predicado de claim desta decisão fica como está — e passa a selecionar as linhas que o `api` escreve. O sinal `pending` alto deixa de ser o estado normal.
 
-## Addendum — 2026-10-01 (o envelope leva o contexto de criação)
+### Addendum — 2026-10-01 (o envelope leva o contexto de criação)
 
 O addendum anterior deu dono à produção dos três atributos. A
 [SPEC-1TFW24WV](../specs/SPEC-1TFW24WV-observabilidade-ponta-a-ponta.md) fixou

@@ -28,7 +28,7 @@ Este arquivo guarda só o que é específico do repositório e não está em out
 - **Escopo npm:** `@mateusmacedo/`, em minúsculas. O casing precisa bater entre o `name` do `package.json`, o `tsconfig.base.json` e o `scope` do reusable de publicação; divergência faz o `pnpm publish` cair no registry público.
 - **Lib TypeScript nova:** acrescenta a própria entrada em `paths` (`tsconfig.base.json`) e `references` (`tsconfig.json`). Passo a passo em `docs/nx-reference/tasks.md`.
 - **`import type`** é obrigatório para imports só de tipos (`useImportType: error` no Biome).
-- **Forma do contexto (ADR-053):** banco e role com o nome da app, tabelas sem prefixo (agregado no plural), persistência híbrida, borda só gRPC em `app/rpc`, config sem prefixo `DMPF_`. O `tools/dmpf-plugin/scripts/dmpf-context-check.sh` reprova o que fugir disso; o detalhe está em `.claude/rules/dmpf-bounded-context.md`.
+- **Forma do contexto (ADR-053, ADR-063):** banco com o nome da app, dono `<app>_migrator` (só o `api` com `MIGRATE=true` o usa, por `PG_MIGRATE_DSN`), role de runtime `<app>` sem posse e com grants por tabela em `provider.Grants`, tabelas sem prefixo (agregado no plural), persistência híbrida, borda só gRPC em `app/rpc`, config sem prefixo `DMPF_`. O `tools/dmpf-plugin/scripts/dmpf-context-check.sh` reprova o que fugir disso; o detalhe está em `.claude/rules/dmpf-bounded-context.md`.
 - **Commits (Conventional Commits, em PT-BR):** `<tipo>(<scope>): <descrição imperativa>`, máx. 72 caracteres no assunto. `scope` é o nome do projeto Nx sem o prefixo da org. Projetos distintos vão em commits separados. Detalhes na skill `.agents/skills/nx-commit/`.
 
 ## Comandos

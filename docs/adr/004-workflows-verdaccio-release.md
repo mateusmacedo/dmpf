@@ -49,9 +49,12 @@ Verdaccio (não cobre migração da plataforma para Gitea).
   `scope` passado ao reusable — o Nx resolve o registry pelo escopo do pacote,
   e divergir faz o publish cair no registry público.
 
-### Matriz do que NÃO foi portado
+## Alternativas descartadas
 
-| Item do monorepo de referência | Motivo de não portar |
+Matriz do que NÃO foi portado do monorepo de referência. Cada item é uma
+alternativa não adotada e o motivo de não portar é o motivo da rejeição.
+
+| Alternativa | Por que foi rejeitada |
 |------------------|----------------------|
 | Node 22 / pnpm 9 | Template pinado em 24/11 (ADR-003) |
 | API Gitea no create-release | Template hospedado no GitHub; manter `gh pr create` |
@@ -61,13 +64,18 @@ Verdaccio (não cobre migração da plataforma para Gitea).
 
 ## Consequências
 
+**Positivas:**
+
 - Versionamento fica idempotente em relação ao registry: falha de publish não
   impede tags/changelog.
-- Consumidores do template precisam do reusable `publish-libs.yaml` acessível
-  em `mateusmacedo/actions-templates@main` e da role/SSM de auth Verdaccio
-  configurada na org.
 - Docker release permanece no mesmo workflow de versionamento (vantagem do
   template ausente no monorepo de referência).
+
+**Negativas:**
+
+- **Custo aceito:** Consumidores do template precisam do reusable
+  `publish-libs.yaml` acessível em `mateusmacedo/actions-templates@main` e da
+  role/SSM de auth Verdaccio configurada na org.
 - CI estrutural (`ci.yml`) e create-release não mudam nesta entrega.
 
 ## Referências

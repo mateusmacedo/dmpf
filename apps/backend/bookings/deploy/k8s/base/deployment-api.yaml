@@ -31,6 +31,8 @@ spec:
                 name: bookings
             - secretRef:
                 name: bookings
+            - secretRef:
+                name: bookings-migrator
           env:
             - name: K8S_POD_NAME
               valueFrom:
