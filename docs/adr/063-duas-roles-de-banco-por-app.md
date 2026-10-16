@@ -2,7 +2,7 @@
 
 ## Status
 
-Aceito — 2026-10-15. Implementa [SPEC-QPRR24C4](../specs/SPEC-QPRR24C4-duas-roles-de-banco-por-app.md). Emenda o [ADR-051](./051-escopo-de-tenant-por-choke-point-em-go.md), na premissa de role dona e na condição de RLS do §Consequências, e o [ADR-053](./053-nomenclatura-e-isolamento-de-banco-e-padronizacao-de-contextos.md), nos itens 1 e 3 do §Contexto. A medição do servidor de `hmg` está pendente (§Pendência declarada).
+Aceito — 2026-10-15. Implementa [SPEC-QPRR24C4](../specs/SPEC-QPRR24C4-duas-roles-de-banco-por-app.md). Emenda o [ADR-051](./051-escopo-de-tenant-por-choke-point-em-go.md), na premissa de role dona e na condição de RLS do §Consequências, e o [ADR-053](./053-nomenclatura-e-isolamento-de-banco-e-padronizacao-de-contextos.md), nos itens 1 e 3 do §Contexto. Não há servidor de `hmg`: o overlay `hmg` é template, e as condições para quem provisionar um servidor a partir dele estão em §Pré-condições de servidor externo.
 
 ## Contexto
 
@@ -12,8 +12,16 @@ O consumidor externo antecipa-market (SPEC-GXGASP24) precisa de uma tabela de au
 
 As três investigações da spec foram feitas contra a imagem `postgres:16-alpine` com o digest da infra de testes:
 
-1. **Superuser e versão (Compose, CI e overlay `dev`).** O administrativo `postgres` é superuser, como declaram o Compose, o CI e o Secret `postgres` da base k8s. As roles das apps não são superuser, mas cada uma é dona do próprio banco e das tabelas. O servidor responde `server_version_num` 160015, o que cumpre a pré-condição de PostgreSQL 15 ou superior. A premissa do ADR-051 (role superuser e dona) vale para o CI, onde os testes conectam como `postgres`; em local e `dev` a role da app é dona, mas não superuser.
-2. **Privilégios mínimos do kernel.** A suíte inteira de integração do `postgres` passa sob uma role que só recebe o conjunto declarado: claim com `FOR UPDATE SKIP LOCKED`, purgas por `ctid`, sinais, inbox, quarantine, `Table`, `Relation`, `SnapshotTable` e `to_regclass`. As colunas `IDENTITY` de `outbox` e `quarantine` não exigem `USAGE` na sequência.
+1. **Superuser e versão (Compose, CI e overlay `dev`).** O administrativo `postgres` é superuser, como declaram o Compose, o CI e o Secret `postgres` da base k8s. As roles das apps não são superuser, mas cada uma é dona do próprio banco e das tabelas. O servidor do digest de testes responde `server_version_num` 160015; Compose e k8s usam a tag `16-alpine`, que fixa a major 16, o que cumpre a pré-condição de PostgreSQL 15 ou superior. A premissa do ADR-051 (role superuser e dona) vale para o CI, onde os testes conectam como `postgres`; em local e `dev` a role da app é dona, mas não superuser.
+2. **Privilégios mínimos do kernel.** A suíte inteira de integração do `postgres` passa sob uma role que só recebe o conjunto declarado: claim com `FOR UPDATE SKIP LOCKED`, purgas por `ctid`, sinais, inbox, quarantine, `Table`, `Relation`, `SnapshotTable` e `to_regclass`. As colunas `IDENTITY` de `outbox` e `quarantine` não exigem `USAGE` na sequência. O conjunto medido é:
+
+   | Tabela | `SELECT` | `INSERT` | `UPDATE` | `DELETE` |
+   |---|---|---|---|---|
+   | `outbox` | sim | sim | sim | sim |
+   | `inbox` | sim | sim | sim | sim |
+   | `quarantine` | sim | sim | não | não |
+
+   O grant é por tabela, comum aos três processos. A espera por processo segue a capability que cada um usa: o `api` espera `outbox`, `inbox` e os grants da app; o `relay`, só `outbox`; o `consumer`, `outbox`, `inbox` e os grants do provider.
 3. **`INSERT ... ON CONFLICT DO NOTHING` sem `UPDATE`.** O PostgreSQL aceita o statement com `SELECT` e `INSERT`. `UPDATE` só é exigido por `DO UPDATE`.
 
 A medição revelou também que o PostgreSQL concede `TEMPORARY` a `PUBLIC` em todo banco. Uma role sem `CREATE` em `public` ainda cria tabela temporária.
@@ -34,7 +42,7 @@ A medição revelou também que o PostgreSQL concede `TEMPORARY` a `PUBLIC` em t
    - No Kubernetes, vem do Secret `<app>-migrator`, referenciado só pelo Deployment do `api`. O Secret `<app>` entra por `envFrom` também no `relay` e no `consumer`, e uma chave a mais nele chegaria aos três.
    - Fora de container, a variável fica em `deploy/.env.migrator.example`, que só os alvos do `api` (`serve-api` e `docker:run`) carregam.
    - A configuração das apps só lê a variável no papel `api` com `MIGRATE=true`, e a exige nesse caso.
-   - Em `hmg`, o `PG_MIGRATE_DSN` usa `sslmode=verify-full&channel_binding=require`. Com `require`, o certificado não é verificado, e um intermediário na rede repassaria a autenticação SCRAM e ganharia uma sessão de dona do banco.
+   - No template do overlay `hmg`, o `PG_MIGRATE_DSN` usa `sslmode=verify-full&channel_binding=require`. Com `require`, o certificado não é verificado, e um intermediário na rede repassaria a autenticação SCRAM e ganharia uma sessão de dona do banco.
    - O `dmpf-context-check` reprova a role `<app>_migrator`, em DSN URL ou chave/valor ou em `PGUSER`, fora do serviço `<app>-api`, e o Secret `<app>-migrator` referenciado fora do Deployment `<app>-api`.
 3. **Partida.** Com `MIGRATE=true` e `PG_MIGRATE_DSN` preenchido, o `api` abre uma pool efêmera da migradora, sem o meter provider, cujo callback o `NewPool` nunca desregistra, e a fecha antes de servir; a pool de requisições nunca executa DDL. A role que recebe os grants é a role de sessão do `PG_DSN`, lida por `current_user` na pool de requisições, e não o usuário escrito no DSN, que um pooler pode trocar; não há variável nova para o mesmo fato. A partida segue esta ordem, e cada passo recusa antes do seguinte:
    1. **Mesmo banco.** `postgres.SessionOf` lê, pelas duas pools, a role, `current_database()`, o oid do banco e `pg_postmaster_start_time()`, que toda role executa. A mesma role nas duas é `serve.ErrMigratorIsRuntime`; banco, oid ou hora de partida diferentes são `serve.ErrMigratorElsewhere`, antes de qualquer DDL ou grant. O critério não compara endereço nem porta, para valer através de pooler, e a hora de partida separa dois servidores com bancos de mesmo nome e oid, inclusive uma réplica do primário. O `system_identifier` de `pg_control_system()` foi descartado porque é o mesmo no primário e nas réplicas físicas.
@@ -85,12 +93,9 @@ Pontos emendados:
 - **ADR-053, item 1 do §Contexto:** em app com migrador, o banco tem o nome da app e pertence a `<app>_migrator`; a role com o nome da app é a de runtime, sem posse. App sem o bloco segue com a role única.
 - **ADR-053, item 3 do §Contexto:** o `Migrate` por capacidade é seguido do `ApplyGrants` dos grants do kernel e da app, pela pool da migradora.
 
-### Pendência declarada — medição do servidor de `hmg`
+### Pré-condições de servidor externo (template `hmg`)
 
-O servidor de `hmg` é provisionado fora do repositório, e a versão dele não é fixada aqui. Falta registrar `server_version_num`, `rolsuper` e `datdba` da role de conexão. Em servidor 14 ou anterior, o `REVOKE CREATE ON SCHEMA public FROM PUBLIC` precisa ser aplicado por superuser em cada banco de app, e também tira o `CREATE` da migradora, que então precisa ser dona do schema `public` (`ALTER SCHEMA public OWNER TO "<app>_migrator"`). Falta também confirmar que o certificado do servidor é assinado por uma CA que a imagem do `api` reconhece, ou montar o `sslrootcert`, porque o `PG_MIGRATE_DSN` de `hmg` usa `verify-full`.
-
-- **Responsável (owner):** o mantenedor, como operador do servidor de `hmg`.
-- **Prazo:** antes do primeiro deploy em `hmg` com `database.migrator` declarado.
+O único ambiente é o local, emulado com containers (Compose e o overlay `dev`). O overlay `hmg` é template para um servidor provisionado fora do repositório, e quem o provisionar verifica `server_version_num`, `rolsuper` e `datdba` da role de conexão. Em servidor 14 ou anterior, o `REVOKE CREATE ON SCHEMA public FROM PUBLIC` precisa ser aplicado por superuser em cada banco de app, e também tira o `CREATE` da migradora, que então precisa ser dona do schema `public` (`ALTER SCHEMA public OWNER TO "<app>_migrator"`). O certificado do servidor precisa ser assinado por uma CA que a imagem do `api` reconheça, ou o `sslrootcert` precisa ser montado, porque o `PG_MIGRATE_DSN` do template usa `verify-full`.
 
 ## Alternativas descartadas
 
