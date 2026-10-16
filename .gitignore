@@ -66,6 +66,8 @@ plans
 .env.*
 !.env.example
 !.env.example__tmpl__
+!.env.migrator.example
+!.env.migrator.example__tmpl__
 
 # Next.js
 .next

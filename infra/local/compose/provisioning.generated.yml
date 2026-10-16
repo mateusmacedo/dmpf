@@ -13,20 +13,76 @@ services:
       PGUSER: ${POSTGRES_USER:-postgres}
       PGPASSWORD: ${POSTGRES_PASSWORD:-postgres}
       PGDATABASE: postgres
+      BOOKINGS_PG_PASSWORD: ${BOOKINGS_PG_PASSWORD:-bookings-local}
+      BOOKINGS_PG_MIGRATOR_PASSWORD: ${BOOKINGS_PG_MIGRATOR_PASSWORD:-bookings-migrator-local}
+      ORDERS_PG_PASSWORD: ${ORDERS_PG_PASSWORD:-orders-local}
+      ORDERS_PG_MIGRATOR_PASSWORD: ${ORDERS_PG_MIGRATOR_PASSWORD:-orders-migrator-local}
+      RESERVATIONS_PG_PASSWORD: ${RESERVATIONS_PG_PASSWORD:-reservations-local}
+      RESERVATIONS_PG_MIGRATOR_PASSWORD: ${RESERVATIONS_PG_MIGRATOR_PASSWORD:-reservations-migrator-local}
     entrypoint: ['/bin/sh', '-c']
-    # Idempotente: cria o role e o banco que ainda não existem e reconcilia a
-    # senha do role a cada execução, para que trocar a senha com o volume mantido
-    # não deixe a app sem conexão. O banco pertence ao role da app, que assim cria
-    # o próprio schema sem privilégio administrativo.
+    # Idempotente, e reconcilia as senhas a cada execução para que trocá-las com
+    # o volume mantido não deixe a app sem conexão. Com database.migrator
+    # (ADR-063), o banco pertence a <app>_migrator, e a role <app> não tem posse.
     command:
       - >-
-        set -e; for pair in bookings:${BOOKINGS_PG_PASSWORD:-bookings-local} orders:${ORDERS_PG_PASSWORD:-orders-local} reservations:${RESERVATIONS_PG_PASSWORD:-reservations-local}; do
-        app=$${pair%%:*}; pass=$${pair#*:};
-        if ! psql -tAc "SELECT 1 FROM pg_roles WHERE rolname = '$$app'" | grep -q 1; then
-        psql -c "CREATE ROLE \"$$app\" LOGIN"; fi;
-        psql -c "ALTER ROLE \"$$app\" PASSWORD '$$pass'";
-        if ! psql -tAc "SELECT 1 FROM pg_database WHERE datname = '$$app'" | grep -q 1; then
-        psql -c "CREATE DATABASE \"$$app\" OWNER \"$$app\""; fi; done
+        set -e;
+        if ! psql -tAc "SELECT 1 FROM pg_roles WHERE rolname = 'bookings_migrator'" | grep -q 1; then
+        psql -c "CREATE ROLE \"bookings_migrator\" LOGIN"; fi;
+        printf '%s\n' '\getenv pass BOOKINGS_PG_MIGRATOR_PASSWORD' 'SET log_min_error_statement = panic;' 'SET log_statement = none;'
+        "ALTER ROLE :\"role\" PASSWORD :'pass' LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;" | psql -v ON_ERROR_STOP=1 -v role=bookings_migrator;
+        if ! psql -tAc "SELECT 1 FROM pg_database WHERE datname = 'bookings'" | grep -q 1; then
+        psql -c "CREATE DATABASE \"bookings\" OWNER \"bookings_migrator\""; fi;
+        if ! psql -tAc "SELECT 1 FROM pg_database WHERE datname = 'bookings' AND pg_get_userbyid(datdba) = 'bookings_migrator'" | grep -q 1; then
+        psql -c "ALTER DATABASE \"bookings\" OWNER TO \"bookings_migrator\""; fi;
+        psql -d "bookings" -c "GRANT CREATE ON SCHEMA public TO \"bookings_migrator\"";
+        if ! psql -tAc "SELECT 1 FROM pg_roles WHERE rolname = 'bookings'" | grep -q 1; then
+        psql -c "CREATE ROLE \"bookings\" LOGIN"; fi;
+        printf '%s\n' '\getenv pass BOOKINGS_PG_PASSWORD' 'SET log_min_error_statement = panic;' 'SET log_statement = none;'
+        "ALTER ROLE :\"role\" PASSWORD :'pass' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;" | psql -v ON_ERROR_STOP=1 -v role=bookings;
+        psql -c "GRANT CONNECT ON DATABASE \"bookings\" TO \"bookings\"";
+        psql -c "REVOKE CONNECT ON DATABASE \"bookings\" FROM PUBLIC";
+        psql -c "REVOKE TEMPORARY ON DATABASE \"bookings\" FROM PUBLIC";
+        psql -d "bookings" -c "REVOKE CREATE ON SCHEMA public FROM PUBLIC";
+        psql -d "bookings" -c "REVOKE CREATE ON SCHEMA public FROM \"bookings\"";
+        psql -d "bookings" -c "GRANT USAGE ON SCHEMA public TO \"bookings\"";
+        if ! psql -tAc "SELECT 1 FROM pg_roles WHERE rolname = 'orders_migrator'" | grep -q 1; then
+        psql -c "CREATE ROLE \"orders_migrator\" LOGIN"; fi;
+        printf '%s\n' '\getenv pass ORDERS_PG_MIGRATOR_PASSWORD' 'SET log_min_error_statement = panic;' 'SET log_statement = none;'
+        "ALTER ROLE :\"role\" PASSWORD :'pass' LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;" | psql -v ON_ERROR_STOP=1 -v role=orders_migrator;
+        if ! psql -tAc "SELECT 1 FROM pg_database WHERE datname = 'orders'" | grep -q 1; then
+        psql -c "CREATE DATABASE \"orders\" OWNER \"orders_migrator\""; fi;
+        if ! psql -tAc "SELECT 1 FROM pg_database WHERE datname = 'orders' AND pg_get_userbyid(datdba) = 'orders_migrator'" | grep -q 1; then
+        psql -c "ALTER DATABASE \"orders\" OWNER TO \"orders_migrator\""; fi;
+        psql -d "orders" -c "GRANT CREATE ON SCHEMA public TO \"orders_migrator\"";
+        if ! psql -tAc "SELECT 1 FROM pg_roles WHERE rolname = 'orders'" | grep -q 1; then
+        psql -c "CREATE ROLE \"orders\" LOGIN"; fi;
+        printf '%s\n' '\getenv pass ORDERS_PG_PASSWORD' 'SET log_min_error_statement = panic;' 'SET log_statement = none;'
+        "ALTER ROLE :\"role\" PASSWORD :'pass' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;" | psql -v ON_ERROR_STOP=1 -v role=orders;
+        psql -c "GRANT CONNECT ON DATABASE \"orders\" TO \"orders\"";
+        psql -c "REVOKE CONNECT ON DATABASE \"orders\" FROM PUBLIC";
+        psql -c "REVOKE TEMPORARY ON DATABASE \"orders\" FROM PUBLIC";
+        psql -d "orders" -c "REVOKE CREATE ON SCHEMA public FROM PUBLIC";
+        psql -d "orders" -c "REVOKE CREATE ON SCHEMA public FROM \"orders\"";
+        psql -d "orders" -c "GRANT USAGE ON SCHEMA public TO \"orders\"";
+        if ! psql -tAc "SELECT 1 FROM pg_roles WHERE rolname = 'reservations_migrator'" | grep -q 1; then
+        psql -c "CREATE ROLE \"reservations_migrator\" LOGIN"; fi;
+        printf '%s\n' '\getenv pass RESERVATIONS_PG_MIGRATOR_PASSWORD' 'SET log_min_error_statement = panic;' 'SET log_statement = none;'
+        "ALTER ROLE :\"role\" PASSWORD :'pass' LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;" | psql -v ON_ERROR_STOP=1 -v role=reservations_migrator;
+        if ! psql -tAc "SELECT 1 FROM pg_database WHERE datname = 'reservations'" | grep -q 1; then
+        psql -c "CREATE DATABASE \"reservations\" OWNER \"reservations_migrator\""; fi;
+        if ! psql -tAc "SELECT 1 FROM pg_database WHERE datname = 'reservations' AND pg_get_userbyid(datdba) = 'reservations_migrator'" | grep -q 1; then
+        psql -c "ALTER DATABASE \"reservations\" OWNER TO \"reservations_migrator\""; fi;
+        psql -d "reservations" -c "GRANT CREATE ON SCHEMA public TO \"reservations_migrator\"";
+        if ! psql -tAc "SELECT 1 FROM pg_roles WHERE rolname = 'reservations'" | grep -q 1; then
+        psql -c "CREATE ROLE \"reservations\" LOGIN"; fi;
+        printf '%s\n' '\getenv pass RESERVATIONS_PG_PASSWORD' 'SET log_min_error_statement = panic;' 'SET log_statement = none;'
+        "ALTER ROLE :\"role\" PASSWORD :'pass' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;" | psql -v ON_ERROR_STOP=1 -v role=reservations;
+        psql -c "GRANT CONNECT ON DATABASE \"reservations\" TO \"reservations\"";
+        psql -c "REVOKE CONNECT ON DATABASE \"reservations\" FROM PUBLIC";
+        psql -c "REVOKE TEMPORARY ON DATABASE \"reservations\" FROM PUBLIC";
+        psql -d "reservations" -c "REVOKE CREATE ON SCHEMA public FROM PUBLIC";
+        psql -d "reservations" -c "REVOKE CREATE ON SCHEMA public FROM \"reservations\"";
+        psql -d "reservations" -c "GRANT USAGE ON SCHEMA public TO \"reservations\""
     deploy:
       resources:
         limits: { cpus: '0.05', memory: 32M }

@@ -11,7 +11,10 @@ secretGenerator:
   - name: databases
     literals:
       - bookings=bookings-dev
+      - bookings_migrator=bookings-migrator-dev
       - orders=orders-dev
+      - orders_migrator=orders-migrator-dev
       - reservations=reservations-dev
+      - reservations_migrator=reservations-migrator-dev
     options:
       disableNameSuffixHash: true
