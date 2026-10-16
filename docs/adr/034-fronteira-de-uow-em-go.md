@@ -176,7 +176,7 @@ exercitá-lo.
   sintéticos sem aresta contrária. Um vetor de módulo para a célula 12
   (`application → contract`) exige uma unidade `contract` no `develop` e fica para
   o `KRN-06`.
-- A vedação a entrega exatamente-uma-vez fim a fim (P0-3, `GAR-01`) permanece: os
+- A vedação à entrega exatamente-uma-vez fim a fim (P0-3, `GAR-01`) permanece: os
   dois módulos declaram at-least-once com efeitos idempotentes, e nenhum artefato
   promete o contrário.
 
