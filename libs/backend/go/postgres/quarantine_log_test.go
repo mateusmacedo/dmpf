@@ -47,7 +47,7 @@ func (p *recordingProcessor) named(message string) []map[string]string {
 		}
 		attributes := map[string]string{"level": record.SeverityText(), "scope": record.InstrumentationScope().Name}
 		record.WalkAttributes(func(kv attribute.KeyValue) bool {
-			attributes[string(kv.Key)] = kv.Value.Emit()
+			attributes[string(kv.Key)] = kv.Value.String()
 			return true
 		})
 		out = append(out, attributes)
