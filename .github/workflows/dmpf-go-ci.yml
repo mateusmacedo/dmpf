@@ -184,6 +184,18 @@ jobs:
           docker logs "$nome" >&2
           exit 1
 
+      - name: Tooling Go — integração (tools/**, sem layer:*)
+        run: |
+          set -euo pipefail
+          afetados="$(pnpm --silent nx show projects --affected --base=$NX_BASE --head=$NX_HEAD --projects=tag:stack:go --json | jq -r '.[]' | sort)"
+          tooling="$(pnpm --silent nx show projects --projects='tools/**' --json | jq -r '.[]' | sort)"
+          lista="$(comm -12 <(echo "$afetados") <(echo "$tooling") | paste -sd, -)"
+          if [ -z "$lista" ]; then
+            echo "tooling (integração): nenhum projeto afetado"
+            exit 0
+          fi
+          pnpm nx run-many -t test-integration -p "$lista" --parallel=1
+
       # Mesma rede do Postgres. `--mode dev-container` agrupa as flags
       # de desenvolvimento e `--smp 1` é repassado ao binário (confirmado em
       # v26.2.2 pelo exec logado); sem ele o broker toma todos os cores do runner.
