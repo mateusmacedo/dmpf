@@ -119,6 +119,24 @@ mensagens terminais do consumidor anteriores ao corte (`postgres.PurgeInbox`).
 O `consumer` vem do contexto, porque o nome dele vive no `application` do
 contexto, que o kernel não importa.
 
+## O papel `api` com migrador
+
+Com `MIGRATE=true` e `APIRole.MigrateDSN` preenchido, o `ready` do `api` lê a
+role de runtime por `current_user` na pool do `DSN` e abre uma pool efêmera da
+role migradora (ADR-063). Por ela, nesta ordem: recusa a mesma role nos dois
+DSN (`ErrMigratorIsRuntime`) e banco ou servidor diferentes
+(`ErrMigratorElsewhere`), comparados por `postgres.SessionOf`; roda
+`postgres.AssertGrantable`, para que uma tabela ainda da role de runtime
+receba a dica do `REASSIGN OWNED` antes de qualquer DDL; e roda
+`postgres.Migrate` e `postgres.ApplyGrants` com `KernelGrants(Outbox, Inbox)`
+mais `API.Grants`, fechando a pool antes de servir. Erro desse caminho é
+`ErrMigrator`, com DSN, usuário e senha do migrador redigidos. Depois, o
+`ready` espera até 15 s, por `WaitForGrants` na pool do `DSN`, o privilégio
+que acabou de conceder; se o prazo estourar, a partida falha com
+`ErrRuntimeUngranted`. Sem `MigrateDSN`, a migração usa a pool do `DSN`, sem
+grants. O `api` sem migrar e o relay esperam o privilégio por `WaitForGrants`,
+não só a tabela.
+
 ## O relay
 
 `relay/postgres.go` traz `NewOverPostgres(pool, publisher, component, config)`, que monta o dreno de FND-04 §5.4 sobre a outbox de `postgres` com a identidade do kernel (`idclock.SystemClock`, `idclock.NewClaimIDs(component)`) — antes, `orders` e `reservations` repetiam essa montagem e cada um trazia o próprio `RandomClaimIDs`. O relay drena de todos os tenants sem distinção: a outbox fica fora do escopo de tenant (ADR-050), e é `record.go` quem lê o `tenantid` da `metadata` que `postgres` escreveu e o coloca no envelope publicado, para que o consumidor o leia de volta em `executionOf`. O `traceparent` e o `tracestate` da `metadata` vão ao envelope sem alteração: são o contexto de criação da mensagem (`ENV-08`).
