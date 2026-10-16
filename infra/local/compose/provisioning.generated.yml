@@ -94,6 +94,14 @@ services:
     depends_on:
       redpanda:
         condition: service_healthy
+    environment:
+      RPK_USER: console
+      RPK_PASS: ${KAFKA_CONSOLE_PASSWORD:-console-local}
+      RPK_SASL_MECHANISM: SCRAM-SHA-256
+      KAFKA_BOOKINGS_PASSWORD: ${KAFKA_BOOKINGS_PASSWORD:-bookings-local}
+      KAFKA_ORDERS_PASSWORD: ${KAFKA_ORDERS_PASSWORD:-orders-local}
+      KAFKA_RESERVATIONS_PASSWORD: ${KAFKA_RESERVATIONS_PASSWORD:-reservations-local}
+      KAFKA_CONSOLE_PASSWORD: ${KAFKA_CONSOLE_PASSWORD:-console-local}
     entrypoint: ['/bin/sh', '-c']
     # A ligação entre principal e source que o consumer admite é a ACL (ADR-052):
     # cada processo só escreve no próprio tópico e na DLQ que alimenta, e só quem
@@ -105,22 +113,28 @@ services:
       - |
         set -eu
         admin="-X admin.hosts=redpanda:9644"
-        su="-X brokers=redpanda:29092 -X user=console -X pass=${KAFKA_CONSOLE_PASSWORD:-console-local} -X sasl.mechanism=SCRAM-SHA-256"
-        for user in bookings:${KAFKA_BOOKINGS_PASSWORD:-bookings-local} orders:${KAFKA_ORDERS_PASSWORD:-orders-local} reservations:${KAFKA_RESERVATIONS_PASSWORD:-reservations-local} console:${KAFKA_CONSOLE_PASSWORD:-console-local}; do
-          rpk security user create "$${user%%:*}" -p "$${user#*:}" --mechanism SCRAM-SHA-256 $$admin || true
-        done
+        broker="-X brokers=redpanda:29092"
+        create_user() {
+          pass=$$(printf '%s' "$$2" | sed 's/["\\]/\\&/g')
+          printf '{"username":"%s","password":"%s","algorithm":"SCRAM-SHA-256"}' "$$1" "$$pass" |
+            curl -fsS -o /dev/null -H 'Content-Type: application/json' --data-binary @- http://redpanda:9644/v1/security/users || true
+        }
+        create_user bookings "$$KAFKA_BOOKINGS_PASSWORD"
+        create_user orders "$$KAFKA_ORDERS_PASSWORD"
+        create_user reservations "$$KAFKA_RESERVATIONS_PASSWORD"
+        create_user console "$$KAFKA_CONSOLE_PASSWORD"
         for user in bookings orders reservations console; do
           rpk security user list $$admin | grep -qw "$$user"
         done
         rpk cluster config set superusers '["console",""]' $$admin
-        rpk topic create ${KAFKA_BOOKINGS_TOPIC:-bookings.events} ${KAFKA_BOOKINGS_DLQ:-bookings.events.dlq} ${KAFKA_ORDERS_TOPIC:-orders.events} ${KAFKA_ORDERS_DLQ:-orders.events.dlq} ${KAFKA_RESERVATIONS_TOPIC:-reservations.events} ${KAFKA_RESERVATIONS_DLQ:-reservations.events.dlq} $$su -p 1 -r 1 || true
+        rpk topic create ${KAFKA_BOOKINGS_TOPIC:-bookings.events} ${KAFKA_BOOKINGS_DLQ:-bookings.events.dlq} ${KAFKA_ORDERS_TOPIC:-orders.events} ${KAFKA_ORDERS_DLQ:-orders.events.dlq} ${KAFKA_RESERVATIONS_TOPIC:-reservations.events} ${KAFKA_RESERVATIONS_DLQ:-reservations.events.dlq} $$broker -p 1 -r 1 || true
         for topic in ${KAFKA_BOOKINGS_TOPIC:-bookings.events} ${KAFKA_BOOKINGS_DLQ:-bookings.events.dlq} ${KAFKA_ORDERS_TOPIC:-orders.events} ${KAFKA_ORDERS_DLQ:-orders.events.dlq} ${KAFKA_RESERVATIONS_TOPIC:-reservations.events} ${KAFKA_RESERVATIONS_DLQ:-reservations.events.dlq}; do
-          rpk topic describe "$$topic" $$su >/dev/null
+          rpk topic describe "$$topic" $$broker >/dev/null
         done
-        rpk security acl create --allow-principal User:bookings --operation write,describe --topic ${KAFKA_BOOKINGS_TOPIC:-bookings.events} --topic ${KAFKA_BOOKINGS_DLQ:-bookings.events.dlq} $$su
-        rpk security acl create --allow-principal User:orders --operation write,describe --topic ${KAFKA_ORDERS_TOPIC:-orders.events} --topic ${KAFKA_ORDERS_DLQ:-orders.events.dlq} $$su
-        rpk security acl create --allow-principal User:reservations --operation write,describe --topic ${KAFKA_RESERVATIONS_TOPIC:-reservations.events} --topic ${KAFKA_RESERVATIONS_DLQ:-reservations.events.dlq} --topic ${KAFKA_ORDERS_DLQ:-orders.events.dlq} $$su
-        rpk security acl create --allow-principal User:reservations --operation read,describe --topic ${KAFKA_ORDERS_TOPIC:-orders.events} --group ${KAFKA_GROUP:-reservations} $$su
+        rpk security acl create --allow-principal User:bookings --operation write,describe --topic ${KAFKA_BOOKINGS_TOPIC:-bookings.events} --topic ${KAFKA_BOOKINGS_DLQ:-bookings.events.dlq} $$broker
+        rpk security acl create --allow-principal User:orders --operation write,describe --topic ${KAFKA_ORDERS_TOPIC:-orders.events} --topic ${KAFKA_ORDERS_DLQ:-orders.events.dlq} $$broker
+        rpk security acl create --allow-principal User:reservations --operation write,describe --topic ${KAFKA_RESERVATIONS_TOPIC:-reservations.events} --topic ${KAFKA_RESERVATIONS_DLQ:-reservations.events.dlq} --topic ${KAFKA_ORDERS_DLQ:-orders.events.dlq} $$broker
+        rpk security acl create --allow-principal User:reservations --operation read,describe --topic ${KAFKA_ORDERS_TOPIC:-orders.events} --group ${KAFKA_GROUP:-reservations} $$broker
         rpk cluster config set kafka_enable_authorization true $$admin
     deploy:
       resources:
