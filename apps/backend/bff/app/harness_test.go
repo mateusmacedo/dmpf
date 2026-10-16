@@ -49,7 +49,8 @@ type topology struct {
 	brokers []string
 	admin   *kadm.Client
 
-	ordersDSN, reservationsDSN, bookingsDSN string
+	ordersDSN, reservationsDSN, bookingsDSN                      string
+	ordersMigrateDSN, reservationsMigrateDSN, bookingsMigrateDSN string
 
 	ordersTopic, ordersDLQ             string
 	reservationsTopic, reservationsDLQ string
@@ -118,9 +119,12 @@ func newTopology(t *testing.T) *topology {
 		bookingsTopic:     "e2e-bookings-" + suffix,
 		bookingsDLQ:       "e2e-bookings-" + suffix + "-dlq",
 	}
-	top.ordersDSN = pg.DSN(t, "e2e_orders")
-	top.reservationsDSN = pg.DSN(t, "e2e_reservations")
-	top.bookingsDSN = pg.DSN(t, "e2e_bookings")
+	top.ordersDSN = pg.RuntimeDSN(t, "e2e_orders")
+	top.reservationsDSN = pg.RuntimeDSN(t, "e2e_reservations")
+	top.bookingsDSN = pg.RuntimeDSN(t, "e2e_bookings")
+	top.ordersMigrateDSN = pg.MigratorDSN(t, "e2e_orders")
+	top.reservationsMigrateDSN = pg.MigratorDSN(t, "e2e_reservations")
+	top.bookingsMigrateDSN = pg.MigratorDSN(t, "e2e_bookings")
 
 	cl, err := kgo.NewClient(kgo.SeedBrokers(brokers...))
 	if err != nil {
@@ -273,15 +277,15 @@ func (top *topology) boot(t *testing.T, bin binaries) {
 	}
 
 	ordersAddr := top.startOnFreePort(t, "orders api", bin.orders, "GRPC_ADDR", with(merge(mutual("orders-api"), map[string]string{
-		"PG_DSN": ordersDSN, "MIGRATE": "true",
+		"PG_DSN": ordersDSN, "PG_MIGRATE_DSN": top.ordersMigrateDSN, "MIGRATE": "true",
 		"OTEL_RESOURCE_ATTRIBUTES": "service.version=e2e,service.instance.id=e2e-orders-api", "ITEM_LIMIT": "3",
 	})), serving(rpc.OrdersServiceName), "--role", "api")
 	reservationsAddr := top.startOnFreePort(t, "reservations api", bin.reservations, "GRPC_ADDR", with(merge(mutual("reservations-api"), map[string]string{
-		"PG_DSN": reservationsDSN, "MIGRATE": "true",
+		"PG_DSN": reservationsDSN, "PG_MIGRATE_DSN": top.reservationsMigrateDSN, "MIGRATE": "true",
 		"OTEL_RESOURCE_ATTRIBUTES": "service.version=e2e,service.instance.id=e2e-reservations-api",
 	})), serving(rpc.ReservationsServiceName), "--role", "api")
 	bookingsAddr := top.startOnFreePort(t, "bookings api", bin.bookings, "GRPC_ADDR", with(merge(mutual("bookings-api"), map[string]string{
-		"PG_DSN": bookingsDSN, "MIGRATE": "true",
+		"PG_DSN": bookingsDSN, "PG_MIGRATE_DSN": top.bookingsMigrateDSN, "MIGRATE": "true",
 		"OTEL_RESOURCE_ATTRIBUTES": "service.version=e2e,service.instance.id=e2e-bookings-api",
 	})), serving(rpc.BookingsServiceName), "--role", "api")
 
