@@ -14,7 +14,6 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-
 	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -310,7 +309,7 @@ func TestServeAPIWithoutMigrateWaitsForTheGrantsOfTheRuntimeRole(t *testing.T) {
 	stop := startAPIWith(t, role, grantedProbeAPI())
 
 	time.Sleep(2 * time.Second)
-	if got := servingStatus(t, role.Server.GRPCAddr); got == healthpb.HealthCheckResponse_SERVING {
+	if servingStatus(t, role.Server.GRPCAddr) == healthpb.HealthCheckResponse_SERVING {
 		t.Fatal("the api role served before the runtime role held its grants")
 	}
 	pg.GrantRuntime(t, admin, options)
