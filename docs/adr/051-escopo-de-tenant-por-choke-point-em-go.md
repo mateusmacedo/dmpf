@@ -2,7 +2,7 @@
 
 ## Status
 
-Aceito — 2026-09-23. Implementa [SPEC-9B6SHEH8](../specs/SPEC-9B6SHEH8-contexto-execucao-identidade-tenant.md). **Caminhos atualizados pelo [ADR-054](./054-apps-autocontidos-e-infras-separadas.md) (2026-09-28)**: o Kubernetes de cada app está em `apps/backend/<app>/deploy/k8s/`, e o Postgres usa o banco e as credenciais padrão, com banco e role por app.
+Aceito — 2026-09-23. Implementa [SPEC-9B6SHEH8](../specs/SPEC-9B6SHEH8-contexto-execucao-identidade-tenant.md). **Caminhos atualizados pelo [ADR-054](./054-apps-autocontidos-e-infras-separadas.md) (2026-09-28)**: o Kubernetes de cada app está em `apps/backend/<app>/deploy/k8s/`, e o Postgres usa o banco e as credenciais padrão, com banco e role por app. **Emendado pelo [ADR-063](./063-duas-roles-de-banco-por-app.md) (2026-10-15)**: em app com `database.migrator`, a role de conexão não é superuser nem dona das tabelas, e a condição do §Consequências para somar RLS ao choke point fica cumprida; a RLS continua fora.
 
 ## Contexto
 

@@ -2,7 +2,7 @@
 id: SPEC-QPRR24C4
 slug: duas-roles-de-banco-por-app
 title: DMPF — Duas roles de banco por app: migrador fora do runtime e runtime com privilégio por tabela e capability
-stage: backlog
+stage: building
 priority: P1
 depends_on: [SPEC-F308KDSF, SPEC-JJKWG4JP, SPEC-VJMM2DE5]
 ticket_url: https://linear.app/mmda/issue/DEVS-94/spec-qprr24c4-dmpf-duas-roles-de-banco-por-app-migrador-fora-do
@@ -73,10 +73,12 @@ a `libs/backend/go/`.
 | `outbox` | `INSERT` | `postgres/outbox.go:23` |
 | `outbox` | `UPDATE ... FOR UPDATE SKIP LOCKED` (claim), `UPDATE` (publicado, reagendado, falho) | `postgres/claim.go:57-59,76,92,99` |
 | `outbox` | `DELETE` por purga, `SELECT destination` | `postgres/purge.go:12-14`, `postgres/pool.go:194` |
+| `outbox` | `SELECT` de sinais (relay) | `postgres/signals.go:23-29` |
 | `inbox` | `INSERT ... ON CONFLICT DO NOTHING`, `INSERT ... ON CONFLICT DO UPDATE`, `SELECT`, `UPDATE` | `postgres/inbox.go:19-21,24-31,32,35` |
-| `inbox` | `DELETE` por purga | `postgres/purge.go:42-44,75-77` |
+| `inbox` | `DELETE` por purga, também no processo `api` (purga do command-inbox, `app/serve/serve.go:162-164`) | `postgres/purge.go:42-44,75-77` |
 | `quarantine` | `INSERT ... ON CONFLICT DO NOTHING`, `SELECT ... GROUP BY` | `postgres/quarantine.go:16-18`, `postgres/signals.go:11` |
 | agregado (`Table`) | `SELECT`, `INSERT ... ON CONFLICT (tenant_id, id) DO NOTHING`, `UPDATE ... WHERE version = $3`; não há `DELETE` | `postgres/table.go:174-192` |
+| agregado (`Relation`) | `SELECT` | `postgres/table.go:82-87` |
 
 ### Não verificado
 
@@ -114,50 +116,50 @@ a `libs/backend/go/`.
 
 **A. Provisionamento das duas roles**
 
-- [ ] **[P0] Bloco `database.migrator` no `infra.json`**: o `infrasync` aceita `database.migrator` opcional, com `passwordEnv`, `local` e `dev`, validado como o `database` de hoje (`tools/dmpf-conformance/infrasync/infrasync.go:148`: nome de variável e valores não vazios). Sem o bloco o manifesto segue válido e a saída gerada não muda.
-- [ ] **[P0] Provisionamento em Compose e Kustomize**: com o bloco presente, `provisioning.yml.tmpl` e `databases-job.yaml.tmpl` criam a role `<app>_migrator` (`LOGIN`), dona do banco `<app>`, e mantêm a role `<app>` (`LOGIN`) sem posse; concedem à de runtime `CONNECT` e `USAGE` em `public` e revogam dela `CREATE` em `public`. A pré-condição é PostgreSQL ≥ 15, em que `PUBLIC` já não tem `CREATE` em `public` (as imagens fixadas são a 16). Servidor ≤ 14 só é aceito se o provisionamento aplicar `REVOKE CREATE ON SCHEMA public FROM PUBLIC` com superuser em cada banco de app, porque revogar só da role de runtime não neutraliza o `CREATE` concedido a `PUBLIC`: os templates de Compose e do Job emitem esse `REVOKE` (sem efeito em ≥ 15), e o servidor de `hmg`, provisionado fora do repositório, tem a versão registrada pela investigação e o `REVOKE` documentado no ADR novo. Os dois comandos continuam idempotentes e reconciliam as duas senhas a cada execução. O `secrets.example.yaml.tmpl` do overlay `hmg` de cada app ganha a segunda chave.
-- [ ] **[P0] `PG_MIGRATE_DSN`**: o `FromEnv` de `orders`, `reservations`, `bookings` e do `config.go__tmpl__` do generator lê `PG_MIGRATE_DSN` ao lado de `PG_DSN`. `compose.yml`, `.env.example` e `k8s` (base, `dev`, `hmg`) a declaram só no processo com `MIGRATE=true`; `relay` e `consumer` não a recebem.
+- [x] **[P0] Bloco `database.migrator` no `infra.json`**: o `infrasync` aceita `database.migrator` opcional, com `passwordEnv`, `local` e `dev`, validado como o `database` de hoje (`tools/dmpf-conformance/infrasync/infrasync.go:148`: nome de variável e valores não vazios). Sem o bloco o manifesto segue válido e a saída gerada não muda.
+- [x] **[P0] Provisionamento em Compose e Kustomize**: com o bloco presente, `provisioning.yml.tmpl` e `databases-job.yaml.tmpl` criam a role `<app>_migrator` (`LOGIN`), dona do banco `<app>`, e mantêm a role `<app>` (`LOGIN`) sem posse; concedem à de runtime `CONNECT` e `USAGE` em `public` e revogam dela `CREATE` em `public`. A pré-condição é PostgreSQL ≥ 15, em que `PUBLIC` já não tem `CREATE` em `public` (as imagens fixadas são a 16). Servidor ≤ 14 só é aceito se o provisionamento aplicar `REVOKE CREATE ON SCHEMA public FROM PUBLIC` com superuser em cada banco de app, porque revogar só da role de runtime não neutraliza o `CREATE` concedido a `PUBLIC`: os templates de Compose e do Job emitem esse `REVOKE` (sem efeito em ≥ 15), e o servidor de `hmg`, provisionado fora do repositório, tem a versão registrada pela investigação e o `REVOKE` documentado no ADR novo. Os dois comandos também reconciliam os atributos da role de runtime (`NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS`) e revogam `TEMPORARY` de `PUBLIC` no banco da app, porque o PostgreSQL concede `TEMPORARY` a `PUBLIC` por padrão e a role de runtime criaria tabela temporária (o kernel não usa nenhuma). Os dois comandos continuam idempotentes e reconciliam as duas senhas a cada execução. O DSN do migrador vai num Secret à parte, `<app>-migrator`, com a chave `PG_MIGRATE_DSN`, referenciado só pelo Deployment do `api`: o Secret `<app>` entra por `envFrom` em `api`, `relay` e `consumer`, e uma chave nova nele chegaria aos três. O `secrets.example.yaml.tmpl` do overlay `hmg` de cada app ganha esse Secret, e o overlay `dev` o gera por `secretGenerator`.
+- [x] **[P0] `PG_MIGRATE_DSN`**: o `FromEnv` de `orders`, `reservations`, `bookings` e do `config.go__tmpl__` do generator lê `PG_MIGRATE_DSN` ao lado de `PG_DSN`. `compose.yml`, `.env.example` e `k8s` (base, `dev`, `hmg`) a declaram só no processo com `MIGRATE=true`; `relay` e `consumer` não a recebem. No Compose ela fica no serviço `api`, fora da âncora `x-env` que o `relay` e o `consumer` compartilham.
 
 **B. Migração pela role migradora**
 
-- [ ] **[P0] `serve.APIRole.MigrateDSN`**: com `Migrate` verdadeiro e `MigrateDSN` preenchido, `prepare` (`libs/backend/go/app/serve/serve.go:196-207`) abre uma pool efêmera com `MigrateDSN`, roda `postgres.Migrate` e os grants, e a fecha antes de o `ready` devolver; a pool de requisições nunca executa DDL. Com `MigrateDSN` vazio, migra pela pool do `DSN`, como hoje, e não aplica grants.
-- [ ] **[P0] Role de runtime derivada do DSN**: a role que recebe os grants é o usuário de `DSN` (`pgxpool.ParseConfig`), sem variável nova para o mesmo fato.
+- [x] **[P0] `serve.APIRole.MigrateDSN`**: com `Migrate` verdadeiro e `MigrateDSN` preenchido, `prepare` (`libs/backend/go/app/serve/serve.go:196-207`) abre uma pool efêmera com `MigrateDSN`, roda `postgres.Migrate` e os grants, e a fecha antes de o `ready` devolver; a pool de requisições nunca executa DDL. Com `MigrateDSN` vazio, migra pela pool do `DSN`, como hoje, e não aplica grants.
+- [x] **[P0] Role de runtime derivada do DSN**: a role que recebe os grants é o usuário de `DSN` (`pgxpool.ParseConfig`), sem variável nova para o mesmo fato.
 
 **C. Grants por tabela e por capability**
 
-- [ ] **[P0] Tipos de grant no `postgres`**: `Privilege` (`SELECT`, `INSERT`, `UPDATE`, `DELETE`), `Grant{Table, Privileges}` e os construtores `Mutable(table)` (`SELECT`, `INSERT`, `UPDATE`: tabela de agregado escrita por `Table`) e `AppendOnly(table)` (`SELECT`, `INSERT`). `TRUNCATE` e `REFERENCES` nunca são concedidos.
-- [ ] **[P0] `KernelGrants(caps ...Capability)`**: devolve os grants das tabelas de `Tables(caps...)` (`libs/backend/go/postgres/migrate.go:44-50`). A matriz inicial é a do Design, e a investigação abaixo a confirma ou corrige antes do merge. Toda capability nova do kernel declara os grants das suas tabelas junto de `schema` e `tables` em `capabilities` (`libs/backend/go/postgres/migrate.go:37-40`) e fica coberta por `KernelGrants`; um teste do pacote `postgres` percorre `capabilities` e falha se alguma tabela de capability não tem grant declarado. O ledger `external_attempt` da SPEC-5AQHHMJ0 é o caso previsto: entra em `KernelGrants` com a matriz que o `Begin` e o `Finish` exigirem.
-- [ ] **[P0] `ApplyGrants`**: converge a role ao conjunto declarado (`REVOKE ALL` e `GRANT` exato por tabela), é idempotente, roda sob o mesmo `migrateLockID` e valida os nomes como identificadores SQL (a regra de `libs/backend/go/postgres/table.go:219-231`). O lock, o `REVOKE ALL` e os `GRANT` rodam numa única transação, para uma réplica que reinicia reaplicar os grants sem deixar os pods vivos, entre o `REVOKE` e o `GRANT`, sem privilégio (SQLSTATE 42501).
-- [ ] **[P0] Espera por privilégio, não só por tabela**: `postgres.WaitForGrants(ctx, pool, interval, logs, grants...)`, ao lado de `WaitForTables`, espera até `has_table_privilege(current_user, <tabela>, <privilégio>)` ser verdadeiro para cada privilégio de cada `Grant`, sobre `to_regclass`, que devolve NULL para tabela ausente. Hoje `WaitForTables` (`libs/backend/go/postgres/wait.go:26-37`) devolve assim que a tabela existe, o que acontece quando o `Migrate` comita, antes do `ApplyGrants`: o processo que espera abre a primeira consulta recusada com SQLSTATE 42501. Os processos que esperam o schema (o `api` com `MIGRATE=false`, em `libs/backend/go/app/serve/serve.go:199`; o `relay`, em `:252`; o `consumer`, como `apps/backend/reservations/app/wiring.go:127`) passam a esperar, em cada tabela, o privilégio que a investigação por processo fixou para as do kernel e o que `Grants` declara para as da app. App sem migrador (`MigrateDSN` vazio) segue esperando por tabela, como hoje. Um teste de integração prova que, com a tabela criada e sem grant, a espera não devolve, e que devolve depois do `ApplyGrants`.
-- [ ] **[P0] Declaração pela app**: `serve.API` ganha `Grants []postgres.Grant`, ao lado de `Schema` (`libs/backend/go/app/serve/serve.go:59-65`); o provider de cada contexto exporta `Grants` junto de `Schema` (`provider/schema.go`). A app aplica `KernelGrants` das capabilities que migra mais `API.Grants`.
-- [ ] **[P1] Tabela sem grant**: depois de migrar, `ApplyGrants` reprova a partida listando toda tabela de `public` que não é do kernel e não consta em `Grants`, para a falha aparecer na subida e não na primeira consulta.
-- [ ] **[P1] Erro de privilégio**: statement recusado por privilégio (SQLSTATE 42501) volta como erro de infraestrutura que preserva `*pgconn.PgError`; `Table.Save` nunca o devolve como `ports.ErrVersionConflict` nem `ports.ErrNotFound`.
+- [x] **[P0] Tipos de grant no `postgres`**: `Privilege` (`SELECT`, `INSERT`, `UPDATE`, `DELETE`), `Grant{Table, Privileges}` e os construtores `Mutable(table)` (`SELECT`, `INSERT`, `UPDATE`: tabela de agregado escrita por `Table`) e `AppendOnly(table)` (`SELECT`, `INSERT`). `TRUNCATE` e `REFERENCES` nunca são concedidos.
+- [x] **[P0] `KernelGrants(caps ...Capability)`**: devolve os grants das tabelas de `Tables(caps...)` (`libs/backend/go/postgres/migrate.go:44-50`). A matriz inicial é a do Design, e a investigação abaixo a confirma ou corrige antes do merge. Toda capability nova do kernel declara os grants das suas tabelas junto de `schema` e `tables` em `capabilities` (`libs/backend/go/postgres/migrate.go:37-40`) e fica coberta por `KernelGrants`; um teste do pacote `postgres` percorre `capabilities` e falha se alguma tabela de capability não tem grant declarado. O ledger `external_attempt` da SPEC-5AQHHMJ0 é o caso previsto: entra em `KernelGrants` com a matriz que o `Begin` e o `Finish` exigirem.
+- [x] **[P0] `ApplyGrants`**: converge a role ao conjunto declarado (`REVOKE ALL` e `GRANT` exato por tabela), é idempotente, roda sob o mesmo `migrateLockID` e valida os nomes de tabela como identificadores SQL (a regra de `libs/backend/go/postgres/table.go:219-231`); a role é citada por `pgx.Identifier`, porque o nome da app admite hífen (`tools/dmpf-conformance/infrasync/infrasync.go:29`). Antes de mudar qualquer privilégio, reprova a partida quando a role de runtime é a própria `current_user`, é superuser, tem `BYPASSRLS`, é membro da migradora ou é dona de alguma relação em `public`, porque o privilégio efetivo soma ACL, membership e atributo da role. O lock, o `REVOKE ALL` e os `GRANT` rodam numa única transação, para uma réplica que reinicia reaplicar os grants sem deixar os pods vivos, entre o `REVOKE` e o `GRANT`, sem privilégio (SQLSTATE 42501).
+- [x] **[P0] Espera por privilégio, não só por tabela**: `postgres.WaitForGrants(ctx, pool, interval, logs, grants...)`, ao lado de `WaitForTables`, espera até `has_table_privilege(current_user, <tabela>, <privilégio>)` ser verdadeiro para cada privilégio de cada `Grant`, sobre `to_regclass`, que devolve NULL para tabela ausente. Hoje `WaitForTables` (`libs/backend/go/postgres/wait.go:26-37`) devolve assim que a tabela existe, o que acontece quando o `Migrate` comita, antes do `ApplyGrants`: o processo que espera abre a primeira consulta recusada com SQLSTATE 42501. Os processos que esperam o schema (o `api` com `MIGRATE=false`, em `libs/backend/go/app/serve/serve.go:199`; o `relay`, em `:252`; o `consumer`, como `apps/backend/reservations/app/wiring.go:127`) passam a esperar, em cada tabela, o privilégio que a investigação por processo fixou para as do kernel e o que `Grants` declara para as da app. App sem migrador (`MigrateDSN` vazio) segue esperando por tabela, como hoje. Um teste de integração prova que, com a tabela criada e sem grant, a espera não devolve, e que devolve depois do `ApplyGrants`.
+- [x] **[P0] Declaração pela app**: `serve.API` ganha `Grants []postgres.Grant`, ao lado de `Schema` (`libs/backend/go/app/serve/serve.go:59-65`); o provider de cada contexto exporta `Grants` junto de `Schema` (`provider/schema.go`). A app aplica `KernelGrants` das capabilities que migra mais `API.Grants`.
+- [x] **[P1] Tabela sem grant**: depois de migrar, `ApplyGrants` reprova a partida listando toda tabela de `public` que não é do kernel e não consta em `Grants`, para a falha aparecer na subida e não na primeira consulta.
+- [x] **[P1] Erro de privilégio**: statement recusado por privilégio (SQLSTATE 42501) volta como erro de infraestrutura que preserva `*pgconn.PgError`; `Table.Save` nunca o devolve como `ports.ErrVersionConflict` nem `ports.ErrNotFound`.
 
 **D. Testkit**
 
-- [ ] **[P0] Role de runtime nos testes**: `tb/pg` ganha `OpenRuntimePool(t, opts)`, que no banco por teste cria a role de runtime do cluster `test` (idempotente, tolerando corrida entre processos), aplica `KernelGrants(opts.Capabilities)` e `opts.Grants`, e devolve a pool dela. `OpenPool` segue migrando com as credenciais administrativas, e `ResetTables` (`libs/backend/go/testkit/tb/pg/pool.go:214-220`) permanece nessa pool.
-- [ ] **[P0] Suítes sob a role de runtime**: o `harness_test.go` do `bff` e o `distkit` de cada contexto sobem os processos com `PG_DSN` de runtime e `PG_MIGRATE_DSN` administrativo, e `test-race` e `test-distributed` dos três contextos passam assim.
-- [ ] **[P1] Asserção de negação**: `tb/pg` expõe um helper que executa um statement na pool de runtime e exige SQLSTATE 42501, para os testes de cada app fixarem o que a role não pode.
-- [ ] **[P1] CI e infra de testes**: `dmpf-go-ci.yml`, `dmpf-distributed.yml` e `infra/test/compose.yml` seguem com o servidor administrativo (`POSTGRES_USER=postgres`); as roles de teste nascem no banco por teste, e nenhum passo de workflow cria role de app.
+- [x] **[P0] Role de runtime nos testes**: `tb/pg` ganha `OpenRuntimePool(t, opts)`, que no banco por teste cria a role de runtime do cluster `test` (idempotente, tolerando corrida entre processos), aplica `KernelGrants(opts.Capabilities)` e `opts.Grants`, e devolve a pool dela. `OpenPool` segue migrando com as credenciais administrativas, e `ResetTables` (`libs/backend/go/testkit/tb/pg/pool.go:156-162`) permanece nessa pool. A role de teste tem senha fixa, exclusiva do cluster de teste, e `TEMPORARY` é revogado de `PUBLIC` no banco por teste.
+- [x] **[P0] Suítes sob a role de runtime**: o `harness_test.go` do `bff` e o `distkit` de cada contexto sobem os processos com `PG_DSN` de runtime e `PG_MIGRATE_DSN` administrativo, e `test-race` e `test-distributed` dos três contextos passam assim.
+- [x] **[P1] Asserção de negação**: `tb/pg` expõe um helper que executa um statement na pool de runtime e exige SQLSTATE 42501, para os testes de cada app fixarem o que a role não pode.
+- [x] **[P1] CI e infra de testes**: `dmpf-go-ci.yml`, `dmpf-distributed.yml` e `infra/test/compose.yml` seguem com o servidor administrativo (`POSTGRES_USER=postgres`); as roles de teste nascem no banco por teste, e nenhum passo de workflow cria role de app.
 
 **E. Apps de referência, generator e documentação**
 
-- [ ] **[P0] Apps de referência**: `orders`, `reservations` e `bookings` declaram o migrador no `infra.json`, exportam `Grants` e passam `MigrateDSN` ao `serve`; `infrasync --write` regenera `provisioning.generated.yml` e o Job de `dev`.
-- [ ] **[P0] Generator `bounded-context`**: emite o `infra.json` com migrador, `PG_MIGRATE_DSN` em config, compose, `.env.example` e `k8s`, e `Grants` (`Mutable` do agregado) em `provider/schema.go`; o `init` renderiza `postgres.yml` e `app-base.yml` coerentes. `tools/dmpf-generator-check.sh` e a fase `self-test` de `tools/dmpf-harness-check.sh` passam.
-- [ ] **[P0] ADR novo**: registra as duas roles, a derivação da role de runtime, o conjunto de grants e o modo de compatibilidade; emenda o ADR-051 (a premissa de role dona e a condição de `:50`, sem ligar RLS) e o ADR-053 (itens 1 e 3), e atualiza o Status dos dois. `node tools/adr-verify.mjs --from 63` passa.
-- [ ] **[P1] Documentação**: `infra/README.md` ("Bancos por app"), `AGENTS.md` (forma do contexto), `docs/guides/dmpf-composicao.md` (`PG_DSN` dos testes) e `docs/guides/dmpf-consumo-externo.md` descrevem as duas roles e o caminho de adoção por um consumidor existente.
+- [x] **[P0] Apps de referência**: `orders`, `reservations` e `bookings` declaram o migrador no `infra.json`, exportam `Grants` e passam `MigrateDSN` ao `serve`; `infrasync --write` regenera `provisioning.generated.yml` e o Job de `dev`.
+- [x] **[P0] Generator `bounded-context`**: emite o `infra.json` com migrador, `PG_MIGRATE_DSN` em config, compose, `.env.example` e `k8s`, e `Grants` vazio em `provider/schema.go`, que o autor preenche com o `Mutable` do agregado ao criar a tabela (o generator não conhece o nome dela, e a partida recusa tabela sem grant); o `init` renderiza `postgres.yml` e `app-base.yml` coerentes. `tools/dmpf-generator-check.sh` e a fase `self-test` de `tools/dmpf-harness-check.sh` passam.
+- [x] **[P0] ADR novo**: registra as duas roles, a derivação da role de runtime, o conjunto de grants e o modo de compatibilidade; emenda o ADR-051 (a premissa de role dona e a condição de `:50`, sem ligar RLS) e o ADR-053 (itens 1 e 3), e atualiza o Status dos dois. `node tools/adr-verify.mjs --from 63` passa.
+- [x] **[P1] Documentação**: `infra/README.md` ("Bancos por app"), `AGENTS.md` (forma do contexto), `docs/guides/dmpf-composicao.md` (`PG_DSN` dos testes) e `docs/guides/dmpf-consumo-externo.md` descrevem as duas roles e o caminho de adoção por um consumidor existente.
 
 **F. Investigação**
 
 - [ ] **[P0] Investigar superuser em Kubernetes e no CI**: consultar `pg_roles.rolsuper` e `pg_database.datdba` da role de conexão no overlay `dev` e no container do CI, e registrar o resultado no ADR novo, junto de `server_version_num` desses ambientes e, por consulta do operador, a do servidor de `hmg` (pré-condição de PostgreSQL ≥ 15). O desenho vale nos dois casos; o resultado decide se o ADR-051 muda a premissa ou apenas a confirma.
-- [ ] **[P0] Investigar os privilégios mínimos reais das tabelas do kernel**: rodar a suíte do kernel e a dos contextos sob uma role com o conjunto candidato da matriz e registrar o conjunto exato por tabela e por processo (`api`, `relay`, `consumer`), incluindo sequências `IDENTITY`, `FOR UPDATE SKIP LOCKED`, `to_regclass` e `ctid`. O resultado fixa `KernelGrants`.
-- [ ] **[P0] Investigar `INSERT ... ON CONFLICT DO NOTHING` com role sem `UPDATE`**: reproduzir contra a imagem `postgres:16-alpine` do repositório, com tabela só com `SELECT` e `INSERT`, o padrão de `libs/backend/go/postgres/table.go:185-187`, `libs/backend/go/postgres/inbox.go:19-21` e `libs/backend/go/postgres/quarantine.go:16-18`, e registrar se o Postgres o aceita. Se recusar, `AppendOnly` e a matriz de `inbox`/`quarantine` mudam antes do merge.
+- [x] **[P0] Investigar os privilégios mínimos reais das tabelas do kernel**: rodar a suíte do kernel e a dos contextos sob uma role com o conjunto candidato da matriz e registrar o conjunto exato por tabela e por processo (`api`, `relay`, `consumer`), incluindo sequências `IDENTITY`, `FOR UPDATE SKIP LOCKED`, `to_regclass` e `ctid`. O resultado fixa `KernelGrants`.
+- [x] **[P0] Investigar `INSERT ... ON CONFLICT DO NOTHING` com role sem `UPDATE`**: reproduzir contra a imagem `postgres:16-alpine` do repositório, com tabela só com `SELECT` e `INSERT`, o padrão de `libs/backend/go/postgres/table.go:185-187`, `libs/backend/go/postgres/inbox.go:19-21` e `libs/backend/go/postgres/quarantine.go:16-18`, e registrar se o Postgres o aceita. Se recusar, `AppendOnly` e a matriz de `inbox`/`quarantine` mudam antes do merge.
 
 ### Não-funcionais
 
-- [ ] Idempotência: o provisionamento e `ApplyGrants` executados duas vezes deixam dono, senha e privilégios no mesmo estado.
-- [ ] Custo: o trabalho novo acontece só na partida (segunda pool e `ApplyGrants` no processo que migra, consulta de privilégio nos que esperam); o caminho de requisição não ganha statement.
-- [ ] Compatibilidade: Go `1.26.9`, Postgres 16 como nas imagens fixadas de Compose, CI e k8s (pré-condição: PostgreSQL ≥ 15), Nx 23.1.0.
+- [x] Idempotência: o provisionamento e `ApplyGrants` executados duas vezes deixam dono, senha e privilégios no mesmo estado.
+- [x] Custo: o trabalho novo acontece só na partida (segunda pool e `ApplyGrants` no processo que migra, consulta de privilégio nos que esperam); o caminho de requisição não ganha statement.
+- [x] Compatibilidade: Go `1.26.9`, Postgres 16 como nas imagens fixadas de Compose, CI e k8s (pré-condição: PostgreSQL ≥ 15), Nx 23.1.0.
 
 ## Camadas afetadas
 
@@ -179,9 +181,13 @@ libs/backend/go/postgres/grants.go                     novo: Privilege, Grant, K
 libs/backend/go/postgres/wait.go                       WaitForGrants, ao lado de WaitForTables
 libs/backend/go/app/serve/serve.go                     APIRole.MigrateDSN, API.Grants, prepare
 libs/backend/go/testkit/tb/pg/pool.go                  OpenRuntimePool, helper de negação
-tools/dmpf-conformance/infrasync/infrasync.go          database.migrator
+libs/backend/go/testkit/tb/dist/harness.go             PG_DSN de runtime e PG_MIGRATE_DSN do api
+tools/dmpf-conformance/infrasync/infrasync.go          database.migrator, CheckDevSecrets
 tools/dmpf-conformance/infrasync/templates/provisioning.yml.tmpl
 tools/dmpf-conformance/infrasync/templates/databases-job.yaml.tmpl
+tools/dmpf-conformance/infrasync/templates/databases-kustomization.yaml.tmpl
+tools/dmpf-conformance/infrasync/templates/env.tmpl
+tools/dmpf-conformance/infrasync/templates.go          EnvLines
 infra/local/compose/provisioning.generated.yml         gerado
 infra/k8s/overlays/dev/databases/job.yaml              gerado
 apps/backend/{orders,reservations,bookings}/app/{config,wiring}.go
@@ -190,7 +196,10 @@ apps/backend/{orders,reservations,bookings}/deploy/**  infra.json, compose.yml, 
 apps/backend/bff/app/harness_test.go                   DSN de runtime e de migração
 tools/dmpf-plugin/templates/bounded-context/**         config, wiring, schema.go, deploy
 tools/dmpf-plugin/templates/init/managed/infra/local/compose/postgres.yml__tmpl__
-docs/adr/0NN-duas-roles-de-banco-por-app.md            novo (número a resolver)
+tools/dmpf-plugin/templates/ai/.claude/rules/dmpf-bounded-context.md__tmpl__   e a cópia em .claude/rules/
+tools/dmpf-plugin/scripts/dmpf-context-check.sh        DSN e laço do migrador
+apps/backend/{orders,reservations,bookings}/distkit/**  DSN de runtime e de migração
+docs/adr/063-duas-roles-de-banco-por-app.md            novo
 infra/README.md, AGENTS.md, docs/guides/dmpf-composicao.md, docs/guides/dmpf-consumo-externo.md
 ```
 
@@ -262,17 +271,17 @@ Derivada do inventário acima; a investigação a confirma ou corrige.
 
 ### Critérios de aceite
 
-- [ ] Em teste de integração, a pool de runtime recebe SQLSTATE 42501 em `CREATE TABLE`, `ALTER TABLE`, `DROP TABLE` e `TRUNCATE`, e em `UPDATE` e `DELETE` sobre tabela declarada `AppendOnly`, e consegue `SELECT` e `INSERT` nela.
-- [ ] `pg_database.datdba` do banco de cada app aponta a role migradora, e a role de runtime não possui nenhuma tabela.
-- [ ] Os fluxos de outbox, relay, purga, inbox, quarentena e `Table.Save` passam sob a role de runtime nas suítes do kernel e dos três contextos, inclusive `test-race` e `test-distributed`.
-- [ ] Rodar o provisionamento e `ApplyGrants` duas vezes não altera dono, senha nem privilégio.
-- [ ] Reaplicar `ApplyGrants` com a pool de runtime consultando sem parar não produz SQLSTATE 42501, porque o `REVOKE` e o `GRANT` rodam numa transação.
-- [ ] Um `relay`, um `consumer` e um `api` com `MIGRATE=false`, iniciados com a tabela criada e sem grant, ficam em espera e só seguem depois do `ApplyGrants`, sem consulta recusada por SQLSTATE 42501.
-- [ ] Em PostgreSQL ≥ 15, `has_schema_privilege(<role de runtime>, 'public', 'CREATE')` é falso; o provisionamento gerado contém `REVOKE CREATE ON SCHEMA public FROM PUBLIC` para servidor ≤ 14.
-- [ ] Uma app com `infra.json` sem `database.migrator` gera a mesma saída de hoje e sobe com a role única.
+- [x] Em teste de integração, a pool de runtime recebe SQLSTATE 42501 em `CREATE TABLE`, `CREATE TEMP TABLE`, `ALTER TABLE`, `DROP TABLE` e `TRUNCATE`, e em `UPDATE` e `DELETE` sobre tabela declarada `AppendOnly`, e consegue `SELECT` e `INSERT` nela.
+- [x] `pg_database.datdba` do banco de cada app aponta a role migradora, e a role de runtime não possui nenhuma tabela.
+- [x] Os fluxos de outbox, relay, purga, inbox, quarentena e `Table.Save` passam sob a role de runtime nas suítes do kernel e dos três contextos, inclusive `test-race` e `test-distributed`.
+- [x] Rodar o provisionamento e `ApplyGrants` duas vezes não altera dono, senha nem privilégio.
+- [x] Reaplicar `ApplyGrants` com a pool de runtime consultando sem parar não produz SQLSTATE 42501, porque o `REVOKE` e o `GRANT` rodam numa transação.
+- [x] Um `relay`, um `consumer` e um `api` com `MIGRATE=false`, iniciados com a tabela criada e sem grant, ficam em espera e só seguem depois do `ApplyGrants`, sem consulta recusada por SQLSTATE 42501.
+- [x] Em PostgreSQL ≥ 15, `has_schema_privilege(<role de runtime>, 'public', 'CREATE')` é falso; o provisionamento gerado contém `REVOKE CREATE ON SCHEMA public FROM PUBLIC` para servidor ≤ 14.
+- [x] Uma app com `infra.json` sem `database.migrator` gera a mesma saída de hoje e sobe com a role única.
 - [ ] As três investigações têm resultado registrado no ADR novo, e `KernelGrants` coincide com o conjunto registrado.
 - [ ] `go run ./tools/dmpf-conformance/cmd/conformance --root .`, `modsync --check` e `infrasync --check` passam, o job `external-consumer` (`.github/workflows/ci.yml:96`) passa, e `node tools/adr-verify.mjs --from 63` passa.
-- [ ] `pnpm nx affected -t lint,typecheck,test,build --exclude=@mateusmacedo/dmpf-source` e `tools/dmpf-generator-check.sh` passam.
+- [x] `pnpm nx affected -t lint,typecheck,test,build --exclude=@mateusmacedo/dmpf-source` e `tools/dmpf-generator-check.sh` passam.
 
 ### Cenários de teste
 
@@ -323,5 +332,5 @@ Derivada do inventário acima; a investigação a confirma ou corrige.
 - **Role por processo** (`api`, `relay`, `consumer`): a spec entrega uma role de runtime por app.
 - **Migração de ownership de banco existente**: bancos criados com a role única são recriados, como o ADR-053 fez; ambiente com dado real exige procedimento próprio, descrito no ADR novo.
 - **Trigger e tabela de auditoria do consumidor**: o DDL de uma tabela append-only (trigger contra `UPDATE`, `DELETE` e `TRUNCATE`) é da app; o kernel entrega o privilégio, não o modelo.
-- **Provisionamento do servidor de `hmg`**: segue externo ao repositório; a spec só acrescenta a segunda chave de Secret.
+- **Provisionamento do servidor de `hmg`**: segue externo ao repositório; a spec só acrescenta o Secret `<app>-migrator`.
 - **Rotação de credenciais e autenticação por IAM**: tema de operação do servidor, ortogonal ao modelo de duas roles.

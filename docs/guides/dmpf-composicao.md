@@ -167,6 +167,12 @@ pnpm nx run-many -t fmt-check,vet,lint,build,test -p <ctx>
 Os testes que tocam Postgres levam a build tag `integration` e exigem o DSN.
 O `PG_DSN` aponta o servidor com um usuário que cria bancos: cada teste roda
 num `<ctx>_test_<id>` próprio, e projetos distintos rodam em paralelo (ADR-053).
+Esse usuário migra; o que serve é a role de runtime do cluster de teste
+(`pg.RuntimeRole`), sem posse e só com os grants de `KernelGrants` e do
+`provider.Grants` do contexto (ADR-063). `pg.OpenRuntimePool` devolve a pool
+dela, `pg.RuntimeDSN` o DSN para um processo filho, e `pg.AssertDenied` fixa o
+que ela não pode fazer. Tabela do `schema.sql` sem grant em `provider.Grants`
+reprova a abertura da pool.
 Os targets sobem a infra de testes (`testkit:test-infra-up`), e o
 `tools/dmpf-plugin/scripts/test-env.sh` preenche `PG_DSN` e `KAFKA_BROKERS` com o Postgres (15432) e
 o Redpanda (19092) dela, a partir do `.env.example` da raiz:
