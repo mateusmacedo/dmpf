@@ -15,6 +15,11 @@ secretGenerator:
       - KAFKA_BROKERS=redpanda-0.redpanda:9092
     options:
       disableNameSuffixHash: true
+  - name: reservations-migrator
+    literals:
+      - PG_MIGRATE_DSN=postgres://reservations_migrator:reservations-migrator-dev@postgres-0.postgres:5432/reservations?sslmode=disable
+    options:
+      disableNameSuffixHash: true
 
 patches:
   - path: configmap-reservations-patch.yaml
