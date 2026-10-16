@@ -8,7 +8,12 @@
   "database": {
     "passwordEnv": "ORDERS_PG_PASSWORD",
     "local": "orders-local",
-    "dev": "orders-dev"
+    "dev": "orders-dev",
+    "migrator": {
+      "passwordEnv": "ORDERS_PG_MIGRATOR_PASSWORD",
+      "local": "orders-migrator-local",
+      "dev": "orders-migrator-dev"
+    }
   },
   "kafka": {
     "passwordEnv": "KAFKA_ORDERS_PASSWORD",

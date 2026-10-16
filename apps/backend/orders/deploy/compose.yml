@@ -1,6 +1,6 @@
 # Processos do orders na topologia local (ADR-044): api gRPC, que aplica o schema
-# (MIGRATE=true), e relay, que drena a outbox. Banco e role nascem no
-# postgres-init; o tópico, no redpanda-init.
+# (MIGRATE=true), e relay, que drena a outbox. O banco e as roles orders_migrator
+# e orders (ADR-063) nascem no postgres-init; o tópico, no redpanda-init.
 x-image: &image
   build:
     context: ../../../..
@@ -21,6 +21,7 @@ services:
     environment:
       <<: *env
       OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES:-service.version=local,deployment.environment.name=local},service.instance.id=orders-api,dmpf.process.role=api
+      PG_MIGRATE_DSN: postgres://orders_migrator:${ORDERS_PG_MIGRATOR_PASSWORD:-orders-migrator-local}@postgres:5432/orders?sslmode=disable
       ITEM_LIMIT: ${ITEM_LIMIT:-10}
       GRPC_TLS_CERT_FILE: /pki/dmpf-orders-api.crt
       GRPC_TLS_KEY_FILE: /pki/dmpf-orders-api.key

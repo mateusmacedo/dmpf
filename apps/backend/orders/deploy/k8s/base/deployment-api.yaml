@@ -31,6 +31,8 @@ spec:
                 name: orders
             - secretRef:
                 name: orders
+            - secretRef:
+                name: orders-migrator
           env:
             - name: K8S_POD_NAME
               valueFrom:

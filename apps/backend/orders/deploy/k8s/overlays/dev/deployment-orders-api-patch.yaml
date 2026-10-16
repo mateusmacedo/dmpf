@@ -8,7 +8,7 @@ spec:
       containers:
         - name: api
           env:
-            # Em dev o api aplica o schema na partida (postgres.Migrate é
-            # idempotente); o relay espera as tabelas existirem.
+            # Em dev o api aplica o schema e os grants na partida, ambos
+            # idempotentes; o relay espera os grants da role de runtime.
             - name: MIGRATE
               value: 'true'
