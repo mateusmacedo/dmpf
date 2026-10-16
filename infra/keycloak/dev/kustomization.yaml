@@ -1,0 +1,57 @@
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+# WHY: o Secret keycloak-db vem depois do ConfigMap no envFrom e prevalece, o que
+# troca o Postgres por dev-file sem patch. O Job é imutável: o ConfigMap do seed
+# não leva hash, e um novo seed exige apagar o Job (infra/README.md).
+
+resources:
+  - pvc.yaml
+  - seed-job.yaml
+
+configMapGenerator:
+  - name: keycloak-seed
+    files:
+      - seed.sh
+    options:
+      disableNameSuffixHash: true
+  - name: keycloak-hostname
+    literals:
+      - KC_HOSTNAME=http://keycloak:8080
+    options:
+      disableNameSuffixHash: true
+
+secretGenerator:
+  - name: keycloak-db
+    literals:
+      - KC_DB=dev-file
+    options:
+      disableNameSuffixHash: true
+  - name: keycloak-admin
+    literals:
+      - username=admin
+      - password=admin
+    options:
+      disableNameSuffixHash: true
+  - name: keycloak-session-events
+    literals:
+      - secret=dmpf-dev-session-events
+    options:
+      disableNameSuffixHash: true
+
+patches:
+  - target:
+      kind: Deployment
+      name: keycloak
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/volumeMounts/-
+        value:
+          name: data
+          mountPath: /opt/keycloak/data/h2
+      - op: add
+        path: /spec/template/spec/volumes/-
+        value:
+          name: data
+          persistentVolumeClaim:
+            claimName: keycloak-data

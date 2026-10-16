@@ -28,3 +28,4 @@ include:
   - ../../apps/backend/bff/deploy/compose.yml
   - compose/swagger-ui.yml
   - compose/k6.yml
+  - compose/keycloak.yml

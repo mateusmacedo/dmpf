@@ -1,0 +1,29 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# WHY: KC_HOSTNAME é o issuer que o authn valida e muda por ambiente, por isso
+# vem do ConfigMap keycloak-hostname, que cada overlay fornece (ADR-064).
+
+labels:
+  - includeSelectors: true
+    pairs:
+      app.kubernetes.io/name: keycloak
+      app.kubernetes.io/part-of: dmpf
+
+resources:
+  - deployment.yaml
+  - service.yaml
+
+configMapGenerator:
+  - name: keycloak-realm
+    files:
+      - dmpf-realm.json
+  - name: keycloak
+    literals:
+      - KC_HTTP_ENABLED=true
+      - KC_HEALTH_ENABLED=true
+      - KC_CACHE=local
+      - KC_DB=postgres
+      - DMPF_BACKCHANNEL_LOGOUT_URL=
+    options:
+      disableNameSuffixHash: true

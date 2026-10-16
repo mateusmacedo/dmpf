@@ -92,6 +92,7 @@ jobs:
     uses: ./.github/workflows/dmpf-go-ci.yml
     with:
       base: develop
+      keycloak: true
 
   external-consumer:
     name: Consumidor externo por versão

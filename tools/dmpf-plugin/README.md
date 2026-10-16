@@ -78,8 +78,9 @@ Opção omitida mantém o valor do `dmpf.json` anterior. O `init` escreve:
   `targetDefaults` do `@nx-go/nx-go` e o plugin; e o `@nx-go/nx-go` no
   `package.json`;
 - `.golangci.yml`, `.env.example`, o esqueleto estático de `infra/local`,
-  `infra/test`, `infra/observability` e `infra/k8s/base`, e o baseline vazio
-  em `tools/dmpf-baseline/`;
+  `infra/test`, `infra/observability`, `infra/k8s/base` e `infra/keycloak` (o
+  Keycloak de referência do ADR-064), e o baseline vazio em
+  `tools/dmpf-baseline/`;
 - os ativos de IA: as skills `dmpf-bounded-context` e `dmpf-testkit`, o agente
   `dmpf-context-author`, a rule `dmpf-bounded-context` e o comando
   `dmpf-new-context`;

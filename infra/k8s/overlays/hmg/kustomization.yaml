@@ -1,10 +1,10 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-# hmg: Postgres e Kafka são serviços fora do cluster; só as quatro apps e a
-# plataforma de observabilidade sobem daqui. Os Secrets vêm de fora — DSN e
+# hmg: Postgres e Kafka são serviços fora do cluster; só as quatro apps, o Keycloak
+# e a plataforma de observabilidade sobem daqui. Os Secrets vêm de fora — DSN e
 # brokers de cada contexto, o certificado gRPC de cada api, a CA do BFF, o
-# servidor OIDC do BFF, o certificado e a CA do Collector e a senha do Grafana — por ExternalSecret/SealedSecret com os nomes dos
+# servidor OIDC do BFF, o certificado e a CA do Collector, a senha do Grafana e as credenciais e o hostname do Keycloak — por ExternalSecret/SealedSecret com os nomes dos
 # secrets.example.yaml.tmpl daqui e de cada app, que mostram a forma e não são aplicados. Sem eles os
 # pods ficam em CreateContainerConfigError, que é a falha certa.
 
@@ -12,6 +12,7 @@ namespace: dmpf-hmg
 
 resources:
   - ../../../observability
+  - ../../../keycloak
   - apps
 
 configMapGenerator:

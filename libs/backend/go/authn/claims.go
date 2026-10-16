@@ -27,17 +27,37 @@ func claimValue(claims map[string]any, path string) (any, bool) {
 		if !ok {
 			return nil, false
 		}
-		if current, ok = object[segment]; !ok {
+		if current, ok = childOf(object, segment); !ok {
 			return nil, false
 		}
 	}
 	return current, true
 }
 
+func childOf(object map[string]any, segment string) (any, bool) {
+	if segment != "*" {
+		value, ok := object[segment]
+		return value, ok
+	}
+	if len(object) != 1 {
+		return nil, false
+	}
+	for _, only := range object {
+		return only, true
+	}
+	return nil, false
+}
+
 func stringClaim(claims map[string]any, path string) (string, bool) {
 	value, ok := claimValue(claims, path)
 	if !ok {
 		return "", false
+	}
+	if list, isList := value.([]any); isList {
+		if len(list) != 1 {
+			return "", false
+		}
+		value = list[0]
 	}
 	text, ok := value.(string)
 	if !ok || text == "" {
