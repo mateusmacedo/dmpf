@@ -8,8 +8,9 @@
 # Além do layout, o gate confere os nomes de banco: o DDL dos contextos e do
 # kernel segue a tabela de nomes canônicos, e todo DSN, POSTGRES_DB e script de
 # criação de banco em infra/, apps/backend/*/deploy e .github/workflows usa banco
-# e role com o nome da app, ou o par administrativo `postgres`; e cada contexto
-# declara o próprio banco no deploy/infra.json.
+# e role com o nome da app (ou a role `<app>_migrator` no banco da app, só no
+# PG_MIGRATE_DSN), ou o par administrativo `postgres`; cada contexto declara o
+# próprio banco no deploy/infra.json e um grant para cada tabela do schema.sql.
 #
 # O critério de descoberta é a presença de `domain/`: um contexto tem domínio,
 # uma borda como o `bff` não tem. Isso separa os dois sem lista fixa e passa a
@@ -210,8 +211,39 @@ sys.exit(1 if achados else 0)
 PY
 }
 
-# verificar_infra confere banco e role onde a infra e a CI os declaram: DSN,
-# POSTGRES_DB e o laço que cria banco e role por app.
+# verificar_grants cruza o CREATE TABLE do schema.sql com o provider.Grants: a
+# tabela sem grant recusa a partida (ADR-063), e o gate a pega antes da subida.
+verificar_grants() {
+  local base="$1"
+  python3 - "$base/provider/schema.sql" "$base/provider/schema.go" <<'PY'
+import re
+import sys
+
+sql_path, go_path = sys.argv[1:3]
+try:
+    sql = re.sub(r'--[^\n]*', '', open(sql_path, encoding='utf-8').read())
+except OSError as erro:
+    print(f'{sql_path}: {erro}')
+    sys.exit(1)
+try:
+    go = re.sub(r'//[^\n]*', '', open(go_path, encoding='utf-8').read())
+except OSError:
+    go = ''
+tabelas = re.findall(
+    r'CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(?:"?public"?\.)?"?(\w+)"?', sql, re.IGNORECASE
+)
+concedidas = set(re.findall(r'\b(?:Mutable|AppendOnly)\(\s*"(\w+)"\s*\)', go))
+concedidas |= set(re.findall(r'\bTable:\s*"(\w+)"', go))
+faltam = [t for t in tabelas if t not in concedidas]
+for tabela in faltam:
+    print(f'{sql_path}: tabela {tabela} sem grant no provider.Grants')
+sys.exit(1 if faltam else 0)
+PY
+}
+
+# verificar_infra confere DSN, POSTGRES_DB, o laço ou bloco que cria banco e role
+# por app e onde a credencial da migradora aparece (ADR-063). Lê o YAML pela
+# indentação para não exigir PyYAML de quem roda o gate fora do platform.
 verificar_infra() {
   local repo="$1"
   shift
@@ -229,10 +261,117 @@ DSN = re.compile(r'postgres(?:ql)?://((?:\$\{[^}]*\}|[^:@/\s"\'])+)(?::[^@\s"\']
 DEFAULT = re.compile(r'\$\{[A-Z_]+:-([^}]*)\}')
 POSTGRES_DB = re.compile(r'POSTGRES_DB\s*[:=]\s*["\']?([^\s"\'}]+)')
 LOOP = re.compile(r'for pair in (.*?);\s*do', re.DOTALL)
-PAIR = re.compile(r'([a-z][a-z0-9-]*):\$')
+CHAVE = re.compile(r'([A-Z_][A-Z0-9_]*)["\']?\s*[:=]\s*["\']?$')
+PAIR = re.compile(r'(?<![\w-])([a-z][a-z0-9_-]*):\$')
+BLOCO = re.compile(r'CREATE DATABASE \\?"([a-z0-9][a-z0-9_-]*)\\?"')
+KV_USER = re.compile(r'(?<![\w.-])user=(\$\{[^}]*\}|[^\s"\'&;]+)')
+KV_DB = re.compile(r'(?<![\w.-])dbname=(\$\{[^}]*\}|[^\s"\'&;]+)')
+PGUSER = re.compile(r'(?<![\w])PGUSER["\']?\s*[:=]\s*["\']?(\$\{[^}]*\}|[\w-]+)')
+MIGRATE_KEY = re.compile(r'(?<![\w])PG_MIGRATE_DSN["\']?\s*[:=]')
+CHAVE_DA_LINHA = re.compile(r'^\s*(?:-\s+)?(?:export\s+)?["\']?([A-Z_][A-Z0-9_]*)["\']?\s*[:=]')
+ITEM = re.compile(r'^("[^"]*"|\'[^\']*\'|[^\s:#\'"{}\[\],][^:#]*?)\s*:(?:\s+(.*))?$')
+ESCALAR = re.compile(r'^[|>][-+0-9]*$')
+ALIAS = re.compile(r'(?:^|[\s\[{,:])\*([\w.-]+)')
+SECRETS = {'Secret', 'SealedSecret', 'ExternalSecret'}
+MIGRATOR = '_migrator'
+try:
+    PERFIL = json.loads((repo / 'dmpf.json').read_text(encoding='utf-8')).get('composeProfile') or 'dmpf'
+except (OSError, ValueError, AttributeError):
+    PERFIL = 'dmpf'
+
 
 def literal(value):
     return DEFAULT.sub(lambda m: m.group(1), value)
+
+
+def sem_comentario(linha):
+    return re.sub(r'(^|\s)#.*$', '', linha).rstrip()
+
+
+def empilhar(pilha, recuo, chave, valor):
+    ancora = None
+    if valor.startswith('&'):
+        ancora, _, valor = valor[1:].partition(' ')
+        valor = valor.strip()
+    pilha.append({'recuo': recuo, 'chave': chave, 'ancora': ancora, 'item': False, 'aberto': not valor, 'nome': None, 'valor': valor})
+    return recuo if ESCALAR.match(valor) else None
+
+
+def estrutura(texto):
+    pilha, docs, linhas, escalar = [], [{}], [], None
+    for bruta in texto.splitlines():
+        limpa = bruta.rstrip()
+        conteudo = limpa.lstrip(' ')
+        recuo = len(limpa) - len(conteudo)
+        if escalar is not None:
+            if not conteudo or recuo > escalar:
+                linhas.append((len(docs) - 1, tuple(pilha), True))
+                continue
+            escalar = None
+        conteudo = sem_comentario(conteudo)
+        if not conteudo:
+            linhas.append((len(docs) - 1, tuple(pilha), False))
+            continue
+        if recuo == 0 and conteudo.startswith('---'):
+            docs.append({})
+            pilha = []
+            linhas.append((len(docs) - 1, (), False))
+            continue
+        if conteudo == '-' or conteudo.startswith('- '):
+            while pilha and pilha[-1]['recuo'] > recuo:
+                pilha.pop()
+            if pilha and pilha[-1]['recuo'] == recuo and (pilha[-1]['item'] or not pilha[-1]['aberto']):
+                pilha.pop()
+            item = {'recuo': recuo, 'chave': None, 'ancora': None, 'item': True, 'aberto': False, 'nome': None, 'valor': ''}
+            pilha.append(item)
+            resto = conteudo[1:].lstrip()
+            achado = ITEM.match(resto) if resto else None
+            if ESCALAR.match(resto):
+                escalar = recuo
+            elif achado:
+                chave, valor = achado.group(1).strip('\'"'), (achado.group(2) or '').strip()
+                if chave == 'name':
+                    item['nome'] = valor.strip('\'"')
+                escalar = empilhar(pilha, recuo + len(conteudo) - len(resto), chave, valor)
+            else:
+                item['valor'] = resto
+        else:
+            while pilha and pilha[-1]['recuo'] >= recuo:
+                pilha.pop()
+            achado = ITEM.match(conteudo)
+            if achado:
+                chave, valor = achado.group(1).strip('\'"'), (achado.group(2) or '').strip()
+                if pilha and pilha[-1]['item'] and chave == 'name':
+                    pilha[-1]['nome'] = valor.strip('\'"')
+                escalar = empilhar(pilha, recuo, chave, valor)
+                if recuo == 0:
+                    docs[-1].setdefault('topo', set()).add(chave)
+                    if chave == 'kind':
+                        docs[-1]['kind'] = valor.strip('\'"')
+                if chave == 'name' and len(pilha) == 2 and pilha[0]['chave'] == 'metadata' and pilha[0]['recuo'] == 0:
+                    docs[-1]['name'] = valor.strip('\'"')
+        linhas.append((len(docs) - 1, tuple(dict(n) for n in pilha), False))
+    return linhas, docs
+
+
+def chave_de(linha, pilha):
+    if pilha and pilha[-1]['chave'] == 'value':
+        for no in reversed(pilha[:-1]):
+            if no['item']:
+                return no['nome']
+    if pilha and pilha[-1]['chave'] and re.fullmatch(r'[A-Z_][A-Z0-9_]*', pilha[-1]['chave']):
+        return pilha[-1]['chave']
+    achada = CHAVE_DA_LINHA.match(linha)
+    return achada.group(1) if achada else None
+
+
+def servicos_api(app):
+    return {f'{app}-api', f'{PERFIL}-{app}-api'}
+
+
+def yaml_de(arquivo):
+    return arquivo.suffix in ('.yml', '.yaml') or arquivo.name.endswith(('.yml.tmpl', '.yaml.tmpl'))
+
 
 achados = []
 arquivos = []
@@ -249,22 +388,136 @@ for app in sorted(apps):
         continue
     if declarado.get('app') != app or not declarado.get('database'):
         achados.append(f'{manifesto.relative_to(repo)}: o contexto {app} precisa declarar app "{app}" e o próprio database')
+
+textos, estruturas, estendidos = {}, {}, set()
 for arquivo in arquivos:
     try:
-        texto = arquivo.read_text(encoding='utf-8')
+        textos[arquivo] = arquivo.read_text(encoding='utf-8')
     except (OSError, UnicodeDecodeError):
         continue
-    nome = arquivo.relative_to(repo)
-    for user, db in DSN.findall(texto):
-        user, db = literal(user), literal(db)
-        if (user, db) == (ADMIN, ADMIN) or (user == db and db in apps):
+    if not yaml_de(arquivo):
+        continue
+    linhas, docs = estrutura(textos[arquivo])
+    if arquivo.name in ('kustomization.yaml', 'kustomization.yml'):
+        for doc in docs:
+            doc.setdefault('kind', 'Kustomization')
+    estruturas[arquivo] = (linhas, docs)
+    for doc, pilha, escalar in linhas:
+        if escalar or 'services' not in docs[doc].get('topo', set()) or not pilha:
             continue
-        achados.append(f'{nome}: DSN com role {user} e banco {db} (esperado o nome da app nos dois, ou {ADMIN}/{ADMIN})')
+        ultimo = pilha[-1]
+        if ultimo['chave'] == 'service' and any(n['chave'] == 'extends' for n in pilha[:-1]):
+            estendidos.add(ultimo['valor'].strip('\'"'))
+        elif ultimo['chave'] == 'extends' and ultimo['valor']:
+            alvo = re.search(r'service:\s*["\']?([\w.-]+)', ultimo['valor'])
+            estendidos.add(alvo.group(1) if alvo else ultimo['valor'].strip('\'"'))
+
+
+def fora_do_lugar(arquivo, numero, app, rotulo):
+    if arquivo not in estruturas:
+        return None
+    linhas, docs = estruturas[arquivo]
+    doc, pilha, _ = linhas[numero - 1]
+    info = docs[doc]
+    if 'kind' in info:
+        secrets = {f'{app}-migrator'} if app else {f'{a}-migrator' for a in apps}
+        if info['kind'] in SECRETS and info.get('name') in secrets:
+            return None
+        if info['kind'] == 'Kustomization' and any(n['chave'] == 'secretGenerator' for n in pilha) and any(
+            n['item'] and n['nome'] in secrets for n in pilha
+        ):
+            return None
+        return f'{rotulo} fora do Secret {" ou ".join(sorted(secrets))}, o único que só o Deployment do api lê'
+    if 'services' not in info.get('topo', set()):
+        return None
+    topo = pilha[0]['chave'] if pilha and pilha[0]['recuo'] == 0 and not pilha[0]['item'] else None
+    if topo != 'services' or len(pilha) < 2:
+        return f'{rotulo} em {topo or "raiz"}, fora do serviço {app or "<app>"}-api: o que fica fora dele chega a relay e consumer'
+    servico = pilha[1]['chave']
+    donos = [app] if app else [a for a in apps if servico in servicos_api(a)]
+    if not donos or servico not in servicos_api(donos[0]):
+        return f'{rotulo} no serviço {servico}; só o serviço {app or "<app>"}-api a recebe'
+    aliases = {a for linha in textos[arquivo].splitlines() for a in ALIAS.findall(sem_comentario(linha))}
+    for no in pilha:
+        if no['ancora'] and no['ancora'] in aliases:
+            return f'{rotulo} sob a âncora &{no["ancora"]}, que *{no["ancora"]} replica em outro nó'
+    if servico in estendidos:
+        return f'{rotulo} no serviço {servico}, que outro serviço herda por extends'
+    return None
+
+
+for arquivo, texto in textos.items():
+    nome = arquivo.relative_to(repo)
+    linhas = estruturas[arquivo][0] if arquivo in estruturas else None
+    for numero, linha in enumerate(texto.splitlines(), 1):
+        pilha = linhas[numero - 1][1] if linhas else ()
+        usos = {}
+        for dsn in DSN.finditer(linha):
+            user, db = literal(dsn.group(1)), literal(dsn.group(2))
+            if (user, db) == (ADMIN, ADMIN) or (db in apps and user == db):
+                continue
+            chave = CHAVE.search(linha[:dsn.start()])
+            chave = chave.group(1) if chave else chave_de(linha, pilha)
+            if db in apps and user == db + MIGRATOR:
+                if chave == 'PG_MIGRATE_DSN':
+                    usos[db] = f'a role {user}'
+                    continue
+                achados.append(f'{nome}:{numero}: a role {user} só cabe no PG_MIGRATE_DSN, não em {chave or "DSN sem chave"}')
+                continue
+            achados.append(
+                f'{nome}:{numero}: DSN com role {user} e banco {db} '
+                f'(esperado o nome da app nos dois, a role <app>{MIGRATOR} no PG_MIGRATE_DSN do banco da app, ou {ADMIN}/{ADMIN})'
+            )
+        for kv in KV_USER.finditer(linha):
+            user = literal(kv.group(1))
+            if not user.endswith(MIGRATOR):
+                continue
+            app = user[: -len(MIGRATOR)]
+            db = KV_DB.search(linha)
+            db = literal(db.group(1)) if db else None
+            if app not in apps or db != app:
+                achados.append(f'{nome}:{numero}: DSN chave/valor com role {user} e banco {db or "ausente"} (esperado dbname={app}, o banco da app)')
+                continue
+            chave = chave_de(linha, pilha)
+            if chave != 'PG_MIGRATE_DSN':
+                achados.append(f'{nome}:{numero}: a role {user} só cabe no PG_MIGRATE_DSN, não em {chave or "DSN sem chave"}')
+                continue
+            usos[app] = f'a role {user}'
+        pguser = [literal(m.group(1)) for m in PGUSER.finditer(linha)]
+        if pilha and pilha[-1]['chave'] == 'value' and chave_de(linha, pilha) == 'PGUSER':
+            pguser.append(literal(pilha[-1]['valor'].strip('\'"')))
+        for user in pguser:
+            if user.endswith(MIGRATOR):
+                achados.append(f'{nome}:{numero}: a role {user} só cabe no PG_MIGRATE_DSN, não em PGUSER')
+        if linhas and not usos and (MIGRATE_KEY.search(sem_comentario(linha)) or chave_de(linha, pilha) == 'PG_MIGRATE_DSN'):
+            usos[None] = 'PG_MIGRATE_DSN'
+        for app, rotulo in usos.items():
+            motivo = fora_do_lugar(arquivo, numero, app, rotulo)
+            if motivo:
+                achados.append(f'{nome}:{numero}: {motivo}')
+    if linhas:
+        docs = estruturas[arquivo][1]
+        for app in sorted(apps):
+            token = re.compile(rf'(?<![\w.-]){re.escape(app)}-migrator(?![\w.-])')
+            for numero, linha in enumerate(texto.splitlines(), 1):
+                doc, pilha, _ = linhas[numero - 1]
+                info = docs[doc]
+                if 'kind' not in info or not token.search(sem_comentario(linha)) or info['kind'] in SECRETS:
+                    continue
+                if info['kind'] == 'Kustomization' and pilha and pilha[-1]['chave'] == 'name' and any(
+                    n['chave'] == 'secretGenerator' for n in pilha
+                ):
+                    continue
+                if info['kind'] == 'Deployment' and info.get('name') == f'{app}-api':
+                    continue
+                onde = f'{info["kind"]} {info.get("name", "")}'.rstrip()
+                achados.append(f'{nome}:{numero}: o Secret {app}-migrator só cabe no Deployment {app}-api, não em {onde}')
     for db in POSTGRES_DB.findall(texto):
         if literal(db) != ADMIN:
             achados.append(f'{nome}: POSTGRES_DB={db} (o banco administrativo é {ADMIN})')
     if re.search(r'CREATE DATABASE', texto):
         declaradas = {app for laco in LOOP.findall(texto) for app in PAIR.findall(laco)}
+        declaradas |= set(BLOCO.findall(texto))
         if declaradas != apps:
             achados.append(
                 f'{nome}: cria banco e role para {sorted(declaradas)}, esperado um por contexto: {sorted(apps)}'
@@ -317,6 +570,9 @@ fase_estrutural() {
     saida="$(verificar_ddl contexto "$raiz/$ctx/provider/schema.sql")"
     status=$?
     relatar "$ctx: DDL nos nomes canônicos" "$saida" "$status"
+    saida="$(verificar_grants "$raiz/$ctx")"
+    status=$?
+    relatar "$ctx: toda tabela do schema.sql com grant no provider.Grants" "$saida" "$status"
   done
   local -a kernel=()
   local ddl="$repo/$KERNEL_DDL"
@@ -335,7 +591,7 @@ fase_estrutural() {
   printf '\n== banco e role em infra/, apps/backend/*/deploy e .github/workflows ==\n'
   saida="$(verificar_infra "$repo" "${ctxs[@]}")"
   status=$?
-  relatar "banco e role com o nome da app, ou o par administrativo" "$saida" "$status"
+  relatar "banco e role com o nome da app (ou <app>_migrator no PG_MIGRATE_DSN), ou o par administrativo" "$saida" "$status"
 
   if [ "$FALHAS" -gt 0 ]; then
     printf '\nGate de estrutura: REPROVADO com %d achado(s).\n' "$FALHAS" >&2
@@ -357,6 +613,9 @@ fase_contexto() {
     saida="$(verificar_ddl contexto "$base/provider/schema.sql")"
     status=$?
     relatar "$ctx: DDL nos nomes canônicos" "$saida" "$status"
+    saida="$(verificar_grants "$base")"
+    status=$?
+    relatar "$ctx: toda tabela do schema.sql com grant no provider.Grants" "$saida" "$status"
   fi
   if [ "$FALHAS" -gt 0 ]; then
     printf '\nGate de estrutura: REPROVADO com %d achado(s) em %s.\n' "$FALHAS" "$ctx" >&2
@@ -390,6 +649,11 @@ CREATE TABLE IF NOT EXISTS probes (
 );
 CREATE INDEX IF NOT EXISTS probes_probe_id_idx ON probes (probe_id);
 SQL
+  cat > "$ctx/provider/schema.go" <<'GO'
+package provider
+
+var Grants = []postgres.Grant{postgres.Mutable("probes")}
+GO
   cat > "$ctx/project.json" <<'JSON'
 {"targets":{"serve-api":{},"serve-relay":{},"test-distributed":{}}}
 JSON
@@ -402,10 +666,16 @@ JSON
 {"schema":"dmpf/infra@1","app":"probe","database":{"passwordEnv":"PROBE_PG_PASSWORD","local":"probe-local","dev":"probe-dev"}}
 JSON
   cat > "$ctx/deploy/compose.yml" <<'YAML'
+x-env: &env
+  PG_DSN: postgres://probe:${PROBE_PG_PASSWORD:-probe-local}@postgres:5432/probe?sslmode=disable
+
 services:
   probe-api:
     environment:
-      PG_DSN: postgres://probe:${PROBE_PG_PASSWORD:-probe-local}@postgres:5432/probe?sslmode=disable
+      <<: *env
+  probe-relay:
+    environment:
+      <<: *env
 YAML
 
   mkdir -p "$bff"/{app/api,app/rpc,cmd,deploy}
@@ -445,6 +715,63 @@ env:
 YAML
 }
 
+variar() {
+  local repo="$1" tipo="$2" ctx="$1/$APPS/probe"
+  case "$tipo" in
+    com-migrador)
+      printf '{"schema":"dmpf/infra@1","app":"probe","database":{"passwordEnv":"PROBE_PG_PASSWORD","local":"probe-local","dev":"probe-dev","migrator":{"passwordEnv":"PROBE_PG_MIGRATOR_PASSWORD","local":"probe-migrator-local","dev":"probe-migrator-dev"}}}\n' > "$ctx/deploy/infra.json"
+      sed -i '/^  probe-api:$/,/^  probe-relay:$/ s|^      <<: \*env$|&\n      PG_MIGRATE_DSN: postgres://probe_migrator:${PROBE_PG_MIGRATOR_PASSWORD:-probe-migrator-local}@postgres:5432/probe?sslmode=disable|' \
+        "$ctx/deploy/compose.yml"
+      mkdir -p "$ctx/deploy/k8s/base" "$ctx/deploy/k8s/overlays/dev"
+      cat > "$ctx/deploy/k8s/overlays/dev/kustomization.yaml" <<'YAML'
+secretGenerator:
+  - name: probe
+    literals:
+      - PG_DSN=postgres://probe:probe-dev@postgres-0.postgres:5432/probe?sslmode=disable
+  - name: probe-migrator
+    literals:
+      - PG_MIGRATE_DSN=postgres://probe_migrator:probe-migrator-dev@postgres-0.postgres:5432/probe?sslmode=disable
+YAML
+      local papel
+      for papel in api relay; do
+        cat > "$ctx/deploy/k8s/base/deployment-$papel.yaml" <<YAML
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: probe-$papel
+spec:
+  template:
+    spec:
+      containers:
+        - name: $papel
+          envFrom:
+            - secretRef:
+                name: probe
+YAML
+      done
+      printf '            - secretRef:\n                name: probe-migrator\n' >> "$ctx/deploy/k8s/base/deployment-api.yaml"
+      sed -i 's/^    command: .*$/    command: set -e; psql -c "CREATE DATABASE \\"probe\\" OWNER \\"probe_migrator\\""/' \
+        "$repo/infra/local/compose.yml"
+      ;;
+    com-migrador-chave-valor)
+      variar "$repo" com-migrador
+      sed -i 's|^      PG_MIGRATE_DSN: .*$|      PG_MIGRATE_DSN: "host=postgres user=probe_migrator password=${PROBE_PG_MIGRATOR_PASSWORD:-probe-migrator-local} dbname=probe"|' \
+        "$ctx/deploy/compose.yml"
+      ;;
+    dois-contextos)
+      variar "$repo" com-migrador
+      cp -r "$ctx" "$repo/$APPS/other"
+      find "$repo/$APPS/other/deploy" -type f -exec sed -i 's/probe/other/g; s/PROBE/OTHER/g' {} +
+      sed -i 's/^    command: .*$/&; psql -c "CREATE DATABASE \\"other\\" OWNER \\"other_migrator\\""/' "$repo/infra/local/compose.yml"
+      ;;
+  esac
+}
+
+migrar_no_relay() {
+  local repo="$1" linha="$2"
+  sed -i "/^  probe-relay:\$/,\$ s|^      <<: \\*env\$|&\\n$linha|" "$repo/$APPS/probe/deploy/compose.yml"
+}
+
 sabotar() {
   local repo="$1" tipo="$2" ctx="$1/$APPS/probe"
   case "$tipo" in
@@ -476,6 +803,49 @@ sabotar() {
     manifesto-ausente) trash "$ctx/deploy/infra.json" ;;
     manifesto-sem-banco) printf '{"schema":"dmpf/infra@1","app":"probe"}\n' > "$ctx/deploy/infra.json" ;;
     dsn-no-deploy) sed -i 's#@postgres:5432/probe#@postgres:5432/dmpf#' "$ctx/deploy/compose.yml" ;;
+    migrador-de-outra-app) variar "$repo" dois-contextos && sed -i 's/probe_migrator:/other_migrator:/' "$ctx/deploy/compose.yml" ;;
+    migrador-em-banco-alheio) variar "$repo" dois-contextos && sed -i '/PG_MIGRATE_DSN/s#5432/probe#5432/other#' "$ctx/deploy/compose.yml" ;;
+    migrador-sem-app) variar "$repo" com-migrador && sed -i '/PG_MIGRATE_DSN/s#probe_migrator:#ghost_migrator:#; /PG_MIGRATE_DSN/s#5432/probe#5432/ghost#' "$ctx/deploy/compose.yml" ;;
+    bloco-pela-role-do-migrador) variar "$repo" com-migrador && sed -i 's/CREATE DATABASE \\"probe\\"/CREATE DATABASE \\"probe_migrator\\"/' "$repo/infra/local/compose.yml" ;;
+    migrador-na-ancora-x-env)
+      variar "$repo" com-migrador
+      sed -i '/^x-env: &env$/a\  PG_MIGRATE_DSN: postgres://probe_migrator:${PROBE_PG_MIGRATOR_PASSWORD:-probe-migrator-local}@postgres:5432/probe?sslmode=disable' \
+        "$ctx/deploy/compose.yml"
+      ;;
+    migrador-no-relay)
+      variar "$repo" com-migrador
+      migrar_no_relay "$repo" '      PG_MIGRATE_DSN: postgres://probe_migrator:${PROBE_PG_MIGRATOR_PASSWORD:-probe-migrator-local}@postgres:5432/probe?sslmode=disable'
+      ;;
+    migrador-sob-ancora-do-api)
+      variar "$repo" com-migrador
+      sed -i '/^  probe-api:$/,/^  probe-relay:$/ s|^    environment:$|    environment: \&api-env|' "$ctx/deploy/compose.yml"
+      sed -i '/^  probe-relay:$/,$ { /^      <<: \*env$/d; s|^    environment:$|    environment: *api-env| }' "$ctx/deploy/compose.yml"
+      ;;
+    migrador-herdado-por-extends)
+      variar "$repo" com-migrador
+      sed -i '/^  probe-relay:$/a\    extends:\n      service: probe-api' "$ctx/deploy/compose.yml"
+      ;;
+    migrador-dsn-chave-valor)
+      variar "$repo" com-migrador
+      migrar_no_relay "$repo" '      PG_DSN: "host=postgres user=probe_migrator password=${PROBE_PG_MIGRATOR_PASSWORD:-probe-migrator-local} dbname=probe"'
+      ;;
+    pguser-do-migrador) variar "$repo" com-migrador && migrar_no_relay "$repo" '      PGUSER: probe_migrator' ;;
+    secret-do-migrador-no-relay)
+      variar "$repo" com-migrador
+      printf '            - secretRef:\n                name: probe-migrator\n' >> "$ctx/deploy/k8s/base/deployment-relay.yaml"
+      ;;
+    migrador-fora-do-secret)
+      variar "$repo" com-migrador
+      sed -i '/^  - name: probe-migrator$/,$d' "$ctx/deploy/k8s/overlays/dev/kustomization.yaml"
+      printf '      - PG_MIGRATE_DSN=postgres://probe_migrator:probe-migrator-dev@postgres-0.postgres:5432/probe?sslmode=disable\n' \
+        >> "$ctx/deploy/k8s/overlays/dev/kustomization.yaml"
+      ;;
+    migrador-no-pg-dsn)
+      variar "$repo" com-migrador
+      sed -i '1i x-env: \&env\n  PG_DSN: postgres://probe_migrator:${PROBE_PG_MIGRATOR_PASSWORD:-probe-migrator-local}@postgres:5432/probe?sslmode=disable' \
+        "$ctx/deploy/compose.yml"
+      ;;
+    tabela-sem-grant) printf 'CREATE TABLE IF NOT EXISTS widgets (id bigint);\n' >> "$ctx/provider/schema.sql" ;;
   esac
 }
 
@@ -494,19 +864,53 @@ fase_self_test() {
     status=1
   fi
 
+  local -a variantes=(com-migrador com-migrador-chave-valor dois-contextos)
+  for variante in "${variantes[@]}"; do
+    tmp="$(mktemp -d)" || return 2
+    montar_fixture "$tmp"
+    variar "$tmp" "$variante"
+    if ( FALHAS=0; fase_estrutural "$tmp" >/dev/null 2>&1 ); then
+      aprovar "aceitou: $variante"
+    else
+      falhar "a variante '$variante' deveria passar"
+      ( FALHAS=0; fase_estrutural "$tmp" 2>&1 | grep FALHA ) >&2
+      status=1
+    fi
+    trash "$tmp" >/dev/null 2>&1 || true
+  done
+
   local -a sabotagens=(
     sem-binario sem-appkit sem-distkit sem-rpc sem-config sem-wiring sem-schema
     com-http solto sem-target sem-unidade bff-sem-api bff-com-provider bff-sem-manifesto
     tabela-prefixada tabela-example indice-example tabela-do-kernel indice-fora constraint-fora kernel-prefixado
     dsn-compartilhado postgres-db init-incompleto ci-compartilhado
     manifesto-ausente manifesto-sem-banco dsn-no-deploy
+    migrador-de-outra-app migrador-em-banco-alheio migrador-sem-app bloco-pela-role-do-migrador
+    migrador-no-pg-dsn tabela-sem-grant
+    migrador-na-ancora-x-env migrador-no-relay migrador-sob-ancora-do-api migrador-herdado-por-extends
+    migrador-dsn-chave-valor pguser-do-migrador secret-do-migrador-no-relay migrador-fora-do-secret
   )
+  local -A motivos=(
+    [bloco-pela-role-do-migrador]="cria banco e role para ['probe_migrator']"
+    [migrador-na-ancora-x-env]='em x-env, fora do serviço probe-api'
+    [migrador-no-relay]='no serviço probe-relay; só o serviço probe-api'
+    [migrador-sob-ancora-do-api]='sob a âncora &api-env'
+    [migrador-herdado-por-extends]='no serviço probe-api, que outro serviço herda por extends'
+    [migrador-dsn-chave-valor]='a role probe_migrator só cabe no PG_MIGRATE_DSN, não em PG_DSN'
+    [pguser-do-migrador]='a role probe_migrator só cabe no PG_MIGRATE_DSN, não em PGUSER'
+    [secret-do-migrador-no-relay]='o Secret probe-migrator só cabe no Deployment probe-api, não em Deployment probe-relay'
+    [migrador-fora-do-secret]='fora do Secret probe-migrator'
+  )
+  local saida
   for sabotagem in "${sabotagens[@]}"; do
     tmp="$(mktemp -d)" || return 2
     montar_fixture "$tmp"
     sabotar "$tmp" "$sabotagem"
-    if ( FALHAS=0; fase_estrutural "$tmp" >/dev/null 2>&1 ); then
+    if saida="$( ( FALHAS=0; fase_estrutural "$tmp" ) 2>&1 >/dev/null )"; then
       falhar "a sabotagem '$sabotagem' passou pelo gate"
+      status=1
+    elif [ -n "${motivos[$sabotagem]:-}" ] && ! grep -qF -- "${motivos[$sabotagem]}" <<<"$saida"; then
+      falhar "a sabotagem '$sabotagem' reprovou por outro motivo: $(grep -m 3 FALHA <<<"$saida" | tr -s ' ')"
       status=1
     else
       aprovar "reprovou: $sabotagem"

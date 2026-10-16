@@ -31,6 +31,8 @@ spec:
                 name: <%- name %>
             - secretRef:
                 name: <%- name %>
+            - secretRef:
+                name: <%- name %>-migrator
           env:
             - name: K8S_POD_NAME
               valueFrom:

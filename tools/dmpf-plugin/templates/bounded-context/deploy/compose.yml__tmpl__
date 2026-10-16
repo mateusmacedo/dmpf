@@ -20,6 +20,7 @@ services:
     environment:
       <<: *env
       OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES:-service.version=local,deployment.environment.name=local},service.instance.id=<%- name %>-api,dmpf.process.role=api
+      PG_MIGRATE_DSN: postgres://<%- name %>_migrator:${<%- envName %>_PG_MIGRATOR_PASSWORD:-<%- name %>-migrator-local}@postgres:5432/<%- name %>?sslmode=disable
       GRPC_TLS_CERT_FILE: /pki/<%- composeProfile %>-<%- name %>-api.crt
       GRPC_TLS_KEY_FILE: /pki/<%- composeProfile %>-<%- name %>-api.key
     depends_on:

@@ -26,10 +26,15 @@ interceptors do kernel; o REST público é <% if (edgeApp) { %>do `<%- edgeApp %
 o serviço é publicado em `contract/proto`, o módulo de contrato do contexto. Até
 o primeiro método, o papel `api` recusa a partida com `serve.ErrNoMethods`.
 
-O banco é próprio: database e role `<%- name %>`, schema `public`, tabelas sem
-prefixo e agregado no plural. O DDL vive em `provider/schema.sql` e é aplicado
-no ready do `api` quando `MIGRATE=true`, junto com a outbox e a inbox do kernel;
-sem `MIGRATE`, o ready espera que a outbox e a inbox existam.
+O banco é próprio: database `<%- name %>`, cuja dona é a role migradora
+`<%- name %>_migrator`, e role de runtime `<%- name %>`, sem posse (ADR-063);
+schema `public`, tabelas sem prefixo e agregado no plural. O DDL vive em
+`provider/schema.sql` e é aplicado no ready do `api` quando `MIGRATE=true`, pela
+migradora de `PG_MIGRATE_DSN`, junto com a outbox e a inbox do kernel, seguido
+dos grants do kernel e de `provider.Grants`; sem `MIGRATE`, o ready espera que
+a role de runtime tenha esses grants. Toda tabela do `schema.sql` precisa de um
+grant em `provider.Grants` (`postgres.Mutable` para a que um `Table` escreve),
+ou a partida é recusada.
 O agregado cujo estado inteiro vive na coluna `snapshot` declara a tabela com
 `postgres.SnapshotTable`, sobre um struct de estado privado do provider cujas
 tags JSON fixam os bytes gravados:
@@ -62,7 +67,11 @@ relay, `KAFKA_BROKERS`, `KAFKA_<%- envName %>_TOPIC`, `KAFKA_<%- envName %>_DLQ`
 `KAFKA_GROUP`. As variáveis `GRPC_*` formam a seção `API` da `Config`, lida por
 `kernelgrpc.ReadAPIEnv`; o `requirements()` compõe o `Missing()` dela com o do
 Kafka e com as variáveis do contexto, e a falta de uma variável obrigatória
-recusa a partida nomeando-a.
+recusa a partida nomeando-a. O `PG_MIGRATE_DSN` só é lido no `api` com
+`MIGRATE=true`, que o exige. Os dois vêm do `deploy/.env.migrator.example`, que
+só o `serve-api` e o `docker:run` carregam (este pela cópia
+`deploy/.env.migrator`, que o `deploy-env` cria): o `deploy/.env.example` vale
+também para o `relay`, e a credencial da migradora não chega a ele.
 
 <% } -%>
 ## Resolução de dependências

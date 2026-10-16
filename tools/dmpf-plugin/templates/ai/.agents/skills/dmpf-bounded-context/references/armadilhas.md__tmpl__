@@ -122,9 +122,11 @@ golden for regenerado e algo novo morder, a entrada nova vem para cá.
     rejeição, enums, nomes de evento) antes do rename é o que impede a troca de
     vazar para o contrato; `wire_test.go` e `rejections_test.go` fazem isso.
 24. **Banco compartilhado some da infra pelo gate, não pela memória.** O
-    `<%- contextCheckScript %>` confere cada DSN, `POSTGRES_DB` e laço de
-    criação de banco em `infra/` e `.github/workflows`: banco e role com o nome
-    da app, ou o par administrativo `postgres`. Um contexto novo sem entrada no
+    `<%- contextCheckScript %>` confere cada DSN, `POSTGRES_DB` e laço ou
+    bloco de criação de banco em `infra/` e `.github/workflows`: banco com o
+    nome da app e role `<app>`, ou `<app>_migrator` só no `PG_MIGRATE_DSN` do
+    serviço `<app>-api` e do Secret `<app>-migrator`, que só o Deployment
+    `<app>-api` referencia (ADR-063), ou o par administrativo `postgres`. Um contexto novo sem entrada no
     `postgres-init` e no job de databases reprova ali.
 10. **O `app/rpc` gerado nasce sem teste.** O mapeamento de erro é o
     `kernelgrpc.StatusOf` do kernel, e o generator não emite mais o

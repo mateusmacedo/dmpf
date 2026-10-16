@@ -107,7 +107,22 @@
       "continuous": true,
       "dependsOn": ["serve-api"]
     },
-    "deploy-env": {},
+    "deploy-env": {
+      "options": {
+        "command": "[ -f deploy/.env ] || cp deploy/.env.example deploy/.env; [ -f deploy/.env.migrator ] || cp deploy/.env.migrator.example deploy/.env.migrator"
+      }
+    },
+    "docker:run": {
+      "options": {
+        "args": [
+          "--rm",
+          "--name <%- name %>",
+          "--network host",
+          "--env-file deploy/.env",
+          "--env-file deploy/.env.migrator"
+        ]
+      }
+    },
     "docker:run-relay": {
       "executor": "nx:run-commands",
       "options": {
