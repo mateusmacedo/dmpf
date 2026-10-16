@@ -114,7 +114,7 @@ func TestProvisioningMakesTheMigratorOwnerAndTheRuntimeRoleUnprivileged(t *testi
 		t.Run(tc.name, func(t *testing.T) {
 			env := append([]string{"ALPHA_PG_PASSWORD=run:time", "ALPHA_PG_MIGRATOR_PASSWORD=mig:rator"}, tc.env...)
 			calls := runProvisioning(t, tc.script, false, env)
-			want := []string{
+			requireCallsInOrder(t, calls, []string{
 				`-c CREATE ROLE "alpha_migrator" LOGIN`,
 				alterRole("alpha_migrator", "ALPHA_PG_MIGRATOR_PASSWORD", "mig:rator", migratorAttrs),
 				`-c CREATE DATABASE "alpha" OWNER "alpha_migrator"`,
@@ -127,39 +127,60 @@ func TestProvisioningMakesTheMigratorOwnerAndTheRuntimeRoleUnprivileged(t *testi
 				`-d alpha -c REVOKE CREATE ON SCHEMA public FROM PUBLIC`,
 				`-d alpha -c REVOKE CREATE ON SCHEMA public FROM "alpha"`,
 				`-d alpha -c GRANT USAGE ON SCHEMA public TO "alpha"`,
+			})
+			expectCalls(t, calls, []string{
 				`-c CREATE ROLE "beta" LOGIN`,
 				`-c ALTER ROLE "beta" PASSWORD 'beta-local'`,
 				`-c CREATE DATABASE "beta" OWNER "beta"`,
-			}
-			last := -1
-			for _, w := range want[:12] {
-				i := slices.Index(calls, w)
-				if i < 0 {
-					t.Fatalf("provisionamento sem %q:\n%s", w, strings.Join(calls, "\n"))
-				}
-				if i < last {
-					t.Errorf("%q fora de ordem:\n%s", w, strings.Join(calls, "\n"))
-				}
-				last = i
-			}
-			for _, w := range want[12:] {
-				if !slices.Contains(calls, w) {
-					t.Errorf("provisionamento sem %q:\n%s", w, strings.Join(calls, "\n"))
-				}
-			}
-			for _, unwanted := range []string{`OWNER "alpha"`, "beta_migrator", `TO "beta"`, "PASSWORD 'mig:rator'", "PASSWORD 'run:time'"} {
-				for _, c := range calls {
-					if strings.Contains(c, unwanted) {
-						t.Errorf("chamada inesperada com %q: %s", unwanted, c)
-					}
-				}
-			}
-			for _, c := range calls {
-				if argv, _, _ := strings.Cut(c, " <<< "); strings.Contains(argv, "mig:rator") || strings.Contains(argv, "run:time") {
-					t.Errorf("senha nos argumentos do psql: %s", c)
-				}
-			}
+			})
+			rejectCallsWith(t, calls, `OWNER "alpha"`, "beta_migrator", `TO "beta"`, "PASSWORD 'mig:rator'", "PASSWORD 'run:time'")
+			rejectPasswordsInArgv(t, calls, "mig:rator", "run:time")
 		})
+	}
+}
+
+func requireCallsInOrder(t *testing.T, calls, want []string) {
+	t.Helper()
+	last := -1
+	for _, w := range want {
+		i := slices.Index(calls, w)
+		if i < 0 {
+			t.Fatalf("provisionamento sem %q:\n%s", w, strings.Join(calls, "\n"))
+		}
+		if i < last {
+			t.Errorf("%q fora de ordem:\n%s", w, strings.Join(calls, "\n"))
+		}
+		last = i
+	}
+}
+
+func expectCalls(t *testing.T, calls, want []string) {
+	t.Helper()
+	for _, w := range want {
+		if !slices.Contains(calls, w) {
+			t.Errorf("provisionamento sem %q:\n%s", w, strings.Join(calls, "\n"))
+		}
+	}
+}
+
+func rejectCallsWith(t *testing.T, calls []string, unwanted ...string) {
+	t.Helper()
+	for _, u := range unwanted {
+		for _, c := range calls {
+			if strings.Contains(c, u) {
+				t.Errorf("chamada inesperada com %q: %s", u, c)
+			}
+		}
+	}
+}
+
+func rejectPasswordsInArgv(t *testing.T, calls []string, passwords ...string) {
+	t.Helper()
+	for _, c := range calls {
+		argv, _, _ := strings.Cut(c, " <<< ")
+		if slices.ContainsFunc(passwords, func(p string) bool { return strings.Contains(argv, p) }) {
+			t.Errorf("senha nos argumentos do psql: %s", c)
+		}
 	}
 }
 

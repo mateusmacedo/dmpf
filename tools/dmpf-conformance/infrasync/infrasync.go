@@ -286,6 +286,14 @@ func checkTopics(manifests []Manifest) error {
 }
 
 func checkUnique(manifests []Manifest) error {
+	problems := slices.Concat(duplicateTopics(manifests), migratorSecretClashes(manifests), duplicateEnvKeys(manifests))
+	if len(problems) > 0 {
+		return errors.New(strings.Join(problems, "; "))
+	}
+	return nil
+}
+
+func duplicateTopics(manifests []Manifest) []string {
 	var problems []string
 	owners := map[string]string{}
 	for _, m := range manifests {
@@ -300,6 +308,11 @@ func checkUnique(manifests []Manifest) error {
 			owners[t.Name] = m.App
 		}
 	}
+	return problems
+}
+
+func migratorSecretClashes(manifests []Manifest) []string {
+	var problems []string
 	apps := map[string]bool{}
 	for _, m := range manifests {
 		apps[m.App] = true
@@ -309,6 +322,11 @@ func checkUnique(manifests []Manifest) error {
 			problems = append(problems, fmt.Sprintf("app %s tem o nome do Secret do migrador da app %s", m.App, owner))
 		}
 	}
+	return problems
+}
+
+func duplicateEnvKeys(manifests []Manifest) []string {
+	var problems []string
 	declared := map[string]bool{}
 	for _, line := range (view{Manifests: manifests}).EnvLines() {
 		key, _, _ := strings.Cut(line, "=")
@@ -317,10 +335,7 @@ func checkUnique(manifests []Manifest) error {
 		}
 		declared[key] = true
 	}
-	if len(problems) > 0 {
-		return errors.New(strings.Join(problems, "; "))
-	}
-	return nil
+	return problems
 }
 
 func topicIndex(manifests []Manifest) map[string]Topic {

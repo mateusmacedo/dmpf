@@ -33,46 +33,58 @@ func TestProvisioningConvergesAgainstPostgres(t *testing.T) {
 	} {
 		t.Run(target.name, func(t *testing.T) {
 			app := "prov" + randomHex(t)
-			migrator := app + "_migrator"
-			t.Cleanup(func() {
-				for _, sql := range []string{
-					`DROP DATABASE IF EXISTS "` + app + `" WITH (FORCE)`,
-					`DROP ROLE IF EXISTS "` + app + `"`,
-					`DROP ROLE IF EXISTS "` + migrator + `"`,
-				} {
-					psqlAs(t, admin, "postgres", sql)
-				}
-			})
+			dropOnCleanup(t, admin, app)
 			script := foldedCommand(t, render(t, migratorWorkspace(t, app))[target.path])
 			if target.compose {
 				script = strings.ReplaceAll(script, "$$", "$")
 			}
-			for run, pass := range []struct{ runtime, migrator string }{
+			for run, pass := range []rolePasswords{
 				{`run'ti;me`, `mig'ra;"tor`},
 				{`run'2;x`, `mig'2;"y`},
 				{`run 3 $(id) *`, `mig 3 ; id | *`},
 			} {
 				provision(t, script, admin, "PROV_PG_PASSWORD="+pass.runtime, "PROV_PG_MIGRATOR_PASSWORD="+pass.migrator)
-				for _, check := range []struct{ sql, want string }{
-					{`SELECT pg_get_userbyid(datdba) FROM pg_database WHERE datname = '` + app + `'`, migrator},
-					{`SELECT has_schema_privilege('` + app + `', 'public', 'CREATE')`, "f"},
-					{`SELECT has_database_privilege('` + app + `', '` + app + `', 'TEMPORARY')`, "f"},
-					{`SELECT rolsuper OR rolcreatedb OR rolcreaterole OR rolreplication OR rolbypassrls FROM pg_roles WHERE rolname = '` + app + `'`, "f"},
-					{`SELECT rolsuper OR rolcreatedb OR rolcreaterole OR rolreplication OR rolbypassrls OR NOT rolcanlogin FROM pg_roles WHERE rolname = '` + migrator + `'`, "f"},
-					{`SELECT has_database_privilege('public', '` + app + `', 'CONNECT')`, "f"},
-					{`SELECT has_database_privilege('` + migrator + `', '` + app + `', 'CONNECT')`, "t"},
-				} {
-					if got := psqlAs(t, admin, app, check.sql); got != check.want {
-						t.Errorf("execução %d: %s = %q, want %q", run+1, check.sql, got, check.want)
-					}
-				}
-				if got := psqlAs(t, as(admin, app, pass.runtime), app, "SELECT current_user"); got != app {
-					t.Errorf("execução %d: a role de runtime não entra com a senha reconciliada: %q", run+1, got)
-				}
-				psqlAs(t, as(admin, migrator, pass.migrator), app, "CREATE TABLE run"+strconv.Itoa(run+1)+" (id int)")
+				checkConverged(t, admin, app, run+1, pass)
 			}
 		})
 	}
+}
+
+type rolePasswords struct{ runtime, migrator string }
+
+func dropOnCleanup(t *testing.T, admin []string, app string) {
+	t.Helper()
+	t.Cleanup(func() {
+		for _, sql := range []string{
+			`DROP DATABASE IF EXISTS "` + app + `" WITH (FORCE)`,
+			`DROP ROLE IF EXISTS "` + app + `"`,
+			`DROP ROLE IF EXISTS "` + app + `_migrator"`,
+		} {
+			psqlAs(t, admin, "postgres", sql)
+		}
+	})
+}
+
+func checkConverged(t *testing.T, admin []string, app string, run int, pass rolePasswords) {
+	t.Helper()
+	migrator := app + "_migrator"
+	for _, check := range []struct{ sql, want string }{
+		{`SELECT pg_get_userbyid(datdba) FROM pg_database WHERE datname = '` + app + `'`, migrator},
+		{`SELECT has_schema_privilege('` + app + `', 'public', 'CREATE')`, "f"},
+		{`SELECT has_database_privilege('` + app + `', '` + app + `', 'TEMPORARY')`, "f"},
+		{`SELECT rolsuper OR rolcreatedb OR rolcreaterole OR rolreplication OR rolbypassrls FROM pg_roles WHERE rolname = '` + app + `'`, "f"},
+		{`SELECT rolsuper OR rolcreatedb OR rolcreaterole OR rolreplication OR rolbypassrls OR NOT rolcanlogin FROM pg_roles WHERE rolname = '` + migrator + `'`, "f"},
+		{`SELECT has_database_privilege('public', '` + app + `', 'CONNECT')`, "f"},
+		{`SELECT has_database_privilege('` + migrator + `', '` + app + `', 'CONNECT')`, "t"},
+	} {
+		if got := psqlAs(t, admin, app, check.sql); got != check.want {
+			t.Errorf("execução %d: %s = %q, want %q", run, check.sql, got, check.want)
+		}
+	}
+	if got := psqlAs(t, as(admin, app, pass.runtime), app, "SELECT current_user"); got != app {
+		t.Errorf("execução %d: a role de runtime não entra com a senha reconciliada: %q", run, got)
+	}
+	psqlAs(t, as(admin, migrator, pass.migrator), app, "CREATE TABLE run"+strconv.Itoa(run)+" (id int)")
 }
 
 func adminEnv(t *testing.T) []string {
