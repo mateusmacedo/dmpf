@@ -1,3 +1,25 @@
+## 1.0.0-rc.5 (2026-10-17)
+
+### 🚀 Features
+
+- **app:** Migrar pelo PG_MIGRATE_DSN e esperar os grants na partida ([0feb81ea](https://github.com/mateusmacedo/dmpf/commit/0feb81ea))
+
+### 🧱 Updated Dependencies
+
+- Updated observability to 1.0.0-rc.5
+- Updated application to 1.0.0-rc.5
+- Updated contracts to 1.0.0-rc.5
+- Updated transport to 1.0.0-rc.5
+- Updated postgres to 1.0.0-rc.5
+- Updated testkit to 1.0.0-rc.5
+- Updated kafka to 1.0.0-rc.5
+- Updated ports to 1.0.0-rc.5
+- Updated grpc to 1.0.0-rc.5
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos
+
 ## 1.0.0-rc.4 (2026-10-12)
 
 ### 🚀 Features

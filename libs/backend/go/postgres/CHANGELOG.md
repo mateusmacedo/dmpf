@@ -1,3 +1,21 @@
+## 1.0.0-rc.5 (2026-10-17)
+
+### 🚀 Features
+
+- **postgres:** Conceder e conferir os grants da role de runtime ([168ec9e5](https://github.com/mateusmacedo/dmpf/commit/168ec9e5))
+
+### 🧱 Updated Dependencies
+
+- Updated observability to 1.0.0-rc.5
+- Updated contracts to 1.0.0-rc.5
+- Updated testkit to 1.0.0-rc.5
+- Updated domain to 1.0.0-rc.5
+- Updated ports to 1.0.0-rc.5
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos
+
 ## 1.0.0-rc.4 (2026-10-12)
 
 ### 🧱 Updated Dependencies

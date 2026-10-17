@@ -1,3 +1,24 @@
+## 1.0.0-rc.5 (2026-10-17)
+
+### 🚀 Features
+
+- **testkit:** Conectar os testes como role de runtime e migradora ([877ecb99](https://github.com/mateusmacedo/dmpf/commit/877ecb99))
+
+### 🧱 Updated Dependencies
+
+- Updated observability to 1.0.0-rc.5
+- Updated application to 1.0.0-rc.5
+- Updated contracts to 1.0.0-rc.5
+- Updated postgres to 1.0.0-rc.5
+- Updated domain to 1.0.0-rc.5
+- Updated memory to 1.0.0-rc.5
+- Updated ports to 1.0.0-rc.5
+- Updated conformance to 1.0.0-rc.5
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 1.0.0-rc.4 (2026-10-12)
 
 ### 🚀 Features
