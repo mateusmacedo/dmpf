@@ -44,7 +44,7 @@ jobs:
       # que só roda com Postgres e Kafka não aparece nos unitários.
       - name: Subir a infra dos testes de integração
         run: |
-          docker compose -f infra/test/compose.yml --profile keycloak up -d --wait postgres redpanda redpanda-sasl floci keycloak
+          docker compose -f infra/test/compose.yml --profile keycloak up -d --wait postgres redpanda redpanda-sasl floci redis keycloak
           docker compose -f infra/test/compose.yml run --rm redpanda-sasl-init
           docker compose -f infra/test/compose.yml --profile keycloak run --rm keycloak-init
 
