@@ -293,7 +293,9 @@ describe('[generator] init — re-run', () => {
       composeProfile: 'shop',
       force: true,
     });
-    expect(tree.read('infra/local/compose/redis.yml', 'utf-8')).toContain('image: redis:7-alpine');
+    expect(tree.read('infra/local/compose/redis.yml', 'utf-8')).toContain(
+      'image: redis:7.4.11-alpine',
+    );
   });
 
   it('should never overwrite a seed file, which other generators extend', async () => {
@@ -304,6 +306,39 @@ describe('[generator] init — re-run', () => {
     await initGenerator(tree, { modulePrefix: 'github.com/acme/shop', composeProject: 'other' });
 
     expect(tree.read('infra/local/docker-compose.yml', 'utf-8')).toBe('name: edited\n');
+  });
+});
+
+describe('[generator] init — revocation store', () => {
+  const redisProfiles = (tree: Tree): string | undefined =>
+    tree.read('infra/local/compose/redis.yml', 'utf-8')?.match(/profiles: \[(.*)\]/)?.[1];
+  const supportRow = (tree: Tree): string =>
+    readJson(tree, 'infra/observability/grafana/dashboards/infra/containers.json').panels.find(
+      (panel: { id: number }) => panel.id === 9,
+    ).title;
+
+  it('should keep Redis out of the topology and the edge out of the dashboard without an edge', async () => {
+    const tree = consumerTree();
+
+    await initGenerator(tree, { modulePrefix: 'github.com/acme/shop' });
+
+    expect(redisProfiles(tree)).toBe('redis, all');
+    expect(supportRow(tree)).toBe('Serviços de apoio (nenhuma app usa Redis nem SQS/SNS hoje)');
+  });
+
+  it('should start Redis with the topology and with the session-events role of the edge', async () => {
+    const tree = consumerTree();
+
+    await initGenerator(tree, {
+      modulePrefix: 'github.com/acme/shop',
+      composeProfile: 'shop',
+      edge: 'gateway',
+    });
+
+    expect(redisProfiles(tree)).toBe('redis, shop, keycloak, all');
+    expect(supportRow(tree)).toBe(
+      'Serviços de apoio (Redis da deny-list do gateway; nenhuma app usa SQS/SNS hoje)',
+    );
   });
 });
 

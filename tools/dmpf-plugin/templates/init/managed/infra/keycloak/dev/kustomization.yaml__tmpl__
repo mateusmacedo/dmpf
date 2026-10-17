@@ -20,7 +20,13 @@ configMapGenerator:
       - KC_HOSTNAME=http://keycloak:8080
     options:
       disableNameSuffixHash: true
-
+<% if (edge) { %>  - name: keycloak
+    behavior: merge
+    literals:
+      - DMPF_BACKCHANNEL_LOGOUT_URL=http://<%- edge %>-session-events:8091/backchannel-logout
+    options:
+      disableNameSuffixHash: true
+<% } %>
 secretGenerator:
   - name: keycloak-db
     literals:

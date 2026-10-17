@@ -93,6 +93,46 @@ services:
       timeout: 3s
       retries: 30
 
+  redis:
+    image: redis:7.4.11-alpine@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499
+    command:
+      - redis-server
+      - --appendonly
+      - 'yes'
+      - --appendfsync
+      - everysec
+      - --maxmemory-policy
+      - noeviction
+      - --user
+      - default
+      - 'off'
+      - --user
+      - revocation
+      - 'on'
+      - '>dmpf-test-revocation'
+      - '~dmpf:revocation:*'
+      - -@all
+      - +hello
+      - +auth
+      - +client|setinfo
+      - +ping
+      - +mget
+      - +evalsha
+      - +eval
+      - +get
+      - +set
+    ports:
+      - '127.0.0.1:16379:6379'
+    tmpfs:
+      - /data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - redis-cli --no-auth-warning -u redis://revocation:dmpf-test-revocation@localhost:6379/0 ping | grep -q PONG
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
   keycloak:
     image: quay.io/keycloak/keycloak:26.8.1@sha256:79c623a22abacf3fe6c00a5fb30f5b7843d717b234033b80995891c06116d244
     profiles: [keycloak]
