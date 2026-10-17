@@ -180,15 +180,20 @@ if [[ -n "$UPGRADE_FROM" ]]; then
   # O Nx lista os nextSteps das migrations sob esse título, um por linha com "- ".
   mapfile -t passos < <(awk '/Some migrations have additional information/ {f = 1; next}
     f && /^[[:space:]]*- / {sub(/^[[:space:]]*- /, ""); print}' "$WORK/migrate.log")
+  infrasync_write="go run $KERNEL/tools/dmpf-conformance/cmd/infrasync@$(versao_instalada conformance) --root . --write"
+  rodou_infrasync=0
   for comando in "${passos[@]}"; do
     case "$comando" in
       "pnpm install") comando="pnpm install --no-frozen-lockfile" ;;
       "pnpm nx run-many -t tidy") ;;
+      "$infrasync_write") rodou_infrasync=1 ;;
       *) echo "nextStep fora do esperado: $comando" >&2; exit 1 ;;
     esac
     echo "nextStep: $comando"
     bash -c "$comando"
   done
+  [[ "$rodou_infrasync" == 1 ]] \
+    || { echo "o migrate não devolveu o nextStep \"$infrasync_write\"; a saída do infrasync ficaria defasada" >&2; exit 1; }
   jq -e --arg v "$PLUGIN_VERSION" '.devDependencies["@mateusmacedo/dmpf-plugin"] | ltrimstr("^") | ltrimstr("~") == $v' package.json > /dev/null
   grep -qF "plugin-version: \"$PLUGIN_VERSION\"" .github/workflows/dmpf-ci.yml \
     || { echo "o chamador de CI não subiu para $PLUGIN_VERSION" >&2; exit 1; }
