@@ -15,6 +15,18 @@
       "versions": ">=3.21.0 <4",
       "entrypoints": ["github.com/coreos/go-oidc/v3/oidc"],
       "capability": "io.network"
+    },
+    {
+      "package": "golang.org/x/oauth2",
+      "versions": ">=0.36.0 <1",
+      "entrypoints": [".", "golang.org/x/oauth2/clientcredentials"],
+      "capability": "io.network"
+    },
+    {
+      "package": "go.opentelemetry.io/otel/metric",
+      "versions": ">=1.46.0 <2",
+      "entrypoints": ["."],
+      "capability": "observability"
     }
   ],
   "exceptions": []

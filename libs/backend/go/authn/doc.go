@@ -17,4 +17,10 @@
 // the contract each edge publishes. DevAuthenticator resolves identity from the
 // credential itself and satisfies no part of IDN-01; the start refuses it
 // unless the operator declares it.
+//
+// Session revocation is optional. With Config.Revocations set, the Verifier asks
+// the deny-list after verifying the token and fails closed when it cannot answer.
+// Feed applies IdP session events to a RevocationStore; BackchannelLogout and
+// SessionPolling are its Keycloak adapters, and the polling rereads the realm
+// events so a logout the back-channel missed, or an entry the store lost, returns.
 package authn

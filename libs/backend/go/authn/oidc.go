@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"reflect"
 	"strings"
+	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
@@ -25,6 +26,10 @@ type Verifier struct {
 	tenantClaim      string
 	permissionClaims []string
 	logger           *slog.Logger
+
+	revocations       RevocationChecker
+	revocationTimeout time.Duration
+	revocationMetrics revocationMetrics
 }
 
 // NewVerifier discovers the issuer at start, so a process that cannot reach the
@@ -50,10 +55,13 @@ func NewVerifier(ctx context.Context, cfg Config) (*Verifier, error) {
 	}
 
 	return &Verifier{
-		tokens:           provider.Verifier(&oidc.Config{ClientID: cfg.Audience}),
-		tenantClaim:      cfg.TenantClaim,
-		permissionClaims: cfg.PermissionClaims,
-		logger:           logging.NewLogger(cfg.LoggerProvider, reflect.TypeFor[Verifier]().PkgPath()),
+		tokens:            provider.Verifier(&oidc.Config{ClientID: cfg.Audience}),
+		tenantClaim:       cfg.TenantClaim,
+		permissionClaims:  cfg.PermissionClaims,
+		logger:            logging.NewLogger(cfg.LoggerProvider, reflect.TypeFor[Verifier]().PkgPath()),
+		revocations:       cfg.Revocations,
+		revocationTimeout: cfg.RevocationTimeout,
+		revocationMetrics: newRevocationMetrics(cfg.MeterProvider),
 	}, nil
 }
 
@@ -85,6 +93,9 @@ func (v *Verifier) Authenticate(ctx context.Context, credential ports.Credential
 		v.refused(ctx, refusalMalformed)
 		return ports.Identity{}, fmt.Errorf("%w: claims are unreadable: %w", ports.ErrCredentialRejected, err)
 	}
+	if err := v.checkRevocation(ctx, token, claims); err != nil {
+		return ports.Identity{}, err
+	}
 
 	identity := ports.Identity{
 		Subject:     ports.SubjectID(token.Subject),
@@ -103,7 +114,10 @@ const (
 	refusalIssuerMismatch   = "issuer_mismatch"
 	refusalSignatureInvalid = "signature_invalid"
 	refusalMalformed        = "malformed"
+	refusalSessionRevoked   = "session_revoked"
 )
+
+const claimSessionID = "sid"
 
 const (
 	keyRefusalReason            = "dmpf.auth.refusal_reason"
@@ -114,6 +128,39 @@ const (
 func (v *Verifier) refused(ctx context.Context, reason string) {
 	v.logger.WarnContext(ctx, "auth: token rejected",
 		slog.String(string(semconv.ErrorTypeKey), categoryUnauthenticated), slog.String(keyRefusalReason, reason))
+}
+
+// The store error is not wrapped: its text may echo the key it was asked for,
+// and sub and sid never leave in an error.
+func (v *Verifier) checkRevocation(ctx context.Context, token *oidc.IDToken, claims map[string]any) error {
+	if v.revocations == nil {
+		return nil
+	}
+	ref := SessionRef{Subject: ports.SubjectID(token.Subject), IssuedAt: token.IssuedAt}
+	ref.ID, _ = stringClaim(claims, claimSessionID)
+
+	lookup, cancel := context.WithTimeout(ctx, v.revocationTimeout)
+	kind, err := v.revocations.Revoked(lookup, ref)
+	cancel()
+	if err != nil && ctx.Err() != nil {
+		return fmt.Errorf("%w: request cancelled", ports.ErrCredentialRejected)
+	}
+	if err != nil {
+		v.revocationUnavailable(ctx)
+		v.revocationMetrics.storeFailed(ctx)
+		return fmt.Errorf("%w: revocation store unavailable", ports.ErrCredentialRejected)
+	}
+	if kind != "" {
+		v.refused(ctx, refusalSessionRevoked)
+		v.revocationMetrics.refused(ctx, kind)
+		return fmt.Errorf("%w: session revoked", ports.ErrCredentialRejected)
+	}
+	return nil
+}
+
+func (v *Verifier) revocationUnavailable(ctx context.Context) {
+	v.logger.Log(ctx, logging.Severity(logging.Client, ports.OutcomeFailed), "auth: revocation store unavailable",
+		slog.String(string(semconv.ErrorTypeKey), categoryTransientDependency))
 }
 
 func (v *Verifier) keysUnavailable(ctx context.Context) {
