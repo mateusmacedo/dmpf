@@ -68,6 +68,7 @@ plans
 !.env.example__tmpl__
 !.env.migrator.example
 !.env.migrator.example__tmpl__
+!.env.session-events.example
 
 # Next.js
 .next

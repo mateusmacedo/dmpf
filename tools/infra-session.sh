@@ -7,7 +7,7 @@ set -euo pipefail
 
 ROOT="$(git rev-parse --show-toplevel)"
 COMPOSE=(docker compose -f "$ROOT/infra/local/docker-compose.yml"
-  --profile postgres --profile redpanda --profile floci --profile provisioning
+  --profile postgres --profile redis --profile redpanda --profile floci --profile provisioning
   --profile observability --profile exporters)
 
 up() {
