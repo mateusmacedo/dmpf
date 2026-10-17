@@ -1,3 +1,9 @@
+## 1.0.0-rc.5 (2026-10-17)
+
+### 🧱 Updated Dependencies
+
+- Updated testkit to 1.0.0-rc.5
+
 ## 1.0.0-rc.4 (2026-10-12)
 
 ### 🧱 Updated Dependencies

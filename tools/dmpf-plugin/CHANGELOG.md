@@ -1,3 +1,15 @@
+## 1.0.0-rc.5 (2026-10-17)
+
+### 🚀 Features
+
+- **dmpf-plugin:** Gerar o Redis e o realm com eventos de sessão no init ([aec802e3](https://github.com/mateusmacedo/dmpf/commit/aec802e3))
+- **dmpf-plugin:** Gerar o contexto com a role migradora ([39b2baeb](https://github.com/mateusmacedo/dmpf/commit/39b2baeb))
+- **dmpf-plugin:** Gerar o Keycloak de referência pelo init ([e447180f](https://github.com/mateusmacedo/dmpf/commit/e447180f))
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos
+
 ## 1.0.0-rc.4 (2026-10-12)
 
 ### 🩹 Fixes
