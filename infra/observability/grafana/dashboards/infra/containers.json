@@ -438,7 +438,7 @@
     {
       "type": "row",
       "id": 9,
-      "title": "Serviços de apoio (nenhuma app usa Redis nem SQS/SNS hoje)",
+      "title": "Serviços de apoio (Redis da deny-list do bff; nenhuma app usa SQS/SNS hoje)",
       "collapsed": false,
       "gridPos": {
         "h": 1,

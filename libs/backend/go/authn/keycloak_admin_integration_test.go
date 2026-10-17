@@ -122,6 +122,16 @@ func disposablePortal(t *testing.T, backchannelURL string) string {
 		},
 		"defaultClientScopes":  []string{"web-origins", "acr", "roles", "profile", "basic", "email"},
 		"optionalClientScopes": []string{"organization"},
+		"protocolMappers": []map[string]any{{
+			"name":           "dmpf-bff-audience",
+			"protocol":       "openid-connect",
+			"protocolMapper": "oidc-audience-mapper",
+			"config": map[string]string{
+				"included.client.audience": "dmpf-bff",
+				"id.token.claim":           "false",
+				"access.token.claim":       "true",
+			},
+		}},
 	})
 	removeOnCleanup(t, "/clients/"+id)
 	return clientID

@@ -14,7 +14,7 @@ fi
 
 case "${1:-}" in
   up)
-    "${compose[@]}" up -d --wait postgres redpanda redpanda-sasl floci
+    "${compose[@]}" up -d --wait postgres redpanda redpanda-sasl floci redis
     "${compose[@]}" run --rm redpanda-sasl-init
     ;;
   keycloak)

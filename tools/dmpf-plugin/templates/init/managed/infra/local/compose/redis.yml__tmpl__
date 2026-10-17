@@ -1,13 +1,57 @@
 services:
   redis:
-    image: redis:7-alpine
-    profiles: [redis, all]
+    image: redis:7.4.11-alpine@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499
+    profiles: [redis, <% if (edge) { %><%- composeProfile %>, keycloak, <% } %>all]
+    command:
+      - redis-server
+      - --appendonly
+      - 'yes'
+      - --appendfsync
+      - everysec
+      - --maxmemory
+      - 96mb
+      - --maxmemory-policy
+      - noeviction
+      - --user
+      - default
+      - 'off'
+      - --user
+      - revocation
+      - 'on'
+      - '>${REDIS_REVOCATION_PASSWORD:-dmpf-local-revocation}'
+      - '~dmpf:revocation:*'
+      - -@all
+      - +hello
+      - +auth
+      - +client|setinfo
+      - +ping
+      - +mget
+      - +evalsha
+      - +eval
+      - +get
+      - +set
+      - --user
+      - exporter
+      - 'on'
+      - '>${REDIS_EXPORTER_PASSWORD:-dmpf-local-exporter}'
+      - -@all
+      - +info
+      - +ping
+      - +client|setname
+      - +config|get
+      - +latency|latest
+      - +latency|histogram
+      - +slowlog|get
+      - +slowlog|len
+      - +command|info
     ports:
       - '127.0.0.1:${REDIS_PORT:-6379}:6379'
     volumes:
       - redis-data:/data
     healthcheck:
-      test: ['CMD', 'redis-cli', 'ping']
+      test:
+        - CMD-SHELL
+        - redis-cli --no-auth-warning --user revocation --pass '${REDIS_REVOCATION_PASSWORD:-dmpf-local-revocation}' ping | grep -q PONG
       interval: 10s
       timeout: 5s
       retries: 5

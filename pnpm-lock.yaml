@@ -270,6 +270,8 @@ importers:
 
   libs/backend/go/postgres: {}
 
+  libs/backend/go/redis: {}
+
   libs/backend/go/sqs: {}
 
   libs/backend/go/testkit: {}

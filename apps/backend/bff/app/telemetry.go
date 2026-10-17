@@ -40,6 +40,7 @@ func settings(cfg Config) []slog.Attr {
 		slog.String("openapi_bookings_path", cfg.BookingsContractPath),
 		slog.String("drain_delay", cfg.DrainDelay.String()),
 		slog.Any("authn", cfg.Auth),
+		slog.Any("redis", cfg.Redis),
 	}
 }
 

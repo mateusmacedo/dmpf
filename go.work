@@ -20,6 +20,7 @@ use (
 	./libs/backend/go/observability
 	./libs/backend/go/ports
 	./libs/backend/go/postgres
+	./libs/backend/go/redis
 	./libs/backend/go/sqs
 	./libs/backend/go/testkit
 	./libs/backend/go/transport
@@ -42,6 +43,7 @@ replace (
 	github.com/mateusmacedo/dmpf/libs/backend/go/observability v1.0.0-rc.4 => ./libs/backend/go/observability
 	github.com/mateusmacedo/dmpf/libs/backend/go/ports v1.0.0-rc.4 => ./libs/backend/go/ports
 	github.com/mateusmacedo/dmpf/libs/backend/go/postgres v1.0.0-rc.4 => ./libs/backend/go/postgres
+	github.com/mateusmacedo/dmpf/libs/backend/go/redis v1.0.0-rc.4 => ./libs/backend/go/redis
 	github.com/mateusmacedo/dmpf/libs/backend/go/testkit v1.0.0-rc.4 => ./libs/backend/go/testkit
 	github.com/mateusmacedo/dmpf/libs/backend/go/transport v1.0.0-rc.4 => ./libs/backend/go/transport
 	github.com/mateusmacedo/dmpf/tools/dmpf-conformance v1.0.0-rc.4 => ./tools/dmpf-conformance

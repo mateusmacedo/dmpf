@@ -1,6 +1,6 @@
 {
   "schema": "dmpf/units-baseline@1",
-  "digest": "sha256:4922b88f6dedaee1abca0518b6d963a22b86abef074147135cfe8a42a0ff05d9",
+  "digest": "sha256:940b457abb321f400ea6fd35ff2cefe2b7dd8e81439218c5088612323aee355d",
   "entries": [
     {
       "unit": "bff/app",
@@ -320,6 +320,13 @@
       "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/postgres"]
     },
     {
+      "unit": "kernel/provider-redis",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/redis",
+      "block": "provider",
+      "bounded_context": "kernel",
+      "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/redis"]
+    },
+    {
       "unit": "kernel/provider-sqs",
       "module": "github.com/mateusmacedo/dmpf/libs/backend/go/sqs",
       "block": "provider",
@@ -541,6 +548,7 @@
     "contracts/gen",
     "contracts/payloadhash",
     "kernel/provider-memory",
-    "kernel/provider-authn"
+    "kernel/provider-authn",
+    "kernel/provider-redis"
   ]
 }

@@ -8,7 +8,11 @@
     "nx-release-publish": {
       "executor": "nx:noop"
     },
-    "deploy-env": {},
+    "deploy-env": {
+      "options": {
+        "command": "[ -f deploy/.env ] || cp deploy/.env.example deploy/.env; [ -f deploy/.env.session-events ] || cp deploy/.env.session-events.example deploy/.env.session-events"
+      }
+    },
     "docker:run": {
       "options": {
         "args": [
@@ -112,13 +116,31 @@
         {
           "projects": ["reservations"],
           "target": "serve-consumer"
-        }
+        },
+        "serve-session-events"
       ]
+    },
+    "serve-session-events": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "set -a; [ ! -f deploy/.env ] || . deploy/.env; . deploy/.env.session-events.example; [ ! -f deploy/.env.session-events ] || . deploy/.env.session-events; OTEL_RESOURCE_ATTRIBUTES=\"${OTEL_RESOURCE_ATTRIBUTES:+$OTEL_RESOURCE_ATTRIBUTES,}service.instance.id=bff-local-session-events,dmpf.process.role=session-events\"; set +a; exec go run ./cmd session-events",
+        "cwd": "{projectRoot}",
+        "envFile": "{projectRoot}/deploy/.env.example"
+      },
+      "continuous": true,
+      "dependsOn": ["infra-session", "keycloak-up"]
     },
     "infra-up": {
       "executor": "nx:run-commands",
       "options": {
         "command": "bash tools/infra-session.sh up",
+        "cwd": "{workspaceRoot}"
+      }
+    },
+    "keycloak-up": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "docker compose -f infra/local/docker-compose.yml --profile keycloak up -d --wait keycloak",
         "cwd": "{workspaceRoot}"
       }
     },

@@ -130,6 +130,8 @@ cd "$CONSUMER"
 # O consumidor roda como um dev: sem CI, o pnpm cria o lockfile que ainda não existe
 # e o tb.Env pula os testes de integração, que exigem a infra do job.
 unset CI
+# Num hook o git exporta GIT_DIR e GIT_INDEX_FILE; herdados, o git do consumidor grava no repositório do DMPF.
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_OBJECT_DIRECTORY GIT_PREFIX
 git init -q
 commitar "chore: workspace vazio"
 pnpm install

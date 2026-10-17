@@ -1,0 +1,14 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bff-session-events
+spec:
+  template:
+    spec:
+      containers:
+        - name: session-events
+          env:
+            # A API em dev usa AUTH_DEV_MOCK, que recusa um issuer junto; só o
+            # papel o recebe, no hostname que o Keycloak do dev publica.
+            - name: OIDC_ISSUER
+              value: http://keycloak:8080/realms/dmpf

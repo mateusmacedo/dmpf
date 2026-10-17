@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"go.opentelemetry.io/otel/log"
+	"go.opentelemetry.io/otel/metric"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/envconfig"
 )
@@ -27,15 +28,19 @@ var (
 )
 
 const (
-	envIssuer           = "OIDC_ISSUER"
-	envAudience         = "OIDC_AUDIENCE"
-	envTenantClaim      = "OIDC_TENANT_CLAIM"
-	envPermissionClaims = "OIDC_PERMISSION_CLAIMS"
-	envDiscoveryTimeout = "OIDC_DISCOVERY_TIMEOUT_SECONDS"
-	envDevMock          = "AUTH_DEV_MOCK"
+	envIssuer            = "OIDC_ISSUER"
+	envAudience          = "OIDC_AUDIENCE"
+	envTenantClaim       = "OIDC_TENANT_CLAIM"
+	envPermissionClaims  = "OIDC_PERMISSION_CLAIMS"
+	envDiscoveryTimeout  = "OIDC_DISCOVERY_TIMEOUT_SECONDS"
+	envDevMock           = "AUTH_DEV_MOCK"
+	envRevocationTimeout = "OIDC_REVOCATION_TIMEOUT_MS"
 )
 
-const defaultDiscoveryTimeoutSeconds = 10
+const (
+	defaultDiscoveryTimeoutSeconds       = 10
+	defaultRevocationTimeoutMilliseconds = 250
+)
 
 // Config is how the operator points the edge at an authorization server. Every
 // claim is a path, so an issuer that nests or namespaces them needs no code
@@ -48,14 +53,19 @@ type Config struct {
 	DiscoveryTimeout time.Duration
 	DevMock          bool
 	LoggerProvider   log.LoggerProvider
+
+	Revocations       RevocationChecker
+	RevocationTimeout time.Duration
+	MeterProvider     metric.MeterProvider
 }
 
 // Defaults reads a Keycloak access token: scope as a space-separated string and
 // realm roles nested under realm_access.
 func Defaults() Config {
 	return Config{
-		PermissionClaims: []string{"scope", "realm_access.roles"},
-		DiscoveryTimeout: defaultDiscoveryTimeoutSeconds * time.Second,
+		PermissionClaims:  []string{"scope", "realm_access.roles"},
+		DiscoveryTimeout:  defaultDiscoveryTimeoutSeconds * time.Second,
+		RevocationTimeout: defaultRevocationTimeoutMilliseconds * time.Millisecond,
 	}
 }
 
@@ -84,11 +94,17 @@ func ReadEnv(lookup func(string) string) (Config, error) {
 		cfg.PermissionClaims = declared
 	}
 
-	seconds, err := envconfig.ParsePositive(envDiscoveryTimeout, lookup(envDiscoveryTimeout), defaultDiscoveryTimeoutSeconds)
-	if err != nil {
-		return Config{}, err
+	var err error
+	if declared := lookup(envDiscoveryTimeout); declared != "" {
+		if cfg.DiscoveryTimeout, err = parseSeconds(envDiscoveryTimeout, declared, 1); err != nil {
+			return Config{}, err
+		}
 	}
-	cfg.DiscoveryTimeout = time.Duration(seconds) * time.Second
+	if declared := lookup(envRevocationTimeout); declared != "" {
+		if cfg.RevocationTimeout, err = parseMilliseconds(envRevocationTimeout, declared); err != nil {
+			return Config{}, err
+		}
+	}
 
 	if cfg.DevMock, err = envconfig.ParseBool(envDevMock, lookup(envDevMock)); err != nil {
 		return Config{}, err
@@ -104,7 +120,15 @@ func (c Config) LogValue() slog.Value {
 		slog.String("permission_claims", strings.Join(c.PermissionClaims, ",")),
 		slog.String("discovery_timeout", c.DiscoveryTimeout.String()),
 		slog.Bool("dev_mock", c.DevMock),
+		slog.String("revocation", c.revocationState()),
 	)
+}
+
+func (c Config) revocationState() string {
+	if c.Revocations == nil {
+		return "disabled"
+	}
+	return "enabled"
 }
 
 // Validate refuses a start whose identity the edge could not resolve: no means
@@ -122,6 +146,9 @@ func (c Config) Validate() error {
 		return fmt.Errorf("%w: %s", ErrMissingVariable, envAudience)
 	case c.TenantClaim == "":
 		return fmt.Errorf("%w: %s", ErrMissingVariable, envTenantClaim)
+	case c.Revocations != nil && c.RevocationTimeout <= 0:
+		return fmt.Errorf("%w: %s must be positive when revocation is enabled, got %v",
+			envconfig.ErrInvalidVariable, envRevocationTimeout, c.RevocationTimeout)
 	}
 	return nil
 }

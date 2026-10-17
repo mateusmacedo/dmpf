@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bff-session-events
+spec:
+  template:
+    spec:
+      containers:
+        - name: session-events
+          # O issuer é o do Secret bff-oidc, o mesmo que a API verifica; a CA
+          # montada é a que o OTEL_EXPORTER_OTLP_CERTIFICATE do ConfigMap aponta.
+          envFrom:
+            - configMapRef:
+                name: bff
+            - secretRef:
+                name: bff-oidc
+          volumeMounts:
+            - name: grpc-ca
+              mountPath: /etc/dmpf/grpc
+              readOnly: true
+      volumes:
+        - name: grpc-ca
+          secret:
+            secretName: bff-grpc-ca

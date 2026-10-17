@@ -2,7 +2,7 @@
 id: SPEC-STEJG347
 slug: revogacao-de-sessao-authn
 title: DMPF — Revogação de sessão no authn: deny-list por sub/sid alimentada por eventos do IdP
-stage: backlog
+stage: done
 priority: P1
 depends_on: [SPEC-9B6SHEH8, SPEC-SBW7HT6Y]
 ticket_url: https://linear.app/mmda/issue/DEVS-101/spec-stejg347-dmpf-revogacao-de-sessao-no-authn-deny-list-por-subsid
@@ -73,7 +73,7 @@ Fazer o `authn` recusar um token cuja sessão foi encerrada ou revogada no IdP e
 
 **A. Verificação no `Verifier`**
 
-- [ ] **[P0] Consulta de revogação no `authn`**: declarar `RevocationChecker` (`Revoked(ctx, ref) (bool, error)`), recebido por `Config` como `LoggerProvider` (`config.go:50`), e consultá-lo depois de assinatura, issuer, audiência, expiração e `sub`, antes de montar a identidade (`oidc.go:78-97`). A referência leva `sub`, `sid` (claim string; vazio se ausente) e `iat` do token.
+- [ ] **[P0] Consulta de revogação no `authn`**: declarar `RevocationChecker` (`Revoked(ctx, ref) (RevocationKind, error)`, em que o valor zero é «não revogado» e `session` precede `subject` quando as duas entradas negam o token), recebido por `Config` como `LoggerProvider` (`config.go:50`), e consultá-lo depois de assinatura, issuer, audiência, expiração e `sub`, antes de montar a identidade (`oidc.go:78-97`). A referência leva `sub`, `sid` (claim string; vazio se ausente) e `iat` do token.
 - [ ] **[P0] Recusa por revogação**: devolver `ports.ErrCredentialRejected` (`fmt.Errorf("%w: ...")`, como em `oidc.go:76`) e registrar `warn` `auth: token rejected` com `dmpf.auth.refusal_reason` = `session_revoked`, acrescentado aos motivos de `oidc.go:100-106`.
 - [ ] **[P0] Entrada por sessão**: uma entrada com `sid` nega todo token que carregue esse `sid` até a entrada expirar.
 - [ ] **[P0] Entrada por sujeito**: uma entrada com `sub` e `revoked_at` nega os tokens desse sujeito com `iat <= revoked_at`; um token emitido depois (novo login) passa. A comparação é `<=` para que uma emissão no mesmo segundo da revogação falhe fechada.
@@ -118,24 +118,32 @@ Fazer o `authn` recusar um token cuja sessão foi encerrada ou revogada no IdP e
 
 | Camada | Efeito |
 | ------ | ------ |
-| `authn` (provider) | `Verifier`, `Config`, `ReadEnv`, alimentação, fake em memória, métricas |
-| Provider de armazenamento | módulo novo, no padrão do `sqs` |
-| Composition root do BFF | monta o checker e a alimentação em `apps/backend/bff/app/wiring.go` |
-| Infra | o que o armazenamento escolhido exigir, pelos templates do `init` |
-| Documentação | ADR novo, README do `authn`, guia de consumo externo |
+| `authn` (provider) | `Verifier`, `Config`, `ReadEnv`, `Feed`/`Apply`, `MemoryStore`, métricas, receptor do back-channel logout e polling da Admin REST |
+| Provider `redis` | módulo novo, no padrão do `sqs`: `Config`/`FromEnv`, `NewClient` e `RevocationStore`; unidade `kernel/provider-redis` em `shared_kernel_units` |
+| Composition root do BFF | a API monta o checker em `apps/backend/bff/app/wiring.go`; o papel `session-events` monta o `Feed` e os adaptadores em `apps/backend/bff/app/sessionevents.go`, despachado por `cmd/main.go` |
+| Infra | Redis na infra de testes, no CI, no Compose local e na base Kustomize `infra/k8s/base/redis` (só `dev`; externo no `hmg`), realm com os eventos `LOGOUT`, URL do back-channel apontando para o papel; tudo pelos templates do `init` |
+| Documentação | ADR-065, addendum no ADR-064, READMEs do `authn`, do `redis`, do BFF e da infra, guia de consumo externo |
 
 ## Localização de código
 
 ```text
-libs/backend/go/authn/oidc.go                 consulta depois do sub, motivo session_revoked
-libs/backend/go/authn/config.go               Revocations, MeterProvider, OIDC_REVOCATION_*
-libs/backend/go/authn/revocation.go           novo: RevocationChecker, RevocationStore, Revocation
-libs/backend/go/authn/revocation_apply.go     novo: Apply e decodificação do evento
-libs/backend/go/authn/revocation_memory.go    novo: fake em memória
-libs/backend/go/authn/dmpf-units.json         otel/metric com a capability observability
-libs/backend/go/<armazenamento>/              módulo novo (nome da investigação)
-apps/backend/bff/app/wiring.go                monta checker e alimentação
-docs/adr/                                     ADR novo
+libs/backend/go/authn/oidc.go                       consulta depois do sub, motivo session_revoked, falha fechada
+libs/backend/go/authn/config.go                     Revocations, RevocationTimeout, MeterProvider, OIDC_REVOCATION_TIMEOUT_MS
+libs/backend/go/authn/revocation.go                 SessionRef, RevocationKind, RevocationChecker, Revocation, RevocationStore
+libs/backend/go/authn/revocation_memory.go          MemoryStore com relógio injetável
+libs/backend/go/authn/revocation_apply.go           SessionEvent, FeedConfig, ReadRevocationFeedEnv, Feed (Apply, Record)
+libs/backend/go/authn/revocation_metrics.go         refusals, store_errors, events, apply_delay
+libs/backend/go/authn/backchannel.go                BackchannelLogout (http.Handler)
+libs/backend/go/authn/sessionpolling.go             SessionPolling (admin events e eventos LOGOUT)
+libs/backend/go/authn/dmpf-units.json               x/oauth2 e otel/metric diretos
+libs/backend/go/redis/                              módulo novo: config.go, revocation.go (Lua + MGET)
+apps/backend/bff/app/wiring.go                      checker da API sobre o redis.RevocationStore
+apps/backend/bff/app/sessionevents{,_config}.go     papel session-events
+apps/backend/bff/cmd/main.go                        despacho do subcomando session-events
+apps/backend/bff/deploy/                            Deployment, Service e NetworkPolicy do papel, Compose, .env.session-events.example
+infra/k8s/base/redis/, infra/test/compose.yml       Redis com ACL, AOF e noeviction
+infra/keycloak/dmpf-realm.json                      eventos de usuário LOGOUT por 1 h
+docs/adr/065-revogacao-de-sessao-no-authn.md        ADR novo
 ```
 
 ## Design
@@ -163,8 +171,15 @@ type SessionRef struct {
 	IssuedAt time.Time
 }
 
+type RevocationKind string
+
+const (
+	RevocationSession RevocationKind = "session"
+	RevocationSubject RevocationKind = "subject"
+)
+
 type RevocationChecker interface {
-	Revoked(ctx context.Context, ref SessionRef) (bool, error)
+	Revoked(ctx context.Context, ref SessionRef) (RevocationKind, error)
 }
 
 type Revocation struct {
@@ -178,7 +193,7 @@ type Revocation struct {
 
 type RevocationStore interface {
 	RevocationChecker
-	Revoke(ctx context.Context, r Revocation) error
+	Revoke(ctx context.Context, r Revocation) (bool, error)
 }
 ```
 
@@ -210,7 +225,12 @@ Ambas expiram em `occurred_at + TTL + margem`. O token mais longevo possível, e
 | Resposta da consulta | Nunca guardada | Cache curto de «não revogado»: é cache de decisão derivada sem a validade de CTX-16 e soma seu TTL ao atraso da revogação |
 | TTL | `occurred_at + maior vida de token + margem` | Sem TTL: cresce sem limite; TTL contado do `Apply`: cada reentrega estenderia a entrada |
 | Revogação por IdP | Deny-list alimentada por evento | TTL de token ≤ 60 s como único mecanismo: troca o problema por refresh a cada minuto contra o IdP, custo não medido; introspecção por requisição: acopla a disponibilidade da borda à do IdP |
-| Armazenamento | Decidido por investigação | Escolher Redis de antemão: faltam infra de testes, base Kustomize, cliente Go e a resposta sobre perda de entradas num restart |
+| Armazenamento | Redis, no provider `libs/backend/go/redis` (go-redis v9.23.0): chaves `dmpf:revocation:{sid,sub}:<sha256>`, valor `<revoked_at_ms>:<expires_at_ms>`, script Lua monotônico com `SET ... PXAT`, um `MGET` por consulta, banco 0, AOF `everysec`, `maxmemory` com `noeviction` e usuário ACL por lista de comandos (ADR-065) | Postgres: contraria o BFF sem banco (ADR-044) e as duas roles por app (ADR-063); Kafka compactado com espelho por réplica: vedado pelo «sem espelho» desta spec e sem suporte no provider |
+| Onde roda a alimentação | Papel `bff session-events`, subcomando da mesma imagem, uma réplica, com configuração própria (`SessionEventsFromEnv`) e portas 8091 (receptor) e 8092 (administração) | Dentro da API: cada réplica faria o polling e a API viraria consumer; app nova: custo de projeto e release |
+| Onde vivem os adaptadores | No `authn` (`backchannel.go`, `sessionpolling.go`), que já tem o verifier OIDC e o issuer e chega ao consumidor externo por versão | No provider `redis`: mistura canal e armazenamento; no BFF: o consumidor externo reescreveria |
+| Entrega ao menos uma vez | Back-channel como caminho rápido e polling dos eventos de usuário `LOGOUT` e dos admin events de encerramento (usuário desabilitado, excluído ou deslogado; sessão encerrada por `sessions/{id}`) como reconciliação, sem cursor: cada ciclo relê a janela `[now − (TTL + margem), now]` e reaplica tudo, o que também regrava a entrada que o Redis perder | Back-channel best-effort: o logout se perde com o receptor fora; cursor com deduplicação antes do `Apply`: não regrava o que o Redis perdeu; `appendfsync always`: cobre só o último segundo antes de um crash |
+| Logout token | `VerifyLogout` do go-oidc com o `ClientID` do back-channel, mais `iat` presente e no máximo a margem no futuro; só `sub` revoga o sujeito (§2.7); `503` com o store ou o JWKS fora, desvio consciente do §2.8 | Deduplicação por `jti`: o `Apply` idempotente já absorve a repetição; `400` para toda falha: confunde dependência fora com token inválido |
+| `REDIS_URL` no BFF | Obrigatório na API e no papel; o `authn` mantém o checker opcional para o consumidor externo | Opcional no BFF: a revogação desligaria em silêncio |
 
 ## Riscos
 
@@ -232,14 +252,14 @@ Ambas expiram em `occurred_at + TTL + margem`. O token mais longevo possível, e
 
 ### Critérios de aceite
 
-- [ ] Um token de sessão revogada é recusado em menos de 60 s após o evento, num teste com o Keycloak de referência, tanto no logout do usuário quanto no encerramento administrativo da sessão.
-- [ ] Com o armazenamento indisponível, `Authenticate` recusa o token válido com `ErrCredentialRejected`, o log traz `TransientDependency` sem `refusal_reason`, e a volta do armazenamento restabelece o aceite sem reiniciar o processo.
-- [ ] Um token com `iat` posterior ao `revoked_at` do `sub` é aceito; um com `iat` igual ou anterior é recusado.
-- [ ] Aplicar o mesmo evento duas vezes, ou em ordem inversa a outro mais novo do mesmo `sub`, deixa o mesmo estado e não reduz `revoked_at`.
-- [ ] Sem checker configurado, a suíte atual do `authn` passa sem alteração.
-- [ ] Duas requisições seguidas com o mesmo token, com a revogação entre elas, dão aceite e depois recusa.
-- [ ] `dmpf.auth.revocation.apply_delay` aparece com o atraso de cada evento; nenhum atributo ou log traz `sub`, `sid` ou token.
-- [ ] `modsync --check`, `lint`, `vet`, `test-race` do `authn` e o `conformance` passam.
+- [x] Um token de sessão revogada é recusado em menos de 60 s após o evento, num teste com o Keycloak de referência, tanto no logout do usuário quanto no encerramento administrativo da sessão.
+- [x] Com o armazenamento indisponível, `Authenticate` recusa o token válido com `ErrCredentialRejected`, o log traz `TransientDependency` sem `refusal_reason`, e a volta do armazenamento restabelece o aceite sem reiniciar o processo.
+- [x] Um token com `iat` posterior ao `revoked_at` do `sub` é aceito; um com `iat` igual ou anterior é recusado.
+- [x] Aplicar o mesmo evento duas vezes, ou em ordem inversa a outro mais novo do mesmo `sub`, deixa o mesmo estado e não reduz `revoked_at`.
+- [x] Sem checker configurado, a suíte atual do `authn` passa sem alteração além do atributo `revocation` do `LogValue`, que o requisito P1 exige.
+- [x] Duas requisições seguidas com o mesmo token, com a revogação entre elas, dão aceite e depois recusa.
+- [x] `dmpf.auth.revocation.apply_delay` aparece com o atraso de cada evento; nenhum atributo ou log traz `sub`, `sid` ou token.
+- [x] `modsync --check`, `lint`, `vet`, `test-race` do `authn` e o `conformance` passam.
 
 ### Cenários de teste
 
@@ -287,7 +307,8 @@ Ambas expiram em `occurred_at + TTL + margem`. O token mais longevo possível, e
 
 ## Escopo fora
 
-- **Escolher o canal de eventos de sessão e seu emissor no Keycloak**: é a SPEC-SBW7HT6Y; esta spec consome o contrato.
+- **Escolher o canal de eventos de sessão e seu emissor no Keycloak**: é a SPEC-SBW7HT6Y; esta spec consome o contrato. Ressalva: para cumprir a entrega ao menos uma vez, esta spec acrescenta a leitura dos eventos de usuário `LOGOUT` pelo mesmo client de polling, com uma linha nova no contrato e o realm guardando esse tipo de evento (ADR-065).
+- **`logout-all` do realm**: o back-channel não o entrega, e o admin event dele (`ACTION` de `REALM` em `logout-all`) não traz sessão nem usuário; a deny-list só tem entradas por `sid` e por `sub`, sem corte global por `iat`, e o caso fica coberto pela vida do token (ADR-065, perdas aceitas).
 - **Falha aberta configurável**: a revogação em 60 s deixaria de valer justamente na degradação; um consumidor que precise dela emenda esta spec com um ADR.
 - **Revogação de refresh token e de sessão offline**: é do IdP; a deny-list cobre o access token que chega à borda.
 - **Revogação por mudança de pertencimento a organização ou de permissão**: exigiria evento próprio do IdP; a deny-list por `sub` cobre o caso de revogar o sujeito inteiro.
