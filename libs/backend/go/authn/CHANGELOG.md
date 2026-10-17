@@ -1,3 +1,20 @@
+## 1.0.0-rc.5 (2026-10-17)
+
+### 🚀 Features
+
+- **authn:** Revogar sessão por sub e sid com eventos do Keycloak ([ea85eb27](https://github.com/mateusmacedo/dmpf/commit/ea85eb27))
+- **authn:** Ler o tenant da claim nativa por curinga único ([98e860ad](https://github.com/mateusmacedo/dmpf/commit/98e860ad))
+
+### 🧱 Updated Dependencies
+
+- Updated observability to 1.0.0-rc.5
+- Updated testkit to 1.0.0-rc.5
+- Updated ports to 1.0.0-rc.5
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos
+
 ## 1.0.0-rc.4 (2026-10-12)
 
 ### 🧱 Updated Dependencies

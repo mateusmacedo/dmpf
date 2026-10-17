@@ -1,3 +1,19 @@
+## 1.0.0-rc.5 (2026-10-17)
+
+### 🚀 Features
+
+- **conformance:** Gerar a role migradora no provisionamento dos bancos ([a74d7cd8](https://github.com/mateusmacedo/dmpf/commit/a74d7cd8))
+
+### 🩹 Fixes
+
+- **conformance:** Isolar o git dos fixtures do GIT_DIR herdado do hook ([ceb07789](https://github.com/mateusmacedo/dmpf/commit/ceb07789))
+- **conformance:** Reconciliar a senha do Kafka no redpanda-init ([5b4bbd70](https://github.com/mateusmacedo/dmpf/commit/5b4bbd70))
+- **conformance:** Passar as senhas do Kafka ao redpanda-init por env ([b702f885](https://github.com/mateusmacedo/dmpf/commit/b702f885))
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos
+
 ## 1.0.0-rc.4 (2026-10-12)
 
 Initial release
