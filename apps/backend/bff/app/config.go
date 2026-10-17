@@ -9,6 +9,7 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/authn"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/boot"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/envconfig"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/redis"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/admission"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/deadline"
 )
@@ -39,6 +40,7 @@ const (
 	envReservationsContractPath = "OPENAPI_RESERVATIONS_PATH"
 	envBookingsContractPath     = "OPENAPI_BOOKINGS_PATH"
 	envDrainDelay               = "DRAIN_DELAY"
+	envRedisURL                 = "REDIS_URL"
 )
 
 type Config struct {
@@ -74,7 +76,8 @@ type Config struct {
 	// closing the listener: the time the load balancer takes to stop routing.
 	DrainDelay time.Duration
 
-	Auth authn.Config
+	Auth  authn.Config
+	Redis redis.Config
 }
 
 func Defaults() Config {
@@ -118,6 +121,9 @@ func FromEnv(lookup func(string) string) (Config, error) {
 	if cfg.Auth, err = authn.ReadEnv(lookup); err != nil {
 		return Config{}, err
 	}
+	if cfg.Redis, err = readRedis(lookup); err != nil {
+		return Config{}, err
+	}
 
 	if cfg.Signals, err = boot.SignalsFromEnv(lookup); err != nil {
 		return Config{}, err
@@ -156,5 +162,22 @@ func (c Config) Validate() error {
 	if err := c.RouteBudget.Validate(); err != nil {
 		return err
 	}
-	return c.Auth.Validate()
+	if err := c.Auth.Validate(); err != nil {
+		return err
+	}
+	return validateRedis(c.Redis)
+}
+
+func readRedis(lookup func(string) string) (redis.Config, error) {
+	if lookup(envRedisURL) == "" {
+		return redis.Config{}, nil
+	}
+	return redis.FromEnv(lookup)
+}
+
+func validateRedis(c redis.Config) error {
+	if c.Options == nil {
+		return fmt.Errorf("%w: %s", ErrMissingVariable, envRedisURL)
+	}
+	return c.Validate()
 }

@@ -125,7 +125,17 @@ skill `.agents/skills/dmpf-bounded-context/`.
 
 ## Banco e persistência (ADR-053)
 
-- Banco próprio por app: database e role com o nome da app, schema `public`.
+- Banco próprio por app, com o nome da app e schema `public`, e duas roles
+  (ADR-063): `<app>_migrator`, dona do banco, aplica o schema e os grants; a
+  de runtime, `<app>`, não possui nada e só tem os grants por tabela do
+  kernel e os que o contexto declara em `provider.Grants` (`postgres.Mutable`
+  para o agregado). Tabela sem grant declarado recusa a partida e reprova
+  no gate. `PG_MIGRATE_DSN` vai só ao `api`: no Compose, no serviço
+  `<app>-api`, fora de âncora e de `extends` que `relay` e `consumer`
+  herdam; no Kubernetes, no Secret `<app>-migrator`, que só o Deployment
+  `<app>-api` referencia. `relay` e `consumer` têm só o `PG_DSN`, e a role
+  `<app>_migrator` fora desse lugar, em DSN URL ou chave/valor ou em
+  `PGUSER`, reprova no gate.
   Tabela do kernel é substantivo sem prefixo (`outbox`, `inbox`,
   `quarantine`); tabela de agregado é o agregado no plural, sem prefixo;
   coluna de id `<agregado>_id`; índice `<tabela>_<colunas>_idx`; constraint

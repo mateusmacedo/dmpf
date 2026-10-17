@@ -109,8 +109,8 @@ e spec à decisão que os originou.
 
 **Negativas:**
 
-- Todo import path Go muda. Qualquer consumidor externo do módulo precisa
-  atualizar — não há redirecionamento em Go.
+- **Custo aceito:** Todo import path Go muda. Qualquer consumidor externo do
+  módulo precisa atualizar — não há redirecionamento em Go.
 - O histórico de commits ainda carrega o e-mail corporativo antigo. Corrigir
   exige reescrever a autoria, o que muda todos os SHAs e invalida os seis
   identificadores de commit citados na documentação.

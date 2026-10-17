@@ -1,8 +1,8 @@
-# ADR-051: O escopo de tenant é imposto por choke point em Go, e não por RLS
+# ADR-051: Impor o escopo de tenant por choke point em Go, e não por RLS
 
 ## Status
 
-Aceito — 2026-09-23. Implementa [SPEC-9B6SHEH8](../specs/SPEC-9B6SHEH8-contexto-execucao-identidade-tenant.md). **Caminhos atualizados pelo [ADR-054](./054-apps-autocontidos-e-infras-separadas.md) (2026-09-28)**: o Kubernetes de cada app está em `apps/backend/<app>/deploy/k8s/`, e o Postgres usa o banco e as credenciais padrão, com banco e role por app.
+Aceito — 2026-09-23. Implementa [SPEC-9B6SHEH8](../specs/SPEC-9B6SHEH8-contexto-execucao-identidade-tenant.md). **Caminhos atualizados pelo [ADR-054](./054-apps-autocontidos-e-infras-separadas.md) (2026-09-28)**: o Kubernetes de cada app está em `apps/backend/<app>/deploy/k8s/`, e o Postgres usa o banco e as credenciais padrão, com banco e role por app. **Emendado pelo [ADR-063](./063-duas-roles-de-banco-por-app.md) (2026-10-15)**: em app com `database.migrator`, a role de conexão não é superuser nem dona das tabelas, e a condição do §Consequências para somar RLS ao choke point fica cumprida; a RLS continua fora.
 
 ## Contexto
 
@@ -45,6 +45,6 @@ O Postgres ignora RLS incondicionalmente para superuser, e `FORCE ROW LEVEL SECU
 **Negativas:**
 
 - O `Table` cobre um filtro por coluna de uma tabela. Junção, agregação ou SQL mais amplo exige estender o kernel, nunca reabrir o driver no contexto.
-- A sonda do acesso cruzado custa uma consulta extra em toda falta de linha, servida por índice pelo identificador em cada tabela de agregado.
+- **Custo aceito:** A sonda do acesso cruzado custa uma consulta extra em toda falta de linha, servida por índice pelo identificador em cada tabela de agregado.
 
 **O híbrido continua disponível.** Quando existir um role de aplicação que não seja superuser nem dono das tabelas, RLS pode ser somada ao choke point como segunda camada, sem substituí-lo: o choke point segue sendo o que torna o isolamento independente de convenção no código.

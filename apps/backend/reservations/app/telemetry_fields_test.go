@@ -9,11 +9,13 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/redact"
 )
 
-var sentinels = []string{"sentinel-pg-password", "sentinel-sasl-user", "sentinel-sasl-password", "sentinel-grpc-key", "sentinel-kafka-key", "sentinel-tenant"}
+var sentinels = []string{"sentinel-pg-password", "sentinel-sasl-user", "sentinel-sasl-password", "sentinel-grpc-key", "sentinel-kafka-key", "sentinel-tenant", "sentinel-migrator-password"}
 
 func configWithSecrets(role app.Role) app.Config {
 	cfg := app.Defaults(role)
 	cfg.DSN = "postgres://reservations:sentinel-pg-password@db:5432/reservations?sslmode=require"
+	cfg.Migrate = true
+	cfg.MigrateDSN = "postgres://reservations_migrator:sentinel-migrator-password@db:5432/reservations?sslmode=require"
 	cfg.API.GRPCCertFile = "/tls/tls.crt"
 	cfg.API.GRPCKeyFile = "/tls/sentinel-grpc-key.pem"
 	cfg.API.GRPCClientCAFile = "/tls/ca.crt"
@@ -35,7 +37,7 @@ func configWithSecrets(role app.Role) app.Config {
 func TestTheProcessConfiguredRecordCarriesTheAllowlistOfTheRole(t *testing.T) {
 	telemetrySubject.RunAllowlist(t, configWithSecrets, map[app.Role][]string{
 		app.RoleAPI: {"grpc_addr", "grpc_client_ca_file", "grpc_insecure", "grpc_tls_cert_file", "grpc_tls_key_file",
-			"grpc_trusted_clients", "metric_tenants", "migrate"},
+			"grpc_trusted_clients", "metric_tenants", "migrate", "migrator"},
 		app.RoleRelay: {"kafka.ca_file", "kafka.cert_file", "kafka.key_file", "kafka.sasl_mechanism", "kafka.sasl_password",
 			"kafka.sasl_username", "kafka_brokers", "kafka_group", "kafka_insecure", "kafka_reservations_dlq",
 			"kafka_reservations_topic"},
@@ -62,6 +64,9 @@ func TestTheProcessConfiguredRecordCarriesNoSecret(t *testing.T) {
 				}
 				if got := record["dmpf.config.grpc_tls_key_file"].GetStringValue(); got != "set" {
 					t.Errorf("dmpf.config.grpc_tls_key_file = %v, want set", got)
+				}
+				if got := record["dmpf.config.migrator"].GetStringValue(); got != "set" {
+					t.Errorf("dmpf.config.migrator = %v, want set", got)
 				}
 			case app.RoleRelay, app.RoleConsumer:
 				if got := record["dmpf.config.kafka.sasl_password"].GetStringValue(); got != redact.Placeholder {

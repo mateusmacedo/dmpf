@@ -144,3 +144,47 @@ func TestTheIdentityOfTheProcessIsLeftToTheEnvironment(t *testing.T) {
 		t.Fatalf("TelemetryOf() declares version %q and instance %q, want neither: both come from OTEL_RESOURCE_ATTRIBUTES (RF-E3)", telemetry.Version, telemetry.Instance)
 	}
 }
+
+func TestFromEnvHandsTheMigratingDSNToTheAPIOnly(t *testing.T) {
+	const migrator = "postgres://reservations_migrator:secret@db/reservations"
+	api, err := app.FromEnv(app.RoleAPI, lookup("PG_DSN", "postgres://x", "MIGRATE", "true", "PG_MIGRATE_DSN", migrator, "GRPC_INSECURE", "true"))
+	if err != nil {
+		t.Fatalf("FromEnv(api) = %v, want nil", err)
+	}
+	if api.MigrateDSN != migrator {
+		t.Fatalf("FromEnv(api).MigrateDSN = %q, want %q", api.MigrateDSN, migrator)
+	}
+
+	workers := map[app.Role][]string{
+		app.RoleRelay:    {"KAFKA_RESERVATIONS_TOPIC", "reservations", "KAFKA_RESERVATIONS_DLQ", "reservations.dlq"},
+		app.RoleConsumer: {"KAFKA_ORDERS_TOPIC", "orders", "KAFKA_ORDERS_DLQ", "orders.dlq"},
+	}
+	for role, channel := range workers {
+		env := append([]string{"PG_DSN", "postgres://x", "MIGRATE", "true", "PG_MIGRATE_DSN", migrator, "KAFKA_BROKERS", "b:9092", "KAFKA_INSECURE", "true", "KAFKA_GROUP", "g"}, channel...)
+		cfg, err := app.FromEnv(role, lookup(env...))
+		if err != nil {
+			t.Fatalf("FromEnv(%s) = %v, want nil", role, err)
+		}
+		if cfg.MigrateDSN != "" {
+			t.Fatalf("FromEnv(%s).MigrateDSN = %q, want it never read by a role that does not migrate", role, cfg.MigrateDSN)
+		}
+	}
+}
+
+func TestTheAPIReadsTheMigratingDSNOnlyWhenItMigrates(t *testing.T) {
+	cfg, err := app.FromEnv(app.RoleAPI, lookup("PG_DSN", "postgres://x", "PG_MIGRATE_DSN", "postgres://reservations_migrator:secret@db/reservations", "GRPC_INSECURE", "true"))
+	if err != nil {
+		t.Fatalf("FromEnv() = %v, want nil", err)
+	}
+	if cfg.MigrateDSN != "" {
+		t.Fatalf("FromEnv().MigrateDSN = %q without MIGRATE, want it left unread", cfg.MigrateDSN)
+	}
+}
+
+func TestTheMigratingAPIRequiresTheMigratingDSN(t *testing.T) {
+	_, err := app.FromEnv(app.RoleAPI, lookup("PG_DSN", "postgres://x", "MIGRATE", "true", "GRPC_INSECURE", "true"))
+
+	if !errors.Is(err, app.ErrMissingVariable) || !strings.Contains(err.Error(), "PG_MIGRATE_DSN") {
+		t.Fatalf("FromEnv() = %v, want the missing PG_MIGRATE_DSN named", err)
+	}
+}

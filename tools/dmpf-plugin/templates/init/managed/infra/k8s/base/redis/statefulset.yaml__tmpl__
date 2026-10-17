@@ -1,0 +1,81 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: redis
+spec:
+  serviceName: redis
+  replicas: 1
+  selector:
+    matchLabels: {}
+  template:
+    metadata:
+      labels: {}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: redis
+          image: redis:7.4.11-alpine@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499
+          args:
+            - redis-server
+            - --appendonly
+            - 'yes'
+            - --appendfsync
+            - everysec
+            - --maxmemory
+            - 192mb
+            - --maxmemory-policy
+            - noeviction
+            - --aclfile
+            - /etc/redis/users.acl
+          ports:
+            - name: redis
+              containerPort: 6379
+          env:
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: redis
+                  key: url
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: acl
+              mountPath: /etc/redis
+              readOnly: true
+          readinessProbe:
+            exec:
+              command: ['sh', '-c', 'redis-cli --no-auth-warning -u "$REDIS_URL" -h 127.0.0.1 ping | grep -q PONG']
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+      volumes:
+        - name: acl
+          secret:
+            secretName: redis
+            items:
+              - key: users.acl
+                path: users.acl
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources:
+          requests:
+            storage: 1Gi

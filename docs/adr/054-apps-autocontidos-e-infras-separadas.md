@@ -1,4 +1,4 @@
-# ADR-054: Cada app carrega o próprio contrato e o próprio deploy, e testes e runtime local usam infras separadas
+# ADR-054: Levar contrato e deploy para dentro de cada app e separar a infra de testes da de runtime local
 
 ## Status
 
@@ -63,7 +63,7 @@ Depois do ADR-053, cada contexto tinha banco, borda e forma próprios, mas o mat
 
 **Negativas:**
 
-- São três módulos Go e três projetos Nx a mais, cada um com a sua cadeia.
+- **Custo aceito:** São três módulos Go e três projetos Nx a mais, cada um com a sua cadeia.
 - Depois do merge em `develop`, os quatro módulos de contrato existem na base sem marca, e o `buf-breaking` reprova com "estado inválido" todo PR que os afete, inclusive pelo `go.work`. Quem não é autor dos módulos cria, no commit do merge, as tags anotadas `contracts-baseline/contracts`, `contracts-baseline/orders-contract`, `contracts-baseline/reservations-contract` e `contracts-baseline/bookings-contract`.
 - Todo target de integração depende de `testkit:test-infra-up`, que sobe a infra de testes localmente e não faz nada no CI; a primeira execução paga a subida dos containers.
 - O diretório temporário de registros do `dmpf-evidence` não é removido pelo próprio comando.

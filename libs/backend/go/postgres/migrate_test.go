@@ -22,7 +22,7 @@ const (
 )
 
 func TestMigrateIsIdempotent(t *testing.T) {
-	pool := openPool(t)
+	pool := openAdminPool(t)
 
 	if err := postgres.Migrate(context.Background(), pool, allCapabilities, probeSchema); err != nil {
 		t.Fatalf("second Migrate() = %v, want nil", err)
@@ -30,7 +30,7 @@ func TestMigrateIsIdempotent(t *testing.T) {
 }
 
 func TestMigrateAppliesTheSchemaOfAContext(t *testing.T) {
-	pool := openPool(t)
+	pool := openAdminPool(t)
 	ctx := context.Background()
 	const index = "migrate_context_schema_idx"
 	t.Cleanup(func() { _, _ = pool.Exec(context.Background(), "DROP INDEX IF EXISTS "+index) })
@@ -44,7 +44,7 @@ func TestMigrateAppliesTheSchemaOfAContext(t *testing.T) {
 }
 
 func TestMigrateCreatesTheOutboxSchema(t *testing.T) {
-	pool := openPool(t)
+	pool := openAdminPool(t)
 	ctx := context.Background()
 
 	t.Run("tables", func(t *testing.T) {
@@ -88,7 +88,7 @@ func TestMigrateCreatesTheOutboxSchema(t *testing.T) {
 }
 
 func TestMigrateGivesTheInboxWhatACommandNeeds(t *testing.T) {
-	pool := openPool(t)
+	pool := openAdminPool(t)
 	ctx := context.Background()
 
 	for _, column := range []string{"outcome", "expires_at"} {
@@ -102,7 +102,7 @@ func TestMigrateGivesTheInboxWhatACommandNeeds(t *testing.T) {
 }
 
 func TestMigrateUpgradesAnInboxFromBeforeCommands(t *testing.T) {
-	pool := openPool(t)
+	pool := openAdminPool(t)
 	ctx := context.Background()
 
 	for _, stmt := range []string{
@@ -131,7 +131,7 @@ func TestMigrateUpgradesAnInboxFromBeforeCommands(t *testing.T) {
 }
 
 func TestMigrateOverAnUpToDateSchemaTakesNoExclusiveLock(t *testing.T) {
-	pool := openPool(t)
+	pool := openAdminPool(t)
 	ctx := context.Background()
 
 	reader, err := pool.Begin(ctx)
@@ -153,7 +153,7 @@ func TestMigrateOverAnUpToDateSchemaTakesNoExclusiveLock(t *testing.T) {
 }
 
 func TestMigrateRefusesAnUnknownCapability(t *testing.T) {
-	pool := openPool(t)
+	pool := openAdminPool(t)
 
 	if err := postgres.Migrate(context.Background(), pool, []postgres.Capability{"ledger"}); err == nil {
 		t.Fatal("Migrate() with an unknown capability = nil, want an error naming it")
@@ -161,7 +161,7 @@ func TestMigrateRefusesAnUnknownCapability(t *testing.T) {
 }
 
 func TestMigrateInboxStatusCheckRejectsInvalidStatus(t *testing.T) {
-	pool := openPool(t)
+	pool := openAdminPool(t)
 
 	_, err := pool.Exec(context.Background(), `
 		INSERT INTO inbox (consumer_name, message_id, message_type, payload_hash, received_at, processed_at, status)

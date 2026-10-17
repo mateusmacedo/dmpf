@@ -78,7 +78,7 @@ func NewReservationsService(pool *pgxpool.Pool, rt *otelboot.Runtime, cfg Config
 
 func api(cfg Config, rt *otelboot.Runtime) serve.API {
 	return serve.API{
-		Desc: &rpc.ServiceDesc, Commands: rpc.Commands(), Schema: provider.Schema, CommandConsumer: application.CommandConsumer,
+		Desc: &rpc.ServiceDesc, Commands: rpc.Commands(), Schema: provider.Schema, Grants: provider.Grants, CommandConsumer: application.CommandConsumer,
 		Register: func(server *grpc.Server, pool *pgxpool.Pool) error {
 			service, err := NewReservationsService(pool, rt, cfg)
 			if err != nil {
@@ -124,7 +124,7 @@ func runConsumer(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {
 	if err := pool.Ping(ctx); err != nil {
 		return fmt.Errorf("postgres: %w", err)
 	}
-	if err := postgres.WaitForTables(ctx, pool, time.Second, rt.LoggerProvider(), append(postgres.Tables(postgres.Outbox, postgres.Inbox), "reservations")...); err != nil {
+	if err := postgres.WaitForGrants(ctx, pool, time.Second, rt.LoggerProvider(), append(postgres.KernelGrants(postgres.Outbox, postgres.Inbox), provider.Grants...)...); err != nil {
 		return err
 	}
 	stopPurge, err := kernelapp.StartPurge(ctx, abort,

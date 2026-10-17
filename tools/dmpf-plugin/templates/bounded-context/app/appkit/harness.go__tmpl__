@@ -22,6 +22,7 @@ var PoolOptions = pg.Options{
 	Capabilities: []postgres.Capability{postgres.Outbox, postgres.Inbox},
 	Schemas:      []string{provider.Schema},
 	Tables:       Tables,
+	Grants:       provider.Grants,
 }
 
 func OpenPool(t testing.TB) *pgxpool.Pool {

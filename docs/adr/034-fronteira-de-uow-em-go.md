@@ -140,59 +140,45 @@ exercitá-lo.
 
 ## Alternativas descartadas
 
-**`Within(ctx, func(ctx, tx Transaction) error)` com `tx.Repository("orders")`
-por nome.** É service locator dentro da fronteira, que `UOW-03` veda
-nominalmente: o compilador deixaria de garantir quais portas o callback recebeu.
-
-**Recursos em `context.Context`.** Vedado por `CTX-05`, e destrói a garantia de
-`UOW-04`: qualquer código no caminho poderia extrair uma porta não vinculada.
-
-**`(R, error)` com `*Rejection` viajando como `error`.** Só seria admissível se
-o canal de erro carregasse exclusivamente rejeições, o que não é o caso no
-serviço de aplicação — ver a segunda força do Contexto.
-
-**Gerar `message_id` no passo 7, por evento.** Mantém a identidade dentro da
-transação e reabre a porta que `UOW-09` fechou: uma reexecução mintaria
-identidade nova para o mesmo fato.
-
-**`time.Time` no domínio, com `depguard` distinguindo por símbolo.** O gate
-autoritativo é o verificador, que decide por package; a SPEC-XF9TF9A0 já
-registrou essa divergência entre a documentação e o código do `KRN-02`.
-
-**`Order.Clone()` exportado**, em vez de `FromSnapshot`. Expõe mecanismo interno
-do agregado e não resolve a reconstituição a partir do que o provider guarda.
-
-**Liberar o mutex durante o callback**, para permitir transações concorrentes.
-Introduziria isolamento e conflito de serialização real na realização em
-memória, que é justamente o que ela declara não provar e o que o `KRN-06`
-entrega.
+| Alternativa | Por que foi rejeitada |
+| ----------- | --------------------- |
+| `Within(ctx, func(ctx, tx Transaction) error)` com `tx.Repository("orders")` por nome | É service locator dentro da fronteira, que `UOW-03` veda nominalmente: o compilador deixaria de garantir quais portas o callback recebeu |
+| Recursos em `context.Context` | Vedado por `CTX-05`, e destrói a garantia de `UOW-04`: qualquer código no caminho poderia extrair uma porta não vinculada |
+| `(R, error)` com `*Rejection` viajando como `error` | Só seria admissível se o canal de erro carregasse exclusivamente rejeições, o que não é o caso no serviço de aplicação — ver a segunda força do Contexto |
+| Gerar `message_id` no passo 7, por evento | Mantém a identidade dentro da transação e reabre a porta que `UOW-09` fechou: uma reexecução mintaria identidade nova para o mesmo fato |
+| `time.Time` no domínio, com `depguard` distinguindo por símbolo | O gate autoritativo é o verificador, que decide por package; a SPEC-XF9TF9A0 já registrou essa divergência entre a documentação e o código do `KRN-02` |
+| `Order.Clone()` exportado, em vez de `FromSnapshot` | Expõe mecanismo interno do agregado e não resolve a reconstituição a partir do que o provider guarda |
+| Liberar o mutex durante o callback, para permitir transações concorrentes | Introduziria isolamento e conflito de serialização real na realização em memória, que é justamente o que ela declara não provar e o que o `KRN-06` entrega |
 
 ## Consequências
 
-O `KRN-06` recebe a porta da outbox e a fronteira de UoW já fixadas em tipos de
-domínio, e implementa só o provider. O `KRN-07` reusa a UoW para inbox e efeitos
-locais na mesma transação. O `KRN-09` recebe a política de retry como ponto
-explícito do caso de uso, não como decorator da fronteira. O verificador passa a
-ter unidades `port` e `application` reais para exercitar as células 10, 11, 19,
-22 e 23 sobre código do kernel.
+**Positivas:**
 
-O gate de dependência local cobre três blocos, com um array de vetores por
-bloco: um array único inverteria o resultado, porque `time` é permitido como
-import no `domain` — onde a distinção de símbolo fica com o `forbidigo` — e
-`log` é permitido em `application`, cuja capability inclui observability.
+- O `KRN-06` recebe a porta da outbox e a fronteira de UoW já fixadas em tipos de
+  domínio, e implementa só o provider. O `KRN-07` reusa a UoW para inbox e efeitos
+  locais na mesma transação. O `KRN-09` recebe a política de retry como ponto
+  explícito do caso de uso, não como decorator da fronteira. O verificador passa a
+  ter unidades `port` e `application` reais para exercitar as células 10, 11, 19,
+  22 e 23 sobre código do kernel.
+- O gate de dependência local cobre três blocos, com um array de vetores por
+  bloco: um array único inverteria o resultado, porque `time` é permitido como
+  import no `domain` — onde a distinção de símbolo fica com o `forbidigo` — e
+  `log` é permitido em `application`, cuja capability inclui observability.
 
-Uma limitação da técnica de vetor sobre módulos reais ficou registrada: as
-arestas `port → provider`, `port → application` e `domain → port` apontam na
-direção contrária a arestas de produção que já existem, então o Go recusa por
-ciclo de imports antes de o verificador avaliar o bloco, e o diagnóstico é
-`DMPF-E003` em vez de `DMPF-D001`. Essas células continuam provadas, e melhor,
-pelo oráculo de 36 células do `KRN-02`, que usa módulos sintéticos sem aresta
-contrária. Um vetor de módulo para a célula 12 (`application → contract`) exige
-uma unidade `contract` no `develop` e fica para o `KRN-06`.
+**Negativas:**
 
-A vedação a entrega exatamente-uma-vez fim a fim (P0-3, `GAR-01`) permanece: os
-dois módulos declaram at-least-once com efeitos idempotentes, e nenhum artefato
-promete o contrário.
+- **Custo aceito:** Uma limitação da técnica de vetor sobre módulos reais ficou
+  registrada: as arestas `port → provider`, `port → application` e `domain → port`
+  apontam na direção contrária a arestas de produção que já existem, então o Go
+  recusa por ciclo de imports antes de o verificador avaliar o bloco, e o
+  diagnóstico é `DMPF-E003` em vez de `DMPF-D001`. Essas células continuam
+  provadas, e melhor, pelo oráculo de 36 células do `KRN-02`, que usa módulos
+  sintéticos sem aresta contrária. Um vetor de módulo para a célula 12
+  (`application → contract`) exige uma unidade `contract` no `develop` e fica para
+  o `KRN-06`.
+- A vedação à entrega exatamente-uma-vez fim a fim (P0-3, `GAR-01`) permanece: os
+  dois módulos declaram at-least-once com efeitos idempotentes, e nenhum artefato
+  promete o contrário.
 
 ## Referências
 

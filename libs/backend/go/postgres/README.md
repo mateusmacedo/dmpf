@@ -90,6 +90,44 @@ instâncias de `Table[ID,S]` no bloco `provider` de cada contexto —
   de agregado são de cada contexto, em `apps/backend/<ctx>/provider/schema.sql`,
   com `tenant_id NOT NULL` à frente da chave primária. `Migrate` é idempotente
   e não há tabela de versão: não existe ferramenta de migração aqui.
+- **`grants.go`** — o privilégio da role de runtime por tabela (ADR-063):
+  `Privilege`, `Grant`, `Mutable` (tabela que um `Table` escreve) e
+  `AppendOnly` (tabela que só recebe linhas), e `KernelGrants`, que cada
+  capacidade declara junto do schema (`outbox` e `inbox` com `SELECT`, `INSERT`,
+  `UPDATE` e `DELETE`; `quarantine` com `SELECT` e `INSERT`). `ApplyGrants`
+  converge a role ao conjunto declarado numa transação, sob o lock do
+  `Migrate`, depois de recusar runtime superuser, com `BYPASSRLS`, membro da
+  role que aplica ou dona de objeto fora dos schemas de sistema (relação,
+  função, tipo) ou de large object, com o `REASSIGN OWNED` que a corrige,
+  tabela de `public` sem grant e sequência de `public` que não é de coluna
+  `IDENTITY`. `AssertGrantable` roda só essas recusas da role, sem mudar nada,
+  para o migrador recusar antes do `Migrate`. Depois dos `GRANT`, na mesma
+  transação, confere o privilégio efetivo (`has_table_privilege`,
+  `has_any_column_privilege`, `has_sequence_privilege`, `has_schema_privilege`,
+  `has_database_privilege`, `has_function_privilege`, `pg_has_role`) e só
+  comita se a role tiver todo privilégio declarado e nada além dele. Falta
+  recusada: privilégio declarado que o `GRANT` não concedeu, porque quem o
+  emitiu não é dono da tabela e o PostgreSQL só avisa. Sobra recusada:
+  privilégio de tabela herdado ou de `PUBLIC`, inclusive o concedido só a uma
+  coluna e o `MAINTAIN` a partir do PostgreSQL 17; `USAGE`, `SELECT` ou
+  `UPDATE` em sequência de `public`, que a coluna `IDENTITY` dispensa e o
+  `pg_write_all_data` concede; `CREATE` em qualquer schema que não é de
+  sistema; `CREATE` ou `TEMPORARY` no banco; membership no dono do banco ou de
+  um schema; `REPLICATION`, `CREATEROLE` ou `CREATEDB`; membership, direta ou
+  indireta e mesmo sem `INHERIT`, em qualquer outra role, com ou sem atributo
+  (`pg_execute_server_program`, `pg_write_all_data`); e `EXECUTE` em função
+  `SECURITY DEFINER` fora dos schemas de sistema. O erro nomeia, de uma vez, o
+  que falta e o que sobrou. `Migrate` e `ApplyGrants` fixam
+  `search_path = public` na transação.
+- **`session.go`** — `SessionOf` lê a role (`current_user`) e o banco de uma
+  pool, distinguindo o servidor pela hora de partida do postmaster;
+  `SameDatabase` compara banco, oid e servidor, nunca endereço, para valer
+  através de pooler.
+- **`wait.go`** — `WaitForTables` espera a tabela existir e `WaitForGrants`, o
+  privilégio de cada grant (`has_table_privilege`), para o processo que lê o
+  schema que outro aplica, cada passada numa consulta só. As duas procuram a
+  tabela em `public`, com o nome citado. Dono e superuser têm o privilégio
+  assim que a tabela existe.
 - **`inbox.go`** — `Tx.Inbox(consumer, wait)`, `Register` e `Pending.Complete`
   (`KRN-07`). `Register` é `INSERT … ON CONFLICT DO NOTHING` seguido de leitura:
   devolve a classificação (R1, R2, R3 ou R4), nunca erro de constraint, e a

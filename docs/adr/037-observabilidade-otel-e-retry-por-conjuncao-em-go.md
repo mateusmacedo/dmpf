@@ -44,8 +44,8 @@ toda porta. Erratas 7 e 8 da spec.
 A decisão de amostragem do SDK acontece no **início** do span, antes de o
 desfecho ser conhecido. Os samplers de fábrica devolvem `Drop` no ramo negativo
 — o `TraceIDRatioBased` diretamente (`sdk/trace/sampling.go:71-116`) e o
-`ParentBased` pelos seus defaults, que são `NeverSample()` (`:200-202`, e
-`:156`) —, e um span descartado nunca é criado: nenhum processor poderia
+`ParentBased` pelos seus defaults, que são `NeverSample()` (em
+`configureSamplersForParentBased` e em `NeverSample`) —, e um span descartado nunca é criado: nenhum processor poderia
 retê-lo ao falhar depois. `BatchSpanProcessor` e
 `SimpleSpanProcessor` completam o problema: ambos descartam span sem
 `FlagsSampled` (`batch_span_processor.go:403`, `simple_span_processor.go:79`).
@@ -191,58 +191,48 @@ apagaria do manifesto onde a rede entra.
 
 ## Alternativas descartadas
 
-**Compor `ParentBased(TraceIDRatioBased(...))`** — os ramos negativos de ambos
-devolvem `Drop`, e um span descartado não pode ser retido depois. É exatamente o
-que `TRC-14` proíbe.
-
-**Dois processors, um para amostrados e outro para erros** — dois donos do mesmo
-exportador, cujo `ExportSpans` é síncrono e sem garantia de concorrência.
-
-**Exportador de vendor em vez do Collector** — acopla ao backend a decisão que o
-ADR-026 quis manter reversível.
-
-**`cenkalti/backoff` ou `failsafe-go`** — trariam retry por biblioteca, com
-política própria, onde a norma pede conjunção de fatores explícita e auditável.
-
-**Realizar a taxonomia de erro aqui** — invade FND-07 e o `KRN-10`.
-
-**Estender `ports.Clock` para cobrir timer e sleep** — violaria `RES-24`,
-levando política de resiliência ao bloco `port`.
-
-**Tag `integration` ou `testing.Short()` para o teste do collector** — cria
-caminho silencioso de não execução. O Docker no runner foi confirmado.
+| Alternativa | Por que foi rejeitada |
+| ----------- | --------------------- |
+| Compor `ParentBased(TraceIDRatioBased(...))` | Os ramos negativos de ambos devolvem `Drop`, e um span descartado não pode ser retido depois. É exatamente o que `TRC-14` proíbe |
+| Dois processors, um para amostrados e outro para erros | Dois donos do mesmo exportador, cujo `ExportSpans` é síncrono e sem garantia de concorrência |
+| Exportador de vendor em vez do Collector | Acopla ao backend a decisão que o ADR-026 quis manter reversível |
+| `cenkalti/backoff` ou `failsafe-go` | Trariam retry por biblioteca, com política própria, onde a norma pede conjunção de fatores explícita e auditável |
+| Realizar a taxonomia de erro aqui | Invade FND-07 e o `KRN-10` |
+| Estender `ports.Clock` para cobrir timer e sleep | Violaria `RES-24`, levando política de resiliência ao bloco `port` |
+| Tag `integration` ou `testing.Short()` para o teste do collector | Cria caminho silencioso de não execução. O Docker no runner foi confirmado |
 
 ## Consequências
 
-O kernel passa a ter observabilidade e resiliência executáveis. O `KRN-06`
-(outbox Postgres, ADR-035) e o `KRN-07` (inbox, ADR-036) mergearam em paralelo a
-esta entrega e ainda não são instrumentados por ela: ligá-los ao gancho e às
-fichas de resiliência é trabalho de quem os consumir. O `KRN-10` (admissão)
-encontra pronta a posição de rate limit que a ficha declara não aplicável aqui.
+**Positivas:**
 
-A suíte do módulo passa a **exigir Docker**: sem daemon acessível, o package
-`otelboot/otlp` falha. É o preço declarado de não ter caminho silencioso.
-`TESTCONTAINERS_RYUK_DISABLED=true` existe como escape para ambiente onde o Ryuk
-não sobe — e é escape, não default: sem ele, containers órfãos ficam para trás
-se o processo de teste morrer.
+- O kernel passa a ter observabilidade e resiliência executáveis.
+- O `KRN-10` (admissão) encontra pronta a posição de rate limit que a ficha
+  declara não aplicável aqui.
 
-O módulo é o primeiro do kernel a abrir socket, e o primeiro cuja allowlist tem
-capability `io.network`. Um serviço que o consuma herda essa fronteira.
+**Negativas:**
 
-A garantia de telemetria é **at-least-once e sob perda declarada**: o exportador
-repete, a fila descarta sob saturação e a amostragem descarta por desenho.
-Telemetria não é registro contábil. A trilha de auditoria, por isso mesmo, vai a
-um sink próprio e nunca ao handler de log (`LOG-14`) — retenção, nível e
-amostragem de log podem derrubar um registro, e um fato auditável não pode
-depender disso.
-
-`go mod tidy` não roda neste módulo: ele tenta resolver os módulos irmãos pelo
-proxy, e quem os resolve é o `go.work`. Dependência direta nova é promovida à
-mão do bloco `// indirect`.
-
-O `dmpf-gate-check.sh` e o `nx affected` não devem rodar ao mesmo tempo: o gate
-cria arquivos `zz_gate_*.go` temporários nos outros módulos, e um lint
-concorrente os encontra no meio do caminho.
+- O `KRN-06` (outbox Postgres, ADR-035) e o `KRN-07` (inbox, ADR-036) mergearam em
+  paralelo a esta entrega e ainda não são instrumentados por ela: ligá-los ao
+  gancho e às fichas de resiliência é trabalho de quem os consumir.
+- **Custo aceito:** A suíte do módulo passa a **exigir Docker**: sem daemon
+  acessível, o package `otelboot/otlp` falha. É o preço declarado de não ter
+  caminho silencioso. `TESTCONTAINERS_RYUK_DISABLED=true` existe como escape para
+  ambiente onde o Ryuk não sobe — e é escape, não default: sem ele, containers
+  órfãos ficam para trás se o processo de teste morrer.
+- O módulo é o primeiro do kernel a abrir socket, e o primeiro cuja allowlist tem
+  capability `io.network`. Um serviço que o consuma herda essa fronteira.
+- A garantia de telemetria é **at-least-once e sob perda declarada**: o exportador
+  repete, a fila descarta sob saturação e a amostragem descarta por desenho.
+  Telemetria não é registro contábil. A trilha de auditoria, por isso mesmo, vai a
+  um sink próprio e nunca ao handler de log (`LOG-14`) — retenção, nível e
+  amostragem de log podem derrubar um registro, e um fato auditável não pode
+  depender disso.
+- `go mod tidy` não roda neste módulo: ele tenta resolver os módulos irmãos pelo
+  proxy, e quem os resolve é o `go.work`. Dependência direta nova é promovida à
+  mão do bloco `// indirect`.
+- O `dmpf-gate-check.sh` e o `nx affected` não devem rodar ao mesmo tempo: o gate
+  cria arquivos `zz_gate_*.go` temporários nos outros módulos, e um lint
+  concorrente os encontra no meio do caminho.
 
 ## Referências
 

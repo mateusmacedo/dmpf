@@ -37,18 +37,19 @@ Os packages do kernel `domain` e `application` têm o mesmo nome dos deste módu
 - **Interceptors, nesta ordem:** mTLS do peer contra `GRPC_TRUSTED_CLIENTS` (quando TLS está ligado) → desfecho no span e registro de acesso `grpc call` → admissão por método → deadline obrigatório (sem prazo, `INVALID_ARGUMENT` antes do caso de uso, `GRP-04`) → contexto de execução (`x-correlation-id` preservado ou cunhado, `request_id` próprio como causação, `x-tenant-id` lido só de peer verificado, `idempotency-key` exigida nos comandos e levada ao caso de uso) → handler. A cadeia vale só para os métodos de `OrdersService`: a checagem de saúde passa direto, sem admissão nem prazo obrigatório.
 - **Desfechos:** a rejeição de domínio volta no `oneof result`; `ErrNotFound` (inclusive acesso a identificador de outro tenant) vira `NOT_FOUND`, conflito de versão `ABORTED`, ausência de tenant ou de permissão `PERMISSION_DENIED`, prazo `DEADLINE_EXCEEDED` e o resto `INTERNAL` sem detalhe.
 - **Idempotência dos comandos:** `AddItem` e `PlaceOrder` exigem a metadata `idempotency-key`, no formato `^[A-Za-z0-9._-]{1,128}$` (FND-04 §7.6, ADR-056). Cada comando passa pela inbox do contexto, com `consumer_name` `orders.commands`, na transação do efeito. Metadata ausente é `INVALID_ARGUMENT` com reason `MISSING_IDEMPOTENCY_KEY`, e fora do formato é `INVALID_IDEMPOTENCY_KEY`. A mesma chave com o mesmo pedido devolve a resposta gravada, aceite ou recusa, com o header `idempotent-replayed: true` e sem nova auditoria. Com outro pedido, é `FAILED_PRECONDITION` com `REUSED_IDEMPOTENCY_KEY`; em andamento além da espera, `ABORTED` com `IN_FLIGHT_IDEMPOTENCY_KEY`. A entrada vale 24h.
-- **Saúde:** o serviço começa `NOT_SERVING` e passa a `SERVING` depois do ping no pool e do `Migrate`, ou, sem `MIGRATE`, depois que a outbox e a inbox existem; volta a `NOT_SERVING` no shutdown. O registro `grpc listening` traz o endereço real do listener em `server.address` e `server.port`.
+- **Saúde:** o serviço começa `NOT_SERVING` e passa a `SERVING` depois do ping no pool, do `Migrate` e dos grants, ou, sem `MIGRATE`, depois que a role de runtime tem os grants da outbox, da inbox e de `orders`; volta a `NOT_SERVING` no shutdown. O registro `grpc listening` traz o endereço real do listener em `server.address` e `server.port`.
 - **Banco observável:** um `pgx.QueryTracer` abre um span CLIENT por consulta feita sob um span, `{db.operation.name} {db.collection.name}`, com `db.query.text` parametrizado e sem os argumentos, e `error.type` = SQLSTATE na falha (RF-B6).
 
 ## Configuração
 
 | Variável | Papel | Efeito |
 | --- | --- | --- |
-| `PG_DSN` | todos | Banco e role `orders` (ADR-053) |
+| `PG_DSN` | todos | Banco `orders`, como a role de runtime `orders`, sem posse (ADR-053, ADR-063) |
 | `GRPC_ADDR` | `api` | Default `:9090` |
 | `GRPC_INSECURE` ou `GRPC_TLS_CERT_FILE` + `GRPC_TLS_KEY_FILE` | `api` | Transporte; sem nenhum, exit 2 |
 | `GRPC_CLIENT_CA_FILE`, `GRPC_TRUSTED_CLIENTS` | `api`, com TLS | CA dos clientes e allowlist de identidades por URI/DNS SAN (nunca CN — ex.: `spiffe://dmpf/bff`); com TLS ligado os dois são obrigatórios (ADR-052), e o `x-tenant-id` só é lido de peer verificado |
 | `MIGRATE` | `api` | Aplica o schema antes de servir |
+| `PG_MIGRATE_DSN` | `api` | Role migradora `orders_migrator`, dona do banco, lida só com `MIGRATE`, que a exige: o `api` aplica por ela o schema e os grants da role de runtime e a desconecta antes de servir (ADR-063). Nunca chega a `relay` nem `consumer` |
 | `ITEM_LIMIT` | `api` | Default 10 |
 | `METRIC_TENANTS` | `api` | Tenants com bucket de admissão e rótulo de métrica próprios (`MET-07`), separados por vírgula; os demais compartilham `other` |
 | `KAFKA_BROKERS`, `KAFKA_INSECURE` | `relay` | Brokers e opt-out de TLS |
@@ -78,7 +79,7 @@ purga a outbox publicada. As duas purgas param antes de o pool fechar.
 ```bash
 pnpm nx run bff:infra-up
 docker compose -f infra/local/docker-compose.yml --profile postgres --profile dmpf up -d postgres-init
-PG_DSN='postgres://orders:orders-local@localhost:5432/orders?sslmode=disable' MIGRATE=true GRPC_INSECURE=true \
+PG_DSN='postgres://orders:orders-local@localhost:5432/orders?sslmode=disable' GRPC_INSECURE=true \
   pnpm nx run orders:serve-api
 PG_DSN='postgres://orders:orders-local@localhost:5432/orders?sslmode=disable' KAFKA_BROKERS=localhost:9092 KAFKA_INSECURE=true \
   KAFKA_ORDERS_TOPIC=orders.events KAFKA_ORDERS_DLQ=orders.events.dlq KAFKA_GROUP=orders \
@@ -90,6 +91,8 @@ PG_DSN='postgres://orders:orders-local@localhost:5432/orders?sslmode=disable' KA
 ## Targets Nx
 
 `fmt-check`, `vet`, `build`, `test-race`, `govulncheck`, `serve-api` e `serve-relay`, mais os de container: `docker:build`, `docker:run` (papel `api`) e `docker:run-relay`, que o `bff:docker:run` sobe.
+
+O `serve-api` carrega o `deploy/.env.migrator.example` (`MIGRATE=true` e `PG_MIGRATE_DSN`) e, por cima, as cópias locais `deploy/.env` e `deploy/.env.migrator`; o `docker:run` lê as duas cópias, que o `deploy-env` cria a partir dos exemplos quando faltam. Os demais `serve-*` e os `docker:run-*` carregam só o `deploy/.env.example` e a cópia `deploy/.env`, sem a credencial da migradora.
 
 ## Testes
 

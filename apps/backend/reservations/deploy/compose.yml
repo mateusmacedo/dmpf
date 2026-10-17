@@ -25,6 +25,7 @@ services:
     environment:
       <<: *env
       OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES:-service.version=local,deployment.environment.name=local},service.instance.id=reservations-api,dmpf.process.role=api
+      PG_MIGRATE_DSN: postgres://reservations_migrator:${RESERVATIONS_PG_MIGRATOR_PASSWORD:-reservations-migrator-local}@postgres:5432/reservations?sslmode=disable
       GRPC_TLS_CERT_FILE: /pki/dmpf-reservations-api.crt
       GRPC_TLS_KEY_FILE: /pki/dmpf-reservations-api.key
     depends_on:

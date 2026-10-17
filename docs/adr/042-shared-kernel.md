@@ -134,8 +134,8 @@ igual nos dois.
   possibilidade de emitir a designação malformada como aviso.
 - A superfície que o `DMPF-T002` precisa vigiar cresce: além da classificação,
   agora também a designação.
-- O caminho não é exercitado por nenhum PR normal, porque o baseline real não
-  designa ninguém até a adoção. Cobri-lo exigiu um gate próprio
+- **Custo aceito:** O caminho não é exercitado por nenhum PR normal, porque o
+  baseline real não designa ninguém até a adoção. Cobri-lo exigiu um gate próprio
   (`tools/dmpf-shared-kernel-check.sh`) com fixture sintética e commits em
   worktree descartável — o primeiro gate do repositório que precisa de
   histórico git, já que `T002` decide sobre a mensagem de commit.

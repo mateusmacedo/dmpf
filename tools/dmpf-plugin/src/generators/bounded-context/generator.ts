@@ -174,8 +174,15 @@ const imageRefOf = (projectRoot: string): string =>
 const roleResourceOf = (name: string, role: string): string =>
   `\${OTEL_RESOURCE_ATTRIBUTES:+$OTEL_RESOURCE_ATTRIBUTES,}service.instance.id=${name}-local-${role},dmpf.process.role=${role}`;
 
+const sourceOf = (file: string): string => `[ ! -f ${file} ] || . ${file};`;
+
+const envFilesOf = (role: string): readonly string[] =>
+  role === 'api'
+    ? ['deploy/.env.migrator.example', 'deploy/.env', 'deploy/.env.migrator']
+    : ['deploy/.env'];
+
 const serveCommandOf = (name: string, role: string): string =>
-  `set -a; [ ! -f deploy/.env ] || . deploy/.env; OTEL_RESOURCE_ATTRIBUTES="${roleResourceOf(name, role)}"; set +a; exec go run ./cmd --role ${role}`;
+  `set -a; ${envFilesOf(role).map(sourceOf).join(' ')} OTEL_RESOURCE_ATTRIBUTES="${roleResourceOf(name, role)}"; set +a; exec go run ./cmd --role ${role}`;
 
 const dockerRunCommandOf = (name: string, image: string, role: string): string =>
   `[ ! -f deploy/.env ] || . deploy/.env; exec docker run --rm --name ${name}-${role} --network host --env-file deploy/.env -e OTEL_RESOURCE_ATTRIBUTES="${roleResourceOf(name, role)}" ${image} --role ${role}`;

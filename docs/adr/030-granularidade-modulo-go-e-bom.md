@@ -160,8 +160,9 @@ seja lida como restrição vigente.
   tipos puros, legítimos no domínio. `time.Now()` é `io.clock` e entra por porta,
   mas essa distinção só é verificável semanticamente — também em `KRN-02`.
 - O manifesto `dmpf-units.json` tem, até `KRN-02`, apenas validação estrutural.
-- O módulo Go carrega um `package.json`, artefato estranho à stack, e passa a
-  figurar como importer no `pnpm-lock.yaml`. É o preço de manter Go no Nx Release.
+- **Custo aceito:** O módulo Go carrega um `package.json`, artefato estranho à
+  stack, e passa a figurar como importer no `pnpm-lock.yaml`. É o preço de manter
+  Go no Nx Release.
 - A combinação que faz o target `lint` rodar golangci-lint — `linter: "go"` com
   `args` começando em `run` — usa o executor do `@nx-go/nx-go` de uma forma que
   ele permite mas não documenta. Um bump do plugin pode quebrá-la, e o sintoma

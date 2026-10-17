@@ -64,6 +64,25 @@
         "cwd": "{projectRoot}"
       }
     },
+    "test-integration": {
+      "executor": "@mateusmacedo/dmpf-plugin:test-env",
+      "cache": false,
+      "inputs": [
+        "go",
+        "^go",
+        "{workspaceRoot}/tools/dmpf-baseline/**",
+        "{workspaceRoot}/tools/dmpf-shared-kernel-check.sh"
+      ],
+      "options": {
+        "command": "go test -race -count=1 -tags=integration ./infrasync/..."
+      },
+      "dependsOn": [
+        {
+          "projects": ["testkit"],
+          "target": "test-infra-up"
+        }
+      ]
+    },
     "govulncheck": {
       "executor": "nx:run-commands",
       "cache": false,

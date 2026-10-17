@@ -92,3 +92,80 @@ services:
       interval: 2s
       timeout: 3s
       retries: 30
+
+  redis:
+    image: redis:7.4.11-alpine@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499
+    command:
+      - redis-server
+      - --appendonly
+      - 'yes'
+      - --appendfsync
+      - everysec
+      - --maxmemory-policy
+      - noeviction
+      - --user
+      - default
+      - 'off'
+      - --user
+      - revocation
+      - 'on'
+      - '>dmpf-test-revocation'
+      - '~dmpf:revocation:*'
+      - -@all
+      - +hello
+      - +auth
+      - +client|setinfo
+      - +ping
+      - +mget
+      - +evalsha
+      - +eval
+      - +get
+      - +set
+    ports:
+      - '127.0.0.1:16379:6379'
+    tmpfs:
+      - /data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - redis-cli --no-auth-warning -u redis://revocation:dmpf-test-revocation@localhost:6379/0 ping | grep -q PONG
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.8.1@sha256:79c623a22abacf3fe6c00a5fb30f5b7843d717b234033b80995891c06116d244
+    profiles: [keycloak]
+    command: ['start', '--http-enabled=true', '--health-enabled=true', '--cache=local', '--db=dev-file', '--import-realm']
+    environment:
+      KC_HOSTNAME: http://127.0.0.1:18180
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      DMPF_SESSION_EVENTS_SECRET: dmpf-test-session-events
+    ports:
+      - '127.0.0.1:18180:8080'
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    volumes:
+      - { type: tmpfs, target: /opt/keycloak/data/h2, tmpfs: { mode: 01777 } }
+      - ../keycloak/dmpf-realm.json:/opt/keycloak/data/import/dmpf-realm.json:ro
+    healthcheck:
+      test:
+        - CMD
+        - bash
+        - -c
+        - '{ printf "HEAD /health/ready HTTP/1.0\r\n\r\n" >&0; grep -q "HTTP/1.0 200"; } 0<>/dev/tcp/localhost/9000'
+      interval: 2s
+      timeout: 3s
+      retries: 60
+
+  keycloak-init:
+    image: quay.io/keycloak/keycloak:26.8.1@sha256:79c623a22abacf3fe6c00a5fb30f5b7843d717b234033b80995891c06116d244
+    profiles: [init]
+    entrypoint: ['bash', '/seed/seed.sh']
+    environment:
+      KEYCLOAK_URL: http://keycloak:8080
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+    volumes:
+      - ../keycloak/dev/seed.sh:/seed/seed.sh:ro

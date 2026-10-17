@@ -232,10 +232,15 @@ snapshotaria no init do package.
 
 ## Consequências
 
+**Positivas:**
+
 - O gate é fail-closed a partir deste PR: lacuna de configuração, arquivo não
   coberto, import não resolvido e manifesto ausente **reprovam**. Condição que o
   verificador não consegue avaliar é reportada como "não verificado", que também
   reprova.
+
+**Negativas:**
+
 - `KRN-03`..`KRN-12` nascem sob gate, e cada módulo novo precisa declarar o
   próprio `dmpf-units.json` enumerando os packages. Manifesto ausente é
   `DMPF-U004`; package não declarado é `DMPF-U001`.
@@ -243,9 +248,9 @@ snapshotaria no init do package.
   regulado, e o digest força a mudança a ser explícita.
 - Mudança normativa precisa vir em commit próprio. Um PR que misture
   reclassificação com código reprova em `DMPF-T002`.
-- O custo no CI é linear em módulos × perfis. Medido: 0,29-0,34s com 2 módulos e
-  1 perfil, sendo o `go list` o termo dominante (0,18s isolado). Com os 12
-  módulos previstos, a projeção fica na casa de 2s.
+- **Custo aceito:** O custo no CI é linear em módulos × perfis. Medido:
+  0,29-0,34s com 2 módulos e 1 perfil, sendo o `go list` o termo dominante (0,18s
+  isolado). Com os 12 módulos previstos, a projeção fica na casa de 2s.
 - A tabela de capability da stdlib é mantida à mão e casa **exato**: package fora
   dela reprova por não-sabido em bloco `default deny`. Herdar por prefixo era
   inseguro — `io/ioutil` herdava `pure` de `io`.

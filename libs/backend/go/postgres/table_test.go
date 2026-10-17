@@ -11,10 +11,12 @@ import (
 	"testing"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/pg"
 )
 
 type probe struct {
@@ -256,6 +258,34 @@ func TestTableHonoursTheStoredVersion(t *testing.T) {
 	}
 	if err := saveProbe(t, ctx, pool, "P-1", probe{Items: 3}, 1); !errors.Is(err, ports.ErrVersionConflict) {
 		t.Fatalf("Save() at a stale version = %v, want ErrVersionConflict", err)
+	}
+}
+
+func TestTableReturnsADeniedStatementAsItIs(t *testing.T) {
+	pool := openPool(t)
+	admin := openAdminPool(t)
+	ctx := scopedTo(t, "acme")
+	if err := saveProbe(t, ctx, pool, "P-1", probe{Items: 1}, 0); err != nil {
+		t.Fatalf("Save() = %v, want nil", err)
+	}
+
+	mustExec(t, admin, "REVOKE UPDATE ON probes FROM "+pg.RuntimeRole)
+	requireDenied(t, saveProbe(t, ctx, pool, "P-1", probe{Items: 2}, 1), "Save() of an existing aggregate")
+	mustExec(t, admin, "REVOKE INSERT ON probes FROM "+pg.RuntimeRole)
+	requireDenied(t, saveProbe(t, ctx, pool, "P-2", probe{Items: 1}, 0), "Save() of a new aggregate")
+	mustExec(t, admin, "REVOKE SELECT ON probes FROM "+pg.RuntimeRole)
+	_, _, err := probeTable.Reader(postgres.NewReadPool(pool)).Load(ctx, "P-1")
+	requireDenied(t, err, "Load()")
+}
+
+func requireDenied(t *testing.T, err error, what string) {
+	t.Helper()
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) || pgErr.Code != "42501" {
+		t.Fatalf("%s without privilege = %v, want the PgError with SQLSTATE 42501", what, err)
+	}
+	if errors.Is(err, ports.ErrVersionConflict) || errors.Is(err, ports.ErrNotFound) {
+		t.Fatalf("%s without privilege = %v, reported as a port outcome", what, err)
 	}
 }
 

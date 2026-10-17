@@ -1,4 +1,4 @@
-# ADR-052: A identidade do workload é verificada no gRPC por mTLS e no Kafka por SASL
+# ADR-052: Verificar a identidade do workload no gRPC por mTLS e no Kafka por SASL
 
 ## Status
 
@@ -41,7 +41,7 @@ O code review da spec encontrou três falhas que se somavam:
 
 **Negativas:**
 
-- Cada ambiente precisa de uma CA de clientes, do certificado do BFF e de um principal SASL por processo, entregues por Secret.
+- **Custo aceito:** Cada ambiente precisa de uma CA de clientes, do certificado do BFF e de um principal SASL por processo, entregues por Secret.
 - A sonda gRPC do kubelet não apresenta certificado; com mTLS ativo os `api` usam sonda de socket.
 - O listener externo do Redpanda local continua sem autenticação, para os testes do host, e o principal dele (o usuário vazio) é superusuário. Ele não é usado pela topologia, mas outro container da rede o alcança: é só para desenvolvimento.
 - Em `hmg` o Kafka é gerenciado fora do repositório; a ACL fica registrada como pré-requisito no `secrets.example.yaml.tmpl` do overlay, sem enforcement daqui.

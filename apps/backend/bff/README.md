@@ -1,6 +1,6 @@
 # bff
 
-Única borda REST/JSON pública da topologia de referência do kernel DMPF (ADR-044). Um processo, sem banco, outbox nem consumer: autentica o sujeito, autoriza por permissão e traduz cada rota do contrato OpenAPI em uma chamada gRPC a um dos contextos (`RST-01`, `GRP-01`, `IDN-16`).
+Única borda REST/JSON pública da topologia de referência do kernel DMPF (ADR-044). Sem banco, outbox nem consumer, o binário tem dois papéis: a API autentica o sujeito, recusa o token de uma sessão revogada pela deny-list do Redis, autoriza por permissão e traduz cada rota do contrato OpenAPI em uma chamada gRPC a um dos contextos (`RST-01`, `GRP-01`, `IDN-16`); o papel `session-events` (seção própria) alimenta essa deny-list com os eventos de sessão do Keycloak.
 
 | Rota | Contrato | RPC | Permissão |
 | --- | --- | --- | --- |
@@ -31,11 +31,26 @@ O `/readyz` lê o estado do canal gRPC de cada contexto: com o health check do s
 
 As duas rotas ficam fora do tracing: `GET` e `HEAD` de `/livez` e `/readyz` não abrem span SERVER nem ponto de `http.server.request.duration`, porque o filtro do `otelhttp` da porta de administração pergunta ao `ServeMux` dela que handler atenderia a requisição e só pula as rotas de saúde montadas (`app/api/health.go`). O `405` nesses paths, inclusive o de `OPTIONS` (a porta não tem CORS), e o `404` dos demais continuam com span e ponto e, como toda resposta com SERVER, com um `http request` próprio (seção Cadeia de uma requisição). O registro de acesso `http request` de `GET` e `HEAD` delas, com `http.request.method`, `http.route`, `http.response.status_code` e `dmpf.outcome_category`, sai no máximo uma vez a cada 5 min por rota e processo quando a resposta é 2xx; a resposta fora de 2xx sai sempre, no nível da tabela única de severidade (o `503` em `error`), e não mexe na janela do sucesso.
 
+## Papel session-events
+
+`bff session-events` é um processo à parte, com uma réplica, que lê só a própria configuração (nenhuma variável da API) e grava na mesma deny-list que a API consulta. Ele monta os adaptadores do `authn` sobre o `redis.RevocationStore`:
+
+- `POST /backchannel-logout` na porta `SESSION_EVENTS_ADDR` (default `:8091`), o receptor do OpenID Connect Back-Channel Logout 1.0 para o client `OIDC_BACKCHANNEL_CLIENT_ID` (`dmpf-portal` no realm de referência). Responde `200`, `400` ou `503`, sempre com `Cache-Control: no-store`; os demais paths respondem `404`;
+- o polling da Admin REST do Keycloak com client credentials do client `OIDC_SESSION_EVENTS_CLIENT_ID` (`dmpf-session-events`, com `view-events`), que relê a cada `OIDC_SESSION_EVENTS_INTERVAL_SECONDS` a janela de admin events e de eventos de usuário `LOGOUT` e reaplica tudo. É a reconciliação do logout que o back-channel perder.
+
+A porta de administração (`ADMIN_ADDR`, default `:8092`) serve `/livez` e `/readyz` como a da API; o `/readyz` só cai para `503` no `SIGTERM`, sem depender do Redis nem do Keycloak. `bff session-events healthcheck` consulta esse `/readyz` lendo só `ADMIN_ADDR`. A partida faz a descoberta OIDC do issuer e falha com exit 1 se ele não responder; o polling para depois que as duas portas fecham.
+
+No Kubernetes, o Deployment `bff-session-events` só aceita entrada do Keycloak na porta `backchannel` (NetworkPolicy só de `Ingress`) e é o único papel do BFF que referencia o Secret `keycloak-session-events`, o client secret do polling (ADR-063; o Keycloak também o lê para importar o realm, ADR-064); o Service `bff-session-events` é o destino do `DMPF_BACKCHANNEL_LOGOUT_URL` do realm no `dev`. A URL do Redis, nos dois papéis, vem do Secret `redis` (chave `url`).
+
 ## Topologia
 
 ```mermaid
 flowchart LR
   client[cliente HTTP] --> bff[bff]
+  bff -->|deny-list| redis[(redis)]
+  keycloak[keycloak] -->|back-channel logout| events[bff session-events]
+  events -->|admin events e LOGOUT| keycloak
+  events --> redis
   bff -->|gRPC + mTLS| orders[orders api]
   bff -->|gRPC + mTLS| reservations[reservations api]
   bff -->|gRPC + mTLS| bookings[bookings api]
@@ -46,7 +61,7 @@ flowchart LR
 
 ## Unidade do manifesto
 
-`bff/app`, bloco `app`, `bounded_context` `bff`. O BFF alcança só o contrato gerado de `company.{orders,reservations,bookings}.service.v1` — superfície pública por construção — e o shared kernel: `http`, `grpc`, `transport`, `observability`, `authn` e `ports`. Importar domínio ou aplicação dos contextos reprova no verificador com `DMPF-D002`; o `external` não declara `pgx` nem `franz-go`.
+`bff/app`, bloco `app`, `bounded_context` `bff`. O BFF alcança só o contrato gerado de `company.{orders,reservations,bookings}.service.v1` — superfície pública por construção — e o shared kernel: `http`, `grpc`, `transport`, `observability`, `authn`, `redis` e `ports`. Importar domínio ou aplicação dos contextos reprova no verificador com `DMPF-D002`; o `external` não declara `pgx` nem `franz-go`.
 
 ## Cadeia de uma requisição
 
@@ -82,7 +97,7 @@ não leva o header. A entrada vale 24h. O CORS expõe `X-Correlation-ID` e
 
 ## Autenticação
 
-O BFF é a única borda que resolve identidade (`ResolveIdentity`, pacote `authn` do kernel): um verificador OIDC (`OIDC_*`) ou o mock de desenvolvimento (`AUTH_DEV_MOCK`), nunca os dois ao mesmo tempo. O sujeito e as permissões não atravessam o fan-out para `orders` e `reservations` (`CTX-12`) — o que chega a cada contexto é o tenant, verificado por mTLS na origem (ver `apps/backend/orders/README.md` e `apps/backend/reservations/README.md`).
+O BFF é a única borda que resolve identidade (`ResolveIdentity`, pacote `authn` do kernel): um verificador OIDC (`OIDC_*`) ou o mock de desenvolvimento (`AUTH_DEV_MOCK`), nunca os dois ao mesmo tempo. Com o verificador, cada token aceito é consultado na deny-list do Redis depois da assinatura, do issuer, da audiência, da expiração e do sujeito: sessão ou sujeito revogado vira 401 com `dmpf.auth.refusal_reason` = `session_revoked`, e o Redis fora ou lento além de `OIDC_REVOCATION_TIMEOUT_MS` recusa o token (falha fechada, `libs/backend/go/authn/README.md`). `REDIS_URL` é obrigatório inclusive com `AUTH_DEV_MOCK`, que não consulta a deny-list. O sujeito e as permissões não atravessam o fan-out para `orders` e `reservations` (`CTX-12`) — o que chega a cada contexto é o tenant, verificado por mTLS na origem (ver `apps/backend/orders/README.md` e `apps/backend/reservations/README.md`).
 
 ## Configuração
 
@@ -95,6 +110,10 @@ O BFF é a única borda que resolve identidade (`ResolveIdentity`, pacote `authn
 | `OIDC_ISSUER`, `OIDC_AUDIENCE`, `OIDC_TENANT_CLAIM` | uma das duas linhas de autenticação | Emissor, audiência e claim de tenant do access token |
 | `OIDC_PERMISSION_CLAIMS` | não | Caminhos das claims de permissão, separados por vírgula; default `scope,realm_access.roles` (formato Keycloak) |
 | `OIDC_DISCOVERY_TIMEOUT_SECONDS` | não | Default 10 |
+| `REDIS_URL` | sim | Redis da deny-list de revogação, banco 0, com o usuário ACL restrito a `~dmpf:revocation:*` (`redis://<usuário>:<senha>@host:porta/0`); ausente, inválido ou com outro banco, a partida falha com exit 2 sem ecoar a URL |
+| `REDIS_DIAL_TIMEOUT_MS`, `REDIS_COMMAND_TIMEOUT_MS` | não | Defaults 1000 e 500; acima da maior `time.Duration`, a partida falha com exit 2 |
+| `REDIS_REQUIRE_TLS` | não | Default `false`; `true` recusa o `redis://` com exit 2 e exige `rediss://`. O overlay hmg declara `true` para a API e o `session-events` |
+| `OIDC_REVOCATION_TIMEOUT_MS` | não | Prazo da consulta à deny-list; default 250 |
 | `AUTH_DEV_MOCK` | uma das duas linhas de autenticação | `true` lê a identidade declarada no próprio Bearer, sem verificação — só desenvolvimento; não pode coexistir com `OIDC_ISSUER` |
 | `HTTP_ADDR` | não | Default `:8080`; `127.0.0.1:0` escolhe porta livre, e o registro `http listening` traz o endereço em `server.address` e `server.port` |
 | `ADMIN_ADDR` | não | Porta de administração com `/livez` e `/readyz`; default `:8090`, em `host:porta` (sem porta, a partida falha com exit 2); `127.0.0.1:0` escolhe porta livre, e o registro `admin listening` traz o endereço como o `http listening` |
@@ -108,26 +127,41 @@ O BFF é a única borda que resolve identidade (`ResolveIdentity`, pacote `authn
 
 Variável obrigatória ausente, ou nenhuma política de transporte gRPC ou de autenticação, encerra a partida com exit 2 nomeando o que falta.
 
+O papel `session-events` lê só estas, além de `OTEL_*`, `REDIS_URL`, `REDIS_*_TIMEOUT_MS`, `REDIS_REQUIRE_TLS` e `DRAIN_DELAY`, que valem como na API:
+
+| Variável | Obrigatória | Efeito |
+| --- | --- | --- |
+| `OIDC_ISSUER` | sim | Issuer do realm (`<base>/realms/<realm>`), do qual derivam a descoberta, o token endpoint e a Admin REST |
+| `OIDC_REVOCATION_TTL_SECONDS` | sim | Maior tempo de vida de token que o realm emite (`300`, o `accessTokenLifespan` de referência) |
+| `OIDC_REVOCATION_SKEW_SECONDS` | não | Margem somada ao TTL; default 60 |
+| `OIDC_BACKCHANNEL_CLIENT_ID` | sim | Client a que o Keycloak endereça o logout token (`aud`) |
+| `OIDC_SESSION_EVENTS_CLIENT_ID`, `OIDC_SESSION_EVENTS_CLIENT_SECRET` | sim | Service account do polling; o secret sai no registro de configuração só como `<redacted>` |
+| `OIDC_SESSION_EVENTS_INTERVAL_SECONDS` | não | Intervalo do polling; default 5 |
+| `OIDC_DISCOVERY_TIMEOUT_SECONDS` | não | Default 10 |
+| `SESSION_EVENTS_ADDR` | não | Porta do receptor; default `:8091` |
+| `ADMIN_ADDR` | não | Porta de administração do papel; default `:8092`, e não pode ser a do receptor |
+
 ## Rodar localmente
 
-`pnpm nx run bff:serve` sobe a infra local, os papéis dos três contextos (`serve-api`, `serve-relay` e o `serve-consumer` do `reservations`) e o BFF no host, cada processo com o `deploy/.env.example` da app; um `deploy/.env` ao lado sobrepõe os valores. Os contextos ouvem gRPC sem TLS em 9191 (`orders`), 9192 (`reservations`) e 9193 (`bookings`), e o BFF ouve HTTP em 8080, com a porta de administração em 8090.
+`pnpm nx run bff:serve` sobe a infra local, com o Redis do profile `redis` na sessão, os papéis dos três contextos (`serve-api`, `serve-relay` e o `serve-consumer` do `reservations`), o BFF e o `serve-session-events` no host, cada processo com o `deploy/.env.example` da app; um `deploy/.env` ao lado sobrepõe os valores. Só o `serve-api` carrega também o `deploy/.env.migrator.example`, com `MIGRATE=true` e o `PG_MIGRATE_DSN` da migradora, e só o `serve-session-events` carrega o `deploy/.env.session-events.example` (e um `deploy/.env.session-events`), com o issuer, as portas do papel e o client secret do polling. O `serve-session-events` depende do `keycloak-up`, que sobe só o Keycloak do Compose local. Os contextos ouvem gRPC sem TLS em 9191 (`orders`), 9192 (`reservations`) e 9193 (`bookings`); o BFF ouve HTTP em 8080, com a porta de administração em 8090, e o papel `session-events` ouve em 8091, com a administração em 8092. O realm local entrega o back-channel ao container `dmpf-bff-session-events` (`KEYCLOAK_BACKCHANNEL_LOGOUT_URL` do `infra/local/.env.example`); com o papel no host, o logout chega pelo polling.
 
 ```bash
 pnpm nx run bff:serve
 ```
 
-A topologia inteira sobe por `docker compose -f infra/local/docker-compose.yml --profile dmpf up -d --build`, com mTLS entre o BFF e os `api` e SASL no Kafka interno (ver `infra/README.md`).
+A topologia inteira sobe por `docker compose -f infra/local/docker-compose.yml --profile dmpf up -d --build`, com mTLS entre o BFF e os `api`, SASL no Kafka interno e o Redis da deny-list (ver `infra/README.md`). O serviço `dmpf-bff-session-events` fica só no profile `keycloak`, porque depende do Keycloak, que está fora de `all` e `dmpf`; o Redis também está nesse profile, então `--profile keycloak` sozinho já sobe o papel com a deny-list, e `--profile dmpf --profile keycloak` sobe os dois papéis.
 
-Em containers na rede do host, com os `deploy/.env` de cada app (o target `deploy-env` copia o `.env.example` quando o `.env` não existe), `pnpm nx run bff:docker:run` sobe a infra local e as imagens do BFF e dos papéis de cada contexto: o `docker:run` (papel `api`) e o `docker:run-relay` dos três, e o `docker:run-consumer` do `reservations`. O container do BFF fica `healthy` só depois que os três contextos respondem `SERVING`.
+Em containers na rede do host, com os `deploy/.env` de cada app (o target `deploy-env` copia o `.env.example` e o `.env.migrator.example` quando a cópia não existe; só o `docker:run` do `api` lê o `deploy/.env.migrator`), `pnpm nx run bff:docker:run` sobe a infra local e as imagens do BFF e dos papéis de cada contexto: o `docker:run` (papel `api`) e o `docker:run-relay` dos três, e o `docker:run-consumer` do `reservations`. O container do BFF fica `healthy` só depois que os três contextos respondem `SERVING`.
 
 ## Targets Nx
 
-`fmt-check`, `vet`, `build`, `test-race`, `govulncheck`, `serve`, `docker:build` e `docker:run`, mais os de infraestrutura do workspace: `infra-up`, `observability-up`, `infra-down`, `infra-budget` e `k8s-render`.
+`fmt-check`, `vet`, `build`, `test-race`, `govulncheck`, `serve`, `serve-session-events`, `keycloak-up`, `docker:build` e `docker:run`, mais os de infraestrutura do workspace: `infra-up`, `observability-up`, `infra-down`, `infra-budget` e `k8s-render`.
 
 ## Testes
 
 - Unitários: rotas e contrato (inclusive o teste estrutural dos três OpenAPI), resolução e recusa de identidade (credencial ausente, expirada, asserção divergente via `X-Subject-ID`/`X-Tenant-ID`/`tenant_id`), mapeamento de status, clientes gRPC contra servidores falsos por `bufconn` (retry por idempotência, prazo decrescente, metadata, mTLS e hierarquia de spans) e partida do binário.
-- E2e caixa-preta (build tag `integration`): compila os quatro binários com `-race`, cria três bancos e seis tópicos por execução, sobe os oito processos e fala só HTTP com o BFF. Prova a cadeia de contexto até `ReservationConfirmed` e até o `BookingReserved` que sai do `bookings`, o cancelamento que vence um `OrderPlaced` posterior, a reentrega que termina em `DuplicateIgnored`, uma outbox por contexto e a recusa de uma chamada sem credencial. Exige `PG_DSN` (usuário com `CREATE DATABASE`) e `KAFKA_BROKERS`; o target sobe a infra de testes (`testkit:test-infra-up`) e o `tools/dmpf-plugin/scripts/test-env.sh` preenche os dois com o Postgres (15432) e o Redpanda (19092) dela, a partir do `.env.example` da raiz.
+- Integração da revogação (build tag `integration`): um token assinado por um issuer falso é aceito e, depois que a sessão entra no Redis de testes (16379, `REDIS_URL` do `.env.example` da raiz), recusado com 401 e `session_revoked`.
+- E2e caixa-preta (build tag `integration`): compila os quatro binários com `-race`, cria três bancos e seis tópicos por execução, sobe os oito processos e fala só HTTP com o BFF. Prova a cadeia de contexto até `ReservationConfirmed` e até o `BookingReserved` que sai do `bookings`, o cancelamento que vence um `OrderPlaced` posterior, a reentrega que termina em `DuplicateIgnored`, uma outbox por contexto e a recusa de uma chamada sem credencial. Exige `PG_DSN` (usuário com `CREATE DATABASE`), `KAFKA_BROKERS` e `REDIS_URL`; o target sobe a infra de testes (`testkit:test-infra-up`) e o `tools/dmpf-plugin/scripts/test-env.sh` preenche os três com o Postgres (15432), o Redpanda (19092) e o Redis (16379) dela, a partir do `.env.example` da raiz.
 
 ```bash
 pnpm nx run bff:test-race

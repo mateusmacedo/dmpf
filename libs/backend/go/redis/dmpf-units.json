@@ -1,0 +1,21 @@
+{
+  "schema": "dmpf/units@1",
+  "units": [
+    {
+      "id": "kernel/provider-redis",
+      "block": "provider",
+      "bounded_context": "kernel",
+      "public_integration_surface": false,
+      "include": ["github.com/mateusmacedo/dmpf/libs/backend/go/redis"]
+    }
+  ],
+  "external": [
+    {
+      "package": "github.com/redis/go-redis/v9",
+      "versions": ">=9.23.0 <10",
+      "entrypoints": ["."],
+      "capability": "io.storage"
+    }
+  ],
+  "exceptions": []
+}

@@ -232,10 +232,17 @@ const goTarget = ({
 
 const resourceOf = (role: string): string =>
   `\${OTEL_RESOURCE_ATTRIBUTES:+$OTEL_RESOURCE_ATTRIBUTES,}service.instance.id=checkout-local-${role},dmpf.process.role=${role}`;
-const serveOf = (role: string): string =>
-  `set -a; [ ! -f deploy/.env ] || . deploy/.env; OTEL_RESOURCE_ATTRIBUTES="${resourceOf(role)}"; set +a; exec go run ./cmd --role ${role}`;
-const SERVE_API = serveOf('api');
-const SERVE_RELAY = serveOf('relay');
+const SERVE_API = `set -a; [ ! -f deploy/.env.migrator.example ] || . deploy/.env.migrator.example; [ ! -f deploy/.env ] || . deploy/.env; [ ! -f deploy/.env.migrator ] || . deploy/.env.migrator; OTEL_RESOURCE_ATTRIBUTES="${resourceOf('api')}"; set +a; exec go run ./cmd --role api`;
+const SERVE_RELAY = `set -a; [ ! -f deploy/.env ] || . deploy/.env; OTEL_RESOURCE_ATTRIBUTES="${resourceOf('relay')}"; set +a; exec go run ./cmd --role relay`;
+const DEPLOY_ENV =
+  '[ -f deploy/.env ] || cp deploy/.env.example deploy/.env; [ -f deploy/.env.migrator ] || cp deploy/.env.migrator.example deploy/.env.migrator';
+const DOCKER_RUN_ARGS = [
+  '--rm',
+  '--name checkout',
+  '--network host',
+  '--env-file deploy/.env',
+  '--env-file deploy/.env.migrator',
+];
 const DOCKER_RUN_RELAY = `[ ! -f deploy/.env ] || . deploy/.env; exec docker run --rm --name checkout-relay --network host --env-file deploy/.env -e OTEL_RESOURCE_ATTRIBUTES="${resourceOf('relay')}" apps-backend-checkout --role relay`;
 
 const serveTarget = (command: string, dependsOn: unknown[]): Record<string, unknown> => ({
@@ -280,7 +287,8 @@ const expectedTargets = ({
             { projects: ['bff'], target: 'infra-session' },
           ]),
           'serve-relay': serveTarget(SERVE_RELAY, ['serve-api']),
-          'deploy-env': {},
+          'deploy-env': { options: { command: DEPLOY_ENV } },
+          'docker:run': { options: { args: DOCKER_RUN_ARGS } },
           'docker:run-relay': {
             executor: 'nx:run-commands',
             options: { command: DOCKER_RUN_RELAY, cwd: '{projectRoot}' },
@@ -559,6 +567,7 @@ describe('[generator] bounded-context — generation', () => {
     expect(telemetry).toContain('Settings: settings(cfg),');
     expect(telemetry).toContain('slog.Any("postgres", postgres.DescribeDSN(cfg.DSN))');
     expect(telemetry).toContain('slog.String("grpc_tls_key_file", presence(cfg.API.GRPCKeyFile)),');
+    expect(telemetry).toContain('slog.String("migrator", presence(cfg.MigrateDSN)),');
     expect(telemetry).toContain('slog.Int("metric_tenants", len(cfg.MetricTenants)),');
     expect(telemetry).toContain('slog.Any("kafka", cfg.KafkaAuth),');
     expect(telemetry).toContain('slog.String("kafka_checkout_topic", cfg.CheckoutTopic),');
@@ -579,7 +588,7 @@ describe('[generator] bounded-context — generation', () => {
     expect(catalog).toContain('func CheckoutChannel(Config) (channel.Channel, error)');
     expect(catalog).toContain('return channel.Channel{}, ErrNoChannel');
     expect(config).toContain(
-      'return serve.APIRole{DSN: cfg.DSN, Server: cfg.API, Migrate: cfg.Migrate, Admission: cfg.Admission, MetricTenants: cfg.MetricTenants, Policies: cfg.Policies}',
+      'return serve.APIRole{DSN: cfg.DSN, MigrateDSN: cfg.MigrateDSN, Server: cfg.API, Migrate: cfg.Migrate, Admission: cfg.Admission, MetricTenants: cfg.MetricTenants, Policies: cfg.Policies}',
     );
     expect(config).toContain(
       'return serve.RelayRole{DSN: cfg.DSN, Brokers: cfg.Brokers, KafkaInsecure: cfg.KafkaInsecure, KafkaAuth: cfg.KafkaAuth, Relay: cfg.Relay, Policies: cfg.Policies}',
@@ -669,6 +678,62 @@ describe('[generator] bounded-context — generation', () => {
     expect(readText(tree, `${MODULE_DIR}/provider/schema.sql`)).toContain('snapshot');
   });
 
+  it('should declare the grants of the runtime role in the provider and hand them to the api and the test kit', async () => {
+    const tree = await generate();
+    const schema = readText(tree, `${MODULE_DIR}/provider/schema.go`);
+
+    expect(schema).toContain('"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"');
+    expect(schema).toContain('var Grants = []postgres.Grant{}');
+    expect(readText(tree, `${MODULE_DIR}/app/wiring.go`)).toContain(
+      'Schema: provider.Schema, Grants: provider.Grants,',
+    );
+    expect(readText(tree, `${MODULE_DIR}/${APPKIT_DIR}/harness.go`)).toContain(
+      'Grants:       provider.Grants,',
+    );
+  });
+
+  it('should read the migrating DSN in the migrating api only, require it there and hand it to the serve package', async () => {
+    const tree = await generate();
+    const config = readText(tree, `${MODULE_DIR}/app/config.go`);
+    const bodyOf = (signature: string): string =>
+      config.slice(config.indexOf(signature), config.indexOf('\n}\n', config.indexOf(signature)));
+
+    expect(config).toMatch(/envMigrateDSN\s+= "PG_MIGRATE_DSN"/);
+    expect(config).toMatch(/\n\tMigrateDSN string\n/);
+    expect(config).toContain(
+      [
+        '\tif role == RoleAPI && cfg.Migrate {',
+        '\t\tcfg.MigrateDSN = lookup(envMigrateDSN)',
+        '\t}',
+      ].join('\n'),
+    );
+    expect(config).toContain(
+      ['\tcase RoleAPI:', '\t\trequire(envMigrateDSN, c.Migrate && c.MigrateDSN == "")'].join('\n'),
+    );
+    expect(bodyOf('func apiRole(cfg Config) serve.APIRole {')).toContain(
+      'DSN: cfg.DSN, MigrateDSN: cfg.MigrateDSN,',
+    );
+    expect(bodyOf('func relayRole(cfg Config) serve.RelayRole {')).not.toContain('MigrateDSN');
+  });
+
+  it('should prove in the generated tests that only the api receives the migrating DSN', async () => {
+    const configTest = readText(await generate(), `${MODULE_DIR}/app/config_test.go`);
+
+    expect(configTest).toContain(
+      'func TestFromEnvHandsTheMigratingDSNToTheAPIOnly(t *testing.T) {',
+    );
+    expect(configTest).toContain(
+      'const migrator = "postgres://checkout_migrator:secret@db/checkout"',
+    );
+    expect(configTest).toContain('if api.MigrateDSN != migrator {');
+    expect(configTest).toContain('"KAFKA_CHECKOUT_TOPIC", "t", "KAFKA_CHECKOUT_DLQ", "d"');
+    expect(configTest).toContain('if relay.MigrateDSN != "" {');
+    expect(configTest).toContain(
+      'func TestTheAPIReadsTheMigratingDSNOnlyWhenItMigrates(t *testing.T) {',
+    );
+    expect(configTest).toContain('func TestTheMigratingAPIRequiresTheMigratingDSN(t *testing.T) {');
+  });
+
   it('should build the image of the binary from the workspace root', async () => {
     const tree = await generate();
     const dockerfile = readText(tree, `${MODULE_DIR}/${DOCKERFILE}`);
@@ -715,12 +780,13 @@ describe('[generator] bounded-context — generation', () => {
     }
   });
 
-  it('should declare the six Go targets, the two serve targets, the env file, the relay container, the distributed one, the e2e over it and no lint target', async () => {
+  it('should declare the six Go targets, the two serve targets, the env files, the api and relay containers, the distributed one, the e2e over it and no lint target', async () => {
     const tree = await generate();
 
     expect(Object.keys(projectOf(tree).targets).sort()).toEqual([
       'build',
       'deploy-env',
+      'docker:run',
       'docker:run-relay',
       'e2e',
       'fmt-check',
@@ -1442,7 +1508,12 @@ describe('[generator] bounded-context — deploy', () => {
     schema: string;
     app: string;
     image: { env: string; local: string };
-    database: { passwordEnv: string; local: string; dev: string };
+    database: {
+      passwordEnv: string;
+      local: string;
+      dev: string;
+      migrator: { passwordEnv: string; local: string; dev: string };
+    };
     kafka: {
       passwordEnv: string;
       local: string;
@@ -1458,6 +1529,7 @@ describe('[generator] bounded-context — deploy', () => {
 
     expect(tree.children(DEPLOY_MODULE_DIR).sort()).toEqual([
       '.env.example',
+      '.env.migrator.example',
       'compose.yml',
       'infra.json',
       'k8s',
@@ -1497,6 +1569,11 @@ describe('[generator] bounded-context — deploy', () => {
         passwordEnv: 'CHECKOUT_PG_PASSWORD',
         local: 'checkout-local',
         dev: 'checkout-dev',
+        migrator: {
+          passwordEnv: 'CHECKOUT_PG_MIGRATOR_PASSWORD',
+          local: 'checkout-migrator-local',
+          dev: 'checkout-migrator-dev',
+        },
       },
       kafka: {
         passwordEnv: 'KAFKA_CHECKOUT_PASSWORD',
@@ -1538,6 +1615,60 @@ describe('[generator] bounded-context — deploy', () => {
     ]) {
       expect(env.split('\n')).toContain(line);
     }
+  });
+
+  it('should hand the DSN of the migrating role to the local api only, outside the env anchor the relay shares', async () => {
+    const tree = await generate();
+    const { migrator } = readJsonFile<InfraManifest>(
+      tree,
+      `${DEPLOY_MODULE_DIR}/infra.json`,
+    ).database;
+    const compose = readText(tree, `${DEPLOY_MODULE_DIR}/compose.yml`);
+    const line = `      PG_MIGRATE_DSN: postgres://checkout_migrator:\${${migrator.passwordEnv}:-${migrator.local}}@postgres:5432/checkout?sslmode=disable`;
+    const at = compose.indexOf(line);
+
+    expect(compose.split('\n').filter((entry) => entry.includes('PG_MIGRATE_DSN'))).toEqual([line]);
+    expect(at).toBeGreaterThan(compose.indexOf('  dmpf-checkout-api:'));
+    expect(at).toBeLessThan(compose.indexOf('  dmpf-checkout-relay:'));
+  });
+
+  it('should keep the migrating DSN in a Secret of its own that only the api workload reads', async () => {
+    const tree = await generate();
+    const { migrator } = readJsonFile<InfraManifest>(
+      tree,
+      `${DEPLOY_MODULE_DIR}/infra.json`,
+    ).database;
+    const k8s = `${DEPLOY_MODULE_DIR}/k8s`;
+    const dev = readText(tree, `${k8s}/overlays/dev/kustomization.yaml`);
+    const hmg = readText(tree, `${k8s}/overlays/hmg/secrets.example.yaml.tmpl`).split('\n---\n');
+    const hmgMigrator = hmg.filter((document) =>
+      document.includes('\n  name: checkout-migrator\n'),
+    );
+
+    expect(readText(tree, `${k8s}/base/deployment-api.yaml`)).toContain(
+      [
+        '            - secretRef:',
+        '                name: checkout',
+        '            - secretRef:',
+        '                name: checkout-migrator',
+      ].join('\n'),
+    );
+    expect(readText(tree, `${k8s}/base/deployment-relay.yaml`)).not.toContain('checkout-migrator');
+    expect(dev).toContain(
+      [
+        '  - name: checkout-migrator',
+        '    literals:',
+        `      - PG_MIGRATE_DSN=postgres://checkout_migrator:${migrator.dev}@postgres-0.postgres:5432/checkout?sslmode=disable`,
+        '    options:',
+        '      disableNameSuffixHash: true',
+      ].join('\n'),
+    );
+    expect(dev.match(/PG_MIGRATE_DSN/g)).toHaveLength(1);
+    expect(hmgMigrator).toHaveLength(1);
+    expect(hmgMigrator[0].split('\n')).toContain(
+      '  PG_MIGRATE_DSN: postgres://checkout_migrator:REPLACE_ME@postgres.hmg.internal:5432/checkout?sslmode=verify-full&channel_binding=require',
+    );
+    expect(hmg.filter((document) => document.includes('PG_MIGRATE_DSN'))).toEqual(hmgMigrator);
   });
 
   it('should give each served role its own instance and its role over the env file that every role shares', async () => {
@@ -1669,6 +1800,75 @@ describe('[generator] bounded-context — deploy', () => {
       containerEnvOf(command, shared.replace(/^OTEL_RESOURCE_ATTRIBUTES=.*\n/m, ''), 'relay')
         .OTEL_RESOURCE_ATTRIBUTES,
     ).toBe(own);
+  });
+
+  const SERVE_DIR = path.join(__dirname, '../../../test-output/serve');
+  const migratingEnvOf = (
+    command: string,
+    role: string,
+    shared: Record<string, string>,
+  ): string => {
+    const launch = `exec go run ./cmd --role ${role}`;
+    const run = childProcess.spawnSync(
+      'sh',
+      [
+        '-c',
+        `${command.slice(0, command.length - launch.length)} printf '%s|%s' "$MIGRATE" "$PG_MIGRATE_DSN"`,
+      ],
+      { cwd: SERVE_DIR, env: { PATH: process.env.PATH ?? '', ...shared }, encoding: 'utf-8' },
+    );
+    expect(run.status).toBe(0);
+    return run.stdout;
+  };
+
+  it('should hand the migrating credential to the api targets alone, from an env file of its own', async () => {
+    const tree = await generate();
+    const targets = projectOf(tree).targets as Record<
+      string,
+      { options: { command: string; args: string[] } }
+    >;
+    const shared = envFileValues(readText(tree, `${DEPLOY_MODULE_DIR}/.env.example`));
+    const migrator = readText(tree, `${DEPLOY_MODULE_DIR}/.env.migrator.example`);
+    fs.mkdirSync(path.join(SERVE_DIR, 'deploy'), { recursive: true });
+    fs.writeFileSync(path.join(SERVE_DIR, 'deploy', '.env.migrator.example'), migrator);
+
+    expect(Object.keys(shared)).not.toContain('PG_MIGRATE_DSN');
+    expect(Object.keys(shared)).not.toContain('MIGRATE');
+    expect(envFileValues(migrator)).toEqual({
+      MIGRATE: 'true',
+      PG_MIGRATE_DSN:
+        'postgres://checkout_migrator:checkout-migrator-local@localhost:5432/checkout?sslmode=disable',
+    });
+    expect(migratingEnvOf(targets['serve-api'].options.command, 'api', shared)).toBe(
+      `true|${envFileValues(migrator).PG_MIGRATE_DSN}`,
+    );
+    expect(migratingEnvOf(targets['serve-relay'].options.command, 'relay', shared)).toBe('|');
+    expect(targets['docker:run'].options.args).toContain('--env-file deploy/.env.migrator');
+    expect(targets['docker:run-relay'].options.command).not.toContain('.env.migrator');
+  });
+
+  it('should copy the env file of the migrator for the api container and keep a local one', async () => {
+    const tree = await generate();
+    const { command } = (
+      projectOf(tree).targets as Record<string, { options: { command: string } }>
+    )['deploy-env'].options;
+    fs.mkdirSync(SERVE_DIR, { recursive: true });
+    const root = fs.mkdtempSync(path.join(SERVE_DIR, 'deploy-env-'));
+    const deploy = path.join(root, 'deploy');
+    fs.mkdirSync(deploy);
+    for (const file of ['.env.example', '.env.migrator.example']) {
+      fs.writeFileSync(path.join(deploy, file), readText(tree, `${DEPLOY_MODULE_DIR}/${file}`));
+    }
+    const deployEnv = (): number | null =>
+      childProcess.spawnSync('sh', ['-c', command], { cwd: root, encoding: 'utf-8' }).status;
+
+    expect(deployEnv()).toBe(0);
+    expect(fs.readFileSync(path.join(deploy, '.env.migrator'), 'utf-8')).toBe(
+      readText(tree, `${DEPLOY_MODULE_DIR}/.env.migrator.example`),
+    );
+    fs.writeFileSync(path.join(deploy, '.env.migrator'), 'MIGRATE=false\n');
+    expect(deployEnv()).toBe(0);
+    expect(fs.readFileSync(path.join(deploy, '.env.migrator'), 'utf-8')).toBe('MIGRATE=false\n');
   });
 
   it('should declare no legacy telemetry variable in any generated file', async () => {

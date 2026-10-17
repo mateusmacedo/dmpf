@@ -1,7 +1,7 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-# dev: tudo dentro do cluster — Postgres e Redpanda das bases, sem TLS nem no
+# dev: tudo dentro do cluster — Postgres, Redpanda e Redis das bases, sem TLS nem no
 # Kafka nem no gRPC interno, banco e role de cada app criados pelo Job
 # databases, schema aplicado pelo papel api de cada contexto
 # (MIGRATE). Credenciais de desenvolvimento geradas aqui;
@@ -12,13 +12,25 @@ namespace: dmpf-dev
 resources:
   - ../../base/postgres
   - ../../base/redpanda
+  - ../../base/redis
   - ../../../observability
+  - ../../../keycloak
   - apps
   - databases
+
+components:
+  - ../../../keycloak/dev
 
 secretGenerator:
   - name: grafana-admin
     literals:
       - password=admin
+    options:
+      disableNameSuffixHash: true
+  - name: redis
+    files:
+      - users.acl=redis-users.acl
+    literals:
+      - url=redis://revocation:dmpf-dev-revocation@redis:6379/0
     options:
       disableNameSuffixHash: true

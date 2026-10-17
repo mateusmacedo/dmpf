@@ -19,6 +19,10 @@ on:
         description: Branch base do affected; vazio usa a branch default do repositório
         type: string
         default: ""
+      keycloak:
+        description: Sobe o Keycloak de referência (infra/keycloak) para os testes de integração do authn; só o repositório do DMPF o liga
+        type: boolean
+        default: false
 
 permissions: {}
 
@@ -49,6 +53,7 @@ jobs:
       AWS_REGION: "us-east-1"
       AWS_ACCESS_KEY_ID: "test"
       AWS_SECRET_ACCESS_KEY: "test"
+      REDIS_URL: "redis://revocation:ci-revocation@localhost:6379/0"
 
     steps:
       - name: Checkout
@@ -180,6 +185,18 @@ jobs:
           docker logs "$nome" >&2
           exit 1
 
+      - name: Tooling Go — integração (tools/**, sem layer:*)
+        run: |
+          set -euo pipefail
+          afetados="$(pnpm --silent nx show projects --affected --base=$NX_BASE --head=$NX_HEAD --projects=tag:stack:go --json | jq -r '.[]' | sort)"
+          tooling="$(pnpm --silent nx show projects --projects='tools/**' --json | jq -r '.[]' | sort)"
+          lista="$(comm -12 <(echo "$afetados") <(echo "$tooling") | paste -sd, -)"
+          if [ -z "$lista" ]; then
+            echo "tooling (integração): nenhum projeto afetado"
+            exit 0
+          fi
+          pnpm nx run-many -t test-integration -p "$lista" --parallel=1
+
       # Mesma rede do Postgres. `--mode dev-container` agrupa as flags
       # de desenvolvimento e `--smp 1` é repassado ao binário (confirmado em
       # v26.2.2 pelo exec logado); sem ele o broker toma todos os cores do runner.
@@ -257,6 +274,79 @@ jobs:
           docker logs "$nome" >&2
           exit 1
 
+      - name: Subir Keycloak para os testes de integração do authn
+        if: inputs.keycloak
+        run: |
+          set -euo pipefail
+          afetados="$(pnpm --silent nx show projects --affected --base=$NX_BASE --head=$NX_HEAD --json)"
+          if ! jq -e 'index("authn")' <<<"$afetados" >/dev/null; then
+            echo "keycloak: authn não afetado"
+            exit 0
+          fi
+          imagem=quay.io/keycloak/keycloak:26.8.1@sha256:79c623a22abacf3fe6c00a5fb30f5b7843d717b234033b80995891c06116d244
+          nome="test-keycloak-$(hostname)"
+          docker rm -f "$nome" >/dev/null 2>&1 || true
+          docker run -d --name "$nome" \
+            --network host \
+            -e KC_HOSTNAME=http://127.0.0.1:18180 \
+            -e KC_HTTP_PORT=18180 \
+            -e KC_HTTP_MANAGEMENT_PORT=19000 \
+            -e KC_BOOTSTRAP_ADMIN_USERNAME=admin \
+            -e KC_BOOTSTRAP_ADMIN_PASSWORD=admin \
+            -e DMPF_SESSION_EVENTS_SECRET=dmpf-test-session-events \
+            -v "$PWD/infra/keycloak/dmpf-realm.json:/opt/keycloak/data/import/dmpf-realm.json:ro" \
+            "$imagem" start --http-enabled=true --health-enabled=true --cache=local --db=dev-file --import-realm
+          pronto=""
+          for _ in $(seq 1 60); do
+            if curl -sf -o /dev/null "http://localhost:19000/health/ready"; then
+              pronto=1
+              break
+            fi
+            sleep 2
+          done
+          if [ -z "$pronto" ]; then
+            echo "keycloak não respondeu em 120s" >&2
+            docker logs "$nome" >&2
+            exit 1
+          fi
+          docker run --rm --network host \
+            -e KEYCLOAK_URL=http://127.0.0.1:18180 \
+            -e KC_BOOTSTRAP_ADMIN_USERNAME=admin \
+            -e KC_BOOTSTRAP_ADMIN_PASSWORD=admin \
+            -v "$PWD/infra/keycloak/dev/seed.sh:/seed/seed.sh:ro" \
+            --entrypoint bash "$imagem" /seed/seed.sh
+          echo "KEYCLOAK_CALLBACK_HOST=127.0.0.1" >> "$GITHUB_ENV"
+          echo "keycloak pronto em 127.0.0.1:18180 ($nome)"
+
+      - name: Subir Redis para os testes de integração da deny-list
+        run: |
+          set -euo pipefail
+          afetados="$(pnpm --silent nx show projects --affected --base=$NX_BASE --head=$NX_HEAD --json)"
+          if ! jq -e 'index("redis") or index("bff")' <<<"$afetados" >/dev/null; then
+            echo "redis: nem redis nem bff afetados"
+            exit 0
+          fi
+          nome="test-redis-$(hostname)"
+          docker rm -f "$nome" >/dev/null 2>&1 || true
+          docker run -d --name "$nome" \
+            --network host \
+            --tmpfs /data \
+            redis:7.4.11-alpine@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499 \
+            redis-server --appendonly yes --appendfsync everysec --maxmemory-policy noeviction \
+            --user default off \
+            --user revocation on '>ci-revocation' '~dmpf:revocation:*' \
+            -@all +hello +auth '+client|setinfo' +ping +mget +evalsha +eval +get +set
+          for _ in $(seq 1 30); do
+            if docker exec "$nome" redis-cli --no-auth-warning -u "$REDIS_URL" ping 2>/dev/null | grep -q PONG; then
+              echo "redis pronto em localhost:6379 ($nome)"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "redis não respondeu em 60s" >&2
+          docker logs "$nome" >&2
+          exit 1
+
       - name: Estágio 3 — contrato (layer:contract)
         run: |
           set -euo pipefail
@@ -321,7 +411,7 @@ jobs:
       # de cada step nunca alcança o resíduo de um job anterior; quem limpa é este.
       - name: Derrubar a infraestrutura do job
         if: always()
-        run: docker rm -f "test-postgres-$(hostname)" "test-redpanda-$(hostname)" "test-redpanda-sasl-$(hostname)" "test-floci-$(hostname)" >/dev/null 2>&1 || true
+        run: docker rm -f "test-postgres-$(hostname)" "test-redpanda-$(hostname)" "test-redpanda-sasl-$(hostname)" "test-floci-$(hostname)" "test-keycloak-$(hostname)" "test-redis-$(hostname)" >/dev/null 2>&1 || true
 
   gates:
     name: Gates DMPF

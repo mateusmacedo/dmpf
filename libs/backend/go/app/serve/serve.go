@@ -43,10 +43,12 @@ var (
 const (
 	pingTimeout    = 10 * time.Second
 	migrateTimeout = 2 * time.Minute
+	grantsTimeout  = 15 * time.Second
 )
 
 type APIRole struct {
 	DSN           string
+	MigrateDSN    string
 	Server        kernelgrpc.APIEnv
 	Migrate       bool
 	Admission     admission.Limit
@@ -60,6 +62,7 @@ type API struct {
 	Desc            *grpc.ServiceDesc
 	Commands        []string
 	Schema          string
+	Grants          []postgres.Grant
 	CommandConsumer string
 	Register        func(*grpc.Server, *pgxpool.Pool) error
 }
@@ -156,7 +159,7 @@ func serveAPI(ctx context.Context, rt *otelboot.Runtime, cfg APIRole, api API) e
 		if err := ping(ctx, pool); err != nil {
 			return err
 		}
-		if err := prepare(ctx, rt, pool, cfg.Migrate, api.Schema); err != nil {
+		if err := prepare(ctx, rt, pool, cfg, api); err != nil {
 			return err
 		}
 		stop, err := kernelapp.StartPurge(ctx, abort,
@@ -193,14 +196,25 @@ func register(server *grpc.Server, pool *pgxpool.Pool, api API) error {
 	return nil
 }
 
-func prepare(ctx context.Context, rt *otelboot.Runtime, pool *pgxpool.Pool, migrate bool, schema string) error {
+func prepare(ctx context.Context, rt *otelboot.Runtime, pool *pgxpool.Pool, cfg APIRole, api API) error {
 	capabilities := []postgres.Capability{postgres.Outbox, postgres.Inbox}
-	if !migrate {
-		return postgres.WaitForTables(ctx, pool, time.Second, rt.LoggerProvider(), postgres.Tables(capabilities...)...)
+	grants := append(postgres.KernelGrants(capabilities...), api.Grants...)
+	if !cfg.Migrate {
+		return postgres.WaitForGrants(ctx, pool, time.Second, rt.LoggerProvider(), grants...)
 	}
 	ctx, cancel := context.WithTimeout(ctx, migrateTimeout)
 	defer cancel()
-	if err := postgres.Migrate(ctx, pool, capabilities, schema); err != nil {
+	if cfg.MigrateDSN != "" {
+		runtimeSession, err := postgres.SessionOf(ctx, pool)
+		if err != nil {
+			return fmt.Errorf("postgres: %w", err)
+		}
+		if err := migrateAs(ctx, cfg.MigrateDSN, runtimeSession, capabilities, api.Schema, grants); err != nil {
+			return err
+		}
+		return awaitGrants(ctx, pool, rt.LoggerProvider(), grantsTimeout, grants)
+	}
+	if err := postgres.Migrate(ctx, pool, capabilities, api.Schema); err != nil {
 		return fmt.Errorf("migrate: %w", err)
 	}
 	return nil
@@ -249,7 +263,7 @@ func runRelay(ctx context.Context, rt *otelboot.Runtime, cfg RelayRole, r Relay,
 	if err := ping(ctx, pool); err != nil {
 		return err
 	}
-	if err := postgres.WaitForTables(ctx, pool, time.Second, rt.LoggerProvider(), postgres.Tables(postgres.Outbox)...); err != nil {
+	if err := postgres.WaitForGrants(ctx, pool, time.Second, rt.LoggerProvider(), postgres.KernelGrants(postgres.Outbox)...); err != nil {
 		return err
 	}
 

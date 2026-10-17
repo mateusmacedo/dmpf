@@ -1,14 +1,20 @@
 # O BFF é a única borda HTTP publicada no host (ADR-044); fala gRPC com mTLS com
-# cada contexto e serve os OpenAPI embutidos na imagem.
+# cada contexto e serve os OpenAPI embutidos na imagem. O papel session-events
+# depende do Keycloak e sobe só com o profile keycloak.
+x-image: &image
+  build:
+    context: ../../../..
+    dockerfile: apps/backend/bff/Dockerfile
+  image: ${BFF_IMAGE:-bff:local}
+
+x-redis-url: &redis-url redis://revocation:${REDIS_REVOCATION_PASSWORD:-dmpf-local-revocation}@redis:6379/0
+
 services:
   dmpf-bff:
+    <<: *image
     extends:
       file: ../../../../infra/local/compose/app-base.yml
       service: dmpf-http-edge
-    build:
-      context: ../../../..
-      dockerfile: apps/backend/bff/Dockerfile
-    image: ${BFF_IMAGE:-bff:local}
     stop_grace_period: 30s
     environment:
       OTEL_SERVICE_NAME: bff
@@ -31,6 +37,7 @@ services:
       # Só o Swagger UI local chama o BFF de outro origin; fora do
       # desenvolvimento a variável fica vazia e a borda é same-origin.
       CORS_ORIGINS: http://localhost:${SWAGGER_PORT:-8082},http://127.0.0.1:${SWAGGER_PORT:-8082}
+      REDIS_URL: *redis-url
     ports:
       - '127.0.0.1:${HTTP_PORT:-8080}:8080'
     depends_on:
@@ -42,5 +49,47 @@ services:
         condition: service_started
       dmpf-bookings-api:
         condition: service_started
+      redis:
+        condition: service_healthy
       otel-collector:
         condition: service_started
+
+  dmpf-bff-session-events:
+    <<: *image
+    extends:
+      file: ../../../../infra/local/compose/app-base.yml
+      service: dmpf-app
+    profiles: !override [keycloak]
+    command: ['session-events']
+    stop_grace_period: 30s
+    environment:
+      OTEL_SERVICE_NAME: bff
+      OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES:-service.version=local,deployment.environment.name=local},service.instance.id=bff-session-events,dmpf.process.role=session-events
+      SESSION_EVENTS_ADDR: ':8091'
+      ADMIN_ADDR: ':8092'
+      OIDC_ISSUER: http://keycloak.localhost:${KEYCLOAK_PORT:-8180}/realms/dmpf
+      OIDC_REVOCATION_TTL_SECONDS: '300'
+      OIDC_BACKCHANNEL_CLIENT_ID: dmpf-portal
+      OIDC_SESSION_EVENTS_CLIENT_ID: dmpf-session-events
+      OIDC_SESSION_EVENTS_CLIENT_SECRET: ${KEYCLOAK_SESSION_EVENTS_SECRET:-dmpf-dev-session-events}
+      REDIS_URL: *redis-url
+      GOMEMLIMIT: 96MiB
+    # A imagem declara o healthcheck da API, que exige a configuração dela.
+    healthcheck:
+      test: ['CMD', '/bff', 'session-events', 'healthcheck']
+      interval: 5s
+      timeout: 4s
+      start_period: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits: { cpus: '0.10', memory: 128M }
+        reservations: { cpus: '0.02', memory: 32M }
+    depends_on:
+      keycloak:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
+        required: false

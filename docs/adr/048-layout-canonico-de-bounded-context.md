@@ -86,19 +86,27 @@ Para eliminar o `openPool` reimplementado, `pg.OpenPool` e `pg.ResetTables` pass
 
 O generator emite o layout completo, e `tools/dmpf-generator-check.sh` prova que o esqueleto compila e é conforme.
 
+## Alternativas descartadas
+
+| Alternativa | Por que foi rejeitada |
+| --- | --- |
+| Um módulo por capacidade do kernel, em vez de diluir o `observability` | Custaria três `go.mod`, três `project.json` e três entradas de baseline para código que nenhum contexto consome isoladamente |
+| Promover `classify` e `subject` para `observability/usecase` | O verificador reprovou com `DMPF-D001`: a unidade `kernel/observability` é bloco `provider`, e provider não depende de `application` |
+| `AssertOwnOutbox` receber `channel.Catalog` | A função só lia as chaves do mapa, e a assinatura original faria o provider de storage depender do módulo de transporte para isso |
+
 ## Consequências
 
-**O `observability` dilui.** Ele já era o módulo mais largo do kernel e ganha três packages (`envconfig`, `idclock`, `boot`). A alternativa — um módulo por capacidade — custaria três `go.mod`, três `project.json` e três entradas de baseline para código que nenhum contexto consome isoladamente. A diluição é aceita; o critério para reverter é o dia em que um consumidor quiser `envconfig` sem querer OpenTelemetry.
+**Positivas:**
 
-**Quatro atos de classificação.** A entrega remapeia membership em nove unidades: `kernel/observability` (três packages novos), `orders/app`, `reservations/app` e `resource-scheduling/app` (migração de layout e `cmd/`), e as quatro unidades de kit novas. Cada ato exige commit próprio com revisor diferente do autor, e `--write-baseline` é passo humano (ADR-028).
+- **O `bff` consome o kernel sem mudar de layout.** Ele não é bounded context — não tem domínio — e segue como borda. Mas os helpers de ambiente, o `Boot`, o `ShutdownGrace` e o `NewController` que ele duplicava agora vêm do kernel.
 
-**A evidência diverge por path, em dois dos sete subjects.** Medido contra a linha de base tirada antes da primeira mudança: `app`, `dist`, `domain`, `golden` e `services` mantêm o digest; `provider` e `reference` divergem. São exatamente os que nomeiam packages que mudaram de caminho — `reference` varre `apps/backend/...`, onde a migração para `app/` reescreveu todo import path, e `provider` cobre o `postgres` e o `testkit/tb/pg`, que ganharam o tracer promovido e o reset extensível. A divergência é consequência documentada da reorganização, como no ADR-046, não regressão.
+**Negativas:**
 
-**Dois packages de produção nasceram sem teste e só a evidência acusou.** `bookings/ports` (pré-existente, do ADR-046) e `bookings/app/http` (criado por esta entrega). Um package sem arquivo de teste faz o `go test -json` emitir `skip`, e `JudgeResults` reprova skip sob CI — o que trava a geração da evidência, e não o commit que criou o package. Os dois ganharam teste aqui; o buraco de processo permanece aberto, e o candidato natural a fechá-lo é o próprio `dmpf-context-check.sh`.
-
-**O `bff` consome o kernel sem mudar de layout.** Ele não é bounded context — não tem domínio — e segue como borda. Mas os helpers de ambiente, o `Boot`, o `ShutdownGrace` e o `NewController` que ele duplicava agora vêm do kernel.
-
-**O alias pelo papel ganha um caso.** Com o contexto em `app/`, o package do contexto chama-se `app`, como o bloco `app` do kernel. Onde os dois se encontram, o kernel recebe alias: `kernelapp` quando `kernel` já nomeia o `domain`. É a regra do ADR-045 aplicada a uma colisão que o layout novo criou.
+- **Custo aceito:** **O `observability` dilui.** Ele já era o módulo mais largo do kernel e ganha três packages (`envconfig`, `idclock`, `boot`). A alternativa — um módulo por capacidade — custaria três `go.mod`, três `project.json` e três entradas de baseline para código que nenhum contexto consome isoladamente. A diluição é aceita; o critério para reverter é o dia em que um consumidor quiser `envconfig` sem querer OpenTelemetry.
+- **Quatro atos de classificação.** A entrega remapeia membership em nove unidades: `kernel/observability` (três packages novos), `orders/app`, `reservations/app` e `resource-scheduling/app` (migração de layout e `cmd/`), e as quatro unidades de kit novas. Cada ato exige commit próprio com revisor diferente do autor, e `--write-baseline` é passo humano (ADR-028).
+- **A evidência diverge por path, em dois dos sete subjects.** Medido contra a linha de base tirada antes da primeira mudança: `app`, `dist`, `domain`, `golden` e `services` mantêm o digest; `provider` e `reference` divergem. São exatamente os que nomeiam packages que mudaram de caminho — `reference` varre `apps/backend/...`, onde a migração para `app/` reescreveu todo import path, e `provider` cobre o `postgres` e o `testkit/tb/pg`, que ganharam o tracer promovido e o reset extensível. A divergência é consequência documentada da reorganização, como no ADR-046, não regressão.
+- **Dois packages de produção nasceram sem teste e só a evidência acusou.** `bookings/ports` (pré-existente, do ADR-046) e `bookings/app/http` (criado por esta entrega). Um package sem arquivo de teste faz o `go test -json` emitir `skip`, e `JudgeResults` reprova skip sob CI — o que trava a geração da evidência, e não o commit que criou o package. Os dois ganharam teste aqui; o buraco de processo permanece aberto, e o candidato natural a fechá-lo é o próprio `dmpf-context-check.sh`.
+- **O alias pelo papel ganha um caso.** Com o contexto em `app/`, o package do contexto chama-se `app`, como o bloco `app` do kernel. Onde os dois se encontram, o kernel recebe alias: `kernelapp` quando `kernel` já nomeia o `domain`. É a regra do ADR-045 aplicada a uma colisão que o layout novo criou.
 
 ## Addendum — 2026-10-01 (log das libs pelo `LoggerProvider`, sem `otelboot/otlp`)
 

@@ -13,3 +13,5 @@ data:
   OTEL_RESOURCE_ATTRIBUTES: service.version=hmg,deployment.environment.name=hmg
   OTEL_EXPORTER_OTLP_ENDPOINT: https://otel-collector:4317
   OTEL_EXPORTER_OTLP_CERTIFICATE: /etc/dmpf/grpc/ca.crt
+  # O Redis do hmg é externo: a API e o session-events recusam redis://.
+  REDIS_REQUIRE_TLS: 'true'
