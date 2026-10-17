@@ -53,6 +53,7 @@ jobs:
       AWS_REGION: "us-east-1"
       AWS_ACCESS_KEY_ID: "test"
       AWS_SECRET_ACCESS_KEY: "test"
+      REDIS_URL: "redis://revocation:ci-revocation@localhost:6379/0"
 
     steps:
       - name: Checkout
@@ -317,6 +318,35 @@ jobs:
           echo "KEYCLOAK_CALLBACK_HOST=127.0.0.1" >> "$GITHUB_ENV"
           echo "keycloak pronto em 127.0.0.1:18180 ($nome)"
 
+      - name: Subir Redis para os testes de integração da deny-list
+        run: |
+          set -euo pipefail
+          afetados="$(pnpm --silent nx show projects --affected --base=$NX_BASE --head=$NX_HEAD --json)"
+          if ! jq -e 'index("redis") or index("bff")' <<<"$afetados" >/dev/null; then
+            echo "redis: nem redis nem bff afetados"
+            exit 0
+          fi
+          nome="test-redis-$(hostname)"
+          docker rm -f "$nome" >/dev/null 2>&1 || true
+          docker run -d --name "$nome" \
+            --network host \
+            --tmpfs /data \
+            redis:7.4.11-alpine@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499 \
+            redis-server --appendonly yes --appendfsync everysec --maxmemory-policy noeviction \
+            --user default off \
+            --user revocation on '>ci-revocation' '~dmpf:revocation:*' \
+            -@all +hello +auth '+client|setinfo' +ping +mget +evalsha +eval +get +set
+          for _ in $(seq 1 30); do
+            if docker exec "$nome" redis-cli --no-auth-warning -u "$REDIS_URL" ping 2>/dev/null | grep -q PONG; then
+              echo "redis pronto em localhost:6379 ($nome)"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "redis não respondeu em 60s" >&2
+          docker logs "$nome" >&2
+          exit 1
+
       - name: Estágio 3 — contrato (layer:contract)
         run: |
           set -euo pipefail
@@ -381,7 +411,7 @@ jobs:
       # de cada step nunca alcança o resíduo de um job anterior; quem limpa é este.
       - name: Derrubar a infraestrutura do job
         if: always()
-        run: docker rm -f "test-postgres-$(hostname)" "test-redpanda-$(hostname)" "test-redpanda-sasl-$(hostname)" "test-floci-$(hostname)" "test-keycloak-$(hostname)" >/dev/null 2>&1 || true
+        run: docker rm -f "test-postgres-$(hostname)" "test-redpanda-$(hostname)" "test-redpanda-sasl-$(hostname)" "test-floci-$(hostname)" "test-keycloak-$(hostname)" "test-redis-$(hostname)" >/dev/null 2>&1 || true
 
   gates:
     name: Gates DMPF

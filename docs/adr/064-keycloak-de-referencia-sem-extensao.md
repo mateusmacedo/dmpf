@@ -4,6 +4,22 @@
 
 Aceito — 2026-10-15. Implementa SPEC-SBW7HT6Y.
 
+> **Addendum (2026-10-17)** — parcialmente supersedido pelo
+> [ADR-065](./065-revogacao-de-sessao-no-authn.md). Ficam substituídas, no item
+> 8, as frases "A entrega é best-effort: o back-channel não tem reentrega, e o
+> polling é por `dateFrom` com deduplicação por `id`" (repetida na segunda
+> negativa de §Consequências) e "Normalização, deduplicação e cursor ficam no
+> adaptador da SPEC-STEJG347". O logout do usuário passa a chegar ao menos uma vez: o
+> back-channel é o caminho rápido, e o polling dos eventos de usuário `LOGOUT`
+> do realm, sem cursor, relê a janela inteira a cada ciclo e reaplica tudo; os
+> ids só evitam contar o mesmo evento duas vezes. O contrato do evento ganha a
+> linha do `LOGOUT` (`session_ended`) e a do admin event `DELETE` de
+> `USER_SESSION` em `sessions/{id}` (`session_ended`); o `subject_revoked` passa
+> a incluir o `DELETE` do usuário em `users/{id}`, e o `logout-all` do realm fica
+> descoberto (ADR-065, item 16). O realm passa a guardar só o `LOGOUT` como
+> evento de usuário, por 1 h. O texto original é preservado como registro
+> histórico; as demais decisões permanecem válidas.
+
 ## Contexto
 
 O `authn` do kernel lê um access token de Keycloak nos `Defaults()`, mas nenhum teste exercitava um Keycloak real e a infra do DMPF não oferecia um. O consumidor externo antecipa-market adota Keycloak 26.x com Organizations, e a SPEC-STEJG347 (revogação de sessão no `authn`) precisa de uma fonte de eventos de sessão.

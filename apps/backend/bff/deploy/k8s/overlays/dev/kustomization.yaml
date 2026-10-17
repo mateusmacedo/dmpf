@@ -10,3 +10,4 @@ images:
 
 patches:
   - path: configmap-bff-patch.yaml
+  - path: deployment-session-events-patch.yaml

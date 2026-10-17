@@ -314,6 +314,7 @@ func (top *topology) boot(t *testing.T, bin binaries) {
 		"RESERVATIONS_GRPC_TARGET": "dns:///" + reservationsAddr,
 		"BOOKINGS_GRPC_TARGET":     "dns:///" + bookingsAddr,
 		"AUTH_DEV_MOCK":            "true",
+		"REDIS_URL":                tb.Env(t, "REDIS_URL"),
 	}), func(addrs map[string]string) error {
 		return top.await("bff ready", func() error {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second)

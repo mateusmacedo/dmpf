@@ -1,0 +1,21 @@
+# matchExpressions no par porque o Kustomize injeta os labels desta base em
+# todo matchLabels de NetworkPolicy, o que exigiria o nome do Redis no peer.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: redis
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: redis
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values: [bff]
+      ports:
+        - port: 6379
+          protocol: TCP

@@ -1,0 +1,85 @@
+# O polling não divide a janela entre réplicas.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bff-session-events
+  labels:
+    app.kubernetes.io/component: session-events
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: session-events
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: session-events
+    spec:
+      serviceAccountName: bff
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: session-events
+          image: ghcr.io/mateusmacedo/bff:latest
+          args: ['session-events']
+          ports:
+            - name: backchannel
+              containerPort: 8091
+            - name: admin
+              containerPort: 8092
+          envFrom:
+            - configMapRef:
+                name: bff
+          env:
+            - name: K8S_POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: $(OTEL_RESOURCE_ATTRIBUTES),service.instance.id=$(K8S_POD_NAME),dmpf.process.role=session-events
+            - name: SESSION_EVENTS_ADDR
+              value: ':8091'
+            - name: ADMIN_ADDR
+              value: ':8092'
+            - name: OIDC_BACKCHANNEL_CLIENT_ID
+              value: dmpf-portal
+            - name: OIDC_SESSION_EVENTS_CLIENT_ID
+              value: dmpf-session-events
+            # Credencial do client de polling só deste papel (ADR-063): o mesmo
+            # Secret que o Keycloak importa no realm.
+            - name: OIDC_SESSION_EVENTS_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-session-events
+                  key: secret
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: redis
+                  key: url
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: admin
+            periodSeconds: 5
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: admin
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 20m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+      terminationGracePeriodSeconds: 30

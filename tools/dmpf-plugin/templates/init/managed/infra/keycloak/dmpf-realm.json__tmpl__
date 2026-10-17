@@ -17,6 +17,9 @@
   "accessTokenLifespan": 300,
   "adminEventsEnabled": true,
   "adminEventsDetailsEnabled": true,
+  "eventsEnabled": true,
+  "enabledEventTypes": ["LOGOUT"],
+  "eventsExpiration": 3600,
   "attributes": {
     "adminEventsExpiration": "604800"
   },

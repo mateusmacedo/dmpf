@@ -1,0 +1,2 @@
+user default off
+user revocation on >dmpf-dev-revocation ~dmpf:revocation:* -@all +hello +auth +client|setinfo +ping +mget +evalsha +eval +get +set

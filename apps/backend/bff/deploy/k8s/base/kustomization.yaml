@@ -1,9 +1,10 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-# BFF: a única borda REST pública (RST-01), um Deployment sem banco nem Kafka.
-# Ele não carrega credencial: o transporte gRPC para os contextos é declarado
-# pelo overlay (opt-out de desenvolvimento ou a CA de homologação).
+# BFF: a única borda REST pública (RST-01), um Deployment sem banco nem Kafka,
+# e o papel session-events, que alimenta a deny-list que a borda consulta. O
+# transporte gRPC para os contextos é declarado pelo overlay (opt-out de
+# desenvolvimento ou a CA de homologação); a URL do Redis vem do Secret redis.
 
 labels:
   - includeSelectors: true
@@ -15,6 +16,9 @@ resources:
   - serviceaccount.yaml
   - configmap.yaml
   - deployment.yaml
+  - deployment-session-events.yaml
   - service.yaml
+  - service-session-events.yaml
   - pdb.yaml
   - networkpolicy.yaml
+  - networkpolicy-session-events.yaml

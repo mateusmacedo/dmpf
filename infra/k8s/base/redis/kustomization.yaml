@@ -1,0 +1,17 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Redis da deny-list de revogação em desenvolvimento: um StatefulSet sem réplica.
+# O Secret redis vem do overlay, com a ACL (users.acl) e a URL do usuário da
+# aplicação (url). Em homologação o Redis é externo e esta base fica de fora.
+
+labels:
+  - includeSelectors: true
+    pairs:
+      app.kubernetes.io/name: redis
+      app.kubernetes.io/part-of: dmpf
+
+resources:
+  - statefulset.yaml
+  - service.yaml
+  - networkpolicy.yaml

@@ -23,7 +23,9 @@ services:
   redis-exporter:
     image: oliver006/redis_exporter:v1.91.1
     profiles: [exporters, observability, all]
-    command: ['--redis.addr=redis://redis:6379']
+    command: ['--redis.addr=redis://redis:6379', '--redis.user=exporter']
+    environment:
+      REDIS_PASSWORD: ${REDIS_EXPORTER_PASSWORD:-dmpf-local-exporter}
     ports:
       - '127.0.0.1:${REDIS_EXPORTER_PORT:-9121}:9121'
     deploy:

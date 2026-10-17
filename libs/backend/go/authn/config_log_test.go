@@ -34,6 +34,7 @@ func TestTheConfigLogsHowTheEdgeResolvesIdentity(t *testing.T) {
 		"permission_claims": "scope,realm_access.roles",
 		"discovery_timeout": "10s",
 		"dev_mock":          false,
+		"revocation":        "disabled",
 	}
 	if len(record.Authn) != len(want) {
 		t.Fatalf("logged %v, want %v and not the logger", record.Authn, want)
