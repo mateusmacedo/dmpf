@@ -23,8 +23,11 @@ const (
 )
 
 const (
-	healthcheckCommand = "healthcheck"
-	probeTimeout       = 3 * time.Second
+	healthcheckCommand   = "healthcheck"
+	sessionEventsCommand = "session-events"
+	probeTimeout         = 3 * time.Second
+
+	envAdminAddr = "ADMIN_ADDR"
 )
 
 func main() {
@@ -37,19 +40,36 @@ type options struct {
 }
 
 func run(o options, errOut io.Writer) int {
-	if len(o.args) > 0 && o.args[0] == healthcheckCommand {
+	switch {
+	case len(o.args) > 0 && o.args[0] == healthcheckCommand:
 		return healthcheck(o.lookup, errOut)
+	case len(o.args) > 1 && o.args[0] == sessionEventsCommand && o.args[1] == healthcheckCommand:
+		return sessionEventsHealthcheck(o.lookup, errOut)
+	case len(o.args) > 0 && o.args[0] == sessionEventsCommand:
+		return runSessionEvents(o.lookup, errOut)
 	}
 	cfg, err := app.FromEnv(o.lookup)
 	if err != nil {
 		_, _ = fmt.Fprintf(errOut, "bff: %v\n", err)
 		return exitUsage
 	}
+	return serve(errOut, func(ctx context.Context) error { return app.Run(ctx, cfg) })
+}
 
+func runSessionEvents(lookup func(string) string, errOut io.Writer) int {
+	cfg, err := app.SessionEventsFromEnv(lookup)
+	if err != nil {
+		_, _ = fmt.Fprintf(errOut, "bff session-events: %v\n", err)
+		return exitUsage
+	}
+	return serve(errOut, func(ctx context.Context) error { return app.RunSessionEvents(ctx, cfg) })
+}
+
+func serve(errOut io.Writer, start func(context.Context) error) int {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
 
-	if err := app.Run(ctx, cfg); err != nil {
+	if err := start(ctx); err != nil {
 		_, _ = fmt.Fprintf(errOut, "bff: %v\n", err)
 		return exitFailure
 	}
@@ -64,9 +84,21 @@ func healthcheck(lookup func(string) string, errOut io.Writer) int {
 		_, _ = fmt.Fprintf(errOut, "bff healthcheck: %v\n", err)
 		return exitFailure
 	}
+	return probe(cfg.AdminAddr, errOut)
+}
+
+func sessionEventsHealthcheck(lookup func(string) string, errOut io.Writer) int {
+	addr := app.SessionEventsDefaults().AdminAddr
+	if declared := lookup(envAdminAddr); declared != "" {
+		addr = declared
+	}
+	return probe(addr, errOut)
+}
+
+func probe(adminAddr string, errOut io.Writer) int {
 	ctx, cancel := context.WithTimeout(context.Background(), probeTimeout)
 	defer cancel()
-	if err := app.Probe(ctx, cfg); err != nil {
+	if err := app.Probe(ctx, app.Config{AdminAddr: adminAddr}); err != nil {
 		_, _ = fmt.Fprintf(errOut, "bff healthcheck: %v\n", err)
 		return exitFailure
 	}

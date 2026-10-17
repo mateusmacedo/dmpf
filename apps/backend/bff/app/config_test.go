@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/mateusmacedo/dmpf/apps/backend/bff/app"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/redis"
 )
 
 func lookup(pairs ...string) func(string) string {
@@ -17,7 +18,8 @@ func lookup(pairs ...string) func(string) string {
 	return func(name string) string { return values[name] }
 }
 
-var targets = []string{"ORDERS_GRPC_TARGET", "orders:9090", "RESERVATIONS_GRPC_TARGET", "reservations:9090", "BOOKINGS_GRPC_TARGET", "bookings:9090"}
+var targets = []string{"ORDERS_GRPC_TARGET", "orders:9090", "RESERVATIONS_GRPC_TARGET", "reservations:9090", "BOOKINGS_GRPC_TARGET", "bookings:9090",
+	"REDIS_URL", "redis://revocation:sentinel-redis-password@redis:6379/0"}
 
 // devMock declares how these starts resolve identity. Since the edge demands a
 // subject on every route, a start that declares no verifier and no mock is
@@ -159,5 +161,52 @@ func TestTheIdentityOfTheProcessIsLeftToTheEnvironment(t *testing.T) {
 
 	if telemetry := app.TelemetryOf(cfg); telemetry.Version != "" || telemetry.Instance != "" {
 		t.Fatalf("TelemetryOf() declares version %q and instance %q, want neither: both come from OTEL_RESOURCE_ATTRIBUTES (RF-E3)", telemetry.Version, telemetry.Instance)
+	}
+}
+
+func TestFromEnvRefusesAStartWithoutTheRevocationStore(t *testing.T) {
+	env := []string{"GRPC_INSECURE", "true", devMock, "true"}
+	for i := 0; i < len(targets); i += 2 {
+		if targets[i] != "REDIS_URL" {
+			env = append(env, targets[i], targets[i+1])
+		}
+	}
+
+	_, err := app.FromEnv(lookup(env...))
+
+	if !errors.Is(err, app.ErrMissingVariable) || !strings.Contains(err.Error(), "REDIS_URL") {
+		t.Fatalf("FromEnv() = %v, want REDIS_URL named: the edge never serves without the deny-list", err)
+	}
+}
+
+func TestFromEnvRefusesAnUnusableRevocationStoreWithoutEchoingIt(t *testing.T) {
+	base := append(targets, "GRPC_INSECURE", "true", devMock, "true")
+	cases := []struct {
+		name    string
+		url     string
+		wantErr error
+	}{
+		{"not a redis URL", "http://revocation:sentinel-redis-password@redis:6379/0", redis.ErrInvalidURL},
+		{"database other than zero", "redis://revocation:sentinel-redis-password@redis:6379/1", redis.ErrDatabaseNotZero},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := app.FromEnv(lookup(append(base, "REDIS_URL", tc.url)...))
+
+			if !errors.Is(err, tc.wantErr) || strings.Contains(err.Error(), "sentinel-redis-password") {
+				t.Fatalf("FromEnv() = %v, want %v with the URL left out", err, tc.wantErr)
+			}
+		})
+	}
+}
+
+func TestFromEnvReadsTheRevocationStore(t *testing.T) {
+	cfg, err := app.FromEnv(lookup(append(targets, "GRPC_INSECURE", "true", devMock, "true")...))
+
+	if err != nil {
+		t.Fatalf("FromEnv() = %v", err)
+	}
+	if cfg.Redis.Options == nil || cfg.Redis.Options.Addr != "redis:6379" || cfg.Redis.Options.Username != "revocation" {
+		t.Fatalf("cfg.Redis = %v, want redis:6379 as revocation", cfg.Redis)
 	}
 }

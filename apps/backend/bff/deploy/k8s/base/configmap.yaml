@@ -23,3 +23,6 @@ data:
   OTEL_BSP_EXPORT_TIMEOUT: '3000'
   OTEL_BLRP_EXPORT_TIMEOUT: '3000'
   DRAIN_DELAY: '5s'
+  # accessTokenLifespan do realm: a entrada da deny-list vive além do token
+  # mais longo emitido antes do logout.
+  OIDC_REVOCATION_TTL_SECONDS: '300'

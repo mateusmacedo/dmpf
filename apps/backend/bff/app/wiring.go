@@ -29,6 +29,7 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/otelboot"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/redact"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/redis"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/admission"
 )
 
@@ -43,9 +44,28 @@ const (
 )
 
 func Run(ctx context.Context, cfg Config) error {
+	cfg, closeRevocations, err := WithRevocations(cfg)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = closeRevocations() }()
 	return boot.Boot(ctx, TelemetryOf(cfg), func(ctx context.Context, rt *otelboot.Runtime) error {
 		return RunWith(ctx, cfg, rt)
 	})
+}
+
+// WHY: Run calls this before boot.Boot so "process configured" reports the
+// deny-list it serves with; redis.NewClient does not reach the server.
+func WithRevocations(cfg Config) (Config, func() error, error) {
+	if cfg.Auth.Revocations != nil {
+		return cfg, func() error { return nil }, nil
+	}
+	client, err := redis.NewClient(cfg.Redis)
+	if err != nil {
+		return cfg, nil, err
+	}
+	cfg.Auth.Revocations = redis.NewRevocationStore(client, obsclock.System())
+	return cfg, client.Close, nil
 }
 
 const (
@@ -116,7 +136,13 @@ func RunWith(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {
 	if err != nil {
 		return err
 	}
+	cfg, closeRevocations, err := WithRevocations(cfg)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = closeRevocations() }()
 	cfg.Auth.LoggerProvider = rt.LoggerProvider()
+	cfg.Auth.MeterProvider = rt.MeterProvider()
 	authenticator, err := Authenticator(ctx, cfg)
 	if err != nil {
 		return err
