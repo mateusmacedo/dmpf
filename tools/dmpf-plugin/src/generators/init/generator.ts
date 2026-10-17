@@ -374,7 +374,7 @@ const addNxGo = (tree: Tree, versions: DmpfVersions): boolean => {
   return true;
 };
 
-const infrasyncArgs = (config: DmpfConfig, versions: DmpfVersions): string[] => [
+export const infrasyncArgs = (config: DmpfConfig, versions: DmpfVersions): string[] => [
   'run',
   config.tooling.mode === 'local'
     ? './tools/dmpf-conformance/cmd/infrasync'

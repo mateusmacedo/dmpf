@@ -1,14 +1,34 @@
 import type { Tree } from '@nx/devkit';
 import { readJson } from '@nx/devkit';
 import { createTreeWithEmptyWorkspace } from '@nx/devkit/testing';
+import type { ToolingMode } from '../../lib/dmpf-config';
 import { readVersions } from '../../lib/versions';
 import updateVersions from './update-versions';
 
 const KERNEL = 'github.com/mateusmacedo/dmpf/libs/backend/go';
+const TIDY = 'pnpm nx run-many -t tidy';
 
-const initialized = (): Tree => {
+const infrasync = (): string =>
+  `go run github.com/mateusmacedo/dmpf/tools/dmpf-conformance/cmd/infrasync@${readVersions().conformance} --root . --write`;
+
+const initialized = (mode: ToolingMode = 'version'): Tree => {
   const tree = createTreeWithEmptyWorkspace();
-  tree.write('dmpf.json', '{}');
+  tree.write(
+    'dmpf.json',
+    JSON.stringify({
+      schema: 'dmpf/workspace@1',
+      modulePrefix: 'github.com/acme/shop',
+      npmScope: '@acme',
+      appsDir: 'apps/backend',
+      edge: '',
+      spiffeTrustDomain: 'dmpf',
+      composeProfile: 'dmpf',
+      composeProject: 'shop',
+      imageRegistry: 'ghcr.io/acme',
+      bufModule: 'buf.build/acme',
+      tooling: { mode },
+    }),
+  );
   return tree;
 };
 
@@ -38,7 +58,7 @@ describe('[migration] update-versions', () => {
     const nextSteps = await updateVersions(tree);
 
     expect(tree.read('apps/backend/shop/go.mod', 'utf-8')).toBe(goMod(kernel));
-    expect(nextSteps).toContain('pnpm nx run-many -t tidy');
+    expect(nextSteps).toContain(TIDY);
   });
 
   it('should move the pins of govulncheck, golangci-lint, @nx-go/nx-go and the go directive', async () => {
@@ -67,7 +87,7 @@ describe('[migration] update-versions', () => {
     expect(tree.read('go.work', 'utf-8')).toBe(
       `go ${versions.go.directive}\n\nuse ./apps/backend/shop\n`,
     );
-    expect(nextSteps).toEqual(['pnpm install']);
+    expect(nextSteps).toEqual(['pnpm install', infrasync()]);
   });
 
   it('should raise the Go image of the build stage of a Dockerfile, as with go.work', async () => {
@@ -96,8 +116,8 @@ describe('[migration] update-versions', () => {
       JSON.stringify({ devDependencies: { '@nx-go/nx-go': 'catalog:' } }),
     );
 
-    expect(await updateVersions(tree)).toEqual([]);
-    expect(await updateVersions(catalog)).toEqual([]);
+    expect(await updateVersions(tree)).toEqual([infrasync()]);
+    expect(await updateVersions(catalog)).toEqual([infrasync()]);
     expect(tree.read('go.work', 'utf-8')).toBe('go 1.99.0\n');
     expect(tree.read('apps/backend/shop/Dockerfile', 'utf-8')).toBe(
       'FROM golang:1.99.0-alpine AS build\n',
@@ -114,12 +134,30 @@ describe('[migration] update-versions', () => {
     expect(tree.exists('go.work')).toBe(false);
   });
 
-  it('should ask for nothing when the workspace is already on this version', async () => {
+  it('should ask only for infrasync when the workspace is already on this version', async () => {
     const tree = initialized();
     const { kernel, go } = readVersions();
     tree.write('apps/backend/shop/go.mod', goMod(kernel));
     tree.write('go.work', `go ${go.directive}\n`);
 
-    expect(await updateVersions(tree)).toEqual([]);
+    expect(await updateVersions(tree)).toEqual([infrasync()]);
+  });
+
+  it('should ask for infrasync of the installed conformance after pnpm install and tidy', async () => {
+    const tree = initialized();
+    tree.write('apps/backend/shop/go.mod', goMod('v0.9.0'));
+    tree.write('package.json', JSON.stringify({ devDependencies: { '@nx-go/nx-go': '3.0.0' } }));
+
+    expect(await updateVersions(tree)).toEqual(['pnpm install', TIDY, infrasync()]);
+  });
+
+  it('should ask for the infrasync of the workspace last in local mode, after tidy', async () => {
+    const tree = initialized('local');
+    tree.write('apps/backend/shop/go.mod', goMod('v0.9.0'));
+
+    expect(await updateVersions(tree)).toEqual([
+      TIDY,
+      'go run ./tools/dmpf-conformance/cmd/infrasync --root . --write',
+    ]);
   });
 });
