@@ -142,8 +142,35 @@ pnpm nx migrate --run-migrations
 As migrations do plugin reaplicam os templates do `init`, inclusive o
 chamador de CI com o novo `workflowRef`, e sobem o `require` do kernel nos
 `go.mod`, os pins de `govulncheck`, `golangci-lint` e `@nx-go/nx-go` e a
-diretiva do `go.work`. Rode os comandos que elas devolvem ao fim (`pnpm
-install` e `pnpm nx run-many -t tidy`) e os gates do passo 4.
+diretiva do `go.work`. Rode, na ordem, os comandos que elas devolvem ao fim
+(`pnpm install` e `pnpm nx run-many -t tidy`, quando houver, e por último o
+`infrasync --write` do `conformance` instalado) e os gates do passo 4:
+
+```bash
+go run github.com/mateusmacedo/dmpf/tools/dmpf-conformance/cmd/infrasync@<conformance> --root . --write
+```
+
+No modo `local`, o comando é `go run ./tools/dmpf-conformance/cmd/infrasync
+--root . --write`. Ele é necessário porque a migration reaplica o
+`infra/local/env.platform.example` e o `conformance` novo pode mudar o
+provisionamento gerado; sem regenerar, o `infrasync --check` do passo 4
+reprova. A saída do `infrasync` (provisionamento do Compose, PKI, Swagger,
+`.env.example` e listas de apps dos overlays) é regravada: edite os manifestos
+`deploy/infra.json` e o `env.platform.example`, não a saída. Commite os
+arquivos gerados que mudarem.
+
+Quem já subiu para a `1.0.0-rc.5` não recebeu esse passo, porque a migration
+dessa versão não o devolve. Rode-o à mão e commite o
+`infra/local/compose/provisioning.generated.yml` e o `infra/local/.env.example`:
+
+```bash
+go run github.com/mateusmacedo/dmpf/tools/dmpf-conformance/cmd/infrasync@v1.0.0-rc.5 --root . --write
+go run github.com/mateusmacedo/dmpf/tools/dmpf-conformance/cmd/infrasync@v1.0.0-rc.5 --root . --check
+```
+
+O `infrasync` só gera o `.env.example`: copie à mão as variáveis novas dele
+(`REDIS_REVOCATION_PASSWORD`, `REDIS_EXPORTER_PASSWORD`, `KEYCLOAK_*`) para o
+seu `.env` local.
 
 Arquivo do `init` editado à mão não é sobrescrito: a migration o lista no log.
 Compare com a versão nova e, depois de salvar o que quiser manter, sobrescreva
