@@ -263,9 +263,10 @@ ganho de decidibilidade.
 # sem infra: clock, ids, stable, domainkit, golden, serviceskit, providerkit (memória), fitness, tb
 (cd libs/backend/go/testkit && go test ./...)
 
-# com a infra de testes (Postgres, Redpanda e floci em tmpfs, portas 15432,
-# 19092 e 14566): os targets de integração leem os valores do .env.example da
-# raiz por tools/dmpf-plugin/scripts/test-env.sh, sem export manual
+# com a infra de testes (Postgres, Redpanda com e sem SASL, floci e Redis em
+# tmpfs, portas 15432, 19092, 19093, 14566 e 16379): os targets de integração
+# leem os valores do .env.example da raiz por tools/dmpf-plugin/scripts/test-env.sh,
+# sem export manual
 pnpm nx run testkit:test-infra-up
 pnpm nx run testkit:test-race
 
