@@ -168,8 +168,9 @@ só aparecem em `_test.go`, que o verificador não classifica.
   `StatusOf(err)` traduz o canal técnico do caso de uso para o status que o
   handler do contexto devolve, sem detalhe interno na mensagem (ERR-20). A
   primeira linha que casa decide: `IdempotencyStatus`; `ErrNotFound` ou
-  categoria `NotFound` → `NotFound`; `ErrVersionConflict` ou `Conflict` →
-  `Aborted`; `context.DeadlineExceeded`; `context.Canceled`; `ErrDenied` ou
+  categoria `NotFound` → `NotFound`; `ports.ErrUniqueViolation` sem rejeição
+  (restrição não declarada, ou declarada com escrita anterior de agregado ou outbox na transação; ADR-066) → `AlreadyExists`;
+  `ErrVersionConflict` ou `Conflict` → `Aborted`; `context.DeadlineExceeded`; `context.Canceled`; `ErrDenied` ou
   `Forbidden` → `PermissionDenied`; as três condições de `IDN-01` ou
   `Unauthenticated` → `Unauthenticated`; o resto → `Internal`. A categoria é a
   do primeiro nó da cadeia com `ErrorCategory() string`, lida sem importar

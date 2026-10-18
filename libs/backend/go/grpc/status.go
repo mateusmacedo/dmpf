@@ -71,6 +71,8 @@ func StatusOf(err error) error {
 	switch {
 	case errors.Is(err, ports.ErrNotFound), category == categoryNotFound:
 		return status.Error(codes.NotFound, "not found")
+	case errors.Is(err, ports.ErrUniqueViolation):
+		return status.Error(codes.AlreadyExists, "already exists")
 	case errors.Is(err, ports.ErrVersionConflict), category == categoryConflict:
 		return status.Error(codes.Aborted, "version conflict; replay the call")
 	case errors.Is(err, context.DeadlineExceeded):

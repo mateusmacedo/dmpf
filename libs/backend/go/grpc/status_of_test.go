@@ -38,6 +38,8 @@ func TestStatusOfMapsEveryTechnicalOutcome(t *testing.T) {
 		"version conflict":        {ports.ErrVersionConflict, codes.Aborted, "version conflict; replay the call"},
 		"classified as conflict":  {classifiedAs("Conflict"), codes.Aborted, "version conflict; replay the call"},
 		"wrapped conflict":        {fmt.Errorf("save: %w", ports.ErrVersionConflict), codes.Aborted, "version conflict; replay the call"},
+		"unconverted uniqueness":  {fmt.Errorf("save: %w", ports.UniqueViolation{Table: "orders", Constraint: "orders_tenant_id_ref_key"}), codes.AlreadyExists, "already exists"},
+		"uniqueness as conflict":  {categorized{category: "Conflict", cause: ports.UniqueViolation{}}, codes.AlreadyExists, "already exists"},
 		"deadline":                {context.DeadlineExceeded, codes.DeadlineExceeded, "deadline exceeded"},
 		"wrapped deadline":        {fmt.Errorf("load: %w", context.DeadlineExceeded), codes.DeadlineExceeded, "deadline exceeded"},
 		"cancellation":            {context.Canceled, codes.Canceled, "canceled"},
