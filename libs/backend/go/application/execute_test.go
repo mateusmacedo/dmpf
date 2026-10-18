@@ -316,3 +316,43 @@ func TestExecuteRunsInsideTheTransactionAndAuditsInsideTheOperation(t *testing.T
 		t.Fatal("Audit did not receive the context of BeginOperation")
 	}
 }
+
+func TestExecuteStoresADeclaredUniqueViolationAsARefusalAndReplaysIt(t *testing.T) {
+	c := newExecCase(t)
+	pending := &fakePending{}
+	c.reception = ports.FirstReception(pending)
+	var steps []string
+	repo := &counterRepo{steps: &steps, saveErr: fmt.Errorf("postgres: save counters o-1: %w",
+		ports.UniqueViolation{Table: "counters", Constraint: "counters_tenant_id_name_key", Rejection: duplicateName})}
+	outbox := &recordingOutbox{}
+	c.command.Run = func(ctx context.Context, _ execResources, identity usecase.Identity) (usecase.Outcome[itemAccepted], error) {
+		return usecase.Decide(ctx, repo, outbox, origin, "o-1", identity, usecase.OrNew(freshCounter, counterFrom),
+			func(*counter) (kernel.Accepted[itemAccepted], *kernel.Rejection) {
+				return kernel.Accept(itemAccepted{Order: "o-1", Items: 1}, namedEvent("counted")), nil
+			})
+	}
+
+	outcome, err := c.execute(t)
+
+	if rejection, rejected := outcome.Rejection(); err != nil || !rejected || rejection.Code() != duplicateName.Code() {
+		t.Fatalf("Execute() = (%+v, %v), want the declared rejection and nil", outcome, err)
+	}
+	if len(pending.completions) != 1 || pending.completions[0].Status != ports.StatusRejected || len(outbox.entries) != 0 {
+		t.Fatalf("completions = %+v with %d entries, want one rejected and none: its replay is R3", pending.completions, len(outbox.entries))
+	}
+	if len(c.trail.audits) != 1 || c.trail.audits[0].Outcome != ports.OutcomeRejected {
+		t.Fatalf("audits = %+v, want one rejected", c.trail.audits)
+	}
+
+	replay := newExecCase(t)
+	replay.reception = ports.RejectedReception().WithStored(pending.completions[0].Outcome)
+
+	again, err := replay.execute(t)
+
+	if rejection, rejected := again.Rejection(); err != nil || !rejected || rejection.Code() != duplicateName.Code() {
+		t.Fatalf("replay = (%+v, %v), want the same rejection and nil", again, err)
+	}
+	if slices.Contains(replay.trail.steps, "audit") {
+		t.Fatalf("steps = %q, want no audit on a replay (IDM-08)", replay.trail.steps)
+	}
+}

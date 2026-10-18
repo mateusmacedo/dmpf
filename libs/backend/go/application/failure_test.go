@@ -94,6 +94,7 @@ func TestCategoryOfGivesTheRepositorySentinelsTheCategoryTheEdgeAnswers(t *testi
 		"not found":               {fmt.Errorf("failure_test: %w", ports.ErrNotFound), string(application.NotFound)},
 		"cross-tenant access":     {fmt.Errorf("failure_test: %w", ports.CrossTenantAccess{Object: "orders/x-1", ContextTenant: "acme", DataTenant: "globex"}), string(application.NotFound)},
 		"version conflict":        {fmt.Errorf("failure_test: %w", ports.ErrVersionConflict), string(application.Conflict)},
+		"unique violation":        {fmt.Errorf("failure_test: %w", ports.UniqueViolation{Table: "orders", Constraint: "orders_tenant_id_ref_key"}), string(application.Conflict)},
 		"failure over a sentinel": {application.NewFailure(application.Unexpected, false, ports.ErrNotFound), string(application.Unexpected)},
 	} {
 		t.Run(name, func(t *testing.T) {

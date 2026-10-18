@@ -84,10 +84,24 @@ func Decide[ID comparable, S, T any, A interface {
 	}
 
 	if err := repo.Save(ctx, id, aggregate.Snapshot(), stored); err != nil {
+		if rejection, ok := DeclaredRejection(err); ok {
+			return Rejected[R](rejection), nil
+		}
 		return zero, err
 	}
 	if err := Enqueue(ctx, outbox, identity, origin, stored+1, accepted.Events()); err != nil {
 		return zero, fmt.Errorf("enqueue: %w", err)
 	}
 	return Accepted(accepted.Response()), nil
+}
+
+// DeclaredRejection is the refusal a context declared for the unique constraint
+// that Save reported, for Decide and for message consumers alike; false when the
+// violation carries none, which leaves it a Conflict failure (ADR-066).
+func DeclaredRejection(err error) (*domain.Rejection, bool) {
+	violation, ok := errors.AsType[ports.UniqueViolation](err)
+	if !ok || violation.Rejection == nil {
+		return nil, false
+	}
+	return violation.Rejection, true
 }
