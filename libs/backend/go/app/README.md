@@ -137,6 +137,18 @@ que acabou de conceder; se o prazo estourar, a partida falha com
 grants. O `api` sem migrar e o relay esperam o privilégio por `WaitForGrants`,
 não só a tabela.
 
+`API.Uniques` é opcional e recebe o `provider.Uniques` do contexto (ADR-066).
+Com ele preenchido, o `ready` confere as restrições depois dos três ramos
+acima, sempre na pool do `DSN`, porque a de runtime lê `pg_constraint` e a do
+migrador já fechou, e com prazo de 15 s nos dois casos. Depois da própria
+migração, roda `postgres.VerifyUniques` uma vez; sem `MIGRATE`, espera por
+`postgres.WaitForUniques`, que repete a cada segundo só enquanto o erro for
+`ErrUniqueDivergent`, porque a réplica pode subir antes de o migrador criar a
+restrição, e registra a restrição pendente como as outras esperas. A
+divergência que persiste impede a partida; a parada pedida durante a espera
+devolve a divergência junto com o erro do contexto e sai limpa. Lista vazia não
+faz round trip.
+
 ## O relay
 
 `relay/postgres.go` traz `NewOverPostgres(pool, publisher, component, config)`, que monta o dreno de FND-04 §5.4 sobre a outbox de `postgres` com a identidade do kernel (`idclock.SystemClock`, `idclock.NewClaimIDs(component)`) — antes, `orders` e `reservations` repetiam essa montagem e cada um trazia o próprio `RandomClaimIDs`. O relay drena de todos os tenants sem distinção: a outbox fica fora do escopo de tenant (ADR-050), e é `record.go` quem lê o `tenantid` da `metadata` que `postgres` escreveu e o coloca no envelope publicado, para que o consumidor o leia de volta em `executionOf`. O `traceparent` e o `tracestate` da `metadata` vão ao envelope sem alteração: são o contexto de criação da mensagem (`ENV-08`).

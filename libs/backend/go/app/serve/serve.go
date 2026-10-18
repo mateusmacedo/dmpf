@@ -44,6 +44,7 @@ const (
 	pingTimeout    = 10 * time.Second
 	migrateTimeout = 2 * time.Minute
 	grantsTimeout  = 15 * time.Second
+	uniquesTimeout = 15 * time.Second
 )
 
 type APIRole struct {
@@ -63,6 +64,7 @@ type API struct {
 	Commands        []string
 	Schema          string
 	Grants          []postgres.Grant
+	Uniques         []postgres.UniqueSet
 	CommandConsumer string
 	Register        func(*grpc.Server, *pgxpool.Pool) error
 }
@@ -197,6 +199,27 @@ func register(server *grpc.Server, pool *pgxpool.Pool, api API) error {
 }
 
 func prepare(ctx context.Context, rt *otelboot.Runtime, pool *pgxpool.Pool, cfg APIRole, api API) error {
+	if err := migrateOrWait(ctx, rt, pool, cfg, api); err != nil {
+		return err
+	}
+	return verifyUniques(ctx, rt, pool, cfg.Migrate, api.Uniques)
+}
+
+// A replica without MIGRATE may start before the migrator adds a constraint, so
+// it waits for the catalog to converge; after its own migration it checks once.
+func verifyUniques(ctx context.Context, rt *otelboot.Runtime, pool *pgxpool.Pool, migrated bool, sets []postgres.UniqueSet) error {
+	if len(sets) == 0 {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(ctx, uniquesTimeout)
+	defer cancel()
+	if migrated {
+		return postgres.VerifyUniques(ctx, pool, sets...)
+	}
+	return postgres.WaitForUniques(ctx, pool, time.Second, rt.LoggerProvider(), sets...)
+}
+
+func migrateOrWait(ctx context.Context, rt *otelboot.Runtime, pool *pgxpool.Pool, cfg APIRole, api API) error {
 	capabilities := []postgres.Capability{postgres.Outbox, postgres.Inbox}
 	grants := append(postgres.KernelGrants(capabilities...), api.Grants...)
 	if !cfg.Migrate {

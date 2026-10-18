@@ -45,6 +45,7 @@ func TestStatusOfLetsTheLowestRowWinOverTheCategoryOfAFailure(t *testing.T) {
 	}{
 		"conflict around not found":         {application.NewFailure(application.Conflict, true, ports.ErrNotFound), codes.NotFound},
 		"not found around version conflict": {application.NewFailure(application.NotFound, false, ports.ErrVersionConflict), codes.NotFound},
+		"conflict around unique violation":  {application.NewFailure(application.Conflict, false, ports.UniqueViolation{}), codes.AlreadyExists},
 		"forbidden around deadline":         {application.NewFailure(application.Forbidden, false, context.DeadlineExceeded), codes.DeadlineExceeded},
 		"unauthenticated around denial":     {application.NewFailure(application.Unauthenticated, false, ports.ErrDenied), codes.PermissionDenied},
 		"forbidden around reused key":       {application.NewFailure(application.Forbidden, false, ports.ErrIdempotencyMismatch), codes.FailedPrecondition},
