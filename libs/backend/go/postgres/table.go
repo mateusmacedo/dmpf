@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
@@ -36,6 +37,10 @@ type Table[ID ~string, S any] struct {
 	// The table owns the ID column, so Decode never scans it; nil means S does
 	// not hold one (a JSON snapshot already carries it).
 	WithID func(S, ID) S
+
+	// Unique declares the business uniqueness the schema enforces besides the
+	// identity; a Save that breaks one returns its rejection (ADR-066).
+	Unique []Unique
 }
 
 // ReadPool is the pool as a context provider holds it: only statements this
@@ -59,7 +64,7 @@ func (t Table[ID, S]) Reader(pool ReadPool) ports.Reader[ID, S] {
 // Repository binds the table to an open transaction, so aggregate state and the
 // outbox record commit together (UOW-01).
 func (t Table[ID, S]) Repository(tx *Tx) ports.Repository[ID, S] {
-	return tableRepository[ID, S]{table: t, statements: t.compile(), conn: tx.conn}
+	return tableRepository[ID, S]{table: t, statements: t.compile(), tx: tx}
 }
 
 // Relation serves the query the generic ports cannot express: many rows of one
@@ -156,6 +161,7 @@ type statements struct {
 	owner     string
 	insert    string
 	update    string
+	exists    string
 }
 
 // compile runs once per bind rather than once per operation.
@@ -190,6 +196,8 @@ func (t Table[ID, S]) compile() statements {
 		update: declare(fmt.Sprintf(
 			"UPDATE %s SET version = $3 + 1, %s WHERE tenant_id = $1 AND %s = $2 AND version = $3",
 			t.Name, strings.Join(assignments, ", "), t.IDColumn), "UPDATE", t.Name),
+		exists: declare(fmt.Sprintf(
+			"SELECT 1 FROM %s WHERE tenant_id = $1 AND %s = $2", t.Name, t.IDColumn), "SELECT", t.Name),
 	}
 }
 
@@ -211,6 +219,9 @@ func (t Table[ID, S]) validate() {
 		if column == "tenant_id" || column == "version" || column == t.IDColumn {
 			panic(fmt.Sprintf("postgres: Table %q lists %q, which the table owns", t.Name, column))
 		}
+	}
+	if err := checkUniques(t.Name, t.Unique); err != nil {
+		panic(err.Error())
 	}
 }
 
@@ -308,11 +319,11 @@ func (r tableReader[ID, S]) Load(ctx context.Context, id ID) (S, ports.Version, 
 type tableRepository[ID ~string, S any] struct {
 	table      Table[ID, S]
 	statements statements
-	conn       pgx.Tx
+	tx         *Tx
 }
 
 func (r tableRepository[ID, S]) Load(ctx context.Context, id ID) (S, ports.Version, error) {
-	return r.table.load(ctx, r.conn, r.statements, id)
+	return r.table.load(ctx, r.tx.conn, r.statements, id)
 }
 
 func (r tableRepository[ID, S]) Save(ctx context.Context, id ID, state S, expected ports.Version) error {
@@ -335,13 +346,21 @@ func (r tableRepository[ID, S]) Save(ctx context.Context, id ID, state S, expect
 		statement, version = r.statements.insert, 1
 	}
 	args := append([]any{string(tenant), string(id), version}, values...)
+	if len(r.table.Unique) > 0 {
+		return r.saveUnderSavepoint(ctx, tenant, id, statement, args, expected == 0)
+	}
 
-	tag, err := r.conn.Exec(ctx, statement, args...)
+	tag, err := r.tx.conn.Exec(ctx, statement, args...)
 	if err != nil {
 		return fmt.Errorf("postgres: save %s %s: %w", r.table.Name, id, err)
 	}
+	return r.settle(tag)
+}
+
+func (r tableRepository[ID, S]) settle(tag pgconn.CommandTag) error {
 	if tag.RowsAffected() == 0 {
 		return ports.ErrVersionConflict
 	}
+	r.tx.writes++
 	return nil
 }

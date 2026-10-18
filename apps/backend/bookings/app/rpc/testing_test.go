@@ -28,7 +28,11 @@ import (
 
 var (
 	bookingsTable  = memory.Table[domain.BookingID, domain.BookingSnapshot]{Name: "bookings"}
-	resourcesTable = memory.Table[domain.ResourceCode, domain.ResourceSnapshot]{Name: "resources"}
+	resourcesTable = memory.Table[domain.ResourceCode, domain.ResourceSnapshot]{Name: "resources", Unique: []memory.Unique[domain.ResourceSnapshot]{{
+		Name:      "resources_tenant_id_name_key",
+		Key:       func(s domain.ResourceSnapshot) ([]string, bool) { return []string{string(s.Name)}, true },
+		Rejection: domain.RejectResourceDuplicateName,
+	}}}
 )
 
 const (

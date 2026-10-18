@@ -29,6 +29,72 @@ instâncias de `Table[ID,S]` no bloco `provider` de cada contexto —
   aberta. `Relation(filterColumn)` serve a consulta por relação que os
   genéricos de `ports` não expressam — muitas linhas de uma tabela filtradas
   por uma coluna que não é a chave —, com a mesma disciplina de tenant.
+  `Unique []Unique` declara a unicidade de negócio que o `schema.sql` impõe
+  além da identidade (ADR-066); o `validate` entra em pânico com nome ou coluna
+  fora de minúsculas, nome diferente de `<tabela>_<col1>_<colN>_key` ou acima
+  de 63 bytes, menos de duas colunas, `tenant_id` fora da frente, rejeição nula,
+  código inválido ou nome repetido. Só nas tabelas com `Unique`, o `Save` envia
+  `SAVEPOINT dmpf_unique`, o `INSERT` ou o `UPDATE` e `RELEASE SAVEPOINT
+  dmpf_unique` num único `pgx.Batch`. O nome é fixo: savepoints de mesmo nome
+  empilham, `RELEASE` e `ROLLBACK TO` atingem o mais recente, que é o do
+  próprio `Save`, e o `sp_N` do `Begin` aninhado do pgx fica abaixo dele; o
+  `ROLLBACK TO` mantém o savepoint, e o seguinte empilha por cima. Com o nome
+  fixo, cada statement é preparado uma vez por conexão. Continua um savepoint
+  (subtransação) por `Save`. O pgx prepara ou descreve os statements de um
+  batch antes de enviá-lo (`conn.go:1170`), e um prepare recusado antes do
+  `SAVEPOINT` abortaria a transação; por isso, no modo padrão
+  (`CacheStatement`), o primeiro `Save` de cada escrita numa conexão envia o
+  `SAVEPOINT` sozinho e prepara por nome a escrita, o `SAVEPOINT` e o
+  `RELEASE`, fora do LRU do cache de statements, e dali em diante o batch é um
+  round trip. O plano fica no `CustomData` da conexão. `Exec` e
+  `SimpleProtocol` mandam sempre um batch; `CacheDescribe` e `DescribeExec`
+  mandam sempre o `SAVEPOINT` separado. Quando a escrita falha, inclusive no
+  prepare (coluna divergente, `42703`), a falha vem depois do `SAVEPOINT`: o
+  servidor descarta o `RELEASE` e a transação fica abortada até o `ROLLBACK
+  TO SAVEPOINT`, que roda num contexto destacado do cancelamento, com prazo de
+  5 s, e a deixa utilizável. O erro da escrita sai sem rótulo; `savepoint:`
+  aparece só quando o servidor recusa o próprio `SAVEPOINT`
+  (`*pgconn.PgError`, como `25P02`), no batch ou enviado sozinho. Cancelamento,
+  timeout, falha de rede ou conexão fechada antes do resultado do `SAVEPOINT`
+  saem sem rótulo e sem `ROLLBACK TO`, nos dois caminhos: nada garante
+  que o savepoint exista, um `ROLLBACK TO` poderia atingir um savepoint mais
+  antigo de mesmo nome, e o pgx fecha a conexão. Um `23505` da própria tabela
+  volta então como `ports.UniqueViolation`, com a rejeição declarada se a
+  restrição está em `Unique` e a transação ainda não escreveu, e `Rejection`
+  nulo se não. Na criação, uma sonda confere antes se a identidade já existe
+  no tenant: se existe, é corrida de identidade e volta `ErrVersionConflict`.
+  O `Detail` do `PgError`, que cita os valores da linha, nunca chega ao erro
+  (ERR-07). Em escritas no socket, no modo padrão: o primeiro `Save` de cada
+  escrita numa conexão paga 5, uma vez; depois, 1, contra 3 com cada
+  statement enviado sozinho; a primeira criação recusada numa conexão paga 4
+  (batch, `ROLLBACK TO SAVEPOINT`, prepare e execução da sonda de identidade),
+  as seguintes, 3, e o `Save` seguinte à recusa, 1.
+  `CacheDescribe` paga 2 por `Save`, e `DescribeExec`, 3. O `BenchmarkSave`
+  (`unique_bench_test.go`) grava na mesma tabela declarada com e sem `Unique`.
+  O `-count` não intercala os sub-benchmarks, então o binário de teste rodou
+  12 vezes com `-test.count=1`: medianas de 171 µs sem e 195 µs com `Unique`
+  (razão 1,14), contra 177 e 356 µs (2,0) na versão anterior ao batch. Os
+  tempos absolutos variam com a carga da máquina, e só a razão compara. Um
+  `DEALLOCATE ALL` ou `DISCARD ALL` externo, como o de um `ResetSession`
+  configurado pelo consumidor, invalida os statements preparados por nome sem
+  o pgx saber, como invalidaria os do próprio pgx. Tabela sem `Unique` não
+  ganha statement nem round trip. `Uniques()` devolve a declaração como
+  `UniqueSet`, sem parâmetros de tipo.
+- **`unique.go`** — `Unique{Name, Columns, Rejection}`, `UniqueSet{Table,
+  Constraints}` e `VerifyUniques(ctx, pool, sets...)`, que confere em
+  `pg_constraint`, pela tabela resolvida em `public`, que cada restrição
+  declarada existe com `contype = 'u'`, nas colunas e na ordem declaradas, sem
+  `DEFERRABLE` e sem `NULLS NOT DISTINCT`, e que as restrições de cada
+  `UniqueSet` seguem a ordem dos índices no catálogo, que é a do DDL: sob colisão
+  em mais de uma, o servidor reporta o primeiro índice que confere, e a
+  declaração precisa apontar a mesma. Tabela particionada, com filhas por
+  herança, ou ela própria partição ou filha diverge como `partitioned or
+  inherited table`: na partição, o `23505` traz a tabela e a restrição da
+  partição folha, e a tradução, que compara a tabela, devolveria o erro cru no
+  lugar da rejeição. Devolve a primeira divergência como
+  `ErrUniqueDivergent`. Antes do catálogo, valida os conjuntos com as regras do
+  `validate` e devolve erro em vez de pânico. Sem nada declarado, não faz round
+  trip. `CREATE UNIQUE INDEX` não tem linha em `pg_constraint` e não serve.
 - **`snapshot_table.go`** — `SnapshotTable[ID, S, J](name, idColumn, to, from,
   withID)` monta a `Table[ID,S]` do agregado cujo estado inteiro vive na coluna
   `snapshot` (ADR-053): `J` é o struct de estado privado do provider, cujas tags
@@ -46,9 +112,24 @@ instâncias de `Table[ID,S]` no bloco `provider` de cada contexto —
   `server.port`, `db.query.text` parametrizado e sem argumentos,
   `db.response.returned_rows` no `SELECT` e `dmpf.db.rows_affected` no DML;
   operação e coleção só saem de statement declarado (`declare`), porque a
-  semconv veda derivá-las de SQL com mais de uma, e `BEGIN`, `COMMIT` e
-  `ROLLBACK` levam `db.operation.name` no lugar de `db.query.text`. O erro é
-  o SQLSTATE, em `db.response.status_code` e `error.type`, nunca `Message`,
+  semconv veda derivá-las de SQL com mais de uma, e `BEGIN`, `COMMIT`,
+  `ROLLBACK`, `SAVEPOINT`, `RELEASE SAVEPOINT` e `ROLLBACK TO SAVEPOINT` levam
+  `db.operation.name` no lugar de `db.query.text`, sem o nome do savepoint
+  (`sp_N` ou `dmpf_unique`). Num `pgx.Batch`, cada statement abre o seu
+  span, filho do chamador e com os mesmos nome e atributos do statement
+  enviado sozinho. Os statements de um batch estão em voo juntos: cada span
+  começa no envio do batch e termina quando o seu resultado é lido, e a
+  duração de cada um não separa o tempo de servidor de cada statement (sob
+  espera num índice único, `SAVEPOINT`, escrita e `RELEASE` mostram a mesma
+  espera). Um erro do servidor (`*pgconn.PgError`) fica no primeiro statement
+  sem resultado, venha ele no resultado de um statement ou no fim do batch, e
+  os statements que o servidor pulou, como o `RELEASE`, não abrem span. Um erro
+  que não vem do servidor, como timeout, rede ou conexão fechada, marca com
+  `error.type=_OTHER` todos os spans ainda abertos, venha ele antes de qualquer
+  resultado, no resultado de um statement ou no fim do batch; os statements
+  cujo resultado já foi lido ficam sem status. O
+  `SAVEPOINT` enviado sozinho é um span de query próprio. O pool com
+  `WithMeterProvider` também traça o batch. O erro é o SQLSTATE, em `db.response.status_code` e `error.type`, nunca `Message`,
   `Detail` nem `Hint` do `PgError` (RF-B6). Com `WithMeterProvider`, o pool grava as
   métricas da semconv por `dbconv`, todas por `db.client.connection.pool.name`
   (`{server.address}:{server.port}/{db.namespace}`):
@@ -66,7 +147,9 @@ instâncias de `Table[ID,S]` no bloco `provider` de cada contexto —
 - **`uow.go`** — `NewUnitOfWork[R]`, `Tx` e `Within`. Uma transação por
   chamada, em `READ COMMITTED` explícito qualquer que seja o padrão do
   servidor, o callback invocado uma única vez, e as seis cláusulas do
-  contrato provadas em `uow_test.go`.
+  contrato provadas em `uow_test.go`. O `Tx` conta as escritas de agregado com
+  linha afetada e as de outbox, nunca as da inbox: é a guarda que deixa a
+  violação declarada convertível só como primeira escrita (DEC-10).
 - **`outbox.go`** — `Tx.Outbox(mapper)` e `Enqueue`. Grava na mesma `pgx.Tx` do
   estado de negócio: um commit torna os dois visíveis, ou nenhum. A `metadata`
   grava o contexto de mensagem de `ENV-08` que o adapter autorou —
@@ -127,7 +210,15 @@ instâncias de `Table[ID,S]` no bloco `provider` de cada contexto —
   privilégio de cada grant (`has_table_privilege`), para o processo que lê o
   schema que outro aplica, cada passada numa consulta só. As duas procuram a
   tabela em `public`, com o nome citado. Dono e superuser têm o privilégio
-  assim que a tabela existe.
+  assim que a tabela existe. `WaitForUniques` repete a consulta de
+  `VerifyUniques` só enquanto ela divergir (`ErrUniqueDivergent`) e devolve na
+  hora qualquer outro erro; o registro `waiting for unique constraint` leva
+  `db.collection.name`, `dmpf.db.constraint.name` e
+  `dmpf.db.constraint.divergence`. A tabela particionada ou com herança
+  nunca converge: a espera só acaba no prazo, com o motivo no registro e no
+  erro. No fim do contexto, as três esperas
+  devolvem o erro dele junto com o que ainda faltava; a de restrições preserva
+  o `ErrUniqueDivergent`.
 - **`inbox.go`** — `Tx.Inbox(consumer, wait)`, `Register` e `Pending.Complete`
   (`KRN-07`). `Register` é `INSERT … ON CONFLICT DO NOTHING` seguido de leitura:
   devolve a classificação (R1, R2, R3 ou R4), nunca erro de constraint, e a
@@ -174,6 +265,11 @@ em vez de sobrescrever em silêncio. `inbox_concurrency_test.go` faz o mesmo par
 transações registram a mesma chave, a segunda bloqueia até o desfecho da
 primeira e recebe R2, R3 ou R1 conforme ela commitou `processed`, commitou
 `rejected` ou desfez; e o teto de espera é interrompido pelo servidor.
+`unique_concurrency_test.go` prova a unicidade declarada sob concorrência: de
+duas criações com o mesmo valor, uma grava e a outra recebe a rejeição, que a
+inbox commita como `rejected` na transação que a violação deixou utilizável;
+duas criações da mesma identidade terminam em `ErrVersionConflict`, nunca em
+recusa.
 
 `apps/backend/reservations/provider` é o lado do consumo do agregado de
 referência: o repositório com chave natural (`order_id`, `ON CONFLICT DO

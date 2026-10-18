@@ -27,7 +27,7 @@ func harness(t *testing.T) appkit.Harness {
 func registerResource(t *testing.T, h appkit.Harness) domain.ResourceID {
 	t.Helper()
 	registered, err := h.Service.RegisterResource(withExecution(t, context.Background()),
-		application.RegisterResource{Code: resourceUnderTest})
+		application.RegisterResource{Code: resourceUnderTest, Name: "Room under test"})
 	if err != nil {
 		t.Fatalf("RegisterResource() = %v, want nil", err)
 	}

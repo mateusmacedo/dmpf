@@ -2,7 +2,7 @@
 
 ## Status
 
-Aceito — 2026-09-03. Implementa SPEC-ZHE7DN1H.
+Aceito — 2026-09-03. Implementa SPEC-ZHE7DN1H. **Emendado pelo [ADR-066](./066-unicidade-declarada-como-rejeicao.md) (2026-10-17)**: o savepoint da unicidade declarada é interno ao `Save`, e `Within` continua uma única transação (UOW-01); a rejeição convertida sai no `Outcome` com `error == nil`.
 
 ## Contexto
 

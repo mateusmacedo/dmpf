@@ -26,18 +26,19 @@ var resourceRegisteredSpec = tb.Spec[proto.Message]{
 	New:        func() proto.Message { return &eventv1.ResourceRegistered{} },
 	FromFields: func(fields map[string]string) (proto.Message, error) { return resourceRegistered(fields) },
 	Build: leanFixture(
-		resourceRegisteredFields("room-1", "2026-09-02T12:00:00Z"),
-		resourceRegisteredFields("room-2", "2026-09-02T12:00:01Z"),
-		resourceRegisteredFields("room-3", "2026-09-02T12:00:02Z"),
-		resourceRegisteredFields("room-4", "2026-09-02T12:00:03.123456789Z"),
+		resourceRegisteredFields("room-1", "Room 1", "2026-09-02T12:00:00Z"),
+		resourceRegisteredFields("room-2", "Room 2", "2026-09-02T12:00:01Z"),
+		resourceRegisteredFields("room-3", "Room 3", "2026-09-02T12:00:02Z"),
+		resourceRegisteredFields("room-4", "Room 4", "2026-09-02T12:00:03.123456789Z"),
 	),
 	WantCases:          2,
 	WantDiscriminators: 2,
 }
 
-func resourceRegisteredFields(resourceID, registeredAt string) map[string]string {
+func resourceRegisteredFields(resourceID, name, registeredAt string) map[string]string {
 	return map[string]string{
 		"resource_id":   resourceID,
+		"name":          name,
 		"registered_at": registeredAt,
 	}
 }
@@ -50,5 +51,6 @@ func resourceRegistered(fields map[string]string) (*eventv1.ResourceRegistered, 
 	return &eventv1.ResourceRegistered{
 		ResourceId:   fields["resource_id"],
 		RegisteredAt: timestamppb.New(registeredAt),
+		Name:         fields["name"],
 	}, nil
 }

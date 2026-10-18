@@ -12,6 +12,8 @@ func TestDeclaredCodesAreValid(t *testing.T) {
 		"CodeBookingQuantityOutOfRange": domain.CodeBookingQuantityOutOfRange,
 		"CodeBookingNotReserved":        domain.CodeBookingNotReserved,
 		"CodeResourceCodeEmpty":         domain.CodeResourceCodeEmpty,
+		"CodeResourceNameEmpty":         domain.CodeResourceNameEmpty,
+		"CodeResourceDuplicateName":     domain.CodeResourceDuplicateName,
 	}
 	for name, code := range codes {
 		t.Run(name, func(t *testing.T) {

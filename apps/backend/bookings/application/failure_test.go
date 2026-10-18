@@ -22,7 +22,7 @@ func TestEachFailureOfACommandCarriesTheUseCasePrefix(t *testing.T) {
 		return err
 	}
 	register := func(t *testing.T, h *harness) error {
-		_, err := h.service.RegisterResource(withExecution(t, context.Background()), application.RegisterResource{Code: testResCode})
+		_, err := h.service.RegisterResource(withExecution(t, context.Background()), application.RegisterResource{Code: testResCode, Name: testResName})
 		return err
 	}
 	for _, tc := range []struct {

@@ -83,7 +83,11 @@ func (o txOutbox) Enqueue(ctx context.Context, entry ports.OutboxEntry) error {
 		// *pgconn.PgError, porque a prova de OBX-01 é o SQLSTATE do schema.
 		return fmt.Errorf("%w: %w", ErrDuplicateMessage, err)
 	}
-	return err
+	if err != nil {
+		return err
+	}
+	o.tx.writes++
+	return nil
 }
 
 // metadataKeys are the ENV-08 attribute names the relay reads back

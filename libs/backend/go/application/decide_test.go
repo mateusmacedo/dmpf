@@ -3,6 +3,7 @@ package application_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"testing"
 
@@ -244,6 +245,67 @@ func TestDecideReturnsEachFailureOfItsSteps(t *testing.T) {
 			}
 			if !slices.Equal(c.steps, tc.steps) {
 				t.Fatalf("steps = %q, want %q", c.steps, tc.steps)
+			}
+		})
+	}
+}
+
+var duplicateName = kernel.Reject("kernel/counter/duplicate-name", "a counter with this name already exists")
+
+func TestDecideRefusesWithTheRejectionDeclaredForTheViolatedConstraint(t *testing.T) {
+	declared := ports.UniqueViolation{Table: "counters", Constraint: "counters_tenant_id_name_key", Rejection: duplicateName}
+	for _, tc := range []struct {
+		name    string
+		saveErr error
+	}{
+		{name: "bare", saveErr: declared},
+		{name: "wrapped", saveErr: fmt.Errorf("postgres: save counters c-1: %w", declared)},
+		{name: "wrapped with the driver error", saveErr: fmt.Errorf("postgres: save counters c-1: %w: %w", declared, errors.New("SQLSTATE 23505"))},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c := newDecideCase()
+			c.repo.saveErr = tc.saveErr
+
+			outcome, err := c.decide(usecase.Existing[string](counterFrom))
+
+			if rejection, rejected := outcome.Rejection(); err != nil || !rejected || rejection != duplicateName {
+				t.Fatalf("Decide() = (%+v, %v), want the declared rejection and nil", outcome, err)
+			}
+			if want := []string{"load", "decide", "save"}; !slices.Equal(c.steps, want) || len(c.outbox.entries) != 0 {
+				t.Fatalf("steps = %q with %d entries, want %q and none: a refusal enqueues nothing (DEC-11)", c.steps, len(c.outbox.entries), want)
+			}
+		})
+	}
+}
+
+func TestDecideReturnsAnUnconvertibleViolationAsTheError(t *testing.T) {
+	c := newDecideCase()
+	c.repo.saveErr = fmt.Errorf("postgres: save counters c-1: %w", ports.UniqueViolation{Table: "counters", Constraint: "counters_tenant_id_name_key"})
+
+	outcome, err := c.decide(usecase.Existing[string](counterFrom))
+
+	if _, rejected := outcome.Rejection(); rejected || !errors.Is(err, ports.ErrUniqueViolation) {
+		t.Fatalf("Decide() = (%+v, %v), want no rejection and ErrUniqueViolation: a nil Rejection is not convertible", outcome, err)
+	}
+}
+
+func TestDeclaredRejectionRecognisesOnlyAViolationThatCarriesOne(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		err  error
+		want *kernel.Rejection
+	}{
+		{name: "nil", err: nil},
+		{name: "other error", err: ports.ErrVersionConflict},
+		{name: "sentinel alone", err: ports.ErrUniqueViolation},
+		{name: "violation without rejection", err: ports.UniqueViolation{Table: "counters", Constraint: "counters_tenant_id_name_key"}},
+		{name: "declared violation", err: fmt.Errorf("consume: %w", ports.UniqueViolation{Rejection: duplicateName}), want: duplicateName},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, ok := usecase.DeclaredRejection(tc.err)
+
+			if got != tc.want || ok != (tc.want != nil) {
+				t.Fatalf("DeclaredRejection(%v) = (%v, %v), want (%v, %v)", tc.err, got, ok, tc.want, tc.want != nil)
 			}
 		})
 	}

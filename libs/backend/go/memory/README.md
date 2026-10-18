@@ -26,13 +26,14 @@ baseline — é o que permite a um contexto de `apps/backend` importá-la sem
 
 | Arquivo | Conteúdo |
 | --- | --- |
-| `store.go` | `Store`, `New`; `Table[ID, S]` com `Reader(*Store)` e `Repository(*Tx)`, escopados por tenant; inspeção para testes: `Entries`, `FailNextCommit`, `WithinCalls`, `Commits`, `InboxRows`, `InboxStatus`, `InboxLastError` |
+| `store.go` | `Store`, `New`; `Table[ID, S]` com `Reader(*Store)` e `Repository(*Tx)`, escopados por tenant; `Unique[S]`, a unicidade declarada (ADR-066); inspeção para testes: `Entries`, `FailNextCommit`, `WithinCalls`, `Commits`, `InboxRows`, `InboxStatus`, `InboxLastError` |
 | `tx.go` | `Tx` (`Inbox(consumer)`, `Outbox()`), `NewUnitOfWork[R](store, bind)` e `Within` |
 | `inbox.go` | A inbox transacional: `Register` com as classificações R1–R4 e `Pending.Complete`; `Tx.CommandInbox(consumer)`, a mesma inbox para comandos, com o tenant na chave, o desfecho gravado e o vencimento da entrada (FND-04 §7.6) |
 | `clock.go` | `FixedClock` (`ports.Clock`) e `SequenceIDs` (`ports.IDGenerator`) |
 | `errors.go` | `ErrTenantUnresolved`, `ErrInboxConsumerRequired`, `ErrInboxConsumerMismatch`, `ErrAlreadyCompleted`, `ErrInvalidCompletion`, `ErrCommandExpiryRequired` |
 
-O código de produção importa só a stdlib e o `ports`; `external` é `[]`. O
+O código de produção importa só a stdlib, o `ports` e o `domain` (o
+`*domain.Rejection` de `Unique`); `external` é `[]`. O
 `testkit` entra apenas pelos `_test.go` — o `providerkit` roda aqui a suíte de
 conformidade de UoW e de inbox.
 
@@ -40,8 +41,15 @@ conformidade de UoW e de inbox.
 
 ```go
 type Table[ID comparable, S any] struct {
-    Name  string
-    Clone func(S) S
+    Name   string
+    Clone  func(S) S
+    Unique []Unique[S]
+}
+
+type Unique[S any] struct {
+    Name      string
+    Key       func(S) ([]string, bool)
+    Rejection *domain.Rejection
 }
 
 func (t Table[ID, S]) Reader(s *Store) ports.Reader[ID, S]
@@ -53,6 +61,18 @@ um único par `(ID, S)` pela vida do `Store`: reusar o mesmo `Name` com outro `S
 entra em `panic` na asserção de tipo do `Load`. `Clone` é chamado em toda
 travessia da fronteira (`Load`, `Save`, abertura e commit da transação); `nil`
 significa que a cópia por valor basta — um `S` sem slice, map ou ponteiro.
+
+`Unique` espelha o `postgres.Table.Unique` nos dublês (ADR-066). `Name` é o
+nome da restrição, e `Key` devolve as colunas depois de `tenant_id`, comparadas
+uma a uma, com `false` quando uma é nula, o que não colide com nada; a cadeia
+vazia colide, como no PostgreSQL. A mesma identidade não é violação. Com
+colisão em mais de uma restrição, vale a primeira declarada, por isso `Unique`
+segue a ordem do DDL, como o `postgres.Unique`. O `Save`
+que ocupa o valor de outra linha do tenant devolve `ports.UniqueViolation`, com
+a rejeição declarada se for a primeira escrita da transação e `Rejection` nulo
+se já houve `Save` ou `Enqueue` antes; a inbox não conta. `Repository` entra em
+`panic` com declaração sem nome, sem `Key`, sem rejeição, com código inválido
+ou com nome repetido, como o `postgres.Table`.
 
 Todo `Load` e `Save` resolve o tenant do contexto de execução
 (`ports.RequireExecutionContext(ctx).Tenant()`), pelo mesmo contrato que o
@@ -115,7 +135,10 @@ compartilham array com o `Store` nem com o chamador, o conflito de versão
 compartilham linhas, a serialização de `Within` concorrentes, e — em
 `execution_test.go` — o escopo por tenant: duas linhas para o mesmo
 identificador sob tenants distintos, `ErrTenantUnresolved` na ausência e
-`ports.CrossTenantAccess` no cruzamento (mesmo contrato do `postgres`).
+`ports.CrossTenantAccess` no cruzamento (mesmo contrato do `postgres`). A
+unicidade declarada é provada em `store_test.go` e pelo `providerkit.Unique`
+(`testkit/providerkit/unique_test.go`), com a cláusula concorrente em `Skipped`:
+a serialização por `txMu` não deixa duas criações correrem juntas.
 
 Não prova **isolamento** nem conflito de serialização entre transações
 concorrentes: `Within` retém `txMu` durante todo o callback, então as transações

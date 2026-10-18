@@ -23,7 +23,7 @@ var commands = []command{
 	{http.MethodPost, "/reservations/o-1/cancel", "", "Cancel"},
 	{http.MethodPost, "/bookings/booking", `{"bookingId":"b-1","resourceId":"room-1","quantity":2}`, "ReserveBooking"},
 	{http.MethodPost, "/bookings/booking/b-1/cancel", "", "CancelBooking"},
-	{http.MethodPost, "/bookings/resource", `{"code":"room-1"}`, "RegisterResource"},
+	{http.MethodPost, "/bookings/resource", `{"code":"room-1","name":"Sala 1"}`, "RegisterResource"},
 }
 
 func derived(subject, key string) string {

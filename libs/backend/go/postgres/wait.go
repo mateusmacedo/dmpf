@@ -34,9 +34,19 @@ func WaitForGrants(ctx context.Context, pool *pgxpool.Pool, interval time.Durati
 	})
 }
 
+// WHY: only a divergence converges by waiting, for a replica that starts before
+// the migrator adds the constraint; a malformed declaration or a server error never converges.
+func WaitForUniques(ctx context.Context, pool *pgxpool.Pool, interval time.Duration, logs log.LoggerProvider, sets ...UniqueSet) error {
+	return waitUntil(ctx, interval, logs, "unique constraint", func(ctx context.Context) (awaited, error) {
+		divergent, err := firstDivergentUnique(ctx, pool, sets)
+		return awaited{unique: divergent}, err
+	})
+}
+
 type awaited struct {
 	table     string
 	privilege Privilege
+	unique    divergence
 }
 
 func (p awaited) String() string {
@@ -44,6 +54,13 @@ func (p awaited) String() string {
 		return p.table
 	}
 	return fmt.Sprintf("%s on %s", p.privilege, p.table)
+}
+
+func (p awaited) interrupted(what string, cause error) error {
+	if p.unique != (divergence{}) {
+		return fmt.Errorf("wait for %s: %w: %w", what, p.unique.err(), cause)
+	}
+	return fmt.Errorf("wait for %s %s: %w", what, p, cause)
 }
 
 func waitUntil(ctx context.Context, interval time.Duration, logs log.LoggerProvider, what string, next func(context.Context) (awaited, error)) error {
@@ -59,7 +76,7 @@ func waitUntil(ctx context.Context, interval time.Duration, logs log.LoggerProvi
 			// writeError over the i/o timeout, without the context error (pgproto3/pgproto3.go:62).
 			if ctxErr := ctx.Err(); ctxErr != nil {
 				if reported != (awaited{}) {
-					return fmt.Errorf("wait for %s %s: %w", what, reported, ctxErr)
+					return reported.interrupted(what, ctxErr)
 				}
 				err = ctxErr
 			}
@@ -74,13 +91,20 @@ func waitUntil(ctx context.Context, interval time.Duration, logs log.LoggerProvi
 		}
 		select {
 		case <-ctx.Done():
-			return fmt.Errorf("wait for %s %s: %w", what, missing, ctx.Err())
+			return missing.interrupted(what, ctx.Err())
 		case <-ticker.C:
 		}
 	}
 }
 
 func reportWaiting(ctx context.Context, logger *slog.Logger, missing awaited) {
+	if missing.unique != (divergence{}) {
+		logger.InfoContext(ctx, "waiting for unique constraint",
+			string(semconv.DBCollectionNameKey), missing.unique.table,
+			keyConstraintName, missing.unique.constraint,
+			keyConstraintDivergence, missing.unique.reason)
+		return
+	}
 	if missing.privilege == "" {
 		logger.InfoContext(ctx, "waiting for table", string(semconv.DBCollectionNameKey), missing.table)
 		return
@@ -91,6 +115,11 @@ func reportWaiting(ctx context.Context, logger *slog.Logger, missing awaited) {
 }
 
 const waitReportEvery = 30 * time.Second
+
+const (
+	keyConstraintName       = "dmpf.db.constraint.name"
+	keyConstraintDivergence = "dmpf.db.constraint.divergence"
+)
 
 func loggerOf(provider log.LoggerProvider) *slog.Logger {
 	return logging.NewLogger(provider, reflect.TypeFor[Tx]().PkgPath())

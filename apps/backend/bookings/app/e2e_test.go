@@ -54,6 +54,11 @@ func (g *sequenceIDs) NewMessageID() ports.MessageID {
 // mounts, so the suite crosses the same hop the BFF does.
 func dial(t *testing.T, pool *pgxpool.Pool) *grpc.ClientConn {
 	t.Helper()
+	return dialWith(t, pool, nil)
+}
+
+func dialWith(t *testing.T, pool *pgxpool.Pool, instrumentation ports.Instrumentation) *grpc.ClientConn {
+	t.Helper()
 	bind := func(tx *postgres.Tx) application.Resources {
 		return application.Resources{
 			Bookings:  provider.NewBookingRepository(tx),
@@ -67,13 +72,14 @@ func dial(t *testing.T, pool *pgxpool.Pool) *grpc.ClientConn {
 		t.Fatalf("IdempotencyPolicy() = %v", err)
 	}
 	service := application.Service{
-		UoW:            postgres.NewUnitOfWork(pool, bind),
-		Reader:         provider.NewBookingReader(postgres.NewReadPool(pool)),
-		ResourceReader: provider.NewBookingsByResourceReader(postgres.NewReadPool(pool)),
-		Clock:          fixedClock{},
-		IDs:            &sequenceIDs{},
-		Authorize:      app.Authorization(),
-		Idempotency:    policy,
+		UoW:             postgres.NewUnitOfWork(pool, bind),
+		Reader:          provider.NewBookingReader(postgres.NewReadPool(pool)),
+		ResourceReader:  provider.NewBookingsByResourceReader(postgres.NewReadPool(pool)),
+		Clock:           fixedClock{},
+		IDs:             &sequenceIDs{},
+		Authorize:       app.Authorization(),
+		Idempotency:     policy,
+		Instrumentation: instrumentation,
 	}
 
 	limit := admission.Limit{PerSecond: 1000, Burst: 1000, Concurrency: 64}

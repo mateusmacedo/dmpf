@@ -75,7 +75,7 @@ func CategoryOf(err error) string {
 		errors.Is(err, ports.ErrIdempotencyMismatch):
 		return string(Validation)
 	case errors.Is(err, ports.ErrIdempotencyInFlight), errors.Is(err, ports.ErrAlreadyExists),
-		errors.Is(err, ports.ErrVersionConflict):
+		errors.Is(err, ports.ErrVersionConflict), errors.Is(err, ports.ErrUniqueViolation):
 		return string(Conflict)
 	case errors.Is(err, ports.ErrNotFound):
 		return string(NotFound)

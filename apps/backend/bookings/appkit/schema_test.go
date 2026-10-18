@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/appkit"
+	"github.com/mateusmacedo/dmpf/apps/backend/bookings/provider"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/pg"
 )
 
@@ -25,7 +27,7 @@ func TestTheRuntimeRoleWritesBookingsAndResourcesButNeverRemovesThem(t *testing.
 
 	for table, insert := range map[string]string{
 		"bookings":  "INSERT INTO bookings (tenant_id, booking_id, resource_id, snapshot) VALUES ('t-1', 'b-1', 'r-1', '{}')",
-		"resources": "INSERT INTO resources (tenant_id, resource_id, snapshot) VALUES ('t-1', 'r-1', '{}')",
+		"resources": "INSERT INTO resources (tenant_id, resource_id, snapshot) VALUES ('t-1', 'r-1', '{\"name\":\"r-1\"}')",
 	} {
 		if _, err := pool.Exec(context.Background(), insert); err != nil {
 			t.Fatalf("INSERT INTO %s by the runtime role = %v, want nil", table, err)
@@ -50,5 +52,11 @@ func TestTheRuntimeRoleNeitherRewritesTheKernelTablesNorCreatesATable(t *testing
 		"CREATE TABLE intruder (id bigint)",
 	} {
 		pg.AssertDenied(t, pool, statement)
+	}
+}
+
+func TestTheSchemaHoldsTheUniquesTheProviderDeclares(t *testing.T) {
+	if err := postgres.VerifyUniques(context.Background(), appkit.OpenPool(t), provider.Uniques...); err != nil {
+		t.Fatalf("VerifyUniques(provider.Uniques) = %v, want nil", err)
 	}
 }

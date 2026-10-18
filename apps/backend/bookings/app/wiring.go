@@ -89,7 +89,7 @@ func NewBookingsService(pool *pgxpool.Pool, rt *otelboot.Runtime, cfg Config) (a
 
 func api(cfg Config, rt *otelboot.Runtime) serve.API {
 	return serve.API{
-		Desc: &rpc.ServiceDesc, Commands: rpc.Commands(), Schema: provider.Schema, Grants: provider.Grants, CommandConsumer: application.CommandConsumer,
+		Desc: &rpc.ServiceDesc, Commands: rpc.Commands(), Schema: provider.Schema, Grants: provider.Grants, Uniques: provider.Uniques, CommandConsumer: application.CommandConsumer,
 		Register: func(server *grpc.Server, pool *pgxpool.Pool) error {
 			service, err := NewBookingsService(pool, rt, cfg)
 			if err != nil {

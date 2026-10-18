@@ -79,11 +79,17 @@ Autoridade de API:
 - `providerkit/outbox.go`: `OutboxStore`, `OutboxSubject` e `Outbox`;
 - `providerkit/repository.go`: `RepositorySubject` e `Repository`, com as
   cláusulas de criação sobre agregado existente e de escritores concorrentes;
+- `providerkit/unique.go`: `UniqueSubject`, `UniqueWrites`, `UniqueConstraint`
+  e `Unique`, com as cláusulas da unicidade declarada (ADR-066): recusa na
+  criação e na atualização, isolamento por tenant, transação utilizável depois
+  da violação, guarda de escrita anterior, criações concorrentes e a mesma
+  identidade como conflito de versão;
 - `providerkit/memory.go`: candidatos em memória (`MemoryUnitOfWork`,
   `MemoryInbox`), usados também por `memory/conformance_test.go`;
 - `postgres/conformance_test.go`: candidato Postgres;
 - `<%- appsDir %>/<ctx>/provider/*repository_test.go`: um `Repository` por
-  agregado do contexto, sobre `pg.Within`.
+  agregado do contexto, sobre `pg.Within`, e um `Unique` por `Table` com
+  `Unique`.
 
 A função passada à suíte cria e limpa um candidato para cada cláusula. Use
 `ArmCommitFailure` somente quando a realização realmente consegue injetar a

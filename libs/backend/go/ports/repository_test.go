@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/mateusmacedo/dmpf/libs/backend/go/domain"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
 
@@ -33,5 +34,35 @@ func TestCrossTenantAccessAnswersAsNotFound(t *testing.T) {
 	var got ports.CrossTenantAccess
 	if !errors.As(wrapped, &got) || got != access {
 		t.Fatalf("errors.As() = %+v, want %+v: the internal record has to tell the two cases apart", got, access)
+	}
+}
+
+func TestUniqueViolationReadsAsTheSentinelAndKeepsTheDeclaredRejection(t *testing.T) {
+	rejection := domain.Reject("resource-scheduling/resource/duplicate-name", "a resource with this name already exists in the tenant")
+	violation := ports.UniqueViolation{Table: "resources", Constraint: "resources_tenant_id_name_key", Rejection: rejection}
+	wrapped := fmt.Errorf("postgres: save resources r-1: %w", violation)
+
+	if !errors.Is(wrapped, ports.ErrUniqueViolation) {
+		t.Fatalf("errors.Is(%v, ErrUniqueViolation) = false", wrapped)
+	}
+	if errors.Is(wrapped, ports.ErrAlreadyExists) || errors.Is(wrapped, ports.ErrVersionConflict) {
+		t.Fatal("UniqueViolation reads as an identity conflict; the declared rejection would never reach Decide")
+	}
+	if violation.Error() != ports.ErrUniqueViolation.Error() {
+		t.Fatalf("Error() = %q, want %q: the text reaches responses and logs", violation.Error(), ports.ErrUniqueViolation.Error())
+	}
+
+	got, ok := errors.AsType[ports.UniqueViolation](wrapped)
+	if !ok || got.Rejection != rejection || got.Table != violation.Table || got.Constraint != violation.Constraint {
+		t.Fatalf("errors.AsType() = %+v, %v, want %+v", got, ok, violation)
+	}
+}
+
+func TestUniqueViolationWithoutRejectionIsStillRecognised(t *testing.T) {
+	wrapped := fmt.Errorf("postgres: save resources r-1: %w", ports.UniqueViolation{Table: "resources", Constraint: "resources_tenant_id_code_key"})
+
+	got, ok := errors.AsType[ports.UniqueViolation](wrapped)
+	if !ok || got.Rejection != nil {
+		t.Fatalf("errors.AsType() = %+v, %v, want a violation with a nil Rejection", got, ok)
 	}
 }

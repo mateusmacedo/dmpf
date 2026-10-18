@@ -26,7 +26,7 @@ const grantsRuntime = "dmpf_grants_runtime"
 const safeRuntime = "LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS NOREPLICATION"
 
 func probeGrants() []postgres.Grant {
-	return append(postgres.KernelGrants(allCapabilities...), postgres.Mutable("probes"), postgres.AppendOnly("tagged_probes"))
+	return append(postgres.KernelGrants(allCapabilities...), postgres.Mutable("probes"), postgres.AppendOnly("tagged_probes"), postgres.Mutable("unique_probes"))
 }
 
 func TestApplyGrantsConvergesTheRoleToTheDeclaredSet(t *testing.T) {
@@ -49,6 +49,7 @@ func TestApplyGrantsConvergesTheRoleToTheDeclaredSet(t *testing.T) {
 		"quarantine":    {"INSERT", "SELECT"},
 		"probes":        {"INSERT", "SELECT", "UPDATE"},
 		"tagged_probes": {"INSERT", "SELECT"},
+		"unique_probes": {"INSERT", "SELECT", "UPDATE"},
 	}
 	for table, privileges := range want {
 		if got := privilegesOf(t, admin, grantsRuntime, table); !reflect.DeepEqual(got, privileges) {
@@ -575,7 +576,7 @@ func migratorWithoutTaggedProbes(t *testing.T, admin *pgxpool.Pool) *pgxpool.Poo
 	ensureRole(t, admin, grantsRuntime, safeRuntime)
 	ensureRole(t, admin, migrator, safeRuntime)
 	ensureRole(t, admin, stranger, "NOLOGIN")
-	for _, table := range []string{"outbox", "inbox", "quarantine", "probes"} {
+	for _, table := range []string{"outbox", "inbox", "quarantine", "probes", "unique_probes"} {
 		mustExec(t, admin, "ALTER TABLE "+table+" OWNER TO "+migrator)
 	}
 	mustExec(t, admin, "ALTER TABLE tagged_probes OWNER TO "+stranger)

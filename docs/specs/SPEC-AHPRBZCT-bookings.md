@@ -49,12 +49,18 @@ created: 2026-09-10
 - **Identidade**: `natural` por `code`
 - **Campos**:
   - `code: string`
+  - `name: string`
   - `registeredAt: instant`
 - **Estados**: nenhum
 - **Transições permitidas**: nenhuma
 - **Invariantes de estado**:
   - `code` nunca é vazio — `Register` rejeita com
     `resource-scheduling/resource/code-empty`.
+  - `name` nunca é vazio — `Register` rejeita com
+    `resource-scheduling/resource/name-empty`.
+  - `name` é único por tenant, por igualdade exata — a unicidade é declarada no
+    `Table` e levantada pelo serviço de aplicação a partir do `Save`, não pela
+    UPR, como `resource-scheduling/resource/duplicate-name` (ADR-066).
 
 ## Comandos (UPRs)
 
@@ -93,11 +99,13 @@ created: 2026-09-10
 - **Comando**: `RegisterResource`
 - **Entrada**:
   - `code: string`
+  - `name: string`
 - **Pré-condições**:
   - `code` não vazio → `resource-scheduling/resource/code-empty`
+  - `name` não vazio → `resource-scheduling/resource/name-empty`
 - **Efeitos sobre o estado**:
-  - quando ausente: `registeredAt ← at`
-  - quando presente: nenhum — aceita sem alterar e sem emitir
+  - quando ausente: `name ← cmd.name`, `registeredAt ← at`
+  - quando presente: nenhum — aceita sem alterar, inclusive o nome original, e sem emitir
 - **Eventos emitidos**: `ResourceRegistered` (só quando inicializa)
 - **Resposta**: `code: string`
 
@@ -121,6 +129,7 @@ created: 2026-09-10
 
 - **Campos**:
   - `code: string ← Resource.code`
+  - `name: string ← Resource.name`
   - `at: instant ← at`
 
 ## Consultas
@@ -136,7 +145,7 @@ created: 2026-09-10
 
 - **Publica**: `BookingReserved`, `BookingCancelled` e `ResourceRegistered` —
   viram `booking_reserved.proto`, `booking_cancelled.proto` e
-  `resource_registered.proto` em `contracts/proto/company/bookings/event/v1/`,
+  `resource_registered.proto` em `apps/backend/bookings/contract/proto/company/bookings/event/v1/`,
   package `company.bookings.event.v1`, no tópico do contexto.
 - **Consome**: nenhum.
 
@@ -147,12 +156,36 @@ created: 2026-09-10
   `FindBookingsByResource`), atrás da cadeia de interceptors do kernel. O REST
   público é do `bff`: `POST /bookings/booking`, `GET /bookings/booking`,
   `GET /bookings/booking/{id}`, `POST /bookings/booking/{id}/cancel` e
-  `POST /bookings/resource`, descritos em `contracts/openapi/bookings/v1/`
+  `POST /bookings/resource`, descritos em `apps/backend/bookings/contract/openapi/v1/`
   (ADR-044, ADR-053).
+- **Forma do `name` na borda**: o gRPC (`INVALID_ARGUMENT`) e o `bff` (400
+  `invalid-request`) aplicam a mesma regra, antes do caso de uso: de 1 a 200
+  runas de UTF-8 válido, sem caractere de controle (categoria Unicode `Cc`), de
+  formatação (categoria `Cf`, como U+200B, U+202E, U+2060, U+2066 a U+2069 e
+  U+FEFF), separador de linha ou de parágrafo (U+2028, U+2029), seletor de
+  variação (U+FE00 a U+FE0F, U+E0100 a U+E01EF e os mongóis U+180B a U+180F)
+  nem outro ponto de código ignorável por padrão (como U+034F e os
+  preenchedores Hangul U+115F, U+1160, U+3164 e U+FFA0), e com ao menos um
+  caractere que não seja espaço Unicode nem marca combinante (categoria `M`):
+  U+0301 sozinho é recusado, e o "é" decomposto (U+0065 U+0301) é aceito. O
+  nome não é normalizado nem aparado: espaços no início, no meio ou no fim são
+  aceitos e fazem parte da igualdade exata. Escrita não latina, como CJK
+  ("会议室"), é aceita, e o espaço interno ("Sala 1 Anexo") é preservado.
+- **Consequência deliberada do seletor de variação**: todo seletor é recusado,
+  inclusive o U+FE0F depois de emoji. "❤️" (U+2764 U+FE0F), como muitos
+  teclados de celular o digitam, é recusado; "❤" sem seletor e emoji que não
+  usam seletor, como "🎉", são aceitos. A sequência de emoji com U+200D (ZWJ,
+  categoria `Cf`), como as de família, também é recusada.
+- **Limites conhecidos**: U+2800 (braille em branco), U+FFFC e homóglifos
+  visíveis (como o "а" cirílico no lugar do "a" latino) são aceitos e contam
+  como nomes distintos na igualdade exata.
 - **Banco**: database e role `bookings`, schema `public`, tabelas `bookings` e
   `resources`, com `tenant_id` à frente da chave. Persistência híbrida:
   `resource_id` é coluna tipada em `bookings` porque `FindBookingByResource`
-  filtra por ela; o resto do estado vai em `snapshot` `jsonb` (ADR-053).
+  filtra por ela; o resto do estado vai em `snapshot` `jsonb` (ADR-053). Em
+  `resources`, `name` é coluna gerada do snapshot (`GENERATED ALWAYS AS ...
+  STORED`), com `CONSTRAINT resources_tenant_id_name_key UNIQUE (tenant_id,
+  name)` declarada no `Table` (ADR-066).
 - **Instante**: inteiro de nanossegundos no domínio.
 
 ## Políticas transversais
@@ -200,6 +233,34 @@ ENTÃO aceita sem alterar o recurso e sem emitir evento
 DADO qualquer entrada
 QUANDO Register chega com code vazio
 ENTÃO rejeita com resource-scheduling/resource/code-empty
+
+DADO qualquer entrada
+QUANDO Register chega com name vazio
+ENTÃO rejeita com resource-scheduling/resource/name-empty
+
+DADO qualquer entrada
+QUANDO RegisterResource chega à borda com name de caractere de formatação invisível (U+200B, U+202E, U+2060, U+2066 a U+2069, U+FEFF) ou só de espaços
+ENTÃO a borda recusa com INVALID_ARGUMENT (400 no bff) e o caso de uso não é chamado
+
+DADO qualquer entrada
+QUANDO RegisterResource chega à borda com name de seletor de variação (U+FE00 a U+FE0F, U+E0100 a U+E01EF, U+180B a U+180F), separador U+2028 ou U+2029, U+034F ou preenchedor Hangul (U+115F, U+1160, U+3164, U+FFA0)
+ENTÃO a borda recusa com INVALID_ARGUMENT (400 no bff) e o caso de uso não é chamado
+
+DADO qualquer entrada
+QUANDO RegisterResource chega à borda com name só de espaços e marcas combinantes, como U+0301 sozinho
+ENTÃO a borda recusa com INVALID_ARGUMENT (400 no bff) e o caso de uso não é chamado
+
+DADO qualquer entrada
+QUANDO RegisterResource chega à borda com name "Sala ❤️" (U+2764 U+FE0F)
+ENTÃO a borda recusa com INVALID_ARGUMENT (400 no bff), enquanto "Sala ❤" e "Sala 🎉" são aceitos
+
+DADO um código já registrado com um nome
+QUANDO Register chega com o mesmo código e outro nome
+ENTÃO aceita sem alterar o nome original e sem emitir evento
+
+DADO um recurso registrado com um nome no tenant
+QUANDO Register chega com outro código e o mesmo nome, concorrente ou não
+ENTÃO rejeita com resource-scheduling/resource/duplicate-name pelo desfecho, sem evento, e o replay da mesma chave devolve a mesma rejeição sem nova auditoria
 
 DADO duas reservas do mesmo recurso e uma de outro
 QUANDO FindBookingByResource consulta pelo primeiro recurso

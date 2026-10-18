@@ -118,7 +118,7 @@ func TestCancelAcceptedAuditsOnce(t *testing.T) {
 func TestRegisterAcceptedAuditsOnce(t *testing.T) {
 	h, instr := newInstrumentedHarness(t)
 
-	if _, err := h.service.RegisterResource(withExecution(t, context.Background()), application.RegisterResource{Code: testResCode}); err != nil {
+	if _, err := h.service.RegisterResource(withExecution(t, context.Background()), application.RegisterResource{Code: testResCode, Name: testResName}); err != nil {
 		t.Fatalf("RegisterResource() error = %v, want nil", err)
 	}
 

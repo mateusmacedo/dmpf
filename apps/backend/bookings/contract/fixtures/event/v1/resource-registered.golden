@@ -35,11 +35,12 @@
         "type": "com.company.bookings.resource-registered.v1"
       },
       "payload": {
+        "name": "Room 1",
         "registered_at": "2026-09-02T12:00:00Z",
         "resource_id": "room-1"
       },
-      "payload_bytes_hex": "0a06726f6f6d2d31120608c09fe0d406",
-      "payload_hash": "4df4c634a822764240187e53fb6bfca16eaea9ff6313da2f71d35b66290ecb4d"
+      "payload_bytes_hex": "0a06726f6f6d2d31120608c09fe0d4061a06526f6f6d2031",
+      "payload_hash": "caa2bbcf0522b18df5cfcbcdfa8100df6e5067dfda1c723da0146d3c1a80ad52"
     },
     {
       "name": "all-conditionals-absent",
@@ -59,11 +60,12 @@
         "type": "com.company.bookings.resource-registered.v1"
       },
       "payload": {
+        "name": "Room 2",
         "registered_at": "2026-09-02T12:00:01Z",
         "resource_id": "room-2"
       },
-      "payload_bytes_hex": "0a06726f6f6d2d32120608c19fe0d406",
-      "payload_hash": "ef61bbada4ecb77618bca5813392743a717d3730b604752acc06d6c39427a8af"
+      "payload_bytes_hex": "0a06726f6f6d2d32120608c19fe0d4061a06526f6f6d2032",
+      "payload_hash": "98dd12121c05609a08237574693521c2100d59ac8d0fbfb7bdf53927a29cc054"
     }
   ],
   "discriminators": [
@@ -85,11 +87,12 @@
         "type": "com.company.bookings.resource-registered.v1"
       },
       "payload": {
+        "name": "Room 3",
         "registered_at": "2026-09-02T12:00:02Z",
         "resource_id": "room-3"
       },
-      "payload_bytes_hex": "0a06726f6f6d2d33120608c29fe0d406382a",
-      "payload_hash": "775626b44aa60ba0ef685ada81d25435a797975ba3a3c643e37d3703c914491a"
+      "payload_bytes_hex": "0a06726f6f6d2d33120608c29fe0d4061a06526f6f6d2033382a",
+      "payload_hash": "63cf74d0fdabe7a22387d7a8bedcc0aa2f4dacdfb3a8615d28daf7c6c317938f"
     },
     {
       "name": "non-canonical-field-order",
@@ -109,11 +112,12 @@
         "type": "com.company.bookings.resource-registered.v1"
       },
       "payload": {
+        "name": "Room 4",
         "registered_at": "2026-09-02T12:00:03.123456789Z",
         "resource_id": "room-4"
       },
-      "payload_bytes_hex": "120b08c39fe0d40610959aef3a0a06726f6f6d2d34",
-      "payload_hash": "9045fe4b00e89f141dd900d9acbc9e15040d9ac8d2ed166c3e06e5c080d7abae"
+      "payload_bytes_hex": "1a06526f6f6d2034120b08c39fe0d40610959aef3a0a06726f6f6d2d34",
+      "payload_hash": "799373cb4907f271428ab789cab4d59322162bc47ec9337266513ac3f869ad00"
     }
   ]
 }

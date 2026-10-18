@@ -37,18 +37,36 @@ CREATE TABLE IF NOT EXISTS tagged_probes (
 
 CREATE INDEX IF NOT EXISTS tagged_probes_tenant_id_label_idx ON tagged_probes (tenant_id, label);
 CREATE INDEX IF NOT EXISTS tagged_probes_probe_id_idx ON tagged_probes (probe_id);
-CREATE INDEX IF NOT EXISTS tagged_probes_label_idx ON tagged_probes (label);`
+CREATE INDEX IF NOT EXISTS tagged_probes_label_idx ON tagged_probes (label);
+
+CREATE TABLE IF NOT EXISTS unique_probes (
+  tenant_id text   NOT NULL,
+  probe_id  text   NOT NULL,
+  version   bigint NOT NULL,
+  name      text   NOT NULL,
+  code      text   NOT NULL,
+  label     text   NOT NULL,
+  ref_a     text   NOT NULL,
+  ref_b     text   NOT NULL,
+  CONSTRAINT unique_probes_pkey PRIMARY KEY (tenant_id, probe_id),
+  CONSTRAINT unique_probes_tenant_id_name_key UNIQUE (tenant_id, name),
+  CONSTRAINT unique_probes_tenant_id_code_key UNIQUE (tenant_id, code),
+  CONSTRAINT unique_probes_tenant_id_label_key UNIQUE (tenant_id, label),
+  CONSTRAINT unique_probes_tenant_id_ref_a_ref_b_key UNIQUE (tenant_id, ref_a, ref_b)
+);
+
+CREATE INDEX IF NOT EXISTS unique_probes_probe_id_idx ON unique_probes (probe_id);`
 
 var allCapabilities = []postgres.Capability{postgres.Outbox, postgres.Inbox}
 
-var probeTableGrants = []postgres.Grant{postgres.Mutable("probes"), postgres.Mutable("tagged_probes")}
+var probeTableGrants = []postgres.Grant{postgres.Mutable("probes"), postgres.Mutable("tagged_probes"), postgres.Mutable("unique_probes")}
 
-func openPool(t *testing.T) *pgxpool.Pool {
+func openPool(t testing.TB) *pgxpool.Pool {
 	t.Helper()
 	return openPoolWith(t, func(*pgxpool.Config) {})
 }
 
-func openPoolWith(t *testing.T, configure func(*pgxpool.Config)) *pgxpool.Pool {
+func openPoolWith(t testing.TB, configure func(*pgxpool.Config)) *pgxpool.Pool {
 	t.Helper()
 	admin := openAdminPool(t)
 	pg.GrantRuntime(t, admin, pg.Options{Capabilities: allCapabilities, Grants: probeTableGrants})
@@ -66,7 +84,7 @@ func openPoolWith(t *testing.T, configure func(*pgxpool.Config)) *pgxpool.Pool {
 
 var adminPools, adminOf sync.Map
 
-func openAdminPool(t *testing.T) *pgxpool.Pool {
+func openAdminPool(t testing.TB) *pgxpool.Pool {
 	t.Helper()
 	if pool, ok := adminPools.Load(t); ok {
 		return pool.(*pgxpool.Pool)
@@ -87,13 +105,13 @@ func openAdminPool(t *testing.T) *pgxpool.Pool {
 	return pool
 }
 
-func truncate(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
+func truncate(t testing.TB, ctx context.Context, pool *pgxpool.Pool) {
 	t.Helper()
 	if admin, ok := adminOf.Load(pool); ok {
 		pool = admin.(*pgxpool.Pool)
 	}
 
-	if _, err := pool.Exec(ctx, "TRUNCATE outbox, inbox, quarantine, probes, tagged_probes"); err != nil {
+	if _, err := pool.Exec(ctx, "TRUNCATE outbox, inbox, quarantine, probes, tagged_probes, unique_probes"); err != nil {
 		t.Fatalf("TRUNCATE = %v, want nil", err)
 	}
 }

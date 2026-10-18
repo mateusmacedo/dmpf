@@ -14,13 +14,13 @@ func (s Service) RegisterResource(ctx context.Context, cmd RegisterResource) (us
 		Operation:   OperationRegisterResource,
 		Object:      string(cmd.Code),
 		Input:       cmd,
-		Fingerprint: usecase.NewFingerprint(OperationRegisterResource).String(string(cmd.Code)),
+		Fingerprint: usecase.NewFingerprint(OperationRegisterResource).String(string(cmd.Code)).String(string(cmd.Name)),
 		Codec:       registeredCodec,
 		Run: func(ctx context.Context, res Resources, identity usecase.Identity) (usecase.Outcome[domain.RegisteredResponse], error) {
 			outcome, err := usecase.Decide(ctx, res.Resources, res.Outbox, origin(AggregateTypeResource, string(cmd.Code)), cmd.Code, identity,
 				loadResource,
 				func(r *domain.Resource) (kernel.Accepted[domain.RegisteredResponse], *kernel.Rejection) {
-					return r.Register(domain.RegisterResource{Code: cmd.Code, At: identity.OccurredAt})
+					return r.Register(domain.RegisterResource{Code: cmd.Code, Name: cmd.Name, At: identity.OccurredAt})
 				})
 			if err != nil {
 				return outcome, fmt.Errorf("application: register %s: %w", cmd.Code, err)

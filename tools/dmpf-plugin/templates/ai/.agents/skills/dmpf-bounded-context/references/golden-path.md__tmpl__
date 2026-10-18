@@ -46,6 +46,7 @@ pnpm nx g @mateusmacedo/dmpf-plugin:bounded-context <name> --boundedContext <ctx
 | Agregado com chave natural e `initializesOnNotFound` | `bookings/domain/resource.go` |
 | Comando, resposta e evento (`EventName()` = `<name>.<evento-kebab>`) | `bookings/domain/messages.go` |
 | Rejeições `Code<Agregado><Motivo>` = `<ctx>/<agregado>/<rejeicao>` | `bookings/domain/rejections.go` |
+| Rejeição estática da unicidade de negócio, que o provider declara e nenhuma UPR produz (ADR-066) | `bookings/domain/rejections.go` (`RejectResourceDuplicateName`) |
 | Testes: por pré-condição, por efeito, determinismo, snapshot, projeção e códigos | `bookings/domain/{reserve_test,cancel_test,determinism_test,snapshot_test,projection_test,rejections_test}.go` |
 
 - Norma: ADR-032 (desfecho `(Accepted[R], *Rejection)`, tipo concreto);
@@ -82,7 +83,7 @@ pnpm nx g @mateusmacedo/dmpf-plugin:bounded-context <name> --boundedContext <ctx
 | Caso de uso que cria quando não acha (`usecase.OrNew`, `initializesOnNotFound`) | `bookings/application/register_resource.go`; `Loader` em `service.go` |
 | Consulta fora da UoW, pelo esqueleto `usecase.Query[Operation]` | `bookings/application/find_booking.go`, `find_booking_by_resource.go` |
 | Caso de uso de consumo (sete disposições) — só se consome | `<%- src('apps/backend/reservations/application/consume.go') %>` |
-| Realização em memória para teste (`memory.Table[ID, S]` por agregado) | `<%- src('libs/backend/go/memory/{tx,store,inbox,clock,errors}.go') %>` |
+| Realização em memória para teste (`memory.Table[ID, S]` por agregado, com `memory.Unique` de mesmo nome para cada unicidade declarada no provider) | `<%- src('libs/backend/go/memory/{tx,store,inbox,clock,errors}.go') %>`; `bookings/application/doubles_test.go` |
 | Testes de sequência, instrumentação e caminhos de falha, sobre o `serviceskit` | `bookings/application/{sequence_test,instrumentation_test,failure_test,doubles_test}.go` |
 
 - Norma: FND-04 §3.2 (a sequência canônica), §6.4 (disposições); ADR-035
@@ -108,15 +109,23 @@ pnpm nx g @mateusmacedo/dmpf-plugin:bounded-context <name> --boundedContext <ctx
 | Peça | Molde |
 | --- | --- |
 | `schema.sql`: agregado no plural, `tenant_id` à frente da chave, `<agregado>_id`, `version`, `snapshot jsonb`, coluna tipada só para o que uma consulta filtra | `<%- src('apps/backend/bookings/provider/schema.sql') %>` |
-| `schema.go`: o DDL embutido para o composition root migrar | `bookings/provider/schema.go` |
+| `schema.go`: o DDL embutido para o composition root migrar, `Grants` e `Uniques` (um `<var>.Uniques()` por `Table` com `Unique`) | `bookings/provider/schema.go` |
 | Repositório: struct de estado privado com tags JSON estáveis, optimistic locking; `postgres.SnapshotTable` quando o estado inteiro vive no `snapshot`, `Table` à mão quando há coluna tipada | `bookings/provider/resource_repository.go`, `booking_repository.go` |
+| Unicidade de negócio (ADR-066): `CONSTRAINT <tabela>_<colunas>_key UNIQUE (tenant_id, ...)` no `CREATE TABLE`, coluna gerada do `snapshot` quando o campo só vive nele, e `postgres.Unique{Name, Columns, Rejection}` no `Unique` do `Table` | `bookings/provider/{schema.sql,resource_repository.go}` (`withUniqueName`) |
 | Mapper evento → payload do contrato (instante → `google.protobuf.Timestamp` por `time.Unix(0, ns)`) | `bookings/provider/mapper.go` |
 | `Reader`, um por consulta | `bookings/provider/booking_reader.go` |
-| Testes de repositório (`providerkit.Repository` por agregado, com `Concurrent: true`), ida e volta do estado, leitura e e2e (build tag `integration`) | `bookings/provider/{repository_test,reader_by_resource_test,e2e_test}.go` |
+| Testes de repositório (`providerkit.Repository` por agregado, com `Concurrent: true`; `providerkit.Unique` por `Table` com `Unique`), ida e volta do estado, leitura e e2e (build tag `integration`) | `bookings/provider/{repository_test,reader_by_resource_test,e2e_test}.go` |
 
 - Nomes: tabela sem prefixo, índice `<tabela>_<colunas>_idx`, constraint
   `<tabela>_<colunas>_{pkey,key,check,fkey}`; `outbox`, `inbox` e `quarantine`
   são do kernel (ADR-053). O `dmpf-context-check.sh` reprova o que fugir disso.
+- Unicidade: o `Save` traduz a violação da constraint declarada na rejeição, e o
+  `usecase.Decide` a devolve como recusa; a UPR não checa unicidade entre
+  agregados. O wiring gerado passa `provider.Uniques` a `serve.API.Uniques`, e
+  a partida confere cada constraint no catálogo. Constraint sem
+  `postgres.Unique` de mesmo `Name`, ou `Table` com `Unique` fora de
+  `provider.Uniques`, reprova no `dmpf-context-check.sh`, assim como `UNIQUE`
+  em tabela particionada, partição ou com herança.
 - Banco de teste: `appkit.OpenPool(t)` abre `<name>_test` no servidor de
   `PG_DSN`, migra as capacidades pedidas e o schema do contexto e trunca as
   tabelas de `Tables` (`<%- src('libs/backend/go/testkit/tb/pg/pool.go') %>`).

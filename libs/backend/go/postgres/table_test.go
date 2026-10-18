@@ -48,7 +48,7 @@ var probeTable = postgres.Table[string, probe]{
 }
 
 // scopedTo is what the edge would have deposited for a caller of that tenant.
-func scopedTo(t *testing.T, tenant string) context.Context {
+func scopedTo(t testing.TB, tenant string) context.Context {
 	t.Helper()
 
 	subject, scope := ports.SubjectID("s-1"), ports.TenantID(tenant)

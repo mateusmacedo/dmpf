@@ -2,11 +2,16 @@ package api
 
 import (
 	"net/http"
+	"unicode"
+	"unicode/utf8"
 
 	bookingsv1 "github.com/mateusmacedo/dmpf/apps/backend/bookings/contract/gen/go/company/bookings/service/v1"
 )
 
-const maxQuantity = 100
+const (
+	maxQuantity  = 100
+	maxNameRunes = 200
+)
 
 type reserveBookingRequest struct {
 	BookingID  string `json:"bookingId"`
@@ -20,6 +25,7 @@ type bookingIDResponse struct {
 
 type registerResourceRequest struct {
 	Code string `json:"code"`
+	Name string `json:"name"`
 }
 
 type registeredResource struct {
@@ -88,16 +94,37 @@ func bookingCancelledOf(resp *bookingsv1.CancelBookingResponse) (any, refusal) {
 
 func (h handlers) registerResource() http.HandlerFunc {
 	return endpoint(
-		fromBody("RegisterRequest", "code must have 1 to 128 characters of [A-Za-z0-9._:-]",
+		fromBody("RegisterRequest",
+			"code must have 1 to 128 characters of [A-Za-z0-9._:-] and name must have 1 to 200 characters without control, format, line or paragraph separator, variation selector or default ignorable characters and with at least one character that is neither a space nor a combining mark",
 			validRegisterResource, registerResourceRequestOf),
 		h.bookings.RegisterResource,
 		outcome(http.StatusCreated, resourceRegisteredOf))
 }
 
-func validRegisterResource(b registerResourceRequest) bool { return idFormat.MatchString(b.Code) }
+func validRegisterResource(b registerResourceRequest) bool {
+	return idFormat.MatchString(b.Code) && validName(b.Name)
+}
+
+var refusedInName = []*unicode.RangeTable{
+	unicode.Cc, unicode.Cf, unicode.Zl, unicode.Zp, unicode.Variation_Selector, unicode.Other_Default_Ignorable_Code_Point,
+}
+
+func validName(name string) bool {
+	if name == "" || !utf8.ValidString(name) || utf8.RuneCountInString(name) > maxNameRunes {
+		return false
+	}
+	visible := false
+	for _, r := range name {
+		if unicode.In(r, refusedInName...) {
+			return false
+		}
+		visible = visible || !unicode.IsSpace(r) && !unicode.IsMark(r)
+	}
+	return visible
+}
 
 func registerResourceRequestOf(b registerResourceRequest) *bookingsv1.RegisterResourceRequest {
-	return &bookingsv1.RegisterResourceRequest{ResourceId: b.Code}
+	return &bookingsv1.RegisterResourceRequest{ResourceId: b.Code, Name: b.Name}
 }
 
 func resourceRegisteredOf(resp *bookingsv1.RegisterResourceResponse) (any, refusal) {

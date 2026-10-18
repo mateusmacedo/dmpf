@@ -148,6 +148,21 @@ skill `.agents/skills/dmpf-bounded-context/`.
   resto do estado vai em `snapshot` `jsonb`, por um struct de estado privado
   do provider com tags JSON estáveis. Quando o estado inteiro vive no
   `snapshot`, a tabela sai de `postgres.SnapshotTable`.
+- Unicidade de negócio por tenant (ADR-066): a
+  `CONSTRAINT <tabela>_<colunas>_key UNIQUE (tenant_id, ...)` fica no
+  `CREATE TABLE` do `schema.sql`, com `tenant_id` à frente; o `Table` do
+  provider a declara em `Unique` (`postgres.Unique{Name, Columns, Rejection}`),
+  com a rejeição estática declarada no `domain`, e entra em `provider.Uniques`
+  como `<var>.Uniques()`, que o wiring passa a `serve.API.Uniques` para a
+  partida conferir no catálogo. O `Save` traduz a violação na rejeição
+  declarada, e o `usecase.Decide` a devolve como recusa. Os dublês em
+  `memory.Table` declaram o mesmo nome em `memory.Unique`, e o teste do
+  provider prova a declaração por `providerkit.Unique`. Constraint sem
+  `postgres.Unique` de mesmo `Name`, ou `Table` com `Unique` fora de
+  `provider.Uniques`, reprova no `<%- contextCheckScript %>`. Tabela com `UNIQUE` não
+  é particionada, partição nem herdeira, nem mãe delas: o `23505` da partição
+  cita a partição folha, e a partida e o gate reprovam. A unicidade de
+  identidade (a PK) continua `Conflict`.
 - Cada teste roda num banco `<projeto>_test_<id>`, que o `tb/pg` cria no
   servidor de `PG_DSN` (a infra de testes, `cluster_name=test`) e apaga ao
   fim; suítes de projetos distintos rodam em paralelo.
@@ -176,5 +191,8 @@ skill `.agents/skills/dmpf-bounded-context/`.
 - Afrouxar um gate para o contexto passar — o contexto passa pelos mesmos
   gates de qualquer módulo.
 - Servir REST no contexto ou dividir um banco entre apps.
+- Checar unicidade entre agregados na UPR ou por leitura antes do `Save`: a
+  UPR não lê outros agregados, nenhuma leitura vê a inserção concorrente, e
+  só o índice declarado garante a unicidade (ADR-066).
 - Mudar um valor de fio já publicado (código de rejeição, enum, nome de
   evento) por causa de um rename no Go.

@@ -54,7 +54,7 @@ func NewPool(ctx context.Context, dsn string, tracer trace.Tracer, opts ...PoolO
 	if err != nil {
 		return nil, err
 	}
-	config.ConnConfig.Tracer = meteredTracer{QueryTracer: queries, instruments: instruments}
+	config.ConnConfig.Tracer = meteredTracer{dbTracer: queries, instruments: instruments}
 	pool, err := pgxpool.NewWithConfig(ctx, config)
 	if err != nil {
 		return nil, err
@@ -173,7 +173,7 @@ func (p poolInstruments) observe(meter metric.Meter, pool *pgxpool.Pool) error {
 type acquireStartedKey struct{}
 
 type meteredTracer struct {
-	pgx.QueryTracer
+	dbTracer
 	instruments poolInstruments
 }
 

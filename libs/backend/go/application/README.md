@@ -23,7 +23,7 @@ Import path do módulo:
 
 | Package | Unidade DMPF | Bloco | Conteúdo |
 | --- | --- | --- | --- |
-| `application` (raiz) | `kernel/application` | `application` | `Outcome[R]`, `Accepted`, `Rejected`, `Outcome.Category`; `Executor[Res, Op]`, `Command[Res, Op, R]`, `Execute`; `Loader[ID, S, A]`, `OrNew`, `Existing`, `Absent`, `Decide`; `Origin`, `Enqueue`; `Query[Op, S]`; `Identity`, `ResolveIdentity`; `Authorize[C]`, `AllowAll[C]`, `Permitted[C]`; `MessageContextFor`; `Disposition` (as sete de FND-04 §6.4), `Category`, `Failure`, `Classify`, `CategoryOf` (a categoria de `Failure` ou de sentinela de porta, vazia quando não classifica); `Fingerprint`, `NewFingerprint`; `OutcomeCodec[R]`, `Encoder`, `Decoder`, `EncodeOutcome`, `DecodeOutcome`, `ErrOutcomeUnreadable`; `IdempotencyPolicy`, `IdempotentCommand[R]`, `RunIdempotent`, `ErrIncompleteCommand` |
+| `application` (raiz) | `kernel/application` | `application` | `Outcome[R]`, `Accepted`, `Rejected`, `Outcome.Category`; `Executor[Res, Op]`, `Command[Res, Op, R]`, `Execute`; `Loader[ID, S, A]`, `OrNew`, `Existing`, `Absent`, `Decide`, `DeclaredRejection`; `Origin`, `Enqueue`; `Query[Op, S]`; `Identity`, `ResolveIdentity`; `Authorize[C]`, `AllowAll[C]`, `Permitted[C]`; `MessageContextFor`; `Disposition` (as sete de FND-04 §6.4), `Category`, `Failure`, `Classify`, `CategoryOf` (a categoria de `Failure` ou de sentinela de porta, `Conflict` para `ErrUniqueViolation`, vazia quando não classifica); `Fingerprint`, `NewFingerprint`; `OutcomeCodec[R]`, `Encoder`, `Decoder`, `EncodeOutcome`, `DecodeOutcome`, `ErrOutcomeUnreadable`; `IdempotencyPolicy`, `IdempotentCommand[R]`, `RunIdempotent`, `ErrIncompleteCommand` |
 
 Uma unidade só, com `bounded_context: kernel`; em Go, a unidade de verificação
 é o package (RFC §3.3). Os packages que este módulo carregava como
@@ -81,7 +81,10 @@ resolvida (`MAP-07`), `ErrRegisterTimeout` como transitório (`INB-17`),
 `context.DeadlineExceeded`/`Canceled` e qualquer erro sem categoria como
 terminal (`CTX-23`, `ERR-11`, `ERR-24`). O único predicado declarado aqui é o do
 `Conflict`: `ErrVersionConflict` no consumo é retentável porque a reexecução
-relê o estado antes de decidir.
+relê o estado antes de decidir. O `ErrUniqueViolation` não convertido também é
+`Conflict`, mas terminal (R1×D4): a reexecução encontraria o mesmo valor
+ocupado. O consumidor que quer a recusa declarada chama `DeclaredRejection`
+sobre o erro do `Save`, como o `Decide`.
 
 O efeito de broker **não** acontece neste bloco: quem confirma, libera ou contém
 é o adapter em `app`, sempre depois do retorno da transação (`INB-08`). A
@@ -137,7 +140,7 @@ só aceita agregado por ponteiro: sobre um valor, a decisão mudaria uma cópia 
 | 3. abrir a UoW | `execute.go`, `x.UoW.Within(...)`, com `RunIdempotent` antes de qualquer outra instrução | Uma transação sobre um recurso |
 | 4. carregar | `decide.go`, o `Loader` do contexto sobre `repo.Load` | `OrNew` cria com `expected == 0` quando não acha; `Existing` exige o agregado; `Absent` exige que ele não exista |
 | 5. decidir | `decide.go`, o `decide` do contexto | O único passo que ocorre no bloco `domain` |
-| 6. persistir | `decide.go`, `repo.Save(ctx, id, aggregate.Snapshot(), stored)` | Optimistic locking; grava como `stored + 1` |
+| 6. persistir | `decide.go`, `repo.Save(ctx, id, aggregate.Snapshot(), stored)` | Optimistic locking; grava como `stored + 1`. A violação de unicidade declarada vira `Rejected`, sem `Enqueue` |
 | 7. enfileirar | `decide.go`, `Enqueue(...)` → `outbox.Enqueue` | Mesma transação do passo 6 |
 | 8. commitar | `execute.go`, o retorno `nil` do callback do `Within` | O commit é do `Within`, não do caso de uso |
 | 9. responder | `execute.go`, `return outcome, nil` | `Outcome` no caminho de negócio, `error` no técnico |
@@ -146,7 +149,12 @@ A escolha do `Loader` é do contexto. No `orders`, `AddItem` usa `OrNew` e
 `PlaceOrder` usa `Existing`: um agregado ausente volta como `error` técnico
 embrulhado, não como rejeição — nenhuma UPR a produziu, e a categoria de borda é
 do FND-07. `Absent` serve à criação que recusa o agregado existente com
-`ports.ErrAlreadyExists`, sem `Save` nem `Enqueue`.
+`ports.ErrAlreadyExists`, sem `Save` nem `Enqueue`. Essa é a unicidade de
+identidade, que continua `Conflict`. A de atributo, que o contexto declara no
+`Table` do provider (ADR-066), chega do `Save` como `ports.UniqueViolation`:
+`DeclaredRejection` extrai a rejeição declarada, e o `Decide` devolve
+`Rejected(rejeição)` com `error == nil`. Sem rejeição (restrição não declarada,
+ou escrita anterior de agregado ou outbox na transação; a da inbox não conta), o erro sobe como `Conflict`.
 
 Os erros têm uma forma só nos três contextos. `Decide` devolve a falha de carga e
 a de `Save` sem prefixo e a de `Enqueue` como `enqueue: <causa>`; o caso de uso
@@ -158,6 +166,9 @@ Três detalhes que a norma fixa e o código realiza:
 - **Sob recusa, o callback devolve `nil` de propósito.** A transação commita sem
   efeito, e o chamador recebe `(Rejected(rej), nil)`. Abortar tornaria a recusa
   indistinguível de falha técnica, o que `DEC-04` proíbe (`UOW-05`, `UOW-06`).
+  Vale também para a recusa por unicidade declarada: o provider desfaz só o
+  savepoint do `Save`, a transação segue viva e commita só a recusa, sem
+  rollback da UoW.
 - **`Save` antes de `Enqueue`.** `AggregateVersion` é a versão efetivamente
   gravada, e o conflito de versão precisa interromper antes de existir qualquer
   registro de outbox na transação. Sob conflito, `Enqueue` nunca é chamado.
@@ -253,6 +264,9 @@ cada campo declarado, com tipo e tamanho. O SHA-256 dela entra por
 `app.IdempotencyPolicy`, porque o `depguard` deste bloco não admite
 `crypto/sha256`. Pelo mesmo motivo, os varints do codec são escritos aqui, com o
 layout de `encoding/binary`.
+
+A recusa por unicidade declarada é um desfecho como outro: gravada como
+`StatusRejected` em R1 e reproduzida em R3.
 
 Com `replayed`, o caso de uso não chama `Audit`: o efeito não aconteceu de novo.
 Um desfecho gravado ilegível é `ErrOutcomeUnreadable`, e o comando nunca executa
