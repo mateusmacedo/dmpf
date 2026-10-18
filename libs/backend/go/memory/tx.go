@@ -12,6 +12,10 @@ type Tx struct {
 	tables map[string]*table
 	inbox  map[inboxKey]inboxRow
 	outbox []ports.OutboxEntry
+
+	// writes counts Save and Enqueue, never the inbox: a unique violation after
+	// one is no longer convertible to a rejection (DEC-10).
+	writes int
 }
 
 // Inbox is the transactional Inbox bound to consumer, the deduplication
@@ -124,7 +128,11 @@ func (r txRepository[ID, S]) Save(ctx context.Context, id ID, state S, expected 
 	if current != expected {
 		return ports.ErrVersionConflict
 	}
+	if err := r.table.violation(rows, key, state, r.tx.writes); err != nil {
+		return err
+	}
 	rows.rows[key] = row{snapshot: r.table.copy(state), version: expected + 1}
+	r.tx.writes++
 	return nil
 }
 
@@ -132,5 +140,6 @@ type txOutbox struct{ tx *Tx }
 
 func (o txOutbox) Enqueue(_ context.Context, entry ports.OutboxEntry) error {
 	o.tx.outbox = append(o.tx.outbox, entry)
+	o.tx.writes++
 	return nil
 }

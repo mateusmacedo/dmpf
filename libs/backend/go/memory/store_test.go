@@ -4,12 +4,16 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 
+	"github.com/mateusmacedo/dmpf/libs/backend/go/domain"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/memory"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/execctx"
 )
 
 // counter is the smallest aggregate that exercises every clause: Steps is the
@@ -446,5 +450,331 @@ func requireEmpty(t *testing.T, store *memory.Store) {
 	}
 	if got := store.Entries(); len(got) != 0 {
 		t.Fatalf("Entries() = %+v, want empty", got)
+	}
+}
+
+type account struct {
+	Email       string
+	Org, Handle string
+	Nick        string
+	NickNull    bool
+	Marker      int
+}
+
+var (
+	emailTaken  = domain.Reject("accounts/email-taken", "the email is taken")
+	handleTaken = domain.Reject("accounts/handle-taken", "the handle is taken in the org")
+	nickTaken   = domain.Reject("accounts/nick-taken", "the nick is taken")
+)
+
+const (
+	emailKey  = "accounts_tenant_id_email_key"
+	handleKey = "accounts_tenant_id_org_handle_key"
+	nickKey   = "accounts_tenant_id_nick_key"
+)
+
+var accounts = memory.Table[string, account]{
+	Name: "accounts",
+	Unique: []memory.Unique[account]{
+		{Name: emailKey, Key: func(a account) ([]string, bool) { return []string{a.Email}, true }, Rejection: emailTaken},
+		{Name: handleKey, Key: func(a account) ([]string, bool) { return []string{a.Org, a.Handle}, true }, Rejection: handleTaken},
+		{Name: nickKey, Key: func(a account) ([]string, bool) { return []string{a.Nick}, !a.NickNull }, Rejection: nickTaken},
+	},
+}
+
+type accountResources struct {
+	Accounts ports.Repository[string, account]
+	Outbox   ports.Outbox
+	Inbox    ports.Inbox
+}
+
+func newAccount(n int) account {
+	s := strconv.Itoa(n)
+	return account{Email: "e-" + s, Org: "o", Handle: "h-" + s, Nick: "n-" + s, Marker: n}
+}
+
+func withinAccounts(t *testing.T, store *memory.Store, ctx context.Context, fn func(ctx context.Context, res accountResources) error) error {
+	t.Helper()
+	uow := memory.NewUnitOfWork(store, func(tx *memory.Tx) accountResources {
+		return accountResources{Accounts: accounts.Repository(tx), Outbox: tx.Outbox(), Inbox: tx.Inbox("accounts-consumer")}
+	})
+	return uow.Within(ctx, fn)
+}
+
+func seedAccount(t *testing.T, store *memory.Store, ctx context.Context, id string, a account) {
+	t.Helper()
+	if err := withinAccounts(t, store, ctx, func(ctx context.Context, res accountResources) error {
+		return res.Accounts.Save(ctx, id, a, 0)
+	}); err != nil {
+		t.Fatalf("seed %s: %v", id, err)
+	}
+}
+
+func requireViolation(t *testing.T, err error, constraint string, rejection *domain.Rejection) {
+	t.Helper()
+	if !errors.Is(err, ports.ErrUniqueViolation) {
+		t.Fatalf("Save() = %v, want ErrUniqueViolation", err)
+	}
+	violation, ok := errors.AsType[ports.UniqueViolation](err)
+	if !ok {
+		t.Fatalf("Save() = %v, want a UniqueViolation", err)
+	}
+	if violation.Table != "accounts" || violation.Constraint != constraint || violation.Rejection != rejection {
+		t.Fatalf("violation = %+v, want accounts/%s carrying %v", violation, constraint, rejection)
+	}
+}
+
+func TestEachDeclaredConstraintRefusesASecondRowWithItsOwnRejection(t *testing.T) {
+	for _, tc := range []struct {
+		constraint string
+		rejection  *domain.Rejection
+		collide    func(taken, a account) account
+	}{
+		{emailKey, emailTaken, func(taken, a account) account { a.Email = taken.Email; return a }},
+		{handleKey, handleTaken, func(taken, a account) account { a.Org, a.Handle = taken.Org, taken.Handle; return a }},
+		{nickKey, nickTaken, func(taken, a account) account { a.Nick = taken.Nick; return a }},
+	} {
+		t.Run(tc.constraint, func(t *testing.T) {
+			store := memory.New()
+			ctx := withExecution(t, context.Background())
+			seedAccount(t, store, ctx, "a-1", newAccount(1))
+
+			var saved error
+			err := withinAccounts(t, store, ctx, func(ctx context.Context, res accountResources) error {
+				saved = res.Accounts.Save(ctx, "a-2", tc.collide(newAccount(1), newAccount(2)), 0)
+				return nil
+			})
+
+			if err != nil {
+				t.Fatalf("Within() = %v, want nil", err)
+			}
+			requireViolation(t, saved, tc.constraint, tc.rejection)
+			if _, _, err := accounts.Reader(store).Load(ctx, "a-2"); !errors.Is(err, ports.ErrNotFound) {
+				t.Fatalf("Load(a-2) = %v, want ErrNotFound", err)
+			}
+		})
+	}
+}
+
+func TestAnUpdateToATakenValueIsRefusedAndKeepsTheVersion(t *testing.T) {
+	store := memory.New()
+	ctx := withExecution(t, context.Background())
+	seedAccount(t, store, ctx, "a-1", newAccount(1))
+	seedAccount(t, store, ctx, "a-2", newAccount(2))
+
+	var saved error
+	_ = withinAccounts(t, store, ctx, func(ctx context.Context, res accountResources) error {
+		moved := newAccount(3)
+		moved.Email = newAccount(1).Email
+		saved = res.Accounts.Save(ctx, "a-2", moved, 1)
+		return nil
+	})
+
+	requireViolation(t, saved, emailKey, emailTaken)
+	if got, version, err := accounts.Reader(store).Load(ctx, "a-2"); err != nil || version != 1 || got.Marker != 2 {
+		t.Fatalf("Load(a-2) = (marker %d, v%d, %v), want (2, v1, nil)", got.Marker, version, err)
+	}
+}
+
+func TestResavingTheSameIdentityWithItsOwnValuesIsNotAViolation(t *testing.T) {
+	store := memory.New()
+	ctx := withExecution(t, context.Background())
+	seedAccount(t, store, ctx, "a-1", newAccount(1))
+
+	err := withinAccounts(t, store, ctx, func(ctx context.Context, res accountResources) error {
+		same := newAccount(1)
+		same.Marker = 9
+		return res.Accounts.Save(ctx, "a-1", same, 1)
+	})
+
+	if err != nil {
+		t.Fatalf("Within() = %v, want nil", err)
+	}
+}
+
+func TestTheSameValueUnderAnotherTenantIsWritten(t *testing.T) {
+	store := memory.New()
+	seedAccount(t, store, withExecution(t, context.Background()), "a-1", newAccount(1))
+	globex := execctx.WithExecution(t, context.Background(), execctx.WithTenant("globex"))
+
+	err := withinAccounts(t, store, globex, func(ctx context.Context, res accountResources) error {
+		return res.Accounts.Save(ctx, "a-2", newAccount(1), 0)
+	})
+
+	if err != nil {
+		t.Fatalf("Within() under another tenant = %v, want nil", err)
+	}
+}
+
+func TestANullComponentCollidesWithNothing(t *testing.T) {
+	store := memory.New()
+	ctx := withExecution(t, context.Background())
+	first := newAccount(1)
+	first.Nick, first.NickNull = "", true
+	seedAccount(t, store, ctx, "a-1", first)
+
+	err := withinAccounts(t, store, ctx, func(ctx context.Context, res accountResources) error {
+		second := newAccount(2)
+		second.Nick, second.NickNull = "", true
+		return res.Accounts.Save(ctx, "a-2", second, 0)
+	})
+
+	if err != nil {
+		t.Fatalf("Within() = %v, want nil: NULL never collides", err)
+	}
+}
+
+func TestAnEmptyValueCollidesLikeAnyOther(t *testing.T) {
+	store := memory.New()
+	ctx := withExecution(t, context.Background())
+	first := newAccount(1)
+	first.Nick = ""
+	seedAccount(t, store, ctx, "a-1", first)
+
+	var saved error
+	_ = withinAccounts(t, store, ctx, func(ctx context.Context, res accountResources) error {
+		second := newAccount(2)
+		second.Nick = ""
+		saved = res.Accounts.Save(ctx, "a-2", second, 0)
+		return nil
+	})
+
+	requireViolation(t, saved, nickKey, nickTaken)
+}
+
+func TestTheComponentsOfAKeyAreComparedOneByOne(t *testing.T) {
+	store := memory.New()
+	ctx := withExecution(t, context.Background())
+	first := newAccount(1)
+	first.Org, first.Handle = "ab", "c"
+	seedAccount(t, store, ctx, "a-1", first)
+
+	err := withinAccounts(t, store, ctx, func(ctx context.Context, res accountResources) error {
+		second := newAccount(2)
+		second.Org, second.Handle = "a", "bc"
+		return res.Accounts.Save(ctx, "a-2", second, 0)
+	})
+
+	if err != nil {
+		t.Fatalf("Within() = %v, want nil: (ab, c) and (a, bc) are two keys", err)
+	}
+}
+
+func TestAPriorWriteLeavesTheViolationWithoutRejection(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		write func(ctx context.Context, res accountResources) error
+	}{
+		{"save", func(ctx context.Context, res accountResources) error {
+			return res.Accounts.Save(ctx, "a-3", newAccount(3), 0)
+		}},
+		{"enqueue", func(ctx context.Context, res accountResources) error {
+			return res.Outbox.Enqueue(ctx, entry("m-1"))
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			store := memory.New()
+			ctx := withExecution(t, context.Background())
+			seedAccount(t, store, ctx, "a-1", newAccount(1))
+
+			var saved error
+			_ = withinAccounts(t, store, ctx, func(ctx context.Context, res accountResources) error {
+				if err := tc.write(ctx, res); err != nil {
+					return err
+				}
+				collides := newAccount(2)
+				collides.Email = newAccount(1).Email
+				saved = res.Accounts.Save(ctx, "a-2", collides, 0)
+				return nil
+			})
+
+			requireViolation(t, saved, emailKey, nil)
+		})
+	}
+}
+
+func TestAnInboxRegistrationIsNotAPriorWrite(t *testing.T) {
+	store := memory.New()
+	ctx := withExecution(t, context.Background())
+	seedAccount(t, store, ctx, "a-1", newAccount(1))
+
+	var saved error
+	err := withinAccounts(t, store, ctx, func(ctx context.Context, res accountResources) error {
+		if _, err := res.Inbox.Register(ctx, ports.Receipt{Consumer: "accounts-consumer", MessageID: "m-1", PayloadHash: "h"}); err != nil {
+			return err
+		}
+		collides := newAccount(2)
+		collides.Email = newAccount(1).Email
+		saved = res.Accounts.Save(ctx, "a-2", collides, 0)
+		return nil
+	})
+
+	if err != nil {
+		t.Fatalf("Within() = %v, want nil", err)
+	}
+	requireViolation(t, saved, emailKey, emailTaken)
+}
+
+func TestTheTransactionStaysUsableAfterAViolation(t *testing.T) {
+	store := memory.New()
+	ctx := withExecution(t, context.Background())
+	seedAccount(t, store, ctx, "a-1", newAccount(1))
+
+	var after error
+	err := withinAccounts(t, store, ctx, func(ctx context.Context, res accountResources) error {
+		_ = res.Accounts.Save(ctx, "a-2", newAccount(1), 0)
+		after = res.Accounts.Save(ctx, "a-3", newAccount(3), 0)
+		return nil
+	})
+
+	if err != nil || after != nil {
+		t.Fatalf("Within() = %v, Save after the violation = %v; want nil, nil", err, after)
+	}
+	if _, _, err := accounts.Reader(store).Load(ctx, "a-3"); err != nil {
+		t.Fatalf("Load(a-3) = %v, want nil", err)
+	}
+}
+
+func TestAStaleVersionIsAConflictBeforeItIsAViolation(t *testing.T) {
+	store := memory.New()
+	ctx := withExecution(t, context.Background())
+	seedAccount(t, store, ctx, "a-1", newAccount(1))
+	seedAccount(t, store, ctx, "a-2", newAccount(2))
+
+	err := withinAccounts(t, store, ctx, func(ctx context.Context, res accountResources) error {
+		return res.Accounts.Save(ctx, "a-2", newAccount(1), 7)
+	})
+
+	if !errors.Is(err, ports.ErrVersionConflict) {
+		t.Fatalf("Save() at a stale version onto a taken value = %v, want ErrVersionConflict", err)
+	}
+}
+
+func TestARepositoryOverAnInvalidDeclarationPanics(t *testing.T) {
+	key := func(a account) ([]string, bool) { return []string{a.Email}, true }
+	for _, tc := range []struct {
+		name   string
+		unique []memory.Unique[account]
+		want   string
+	}{
+		{"unnamed", []memory.Unique[account]{{Key: key, Rejection: emailTaken}}, "without a name"},
+		{"keyless", []memory.Unique[account]{{Name: emailKey, Rejection: emailTaken}}, "without a key"},
+		{"undeclared rejection", []memory.Unique[account]{{Name: emailKey, Key: key}}, "without a rejection"},
+		{"invalid code", []memory.Unique[account]{{Name: emailKey, Key: key, Rejection: domain.Reject("Not A Code", "x")}}, "invalid rejection code"},
+		{"repeated name", []memory.Unique[account]{
+			{Name: emailKey, Key: key, Rejection: emailTaken},
+			{Name: emailKey, Key: key, Rejection: handleTaken},
+		}, "declared twice"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			defer func() {
+				got, _ := recover().(string)
+				if !strings.Contains(got, tc.want) {
+					t.Fatalf("panic = %q, want it to name %q", got, tc.want)
+				}
+			}()
+			table := memory.Table[string, account]{Name: "accounts", Unique: tc.unique}
+			table.Repository(nil)
+		})
 	}
 }

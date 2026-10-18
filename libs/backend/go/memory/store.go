@@ -6,6 +6,7 @@ import (
 	"slices"
 	"sync"
 
+	"github.com/mateusmacedo/dmpf/libs/backend/go/domain"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
 
@@ -19,6 +20,17 @@ type Table[ID comparable, S any] struct {
 	// mutates the state it loaded cannot reach the store before the commit. Nil
 	// means the value copy is the whole clone: S holds no slice, map or pointer.
 	Clone func(S) S
+
+	Unique []Unique[S]
+}
+
+// Unique mirrors a postgres.Unique: Key returns the columns after tenant_id, compared
+// one by one, and false when one is NULL; an empty string collides as in PostgreSQL.
+// Under several collisions the first declared wins, so declare them in DDL order.
+type Unique[S any] struct {
+	Name      string
+	Key       func(S) ([]string, bool)
+	Rejection *domain.Rejection
 }
 
 // Reader is the read-only view outside any transaction, for the query of
@@ -29,7 +41,50 @@ func (t Table[ID, S]) Reader(s *Store) ports.Reader[ID, S] {
 }
 
 func (t Table[ID, S]) Repository(tx *Tx) ports.Repository[ID, S] {
+	t.validate()
 	return txRepository[ID, S]{tx: tx, table: t}
+}
+
+func (t Table[ID, S]) validate() {
+	names := make(map[string]bool, len(t.Unique))
+	for _, u := range t.Unique {
+		switch {
+		case u.Name == "":
+			panic(fmt.Sprintf("memory: table %q declares a unique constraint without a name", t.Name))
+		case u.Key == nil:
+			panic(fmt.Sprintf("memory: unique constraint %q declared without a key", u.Name))
+		case u.Rejection == nil:
+			panic(fmt.Sprintf("memory: unique constraint %q declared without a rejection", u.Name))
+		case !u.Rejection.Code().Valid():
+			panic(fmt.Sprintf("memory: unique constraint %q has an invalid rejection code %q", u.Name, u.Rejection.Code()))
+		case names[u.Name]:
+			panic(fmt.Sprintf("memory: unique constraint %q declared twice", u.Name))
+		}
+		names[u.Name] = true
+	}
+}
+
+func (t Table[ID, S]) violation(rows *table, key rowKey, state S, priorWrites int) error {
+	for _, u := range t.Unique {
+		want, ok := u.Key(state)
+		if !ok {
+			continue
+		}
+		for candidate, rec := range rows.rows {
+			other := candidate.(rowKey)
+			if other.tenant != key.tenant || other.id == key.id {
+				continue
+			}
+			if got, ok := u.Key(rec.snapshot.(S)); ok && slices.Equal(got, want) {
+				broken := ports.UniqueViolation{Table: t.Name, Constraint: u.Name}
+				if priorWrites == 0 {
+					broken.Rejection = u.Rejection
+				}
+				return broken
+			}
+		}
+	}
+	return nil
 }
 
 func (t Table[ID, S]) copy(s S) S {
