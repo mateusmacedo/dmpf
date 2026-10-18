@@ -22,7 +22,7 @@ Import path do módulo:
 | Arquivo | Conteúdo |
 | --- | --- |
 | `uow.go` | `UnitOfWork[R]` e o contrato de `Within` |
-| `repository.go` | `ErrNotFound`, `ErrVersionConflict`, `ErrAlreadyExists`, `CrossTenantAccess`, `Reader[ID,S]`, `Repository[ID,S]` |
+| `repository.go` | `ErrNotFound`, `ErrVersionConflict`, `ErrAlreadyExists`, `ErrUniqueViolation`, `UniqueViolation` (`Table`, `Constraint` e a `Rejection` declarada, nula quando não convertível; ADR-066), `CrossTenantAccess`, `Reader[ID,S]`, `Repository[ID,S]` |
 | `outbox.go` | `PublishIntent`, `OutboxEntry` (oito campos, com `Context MessageContext`), `Outbox` |
 | `inbox.go` | `Status`, `Receipt` (com `WaitUntil` e `ExpiresAt`, zero para mensagem), `Completion` (com `Outcome`), `Pending`, `Reception` (com `Match` exaustivo sobre R1–R4 e `Stored`), `Inbox`, `ErrRegisterTimeout`, `ErrPendingNotCompleted` |
 | `idempotency.go` | `Fingerprint`, `ErrIdempotencyMismatch`, `ErrIdempotencyInFlight`, `ErrIdempotencyKeyAbsent`, `ErrIdempotencyKeyInvalid` |
