@@ -28,6 +28,7 @@ type ResourceRegistered struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ResourceId    string                 `protobuf:"bytes,1,opt,name=resource_id,json=resourceId,proto3" json:"resource_id,omitempty"`
 	RegisteredAt  *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=registered_at,json=registeredAt,proto3" json:"registered_at,omitempty"`
+	Name          string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -76,15 +77,23 @@ func (x *ResourceRegistered) GetRegisteredAt() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *ResourceRegistered) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
 var File_company_bookings_event_v1_resource_registered_proto protoreflect.FileDescriptor
 
 const file_company_bookings_event_v1_resource_registered_proto_rawDesc = "" +
 	"\n" +
-	"3company/bookings/event/v1/resource_registered.proto\x12\x19company.bookings.event.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"v\n" +
+	"3company/bookings/event/v1/resource_registered.proto\x12\x19company.bookings.event.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\x8a\x01\n" +
 	"\x12ResourceRegistered\x12\x1f\n" +
 	"\vresource_id\x18\x01 \x01(\tR\n" +
 	"resourceId\x12?\n" +
-	"\rregistered_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\fregisteredAtB\xa5\x02\n" +
+	"\rregistered_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\fregisteredAt\x12\x12\n" +
+	"\x04name\x18\x03 \x01(\tR\x04nameB\xa5\x02\n" +
 	"\x1dcom.company.bookings.event.v1B\x17ResourceRegisteredProtoP\x01Zdgithub.com/mateusmacedo/dmpf/apps/backend/bookings/contract/gen/go/company/bookings/event/v1;eventv1\xa2\x02\x03CBE\xaa\x02\x19Company.Bookings.Event.V1\xca\x02\x19Company\\Bookings\\Event\\V1\xe2\x02%Company\\Bookings\\Event\\V1\\GPBMetadata\xea\x02\x1cCompany::Bookings::Event::V1b\x06proto3"
 
 var (

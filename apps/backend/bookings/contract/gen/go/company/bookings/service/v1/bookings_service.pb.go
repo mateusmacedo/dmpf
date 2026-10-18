@@ -429,6 +429,7 @@ func (x *Cancelled) GetBookingId() string {
 type RegisterResourceRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ResourceId    string                 `protobuf:"bytes,1,opt,name=resource_id,json=resourceId,proto3" json:"resource_id,omitempty"`
+	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -466,6 +467,13 @@ func (*RegisterResourceRequest) Descriptor() ([]byte, []int) {
 func (x *RegisterResourceRequest) GetResourceId() string {
 	if x != nil {
 		return x.ResourceId
+	}
+	return ""
+}
+
+func (x *RegisterResourceRequest) GetName() string {
+	if x != nil {
+		return x.Name
 	}
 	return ""
 }
@@ -928,10 +936,11 @@ const file_company_bookings_service_v1_bookings_service_proto_rawDesc = "" +
 	"\x06result\"*\n" +
 	"\tCancelled\x12\x1d\n" +
 	"\n" +
-	"booking_id\x18\x01 \x01(\tR\tbookingId\":\n" +
+	"booking_id\x18\x01 \x01(\tR\tbookingId\"N\n" +
 	"\x17RegisterResourceRequest\x12\x1f\n" +
 	"\vresource_id\x18\x01 \x01(\tR\n" +
-	"resourceId\"\xb7\x01\n" +
+	"resourceId\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\"\xb7\x01\n" +
 	"\x18RegisterResourceResponse\x12I\n" +
 	"\n" +
 	"registered\x18\x01 \x01(\v2'.company.bookings.service.v1.RegisteredH\x00R\n" +

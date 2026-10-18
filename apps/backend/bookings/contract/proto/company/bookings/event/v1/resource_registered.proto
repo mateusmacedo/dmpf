@@ -9,4 +9,5 @@ import "google/protobuf/timestamp.proto";
 message ResourceRegistered {
   string resource_id = 1;
   google.protobuf.Timestamp registered_at = 2;
+  string name = 3;
 }

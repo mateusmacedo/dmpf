@@ -275,7 +275,7 @@ components:
           type: string
     RegisterRequest:
       type: object
-      required: [code]
+      required: [code, name]
       additionalProperties: false
       properties:
         code:
@@ -283,6 +283,29 @@ components:
           minLength: 1
           maxLength: 128
           pattern: '^[A-Za-z0-9._:-]+$'
+        name:
+          type: string
+          description: >-
+            Unique per tenant by exact match. Up to 200 characters (Unicode
+            code points) of valid UTF-8. Refused characters: control (Unicode
+            category Cc), format (category Cf, such as U+200B, U+202E, U+2060,
+            U+2066 to U+2069 and U+FEFF), the line and paragraph separators
+            U+2028 and U+2029, every variation selector (U+FE00 to U+FE0F,
+            U+E0100 to U+E01EF and the Mongolian U+180B to U+180F) and the
+            other default ignorable code points (such as U+034F and the Hangul
+            fillers U+115F, U+1160, U+3164 and U+FFA0). At least one character
+            must be neither Unicode white space nor a combining mark (category
+            M): a lone U+0301 is refused, while a decomposed "é" (U+0065
+            U+0301) is accepted. The selector after an emoji is refused too, by
+            design: "❤️" (U+2764 U+FE0F), as many phone keyboards type it, is
+            refused, while "❤" and emoji that take no selector, such as "🎉",
+            are accepted. Known limits, accepted: U+2800 (braille blank),
+            U+FFFC and visible homoglyphs. The name is neither normalized nor
+            trimmed: non-Latin scripts, such as CJK ("会议室"), are accepted,
+            and inner spaces are kept. A repeated registration keeps the
+            original name.
+          minLength: 1
+          maxLength: 200
     RegisteredResponse:
       type: object
       required: [code]
@@ -316,6 +339,7 @@ components:
           type: string
           examples:
             - resource-scheduling/booking/not-reserved
+            - resource-scheduling/resource/duplicate-name
             - missing-idempotency-key
             - invalid-idempotency-key
             - reused-idempotency-key
