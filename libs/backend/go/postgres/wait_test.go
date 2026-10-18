@@ -5,9 +5,11 @@ package postgres_test
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	lognoop "go.opentelemetry.io/otel/log/noop"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
@@ -164,5 +166,89 @@ func TestWaitForGrantsNamesTheTableAndThePrivilegeItWaitsFor(t *testing.T) {
 	records := logs.named("waiting for table privilege")
 	if len(records) != 1 || records[0]["db.collection.name"] != "never_created" || records[0]["db.operation.name"] != "SELECT" || records[0]["scope"] != postgresScope {
 		t.Fatalf("log = %v, want one record naming never_created and SELECT, scoped to %s", records, postgresScope)
+	}
+}
+
+const lateUnique = "late_uniques_tenant_id_name_key"
+
+func lateUniques() postgres.UniqueSet {
+	return postgres.UniqueSet{Table: "late_uniques", Constraints: []postgres.Unique{{
+		Name: lateUnique, Columns: []string{"tenant_id", "name"}, Rejection: nameTaken,
+	}}}
+}
+
+func createLateUniques(t *testing.T, admin *pgxpool.Pool) {
+	t.Helper()
+	mustExec(t, admin, "DROP TABLE IF EXISTS late_uniques")
+	t.Cleanup(func() { _, _ = admin.Exec(context.Background(), "DROP TABLE IF EXISTS late_uniques") })
+	mustExec(t, admin, "CREATE TABLE late_uniques (tenant_id text NOT NULL, name text NOT NULL)")
+}
+
+func TestWaitForUniquesReturnsOnceTheConstraintExists(t *testing.T) {
+	pool := openPool(t)
+	admin := openAdminPool(t)
+	createLateUniques(t, admin)
+
+	done := make(chan error, 1)
+	go func() {
+		done <- postgres.WaitForUniques(context.Background(), pool, 20*time.Millisecond, lognoop.NewLoggerProvider(), uniqueTable.Uniques(), lateUniques())
+	}()
+
+	select {
+	case err := <-done:
+		t.Fatalf("WaitForUniques() = %v before %s existed", err, lateUnique)
+	case <-time.After(150 * time.Millisecond):
+	}
+	mustExec(t, admin, "ALTER TABLE late_uniques ADD CONSTRAINT "+lateUnique+" UNIQUE (tenant_id, name)")
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("WaitForUniques() = %v, want nil", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("WaitForUniques() did not return after the constraint was added")
+	}
+}
+
+func TestWaitForUniquesReturnsAnyOtherErrorAtOnce(t *testing.T) {
+	pool := openPool(t)
+	malformed := lateUniques()
+	malformed.Constraints[0].Rejection = nil
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	err := postgres.WaitForUniques(ctx, pool, 20*time.Millisecond, lognoop.NewLoggerProvider(), malformed)
+
+	if err == nil || errors.Is(err, postgres.ErrUniqueDivergent) || ctx.Err() != nil {
+		t.Fatalf("WaitForUniques() over a malformed declaration = %v, want its error before the deadline", err)
+	}
+}
+
+func TestWaitForUniquesStopsWithTheContextKeepingTheDivergence(t *testing.T) {
+	pool := openPool(t)
+	createLateUniques(t, openAdminPool(t))
+	ctx, cancel := context.WithCancel(context.Background())
+	time.AfterFunc(100*time.Millisecond, cancel)
+
+	err := postgres.WaitForUniques(ctx, pool, 20*time.Millisecond, lognoop.NewLoggerProvider(), lateUniques())
+
+	if !errors.Is(err, context.Canceled) || !errors.Is(err, postgres.ErrUniqueDivergent) || !strings.Contains(err.Error(), lateUnique) {
+		t.Fatalf("WaitForUniques() = %v, want context.Canceled with the ErrUniqueDivergent of %s", err, lateUnique)
+	}
+}
+
+func TestWaitForUniquesNamesTheConstraintItWaitsFor(t *testing.T) {
+	pool := openPool(t)
+	createLateUniques(t, openAdminPool(t))
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	logs := &recordingProcessor{}
+
+	_ = postgres.WaitForUniques(ctx, pool, 20*time.Millisecond, logs.provider(), lateUniques())
+
+	records := logs.named("waiting for unique constraint")
+	if len(records) != 1 || records[0]["db.collection.name"] != "late_uniques" || records[0]["dmpf.db.constraint.name"] != lateUnique ||
+		records[0]["dmpf.db.constraint.divergence"] != "absent" || records[0]["scope"] != postgresScope {
+		t.Fatalf("log = %v, want one record naming late_uniques, %s and its divergence, scoped to %s", records, lateUnique, postgresScope)
 	}
 }
