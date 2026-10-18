@@ -508,7 +508,7 @@ outra coisa, e a fonte já os confundia.
 6. sob Accepted, persiste o agregado com optimistic locking ──┐
 7. sob Accepted, entrega (domain event, intenção de           │  MESMA
    publicação) à porta da outbox — o provider mapeia e        │  transação
-   serializa (§2.2). Sob Rejected, 6 e 7 não ocorrem        ──┘
+   serializa (§2.2). Sob Rejected, nada de 6 e 7 persiste   ──┘
 8. commit
 9. devolve a response de aplicação — de aceite ou de rejeição
 ```
@@ -521,19 +521,19 @@ consequências transacionais distintas:
 | Ramo | Passos 6 e 7 | Fundamento |
 |------|--------------|------------|
 | `Accepted` | Persiste o agregado e entrega os domain events à porta da outbox | O fato ocorreu e produziu eventos |
-| `Rejected` | **Não ocorrem.** Nada é persistido e nada é enfileirado | FND-03 `DEC-10` (o estado observável é idêntico ao de antes da chamada) e `DEC-11` (`Rejected` não carrega eventos de domínio) |
+| `Rejected` | **Nada persiste e nada é enfileirado.** O passo 7 não ocorre; o passo 6 só é tentado quando a recusa vem de uma unicidade declarada pelo contexto e acusada pela persistência (`UOW-06`), e então é desfeito sem efeito observável, com a transação viva | FND-03 `DEC-10` (o estado observável é idêntico ao de antes da chamada) e `DEC-11` (`Rejected` não carrega eventos de domínio) |
 
-`normativo` `UOW-06` — Um caso de uso que persista o agregado ou grave a outbox sob
-`Rejected` viola `DEC-10` ou `DEC-11`, ainda que o commit ocorra sem erro. A
-rejeição de negócio não é falha técnica: o passo 8 commita normalmente — uma
-transação vazia de efeitos — e o passo 9 devolve a rejeição tipada ao chamador.
+`normativo` `UOW-06` — Sob `Rejected`, nada do agregado nem da outbox sobrevive ao
+passo 8, que commita normalmente; persistir ou enfileirar viola `DEC-10` ou `DEC-11`.
+O service converte em `Rejected`, logo após o passo 6, só a violação de unicidade
+declarada pelo contexto, sem escrita anterior de agregado ou outbox na transação (a da inbox não conta); a não declarada é falha técnica.
 
-`rationale` — O passo 8 permanece na sequência sob `Rejected` de propósito. A
-alternativa era abortar a UoW no ramo rejeitado, o que parece equivalente e não
-é: um rollback transformaria a rejeição em indistinguível de falha técnica no
-lado do chamador, e é exatamente o que FND-03 `DEC-04` proíbe. Commitar sem
-efeito preserva a distinção — e, quando o caso de uso escolher registrar a
-própria rejeição, o registro entra nessa transação.
+`rationale` — O passo 8 permanece sob `Rejected` de propósito: abortar a UoW tornaria
+a rejeição indistinguível de falha técnica no chamador, o que FND-03 `DEC-04` proíbe,
+e é nessa transação que entra o registro da própria rejeição. Só o índice conhece a
+unicidade entre agregados do tenant, e a UPR não faz I/O; desfazer só o passo 6 mantém
+a transação viva para esse registro, mas não desfaria uma escrita anterior. Como o
+provider desfaz o passo 6 não é normatizado, pela mesma razão de `INB-04`.
 
 `normativo` `UOW-07` — Os passos 6 e 7 ocorrem na **mesma** transação local, e o passo 8
 é o único ponto em que o estado de negócio e a intenção de publicar se tornam
@@ -552,9 +552,9 @@ vista do caso de uso, os dois passos colapsam em um: entregar à porta. O
 mapeamento e a serialização continuam existindo, no `provider`, dentro da mesma
 transação (§2.2).
 
-`encaminhado` — O passo 1 (autorização de aplicação) e a taxonomia de erro que
-ele produz são de FND-07. O passo 5 executa a UPR definida em FND-03 e devolve a
-`Decision` de FND-03 §3; este artefato consome esse desfecho e não o redefine.
+`encaminhado` — O passo 1 e a taxonomia de erro que ele produz são de FND-07. O passo 5
+devolve a `Decision` de FND-03 §3, que este artefato não redefine; a recusa por unicidade
+declarada, que nasce no passo 6, está no [ADR-066](../adr/066-unicidade-declarada-como-rejeicao.md).
 
 ### §3.3 Optimistic locking e ausência de retry automático
 
@@ -1165,8 +1165,8 @@ consolida Parte-1 §10.5.
    (consumer_name, message_id, payload_hash) e RECEBE a                 │ MESMA
    classificação da recepção (§6.2)                                     │ transação
 5. ramifica pela classificação e, sob R1, pelo desfecho (§6.4):         │
-   R1xD1  -> aplica efeitos locais, grava a outbox derivada             │
-             e chama concluir(processed)                                │
+   R1xD1  -> aplica efeitos locais, grava a outbox derivada e chama     │
+             concluir(processed); unicidade declarada acusada -> R1xD2  │
    R1xD2  -> chama concluir(rejected) e, quando útil, grava o           │
              rejection event na outbox derivada                         │
    R1xD3  -> abandona a UoW                                             │
@@ -1245,13 +1245,13 @@ terminal registrado, e as suas consequências são decididas aqui.
 | | Desfecho | Predicado |
 |---|----------|-----------|
 | **D1** | aplicado | os efeitos locais commitaram |
-| **D2** | rejeitado por negócio | a UPR devolveu `Rejected` (FND-03 §3.3) |
+| **D2** | rejeitado por negócio | a UPR devolveu `Rejected` (FND-03 §3.3), ou o efeito local acusou uma unicidade declarada pelo contexto, convertida em `Rejected` sem efeito observável (`UOW-06`) |
 | **D3** | falha transitória | a falha é classificada como **retentável** pela taxonomia de erros |
 | **D4** | falha terminal | a falha é classificada como **não retentável** pela taxonomia de erros |
 
 `normativo` `INB-09` — **A fronteira entre D3 e D4 é decidida pela classificação do
 erro, não por julgamento caso a caso.** D1 e D2 são decidíveis pelo próprio
-desfecho da UPR; D3 e D4 exigem que a falha técnica chegue classificada. Um
+desfecho do caso de uso; D3 e D4 exigem que a falha técnica chegue classificada. Um
 consumidor que decida entre retentar e conter por inspeção ad hoc da mensagem
 de erro não satisfaz esta subseção.
 
@@ -1828,8 +1828,8 @@ sequenceDiagram
             AS->>OUT: 7. entrega (domain event, intenção)
             OUT->>PRV: mapeia e serializa (§2.2)
             PRV-->>OUT: registro em status pending
-        else Decision = Rejected
-            Note over AS,PRV: 6 e 7 não ocorrem — DEC-10 e DEC-11
+        else Decision = Rejected ou unicidade declarada no passo 6
+            Note over AS,PRV: nada de 6 e 7 persiste — DEC-10 e DEC-11
         end
     end
     AS->>UOW: 8. commit
@@ -1840,9 +1840,9 @@ sequenceDiagram
 Nenhum passo publica no broker. O broker não aparece neste diagrama porque não
 participa desta transação — é a proposição de §7.1 em forma de desenho.
 
-O ramo `Rejected` commita: uma transação sem efeitos. Abortá-la tornaria a
-rejeição de negócio indistinguível de falha técnica, que FND-03 `DEC-04` proíbe
-(§3.2).
+O ramo `Rejected` commita uma transação sem efeitos, mesmo quando o passo 6 foi
+tentado e desfeito pela unicidade declarada. Abortá-la tornaria a rejeição de
+negócio indistinguível de falha técnica, que FND-03 `DEC-04` proíbe (§3.2).
 
 ### §8.3 Drenagem: o relay
 
@@ -2358,8 +2358,8 @@ o mecanismo e não há o que verificar em runtime. Eles obrigam do mesmo jeito.
 | `UOW-02` | Uma UoW não abrange dois recursos transacionais distintos | §3.1 |
 | `UOW-03` | A UoW é visível no service; a correção não depende de contexto global | §3.1 |
 | `UOW-04` | Porta não recebida pelo callback está fora da fronteira transacional | §3.1 |
-| `UOW-05` | O ramo da `Decision` decide os passos 6 e 7 | §3.2 |
-| `UOW-06` | Sob `Rejected` nada é persistido nem enfileirado — `DEC-10` e `DEC-11` | §3.2 |
+| `UOW-05` | O ramo do desfecho decide os passos 6 e 7; sob `Rejected`, o 6 tentado é desfeito sem efeito observável | §3.2 |
+| `UOW-06` | Sob `Rejected` nada persiste nem é enfileirado — `DEC-10` e `DEC-11`; só a unicidade declarada, sem escrita anterior de agregado ou outbox, vira `Rejected` | §3.2 |
 | `UOW-07` | Os passos 6 e 7 commitam juntos; o passo 8 é o único ponto de visibilidade | §3.2 |
 | `UOW-08` | Nenhum passo da sequência de escrita publica no broker | §3.2 |
 | `UOW-09` | A UoW **não** repete automaticamente o callback transacional | §3.3 |

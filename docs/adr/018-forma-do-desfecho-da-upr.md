@@ -2,7 +2,7 @@
 
 ## Status
 
-Aceito — 2026-08-29. Implementa SPEC-DBTRMM3X.
+Aceito — 2026-08-29. Implementa SPEC-DBTRMM3X. **Emendado pelo [ADR-066](./066-unicidade-declarada-como-rejeicao.md) (2026-10-17)**: a rejeição tipada passa a ter uma segunda origem, declarada pelo contexto no `Table` e levantada pelo application service a partir do erro tipado do `Save`; a UPR segue sem I/O.
 
 ## Contexto
 

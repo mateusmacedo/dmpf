@@ -226,6 +226,103 @@ usa. Para ligar a deny-list na borda:
    valem, mas os eventos `LOGOUT` não são guardados, e o logout do usuário
    depende só do back-channel.
 
+### Adotar a unicidade declarada (ADR-066)
+
+Uma violação de `UNIQUE` que não é a chave primária chegava ao chamador como
+`INTERNAL`. Com a declaração, a duplicata de negócio por tenant volta como
+`DomainRejection`: a resposta gRPC sai com status `OK` e o campo `rejection` com o
+código declarado (o BFF a expõe como `422`), gravada na inbox e reproduzida no replay. O índice continua sendo a garantia; a declaração
+só traduz. O `bookings` é o exemplo de referência. Para cada unicidade de
+negócio:
+
+1. Declare a restrição dentro do `CREATE TABLE`, no `provider/schema.sql`, como
+   `CONSTRAINT <tabela>_<colunas>_key UNIQUE (tenant_id, ...)`: o nome é a
+   tabela, as colunas na ordem, separadas por `_`, e o sufixo `_key`, em
+   minúsculas e com até 63 bytes, e `tenant_id` vem primeiro. `CREATE UNIQUE
+   INDEX`, `DEFERRABLE` e `NULLS NOT DISTINCT` não servem, nem tabela
+   particionada, partição ou com herança: na partição, o PostgreSQL reporta a
+   restrição da partição folha, que não casa com a declarada, e na herança a
+   `UNIQUE` vale por tabela e não cobre a hierarquia. Atributo que vive só no
+   snapshot vira coluna gerada:
+
+   ```sql
+   name        text   GENERATED ALWAYS AS (snapshot->>'name') STORED NOT NULL,
+   CONSTRAINT resources_pkey PRIMARY KEY (tenant_id, resource_id),
+   CONSTRAINT resources_tenant_id_name_key UNIQUE (tenant_id, name)
+   ```
+
+2. Declare a rejeição estática no `domain`. Quem a levanta é o service, a
+   partir do `Save`, nunca a UPR:
+
+   ```go
+   CodeResourceDuplicateName kernel.Code = "resource-scheduling/resource/duplicate-name"
+
+   var RejectResourceDuplicateName = kernel.Reject(CodeResourceDuplicateName, "a resource with this name already exists in the tenant")
+   ```
+
+3. Ligue a restrição à rejeição no `Table` do provider, com `postgres.Unique`
+   de mesmo nome e mesmas colunas:
+
+   ```go
+   table.Unique = []postgres.Unique{{
+       Name:      "resources_tenant_id_name_key",
+       Columns:   []string{"tenant_id", "name"},
+       Rejection: domain.RejectResourceDuplicateName,
+   }}
+   ```
+
+4. Exporte em `provider/schema.go` a lista de todo `Table` com `Unique`:
+
+   ```go
+   var Uniques = []postgres.UniqueSet{resourceTable.Uniques()}
+   ```
+
+5. Passe a lista em `serve.API` no wiring (`app/wiring.go`), ao lado de
+   `Grants: provider.Grants`: `Uniques: provider.Uniques`. Na partida,
+   `postgres.VerifyUniques` confere cada restrição em `pg_constraint` e recusa
+   subir com `ErrUniqueDivergent` se o schema divergir da declaração ou se a
+   tabela for particionada ou usar herança.
+6. Espelhe a declaração nos dublês com `memory.Unique`, cuja `Key` devolve as
+   colunas depois de `tenant_id`:
+
+   ```go
+   memory.Table[domain.ResourceCode, domain.ResourceSnapshot]{Name: "resources", Unique: []memory.Unique[domain.ResourceSnapshot]{{
+       Name:      "resources_tenant_id_name_key",
+       Key:       func(s domain.ResourceSnapshot) ([]string, bool) { return []string{string(s.Name)}, true },
+       Rejection: domain.RejectResourceDuplicateName,
+   }}}
+   ```
+
+7. Prove o provider com `providerkit.Unique` no teste de repositório,
+   declarando cada restrição em `Constraints`
+   (`providerkit.UniqueConstraint{Name, Columns, Code}`, em que `Columns` lista
+   as colunas como no `postgres.Unique`, começando por `tenant_id`) e
+   `Concurrent: true`. Declare as restrições, aqui e no `Table`, na ordem em que
+   o DDL as cria: sob colisão em mais de uma, vence a primeira declarada, e o
+   `VerifyUniques` reprova a partida quando a ordem diverge do catálogo.
+
+Depois de atualizar o plugin, o `dmpf-context-check.sh` reprova toda
+`CONSTRAINT ..._key UNIQUE` do `schema.sql` sem `postgres.Unique` de mesmo nome
+no provider, toda `UNIQUE` fora da forma nomeada `CONSTRAINT <nome> UNIQUE`
+(inclusive `CREATE UNIQUE INDEX`), toda tabela com `UNIQUE` que use
+`PARTITION BY`, `PARTITION OF`, `INHERITS`, `ATTACH PARTITION` ou
+`ALTER TABLE [IF EXISTS] [ONLY] <tabela> [*] INHERIT <mãe>`, com o `INHERIT` em
+qualquer posição da lista de ações e com esquema, aspas, espaços ou comentários
+entre o nome, o `*` e a ação (não `NO INHERIT` nem coluna chamada `inherit`), ou que
+seja mãe de partição ou de herança, e todo `Table` com `Unique` fora de
+`provider.Uniques`. Tabela particionada ou com herança sem
+`UNIQUE` continua aprovada. Contexto sem declaração e sem `UNIQUE` não muda
+nada.
+
+O `Save` de uma tabela com `Unique` envia o savepoint, a escrita e o `RELEASE`
+num único round trip. No modo padrão do pgx, o primeiro `Save` de cada escrita
+numa conexão paga a mais, uma vez, para preparar os três statements por nome;
+a recusa paga o `ROLLBACK TO SAVEPOINT` e, na criação, a sonda de identidade,
+preparada na primeira criação recusada de cada conexão (4 escritas no socket nessa,
+3 nas seguintes), e o `Save` seguinte volta a um round trip. Um `ResetSession` que rode `DEALLOCATE
+ALL` ou `DISCARD ALL` invalida esses statements sem o pgx saber. Tabela sem
+`Unique` não muda.
+
 ## 7. Keycloak de referência (opcional)
 
 O `init` e a migration trazem o Keycloak de referência do ADR-064 como
@@ -324,6 +421,7 @@ hora; declare essa retenção no registro de tratamento de dados do consumidor.
 
 - [`docs/adr/060-o-dmpf-tem-consumidor-externo.md`](../adr/060-o-dmpf-tem-consumidor-externo.md) — a decisão.
 - [`docs/adr/065-revogacao-de-sessao-no-authn.md`](../adr/065-revogacao-de-sessao-no-authn.md) — a revogação de sessão no `authn` e o papel que alimenta a deny-list.
+- [`docs/adr/066-unicidade-declarada-como-rejeicao.md`](../adr/066-unicidade-declarada-como-rejeicao.md) — a unicidade de negócio declarada no `Table` e devolvida como rejeição de domínio.
 - [`tools/dmpf-plugin/README.md`](../../tools/dmpf-plugin/README.md) — generators, executors, migrations e `versions.json`.
 - [`docs/guides/dmpf-composicao.md`](dmpf-composicao.md) — como um contexto se compõe sobre o kernel.
 - [`docs/guides/dmpf-manifesto.md`](dmpf-manifesto.md) — manifesto, baseline e gate de conformidade.

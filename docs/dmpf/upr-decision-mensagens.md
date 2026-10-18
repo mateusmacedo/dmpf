@@ -584,10 +584,10 @@ de implementação, e os três aparecem no mesmo caso de uso.
 | `Rejection` | Tipo de mensagem: resultado negativo esperado e tipado | Domínio e fronteira de aplicação | §5 |
 | `DomainRejection` | Categoria na taxonomia de erros, com mapeamento de protocolo | Borda de aplicação | FND-07 (ARQ-444) |
 
-Como os três se encadeiam: a UPR devolve `Rejected`, carregando uma `Rejection`.
-Quando o caso de uso precisa comunicar esse desfecho para fora do processo, a
-borda o classifica como `DomainRejection` e aplica o mapeamento do protocolo em
-uso.
+Como os três se encadeiam: a UPR devolve `Rejected`, carregando uma `Rejection`; na
+unicidade declarada (FND-04 `UOW-05` e `UOW-06`, ADR-066), o `Decide` devolve a que o
+`Table` declara, quando o `Save` acusa a restrição. Fora do processo, a borda
+classifica o desfecho como `DomainRejection` e aplica o mapeamento do protocolo em uso.
 
 `recepcionado` — Parte-1 §13 registra `DomainRejection` como não-retryable, com
 mapeamento para 422 em HTTP, `FAILED_PRECONDITION` em gRPC e ACK ou evento de
@@ -685,7 +685,7 @@ critério que o sustenta.
 | Caso | Onde vive | Critério |
 |------|-----------|----------|
 | Validação de forma da entrada — campo obrigatório, formato sintático | Fronteira de aplicação | Não é regra de negócio; a UPR recebe mensagem já estruturalmente válida (`UPR-I01`) |
-| Validação que depende do estado do agregado — limite excedido, item duplicado | **UPR** | É invariante de negócio (`UPR-I03`) e exige o estado para decidir |
+| Validação que depende do estado do agregado — limite excedido, item duplicado dentro do agregado | **UPR** | É invariante de negócio (`UPR-I03`) e exige o estado para decidir. A duplicata entre agregados do tenant não é da UPR, que não lê o índice: a rejeição é declarada no `Table` e o application service a devolve quando o `Save` acusa a restrição (FND-04 `UOW-05` e `UOW-06`, ADR-066) |
 | Autorização "este usuário tem permissão de executar a operação" | Application service | Passo 1 do fluxo; controle de acesso, `encaminhado` a FND-07 |
 | Autorização "este titular pode movimentar este saldo" | **UPR** | É regra do domínio expressa sobre o estado do agregado, não controle de acesso |
 | Decisão que depende de dado de outro agregado | **UPR**, com o dado recebido | RFC §9.3: o dado chega carregado; a UPR não o busca (`FRT-01`) |
@@ -740,7 +740,7 @@ número de owners e se o tipo altera estado.
 | Application response | Application service | Quem chamou o caso de uso | Escopo do caso de uso | — (é saída) |
 | Domain event | A UPR, no desfecho `Accepted` | O próprio bounded context; o mapeamento que converte para integração | Nasce no desfecho; termina ao ser aplicado ou convertido | Zero ou vários consumidores internos |
 | Integration event | O mapeamento de §6.3, fora do domínio | Outros bounded contexts | Contrato público, versionado, com depreciação | Zero ou vários consumidores externos |
-| Rejection | A UPR, no desfecho `Rejected` | O application service, que decide como expô-la | Nasce no desfecho; termina na borda | — (é saída) |
+| Rejection | A UPR, no desfecho `Rejected`; na unicidade declarada, o application service (`Decide` ou consumidor de mensagem), com a rejeição declarada no `Table` e reconhecida por `application.DeclaredRejection` após o `Save` (FND-04 `UOW-05` e `UOW-06`) | O application service, que decide como expô-la | Nasce no desfecho; termina na borda | — (é saída) |
 | Job | O agendador | Application service, que executa o caso de uso | Escopo da execução agendada | Um |
 
 `normativo` — **Sobre o travessão na coluna de owners.** Parte-1 §6.1 deixa
