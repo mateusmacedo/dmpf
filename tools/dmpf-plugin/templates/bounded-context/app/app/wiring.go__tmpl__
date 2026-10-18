@@ -41,7 +41,7 @@ func RunWith(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {
 
 func api() serve.API {
 	return serve.API{
-		Desc: &rpc.ServiceDesc, Commands: rpc.Commands(), Schema: provider.Schema, Grants: provider.Grants, CommandConsumer: application.CommandConsumer,
+		Desc: &rpc.ServiceDesc, Commands: rpc.Commands(), Schema: provider.Schema, Grants: provider.Grants, Uniques: provider.Uniques, CommandConsumer: application.CommandConsumer,
 		Register: func(server *grpc.Server, _ *pgxpool.Pool) error {
 			server.RegisterService(&rpc.ServiceDesc, rpc.Server{})
 			return nil

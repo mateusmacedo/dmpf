@@ -692,6 +692,17 @@ describe('[generator] bounded-context — generation', () => {
     );
   });
 
+  it('should declare the business uniqueness sets in the provider and hand them to the api', async () => {
+    const tree = await generate();
+
+    expect(readText(tree, `${MODULE_DIR}/provider/schema.go`)).toContain(
+      'var Uniques = []postgres.UniqueSet{}',
+    );
+    expect(readText(tree, `${MODULE_DIR}/app/wiring.go`)).toContain(
+      'Grants: provider.Grants, Uniques: provider.Uniques,',
+    );
+  });
+
   it('should read the migrating DSN in the migrating api only, require it there and hand it to the serve package', async () => {
     const tree = await generate();
     const config = readText(tree, `${MODULE_DIR}/app/config.go`);

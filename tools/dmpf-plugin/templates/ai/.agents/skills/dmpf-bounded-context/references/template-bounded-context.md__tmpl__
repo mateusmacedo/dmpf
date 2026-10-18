@@ -52,6 +52,9 @@ created: AAAA-MM-DD
 - **Transições permitidas**: [origem → destino, uma por linha]
 - **Invariantes de estado**: [o que é sempre verdadeiro do agregado, com a
   rejeição que cada violação produz]
+- **Unicidade de negócio**: [nenhuma | campos únicos por tenant, cada conjunto
+  com o código de rejeição `<ctx>/<agregado>/<rejeicao>` (ADR-066); a
+  unicidade de identidade é a PK e não entra aqui]
 
 ## Comandos (UPRs)
 
@@ -102,7 +105,8 @@ quando não existe (`inicializa se ausente`); os demais o exigem existente.]
 - **Borda**: [serviço gRPC `company.<name>.service.v1.<Name>Service`, um RPC por
   comando e por consulta; as rotas REST ficam no `bff`]
 - **Banco**: [tabelas no plural; quais campos viram coluna tipada, e qual
-  consulta filtra por cada um]
+  consulta filtra por cada um; a `CONSTRAINT <tabela>_<colunas>_key` de cada
+  unicidade de negócio, com `tenant_id` à frente]
 
 ## Políticas transversais
 

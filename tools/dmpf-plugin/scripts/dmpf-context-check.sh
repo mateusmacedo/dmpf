@@ -10,7 +10,9 @@
 # criação de banco em infra/, apps/backend/*/deploy e .github/workflows usa banco
 # e role com o nome da app (ou a role `<app>_migrator` no banco da app, só no
 # PG_MIGRATE_DSN), ou o par administrativo `postgres`; cada contexto declara o
-# próprio banco no deploy/infra.json e um grant para cada tabela do schema.sql.
+# próprio banco no deploy/infra.json e um grant para cada tabela do schema.sql;
+# cada CONSTRAINT ... UNIQUE do schema.sql tem postgres.Unique de mesmo nome no
+# provider, e o Table que a declara está em provider.Uniques (ADR-066).
 #
 # O critério de descoberta é a presença de `domain/`: um contexto tem domínio,
 # uma borda como o `bff` não tem. Isso separa os dois sem lista fixa e passa a
@@ -238,6 +240,353 @@ faltam = [t for t in tabelas if t not in concedidas]
 for tabela in faltam:
     print(f'{sql_path}: tabela {tabela} sem grant no provider.Grants')
 sys.exit(1 if faltam else 0)
+PY
+  return $?
+}
+
+# verificar_uniques cruza o CONSTRAINT ... UNIQUE do schema.sql com o provider
+# (ADR-066): UNIQUE sem nome, índice único ou restrição sem postgres.Unique de mesmo
+# Name voltam INTERNAL, e Table com Unique fora de provider.Uniques escapa do VerifyUniques.
+verificar_uniques() {
+  local base="$1"
+  python3 - "$base/provider/schema.sql" "$base/provider" <<'PY'
+import pathlib
+import re
+import sys
+from bisect import bisect_left, bisect_right
+from itertools import accumulate, repeat
+
+def sem_comentarios(texto):
+    saida, i = [], 0
+    while i < len(texto):
+        if texto.startswith('//', i):
+            fim = texto.find('\n', i)
+            i = len(texto) if fim < 0 else fim
+        elif texto.startswith('/*', i):
+            fim = texto.find('*/', i + 2)
+            fim = len(texto) if fim < 0 else fim + 2
+            saida.append(' ' + '\n' * texto.count('\n', i, fim))
+            i = fim
+        elif texto[i] in '"\'`':
+            aspa, fim = texto[i], i + 1
+            while fim < len(texto) and texto[fim] != aspa:
+                fim += 2 if aspa != '`' and texto[fim] == '\\' else 1
+            fim = min(fim + 1, len(texto))
+            saida.append(texto[i:fim])
+            i = fim
+        else:
+            saida.append(texto[i])
+            i += 1
+    return ''.join(saida)
+
+
+TOKEN = re.compile(
+    r'--|/\*|\'|"|(?<![A-Za-z0-9_$\x80-\U0010ffff])(?:[Ee]\'|\$(?:(?!\d)[\w\x80-\U0010ffff]+)?\$)'
+)
+ASPA, ASPA_OU_BARRA, BLOCO = re.compile("'"), re.compile(r"[\\']"), re.compile(r'/\*|\*/')
+
+
+def fim_do_literal(texto, i, barra):
+    while achado := (ASPA_OU_BARRA if barra else ASPA).search(texto, i):
+        i = achado.start()
+        if texto[i] != "'" or texto.startswith("''", i):
+            i += 2
+        else:
+            return i + 1
+    return None
+
+
+def fim_do_bloco(texto, i):
+    nivel = 1
+    for marca in BLOCO.finditer(texto, i):
+        nivel += 1 if marca.group() == '/*' else -1
+        if nivel == 0:
+            return marca.end()
+    return None
+
+
+def lexico_sql(texto):
+    nomes, palavras, i, aberto = [], [], 0, False
+    while i < len(texto):
+        token = TOKEN.search(texto, i)
+        comum = texto[i:token.start() if token else len(texto)]
+        if comum:
+            nomes.append(comum)
+            palavras.append(comum)
+            i += len(comum)
+            continue
+        marca, identificador = token.group(), False
+        if marca == '--':
+            fim = texto.find('\n', i)
+            fim = len(texto) if fim < 0 else fim
+        elif marca == '/*':
+            fim = fim_do_bloco(texto, i + 2)
+        elif marca.startswith('$'):
+            fim = texto.find(marca, token.end())
+            fim = None if fim < 0 else fim + len(marca)
+        elif marca == "'":
+            fim = fim_do_literal(texto, i + 1, False)
+        elif marca != '"':
+            fim = fim_do_literal(texto, i + 2, True)
+        else:
+            fim, identificador = texto.find('"', i + 1), True
+            while fim >= 0 and texto.startswith('""', fim):
+                fim = texto.find('"', fim + 2)
+            fim = None if fim < 0 else fim + 1
+        if fim is None:
+            fim, aberto = len(texto), True
+        trecho = texto[i:fim]
+        if identificador:
+            nomes.append(trecho)
+            palavras.append('"' + re.sub(r'[^\n]', '_', trecho[1:-1]) + trecho[-1:])
+        else:
+            apagado = re.sub(r'[^\n]', ' ', trecho)
+            nomes.append(apagado)
+            palavras.append(apagado)
+        i = fim
+    return ''.join(nomes), ''.join(palavras), aberto
+
+
+sql_path, provider = sys.argv[1], pathlib.Path(sys.argv[2])
+try:
+    nomes, sql, aberto = lexico_sql(open(sql_path, encoding='utf-8').read())
+except OSError as erro:
+    print(f'{sql_path}: {erro}')
+    sys.exit(1)
+
+
+def original(casamento, grupo, deslocamento=0):
+    return nomes[casamento.start(grupo) + deslocamento:casamento.end(grupo) + deslocamento]
+
+
+go = ''
+for arquivo in sorted(provider.glob('*.go')):
+    if arquivo.name.endswith('_test.go'):
+        continue
+    try:
+        go += sem_comentarios(arquivo.read_text(encoding='utf-8')) + '\n'
+    except OSError:
+        continue
+
+def profundidade(linha, nivel, crua):
+    i = 0
+    while i < len(linha):
+        c = linha[i]
+        if crua:
+            crua = c != '`'
+        elif c == '`':
+            crua = True
+        elif c in '"\'':
+            i += 1
+            while i < len(linha) and linha[i] != c:
+                i += 2 if linha[i] == '\\' else 1
+        elif c in '([{':
+            nivel += 1
+        elif c in ')]}':
+            nivel -= 1
+        i += 1
+    return nivel, crua
+
+
+def itens_do_bloco(pedaco):
+    itens, atual, nivel, crua = {}, None, 0, False
+    for linha in pedaco.split('\n')[1:]:
+        if nivel == 0 and not crua and linha.strip():
+            if linha.strip() == ')':
+                break
+            item = re.match(r'(?:\t| {4})(\w+)\b[^=]*?=(.*)', linha)
+            atual = item.group(1) if item else None
+            if atual:
+                itens[atual] = item.group(2) + '\n'
+        elif atual:
+            itens[atual] += linha + '\n'
+        nivel, crua = profundidade(linha, nivel, crua)
+    return itens
+
+
+variaveis, funcoes = {}, {}
+for pedaco in re.split(r'(?m)^(?=(?:var|func|type|const|import)\b)', go):
+    if pedaco.startswith('func'):
+        nome = re.match(r'func\s+(?:\([^)]*\)\s*)?(\w+)', pedaco)
+        if nome:
+            funcoes[nome.group(1)] = pedaco
+    elif re.match(r'var\s*\(', pedaco):
+        variaveis.update(itens_do_bloco(pedaco))
+    elif pedaco.startswith('var'):
+        item = re.match(r'var\s+(\w+)[^=\n]*=(.*)', pedaco, re.DOTALL)
+        if item:
+            variaveis[item.group(1)] = item.group(2)
+
+DECLARA = re.compile(r'\bUnique\s*:|\.Unique\s*=')
+com_unique = {f for f, corpo in funcoes.items() if DECLARA.search(corpo)}
+tabelas = sorted(
+    nome for nome, texto in variaveis.items()
+    if nome != 'Uniques'
+    and (DECLARA.search(texto) or com_unique & set(re.findall(r'\b(\w+)\s*\(', texto)))
+)
+listadas = set(re.findall(r'\b(\w+)\.Uniques\(\)', variaveis.get('Uniques', '')))
+
+constantes = dict(re.findall(r'\bconst\s+(\w+)\s*(?:[\w.]+\s*)?=\s*"(\w+)"', go))
+for bloco in re.findall(r'(?ms)^const\s*\((.*?)^\)', go):
+    constantes.update(re.findall(r'(?m)^\s+(\w+)\s*(?:[\w.]+\s*)?=\s*"(\w+)"', bloco))
+declaradas, opacos = set(), []
+for literal in re.finditer(r'\b\w+\.Unique\s*\{', go):
+    nivel, fim = 0, literal.end() - 1
+    while fim < len(go):
+        nivel += {'{': 1, '}': -1}.get(go[fim], 0)
+        if nivel == 0:
+            break
+        fim += 1
+    for valor in re.findall(r'\bName\s*:\s*([^,\n}]+)', go[literal.end():fim]):
+        valor = valor.strip()
+        if re.fullmatch(r'"\w+"', valor):
+            declaradas.add(valor.strip('"'))
+        elif valor in constantes:
+            declaradas.add(constantes[valor])
+        else:
+            opacos.append(valor)
+
+achados = [f'literal/comentário SQL não terminado em {sql_path}'] if aberto else []
+achados += [
+    f'{provider}: postgres.Unique com Name {valor}; o Name precisa ser literal ou const resolvível no provider'
+    for valor in opacos
+]
+restricoes = (original(c, 1) for c in re.finditer(r'CONSTRAINT\s+"?(\w+)"?\s+UNIQUE\b', sql, re.IGNORECASE))
+achados += [
+    f'{sql_path}: constraint {restricao} UNIQUE sem postgres.Unique de mesmo Name no provider'
+    for restricao in restricoes
+    if restricao not in declaradas
+]
+FORMA = 'CONSTRAINT {}_<colunas>_key UNIQUE (tenant_id, ...), a única forma que postgres.Unique e VerifyUniques reconhecem'
+ANTES_DO_UNIQUE = r'(?=UNIQUE(?![\w$\x80-\U0010ffff]))'
+nomeadas = {c.end() for c in re.finditer(r'CONSTRAINT\s+"?\w+"?\s*' + ANTES_DO_UNIQUE, sql, re.IGNORECASE)}
+de_indice = {c.end() for c in re.finditer(r'\bCREATE\s+' + ANTES_DO_UNIQUE, sql, re.IGNORECASE)}
+INDICE = re.compile(
+    r'\s+INDEX\s+(?:CONCURRENTLY\s+)?(?:IF\s+NOT\s+EXISTS\s+)?"?(\w+)"?\s+ON\s+(?:ONLY\s+)?(?:(?:public|"\w+")\.)?"?(\w+)"?',
+    re.IGNORECASE,
+)
+ALTER_TABLE = re.compile(r'\s*ALTER\s+TABLE\s+(?:IF\s+EXISTS\s+)?(?:ONLY\s+)?(?:(?:public|"\w+")\.)?"?(\w+)"?', re.IGNORECASE)
+criacoes = list(re.finditer(r'CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(?:(?:public|"\w+")\.)?"?(\w+)"?', sql, re.IGNORECASE))
+fins_de_criacao = [c.end() for c in criacoes]
+pontos = [c.start() for c in re.finditer(';', sql)]
+alteracoes = {}
+for unique in re.finditer(r'(?<![\w$\x80-\U0010ffff])UNIQUE(?![\w$\x80-\U0010ffff])', sql, re.IGNORECASE):
+    if unique.start() in nomeadas:
+        continue
+    indice = INDICE.match(sql, unique.end())
+    if unique.start() in de_indice and indice:
+        indexado, tabela = original(indice, 1), original(indice, 2)
+        achados.append(
+            f'{sql_path}: CREATE UNIQUE INDEX {indexado} em {tabela} não vira rejeição (índice não tem linha em pg_constraint); '
+            f'declare no CREATE TABLE {FORMA.format(tabela)}'
+        )
+        continue
+    ponto = bisect_left(pontos, unique.start())
+    inicio = pontos[ponto - 1] + 1 if ponto else 0
+    if inicio not in alteracoes:
+        alteracoes[inicio] = ALTER_TABLE.match(sql, inicio)
+    alterada = alteracoes[inicio]
+    if alterada and alterada.end() > unique.start():
+        alterada = ALTER_TABLE.match(sql, inicio, unique.start())
+    criada = bisect_right(fins_de_criacao, unique.start())
+    tabela = original(alterada, 1) if alterada else original(criacoes[criada - 1], 1) if criada else '?'
+    achados.append(f'{sql_path}: UNIQUE sem nome na tabela {tabela}; declare-a como {FORMA.format(tabela)}')
+
+FRONTEIRA = r'(?<![\w$\x80-\U0010ffff]){}(?![\w$\x80-\U0010ffff])'
+NOME = r'(?:(?:public|"\w+")\.)?"?(\w+)"?'
+CRIADA = re.compile(
+    r'\s*CREATE\s+(?:(?:GLOBAL|LOCAL)\s+)?(?:(?:TEMPORARY|TEMP|UNLOGGED)\s+)?TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?' + NOME, re.IGNORECASE,
+)
+ALTERADA = re.compile(r'\s*ALTER\s+TABLE\s+(?:IF\s+EXISTS\s+)?(?:ONLY\s+)?' + NOME + r'(?:\s*\*)?', re.IGNORECASE)
+TEM_UNIQUE = re.compile(FRONTEIRA.format('UNIQUE'), re.IGNORECASE)
+DA_CRIACAO = re.compile(FRONTEIRA.format(r'(PARTITION\s+(?:BY|OF)|INHERITS)'), re.IGNORECASE)
+HERDA = re.compile(r'\s*(NO\s+)?INHERIT(?![\w$\x80-\U0010ffff])', re.IGNORECASE)
+ANEXA = re.compile(FRONTEIRA.format(r'ATTACH\s+PARTITION') + r'\s+' + NOME, re.IGNORECASE)
+SEGUINTE = re.compile(r'\s+' + NOME)
+ABRE_LISTA = re.compile(r'\s*\(')
+NA_LISTA = re.compile(r'[\s,]*' + NOME)
+PARTICAO = 'o Postgres reporta a constraint da partição folha, não a declarada na tabela'
+HERANCA = 'a UNIQUE vale por tabela e não cobre a hierarquia de herança'
+
+
+nivel = [0, *accumulate(map({'(': 1, ')': -1}.get, sql, repeat(0)))]
+
+
+def maes(texto, clausula, pos, ultimo_fecha=-1):
+    if clausula in ('PARTITION OF', 'INHERIT'):
+        mae = SEGUINTE.match(texto, pos)
+        return [mae] if mae else []
+    abre = ABRE_LISTA.match(texto, pos)
+    if not abre or ultimo_fecha < abre.end():
+        return []
+    listadas, item = [], NA_LISTA.match(texto, abre.end())
+    while item:
+        listadas.append(item)
+        item = NA_LISTA.match(texto, item.end())
+    return listadas
+
+
+com_unicidade, clausulas, exibidas = set(), {}, {}
+
+
+def marcar(casamento, deslocamento, clausula=None, razao=None):
+    nome = original(casamento, 1, deslocamento)
+    chave = nome.lower()
+    exibidas.setdefault(chave, nome)
+    if clausula:
+        clausulas.setdefault(chave, []).append((clausula, razao))
+    return chave
+
+
+def ligar(filha, mae, deslocamento, clausula, razao):
+    marcar(filha, deslocamento, clausula, razao)
+    marcar(mae, deslocamento, f'{clausula} como mãe de {original(filha, 1, deslocamento)}', razao)
+
+
+inicio = 0
+for comando in sql.split(';'):
+    criada, alterada = CRIADA.match(comando), ALTERADA.match(comando)
+    alvo = criada or alterada
+    if alvo and TEM_UNIQUE.search(comando):
+        com_unicidade.add(marcar(alvo, inicio))
+    if criada:
+        ultimo_fecha = comando.rfind(')')
+        for achada in DA_CRIACAO.finditer(comando):
+            if nivel[inicio + achada.start()] != nivel[inicio]:
+                continue
+            clausula = ' '.join(achada.group(1).upper().split())
+            razao = HERANCA if clausula == 'INHERITS' else PARTICAO
+            marcar(criada, inicio, clausula, razao)
+            for mae in maes(comando, clausula, achada.end(), ultimo_fecha):
+                ligar(criada, mae, inicio, clausula, razao)
+    elif alterada:
+        acoes = [alterada.end()] + [
+            virgula.end() for virgula in re.finditer(',', comando) if nivel[inicio + virgula.start()] == nivel[inicio]
+        ]
+        for acao in acoes:
+            herda = HERDA.match(comando, acao)
+            if herda and not herda.group(1):
+                marcar(alterada, inicio, 'INHERIT', HERANCA)
+                for mae in maes(comando, 'INHERIT', herda.end()):
+                    ligar(alterada, mae, inicio, 'INHERIT', HERANCA)
+        for anexa in ANEXA.finditer(comando):
+            ligar(anexa, alterada, inicio, 'ATTACH PARTITION', PARTICAO)
+    inicio += len(comando) + 1
+for chave, usadas in clausulas.items():
+    if chave in com_unicidade:
+        clausula, razao = usadas[0]
+        achados.append(
+            f'{sql_path}: tabela {exibidas[chave]} declara UNIQUE e usa {clausula}, que a rejeição por unicidade não cobre '
+            f'({razao}); declare a UNIQUE em tabela sem partição nem herança'
+        )
+achados += [
+    f'{provider}: {tabela} declara Unique e falta em provider.Uniques ({tabela}.Uniques())'
+    for tabela in tabelas
+    if tabela not in listadas
+]
+for achado in achados:
+    print(achado)
+sys.exit(1 if achados else 0)
 PY
   return $?
 }
@@ -574,6 +923,9 @@ fase_estrutural() {
     saida="$(verificar_grants "$raiz/$ctx")"
     status=$?
     relatar "$ctx: toda tabela do schema.sql com grant no provider.Grants" "$saida" "$status"
+    saida="$(verificar_uniques "$raiz/$ctx")"
+    status=$?
+    relatar "$ctx: toda UNIQUE do schema.sql declarada no provider e em provider.Uniques" "$saida" "$status"
   done
   local -a kernel=()
   local ddl="$repo/$KERNEL_DDL"
@@ -617,6 +969,9 @@ fase_contexto() {
     saida="$(verificar_grants "$base")"
     status=$?
     relatar "$ctx: toda tabela do schema.sql com grant no provider.Grants" "$saida" "$status"
+    saida="$(verificar_uniques "$base")"
+    status=$?
+    relatar "$ctx: toda UNIQUE do schema.sql declarada no provider e em provider.Uniques" "$saida" "$status"
   fi
   if [ "$FALHAS" -gt 0 ]; then
     printf '\nGate de estrutura: REPROVADO com %d achado(s) em %s.\n' "$FALHAS" "$ctx" >&2
@@ -644,9 +999,12 @@ montar_fixture() {
   : > "$ctx/cmd/main.go"
   cat > "$ctx/provider/schema.sql" <<'SQL'
 CREATE TABLE IF NOT EXISTS probes (
-  tenant_id text NOT NULL,
-  probe_id  text NOT NULL,
-  CONSTRAINT probes_pkey PRIMARY KEY (tenant_id, probe_id)
+  tenant_id text  NOT NULL,
+  probe_id  text  NOT NULL,
+  snapshot  jsonb NOT NULL,
+  label     text  GENERATED ALWAYS AS (snapshot->>'label') STORED NOT NULL,
+  CONSTRAINT probes_pkey PRIMARY KEY (tenant_id, probe_id),
+  CONSTRAINT probes_tenant_id_label_key UNIQUE (tenant_id, label)
 );
 CREATE INDEX IF NOT EXISTS probes_probe_id_idx ON probes (probe_id);
 SQL
@@ -654,6 +1012,26 @@ SQL
 package provider
 
 var Grants = []postgres.Grant{postgres.Mutable("probes")}
+
+var Uniques = []postgres.UniqueSet{probeTable.Uniques()}
+GO
+  cat > "$ctx/provider/probe_repository.go" <<'GO'
+package provider
+
+var probeTable = withUniqueLabel(postgres.SnapshotTable("probes", "probe_id", encode, decode, withID))
+
+func withUniqueLabel(table postgres.Table[domain.ProbeID, domain.ProbeSnapshot]) postgres.Table[domain.ProbeID, domain.ProbeSnapshot] {
+	table.Unique = []postgres.Unique{{
+		Name:      "probes_tenant_id_label_key",
+		Columns:   []string{"tenant_id", "label"},
+		Rejection: domain.RejectProbeDuplicateLabel,
+	}}
+	return table
+}
+
+func NewProbeRepository(tx *postgres.Tx) ports.Repository[domain.ProbeID, domain.ProbeSnapshot] {
+	return probeTable.Repository(tx)
+}
 GO
   cat > "$ctx/project.json" <<'JSON'
 {"targets":{"serve-api":{},"serve-relay":{},"test-distributed":{}}}
@@ -765,6 +1143,71 @@ YAML
       find "$repo/$APPS/other/deploy" -type f -exec sed -i 's/probe/other/g; s/PROBE/OTHER/g' {} +
       sed -i 's/^    command: .*$/&; psql -c "CREATE DATABASE \\"other\\" OWNER \\"other_migrator\\""/' "$repo/infra/local/compose.yml"
       ;;
+    var-com-func-literal)
+      cat > "$ctx/provider/probe_repository.go" <<'GO'
+package provider
+
+var (
+	probeTable = postgres.Table[domain.ProbeID, domain.ProbeSnapshot]{
+		Name: "probes",
+		Encode: func(s probeState, code string) probeState {
+			s.Code = code
+			return s
+		},
+		Unique: []postgres.Unique{{
+			Name:      "probes_tenant_id_label_key",
+			Columns:   []string{"tenant_id", "label"},
+			Rejection: domain.RejectProbeDuplicateLabel,
+		}},
+	}
+	probeCodes = map[string]string{"a": "b"}
+)
+GO
+      ;;
+    name-por-const)
+      sed -i 's/Name:      "probes_tenant_id_label_key",/Name:      probeLabelKey,/' "$ctx/provider/probe_repository.go"
+      printf '\nconst probeLabelKey = "probes_tenant_id_label_key"\n' >> "$ctx/provider/probe_repository.go"
+      ;;
+    name-por-bloco-const)
+      sed -i 's/Name:      "probes_tenant_id_label_key",/Name:      probeLabelKey,/' "$ctx/provider/probe_repository.go"
+      printf '\nconst (\n\tprobeOther = "x"\n\tprobeLabelKey string = "probes_tenant_id_label_key"\n)\n' >> "$ctx/provider/probe_repository.go"
+      ;;
+    unique-em-comentario-sql)
+      printf -- '-- labels are unique per tenant\n/* a unique label\n   per tenant */\n' >> "$ctx/provider/schema.sql"
+      ;;
+    unique-em-literal-sql)
+      printf "COMMENT ON TABLE probes IS 'labels are unique; it''s per tenant';\n" >> "$ctx/provider/schema.sql"
+      ;;
+    unique-em-dollar-quote)
+      printf 'COMMENT ON TABLE probes IS $$labels are unique$$;\n' >> "$ctx/provider/schema.sql"
+      ;;
+    unique-em-comentario-aninhado)
+      printf '/* outer /* inner */ unique still comment */\n' >> "$ctx/provider/schema.sql"
+      ;;
+    unique-em-identificador-citado)
+      sed -i 's/CONSTRAINT probes_tenant_id_label_key UNIQUE/CONSTRAINT "probes_tenant_id_label_key" UNIQUE/' "$ctx/provider/schema.sql"
+      printf 'COMMENT ON COLUMN probes."unique" IS NULL;\n' >> "$ctx/provider/schema.sql"
+      ;;
+    unique-em-e-string)
+      printf '%s\n' "COMMENT ON TABLE probes IS E'it\\'s unique';" >> "$ctx/provider/schema.sql"
+      ;;
+    dolar-solto-nao-ascii)
+      printf 'SELECT $%s ;\n' "$(printf 'é%.0s' $(seq 40))" >> "$ctx/provider/schema.sql"
+      ;;
+    unique-em-identificador-com-cifrao)
+      printf 'COMMENT ON COLUMN probes.unique$flag IS NULL;\nCOMMENT ON COLUMN probes.flag$unique IS NULL;\n' >> "$ctx/provider/schema.sql"
+      ;;
+    particionada-sem-unique)
+      printf 'CREATE TABLE IF NOT EXISTS probe_events (\n  tenant_id text NOT NULL,\n  at timestamptz NOT NULL,\n  CONSTRAINT probe_events_pkey PRIMARY KEY (tenant_id, at)\n) PARTITION BY RANGE (at);\n' >> "$ctx/provider/schema.sql"
+      sed -i 's/postgres.Mutable("probes")}/postgres.Mutable("probes"), postgres.Mutable("probe_events")}/' "$ctx/provider/schema.go"
+      ;;
+    coluna-chamada-inherit)
+      printf 'ALTER TABLE probes ADD COLUMN inherit text;\n' >> "$ctx/provider/schema.sql"
+      ;;
+    url-em-string-go)
+      sed -i 's|^var probeTable = |var (\n\tdocs = fmt.Sprintf("https://example.com/%s", "x")\n\tsep  = '"'/'"'\n\tprobeTable = |; s|^\(\tprobeTable = .*\)$|\1\n)|' \
+        "$ctx/provider/probe_repository.go"
+      ;;
     *)
       printf 'variar: tipo desconhecido: %s\n' "$tipo" >&2
       return 2
@@ -853,6 +1296,43 @@ sabotar() {
         "$ctx/deploy/compose.yml"
       ;;
     tabela-sem-grant) printf 'CREATE TABLE IF NOT EXISTS widgets (id bigint);\n' >> "$ctx/provider/schema.sql" ;;
+    unique-sem-declaracao) sed -i '/Name:      "probes_tenant_id_label_key",/d' "$ctx/provider/probe_repository.go" ;;
+    table-fora-dos-uniques) sed -i 's/{probeTable.Uniques()}/{}/' "$ctx/provider/schema.go" ;;
+    unique-anonima-de-tabela) sed -i 's/CONSTRAINT probes_tenant_id_label_key UNIQUE/UNIQUE/' "$ctx/provider/schema.sql" ;;
+    unique-de-coluna) sed -i 's/^  snapshot  jsonb NOT NULL,$/&\n  code      text  NOT NULL UNIQUE,/' "$ctx/provider/schema.sql" ;;
+    unique-por-indice) printf 'CREATE UNIQUE INDEX IF NOT EXISTS probes_tenant_id_snapshot_idx ON probes (tenant_id, snapshot);\n' >> "$ctx/provider/schema.sql" ;;
+    alter-add-unique) printf 'ALTER TABLE probe_events ADD UNIQUE (tenant_id, label);\n' >> "$ctx/provider/schema.sql" ;;
+    unique-name-nao-resolvivel) sed -i 's/Name:      "probes_tenant_id_label_key",/Name:      probeKey("label"),/' "$ctx/provider/probe_repository.go" ;;
+    unique-em-tabela-particionada) sed -i 's/^);$/) PARTITION BY LIST (tenant_id);/' "$ctx/provider/schema.sql" ;;
+    unique-em-tabela-com-heranca) sed -i 's/^);$/) INHERITS (probe_base);/' "$ctx/provider/schema.sql" ;;
+    herda-por-alter-com-asterisco) printf 'ALTER TABLE probes * INHERIT probe_base;\n' >> "$ctx/provider/schema.sql" ;;
+    herda-por-alter-com-asterisco-entre-comentarios)
+      printf 'ALTER TABLE probes /* a */ * -- b\nINHERIT probe_base;\n' >> "$ctx/provider/schema.sql"
+      ;;
+    unique-em-particao)
+      sed -i 's/^CREATE TABLE IF NOT EXISTS probes ($/CREATE TABLE IF NOT EXISTS probes PARTITION OF probe_history (/; s/^);$/) FOR VALUES IN ('"'a'"');/' \
+        "$ctx/provider/schema.sql"
+      ;;
+    unique-apos-dollar-quote)
+      sabotar "$repo" unique-de-coluna
+      sed -i "1i COMMENT ON TABLE probes IS \$\$it's per tenant\$\$;" "$ctx/provider/schema.sql"
+      ;;
+    unique-apos-dollar-tag)
+      sabotar "$repo" unique-de-coluna
+      sed -i "1i CREATE FUNCTION probe_tag() RETURNS text LANGUAGE sql AS \$\$ SELECT 'a' || \$x\$it's\$x\$ \$\$;" "$ctx/provider/schema.sql"
+      ;;
+    unique-apos-e-string)
+      sabotar "$repo" unique-de-coluna
+      sed -i "1i COMMENT ON TABLE probes IS E'it\\\\'s per tenant';" "$ctx/provider/schema.sql"
+      ;;
+    unique-apos-tag-nao-ascii)
+      sabotar "$repo" unique-de-coluna
+      sed -i "1i COMMENT ON TABLE probes IS \$€\$it's per tenant\$€\$;" "$ctx/provider/schema.sql"
+      ;;
+    unique-apos-identificador-nao-ascii)
+      sabotar "$repo" unique-de-coluna
+      sed -i "1i COMMENT ON COLUMN probes.label€\$\$ IS NULL;" "$ctx/provider/schema.sql"
+      ;;
   esac
 }
 
@@ -871,7 +1351,10 @@ fase_self_test() {
     status=1
   fi
 
-  local -a variantes=(com-migrador com-migrador-chave-valor dois-contextos)
+  local -a variantes=(com-migrador com-migrador-chave-valor dois-contextos var-com-func-literal name-por-const name-por-bloco-const
+    unique-em-comentario-sql unique-em-literal-sql url-em-string-go unique-em-dollar-quote unique-em-comentario-aninhado
+    unique-em-identificador-citado unique-em-e-string unique-em-identificador-com-cifrao dolar-solto-nao-ascii particionada-sem-unique
+    coluna-chamada-inherit)
   for variante in "${variantes[@]}"; do
     tmp="$(mktemp -d)" || return 2
     montar_fixture "$tmp"
@@ -893,7 +1376,11 @@ fase_self_test() {
     dsn-compartilhado postgres-db init-incompleto ci-compartilhado
     manifesto-ausente manifesto-sem-banco dsn-no-deploy
     migrador-de-outra-app migrador-em-banco-alheio migrador-sem-app bloco-pela-role-do-migrador
-    migrador-no-pg-dsn tabela-sem-grant
+    migrador-no-pg-dsn tabela-sem-grant unique-sem-declaracao table-fora-dos-uniques
+    unique-anonima-de-tabela unique-de-coluna unique-por-indice unique-name-nao-resolvivel alter-add-unique
+    unique-em-tabela-particionada unique-em-tabela-com-heranca unique-em-particao
+    herda-por-alter-com-asterisco herda-por-alter-com-asterisco-entre-comentarios
+    unique-apos-dollar-quote unique-apos-dollar-tag unique-apos-e-string unique-apos-tag-nao-ascii unique-apos-identificador-nao-ascii
     migrador-na-ancora-x-env migrador-no-relay migrador-sob-ancora-do-api migrador-herdado-por-extends
     migrador-dsn-chave-valor pguser-do-migrador secret-do-migrador-no-relay migrador-fora-do-secret
   )
@@ -907,6 +1394,23 @@ fase_self_test() {
     [pguser-do-migrador]='a role probe_migrator só cabe no PG_MIGRATE_DSN, não em PGUSER'
     [secret-do-migrador-no-relay]='o Secret probe-migrator só cabe no Deployment probe-api, não em Deployment probe-relay'
     [migrador-fora-do-secret]='fora do Secret probe-migrator'
+    [unique-sem-declaracao]='constraint probes_tenant_id_label_key UNIQUE sem postgres.Unique de mesmo Name'
+    [table-fora-dos-uniques]='probeTable declara Unique e falta em provider.Uniques'
+    [unique-anonima-de-tabela]='UNIQUE sem nome na tabela probes'
+    [unique-de-coluna]='UNIQUE sem nome na tabela probes'
+    [unique-apos-dollar-quote]='UNIQUE sem nome na tabela probes'
+    [unique-apos-dollar-tag]='UNIQUE sem nome na tabela probes'
+    [unique-apos-e-string]='UNIQUE sem nome na tabela probes'
+    [unique-apos-tag-nao-ascii]='UNIQUE sem nome na tabela probes'
+    [unique-apos-identificador-nao-ascii]='UNIQUE sem nome na tabela probes'
+    [unique-por-indice]='CREATE UNIQUE INDEX probes_tenant_id_snapshot_idx em probes'
+    [alter-add-unique]='UNIQUE sem nome na tabela probe_events'
+    [unique-em-tabela-particionada]='tabela probes declara UNIQUE e usa PARTITION BY'
+    [unique-em-tabela-com-heranca]='tabela probes declara UNIQUE e usa INHERITS'
+    [herda-por-alter-com-asterisco]='tabela probes declara UNIQUE e usa INHERIT,'
+    [herda-por-alter-com-asterisco-entre-comentarios]='tabela probes declara UNIQUE e usa INHERIT,'
+    [unique-em-particao]='tabela probes declara UNIQUE e usa PARTITION OF'
+    [unique-name-nao-resolvivel]='o Name precisa ser literal ou const resolvível no provider'
   )
   local saida
   for sabotagem in "${sabotagens[@]}"; do
