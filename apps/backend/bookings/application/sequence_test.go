@@ -70,6 +70,7 @@ func TestRegisterWalksTheNineStepsInOrder(t *testing.T) {
 
 	if _, err := h.service.RegisterResource(withExecution(t, context.Background()), application.RegisterResource{
 		Code: testResCode,
+		Name: testResName,
 	}); err != nil {
 		t.Fatalf("RegisterResource() error = %v, want nil", err)
 	}
@@ -137,7 +138,7 @@ func TestCancelEnqueuesTheCancellationInTheSameTransaction(t *testing.T) {
 func TestRegisterEnqueuesTheRegistrationInTheSameTransaction(t *testing.T) {
 	h := newHarness(t)
 
-	if _, err := h.service.RegisterResource(withExecution(t, context.Background()), application.RegisterResource{Code: testResCode}); err != nil {
+	if _, err := h.service.RegisterResource(withExecution(t, context.Background()), application.RegisterResource{Code: testResCode, Name: testResName}); err != nil {
 		t.Fatalf("RegisterResource() error = %v, want nil", err)
 	}
 

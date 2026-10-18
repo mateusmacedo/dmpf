@@ -20,7 +20,9 @@ import (
 
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/app"
 	"github.com/mateusmacedo/dmpf/apps/backend/bookings/appkit"
+	"github.com/mateusmacedo/dmpf/apps/backend/bookings/provider"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/otelboot"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/obstest"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/dist"
@@ -153,5 +155,25 @@ func TestTheRelayWaitsForTheGrantsOfTheRuntimeRoleBeforeDraining(t *testing.T) {
 
 	if err := stop(); err != nil && !errors.Is(err, context.Canceled) {
 		t.Fatalf("RunWith(relay) = %v, want nil or the cancellation", err)
+	}
+}
+
+func TestTheAPIRefusesToStartOverASchemaWithoutTheDeclaredUnique(t *testing.T) {
+	stripped := strings.Replace(provider.Schema, ",\n  CONSTRAINT resources_tenant_id_name_key UNIQUE (tenant_id, name)", "", 1)
+	if stripped == provider.Schema {
+		t.Fatal("the schema no longer spells the unique constraint the way this test strips it")
+	}
+	pg.OpenPool(t, pg.Options{Project: appkit.PoolOptions.Project, Capabilities: appkit.PoolOptions.Capabilities, Schemas: []string{stripped}})
+	cfg := app.Defaults(app.RoleAPI)
+	cfg.DSN = pg.DSN(t, appkit.PoolOptions.Project)
+	cfg.Migrate = true
+	cfg.API.GRPCAddr, cfg.API.GRPCInsecure = obstest.UnusedLoopbackAddr(t), true
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	err := app.RunWith(ctx, cfg, obstest.MeteredRuntime(t, "bookings", string(app.RoleAPI), sdkmetric.NewManualReader()))
+
+	if !errors.Is(err, postgres.ErrUniqueDivergent) {
+		t.Fatalf("RunWith(api) over a schema without resources_tenant_id_name_key = %v, want ErrUniqueDivergent", err)
 	}
 }

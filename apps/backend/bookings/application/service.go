@@ -49,6 +49,7 @@ func (CancelBooking) isOperation() {}
 
 type RegisterResource struct {
 	Code domain.ResourceCode
+	Name domain.ResourceName
 }
 
 func (RegisterResource) isOperation() {}

@@ -71,8 +71,8 @@ func TestMapperMapsBookingCancelled(t *testing.T) {
 func TestMapperMapsResourceRegistered(t *testing.T) {
 	t.Parallel()
 
-	requireMapped(t, domain.ResourceRegistered{Code: "R-200", At: 1_755_432_000_000_000_002},
-		&eventv1.ResourceRegistered{ResourceId: "R-200", RegisteredAt: &timestamppb.Timestamp{Seconds: 1_755_432_000, Nanos: 2}},
+	requireMapped(t, domain.ResourceRegistered{Code: "R-200", Name: "Room 200", At: 1_755_432_000_000_000_002},
+		&eventv1.ResourceRegistered{ResourceId: "R-200", RegisteredAt: &timestamppb.Timestamp{Seconds: 1_755_432_000, Nanos: 2}, Name: "Room 200"},
 		"com.company.bookings.resource-registered.v1")
 }
 

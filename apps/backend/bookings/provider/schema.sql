@@ -26,7 +26,10 @@ CREATE TABLE IF NOT EXISTS resources (
   resource_id text   NOT NULL,
   version     bigint NOT NULL DEFAULT 0,
   snapshot    jsonb  NOT NULL,
-  CONSTRAINT resources_pkey PRIMARY KEY (tenant_id, resource_id)
+  -- Derived from the snapshot because the unique constraint needs a column (ADR-066).
+  name        text   GENERATED ALWAYS AS (snapshot->>'name') STORED NOT NULL,
+  CONSTRAINT resources_pkey PRIMARY KEY (tenant_id, resource_id),
+  CONSTRAINT resources_tenant_id_name_key UNIQUE (tenant_id, name)
 );
 
 CREATE INDEX IF NOT EXISTS resources_resource_id_idx ON resources (resource_id);

@@ -3,6 +3,8 @@ package rpc
 import (
 	"context"
 	"regexp"
+	"unicode"
+	"unicode/utf8"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -19,6 +21,8 @@ import (
 const (
 	minQuantity = 1
 	maxQuantity = 100
+
+	maxNameRunes = 200
 )
 
 var descriptor = servicev1.File_company_bookings_service_v1_bookings_service_proto.Services().ByName("BookingsService")
@@ -109,9 +113,13 @@ func (s Server) RegisterResource(ctx context.Context, req *servicev1.RegisterRes
 	if err != nil {
 		return nil, err
 	}
+	name, err := resourceName(req.GetName())
+	if err != nil {
+		return nil, err
+	}
 	return kernelgrpc.Command(ctx,
 		func(ctx context.Context) (usecase.Outcome[domain.RegisteredResponse], error) {
-			return s.Service.RegisterResource(ctx, application.RegisterResource{Code: domain.ResourceCode(resource)})
+			return s.Service.RegisterResource(ctx, application.RegisterResource{Code: domain.ResourceCode(resource), Name: name})
 		},
 		registerResourceRefused,
 		resourceRegisteredOf)
@@ -199,6 +207,31 @@ func resourceID(raw string) (string, error) {
 		return "", status.Error(codes.InvalidArgument, "resource_id must have 1 to 128 characters of [A-Za-z0-9._:-]")
 	}
 	return raw, nil
+}
+
+func resourceName(raw string) (domain.ResourceName, error) {
+	if !validName(raw) {
+		return "", status.Error(codes.InvalidArgument, "name must have 1 to 200 characters of valid UTF-8 without control, format, line or paragraph separator, variation selector or default ignorable characters and with at least one character that is neither a space nor a combining mark")
+	}
+	return domain.ResourceName(raw), nil
+}
+
+var refusedInName = []*unicode.RangeTable{
+	unicode.Cc, unicode.Cf, unicode.Zl, unicode.Zp, unicode.Variation_Selector, unicode.Other_Default_Ignorable_Code_Point,
+}
+
+func validName(name string) bool {
+	if name == "" || !utf8.ValidString(name) || utf8.RuneCountInString(name) > maxNameRunes {
+		return false
+	}
+	visible := false
+	for _, r := range name {
+		if unicode.In(r, refusedInName...) {
+			return false
+		}
+		visible = visible || !unicode.IsSpace(r) && !unicode.IsMark(r)
+	}
+	return visible
 }
 
 func bookingOf(s domain.BookingSnapshot) *servicev1.Booking {

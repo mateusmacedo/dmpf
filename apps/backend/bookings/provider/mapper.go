@@ -45,6 +45,7 @@ func (Mapper) Map(event kernel.DomainEvent) (postgres.Mapped, error) {
 			Message: &eventv1.ResourceRegistered{
 				ResourceId:   string(e.Code),
 				RegisteredAt: timestamppb.New(time.Unix(0, int64(e.At))),
+				Name:         string(e.Name),
 			},
 			Type: resourceRegisteredType,
 		}, nil
