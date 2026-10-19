@@ -1,18 +1,18 @@
 name: SonarQube Cloud
 
+# Em PR só roda chamado pelo ci.yml, no PR para master. O push em master mantém
+# a análise da branch principal, que é a referência das análises de PR no SonarCloud.
 on:
-  pull_request:
-    branches:
-      - master
-      - develop
-      - "release/**"
+  workflow_call:
+    secrets:
+      SONAR_TOKEN:
+        required: false
   push:
     branches:
       - master
-      - develop
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: sonar-${{ github.ref }}
   cancel-in-progress: true
 
 permissions: {}

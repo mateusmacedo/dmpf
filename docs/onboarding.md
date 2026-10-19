@@ -140,10 +140,11 @@ O `lefthook.yml` define:
 
 - Pre-commit: `pnpm biome check --write` nos arquivos staged compatíveis, com
   `stage_fixed: true`, e `gofmt -l` nos `.go` staged.
-- Pre-push: `pnpm nx affected -t lint,typecheck,test,build,fmt-check,vet,test-race`
-  numa invocação só, com `--parallel=3`, `--exclude=@mateusmacedo/dmpf-source` e
+- Pre-push: `pnpm nx affected -t lint,typecheck,fmt-check,vet,test` numa
+  invocação só, com `--parallel=3`, `--exclude=@mateusmacedo/dmpf-source` e
   `--base` no que o remoto já tem (`@{push}`); uma branch sem upstream compara
-  com `origin/develop`.
+  com `origin/develop`. Fica sem `build`, `test-race` e Docker: os testes de
+  integração rodam no CI.
 
 Se um hook alterar arquivos no pre-commit, revise o diff antes de concluir o
 commit.
@@ -151,13 +152,16 @@ commit.
 ## CI
 
 O workflow `.github/workflows/ci.yml` roda em PRs para `master`, `develop` e
-`release/**`, no runner `ubuntu-latest`. A pipeline executa `pnpm biome ci .` e
-depois `nx affected` de lint, typecheck, test (com `--ci --coverage`), build e
-e2e, mais os estágios Go selecionados por `layer:*`.
+`release/**`. O job `DMPF` (o reutilizável `dmpf-go-ci.yml`) faz o setup uma vez
+e executa `pnpm biome ci .`, os gates DMPF e `nx affected` de lint, typecheck,
+build, fmt-check, vet, test, gates Buf, test-race, test-integration e e2e; a
+infra Docker só sobe quando um projeto que a usa está afetado. O PR para
+`master` roda tudo em todos os projetos e acrescenta govulncheck, consumidor
+externo, harness distribuído e SonarQube Cloud.
 
-Nota importante: todo PR roda o pipeline, inclusive o que só muda Markdown. O
-ruleset "CI obrigatório na develop" exige PR e os checks verdes para o merge, e
-um check que não disparasse deixaria o PR bloqueado.
+O ruleset exige um único check, o job `CI`, que agrega os demais e reporta em
+todo PR. Num PR só de documentação ele aprova sem rodar o pipeline. A tabela
+por etapa está em `docs/ci-cd/README.md`.
 
 ## Release e plataforma
 

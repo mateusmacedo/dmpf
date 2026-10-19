@@ -12,7 +12,7 @@ namespace, nome de secret) é versionado aqui — e não deve passar a ser.
 
 | Item | Estado no template |
 | --- | --- |
-| CI em PR (`ci.yml`) | **Ativo** — Nx affected de lint/typecheck/test/build/e2e |
+| CI em PR (`ci.yml`) | **Ativo** — um check agregador `CI`; affected no PR para `develop`, pacote completo no PR para `master` (ver abaixo) |
 | Versionamento e publish de libs | **Ativo** — `nx-release.yml`, `nx-publish-libs.yml`, `create-release.yml` |
 | CD (`cd-dev-hmg.yml`) | **Template** — só `workflow_dispatch`, parametrizado por placeholder |
 | Manifestos GitOps | **Ausentes** — vivem no repositório de infraestrutura, não aqui |
@@ -37,13 +37,30 @@ workflows.
 ## Fluxo resumido
 
 ```text
-PR  →  .github/workflows/ci.yml          (Nx affected: lint/typecheck/test/build/e2e)
+PR  →  .github/workflows/ci.yml          (check `CI`; escopo por etapa na seção seguinte)
 push develop / workflow_dispatch
     →  .github/workflows/cd-dev-hmg.yml  (Modelo A: detect → deploy-eks, um job por app)
         →  build/push da imagem no registry
         →  atualiza a tag da imagem no repositório de infraestrutura (Kustomize)
         →  ArgoCD reconcilia o cluster
 ```
+
+## Esteira de CI por etapa
+
+| Etapa | O que roda |
+| --- | --- |
+| `pre-commit` (Lefthook) | `biome check --write` e `gofmt -l` nos arquivos em stage |
+| `pre-push` (Lefthook) | `nx affected -t lint,typecheck,fmt-check,vet,test`, sem Docker, contra o que o remoto já tem |
+| PR para `develop` ou `release/**` | Job `DMPF` (o `dmpf-go-ci.yml`): `biome ci`, `nx affected` de `lint`, `typecheck`, `build`, `fmt-check`, `vet`, `test`, gates Buf, `test-race`, `test-integration` e `e2e`; gates DMPF (camada por módulo, context-check estrutural, modsync, infrasync, conformance) e checks do platform (generator estrutural, `init --dry-run` sem diff, `sync-versions --check`, Grafana, OTel). A infra Docker só sobe se um projeto que a usa estiver afetado. Os vetores negativos dos gates só rodam se o diff tocar `tools/**`, `.github/**` ou `.golangci.yml` |
+| PR só de documentação | Só o job `Escopo`; o `CI` aprova sem rodar o resto |
+| PR para `master` (de `release/**` ou `hotfix/*`) | Tudo acima com `run-many` em todos os projetos, todos os vetores negativos e `govulncheck`, mais `Consumidor externo por versão`, `Distribuído` (`dmpf-distributed.yml`) e `SonarQube Cloud` (`sonar.yml`) |
+| `push` em `master` | `sonar.yml`, que mantém a análise da branch principal no SonarCloud |
+| Agendado (`govulncheck.yml`) | `govulncheck` em todos os projetos Go da `develop`, toda segunda-feira |
+
+O ruleset exige só o job `CI`, que agrega os demais: pulado conta como aprovado,
+falha ou cancelamento reprova. O Nx Cloud (`nxCloudId` no `nx.json`) guarda o cache
+entre execuções; o token de CI vem do secret `NX_CLOUD_ACCESS_TOKEN`, e sem ele vale
+o acesso que o workspace concede ao `nxCloudId`.
 
 ## Documentos deste diretório
 
@@ -93,12 +110,15 @@ ConfigMap e de secrets externos definidos no repositório de infraestrutura — 
 
 | Workflow | Papel |
 | --- | --- |
-| `.github/workflows/ci.yml` | CI em PR (Nx affected) |
+| `.github/workflows/ci.yml` | CI em PR: escopo, job `DMPF` e, no PR para `master`, consumidor externo, distribuído e SonarQube Cloud; check agregador `CI` |
+| `.github/workflows/dmpf-go-ci.yml` | Reutilizável do job `DMPF`, o mesmo que o `dmpf-ci.yml` do consumidor externo chama |
+| `.github/workflows/sonar.yml` | SonarQube Cloud com cobertura (chamado pelo `ci.yml` no PR para `master`; `push` em `master`) |
+| `.github/workflows/govulncheck.yml` | `govulncheck` semanal na `develop` |
 | `.github/workflows/nx-release.yml` | Versionamento Nx Release (release groups `go-libs`, `go-contract-<ctx>`, `go-tools`, `npm`); cunha as tags de módulo |
 | `.github/workflows/nx-publish-libs.yml` | Publica libs npm no GitHub Packages (dispara no push de tag `**@*`), pelo reusable `publish-libs.yaml` |
 | `.github/workflows/create-release.yml` | Cria a branch `release/<versão>` a partir de `master` |
 | `.github/workflows/dmpf-verify.yml` | Gate de congruência horizontal do acervo `docs/dmpf/` |
-| `.github/workflows/dmpf-distributed.yml` | Camada distribuída da pirâmide de testes (build tag `distributed`) |
+| `.github/workflows/dmpf-distributed.yml` | Camada distribuída da pirâmide de testes (build tag `distributed`); chamado pelo `ci.yml` no PR para `master` |
 | `.github/workflows/load.yml` | Carga k6 pela borda do BFF sobre a topologia do próprio runner (`workflow_dispatch`; `apps/backend/load/README.md`) |
 
 Decisões relacionadas: [ADR-004](../adr/004-workflows-verdaccio-release.md) (split

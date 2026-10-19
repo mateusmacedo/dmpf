@@ -109,12 +109,13 @@ nível sob `libs/` ou `apps/` (`shared`, `backend`, `frontend`).
 
 Todo projeto `stack:go` declara **também** uma tag `layer:`, aditiva às três
 acima. Ela não altera `release.projects` nem os `targetDefaults` — a taxonomia
-canônica continua sendo a de três dimensões. O que ela decide é o **estágio do
-CI** em que o módulo roda: o `ci.yml` seleciona os projetos de cada estágio da
-pirâmide de testes por essa tag. Um módulo `stack:go` sem ela não entra em
-nenhum estágio e passaria despercebido, então o CI tem um guard que compara os
-dois conjuntos e reprova quando algum projeto Go fica de fora
-(`.github/workflows/ci.yml`).
+canônica continua sendo a de três dimensões. Ela declara o **estágio da
+pirâmide de testes** do módulo. O CI não roda mais um passo por estágio: o
+`dmpf-go-ci.yml` executa os targets de todos os projetos numa invocação do Nx, e
+a tag decide só a concorrência — o `test-race` sem cache de um
+`layer:providers` divide a infra do job e roda um projeto por vez. O mesmo
+workflow tem um guard que reprova quando um projeto Go declara nenhuma ou mais de
+uma camada.
 
 | Valor | Estágio |
 |-------|---------|
@@ -130,7 +131,7 @@ suítes exigem Postgres, é `layer:providers` — quem manda é a infraestrutura
 o teste pede.
 
 ```bash
-# Os projetos de um estágio, como o ci.yml os seleciona
+# Os projetos de um estágio
 pnpm nx show projects --projects=tag:layer:domain --json | jq -r 'join(",")'
 ```
 
@@ -140,7 +141,7 @@ tem `app`, `layer:providers` quando para no `provider`, e assim por diante. O
 generator `bounded-context` já emite a tag correta no `project.json`; ver
 `docs/guides/dmpf-composicao.md`. O módulo `conformance`
 (`tools/dmpf-conformance`) é a exceção deliberada: tooling de workspace, sem
-`layer:*`, excluído do guard e rodado em step próprio do `ci.yml`.
+`layer:*` e excluído do guard.
 
 ---
 

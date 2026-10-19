@@ -36,9 +36,14 @@ Trabalhe sempre fora de `master` e `develop`.
 4. Abra o Pull Request contra `develop` descrevendo o que muda e por quê.
    `master` recebe o trabalho pela branch `release/X.Y.Z`, não diretamente.
 
-Todo PR roda o pipeline inteiro, inclusive o que só toca Markdown: o ruleset
-"CI obrigatório na develop" exige os checks verdes antes do merge, e um check que
-não dispara deixaria o PR bloqueado.
+O ruleset exige um único check, o job `CI` do `ci.yml`, que reporta em todo PR.
+No PR para `develop` (ou `release/**`) ele roda só os projetos afetados, e os
+vetores negativos dos gates só quando o diff toca `tools/**`, `.github/**` ou
+`.golangci.yml`; um PR só de documentação (`docs/**` e `*.md` fora de `tools/`,
+`.claude/` e `.agents/`) passa sem rodar o resto. O PR de `release/X.Y.Z` ou
+`hotfix/*` para `master` leva o pacote completo: todos os projetos, todos os
+vetores negativos, govulncheck, consumidor externo, harness distribuído e
+SonarQube Cloud com cobertura. Detalhe por etapa em `docs/ci-cd/README.md`.
 
 ### Modelo develop → release (anti-drift)
 
@@ -107,9 +112,11 @@ pnpm nx run-many -t lint typecheck test build    # tudo
 ```
 
 O hook de `pre-commit` roda `biome check --write` e `gofmt -l` nos arquivos em
-stage; o de `pre-push` roda `lint`, `typecheck`, `test`, `build`, `fmt-check`,
-`vet` e `test-race` nos projetos afetados pelo que o push leva — a base é o que
-o remoto já tem, e uma branch sem upstream compara com `origin/develop`.
+stage; o de `pre-push` roda `lint`, `typecheck`, `fmt-check`, `vet` e `test`
+(unitários, sem Docker) nos projetos afetados pelo que o push leva — a base é o
+que o remoto já tem, e uma branch sem upstream compara com `origin/develop`.
+`build`, `test-race` e os testes de integração ficam no CI; rode-os à mão quando
+mexer em código que depende da infra (`pnpm nx run <projeto>:test-race`).
 
 ## Padrões de código
 

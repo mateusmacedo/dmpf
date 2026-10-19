@@ -24,6 +24,13 @@ runs:
     # segunda fonte, que sairia do lugar no primeiro bump.
     # Cache de GOMODCACHE e GOCACHE chaveado pelos arquivos que carregam os pins:
     # sem ele cada job recompila golangci-lint, govulncheck, buf e protoc-gen-go por `go run` (~10 min).
+    # O cache-dependency-path só aceita caminho relativo ao workspace sem `.`/`..`,
+    # e o github.action_path é absoluto e passa por `./` (no consumidor, `.dmpf-ci/`).
+    - name: Caminho da action relativo ao workspace
+      id: action_path
+      shell: bash
+      run: echo "dir=$(realpath --relative-to="$GITHUB_WORKSPACE" "$GITHUB_ACTION_PATH")" >> "$GITHUB_OUTPUT"
+
     - name: Setup Go
       id: setup_go
       uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
@@ -35,7 +42,7 @@ runs:
           go.work
           ${{ inputs.go-sum-paths }}
           ${{ inputs.versions-file }}
-          ${{ github.action_path }}/action.yml
+          ${{ steps.action_path.outputs.dir }}/action.yml
 
     # O post-step do setup-go só salva em cache miss e salva o que houver: um PR sem
     # projeto Go afetado semearia um GOCACHE vazio que os hits seguintes nunca substituem.
