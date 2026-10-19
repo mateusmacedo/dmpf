@@ -72,6 +72,9 @@
       "options": {
         "action": "down"
       }
+    },
+    "test": {
+      "inputs": ["go", "^go", "{workspaceRoot}/libs/backend/go/**/README.md"]
     }
   }
 }
