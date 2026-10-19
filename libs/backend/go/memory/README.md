@@ -29,11 +29,14 @@ baseline — é o que permite a um contexto de `apps/backend` importá-la sem
 | `store.go` | `Store`, `New`; `Table[ID, S]` com `Reader(*Store)` e `Repository(*Tx)`, escopados por tenant; `Unique[S]`, a unicidade declarada (ADR-066); inspeção para testes: `Entries`, `FailNextCommit`, `WithinCalls`, `Commits`, `InboxRows`, `InboxStatus`, `InboxLastError` |
 | `tx.go` | `Tx` (`Inbox(consumer)`, `Outbox()`), `NewUnitOfWork[R](store, bind)` e `Within` |
 | `inbox.go` | A inbox transacional: `Register` com as classificações R1–R4 e `Pending.Complete`; `Tx.CommandInbox(consumer)`, a mesma inbox para comandos, com o tenant na chave, o desfecho gravado e o vencimento da entrada (FND-04 §7.6) |
+| `platform.go` | `Table.PlatformReader(*Store, ports.AuditTrail, ...PlatformOption)`, `Table.Projector(*Tx, ports.ProjectionPolicy, ports.AuditTrail)` e `WithPageMax`: a paridade do acesso entre tenants declarado do `postgres` (ADR-068) |
 | `clock.go` | `FixedClock` (`ports.Clock`) e `SequenceIDs` (`ports.IDGenerator`) |
 | `errors.go` | `ErrTenantUnresolved`, `ErrInboxConsumerRequired`, `ErrInboxConsumerMismatch`, `ErrAlreadyCompleted`, `ErrInvalidCompletion`, `ErrCommandExpiryRequired` |
 
 O código de produção importa só a stdlib, o `ports` e o `domain` (o
-`*domain.Rejection` de `Unique`); `external` é `[]`. O
+`*domain.Rejection` de `Unique`); a trilha do acesso entre tenants chega como
+`ports.AuditTrail`, e nenhum arquivo, nem de teste, importa `observability`,
+cujos testes importam o `memory` (ADR-068). `external` é `[]`. O
 `testkit` entra apenas pelos `_test.go` — o `providerkit` roda aqui a suíte de
 conformidade de UoW e de inbox.
 
@@ -123,6 +126,31 @@ ADR-034). Para semear estado antes do cenário, o mesmo `bind` serve:
 `memory.NewUnitOfWork(store, func(tx *memory.Tx) *memory.Tx { return tx })` e
 `ordersTable.Repository(tx).Save(...)` dentro do `Within`.
 
+## Acesso entre tenants: paridade com o `postgres`
+
+`Table.PlatformReader` e `Table.Projector` têm a porta, as recusas e a trilha
+de `postgres.Table.PlatformReader` e `postgres.Table.Projector`, na mesma ordem,
+para que os dois respondam igual à chamada sem alcance declarado ou sem
+contexto de execução; o contrato está em `libs/backend/go/postgres/README.md`, e
+a decisão, no ADR-068. Construir qualquer dos dois sem `ports.AuditTrail` entra em
+`panic` com o nome da tabela, e `WithPageMax` com valor menor que 1 também.
+
+O que muda é só a realização:
+
+- O `PlatformReader` lê o estado **commitado** do `Store`, como o `Reader`, e o
+  `List` ordena por `(tenant, fmt.Sprintf("%#v", id))` em ordem de bytes: a
+  forma Go do valor distingue identificadores distintos mesmo quando o `String()`
+  deles coincide. Dois IDs distintos com a mesma forma `%#v` — um `GoString()`
+  que colida ou ponteiros para valores iguais — empatam na chave e podem ser
+  omitidos entre páginas: o dublê pressupõe IDs de forma distinta, como as strings
+  do kit. Não é a ordem do keyset
+  `(tenant_id, id)` do `postgres`, que segue a collation do banco: cada
+  realização tem a sua ordem total estável, e o kit só afirma isso. O cursor
+  `after` retoma estritamente depois da chave.
+- O `Projector` lê e grava no estado da `Tx`, dentro do `Within`; o `Save` é o
+  mesmo do `Repository` — versão e unicidade declarada — com a chave do destino,
+  e o `Load` não sonda o dono: a linha ausente é `ports.ErrNotFound` puro.
+
 ## O que prova, e o que não prova
 
 Prova, em `store_test.go`: uma transação por `Within` sobre um recurso, o
@@ -138,7 +166,14 @@ identificador sob tenants distintos, `ErrTenantUnresolved` na ausência e
 `ports.CrossTenantAccess` no cruzamento (mesmo contrato do `postgres`). A
 unicidade declarada é provada em `store_test.go` e pelo `providerkit.Unique`
 (`testkit/providerkit/unique_test.go`), com a cláusula concorrente em `Skipped`:
-a serialização por `txMu` não deixa duas criações correrem juntas.
+a serialização por `txMu` não deixa duas criações correrem juntas. Em
+`platform_test.go`, o acesso entre tenants: a ordem e a retomada do `List`, inclusive
+com identificadores de `String()` igual, um
+evento `accepted` por tenant antes de devolver, página vazia sem evento, as
+recusas com e sem evento, a falha fechada quando o `Sink` recusa e a leitura do
+`Load` da projeção sem sonda de dono. As suítes `providerkit.Platform` e
+`providerkit.Projection` rodam sobre este módulo em
+`testkit/providerkit/platform_test.go` e `projection_test.go`.
 
 Não prova **isolamento** nem conflito de serialização entre transações
 concorrentes: `Within` retém `txMu` durante todo o callback, então as transações
@@ -187,6 +222,8 @@ própria no `dmpf-units.json` (`include` por import path exato) e o baseline em
 - `docs/adr/036-classificacao-de-recepcao-e-fronteira-pending.md` — a inbox
 - `docs/adr/051-escopo-de-tenant-por-choke-point-em-go.md` — o mesmo contrato
   de escopo que `postgres.Table` realiza
+- `docs/adr/068-acesso-entre-tenants-declarado.md` — leitura de plataforma e
+  projeção, que este módulo realiza em paridade com o `postgres`
 - `docs/dmpf/uow-inbox-outbox.md` — FND-04: UoW, sequência canônica, outbox,
   inbox
 - `libs/backend/go/ports/README.md` — as portas em tipos de domínio, o
