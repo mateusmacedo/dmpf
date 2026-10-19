@@ -9,6 +9,9 @@ ROOT="${DMPF_WORKSPACE_ROOT:-$(git rev-parse --show-toplevel)}" || { echo "fora 
 cd "$ROOT" || exit 1
 APPS="${DMPF_APPS_DIR:-apps/backend}"
 DESCARTE="$(mktemp -d)" || { echo "falha ao criar diretorio temporario" >&2; exit 1; }
+TRABALHO="$DESCARTE/tarefas"
+mkdir "$TRABALHO" || { echo "falha ao criar diretorio temporario" >&2; exit 1; }
+VAGAS="${DMPF_GATE_JOBS:-$(nproc 2>/dev/null || echo 2)}"
 
 FIXTURE=""
 FIXTURES=()
@@ -33,7 +36,6 @@ retirar_fixture() {
   FIXTURES=()
   return $status
 }
-trap retirar_fixture EXIT INT TERM
 
 # pacote|capability|origem. `dentro` = está na `deny`; `fora` = não está, e prova
 # que a regra é fechada (`list-mode: strict`), não uma denylist. Um array por
@@ -169,102 +171,95 @@ dir_do_bloco() {
   ' "$ROOT/$manifesto" "$bloco" 2>/dev/null)
 }
 
-falhas=0
+# O lint é o comando do target `lint` lido do grafo (versão e args do nx.json), sem o custo do
+# `nx run` por vetor. O grafo também diz quem importa quem: um fixture vivo num módulo quebra a
+# carga de qualquer lint que o alcance, então só correm juntos módulos sem relação de dependência.
+if ! pnpm --silent nx graph --file="$TRABALHO/grafo.json" >/dev/null 2>&1; then
+  echo "FALHA: nao consegui gerar o grafo do Nx" >&2
+  exit 1
+fi
+declare -A LINT_DIR LINT_EXE LINT_ARGS RELACIONADOS
+while IFS=$'\x1f' read -r nome raiz exe args relacionados; do
+  LINT_DIR[$nome]="$raiz"
+  LINT_EXE[$nome]="$exe"
+  LINT_ARGS[$nome]="$args"
+  RELACIONADOS[$nome]=" $relacionados "
+done < <(node -e '
+  const g = require(process.argv[1]).graph;
+  const nomes = Object.keys(g.nodes);
+  const diretas = {};
+  const reversas = {};
+  for (const n of nomes) {
+    diretas[n] = (g.dependencies[n] ?? []).map((d) => d.target).filter((t) => g.nodes[t]);
+    for (const t of diretas[n]) (reversas[t] ??= []).push(n);
+  }
+  const alcance = (n, arestas) => {
+    const vistos = new Set();
+    const pilha = [n];
+    while (pilha.length) for (const b of arestas[pilha.pop()] ?? []) if (!vistos.has(b)) vistos.add(b) && pilha.push(b);
+    return vistos;
+  };
+  for (const n of nomes) {
+    const raiz = g.nodes[n].data.root;
+    const rel = new Set([...alcance(n, diretas), ...alcance(n, reversas)]);
+    for (const m of nomes) {
+      const r = g.nodes[m].data.root;
+      if (r.startsWith(raiz + "/") || raiz.startsWith(r + "/")) rel.add(m);
+    }
+    rel.delete(n);
+    const lint = g.nodes[n].data.targets?.lint;
+    let exe = "";
+    let args = [];
+    if (lint?.executor === "@nx-go/nx-go:lint") {
+      exe = lint.options?.linter ?? "go";
+      args = [...(lint.options?.linter == null ? ["fmt"] : []), ...(lint.options?.args ?? []), "./..."];
+    }
+    console.log([n, raiz, exe, args.join("\x1e"), [...rel].join(" ")].join("\x1f"));
+  }
+' "$TRABALHO/grafo.json")
+
+lintar() {
+  local projeto="$1" args
+  if [ -z "${LINT_EXE[$projeto]:-}" ]; then
+    pnpm nx run "$projeto":lint --skip-nx-cache
+    return
+  fi
+  IFS=$'\x1e' read -r -a args <<<"${LINT_ARGS[$projeto]}"
+  (cd "$ROOT/${LINT_DIR[$projeto]}" && "${LINT_EXE[$projeto]}" "${args[@]}")
+}
+
+total_falhas=0
 modulos=0
 modulos_domain=0
 modulos_port=0
 modulos_application=0
 modulos_contract=0
 fora_de_alcance=0
+providers_de_contexto=0
+contextos_plataforma=0
 
-# Espelha o alcance do depguard, que seleciona por diretorio (`**/domain/**`,
-# `**/ports/**`, `**/application/**`, `**/contracts/**`, `**/contract/**` e as formas com hifen).
-# Modulo fora desses caminhos nao e coberto pelo depguard — o verificador do
-# KRN-02 o cobre — e provar o gate nele seria provar o que nao existe. O array
-# vem do CAMINHO, nao do manifesto: e o caminho que decide a regra aplicada.
-bloco_do_caminho() {
-  case "/$1/" in
-    *-domain/* | */domain/*)           echo "domain" ;;
-    *-ports/* | */ports/*)             echo "port" ;;
-    *-application/* | */application/*) echo "application" ;;
-    *-contracts/* | */contracts/* | */contract/*) echo "contract" ;;
-    *)               echo "" ;;
-  esac
+SEQ=0
+TAREFAS=()
+declare -A TAREFA_PROJETO TAREFA_FUNCAO TAREFA_CONTEXTO PID_DE
+
+anotar() {
+  printf '%s\n' "$1" > "$TRABALHO/$SEQ.saida"
+  printf '%s\n' "${2:-0}" > "$TRABALHO/$SEQ.fim"
+  SEQ=$((SEQ + 1))
 }
 
-while IFS= read -r manifesto; do
-  module_dir="$(dirname "$manifesto")"
+registrar() {
+  local funcao="$1" projeto="$2"
+  shift 2
+  TAREFA_FUNCAO[$SEQ]="$funcao"
+  TAREFA_PROJETO[$SEQ]="$projeto"
+  TAREFA_CONTEXTO[$SEQ]="$(declare -p "$@")"
+  TAREFAS+=("$SEQ")
+  SEQ=$((SEQ + 1))
+}
 
-  # Exclusoes fechadas de RFC 10.3. Modulo sintetico sob testdata/ existe para
-  # o verificador reprovar; trata-lo como producao faria o gate falhar pela
-  # violacao que a fixture demonstra.
-  case "/$module_dir/" in
-    */testdata/*|*/vendor/*) continue ;;
-  esac
-
-  # só os blocos que o .golangci.yml conhece; um modulo que declare apenas
-  # `provider`, `contract` ou `app` nao tem politica local a provar
-  node -e '
-    const m = require(process.argv[1]);
-    const alvos = new Set(["domain", "port", "application", "contract"]);
-    process.exit((m.units ?? []).some((u) => alvos.has(u.block)) ? 0 : 1);
-  ' "$ROOT/$manifesto" 2>/dev/null || continue
-
-  bloco="$(bloco_do_caminho "$module_dir")"
-  if [ -z "$bloco" ]; then
-    echo "-- $module_dir: fora do alcance do depguard (**/domain/**, **/ports/**, **/application/**, **/contracts/**); coberto pelo verificador do KRN-02"
-    fora_de_alcance=$((fora_de_alcance + 1))
-    continue
-  fi
-
-  case "$bloco" in
-    domain)      vetores=("${VETORES_DOMAIN[@]}") ;;
-    port)        vetores=("${VETORES_PORT[@]}") ;;
-    application) vetores=("${VETORES_APPLICATION[@]}") ;;
-    contract)    vetores=("${VETORES_CONTRACT[@]}") ;;
-  esac
-
-  project="$(node -p 'require(process.argv[1]).name' "$ROOT/$module_dir/project.json" 2>/dev/null)"
-  if [ -z "$project" ]; then
-    echo "FALHA  $module_dir: nao consegui ler o nome do projeto no project.json"
-    falhas=$((falhas + 1))
-    continue
-  fi
-
-  # O fixture de package precisa de um diretorio com .go, e a clausula vem do
-  # proprio codigo: fixa-la aqui quebraria o fixture em modulo com outro nome de
-  # package. A raiz e a primeira escolha; quando ela nao tem codigo, vale o
-  # primeiro `include` que tenha — o contracts declara tres unidades e
-  # nenhum .go na raiz.
-  fixture_dir=""
-  pkg_clause=""
-  for candidato in "$module_dir" $(includes_do_modulo "$manifesto" "$module_dir"); do
-    fora_do_depguard "$candidato" && continue
-    clausula="$(clausula_de_package "$candidato")"
-    if [ -n "$clausula" ]; then
-      fixture_dir="$candidato"
-      pkg_clause="$clausula"
-      break
-    fi
-  done
-  if [ -z "$pkg_clause" ] && so_codigo_gerado "$manifesto" "$module_dir"; then
-    echo "-- $module_dir: so codigo gerado, fora do depguard por exclusao; coberto pelo verificador do KRN-02"
-    fora_de_alcance=$((fora_de_alcance + 1))
-    continue
-  fi
-  if [ -z "$pkg_clause" ]; then
-    echo "FALHA  $module_dir: nenhum .go com clausula de package dentro do alcance do depguard"
-    falhas=$((falhas + 1))
-    continue
-  fi
-
-  modulos=$((modulos + 1))
-  case "$bloco" in
-    domain)      modulos_domain=$((modulos_domain + 1)) ;;
-    port)        modulos_port=$((modulos_port + 1)) ;;
-    application) modulos_application=$((modulos_application + 1)) ;;
-    contract)    modulos_contract=$((modulos_contract + 1)) ;;
-  esac
+provar_bloco() {
+  local vetor pkg resto cap origem simbolo imp corpo familia linha inc inc_bloco rel sub_dir_candidato sub_dir sub_clause esperado rotulo saida status module_path
   if [ "$fixture_dir" = "$module_dir" ]; then
     echo "== $project ($module_dir) [bloco $bloco]"
   else
@@ -284,7 +279,7 @@ while IFS= read -r manifesto; do
     }
     printf '%s\n\nimport _ "%s"\n' "$pkg_clause" "$pkg" > "$FIXTURE"
 
-    saida="$(pnpm nx run "$project":lint --skip-nx-cache 2>&1)"
+    saida="$(lintar "$project" 2>&1)"
     status=$?
     retirar_fixture
 
@@ -317,7 +312,7 @@ while IFS= read -r manifesto; do
         printf '%s\n\n%s\n' "$pkg_clause" "$corpo" > "$FIXTURE"
       fi
 
-      saida="$(pnpm nx run "$project":lint --skip-nx-cache 2>&1)"
+      saida="$(lintar "$project" 2>&1)"
       status=$?
       retirar_fixture
 
@@ -383,7 +378,7 @@ while IFS= read -r manifesto; do
       rotulo="import time (io.clock, depguard, subpackage)"
     fi
 
-    saida="$(pnpm nx run "$project":lint --skip-nx-cache 2>&1)"
+    saida="$(lintar "$project" 2>&1)"
     status=$?
     retirar_fixture
 
@@ -402,42 +397,19 @@ while IFS= read -r manifesto; do
   ' "$ROOT/$manifesto" 2>/dev/null)
 
   # Vetor positivo: a árvore limpa precisa passar, senão o gate só sabe dizer não.
-  if pnpm nx run "$project":lint --skip-nx-cache >/dev/null 2>&1; then
+  if lintar "$project" >/dev/null 2>&1; then
     echo "  ok     arvore limpa: aprovada"
   else
     echo "  FALHA  arvore limpa: reprovada, mas deveria passar"
     falhas=$((falhas + 1))
   fi
-done < <(git ls-files '*dmpf-units.json')
+}
 
-# O laço acima pula os módulos de contexto (o caminho do módulo não é de bloco),
-# então o provider de cada app é exercitado aqui, pelo include do manifesto.
-providers_de_contexto=0
-contextos_plataforma=0
-while IFS= read -r manifesto; do
-  module_dir="$(dirname "$manifesto")"
-  case "$module_dir/" in
-    "$APPS"/*) ;;
-    *) continue ;;
-  esac
-  module_path="$(awk '/^module /{print $2; exit}' "$module_dir/go.mod" 2>/dev/null)"
-  project="$(node -p 'require(process.argv[1]).name' "$ROOT/$module_dir/project.json" 2>/dev/null)"
-
-  while IFS= read -r inc; do
-    rel="${inc#"$module_path"}"
-    rel="${rel#/}"
-    case "/$rel/" in
-      */provider/) ;;
-      *) continue ;;
-    esac
-    sub_dir="$module_dir/$rel"
-    sub_clause="$(clausula_de_package "$sub_dir")"
-    if [ -z "$project" ] || [ -z "$sub_clause" ]; then
-      echo "FALHA  $sub_dir: sem projeto Nx ou sem .go com clausula de package"
-      falhas=$((falhas + 1))
-      continue
-    fi
-    providers_de_contexto=$((providers_de_contexto + 1))
+provar_contexto() {
+  local entrada sub_dir sub_clause rel vetor pkg motivo saida status bloco imp corpo rotulo marca alvo clausula arquivo positivo molde f i
+  local -a positivos rotulos
+  for entrada in "${provedores[@]}"; do
+    IFS='|' read -r sub_dir sub_clause rel <<<"$entrada"
     echo "== $project ($sub_dir) [provider de contexto]"
 
     for vetor in "${VETORES_CONTEXT_PROVIDER[@]}"; do
@@ -450,7 +422,7 @@ while IFS= read -r manifesto; do
       }
       printf '%s\n\nimport _ "%s"\n' "$sub_clause" "$pkg" > "$FIXTURE"
 
-      saida="$(pnpm nx run "$project":lint --skip-nx-cache 2>&1)"
+      saida="$(lintar "$project" 2>&1)"
       status=$?
       retirar_fixture
 
@@ -465,33 +437,15 @@ while IFS= read -r manifesto; do
       fi
     done
 
-    if pnpm nx run "$project":lint --skip-nx-cache >/dev/null 2>&1; then
+    if lintar "$project" >/dev/null 2>&1; then
       echo "  ok     arvore limpa: aprovada"
     else
       echo "  FALHA  arvore limpa: reprovada, mas deveria passar"
       falhas=$((falhas + 1))
     fi
-  done < <(node -e '
-    const m = require(process.argv[1]);
-    for (const u of m.units ?? []) if (u.block === "provider") for (const i of u.include ?? []) console.log(i);
-  ' "$ROOT/$manifesto" 2>/dev/null)
+  done
 
-  provider_dir="$(dir_do_bloco "$manifesto" "$module_dir" "$module_path" provider /provider)"
-  application_dir="$(dir_do_bloco "$manifesto" "$module_dir" "$module_path" application /application)"
-  app_dir="$(dir_do_bloco "$manifesto" "$module_dir" "$module_path" app /app)"
-  rpc_dir="$(dir_do_bloco "$manifesto" "$module_dir" "$module_path" app /app/rpc)"
-  [ -n "$provider_dir" ] || continue
-  # A cláusula sai antes de criar fixture: um fixture vazio pode ser o primeiro .go do diretório.
-  provider_clause="$(clausula_de_package "$provider_dir")"
-  application_clause="$(clausula_de_package "$application_dir")"
-  app_clause="$(clausula_de_package "$app_dir")"
-  rpc_clause="$(clausula_de_package "$rpc_dir")"
-  if [ -z "$project" ] || [ -z "$provider_clause" ] || [ -z "$application_clause" ] || [ -z "$app_clause" ] || [ -z "$rpc_clause" ]; then
-    echo "FALHA  $module_dir: sem projeto Nx, application, app ou app/rpc para provar a regra de plataforma"
-    falhas=$((falhas + 1))
-    continue
-  fi
-  contextos_plataforma=$((contextos_plataforma + 1))
+  [ "$plataforma" = true ] || return 0
   echo "== $project [plataforma IDN-14]"
 
   for vetor in "${VETORES_PLATAFORMA[@]}"; do
@@ -514,7 +468,7 @@ while IFS= read -r manifesto; do
     }
     printf '%s\n\nimport %s\n\n%s\n' "$clausula" "$imp" "$corpo" > "$arquivo"
 
-    saida="$(pnpm nx run "$project":lint --skip-nx-cache 2>&1)"
+    saida="$(lintar "$project" 2>&1)"
     status=$?
     retirar_fixture
 
@@ -545,7 +499,7 @@ var _ = gatepostgres.Table[string, struct{}]{}.Projector"
     printf '%s\n\n%s\n\n%s\n' "$clausula" "$imp" "$corpo" > "$f"
   done
   if [ "${#FIXTURES[@]}" -eq "${#positivos[@]}" ]; then
-    saida="$(pnpm nx run "$project":lint --skip-nx-cache 2>&1)"
+    saida="$(lintar "$project" 2>&1)"
     status=$?
     for i in "${!FIXTURES[@]}"; do
       if [ "$status" -ne 0 ] && grep -qF "$(basename "${FIXTURES[$i]}")" <<<"$saida"; then
@@ -561,7 +515,232 @@ var _ = gatepostgres.Table[string, struct{}]{}.Projector"
     fi
   fi
   retirar_fixture
+}
+
+# Espelha o alcance do depguard, que seleciona por diretorio (`**/domain/**`,
+# `**/ports/**`, `**/application/**`, `**/contracts/**`, `**/contract/**` e as formas com hifen).
+# Modulo fora desses caminhos nao e coberto pelo depguard — o verificador do
+# KRN-02 o cobre — e provar o gate nele seria provar o que nao existe. O array
+# vem do CAMINHO, nao do manifesto: e o caminho que decide a regra aplicada.
+bloco_do_caminho() {
+  case "/$1/" in
+    *-domain/* | */domain/*)           echo "domain" ;;
+    *-ports/* | */ports/*)             echo "port" ;;
+    *-application/* | */application/*) echo "application" ;;
+    *-contracts/* | */contracts/* | */contract/*) echo "contract" ;;
+    *)               echo "" ;;
+  esac
+}
+
+while IFS= read -r manifesto; do
+  module_dir="$(dirname "$manifesto")"
+
+  # Exclusoes fechadas de RFC 10.3. Modulo sintetico sob testdata/ existe para
+  # o verificador reprovar; trata-lo como producao faria o gate falhar pela
+  # violacao que a fixture demonstra.
+  case "/$module_dir/" in
+    */testdata/*|*/vendor/*) continue ;;
+  esac
+
+  # só os blocos que o .golangci.yml conhece; um modulo que declare apenas
+  # `provider`, `contract` ou `app` nao tem politica local a provar
+  node -e '
+    const m = require(process.argv[1]);
+    const alvos = new Set(["domain", "port", "application", "contract"]);
+    process.exit((m.units ?? []).some((u) => alvos.has(u.block)) ? 0 : 1);
+  ' "$ROOT/$manifesto" 2>/dev/null || continue
+
+  bloco="$(bloco_do_caminho "$module_dir")"
+  if [ -z "$bloco" ]; then
+    anotar "-- $module_dir: fora do alcance do depguard (**/domain/**, **/ports/**, **/application/**, **/contracts/**); coberto pelo verificador do KRN-02"
+    fora_de_alcance=$((fora_de_alcance + 1))
+    continue
+  fi
+
+  case "$bloco" in
+    domain)      vetores=("${VETORES_DOMAIN[@]}") ;;
+    port)        vetores=("${VETORES_PORT[@]}") ;;
+    application) vetores=("${VETORES_APPLICATION[@]}") ;;
+    contract)    vetores=("${VETORES_CONTRACT[@]}") ;;
+  esac
+
+  project="$(node -p 'require(process.argv[1]).name' "$ROOT/$module_dir/project.json" 2>/dev/null)"
+  if [ -z "$project" ]; then
+    anotar "FALHA  $module_dir: nao consegui ler o nome do projeto no project.json" 1
+    continue
+  fi
+
+  # O fixture de package precisa de um diretorio com .go, e a clausula vem do
+  # proprio codigo: fixa-la aqui quebraria o fixture em modulo com outro nome de
+  # package. A raiz e a primeira escolha; quando ela nao tem codigo, vale o
+  # primeiro `include` que tenha — o contracts declara tres unidades e
+  # nenhum .go na raiz.
+  fixture_dir=""
+  pkg_clause=""
+  for candidato in "$module_dir" $(includes_do_modulo "$manifesto" "$module_dir"); do
+    fora_do_depguard "$candidato" && continue
+    clausula="$(clausula_de_package "$candidato")"
+    if [ -n "$clausula" ]; then
+      fixture_dir="$candidato"
+      pkg_clause="$clausula"
+      break
+    fi
+  done
+  if [ -z "$pkg_clause" ] && so_codigo_gerado "$manifesto" "$module_dir"; then
+    anotar "-- $module_dir: so codigo gerado, fora do depguard por exclusao; coberto pelo verificador do KRN-02"
+    fora_de_alcance=$((fora_de_alcance + 1))
+    continue
+  fi
+  if [ -z "$pkg_clause" ]; then
+    anotar "FALHA  $module_dir: nenhum .go com clausula de package dentro do alcance do depguard" 1
+    continue
+  fi
+
+  modulos=$((modulos + 1))
+  case "$bloco" in
+    domain)      modulos_domain=$((modulos_domain + 1)) ;;
+    port)        modulos_port=$((modulos_port + 1)) ;;
+    application) modulos_application=$((modulos_application + 1)) ;;
+    contract)    modulos_contract=$((modulos_contract + 1)) ;;
+  esac
+  registrar provar_bloco "$project" project module_dir manifesto bloco vetores fixture_dir pkg_clause
 done < <(git ls-files '*dmpf-units.json')
+
+# O laço acima pula os módulos de contexto (o caminho do módulo não é de bloco),
+# então o provider de cada app é exercitado aqui, pelo include do manifesto.
+while IFS= read -r manifesto; do
+  module_dir="$(dirname "$manifesto")"
+  case "$module_dir/" in
+    "$APPS"/*) ;;
+    *) continue ;;
+  esac
+  module_path="$(awk '/^module /{print $2; exit}' "$module_dir/go.mod" 2>/dev/null)"
+  project="$(node -p 'require(process.argv[1]).name' "$ROOT/$module_dir/project.json" 2>/dev/null)"
+
+  provedores=()
+  while IFS= read -r inc; do
+    rel="${inc#"$module_path"}"
+    rel="${rel#/}"
+    case "/$rel/" in
+      */provider/) ;;
+      *) continue ;;
+    esac
+    sub_dir="$module_dir/$rel"
+    sub_clause="$(clausula_de_package "$sub_dir")"
+    if [ -z "$project" ] || [ -z "$sub_clause" ]; then
+      anotar "FALHA  $sub_dir: sem projeto Nx ou sem .go com clausula de package" 1
+      continue
+    fi
+    providers_de_contexto=$((providers_de_contexto + 1))
+    provedores+=("$sub_dir|$sub_clause|$rel")
+  done < <(node -e '
+    const m = require(process.argv[1]);
+    for (const u of m.units ?? []) if (u.block === "provider") for (const i of u.include ?? []) console.log(i);
+  ' "$ROOT/$manifesto" 2>/dev/null)
+
+  plataforma=false
+  provider_dir="$(dir_do_bloco "$manifesto" "$module_dir" "$module_path" provider /provider)"
+  application_dir="$(dir_do_bloco "$manifesto" "$module_dir" "$module_path" application /application)"
+  app_dir="$(dir_do_bloco "$manifesto" "$module_dir" "$module_path" app /app)"
+  rpc_dir="$(dir_do_bloco "$manifesto" "$module_dir" "$module_path" app /app/rpc)"
+  provider_clause=""
+  application_clause=""
+  app_clause=""
+  rpc_clause=""
+  if [ -n "$provider_dir" ]; then
+    # A cláusula sai antes de criar fixture: um fixture vazio pode ser o primeiro .go do diretório.
+    provider_clause="$(clausula_de_package "$provider_dir")"
+    application_clause="$(clausula_de_package "$application_dir")"
+    app_clause="$(clausula_de_package "$app_dir")"
+    rpc_clause="$(clausula_de_package "$rpc_dir")"
+    if [ -z "$project" ] || [ -z "$provider_clause" ] || [ -z "$application_clause" ] || [ -z "$app_clause" ] || [ -z "$rpc_clause" ]; then
+      anotar "FALHA  $module_dir: sem projeto Nx, application, app ou app/rpc para provar a regra de plataforma" 1
+    else
+      contextos_plataforma=$((contextos_plataforma + 1))
+      plataforma=true
+    fi
+  fi
+
+  [ "${#provedores[@]}" -gt 0 ] || [ "$plataforma" = true ] || continue
+  registrar provar_contexto "$project" project provedores plataforma provider_dir application_dir app_dir rpc_dir \
+    provider_clause application_clause app_clause rpc_clause
+done < <(git ls-files '*dmpf-units.json')
+
+lancar() {
+  local id="$1"
+  (
+    falhas=0
+    trap 'retirar_fixture; printf "%s\n" "$falhas" > "$TRABALHO/$id.fim.tmp" && mv -f "$TRABALHO/$id.fim.tmp" "$TRABALHO/$id.fim"' EXIT
+    trap 'exit 143' INT TERM
+    eval "${TAREFA_CONTEXTO[$id]}"
+    "${TAREFA_FUNCAO[$id]}"
+  ) > "$TRABALHO/$id.saida" 2>&1 &
+  PID_DE[$id]=$!
+}
+
+CORRENDO=()
+conflita() {
+  local projeto="$1" id
+  for id in "${CORRENDO[@]}"; do
+    [ -n "${RELACIONADOS[$projeto]+x}" ] || return 0
+    [ "${TAREFA_PROJETO[$id]}" = "$projeto" ] && return 0
+    [[ "${RELACIONADOS[$projeto]}" == *" ${TAREFA_PROJETO[$id]} "* ]] && return 0
+  done
+  return 1
+}
+
+atualizar_correndo() {
+  local id vivos=()
+  for id in "${CORRENDO[@]}"; do
+    [ -e "$TRABALHO/$id.fim" ] && continue
+    if kill -0 "${PID_DE[$id]}" 2>/dev/null; then
+      vivos+=("$id")
+      continue
+    fi
+    echo "  FALHA  ${TAREFA_PROJETO[$id]}: a prova terminou sem relatar o resultado" >> "$TRABALHO/$id.saida"
+    printf '1\n' > "$TRABALHO/$id.fim"
+  done
+  CORRENDO=("${vivos[@]}")
+}
+
+IMPRESSO=0
+imprimir_prontos() {
+  while [ "$IMPRESSO" -lt "$SEQ" ] && [ -e "$TRABALHO/$IMPRESSO.fim" ]; do
+    cat "$TRABALHO/$IMPRESSO.saida"
+    total_falhas=$((total_falhas + $(cat "$TRABALHO/$IMPRESSO.fim")))
+    IMPRESSO=$((IMPRESSO + 1))
+  done
+}
+
+encerrar() {
+  local pids
+  pids="$(jobs -pr)"
+  if [ -n "$pids" ]; then
+    # shellcheck disable=SC2086
+    kill -TERM $pids 2>/dev/null
+    wait
+  fi
+}
+trap encerrar EXIT
+trap 'exit 130' INT TERM
+
+PENDENTES=("${TAREFAS[@]}")
+while [ "${#PENDENTES[@]}" -gt 0 ] || [ "${#CORRENDO[@]}" -gt 0 ]; do
+  restantes=()
+  for id in "${PENDENTES[@]}"; do
+    if [ "${#CORRENDO[@]}" -lt "$VAGAS" ] && ! conflita "${TAREFA_PROJETO[$id]}"; then
+      lancar "$id"
+      CORRENDO+=("$id")
+    else
+      restantes+=("$id")
+    fi
+  done
+  PENDENTES=("${restantes[@]}")
+  imprimir_prontos
+  [ "${#CORRENDO[@]}" -gt 0 ] && wait -n
+  atualizar_correndo
+done
+imprimir_prontos
 
 if [ "$providers_de_contexto" -eq 0 ]; then
   echo "FALHA: nenhum provider de contexto encontrado; a regra context-provider nao foi exercitada." >&2
@@ -578,9 +757,9 @@ if [ "$modulos" -eq 0 ]; then
   exit 1
 fi
 
-if [ "$falhas" -gt 0 ]; then
+if [ "$total_falhas" -gt 0 ]; then
   echo
-  echo "$falhas verificacao(oes) falharam: o gate nao esta protegendo os blocos domain, port, application e contract."
+  echo "$total_falhas verificacao(oes) falharam: o gate nao esta protegendo os blocos domain, port, application e contract."
   exit 1
 fi
 
