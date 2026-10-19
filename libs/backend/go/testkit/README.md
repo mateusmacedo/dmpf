@@ -361,12 +361,13 @@ criado para ele e apagado com `DROP DATABASE ... WITH (FORCE)` ao fim, e o
 servidor da infra de runtime local nunca é fixture de teste. O
 erro de conexão do pgx que chega ao log traz host, usuário e nome do banco —
 nunca a senha, que o pgx redige. O `test-distributed` de `reservations` depende
-do `test-race` de `postgres` e `app`, que usam o mesmo servidor. No CI, o `ci.yml` roda a cadeia por estágio (`layer:domain` →
-`services` → infra → `contract` → `providers` → `apps`); dentro do estágio 4,
-os providers cujo `test-race` tem `cache: false` — os que exigem a infra do
-job — correm em `--parallel=1`, e os demais em `--parallel=3`. O
-`dmpf-distributed.yml` roda o `distkit` em pipeline próprio (`KIT-11`), e os
-dois workflows derrubam os containers do job num step `if: always()`.
+do `test-race` de `postgres` e `app`, que usam o mesmo servidor. No CI, o `dmpf-go-ci.yml` roda o `test-race` dos projetos afetados
+depois de subir a infra do job: os providers cujo `test-race` tem
+`cache: false` — os que exigem a infra do job — correm um por vez
+(`--parallel=1`), e os demais em `--parallel=3`. O `dmpf-distributed.yml` roda
+o `distkit` em pipeline próprio (`KIT-11`), que o `ci.yml` chama só no PR de
+release para `master`, e os dois workflows derrubam os containers do job num
+step `if: always()`.
 
 ## Limitação conhecida
 
