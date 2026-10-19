@@ -27,14 +27,16 @@ import (
 )
 
 var (
-	ErrNoRuntime            = errors.New("serve: no runtime")
-	ErrAPIIncomplete        = errors.New("serve: the API needs Desc and Register")
-	ErrNoMethods            = errors.New("serve: Desc declares no method yet; declare the first one in the contract before serving the api role")
-	ErrStreamsNotServed     = errors.New("serve: Desc declares streams, which the unary chain of ServeAPI does not cover")
-	ErrUnknownCommand       = errors.New("serve: a command is not a method of Desc")
-	ErrServiceNotRegistered = errors.New("serve: Register did not register the service specified by Desc")
-	ErrUnexpectedService    = errors.New("serve: Register registered a service other than the one specified by Desc")
-	ErrRelayUnnamed         = errors.New("serve: the relay needs a component and a scope")
+	ErrNoRuntime             = errors.New("serve: no runtime")
+	ErrAPIIncomplete         = errors.New("serve: the API needs Desc and Register")
+	ErrNoMethods             = errors.New("serve: Desc declares no method yet; declare the first one in the contract before serving the api role")
+	ErrStreamsNotServed      = errors.New("serve: Desc declares streams, which the unary chain of ServeAPI does not cover")
+	ErrUnknownCommand        = errors.New("serve: a command is not a method of Desc")
+	ErrUnknownPlatformMethod = errors.New("serve: a platform method is not a method of Desc")
+	ErrPlatformUnverified    = errors.New("serve: a platform method needs a TLS server that verifies its callers and declares the workloads it trusts (IDN-03)")
+	ErrServiceNotRegistered  = errors.New("serve: Register did not register the service specified by Desc")
+	ErrUnexpectedService     = errors.New("serve: Register registered a service other than the one specified by Desc")
+	ErrRelayUnnamed          = errors.New("serve: the relay needs a component and a scope")
 )
 
 // Ping and Migrate run before the port listens, so without a deadline a stuck
@@ -62,6 +64,7 @@ type APIRole struct {
 type API struct {
 	Desc            *grpc.ServiceDesc
 	Commands        []string
+	Platform        []string
 	Schema          string
 	Grants          []postgres.Grant
 	Uniques         []postgres.UniqueSet
@@ -92,6 +95,23 @@ func (api API) validate() error {
 			return fmt.Errorf("%w: %s", ErrUnknownCommand, command)
 		}
 	}
+	for _, method := range api.Platform {
+		if !slices.Contains(methods, method) {
+			return fmt.Errorf("%w: %s", ErrUnknownPlatformMethod, method)
+		}
+	}
+	return nil
+}
+
+// The reach of a platform method is granted to whoever reaches the server, so
+// only a server whose TrustedPeers admits verified workloads may declare one.
+func (api API) validateTransport(server kernelgrpc.APIEnv) error {
+	if len(api.Platform) == 0 {
+		return nil
+	}
+	if server.GRPCInsecure || server.GRPCCertFile == "" || len(server.GRPCTrustedClients) == 0 {
+		return ErrPlatformUnverified
+	}
 	return nil
 }
 
@@ -115,6 +135,9 @@ func ServeAPI(ctx context.Context, rt *otelboot.Runtime, cfg APIRole, api API) e
 		return ErrNoRuntime
 	}
 	if err := api.validate(); err != nil {
+		return err
+	}
+	if err := api.validateTransport(cfg.Server); err != nil {
 		return err
 	}
 	return stopped(ctx, serveAPI(ctx, rt, cfg, api))
@@ -142,7 +165,7 @@ func serveAPI(ctx context.Context, rt *otelboot.Runtime, cfg APIRole, api API) e
 		TrustedClients: cfg.Server.GRPCTrustedClients,
 		Insecure:       cfg.Server.GRPCInsecure,
 		Services:       kernelgrpc.HealthServices(api.Desc.ServiceName),
-		Interceptors:   kernelgrpc.ServerInterceptors(api.Desc.ServiceName, ctrl, rt.Instruments(), rt.LoggerProvider(), kernelgrpc.WithCommands(api.Commands...)),
+		Interceptors:   kernelgrpc.ServerInterceptors(api.Desc.ServiceName, ctrl, rt.Instruments(), rt.LoggerProvider(), kernelgrpc.WithCommands(api.Commands...), kernelgrpc.WithPlatformMethods(api.Platform...)),
 		LoggerProvider: rt.LoggerProvider(),
 	})
 	if err != nil {
