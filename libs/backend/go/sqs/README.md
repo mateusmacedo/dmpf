@@ -155,8 +155,8 @@ pnpm nx run sqs:test-race
 O floci emula SQS **e** SNS no mesmo endpoint, o que torna o hop SNS → SQS
 testável nas duas linhas — com raw delivery (envelope preservado) e sem (a
 envoltória, recusada). O `test-race` roda com `cache: false` no Nx e
-`-count=1` no `go test`. No CI o floci sobe no job (`ci.yml`, step "Subir
-floci").
+`-count=1` no `go test`. No CI o floci sobe no job quando algum projeto afetado
+exige a infra (`dmpf-go-ci.yml`, step "Subir floci").
 
 ## Validação
 
