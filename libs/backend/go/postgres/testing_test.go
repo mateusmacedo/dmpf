@@ -55,11 +55,32 @@ CREATE TABLE IF NOT EXISTS unique_probes (
   CONSTRAINT unique_probes_tenant_id_ref_a_ref_b_key UNIQUE (tenant_id, ref_a, ref_b)
 );
 
-CREATE INDEX IF NOT EXISTS unique_probes_probe_id_idx ON unique_probes (probe_id);`
+CREATE INDEX IF NOT EXISTS unique_probes_probe_id_idx ON unique_probes (probe_id);
+
+CREATE TABLE IF NOT EXISTS guarded_heads (
+  tenant_id text   NOT NULL,
+  head_id   text   NOT NULL,
+  version   bigint NOT NULL,
+  stage     text   NOT NULL,
+  CONSTRAINT guarded_heads_pkey PRIMARY KEY (tenant_id, head_id)
+);
+
+CREATE TABLE IF NOT EXISTS guarded_series (
+  tenant_id     text   NOT NULL,
+  entry_id      text   NOT NULL,
+  version       bigint NOT NULL,
+  owner_id      text   NOT NULL,
+  status        text   NOT NULL,
+  supersedes_id text,
+  CONSTRAINT guarded_series_pkey PRIMARY KEY (tenant_id, entry_id),
+  CONSTRAINT guarded_series_tenant_id_supersedes_id_key UNIQUE (tenant_id, supersedes_id)
+);
+
+CREATE INDEX IF NOT EXISTS guarded_series_owner_id_idx ON guarded_series (owner_id);`
 
 var allCapabilities = []postgres.Capability{postgres.Outbox, postgres.Inbox}
 
-var probeTableGrants = []postgres.Grant{postgres.Mutable("probes"), postgres.Mutable("tagged_probes"), postgres.Mutable("unique_probes")}
+var probeTableGrants = []postgres.Grant{postgres.Mutable("probes"), postgres.Mutable("tagged_probes"), postgres.Mutable("unique_probes"), postgres.Mutable("guarded_heads"), postgres.Mutable("guarded_series")}
 
 func openPool(t testing.TB) *pgxpool.Pool {
 	t.Helper()
@@ -111,7 +132,7 @@ func truncate(t testing.TB, ctx context.Context, pool *pgxpool.Pool) {
 		pool = admin.(*pgxpool.Pool)
 	}
 
-	if _, err := pool.Exec(ctx, "TRUNCATE outbox, inbox, quarantine, probes, tagged_probes, unique_probes"); err != nil {
+	if _, err := pool.Exec(ctx, "TRUNCATE outbox, inbox, quarantine, probes, tagged_probes, unique_probes, guarded_heads, guarded_series"); err != nil {
 		t.Fatalf("TRUNCATE = %v, want nil", err)
 	}
 }
