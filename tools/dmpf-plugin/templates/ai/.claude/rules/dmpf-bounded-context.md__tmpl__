@@ -166,6 +166,13 @@ skill `.agents/skills/dmpf-bounded-context/`.
   é particionada, partição nem herdeira, nem mãe delas: o `23505` da partição
   cita a partição folha, e a partida e o gate reprovam. A unicidade de
   identidade (a PK) continua `Conflict`.
+- Leitura entre tenants e projeção (IDN-14, ADR-068): só os arquivos
+  `provider/platform_*.go` do provider usam `Table.PlatformReader` e
+  `Table.Projector`; o alcance (`ports.WithPlatformReach`) só o kernel monta,
+  na borda verificada (`http.WithVerifiedPlatformReach` e os métodos de
+  plataforma do `grpc`), nunca o código do contexto. Uso fora disso reprova no
+  `forbidigo` do `.golangci.yml` e, por padrão de chamada, no
+  `<%- contextCheckScript %>`.
 - Cada teste roda num banco `<projeto>_test_<id>`, que o `tb/pg` cria no
   servidor de `PG_DSN` (a infra de testes, `cluster_name=test`) e apaga ao
   fim; suítes de projetos distintos rodam em paralelo.

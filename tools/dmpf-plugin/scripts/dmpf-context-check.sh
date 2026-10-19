@@ -12,7 +12,8 @@
 # PG_MIGRATE_DSN), ou o par administrativo `postgres`; cada contexto declara o
 # próprio banco no deploy/infra.json e um grant para cada tabela do schema.sql;
 # cada CONSTRAINT ... UNIQUE do schema.sql tem postgres.Unique de mesmo nome no
-# provider, e o Table que a declara está em provider.Uniques (ADR-066).
+# provider, e o Table que a declara está em provider.Uniques (ADR-066); a leitura
+# entre tenants e a projeção só aparecem em provider/platform_*.go (ADR-068).
 #
 # O critério de descoberta é a presença de `domain/`: um contexto tem domínio,
 # uma borda como o `bff` não tem. Isso separa os dois sem lista fixa e passa a
@@ -591,6 +592,35 @@ PY
   return $?
 }
 
+# O forbidigo não vê o método chamado por interface local (IDN-14, ADR-068).
+verificar_plataforma() {
+  local base="$1" ctx="$2" arquivo linha trecho rel achou=0
+  while IFS=: read -r arquivo linha trecho; do
+    rel="${arquivo#"$base"/}"
+    case "$rel" in
+      appkit/* | distkit/* | testkit/*) continue ;;
+    esac
+    case "$trecho" in
+      WithVerifiedPlatformReach) printf '%s: %s:%s usa WithVerifiedPlatformReach, que só a borda REST chama (IDN-14, ADR-068)\n' "$ctx" "$rel" "$linha" ;;
+      *) printf '%s: %s:%s usa WithPlatformReach, que só o kernel de borda monta (IDN-14, ADR-068)\n' "$ctx" "$rel" "$linha" ;;
+    esac
+    achou=1
+  done < <(find "$base" -type f -name '*.go' ! -name '*_test.go' -print0 2>/dev/null |
+    sort -z | xargs -0 -r grep -HnoE 'With(Verified)?PlatformReach')
+  while IFS=: read -r arquivo linha trecho; do
+    rel="${arquivo#"$base"/}"
+    case "$rel" in
+      provider/platform_*/*) ;;
+      provider/platform_*.go | appkit/* | distkit/* | testkit/*) continue ;;
+    esac
+    printf '%s: %s:%s usa %s fora de provider/platform_*.go (IDN-14, ADR-068)\n' \
+      "$ctx" "$rel" "$linha" "$(grep -oE 'PlatformReader|Projector' <<<"$trecho" | head -n 1)"
+    achou=1
+  done < <(find "$base" -type f -name '*.go' ! -name '*_test.go' -print0 2>/dev/null |
+    sort -z | xargs -0 -r grep -HnoE '(^|[^A-Za-z0-9_])(PlatformReader|Projector)[[:space:]]*\(|\.(PlatformReader|Projector)([^[A-Za-z0-9_]|$)')
+  return "$achou"
+}
+
 # verificar_infra confere DSN, POSTGRES_DB, o laço ou bloco que cria banco e role
 # por app e onde a credencial da migradora aparece (ADR-063). Lê o YAML pela
 # indentação para não exigir PyYAML de quem roda o gate fora do platform.
@@ -927,6 +957,14 @@ fase_estrutural() {
     status=$?
     relatar "$ctx: toda UNIQUE do schema.sql declarada no provider e em provider.Uniques" "$saida" "$status"
   done
+
+  printf '\n== leitura de plataforma, projeção e alcance no código do contexto ==\n'
+  for ctx in "${ctxs[@]}"; do
+    saida="$(verificar_plataforma "$raiz/$ctx" "$ctx")"
+    status=$?
+    relatar "$ctx: leitura de plataforma e projeção só em provider/platform_*.go" "$saida" "$status"
+  done
+
   local -a kernel=()
   local ddl="$repo/$KERNEL_DDL"
   [[ "$KERNEL_DDL" == /* ]] && ddl="$KERNEL_DDL"
@@ -973,6 +1011,9 @@ fase_contexto() {
     status=$?
     relatar "$ctx: toda UNIQUE do schema.sql declarada no provider e em provider.Uniques" "$saida" "$status"
   fi
+  saida="$(verificar_plataforma "$base" "$ctx")"
+  status=$?
+  relatar "$ctx: leitura de plataforma e projeção só em provider/platform_*.go" "$saida" "$status"
   if [ "$FALHAS" -gt 0 ]; then
     printf '\nGate de estrutura: REPROVADO com %d achado(s) em %s.\n' "$FALHAS" "$ctx" >&2
     return 1
@@ -1204,6 +1245,23 @@ GO
     coluna-chamada-inherit)
       printf 'ALTER TABLE probes ADD COLUMN inherit text;\n' >> "$ctx/provider/schema.sql"
       ;;
+    plataforma-em-platform-e-teste)
+      local alvo
+      for alvo in platform_probe_reader.go probe_reader_test.go; do
+        printf 'package provider\n\nvar _ interface{ PlatformReader() }\nvar _ interface{ Projector() }\n' > "$ctx/provider/$alvo"
+      done
+      printf 'var _ = ports.WithPlatformReach\n' >> "$ctx/provider/probe_reader_test.go"
+      ;;
+    projetor-como-tipo-no-application)
+      printf 'package application\n\ntype Resources struct {\n\tProjection ports.Projector[ID, S]\n\tReader     ports.PlatformReader[ID, S]\n}\n' \
+        > "$ctx/application/probe_resources.go"
+      ;;
+    plataforma-nos-kits)
+      local kit
+      for kit in appkit distkit; do
+        printf 'package %s\n\nvar _ interface{ PlatformReader() }\nvar _ = ports.WithPlatformReach\n' "$kit" > "$ctx/$kit/probe_platform.go"
+      done
+      ;;
     url-em-string-go)
       sed -i 's|^var probeTable = |var (\n\tdocs = fmt.Sprintf("https://example.com/%s", "x")\n\tsep  = '"'/'"'\n\tprobeTable = |; s|^\(\tprobeTable = .*\)$|\1\n)|' \
         "$ctx/provider/probe_repository.go"
@@ -1226,6 +1284,20 @@ sabotar() {
   local repo="$1" tipo="$2" ctx="$1/$APPS/probe"
   case "$tipo" in
     sem-binario) trash "$ctx/cmd/main.go" ;;
+    leitor-por-interface-local) printf 'package provider\n\nvar _ interface{ PlatformReader() }\n' > "$ctx/provider/probe_reader.go" ;;
+    projetor-por-interface-local) printf 'package provider\n\nvar _ interface{ Projector() }\n' > "$ctx/provider/probe_projection.go" ;;
+    alcance-no-provider) printf 'package provider\n\nvar _ = ports.WithPlatformReach\n' > "$ctx/provider/probe_reach.go" ;;
+    alcance-em-platform) printf 'package provider\n\nvar _ = ports.WithPlatformReach\n' > "$ctx/provider/platform_probe_reach.go" ;;
+    alcance-verificado-em-rpc) printf 'package rpc\n\nvar _ = kernelhttp.WithVerifiedPlatformReach\n' > "$ctx/app/rpc/probe_reach.go" ;;
+    alcance-verificado-em-platform) printf 'package provider\n\nvar _ = kernelhttp.WithVerifiedPlatformReach\n' > "$ctx/provider/platform_probe_reach.go" ;;
+    leitor-por-interface-em-app) printf 'package app\n\nvar _ interface{ PlatformReader() }\n' > "$ctx/app/probe_reader.go" ;;
+    projetor-por-interface-em-rpc) printf 'package rpc\n\nvar _ interface{ Projector() }\n' > "$ctx/app/rpc/probe_projection.go" ;;
+    leitor-por-interface-em-cmd) printf 'package main\n\ntype leitor interface{ PlatformReader() }\n' > "$ctx/cmd/probe_reader.go" ;;
+    projetor-em-subpacote-do-provider)
+      mkdir -p "$ctx/provider/sub"
+      printf 'package sub\n\nvar _ interface{ Projector() }\n' > "$ctx/provider/sub/platform_probe.go"
+      ;;
+    projetor-por-valor-de-metodo) printf 'package application\n\nvar _ = probes.Projector\n' > "$ctx/application/probe_projection.go" ;;
     sem-appkit) trash "$ctx/appkit" ;;
     sem-distkit) trash "$ctx/distkit" ;;
     sem-rpc) trash "$ctx/app/rpc" ;;
@@ -1354,7 +1426,7 @@ fase_self_test() {
   local -a variantes=(com-migrador com-migrador-chave-valor dois-contextos var-com-func-literal name-por-const name-por-bloco-const
     unique-em-comentario-sql unique-em-literal-sql url-em-string-go unique-em-dollar-quote unique-em-comentario-aninhado
     unique-em-identificador-citado unique-em-e-string unique-em-identificador-com-cifrao dolar-solto-nao-ascii particionada-sem-unique
-    coluna-chamada-inherit)
+    coluna-chamada-inherit plataforma-em-platform-e-teste projetor-como-tipo-no-application plataforma-nos-kits)
   for variante in "${variantes[@]}"; do
     tmp="$(mktemp -d)" || return 2
     montar_fixture "$tmp"
@@ -1383,6 +1455,9 @@ fase_self_test() {
     unique-apos-dollar-quote unique-apos-dollar-tag unique-apos-e-string unique-apos-tag-nao-ascii unique-apos-identificador-nao-ascii
     migrador-na-ancora-x-env migrador-no-relay migrador-sob-ancora-do-api migrador-herdado-por-extends
     migrador-dsn-chave-valor pguser-do-migrador secret-do-migrador-no-relay migrador-fora-do-secret
+    leitor-por-interface-local projetor-por-interface-local alcance-no-provider alcance-em-platform alcance-verificado-em-rpc alcance-verificado-em-platform
+    leitor-por-interface-em-app projetor-por-interface-em-rpc leitor-por-interface-em-cmd
+    projetor-em-subpacote-do-provider projetor-por-valor-de-metodo
   )
   local -A motivos=(
     [bloco-pela-role-do-migrador]="cria banco e role para ['probe_migrator']"
@@ -1411,6 +1486,17 @@ fase_self_test() {
     [herda-por-alter-com-asterisco-entre-comentarios]='tabela probes declara UNIQUE e usa INHERIT,'
     [unique-em-particao]='tabela probes declara UNIQUE e usa PARTITION OF'
     [unique-name-nao-resolvivel]='o Name precisa ser literal ou const resolvível no provider'
+    [leitor-por-interface-local]='provider/probe_reader.go:3 usa PlatformReader fora de provider/platform_*.go'
+    [projetor-por-interface-local]='provider/probe_projection.go:3 usa Projector fora de provider/platform_*.go'
+    [alcance-no-provider]='provider/probe_reach.go:3 usa WithPlatformReach, que só o kernel de borda monta'
+    [alcance-em-platform]='provider/platform_probe_reach.go:3 usa WithPlatformReach, que só o kernel de borda monta'
+    [alcance-verificado-em-rpc]='app/rpc/probe_reach.go:3 usa WithVerifiedPlatformReach, que só a borda REST chama'
+    [alcance-verificado-em-platform]='provider/platform_probe_reach.go:3 usa WithVerifiedPlatformReach, que só a borda REST chama'
+    [leitor-por-interface-em-app]='app/probe_reader.go:3 usa PlatformReader fora de provider/platform_*.go'
+    [projetor-por-interface-em-rpc]='app/rpc/probe_projection.go:3 usa Projector fora de provider/platform_*.go'
+    [leitor-por-interface-em-cmd]='cmd/probe_reader.go:3 usa PlatformReader fora de provider/platform_*.go'
+    [projetor-em-subpacote-do-provider]='provider/sub/platform_probe.go:3 usa Projector fora de provider/platform_*.go'
+    [projetor-por-valor-de-metodo]='application/probe_projection.go:3 usa Projector fora de provider/platform_*.go'
   )
   local saida
   for sabotagem in "${sabotagens[@]}"; do

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Prova que o depguard (VETORES_*, quatro blocos e o provider de contexto) e o forbidigo (SIMBOLOS, só
-# `domain`) reprovam o que devem. Módulos vêm do `dmpf-units.json`, não de lista
+# `domain`; VETORES_PLATAFORMA, a regra de plataforma do IDN-14 nos contextos) reprovam o que devem. Módulos vêm do `dmpf-units.json`, não de lista
 # fixa: módulo novo entra no gate sozinho. Os fixtures .go são movidos para /tmp
 # em vez de apagados — o runner não tem utilitário de lixeira.
 set -uo pipefail
@@ -11,6 +11,7 @@ APPS="${DMPF_APPS_DIR:-apps/backend}"
 DESCARTE="$(mktemp -d)" || { echo "falha ao criar diretorio temporario" >&2; exit 1; }
 
 FIXTURE=""
+FIXTURES=()
 clausula_de_package() {
   local f
   for f in "$1"/*.go; do
@@ -21,12 +22,15 @@ clausula_de_package() {
 }
 
 retirar_fixture() {
-  local status=$?
-  if [ -n "$FIXTURE" ] && [ -e "$FIXTURE" ]; then
-    mv -f "$FIXTURE" "$DESCARTE/descartado-$(date +%s%N).go" \
-      || echo "AVISO: nao consegui retirar $FIXTURE do modulo" >&2
-  fi
+  local status=$? f
+  for f in "$FIXTURE" "${FIXTURES[@]}"; do
+    if [ -n "$f" ] && [ -e "$f" ]; then
+      mv -f "$f" "$DESCARTE/descartado-$(date +%s%N)-$(basename "$f")" \
+        || echo "AVISO: não consegui retirar $f do módulo" >&2
+    fi
+  done
   FIXTURE=""
+  FIXTURES=()
   return $status
 }
 trap retirar_fixture EXIT INT TERM
@@ -134,6 +138,36 @@ SIMBOLOS=(
   'fmt|var _ = fmt.Errorf("x")|erro nao tipado'
   '|func init() { panic("x") }|lancamento'
 )
+
+# bloco|import|corpo|rotulo|marca. Regra de plataforma do IDN-14 (ADR-068): o `forbidigo` resolve
+# o `pkg` pelo tipo, então o import vai com alias para provar que o alias não escapa. A marca é a
+# mensagem da regra no .golangci.yml; reprovar por outro motivo não prova a regra.
+KERNEL="github.com/mateusmacedo/dmpf/libs/backend/go"
+VETORES_PLATAFORMA=(
+  "provider|gatepostgres \"$KERNEL/postgres\"|var _ = gatepostgres.Table[string, struct{}]{}.PlatformReader|leitura de plataforma fora de platform_*.go|IDN-14 plataforma \\(tabela\\)"
+  "provider|gatepostgres \"$KERNEL/postgres\"|var _ = gatepostgres.Table[string, struct{}]{}.Projector|projeção fora de platform_*.go|IDN-14 plataforma \\(tabela\\)"
+  "provider|gatememory \"$KERNEL/memory\"|var _ = gatememory.Table[string, struct{}]{}.PlatformReader|leitura de plataforma em memória fora de platform_*.go|IDN-14 plataforma \\(tabela\\)"
+  "provider|gatememory \"$KERNEL/memory\"|var _ = gatememory.Table[string, struct{}]{}.Projector|projeção em memória fora de platform_*.go|IDN-14 plataforma \\(tabela\\)"
+  "application|gateports \"$KERNEL/ports\"|var _ = gateports.WithPlatformReach|alcance montado no application|IDN-14 plataforma \\(alcance\\)"
+  "app|gateports \"$KERNEL/ports\"|var _ = gateports.WithPlatformReach|alcance montado em app/|IDN-14 plataforma \\(alcance\\)"
+  "rpc|gateports \"$KERNEL/ports\"|var _ = gateports.WithPlatformReach|alcance montado em app/rpc|IDN-14 plataforma \\(alcance\\)"
+  "kit|gateports \"$KERNEL/ports\"|var _ = gateports.WithPlatformReach|alcance montado num testkit/ aninhado em app/|IDN-14 plataforma \\(alcance\\)"
+  "rpc|gatehttp \"$KERNEL/http\"|var _ = gatehttp.WithVerifiedPlatformReach|alcance verificado montado em app/rpc|IDN-14 plataforma \\(alcance REST\\)"
+  "provider|gatehttp \"$KERNEL/http\"|var _ = gatehttp.WithVerifiedPlatformReach|alcance verificado montado no provider|IDN-14 plataforma \\(alcance REST\\)"
+)
+
+dir_do_bloco() {
+  local manifesto="$1" module_dir="$2" module_path="$3" bloco="$4" sufixo="$5" inc rel
+  while IFS= read -r inc; do
+    case "$inc" in *"$sufixo") ;; *) continue ;; esac
+    rel="${inc#"$module_path"}"
+    rel="${rel#/}"
+    [ -n "$rel" ] && { echo "$module_dir/$rel"; return; }
+  done < <(node -e '
+    const m = require(process.argv[1]);
+    for (const u of m.units ?? []) if (u.block === process.argv[2]) for (const i of u.include ?? []) console.log(i);
+  ' "$ROOT/$manifesto" "$bloco" 2>/dev/null)
+}
 
 falhas=0
 modulos=0
@@ -379,6 +413,7 @@ done < <(git ls-files '*dmpf-units.json')
 # O laço acima pula os módulos de contexto (o caminho do módulo não é de bloco),
 # então o provider de cada app é exercitado aqui, pelo include do manifesto.
 providers_de_contexto=0
+contextos_plataforma=0
 while IFS= read -r manifesto; do
   module_dir="$(dirname "$manifesto")"
   case "$module_dir/" in
@@ -440,10 +475,101 @@ while IFS= read -r manifesto; do
     const m = require(process.argv[1]);
     for (const u of m.units ?? []) if (u.block === "provider") for (const i of u.include ?? []) console.log(i);
   ' "$ROOT/$manifesto" 2>/dev/null)
+
+  provider_dir="$(dir_do_bloco "$manifesto" "$module_dir" "$module_path" provider /provider)"
+  application_dir="$(dir_do_bloco "$manifesto" "$module_dir" "$module_path" application /application)"
+  app_dir="$(dir_do_bloco "$manifesto" "$module_dir" "$module_path" app /app)"
+  rpc_dir="$(dir_do_bloco "$manifesto" "$module_dir" "$module_path" app /app/rpc)"
+  [ -n "$provider_dir" ] || continue
+  # A cláusula sai antes de criar fixture: um fixture vazio pode ser o primeiro .go do diretório.
+  provider_clause="$(clausula_de_package "$provider_dir")"
+  application_clause="$(clausula_de_package "$application_dir")"
+  app_clause="$(clausula_de_package "$app_dir")"
+  rpc_clause="$(clausula_de_package "$rpc_dir")"
+  if [ -z "$project" ] || [ -z "$provider_clause" ] || [ -z "$application_clause" ] || [ -z "$app_clause" ] || [ -z "$rpc_clause" ]; then
+    echo "FALHA  $module_dir: sem projeto Nx, application, app ou app/rpc para provar a regra de plataforma"
+    falhas=$((falhas + 1))
+    continue
+  fi
+  contextos_plataforma=$((contextos_plataforma + 1))
+  echo "== $project [plataforma IDN-14]"
+
+  for vetor in "${VETORES_PLATAFORMA[@]}"; do
+    IFS='|' read -r bloco imp corpo rotulo marca <<<"$vetor"
+    case "$bloco" in
+      provider) alvo="$provider_dir" clausula="$provider_clause" ;;
+      app) alvo="$app_dir" clausula="$app_clause" ;;
+      rpc) alvo="$rpc_dir" clausula="$rpc_clause" ;;
+      kit) alvo="$app_dir" clausula="package testkit" ;;
+      *) alvo="$application_dir" clausula="$application_clause" ;;
+    esac
+    if [ "$bloco" = kit ]; then
+      FIXTURE="$(mktemp -d "$alvo/zz_gate_XXXXXX")" && mkdir "$FIXTURE/testkit" && arquivo="$FIXTURE/testkit/zz_gate.go"
+    else
+      FIXTURE="$(mktemp "$alvo/zz_gate_XXXXXX.go")" && arquivo="$FIXTURE"
+    fi || {
+      echo "FALHA  $project: não consegui criar o fixture em $alvo"
+      falhas=$((falhas + 1))
+      break
+    }
+    printf '%s\n\nimport %s\n\n%s\n' "$clausula" "$imp" "$corpo" > "$arquivo"
+
+    saida="$(pnpm nx run "$project":lint --skip-nx-cache 2>&1)"
+    status=$?
+    retirar_fixture
+
+    if [ "$status" -eq 0 ]; then
+      echo "  FALHA  $rotulo: o lint passou, mas deveria reprovar"
+      falhas=$((falhas + 1))
+    elif ! grep -q "(forbidigo)" <<<"$saida" || ! grep -qE "$marca" <<<"$saida"; then
+      echo "  FALHA  $rotulo: reprovou por outro motivo que não a regra de plataforma"
+      falhas=$((falhas + 1))
+    else
+      echo "  ok     $rotulo"
+    fi
+  done
+
+  positivos=(
+    "$provider_dir/platform_gate_XXXXXX.go|$provider_clause|uso permitido em platform_*.go|import gatepostgres \"$KERNEL/postgres\"|var _ = gatepostgres.Table[string, struct{}]{}.PlatformReader
+var _ = gatepostgres.Table[string, struct{}]{}.Projector"
+    "$provider_dir/zz_gate_XXXXXX.go|$provider_clause|símbolo de domain fora de domain|import \"time\"|var _ = time.Now()"
+    "$app_dir/zz_gate_XXXXXX_test.go|$app_clause|alcance montado em _test.go|import gateports \"$KERNEL/ports\"|var _ = gateports.WithPlatformReach"
+  )
+  rotulos=()
+  for positivo in "${positivos[@]}"; do
+    IFS='|' read -r -d '' molde clausula rotulo imp corpo <<<"$positivo"
+    corpo="${corpo%$'\n'}"
+    f="$(mktemp "$molde")" || { echo "FALHA  $project: não consegui criar o fixture $molde"; falhas=$((falhas + 1)); continue; }
+    FIXTURES+=("$f")
+    rotulos+=("$rotulo")
+    printf '%s\n\n%s\n\n%s\n' "$clausula" "$imp" "$corpo" > "$f"
+  done
+  if [ "${#FIXTURES[@]}" -eq "${#positivos[@]}" ]; then
+    saida="$(pnpm nx run "$project":lint --skip-nx-cache 2>&1)"
+    status=$?
+    for i in "${!FIXTURES[@]}"; do
+      if [ "$status" -ne 0 ] && grep -qF "$(basename "${FIXTURES[$i]}")" <<<"$saida"; then
+        echo "  FALHA  ${rotulos[$i]}: reprovou, mas deveria passar"
+        falhas=$((falhas + 1))
+      else
+        echo "  ok     ${rotulos[$i]}"
+      fi
+    done
+    if [ "$status" -ne 0 ] && ! grep -qF "zz_gate_" <<<"$saida" && ! grep -qF "platform_gate_" <<<"$saida"; then
+      echo "  FALHA  positivos de plataforma: o lint reprovou sem nomear um fixture"
+      falhas=$((falhas + 1))
+    fi
+  fi
+  retirar_fixture
 done < <(git ls-files '*dmpf-units.json')
 
 if [ "$providers_de_contexto" -eq 0 ]; then
   echo "FALHA: nenhum provider de contexto encontrado; a regra context-provider nao foi exercitada." >&2
+  exit 1
+fi
+
+if [ "$contextos_plataforma" -eq 0 ]; then
+  echo "FALHA: nenhum contexto com provider, application e app encontrado; a regra de plataforma (IDN-14) não foi exercitada." >&2
   exit 1
 fi
 
@@ -460,7 +586,7 @@ fi
 
 echo
 echo "Gate de dependencia: $modulos modulo(s) — domain: $modulos_domain, port: $modulos_port, application: $modulos_application, contract: $modulos_contract."
-echo "Vetores de package por bloco: domain ${#VETORES_DOMAIN[@]}, port ${#VETORES_PORT[@]}, application ${#VETORES_APPLICATION[@]}, contract ${#VETORES_CONTRACT[@]}; ${#SIMBOLOS[@]} de simbolo em domain; 1 positivo por modulo; provider de contexto ${#VETORES_CONTEXT_PROVIDER[@]} em $providers_de_contexto package(s). Todos conformes."
+echo "Vetores de package por bloco: domain ${#VETORES_DOMAIN[@]}, port ${#VETORES_PORT[@]}, application ${#VETORES_APPLICATION[@]}, contract ${#VETORES_CONTRACT[@]}; ${#SIMBOLOS[@]} de símbolo em domain; 1 positivo por módulo; provider de contexto ${#VETORES_CONTEXT_PROVIDER[@]} em $providers_de_contexto package(s); plataforma (IDN-14) ${#VETORES_PLATAFORMA[@]} negativo(s) e 3 positivo(s) em $contextos_plataforma contexto(s). Todos conformes."
 if [ "$fora_de_alcance" -gt 0 ]; then
   # Declarado, nunca silencioso: um gate que esconde o proprio alcance passa a
   # informar cobertura que nao tem.

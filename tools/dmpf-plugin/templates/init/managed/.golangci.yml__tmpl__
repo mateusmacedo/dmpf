@@ -6,11 +6,26 @@ linters:
     - depguard
     - forbidigo
 
-  # A regra `forbidigo` abaixo vale SÓ para o bloco `domain` (`-domain/` no kernel,
+  # Os símbolos de domain do `forbidigo` valem SÓ para o bloco `domain` (`-domain/` no kernel,
   # `/domain/` nos contextos em pasta própria — ADR-030), como a regra `depguard`: fora dele, `cmd/` e providers escrevem e leem à vontade.
+  # O `text` casa a mensagem deles; sem ele, a exclusão calaria também os achados de plataforma (IDN-14) fora de domain.
   exclusions:
     rules:
       - path-except: '(-domain|/domain)/'
+        text: 'forbidden because "[^"]*\((RFC [0-9.]+|ADR-018|DEC-04)\)"'
+        linters:
+          - forbidigo
+      - path: '(^|/)libs/backend/go/(postgres|memory)/|(^|/)libs/backend/go/testkit/|(^|/)apps/[^/]+/[^/]+/(appkit|distkit)/|(^|/)apps/.+/provider/platform_[^/]*\.go$|_test\.go$'
+        text: 'IDN-14 plataforma \(tabela\)'
+        linters:
+          - forbidigo
+      - path: '(^|/)libs/backend/go/(http|grpc)/|(^|/)libs/backend/go/testkit/|(^|/)apps/[^/]+/[^/]+/(appkit|distkit)/|_test\.go$'
+        text: 'IDN-14 plataforma \(alcance\)'
+        linters:
+          - forbidigo
+      # O alcance verificado da rota HTTP só a borda REST o chama: contexto é só gRPC (ADR-044), sem `app/api`.
+      - path: '(^|/)libs/backend/go/(http|grpc)/|(^|/)apps/.+/app/api/|(^|/)libs/backend/go/testkit/|(^|/)apps/[^/]+/[^/]+/(appkit|distkit)/|_test\.go$'
+        text: 'IDN-14 plataforma \(alcance REST\)'
         linters:
           - forbidigo
       # Código emitido pelo protoc-gen-go. As dependências que ele traz
@@ -43,6 +58,17 @@ linters:
           msg: 'o dominio nao fabrica erro nao tipado; so Rejection trafega (ADR-018)'
         - pattern: '^panic$'
           msg: 'rejeicao e valor devolvido, nunca lancamento (DEC-04)'
+        # IDN-14 (ADR-068), em todo package fora das exceções acima. O `pkg` vem do tipo, então alias
+        # de import não escapa e método homônimo de outro package não reprova.
+        - pattern: '^.*\.(PlatformReader|Projector)$'
+          pkg: '^github\.com/mateusmacedo/dmpf/libs/backend/go/(postgres|memory)$'
+          msg: 'IDN-14 plataforma (tabela): leitura de plataforma e projecao so em provider/platform_*.go (ADR-068)'
+        - pattern: '^.*\.WithPlatformReach$'
+          pkg: '^github\.com/mateusmacedo/dmpf/libs/backend/go/ports$'
+          msg: 'IDN-14 plataforma (alcance): o alcance de plataforma so se monta na borda verificada (http, grpc) (ADR-068)'
+        - pattern: '^.*\.WithVerifiedPlatformReach$'
+          pkg: '^github\.com/mateusmacedo/dmpf/libs/backend/go/http$'
+          msg: 'IDN-14 plataforma (alcance REST): o alcance verificado da rota so se monta na borda REST (app/api) (ADR-068)'
 
     depguard:
       rules:
