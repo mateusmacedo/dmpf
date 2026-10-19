@@ -2,7 +2,7 @@
 
 ## Status
 
-Aceito — 2026-09-05. Implementa SPEC-NYD18TGD.
+Aceito — 2026-09-05. Implementa SPEC-NYD18TGD. **Emendado pelo [ADR-069](./069-esteira-de-ci-por-etapa-do-git-flow.md) (2026-10-19)**: o `govulncheck` deixa de ser obrigatório em todo PR. Ele roda no PR de release para `master` e no agendamento semanal da `develop`; o piso de Go que ele justifica não muda.
 
 ## Contexto
 

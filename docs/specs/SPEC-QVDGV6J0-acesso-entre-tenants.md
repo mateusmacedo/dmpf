@@ -280,7 +280,7 @@ e que o IDN-11 pedia emenda, feita in-place, junto com a do IDN-12, porque o
 - [ ] Cada chamada de plataforma e cada gravação de projeção produz o número esperado de `audit.Event` (um por tenant alcançado) com `DataTenant` preenchido, inclusive nas recusas. Com um `Sink` que recusa o registro, a leitura e a projeção autorizadas falham fechadas com `ErrAuditUnavailable`, sem devolver linha nem gravar, e o log recebe o evento como canal adicional.
 - [ ] O gate de plataforma reprova, por `dmpf-gate-check.sh`, um provider fora de `provider/platform_*.go` que use a leitura de plataforma ou a projeção, e um package fora do kernel de borda (`http`, `grpc`) que construa `ports.WithPlatformReach`, e um package fora da borda REST (`apps/**/app/api/`), como o `app/rpc` ou o provider do contexto, que chame `http.WithVerifiedPlatformReach`.
 - [ ] As duas investigações têm resultado registrado no ADR novo, e o requisito condicional do envelope está aplicado ou declarado não aplicável.
-- [ ] `go run ./tools/dmpf-conformance/cmd/conformance --root .` e `modsync --check` passam, o job `external-consumer` (`.github/workflows/ci.yml:97`) passa, e `node tools/adr-verify.mjs --from 63` passa com o ADR-067 da DEVS-132 presente.
+- [ ] `go run ./tools/dmpf-conformance/cmd/conformance --root .` e `modsync --check` passam, a prova do consumidor externo (`tools/external-consumer.sh --verdaccio`, job `Consumidor externo por versão` do `ci.yml`) passa no PR de release para `master`, onde ela roda, e `node tools/adr-verify.mjs --from 63` passa com o ADR-067 da DEVS-132 presente.
 - [ ] `pnpm nx affected -t lint,typecheck,test,build --exclude=@mateusmacedo/dmpf-source` passa.
 
 ### Cenários de teste

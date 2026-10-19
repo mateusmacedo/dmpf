@@ -58,7 +58,9 @@ push develop / workflow_dispatch
 | Agendado (`govulncheck.yml`) | `govulncheck` em todos os projetos Go da `develop`, toda segunda-feira |
 
 O ruleset exige só o job `CI`, que agrega os demais: pulado conta como aprovado,
-falha ou cancelamento reprova. O Nx Cloud (`nxCloudId` no `nx.json`) guarda o cache
+falha ou cancelamento reprova. A `master` não tem ruleset de checks: por decisão do
+mantenedor, ela só recebe código já validado pelo PR de release, que leva o pacote
+completo. O Nx Cloud (`nxCloudId` no `nx.json`) guarda o cache
 entre execuções; o token de CI vem do secret `NX_CLOUD_ACCESS_TOKEN`, e sem ele vale
 o acesso que o workspace concede ao `nxCloudId`.
 
@@ -124,4 +126,5 @@ ConfigMap e de secrets externos definidos no repositório de infraestrutura — 
 Decisões relacionadas: [ADR-004](../adr/004-workflows-verdaccio-release.md) (split
 version/publish, parcialmente supersedido) e [ADR-043](../adr/043-migracao-para-github-licenca-e-autoria.md)
 (a plataforma é GitHub, com registry, runner e reusables próprios — supersede
-[ADR-005](../adr/005-plataforma-gitea.md)).
+[ADR-005](../adr/005-plataforma-gitea.md)). A esteira por etapa está no
+[ADR-069](../adr/069-esteira-de-ci-por-etapa-do-git-flow.md).
