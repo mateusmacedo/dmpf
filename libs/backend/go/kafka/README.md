@@ -199,8 +199,8 @@ infra de testes sobe um segundo broker na 19093, com SASL SCRAM, e o
 `.env.example` da raiz aponta `KAFKA_SASL_BROKERS` e as credenciais para ele.
 
 O `test-race` roda com `cache: false` no Nx e `-count=1` no `go test`: nenhum
-dos dois caches enxerga o estado do broker. No CI o Redpanda sobe no job
-(`ci.yml`, step "Subir Redpanda").
+dos dois caches enxerga o estado do broker. No CI o Redpanda sobe no job quando
+algum projeto afetado exige a infra (`dmpf-go-ci.yml`, step "Subir Redpanda").
 
 ## Validação
 
