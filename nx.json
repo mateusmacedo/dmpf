@@ -3,7 +3,10 @@
   "defaultBase": "master",
   "analytics": false,
   "namedInputs": {
-    "default": ["{projectRoot}/**/*", "sharedGlobals"],
+    "default": [
+      "{projectRoot}/**/*",
+      "sharedGlobals"
+    ],
     "production": [
       "default",
       "!{projectRoot}/**/?(*.)+(spec|test).[jt]s?(x)?(.snap)",
@@ -65,11 +68,18 @@
         "buildTarget": {
           "name": "docker:build",
           "cwd": ".",
-          "args": ["-f {projectRoot}/Dockerfile"]
+          "args": [
+            "-f {projectRoot}/Dockerfile"
+          ]
         },
         "runTarget": {
           "name": "docker:run",
-          "args": ["--rm", "--name {projectName}", "--network host", "--env-file deploy/.env"]
+          "args": [
+            "--rm",
+            "--name {projectName}",
+            "--network host",
+            "--env-file deploy/.env"
+          ]
         }
       }
     },
@@ -79,37 +89,51 @@
     "projectsRelationship": "independent",
     "groups": {
       "go-libs": {
-        "projects": ["directory:libs/backend/go/*", "!tag:type:app"],
+        "projects": [
+          "directory:libs/backend/go/*",
+          "!tag:type:app"
+        ],
         "releaseTag": {
           "pattern": "libs/backend/go/{projectName}/v{version}"
         }
       },
       "go-contract-orders": {
-        "projects": ["orders-contract"],
+        "projects": [
+          "orders-contract"
+        ],
         "releaseTag": {
           "pattern": "apps/backend/orders/contract/v{version}"
         }
       },
       "go-contract-reservations": {
-        "projects": ["reservations-contract"],
+        "projects": [
+          "reservations-contract"
+        ],
         "releaseTag": {
           "pattern": "apps/backend/reservations/contract/v{version}"
         }
       },
       "go-contract-bookings": {
-        "projects": ["bookings-contract"],
+        "projects": [
+          "bookings-contract"
+        ],
         "releaseTag": {
           "pattern": "apps/backend/bookings/contract/v{version}"
         }
       },
       "go-tools": {
-        "projects": ["conformance"],
+        "projects": [
+          "conformance"
+        ],
         "releaseTag": {
           "pattern": "tools/dmpf-conformance/v{version}"
         }
       },
       "npm": {
-        "projects": ["tag:type:lib", "!tag:stack:go"],
+        "projects": [
+          "tag:type:lib",
+          "!tag:stack:go"
+        ],
         "releaseTag": {
           "pattern": "{projectName}@{version}"
         }
@@ -154,18 +178,26 @@
         "deploy-env",
         "docker:build",
         {
-          "projects": ["bff"],
+          "projects": [
+            "bff"
+          ],
           "target": "infra-up"
         }
       ]
     },
     "@nx-go/nx-go:generate": {
       "options": {
-        "args": ["./..."]
+        "args": [
+          "./..."
+        ]
       }
     },
     "@nx-go/nx-go:lint": {
-      "inputs": ["go", "^go", "{workspaceRoot}/.golangci.yml"],
+      "inputs": [
+        "go",
+        "^go",
+        "{workspaceRoot}/.golangci.yml"
+      ],
       "options": {
         "linter": "go",
         "args": [
@@ -177,19 +209,28 @@
       }
     },
     "@nx-go/nx-go:test": {
-      "dependsOn": ["^build"],
+      "dependsOn": [
+        "^build"
+      ],
       "cache": true,
-      "inputs": ["go", "^go"],
+      "inputs": [
+        "go",
+        "^go"
+      ],
       "options": {
         "cover": true
       }
     },
     "build": {
-      "dependsOn": ["^build"],
+      "dependsOn": [
+        "^build"
+      ],
       "cache": true
     },
     "test": {
-      "dependsOn": ["^build"],
+      "dependsOn": [
+        "^build"
+      ],
       "cache": true
     },
     "lint": {
@@ -198,15 +239,21 @@
         "command": "biome lint {projectRoot}"
       },
       "cache": true,
-      "inputs": ["default", "{workspaceRoot}/biome.json"]
+      "inputs": [
+        "default",
+        "{workspaceRoot}/biome.json"
+      ]
     },
     "typecheck": {
-      "dependsOn": ["^typecheck"],
+      "dependsOn": [
+        "^typecheck"
+      ],
       "cache": true
     },
     "e2e": {
       "cache": true
     }
   },
-  "neverConnectToCloud": true
+  "neverConnectToCloud": true,
+  "nxCloudId": "6ad6526188831e0f4892e70b"
 }
