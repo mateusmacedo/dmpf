@@ -350,18 +350,30 @@ func (t Table[ID, S]) load(ctx context.Context, q querier, stmts statements, id 
 		return zero, 0, err
 	}
 
-	var version int64
+	state, version, found, err := t.loadAs(ctx, q, stmts, tenant, id)
+	if err == nil && !found {
+		return zero, 0, t.miss(ctx, q, stmts.owner, tenant, id)
+	}
+	return state, version, err
+}
+
+// The owner probe is left to the caller that speaks for the carrier's tenant.
+func (t Table[ID, S]) loadAs(ctx context.Context, q querier, stmts statements, tenant ports.TenantID, id ID) (S, ports.Version, bool, error) {
+	var (
+		zero    S
+		version int64
+	)
 	row := q.QueryRow(ctx, stmts.selectOne, string(tenant), string(id))
 	state, err := t.Decode(func(dest ...any) error {
 		return row.Scan(append([]any{&version}, dest...)...)
 	})
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
-		return zero, 0, t.miss(ctx, q, stmts.owner, tenant, id)
+		return zero, 0, false, nil
 	case err != nil:
-		return zero, 0, fmt.Errorf("postgres: load %s %s: %w", t.Name, id, err)
+		return zero, 0, false, fmt.Errorf("postgres: load %s %s: %w", t.Name, id, err)
 	}
-	return t.identify(state, id), ports.Version(version), nil
+	return t.identify(state, id), ports.Version(version), true, nil
 }
 
 // miss runs on every miss, owner or not, so the latency does not tell the two
@@ -415,7 +427,10 @@ func (r tableRepository[ID, S]) Save(ctx context.Context, id ID, state S, expect
 	if err != nil {
 		return err
 	}
+	return r.saveAs(ctx, tenant, id, state, expected)
+}
 
+func (r tableRepository[ID, S]) saveAs(ctx context.Context, tenant ports.TenantID, id ID, state S, expected ports.Version) error {
 	values, err := r.table.Encode(state)
 	if err != nil {
 		return fmt.Errorf("postgres: encode %s %s: %w", r.table.Name, id, err)

@@ -140,6 +140,11 @@ instâncias de `Table[ID,S]` no bloco `provider` de cada contexto —
   `ErrUniqueDivergent`. Antes do catálogo, valida os conjuntos com as regras do
   `validate` e devolve erro em vez de pânico. Sem nada declarado, não faz round
   trip. `CREATE UNIQUE INDEX` não tem linha em `pg_constraint` e não serve.
+- **`platform.go`** — `Table.PlatformReader(ReadPool, ports.AuditTrail,
+  ...PlatformOption)` e `Table.Projector(*Tx, ports.ProjectionPolicy,
+  ports.AuditTrail)`, os dois acessos entre tenants declarados (ADR-068),
+  descritos em [Acesso entre tenants declarado](#acesso-entre-tenants-declarado);
+  `WithPageMax(n)` troca o teto da página.
 - **`snapshot_table.go`** — `SnapshotTable[ID, S, J](name, idColumn, to, from,
   withID)` monta a `Table[ID,S]` do agregado cujo estado inteiro vive na coluna
   `snapshot` (ADR-053): `J` é o struct de estado privado do provider, cujas tags
@@ -347,6 +352,81 @@ segue a mesma regra para a consulta por relação. Ausência de tenant no
 contexto de execução recusa com `ErrTenantUnresolved`, nunca alarga a consulta
 (`IDN-15`).
 
+## Acesso entre tenants declarado
+
+O `Table` tem dois caminhos que não escopam ao tenant do contexto, e só esses
+dois (ADR-068, que guarda a decisão e as alternativas). Os dois recebem na
+construção a trilha como `ports.AuditTrail`, que a composition root obtém do
+`audit.Recorder` por `Recorder.Trail()`, e entram em pânico sem ela: montar
+acesso entre tenants sem trilha é erro da composition root.
+
+**`Table.PlatformReader(pool, trail, opts...)`** realiza
+`ports.PlatformReader` sobre o `ReadPool` da role de runtime, sem predicado de
+tenant, só com `SELECT` compilado e declarado pelo kernel. Os statements de
+plataforma são compilados à parte (`compilePlatform`), então a tabela que
+nunca lê entre tenants não declara statement sem tenant. A ordem das recusas é
+fixa:
+
+1. Sem `ports.ReachAllTenants` no carrier, emite o evento `denied` e devolve
+   `ports.ErrPlatformReachUndeclared`.
+2. Sem contexto de execução, devolve `ports.ErrContextAbsent`, sem evento.
+3. No `List`, `limit` zero, negativo ou acima do teto devolve
+   `ports.ErrPlatformLimitInvalid`. O teto é `ports.PlatformPageMax` (500), e
+   `WithPageMax(n)` o troca por outro valor positivo; zero ou negativo entra em
+   pânico.
+
+O `LoadIn(ctx, tenant, id)` emite o evento `accepted` do tenant pedido antes de
+ler, e a linha ausente é `ports.ErrNotFound`, sem sonda de dono; tenant vazio é
+`ports.ErrNotFound` sem evento. O `List` pagina por
+keyset `(tenant_id, id)`, em `ORDER BY tenant_id, <id>`, com `after == nil` na
+primeira página e `WHERE (tenant_id, <id>) > ($1, $2)` nas seguintes, e emite
+um evento `accepted` por tenant da página antes de devolvê-la; página vazia não
+alcança tenant e não emite. Os eventos levam a ação
+`ports.AuditPlatformRead`.
+
+**`Table.Projector(tx, policy, trail)`** realiza `ports.Projector` sobre o
+`*Tx`, e não sobre a pool, para que a projeção commite com a inbox e a outbox
+sob o mesmo `Within` (`UOW-01`). `Load` e `Save` passam pela mesma autorização
+e emitem a mesma ação, `ports.AuditProjectionWrite`:
+
+1. Sem contexto de execução, `ports.ErrContextAbsent`, sem evento.
+2. Destino vazio: evento `denied` e `ports.ErrProjectionDestinationAbsent`.
+3. Destino igual ao tenant do contexto: evento `denied` e
+   `ports.ErrProjectionDenied`, sem consultar a política, porque a projeção não
+   é um segundo caminho de escrita no próprio tenant.
+4. Política nula ou que nega: evento `denied` e `ports.ErrProjectionDenied`,
+   embrulhando a causa da política quando há uma (default fechado, `IDN-17`).
+   A política recebe a origem do contexto, `nil` quando ele não tem tenant
+   (`IDN-20`).
+5. Autorizado: evento `accepted` do destino antes de ler ou gravar.
+
+O `Save` tem a semântica de `version` do `Repository` e grava `tenant_id` com o
+destino. O `Load` lê no destino **sem** a sonda de dono do `miss`: a linha
+ausente é `ports.ErrNotFound` sem `CrossTenantAccess`, porque a sonda
+registraria um `IDN-12` falso e revelaria a existência em outro tenant.
+
+**Trilha que falha fechada.** O `audit.Recorder` só deixa o acesso prosseguir depois
+de o `Sink` confirmar o registro; a recusa do `Sink` vira
+`ports.ErrAuditUnavailable`, sem devolver linha nem gravar. Na recusa
+(`denied`), a falha do `Sink` não muda o desfecho, que já é recusa. O evento
+leva `Object` da tabela, `DataTenant` do tenant alcançado (vazio quando a
+recusa é anterior a ele), `Tenant` do contexto e `Subject` do portador.
+**Custo aceito:** a falha fechada vale o que vale o `Sink` configurado pelo
+consumidor. O `audit.NewLogSink` sempre confirma e não serve como trilha
+durável; sem `Sink` durável, a falha fechada só é exercida no kit e nos testes
+com `Sink` que recusa (ADR-068, Consequências).
+
+**Gate (`IDN-14`).** O `forbidigo` do `.golangci.yml`, com `analyze-types`,
+reprova `Table.PlatformReader` e `Table.Projector` de `postgres` e de `memory`
+fora de `apps/**/provider/platform_*.go`, ao lado da regra `context-provider`
+do `depguard`; o kernel, os kits de teste e os `_test.go` ficam isentos. Como o
+`forbidigo` não vê a chamada por uma interface local que o `Table` satisfaz, o
+`tools/dmpf-plugin/scripts/dmpf-context-check.sh` reprova, por nome,
+`PlatformReader`, `Projector` e `WithPlatformReach` em `apps/*/provider/*.go`
+fora de `platform_*.go` e dos `_test.go`; um identificador local homônimo
+também reprova e precisa ser renomeado. O
+`dmpf-gate-check.sh` prova as reprovações e as passagens.
+
 ## O que o módulo não contém
 
 Claim, lease, `SKIP LOCKED`, transição de `status` e publicação são do `KRN-08`;
@@ -415,6 +495,8 @@ mira `apps/**/provider/**`, não `postgres` em si.
   que `outbox`, `inbox` e `quarantine` ficam fora do escopo.
 - `docs/adr/051-escopo-de-tenant-por-choke-point-em-go.md` — `Table`, `ReadPool`
   e o gate `context-provider`.
+- `docs/adr/068-acesso-entre-tenants-declarado.md` — `PlatformReader`,
+  `Projector`, a trilha que falha fechada e a regra de plataforma do gate.
 - `docs/dmpf/uow-inbox-outbox.md` (FND-04) — §2.3, §3.1 a §3.3, §4.1, §4.2.
 - `docs/specs/SPEC-1TFW24WV-observabilidade-ponta-a-ponta.md` — os `RF-*`
   citados aqui: os spans `db.*`, as métricas do pool e o `process configured`.
