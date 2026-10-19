@@ -79,7 +79,52 @@ instâncias de `Table[ID,S]` no bloco `provider` de cada contexto —
   configurado pelo consumidor, invalida os statements preparados por nome sem
   o pgx saber, como invalidaria os do próprio pgx. Tabela sem `Unique` não
   ganha statement nem round trip. `Uniques()` devolve a declaração como
-  `UniqueSet`, sem parâmetros de tipo.
+  `UniqueSet`, sem parâmetros de tipo. `Guard` e `QueryWithin` ficam neste
+  arquivo e estão descritos no item `guard.go`, abaixo.
+- **`guard.go`** — a guarda de pré-condição relacional (ADR-067). `Guard`
+  nomeia uma coluna de `Columns`; o `validate` entra em pânico com coluna fora
+  delas ou que não é identificador. `Relation(Guard).QueryWithin(ctx, tx,
+  valor)` lê como `Query`, mas na `*Tx` do comando: antes do `SELECT`, toma
+  `pg_advisory_xact_lock_shared` sobre `hashtextextended(concat_ws(chr(31),
+  tabela, coluna, length(tenant), tenant, valor), 0)` (o comprimento impede que
+  um tenant com `chr(31)` chegue à chave de outro), em instrução própria do mesmo
+  `pgx.Batch`, porque o snapshot em `READ COMMITTED` é da instrução e a leitura
+  precisa enxergar o que commitou durante a espera. `QueryWithin` sobre outra
+  coluna entra em pânico. Todo `Save` de tabela com `Guard` toma
+  `pg_advisory_xact_lock` da mesma chave, com o valor codificado da coluna, no
+  batch da escrita; com `Unique`, antes do `SAVEPOINT dmpf_unique`, porque o
+  `ROLLBACK TO SAVEPOINT` libera o lock tomado depois dele. Assim, nenhuma
+  escrita da série, `UPDATE` ou `INSERT` de supersessão, commita entre a
+  leitura de um comando e o commit dele: a pré-condição vale no commit, e a
+  escrita é serializada depois. Não é invariante permanente entre agregados. O
+  valor da guarda é só `string` (inclusive `~string`); outro tipo volta
+  `ErrGuardValue` sem ir ao servidor. A chave é o texto que o Go envia, não o
+  valor tipado da coluna: a coluna de guarda é `text`, com o valor já
+  canônico, porque em `uuid` ou `citext` valores iguais com grafias diferentes
+  tomariam locks diferentes. Um erro de preparo de outra instrução do batch
+  sai com o rótulo dela, não com o da guarda. O `UPDATE` inclui a guarda no `WHERE`,
+  e mudar o valor de um agregado existente volta `ErrVersionConflict`. A `Tx`
+  que tomou guarda converte qualquer `40P01` de `Load`, `Save` ou
+  `QueryWithin` em `ErrVersionConflict` (`Conflict`, `Aborted` no gRPC),
+  porque a vítima do ciclo pode ser o `UPDATE`, não o lock; sem guarda, o erro
+  segue o do driver. O deadlock é esperado quando dois comandos leem e depois
+  escrevem a mesma série, e a repetição é do chamador (UOW-10). Quem adota a
+  guarda assume quatro custos, detalhados no ADR-067: a transação que leu
+  bloqueia as escritas da série até o commit (configurar `lock_timeout` e
+  `idle_in_transaction_session_timeout` no pool); escritas da mesma série
+  correm em fila; cada valor lido ocupa uma entrada de
+  `max_locks_per_transaction`; e, com o contexto cancelado, o backend fica na
+  fila até perceber a queda (`client_connection_check_interval`). O advisory lock
+  não exige privilégio de tabela. Em escritas no socket, no modo padrão
+  (`CacheStatement`) e com conexão quente: a leitura com linhas paga 1, a
+  vazia 2 (a sonda de dono) e o `Save` com guarda 1, com ou sem `Unique`. Com
+  `Unique`, o primeiro `Save` de cada escrita numa conexão, e todo `Save` nos
+  modos `CacheDescribe` e `DescribeExec`, enviam o lock e o `SAVEPOINT`
+  sozinhos antes do batch; o lock é preparado por nome junto da escrita, e um
+  batch recusado não o tira do cache. Tabela sem `Guard` não ganha statement nem round
+  trip. Testes: `guard_test.go`, `guard_internal_test.go`, `guard_table_test.go`
+  e `guard_concurrency_test.go`, que mede 50 rodadas por escrita e reproduz a
+  corrida pelo `ReadPool` como controle.
 - **`unique.go`** — `Unique{Name, Columns, Rejection}`, `UniqueSet{Table,
   Constraints}` e `VerifyUniques(ctx, pool, sets...)`, que confere em
   `pg_constraint`, pela tabela resolvida em `public`, que cada restrição
