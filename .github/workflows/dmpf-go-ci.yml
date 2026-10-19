@@ -446,6 +446,13 @@ jobs:
         if: inputs.platform
         run: node tools/dmpf-plugin/scripts/sync-versions.mjs --check
 
+      # O verificador de dashboards e os self-tests descartam fixtures com `trash`.
+      - name: Instalar trash-cli
+        if: inputs.platform
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y --no-install-recommends trash-cli
+
       - name: Grafana provisioning e OTel env
         if: inputs.platform
         run: |
@@ -458,8 +465,6 @@ jobs:
         if: inputs.platform && inputs.self-tests
         run: |
           set -euo pipefail
-          sudo apt-get update -q
-          sudo apt-get install -y --no-install-recommends trash-cli
           bash tools/dmpf-cell-check.sh
           bash tools/dmpf-shared-kernel-check.sh
           bash tools/dmpf-generator-check.sh --phase self-test
