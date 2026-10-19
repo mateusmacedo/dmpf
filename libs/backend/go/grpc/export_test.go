@@ -14,3 +14,5 @@ func SetShutdownGrace(grace time.Duration) (restore func()) {
 	shutdownGrace = grace
 	return func() { shutdownGrace = previous }
 }
+
+var PeerTrusted = peerTrusted

@@ -55,7 +55,7 @@ const (
 // otelgrpc: outcome, call log, admission, deadline, context. Other services'
 // methods pass untouched: the health probe has no limit nor deadline (ADR-044).
 func ServerInterceptors(service string, ctrl *admission.Controller, instruments *metrics.Instruments, logs log.LoggerProvider, opts ...ServerOption) []grpc.UnaryServerInterceptor {
-	options := serverOptions{commands: map[string]bool{}}
+	options := serverOptions{commands: map[string]bool{}, platform: map[string]bool{}}
 	logger := loggerOf(logs)
 	for _, opt := range opts {
 		opt(service, &options)
@@ -66,13 +66,16 @@ func ServerInterceptors(service string, ctrl *admission.Controller, instruments 
 		own(callLog(logger)),
 		own(Admission(ctrl, admissionTenant, instruments)),
 		own(requireDeadline),
-		own(requestContext(logger, options.commands)),
+		own(requestContext(logger, options.commands, options.platform)),
 	}
 }
 
 type ServerOption func(service string, options *serverOptions)
 
-type serverOptions struct{ commands map[string]bool }
+type serverOptions struct {
+	commands map[string]bool
+	platform map[string]bool
+}
 
 // WithCommands declares the service's command methods by name: each requires an
 // idempotency key (IDM-01, IDM-02) and may answer with ReplayedHeader (IDM-08).
@@ -80,6 +83,17 @@ func WithCommands(methods ...string) ServerOption {
 	return func(service string, options *serverOptions) {
 		for _, method := range methods {
 			options.commands["/"+service+"/"+method] = true
+		}
+	}
+}
+
+// WithPlatformMethods declares the methods that read across tenants (IDN-19):
+// the server, never the caller's metadata, grants their reach, and only to a
+// workload TrustedPeers admitted from its allowlist (IDN-03).
+func WithPlatformMethods(methods ...string) ServerOption {
+	return func(service string, options *serverOptions) {
+		for _, method := range methods {
+			options.platform["/"+service+"/"+method] = true
 		}
 	}
 }
@@ -238,8 +252,12 @@ func requireDeadline(ctx context.Context, req any, _ *grpc.UnaryServerInfo, hand
 // requestContext authors the two contexts of this execution from what crossed
 // the hop: the nine-field context the application service takes as an argument,
 // and the message context the outbox records.
-func requestContext(logger *slog.Logger, commands map[string]bool) grpc.UnaryServerInterceptor {
+func requestContext(logger *slog.Logger, commands, platform map[string]bool) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
+		reach := platform[info.FullMethod]
+		if reach && !peerTrusted(ctx) {
+			return nil, status.Error(codes.PermissionDenied, "a platform method answers only a workload the server trusts (IDN-03)")
+		}
 		md, _ := metadata.FromIncomingContext(ctx)
 		incoming := MetadataCarrier(md)
 
@@ -291,6 +309,9 @@ func requestContext(logger *slog.Logger, commands map[string]bool) grpc.UnarySer
 		span.SetAttributes(tracing.ExecutionAttributes(execution).KeyValues()...)
 		slot.execution, slot.message, slot.ok = execution, message, true
 		ctx = tracing.WithExecutionBaggage(ports.WithMessageContext(ports.WithExecutionContext(ctx, execution), message), execution)
+		if reach {
+			ctx = ports.WithPlatformReach(ctx, ports.ReachAllTenants)
+		}
 		if !command {
 			return handler(ctx, req)
 		}

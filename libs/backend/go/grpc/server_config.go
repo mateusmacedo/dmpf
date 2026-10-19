@@ -115,7 +115,7 @@ func TrustedPeers(trusted []string) grpc.UnaryServerInterceptor {
 		if !trustedPeer(ctx, trusted) {
 			return nil, status.Error(codes.PermissionDenied, "the calling workload is not trusted")
 		}
-		return handler(ctx, req)
+		return handler(withTrustedPeer(ctx), req)
 	}
 }
 
@@ -125,20 +125,22 @@ func TrustedStreamPeers(trusted []string) grpc.StreamServerInterceptor {
 		if !trustedPeer(stream.Context(), trusted) {
 			return status.Error(codes.PermissionDenied, "the calling workload is not trusted")
 		}
-		return handler(srv, stream)
+		return handler(srv, trustedStream{ServerStream: stream, ctx: withTrustedPeer(stream.Context())})
 	}
 }
 
+type trustedStream struct {
+	grpc.ServerStream
+	ctx context.Context
+}
+
+func (s trustedStream) Context() context.Context { return s.ctx }
+
 func trustedPeer(ctx context.Context, trusted []string) bool {
-	caller, ok := peer.FromContext(ctx)
+	leaf, ok := verifiedLeaf(ctx)
 	if !ok {
 		return false
 	}
-	info, ok := caller.AuthInfo.(credentials.TLSInfo)
-	if !ok || len(info.State.VerifiedChains) == 0 || len(info.State.VerifiedChains[0]) == 0 {
-		return false
-	}
-	leaf := info.State.VerifiedChains[0][0]
 	identities := slices.Clone(leaf.DNSNames)
 	for _, uri := range leaf.URIs {
 		identities = append(identities, uri.String())
@@ -149,4 +151,27 @@ func trustedPeer(ctx context.Context, trusted []string) bool {
 		}
 	}
 	return false
+}
+
+func verifiedLeaf(ctx context.Context) (*x509.Certificate, bool) {
+	caller, ok := peer.FromContext(ctx)
+	if !ok {
+		return nil, false
+	}
+	info, ok := caller.AuthInfo.(credentials.TLSInfo)
+	if !ok || len(info.State.VerifiedChains) == 0 || len(info.State.VerifiedChains[0]) == 0 {
+		return nil, false
+	}
+	return info.State.VerifiedChains[0][0], true
+}
+
+type trustedPeerKey struct{}
+
+func withTrustedPeer(ctx context.Context) context.Context {
+	return context.WithValue(ctx, trustedPeerKey{}, true)
+}
+
+func peerTrusted(ctx context.Context) bool {
+	trusted, _ := ctx.Value(trustedPeerKey{}).(bool)
+	return trusted
 }
