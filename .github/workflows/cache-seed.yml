@@ -1,0 +1,80 @@
+name: Semente de cache
+
+# O PR só lê o cache da própria ref, da branch base e da default; sem semente em
+# develop e master, cada PR pagava o cache frio e gravava um que só ele enxerga.
+on:
+  push:
+    branches:
+      - develop
+      - master
+    paths:
+      - go.work
+      - go.work.sum
+      - "**/go.sum"
+      - "**/go.mod"
+      - tools/dmpf-plugin/versions.json
+      - .github/actions/setup-go/**
+      - .golangci.yml
+  # O GitHub despeja o cache sem acesso há 7 dias; a passada semanal o mantém e
+  # regrava o do golangci-lint, cuja chave não muda com o código.
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  seed:
+    name: Semente
+    runs-on: ubuntu-26.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+
+      - name: Setup Go
+        id: go
+        uses: ./.github/actions/setup-go
+
+      # `-run '^$'` compila os binários de teste sem rodar teste; com a tag
+      # `integration` entram os pacotes que o `test-race` dos providers compila.
+      - name: Compilar build e testes com race
+        run: |
+          set -euo pipefail
+          mapfile -t modulos < <(go list -m -f '{{.Dir}}')
+          for dir in "${modulos[@]}"; do
+            echo "::group::$dir"
+            (
+              cd "$dir"
+              go build ./...
+              go test -race -run '^$' ./...
+              go test -race -tags=integration -run '^$' ./...
+            )
+            echo "::endgroup::"
+          done
+
+      - name: Aquecer o cache do golangci-lint
+        run: |
+          set -euo pipefail
+          linter="github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(jq -r .golangciLint tools/dmpf-plugin/versions.json)"
+          mapfile -t modulos < <(go list -m -f '{{.Dir}}')
+          for dir in "${modulos[@]}"; do
+            echo "::group::$dir"
+            if ! (cd "$dir" && go run "$linter" run --allow-parallel-runners ./...); then
+              echo "::warning title=golangci-lint::$dir reprovou; o cache da análise foi gravado mesmo assim"
+            fi
+            echo "::endgroup::"
+          done
+
+      - name: Gravar o cache do golangci-lint
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ~/.cache/golangci-lint
+          key: ${{ steps.go.outputs.golangci-lint-key }}-${{ github.run_id }}-${{ github.run_attempt }}

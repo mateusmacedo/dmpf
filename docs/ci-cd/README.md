@@ -50,19 +50,24 @@ push develop / workflow_dispatch
 | Etapa | O que roda |
 | --- | --- |
 | `pre-commit` (Lefthook) | `biome check --write` e `gofmt -l` nos arquivos em stage |
-| `pre-push` (Lefthook) | `nx affected -t lint,typecheck,fmt-check,vet,test`, sem Docker, contra o que o remoto já tem |
-| PR para `develop` ou `release/**` | Job `DMPF` (o `dmpf-go-ci.yml`): `biome ci`, `nx affected` de `lint`, `typecheck`, `build`, `fmt-check`, `vet`, `test`, gates Buf, `test-race`, `test-integration` e `e2e`; gates DMPF (camada por módulo, context-check estrutural, modsync, infrasync, conformance) e checks do platform (generator estrutural, `init --dry-run` sem diff, `sync-versions --check`, Grafana, OTel). A infra Docker só sobe se um projeto que a usa estiver afetado. Os vetores negativos dos gates só rodam se o diff tocar `tools/**`, `.github/**` ou `.golangci.yml` |
+| `pre-push` (Lefthook) | `nx affected -t lint,typecheck,fmt-check,test`, sem Docker, contra o que o remoto já tem |
+| PR para `develop` ou `release/**` | Job `DMPF` (o `dmpf-go-ci.yml`): `biome ci`, `nx affected` de `lint`, `typecheck`, `build`, `fmt-check`, gates Buf, `test` só dos projetos TypeScript, `test-race`, `test-integration` e `e2e`; gates DMPF (camada por módulo, context-check estrutural, modsync, infrasync, conformance) e checks do platform (generator estrutural, `init --dry-run` sem diff, `sync-versions --check`, Grafana, OTel). Nos projetos Go não há `test` nem `vet`: o `test-race` repete os pacotes do `test`, e o `govet` do golangci-lint cobre o `vet`. A infra Docker só sobe se um projeto que a usa estiver afetado, e sobe antes do lint, para que o boot corra junto dele. Os vetores negativos dos gates rodam no job `Vetores negativos`, em paralelo ao `DMPF`, e só se o diff tocar `tools/**`, `.github/**` ou `.golangci.yml` |
 | PR só de documentação | Só o job `Escopo`; o `CI` aprova sem rodar o resto |
 | PR para `master` (de `release/**` ou `hotfix/*`) | Tudo acima com `run-many` em todos os projetos, todos os vetores negativos e `govulncheck`, mais `Consumidor externo por versão`, `Distribuído` (`dmpf-distributed.yml`) e `SonarQube Cloud` (`sonar.yml`) |
 | `push` em `master` | `sonar.yml`, que mantém a análise da branch principal no SonarCloud |
 | Agendado (`govulncheck.yml`) | `govulncheck` em todos os projetos Go da `develop`, toda segunda-feira |
+| `push` em `develop` ou `master` que muda dependência, pin ou config do lint; agendado; manual (`cache-seed.yml`) | Semeia o cache de módulos, de build e do golangci-lint que os PRs leem da branch base |
 
 O ruleset exige só o job `CI`, que agrega os demais: pulado conta como aprovado,
 falha ou cancelamento reprova. A `master` não tem ruleset de checks: por decisão do
 mantenedor, ela só recebe código já validado pelo PR de release, que leva o pacote
 completo. O Nx Cloud (`nxCloudId` no `nx.json`) guarda o cache
 entre execuções; o token de CI vem do secret `NX_CLOUD_ACCESS_TOKEN`, e sem ele vale
-o acesso que o workspace concede ao `nxCloudId`.
+o acesso que o workspace concede ao `nxCloudId`. O cache do Go (módulos e build) e o
+do golangci-lint vêm do `cache-seed.yml`, que os semeia em `develop` e `master`: o PR
+os lê da branch base, e o que muda um `go.sum` restaura o cache mais recente da mesma
+versão do Go como ponto de partida. O PR não grava o cache do golangci-lint; só a
+semente grava.
 
 ## Documentos deste diretório
 
@@ -116,6 +121,7 @@ ConfigMap e de secrets externos definidos no repositório de infraestrutura — 
 | `.github/workflows/dmpf-go-ci.yml` | Reutilizável do job `DMPF`, o mesmo que o `dmpf-ci.yml` do consumidor externo chama |
 | `.github/workflows/sonar.yml` | SonarQube Cloud com cobertura (chamado pelo `ci.yml` no PR para `master`; `push` em `master`) |
 | `.github/workflows/govulncheck.yml` | `govulncheck` semanal na `develop` |
+| `.github/workflows/cache-seed.yml` | Semente do cache Go e do golangci-lint em `develop` e `master` (dependências, pins ou config do lint alterados; semanal; manual) |
 | `.github/workflows/nx-release.yml` | Versionamento Nx Release (release groups `go-libs`, `go-contract-<ctx>`, `go-tools`, `npm`); cunha as tags de módulo |
 | `.github/workflows/nx-publish-libs.yml` | Publica libs npm no GitHub Packages (dispara no push de tag `**@*`), pelo reusable `publish-libs.yaml` |
 | `.github/workflows/create-release.yml` | Cria a branch `release/<versão>` a partir de `master` |

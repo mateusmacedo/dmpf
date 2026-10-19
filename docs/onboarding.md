@@ -140,7 +140,7 @@ O `lefthook.yml` define:
 
 - Pre-commit: `pnpm biome check --write` nos arquivos staged compatíveis, com
   `stage_fixed: true`, e `gofmt -l` nos `.go` staged.
-- Pre-push: `pnpm nx affected -t lint,typecheck,fmt-check,vet,test` numa
+- Pre-push: `pnpm nx affected -t lint,typecheck,fmt-check,test` numa
   invocação só, com `--parallel=3`, `--exclude=@mateusmacedo/dmpf-source` e
   `--base` no que o remoto já tem (`@{push}`); uma branch sem upstream compara
   com `origin/develop`. Fica sem `build`, `test-race` e Docker: os testes de
@@ -154,8 +154,9 @@ commit.
 O workflow `.github/workflows/ci.yml` roda em PRs para `master`, `develop` e
 `release/**`. O job `DMPF` (o reutilizável `dmpf-go-ci.yml`) faz o setup uma vez
 e executa `pnpm biome ci .`, os gates DMPF e `nx affected` de lint, typecheck,
-build, fmt-check, vet, test, gates Buf, test-race, test-integration e e2e; a
-infra Docker só sobe quando um projeto que a usa está afetado. O PR para
+build, fmt-check, gates Buf, test dos projetos TypeScript, test-race,
+test-integration e e2e; a infra Docker só sobe quando um projeto que a usa está
+afetado. Os vetores negativos dos gates correm em job próprio, em paralelo. O PR para
 `master` roda tudo em todos os projetos e acrescenta govulncheck, consumidor
 externo, harness distribuído e SonarQube Cloud.
 

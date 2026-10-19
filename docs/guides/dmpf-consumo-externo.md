@@ -125,15 +125,17 @@ vez e executa:
 - **gates DMPF**: camada única por módulo, context-check, `modsync --check`,
   `infrasync --check` e `conformance`;
 - **targets do Nx** nos projetos afetados: `lint`, `typecheck`, `build`,
-  `fmt-check`, `vet`, `test` e os gates Buf, depois `test-race`,
-  `test-integration` e `e2e`, com Postgres, Redpanda e floci só quando um
-  projeto que os usa está afetado; `biome ci` quando há `biome.json`.
+  `fmt-check` e os gates Buf, o `test` só dos projetos que não são Go, depois
+  `test-race`, `test-integration` e `e2e`, com Postgres, Redpanda e floci só
+  quando um projeto que os usa está afetado; `biome ci` quando há `biome.json`.
+  Os projetos Go ficam sem `test` e `vet` no CI: o `test-race` repete os
+  pacotes do `test`, e o `govet` do golangci-lint cobre o `vet`.
 
 Inputs opcionais mudam o escopo: `full: true` troca o `affected` por todos os
 projetos e acrescenta o `govulncheck` (por exemplo,
 `full: ${{ github.event_name == 'push' }}` no push para a branch principal);
 `self-tests: true` roda os vetores negativos do gate de dependência e dos gates
-Buf. O secret opcional `NX_CLOUD_ACCESS_TOKEN` liga o cache remoto do Nx Cloud.
+Buf num segundo job, `Vetores negativos`, em paralelo ao `DMPF`. O secret opcional `NX_CLOUD_ACCESS_TOKEN` liga o cache remoto do Nx Cloud.
 
 O chamador concede `packages: read`, que o workflow pede para instalar o
 plugin. Se o plugin instalado divergir da versão do chamador, o workflow

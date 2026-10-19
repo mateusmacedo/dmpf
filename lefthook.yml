@@ -23,4 +23,4 @@ pre-push:
     affected:
       run: |
         base="$(git rev-parse --verify --quiet '@{push}' || git merge-base HEAD origin/develop)" || exit 1
-        pnpm nx affected -t lint,typecheck,fmt-check,vet,test --base="$base" --head=HEAD --parallel=3 --exclude=@mateusmacedo/dmpf-source
+        pnpm nx affected -t lint,typecheck,fmt-check,test --base="$base" --head=HEAD --parallel=3 --exclude=@mateusmacedo/dmpf-source

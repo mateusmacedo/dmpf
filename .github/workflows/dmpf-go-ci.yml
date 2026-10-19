@@ -71,6 +71,11 @@ jobs:
       AWS_ACCESS_KEY_ID: "test"
       AWS_SECRET_ACCESS_KEY: "test"
       REDIS_URL: "redis://revocation:ci-revocation@localhost:6379/0"
+      IMAGEM_POSTGRES: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+      IMAGEM_REDPANDA: redpandadata/redpanda:v26.2.2@sha256:468bd13a9f2bd24794cb7fddc867c767fb1008b9a07b297b89fde48c564d7d96
+      IMAGEM_FLOCI: floci/floci:2.0.1@sha256:4e451c39c7bb88e3cd4f87e8fc0c25d5b47695a51185d521e2241fa00486e8eb
+      IMAGEM_KEYCLOAK: quay.io/keycloak/keycloak:26.8.1@sha256:79c623a22abacf3fe6c00a5fb30f5b7843d717b234033b80995891c06116d244
+      IMAGEM_REDIS: redis:7.4.11-alpine@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499
 
     steps:
       - name: Checkout
@@ -161,8 +166,97 @@ jobs:
             echo "infra=$infra"
             echo "keycloak=$([ "$infra" = true ] && [ "$KEYCLOAK" = true ] && jq -e 'index("authn")' <<<"$alvo" >/dev/null && echo true || echo false)"
             echo "redis=$([ "$infra" = true ] && jq -e 'index("redis") or index("bff")' <<<"$alvo" >/dev/null && echo true || echo false)"
-            echo "go=$(jq -r 'any(.[]; .data.tags | index("stack:go"))' "$RUNNER_TEMP/alvo.json")"
           } >> "$GITHUB_OUTPUT"
+
+      - name: Espelho do Docker Hub
+        if: steps.scope.outputs.infra == 'true'
+        uses: ./.dmpf-ci/.github/actions/docker-hub-mirror
+
+      # Sobe antes do lint e do build para que o boot dos serviços (o Keycloak leva
+      # ~60 s) corra junto deles; a prontidão só é esperada antes do test-race.
+      - name: Subir a infra de testes
+        if: steps.scope.outputs.infra == 'true'
+        env:
+          KEYCLOAK: ${{ steps.scope.outputs.keycloak }}
+          REDIS: ${{ steps.scope.outputs.redis }}
+        run: |
+          set -euo pipefail
+          imagens=("$IMAGEM_POSTGRES" "$IMAGEM_REDPANDA" "$IMAGEM_FLOCI")
+          [ "$KEYCLOAK" = true ] && imagens+=("$IMAGEM_KEYCLOAK")
+          [ "$REDIS" = true ] && imagens+=("$IMAGEM_REDIS")
+          pids=()
+          for imagem in "${imagens[@]}"; do
+            docker pull -q "$imagem" &
+            pids+=("$!")
+          done
+          for pid in "${pids[@]}"; do
+            wait "$pid"
+          done
+
+          # No runner hospedado do GitHub o job roda na VM, sem container próprio:
+          # `--network host` publica cada serviço em localhost, como os testes esperam.
+          sufixo="$(hostname)"
+          docker rm -f "test-postgres-$sufixo" "test-redpanda-$sufixo" "test-redpanda-sasl-$sufixo" \
+            "test-floci-$sufixo" "test-keycloak-$sufixo" "test-redis-$sufixo" >/dev/null 2>&1 || true
+          docker run -d --name "test-postgres-$sufixo" \
+            --network host \
+            -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=postgres \
+            "$IMAGEM_POSTGRES" \
+            -c cluster_name=test
+
+          # `--mode dev-container` agrupa as flags de desenvolvimento e `--smp 1` é
+          # repassado ao binário (confirmado em v26.2.2 pelo exec logado); sem ele o
+          # broker toma todos os cores do runner.
+          docker run -d --name "test-redpanda-$sufixo" \
+            --network host \
+            "$IMAGEM_REDPANDA" \
+            redpanda start --mode dev-container --smp 1
+
+          # Segundo broker, que exige SASL SCRAM (IDN-04): prova que o cliente se
+          # autentica e que o broker recusa quem não se autentica. Portas próprias
+          # porque os contêineres dividem a rede do host.
+          docker run -d --name "test-redpanda-sasl-$sufixo" \
+            --network host \
+            "$IMAGEM_REDPANDA" \
+            redpanda start --mode dev-container --smp 1 \
+            --advertise-kafka-addr sasl://localhost:19092 \
+            --rpc-addr 0.0.0.0:43145 --advertise-rpc-addr localhost:43145 \
+            --pandaproxy-addr 0.0.0.0:18082 --schema-registry-addr 0.0.0.0:18081 \
+            --set 'redpanda.admin=[{"address":"0.0.0.0","port":19644}]' \
+            --set 'redpanda.kafka_api=[{"name":"sasl","address":"0.0.0.0","port":19092,"authentication_method":"sasl"}]' \
+            --set "redpanda.superusers=[\"${KAFKA_SASL_USERNAME}\"]" \
+            --set redpanda.kafka_enable_authorization=true
+
+          # SQS e SNS no mesmo emulador, para o hop SNS → SQS com raw delivery. As
+          # filas e tópicos são criados pelo próprio teste de integração; o floci
+          # aceita qualquer credencial não vazia, e /_floci/health lista os serviços.
+          docker run -d --name "test-floci-$sufixo" \
+            --network host \
+            "$IMAGEM_FLOCI"
+
+          if [ "$KEYCLOAK" = true ]; then
+            docker run -d --name "test-keycloak-$sufixo" \
+              --network host \
+              -e KC_HOSTNAME=http://127.0.0.1:18180 \
+              -e KC_HTTP_PORT=18180 \
+              -e KC_HTTP_MANAGEMENT_PORT=19000 \
+              -e KC_BOOTSTRAP_ADMIN_USERNAME=admin \
+              -e KC_BOOTSTRAP_ADMIN_PASSWORD=admin \
+              -e DMPF_SESSION_EVENTS_SECRET=dmpf-test-session-events \
+              -v "$PWD/infra/keycloak/dmpf-realm.json:/opt/keycloak/data/import/dmpf-realm.json:ro" \
+              "$IMAGEM_KEYCLOAK" start --http-enabled=true --health-enabled=true --cache=local --db=dev-file --import-realm
+          fi
+
+          if [ "$REDIS" = true ]; then
+            docker run -d --name "test-redis-$sufixo" \
+              --network host \
+              --tmpfs /data \
+              "$IMAGEM_REDIS" \
+              redis-server --appendonly yes --appendfsync everysec --maxmemory-policy noeviction \
+              --user default off \
+              --user revocation on '>ci-revocation' '~dmpf:revocation:*' \
+              -@all +hello +auth '+client|setinfo' +ping +mget +evalsha +eval +get +set
+          fi
 
       - name: Formatação e lint do Biome
         if: hashFiles('biome.json', 'biome.jsonc') != ''
@@ -213,183 +307,65 @@ jobs:
       - name: DMPF conformance gate
         run: go run "$DMPF_TOOLS/conformance$DMPF_TOOLS_VERSION" --root .
 
-      # buf-breaking lê NX_BASE como baseline (contracts/README.md, "Gates e baseline").
-      - name: Lint, typecheck, build, testes unitários e gates Buf
+      # buf-breaking lê NX_BASE como baseline (contracts/README.md, "Gates e baseline"). Sem `test` nem
+      # `vet` dos projetos Go: o `test-race` repete os pacotes do `test`, e o `govet` do golangci-lint é o `vet`.
+      - name: Lint, typecheck, build, testes TypeScript e gates Buf
         run: |
+          set -euo pipefail
           read -ra escopo <<<"$NX_SCOPE"
-          pnpm nx "${escopo[@]}" -t lint,typecheck,build,fmt-check,vet,test,buf-lint,buf-pins,buf-generate-check,buf-breaking --parallel=3 --exclude="$NX_EXCLUDE"
+          pnpm nx "${escopo[@]}" -t lint,typecheck,build,fmt-check,buf-lint,buf-pins,buf-generate-check,buf-breaking --parallel=3 --exclude="$NX_EXCLUDE"
+          pnpm nx "${escopo[@]}" -t test --parallel=3 --exclude="$NX_EXCLUDE,tag:stack:go"
 
-      - name: Espelho do Docker Hub
+      - name: Esperar a infra de testes
         if: steps.scope.outputs.infra == 'true'
-        uses: ./.dmpf-ci/.github/actions/docker-hub-mirror
-
-      # No runner hospedado do GitHub o job roda na VM, sem container próprio:
-      # `--network host` publica cada serviço em localhost, como os testes esperam.
-      - name: Subir Postgres para os testes de integração
-        if: steps.scope.outputs.infra == 'true'
+        env:
+          KEYCLOAK: ${{ steps.scope.outputs.keycloak }}
+          REDIS: ${{ steps.scope.outputs.redis }}
         run: |
           set -euo pipefail
-          nome="test-postgres-$(hostname)"
-          docker rm -f "$nome" >/dev/null 2>&1 || true
-          docker run -d --name "$nome" \
-            --network host \
-            -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=postgres \
-            postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685 \
-            -c cluster_name=test
-          for _ in $(seq 1 30); do
-            if docker exec "$nome" pg_isready -U postgres -q; then
-              echo "postgres pronto em localhost:5432 ($nome)"
-              exit 0
-            fi
-            sleep 2
-          done
-          echo "postgres nao respondeu em 60s" >&2
-          docker logs "$nome" >&2
-          exit 1
+          sufixo="$(hostname)"
+          esperar() {
+            local servico="$1" tentativas="$2"
+            shift 2
+            for _ in $(seq 1 "$tentativas"); do
+              if "$@" >/dev/null 2>&1; then
+                echo "$servico pronto ($sufixo)"
+                return 0
+              fi
+              sleep 2
+            done
+            echo "$servico não respondeu em $((tentativas * 2))s" >&2
+            docker logs "test-$servico-$sufixo" >&2
+            return 1
+          }
+          redpanda_sasl_saudavel() {
+            docker exec "test-redpanda-sasl-$sufixo" rpk cluster health -X admin.hosts=localhost:19644 | grep -q 'Healthy:.*true'
+          }
+          redis_responde() {
+            docker exec "test-redis-$sufixo" redis-cli --no-auth-warning -u "$REDIS_URL" ping | grep -q PONG
+          }
 
-      # `--mode dev-container` agrupa as flags de desenvolvimento e `--smp 1` é
-      # repassado ao binário (confirmado em v26.2.2 pelo exec logado); sem ele o
-      # broker toma todos os cores do runner.
-      - name: Subir Redpanda para os testes de integração
-        if: steps.scope.outputs.infra == 'true'
-        run: |
-          set -euo pipefail
-          nome="test-redpanda-$(hostname)"
-          docker rm -f "$nome" >/dev/null 2>&1 || true
-          docker run -d --name "$nome" \
-            --network host \
-            redpandadata/redpanda:v26.2.2@sha256:468bd13a9f2bd24794cb7fddc867c767fb1008b9a07b297b89fde48c564d7d96 \
-            redpanda start --mode dev-container --smp 1
-          for _ in $(seq 1 30); do
-            if docker exec "$nome" rpk cluster info >/dev/null 2>&1; then
-              echo "redpanda pronto em localhost:9092 ($nome)"
-              exit 0
-            fi
-            sleep 2
-          done
-          echo "redpanda nao respondeu em 60s" >&2
-          docker logs "$nome" >&2
-          exit 1
+          esperar postgres 30 docker exec "test-postgres-$sufixo" pg_isready -U postgres -q
+          esperar redpanda 30 docker exec "test-redpanda-$sufixo" rpk cluster info
+          esperar redpanda-sasl 30 redpanda_sasl_saudavel
+          docker exec "test-redpanda-sasl-$sufixo" rpk security user create "$KAFKA_SASL_USERNAME" -p "$KAFKA_SASL_PASSWORD" \
+            --mechanism SCRAM-SHA-256 -X admin.hosts=localhost:19644
+          esperar floci 30 curl -sf -o /dev/null "http://localhost:4566/_floci/health"
 
-      # Segundo broker, que exige SASL SCRAM (IDN-04): prova que o cliente se
-      # autentica e que o broker recusa quem não se autentica. Portas próprias
-      # porque os contêineres dividem a rede do host.
-      - name: Subir Redpanda com SASL para o teste de autenticação de cliente
-        if: steps.scope.outputs.infra == 'true'
-        run: |
-          set -euo pipefail
-          nome="test-redpanda-sasl-$(hostname)"
-          docker rm -f "$nome" 2>/dev/null || true
-          docker run -d --name "$nome" \
-            --network host \
-            redpandadata/redpanda:v26.2.2@sha256:468bd13a9f2bd24794cb7fddc867c767fb1008b9a07b297b89fde48c564d7d96 \
-            redpanda start --mode dev-container --smp 1 \
-            --advertise-kafka-addr sasl://localhost:19092 \
-            --rpc-addr 0.0.0.0:43145 --advertise-rpc-addr localhost:43145 \
-            --pandaproxy-addr 0.0.0.0:18082 --schema-registry-addr 0.0.0.0:18081 \
-            --set 'redpanda.admin=[{"address":"0.0.0.0","port":19644}]' \
-            --set 'redpanda.kafka_api=[{"name":"sasl","address":"0.0.0.0","port":19092,"authentication_method":"sasl"}]' \
-            --set "redpanda.superusers=[\"${KAFKA_SASL_USERNAME}\"]" \
-            --set redpanda.kafka_enable_authorization=true
-          for _ in $(seq 1 30); do
-            if docker exec "$nome" rpk cluster health -X admin.hosts=localhost:19644 2>/dev/null | grep -q 'Healthy:.*true'; then
-              docker exec "$nome" rpk security user create "$KAFKA_SASL_USERNAME" -p "$KAFKA_SASL_PASSWORD" \
-                --mechanism SCRAM-SHA-256 -X admin.hosts=localhost:19644
-              echo "redpanda com SASL pronto em localhost:19092 ($nome)"
-              exit 0
-            fi
-            sleep 2
-          done
-          echo "redpanda com SASL nao respondeu em 60s" >&2
-          docker logs "$nome" >&2
-          exit 1
-
-      # SQS e SNS no mesmo emulador, para o hop SNS → SQS com raw delivery. As
-      # filas e tópicos são criados pelo próprio teste de integração; o floci
-      # aceita qualquer credencial não vazia, e /_floci/health lista os serviços.
-      - name: Subir floci (SQS e SNS) para os testes de integração
-        if: steps.scope.outputs.infra == 'true'
-        run: |
-          set -euo pipefail
-          nome="test-floci-$(hostname)"
-          docker rm -f "$nome" >/dev/null 2>&1 || true
-          docker run -d --name "$nome" \
-            --network host \
-            floci/floci:2.0.1@sha256:4e451c39c7bb88e3cd4f87e8fc0c25d5b47695a51185d521e2241fa00486e8eb
-          for _ in $(seq 1 30); do
-            if curl -sf -o /dev/null "http://localhost:4566/_floci/health"; then
-              echo "floci pronto em localhost:4566 ($nome)"
-              exit 0
-            fi
-            sleep 2
-          done
-          echo "floci nao respondeu em 60s" >&2
-          docker logs "$nome" >&2
-          exit 1
-
-      - name: Subir Keycloak para os testes de integração do authn
-        if: steps.scope.outputs.keycloak == 'true'
-        run: |
-          set -euo pipefail
-          imagem=quay.io/keycloak/keycloak:26.8.1@sha256:79c623a22abacf3fe6c00a5fb30f5b7843d717b234033b80995891c06116d244
-          nome="test-keycloak-$(hostname)"
-          docker rm -f "$nome" >/dev/null 2>&1 || true
-          docker run -d --name "$nome" \
-            --network host \
-            -e KC_HOSTNAME=http://127.0.0.1:18180 \
-            -e KC_HTTP_PORT=18180 \
-            -e KC_HTTP_MANAGEMENT_PORT=19000 \
-            -e KC_BOOTSTRAP_ADMIN_USERNAME=admin \
-            -e KC_BOOTSTRAP_ADMIN_PASSWORD=admin \
-            -e DMPF_SESSION_EVENTS_SECRET=dmpf-test-session-events \
-            -v "$PWD/infra/keycloak/dmpf-realm.json:/opt/keycloak/data/import/dmpf-realm.json:ro" \
-            "$imagem" start --http-enabled=true --health-enabled=true --cache=local --db=dev-file --import-realm
-          pronto=""
-          for _ in $(seq 1 60); do
-            if curl -sf -o /dev/null "http://localhost:19000/health/ready"; then
-              pronto=1
-              break
-            fi
-            sleep 2
-          done
-          if [ -z "$pronto" ]; then
-            echo "keycloak não respondeu em 120s" >&2
-            docker logs "$nome" >&2
-            exit 1
+          if [ "$KEYCLOAK" = true ]; then
+            esperar keycloak 60 curl -sf -o /dev/null "http://localhost:19000/health/ready"
+            docker run --rm --network host \
+              -e KEYCLOAK_URL=http://127.0.0.1:18180 \
+              -e KC_BOOTSTRAP_ADMIN_USERNAME=admin \
+              -e KC_BOOTSTRAP_ADMIN_PASSWORD=admin \
+              -v "$PWD/infra/keycloak/dev/seed.sh:/seed/seed.sh:ro" \
+              --entrypoint bash "$IMAGEM_KEYCLOAK" /seed/seed.sh
+            echo "KEYCLOAK_CALLBACK_HOST=127.0.0.1" >> "$GITHUB_ENV"
           fi
-          docker run --rm --network host \
-            -e KEYCLOAK_URL=http://127.0.0.1:18180 \
-            -e KC_BOOTSTRAP_ADMIN_USERNAME=admin \
-            -e KC_BOOTSTRAP_ADMIN_PASSWORD=admin \
-            -v "$PWD/infra/keycloak/dev/seed.sh:/seed/seed.sh:ro" \
-            --entrypoint bash "$imagem" /seed/seed.sh
-          echo "KEYCLOAK_CALLBACK_HOST=127.0.0.1" >> "$GITHUB_ENV"
-          echo "keycloak pronto em 127.0.0.1:18180 ($nome)"
 
-      - name: Subir Redis para os testes de integração da deny-list
-        if: steps.scope.outputs.redis == 'true'
-        run: |
-          set -euo pipefail
-          nome="test-redis-$(hostname)"
-          docker rm -f "$nome" >/dev/null 2>&1 || true
-          docker run -d --name "$nome" \
-            --network host \
-            --tmpfs /data \
-            redis:7.4.11-alpine@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499 \
-            redis-server --appendonly yes --appendfsync everysec --maxmemory-policy noeviction \
-            --user default off \
-            --user revocation on '>ci-revocation' '~dmpf:revocation:*' \
-            -@all +hello +auth '+client|setinfo' +ping +mget +evalsha +eval +get +set
-          for _ in $(seq 1 30); do
-            if docker exec "$nome" redis-cli --no-auth-warning -u "$REDIS_URL" ping 2>/dev/null | grep -q PONG; then
-              echo "redis pronto em localhost:6379 ($nome)"
-              exit 0
-            fi
-            sleep 2
-          done
-          echo "redis não respondeu em 60s" >&2
-          docker logs "$nome" >&2
-          exit 1
+          if [ "$REDIS" = true ]; then
+            esperar redis 30 redis_responde
+          fi
 
       # Os providers com `test-race` sem cache reiniciam tabelas e criam tópicos e
       # filas na infra compartilhada do job, então correm um por vez. As apps
@@ -400,28 +376,17 @@ jobs:
         run: |
           set -euo pipefail
           read -ra escopo <<<"$NX_SCOPE"
-          excluir="$NX_EXCLUDE${SERIAL:+,$SERIAL}"
-          pnpm nx "${escopo[@]}" -t test-race --parallel=3 --exclude="$excluir"
           if [ -n "$SERIAL" ]; then
             pnpm nx run-many -t test-race -p "$SERIAL" --parallel=1
           fi
+          # O `dependsOn` de `app` e `testkit` arrastaria de novo o `test-race` do `postgres`, que a
+          # série já rodou; o `test-infra-up` que sai junto é no-op no CI, cuja infra é a do job.
+          pnpm nx "${escopo[@]}" -t test-race --parallel=3 --exclude="$NX_EXCLUDE${SERIAL:+,$SERIAL}" --excludeTaskDependencies
           pnpm nx "${escopo[@]}" -t test-integration,e2e --parallel=1 --exclude="$NX_EXCLUDE"
 
       - name: Go vulnerabilities
         if: inputs.full
         run: pnpm nx run-many -t govulncheck --parallel=3 --exclude="$NX_EXCLUDE"
-
-      # Prova que o gate de dependência do bloco domain continua reprovando o
-      # que deve reprovar; sem rodar, o vetor negativo não protege de regressão.
-      - name: DMPF dependency gate (self-test)
-        if: inputs.self-tests && steps.scope.outputs.go == 'true'
-        run: bash "$DMPF_PLUGIN_DIR/scripts/dmpf-gate-check.sh"
-
-      - name: Gates Buf (self-test)
-        if: inputs.self-tests
-        run: |
-          read -ra escopo <<<"$NX_SCOPE"
-          pnpm nx "${escopo[@]}" -t buf-gate-selftest --parallel=3 --exclude="$NX_EXCLUDE"
 
       # Sem `if` de projeto Go afetado: o artefato que esta prova mede é escrito
       # pelo generator, e uma mudança só no TypeScript do plugin o altera.
@@ -446,7 +411,7 @@ jobs:
         if: inputs.platform
         run: node tools/dmpf-plugin/scripts/sync-versions.mjs --check
 
-      # O verificador de dashboards e os self-tests descartam fixtures com `trash`.
+      # O verificador de dashboards descarta fixtures com `trash`.
       - name: Instalar trash-cli
         if: inputs.platform
         run: |
@@ -459,24 +424,145 @@ jobs:
           bash tools/grafana-provisioning-check.sh
           bash tools/otel-env-check.sh
 
-      # Célula e shared kernel são arestas entre unidades que nem o depguard nem
-      # o `--root .` exercitam enquanto não há consumidor do kernel (C2, DMPF-M004).
-      - name: Vetores negativos dos gates do platform (self-test)
-        if: inputs.platform && inputs.self-tests
-        run: |
-          set -euo pipefail
-          bash tools/dmpf-cell-check.sh
-          bash tools/dmpf-shared-kernel-check.sh
-          bash tools/dmpf-generator-check.sh --phase self-test
-          bash tools/dmpf-plugin/scripts/dmpf-context-check.sh --phase self-test
-          bash tools/grafana-provisioning-check.sh --self-test
-          bash tools/otel-env-check.sh --self-test
-          # Com PG_DSN o harness acrescenta test-race e test-distributed num worktree,
-          # que este job já cobre; sem ele, prova só que o gate normativo reprova.
-          env -u PG_DSN bash tools/dmpf-harness-check.sh --phase self-test
-
-      # O nome dos containers leva o id do job, então o `docker rm -f` do início
-      # de cada step nunca alcança o resíduo de um job anterior; quem limpa é este.
+      # O nome dos containers leva o id do job, então o `docker rm -f` antes da
+      # subida nunca alcança o resíduo de um job anterior; quem limpa é este.
       - name: Derrubar a infraestrutura do job
         if: always() && steps.scope.outputs.infra == 'true'
         run: docker rm -f "test-postgres-$(hostname)" "test-redpanda-$(hostname)" "test-redpanda-sasl-$(hostname)" "test-floci-$(hostname)" "test-keycloak-$(hostname)" "test-redis-$(hostname)" >/dev/null 2>&1 || true
+
+  # Os vetores negativos provam o verificador, não o código: correm em job próprio,
+  # em paralelo ao `DMPF`, para não somar o tempo deles ao do job principal.
+  self-tests:
+    name: Vetores negativos
+    if: inputs.self-tests
+    runs-on: ubuntu-26.04
+    timeout-minutes: 45
+    permissions:
+      actions: read
+      contents: read
+      packages: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          fetch-depth: 0
+
+      - name: Origem do workflow reutilizável
+        env:
+          WORKFLOW_SHA: ${{ job.workflow_sha }}
+        run: |
+          if [ -z "$WORKFLOW_SHA" ]; then
+            echo "job.workflow_sha vazio: as actions viriam da branch default do DMPF" >&2
+            exit 1
+          fi
+
+      - name: Checkout das actions do DMPF
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: .dmpf-ci
+          sparse-checkout: /.github/actions/
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - name: Credencial do GitHub Packages no .npmrc de usuário
+        run: |
+          printf '%s\n' '//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}' > "$RUNNER_TEMP/npmrc"
+          echo "NPM_CONFIG_USERCONFIG=$RUNNER_TEMP/npmrc" >> "$GITHUB_ENV"
+
+      - name: Setup Node and pnpm
+        uses: ./.dmpf-ci/.github/actions/setup-node-pnpm
+        with:
+          node-version: ${{ inputs.node-version }}
+
+      - name: Layout DMPF
+        uses: ./.dmpf-ci/.github/actions/dmpf-layout
+        with:
+          plugin-version: ${{ inputs.plugin-version }}
+
+      - name: Setup Go
+        uses: ./.dmpf-ci/.github/actions/setup-go
+        with:
+          go-version: ${{ inputs.go-version }}
+          versions-file: ${{ env.DMPF_PLUGIN_DIR }}/versions.json
+          go-sum-paths: |
+            ${{ env.DMPF_APPS_DIR }}/**/go.sum
+            libs/**/go.sum
+            tools/**/go.sum
+
+      - name: Set Nx SHAs for affected (base/head)
+        uses: nrwl/nx-set-shas@afb73a62d26e41464e9254689e1fd6122ee683c1 # v5
+        with:
+          main-branch-name: ${{ inputs.base || github.event.repository.default_branch }}
+          fallback-sha: ${{ github.event.before }}
+
+      - name: Escopo do Nx
+        id: scope
+        env:
+          FULL: ${{ inputs.full }}
+        run: |
+          set -euo pipefail
+          if [ "$FULL" = true ]; then
+            show=()
+            echo "NX_SCOPE=run-many" >> "$GITHUB_ENV"
+          else
+            show=(--affected "--base=$NX_BASE" "--head=$NX_HEAD")
+            echo "NX_SCOPE=affected --base=$NX_BASE --head=$NX_HEAD" >> "$GITHUB_ENV"
+          fi
+          echo "go=$(pnpm --silent nx show projects "${show[@]}" --projects='tag:stack:go' --exclude="$NX_EXCLUDE" --json | jq 'length > 0')" >> "$GITHUB_OUTPUT"
+
+      # Prova que o gate de dependência do bloco domain continua reprovando o
+      # que deve reprovar; sem rodar, o vetor negativo não protege de regressão.
+      - name: DMPF dependency gate (self-test)
+        if: steps.scope.outputs.go == 'true'
+        run: bash "$DMPF_PLUGIN_DIR/scripts/dmpf-gate-check.sh"
+
+      - name: Gates Buf (self-test)
+        run: |
+          read -ra escopo <<<"$NX_SCOPE"
+          pnpm nx "${escopo[@]}" -t buf-gate-selftest --parallel=3 --exclude="$NX_EXCLUDE"
+
+      # Os self-tests descartam fixtures com `trash`.
+      - name: Instalar trash-cli
+        if: inputs.platform
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y --no-install-recommends trash-cli
+
+      # Célula e shared kernel são arestas entre unidades que nem o depguard nem
+      # o `--root .` exercitam enquanto não há consumidor do kernel (C2, DMPF-M004).
+      # Cada prova monta a fixture no próprio diretório temporário ou worktree, então correm juntas.
+      - name: Vetores negativos dos gates do platform (self-test)
+        if: inputs.platform
+        run: |
+          set -uo pipefail
+          declare -A provas=(
+            [cell]="bash tools/dmpf-cell-check.sh"
+            [shared-kernel]="bash tools/dmpf-shared-kernel-check.sh"
+            [generator]="bash tools/dmpf-generator-check.sh --phase self-test"
+            [context]="bash tools/dmpf-plugin/scripts/dmpf-context-check.sh --phase self-test"
+            [grafana]="bash tools/grafana-provisioning-check.sh --self-test"
+            [otel]="bash tools/otel-env-check.sh --self-test"
+            # Com PG_DSN o harness acrescenta test-race e test-distributed num worktree,
+            # que o job DMPF já cobre; sem ele, prova só que o gate normativo reprova.
+            [harness]="env -u PG_DSN bash tools/dmpf-harness-check.sh --phase self-test"
+          )
+          ordem=(cell shared-kernel generator context grafana otel harness)
+          declare -A pids
+          for prova in "${ordem[@]}"; do
+            read -ra comando <<<"${provas[$prova]}"
+            "${comando[@]}" > "$RUNNER_TEMP/self-test-$prova.log" 2>&1 &
+            pids[$prova]=$!
+          done
+          falhou=0
+          for prova in "${ordem[@]}"; do
+            resultado=ok
+            wait "${pids[$prova]}" || { resultado=FALHA; falhou=1; }
+            echo "::group::$prova ($resultado)"
+            cat "$RUNNER_TEMP/self-test-$prova.log"
+            echo "::endgroup::"
+            [ "$resultado" = ok ] || echo "::error title=Vetores negativos::$prova reprovou"
+          done
+          exit "$falhou"

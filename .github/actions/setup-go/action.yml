@@ -16,39 +16,82 @@ inputs:
       apps/**/go.sum
       libs/**/go.sum
       tools/**/go.sum
+outputs:
+  golangci-lint-key:
+    description: Prefix of the golangci-lint cache key; whoever saves the cache appends a unique suffix
+    value: ${{ steps.keys.outputs.golangci }}
 runs:
   using: composite
   steps:
     # Sem `go-version` por padrão: o `go-version-file` lê a diretiva do go.work,
     # que é a fonte única do piso (BOM). Passar a versão aqui abriria uma
     # segunda fonte, que sairia do lugar no primeiro bump.
-    # Cache de GOMODCACHE e GOCACHE chaveado pelos arquivos que carregam os pins:
-    # sem ele cada job recompila golangci-lint, govulncheck, buf e protoc-gen-go por `go run` (~10 min).
-    # O cache-dependency-path só aceita caminho relativo ao workspace sem `.`/`..`,
-    # e o github.action_path é absoluto e passa por `./` (no consumidor, `.dmpf-ci/`).
-    - name: Caminho da action relativo ao workspace
-      id: action_path
-      shell: bash
-      run: echo "dir=$(realpath --relative-to="$GITHUB_WORKSPACE" "$GITHUB_ACTION_PATH")" >> "$GITHUB_OUTPUT"
-
     - name: Setup Go
       id: setup_go
       uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
       with:
         go-version: ${{ inputs.go-version }}
         go-version-file: go.work
-        cache: true
-        cache-dependency-path: |
-          go.work
-          ${{ inputs.go-sum-paths }}
-          ${{ inputs.versions-file }}
-          ${{ steps.action_path.outputs.dir }}/action.yml
+        cache: false
 
-    # O post-step do setup-go só salva em cache miss e salva o que houver: um PR sem
+    # O cache do setup-go não aceita restore-keys: um go.sum alterado perdia o cache
+    # inteiro. A chave hasheia o conteúdo, não o caminho, que no consumidor passa por `.dmpf-ci/`.
+    - name: Chaves de cache
+      id: keys
+      shell: bash
+      env:
+        GO_SUM_PATHS: ${{ inputs.go-sum-paths }}
+        VERSIONS_FILE: ${{ inputs.versions-file }}
+      run: |
+        set -euo pipefail
+        shopt -s globstar nullglob
+        arquivos=(go.work)
+        [ -f go.work.sum ] && arquivos+=(go.work.sum)
+        while IFS= read -r padrao; do
+          [ -n "$padrao" ] || continue
+          for arquivo in $padrao; do
+            arquivos+=("$arquivo")
+          done
+        done <<<"$GO_SUM_PATHS"
+        arquivos+=("$VERSIONS_FILE" "$GITHUB_ACTION_PATH/action.yml")
+        golangci="$(jq -r .golangciLint "$VERSIONS_FILE")"
+        configuracao=none
+        [ -f .golangci.yml ] && configuracao="$(sha256sum .golangci.yml | cut -c1-16)"
+        {
+          echo "gomodcache=$(go env GOMODCACHE)"
+          echo "gocache=$(go env GOCACHE)"
+          echo "go=$(sha256sum "${arquivos[@]}" | cut -d' ' -f1 | sha256sum | cut -c1-64)"
+          echo "golangci=golangci-lint-$RUNNER_OS-$golangci-$configuracao"
+        } >> "$GITHUB_OUTPUT"
+
+    # Cache de GOMODCACHE e GOCACHE chaveado pelos arquivos que carregam os pins:
+    # sem ele cada job recompila golangci-lint, govulncheck, buf e protoc-gen-go por `go run` (~10 min).
+    - name: Cache de módulos e build do Go
+      id: go_cache
+      uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+      with:
+        path: |
+          ${{ steps.keys.outputs.gomodcache }}
+          ${{ steps.keys.outputs.gocache }}
+        key: go-${{ runner.os }}-${{ runner.arch }}-${{ steps.setup_go.outputs.go-version }}-${{ steps.keys.outputs.go }}
+        restore-keys: |
+          go-${{ runner.os }}-${{ runner.arch }}-${{ steps.setup_go.outputs.go-version }}-
+
+    # Só restaura: quem grava é o cache-seed.yml, com sufixo único por execução, para
+    # que a chave estável não congele o cache na primeira gravação.
+    - name: Cache do golangci-lint
+      uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+      with:
+        path: ~/.cache/golangci-lint
+        key: ${{ steps.keys.outputs.golangci }}
+        restore-keys: |
+          ${{ steps.keys.outputs.golangci }}-
+
+    # O post-step do cache só salva em miss e salva o que houver: um PR sem
     # projeto Go afetado semearia um GOCACHE vazio que os hits seguintes nunca substituem.
     # Por isso, em miss, cada ferramenta pinada é compilada aqui (pins do versions.json).
     - name: Warm Go tools on cache miss
-      if: steps.setup_go.outputs.cache-hit != 'true'
+      if: steps.go_cache.outputs.cache-hit != 'true'
       shell: bash
       env:
         VERSIONS_FILE: ${{ inputs.versions-file }}
@@ -62,10 +105,21 @@ runs:
         )
         for pkg in "${pins[@]}"; do
           case "$pkg" in *@v[0-9]*) ;; *) echo "pin nao encontrado: $pkg" >&2; exit 1 ;; esac
-          echo "::group::go run $pkg --version"
-          go run "$pkg" --version
+        done
+        pids=()
+        for i in "${!pins[@]}"; do
+          go run "${pins[$i]}" --version > "$RUNNER_TEMP/warm-go-tool-$i.log" 2>&1 &
+          pids+=("$!")
+        done
+        falhou=0
+        for i in "${!pins[@]}"; do
+          resultado=ok
+          wait "${pids[$i]}" || { resultado=FALHA; falhou=1; }
+          echo "::group::go run ${pins[$i]} --version ($resultado)"
+          cat "$RUNNER_TEMP/warm-go-tool-$i.log"
           echo "::endgroup::"
         done
+        exit "$falhou"
 
     # `go test -race` exige CGO e um compilador C, que o setup-go não instala.
     # Sem este preflight a falha aparece adiante, como erro obscuro de link.
