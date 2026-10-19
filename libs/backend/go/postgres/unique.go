@@ -68,24 +68,36 @@ const (
 
 // saveUnderSavepoint batches the SAVEPOINT with the write only when no prepare comes
 // first: pgx prepares ahead of the pipeline (conn.go:1170), before the SAVEPOINT.
-func (r tableRepository[ID, S]) saveUnderSavepoint(ctx context.Context, tenant ports.TenantID, id ID, statement string, args []any, creating bool) error {
+func (r tableRepository[ID, S]) saveUnderSavepoint(ctx context.Context, tenant ports.TenantID, id ID, guard guardLock, statement string, args []any, creating bool) error {
 	plan := r.tx.savepoints()
 	inline := plan.inline(statement)
 	batch := &pgx.Batch{}
+	guarded := guard.statement != ""
 	if inline {
+		if guarded {
+			batch.Queue(guard.statement, guard.args...)
+		}
 		batch.Queue(openSavepoint)
 	} else {
+		if guarded {
+			if _, err := r.tx.conn.Exec(ctx, guard.statement, guard.args...); err != nil {
+				return fmt.Errorf("postgres: save %s %s: guard: %w", r.table.Name, id, err)
+			}
+		}
 		if _, err := r.tx.conn.Exec(ctx, openSavepoint); err != nil {
 			return r.unopened(id, err)
 		}
-		if err := plan.pin(ctx, r.tx.conn, statement); err != nil {
+		if err := plan.pin(ctx, r.tx.conn, statement, guard.statement); err != nil {
 			return r.undo(ctx, tenant, id, err, creating)
 		}
 	}
 	batch.Queue(statement, args...)
 	batch.Queue(releaseSavepoint)
 	results := r.tx.conn.SendBatch(ctx, batch)
-	var openErr error
+	var lockErr, openErr error
+	if inline && guarded {
+		_, lockErr = results.Exec()
+	}
 	if inline {
 		_, openErr = results.Exec()
 	}
@@ -94,6 +106,10 @@ func (r tableRepository[ID, S]) saveUnderSavepoint(ctx context.Context, tenant p
 	closeErr := results.Close()
 
 	switch {
+	case lockErr != nil && lockFailed(lockErr, guard.statement):
+		return fmt.Errorf("postgres: save %s %s: guard: %w", r.table.Name, id, unbatched(lockErr))
+	case lockErr != nil:
+		return r.unopened(id, unbatched(lockErr))
 	case openErr != nil:
 		return r.unopened(id, unbatched(openErr))
 	case err != nil:
@@ -163,11 +179,15 @@ func (p *savepointPlan) inline(statement string) bool {
 
 // pin prepares by name, out of the statement cache's LRU: an evicted write would be
 // prepared again ahead of the next batch (conn.go:998,1083).
-func (p *savepointPlan) pin(ctx context.Context, conn pgx.Tx, statement string) error {
+func (p *savepointPlan) pin(ctx context.Context, conn pgx.Tx, statement, guard string) error {
 	if !p.pins {
 		return nil
 	}
-	for _, sql := range []string{statement, openSavepoint, releaseSavepoint} {
+	pinned := []string{statement, openSavepoint, releaseSavepoint}
+	if guard != "" {
+		pinned = append(pinned, guard)
+	}
+	for _, sql := range pinned {
 		if _, err := conn.Prepare(ctx, sql, sql); err != nil {
 			return err
 		}

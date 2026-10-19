@@ -57,7 +57,10 @@ skill `.agents/skills/dmpf-bounded-context/`.
 ## Unit of Work e outbox (ADR-034, ADR-035)
 
 - Um caso de uso é um `Within` sobre `UnitOfWork[R]`; quem monta `R` é o
-  composition root, pelo `bind` (ADR-034). Consultas correm fora da UoW.
+  composition root, pelo `bind` (ADR-034). Consultas (`usecase.Query`) correm
+  fora da UoW. A pré-condição relacional de um comando, sem id conhecido, lê
+  na UoW pela guarda: `Guard` no `Table` e `Relation(Guard).QueryWithin` sobre a
+  `*Tx` do `bind` (ADR-067).
 - O caso de uso produtor percorre os nove passos de FND-04 §3.2, na ordem —
   identidade antes da transação, autorização pelo gancho, evento para a outbox
   na **mesma** transação do estado, por `usecase.Enqueue` (ADR-035). Os passos

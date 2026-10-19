@@ -17,8 +17,9 @@ type Tx struct {
 	conn pgx.Tx
 	// writes counts the aggregate and outbox writes, never the inbox: a declared
 	// violation converts only while it is the transaction's first write (DEC-10).
-	writes int
-	plan   *savepointPlan
+	writes  int
+	plan    *savepointPlan
+	guarded bool
 }
 
 func (t *Tx) savepoints() *savepointPlan {

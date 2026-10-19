@@ -10,7 +10,9 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"go.opentelemetry.io/otel/log"
 	lognoop "go.opentelemetry.io/otel/log/noop"
+	sdklog "go.opentelemetry.io/otel/sdk/log"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
 )
@@ -57,12 +59,29 @@ func TestWaitForTablesStopsWithTheContext(t *testing.T) {
 	}
 }
 
+type reportingProcessor struct {
+	recordingProcessor
+	reported context.CancelFunc
+}
+
+func (p *reportingProcessor) OnEmit(ctx context.Context, record *sdklog.Record) error {
+	err := p.recordingProcessor.OnEmit(ctx, record)
+	p.reported()
+	return err
+}
+
+func untilReported(t *testing.T) (context.Context, *reportingProcessor, log.LoggerProvider) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	t.Cleanup(cancel)
+	logs := &reportingProcessor{reported: cancel}
+	return ctx, logs, sdklog.NewLoggerProvider(sdklog.WithProcessor(logs))
+}
+
 func TestWaitForTablesNamesTheTableItWaitsFor(t *testing.T) {
 	pool := openPool(t)
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
-	defer cancel()
-	logs := &recordingProcessor{}
-	_ = postgres.WaitForTables(ctx, pool, 20*time.Millisecond, logs.provider(), "never_created")
+	ctx, logs, provider := untilReported(t)
+	_ = postgres.WaitForTables(ctx, pool, 20*time.Millisecond, provider, "never_created")
 
 	records := logs.named("waiting for table")
 	if len(records) != 1 || records[0]["db.collection.name"] != "never_created" || records[0]["scope"] != postgresScope {
@@ -157,11 +176,9 @@ func TestWaitForGrantsStopsWithTheContext(t *testing.T) {
 
 func TestWaitForGrantsNamesTheTableAndThePrivilegeItWaitsFor(t *testing.T) {
 	pool := openPool(t)
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
-	defer cancel()
-	logs := &recordingProcessor{}
+	ctx, logs, provider := untilReported(t)
 
-	_ = postgres.WaitForGrants(ctx, pool, 20*time.Millisecond, logs.provider(), postgres.AppendOnly("never_created"))
+	_ = postgres.WaitForGrants(ctx, pool, 20*time.Millisecond, provider, postgres.AppendOnly("never_created"))
 
 	records := logs.named("waiting for table privilege")
 	if len(records) != 1 || records[0]["db.collection.name"] != "never_created" || records[0]["db.operation.name"] != "SELECT" || records[0]["scope"] != postgresScope {
@@ -227,10 +244,9 @@ func TestWaitForUniquesReturnsAnyOtherErrorAtOnce(t *testing.T) {
 func TestWaitForUniquesStopsWithTheContextKeepingTheDivergence(t *testing.T) {
 	pool := openPool(t)
 	createLateUniques(t, openAdminPool(t))
-	ctx, cancel := context.WithCancel(context.Background())
-	time.AfterFunc(100*time.Millisecond, cancel)
+	ctx, _, provider := untilReported(t)
 
-	err := postgres.WaitForUniques(ctx, pool, 20*time.Millisecond, lognoop.NewLoggerProvider(), lateUniques())
+	err := postgres.WaitForUniques(ctx, pool, 20*time.Millisecond, provider, lateUniques())
 
 	if !errors.Is(err, context.Canceled) || !errors.Is(err, postgres.ErrUniqueDivergent) || !strings.Contains(err.Error(), lateUnique) {
 		t.Fatalf("WaitForUniques() = %v, want context.Canceled with the ErrUniqueDivergent of %s", err, lateUnique)
@@ -240,11 +256,9 @@ func TestWaitForUniquesStopsWithTheContextKeepingTheDivergence(t *testing.T) {
 func TestWaitForUniquesNamesTheConstraintItWaitsFor(t *testing.T) {
 	pool := openPool(t)
 	createLateUniques(t, openAdminPool(t))
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
-	defer cancel()
-	logs := &recordingProcessor{}
+	ctx, logs, provider := untilReported(t)
 
-	_ = postgres.WaitForUniques(ctx, pool, 20*time.Millisecond, logs.provider(), lateUniques())
+	_ = postgres.WaitForUniques(ctx, pool, 20*time.Millisecond, provider, lateUniques())
 
 	records := logs.named("waiting for unique constraint")
 	if len(records) != 1 || records[0]["db.collection.name"] != "late_uniques" || records[0]["dmpf.db.constraint.name"] != lateUnique ||
