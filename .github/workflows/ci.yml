@@ -27,37 +27,54 @@ jobs:
   scope:
     name: Escopo
     runs-on: ubuntu-26.04
-    timeout-minutes: 5
+    timeout-minutes: 10
     outputs:
       code: ${{ steps.scope.outputs.code }}
-      full: ${{ steps.scope.outputs.full }}
-      self-tests: ${{ steps.scope.outputs.self-tests }}
+      projects: ${{ steps.dmpf.outputs.projects }}
+      self-tests: ${{ steps.dmpf.outputs.self-tests-job }}
+      external-consumer: ${{ steps.dmpf.outputs.external-consumer }}
+      distributed: ${{ steps.dmpf.outputs.distributed }}
+      sonar: ${{ steps.dmpf.outputs.sonar }}
     steps:
       - name: Checkout
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           fetch-depth: 0
 
-      # O PR para master vem de release/** ou hotfix/** e leva o pacote completo.
       # Markdown sob tools/, .claude/ e .agents/ é saída do init e não conta como
       # documentação: alterá-lo faz o `init --dry-run` propor mudança.
       - name: Classificar o diff
         id: scope
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          BASE_REF: ${{ github.base_ref }}
         run: |
           set -euo pipefail
           mudados="$(git diff --name-only "$BASE_SHA"...HEAD)"
           codigo="$(awk '!/^docs\// && !(/\.md$/ && !/^(tools|\.claude|\.agents)\//)' <<<"$mudados")"
-          ferramental="$(grep -E '^(tools/|\.github/|\.golangci\.yml$)' <<<"$mudados" || true)"
-          full=false
-          [ "$BASE_REF" = master ] && full=true
-          {
-            echo "full=$full"
-            echo "code=$([ "$full" = true ] || [ -n "$codigo" ] && echo true || echo false)"
-            echo "self-tests=$([ "$full" = true ] || [ -n "$ferramental" ] && echo true || echo false)"
-          } | tee -a "$GITHUB_OUTPUT"
+          echo "code=$([ -n "$codigo" ] && echo true || echo false)" | tee -a "$GITHUB_OUTPUT"
+
+      - name: Setup Node and pnpm
+        if: steps.scope.outputs.code == 'true'
+        uses: ./.github/actions/setup-node-pnpm
+        with:
+          node-version: "24"
+
+      - name: Layout DMPF
+        if: steps.scope.outputs.code == 'true'
+        uses: ./.github/actions/dmpf-layout
+
+      - name: Set Nx SHAs for affected (base/head)
+        if: steps.scope.outputs.code == 'true'
+        uses: nrwl/nx-set-shas@afb73a62d26e41464e9254689e1fd6122ee683c1 # v5
+        with:
+          main-branch-name: ${{ github.base_ref }}
+
+      - name: Escopo do diff
+        id: dmpf
+        if: steps.scope.outputs.code == 'true'
+        uses: ./.github/actions/dmpf-scope
+        with:
+          keycloak: "true"
 
   dmpf:
     name: DMPF
@@ -72,15 +89,16 @@ jobs:
       base: ${{ github.base_ref }}
       keycloak: true
       platform: true
-      full: ${{ needs.scope.outputs.full == 'true' }}
+      govulncheck: ${{ github.base_ref == 'master' }}
       self-tests: ${{ needs.scope.outputs.self-tests == 'true' }}
     secrets:
       NX_CLOUD_ACCESS_TOKEN: ${{ secrets.NX_CLOUD_ACCESS_TOKEN }}
 
+  # Consumidor externo, distribuído e Sonar são da etapa de release (ADR-069).
   external-consumer:
     name: Consumidor externo por versão
     needs: scope
-    if: needs.scope.outputs.full == 'true'
+    if: github.base_ref == 'master' && needs.scope.outputs.external-consumer == 'true'
     runs-on: ubuntu-26.04
     timeout-minutes: 25
     steps:
@@ -101,19 +119,23 @@ jobs:
   distributed:
     name: Distribuído
     needs: scope
-    if: needs.scope.outputs.full == 'true'
+    if: github.base_ref == 'master' && needs.scope.outputs.distributed == 'true'
     permissions:
       actions: read
       contents: read
     uses: ./.github/workflows/dmpf-distributed.yml
+    with:
+      projects: ${{ needs.scope.outputs.projects }}
 
   sonar:
     name: SonarQube Cloud
     needs: scope
-    if: needs.scope.outputs.full == 'true'
+    if: github.base_ref == 'master' && needs.scope.outputs.sonar == 'true'
     permissions:
       contents: read
     uses: ./.github/workflows/sonar.yml
+    with:
+      projects: ${{ needs.scope.outputs.projects }}
     secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 

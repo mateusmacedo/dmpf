@@ -5,6 +5,11 @@ name: DMPF Distributed
 # ciclo curto por exigência de KIT-11: o ci.yml só o chama no PR para master.
 on:
   workflow_call:
+    inputs:
+      projects:
+        description: Projetos do escopo do diff, separados por vírgula; vazio roda todos os que têm test-distributed
+        type: string
+        default: ""
   workflow_dispatch:
 
 permissions:
@@ -35,12 +40,25 @@ jobs:
       - name: Setup Go
         uses: ./.github/actions/setup-go
 
+      - name: Projetos com harness distribuído
+        id: alvo
+        env:
+          PROJECTS: ${{ inputs.projects }}
+        run: |
+          set -euo pipefail
+          filtro=()
+          [ -n "$PROJECTS" ] && filtro=(-p "$PROJECTS")
+          lista="$(pnpm --silent nx show projects --withTarget test-distributed "${filtro[@]}" --json | jq -r 'join(",")')"
+          echo "projects=$lista" | tee -a "$GITHUB_OUTPUT"
+
       - name: Espelho do Docker Hub
+        if: steps.alvo.outputs.projects != ''
         uses: ./.github/actions/docker-hub-mirror
 
       # No runner hospedado do GitHub o job roda na VM, sem container próprio:
       # `--network host` publica o serviço em localhost, como os testes esperam.
       - name: Subir Postgres para o harness distribuído
+        if: steps.alvo.outputs.projects != ''
         run: |
           set -euo pipefail
           nome="test-dist-postgres-$(hostname)"
@@ -62,6 +80,7 @@ jobs:
           exit 1
 
       - name: Subir Redpanda para o harness distribuído
+        if: steps.alvo.outputs.projects != ''
         run: |
           set -euo pipefail
           nome="test-dist-redpanda-$(hostname)"
@@ -85,7 +104,10 @@ jobs:
       # app, então o harness só roda depois que as duas camadas de que
       # depende passaram sobre a mesma infra.
       - name: Harness distribuído (KIT-06)
-        run: pnpm nx run reservations:test-distributed
+        if: steps.alvo.outputs.projects != ''
+        env:
+          PROJECTS: ${{ steps.alvo.outputs.projects }}
+        run: pnpm nx run-many -t test-distributed -p "$PROJECTS" --parallel=1
 
       - name: Derrubar a infraestrutura do job
         if: always()
