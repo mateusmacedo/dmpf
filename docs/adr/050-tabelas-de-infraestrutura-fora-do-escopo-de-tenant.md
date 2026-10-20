@@ -2,7 +2,7 @@
 
 ## Status
 
-Aceito — 2026-09-23. Implementa [SPEC-9B6SHEH8](../specs/SPEC-9B6SHEH8-contexto-execucao-identidade-tenant.md). **Emendado pelo [ADR-068](./068-acesso-entre-tenants-declarado.md) (2026-10-18)**: a escrita do consumidor admite a projeção declarada no tenant de destino; as tabelas de plataforma, o `metadata` da outbox e o envelope não mudam.
+Aceito — 2026-09-23. Implementa [SPEC-9B6SHEH8](../specs/SPEC-9B6SHEH8-contexto-execucao-identidade-tenant.md). **Emendado pelo [ADR-068](./068-acesso-entre-tenants-declarado.md) (2026-10-18)**: a escrita do consumidor admite a projeção declarada no tenant de destino; as tabelas de plataforma, o `metadata` da outbox e o envelope não mudam. **Emendado pelo [ADR-070](./070-ciclo-de-comando-externo-de-saida.md) (2026-10-20)**: o ledger de tentativas de comando externo, `external_attempt`, é tabela de plataforma com o tenant na chave; `outbox`, `inbox` e `quarantine` não mudam.
 
 ## Contexto
 
@@ -18,7 +18,7 @@ As três têm uma propriedade em comum que as tabelas de agregado não têm: o c
 
 ## Decisão
 
-**`dmpf_outbox`, `dmpf_inbox` e `dmpf_quarantine` são tabelas de plataforma e não recebem coluna nem predicado de tenant.** `IDN-11` alcança dado de negócio; o que essas tabelas guardam é estado da entrega, e o acesso a elas é feito só pelo kernel — nenhum contexto escreve SQL sobre elas, porque o gate `context-provider` nega o driver nos providers de contexto.
+**`dmpf_outbox`, `dmpf_inbox` e `dmpf_quarantine` são tabelas de plataforma e não recebem coluna nem predicado de tenant.** `IDN-11` alcança dado de negócio; o que essas tabelas guardam é estado da entrega, e o acesso a elas é feito só pelo kernel — nenhum contexto escreve SQL sobre elas, porque o gate `context-provider` nega o driver nos providers de contexto. O ledger de tentativas do [ADR-070](./070-ciclo-de-comando-externo-de-saida.md), `external_attempt`, também é tabela de plataforma acessada só pelo kernel, salvo que a chave inclui o tenant, como na entrada de comando do `IDM-03`: a mesma chave de saída em outro tenant é outra tentativa.
 
 O tenant **atravessa** a outbox sem ser escopo dela: vai no `metadata` do registro, resolvido pelo provider a partir do portador (`enqueueTenant`, `postgres/outbox.go`), e o relay o põe no atributo `tenantid` do envelope. Quem consome reconstrói o contexto com esse tenant (`CTX-24`), e a escrita de negócio do consumidor é escopada como qualquer outra, salvo a projeção declarada do [ADR-068](./068-acesso-entre-tenants-declarado.md): pelo `Projector`, o consumidor lê e grava no tenant de destino que recebe explicitamente, do payload ou de dado da própria app, sob uma política de destino que fecha por omissão e com registro de auditoria que falha fechado. O tenant do contexto continua o do envelope (`CTX-24`), que não carrega o destino.
 

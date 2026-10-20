@@ -1764,6 +1764,18 @@ ports:
 épico de kernel que implementa o kit; este artefato exige que a escolha exista e
 que o par de vetores seja decidível, não uma ferramenta concreta de container.
 
+#### §8.1.2 O parceiro externo roteirizado e a conformidade do adaptador
+
+`normativo` — blocos `services` e `provider`. Decisão nova, registrada no
+[ADR-070](../adr/070-ciclo-de-comando-externo-de-saida.md). O ciclo do comando
+externo de saída precisa de um parceiro que responda cada classe de desfecho sob
+roteiro e de uma forma de certificar o adaptador que traduz o parceiro real.
+Nenhum dos dois é camada nova da pirâmide.
+
+| ID | Regra |
+|----|-------|
+| `KIT-12` | **O parceiro externo roteirizado é fake do `KIT-03`, e a conformidade do adaptador é cláusula do `KIT-04`; não há sexto kit (`KIT-01`).** O parceiro roteirizado realiza as portas de comando externo e de consulta de estado com roteiro por chave e por tentativa, cobre as nove classes de desfecho, a consulta que responde cada achado, o parceiro sem consulta, a notificação duplicada e a resposta perdida depois de efeito aplicado, e registra cada chave recebida, para que o teste prove que o reenvio usou a mesma. É determinístico pelos instrumentos de §8.2. A cláusula do `KIT-04` certifica que cada código de uma tabela de parceiro cai na classe declarada e que o código desconhecido cai no desfecho incerto não retentável, e que a realização do ledger de tentativas serializa na chave e não purga tentativa aberta |
+
 ### §8.2 Determinismo
 
 `normativo` — sujeito: a suíte de cada stack e as camadas `services`/`provider`.
@@ -2658,12 +2670,12 @@ deste artefato.
 | `FIX` | Golden fixtures: sintaxe, formato, pipeline, ownership, diagnóstico | `FIX-01`..`FIX-13` | 13 | §5 |
 | `ORA` | Os três oráculos de wire e a precisão de tipos | `ORA-01`..`ORA-13` | 13 | §6 |
 | `ORA` | Oráculo de projeção observável do desfecho de domínio | `ORA-30`..`ORA-40` | 11 | §7 |
-| `KIT` | Test kits por camada, determinismo, pipeline de CI | `KIT-01`..`KIT-11` | 11 | §8 |
+| `KIT` | Test kits por camada, determinismo, pipeline de CI | `KIT-01`..`KIT-12` | 12 | §8 |
 | `FIT` | Testes de arquitetura como fitness function | `FIT-01`..`FIT-04` | 4 | §9 |
 | `RAS` | Forma do diagnóstico estável e do par de vetores | `RAS-01`..`RAS-16` | 16 | §10 |
 | `RAS` | Verificação das regras herdadas e calibração por modo | `RAS-30`..`RAS-41` | 12 | §11 |
 
-**Total: 142 regras próprias: 141 `normativo` e uma `encaminhado`, `RAS-41`.**
+**Total: 143 regras próprias: 142 `normativo` e uma `encaminhado`, `RAS-41`.**
 
 `normativo` — **Duas faixas ficam reservadas e não são reutilizadas.** `ORA-14` a
 `ORA-29` e `RAS-17` a `RAS-29` não estão atribuídos. A reserva é deliberada: os dois
@@ -3372,7 +3384,7 @@ Cada célula é `import-verifiable` por `DMPF-D001` (condição C1). Agrupadas p
 
 ### §13.6 FND-07
 
-**112 regras** de `contexto-erros-seguranca.md` (FND-07, sob ANC-05): `CTX` 28, `IDN` 20, `ERR` 28, `MAP` 7, `THR` 3, `DAT` 26. Contíguas por prefixo, sem lacuna nem repetição (confere FND-07 §11.1). Modo por regra conforme FND-07 §11.2; instanciação calibrada por D10 (`RAS-30`).
+**115 regras** de `contexto-erros-seguranca.md` (FND-07, sob ANC-05): `CTX` 28, `IDN` 20, `ERR` 31, `MAP` 7, `THR` 3, `DAT` 26. Contíguas por prefixo, sem lacuna nem repetição (confere FND-07 §11.1). Modo por regra conforme FND-07 §11.2; instanciação calibrada por D10 (`RAS-30`).
 
 Convenção da coluna **Onde**: `§N` é seção deste artefato (FND-09); `FND-07 §N` é a fonte. Regra `runtime-testable` cita o cenário (§4, `CEN`) e o oráculo (§11, `RAS`); regra `structurally reviewable` herdada cita a seção-fonte onde o critério decidível é inspecionado (FND-09 não acrescenta cenário); regra `import-verifiable` cita §9 (`FIT`) e o diagnóstico reusado em `RFC §10.3`.
 
@@ -3434,7 +3446,7 @@ Convenção da coluna **Onde**: `§N` é seção deste artefato (FND-09); `FND-0
 | `IDN-19` | structurally reviewable | critério: operação de plataforma declara o escopo de dado; alcance irrestrito é declarado, nunca efeito colateral | — | — | FND-07 §4.5 |
 | `IDN-20` | structurally reviewable | critério: nenhum bloco inventa sujeito/tenant; `system`/`default`/`anonymous`/`unknown`/tenant sintético proibidos | — | — | FND-07 §4.5 |
 
-**`ERR` — taxonomia de erros (28)**
+**`ERR` — taxonomia de erros (31)**
 
 | ID | Modo | Instrumento | Vetor positivo | Vetor negativo | Onde |
 |----|------|-------------|----------------|----------------|------|
@@ -3466,6 +3478,9 @@ Convenção da coluna **Onde**: `§N` é seção deste artefato (FND-09); `FND-0
 | `ERR-26` | structurally reviewable | critério: tradução preserva a retryability conhecida; resolve para não retentável quando desconhecida | — | — | FND-07 §5.8 |
 | `ERR-27` | structurally reviewable | critério: tradução não expõe código do produtor, id interno, stack nem topologia na projeção pública | — | — | FND-07 §5.8 |
 | `ERR-28` | structurally reviewable | critério: `DomainRejection` do produtor traduz para `DomainRejection`/`Validation` só quando a regra violada é do próprio consumidor | — | — | FND-07 §5.8 |
+| `ERR-29` | structurally reviewable | critério: o desfecho de comando a parceiro externo resolve para exatamente uma das nove classes; cada classe que não é aceite tem categoria de §5.3 e retryability booleana pela tabela do ADR-070 | — | — | FND-07 §5.9 |
+| `ERR-30` | structurally reviewable | critério: pedido enviado sem resposta resolve para `DeadlineExceeded` ou `Unexpected`, e só é retentável com chave de saída enviada e semântica de chave `Native` ou `Header` no perfil; sem o predicado, não retentável (`ERR-11`) | — | — | FND-07 §5.9 |
+| `ERR-31` | structurally reviewable | critério: código do parceiro fora da tabela do adaptador resolve para resposta não interpretável, não retentável; cláusula do `KIT-04` (`KIT-12`) | — | — | FND-07 §5.9 |
 
 **`MAP` — mapeamento por transporte (7)**
 
@@ -3520,7 +3535,7 @@ Convenção da coluna **Onde**: `§N` é seção deste artefato (FND-09); `FND-0
 
 `registro`
 
-**Contagem por grupo.** `CTX` 28 (`CTX-01`..`CTX-28`) · `IDN` 20 (`IDN-01`..`IDN-20`) · `ERR` 28 (`ERR-01`..`ERR-28`) · `MAP` 7 (`MAP-01`..`MAP-07`) · `THR` 3 (`THR-01`..`THR-03`) · `DAT` 26 (`DAT-01`..`DAT-26`). **Total: 112**, contíguo por prefixo, sem lacuna nem repetição (confere FND-07 §11.1).
+**Contagem por grupo.** `CTX` 28 (`CTX-01`..`CTX-28`) · `IDN` 20 (`IDN-01`..`IDN-20`) · `ERR` 31 (`ERR-01`..`ERR-31`) · `MAP` 7 (`MAP-01`..`MAP-07`) · `THR` 3 (`THR-01`..`THR-03`) · `DAT` 26 (`DAT-01`..`DAT-26`). **Total: 115**, contíguo por prefixo, sem lacuna nem repetição (confere FND-07 §11.1).
 
 **Distribuição por modo.** `runtime-testable` (9): `CTX-15`, `CTX-16`, `CTX-17` (`CEN-42`/`RAS-35`); `CTX-21`, `CTX-22` (`CEN-43`/`RAS-36`); `IDN-11`, `IDN-12`, `IDN-13`, `IDN-14` (`CEN-41`/`RAS-33`/`RAS-34`). `structurally reviewable + parte runtime-testable` (2): `ERR-02`, `ERR-11` (parte runtime via `RAS-37`). `runtime-testable por inspeção de superfície`, calibrado a `structurally reviewable` (3): `DAT-08`, `DAT-10` (`RAS-38`), `DAT-14` (`RAS-39`). `import-verifiable + structurally reviewable` (4): `CTX-02`, `CTX-03`, `CTX-05`, `IDN-10`. `inspeção`/fronteira (3): `THR-01`, `THR-02`, `THR-03`. `structurally reviewable` puro: as demais 91.
 
@@ -3535,7 +3550,7 @@ Convenção da coluna **Onde**: `§N` é seção deste artefato (FND-09); `FND-0
 
 ### §13.7 FND-08
 
-**121 regras** de `resiliencia-observabilidade.md` (FND-08, sob ANC-06): `RES` 40, `TRC` 16, `MET` 31 (`MET-01`..`MET-30` + `MET-05a`), `LOG` 14, `RUN` 20 (`RUN-01`..`RUN-18` + `RUN-11a` + `RUN-18a`). Contíguas por prefixo, com os três sufixos de letra que FND-08 §13.1 declara (`registro` — 121 regras `normativo`, nenhuma com sujeito `domain` ou `port`).
+**126 regras** de `resiliencia-observabilidade.md` (FND-08, sob ANC-06): `RES` 45, `TRC` 16, `MET` 31 (`MET-01`..`MET-30` + `MET-05a`), `LOG` 14, `RUN` 20 (`RUN-01`..`RUN-18` + `RUN-11a` + `RUN-18a`). Contíguas por prefixo, com os três sufixos de letra que FND-08 §13.1 declara (`registro` — 126 regras `normativo`, nenhuma com sujeito `domain` ou `port`).
 
 `registro` — **FND-08 não declara modo de verificação de RFC §2.2.** A `Classificação de força` de FND-08 §1.2 rotula por força — `normativo`, `recepcionado`, `encaminhado`, `rationale`, `registro` — e nenhuma regra traz `import-verifiable`, `structurally reviewable` nem `runtime-testable`. O modo de cada linha abaixo é, portanto, **declaração de FND-09** no vocabulário de RFC §2.2, no mesmo regime em que `RAS-32` (§11.2) declarou o modo das 42 regras de FND-03 publicadas sem modo — a coluna **Modo** registra `não declarado` para toda a família, e a coluna **Instrumento** abre com o modo atribuído em backticks. A atribuição não é leitura literal da fonte.
 
@@ -3545,7 +3560,7 @@ Convenção da coluna **Onde**: `§N` é seção deste artefato (FND-09); `FND-0
 
 Convenção da coluna **Onde**: `§N` é seção deste artefato (FND-09); `FND-08 §N` é a fonte. Regra atribuída `runtime-testable` cita o oráculo (§10/§11, `RAS`) e o cenário (§4, `CEN`) ou o `KIT` (§8) quando existe, e declara a dependência (§4.8/§12.3) quando o cenário ainda não foi instanciado; regra `structurally reviewable` cita a seção-fonte onde o critério decidível é inspecionado, com «—» nas colunas de vetor; regra `import-verifiable` cita §9 (`FIT`) e o diagnóstico reusado em `RFC §10.3`.
 
-**`RES` — resiliência: sujeito e fronteira, limites por dependência, retry, orçamento, backoff e degradação (40)**
+**`RES` — resiliência: sujeito e fronteira, limites por dependência, retry, orçamento, backoff, degradação e comando externo de saída (45)**
 
 | ID | Modo | Instrumento | Vetor positivo | Vetor negativo | Onde |
 |----|------|-------------|----------------|----------------|------|
@@ -3589,6 +3604,11 @@ Convenção da coluna **Onde**: `§N` é seção deste artefato (FND-09); `FND-0
 | `RES-38` | não declarado | `structurally reviewable` — critério: degradar não silencia erro; modo `degrada` produz resposta distinguível + `MET-13`, modo `ignora` produz sinal de omissão | — | — | FND-08 §4.5 |
 | `RES-39` | não declarado | `structurally reviewable` — critério: contenção de repetição é conjunta (retry + breaker + admissão = política única); a ficha de `RES-21` é avaliada como conjunto na revisão de mudança de configuração | — | — | FND-08 §4.5 |
 | `RES-40` | não declarado | `structurally reviewable` — critério: todo override de default é declarado, versionado e observável (metadado de telemetria); default alterado em runtime sem registro reprova | — | — | FND-08 §4.5 |
+| `RES-41` | não declarado | `structurally reviewable` — critério: o retry que termina em desfecho incerto não vira sucesso nem falha final; o passo seguinte é consulta, reconciliação ou suspensão (teste exaustivo da função de passo) | — | — | FND-08 §4.6 |
+| `RES-42` | não declarado | `structurally reviewable` — critério: o reenvio posterior à chamada leva a mesma chave e só ocorre depois de achado de ausência ou de reconciliação | — | — | FND-08 §4.6 |
+| `RES-43` | não declarado | `structurally reviewable` — critério: espera por consulta, por reconciliação e suspensão declaram prazo e dono (`GAR-05`, `GAR-06`) | — | — | FND-08 §4.6 |
+| `RES-44` | não declarado | `structurally reviewable` — critério: o perfil do parceiro é declaração própria fora da ficha de `RES-21`, com teto de consultas; perfil inválido é recusado | — | — | FND-08 §4.6 |
+| `RES-45` | não declarado | `structurally reviewable` — critério: a intenção do comando externo vai à outbox na UoW do caso de uso, e a chamada ao parceiro acontece fora de UoW | — | — | FND-08 §4.6 |
 
 **`TRC` — tracing: fluxos, spans, atributos, continuidade assíncrona, amostragem e redaction (16)**
 
@@ -3693,7 +3713,7 @@ Convenção da coluna **Onde**: `§N` é seção deste artefato (FND-09); `FND-0
 
 `registro`
 
-**Contagem por grupo.** `RES` 40 (`RES-01`..`RES-40`) · `TRC` 16 (`TRC-01`..`TRC-16`) · `MET` 31 (`MET-01`..`MET-30` + `MET-05a`) · `LOG` 14 (`LOG-01`..`LOG-14`) · `RUN` 20 (`RUN-01`..`RUN-18` + `RUN-11a` + `RUN-18a`). **Total: 121 regras `normativo`**, contíguo por prefixo, com os três sufixos de letra — o número que FND-08 §13.1 declara. As 118 regras numeradas são as das cinco faixas; `MET-05a`, `RUN-11a` e `RUN-18a` são regras acrescentadas entre faixas na revisão, contam na baseline e recebem linha aqui.
+**Contagem por grupo.** `RES` 45 (`RES-01`..`RES-45`) · `TRC` 16 (`TRC-01`..`TRC-16`) · `MET` 31 (`MET-01`..`MET-30` + `MET-05a`) · `LOG` 14 (`LOG-01`..`LOG-14`) · `RUN` 20 (`RUN-01`..`RUN-18` + `RUN-11a` + `RUN-18a`). **Total: 126 regras `normativo`**, contíguo por prefixo, com os três sufixos de letra — o número que FND-08 §13.1 declara. As 123 regras numeradas são as das cinco faixas; `MET-05a`, `RUN-11a` e `RUN-18a` são regras acrescentadas entre faixas na revisão, contam na baseline e recebem linha aqui.
 
 **Distribuição por modo (atribuição de FND-09, não leitura literal da fonte).** `import-verifiable` puro (2): `RES-24`, `TRC-16`, `LOG-11` — nenhum decorator, span ou logger em `domain`/`port`, diagnóstico reusado de `RFC §10.3`. `import-verifiable` + `structurally reviewable` (1): `RES-01`. `runtime-testable` (4): `RES-26` (instrumento real — harness `KIT-06`, oráculo `RAS-13`, `V32`, diagnóstico `DMPF-R004`); `TRC-01`, `TRC-04`, `TRC-07` (oráculo declarado, com cenário e execução como dependência declarada — FND-09 não instancia `CEN` de tracing nesta entrega, consistente com §4.8). `structurally reviewable` puro: as demais 113.
 
@@ -3703,7 +3723,7 @@ Convenção da coluna **Onde**: `§N` é seção deste artefato (FND-09); `FND-0
 
 **Dependências declaradas, não lacunas.** Valores de limiar e default que só o contexto local declara não são lacuna deste mapa: o teto de `RES-08` (2 s), os defaults de `RES-10`, `RES-14`, `RES-30`, `RES-32` e `RES-33`, a retenção de `RUN-11` (14 dias) e os limiares com owner local de `MET-05`. A execução runtime da observabilidade de entrega — o disparo efetivo das métricas de §6.3–§6.8 e a montagem de trace de `TRC-01`/`TRC-04`/`TRC-07` — pertence aos épicos de kernel (ANC-10; §12.3, item 4), no mesmo regime em que §4.8 e §12.1 declaram a observabilidade de entrega fronteira de FND-08. O que este mapa entrega é a especificação (modo + oráculo + critério); a execução fica diferida, e o diferimento é declarado, não omitido.
 
-**IDs sem mecanismo.** Nenhum. As 121 regras recebem instrumento — inspeção decidível, aresta de import com diagnóstico reusado, ou oráculo com par de vetores. Diferente de `THR-01`/`THR-02`/`TRP-31` (§13.2), que ficam sem mecanismo por serem eles próprios a matéria fronteira de FND-08, as regras de FND-08 têm agora fonte publicada que sustenta a inspeção. A publicação de FND-08 satisfaz a condição de fechamento de §4.8/§12.1 no que toca à regra de resultado; instrumentar os vetores de execução da observabilidade de entrega permanece trabalho dos kernels sob ANC-10.
+**IDs sem mecanismo.** Nenhum. As 126 regras recebem instrumento — inspeção decidível, aresta de import com diagnóstico reusado, ou oráculo com par de vetores. Diferente de `THR-01`/`THR-02`/`TRP-31` (§13.2), que ficam sem mecanismo por serem eles próprios a matéria fronteira de FND-08, as regras de FND-08 têm agora fonte publicada que sustenta a inspeção. A publicação de FND-08 satisfaz a condição de fechamento de §4.8/§12.1 no que toca à regra de resultado; instrumentar os vetores de execução da observabilidade de entrega permanece trabalho dos kernels sob ANC-10.
 
 ---
 
