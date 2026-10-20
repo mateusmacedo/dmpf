@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/mateusmacedo/dmpf/apps/backend/bff/app/api"
@@ -47,5 +48,5 @@ func readinessURL(listen string) (string, error) {
 	if ip := net.ParseIP(host); host == "" || ip != nil && ip.IsUnspecified() {
 		host = "127.0.0.1"
 	}
-	return "http://" + net.JoinHostPort(host, port) + api.ReadinessPath, nil
+	return (&url.URL{Scheme: "http", Host: net.JoinHostPort(host, port), Path: api.ReadinessPath}).String(), nil
 }
