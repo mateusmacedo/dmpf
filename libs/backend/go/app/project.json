@@ -37,8 +37,15 @@
     },
     "test-race": {
       "executor": "@mateusmacedo/dmpf-plugin:test-env",
-      "cache": false,
-      "inputs": ["go", "^go"],
+      "cache": true,
+      "inputs": [
+        "go",
+        "^go",
+        "{workspaceRoot}/infra/test/compose.yml",
+        "{workspaceRoot}/.env.example",
+        "{workspaceRoot}/tools/dmpf-plugin/scripts/test-env.sh",
+        { "env": "CI" }
+      ],
       "dependsOn": [
         {
           "projects": ["testkit"],
