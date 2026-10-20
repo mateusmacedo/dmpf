@@ -44,7 +44,7 @@ aprovar() { printf '  ok     %s\n' "$1"; }
 contextos() {
   local raiz="$1" caminho
   for caminho in "$raiz"/*/; do
-    [ -d "$caminho/domain" ] || continue
+    [[ -d "$caminho/domain" ]] || continue
     basename "$caminho"
   done
 }
@@ -53,8 +53,8 @@ contextos() {
 bordas() {
   local raiz="$1" caminho
   for caminho in "$raiz"/*/; do
-    [ -d "$caminho/domain" ] && continue
-    [ -f "$caminho/cmd/main.go" ] || continue
+    [[ -d "$caminho/domain" ]] && continue
+    [[ -f "$caminho/cmd/main.go" ]] || continue
     basename "$caminho"
   done
 }
@@ -95,7 +95,7 @@ PY
 
 exigir() {
   local caminho="$1" rotulo="$2"
-  if [ -e "$caminho" ]; then
+  if [[ -e "$caminho" ]]; then
     aprovar "$rotulo"
   else
     falhar "falta $rotulo"
@@ -104,7 +104,7 @@ exigir() {
 
 recusar() {
   local caminho="$1" rotulo="$2"
-  if [ -e "$caminho" ]; then
+  if [[ -e "$caminho" ]]; then
     falhar "$rotulo"
   else
     aprovar "sem $rotulo"
@@ -114,7 +114,7 @@ recusar() {
 raiz_sem_go() {
   local base="$1" ctx="$2" soltos
   soltos="$(find "$base" -maxdepth 1 -name '*.go' -printf '%f\n' 2>/dev/null)"
-  if [ -n "$soltos" ]; then
+  if [[ -n "$soltos" ]]; then
     falhar "$ctx: código Go solto na raiz ($(echo "$soltos" | tr '\n' ' '))"
   else
     aprovar "$ctx: raiz sem código de bloco"
@@ -910,12 +910,12 @@ PY
 
 relatar() {
   local rotulo="$1" saida="$2" status="$3"
-  if [ "$status" -eq 0 ]; then
+  if [[ "$status" -eq 0 ]]; then
     aprovar "$rotulo"
     return
   fi
   while IFS= read -r linha; do
-    [ -n "$linha" ] && falhar "$linha"
+    [[ -n "$linha" ]] && falhar "$linha"
   done <<<"$saida"
 }
 
@@ -930,7 +930,7 @@ fase_estrutural() {
     verificar_contexto "$raiz/$ctx" "$ctx"
   done < <(contextos "$raiz")
 
-  if [ "$achou" -eq 0 ]; then
+  if [[ "$achou" -eq 0 ]]; then
     if [[ "$PERMITIR_VAZIO" -eq 1 ]]; then
       echo "nenhum bounded context em $raiz ainda: nada a verificar"
       return 0
@@ -946,7 +946,7 @@ fase_estrutural() {
 
   printf '\n== nomes no DDL ==\n'
   for ctx in "${ctxs[@]}"; do
-    [ -f "$raiz/$ctx/provider/schema.sql" ] || continue
+    [[ -f "$raiz/$ctx/provider/schema.sql" ]] || continue
     saida="$(verificar_ddl contexto "$raiz/$ctx/provider/schema.sql")"
     status=$?
     relatar "$ctx: DDL nos nomes canônicos" "$saida" "$status"
@@ -984,7 +984,7 @@ fase_estrutural() {
   status=$?
   relatar "banco e role com o nome da app (ou <app>_migrator no PG_MIGRATE_DSN), ou o par administrativo" "$saida" "$status"
 
-  if [ "$FALHAS" -gt 0 ]; then
+  if [[ "$FALHAS" -gt 0 ]]; then
     printf '\nGate de estrutura: REPROVADO com %d achado(s).\n' "$FALHAS" >&2
     return 1
   fi
@@ -997,10 +997,10 @@ fase_estrutural() {
 fase_contexto() {
   local base="$1" ctx saida status
   ctx="$(basename "$base")"
-  [ -d "$base/domain" ] || { echo "$base não é um bounded context (falta domain/)" >&2; return 2; }
+  [[ -d "$base/domain" ]] || { echo "$base não é um bounded context (falta domain/)" >&2; return 2; }
   printf '\n== %s ==\n' "$ctx"
   verificar_contexto "$base" "$ctx"
-  if [ -f "$base/provider/schema.sql" ]; then
+  if [[ -f "$base/provider/schema.sql" ]]; then
     saida="$(verificar_ddl contexto "$base/provider/schema.sql")"
     status=$?
     relatar "$ctx: DDL nos nomes canônicos" "$saida" "$status"
@@ -1014,7 +1014,7 @@ fase_contexto() {
   saida="$(verificar_plataforma "$base" "$ctx")"
   status=$?
   relatar "$ctx: leitura de plataforma e projeção só em provider/platform_*.go" "$saida" "$status"
-  if [ "$FALHAS" -gt 0 ]; then
+  if [[ "$FALHAS" -gt 0 ]]; then
     printf '\nGate de estrutura: REPROVADO com %d achado(s) em %s.\n' "$FALHAS" "$ctx" >&2
     return 1
   fi
@@ -1515,7 +1515,7 @@ fase_self_test() {
     trash "$tmp" >/dev/null 2>&1 || true
   done
 
-  if [ "$status" -ne 0 ]; then
+  if [[ "$status" -ne 0 ]]; then
     printf '\nAutoteste do gate: REPROVADO.\n' >&2
     return 1
   fi
@@ -1541,13 +1541,13 @@ FASE="structural"
 REPO="$ROOT"
 CONTEXTO=""
 PERMITIR_VAZIO=0
-while [ $# -gt 0 ]; do
+while [[ $# -gt 0 ]]; do
   case "$1" in
-    --phase) shift; FASE="${1:-}"; [ -n "$FASE" ] || { uso >&2; exit 2; } ;;
+    --phase) shift; FASE="${1:-}"; [[ -n "$FASE" ]] || { uso >&2; exit 2; } ;;
     --phase=*) FASE="${1#--phase=}" ;;
-    --root) shift; REPO="${1:-}"; [ -n "$REPO" ] || { uso >&2; exit 2; } ;;
+    --root) shift; REPO="${1:-}"; [[ -n "$REPO" ]] || { uso >&2; exit 2; } ;;
     --root=*) REPO="${1#--root=}" ;;
-    --context) shift; CONTEXTO="${1:-}"; [ -n "$CONTEXTO" ] || { uso >&2; exit 2; } ;;
+    --context) shift; CONTEXTO="${1:-}"; [[ -n "$CONTEXTO" ]] || { uso >&2; exit 2; } ;;
     --context=*) CONTEXTO="${1#--context=}" ;;
     --allow-empty) PERMITIR_VAZIO=1 ;;
     -h|--help) uso; exit 0 ;;
@@ -1558,7 +1558,7 @@ done
 
 case "$FASE" in
   structural)
-    if [ -n "$CONTEXTO" ]; then fase_contexto "$CONTEXTO"; else fase_estrutural "$REPO"; fi
+    if [[ -n "$CONTEXTO" ]]; then fase_contexto "$CONTEXTO"; else fase_estrutural "$REPO"; fi
     ;;
   self-test) fase_self_test ;;
   *) printf 'fase desconhecida: %s\n' "$FASE" >&2; uso >&2; exit 2 ;;

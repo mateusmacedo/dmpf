@@ -11,7 +11,7 @@ added=()
 restore() {
   local flags=()
   for spec in "${added[@]}"; do flags+=("-dropreplace=$spec"); done
-  [ "${#flags[@]}" -eq 0 ] || go mod edit "${flags[@]}"
+  [[ "${#flags[@]}" -eq 0 ]] || go mod edit "${flags[@]}"
 }
 trap restore EXIT
 
@@ -25,6 +25,6 @@ while read -r path version dir; do
   flags+=("-replace=$spec=$target")
   added+=("$spec")
 done < <(sed -n '/^replace (/,/^)/p' "$root/go.work" | awk '$3 == "=>" {print $1, $2, $4}')
-[ "${#flags[@]}" -eq 0 ] || go mod edit "${flags[@]}"
+[[ "${#flags[@]}" -eq 0 ]] || go mod edit "${flags[@]}"
 
 GOWORK=off go mod tidy "$@"

@@ -518,10 +518,21 @@ const runGo = ({ root, args, directory }: { root: string; args: string[]; direct
 
 const templateDir = (name: string): string => templatesDir('bounded-context', name);
 
-export const boundedContextGenerator = async (
+export const boundedContextGenerator = (
   tree: Tree,
   options: BoundedContextGeneratorSchema,
 ): Promise<GeneratorCallback> => {
+  try {
+    return Promise.resolve(runBoundedContextGenerator(tree, options));
+  } catch (error) {
+    return Promise.reject(error);
+  }
+};
+
+const runBoundedContextGenerator = (
+  tree: Tree,
+  options: BoundedContextGeneratorSchema,
+): GeneratorCallback => {
   const plan = planGeneration(tree, options);
 
   generateFiles(tree, templateDir('module'), plan.directory, plan.substitutions);

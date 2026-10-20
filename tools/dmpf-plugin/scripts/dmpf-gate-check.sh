@@ -27,7 +27,7 @@ clausula_de_package() {
 retirar_fixture() {
   local status=$? f
   for f in "$FIXTURE" "${FIXTURES[@]}"; do
-    if [ -n "$f" ] && [ -e "$f" ]; then
+    if [[ -n "$f" ]] && [[ -e "$f" ]]; then
       mv -f "$f" "$DESCARTE/descartado-$(date +%s%N)-$(basename "$f")" \
         || echo "AVISO: não consegui retirar $f do módulo" >&2
     fi
@@ -120,7 +120,7 @@ includes_do_modulo() {
   while IFS= read -r inc; do
     rel="${inc#"$module_path"}"
     rel="${rel#/}"
-    [ -z "$rel" ] && continue
+    [[ -z "$rel" ]] && continue
     echo "$module_dir/$rel"
   done < <(node -e '
     const m = require(process.argv[1]);
@@ -164,7 +164,7 @@ dir_do_bloco() {
     case "$inc" in *"$sufixo") ;; *) continue ;; esac
     rel="${inc#"$module_path"}"
     rel="${rel#/}"
-    [ -n "$rel" ] && { echo "$module_dir/$rel"; return; }
+    [[ -n "$rel" ]] && { echo "$module_dir/$rel"; return; }
   done < <(node -e '
     const m = require(process.argv[1]);
     for (const u of m.units ?? []) if (u.block === process.argv[2]) for (const i of u.include ?? []) console.log(i);
@@ -220,7 +220,7 @@ done < <(node -e '
 
 lintar() {
   local projeto="$1" args
-  if [ -z "${LINT_EXE[$projeto]:-}" ]; then
+  if [[ -z "${LINT_EXE[$projeto]:-}" ]]; then
     pnpm nx run "$projeto":lint --skip-nx-cache
     return
   fi
@@ -260,7 +260,7 @@ registrar() {
 
 provar_bloco() {
   local vetor pkg resto cap origem simbolo imp corpo familia linha inc inc_bloco rel sub_dir_candidato sub_dir sub_clause esperado rotulo saida status module_path
-  if [ "$fixture_dir" = "$module_dir" ]; then
+  if [[ "$fixture_dir" = "$module_dir" ]]; then
     echo "== $project ($module_dir) [bloco $bloco]"
   else
     echo "== $project ($module_dir) [bloco $bloco, fixture em ${fixture_dir#"$module_dir/"}]"
@@ -283,7 +283,7 @@ provar_bloco() {
     status=$?
     retirar_fixture
 
-    if [ "$status" -eq 0 ]; then
+    if [[ "$status" -eq 0 ]]; then
       echo "  FALHA  $pkg ($cap, $origem): o lint passou, mas deveria reprovar"
       falhas=$((falhas + 1))
     elif ! grep -qi "depguard" <<<"$saida"; then
@@ -294,7 +294,7 @@ provar_bloco() {
     fi
   done
 
-  if [ "$bloco" = "domain" ]; then
+  if [[ "$bloco" = "domain" ]]; then
     for simbolo in "${SIMBOLOS[@]}"; do
       imp="${simbolo%%|*}"
       resto="${simbolo#*|}"
@@ -306,7 +306,7 @@ provar_bloco() {
         falhas=$((falhas + 1))
         break
       }
-      if [ -n "$imp" ]; then
+      if [[ -n "$imp" ]]; then
         printf '%s\n\nimport "%s"\n\n%s\n' "$pkg_clause" "$imp" "$corpo" > "$FIXTURE"
       else
         printf '%s\n\n%s\n' "$pkg_clause" "$corpo" > "$FIXTURE"
@@ -316,7 +316,7 @@ provar_bloco() {
       status=$?
       retirar_fixture
 
-      if [ "$status" -eq 0 ]; then
+      if [[ "$status" -eq 0 ]]; then
         echo "  FALHA  $corpo ($familia): o lint passou, mas deveria reprovar"
         falhas=$((falhas + 1))
       elif ! grep -qi "forbidigo" <<<"$saida"; then
@@ -339,7 +339,7 @@ provar_bloco() {
     inc_bloco="${linha##*|}"
     rel="${inc#"$module_path"}"
     rel="${rel#/}"
-    [ -z "$rel" ] && continue
+    [[ -z "$rel" ]] && continue
     sub_dir_candidato="$module_dir/$rel"
 
     case "$inc_bloco" in
@@ -357,7 +357,7 @@ provar_bloco() {
 
     sub_dir="$module_dir/$rel"
     sub_clause="$(clausula_de_package "$sub_dir")"
-    if [ -z "$sub_clause" ]; then
+    if [[ -z "$sub_clause" ]]; then
       echo "  FALHA  $rel: nenhum .go com clausula de package no include"
       falhas=$((falhas + 1))
       continue
@@ -368,7 +368,7 @@ provar_bloco() {
       falhas=$((falhas + 1))
       break
     }
-    if [ "$bloco" = "domain" ]; then
+    if [[ "$bloco" = "domain" ]]; then
       printf '%s\n\nimport "time"\n\nvar _ = time.Now()\n' "$sub_clause" > "$FIXTURE"
       esperado="forbidigo"
       rotulo="time.Now() (io.clock, forbidigo, subpackage)"
@@ -382,7 +382,7 @@ provar_bloco() {
     status=$?
     retirar_fixture
 
-    if [ "$status" -eq 0 ]; then
+    if [[ "$status" -eq 0 ]]; then
       echo "  FALHA  $rel: o fixture passou no subpackage, mas deveria reprovar"
       falhas=$((falhas + 1))
     elif ! grep -qi "$esperado" <<<"$saida"; then
@@ -426,7 +426,7 @@ provar_contexto() {
       status=$?
       retirar_fixture
 
-      if [ "$status" -eq 0 ]; then
+      if [[ "$status" -eq 0 ]]; then
         echo "  FALHA  $pkg ($motivo): o lint passou, mas deveria reprovar"
         falhas=$((falhas + 1))
       elif ! grep -q "context-provider" <<<"$saida"; then
@@ -445,7 +445,7 @@ provar_contexto() {
     fi
   done
 
-  [ "$plataforma" = true ] || return 0
+  [[ "$plataforma" = true ]] || return 0
   echo "== $project [plataforma IDN-14]"
 
   for vetor in "${VETORES_PLATAFORMA[@]}"; do
@@ -457,7 +457,7 @@ provar_contexto() {
       kit) alvo="$app_dir" clausula="package testkit" ;;
       *) alvo="$application_dir" clausula="$application_clause" ;;
     esac
-    if [ "$bloco" = kit ]; then
+    if [[ "$bloco" = kit ]]; then
       FIXTURE="$(mktemp -d "$alvo/zz_gate_XXXXXX")" && mkdir "$FIXTURE/testkit" && arquivo="$FIXTURE/testkit/zz_gate.go"
     else
       FIXTURE="$(mktemp "$alvo/zz_gate_XXXXXX.go")" && arquivo="$FIXTURE"
@@ -472,7 +472,7 @@ provar_contexto() {
     status=$?
     retirar_fixture
 
-    if [ "$status" -eq 0 ]; then
+    if [[ "$status" -eq 0 ]]; then
       echo "  FALHA  $rotulo: o lint passou, mas deveria reprovar"
       falhas=$((falhas + 1))
     elif ! grep -q "(forbidigo)" <<<"$saida" || ! grep -qE "$marca" <<<"$saida"; then
@@ -498,18 +498,18 @@ var _ = gatepostgres.Table[string, struct{}]{}.Projector"
     rotulos+=("$rotulo")
     printf '%s\n\n%s\n\n%s\n' "$clausula" "$imp" "$corpo" > "$f"
   done
-  if [ "${#FIXTURES[@]}" -eq "${#positivos[@]}" ]; then
+  if [[ "${#FIXTURES[@]}" -eq "${#positivos[@]}" ]]; then
     saida="$(lintar "$project" 2>&1)"
     status=$?
     for i in "${!FIXTURES[@]}"; do
-      if [ "$status" -ne 0 ] && grep -qF "$(basename "${FIXTURES[$i]}")" <<<"$saida"; then
+      if [[ "$status" -ne 0 ]] && grep -qF "$(basename "${FIXTURES[$i]}")" <<<"$saida"; then
         echo "  FALHA  ${rotulos[$i]}: reprovou, mas deveria passar"
         falhas=$((falhas + 1))
       else
         echo "  ok     ${rotulos[$i]}"
       fi
     done
-    if [ "$status" -ne 0 ] && ! grep -qF "zz_gate_" <<<"$saida" && ! grep -qF "platform_gate_" <<<"$saida"; then
+    if [[ "$status" -ne 0 ]] && ! grep -qF "zz_gate_" <<<"$saida" && ! grep -qF "platform_gate_" <<<"$saida"; then
       echo "  FALHA  positivos de plataforma: o lint reprovou sem nomear um fixture"
       falhas=$((falhas + 1))
     fi
@@ -551,7 +551,7 @@ while IFS= read -r manifesto; do
   ' "$ROOT/$manifesto" 2>/dev/null || continue
 
   bloco="$(bloco_do_caminho "$module_dir")"
-  if [ -z "$bloco" ]; then
+  if [[ -z "$bloco" ]]; then
     anotar "-- $module_dir: fora do alcance do depguard (**/domain/**, **/ports/**, **/application/**, **/contracts/**); coberto pelo verificador do KRN-02"
     fora_de_alcance=$((fora_de_alcance + 1))
     continue
@@ -565,7 +565,7 @@ while IFS= read -r manifesto; do
   esac
 
   project="$(node -p 'require(process.argv[1]).name' "$ROOT/$module_dir/project.json" 2>/dev/null)"
-  if [ -z "$project" ]; then
+  if [[ -z "$project" ]]; then
     anotar "FALHA  $module_dir: nao consegui ler o nome do projeto no project.json" 1
     continue
   fi
@@ -580,18 +580,18 @@ while IFS= read -r manifesto; do
   for candidato in "$module_dir" $(includes_do_modulo "$manifesto" "$module_dir"); do
     fora_do_depguard "$candidato" && continue
     clausula="$(clausula_de_package "$candidato")"
-    if [ -n "$clausula" ]; then
+    if [[ -n "$clausula" ]]; then
       fixture_dir="$candidato"
       pkg_clause="$clausula"
       break
     fi
   done
-  if [ -z "$pkg_clause" ] && so_codigo_gerado "$manifesto" "$module_dir"; then
+  if [[ -z "$pkg_clause" ]] && so_codigo_gerado "$manifesto" "$module_dir"; then
     anotar "-- $module_dir: so codigo gerado, fora do depguard por exclusao; coberto pelo verificador do KRN-02"
     fora_de_alcance=$((fora_de_alcance + 1))
     continue
   fi
-  if [ -z "$pkg_clause" ]; then
+  if [[ -z "$pkg_clause" ]]; then
     anotar "FALHA  $module_dir: nenhum .go com clausula de package dentro do alcance do depguard" 1
     continue
   fi
@@ -627,7 +627,7 @@ while IFS= read -r manifesto; do
     esac
     sub_dir="$module_dir/$rel"
     sub_clause="$(clausula_de_package "$sub_dir")"
-    if [ -z "$project" ] || [ -z "$sub_clause" ]; then
+    if [[ -z "$project" ]] || [[ -z "$sub_clause" ]]; then
       anotar "FALHA  $sub_dir: sem projeto Nx ou sem .go com clausula de package" 1
       continue
     fi
@@ -647,13 +647,13 @@ while IFS= read -r manifesto; do
   application_clause=""
   app_clause=""
   rpc_clause=""
-  if [ -n "$provider_dir" ]; then
+  if [[ -n "$provider_dir" ]]; then
     # A cláusula sai antes de criar fixture: um fixture vazio pode ser o primeiro .go do diretório.
     provider_clause="$(clausula_de_package "$provider_dir")"
     application_clause="$(clausula_de_package "$application_dir")"
     app_clause="$(clausula_de_package "$app_dir")"
     rpc_clause="$(clausula_de_package "$rpc_dir")"
-    if [ -z "$project" ] || [ -z "$provider_clause" ] || [ -z "$application_clause" ] || [ -z "$app_clause" ] || [ -z "$rpc_clause" ]; then
+    if [[ -z "$project" ]] || [[ -z "$provider_clause" ]] || [[ -z "$application_clause" ]] || [[ -z "$app_clause" ]] || [[ -z "$rpc_clause" ]]; then
       anotar "FALHA  $module_dir: sem projeto Nx, application, app ou app/rpc para provar a regra de plataforma" 1
     else
       contextos_plataforma=$((contextos_plataforma + 1))
@@ -661,7 +661,7 @@ while IFS= read -r manifesto; do
     fi
   fi
 
-  [ "${#provedores[@]}" -gt 0 ] || [ "$plataforma" = true ] || continue
+  [[ "${#provedores[@]}" -gt 0 ]] || [[ "$plataforma" = true ]] || continue
   registrar provar_contexto "$project" project provedores plataforma provider_dir application_dir app_dir rpc_dir \
     provider_clause application_clause app_clause rpc_clause
 done < <(git ls-files '*dmpf-units.json')
@@ -682,8 +682,8 @@ CORRENDO=()
 conflita() {
   local projeto="$1" id
   for id in "${CORRENDO[@]}"; do
-    [ -n "${RELACIONADOS[$projeto]+x}" ] || return 0
-    [ "${TAREFA_PROJETO[$id]}" = "$projeto" ] && return 0
+    [[ -n "${RELACIONADOS[$projeto]+x}" ]] || return 0
+    [[ "${TAREFA_PROJETO[$id]}" = "$projeto" ]] && return 0
     [[ "${RELACIONADOS[$projeto]}" == *" ${TAREFA_PROJETO[$id]} "* ]] && return 0
   done
   return 1
@@ -692,7 +692,7 @@ conflita() {
 atualizar_correndo() {
   local id vivos=()
   for id in "${CORRENDO[@]}"; do
-    [ -e "$TRABALHO/$id.fim" ] && continue
+    [[ -e "$TRABALHO/$id.fim" ]] && continue
     if kill -0 "${PID_DE[$id]}" 2>/dev/null; then
       vivos+=("$id")
       continue
@@ -705,7 +705,7 @@ atualizar_correndo() {
 
 IMPRESSO=0
 imprimir_prontos() {
-  while [ "$IMPRESSO" -lt "$SEQ" ] && [ -e "$TRABALHO/$IMPRESSO.fim" ]; do
+  while [[ "$IMPRESSO" -lt "$SEQ" ]] && [[ -e "$TRABALHO/$IMPRESSO.fim" ]]; do
     cat "$TRABALHO/$IMPRESSO.saida"
     total_falhas=$((total_falhas + $(cat "$TRABALHO/$IMPRESSO.fim")))
     IMPRESSO=$((IMPRESSO + 1))
@@ -715,7 +715,7 @@ imprimir_prontos() {
 encerrar() {
   local pids
   pids="$(jobs -pr)"
-  if [ -n "$pids" ]; then
+  if [[ -n "$pids" ]]; then
     # shellcheck disable=SC2086
     kill -TERM $pids 2>/dev/null
     wait
@@ -725,10 +725,10 @@ trap encerrar EXIT
 trap 'exit 130' INT TERM
 
 PENDENTES=("${TAREFAS[@]}")
-while [ "${#PENDENTES[@]}" -gt 0 ] || [ "${#CORRENDO[@]}" -gt 0 ]; do
+while [[ "${#PENDENTES[@]}" -gt 0 ]] || [[ "${#CORRENDO[@]}" -gt 0 ]]; do
   restantes=()
   for id in "${PENDENTES[@]}"; do
-    if [ "${#CORRENDO[@]}" -lt "$VAGAS" ] && ! conflita "${TAREFA_PROJETO[$id]}"; then
+    if [[ "${#CORRENDO[@]}" -lt "$VAGAS" ]] && ! conflita "${TAREFA_PROJETO[$id]}"; then
       lancar "$id"
       CORRENDO+=("$id")
     else
@@ -737,27 +737,27 @@ while [ "${#PENDENTES[@]}" -gt 0 ] || [ "${#CORRENDO[@]}" -gt 0 ]; do
   done
   PENDENTES=("${restantes[@]}")
   imprimir_prontos
-  [ "${#CORRENDO[@]}" -gt 0 ] && wait -n
+  [[ "${#CORRENDO[@]}" -gt 0 ]] && wait -n
   atualizar_correndo
 done
 imprimir_prontos
 
-if [ "$providers_de_contexto" -eq 0 ]; then
+if [[ "$providers_de_contexto" -eq 0 ]]; then
   echo "FALHA: nenhum provider de contexto encontrado; a regra context-provider nao foi exercitada." >&2
   exit 1
 fi
 
-if [ "$contextos_plataforma" -eq 0 ]; then
+if [[ "$contextos_plataforma" -eq 0 ]]; then
   echo "FALHA: nenhum contexto com provider, application e app encontrado; a regra de plataforma (IDN-14) não foi exercitada." >&2
   exit 1
 fi
 
-if [ "$modulos" -eq 0 ]; then
+if [[ "$modulos" -eq 0 ]]; then
   echo "FALHA: nenhum modulo com bloco domain, port, application ou contract encontrado; o gate nao exercitou nada." >&2
   exit 1
 fi
 
-if [ "$total_falhas" -gt 0 ]; then
+if [[ "$total_falhas" -gt 0 ]]; then
   echo
   echo "$total_falhas verificacao(oes) falharam: o gate nao esta protegendo os blocos domain, port, application e contract."
   exit 1
@@ -766,7 +766,7 @@ fi
 echo
 echo "Gate de dependencia: $modulos modulo(s) — domain: $modulos_domain, port: $modulos_port, application: $modulos_application, contract: $modulos_contract."
 echo "Vetores de package por bloco: domain ${#VETORES_DOMAIN[@]}, port ${#VETORES_PORT[@]}, application ${#VETORES_APPLICATION[@]}, contract ${#VETORES_CONTRACT[@]}; ${#SIMBOLOS[@]} de símbolo em domain; 1 positivo por módulo; provider de contexto ${#VETORES_CONTEXT_PROVIDER[@]} em $providers_de_contexto package(s); plataforma (IDN-14) ${#VETORES_PLATAFORMA[@]} negativo(s) e 3 positivo(s) em $contextos_plataforma contexto(s). Todos conformes."
-if [ "$fora_de_alcance" -gt 0 ]; then
+if [[ "$fora_de_alcance" -gt 0 ]]; then
   # Declarado, nunca silencioso: um gate que esconde o proprio alcance passa a
   # informar cobertura que nao tem.
   echo "$fora_de_alcance modulo(s) fora do alcance do depguard, cobertos pelo verificador do KRN-02."
