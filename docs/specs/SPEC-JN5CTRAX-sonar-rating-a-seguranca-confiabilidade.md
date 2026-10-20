@@ -2,7 +2,7 @@
 id: SPEC-JN5CTRAX
 slug: sonar-rating-a-seguranca-confiabilidade
 title: Atingir rating A em Security e Reliability no SonarCloud
-stage: backlog
+stage: done
 priority: P1
 depends_on: []
 ticket_url: https://linear.app/mmda/issue/DEVS-137/atingir-rating-a-em-security-e-reliability-no-sonarcloud
