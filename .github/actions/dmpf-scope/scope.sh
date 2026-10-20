@@ -61,7 +61,7 @@ booleano() { if "$@"; then echo true; else echo false; fi; }
 tudo=false
 toca '.github/actions/dmpf-scope/*' '.github/workflows/dmpf-go-ci.yml' && tudo=true
 infra_teste=false
-toca 'infra/test/*' 'infra/keycloak/*' && infra_teste=true
+toca 'infra/test/*' 'infra/keycloak/*' '.env.example' && infra_teste=true
 # No modo version as ferramentas e os scripts dos gates vêm do plugin em
 # node_modules, fora do diff: trocar a versão dele muda o que os gates verificam.
 ferramentas=false
@@ -69,10 +69,13 @@ ferramentas=false
 
 jq -c --arg ex "$EXCLUIR" '[.graph.nodes[] | select(.name != $ex)]' "$GRAFO" > "$dir/nos.json"
 
-projetos="$(jq -r -n --slurpfile nos "$dir/nos.json" --slurpfile af "$AFETADOS" \
-  --argjson tudo "$tudo" --argjson infra "$infra_teste" '
-  def usa_infra: [.data.targets[]?.dependsOn[]? | if type == "string" then . else .target end]
+infra_jq='
+  def infra_em: [.dependsOn[]? | if type == "string" then . else .target end]
     | any(. == "test-infra-up" or . == "test-keycloak-up");
+  def usa_infra: any(.data.targets[]?; infra_em);'
+
+projetos="$(jq -r -n --slurpfile nos "$dir/nos.json" --slurpfile af "$AFETADOS" \
+  --argjson tudo "$tudo" --argjson infra "$infra_teste" "$infra_jq"'
   ($nos[0] | map(.name)) as $todos
   | if $tudo then $todos
     else ($af[0] | map(select(. as $n | $todos | index($n))))
@@ -85,8 +88,8 @@ sel="$(jq -c --arg p "$projetos" '($p | split(",")) as $l | [.[] | select(.name 
 consulta() { jq -r --arg apps "$APPS" --arg plugin "$PLUGIN" "$1" <<<"$sel"; }
 
 go="$(consulta 'any(.[]; .data.tags | index("stack:go"))')"
-serial="$(consulta '[.[] | select(.data.targets["test-race"].cache == false and (.data.tags | index("layer:providers"))) | .name] | join(",")')"
-infra="$(consulta 'any(.[]; .data.targets["test-race"].cache == false or .data.targets["test-integration"] != null or .data.targets.e2e != null)')"
+serial="$(consulta "$infra_jq"' [.[] | select(((.data.targets["test-race"] // {}) | infra_em) and (.data.tags | index("layer:providers"))) | .name] | join(",")')"
+infra="$(consulta "$infra_jq"' any(.[]; usa_infra)')"
 plugin="$(consulta 'any(.[]; .data.root == $plugin)')"
 kernel="$(consulta 'any(.[]; .data.root | startswith("libs/backend/go/"))')"
 conformance_afetado="$(consulta 'any(.[]; .name == "conformance")')"

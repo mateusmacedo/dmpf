@@ -55,6 +55,18 @@ jobs:
         if: steps.alvo.outputs.projects != ''
         uses: ./.github/actions/docker-hub-mirror
 
+      - name: Imagens da infra de testes
+        if: steps.alvo.outputs.projects != ''
+        run: |
+          set -euo pipefail
+          servicos="$(docker compose -f infra/test/compose.yml config --format json)"
+          for par in POSTGRES:postgres REDPANDA:redpanda; do
+            imagem="$(jq -r --arg s "${par#*:}" '.services[$s].image // empty' <<<"$servicos")"
+            [[ $imagem =~ ^[a-z0-9][a-z0-9./_:-]*@sha256:[0-9a-f]{64}$ ]] ||
+              { echo "infra/test/compose.yml sem imagem fixada por digest para ${par#*:}: '$imagem'" >&2; exit 1; }
+            echo "IMAGEM_${par%%:*}=$imagem" >> "$GITHUB_ENV"
+          done
+
       # No runner hospedado do GitHub o job roda na VM, sem container próprio:
       # `--network host` publica o serviço em localhost, como os testes esperam.
       - name: Subir Postgres para o harness distribuído
@@ -66,7 +78,7 @@ jobs:
           docker run -d --name "$nome" \
             --network host \
             -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=postgres \
-            postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685 \
+            "$IMAGEM_POSTGRES" \
             -c cluster_name=test
           for _ in $(seq 1 30); do
             if docker exec "$nome" pg_isready -U postgres -q; then
@@ -87,7 +99,7 @@ jobs:
           docker rm -f "$nome" >/dev/null 2>&1 || true
           docker run -d --name "$nome" \
             --network host \
-            redpandadata/redpanda:v26.2.2@sha256:468bd13a9f2bd24794cb7fddc867c767fb1008b9a07b297b89fde48c564d7d96 \
+            "$IMAGEM_REDPANDA" \
             redpanda start --mode dev-container --smp 1
           for _ in $(seq 1 30); do
             if docker exec "$nome" rpk cluster info >/dev/null 2>&1; then
@@ -102,7 +114,7 @@ jobs:
 
       # O target declara `dependsOn` no `test-race` do provider Postgres e do
       # app, então o harness só roda depois que as duas camadas de que
-      # depende passaram sobre a mesma infra.
+      # depende passaram.
       - name: Harness distribuído (KIT-06)
         if: steps.alvo.outputs.projects != ''
         env:
