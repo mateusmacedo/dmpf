@@ -37,6 +37,8 @@ Import path do módulo:
 | `clock.go` | `Clock`, `IDGenerator` |
 | `values.go` | `Instant` (alias de `domain.Instant`), `MessageID`, `Version` |
 | `external.go` | `OutboundKey`; `ExternalClass` (as nove classes de desfecho, `ClassAccepted` a `ClassSchemaMismatch`); `Finding` (zero é «sem achado»); `KeySemantics`, `Efficacy`; `Observation`, `ExternalProfile`; `ExternalCommand` (`Submit`) e `ExternalState` (`Query`, opcional: a ausência declara «sem consulta de estado») (ADR-070) |
+| `attempt_ledger.go` | `Attempt` (com `Tenant` e `MessageID`); `AttemptStart` (`StartedAttempt`, `PendingAttempt`, `DoneAttempt`, com `Match` exaustivo); `AttemptOutcome` (com `Presumed`); `AttemptCursor` e `Attempt.Cursor`; `FinishResult` e `Finished`; `ObserveResult` e `Observed` (com `N` e `QueriesDone`); `ExternalClass.Retryable`; `AttemptLedger` (`Begin`, `Finish`, `Observe`, `Stale`); `ErrInvalidAttempt`, `ErrAttemptUnknown`, `ErrAttemptInFlight` (ADR-070) |
+| `external_class_carrier.go` | Os slots da classe de desfecho (`WithExternalClassSlot`, `MarkExternalClass`, `ExternalClassFrom`) e do conflito (`WithExternalConflictSlot`, `MarkExternalConflict`, `ExternalConflictFrom`), no molde de `MarkIdempotency` |
 
 Uma unidade só, com `block: port` e `bounded_context: kernel`
 (`dmpf-units.json`); em Go, a unidade de verificação é o package (RFC §3.3). A
@@ -194,6 +196,32 @@ A chave viaja num portador próprio do `context.Context`, fora do
 `ExecutionContext`, cujos campos `CTX-01` fixa. O slot de `MarkIdempotency` é o
 que a instrumentação lê para registrar o desfecho (novo, replay, divergente, em
 andamento) sem que o caso de uso o devolva.
+
+## Ledger de tentativas do comando externo
+
+`AttemptLedger` registra cada envio de uma `OutboundKey` ao parceiro (ADR-070).
+`Begin`, `Finish` e `Observe` escopam a chave pelo tenant do contexto de
+execução; `Stale` atravessa tenants e devolve o `Tenant` de cada tentativa,
+porque o ledger é tabela de plataforma com o tenant na chave (ADR-050, emendado
+pelo ADR-070). Cada tentativa guarda o `MessageID` que a iniciou, e `Begin`
+devolve uma de três classificações:
+
+| Classificação | Quando |
+| --- | --- |
+| `Started{N}` | A chave não tem tentativa; a última está `finished` e veio de outra mensagem; ou veio da mesma mensagem com classe retentável (`Retryable`), a redelivery depois do orçamento esgotado |
+| `Pending{N, StartedAt}` | A última tentativa está `begun` e a mensagem não tem desfecho final: nenhuma linha nova |
+| `Done{N, Class}` | Alguma tentativa `finished` da chave veio da mesma mensagem com classe não retentável, seja qual for a última: o parceiro não é chamado de novo |
+
+`Finish` com a mesma classe é no-op (`FinishUnchanged`); com outra, é conflito
+registrado (`FinishConflict`) sem sobrescrever o desfecho gravado. Uma classe
+`Presumed` (o `UnknownSent` da varredura ou da redelivery vencida) cede à classe
+já gravada, sem conflito. `Observe` vale sobre a última tentativa `finished`: o
+mesmo ID, o mesmo achado terminal ou um achado não terminal depois de um
+terminal é `ObserveDuplicate`; só `Applied` contra `Rejected`, em qualquer ordem,
+é `ObserveConflict`; o resto é `ObserveRecorded`, com as consultas já feitas.
+`Stale` lista as `begun` iniciadas até o corte, inclusive, retomando depois de um
+`AttemptCursor`. Os slots `WithExternalClassSlot` e `WithExternalConflictSlot`
+levam a classe e o conflito à instrumentação.
 
 ## Garantias de entrega
 
