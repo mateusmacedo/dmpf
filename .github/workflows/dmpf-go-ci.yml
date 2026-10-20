@@ -71,11 +71,6 @@ jobs:
       AWS_ACCESS_KEY_ID: "test"
       AWS_SECRET_ACCESS_KEY: "test"
       REDIS_URL: "redis://revocation:ci-revocation@localhost:6379/0"
-      IMAGEM_POSTGRES: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
-      IMAGEM_REDPANDA: redpandadata/redpanda:v26.2.2@sha256:468bd13a9f2bd24794cb7fddc867c767fb1008b9a07b297b89fde48c564d7d96
-      IMAGEM_FLOCI: floci/floci:2.0.1@sha256:4e451c39c7bb88e3cd4f87e8fc0c25d5b47695a51185d521e2241fa00486e8eb
-      IMAGEM_KEYCLOAK: quay.io/keycloak/keycloak:26.8.1@sha256:79c623a22abacf3fe6c00a5fb30f5b7843d717b234033b80995891c06116d244
-      IMAGEM_REDIS: redis:7.4.11-alpine@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499
 
     steps:
       - name: Checkout
@@ -147,6 +142,21 @@ jobs:
       - name: Espelho do Docker Hub
         if: steps.scope.outputs.infra == 'true'
         uses: ./.dmpf-ci/.github/actions/docker-hub-mirror
+
+      - name: Imagens da infra de testes
+        if: steps.scope.outputs.infra == 'true'
+        run: |
+          set -euo pipefail
+          compose=(docker compose -f infra/test/compose.yml)
+          perfis=()
+          while read -r perfil; do perfis+=(--profile "$perfil"); done < <("${compose[@]}" config --profiles)
+          servicos="$("${compose[@]}" "${perfis[@]}" config --format json)"
+          for par in POSTGRES:postgres REDPANDA:redpanda FLOCI:floci KEYCLOAK:keycloak REDIS:redis; do
+            imagem="$(jq -r --arg s "${par#*:}" '.services[$s].image // empty' <<<"$servicos")"
+            [[ $imagem =~ ^[a-z0-9][a-z0-9./_:-]*@sha256:[0-9a-f]{64}$ ]] ||
+              { echo "infra/test/compose.yml sem imagem fixada por digest para ${par#*:}: '$imagem'" >&2; exit 1; }
+            echo "IMAGEM_${par%%:*}=$imagem" >> "$GITHUB_ENV"
+          done
 
       # Sobe antes do lint e do build para que o boot dos serviços (o Keycloak leva
       # ~60 s) corra junto deles; a prontidão só é esperada antes do test-race.
@@ -245,7 +255,7 @@ jobs:
             pnpm biome ci --changed --since="$NX_BASE" --no-errors-on-unmatched .
           fi
 
-      # Sem a tag, um provider com `test-race` sem cache sairia da fila serial e
+      # Sem a tag, um provider cujo `test-race` depende da infra sairia da fila serial e
       # disputaria a infra do job com os outros providers.
       - name: Toda lib Go declara exatamente uma camada
         if: steps.scope.outputs.layer == 'true'
@@ -364,7 +374,7 @@ jobs:
             esperar redis 30 redis_responde
           fi
 
-      # Os providers com `test-race` sem cache reiniciam tabelas e criam tópicos e
+      # Os providers cujo `test-race` depende da infra reiniciam tabelas e criam tópicos e
       # filas na infra compartilhada do job, então correm um por vez. As apps
       # ganham banco (<projeto>_test_<id>) e tópicos próprios e correm em paralelo.
       - name: Testes com race detector e integração

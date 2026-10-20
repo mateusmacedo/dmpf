@@ -86,6 +86,14 @@ const PLUGIN = '@mateusmacedo/dmpf-plugin';
 const INTEGRATION_TEST = 'go test -race -count=1 -p 1 -tags=integration ./...';
 const DISTRIBUTED_TEST = 'go test -race -count=1 -p 1 -tags=integration,distributed ./distkit/...';
 const TEST_INFRA = { projects: ['testkit'], target: 'test-infra-up' };
+const INFRA_INPUTS = [
+  'go',
+  '^go',
+  '{workspaceRoot}/infra/test/compose.yml',
+  '{workspaceRoot}/.env.example',
+  '{workspaceRoot}/tools/dmpf-plugin/scripts/test-env.sh',
+  { env: 'CI' },
+];
 const APPKIT_DIR = 'appkit';
 const DISTKIT_DIR = 'distkit';
 const DOCKERFILE = 'Dockerfile';
@@ -262,8 +270,15 @@ const expectedTargets = ({
   const testRace = integration
     ? {
         executor: `${PLUGIN}:test-env`,
-        cache: false,
-        inputs: ['go', '^go'],
+        cache: true,
+        inputs: app
+          ? [
+              'go',
+              '^go',
+              `{workspaceRoot}/${MODULE_DIR}/deploy/.env.example`,
+              ...INFRA_INPUTS.slice(2),
+            ]
+          : INFRA_INPUTS,
         options: { command: INTEGRATION_TEST },
         dependsOn: [TEST_INFRA],
       }
@@ -297,8 +312,8 @@ const expectedTargets = ({
           },
           'test-distributed': {
             executor: `${PLUGIN}:test-env`,
-            cache: false,
-            inputs: ['go', '^go'],
+            cache: true,
+            inputs: INFRA_INPUTS,
             dependsOn: [
               TEST_INFRA,
               { projects: ['postgres', 'app'], target: 'test-race' },
@@ -308,8 +323,8 @@ const expectedTargets = ({
           },
           e2e: {
             executor: `${PLUGIN}:test-env`,
-            cache: false,
-            inputs: ['go', '^go'],
+            cache: true,
+            inputs: INFRA_INPUTS,
             dependsOn: [TEST_INFRA],
             options: { command: DISTRIBUTED_TEST },
           },
@@ -889,7 +904,7 @@ describe('[generator] bounded-context — generation', () => {
       'test-distributed'
     ];
 
-    expect(target.cache).toBe(false);
+    expect(target.cache).toBe(true);
     expect(target.dependsOn).toEqual([
       TEST_INFRA,
       { projects: ['postgres', 'app'], target: 'test-race' },

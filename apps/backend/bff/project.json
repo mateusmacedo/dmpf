@@ -3,6 +3,7 @@
   "$schema": "../../../node_modules/nx/schemas/project-schema.json",
   "projectType": "application",
   "sourceRoot": "apps/backend/bff",
+  "implicitDependencies": ["orders", "reservations", "bookings"],
   "tags": ["type:app", "scope:backend", "stack:go", "layer:apps"],
   "targets": {
     "nx-release-publish": {
@@ -75,8 +76,15 @@
     },
     "test-race": {
       "executor": "@mateusmacedo/dmpf-plugin:test-env",
-      "cache": false,
-      "inputs": ["go", "^go"],
+      "cache": true,
+      "inputs": [
+        "go",
+        "^go",
+        "{workspaceRoot}/infra/test/compose.yml",
+        "{workspaceRoot}/.env.example",
+        "{workspaceRoot}/tools/dmpf-plugin/scripts/test-env.sh",
+        { "env": "CI" }
+      ],
       "options": {
         "command": "go test -race -count=1 -p 1 -tags=integration ./..."
       },

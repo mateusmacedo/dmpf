@@ -37,8 +37,17 @@
     },
     "test-race": {
       "executor": "@mateusmacedo/dmpf-plugin:test-env",
-      "cache": false,
-      "inputs": ["go", "^go"],
+      "cache": true,
+      "inputs": [
+        "go",
+        "^go",
+        "{workspaceRoot}/infra/test/compose.yml",
+        "{workspaceRoot}/.env.example",
+        "{workspaceRoot}/tools/dmpf-plugin/scripts/test-env.sh",
+        "{workspaceRoot}/infra/keycloak/dmpf-realm.json",
+        "{workspaceRoot}/infra/keycloak/dev/seed.sh",
+        { "env": "CI" }
+      ],
       "options": {
         "command": "go test -race -count=1 -p 1 -tags=integration ./..."
       },

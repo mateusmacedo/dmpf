@@ -65,7 +65,7 @@ fase_self_test() {
     'projects=bookings' 'scope=run-many -p bookings' 'go=true' 'layer=true' 'context=apps/backend/bookings' \
     'modsync=true' 'conformance=true' 'infrasync=false' 'generator=false' 'init=false' 'versions=false' \
     'observability=false' 'gate-check=false' 'external-consumer=false' 'distributed=true' 'sonar=true' \
-    'biome=changed' 'self-tests=harness' 'self-tests-job=true' 'infra=true' 'redis=false' 'keycloak=false'
+    'biome=changed' 'self-tests=harness' 'self-tests-job=true' 'infra=true' 'redis=false' 'keycloak=false' 'serial='
 
   cenario "ports" '["ports","application","app","bookings","bff"]' 'libs/backend/go/ports/doc.go' "$base" \
     'projects~ports' 'projects~bff' 'context=global' 'generator=true' 'external-consumer=true' 'redis=true' \
@@ -91,7 +91,8 @@ fase_self_test() {
 
   cenario "infra de teste" '[]' 'infra/test/compose.yml' "$base" \
     'projects~postgres' 'projects~authn' 'projects~bookings' 'projects!ports' 'infra=true' 'keycloak=true' \
-    'infrasync=true' 'context=global'
+    'infrasync=true' 'context=global' 'serial~postgres' 'serial~redis' 'serial~sqs' 'serial~kafka' \
+    'serial~testkit' 'serial~authn' 'serial!bookings' 'serial!app'
 
   cenario "borda e deploy" '["bff"]' $'apps/backend/bff/app/main.go\napps/backend/bookings/deploy/infra.json' "$base" \
     'context=global' 'infrasync=true' 'observability=true' 'redis=true'
@@ -106,7 +107,8 @@ fase_self_test() {
 
   cenario "versão do Biome" '[]' 'package.json' "$base" 'biome=global'
 
-  cenario "init renderiza .env.example" '[]' '.env.example' "$base" 'init=true'
+  cenario "init renderiza .env.example" '[]' '.env.example' "$base" 'init=true' 'infra=true' \
+    'projects~postgres' 'projects~bookings'
 
   MODO=version cenario "plugin atualizado no consumidor" '["bookings"]' 'pnpm-lock.yaml' "$base" \
     'gate-check=true' 'conformance=true' 'modsync=true' 'infrasync=true' 'context=global'
