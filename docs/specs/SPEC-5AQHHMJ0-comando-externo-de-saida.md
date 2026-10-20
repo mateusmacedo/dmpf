@@ -153,25 +153,25 @@ classificação, das transições e dos duplos de teste.
 
 #### Onda 1 — ledger e ciclo
 
-- [ ] **[P0] Ledger de tentativas**: porta `AttemptLedger` (`Begin`, `Finish`, `Stale`) com realização em `memory` e em `postgres`, tabela `external_attempt` em arquivo `.sql` embutido como `inbox.sql` e `outbox.sql` (`postgres/migrate.go:12-15`), declarada como capability do `postgres` ao lado de `Outbox` e `Inbox` (`postgres/migrate.go:22-40`).
+- [x] **[P0] Ledger de tentativas**: porta `AttemptLedger` (`Begin`, `Finish`, `Stale`) com realização em `memory` e em `postgres`, tabela `external_attempt` em arquivo `.sql` embutido como `inbox.sql` e `outbox.sql` (`postgres/migrate.go:12-15`), declarada como capability do `postgres` ao lado de `Outbox` e `Inbox` (`postgres/migrate.go:22-40`).
   - A linha guarda chave com tenant, número da tentativa, instante de início e de fim, classe e a observação; o estado admite `begun` e `finished`.
   - `Begin` serializa na chave, como `INB-06`; tentativa `begun` não terminada torna a seguinte incerta, não nova.
   - A purga remove só `finished` além da retenção; `begun` não é purgável, como `failed` e `pending` na outbox (`OBX-17`).
   - A migração é aditiva e sem lock exclusivo no boot, no padrão de `postgres/inbox.sql`.
   - A role de runtime precisa de `SELECT`, `INSERT`, `UPDATE` e `DELETE` na tabela (o `DELETE` é a purga de `finished`): o mecanismo de grants por capability da SPEC-QPRR24C4 os concede quando estiver em vigor, e um teste sob a role de runtime prova `Begin`, `Finish`, `Stale` e a purga. Esta spec não depende dela.
-- [ ] **[P0] `Dispatch`**: esqueleto em `application` que grava `Begin` em transação própria do provider, como o claim do relay (`OBX-16`), chama `ExternalCommand.Submit` sem transação aberta (`OBX-07`) e grava `Finish` junto do recebimento da mensagem e do efeito do passo na UoW de consumo, com a inbox como primeira escrita (`INB-07`) e o ACK depois do commit (`TRP-26`).
+- [x] **[P0] `Dispatch`**: esqueleto em `application` que grava `Begin` em transação própria do provider, como o claim do relay (`OBX-16`), chama `ExternalCommand.Submit` sem transação aberta (`OBX-07`) e grava `Finish` junto do recebimento da mensagem e do efeito do passo na UoW de consumo, com a inbox como primeira escrita (`INB-07`) e o ACK depois do commit (`TRP-26`).
   - O efeito do passo é um callback do contexto: o kernel decide o passo, o contexto aplica o estado do agregado e os eventos.
   - Cancelamento ou prazo depois da escrita do pedido grava `UnknownSent`.
   - Falha retentável com o orçamento esgotado grava `Finish` em transação própria e devolve a falha categorizada, sem registrar a mensagem na inbox: a disposição é a de FND-04 (`RES-36`, `MAP-07`), e a redelivery chama o parceiro de novo com a mesma chave.
   - Tentativa `begun` encontrada no início (o `Begin` devolve o instante de início) só vale como `UnknownSent` depois do prazo da chamada mais a margem, o mesmo corte da varredura, e então não chama o parceiro. Antes dele o handler dono ainda pode ter a chamada em voo: a redelivery não encerra a tentativa nem chama o parceiro e devolve falha retentável categorizada, sem registrar a mensagem na inbox (`RES-36`, `MAP-07`).
   - `Finish` sobre tentativa já `finished` por outro handler (a redelivery ou a varredura que a encerrou como `UnknownSent`) com a mesma classe é no-op; com classe diferente é conflito registrado e visível, com a classe tardia como evidência para a consulta ou a reconciliação. O desfecho gravado não é sobrescrito, o efeito do passo do handler tardio não é aplicado e o passo segue o do desfecho gravado.
-- [ ] **[P0] `Resolve`**: aplicar uma `Observation`, vinda de consulta, de callback ou de reconciliação, de forma idempotente.
+- [x] **[P0] `Resolve`**: aplicar uma `Observation`, vinda de consulta, de callback ou de reconciliação, de forma idempotente.
   - A mesma identidade de observação duas vezes é no-op; observação contraditória com o desfecho gravado, como `Applied` depois de `Rejected`, vira conflito registrado e visível, sem sobrescrever.
   - `Absent` com semântica de chave devolve `Retry` com a mesma chave; sem chave, só `AuthoritativeAbsence` o permite, e o resto vai a `Reconcile`.
-- [ ] **[P0] Varredura de tentativas órfãs**: laço `RunSweep` em `app`, modelado em `RunPurge` (`app/purge.go:98`), que encerra como `UnknownSent` a tentativa `begun` mais velha que o prazo da chamada mais a margem, quando a redelivery não a retomou (mensagem contida ou perdida), e entrega o comando à consulta ou à reconciliação.
+- [x] **[P0] Varredura de tentativas órfãs**: laço `RunSweep` em `app`, modelado em `RunPurge` (`app/purge.go:98`), que encerra como `UnknownSent` a tentativa `begun` mais velha que o prazo da chamada mais a margem, quando a redelivery não a retomou (mensagem contida ou perdida), e entrega o comando à consulta ou à reconciliação.
   - O laço recusa relógio, logger ou função nil, como a purga.
   - Nunca reenvia por conta própria.
-- [ ] **[P1] Observabilidade**: cada tentativa, desfecho e resolução sai em span, log e métrica com a classe e `dmpf.outcome_category`; a chave não vira rótulo de métrica nem entra crua no log, só o formato validado.
+- [x] **[P1] Observabilidade**: cada tentativa, desfecho e resolução sai em span, log e métrica com a classe e `dmpf.outcome_category`; a chave não vira rótulo de métrica nem entra crua no log, só o formato validado.
 
 #### Onda 2 — provider HTTP, fake e cláusulas
 
@@ -335,7 +335,7 @@ comando de entrada.
 - [ ] Duas execuções do mesmo comando (reentrega, reemissão pela outbox, reinício do processo) derivam a mesma chave; outra geração deriva chave distinta; a chave difere da de comando de entrada e do identificador da tentativa.
 - [ ] No fake, o reenvio depois de `UnknownSent` envia a mesma chave, e o registro de chaves recebidas mostra uma só.
 - [ ] Com o processo encerrado entre `Begin` e `Finish`, a redelivery depois do prazo e da margem, ou a varredura, resolve como `UnknownSent`, nenhuma tentativa `begun` passa do prazo e nenhuma segunda chamada ocorre sem consulta; um `Finish` tardio sobre tentativa encerrada não sobrescreve o desfecho e deixa conflito visível.
-- [ ] Observação duplicada não muda nada; observação contraditória gera conflito visível.
+- [x] Observação duplicada não muda nada; observação contraditória gera conflito visível.
 - [ ] Todo código de uma tabela de parceiro cai na classe declarada no `providerkit`; o desconhecido cai em `UnknownAmbiguous`.
 - [x] ADR novo e subseções de norma presentes, com a tabela "altera invariante?" e `node tools/dmpf-verify.mjs` sem violação.
 - [ ] Ao fim de cada onda, `go run ./tools/dmpf-conformance/cmd/conformance --root .` e `go run ./tools/dmpf-conformance/cmd/modsync --root . --check` passam, assim como `fmt-check`, `vet`, `test-race` e `govulncheck` de cada projeto Go tocado.
