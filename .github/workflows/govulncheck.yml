@@ -1,10 +1,10 @@
 name: govulncheck agendado
 
-# Aviso novo do banco de vulnerabilidades reprova código que já passou no PR, e
-# o PR para develop não roda govulncheck. A master recebe a mesma prova no PR de release.
+# Gates que reprovam sem diff: aviso novo do banco de vulnerabilidades e
+# vencimento de exceção do conformance (DMPF-X006). O PR só os roda no escopo do diff.
 on:
   schedule:
-    - cron: "0 9 * * 1"
+    - cron: "0 9 * * *"
   workflow_dispatch:
 
 permissions: {}
@@ -32,3 +32,29 @@ jobs:
 
       - name: govulncheck em todos os projetos Go
         run: pnpm nx run-many -t govulncheck --parallel=3 --exclude=@mateusmacedo/dmpf-source
+
+  conformance:
+    name: conformance (develop)
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          ref: develop
+
+      - name: Setup Node and pnpm
+        uses: ./.github/actions/setup-node-pnpm
+        with:
+          node-version: "24"
+
+      - name: Layout DMPF
+        uses: ./.github/actions/dmpf-layout
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      - name: DMPF conformance gate
+        run: go run "$DMPF_TOOLS/conformance$DMPF_TOOLS_VERSION" --root .
