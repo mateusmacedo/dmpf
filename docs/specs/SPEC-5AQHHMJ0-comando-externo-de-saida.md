@@ -2,7 +2,7 @@
 id: SPEC-5AQHHMJ0
 slug: comando-externo-de-saida
 title: DMPF — Ciclo de comando externo de saída: chave idempotente, desfecho incerto, consulta de estado e reconciliação
-stage: planning
+stage: building
 priority: P0
 depends_on: [SPEC-E15TBHCD, SPEC-JJKWG4JP, SPEC-NYD18TGD]
 ticket_url: https://linear.app/mmda/issue/DEVS-96/spec-5aqhhmj0-dmpf-ciclo-de-comando-externo-de-saida-chave-idempotente
@@ -124,31 +124,32 @@ classificação, das transições e dos duplos de teste.
 
 #### Onda 0 — norma, vocabulário e funções puras
 
-- [ ] **[P0] ADR novo**: registrar o ciclo e emendar o ADR-050, que fixa `outbox`, `inbox` e `quarantine` como tabelas de plataforma sem escopo de tenant, ao acrescentar o ledger de tentativas, com o tenant na chave como em `IDM-03`.
+- [x] **[P0] ADR novo**: registrar o ciclo e emendar o ADR-050, que fixa `outbox`, `inbox` e `quarantine` como tabelas de plataforma sem escopo de tenant, ao acrescentar o ledger de tentativas, com o tenant na chave como em `IDM-03`.
   - Trazer a tabela "altera invariante?" no formato de FND-08 §12.4, uma linha por regra nova, e as alternativas descartadas de Decisões técnicas.
-- [ ] **[P0] Regras ERR novas** (FND-07, subseção nova depois de §5.8, a partir de `ERR-29`): estender a tradução de `ERR-25` a `ERR-28` ao parceiro externo.
-  - A classe de desfecho é fechada e total; cada classe resolve para uma categoria de §5.3 e para uma retryability booleana (`ERR-01`, `ERR-09`).
+- [x] **[P0] Regras ERR novas** (FND-07, subseção nova depois de §5.8, a partir de `ERR-29`): estender a tradução de `ERR-25` a `ERR-28` ao parceiro externo.
+  - A classe de desfecho é fechada e total; cada classe que não é aceite resolve para uma categoria de §5.3 e para uma retryability booleana (`ERR-01`, `ERR-09`).
   - A classe de pedido enviado sem resposta é retentável só quando o pedido levou chave e o perfil declara semântica de chave, o predicado verificável que `ERR-10` exige; sem ele, vale `ERR-11`.
   - O catálogo de onze categorias não ganha linha (`ERR-08`), e o diagnóstico de `ERR-18` mantém os seis elementos: o conhecimento do efeito vive na classe e no registro da tentativa.
-- [ ] **[P0] Regras RES novas** (FND-08, subseção nova depois de §4.5, a partir de `RES-41`):
+- [x] **[P0] Regras RES novas** (FND-08, subseção nova depois de §4.5, a partir de `RES-41`):
   - O desfecho incerto encerra o retry da chamada sem virar falha final e é o desfecho declarado que `RES-36` exige.
   - O reenvio posterior à chamada é operação nova (`RES-34`) e usa a mesma chave.
   - A espera pela consulta e pela reconciliação tem prazo e dono declarados (`GAR-05`, `GAR-06`).
   - O perfil do parceiro é declaração própria e não campo novo da ficha de `RES-21`.
   - A intenção percorre a outbox, que é o mecanismo do modo `difere` de `RES-37`.
-- [ ] **[P0] `IDM-11` e regra `KIT` nova**: `IDM-11` (FND-04 §7.6) diz que a chamada a parceiro externo leva a chave de saída e que a chave de comando de entrada não atravessa, com `IDM-10` intacta. A regra de FND-09 (§8.1) fixa o parceiro roteirizado como fake do `KIT-03` e a conformidade do adaptador como cláusula do `KIT-04`.
-- [ ] **[P0] Manifestos do verificador**: atualizar `profiles.json`, `counts.json` e `line-refs.json` em `tools/tests/dmpf-verify/` para as regras novas e para as linhas deslocadas, e fechar com `node tools/dmpf-verify.mjs` sem violação. O verificador ancora regra e referência por número de linha (ADR-058, Consequências).
-- [ ] **[P0] Tipos em `ports`**: acrescentar o que o `provider` devolve e o `application` consome, sem tipo de driver, SDK ou wire.
+- [x] **[P0] `IDM-11` e regra `KIT` nova**: `IDM-11` (FND-04 §7.6) diz que a chamada a parceiro externo leva a chave de saída e que a chave de comando de entrada não atravessa, com `IDM-10` intacta. A regra de FND-09 (§8.1) fixa o parceiro roteirizado como fake do `KIT-03` e a conformidade do adaptador como cláusula do `KIT-04`.
+- [x] **[P0] Manifestos do verificador**: atualizar `profiles.json`, `counts.json` e `line-refs.json` em `tools/tests/dmpf-verify/` para as regras novas e para as linhas deslocadas, e fechar com `node tools/dmpf-verify.mjs` sem violação. O verificador ancora regra e referência por número de linha (ADR-058, Consequências).
+- [x] **[P0] Tipos em `ports`**: acrescentar o que o `provider` devolve e o `application` consome, sem tipo de driver, SDK ou wire.
   - `OutboundKey`; `ExternalClass` (as nove classes de Design); `Finding` (`Applied`, `Absent`, `Rejected`, `Pending`, `Inconclusive`).
   - `Observation` com chave, achado, instante da fonte, identificador do provedor, referência externa e identidade própria, para a duplicata ser reconhecida.
-  - `ExternalProfile` com semântica de chave (`Native`, `Header`, `None`), eficácia (`OnSubmit`, `ByObservation`), janela de quiescência e `AuthoritativeAbsence`.
+  - `ExternalProfile` com semântica de chave (`Native`, `Header`, `None`), eficácia (`OnSubmit`, `ByObservation`), janela de quiescência, `AuthoritativeAbsence`, teto de consultas (`MaxQueries`) e alfabeto e comprimento máximo da chave do parceiro. O alfabeto é de bytes ASCII visíveis, sem espaço e sem repetição; perfil com teto não positivo, alfabeto inválido ou comprimento que não alcança 128 bits é recusado.
   - As portas `ExternalCommand` (`Submit`) e `ExternalState` (`Query`), esta opcional: a ausência é a declaração "sem consulta de estado" e nenhum nil vale como "sim" (`evaluate.go:19-21`).
-- [ ] **[P0] Chave de saída**: `application` deriva a `OutboundKey` da codificação canônica de tenant, destino, operação, identidade da intenção e geração, com o digest injetado pela política.
+- [x] **[P0] Chave de saída**: `application` deriva a `OutboundKey` da codificação canônica de tenant, destino, operação, identidade da intenção e geração, com o digest injetado pela política.
   - A identidade da intenção é cunhada uma vez, no commit da intenção, e viaja no payload do evento de despacho; a reemissão de um registro `failed` carrega a mesma.
   - O perfil fixa alfabeto e comprimento máximo do parceiro; a derivação recusa comprimento abaixo de 128 bits, o mesmo piso da chave sorteada hoje.
   - A geração só avança por decisão explícita do caso de uso, depois de rejeição final corrigida.
-- [ ] **[P0] Função de passo pura**: `application.NextStep` recebe classe, perfil, indicação de consulta disponível, tentativa e achado, e devolve `Confirm`, `Await`, `Retry`, `Fail`, `Query`, `Reconcile` ou `Suspend`, como `retry.Evaluate` (`evaluate.go:94-95`): sem relógio, rede ou transação.
-  - Classe incerta nunca devolve `Confirm` nem `Fail`; o teste enumera todas as combinações de classe, perfil e achado.
+- [x] **[P0] Função de passo pura**: `application.NextStep` recebe classe, perfil, indicação de consulta disponível, consultas já feitas e achado, e devolve `Confirm`, `Await`, `Retry`, `Fail`, `Query`, `Reconcile` ou `Suspend`, como `retry.Evaluate` (`evaluate.go:94-95`): sem relógio, rede ou transação.
+  - O orçamento de reenvio das classes retentáveis é de `RES-27` e do `Dispatch`, não da função de passo; a espera da quiescência e o intervalo entre consultas são de quem chama.
+  - Classe incerta sem achado nunca devolve `Confirm` nem `Fail`; o teste enumera todas as combinações de classe, perfil, achado e contador de consultas.
 
 #### Onda 1 — ledger e ciclo
 
@@ -266,8 +267,8 @@ A tradução proposta ao catálogo do FND-07 é: `RetryableTransport` e
 `RetryableUpstream` em `TransientDependency` (`RateLimited` quando o parceiro
 limita), retentáveis; `FinalValidation` em `Validation`; `FinalBusiness` em
 `Conflict`, pela regra do parceiro (`ERR-28`); `FinalAuthorization` em
-`Forbidden`; `UnknownSent` em `TransientDependency` ou `DeadlineExceeded`,
-retentável só sob o predicado de chave; `UnknownAmbiguous` e `SchemaMismatch` em
+`Forbidden`; `UnknownSent` em `DeadlineExceeded` (prazo expirado) ou `Unexpected`,
+condicionais, retentável só sob o predicado de chave; `UnknownAmbiguous` e `SchemaMismatch` em
 `Unexpected`, não retentáveis. O ADR novo fixa a tabela.
 
 ### Função de passo
@@ -280,13 +281,16 @@ retentável só sob o predicado de chave; `UnknownAmbiguous` e `SchemaMismatch` 
 | `Final*` | qualquer | `Fail`; reenviar exige nova geração |
 | `UnknownSent`, `UnknownAmbiguous` | com consulta | `Query` |
 | `UnknownSent`, `UnknownAmbiguous` | sem consulta | `Reconcile` |
-| `SchemaMismatch` | qualquer | `Suspend`, e depois o passo da linha incerta correspondente |
+| `SchemaMismatch` | qualquer | `Suspend`; quem retoma, corrigido o contrato ou o adaptador, reentra como `UnknownAmbiguous` |
 | achado `Applied` | qualquer | `Confirm` |
 | achado `Rejected` | qualquer | `Fail` |
 | achado `Absent` | chave `Native` ou `Header` | `Retry` com a mesma chave, depois da quiescência |
 | achado `Absent` | chave `None` | `Retry` só com `AuthoritativeAbsence`; senão `Reconcile` |
-| achado `Pending` | qualquer | `Await`, com nova consulta dentro do orçamento |
-| achado `Inconclusive` | qualquer | `Query` de novo até o teto e depois `Reconcile` |
+| achado `Pending` | qualquer | `Await`, com nova consulta enquanto as consultas feitas não atingem `MaxQueries`; atingido o teto, `Reconcile` |
+| achado `Inconclusive` | qualquer | `Query` de novo enquanto as consultas feitas não atingem `MaxQueries`; atingido o teto, `Reconcile` |
+
+Achado presente prevalece sobre a classe, porque é ele que resolve a incerteza;
+sem achado, vale a linha da classe.
 
 `Reconcile` entrega o comando ao estado "aguardando reconciliação", que
 nomeia o que ficou pendente e quem decide (`GAR-06`). O algoritmo de
@@ -327,13 +331,13 @@ comando de entrada.
 
 ### Critérios de aceite
 
-- [ ] O teste exaustivo de `NextStep` prova que nenhuma combinação com `UnknownSent`, `UnknownAmbiguous` ou `SchemaMismatch` devolve `Confirm` ou `Fail`.
+- [x] O teste exaustivo de `NextStep` prova que nenhuma combinação com `UnknownSent`, `UnknownAmbiguous` ou `SchemaMismatch` sem achado devolve `Confirm` ou `Fail`, e que `SchemaMismatch` sem achado devolve exatamente `Suspend`.
 - [ ] Duas execuções do mesmo comando (reentrega, reemissão pela outbox, reinício do processo) derivam a mesma chave; outra geração deriva chave distinta; a chave difere da de comando de entrada e do identificador da tentativa.
 - [ ] No fake, o reenvio depois de `UnknownSent` envia a mesma chave, e o registro de chaves recebidas mostra uma só.
 - [ ] Com o processo encerrado entre `Begin` e `Finish`, a redelivery depois do prazo e da margem, ou a varredura, resolve como `UnknownSent`, nenhuma tentativa `begun` passa do prazo e nenhuma segunda chamada ocorre sem consulta; um `Finish` tardio sobre tentativa encerrada não sobrescreve o desfecho e deixa conflito visível.
 - [ ] Observação duplicada não muda nada; observação contraditória gera conflito visível.
 - [ ] Todo código de uma tabela de parceiro cai na classe declarada no `providerkit`; o desconhecido cai em `UnknownAmbiguous`.
-- [ ] ADR novo e subseções de norma presentes, com a tabela "altera invariante?" e `node tools/dmpf-verify.mjs` sem violação.
+- [x] ADR novo e subseções de norma presentes, com a tabela "altera invariante?" e `node tools/dmpf-verify.mjs` sem violação.
 - [ ] Ao fim de cada onda, `go run ./tools/dmpf-conformance/cmd/conformance --root .` e `go run ./tools/dmpf-conformance/cmd/modsync --root . --check` passam, assim como `fmt-check`, `vet`, `test-race` e `govulncheck` de cada projeto Go tocado.
 
 ### Cenários de teste

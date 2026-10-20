@@ -36,6 +36,7 @@ Import path do módulo:
 | `authn.go` | `Credential`, `Identity`, `Authenticator`, `ErrCredentialAbsent`, `ErrCredentialRejected`, `ErrSubjectUnresolved` — as três condições de `IDN-01` |
 | `clock.go` | `Clock`, `IDGenerator` |
 | `values.go` | `Instant` (alias de `domain.Instant`), `MessageID`, `Version` |
+| `external.go` | `OutboundKey`; `ExternalClass` (as nove classes de desfecho, `ClassAccepted` a `ClassSchemaMismatch`); `Finding` (zero é «sem achado»); `KeySemantics`, `Efficacy`; `Observation`, `ExternalProfile`; `ExternalCommand` (`Submit`) e `ExternalState` (`Query`, opcional: a ausência declara «sem consulta de estado») (ADR-070) |
 
 Uma unidade só, com `block: port` e `bounded_context: kernel`
 (`dmpf-units.json`); em Go, a unidade de verificação é o package (RFC §3.3). A

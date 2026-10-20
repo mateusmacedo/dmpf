@@ -401,12 +401,12 @@
     {
       "source": "resiliencia-observabilidade.md",
       "sourceLine": 205,
-      "raw": "contexto-erros-seguranca.md:1380",
+      "raw": "contexto-erros-seguranca.md:1401",
       "form": "completa",
       "target": "contexto-erros-seguranca.md",
       "resolved": "docs/dmpf/contexto-erros-seguranca.md",
-      "from": 1380,
-      "to": 1380,
+      "from": 1401,
+      "to": 1401,
       "excerpt": "| `THR-01` | Nenhuma regra deste artefato normatiza limiar, "
     },
     {
@@ -786,12 +786,12 @@
     {
       "source": "resiliencia-observabilidade.md",
       "sourceLine": 287,
-      "raw": ":1380",
+      "raw": ":1401",
       "form": "shorthand",
       "target": "contexto-erros-seguranca.md",
       "resolved": "docs/dmpf/contexto-erros-seguranca.md",
-      "from": 1380,
-      "to": 1380,
+      "from": 1401,
+      "to": 1401,
       "excerpt": "| `THR-01` | Nenhuma regra deste artefato normatiza limiar, "
     },
     {
@@ -808,12 +808,12 @@
     {
       "source": "resiliencia-observabilidade.md",
       "sourceLine": 288,
-      "raw": ":1380",
+      "raw": ":1401",
       "form": "shorthand",
       "target": "contexto-erros-seguranca.md",
       "resolved": "docs/dmpf/contexto-erros-seguranca.md",
-      "from": 1380,
-      "to": 1380,
+      "from": 1401,
+      "to": 1401,
       "excerpt": "| `THR-01` | Nenhuma regra deste artefato normatiza limiar, "
     },
     {
@@ -951,68 +951,46 @@
     {
       "source": "resiliencia-observabilidade.md",
       "sourceLine": 307,
-      "raw": ":1380",
+      "raw": ":1401",
       "form": "shorthand",
       "target": "contexto-erros-seguranca.md",
       "resolved": "docs/dmpf/contexto-erros-seguranca.md",
-      "from": 1380,
-      "to": 1380,
+      "from": 1401,
+      "to": 1401,
       "excerpt": "| `THR-01` | Nenhuma regra deste artefato normatiza limiar, "
     },
     {
       "source": "resiliencia-observabilidade.md",
       "sourceLine": 308,
-      "raw": ":1301",
+      "raw": ":1322",
       "form": "shorthand",
       "target": "contexto-erros-seguranca.md",
       "resolved": "docs/dmpf/contexto-erros-seguranca.md",
-      "from": 1301,
-      "to": 1301,
+      "from": 1322,
+      "to": 1322,
       "excerpt": "| **Exclusões** | *Denial of service* — avaliado, e a mitiga"
     },
     {
       "source": "resiliencia-observabilidade.md",
       "sourceLine": 308,
-      "raw": ":1314",
+      "raw": ":1335",
       "form": "shorthand",
       "target": "contexto-erros-seguranca.md",
       "resolved": "docs/dmpf/contexto-erros-seguranca.md",
-      "from": 1314,
-      "to": 1314,
+      "from": 1335,
+      "to": 1335,
       "excerpt": "| **Exclusões** | *Spoofing* — o decode não estabelece ident"
     },
     {
       "source": "resiliencia-observabilidade.md",
       "sourceLine": 309,
-      "raw": ":1323",
+      "raw": ":1344",
       "form": "shorthand",
       "target": "contexto-erros-seguranca.md",
       "resolved": "docs/dmpf/contexto-erros-seguranca.md",
-      "from": 1323,
-      "to": 1323,
+      "from": 1344,
+      "to": 1344,
       "excerpt": "| **Exclusões** | *Spoofing* e *Repudiation* — o contrato é "
-    },
-    {
-      "source": "resiliencia-observabilidade.md",
-      "sourceLine": 309,
-      "raw": ":1338",
-      "form": "shorthand",
-      "target": "contexto-erros-seguranca.md",
-      "resolved": "docs/dmpf/contexto-erros-seguranca.md",
-      "from": 1338,
-      "to": 1338,
-      "excerpt": "| **Exclusões** | *Denial of service* — poison message e ret"
-    },
-    {
-      "source": "resiliencia-observabilidade.md",
-      "sourceLine": 309,
-      "raw": ":1348",
-      "form": "shorthand",
-      "target": "contexto-erros-seguranca.md",
-      "resolved": "docs/dmpf/contexto-erros-seguranca.md",
-      "from": 1348,
-      "to": 1348,
-      "excerpt": "| **Exclusões** | *Tampering* e *Repudiation* — integridade "
     },
     {
       "source": "resiliencia-observabilidade.md",
@@ -1023,28 +1001,50 @@
       "resolved": "docs/dmpf/contexto-erros-seguranca.md",
       "from": 1359,
       "to": 1359,
+      "excerpt": "| **Exclusões** | *Denial of service* — poison message e ret"
+    },
+    {
+      "source": "resiliencia-observabilidade.md",
+      "sourceLine": 309,
+      "raw": ":1369",
+      "form": "shorthand",
+      "target": "contexto-erros-seguranca.md",
+      "resolved": "docs/dmpf/contexto-erros-seguranca.md",
+      "from": 1369,
+      "to": 1369,
+      "excerpt": "| **Exclusões** | *Tampering* e *Repudiation* — integridade "
+    },
+    {
+      "source": "resiliencia-observabilidade.md",
+      "sourceLine": 309,
+      "raw": ":1380",
+      "form": "shorthand",
+      "target": "contexto-erros-seguranca.md",
+      "resolved": "docs/dmpf/contexto-erros-seguranca.md",
+      "from": 1380,
+      "to": 1380,
       "excerpt": "| **Exclusões** | *Spoofing* e *Elevation of privilege* — id"
     },
     {
       "source": "resiliencia-observabilidade.md",
       "sourceLine": 309,
-      "raw": ":1371",
+      "raw": ":1392",
       "form": "shorthand",
       "target": "contexto-erros-seguranca.md",
       "resolved": "docs/dmpf/contexto-erros-seguranca.md",
-      "from": 1371,
-      "to": 1371,
+      "from": 1392,
+      "to": 1392,
       "excerpt": "| **Exclusões** | *Tampering* — a alteração do modelo de per"
     },
     {
       "source": "resiliencia-observabilidade.md",
       "sourceLine": 310,
-      "raw": ":1793",
+      "raw": ":1814",
       "form": "shorthand",
       "target": "contexto-erros-seguranca.md",
       "resolved": "docs/dmpf/contexto-erros-seguranca.md",
-      "from": 1793,
-      "to": 1793,
+      "from": 1814,
+      "to": 1814,
       "excerpt": "| `THR` | `THR-01` a `THR-03` | §7 | eixo *Denial of service"
     },
     {
@@ -1061,12 +1061,12 @@
     {
       "source": "resiliencia-observabilidade.md",
       "sourceLine": 574,
-      "raw": "contexto-erros-seguranca.md:1380",
+      "raw": "contexto-erros-seguranca.md:1401",
       "form": "completa",
       "target": "contexto-erros-seguranca.md",
       "resolved": "docs/dmpf/contexto-erros-seguranca.md",
-      "from": 1380,
-      "to": 1380,
+      "from": 1401,
+      "to": 1401,
       "excerpt": "| `THR-01` | Nenhuma regra deste artefato normatiza limiar, "
     },
     {
@@ -1137,7 +1137,7 @@
     },
     {
       "source": "resiliencia-observabilidade.md",
-      "sourceLine": 819,
+      "sourceLine": 864,
       "raw": "cloudevents-protobuf-buf.md:566",
       "form": "completa",
       "target": "cloudevents-protobuf-buf.md",
@@ -1148,7 +1148,7 @@
     },
     {
       "source": "resiliencia-observabilidade.md",
-      "sourceLine": 824,
+      "sourceLine": 869,
       "raw": "contexto-erros-seguranca.md:617-619",
       "form": "completa",
       "target": "contexto-erros-seguranca.md",
@@ -1159,7 +1159,7 @@
     },
     {
       "source": "resiliencia-observabilidade.md",
-      "sourceLine": 1048,
+      "sourceLine": 1093,
       "raw": "uow-inbox-outbox.md:167",
       "form": "completa",
       "target": "uow-inbox-outbox.md",
@@ -1170,7 +1170,7 @@
     },
     {
       "source": "resiliencia-observabilidade.md",
-      "sourceLine": 1237,
+      "sourceLine": 1282,
       "raw": "uow-inbox-outbox.md:1543",
       "form": "completa",
       "target": "uow-inbox-outbox.md",
@@ -1181,7 +1181,7 @@
     },
     {
       "source": "resiliencia-observabilidade.md",
-      "sourceLine": 1256,
+      "sourceLine": 1301,
       "raw": "uow-inbox-outbox.md:754",
       "form": "completa",
       "target": "uow-inbox-outbox.md",
@@ -1192,7 +1192,7 @@
     },
     {
       "source": "resiliencia-observabilidade.md",
-      "sourceLine": 1331,
+      "sourceLine": 1376,
       "raw": "cloudevents-protobuf-buf.md:1339",
       "form": "completa",
       "target": "cloudevents-protobuf-buf.md",
@@ -1203,7 +1203,7 @@
     },
     {
       "source": "resiliencia-observabilidade.md",
-      "sourceLine": 1420,
+      "sourceLine": 1465,
       "raw": "upr-decision-mensagens.md:1095",
       "form": "completa",
       "target": "upr-decision-mensagens.md",
@@ -1214,7 +1214,7 @@
     },
     {
       "source": "resiliencia-observabilidade.md",
-      "sourceLine": 1646,
+      "sourceLine": 1691,
       "raw": "politicas-transporte.md:1186-1188",
       "form": "completa",
       "target": "politicas-transporte.md",
@@ -1225,7 +1225,7 @@
     },
     {
       "source": "resiliencia-observabilidade.md",
-      "sourceLine": 1681,
+      "sourceLine": 1726,
       "raw": "uow-inbox-outbox.md:1378-1385",
       "form": "completa",
       "target": "uow-inbox-outbox.md",
@@ -1236,7 +1236,7 @@
     },
     {
       "source": "resiliencia-observabilidade.md",
-      "sourceLine": 1758,
+      "sourceLine": 1803,
       "raw": "uow-inbox-outbox.md:1540",
       "form": "completa",
       "target": "uow-inbox-outbox.md",
@@ -1247,7 +1247,7 @@
     },
     {
       "source": "resiliencia-observabilidade.md",
-      "sourceLine": 1999,
+      "sourceLine": 2044,
       "raw": "docs/adr/README.md:7-15",
       "form": "completa",
       "target": "docs/adr/README.md",
@@ -1258,18 +1258,18 @@
     },
     {
       "source": "resiliencia-observabilidade.md",
-      "sourceLine": 2005,
-      "raw": "contexto-erros-seguranca.md:1756",
+      "sourceLine": 2050,
+      "raw": "contexto-erros-seguranca.md:1777",
       "form": "completa",
       "target": "contexto-erros-seguranca.md",
       "resolved": "docs/dmpf/contexto-erros-seguranca.md",
-      "from": 1756,
-      "to": 1756,
+      "from": 1777,
+      "to": 1777,
       "excerpt": "### §10.4 A divergência com a story, como pendência nomeada"
     },
     {
       "source": "resiliencia-observabilidade.md",
-      "sourceLine": 2015,
+      "sourceLine": 2060,
       "raw": "docs/adr/README.md:7-15",
       "form": "completa",
       "target": "docs/adr/README.md",
@@ -1280,7 +1280,7 @@
     },
     {
       "source": "resiliencia-observabilidade.md",
-      "sourceLine": 2021,
+      "sourceLine": 2066,
       "raw": "rfc-dmpf-foundation-v0.1.md:1712-1714",
       "form": "completa",
       "target": "rfc-dmpf-foundation-v0.1.md",

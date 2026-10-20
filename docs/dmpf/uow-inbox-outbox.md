@@ -1761,6 +1761,14 @@ comando não se propaga.** Eventos, mensagens derivadas e chamadas a jusante
 seguem com o próprio `message_id`, e o consumidor deduplica por ele (`INB-01`).
 A chave protege a entrada que a recebeu, e só ela.
 
+`normativo` `IDM-11` — blocos `application service` e `provider`. Decisão nova,
+registrada no [ADR-070](../adr/070-ciclo-de-comando-externo-de-saida.md). **A
+chamada a parceiro externo leva a chave de saída, derivada da intenção.** A
+chave é a mesma em toda tentativa, reentrega, reemissão e reenvio da mesma
+intenção, e só uma nova geração, por decisão explícita do caso de uso, a troca.
+Ela nunca é a chave de comando de entrada nem o identificador da tentativa: a
+chave de entrada continua sem atravessar (`IDM-10`).
+
 `normativo` — A idempotência de comando é deduplicação por chave **dentro da
 retenção**: não substitui a idempotência de efeito (`GAR-03`) nem a chave
 natural da operação (`GAR-10`). Um comando repetido depois do vencimento da
@@ -2443,9 +2451,10 @@ o mecanismo e não há o que verificar em runtime. Eles obrigam do mesmo jeito.
 | `IDM-08` | R2 e R3 devolvem o desfecho gravado sem chamar o domínio | §7.6 |
 | `IDM-09` | A entrada de comando carrega o vencimento; a purga remove só as vencidas | §7.6 |
 | `IDM-10` | A chave de comando não se propaga | §7.6 |
+| `IDM-11` | A chamada a parceiro externo leva a chave de saída, derivada da intenção | §7.6 |
 
-`registro` — **74 regras com ID** — `BLK` 5, `UOW` 11, `OBX` 18, `INB` 18,
-`GAR` 12, `IDM` 10. A distribuição não é acidental: `INB` e `OBX` concentram 36 delas
+`registro` — **75 regras com ID** — `BLK` 5, `UOW` 11, `OBX` 18, `INB` 18,
+`GAR` 12, `IDM` 11. A distribuição não é acidental: `INB` e `OBX` concentram 36 delas
 porque a deduplicação e a drenagem são onde o mecanismo tem estado persistente
 e, portanto, onde uma norma vaga vira defeito silencioso.
 

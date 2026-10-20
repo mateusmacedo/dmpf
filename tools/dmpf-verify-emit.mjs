@@ -28,7 +28,7 @@ const SEED = {
     'FND-04': {
       file: 'uow-inbox-outbox.md',
       prefixes: ['UOW', 'OBX', 'INB', 'GAR', 'BLK', 'IDM'],
-      declaredTotal: 74,
+      declaredTotal: 75,
     },
     'FND-05': {
       file: 'cloudevents-protobuf-buf.md',
@@ -43,17 +43,17 @@ const SEED = {
     'FND-07': {
       file: 'contexto-erros-seguranca.md',
       prefixes: ['CTX', 'IDN', 'ERR', 'MAP', 'THR', 'DAT'],
-      declaredTotal: 112,
+      declaredTotal: 115,
     },
     'FND-08': {
       file: 'resiliencia-observabilidade.md',
       prefixes: ['RES', 'MET', 'TRC', 'LOG', 'RUN'],
-      declaredTotal: 121,
+      declaredTotal: 126,
     },
     'FND-09': {
       file: 'testes-interop.md',
       prefixes: ['PIR', 'CEN', 'FIX', 'ORA', 'KIT', 'FIT', 'RAS'],
-      declaredTotal: 142,
+      declaredTotal: 143,
     },
     'FND-10': {
       file: 'governanca-bom-pilotos.md',
@@ -81,7 +81,7 @@ const SEED = {
   ],
   totalSelectors: {
     'upr-decision-mensagens.md': { line: 1394, pattern: 'São 54 regras com ID estável' },
-    'uow-inbox-outbox.md': { line: 2447, pattern: '`registro` — \\*\\*74 regras com ID\\*\\*' },
+    'uow-inbox-outbox.md': { line: 2456, pattern: '`registro` — \\*\\*75 regras com ID\\*\\*' },
     'cloudevents-protobuf-buf.md': {
       line: 1921,
       pattern: 'As 64 regras têm por sujeito o contrato',
@@ -90,17 +90,17 @@ const SEED = {
     },
     'politicas-transporte.md': { line: 1830, pattern: '`registro` — 131 regras, em sete prefixos' },
     'contexto-erros-seguranca.md': {
-      line: 1796,
-      pattern: '\\*\\*Total: 112 regras `normativo`\\.\\*\\*',
+      line: 1817,
+      pattern: '\\*\\*Total: 115 regras `normativo`\\.\\*\\*',
     },
     'resiliencia-observabilidade.md': {
-      line: 2072,
-      pattern: '`registro` — 121 regras `normativo`\\.',
+      line: 2117,
+      pattern: '`registro` — 126 regras `normativo`\\.',
     },
     'testes-interop.md': {
-      line: 2666,
+      line: 2678,
       pattern:
-        '\\*\\*Total: 142 regras próprias: 141 `normativo` e uma `encaminhado`, `RAS-41`\\.\\*\\*',
+        '\\*\\*Total: 143 regras próprias: 142 `normativo` e uma `encaminhado`, `RAS-41`\\.\\*\\*',
     },
     'governanca-bom-pilotos.md': {
       line: 1758,
