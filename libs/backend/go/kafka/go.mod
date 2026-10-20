@@ -3,10 +3,10 @@ module github.com/mateusmacedo/dmpf/libs/backend/go/kafka
 go 1.26.9
 
 require (
-	github.com/mateusmacedo/dmpf/libs/backend/go/contracts v1.0.0-rc.5
-	github.com/mateusmacedo/dmpf/libs/backend/go/observability v1.0.0-rc.5
-	github.com/mateusmacedo/dmpf/libs/backend/go/ports v1.0.0-rc.5
-	github.com/mateusmacedo/dmpf/libs/backend/go/transport v1.0.0-rc.5
+	github.com/mateusmacedo/dmpf/libs/backend/go/contracts v1.0.0-rc.6
+	github.com/mateusmacedo/dmpf/libs/backend/go/observability v1.0.0-rc.6
+	github.com/mateusmacedo/dmpf/libs/backend/go/ports v1.0.0-rc.6
+	github.com/mateusmacedo/dmpf/libs/backend/go/transport v1.0.0-rc.6
 	github.com/twmb/franz-go v1.21.6
 	github.com/twmb/franz-go/pkg/kadm v1.18.0
 	go.opentelemetry.io/otel v1.47.0
@@ -26,7 +26,7 @@ require (
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/pgx/v5 v5.10.0 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
-	github.com/mateusmacedo/dmpf/libs/backend/go/application v1.0.0-rc.5 // indirect
+	github.com/mateusmacedo/dmpf/libs/backend/go/application v1.0.0-rc.6 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/prometheus/client_golang v1.24.1 // indirect
 	github.com/prometheus/client_model v0.6.3 // indirect
@@ -64,8 +64,8 @@ require (
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/klauspost/compress v1.19.1 // indirect
-	github.com/mateusmacedo/dmpf/libs/backend/go/domain v1.0.0-rc.5 // indirect
-	github.com/mateusmacedo/dmpf/libs/backend/go/testkit v1.0.0-rc.5
+	github.com/mateusmacedo/dmpf/libs/backend/go/domain v1.0.0-rc.6 // indirect
+	github.com/mateusmacedo/dmpf/libs/backend/go/testkit v1.0.0-rc.6
 	github.com/pierrec/lz4/v4 v4.1.26 // indirect
 	github.com/twmb/franz-go/pkg/kmsg v1.13.1 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect

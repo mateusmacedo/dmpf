@@ -3,9 +3,9 @@ module github.com/mateusmacedo/dmpf/libs/backend/go/redis
 go 1.26.9
 
 require (
-	github.com/mateusmacedo/dmpf/libs/backend/go/authn v1.0.0-rc.5
-	github.com/mateusmacedo/dmpf/libs/backend/go/observability v1.0.0-rc.5
-	github.com/mateusmacedo/dmpf/libs/backend/go/ports v1.0.0-rc.5
+	github.com/mateusmacedo/dmpf/libs/backend/go/authn v1.0.0-rc.6
+	github.com/mateusmacedo/dmpf/libs/backend/go/observability v1.0.0-rc.6
+	github.com/mateusmacedo/dmpf/libs/backend/go/ports v1.0.0-rc.6
 	github.com/redis/go-redis/v9 v9.23.0
 )
 
@@ -16,7 +16,7 @@ require (
 	github.com/go-jose/go-jose/v4 v4.1.4 // indirect
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
-	github.com/mateusmacedo/dmpf/libs/backend/go/domain v1.0.0-rc.5 // indirect
+	github.com/mateusmacedo/dmpf/libs/backend/go/domain v1.0.0-rc.6 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/bridges/otelslog v0.21.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.72.0 // indirect
