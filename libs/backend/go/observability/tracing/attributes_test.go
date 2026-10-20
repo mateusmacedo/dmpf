@@ -201,6 +201,7 @@ func vocabulary() map[string]string {
 		"KeyOutboxAttempt":         tracing.KeyOutboxAttempt,
 		"KeyProcessRole":           tracing.KeyProcessRole,
 		"KeyPreviousCategory":      tracing.KeyPreviousCategory,
+		"KeyExternalClass":         tracing.KeyExternalClass,
 	}
 }
 
@@ -223,6 +224,7 @@ func TestTheVocabularyNamesAreTheSpecNames(t *testing.T) {
 		"KeyOutboxClaimID":         "dmpf.outbox.claim_id",
 		"KeyOutboxAttempt":         "dmpf.outbox.attempt",
 		"KeyProcessRole":           "dmpf.process.role",
+		"KeyExternalClass":         "dmpf.external.class",
 	}
 	declared := vocabulary()
 	for name, literal := range want {

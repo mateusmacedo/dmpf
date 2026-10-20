@@ -28,6 +28,7 @@ func TestTheCatalogueDeclaresTheSeriesOfRFD1(t *testing.T) {
 		metrics.AdmissionRejectionsTotal: "dmpf.admission.rejections",
 		metrics.PoolUtilization:          "dmpf.consumer.pool.utilization",
 		metrics.QueueDepth:               "dmpf.consumer.queue.depth",
+		metrics.ExternalConflictsTotal:   "dmpf.external.attempt.conflicts",
 	}
 	for constant, name := range want {
 		if constant != name {
@@ -79,6 +80,7 @@ func TestEverySeriesDeclaresItsUCUMUnit(t *testing.T) {
 		metrics.AdmissionRejectionsTotal: "{request}",
 		metrics.PoolUtilization:          "1",
 		metrics.QueueDepth:               "{message}",
+		metrics.ExternalConflictsTotal:   "{conflict}",
 	}
 	for _, m := range metrics.Catalog() {
 		if m.Unit != want[m.Name] {
@@ -108,10 +110,11 @@ func TestEverySeriesDeclaresTheLabelsOfRFD3(t *testing.T) {
 		metrics.BulkheadRejectionsTotal:  {"dmpf.dependency"},
 		metrics.DegradedTotal:            {"dmpf.dependency"},
 		metrics.OmittedTotal:             {"dmpf.dependency"},
-		metrics.RequestDurationSeconds:   {"dmpf.operation", "dmpf.outcome_category", "error.type"},
+		metrics.RequestDurationSeconds:   {"dmpf.operation", "dmpf.outcome_category", "error.type", "dmpf.external.class"},
 		metrics.AdmissionRejectionsTotal: {"http.route", "rpc.method", "dmpf.tenant_id"},
 		metrics.PoolUtilization:          nil,
 		metrics.QueueDepth:               nil,
+		metrics.ExternalConflictsTotal:   {"dmpf.operation", "dmpf.external.class"},
 	}
 	for _, m := range metrics.Catalog() {
 		if !slices.Equal(m.Labels, want[m.Name]) {
@@ -186,6 +189,7 @@ func TestEveryLabelOfEverySeriesIsAPermittedKey(t *testing.T) {
 		metrics.KeyDependency, metrics.KeyOperation,
 		metrics.KeyErrorType, metrics.KeyOutcomeCategory,
 		metrics.KeyRoute, metrics.KeyRPCMethod, metrics.KeyTenant,
+		metrics.KeyExternalClass,
 	}
 
 	for _, m := range metrics.Catalog() {

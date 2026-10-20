@@ -22,6 +22,7 @@ const (
 	UnitRequest       = "{request}"
 	UnitMessage       = "{message}"
 	UnitState         = "{state}"
+	UnitConflict      = "{conflict}"
 )
 
 // Threshold is the invariant a series must respect. It is nil for a counter
@@ -59,6 +60,7 @@ const (
 	PoolUtilization          = "dmpf.consumer.pool.utilization"
 	QueueDepth               = "dmpf.consumer.queue.depth"
 	AdmissionRejectionsTotal = "dmpf.admission.rejections"
+	ExternalConflictsTotal   = "dmpf.external.attempt.conflicts"
 )
 
 const ownerService = "serviço"
@@ -114,7 +116,7 @@ func Catalog() []Metric {
 			Unit:    UnitSeconds,
 			Kind:    Histogram,
 			Formula: "distribuição da duração das operações do serviço, em segundos",
-			Labels:  []string{KeyOperation, KeyOutcomeCategory, KeyErrorType},
+			Labels:  []string{KeyOperation, KeyOutcomeCategory, KeyErrorType, KeyExternalClass},
 			Owner:   ownerService,
 		},
 		{
@@ -161,6 +163,14 @@ func Catalog() []Metric {
 			Kind:    Counter,
 			Formula: "soma das recusas por admissão, por rota e por tenant declarado na allowlist",
 			Labels:  []string{KeyRoute, KeyRPCMethod, KeyTenant},
+			Owner:   ownerService,
+		},
+		{
+			Name:    ExternalConflictsTotal,
+			Unit:    UnitConflict,
+			Kind:    Counter,
+			Formula: "soma dos desfechos tardios que o ledger de tentativas registrou à parte da classe já gravada",
+			Labels:  []string{KeyOperation, KeyExternalClass},
 			Owner:   ownerService,
 		},
 	}

@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"strings"
 	"sync"
 	"testing"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/log"
 	"go.opentelemetry.io/otel/propagation"
 	sdklog "go.opentelemetry.io/otel/sdk/log"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
@@ -217,6 +219,48 @@ func TestEndOperationOmitsTheIdempotencyOutcomeWithoutAClaim(t *testing.T) {
 
 	if got, ok := attributeOf(fixture.onlySpan(t), "dmpf.idempotency_outcome"); ok {
 		t.Fatalf("dmpf.idempotency_outcome = %q on an operation that made no claim", got)
+	}
+}
+
+type derivedKey struct{}
+
+func TestEndOperationRecordsTheExternalClassTheUseCaseMarked(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		mark    func(ctx context.Context)
+		want    string
+		present bool
+	}{
+		{name: "no mark", mark: func(context.Context) {}},
+		{name: "marked", mark: func(ctx context.Context) { ports.MarkExternalClass(ctx, ports.ClassUnknownSent) }, want: "unknown_sent", present: true},
+		{
+			name: "marked on a derived context",
+			mark: func(ctx context.Context) {
+				ports.MarkExternalClass(context.WithValue(ctx, derivedKey{}, 1), ports.ClassAccepted)
+			},
+			want: "accepted", present: true,
+		},
+		{
+			name: "last mark wins",
+			mark: func(ctx context.Context) {
+				ports.MarkExternalClass(ctx, ports.ClassRetryableTransport)
+				ports.MarkExternalClass(ctx, ports.ClassFinalBusiness)
+			},
+			want: "final_business", present: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fixture := boot(t, options{})
+
+			ctx, end := fixture.instrumentation.BeginOperation(context.Background(), "orders.AddItem")
+			tc.mark(ctx)
+			end(ports.Result{Outcome: ports.OutcomeAccepted})
+
+			got, ok := attributeOf(fixture.onlySpan(t), tracing.KeyExternalClass)
+			if ok != tc.present || got != tc.want {
+				t.Fatalf("dmpf.external.class = %q (present=%v), want %q (present=%v)", got, ok, tc.want, tc.present)
+			}
+		})
 	}
 }
 
@@ -637,4 +681,107 @@ func (r *recordingLogs) securityRecord(t *testing.T, provider *sdklog.LoggerProv
 		t.Fatalf("exported %d log records carrying the object of the event, want 1", len(found))
 	}
 	return found[0]
+}
+
+type loggedRecord struct {
+	body       string
+	severity   log.Severity
+	attributes map[string]string
+}
+
+func (r *recordingLogs) bodies(t *testing.T, provider *sdklog.LoggerProvider) []loggedRecord {
+	t.Helper()
+	if err := provider.ForceFlush(context.Background()); err != nil {
+		t.Fatalf("ForceFlush() = %v", err)
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	found := make([]loggedRecord, 0, len(r.records))
+	for _, record := range r.records {
+		attributes := map[string]string{}
+		record.WalkAttributes(func(kv attribute.KeyValue) bool {
+			attributes[string(kv.Key)] = kv.Value.String()
+			return true
+		})
+		found = append(found, loggedRecord{body: record.Body().AsString(), severity: record.Severity(), attributes: attributes})
+	}
+	return found
+}
+
+func TestAnExternalOperationReportsItsClassAndConflictInEverySignal(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		operation string
+		outcome   ports.OutcomeCategory
+		class     ports.ExternalClass
+		conflict  bool
+		want      []loggedRecord
+	}{
+		{
+			name: "an unmarked operation of another use case", operation: "orders.AddItem", outcome: ports.OutcomeAccepted,
+		},
+		{
+			name: "an external operation without a class", operation: "external.dispatch", outcome: ports.OutcomeFailed,
+			want: []loggedRecord{{body: "external operation ended", severity: log.SeverityError, attributes: map[string]string{
+				"dmpf.operation": "external.dispatch", "dmpf.outcome_category": "failed", "error.type": usecase.CategoryUnclassified,
+			}}},
+		},
+		{
+			name: "an external operation with a class", operation: "external.resolve", outcome: ports.OutcomeAccepted, class: ports.ClassAccepted,
+			want: []loggedRecord{{body: "external operation ended", severity: log.SeverityInfo, attributes: map[string]string{
+				"dmpf.operation": "external.resolve", "dmpf.outcome_category": "accepted", "dmpf.external.class": "accepted",
+			}}},
+		},
+		{
+			name: "a conflict", operation: "external.abandon", outcome: ports.OutcomeAccepted, class: ports.ClassFinalBusiness, conflict: true,
+			want: []loggedRecord{
+				{body: "external operation ended", severity: log.SeverityInfo, attributes: map[string]string{
+					"dmpf.operation": "external.abandon", "dmpf.outcome_category": "accepted", "dmpf.external.class": "final_business",
+				}},
+				{body: "external attempt conflict", severity: log.SeverityWarn, attributes: map[string]string{
+					"dmpf.operation": "external.abandon", "dmpf.outcome_category": "accepted", "dmpf.external.class": "final_business",
+				}},
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			logs := &recordingLogs{}
+			fixture := boot(t, options{logs: logs})
+
+			ctx, end := fixture.instrumentation.BeginOperation(context.Background(), tc.operation)
+			if tc.class != 0 {
+				ports.MarkExternalClass(ctx, tc.class)
+			}
+			if tc.conflict {
+				ports.MarkExternalConflict(ctx)
+			}
+			end(ports.Result{Outcome: tc.outcome})
+
+			got := logs.bodies(t, fixture.loggerProvider)
+			if len(got) != len(tc.want) {
+				t.Fatalf("records = %+v, want %+v", got, tc.want)
+			}
+			for i, want := range tc.want {
+				if got[i].body != want.body || got[i].severity != want.severity || !maps.Equal(got[i].attributes, want.attributes) {
+					t.Fatalf("record %d = %+v, want %+v", i, got[i], want)
+				}
+			}
+			points := durationPoints(t, fixture.reader)
+			if len(points) != 1 {
+				t.Fatalf("duration points = %d, want 1", len(points))
+			}
+			class, labelled := labelsOf(points[0].Attributes)["dmpf.external.class"]
+			if labelled != (tc.class != 0) || (labelled && class != tc.class.String()) {
+				t.Fatalf("duration labels = %v, want dmpf.external.class only when marked (%v)", labelsOf(points[0].Attributes), tc.class)
+			}
+			conflicts := collect(t, fixture.reader)[metrics.ExternalConflictsTotal]
+			switch {
+			case !tc.conflict && len(conflicts) != 0:
+				t.Fatalf("%s = %+v on an operation that marked no conflict", metrics.ExternalConflictsTotal, conflicts)
+			case tc.conflict && (len(conflicts) != 1 || conflicts[0].Value != 1 ||
+				!maps.Equal(labelsOf(conflicts[0].Attributes), map[string]string{"dmpf.operation": tc.operation, "dmpf.external.class": tc.class.String()})):
+				t.Fatalf("%s = %+v, want one count labelled only by operation and class", metrics.ExternalConflictsTotal, conflicts)
+			}
+		})
+	}
 }

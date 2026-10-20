@@ -21,6 +21,7 @@ type Instruments struct {
 	PoolUtilization     metric.Float64Gauge
 	QueueDepth          metric.Int64Gauge
 	AdmissionRejections metric.Int64Counter
+	ExternalConflicts   metric.Int64Counter
 }
 
 // durationBoundaries are the advisory boundaries semconv declares for a
@@ -61,6 +62,7 @@ func New(meter metric.Meter) (*Instruments, error) {
 		Omitted:             counter(OmittedTotal),
 		BulkheadRejections:  counter(BulkheadRejectionsTotal),
 		AdmissionRejections: counter(AdmissionRejectionsTotal),
+		ExternalConflicts:   counter(ExternalConflictsTotal),
 	}
 
 	gauge := byName[BreakerState]

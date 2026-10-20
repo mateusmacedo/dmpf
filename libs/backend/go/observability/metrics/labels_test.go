@@ -91,6 +91,7 @@ func TestEveryPermittedKeyHasABuilderMethod(t *testing.T) {
 	for _, key := range []string{
 		metrics.KeyDependency, metrics.KeyOperation,
 		metrics.KeyErrorType, metrics.KeyOutcomeCategory, metrics.KeyRoute, metrics.KeyRPCMethod,
+		metrics.KeyExternalClass,
 	} {
 		if !produced[key] {
 			t.Errorf("no builder method produces the permitted key %q", key)
@@ -219,6 +220,7 @@ func TestTheKeysAreSemconvOrDMPF(t *testing.T) {
 		metrics.KeyRoute:           "http.route",
 		metrics.KeyRPCMethod:       "rpc.method",
 		metrics.KeyTenant:          "dmpf.tenant_id",
+		metrics.KeyExternalClass:   "dmpf.external.class",
 	} {
 		if got != want {
 			t.Errorf("key = %q, want %q (RF-D3)", got, want)

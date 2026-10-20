@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"reflect"
+	"strings"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/audit"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/clock"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/logging"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/metrics"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/otelboot"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/redact"
@@ -25,6 +27,10 @@ const (
 
 	trafficWrite = "write"
 	trafficRead  = "read"
+
+	externalPrefix           = "external."
+	externalOperationEnded   = "external operation ended"
+	externalConflictRecorded = "external attempt conflict"
 )
 
 // ActionCrossTenantAccess names the security event of IDN-12 in the audit trail.
@@ -99,11 +105,16 @@ func (i *Instrumentation) BeginOperation(ctx context.Context, operation string) 
 	ctx, span := i.tracer.Start(ctx, spanPrefix+operation, trace.WithAttributes(
 		attribute.String(tracing.KeyTrafficClass, i.trafficClass(operation)),
 	))
+	ctx = ports.WithExternalConflictSlot(ports.WithExternalClassSlot(ctx))
 
 	return ctx, func(result ports.Result) {
 		span.SetAttributes(attribute.String(tracing.KeyOutcomeCategory, string(result.Outcome)))
 		if claim, ok := ports.IdempotencyOutcomeFrom(ctx); ok {
 			span.SetAttributes(attribute.String(tracing.KeyIdempotencyOutcome, claim.String()))
+		}
+		class := externalClass(ctx)
+		if class != "" {
+			span.SetAttributes(attribute.String(tracing.KeyExternalClass, class))
 		}
 		errorType := ""
 		if result.Outcome == ports.OutcomeFailed {
@@ -112,9 +123,41 @@ func (i *Instrumentation) BeginOperation(ctx context.Context, operation string) 
 		}
 		span.End()
 
-		i.record(ctx, operation, result.Outcome, errorType, i.clock.Now().Sub(started))
+		i.record(ctx, operation, result.Outcome, errorType, class, i.clock.Now().Sub(started))
+		i.recordExternal(ctx, operation, result.Outcome, errorType, class)
 		i.recordCrossTenant(ctx, result)
 	}
+}
+
+func externalClass(ctx context.Context) string {
+	if class, ok := ports.ExternalClassFrom(ctx); ok {
+		return class.String()
+	}
+	return ""
+}
+
+func (i *Instrumentation) recordExternal(ctx context.Context, operation string, outcome ports.OutcomeCategory, errorType, class string) {
+	conflict := ports.ExternalConflictFrom(ctx)
+	if !strings.HasPrefix(operation, externalPrefix) && !conflict {
+		return
+	}
+	attributes := []slog.Attr{
+		slog.String(tracing.KeyOperation, operation),
+		slog.String(tracing.KeyOutcomeCategory, string(outcome)),
+	}
+	if class != "" {
+		attributes = append(attributes, slog.String(tracing.KeyExternalClass, class))
+	}
+	if errorType != "" {
+		attributes = append(attributes, slog.String(logging.KeyErrorType, errorType))
+	}
+	i.logger.LogAttrs(ctx, logging.Severity(logging.Server, outcome), externalOperationEnded, attributes...)
+	if !conflict {
+		return
+	}
+	labels := metrics.Labels{}.Operation(operation).ExternalClass(class)
+	i.instruments.ExternalConflicts.Add(ctx, 1, metric.WithAttributes(labels.Attributes()...))
+	i.logger.LogAttrs(ctx, slog.LevelWarn, externalConflictRecorded, attributes...)
 }
 
 // WHY: every use case closes here, so the provider's report of a cross-tenant
@@ -149,11 +192,12 @@ func (i *Instrumentation) recordCrossTenant(ctx context.Context, result ports.Re
 // record writes the RED of the use case (RF-D2): every outcome is an
 // observation, and only a failure carries error.type, because a rejection is the
 // refusing branch of the UPR and not a fault (DEC-04).
-func (i *Instrumentation) record(ctx context.Context, operation string, outcome ports.OutcomeCategory, errorType string, elapsed time.Duration) {
+func (i *Instrumentation) record(ctx context.Context, operation string, outcome ports.OutcomeCategory, errorType, class string, elapsed time.Duration) {
 	labels := metrics.Labels{}.
 		Operation(operation).
 		OutcomeCategory(string(outcome)).
-		ErrorType(errorType)
+		ErrorType(errorType).
+		ExternalClass(class)
 
 	i.instruments.RequestDuration.Record(ctx, elapsed.Seconds(), metric.WithAttributes(labels.Attributes()...))
 }

@@ -33,6 +33,7 @@ const (
 	KeyIdempotencyOutcome    = "dmpf.idempotency_outcome"
 	KeyDeadlineRemainingMS   = "dmpf.deadline.remaining_ms"
 	KeyProcessRole           = "dmpf.process.role"
+	KeyExternalClass         = "dmpf.external.class"
 )
 
 // Attributes is a closed builder: one method per permitted key, none of them
