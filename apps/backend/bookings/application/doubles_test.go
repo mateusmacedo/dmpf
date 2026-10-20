@@ -16,13 +16,18 @@ const (
 	testBookingID  = domain.BookingID("B-100")
 	testResourceID = domain.ResourceID("R-200")
 	testResCode    = domain.ResourceCode("room-101")
+	testResName    = domain.ResourceName("Room 101")
 )
 
 var testOccurred = ports.Instant(1_755_432_000_000_000_000)
 
 var (
 	bookingTable  = memory.Table[domain.BookingID, domain.BookingSnapshot]{Name: "bookings"}
-	resourceTable = memory.Table[domain.ResourceCode, domain.ResourceSnapshot]{Name: "resources"}
+	resourceTable = memory.Table[domain.ResourceCode, domain.ResourceSnapshot]{Name: "resources", Unique: []memory.Unique[domain.ResourceSnapshot]{{
+		Name:      "resources_tenant_id_name_key",
+		Key:       func(s domain.ResourceSnapshot) ([]string, bool) { return []string{string(s.Name)}, true },
+		Rejection: domain.RejectResourceDuplicateName,
+	}}}
 )
 
 type harness struct {

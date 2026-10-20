@@ -30,9 +30,12 @@ do próprio kernel, que não é dependência externa.
   `Validate` recusa rota sem referência ao contrato publicado
   (`ErrContractRequired`, RST-04), método fora de
   GET/HEAD/PUT/DELETE/POST/PATCH, orçamento sem folga e a combinação inválida
-  de `Requires`/`PlatformReach` (`ErrPlatformReachRequired`, IDN-19: uma rota
-  de plataforma declara o alcance de dado que tem, uma rota escopada não
-  declara nenhum). `ValidateEdge` é `Validate` mais a exigência de permissão
+  de `Requires`/`PlatformReach` (`ErrPlatformReachRequired`, IDN-19: a rota
+  `RequireNeither` declara o alcance de dado que tem, e a rota que exige tenant
+  não declara nenhum; não confundir com `ports.ErrPlatformReachUndeclared`, a
+  recusa do leitor em tempo de execução). `PlatformReach`, `ReachUndeclared` e
+  `ReachAllTenants` são alias dos tipos de `ports` (ADR-068), para que a
+  declaração da rota e o carrier que os providers leem sejam um só tipo. `ValidateEdge` é `Validate` mais a exigência de permissão
   em toda rota que exige sujeito (`ErrPermissionRequired`, IDN-16/17) e de
   chave de idempotência em todo POST (`ErrIdempotencyKeyRequired`, RST-02).
   `Idempotent()` é o que RST-02 admite retentar: GET, HEAD, PUT e DELETE; POST
@@ -116,12 +119,28 @@ omitir a declaração fecha a rota em vez de abri-la (IDN-17):
 | `RequireTenant` | não | sim |
 | `RequireNeither` | não | não |
 
-Uma rota `RequireNeither` é uma **rota de plataforma**: `PlatformReach` declara
-o alcance de dado que ela tem — hoje só `ReachAllTenants` — e é a única
-combinação que dispensa `Requires`/`PlatformReach` de se corresponderem 1:1;
-toda rota escopada (as outras três) deixa `PlatformReach` em `ReachUndeclared`.
-O alcance de todo tenant nunca é o efeito colateral de um contexto sem tenant —
-é uma decisão registrada por rota (IDN-19).
+`PlatformReach` declara o alcance de dado de uma **rota de plataforma** — hoje
+só `ReachAllTenants`. `Validate` o aceita com `RequireNeither`, a rotina, e com
+`RequireSubject`, o operador autenticado, autorizado pela `Permission` que
+`ValidateEdge` exige; nunca com `RequireTenant` nem com
+`RequireSubjectAndTenant`, em que o IDN-11 escoparia ao tenant do contexto. A
+rota `RequireNeither` continua obrigada a declarar o alcance. O alcance de todo
+tenant nunca é o efeito colateral de um contexto sem tenant — é uma decisão
+registrada por rota (IDN-19; a leitura da norma está no ADR-068).
+
+Declarar não é conceder. O carrier `ports.WithPlatformReach` só é montado por
+`WithVerifiedPlatformReach(ctx, route)`, que a borda (`apps/backend/bff/app/api`)
+chama depois de autenticar a requisição: a função o deposita só em rota com
+`ReachAllTenants`, `RequireSubject` e `Permission` declarada, e devolve o `ctx`
+intocado em qualquer outro caso. A rota `RequireNeither` com `ReachAllTenants`
+segue válida na `Route`, mas ninguém verificou quem chama, então o carrier não
+é montado e o leitor de plataforma recusa. A função decide só pelos campos
+públicos da `Route`, que qualquer código pode fabricar, por isso o gate de
+plataforma (ADR-068) a restringe como restringe o carrier: o `forbidigo` só a
+admite na borda REST (`apps/*/app/api`), no kernel, nos kits e nos `_test.go`, e
+o `dmpf-context-check.sh` a reprova em qualquer arquivo de produção de um
+contexto, que é só gRPC (ADR-044); o contexto também não monta o carrier por
+conta própria.
 
 ## O que o módulo não contém
 
@@ -166,6 +185,7 @@ verificador.
 - `docs/adr/024-rest-externo-grpc-interno-governo-do-tempo.md` — REST na borda externa.
 - `docs/adr/049-contexto-de-execucao-viaja-no-context-context.md` — o carrier que `WithExecutionContext`/`ExecutionContextFrom` delegam a `ports`.
 - `docs/adr/052-identidade-de-workload-no-grpc-e-no-kafka.md` — por que a permissão é conferida aqui, na borda, e não nos contextos internos.
+- `docs/adr/068-acesso-entre-tenants-declarado.md` — `PlatformReach` como alias de `ports`, alcance com `RequireSubject` e quem monta o carrier.
 - `docs/specs/SPEC-1TFW24WV-observabilidade-ponta-a-ponta.md` — os `RF-*` citados aqui: o `otelhttp` do cliente e o decorador de privacidade.
 - `libs/backend/go/transport/README.md` — `deadline`, `admission`, `observe`.
 - `libs/backend/go/authn/README.md` — quem realiza `ports.Authenticator`.

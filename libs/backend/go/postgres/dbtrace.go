@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -40,11 +41,22 @@ func shapeOf(sql string) (statementShape, bool) {
 	return shape.(statementShape), true
 }
 
-// transactionControl matches the text pgx sends for Begin, Commit and Rollback.
+// transactionControl matches the text pgx sends for Begin, Commit and Rollback,
+// and for the savepoint a nested Begin opens (tx.go:171,309,322): the partial
+// undo must not read as the transaction's ROLLBACK, nor carry its sp_N name.
 func transactionControl(sql string) (string, bool) {
-	first, _, _ := strings.Cut(strings.TrimSpace(sql), " ")
+	first, rest, _ := strings.Cut(strings.TrimSpace(sql), " ")
 	switch operation := strings.ToUpper(first); operation {
-	case "BEGIN", "COMMIT", "ROLLBACK":
+	case "SAVEPOINT":
+		return operation, true
+	case "RELEASE":
+		return "RELEASE SAVEPOINT", true
+	case "ROLLBACK":
+		if next, _, _ := strings.Cut(strings.TrimSpace(rest), " "); strings.EqualFold(next, "TO") {
+			return "ROLLBACK TO SAVEPOINT", true
+		}
+		return operation, true
+	case "BEGIN", "COMMIT":
 		return operation, true
 	}
 	return "", false
@@ -72,23 +84,7 @@ func (d dbTracer) TraceQueryStart(ctx context.Context, _ *pgx.Conn, data pgx.Tra
 	if !trace.SpanContextFromContext(ctx).IsValid() {
 		return ctx
 	}
-	attributes := append([]attribute.KeyValue{semconv.DBSystemNamePostgreSQL}, d.endpoint...)
-	name := semconv.DBSystemNamePostgreSQL.Value.AsString()
-	if operation, ok := transactionControl(data.SQL); ok {
-		name = operation
-		attributes = append(attributes, semconv.DBOperationName(operation))
-	} else {
-		attributes = append(attributes, semconv.DBQueryText(data.SQL))
-		if shape, declared := shapeOf(data.SQL); declared && shape.operation != "" {
-			name = shape.operation
-			attributes = append(attributes, semconv.DBOperationName(shape.operation))
-			if shape.collection != "" {
-				name += " " + shape.collection
-				attributes = append(attributes, semconv.DBCollectionName(shape.collection))
-			}
-		}
-	}
-	ctx, span := d.tracer.Start(ctx, name, trace.WithSpanKind(trace.SpanKindClient), trace.WithAttributes(attributes...))
+	ctx, span := d.start(ctx, data.SQL)
 	return context.WithValue(ctx, dbSpanKey{}, span)
 }
 
@@ -97,14 +93,86 @@ func (d dbTracer) TraceQueryEnd(ctx context.Context, _ *pgx.Conn, data pgx.Trace
 	if !ok {
 		return
 	}
-	switch tag := data.CommandTag; {
+	finish(span, data.CommandTag, data.Err)
+}
+
+type dbBatchKey struct{}
+
+// batchSpans starts every statement at the send: the server answers only after
+// the one Sync, so the statements of a batch are in flight together (conn.go:1247).
+type batchSpans struct {
+	queued   []*pgx.QueuedQuery
+	sent     time.Time
+	reported int
+	failed   bool
+}
+
+func (d dbTracer) TraceBatchStart(ctx context.Context, _ *pgx.Conn, data pgx.TraceBatchStartData) context.Context {
+	if !trace.SpanContextFromContext(ctx).IsValid() {
+		return ctx
+	}
+	return context.WithValue(ctx, dbBatchKey{}, &batchSpans{queued: data.Batch.QueuedQueries, sent: time.Now()})
+}
+
+func (d dbTracer) TraceBatchQuery(ctx context.Context, _ *pgx.Conn, data pgx.TraceBatchQueryData) {
+	batch, ok := ctx.Value(dbBatchKey{}).(*batchSpans)
+	if !ok {
+		return
+	}
+	d.traceBatched(ctx, batch, data.SQL, data.CommandTag, data.Err)
+}
+
+// TraceBatchEnd gives a server error to the first statement without a result, as
+// the server skips the rest until the Sync; any other failure ends every statement
+// still in flight, since the client cannot tell which one the server was running.
+func (d dbTracer) TraceBatchEnd(ctx context.Context, _ *pgx.Conn, data pgx.TraceBatchEndData) {
+	batch, ok := ctx.Value(dbBatchKey{}).(*batchSpans)
+	if !ok || data.Err == nil || batch.failed {
+		return
+	}
+	for !batch.failed && batch.reported < len(batch.queued) {
+		d.traceBatched(ctx, batch, batch.queued[batch.reported].SQL, pgconn.CommandTag{}, data.Err)
+	}
+}
+
+func (d dbTracer) traceBatched(ctx context.Context, batch *batchSpans, sql string, tag pgconn.CommandTag, err error) {
+	_, span := d.start(ctx, sql, trace.WithTimestamp(batch.sent))
+	batch.reported++
+	_, refused := errors.AsType[*pgconn.PgError](err)
+	batch.failed = batch.failed || refused
+	finish(span, tag, err)
+}
+
+func (d dbTracer) start(ctx context.Context, sql string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
+	attributes := append([]attribute.KeyValue{semconv.DBSystemNamePostgreSQL}, d.endpoint...)
+	name := semconv.DBSystemNamePostgreSQL.Value.AsString()
+	if operation, ok := transactionControl(sql); ok {
+		name = operation
+		attributes = append(attributes, semconv.DBOperationName(operation))
+	} else {
+		attributes = append(attributes, semconv.DBQueryText(sql))
+		if shape, declared := shapeOf(sql); declared && shape.operation != "" {
+			name = shape.operation
+			attributes = append(attributes, semconv.DBOperationName(shape.operation))
+			if shape.collection != "" {
+				name += " " + shape.collection
+				attributes = append(attributes, semconv.DBCollectionName(shape.collection))
+			}
+		}
+	}
+	opts = append(opts, trace.WithSpanKind(trace.SpanKindClient), trace.WithAttributes(attributes...))
+	return d.tracer.Start(ctx, name, opts...)
+}
+
+func finish(span trace.Span, tag pgconn.CommandTag, err error) {
+	switch {
 	case tag.Select():
 		span.SetAttributes(semconv.DBResponseReturnedRows(int(tag.RowsAffected())))
 	case tag.Insert(), tag.Update(), tag.Delete():
 		span.SetAttributes(attribute.Int64(keyRowsAffected, tag.RowsAffected()))
 	}
-	if data.Err != nil {
-		recordQueryError(span, data.Err)
+	if err != nil {
+		recordQueryError(span, err)
 	}
 	span.End()
 }

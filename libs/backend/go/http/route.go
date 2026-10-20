@@ -3,6 +3,7 @@
 package http
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -28,8 +29,8 @@ var (
 	ErrRequirementUnknown = errors.New("http: route requirement is not one of the four cases of IDN-16")
 
 	// ErrPlatformReachRequired is a platform route that leaves its data reach
-	// undeclared, or a scoped route that declares one: reach is declared by the
-	// platform operation alone, never obtained as a side effect (IDN-19).
+	// undeclared, or a route demanding a tenant that declares one: reach is a
+	// declaration, never a side effect (IDN-19). Not ports.ErrPlatformReachUndeclared.
 	ErrPlatformReachRequired = errors.New("http: platform route must declare its data reach, and only it may (IDN-19)")
 
 	// ErrPermissionRequired is an inbound route that demands a subject and
@@ -51,14 +52,12 @@ const (
 	RequireNeither
 )
 
-// PlatformReach is the data reach a platform operation declares (IDN-19).
-// Reaching every tenant is a registered decision, never the side effect of a
-// context carrying no tenant.
-type PlatformReach uint8
+// The route declaration and the carrier the providers read are one type (IDN-19).
+type PlatformReach = ports.PlatformReach
 
 const (
-	ReachUndeclared PlatformReach = iota
-	ReachAllTenants
+	ReachUndeclared = ports.ReachUndeclared
+	ReachAllTenants = ports.ReachAllTenants
 )
 
 var allowedMethods = map[string]struct{}{
@@ -102,7 +101,10 @@ func (r Route) Validate() error {
 	if r.Requires > RequireNeither {
 		return fmt.Errorf("%w: %s: %d", ErrRequirementUnknown, r.Name, r.Requires)
 	}
-	if platform := r.Requires == RequireNeither; platform != (r.PlatformReach == ReachAllTenants) {
+	if r.Requires == RequireNeither && r.PlatformReach != ReachAllTenants {
+		return fmt.Errorf("%w: %s", ErrPlatformReachRequired, r.Name)
+	}
+	if r.PlatformReach == ReachAllTenants && r.RequiresTenant() {
 		return fmt.Errorf("%w: %s", ErrPlatformReachRequired, r.Name)
 	}
 	return nil
@@ -121,6 +123,13 @@ func (r Route) ValidateEdge() error {
 		return fmt.Errorf("%w: %s", ErrIdempotencyKeyRequired, r.Name)
 	}
 	return nil
+}
+
+func WithVerifiedPlatformReach(ctx context.Context, route Route) context.Context {
+	if route.PlatformReach != ReachAllTenants || route.Requires != RequireSubject || route.Permission == "" {
+		return ctx
+	}
+	return ports.WithPlatformReach(ctx, ports.ReachAllTenants)
 }
 
 // RequiresSubject reports whether the operation demands an authenticated

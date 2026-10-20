@@ -13,7 +13,21 @@ import (
 // Tx is one open transaction. It is a struct rather than an interface because
 // the composition root binds concrete ports off it. The pgx.Tx never leaves
 // this package: a statement outside it could omit the tenant (IDN-14).
-type Tx struct{ conn pgx.Tx }
+type Tx struct {
+	conn pgx.Tx
+	// writes counts the aggregate and outbox writes, never the inbox: a declared
+	// violation converts only while it is the transaction's first write (DEC-10).
+	writes  int
+	plan    *savepointPlan
+	guarded bool
+}
+
+func (t *Tx) savepoints() *savepointPlan {
+	if t.plan == nil {
+		t.plan = savepointPlanOf(t.conn.Conn())
+	}
+	return t.plan
+}
 
 // NewTx wraps a pgx.Tx so tests and composition roots outside this package can
 // construct the same Tx that NewUnitOfWork passes to its bind callback.

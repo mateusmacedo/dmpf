@@ -156,8 +156,10 @@ versionamento independente por projeto marcado com `type:lib`.
   (`docs/adr/043-migracao-para-github-licenca-e-autoria.md`).
 - Prefira PRs pequenos e focados: uma feature ou um fix por PR.
 - Descreva o que muda e por quê, com contexto suficiente para o revisor.
-- Todo PR roda o pipeline, inclusive o que só toca Markdown: o ruleset da
-  `develop` exige os checks verdes antes do merge.
+- O ruleset exige um único check, o job `CI`, que reporta em todo PR: no PR para
+  `develop` ele roda só os projetos afetados, num PR só de documentação aprova
+  sem rodar o resto, e no PR de release para `master` leva o pacote completo
+  (`docs/ci-cd/README.md`, "Esteira de CI por etapa").
 
 ## Validação local antes do PR
 
@@ -172,8 +174,9 @@ pnpm nx affected -t lint,typecheck,test,build --exclude=@mateusmacedo/dmpf-sourc
 O `--exclude=@mateusmacedo/dmpf-source` retira o projeto raiz (targets `nx:noop`)
 das operações em lote. Os hooks reforçam a mesma validação: `pre-commit` roda
 `biome check --write` e `gofmt -l` nos arquivos em stage, e `pre-push` roda lint,
-typecheck, test, build, fmt-check, vet e test-race nos projetos afetados pelo que
-o push leva. Confie nos hooks — mantenha-os ativos em vez
+typecheck, fmt-check e test (unitários, sem Docker) nos projetos afetados
+pelo que o push leva; build, test-race e os testes de integração ficam no CI.
+Confie nos hooks — mantenha-os ativos em vez
 de contorná-los, pois eles são o que garante que todo push sai verde.
 
 ## Provisionamento das branches remotas

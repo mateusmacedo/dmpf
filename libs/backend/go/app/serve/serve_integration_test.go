@@ -22,6 +22,7 @@ import (
 	kernelapp "github.com/mateusmacedo/dmpf/libs/backend/go/app"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/app/relay"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/app/serve"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/domain"
 	kernelgrpc "github.com/mateusmacedo/dmpf/libs/backend/go/grpc"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/obstest"
@@ -379,5 +380,101 @@ func TestRunRelayWaitsForTheGrantsOfTheOutbox(t *testing.T) {
 
 	if !errors.Is(err, context.DeadlineExceeded) || !strings.Contains(err.Error(), "grant") {
 		t.Fatalf("RunRelay() without the grants of the outbox = %v, want it still waiting for a grant at the deadline", err)
+	}
+}
+
+const (
+	namedSchema     = "CREATE TABLE IF NOT EXISTS named (tenant_id text NOT NULL, named_id text NOT NULL, name text NOT NULL, CONSTRAINT named_pkey PRIMARY KEY (tenant_id, named_id), CONSTRAINT named_tenant_id_name_key UNIQUE (tenant_id, name))"
+	unnamedSchema   = "CREATE TABLE IF NOT EXISTS named (tenant_id text NOT NULL, named_id text NOT NULL, name text NOT NULL, CONSTRAINT named_pkey PRIMARY KEY (tenant_id, named_id))"
+	addNamedUnique  = "ALTER TABLE named ADD CONSTRAINT named_tenant_id_name_key UNIQUE (tenant_id, name)"
+	namedUniqueName = "named_tenant_id_name_key"
+)
+
+func namedAPI(schema string) serve.API {
+	api := probeAPI()
+	api.Schema = probeSchema + ";\n" + schema
+	api.Grants = []postgres.Grant{postgres.Mutable("probes"), postgres.Mutable("named")}
+	api.Uniques = []postgres.UniqueSet{{Table: "named", Constraints: []postgres.Unique{{
+		Name:      namedUniqueName,
+		Columns:   []string{"tenant_id", "name"},
+		Rejection: domain.Reject("serve/named/duplicate-name", "the name is taken"),
+	}}}}
+	return api
+}
+
+func TestServeAPIVerifiesTheDeclaredUniquesInEveryBranch(t *testing.T) {
+	for name, arrange := range map[string]func(t *testing.T, role *serve.APIRole){
+		"migrate": func(*testing.T, *serve.APIRole) {},
+		"migrate as the migrator": func(t *testing.T, role *serve.APIRole) {
+			role.DSN, role.MigrateDSN = pg.RuntimeDSN(t, "serve"), pg.MigratorDSN(t, "serve")
+		},
+		"wait for the migrator": func(t *testing.T, role *serve.APIRole) {
+			role.Migrate, role.DSN = false, pg.RuntimeDSN(t, "serve")
+			options := pg.Options{Project: "serve", Capabilities: []postgres.Capability{postgres.Outbox, postgres.Inbox}, Schemas: []string{probeSchema, namedSchema}, Grants: namedAPI(namedSchema).Grants}
+			pg.GrantRuntime(t, pg.OpenPool(t, options), options)
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			role := apiRoleOver(t, true)
+			arrange(t, &role)
+			stop := startAPIWith(t, role, namedAPI(namedSchema))
+
+			dist.WaitFor(t, "the api role to serve over the declared uniques", 30*time.Second, func() bool {
+				return servingStatus(t, role.Server.GRPCAddr) == healthpb.HealthCheckResponse_SERVING
+			})
+
+			if err := stop(); err != nil {
+				t.Fatalf("ServeAPI() = %v, want nil after the cancellation", err)
+			}
+		})
+	}
+}
+
+func TestServeAPIRefusesToStartOverAUniqueTheSchemaDoesNotHold(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	err := serve.ServeAPI(ctx, runtime(t), apiRoleOver(t, true), namedAPI(unnamedSchema))
+
+	if !errors.Is(err, postgres.ErrUniqueDivergent) {
+		t.Fatalf("ServeAPI() over a schema without %s = %v, want ErrUniqueDivergent", namedUniqueName, err)
+	}
+}
+
+func TestServeAPIWithoutMigrateWaitsForTheDeclaredUniques(t *testing.T) {
+	role := apiRoleOver(t, false)
+	role.DSN = pg.RuntimeDSN(t, "serve")
+	options := pg.Options{Project: "serve", Capabilities: []postgres.Capability{postgres.Outbox, postgres.Inbox}, Schemas: []string{probeSchema, unnamedSchema}, Grants: namedAPI(namedSchema).Grants}
+	admin := pg.OpenPool(t, options)
+	pg.GrantRuntime(t, admin, options)
+	stop := startAPIWith(t, role, namedAPI(namedSchema))
+
+	time.Sleep(2 * time.Second)
+	if servingStatus(t, role.Server.GRPCAddr) == healthpb.HealthCheckResponse_SERVING {
+		t.Fatal("the api role served before the schema held the declared unique")
+	}
+	if _, err := admin.Exec(context.Background(), addNamedUnique); err != nil {
+		t.Fatalf("%s = %v", addNamedUnique, err)
+	}
+	dist.WaitFor(t, "the api role to serve once the unique exists", 30*time.Second, func() bool {
+		return servingStatus(t, role.Server.GRPCAddr) == healthpb.HealthCheckResponse_SERVING
+	})
+
+	if err := stop(); err != nil {
+		t.Fatalf("ServeAPI() = %v, want nil after the cancellation", err)
+	}
+}
+
+func TestServeAPIStoppedWhileWaitingForTheDeclaredUniquesExitsCleanly(t *testing.T) {
+	role := apiRoleOver(t, false)
+	role.DSN = pg.RuntimeDSN(t, "serve")
+	options := pg.Options{Project: "serve", Capabilities: []postgres.Capability{postgres.Outbox, postgres.Inbox}, Schemas: []string{probeSchema, unnamedSchema}, Grants: namedAPI(namedSchema).Grants}
+	pg.GrantRuntime(t, pg.OpenPool(t, options), options)
+	stop := startAPIWith(t, role, namedAPI(namedSchema))
+
+	time.Sleep(2 * time.Second)
+
+	if err := stop(); err != nil {
+		t.Fatalf("ServeAPI() stopped while waiting for %s = %v, want nil", namedUniqueName, err)
 	}
 }

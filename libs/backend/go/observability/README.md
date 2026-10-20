@@ -26,7 +26,7 @@ Uma unidade DMPF, `kernel/observability`, com `block: provider` e
 | Package | Conteúdo |
 | --- | --- |
 | raiz (`observability`) | `OTelVersion`, `OTelLogsVersion`, `OTelPrometheusExporterVersion`, `SemconvVersion` — os pins que o `version_test.go` prova contra o grafo real de build; `ShutdownGrace` (10 s), a janela de dreno que o transporte gRPC e o `boot` compartilham |
-| `audit` | `Sink`, `Event`, `NewLogSink`, `NewJSONSink`, `Recording`, `EventName`, `Scope` — a trilha de auditoria, emitida pela Logs API com `EventName` `dmpf.audit` e scope próprio |
+| `audit` | `Sink`, `Event`, `NewLogSink`, `NewJSONSink`, `Recording`, `EventName`, `Scope`, `Recorder`/`NewRecorder`/`Recorder.Trail` (o `ports.AuditTrail` dos providers), `ActionPlatformRead`, `ActionProjectionWrite` — a trilha de auditoria, emitida pela Logs API com `EventName` `dmpf.audit` e scope próprio |
 | `boot` | `Boot`, `StartTelemetry`, `Telemetry`, `Signals`, `SignalsFromEnv`, `StartRuntimeMetrics` — lê o ambiente, monta o `LoggerProvider`, o error handler do SDK e os pipelines na ordem que todo composition root precisa, registra o `process configured` e fecha tudo em qualquer saída |
 | `clock` | `Clock`, `System()`, `Fake` avançável com `Advance`, `WithTimeout`, `NewTimer` |
 | `envconfig` | `Hostname`, `OrDefault`, `SplitList`, `ParseBool`, `ParsePositive`, `ParseFraction`, `ParseLevel` — leitura e parsing de variável de ambiente, com `ErrInvalidVariable` como sentinela comum |
@@ -38,7 +38,7 @@ Uma unidade DMPF, `kernel/observability`, com `block: provider` e
 | `resilience` | `Sheet`, `Compose`, e os decorators de timeout, breaker, bulkhead, degradação e retry |
 | `retry` | `Evaluate` por conjunção, `Budget`, `Backoff`, `Classifier` |
 | `tracing` | `Attributes` fechado (`dmpf.*` ou constante semconv), `RecordError`, os eventos de span, `WithExecutionBaggage`, `WithOwnedSpan`/`OwnsSpan`, a taxonomia de classes |
-| `usecase` | `Instrumentation`: realiza o gancho de `ports` sobre span, métricas e trilha, incluindo o registro do acesso entre tenants (`ActionCrossTenantAccess`) |
+| `usecase` | `Instrumentation`: realiza o gancho de `ports` sobre span, métricas e trilha, incluindo o registro do acesso entre tenants (`ActionCrossTenantAccess`); reexporta `ActionPlatformRead` e `ActionProjectionWrite` de `audit` |
 
 `otelboot` é o mecanismo, com os componentes explícitos em `Config`: o exportador
 de spans, o reader de métricas e o `LoggerProvider` chegam montados, e por isso a
@@ -193,6 +193,35 @@ valor fica ausente. A correlação da chamada vem do `baggagecopy` e o trace, do
 chamada (`ports.ExecutionContextFrom`, ADR-049) e fica ausente numa cadeia sem
 sujeito, e o tenant é o que o provider relatou como o do contexto — nunca um
 valor da identidade do processo (`IDN-20`).
+
+### Acesso declarado: leitura de plataforma e projeção (ADR-068)
+
+O acesso entre tenants **declarado** não é o cruzamento por engano acima: é
+autorizado como tal e registrado pelo provider que o realiza, porque só ele
+conhece os tenants alcançados e o instante anterior a devolver ou gravar. As
+ações moram em `ports` (`ports.AuditPlatformRead`, `ports.AuditProjectionWrite`),
+com os mesmos valores em `audit`, e o `usecase` as reexporta:
+
+| Ação | Valor | Quem emite |
+| --- | --- | --- |
+| `audit.ActionPlatformRead` | `platform.cross_tenant_read` | `PlatformReader` de `postgres` e de `memory` |
+| `audit.ActionProjectionWrite` | `projection.cross_tenant_write` | `Projector` de `postgres` e de `memory`, no `Load` e no `Save` |
+
+`audit.NewRecorder(sink, logger, clock)` é a trilha desses caminhos e entra em
+pânico com qualquer parte nula. Os providers não recebem o `*Recorder`: recebem
+`Recorder.Trail()`, um `ports.AuditTrail` que converte o `ports.AuditRecord` em
+`Event` e chama `Record`, para que o `memory` não dependa de `observability`
+(ADR-068); de um `*Recorder` nulo sai trilha nula, que o provider recusa na
+construção. `Recorder.Record(ctx, event)` carimba o
+instante pelo relógio quando o evento não traz um, emite pelo `Sink` e copia o
+evento ao log: o log recebe **todo** evento, como canal adicional, nunca
+substituto. Quando o `Sink` recusa, o log registra a recusa em `error` com os
+campos do evento e o erro redigido, e `Record` devolve
+`ports.ErrAuditUnavailable`, sem a mensagem do `Sink`; o provider então não
+devolve linha nem grava (falha fechada). O contrato do `Sink` nesses caminhos é
+devolver `nil` só depois de persistir o registro; o `NewLogSink` sempre devolve
+`nil` e não serve como trilha durável. Nesses eventos, `Tenant` é o tenant do
+contexto, `DataTenant` o tenant alcançado e `Outcome` `accepted` ou `denied`.
 
 ## O registro de log
 
@@ -518,6 +547,7 @@ só durante o tidy.
 - `docs/adr/037-observabilidade-otel-e-retry-por-conjuncao-em-go.md` — decisões desta realização
 - `docs/adr/057-log-das-apps-por-otlp-e-alloy-so-para-infraestrutura.md` — o log das apps só por OTLP
 - `docs/adr/049-contexto-de-execucao-viaja-no-context-context.md` — o carrier de que a instrumentação lê o sujeito
+- `docs/adr/068-acesso-entre-tenants-declarado.md` — as ações do acesso declarado e o `Recorder` que falha fechado
 - `docs/adr/034-fronteira-de-uow-em-go.md` — a fronteira que este módulo instrumenta
 - `docs/adr/026-baseline-resiliencia-observabilidade-opentelemetry.md` — a decisão de plataforma que originou o `FND-08`
 - `docs/dmpf/resiliencia-observabilidade.md` — FND-08: as regras `RES-*`, `TRC-*`, `MET-*` e `LOG-*`

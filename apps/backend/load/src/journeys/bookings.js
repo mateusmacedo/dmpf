@@ -5,7 +5,7 @@ export function bookingsJourney({ session, random, ids, params }) {
     method: 'POST',
     name: '/bookings/resource',
     path: '/bookings/resource',
-    body: { code: ids.resource },
+    body: { code: ids.resource, name: ids.resource },
     expected: [201],
     kind: 'write',
   });

@@ -2,6 +2,7 @@ package rpc_test
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 
 	"google.golang.org/grpc/codes"
@@ -108,7 +109,7 @@ func TestRegisterResourceAnswersTheRegisteredResource(t *testing.T) {
 	h := newHarness(t, nil)
 
 	var resp servicev1.RegisterResourceResponse
-	if err := h.invoke(withTenant(t), "RegisterResource", &servicev1.RegisterResourceRequest{ResourceId: "room-1"}, &resp); err != nil {
+	if err := h.invoke(withTenant(t), "RegisterResource", &servicev1.RegisterResourceRequest{ResourceId: "room-1", Name: "Room 1"}, &resp); err != nil {
 		t.Fatalf("RegisterResource() = %v", err)
 	}
 	if resp.GetRegistered().GetResourceId() != "room-1" {
@@ -154,11 +155,23 @@ func TestMalformedRequestsAreRefusedBeforeTheUseCase(t *testing.T) {
 		}},
 		{"empty resource to register", func() error {
 			var r servicev1.RegisterResourceResponse
-			return h.invoke(withTenant(t), "RegisterResource", &servicev1.RegisterResourceRequest{ResourceId: ""}, &r)
+			return h.invoke(withTenant(t), "RegisterResource", &servicev1.RegisterResourceRequest{ResourceId: "", Name: "Room 1"}, &r)
 		}},
 		{"resource to register with a space", func() error {
 			var r servicev1.RegisterResourceResponse
-			return h.invoke(withTenant(t), "RegisterResource", &servicev1.RegisterResourceRequest{ResourceId: "sala 12"}, &r)
+			return h.invoke(withTenant(t), "RegisterResource", &servicev1.RegisterResourceRequest{ResourceId: "sala 12", Name: "Room 1"}, &r)
+		}},
+		{"empty name to register", func() error {
+			var r servicev1.RegisterResourceResponse
+			return h.invoke(withTenant(t), "RegisterResource", &servicev1.RegisterResourceRequest{ResourceId: "room-1"}, &r)
+		}},
+		{"name above the ceiling", func() error {
+			var r servicev1.RegisterResourceResponse
+			return h.invoke(withTenant(t), "RegisterResource", &servicev1.RegisterResourceRequest{ResourceId: "room-1", Name: strings.Repeat("é", 201)}, &r)
+		}},
+		{"name with a control character", func() error {
+			var r servicev1.RegisterResourceResponse
+			return h.invoke(withTenant(t), "RegisterResource", &servicev1.RegisterResourceRequest{ResourceId: "room-1", Name: "Room\n1"}, &r)
 		}},
 		{"resource to find with a space", func() error {
 			var r servicev1.FindBookingsByResourceResponse
@@ -182,5 +195,38 @@ func TestMalformedRequestsAreRefusedBeforeTheUseCase(t *testing.T) {
 	}
 	if len(h.store.Entries()) != 0 {
 		t.Fatalf("outbox holds %d entries, want none: no malformed call reached the use case", len(h.store.Entries()))
+	}
+}
+
+func TestRegisterResourceAcceptsANameAtTheCeilingInCharacters(t *testing.T) {
+	h := newHarness(t, nil)
+
+	var resp servicev1.RegisterResourceResponse
+	if err := h.invoke(withTenant(t), "RegisterResource", &servicev1.RegisterResourceRequest{ResourceId: "room-1", Name: strings.Repeat("é", 200)}, &resp); err != nil {
+		t.Fatalf("RegisterResource() = %v, want the 200-character name accepted: the ceiling counts characters, not bytes", err)
+	}
+}
+
+func TestRegisterResourceAppliesTheNameRule(t *testing.T) {
+	for _, tc := range nameRuleCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			h := newHarness(t, nil)
+
+			var r servicev1.RegisterResourceResponse
+			err := h.invoke(withTenant(t), "RegisterResource", &servicev1.RegisterResourceRequest{ResourceId: "room-1", Name: tc.name}, &r)
+
+			if tc.accepted {
+				if err != nil || r.GetRegistered().GetResourceId() != "room-1" {
+					t.Fatalf("RegisterResource(%q) = %v (%v), want it registered", tc.name, err, &r)
+				}
+				return
+			}
+			if status.Code(err) != codes.InvalidArgument {
+				t.Fatalf("RegisterResource(%q) = %v, want InvalidArgument", tc.name, err)
+			}
+			if len(h.store.Entries()) != 0 {
+				t.Fatalf("outbox holds %d entries, want none: the name %q reached the use case", len(h.store.Entries()), tc.name)
+			}
+		})
 	}
 }

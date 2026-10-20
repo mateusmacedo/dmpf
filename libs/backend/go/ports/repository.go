@@ -5,6 +5,8 @@ package ports
 import (
 	"context"
 	"errors"
+
+	"github.com/mateusmacedo/dmpf/libs/backend/go/domain"
 )
 
 // ErrNotFound is what Load reports when the aggregate does not exist. A
@@ -34,6 +36,23 @@ var ErrVersionConflict = errors.New("ports: version conflict")
 // use case that creates without loading is the one that tells them apart.
 var ErrAlreadyExists = errors.New("ports: aggregate already exists")
 
+// ErrUniqueViolation is what Save reports, through UniqueViolation, when a write
+// breaks a unique constraint that is not the identity.
+var ErrUniqueViolation = errors.New("ports: unique constraint violated")
+
+// UniqueViolation carries the constraint Save broke and the rejection the context
+// declared for it; a nil Rejection means the violation is not convertible, either
+// because the constraint is undeclared or because the transaction already wrote.
+type UniqueViolation struct {
+	Table      string
+	Constraint string
+	Rejection  *domain.Rejection
+}
+
+func (UniqueViolation) Error() string { return ErrUniqueViolation.Error() }
+
+func (UniqueViolation) Unwrap() error { return ErrUniqueViolation }
+
 // Reader loads persisted aggregate state. It exists apart from Repository so a
 // query can be given read access without the write side (UOW-11).
 type Reader[ID comparable, S any] interface {
@@ -46,8 +65,8 @@ type Reader[ID comparable, S any] interface {
 type Repository[ID comparable, S any] interface {
 	Reader[ID, S]
 
-	// Save writes state as version expected+1 if, and only if, the stored
-	// version equals expected; expected == 0 creates the aggregate. Any
-	// divergence returns ErrVersionConflict and writes nothing.
+	// Save writes state as version expected+1 if, and only if, the stored version
+	// equals expected (0 creates); divergence is ErrVersionConflict. Neither it nor
+	// a declared UniqueViolation writes anything, and the transaction stays usable.
 	Save(ctx context.Context, id ID, state S, expected Version) error
 }

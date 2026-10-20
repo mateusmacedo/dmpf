@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
@@ -36,6 +37,12 @@ type Table[ID ~string, S any] struct {
 	// The table owns the ID column, so Decode never scans it; nil means S does
 	// not hold one (a JSON snapshot already carries it).
 	WithID func(S, ID) S
+
+	// Unique declares the business uniqueness the schema enforces besides the
+	// identity; a Save that breaks one returns its rejection (ADR-066).
+	Unique []Unique
+
+	Guard string
 }
 
 // ReadPool is the pool as a context provider holds it: only statements this
@@ -59,7 +66,7 @@ func (t Table[ID, S]) Reader(pool ReadPool) ports.Reader[ID, S] {
 // Repository binds the table to an open transaction, so aggregate state and the
 // outbox record commit together (UOW-01).
 func (t Table[ID, S]) Repository(tx *Tx) ports.Repository[ID, S] {
-	return tableRepository[ID, S]{table: t, statements: t.compile(), conn: tx.conn}
+	return tableRepository[ID, S]{table: t, statements: t.compile(), tx: tx}
 }
 
 // Relation serves the query the generic ports cannot express: many rows of one
@@ -76,9 +83,15 @@ func (t Table[ID, S]) Relation(filterColumn string) Relation[ID, S] {
 	}
 	t.validate()
 
+	var lock string
+	if t.Guard != "" && filterColumn == t.Guard {
+		lock = t.compileGuard().shared
+	}
+
 	return Relation[ID, S]{
 		table:  t,
 		filter: filterColumn,
+		lock:   lock,
 		statement: declare(fmt.Sprintf(
 			"SELECT %s, version, %s FROM %s WHERE tenant_id = $1 AND %s = $2",
 			t.IDColumn, strings.Join(t.Columns, ", "), t.Name, filterColumn), "SELECT", t.Name),
@@ -91,6 +104,7 @@ func (t Table[ID, S]) Relation(filterColumn string) Relation[ID, S] {
 type Relation[ID ~string, S any] struct {
 	table     Table[ID, S]
 	filter    string
+	lock      string
 	statement string
 	owner     string
 }
@@ -104,10 +118,78 @@ func (r Relation[ID, S]) Query(ctx context.Context, pool ReadPool, value any) ([
 		return nil, err
 	}
 
-	rows, err := pool.pool.Query(ctx, r.statement, string(tenant), value)
+	return r.collect(ctx, pool.pool, tenant, value)
+}
+
+func (r Relation[ID, S]) QueryWithin(ctx context.Context, tx *Tx, value any) ([]S, error) {
+	if r.lock == "" {
+		panic(fmt.Sprintf("postgres: Table %q relation column %q is not its Guard", r.table.Name, r.filter))
+	}
+	tenant, err := tenantOf(ctx)
+	if err != nil {
+		return nil, err
+	}
+	text, err := guardText(r.table.Name, r.filter, value)
+	if err != nil {
+		return nil, err
+	}
+
+	tx.guarded = true
+	out, err := r.guardedRead(ctx, tx, tenant, text)
+	return out, tx.conflictOnDeadlock(err)
+}
+
+func (r Relation[ID, S]) guardedRead(ctx context.Context, tx *Tx, tenant ports.TenantID, text string) ([]S, error) {
+	batch := &pgx.Batch{}
+	batch.Queue(r.lock, string(tenant), text)
+	batch.Queue(r.statement, string(tenant), text)
+	results := tx.conn.SendBatch(ctx, batch)
+	if _, err := results.Exec(); err != nil {
+		_ = results.Close()
+		if !lockFailed(err, r.lock) {
+			return nil, fmt.Errorf("postgres: query %s: %w", r.table.Name, unbatched(err))
+		}
+		return nil, fmt.Errorf("postgres: guard %s %s: %w", r.table.Name, r.filter, unbatched(err))
+	}
+	rows, err := results.Query()
+	if err != nil {
+		_ = results.Close()
+		return nil, fmt.Errorf("postgres: query %s: %w", r.table.Name, unbatched(err))
+	}
+	out, err := r.decode(rows)
+	if closeErr := results.Close(); err == nil && closeErr != nil {
+		err = fmt.Errorf("postgres: query %s: %w", r.table.Name, closeErr)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if len(out) == 0 {
+		return nil, r.miss(ctx, tx.conn, tenant, text)
+	}
+	return out, nil
+}
+
+type rowsQuerier interface {
+	querier
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+}
+
+func (r Relation[ID, S]) collect(ctx context.Context, q rowsQuerier, tenant ports.TenantID, value any) ([]S, error) {
+	rows, err := q.Query(ctx, r.statement, string(tenant), value)
 	if err != nil {
 		return nil, fmt.Errorf("postgres: query %s: %w", r.table.Name, err)
 	}
+	out, err := r.decode(rows)
+	if err != nil {
+		return nil, err
+	}
+	if len(out) == 0 {
+		return nil, r.miss(ctx, q, tenant, value)
+	}
+	return out, nil
+}
+
+func (r Relation[ID, S]) decode(rows pgx.Rows) ([]S, error) {
 	defer rows.Close()
 
 	var out []S
@@ -127,18 +209,15 @@ func (r Relation[ID, S]) Query(ctx context.Context, pool ReadPool, value any) ([
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("postgres: rows of %s: %w", r.table.Name, err)
 	}
-	if len(out) == 0 {
-		return nil, r.miss(ctx, pool, tenant, value)
-	}
 	return out, nil
 }
 
 // miss answers an empty relation: nothing when no tenant holds the value,
 // CrossTenantAccess when another does, so the caller may still answer with
 // an empty collection while the record tells the two apart (IDN-12, IDN-13).
-func (r Relation[ID, S]) miss(ctx context.Context, pool ReadPool, tenant ports.TenantID, value any) error {
+func (r Relation[ID, S]) miss(ctx context.Context, q querier, tenant ports.TenantID, value any) error {
 	var owner string
-	switch err := pool.pool.QueryRow(ctx, r.owner, value, string(tenant)).Scan(&owner); {
+	switch err := q.QueryRow(ctx, r.owner, value, string(tenant)).Scan(&owner); {
 	case errors.Is(err, pgx.ErrNoRows):
 		return nil
 	case err != nil:
@@ -156,6 +235,8 @@ type statements struct {
 	owner     string
 	insert    string
 	update    string
+	exists    string
+	guard     guardStatements
 }
 
 // compile runs once per bind rather than once per operation.
@@ -168,6 +249,10 @@ func (t Table[ID, S]) compile() statements {
 	for i, column := range t.Columns {
 		placeholders[i] = fmt.Sprintf("$%d", i+4)
 		assignments[i] = fmt.Sprintf("%s = $%d", column, i+4)
+	}
+	var guarded string
+	if t.Guard != "" {
+		guarded = fmt.Sprintf(" AND %s = $%d", t.Guard, t.guardIndex()+4)
 	}
 
 	return statements{
@@ -188,8 +273,11 @@ func (t Table[ID, S]) compile() statements {
 		// The version in the WHERE clause is the lock: two concurrent writers
 		// read the same version, and only the first UPDATE matches a row.
 		update: declare(fmt.Sprintf(
-			"UPDATE %s SET version = $3 + 1, %s WHERE tenant_id = $1 AND %s = $2 AND version = $3",
-			t.Name, strings.Join(assignments, ", "), t.IDColumn), "UPDATE", t.Name),
+			"UPDATE %s SET version = $3 + 1, %s WHERE tenant_id = $1 AND %s = $2 AND version = $3%s",
+			t.Name, strings.Join(assignments, ", "), t.IDColumn, guarded), "UPDATE", t.Name),
+		exists: declare(fmt.Sprintf(
+			"SELECT 1 FROM %s WHERE tenant_id = $1 AND %s = $2", t.Name, t.IDColumn), "SELECT", t.Name),
+		guard: t.compileGuard(),
 	}
 }
 
@@ -211,6 +299,12 @@ func (t Table[ID, S]) validate() {
 		if column == "tenant_id" || column == "version" || column == t.IDColumn {
 			panic(fmt.Sprintf("postgres: Table %q lists %q, which the table owns", t.Name, column))
 		}
+	}
+	if err := checkUniques(t.Name, t.Unique); err != nil {
+		panic(err.Error())
+	}
+	if t.Guard != "" && t.guardIndex() < 0 {
+		panic(fmt.Sprintf("postgres: Table %q Guard %q is not one of its state columns", t.Name, t.Guard))
 	}
 }
 
@@ -256,18 +350,30 @@ func (t Table[ID, S]) load(ctx context.Context, q querier, stmts statements, id 
 		return zero, 0, err
 	}
 
-	var version int64
+	state, version, found, err := t.loadAs(ctx, q, stmts, tenant, id)
+	if err == nil && !found {
+		return zero, 0, t.miss(ctx, q, stmts.owner, tenant, id)
+	}
+	return state, version, err
+}
+
+// The owner probe is left to the caller that speaks for the carrier's tenant.
+func (t Table[ID, S]) loadAs(ctx context.Context, q querier, stmts statements, tenant ports.TenantID, id ID) (S, ports.Version, bool, error) {
+	var (
+		zero    S
+		version int64
+	)
 	row := q.QueryRow(ctx, stmts.selectOne, string(tenant), string(id))
 	state, err := t.Decode(func(dest ...any) error {
 		return row.Scan(append([]any{&version}, dest...)...)
 	})
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
-		return zero, 0, t.miss(ctx, q, stmts.owner, tenant, id)
+		return zero, 0, false, nil
 	case err != nil:
-		return zero, 0, fmt.Errorf("postgres: load %s %s: %w", t.Name, id, err)
+		return zero, 0, false, fmt.Errorf("postgres: load %s %s: %w", t.Name, id, err)
 	}
-	return t.identify(state, id), ports.Version(version), nil
+	return t.identify(state, id), ports.Version(version), true, nil
 }
 
 // miss runs on every miss, owner or not, so the latency does not tell the two
@@ -308,11 +414,12 @@ func (r tableReader[ID, S]) Load(ctx context.Context, id ID) (S, ports.Version, 
 type tableRepository[ID ~string, S any] struct {
 	table      Table[ID, S]
 	statements statements
-	conn       pgx.Tx
+	tx         *Tx
 }
 
 func (r tableRepository[ID, S]) Load(ctx context.Context, id ID) (S, ports.Version, error) {
-	return r.table.load(ctx, r.conn, r.statements, id)
+	state, version, err := r.table.load(ctx, r.tx.conn, r.statements, id)
+	return state, version, r.tx.conflictOnDeadlock(err)
 }
 
 func (r tableRepository[ID, S]) Save(ctx context.Context, id ID, state S, expected ports.Version) error {
@@ -320,7 +427,10 @@ func (r tableRepository[ID, S]) Save(ctx context.Context, id ID, state S, expect
 	if err != nil {
 		return err
 	}
+	return r.saveAs(ctx, tenant, id, state, expected)
+}
 
+func (r tableRepository[ID, S]) saveAs(ctx context.Context, tenant ports.TenantID, id ID, state S, expected ports.Version) error {
 	values, err := r.table.Encode(state)
 	if err != nil {
 		return fmt.Errorf("postgres: encode %s %s: %w", r.table.Name, id, err)
@@ -335,13 +445,67 @@ func (r tableRepository[ID, S]) Save(ctx context.Context, id ID, state S, expect
 		statement, version = r.statements.insert, 1
 	}
 	args := append([]any{string(tenant), string(id), version}, values...)
-
-	tag, err := r.conn.Exec(ctx, statement, args...)
+	guard, err := r.guard(tenant, values)
 	if err != nil {
 		return fmt.Errorf("postgres: save %s %s: %w", r.table.Name, id, err)
 	}
+	if len(r.table.Unique) > 0 {
+		return r.tx.conflictOnDeadlock(r.saveUnderSavepoint(ctx, tenant, id, guard, statement, args, expected == 0))
+	}
+	if guard.statement != "" {
+		return r.tx.conflictOnDeadlock(r.saveGuarded(ctx, id, guard, statement, args))
+	}
+
+	tag, err := r.tx.conn.Exec(ctx, statement, args...)
+	if err != nil {
+		return r.tx.conflictOnDeadlock(fmt.Errorf("postgres: save %s %s: %w", r.table.Name, id, err))
+	}
+	return r.settle(tag)
+}
+
+type guardLock struct {
+	statement string
+	args      []any
+}
+
+func (r tableRepository[ID, S]) guard(tenant ports.TenantID, values []any) (guardLock, error) {
+	if r.table.Guard == "" {
+		return guardLock{}, nil
+	}
+	text, err := guardText(r.table.Name, r.table.Guard, values[r.table.guardIndex()])
+	if err != nil {
+		return guardLock{}, err
+	}
+	r.tx.guarded = true
+	return guardLock{statement: r.statements.guard.exclusive, args: []any{string(tenant), text}}, nil
+}
+
+func (r tableRepository[ID, S]) saveGuarded(ctx context.Context, id ID, guard guardLock, statement string, args []any) error {
+	batch := &pgx.Batch{}
+	batch.Queue(guard.statement, guard.args...)
+	batch.Queue(statement, args...)
+	results := r.tx.conn.SendBatch(ctx, batch)
+	_, lockErr := results.Exec()
+	tag, err := results.Exec()
+	closeErr := results.Close()
+
+	switch {
+	case lockErr != nil && lockFailed(lockErr, guard.statement):
+		return fmt.Errorf("postgres: save %s %s: guard: %w", r.table.Name, id, unbatched(lockErr))
+	case lockErr != nil:
+		return fmt.Errorf("postgres: save %s %s: %w", r.table.Name, id, unbatched(lockErr))
+	case err != nil:
+		return fmt.Errorf("postgres: save %s %s: %w", r.table.Name, id, unbatched(err))
+	case closeErr != nil:
+		return fmt.Errorf("postgres: save %s %s: %w", r.table.Name, id, closeErr)
+	}
+	return r.settle(tag)
+}
+
+func (r tableRepository[ID, S]) settle(tag pgconn.CommandTag) error {
 	if tag.RowsAffected() == 0 {
 		return ports.ErrVersionConflict
 	}
+	r.tx.writes++
 	return nil
 }

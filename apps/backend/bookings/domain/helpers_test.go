@@ -11,6 +11,7 @@ const (
 	bookingID  = domain.BookingID("B-100")
 	resourceID = domain.ResourceID("R-200")
 	resCode    = domain.ResourceCode("room-101")
+	resName    = domain.ResourceName("Room 101")
 	at         = kernel.Instant(1755432000)
 )
 
@@ -27,7 +28,7 @@ func newReservedBooking(t *testing.T) *domain.Booking {
 func newRegisteredResource(t *testing.T) *domain.Resource {
 	t.Helper()
 	r := domain.NewResource(resCode)
-	_, rej := r.Register(domain.RegisterResource{Code: resCode, At: at})
+	_, rej := r.Register(domain.RegisterResource{Code: resCode, Name: resName, At: at})
 	if rej != nil {
 		t.Fatalf("setup: Register rejected: %v", rej)
 	}

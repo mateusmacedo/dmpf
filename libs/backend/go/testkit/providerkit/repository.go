@@ -241,43 +241,31 @@ func Repository[ID comparable, S any](newSubject func() RepositorySubject[ID, S]
 }
 
 // concurrentWriters makes both writers read the stored version before either
-// writes, so they contend; each releases the other once, even when Within fails
-// before calling fn or calls it again on retry.
+// writes, so they contend.
 func concurrentWriters[ID comparable, S any](v *Verdict, clause string, s RepositorySubject[ID, S], ctx context.Context, id ID) {
 	if err := s.save(ctx, id, s.NewState(1), 0); err != nil {
 		v.fail(clause, "KRN-06", "Save() creating the aggregate = %v, want nil", err)
 		return
 	}
 
-	barrier := concurrentBarrier
-	arrived := [2]chan struct{}{make(chan struct{}), make(chan struct{})}
-	results := make(chan error, 2)
-	for writer := range 2 {
-		go func() {
-			arrive := sync.OnceFunc(func() { close(arrived[writer]) })
-			err := s.Within(ctx, func(ctx context.Context, repo ports.Repository[ID, S]) error {
-				_, version, err := repo.Load(ctx, id)
-				arrive()
-				if err != nil {
-					return err
-				}
-				select {
-				case <-arrived[1-writer]:
-				case <-time.After(barrier):
-					return errSerialized
-				}
-				return repo.Save(ctx, id, s.NewState(writer+2), version)
-			})
-			arrive()
-			results <- err
-		}()
-	}
+	results := raceTwo(func(writer int, meet func() error) error {
+		return s.Within(ctx, func(ctx context.Context, repo ports.Repository[ID, S]) error {
+			_, version, err := repo.Load(ctx, id)
+			if err != nil {
+				return err
+			}
+			if err := meet(); err != nil {
+				return err
+			}
+			return repo.Save(ctx, id, s.NewState(writer+2), version)
+		})
+	})
 
 	var committed, conflicted int
 	var serialized bool
 	var unexpected []error
-	for range 2 {
-		switch err := <-results; {
+	for _, err := range results {
+		switch {
 		case err == nil:
 			committed++
 		case errors.Is(err, ports.ErrVersionConflict):
@@ -303,6 +291,32 @@ func concurrentWriters[ID comparable, S any](v *Verdict, clause string, s Reposi
 	if _, version, err := s.Reader.Load(ctx, id); err != nil || version != 2 {
 		v.fail(clause, "KRN-06", "Load() = v%d, %v; want v2 — exactly one write advanced the aggregate", version, err)
 	}
+}
+
+// raceTwo runs both writers at once and hands each a meet that holds it until
+// the other arrives; each releases the other once, even when Within fails
+// before calling its callback or calls it again on retry.
+func raceTwo(write func(writer int, meet func() error) error) [2]error {
+	barrier := concurrentBarrier
+	arrived := [2]chan struct{}{make(chan struct{}), make(chan struct{})}
+	results := make(chan error, 2)
+	for writer := range 2 {
+		go func() {
+			arrive := sync.OnceFunc(func() { close(arrived[writer]) })
+			err := write(writer, func() error {
+				arrive()
+				select {
+				case <-arrived[1-writer]:
+					return nil
+				case <-time.After(barrier):
+					return errSerialized
+				}
+			})
+			arrive()
+			results <- err
+		}()
+	}
+	return [2]error{<-results, <-results}
 }
 
 // expectRow reads a row back and names what it found. It reports the load error

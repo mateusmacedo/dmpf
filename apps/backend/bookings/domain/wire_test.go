@@ -14,6 +14,8 @@ func TestRejectionCodesKeepTheirPublishedValues(t *testing.T) {
 		domain.CodeBookingQuantityOutOfRange: "resource-scheduling/booking/quantity-out-of-range",
 		domain.CodeBookingNotReserved:        "resource-scheduling/booking/not-reserved",
 		domain.CodeResourceCodeEmpty:         "resource-scheduling/resource/code-empty",
+		domain.CodeResourceNameEmpty:         "resource-scheduling/resource/name-empty",
+		domain.CodeResourceDuplicateName:     "resource-scheduling/resource/duplicate-name",
 	}
 	for code, want := range codes {
 		if string(code) != want {

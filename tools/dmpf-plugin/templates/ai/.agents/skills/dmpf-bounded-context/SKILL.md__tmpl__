@@ -67,7 +67,12 @@ não executa — ele **para e imprime** o rito restante.
    consulta filtra, o resto em `snapshot` `jsonb`, com `postgres.SnapshotTable`
    quando o estado inteiro vive no snapshot), repositórios com optimistic
    locking, `Reader`, mapper para o payload do contrato; `Tables` do `appkit`
-   com as tabelas do contexto.
+   com as tabelas do contexto. Unicidade de negócio que a spec declara
+   (ADR-066): `CONSTRAINT <tabela>_<colunas>_key UNIQUE (tenant_id, ...)` no
+   `schema.sql`, `postgres.Unique` no `Table` com a rejeição estática do
+   `domain`, a tabela em `provider.Uniques` (o wiring gerado já a passa ao
+   `serve`), `memory.Unique` de mesmo nome nos dublês e `providerkit.Unique`
+   no teste do provider. A UPR não checa unicidade entre agregados.
 7. **`app`**: o `ServiceDesc` de `app/rpc/service.go` com um método por
    comando e por consulta, cada um por
    `kernelgrpc.Unary(ServiceName, kernelgrpc.Method(descriptor, "<Método>"), <Ctx>Server.<Método>)`,

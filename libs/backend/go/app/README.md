@@ -137,6 +137,33 @@ que acabou de conceder; se o prazo estourar, a partida falha com
 grants. O `api` sem migrar e o relay esperam o privilégio por `WaitForGrants`,
 não só a tabela.
 
+`API.Uniques` é opcional e recebe o `provider.Uniques` do contexto (ADR-066).
+Com ele preenchido, o `ready` confere as restrições depois dos três ramos
+acima, sempre na pool do `DSN`, porque a de runtime lê `pg_constraint` e a do
+migrador já fechou, e com prazo de 15 s nos dois casos. Depois da própria
+migração, roda `postgres.VerifyUniques` uma vez; sem `MIGRATE`, espera por
+`postgres.WaitForUniques`, que repete a cada segundo só enquanto o erro for
+`ErrUniqueDivergent`, porque a réplica pode subir antes de o migrador criar a
+restrição, e registra a restrição pendente como as outras esperas. A
+divergência que persiste impede a partida; a parada pedida durante a espera
+devolve a divergência junto com o erro do contexto e sai limpa. Lista vazia não
+faz round trip.
+
+## Métodos de plataforma do papel `api`
+
+`API.Platform` lista, por nome, os métodos do `Desc` que leem entre tenants
+(ADR-068); o `ServeAPI` os repassa ao servidor por
+`kernelgrpc.WithPlatformMethods`, que deposita o alcance só neles e só para o
+workload que o `TrustedPeers` admitiu pela allowlist, montado pelo
+`APIServerConfig` antes da cadeia do contexto (ver
+`libs/backend/go/grpc/README.md`). Antes de servir, como já faz com
+`API.Commands`, o `ServeAPI` recusa o nome que não é método do `Desc`
+(`ErrUnknownPlatformMethod`). Com a lista preenchida, recusa também servidor
+`GRPC_INSECURE`, sem certificado ou sem `GRPC_TRUSTED_CLIENTS`
+(`ErrPlatformUnverified`): o alcance de um método de plataforma é concedido a
+quem alcança o servidor, então só o servidor que verifica e restringe os
+workloads que chamam pode declará-lo (`IDN-03`). Lista vazia não muda nada.
+
 ## O relay
 
 `relay/postgres.go` traz `NewOverPostgres(pool, publisher, component, config)`, que monta o dreno de FND-04 §5.4 sobre a outbox de `postgres` com a identidade do kernel (`idclock.SystemClock`, `idclock.NewClaimIDs(component)`) — antes, `orders` e `reservations` repetiam essa montagem e cada um trazia o próprio `RandomClaimIDs`. O relay drena de todos os tenants sem distinção: a outbox fica fora do escopo de tenant (ADR-050), e é `record.go` quem lê o `tenantid` da `metadata` que `postgres` escreveu e o coloca no envelope publicado, para que o consumidor o leia de volta em `executionOf`. O `traceparent` e o `tracestate` da `metadata` vão ao envelope sem alteração: são o contexto de criação da mensagem (`ENV-08`).
@@ -155,6 +182,7 @@ Um panic no laço não encerra o processo pela pilha do runtime. Na entrega de u
 - `docs/adr/049-contexto-de-execucao-viaja-no-context-context.md` — o carrier que `executionOf` popula
 - `docs/adr/050-tabelas-de-infraestrutura-fora-do-escopo-de-tenant.md` — por que o relay drena sem tenant
 - `docs/adr/052-identidade-de-workload-no-grpc-e-no-kafka.md` — `Boundary.Transport` e a fronteira confiável
+- `docs/adr/068-acesso-entre-tenants-declarado.md` — `API.Platform` e o servidor que pode declarar método de plataforma
 - `docs/specs/SPEC-1TFW24WV-observabilidade-ponta-a-ponta.md` — os `RF-*` citados aqui: `outbox drain`, `send`, `process`, `message consumed` e as métricas de mensageria
 - `libs/backend/go/ports/README.md` — `ExecutionContext`, `Acknowledger`, `Containment`, `MessageContext`
 - `libs/backend/go/postgres/README.md` — a outbox, a inbox e a quarantine que este adapter usa

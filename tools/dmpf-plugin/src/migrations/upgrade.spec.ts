@@ -3,7 +3,12 @@ import { join } from 'node:path';
 import type { Tree } from '@nx/devkit';
 import { initGenerator, renderedPaths } from '../generators/init/generator';
 import { packageRoot } from '../lib/paths';
-import { type DmpfVersions, readPluginVersion, readVersions } from '../lib/versions';
+import {
+  type DmpfVersions,
+  isOlderRelease,
+  readPluginVersion,
+  readVersions,
+} from '../lib/versions';
 import { consumerTree, renderedByAnOlderVersion, snapshot } from '../testing/rendered';
 import syncInit from './sync-init/sync-init';
 import updateVersions from './update-versions/update-versions';
@@ -67,7 +72,13 @@ describe('[migrations] upgrade from an older version', () => {
     const nextSteps = await updateVersions(tree);
 
     expect(snapshot(tree, paths)).toEqual(snapshot(expected, paths));
-    expect(nextSteps).toEqual(['pnpm install', 'pnpm nx run-many -t tidy']);
+    expect(isOlderRelease(older.nxGo, released.nxGo)).toBe(true);
+    expect(older.kernel).not.toBe(released.kernel);
+    expect(nextSteps).toEqual([
+      'pnpm install',
+      'pnpm nx run-many -t tidy',
+      `go run github.com/mateusmacedo/dmpf/tools/dmpf-conformance/cmd/infrasync@${released.conformance} --root . --write`,
+    ]);
   });
 });
 

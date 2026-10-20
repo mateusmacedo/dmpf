@@ -113,7 +113,7 @@ func TestTopologyEndToEnd(t *testing.T) {
 	requireTypePrefix(t, top.recordsUntilEnd(t, top.reservationsTopic), "com.company.reservations.")
 
 	t.Log("7. a booking reserved through the BFF crosses to the bookings context and leaves as a fact")
-	if status, body := top.call(t, http.MethodPost, "/bookings/resource", `{"code":"room-e2e"}`, nil); status != http.StatusCreated {
+	if status, body := top.call(t, http.MethodPost, "/bookings/resource", `{"code":"room-e2e","name":"Sala e2e"}`, nil); status != http.StatusCreated {
 		t.Fatalf("POST resource: status = %d, body %s", status, body)
 	}
 	if status, body := top.call(t, http.MethodPost, "/bookings/booking", `{"bookingId":"b-e2e","resourceId":"room-e2e","quantity":2}`, headers); status != http.StatusCreated {

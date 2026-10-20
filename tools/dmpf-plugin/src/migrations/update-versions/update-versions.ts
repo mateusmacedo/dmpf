@@ -1,7 +1,7 @@
 import { basename } from 'node:path';
 import { readJson, type Tree, visitNotIgnoredFiles } from '@nx/devkit';
-import { pinGoWork } from '../../generators/init/generator';
-import { DMPF_CONFIG_FILE } from '../../lib/dmpf-config';
+import { infrasyncArgs, pinGoWork } from '../../generators/init/generator';
+import { DMPF_CONFIG_FILE, readDmpfConfigFromTree } from '../../lib/dmpf-config';
 import { isOlderRelease, readVersions } from '../../lib/versions';
 
 const NX_GO = '@nx-go/nx-go';
@@ -44,7 +44,8 @@ const bumpNxGo = (tree: Tree, version: string): boolean => {
 };
 
 // The go.sum of a module only follows its new require after a tidy, which runs
-// go and so cannot happen inside a migration.
+// go and so cannot happen inside a migration. infrasync goes after tidy: in local
+// mode `go run` needs the go.sum that tidy rewrites.
 const updateVersions = (tree: Tree): string[] => {
   if (!tree.exists(DMPF_CONFIG_FILE)) {
     return [];
@@ -72,6 +73,7 @@ const updateVersions = (tree: Tree): string[] => {
   return [
     ...(install ? ['pnpm install'] : []),
     ...(moved.length > 0 ? ['pnpm nx run-many -t tidy'] : []),
+    `go ${infrasyncArgs(readDmpfConfigFromTree(tree), versions).join(' ')}`,
   ];
 };
 

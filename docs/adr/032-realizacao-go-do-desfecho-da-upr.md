@@ -2,7 +2,7 @@
 
 ## Status
 
-Aceito — 2026-09-02. Implementa SPEC-XF9TF9A0.
+Aceito — 2026-09-02. Implementa SPEC-XF9TF9A0. **Emendado pelo [ADR-066](./066-unicidade-declarada-como-rejeicao.md) (2026-10-17)**: a rejeição de unicidade declarada chega ao `Outcome` pelo `Decide`, recuperada do `ports.UniqueViolation`, e a pós-condição da recusa ganha o savepoint do `Save` e a guarda de escrita anterior.
 
 ## Contexto
 

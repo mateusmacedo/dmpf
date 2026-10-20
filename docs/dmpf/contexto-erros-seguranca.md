@@ -440,7 +440,7 @@ destino previsto e o estado corrente.
 | 10 | `MT-3` | FND-05 §1.4 | A autorização que resolve o valor de `tenantid` | bloco — `adapter`, `application service` | §4 | `quitada` | `quitada` |
 | 11 | `MT-4` | FND-05 §3.4 | Controle de acesso ao dado por tenant | bloco — `application service`, com o resultado imposto no `provider` | §4 | `quitada` no **resultado** fail-closed; mecanismo de persistência e verificação executável `encaminhados` | `quitada` no resultado, com mecanismo e verificação encaminhados |
 | 12 | `TX-1` | FND-04 §1.4; FND-03 §3.6; FND-05 §1.4 | Fixar a taxonomia de erros comum | artefato — vale para todos os blocos | §5 | `quitada` | `quitada` |
-| 13 | `TX-2` | FND-03 §3.6 | `DomainRejection` como categoria da taxonomia | bloco — `domain` produz a rejeição, `adapter` a mapeia | §5, §6 | `quitada` na categoria; a **forma** da `Rejection` é de FND-03 | `quitada`, com a forma da `Rejection` em FND-03 |
+| 13 | `TX-2` | FND-03 §3.6 | `DomainRejection` como categoria da taxonomia | bloco — `domain` produz a rejeição, ou a declara para a unicidade que o `application service` converte; `adapter` a mapeia | §5, §6 | `quitada` na categoria; a **forma** da `Rejection` é de FND-03 | `quitada`, com a forma da `Rejection` em FND-03 |
 | 14 | `TX-3` | FND-04 §6.4 | A retryability que separa retentável de não-retentável | artefato — vale para todos os blocos | §5 | `quitada` — **fecha placeholder ativo** em artefato mergeado | `quitada` |
 | 15 | `TX-4` | FND-04 §4.1 | Formato do campo de diagnóstico de erro (`last_error`) | artefato fixa o formato; o `app` do relay o preenche | §5 | `quitada` no formato; a **coluna** e a vedação a dado sensível são de FND-04 | `quitada`, com a coluna em FND-04 |
 | 16 | `MP-1` | FND-03 §3.6 | Mapeamento por transporte da `DomainRejection` | bloco — `adapter` | §6 | `quitada` | `quitada` |
@@ -505,7 +505,7 @@ decidível, e o **par de vetores** — o caso que a satisfaz e o caso que a viol
 | 10 | `MT-3` | `IDN-01`, `CTX-06`, com `ENV-12` | o valor de `tenantid` é identidade resolvida, não informada | `tenantid` resolvido pela autenticação | `tenantid` derivado de campo do payload |
 | 11 | `MT-4` | `IDN-11`, `IDN-12`, `IDN-13`, `IDN-14` | acesso a dado de outro tenant não devolve o dado, é registrado, e a imposição não depende de convenção | consulta escopada com imposição fora do código de consulta | repositório cujo isolamento depende de cada autor incluir a condição (contraprova 8) |
 | 12 | `TX-1` | `ERR-01`, `ERR-02`, `ERR-08` | todo erro que cruza fronteira de bloco tem exatamente uma categoria do catálogo | falha de dependente classificada `TransientDependency` | exceção atravessando a borda sem categoria |
-| 13 | `TX-2` | `ERR-08`, `MAP-01` | `DomainRejection` é categoria própria, com mapeamento literal | `Rejected` → `422`, `FAILED_PRECONDITION`, `R1×D2` | `Rejected` mapeado para `500` |
+| 13 | `TX-2` | `ERR-08`, `MAP-01` | `DomainRejection` é categoria própria, com mapeamento literal | `Rejected` → `422`, `FAILED_PRECONDITION`, `R1×D2`, inclusive o convertido da unicidade declarada | `Rejected` mapeado para `500` |
 | 14 | `TX-3` | `ERR-09`, `ERR-10`, `ERR-11` | todo erro concreto resolve para booleano, e condicional sem predicado resolve para falso | prazo excedido sem certeza de efeito → não retentável (exemplo 3) | `Unexpected` marcado retentável por suposição (contraprova 5) |
 | 15 | `TX-4` | `ERR-18`, `ERR-19`, `ERR-20`, `ERR-21` | os seis elementos são reconstruíveis, há limite declarado, e as duas projeções diferem | `last_error` com código, categoria, retryability, instante, tentativa e causa sanitizada | `last_error` truncado de modo que o código se perca |
 | 16 | `MP-1` | `MAP-01`, linha de `DomainRejection` em §6.2 | valor literal por transporte, não descrição | `422`, `FAILED_PRECONDITION`, `R1×D2` | célula com «erro apropriado» ou «conforme o caso» |
@@ -875,8 +875,8 @@ frescura do valor é matéria de `CTX-16`.
 
 | ID | Regra |
 |----|-------|
-| `IDN-11` | Toda leitura e toda escrita de dado de negócio é **escopada ao tenant do contexto**. O escopo alcança consulta, comando, agregação, exportação e qualquer caminho que produza dado observável — inclusive relatório, reprocessamento e rotina de correção |
-| `IDN-12` | **Acesso a dado de outro tenant nunca devolve o dado.** A tentativa falha e é registrada como evento de segurança com o sujeito, o tenant do contexto e o tenant do dado alcançado |
+| `IDN-11` | Toda leitura e toda escrita de dado de negócio é **escopada ao tenant do contexto**. O escopo alcança consulta, comando, agregação, exportação e qualquer caminho que produza dado observável — inclusive relatório, reprocessamento e rotina de correção. A única leitura e escrita fora desse tenant no caminho da aplicação é a **projeção declarada**, que lê e grava no tenant de destino com destino explícito, política de destino que fecha por omissão, registro de auditoria que falha fechado e caminho único imposto por gate ([ADR-068](../adr/068-acesso-entre-tenants-declarado.md)); a operação de plataforma segue `IDN-19` |
+| `IDN-12` | **Acesso a dado de outro tenant nunca devolve o dado.** A tentativa falha e é registrada como evento de segurança com o sujeito, o tenant do contexto e o tenant do dado alcançado. A leitura declarada da projeção no tenant de destino (`IDN-11`) e a leitura de plataforma de alcance declarado (`IDN-19`) não são esse acesso: são autorizadas como tais e registradas com o desfecho, e o acesso cruzado por engano continua negado ([ADR-068](../adr/068-acesso-entre-tenants-declarado.md)) |
 | `IDN-13` | A **resposta ao chamador** pode ser indistinguível de inexistência do recurso, para não revelar existência a quem não tem acesso. A indistinguibilidade vale para a resposta; **não** vale para o registro interno, que distingue os dois casos |
 | `IDN-14` | **A imposição do isolamento não depende de convenção de código.** Um caminho de leitura ou de escrita que omita o escopo de tenant não pode devolver nem alterar dado de outro tenant. Um isolamento cuja correção dependa de cada autor lembrar de acrescentar a condição não satisfaz esta regra, ainda que nenhum caminho esteja errado hoje |
 
@@ -966,7 +966,7 @@ aqui.
 |----|-------|
 | `ERR-01` | **Todo erro que atravessa a fronteira de um bloco tem exatamente uma categoria** do catálogo de §5.3. Não há erro sem categoria, e não há erro com duas |
 | `ERR-02` | A classificação é **total**: nenhuma falha concreta fica fora do catálogo. O que não se encaixa em categoria específica é `Unexpected` — que existe para isso e não é lacuna |
-| `ERR-03` | A categoria é atribuída **onde a falha é conhecida**, e não é reatribuída por conveniência a jusante. Um bloco que recebe erro categorizado e o reclassifica para obter outra disposição está contornando §5.4, não corrigindo a classificação |
+| `ERR-03` | A categoria é atribuída **onde a falha é conhecida**, e não é reatribuída por conveniência a jusante. Um bloco que recebe erro categorizado e o reclassifica para obter outra disposição está contornando §5.4, não corrigindo a classificação. Converter em `Rejected` a violação de unicidade que o contexto declarou como regra de negócio não é reclassificação: o erro do `provider` chega ao `application service` sem categoria, e a rejeição é dado de domínio declarado ([ADR-066](../adr/066-unicidade-declarada-como-rejeicao.md)) |
 
 `normativo` — **A totalidade é o que torna `ERR-01` conferível.** Um erro sem
 categoria não é apenas malformado: ele não tem retryability, logo não tem
@@ -995,7 +995,7 @@ hoc — exatamente o que FND-04 `INB-09` proíbe.
 | Categoria | Significado | Retryability | Origem |
 |-----------|-------------|--------------|--------|
 | `Validation` | a entrada é estruturalmente ou sintaticamente inválida | não | Parte-1 §13 |
-| `DomainRejection` | a UPR decidiu `Rejected`: regra de negócio violada sobre o estado | não | Parte-1 §13; FND-03 §3.3 |
+| `DomainRejection` | a UPR decidiu `Rejected`, ou o `application service` converteu em `Rejected` a violação de unicidade que o contexto declarou como regra de negócio: regra de negócio violada sobre o estado | não | Parte-1 §13; FND-03 §3.3; FND-04 §3.2 |
 | `NotFound` | o recurso referido não existe no escopo do contexto | não | Parte-1 §13 |
 | `Conflict` | o estado corrente impede a operação como pedida | condicional | Parte-1 §13 |
 | `Forbidden` | o sujeito está autenticado e não tem permissão, ou o dado é de outro tenant | não | Parte-1 §13; §4 |
@@ -1038,7 +1038,7 @@ disposição por §6.
 
 | Categoria | Predicado que a torna retentável |
 |-----------|----------------------------------|
-| `Conflict` | o conflito é de **concorrência** e a operação pode ser reexecutada sobre o estado recarregado, sem repetir decisão de negócio já tomada. Conflito de **unicidade** — o recurso já existe — não satisfaz o predicado |
+| `Conflict` | o conflito é de **concorrência** e a operação pode ser reexecutada sobre o estado recarregado, sem repetir decisão de negócio já tomada. Conflito de **unicidade** — o recurso já existe — não satisfaz o predicado; a unicidade declarada como regra de negócio e convertida em `Rejected` não é `Conflict`, é `DomainRejection` (§5.3) |
 | `DeadlineExceeded` | o efeito da operação interrompida é **conhecidamente ausente ou idempotente**. Quando não se sabe se o efeito ocorreu, o predicado não é satisfeito |
 | `Unexpected` | existe predicado declarado pelo bloco que classificou, verificável, que estabeleça a ausência de efeito parcial. Sem ele, `ERR-11` aplica-se |
 
@@ -1195,7 +1195,7 @@ mensagem que falha na primeira nunca chega à segunda.
 | `Validation` | `400` | `INVALID_ARGUMENT` | `R1×D4` — falha terminal; quarantine ou DLQ por `GAR-11` |
 | `DomainRejection` | `422` | `FAILED_PRECONDITION` | `R1×D2` — confirma o consumo e emite rejection event quando o contrato o previr |
 | `NotFound` | `404` | `NOT_FOUND` | `R1×D2` quando o contrato declara a ausência como desfecho de negócio; `R1×D4` quando não |
-| `Conflict` | `409` | `ABORTED` na concorrência; `ALREADY_EXISTS` na unicidade | `R1×D3` quando o predicado de `ERR-10` é satisfeito; `R1×D4` quando não |
+| `Conflict` | `409` | `ABORTED` na concorrência; `ALREADY_EXISTS` na unicidade não convertida em `DomainRejection` | `R1×D3` quando o predicado de `ERR-10` é satisfeito; `R1×D4` quando não |
 | `Forbidden` | `403` | `PERMISSION_DENIED` | `R1×D4` — falha terminal |
 | `Unauthenticated` | `401` | `UNAUTHENTICATED` | `R1×D4` — falha terminal |
 | `TransientDependency` | `503` | `UNAVAILABLE` | `R1×D3` — falha transitória |
@@ -1233,9 +1233,9 @@ encaminhado.
 `rationale` — A célula de `Conflict` no gRPC tem dois valores literais em vez de um
 porque a categoria cobre duas falhas com semântica de repetição oposta. Conflito de
 concorrência é `ABORTED` e admite reexecução sobre estado recarregado; violação de
-unicidade é `ALREADY_EXISTS` e nunca terá desfecho diferente. Um valor único
-forçaria o consumidor a distinguir os dois pelo texto da mensagem, que é
-exatamente o que `ERR-13` proíbe.
+unicidade não convertida é `ALREADY_EXISTS` e nunca terá desfecho diferente. Um valor
+único forçaria o consumidor a ler a mensagem, o que `ERR-13` proíbe; a unicidade que o
+contexto declara como regra de negócio sai como `DomainRejection`, com código de domínio.
 
 `rationale` — **Por que o caminho de sucesso entra sem regra própria.** Ele é
 necessário para a leitura: uma matriz que só mostra os desfechos de erro não deixa

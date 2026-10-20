@@ -13,3 +13,5 @@ import (
 var Schema string
 
 var Grants = []postgres.Grant{}
+
+var Uniques = []postgres.UniqueSet{}

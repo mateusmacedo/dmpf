@@ -64,9 +64,13 @@ func (f *Failure) Error() string {
 // Unwrap exposes the cause to errors.Is and errors.As.
 func (f *Failure) Unwrap() error { return f.cause }
 
-// CategoryOf is the FND-07 §5.3 category of a Failure or of a port sentinel;
-// empty means unclassified, and the caller records its own closing value.
+// CategoryOf is the FND-07 §5.3 category of a Failure or of a port sentinel; an
+// IDN-17/IDN-19 refusal is Forbidden whatever it wraps, and empty means
+// unclassified, so the caller records its own closing value.
 func CategoryOf(err error) string {
+	if errors.Is(err, ports.ErrPlatformReachUndeclared) || errors.Is(err, ports.ErrProjectionDenied) {
+		return string(Forbidden)
+	}
 	if failure, ok := errors.AsType[*Failure](err); ok {
 		return string(failure.Category())
 	}
@@ -75,10 +79,14 @@ func CategoryOf(err error) string {
 		errors.Is(err, ports.ErrIdempotencyMismatch):
 		return string(Validation)
 	case errors.Is(err, ports.ErrIdempotencyInFlight), errors.Is(err, ports.ErrAlreadyExists),
-		errors.Is(err, ports.ErrVersionConflict):
+		errors.Is(err, ports.ErrVersionConflict), errors.Is(err, ports.ErrUniqueViolation):
 		return string(Conflict)
 	case errors.Is(err, ports.ErrNotFound):
 		return string(NotFound)
+	case errors.Is(err, ports.ErrPlatformLimitInvalid), errors.Is(err, ports.ErrProjectionDestinationAbsent):
+		return string(Validation)
+	case errors.Is(err, ports.ErrAuditUnavailable):
+		return string(TransientDependency)
 	default:
 		return ""
 	}

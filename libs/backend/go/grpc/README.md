@@ -156,6 +156,20 @@ só aparecem em `_test.go`, que o verificador não classifica.
   leva a chave em `dmpf.idempotency_key` ou, fora do formato,
   `dmpf.idempotency_key.invalid` sem o valor; o header de replay não entra em
   span nem em log.
+- **`interceptor_context.go`, plataforma** — `WithPlatformMethods(métodos...)`
+  declara os métodos que leem entre tenants (`IDN-19`, ADR-068). O alcance é
+  concedido pelo servidor, nunca pela metadata de quem chama: só num método
+  declarado o interceptor de contexto deposita `ports.ReachAllTenants` pelo
+  `ports.WithPlatformReach`, depois de montar o contexto de execução, e só quando
+  o `TrustedPeers` admitiu o chamador pela allowlist e deixou no `ctx` o
+  marcador privado do pacote. Sem o marcador (cadeia TLS verificada, mas fora
+  da allowlist ou num servidor montado sem `TrustedPeers`), a chamada a método
+  declarado é recusada com `PermissionDenied` antes de qualquer leitura de
+  metadata (`IDN-03`); método não declarado nunca recebe o carrier. Recusar a declaração em servidor
+  `Insecure` ou sem `TrustedClients` é da composição (`serve.ServeAPI`,
+  `ErrPlatformUnverified`; ver `libs/backend/go/app/README.md`). O contexto
+  gRPC nasce sem `Subject`, então o evento de trilha do contexto sai sem
+  sujeito e se liga ao da borda pelo `correlation_id`.
 - **`idempotency_status.go`** — `IdempotencyStatus(err)` traduz os desfechos
   do comando: divergência em `FailedPrecondition`, em andamento em `Aborted`,
   chave ausente em `InvalidArgument` e `ports.ErrAlreadyExists` em
@@ -168,8 +182,9 @@ só aparecem em `_test.go`, que o verificador não classifica.
   `StatusOf(err)` traduz o canal técnico do caso de uso para o status que o
   handler do contexto devolve, sem detalhe interno na mensagem (ERR-20). A
   primeira linha que casa decide: `IdempotencyStatus`; `ErrNotFound` ou
-  categoria `NotFound` → `NotFound`; `ErrVersionConflict` ou `Conflict` →
-  `Aborted`; `context.DeadlineExceeded`; `context.Canceled`; `ErrDenied` ou
+  categoria `NotFound` → `NotFound`; `ports.ErrUniqueViolation` sem rejeição
+  (restrição não declarada, ou declarada com escrita anterior de agregado ou outbox na transação; ADR-066) → `AlreadyExists`;
+  `ErrVersionConflict` ou `Conflict` → `Aborted`; `context.DeadlineExceeded`; `context.Canceled`; `ErrDenied` ou
   `Forbidden` → `PermissionDenied`; as três condições de `IDN-01` ou
   `Unauthenticated` → `Unauthenticated`; o resto → `Internal`. A categoria é a
   do primeiro nó da cadeia com `ErrorCategory() string`, lida sem importar
@@ -225,7 +240,10 @@ essa CA (`ErrClientCARequired`) e sem ao menos um workload confiável declarado
 verificado **antes** de qualquer outro interceptor — inclusive admissão e o
 contexto de execução — contra a URI SAN ou o DNS SAN da folha, **nunca contra
 o CN**, que não tem semântica de nome e que a própria CA pode emitir livre. Só
-depois desse interceptor a metadata `x-tenant-id` chega a ser lida.
+depois desse interceptor a metadata `x-tenant-id` chega a ser lida. O workload
+admitido segue com um marcador privado no `ctx` (no stream, no `Context()` do
+stream), que é a única prova que o interceptor de contexto aceita para conceder
+o alcance de um método de plataforma.
 
 A identidade do BFF, o único cliente destes servidores hoje, é
 `spiffe://dmpf/bff`. `orders` e `reservations` a leem em `GRPC_TRUSTED_CLIENTS`,
@@ -288,6 +306,7 @@ verificador.
 - `docs/dmpf/contexto-erros-seguranca.md` (FND-07) — `IDN-03`, `IDN-04`.
 - `docs/adr/024-rest-externo-grpc-interno-governo-do-tempo.md` — o transporte síncrono interno.
 - `docs/adr/052-identidade-de-workload-no-grpc-e-no-kafka.md` — a verificação por mTLS e a allowlist de workloads.
+- `docs/adr/068-acesso-entre-tenants-declarado.md` — os métodos de plataforma e quem monta o carrier do alcance.
 - `docs/specs/SPEC-1TFW24WV-observabilidade-ponta-a-ponta.md` — os `RF-*` citados aqui: `otelgrpc`, o `grpc call` e o baggage de execução.
 - `libs/backend/go/transport/README.md` — `deadline`, `admission` e `observe`.
 - `libs/backend/go/observability/README.md` — a composição do KRN-09.

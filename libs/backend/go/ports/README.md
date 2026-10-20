@@ -22,7 +22,7 @@ Import path do módulo:
 | Arquivo | Conteúdo |
 | --- | --- |
 | `uow.go` | `UnitOfWork[R]` e o contrato de `Within` |
-| `repository.go` | `ErrNotFound`, `ErrVersionConflict`, `ErrAlreadyExists`, `CrossTenantAccess`, `Reader[ID,S]`, `Repository[ID,S]` |
+| `repository.go` | `ErrNotFound`, `ErrVersionConflict`, `ErrAlreadyExists`, `ErrUniqueViolation`, `UniqueViolation` (`Table`, `Constraint` e a `Rejection` declarada, nula quando não convertível; ADR-066), `CrossTenantAccess`, `Reader[ID,S]`, `Repository[ID,S]` |
 | `outbox.go` | `PublishIntent`, `OutboxEntry` (oito campos, com `Context MessageContext`), `Outbox` |
 | `inbox.go` | `Status`, `Receipt` (com `WaitUntil` e `ExpiresAt`, zero para mensagem), `Completion` (com `Outcome`), `Pending`, `Reception` (com `Match` exaustivo sobre R1–R4 e `Stored`), `Inbox`, `ErrRegisterTimeout`, `ErrPendingNotCompleted` |
 | `idempotency.go` | `Fingerprint`, `ErrIdempotencyMismatch`, `ErrIdempotencyInFlight`, `ErrIdempotencyKeyAbsent`, `ErrIdempotencyKeyInvalid` |
@@ -32,6 +32,7 @@ Import path do módulo:
 | `instrumentation.go` | `Result`, `AuditEvent`, `EndOperation`, `Instrumentation`, `NoInstrumentation`, `OutcomeCategory`, `ErrDenied`, `AuthorizationResult` (só um `ErrDenied` embrulhado vira `Denied`; qualquer outro erro vira `Failed`, com o erro bruto) |
 | `message_context.go` | `MessageContext` (o trio de `ENV-08`) e o carrier `WithMessageContext`/`MessageContextFrom` |
 | `execcontext.go` | `SubjectID`, `TenantID`, `Permission`; `ExecutionContext`, `ExecutionContextSpec`, `NewExecutionContext`; o carrier canônico `WithExecutionContext`, `ExecutionContextFrom`, `RequireExecutionContext`; `SubjectOf`, o subject do carrier ou vazio; `ErrContextFieldMissing`, `ErrContextValueEmpty`, `ErrContextPermissionsMismatch`, `ErrContextAbsent` (`ADR-049`) |
+| `platform.go` | `PlatformReach` (`ReachUndeclared`, `ReachAllTenants`) e o carrier `WithPlatformReach`/`PlatformReachFrom`; `PlatformKey[ID]`, `PlatformRow[ID,S]`, `PlatformReader[ID,S]`, `Projector[ID,S]`, `ProjectionPolicy`, `PlatformPageMax`; `AuditTrail`, `AuditRecord`, `AuditPlatformRead`, `AuditProjectionWrite`; `ErrPlatformReachUndeclared`, `ErrPlatformLimitInvalid`, `ErrAuditUnavailable`, `ErrProjectionDenied`, `ErrProjectionDestinationAbsent` (ADR-068) |
 | `authn.go` | `Credential`, `Identity`, `Authenticator`, `ErrCredentialAbsent`, `ErrCredentialRejected`, `ErrSubjectUnresolved` — as três condições de `IDN-01` |
 | `clock.go` | `Clock`, `IDGenerator` |
 | `values.go` | `Instant` (alias de `domain.Instant`), `MessageID`, `Version` |
@@ -94,6 +95,48 @@ ele se desembrulha para `ErrNotFound` e responde igual (`IDN-13`), mas o
 registro interno diz qual tenant é o dono (`IDN-12`). Quem impõe o predicado é
 cada provider — `memory.Table` e `postgres.Table` —, não este bloco; ver
 `libs/backend/go/memory/README.md` e `libs/backend/go/postgres/README.md`.
+
+## Acesso entre tenants declarado
+
+`platform.go` declara os dois únicos caminhos que leem ou gravam fora do
+tenant do contexto (ADR-068); a decisão e as alternativas estão no ADR, e
+aqui fica só o que cada tipo promete.
+
+- **Alcance.** `PlatformReach` é o alcance que uma operação de plataforma
+  declara (`IDN-19`); o zero é `ReachUndeclared`, então alcance não declarado
+  nunca alarga acesso. Viaja num carrier próprio do `context.Context`
+  (`WithPlatformReach`/`PlatformReachFrom`), fora do `ExecutionContext`, cujos
+  nove campos o `CTX-01` fixa. Só a borda que verificou quem chama o deposita
+  (`http`, `grpc`); o gate estático reprova o `WithPlatformReach` em qualquer
+  outro lugar.
+- **Leitura de plataforma.** `PlatformReader[ID,S]` fica à parte de `Reader`,
+  que não ganha método e segue escopado. `LoadIn(ctx, tenant, id)` lê num tenant
+  explícito; `List(ctx, after, limit)` pagina por `PlatformKey[ID]` (tenant e
+  identidade, porque a identidade só é única dentro do tenant), com
+  `after == nil` como primeira página. Cada `PlatformRow` traz o tenant de
+  origem, a identidade, o estado e a versão. O `limit` vai de 1 ao teto, que é
+  `PlatformPageMax` (500) por padrão; fora disso, `ErrPlatformLimitInvalid`.
+  Sem `ReachAllTenants` no carrier, `ErrPlatformReachUndeclared`.
+- **Projeção.** `Projector[ID,S]` lê e grava num tenant de destino explícito,
+  nunca no do contexto, com a semântica de `version` de `Repository.Save`.
+  `ProjectionPolicy` é a decisão da composition root sobre a origem (`nil`
+  quando o contexto não tem tenant, sem preenchimento, `CTX-26`) e o destino;
+  política ausente ou que nega é `ErrProjectionDenied` (default fechado,
+  `IDN-17`), e destino vazio é `ErrProjectionDestinationAbsent`. Destino igual
+  ao tenant do contexto é `ErrProjectionDenied` sem consultar a política: a
+  projeção não é um segundo caminho de escrita no próprio tenant.
+- **Trilha.** `AuditTrail` é a porta que as realizações recebem na construção:
+  `Record(ctx, AuditRecord)` com `Action` (`AuditPlatformRead` ou
+  `AuditProjectionWrite`), `Subject`, `Object`, `Outcome`, `Tenant` e
+  `DataTenant`; o instante é da trilha. Todo acesso autorizado só prossegue
+  depois de o registro ser confirmado; quando a trilha recusa, devolve erro que
+  satisfaz `errors.Is(err, ErrAuditUnavailable)`, e a realização não devolve
+  linha nem grava. Quem a realiza é o `observability/audit.Recorder`, por
+  `Recorder.Trail()`; a porta mora aqui para o `memory` não depender de
+  `observability` (ADR-068).
+
+Os cinco erros são categorizados por `application.CategoryOf`. Quem realiza as
+duas portas é `postgres.Table` e `memory.Table`; ver os READMEs deles.
 
 ## O contrato de `Within`
 
@@ -224,5 +267,6 @@ própria no `dmpf-units.json` (`include` por import path exato) e o baseline em
 - `docs/adr/049-contexto-de-execucao-viaja-no-context-context.md` — o carrier canônico que este bloco declara
 - `docs/adr/051-escopo-de-tenant-por-choke-point-em-go.md` — `CrossTenantAccess` e o predicado que os providers realizam
 - `docs/adr/052-identidade-de-workload-no-grpc-e-no-kafka.md` — quem realiza `Authenticator` na borda
+- `docs/adr/068-acesso-entre-tenants-declarado.md` — alcance de plataforma, leitura de plataforma, projeção e a trilha que falha fechada
 - `docs/dmpf/uow-inbox-outbox.md` — FND-04: UoW, sequência canônica, outbox
 - `docs/dmpf/rfc-dmpf-foundation-v0.1.md` — §3.3, §6.2, §7.3, §10.2

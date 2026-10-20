@@ -8,6 +8,8 @@ type ResourceID string
 
 type ResourceCode string
 
+type ResourceName string
+
 type BookingStatus int
 
 const (
@@ -28,6 +30,7 @@ type CancelBooking struct {
 
 type RegisterResource struct {
 	Code ResourceCode
+	Name ResourceName
 	At   kernel.Instant
 }
 
@@ -61,6 +64,7 @@ func (BookingCancelled) EventName() string { return "bookings.booking-cancelled"
 
 type ResourceRegistered struct {
 	Code ResourceCode
+	Name ResourceName
 	At   kernel.Instant
 }
 

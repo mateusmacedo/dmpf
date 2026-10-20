@@ -97,7 +97,7 @@ func TestTheSameKeyWithAnotherPayloadIsAMismatch(t *testing.T) {
 func TestACommandWaitingPastTheCeilingIsInFlight(t *testing.T) {
 	h := newHarness(t, withRegisterError(ports.ErrRegisterTimeout))
 
-	_, err := h.service.RegisterResource(withExecution(t, context.Background()), application.RegisterResource{Code: testResCode})
+	_, err := h.service.RegisterResource(withExecution(t, context.Background()), application.RegisterResource{Code: testResCode, Name: testResName})
 
 	if !errors.Is(err, ports.ErrIdempotencyInFlight) {
 		t.Fatalf("RegisterResource() = %v, want ErrIdempotencyInFlight", err)
@@ -124,7 +124,7 @@ func TestReservingAnExistingBookingUnderAnotherKeyAlreadyExists(t *testing.T) {
 
 func TestARepeatedRegisterReplaysWithoutASecondEvent(t *testing.T) {
 	h, instr := newInstrumentedHarness(t)
-	register := application.RegisterResource{Code: testResCode}
+	register := application.RegisterResource{Code: testResCode, Name: testResName}
 
 	for range 2 {
 		if _, err := h.service.RegisterResource(withKey(t, context.Background(), "k-register"), register); err != nil {
@@ -137,5 +137,40 @@ func TestARepeatedRegisterReplaysWithoutASecondEvent(t *testing.T) {
 	}
 	if len(instr.audits) != 1 {
 		t.Fatalf("Audit called %d times, want 1: a replay is not a new fact", len(instr.audits))
+	}
+}
+
+func TestTheSameKeyWithAnotherNameIsAMismatch(t *testing.T) {
+	h := newHarness(t)
+	if _, err := h.service.RegisterResource(withKey(t, context.Background(), "k-register"), application.RegisterResource{Code: testResCode, Name: testResName}); err != nil {
+		t.Fatalf("first RegisterResource() = %v, want nil", err)
+	}
+
+	_, err := h.service.RegisterResource(withKey(t, context.Background(), "k-register"), application.RegisterResource{Code: testResCode, Name: "Another name"})
+
+	if !errors.Is(err, ports.ErrIdempotencyMismatch) {
+		t.Fatalf("second RegisterResource() = %v, want ErrIdempotencyMismatch: the name is part of the request", err)
+	}
+}
+
+func TestARegisterOfATakenNameIsRefusedAndReplaysTheRefusal(t *testing.T) {
+	h, instr := newInstrumentedHarness(t)
+	if _, err := h.service.RegisterResource(withKey(t, context.Background(), "k-first"), application.RegisterResource{Code: testResCode, Name: testResName}); err != nil {
+		t.Fatalf("first RegisterResource() = %v, want nil", err)
+	}
+	other := application.RegisterResource{Code: "room-202", Name: testResName}
+
+	for range 2 {
+		outcome, err := h.service.RegisterResource(withKey(t, context.Background(), "k-second"), other)
+
+		if rejection, rejected := outcome.Rejection(); err != nil || !rejected || rejection.Code() != domain.CodeResourceDuplicateName {
+			t.Fatalf("RegisterResource() = (%+v, %v), want the rejection %s", outcome, err, domain.CodeResourceDuplicateName)
+		}
+	}
+	if got := h.outboxLen(); got != 1 {
+		t.Fatalf("outbox = %d entries, want 1: the refusal enqueues nothing", got)
+	}
+	if len(instr.audits) != 2 {
+		t.Fatalf("Audit called %d times, want 2: the first registration and the refusal, never the replay", len(instr.audits))
 	}
 }

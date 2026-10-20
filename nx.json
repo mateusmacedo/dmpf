@@ -3,7 +3,12 @@
   "defaultBase": "master",
   "analytics": false,
   "namedInputs": {
-    "default": ["{projectRoot}/**/*", "sharedGlobals"],
+    "default": [
+      "{projectRoot}/**/*",
+      "sharedGlobals",
+      "!{projectRoot}/**/README.md",
+      "!{projectRoot}/**/CHANGELOG.md"
+    ],
     "production": [
       "default",
       "!{projectRoot}/**/?(*.)+(spec|test).[jt]s?(x)?(.snap)",
@@ -23,6 +28,9 @@
     "go": [
       "{projectRoot}/**/*",
       "!{projectRoot}/deploy/**/*",
+      "!{projectRoot}/**/*.md",
+      "!{projectRoot}/package.json",
+      "!{projectRoot}/Dockerfile",
       "{workspaceRoot}/go.work",
       "{workspaceRoot}/go.work.sum"
     ]
@@ -208,5 +216,5 @@
       "cache": true
     }
   },
-  "neverConnectToCloud": true
+  "nxCloudId": "6ad6526188831e0f4892e70b"
 }

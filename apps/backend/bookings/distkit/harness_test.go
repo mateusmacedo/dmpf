@@ -53,7 +53,7 @@ func enqueue(t *testing.T, n int) {
 	})
 
 	resource := domain.ResourceCode("room-distkit")
-	registered, err := h.Service.RegisterResource(withExecution(t, ctx), application.RegisterResource{Code: resource})
+	registered, err := h.Service.RegisterResource(withExecution(t, ctx), application.RegisterResource{Code: resource, Name: "Room distkit"})
 	if err != nil {
 		t.Fatalf("RegisterResource() = %v, want nil", err)
 	}

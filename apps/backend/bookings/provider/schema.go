@@ -13,3 +13,5 @@ import (
 var Schema string
 
 var Grants = []postgres.Grant{postgres.Mutable("bookings"), postgres.Mutable("resources")}
+
+var Uniques = []postgres.UniqueSet{resourceTable.Uniques()}

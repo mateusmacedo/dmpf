@@ -1,12 +1,14 @@
 package http_test
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"testing"
 	"time"
 
 	provider "github.com/mateusmacedo/dmpf/libs/backend/go/http"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/deadline"
 )
 
@@ -145,6 +147,73 @@ func TestRouteValidateRefusesReachDeclaredByNonPlatformRoute(t *testing.T) {
 
 	if err := scoped.Validate(); !errors.Is(err, provider.ErrPlatformReachRequired) {
 		t.Fatalf("Validate() err = %v, want %v: reach belongs to the platform route alone (IDN-19)", err, provider.ErrPlatformReachRequired)
+	}
+}
+
+func TestRouteValidateAdmitsAllTenantsReachOnlyWithoutATenantRequirement(t *testing.T) {
+	cases := map[string]struct {
+		requires provider.Requirement
+		reach    provider.PlatformReach
+		want     error
+	}{
+		"platform declaring the reach":     {provider.RequireNeither, provider.ReachAllTenants, nil},
+		"platform leaving the reach unset": {provider.RequireNeither, provider.ReachUndeclared, provider.ErrPlatformReachRequired},
+		"operator declaring the reach":     {provider.RequireSubject, provider.ReachAllTenants, nil},
+		"operator without reach":           {provider.RequireSubject, provider.ReachUndeclared, nil},
+		"tenant route declaring the reach": {provider.RequireTenant, provider.ReachAllTenants, provider.ErrPlatformReachRequired},
+		"scoped route declaring the reach": {provider.RequireSubjectAndTenant, provider.ReachAllTenants, provider.ErrPlatformReachRequired},
+		"scoped route without reach":       {provider.RequireSubjectAndTenant, provider.ReachUndeclared, nil},
+		"tenant route without reach":       {provider.RequireTenant, provider.ReachUndeclared, nil},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			r := route(http.MethodGet)
+			r.Requires = tc.requires
+			r.PlatformReach = tc.reach
+
+			err := r.Validate()
+			if tc.want == nil && err != nil {
+				t.Fatalf("Validate() = %v, want nil (IDN-19)", err)
+			}
+			if tc.want != nil && !errors.Is(err, tc.want) {
+				t.Fatalf("Validate() = %v, want %v (IDN-19)", err, tc.want)
+			}
+		})
+	}
+}
+
+func TestPlatformReachIsThePortsDeclaration(t *testing.T) {
+	reach, _ := ports.PlatformReachFrom(ports.WithPlatformReach(context.Background(), provider.ReachAllTenants))
+	if reach != ports.ReachAllTenants || provider.ReachUndeclared != ports.ReachUndeclared {
+		t.Fatal("http.PlatformReach diverges from ports.PlatformReach; the edge and the providers must read the same declaration")
+	}
+}
+
+func TestWithVerifiedPlatformReachDepositsTheReachOnlyOnAnOperatorRouteWithAPermission(t *testing.T) {
+	cases := map[string]struct {
+		requires   provider.Requirement
+		reach      provider.PlatformReach
+		permission ports.Permission
+		want       bool
+	}{
+		"operator route declaring the reach":   {provider.RequireSubject, provider.ReachAllTenants, "platform.read", true},
+		"operator route without a permission":  {provider.RequireSubject, provider.ReachAllTenants, "", false},
+		"operator route without reach":         {provider.RequireSubject, provider.ReachUndeclared, "platform.read", false},
+		"scoped route declaring the reach":     {provider.RequireSubjectAndTenant, provider.ReachAllTenants, "platform.read", false},
+		"tenant route declaring the reach":     {provider.RequireTenant, provider.ReachAllTenants, "platform.read", false},
+		"route nobody verified with the reach": {provider.RequireNeither, provider.ReachAllTenants, "platform.read", false},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			r := route(http.MethodGet)
+			r.Requires, r.PlatformReach, r.Permission = tc.requires, tc.reach, tc.permission
+
+			reach, declared := ports.PlatformReachFrom(provider.WithVerifiedPlatformReach(context.Background(), r))
+
+			if declared != tc.want || (tc.want && reach != ports.ReachAllTenants) {
+				t.Fatalf("reach = %v, %v, want declared %v (IDN-19)", reach, declared, tc.want)
+			}
+		})
 	}
 }
 

@@ -119,12 +119,23 @@ aprova o que não leu.
 O `.github/workflows/dmpf-ci.yml` que o `init` escreve chama o
 `dmpf-go-ci.yml` deste repositório fixado no `workflowRef` do `versions.json`,
 o SHA do commit de onde a versão do plugin saiu, e declara a versão do plugin
-para a qual foi escrito. O workflow roda dois jobs:
+para a qual foi escrito. O workflow roda um job, `DMPF`, que faz o setup uma
+vez e executa:
 
-- **pirâmide Go**: os estágios por `layer:*`, com Postgres, Redpanda e floci
-  para a integração, e os gates Buf no estágio de contrato;
-- **gates DMPF**: camada única por módulo, gate de dependência, context-check,
-  `modsync --check`, `infrasync --check`, `conformance` e `govulncheck`.
+- **gates DMPF**: camada única por módulo, context-check, `modsync --check`,
+  `infrasync --check` e `conformance`;
+- **targets do Nx** nos projetos afetados: `lint`, `typecheck`, `build`,
+  `fmt-check` e os gates Buf, o `test` só dos projetos que não são Go, depois
+  `test-race`, `test-integration` e `e2e`, com Postgres, Redpanda e floci só
+  quando um projeto que os usa está afetado; `biome ci` quando há `biome.json`.
+  Os projetos Go ficam sem `test` e `vet` no CI: o `test-race` repete os
+  pacotes do `test`, e o `govet` do golangci-lint cobre o `vet`.
+
+Inputs opcionais mudam o escopo: `full: true` troca o `affected` por todos os
+projetos e acrescenta o `govulncheck` (por exemplo,
+`full: ${{ github.event_name == 'push' }}` no push para a branch principal);
+`self-tests: true` roda os vetores negativos do gate de dependência e dos gates
+Buf num segundo job, `Vetores negativos`, em paralelo ao `DMPF`. O secret opcional `NX_CLOUD_ACCESS_TOKEN` liga o cache remoto do Nx Cloud.
 
 O chamador concede `packages: read`, que o workflow pede para instalar o
 plugin. Se o plugin instalado divergir da versão do chamador, o workflow
@@ -142,8 +153,35 @@ pnpm nx migrate --run-migrations
 As migrations do plugin reaplicam os templates do `init`, inclusive o
 chamador de CI com o novo `workflowRef`, e sobem o `require` do kernel nos
 `go.mod`, os pins de `govulncheck`, `golangci-lint` e `@nx-go/nx-go` e a
-diretiva do `go.work`. Rode os comandos que elas devolvem ao fim (`pnpm
-install` e `pnpm nx run-many -t tidy`) e os gates do passo 4.
+diretiva do `go.work`. Rode, na ordem, os comandos que elas devolvem ao fim
+(`pnpm install` e `pnpm nx run-many -t tidy`, quando houver, e por último o
+`infrasync --write` do `conformance` instalado) e os gates do passo 4:
+
+```bash
+go run github.com/mateusmacedo/dmpf/tools/dmpf-conformance/cmd/infrasync@<conformance> --root . --write
+```
+
+No modo `local`, o comando é `go run ./tools/dmpf-conformance/cmd/infrasync
+--root . --write`. Ele é necessário porque a migration reaplica o
+`infra/local/env.platform.example` e o `conformance` novo pode mudar o
+provisionamento gerado; sem regenerar, o `infrasync --check` do passo 4
+reprova. A saída do `infrasync` (provisionamento do Compose, PKI, Swagger,
+`.env.example` e listas de apps dos overlays) é regravada: edite os manifestos
+`deploy/infra.json` e o `env.platform.example`, não a saída. Commite os
+arquivos gerados que mudarem.
+
+Quem já subiu para a `1.0.0-rc.5` não recebeu esse passo, porque a migration
+dessa versão não o devolve. Rode-o à mão e commite o
+`infra/local/compose/provisioning.generated.yml` e o `infra/local/.env.example`:
+
+```bash
+go run github.com/mateusmacedo/dmpf/tools/dmpf-conformance/cmd/infrasync@v1.0.0-rc.5 --root . --write
+go run github.com/mateusmacedo/dmpf/tools/dmpf-conformance/cmd/infrasync@v1.0.0-rc.5 --root . --check
+```
+
+O `infrasync` só gera o `.env.example`: copie à mão as variáveis novas dele
+(`REDIS_REVOCATION_PASSWORD`, `REDIS_EXPORTER_PASSWORD`, `KEYCLOAK_*`) para o
+seu `.env` local.
 
 Arquivo do `init` editado à mão não é sobrescrito: a migration o lista no log.
 Compare com a versão nova e, depois de salvar o que quiser manter, sobrescreva
@@ -198,6 +236,103 @@ usa. Para ligar a deny-list na borda:
    com o servidor parado. Sem o reimport, o back-channel e os admin events
    valem, mas os eventos `LOGOUT` não são guardados, e o logout do usuário
    depende só do back-channel.
+
+### Adotar a unicidade declarada (ADR-066)
+
+Uma violação de `UNIQUE` que não é a chave primária chegava ao chamador como
+`INTERNAL`. Com a declaração, a duplicata de negócio por tenant volta como
+`DomainRejection`: a resposta gRPC sai com status `OK` e o campo `rejection` com o
+código declarado (o BFF a expõe como `422`), gravada na inbox e reproduzida no replay. O índice continua sendo a garantia; a declaração
+só traduz. O `bookings` é o exemplo de referência. Para cada unicidade de
+negócio:
+
+1. Declare a restrição dentro do `CREATE TABLE`, no `provider/schema.sql`, como
+   `CONSTRAINT <tabela>_<colunas>_key UNIQUE (tenant_id, ...)`: o nome é a
+   tabela, as colunas na ordem, separadas por `_`, e o sufixo `_key`, em
+   minúsculas e com até 63 bytes, e `tenant_id` vem primeiro. `CREATE UNIQUE
+   INDEX`, `DEFERRABLE` e `NULLS NOT DISTINCT` não servem, nem tabela
+   particionada, partição ou com herança: na partição, o PostgreSQL reporta a
+   restrição da partição folha, que não casa com a declarada, e na herança a
+   `UNIQUE` vale por tabela e não cobre a hierarquia. Atributo que vive só no
+   snapshot vira coluna gerada:
+
+   ```sql
+   name        text   GENERATED ALWAYS AS (snapshot->>'name') STORED NOT NULL,
+   CONSTRAINT resources_pkey PRIMARY KEY (tenant_id, resource_id),
+   CONSTRAINT resources_tenant_id_name_key UNIQUE (tenant_id, name)
+   ```
+
+2. Declare a rejeição estática no `domain`. Quem a levanta é o service, a
+   partir do `Save`, nunca a UPR:
+
+   ```go
+   CodeResourceDuplicateName kernel.Code = "resource-scheduling/resource/duplicate-name"
+
+   var RejectResourceDuplicateName = kernel.Reject(CodeResourceDuplicateName, "a resource with this name already exists in the tenant")
+   ```
+
+3. Ligue a restrição à rejeição no `Table` do provider, com `postgres.Unique`
+   de mesmo nome e mesmas colunas:
+
+   ```go
+   table.Unique = []postgres.Unique{{
+       Name:      "resources_tenant_id_name_key",
+       Columns:   []string{"tenant_id", "name"},
+       Rejection: domain.RejectResourceDuplicateName,
+   }}
+   ```
+
+4. Exporte em `provider/schema.go` a lista de todo `Table` com `Unique`:
+
+   ```go
+   var Uniques = []postgres.UniqueSet{resourceTable.Uniques()}
+   ```
+
+5. Passe a lista em `serve.API` no wiring (`app/wiring.go`), ao lado de
+   `Grants: provider.Grants`: `Uniques: provider.Uniques`. Na partida,
+   `postgres.VerifyUniques` confere cada restrição em `pg_constraint` e recusa
+   subir com `ErrUniqueDivergent` se o schema divergir da declaração ou se a
+   tabela for particionada ou usar herança.
+6. Espelhe a declaração nos dublês com `memory.Unique`, cuja `Key` devolve as
+   colunas depois de `tenant_id`:
+
+   ```go
+   memory.Table[domain.ResourceCode, domain.ResourceSnapshot]{Name: "resources", Unique: []memory.Unique[domain.ResourceSnapshot]{{
+       Name:      "resources_tenant_id_name_key",
+       Key:       func(s domain.ResourceSnapshot) ([]string, bool) { return []string{string(s.Name)}, true },
+       Rejection: domain.RejectResourceDuplicateName,
+   }}}
+   ```
+
+7. Prove o provider com `providerkit.Unique` no teste de repositório,
+   declarando cada restrição em `Constraints`
+   (`providerkit.UniqueConstraint{Name, Columns, Code}`, em que `Columns` lista
+   as colunas como no `postgres.Unique`, começando por `tenant_id`) e
+   `Concurrent: true`. Declare as restrições, aqui e no `Table`, na ordem em que
+   o DDL as cria: sob colisão em mais de uma, vence a primeira declarada, e o
+   `VerifyUniques` reprova a partida quando a ordem diverge do catálogo.
+
+Depois de atualizar o plugin, o `dmpf-context-check.sh` reprova toda
+`CONSTRAINT ..._key UNIQUE` do `schema.sql` sem `postgres.Unique` de mesmo nome
+no provider, toda `UNIQUE` fora da forma nomeada `CONSTRAINT <nome> UNIQUE`
+(inclusive `CREATE UNIQUE INDEX`), toda tabela com `UNIQUE` que use
+`PARTITION BY`, `PARTITION OF`, `INHERITS`, `ATTACH PARTITION` ou
+`ALTER TABLE [IF EXISTS] [ONLY] <tabela> [*] INHERIT <mãe>`, com o `INHERIT` em
+qualquer posição da lista de ações e com esquema, aspas, espaços ou comentários
+entre o nome, o `*` e a ação (não `NO INHERIT` nem coluna chamada `inherit`), ou que
+seja mãe de partição ou de herança, e todo `Table` com `Unique` fora de
+`provider.Uniques`. Tabela particionada ou com herança sem
+`UNIQUE` continua aprovada. Contexto sem declaração e sem `UNIQUE` não muda
+nada.
+
+O `Save` de uma tabela com `Unique` envia o savepoint, a escrita e o `RELEASE`
+num único round trip. No modo padrão do pgx, o primeiro `Save` de cada escrita
+numa conexão paga a mais, uma vez, para preparar os três statements por nome;
+a recusa paga o `ROLLBACK TO SAVEPOINT` e, na criação, a sonda de identidade,
+preparada na primeira criação recusada de cada conexão (4 escritas no socket nessa,
+3 nas seguintes), e o `Save` seguinte volta a um round trip. Um `ResetSession` que rode `DEALLOCATE
+ALL` ou `DISCARD ALL` invalida esses statements sem o pgx saber. Tabela sem
+`Unique` não muda.
 
 ## 7. Keycloak de referência (opcional)
 
@@ -297,6 +432,7 @@ hora; declare essa retenção no registro de tratamento de dados do consumidor.
 
 - [`docs/adr/060-o-dmpf-tem-consumidor-externo.md`](../adr/060-o-dmpf-tem-consumidor-externo.md) — a decisão.
 - [`docs/adr/065-revogacao-de-sessao-no-authn.md`](../adr/065-revogacao-de-sessao-no-authn.md) — a revogação de sessão no `authn` e o papel que alimenta a deny-list.
+- [`docs/adr/066-unicidade-declarada-como-rejeicao.md`](../adr/066-unicidade-declarada-como-rejeicao.md) — a unicidade de negócio declarada no `Table` e devolvida como rejeição de domínio.
 - [`tools/dmpf-plugin/README.md`](../../tools/dmpf-plugin/README.md) — generators, executors, migrations e `versions.json`.
 - [`docs/guides/dmpf-composicao.md`](dmpf-composicao.md) — como um contexto se compõe sobre o kernel.
 - [`docs/guides/dmpf-manifesto.md`](dmpf-manifesto.md) — manifesto, baseline e gate de conformidade.

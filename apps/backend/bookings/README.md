@@ -63,6 +63,30 @@ pelo `bff`. Uma recusa de domínio volta como `rejection` na resposta; uma falha
 técnica é um status gRPC (`NOT_FOUND`, `ABORTED` para conflito de versão,
 `INVALID_ARGUMENT` para entrada malformada).
 
+## Registro de recurso
+
+`RegisterResource` recebe `resource_id` e `name`. O `name` é obrigatório e
+único por tenant por igualdade exata, sem normalização de caixa nem de espaços.
+Escrita não latina, como CJK ("会议室"), é aceita, e o espaço interno é preservado.
+A borda gRPC recusa com `INVALID_ARGUMENT` o nome vazio, com mais de 200
+caracteres, com UTF-8 inválido, com caracteres de controle (categoria Unicode
+`Cc`), de formatação (categoria `Cf`, como U+200B, U+202E, U+2060, U+2066 a
+U+2069 e U+FEFF), separador de linha ou de parágrafo (U+2028, U+2029), seletor
+de variação (U+FE00 a U+FE0F, U+E0100 a U+E01EF, U+180B a U+180F) ou outro
+ponto de código ignorável por padrão (como U+034F e os preenchedores Hangul
+U+115F, U+1160, U+3164 e U+FFA0), ou sem nenhum caractere que não seja espaço
+Unicode nem marca combinante (U+0301 sozinho é recusado; o "é" decomposto é
+aceito). Por decisão deliberada, o seletor depois de emoji também é recusado:
+"❤️" (U+2764 U+FE0F), como muitos teclados de celular o digitam, volta
+`INVALID_ARGUMENT`, e "❤" ou "🎉" passam. Ficam aceitos, como limite conhecido,
+U+2800 (braille em branco), U+FFFC e homóglifos visíveis. A regra é a mesma do
+`bff`, replicada em `validName` nas duas bordas. O domínio recusa
+o nome vazio com `resource-scheduling/resource/name-empty` e o nome já usado por
+outro recurso do tenant com `resource-scheduling/resource/duplicate-name`, ambos
+como `rejection` na resposta (422 no `bff`). O novo registro do mesmo
+`resource_id` mantém o nome original. Uma violação de unicidade que não vira
+recusa de domínio chega como `ALREADY_EXISTS` (409 `already-exists` no `bff`).
+
 ## Idempotência dos comandos
 
 `ReserveBooking`, `CancelBooking` e `RegisterResource` exigem a metadata

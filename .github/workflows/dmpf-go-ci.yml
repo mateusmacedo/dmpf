@@ -23,6 +23,22 @@ on:
         description: Sobe o Keycloak de referência (infra/keycloak) para os testes de integração do authn; só o repositório do DMPF o liga
         type: boolean
         default: false
+      full:
+        description: Roda todos os projetos em vez dos afetados, e o govulncheck
+        type: boolean
+        default: false
+      self-tests:
+        description: Roda os vetores negativos dos gates (provam o verificador, não o código)
+        type: boolean
+        default: false
+      platform:
+        description: Roda os checks que só existem no repositório do DMPF (generator, init, versions.json, Grafana, OTel)
+        type: boolean
+        default: false
+    secrets:
+      NX_CLOUD_ACCESS_TOKEN:
+        description: Token de CI do Nx Cloud; ausente, vale o acesso que o nxCloudId do nx.json concede
+        required: false
 
 permissions: {}
 
@@ -31,14 +47,15 @@ permissions: {}
 env:
   CI: "true"
   # O registry npm do GitHub Packages exige token até para pacote público; o
-  # .npmrc de usuário que cada job grava o lê daqui para instalar o plugin.
+  # .npmrc de usuário que o job grava o lê daqui para instalar o plugin.
   NODE_AUTH_TOKEN: ${{ github.token }}
+  NX_CLOUD_ACCESS_TOKEN: ${{ secrets.NX_CLOUD_ACCESS_TOKEN }}
 
 jobs:
-  go:
-    name: Pirâmide Go (estágios 1 a 5)
+  dmpf:
+    name: DMPF
     runs-on: ubuntu-26.04
-    timeout-minutes: 30
+    timeout-minutes: 60
     permissions:
       actions: read
       contents: read
@@ -54,6 +71,11 @@ jobs:
       AWS_ACCESS_KEY_ID: "test"
       AWS_SECRET_ACCESS_KEY: "test"
       REDIS_URL: "redis://revocation:ci-revocation@localhost:6379/0"
+      IMAGEM_POSTGRES: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+      IMAGEM_REDPANDA: redpandadata/redpanda:v26.2.2@sha256:468bd13a9f2bd24794cb7fddc867c767fb1008b9a07b297b89fde48c564d7d96
+      IMAGEM_FLOCI: floci/floci:2.0.1@sha256:4e451c39c7bb88e3cd4f87e8fc0c25d5b47695a51185d521e2241fa00486e8eb
+      IMAGEM_KEYCLOAK: quay.io/keycloak/keycloak:26.8.1@sha256:79c623a22abacf3fe6c00a5fb30f5b7843d717b234033b80995891c06116d244
+      IMAGEM_REDIS: redis:7.4.11-alpine@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499
 
     steps:
       - name: Checkout
@@ -108,129 +130,94 @@ jobs:
             libs/**/go.sum
             tools/**/go.sum
 
-      # Sem main-branch-name a action procura `main`; no push na base, sem
-      # execução anterior, a base cairia na árvore vazia. O fallback é a ponta anterior.
+      # Também no modo `full`: o buf-breaking lê NX_BASE como baseline. Sem
+      # main-branch-name a action procura `main`; o fallback é a ponta anterior.
       - name: Set Nx SHAs for affected (base/head)
         uses: nrwl/nx-set-shas@afb73a62d26e41464e9254689e1fd6122ee683c1 # v5
         with:
           main-branch-name: ${{ inputs.base || github.event.repository.default_branch }}
           fallback-sha: ${{ github.event.before }}
 
-      - name: Cache do Nx
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: .nx/cache
-          key: ci-${{ runner.os }}-${{ github.job }}-${{ github.sha }}
-          restore-keys: ci-${{ runner.os }}-${{ github.job }}-
-
-      # A cadeia Go corre por estágio da pirâmide (FND-09 KIT-09..KIT-11): cada
-      # estágio é gate do seguinte, e a infraestrutura só sobe depois que as
-      # camadas que não precisam dela passaram. A seleção é pela tag `layer:*`
-      # dos project.json; `--affected` mantém o regime do resto do pipeline.
-      - name: Estágio 1 — domínio (layer:domain)
+      # Uma leitura do grafo decide tudo o que depende do escopo: o comando Nx
+      # (affected ou run-many), quem precisa da infra e quem divide estado nela.
+      - name: Escopo do Nx
+        id: scope
+        env:
+          FULL: ${{ inputs.full }}
+          KEYCLOAK: ${{ inputs.keycloak }}
         run: |
           set -euo pipefail
-          lista="$(pnpm --silent nx show projects --affected --base=$NX_BASE --head=$NX_HEAD --projects=tag:layer:domain --json | jq -r 'join(",")')"
-          if [ -z "$lista" ]; then
-            echo "estágio 1 (domain): nenhum projeto afetado"
-            exit 0
+          if [ "$FULL" = true ]; then
+            show=()
+            echo "NX_SCOPE=run-many" >> "$GITHUB_ENV"
+          else
+            show=(--affected "--base=$NX_BASE" "--head=$NX_HEAD")
+            echo "NX_SCOPE=affected --base=$NX_BASE --head=$NX_HEAD" >> "$GITHUB_ENV"
           fi
-          pnpm nx run-many -t fmt-check,vet,test-race -p "$lista" --parallel=3
-
-      - name: Estágio 2 — services (layer:services)
-        run: |
-          set -euo pipefail
-          lista="$(pnpm --silent nx show projects --affected --base=$NX_BASE --head=$NX_HEAD --projects=tag:layer:services --json | jq -r 'join(",")')"
-          if [ -z "$lista" ]; then
-            echo "estágio 2 (services): nenhum projeto afetado"
-            exit 0
-          fi
-          pnpm nx run-many -t fmt-check,vet,test-race -p "$lista" --parallel=3
-
-      - name: Tooling Go (tools/**, sem layer:*)
-        run: |
-          set -euo pipefail
-          afetados="$(pnpm --silent nx show projects --affected --base=$NX_BASE --head=$NX_HEAD --projects=tag:stack:go --json | jq -r '.[]' | sort)"
-          tooling="$(pnpm --silent nx show projects --projects='tools/**' --json | jq -r '.[]' | sort)"
-          lista="$(comm -12 <(echo "$afetados") <(echo "$tooling") | paste -sd, -)"
-          if [ -z "$lista" ]; then
-            echo "tooling: nenhum projeto afetado"
-            exit 0
-          fi
-          pnpm nx run-many -t fmt-check,vet,test-race -p "$lista" --parallel=3
+          grafo="$RUNNER_TEMP/graph.json"
+          pnpm --silent nx graph --file="$grafo" >/dev/null
+          alvo="$(pnpm --silent nx show projects "${show[@]}" --exclude="$NX_EXCLUDE" --json)"
+          echo "projetos: $(jq -r 'join(", ")' <<<"$alvo")"
+          jq --argjson alvo "$alvo" '[.graph.nodes[] | select(.name as $n | $alvo | index($n))]' "$grafo" > "$RUNNER_TEMP/alvo.json"
+          serial="$(jq -r '[.[] | select(.data.targets["test-race"].cache == false and (.data.tags | index("layer:providers"))) | .name] | join(",")' "$RUNNER_TEMP/alvo.json")"
+          infra="$(jq -r 'any(.[]; .data.targets["test-race"].cache == false or .data.targets["test-integration"] != null or .data.targets.e2e != null)' "$RUNNER_TEMP/alvo.json")"
+          {
+            echo "serial=$serial"
+            echo "infra=$infra"
+            echo "keycloak=$([ "$infra" = true ] && [ "$KEYCLOAK" = true ] && jq -e 'index("authn")' <<<"$alvo" >/dev/null && echo true || echo false)"
+            echo "redis=$([ "$infra" = true ] && jq -e 'index("redis") or index("bff")' <<<"$alvo" >/dev/null && echo true || echo false)"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Espelho do Docker Hub
+        if: steps.scope.outputs.infra == 'true'
         uses: ./.dmpf-ci/.github/actions/docker-hub-mirror
 
-      # No runner hospedado do GitHub o job roda na VM, sem container próprio:
-      # `--network host` publica cada serviço em localhost, como os testes esperam.
-      - name: Subir Postgres para os testes de integração
+      # Sobe antes do lint e do build para que o boot dos serviços (o Keycloak leva
+      # ~60 s) corra junto deles; a prontidão só é esperada antes do test-race.
+      - name: Subir a infra de testes
+        if: steps.scope.outputs.infra == 'true'
+        env:
+          KEYCLOAK: ${{ steps.scope.outputs.keycloak }}
+          REDIS: ${{ steps.scope.outputs.redis }}
         run: |
           set -euo pipefail
-          nome="test-postgres-$(hostname)"
-          docker rm -f "$nome" >/dev/null 2>&1 || true
-          docker run -d --name "$nome" \
+          imagens=("$IMAGEM_POSTGRES" "$IMAGEM_REDPANDA" "$IMAGEM_FLOCI")
+          [ "$KEYCLOAK" = true ] && imagens+=("$IMAGEM_KEYCLOAK")
+          [ "$REDIS" = true ] && imagens+=("$IMAGEM_REDIS")
+          pids=()
+          for imagem in "${imagens[@]}"; do
+            docker pull -q "$imagem" &
+            pids+=("$!")
+          done
+          for pid in "${pids[@]}"; do
+            wait "$pid"
+          done
+
+          # No runner hospedado do GitHub o job roda na VM, sem container próprio:
+          # `--network host` publica cada serviço em localhost, como os testes esperam.
+          sufixo="$(hostname)"
+          docker rm -f "test-postgres-$sufixo" "test-redpanda-$sufixo" "test-redpanda-sasl-$sufixo" \
+            "test-floci-$sufixo" "test-keycloak-$sufixo" "test-redis-$sufixo" >/dev/null 2>&1 || true
+          docker run -d --name "test-postgres-$sufixo" \
             --network host \
             -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=postgres \
-            postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685 \
+            "$IMAGEM_POSTGRES" \
             -c cluster_name=test
-          for _ in $(seq 1 30); do
-            if docker exec "$nome" pg_isready -U postgres -q; then
-              echo "postgres pronto em localhost:5432 ($nome)"
-              exit 0
-            fi
-            sleep 2
-          done
-          echo "postgres nao respondeu em 60s" >&2
-          docker logs "$nome" >&2
-          exit 1
 
-      - name: Tooling Go — integração (tools/**, sem layer:*)
-        run: |
-          set -euo pipefail
-          afetados="$(pnpm --silent nx show projects --affected --base=$NX_BASE --head=$NX_HEAD --projects=tag:stack:go --json | jq -r '.[]' | sort)"
-          tooling="$(pnpm --silent nx show projects --projects='tools/**' --json | jq -r '.[]' | sort)"
-          lista="$(comm -12 <(echo "$afetados") <(echo "$tooling") | paste -sd, -)"
-          if [ -z "$lista" ]; then
-            echo "tooling (integração): nenhum projeto afetado"
-            exit 0
-          fi
-          pnpm nx run-many -t test-integration -p "$lista" --parallel=1
-
-      # Mesma rede do Postgres. `--mode dev-container` agrupa as flags
-      # de desenvolvimento e `--smp 1` é repassado ao binário (confirmado em
-      # v26.2.2 pelo exec logado); sem ele o broker toma todos os cores do runner.
-      - name: Subir Redpanda para os testes de integração
-        run: |
-          set -euo pipefail
-          nome="test-redpanda-$(hostname)"
-          docker rm -f "$nome" >/dev/null 2>&1 || true
-          docker run -d --name "$nome" \
+          # `--mode dev-container` agrupa as flags de desenvolvimento e `--smp 1` é
+          # repassado ao binário (confirmado em v26.2.2 pelo exec logado); sem ele o
+          # broker toma todos os cores do runner.
+          docker run -d --name "test-redpanda-$sufixo" \
             --network host \
-            redpandadata/redpanda:v26.2.2@sha256:468bd13a9f2bd24794cb7fddc867c767fb1008b9a07b297b89fde48c564d7d96 \
+            "$IMAGEM_REDPANDA" \
             redpanda start --mode dev-container --smp 1
-          for _ in $(seq 1 30); do
-            if docker exec "$nome" rpk cluster info >/dev/null 2>&1; then
-              echo "redpanda pronto em localhost:9092 ($nome)"
-              exit 0
-            fi
-            sleep 2
-          done
-          echo "redpanda nao respondeu em 60s" >&2
-          docker logs "$nome" >&2
-          exit 1
 
-      # Segundo broker, que exige SASL SCRAM (IDN-04): prova que o cliente se
-      # autentica e que o broker recusa quem não se autentica. Portas próprias
-      # porque os contêineres dividem a rede do host.
-      - name: Subir Redpanda com SASL para o teste de autenticação de cliente
-        run: |
-          set -euo pipefail
-          nome="test-redpanda-sasl-$(hostname)"
-          docker rm -f "$nome" 2>/dev/null || true
-          docker run -d --name "$nome" \
+          # Segundo broker, que exige SASL SCRAM (IDN-04): prova que o cliente se
+          # autentica e que o broker recusa quem não se autentica. Portas próprias
+          # porque os contêineres dividem a rede do host.
+          docker run -d --name "test-redpanda-sasl-$sufixo" \
             --network host \
-            redpandadata/redpanda:v26.2.2@sha256:468bd13a9f2bd24794cb7fddc867c767fb1008b9a07b297b89fde48c564d7d96 \
+            "$IMAGEM_REDPANDA" \
             redpanda start --mode dev-container --smp 1 \
             --advertise-kafka-addr sasl://localhost:19092 \
             --rpc-addr 0.0.0.0:43145 --advertise-rpc-addr localhost:43145 \
@@ -239,284 +226,50 @@ jobs:
             --set 'redpanda.kafka_api=[{"name":"sasl","address":"0.0.0.0","port":19092,"authentication_method":"sasl"}]' \
             --set "redpanda.superusers=[\"${KAFKA_SASL_USERNAME}\"]" \
             --set redpanda.kafka_enable_authorization=true
-          for _ in $(seq 1 30); do
-            if docker exec "$nome" rpk cluster health -X admin.hosts=localhost:19644 2>/dev/null | grep -q 'Healthy:.*true'; then
-              docker exec "$nome" rpk security user create "$KAFKA_SASL_USERNAME" -p "$KAFKA_SASL_PASSWORD" \
-                --mechanism SCRAM-SHA-256 -X admin.hosts=localhost:19644
-              echo "redpanda com SASL pronto em localhost:19092 ($nome)"
-              exit 0
-            fi
-            sleep 2
-          done
-          echo "redpanda com SASL nao respondeu em 60s" >&2
-          docker logs "$nome" >&2
-          exit 1
 
-      # SQS e SNS no mesmo emulador, para o hop SNS → SQS com raw delivery. As
-      # filas e tópicos são criados pelo próprio teste de integração; o floci
-      # aceita qualquer credencial não vazia, e /_floci/health lista os serviços.
-      - name: Subir floci (SQS e SNS) para os testes de integração
-        run: |
-          set -euo pipefail
-          nome="test-floci-$(hostname)"
-          docker rm -f "$nome" >/dev/null 2>&1 || true
-          docker run -d --name "$nome" \
+          # SQS e SNS no mesmo emulador, para o hop SNS → SQS com raw delivery. As
+          # filas e tópicos são criados pelo próprio teste de integração; o floci
+          # aceita qualquer credencial não vazia, e /_floci/health lista os serviços.
+          docker run -d --name "test-floci-$sufixo" \
             --network host \
-            floci/floci:2.0.1@sha256:4e451c39c7bb88e3cd4f87e8fc0c25d5b47695a51185d521e2241fa00486e8eb
-          for _ in $(seq 1 30); do
-            if curl -sf -o /dev/null "http://localhost:4566/_floci/health"; then
-              echo "floci pronto em localhost:4566 ($nome)"
-              exit 0
-            fi
-            sleep 2
-          done
-          echo "floci nao respondeu em 60s" >&2
-          docker logs "$nome" >&2
-          exit 1
+            "$IMAGEM_FLOCI"
 
-      - name: Subir Keycloak para os testes de integração do authn
-        if: inputs.keycloak
-        run: |
-          set -euo pipefail
-          afetados="$(pnpm --silent nx show projects --affected --base=$NX_BASE --head=$NX_HEAD --json)"
-          if ! jq -e 'index("authn")' <<<"$afetados" >/dev/null; then
-            echo "keycloak: authn não afetado"
-            exit 0
-          fi
-          imagem=quay.io/keycloak/keycloak:26.8.1@sha256:79c623a22abacf3fe6c00a5fb30f5b7843d717b234033b80995891c06116d244
-          nome="test-keycloak-$(hostname)"
-          docker rm -f "$nome" >/dev/null 2>&1 || true
-          docker run -d --name "$nome" \
-            --network host \
-            -e KC_HOSTNAME=http://127.0.0.1:18180 \
-            -e KC_HTTP_PORT=18180 \
-            -e KC_HTTP_MANAGEMENT_PORT=19000 \
-            -e KC_BOOTSTRAP_ADMIN_USERNAME=admin \
-            -e KC_BOOTSTRAP_ADMIN_PASSWORD=admin \
-            -e DMPF_SESSION_EVENTS_SECRET=dmpf-test-session-events \
-            -v "$PWD/infra/keycloak/dmpf-realm.json:/opt/keycloak/data/import/dmpf-realm.json:ro" \
-            "$imagem" start --http-enabled=true --health-enabled=true --cache=local --db=dev-file --import-realm
-          pronto=""
-          for _ in $(seq 1 60); do
-            if curl -sf -o /dev/null "http://localhost:19000/health/ready"; then
-              pronto=1
-              break
-            fi
-            sleep 2
-          done
-          if [ -z "$pronto" ]; then
-            echo "keycloak não respondeu em 120s" >&2
-            docker logs "$nome" >&2
-            exit 1
-          fi
-          docker run --rm --network host \
-            -e KEYCLOAK_URL=http://127.0.0.1:18180 \
-            -e KC_BOOTSTRAP_ADMIN_USERNAME=admin \
-            -e KC_BOOTSTRAP_ADMIN_PASSWORD=admin \
-            -v "$PWD/infra/keycloak/dev/seed.sh:/seed/seed.sh:ro" \
-            --entrypoint bash "$imagem" /seed/seed.sh
-          echo "KEYCLOAK_CALLBACK_HOST=127.0.0.1" >> "$GITHUB_ENV"
-          echo "keycloak pronto em 127.0.0.1:18180 ($nome)"
-
-      - name: Subir Redis para os testes de integração da deny-list
-        run: |
-          set -euo pipefail
-          afetados="$(pnpm --silent nx show projects --affected --base=$NX_BASE --head=$NX_HEAD --json)"
-          if ! jq -e 'index("redis") or index("bff")' <<<"$afetados" >/dev/null; then
-            echo "redis: nem redis nem bff afetados"
-            exit 0
-          fi
-          nome="test-redis-$(hostname)"
-          docker rm -f "$nome" >/dev/null 2>&1 || true
-          docker run -d --name "$nome" \
-            --network host \
-            --tmpfs /data \
-            redis:7.4.11-alpine@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499 \
-            redis-server --appendonly yes --appendfsync everysec --maxmemory-policy noeviction \
-            --user default off \
-            --user revocation on '>ci-revocation' '~dmpf:revocation:*' \
-            -@all +hello +auth '+client|setinfo' +ping +mget +evalsha +eval +get +set
-          for _ in $(seq 1 30); do
-            if docker exec "$nome" redis-cli --no-auth-warning -u "$REDIS_URL" ping 2>/dev/null | grep -q PONG; then
-              echo "redis pronto em localhost:6379 ($nome)"
-              exit 0
-            fi
-            sleep 2
-          done
-          echo "redis não respondeu em 60s" >&2
-          docker logs "$nome" >&2
-          exit 1
-
-      - name: Estágio 3 — contrato (layer:contract)
-        run: |
-          set -euo pipefail
-          lista="$(pnpm --silent nx show projects --affected --base=$NX_BASE --head=$NX_HEAD --projects=tag:layer:contract --json | jq -r 'join(",")')"
-          if [ -z "$lista" ]; then
-            echo "estágio 3 (contract): nenhum projeto afetado"
-            exit 0
-          fi
-          pnpm nx run-many -t fmt-check,vet,test-race -p "$lista" --parallel=3
-
-      # Gates Buf dos contratos (contracts/README.md, "Gates e baseline"): só os
-      # projetos de contrato os declaram, com o .proto nos inputs, então um PR que
-      # toque só um .proto entra no affected; buf-breaking lê NX_BASE como baseline.
-      # Fecham o estágio 3 (KIT-09: uma quebra contratual barra providers e apps).
-      # Os gates DMPF correm em job próprio, então a falha aqui não os suprime.
-      - name: Estágio 3 — gates Buf do contrato (affected)
-        run: pnpm nx affected -t buf-lint,buf-pins,buf-generate-check,buf-breaking,buf-gate-selftest --base=$NX_BASE --head=$NX_HEAD --parallel=3 --exclude=$NX_EXCLUDE
-
-      # `--parallel=1` só para quem compartilha o Postgres, o Redpanda e o floci
-      # do job — cada um desses harnesses reinicia tabelas ou cria tópicos e
-      # filas. O discriminador é o próprio target: `test-race` com `cache: false`
-      # é o que exige a infra do job; o resto do estágio corre em paralelo.
-      - name: Estágio 4 — providers (layer:providers)
-        run: |
-          set -euo pipefail
-          lista="$(pnpm --silent nx show projects --affected --base=$NX_BASE --head=$NX_HEAD --projects=tag:layer:providers --json | jq -r '.[]')"
-          if [ -z "$lista" ]; then
-            echo "estágio 4 (providers): nenhum projeto afetado"
-            exit 0
-          fi
-          stateful=""; stateless=""
-          for p in $lista; do
-            if [ "$(pnpm --silent nx show project "$p" --json | jq -r '.targets["test-race"].cache')" = "false" ]; then
-              stateful="$stateful,$p"
-            else
-              stateless="$stateless,$p"
-            fi
-          done
-          if [ -n "$stateless" ]; then
-            pnpm nx run-many -t fmt-check,vet,test-race -p "${stateless#,}" --parallel=3
-          fi
-          if [ -n "$stateful" ]; then
-            pnpm nx run-many -t fmt-check,vet,test-race -p "${stateful#,}" --parallel=1
+          if [ "$KEYCLOAK" = true ]; then
+            docker run -d --name "test-keycloak-$sufixo" \
+              --network host \
+              -e KC_HOSTNAME=http://127.0.0.1:18180 \
+              -e KC_HTTP_PORT=18180 \
+              -e KC_HTTP_MANAGEMENT_PORT=19000 \
+              -e KC_BOOTSTRAP_ADMIN_USERNAME=admin \
+              -e KC_BOOTSTRAP_ADMIN_PASSWORD=admin \
+              -e DMPF_SESSION_EVENTS_SECRET=dmpf-test-session-events \
+              -v "$PWD/infra/keycloak/dmpf-realm.json:/opt/keycloak/data/import/dmpf-realm.json:ro" \
+              "$IMAGEM_KEYCLOAK" start --http-enabled=true --health-enabled=true --cache=local --db=dev-file --import-realm
           fi
 
-      # Cada teste ganha o próprio banco (<projeto>_test_<id>) e tópicos com
-      # sufixo da execução, então as apps não disputam estado e correm em paralelo.
-      - name: Estágio 5 — apps (layer:apps)
-        run: |
-          set -euo pipefail
-          lista="$(pnpm --silent nx show projects --affected --base=$NX_BASE --head=$NX_HEAD --projects=tag:layer:apps --json | jq -r 'join(",")')"
-          if [ -z "$lista" ]; then
-            echo "estágio 5 (apps): nenhum projeto afetado"
-            exit 0
-          fi
-          pnpm nx run-many -t fmt-check,vet,test-race -p "$lista" --parallel=3
-
-      - name: E2E (affected)
-        run: pnpm nx affected -t e2e --base=$NX_BASE --head=$NX_HEAD --parallel=1 --exclude=$NX_EXCLUDE
-
-      # O nome dos containers leva o id do job, então o `docker rm -f` do início
-      # de cada step nunca alcança o resíduo de um job anterior; quem limpa é este.
-      - name: Derrubar a infraestrutura do job
-        if: always()
-        run: docker rm -f "test-postgres-$(hostname)" "test-redpanda-$(hostname)" "test-redpanda-sasl-$(hostname)" "test-floci-$(hostname)" "test-keycloak-$(hostname)" "test-redis-$(hostname)" >/dev/null 2>&1 || true
-
-  gates:
-    name: Gates DMPF
-    runs-on: ubuntu-26.04
-    timeout-minutes: 30
-    permissions:
-      actions: read
-      contents: read
-      packages: read
-    steps:
-      - name: Checkout
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
-        with:
-          fetch-depth: 0
-
-      - name: Origem do workflow reutilizável
-        env:
-          WORKFLOW_SHA: ${{ job.workflow_sha }}
-        run: |
-          if [ -z "$WORKFLOW_SHA" ]; then
-            echo "job.workflow_sha vazio: as actions viriam da branch default do DMPF" >&2
-            exit 1
+          if [ "$REDIS" = true ]; then
+            docker run -d --name "test-redis-$sufixo" \
+              --network host \
+              --tmpfs /data \
+              "$IMAGEM_REDIS" \
+              redis-server --appendonly yes --appendfsync everysec --maxmemory-policy noeviction \
+              --user default off \
+              --user revocation on '>ci-revocation' '~dmpf:revocation:*' \
+              -@all +hello +auth '+client|setinfo' +ping +mget +evalsha +eval +get +set
           fi
 
-      - name: Checkout das actions do DMPF
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
-        with:
-          repository: ${{ job.workflow_repository }}
-          ref: ${{ job.workflow_sha }}
-          path: .dmpf-ci
-          sparse-checkout: /.github/actions/
-          sparse-checkout-cone-mode: false
-          persist-credentials: false
+      - name: Formatação e lint do Biome
+        if: hashFiles('biome.json', 'biome.jsonc') != ''
+        run: pnpm biome ci .
 
-      # O pnpm 11.5.3+ não expande ${VAR} em credencial do .npmrc do repositório (GHSA-3qhv-2rgh-x77r).
-      - name: Credencial do GitHub Packages no .npmrc de usuário
-        run: |
-          printf '%s\n' '//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}' > "$RUNNER_TEMP/npmrc"
-          echo "NPM_CONFIG_USERCONFIG=$RUNNER_TEMP/npmrc" >> "$GITHUB_ENV"
-
-      - name: Setup Node and pnpm
-        uses: ./.dmpf-ci/.github/actions/setup-node-pnpm
-        with:
-          node-version: ${{ inputs.node-version }}
-
-      - name: Layout DMPF
-        uses: ./.dmpf-ci/.github/actions/dmpf-layout
-        with:
-          plugin-version: ${{ inputs.plugin-version }}
-
-      - name: Setup Go
-        uses: ./.dmpf-ci/.github/actions/setup-go
-        with:
-          go-version: ${{ inputs.go-version }}
-          versions-file: ${{ env.DMPF_PLUGIN_DIR }}/versions.json
-          go-sum-paths: |
-            ${{ env.DMPF_APPS_DIR }}/**/go.sum
-            libs/**/go.sum
-            tools/**/go.sum
-
-      - name: Set Nx SHAs for affected (base/head)
-        uses: nrwl/nx-set-shas@afb73a62d26e41464e9254689e1fd6122ee683c1 # v5
-        with:
-          main-branch-name: ${{ inputs.base || github.event.repository.default_branch }}
-          fallback-sha: ${{ github.event.before }}
-
-      # Os estágios da pirâmide selecionam por `layer:*`; um módulo Go sem a tag
-      # perderia fmt-check, vet e test-race sem ninguém reclamar. A diferença entre
-      # `stack:go` (menos o tooling em tools/, que tem step próprio) e a união das
-      # cinco camadas tem de ser vazia.
+      # Sem a tag, um provider com `test-race` sem cache sairia da fila serial e
+      # disputaria a infra do job com os outros providers.
       - name: Toda lib Go declara exatamente uma camada
         run: |
           set -euo pipefail
-          go_all="$(pnpm --silent nx show projects --projects=tag:stack:go --exclude='tools/**' --json | jq -r '.[]' | sort)"
-          layered="$(for l in domain services contract providers apps; do pnpm --silent nx show projects --projects=tag:layer:$l --json | jq -r '.[]'; done | sort)"
-          if [ -n "$(comm -23 <(echo "$go_all") <(echo "$layered"))" ]; then
-            echo "módulos Go sem tag layer:*:" >&2
-            comm -23 <(echo "$go_all") <(echo "$layered") >&2
-            exit 1
-          fi
-          if [ -n "$(echo "$layered" | uniq -d)" ]; then
-            echo "módulos em mais de uma camada:" >&2
-            echo "$layered" | uniq -d >&2
-            exit 1
-          fi
-
-      # Os gates decidem sobre a árvore, não sobre um banco. O gate de dependência
-      # roda o golangci-lint uma vez por vetor, então fica sob o mesmo regime de
-      # `affected` do resto do pipeline: um PR só de TypeScript não paga por ele.
-      - name: Detect affected Go projects
-        id: go_affected
-        run: |
-          set -euo pipefail
-          lista="$(pnpm --silent nx show projects --affected --base=$NX_BASE --head=$NX_HEAD --projects=tag:stack:go --json | jq -r 'join(",")')"
-          if [ -n "$lista" ]; then
-            echo "any=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "any=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      # Prova que o gate de dependência do bloco domain continua reprovando o
-      # que deve reprovar; sem rodar, o vetor negativo não protege de regressão.
-      - name: DMPF dependency gate
-        if: steps.go_affected.outputs.any == 'true'
-        run: bash "$DMPF_PLUGIN_DIR/scripts/dmpf-gate-check.sh"
+          jq -r '.graph.nodes[] | select((.data.tags | index("stack:go")) and (.data.root | startswith("tools/") | not))
+            | [.name, ([.data.tags[] | select(startswith("layer:"))] | length)] | @tsv' "$RUNNER_TEMP/graph.json" \
+            | awk -F'\t' '$2 != 1 { print "módulo Go com " $2 " tags layer:*: " $1; erro = 1 } END { exit erro }' >&2
 
       # Sem `if` de projeto Go afetado: o layout de um contexto se rompe ao mover
       # arquivo ou ao mexer em project.json e dmpf-units.json, que não são Go.
@@ -549,15 +302,267 @@ jobs:
       - name: DMPF infrasync gate
         run: go run "$DMPF_TOOLS/infrasync$DMPF_TOOLS_VERSION" --root . --check
 
-      # GATE, fail-closed. Sem `continue-on-error` e sem `|| true`: o verificador
-      # reprova o PR.
-      #
-      # Sem `if` de projeto Go afetado: o vencimento de exceção (DMPF-X006) muda
-      # com o tempo, sem mudança de código, e precisa reprovar em qualquer PR.
+      # GATE, fail-closed. Sem `if` de projeto Go afetado: o vencimento de exceção
+      # (DMPF-X006) muda com o tempo, sem mudança de código, e precisa reprovar em qualquer PR.
       - name: DMPF conformance gate
         run: go run "$DMPF_TOOLS/conformance$DMPF_TOOLS_VERSION" --root .
 
-      # govulncheck consulta base remota e não tem cache; corre uma vez sobre
-      # todo o Go afetado, fora da pirâmide.
-      - name: Go vulnerabilities (affected)
-        run: pnpm nx affected -t govulncheck --base=$NX_BASE --head=$NX_HEAD --parallel=3 --exclude=$NX_EXCLUDE
+      # buf-breaking lê NX_BASE como baseline (contracts/README.md, "Gates e baseline"). Sem `test` nem
+      # `vet` dos projetos Go: o `test-race` repete os pacotes do `test`, e o `govet` do golangci-lint é o `vet`.
+      - name: Lint, typecheck, build, testes TypeScript e gates Buf
+        run: |
+          set -euo pipefail
+          read -ra escopo <<<"$NX_SCOPE"
+          pnpm nx "${escopo[@]}" -t lint,typecheck,build,fmt-check,buf-lint,buf-pins,buf-generate-check,buf-breaking --parallel=3 --exclude="$NX_EXCLUDE"
+          pnpm nx "${escopo[@]}" -t test --parallel=3 --exclude="$NX_EXCLUDE,tag:stack:go"
+
+      - name: Esperar a infra de testes
+        if: steps.scope.outputs.infra == 'true'
+        env:
+          KEYCLOAK: ${{ steps.scope.outputs.keycloak }}
+          REDIS: ${{ steps.scope.outputs.redis }}
+        run: |
+          set -euo pipefail
+          sufixo="$(hostname)"
+          esperar() {
+            local servico="$1" tentativas="$2"
+            shift 2
+            for _ in $(seq 1 "$tentativas"); do
+              if "$@" >/dev/null 2>&1; then
+                echo "$servico pronto ($sufixo)"
+                return 0
+              fi
+              sleep 2
+            done
+            echo "$servico não respondeu em $((tentativas * 2))s" >&2
+            docker logs "test-$servico-$sufixo" >&2
+            return 1
+          }
+          redpanda_sasl_saudavel() {
+            docker exec "test-redpanda-sasl-$sufixo" rpk cluster health -X admin.hosts=localhost:19644 | grep -q 'Healthy:.*true'
+          }
+          redis_responde() {
+            docker exec "test-redis-$sufixo" redis-cli --no-auth-warning -u "$REDIS_URL" ping | grep -q PONG
+          }
+
+          esperar postgres 30 docker exec "test-postgres-$sufixo" pg_isready -U postgres -q
+          esperar redpanda 30 docker exec "test-redpanda-$sufixo" rpk cluster info
+          esperar redpanda-sasl 30 redpanda_sasl_saudavel
+          docker exec "test-redpanda-sasl-$sufixo" rpk security user create "$KAFKA_SASL_USERNAME" -p "$KAFKA_SASL_PASSWORD" \
+            --mechanism SCRAM-SHA-256 -X admin.hosts=localhost:19644
+          esperar floci 30 curl -sf -o /dev/null "http://localhost:4566/_floci/health"
+
+          if [ "$KEYCLOAK" = true ]; then
+            esperar keycloak 60 curl -sf -o /dev/null "http://localhost:19000/health/ready"
+            docker run --rm --network host \
+              -e KEYCLOAK_URL=http://127.0.0.1:18180 \
+              -e KC_BOOTSTRAP_ADMIN_USERNAME=admin \
+              -e KC_BOOTSTRAP_ADMIN_PASSWORD=admin \
+              -v "$PWD/infra/keycloak/dev/seed.sh:/seed/seed.sh:ro" \
+              --entrypoint bash "$IMAGEM_KEYCLOAK" /seed/seed.sh
+            echo "KEYCLOAK_CALLBACK_HOST=127.0.0.1" >> "$GITHUB_ENV"
+          fi
+
+          if [ "$REDIS" = true ]; then
+            esperar redis 30 redis_responde
+          fi
+
+      # Os providers com `test-race` sem cache reiniciam tabelas e criam tópicos e
+      # filas na infra compartilhada do job, então correm um por vez. As apps
+      # ganham banco (<projeto>_test_<id>) e tópicos próprios e correm em paralelo.
+      - name: Testes com race detector e integração
+        env:
+          SERIAL: ${{ steps.scope.outputs.serial }}
+        run: |
+          set -euo pipefail
+          read -ra escopo <<<"$NX_SCOPE"
+          if [ -n "$SERIAL" ]; then
+            pnpm nx run-many -t test-race -p "$SERIAL" --parallel=1
+          fi
+          # O `dependsOn` de `app` e `testkit` arrastaria de novo o `test-race` do `postgres`, que a
+          # série já rodou; o `test-infra-up` que sai junto é no-op no CI, cuja infra é a do job.
+          pnpm nx "${escopo[@]}" -t test-race --parallel=3 --exclude="$NX_EXCLUDE${SERIAL:+,$SERIAL}" --excludeTaskDependencies
+          pnpm nx "${escopo[@]}" -t test-integration,e2e --parallel=1 --exclude="$NX_EXCLUDE"
+
+      - name: Go vulnerabilities
+        if: inputs.full
+        run: pnpm nx run-many -t govulncheck --parallel=3 --exclude="$NX_EXCLUDE"
+
+      # Sem `if` de projeto Go afetado: o artefato que esta prova mede é escrito
+      # pelo generator, e uma mudança só no TypeScript do plugin o altera.
+      - name: DMPF generator check (structural)
+        if: inputs.platform
+        run: bash tools/dmpf-generator-check.sh --phase structural
+
+      # A infra genérica, o .golangci.yml, os ativos de IA e o setup Go do platform
+      # são saída do init: um dry-run que proponha mudança é divergência com os templates.
+      - name: DMPF init sem diff no platform
+        if: inputs.platform
+        run: |
+          set -euo pipefail
+          saida="$(pnpm nx g @mateusmacedo/dmpf-plugin:init --dry-run --no-interactive 2>&1)"
+          printf '%s\n' "$saida"
+          if grep -qE '^(CREATE|UPDATE|DELETE) ' <<<"$saida"; then
+            echo "init propõe mudança no platform: os templates divergem da infra versionada" >&2
+            exit 1
+          fi
+
+      - name: Pins do versions.json iguais às fontes
+        if: inputs.platform
+        run: node tools/dmpf-plugin/scripts/sync-versions.mjs --check
+
+      # O verificador de dashboards descarta fixtures com `trash`.
+      - name: Instalar trash-cli
+        if: inputs.platform
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y --no-install-recommends trash-cli
+
+      - name: Grafana provisioning e OTel env
+        if: inputs.platform
+        run: |
+          bash tools/grafana-provisioning-check.sh
+          bash tools/otel-env-check.sh
+
+      # O nome dos containers leva o id do job, então o `docker rm -f` antes da
+      # subida nunca alcança o resíduo de um job anterior; quem limpa é este.
+      - name: Derrubar a infraestrutura do job
+        if: always() && steps.scope.outputs.infra == 'true'
+        run: docker rm -f "test-postgres-$(hostname)" "test-redpanda-$(hostname)" "test-redpanda-sasl-$(hostname)" "test-floci-$(hostname)" "test-keycloak-$(hostname)" "test-redis-$(hostname)" >/dev/null 2>&1 || true
+
+  # Os vetores negativos provam o verificador, não o código: correm em job próprio,
+  # em paralelo ao `DMPF`, para não somar o tempo deles ao do job principal.
+  self-tests:
+    name: Vetores negativos
+    if: inputs.self-tests
+    runs-on: ubuntu-26.04
+    timeout-minutes: 45
+    permissions:
+      actions: read
+      contents: read
+      packages: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          fetch-depth: 0
+
+      - name: Origem do workflow reutilizável
+        env:
+          WORKFLOW_SHA: ${{ job.workflow_sha }}
+        run: |
+          if [ -z "$WORKFLOW_SHA" ]; then
+            echo "job.workflow_sha vazio: as actions viriam da branch default do DMPF" >&2
+            exit 1
+          fi
+
+      - name: Checkout das actions do DMPF
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: .dmpf-ci
+          sparse-checkout: /.github/actions/
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - name: Credencial do GitHub Packages no .npmrc de usuário
+        run: |
+          printf '%s\n' '//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}' > "$RUNNER_TEMP/npmrc"
+          echo "NPM_CONFIG_USERCONFIG=$RUNNER_TEMP/npmrc" >> "$GITHUB_ENV"
+
+      - name: Setup Node and pnpm
+        uses: ./.dmpf-ci/.github/actions/setup-node-pnpm
+        with:
+          node-version: ${{ inputs.node-version }}
+
+      - name: Layout DMPF
+        uses: ./.dmpf-ci/.github/actions/dmpf-layout
+        with:
+          plugin-version: ${{ inputs.plugin-version }}
+
+      - name: Setup Go
+        uses: ./.dmpf-ci/.github/actions/setup-go
+        with:
+          go-version: ${{ inputs.go-version }}
+          versions-file: ${{ env.DMPF_PLUGIN_DIR }}/versions.json
+          go-sum-paths: |
+            ${{ env.DMPF_APPS_DIR }}/**/go.sum
+            libs/**/go.sum
+            tools/**/go.sum
+
+      - name: Set Nx SHAs for affected (base/head)
+        uses: nrwl/nx-set-shas@afb73a62d26e41464e9254689e1fd6122ee683c1 # v5
+        with:
+          main-branch-name: ${{ inputs.base || github.event.repository.default_branch }}
+          fallback-sha: ${{ github.event.before }}
+
+      - name: Escopo do Nx
+        id: scope
+        env:
+          FULL: ${{ inputs.full }}
+        run: |
+          set -euo pipefail
+          if [ "$FULL" = true ]; then
+            show=()
+            echo "NX_SCOPE=run-many" >> "$GITHUB_ENV"
+          else
+            show=(--affected "--base=$NX_BASE" "--head=$NX_HEAD")
+            echo "NX_SCOPE=affected --base=$NX_BASE --head=$NX_HEAD" >> "$GITHUB_ENV"
+          fi
+          echo "go=$(pnpm --silent nx show projects "${show[@]}" --projects='tag:stack:go' --exclude="$NX_EXCLUDE" --json | jq 'length > 0')" >> "$GITHUB_OUTPUT"
+
+      # Prova que o gate de dependência do bloco domain continua reprovando o
+      # que deve reprovar; sem rodar, o vetor negativo não protege de regressão.
+      - name: DMPF dependency gate (self-test)
+        if: steps.scope.outputs.go == 'true'
+        run: bash "$DMPF_PLUGIN_DIR/scripts/dmpf-gate-check.sh"
+
+      - name: Gates Buf (self-test)
+        run: |
+          read -ra escopo <<<"$NX_SCOPE"
+          pnpm nx "${escopo[@]}" -t buf-gate-selftest --parallel=3 --exclude="$NX_EXCLUDE"
+
+      # Os self-tests descartam fixtures com `trash`.
+      - name: Instalar trash-cli
+        if: inputs.platform
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y --no-install-recommends trash-cli
+
+      # Célula e shared kernel são arestas entre unidades que nem o depguard nem
+      # o `--root .` exercitam enquanto não há consumidor do kernel (C2, DMPF-M004).
+      # Cada prova monta a fixture no próprio diretório temporário ou worktree, então correm juntas.
+      - name: Vetores negativos dos gates do platform (self-test)
+        if: inputs.platform
+        run: |
+          set -uo pipefail
+          declare -A provas=(
+            [cell]="bash tools/dmpf-cell-check.sh"
+            [shared-kernel]="bash tools/dmpf-shared-kernel-check.sh"
+            [generator]="bash tools/dmpf-generator-check.sh --phase self-test"
+            [context]="bash tools/dmpf-plugin/scripts/dmpf-context-check.sh --phase self-test"
+            [grafana]="bash tools/grafana-provisioning-check.sh --self-test"
+            [otel]="bash tools/otel-env-check.sh --self-test"
+            # Com PG_DSN o harness acrescenta test-race e test-distributed num worktree,
+            # que o job DMPF já cobre; sem ele, prova só que o gate normativo reprova.
+            [harness]="env -u PG_DSN bash tools/dmpf-harness-check.sh --phase self-test"
+          )
+          ordem=(cell shared-kernel generator context grafana otel harness)
+          declare -A pids
+          for prova in "${ordem[@]}"; do
+            read -ra comando <<<"${provas[$prova]}"
+            "${comando[@]}" > "$RUNNER_TEMP/self-test-$prova.log" 2>&1 &
+            pids[$prova]=$!
+          done
+          falhou=0
+          for prova in "${ordem[@]}"; do
+            resultado=ok
+            wait "${pids[$prova]}" || { resultado=FALHA; falhou=1; }
+            echo "::group::$prova ($resultado)"
+            cat "$RUNNER_TEMP/self-test-$prova.log"
+            echo "::endgroup::"
+            [ "$resultado" = ok ] || echo "::error title=Vetores negativos::$prova reprovou"
+          done
+          exit "$falhou"

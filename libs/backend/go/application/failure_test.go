@@ -86,6 +86,31 @@ func TestCategoryOfGivesTheIdempotencySentinelsTheirCategory(t *testing.T) {
 	}
 }
 
+func TestCategoryOfGivesThePlatformSentinelsTheirCategory(t *testing.T) {
+	for name, c := range map[string]struct {
+		err  error
+		want string
+	}{
+		"reach undeclared":       {fmt.Errorf("failure_test: %w", ports.ErrPlatformReachUndeclared), string(application.Forbidden)},
+		"projection denied":      {fmt.Errorf("failure_test: %w", ports.ErrProjectionDenied), string(application.Forbidden)},
+		"page limit invalid":     {fmt.Errorf("failure_test: %w", ports.ErrPlatformLimitInvalid), string(application.Validation)},
+		"destination absent":     {fmt.Errorf("failure_test: %w", ports.ErrProjectionDestinationAbsent), string(application.Validation)},
+		"audit unavailable":      {fmt.Errorf("failure_test: %w", ports.ErrAuditUnavailable), string(application.TransientDependency)},
+		"denied by authorize":    {fmt.Errorf("%w: %w", ports.ErrDenied, ports.ErrPlatformReachUndeclared), string(application.Forbidden)},
+		"failure over the audit": {application.NewFailure(application.Unexpected, false, ports.ErrAuditUnavailable), string(application.Unexpected)},
+		"denial over not found":  {fmt.Errorf("failure_test: %w: %w", ports.ErrProjectionDenied, ports.ErrNotFound), string(application.Forbidden)},
+		"denial over a conflict": {fmt.Errorf("failure_test: %w: %w", ports.ErrProjectionDenied, ports.ErrVersionConflict), string(application.Forbidden)},
+		"denial over a failure":  {fmt.Errorf("failure_test: %w: %w", ports.ErrProjectionDenied, application.NewFailure(application.TransientDependency, true, nil)), string(application.Forbidden)},
+		"reach over not found":   {fmt.Errorf("failure_test: %w: %w", ports.ErrPlatformReachUndeclared, ports.ErrNotFound), string(application.Forbidden)},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if got := application.CategoryOf(c.err); got != c.want {
+				t.Fatalf("CategoryOf(%v) = %q, want %q", c.err, got, c.want)
+			}
+		})
+	}
+}
+
 func TestCategoryOfGivesTheRepositorySentinelsTheCategoryTheEdgeAnswers(t *testing.T) {
 	for name, c := range map[string]struct {
 		err  error
@@ -94,6 +119,7 @@ func TestCategoryOfGivesTheRepositorySentinelsTheCategoryTheEdgeAnswers(t *testi
 		"not found":               {fmt.Errorf("failure_test: %w", ports.ErrNotFound), string(application.NotFound)},
 		"cross-tenant access":     {fmt.Errorf("failure_test: %w", ports.CrossTenantAccess{Object: "orders/x-1", ContextTenant: "acme", DataTenant: "globex"}), string(application.NotFound)},
 		"version conflict":        {fmt.Errorf("failure_test: %w", ports.ErrVersionConflict), string(application.Conflict)},
+		"unique violation":        {fmt.Errorf("failure_test: %w", ports.UniqueViolation{Table: "orders", Constraint: "orders_tenant_id_ref_key"}), string(application.Conflict)},
 		"failure over a sentinel": {application.NewFailure(application.Unexpected, false, ports.ErrNotFound), string(application.Unexpected)},
 	} {
 		t.Run(name, func(t *testing.T) {

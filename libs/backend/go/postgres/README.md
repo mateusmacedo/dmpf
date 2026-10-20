@@ -29,6 +29,122 @@ instâncias de `Table[ID,S]` no bloco `provider` de cada contexto —
   aberta. `Relation(filterColumn)` serve a consulta por relação que os
   genéricos de `ports` não expressam — muitas linhas de uma tabela filtradas
   por uma coluna que não é a chave —, com a mesma disciplina de tenant.
+  `Unique []Unique` declara a unicidade de negócio que o `schema.sql` impõe
+  além da identidade (ADR-066); o `validate` entra em pânico com nome ou coluna
+  fora de minúsculas, nome diferente de `<tabela>_<col1>_<colN>_key` ou acima
+  de 63 bytes, menos de duas colunas, `tenant_id` fora da frente, rejeição nula,
+  código inválido ou nome repetido. Só nas tabelas com `Unique`, o `Save` envia
+  `SAVEPOINT dmpf_unique`, o `INSERT` ou o `UPDATE` e `RELEASE SAVEPOINT
+  dmpf_unique` num único `pgx.Batch`. O nome é fixo: savepoints de mesmo nome
+  empilham, `RELEASE` e `ROLLBACK TO` atingem o mais recente, que é o do
+  próprio `Save`, e o `sp_N` do `Begin` aninhado do pgx fica abaixo dele; o
+  `ROLLBACK TO` mantém o savepoint, e o seguinte empilha por cima. Com o nome
+  fixo, cada statement é preparado uma vez por conexão. Continua um savepoint
+  (subtransação) por `Save`. O pgx prepara ou descreve os statements de um
+  batch antes de enviá-lo (`conn.go:1170`), e um prepare recusado antes do
+  `SAVEPOINT` abortaria a transação; por isso, no modo padrão
+  (`CacheStatement`), o primeiro `Save` de cada escrita numa conexão envia o
+  `SAVEPOINT` sozinho e prepara por nome a escrita, o `SAVEPOINT` e o
+  `RELEASE`, fora do LRU do cache de statements, e dali em diante o batch é um
+  round trip. O plano fica no `CustomData` da conexão. `Exec` e
+  `SimpleProtocol` mandam sempre um batch; `CacheDescribe` e `DescribeExec`
+  mandam sempre o `SAVEPOINT` separado. Quando a escrita falha, inclusive no
+  prepare (coluna divergente, `42703`), a falha vem depois do `SAVEPOINT`: o
+  servidor descarta o `RELEASE` e a transação fica abortada até o `ROLLBACK
+  TO SAVEPOINT`, que roda num contexto destacado do cancelamento, com prazo de
+  5 s, e a deixa utilizável. O erro da escrita sai sem rótulo; `savepoint:`
+  aparece só quando o servidor recusa o próprio `SAVEPOINT`
+  (`*pgconn.PgError`, como `25P02`), no batch ou enviado sozinho. Cancelamento,
+  timeout, falha de rede ou conexão fechada antes do resultado do `SAVEPOINT`
+  saem sem rótulo e sem `ROLLBACK TO`, nos dois caminhos: nada garante
+  que o savepoint exista, um `ROLLBACK TO` poderia atingir um savepoint mais
+  antigo de mesmo nome, e o pgx fecha a conexão. Um `23505` da própria tabela
+  volta então como `ports.UniqueViolation`, com a rejeição declarada se a
+  restrição está em `Unique` e a transação ainda não escreveu, e `Rejection`
+  nulo se não. Na criação, uma sonda confere antes se a identidade já existe
+  no tenant: se existe, é corrida de identidade e volta `ErrVersionConflict`.
+  O `Detail` do `PgError`, que cita os valores da linha, nunca chega ao erro
+  (ERR-07). Em escritas no socket, no modo padrão: o primeiro `Save` de cada
+  escrita numa conexão paga 5, uma vez; depois, 1, contra 3 com cada
+  statement enviado sozinho; a primeira criação recusada numa conexão paga 4
+  (batch, `ROLLBACK TO SAVEPOINT`, prepare e execução da sonda de identidade),
+  as seguintes, 3, e o `Save` seguinte à recusa, 1.
+  `CacheDescribe` paga 2 por `Save`, e `DescribeExec`, 3. O `BenchmarkSave`
+  (`unique_bench_test.go`) grava na mesma tabela declarada com e sem `Unique`.
+  O `-count` não intercala os sub-benchmarks, então o binário de teste rodou
+  12 vezes com `-test.count=1`: medianas de 171 µs sem e 195 µs com `Unique`
+  (razão 1,14), contra 177 e 356 µs (2,0) na versão anterior ao batch. Os
+  tempos absolutos variam com a carga da máquina, e só a razão compara. Um
+  `DEALLOCATE ALL` ou `DISCARD ALL` externo, como o de um `ResetSession`
+  configurado pelo consumidor, invalida os statements preparados por nome sem
+  o pgx saber, como invalidaria os do próprio pgx. Tabela sem `Unique` não
+  ganha statement nem round trip. `Uniques()` devolve a declaração como
+  `UniqueSet`, sem parâmetros de tipo. `Guard` e `QueryWithin` ficam neste
+  arquivo e estão descritos no item `guard.go`, abaixo.
+- **`guard.go`** — a guarda de pré-condição relacional (ADR-067). `Guard`
+  nomeia uma coluna de `Columns`; o `validate` entra em pânico com coluna fora
+  delas ou que não é identificador. `Relation(Guard).QueryWithin(ctx, tx,
+  valor)` lê como `Query`, mas na `*Tx` do comando: antes do `SELECT`, toma
+  `pg_advisory_xact_lock_shared` sobre `hashtextextended(concat_ws(chr(31),
+  tabela, coluna, length(tenant), tenant, valor), 0)` (o comprimento impede que
+  um tenant com `chr(31)` chegue à chave de outro), em instrução própria do mesmo
+  `pgx.Batch`, porque o snapshot em `READ COMMITTED` é da instrução e a leitura
+  precisa enxergar o que commitou durante a espera. `QueryWithin` sobre outra
+  coluna entra em pânico. Todo `Save` de tabela com `Guard` toma
+  `pg_advisory_xact_lock` da mesma chave, com o valor codificado da coluna, no
+  batch da escrita; com `Unique`, antes do `SAVEPOINT dmpf_unique`, porque o
+  `ROLLBACK TO SAVEPOINT` libera o lock tomado depois dele. Assim, nenhuma
+  escrita da série, `UPDATE` ou `INSERT` de supersessão, commita entre a
+  leitura de um comando e o commit dele: a pré-condição vale no commit, e a
+  escrita é serializada depois. Não é invariante permanente entre agregados. O
+  valor da guarda é só `string` (inclusive `~string`); outro tipo volta
+  `ErrGuardValue` sem ir ao servidor. A chave é o texto que o Go envia, não o
+  valor tipado da coluna: a coluna de guarda é `text`, com o valor já
+  canônico, porque em `uuid` ou `citext` valores iguais com grafias diferentes
+  tomariam locks diferentes. Um erro de preparo de outra instrução do batch
+  sai com o rótulo dela, não com o da guarda. O `UPDATE` inclui a guarda no `WHERE`,
+  e mudar o valor de um agregado existente volta `ErrVersionConflict`. A `Tx`
+  que tomou guarda converte qualquer `40P01` de `Load`, `Save` ou
+  `QueryWithin` em `ErrVersionConflict` (`Conflict`, `Aborted` no gRPC),
+  porque a vítima do ciclo pode ser o `UPDATE`, não o lock; sem guarda, o erro
+  segue o do driver. O deadlock é esperado quando dois comandos leem e depois
+  escrevem a mesma série, e a repetição é do chamador (UOW-10). Quem adota a
+  guarda assume quatro custos, detalhados no ADR-067: a transação que leu
+  bloqueia as escritas da série até o commit (configurar `lock_timeout` e
+  `idle_in_transaction_session_timeout` no pool); escritas da mesma série
+  correm em fila; cada valor lido ocupa uma entrada de
+  `max_locks_per_transaction`; e, com o contexto cancelado, o backend fica na
+  fila até perceber a queda (`client_connection_check_interval`). O advisory lock
+  não exige privilégio de tabela. Em escritas no socket, no modo padrão
+  (`CacheStatement`) e com conexão quente: a leitura com linhas paga 1, a
+  vazia 2 (a sonda de dono) e o `Save` com guarda 1, com ou sem `Unique`. Com
+  `Unique`, o primeiro `Save` de cada escrita numa conexão, e todo `Save` nos
+  modos `CacheDescribe` e `DescribeExec`, enviam o lock e o `SAVEPOINT`
+  sozinhos antes do batch; o lock é preparado por nome junto da escrita, e um
+  batch recusado não o tira do cache. Tabela sem `Guard` não ganha statement nem round
+  trip. Testes: `guard_test.go`, `guard_internal_test.go`, `guard_table_test.go`
+  e `guard_concurrency_test.go`, que mede 50 rodadas por escrita e reproduz a
+  corrida pelo `ReadPool` como controle.
+- **`unique.go`** — `Unique{Name, Columns, Rejection}`, `UniqueSet{Table,
+  Constraints}` e `VerifyUniques(ctx, pool, sets...)`, que confere em
+  `pg_constraint`, pela tabela resolvida em `public`, que cada restrição
+  declarada existe com `contype = 'u'`, nas colunas e na ordem declaradas, sem
+  `DEFERRABLE` e sem `NULLS NOT DISTINCT`, e que as restrições de cada
+  `UniqueSet` seguem a ordem dos índices no catálogo, que é a do DDL: sob colisão
+  em mais de uma, o servidor reporta o primeiro índice que confere, e a
+  declaração precisa apontar a mesma. Tabela particionada, com filhas por
+  herança, ou ela própria partição ou filha diverge como `partitioned or
+  inherited table`: na partição, o `23505` traz a tabela e a restrição da
+  partição folha, e a tradução, que compara a tabela, devolveria o erro cru no
+  lugar da rejeição. Devolve a primeira divergência como
+  `ErrUniqueDivergent`. Antes do catálogo, valida os conjuntos com as regras do
+  `validate` e devolve erro em vez de pânico. Sem nada declarado, não faz round
+  trip. `CREATE UNIQUE INDEX` não tem linha em `pg_constraint` e não serve.
+- **`platform.go`** — `Table.PlatformReader(ReadPool, ports.AuditTrail,
+  ...PlatformOption)` e `Table.Projector(*Tx, ports.ProjectionPolicy,
+  ports.AuditTrail)`, os dois acessos entre tenants declarados (ADR-068),
+  descritos em [Acesso entre tenants declarado](#acesso-entre-tenants-declarado);
+  `WithPageMax(n)` troca o teto da página.
 - **`snapshot_table.go`** — `SnapshotTable[ID, S, J](name, idColumn, to, from,
   withID)` monta a `Table[ID,S]` do agregado cujo estado inteiro vive na coluna
   `snapshot` (ADR-053): `J` é o struct de estado privado do provider, cujas tags
@@ -46,9 +162,24 @@ instâncias de `Table[ID,S]` no bloco `provider` de cada contexto —
   `server.port`, `db.query.text` parametrizado e sem argumentos,
   `db.response.returned_rows` no `SELECT` e `dmpf.db.rows_affected` no DML;
   operação e coleção só saem de statement declarado (`declare`), porque a
-  semconv veda derivá-las de SQL com mais de uma, e `BEGIN`, `COMMIT` e
-  `ROLLBACK` levam `db.operation.name` no lugar de `db.query.text`. O erro é
-  o SQLSTATE, em `db.response.status_code` e `error.type`, nunca `Message`,
+  semconv veda derivá-las de SQL com mais de uma, e `BEGIN`, `COMMIT`,
+  `ROLLBACK`, `SAVEPOINT`, `RELEASE SAVEPOINT` e `ROLLBACK TO SAVEPOINT` levam
+  `db.operation.name` no lugar de `db.query.text`, sem o nome do savepoint
+  (`sp_N` ou `dmpf_unique`). Num `pgx.Batch`, cada statement abre o seu
+  span, filho do chamador e com os mesmos nome e atributos do statement
+  enviado sozinho. Os statements de um batch estão em voo juntos: cada span
+  começa no envio do batch e termina quando o seu resultado é lido, e a
+  duração de cada um não separa o tempo de servidor de cada statement (sob
+  espera num índice único, `SAVEPOINT`, escrita e `RELEASE` mostram a mesma
+  espera). Um erro do servidor (`*pgconn.PgError`) fica no primeiro statement
+  sem resultado, venha ele no resultado de um statement ou no fim do batch, e
+  os statements que o servidor pulou, como o `RELEASE`, não abrem span. Um erro
+  que não vem do servidor, como timeout, rede ou conexão fechada, marca com
+  `error.type=_OTHER` todos os spans ainda abertos, venha ele antes de qualquer
+  resultado, no resultado de um statement ou no fim do batch; os statements
+  cujo resultado já foi lido ficam sem status. O
+  `SAVEPOINT` enviado sozinho é um span de query próprio. O pool com
+  `WithMeterProvider` também traça o batch. O erro é o SQLSTATE, em `db.response.status_code` e `error.type`, nunca `Message`,
   `Detail` nem `Hint` do `PgError` (RF-B6). Com `WithMeterProvider`, o pool grava as
   métricas da semconv por `dbconv`, todas por `db.client.connection.pool.name`
   (`{server.address}:{server.port}/{db.namespace}`):
@@ -66,7 +197,9 @@ instâncias de `Table[ID,S]` no bloco `provider` de cada contexto —
 - **`uow.go`** — `NewUnitOfWork[R]`, `Tx` e `Within`. Uma transação por
   chamada, em `READ COMMITTED` explícito qualquer que seja o padrão do
   servidor, o callback invocado uma única vez, e as seis cláusulas do
-  contrato provadas em `uow_test.go`.
+  contrato provadas em `uow_test.go`. O `Tx` conta as escritas de agregado com
+  linha afetada e as de outbox, nunca as da inbox: é a guarda que deixa a
+  violação declarada convertível só como primeira escrita (DEC-10).
 - **`outbox.go`** — `Tx.Outbox(mapper)` e `Enqueue`. Grava na mesma `pgx.Tx` do
   estado de negócio: um commit torna os dois visíveis, ou nenhum. A `metadata`
   grava o contexto de mensagem de `ENV-08` que o adapter autorou —
@@ -127,7 +260,15 @@ instâncias de `Table[ID,S]` no bloco `provider` de cada contexto —
   privilégio de cada grant (`has_table_privilege`), para o processo que lê o
   schema que outro aplica, cada passada numa consulta só. As duas procuram a
   tabela em `public`, com o nome citado. Dono e superuser têm o privilégio
-  assim que a tabela existe.
+  assim que a tabela existe. `WaitForUniques` repete a consulta de
+  `VerifyUniques` só enquanto ela divergir (`ErrUniqueDivergent`) e devolve na
+  hora qualquer outro erro; o registro `waiting for unique constraint` leva
+  `db.collection.name`, `dmpf.db.constraint.name` e
+  `dmpf.db.constraint.divergence`. A tabela particionada ou com herança
+  nunca converge: a espera só acaba no prazo, com o motivo no registro e no
+  erro. No fim do contexto, as três esperas
+  devolvem o erro dele junto com o que ainda faltava; a de restrições preserva
+  o `ErrUniqueDivergent`.
 - **`inbox.go`** — `Tx.Inbox(consumer, wait)`, `Register` e `Pending.Complete`
   (`KRN-07`). `Register` é `INSERT … ON CONFLICT DO NOTHING` seguido de leitura:
   devolve a classificação (R1, R2, R3 ou R4), nunca erro de constraint, e a
@@ -174,6 +315,11 @@ em vez de sobrescrever em silêncio. `inbox_concurrency_test.go` faz o mesmo par
 transações registram a mesma chave, a segunda bloqueia até o desfecho da
 primeira e recebe R2, R3 ou R1 conforme ela commitou `processed`, commitou
 `rejected` ou desfez; e o teto de espera é interrompido pelo servidor.
+`unique_concurrency_test.go` prova a unicidade declarada sob concorrência: de
+duas criações com o mesmo valor, uma grava e a outra recebe a rejeição, que a
+inbox commita como `rejected` na transação que a violação deixou utilizável;
+duas criações da mesma identidade terminam em `ErrVersionConflict`, nunca em
+recusa.
 
 `apps/backend/reservations/provider` é o lado do consumo do agregado de
 referência: o repositório com chave natural (`order_id`, `ON CONFLICT DO
@@ -205,6 +351,81 @@ enquanto o registro interno diz qual tenant é o dono (`IDN-12`). `Relation`
 segue a mesma regra para a consulta por relação. Ausência de tenant no
 contexto de execução recusa com `ErrTenantUnresolved`, nunca alarga a consulta
 (`IDN-15`).
+
+## Acesso entre tenants declarado
+
+O `Table` tem dois caminhos que não escopam ao tenant do contexto, e só esses
+dois (ADR-068, que guarda a decisão e as alternativas). Os dois recebem na
+construção a trilha como `ports.AuditTrail`, que a composition root obtém do
+`audit.Recorder` por `Recorder.Trail()`, e entram em pânico sem ela: montar
+acesso entre tenants sem trilha é erro da composition root.
+
+**`Table.PlatformReader(pool, trail, opts...)`** realiza
+`ports.PlatformReader` sobre o `ReadPool` da role de runtime, sem predicado de
+tenant, só com `SELECT` compilado e declarado pelo kernel. Os statements de
+plataforma são compilados à parte (`compilePlatform`), então a tabela que
+nunca lê entre tenants não declara statement sem tenant. A ordem das recusas é
+fixa:
+
+1. Sem `ports.ReachAllTenants` no carrier, emite o evento `denied` e devolve
+   `ports.ErrPlatformReachUndeclared`.
+2. Sem contexto de execução, devolve `ports.ErrContextAbsent`, sem evento.
+3. No `List`, `limit` zero, negativo ou acima do teto devolve
+   `ports.ErrPlatformLimitInvalid`. O teto é `ports.PlatformPageMax` (500), e
+   `WithPageMax(n)` o troca por outro valor positivo; zero ou negativo entra em
+   pânico.
+
+O `LoadIn(ctx, tenant, id)` emite o evento `accepted` do tenant pedido antes de
+ler, e a linha ausente é `ports.ErrNotFound`, sem sonda de dono; tenant vazio é
+`ports.ErrNotFound` sem evento. O `List` pagina por
+keyset `(tenant_id, id)`, em `ORDER BY tenant_id, <id>`, com `after == nil` na
+primeira página e `WHERE (tenant_id, <id>) > ($1, $2)` nas seguintes, e emite
+um evento `accepted` por tenant da página antes de devolvê-la; página vazia não
+alcança tenant e não emite. Os eventos levam a ação
+`ports.AuditPlatformRead`.
+
+**`Table.Projector(tx, policy, trail)`** realiza `ports.Projector` sobre o
+`*Tx`, e não sobre a pool, para que a projeção commite com a inbox e a outbox
+sob o mesmo `Within` (`UOW-01`). `Load` e `Save` passam pela mesma autorização
+e emitem a mesma ação, `ports.AuditProjectionWrite`:
+
+1. Sem contexto de execução, `ports.ErrContextAbsent`, sem evento.
+2. Destino vazio: evento `denied` e `ports.ErrProjectionDestinationAbsent`.
+3. Destino igual ao tenant do contexto: evento `denied` e
+   `ports.ErrProjectionDenied`, sem consultar a política, porque a projeção não
+   é um segundo caminho de escrita no próprio tenant.
+4. Política nula ou que nega: evento `denied` e `ports.ErrProjectionDenied`,
+   embrulhando a causa da política quando há uma (default fechado, `IDN-17`).
+   A política recebe a origem do contexto, `nil` quando ele não tem tenant
+   (`IDN-20`).
+5. Autorizado: evento `accepted` do destino antes de ler ou gravar.
+
+O `Save` tem a semântica de `version` do `Repository` e grava `tenant_id` com o
+destino. O `Load` lê no destino **sem** a sonda de dono do `miss`: a linha
+ausente é `ports.ErrNotFound` sem `CrossTenantAccess`, porque a sonda
+registraria um `IDN-12` falso e revelaria a existência em outro tenant.
+
+**Trilha que falha fechada.** O `audit.Recorder` só deixa o acesso prosseguir depois
+de o `Sink` confirmar o registro; a recusa do `Sink` vira
+`ports.ErrAuditUnavailable`, sem devolver linha nem gravar. Na recusa
+(`denied`), a falha do `Sink` não muda o desfecho, que já é recusa. O evento
+leva `Object` da tabela, `DataTenant` do tenant alcançado (vazio quando a
+recusa é anterior a ele), `Tenant` do contexto e `Subject` do portador.
+**Custo aceito:** a falha fechada vale o que vale o `Sink` configurado pelo
+consumidor. O `audit.NewLogSink` sempre confirma e não serve como trilha
+durável; sem `Sink` durável, a falha fechada só é exercida no kit e nos testes
+com `Sink` que recusa (ADR-068, Consequências).
+
+**Gate (`IDN-14`).** O `forbidigo` do `.golangci.yml`, com `analyze-types`,
+reprova `Table.PlatformReader` e `Table.Projector` de `postgres` e de `memory`
+fora de `apps/**/provider/platform_*.go`, ao lado da regra `context-provider`
+do `depguard`; o kernel, os kits de teste e os `_test.go` ficam isentos. Como o
+`forbidigo` não vê a chamada por uma interface local que o `Table` satisfaz, o
+`tools/dmpf-plugin/scripts/dmpf-context-check.sh` reprova, por nome,
+`PlatformReader`, `Projector` e `WithPlatformReach` em `apps/*/provider/*.go`
+fora de `platform_*.go` e dos `_test.go`; um identificador local homônimo
+também reprova e precisa ser renomeado. O
+`dmpf-gate-check.sh` prova as reprovações e as passagens.
 
 ## O que o módulo não contém
 
@@ -274,6 +495,8 @@ mira `apps/**/provider/**`, não `postgres` em si.
   que `outbox`, `inbox` e `quarantine` ficam fora do escopo.
 - `docs/adr/051-escopo-de-tenant-por-choke-point-em-go.md` — `Table`, `ReadPool`
   e o gate `context-provider`.
+- `docs/adr/068-acesso-entre-tenants-declarado.md` — `PlatformReader`,
+  `Projector`, a trilha que falha fechada e a regra de plataforma do gate.
 - `docs/dmpf/uow-inbox-outbox.md` (FND-04) — §2.3, §3.1 a §3.3, §4.1, §4.2.
 - `docs/specs/SPEC-1TFW24WV-observabilidade-ponta-a-ponta.md` — os `RF-*`
   citados aqui: os spans `db.*`, as métricas do pool e o `process configured`.

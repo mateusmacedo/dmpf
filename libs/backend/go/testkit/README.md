@@ -29,7 +29,7 @@ arestas permitem: um `domainkit` só é kit de domínio se ele próprio for
 | `kernel/testkit-domain` | `domain` | `domainkit` | `KIT-02` — domínio em memória, projeção observável |
 | `kernel/testkit-golden` | `contract` | `golden` | carregador, catálogo, duas direções, `DMPF-R001..R003` |
 | `kernel/testkit-services` | `provider` | `serviceskit` | `KIT-03` — ports fakes com ledger |
-| `kernel/testkit-provider` | `provider` | `providerkit` | `KIT-04` — conformidade de UoW, repositório escopado, inbox e outbox store |
+| `kernel/testkit-provider` | `provider` | `providerkit` | `KIT-04` — conformidade de UoW, repositório escopado, unicidade declarada, leitura de plataforma, projeção entre tenants, inbox e outbox store |
 | `kernel/testkit-clock` | `provider` | `clock` | `KIT-07` — relógio fake com avanço explícito |
 | `kernel/testkit-ids` | `provider` | `ids` | `KIT-07` — identificadores em sequência ou por seed |
 | `kernel/testkit-stable` | `provider` | `stable` | `KIT-08` — ordenação estável de coleções comparadas |
@@ -124,7 +124,82 @@ o arranjo marcado por `MarkSeeded`, e `FailRegister` e `Faults` (com
 | --- | --- | --- | --- |
 | `domainkit` | `Subject[S,R]`: a UPR, a projeção da resposta, do evento e do estado, e um clone do alvo — tudo **por valor**, sem duplo (`ORA-36`) | `Run` executa a UPR e lê o desfecho duas vezes; `ReadTwice` compara duas execuções | `Equal(got, want)` sem diagnóstico: ramo, resposta ou rejeição, sequência ordenada de eventos e estado antes/depois iguais aos da fixture (`ORA-31`, `ORA-34`); sob `Rejected`, sequência vazia e estado idêntico (`ORA-38`); nenhum segundo acessor de eventos (`ORA-37`) |
 | `serviceskit` | Um service composto sobre `Fakes.UnitOfWork` — os fakes envolvem o `memory` e registram cada gesto no `Ledger` com a identidade da transação que o fez | O caso de uso real, aceito e recusado | `Decide` sem diagnóstico: em cada transação commitada, escrita e enfileiramento vêm juntos e a outbox ganhou o que foi enfileirado (`UOW-07`); uma porta escapada de outra transação é nomeada; nenhum `publish` (`UOW-08`); exatamente um commit, vazio sob recusa (`UOW-06`); uma transação por caso de uso (`UOW-01`) |
-| `providerkit` | `UnitOfWorkSubject` (UoW, uma escrita, contagem do que persistiu, commits), `RepositorySubject` (`Within` que entrega o repositório, o `Reader`, geradores de identificador e de estado com marcador, a sentinela de tenant não resolvido e `Concurrent`, que diz se duas transações correm ao mesmo tempo), `InboxSubject` (`Within` sob o `context.Context` da suíte, leitura do status, linhas, erro de consumer divergente), `OutboxSubject` (store, enfileirar, relógio fake, estado inteiro do registro, `Pending`, `Purge`) — com uma função que devolve o candidato **limpo** | As cláusulas de `Within` (UOW-01/02/06/07/09, CTX-21, ERR-22), as de `Repository`/`Reader` — round-trip, versão armazenada e criação sobre agregado existente recusada (`UOW-09/11`), dois escritores concorrentes com exatamente um passando (`KRN-06`, só com `Concurrent`; uma realização que serializa e o declara reprova em 5 s, sem travar) e as quatro do escopo: leitura de outro tenant indistinguível de inexistência (`IDN-13`), mesmo identificador apartado por tenant e escrita cruzada recusada (`IDN-12`), carrier sem tenant e sem contexto recusando (`IDN-15`) —, as recepções R1-R4 e a corrida de duas inserções com sobreposição garantida no retorno do `Register` (`INB-06`), o lease e as três transições condicionadas ao claimant (`OBX-09/10/11/18/06`), a purga (`OBX-17`) e o sinal `Pending` (`OBX-12`) | Sem diagnóstico. Cláusula que o candidato não consegue exercitar (Postgres não injeta falha de commit; `memory` serializa e não corre; realização sem sentinela de tenant não resolvido) vai para `Skipped`, nunca fica ausente em silêncio |
+| `providerkit` | `UnitOfWorkSubject` (UoW, uma escrita, contagem do que persistiu, commits), `RepositorySubject` (`Within` que entrega o repositório, o `Reader`, geradores de identificador e de estado com marcador, a sentinela de tenant não resolvido e `Concurrent`, que diz se duas transações correm ao mesmo tempo), `InboxSubject` (`Within` sob o `context.Context` da suíte, leitura do status, linhas, erro de consumer divergente), `OutboxSubject` (store, enfileirar, relógio fake, estado inteiro do registro, `Pending`, `Purge`), `UniqueSubject` (`Within` que entrega o repositório e um `Enqueue` opcional, o `Reader`, geradores de identificador e de estado por valores de chave, a tabela, as restrições declaradas e `Concurrent`), `PlatformSubject` (`Within` que entrega o repositório para semear, o `Reader`, a fábrica `Platform(recorder, pageMax)`, geradores de identificador e de estado com marcador e a tabela que os eventos nomeiam), `ProjectionSubject` (`Within(ctx, policy, recorder, fn)` que entrega o projetor da transação, o `Reader`, os geradores e a tabela) — com uma função que devolve o candidato **limpo** | As cláusulas de `Within` (UOW-01/02/06/07/09, CTX-21, ERR-22), as de `Repository`/`Reader` — round-trip, versão armazenada e criação sobre agregado existente recusada (`UOW-09/11`), dois escritores concorrentes com exatamente um passando (`KRN-06`, só com `Concurrent`; uma realização que serializa e o declara reprova em 5 s, sem travar) e as quatro do escopo: leitura de outro tenant indistinguível de inexistência (`IDN-13`), mesmo identificador apartado por tenant e escrita cruzada recusada (`IDN-12`), carrier sem tenant e sem contexto recusando (`IDN-15`) —, as recepções R1-R4 e a corrida de duas inserções com sobreposição garantida no retorno do `Register` (`INB-06`), o lease e as três transições condicionadas ao claimant (`OBX-09/10/11/18/06`), a purga (`OBX-17`) e o sinal `Pending` (`OBX-12`), e as de `Unique`, `Platform` e `Projection` (abaixo) | Sem diagnóstico. Cláusula que o candidato não consegue exercitar (Postgres não injeta falha de commit; `memory` serializa e não corre, nem na criação concorrente de `Unique`; realização sem sentinela de tenant não resolvido) vai para `Skipped`, nunca fica ausente em silêncio |
+
+`providerkit.Unique` prova a unicidade declarada do ADR-066 contra o `memory` e
+o `postgres`. Cada `UniqueConstraint{Name, Columns, Code}` lista as colunas como
+o `postgres.Unique`, com `tenant_id` à frente e ao menos mais uma, e as
+restrições seguem a ordem do DDL; o subject que foge disso reprova antes das
+cláusulas. Os IDs da SPEC-7SRQ3RPK correspondem a estas cláusulas:
+
+| ID | Cláusula |
+| --- | --- |
+| `unique.rejects` | `refuses a second row holding a declared value` |
+| `unique.update` | `refuses an update onto a value another row holds` |
+| `unique.per-tenant` | `writes a taken value under another tenant` |
+| `unique.tx-usable` | `keeps the transaction usable after the violation` |
+| `unique.prior-write` | `leaves the rejection out after a prior save` e `leaves the rejection out after a prior enqueue` |
+| `unique.concurrent` | `lets exactly one of two concurrent creations through` (`Skipped` no `memory`) |
+| `unique.first-declared` | `carries the rejection of the first declared constraint it broke` |
+
+O kit também prova que o valor vazio colide (`collides on an empty value as on
+any other`), que a chave composta compara coluna a coluna, sem concatenar nem
+ler só a primeira ou só a última coluna (`tells composite keys apart column by
+column`), que cada restrição devolve a própria rejeição (`carries the rejection
+of the constraint it broke`) e que a criação sobre a mesma identidade é
+`ErrVersionConflict` (`refuses a creation over the same identity as a version
+conflict`). Na linha que colide em todas as restrições de uma vez, vale a
+rejeição da primeira declarada, que é a do primeiro índice que o PostgreSQL
+confere. Vão para `Skipped` a chave composta sem restrição de duas colunas, a
+rejeição própria e a colisão em todas com menos de duas restrições, e a escrita
+anterior por outbox sem `Enqueue`.
+
+`providerkit.Platform` e `providerkit.Projection` provam o acesso entre tenants
+do ADR-068 contra o `memory` e o `postgres`. Cada cláusula monta a própria trilha
+(um `ports.AuditTrail` do kit, que grava ou que recusa, sem importar
+`observability`, para não puxá-lo ao `go.mod` do `memory`) e o teto de
+página, por isso os dois subjects recebem fábricas, e não o leitor ou o projetor
+prontos. O `Platform` exige tabela vazia a cada `newSubject`, porque o `List`
+alcança todas as linhas; a ordem da página é da realização, e o kit afirma só
+uma ordem total estável, sem linha repetida nem perdida.
+
+| Suíte | Cláusula | Regra |
+| --- | --- | --- |
+| `Platform` | `lists the rows of every tenant with the tenant of each` | `IDN-19` |
+| `Platform` | `pages by key without repeating or losing a row` (páginas de 2 e de 3 na mesma ordem) | `IDN-19` |
+| `Platform` | `refuses without a declared reach and records the refusal` (carrier escopado, `ReachUndeclared`, sem tenant e vazio; evento `denied`; a falha do `Sink` não muda a recusa) | `IDN-19`, `LOG-14` |
+| `Platform` | `refuses when the carrier holds no context` | `IDN-15` |
+| `Platform` | `refuses a limit out of range` (zero, negativo, acima do teto padrão e de um teto declarado) | `IDN-19` |
+| `Platform` | `records one accepted event per tenant reached` (`Tenant` do contexto, vazio sem tenant, e `DataTenant` alcançado) | `LOG-14` |
+| `Platform` | `returns nothing when the trail refuses the record` | `DAT-25` |
+| `Platform` | `records nothing for an empty page` | `IDN-19`, `LOG-14` |
+| `Platform` | `loads the row of the tenant asked` | `IDN-19` |
+| `Platform` | `misses in the tenant asked without probing the owner` (sem `CrossTenantAccess`; tenant vazio é `ErrNotFound`) | `IDN-12`, `IDN-13` |
+| `Platform` | `keeps the scoped Reader filtered under the declared reach` | `IDN-12` |
+| `Platform` | `refuses to be built without a trail` (pânico que nomeia a tabela) | `DAT-25` |
+| `Projection` | `writes into the destination, out of the origin's sight` | `IDN-11` |
+| `Projection` | `denies without an accepting policy and writes nothing` (política nula ou que nega; `Save` e `Load`; evento `denied`) | `IDN-17` |
+| `Projection` | `refuses an empty destination before the policy` | `IDN-20` |
+| `Projection` | `refuses to project into the origin's own tenant` (`Save` e `Load`; sem consultar a política; evento `denied`; nada gravado) | `IDN-17` |
+| `Projection` | `refuses when the carrier holds no context` (sem evento, sem consultar a política, nada gravado) | `IDN-15` |
+| `Projection` | `hands an absent origin to the policy as nil` (contexto sem tenant; evento com `Tenant` vazio) | `CTX-26` |
+| `Projection` | `writes and reads nothing when the trail refuses the record` | `DAT-25` |
+| `Projection` | `loads the destination under the policy` | `IDN-11` |
+| `Projection` | `misses in the destination without probing the owner` | `IDN-12`, `IDN-13` |
+| `Projection` | `honours the stored version` | `UOW-09` |
+| `Projection` | `rolls the destination back with the unit of work` (o `Within` falha depois de um `Save` autorizado, e o `Reader` do destino não vê a linha) | `UOW-01` |
+| `Projection` | `refuses to be built without a trail` | `DAT-25` |
+
+A cláusula de `Projection` engole o erro que provoca e confirma a transação,
+para que uma escrita feita antes da recusa continue visível; a exceção é a do
+rollback, que devolve o erro do callback de propósito. As sabotagens de
+`platform_test.go` e `projection_test.go` (leitor que ignora a declaração, que
+registra depois de devolver, que engole a falha do `Sink`, que ignora o cursor
+ou o teto, que sonda o dono; projetor que grava no tenant do portador, sem
+política efetiva, que registra depois de gravar, que inventa a origem, que
+ignora a versão, que monta contexto para o carrier vazio, que abre o próprio
+tenant da origem, que grava fora da unidade de trabalho; construção sem
+trilha) reprovam nas cláusulas que quebram e em nenhuma outra.
 
 O negativo de `providerkit` é uma realização que chaveia linha só por
 identificador, sem tenant: passa as três cláusulas mecânicas e reprova em
@@ -286,12 +361,13 @@ criado para ele e apagado com `DROP DATABASE ... WITH (FORCE)` ao fim, e o
 servidor da infra de runtime local nunca é fixture de teste. O
 erro de conexão do pgx que chega ao log traz host, usuário e nome do banco —
 nunca a senha, que o pgx redige. O `test-distributed` de `reservations` depende
-do `test-race` de `postgres` e `app`, que usam o mesmo servidor. No CI, o `ci.yml` roda a cadeia por estágio (`layer:domain` →
-`services` → infra → `contract` → `providers` → `apps`); dentro do estágio 4,
-os providers cujo `test-race` tem `cache: false` — os que exigem a infra do
-job — correm em `--parallel=1`, e os demais em `--parallel=3`. O
-`dmpf-distributed.yml` roda o `distkit` em pipeline próprio (`KIT-11`), e os
-dois workflows derrubam os containers do job num step `if: always()`.
+do `test-race` de `postgres` e `app`, que usam o mesmo servidor. No CI, o `dmpf-go-ci.yml` roda o `test-race` dos projetos afetados
+depois de subir a infra do job: os providers cujo `test-race` tem
+`cache: false` — os que exigem a infra do job — correm um por vez
+(`--parallel=1`), e os demais em `--parallel=3`. O `dmpf-distributed.yml` roda
+o `distkit` em pipeline próprio (`KIT-11`), que o `ci.yml` chama só no PR de
+release para `master`, e os dois workflows derrubam os containers do job num
+step `if: always()`.
 
 ## Limitação conhecida
 

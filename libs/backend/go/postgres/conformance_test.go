@@ -5,6 +5,7 @@ package postgres_test
 import (
 	"context"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -23,8 +24,8 @@ import (
 // this package keep their own finer clauses; these are the shared contract.
 
 var (
-	kitTables  = append(postgres.Tables(allCapabilities...), "probes", "tagged_probes")
-	kitOptions = pg.Options{Project: "postgres", Capabilities: allCapabilities, Schemas: []string{probeSchema}, Tables: []string{"probes", "tagged_probes"}}
+	kitTables  = append(postgres.Tables(allCapabilities...), "probes", "tagged_probes", "unique_probes")
+	kitOptions = pg.Options{Project: "postgres", Capabilities: allCapabilities, Schemas: []string{probeSchema}, Tables: []string{"probes", "tagged_probes", "unique_probes"}}
 )
 
 func TestUnitOfWorkConformsToTheKit(t *testing.T) {
@@ -197,4 +198,107 @@ func committedStatus(t *testing.T, pool *pgxpool.Pool, consumer string, id ports
 	default:
 		return 0, true
 	}
+}
+
+func TestUniqueConformsToTheKit(t *testing.T) {
+	pool := pg.OpenPool(t, kitOptions)
+	v := providerkit.Unique(func() providerkit.UniqueSubject[string, uniqueProbe] {
+		pg.ResetTables(t, pool, kitTables...)
+		return providerkit.UniqueSubject[string, uniqueProbe]{
+			Within: func(ctx context.Context, fn func(ctx context.Context, w providerkit.UniqueWrites[string, uniqueProbe]) error) error {
+				uow := postgres.NewUnitOfWork(pool, func(tx *postgres.Tx) *postgres.Tx { return tx })
+				return uow.Within(ctx, func(ctx context.Context, tx *postgres.Tx) error {
+					return fn(ctx, providerkit.UniqueWrites[string, uniqueProbe]{
+						Repo: uniqueTable.Repository(tx),
+						Enqueue: func(ctx context.Context, n int) error {
+							return tx.Outbox(testMapper{}).Enqueue(ctx, outboxEntry(ports.MessageID("m-"+strconv.Itoa(n)), placedEvent(n)))
+						},
+					})
+				})
+			},
+			Reader: uniqueTable.Reader(postgres.NewReadPool(pool)),
+			NewID:  func(n int) string { return "U-" + strconv.Itoa(n) },
+			NewState: func(marker int, keys [][]string) uniqueProbe {
+				return uniqueProbe{Name: keys[0][0], Code: keys[1][0], Label: "l-" + strconv.Itoa(marker), RefA: keys[2][0], RefB: keys[2][1]}
+			},
+			Marker: func(p uniqueProbe) int {
+				n, _ := strconv.Atoi(strings.TrimPrefix(p.Label, "l-"))
+				return n
+			},
+			Table: "unique_probes",
+			Constraints: []providerkit.UniqueConstraint{
+				{Name: "unique_probes_tenant_id_name_key", Columns: []string{"tenant_id", "name"}, Code: nameTaken.Code()},
+				{Name: "unique_probes_tenant_id_code_key", Columns: []string{"tenant_id", "code"}, Code: codeTaken.Code()},
+				{Name: "unique_probes_tenant_id_ref_a_ref_b_key", Columns: []string{"tenant_id", "ref_a", "ref_b"}, Code: refsTaken.Code()},
+			},
+			Concurrent: true,
+		}
+	})
+	tb.Require(t, v)
+	if len(v.Skipped) != 0 {
+		t.Fatalf("skipped = %v, want none: postgres runs transactions at once and has a composite constraint", v.Skipped)
+	}
+}
+
+func TestPlatformReaderConformsToTheKit(t *testing.T) {
+	pool, admin := openRuntimeWithAdmin(t)
+	v := providerkit.Platform(func() providerkit.PlatformSubject[string, probe] {
+		pg.ResetTables(t, admin, kitTables...)
+		return providerkit.PlatformSubject[string, probe]{
+			Within: func(ctx context.Context, fn func(ctx context.Context, repo ports.Repository[string, probe]) error) error {
+				uow := postgres.NewUnitOfWork(pool, func(tx *postgres.Tx) ports.Repository[string, probe] {
+					return probeTable.Repository(tx)
+				})
+				return uow.Within(ctx, fn)
+			},
+			Reader: probeTable.Reader(postgres.NewReadPool(pool)),
+			Platform: func(trail ports.AuditTrail, pageMax int) ports.PlatformReader[string, probe] {
+				return probeTable.PlatformReader(postgres.NewReadPool(pool), trail, postgres.WithPageMax(pageMax))
+			},
+			NewID:    func(n int) string { return "kit-" + strconv.Itoa(n) },
+			NewState: func(marker int) probe { return probe{Items: marker} },
+			Marker:   func(p probe) int { return p.Items },
+			Table:    "probes",
+		}
+	})
+	tb.Require(t, v)
+	if len(v.Skipped) != 0 {
+		t.Fatalf("skipped = %v, want none", v.Skipped)
+	}
+}
+
+func TestProjectorConformsToTheKit(t *testing.T) {
+	pool, admin := openRuntimeWithAdmin(t)
+	v := providerkit.Projection(func() providerkit.ProjectionSubject[string, probe] {
+		pg.ResetTables(t, admin, kitTables...)
+		return providerkit.ProjectionSubject[string, probe]{
+			Within: func(ctx context.Context, policy ports.ProjectionPolicy, trail ports.AuditTrail, fn func(ctx context.Context, p ports.Projector[string, probe]) error) error {
+				uow := postgres.NewUnitOfWork(pool, func(tx *postgres.Tx) ports.Projector[string, probe] {
+					return probeTable.Projector(tx, policy, trail)
+				})
+				return uow.Within(ctx, fn)
+			},
+			Reader:   probeTable.Reader(postgres.NewReadPool(pool)),
+			NewID:    func(n int) string { return "kit-" + strconv.Itoa(n) },
+			NewState: func(marker int) probe { return probe{Items: marker} },
+			Marker:   func(p probe) int { return p.Items },
+			Table:    "probes",
+		}
+	})
+	tb.Require(t, v)
+	if len(v.Skipped) != 0 {
+		t.Fatalf("skipped = %v, want none", v.Skipped)
+	}
+}
+
+// The runtime role owns nothing; the admin pool does the resets its grants
+// cannot.
+func openRuntimeWithAdmin(t *testing.T) (runtime, admin *pgxpool.Pool) {
+	t.Helper()
+	runtime = openPool(t)
+	owner, ok := adminOf.Load(runtime)
+	if !ok {
+		t.Fatal("openPool() kept no admin pool for the runtime pool")
+	}
+	return runtime, owner.(*pgxpool.Pool)
 }

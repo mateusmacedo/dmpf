@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -156,6 +158,11 @@ func TestTransactionControlCarriesOnlyItsOperation(t *testing.T) {
 		"begin isolation level read committed": "BEGIN",
 		"commit":                               "COMMIT",
 		"rollback":                             "ROLLBACK",
+		"savepoint sp_1":                       "SAVEPOINT",
+		"release savepoint sp_1":               "RELEASE SAVEPOINT",
+		"rollback to savepoint sp_1":           "ROLLBACK TO SAVEPOINT",
+		"ROLLBACK TO sp_1":                     "ROLLBACK TO SAVEPOINT",
+		"release sp_1":                         "RELEASE SAVEPOINT",
 	} {
 		t.Run(want, func(t *testing.T) {
 			span, _ := traceStatement(t, NewQueryTracer, sql, pgx.TraceQueryEndData{CommandTag: pgconn.NewCommandTag(want)})
@@ -165,6 +172,10 @@ func TestTransactionControlCarriesOnlyItsOperation(t *testing.T) {
 			}
 			requireString(t, span, "db.operation.name", want)
 			requireAbsent(t, span, "db.query.text", "db.collection.name", "dmpf.db.rows_affected", "db.response.returned_rows")
+			requireNoAttributeContains(t, span, "sp_1")
+			if strings.Contains(span.Name, "sp_1") {
+				t.Fatalf("name %q carries the savepoint pgx numbered", span.Name)
+			}
 		})
 	}
 }
@@ -281,6 +292,7 @@ func TestEveryKernelStatementIsDeclared(t *testing.T) {
 		"firstMissing":     selectFirstMissingTable,
 		"firstUngranted":   selectFirstUngranted,
 		"assertOwnOutbox":  selectForeignDestination,
+		"divergentUnique":  selectFirstDivergentUnique,
 	} {
 		if _, ok := shapeOf(sql); !ok {
 			t.Errorf("%s is not declared: its span would carry neither operation nor collection", name)
@@ -309,11 +321,260 @@ func TestATableDeclaresTheStatementsItCompiles(t *testing.T) {
 		compiled.owner:     {operation: "SELECT", collection: "orders"},
 		compiled.insert:    {operation: "INSERT", collection: "orders"},
 		compiled.update:    {operation: "UPDATE", collection: "orders"},
+		compiled.exists:    {operation: "SELECT", collection: "orders"},
 		relation.statement: {operation: "SELECT", collection: "orders"},
 		relation.owner:     {operation: "SELECT", collection: "orders"},
 	} {
 		if got, ok := shapeOf(sql); !ok || got != want {
 			t.Fatalf("shape of %q = %+v (declared %v), want %+v", sql, got, ok, want)
 		}
+	}
+}
+
+type batchStep struct {
+	sql   string
+	after time.Duration
+	end   pgx.TraceBatchQueryData
+}
+
+type batchWindow struct{ before, sent time.Time }
+
+func traceBatch(t *testing.T, tracer pgx.QueryTracer, parentTracer trace.Tracer, queued []string, steps []batchStep, ends ...error) batchWindow {
+	t.Helper()
+	batches, ok := tracer.(pgx.BatchTracer)
+	if !ok {
+		t.Fatalf("%T is not a pgx.BatchTracer: a Save under the savepoint would leave no span", tracer)
+	}
+	ctx := context.Background()
+	if parentTracer != nil {
+		var parent trace.Span
+		ctx, parent = parentTracer.Start(ctx, "parent")
+		defer parent.End()
+	}
+	batch := &pgx.Batch{}
+	for _, sql := range queued {
+		batch.Queue(sql)
+	}
+	var window batchWindow
+	window.before = time.Now()
+	ctx = batches.TraceBatchStart(ctx, nil, pgx.TraceBatchStartData{Batch: batch})
+	window.sent = time.Now()
+	for _, step := range steps {
+		time.Sleep(step.after)
+		step.end.SQL = step.sql
+		batches.TraceBatchQuery(ctx, nil, step.end)
+	}
+	for _, err := range ends {
+		batches.TraceBatchEnd(ctx, nil, pgx.TraceBatchEndData{Err: err})
+	}
+	return window
+}
+
+func batchExporter(t *testing.T) (*tracetest.InMemoryExporter, trace.Tracer) {
+	t.Helper()
+	spans := tracetest.NewInMemoryExporter()
+	provider := sdktrace.NewTracerProvider(sdktrace.WithSyncer(spans))
+	t.Cleanup(func() { _ = provider.Shutdown(context.Background()) })
+	return spans, provider.Tracer("db-test")
+}
+
+func queriesOf(spans *tracetest.InMemoryExporter) []tracetest.SpanStub {
+	var out []tracetest.SpanStub
+	for _, span := range spans.GetSpans() {
+		if span.Name != "parent" {
+			out = append(out, span)
+		}
+	}
+	return out
+}
+
+func namesOf(spans []tracetest.SpanStub) []string {
+	names := make([]string, 0, len(spans))
+	for _, span := range spans {
+		names = append(names, span.Name)
+	}
+	return names
+}
+
+func requireSentWith(t *testing.T, window batchWindow, spans []tracetest.SpanStub) {
+	t.Helper()
+	for _, span := range spans {
+		if span.StartTime.Before(window.before) || span.StartTime.After(window.sent) {
+			t.Fatalf("span %s starts at %v, want the send of the batch, within [%v, %v]", span.Name, span.StartTime, window.before, window.sent)
+		}
+	}
+}
+
+func requireFailedWith(t *testing.T, span tracetest.SpanStub, errorType string) {
+	t.Helper()
+	if span.Status.Code != codes.Error || span.Status.Description != "" {
+		t.Fatalf("span %s status = %+v, want error without description", span.Name, span.Status)
+	}
+	requireString(t, span, "error.type", errorType)
+}
+
+var savepointBatch = []string{"SAVEPOINT dmpf_unique", claimStatement, "RELEASE SAVEPOINT dmpf_unique"}
+
+const resultsAfterTheSync = 20 * time.Millisecond
+
+func TestEveryStatementOfABatchIsInFlightFromTheSendUntilItsResult(t *testing.T) {
+	spans, tracer := batchExporter(t)
+	tags := []string{"SAVEPOINT", "UPDATE 1", "RELEASE"}
+
+	window := traceBatch(t, NewQueryTracer(tracer), tracer, savepointBatch, []batchStep{
+		{savepointBatch[0], resultsAfterTheSync, pgx.TraceBatchQueryData{CommandTag: pgconn.NewCommandTag(tags[0])}},
+		{savepointBatch[1], 0, pgx.TraceBatchQueryData{Args: []any{"p-1"}, CommandTag: pgconn.NewCommandTag(tags[1])}},
+		{savepointBatch[2], 0, pgx.TraceBatchQueryData{CommandTag: pgconn.NewCommandTag(tags[2])}},
+	}, nil)
+
+	got := queriesOf(spans)
+	if names := namesOf(got); !slices.Equal(names, []string{"SAVEPOINT", "UPDATE outbox", "RELEASE SAVEPOINT"}) {
+		t.Fatalf("spans = %v, want one per statement", names)
+	}
+	requireSentWith(t, window, got)
+	parent := spans.GetSpans()[len(spans.GetSpans())-1]
+	for n, span := range got {
+		if span.SpanKind != trace.SpanKindClient || span.Parent.SpanID() != parent.SpanContext.SpanID() {
+			t.Fatalf("span %s kind %v parent %s, want a client span under %s", span.Name, span.SpanKind, span.Parent.SpanID(), parent.SpanContext.SpanID())
+		}
+		if took := span.EndTime.Sub(span.StartTime); took < resultsAfterTheSync {
+			t.Fatalf("span %s took %v, want at least the %v until its result was read", span.Name, took, resultsAfterTheSync)
+		}
+		alone, _ := traceStatement(t, NewQueryTracer, savepointBatch[n], pgx.TraceQueryEndData{CommandTag: pgconn.NewCommandTag(tags[n])})
+		if span.Name != alone.Name || !slices.Equal(span.Attributes, alone.Attributes) {
+			t.Fatalf("batched %s %v, want what the statement sent alone carries: %s %v", span.Name, span.Attributes, alone.Name, alone.Attributes)
+		}
+		requireNoAttributeContains(t, span, "p-1", "dmpf_unique")
+	}
+	requireInt(t, got[1], "dmpf.db.rows_affected", 1)
+}
+
+func TestAStatementThatFailsInABatchCarriesItsSQLSTATEAndEndsTheSpans(t *testing.T) {
+	spans, tracer := batchExporter(t)
+	violation := fmt.Errorf("insert: %w", &pgconn.PgError{Code: "23505", Detail: "Key (name)=(p-1) already exists."})
+
+	window := traceBatch(t, NewQueryTracer(tracer), tracer, savepointBatch, []batchStep{
+		{savepointBatch[0], 0, pgx.TraceBatchQueryData{CommandTag: pgconn.NewCommandTag("SAVEPOINT")}},
+		{savepointBatch[1], 0, pgx.TraceBatchQueryData{Err: violation}},
+	}, violation, violation)
+
+	got := queriesOf(spans)
+	if names := namesOf(got); !slices.Equal(names, []string{"SAVEPOINT", "UPDATE outbox"}) {
+		t.Fatalf("spans = %v, want the RELEASE the server skipped left out", names)
+	}
+	requireSentWith(t, window, got)
+	requireFailedWith(t, got[1], "23505")
+	requireString(t, got[1], "db.response.status_code", "23505")
+	requireNoAttributeContains(t, got[1], "p-1", "already exists")
+	if got[0].Status.Code != codes.Unset {
+		t.Fatalf("SAVEPOINT status = %+v, want unset: its own result came back", got[0].Status)
+	}
+}
+
+func TestAServerErrorThePipelineReportsAtTheEndGoesToTheFirstStatementWithoutAResult(t *testing.T) {
+	spans, tracer := batchExporter(t)
+	violation := &pgconn.PgError{Code: "23505", Detail: "Key (name)=(p-1) already exists."}
+
+	traceBatch(t, NewQueryTracer(tracer), tracer, savepointBatch, []batchStep{
+		{savepointBatch[0], 0, pgx.TraceBatchQueryData{CommandTag: pgconn.NewCommandTag("SAVEPOINT")}},
+	}, violation, violation)
+
+	got := queriesOf(spans)
+	if names := namesOf(got); !slices.Equal(names, []string{"SAVEPOINT", "UPDATE outbox"}) {
+		t.Fatalf("spans = %v, want the error on the UPDATE and the RELEASE the server skipped left out", names)
+	}
+	requireFailedWith(t, got[1], "23505")
+	requireNoAttributeContains(t, got[1], "p-1", "already exists")
+}
+
+func TestABatchThatFailsBeforeAnyResultEndsEveryStatementWithIt(t *testing.T) {
+	spans, tracer := batchExporter(t)
+
+	window := traceBatch(t, NewQueryTracer(tracer), tracer, savepointBatch, nil, context.DeadlineExceeded, context.DeadlineExceeded)
+
+	got := queriesOf(spans)
+	if names := namesOf(got); !slices.Equal(names, []string{"SAVEPOINT", "UPDATE outbox", "RELEASE SAVEPOINT"}) {
+		t.Fatalf("spans = %v, want every statement in flight ended once: the client cannot tell which one ran", names)
+	}
+	requireSentWith(t, window, got)
+	for _, span := range got {
+		requireFailedWith(t, span, "_OTHER")
+	}
+}
+
+func TestABatchThatFailsAfterAResultEndsTheStatementsStillInFlight(t *testing.T) {
+	spans, tracer := batchExporter(t)
+	lost := errors.New("read tcp: connection reset by peer")
+
+	traceBatch(t, NewQueryTracer(tracer), tracer, savepointBatch, []batchStep{
+		{savepointBatch[0], 0, pgx.TraceBatchQueryData{CommandTag: pgconn.NewCommandTag("SAVEPOINT")}},
+	}, lost, lost)
+
+	got := queriesOf(spans)
+	if names := namesOf(got); !slices.Equal(names, []string{"SAVEPOINT", "UPDATE outbox", "RELEASE SAVEPOINT"}) {
+		t.Fatalf("spans = %v, want one per statement", names)
+	}
+	if got[0].Status.Code != codes.Unset {
+		t.Fatalf("SAVEPOINT status = %+v, want unset: its result was read", got[0].Status)
+	}
+	requireFailedWith(t, got[1], "_OTHER")
+	requireFailedWith(t, got[2], "_OTHER")
+}
+
+func TestAStatementThatFailsWithoutTheServerEndsTheStatementsStillInFlight(t *testing.T) {
+	spans, tracer := batchExporter(t)
+	lost := errors.New("read tcp: i/o timeout")
+
+	traceBatch(t, NewQueryTracer(tracer), tracer, savepointBatch, []batchStep{
+		{savepointBatch[0], 0, pgx.TraceBatchQueryData{CommandTag: pgconn.NewCommandTag("SAVEPOINT")}},
+		{savepointBatch[1], 0, pgx.TraceBatchQueryData{Err: lost}},
+	}, lost, lost)
+
+	got := queriesOf(spans)
+	if names := namesOf(got); !slices.Equal(names, []string{"SAVEPOINT", "UPDATE outbox", "RELEASE SAVEPOINT"}) {
+		t.Fatalf("spans = %v, want the RELEASE ended too: no server skipped it", names)
+	}
+	if got[0].Status.Code != codes.Unset {
+		t.Fatalf("SAVEPOINT status = %+v, want unset: its result was read", got[0].Status)
+	}
+	requireFailedWith(t, got[1], "_OTHER")
+	requireFailedWith(t, got[2], "_OTHER")
+}
+
+func TestABatchOutsideATracedOperationOpensNoSpan(t *testing.T) {
+	spans, tracer := batchExporter(t)
+
+	traceBatch(t, NewQueryTracer(tracer), nil, savepointBatch, []batchStep{
+		{savepointBatch[0], 0, pgx.TraceBatchQueryData{}},
+		{savepointBatch[1], 0, pgx.TraceBatchQueryData{}},
+		{savepointBatch[2], 0, pgx.TraceBatchQueryData{}},
+	}, context.Canceled)
+
+	if got := len(spans.GetSpans()); got != 0 {
+		t.Fatalf("spans = %d, want 0", got)
+	}
+}
+
+func TestThePoolTracesBatchesWithOrWithoutMetrics(t *testing.T) {
+	for name, opts := range map[string][]PoolOption{
+		"plain":   nil,
+		"metered": {WithMeterProvider(metricnoop.NewMeterProvider())},
+	} {
+		t.Run(name, func(t *testing.T) {
+			spans, tracer := batchExporter(t)
+			pool, err := NewPool(context.Background(), "postgres://u:p@db.example:6543/orders?sslmode=disable", tracer, opts...)
+			if err != nil {
+				t.Fatalf("NewPool() = %v", err)
+			}
+			t.Cleanup(pool.Close)
+
+			traceBatch(t, pool.Config().ConnConfig.Tracer, tracer, savepointBatch[:1], []batchStep{{savepointBatch[0], 0, pgx.TraceBatchQueryData{}}}, nil)
+
+			got := queriesOf(spans)
+			if len(got) != 1 {
+				t.Fatalf("spans = %v, want the SAVEPOINT", namesOf(got))
+			}
+			requireString(t, got[0], "server.address", "db.example")
+		})
 	}
 }

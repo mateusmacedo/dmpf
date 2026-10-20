@@ -22,7 +22,7 @@ Este arquivo guarda só o que é específico do repositório e não está em out
 
 ## Convenções obrigatórias
 
-- **Tags:** todo app/lib de produção declara `type:`, `scope:` e `stack:`; todo módulo Go declara exatamente uma `layer:*`, exceto o `conformance`. Valores válidos e a tabela camada → estágio do CI: `docs/nx-reference/tasks.md`.
+- **Tags:** todo app/lib de produção declara `type:`, `scope:` e `stack:`; todo módulo Go declara exatamente uma `layer:*`, exceto o `conformance`. Valores válidos e a tabela camada → estágio da pirâmide de testes: `docs/nx-reference/tasks.md`.
 - **Não redeclarar targets** que um plugin ou `targetDefaults` já fornece — quebra o cache silenciosamente (ADR-002).
 - **Nome sem prefixo nem sufixo (ADR-045):** o nome do projeto Nx, do pacote npm privado e do package Go raiz é o basename do diretório (`grpc`, não `dmpf-provider-grpc-go`). Quando dois imports colidem no nome, quem importa declara alias pelo papel local (`kernel`, `usecase`, `port`, `provider`); nunca concatene nomes. Exceção: tooling em `tools/` mantém o prefixo `dmpf-`.
 - **Escopo npm:** `@mateusmacedo/`, em minúsculas. O casing precisa bater entre o `name` do `package.json`, o `tsconfig.base.json` e o `scope` do reusable de publicação; divergência faz o `pnpm publish` cair no registry público.
@@ -54,7 +54,7 @@ Testes de integração (Postgres, Kafka, SQS) e variáveis de ambiente: `README.
 
 ## Git e release
 
-Plataforma GitHub, via `gh` (ADR-043). Fluxo git-flow com `master` e `develop` protegidas e o modelo anti-drift de promoção para `release/X.Y.Z`: `CONTRIBUTING.md`. Versionamento independente em três release groups (ADR-047); não há tag nem BOM do produto (ADR-059). O CI (`.github/workflows/ci.yml`) roda `biome ci` e `nx affected`, chama o `dmpf-go-ci.yml` (estágios Go por `layer:*` e gates DMPF, o mesmo workflow reutilizável do consumidor externo) e prova o consumo por versão no job `external-consumer`; `cd-dev-hmg.yml` é template de CD desligado.
+Plataforma GitHub, via `gh` (ADR-043). Fluxo git-flow com `master` e `develop` protegidas e o modelo anti-drift de promoção para `release/X.Y.Z`: `CONTRIBUTING.md`. Versionamento independente em três release groups (ADR-047); não há tag nem BOM do produto (ADR-059). O CI (`.github/workflows/ci.yml`) tem um único check obrigatório, o job `CI`, que agrega os demais. No PR para `develop` o job `DMPF` (o `dmpf-go-ci.yml`, o mesmo workflow reutilizável do consumidor externo) roda `biome ci`, os gates DMPF e `nx affected` de todos os targets, com os vetores negativos dos gates só quando o diff toca `tools/**`, `.github/**` ou `.golangci.yml`; PR só de documentação não roda o pipeline. O PR de release ou hotfix para `master` roda tudo em todos os projetos e acrescenta govulncheck, consumidor externo, harness distribuído e SonarQube Cloud (`docs/ci-cd/README.md`); `cd-dev-hmg.yml` é template de CD desligado.
 
 Tracker: projeto [DMPF](https://linear.app/mmda/project/dmpf-ead2d6caeff8) no Linear (team DevTeam, chave `DEVS`). Cada spec tem uma issue, ligada pelo `ticket_url` do frontmatter; branch e título de PR levam a chave `DEVS-<n>`. Regras de sincronização: `docs/onboarding.md`.
 
