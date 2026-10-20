@@ -565,7 +565,6 @@ verificador, e a força e o dono dependem da decisão 1 de §10.
 | Harness e evidência | `tools/dmpf-harness-check.sh`, `testkit/cmd/evidence` | Nada no piloto `orders`; parametrizar só se `bookings` virar o piloto | — ou G |
 | ADR | `docs/adr/059-*` | Decisão de ES no kernel e emenda do item 4 do ADR-053 (híbrida deixa de ser universal) | P |
 | Norma | FND-04 §3.2 ou artefato irmão | Ler o passo 6 como acréscimo ao fluxo; ver a decisão 1 de §10 | P a M |
-| BOM | `bom/` | A entrada de kernel segue o release group `go-libs` (ADR-047), sem unidade nova pela Opção A | P |
 
 ---
 
