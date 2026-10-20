@@ -189,10 +189,10 @@ checar_valor() {
   local onde="$1" chave="$2" valor="$3" certificados="${4:- }"
   case "$(regra_de "$chave")" in
     logs-exporter)
-      [ "$valor" = otlp ] ||
+      [[ "$valor" = otlp ]] ||
         falhar "[logs-exporter] $onde: OTEL_LOGS_EXPORTER=$valor; o log das apps sai só por OTLP (otlp)" ;;
     protocolo)
-      [ "$valor" = grpc ] ||
+      [[ "$valor" = grpc ]] ||
         falhar "[protocolo] $onde: $chave=$valor; o Collector só recebe OTLP/gRPC (grpc)" ;;
     endpoint)
       if [[ $valor == https://* ]]; then
@@ -204,7 +204,7 @@ checar_valor() {
       elif [[ $valor != http://* ]]; then
         falhar "[endpoint] $onde: $chave=$valor sem esquema http:// nem https://; sem esquema o exporter gRPC liga TLS sem a CA interna"
       elif ! [[ $valor =~ ^http://[^/:@]+:4317/?$ ]]; then
-        falhar "[endpoint] $onde: $chave=$valor fora de http://<host>:4317, a porta OTLP/gRPC do Collector"
+        falhar "[endpoint] $onde: $chave=$valor com esquema HTTP claro fora de <host>:4317, a porta OTLP/gRPC do Collector"
       elif em_hmg "$onde"; then
         falhar "[endpoint] $onde: $chave=$valor em texto claro no overlay hmg, que exporta por https:// com OTEL_EXPORTER_OTLP_CERTIFICATE"
       fi ;;
@@ -212,13 +212,13 @@ checar_valor() {
       [[ $valor == /* ]] ||
         falhar "[certificado] $onde: $chave=$valor não é caminho absoluto; o exporter lê a CA do arquivo montado no pod" ;;
     sampler-arg)
-      [ "$valor" = 1.0 ] ||
+      [[ "$valor" = 1.0 ]] ||
         falhar "[sampler-arg] $onde: OTEL_TRACES_SAMPLER_ARG=$valor; a cabeça grava tudo e a taxa é da cauda (1.0)" ;;
     go-x-observability)
-      [ "$valor" = true ] ||
+      [[ "$valor" = true ]] ||
         falhar "[go-x-observability] $onde: OTEL_GO_X_OBSERVABILITY=$valor; sem true o SDK não emite otel.sdk.processor.span.processed" ;;
     export-timeout)
-      [ "$valor" = 3000 ] ||
+      [[ "$valor" = 3000 ]] ||
         falhar "[export-timeout] $onde: $chave=$valor; o encerramento divide 10 s entre os sinais (~3,3 s cada), então 3000 ms" ;;
   esac
 }
@@ -227,17 +227,17 @@ conferir_arquivo() {
   local repo="$1" arquivo="$2" rel formato registros n tipo chave valor efetivo certificados=" " antes="$FALHAS"
   rel="${arquivo#"$repo"/}"
   formato="$(formato_de "$arquivo")"
-  [ "$formato" = outro ] && return 0
+  [[ "$formato" = outro ]] && return 0
   if ! registros="$(awk -v formato="$formato" "$EXTRATOR" "$arquivo" | sort -s -k1,1n)"; then
     falhar "[leitura] $rel: o awk não conseguiu extrair as envs"
     return 0
   fi
   while IFS=$'\t' read -r n tipo chave valor; do
-    [ "$tipo" = decl ] && [ "$(regra_de "$chave")" = certificado ] && certificados+="$chave "
+    [[ "$tipo" = decl ]] && [[ "$(regra_de "$chave")" = certificado ]] && certificados+="$chave "
   done <<<"$registros"
   while IFS=$'\t' read -r n tipo chave valor; do
-    [ -n "$chave" ] || continue
-    if [ "$tipo" = solta ]; then
+    [[ -n "$chave" ]] || continue
+    if [[ "$tipo" = solta ]]; then
       if legada "$chave"; then
         falhar "[env-legada] $rel:$n: $chave numa forma que o gate não lê (flow ou bloco); a env saiu com a RF-E1"
       elif regra_de "$chave" >/dev/null; then
@@ -246,18 +246,18 @@ conferir_arquivo() {
       continue
     fi
     if legada "$chave"; then
-      if [ "$tipo" = ref ]; then
+      if [[ "$tipo" = ref ]]; then
         falhar "[env-legada] $rel:$n: referência a $chave, env que saiu com a RF-E1"
       else
         falhar "[env-legada] $rel:$n: $chave saiu com a RF-E1; a configuração é pelas OTEL_* canônicas"
       fi
       continue
     fi
-    [ "$tipo" = ref ] && continue
+    [[ "$tipo" = ref ]] && continue
     regra_de "$chave" >/dev/null || continue
     DECLARADAS["$rel|$chave"]=1
     DECLARADAS["${rel%/*}/|$chave"]=1
-    if [ "$tipo" = indireta ]; then
+    if [[ "$tipo" = indireta ]]; then
       falhar "[$(regra_de "$chave")] $rel:$n: $chave sem value literal para conferir (valueFrom)"
       continue
     fi
@@ -267,7 +267,7 @@ conferir_arquivo() {
     fi
     checar_valor "$rel:$n" "$chave" "$efetivo" "$certificados"
   done <<<"$registros"
-  [ "$FALHAS" -eq "$antes" ] && aprovar "$rel"
+  [[ "$FALHAS" -eq "$antes" ]] && aprovar "$rel"
   return 0
 }
 
@@ -283,25 +283,25 @@ motivo_ausente() {
 
 conferir_presenca() {
   local repo="$1" rel="$2" chave antes="$FALHAS"
-  if [ ! -f "$repo/$rel" ]; then
+  if [[ ! -f "$repo/$rel" ]]; then
     falhar "[fonte] $rel ausente; é a origem das OTEL_* de um modo de implantação"
     return 0
   fi
   for chave in "${EXIGIDAS[@]}"; do
-    [ -n "${DECLARADAS["$rel|$chave"]:-}" ] ||
+    [[ -n "${DECLARADAS["$rel|$chave"]:-}" ]] ||
       falhar "[$(regra_de "$chave")] $rel: $chave ausente; $(motivo_ausente "$chave")"
   done
-  [ "$FALHAS" -eq "$antes" ] && aprovar "$rel: declara ${EXIGIDAS[*]}"
+  [[ "$FALHAS" -eq "$antes" ]] && aprovar "$rel: declara ${EXIGIDAS[*]}"
   return 0
 }
 
 conferir_tls_hmg() {
   local dir="$1" chave antes="$FALHAS"
   for chave in OTEL_EXPORTER_OTLP_ENDPOINT OTEL_EXPORTER_OTLP_CERTIFICATE; do
-    [ -n "${DECLARADAS["$dir/|$chave"]:-}" ] ||
+    [[ -n "${DECLARADAS["$dir/|$chave"]:-}" ]] ||
       falhar "[endpoint] $dir: $chave ausente; sem ele o overlay hmg herda o http:// da base e exporta em texto claro"
   done
-  [ "$FALHAS" -eq "$antes" ] && aprovar "$dir: exporta por https:// com OTEL_EXPORTER_OTLP_CERTIFICATE"
+  [[ "$FALHAS" -eq "$antes" ]] && aprovar "$dir: exporta por https:// com OTEL_EXPORTER_OTLP_CERTIFICATE"
   return 0
 }
 
@@ -317,7 +317,7 @@ nome_kubernetes() {
 descartada() {
   local app="$1" rx
   while IFS= read -r rx; do
-    [ -n "$rx" ] && printf '%s\n' "$app" | grep -Eq -- "^(${rx})\$" && return 0
+    [[ -n "$rx" ]] && printf '%s\n' "$app" | grep -Eq -- "^(${rx})\$" && return 0
   done <<<"$2"
   return 1
 }
@@ -327,11 +327,11 @@ conferir_alloy() {
   shift 3
   local -a fontes=() faltando
   local -A descarte=()
-  if [ ! -f "$repo/$rel" ]; then
+  if [[ ! -f "$repo/$rel" ]]; then
     falhar "[alloy] $rel ausente"
     return 0
   fi
-  if [ "$#" -eq 0 ]; then
+  if [[ "$#" -eq 0 ]]; then
     falhar "[alloy] $rel: nenhum nome de app para conferir o descarte por $rotulo"
     return 0
   fi
@@ -345,7 +345,7 @@ conferir_alloy() {
       fonte) fontes+=("$n"$'\t'"$comp"$'\t'"$valor") ;;
     esac
   done <<<"$regras"
-  [ "${#fontes[@]}" -gt 0 ] || falhar "[alloy] $rel: nenhum loki.source com targets para conferir o descarte das apps"
+  [[ "${#fontes[@]}" -gt 0 ]] || falhar "[alloy] $rel: nenhum loki.source com targets para conferir o descarte das apps"
   for fonte in ${fontes[@]+"${fontes[@]}"}; do
     IFS=$'\t' read -r n comp alvo <<<"$fonte"
     if ! [[ $alvo =~ ^discovery\.relabel\.([A-Za-z0-9_]+)\.output$ ]]; then
@@ -357,7 +357,7 @@ conferir_alloy() {
     for app in "$@"; do
       descartada "$app" "${descarte[$relabel]:-}" || faltando+=("$app")
     done
-    if [ "${#faltando[@]}" -eq 0 ]; then
+    if [[ "${#faltando[@]}" -eq 0 ]]; then
       aprovar "$rel: $comp lê $alvo, cuja rule drop por $rotulo descarta $*"
     else
       falhar "[alloy] $rel: nenhuma rule drop de discovery.relabel.$relabel por $rotulo descarta ${faltando[*]}; o stdout das apps duplicaria o log OTLP"
@@ -371,33 +371,33 @@ fase_estrutural() {
   local -A DECLARADAS=()
   local -a deploys=() arquivos=() servicos=() nomes=()
   for deploy in "$repo/$APPS"/*/deploy; do
-    [ -d "$deploy" ] && deploys+=("$deploy")
+    [[ -d "$deploy" ]] && deploys+=("$deploy")
   done
-  if [ "${#deploys[@]}" -eq 0 ]; then
+  if [[ "${#deploys[@]}" -eq 0 ]]; then
     echo "nenhum manifesto de app em $repo/$APPS/*/deploy" >&2
     return 2
   fi
 
   for deploy in "${deploys[@]}"; do
-    [ -f "$deploy/.env.example" ] && arquivos+=("$deploy/.env.example")
-    [ -f "$deploy/compose.yml" ] && arquivos+=("$deploy/compose.yml")
-    if [ -d "$deploy/k8s" ]; then
+    [[ -f "$deploy/.env.example" ]] && arquivos+=("$deploy/.env.example")
+    [[ -f "$deploy/compose.yml" ]] && arquivos+=("$deploy/compose.yml")
+    if [[ -d "$deploy/k8s" ]]; then
       while IFS= read -r arquivo; do arquivos+=("$arquivo"); done < <(
         find "$deploy/k8s" -type f \( -name '*.yaml' -o -name '*.yml' -o -name '*.yaml.tmpl' \) | sort
       )
     fi
-    if [ -f "$deploy/compose.yml" ]; then
+    if [[ -f "$deploy/compose.yml" ]]; then
       while IFS= read -r nome; do servicos+=("$nome"); done < <(servicos_compose "$deploy/compose.yml")
     fi
-    if [ -f "$deploy/k8s/base/kustomization.yaml" ]; then
+    if [[ -f "$deploy/k8s/base/kustomization.yaml" ]]; then
       nome="$(nome_kubernetes "$deploy/k8s/base/kustomization.yaml")"
-      [ -n "$nome" ] && nomes+=("$nome")
+      [[ -n "$nome" ]] && nomes+=("$nome")
     fi
   done
   for arquivo in "$repo/$APP_BASE" "$repo/infra/local/.env.example" "$repo/infra/local/env.platform.example"; do
-    [ -f "$arquivo" ] && arquivos+=("$arquivo")
+    [[ -f "$arquivo" ]] && arquivos+=("$arquivo")
   done
-  if [ -d "$repo/$TEMPLATES" ]; then
+  if [[ -d "$repo/$TEMPLATES" ]]; then
     while IFS= read -r arquivo; do arquivos+=("$arquivo"); done < <(find "$repo/$TEMPLATES" -type f -name '*__tmpl__' | sort)
   fi
 
@@ -417,7 +417,7 @@ fase_estrutural() {
 
   printf '\n== TLS do OTLP no overlay hmg ==\n'
   for deploy in "${deploys[@]}" "$repo/$TEMPLATES"; do
-    [ -d "$deploy/k8s/overlays/hmg" ] && conferir_tls_hmg "${deploy#"$repo"/}/k8s/overlays/hmg"
+    [[ -d "$deploy/k8s/overlays/hmg" ]] && conferir_tls_hmg "${deploy#"$repo"/}/k8s/overlays/hmg"
   done
 
   printf '\n== descarte das apps no Alloy ==\n'
@@ -426,7 +426,7 @@ fase_estrutural() {
   conferir_alloy "$repo" "$ALLOY/alloy-kubernetes.alloy" __meta_kubernetes_pod_label_app_kubernetes_io_name \
     ${nomes[@]+"${nomes[@]}"}
 
-  if [ "$FALHAS" -gt 0 ]; then
+  if [[ "$FALHAS" -gt 0 ]]; then
     printf '\nGate de env OTel: REPROVADO com %d achado(s).\n' "$FALHAS" >&2
     return 1
   fi
@@ -856,17 +856,17 @@ fase_self_test() {
     saida="$(FALHAS=0; fase_estrutural "$tmp" 2>&1 >/dev/null)"
     codigo=$?
     achados="$(grep -F 'FALHA' <<<"$saida")"
-    if [ "$codigo" -eq 0 ]; then
+    if [[ "$codigo" -eq 0 ]]; then
       falhar "a sabotagem '$sabotagem' passou pelo gate"
       status=1
-    elif [ "$esperado" = "-" ]; then
-      if [ "$codigo" -eq 2 ]; then
+    elif [[ "$esperado" = "-" ]]; then
+      if [[ "$codigo" -eq 2 ]]; then
         aprovar "reprovou: $sabotagem (nada a conferir)"
       else
         falhar "a sabotagem '$sabotagem' deveria sair com 2, saiu com $codigo"
         status=1
       fi
-    elif [ -n "$achados" ] && ! grep -qvF -- "FALHA  [$esperado]" <<<"$achados"; then
+    elif [[ -n "$achados" ]] && ! grep -qvF -- "FALHA  [$esperado]" <<<"$achados"; then
       aprovar "reprovou: $sabotagem [$esperado]"
     else
       falhar "a sabotagem '$sabotagem' reprovou por outro motivo (esperado [$esperado])"
@@ -891,7 +891,7 @@ fase_self_test() {
     trash "$tmp" >/dev/null 2>&1 || true
   done
 
-  if [ "$status" -ne 0 ]; then
+  if [[ "$status" -ne 0 ]]; then
     printf '\nAutoteste do gate: REPROVADO.\n' >&2
     return 1
   fi
@@ -911,10 +911,10 @@ TXT
 
 FASE="structural"
 REPO="$ROOT"
-while [ $# -gt 0 ]; do
+while [[ $# -gt 0 ]]; do
   case "$1" in
     --self-test) FASE="self-test" ;;
-    --root) shift; REPO="${1:-}"; [ -n "$REPO" ] || { uso >&2; exit 2; } ;;
+    --root) shift; REPO="${1:-}"; [[ -n "$REPO" ]] || { uso >&2; exit 2; } ;;
     --root=*) REPO="${1#--root=}" ;;
     -h|--help) uso; exit 0 ;;
     *) printf 'argumento desconhecido: %s\n' "$1" >&2; uso >&2; exit 2 ;;

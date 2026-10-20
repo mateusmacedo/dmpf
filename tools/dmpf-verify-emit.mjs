@@ -7,8 +7,16 @@
 // Uso: node tools/dmpf-verify-emit.mjs <profiles|counts|line-refs> [--root <dir>] [--base <rev>]
 
 import { execFileSync } from 'node:child_process';
-import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import {
+  accessSync,
+  constants,
+  existsSync,
+  readdirSync,
+  readFileSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
+import { delimiter, dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
@@ -17,6 +25,23 @@ import {
   extractPhysicalRefs,
   MANIFEST_DIR,
 } from './dmpf-verify.mjs';
+
+const executavel = (caminho) => {
+  try {
+    accessSync(caminho, constants.X_OK);
+    return statSync(caminho).isFile();
+  } catch {
+    return false;
+  }
+};
+
+const binario = (nome) => {
+  const dir = (process.env.PATH ?? '')
+    .split(delimiter)
+    .find((d) => isAbsolute(d) && executavel(join(d, nome)));
+  if (dir === undefined) throw new Error(`${nome} não encontrado em um diretório absoluto do PATH`);
+  return join(dir, nome);
+};
 
 const SEED = {
   documents: {
@@ -196,7 +221,7 @@ const readAcervo = (root) => {
   const files = {};
   for (const f of readdirSync(dir)
     .filter((x) => x.endsWith('.md'))
-    .sort())
+    .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)))
     files[f] = readFileSync(join(dir, f), 'utf8').split('\n');
   return files;
 };
@@ -241,7 +266,8 @@ const emitProfiles = (root) => {
       highlighted,
     );
     const ids = {};
-    for (const id of [...found.keys()].sort()) ids[id] = found.get(id).line;
+    for (const id of [...found.keys()].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)))
+      ids[id] = found.get(id).line;
     documents[doc] = {
       file: seed.file,
       prefixes: seed.prefixes,
@@ -318,7 +344,7 @@ const emitLineRefs = (root, base) => {
       }
       let baseLines = null;
       try {
-        baseLines = execFileSync('git', ['-C', root, 'show', `${base}:${resolved}`], {
+        baseLines = execFileSync(binario('git'), ['-C', root, 'show', `${base}:${resolved}`], {
           encoding: 'utf8',
           stdio: ['ignore', 'pipe', 'ignore'],
         }).split('\n');
@@ -380,7 +406,10 @@ const main = () => {
   // O manifesto é versionado e revisado no PR, então precisa sair no formato do
   // projeto — senão o `biome ci` reprova o que a própria ferramenta gerou.
   try {
-    execFileSync('pnpm', ['biome', 'format', '--write', dest], { cwd: root, stdio: 'ignore' });
+    execFileSync(binario('pnpm'), ['biome', 'format', '--write', dest], {
+      cwd: root,
+      stdio: 'ignore',
+    });
   } catch {
     process.stderr.write(
       'aviso: não foi possível formatar o manifesto com o Biome; rode `pnpm biome format --write` antes do commit\n',

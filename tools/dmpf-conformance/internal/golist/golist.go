@@ -270,7 +270,11 @@ func (s *Source) listar(perfil fsstore.BuildProfile, m rule.Module) ([]listPacka
 	// flag e o erro sai ilegível; com ele, o Go diz "malformed module path".
 	args = append(args, "--", m.Path+"/...")
 
-	cmd := exec.Command("go", args...)
+	goBin, err := exec.LookPath("go")
+	if err != nil {
+		return nil, fmt.Errorf("localizar o binário go no PATH: %w", err)
+	}
+	cmd := exec.Command(goBin, args...)
 	cmd.Dir = m.Dir
 	cmd.Env = append(cmd.Environ(),
 		"GOOS="+perfil.GOOS,

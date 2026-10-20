@@ -12,18 +12,18 @@ uso() { echo "uso: buf-gate.sh lint | pins | generate-check | breaking | warmup 
 
 SUB="${1:-}"
 MOD="${2:-}"
-[ -n "$SUB" ] && [ -n "$MOD" ] || uso
+[[ -n "$SUB" ]] && [[ -n "$MOD" ]] || uso
 shift 2
 PROJECT=""
-while [ $# -gt 0 ]; do
+while [[ $# -gt 0 ]]; do
   case "$1" in
-    --project) PROJECT="${2:-}"; [ -n "$PROJECT" ] || uso; shift 2 ;;
+    --project) PROJECT="${2:-}"; [[ -n "$PROJECT" ]] || uso; shift 2 ;;
     *) uso ;;
   esac
 done
 MOD="${MOD%/}"
-[ -d "$MOD" ] || { echo "REPROVADO: diretorio do modulo inexistente: $MOD" >&2; exit 2; }
-[ -n "$PROJECT" ] || PROJECT="$(basename "$MOD")"
+[[ -d "$MOD" ]] || { echo "REPROVADO: diretorio do modulo inexistente: $MOD" >&2; exit 2; }
+[[ -n "$PROJECT" ]] || PROJECT="$(basename "$MOD")"
 
 BUF_YAML="$MOD/buf.yaml"
 BUF_GEN="$MOD/buf.gen.yaml"
@@ -61,7 +61,7 @@ so_modulo() { # modulo
 gen_dir() {
   local out
   out="$(grep -E '^\s*out:' "$BUF_GEN" | head -1 | sed -E 's/^\s*out:\s*//; s/\s*$//')"
-  [ -n "$out" ] || reprovar "$BUF_GEN sem 'out' de plugin"
+  [[ -n "$out" ]] || reprovar "$BUF_GEN sem 'out' de plugin"
   realpath -m --relative-to="$ROOT" "$ROOT/$MOD/$out"
 }
 
@@ -69,8 +69,8 @@ gen_dir() {
 lib_dir() {
   local d
   d="$(gen_dir)"
-  while [ "$d" != "." ] && [ "$d" != "/" ]; do
-    [ -f "$d/go.mod" ] && { echo "$d"; return; }
+  while [[ "$d" != "." ]] && [[ "$d" != "/" ]]; do
+    [[ -f "$d/go.mod" ]] && { echo "$d"; return; }
     d="$(dirname "$d")"
   done
   reprovar "nenhum go.mod acima de $(gen_dir)"
@@ -95,7 +95,7 @@ gate_pins() {
   [[ "$cli_pin" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || reprovar "$VERSIONS: buf $cli_pin nao e pin exato vX.Y.Z (BUF-06)"
 
   plugin_pin="$(grep -oE "protoc-gen-[a-z0-9-]+@[^][:space:]\"',]+" "$BUF_GEN" || true)"
-  [ -n "$plugin_pin" ] || reprovar "$BUF_GEN sem plugin local pinado (BUF-06)"
+  [[ -n "$plugin_pin" ]] || reprovar "$BUF_GEN sem plugin local pinado (BUF-06)"
   while IFS= read -r pin; do
     echo "$pin" | grep -qE '@v[0-9]+\.[0-9]+\.[0-9]+$' || reprovar "plugin sem pin exato: $pin (BUF-06)"
   done <<<"$plugin_pin"
@@ -106,23 +106,23 @@ gate_pins() {
   lib="$(lib_dir)"
   plugin_ver="$(echo "$plugin_pin" | grep -oE 'protoc-gen-go@v[0-9]+\.[0-9]+\.[0-9]+' | sed 's/.*@//')"
   runtime_ver="$(grep -oE 'google\.golang\.org/protobuf v[0-9]+\.[0-9]+\.[0-9]+' "$lib/go.mod" | awk '{print $2}')"
-  [ -n "$plugin_ver" ] || reprovar "protoc-gen-go sem versao em $BUF_GEN"
-  [ -n "$runtime_ver" ] || reprovar "google.golang.org/protobuf ausente de $lib/go.mod"
+  [[ -n "$plugin_ver" ]] || reprovar "protoc-gen-go sem versao em $BUF_GEN"
+  [[ -n "$runtime_ver" ]] || reprovar "google.golang.org/protobuf ausente de $lib/go.mod"
   # O gerado exige runtime >= versão do plugin; igualar os dois é o único estado sem drift silencioso.
-  [ "$plugin_ver" = "$runtime_ver" ] || reprovar "protoc-gen-go $plugin_ver difere de google.golang.org/protobuf $runtime_ver no go.mod"
+  [[ "$plugin_ver" = "$runtime_ver" ]] || reprovar "protoc-gen-go $plugin_ver difere de google.golang.org/protobuf $runtime_ver no go.mod"
 
   # Todos os módulos de contrato geram com o mesmo plugin: igualdade por módulo mais
   # igualdade entre módulos deixa um único runtime protobuf no workspace.
   while IFS= read -r outro; do
-    [ -n "$outro" ] || continue
+    [[ -n "$outro" ]] || continue
     outro_ver="$(grep -oE 'protoc-gen-go@v[0-9]+\.[0-9]+\.[0-9]+' "$outro" | head -1 | sed 's/.*@//')"
-    [ "$outro_ver" = "$plugin_ver" ] || reprovar "protoc-gen-go diverge entre modulos: $BUF_GEN tem $plugin_ver, $outro tem ${outro_ver:-nenhum} (BUF-06)"
+    [[ "$outro_ver" = "$plugin_ver" ]] || reprovar "protoc-gen-go diverge entre modulos: $BUF_GEN tem $plugin_ver, $outro tem ${outro_ver:-nenhum} (BUF-06)"
   done < <(git ls-files --cached --others --exclude-standard -- '*buf.gen.yaml' 'buf.gen.yaml' | sort -u)
 
   deps_line="$(grep -E '^deps:' "$BUF_YAML" || true)"
-  [ -n "$deps_line" ] || reprovar "$BUF_YAML sem chave deps (BUF-02)"
+  [[ -n "$deps_line" ]] || reprovar "$BUF_YAML sem chave deps (BUF-02)"
   if ! echo "$deps_line" | grep -qE '^deps:\s*\[\s*\]\s*$'; then
-    [ -f "$MOD/buf.lock" ] || reprovar "deps declaradas sem buf.lock versionado (BUF-02)"
+    [[ -f "$MOD/buf.lock" ]] || reprovar "deps declaradas sem buf.lock versionado (BUF-02)"
   fi
   echo "pins: OK (buf $cli_pin, protoc-gen-go@$plugin_ver = protobuf $runtime_ver)"
 }
@@ -135,7 +135,7 @@ gate_generate_check() {
   (cd "$MOD" && buf generate -o "$t1/$MOD") || reprovar "buf generate (1) falhou"
   (cd "$MOD" && buf generate -o "$t2/$MOD") || reprovar "buf generate (2) falhou"
   diff -r "$t1" "$t2" >/dev/null || { diff -r "$t1" "$t2" | head -20 >&2; reprovar "duas geracoes consecutivas divergem (BUF-11)"; }
-  [ -d "$t1/$gen" ] || reprovar "geracao nao produziu $gen"
+  [[ -d "$t1/$gen" ]] || reprovar "geracao nao produziu $gen"
   diff -r "$t1/$gen" "$gen" >/dev/null || { diff -r "$t1/$gen" "$gen" | head -40 >&2; reprovar "drift entre o gerado e o versionado em $gen (BUF-11, REP-02)"; }
   echo "generate-check: OK"
 }
@@ -144,11 +144,11 @@ gate_generate_check() {
 raizes_em() { # ref
   local ref="$1" arquivo dir p
   while IFS= read -r arquivo; do
-    [ -n "$arquivo" ] || continue
+    [[ -n "$arquivo" ]] || continue
     dir="$(dirname "$arquivo")"
     while IFS= read -r p; do
-      [ -n "$p" ] || continue
-      if [ "$dir" = "." ]; then echo "$p"; else echo "$dir/$p"; fi
+      [[ -n "$p" ]] || continue
+      if [[ "$dir" = "." ]]; then echo "$p"; else echo "$dir/$p"; fi
     done < <(git show "$ref:$arquivo" | publicados)
   done < <(git ls-tree -r --name-only "$ref" | grep -E '(^|/)buf\.yaml$')
 }
@@ -163,18 +163,18 @@ pacotes_em() { # ref raiz
 gate_breaking() {
   local base modulo raiz lista indice against rel origem arquivo herdado origens raizes_head presente
   base="${NX_BASE:-}"
-  [ -n "$base" ] || reprovar "baseline nao declarado: NX_BASE vazio (BUF-05)"
+  [[ -n "$base" ]] || reprovar "baseline nao declarado: NX_BASE vazio (BUF-05)"
   git rev-parse --verify --quiet "${base}^{commit}" >/dev/null || reprovar "baseline irresolvivel: $base (BUF-05)"
-  [ -f "$BUF_YAML" ] || reprovar "$BUF_YAML ausente: sem workspace nao ha modulo a verificar (BUF-01)"
+  [[ -f "$BUF_YAML" ]] || reprovar "$BUF_YAML ausente: sem workspace nao ha modulo a verificar (BUF-01)"
   lista="$(modulos)"
   # Lista vazia deixaria o laço sem iterar e o gate sairia 0 sem olhar nada.
-  [ -n "$lista" ] || reprovar "$BUF_YAML sem modulos declarados em 'modules[].path' com 'name' (BUF-01)"
+  [[ -n "$lista" ]] || reprovar "$BUF_YAML sem modulos declarados em 'modules[].path' com 'name' (BUF-01)"
 
   # A identidade de um .proto publicado é o pacote: indexa, por diretório relativo à
   # raiz do módulo (REP-01), onde cada pacote estava na base.
   indice="$(mktemp)" || reprovar "mktemp"
   while IFS= read -r raiz; do
-    [ -n "$raiz" ] || continue
+    [[ -n "$raiz" ]] || continue
     pacotes_em "$base" "$raiz" | awk -v r="$raiz" '{ print $0 "\t" r }' >>"$indice"
   done < <(raizes_em "$base")
 
@@ -186,9 +186,9 @@ gate_breaking() {
     herdado=0
     origens=""
     while IFS= read -r rel; do
-      [ -n "$rel" ] || continue
+      [[ -n "$rel" ]] || continue
       origem="$(awk -F'\t' -v r="$rel" -v p="$raiz" '$1 == r { if ($2 == p) { print p; exit } o = o ? o : $2 } END { if (o) print o }' "$indice" | head -1)"
-      [ -n "$origem" ] || continue
+      [[ -n "$origem" ]] || continue
       herdado=1
       case " $origens " in *" $origem "*) ;; *) origens="${origens:+$origens }$origem" ;; esac
       mkdir -p "$against/$modulo/$rel"
@@ -198,7 +198,7 @@ gate_breaking() {
     done < <(find "$raiz" -name '*.proto' -printf '%h\n' 2>/dev/null \
       | awk -v p="$raiz" '$0 == p { print "."; next } index($0, p "/") == 1 { print substr($0, length(p) + 2) }' | sort -u)
 
-    if [ "$herdado" -eq 0 ]; then
+    if [[ "$herdado" -eq 0 ]]; then
       aviso "modulo $raiz em estado 'sem baseline': nenhum pacote dele publicado em $base, buf breaking dispensado (BUF-08)"
       continue
     fi
@@ -210,13 +210,13 @@ gate_breaking() {
   # conferido no que HEAD rastreia, não na árvore de trabalho.
   raizes_head="$(raizes_em HEAD)"
   while IFS=$'\t' read -r rel origem; do
-    [ -n "$rel" ] || continue
+    [[ -n "$rel" ]] || continue
     presente=0
     while IFS= read -r raiz; do
-      [ -n "$raiz" ] || continue
+      [[ -n "$raiz" ]] || continue
       if git ls-tree --name-only HEAD -- "$raiz/$rel/" | grep -qE '\.proto$'; then presente=1; break; fi
     done <<<"$raizes_head"
-    [ "$presente" -eq 1 ] || reprovar "pacote publicado em $base ausente de todos os modulos em HEAD: $rel (antes em $origem) (BUF-08)"
+    [[ "$presente" -eq 1 ]] || reprovar "pacote publicado em $base ausente de todos os modulos em HEAD: $rel (antes em $origem) (BUF-08)"
   done <"$indice"
 }
 
@@ -226,7 +226,7 @@ gate_warmup() {
   local plugin_pin
   buf --version >/dev/null || reprovar "CLI Buf indisponivel pelo pin de $VERSIONS"
   plugin_pin="$(grep -oE 'protoc-gen-go@v[0-9]+\.[0-9]+\.[0-9]+' "$BUF_GEN" | head -1)"
-  [ -n "$plugin_pin" ] || reprovar "$BUF_GEN sem pin exato de protoc-gen-go (BUF-06)"
+  [[ -n "$plugin_pin" ]] || reprovar "$BUF_GEN sem pin exato de protoc-gen-go (BUF-06)"
   go run "google.golang.org/protobuf/cmd/$plugin_pin" --version >/dev/null || reprovar "plugin $plugin_pin indisponivel"
   echo "warmup: OK (buf $(buf_pin), $plugin_pin)"
 }

@@ -49,7 +49,7 @@ DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = 'quarantine'::regclass AND attname = 'envelope_digest' AND NOT attisdropped) THEN
     ALTER TABLE quarantine ADD COLUMN envelope_digest bytea;
-    UPDATE quarantine SET envelope_digest = sha256(envelope);
+    UPDATE quarantine SET envelope_digest = sha256(envelope) WHERE envelope_digest IS NULL;
     DELETE FROM quarantine newer USING quarantine older
      WHERE newer.consumer_name = older.consumer_name
        AND newer.envelope_digest = older.envelope_digest

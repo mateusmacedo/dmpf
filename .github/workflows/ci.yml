@@ -14,10 +14,6 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-permissions:
-  actions: read
-  contents: read
-
 env:
   # Declarado aqui, e não herdado do runner: é o que faz tb.Env reprovar
   # em vez de pular quando uma variável de integração falta.
@@ -27,6 +23,8 @@ jobs:
   scope:
     name: Escopo
     runs-on: ubuntu-26.04
+    permissions:
+      contents: read
     timeout-minutes: 10
     outputs:
       code: ${{ steps.scope.outputs.code }}
@@ -100,6 +98,8 @@ jobs:
     needs: scope
     if: github.base_ref == 'master' && needs.scope.outputs.external-consumer == 'true'
     runs-on: ubuntu-26.04
+    permissions:
+      contents: read
     timeout-minutes: 25
     steps:
       - name: Checkout
@@ -146,6 +146,8 @@ jobs:
     needs: [scope, dmpf, external-consumer, distributed, sonar]
     if: always()
     runs-on: ubuntu-26.04
+    permissions:
+      contents: read
     timeout-minutes: 5
     steps:
       - name: Resultado dos jobs

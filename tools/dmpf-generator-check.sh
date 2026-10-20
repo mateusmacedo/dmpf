@@ -88,7 +88,7 @@ falha() { printf 'FALHA: %s\n' "$1" >&2; exit 1; }
 descartar() {
   local status=$?
   cd "$ROOT" 2>/dev/null || true
-  if [ -n "$WT" ] && [ -d "$WT" ]; then
+  if [[ -n "$WT" ]] && [[ -d "$WT" ]]; then
     git worktree remove --force "$WT" >/dev/null 2>&1 \
       || echo "AVISO: não consegui remover o worktree $WT" >&2
     git worktree prune >/dev/null 2>&1
@@ -119,26 +119,26 @@ assinar_node_modules() {
 
 ancorar_node_modules() {
   local destino
-  [ -d "$ROOT/node_modules" ] \
+  [[ -d "$ROOT/node_modules" ]] \
     || falha "node_modules ausente na raiz; rode 'pnpm install' antes do gate"
   destino="$(readlink -m "$ROOT/node_modules/nx")"
   case "$destino" in
     "$ROOT"/*) ;;
     *) falha "node_modules/nx da raiz resolve para fora de $ROOT ($destino); rode 'pnpm install' na raiz antes do gate" ;;
   esac
-  [ -f "$destino/package.json" ] \
+  [[ -f "$destino/package.json" ]] \
     || falha "node_modules/nx da raiz está quebrado ($destino sem package.json); rode 'pnpm install' na raiz antes do gate"
 
   NM_ANCORA="$(mktemp)" || falha "não consegui criar o arquivo da âncora de node_modules"
   assinar_node_modules >"$NM_ANCORA" || falha "não consegui assinar o node_modules da raiz"
-  [ -s "$NM_ANCORA" ] \
+  [[ -s "$NM_ANCORA" ]] \
     || falha "a assinatura do node_modules da raiz saiu vazia; rode 'pnpm install' antes do gate"
 }
 
 conferir_node_modules() {
   local divergencia
   divergencia="$(diff "$NM_ANCORA" <(assinar_node_modules) | head -12)"
-  [ -z "$divergencia" ] || falha "o node_modules da raiz foi reescrito durante o gate: o pnpm instalou por dentro do symlink do worktree; rode 'pnpm install' na raiz para recuperar. Primeiras divergências:
+  [[ -z "$divergencia" ]] || falha "o node_modules da raiz foi reescrito durante o gate: o pnpm instalou por dentro do symlink do worktree; rode 'pnpm install' na raiz para recuperar. Primeiras divergências:
 $divergencia"
 }
 
@@ -147,7 +147,7 @@ injetar_arvore_de_trabalho() {
     git diff HEAD | git -C "$WT" apply \
       || falha "não consegui aplicar o diff da árvore de trabalho no worktree"
   fi
-  if [ -d "$ROOT/tools/dmpf-plugin" ]; then
+  if [[ -d "$ROOT/tools/dmpf-plugin" ]]; then
     mkdir -p "$WT/tools" || falha "não consegui criar tools/ no worktree"
     tar -C "$ROOT/tools" \
       --exclude=dmpf-plugin/dist \
@@ -167,12 +167,12 @@ abrir_worktree() {
     || falha "não consegui abrir o worktree em $WT"
   ln -s "$ROOT/node_modules" "$WT/node_modules" \
     || falha "não consegui ligar node_modules no worktree"
-  if [ -n "${DMPF_GENERATOR_CHECK_WORKING_TREE:-}" ]; then
+  if [[ -n "${DMPF_GENERATOR_CHECK_WORKING_TREE:-}" ]]; then
     injetar_arvore_de_trabalho
   fi
   # O plugin é workspace package do pnpm e resolve as dependências pelo próprio
   # node_modules; sem este segundo link o generator não carrega.
-  if [ -d "$ROOT/tools/dmpf-plugin/node_modules" ] && [ ! -e "$WT/tools/dmpf-plugin/node_modules" ]; then
+  if [[ -d "$ROOT/tools/dmpf-plugin/node_modules" ]] && [[ ! -e "$WT/tools/dmpf-plugin/node_modules" ]]; then
     ln -s "$ROOT/tools/dmpf-plugin/node_modules" "$WT/tools/dmpf-plugin/node_modules" \
       || falha "não consegui ligar tools/dmpf-plugin/node_modules no worktree"
   fi
@@ -183,21 +183,21 @@ gerar() {
   local blocos=() bloco args=() saida status
   IFS=',' read -r -a blocos <<<"$BLOCOS"
   for bloco in "${blocos[@]}"; do
-    [ -n "$bloco" ] || continue
+    [[ -n "$bloco" ]] || continue
     args+=("--blocks=$bloco")
     BLOCOS_PEDIDOS=$((BLOCOS_PEDIDOS + 1))
   done
-  [ "$BLOCOS_PEDIDOS" -gt 0 ] || falha "DMPF_GENERATOR_CHECK_BLOCKS não nomeou nenhum bloco"
+  [[ "$BLOCOS_PEDIDOS" -gt 0 ]] || falha "DMPF_GENERATOR_CHECK_BLOCKS não nomeou nenhum bloco"
 
   saida="$(cd "$WT" && pnpm nx g @mateusmacedo/dmpf-plugin:bounded-context "$NOME" \
     --bounded-context "$CONTEXTO" "${args[@]}" --no-interactive 2>&1)"
   status=$?
-  if [ "$status" -ne 0 ]; then
+  if [[ "$status" -ne 0 ]]; then
     printf '%s\n' "$saida" >&2
     falha "o generator reprovou (exit $status; saída acima)"
   fi
 
-  if [ -n "${DMPF_GENERATOR_CHECK_SIMULAR_SEM_INSTRUCAO:-}" ]; then
+  if [[ -n "${DMPF_GENERATOR_CHECK_SIMULAR_SEM_INSTRUCAO:-}" ]]; then
     saida="$(printf '%s\n' "$saida" | grep -v -e 'write-baseline')"
   fi
 
@@ -213,7 +213,7 @@ coletar_gerados() {
   ARQUIVOS_GO=()
   while IFS= read -r -d '' entrada; do
     caminho="${entrada:3}"
-    [ -n "$caminho" ] || continue
+    [[ -n "$caminho" ]] || continue
     ARQUIVOS_GERADOS+=("$caminho")
     case "$caminho" in
       *.json | *.jsonc | *.ts | *.tsx | *.js | *.mjs | *.cjs | *.css) ARQUIVOS_FORMATO+=("$caminho") ;;
@@ -221,7 +221,7 @@ coletar_gerados() {
     esac
   done < <(git -C "$WT" status --porcelain -z --untracked-files=all)
 
-  [ "${#ARQUIVOS_GERADOS[@]}" -gt 0 ] \
+  [[ "${#ARQUIVOS_GERADOS[@]}" -gt 0 ]] \
     || falha "o generator não deixou nenhum arquivo novo ou modificado no worktree"
   printf '%s\n' "${ARQUIVOS_GERADOS[@]}" | grep -qx 'go.work' \
     || falha "go.work não aparece entre os arquivos tocados: o módulo gerado não foi registrado"
@@ -235,7 +235,7 @@ projetos_gerados() {
     case "$caminho" in
       */project.json)
         nome="$(awk -F'"' '/"name":/ { print $4; exit }' "$WT/$caminho")"
-        [ -n "$nome" ] || falha "project.json gerado sem campo name: $caminho"
+        [[ -n "$nome" ]] || falha "project.json gerado sem campo name: $caminho"
         PROJETOS+=("$nome")
         ;;
     esac
@@ -243,41 +243,41 @@ projetos_gerados() {
   local esperados ordenados
   esperados="$(printf '%s\n' "$NOME" "$NOME-contract" | sort)"
   ordenados="$(printf '%s\n' "${PROJETOS[@]}" | sort)"
-  [ "$ordenados" = "$esperados" ] \
+  [[ "$ordenados" = "$esperados" ]] \
     || falha "projetos gerados: $(tr '\n' ' ' <<<"$ordenados")— esperados o contexto $NOME e o contrato $NOME-contract (ADR-045, ADR-054)"
   local bloco blocos=() faltando=()
   IFS=',' read -r -a blocos <<<"$BLOCOS"
   for bloco in "${blocos[@]}"; do
-    [ -n "$bloco" ] || continue
+    [[ -n "$bloco" ]] || continue
     case "$bloco" in port) bloco=ports ;; esac
-    [ -d "$WT/apps/backend/$NOME/$bloco" ] || faltando+=("$bloco")
+    [[ -d "$WT/apps/backend/$NOME/$bloco" ]] || faltando+=("$bloco")
   done
-  [ "${#faltando[@]}" -eq 0 ] \
+  [[ "${#faltando[@]}" -eq 0 ]] \
     || falha "bloco(s) pedido(s) sem diretório no módulo gerado: ${faltando[*]} — a lista --blocks não chegou inteira ao generator"
   ok "módulos gerados: $NOME com $BLOCOS_PEDIDOS bloco(s) e $NOME-contract"
 }
 
 checar_sem_escrita() {
   local saida status
-  if [ "${#ARQUIVOS_FORMATO[@]}" -gt 0 ]; then
+  if [[ "${#ARQUIVOS_FORMATO[@]}" -gt 0 ]]; then
     saida="$(cd "$WT" && pnpm biome ci --no-errors-on-unmatched "${ARQUIVOS_FORMATO[@]}" 2>&1)"
     status=$?
-    if [ "$status" -ne 0 ]; then
+    if [[ "$status" -ne 0 ]]; then
       printf '%s\n' "$saida" >&2
       falha "biome ci reprovou arquivo gerado (o arquivo e o diagnóstico estão acima)"
     fi
   fi
-  if [ "${#ARQUIVOS_GO[@]}" -gt 0 ]; then
+  if [[ "${#ARQUIVOS_GO[@]}" -gt 0 ]]; then
     # gofmt lista o desalinhado em stdout com status 0 e, diante de erro de
     # sintaxe, escreve em stderr e sai 2 com stdout vazio; saída e status são
     # guardados em separado, como no lefthook.yml.
     saida="$(cd "$WT" && gofmt -l "${ARQUIVOS_GO[@]}" 2>&1)"
     status=$?
-    if [ "$status" -ne 0 ]; then
+    if [[ "$status" -ne 0 ]]; then
       printf '%s\n' "$saida" >&2
       falha "gofmt não conseguiu ler arquivo gerado (exit $status; saída acima)"
     fi
-    [ -z "$saida" ] \
+    [[ -z "$saida" ]] \
       || falha "gofmt -l apontou arquivo gerado fora do formato: $(printf '%s' "$saida" | tr '\n' ' ')"
   fi
   ok "biome ci e gofmt -l sem apontamento nos arquivos gerados"
@@ -295,10 +295,10 @@ gravar_manifesto() {
 
 conferir_manifesto() {
   local saida status
-  [ -s "$MANIFESTO" ] || falha "o manifesto SHA-256 está vazio ou não foi gravado"
+  [[ -s "$MANIFESTO" ]] || falha "o manifesto SHA-256 está vazio ou não foi gravado"
   saida="$(cd "$WT" && sha256sum -c --quiet -- "$MANIFESTO" 2>&1)"
   status=$?
-  if [ "$status" -ne 0 ]; then
+  if [[ "$status" -ne 0 ]]; then
     printf '%s\n' "$saida" >&2
     falha "arquivo gerado mudou depois da geração (o que divergiu está acima)"
   fi
@@ -310,13 +310,13 @@ commitar_classificacao() {
   for caminho in "${ARQUIVOS_GERADOS[@]}"; do
     case "$caminho" in */dmpf-units.json) manifestos+=("$caminho") ;; esac
   done
-  [ "${#manifestos[@]}" -gt 0 ] || falha "nenhum dmpf-units.json entre os arquivos gerados"
+  [[ "${#manifestos[@]}" -gt 0 ]] || falha "nenhum dmpf-units.json entre os arquivos gerados"
 
   git -C "$WT" add -- "${manifestos[@]}" || falha "git add dos manifestos de unidade"
   saida="$(cd "$WT" && go run ./tools/dmpf-conformance/cmd/conformance \
     --root . --write-baseline 2>&1)"
   status=$?
-  if [ "$status" -ne 0 ]; then
+  if [[ "$status" -ne 0 ]]; then
     printf '%s\n' "$saida" >&2
     falha "--write-baseline reprovou (exit $status; saída acima)"
   fi
@@ -375,7 +375,7 @@ verificar_conformidade() {
     --root "$WT" 2>&1)"
   status=$?
   printf '%s\n' "$saida"
-  [ "$status" -eq 0 ] \
+  [[ "$status" -eq 0 ]] \
     || falha "o verificador de conformidade reprovou o bounded context gerado (exit $status)"
   ok "verificador de conformidade aprovado"
 }
@@ -385,7 +385,7 @@ conferir_arvore_limpa() {
   git -C "$WT" diff --exit-code >/dev/null \
     || falha "os checks mudaram arquivo versionado: $(git -C "$WT" diff --name-only | tr '\n' ' ')"
   sobras="$(git -C "$WT" status --porcelain)"
-  if [ -n "$sobras" ]; then
+  if [[ -n "$sobras" ]]; then
     printf '%s\n' "$sobras" >&2
     falha "sobrou arquivo não versionado depois dos checks (acima)"
   fi
@@ -400,10 +400,10 @@ sabotar_json_gerado() {
   for caminho in "${ARQUIVOS_GERADOS[@]}"; do
     case "$caminho" in */dmpf-units.json) alvo="$caminho"; break ;; esac
   done
-  [ -n "$alvo" ] || falha "nenhum dmpf-units.json entre os gerados para sabotar"
+  [[ -n "$alvo" ]] || falha "nenhum dmpf-units.json entre os gerados para sabotar"
   antes="$(sha256sum <"$WT/$alvo")" || falha "não consegui ler $alvo"
   sed -i '2s/^/ /' "$WT/$alvo" || falha "não consegui sabotar $alvo"
-  [ "$antes" != "$(sha256sum <"$WT/$alvo")" ] \
+  [[ "$antes" != "$(sha256sum <"$WT/$alvo")" ]] \
     || falha "a sabotagem não mudou $alvo: sem ela o vetor mediria a fase intacta"
   ok "sabotagem: espaço extra na indentação de $alvo"
 }
@@ -416,7 +416,7 @@ sabotar_edicao_pos_commit() {
   for caminho in "${ARQUIVOS_GERADOS[@]}"; do
     case "$caminho" in */README.md) alvo="$caminho"; break ;; esac
   done
-  [ -n "$alvo" ] || falha "nenhum README.md entre os gerados para sabotar"
+  [[ -n "$alvo" ]] || falha "nenhum README.md entre os gerados para sabotar"
   printf '\nlinha inserida pelo vetor de self-test\n' >>"$WT/$alvo" \
     || falha "não consegui sabotar $alvo"
   ok "sabotagem: $alvo reescrito depois do commit 2"
@@ -437,7 +437,7 @@ fase_structural() {
   projetos_gerados
 
   passo "checagem sem escrita e manifesto dos arquivos gerados"
-  [ -z "${DMPF_GENERATOR_CHECK_SIMULAR_JSON_FORA_DO_PADRAO:-}" ] || sabotar_json_gerado
+  [[ -z "${DMPF_GENERATOR_CHECK_SIMULAR_JSON_FORA_DO_PADRAO:-}" ]] || sabotar_json_gerado
   checar_sem_escrita
   conferir_node_modules
   gravar_manifesto
@@ -447,10 +447,10 @@ fase_structural() {
 
   passo "commit 2 — código"
   commitar_codigo
-  [ -z "${DMPF_GENERATOR_CHECK_SIMULAR_EDICAO_POS_COMMIT:-}" ] || sabotar_edicao_pos_commit
+  [[ -z "${DMPF_GENERATOR_CHECK_SIMULAR_EDICAO_POS_COMMIT:-}" ]] || sabotar_edicao_pos_commit
 
   passo "forma canônica do contexto gerado"
-  [ -z "${DMPF_GENERATOR_CHECK_SIMULAR_BORDA_HTTP:-}" ] || sabotar_borda_http
+  [[ -z "${DMPF_GENERATOR_CHECK_SIMULAR_BORDA_HTTP:-}" ]] || sabotar_borda_http
   verificar_forma_canonica
 
   passo "cadeia Go dos módulos gerados"
@@ -475,11 +475,11 @@ vetor() {
   local nome="$1" variavel="$2" esperado="$3" blocos="${4:-$BLOCOS_SELF_TEST}"
   local saida status
   local ambiente=("$variavel=1" "DMPF_GENERATOR_CHECK_BLOCKS=$blocos")
-  [ -z "${DMPF_GENERATOR_CHECK_WORKING_TREE:-}" ] \
+  [[ -z "${DMPF_GENERATOR_CHECK_WORKING_TREE:-}" ]] \
     || ambiente+=("DMPF_GENERATOR_CHECK_WORKING_TREE=$DMPF_GENERATOR_CHECK_WORKING_TREE")
   saida="$(env "${ambiente[@]}" bash "$ORIGEM" --phase structural 2>&1)"
   status=$?
-  if [ "$status" -eq 0 ]; then
+  if [[ "$status" -eq 0 ]]; then
     printf '%s\n' "$saida" >&2
     falha "vetor $nome: a fase structural passou, e devia ter reprovado (saída acima)"
   fi
@@ -511,11 +511,11 @@ fase_self_test() {
 }
 
 FASE=""
-while [ $# -gt 0 ]; do
+while [[ $# -gt 0 ]]; do
   case "$1" in
     --phase)
       FASE="${2:-}"
-      [ -n "$FASE" ] || { echo "FALHA: --phase exige um valor" >&2; uso >&2; exit 2; }
+      [[ -n "$FASE" ]] || { echo "FALHA: --phase exige um valor" >&2; uso >&2; exit 2; }
       shift 2
       ;;
     --phase=*)

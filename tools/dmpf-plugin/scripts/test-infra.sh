@@ -7,7 +7,7 @@ cd "${DMPF_WORKSPACE_ROOT:-$(git rev-parse --show-toplevel)}"
 compose=(docker compose -f infra/test/compose.yml)
 keycloak=("${compose[@]}" --profile keycloak)
 
-if [ -n "${CI:-}" ]; then
+if [[ -n "${CI:-}" ]]; then
   echo "test-infra: no CI a infra de testes é a do job (ci.yml)" >&2
   exit 0
 fi
@@ -20,7 +20,7 @@ case "${1:-}" in
   keycloak)
     keycloak_before="$("${keycloak[@]}" ps -q keycloak)"
     "${keycloak[@]}" up -d --wait keycloak
-    if [ "$("${keycloak[@]}" ps -q keycloak)" != "$keycloak_before" ]; then
+    if [[ "$("${keycloak[@]}" ps -q keycloak)" != "$keycloak_before" ]]; then
       if ! "${keycloak[@]}" run --rm keycloak-init; then
         "${keycloak[@]}" rm -sf keycloak
         exit 1

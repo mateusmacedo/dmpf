@@ -72,6 +72,7 @@ func RunSessionEventsWith(ctx context.Context, cfg SessionEventsConfig, rt *otel
 	}), rt)
 
 	pollingCtx, stopPolling := context.WithCancel(context.WithoutCancel(ctx))
+	defer stopPolling()
 	polled := make(chan struct{})
 	go func() {
 		defer close(polled)

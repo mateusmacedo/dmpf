@@ -17,6 +17,6 @@ while IFS='=' read -r key value; do
       ;;
     *) ;;
   esac
-  [ -n "${!key+x}" ] || export "$key=$value"
+  [[ -n "${!key+x}" ]] || export "$key=$value"
 done < "$root/.env.example"
 exec "$@"
