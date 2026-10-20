@@ -2,8 +2,8 @@
 id: SPEC-5AQHHMJ0
 slug: comando-externo-de-saida
 title: DMPF — Ciclo de comando externo de saída: chave idempotente, desfecho incerto, consulta de estado e reconciliação
-stage: backlog
-priority: P1
+stage: planning
+priority: P0
 depends_on: [SPEC-E15TBHCD, SPEC-JJKWG4JP, SPEC-NYD18TGD]
 ticket_url: https://linear.app/mmda/issue/DEVS-96/spec-5aqhhmj0-dmpf-ciclo-de-comando-externo-de-saida-chave-idempotente
 subtask_urls: []

@@ -2,8 +2,8 @@
 id: SPEC-CC5SHV1K
 slug: porta-cifra-envelope-kms
 title: DMPF — Porta de cifra em envelope para campos PII com provider AWS KMS emulado no floci
-stage: backlog
-priority: P2
+stage: planning
+priority: P0
 depends_on: [SPEC-CWBA4BPV]
 ticket_url: https://linear.app/mmda/issue/DEVS-102/spec-cc5shv1k-dmpf-porta-de-cifra-em-envelope-para-campos-pii-com
 subtask_urls: []
