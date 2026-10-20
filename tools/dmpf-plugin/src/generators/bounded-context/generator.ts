@@ -345,7 +345,7 @@ const planModule = ({
       }),
       externalFragment: externalFragment({ level: 1, external: externalOf(layouts) }),
       hasApp: blocks.includes('app'),
-      testRaceCacheJson: integration ? 'false' : 'true',
+      integrationTests: integration,
       testRaceCommandJson: JSON.stringify(testRaceCommandOf(integration)),
     },
     blocks: layouts.map((layout) => ({
