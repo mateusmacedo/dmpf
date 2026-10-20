@@ -1,3 +1,19 @@
+## 1.0.0-rc.6 (2026-10-20)
+
+### 🚀 Features
+
+- **http:** Montar o alcance de plataforma só em rota com sujeito ([a6861426](https://github.com/mateusmacedo/dmpf/commit/a6861426))
+
+### 🧱 Updated Dependencies
+
+- Updated observability to 1.0.0-rc.6
+- Updated transport to 1.0.0-rc.6
+- Updated ports to 1.0.0-rc.6
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 1.0.0-rc.5 (2026-10-17)
 
 ### 🧱 Updated Dependencies

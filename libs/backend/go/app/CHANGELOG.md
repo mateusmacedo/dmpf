@@ -1,3 +1,27 @@
+## 1.0.0-rc.6 (2026-10-20)
+
+### 🚀 Features
+
+- **app:** Declarar métodos de plataforma no papel api ([df92d08b](https://github.com/mateusmacedo/dmpf/commit/df92d08b))
+- **app:** Verificar as restrições únicas declaradas na subida ([0b44d104](https://github.com/mateusmacedo/dmpf/commit/0b44d104))
+
+### 🧱 Updated Dependencies
+
+- Updated observability to 1.0.0-rc.6
+- Updated application to 1.0.0-rc.6
+- Updated contracts to 1.0.0-rc.6
+- Updated transport to 1.0.0-rc.6
+- Updated postgres to 1.0.0-rc.6
+- Updated testkit to 1.0.0-rc.6
+- Updated domain to 1.0.0-rc.6
+- Updated kafka to 1.0.0-rc.6
+- Updated ports to 1.0.0-rc.6
+- Updated grpc to 1.0.0-rc.6
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 1.0.0-rc.5 (2026-10-17)
 
 ### 🚀 Features

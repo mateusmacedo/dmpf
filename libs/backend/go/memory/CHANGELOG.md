@@ -1,3 +1,20 @@
+## 1.0.0-rc.6 (2026-10-20)
+
+### 🚀 Features
+
+- **memory:** Ler entre tenants e projetar no destino em memória ([f14753cb](https://github.com/mateusmacedo/dmpf/commit/f14753cb))
+- **memory:** Espelhar as restrições únicas declaradas na tabela ([50d9c305](https://github.com/mateusmacedo/dmpf/commit/50d9c305))
+
+### 🧱 Updated Dependencies
+
+- Updated testkit to 1.0.0-rc.6
+- Updated domain to 1.0.0-rc.6
+- Updated ports to 1.0.0-rc.6
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 1.0.0-rc.5 (2026-10-17)
 
 ### 🧱 Updated Dependencies

@@ -1,3 +1,23 @@
+## 1.0.0-rc.6 (2026-10-20)
+
+### 🚀 Features
+
+- **dmpf-plugin:** Impor o gate da leitura de plataforma e do alcance ([723ad706](https://github.com/mateusmacedo/dmpf/commit/723ad706))
+- **dmpf-plugin:** Ler a pré-condição relacional pela guarda na UoW ([cf509ff4](https://github.com/mateusmacedo/dmpf/commit/cf509ff4))
+- **dmpf-plugin:** Gerar e verificar a unicidade declarada no contexto ([41ae64c7](https://github.com/mateusmacedo/dmpf/commit/41ae64c7))
+
+### 🩹 Fixes
+
+- **dmpf-plugin:** Pedir o infrasync --write no fim do upgrade ([480f1ef9](https://github.com/mateusmacedo/dmpf/commit/480f1ef9))
+
+### 🔥 Performance
+
+- **dmpf-plugin:** Rodar os vetores do gate em paralelo por módulo ([7e5870c2](https://github.com/mateusmacedo/dmpf/commit/7e5870c2))
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 1.0.0-rc.5 (2026-10-17)
 
 ### 🚀 Features
