@@ -346,9 +346,10 @@ func TestThePurgeFunctionsRouteToTheirStatementWithItsValidation(t *testing.T) {
 		batch int
 		want  error
 	}{
-		"outbox without a batch":         {app.PurgeOutbox(nil), 0, postgres.ErrPurgeBatchRequired},
-		"command inbox without consumer": {app.PurgeCommandInbox(nil, ""), 10, postgres.ErrInboxConsumerRequired},
-		"message inbox without consumer": {app.PurgeMessageInbox(nil, ""), 10, postgres.ErrInboxConsumerRequired},
+		"outbox without a batch":          {app.PurgeOutbox(nil), 0, postgres.ErrPurgeBatchRequired},
+		"command inbox without consumer":  {app.PurgeCommandInbox(nil, ""), 10, postgres.ErrInboxConsumerRequired},
+		"message inbox without consumer":  {app.PurgeMessageInbox(nil, ""), 10, postgres.ErrInboxConsumerRequired},
+		"external attempts without batch": {app.PurgeExternalAttempts(nil), 0, postgres.ErrPurgeBatchRequired},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {

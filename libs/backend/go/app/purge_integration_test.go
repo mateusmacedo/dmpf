@@ -103,3 +103,24 @@ func TestPurgeMessageInboxRemovesOnlyTheMessagesTheConsumerProcessedBeforeTheCut
 		t.Fatalf("inbox kept %v, want %v", got, want)
 	}
 }
+
+const seedAttempt = `
+INSERT INTO external_attempt (tenant_id, outbound_key, attempt, message_id, state, started_at, finished_at, class)
+VALUES ('acme', $1, 1, 'm-1', $2, 50, $3, $4)`
+
+func TestPurgeExternalAttemptsRemovesOnlyTheFinishedOnesBeforeTheCutoff(t *testing.T) {
+	pool := pg.OpenPool(t, pg.Options{Project: "app", Capabilities: []postgres.Capability{postgres.ExternalAttempt}})
+	seed(t, pool, seedAttempt, "k-finished-old", "finished", int64(100), int16(1))
+	seed(t, pool, seedAttempt, "k-finished-new", "finished", int64(300), int16(1))
+	seed(t, pool, seedAttempt, "k-begun", "begun", nil, nil)
+	seed(t, pool, seedAttempt, "k-begun-stamped", "begun", int64(100), nil)
+
+	removed, err := app.PurgeExternalAttempts(pool)(context.Background(), 200, 10)
+
+	if err != nil || removed != 1 {
+		t.Fatalf("PurgeExternalAttempts = (%d, %v), want (1, nil)", removed, err)
+	}
+	if got := remaining(t, pool, "SELECT outbound_key FROM external_attempt"); !slices.Equal(got, []string{"k-begun", "k-begun-stamped", "k-finished-new"}) {
+		t.Fatalf("external_attempt kept %v, want the begun attempt, still owed a Finish, and the recent one", got)
+	}
+}

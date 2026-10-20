@@ -235,6 +235,53 @@ func TestServeAPIWithAMigratorGrantsTheRuntimeRoleWhatTheAppDeclares(t *testing.
 	}
 }
 
+func TestServeAPIMigratesTheAttemptLedgerOnlyForAContextThatOptsIn(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		external bool
+		want     []string
+	}{
+		{name: "no opt-in", want: nil},
+		{name: "opt-in", external: true, want: []string{"DELETE", "INSERT", "SELECT", "UPDATE"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			role := apiRoleOver(t, true)
+			role.DSN = pg.RuntimeDSN(t, "serve")
+			role.MigrateDSN = pg.DSN(t, "serve")
+			api := grantedProbeAPI()
+			api.ExternalCommands = tc.external
+			stop := startAPIWith(t, role, api)
+
+			dist.WaitFor(t, "the api role to serve", 30*time.Second, func() bool {
+				return servingStatus(t, role.Server.GRPCAddr) == healthpb.HealthCheckResponse_SERVING
+			})
+			admin := pg.OpenPool(t, pg.Options{Project: "serve"})
+			var present bool
+			if err := admin.QueryRow(context.Background(), "SELECT to_regclass('external_attempt') IS NOT NULL").Scan(&present); err != nil || present != tc.external {
+				t.Fatalf("external_attempt present = %v (%v), want %v", present, err, tc.external)
+			}
+			if tc.external {
+				if got := privilegesOf(t, admin, "external_attempt"); !slices.Equal(got, tc.want) {
+					t.Fatalf("privileges of the runtime role on external_attempt = %v, want %v", got, tc.want)
+				}
+			}
+			for table, privileges := range map[string][]string{
+				"outbox": {"DELETE", "INSERT", "SELECT", "UPDATE"},
+				"inbox":  {"DELETE", "INSERT", "SELECT", "UPDATE"},
+				"probes": {"INSERT", "SELECT", "UPDATE"},
+			} {
+				if got := privilegesOf(t, admin, table); !slices.Equal(got, privileges) {
+					t.Fatalf("privileges of the runtime role on %s = %v, want %v", table, got, privileges)
+				}
+			}
+
+			if err := stop(); err != nil {
+				t.Fatalf("ServeAPI() = %v, want nil after the cancellation", err)
+			}
+		})
+	}
+}
+
 func TestServeAPIMigratesAsAnOwnerThatIsNotASuperuser(t *testing.T) {
 	role := apiRoleOver(t, true)
 	role.DSN = pg.RuntimeDSN(t, "serve")

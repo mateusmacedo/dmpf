@@ -110,14 +110,69 @@ consumer) termine, e `stop` o devolve, para que o `Run` da app o entregue ao
 `cmd/main.go`, que o escreve no stderr e sai com código 1 (RF-A1). Sem `abort`,
 `StartPurge` recusa com `ErrInvalidPurgeConfig`.
 
-As três `PurgeFunc` das tabelas do kernel são do próprio módulo, e o contexto só
+As quatro `PurgeFunc` das tabelas do kernel são do próprio módulo, e o contexto só
 as passa a `StartPurge`: `PurgeOutbox(pool)` apaga a outbox publicada antes do
 corte (`postgres.PurgePublished`), `PurgeCommandInbox(pool, consumer)` as
 entradas de comando vencidas do consumidor, com o corte em agora
 (`postgres.PurgeExpiredInbox`), e `PurgeMessageInbox(pool, consumer)` as
 mensagens terminais do consumidor anteriores ao corte (`postgres.PurgeInbox`).
 O `consumer` vem do contexto, porque o nome dele vive no `application` do
-contexto, que o kernel não importa.
+contexto, que o kernel não importa. `PurgeExternalAttempts(pool)` apaga as
+tentativas `finished` do ledger de comando externo anteriores ao corte
+(`postgres.PurgeAttempts`); a tentativa `begun` nunca sai, porque ainda deve um
+`Finish` ao handler, à reentrega ou à varredura.
+
+## A varredura de tentativas órfãs
+
+`RunSweep(ctx, cfg, clock, logs, fn)` (`sweep.go`) é o laço de `RES-43` para o
+comando externo de saída (ADR-070), no molde de `RunPurge`. `SweepConfig` traz
+`Interval`, `Batch` e `StaleAfter`, todos positivos; `StaleAfter` é o prazo da
+chamada da ficha de `RES-21` mais a margem, o mesmo corte que o `Dispatch` do
+`application` recebe em `StaleAfter`. A cada `Interval`, o laço abre um ciclo
+com o corte `agora − StaleAfter`, inclusivo, e pede a `fn` as páginas desse
+corte a partir do cursor zero, a tentativa `begun` mais antiga. Cada página
+devolve um `SweepPage`: `Seen`, `Swept` e `Next`, o cursor depois da última
+tentativa vista, encerrada ou não. Uma página cheia é seguida da próxima na
+hora, a partir de `Next`, mesmo quando algumas tentativas dela falharam, e
+assim tentativas que falham sempre não prendem as de trás. Página curta, cursor
+que não avançou ou contexto encerrado fecham o ciclo. Cada página com tentativa
+encerrada sai em `swept`, com `dmpf.sweep.swept` e `dmpf.sweep.before`, e cada
+falha em `sweep cycle failed`, com o erro por `redact.Error`; o ciclo seguinte
+recomeça do cursor zero e tenta de novo. O laço devolve `nil` quando o contexto
+termina, `ErrInvalidSweepConfig` para configuração, relógio, logger ou função
+ausentes, e `ErrSweepPanicked`, sem o valor do panic. Ele nunca chama `Submit`:
+só encerra o que o ledger lista, e o reenvio é sempre de uma reentrega.
+
+`SweepExternalAttempts(ExternalSweep)` monta a `SweepFunc`: chama
+`Store.Stale(cutoff, after, batch)`, que cruza tenants, e entrega cada tentativa
+a `Abandon`, a função do contexto montada sobre `application.Abandon`, que
+encerra a tentativa como `UnknownSent` presumido e aplica o passo na mesma
+transação. Recusa com `ErrInvalidSweepConfig` a montagem sem `Store`,
+`Abandon`, `Timeout` positivo ou `Locale`; `Tracer` é opcional. Cada
+tentativa roda sob um contexto de execução próprio, montado como o do consumo
+(`CTX-17`, `CTX-28`): `request_id` e `correlation_id` gerados, porque o ledger
+não guarda a correlação da cadeia (`CTX-07`); `causation_id` igual ao
+`MessageID` da tentativa; `tenant_id` igual ao da tentativa, ausente quando ela
+não tem tenant (`CTX-26`); `trace_context` da raiz `sweep` INTERNAL aberta para
+a tentativa, que leva `dmpf.external.class`; `deadline` de `Timeout`; e
+`locale` de `Locale`. O mesmo contexto leva o `MessageContext`, com essa
+correlação e essa causa, e o baggage de execução. A falha numa tentativa não
+para as demais da página: ela entra no erro da página, e o cursor avança
+mesmo assim.
+
+O desfecho e o conflito de cada tentativa não são registrados aqui: o
+`application.Abandon` abre a operação `external.abandon` na `Instrumentation`
+que o contexto lhe passa, e é o `observability/usecase` que emite o registro
+por desfecho, o `warn` `external attempt conflict` e a série
+`dmpf.external.attempt.conflicts`, a mesma origem de `external.dispatch` e
+`external.resolve`, para que um conflito conte uma vez só. A chave de saída
+nunca sai do ledger: não entra em registro, em label nem em atributo de span,
+nem crua nem em `dmpf.idempotency_key`.
+
+O `serve` não liga a varredura: o `Abandon` é do contexto, que conhece o
+`UnitOfWork`, o perfil do parceiro e o passo que aplica, e o `serve.API` não tem
+ponto de extensão para laços do contexto. O composition root do contexto monta
+a `SweepFunc` e roda `RunSweep` no papel que tem o ledger.
 
 ## O papel `api` com migrador
 
@@ -136,6 +191,16 @@ que acabou de conceder; se o prazo estourar, a partida falha com
 `ErrRuntimeUngranted`. Sem `MigrateDSN`, a migração usa a pool do `DSN`, sem
 grants. O `api` sem migrar e o relay esperam o privilégio por `WaitForGrants`,
 não só a tabela.
+
+`API.ExternalCommands` declara que o contexto submete comando externo de saída.
+Só com ele a migração ganha a capability `postgres.ExternalAttempt`, os grants
+de `KernelGrants` passam a cobrir `external_attempt` e o `ready` do `api` inicia,
+ao lado da purga `command-inbox`, a purga `external-attempt`, com
+`PurgeInterval`, `PurgeBatch` e retenção de `Policies.InboxRetention`: a
+tentativa encerrada precisa durar a janela de reentrega (`INB-14`), para que a
+mesma mensagem a encontre. Com o opt-in e `InboxRetention` não positiva, o
+`ServeAPI` recusa antes de abrir o Postgres (`ErrNoAttemptRetention`). Sem o
+opt-in, nada muda.
 
 `API.Uniques` é opcional e recebe o `provider.Uniques` do contexto (ADR-066).
 Com ele preenchido, o `ready` confere as restrições depois dos três ramos
@@ -183,6 +248,7 @@ Um panic no laço não encerra o processo pela pilha do runtime. Na entrega de u
 - `docs/adr/050-tabelas-de-infraestrutura-fora-do-escopo-de-tenant.md` — por que o relay drena sem tenant
 - `docs/adr/052-identidade-de-workload-no-grpc-e-no-kafka.md` — `Boundary.Transport` e a fronteira confiável
 - `docs/adr/068-acesso-entre-tenants-declarado.md` — `API.Platform` e o servidor que pode declarar método de plataforma
+- `docs/adr/070-ciclo-de-comando-externo-de-saida.md` — o ledger de tentativas, a varredura e `API.ExternalCommands`
 - `docs/specs/SPEC-1TFW24WV-observabilidade-ponta-a-ponta.md` — os `RF-*` citados aqui: `outbox drain`, `send`, `process`, `message consumed` e as métricas de mensageria
 - `libs/backend/go/ports/README.md` — `ExecutionContext`, `Acknowledger`, `Containment`, `MessageContext`
 - `libs/backend/go/postgres/README.md` — a outbox, a inbox e a quarantine que este adapter usa
