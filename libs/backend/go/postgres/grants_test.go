@@ -38,6 +38,7 @@ func TestKernelGrantsFollowTheCapabilities(t *testing.T) {
 		{"outbox", []postgres.Capability{postgres.Outbox}, []postgres.Grant{outbox}},
 		{"inbox", []postgres.Capability{postgres.Inbox}, []postgres.Grant{inbox, quarantine}},
 		{"both", []postgres.Capability{postgres.Outbox, postgres.Inbox}, []postgres.Grant{outbox, inbox, quarantine}},
+		{"external attempt", []postgres.Capability{postgres.ExternalAttempt}, []postgres.Grant{{Table: "external_attempt", Privileges: all}}},
 		{"repeated", []postgres.Capability{postgres.Outbox, postgres.Outbox}, []postgres.Grant{outbox}},
 		{"unknown", []postgres.Capability{"ledger"}, nil},
 		{"none", nil, nil},
@@ -54,7 +55,7 @@ func TestKernelGrantsFollowTheCapabilities(t *testing.T) {
 }
 
 func TestKernelGrantsCoverEveryKernelTable(t *testing.T) {
-	caps := []postgres.Capability{postgres.Outbox, postgres.Inbox}
+	caps := []postgres.Capability{postgres.Outbox, postgres.Inbox, postgres.ExternalAttempt}
 	granted := map[string]bool{}
 	for _, g := range postgres.KernelGrants(caps...) {
 		granted[g.Table] = true
@@ -70,7 +71,7 @@ func TestKernelGrantsCoverEveryKernelTable(t *testing.T) {
 func TestKernelGrantsNeverConcedeTruncateOrReferences(t *testing.T) {
 	allowed := map[postgres.Privilege]bool{postgres.Select: true, postgres.Insert: true, postgres.Update: true, postgres.Delete: true}
 
-	for _, g := range postgres.KernelGrants(postgres.Outbox, postgres.Inbox) {
+	for _, g := range postgres.KernelGrants(postgres.Outbox, postgres.Inbox, postgres.ExternalAttempt) {
 		for _, p := range g.Privileges {
 			if !allowed[p] {
 				t.Errorf("grant on %s concedes %s", g.Table, p)

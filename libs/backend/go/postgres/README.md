@@ -10,7 +10,7 @@ Uma unidade no manifesto, `provider`, em `kernel`:
 
 | Unidade | Diretório | O que é |
 | --- | --- | --- |
-| `kernel/provider-postgres` | raiz | UoW sobre `pgx.Tx`, `Table[ID,S]` escopado por tenant, outbox, inbox, quarantine, migração e purga |
+| `kernel/provider-postgres` | raiz | UoW sobre `pgx.Tx`, `Table[ID,S]` escopado por tenant, outbox, inbox, quarantine, ledger de tentativas, migração e purga |
 
 Os repositórios dos agregados de referência, que este módulo carregava em
 `example/orders` e `example/reservations` como SQL escrito à mão, são hoje
@@ -226,8 +226,8 @@ instâncias de `Table[ID,S]` no bloco `provider` de cada contexto —
 - **`grants.go`** — o privilégio da role de runtime por tabela (ADR-063):
   `Privilege`, `Grant`, `Mutable` (tabela que um `Table` escreve) e
   `AppendOnly` (tabela que só recebe linhas), e `KernelGrants`, que cada
-  capacidade declara junto do schema (`outbox` e `inbox` com `SELECT`, `INSERT`,
-  `UPDATE` e `DELETE`; `quarantine` com `SELECT` e `INSERT`). `ApplyGrants`
+  capacidade declara junto do schema (`outbox`, `inbox` e `external_attempt` com
+  `SELECT`, `INSERT`, `UPDATE` e `DELETE`; `quarantine` com `SELECT` e `INSERT`). `ApplyGrants`
   converge a role ao conjunto declarado numa transação, sob o lock do
   `Migrate`, depois de recusar runtime superuser, com `BYPASSRLS`, membro da
   role que aplica ou dona de objeto fora dos schemas de sistema (relação,
@@ -298,13 +298,33 @@ instâncias de `Table[ID,S]` no bloco `provider` de cada contexto —
   e contagens por motivo (`terminal-failure`, `collision`,
   `attempts-exhausted`, `invalid-envelope`, `untrusted-boundary`), lidas da
   própria tabela (`GAR-12`).
+- **`external_attempt.sql` / `attempt_ledger.go`** — a capacidade
+  `ExternalAttempt`, o ledger de tentativas do comando externo (ADR-070). A
+  `external_attempt` tem chave `(tenant_id, outbound_key, attempt)`, `state`
+  `begun` ou `finished`, a mensagem que iniciou a tentativa, os instantes de
+  início e fim, a classe, a última observação aceita (`observation_id`,
+  `provider`, `external_ref`, `source_at`, `finding`), o achado terminal, os IDs
+  de observação vistos, as consultas e os conflitos em `jsonb`; índices parciais
+  em `started_at` das `begun` e em `finished_at` das `finished`. É tabela de
+  plataforma com o tenant na chave (ADR-050, emendado pelo ADR-070), e só entra
+  no banco do contexto que a pede. `Tx.AttemptLedger()` liga o ledger à
+  transação aberta; `AttemptStore`/`NewAttemptStore(pool)` roda cada chamada
+  numa transação própria. `Begin` procura primeiro um desfecho final da mesma
+  mensagem e serializa na chave pela chave primária: `INSERT … ON CONFLICT DO
+  NOTHING`, e quem perde a corrida relê e encontra a tentativa `begun` (molde de
+  `INB-06`). `Finish` é `UPDATE … WHERE state = 'begun'`; `Observe` trava a
+  última tentativa com `FOR UPDATE`; `Stale` lê entre tenants, com corte
+  inclusivo, em ordem de início e retomando por comparação de tupla com
+  `COLLATE "C"`.
 - **`purge.go`** — `PurgePublished`, `PurgeInbox` e `PurgeExpiredInbox`, que
   devolvem o que purgaram, de qual consumidor e até quando (`OBX-17`, `INB-16`,
   `IDM-09`). Cada chamada remove no máximo um lote, com `FOR UPDATE SKIP LOCKED`,
   para que réplicas purguem ao mesmo tempo sem se bloquear; `PurgeExpiredInbox`
   remove só as entradas de comando vencidas. O laço que as chama é o
   `app.RunPurge`, e a invariante `retenção_inbox ≥ janela_redelivery`
-  (`INB-14`) é conferida pelo contexto que consome.
+  (`INB-14`) é conferida pelo contexto que consome. `PurgeAttempts` remove, por
+  lote e na ordem de `finished_at`, só tentativas `finished` anteriores ao corte: a `begun` ainda deve um
+  `Finish` e nunca é purgada.
 
 O que `memory` declara não provar — isolamento e conflito de serialização
 entre transações concorrentes — é provado sobre este módulo pela cláusula de
@@ -319,7 +339,10 @@ primeira e recebe R2, R3 ou R1 conforme ela commitou `processed`, commitou
 duas criações com o mesmo valor, uma grava e a outra recebe a rejeição, que a
 inbox commita como `rejected` na transação que a violação deixou utilizável;
 duas criações da mesma identidade terminam em `ErrVersionConflict`, nunca em
-recusa.
+recusa. `attempt_ledger_test.go` roda sob a role de runtime a mesma tabela de
+casos do `memory` e prova que `Begin` concorrente na mesma chave cria uma só
+tentativa `begun`, que a observação aceita fica nas colunas e que a purga poupa
+a `begun`.
 
 `apps/backend/reservations/provider` é o lado do consumo do agregado de
 referência: o repositório com chave natural (`order_id`, `ON CONFLICT DO

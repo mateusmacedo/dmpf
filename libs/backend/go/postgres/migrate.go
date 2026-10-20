@@ -15,6 +15,9 @@ var outboxSchema string
 //go:embed inbox.sql
 var inboxSchema string
 
+//go:embed external_attempt.sql
+var externalAttemptSchema string
+
 const migrateLockID = 0x646d7066
 
 // Capability is a part of the kernel schema an app declares it uses, so its
@@ -26,7 +29,8 @@ const (
 	Outbox Capability = "outbox"
 	// Inbox is what a consumer needs: the inbox and the quarantine where it
 	// contains what it cannot process.
-	Inbox Capability = "inbox"
+	Inbox           Capability = "inbox"
+	ExternalAttempt Capability = "external_attempt"
 )
 
 type capabilityParts struct {
@@ -45,6 +49,11 @@ var capabilities = map[Capability]capabilityParts{
 		schema: inboxSchema,
 		tables: []string{"inbox", "quarantine"},
 		grants: []Grant{{Table: "inbox", Privileges: readWrite}, AppendOnly("quarantine")},
+	},
+	ExternalAttempt: {
+		schema: externalAttemptSchema,
+		tables: []string{"external_attempt"},
+		grants: []Grant{{Table: "external_attempt", Privileges: readWrite}},
 	},
 }
 
