@@ -42,7 +42,7 @@ func inputsDoProjeto(t *testing.T, raiz string) string {
 	}
 	var doc struct {
 		Targets map[string]struct {
-			Inputs []string `json:"inputs"`
+			Inputs []json.RawMessage `json:"inputs"`
 		} `json:"targets"`
 	}
 	if err := json.Unmarshal(raw, &doc); err != nil {
@@ -50,7 +50,12 @@ func inputsDoProjeto(t *testing.T, raiz string) string {
 	}
 	var todos []string
 	for _, tg := range doc.Targets {
-		todos = append(todos, tg.Inputs...)
+		for _, in := range tg.Inputs {
+			var s string
+			if json.Unmarshal(in, &s) == nil {
+				todos = append(todos, s)
+			}
+		}
 	}
 	return strings.Join(todos, " ")
 }
