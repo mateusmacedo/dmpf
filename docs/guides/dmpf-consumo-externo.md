@@ -131,9 +131,9 @@ vez e executa:
   Os projetos Go ficam sem `test` e `vet` no CI: o `test-race` repete os
   pacotes do `test`, e o `govet` do golangci-lint cobre o `vet`.
 
-Inputs opcionais mudam o escopo: `full: true` troca o `affected` por todos os
-projetos e acrescenta o `govulncheck` (por exemplo,
-`full: ${{ github.event_name == 'push' }}` no push para a branch principal);
+Inputs opcionais acrescentam etapas: `govulncheck: true` roda o `govulncheck`
+nos projetos do escopo (por exemplo,
+`govulncheck: ${{ github.event_name == 'push' }}` no push para a branch principal);
 `self-tests: true` roda os vetores negativos do gate de dependência e dos gates
 Buf num segundo job, `Vetores negativos`, em paralelo ao `DMPF`. O secret opcional `NX_CLOUD_ACCESS_TOKEN` liga o cache remoto do Nx Cloud.
 
