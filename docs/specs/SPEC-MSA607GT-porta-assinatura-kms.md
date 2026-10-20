@@ -2,8 +2,8 @@
 id: SPEC-MSA607GT
 slug: porta-assinatura-kms
 title: DMPF — Porta de assinatura com provider AWS KMS emulado no floci
-stage: backlog
-priority: P1
+stage: planning
+priority: P0
 depends_on: [SPEC-CWBA4BPV]
 ticket_url: https://linear.app/mmda/issue/DEVS-99/spec-msa607gt-dmpf-porta-de-assinatura-com-provider-aws-kms-emulado-no
 subtask_urls: []
