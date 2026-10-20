@@ -11,8 +11,8 @@ O mesmo módulo carrega o `modsync`, que sincroniza `go.work` e os `require` dos
 produção, por isso vive em `tools/dmpf-conformance` — com o prefixo `dmpf-`,
 pela exceção de tooling do ADR-045 — e não em `libs/backend/go` (ADR-046).
 Projeto Nx `conformance`, tags `type:lib`, `scope:shared`, `stack:go`, sem
-`layer:*`: o `ci.yml` o exclui do guard de camadas e roda a sua cadeia Go em
-step próprio, antes dos gates que o executam. Import path do módulo:
+`layer:*`: o guard de camadas do `dmpf-go-ci.yml` exclui o que vive em `tools/`, e a
+cadeia Go dele roda no `nx affected` com a dos demais projetos. Import path do módulo:
 `github.com/mateusmacedo/dmpf/tools/dmpf-conformance`.
 
 ## `conformance`

@@ -36,6 +36,11 @@ PROBE_Y_PKG="$BASE_IMPORT/probe-y"
 DESIGNADA="$BASE_IMPORT/domain"
 NAO_DESIGNADA="$BASE_IMPORT/testkit/domainkit"
 
+# Sem node_modules no worktree, o `pnpm biome` do pre-commit rodava um `pnpm install`
+# inteiro; ligar o da raiz exige desligar o verifyDepsBeforeRun,
+# senão o pnpm reinstala por dentro do symlink (ver tools/dmpf-generator-check.sh).
+export pnpm_config_verify_deps_before_run=false
+
 WORKTREE=""
 descartar_worktree() {
   local status=$?
@@ -62,6 +67,8 @@ abrir_worktree() {
   if ! git worktree add --detach "$destino" HEAD >/dev/null 2>&1; then
     falha_setup "nao consegui abrir o worktree em $destino"
   fi
+  ln -s "$ROOT/node_modules" "$destino/node_modules" \
+    || falha_setup "nao consegui ligar node_modules no worktree"
   WORKTREE="$destino"
 }
 

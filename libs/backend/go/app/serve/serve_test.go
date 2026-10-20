@@ -143,12 +143,50 @@ func TestServeAPIRefusesAnIncompleteAPIBeforeOpeningPostgres(t *testing.T) {
 		"methods":  {runtime(t), serve.API{Desc: &grpc.ServiceDesc{ServiceName: probe}, Register: registerProbe}, serve.ErrNoMethods},
 		"streams":  {runtime(t), serve.API{Desc: streaming, Register: registerProbe}, serve.ErrStreamsNotServed},
 		"command":  {runtime(t), serve.API{Desc: probeDesc(), Commands: []string{"Place"}, Register: registerProbe}, serve.ErrUnknownCommand},
+		"platform": {runtime(t), serve.API{Desc: probeDesc(), Platform: []string{"Place"}, Register: registerProbe}, serve.ErrUnknownPlatformMethod},
 	} {
 		t.Run(name, func(t *testing.T) {
 			if err := serve.ServeAPI(context.Background(), c.rt, apiRole(), c.api); !errors.Is(err, c.want) {
 				t.Fatalf("ServeAPI() = %v, want %v", err, c.want)
 			}
 		})
+	}
+}
+
+func TestServeAPIRefusesAPlatformMethodOnAServerThatDoesNotVerifyItsCallers(t *testing.T) {
+	verified := kernelgrpc.APIEnv{GRPCAddr: "127.0.0.1:0", GRPCCertFile: "absent.crt", GRPCKeyFile: "absent.key", GRPCClientCAFile: "absent.ca", GRPCTrustedClients: []string{"spiffe://dmpf/bff"}}
+	insecure := verified
+	insecure.GRPCInsecure = true
+	plaintext := kernelgrpc.APIEnv{GRPCAddr: "127.0.0.1:0", GRPCTrustedClients: verified.GRPCTrustedClients}
+	untrusted := verified
+	untrusted.GRPCTrustedClients = nil
+	for name, server := range map[string]kernelgrpc.APIEnv{
+		"insecure":          apiRole().Server,
+		"insecure with tls": insecure,
+		"without tls":       plaintext,
+		"without trusted":   untrusted,
+	} {
+		t.Run(name, func(t *testing.T) {
+			role := apiRole()
+			role.Server = server
+
+			err := serve.ServeAPI(context.Background(), runtime(t), role, serve.API{Desc: probeDesc(), Platform: []string{"Probe"}, Register: registerProbe})
+
+			if !errors.Is(err, serve.ErrPlatformUnverified) {
+				t.Fatalf("ServeAPI() = %v, want %v", err, serve.ErrPlatformUnverified)
+			}
+		})
+	}
+}
+
+func TestServeAPIAdmitsAPlatformMethodOnAServerThatVerifiesItsCallers(t *testing.T) {
+	role := apiRole()
+	role.Server = kernelgrpc.APIEnv{GRPCAddr: "127.0.0.1:0", GRPCCertFile: "absent.crt", GRPCKeyFile: "absent.key", GRPCClientCAFile: "absent.ca", GRPCTrustedClients: []string{"spiffe://dmpf/bff"}}
+
+	err := serve.ServeAPI(context.Background(), runtime(t), role, serve.API{Desc: probeDesc(), Platform: []string{"Probe"}, Register: registerProbe})
+
+	if err == nil || errors.Is(err, serve.ErrPlatformUnverified) || errors.Is(err, serve.ErrUnknownPlatformMethod) {
+		t.Fatalf("ServeAPI() = %v, want the failure to load the absent certificate, past the platform check", err)
 	}
 }
 

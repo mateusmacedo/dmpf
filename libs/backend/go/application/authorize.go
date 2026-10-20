@@ -52,3 +52,28 @@ func Permitted[C any](required func(C) ports.Permission) Authorize[C] {
 		return nil
 	}
 }
+
+// Without a subject the reach suffices: only a verified edge deposits it, so
+// the caller is the workload IDN-18 already authorized on the channel.
+func PlatformPermitted[C any](required func(C) ports.Permission) Authorize[C] {
+	return func(ctx context.Context, cmd C) error {
+		if reach, _ := ports.PlatformReachFrom(ctx); reach != ports.ReachAllTenants {
+			return fmt.Errorf("%w: %w", ports.ErrDenied, ports.ErrPlatformReachUndeclared)
+		}
+		execution, err := ports.RequireExecutionContext(ctx)
+		if err != nil {
+			return err
+		}
+		permission := required(cmd)
+		if permission == "" {
+			return fmt.Errorf("%w: the operation declares no permission", ports.ErrDenied)
+		}
+		if _, identified := execution.Subject(); !identified {
+			return nil
+		}
+		if !slices.Contains(execution.Permissions(), permission) {
+			return fmt.Errorf("%w: the subject does not hold %s", ports.ErrDenied, permission)
+		}
+		return nil
+	}
+}

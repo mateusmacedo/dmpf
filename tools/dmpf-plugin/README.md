@@ -199,7 +199,7 @@ versões do `versions.json` no ambiente.
 | `test-infra` | sobe ou derruba a infra dos testes de integração; no CI é no-op |
 | `buf` | CLI Buf na versão do `versions.json` |
 | `buf-gate` | gates Buf de um contrato: `warmup`, `lint`, `pins`, `generate-check` e `breaking` |
-| `gate-check` | prova que o depguard e o forbidigo reprovam o que devem em cada módulo |
+| `gate-check` | prova que o depguard e o forbidigo reprovam o que devem em cada módulo, inclusive a regra de plataforma do `IDN-14` nos contextos (leitura de plataforma e projeção só em `provider/platform_*.go`, alcance montado só na borda do kernel, reprovado em `app/` e `app/rpc`, e `http.WithVerifiedPlatformReach` chamado só na borda REST `app/api`, reprovado em `app/rpc` e no provider; ADR-068), cuja contraparte estrutural, para a chamada por interface local em qualquer package de produção do contexto, é a checagem recursiva do `context-check` |
 | `context-check` | prova que todo bounded context segue a forma canônica (ADR-053); o `self-test` só roda em modo `local` |
 
 ## Migrations
@@ -236,7 +236,7 @@ commit efêmero. O `external-consumer.sh` cria um workspace Nx vazio fora da
 árvore, instala o plugin por `pnpm pack`, resolve o kernel e o `conformance`
 do PR por um proxy `file://` (`tools/kernel-file-proxy.sh`) e roda `nx add`,
 `init`, `bounded-context` e os gates do consumidor; é o job
-`external-consumer` do CI. Com `--verdaccio`, que é como o CI roda, o pacote vai
+`Consumidor externo por versão` do CI, que roda no PR para `master`. Com `--verdaccio`, que é como o CI roda, o pacote vai
 para um Verdaccio local que exige token no escopo `@mateusmacedo`, e o
 consumidor o instala por versão com a credencial no `.npmrc` de usuário, como
 faria com o GitHub Packages. Assim, um erro de autenticação ou de instalação por

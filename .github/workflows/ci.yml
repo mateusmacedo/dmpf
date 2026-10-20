@@ -1,20 +1,14 @@
 name: CI
 
-# O push em develop roda o mesmo pipeline e grava os caches que os PRs lêem:
-# um PR só lê cache da própria ref, da branch base e da default. O PR não tem
-# paths-ignore: check obrigatório do ruleset que não dispara bloqueia o merge.
+# Sem push em develop: o Nx Cloud guarda o cache entre execuções. Sem
+# paths-ignore: o job `CI` é o check obrigatório e precisa reportar em todo PR,
+# inclusive no só de documentação, em que ele aprova sem rodar o resto.
 on:
   pull_request:
     branches:
       - master
       - develop
       - "release/**"
-  push:
-    branches:
-      - develop
-    paths-ignore:
-      - "**/*.md"
-      - ".github/ISSUE_TEMPLATE/**"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -28,74 +22,65 @@ env:
   # Declarado aqui, e não herdado do runner: é o que faz tb.Env reprovar
   # em vez de pular quando uma variável de integração falta.
   CI: "true"
-  NX_EXCLUDE: "@mateusmacedo/dmpf-source"
 
 jobs:
-  quality:
-    name: Qualidade (affected)
+  scope:
+    name: Escopo
     runs-on: ubuntu-26.04
-    timeout-minutes: 30
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.scope.outputs.code }}
+      full: ${{ steps.scope.outputs.full }}
+      self-tests: ${{ steps.scope.outputs.self-tests }}
     steps:
       - name: Checkout
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           fetch-depth: 0
 
-      - name: Setup Node and pnpm
-        uses: ./.github/actions/setup-node-pnpm
-        with:
-          node-version: "24"
-
-      - name: Setup Go
-        uses: ./.github/actions/setup-go
-
-      # Sem main-branch-name a action procura `main`, que não existe aqui; no push
-      # em develop a base cairia na árvore vazia. O fallback é a ponta anterior.
-      - name: Set Nx SHAs for affected (base/head)
-        uses: nrwl/nx-set-shas@afb73a62d26e41464e9254689e1fd6122ee683c1 # v5
-        with:
-          main-branch-name: develop
-          fallback-sha: ${{ github.event.before }}
-
-      # Cache local do Nx e do golangci-lint, sem Nx Cloud. O lint só existe
-      # neste job, então só ele grava o cache do golangci-lint.
-      - name: Cache do Nx e do golangci-lint
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: |
-            .nx/cache
-            ~/.cache/golangci-lint
-          key: ci-${{ runner.os }}-${{ github.job }}-${{ github.sha }}
-          restore-keys: ci-${{ runner.os }}-${{ github.job }}-
-
-      - name: Check formatting and linting
-        run: pnpm biome ci .
-
-      - name: Lint (affected)
-        run: pnpm nx affected -t lint --base=$NX_BASE --head=$NX_HEAD --parallel=3 --exclude=$NX_EXCLUDE
-
-      - name: Typecheck (affected)
-        run: pnpm nx affected -t typecheck --base=$NX_BASE --head=$NX_HEAD --parallel=3 --exclude=$NX_EXCLUDE
-
-      - name: Test (affected)
-        run: pnpm nx affected -t test --base=$NX_BASE --head=$NX_HEAD --parallel=3 --ci --coverage --exclude=$NX_EXCLUDE
-
-      - name: Build (affected)
-        run: pnpm nx affected -t build --base=$NX_BASE --head=$NX_HEAD --parallel=3 --exclude=$NX_EXCLUDE
+      # O PR para master vem de release/** ou hotfix/** e leva o pacote completo.
+      # Markdown sob tools/, .claude/ e .agents/ é saída do init e não conta como
+      # documentação: alterá-lo faz o `init --dry-run` propor mudança.
+      - name: Classificar o diff
+        id: scope
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -euo pipefail
+          mudados="$(git diff --name-only "$BASE_SHA"...HEAD)"
+          codigo="$(awk '!/^docs\// && !(/\.md$/ && !/^(tools|\.claude|\.agents)\//)' <<<"$mudados")"
+          ferramental="$(grep -E '^(tools/|\.github/|\.golangci\.yml$)' <<<"$mudados" || true)"
+          full=false
+          [ "$BASE_REF" = master ] && full=true
+          {
+            echo "full=$full"
+            echo "code=$([ "$full" = true ] || [ -n "$codigo" ] && echo true || echo false)"
+            echo "self-tests=$([ "$full" = true ] || [ -n "$ferramental" ] && echo true || echo false)"
+          } | tee -a "$GITHUB_OUTPUT"
 
   dmpf:
     name: DMPF
+    needs: scope
+    if: needs.scope.outputs.code == 'true'
     permissions:
       actions: read
       contents: read
       packages: read
     uses: ./.github/workflows/dmpf-go-ci.yml
     with:
-      base: develop
+      base: ${{ github.base_ref }}
       keycloak: true
+      platform: true
+      full: ${{ needs.scope.outputs.full == 'true' }}
+      self-tests: ${{ needs.scope.outputs.self-tests == 'true' }}
+    secrets:
+      NX_CLOUD_ACCESS_TOKEN: ${{ secrets.NX_CLOUD_ACCESS_TOKEN }}
 
   external-consumer:
     name: Consumidor externo por versão
+    needs: scope
+    if: needs.scope.outputs.full == 'true'
     runs-on: ubuntu-26.04
     timeout-minutes: 25
     steps:
@@ -113,124 +98,37 @@ jobs:
       - name: Prova do consumidor externo
         run: bash tools/external-consumer.sh --verdaccio
 
-  dmpf-gates:
-    name: Gates DMPF do platform (célula e shared kernel)
+  distributed:
+    name: Distribuído
+    needs: scope
+    if: needs.scope.outputs.full == 'true'
+    permissions:
+      actions: read
+      contents: read
+    uses: ./.github/workflows/dmpf-distributed.yml
+
+  sonar:
+    name: SonarQube Cloud
+    needs: scope
+    if: needs.scope.outputs.full == 'true'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/sonar.yml
+    secrets:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+  # Único check obrigatório do ruleset: pulado conta como aprovado, porque o
+  # escopo só pula o que não se aplica ao PR; falha ou cancelamento reprova.
+  ci:
+    name: CI
+    needs: [scope, dmpf, external-consumer, distributed, sonar]
+    if: always()
     runs-on: ubuntu-26.04
-    timeout-minutes: 30
+    timeout-minutes: 5
     steps:
-      - name: Checkout
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
-        with:
-          fetch-depth: 0
-
-      - name: Setup Node and pnpm
-        uses: ./.github/actions/setup-node-pnpm
-        with:
-          node-version: "24"
-
-      - name: Setup Go
-        uses: ./.github/actions/setup-go
-
-      - name: Set Nx SHAs for affected (base/head)
-        uses: nrwl/nx-set-shas@afb73a62d26e41464e9254689e1fd6122ee683c1 # v5
-        with:
-          main-branch-name: develop
-          fallback-sha: ${{ github.event.before }}
-
-      # Os gates decidem sobre a árvore, não sobre um banco, e ficam sob o regime
-      # de `affected` do resto do pipeline: um PR só de TypeScript não paga por eles.
-      - name: Detect affected Go projects
-        id: go_affected
+      - name: Resultado dos jobs
+        env:
+          NEEDS: ${{ toJSON(needs) }}
         run: |
-          set -euo pipefail
-          lista="$(pnpm --silent nx show projects --affected --base=$NX_BASE --head=$NX_HEAD --projects=tag:stack:go --json | jq -r 'join(",")')"
-          if [ -n "$lista" ]; then
-            echo "any=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "any=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      # Complementa o gate de dependência do dmpf-go-ci.yml onde o depguard não alcança:
-      # ele decide por nome de diretório, e célula é aresta entre unidades, que só o verificador vê.
-      - name: DMPF cell gate
-        if: steps.go_affected.outputs.any == 'true'
-        run: bash tools/dmpf-cell-check.sh
-
-      # Nem os gates de dependência e de célula nem o `--root .` exercitam shared kernel: não há
-      # aresta de outro contexto para o kernel enquanto o consumidor não existe,
-      # e mudar a designação é raro. Sem este gate, C2 e DMPF-M004 ficam sem prova.
-      - name: DMPF shared kernel gate
-        if: steps.go_affected.outputs.any == 'true'
-        run: bash tools/dmpf-shared-kernel-check.sh
-
-  dmpf-checks:
-    name: Checks DMPF do platform
-    runs-on: ubuntu-26.04
-    timeout-minutes: 30
-    steps:
-      - name: Checkout
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
-        with:
-          fetch-depth: 0
-
-      - name: Setup Node and pnpm
-        uses: ./.github/actions/setup-node-pnpm
-        with:
-          node-version: "24"
-
-      - name: Setup Go
-        uses: ./.github/actions/setup-go
-
-      - name: Espelho do Docker Hub
-        uses: ./.github/actions/docker-hub-mirror
-
-      # Sem `if` de projeto Go afetado: o artefato que esta prova mede é escrito
-      # pelo generator, e uma mudança só no TypeScript do plugin altera o artefato
-      # sem tocar em nenhum projeto `stack:go`.
-      - name: DMPF generator check (structural)
-        run: bash tools/dmpf-generator-check.sh --phase structural
-
-      # Os vetores negativos. Sem eles, um guard que pare de reprovar passa
-      # a não acusar nada em silêncio e a fase `structural` viraria carimbo.
-      - name: DMPF generator check (self-test)
-        run: bash tools/dmpf-generator-check.sh --phase self-test
-
-      # A infra genérica, o .golangci.yml, os ativos de IA e o setup Go do platform
-      # são saída do init: um dry-run que proponha mudança é divergência com os templates.
-      - name: DMPF init sem diff no platform
-        run: |
-          set -euo pipefail
-          saida="$(pnpm nx g @mateusmacedo/dmpf-plugin:init --dry-run --no-interactive 2>&1)"
-          printf '%s\n' "$saida"
-          if grep -qE '^(CREATE|UPDATE|DELETE) ' <<<"$saida"; then
-            echo "init propõe mudança no platform: os templates divergem da infra versionada" >&2
-            exit 1
-          fi
-
-      # Os vetores negativos, pela mesma razão do self-test acima.
-      - name: Instalar trash-cli para o self-test do context check
-        run: |
-          sudo apt-get update -q
-          sudo apt-get install -y --no-install-recommends trash-cli
-          command -v trash
-
-      - name: DMPF context check (self-test)
-        run: bash tools/dmpf-plugin/scripts/dmpf-context-check.sh --phase self-test
-
-      # A fase `regen` exige LLM e roda à mão; o self-test prova, sem agente,
-      # que o gate normativo ainda reprova o golden sem o shared kernel.
-      - name: DMPF harness check (self-test)
-        run: bash tools/dmpf-harness-check.sh --phase self-test
-
-      - name: Pins do versions.json iguais às fontes
-        run: node tools/dmpf-plugin/scripts/sync-versions.mjs --check
-
-      - name: Grafana provisioning check
-        run: |
-          bash tools/grafana-provisioning-check.sh
-          bash tools/grafana-provisioning-check.sh --self-test
-
-      - name: OTel env check
-        run: |
-          bash tools/otel-env-check.sh
-          bash tools/otel-env-check.sh --self-test
+          jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<<"$NEEDS"
+          jq -e 'all(.[]; .result == "success" or .result == "skipped")' <<<"$NEEDS" >/dev/null

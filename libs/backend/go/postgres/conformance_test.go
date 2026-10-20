@@ -239,3 +239,66 @@ func TestUniqueConformsToTheKit(t *testing.T) {
 		t.Fatalf("skipped = %v, want none: postgres runs transactions at once and has a composite constraint", v.Skipped)
 	}
 }
+
+func TestPlatformReaderConformsToTheKit(t *testing.T) {
+	pool, admin := openRuntimeWithAdmin(t)
+	v := providerkit.Platform(func() providerkit.PlatformSubject[string, probe] {
+		pg.ResetTables(t, admin, kitTables...)
+		return providerkit.PlatformSubject[string, probe]{
+			Within: func(ctx context.Context, fn func(ctx context.Context, repo ports.Repository[string, probe]) error) error {
+				uow := postgres.NewUnitOfWork(pool, func(tx *postgres.Tx) ports.Repository[string, probe] {
+					return probeTable.Repository(tx)
+				})
+				return uow.Within(ctx, fn)
+			},
+			Reader: probeTable.Reader(postgres.NewReadPool(pool)),
+			Platform: func(trail ports.AuditTrail, pageMax int) ports.PlatformReader[string, probe] {
+				return probeTable.PlatformReader(postgres.NewReadPool(pool), trail, postgres.WithPageMax(pageMax))
+			},
+			NewID:    func(n int) string { return "kit-" + strconv.Itoa(n) },
+			NewState: func(marker int) probe { return probe{Items: marker} },
+			Marker:   func(p probe) int { return p.Items },
+			Table:    "probes",
+		}
+	})
+	tb.Require(t, v)
+	if len(v.Skipped) != 0 {
+		t.Fatalf("skipped = %v, want none", v.Skipped)
+	}
+}
+
+func TestProjectorConformsToTheKit(t *testing.T) {
+	pool, admin := openRuntimeWithAdmin(t)
+	v := providerkit.Projection(func() providerkit.ProjectionSubject[string, probe] {
+		pg.ResetTables(t, admin, kitTables...)
+		return providerkit.ProjectionSubject[string, probe]{
+			Within: func(ctx context.Context, policy ports.ProjectionPolicy, trail ports.AuditTrail, fn func(ctx context.Context, p ports.Projector[string, probe]) error) error {
+				uow := postgres.NewUnitOfWork(pool, func(tx *postgres.Tx) ports.Projector[string, probe] {
+					return probeTable.Projector(tx, policy, trail)
+				})
+				return uow.Within(ctx, fn)
+			},
+			Reader:   probeTable.Reader(postgres.NewReadPool(pool)),
+			NewID:    func(n int) string { return "kit-" + strconv.Itoa(n) },
+			NewState: func(marker int) probe { return probe{Items: marker} },
+			Marker:   func(p probe) int { return p.Items },
+			Table:    "probes",
+		}
+	})
+	tb.Require(t, v)
+	if len(v.Skipped) != 0 {
+		t.Fatalf("skipped = %v, want none", v.Skipped)
+	}
+}
+
+// The runtime role owns nothing; the admin pool does the resets its grants
+// cannot.
+func openRuntimeWithAdmin(t *testing.T) (runtime, admin *pgxpool.Pool) {
+	t.Helper()
+	runtime = openPool(t)
+	owner, ok := adminOf.Load(runtime)
+	if !ok {
+		t.Fatal("openPool() kept no admin pool for the runtime pool")
+	}
+	return runtime, owner.(*pgxpool.Pool)
+}

@@ -119,8 +119,11 @@ func (r txRepository[ID, S]) Save(ctx context.Context, id ID, state S, expected 
 	if err != nil {
 		return err
 	}
+	return r.table.saveAs(r.tx, key, state, expected)
+}
 
-	rows := r.tx.table(r.table.Name, r.table.erasedClone())
+func (t Table[ID, S]) saveAs(tx *Tx, key rowKey, state S, expected ports.Version) error {
+	rows := tx.table(t.Name, t.erasedClone())
 	current := ports.Version(0)
 	if rec, ok := rows.rows[key]; ok {
 		current = rec.version
@@ -128,11 +131,11 @@ func (r txRepository[ID, S]) Save(ctx context.Context, id ID, state S, expected 
 	if current != expected {
 		return ports.ErrVersionConflict
 	}
-	if err := r.table.violation(rows, key, state, r.tx.writes); err != nil {
+	if err := t.violation(rows, key, state, tx.writes); err != nil {
 		return err
 	}
-	rows.rows[key] = row{snapshot: r.table.copy(state), version: expected + 1}
-	r.tx.writes++
+	rows.rows[key] = row{snapshot: t.copy(state), version: expected + 1}
+	tx.writes++
 	return nil
 }
 

@@ -94,7 +94,7 @@ func withExecutionContext(logger *slog.Logger, authenticator ports.Authenticator
 
 		ctx = tracing.WithExecutionBaggage(kernelhttp.WithExecutionContext(ctx, execution), execution)
 		ctx = rpc.WithReplaySlot(rpc.WithCall(ctx, call))
-		next.ServeHTTP(w, r.WithContext(ctx))
+		next.ServeHTTP(w, r.WithContext(kernelhttp.WithVerifiedPlatformReach(ctx, route)))
 	})
 }
 

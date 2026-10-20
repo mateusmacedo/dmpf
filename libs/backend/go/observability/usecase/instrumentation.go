@@ -30,6 +30,13 @@ const (
 // ActionCrossTenantAccess names the security event of IDN-12 in the audit trail.
 const ActionCrossTenantAccess = "security.cross_tenant_access"
 
+// ActionPlatformRead and ActionProjectionWrite are declared in audit, which the
+// providers that emit them import; usecase would drag the telemetry boot along.
+const (
+	ActionPlatformRead    = audit.ActionPlatformRead
+	ActionProjectionWrite = audit.ActionProjectionWrite
+)
+
 const (
 	keyAuditAction       = "dmpf.audit.action"
 	keyAuditObject       = "dmpf.audit.object"

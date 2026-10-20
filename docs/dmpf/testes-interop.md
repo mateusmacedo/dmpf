@@ -1796,23 +1796,23 @@ não-funcional **[P1]** da spec.
 
 #### §8.3.1 Estágios e gates
 
-`normativo` — A sequência abaixo é a ordem dos estágios; cada um reprova por
-conta própria e o que bloqueia merge está na coluna «Gate».
+`normativo` — A sequência abaixo é a ordem dos estágios; cada um reprova por conta
+própria e o que bloqueia merge está em «Gate». «Etapa» diz em que PR o estágio roda.
 
-| # | Estágio | Suíte | Gate (bloqueia merge?) |
-|---|---------|-------|------------------------|
-| 1 | Domínio | `KIT-02` (em memória, determinístico) | Sim — falha reprova |
-| 2 | Services | `KIT-03` (ports fakes) | Sim — falha reprova |
-| 3 | Contrato | gates de FND-05 §6.6 + `BUF-11` (dupla geração byte a byte) | Sim — `BUF-12`, sem bypass |
-| 4 | Providers | `KIT-04` (dependência real ou container) | Sim — falha reprova |
-| 5 | Apps | `KIT-05` (serviço isolado) | Sim — falha reprova |
-| 6 | Fluxos distribuídos | `KIT-06` (harness com reentrega) — **pipeline separado** | Sim, no pipeline próprio (`KIT-11`) |
+| # | Estágio | Suíte | Gate (bloqueia merge?) | Etapa |
+|---|---------|-------|------------------------|-------|
+| 1 | Domínio | `KIT-02` (em memória, determinístico) | Sim — falha reprova | PR para `develop` (afetados) e de release para `master` (todos) |
+| 2 | Services | `KIT-03` (ports fakes) | Sim — falha reprova | PR para `develop` (afetados) e de release para `master` (todos) |
+| 3 | Contrato | gates de FND-05 §6.6 + `BUF-11` (dupla geração byte a byte) | Sim — `BUF-12`, sem bypass | PR para `develop` (afetados) e de release para `master` (todos) |
+| 4 | Providers | `KIT-04` (dependência real ou container) | Sim — falha reprova | PR para `develop` (afetados) e de release para `master` (todos) |
+| 5 | Apps | `KIT-05` (serviço isolado) | Sim — falha reprova | PR para `develop` (afetados) e de release para `master` (todos) |
+| 6 | Fluxos distribuídos | `KIT-06` (harness com reentrega) — **pipeline separado** | Sim, no pipeline próprio (`KIT-11`) | Só no PR de release para `master` |
 
 `rationale` — Os estágios 1 e 2 são os mais baratos e os que dão feedback ao
-domínio; ficam primeiro por isso. O estágio 6 é o mais caro e o mais lento
-(broker real, múltiplos processos); isolá-lo em pipeline separado é o que
-`KIT-11` exige, e é o que impede que a sua lentidão contamine o ciclo de quem
-mexe só no domínio.
+domínio; ficam primeiro por isso. O estágio 6 é o mais caro e o mais lento (broker
+real, múltiplos processos): isolá-lo em pipeline separado é o que `KIT-11` exige, e
+rodá-lo só no PR de release, onde o custo se paga, evita que contamine o ciclo de
+quem mexe só no domínio. Os estágios 1 a 5 rodam num só job do PR de trabalho.
 
 ### §8.4 O que os kits não decidem
 

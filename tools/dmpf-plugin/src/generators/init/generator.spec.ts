@@ -103,6 +103,77 @@ describe('[generator] init — fresh consumer', () => {
     expect(golangci).toContain('- prefix(github.com/acme/shop)');
   });
 
+  it('should confine the domain symbols of forbidigo to domain by message, not by every finding', async () => {
+    const tree = consumerTree();
+
+    await initGenerator(tree, { modulePrefix: 'github.com/acme/shop' });
+    const golangci = tree.read('.golangci.yml', 'utf-8') as string;
+
+    expect(golangci).toContain(
+      [
+        "      - path-except: '(-domain|/domain)/'",
+        `        text: 'forbidden because "[^"]*\\((RFC [0-9.]+|ADR-018|DEC-04)\\)"'`,
+        '        linters:',
+        '          - forbidigo',
+      ].join('\n'),
+    );
+  });
+
+  it('should forbid the platform reach and the platform table methods outside their exceptions', async () => {
+    const tree = consumerTree();
+
+    await initGenerator(tree, { modulePrefix: 'github.com/acme/shop' });
+    const golangci = tree.read('.golangci.yml', 'utf-8') as string;
+
+    expect(golangci).toContain(
+      [
+        "        - pattern: '^.*\\.(PlatformReader|Projector)$'",
+        `          pkg: '^github\\.com/mateusmacedo/dmpf/libs/backend/go/(postgres|memory)$'`,
+        "          msg: 'IDN-14 plataforma (tabela):",
+      ].join('\n'),
+    );
+    expect(golangci).toContain(
+      [
+        "        - pattern: '^.*\\.WithPlatformReach$'",
+        `          pkg: '^github\\.com/mateusmacedo/dmpf/libs/backend/go/ports$'`,
+        "          msg: 'IDN-14 plataforma (alcance): o alcance de plataforma so se monta na borda verificada (http, grpc) (ADR-068)'",
+      ].join('\n'),
+    );
+    expect(golangci).toContain(
+      [
+        "        - pattern: '^.*\\.WithVerifiedPlatformReach$'",
+        `          pkg: '^github\\.com/mateusmacedo/dmpf/libs/backend/go/http$'`,
+        "          msg: 'IDN-14 plataforma (alcance REST): o alcance verificado da rota so se monta na borda REST (app/api) (ADR-068)'",
+      ].join('\n'),
+    );
+    expect(golangci).toContain(
+      [
+        "      - path: '(^|/)libs/backend/go/(postgres|memory)/|(^|/)libs/backend/go/testkit/|(^|/)apps/[^/]+/[^/]+/(appkit|distkit)/|(^|/)apps/.+/provider/platform_[^/]*\\.go$|_test\\.go$'",
+        "        text: 'IDN-14 plataforma \\(tabela\\)'",
+        '        linters:',
+        '          - forbidigo',
+      ].join('\n'),
+    );
+    expect(golangci).toContain(
+      [
+        "      - path: '(^|/)libs/backend/go/(http|grpc)/|(^|/)libs/backend/go/testkit/|(^|/)apps/[^/]+/[^/]+/(appkit|distkit)/|_test\\.go$'",
+        "        text: 'IDN-14 plataforma \\(alcance\\)'",
+        '        linters:',
+        '          - forbidigo',
+      ].join('\n'),
+    );
+    expect(golangci).toContain(
+      [
+        "      - path: '(^|/)libs/backend/go/(http|grpc)/|(^|/)apps/.+/app/api/|(^|/)libs/backend/go/testkit/|(^|/)apps/[^/]+/[^/]+/(appkit|distkit)/|_test\\.go$'",
+        "        text: 'IDN-14 plataforma \\(alcance REST\\)'",
+        '        linters:',
+        '          - forbidigo',
+      ].join('\n'),
+    );
+    expect(golangci.split('(^|/)apps/.+/app/')).toHaveLength(2);
+    expect(golangci).not.toContain('(^|/)(testkit|appkit|distkit)/');
+  });
+
   it('should write the static infra skeleton and leave the files of infrasync to it', async () => {
     const tree = consumerTree();
 
