@@ -387,7 +387,7 @@ conferir_dashboards() {
       FALHA) falhar "$texto"; achou=1 ;;
     esac
   done <<<"$saida"
-  if [ "$status" -ne 0 ] && [ "$achou" -eq 0 ]; then
+  if [[ "$status" -ne 0 ]] && [[ "$achou" -eq 0 ]]; then
     falhar "[dashboards] o verificador terminou com $status: $(tail -n 3 <<<"$saida")"
   fi
   return 0
@@ -397,7 +397,7 @@ conferir_trace_logs() {
   local repo="$1" rel="$GRAFANA/datasources.yaml" blocos inicio custom query achou=0 filtro
   filtro="\|[[:space:]]*scope_name[[:space:]]*!=[[:space:]]*\"${AUDITORIA//./\\.}\""
   printf '\n== trace→logs sem a auditoria em %s ==\n' "$rel"
-  if [ ! -f "$repo/$rel" ]; then
+  if [[ ! -f "$repo/$rel" ]]; then
     falhar "[trace-logs] $rel ausente; é onde o Tempo leva do trace aos logs"
     return 0
   fi
@@ -406,9 +406,9 @@ conferir_trace_logs() {
     return 0
   fi
   while IFS=$'\t' read -r inicio custom query; do
-    [ -n "$inicio" ] || continue
+    [[ -n "$inicio" ]] || continue
     achou=1
-    if [ "$custom" != true ]; then
+    if [[ "$custom" != true ]]; then
       falhar "[trace-logs] $rel:$inicio: tracesToLogsV2 sem customQuery: true; a consulta que o Grafana monta não exclui a auditoria"
     elif ! [[ $query =~ $filtro ]]; then
       falhar "[trace-logs] $rel:$inicio: a query do tracesToLogsV2 não exclui scope_name != \"$AUDITORIA\" (RF-A7)"
@@ -416,7 +416,7 @@ conferir_trace_logs() {
       aprovar "$rel:$inicio: a query do tracesToLogsV2 exclui a auditoria por scope_name"
     fi
   done <<<"$blocos"
-  [ "$achou" -eq 1 ] || falhar "[trace-logs] $rel: nenhum tracesToLogsV2 para conferir a exclusão da auditoria"
+  [[ "$achou" -eq 1 ]] || falhar "[trace-logs] $rel: nenhum tracesToLogsV2 para conferir a exclusão da auditoria"
   return 0
 }
 
@@ -424,10 +424,10 @@ fase_estrutural() {
   local repo="${1:-$ROOT}" arquivo achados achou=0
   printf '\n== interpolação em %s/*.yaml ==\n' "$GRAFANA"
   for arquivo in "$repo/$GRAFANA"/*.yaml; do
-    [ -f "$arquivo" ] || continue
+    [[ -f "$arquivo" ]] || continue
     achou=1
     achados="$(sem_escape "$arquivo")"
-    if [ -z "$achados" ]; then
+    if [[ -z "$achados" ]]; then
       aprovar "${arquivo#"$repo"/}: todo \${ está escapado como \$\${"
       continue
     fi
@@ -436,13 +436,13 @@ fase_estrutural() {
     done <<<"$achados"
   done
 
-  if [ "$achou" -eq 0 ]; then
+  if [[ "$achou" -eq 0 ]]; then
     echo "nenhum arquivo de provisionamento em $repo/$GRAFANA" >&2
     return 2
   fi
   conferir_trace_logs "$repo"
   conferir_dashboards "$repo"
-  if [ "$FALHAS" -gt 0 ]; then
+  if [[ "$FALHAS" -gt 0 ]]; then
     printf '\nGate de provisionamento: REPROVADO com %d achado(s).\n' "$FALHAS" >&2
     return 1
   fi
@@ -710,7 +710,7 @@ fase_self_test() {
 
   printf '\n== vetores negativos (cada um com a mensagem esperada) ==\n'
   while IFS=$'\t' read -r sabotagem motivo; do
-    [ -n "$sabotagem" ] || continue
+    [[ -n "$sabotagem" ]] || continue
     tmp="$(mktemp -d)" || return 2
     montar_fixture "$tmp"
     sabotar "$tmp" "$sabotagem"
@@ -726,7 +726,7 @@ fase_self_test() {
     trash "$tmp" >/dev/null 2>&1 || true
   done <<<"$MOTIVOS"
 
-  if [ "$status" -ne 0 ]; then
+  if [[ "$status" -ne 0 ]]; then
     printf '\nAutoteste do gate: REPROVADO.\n' >&2
     return 1
   fi
@@ -755,13 +755,13 @@ TXT
 FASE="structural"
 REPO="$ROOT"
 LIVE_URL="" LIVE_FROM="" LIVE_TO=""
-while [ $# -gt 0 ]; do
+while [[ $# -gt 0 ]]; do
   case "$1" in
     --self-test) FASE="self-test" ;;
     --live) FASE="live"; shift; LIVE_URL="${1:-}" ;;
     --from) shift; LIVE_FROM="${1:-}" ;;
     --to) shift; LIVE_TO="${1:-}" ;;
-    --root) shift; REPO="${1:-}"; [ -n "$REPO" ] || { uso >&2; exit 2; } ;;
+    --root) shift; REPO="${1:-}"; [[ -n "$REPO" ]] || { uso >&2; exit 2; } ;;
     --root=*) REPO="${1#--root=}" ;;
     -h|--help) uso; exit 0 ;;
     *) printf 'argumento desconhecido: %s\n' "$1" >&2; uso >&2; exit 2 ;;
@@ -773,6 +773,6 @@ case "$FASE" in
   structural) fase_estrutural "$REPO" ;;
   self-test) fase_self_test ;;
   live)
-    [ -n "$LIVE_URL" ] && [ -n "$LIVE_FROM" ] && [ -n "$LIVE_TO" ] || { uso >&2; exit 2; }
+    [[ -n "$LIVE_URL" ]] && [[ -n "$LIVE_FROM" ]] && [[ -n "$LIVE_TO" ]] || { uso >&2; exit 2; }
     python3 -c "$DASHCHECK" live "$REPO" "$GRAFANA" "$LIVE_URL" "$LIVE_FROM" "$LIVE_TO" ;;
 esac

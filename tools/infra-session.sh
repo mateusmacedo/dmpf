@@ -23,9 +23,9 @@ concluido() {
   for _ in $(seq 120); do
     id="$("${COMPOSE[@]}" ps -a -q "$1")"
     status="$(docker inspect -f '{{.State.Status}}' "$id")"
-    if [ "$status" = "exited" ]; then
+    if [[ "$status" = "exited" ]]; then
       codigo="$(docker inspect -f '{{.State.ExitCode}}' "$id")"
-      [ "$codigo" = "0" ] && return 0
+      [[ "$codigo" = "0" ]] && return 0
       "${COMPOSE[@]}" logs "$1" >&2
       echo "infra-session: $1 saiu com $codigo" >&2
       return 1

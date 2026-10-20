@@ -17,7 +17,7 @@ BASE="github.com/mateusmacedo/dmpf/libs/backend/go"
 WORKTREE=""
 descartar_worktree() {
   local status=$?
-  if [ -n "$WORKTREE" ] && [ -d "$WORKTREE" ]; then
+  if [[ -n "$WORKTREE" ]] && [[ -d "$WORKTREE" ]]; then
     git worktree remove --force "$WORKTREE" >/dev/null 2>&1 \
       || echo "AVISO: nao consegui remover o worktree $WORKTREE" >&2
   fi
@@ -61,7 +61,7 @@ for vetor in "${VETORES[@]}"; do
 
   abrir_worktree || { falhas=$((falhas + 1)); continue; }
 
-  if [ ! -d "$WORKTREE/$dir_fixture" ]; then
+  if [[ ! -d "$WORKTREE/$dir_fixture" ]]; then
     echo "FALHA  celula $celula: $dir_fixture nao existe no HEAD; o vetor nao pode ser exercitado"
     falhas=$((falhas + 1))
     descartar_worktree
@@ -69,7 +69,7 @@ for vetor in "${VETORES[@]}"; do
   fi
 
   pkg_clause="$(awk '/^package /{print; exit}' "$WORKTREE/$dir_fixture"/*.go 2>/dev/null)"
-  if [ -z "$pkg_clause" ]; then
+  if [[ -z "$pkg_clause" ]]; then
     echo "FALHA  celula $celula: nenhum .go com clausula de package em $dir_fixture"
     falhas=$((falhas + 1))
     descartar_worktree
@@ -111,13 +111,13 @@ else
   falhas=$((falhas + 1))
 fi
 
-if [ "$exercitados" -ne "${#VETORES[@]}" ]; then
+if [[ "$exercitados" -ne "${#VETORES[@]}" ]]; then
   echo
   echo "FALHA: $exercitados de ${#VETORES[@]} vetor(es) exercitado(s); o gate nao cobriu o que promete." >&2
   exit 1
 fi
 
-if [ "$falhas" -gt 0 ]; then
+if [[ "$falhas" -gt 0 ]]; then
   echo
   echo "$falhas verificacao(oes) falharam: o verificador nao esta decidindo as celulas 26 e 12."
   exit 1
