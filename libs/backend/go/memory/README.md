@@ -26,12 +26,13 @@ baseline — é o que permite a um contexto de `apps/backend` importá-la sem
 
 | Arquivo | Conteúdo |
 | --- | --- |
-| `store.go` | `Store`, `New`; `Table[ID, S]` com `Reader(*Store)` e `Repository(*Tx)`, escopados por tenant; `Unique[S]`, a unicidade declarada (ADR-066); inspeção para testes: `Entries`, `FailNextCommit`, `WithinCalls`, `Commits`, `InboxRows`, `InboxStatus`, `InboxLastError` |
+| `store.go` | `Store`, `New`; `Table[ID, S]` com `Reader(*Store)` e `Repository(*Tx)`, escopados por tenant; `Unique[S]`, a unicidade declarada (ADR-066); inspeção para testes: `Entries`, `FailNextCommit`, `WithinCalls`, `Commits`, `InboxRows`, `InboxStatus`, `InboxLastError`, `AttemptConflicts` |
 | `tx.go` | `Tx` (`Inbox(consumer)`, `Outbox()`), `NewUnitOfWork[R](store, bind)` e `Within` |
+| `attempt_ledger.go` | `Tx.AttemptLedger()`, o ledger de tentativas do comando externo na transação aberta, e `AttemptStore`/`NewAttemptStore(store)`, que roda cada chamada numa transação própria; mesma semântica do `postgres`, inclusive `Started`/`Pending`/`Done` (ADR-070) |
 | `inbox.go` | A inbox transacional: `Register` com as classificações R1–R4 e `Pending.Complete`; `Tx.CommandInbox(consumer)`, a mesma inbox para comandos, com o tenant na chave, o desfecho gravado e o vencimento da entrada (FND-04 §7.6) |
 | `platform.go` | `Table.PlatformReader(*Store, ports.AuditTrail, ...PlatformOption)`, `Table.Projector(*Tx, ports.ProjectionPolicy, ports.AuditTrail)` e `WithPageMax`: a paridade do acesso entre tenants declarado do `postgres` (ADR-068) |
 | `clock.go` | `FixedClock` (`ports.Clock`) e `SequenceIDs` (`ports.IDGenerator`) |
-| `errors.go` | `ErrTenantUnresolved`, `ErrInboxConsumerRequired`, `ErrInboxConsumerMismatch`, `ErrAlreadyCompleted`, `ErrInvalidCompletion`, `ErrCommandExpiryRequired` |
+| `errors.go` | `ErrTenantUnresolved`, `ErrInboxConsumerRequired`, `ErrInboxConsumerMismatch`, `ErrAlreadyCompleted`, `ErrInvalidCompletion`, `ErrCommandExpiryRequired`, `ErrIncompleteAttemptStore` |
 
 O código de produção importa só a stdlib, o `ports` e o `domain` (o
 `*domain.Rejection` de `Unique`); a trilha do acesso entre tenants chega como
@@ -174,6 +175,10 @@ recusas com e sem evento, a falha fechada quando o `Sink` recusa e a leitura do
 `Load` da projeção sem sonda de dono. As suítes `providerkit.Platform` e
 `providerkit.Projection` rodam sobre este módulo em
 `testkit/providerkit/platform_test.go` e `projection_test.go`.
+Em `attempt_ledger_test.go`, o ledger de tentativas: as três classificações de
+`Begin`, a serialização de `Begin` concorrente na mesma chave (uma só tentativa
+`begun`), `Finish` e `Observe` com registro, no-op, duplicata e conflito, `Stale`
+ordenado e limitado entre tenants, e o isolamento por tenant.
 
 Não prova **isolamento** nem conflito de serialização entre transações
 concorrentes: `Within` retém `txMu` durante todo o callback, então as transações
