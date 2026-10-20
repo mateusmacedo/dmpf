@@ -18,4 +18,7 @@
 // to wire format is the contract's (KRN-05); publishing and the relay are
 // KRN-08; the inbox and deduplication are KRN-07; retry, budget and telemetry
 // are KRN-09. There is no publishing port and no inbox port here, deliberately.
+// ExternalCommand is not a publishing port either: it is the call to a partner
+// that a consumer handler makes outside the unit of work (UOW-08); realizing
+// it, classifying the answer and recording the attempt are the provider's.
 package ports
