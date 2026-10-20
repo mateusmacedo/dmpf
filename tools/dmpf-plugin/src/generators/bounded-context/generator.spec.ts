@@ -439,7 +439,7 @@ describe('[generator] bounded-context — workspace layout', () => {
     ].flatMap((lib) => ['--require', `${MODULE_PREFIX}/libs/backend/go/${lib}@${kernel}`]);
     expect(run).toHaveBeenNthCalledWith(
       1,
-      'go',
+      expect.stringMatching(/(^|\/)go$/),
       ['run', tool('modsync'), '--root', '.', '--write', ...requires],
       {
         cwd: tree.root,
@@ -448,7 +448,7 @@ describe('[generator] bounded-context — workspace layout', () => {
     );
     expect(run).toHaveBeenNthCalledWith(
       2,
-      'go',
+      expect.stringMatching(/(^|\/)go$/),
       ['run', tool('infrasync'), '--root', '.', '--write'],
       {
         cwd: tree.root,
@@ -1338,7 +1338,7 @@ describe('[generator] bounded-context — release groups and module sync', () =>
     await callback();
 
     expect(modsync).toHaveBeenCalledTimes(2);
-    expect(modsync).toHaveBeenNthCalledWith(1, 'go', MODSYNC_ARGS, {
+    expect(modsync).toHaveBeenNthCalledWith(1, expect.stringMatching(/(^|\/)go$/), MODSYNC_ARGS, {
       cwd: tree.root,
       stdio: 'inherit',
     });
@@ -1350,7 +1350,7 @@ describe('[generator] bounded-context — release groups and module sync', () =>
     const callback = await boundedContextGenerator(tree, FULL_OPTIONS);
     await callback();
 
-    expect(modsync).toHaveBeenNthCalledWith(2, 'go', INFRASYNC_ARGS, {
+    expect(modsync).toHaveBeenNthCalledWith(2, expect.stringMatching(/(^|\/)go$/), INFRASYNC_ARGS, {
       cwd: tree.root,
       stdio: 'inherit',
     });

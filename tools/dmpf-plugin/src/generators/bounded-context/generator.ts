@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { delimiter, isAbsolute, join } from 'node:path';
 import type { GeneratorCallback, Tree } from '@nx/devkit';
 import { generateFiles, logger } from '@nx/devkit';
 import {
@@ -505,9 +505,26 @@ const toolArgs = (config: DmpfConfig, tool: 'modsync' | 'infrasync'): string[] =
   return ['run', toolCommandOf(config, tool), '--root', '.', '--write', ...requires];
 };
 
+const GO_PERMISSIONS_WRITABLE_BY_OTHERS = 0o022;
+
+const resolveGo = (): string => {
+  for (const dir of (process.env.PATH ?? '').split(delimiter)) {
+    if (!isAbsolute(dir)) continue;
+    const candidate = join(dir, 'go');
+    try {
+      const stat = statSync(candidate);
+      const executable = stat.isFile() && (stat.mode & 0o111) !== 0;
+      if (executable && (stat.mode & GO_PERMISSIONS_WRITABLE_BY_OTHERS) === 0) return candidate;
+    } catch {}
+  }
+  throw new Error(
+    'go: no executable found in an absolute PATH entry that is not writable by others',
+  );
+};
+
 const runGo = ({ root, args, directory }: { root: string; args: string[]; directory: string }) => {
   try {
-    execFileSync('go', args, { cwd: root, stdio: 'inherit' });
+    execFileSync(resolveGo(), args, { cwd: root, stdio: 'inherit' });
   } catch (cause) {
     throw new Error(
       `bounded-context: the module was written to ${directory}, but go ${args[1]} did not run. Fix the cause above, then run: go ${args.join(' ')}`,
