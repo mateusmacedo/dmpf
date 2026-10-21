@@ -2,7 +2,7 @@
 
 ## Status
 
-Aceito — 2026-10-07. Implementa SPEC-P846PH1P. Supersede em parte o [ADR-059](./059-remover-o-bom-e-a-release-do-produto.md) e o [ADR-046](./046-libs-somente-kernel-de-reuso.md), nos pontos listados na Decisão. **Emendado pelo [ADR-069](./069-esteira-de-ci-por-etapa-do-git-flow.md) (2026-10-19)**: o `dmpf-go-ci.yml` roda um job, `DMPF`, por `affected`, e não mais a pirâmide Go por `layer:*`; o `govulncheck` e os vetores negativos só rodam com os inputs `full` e `self-tests`. O job `external-consumer` roda só no PR de release para `master`, e não em todo PR; a prova pós-release a cada release não muda.
+Aceito — 2026-10-07. Implementa SPEC-P846PH1P. Supersede em parte o [ADR-059](./059-remover-o-bom-e-a-release-do-produto.md) e o [ADR-046](./046-libs-somente-kernel-de-reuso.md), nos pontos listados na Decisão. **Emendado pelo [ADR-069](./069-esteira-de-ci-por-etapa-do-git-flow.md) (2026-10-19)**: o `dmpf-go-ci.yml` roda um job, `DMPF`, por `affected`, e não mais a pirâmide Go por `layer:*`; o `govulncheck` e os vetores negativos só rodam com os inputs `full` e `self-tests`. O job `external-consumer` roda só no PR de release para `master`, e não em todo PR; a prova pós-release a cada release não muda. **Emendado pelo [ADR-071](./071-ci-affected-em-todos-os-jobs.md) (2026-10-21)**: o input `full` sai do `dmpf-go-ci.yml`; o `govulncheck` e os vetores negativos rodam pelo escopo do diff. Como conformance e `govulncheck` reprovam sem diff, o consumidor roda os dois num workflow agendado próprio, descrito em `docs/guides/dmpf-consumo-externo.md`.
 
 ## Contexto
 
