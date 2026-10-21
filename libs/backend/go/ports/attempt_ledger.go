@@ -85,12 +85,17 @@ type AttemptOutcome struct {
 	Presumed    bool
 }
 
+// MaxAttemptEntries caps both the observation IDs and the conflicts one attempt
+// keeps, so a partner that never settles cannot grow its row without bound.
+const MaxAttemptEntries = 64
+
 type FinishResult uint8
 
 const (
 	FinishRecorded FinishResult = iota + 1
 	FinishUnchanged
 	FinishConflict
+	FinishSaturated
 )
 
 func (r FinishResult) String() string {
@@ -101,6 +106,8 @@ func (r FinishResult) String() string {
 		return "unchanged"
 	case FinishConflict:
 		return "conflict"
+	case FinishSaturated:
+		return "saturated"
 	default:
 		return "invalid"
 	}
@@ -119,6 +126,7 @@ const (
 	ObserveRecorded ObserveResult = iota + 1
 	ObserveDuplicate
 	ObserveConflict
+	ObserveSaturated
 )
 
 func (r ObserveResult) String() string {
@@ -129,6 +137,8 @@ func (r ObserveResult) String() string {
 		return "duplicate"
 	case ObserveConflict:
 		return "conflict"
+	case ObserveSaturated:
+		return "saturated"
 	default:
 		return "invalid"
 	}

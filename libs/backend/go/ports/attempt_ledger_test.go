@@ -116,11 +116,13 @@ func TestLedgerResultsNameEveryValueAndRefuseTheZero(t *testing.T) {
 		{"finish recorded", ports.FinishRecorded.String(), "recorded"},
 		{"finish unchanged", ports.FinishUnchanged.String(), "unchanged"},
 		{"finish conflict", ports.FinishConflict.String(), "conflict"},
+		{"finish saturated", ports.FinishSaturated.String(), "saturated"},
 		{"finish out of range", ports.FinishResult(9).String(), "invalid"},
 		{"observe zero", ports.ObserveResult(0).String(), "invalid"},
 		{"observe recorded", ports.ObserveRecorded.String(), "recorded"},
 		{"observe duplicate", ports.ObserveDuplicate.String(), "duplicate"},
 		{"observe conflict", ports.ObserveConflict.String(), "conflict"},
+		{"observe saturated", ports.ObserveSaturated.String(), "saturated"},
 		{"observe out of range", ports.ObserveResult(9).String(), "invalid"},
 	}
 	for _, tt := range tests {

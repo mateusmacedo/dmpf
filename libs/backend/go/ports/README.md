@@ -37,8 +37,8 @@ Import path do módulo:
 | `clock.go` | `Clock`, `IDGenerator` |
 | `values.go` | `Instant` (alias de `domain.Instant`), `MessageID`, `Version` |
 | `external.go` | `OutboundKey`; `ExternalClass` (as nove classes de desfecho, `ClassAccepted` a `ClassSchemaMismatch`); `Finding` (zero é «sem achado»); `KeySemantics`, `Efficacy`; `Observation`, `ExternalProfile`; `ExternalCommand` (`Submit`) e `ExternalState` (`Query`, opcional: a ausência declara «sem consulta de estado») (ADR-070) |
-| `attempt_ledger.go` | `Attempt` (com `Tenant` e `MessageID`); `AttemptStart` (`StartedAttempt`, `PendingAttempt`, `DoneAttempt`, com `Match` exaustivo); `AttemptOutcome` (com `Presumed`); `AttemptCursor` e `Attempt.Cursor`; `FinishResult` e `Finished`; `ObserveResult` e `Observed` (com `N` e `QueriesDone`); `ExternalClass.Retryable`; `AttemptLedger` (`Begin`, `Finish`, `Observe`, `Stale`); `ErrInvalidAttempt`, `ErrAttemptUnknown`, `ErrAttemptInFlight` (ADR-070) |
-| `external_class_carrier.go` | Os slots da classe de desfecho (`WithExternalClassSlot`, `MarkExternalClass`, `ExternalClassFrom`) e do conflito (`WithExternalConflictSlot`, `MarkExternalConflict`, `ExternalConflictFrom`), no molde de `MarkIdempotency` |
+| `attempt_ledger.go` | `Attempt` (com `Tenant` e `MessageID`); `AttemptStart` (`StartedAttempt`, `PendingAttempt`, `DoneAttempt`, com `Match` exaustivo); `AttemptOutcome` (com `Presumed`); `AttemptCursor` e `Attempt.Cursor`; `FinishResult` e `Finished`; `ObserveResult` e `Observed` (com `N` e `QueriesDone`); `MaxAttemptEntries`, `ObserveSaturated` e `FinishSaturated`, o teto por tentativa de IDs de observação e de conflitos; `ExternalClass.Retryable`; `AttemptLedger` (`Begin`, `Finish`, `Observe`, `Stale`); `ErrInvalidAttempt`, `ErrAttemptUnknown`, `ErrAttemptInFlight` (ADR-070) |
+| `external_class_carrier.go` | Os slots da classe de desfecho (`WithExternalClassSlot`, `MarkExternalClass`, `ExternalClassFrom`) do conflito (`WithExternalConflictSlot`, `MarkExternalConflict`, `ExternalConflictFrom`) e da saturação (`WithExternalSaturationSlot`, `MarkExternalSaturation`, `ExternalSaturationFrom`), no molde de `MarkIdempotency` |
 
 Uma unidade só, com `block: port` e `bounded_context: kernel`
 (`dmpf-units.json`); em Go, a unidade de verificação é o package (RFC §3.3). A
@@ -219,9 +219,14 @@ já gravada, sem conflito. `Observe` vale sobre a última tentativa `finished`: 
 mesmo ID, o mesmo achado terminal ou um achado não terminal depois de um
 terminal é `ObserveDuplicate`; só `Applied` contra `Rejected`, em qualquer ordem,
 é `ObserveConflict`; o resto é `ObserveRecorded`, com as consultas já feitas.
-`Stale` lista as `begun` iniciadas até o corte, inclusive, retomando depois de um
-`AttemptCursor`. Os slots `WithExternalClassSlot` e `WithExternalConflictSlot`
-levam a classe e o conflito à instrumentação.
+Na linha que já guarda `MaxAttemptEntries` IDs ou conflitos, um achado terminal
+sobre um achado ainda não terminal é gravado como numa linha comum, sem acrescentar
+o ID, para que a tentativa não fique pendente; a reentrega dele é
+`ObserveDuplicate` pela igualdade de terminal, e todo o resto que gravaria uma
+entrada é `ObserveSaturated`. `Stale` lista as `begun` iniciadas até o corte,
+inclusive, retomando depois de um `AttemptCursor`. Os slots
+`WithExternalClassSlot`, `WithExternalConflictSlot` e `WithExternalSaturationSlot`
+levam a classe, o conflito e a saturação à instrumentação.
 
 ## Garantias de entrega
 

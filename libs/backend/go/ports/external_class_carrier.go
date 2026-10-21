@@ -70,3 +70,34 @@ func ExternalConflictFrom(ctx context.Context) bool {
 	defer slot.mu.Unlock()
 	return slot.conflict
 }
+
+type externalSaturationSlotKey struct{}
+
+type externalSaturationSlot struct {
+	mu        sync.Mutex
+	saturated bool
+}
+
+func WithExternalSaturationSlot(ctx context.Context) context.Context {
+	return context.WithValue(ctx, externalSaturationSlotKey{}, &externalSaturationSlot{})
+}
+
+func MarkExternalSaturation(ctx context.Context) {
+	slot, ok := ctx.Value(externalSaturationSlotKey{}).(*externalSaturationSlot)
+	if !ok {
+		return
+	}
+	slot.mu.Lock()
+	slot.saturated = true
+	slot.mu.Unlock()
+}
+
+func ExternalSaturationFrom(ctx context.Context) bool {
+	slot, ok := ctx.Value(externalSaturationSlotKey{}).(*externalSaturationSlot)
+	if !ok {
+		return false
+	}
+	slot.mu.Lock()
+	defer slot.mu.Unlock()
+	return slot.saturated
+}
