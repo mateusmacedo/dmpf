@@ -88,11 +88,6 @@ func (w *partitionWorker) markRevoked() {
 	w.mu.Unlock()
 }
 
-func (w *partitionWorker) stop() {
-	w.cancel()
-	<-w.done
-}
-
 func (w *partitionWorker) run() {
 	defer close(w.done)
 	defer w.consumer.fault.catch()

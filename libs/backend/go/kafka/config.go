@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"reflect"
+	"time"
 
 	"go.opentelemetry.io/otel/log"
 	"go.opentelemetry.io/otel/trace"
@@ -33,6 +34,7 @@ type Config struct {
 	Instruments                *metrics.Instruments
 	LoggerProvider             log.LoggerProvider
 	Rand                       func() float64
+	RevokeGrace                time.Duration
 }
 
 // Validate refuses a configuration without brokers, clock or catalogue, one

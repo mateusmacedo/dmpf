@@ -91,6 +91,7 @@ func integrationConfig(seeds []string, ch channel.Channel) kafka.Config {
 	cfg := publishConfig()
 	cfg.Brokers = seeds
 	cfg.Clock = clock.System()
+	cfg.RevokeGrace = 10 * time.Second
 	cfg.Catalog = channel.Catalog{ch.Name: ch}
 	return cfg
 }
