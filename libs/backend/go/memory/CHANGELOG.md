@@ -1,3 +1,24 @@
+## 1.0.0-rc.7 (2026-10-21)
+
+### 🚀 Features
+
+- **memory:** Aplicar o teto ao ledger de tentativas ([7aec7c7f](https://github.com/mateusmacedo/dmpf/commit/7aec7c7f))
+- **memory:** Realizar o ledger de tentativas em memória ([03e31afb](https://github.com/mateusmacedo/dmpf/commit/03e31afb))
+
+### 🩹 Fixes
+
+- **memory:** Subir o Go para 1.26.10 ([8fdf9f1c](https://github.com/mateusmacedo/dmpf/commit/8fdf9f1c))
+
+### 🧱 Updated Dependencies
+
+- Updated testkit to 1.0.0-rc.7
+- Updated domain to 1.0.0-rc.7
+- Updated ports to 1.0.0-rc.7
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 1.0.0-rc.6 (2026-10-20)
 
 ### 🚀 Features

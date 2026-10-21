@@ -1,3 +1,21 @@
+## 1.0.0-rc.7 (2026-10-21)
+
+### 🚀 Features
+
+- **dmpf-plugin:** Gerar os testes com infra com cache do Nx ([cbca6ad3](https://github.com/mateusmacedo/dmpf/commit/cbca6ad3))
+
+### 🩹 Fixes
+
+- **dmpf-plugin:** Fixar o golangci-lint v2.15.0 no versions.json ([16f64231](https://github.com/mateusmacedo/dmpf/commit/16f64231))
+- **dmpf-plugin:** Fixar o Go 1.26.10 no versions.json ([383c92fa](https://github.com/mateusmacedo/dmpf/commit/383c92fa))
+- **dmpf-plugin:** Ler ALTER TABLE e ignorar pg_constraint no gate de DDL ([4728c9f1](https://github.com/mateusmacedo/dmpf/commit/4728c9f1))
+- **dmpf-plugin:** Resolver go por caminho absoluto no gerador ([51b5819a](https://github.com/mateusmacedo/dmpf/commit/51b5819a))
+- **dmpf-plugin:** Tornar geradores síncronos e trocar [ por [[ nos scripts ([5d2a8fb8](https://github.com/mateusmacedo/dmpf/commit/5d2a8fb8))
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 1.0.0-rc.6 (2026-10-20)
 
 ### 🚀 Features

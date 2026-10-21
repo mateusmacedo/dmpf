@@ -1,3 +1,17 @@
+## 1.0.0-rc.7 (2026-10-21)
+
+### 🩹 Fixes
+
+- **contracts:** Subir o Go para 1.26.10 ([e6f8b662](https://github.com/mateusmacedo/dmpf/commit/e6f8b662))
+
+### 🧱 Updated Dependencies
+
+- Updated testkit to 1.0.0-rc.7
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 1.0.0-rc.6 (2026-10-20)
 
 ### 🧱 Updated Dependencies

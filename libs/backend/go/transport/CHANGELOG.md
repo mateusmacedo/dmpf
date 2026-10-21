@@ -1,3 +1,19 @@
+## 1.0.0-rc.7 (2026-10-21)
+
+### 🩹 Fixes
+
+- **transport:** Subir o Go para 1.26.10 ([6954002d](https://github.com/mateusmacedo/dmpf/commit/6954002d))
+
+### 🧱 Updated Dependencies
+
+- Updated observability to 1.0.0-rc.7
+- Updated testkit to 1.0.0-rc.7
+- Updated ports to 1.0.0-rc.7
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 1.0.0-rc.6 (2026-10-20)
 
 ### 🧱 Updated Dependencies

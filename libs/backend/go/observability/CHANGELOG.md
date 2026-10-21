@@ -1,3 +1,25 @@
+## 1.0.0-rc.7 (2026-10-21)
+
+### 🚀 Features
+
+- **observability:** Registrar a saturação do comando externo ([c396b6ab](https://github.com/mateusmacedo/dmpf/commit/c396b6ab))
+- **observability:** Registrar a classe e o conflito do comando externo ([7e1948c1](https://github.com/mateusmacedo/dmpf/commit/7e1948c1))
+
+### 🩹 Fixes
+
+- **observability:** Subir o Go para 1.26.10 ([01b01b12](https://github.com/mateusmacedo/dmpf/commit/01b01b12))
+
+### 🧱 Updated Dependencies
+
+- Updated application to 1.0.0-rc.7
+- Updated testkit to 1.0.0-rc.7
+- Updated memory to 1.0.0-rc.7
+- Updated ports to 1.0.0-rc.7
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 1.0.0-rc.6 (2026-10-20)
 
 ### 🚀 Features
