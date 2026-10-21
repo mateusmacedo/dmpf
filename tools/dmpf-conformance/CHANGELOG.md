@@ -1,3 +1,14 @@
+## 1.0.0-rc.7 (2026-10-21)
+
+### 🩹 Fixes
+
+- **conformance:** Subir o Go para 1.26.10 ([1cc61b36](https://github.com/mateusmacedo/dmpf/commit/1cc61b36))
+- **dmpf-conformance:** Resolver o binário go por caminho absoluto ([6df2b70e](https://github.com/mateusmacedo/dmpf/commit/6df2b70e))
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 1.0.0-rc.6 (2026-10-20)
 
 Initial release

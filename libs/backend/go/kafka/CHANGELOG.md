@@ -1,3 +1,25 @@
+## 1.0.0-rc.7 (2026-10-21)
+
+### 🚀 Features
+
+- **kafka:** Limitar revogação e shutdown por RevokeGrace ([5aac79dd](https://github.com/mateusmacedo/dmpf/commit/5aac79dd))
+
+### 🩹 Fixes
+
+- **kafka:** Subir o Go para 1.26.10 ([50c335ce](https://github.com/mateusmacedo/dmpf/commit/50c335ce))
+
+### 🧱 Updated Dependencies
+
+- Updated observability to 1.0.0-rc.7
+- Updated contracts to 1.0.0-rc.7
+- Updated transport to 1.0.0-rc.7
+- Updated testkit to 1.0.0-rc.7
+- Updated ports to 1.0.0-rc.7
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 1.0.0-rc.6 (2026-10-20)
 
 ### 🧱 Updated Dependencies
