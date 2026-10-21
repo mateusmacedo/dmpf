@@ -92,6 +92,13 @@ func (p *Process) terminate(grace time.Duration) {
 	}
 }
 
+// Kill is a crash, not a stop: SIGKILL leaves the child no deferred call nor
+// shutdown path.
+func (p *Process) Kill() {
+	_ = p.cmd.Process.Kill()
+	<-p.finished
+}
+
 func (p *Process) Wait(t testing.TB, timeout time.Duration) {
 	t.Helper()
 	select {

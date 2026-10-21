@@ -36,6 +36,13 @@ func (c *cycleCommand) Submit(context.Context, ports.OutboundKey, []byte) (ports
 	return c.class, ports.Observation{}, nil
 }
 
+func (c *cycleCommand) QueryAvailable() bool { return true }
+
+type partnerCommand interface {
+	ports.ExternalCommand
+	QueryAvailable() bool
+}
+
 type cycle struct {
 	store   *memory.Store
 	uow     ports.UnitOfWork[cycleResources]
@@ -75,34 +82,43 @@ func (c *cycle) profile() ports.ExternalProfile {
 
 func (c *cycle) dispatch(t *testing.T, message ports.MessageID) application.Disposition {
 	t.Helper()
-	disposition, err := application.Dispatch(c.ctx, application.ExternalDispatch[cycleResources]{
-		UoW:             c.uow,
-		Store:           c.ledger,
-		Ledger:          func(res cycleResources) ports.AttemptLedger { return res.ledger },
-		Inbox:           func(res cycleResources) ports.Inbox { return res.inbox },
-		Receipt:         ports.Receipt{Consumer: cycleConsumer, MessageID: message, MessageType: "partner.Submit", PayloadHash: "h", ReceivedAt: c.clock.at},
-		Command:         c.command,
-		Key:             cycleKey,
-		Profile:         c.profile(),
-		QueryAvailable:  true,
-		StaleAfter:      cycleStale,
-		Clock:           c.clock,
-		SettleContext:   func(ctx context.Context) (context.Context, context.CancelFunc) { return context.WithCancel(ctx) },
-		Instrumentation: ports.NoInstrumentation(),
-		Apply:           c.apply,
-	})
+	disposition, err := c.dispatchVia(c.command, message)
 	if err != nil {
 		t.Fatalf("Dispatch(%s) = %v", message, err)
 	}
 	return disposition
 }
 
+func (c *cycle) dispatchVia(command partnerCommand, message ports.MessageID) (application.Disposition, error) {
+	return application.Dispatch(c.ctx, application.ExternalDispatch[cycleResources]{
+		UoW:             c.uow,
+		Store:           c.ledger,
+		Ledger:          func(res cycleResources) ports.AttemptLedger { return res.ledger },
+		Inbox:           func(res cycleResources) ports.Inbox { return res.inbox },
+		Receipt:         ports.Receipt{Consumer: cycleConsumer, MessageID: message, MessageType: "partner.Submit", PayloadHash: "h", ReceivedAt: c.clock.at},
+		Command:         command,
+		Key:             cycleKey,
+		Profile:         c.profile(),
+		QueryAvailable:  command.QueryAvailable(),
+		StaleAfter:      cycleStale,
+		Clock:           c.clock,
+		SettleContext:   func(ctx context.Context) (context.Context, context.CancelFunc) { return context.WithCancel(ctx) },
+		Instrumentation: ports.NoInstrumentation(),
+		Apply:           c.apply,
+	})
+}
+
 func (c *cycle) resolve(t *testing.T, id string, finding ports.Finding) ports.ObserveResult {
+	t.Helper()
+	return c.observe(t, ports.Observation{Key: cycleKey, Finding: finding, ID: id})
+}
+
+func (c *cycle) observe(t *testing.T, observation ports.Observation) ports.ObserveResult {
 	t.Helper()
 	observed, err := application.Resolve(c.ctx, application.ExternalResolution[cycleResources]{
 		UoW:             c.uow,
 		Ledger:          func(res cycleResources) ports.AttemptLedger { return res.ledger },
-		Observation:     ports.Observation{Key: cycleKey, Finding: finding, ID: id},
+		Observation:     observation,
 		Profile:         c.profile(),
 		QueryAvailable:  true,
 		Clock:           c.clock,
@@ -110,7 +126,7 @@ func (c *cycle) resolve(t *testing.T, id string, finding ports.Finding) ports.Ob
 		Apply:           c.apply,
 	})
 	if err != nil {
-		t.Fatalf("Resolve(%s) = %v", id, err)
+		t.Fatalf("Resolve(%s) = %v", observation.ID, err)
 	}
 	return observed.Result
 }
