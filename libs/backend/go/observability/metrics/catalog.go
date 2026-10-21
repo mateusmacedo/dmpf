@@ -23,6 +23,7 @@ const (
 	UnitMessage       = "{message}"
 	UnitState         = "{state}"
 	UnitConflict      = "{conflict}"
+	UnitSaturation    = "{saturation}"
 )
 
 // Threshold is the invariant a series must respect. It is nil for a counter
@@ -61,6 +62,7 @@ const (
 	QueueDepth               = "dmpf.consumer.queue.depth"
 	AdmissionRejectionsTotal = "dmpf.admission.rejections"
 	ExternalConflictsTotal   = "dmpf.external.attempt.conflicts"
+	ExternalSaturationsTotal = "dmpf.external.attempt.saturations"
 )
 
 const ownerService = "serviço"
@@ -170,6 +172,14 @@ func Catalog() []Metric {
 			Unit:    UnitConflict,
 			Kind:    Counter,
 			Formula: "soma dos desfechos tardios que o ledger de tentativas registrou à parte da classe já gravada",
+			Labels:  []string{KeyOperation, KeyExternalClass},
+			Owner:   ownerService,
+		},
+		{
+			Name:    ExternalSaturationsTotal,
+			Unit:    UnitSaturation,
+			Kind:    Counter,
+			Formula: "soma das observações e desfechos tardios que o ledger recusou por a tentativa já ter atingido o teto de entradas",
 			Labels:  []string{KeyOperation, KeyExternalClass},
 			Owner:   ownerService,
 		},

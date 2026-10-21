@@ -29,6 +29,7 @@ func TestTheCatalogueDeclaresTheSeriesOfRFD1(t *testing.T) {
 		metrics.PoolUtilization:          "dmpf.consumer.pool.utilization",
 		metrics.QueueDepth:               "dmpf.consumer.queue.depth",
 		metrics.ExternalConflictsTotal:   "dmpf.external.attempt.conflicts",
+		metrics.ExternalSaturationsTotal: "dmpf.external.attempt.saturations",
 	}
 	for constant, name := range want {
 		if constant != name {
@@ -81,6 +82,7 @@ func TestEverySeriesDeclaresItsUCUMUnit(t *testing.T) {
 		metrics.PoolUtilization:          "1",
 		metrics.QueueDepth:               "{message}",
 		metrics.ExternalConflictsTotal:   "{conflict}",
+		metrics.ExternalSaturationsTotal: "{saturation}",
 	}
 	for _, m := range metrics.Catalog() {
 		if m.Unit != want[m.Name] {
@@ -115,6 +117,7 @@ func TestEverySeriesDeclaresTheLabelsOfRFD3(t *testing.T) {
 		metrics.PoolUtilization:          nil,
 		metrics.QueueDepth:               nil,
 		metrics.ExternalConflictsTotal:   {"dmpf.operation", "dmpf.external.class"},
+		metrics.ExternalSaturationsTotal: {"dmpf.operation", "dmpf.external.class"},
 	}
 	for _, m := range metrics.Catalog() {
 		if !slices.Equal(m.Labels, want[m.Name]) {

@@ -31,6 +31,7 @@ const (
 	externalPrefix           = "external."
 	externalOperationEnded   = "external operation ended"
 	externalConflictRecorded = "external attempt conflict"
+	externalAttemptSaturated = "external attempt saturated"
 )
 
 // ActionCrossTenantAccess names the security event of IDN-12 in the audit trail.
@@ -105,7 +106,7 @@ func (i *Instrumentation) BeginOperation(ctx context.Context, operation string) 
 	ctx, span := i.tracer.Start(ctx, spanPrefix+operation, trace.WithAttributes(
 		attribute.String(tracing.KeyTrafficClass, i.trafficClass(operation)),
 	))
-	ctx = ports.WithExternalConflictSlot(ports.WithExternalClassSlot(ctx))
+	ctx = ports.WithExternalSaturationSlot(ports.WithExternalConflictSlot(ports.WithExternalClassSlot(ctx)))
 
 	return ctx, func(result ports.Result) {
 		span.SetAttributes(attribute.String(tracing.KeyOutcomeCategory, string(result.Outcome)))
@@ -137,8 +138,8 @@ func externalClass(ctx context.Context) string {
 }
 
 func (i *Instrumentation) recordExternal(ctx context.Context, operation string, outcome ports.OutcomeCategory, errorType, class string) {
-	conflict := ports.ExternalConflictFrom(ctx)
-	if !strings.HasPrefix(operation, externalPrefix) && !conflict {
+	conflict, saturated := ports.ExternalConflictFrom(ctx), ports.ExternalSaturationFrom(ctx)
+	if !strings.HasPrefix(operation, externalPrefix) && !conflict && !saturated {
 		return
 	}
 	attributes := []slog.Attr{
@@ -152,12 +153,15 @@ func (i *Instrumentation) recordExternal(ctx context.Context, operation string, 
 		attributes = append(attributes, slog.String(logging.KeyErrorType, errorType))
 	}
 	i.logger.LogAttrs(ctx, logging.Severity(logging.Server, outcome), externalOperationEnded, attributes...)
-	if !conflict {
-		return
+	labels := metric.WithAttributes(metrics.Labels{}.Operation(operation).ExternalClass(class).Attributes()...)
+	if conflict {
+		i.instruments.ExternalConflicts.Add(ctx, 1, labels)
+		i.logger.LogAttrs(ctx, slog.LevelWarn, externalConflictRecorded, attributes...)
 	}
-	labels := metrics.Labels{}.Operation(operation).ExternalClass(class)
-	i.instruments.ExternalConflicts.Add(ctx, 1, metric.WithAttributes(labels.Attributes()...))
-	i.logger.LogAttrs(ctx, slog.LevelWarn, externalConflictRecorded, attributes...)
+	if saturated {
+		i.instruments.ExternalSaturations.Add(ctx, 1, labels)
+		i.logger.LogAttrs(ctx, slog.LevelWarn, externalAttemptSaturated, attributes...)
+	}
 }
 
 // WHY: every use case closes here, so the provider's report of a cross-tenant

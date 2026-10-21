@@ -715,6 +715,7 @@ func TestAnExternalOperationReportsItsClassAndConflictInEverySignal(t *testing.T
 		outcome   ports.OutcomeCategory
 		class     ports.ExternalClass
 		conflict  bool
+		saturated bool
 		want      []loggedRecord
 	}{
 		{
@@ -743,6 +744,17 @@ func TestAnExternalOperationReportsItsClassAndConflictInEverySignal(t *testing.T
 				}},
 			},
 		},
+		{
+			name: "a saturation", operation: "external.resolve", outcome: ports.OutcomeAccepted, class: ports.ClassUnknownSent, saturated: true,
+			want: []loggedRecord{
+				{body: "external operation ended", severity: log.SeverityInfo, attributes: map[string]string{
+					"dmpf.operation": "external.resolve", "dmpf.outcome_category": "accepted", "dmpf.external.class": "unknown_sent",
+				}},
+				{body: "external attempt saturated", severity: log.SeverityWarn, attributes: map[string]string{
+					"dmpf.operation": "external.resolve", "dmpf.outcome_category": "accepted", "dmpf.external.class": "unknown_sent",
+				}},
+			},
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			logs := &recordingLogs{}
@@ -754,6 +766,9 @@ func TestAnExternalOperationReportsItsClassAndConflictInEverySignal(t *testing.T
 			}
 			if tc.conflict {
 				ports.MarkExternalConflict(ctx)
+			}
+			if tc.saturated {
+				ports.MarkExternalSaturation(ctx)
 			}
 			end(ports.Result{Outcome: tc.outcome})
 
@@ -781,6 +796,14 @@ func TestAnExternalOperationReportsItsClassAndConflictInEverySignal(t *testing.T
 			case tc.conflict && (len(conflicts) != 1 || conflicts[0].Value != 1 ||
 				!maps.Equal(labelsOf(conflicts[0].Attributes), map[string]string{"dmpf.operation": tc.operation, "dmpf.external.class": tc.class.String()})):
 				t.Fatalf("%s = %+v, want one count labelled only by operation and class", metrics.ExternalConflictsTotal, conflicts)
+			}
+			saturations := collect(t, fixture.reader)[metrics.ExternalSaturationsTotal]
+			switch {
+			case !tc.saturated && len(saturations) != 0:
+				t.Fatalf("%s = %+v on an operation that marked no saturation", metrics.ExternalSaturationsTotal, saturations)
+			case tc.saturated && (len(saturations) != 1 || saturations[0].Value != 1 ||
+				!maps.Equal(labelsOf(saturations[0].Attributes), map[string]string{"dmpf.operation": tc.operation, "dmpf.external.class": tc.class.String()})):
+				t.Fatalf("%s = %+v, want one count labelled only by operation and class", metrics.ExternalSaturationsTotal, saturations)
 			}
 		})
 	}
