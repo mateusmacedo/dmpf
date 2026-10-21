@@ -38,9 +38,10 @@ UPDATE external_attempt
        observation_id = $9, provider = $10, external_ref = $11, source_at = $12
  WHERE tenant_id = $1 AND outbound_key = $2 AND attempt = $3 AND state = 'begun'`
 
-	selectAttemptClass = `
-SELECT class FROM external_attempt
- WHERE tenant_id = $1 AND outbound_key = $2 AND attempt = $3`
+	lockAttemptClass = `
+SELECT class, cardinality(observation_ids), jsonb_array_length(conflicts) FROM external_attempt
+ WHERE tenant_id = $1 AND outbound_key = $2 AND attempt = $3
+   FOR UPDATE`
 
 	appendAttemptConflict = `
 UPDATE external_attempt
@@ -48,7 +49,7 @@ UPDATE external_attempt
  WHERE tenant_id = $1 AND outbound_key = $2 AND attempt = $3`
 
 	lockLastAttempt = `
-SELECT attempt, state, class, terminal_finding, observation_ids, queries
+SELECT attempt, state, class, terminal_finding, observation_ids, queries, jsonb_array_length(conflicts)
   FROM external_attempt
  WHERE tenant_id = $1 AND outbound_key = $2
  ORDER BY attempt DESC LIMIT 1
@@ -60,7 +61,8 @@ UPDATE external_attempt SET observation_ids = array_append(observation_ids, $4::
 
 	recordObservation = `
 UPDATE external_attempt
-   SET finding = $4, terminal_finding = $5, observation_ids = array_append(observation_ids, $6::text), queries = queries + 1,
+   SET finding = $4, terminal_finding = $5, queries = queries + 1,
+       observation_ids = CASE WHEN $10::boolean THEN observation_ids ELSE array_append(observation_ids, $6::text) END,
        observation_id = $6::text, provider = $7, external_ref = $8, source_at = $9
  WHERE tenant_id = $1 AND outbound_key = $2 AND attempt = $3
 RETURNING queries`
@@ -80,7 +82,7 @@ var (
 	_ = declare(selectLastAttempt, "SELECT", "external_attempt")
 	_ = declare(insertAttempt, "INSERT", "external_attempt")
 	_ = declare(finishBegunAttempt, "UPDATE", "external_attempt")
-	_ = declare(selectAttemptClass, "SELECT", "external_attempt")
+	_ = declare(lockAttemptClass, "SELECT", "external_attempt")
 	_ = declare(appendAttemptConflict, "UPDATE", "external_attempt")
 	_ = declare(lockLastAttempt, "SELECT", "external_attempt")
 	_ = declare(recordObservationID, "UPDATE", "external_attempt")
@@ -202,8 +204,11 @@ func (l txAttemptLedger) Finish(ctx context.Context, o ports.AttemptOutcome) (po
 		return ports.Finished{Result: ports.FinishRecorded, Recorded: o.Class}, nil
 	}
 
-	var stored *int16
-	err = l.tx.conn.QueryRow(ctx, selectAttemptClass, string(tenant), string(o.Key), o.N).Scan(&stored)
+	var (
+		stored          *int16
+		seen, conflicts int
+	)
+	err = l.tx.conn.QueryRow(ctx, lockAttemptClass, string(tenant), string(o.Key), o.N).Scan(&stored, &seen, &conflicts)
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
 		return ports.Finished{}, fmt.Errorf("postgres: finish attempt %d: %w", o.N, ports.ErrAttemptUnknown)
@@ -214,6 +219,9 @@ func (l txAttemptLedger) Finish(ctx context.Context, o ports.AttemptOutcome) (po
 	if recorded == o.Class || o.Presumed {
 		return ports.Finished{Result: ports.FinishUnchanged, Recorded: recorded}, nil
 	}
+	if saturated(seen, conflicts) {
+		return ports.Finished{Result: ports.FinishSaturated, Recorded: recorded}, nil
+	}
 	if _, err := l.tx.conn.Exec(ctx, appendAttemptConflict, string(tenant), string(o.Key), o.N, int16(o.Class), nil, int64(o.FinishedAt)); err != nil {
 		return ports.Finished{}, err
 	}
@@ -221,12 +229,17 @@ func (l txAttemptLedger) Finish(ctx context.Context, o ports.AttemptOutcome) (po
 }
 
 type lockedAttempt struct {
-	n        int
-	state    string
-	class    *int16
-	terminal *int16
-	seen     []string
-	queries  int
+	n         int
+	state     string
+	class     *int16
+	terminal  *int16
+	seen      []string
+	queries   int
+	conflicts int
+}
+
+func saturated(seen, conflicts int) bool {
+	return seen >= ports.MaxAttemptEntries || conflicts >= ports.MaxAttemptEntries
 }
 
 func (l txAttemptLedger) Observe(ctx context.Context, o ports.Observation, now ports.Instant) (ports.Observed, error) {
@@ -239,7 +252,7 @@ func (l txAttemptLedger) Observe(ctx context.Context, o ports.Observation, now p
 	}
 	var last lockedAttempt
 	err = l.tx.conn.QueryRow(ctx, lockLastAttempt, string(tenant), string(o.Key)).
-		Scan(&last.n, &last.state, &last.class, &last.terminal, &last.seen, &last.queries)
+		Scan(&last.n, &last.state, &last.class, &last.terminal, &last.seen, &last.queries, &last.conflicts)
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
 		return ports.Observed{}, fmt.Errorf("postgres: observe: %w", ports.ErrAttemptUnknown)
@@ -254,11 +267,19 @@ func (l txAttemptLedger) Observe(ctx context.Context, o ports.Observation, now p
 		observed.Result = ports.ObserveDuplicate
 		return observed, nil
 	}
-	if last.terminal != nil {
+	full := saturated(len(last.seen), last.conflicts)
+	switch {
+	case full && last.terminal != nil && ports.Finding(*last.terminal) == o.Finding:
+		observed.Result = ports.ObserveDuplicate
+		return observed, nil
+	case full && (last.terminal != nil || terminalOf(o.Finding) == nil):
+		observed.Result = ports.ObserveSaturated
+		return observed, nil
+	case last.terminal != nil:
 		return l.observeAfterTerminal(ctx, tenant, o, now, last, observed)
 	}
 	err = l.tx.conn.QueryRow(ctx, recordObservation, string(tenant), string(o.Key), last.n,
-		int16(o.Finding), terminalOf(o.Finding), o.ID, o.Provider, o.ExternalRef, int64(o.SourceAt)).Scan(&observed.QueriesDone)
+		int16(o.Finding), terminalOf(o.Finding), o.ID, o.Provider, o.ExternalRef, int64(o.SourceAt), full).Scan(&observed.QueriesDone)
 	if err != nil {
 		return ports.Observed{}, err
 	}

@@ -20,8 +20,19 @@ CREATE TABLE IF NOT EXISTS external_attempt (
   CONSTRAINT external_attempt_state_check CHECK (state IN ('begun', 'finished'))
 );
 
-CREATE INDEX IF NOT EXISTS external_attempt_started_at_idx
-  ON external_attempt (started_at) WHERE state = 'begun';
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'external_attempt'::regclass AND conname = 'external_attempt_entries_check') THEN
+    ALTER TABLE external_attempt ADD CONSTRAINT external_attempt_entries_check
+      CHECK (cardinality(observation_ids) <= 64 AND jsonb_array_length(conflicts) <= 64) NOT VALID;
+  END IF;
+END
+$$;
+
+DROP INDEX IF EXISTS external_attempt_started_at_idx;
+
+CREATE INDEX IF NOT EXISTS external_attempt_started_at_tenant_id_outbound_key_attempt_idx
+  ON external_attempt (started_at, tenant_id COLLATE "C", outbound_key COLLATE "C", attempt) WHERE state = 'begun';
 
 CREATE INDEX IF NOT EXISTS external_attempt_finished_at_idx
   ON external_attempt (finished_at) WHERE state = 'finished';

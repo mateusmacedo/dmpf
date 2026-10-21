@@ -4,6 +4,7 @@ package postgres_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -11,10 +12,12 @@ import (
 	"testing"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb/pg"
 )
 
 const (
@@ -57,6 +60,18 @@ func (f ledgerFixture) conflicts(t *testing.T, tenant ports.TenantID, key ports.
 		string(tenant), string(key)).Scan(&n)
 	if err != nil {
 		t.Fatalf("counting conflicts = %v", err)
+	}
+	return n
+}
+
+func (f ledgerFixture) observationIDs(t *testing.T, tenant ports.TenantID, key ports.OutboundKey) int {
+	t.Helper()
+	var n int
+	err := f.pool.QueryRow(context.Background(),
+		`SELECT coalesce(sum(cardinality(observation_ids)), 0) FROM external_attempt WHERE tenant_id = $1 AND outbound_key = $2`,
+		string(tenant), string(key)).Scan(&n)
+	if err != nil {
+		t.Fatalf("counting observation IDs = %v", err)
 	}
 	return n
 }
@@ -832,7 +847,8 @@ func TestMigrateCreatesTheAttemptLedgerSchema(t *testing.T) {
 		{"table", tableExistsQuery, []any{"external_attempt"}},
 		{"primary key", constraintExistsQuery, []any{"external_attempt", "external_attempt_pkey", "PRIMARY KEY"}},
 		{"state check", constraintExistsQuery, []any{"external_attempt", "external_attempt_state_check", "CHECK"}},
-		{"stale index", indexExistsQuery, []any{"external_attempt_started_at_idx"}},
+		{"entries check", constraintExistsQuery, []any{"external_attempt", "external_attempt_entries_check", "CHECK"}},
+		{"stale index", indexExistsQuery, []any{staleIndex}},
 		{"purge index", indexExistsQuery, []any{"external_attempt_finished_at_idx"}},
 	}
 	for _, tt := range tests {
@@ -842,6 +858,188 @@ func TestMigrateCreatesTheAttemptLedgerSchema(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestMigrateAddsTheEntriesCheckToAnOlderAttemptLedger(t *testing.T) {
+	pool := openAdminPool(t)
+	ctx := context.Background()
+	if _, err := pool.Exec(ctx, "ALTER TABLE external_attempt DROP CONSTRAINT external_attempt_entries_check"); err != nil {
+		t.Fatalf("seeding the older ledger = %v", err)
+	}
+
+	for _, round := range []string{"first", "second"} {
+		if err := postgres.Migrate(ctx, pool, allCapabilities, probeSchema); err != nil {
+			t.Fatalf("%s Migrate() over the older ledger = %v, want nil", round, err)
+		}
+	}
+	if !exists(t, ctx, pool, constraintExistsQuery, "external_attempt", "external_attempt_entries_check", "CHECK") {
+		t.Fatal("external_attempt_entries_check does not exist: a ledger created before the cap would grow without bound")
+	}
+	var validated bool
+	err := pool.QueryRow(ctx, `SELECT convalidated FROM pg_constraint
+		WHERE conrelid = 'external_attempt'::regclass AND conname = 'external_attempt_entries_check'`).Scan(&validated)
+	if err != nil {
+		t.Fatalf("reading convalidated = %v", err)
+	}
+	if !validated {
+		t.Fatal("external_attempt_entries_check is NOT VALID after Migrate: rows written before the cap were never checked")
+	}
+}
+
+func TestMigrateValidatesTheEntriesCheckAfterTheSchemaCommits(t *testing.T) {
+	admin := openAdminPool(t)
+	ctx := context.Background()
+	seed := []string{
+		"ALTER TABLE external_attempt DROP CONSTRAINT external_attempt_entries_check",
+		`INSERT INTO external_attempt (tenant_id, outbound_key, attempt, message_id, state, started_at, observation_ids)
+			VALUES ('acme', 'key-over', 1, 'm-over', 'begun', 1, array_fill('o'::text, ARRAY[65]))`,
+	}
+	for _, s := range seed {
+		if _, err := admin.Exec(ctx, s); err != nil {
+			t.Fatalf("seeding a ledger past the cap = %v", err)
+		}
+	}
+
+	err := postgres.Migrate(ctx, admin, allCapabilities, probeSchema)
+	if coded, ok := errors.AsType[*pgconn.PgError](err); !ok || coded.Code != "23514" {
+		t.Fatalf("Migrate() over a row past the cap = %v; want a check violation (23514)", err)
+	}
+	if validated, found := entriesCheck(t, admin); !found || validated {
+		t.Fatalf("entries check after a failed VALIDATE: found = %t, validated = %t; want the NOT VALID check committed by the schema transaction", found, validated)
+	}
+
+	if _, err := admin.Exec(ctx, "UPDATE external_attempt SET observation_ids = '{}'"); err != nil {
+		t.Fatalf("trimming the row = %v", err)
+	}
+	reader, err := admin.Begin(ctx)
+	if err != nil {
+		t.Fatalf("Begin() = %v", err)
+	}
+	t.Cleanup(func() { _ = reader.Rollback(context.Background()) })
+	if _, err := reader.Exec(ctx, "SELECT 1 FROM external_attempt LIMIT 1"); err != nil {
+		t.Fatalf("reading external_attempt = %v", err)
+	}
+	cfg := pg.Config(t, "postgres")
+	cfg.ConnConfig.RuntimeParams["lock_timeout"] = "5s"
+	migrator, err := pgxpool.NewWithConfig(ctx, cfg)
+	if err != nil {
+		t.Fatalf("pgxpool.NewWithConfig() = %v", err)
+	}
+	t.Cleanup(migrator.Close)
+
+	for _, round := range []string{"first", "second"} {
+		if err := postgres.Migrate(ctx, migrator, allCapabilities, probeSchema); err != nil {
+			t.Fatalf("%s Migrate() beside an open reader = %v, want nil: VALIDATE must not wait for ACCESS EXCLUSIVE", round, err)
+		}
+	}
+	if validated, found := entriesCheck(t, admin); !found || !validated {
+		t.Fatalf("entries check after Migrate: found = %t, validated = %t; want both", found, validated)
+	}
+}
+
+func entriesCheck(t *testing.T, pool *pgxpool.Pool) (validated, found bool) {
+	t.Helper()
+	err := pool.QueryRow(context.Background(), `SELECT convalidated FROM pg_constraint
+		WHERE conrelid = 'external_attempt'::regclass AND conname = 'external_attempt_entries_check'`).Scan(&validated)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, false
+	}
+	if err != nil {
+		t.Fatalf("reading convalidated = %v", err)
+	}
+	return validated, true
+}
+
+func TestMigrateDropsTheSingleColumnStaleIndex(t *testing.T) {
+	pool := openAdminPool(t)
+	ctx := context.Background()
+	if _, err := pool.Exec(ctx, "CREATE INDEX external_attempt_started_at_idx ON external_attempt (started_at) WHERE state = 'begun'"); err != nil {
+		t.Fatalf("seeding the older index = %v", err)
+	}
+
+	if err := postgres.Migrate(ctx, pool, allCapabilities, probeSchema); err != nil {
+		t.Fatalf("Migrate() over the older index = %v, want nil", err)
+	}
+	if exists(t, ctx, pool, indexExistsQuery, "external_attempt_started_at_idx") {
+		t.Fatal("external_attempt_started_at_idx survived Migrate")
+	}
+	if !exists(t, ctx, pool, indexExistsQuery, staleIndex) {
+		t.Fatalf("%s does not exist after Migrate", staleIndex)
+	}
+}
+
+func TestStaleQueryWalksTheIndexInOrderWithoutSorting(t *testing.T) {
+	pool := openAdminPool(t)
+	ctx := context.Background()
+	if _, err := pool.Exec(ctx, `INSERT INTO external_attempt (tenant_id, outbound_key, attempt, message_id, state, started_at)
+		SELECT 't' || (i % 7), 'k' || i, 1, 'm' || i, CASE WHEN i % 3 = 0 THEN 'finished' ELSE 'begun' END, i % 50
+		  FROM generate_series(1, 500) AS i`); err != nil {
+		t.Fatalf("seeding attempts = %v", err)
+	}
+	if _, err := pool.Exec(ctx, "ANALYZE external_attempt"); err != nil {
+		t.Fatalf("ANALYZE = %v", err)
+	}
+	tests := []struct {
+		name  string
+		first bool
+	}{
+		{"first page", true},
+		{"after a cursor", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			nodes := explainStale(t, pool, tt.first)
+			if slices.ContainsFunc(nodes, func(n planNode) bool { return n.Type == "Sort" || n.Type == "Incremental Sort" }) {
+				t.Fatalf("plan sorts: %+v", nodes)
+			}
+			if !slices.ContainsFunc(nodes, func(n planNode) bool { return n.Type == "Index Scan" && n.Index == staleIndex }) {
+				t.Fatalf("plan does not scan %s in order: %+v", staleIndex, nodes)
+			}
+		})
+	}
+}
+
+const staleIndex = "external_attempt_started_at_tenant_id_outbound_key_attempt_idx"
+
+type planNode struct {
+	Type  string     `json:"Node Type"`
+	Index string     `json:"Index Name"`
+	Plans []planNode `json:"Plans"`
+}
+
+func explainStale(t *testing.T, pool *pgxpool.Pool, first bool) []planNode {
+	t.Helper()
+	ctx := context.Background()
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("Begin() = %v", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if _, err := tx.Exec(ctx, "SET LOCAL enable_seqscan = off"); err != nil {
+		t.Fatalf("SET enable_seqscan = %v", err)
+	}
+	var raw []byte
+	err = tx.QueryRow(ctx, "EXPLAIN (FORMAT JSON) "+postgres.SelectStaleAttempts,
+		int64(40), first, int64(10), "t3", "k10", 1, 100).Scan(&raw)
+	if err != nil {
+		t.Fatalf("EXPLAIN = %v", err)
+	}
+	var plans []struct {
+		Plan planNode `json:"Plan"`
+	}
+	if err := json.Unmarshal(raw, &plans); err != nil || len(plans) != 1 {
+		t.Fatalf("decoding the plan %s = %v", raw, err)
+	}
+	var flat []planNode
+	var walk func(planNode)
+	walk = func(n planNode) {
+		flat = append(flat, planNode{Type: n.Type, Index: n.Index})
+		for _, c := range n.Plans {
+			walk(c)
+		}
+	}
+	walk(plans[0].Plan)
+	return flat
 }
 
 type storedObservation struct {
@@ -908,6 +1106,177 @@ func TestAttemptLedgerKeepsTheLastAcceptedObservation(t *testing.T) {
 
 			if got := f.storedObservation(t).String(); got != tt.want {
 				t.Fatalf("stored observation = %s, want %s", got, tt.want)
+			}
+		})
+	}
+}
+
+func (f ledgerFixture) fillObservations(t *testing.T) {
+	t.Helper()
+	f.begin(t, f.a, keyX, 10)
+	f.finish(t, f.a, outcome(1, ports.ClassUnknownSent))
+	for i := range ports.MaxAttemptEntries {
+		got, err := f.ledger.Observe(f.a, observation(fmt.Sprintf("o-%d", i), ports.FindingPending), 500)
+		if err != nil || got.Result != ports.ObserveRecorded {
+			t.Fatalf("Observe(o-%d) = %+v, %v; want recorded up to the cap", i, got, err)
+		}
+	}
+}
+
+func (f ledgerFixture) fillConflicts(t *testing.T) {
+	t.Helper()
+	f.begin(t, f.a, keyX, 10)
+	f.finish(t, f.a, outcome(1, ports.ClassUnknownSent))
+	for i := range ports.MaxAttemptEntries {
+		got, err := f.ledger.Finish(f.a, outcome(1, ports.ClassAccepted))
+		if err != nil || got.Result != ports.FinishConflict {
+			t.Fatalf("Finish() #%d = %+v, %v; want a conflict up to the cap", i, got, err)
+		}
+	}
+}
+
+func TestAttemptLedgerSaturation(t *testing.T) {
+	type call struct {
+		finish  *ports.AttemptOutcome
+		observe ports.Observation
+	}
+	finishing := func(o ports.AttemptOutcome) call { return call{finish: &o} }
+	observing := func(o ports.Observation) call { return call{observe: o} }
+	full := ports.MaxAttemptEntries
+	tests := []struct {
+		name          string
+		fill          func(ledgerFixture, *testing.T)
+		calls         []call
+		want          []any
+		wantConflicts int
+		wantSeen      int
+	}{
+		{
+			name:     "a pending observation on a row full of IDs is saturated and stays unseen",
+			fill:     ledgerFixture.fillObservations,
+			calls:    []call{observing(observation("o-new", ports.FindingPending)), observing(observation("o-new", ports.FindingPending))},
+			want:     []any{ports.Observed{Result: ports.ObserveSaturated, N: 1, Class: ports.ClassUnknownSent, QueriesDone: full}, ports.Observed{Result: ports.ObserveSaturated, N: 1, Class: ports.ClassUnknownSent, QueriesDone: full}},
+			wantSeen: full,
+		},
+		{
+			name:  "a terminal finding on a row full of IDs with none terminal yet is applied without its ID",
+			fill:  ledgerFixture.fillObservations,
+			calls: []call{observing(observation("o-new", ports.FindingApplied)), observing(observation("o-new", ports.FindingApplied))},
+			want: []any{
+				ports.Observed{Result: ports.ObserveRecorded, N: 1, Class: ports.ClassUnknownSent, QueriesDone: full + 1},
+				ports.Observed{Result: ports.ObserveDuplicate, N: 1, Class: ports.ClassUnknownSent, QueriesDone: full + 1},
+			},
+			wantSeen: full,
+		},
+		{
+			name: "once a full row holds a terminal, another terminal is saturated and the same one a duplicate",
+			fill: ledgerFixture.fillObservations,
+			calls: []call{
+				observing(observation("o-new", ports.FindingApplied)),
+				observing(observation("o-other", ports.FindingRejected)),
+				observing(observation("o-again", ports.FindingApplied)),
+				observing(observation("o-late", ports.FindingPending)),
+			},
+			want: []any{
+				ports.Observed{Result: ports.ObserveRecorded, N: 1, Class: ports.ClassUnknownSent, QueriesDone: full + 1},
+				ports.Observed{Result: ports.ObserveSaturated, N: 1, Class: ports.ClassUnknownSent, QueriesDone: full + 1},
+				ports.Observed{Result: ports.ObserveDuplicate, N: 1, Class: ports.ClassUnknownSent, QueriesDone: full + 1},
+				ports.Observed{Result: ports.ObserveSaturated, N: 1, Class: ports.ClassUnknownSent, QueriesDone: full + 1},
+			},
+			wantSeen: full,
+		},
+		{
+			name:     "a known ID on a row full of IDs is still a duplicate",
+			fill:     ledgerFixture.fillObservations,
+			calls:    []call{observing(observation("o-0", ports.FindingPending))},
+			want:     []any{ports.Observed{Result: ports.ObserveDuplicate, N: 1, Class: ports.ClassUnknownSent, QueriesDone: full}},
+			wantSeen: full,
+		},
+		{
+			name:          "a contradicting finish on a row full of conflicts is saturated and keeps the class",
+			fill:          ledgerFixture.fillConflicts,
+			calls:         []call{finishing(outcome(1, ports.ClassAccepted))},
+			want:          []any{ports.Finished{Result: ports.FinishSaturated, Recorded: ports.ClassUnknownSent}},
+			wantConflicts: full,
+		},
+		{
+			name:     "a contradicting finish on a row full of IDs is saturated",
+			fill:     ledgerFixture.fillObservations,
+			calls:    []call{finishing(outcome(1, ports.ClassAccepted))},
+			want:     []any{ports.Finished{Result: ports.FinishSaturated, Recorded: ports.ClassUnknownSent}},
+			wantSeen: full,
+		},
+		{
+			name:          "the same class or a presumed one on a full row is unchanged, never saturated",
+			fill:          ledgerFixture.fillConflicts,
+			calls:         []call{finishing(outcome(1, ports.ClassUnknownSent)), finishing(presumed(1))},
+			want:          []any{ports.Finished{Result: ports.FinishUnchanged, Recorded: ports.ClassUnknownSent}, ports.Finished{Result: ports.FinishUnchanged, Recorded: ports.ClassUnknownSent}},
+			wantConflicts: full,
+		},
+		{
+			name:          "a new observation on a row full of conflicts is saturated and stays unseen",
+			fill:          ledgerFixture.fillConflicts,
+			calls:         []call{observing(observation("o-1", ports.FindingPending)), observing(observation("o-1", ports.FindingPending))},
+			want:          []any{ports.Observed{Result: ports.ObserveSaturated, N: 1, Class: ports.ClassUnknownSent}, ports.Observed{Result: ports.ObserveSaturated, N: 1, Class: ports.ClassUnknownSent}},
+			wantConflicts: full,
+		},
+		{
+			name:  "a terminal finding on a row full of conflicts with none terminal yet is applied without its ID",
+			fill:  ledgerFixture.fillConflicts,
+			calls: []call{observing(observation("o-1", ports.FindingApplied)), observing(observation("o-1", ports.FindingApplied))},
+			want: []any{
+				ports.Observed{Result: ports.ObserveRecorded, N: 1, Class: ports.ClassUnknownSent, QueriesDone: 1},
+				ports.Observed{Result: ports.ObserveDuplicate, N: 1, Class: ports.ClassUnknownSent, QueriesDone: 1},
+			},
+			wantConflicts: full,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := newLedgerFixture(t)
+			tt.fill(f, t)
+
+			for i, c := range tt.calls {
+				var (
+					got any
+					err error
+				)
+				if c.finish != nil {
+					got, err = f.ledger.Finish(f.a, *c.finish)
+				} else {
+					got, err = f.ledger.Observe(f.a, c.observe, 600)
+				}
+				if err != nil || got != tt.want[i] {
+					t.Fatalf("call #%d = %+v, %v; want %+v", i, got, err, tt.want[i])
+				}
+			}
+			if n := f.conflicts(t, tenantA, keyX); n != tt.wantConflicts {
+				t.Fatalf("conflicts = %d, want %d", n, tt.wantConflicts)
+			}
+			if n := f.observationIDs(t, tenantA, keyX); n != tt.wantSeen {
+				t.Fatalf("observation IDs = %d, want %d", n, tt.wantSeen)
+			}
+		})
+	}
+}
+
+func TestAttemptLedgerSchemaRefusesARowPastTheCap(t *testing.T) {
+	tests := []struct {
+		name   string
+		fill   func(ledgerFixture, *testing.T)
+		append string
+	}{
+		{"observation IDs", ledgerFixture.fillObservations, `UPDATE external_attempt SET observation_ids = array_append(observation_ids, 'o-over')`},
+		{"conflicts", ledgerFixture.fillConflicts, `UPDATE external_attempt SET conflicts = conflicts || '[{}]'::jsonb`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := newLedgerFixture(t)
+			tt.fill(f, t)
+
+			_, err := f.pool.Exec(context.Background(), tt.append+` WHERE tenant_id = $1 AND outbound_key = $2`, string(tenantA), string(keyX))
+			if coded, ok := errors.AsType[*pgconn.PgError](err); !ok || coded.Code != "23514" {
+				t.Fatalf("append past the cap = %v; want a check violation (23514)", err)
 			}
 		})
 	}

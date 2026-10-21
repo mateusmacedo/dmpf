@@ -222,7 +222,16 @@ instâncias de `Table[ID,S]` no bloco `provider` de cada contexto —
   e a quarantine guarda até envelope cujo tenant não é confiável. As tabelas
   de agregado são de cada contexto, em `apps/backend/<ctx>/provider/schema.sql`,
   com `tenant_id NOT NULL` à frente da chave primária. `Migrate` é idempotente
-  e não há tabela de versão: não existe ferramenta de migração aqui.
+  e não há tabela de versão: não existe ferramenta de migração aqui. Roda em
+  duas fases, cada transação sob o mesmo `pg_advisory_xact_lock`: a do esquema
+  (capacidades e schema do contexto) numa transação só; depois do commit, a
+  das validações que a capacidade declara, cada uma numa transação própria. É
+  ali que corre o `VALIDATE CONSTRAINT` do `external_attempt_validate.sql`,
+  que pega só `SHARE UPDATE EXCLUSIVE` em vez de herdar o `ACCESS EXCLUSIVE`
+  que o `ADD CONSTRAINT … NOT VALID` segura até o commit. Validação que falha
+  (linha acima do teto) devolve o erro do `Migrate`, mas não desfaz o esquema
+  já commitado: a constraint fica `NOT VALID`, já recusando escrita nova, e o
+  próximo `Migrate` tenta validar de novo.
 - **`grants.go`** — o privilégio da role de runtime por tabela (ADR-063):
   `Privilege`, `Grant`, `Mutable` (tabela que um `Table` escreve) e
   `AppendOnly` (tabela que só recebe linhas), e `KernelGrants`, que cada
