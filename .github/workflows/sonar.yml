@@ -1,6 +1,7 @@
 name: SonarQube Cloud
 
-# Em PR só roda chamado pelo ci.yml, no PR para master. O push em master mantém
+# Em PR só roda chamado pelo ci.yml, no PR para master com Go ou o plugin no
+# escopo do diff (ADR-071). O push em master mantém
 # a análise da branch principal, que é a referência das análises de PR no SonarCloud.
 on:
   workflow_call:
