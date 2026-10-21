@@ -121,9 +121,6 @@ jobs:
           PROJECTS: ${{ steps.alvo.outputs.projects }}
         run: pnpm nx run-many -t test-distributed -p "$PROJECTS" --parallel=1
 
-      - name: Crash entre Begin e Finish do comando externo (KIT-06)
-        run: pnpm nx run testkit:test-distributed
-
       - name: Derrubar a infraestrutura do job
         if: always()
         run: docker rm -f "test-dist-postgres-$(hostname)" "test-dist-redpanda-$(hostname)" >/dev/null 2>&1 || true

@@ -1,3 +1,23 @@
+## 1.0.0-rc.6 (2026-10-20)
+
+### 🚀 Features
+
+- **postgres:** Ler entre tenants e projetar no destino declarado ([c6c5d862](https://github.com/mateusmacedo/dmpf/commit/c6c5d862))
+- **postgres:** Ler a pré-condição relacional na UoW sob guarda ([2d500a29](https://github.com/mateusmacedo/dmpf/commit/2d500a29))
+- **postgres:** Traduzir a violação de unicidade declarada no Save ([26d115fe](https://github.com/mateusmacedo/dmpf/commit/26d115fe))
+
+### 🧱 Updated Dependencies
+
+- Updated observability to 1.0.0-rc.6
+- Updated contracts to 1.0.0-rc.6
+- Updated testkit to 1.0.0-rc.6
+- Updated domain to 1.0.0-rc.6
+- Updated ports to 1.0.0-rc.6
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 1.0.0-rc.5 (2026-10-17)
 
 ### 🚀 Features

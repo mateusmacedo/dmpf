@@ -234,7 +234,9 @@ func TestARecordWithoutGestureStallsThePartitionAndFixesTheCommitCeiling(t *test
 		t.Fatal("the stalled partition is not paused")
 	}
 	cancel()
-	<-done
+	if err := <-done; !errors.Is(err, context.Canceled) {
+		t.Fatalf("Run() = %v, want context.Canceled", err)
+	}
 
 	if got := commits(fake); len(got) != 1 || got[0] != 0 {
 		t.Fatalf("commits = %v, want only the record 0: 1 is pending and fixes the ceiling (TRP-29)", got)
@@ -366,7 +368,9 @@ func TestRevocationCancelsTheAttemptAndKeepsTheContiguousCommit(t *testing.T) {
 		t.Fatalf("workers = %d after revocation, want 0", c.Workers())
 	}
 	cancel()
-	<-done
+	if err := <-done; !errors.Is(err, context.Canceled) {
+		t.Fatalf("Run() = %v, want context.Canceled", err)
+	}
 }
 
 func TestTwoBatchesOfOnePartitionShareOneWorkerInOrder(t *testing.T) {
@@ -419,7 +423,9 @@ func TestRevocationLiftsTheFetchPauseOfAStalledPartition(t *testing.T) {
 		t.Fatalf("paused after revocation = %v, want none: kgo keeps the pause across rebalances", paused)
 	}
 	cancel()
-	<-done
+	if err := <-done; !errors.Is(err, context.Canceled) {
+		t.Fatalf("Run() = %v, want context.Canceled", err)
+	}
 }
 
 func TestRevocationDoesNotDrainTheQueueThroughTheSink(t *testing.T) {
@@ -456,7 +462,9 @@ func TestRevocationDoesNotDrainTheQueueThroughTheSink(t *testing.T) {
 		t.Fatalf("the sink ran %d times after revocation, want 1: the queue is not drained through it", n)
 	}
 	cancel()
-	<-done
+	if err := <-done; !errors.Is(err, context.Canceled) {
+		t.Fatalf("Run() = %v, want context.Canceled", err)
+	}
 }
 
 func TestAnAssignmentBeforeRunHasAClientAndAMap(t *testing.T) {

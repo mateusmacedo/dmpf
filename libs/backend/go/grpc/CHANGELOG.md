@@ -1,3 +1,22 @@
+## 1.0.0-rc.6 (2026-10-20)
+
+### 🚀 Features
+
+- **grpc:** Conceder o alcance de plataforma só ao workload confiável ([577ec061](https://github.com/mateusmacedo/dmpf/commit/577ec061))
+- **grpc:** Mapear a unicidade não declarada para AlreadyExists ([2a4904c8](https://github.com/mateusmacedo/dmpf/commit/2a4904c8))
+
+### 🧱 Updated Dependencies
+
+- Updated observability to 1.0.0-rc.6
+- Updated transport to 1.0.0-rc.6
+- Updated testkit to 1.0.0-rc.6
+- Updated domain to 1.0.0-rc.6
+- Updated ports to 1.0.0-rc.6
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 1.0.0-rc.5 (2026-10-17)
 
 ### 🧱 Updated Dependencies

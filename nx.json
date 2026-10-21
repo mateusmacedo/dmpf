@@ -178,7 +178,7 @@
         "linter": "go",
         "args": [
           "run",
-          "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.2",
+          "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0",
           "run",
           "--allow-parallel-runners"
         ]

@@ -1,3 +1,25 @@
+## 1.0.0-rc.6 (2026-10-20)
+
+### 🚀 Features
+
+- **testkit:** Provar a leitura de plataforma e a projeção no kit ([fa2acf9a](https://github.com/mateusmacedo/dmpf/commit/fa2acf9a))
+- **testkit:** Provar a unicidade declarada no kit de provider ([aafedf51](https://github.com/mateusmacedo/dmpf/commit/aafedf51))
+
+### 🧱 Updated Dependencies
+
+- Updated observability to 1.0.0-rc.6
+- Updated application to 1.0.0-rc.6
+- Updated contracts to 1.0.0-rc.6
+- Updated postgres to 1.0.0-rc.6
+- Updated domain to 1.0.0-rc.6
+- Updated memory to 1.0.0-rc.6
+- Updated ports to 1.0.0-rc.6
+- Updated conformance to 1.0.0-rc.6
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 1.0.0-rc.5 (2026-10-17)
 
 ### 🚀 Features

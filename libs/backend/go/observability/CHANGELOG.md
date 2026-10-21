@@ -1,3 +1,20 @@
+## 1.0.0-rc.6 (2026-10-20)
+
+### 🚀 Features
+
+- **observability:** Registrar o acesso entre tenants com falha fechada ([8300a55e](https://github.com/mateusmacedo/dmpf/commit/8300a55e))
+
+### 🧱 Updated Dependencies
+
+- Updated application to 1.0.0-rc.6
+- Updated testkit to 1.0.0-rc.6
+- Updated memory to 1.0.0-rc.6
+- Updated ports to 1.0.0-rc.6
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 1.0.0-rc.5 (2026-10-17)
 
 ### 🧱 Updated Dependencies
