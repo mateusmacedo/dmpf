@@ -1,3 +1,17 @@
+## 1.0.0-rc.7 (2026-10-21)
+
+### 🩹 Fixes
+
+- **bookings-contract:** Subir o Go para 1.26.10 ([dc764d5c](https://github.com/mateusmacedo/dmpf/commit/dc764d5c))
+
+### 🧱 Updated Dependencies
+
+- Updated testkit to 1.0.0-rc.7
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 1.0.0-rc.6 (2026-10-20)
 
 ### 🚀 Features

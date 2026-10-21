@@ -1,3 +1,24 @@
+## 1.0.0-rc.7 (2026-10-21)
+
+### 🚀 Features
+
+- **http:** Classificar o desfecho do comando externo ([fe178674](https://github.com/mateusmacedo/dmpf/commit/fe178674))
+
+### 🩹 Fixes
+
+- **http:** Subir o Go para 1.26.10 ([622078c2](https://github.com/mateusmacedo/dmpf/commit/622078c2))
+
+### 🧱 Updated Dependencies
+
+- Updated observability to 1.0.0-rc.7
+- Updated transport to 1.0.0-rc.7
+- Updated testkit to 1.0.0-rc.7
+- Updated ports to 1.0.0-rc.7
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 1.0.0-rc.6 (2026-10-20)
 
 ### 🚀 Features

@@ -1,3 +1,24 @@
+## 1.0.0-rc.7 (2026-10-21)
+
+### 🚀 Features
+
+- **application:** Marcar a saturação e varrer por SweepStale ([8ac03aa1](https://github.com/mateusmacedo/dmpf/commit/8ac03aa1))
+- **application:** Conduzir o comando externo por Dispatch e Resolve ([35e88947](https://github.com/mateusmacedo/dmpf/commit/35e88947))
+- **application:** Derivar a chave de saída e decidir o próximo passo ([5bb28a76](https://github.com/mateusmacedo/dmpf/commit/5bb28a76))
+
+### 🩹 Fixes
+
+- **application:** Subir o Go para 1.26.10 ([710e6359](https://github.com/mateusmacedo/dmpf/commit/710e6359))
+
+### 🧱 Updated Dependencies
+
+- Updated domain to 1.0.0-rc.7
+- Updated ports to 1.0.0-rc.7
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 1.0.0-rc.6 (2026-10-20)
 
 ### 🚀 Features

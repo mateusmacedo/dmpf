@@ -1,3 +1,23 @@
+## 1.0.0-rc.7 (2026-10-21)
+
+### 🚀 Features
+
+- **ports:** Limitar o ledger de tentativas a 64 entradas ([b32c01d2](https://github.com/mateusmacedo/dmpf/commit/b32c01d2))
+- **ports:** Declarar o ledger de tentativas e o carregador da classe ([3d5ab33f](https://github.com/mateusmacedo/dmpf/commit/3d5ab33f))
+- **ports:** Declarar as portas e o vocabulário do comando externo ([55bb12f1](https://github.com/mateusmacedo/dmpf/commit/55bb12f1))
+
+### 🩹 Fixes
+
+- **ports:** Subir o Go para 1.26.10 ([24b3f5b0](https://github.com/mateusmacedo/dmpf/commit/24b3f5b0))
+
+### 🧱 Updated Dependencies
+
+- Updated domain to 1.0.0-rc.7
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 1.0.0-rc.6 (2026-10-20)
 
 ### 🚀 Features

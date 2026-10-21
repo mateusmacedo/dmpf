@@ -1,3 +1,31 @@
+## 1.0.0-rc.7 (2026-10-21)
+
+### 🚀 Features
+
+- **app:** Validar o orçamento de prazos do comando externo ([8f653fb4](https://github.com/mateusmacedo/dmpf/commit/8f653fb4))
+- **app:** Varrer tentativas órfãs e purgar as encerradas ([d460a2f2](https://github.com/mateusmacedo/dmpf/commit/d460a2f2))
+
+### 🩹 Fixes
+
+- **app:** Subir o Go para 1.26.10 ([4b409fab](https://github.com/mateusmacedo/dmpf/commit/4b409fab))
+
+### 🧱 Updated Dependencies
+
+- Updated observability to 1.0.0-rc.7
+- Updated application to 1.0.0-rc.7
+- Updated contracts to 1.0.0-rc.7
+- Updated transport to 1.0.0-rc.7
+- Updated postgres to 1.0.0-rc.7
+- Updated testkit to 1.0.0-rc.7
+- Updated domain to 1.0.0-rc.7
+- Updated kafka to 1.0.0-rc.7
+- Updated ports to 1.0.0-rc.7
+- Updated grpc to 1.0.0-rc.7
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 1.0.0-rc.6 (2026-10-20)
 
 ### 🚀 Features

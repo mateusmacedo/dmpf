@@ -1,3 +1,27 @@
+## 1.0.0-rc.7 (2026-10-21)
+
+### 🚀 Features
+
+- **postgres:** Aplicar o teto e validar o CHECK após o esquema ([5e3c80e7](https://github.com/mateusmacedo/dmpf/commit/5e3c80e7))
+- **postgres:** Persistir as tentativas em external_attempt com purga ([d61438cd](https://github.com/mateusmacedo/dmpf/commit/d61438cd))
+
+### 🩹 Fixes
+
+- **postgres:** Subir o Go para 1.26.10 ([97bf0d98](https://github.com/mateusmacedo/dmpf/commit/97bf0d98))
+- **postgres:** Explicitar WHERE no backfill de envelope_digest da quarantine ([470f76a7](https://github.com/mateusmacedo/dmpf/commit/470f76a7))
+
+### 🧱 Updated Dependencies
+
+- Updated observability to 1.0.0-rc.7
+- Updated contracts to 1.0.0-rc.7
+- Updated testkit to 1.0.0-rc.7
+- Updated domain to 1.0.0-rc.7
+- Updated ports to 1.0.0-rc.7
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 1.0.0-rc.6 (2026-10-20)
 
 ### 🚀 Features
