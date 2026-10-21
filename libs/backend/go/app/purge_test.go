@@ -218,7 +218,9 @@ func runLoggedPurge(t *testing.T, role string, cfg app.PurgeConfig, fn app.Purge
 		time.Sleep(time.Millisecond)
 	}
 	stop()
-	<-done
+	if err := <-done; err != nil {
+		t.Fatalf("Run() = %v, want nil: stopping is not a failure", err)
+	}
 	if err := provider.Shutdown(context.Background()); err != nil {
 		t.Fatalf("Shutdown() = %v", err)
 	}
