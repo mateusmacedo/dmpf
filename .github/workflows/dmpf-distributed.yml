@@ -87,6 +87,9 @@ jobs:
       - name: Harness distribuído (KIT-06)
         run: pnpm nx run reservations:test-distributed
 
+      - name: Crash entre Begin e Finish do comando externo (KIT-06)
+        run: pnpm nx run testkit:test-distributed
+
       - name: Derrubar a infraestrutura do job
         if: always()
         run: docker rm -f "test-dist-postgres-$(hostname)" "test-dist-redpanda-$(hostname)" >/dev/null 2>&1 || true
