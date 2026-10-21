@@ -1813,12 +1813,12 @@ própria e o que bloqueia merge está em «Gate». «Etapa» diz em que PR o est
 
 | # | Estágio | Suíte | Gate (bloqueia merge?) | Etapa |
 |---|---------|-------|------------------------|-------|
-| 1 | Domínio | `KIT-02` (em memória, determinístico) | Sim — falha reprova | PR para `develop` (afetados) e de release para `master` (todos) |
-| 2 | Services | `KIT-03` (ports fakes) | Sim — falha reprova | PR para `develop` (afetados) e de release para `master` (todos) |
-| 3 | Contrato | gates de FND-05 §6.6 + `BUF-11` (dupla geração byte a byte) | Sim — `BUF-12`, sem bypass | PR para `develop` (afetados) e de release para `master` (todos) |
-| 4 | Providers | `KIT-04` (dependência real ou container) | Sim — falha reprova | PR para `develop` (afetados) e de release para `master` (todos) |
-| 5 | Apps | `KIT-05` (serviço isolado) | Sim — falha reprova | PR para `develop` (afetados) e de release para `master` (todos) |
-| 6 | Fluxos distribuídos | `KIT-06` (harness com reentrega) — **pipeline separado** | Sim, no pipeline próprio (`KIT-11`) | Só no PR de release para `master` |
+| 1 | Domínio | `KIT-02` (em memória, determinístico) | Sim — falha reprova | PR para `develop` (afetados) e de release para `master` (afetados contra a `master`) |
+| 2 | Services | `KIT-03` (ports fakes) | Sim — falha reprova | PR para `develop` (afetados) e de release para `master` (afetados contra a `master`) |
+| 3 | Contrato | gates de FND-05 §6.6 + `BUF-11` (dupla geração byte a byte) | Sim — `BUF-12`, sem bypass | PR para `develop` (afetados) e de release para `master` (afetados contra a `master`) |
+| 4 | Providers | `KIT-04` (dependência real ou container) | Sim — falha reprova | PR para `develop` (afetados) e de release para `master` (afetados contra a `master`) |
+| 5 | Apps | `KIT-05` (serviço isolado) | Sim — falha reprova | PR para `develop` (afetados) e de release para `master` (afetados contra a `master`) |
+| 6 | Fluxos distribuídos | `KIT-06` (harness com reentrega) — **pipeline separado** | Sim, no pipeline próprio (`KIT-11`) | Só no PR de release para `master`, se o escopo alcança um `test-distributed` |
 
 `rationale` — Os estágios 1 e 2 são os mais baratos e os que dão feedback ao
 domínio; ficam primeiro por isso. O estágio 6 é o mais caro e o mais lento (broker
