@@ -43,6 +43,11 @@ escolher o package e localizar os exemplos canônicos.
 - O `serviceskit` observa posições no ledger. Estado e outbox ficam entre o
   mesmo `begin` e `commit`; `publish` direto pelo service é defeito. A ordem
   dos passos de um caso de uso se afirma por `Steps`, não por um gravador local.
+- O parceiro de um comando externo é `serviceskit.Partner`, um fake do
+  `serviceskit` (`KIT-12`), e não um sexto kit. A conformidade do adaptador e
+  do ledger de tentativas é cláusula do `providerkit` (`ExternalCommand`,
+  `AttemptLedger`). Não escreva um fake local de `ExternalCommand` quando o
+  `Partner` cobre o roteiro.
 - Cada execução de `providerkit` deve receber um candidato limpo. Mantenha
   `Skipped` explícito para cláusulas impossíveis de injetar; não o trate como
   aprovação silenciosa.
