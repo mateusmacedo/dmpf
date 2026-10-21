@@ -44,7 +44,7 @@ export pnpm_config_verify_deps_before_run=false
 WORKTREE=""
 descartar_worktree() {
   local status=$?
-  if [ -n "$WORKTREE" ] && [ -d "$WORKTREE" ]; then
+  if [[ -n "$WORKTREE" ]] && [[ -d "$WORKTREE" ]]; then
     git worktree remove --force "$WORKTREE" >/dev/null 2>&1 \
       || echo "AVISO: nao consegui remover o worktree $WORKTREE" >&2
   fi
@@ -187,13 +187,13 @@ for vetor in "${VETORES_D002[@]}"; do
   obtidos="$(codigos "$saida")"
   esperados_ordenados="$(tr ' ' '\n' <<<"$esperados" | sed '/^$/d' | sort -u)"
 
-  if [ "$status" -ne "$exit_esperado" ]; then
+  if [[ "$status" -ne "$exit_esperado" ]]; then
     echo "  FALHA  $nome: exit $status, esperado $exit_esperado"
     falhas=$((falhas + 1))
-  elif [ "$obtidos" != "$esperados_ordenados" ]; then
+  elif [[ "$obtidos" != "$esperados_ordenados" ]]; then
     echo "  FALHA  $nome: codigos [$obtidos], esperado [$esperados_ordenados]"
     falhas=$((falhas + 1))
-  elif [ -n "$par" ] && ! grep -qF "$par" <<<"$saida"; then
+  elif [[ -n "$par" ]] && ! grep -qF "$par" <<<"$saida"; then
     echo "  FALHA  $nome: DMPF-D002 emitido sem o par chave->alvo esperado ($par)"
     falhas=$((falhas + 1))
   else
@@ -217,7 +217,7 @@ status=$?
 exercitados=$((exercitados + 1))
 obtidos="$(codigos "$saida")"
 
-if [ "$status" -ne 0 ] || [ -n "$obtidos" ]; then
+if [[ "$status" -ne 0 ]] || [[ -n "$obtidos" ]]; then
   echo "  FALHA  designacao e codigo no mesmo commit: exit $status, codigos [$obtidos], esperado exit 0 sem codigo"
   falhas=$((falhas + 1))
 else
@@ -226,13 +226,13 @@ fi
 
 descartar_worktree
 
-if [ "$exercitados" -ne "$TOTAL_CENARIOS" ]; then
+if [[ "$exercitados" -ne "$TOTAL_CENARIOS" ]]; then
   echo
   echo "FALHA: $exercitados de $TOTAL_CENARIOS cenario(s) exercitado(s); o gate nao cobriu o que promete." >&2
   exit 1
 fi
 
-if [ "$falhas" -gt 0 ]; then
+if [[ "$falhas" -gt 0 ]]; then
   echo
   echo "$falhas verificacao(oes) falharam: o verificador nao esta decidindo shared kernel corretamente."
   exit 1

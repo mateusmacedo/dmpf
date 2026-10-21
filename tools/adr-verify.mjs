@@ -16,7 +16,7 @@ export const INDEX_SECTION = 'Decisões registradas';
 
 /** Nome de arquivo do ADR: número de três dígitos e slug em kebab-case minúsculo. */
 export const RE_ADR_FILE = /^(\d{3})-([a-z0-9]+(?:-[a-z0-9]+)*)\.md$/;
-export const RE_H1 = /^#\s+ADR-(\d+):\s*(\S.*?)\s*$/;
+export const RE_H1 = /^#\s+ADR-(\d+):\s*(\S[\s\S]*)$/;
 export const RE_INDEX_ROW = /^\|\s*ADR-(\d+)\s*\|(.*)$/;
 
 export const SECTION_STATUS = 'Status';
@@ -124,14 +124,14 @@ export const headingsOfLevel = (lines, level) => {
  * heading até o heading seguinte de nível igual ou menor.
  */
 export const sectionBody = (lines, name, level = 2) => {
-  const re = /^(#{1,6})\s+(\S.*?)\s*$/;
+  const re = /^(#{1,6})\s+(\S[\s\S]*)$/;
   let start = -1;
   let depth = 0;
   for (let i = 0; i < lines.length; i += 1) {
     const m = re.exec(lines[i]);
     if (!m) continue;
     if (start === -1) {
-      if (m[1].length === level && m[2] === name) {
+      if (m[1].length === level && m[2].trimEnd() === name) {
         start = i + 2;
         depth = level;
       }
@@ -583,7 +583,7 @@ export const loadContext = (root, { from = null, to = null } = {}) => {
 
   const entries = readdirSync(acervo)
     .filter((x) => x.endsWith('.md'))
-    .sort();
+    .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
   const adrs = [];
   const strayFiles = [];
   for (const file of entries) {
@@ -596,7 +596,7 @@ export const loadContext = (root, { from = null, to = null } = {}) => {
     if (!inScope(Number(m[1]))) continue;
     const lines = readFileSync(join(acervo, file), 'utf8').split('\n');
     const h1 = lines.map((l) => RE_H1.exec(l)).find(Boolean);
-    adrs.push({ file, number: m[1], slug: m[2], lines, title: h1 ? h1[2] : null });
+    adrs.push({ file, number: m[1], slug: m[2], lines, title: h1 ? h1[2].trimEnd() : null });
   }
 
   const indexPath = join(acervo, INDEX_FILE);

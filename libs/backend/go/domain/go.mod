@@ -1,3 +1,3 @@
 module github.com/mateusmacedo/dmpf/libs/backend/go/domain
 
-go 1.26.9
+go 1.26.10

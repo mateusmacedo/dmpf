@@ -28,7 +28,7 @@
 
 const args = process.argv.slice(2);
 const ciInfoJson = args[0];
-const pollCount = parseInt(args[1], 10) || 0;
+const pollCount = Number.parseInt(args[1], 10) || 0;
 const verbosity = args[2] || 'medium';
 
 function getFlag(name) {
@@ -45,15 +45,15 @@ const prevCipeUrl = getArg('--prev-cipe-url');
 const expectedSha = getArg('--expected-sha');
 const prevStatus = getArg('--prev-status');
 // Flags are documented in minutes; convert to seconds for internal comparison.
-const timeoutSeconds = parseInt(getArg('--timeout') || '0', 10) * 60;
+const timeoutSeconds = Number.parseInt(getArg('--timeout') || '0', 10) * 60;
 const newCipeTimeoutSeconds =
-  parseInt(getArg('--new-cipe-timeout') || '0', 10) * 60;
+  Number.parseInt(getArg('--new-cipe-timeout') || '0', 10) * 60;
 // Wall-clock seconds since monitoring began (carried across attempts); null when
 // the orchestrator doesn't supply it (see isTimedOut for that fallback).
 const elapsedArg = getArg('--elapsed-seconds');
-const elapsedSeconds = elapsedArg !== null ? parseInt(elapsedArg, 10) : null;
-const envRerunCount = parseInt(getArg('--env-rerun-count') || '0', 10);
-const inputNoProgressCount = parseInt(getArg('--no-progress-count') || '0', 10);
+const elapsedSeconds = elapsedArg !== null ? Number.parseInt(elapsedArg, 10) : null;
+const envRerunCount = Number.parseInt(getArg('--env-rerun-count') || '0', 10);
+const inputNoProgressCount = Number.parseInt(getArg('--no-progress-count') || '0', 10);
 const prevCipeStatus = getArg('--prev-cipe-status');
 const prevShStatus = getArg('--prev-sh-status');
 const prevVerificationStatus = getArg('--prev-verification-status');

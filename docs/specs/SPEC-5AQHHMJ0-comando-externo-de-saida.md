@@ -2,8 +2,8 @@
 id: SPEC-5AQHHMJ0
 slug: comando-externo-de-saida
 title: DMPF — Ciclo de comando externo de saída: chave idempotente, desfecho incerto, consulta de estado e reconciliação
-stage: backlog
-priority: P1
+stage: done
+priority: P0
 depends_on: [SPEC-E15TBHCD, SPEC-JJKWG4JP, SPEC-NYD18TGD]
 ticket_url: https://linear.app/mmda/issue/DEVS-96/spec-5aqhhmj0-dmpf-ciclo-de-comando-externo-de-saida-chave-idempotente
 subtask_urls: []
@@ -24,7 +24,8 @@ chamada de saída e não diz o que fazer quando o efeito é incerto. A spec nasc
 consumidor externo antecipa-market, SPEC-GXGASP24 (DEVS-76), extensão K5, que
 integra registradoras e parceiros cuja resposta pode se perder.
 
-A entrega segue três ondas, e cada onda é um PR.
+A entrega segue três ondas. A Onda 0 saiu num PR próprio; as Ondas 1 e 2 saem
+juntas, num único PR ao final da Onda 2.
 
 ## Contexto
 
@@ -91,18 +92,44 @@ classificação, das transições e dos duplos de teste.
 
 ### Não verificado
 
-- **Escrita do pedido no transporte.** `httptrace.ClientTrace.WroteRequest`
-  existe (https://pkg.go.dev/net/http/httptrace#ClientTrace), mas não se
-  verificou que o sinal sobreviva à composição `otelhttp` e `resendCounter` do
-  cliente nem em HTTP/2. Sem ele, o provider HTTP não separa "não saiu" de
-  "saiu sem resposta" (requisito de investigação da Onda 2).
-- **Prazo da chamada frente ao ciclo de consumo.** `TRP-48` veda trabalho
-  destacado do ciclo, e o cancelamento por rebalance interrompe a chamada em
-  voo, que é exatamente o caso de desfecho incerto (requisito de investigação da
-  Onda 2).
+- **Escrita do pedido no transporte (verificado na Onda 2).** O
+  `httptrace.ClientTrace` posto no ctx de `Do` atravessa `otelhttp` e
+  `resendCounter` e entrega `WroteRequest` e `GotFirstResponseByte` em HTTP/1.1
+  e HTTP/2. A falha de conexão não dispara `WroteRequest`, e o servidor que lê o
+  corpo e fecha a conexão dispara (`libs/backend/go/http/outcome_signal_test.go`).
+  Mas o `WroteRequest` roda num `defer` da goroutine de escrita
+  (`net/http/request.go:594`) e pode chegar depois do retorno de `Do`. Logo, a
+  ausência do sinal no retorno não prova que o pedido não saiu. A classificação
+  usa a regra conservadora: só a falha de conexão (`dial`) é
+  `RetryableTransport`, e qualquer outro erro de rede, cancelamento ou prazo é
+  `UnknownSent`. O erro que `Do` devolve antes de qualquer tentativa tem classe
+  própria: configuração vira `FinalValidation`, e breaker aberto, bulkhead cheio
+  ou orçamento esgotado viram `RetryableTransport`.
+- **Reenvio interno do transporte (verificado na Onda 2).** O `http.Transport`
+  reenvia sozinho um POST com `Idempotency-Key` ou `X-Idempotency-Key` quando a
+  conexão reaproveitada morre (`net/http/request.go:1570`). O reenvio leva a
+  mesma chave e o mesmo corpo e não aparece em `http.request.resend_count`, que
+  só conta os reenvios do kernel. Sem a chave, não há reenvio. Por isso
+  `WithOutboundKey` recusa esses nomes de header, e a requisição com chave de
+  saída sai numa única tentativa: quem decide o reenvio é o kernel, pela classe.
+- **Prazo da chamada frente ao ciclo de consumo (verificado na Onda 2).** Na
+  revogação, o kafka cancela o ctx da tentativa e espera o handler voltar. Antes
+  da Onda 2 essa espera não tinha teto e as partições eram esperadas em
+  sequência (`libs/backend/go/kafka/revocation_inflight_test.go`). A Onda 2
+  limita a espera com `RevokeGrace`. O prazo máximo do `Submit` dentro do
+  handler é o `Limit` da rota, com `Limit + Settle < ProcessingDeadline`
+  validado por `app.ExternalBudget`.
 - **Capacidades dos parceiros.** Semântica de chave, consulta de estado e janela
   de processamento são fatos de cada parceiro, não do repositório. Entram como
   perfil declarado, nunca como suposição do kernel.
+- **Relógio de parede no prazo de acomodação.** `ExternalBudget.SettleContext`
+  arma o prazo por `context.WithTimeout`, que lê o relógio de parede, e o teste
+  (`libs/backend/go/app/external_budget_test.go`) o delimita entre duas leituras
+  de `time.Now`. O limite é determinístico, mas não usa o relógio controlado.
+- **`govulncheck` na máquina de desenvolvimento.** Ao fim da Onda 2 ele reprovou
+  só por vulnerabilidades da biblioteca padrão do Go 1.27.1 local, corrigidas na
+  1.27.2; nenhuma vem de dependência dos módulos. O CI, com a toolchain dele, é
+  quem decide esse gate.
 
 <constraints>
 - [P0] A chamada ao parceiro nunca ocorre dentro de UoW: a intenção e o registro da tentativa commitam antes, o resultado commita depois (`UOW-07`, `UOW-08`, `RES-34`).
@@ -124,73 +151,77 @@ classificação, das transições e dos duplos de teste.
 
 #### Onda 0 — norma, vocabulário e funções puras
 
-- [ ] **[P0] ADR novo**: registrar o ciclo e emendar o ADR-050, que fixa `outbox`, `inbox` e `quarantine` como tabelas de plataforma sem escopo de tenant, ao acrescentar o ledger de tentativas, com o tenant na chave como em `IDM-03`.
+- [x] **[P0] ADR novo**: registrar o ciclo e emendar o ADR-050, que fixa `outbox`, `inbox` e `quarantine` como tabelas de plataforma sem escopo de tenant, ao acrescentar o ledger de tentativas, com o tenant na chave como em `IDM-03`.
   - Trazer a tabela "altera invariante?" no formato de FND-08 §12.4, uma linha por regra nova, e as alternativas descartadas de Decisões técnicas.
-- [ ] **[P0] Regras ERR novas** (FND-07, subseção nova depois de §5.8, a partir de `ERR-29`): estender a tradução de `ERR-25` a `ERR-28` ao parceiro externo.
-  - A classe de desfecho é fechada e total; cada classe resolve para uma categoria de §5.3 e para uma retryability booleana (`ERR-01`, `ERR-09`).
+- [x] **[P0] Regras ERR novas** (FND-07, subseção nova depois de §5.8, a partir de `ERR-29`): estender a tradução de `ERR-25` a `ERR-28` ao parceiro externo.
+  - A classe de desfecho é fechada e total; cada classe que não é aceite resolve para uma categoria de §5.3 e para uma retryability booleana (`ERR-01`, `ERR-09`).
   - A classe de pedido enviado sem resposta é retentável só quando o pedido levou chave e o perfil declara semântica de chave, o predicado verificável que `ERR-10` exige; sem ele, vale `ERR-11`.
   - O catálogo de onze categorias não ganha linha (`ERR-08`), e o diagnóstico de `ERR-18` mantém os seis elementos: o conhecimento do efeito vive na classe e no registro da tentativa.
-- [ ] **[P0] Regras RES novas** (FND-08, subseção nova depois de §4.5, a partir de `RES-41`):
+- [x] **[P0] Regras RES novas** (FND-08, subseção nova depois de §4.5, a partir de `RES-41`):
   - O desfecho incerto encerra o retry da chamada sem virar falha final e é o desfecho declarado que `RES-36` exige.
   - O reenvio posterior à chamada é operação nova (`RES-34`) e usa a mesma chave.
   - A espera pela consulta e pela reconciliação tem prazo e dono declarados (`GAR-05`, `GAR-06`).
   - O perfil do parceiro é declaração própria e não campo novo da ficha de `RES-21`.
   - A intenção percorre a outbox, que é o mecanismo do modo `difere` de `RES-37`.
-- [ ] **[P0] `IDM-11` e regra `KIT` nova**: `IDM-11` (FND-04 §7.6) diz que a chamada a parceiro externo leva a chave de saída e que a chave de comando de entrada não atravessa, com `IDM-10` intacta. A regra de FND-09 (§8.1) fixa o parceiro roteirizado como fake do `KIT-03` e a conformidade do adaptador como cláusula do `KIT-04`.
-- [ ] **[P0] Manifestos do verificador**: atualizar `profiles.json`, `counts.json` e `line-refs.json` em `tools/tests/dmpf-verify/` para as regras novas e para as linhas deslocadas, e fechar com `node tools/dmpf-verify.mjs` sem violação. O verificador ancora regra e referência por número de linha (ADR-058, Consequências).
-- [ ] **[P0] Tipos em `ports`**: acrescentar o que o `provider` devolve e o `application` consome, sem tipo de driver, SDK ou wire.
+- [x] **[P0] `IDM-11` e regra `KIT` nova**: `IDM-11` (FND-04 §7.6) diz que a chamada a parceiro externo leva a chave de saída e que a chave de comando de entrada não atravessa, com `IDM-10` intacta. A regra de FND-09 (§8.1) fixa o parceiro roteirizado como fake do `KIT-03` e a conformidade do adaptador como cláusula do `KIT-04`.
+- [x] **[P0] Manifestos do verificador**: atualizar `profiles.json`, `counts.json` e `line-refs.json` em `tools/tests/dmpf-verify/` para as regras novas e para as linhas deslocadas, e fechar com `node tools/dmpf-verify.mjs` sem violação. O verificador ancora regra e referência por número de linha (ADR-058, Consequências).
+- [x] **[P0] Tipos em `ports`**: acrescentar o que o `provider` devolve e o `application` consome, sem tipo de driver, SDK ou wire.
   - `OutboundKey`; `ExternalClass` (as nove classes de Design); `Finding` (`Applied`, `Absent`, `Rejected`, `Pending`, `Inconclusive`).
   - `Observation` com chave, achado, instante da fonte, identificador do provedor, referência externa e identidade própria, para a duplicata ser reconhecida.
-  - `ExternalProfile` com semântica de chave (`Native`, `Header`, `None`), eficácia (`OnSubmit`, `ByObservation`), janela de quiescência e `AuthoritativeAbsence`.
+  - `ExternalProfile` com semântica de chave (`Native`, `Header`, `None`), eficácia (`OnSubmit`, `ByObservation`), janela de quiescência, `AuthoritativeAbsence`, teto de consultas (`MaxQueries`) e alfabeto e comprimento máximo da chave do parceiro. O alfabeto é de bytes ASCII visíveis, sem espaço e sem repetição; perfil com teto não positivo, alfabeto inválido ou comprimento que não alcança 128 bits é recusado.
   - As portas `ExternalCommand` (`Submit`) e `ExternalState` (`Query`), esta opcional: a ausência é a declaração "sem consulta de estado" e nenhum nil vale como "sim" (`evaluate.go:19-21`).
-- [ ] **[P0] Chave de saída**: `application` deriva a `OutboundKey` da codificação canônica de tenant, destino, operação, identidade da intenção e geração, com o digest injetado pela política.
+- [x] **[P0] Chave de saída**: `application` deriva a `OutboundKey` da codificação canônica de tenant, destino, operação, identidade da intenção e geração, com o digest injetado pela política.
   - A identidade da intenção é cunhada uma vez, no commit da intenção, e viaja no payload do evento de despacho; a reemissão de um registro `failed` carrega a mesma.
   - O perfil fixa alfabeto e comprimento máximo do parceiro; a derivação recusa comprimento abaixo de 128 bits, o mesmo piso da chave sorteada hoje.
   - A geração só avança por decisão explícita do caso de uso, depois de rejeição final corrigida.
-- [ ] **[P0] Função de passo pura**: `application.NextStep` recebe classe, perfil, indicação de consulta disponível, tentativa e achado, e devolve `Confirm`, `Await`, `Retry`, `Fail`, `Query`, `Reconcile` ou `Suspend`, como `retry.Evaluate` (`evaluate.go:94-95`): sem relógio, rede ou transação.
-  - Classe incerta nunca devolve `Confirm` nem `Fail`; o teste enumera todas as combinações de classe, perfil e achado.
+- [x] **[P0] Função de passo pura**: `application.NextStep` recebe classe, perfil, indicação de consulta disponível, consultas já feitas e achado, e devolve `Confirm`, `Await`, `Retry`, `Fail`, `Query`, `Reconcile` ou `Suspend`, como `retry.Evaluate` (`evaluate.go:94-95`): sem relógio, rede ou transação.
+  - O orçamento de reenvio das classes retentáveis é de `RES-27` e do `Dispatch`, não da função de passo; a espera da quiescência e o intervalo entre consultas são de quem chama.
+  - Classe incerta sem achado nunca devolve `Confirm` nem `Fail`; o teste enumera todas as combinações de classe, perfil, achado e contador de consultas.
 
 #### Onda 1 — ledger e ciclo
 
-- [ ] **[P0] Ledger de tentativas**: porta `AttemptLedger` (`Begin`, `Finish`, `Stale`) com realização em `memory` e em `postgres`, tabela `external_attempt` em arquivo `.sql` embutido como `inbox.sql` e `outbox.sql` (`postgres/migrate.go:12-15`), declarada como capability do `postgres` ao lado de `Outbox` e `Inbox` (`postgres/migrate.go:22-40`).
+- [x] **[P0] Ledger de tentativas**: porta `AttemptLedger` (`Begin`, `Finish`, `Stale`) com realização em `memory` e em `postgres`, tabela `external_attempt` em arquivo `.sql` embutido como `inbox.sql` e `outbox.sql` (`postgres/migrate.go:12-15`), declarada como capability do `postgres` ao lado de `Outbox` e `Inbox` (`postgres/migrate.go:22-40`).
   - A linha guarda chave com tenant, número da tentativa, instante de início e de fim, classe e a observação; o estado admite `begun` e `finished`.
   - `Begin` serializa na chave, como `INB-06`; tentativa `begun` não terminada torna a seguinte incerta, não nova.
   - A purga remove só `finished` além da retenção; `begun` não é purgável, como `failed` e `pending` na outbox (`OBX-17`).
   - A migração é aditiva e sem lock exclusivo no boot, no padrão de `postgres/inbox.sql`.
   - A role de runtime precisa de `SELECT`, `INSERT`, `UPDATE` e `DELETE` na tabela (o `DELETE` é a purga de `finished`): o mecanismo de grants por capability da SPEC-QPRR24C4 os concede quando estiver em vigor, e um teste sob a role de runtime prova `Begin`, `Finish`, `Stale` e a purga. Esta spec não depende dela.
-- [ ] **[P0] `Dispatch`**: esqueleto em `application` que grava `Begin` em transação própria do provider, como o claim do relay (`OBX-16`), chama `ExternalCommand.Submit` sem transação aberta (`OBX-07`) e grava `Finish` junto do recebimento da mensagem e do efeito do passo na UoW de consumo, com a inbox como primeira escrita (`INB-07`) e o ACK depois do commit (`TRP-26`).
+- [x] **[P0] `Dispatch`**: esqueleto em `application` que grava `Begin` em transação própria do provider, como o claim do relay (`OBX-16`), chama `ExternalCommand.Submit` sem transação aberta (`OBX-07`) e grava `Finish` junto do recebimento da mensagem e do efeito do passo na UoW de consumo, com a inbox como primeira escrita (`INB-07`) e o ACK depois do commit (`TRP-26`).
   - O efeito do passo é um callback do contexto: o kernel decide o passo, o contexto aplica o estado do agregado e os eventos.
   - Cancelamento ou prazo depois da escrita do pedido grava `UnknownSent`.
   - Falha retentável com o orçamento esgotado grava `Finish` em transação própria e devolve a falha categorizada, sem registrar a mensagem na inbox: a disposição é a de FND-04 (`RES-36`, `MAP-07`), e a redelivery chama o parceiro de novo com a mesma chave.
   - Tentativa `begun` encontrada no início (o `Begin` devolve o instante de início) só vale como `UnknownSent` depois do prazo da chamada mais a margem, o mesmo corte da varredura, e então não chama o parceiro. Antes dele o handler dono ainda pode ter a chamada em voo: a redelivery não encerra a tentativa nem chama o parceiro e devolve falha retentável categorizada, sem registrar a mensagem na inbox (`RES-36`, `MAP-07`).
   - `Finish` sobre tentativa já `finished` por outro handler (a redelivery ou a varredura que a encerrou como `UnknownSent`) com a mesma classe é no-op; com classe diferente é conflito registrado e visível, com a classe tardia como evidência para a consulta ou a reconciliação. O desfecho gravado não é sobrescrito, o efeito do passo do handler tardio não é aplicado e o passo segue o do desfecho gravado.
-- [ ] **[P0] `Resolve`**: aplicar uma `Observation`, vinda de consulta, de callback ou de reconciliação, de forma idempotente.
+- [x] **[P0] `Resolve`**: aplicar uma `Observation`, vinda de consulta, de callback ou de reconciliação, de forma idempotente.
   - A mesma identidade de observação duas vezes é no-op; observação contraditória com o desfecho gravado, como `Applied` depois de `Rejected`, vira conflito registrado e visível, sem sobrescrever.
   - `Absent` com semântica de chave devolve `Retry` com a mesma chave; sem chave, só `AuthoritativeAbsence` o permite, e o resto vai a `Reconcile`.
-- [ ] **[P0] Varredura de tentativas órfãs**: laço `RunSweep` em `app`, modelado em `RunPurge` (`app/purge.go:98`), que encerra como `UnknownSent` a tentativa `begun` mais velha que o prazo da chamada mais a margem, quando a redelivery não a retomou (mensagem contida ou perdida), e entrega o comando à consulta ou à reconciliação.
+- [x] **[P0] Varredura de tentativas órfãs**: laço `RunSweep` em `app`, modelado em `RunPurge` (`app/purge.go:98`), que encerra como `UnknownSent` a tentativa `begun` mais velha que o prazo da chamada mais a margem, quando a redelivery não a retomou (mensagem contida ou perdida), e entrega o comando à consulta ou à reconciliação.
   - O laço recusa relógio, logger ou função nil, como a purga.
   - Nunca reenvia por conta própria.
-- [ ] **[P1] Observabilidade**: cada tentativa, desfecho e resolução sai em span, log e métrica com a classe e `dmpf.outcome_category`; a chave não vira rótulo de métrica nem entra crua no log, só o formato validado.
+- [x] **[P1] Observabilidade**: cada tentativa, desfecho e resolução sai em span, log e métrica com a classe e `dmpf.outcome_category`; a chave não vira rótulo de métrica nem entra crua no log, só o formato validado.
 
 #### Onda 2 — provider HTTP, fake e cláusulas
 
-- [ ] **[P0] Investigar a escrita do pedido no transporte HTTP**: verificar se `WroteRequest` e o primeiro byte da resposta sobrevivem à composição `otelhttp`, `resendCounter` e `Client.Do`, em HTTP/1.1 e HTTP/2, e se o reenvio interno do `Transport` por `Idempotency-Key` aparece no mesmo sinal.
+- [x] **[P0] Investigar a escrita do pedido no transporte HTTP**: verificar se `WroteRequest` e o primeiro byte da resposta sobrevivem à composição `otelhttp`, `resendCounter` e `Client.Do`, em HTTP/1.1 e HTTP/2, e se o reenvio interno do `Transport` por `Idempotency-Key` aparece no mesmo sinal.
   - Sem resposta positiva, o provider HTTP classifica como `UnknownSent`, o conservador, todo erro de rede que não seja falha de conexão (`dial`), e só a falha de conexão como `RetryableTransport`.
-- [ ] **[P0] Investigar o prazo da chamada frente ao ciclo de consumo**: medir o que o rebalance faz com a chamada em voo (`TRP-48`, `KFK-09`) e definir o prazo máximo do `Submit` dentro do handler.
-- [ ] **[P0] Classificação no provider HTTP**: auxiliar em `libs/backend/go/http` que mapeia a resposta e o erro de rede para `ExternalClass` por tabela declarada e versionada pelo adaptador, com código desconhecido em `UnknownAmbiguous`. O `Do` aceita a chave informada pelo chamador (`client.go:147`), então o adaptador passa a `OutboundKey` e a aleatória deixa de valer para comando externo.
-- [ ] **[P0] Parceiro roteirizado em `serviceskit`**: fake in-process que implementa `ExternalCommand` e `ExternalState` com roteiro por chave e por tentativa.
+- [x] **[P0] Investigar o prazo da chamada frente ao ciclo de consumo**: medir o que o rebalance faz com a chamada em voo (`TRP-48`, `KFK-09`) e definir o prazo máximo do `Submit` dentro do handler.
+- [x] **[P0] Classificação no provider HTTP**: auxiliar em `libs/backend/go/http` que mapeia a resposta e o erro de rede para `ExternalClass` por tabela declarada e versionada pelo adaptador, com código desconhecido em `UnknownAmbiguous`. O `Do` aceita a chave informada pelo chamador (`client.go:147`), então o adaptador passa a `OutboundKey` e a aleatória deixa de valer para comando externo.
+- [x] **[P0] Parceiro roteirizado em `serviceskit`**: fake in-process que implementa `ExternalCommand` e `ExternalState` com roteiro por chave e por tentativa.
   - Cobre as nove classes, a consulta que responde cada achado, o parceiro sem consulta, o webhook duplicado e a resposta perdida depois de efeito aplicado.
   - Registra cada chave recebida, para o teste provar que o reenvio usou a mesma.
   - Determinístico: `clock`, `ids` e `stable`, sem `time.Sleep` (`.agents/skills/dmpf-testkit/SKILL.md:49-51`).
-- [ ] **[P0] Cláusulas em `providerkit`**: o `KIT-04` ganha o conjunto que certifica um adaptador `ExternalCommand` (cada código de uma tabela de parceiro cai na classe declarada, desconhecido cai em `UnknownAmbiguous`) e uma realização de `AttemptLedger` (serialização na chave, `begun` não purgável).
-- [ ] **[P1] Processo encerrado entre o envio e o resultado**, em `testkit/tb/dist` (`KIT-06`): o processo morre depois de `Begin` e antes de `Finish`, e a varredura resolve como `UnknownSent`.
-- [ ] **[P1] Guia e skills**: corrigir "a saída é não fazer chamada nenhuma" no guia para dois caminhos (parceiro consumidor do contrato; parceiro de requisição e resposta), e atualizar a skill `dmpf-testkit` pela fonte em `tools/dmpf-plugin/templates/ai/`.
+- [x] **[P0] Cláusulas em `providerkit`**: o `KIT-04` ganha o conjunto que certifica um adaptador `ExternalCommand` (cada código de uma tabela de parceiro cai na classe declarada, desconhecido cai em `UnknownAmbiguous`) e uma realização de `AttemptLedger` (serialização na chave, `begun` não purgável).
+- [x] **[P1] Processo encerrado entre o envio e o resultado**, em `testkit/tb/dist` (`KIT-06`): o processo morre depois de `Begin` e antes de `Finish`, e a varredura resolve como `UnknownSent`.
+- [x] **[P1] Guia e skills**: corrigir "a saída é não fazer chamada nenhuma" no guia para dois caminhos (parceiro consumidor do contrato; parceiro de requisição e resposta), e atualizar a skill `dmpf-testkit` pela fonte em `tools/dmpf-plugin/templates/ai/`.
+- [x] **[P1] Teto no ledger de tentativas**: `observation_ids` e `conflicts` crescem por linha sem limite, porque callbacks não contam no `MaxQueries`. Uma constante única do kernel (`ports.MaxAttemptEntries`) limita os dois; com a linha cheia, `Observe` devolve `ObserveSaturated` e `Finish` devolve `FinishSaturated`, sem gravar nem aplicar, com métrica e log Warn, e o SQL reforça o teto por `CHECK`.
+- [x] **[P1] Espera limitada na revogação do kafka**: `Config.RevokeGrace` é obrigatório no consumer, com `ProcessingDeadline + RevokeGrace < RebalanceTimeout`. O `release` cancela todas as partições revogadas e espera por elas sob um único prazo; no estouro, o `Run` devolve `ErrRevokeStuck`, que é fatal, e a composição encerra o processo.
+- [x] **[P1] Orçamento de prazos validado**: `app.ExternalBudget` é a fonte única do prazo do `Submit` (o `Limit` da rota), do settle e do corte da varredura, e recusa `Limit + Settle >= ProcessingDeadline`.
 
 ### Não-funcionais
 
-- [ ] **Determinismo**: nenhum teste do ciclo usa `time.Sleep`, relógio de parede ou aleatoriedade.
-- [ ] **Compatibilidade**: Go `1.26.9`, a diretiva dos `go.mod`; nenhum requisito direto novo de terceiros em `ports`, `application` ou `testkit`.
-- [ ] **Custo**: o ciclo acrescenta duas escritas no ledger por tentativa e nenhuma consulta fora da varredura e da resolução.
+- [x] **Determinismo**: nenhum teste do ciclo usa `time.Sleep`, relógio de parede ou aleatoriedade.
+- [x] **Compatibilidade**: Go `1.26.9`, a diretiva dos `go.mod`; nenhum requisito direto novo de terceiros em `ports`, `application` ou `testkit`.
+- [x] **Custo**: o ciclo acrescenta duas escritas no ledger por tentativa e nenhuma consulta fora da varredura e da resolução.
 
 ## Camadas afetadas
 
@@ -266,8 +297,8 @@ A tradução proposta ao catálogo do FND-07 é: `RetryableTransport` e
 `RetryableUpstream` em `TransientDependency` (`RateLimited` quando o parceiro
 limita), retentáveis; `FinalValidation` em `Validation`; `FinalBusiness` em
 `Conflict`, pela regra do parceiro (`ERR-28`); `FinalAuthorization` em
-`Forbidden`; `UnknownSent` em `TransientDependency` ou `DeadlineExceeded`,
-retentável só sob o predicado de chave; `UnknownAmbiguous` e `SchemaMismatch` em
+`Forbidden`; `UnknownSent` em `DeadlineExceeded` (prazo expirado) ou `Unexpected`,
+condicionais, retentável só sob o predicado de chave; `UnknownAmbiguous` e `SchemaMismatch` em
 `Unexpected`, não retentáveis. O ADR novo fixa a tabela.
 
 ### Função de passo
@@ -280,13 +311,16 @@ retentável só sob o predicado de chave; `UnknownAmbiguous` e `SchemaMismatch` 
 | `Final*` | qualquer | `Fail`; reenviar exige nova geração |
 | `UnknownSent`, `UnknownAmbiguous` | com consulta | `Query` |
 | `UnknownSent`, `UnknownAmbiguous` | sem consulta | `Reconcile` |
-| `SchemaMismatch` | qualquer | `Suspend`, e depois o passo da linha incerta correspondente |
+| `SchemaMismatch` | qualquer | `Suspend`; quem retoma, corrigido o contrato ou o adaptador, reentra como `UnknownAmbiguous` |
 | achado `Applied` | qualquer | `Confirm` |
 | achado `Rejected` | qualquer | `Fail` |
 | achado `Absent` | chave `Native` ou `Header` | `Retry` com a mesma chave, depois da quiescência |
 | achado `Absent` | chave `None` | `Retry` só com `AuthoritativeAbsence`; senão `Reconcile` |
-| achado `Pending` | qualquer | `Await`, com nova consulta dentro do orçamento |
-| achado `Inconclusive` | qualquer | `Query` de novo até o teto e depois `Reconcile` |
+| achado `Pending` | qualquer | `Await`, com nova consulta enquanto as consultas feitas não atingem `MaxQueries`; atingido o teto, `Reconcile` |
+| achado `Inconclusive` | qualquer | `Query` de novo enquanto as consultas feitas não atingem `MaxQueries`; atingido o teto, `Reconcile` |
+
+Achado presente prevalece sobre a classe, porque é ele que resolve a incerteza;
+sem achado, vale a linha da classe.
 
 `Reconcile` entrega o comando ao estado "aguardando reconciliação", que
 nomeia o que ficou pendente e quem decide (`GAR-06`). O algoritmo de
@@ -327,14 +361,14 @@ comando de entrada.
 
 ### Critérios de aceite
 
-- [ ] O teste exaustivo de `NextStep` prova que nenhuma combinação com `UnknownSent`, `UnknownAmbiguous` ou `SchemaMismatch` devolve `Confirm` ou `Fail`.
-- [ ] Duas execuções do mesmo comando (reentrega, reemissão pela outbox, reinício do processo) derivam a mesma chave; outra geração deriva chave distinta; a chave difere da de comando de entrada e do identificador da tentativa.
-- [ ] No fake, o reenvio depois de `UnknownSent` envia a mesma chave, e o registro de chaves recebidas mostra uma só.
-- [ ] Com o processo encerrado entre `Begin` e `Finish`, a redelivery depois do prazo e da margem, ou a varredura, resolve como `UnknownSent`, nenhuma tentativa `begun` passa do prazo e nenhuma segunda chamada ocorre sem consulta; um `Finish` tardio sobre tentativa encerrada não sobrescreve o desfecho e deixa conflito visível.
-- [ ] Observação duplicada não muda nada; observação contraditória gera conflito visível.
-- [ ] Todo código de uma tabela de parceiro cai na classe declarada no `providerkit`; o desconhecido cai em `UnknownAmbiguous`.
-- [ ] ADR novo e subseções de norma presentes, com a tabela "altera invariante?" e `node tools/dmpf-verify.mjs` sem violação.
-- [ ] Ao fim de cada onda, `go run ./tools/dmpf-conformance/cmd/conformance --root .` e `go run ./tools/dmpf-conformance/cmd/modsync --root . --check` passam, assim como `fmt-check`, `vet`, `test-race` e `govulncheck` de cada projeto Go tocado.
+- [x] O teste exaustivo de `NextStep` prova que nenhuma combinação com `UnknownSent`, `UnknownAmbiguous` ou `SchemaMismatch` sem achado devolve `Confirm` ou `Fail`, e que `SchemaMismatch` sem achado devolve exatamente `Suspend`.
+- [x] Duas execuções do mesmo comando (reentrega, reemissão pela outbox, reinício do processo) derivam a mesma chave; outra geração deriva chave distinta; a chave difere da de comando de entrada e do identificador da tentativa.
+- [x] No fake, o reenvio depois de `UnknownSent` envia a mesma chave, e o registro de chaves recebidas mostra uma só.
+- [x] Com o processo encerrado entre `Begin` e `Finish`, a redelivery depois do prazo e da margem, ou a varredura, resolve como `UnknownSent`, nenhuma tentativa `begun` passa do prazo e nenhuma segunda chamada ocorre sem consulta; um `Finish` tardio sobre tentativa encerrada não sobrescreve o desfecho e deixa conflito visível.
+- [x] Observação duplicada não muda nada; observação contraditória gera conflito visível.
+- [x] Todo código de uma tabela de parceiro cai na classe declarada no `providerkit`; o desconhecido cai em `UnknownAmbiguous`.
+- [x] ADR novo e subseções de norma presentes, com a tabela "altera invariante?" e `node tools/dmpf-verify.mjs` sem violação.
+- [x] Ao fim de cada onda, `go run ./tools/dmpf-conformance/cmd/conformance --root .` e `go run ./tools/dmpf-conformance/cmd/modsync --root . --check` passam, assim como `fmt-check`, `vet`, `test-race` e `govulncheck` de cada projeto Go tocado.
 
 ### Cenários de teste
 

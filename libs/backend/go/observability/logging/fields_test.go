@@ -25,6 +25,7 @@ func TestTheLogKeysAreTheSharedVocabulary(t *testing.T) {
 		"KeyChannel":         {logging.KeyChannel, string(semconv.MessagingDestinationNameKey)},
 		"KeyChannelName":     {logging.KeyChannelName, "dmpf.channel.name"},
 		"KeyMessageID":       {logging.KeyMessageID, string(semconv.MessagingMessageIDKey)},
+		"KeyExternalClass":   {logging.KeyExternalClass, tracing.KeyExternalClass},
 	} {
 		if pair[0] != pair[1] {
 			t.Errorf("logging.%s = %q, want %q from the shared vocabulary (RF-A3)", name, pair[0], pair[1])

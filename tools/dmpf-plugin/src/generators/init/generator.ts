@@ -384,10 +384,18 @@ export const infrasyncArgs = (config: DmpfConfig, versions: DmpfVersions): strin
   '--write',
 ];
 
-export const initGenerator = async (
+export const initGenerator = (
   tree: Tree,
   options: InitGeneratorSchema,
 ): Promise<GeneratorCallback> => {
+  try {
+    return Promise.resolve(runInitGenerator(tree, options));
+  } catch (error) {
+    return Promise.reject(error);
+  }
+};
+
+const runInitGenerator = (tree: Tree, options: InitGeneratorSchema): GeneratorCallback => {
   const previous = tree.exists(DMPF_CONFIG_FILE) ? readDmpfConfigFromTree(tree) : null;
   const config = resolveConfig(tree, options, previous);
   const versions = readVersions();

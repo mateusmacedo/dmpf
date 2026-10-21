@@ -97,7 +97,7 @@ falha() { printf 'FALHA: %s\n' "$1" >&2; exit 1; }
 descartar() {
   local status=$?
   cd "$ROOT" 2>/dev/null || true
-  if [ -n "$WT" ] && [ -d "$WT" ]; then
+  if [[ -n "$WT" ]] && [[ -d "$WT" ]]; then
     git worktree remove --force "$WT" >/dev/null 2>&1 \
       || echo "AVISO: não consegui remover o worktree $WT" >&2
     git worktree prune >/dev/null 2>&1
@@ -123,7 +123,7 @@ assinar_node_modules() {
 
 ancorar_node_modules() {
   local destino
-  [ -d "$ROOT/node_modules" ] \
+  [[ -d "$ROOT/node_modules" ]] \
     || falha "node_modules ausente na raiz; rode 'pnpm install' antes da prova"
   destino="$(readlink -m "$ROOT/node_modules/nx")"
   case "$destino" in
@@ -132,13 +132,13 @@ ancorar_node_modules() {
   esac
   NM_ANCORA="$(mktemp)" || falha "não consegui criar o arquivo da âncora de node_modules"
   assinar_node_modules >"$NM_ANCORA" || falha "não consegui assinar o node_modules da raiz"
-  [ -s "$NM_ANCORA" ] || falha "a assinatura do node_modules da raiz saiu vazia"
+  [[ -s "$NM_ANCORA" ]] || falha "a assinatura do node_modules da raiz saiu vazia"
 }
 
 conferir_node_modules() {
   local divergencia
   divergencia="$(diff "$NM_ANCORA" <(assinar_node_modules) | head -12)"
-  [ -z "$divergencia" ] || falha "o node_modules da raiz foi reescrito durante a prova: algo rodou 'pnpm install' por dentro do symlink do worktree; rode 'pnpm install' na raiz para recuperar. Primeiras divergências:
+  [[ -z "$divergencia" ]] || falha "o node_modules da raiz foi reescrito durante a prova: algo rodou 'pnpm install' por dentro do symlink do worktree; rode 'pnpm install' na raiz para recuperar. Primeiras divergências:
 $divergencia"
 }
 
@@ -148,7 +148,7 @@ abrir_worktree() {
     || falha "não consegui abrir o worktree em $WT"
   ln -s "$ROOT/node_modules" "$WT/node_modules" \
     || falha "não consegui ligar node_modules no worktree"
-  if [ -d "$ROOT/tools/dmpf-plugin/node_modules" ] && [ ! -e "$WT/tools/dmpf-plugin/node_modules" ]; then
+  if [[ -d "$ROOT/tools/dmpf-plugin/node_modules" ]] && [[ ! -e "$WT/tools/dmpf-plugin/node_modules" ]]; then
     ln -s "$ROOT/tools/dmpf-plugin/node_modules" "$WT/tools/dmpf-plugin/node_modules" \
       || falha "não consegui ligar tools/dmpf-plugin/node_modules no worktree"
   fi
@@ -157,10 +157,10 @@ abrir_worktree() {
 
 conferir_golden_presente() {
   local bloco
-  [ -f "$ROOT/$MODULO/go.mod" ] \
+  [[ -f "$ROOT/$MODULO/go.mod" ]] \
     || falha "o golden não está no HEAD: $MODULO/go.mod ausente — a prova compara contra ele"
   for bloco in "${BLOCOS[@]}"; do
-    [ -d "$ROOT/$MODULO/$bloco" ] \
+    [[ -d "$ROOT/$MODULO/$bloco" ]] \
       || falha "o golden não está no HEAD: $MODULO/$bloco ausente — a prova compara contra ele"
   done
   jq -e --arg u "$UNIDADE_CONTRATO" '.units[] | select(.id == $u)' "$ROOT/$MANIFESTO_CONTRATOS" >/dev/null \
@@ -182,7 +182,7 @@ remover_golden() {
   go run ./tools/dmpf-conformance/cmd/modsync --root "$WT" --write >/dev/null 2>&1 \
     || falha "o modsync não conseguiu retirar $NOME do replace do go.work"
   for caminho in "${CAMINHOS_GOLDEN[@]}"; do
-    [ -e "$WT/$caminho" ] || continue
+    [[ -e "$WT/$caminho" ]] || continue
     git -C "$WT" rm -rq -- "$caminho" || falha "não consegui remover $caminho do worktree"
   done
   ! grep -q "$NOME" "$WT/go.work" || falha "go.work ainda cita $NOME depois da remoção"
@@ -198,7 +198,7 @@ remover_golden() {
 
 acionar_agente() {
   local status
-  if [ "$AGENT_CMD" = "true" ]; then
+  if [[ "$AGENT_CMD" = "true" ]]; then
     printf '\nModo manual. Gere o contexto %s a partir de %s dentro de:\n  %s\n(sem pnpm install — o node_modules é o da raiz). Pressione Enter ao terminar.\n' \
       "$NOME" "$SPEC" "$WT"
     read -r _ </dev/tty || falha "sem terminal para o modo manual"
@@ -207,7 +207,7 @@ acionar_agente() {
   printf '  agente: %s\n' "$AGENT_CMD"
   (cd "$WT" && bash -c "$AGENT_CMD")
   status=$?
-  [ "$status" -eq 0 ] || falha "o comando do agente saiu com $status"
+  [[ "$status" -eq 0 ]] || falha "o comando do agente saiu com $status"
   ok "agente concluiu"
 }
 
@@ -216,20 +216,20 @@ coletar_gerados() {
   ARQUIVOS_GERADOS=(); ARQUIVOS_FORMATO=(); ARQUIVOS_GO=()
   while IFS= read -r -d '' entrada; do
     caminho="${entrada:3}"
-    [ -n "$caminho" ] || continue
+    [[ -n "$caminho" ]] || continue
     ARQUIVOS_GERADOS+=("$caminho")
     case "$caminho" in
       *.json | *.jsonc | *.ts | *.tsx | *.js | *.mjs | *.cjs | *.css) ARQUIVOS_FORMATO+=("$caminho") ;;
       *.go) ARQUIVOS_GO+=("$caminho") ;;
     esac
   done < <(git -C "$WT" status --porcelain -z --untracked-files=all)
-  [ "${#ARQUIVOS_GERADOS[@]}" -gt 0 ] || falha "o agente não deixou nenhum arquivo no worktree"
-  [ -f "$WT/$MODULO/go.mod" ] || falha "o agente não produziu o módulo $MODULO"
+  [[ "${#ARQUIVOS_GERADOS[@]}" -gt 0 ]] || falha "o agente não deixou nenhum arquivo no worktree"
+  [[ -f "$WT/$MODULO/go.mod" ]] || falha "o agente não produziu o módulo $MODULO"
   for modulo in "${BLOCOS[@]}"; do
-    [ -d "$WT/$MODULO/$modulo" ] || falha "o agente não produziu $MODULO/$modulo"
+    [[ -d "$WT/$MODULO/$modulo" ]] || falha "o agente não produziu $MODULO/$modulo"
   done
   grep -q "$NOME" "$WT/go.work" || falha "go.work não registra o módulo de $NOME: o esqueleto não passou pelo generator"
-  [ -d "$WT/$CONTRATO/proto/company/$NOME" ] || falha "o agente não escreveu $CONTRATO/proto/company/$NOME"
+  [[ -d "$WT/$CONTRATO/proto/company/$NOME" ]] || falha "o agente não escreveu $CONTRATO/proto/company/$NOME"
   local fora=()
   for caminho in "${ARQUIVOS_GERADOS[@]}"; do
     case "$caminho" in
@@ -237,23 +237,23 @@ coletar_gerados() {
       apps/*) fora+=("$caminho") ;;
     esac
   done
-  [ "${#fora[@]}" -eq 0 ] \
+  [[ "${#fora[@]}" -eq 0 ]] \
     || falha "o agente editou outra app além de $MODULO: ${fora[*]} — o fio é preservado, e a borda compila contra ele sem mudança"
   ok "${#ARQUIVOS_GERADOS[@]} arquivo(s) tocado(s); um módulo com cinco blocos, go.work e .proto presentes"
 }
 
 checar_sem_escrita() {
   local saida status
-  if [ "${#ARQUIVOS_FORMATO[@]}" -gt 0 ]; then
+  if [[ "${#ARQUIVOS_FORMATO[@]}" -gt 0 ]]; then
     saida="$(cd "$WT" && pnpm biome ci --no-errors-on-unmatched "${ARQUIVOS_FORMATO[@]}" 2>&1)"
     status=$?
-    [ "$status" -eq 0 ] || { printf '%s\n' "$saida" >&2; falha "biome ci reprovou arquivo regenerado (acima)"; }
+    [[ "$status" -eq 0 ]] || { printf '%s\n' "$saida" >&2; falha "biome ci reprovou arquivo regenerado (acima)"; }
   fi
-  if [ "${#ARQUIVOS_GO[@]}" -gt 0 ]; then
+  if [[ "${#ARQUIVOS_GO[@]}" -gt 0 ]]; then
     saida="$(cd "$WT" && gofmt -l "${ARQUIVOS_GO[@]}" 2>&1)"
     status=$?
-    [ "$status" -eq 0 ] || { printf '%s\n' "$saida" >&2; falha "gofmt não conseguiu ler arquivo regenerado (exit $status)"; }
-    [ -z "$saida" ] || falha "gofmt -l apontou arquivo regenerado fora do formato: $(printf '%s' "$saida" | tr '\n' ' ')"
+    [[ "$status" -eq 0 ]] || { printf '%s\n' "$saida" >&2; falha "gofmt não conseguiu ler arquivo regenerado (exit $status)"; }
+    [[ -z "$saida" ]] || falha "gofmt -l apontou arquivo regenerado fora do formato: $(printf '%s' "$saida" | tr '\n' ' ')"
   fi
   ok "biome ci e gofmt -l sem apontamento"
 }
@@ -264,14 +264,14 @@ rito_buf() {
   (cd "$WT/$CONTRATO" && bash "$WT/tools/dmpf-plugin/scripts/buf.sh" generate) || falha "buf generate reprovou"
   (cd "$WT" && pnpm nx run "$NOME-contract:buf-lint" && pnpm nx run "$NOME-contract:buf-pins" \
     && pnpm nx run "$NOME-contract:buf-generate-check") || falha "um gate Buf reprovou"
-  [ -d "$WT/$CONTRATO/gen/go/company/$NOME" ] \
+  [[ -d "$WT/$CONTRATO/gen/go/company/$NOME" ]] \
     || falha "o rito Buf não produziu gen/go/company/$NOME"
   ok "rito Buf: generate, buf-lint, buf-pins, buf-generate-check"
 }
 
 devolver_excecoes() {
   local tmp
-  [ -s "$EXCECOES_CONTRATO" ] || return 0
+  [[ -s "$EXCECOES_CONTRATO" ]] || return 0
   tmp="$(mktemp)" || falha "não consegui criar arquivo temporário"
   jq --slurpfile guardadas "$EXCECOES_CONTRATO" --arg u "$UNIDADE_CONTRATO" \
     '.exceptions = ([.exceptions[] | select(.unit != $u)] + $guardadas[0])' \
@@ -288,7 +288,7 @@ commitar_classificacao() {
     || falha "git add dos manifestos de unidade"
   saida="$(cd "$WT" && go run ./tools/dmpf-conformance/cmd/conformance --root . --write-baseline 2>&1)"
   status=$?
-  [ "$status" -eq 0 ] || { printf '%s\n' "$saida" >&2; falha "--write-baseline reprovou (exit $status)"; }
+  [[ "$status" -eq 0 ]] || { printf '%s\n' "$saida" >&2; falha "--write-baseline reprovou (exit $status)"; }
   git -C "$WT" add -- "$BASELINE" || falha "git add do baseline"
   git_gate commit -q -m "chore(workspace): classificar o golden regenerado" \
     || falha "o commit da classificação reprovou (os hooks estão ativos)"
@@ -308,7 +308,7 @@ cadeia_nx() {
   (cd "$WT" && pnpm nx run-many -t fmt-check,vet,build,lint --projects="$lista" --parallel=3) \
     || falha "a cadeia fmt-check,vet,build,lint reprovou em $lista"
   ok "cadeia fmt-check,vet,build,lint aprovada em $lista"
-  if [ -n "${PG_DSN:-}" ]; then
+  if [[ -n "${PG_DSN:-}" ]]; then
     lista="$(IFS=,; printf '%s' "${PROJETOS_POSTGRES[*]}")"
     (cd "$WT" && pnpm nx run-many -t test-race,test-distributed --projects="$lista" --parallel=3) \
       || falha "test-race ou test-distributed reprovou em $lista"
@@ -323,7 +323,7 @@ verificar_conformidade() {
   saida="$(go run ./tools/dmpf-conformance/cmd/conformance --root "$WT" 2>&1)"
   status=$?
   printf '%s\n' "$saida"
-  [ "$status" -eq 0 ] || falha "o verificador de conformidade reprovou o contexto regenerado (exit $status)"
+  [[ "$status" -eq 0 ]] || falha "o verificador de conformidade reprovou o contexto regenerado (exit $status)"
   ok "verificador de conformidade aprovado"
 }
 
@@ -332,7 +332,7 @@ conferir_arvore_limpa() {
   git -C "$WT" diff --exit-code >/dev/null \
     || falha "os checks mudaram arquivo versionado: $(git -C "$WT" diff --name-only | tr '\n' ' ')"
   sobras="$(git -C "$WT" status --porcelain)"
-  [ -z "$sobras" ] || { printf '%s\n' "$sobras" >&2; falha "sobrou arquivo não versionado depois dos checks (acima)"; }
+  [[ -z "$sobras" ]] || { printf '%s\n' "$sobras" >&2; falha "sobrou arquivo não versionado depois dos checks (acima)"; }
   ok "git diff vazio e git status --porcelain vazio"
 }
 
@@ -427,7 +427,7 @@ fase_self_test() {
   passo "o verificador precisa reprovar com DMPF-D002 em $NOME/domain"
   saida="$(go run ./tools/dmpf-conformance/cmd/conformance --root "$WT" 2>&1)"
   status=$?
-  if [ "$status" -eq 0 ]; then
+  if [[ "$status" -eq 0 ]]; then
     printf '%s\n' "$saida" >&2
     falha "o verificador aprovou sem o shared kernel, e devia ter reprovado (saída acima)"
   fi
@@ -441,9 +441,9 @@ fase_self_test() {
 }
 
 FASE=""
-while [ $# -gt 0 ]; do
+while [[ $# -gt 0 ]]; do
   case "$1" in
-    --phase) FASE="${2:-}"; [ -n "$FASE" ] || { echo "FALHA: --phase exige um valor" >&2; uso >&2; exit 2; }; shift 2 ;;
+    --phase) FASE="${2:-}"; [[ -n "$FASE" ]] || { echo "FALHA: --phase exige um valor" >&2; uso >&2; exit 2; }; shift 2 ;;
     --phase=*) FASE="${1#--phase=}"; shift ;;
     -h | --help) uso; exit 0 ;;
     *) echo "FALHA: argumento desconhecido: $1" >&2; uso >&2; exit 2 ;;

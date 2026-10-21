@@ -66,12 +66,16 @@
     },
     "test-integration": {
       "executor": "@mateusmacedo/dmpf-plugin:test-env",
-      "cache": false,
+      "cache": true,
       "inputs": [
         "go",
         "^go",
         "{workspaceRoot}/tools/dmpf-baseline/**",
-        "{workspaceRoot}/tools/dmpf-shared-kernel-check.sh"
+        "{workspaceRoot}/tools/dmpf-shared-kernel-check.sh",
+        "{workspaceRoot}/infra/test/compose.yml",
+        "{workspaceRoot}/.env.example",
+        "{workspaceRoot}/tools/dmpf-plugin/scripts/test-env.sh",
+        { "env": "CI" }
       ],
       "options": {
         "command": "go test -race -count=1 -tags=integration ./infrasync/..."

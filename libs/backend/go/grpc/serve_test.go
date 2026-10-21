@@ -122,7 +122,9 @@ func TestTheReadinessLineCarriesThePortTheListenerResolved(t *testing.T) {
 	}()
 	eventually(t, healthServer, healthpb.HealthCheckResponse_SERVING)
 	cancel()
-	<-done
+	if err := <-done; err != nil {
+		t.Fatalf("Serve() = %v, want nil on shutdown", err)
+	}
 
 	attributes := exported("grpc listening")
 	if attributes["server.address"].AsString() != "127.0.0.1" || attributes["server.port"].AsInt64() != int64(resolved) {
@@ -158,7 +160,10 @@ func TestAnExpiredGraceIsLoggedUnderAPlatformKey(t *testing.T) {
 	}
 	cancel()
 	select {
-	case <-done:
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("Serve() = %v, want nil on shutdown", err)
+		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("Serve() did not return after the grace expired")
 	}

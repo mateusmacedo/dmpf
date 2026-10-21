@@ -1,0 +1,94 @@
+name: DMPF scope
+description: Decide which projects and checks the diff between NX_BASE and NX_HEAD reaches; needs dmpf-layout and nx-set-shas first
+inputs:
+  keycloak:
+    description: The caller brings up the reference Keycloak, so authn integration tests can run
+    required: false
+    default: "false"
+outputs:
+  graph:
+    description: Path of the Nx project graph JSON the decision read
+    value: ${{ steps.scope.outputs.graph }}
+  projects:
+    description: Comma-separated projects every Nx command runs on; empty skips the Nx steps
+    value: ${{ steps.scope.outputs.projects }}
+  scope:
+    description: Nx command prefix (run-many -p <projects>), also exported as NX_SCOPE
+    value: ${{ steps.scope.outputs.scope }}
+  serial:
+    description: Providers whose test-race shares state in the job infrastructure and runs one at a time
+    value: ${{ steps.scope.outputs.serial }}
+  infra:
+    description: Some selected project needs the job test infrastructure
+    value: ${{ steps.scope.outputs.infra }}
+  keycloak:
+    description: The authn integration tests need Keycloak
+    value: ${{ steps.scope.outputs.keycloak }}
+  redis:
+    description: The selected projects need Redis
+    value: ${{ steps.scope.outputs.redis }}
+  go:
+    description: Some selected project is a Go module
+    value: ${{ steps.scope.outputs.go }}
+  layer:
+    description: Run the single-layer tag check
+    value: ${{ steps.scope.outputs.layer }}
+  context:
+    description: global for the structural context check, a space-separated list of context directories, or empty
+    value: ${{ steps.scope.outputs.context }}
+  biome:
+    description: global, changed or false
+    value: ${{ steps.scope.outputs.biome }}
+  modsync:
+    description: Run the modsync gate
+    value: ${{ steps.scope.outputs.modsync }}
+  infrasync:
+    description: Run the infrasync gate
+    value: ${{ steps.scope.outputs.infrasync }}
+  conformance:
+    description: Run the conformance gate
+    value: ${{ steps.scope.outputs.conformance }}
+  generator:
+    description: Run the structural generator check
+    value: ${{ steps.scope.outputs.generator }}
+  init:
+    description: Run the init dry-run check
+    value: ${{ steps.scope.outputs.init }}
+  versions:
+    description: Run the versions.json pin check
+    value: ${{ steps.scope.outputs.versions }}
+  observability:
+    description: Run the Grafana provisioning and OTel env checks
+    value: ${{ steps.scope.outputs.observability }}
+  gate-check:
+    description: Run the domain dependency gate self-test
+    value: ${{ steps.scope.outputs.gate-check }}
+  self-tests:
+    description: Space-separated negative vectors to run
+    value: ${{ steps.scope.outputs.self-tests }}
+  self-tests-job:
+    description: The negative vectors job has something to run
+    value: ${{ steps.scope.outputs.self-tests-job }}
+  external-consumer:
+    description: Run the external consumer proof
+    value: ${{ steps.scope.outputs.external-consumer }}
+  distributed:
+    description: Some selected project has a test-distributed target
+    value: ${{ steps.scope.outputs.distributed }}
+  sonar:
+    description: Run the SonarQube Cloud analysis
+    value: ${{ steps.scope.outputs.sonar }}
+runs:
+  using: composite
+  steps:
+    - name: Decide the scope
+      id: scope
+      shell: bash
+      env:
+        KEYCLOAK: ${{ inputs.keycloak }}
+      run: |
+        set -euo pipefail
+        saida="$(bash "$GITHUB_ACTION_PATH/scope.sh")"
+        printf '%s\n' "$saida"
+        printf '%s\n' "$saida" >> "$GITHUB_OUTPUT"
+        sed -n 's/^scope=/NX_SCOPE=/p' <<<"$saida" >> "$GITHUB_ENV"

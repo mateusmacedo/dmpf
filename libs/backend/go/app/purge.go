@@ -156,3 +156,10 @@ func PurgeMessageInbox(pool *pgxpool.Pool, consumer string) PurgeFunc {
 		return purged.Removed, err
 	}
 }
+
+func PurgeExternalAttempts(pool *pgxpool.Pool) PurgeFunc {
+	return func(ctx context.Context, cutoff ports.Instant, batch int) (int64, error) {
+		purged, err := postgres.PurgeAttempts(ctx, pool, cutoff, batch)
+		return purged.Count, err
+	}
+}

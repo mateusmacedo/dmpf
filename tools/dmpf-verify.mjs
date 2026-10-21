@@ -44,7 +44,7 @@ const violation = (check, file, line, target, reason) => ({ check, file, line, t
 export const indexHeadings = (lines) => {
   const idx = new Map();
   lines.forEach((l, i) => {
-    const h = /^#{1,6}\s+(.*)$/.exec(l);
+    const h = /^#{1,6}\s(.*)$/.exec(l);
     if (!h) return;
     const m = /^(\d+(?:\.\d+)*)/.exec(h[1].trim().replace(/^§\s*/, ''));
     if (m) idx.set(m[1], i + 1);
@@ -57,7 +57,7 @@ export const sectionRange = (lines, section) => {
   let start = -1;
   let depth = 0;
   for (let i = 0; i < lines.length; i += 1) {
-    const h = /^(#{1,6})\s+(.*)$/.exec(lines[i]);
+    const h = /^(#{1,6})\s(.*)$/.exec(lines[i]);
     if (!h) continue;
     const num = /^(\d+(?:\.\d+)*)/.exec(h[2].trim().replace(/^§\s*/, ''));
     if (start === -1) {
@@ -699,7 +699,7 @@ export const loadContext = (root) => {
   const files = {};
   for (const f of readdirSync(acervo)
     .filter((x) => x.endsWith('.md'))
-    .sort()) {
+    .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))) {
     files[f] = readFileSync(join(acervo, f), 'utf8').split('\n');
   }
   const headings = {};

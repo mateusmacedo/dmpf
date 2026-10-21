@@ -1,9 +1,15 @@
 name: SonarQube Cloud
 
-# Em PR só roda chamado pelo ci.yml, no PR para master. O push em master mantém
+# Em PR só roda chamado pelo ci.yml, no PR para master com Go ou o plugin no
+# escopo do diff (ADR-071). O push em master mantém
 # a análise da branch principal, que é a referência das análises de PR no SonarCloud.
 on:
   workflow_call:
+    inputs:
+      projects:
+        description: Projetos do escopo do diff, separados por vírgula; vazio mede todos
+        type: string
+        default: ""
     secrets:
       SONAR_TOKEN:
         required: false
@@ -36,30 +42,55 @@ jobs:
       - name: Setup Go
         uses: ./.github/actions/setup-go
 
+      - name: Raízes dos projetos do escopo
+        id: escopo
+        env:
+          PROJECTS: ${{ inputs.projects }}
+        run: |
+          set -euo pipefail
+          if [ -z "$PROJECTS" ]; then
+            printf '%s\n' "roots=" "go=true" "plugin=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          pnpm --silent nx graph --file="$RUNNER_TEMP/graph.json" >/dev/null
+          jq -r --arg p "$PROJECTS" '($p | split(",")) as $l
+            | [.graph.nodes[] | select((.name as $n | $l | index($n)) and (.data.tags | index("stack:go")))]
+            | "roots=\(map(.data.root) | join(" "))", "go=\(length > 0)"' "$RUNNER_TEMP/graph.json" | tee -a "$GITHUB_OUTPUT"
+          echo "plugin=$([[ ",$PROJECTS," == *",@mateusmacedo/dmpf-plugin,"* ]] && echo true || echo false)" | tee -a "$GITHUB_OUTPUT"
+
       - name: Espelho do Docker Hub
+        if: steps.escopo.outputs.go == 'true'
         uses: ./.github/actions/docker-hub-mirror
 
       # A infra e as variáveis são as dos testes locais (infra/test/compose.yml e
       # .env.example), para a cobertura contar os testes de integração: o código
       # que só roda com Postgres e Kafka não aparece nos unitários.
       - name: Subir a infra dos testes de integração
+        if: steps.escopo.outputs.go == 'true'
         run: |
           docker compose -f infra/test/compose.yml --profile keycloak up -d --wait postgres redpanda redpanda-sasl floci redis keycloak
           docker compose -f infra/test/compose.yml run --rm redpanda-sasl-init
           docker compose -f infra/test/compose.yml --profile keycloak run --rm keycloak-init
 
       - name: Cobertura Go (unitários e integração)
+        if: steps.escopo.outputs.go == 'true'
+        env:
+          ROOTS: ${{ steps.escopo.outputs.roots }}
         run: |
           mkdir -p coverage
           echo "mode: set" > coverage/go.out
           while read -r module dir; do
             rel="${dir#"$PWD"/}"
+            if [ -n "$ROOTS" ] && [[ " $ROOTS " != *" $rel "* ]]; then
+              continue
+            fi
             (cd "$dir" && bash "$GITHUB_WORKSPACE/tools/dmpf-plugin/scripts/test-env.sh" \
               go test -tags=integration -p 1 -coverprofile="$RUNNER_TEMP/go.out" ./...)
             tail -n +2 "$RUNNER_TEMP/go.out" | sed "s|^$module/|$rel/|" >> coverage/go.out
           done < <(go list -m -f '{{.Path}} {{.Dir}}')
 
       - name: Cobertura do dmpf-plugin
+        if: steps.escopo.outputs.plugin == 'true'
         run: |
           pnpm nx run dmpf-plugin:test --coverage --coverageReporters=lcov --outputStyle=static
           sed 's|^SF:|SF:tools/dmpf-plugin/|' tools/dmpf-plugin/test-output/jest/coverage/lcov.info > coverage/dmpf-plugin.lcov
@@ -70,5 +101,5 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
       - name: Derrubar a infra dos testes de integração
-        if: always()
+        if: always() && steps.escopo.outputs.go == 'true'
         run: docker compose -f infra/test/compose.yml --profile init --profile keycloak down --remove-orphans

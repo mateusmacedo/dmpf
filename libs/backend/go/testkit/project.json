@@ -38,8 +38,17 @@
     },
     "test-race": {
       "executor": "@mateusmacedo/dmpf-plugin:test-env",
-      "cache": false,
-      "inputs": ["go", "^go"],
+      "cache": true,
+      "inputs": [
+        "go",
+        "^go",
+        "{workspaceRoot}/libs/backend/go/**/README.md",
+        "{workspaceRoot}/tools/dmpf-baseline/**",
+        "{workspaceRoot}/infra/test/compose.yml",
+        "{workspaceRoot}/.env.example",
+        "{workspaceRoot}/tools/dmpf-plugin/scripts/test-env.sh",
+        { "env": "CI" }
+      ],
       "dependsOn": [
         "test-infra-up",
         {
@@ -49,6 +58,15 @@
       ],
       "options": {
         "command": "go test -race -count=1 -p 1 -tags=integration ./..."
+      }
+    },
+    "test-distributed": {
+      "executor": "@mateusmacedo/dmpf-plugin:test-env",
+      "cache": false,
+      "inputs": ["go", "^go"],
+      "dependsOn": ["test-infra-up", "test-race"],
+      "options": {
+        "command": "go test -race -count=1 -p 1 -tags=integration,distributed ./tb/dist/..."
       }
     },
     "govulncheck": {

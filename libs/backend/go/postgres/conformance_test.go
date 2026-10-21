@@ -302,3 +302,21 @@ func openRuntimeWithAdmin(t *testing.T) (runtime, admin *pgxpool.Pool) {
 	}
 	return runtime, owner.(*pgxpool.Pool)
 }
+
+func TestAttemptLedgerConformsToTheKit(t *testing.T) {
+	pool := pg.OpenPool(t, kitOptions)
+	v := providerkit.AttemptLedger(func() providerkit.AttemptLedgerSubject {
+		pg.ResetTables(t, pool, kitTables...)
+		return providerkit.AttemptLedgerSubject{
+			Ledger: postgres.NewAttemptStore(pool),
+			Purge: func(before ports.Instant) (int64, error) {
+				purge, err := postgres.PurgeAttempts(context.Background(), pool, before, 100)
+				return purge.Count, err
+			},
+		}
+	})
+	tb.Require(t, v)
+	if len(v.Skipped) != 0 {
+		t.Fatalf("skipped = %v, want none", v.Skipped)
+	}
+}

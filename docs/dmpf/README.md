@@ -96,7 +96,7 @@ O artefato aciona **dois** ADRs, sem redigir nem aceitar nenhum: `ADR-DMPF-K`
 obrigação delegada por escrito em `upr-decision-mensagens.md` §6.3. Os
 identificadores são provisórios: a numeração definitiva é do FND-11.
 
-As 74 regras `normativo` substantivas têm **ID estável** (`BLK`, `UOW`, `OBX`,
+As 75 regras `normativo` substantivas têm **ID estável** (`BLK`, `UOW`, `OBX`,
 `INB`, `GAR`, `IDM`), marcado no bloco que enuncia cada uma e indexado em §11.2 — é
 por esse ID que o FND-09 vai nomear o cenário que a verifica.
 
@@ -309,7 +309,7 @@ Duas decisões merecem leitura atenta na revisão:
   a FND-09 sob ANC-07. É a única fronteira em que o artefato **reduz** o que a própria
   spec pedia, e a redução está justificada por M4.
 
-As 112 regras `normativo` têm **ID estável** (`CTX`, `IDN`, `ERR`, `MAP`, `THR`,
+As 115 regras `normativo` têm **ID estável** (`CTX`, `IDN`, `ERR`, `MAP`, `THR`,
 `DAT`), contíguo por prefixo e indexado em §11.1 — é por esse ID que o FND-09 vai
 nomear o cenário que verifica cada uma. §11.2 declara o modo de verificação por grupo,
 distinguindo o que se confere por inspeção do que exige execução.
@@ -376,7 +376,7 @@ validade da adição, e a tabela de cadência de `SPEC-DBTRMM3X` atribui o grupo
 substantiva contra o gatilho de invariante e nenhuma o satisfaz, o que confirma a
 adição dentro do escopo, sem incremento de versão.
 
-As 121 regras `normativo` — incluídos os sufixos `MET-05a`, `RUN-11a` e `RUN-18a`
+As 126 regras `normativo` — incluídos os sufixos `MET-05a`, `RUN-11a` e `RUN-18a`
 — têm **ID estável** em cinco prefixos (`RES`, `TRC`,
 `MET`, `LOG`, `RUN`), indexadas em §13.1. Nenhuma tem `domain` ou `port` como
 sujeito — o que é a verificação direta da invariante da âncora, e a razão pela

@@ -23,8 +23,8 @@ on:
         description: Sobe o Keycloak de referência (infra/keycloak) para os testes de integração do authn; só o repositório do DMPF o liga
         type: boolean
         default: false
-      full:
-        description: Roda todos os projetos em vez dos afetados, e o govulncheck
+      govulncheck:
+        description: Roda o govulncheck nos projetos do escopo (etapa de release)
         type: boolean
         default: false
       self-tests:
@@ -71,11 +71,6 @@ jobs:
       AWS_ACCESS_KEY_ID: "test"
       AWS_SECRET_ACCESS_KEY: "test"
       REDIS_URL: "redis://revocation:ci-revocation@localhost:6379/0"
-      IMAGEM_POSTGRES: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
-      IMAGEM_REDPANDA: redpandadata/redpanda:v26.2.2@sha256:468bd13a9f2bd24794cb7fddc867c767fb1008b9a07b297b89fde48c564d7d96
-      IMAGEM_FLOCI: floci/floci:2.0.1@sha256:4e451c39c7bb88e3cd4f87e8fc0c25d5b47695a51185d521e2241fa00486e8eb
-      IMAGEM_KEYCLOAK: quay.io/keycloak/keycloak:26.8.1@sha256:79c623a22abacf3fe6c00a5fb30f5b7843d717b234033b80995891c06116d244
-      IMAGEM_REDIS: redis:7.4.11-alpine@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499
 
     steps:
       - name: Checkout
@@ -130,47 +125,38 @@ jobs:
             libs/**/go.sum
             tools/**/go.sum
 
-      # Também no modo `full`: o buf-breaking lê NX_BASE como baseline. Sem
-      # main-branch-name a action procura `main`; o fallback é a ponta anterior.
+      # O buf-breaking lê NX_BASE como baseline. Sem main-branch-name a action
+      # procura `main`; o fallback é a ponta anterior.
       - name: Set Nx SHAs for affected (base/head)
         uses: nrwl/nx-set-shas@afb73a62d26e41464e9254689e1fd6122ee683c1 # v5
         with:
           main-branch-name: ${{ inputs.base || github.event.repository.default_branch }}
           fallback-sha: ${{ github.event.before }}
 
-      # Uma leitura do grafo decide tudo o que depende do escopo: o comando Nx
-      # (affected ou run-many), quem precisa da infra e quem divide estado nela.
-      - name: Escopo do Nx
+      - name: Escopo do diff
         id: scope
-        env:
-          FULL: ${{ inputs.full }}
-          KEYCLOAK: ${{ inputs.keycloak }}
-        run: |
-          set -euo pipefail
-          if [ "$FULL" = true ]; then
-            show=()
-            echo "NX_SCOPE=run-many" >> "$GITHUB_ENV"
-          else
-            show=(--affected "--base=$NX_BASE" "--head=$NX_HEAD")
-            echo "NX_SCOPE=affected --base=$NX_BASE --head=$NX_HEAD" >> "$GITHUB_ENV"
-          fi
-          grafo="$RUNNER_TEMP/graph.json"
-          pnpm --silent nx graph --file="$grafo" >/dev/null
-          alvo="$(pnpm --silent nx show projects "${show[@]}" --exclude="$NX_EXCLUDE" --json)"
-          echo "projetos: $(jq -r 'join(", ")' <<<"$alvo")"
-          jq --argjson alvo "$alvo" '[.graph.nodes[] | select(.name as $n | $alvo | index($n))]' "$grafo" > "$RUNNER_TEMP/alvo.json"
-          serial="$(jq -r '[.[] | select(.data.targets["test-race"].cache == false and (.data.tags | index("layer:providers"))) | .name] | join(",")' "$RUNNER_TEMP/alvo.json")"
-          infra="$(jq -r 'any(.[]; .data.targets["test-race"].cache == false or .data.targets["test-integration"] != null or .data.targets.e2e != null)' "$RUNNER_TEMP/alvo.json")"
-          {
-            echo "serial=$serial"
-            echo "infra=$infra"
-            echo "keycloak=$([ "$infra" = true ] && [ "$KEYCLOAK" = true ] && jq -e 'index("authn")' <<<"$alvo" >/dev/null && echo true || echo false)"
-            echo "redis=$([ "$infra" = true ] && jq -e 'index("redis") or index("bff")' <<<"$alvo" >/dev/null && echo true || echo false)"
-          } >> "$GITHUB_OUTPUT"
+        uses: ./.dmpf-ci/.github/actions/dmpf-scope
+        with:
+          keycloak: ${{ inputs.keycloak }}
 
       - name: Espelho do Docker Hub
         if: steps.scope.outputs.infra == 'true'
         uses: ./.dmpf-ci/.github/actions/docker-hub-mirror
+
+      - name: Imagens da infra de testes
+        if: steps.scope.outputs.infra == 'true'
+        run: |
+          set -euo pipefail
+          compose=(docker compose -f infra/test/compose.yml)
+          perfis=()
+          while read -r perfil; do perfis+=(--profile "$perfil"); done < <("${compose[@]}" config --profiles)
+          servicos="$("${compose[@]}" "${perfis[@]}" config --format json)"
+          for par in POSTGRES:postgres REDPANDA:redpanda FLOCI:floci KEYCLOAK:keycloak REDIS:redis; do
+            imagem="$(jq -r --arg s "${par#*:}" '.services[$s].image // empty' <<<"$servicos")"
+            [[ $imagem =~ ^[a-z0-9][a-z0-9./_:-]*@sha256:[0-9a-f]{64}$ ]] ||
+              { echo "infra/test/compose.yml sem imagem fixada por digest para ${par#*:}: '$imagem'" >&2; exit 1; }
+            echo "IMAGEM_${par%%:*}=$imagem" >> "$GITHUB_ENV"
+          done
 
       # Sobe antes do lint e do build para que o boot dos serviços (o Keycloak leva
       # ~60 s) corra junto deles; a prontidão só é esperada antes do test-race.
@@ -259,22 +245,37 @@ jobs:
           fi
 
       - name: Formatação e lint do Biome
-        if: hashFiles('biome.json', 'biome.jsonc') != ''
-        run: pnpm biome ci .
+        if: hashFiles('biome.json', 'biome.jsonc') != '' && steps.scope.outputs.biome != 'false'
+        env:
+          BIOME: ${{ steps.scope.outputs.biome }}
+        run: |
+          if [ "$BIOME" = global ]; then
+            pnpm biome ci .
+          else
+            pnpm biome ci --changed --since="$NX_BASE" --no-errors-on-unmatched .
+          fi
 
-      # Sem a tag, um provider com `test-race` sem cache sairia da fila serial e
+      # Sem a tag, um provider cujo `test-race` depende da infra sairia da fila serial e
       # disputaria a infra do job com os outros providers.
       - name: Toda lib Go declara exatamente uma camada
+        if: steps.scope.outputs.layer == 'true'
+        env:
+          GRAFO: ${{ steps.scope.outputs.graph }}
+          PROJECTS: ${{ steps.scope.outputs.projects }}
         run: |
           set -euo pipefail
-          jq -r '.graph.nodes[] | select((.data.tags | index("stack:go")) and (.data.root | startswith("tools/") | not))
-            | [.name, ([.data.tags[] | select(startswith("layer:"))] | length)] | @tsv' "$RUNNER_TEMP/graph.json" \
+          jq -r --arg p "$PROJECTS" '($p | split(",")) as $l | .graph.nodes[]
+            | select((.name as $n | $l | index($n)) and (.data.tags | index("stack:go")) and (.data.root | startswith("tools/") | not))
+            | [.name, ([.data.tags[] | select(startswith("layer:"))] | length)] | @tsv' "$GRAFO" \
             | awk -F'\t' '$2 != 1 { print "módulo Go com " $2 " tags layer:*: " $1; erro = 1 } END { exit erro }' >&2
 
-      # Sem `if` de projeto Go afetado: o layout de um contexto se rompe ao mover
-      # arquivo ou ao mexer em project.json e dmpf-units.json, que não são Go.
       # Com o cache frio, `go list -m` não extrai o kernel; `go mod download` extrai.
-      - name: DMPF context check (structural)
+      # O modo --context não verifica borda, deploy/infra.json nem banco e role em
+      # infra/: a dmpf-scope pede o estrutural quando o diff os alcança.
+      - name: DMPF context check
+        if: steps.scope.outputs.context != ''
+        env:
+          CONTEXTOS: ${{ steps.scope.outputs.context }}
         run: |
           set -euo pipefail
           if [ "$DMPF_TOOLING_MODE" = version ]; then
@@ -287,29 +288,35 @@ jobs:
             fi
             export DMPF_KERNEL_DDL
           fi
+          if [ "$CONTEXTOS" != global ]; then
+            for contexto in $CONTEXTOS; do
+              bash "$DMPF_PLUGIN_DIR/scripts/dmpf-context-check.sh" --context "$contexto"
+            done
+            exit 0
+          fi
           # O consumidor recém-inicializado ainda não tem contexto; o platform sempre tem.
           vazio=()
           [ "$DMPF_TOOLING_MODE" = version ] && vazio=(--allow-empty)
           bash "$DMPF_PLUGIN_DIR/scripts/dmpf-context-check.sh" --phase structural "${vazio[@]}"
 
-      # Sem `if` de projeto Go afetado: import sem `require` compila no workspace
-      # pelo `go.work` e só quebra para quem consome o módulo por tag.
       - name: DMPF modsync gate
+        if: steps.scope.outputs.modsync == 'true'
         run: go run "$DMPF_TOOLS/modsync$DMPF_TOOLS_VERSION" --root . --check
 
-      # Sem `if` de projeto Go afetado: um manifesto deploy/infra.json alterado sem
-      # regerar deixa a infra agregada divergente sem tocar código Go.
       - name: DMPF infrasync gate
+        if: steps.scope.outputs.infrasync == 'true'
         run: go run "$DMPF_TOOLS/infrasync$DMPF_TOOLS_VERSION" --root . --check
 
-      # GATE, fail-closed. Sem `if` de projeto Go afetado: o vencimento de exceção
-      # (DMPF-X006) muda com o tempo, sem mudança de código, e precisa reprovar em qualquer PR.
+      # GATE, fail-closed. O vencimento de exceção (DMPF-X006) muda sem diff: o
+      # govulncheck.yml agendado roda este gate todo dia, fora do escopo do PR.
       - name: DMPF conformance gate
+        if: steps.scope.outputs.conformance == 'true'
         run: go run "$DMPF_TOOLS/conformance$DMPF_TOOLS_VERSION" --root .
 
       # buf-breaking lê NX_BASE como baseline (contracts/README.md, "Gates e baseline"). Sem `test` nem
       # `vet` dos projetos Go: o `test-race` repete os pacotes do `test`, e o `govet` do golangci-lint é o `vet`.
       - name: Lint, typecheck, build, testes TypeScript e gates Buf
+        if: steps.scope.outputs.projects != ''
         run: |
           set -euo pipefail
           read -ra escopo <<<"$NX_SCOPE"
@@ -367,10 +374,11 @@ jobs:
             esperar redis 30 redis_responde
           fi
 
-      # Os providers com `test-race` sem cache reiniciam tabelas e criam tópicos e
+      # Os providers cujo `test-race` depende da infra reiniciam tabelas e criam tópicos e
       # filas na infra compartilhada do job, então correm um por vez. As apps
       # ganham banco (<projeto>_test_<id>) e tópicos próprios e correm em paralelo.
       - name: Testes com race detector e integração
+        if: steps.scope.outputs.projects != ''
         env:
           SERIAL: ${{ steps.scope.outputs.serial }}
         run: |
@@ -385,19 +393,19 @@ jobs:
           pnpm nx "${escopo[@]}" -t test-integration,e2e --parallel=1 --exclude="$NX_EXCLUDE"
 
       - name: Go vulnerabilities
-        if: inputs.full
-        run: pnpm nx run-many -t govulncheck --parallel=3 --exclude="$NX_EXCLUDE"
+        if: inputs.govulncheck && steps.scope.outputs.go == 'true'
+        run: |
+          read -ra escopo <<<"$NX_SCOPE"
+          pnpm nx "${escopo[@]}" -t govulncheck --parallel=3 --exclude="$NX_EXCLUDE"
 
-      # Sem `if` de projeto Go afetado: o artefato que esta prova mede é escrito
-      # pelo generator, e uma mudança só no TypeScript do plugin o altera.
       - name: DMPF generator check (structural)
-        if: inputs.platform
+        if: inputs.platform && steps.scope.outputs.generator == 'true'
         run: bash tools/dmpf-generator-check.sh --phase structural
 
       # A infra genérica, o .golangci.yml, os ativos de IA e o setup Go do platform
       # são saída do init: um dry-run que proponha mudança é divergência com os templates.
       - name: DMPF init sem diff no platform
-        if: inputs.platform
+        if: inputs.platform && steps.scope.outputs.init == 'true'
         run: |
           set -euo pipefail
           saida="$(pnpm nx g @mateusmacedo/dmpf-plugin:init --dry-run --no-interactive 2>&1)"
@@ -408,18 +416,18 @@ jobs:
           fi
 
       - name: Pins do versions.json iguais às fontes
-        if: inputs.platform
+        if: inputs.platform && steps.scope.outputs.versions == 'true'
         run: node tools/dmpf-plugin/scripts/sync-versions.mjs --check
 
       # O verificador de dashboards descarta fixtures com `trash`.
       - name: Instalar trash-cli
-        if: inputs.platform
+        if: inputs.platform && steps.scope.outputs.observability == 'true'
         run: |
           sudo apt-get update -q
           sudo apt-get install -y --no-install-recommends trash-cli
 
       - name: Grafana provisioning e OTel env
-        if: inputs.platform
+        if: inputs.platform && steps.scope.outputs.observability == 'true'
         run: |
           bash tools/grafana-provisioning-check.sh
           bash tools/otel-env-check.sh
@@ -498,35 +506,25 @@ jobs:
           main-branch-name: ${{ inputs.base || github.event.repository.default_branch }}
           fallback-sha: ${{ github.event.before }}
 
-      - name: Escopo do Nx
+      - name: Escopo do diff
         id: scope
-        env:
-          FULL: ${{ inputs.full }}
-        run: |
-          set -euo pipefail
-          if [ "$FULL" = true ]; then
-            show=()
-            echo "NX_SCOPE=run-many" >> "$GITHUB_ENV"
-          else
-            show=(--affected "--base=$NX_BASE" "--head=$NX_HEAD")
-            echo "NX_SCOPE=affected --base=$NX_BASE --head=$NX_HEAD" >> "$GITHUB_ENV"
-          fi
-          echo "go=$(pnpm --silent nx show projects "${show[@]}" --projects='tag:stack:go' --exclude="$NX_EXCLUDE" --json | jq 'length > 0')" >> "$GITHUB_OUTPUT"
+        uses: ./.dmpf-ci/.github/actions/dmpf-scope
 
       # Prova que o gate de dependência do bloco domain continua reprovando o
       # que deve reprovar; sem rodar, o vetor negativo não protege de regressão.
       - name: DMPF dependency gate (self-test)
-        if: steps.scope.outputs.go == 'true'
+        if: steps.scope.outputs.gate-check == 'true'
         run: bash "$DMPF_PLUGIN_DIR/scripts/dmpf-gate-check.sh"
 
       - name: Gates Buf (self-test)
+        if: steps.scope.outputs.projects != ''
         run: |
           read -ra escopo <<<"$NX_SCOPE"
           pnpm nx "${escopo[@]}" -t buf-gate-selftest --parallel=3 --exclude="$NX_EXCLUDE"
 
       # Os self-tests descartam fixtures com `trash`.
       - name: Instalar trash-cli
-        if: inputs.platform
+        if: inputs.platform && steps.scope.outputs.self-tests != ''
         run: |
           sudo apt-get update -q
           sudo apt-get install -y --no-install-recommends trash-cli
@@ -535,7 +533,9 @@ jobs:
       # o `--root .` exercitam enquanto não há consumidor do kernel (C2, DMPF-M004).
       # Cada prova monta a fixture no próprio diretório temporário ou worktree, então correm juntas.
       - name: Vetores negativos dos gates do platform (self-test)
-        if: inputs.platform
+        if: inputs.platform && steps.scope.outputs.self-tests != ''
+        env:
+          VETORES: ${{ steps.scope.outputs.self-tests }}
         run: |
           set -uo pipefail
           declare -A provas=(
@@ -548,8 +548,9 @@ jobs:
             # Com PG_DSN o harness acrescenta test-race e test-distributed num worktree,
             # que o job DMPF já cobre; sem ele, prova só que o gate normativo reprova.
             [harness]="env -u PG_DSN bash tools/dmpf-harness-check.sh --phase self-test"
+            [scope]="bash tools/dmpf-scope-check.sh --self-test"
           )
-          ordem=(cell shared-kernel generator context grafana otel harness)
+          read -ra ordem <<<"$VETORES"
           declare -A pids
           for prova in "${ordem[@]}"; do
             read -ra comando <<<"${provas[$prova]}"

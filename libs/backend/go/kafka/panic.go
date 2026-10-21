@@ -26,9 +26,13 @@ func (f *fault) record(recovered any) {
 	if recovered == nil {
 		return
 	}
+	f.trip(ErrPanicked)
+}
+
+func (f *fault) trip(err error) {
 	f.mu.Lock()
 	if f.err == nil {
-		f.err = ErrPanicked
+		f.err = err
 	}
 	abort := f.abort
 	f.mu.Unlock()

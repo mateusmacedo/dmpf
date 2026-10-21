@@ -6,9 +6,9 @@
       "value": 54
     },
     "uow-inbox-outbox.md": {
-      "line": 2447,
-      "pattern": "`registro` — \\*\\*74 regras com ID\\*\\*",
-      "value": 74
+      "line": 2456,
+      "pattern": "`registro` — \\*\\*75 regras com ID\\*\\*",
+      "value": 75
     },
     "cloudevents-protobuf-buf.md": {
       "line": 1921,
@@ -22,19 +22,19 @@
       "value": 131
     },
     "contexto-erros-seguranca.md": {
-      "line": 1796,
-      "pattern": "\\*\\*Total: 112 regras `normativo`\\.\\*\\*",
-      "value": 112
+      "line": 1817,
+      "pattern": "\\*\\*Total: 115 regras `normativo`\\.\\*\\*",
+      "value": 115
     },
     "resiliencia-observabilidade.md": {
-      "line": 2072,
-      "pattern": "`registro` — 121 regras `normativo`\\.",
-      "value": 121
+      "line": 2117,
+      "pattern": "`registro` — 126 regras `normativo`\\.",
+      "value": 126
     },
     "testes-interop.md": {
-      "line": 2666,
-      "pattern": "\\*\\*Total: 142 regras próprias: 141 `normativo` e uma `encaminhado`, `RAS-41`\\.\\*\\*",
-      "value": 142
+      "line": 2678,
+      "pattern": "\\*\\*Total: 143 regras próprias: 142 `normativo` e uma `encaminhado`, `RAS-41`\\.\\*\\*",
+      "value": 143
     },
     "governanca-bom-pilotos.md": {
       "line": 1758,

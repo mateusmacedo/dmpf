@@ -218,7 +218,9 @@ func runLoggedPurge(t *testing.T, role string, cfg app.PurgeConfig, fn app.Purge
 		time.Sleep(time.Millisecond)
 	}
 	stop()
-	<-done
+	if err := <-done; err != nil {
+		t.Fatalf("Run() = %v, want nil: stopping is not a failure", err)
+	}
 	if err := provider.Shutdown(context.Background()); err != nil {
 		t.Fatalf("Shutdown() = %v", err)
 	}
@@ -346,9 +348,10 @@ func TestThePurgeFunctionsRouteToTheirStatementWithItsValidation(t *testing.T) {
 		batch int
 		want  error
 	}{
-		"outbox without a batch":         {app.PurgeOutbox(nil), 0, postgres.ErrPurgeBatchRequired},
-		"command inbox without consumer": {app.PurgeCommandInbox(nil, ""), 10, postgres.ErrInboxConsumerRequired},
-		"message inbox without consumer": {app.PurgeMessageInbox(nil, ""), 10, postgres.ErrInboxConsumerRequired},
+		"outbox without a batch":          {app.PurgeOutbox(nil), 0, postgres.ErrPurgeBatchRequired},
+		"command inbox without consumer":  {app.PurgeCommandInbox(nil, ""), 10, postgres.ErrInboxConsumerRequired},
+		"message inbox without consumer":  {app.PurgeMessageInbox(nil, ""), 10, postgres.ErrInboxConsumerRequired},
+		"external attempts without batch": {app.PurgeExternalAttempts(nil), 0, postgres.ErrPurgeBatchRequired},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {

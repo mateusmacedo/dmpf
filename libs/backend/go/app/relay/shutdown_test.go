@@ -89,7 +89,9 @@ func TestShutdownWritesOnACleanupContextOfItsOwn(t *testing.T) {
 
 	<-publisher.entered
 	cancel()
-	<-done
+	if err := <-done; err != nil {
+		t.Fatalf("Run() = %v, want nil", err)
+	}
 
 	if store.cancelledWrites.Load() != 0 {
 		t.Fatalf("%d writes were attempted on the cancelled context", store.cancelledWrites.Load())
@@ -134,7 +136,9 @@ func TestShutdownStopsClaiming(t *testing.T) {
 
 	time.Sleep(30 * time.Millisecond)
 	cancel()
-	<-done
+	if err := <-done; err != nil {
+		t.Fatalf("Run() = %v, want nil", err)
+	}
 
 	settled := store.claims.Load()
 	time.Sleep(30 * time.Millisecond)
@@ -161,7 +165,9 @@ func TestShutdownFinishesWellInsideTheLease(t *testing.T) {
 	<-publisher.entered
 	start := time.Now()
 	cancel()
-	<-done
+	if err := <-done; err != nil {
+		t.Fatalf("Run() = %v, want nil", err)
+	}
 
 	if elapsed := time.Since(start); elapsed >= relay.Lease {
 		t.Fatalf("shutdown took %v, want well under the %v lease", elapsed, relay.Lease)

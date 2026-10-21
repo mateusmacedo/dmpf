@@ -19,6 +19,7 @@ const (
 	KeyRoute           = "http.route"
 	KeyRPCMethod       = "rpc.method"
 	KeyTenant          = tracing.KeyTenantID
+	KeyExternalClass   = tracing.KeyExternalClass
 )
 
 // KeyErrorCategory keeps the callers of the earlier vocabulary compiling.
@@ -93,6 +94,8 @@ func (l Labels) OutcomeCategory(value string) Labels { return l.with(KeyOutcomeC
 func (l Labels) Route(value string) Labels { return l.with(KeyRoute, value) }
 
 func (l Labels) RPCMethod(value string) Labels { return l.with(KeyRPCMethod, value) }
+
+func (l Labels) ExternalClass(value string) Labels { return l.with(KeyExternalClass, value) }
 
 // TenantWithin is the only way a tenant reaches a series: resolved against the
 // declared set, so anything outside it is recorded as OtherTenant (MET-07,

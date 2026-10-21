@@ -44,7 +44,7 @@ aprovar() { printf '  ok     %s\n' "$1"; }
 contextos() {
   local raiz="$1" caminho
   for caminho in "$raiz"/*/; do
-    [ -d "$caminho/domain" ] || continue
+    [[ -d "$caminho/domain" ]] || continue
     basename "$caminho"
   done
 }
@@ -53,8 +53,8 @@ contextos() {
 bordas() {
   local raiz="$1" caminho
   for caminho in "$raiz"/*/; do
-    [ -d "$caminho/domain" ] && continue
-    [ -f "$caminho/cmd/main.go" ] || continue
+    [[ -d "$caminho/domain" ]] && continue
+    [[ -f "$caminho/cmd/main.go" ]] || continue
     basename "$caminho"
   done
 }
@@ -95,7 +95,7 @@ PY
 
 exigir() {
   local caminho="$1" rotulo="$2"
-  if [ -e "$caminho" ]; then
+  if [[ -e "$caminho" ]]; then
     aprovar "$rotulo"
   else
     falhar "falta $rotulo"
@@ -104,7 +104,7 @@ exigir() {
 
 recusar() {
   local caminho="$1" rotulo="$2"
-  if [ -e "$caminho" ]; then
+  if [[ -e "$caminho" ]]; then
     falhar "$rotulo"
   else
     aprovar "sem $rotulo"
@@ -114,7 +114,7 @@ recusar() {
 raiz_sem_go() {
   local base="$1" ctx="$2" soltos
   soltos="$(find "$base" -maxdepth 1 -name '*.go' -printf '%f\n' 2>/dev/null)"
-  if [ -n "$soltos" ]; then
+  if [[ -n "$soltos" ]]; then
     falhar "$ctx: código Go solto na raiz ($(echo "$soltos" | tr '\n' ' '))"
   else
     aprovar "$ctx: raiz sem código de bloco"
@@ -166,8 +166,9 @@ verificar_borda() {
 }
 
 # verificar_ddl confere os nomes do DDL (ADR-053): nada com dmpf ou example, índice
-# `<tabela>_..._idx`, constraint `<tabela>_..._{pkey,key,check,fkey}`; num
-# contexto, os nomes das tabelas do kernel são proibidos.
+# `<tabela>_..._idx`, constraint `<tabela>_..._{pkey,key,check,fkey}` da tabela
+# do CREATE ou ALTER TABLE mais recente; num contexto, os nomes das tabelas do
+# kernel são proibidos.
 verificar_ddl() {
   local papel="$1"
   shift
@@ -188,8 +189,8 @@ for arquivo in arquivos:
     sql = re.sub(r'--[^\n]*', '', texto)
     tabela = None
     for token in re.finditer(
-        r'CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?"?(\w+)"?'
-        r'|CONSTRAINT\s+"?(\w+)"?'
+        r'(?:CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?|ALTER\s+TABLE\s+(?:IF\s+EXISTS\s+)?(?:ONLY\s+)?)"?(\w+)"?'
+        r'|\bCONSTRAINT\s+"?(\w+)"?'
         r'|CREATE\s+(?:UNIQUE\s+)?INDEX\s+(?:IF\s+NOT\s+EXISTS\s+)?"?(\w+)"?\s+ON\s+"?(\w+)"?',
         sql,
         re.IGNORECASE,
@@ -910,12 +911,12 @@ PY
 
 relatar() {
   local rotulo="$1" saida="$2" status="$3"
-  if [ "$status" -eq 0 ]; then
+  if [[ "$status" -eq 0 ]]; then
     aprovar "$rotulo"
     return
   fi
   while IFS= read -r linha; do
-    [ -n "$linha" ] && falhar "$linha"
+    [[ -n "$linha" ]] && falhar "$linha"
   done <<<"$saida"
 }
 
@@ -930,7 +931,7 @@ fase_estrutural() {
     verificar_contexto "$raiz/$ctx" "$ctx"
   done < <(contextos "$raiz")
 
-  if [ "$achou" -eq 0 ]; then
+  if [[ "$achou" -eq 0 ]]; then
     if [[ "$PERMITIR_VAZIO" -eq 1 ]]; then
       echo "nenhum bounded context em $raiz ainda: nada a verificar"
       return 0
@@ -946,7 +947,7 @@ fase_estrutural() {
 
   printf '\n== nomes no DDL ==\n'
   for ctx in "${ctxs[@]}"; do
-    [ -f "$raiz/$ctx/provider/schema.sql" ] || continue
+    [[ -f "$raiz/$ctx/provider/schema.sql" ]] || continue
     saida="$(verificar_ddl contexto "$raiz/$ctx/provider/schema.sql")"
     status=$?
     relatar "$ctx: DDL nos nomes canônicos" "$saida" "$status"
@@ -984,7 +985,7 @@ fase_estrutural() {
   status=$?
   relatar "banco e role com o nome da app (ou <app>_migrator no PG_MIGRATE_DSN), ou o par administrativo" "$saida" "$status"
 
-  if [ "$FALHAS" -gt 0 ]; then
+  if [[ "$FALHAS" -gt 0 ]]; then
     printf '\nGate de estrutura: REPROVADO com %d achado(s).\n' "$FALHAS" >&2
     return 1
   fi
@@ -997,10 +998,10 @@ fase_estrutural() {
 fase_contexto() {
   local base="$1" ctx saida status
   ctx="$(basename "$base")"
-  [ -d "$base/domain" ] || { echo "$base não é um bounded context (falta domain/)" >&2; return 2; }
+  [[ -d "$base/domain" ]] || { echo "$base não é um bounded context (falta domain/)" >&2; return 2; }
   printf '\n== %s ==\n' "$ctx"
   verificar_contexto "$base" "$ctx"
-  if [ -f "$base/provider/schema.sql" ]; then
+  if [[ -f "$base/provider/schema.sql" ]]; then
     saida="$(verificar_ddl contexto "$base/provider/schema.sql")"
     status=$?
     relatar "$ctx: DDL nos nomes canônicos" "$saida" "$status"
@@ -1014,7 +1015,7 @@ fase_contexto() {
   saida="$(verificar_plataforma "$base" "$ctx")"
   status=$?
   relatar "$ctx: leitura de plataforma e projeção só em provider/platform_*.go" "$saida" "$status"
-  if [ "$FALHAS" -gt 0 ]; then
+  if [[ "$FALHAS" -gt 0 ]]; then
     printf '\nGate de estrutura: REPROVADO com %d achado(s) em %s.\n' "$FALHAS" "$ctx" >&2
     return 1
   fi
@@ -1232,6 +1233,18 @@ GO
     unique-em-e-string)
       printf '%s\n' "COMMENT ON TABLE probes IS E'it\\'s unique';" >> "$ctx/provider/schema.sql"
       ;;
+    constraint-por-alter)
+      cat >> "$repo/$KERNEL_DDL/outbox.sql" <<'SQL'
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'outbox_id_check') THEN
+    ALTER TABLE outbox ADD CONSTRAINT outbox_id_check CHECK (id > 0) NOT VALID;
+  END IF;
+END
+$$;
+SQL
+      printf 'ALTER TABLE outbox VALIDATE CONSTRAINT outbox_id_check;\n' > "$repo/$KERNEL_DDL/outbox_validate.sql"
+      ;;
     dolar-solto-nao-ascii)
       printf 'SELECT $%s ;\n' "$(printf 'é%.0s' $(seq 40))" >> "$ctx/provider/schema.sql"
       ;;
@@ -1317,6 +1330,7 @@ sabotar() {
     tabela-do-kernel) printf 'CREATE TABLE IF NOT EXISTS outbox (id bigint);\n' >> "$ctx/provider/schema.sql" ;;
     indice-fora) sed -i 's/probes_probe_id_idx/idx_probe/' "$ctx/provider/schema.sql" ;;
     constraint-fora) sed -i 's/probes_pkey/pk_probes/' "$ctx/provider/schema.sql" ;;
+    constraint-fora-por-alter) printf 'ALTER TABLE outbox ADD CONSTRAINT ck_outbox CHECK (id > 0);\n' > "$repo/$KERNEL_DDL/outbox_check.sql" ;;
     kernel-prefixado) sed -i 's/outbox/dmpf_outbox/g' "$repo/$KERNEL_DDL/outbox.sql" ;;
     dsn-compartilhado) sed -i 's#@postgres:5432/probe#@postgres:5432/dmpf#' "$repo/infra/local/compose.yml" ;;
     postgres-db) sed -i 's/POSTGRES_DB: postgres/POSTGRES_DB: dmpf/' "$repo/infra/local/compose.yml" ;;
@@ -1426,7 +1440,7 @@ fase_self_test() {
   local -a variantes=(com-migrador com-migrador-chave-valor dois-contextos var-com-func-literal name-por-const name-por-bloco-const
     unique-em-comentario-sql unique-em-literal-sql url-em-string-go unique-em-dollar-quote unique-em-comentario-aninhado
     unique-em-identificador-citado unique-em-e-string unique-em-identificador-com-cifrao dolar-solto-nao-ascii particionada-sem-unique
-    coluna-chamada-inherit plataforma-em-platform-e-teste projetor-como-tipo-no-application plataforma-nos-kits)
+    coluna-chamada-inherit plataforma-em-platform-e-teste projetor-como-tipo-no-application plataforma-nos-kits constraint-por-alter)
   for variante in "${variantes[@]}"; do
     tmp="$(mktemp -d)" || return 2
     montar_fixture "$tmp"
@@ -1444,7 +1458,7 @@ fase_self_test() {
   local -a sabotagens=(
     sem-binario sem-appkit sem-distkit sem-rpc sem-config sem-wiring sem-schema
     com-http solto sem-target sem-unidade bff-sem-api bff-com-provider bff-sem-manifesto
-    tabela-prefixada tabela-example indice-example tabela-do-kernel indice-fora constraint-fora kernel-prefixado
+    tabela-prefixada tabela-example indice-example tabela-do-kernel indice-fora constraint-fora constraint-fora-por-alter kernel-prefixado
     dsn-compartilhado postgres-db init-incompleto ci-compartilhado
     manifesto-ausente manifesto-sem-banco dsn-no-deploy
     migrador-de-outra-app migrador-em-banco-alheio migrador-sem-app bloco-pela-role-do-migrador
@@ -1469,6 +1483,7 @@ fase_self_test() {
     [pguser-do-migrador]='a role probe_migrator só cabe no PG_MIGRATE_DSN, não em PGUSER'
     [secret-do-migrador-no-relay]='o Secret probe-migrator só cabe no Deployment probe-api, não em Deployment probe-relay'
     [migrador-fora-do-secret]='fora do Secret probe-migrator'
+    [constraint-fora-por-alter]='constraint ck_outbox fora de <tabela>_<colunas>_{pkey,key,check,fkey}'
     [unique-sem-declaracao]='constraint probes_tenant_id_label_key UNIQUE sem postgres.Unique de mesmo Name'
     [table-fora-dos-uniques]='probeTable declara Unique e falta em provider.Uniques'
     [unique-anonima-de-tabela]='UNIQUE sem nome na tabela probes'
@@ -1515,7 +1530,7 @@ fase_self_test() {
     trash "$tmp" >/dev/null 2>&1 || true
   done
 
-  if [ "$status" -ne 0 ]; then
+  if [[ "$status" -ne 0 ]]; then
     printf '\nAutoteste do gate: REPROVADO.\n' >&2
     return 1
   fi
@@ -1541,13 +1556,13 @@ FASE="structural"
 REPO="$ROOT"
 CONTEXTO=""
 PERMITIR_VAZIO=0
-while [ $# -gt 0 ]; do
+while [[ $# -gt 0 ]]; do
   case "$1" in
-    --phase) shift; FASE="${1:-}"; [ -n "$FASE" ] || { uso >&2; exit 2; } ;;
+    --phase) shift; FASE="${1:-}"; [[ -n "$FASE" ]] || { uso >&2; exit 2; } ;;
     --phase=*) FASE="${1#--phase=}" ;;
-    --root) shift; REPO="${1:-}"; [ -n "$REPO" ] || { uso >&2; exit 2; } ;;
+    --root) shift; REPO="${1:-}"; [[ -n "$REPO" ]] || { uso >&2; exit 2; } ;;
     --root=*) REPO="${1#--root=}" ;;
-    --context) shift; CONTEXTO="${1:-}"; [ -n "$CONTEXTO" ] || { uso >&2; exit 2; } ;;
+    --context) shift; CONTEXTO="${1:-}"; [[ -n "$CONTEXTO" ]] || { uso >&2; exit 2; } ;;
     --context=*) CONTEXTO="${1#--context=}" ;;
     --allow-empty) PERMITIR_VAZIO=1 ;;
     -h|--help) uso; exit 0 ;;
@@ -1558,7 +1573,7 @@ done
 
 case "$FASE" in
   structural)
-    if [ -n "$CONTEXTO" ]; then fase_contexto "$CONTEXTO"; else fase_estrutural "$REPO"; fi
+    if [[ -n "$CONTEXTO" ]]; then fase_contexto "$CONTEXTO"; else fase_estrutural "$REPO"; fi
     ;;
   self-test) fase_self_test ;;
   *) printf 'fase desconhecida: %s\n' "$FASE" >&2; uso >&2; exit 2 ;;

@@ -1140,6 +1140,27 @@ ela. Traduzir para `Unexpected` descarta a informação de que a falha é defini
 `ERR-11` então a classifica corretamente como não retentável — mas o chamador perde
 a razão, que era acionável.
 
+### §5.9 Desfecho de comando a parceiro externo
+
+`normativo` — bloco: `provider` de cliente do parceiro; `application service` que
+consome o desfecho. Decisão nova, registrada no
+[ADR-070](../adr/070-ciclo-de-comando-externo-de-saida.md).
+
+O parceiro externo é fronteira como a de §5.8, com uma diferença: o que importa ao
+consumidor não é só se a falha é definitiva, mas o que se sabe do **efeito** no
+parceiro. A classe de desfecho carrega esse conhecimento sem mudar o catálogo de
+§5.3.
+
+| ID | Regra |
+|----|-------|
+| `ERR-29` | O desfecho de um comando enviado a parceiro externo resolve para **exatamente uma** de nove classes fechadas: aceite, falha de transporte antes de o pedido chegar, parceiro indisponível ou limitando, rejeição final por validação, por regra de negócio ou por autorização, pedido enviado sem resposta, resposta não interpretável e resposta fora do contrato. Cada classe que não é aceite resolve para uma categoria de §5.3 e para uma retryability booleana (`ERR-01`, `ERR-09`), pela tabela do ADR-070; o aceite não é falha e não tem categoria |
+| `ERR-30` | O pedido enviado sem resposta resolve para categoria condicional — `DeadlineExceeded` quando o prazo da chamada expirou, `Unexpected` nos demais casos — e só é retentável quando o pedido levou a chave de saída e o perfil do parceiro declara semântica de chave `Native` ou `Header`: é o predicado decidível que `ERR-10` exige da categoria condicional. Sem ele, vale `ERR-11` |
+| `ERR-31` | O código do parceiro que a tabela do adaptador não lista resolve para resposta não interpretável, não retentável, nunca para classe retentável (`ERR-11`, `ERR-26`) |
+
+`registro` — O catálogo de §5.3 não ganha linha (`ERR-08`), e o diagnóstico de
+`ERR-18` mantém os seis elementos: o conhecimento do efeito vive na classe e no
+registro da tentativa, que são do provider e do kernel, não da projeção do erro.
+
 ---
 
 ## §6. Mapeamento por transporte
@@ -1788,12 +1809,12 @@ a RFC decidir o critério e mantém a story auditável.
 |---------|-------|-------|---------|----------------------|
 | `CTX` | `CTX-01` a `CTX-28` | §3 | contexto de execução: campos, autoria, transição, término, prazo, reconstrução | bloco — `app`, `application service`, `provider` |
 | `IDN` | `IDN-01` a `IDN-20` | §4 | entrada autenticada, autorização, isolamento por tenant, default-deny | bloco — `app`, `application service` |
-| `ERR` | `ERR-01` a `ERR-28` | §5 | taxonomia, retryability, código como contrato, diagnóstico, tradução | artefato e bloco |
+| `ERR` | `ERR-01` a `ERR-31` | §5 | taxonomia, retryability, código como contrato, diagnóstico, tradução, desfecho de parceiro externo | artefato e bloco |
 | `MAP` | `MAP-01` a `MAP-07` | §6 | mapeamento por transporte, nos dois eixos da mensageria | bloco — `app` |
 | `THR` | `THR-01` a `THR-03` | §7 | eixo *Denial of service* e o gate da revisão de Segurança | artefato e FND-08 |
 | `DAT` | `DAT-01` a `DAT-26` | §8 | classificação, minimização, cifra, acesso, retenção, `metadata`, redaction, baseline | contexto de negócio e plataforma |
 
-**Total: 112 regras `normativo`.** Os identificadores são contíguos por prefixo, sem
+**Total: 115 regras `normativo`.** Os identificadores são contíguos por prefixo, sem
 lacuna e sem repetição, e nenhuma citação neste documento aponta para regra
 inexistente.
 
@@ -1815,6 +1836,7 @@ entre `CTX` e `CTR`, ver a regra de desambiguação de §1.2.
 | FND-04, sob ANC-02 | `ERR-11` (fecha o placeholder de `INB-09`), `ERR-18` a `ERR-21` (`TX-4`), `MAP-04`, `MAP-05`, `DAT-08` a `DAT-18` | obrigação delegada, quitada |
 | FND-05, sob ANC-03 | `CTX-09`, `CTX-13`, `CTX-26`, `IDN-20`, `DAT-21` | obrigação delegada, quitada; a forma permanece na dona |
 | Decisão nova deste artefato | `CTX-14` a `CTX-17`, `CTX-24` a `CTX-28`, `IDN-16`, `IDN-17`, `IDN-19`, `ERR-22` a `ERR-28`, `DAT-08`, `DAT-14`, `THR-01` a `THR-03` | decisão própria, dentro do escopo da ANC-05 |
+| ADR-070, posterior à promoção | `ERR-29` a `ERR-31` | decisão nova, aditiva, dentro do escopo da ANC-05 |
 
 `normativo` — **Modo de verificação por grupo.** A classificação segue o vocabulário
 de RFC §14.5:
@@ -1824,7 +1846,7 @@ de RFC §14.5:
 | `CTX-02`, `CTX-03`, `CTX-05`, `IDN-10` | `import-verifiable` e `structurally reviewable` | inspeção de onde o contexto é montado, de onde ele é depositado no portador, e de que nenhum consumidor prossegue sem encontrá-lo; ausência de segunda fonte para o mesmo campo |
 | `CTX-06`, `CTX-07`, `CTX-11` a `CTX-13`, `IDN-01` a `IDN-08` | `structurally reviewable` | inspeção da borda: origem de cada valor e presença das duas verificações independentes |
 | `CTX-15` a `CTX-17`, `CTX-21`, `CTX-22`, `IDN-11` a `IDN-14` | `runtime-testable` | exigem execução: tempo de vida do contexto, respeito ao cancelamento, e o resultado fail-closed do isolamento |
-| `ERR-01` a `ERR-28`, `MAP-01` a `MAP-07` | `structurally reviewable`, com parte `runtime-testable` | o catálogo e o mapeamento se conferem por inspeção; a totalidade de `ERR-02` e o default de `ERR-11` exigem exercício das bordas |
+| `ERR-01` a `ERR-31`, `MAP-01` a `MAP-07` | `structurally reviewable`, com parte `runtime-testable` | o catálogo e o mapeamento se conferem por inspeção; a totalidade de `ERR-02` e o default de `ERR-11` exigem exercício das bordas |
 | `DAT-08`, `DAT-10`, `DAT-14` | `runtime-testable` por inspeção de superfície | abrir o armazenamento e verificar a pós-condição e a retenção efetiva |
 | `DAT-01` a `DAT-07`, `DAT-19` a `DAT-26` | `structurally reviewable` | inspeção da declaração de classificação e do conteúdo dos campos |
 

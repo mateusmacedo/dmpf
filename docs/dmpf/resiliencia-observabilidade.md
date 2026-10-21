@@ -202,7 +202,7 @@ artefato não a substituiu.
 | §10.9 Retry, DLQ e quarantine | `consolidação parcial proposta` em §4, §6 e §8 | Consolidada em FND-04 §7.4 quanto ao mecanismo e em FND-06 §11 e §12 quanto ao retry por transporte; vêm para cá a operação da DLQ e o runbook (`uow-inbox-outbox.md:230`; `politicas-transporte.md:189`) |
 | §10.10 Sagas e process managers | `consolidação parcial proposta` em §6 e §8 | Recepcionada em FND-04 §7.5; vêm para cá os timeouts observáveis, a telemetria e o replay assistido (`uow-inbox-outbox.md:231`) |
 | §12.1 — estágio `deadline/cancellation` | `vigente` na Parte-1, consolidado em FND-07 §3 | O FND-07 já a declarou consolidada; deste artefato vêm o **orçamento** e o **backoff** que aquele encaminhou (`contexto-erros-seguranca.md:313`), sem reabrir a subseção |
-| §12.1 — estágio `rate limit/idempotency` | `consolidação parcial proposta` em §3.5 | Apenas a metade de **rate limit**: `RES-16` e `RES-17` normatizam a admissão na borda, por rota e por tenant, antes de decode e validação — o conteúdo daquele estágio. A autorização vem de `THR-01` (`contexto-erros-seguranca.md:1380`), não da subseção, mas a substituição material ocorre e declará-la vigente por inteiro revogaria por silêncio. A metade **`idempotency` permanece vigente**, com FND-04 |
+| §12.1 — estágio `rate limit/idempotency` | `consolidação parcial proposta` em §3.5 | Apenas a metade de **rate limit**: `RES-16` e `RES-17` normatizam a admissão na borda, por rota e por tenant, antes de decode e validação — o conteúdo daquele estágio. A autorização vem de `THR-01` (`contexto-erros-seguranca.md:1401`), não da subseção, mas a substituição material ocorre e declará-la vigente por inteiro revogaria por silêncio. A metade **`idempotency` permanece vigente**, com FND-04 |
 | §12.3 Catálogo inicial de providers | `vigente` na Parte-1 | Não sucedida, embora nomeie «logger, tracer e meter» e exija «métricas e health indicators» de cada provider: aquilo é catálogo de provider, matéria de RFC §7 e dos épicos de kernel |
 | §17.1 Entregáveis da plataforma | `vigente` na Parte-1 | Não sucedida. A baseline daqui é insumo do entregável, não o entregável |
 
@@ -284,8 +284,8 @@ São 30 predicados, vindos dos cinco artefatos promovidos.
 | 18 | Telemetria derivada do contexto de trace: nome de span, atributo, amostragem, propagador configurado | `cloudevents-protobuf-buf.md:566`; `contexto-erros-seguranca.md:617-619` | `app`, `provider` | §5 | `quitada` |
 | 19 | **Orçamento** de retry | `contexto-erros-seguranca.md:224` | `application service` | §4.3 | `quitada` |
 | 20 | **Backoff** | `contexto-erros-seguranca.md:224` | `provider`, `app` | §4.4 | `quitada` |
-| 21 | **Limiares** de tentativa e de alarme sobre repetição | `contexto-erros-seguranca.md:224`, `:1380` | `provider`, operação | §4.4, §6.8 | `quitada` |
-| 22 | Políticas de **degradação** | `contexto-erros-seguranca.md:224`, `:1380` | `app`, `provider` | §4.5 | `quitada` |
+| 21 | **Limiares** de tentativa e de alarme sobre repetição | `contexto-erros-seguranca.md:224`, `:1401` | `provider`, operação | §4.4, §6.8 | `quitada` |
+| 22 | Políticas de **degradação** | `contexto-erros-seguranca.md:224`, `:1401` | `app`, `provider` | §4.5 | `quitada` |
 | 23 | **Política de retryability**: quantas vezes se tenta, com que espaçamento, sob qual orçamento, com qual limiar de alarme e qual runbook | `contexto-erros-seguranca.md:224`, `:231`, `:1035` | `application service`, `provider` | §4.2, §4.3, §8 | `quitada` |
 | 24 | Parte-1 §12.1, estágio `deadline/cancellation`: o orçamento e o backoff que o FND-07 encaminhou | `contexto-erros-seguranca.md:313` | `app`, `application service` | §3.2, §4.3 | `quitada` |
 | 25 | Parte-1 §12.1, estágio `tracing/metrics/logging`: a telemetria do pipeline de entrada | `contexto-erros-seguranca.md:315` | `app` | §5.2, §6.2, §7 | `quitada` |
@@ -304,10 +304,10 @@ e são citadas por `arquivo:linha` estável como as demais.
 
 `registro` — **O cluster do eixo *Denial of service* tem nove fontes
 convergentes.** Os predicados 21 e 22 recebem, além do encaminhamento genérico de
-`contexto-erros-seguranca.md:224`, o registro de `THR-01` (`:1380`) e a avaliação
-do eixo nos sete vetores do threat model daquele artefato (`:1301`, `:1314`,
-`:1323`, `:1338`, `:1348`, `:1359`, `:1371`), mais o índice de famílias que o
-declara partilhado entre artefato e FND-08 (`:1793`). Nenhum dos sete emite norma:
+`contexto-erros-seguranca.md:224`, o registro de `THR-01` (`:1401`) e a avaliação
+do eixo nos sete vetores do threat model daquele artefato (`:1322`, `:1335`,
+`:1344`, `:1359`, `:1369`, `:1380`, `:1392`), mais o índice de famílias que o
+declara partilhado entre artefato e FND-08 (`:1814`). Nenhum dos sete emite norma:
 todos registram que o eixo foi avaliado e que a mitigação é daqui. É o cluster com
 mais fontes de toda a cadeia, e é o que autoriza §3.5 a normatizar admissão e
 contenção de carga.
@@ -571,7 +571,7 @@ crescente sem limite é a forma mais eficiente de esgotar memória.
 emitiu. A autorização é literal: «nenhuma regra deste artefato normatiza limiar,
 orçamento, degradação, dimensionamento ou política de contenção de carga [...] a
 mitigação é `encaminhada` a FND-08 sob ANC-06»
-(`contexto-erros-seguranca.md:1380`).
+(`contexto-erros-seguranca.md:1401`).
 
 `normativo` `RES-15` — **O rate limit de saída é declarado por dependência, ou o
 motivo de não haver é declarado.** O limite protege a dependência de um cliente
@@ -805,6 +805,51 @@ apertar em algum caso concreto. `RES-40` existe para que o aperto seja resolvido
 por override registrado em vez de por exceção silenciosa — e para que a próxima
 revisão da baseline possa usar os overrides acumulados como evidência de que um
 default estava errado.
+
+### §4.6 Comando externo de saída
+
+`normativo` — blocos `application service`, `provider` e `app`. Decisão nova,
+registrada no [ADR-070](../adr/070-ciclo-de-comando-externo-de-saida.md). As
+seções anteriores dizem quando não repetir uma chamada de saída (`RES-25` a
+`RES-28`); esta diz o que fazer quando o efeito dela no parceiro é incerto. A
+classe de desfecho e a sua tradução ao catálogo são de FND-07 §5.9.
+
+`normativo` `RES-41` — bloco `application service`. **O desfecho incerto encerra
+o retry da chamada sem virar falha final.** Quando o retry de `RES-27` a `RES-33`
+termina com pedido enviado sem resposta, resposta não interpretável ou resposta
+fora do contrato, esse é o desfecho declarado que `RES-36` exige: o comando segue
+para consulta de estado, reconciliação ou suspensão, e nunca para sucesso ou
+falha final sem uma delas.
+
+`normativo` `RES-42` — bloco `application service`. **O reenvio posterior à
+chamada é operação nova e leva a mesma chave de saída.** Não é retry da chamada
+(`RES-34`): ocorre só depois de achado de ausência, passada a janela de
+quiescência do parceiro, ou de reconciliação, nunca pela retryability da classe
+(`RES-28`).
+
+`normativo` `RES-43` — blocos `application service` e `app`. **A espera pela
+consulta de estado, a espera pela reconciliação e a suspensão têm prazo e dono
+declarados** (`GAR-05`, `GAR-06`). Quem retoma uma suspensão, corrigido o
+contrato ou o adaptador, reentra com o desfecho como resposta não interpretável.
+
+`normativo` `RES-44` — blocos `provider` e `app`. **O perfil do parceiro é
+declaração própria, e não campo da ficha de `RES-21`.** Ele declara a
+semântica de chave, a eficácia do aceite, a janela de quiescência, a ausência
+autoritativa, o teto de consultas e o alfabeto e o comprimento da chave; atingido
+o teto de consultas, o comando vai à reconciliação.
+
+`normativo` `RES-45` — blocos `application service` e `provider`. **A intenção do
+comando externo percorre a outbox, e a chamada ao parceiro acontece fora da
+UoW.** É o modo `difere` de `RES-37`: a intenção commita com o caso de uso
+(`UOW-07`), e o handler do consumer faz a chamada sem transação aberta
+(`UOW-08`, `RES-34`).
+
+`rationale` — `Operation.EffectAbsent` responde só se o efeito com certeza não
+existe. Sem estas regras, o «talvez exista» não tinha desfecho: ou virava falha
+final e o efeito ficava órfão no parceiro, ou virava retry e o efeito se
+duplicava. O kernel não promete exactly-once com o parceiro (`GAR-01`); sem
+semântica de chave e sem consulta de estado, o ciclo detecta e reconcilia, não
+previne.
 
 ---
 
@@ -2002,7 +2047,7 @@ precisam ficar rastreáveis. As decisões de §12.4 satisfazem os dois.
 
 `registro` — **Sobre o precedente do FND-07.** Aquele artefato enfrentou o mesmo
 conflito com ADR-012 e ADR-013 e registrou a divergência como pendência, sem
-redigir nem aceitar ADR (`contexto-erros-seguranca.md:1756`). O precedente é de
+redigir nem aceitar ADR (`contexto-erros-seguranca.md:1777`). O precedente é de
 **escalonamento de conflito**, não de dispensa aceita: nada nele autoriza tratar
 «não redigir aqui» como «não acionar». Este artefato segue o precedente na parte
 que ele decidiu — não redigir — e resolve a parte que ele deixou aberta, acionando
@@ -2063,13 +2108,13 @@ ADR, não do gatilho de invariante.
 
 | Família | Faixa | Seções | Assunto | Sujeito |
 |---------|-------|--------|---------|---------|
-| `RES` | `RES-01` a `RES-40` | §1, §2, §3, §4 | Sujeito e fronteira; limites por dependência; retry, orçamento, backoff e degradação | `app`, `provider`, `application service` |
+| `RES` | `RES-01` a `RES-45` | §1, §2, §3, §4 | Sujeito e fronteira; limites por dependência; retry, orçamento, backoff e degradação; comando externo de saída | `app`, `provider`, `application service` |
 | `TRC` | `TRC-01` a `TRC-16` | §5 | Fluxos, spans, atributos, continuidade assíncrona, amostragem e redaction de trace | `app`, `provider` |
 | `MET` | `MET-01` a `MET-30`, com `MET-05a` | §6 | Convenção, catálogo por componente, limiar condicional e cardinalidade | `app`, `provider`, `application service` |
 | `LOG` | `LOG-01` a `LOG-14` | §7 | Formato, campos, redaction, severidade, amostragem e auditoria | `app`, `application service` |
 | `RUN` | `RUN-01` a `RUN-18`, com `RUN-11a` e `RUN-18a` | §8 | Runbook: DLQ, replay, backlog, poison, saga, encerramento e pressão | operação, com `app` nos gestos automatizáveis |
 
-`registro` — 121 regras `normativo`. Nenhuma tem `domain` ou `port` como sujeito,
+`registro` — 126 regras `normativo`. Nenhuma tem `domain` ou `port` como sujeito,
 o que é a verificação direta da invariante da âncora. Três recebem sufixo de letra
 — `MET-05a`, `RUN-11a` e `RUN-18a` — pela convenção que o FND-06 já usa em
 `SQS-08b`: a regra foi acrescentada entre duas existentes na revisão, e renumerar a

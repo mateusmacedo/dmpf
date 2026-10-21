@@ -1,8 +1,10 @@
 package dist_test
 
 import (
+	"errors"
 	"os/exec"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -61,5 +63,36 @@ func TestTheCleanupTerminatesAChildStillRunning(t *testing.T) {
 	case <-p.Done():
 	case <-time.After(30 * time.Second):
 		t.Fatal("the child outlived the test that supervised it")
+	}
+}
+
+func TestKillEndsAChildThatIgnoresTheTerminationSignal(t *testing.T) {
+	p := dist.Supervise(t, "stubborn", exec.Command("sh", "-c",
+		`trap "" TERM; echo ready; while :; do sleep 0.01; done`))
+	dist.WaitFor(t, "the child to ignore SIGTERM", 5*time.Second, func() bool {
+		return strings.Contains(p.Output(), "ready")
+	})
+
+	p.Kill()
+
+	select {
+	case <-p.Done():
+	default:
+		t.Fatal("Done() still open after Kill")
+	}
+	var exit *exec.ExitError
+	if !errors.As(p.Err(), &exit) || exit.Sys().(syscall.WaitStatus).Signal() != syscall.SIGKILL {
+		t.Fatalf("Err() = %v, want the child ended by SIGKILL", p.Err())
+	}
+}
+
+func TestKillOfAChildAlreadyGoneReturns(t *testing.T) {
+	p := dist.Supervise(t, "gone", exec.Command("true"))
+	<-p.Done()
+
+	p.Kill()
+
+	if p.Err() != nil {
+		t.Fatalf("Err() = %v, want the clean exit the child had before Kill", p.Err())
 	}
 }

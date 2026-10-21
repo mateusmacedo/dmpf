@@ -62,7 +62,7 @@ nao_publicar() { # dir pacote-relativo
 # PROJETO escolhem o módulo verificado (padrão: o do kernel, projeto contracts).
 gate() { # dir subcomando [NX_BASE]
   local dir="$1" sub="$2" base="${3-__unset__}" mod="${MODULO:-libs/backend/go/contracts}" proj="${PROJETO:-contracts}"
-  if [ "$base" = "__unset__" ]; then
+  if [[ "$base" = "__unset__" ]]; then
     (cd "$dir" && env -u DMPF_BUF_VERSION -u NX_BASE -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE bash tools/dmpf-plugin/scripts/buf-gate.sh "$sub" "$mod" --project "$proj")
   else
     (cd "$dir" && env -u DMPF_BUF_VERSION -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE NX_BASE="$base" bash tools/dmpf-plugin/scripts/buf-gate.sh "$sub" "$mod" --project "$proj")
@@ -74,12 +74,12 @@ gate() { # dir subcomando [NX_BASE]
 esperar() { # descricao esperado(0|1) status saida [trecho-esperado]
   local descricao="$1" esperado="$2" status="$3" saida="$4" trecho="${5:-REPROVADO:}"
   casos=$((casos + 1))
-  if [ "$esperado" -eq 0 ]; then
-    if [ "$status" -eq 0 ]; then echo "PASS  $descricao (liberou)"; return; fi
+  if [[ "$esperado" -eq 0 ]]; then
+    if [[ "$status" -eq 0 ]]; then echo "PASS  $descricao (liberou)"; return; fi
     echo "FAIL  $descricao: esperado exit 0, obtido $status"; echo "$saida" | tail -3 | sed 's/^/      /'
     falhas=$((falhas + 1)); return
   fi
-  if [ "$status" -ne 0 ] && echo "$saida" | grep -qF -- "$trecho"; then echo "PASS  $descricao (reprovou: $trecho)"; return; fi
+  if [[ "$status" -ne 0 ]] && echo "$saida" | grep -qF -- "$trecho"; then echo "PASS  $descricao (reprovou: $trecho)"; return; fi
   echo "FAIL  $descricao: esperado exit != 0 com '$trecho', obtido exit $status"; echo "$saida" | tail -3 | sed 's/^/      /'
   falhas=$((falhas + 1))
 }
@@ -87,7 +87,7 @@ esperar() { # descricao esperado(0|1) status saida [trecho-esperado]
 # Executa e passa (status, saida) para esperar sem perder nenhum dos dois.
 verificar() { # descricao esperado dir subcomando [NX_BASE] [trecho-esperado]
   local descricao="$1" esperado="$2" dir="$3" sub="$4" saida status
-  if [ $# -ge 5 ]; then saida="$(gate "$dir" "$sub" "$5" 2>&1)"; else saida="$(gate "$dir" "$sub" 2>&1)"; fi
+  if [[ $# -ge 5 ]]; then saida="$(gate "$dir" "$sub" "$5" 2>&1)"; else saida="$(gate "$dir" "$sub" 2>&1)"; fi
   status=$?
   esperar "$descricao" "$esperado" "$status" "$saida" "${6:-REPROVADO:}"
 }
@@ -214,8 +214,8 @@ echo "== uso =="
 S="$(novo_sandbox)"
 saida="$(cd "$S" && bash tools/dmpf-plugin/scripts/buf-gate.sh lint 2>&1)"; status=$?
 casos=$((casos + 1))
-if [ "$status" -eq 2 ]; then echo "PASS  gate sem diretorio do modulo sai com 2"; else echo "FAIL  gate sem diretorio: exit $status"; falhas=$((falhas + 1)); fi
+if [[ "$status" -eq 2 ]]; then echo "PASS  gate sem diretorio do modulo sai com 2"; else echo "FAIL  gate sem diretorio: exit $status"; falhas=$((falhas + 1)); fi
 
 echo
 echo "casos: $casos, falhas: $falhas"
-[ "$falhas" -eq 0 ]
+[[ "$falhas" -eq 0 ]]

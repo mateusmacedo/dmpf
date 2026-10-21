@@ -579,7 +579,7 @@ func migratorWithoutTaggedProbes(t *testing.T, admin *pgxpool.Pool) *pgxpool.Poo
 	ensureRole(t, admin, grantsRuntime, safeRuntime)
 	ensureRole(t, admin, migrator, safeRuntime)
 	ensureRole(t, admin, stranger, "NOLOGIN")
-	for _, table := range []string{"outbox", "inbox", "quarantine", "probes", "unique_probes", "guarded_heads", "guarded_series"} {
+	for _, table := range []string{"outbox", "inbox", "quarantine", "external_attempt", "probes", "unique_probes", "guarded_heads", "guarded_series"} {
 		mustExec(t, admin, "ALTER TABLE "+table+" OWNER TO "+migrator)
 	}
 	mustExec(t, admin, "ALTER TABLE tagged_probes OWNER TO "+stranger)

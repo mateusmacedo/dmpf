@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"math"
 	"sync"
 	"testing"
 	"time"
@@ -86,6 +87,7 @@ func newConsumer(sink kafka.Sink) *kafka.Consumer {
 	cfg := publishConfig()
 	cfg.Clock = clock.System()
 	cfg.Rand = func() float64 { return 0 }
+	cfg.RevokeGrace = time.Second
 	return &kafka.Consumer{
 		Config:             cfg,
 		Channel:            ordersChannel(),
@@ -140,6 +142,8 @@ func TestConsumerValidate(t *testing.T) {
 		"no queue":                     func(c *kafka.Consumer) { c.QueuePerPartition = 0 },
 		"deadline not below rebalance": func(c *kafka.Consumer) { c.ProcessingDeadline = c.RebalanceTimeout },
 		"no backoff":                   func(c *kafka.Consumer) { c.Backoff = retry.Backoff{} },
+		"no revoke grace":              func(c *kafka.Consumer) { c.Config.RevokeGrace = 0 },
+		"grace reaches the rebalance":  func(c *kafka.Consumer) { c.Config.RevokeGrace = c.RebalanceTimeout - c.ProcessingDeadline },
 		"not kafka":                    func(c *kafka.Consumer) { c.Channel = sqsChannel() },
 	}
 	for name, mutate := range cases {
@@ -153,6 +157,29 @@ func TestConsumerValidate(t *testing.T) {
 	}
 	if err := newConsumer(newSink()).Validate(); err != nil {
 		t.Fatalf("Validate() = %v, want nil", err)
+	}
+}
+
+func TestConsumerValidateFitsTheRevokeGraceInsideTheRebalance(t *testing.T) {
+	cases := map[string]struct {
+		grace time.Duration
+		want  error
+	}{
+		"no grace":                 {0, kafka.ErrIncompleteConsumer},
+		"negative grace":           {-time.Second, kafka.ErrIncompleteConsumer},
+		"deadline plus grace":      {8 * time.Second, kafka.ErrIncompleteConsumer},
+		"beyond the rebalance":     {9 * time.Second, kafka.ErrIncompleteConsumer},
+		"just below the rebalance": {8*time.Second - time.Millisecond, nil},
+		"sum overflows":            {math.MaxInt64, kafka.ErrIncompleteConsumer},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			c := newConsumer(newSink())
+			c.Config.RevokeGrace = tc.grace
+			if err := c.Validate(); !errors.Is(err, tc.want) {
+				t.Fatalf("Validate() with deadline %v, grace %v, rebalance %v = %v, want %v", c.ProcessingDeadline, tc.grace, c.RebalanceTimeout, err, tc.want)
+			}
+		})
 	}
 }
 
@@ -207,7 +234,9 @@ func TestARecordWithoutGestureStallsThePartitionAndFixesTheCommitCeiling(t *test
 		t.Fatal("the stalled partition is not paused")
 	}
 	cancel()
-	<-done
+	if err := <-done; !errors.Is(err, context.Canceled) {
+		t.Fatalf("Run() = %v, want context.Canceled", err)
+	}
 
 	if got := commits(fake); len(got) != 1 || got[0] != 0 {
 		t.Fatalf("commits = %v, want only the record 0: 1 is pending and fixes the ceiling (TRP-29)", got)
@@ -339,7 +368,9 @@ func TestRevocationCancelsTheAttemptAndKeepsTheContiguousCommit(t *testing.T) {
 		t.Fatalf("workers = %d after revocation, want 0", c.Workers())
 	}
 	cancel()
-	<-done
+	if err := <-done; !errors.Is(err, context.Canceled) {
+		t.Fatalf("Run() = %v, want context.Canceled", err)
+	}
 }
 
 func TestTwoBatchesOfOnePartitionShareOneWorkerInOrder(t *testing.T) {
@@ -392,7 +423,9 @@ func TestRevocationLiftsTheFetchPauseOfAStalledPartition(t *testing.T) {
 		t.Fatalf("paused after revocation = %v, want none: kgo keeps the pause across rebalances", paused)
 	}
 	cancel()
-	<-done
+	if err := <-done; !errors.Is(err, context.Canceled) {
+		t.Fatalf("Run() = %v, want context.Canceled", err)
+	}
 }
 
 func TestRevocationDoesNotDrainTheQueueThroughTheSink(t *testing.T) {
@@ -429,7 +462,9 @@ func TestRevocationDoesNotDrainTheQueueThroughTheSink(t *testing.T) {
 		t.Fatalf("the sink ran %d times after revocation, want 1: the queue is not drained through it", n)
 	}
 	cancel()
-	<-done
+	if err := <-done; !errors.Is(err, context.Canceled) {
+		t.Fatalf("Run() = %v, want context.Canceled", err)
+	}
 }
 
 func TestAnAssignmentBeforeRunHasAClientAndAMap(t *testing.T) {

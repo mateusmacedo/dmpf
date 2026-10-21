@@ -111,6 +111,7 @@ func childConfig(t *testing.T) (kafka.Config, channel.Channel) {
 		Catalog:                    channel.Catalog{ch.Name: ch},
 		Sheet:                      resilience.Defaults("kafka"),
 		Clock:                      obsclock.System(),
+		RevokeGrace:                10 * time.Second,
 	}
 	if err := cfg.Validate(); err != nil {
 		t.Fatalf("distkit: config: %v", err)

@@ -40,8 +40,16 @@
     },
     "test-race": {
       "executor": "@mateusmacedo/dmpf-plugin:test-env",
-      "cache": false,
-      "inputs": ["go", "^go"],
+      "cache": true,
+      "inputs": [
+        "go",
+        "^go",
+        "{workspaceRoot}/apps/backend/reservations/deploy/.env.example",
+        "{workspaceRoot}/infra/test/compose.yml",
+        "{workspaceRoot}/.env.example",
+        "{workspaceRoot}/tools/dmpf-plugin/scripts/test-env.sh",
+        { "env": "CI" }
+      ],
       "options": {
         "command": "go test -race -count=1 -p 1 -tags=integration ./..."
       },
@@ -62,8 +70,15 @@
     },
     "test-distributed": {
       "executor": "@mateusmacedo/dmpf-plugin:test-env",
-      "cache": false,
-      "inputs": ["go", "^go"],
+      "cache": true,
+      "inputs": [
+        "go",
+        "^go",
+        "{workspaceRoot}/infra/test/compose.yml",
+        "{workspaceRoot}/.env.example",
+        "{workspaceRoot}/tools/dmpf-plugin/scripts/test-env.sh",
+        { "env": "CI" }
+      ],
       "dependsOn": [
         {
           "projects": ["testkit"],
@@ -81,8 +96,15 @@
     },
     "e2e": {
       "executor": "@mateusmacedo/dmpf-plugin:test-env",
-      "cache": false,
-      "inputs": ["go", "^go"],
+      "cache": true,
+      "inputs": [
+        "go",
+        "^go",
+        "{workspaceRoot}/infra/test/compose.yml",
+        "{workspaceRoot}/.env.example",
+        "{workspaceRoot}/tools/dmpf-plugin/scripts/test-env.sh",
+        { "env": "CI" }
+      ],
       "dependsOn": [
         {
           "projects": ["testkit"],
