@@ -166,8 +166,9 @@ verificar_borda() {
 }
 
 # verificar_ddl confere os nomes do DDL (ADR-053): nada com dmpf ou example, índice
-# `<tabela>_..._idx`, constraint `<tabela>_..._{pkey,key,check,fkey}`; num
-# contexto, os nomes das tabelas do kernel são proibidos.
+# `<tabela>_..._idx`, constraint `<tabela>_..._{pkey,key,check,fkey}` da tabela
+# do CREATE ou ALTER TABLE mais recente; num contexto, os nomes das tabelas do
+# kernel são proibidos.
 verificar_ddl() {
   local papel="$1"
   shift
@@ -188,8 +189,8 @@ for arquivo in arquivos:
     sql = re.sub(r'--[^\n]*', '', texto)
     tabela = None
     for token in re.finditer(
-        r'CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?"?(\w+)"?'
-        r'|CONSTRAINT\s+"?(\w+)"?'
+        r'(?:CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?|ALTER\s+TABLE\s+(?:IF\s+EXISTS\s+)?(?:ONLY\s+)?)"?(\w+)"?'
+        r'|\bCONSTRAINT\s+"?(\w+)"?'
         r'|CREATE\s+(?:UNIQUE\s+)?INDEX\s+(?:IF\s+NOT\s+EXISTS\s+)?"?(\w+)"?\s+ON\s+"?(\w+)"?',
         sql,
         re.IGNORECASE,
@@ -1232,6 +1233,18 @@ GO
     unique-em-e-string)
       printf '%s\n' "COMMENT ON TABLE probes IS E'it\\'s unique';" >> "$ctx/provider/schema.sql"
       ;;
+    constraint-por-alter)
+      cat >> "$repo/$KERNEL_DDL/outbox.sql" <<'SQL'
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'outbox_id_check') THEN
+    ALTER TABLE outbox ADD CONSTRAINT outbox_id_check CHECK (id > 0) NOT VALID;
+  END IF;
+END
+$$;
+SQL
+      printf 'ALTER TABLE outbox VALIDATE CONSTRAINT outbox_id_check;\n' > "$repo/$KERNEL_DDL/outbox_validate.sql"
+      ;;
     dolar-solto-nao-ascii)
       printf 'SELECT $%s ;\n' "$(printf 'é%.0s' $(seq 40))" >> "$ctx/provider/schema.sql"
       ;;
@@ -1317,6 +1330,7 @@ sabotar() {
     tabela-do-kernel) printf 'CREATE TABLE IF NOT EXISTS outbox (id bigint);\n' >> "$ctx/provider/schema.sql" ;;
     indice-fora) sed -i 's/probes_probe_id_idx/idx_probe/' "$ctx/provider/schema.sql" ;;
     constraint-fora) sed -i 's/probes_pkey/pk_probes/' "$ctx/provider/schema.sql" ;;
+    constraint-fora-por-alter) printf 'ALTER TABLE outbox ADD CONSTRAINT ck_outbox CHECK (id > 0);\n' > "$repo/$KERNEL_DDL/outbox_check.sql" ;;
     kernel-prefixado) sed -i 's/outbox/dmpf_outbox/g' "$repo/$KERNEL_DDL/outbox.sql" ;;
     dsn-compartilhado) sed -i 's#@postgres:5432/probe#@postgres:5432/dmpf#' "$repo/infra/local/compose.yml" ;;
     postgres-db) sed -i 's/POSTGRES_DB: postgres/POSTGRES_DB: dmpf/' "$repo/infra/local/compose.yml" ;;
@@ -1426,7 +1440,7 @@ fase_self_test() {
   local -a variantes=(com-migrador com-migrador-chave-valor dois-contextos var-com-func-literal name-por-const name-por-bloco-const
     unique-em-comentario-sql unique-em-literal-sql url-em-string-go unique-em-dollar-quote unique-em-comentario-aninhado
     unique-em-identificador-citado unique-em-e-string unique-em-identificador-com-cifrao dolar-solto-nao-ascii particionada-sem-unique
-    coluna-chamada-inherit plataforma-em-platform-e-teste projetor-como-tipo-no-application plataforma-nos-kits)
+    coluna-chamada-inherit plataforma-em-platform-e-teste projetor-como-tipo-no-application plataforma-nos-kits constraint-por-alter)
   for variante in "${variantes[@]}"; do
     tmp="$(mktemp -d)" || return 2
     montar_fixture "$tmp"
@@ -1444,7 +1458,7 @@ fase_self_test() {
   local -a sabotagens=(
     sem-binario sem-appkit sem-distkit sem-rpc sem-config sem-wiring sem-schema
     com-http solto sem-target sem-unidade bff-sem-api bff-com-provider bff-sem-manifesto
-    tabela-prefixada tabela-example indice-example tabela-do-kernel indice-fora constraint-fora kernel-prefixado
+    tabela-prefixada tabela-example indice-example tabela-do-kernel indice-fora constraint-fora constraint-fora-por-alter kernel-prefixado
     dsn-compartilhado postgres-db init-incompleto ci-compartilhado
     manifesto-ausente manifesto-sem-banco dsn-no-deploy
     migrador-de-outra-app migrador-em-banco-alheio migrador-sem-app bloco-pela-role-do-migrador
@@ -1469,6 +1483,7 @@ fase_self_test() {
     [pguser-do-migrador]='a role probe_migrator só cabe no PG_MIGRATE_DSN, não em PGUSER'
     [secret-do-migrador-no-relay]='o Secret probe-migrator só cabe no Deployment probe-api, não em Deployment probe-relay'
     [migrador-fora-do-secret]='fora do Secret probe-migrator'
+    [constraint-fora-por-alter]='constraint ck_outbox fora de <tabela>_<colunas>_{pkey,key,check,fkey}'
     [unique-sem-declaracao]='constraint probes_tenant_id_label_key UNIQUE sem postgres.Unique de mesmo Name'
     [table-fora-dos-uniques]='probeTable declara Unique e falta em provider.Uniques'
     [unique-anonima-de-tabela]='UNIQUE sem nome na tabela probes'
