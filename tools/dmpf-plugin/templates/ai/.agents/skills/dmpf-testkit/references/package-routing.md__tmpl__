@@ -10,11 +10,14 @@ assinaturas no código atual antes de implementar.
 | UPR, agregado, resposta, rejeição, eventos e estado | `domainkit` | projeção observável e determinismo |
 | Caso de uso e fronteira transacional | `serviceskit` | ledger de UoW, escrita, outbox e commit |
 | Realização de UoW, Inbox ou Outbox | `providerkit` | suíte de conformidade parametrizada |
+| Parceiro externo de requisição e resposta num teste | `serviceskit.Partner` | roteiro por chave e tentativa, chaves recebidas |
+| Ledger de tentativas ou tabela de adaptador `ExternalCommand` | `providerkit` (`AttemptLedger`, `ExternalCommand`) | serialização na chave, retenção, teto e classe declarada |
 | Contrato Protobuf/CloudEvents e bytes canônicos | `golden` | duas direções e três oráculos |
 | Tempo, IDs e ordenação determinísticos | `clock`, `ids`, `stable` | seam controlável e comparação estável |
 | Consumer adapter até Postgres e gesto do broker | `appkit` (`<%- src('apps/backend/reservations') %>`) | efeitos persistidos e Ack após commit |
 | Redelivery com broker e isolamento real | `distkit` (`<%- src('apps/backend/reservations') %>`) sobre `tb/dist` | processos OS e `DMPF-R004` |
 | Supervisão de processos, harness por papel e vetor do relay | `tb/dist` | `DMPF-P001` a `DMPF-P003` |
+| Processo morto entre `Begin` e `Finish` de um comando externo | `tb/dist` | `DMPF-A001` a `DMPF-A003` |
 | Contexto de execução de teste | `tb/execctx` | subject, tenant, chave e deadline sem fixture local |
 | Caso de uso de referência para testar as libs | `tb/reference` | `CounterService` sobre a UoW real |
 | Telemetria de teste e degradação do exportador | `obstest` | manifesto por papel, coletor OTLP e coletores de falha |
@@ -53,7 +56,11 @@ Autoridade de API:
 - `serviceskit/faults.go`: `Faults`, `FaultyRepository` e `FaultyOutbox`;
 - `serviceskit/ledger.go`: gestos, posições e `Count`;
 - `serviceskit/verdict.go`: `Decide` e `Expect`;
-- `serviceskit/verdict_test.go`: composição do service real e vetores negativos.
+- `serviceskit/verdict_test.go`: composição do service real e vetores negativos;
+- `serviceskit/partner.go`: `NewPartner`, `Script`, `ScriptQuery`, `Reply`,
+  `Answer`, `LostAfterEffect`, `DuplicateNotification`, `WithoutQuery`,
+  `QueryAvailable`, `Submitted`, `Queried` e `Exhausted` — o parceiro de um comando externo
+  (`KIT-12`), que realiza `ports.ExternalCommand` e `ports.ExternalState`.
 
 Execute o application service real sobre `Fakes.UnitOfWork`. Para uma recusa,
 estabeleça o baseline imediatamente antes do comando recusado; do contrário o
@@ -70,6 +77,11 @@ carga, `Save` e `Enqueue` por `Faults`, e de registro por `FailRegister`. Os
 moldes são o `doubles_test.go` de `<%- appsDir %>/{orders,bookings}/application` e o
 `sync_doubles_test.go` de `<%- src('apps/backend/reservations/application') %>`.
 
+Para um comando externo, roteirize o `Partner` por chave e por tentativa e
+prove o reenvio pela lista `Submitted`: a mesma `OutboundKey` em toda tentativa.
+Roteiro esgotado devolve `ErrScriptExhausted` e entra em `Exhausted`; confira
+que ela fica vazia. O molde é `<%- src('libs/backend/go/testkit/tb/reference/external_partner_cycle_test.go') %>`.
+
 ## `providerkit`
 
 Autoridade de API:
@@ -84,6 +96,12 @@ Autoridade de API:
   criação e na atualização, isolamento por tenant, transação utilizável depois
   da violação, guarda de escrita anterior, criações concorrentes e a mesma
   identidade como conflito de versão;
+- `providerkit/attempt_ledger.go`: `AttemptLedgerSubject` e `AttemptLedger`,
+  com serialização na chave, retenção só de tentativa encerrada e o teto de
+  `ports.MaxAttemptEntries` (`ObserveSaturated`, `FinishSaturated`);
+- `providerkit/external_command.go`: `ExternalCommandSubject` e
+  `ExternalCommand`, que certificam a tabela de um adaptador: cada código
+  declarado cai na classe declarada e o desconhecido em `ClassUnknownAmbiguous`;
 - `providerkit/memory.go`: candidatos em memória (`MemoryUnitOfWork`,
   `MemoryInbox`), usados também por `memory/conformance_test.go`;
 - `postgres/conformance_test.go`: candidato Postgres;
@@ -149,8 +167,10 @@ no molde deste, sobre `tb`, `tb/pg`, `clock` e `ids` do kit.
 Autoridade de API:
 
 - `<%- src('libs/backend/go/testkit/tb/dist') %>`: `Supervise` e `Process`, `Spec`, `RunRole`,
-  `Harness`, `CreateTopics`, `WaitFor` e o vetor do relay (`RelayVector`,
-  `DecideRelay`);
+  `Harness`, `CreateTopics`, `WaitFor`, o vetor do relay (`RelayVector`,
+  `DecideRelay`) e o da tentativa externa interrompida (`Process.Kill`,
+  `NewPostgres`, `CrashBetweenBeginAndFinishVector`, `DecideCrash`,
+  `DMPF-A001` a `DMPF-A003`), rodado por `testkit:test-distributed`;
 - `<%- src('apps/backend/reservations/distkit/harness.go') %>`: `New`, o `Spec` e o `RelaySpec` do contexto;
 - `<%- src('apps/backend/reservations/distkit/roles.go') %>`: papéis filhos;
 - `<%- src('apps/backend/reservations/distkit/verdict.go') %>`: plano, efeitos e `DMPF-R004`;
