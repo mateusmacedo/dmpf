@@ -44,3 +44,13 @@ func TestInboxConformsToTheKit(t *testing.T) {
 		t.Fatalf("skipped = %v, want exactly the concurrency clause", v.Skipped)
 	}
 }
+
+func TestAttemptLedgerConformsToTheKit(t *testing.T) {
+	v := providerkit.AttemptLedger(func() providerkit.AttemptLedgerSubject {
+		return providerkit.AttemptLedgerSubject{Ledger: memory.NewAttemptStore(memory.New())}
+	})
+	tb.Require(t, v)
+	if len(v.Skipped) != 1 {
+		t.Fatalf("skipped = %v, want exactly the purge clause: memory keeps no retention", v.Skipped)
+	}
+}

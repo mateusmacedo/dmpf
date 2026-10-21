@@ -34,6 +34,10 @@ type attemptRow struct {
 	conflicts   []attemptConflict
 }
 
+func (r attemptRow) saturated() bool {
+	return len(r.seen) >= ports.MaxAttemptEntries || len(r.conflicts) >= ports.MaxAttemptEntries
+}
+
 func cloneAttempts(src map[attemptKey][]attemptRow) map[attemptKey][]attemptRow {
 	out := make(map[attemptKey][]attemptRow, len(src))
 	for key, rows := range src {
@@ -116,6 +120,8 @@ func (l txAttemptLedger) Finish(ctx context.Context, o ports.AttemptOutcome) (po
 		return ports.Finished{Result: ports.FinishRecorded, Recorded: o.Class}, nil
 	case row.class == o.Class || o.Presumed:
 		return ports.Finished{Result: ports.FinishUnchanged, Recorded: row.class}, nil
+	case row.saturated():
+		return ports.Finished{Result: ports.FinishSaturated, Recorded: row.class}, nil
 	default:
 		row.conflicts = append(row.conflicts, attemptConflict{class: o.Class, at: o.FinishedAt})
 		return ports.Finished{Result: ports.FinishConflict, Recorded: row.class}, nil
@@ -144,7 +150,17 @@ func (l txAttemptLedger) Observe(ctx context.Context, o ports.Observation, now p
 		observed.Result = ports.ObserveDuplicate
 		return observed, nil
 	}
-	last.seen = append(last.seen, o.ID)
+	full := last.saturated()
+	switch {
+	case full && terminal(last.finding) && o.Finding == last.finding:
+		observed.Result = ports.ObserveDuplicate
+		return observed, nil
+	case full && (terminal(last.finding) || !terminal(o.Finding)):
+		observed.Result = ports.ObserveSaturated
+		return observed, nil
+	case !full:
+		last.seen = append(last.seen, o.ID)
+	}
 	if terminal(last.finding) {
 		if !terminal(o.Finding) || o.Finding == last.finding {
 			observed.Result = ports.ObserveDuplicate

@@ -235,6 +235,16 @@ func (s *Store) AttemptConflicts(tenant ports.TenantID, key ports.OutboundKey) i
 	return n
 }
 
+func (s *Store) AttemptObservationIDs(tenant ports.TenantID, key ports.OutboundKey) int {
+	s.dataMu.Lock()
+	defer s.dataMu.Unlock()
+	n := 0
+	for _, row := range s.attempts[attemptKey{tenant: tenant, key: key}] {
+		n += len(row.seen)
+	}
+	return n
+}
+
 // Entries copies the committed outbox, for inspection by tests.
 func (s *Store) Entries() []ports.OutboxEntry {
 	s.dataMu.Lock()

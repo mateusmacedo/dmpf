@@ -3,6 +3,7 @@ package memory_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"sync"
 	"testing"
@@ -738,6 +739,155 @@ func TestAttemptLedgerInTheTransactionCommitsOrRollsBackWithIt(t *testing.T) {
 			}
 			if got := viewStart(start); got != tt.wantStarted {
 				t.Fatalf("Begin() after the transaction = %+v, want %+v", got, tt.wantStarted)
+			}
+		})
+	}
+}
+
+func (f ledgerFixture) fillObservations(t *testing.T) {
+	t.Helper()
+	f.begin(t, f.a, keyX, 10)
+	f.finish(t, f.a, outcome(1, ports.ClassUnknownSent))
+	for i := range ports.MaxAttemptEntries {
+		got, err := f.ledger.Observe(f.a, observation(fmt.Sprintf("o-%d", i), ports.FindingPending), 500)
+		if err != nil || got.Result != ports.ObserveRecorded {
+			t.Fatalf("Observe(o-%d) = %+v, %v; want recorded up to the cap", i, got, err)
+		}
+	}
+}
+
+func (f ledgerFixture) fillConflicts(t *testing.T) {
+	t.Helper()
+	f.begin(t, f.a, keyX, 10)
+	f.finish(t, f.a, outcome(1, ports.ClassUnknownSent))
+	for i := range ports.MaxAttemptEntries {
+		got, err := f.ledger.Finish(f.a, outcome(1, ports.ClassAccepted))
+		if err != nil || got.Result != ports.FinishConflict {
+			t.Fatalf("Finish() #%d = %+v, %v; want a conflict up to the cap", i, got, err)
+		}
+	}
+}
+
+func TestAttemptLedgerSaturation(t *testing.T) {
+	type call struct {
+		finish  *ports.AttemptOutcome
+		observe ports.Observation
+	}
+	finishing := func(o ports.AttemptOutcome) call { return call{finish: &o} }
+	observing := func(o ports.Observation) call { return call{observe: o} }
+	full := ports.MaxAttemptEntries
+	tests := []struct {
+		name          string
+		fill          func(ledgerFixture, *testing.T)
+		calls         []call
+		want          []any
+		wantConflicts int
+		wantSeen      int
+	}{
+		{
+			name:     "a pending observation on a row full of IDs is saturated and stays unseen",
+			fill:     ledgerFixture.fillObservations,
+			calls:    []call{observing(observation("o-new", ports.FindingPending)), observing(observation("o-new", ports.FindingPending))},
+			want:     []any{ports.Observed{Result: ports.ObserveSaturated, N: 1, Class: ports.ClassUnknownSent, QueriesDone: full}, ports.Observed{Result: ports.ObserveSaturated, N: 1, Class: ports.ClassUnknownSent, QueriesDone: full}},
+			wantSeen: full,
+		},
+		{
+			name:  "a terminal finding on a row full of IDs with none terminal yet is applied without its ID",
+			fill:  ledgerFixture.fillObservations,
+			calls: []call{observing(observation("o-new", ports.FindingApplied)), observing(observation("o-new", ports.FindingApplied))},
+			want: []any{
+				ports.Observed{Result: ports.ObserveRecorded, N: 1, Class: ports.ClassUnknownSent, QueriesDone: full + 1},
+				ports.Observed{Result: ports.ObserveDuplicate, N: 1, Class: ports.ClassUnknownSent, QueriesDone: full + 1},
+			},
+			wantSeen: full,
+		},
+		{
+			name: "once a full row holds a terminal, another terminal is saturated and the same one a duplicate",
+			fill: ledgerFixture.fillObservations,
+			calls: []call{
+				observing(observation("o-new", ports.FindingApplied)),
+				observing(observation("o-other", ports.FindingRejected)),
+				observing(observation("o-again", ports.FindingApplied)),
+				observing(observation("o-late", ports.FindingPending)),
+			},
+			want: []any{
+				ports.Observed{Result: ports.ObserveRecorded, N: 1, Class: ports.ClassUnknownSent, QueriesDone: full + 1},
+				ports.Observed{Result: ports.ObserveSaturated, N: 1, Class: ports.ClassUnknownSent, QueriesDone: full + 1},
+				ports.Observed{Result: ports.ObserveDuplicate, N: 1, Class: ports.ClassUnknownSent, QueriesDone: full + 1},
+				ports.Observed{Result: ports.ObserveSaturated, N: 1, Class: ports.ClassUnknownSent, QueriesDone: full + 1},
+			},
+			wantSeen: full,
+		},
+		{
+			name:     "a known ID on a row full of IDs is still a duplicate",
+			fill:     ledgerFixture.fillObservations,
+			calls:    []call{observing(observation("o-0", ports.FindingPending))},
+			want:     []any{ports.Observed{Result: ports.ObserveDuplicate, N: 1, Class: ports.ClassUnknownSent, QueriesDone: full}},
+			wantSeen: full,
+		},
+		{
+			name:          "a contradicting finish on a row full of conflicts is saturated and keeps the class",
+			fill:          ledgerFixture.fillConflicts,
+			calls:         []call{finishing(outcome(1, ports.ClassAccepted))},
+			want:          []any{ports.Finished{Result: ports.FinishSaturated, Recorded: ports.ClassUnknownSent}},
+			wantConflicts: full,
+		},
+		{
+			name:     "a contradicting finish on a row full of IDs is saturated",
+			fill:     ledgerFixture.fillObservations,
+			calls:    []call{finishing(outcome(1, ports.ClassAccepted))},
+			want:     []any{ports.Finished{Result: ports.FinishSaturated, Recorded: ports.ClassUnknownSent}},
+			wantSeen: full,
+		},
+		{
+			name:          "the same class or a presumed one on a full row is unchanged, never saturated",
+			fill:          ledgerFixture.fillConflicts,
+			calls:         []call{finishing(outcome(1, ports.ClassUnknownSent)), finishing(presumed(1))},
+			want:          []any{ports.Finished{Result: ports.FinishUnchanged, Recorded: ports.ClassUnknownSent}, ports.Finished{Result: ports.FinishUnchanged, Recorded: ports.ClassUnknownSent}},
+			wantConflicts: full,
+		},
+		{
+			name:          "a new observation on a row full of conflicts is saturated and stays unseen",
+			fill:          ledgerFixture.fillConflicts,
+			calls:         []call{observing(observation("o-1", ports.FindingPending)), observing(observation("o-1", ports.FindingPending))},
+			want:          []any{ports.Observed{Result: ports.ObserveSaturated, N: 1, Class: ports.ClassUnknownSent}, ports.Observed{Result: ports.ObserveSaturated, N: 1, Class: ports.ClassUnknownSent}},
+			wantConflicts: full,
+		},
+		{
+			name:  "a terminal finding on a row full of conflicts with none terminal yet is applied without its ID",
+			fill:  ledgerFixture.fillConflicts,
+			calls: []call{observing(observation("o-1", ports.FindingApplied)), observing(observation("o-1", ports.FindingApplied))},
+			want: []any{
+				ports.Observed{Result: ports.ObserveRecorded, N: 1, Class: ports.ClassUnknownSent, QueriesDone: 1},
+				ports.Observed{Result: ports.ObserveDuplicate, N: 1, Class: ports.ClassUnknownSent, QueriesDone: 1},
+			},
+			wantConflicts: full,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := newLedgerFixture(t)
+			tt.fill(f, t)
+
+			for i, c := range tt.calls {
+				var (
+					got any
+					err error
+				)
+				if c.finish != nil {
+					got, err = f.ledger.Finish(f.a, *c.finish)
+				} else {
+					got, err = f.ledger.Observe(f.a, c.observe, 600)
+				}
+				if err != nil || got != tt.want[i] {
+					t.Fatalf("call #%d = %+v, %v; want %+v", i, got, err, tt.want[i])
+				}
+			}
+			if n := f.store.AttemptConflicts(tenantA, keyX); n != tt.wantConflicts {
+				t.Fatalf("conflicts = %d, want %d", n, tt.wantConflicts)
+			}
+			if n := f.store.AttemptObservationIDs(tenantA, keyX); n != tt.wantSeen {
+				t.Fatalf("observation IDs = %d, want %d", n, tt.wantSeen)
 			}
 		})
 	}
