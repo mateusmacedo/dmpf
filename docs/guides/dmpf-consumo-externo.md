@@ -120,10 +120,11 @@ O `.github/workflows/dmpf-ci.yml` que o `init` escreve chama o
 `dmpf-go-ci.yml` deste repositório fixado no `workflowRef` do `versions.json`,
 o SHA do commit de onde a versão do plugin saiu, e declara a versão do plugin
 para a qual foi escrito. O workflow roda um job, `DMPF`, que faz o setup uma
-vez e executa:
+vez e executa só o que o diff afeta (ADR-071):
 
 - **gates DMPF**: camada única por módulo, context-check, `modsync --check`,
-  `infrasync --check` e `conformance`;
+  `infrasync --check` e `conformance`, cada um só quando o diff toca um projeto
+  ou arquivo que ele lê;
 - **targets do Nx** nos projetos afetados: `lint`, `typecheck`, `build`,
   `fmt-check` e os gates Buf, o `test` só dos projetos que não são Go, depois
   `test-race`, `test-integration` e `e2e`, com Postgres, Redpanda e floci só
@@ -141,6 +142,79 @@ O chamador concede `packages: read`, que o workflow pede para instalar o
 plugin. Se o plugin instalado divergir da versão do chamador, o workflow
 reprova e indica as migrations. A base do `affected` é a branch default do
 repositório.
+
+### Gates agendados
+
+Dois gates reprovam sem mudança de código: o `conformance`, quando vence uma
+exceção declarada (`DMPF-X006`), e o `govulncheck`, quando o banco de
+vulnerabilidades ganha um aviso novo. Como o `DMPF` roda pelo diff, um PR que
+não toca o que eles leem não os executa, e chamar o `dmpf-go-ci.yml` num
+`schedule` não resolve: sem diff, o escopo sai vazio. Rode os dois num
+workflow agendado próprio, por exemplo `.github/workflows/dmpf-agendado.yml`:
+
+```yaml
+name: DMPF agendado
+
+on:
+  schedule:
+    - cron: "0 9 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: read
+
+env:
+  NODE_AUTH_TOKEN: ${{ github.token }}
+
+jobs:
+  conformance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: Credencial do GitHub Packages no .npmrc de usuário
+        run: |
+          printf '%s\n' '//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}' > "$RUNNER_TEMP/npmrc"
+          echo "NPM_CONFIG_USERCONFIG=$RUNNER_TEMP/npmrc" >> "$GITHUB_ENV"
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: "24"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.work
+      - name: conformance
+        run: |
+          CONFORMANCE="$(jq -r .conformance node_modules/@mateusmacedo/dmpf-plugin/versions.json)"
+          go run "github.com/mateusmacedo/dmpf/tools/dmpf-conformance/cmd/conformance@${CONFORMANCE}" --root .
+
+  govulncheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: Credencial do GitHub Packages no .npmrc de usuário
+        run: |
+          printf '%s\n' '//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}' > "$RUNNER_TEMP/npmrc"
+          echo "NPM_CONFIG_USERCONFIG=$RUNNER_TEMP/npmrc" >> "$GITHUB_ENV"
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: "24"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.work
+      - name: govulncheck em todos os projetos Go
+        run: pnpm nx run-many -t govulncheck --parallel=3 --exclude="$(jq -r .name package.json)"
+```
+
+O `schedule` roda na branch default. A credencial vai no `.npmrc` de usuário
+porque o pnpm não expande `${VAR}` em credencial do `.npmrc` do repositório; é
+o mesmo passo que o `dmpf-go-ci.yml` faz para instalar o plugin. O `conformance`
+roda na versão do `versions.json` do plugin instalado, a mesma do PR.
 
 ## 6. Atualizar de versão
 

@@ -20,7 +20,7 @@ Preencha uma linha por app deployável:
 
 | Pasta monorepo | Projeto Nx | Dockerfile | `project` / `ecr` | `path_project` |
 | --- | --- | --- | --- | --- |
-| `apps/<app>` | `@<org>/<app>` | `apps/<app>/Dockerfile` | `<app>` | `<projeto>/<env>` |
+| `apps/backend/<app>` | `@<org>/<app>` | `apps/backend/<app>/Dockerfile` | `<app>` | `<projeto>/<env>` |
 
 Convenções do modelo de referência:
 
@@ -30,8 +30,8 @@ Convenções do modelo de referência:
 
 ## Checklist — app pronta para CD
 
-1. [ ] `apps/<app>/Dockerfile` com contexto na **raiz** do monorepo
-       (`docker build -f apps/<app>/Dockerfile .`). Use
+1. [ ] `apps/backend/<app>/Dockerfile` com contexto na **raiz** do monorepo
+       (`docker build -f apps/backend/<app>/Dockerfile .`). Use
        `infra/docker/Dockerfile.node.example` como ponto de partida.
 2. [ ] `pnpm nx prune <app>` funciona no Dockerfile (target `prune` declarado no
        projeto — ver o exemplo em `infra/docker/`).
@@ -40,32 +40,41 @@ Convenções do modelo de referência:
        e Deployment, no repositório de infraestrutura.
 5. [ ] ConfigMap e/ou secret externo alinhados ao schema de configuração da app e
        ao seu `.env.example` (seção abaixo).
-6. [ ] Novo job `deploy-<app>` no `cd-dev-hmg.yml`, copiado do bloco de exemplo
-       comentado no próprio arquivo.
+6. [ ] Novo job `deploy-<app>` no `cd-dev-hmg.yml`, copiado do exemplo em
+       «Como o Modelo A resolve nomes».
 7. [ ] Linha atualizada na tabela acima.
 8. [ ] Smoke por `workflow_dispatch` → `dev`, depois `hmg`.
-9. [ ] Seção de deploy no `apps/<app>/README.md` apontando para este doc.
+9. [ ] Seção de deploy no `apps/backend/<app>/README.md` apontando para este doc.
 
 ## Como o Modelo A resolve nomes
 
-`detect-apps` devolve paths `apps/<pasta>`, **não** o nome GitOps. A tradução para
-`project`/`ecr` é feita **literalmente em cada job** `deploy-<app>`, no `with:`:
+`detect-apps` devolve o root do projeto Nx (`apps/backend/<app>`), **não** o nome
+GitOps. A tradução para `project`/`ecr` é feita **literalmente em cada job**
+`deploy-<app>`, no `with:`. Acrescente em `jobs:` do `cd-dev-hmg.yml` um job
+como este por app deployável, substituindo `<app>` e `<projeto>`:
 
 ```yaml
   deploy-<app>:
     needs: [detect]
-    if: always() && (contains(needs.detect.outputs.apps, 'apps/<app>') || inputs.app == 'apps/<app>')
+    if: always() && (contains(fromJSON(needs.detect.outputs.apps || '[]'), 'apps/backend/<app>') || inputs.app == 'apps/backend/<app>')
+    uses: ./.github/workflows/deploy-eks.yaml   # reusable a internalizar quando o CD for ligado
     with:
+      version: ${{ github.sha }}
+      environment: ${{ inputs.environment || 'dev' }}
       project: <app>
       ecr: <app>
-      dockerfile: apps/<app>/Dockerfile
+      path_project: <projeto>/${{ inputs.environment || 'dev' }}
+      aws_account_id: ${{ vars.AWS_ACCOUNT_ID }}
+      docker_context: "."
+      dockerfile: apps/backend/<app>/Dockerfile
+      runner: ubuntu-latest
+    secrets: inherit
 ```
 
 Não há job `resolve` nem `strategy.matrix`, e isso é deliberado: o `act_runner` do
 Gitea não injeta matriz vinda de expressão em job reutilizável (`uses:`). Cada app
 nova entra como um job novo — o custo é um bloco por app, e o ganho é um workflow
-que roda na plataforma real. O `cd-dev-hmg.yml` traz esse bloco comentado, pronto
-para copiar.
+que roda na plataforma real.
 
 Inputs típicos do `deploy-eks`:
 
@@ -75,7 +84,7 @@ Inputs típicos do `deploy-eks`:
 | `environment` | `dev` \| `hmg` |
 | `path_project` | `<projeto>/${{ environment }}` |
 | `docker_context` | `.` |
-| `dockerfile` | `apps/<app>/Dockerfile` |
+| `dockerfile` | `apps/backend/<app>/Dockerfile` |
 | `aws_account_id` | `vars.AWS_ACCOUNT_ID` |
 
 ### Pré-requisito — variáveis do repositório
@@ -98,10 +107,12 @@ No workflow de CD (`workflow_dispatch`):
 | Input | Exemplo |
 | --- | --- |
 | `environment` | `dev` ou `hmg` |
-| `app` | `apps/<app>` — vazio significa "apps detectadas" |
+| `app` | `apps/backend/<app>` — vazio significa "apps detectadas" |
 
-Mudança apenas em `libs/`, com `shared_dirs: libs`, enfileira **todas** as apps que
-tenham `Dockerfile`.
+Sem `app`, o `detect-apps` enfileira as apps com `Dockerfile` afetadas pelo grafo
+do Nx desde o último run verde do workflow na branch: mudança numa lib alcança só
+as apps que dependem dela. Sem run verde anterior, a base é o commit anterior
+(`HEAD~1`).
 
 ## Secrets externos
 
@@ -155,11 +166,11 @@ não são duplicadas no recurso da app.
 
 | Sintoma | Verificação |
 | --- | --- |
-| `apps=[]` no detect | O commit não tocou `apps/*` nem `libs/*`, ou a app não tem `Dockerfile` |
+| `apps=[]` no detect | Nenhuma app foi afetada desde o último run verde, ou a app não tem `Dockerfile` |
 | App detectada não faz deploy | Não existe job `deploy-<app>` para esse path; adicione o bloco no `cd-dev-hmg.yml` |
 | `AWS_ACCOUNT_ID` vazio | Configure a var no repositório do projeto |
 | Deploy com `project` errado | `project`/`ecr` do job `deploy-<app>` desatualizados |
-| Docker build "Dockerfile not found" | Confira `docker_context: "."` e `dockerfile: apps/<app>/Dockerfile` |
+| Docker build "Dockerfile not found" | Confira `docker_context: "."` e `dockerfile: apps/backend/<app>/Dockerfile` |
 | Build falha em registry privado | Avalie `setup_npmrc: true` no `deploy-eks` (o baseline começa sem) |
 | Pod em CrashLoop por configuração | Chave faltando no ConfigMap ou no secret externo; confira a sincronização do operador |
 | Imagem não atualiza no cluster | Tag no `kustomization.yaml` e o Application do ArgoCD em `EKS/applications/<projeto>/` |

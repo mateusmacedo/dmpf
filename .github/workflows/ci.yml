@@ -92,7 +92,8 @@ jobs:
     secrets:
       NX_CLOUD_ACCESS_TOKEN: ${{ secrets.NX_CLOUD_ACCESS_TOKEN }}
 
-  # Consumidor externo, distribuído e Sonar são da etapa de release (ADR-069).
+  # Consumidor externo, distribuído e Sonar são da etapa de release (ADR-069),
+  # no escopo do diff contra a master (ADR-071).
   external-consumer:
     name: Consumidor externo por versão
     needs: scope

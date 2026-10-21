@@ -157,9 +157,10 @@ versionamento independente por projeto marcado com `type:lib`.
 - Prefira PRs pequenos e focados: uma feature ou um fix por PR.
 - Descreva o que muda e por quê, com contexto suficiente para o revisor.
 - O ruleset exige um único check, o job `CI`, que reporta em todo PR: no PR para
-  `develop` ele roda só os projetos afetados, num PR só de documentação aprova
-  sem rodar o resto, e no PR de release para `master` leva o pacote completo
-  (`docs/ci-cd/README.md`, "Esteira de CI por etapa").
+  `develop` ele roda só o que o diff afeta, num PR só de documentação aprova
+  sem rodar o resto, e no PR de release para `master` roda o escopo do diff
+  contra a `master`, com as etapas de release (`docs/ci-cd/README.md`,
+  "Esteira de CI por etapa").
 
 ## Validação local antes do PR
 

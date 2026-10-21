@@ -37,13 +37,14 @@ Trabalhe sempre fora de `master` e `develop`.
    `master` recebe o trabalho pela branch `release/X.Y.Z`, não diretamente.
 
 O ruleset exige um único check, o job `CI` do `ci.yml`, que reporta em todo PR.
-No PR para `develop` (ou `release/**`) ele roda só os projetos afetados, e os
-vetores negativos dos gates só quando o diff toca `tools/**`, `.github/**` ou
-`.golangci.yml`; um PR só de documentação (`docs/**` e `*.md` fora de `tools/`,
-`.claude/` e `.agents/`) passa sem rodar o resto. O PR de `release/X.Y.Z` ou
-`hotfix/*` para `master` leva o pacote completo: todos os projetos, todos os
-vetores negativos, govulncheck, consumidor externo, harness distribuído e
-SonarQube Cloud com cobertura. Detalhe por etapa em `docs/ci-cd/README.md`.
+Em todo PR ele roda só o que o diff afeta: os targets dos projetos afetados e,
+entre os gates sem noção de projeto e os vetores negativos, só os que leem um
+arquivo tocado (ADR-071). Um PR só de documentação (`docs/**` e `*.md` fora de
+`tools/`, `.claude/` e `.agents/`) passa sem rodar o resto. O PR de
+`release/X.Y.Z` ou `hotfix/*` para `master` usa a `master` como base e acrescenta,
+no escopo do diff, govulncheck, consumidor externo, harness distribuído e
+SonarQube Cloud. Conformance e govulncheck, que reprovam sem diff, rodam todo dia
+na `develop` (`govulncheck.yml`). Detalhe por etapa em `docs/ci-cd/README.md`.
 
 ### Modelo develop → release (anti-drift)
 

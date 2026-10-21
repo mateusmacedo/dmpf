@@ -111,9 +111,10 @@ Todo projeto `stack:go` declara **também** uma tag `layer:`, aditiva às três
 acima. Ela não altera `release.projects` nem os `targetDefaults` — a taxonomia
 canônica continua sendo a de três dimensões. Ela declara o **estágio da
 pirâmide de testes** do módulo. O CI não roda mais um passo por estágio: o
-`dmpf-go-ci.yml` executa os targets de todos os projetos numa invocação do Nx, e
-a tag decide só a concorrência — o `test-race` sem cache de um
-`layer:providers` divide a infra do job e roda um projeto por vez. O mesmo
+`dmpf-go-ci.yml` executa os targets dos projetos do escopo do diff numa invocação
+do Nx, e a tag decide só a concorrência — o `test-race` de um `layer:providers`
+que depende de `test-infra-up` ou `test-keycloak-up` divide a infra do job e roda
+um projeto por vez (ADR-071). O mesmo
 workflow tem um guard que reprova quando um projeto Go declara nenhuma ou mais de
 uma camada.
 

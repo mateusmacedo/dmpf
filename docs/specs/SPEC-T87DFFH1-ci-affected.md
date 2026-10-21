@@ -2,7 +2,7 @@
 id: SPEC-T87DFFH1
 slug: ci-affected
 title: Todos os jobs de CI/CD no modelo affected
-stage: building
+stage: done
 priority: P1
 depends_on: []
 ticket_url: https://linear.app/mmda/issue/DEVS-138

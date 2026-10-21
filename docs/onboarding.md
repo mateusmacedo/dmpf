@@ -156,9 +156,10 @@ O workflow `.github/workflows/ci.yml` roda em PRs para `master`, `develop` e
 e executa `pnpm biome ci .`, os gates DMPF e `nx affected` de lint, typecheck,
 build, fmt-check, gates Buf, test dos projetos TypeScript, test-race,
 test-integration e e2e; a infra Docker só sobe quando um projeto que a usa está
-afetado. Os vetores negativos dos gates correm em job próprio, em paralelo. O PR para
-`master` roda tudo em todos os projetos e acrescenta govulncheck, consumidor
-externo, harness distribuído e SonarQube Cloud.
+afetado. O Biome, os gates DMPF e os vetores negativos rodam só quando o diff
+toca o que cada um lê, e os vetores correm em job próprio, em paralelo. O PR para
+`master` usa a `master` como base e acrescenta, no escopo do diff, govulncheck,
+consumidor externo, harness distribuído e SonarQube Cloud (ADR-071).
 
 O ruleset exige um único check, o job `CI`, que agrega os demais e reporta em
 todo PR. Num PR só de documentação ele aprova sem rodar o pipeline. A tabela

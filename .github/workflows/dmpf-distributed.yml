@@ -1,8 +1,8 @@
 name: DMPF Distributed
 
 # Camada distribuída da pirâmide (FND-09 KIT-06): dois processos OS sobre
-# Redpanda e Postgres, com reentrega deliberada (V32). Pipeline separado do
-# ciclo curto por exigência de KIT-11: o ci.yml só o chama no PR para master.
+# Redpanda e Postgres, com reentrega deliberada (V32). Pipeline separado por KIT-11:
+# o ci.yml só o chama no PR para master, com test-distributed no escopo (ADR-071).
 on:
   workflow_call:
     inputs:

@@ -7,8 +7,8 @@
 #
 #   1. Descomente o bloco `push:` em `on:` quando quiser deploy automático a
 #      partir de `develop`.
-#   2. Copie o bloco de exemplo `deploy-<app>` (comentado abaixo) uma vez por app
-#      deployável, substituindo `<app>` e `<projeto>`.
+#   2. Acrescente um job `deploy-<app>` por app deployável, a partir do exemplo
+#      em docs/ci-cd/DEPLOY_APPLICATIONS.md («Como o Modelo A resolve nomes»).
 #   3. Configure a var `AWS_ACCOUNT_ID` no repositório.
 #   4. Faça o primeiro smoke por `workflow_dispatch` em `dev`, depois em `hmg`.
 #
@@ -29,11 +29,12 @@ on:
           - dev
           - hmg
       app:
-        description: "Path da app (ex: apps/<app>). Vazio = detectadas"
+        description: "Path da app (ex: apps/backend/<app>). Vazio = detectadas"
         type: string
         required: false
 
 permissions:
+  actions: read
   id-token: write
   contents: read
 
@@ -41,25 +42,3 @@ jobs:
   detect:
     if: inputs.app == ''
     uses: ./.github/workflows/detect-apps.yaml
-    with:
-      app_dirs: "apps"
-      shared_dirs: "libs"
-# Deploy por app em jobs explícitos com `with` literal. A restrição que motivou
-# evitar matriz aqui era do runner da plataforma anterior; o modelo foi mantido
-# por ser mais legível. Cada app nova entra como um job novo.
-#
-#  deploy-<app>:
-#    needs: [detect]
-#    if: always() && (contains(needs.detect.outputs.apps, 'apps/<app>') || inputs.app == 'apps/<app>')
-#    uses: ./.github/workflows/deploy-eks.yaml   # reusable a internalizar quando o CD for ligado
-#    with:
-#      version: ${{ github.sha }}
-#      environment: ${{ inputs.environment || 'dev' }}
-#      project: <app>
-#      ecr: <app>
-#      path_project: <projeto>/${{ inputs.environment || 'dev' }}
-#      aws_account_id: ${{ vars.AWS_ACCOUNT_ID }}
-#      docker_context: "."
-#      dockerfile: apps/<app>/Dockerfile
-#      runner: ubuntu-latest
-#    secrets: inherit

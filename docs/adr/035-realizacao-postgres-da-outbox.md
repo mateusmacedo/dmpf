@@ -2,7 +2,7 @@
 
 ## Status
 
-Aceito — 2026-09-04. Implementa SPEC-3R80KNMS.
+Aceito — 2026-09-04. Implementa SPEC-3R80KNMS. **Emendado pelo [ADR-071](./071-ci-affected-em-todos-os-jobs.md) (2026-10-21)**: o `test-race` deixa de ter `cache: false`. Cada teste cria e apaga o próprio banco, e o target declara como input o `infra/test/compose.yml`, com as imagens fixadas por digest, e o `.env.example`; com isso, o resultado do cache do Nx depende só do código e da infra declarada. O `-count=1` do `go test` permanece.
 
 ## Contexto
 

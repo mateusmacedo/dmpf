@@ -12,7 +12,7 @@ namespace, nome de secret) é versionado aqui — e não deve passar a ser.
 
 | Item | Estado no template |
 | --- | --- |
-| CI em PR (`ci.yml`) | **Ativo** — um check agregador `CI`; affected no PR para `develop`, pacote completo no PR para `master` (ver abaixo) |
+| CI em PR (`ci.yml`) | **Ativo** — um check agregador `CI`; escopo affected em todo PR, inclusive no de release para `master` (ver abaixo) |
 | Versionamento e publish de libs | **Ativo** — `nx-release.yml`, `nx-publish-libs.yml`, `create-release.yml` |
 | CD (`cd-dev-hmg.yml`) | **Template** — só `workflow_dispatch`, parametrizado por placeholder |
 | Manifestos GitOps | **Ausentes** — vivem no repositório de infraestrutura, não aqui |
@@ -51,17 +51,16 @@ push develop / workflow_dispatch
 | --- | --- |
 | `pre-commit` (Lefthook) | `biome check --write` e `gofmt -l` nos arquivos em stage |
 | `pre-push` (Lefthook) | `nx affected -t lint,typecheck,fmt-check,test`, sem Docker, contra o que o remoto já tem |
-| PR para `develop` ou `release/**` | Job `DMPF` (o `dmpf-go-ci.yml`): `biome ci`, `nx affected` de `lint`, `typecheck`, `build`, `fmt-check`, gates Buf, `test` só dos projetos TypeScript, `test-race`, `test-integration` e `e2e`; gates DMPF (camada por módulo, context-check estrutural, modsync, infrasync, conformance) e checks do platform (generator estrutural, `init --dry-run` sem diff, `sync-versions --check`, Grafana, OTel). Nos projetos Go não há `test` nem `vet`: o `test-race` repete os pacotes do `test`, e o `govet` do golangci-lint cobre o `vet`. A infra Docker só sobe se um projeto que a usa estiver afetado, e sobe antes do lint, para que o boot corra junto dele. Os vetores negativos dos gates rodam no job `Vetores negativos`, em paralelo ao `DMPF`, e só se o diff tocar `tools/**`, `.github/**` ou `.golangci.yml` |
+| PR para `develop` ou `release/**` | Job `DMPF` (o `dmpf-go-ci.yml`): `nx affected` de `lint`, `typecheck`, `build`, `fmt-check`, gates Buf, `test` só dos projetos TypeScript, `test-race`, `test-integration` e `e2e`. Os checks sem noção de projeto rodam só quando o diff toca o que cada um lê, pelo critério da `.github/actions/dmpf-scope` (ADR-071): Biome (`biome ci --changed`, ou global se muda a configuração), gates DMPF (camada por módulo, context-check, modsync, infrasync, conformance) e checks do platform (generator estrutural, `init --dry-run` sem diff, `sync-versions --check`, Grafana, OTel). Nos projetos Go não há `test` nem `vet`: o `test-race` repete os pacotes do `test`, e o `govet` do golangci-lint cobre o `vet`. Os testes com infra usam o cache do Nx; a infra Docker só sobe se um projeto que a usa estiver no escopo, e sobe antes do lint, para que o boot corra junto dele. Os vetores negativos dos gates rodam no job `Vetores negativos`, em paralelo ao `DMPF`, cada um só quando o diff toca o script ou a ferramenta que ele prova |
 | PR só de documentação | Só o job `Escopo`; o `CI` aprova sem rodar o resto |
-| PR para `master` (de `release/**` ou `hotfix/*`) | Tudo acima com `run-many` em todos os projetos, todos os vetores negativos e `govulncheck`, mais `Consumidor externo por versão`, `Distribuído` (`dmpf-distributed.yml`) e `SonarQube Cloud` (`sonar.yml`) |
+| PR para `master` (de `release/**` ou `hotfix/*`) | Tudo acima, com a `master` como base do escopo, mais `govulncheck` nos projetos do escopo e, quando o escopo os alcança, `Consumidor externo por versão`, `Distribuído` (`dmpf-distributed.yml`) e `SonarQube Cloud` (`sonar.yml`) |
 | `push` em `master` | `sonar.yml`, que mantém a análise da branch principal no SonarCloud |
-| Agendado (`govulncheck.yml`) | `govulncheck` em todos os projetos Go da `develop`, toda segunda-feira |
+| Agendado (`govulncheck.yml`) | `govulncheck` em todos os projetos Go e `conformance` global da `develop`, todo dia às 09:00 UTC: os dois reprovam sem diff (banco de vulnerabilidades, vencimento de exceção DMPF-X006) |
 | `push` em `develop` ou `master` que muda dependência, pin ou config do lint; agendado; manual (`cache-seed.yml`) | Semeia o cache de módulos, de build e do golangci-lint que os PRs leem da branch base |
 
 O ruleset exige só o job `CI`, que agrega os demais: pulado conta como aprovado,
 falha ou cancelamento reprova. A `master` não tem ruleset de checks: por decisão do
-mantenedor, ela só recebe código já validado pelo PR de release, que leva o pacote
-completo. O Nx Cloud (`nxCloudId` no `nx.json`) guarda o cache
+mantenedor, ela só recebe código já validado pelo PR de release. O Nx Cloud (`nxCloudId` no `nx.json`) guarda o cache
 entre execuções; o token de CI vem do secret `NX_CLOUD_ACCESS_TOKEN`, e sem ele vale
 o acesso que o workspace concede ao `nxCloudId`. O cache do Go (módulos e build) e o
 do golangci-lint vêm do `cache-seed.yml`, que os semeia em `develop` e `master`: o PR
@@ -94,8 +93,8 @@ EKS/applications/<projeto>/<env>-<project>.yaml
 
 | Evento | Ambiente | Comportamento |
 | --- | --- | --- |
-| `push` em `develop` | default `dev` | Detecta apps alteradas (`apps/` + `libs/` → todas com Dockerfile) e faz deploy |
-| `workflow_dispatch` | choice `dev` \| `hmg` | Opcional: input `app` (`apps/<app>`); vazio = detect |
+| `push` em `develop` | default `dev` | Detecta as apps com Dockerfile afetadas pelo grafo do Nx desde o último run verde e faz deploy |
+| `workflow_dispatch` | choice `dev` \| `hmg` | Opcional: input `app` (`apps/backend/<app>`); vazio = detect |
 
 No template, o gatilho de `push` vem **desligado**: o `cd-dev-hmg.yml` nasce com
 apenas `workflow_dispatch`, para que nenhum projeto novo faça deploy acidental
@@ -120,7 +119,7 @@ ConfigMap e de secrets externos definidos no repositório de infraestrutura — 
 | `.github/workflows/ci.yml` | CI em PR: escopo, job `DMPF` e, no PR para `master`, consumidor externo, distribuído e SonarQube Cloud; check agregador `CI` |
 | `.github/workflows/dmpf-go-ci.yml` | Reutilizável do job `DMPF`, o mesmo que o `dmpf-ci.yml` do consumidor externo chama |
 | `.github/workflows/sonar.yml` | SonarQube Cloud com cobertura (chamado pelo `ci.yml` no PR para `master`; `push` em `master`) |
-| `.github/workflows/govulncheck.yml` | `govulncheck` semanal na `develop` |
+| `.github/workflows/govulncheck.yml` | `govulncheck` e `conformance` diários na `develop` |
 | `.github/workflows/cache-seed.yml` | Semente do cache Go e do golangci-lint em `develop` e `master` (dependências, pins ou config do lint alterados; semanal; manual) |
 | `.github/workflows/nx-release.yml` | Versionamento Nx Release (release groups `go-libs`, `go-contract-<ctx>`, `go-tools`, `npm`); cunha as tags de módulo |
 | `.github/workflows/nx-publish-libs.yml` | Publica libs npm no GitHub Packages (dispara no push de tag `**@*`), pelo reusable `publish-libs.yaml` |
