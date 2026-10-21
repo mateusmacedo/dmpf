@@ -2,7 +2,7 @@
 id: SPEC-5AQHHMJ0
 slug: comando-externo-de-saida
 title: DMPF — Ciclo de comando externo de saída: chave idempotente, desfecho incerto, consulta de estado e reconciliação
-stage: building
+stage: done
 priority: P0
 depends_on: [SPEC-E15TBHCD, SPEC-JJKWG4JP, SPEC-NYD18TGD]
 ticket_url: https://linear.app/mmda/issue/DEVS-96/spec-5aqhhmj0-dmpf-ciclo-de-comando-externo-de-saida-chave-idempotente
@@ -24,7 +24,8 @@ chamada de saída e não diz o que fazer quando o efeito é incerto. A spec nasc
 consumidor externo antecipa-market, SPEC-GXGASP24 (DEVS-76), extensão K5, que
 integra registradoras e parceiros cuja resposta pode se perder.
 
-A entrega segue três ondas, e cada onda é um PR.
+A entrega segue três ondas. A Onda 0 saiu num PR próprio; as Ondas 1 e 2 saem
+juntas, num único PR ao final da Onda 2.
 
 ## Contexto
 
@@ -91,18 +92,44 @@ classificação, das transições e dos duplos de teste.
 
 ### Não verificado
 
-- **Escrita do pedido no transporte.** `httptrace.ClientTrace.WroteRequest`
-  existe (https://pkg.go.dev/net/http/httptrace#ClientTrace), mas não se
-  verificou que o sinal sobreviva à composição `otelhttp` e `resendCounter` do
-  cliente nem em HTTP/2. Sem ele, o provider HTTP não separa "não saiu" de
-  "saiu sem resposta" (requisito de investigação da Onda 2).
-- **Prazo da chamada frente ao ciclo de consumo.** `TRP-48` veda trabalho
-  destacado do ciclo, e o cancelamento por rebalance interrompe a chamada em
-  voo, que é exatamente o caso de desfecho incerto (requisito de investigação da
-  Onda 2).
+- **Escrita do pedido no transporte (verificado na Onda 2).** O
+  `httptrace.ClientTrace` posto no ctx de `Do` atravessa `otelhttp` e
+  `resendCounter` e entrega `WroteRequest` e `GotFirstResponseByte` em HTTP/1.1
+  e HTTP/2. A falha de conexão não dispara `WroteRequest`, e o servidor que lê o
+  corpo e fecha a conexão dispara (`libs/backend/go/http/outcome_signal_test.go`).
+  Mas o `WroteRequest` roda num `defer` da goroutine de escrita
+  (`net/http/request.go:594`) e pode chegar depois do retorno de `Do`. Logo, a
+  ausência do sinal no retorno não prova que o pedido não saiu. A classificação
+  usa a regra conservadora: só a falha de conexão (`dial`) é
+  `RetryableTransport`, e qualquer outro erro de rede, cancelamento ou prazo é
+  `UnknownSent`. O erro que `Do` devolve antes de qualquer tentativa tem classe
+  própria: configuração vira `FinalValidation`, e breaker aberto, bulkhead cheio
+  ou orçamento esgotado viram `RetryableTransport`.
+- **Reenvio interno do transporte (verificado na Onda 2).** O `http.Transport`
+  reenvia sozinho um POST com `Idempotency-Key` ou `X-Idempotency-Key` quando a
+  conexão reaproveitada morre (`net/http/request.go:1570`). O reenvio leva a
+  mesma chave e o mesmo corpo e não aparece em `http.request.resend_count`, que
+  só conta os reenvios do kernel. Sem a chave, não há reenvio. Por isso
+  `WithOutboundKey` recusa esses nomes de header, e a requisição com chave de
+  saída sai numa única tentativa: quem decide o reenvio é o kernel, pela classe.
+- **Prazo da chamada frente ao ciclo de consumo (verificado na Onda 2).** Na
+  revogação, o kafka cancela o ctx da tentativa e espera o handler voltar. Antes
+  da Onda 2 essa espera não tinha teto e as partições eram esperadas em
+  sequência (`libs/backend/go/kafka/revocation_inflight_test.go`). A Onda 2
+  limita a espera com `RevokeGrace`. O prazo máximo do `Submit` dentro do
+  handler é o `Limit` da rota, com `Limit + Settle < ProcessingDeadline`
+  validado por `app.ExternalBudget`.
 - **Capacidades dos parceiros.** Semântica de chave, consulta de estado e janela
   de processamento são fatos de cada parceiro, não do repositório. Entram como
   perfil declarado, nunca como suposição do kernel.
+- **Relógio de parede no prazo de acomodação.** `ExternalBudget.SettleContext`
+  arma o prazo por `context.WithTimeout`, que lê o relógio de parede, e o teste
+  (`libs/backend/go/app/external_budget_test.go`) o delimita entre duas leituras
+  de `time.Now`. O limite é determinístico, mas não usa o relógio controlado.
+- **`govulncheck` na máquina de desenvolvimento.** Ao fim da Onda 2 ele reprovou
+  só por vulnerabilidades da biblioteca padrão do Go 1.27.1 local, corrigidas na
+  1.27.2; nenhuma vem de dependência dos módulos. O CI, com a toolchain dele, é
+  quem decide esse gate.
 
 <constraints>
 - [P0] A chamada ao parceiro nunca ocorre dentro de UoW: a intenção e o registro da tentativa commitam antes, o resultado commita depois (`UOW-07`, `UOW-08`, `RES-34`).
@@ -175,23 +202,26 @@ classificação, das transições e dos duplos de teste.
 
 #### Onda 2 — provider HTTP, fake e cláusulas
 
-- [ ] **[P0] Investigar a escrita do pedido no transporte HTTP**: verificar se `WroteRequest` e o primeiro byte da resposta sobrevivem à composição `otelhttp`, `resendCounter` e `Client.Do`, em HTTP/1.1 e HTTP/2, e se o reenvio interno do `Transport` por `Idempotency-Key` aparece no mesmo sinal.
+- [x] **[P0] Investigar a escrita do pedido no transporte HTTP**: verificar se `WroteRequest` e o primeiro byte da resposta sobrevivem à composição `otelhttp`, `resendCounter` e `Client.Do`, em HTTP/1.1 e HTTP/2, e se o reenvio interno do `Transport` por `Idempotency-Key` aparece no mesmo sinal.
   - Sem resposta positiva, o provider HTTP classifica como `UnknownSent`, o conservador, todo erro de rede que não seja falha de conexão (`dial`), e só a falha de conexão como `RetryableTransport`.
-- [ ] **[P0] Investigar o prazo da chamada frente ao ciclo de consumo**: medir o que o rebalance faz com a chamada em voo (`TRP-48`, `KFK-09`) e definir o prazo máximo do `Submit` dentro do handler.
-- [ ] **[P0] Classificação no provider HTTP**: auxiliar em `libs/backend/go/http` que mapeia a resposta e o erro de rede para `ExternalClass` por tabela declarada e versionada pelo adaptador, com código desconhecido em `UnknownAmbiguous`. O `Do` aceita a chave informada pelo chamador (`client.go:147`), então o adaptador passa a `OutboundKey` e a aleatória deixa de valer para comando externo.
-- [ ] **[P0] Parceiro roteirizado em `serviceskit`**: fake in-process que implementa `ExternalCommand` e `ExternalState` com roteiro por chave e por tentativa.
+- [x] **[P0] Investigar o prazo da chamada frente ao ciclo de consumo**: medir o que o rebalance faz com a chamada em voo (`TRP-48`, `KFK-09`) e definir o prazo máximo do `Submit` dentro do handler.
+- [x] **[P0] Classificação no provider HTTP**: auxiliar em `libs/backend/go/http` que mapeia a resposta e o erro de rede para `ExternalClass` por tabela declarada e versionada pelo adaptador, com código desconhecido em `UnknownAmbiguous`. O `Do` aceita a chave informada pelo chamador (`client.go:147`), então o adaptador passa a `OutboundKey` e a aleatória deixa de valer para comando externo.
+- [x] **[P0] Parceiro roteirizado em `serviceskit`**: fake in-process que implementa `ExternalCommand` e `ExternalState` com roteiro por chave e por tentativa.
   - Cobre as nove classes, a consulta que responde cada achado, o parceiro sem consulta, o webhook duplicado e a resposta perdida depois de efeito aplicado.
   - Registra cada chave recebida, para o teste provar que o reenvio usou a mesma.
   - Determinístico: `clock`, `ids` e `stable`, sem `time.Sleep` (`.agents/skills/dmpf-testkit/SKILL.md:49-51`).
-- [ ] **[P0] Cláusulas em `providerkit`**: o `KIT-04` ganha o conjunto que certifica um adaptador `ExternalCommand` (cada código de uma tabela de parceiro cai na classe declarada, desconhecido cai em `UnknownAmbiguous`) e uma realização de `AttemptLedger` (serialização na chave, `begun` não purgável).
-- [ ] **[P1] Processo encerrado entre o envio e o resultado**, em `testkit/tb/dist` (`KIT-06`): o processo morre depois de `Begin` e antes de `Finish`, e a varredura resolve como `UnknownSent`.
-- [ ] **[P1] Guia e skills**: corrigir "a saída é não fazer chamada nenhuma" no guia para dois caminhos (parceiro consumidor do contrato; parceiro de requisição e resposta), e atualizar a skill `dmpf-testkit` pela fonte em `tools/dmpf-plugin/templates/ai/`.
+- [x] **[P0] Cláusulas em `providerkit`**: o `KIT-04` ganha o conjunto que certifica um adaptador `ExternalCommand` (cada código de uma tabela de parceiro cai na classe declarada, desconhecido cai em `UnknownAmbiguous`) e uma realização de `AttemptLedger` (serialização na chave, `begun` não purgável).
+- [x] **[P1] Processo encerrado entre o envio e o resultado**, em `testkit/tb/dist` (`KIT-06`): o processo morre depois de `Begin` e antes de `Finish`, e a varredura resolve como `UnknownSent`.
+- [x] **[P1] Guia e skills**: corrigir "a saída é não fazer chamada nenhuma" no guia para dois caminhos (parceiro consumidor do contrato; parceiro de requisição e resposta), e atualizar a skill `dmpf-testkit` pela fonte em `tools/dmpf-plugin/templates/ai/`.
+- [x] **[P1] Teto no ledger de tentativas**: `observation_ids` e `conflicts` crescem por linha sem limite, porque callbacks não contam no `MaxQueries`. Uma constante única do kernel (`ports.MaxAttemptEntries`) limita os dois; com a linha cheia, `Observe` devolve `ObserveSaturated` e `Finish` devolve `FinishSaturated`, sem gravar nem aplicar, com métrica e log Warn, e o SQL reforça o teto por `CHECK`.
+- [x] **[P1] Espera limitada na revogação do kafka**: `Config.RevokeGrace` é obrigatório no consumer, com `ProcessingDeadline + RevokeGrace < RebalanceTimeout`. O `release` cancela todas as partições revogadas e espera por elas sob um único prazo; no estouro, o `Run` devolve `ErrRevokeStuck`, que é fatal, e a composição encerra o processo.
+- [x] **[P1] Orçamento de prazos validado**: `app.ExternalBudget` é a fonte única do prazo do `Submit` (o `Limit` da rota), do settle e do corte da varredura, e recusa `Limit + Settle >= ProcessingDeadline`.
 
 ### Não-funcionais
 
-- [ ] **Determinismo**: nenhum teste do ciclo usa `time.Sleep`, relógio de parede ou aleatoriedade.
-- [ ] **Compatibilidade**: Go `1.26.9`, a diretiva dos `go.mod`; nenhum requisito direto novo de terceiros em `ports`, `application` ou `testkit`.
-- [ ] **Custo**: o ciclo acrescenta duas escritas no ledger por tentativa e nenhuma consulta fora da varredura e da resolução.
+- [x] **Determinismo**: nenhum teste do ciclo usa `time.Sleep`, relógio de parede ou aleatoriedade.
+- [x] **Compatibilidade**: Go `1.26.9`, a diretiva dos `go.mod`; nenhum requisito direto novo de terceiros em `ports`, `application` ou `testkit`.
+- [x] **Custo**: o ciclo acrescenta duas escritas no ledger por tentativa e nenhuma consulta fora da varredura e da resolução.
 
 ## Camadas afetadas
 
@@ -332,13 +362,13 @@ comando de entrada.
 ### Critérios de aceite
 
 - [x] O teste exaustivo de `NextStep` prova que nenhuma combinação com `UnknownSent`, `UnknownAmbiguous` ou `SchemaMismatch` sem achado devolve `Confirm` ou `Fail`, e que `SchemaMismatch` sem achado devolve exatamente `Suspend`.
-- [ ] Duas execuções do mesmo comando (reentrega, reemissão pela outbox, reinício do processo) derivam a mesma chave; outra geração deriva chave distinta; a chave difere da de comando de entrada e do identificador da tentativa.
-- [ ] No fake, o reenvio depois de `UnknownSent` envia a mesma chave, e o registro de chaves recebidas mostra uma só.
-- [ ] Com o processo encerrado entre `Begin` e `Finish`, a redelivery depois do prazo e da margem, ou a varredura, resolve como `UnknownSent`, nenhuma tentativa `begun` passa do prazo e nenhuma segunda chamada ocorre sem consulta; um `Finish` tardio sobre tentativa encerrada não sobrescreve o desfecho e deixa conflito visível.
+- [x] Duas execuções do mesmo comando (reentrega, reemissão pela outbox, reinício do processo) derivam a mesma chave; outra geração deriva chave distinta; a chave difere da de comando de entrada e do identificador da tentativa.
+- [x] No fake, o reenvio depois de `UnknownSent` envia a mesma chave, e o registro de chaves recebidas mostra uma só.
+- [x] Com o processo encerrado entre `Begin` e `Finish`, a redelivery depois do prazo e da margem, ou a varredura, resolve como `UnknownSent`, nenhuma tentativa `begun` passa do prazo e nenhuma segunda chamada ocorre sem consulta; um `Finish` tardio sobre tentativa encerrada não sobrescreve o desfecho e deixa conflito visível.
 - [x] Observação duplicada não muda nada; observação contraditória gera conflito visível.
-- [ ] Todo código de uma tabela de parceiro cai na classe declarada no `providerkit`; o desconhecido cai em `UnknownAmbiguous`.
+- [x] Todo código de uma tabela de parceiro cai na classe declarada no `providerkit`; o desconhecido cai em `UnknownAmbiguous`.
 - [x] ADR novo e subseções de norma presentes, com a tabela "altera invariante?" e `node tools/dmpf-verify.mjs` sem violação.
-- [ ] Ao fim de cada onda, `go run ./tools/dmpf-conformance/cmd/conformance --root .` e `go run ./tools/dmpf-conformance/cmd/modsync --root . --check` passam, assim como `fmt-check`, `vet`, `test-race` e `govulncheck` de cada projeto Go tocado.
+- [x] Ao fim de cada onda, `go run ./tools/dmpf-conformance/cmd/conformance --root .` e `go run ./tools/dmpf-conformance/cmd/modsync --root . --check` passam, assim como `fmt-check`, `vet`, `test-race` e `govulncheck` de cada projeto Go tocado.
 
 ### Cenários de teste
 

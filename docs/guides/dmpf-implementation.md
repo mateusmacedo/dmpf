@@ -588,7 +588,13 @@ adquirente feita durante o consumo de `OrderConfirmed` aconteceria antes de a
 recepção estar deduplicada e persistida, e seria repetida a cada redelivery e a
 cada rollback, autorizando duas vezes.
 
-A saída é não fazer chamada nenhuma. O consumo de `OrderConfirmed` executa
+Há duas saídas, e a escolha depende do parceiro. Quando ele consome um contrato
+publicado, o consumo não faz chamada nenhuma; é o caminho deste exemplo. Quando
+ele só atende requisição e resposta, a chamada é um comando externo de saída com
+chave idempotente, conduzido por `application.Dispatch` sobre o ledger de
+tentativas, como descrito em "Parceiro de requisição e resposta" adiante.
+
+No caminho do contrato, o consumo de `OrderConfirmed` executa
 `Request`, que leva o pagamento a `requested` e grava
 `PaymentAuthorizationRequested` na outbox — estado e intenção de publicar na mesma
 transação (`UOW-07`), sem tocar na rede (`UOW-08`). O relay publica, como publica
@@ -665,6 +671,30 @@ conclusão por callback. Por isso a reversão tem dois estados, e não um.
   reconciliado, não esquecido.
 - **Callback desfavorável chegando depois do cancelamento:** aí não há nada a
   reverter, e a recusa é o desfecho correto — `payment/nothing-to-reverse`.
+
+#### Parceiro de requisição e resposta
+
+Um parceiro que não consome contrato nenhum, e só responde a uma chamada, entra
+pelo segundo caminho. A chamada sai do consumo, mas nunca sem registro:
+
+- `application.Dispatch` grava a tentativa no ledger (`Begin`) antes de chamar e
+  fecha o desfecho (`Finish`) na mesma UoW em que a inbox registra a recepção.
+  Uma redelivery encontra a tentativa e não chama de novo.
+- A chave enviada é a `OutboundKey`, derivada da chave estável e igual em todo
+  reenvio. No provider HTTP, `Route.WithOutboundKey` a põe no header da rota, e
+  `OutcomeTable.Classify` traduz resposta e erro para a classe do desfecho.
+  Status desconhecido vira `UnknownAmbiguous`. Erro depois da conexão vira
+  `UnknownSent`, porque não há como provar que o pedido não saiu.
+- Desfecho incerto não se resolve com reenvio cego. `application.Resolve`
+  registra o que a consulta ou o callback do parceiro informam, e
+  `app.RunSweep` encerra como `UnknownSent` a tentativa que ficou sem desfecho.
+- Os prazos saem de uma fonte única, `app.ExternalBudget`: o `Limit` da rota
+  mais o prazo do settle cabem dentro do prazo do handler, e o corte da varredura
+  é essa soma mais a margem.
+
+Nos testes, `serviceskit.Partner` faz o papel do parceiro, com roteiro por chave
+e por tentativa. As cláusulas de `providerkit` certificam a tabela do adaptador
+e a realização do ledger.
 
 ### 6.4 `preparation` — a preparação
 
