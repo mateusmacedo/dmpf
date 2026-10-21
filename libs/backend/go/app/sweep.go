@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.opentelemetry.io/otel/trace/noop"
 
+	"github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/logging"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/redact"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/tracing"
@@ -39,13 +40,7 @@ type SweepConfig struct {
 	StaleAfter time.Duration
 }
 
-// SweepPage reports one page of a cycle: Next resumes after the last attempt
-// Seen, failed or not, so attempts that always fail never hold the page's head.
-type SweepPage struct {
-	Seen  int
-	Swept int64
-	Next  ports.AttemptCursor
-}
+type SweepPage = application.SweepPage
 
 type SweepFunc func(ctx context.Context, cutoff ports.Instant, after ports.AttemptCursor, batch int) (SweepPage, error)
 
@@ -115,33 +110,12 @@ type ExternalSweep struct {
 	Tracer  trace.Tracer
 }
 
-// A failed attempt does not stop the page, because it stays begun and the next
-// cycle lists it again.
 func SweepExternalAttempts(s ExternalSweep) (SweepFunc, error) {
 	if s.Store == nil || s.Abandon == nil || s.Timeout <= 0 || s.Locale == "" {
 		return nil, fmt.Errorf("%w: the external sweep needs a store, an abandon, a timeout and a locale", ErrInvalidSweepConfig)
 	}
 	return func(ctx context.Context, cutoff ports.Instant, after ports.AttemptCursor, batch int) (SweepPage, error) {
-		attempts, err := s.Store.Stale(ctx, cutoff, after, batch)
-		if err != nil {
-			return SweepPage{}, fmt.Errorf("app: list stale attempts: %w", err)
-		}
-		page := SweepPage{Next: after}
-		var failures []error
-		for _, attempt := range attempts {
-			if err := ctx.Err(); err != nil {
-				failures = append(failures, err)
-				break
-			}
-			page.Seen++
-			page.Next = attempt.Cursor()
-			if err := s.close(ctx, attempt); err != nil {
-				failures = append(failures, err)
-				continue
-			}
-			page.Swept++
-		}
-		return page, errors.Join(failures...)
+		return application.SweepStale(ctx, s.Store, cutoff, after, batch, s.close)
 	}, nil
 }
 

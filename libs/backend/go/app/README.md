@@ -143,7 +143,7 @@ termina, `ErrInvalidSweepConfig` para configuração, relógio, logger ou funç�
 ausentes, e `ErrSweepPanicked`, sem o valor do panic. Ele nunca chama `Submit`:
 só encerra o que o ledger lista, e o reenvio é sempre de uma reentrega.
 
-`SweepExternalAttempts(ExternalSweep)` monta a `SweepFunc`: chama
+`SweepExternalAttempts(ExternalSweep)` monta a `SweepFunc` sobre `application.SweepStale`: chama
 `Store.Stale(cutoff, after, batch)`, que cruza tenants, e entrega cada tentativa
 a `Abandon`, a função do contexto montada sobre `application.Abandon`, que
 encerra a tentativa como `UnknownSent` presumido e aplica o passo na mesma
@@ -173,6 +173,26 @@ O `serve` não liga a varredura: o `Abandon` é do contexto, que conhece o
 `UnitOfWork`, o perfil do parceiro e o passo que aplica, e o `serve.API` não tem
 ponto de extensão para laços do contexto. O composition root do contexto monta
 a `SweepFunc` e roda `RunSweep` no papel que tem o ledger.
+
+## O orçamento do comando externo
+
+`ExternalBudget` (`external_budget.go`) é a fonte única dos prazos do comando
+externo. `Route` é o `deadline.Budget` real da rota de saída, e o `Route.Limit`
+dele é o prazo máximo do `Submit` dentro do handler, não um número paralelo.
+`Settle` limita o fechamento da tentativa no ledger, `Processing` é o
+`ProcessingDeadline` do consumo Kafka (`KFK-19`) e `Margin` é a folga do corte.
+`Validate` recusa com `ErrInvalidExternalBudget` qualquer campo não positivo,
+a `Margin` abaixo de `MinExternalMargin` (1s), o orçamento em que
+`Route.Limit + Settle` não cabe estritamente em `Processing` e a soma
+`Route.Limit + Settle + Margin` que estouraria `time.Duration`. O piso da
+`Margin` existe porque o intervalo entre o `Begin` no ledger e o início do
+prazo do `Do` fica fora de `Route.Limit + Settle`: só a folga o cobre.
+`StaleAfter()` devolve `Route.Limit + Settle + Margin`, saturada em
+`math.MaxInt64` num orçamento não validado, o mesmo
+valor que alimenta o `SweepConfig.StaleAfter` e, em nanossegundos, o
+`StaleAfter` do `application.ExternalDispatch`. `SettleContext()` é a função
+que o `Dispatch` recebe: aplica `Settle` como timeout sobre o contexto que ele
+já desligou do cancelamento do pai.
 
 ## O papel `api` com migrador
 

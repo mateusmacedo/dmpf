@@ -37,7 +37,7 @@ var (
 	ErrServiceNotRegistered  = errors.New("serve: Register did not register the service specified by Desc")
 	ErrUnexpectedService     = errors.New("serve: Register registered a service other than the one specified by Desc")
 	ErrRelayUnnamed          = errors.New("serve: the relay needs a component and a scope")
-	ErrNoAttemptRetention    = errors.New("serve: ExternalCommands needs a positive Policies.InboxRetention, the window a redelivery may still read a finished attempt in")
+	ErrNoAttemptRetention    = errors.New("serve: ExternalCommands needs a positive Policies.InboxRetention, the window in which a redelivery may still read a finished attempt")
 )
 
 // Ping and Migrate run before the port listens, so without a deadline a stuck
