@@ -129,16 +129,18 @@ type extInstrumentation struct {
 	results    []ports.Result
 	classes    []ports.ExternalClass
 	conflicts  []bool
+	saturated  []bool
 }
 
 func (i *extInstrumentation) BeginOperation(ctx context.Context, operation string) (context.Context, ports.EndOperation) {
 	i.operations = append(i.operations, operation)
-	ctx = ports.WithExternalConflictSlot(ports.WithExternalClassSlot(ctx))
+	ctx = ports.WithExternalSaturationSlot(ports.WithExternalConflictSlot(ports.WithExternalClassSlot(ctx)))
 	return ctx, func(result ports.Result) {
 		class, _ := ports.ExternalClassFrom(ctx)
 		i.results = append(i.results, result)
 		i.classes = append(i.classes, class)
 		i.conflicts = append(i.conflicts, ports.ExternalConflictFrom(ctx))
+		i.saturated = append(i.saturated, ports.ExternalSaturationFrom(ctx))
 	}
 }
 
@@ -149,6 +151,10 @@ func (i *extInstrumentation) marked() (ports.ExternalClass, bool) {
 		return 0, false
 	}
 	return i.classes[0], i.conflicts[0]
+}
+
+func (i *extInstrumentation) markedSaturated() bool {
+	return len(i.saturated) == 1 && i.saturated[0]
 }
 
 func (i *extInstrumentation) outcome() ports.OutcomeCategory {
@@ -167,6 +173,7 @@ func settleWithin(ctx context.Context) (context.Context, context.CancelFunc) {
 type txLedger struct {
 	finished map[int]ports.ExternalClass
 	observed []string
+	full     bool
 }
 
 func newTxLedger() *txLedger { return &txLedger{finished: map[int]ports.ExternalClass{}} }
@@ -182,6 +189,8 @@ func (l *txLedger) Finish(_ context.Context, o ports.AttemptOutcome) (ports.Fini
 		return ports.Finished{Result: ports.FinishRecorded, Recorded: o.Class}, nil
 	case class == o.Class || o.Presumed:
 		return ports.Finished{Result: ports.FinishUnchanged, Recorded: class}, nil
+	case l.full:
+		return ports.Finished{Result: ports.FinishSaturated, Recorded: class}, nil
 	default:
 		return ports.Finished{Result: ports.FinishConflict, Recorded: class}, nil
 	}

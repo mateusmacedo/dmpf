@@ -56,8 +56,11 @@ func (r ExternalResolution[R]) run(ctx context.Context) (ports.Observed, error) 
 	if observed.Class != 0 {
 		ports.MarkExternalClass(ctx, observed.Class)
 	}
-	if observed.Result == ports.ObserveConflict {
+	switch observed.Result {
+	case ports.ObserveConflict:
 		ports.MarkExternalConflict(ctx)
+	case ports.ObserveSaturated:
+		ports.MarkExternalSaturation(ctx)
 	}
 	return observed, nil
 }

@@ -226,3 +226,27 @@ func TestAbandonRollbackLeavesTheAttemptBegun(t *testing.T) {
 		})
 	}
 }
+
+func TestAbandonOfAFullAttemptIsPresumedAndNeverSaturates(t *testing.T) {
+	ledger := newTxLedger()
+	ledger.finished[2], ledger.full = ports.ClassAccepted, true
+	inst, apply := &extInstrumentation{}, &extApply{uow: &extUoW{}}
+	a := usecase.ExternalAbandon[extResources]{
+		UoW:             &txLedgerUoW{ledger: ledger},
+		Ledger:          func(res extResources) ports.AttemptLedger { return res.ledger },
+		Attempt:         openedAttempt(2),
+		Profile:         validProfile(),
+		Clock:           &countingClock{at: 3_000},
+		Instrumentation: inst,
+		Apply:           apply.apply,
+	}
+	tenant := ports.TenantID("acme")
+
+	got, err := usecase.Abandon(tenantContext(t, &tenant), a)
+	if want := (ports.Finished{Result: ports.FinishUnchanged, Recorded: ports.ClassAccepted}); err != nil || got != want {
+		t.Fatalf("Abandon() = %+v, %v; want %+v", got, err, want)
+	}
+	if inst.markedSaturated() || len(apply.steps) != 0 {
+		t.Fatalf("marked saturation %v and applied %v; want neither", inst.markedSaturated(), apply.steps)
+	}
+}

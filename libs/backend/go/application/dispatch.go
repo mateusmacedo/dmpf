@@ -148,8 +148,11 @@ func (d ExternalDispatch[R]) submit(ctx context.Context, a ports.Attempt) (settl
 	if err != nil {
 		return settlement{}, fmt.Errorf("application: dispatch: finish attempt %d: %w", a.N, err)
 	}
-	if finished.Result == ports.FinishConflict {
+	switch finished.Result {
+	case ports.FinishConflict:
 		ports.MarkExternalConflict(ctx)
+	case ports.FinishSaturated:
+		ports.MarkExternalSaturation(ctx)
 	}
 	if finished.Result != ports.FinishRecorded && !finished.Recorded.Retryable() {
 		s.class = finished.Recorded
@@ -162,67 +165,75 @@ func (d ExternalDispatch[R]) settle(ctx context.Context, s settlement) (Disposit
 	ctx, cancel := d.settleContext(ctx)
 	defer cancel()
 
-	var disposition Disposition
+	var (
+		disposition Disposition
+		finished    ports.Finished
+	)
 	err := d.UoW.Within(ctx, func(ctx context.Context, res R) error {
+		finished = ports.Finished{}
 		reception, err := d.Inbox(res).Register(ctx, d.Receipt)
 		if err != nil {
 			return err
 		}
+		closing := func(as Disposition) func() error {
+			return func() error {
+				disposition = as
+				finished, err = d.close(ctx, res, s)
+				return err
+			}
+		}
 		return reception.Match(
 			func(pending ports.Pending) error {
 				disposition = R1D1
-				return d.finish(ctx, res, s, pending)
+				finished, err = d.finish(ctx, res, s, pending)
+				return err
 			},
-			func() error { disposition = R2; return d.close(ctx, res, s) },
-			func() error { disposition = R3; return d.close(ctx, res, s) },
-			func() error { disposition = R4; return d.close(ctx, res, s) },
+			closing(R2), closing(R3), closing(R4),
 		)
 	})
 	if err != nil {
 		err = fmt.Errorf("application: dispatch: %w", err)
 		return Classify(err), err
 	}
+	markFinished(ctx, finished)
 	return disposition, nil
 }
 
-func (d ExternalDispatch[R]) record(ctx context.Context, res R, s settlement, at ports.Instant) (ports.Finished, error) {
-	finished, err := d.Ledger(res).Finish(ctx, s.outcome(d.Key, at))
-	if err != nil {
-		return ports.Finished{}, err
-	}
+func markFinished(ctx context.Context, finished ports.Finished) {
 	if finished.Recorded != 0 {
 		ports.MarkExternalClass(ctx, finished.Recorded)
 	}
-	if finished.Result == ports.FinishConflict {
+	switch finished.Result {
+	case ports.FinishConflict:
 		ports.MarkExternalConflict(ctx)
+	case ports.FinishSaturated:
+		ports.MarkExternalSaturation(ctx)
 	}
-	return finished, nil
 }
 
 // close is a redelivery the inbox already settled (R2, R3) or refused (R4): an
 // attempt this call began is closed with its class, unapplied, so the sweep finds
 // no begun attempt to apply a step for.
-func (d ExternalDispatch[R]) close(ctx context.Context, res R, s settlement) error {
+func (d ExternalDispatch[R]) close(ctx context.Context, res R, s settlement) (ports.Finished, error) {
 	if !s.owned {
-		return nil
+		return ports.Finished{}, nil
 	}
-	_, err := d.record(ctx, res, s, d.Clock.Now())
-	return err
+	return d.Ledger(res).Finish(ctx, s.outcome(d.Key, d.Clock.Now()))
 }
 
-func (d ExternalDispatch[R]) finish(ctx context.Context, res R, s settlement, pending ports.Pending) error {
+func (d ExternalDispatch[R]) finish(ctx context.Context, res R, s settlement, pending ports.Pending) (ports.Finished, error) {
 	now := d.Clock.Now()
-	finished, err := d.record(ctx, res, s, now)
+	finished, err := d.Ledger(res).Finish(ctx, s.outcome(d.Key, now))
 	if err != nil {
-		return err
+		return ports.Finished{}, err
 	}
 	if finished.Result == ports.FinishRecorded {
 		step := NextStep(StepInput{Class: s.class, Finding: s.observation.Finding, Profile: d.Profile, QueryAvailable: d.QueryAvailable})
 		if err := d.Apply(ctx, res, ExternalStep{Step: step, Attempt: s.attempt, Class: s.class, Observation: s.observation}); err != nil {
-			return err
+			return ports.Finished{}, err
 		}
 	}
-	return pending.Complete(ctx, ports.Completion{Status: ports.StatusProcessed, At: now})
+	return finished, pending.Complete(ctx, ports.Completion{Status: ports.StatusProcessed, At: now})
 }
 
 func operationResult(err error) ports.Result {

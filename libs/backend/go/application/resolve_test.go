@@ -59,6 +59,8 @@ func TestResolve(t *testing.T) {
 			ports.Observed{Result: ports.ObserveDuplicate, Class: ports.ClassUnknownSent, QueriesDone: 1}, []usecase.Step{}},
 		{"a conflict applies nothing", ports.FindingRejected, validProfile(),
 			ports.Observed{Result: ports.ObserveConflict, Class: ports.ClassUnknownSent, QueriesDone: 1}, []usecase.Step{}},
+		{"a saturated attempt applies nothing", ports.FindingApplied, validProfile(),
+			ports.Observed{Result: ports.ObserveSaturated, Class: ports.ClassUnknownSent, QueriesDone: 1}, []usecase.Step{}},
 		{"an observation with no result applies nothing", ports.FindingApplied, validProfile(),
 			ports.Observed{}, []usecase.Step{}},
 		{"applied confirms", ports.FindingApplied, validProfile(),
@@ -102,6 +104,9 @@ func TestResolve(t *testing.T) {
 			class, conflict := rig.inst.marked()
 			if class != tt.observed.Class || conflict != (tt.observed.Result == ports.ObserveConflict) {
 				t.Fatalf("marked class %v, conflict %v; want %v, %v", class, conflict, tt.observed.Class, tt.observed.Result == ports.ObserveConflict)
+			}
+			if saturated := rig.inst.markedSaturated(); saturated != (tt.observed.Result == ports.ObserveSaturated) {
+				t.Fatalf("marked saturation %v, want %v", saturated, tt.observed.Result == ports.ObserveSaturated)
 			}
 			if !slices.Equal(rig.inst.operations, []string{"external.resolve"}) || rig.inst.outcome() != ports.OutcomeAccepted {
 				t.Fatalf("instrumented %v ending %+v, want one accepted external.resolve", rig.inst.operations, rig.inst.results)

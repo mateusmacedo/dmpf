@@ -23,7 +23,7 @@ Import path do módulo:
 
 | Package | Unidade DMPF | Bloco | Conteúdo |
 | --- | --- | --- | --- |
-| `application` (raiz) | `kernel/application` | `application` | `Outcome[R]`, `Accepted`, `Rejected`, `Outcome.Category`; `Executor[Res, Op]`, `Command[Res, Op, R]`, `Execute`; `Loader[ID, S, A]`, `OrNew`, `Existing`, `Absent`, `Decide`, `DeclaredRejection`; `Origin`, `Enqueue`; `Query[Op, S]`; `Identity`, `ResolveIdentity`; `Authorize[C]`, `AllowAll[C]`, `Permitted[C]`, `PlatformPermitted[C]`; `MessageContextFor`; `Disposition` (as sete de FND-04 §6.4), `Category`, `Failure`, `Classify`, `CategoryOf` (a categoria de `Failure` ou de sentinela de porta, `Conflict` para `ErrUniqueViolation`, `Forbidden` para a recusa de IDN-17/IDN-19 — `ErrPlatformReachUndeclared`, `ErrProjectionDenied` — qualquer que seja a causa embrulhada, vazia quando não classifica); `Fingerprint`, `NewFingerprint`; `OutcomeCodec[R]`, `Encoder`, `Decoder`, `EncodeOutcome`, `DecodeOutcome`, `ErrOutcomeUnreadable`; `IdempotencyPolicy`, `IdempotentCommand[R]`, `RunIdempotent`, `ErrIncompleteCommand`; `ValidateExternalProfile`, `ErrInvalidExternalProfile`; `OutboundKeyPolicy`, `OutboundIntent`, `DeriveOutboundKey`, `ErrIncompleteOutboundPolicy`, `ErrIncompleteOutboundIntent`; `Step`, `StepInput`, `NextStep`; `ExternalStep`, `ExternalDispatch[R]`, `Dispatch`, `ErrIncompleteDispatch`; `ExternalResolution[R]`, `Resolve`, `ErrIncompleteResolution`; `ExternalAbandon[R]`, `Abandon`, `ErrIncompleteAbandon`, `ErrAbandonOutsideTenant` (ADR-070) |
+| `application` (raiz) | `kernel/application` | `application` | `Outcome[R]`, `Accepted`, `Rejected`, `Outcome.Category`; `Executor[Res, Op]`, `Command[Res, Op, R]`, `Execute`; `Loader[ID, S, A]`, `OrNew`, `Existing`, `Absent`, `Decide`, `DeclaredRejection`; `Origin`, `Enqueue`; `Query[Op, S]`; `Identity`, `ResolveIdentity`; `Authorize[C]`, `AllowAll[C]`, `Permitted[C]`, `PlatformPermitted[C]`; `MessageContextFor`; `Disposition` (as sete de FND-04 §6.4), `Category`, `Failure`, `Classify`, `CategoryOf` (a categoria de `Failure` ou de sentinela de porta, `Conflict` para `ErrUniqueViolation`, `Forbidden` para a recusa de IDN-17/IDN-19 — `ErrPlatformReachUndeclared`, `ErrProjectionDenied` — qualquer que seja a causa embrulhada, vazia quando não classifica); `Fingerprint`, `NewFingerprint`; `OutcomeCodec[R]`, `Encoder`, `Decoder`, `EncodeOutcome`, `DecodeOutcome`, `ErrOutcomeUnreadable`; `IdempotencyPolicy`, `IdempotentCommand[R]`, `RunIdempotent`, `ErrIncompleteCommand`; `ValidateExternalProfile`, `ErrInvalidExternalProfile`; `OutboundKeyPolicy`, `OutboundIntent`, `DeriveOutboundKey`, `ErrIncompleteOutboundPolicy`, `ErrIncompleteOutboundIntent`; `Step`, `StepInput`, `NextStep`; `ExternalStep`, `ExternalDispatch[R]`, `Dispatch`, `ErrIncompleteDispatch`; `ExternalResolution[R]`, `Resolve`, `ErrIncompleteResolution`; `ExternalAbandon[R]`, `Abandon`, `ErrIncompleteAbandon`, `ErrAbandonOutsideTenant`; `SweepPage`, `SweepStale`, a página de varredura que `app.SweepExternalAttempts` e o vetor de `tb/dist` executam (ADR-070) |
 
 Uma unidade só, com `bounded_context: kernel`; em Go, a unidade de verificação
 é o package (RFC §3.3). Os packages que este módulo carregava como
@@ -294,23 +294,27 @@ escrita (`OBX-07`, `OBX-16`, `INB-07`):
 Na UoW, R2, R3 e R4 dão curto-circuito sem `Apply`; a tentativa que esta chamada
 iniciou é encerrada com a sua classe, para não restar `begun` que a varredura
 aplicaria. Em R1, `Finish`, `NextStep` e `Apply` quando gravou, e a recepção é
-concluída como `processed` (R1×D1). Conflito segue o desfecho gravado, sem
-`Apply` do tardio. O corte (`StaleAfter`) é o prazo da chamada mais a margem, em
+concluída como `processed` (R1×D1). Conflito e saturação (`FinishSaturated`)
+seguem o desfecho gravado, sem `Apply` do tardio. O corte (`StaleAfter`) é o prazo da chamada mais a margem, em
 nanossegundos. A gravação do desfecho roda sob `context.WithoutCancel`, com o
 prazo que o `SettleContext` do composition root fixa, porque este bloco não
 importa `time`: o cancelamento do chamador depois do `Submit` não perde o
 desfecho.
 
 `Resolve` aplica uma `Observation` numa UoW e devolve o `ports.Observed`:
-duplicata e conflito não aplicam nada, e o conflito volta como resultado, não
-como erro, para que o commit que o registrou prevaleça. `Abandon` encerra uma
+duplicata, conflito e saturação (`ObserveSaturated`) não aplicam nada, e o conflito volta como resultado, não
+como erro, para que o commit que o registrou prevaleça. O achado terminal que
+chega a uma linha cheia ainda sem terminal volta `ObserveRecorded` e tem o passo
+aplicado como em qualquer linha. `Abandon` encerra uma
 tentativa de `Stale` como `UnknownSent` e aplica o passo na mesma UoW, sem
 reenviar; recebe o contexto já no tenant da tentativa, que o laço de `app` monta,
 e recusa outro com `ErrAbandonOutsideTenant`. O `UnknownSent` da redelivery
 vencida e do `Abandon` vai como `Presumed`. Os três abrem a operação
 `external.dispatch`, `external.resolve` ou `external.abandon` na
-`Instrumentation`, marcam a classe por `ports.MarkExternalClass` e o conflito por
-`ports.MarkExternalConflict`.
+`Instrumentation`, marcam a classe por `ports.MarkExternalClass` o conflito por
+`ports.MarkExternalConflict` e a saturação por `ports.MarkExternalSaturation`;
+o que a UoW grava só é marcado depois do commit, e o commit que falha não deixa
+conflito nem saturação marcados.
 
 ## Garantias de entrega
 

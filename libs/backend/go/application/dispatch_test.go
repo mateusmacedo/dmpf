@@ -88,6 +88,7 @@ type dispatchWant struct {
 	steps         []usecase.Step
 	marked        ports.ExternalClass
 	conflict      bool
+	saturated     bool
 	presumed      bool
 	completed     bool
 }
@@ -229,6 +230,19 @@ func TestDispatch(t *testing.T) {
 			},
 		},
 		{
+			name: "a spent budget on a saturated attempt settles on the recorded class without applying",
+			arrange: func(r *dispatchRig) {
+				r.command.class = ports.ClassRetryableUpstream
+				r.store.finished = ports.Finished{Result: ports.FinishSaturated, Recorded: ports.ClassUnknownSent}
+				r.tx.finished = ports.Finished{Result: ports.FinishUnchanged, Recorded: ports.ClassUnknownSent}
+			},
+			want: dispatchWant{
+				disposition: usecase.R1D1, submits: 1, withins: 1,
+				storeFinishes: []ports.ExternalClass{ports.ClassRetryableUpstream}, txFinishes: []ports.ExternalClass{ports.ClassUnknownSent},
+				steps: []usecase.Step{}, marked: ports.ClassUnknownSent, saturated: true, completed: true,
+			},
+		},
+		{
 			name: "a spent budget the store already holds as retryable stays a retry",
 			arrange: func(r *dispatchRig) {
 				r.command.class = ports.ClassRetryableTransport
@@ -249,6 +263,17 @@ func TestDispatch(t *testing.T) {
 				disposition: usecase.R1D1, submits: 1, withins: 1,
 				storeFinishes: []ports.ExternalClass{}, txFinishes: []ports.ExternalClass{ports.ClassAccepted},
 				steps: []usecase.Step{}, marked: ports.ClassUnknownSent, conflict: true, completed: true,
+			},
+		},
+		{
+			name: "a late class on a saturated attempt applies nothing and follows the recorded one",
+			arrange: func(r *dispatchRig) {
+				r.tx.finished = ports.Finished{Result: ports.FinishSaturated, Recorded: ports.ClassUnknownSent}
+			},
+			want: dispatchWant{
+				disposition: usecase.R1D1, submits: 1, withins: 1,
+				storeFinishes: []ports.ExternalClass{}, txFinishes: []ports.ExternalClass{ports.ClassAccepted},
+				steps: []usecase.Step{}, marked: ports.ClassUnknownSent, saturated: true, completed: true,
 			},
 		},
 		{
@@ -374,6 +399,30 @@ func TestDispatch(t *testing.T) {
 				steps: []usecase.Step{usecase.StepConfirm}, marked: ports.ClassAccepted, completed: true,
 			},
 		},
+		{
+			name: "a conflict whose commit failed is not marked",
+			arrange: func(r *dispatchRig) {
+				r.tx.finished = ports.Finished{Result: ports.FinishConflict, Recorded: ports.ClassFinalBusiness}
+				r.uow.commitErr = errCommit
+			},
+			want: dispatchWant{
+				disposition: usecase.R1D4, err: errCommit, submits: 1, withins: 1,
+				storeFinishes: []ports.ExternalClass{}, txFinishes: []ports.ExternalClass{ports.ClassAccepted},
+				steps: []usecase.Step{}, marked: ports.ClassAccepted, completed: true,
+			},
+		},
+		{
+			name: "a saturation whose commit failed is not marked",
+			arrange: func(r *dispatchRig) {
+				r.tx.finished = ports.Finished{Result: ports.FinishSaturated, Recorded: ports.ClassFinalBusiness}
+				r.uow.commitErr = errCommit
+			},
+			want: dispatchWant{
+				disposition: usecase.R1D4, err: errCommit, submits: 1, withins: 1,
+				storeFinishes: []ports.ExternalClass{}, txFinishes: []ports.ExternalClass{ports.ClassAccepted},
+				steps: []usecase.Step{}, marked: ports.ClassAccepted, completed: true,
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -423,6 +472,9 @@ func assertDispatch(t *testing.T, rig *dispatchRig, disposition usecase.Disposit
 	}
 	if class, conflict := rig.inst.marked(); class != want.marked || conflict != want.conflict {
 		t.Errorf("marked class %v, conflict %v; want %v, %v", class, conflict, want.marked, want.conflict)
+	}
+	if saturated := rig.inst.markedSaturated(); saturated != want.saturated {
+		t.Errorf("marked saturation %v, want %v", saturated, want.saturated)
 	}
 	wantOutcome := ports.OutcomeAccepted
 	if err != nil {
