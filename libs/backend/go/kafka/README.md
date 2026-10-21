@@ -96,11 +96,29 @@ integração**, para criar os tópicos.
   pausas e commita, encerra o consumer: o contexto do `Run` é cancelado, os
   workers param e o `Run` devolve só `ErrPanicked`, sem o valor do panic, que o
   `cmd/main.go` escreve como erro de término (RF-A1).
-  Revogação ou perda da partição fecha o commit do worker, cancela a tentativa
-  em curso sem drenar a fila pelo `Sink`, espera o worker sair, **levanta a
-  pausa de fetch** — o kgo a mantém entre rebalances — e commita só o que já
-  estava contíguo (TRP-48); o encerramento drena todos os workers sob
-  `RebalanceTimeout`. Atribuição, revogação e perda de partição saem em
+  Revogação ou perda de partições fecha o commit de todos os workers
+  revogados e cancela de uma vez as tentativas em curso, sem drenar a fila pelo
+  `Sink`; depois espera todos em paralelo sob um único prazo,
+  `Config.RevokeGrace`, medido pelo `Config.Clock`. Quem saiu **levanta a pausa
+  de fetch** — o kgo a mantém entre rebalances — e commita só o que já estava
+  contíguo (TRP-48). Quem não saiu no prazo (um `Sink` que ignora o
+  cancelamento) fica com o portão de commit fechado e não commita nada: sai um
+  log `error` por partição, com `messaging.destination.name`,
+  `messaging.destination.partition.id` e `dmpf.consumer.revoke_grace`, e um
+  ponto em `dmpf.dependency.deadline_exceeded` com só `dmpf.dependency=kafka` e
+  `dmpf.operation=revoke`. O primeiro estouro cancela o `Run`, que devolve um
+  erro que satisfaz `errors.Is(err, ErrRevokeStuck)`. O encerramento drena os
+  workers restantes sob `RebalanceTimeout`.
+  `RevokeGrace` é obrigatório no consumer: `Consumer.Validate` recusa
+  (`ErrIncompleteConsumer`) um valor `<= 0` e o que não cumpre
+  `ProcessingDeadline + RevokeGrace < RebalanceTimeout` (KFK-19). O publisher
+  não usa o campo.
+  **Contrato de `ErrRevokeStuck`:** o erro é fatal e a composição precisa
+  encerrar o processo ao recebê-lo. O Go não mata a goroutine presa, que segue
+  viva até o `Sink` retornar; até o processo cair, a chave externa do comando
+  em voo fica serializada pelo ledger de tentativas (o novo dono da partição
+  recebe `ports.ErrAttemptInFlight`), e o kernel não promete ausência de trabalho
+  destacado nesse intervalo. Atribuição, revogação e perda de partição saem em
   `info`, com as partições no corpo (`partitions assigned [...]`, `revoked`,
   `lost`) e `messaging.system`, `messaging.consumer.group.name` e
   `messaging.destination.name` (RF-A6). Erro devolvido junto do `Ack` é logado

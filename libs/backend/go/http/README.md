@@ -142,6 +142,63 @@ o `dmpf-context-check.sh` a reprova em qualquer arquivo de produção de um
 contexto, que é só gRPC (ADR-044); o contexto também não monta o carrier por
 conta própria.
 
+## O resultado de uma chamada a parceiro (`outcome.go`)
+
+`OutcomeTable{Version, Status}` é a tabela que o adaptador do parceiro declara
+e versiona: cada código HTTP que o parceiro documenta aponta uma
+`ports.ExternalClass`. `Validate` recusa versão vazia, código fora de 100–599 e
+classe fora de 1–9, que o ledger de tentativas não grava
+(`ErrInvalidOutcomeTable`).
+
+`Classify(resp, err)` dá a classe de um retorno de `Client.Do`:
+
+| Retorno | Classe |
+| --- | --- |
+| resposta com status declarado | a da tabela |
+| resposta com status não declarado | `ClassUnknownAmbiguous` |
+| `RetryableStatusError` | a da tabela pelo `Status` contido, ou `ClassUnknownAmbiguous` |
+| `ErrRouteNotDeclared`, `ErrMethodMismatch`, `ErrBodyNotReplayable`, `deadline.ErrNoDeadline` | `ClassFinalValidation` |
+| recusa antes de qualquer tentativa: `resilience.ErrBreakerOpen`, `resilience.ErrBulkheadSaturated`, `resilience.ErrDeadlineExceeded`, `deadline.ErrDeadlineExhausted` | `ClassRetryableTransport` |
+| `*net.OpError` com `Op == "dial"` | `ClassRetryableTransport` |
+| qualquer outro erro de rede, cancelamento ou prazo | `ClassUnknownSent` |
+
+Os erros de configuração e as recusas da composição só valem como não enviados
+quando `Do` os devolve sem ter executado nenhuma tentativa: `Do` marca esse
+retorno, e só a marca prova o não envio. A mesma recusa depois de uma tentativa
+(um disjuntor que abre entre duas tentativas, por exemplo) cai em
+`ClassUnknownSent`, assim como um erro sem sentinela reconhecido.
+
+A regra é conservadora. O `WroteRequest` do `httptrace` pode chegar depois do
+retorno de `Do` (`net/http/request.go`, `Request.write`), então a ausência do
+sinal não prova que nada foi enviado, e a classificação não usa `httptrace`.
+Só a falha de conexão prova o não envio. Um cancelamento ou prazo **durante** o
+dial também cai em `ClassUnknownSent`: com o contexto encerrado, o
+`http.Transport` devolve `context.Cause` no lugar do erro do dial
+(`net/http/transport.go`, `getConn`), e o `*net.OpError` não chega a quem chama.
+
+`Route.WithOutboundKey(req, key)` devolve uma cópia da requisição com a
+`ports.OutboundKey` no header que a rota declara em `Route.IdempotencyKey`
+(`ErrOutboundKeyRequired` se a rota não declara header ou a chave é vazia) e
+marcada no contexto. `Do` executa a requisição marcada numa **única tentativa**,
+sem o retry da composição, mesmo em rota POST com chave (`Route.Idempotent()`):
+quem decide reenviar é o kernel, pela `ExternalClass`. Assim `Classify` nunca vê
+o erro de uma tentativa posterior a outra que já escreveu o corpo — uma falha de
+dial depois de um envio viraria `ClassRetryableTransport` e duplicaria o efeito.
+Sem retry, a requisição marcada dispensa `GetBody` (`ErrBodyNotReplayable` não
+se aplica). `ports.KeyHeader` é um valor de `ports.KeySemantics` — diz que o
+parceiro deduplica pela chave num header —; o nome concreto do header é o
+`Route.IdempotencyKey` da rota.
+
+`WithOutboundKey` recusa (`ErrOutboundKeyHeaderReplayable`) a rota cujo header,
+na forma canônica, é `Idempotency-Key` ou `X-Idempotency-Key`: com eles o
+`http.Transport` reenvia sozinho uma requisição já escrita numa conexão
+keep-alive morta (`net/http/request.go`, `isReplayable`), abaixo do `Do` e sem
+contar no `resend_count`. A recusa não está em `Route.Validate`, porque a borda
+de entrada usa `Idempotency-Key` legitimamente. O único reenvio que o
+`Transport` ainda faz é o de `nothingWrittenError` (`net/http/transport.go`,
+`shouldRetryRequest`), em que nada foi escrito; se o dial desse reenvio falhar,
+`ClassRetryableTransport` está correta.
+
 ## O que o módulo não contém
 
 Desenho de recurso, paginação, forma do corpo de erro e versionamento de URL

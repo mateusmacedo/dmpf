@@ -121,23 +121,32 @@ func NewClient(cfg Config) (*Client, error) {
 
 // Do sends the request on the named route under the deadline its budget
 // derives (RST-03); a transient status is retried only on an idempotent route
-// (RST-02) and the last response comes back. Closing its Body releases the call.
+// (RST-02), never for a WithOutboundKey request. Closing its Body releases the call.
 func (c *Client) Do(ctx context.Context, routeName string, req *http.Request) (*http.Response, error) {
+	resp, attempts, err := c.do(ctx, routeName, req)
+	if err != nil && attempts == 0 {
+		return nil, &notSentError{err: err}
+	}
+	return resp, err
+}
+
+func (c *Client) do(ctx context.Context, routeName string, req *http.Request) (*http.Response, int, error) {
 	route, declared := c.cfg.Routes[routeName]
 	if !declared {
-		return nil, fmt.Errorf("%w: %q", ErrRouteNotDeclared, routeName)
+		return nil, 0, fmt.Errorf("%w: %q", ErrRouteNotDeclared, routeName)
 	}
 	if req.Method != route.Method {
-		return nil, fmt.Errorf("%w: %s is %s, request is %s", ErrMethodMismatch, route.Name, route.Method, req.Method)
+		return nil, 0, fmt.Errorf("%w: %s is %s, request is %s", ErrMethodMismatch, route.Name, route.Method, req.Method)
 	}
+	retryable := route.Idempotent() && !outboundKeyed(req)
 	hasBody := req.Body != nil && req.Body != http.NoBody
-	if hasBody && req.GetBody == nil && route.Idempotent() {
-		return nil, fmt.Errorf("%w: %s", ErrBodyNotReplayable, route.Name)
+	if hasBody && req.GetBody == nil && retryable {
+		return nil, 0, fmt.Errorf("%w: %s", ErrBodyNotReplayable, route.Name)
 	}
 
 	until, err := deadline.Outgoing(ctx, c.cfg.Clock, route.Budget)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	// Each attempt gets its own request context, tied to the decorators' attempt
 	// context only while the round trip runs: a body read after Do returns must
@@ -150,7 +159,7 @@ func (c *Client) Do(ctx context.Context, routeName string, req *http.Request) (*
 	}
 
 	op := route.Budget.Operation()
-	op.Idempotent = route.Idempotent()
+	op.Idempotent = retryable
 
 	var final *http.Response
 	var releaseFinal context.CancelFunc
@@ -182,13 +191,13 @@ func (c *Client) Do(ctx context.Context, routeName string, req *http.Request) (*
 		final, releaseFinal = transient.Response, func() {}
 	default:
 		cancelOuter()
-		return nil, err
+		return nil, resends, err
 	}
 	final.Body = &releasing{ReadCloser: final.Body, release: func() {
 		releaseFinal()
 		cancelOuter()
 	}}
-	return final, nil
+	return final, resends, nil
 }
 
 // attempt sends one try. The body comes from GetBody on every try, so each

@@ -78,7 +78,7 @@ CREATE TABLE IF NOT EXISTS guarded_series (
 
 CREATE INDEX IF NOT EXISTS guarded_series_owner_id_idx ON guarded_series (owner_id);`
 
-var allCapabilities = []postgres.Capability{postgres.Outbox, postgres.Inbox}
+var allCapabilities = []postgres.Capability{postgres.Outbox, postgres.Inbox, postgres.ExternalAttempt}
 
 var probeTableGrants = []postgres.Grant{postgres.Mutable("probes"), postgres.Mutable("tagged_probes"), postgres.Mutable("unique_probes"), postgres.Mutable("guarded_heads"), postgres.Mutable("guarded_series")}
 
@@ -132,7 +132,7 @@ func truncate(t testing.TB, ctx context.Context, pool *pgxpool.Pool) {
 		pool = admin.(*pgxpool.Pool)
 	}
 
-	if _, err := pool.Exec(ctx, "TRUNCATE outbox, inbox, quarantine, probes, tagged_probes, unique_probes, guarded_heads, guarded_series"); err != nil {
+	if _, err := pool.Exec(ctx, "TRUNCATE outbox, inbox, quarantine, external_attempt, probes, tagged_probes, unique_probes, guarded_heads, guarded_series"); err != nil {
 		t.Fatalf("TRUNCATE = %v, want nil", err)
 	}
 }

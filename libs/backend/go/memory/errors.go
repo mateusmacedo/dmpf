@@ -22,6 +22,8 @@ var (
 	// ErrInvalidCompletion mirrors postgres.ErrInvalidCompletion (INB-02).
 	ErrInvalidCompletion = errors.New("memory: completion status must be processed or rejected")
 
+	ErrIncompleteAttemptStore = errors.New("memory: attempt store requires a store")
+
 	// ErrCommandExpiryRequired mirrors postgres.ErrCommandExpiryRequired (IDM-09).
 	ErrCommandExpiryRequired = errors.New("memory: a command receipt needs an expiry after its reception")
 )

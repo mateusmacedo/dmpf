@@ -9,9 +9,10 @@ import (
 // Tx is the working copy of one transaction: writes land here and reach the
 // store only at commit.
 type Tx struct {
-	tables map[string]*table
-	inbox  map[inboxKey]inboxRow
-	outbox []ports.OutboxEntry
+	tables   map[string]*table
+	inbox    map[inboxKey]inboxRow
+	outbox   []ports.OutboxEntry
+	attempts map[attemptKey][]attemptRow
 
 	// writes counts Save and Enqueue, never the inbox: a unique violation after
 	// one is no longer convertible to a rejection (DEC-10).
@@ -81,8 +82,9 @@ func (u unitOfWork[R]) open() *Tx {
 	defer u.store.dataMu.Unlock()
 	u.store.withinCalls++
 	return &Tx{
-		tables: cloneTables(u.store.tables),
-		inbox:  cloneInboxRows(u.store.inbox),
+		tables:   cloneTables(u.store.tables),
+		inbox:    cloneInboxRows(u.store.inbox),
+		attempts: cloneAttempts(u.store.attempts),
 	}
 }
 
@@ -100,6 +102,7 @@ func (u unitOfWork[R]) commit(tx *Tx) error {
 	// fora de qualquer transação e sem o dataMu.
 	u.store.tables = cloneTables(tx.tables)
 	u.store.inbox = cloneInboxRows(tx.inbox)
+	u.store.attempts = cloneAttempts(tx.attempts)
 	u.store.outbox = append(u.store.outbox, tx.outbox...)
 	u.store.commits++
 	return nil

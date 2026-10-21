@@ -94,3 +94,23 @@ func PurgeExpiredInbox(ctx context.Context, pool *pgxpool.Pool, consumer string,
 	}
 	return InboxPurge{Consumer: consumer, Removed: tag.RowsAffected(), Before: now}, nil
 }
+
+const deleteFinishedAttempts = `
+DELETE FROM external_attempt WHERE ctid IN (
+  SELECT ctid FROM external_attempt WHERE state = 'finished' AND finished_at < $1
+   ORDER BY finished_at LIMIT $2 FOR UPDATE SKIP LOCKED)`
+
+var _ = declare(deleteFinishedAttempts, "DELETE", "external_attempt")
+
+// A begun attempt is never purged: it is still owed a Finish, by its handler,
+// a redelivery or the sweep (OBX-17, RES-43).
+func PurgeAttempts(ctx context.Context, pool *pgxpool.Pool, before ports.Instant, batch int) (Purge, error) {
+	if batch <= 0 {
+		return Purge{}, ErrPurgeBatchRequired
+	}
+	tag, err := pool.Exec(ctx, deleteFinishedAttempts, int64(before), batch)
+	if err != nil {
+		return Purge{}, err
+	}
+	return Purge{Count: tag.RowsAffected(), Before: before}, nil
+}

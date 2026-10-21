@@ -52,6 +52,11 @@ var (
 	// (KFK-19).
 	ErrIncompleteConsumer = errors.New("kafka: consumer is incomplete")
 
+	// ErrRevokeStuck is a revoked partition whose worker did not leave within
+	// RevokeGrace. It is fatal: Go cannot kill the goroutine, so the composition
+	// ends the process; until then the stuck worker commits nothing (TRP-48).
+	ErrRevokeStuck = errors.New("kafka: a revoked worker did not leave within the revoke grace")
+
 	// ErrAlreadyDisposed is a second gesture on the same delivery: Ack and
 	// Release are terminal and exclusive (TRP-26, TRP-27).
 	ErrAlreadyDisposed = errors.New("kafka: delivery already acknowledged or released")

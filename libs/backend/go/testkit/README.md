@@ -35,7 +35,7 @@ arestas permitem: um `domainkit` só é kit de domínio se ele próprio for
 | `kernel/testkit-stable` | `provider` | `stable` | `KIT-08` — ordenação estável de coleções comparadas |
 | `kernel/testkit-fitness` | `app` | `fitness` | `FIT-01..FIT-04` — regra de dependência e matriz de travessia na suíte |
 | `kernel/testkit-tb` | `app` | `tb`, `tb/pg`, `tb/execctx`, `tb/reference` | adaptador de `testing.TB`, fixtures, codec de projeção, asserções de domínio, reexecução do binário de teste, pool Postgres e leitores das tabelas do kernel, autoridade de certificados descartável, contexto de execução de teste e o caso de uso de referência das libs |
-| `kernel/testkit-dist` | `app` | `tb/dist` | `KIT-06` — supervisão de processos, harness por papel e vetor do relay (`DMPF-P001..P003`) |
+| `kernel/testkit-dist` | `app` | `tb/dist` | `KIT-06` — supervisão de processos, harness por papel e vetor do relay (`DMPF-P001..P003`) e da tentativa externa interrompida (`DMPF-A001..A003`) |
 | `kernel/testkit-obs` | `app` | `obstest` | manifesto de telemetria por papel, coletor OTLP de teste, coletores de falha e leitores de telemetria |
 
 Os harnesses `appkit` (`KIT-05`, borda a borda) e `distkit` (`KIT-06`, processos
@@ -119,6 +119,23 @@ substituem os dublês de gravação que cada contexto copiava. Os dublês gravam
 o arranjo marcado por `MarkSeeded`, e `FailRegister` e `Faults` (com
 `FaultyRepository` e `FaultyOutbox`) injetam as falhas de registro, carga,
 `Save` e `Enqueue` que a realização em memória nunca produz sozinha.
+
+O `serviceskit.Partner` é o parceiro externo roteirizado do `KIT-12`, fake do
+`KIT-03`: realiza `ports.ExternalCommand` e `ports.ExternalState` sobre um
+roteiro por `OutboundKey` e por tentativa. `NewPartner(clock, ids, opts...)`
+recebe o relógio e o gerador de identidade que dão `SourceAt` e `ID` às
+observações. `Script(key, Reply...)` roteiriza os `Submit` (qualquer das nove
+classes, a observação opcional e se o efeito foi aplicado) e
+`ScriptQuery(key, Answer...)` as consultas (cada `Finding`, ou `FromEffect`, que
+responde `Applied` ou `Absent` pelo efeito aplicado). `LostAfterEffect()` aplica
+o efeito e devolve `ClassUnknownSent` sem observação. `DuplicateNotification`
+entrega a mesma observação duas vezes, para o `Resolve`. `WithoutQuery()`
+declara o parceiro sem consulta: `Query` devolve `ErrNoQuery`, e
+`QueryAvailable()` devolve essa declaração, para o `QueryAvailable` do
+`ExternalDispatch` não divergir dela. Roteiro esgotado devolve
+`ErrScriptExhausted` com classe zero e entra em `Exhausted()`.
+`Submitted()` e `Queried()` devolvem as chaves recebidas, em ordem, para provar
+que o reenvio usou a mesma chave. É seguro para uso concorrente.
 
 | Kit | Exige do candidato | Exercita | Aprova quando |
 | --- | --- | --- | --- |

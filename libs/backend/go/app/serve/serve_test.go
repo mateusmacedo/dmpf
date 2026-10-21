@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.opentelemetry.io/otel/propagation"
@@ -234,5 +235,33 @@ func TestRunRelayEndsCleanlyWhenStoppedBeforeDraining(t *testing.T) {
 
 	if err := serve.RunRelay(ctx, runtime(t), serve.RelayRole{DSN: unreachable}, serve.Relay{Component: "serve", Channel: ch, Scope: "serve"}); err != nil {
 		t.Fatalf("RunRelay() = %v, want nil: a stop requested before the drain is not a failure", err)
+	}
+}
+
+func TestServeAPIRefusesExternalCommandsWithoutARetentionForTheirAttempts(t *testing.T) {
+	refused := errors.New("service assembly refused")
+	for _, tc := range []struct {
+		name      string
+		external  bool
+		retention time.Duration
+		want      error
+	}{
+		{name: "no opt-in needs no retention", want: refused},
+		{name: "opt-in without retention", external: true, want: serve.ErrNoAttemptRetention},
+		{name: "opt-in with retention", external: true, retention: time.Hour, want: refused},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			role := apiRole()
+			role.Policies.InboxRetention = tc.retention
+			api := serve.API{
+				Desc:             probeDesc(),
+				ExternalCommands: tc.external,
+				Register:         func(*grpc.Server, *pgxpool.Pool) error { return refused },
+			}
+
+			if err := serve.ServeAPI(context.Background(), runtime(t), role, api); !errors.Is(err, tc.want) {
+				t.Fatalf("ServeAPI() = %v, want %v", err, tc.want)
+			}
+		})
 	}
 }

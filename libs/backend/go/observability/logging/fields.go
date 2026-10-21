@@ -28,4 +28,5 @@ const (
 	KeyGesture         = tracing.KeyInboxGesture
 	KeyIdempotencyKey  = tracing.KeyIdempotencyKey
 	KeyBreakerState    = "dmpf.breaker.state"
+	KeyExternalClass   = tracing.KeyExternalClass
 )

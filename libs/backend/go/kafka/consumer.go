@@ -13,8 +13,10 @@ import (
 	"time"
 
 	"github.com/twmb/franz-go/pkg/kgo"
+	"go.opentelemetry.io/otel/metric"
 	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
 
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/metrics"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/retry"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/channel"
@@ -42,12 +44,19 @@ type Consumer struct {
 
 	mu      sync.Mutex
 	workers map[key]*partitionWorker
+	stuck   map[key]*partitionWorker
 	client  client
 	fault   fault
 
 	logOnce sync.Once
 	logs    *slog.Logger
 }
+
+const (
+	keyRevokeGrace  = "dmpf.consumer.revoke_grace"
+	dependencyKafka = "kafka"
+	operationRevoke = "revoke"
+)
 
 type key struct {
 	topic     string
@@ -56,7 +65,7 @@ type key struct {
 
 // Validate refuses a consumer the broker could not run safely: no sink, a
 // non-Kafka channel, no attempt limit, no queue capacity, or a processing
-// deadline the rebalance could not wait for (KFK-19, TRP-48).
+// deadline plus revoke grace the rebalance could not wait for (KFK-19, TRP-48).
 func (c *Consumer) Validate() error {
 	if err := c.Config.Validate(); err != nil {
 		return err
@@ -77,6 +86,10 @@ func (c *Consumer) Validate() error {
 		return fmt.Errorf("%w: processing deadline", ErrIncompleteConsumer)
 	case c.RebalanceTimeout <= 0 || c.ProcessingDeadline >= c.RebalanceTimeout:
 		return fmt.Errorf("%w: processing deadline %v must be below the rebalance timeout %v (KFK-19)", ErrIncompleteConsumer, c.ProcessingDeadline, c.RebalanceTimeout)
+	case c.Config.RevokeGrace <= 0:
+		return fmt.Errorf("%w: revoke grace", ErrIncompleteConsumer)
+	case c.Config.RevokeGrace >= c.RebalanceTimeout-c.ProcessingDeadline:
+		return fmt.Errorf("%w: processing deadline %v plus revoke grace %v must be below the rebalance timeout %v (KFK-19)", ErrIncompleteConsumer, c.ProcessingDeadline, c.Config.RevokeGrace, c.RebalanceTimeout)
 	case c.Backoff.Base <= 0:
 		return fmt.Errorf("%w: backoff base", ErrIncompleteConsumer)
 	}
@@ -166,7 +179,10 @@ func (c *Consumer) run(ctx context.Context, cl client) (err error) {
 			if len(p.Records) == 0 {
 				return
 			}
-			w := c.worker(ctx, cl, p.Topic, p.Partition)
+			w, ok := c.worker(ctx, cl, p.Topic, p.Partition)
+			if !ok {
+				return
+			}
 			for _, record := range p.Records {
 				w.enqueue(record)
 			}
@@ -176,19 +192,22 @@ func (c *Consumer) run(ctx context.Context, cl client) (err error) {
 	}
 }
 
-// worker returns the persistent worker of the partition, creating it on first
-// sight — the assignment callback also creates it, but a fake client that
-// never calls back must still route two batches of one partition to one worker.
-func (c *Consumer) worker(ctx context.Context, cl client, topic string, partition int32) *partitionWorker {
+// worker creates on first sight too, because a fake client never calls the
+// assignment back; a partition whose revoked worker is still stuck gets none,
+// or a second worker would run the handler alongside the first.
+func (c *Consumer) worker(ctx context.Context, cl client, topic string, partition int32) (*partitionWorker, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	k := key{topic: topic, partition: partition}
+	if _, stuck := c.stuck[k]; stuck {
+		return nil, false
+	}
 	if w, found := c.workers[k]; found {
-		return w
+		return w, true
 	}
 	w := newPartitionWorker(ctx, c, cl, k)
 	c.workers[k] = w
-	return w
+	return w, true
 }
 
 func (c *Consumer) assigned(ctx context.Context, cl *kgo.Client, assigned map[string][]int32) {
@@ -215,7 +234,7 @@ func (c *Consumer) assign(ctx context.Context, fallback client, assigned map[str
 	c.logRebalance(ctx, "assigned", assigned)
 	for topic, partitions := range assigned {
 		for _, partition := range partitions {
-			c.worker(ctx, cl, topic, partition)
+			_, _ = c.worker(ctx, cl, topic, partition)
 		}
 	}
 }
@@ -230,27 +249,93 @@ func (c *Consumer) lost(ctx context.Context, _ *kgo.Client, lost map[string][]in
 	c.release(ctx, lost)
 }
 
-// release cancels the work of every lost partition, waits for the worker to
-// leave — no detached work survives the revocation (TRP-48) —, lifts its fetch
-// pause and commits only what was already contiguously acknowledged (TRP-29).
+// release cancels every lost partition at once and waits under one RevokeGrace
+// (TRP-48): those that left resume and commit the contiguous prefix (TRP-29); a
+// stuck one keeps its commit gate closed and trips ErrRevokeStuck.
 func (c *Consumer) release(ctx context.Context, gone map[string][]int32) {
+	c.mu.Lock()
+	var workers []*partitionWorker
 	for topic, partitions := range gone {
 		for _, partition := range partitions {
-			c.mu.Lock()
 			k := key{topic: topic, partition: partition}
-			w, found := c.workers[k]
-			delete(c.workers, k)
-			cl := c.client
-			c.mu.Unlock()
-			if !found {
-				continue
+			if w, found := c.workers[k]; found {
+				workers = append(workers, w)
+				delete(c.workers, k)
 			}
-			w.markRevoked()
-			w.stop()
-			w.resumeFetch()
-			w.commitContiguous(ctx, cl, true)
 		}
 	}
+	cl := c.client
+	c.mu.Unlock()
+	if len(workers) == 0 {
+		return
+	}
+	for _, w := range workers {
+		w.markRevoked()
+		w.cancel()
+	}
+	c.settle(ctx, ctx, cl, workers)
+}
+
+// settle waits for the cancelled workers under one RevokeGrace: those that left
+// resume and commit under commitCtx; a stuck one stays registered with its fetch
+// paused, so a reassignment of its partition cannot start a second worker.
+func (c *Consumer) settle(ctx, commitCtx context.Context, cl client, workers []*partitionWorker) {
+	left, stuck := c.awaitLeave(workers)
+	for _, w := range left {
+		w.resumeFetch()
+		w.commitContiguous(commitCtx, cl, true)
+	}
+	if len(stuck) == 0 {
+		return
+	}
+	c.mu.Lock()
+	if c.stuck == nil {
+		c.stuck = map[key]*partitionWorker{}
+	}
+	for _, w := range stuck {
+		c.stuck[w.key] = w
+	}
+	c.mu.Unlock()
+	for _, w := range stuck {
+		cl.PauseFetchPartitions(w.partitions())
+	}
+	c.reportStuck(ctx, stuck)
+}
+
+func (c *Consumer) awaitLeave(workers []*partitionWorker) (left, stuck []*partitionWorker) {
+	grace := c.Config.Clock.NewTimer(c.Config.RevokeGrace)
+	defer grace.Stop()
+	expired := false
+	for _, w := range workers {
+		if !expired {
+			select {
+			case <-w.done:
+				left = append(left, w)
+				continue
+			case <-grace.C():
+				expired = true
+			}
+		}
+		select {
+		case <-w.done:
+			left = append(left, w)
+		default:
+			stuck = append(stuck, w)
+		}
+	}
+	return left, stuck
+}
+
+func (c *Consumer) reportStuck(ctx context.Context, stuck []*partitionWorker) {
+	for _, w := range stuck {
+		c.logger().ErrorContext(ctx, "kafka: revoked worker did not leave within the revoke grace; nothing committed, the process must end",
+			partitionKeys(w.key.topic, w.key.partition), slog.Duration(keyRevokeGrace, c.Config.RevokeGrace))
+		if c.Config.Instruments != nil {
+			c.Config.Instruments.DeadlineExceeded.Add(ctx, 1,
+				metric.WithAttributes(metrics.Labels{}.Dependency(dependencyKafka).Operation(operationRevoke).Attributes()...))
+		}
+	}
+	c.fault.trip(fmt.Errorf("%w: %d partition(s) after %v", ErrRevokeStuck, len(stuck), c.Config.RevokeGrace))
 }
 
 func (c *Consumer) logRebalance(ctx context.Context, event string, partitions map[string][]int32) {
@@ -277,23 +362,28 @@ func partitionKeys(topic string, partition int32) slog.Attr {
 		slog.String(string(semconv.MessagingDestinationPartitionIDKey), strconv.Itoa(int(partition))))
 }
 
-// stopAll drains every worker at shutdown and commits what was acknowledged,
-// under a deadline of one rebalance timeout: an unresponsive broker must not
-// hold the process open forever.
+// stopAll cancels every worker at shutdown and waits under one RevokeGrace, as
+// a revocation does; those that left commit what was acknowledged under one
+// rebalance timeout, and a stuck one ends Run with ErrRevokeStuck.
 func (c *Consumer) stopAll(ctx context.Context) {
 	c.mu.Lock()
-	workers := c.workers
+	workers := make([]*partitionWorker, 0, len(c.workers))
+	for _, w := range c.workers {
+		workers = append(workers, w)
+	}
 	c.workers = map[key]*partitionWorker{}
 	cl := c.client
 	c.mu.Unlock()
-	drain, cancel := context.WithTimeout(ctx, c.RebalanceTimeout)
-	defer cancel()
+	if len(workers) == 0 {
+		return
+	}
 	for _, w := range workers {
 		w.markRevoked()
-		w.stop()
-		w.resumeFetch()
-		w.commitContiguous(drain, cl, true)
+		w.cancel()
 	}
+	drain, cancel := context.WithTimeout(ctx, c.RebalanceTimeout)
+	defer cancel()
+	c.settle(ctx, drain, cl, workers)
 }
 
 // observeSaturation records MET-11 once per poll: the share of assigned

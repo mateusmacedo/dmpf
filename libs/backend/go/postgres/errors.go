@@ -54,6 +54,8 @@ var (
 	// a pool or without a clock, rather than dereferencing either.
 	ErrIncompleteStore = errors.New("postgres: outbox store requires a pool and a clock")
 
+	ErrIncompleteAttemptStore = errors.New("postgres: attempt store requires a pool")
+
 	// ErrClaimIdentityRequired is what the claim and the three transitions
 	// report for an empty identity: OBX-08 makes it the identity of one
 	// acquisition, and OBX-10 conditions every later write on it.

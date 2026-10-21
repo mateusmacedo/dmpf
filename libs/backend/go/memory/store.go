@@ -185,6 +185,7 @@ type Store struct {
 	tables         map[string]*table
 	inbox          map[inboxKey]inboxRow
 	outbox         []ports.OutboxEntry
+	attempts       map[attemptKey][]attemptRow
 	withinCalls    int
 	commits        int
 	failNextCommit error
@@ -193,8 +194,9 @@ type Store struct {
 // New builds an empty store.
 func New() *Store {
 	return &Store{
-		tables: map[string]*table{},
-		inbox:  map[inboxKey]inboxRow{},
+		tables:   map[string]*table{},
+		inbox:    map[inboxKey]inboxRow{},
+		attempts: map[attemptKey][]attemptRow{},
 	}
 }
 
@@ -221,6 +223,26 @@ func (s *Store) InboxLastError(consumer string, id ports.MessageID) (string, boo
 	defer s.dataMu.Unlock()
 	row, ok := s.inbox[inboxKey{consumer: consumer, id: id}]
 	return row.lastError, ok
+}
+
+func (s *Store) AttemptConflicts(tenant ports.TenantID, key ports.OutboundKey) int {
+	s.dataMu.Lock()
+	defer s.dataMu.Unlock()
+	n := 0
+	for _, row := range s.attempts[attemptKey{tenant: tenant, key: key}] {
+		n += len(row.conflicts)
+	}
+	return n
+}
+
+func (s *Store) AttemptObservationIDs(tenant ports.TenantID, key ports.OutboundKey) int {
+	s.dataMu.Lock()
+	defer s.dataMu.Unlock()
+	n := 0
+	for _, row := range s.attempts[attemptKey{tenant: tenant, key: key}] {
+		n += len(row.seen)
+	}
+	return n
 }
 
 // Entries copies the committed outbox, for inspection by tests.

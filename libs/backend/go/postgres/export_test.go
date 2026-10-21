@@ -7,3 +7,5 @@ import "github.com/jackc/pgx/v5"
 func ConnOf(t *Tx) pgx.Tx { return t.conn }
 
 func WritesOf(t *Tx) int { return t.writes }
+
+const SelectStaleAttempts = selectStaleAttempts

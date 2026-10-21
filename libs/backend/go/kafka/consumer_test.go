@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"math"
 	"sync"
 	"testing"
 	"time"
@@ -86,6 +87,7 @@ func newConsumer(sink kafka.Sink) *kafka.Consumer {
 	cfg := publishConfig()
 	cfg.Clock = clock.System()
 	cfg.Rand = func() float64 { return 0 }
+	cfg.RevokeGrace = time.Second
 	return &kafka.Consumer{
 		Config:             cfg,
 		Channel:            ordersChannel(),
@@ -140,6 +142,8 @@ func TestConsumerValidate(t *testing.T) {
 		"no queue":                     func(c *kafka.Consumer) { c.QueuePerPartition = 0 },
 		"deadline not below rebalance": func(c *kafka.Consumer) { c.ProcessingDeadline = c.RebalanceTimeout },
 		"no backoff":                   func(c *kafka.Consumer) { c.Backoff = retry.Backoff{} },
+		"no revoke grace":              func(c *kafka.Consumer) { c.Config.RevokeGrace = 0 },
+		"grace reaches the rebalance":  func(c *kafka.Consumer) { c.Config.RevokeGrace = c.RebalanceTimeout - c.ProcessingDeadline },
 		"not kafka":                    func(c *kafka.Consumer) { c.Channel = sqsChannel() },
 	}
 	for name, mutate := range cases {
@@ -153,6 +157,29 @@ func TestConsumerValidate(t *testing.T) {
 	}
 	if err := newConsumer(newSink()).Validate(); err != nil {
 		t.Fatalf("Validate() = %v, want nil", err)
+	}
+}
+
+func TestConsumerValidateFitsTheRevokeGraceInsideTheRebalance(t *testing.T) {
+	cases := map[string]struct {
+		grace time.Duration
+		want  error
+	}{
+		"no grace":                 {0, kafka.ErrIncompleteConsumer},
+		"negative grace":           {-time.Second, kafka.ErrIncompleteConsumer},
+		"deadline plus grace":      {8 * time.Second, kafka.ErrIncompleteConsumer},
+		"beyond the rebalance":     {9 * time.Second, kafka.ErrIncompleteConsumer},
+		"just below the rebalance": {8*time.Second - time.Millisecond, nil},
+		"sum overflows":            {math.MaxInt64, kafka.ErrIncompleteConsumer},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			c := newConsumer(newSink())
+			c.Config.RevokeGrace = tc.grace
+			if err := c.Validate(); !errors.Is(err, tc.want) {
+				t.Fatalf("Validate() with deadline %v, grace %v, rebalance %v = %v, want %v", c.ProcessingDeadline, tc.grace, c.RebalanceTimeout, err, tc.want)
+			}
+		})
 	}
 }
 

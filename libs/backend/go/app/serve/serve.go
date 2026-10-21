@@ -37,6 +37,7 @@ var (
 	ErrServiceNotRegistered  = errors.New("serve: Register did not register the service specified by Desc")
 	ErrUnexpectedService     = errors.New("serve: Register registered a service other than the one specified by Desc")
 	ErrRelayUnnamed          = errors.New("serve: the relay needs a component and a scope")
+	ErrNoAttemptRetention    = errors.New("serve: ExternalCommands needs a positive Policies.InboxRetention, the window in which a redelivery may still read a finished attempt")
 )
 
 // Ping and Migrate run before the port listens, so without a deadline a stuck
@@ -62,14 +63,22 @@ type APIRole struct {
 // API takes the registration as a function because the service is built over
 // the pool that ServeAPI opens.
 type API struct {
-	Desc            *grpc.ServiceDesc
-	Commands        []string
-	Platform        []string
-	Schema          string
-	Grants          []postgres.Grant
-	Uniques         []postgres.UniqueSet
-	CommandConsumer string
-	Register        func(*grpc.Server, *pgxpool.Pool) error
+	Desc             *grpc.ServiceDesc
+	Commands         []string
+	Platform         []string
+	Schema           string
+	Grants           []postgres.Grant
+	Uniques          []postgres.UniqueSet
+	CommandConsumer  string
+	ExternalCommands bool
+	Register         func(*grpc.Server, *pgxpool.Pool) error
+}
+
+func (api API) capabilities() []postgres.Capability {
+	if api.ExternalCommands {
+		return []postgres.Capability{postgres.Outbox, postgres.Inbox, postgres.ExternalAttempt}
+	}
+	return []postgres.Capability{postgres.Outbox, postgres.Inbox}
 }
 
 func (api API) methods() []string {
@@ -101,6 +110,13 @@ func (api API) validate() error {
 		}
 	}
 	return nil
+}
+
+func (api API) validateRole(cfg APIRole) error {
+	if api.ExternalCommands && cfg.Policies.InboxRetention <= 0 {
+		return ErrNoAttemptRetention
+	}
+	return api.validateTransport(cfg.Server)
 }
 
 // The reach of a platform method is granted to whoever reaches the server, so
@@ -137,7 +153,7 @@ func ServeAPI(ctx context.Context, rt *otelboot.Runtime, cfg APIRole, api API) e
 	if err := api.validate(); err != nil {
 		return err
 	}
-	if err := api.validateTransport(cfg.Server); err != nil {
+	if err := api.validateRole(cfg); err != nil {
 		return err
 	}
 	return stopped(ctx, serveAPI(ctx, rt, cfg, api))
@@ -187,9 +203,7 @@ func serveAPI(ctx context.Context, rt *otelboot.Runtime, cfg APIRole, api API) e
 		if err := prepare(ctx, rt, pool, cfg, api); err != nil {
 			return err
 		}
-		stop, err := kernelapp.StartPurge(ctx, abort,
-			kernelapp.PurgeConfig{Name: "command-inbox", Interval: cfg.Policies.PurgeInterval, Batch: cfg.Policies.PurgeBatch},
-			idclock.SystemClock{}, rt.LoggerProvider(), kernelapp.PurgeCommandInbox(pool, api.CommandConsumer))
+		stop, err := startPurges(ctx, abort, rt, pool, cfg, api)
 		if err != nil {
 			return err
 		}
@@ -200,6 +214,22 @@ func serveAPI(ctx context.Context, rt *otelboot.Runtime, cfg APIRole, api API) e
 		return err
 	}
 	return stopPurge()
+}
+
+func startPurges(ctx context.Context, abort context.CancelCauseFunc, rt *otelboot.Runtime, pool *pgxpool.Pool, cfg APIRole, api API) (func() error, error) {
+	stopCommands, err := kernelapp.StartPurge(ctx, abort,
+		kernelapp.PurgeConfig{Name: "command-inbox", Interval: cfg.Policies.PurgeInterval, Batch: cfg.Policies.PurgeBatch},
+		idclock.SystemClock{}, rt.LoggerProvider(), kernelapp.PurgeCommandInbox(pool, api.CommandConsumer))
+	if err != nil || !api.ExternalCommands {
+		return stopCommands, err
+	}
+	stopAttempts, err := kernelapp.StartPurge(ctx, abort,
+		kernelapp.PurgeConfig{Name: "external-attempt", Table: "external_attempt", Interval: cfg.Policies.PurgeInterval, Batch: cfg.Policies.PurgeBatch, Retention: cfg.Policies.InboxRetention},
+		idclock.SystemClock{}, rt.LoggerProvider(), kernelapp.PurgeExternalAttempts(pool))
+	if err != nil {
+		return nil, errors.Join(err, stopCommands())
+	}
+	return func() error { return errors.Join(stopAttempts(), stopCommands()) }, nil
 }
 
 // The ownMethods filter of the chain lets any other service through without
@@ -243,7 +273,7 @@ func verifyUniques(ctx context.Context, rt *otelboot.Runtime, pool *pgxpool.Pool
 }
 
 func migrateOrWait(ctx context.Context, rt *otelboot.Runtime, pool *pgxpool.Pool, cfg APIRole, api API) error {
-	capabilities := []postgres.Capability{postgres.Outbox, postgres.Inbox}
+	capabilities := api.capabilities()
 	grants := append(postgres.KernelGrants(capabilities...), api.Grants...)
 	if !cfg.Migrate {
 		return postgres.WaitForGrants(ctx, pool, time.Second, rt.LoggerProvider(), grants...)

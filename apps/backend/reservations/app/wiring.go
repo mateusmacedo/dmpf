@@ -35,10 +35,8 @@ import (
 )
 
 const (
-
-	// processingDeadline must stay below rebalanceTimeout (KFK-19): a
-	// revocation waits for the record in flight, never for the whole queue.
 	processingDeadline = 5 * time.Second
+	revokeGrace        = 10 * time.Second
 	rebalanceTimeout   = 30 * time.Second
 	queuePerPartition  = 32
 )
@@ -144,6 +142,7 @@ func runConsumer(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {
 	if err != nil {
 		return err
 	}
+	kafkaConfig.RevokeGrace = revokeGrace
 	logger := rt.LoggerFor(reflect.TypeFor[Config]().PkgPath())
 	consumer := &kafka.Consumer{
 		Config:  kafkaConfig,

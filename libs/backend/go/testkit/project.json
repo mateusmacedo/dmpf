@@ -60,6 +60,15 @@
         "command": "go test -race -count=1 -p 1 -tags=integration ./..."
       }
     },
+    "test-distributed": {
+      "executor": "@mateusmacedo/dmpf-plugin:test-env",
+      "cache": false,
+      "inputs": ["go", "^go"],
+      "dependsOn": ["test-infra-up", "test-race"],
+      "options": {
+        "command": "go test -race -count=1 -p 1 -tags=integration,distributed ./tb/dist/..."
+      }
+    },
     "govulncheck": {
       "executor": "nx:run-commands",
       "cache": false,
