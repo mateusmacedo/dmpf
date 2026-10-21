@@ -1,3 +1,18 @@
+## 1.0.0-rc.6 (2026-10-20)
+
+### 🚀 Features
+
+- **ports:** Declarar o alcance de plataforma e a projeção entre tenants ([1f8350b4](https://github.com/mateusmacedo/dmpf/commit/1f8350b4))
+- **ports:** Declarar a violação de unicidade como erro do Save ([aa1e6456](https://github.com/mateusmacedo/dmpf/commit/aa1e6456))
+
+### 🧱 Updated Dependencies
+
+- Updated domain to 1.0.0-rc.6
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 1.0.0-rc.5 (2026-10-17)
 
 ### 🧱 Updated Dependencies

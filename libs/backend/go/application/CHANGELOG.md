@@ -1,3 +1,19 @@
+## 1.0.0-rc.6 (2026-10-20)
+
+### 🚀 Features
+
+- **application:** Autorizar a leitura de plataforma declarada ([21602d66](https://github.com/mateusmacedo/dmpf/commit/21602d66))
+- **application:** Converter a unicidade declarada em rejeição ([62091296](https://github.com/mateusmacedo/dmpf/commit/62091296))
+
+### 🧱 Updated Dependencies
+
+- Updated domain to 1.0.0-rc.6
+- Updated ports to 1.0.0-rc.6
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 1.0.0-rc.5 (2026-10-17)
 
 ### 🧱 Updated Dependencies

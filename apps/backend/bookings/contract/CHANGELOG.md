@@ -1,3 +1,17 @@
+## 1.0.0-rc.6 (2026-10-20)
+
+### 🚀 Features
+
+- **bookings-contract:** Exigir o name no registro de recurso ([c3afd5ae](https://github.com/mateusmacedo/dmpf/commit/c3afd5ae))
+
+### 🧱 Updated Dependencies
+
+- Updated testkit to 1.0.0-rc.6
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 1.0.0-rc.5 (2026-10-17)
 
 ### 🧱 Updated Dependencies

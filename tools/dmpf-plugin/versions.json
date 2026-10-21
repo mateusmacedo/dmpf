@@ -1,7 +1,7 @@
 {
   "schema": "dmpf/versions@1",
-  "kernel": "v1.0.0-rc.5",
-  "conformance": "v1.0.0-rc.5",
+  "kernel": "v1.0.0-rc.6",
+  "conformance": "v1.0.0-rc.6",
   "go": {
     "directive": "1.26.9",
     "image": "golang:1.26.9-alpine"
@@ -11,5 +11,5 @@
   "golangciLint": "v2.13.2",
   "govulncheck": "v1.7.0",
   "nxGo": "4.0.0",
-  "workflowRef": "b5131eea0ce4c593e11e39f339ea9daea1f53ce4"
+  "workflowRef": "d651278d67f5d00c06c291279989a69430fcb90b"
 }
