@@ -1,3 +1,3 @@
 module github.com/mateusmacedo/dmpf/tools/dmpf-conformance
 
-go 1.26.9
+go 1.26.10
