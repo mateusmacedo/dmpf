@@ -28,6 +28,8 @@ done
 [[ -z "$UPGRADE_FROM" ]] || [[ -n "$PLUGIN_VERSION" ]] || { echo "--upgrade-from exige --plugin-version" >&2; exit 2; }
 [[ -z "$PLUGIN_VERSION" ]] || [[ -n "${NODE_AUTH_TOKEN:-}" ]] || { echo "--plugin-version exige NODE_AUTH_TOKEN com read:packages" >&2; exit 2; }
 [[ -z "$VERDACCIO" ]] || [[ -z "$PLUGIN_VERSION" ]] || { echo "--verdaccio não combina com --plugin-version" >&2; exit 2; }
+WORK_PROPRIO=""
+[[ -n "$WORK" ]] || WORK_PROPRIO=1
 WORK="${WORK:-$(mktemp -d "${RUNNER_TEMP:-/tmp}/dmpf-consumer.XXXXXX")}"
 mkdir -p "$WORK"
 WORK="$(cd "$WORK" && pwd)"
@@ -161,6 +163,35 @@ DMPF_APPS_DIR="$(jq -r .appsDir dmpf.json)" DMPF_KERNEL_DDL="$(kernel_ddl)" \
 
 passo "bounded-context com o agregado do template"
 pnpm nx g "$PLUGIN:bounded-context" shop --boundedContext=shop --no-interactive
+# O shop do template não lê fixture; a sonda prova que o testkit do kernel acha a raiz do
+# consumidor, e não a do cache de módulos onde o kit mora. Antes do tidy, que a registra no go.mod.
+sonda=apps/backend/shop/contract/fixtures/probe/v1/probe.golden
+mkdir -p "$(dirname "$sonda")"
+printf '%s' "$CONSUMER" > "$sonda"
+cat > apps/backend/shop/domain/fixture_probe_test.go <<'EOF'
+package domain_test
+
+import (
+	"path/filepath"
+	"testing"
+
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/tb"
+)
+
+func TestFixturesResolveFromTheConsumerRoot(t *testing.T) {
+	want, err := filepath.EvalSymlinks(string(tb.ReadFixture(t, "apps/backend/shop/contract/fixtures/probe/v1/probe.golden")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := filepath.EvalSymlinks(tb.RepoRoot(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Fatalf("tb.RepoRoot = %s, want the consumer root %s", got, want)
+	}
+}
+EOF
 pnpm nx run-many -t tidy
 go run "$KERNEL/tools/dmpf-conformance/cmd/conformance@$(versao_instalada conformance)" --root . --write-baseline
 # O generator deixa o .proto para o autor do contexto; um contrato vazio reprova no buf.
@@ -225,3 +256,9 @@ DMPF_APPS_DIR="$(jq -r .appsDir dmpf.json)" DMPF_KERNEL_DDL="$ddl" \
 pnpm nx run-many -t buf-lint
 
 passo "consumidor externo conforme ($CONSUMER)"
+# O $WORK criado aqui só serve para inspecionar uma prova que falhou; o de --work é de quem chamou.
+# Sem trash no PATH, como no runner, o diretório fica, e o CI descarta o RUNNER_TEMP.
+if [[ -n "$WORK_PROPRIO" ]] && command -v trash > /dev/null; then
+  cd "$ROOT"
+  trash "$WORK" || echo "não foi possível mandar $WORK para a lixeira" >&2
+fi
