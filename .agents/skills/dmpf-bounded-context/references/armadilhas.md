@@ -128,11 +128,21 @@ golden for regenerado e algo novo morder, a entrada nova vem para cá.
     serviço `<app>-api` e do Secret `<app>-migrator`, que só o Deployment
     `<app>-api` referencia (ADR-063), ou o par administrativo `postgres`. Um contexto novo sem entrada no
     `postgres-init` e no job de databases reprova ali.
-10. **O `app/rpc` gerado nasce sem teste.** O mapeamento de erro é o
+25. **Fixture é relativa à raiz do workspace, não ao package.** `tb.ReadFixture`,
+    `tb.LoadProjection`, `GoldenSuite` e `UpdateGolden` resolvem o caminho a
+    partir do diretório do `go.work` (`tb.RepoRoot`): a fixture do contexto é
+    `apps/backend/<ctx>/contract/fixtures/...`, como no golden `bookings`
+    (`apps/backend/bookings/contract/fixtures`). Até o kernel 1.0.0-rc.7, o
+    `RepoRoot` subia a partir do arquivo do kit, que no consumidor mora no cache
+    de módulos, e abortava com `tb.RepoRoot: no go.work above`. A versão
+    seguinte à 1.0.0-rc.7 sobe a partir do diretório do teste. Num kernel
+    afetado, a saída é subir de versão, e não copiar a fixture para dentro do
+    teste.
+26. **O `app/rpc` gerado nasce sem teste.** O mapeamento de erro é o
     `kernelgrpc.StatusOf` do kernel, e o generator não emite mais o
     `errors.go` nem o teste dele. Package de produção sem `_test.go` faz o
     `go test -json` emitir `skip`, e a evidência reprova sob CI (ADR-048): o
     autor escreve o `service_test.go` do contexto, como o golden `bookings`.
-11. **`SnapshotTable` grava o que o `to` devolve.** Uma fatia nula no struct
+27. **`SnapshotTable` grava o que o `to` devolve.** Uma fatia nula no struct
     de estado vira `null` no `jsonb`, e não `[]`: o `to` monta a fatia com
     `make(..., 0, len)` para as linhas já gravadas continuarem iguais.
