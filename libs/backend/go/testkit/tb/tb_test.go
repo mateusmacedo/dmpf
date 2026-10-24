@@ -2,6 +2,8 @@ package tb_test
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -34,6 +36,39 @@ func TestReadFixtureResolvesFromTheRepoRoot(t *testing.T) {
 	raw := tb.ReadFixture(t, "libs/backend/go/contracts/fixtures/testing/v1/item-added.golden")
 	if !strings.Contains(string(raw), `"format_version": "1"`) {
 		t.Fatalf("unexpected fixture content: %.80s", raw)
+	}
+}
+
+func TestRepoRootResolvesFromTheWorkingDirectory(t *testing.T) {
+	root := t.TempDir()
+	pkg := filepath.Join(root, "apps", "x")
+	if err := os.MkdirAll(pkg, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "fx"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "go.work"), []byte("go 1.26\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "fx", "a.golden"), []byte("consumer fixture"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(pkg)
+
+	got, err := filepath.EvalSymlinks(tb.RepoRoot(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Fatalf("RepoRoot = %q, want the workspace of the working directory %q", got, want)
+	}
+	if raw := tb.ReadFixture(t, "fx/a.golden"); string(raw) != "consumer fixture" {
+		t.Fatalf("ReadFixture = %q, want the fixture of the working directory's workspace", raw)
 	}
 }
 
