@@ -2,7 +2,7 @@
   "schema": "dmpf/rendered@1",
   "files": {
     ".agents/skills/dmpf-bounded-context/SKILL.md": "c137ea137d74b9c4cf5697ab1609601f85a1faf655cd045186f75e41d3f39a62",
-    ".agents/skills/dmpf-bounded-context/references/armadilhas.md": "00fff4aa6886b4eef265383e4327f44e9c55ca2b442d1dd954f4267433d29c02",
+    ".agents/skills/dmpf-bounded-context/references/armadilhas.md": "0321874f81f01c328e814b612d41c4647e17ddf2e531da368a6f49e0c5f093c5",
     ".agents/skills/dmpf-bounded-context/references/golden-path.md": "b4c5710c26271a40cc34d3d53c5b7ee7f0633d0989445ad59a28aeae00db5a08",
     ".agents/skills/dmpf-bounded-context/references/template-bounded-context.md": "dc0aef329b88729ce76719d0bda92a910a03eb6fa5e9f53c87bf61154d5184f9",
     ".agents/skills/dmpf-testkit/SKILL.md": "ca8da9c32fc3798151aa3f28a5046052382c4b25de6e2f4585d1ec1ff3e805fa",
