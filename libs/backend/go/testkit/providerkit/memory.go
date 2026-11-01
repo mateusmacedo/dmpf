@@ -3,9 +3,11 @@ package providerkit
 import (
 	"context"
 	"strconv"
+	"time"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/memory"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/clock"
 )
 
 type OutboxResources struct{ Outbox ports.Outbox }
@@ -41,6 +43,33 @@ func MemoryInbox() InboxSubject {
 		Concurrent:       false,
 		ConsumerMismatch: memory.ErrInboxConsumerMismatch,
 		Rows:             store.InboxRows,
+	}
+}
+
+// Off the whole second, so a kit that compared retention dates finer than the
+// second S3 keeps would fail on the fake too.
+const kitObjectEpoch = ports.Instant(1_760_000_000_123_456_789)
+
+// MemoryObjectStore is the object store subject over the in-memory fake: every
+// Open shares one bucket, whose fake clock Advance moves.
+func MemoryObjectStore() ObjectStoreSubject {
+	fake := clock.New(kitObjectEpoch)
+	bucket := memory.NewObjectBucket(fake)
+	return ObjectStoreSubject{
+		Open: func(decl ports.ObjectStoreDeclaration) (ports.ObjectStore, error) {
+			store, err := memory.NewObjectStore(bucket, decl)
+			if err != nil {
+				return nil, err
+			}
+			return store, nil
+		},
+		Advance: func(nanos int64) error {
+			fake.Advance(time.Duration(nanos))
+			return nil
+		},
+		TenantUnresolved: memory.ErrTenantUnresolved,
+		OtherEncryption:  ports.Encryption{Algorithm: "AES256"},
+		PhysicalKeys:     func() ([]string, error) { return bucket.PhysicalKeys(), nil },
 	}
 }
 

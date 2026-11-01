@@ -29,7 +29,7 @@ arestas permitem: um `domainkit` só é kit de domínio se ele próprio for
 | `kernel/testkit-domain` | `domain` | `domainkit` | `KIT-02` — domínio em memória, projeção observável |
 | `kernel/testkit-golden` | `contract` | `golden` | carregador, catálogo, duas direções, `DMPF-R001..R003` |
 | `kernel/testkit-services` | `provider` | `serviceskit` | `KIT-03` — ports fakes com ledger |
-| `kernel/testkit-provider` | `provider` | `providerkit` | `KIT-04` — conformidade de UoW, repositório escopado, unicidade declarada, leitura de plataforma, projeção entre tenants, inbox e outbox store |
+| `kernel/testkit-provider` | `provider` | `providerkit` | `KIT-04` — conformidade de UoW, repositório escopado, unicidade declarada, leitura de plataforma, projeção entre tenants, inbox, outbox store e object storage |
 | `kernel/testkit-clock` | `provider` | `clock` | `KIT-07` — relógio fake com avanço explícito |
 | `kernel/testkit-ids` | `provider` | `ids` | `KIT-07` — identificadores em sequência ou por seed |
 | `kernel/testkit-stable` | `provider` | `stable` | `KIT-08` — ordenação estável de coleções comparadas |
@@ -107,7 +107,8 @@ O `tb` também traz o que os testes de contexto repetiam:
   DSN da role de runtime aos filhos.
 
 O `providerkit` exporta os candidatos sobre o `memory` (`MemoryUnitOfWork`,
-`MemoryInbox`), usados pelo próprio kit e por `memory/conformance_test.go`.
+`MemoryInbox`, `MemoryObjectStore`), usados pelo próprio kit e por
+`memory/conformance_test.go`.
 
 O `serviceskit` é adotável pelos testes de caso de uso dos contextos:
 `UnitOfWork[R](fakes, bind)` devolve a UoW tipada pelos recursos do contexto, e
@@ -217,6 +218,51 @@ política efetiva, que registra depois de gravar, que inventa a origem, que
 ignora a versão, que monta contexto para o carrier vazio, que abre o próprio
 tenant da origem, que grava fora da unidade de trabalho; construção sem
 trilha) reprovam nas cláusulas que quebram e em nenhuma outra.
+
+`providerkit.ObjectStore` prova a porta de object storage da SPEC-CWBA4BPV, o
+mesmo kit contra o fake, o emulador e o S3 real. O `ObjectStoreSubject` traz
+`Open(decl)`, que abre lojas sobre um recurso compartilhado (a de tenant e a de
+plataforma alcançam o mesmo bucket), e `TenantUnresolved`, a sentinela de
+tenant não resolvido. Os demais campos são opcionais:
+
+- `Encryption`: a cifra que as lojas declaram (zero usa a do kit);
+- `OtherEncryption`: uma segunda cifra, que prova que o `Head` lê a cifra da
+  versão gravada e não a declaração da loja que lê;
+- `PhysicalKeys`: as chaves físicas do recurso, que provam o prefixo
+  `platform/` e que a escrita recusada não deixa chave;
+- `Advance(nanos)`: avança o relógio que o recurso lê;
+- `RetentionUnit`: a unidade de toda retenção que o kit grava (zero é um dia,
+  sempre em segundos inteiros). O teto do kit é de quatro unidades, então
+  nenhuma versão COMPLIANCE do kit dura mais que isso no S3 real.
+
+Sem um campo opcional, a prova que depende dele vai para `Skipped` com nome. O
+kit lê o instante da loja no `StoredAt` de uma escrita de sonda, arredondado
+para baixo no segundo, porque o S3 guarda a data de retenção só até o
+milissegundo. Cada cláusula tira todo hold que pôs. A `Clause` traz o
+identificador da spec seguido da descrição, e a `Rule`, a norma.
+
+| Cláusula | Prova | Regra |
+| --- | --- | --- |
+| `put.version` | duas escritas na mesma chave dão `versionId` distintos, cada um lido de volta; referência sem versão recusada nas cinco operações que recebem referência | `SPEC-CWBA4BPV` |
+| `put.integrity` | corpo que não confere com o SHA-256 declarado, ou sem hash, recusado sem versão; com `PhysicalKeys`, sem chave deixada | `SPEC-CWBA4BPV` |
+| `retention.dated` | retenção sem data, vencida, acima do teto ou de modo desconhecido recusada no `Put` e no `Retain`, sem chave deixada; o teto é inclusivo; loja sem teto recusa retenção | `DAT-14`, `DAT-17` |
+| `retention.compliance` | `Purge`, data menor ou igual, rebaixamento e data acima do teto recusados; prorrogação dentro do teto aceita | `DAT-14` |
+| `retention.governance` | `Purge` recusado sem bypass; encurtamento, teto e promoção acima do teto recusados; prorrogação dentro do teto aceita; promoção a COMPLIANCE na mesma data aceita e sem volta | `DAT-11`, `DAT-14` |
+| `hold.independent` | hold sem razão recusado, recibo devolvido, `Purge` recusado sob hold, retenção intocada e, sem hold nem retenção, `Purge` aceito; com `Advance`, o hold segura a versão depois do vencimento | `DAT-15`, `DAT-18` |
+| `purge.receipt` | `Purge` depois do vencimento devolve o recibo com a data da retenção, e a versão some (`ErrObjectNotFound`); `Skipped` sem `Advance` | `DAT-18` |
+| `tenant.scope` | referência de outro tenant dá `ErrObjectNotFound` nas cinco operações, com o valor zero (nenhum byte nem estado vaza), e a versão segue intacta e travada; tenant ausente ou com `/` dá a sentinela do subject e carrier vazio dá `ErrContextAbsent`, em todas as operações; chave vazia ou com `..` dá `ErrObjectKeyInvalid` | `IDN-13` a `IDN-15` |
+| `platform.scope` | loja sem escopo recusada na construção; a de plataforma grava sem sujeito nem tenant e recusa contexto com tenant (`ErrScopeMismatch`) em todas as operações; as referências de um escopo não resolvem no outro, inclusive com o tenant de id `platform`; com `PhysicalKeys`, grava sob `platform/` | `IDN-16` a `IDN-20` |
+| `head.state` | loja sem cifra recusada na construção; `Head` devolve versão, tipo, retenção, hold e a cifra declarada, o mesmo estado do `Get`; com `OtherEncryption`, a cifra da versão gravada, lida por outra loja | `DAT-08` |
+| `overwrite.keeps-locked` | escrita sobre a chave de uma versão travada cria versão nova, e a antiga segue travada e legível | `floci#4389` |
+
+Catorze realizações mutantes do fake reprovam na cláusula que quebram
+(`objectstore_test.go`): purga que ignora a trava; retenção que aceita
+rebaixamento, que promove acima do teto ou que nunca prorroga GOVERNANCE;
+escrita que ignora o teto ou o hash, que grava antes de recusar o hash ou que
+aceita chave que escapa do prefixo; leitura que distingue o objeto de outro
+tenant ou que vaza estado com o miss; hold que inventa a razão; hold de
+plataforma que ignora o tenant; plataforma sem o prefixo; `Head` que repete a
+cifra declarada.
 
 O negativo de `providerkit` é uma realização que chaveia linha só por
 identificador, sem tenant: passa as três cláusulas mecânicas e reprova em
