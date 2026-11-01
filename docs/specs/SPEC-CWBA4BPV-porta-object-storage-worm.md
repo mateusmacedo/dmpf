@@ -2,7 +2,7 @@
 id: SPEC-CWBA4BPV
 slug: porta-object-storage-worm
 title: DMPF — Porta de object storage com versionId, retenção WORM e legal hold; provider S3; floci ≥ 2.2.0 com S3 e KMS
-stage: planning
+stage: building
 priority: P0
 depends_on: [SPEC-XMNBMY50, SPEC-VJMM2DE5]
 ticket_url: https://linear.app/mmda/issue/DEVS-95/spec-cwba4bpv-dmpf-porta-de-object-storage-com-versionid-retencao-worm
