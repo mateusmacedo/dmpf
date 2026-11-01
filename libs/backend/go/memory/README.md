@@ -31,6 +31,7 @@ baseline — é o que permite a um contexto de `apps/backend` importá-la sem
 | `attempt_ledger.go` | `Tx.AttemptLedger()`, o ledger de tentativas do comando externo na transação aberta, e `AttemptStore`/`NewAttemptStore(store)`, que roda cada chamada numa transação própria; mesma semântica do `postgres`, inclusive `Started`/`Pending`/`Done` (ADR-070) |
 | `inbox.go` | A inbox transacional: `Register` com as classificações R1–R4 e `Pending.Complete`; `Tx.CommandInbox(consumer)`, a mesma inbox para comandos, com o tenant na chave, o desfecho gravado e o vencimento da entrada (FND-04 §7.6) |
 | `platform.go` | `Table.PlatformReader(*Store, ports.AuditTrail, ...PlatformOption)`, `Table.Projector(*Tx, ports.ProjectionPolicy, ports.AuditTrail)` e `WithPageMax`: a paridade do acesso entre tenants declarado do `postgres` (ADR-068) |
+| `objectstore.go` | O fake de `ports.ObjectStore` (SPEC-CWBA4BPV): `ObjectBucket`/`NewObjectBucket(clock)`, o recurso que lojas de escopos distintos compartilham, como um bucket S3, dono do relógio que carimba as versões e decide o vencimento, com `PhysicalKeys` para inspeção; `ObjectStore`/`NewObjectStore(bucket, decl)`, que valida a declaração (`ports.ObjectStoreDeclaration.Validate`) e a chave (`ports.ObjectKey.Validate`), prefixa a chave física com `tenant/<id>/` ou `platform/`, verifica o SHA-256, guarda a data de retenção no segundo, aplica retenção datada sob o teto, legal hold e purga só de versão livre; `ErrIncompleteObjectStore` |
 | `clock.go` | `FixedClock` (`ports.Clock`) e `SequenceIDs` (`ports.IDGenerator`) |
 | `errors.go` | `ErrTenantUnresolved`, `ErrInboxConsumerRequired`, `ErrInboxConsumerMismatch`, `ErrAlreadyCompleted`, `ErrInvalidCompletion`, `ErrCommandExpiryRequired`, `ErrIncompleteAttemptStore` |
 
@@ -179,6 +180,19 @@ Em `attempt_ledger_test.go`, o ledger de tentativas: as três classificações d
 `Begin`, a serialização de `Begin` concorrente na mesma chave (uma só tentativa
 `begun`), `Finish` e `Observe` com registro, no-op, duplicata e conflito, `Stale`
 ordenado e limitado entre tenants, e o isolamento por tenant.
+Em `objectstore_test.go`, o fake de object storage: os prefixos `tenant/<id>/` e
+`platform/` disjuntos no mesmo bucket, inclusive para o tenant de id `platform`,
+a construção recusada sem escopo, sem cifra, sem bucket ou com bucket sem
+relógio, as cópias defensivas do corpo, da declaração e da retenção lida, a data
+de retenção guardada no segundo, o contexto cancelado — antes e durante a espera
+pela trava do bucket — que nunca chega ao bucket, e chamadas concorrentes de
+duas lojas sobre o mesmo bucket. O
+`providerkit.ObjectStore` roda sobre ele em `conformance_test.go`, com as onze
+cláusulas e nenhuma em `Skipped`.
+
+Não prova **WORM**: o fake devolve as mesmas recusas que a porta promete, mas a
+imutabilidade só se prova contra S3 real, com Object Lock, na Onda 2 da
+SPEC-CWBA4BPV.
 
 Não prova **isolamento** nem conflito de serialização entre transações
 concorrentes: `Within` retém `txMu` durante todo o callback, então as transações
