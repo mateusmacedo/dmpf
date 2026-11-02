@@ -82,13 +82,13 @@ services:
         rpk security user create it -p it-secret --mechanism SCRAM-SHA-256 -X admin.hosts=redpanda-sasl:9644
 
   floci:
-    image: floci/floci:2.0.1@sha256:4e451c39c7bb88e3cd4f87e8fc0c25d5b47695a51185d521e2241fa00486e8eb
+    image: floci/floci:2.2.0@sha256:e97cd0c1dc2aa14e7697fb5ef5018404c4d6345169dbd276315f0bed2c7b0520
     ports:
       - '127.0.0.1:14566:4566'
     tmpfs:
       - /app/data
     healthcheck:
-      test: ['CMD', 'curl', '-sf', '-o', '/dev/null', 'http://localhost:4566/_floci/health']
+      test: ['CMD', '/usr/local/bin/healthcheck.sh']
       interval: 2s
       timeout: 3s
       retries: 30

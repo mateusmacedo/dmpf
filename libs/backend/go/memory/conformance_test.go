@@ -45,6 +45,14 @@ func TestInboxConformsToTheKit(t *testing.T) {
 	}
 }
 
+func TestObjectStoreConformsToTheKit(t *testing.T) {
+	v := providerkit.ObjectStore(providerkit.MemoryObjectStore)
+	tb.Require(t, v)
+	if len(v.Skipped) != 0 {
+		t.Fatalf("skipped = %v, want none: the fake advances its clock", v.Skipped)
+	}
+}
+
 func TestAttemptLedgerConformsToTheKit(t *testing.T) {
 	v := providerkit.AttemptLedger(func() providerkit.AttemptLedgerSubject {
 		return providerkit.AttemptLedgerSubject{Ledger: memory.NewAttemptStore(memory.New())}

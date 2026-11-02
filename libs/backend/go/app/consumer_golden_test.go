@@ -38,6 +38,8 @@ func TestEveryCanonicalCaseRebuildsTheTenantItCarries(t *testing.T) {
 			handler := &fakeHandler{disposition: application.R1D1}
 			consumer := newConsumer(handler, &fakeContainment{}, 3)
 			consumer.Boundary.Sources = []string{c.Envelope["source"]}
+			consumer.Accepts = []string{c.Envelope["type"]}
+			consumer.Channel.Carries = []string{c.Envelope["type"]}
 
 			if _, err := consumer.Consume(context.Background(), app.Delivery{Raw: fixtureRaw(t, c), Attempt: 1}, &fakeAck{}); err != nil {
 				t.Fatalf("Consume() = %v", err)

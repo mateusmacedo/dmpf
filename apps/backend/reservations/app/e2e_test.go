@@ -148,15 +148,18 @@ func consumerWith(pool *pgxpool.Pool, decorate func(application.Resources) appli
 		Authorize: usecase.AllowAll[application.Operation](),
 		Consumer:  app.ConsumerName,
 	}
+	declared := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eTimeout, e2eAttempts, e2eBoundary, app.ConsumerTelemetry{})
 	return kernelapp.Consumer{
 		Name:        app.ConsumerName,
 		MaxAttempts: e2eAttempts,
 		Handle:      app.Handler(service),
+		Accepts:     declared.Accepts,
 		Containment: postgres.NewQuarantine(pool),
 		Clock:       e2eClock{},
 		Timeout:     e2eTimeout,
 		Boundary:    e2eBoundary,
 		Locale:      "en",
+		Channel:     declared.Channel,
 	}
 }
 
@@ -373,7 +376,7 @@ func TestPayloadOfAnotherContractIsTerminal(t *testing.T) {
 	}
 	ce, err := envelope.Encode(envelope.Envelope{
 		ID: "evt-8", Source: "urn:dmpf:orders", SpecVersion: envelope.SpecVersion,
-		Type: "com.company.orders.item-added.v1", Subject: "order/o-8",
+		Type: "com.company.orders.order-placed.v1", Subject: "order/o-8",
 		Time:       timestamppb.New(time.Date(2026, 9, 5, 12, 0, 0, 0, time.UTC)),
 		DataSchema: typeURL, DataContentType: envelope.ContentType,
 		CorrelationID: "corr-8", CausationID: "evt-8", PartitionKey: "o-8",
@@ -395,6 +398,49 @@ func TestPayloadOfAnotherContractIsTerminal(t *testing.T) {
 	if got := counts(t, pool); got != (tableCounts{quarantine: 1}) {
 		t.Fatalf("counts = %+v", got)
 	}
+}
+
+func TestAnotherEventTypeOfTheChannelIsDiscarded(t *testing.T) {
+	pool := appkit.OpenPool(t)
+	consumer := app.NewConsumer(pool, e2eClock{}, &sequenceIDs{}, e2eWait, e2eTimeout, e2eAttempts, e2eBoundary, app.ConsumerTelemetry{})
+
+	outcome, err, ack := consume(t, pool, consumer, "evt-10", rawItemAdded(t, "evt-10", "o-10"), 1)
+	if err != nil || !outcome.Discarded || outcome.Classified || outcome.Contained {
+		t.Fatalf("outcome = %+v, err = %v, want the item-added discarded (KFK-03c)", outcome, err)
+	}
+	if got := counts(t, pool); got != (tableCounts{}) {
+		t.Fatalf("counts = %+v, want no inbox, quarantine or reservation row", got)
+	}
+	if ack.acks != 1 || ack.releases != 0 {
+		t.Fatalf("ack=%d release=%d, want the discarded delivery acknowledged", ack.acks, ack.releases)
+	}
+}
+
+func rawItemAdded(t *testing.T, messageID, orderID string) []byte {
+	t.Helper()
+	payload, typeURL, err := envelope.Pack(&eventv1.ItemAdded{OrderId: orderID, Sku: "sku", Quantity: 1})
+	if err != nil {
+		t.Fatalf("Pack: %v", err)
+	}
+	tenant := appkit.Tenant
+	ce, err := envelope.Encode(envelope.Envelope{
+		ID: messageID, Source: appkit.OrdersSource, SpecVersion: envelope.SpecVersion,
+		Type: "com.company.orders.item-added.v1", Subject: "order/" + orderID,
+		Time:       timestamppb.New(time.Date(2026, 9, 5, 12, 0, 0, 0, time.UTC)),
+		DataSchema: typeURL, DataContentType: envelope.ContentType,
+		CorrelationID: "corr-" + messageID, CausationID: messageID, PartitionKey: orderID,
+		TraceParent: "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+		TenantID:    &tenant,
+		Payload:     payload,
+	})
+	if err != nil {
+		t.Fatalf("Encode: %v", err)
+	}
+	raw, err := proto.Marshal(ce)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+	return raw
 }
 
 func TestRedeliveryWithANewMessageIDDoesNotDuplicateTheEffect(t *testing.T) {

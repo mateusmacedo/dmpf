@@ -27,7 +27,7 @@ const (
 func fifoChannel() channel.Channel {
 	return channel.Channel{
 		Name: "reservations", Transport: channel.SQS, Address: fifoURL,
-		EventType: "stock.reservation.requested", ContractMajor: 1, ContractRef: "stock/v1/events.proto#ReservationRequested",
+		Events: []channel.Event{{Type: "stock.reservation.requested", ContractRef: "stock/v1/events.proto#ReservationRequested"}}, ContractMajor: 1,
 		Ordering:    channel.Ordering{Key: "partitionkey", Unit: channel.Group},
 		Redelivery:  channel.SQSWindow(2, 30*time.Second, 4*24*time.Hour),
 		Containment: fifoDLQ, Retry: channel.Retry{Strategy: channel.InlineWithLimit, MaxAttempts: 2},
@@ -37,7 +37,7 @@ func fifoChannel() channel.Channel {
 func standardChannel() channel.Channel {
 	return channel.Channel{
 		Name: "notifications", Transport: channel.SQS, Address: standardURL,
-		EventType: "crm.notification.sent", ContractMajor: 1, ContractRef: "crm/v1/events.proto#NotificationSent",
+		Events: []channel.Event{{Type: "crm.notification.sent", ContractRef: "crm/v1/events.proto#NotificationSent"}}, ContractMajor: 1,
 		Ordering:    channel.Ordering{Unit: channel.None},
 		Redelivery:  channel.SQSWindow(3, 30*time.Second, 24*time.Hour),
 		Containment: standardDLQ, Retry: channel.Retry{Strategy: channel.InlineWithLimit, MaxAttempts: 3},
@@ -47,7 +47,7 @@ func standardChannel() channel.Channel {
 func snsChannel() channel.Channel {
 	return channel.Channel{
 		Name: "orders-fanout", Transport: channel.SNSSQS, Address: topicARN,
-		EventType: "sales.order.placed", ContractMajor: 1, ContractRef: "sales/order/v1/events.proto#OrderPlaced",
+		Events: []channel.Event{{Type: "sales.order.placed", ContractRef: "sales/order/v1/events.proto#OrderPlaced"}}, ContractMajor: 1,
 		Ordering:    channel.Ordering{Unit: channel.None},
 		Redelivery:  channel.SNSSQSWindow(time.Hour, channel.SQSWindow(3, 30*time.Second, 24*time.Hour)),
 		Containment: standardDLQ, Retry: channel.Retry{Strategy: channel.InlineWithLimit, MaxAttempts: 3},
@@ -57,7 +57,7 @@ func snsChannel() channel.Channel {
 func kafkaChannel() channel.Channel {
 	return channel.Channel{
 		Name: "orders", Transport: channel.Kafka, Address: "sales.order.placed.v1",
-		EventType: "sales.order.placed", ContractMajor: 1, ContractRef: "sales/order/v1/events.proto#OrderPlaced",
+		Events: []channel.Event{{Type: "sales.order.placed", ContractRef: "sales/order/v1/events.proto#OrderPlaced"}}, ContractMajor: 1,
 		Ordering:    channel.Ordering{Key: "partitionkey", Unit: channel.Partition},
 		Redelivery:  channel.KafkaWindow(channel.KafkaRetention{RetentionByTime: time.Hour, RetentionBySize: -1, CleanupPolicy: "delete", InitialOffset: "earliest"}),
 		Containment: "sales.order.placed.v1.dlq", Retry: channel.Retry{Strategy: channel.InlineWithLimit, MaxAttempts: 3},

@@ -20,6 +20,7 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/otelboot"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/tracing"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/obstest"
 )
 
 const (
@@ -384,5 +385,59 @@ func TestAProviderThatCannotKeyTheCacheStillLogsEveryMessage(t *testing.T) {
 	}
 	if logged != 2 {
 		t.Fatalf("%d %q records through a provider that is not comparable, want one per message (2)", logged, messageConsumed)
+	}
+}
+
+const anotherTypeDiscarded = "delivery of another event type discarded"
+
+func TestADiscardIsLoggedAtDebugUnderTheMessagingKeys(t *testing.T) {
+	raw, _ := rawOfType(t, itemAddedV1)
+	consumer, _, collect := loggedConsumer(t, &fakeHandler{}, &fakeContainment{})
+
+	if _, err := consumer.Consume(context.Background(), app.Delivery{Raw: raw, Attempt: 1}, &fakeAck{}); err != nil {
+		t.Fatalf("Consume() = %v", err)
+	}
+	records := collect()
+
+	var found []sdklog.Record
+	for _, record := range records {
+		switch record.Body().AsString() {
+		case anotherTypeDiscarded:
+			found = append(found, record)
+		case messageConsumed:
+			t.Fatalf("a discard logged %q, want no consumption record without a process", messageConsumed)
+		}
+	}
+	if len(found) != 1 {
+		t.Fatalf("%d %q records among %d, want exactly one", len(found), anotherTypeDiscarded, len(records))
+	}
+	record := found[0]
+	if record.Severity() != log.SeverityDebug {
+		t.Errorf("severity = %v, want debug (RF-A5)", record.Severity())
+	}
+	if scope := record.InstrumentationScope().Name; scope != consumerScope {
+		t.Errorf("scope = %q, want %q (RF-A1)", scope, consumerScope)
+	}
+	attributes := map[string]string{}
+	for key, value := range recordAttributes(record) {
+		attributes[key] = value.String()
+	}
+	obstest.RequireTheVocabulary(t, anotherTypeDiscarded, attributes, map[string]string{
+		string(semconv.CloudEventsEventTypeKey): itemAddedV1,
+		string(semconv.MessagingMessageIDKey):   "evt-1",
+	})
+}
+
+func TestADiscardTheBrokerDidNotConfirmIsNotLogged(t *testing.T) {
+	raw, _ := rawOfType(t, itemAddedV1)
+	consumer, _, collect := loggedConsumer(t, &fakeHandler{}, &fakeContainment{})
+
+	if _, err := consumer.Consume(context.Background(), app.Delivery{Raw: raw, Attempt: 1}, &fakeAck{err: errAck}); err == nil {
+		t.Fatal("Consume() = nil, want the broker's error")
+	}
+	for _, record := range collect() {
+		if record.Body().AsString() == anotherTypeDiscarded {
+			t.Fatalf("%q logged for a discard the broker did not confirm", anotherTypeDiscarded)
+		}
 	}
 }

@@ -63,13 +63,15 @@ const (
 	AdmissionRejectionsTotal = "dmpf.admission.rejections"
 	ExternalConflictsTotal   = "dmpf.external.attempt.conflicts"
 	ExternalSaturationsTotal = "dmpf.external.attempt.saturations"
+	ConsumerDiscardedTotal   = "dmpf.consumer.discarded"
 )
 
 const ownerService = "serviço"
 
 // Catalog is the series of RF-D1: the dependency series of MET-02, the duration
-// of the use case and the three of MET-11 and MET-12 the transport providers
-// record. Returning a copy keeps a caller from rewriting the catalogue.
+// of the use case, the three of MET-11 and MET-12 the transport providers record
+// and the discard of MET-21 the consumer adapter records. Returning a copy keeps
+// a caller from rewriting the catalogue.
 func Catalog() []Metric {
 	catalogue := []Metric{
 		{
@@ -183,6 +185,26 @@ func Catalog() []Metric {
 			Labels:  []string{KeyOperation, KeyExternalClass},
 			Owner:   ownerService,
 		},
+		{
+			Name:    ConsumerDiscardedTotal,
+			Unit:    UnitMessage,
+			Kind:    Counter,
+			Formula: "contagem das mensagens de tipo declarado no canal e não assinado pelo consumidor, confirmadas sem efeito, por tipo de evento",
+			Labels:  []string{KeyMessagingSystem, KeyDestination, KeyConsumerGroup, KeyEventType},
+			Owner:   ownerService,
+		},
 	}
 	return catalogue
+}
+
+// Lookup is the entry of Catalog named name, so a series built outside New takes
+// its unit and formula from the declaration instead of repeating them; ok is
+// false for a name the catalogue does not declare.
+func Lookup(name string) (Metric, bool) {
+	for _, m := range Catalog() {
+		if m.Name == name {
+			return m, true
+		}
+	}
+	return Metric{}, false
 }

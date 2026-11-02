@@ -235,7 +235,9 @@ worktree limpo; `DMPF_GENERATOR_CHECK_WORKING_TREE=1` aplica o working tree num
 commit efêmero. O `external-consumer.sh` cria um workspace Nx vazio fora da
 árvore, instala o plugin por `pnpm pack`, resolve o kernel e o `conformance`
 do PR por um proxy `file://` (`tools/kernel-file-proxy.sh`) e roda `nx add`,
-`init`, `bounded-context` e os gates do consumidor; é o job
+`init`, `bounded-context` e os gates do consumidor. Sem `--work`, o diretório
+temporário vai para a lixeira (`trash`) quando a prova passa e fica para
+inspeção quando ela falha. É o job
 `Consumidor externo por versão` do CI, que roda no PR para `master`. Com `--verdaccio`, que é como o CI roda, o pacote vai
 para um Verdaccio local que exige token no escopo `@mateusmacedo`, e o
 consumidor o instala por versão com a credencial no `.npmrc` de usuário, como

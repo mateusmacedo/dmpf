@@ -1,0 +1,62 @@
+# Contrato do provider S3 contra o S3 real (SPEC-CWBA4BPV): o kit de object
+# storage, a resistência do COMPLIANCE a um principal amplo e a segregação do
+# bypass de GOVERNANCE só se provam fora do emulador. Disparo manual, no
+# environment hmg, com credencial por OIDC; o provisionamento (roles, chave KMS,
+# bucket de GOVERNANCE e variáveis) está no runbook de libs/backend/go/s3/README.md.
+name: DMPF contrato AWS
+
+on:
+  workflow_dispatch:
+    inputs:
+      retention-unit:
+        description: Unidade de retenção do kit contra o S3 real (segundos inteiros, como 10s)
+        type: string
+        default: "10s"
+
+permissions: {}
+
+concurrency:
+  group: dmpf-contract-aws
+  cancel-in-progress: false
+
+jobs:
+  contract:
+    name: Contrato S3
+    runs-on: ubuntu-26.04
+    environment: hmg
+    timeout-minutes: 30
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      # Com a variável obrigatória, uma configuração ausente reprova em vez de
+      # pular: o contrato nunca passa sem ter provado nada.
+      S3_CONTRACT_REQUIRED: "1"
+      S3_CONTRACT_BUCKET_PREFIX: ${{ vars.S3_CONTRACT_BUCKET_PREFIX }}
+      S3_CONTRACT_KMS_KEY_ARN: ${{ vars.S3_CONTRACT_KMS_KEY_ARN }}
+      S3_CONTRACT_GOVERNANCE_BUCKET: ${{ vars.S3_CONTRACT_GOVERNANCE_BUCKET }}
+      S3_CONTRACT_APP_ROLE_ARN: ${{ vars.S3_CONTRACT_APP_ROLE_ARN }}
+      S3_CONTRACT_ADMIN_ROLE_ARN: ${{ vars.S3_CONTRACT_ADMIN_ROLE_ARN }}
+      S3_CONTRACT_RETENTION_UNIT: ${{ inputs.retention-unit }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.work
+          cache-dependency-path: libs/backend/go/s3/go.sum
+
+      - name: Credencial AWS por OIDC
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.S3_CONTRACT_RUNNER_ROLE_ARN }}
+          role-session-name: dmpf-contract-${{ github.run_id }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Contrato contra o S3 real
+        working-directory: libs/backend/go/s3
+        run: go test -race -count=1 -tags=integration -run '^TestContract' -v ./...

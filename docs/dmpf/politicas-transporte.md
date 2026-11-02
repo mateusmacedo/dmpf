@@ -1116,6 +1116,14 @@ conjunto **fechado** e declarado na catalogação do canal; variação modelada 
 contrato, e não por acréscimo livre ao longo do tempo; e ordenação declarada válida
 para o conjunto inteiro. Sem os três, vale `KFK-03`.
 
+`normativo` `KFK-03c` — **O consumidor de tópico multi-tipo declara o subconjunto que
+assina, contido no conjunto do canal.** Um tipo do conjunto que esteja fora do
+subconjunto é **descartado** no passo 1 de §6.3 de FND-04: a mensagem é confirmada
+sem efeito, sem inbox, sem quarantine nem DLQ, e o descarte é contado. Um tipo fora
+do conjunto do canal é schema desconhecido e segue a contenção de §7.4 de FND-04.
+Um subconjunto vazio, ou que inclua tipo fora do conjunto, recusa a partida do
+consumidor.
+
 `normativo` `KFK-04` — **A contagem de partições é propriedade do canal, declarada,
 junto do particionador em uso e da codificação de bytes da chave.** Sob o
 particionador padrão, o destino é função da chave e do número de partições; sem
@@ -1827,7 +1835,7 @@ encaminhados ao catálogo de testes. Encaminhados a FND-09
 
 ### §18.5 Índice de regras
 
-`registro` — 131 regras, em sete prefixos. Nenhum prefixo colide com os já usados
+`registro` — 132 regras, em sete prefixos. Nenhum prefixo colide com os já usados
 pelos artefatos precedentes, incluindo os do FND-07 (`CTX`, `ERR`, `MAP`, `IDN`, `DAT`,
 `THR`).
 
@@ -1836,7 +1844,7 @@ pelos artefatos precedentes, incluindo os do FND-07 (`CTX`, `ERR`, `MAP`, `IDN`,
 | `TRP-` | Invariantes transversais de transporte | 54 |
 | `RST-` | REST e JSON como interface externa | 4 |
 | `GRP-` | gRPC como síncrono interno | 19 |
-| `KFK-` | Kafka | 23 |
+| `KFK-` | Kafka | 24 |
 | `SQS-` | SNS e SQS | 19 |
 | `ASY-` | Catalogação de canal assíncrono | 4 |
 | `COE-` | Coexistência dos dois transportes | 8 |
@@ -1870,7 +1878,7 @@ reutilizado.
 | §10.3 | Retry, balanceamento e disponibilidade | `GRP-08`, `GRP-09`, `GRP-10`, `GRP-11`, `GRP-12`, `GRP-12b` |
 | §10.4 | Erro | `GRP-13`, `GRP-14` |
 | §10.5 | Segurança do transporte | `GRP-15` |
-| §11.1 | Nomenclatura e topologia de tópico | `KFK-01`, `KFK-01b`, `KFK-01c`, `KFK-02`, `KFK-03`, `KFK-03b`, `KFK-04`, `KFK-04b` |
+| §11.1 | Nomenclatura e topologia de tópico | `KFK-01`, `KFK-01b`, `KFK-01c`, `KFK-02`, `KFK-03`, `KFK-03b`, `KFK-03c`, `KFK-04`, `KFK-04b` |
 | §11.2 | Chave, ordenação e consumo | `KFK-05`, `KFK-06`, `KFK-07`, `KFK-08`, `KFK-09` |
 | §11.3 | Retry e contenção | `KFK-10`, `KFK-11`, `KFK-12` |
 | §11.4 | Operação de registry de schemas | `KFK-13`, `KFK-14`, `KFK-15`, `KFK-16`, `KFK-17`, `KFK-18` |

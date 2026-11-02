@@ -1,0 +1,44 @@
+{
+  "schema": "dmpf/units@1",
+  "units": [
+    {
+      "id": "kernel/provider-s3",
+      "block": "provider",
+      "bounded_context": "kernel",
+      "public_integration_surface": false,
+      "include": [
+        "github.com/mateusmacedo/dmpf/libs/backend/go/s3",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/s3/admin",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/s3/internal/sdk",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/s3/internal/worm"
+      ]
+    }
+  ],
+  "external": [
+    {
+      "package": "github.com/aws/aws-sdk-go-v2",
+      "versions": ">=1.46.0 <2",
+      "entrypoints": ["github.com/aws/aws-sdk-go-v2/aws"],
+      "capability": "io.storage"
+    },
+    {
+      "package": "github.com/aws/aws-sdk-go-v2/service/s3",
+      "versions": ">=1.112.0 <2",
+      "entrypoints": [".", "github.com/aws/aws-sdk-go-v2/service/s3/types"],
+      "capability": "io.storage"
+    },
+    {
+      "package": "github.com/aws/smithy-go",
+      "versions": ">=1.28.1 <2",
+      "entrypoints": [".", "github.com/aws/smithy-go/logging"],
+      "capability": "io.storage"
+    },
+    {
+      "package": "go.opentelemetry.io/otel/trace",
+      "versions": ">=1.46.0 <2",
+      "entrypoints": ["."],
+      "capability": "observability"
+    }
+  ],
+  "exceptions": []
+}

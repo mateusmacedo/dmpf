@@ -91,9 +91,8 @@ func childConfig(t *testing.T) (kafka.Config, channel.Channel) {
 		Name:          destination,
 		Transport:     channel.Kafka,
 		Address:       tb.Env(t, EnvTopic),
-		EventType:     "com.company.orders.order-placed",
+		Events:        app.OrdersChannel(app.Config{}).Events,
 		ContractMajor: 1,
-		ContractRef:   "company/orders/event/v1/order_placed.proto#OrderPlaced",
 		Ordering:      channel.Ordering{Key: "partitionkey", Unit: channel.Partition},
 		Redelivery: channel.KafkaWindow(channel.KafkaRetention{
 			RetentionByTime: 7 * 24 * time.Hour, RetentionBySize: -1, CleanupPolicy: "delete", InitialOffset: "earliest",

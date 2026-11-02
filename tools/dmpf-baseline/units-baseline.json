@@ -1,6 +1,6 @@
 {
   "schema": "dmpf/units-baseline@1",
-  "digest": "sha256:940b457abb321f400ea6fd35ff2cefe2b7dd8e81439218c5088612323aee355d",
+  "digest": "sha256:f41bde3525ff3096e7ae94e713d977a3fd8714cdf3c36c27d60a407dd4e3ee21",
   "entries": [
     {
       "unit": "bff/app",
@@ -327,6 +327,18 @@
       "membership": ["github.com/mateusmacedo/dmpf/libs/backend/go/redis"]
     },
     {
+      "unit": "kernel/provider-s3",
+      "module": "github.com/mateusmacedo/dmpf/libs/backend/go/s3",
+      "block": "provider",
+      "bounded_context": "kernel",
+      "membership": [
+        "github.com/mateusmacedo/dmpf/libs/backend/go/s3",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/s3/admin",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/s3/internal/sdk",
+        "github.com/mateusmacedo/dmpf/libs/backend/go/s3/internal/worm"
+      ]
+    },
+    {
       "unit": "kernel/provider-sqs",
       "module": "github.com/mateusmacedo/dmpf/libs/backend/go/sqs",
       "block": "provider",
@@ -549,6 +561,7 @@
     "contracts/payloadhash",
     "kernel/provider-memory",
     "kernel/provider-authn",
-    "kernel/provider-redis"
+    "kernel/provider-redis",
+    "kernel/provider-s3"
   ]
 }

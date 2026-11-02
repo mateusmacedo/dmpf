@@ -39,6 +39,7 @@ type Signals struct {
 	AttemptsExhausted int64
 	InvalidEnvelopes  int64
 	UntrustedBoundary int64
+	UndeclaredTypes   int64
 	// Other keeps the depth auditable: a reason the port does not enumerate is
 	// counted here instead of vanishing from the breakdown.
 	Other int64
@@ -77,6 +78,8 @@ func InboxSignals(ctx context.Context, pool *pgxpool.Pool, consumer string) (Sig
 			s.InvalidEnvelopes = count
 		case ports.ReasonUntrustedBoundary:
 			s.UntrustedBoundary = count
+		case ports.ReasonUndeclaredType:
+			s.UndeclaredTypes = count
 		default:
 			s.Other += count
 		}

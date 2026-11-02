@@ -272,6 +272,8 @@ importers:
 
   libs/backend/go/redis: {}
 
+  libs/backend/go/s3: {}
+
   libs/backend/go/sqs: {}
 
   libs/backend/go/testkit: {}
