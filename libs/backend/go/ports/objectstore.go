@@ -10,8 +10,8 @@ import (
 )
 
 // Scope is declared when the store is built, never inferred (IDN-17): a tenant
-// store prefixes tenant/<id>/ from the ExecutionContext, a platform store the
-// fixed platform/ that no tenant id reaches (IDN-19, IDN-20).
+// store prefixes tenant/<id>/ from the ExecutionContext, a platform store
+// prefixes the fixed platform/ that no tenant id reaches (IDN-19, IDN-20).
 type Scope string
 
 const (
