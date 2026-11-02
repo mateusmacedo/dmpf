@@ -21,6 +21,7 @@ use (
 	./libs/backend/go/ports
 	./libs/backend/go/postgres
 	./libs/backend/go/redis
+	./libs/backend/go/s3
 	./libs/backend/go/sqs
 	./libs/backend/go/testkit
 	./libs/backend/go/transport
