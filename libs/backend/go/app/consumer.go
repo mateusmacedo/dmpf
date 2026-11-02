@@ -21,10 +21,16 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
 
-// ErrIncompleteConsumer is what Consume reports when a collaborator is missing;
-// the adapter has no defaults to fall back on, because every value here is the
-// caller's declaration (FND-08 catalogues them, this block only demands them).
-var ErrIncompleteConsumer = errors.New("app: consumer requires name, handler, containment, clock, timeout, boundary and locale")
+// ErrIncompleteConsumer is what Consume reports when a collaborator is missing,
+// and the message names the first one; the adapter has no defaults to fall back on,
+// because every value here is the caller's declaration (FND-08 catalogues them,
+// this block only demands them).
+var ErrIncompleteConsumer = errors.New("app: consumer is incomplete")
+
+// ErrSubscriptionOutsideChannel is what Validate reports when Accepts repeats a
+// type or names one the channel does not carry: the subscription stays within
+// the channel's declared set (KFK-03c).
+var ErrSubscriptionOutsideChannel = errors.New("app: consumer accepts a type outside the channel or more than once")
 
 // Transport says on what ground the channel that delivered a message is
 // trusted. A value outside the two below is an undeclared boundary.
@@ -79,6 +85,11 @@ type Consumer struct {
 	Name        string
 	MaxAttempts int
 	Handle      Handler
+
+	// Accepts is the subscription: the wire types the Handler takes, within
+	// Channel.Carries. A carried type outside it is discarded (KFK-03c).
+	Accepts []string
+
 	Containment ports.Containment
 	Clock       ports.Clock
 
@@ -106,24 +117,67 @@ type Consumer struct {
 type Channel struct {
 	Address string
 	Group   string
+
+	// Carries is the channel's wire types, from channel.WireTypes (KFK-03b).
+	Carries []string
 }
 
-// Outcome is what the adapter did with one delivery. Classified is false only
-// for an invalid envelope, which never reaches the inbox and so has no
-// disposition (INB-10); Contained says the message left the flow (GAR-11).
+// Outcome is what the adapter did with one delivery. Classified is false when the
+// handler never ran, so no disposition exists (INB-10); Contained says the message
+// left the flow (GAR-11), Discarded that it was a carried type not accepted (KFK-03c).
 type Outcome struct {
 	Disposition application.Disposition
 	Classified  bool
 	Contained   bool
+	Discarded   bool
 	Reason      ports.Reason
+}
+
+// Validate is the check Consume runs on every delivery, for the composition root
+// to run at start: ErrIncompleteConsumer naming the first missing declaration, and
+// ErrSubscriptionOutsideChannel for Accepts repeated or outside Channel.Carries.
+func (c Consumer) Validate() error {
+	if missing := c.missing(); missing != "" {
+		return fmt.Errorf("%w: %s", ErrIncompleteConsumer, missing)
+	}
+	for i, accepted := range c.Accepts {
+		if !slices.Contains(c.Channel.Carries, accepted) || slices.Contains(c.Accepts[:i], accepted) {
+			return fmt.Errorf("%w: %s", ErrSubscriptionOutsideChannel, accepted)
+		}
+	}
+	return nil
+}
+
+func (c Consumer) missing() string {
+	switch {
+	case c.Name == "":
+		return "name"
+	case c.Handle == nil:
+		return "handler"
+	case c.Containment == nil:
+		return "containment"
+	case c.Clock == nil:
+		return "clock"
+	case c.Timeout <= 0:
+		return "timeout"
+	case !c.Boundary.declared():
+		return "boundary"
+	case c.Locale == "":
+		return "locale"
+	case len(c.Accepts) == 0:
+		return "accepts"
+	case len(c.Channel.Carries) == 0:
+		return "carries"
+	}
+	return ""
 }
 
 // Consume runs the sequence of §6.3 on the adapter's side and applies the
 // broker effect strictly after the handler returned (INB-08). The error is the
 // handler's own under D3/D4, or the broker's or quarantine's when they fail.
 func (c Consumer) Consume(ctx context.Context, d Delivery, ack ports.Acknowledger) (Outcome, error) {
-	if c.Name == "" || c.Handle == nil || c.Containment == nil || c.Clock == nil || c.Timeout <= 0 || !c.Boundary.declared() || c.Locale == "" {
-		return Outcome{}, ErrIncompleteConsumer
+	if err := c.Validate(); err != nil {
+		return Outcome{}, err
 	}
 
 	env, err := envelope.Unmarshal(d.Raw)
@@ -138,22 +192,13 @@ func (c Consumer) Consume(ctx context.Context, d Delivery, ack ports.Acknowledge
 	}
 
 	gesture := &gestures{Acknowledger: ack}
-	if !c.Boundary.admits(env.Source) {
-		began := time.Now()
-		ctx, span := c.openProcess(ctx, env, d.Attempt, false, "")
-		defer span.End()
-		outcome, err := c.contain(ctx, gesture, Outcome{Reason: ports.ReasonUntrustedBoundary}, ports.Contained{
-			Consumer:  c.Name,
-			MessageID: ports.MessageID(env.ID),
-			Reason:    ports.ReasonUntrustedBoundary,
-			Envelope:  d.Raw,
-			Error:     "app: source outside the trusted boundary",
-			At:        c.Clock.Now(),
-		}, nil)
-		conclude(span, outcome, gesture, err)
-		c.measureProcess(ctx, began, outcome, gesture, err)
-		c.logConsumed(ctx, env, d.Attempt, outcome, gesture, err)
-		return outcome, err
+	switch {
+	case !c.Boundary.admits(env.Source):
+		return c.refuse(ctx, d, env, gesture, ports.ReasonUntrustedBoundary, "app: source outside the trusted boundary")
+	case !slices.Contains(c.Channel.Carries, env.Type):
+		return c.refuse(ctx, d, env, gesture, ports.ReasonUndeclaredType, "app: type outside the channel's declared set")
+	case !slices.Contains(c.Accepts, env.Type):
+		return c.discard(ctx, env, gesture)
 	}
 
 	attempt := Attempt{RequestID: newAttemptID(), Number: d.Attempt}
@@ -163,6 +208,24 @@ func (c Consumer) Consume(ctx context.Context, d Delivery, ack ports.Acknowledge
 	outcome, err := c.admitted(ctx, d, env, attempt, gesture)
 	conclude(span, outcome, gesture, err)
 	c.measureProcess(ctx, began, outcome, gesture, err)
+	return outcome, err
+}
+
+func (c Consumer) refuse(ctx context.Context, d Delivery, env envelope.Envelope, gesture *gestures, reason ports.Reason, cause string) (Outcome, error) {
+	began := time.Now()
+	ctx, span := c.openProcess(ctx, env, d.Attempt, false, "")
+	defer span.End()
+	outcome, err := c.contain(ctx, gesture, Outcome{Reason: reason}, ports.Contained{
+		Consumer:  c.Name,
+		MessageID: ports.MessageID(env.ID),
+		Reason:    reason,
+		Envelope:  d.Raw,
+		Error:     cause,
+		At:        c.Clock.Now(),
+	}, nil)
+	conclude(span, outcome, gesture, err)
+	c.measureProcess(ctx, began, outcome, gesture, err)
+	c.logConsumed(ctx, env, d.Attempt, outcome, gesture, err)
 	return outcome, err
 }
 

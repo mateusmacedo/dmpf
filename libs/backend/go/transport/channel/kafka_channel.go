@@ -15,17 +15,17 @@ const (
 	RetentionByTime = 7 * 24 * time.Hour
 )
 
-// NewKafka catalogues a Kafka channel with the bindings every context in this
-// workspace declares the same way: ordering by partition key, redelivery
-// derived from the retention, and inline retry up to the shared ceiling.
-func NewKafka(name, address, dlq, group, eventType, contract string) Channel {
+// NewKafka catalogues a Kafka channel carrying the given events, with the
+// bindings every context in this workspace declares the same way: ordering by
+// partition key, redelivery derived from the retention, and inline retry up to
+// the shared ceiling.
+func NewKafka(name, address, dlq, group string, events ...Event) Channel {
 	return Channel{
 		Name:          name,
 		Transport:     Kafka,
 		Address:       address,
-		EventType:     eventType,
+		Events:        events,
 		ContractMajor: 1,
-		ContractRef:   contract,
 		Ordering:      Ordering{Key: "partitionkey", Unit: Partition},
 		Redelivery: KafkaWindow(KafkaRetention{
 			RetentionByTime: RetentionByTime, RetentionBySize: -1, CleanupPolicy: "delete", InitialOffset: "earliest",
@@ -39,8 +39,14 @@ func NewKafka(name, address, dlq, group, eventType, contract string) Channel {
 	}
 }
 
-// EventTypeOf is the wire type the channel carries: its event type at its
-// contract major (PTB-03), which is what the consumer subscribes to.
-func EventTypeOf(ch Channel) string {
-	return ch.EventType + ".v" + strconv.Itoa(ch.ContractMajor)
+// WireTypes is the set of wire types the channel carries, in declared order:
+// each event type at the channel's contract major (PTB-03). A consumer's
+// subscription stays within it (KFK-03c).
+func WireTypes(ch Channel) []string {
+	major := ".v" + strconv.Itoa(ch.ContractMajor)
+	types := make([]string, len(ch.Events))
+	for i, event := range ch.Events {
+		types[i] = event.Type + major
+	}
+	return types
 }

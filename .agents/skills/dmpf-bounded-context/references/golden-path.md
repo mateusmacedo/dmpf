@@ -143,6 +143,7 @@ pnpm nx g @mateusmacedo/dmpf-plugin:bounded-context <name> --boundedContext <ctx
 | Autorização e instrumentação | `bookings/app/{authorization,telemetry}.go` |
 | e2e gRPC por bufconn sobre Postgres | `bookings/app/e2e_test.go` |
 | Consumer adapter (`envelope.Unpack`) — **só se o contexto consome** | `apps/backend/reservations/app/consumer.go` |
+| Assinatura do consumidor: canal com os eventos do tópico (`channel.NewKafka(..., events...)`), `Accepts` com os tipos de fio tratados, `Channel.Carries` por `channel.WireTypes` e `kernelapp.Sink` no transporte; o tipo alheio é descartado pelo kernel (`KFK-03c`, ADR-072) — **só se o contexto consome** | `apps/backend/reservations/app/wiring.go` |
 
 - Norma: ADR-044 (REST só no `bff`, contextos atrás de gRPC), ADR-053; FND-08
   (as três posições de observabilidade). A cadeia de interceptors é

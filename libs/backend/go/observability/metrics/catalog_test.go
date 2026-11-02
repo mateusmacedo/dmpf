@@ -2,6 +2,7 @@ package metrics_test
 
 import (
 	"context"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -30,6 +31,7 @@ func TestTheCatalogueDeclaresTheSeriesOfRFD1(t *testing.T) {
 		metrics.QueueDepth:               "dmpf.consumer.queue.depth",
 		metrics.ExternalConflictsTotal:   "dmpf.external.attempt.conflicts",
 		metrics.ExternalSaturationsTotal: "dmpf.external.attempt.saturations",
+		metrics.ConsumerDiscardedTotal:   "dmpf.consumer.discarded",
 	}
 	for constant, name := range want {
 		if constant != name {
@@ -83,6 +85,7 @@ func TestEverySeriesDeclaresItsUCUMUnit(t *testing.T) {
 		metrics.QueueDepth:               "{message}",
 		metrics.ExternalConflictsTotal:   "{conflict}",
 		metrics.ExternalSaturationsTotal: "{saturation}",
+		metrics.ConsumerDiscardedTotal:   "{message}",
 	}
 	for _, m := range metrics.Catalog() {
 		if m.Unit != want[m.Name] {
@@ -118,6 +121,9 @@ func TestEverySeriesDeclaresTheLabelsOfRFD3(t *testing.T) {
 		metrics.QueueDepth:               nil,
 		metrics.ExternalConflictsTotal:   {"dmpf.operation", "dmpf.external.class"},
 		metrics.ExternalSaturationsTotal: {"dmpf.operation", "dmpf.external.class"},
+		metrics.ConsumerDiscardedTotal: {
+			"messaging.system", "messaging.destination.name", "messaging.consumer.group.name", "cloudevents.event_type",
+		},
 	}
 	for _, m := range metrics.Catalog() {
 		if !slices.Equal(m.Labels, want[m.Name]) {
@@ -179,11 +185,42 @@ func TestTheAdmissionSeriesCarriesRouteAndTenantOnly(t *testing.T) {
 	t.Fatalf("series %q is missing from the catalogue", metrics.AdmissionRejectionsTotal)
 }
 
+func TestTheDiscardSeriesCountsMessagesByEventType(t *testing.T) {
+	for _, m := range metrics.Catalog() {
+		if m.Name != metrics.ConsumerDiscardedTotal {
+			continue
+		}
+		if m.Kind != metrics.Counter {
+			t.Errorf("Kind = %q, want counter (MET-21)", m.Kind)
+		}
+		if m.Unit != metrics.UnitMessage {
+			t.Errorf("Unit = %q, want %q", m.Unit, metrics.UnitMessage)
+		}
+		want := []string{metrics.KeyMessagingSystem, metrics.KeyDestination, metrics.KeyConsumerGroup, metrics.KeyEventType}
+		if !slices.Equal(m.Labels, want) {
+			t.Errorf("Labels = %v, want %v: the event type is bounded by the channel's declared set (KFK-03c, MET-07)", m.Labels, want)
+		}
+		return
+	}
+	t.Fatalf("series %q is missing from the catalogue", metrics.ConsumerDiscardedTotal)
+}
+
 func TestCatalogReturnsACopy(t *testing.T) {
 	metrics.Catalog()[0].Name = "tampered"
 
 	if got := metrics.Catalog()[0].Name; got == "tampered" {
 		t.Fatal("Catalog() shares its backing array: a caller rewrote the catalogue")
+	}
+}
+
+func TestLookupFindsEveryEntryOfTheCatalogueByName(t *testing.T) {
+	for _, want := range metrics.Catalog() {
+		if got, ok := metrics.Lookup(want.Name); !ok || !reflect.DeepEqual(got, want) {
+			t.Errorf("Lookup(%q) = %+v, %v; want %+v, true", want.Name, got, ok, want)
+		}
+	}
+	if got, ok := metrics.Lookup("dmpf.undeclared"); ok {
+		t.Errorf("Lookup(%q) = %+v, true; want no entry for a name outside the catalogue (RF-D1)", "dmpf.undeclared", got)
 	}
 }
 
@@ -193,6 +230,7 @@ func TestEveryLabelOfEverySeriesIsAPermittedKey(t *testing.T) {
 		metrics.KeyErrorType, metrics.KeyOutcomeCategory,
 		metrics.KeyRoute, metrics.KeyRPCMethod, metrics.KeyTenant,
 		metrics.KeyExternalClass,
+		metrics.KeyMessagingSystem, metrics.KeyDestination, metrics.KeyConsumerGroup, metrics.KeyEventType,
 	}
 
 	for _, m := range metrics.Catalog() {

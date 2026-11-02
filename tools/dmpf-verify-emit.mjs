@@ -63,7 +63,7 @@ const SEED = {
     'FND-06': {
       file: 'politicas-transporte.md',
       prefixes: ['TRP', 'RST', 'GRP', 'KFK', 'SQS', 'ASY', 'COE'],
-      declaredTotal: 131,
+      declaredTotal: 132,
     },
     'FND-07': {
       file: 'contexto-erros-seguranca.md',
@@ -106,20 +106,20 @@ const SEED = {
   ],
   totalSelectors: {
     'upr-decision-mensagens.md': { line: 1394, pattern: 'São 54 regras com ID estável' },
-    'uow-inbox-outbox.md': { line: 2456, pattern: '`registro` — \\*\\*75 regras com ID\\*\\*' },
+    'uow-inbox-outbox.md': { line: 2459, pattern: '`registro` — \\*\\*75 regras com ID\\*\\*' },
     'cloudevents-protobuf-buf.md': {
       line: 1921,
       pattern: 'As 64 regras têm por sujeito o contrato',
       atypical:
         'o FND-05 não declara total em bloco próprio; a única afirmação da contagem está na célula M1 da tabela de monotonicidade',
     },
-    'politicas-transporte.md': { line: 1830, pattern: '`registro` — 131 regras, em sete prefixos' },
+    'politicas-transporte.md': { line: 1838, pattern: '`registro` — 132 regras, em sete prefixos' },
     'contexto-erros-seguranca.md': {
       line: 1817,
       pattern: '\\*\\*Total: 115 regras `normativo`\\.\\*\\*',
     },
     'resiliencia-observabilidade.md': {
-      line: 2117,
+      line: 2118,
       pattern: '`registro` — 126 regras `normativo`\\.',
     },
     'testes-interop.md': {

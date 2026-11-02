@@ -96,7 +96,7 @@ func NewReservationsConsumer(pool *pgxpool.Pool, cfg Config, ch channel.Channel,
 		MeterProvider:  meters,
 		LoggerProvider: logs,
 		System:         semconv.MessagingSystemKafka.Value.AsString(),
-		Channel:        kernelapp.Channel{Address: ch.Address, Group: ch.Group},
+		Channel:        kernelapp.Channel{Address: ch.Address, Group: ch.Group, Carries: channel.WireTypes(ch)},
 	})
 }
 
@@ -144,14 +144,14 @@ func runConsumer(ctx context.Context, cfg Config, rt *otelboot.Runtime) error {
 	}
 	kafkaConfig.RevokeGrace = revokeGrace
 	logger := rt.LoggerFor(reflect.TypeFor[Config]().PkgPath())
+	adapter := NewReservationsConsumer(pool, cfg, ch, kafkaConfig.ClientAuthenticated(), rt.Tracer(), rt.MeterProvider(), rt.LoggerProvider())
+	if err := adapter.Validate(); err != nil {
+		return err
+	}
 	consumer := &kafka.Consumer{
-		Config:  kafkaConfig,
-		Channel: ch,
-		Sink: Sink{
-			Consumer:  NewReservationsConsumer(pool, cfg, ch, kafkaConfig.ClientAuthenticated(), rt.Tracer(), rt.MeterProvider(), rt.LoggerProvider()),
-			EventType: channel.EventTypeOf(ch),
-			Logger:    logger,
-		},
+		Config:             kafkaConfig,
+		Channel:            ch,
+		Sink:               kernelapp.Sink{Consumer: adapter},
 		Backoff:            retry.Backoff{Base: 10 * time.Millisecond, Factor: 2, Cap: time.Second},
 		ProcessingDeadline: processingDeadline,
 		RebalanceTimeout:   rebalanceTimeout,

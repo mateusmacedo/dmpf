@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -22,8 +23,10 @@ import (
 )
 
 const (
-	consumerName = "reservations"
-	occurred     = ports.Instant(1_756_000_000_000_000_000)
+	consumerName  = "reservations"
+	occurred      = ports.Instant(1_756_000_000_000_000_000)
+	orderPlacedV1 = "com.company.orders.order-placed.v1"
+	itemAddedV1   = "com.company.orders.item-added.v1"
 )
 
 var errHandler = errors.New("handler failed")
@@ -140,8 +143,12 @@ func newConsumer(h *fakeHandler, c *fakeContainment, maxAttempts int) app.Consum
 		Timeout:     testTimeout,
 		Boundary:    testBoundary,
 		Locale:      "en",
+		Accepts:     []string{orderPlacedV1},
+		Channel:     app.Channel{Carries: testCarries()},
 	}
 }
+
+func testCarries() []string { return []string{orderPlacedV1, itemAddedV1} }
 
 // testBoundary trusts the producer validRaw declares, so every other test
 // exercises what happens after the boundary admitted the message.
@@ -535,18 +542,20 @@ func TestContainmentFailureSurfacesAndDoesNotAck(t *testing.T) {
 func TestConsumerRequiresItsCollaborators(t *testing.T) {
 	t.Parallel()
 	raw, _ := validRaw(t)
+	subscribed := []string{orderPlacedV1}
+	carried := app.Channel{Carries: testCarries()}
 	cases := map[string]app.Consumer{
-		"name":        {MaxAttempts: 1, Handle: (&fakeHandler{}).handle, Containment: &fakeContainment{}, Clock: fixedClock{}, Timeout: testTimeout, Boundary: testBoundary, Locale: "en"},
-		"handler":     {Name: consumerName, Containment: &fakeContainment{}, Clock: fixedClock{}, Timeout: testTimeout, Boundary: testBoundary, Locale: "en"},
-		"containment": {Name: consumerName, Handle: (&fakeHandler{}).handle, Clock: fixedClock{}, Timeout: testTimeout, Boundary: testBoundary, Locale: "en"},
-		"clock":       {Name: consumerName, Handle: (&fakeHandler{}).handle, Containment: &fakeContainment{}, Timeout: testTimeout, Boundary: testBoundary, Locale: "en"},
-		"timeout":     {Name: consumerName, Handle: (&fakeHandler{}).handle, Containment: &fakeContainment{}, Clock: fixedClock{}, Boundary: testBoundary, Locale: "en"},
-		"boundary":    {Name: consumerName, Handle: (&fakeHandler{}).handle, Containment: &fakeContainment{}, Clock: fixedClock{}, Timeout: testTimeout, Locale: "en"},
-		"locale":      {Name: consumerName, Handle: (&fakeHandler{}).handle, Containment: &fakeContainment{}, Clock: fixedClock{}, Timeout: testTimeout, Boundary: testBoundary},
+		"name":        {MaxAttempts: 1, Handle: (&fakeHandler{}).handle, Containment: &fakeContainment{}, Clock: fixedClock{}, Timeout: testTimeout, Boundary: testBoundary, Locale: "en", Accepts: subscribed, Channel: carried},
+		"handler":     {Name: consumerName, Containment: &fakeContainment{}, Clock: fixedClock{}, Timeout: testTimeout, Boundary: testBoundary, Locale: "en", Accepts: subscribed, Channel: carried},
+		"containment": {Name: consumerName, Handle: (&fakeHandler{}).handle, Clock: fixedClock{}, Timeout: testTimeout, Boundary: testBoundary, Locale: "en", Accepts: subscribed, Channel: carried},
+		"clock":       {Name: consumerName, Handle: (&fakeHandler{}).handle, Containment: &fakeContainment{}, Timeout: testTimeout, Boundary: testBoundary, Locale: "en", Accepts: subscribed, Channel: carried},
+		"timeout":     {Name: consumerName, Handle: (&fakeHandler{}).handle, Containment: &fakeContainment{}, Clock: fixedClock{}, Boundary: testBoundary, Locale: "en", Accepts: subscribed, Channel: carried},
+		"boundary":    {Name: consumerName, Handle: (&fakeHandler{}).handle, Containment: &fakeContainment{}, Clock: fixedClock{}, Timeout: testTimeout, Locale: "en", Accepts: subscribed, Channel: carried},
+		"locale":      {Name: consumerName, Handle: (&fakeHandler{}).handle, Containment: &fakeContainment{}, Clock: fixedClock{}, Timeout: testTimeout, Boundary: testBoundary, Accepts: subscribed, Channel: carried},
 		"boundary without sources": {Name: consumerName, Handle: (&fakeHandler{}).handle, Containment: &fakeContainment{}, Clock: fixedClock{}, Timeout: testTimeout,
-			Boundary: app.Boundary{Transport: app.TransportVerified}, Locale: "en"},
+			Boundary: app.Boundary{Transport: app.TransportVerified}, Locale: "en", Accepts: subscribed, Channel: carried},
 		"boundary with an undeclared transport": {Name: consumerName, Handle: (&fakeHandler{}).handle, Containment: &fakeContainment{}, Clock: fixedClock{}, Timeout: testTimeout,
-			Boundary: app.Boundary{Transport: "trusted-because-internal", Sources: []string{"urn:dmpf:orders"}}, Locale: "en"},
+			Boundary: app.Boundary{Transport: "trusted-because-internal", Sources: []string{"urn:dmpf:orders"}}, Locale: "en", Accepts: subscribed, Channel: carried},
 	}
 	for name, consumer := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -554,6 +563,35 @@ func TestConsumerRequiresItsCollaborators(t *testing.T) {
 			_, err := consumer.Consume(context.Background(), app.Delivery{Raw: raw, Attempt: 1}, &fakeAck{})
 			if !errors.Is(err, app.ErrIncompleteConsumer) {
 				t.Fatalf("got %v, want ErrIncompleteConsumer", err)
+			}
+		})
+	}
+}
+
+func TestValidateNamesTheFirstMissingItem(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		item  string
+		strip func(*app.Consumer)
+	}{
+		{"name", func(c *app.Consumer) { *c = app.Consumer{} }},
+		{"handler", func(c *app.Consumer) { c.Handle = nil }},
+		{"containment", func(c *app.Consumer) { c.Containment = nil }},
+		{"clock", func(c *app.Consumer) { c.Clock = nil }},
+		{"timeout", func(c *app.Consumer) { c.Timeout = 0 }},
+		{"boundary", func(c *app.Consumer) { c.Boundary = app.Boundary{} }},
+		{"locale", func(c *app.Consumer) { c.Locale = "" }},
+		{"accepts", func(c *app.Consumer) { c.Accepts = nil }},
+		{"carries", func(c *app.Consumer) { c.Channel.Carries = nil }},
+	} {
+		t.Run(tc.item, func(t *testing.T) {
+			t.Parallel()
+			consumer := newConsumer(&fakeHandler{}, &fakeContainment{}, 3)
+			tc.strip(&consumer)
+
+			err := consumer.Validate()
+			if !errors.Is(err, app.ErrIncompleteConsumer) || !strings.HasSuffix(err.Error(), ": "+tc.item) {
+				t.Fatalf("Validate() = %v, want ErrIncompleteConsumer naming %q", err, tc.item)
 			}
 		})
 	}
@@ -609,5 +647,174 @@ func TestTheConsumerActsWithoutTheProducersIdentity(t *testing.T) {
 	}
 	if permissions := handler.execution.Permissions(); permissions != nil {
 		t.Fatalf("permissions = %v on a redelivery; none is carried from the producer (CTX-12)", permissions)
+	}
+}
+
+func rawOfType(t *testing.T, eventType string) ([]byte, envelope.Envelope) {
+	t.Helper()
+	_, env := validRaw(t)
+	env.Type = eventType
+	major := eventType[strings.LastIndex(eventType, ".")+1:]
+	env.DataSchema = strings.Replace(env.DataSchema, ".v1.", "."+major+".", 1)
+	return encode(t, env), env
+}
+
+type orderedContainment struct {
+	fakeContainment
+	trace *[]string
+}
+
+func (c *orderedContainment) Quarantine(ctx context.Context, item ports.Contained) error {
+	*c.trace = append(*c.trace, "quarantine")
+	return c.fakeContainment.Quarantine(ctx, item)
+}
+
+func TestValidateRefusesASubscriptionOutsideTheChannel(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name    string
+		accepts []string
+		carries []string
+		want    error
+	}{
+		{"no accepted type", nil, testCarries(), app.ErrIncompleteConsumer},
+		{"no carried type", []string{orderPlacedV1}, nil, app.ErrIncompleteConsumer},
+		{"an accepted type the channel does not carry", []string{orderPlacedV1, "com.company.orders.order-cancelled.v1"}, testCarries(), app.ErrSubscriptionOutsideChannel},
+		{"an accepted type at a major the channel does not carry", []string{"com.company.orders.order-placed.v2"}, testCarries(), app.ErrSubscriptionOutsideChannel},
+		{"an accepted type repeated", []string{orderPlacedV1, orderPlacedV1}, testCarries(), app.ErrSubscriptionOutsideChannel},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			raw, _ := validRaw(t)
+			handler := &fakeHandler{disposition: application.R1D1}
+			containment := &fakeContainment{}
+			ack := &fakeAck{}
+			consumer := newConsumer(handler, containment, 3)
+			consumer.Accepts = tc.accepts
+			consumer.Channel.Carries = tc.carries
+
+			if err := consumer.Validate(); !errors.Is(err, tc.want) {
+				t.Fatalf("Validate() = %v, want %v", err, tc.want)
+			}
+			if _, err := consumer.Consume(context.Background(), app.Delivery{Raw: raw, Attempt: 1}, ack); !errors.Is(err, tc.want) {
+				t.Fatalf("Consume() = %v, want %v", err, tc.want)
+			}
+			if handler.calls != 0 || len(containment.contained) != 0 || ack.acks != 0 || ack.releases != 0 {
+				t.Fatalf("handler=%d contained=%d ack=%d release=%d, want no gesture from a consumer that cannot start",
+					handler.calls, len(containment.contained), ack.acks, ack.releases)
+			}
+		})
+	}
+}
+
+func TestValidateAcceptsASubscriptionWithinTheChannel(t *testing.T) {
+	t.Parallel()
+	consumer := newConsumer(&fakeHandler{}, &fakeContainment{}, 3)
+	consumer.Accepts = testCarries()
+
+	if err := consumer.Validate(); err != nil {
+		t.Fatalf("Validate() = %v, want nil for a subscription to the whole channel", err)
+	}
+}
+
+func TestACarriedTypeOutsideTheSubscriptionIsDiscardedUnhandled(t *testing.T) {
+	t.Parallel()
+	raw, _ := rawOfType(t, itemAddedV1)
+	handler := &fakeHandler{disposition: application.R1D1}
+	containment := &fakeContainment{}
+	ack := &fakeAck{}
+
+	outcome, err := newConsumer(handler, containment, 3).Consume(context.Background(), app.Delivery{Raw: raw, Attempt: 1}, ack)
+	if err != nil {
+		t.Fatalf("Consume() = %v, want nil", err)
+	}
+	if outcome != (app.Outcome{Discarded: true}) {
+		t.Fatalf("outcome = %+v, want discarded, unclassified and not contained (INB-10)", outcome)
+	}
+	if handler.calls != 0 || len(containment.contained) != 0 || ack.acks != 1 || ack.releases != 0 {
+		t.Fatalf("handler=%d contained=%d ack=%d release=%d, want the ack alone (KFK-03c)",
+			handler.calls, len(containment.contained), ack.acks, ack.releases)
+	}
+}
+
+func TestATypeOutsideTheChannelIsContainedAsUndeclaredBeforeTheAck(t *testing.T) {
+	t.Parallel()
+	raw, env := rawOfType(t, "com.company.orders.order-placed.v2")
+	raw = append(append([]byte{}, raw...), 0xB8, 0x3E, 0x01)
+	var order []string
+	handler := &fakeHandler{disposition: application.R1D1}
+	ack := &fakeAck{trace: &order}
+	containment := &orderedContainment{trace: &order}
+	consumer := newConsumer(handler, &fakeContainment{}, 3)
+	consumer.Containment = containment
+
+	outcome, err := consumer.Consume(context.Background(), app.Delivery{Raw: raw, Attempt: 1}, ack)
+	if err != nil {
+		t.Fatalf("Consume() = %v, want nil", err)
+	}
+	if !outcome.Contained || outcome.Reason != ports.ReasonUndeclaredType || outcome.Classified || outcome.Discarded {
+		t.Fatalf("outcome = %+v, want contained as undeclared-type, never discarded (§7.4)", outcome)
+	}
+	if handler.calls != 0 {
+		t.Fatalf("handler ran %d times on a type the channel does not declare", handler.calls)
+	}
+	if len(containment.contained) != 1 {
+		t.Fatalf("contained = %d, want 1", len(containment.contained))
+	}
+	got := containment.contained[0]
+	if got.Reason != ports.ReasonUndeclaredType || got.MessageID != ports.MessageID(env.ID) || got.Consumer != consumerName || got.At != occurred {
+		t.Fatalf("contained = %+v", got)
+	}
+	if !bytes.Equal(got.Envelope, raw) {
+		t.Fatal("quarantine must persist the transported bytes, unknown field included (GAR-07)")
+	}
+	if len(order) != 2 || order[0] != "quarantine" || order[1] != "ack" {
+		t.Fatalf("order = %v, want the ack strictly after the quarantine (GAR-07)", order)
+	}
+}
+
+func TestTheBoundaryIsJudgedBeforeTheType(t *testing.T) {
+	t.Parallel()
+	for _, eventType := range []string{itemAddedV1, "com.company.orders.order-placed.v2"} {
+		t.Run(eventType, func(t *testing.T) {
+			t.Parallel()
+			raw, _ := rawOfType(t, eventType)
+			handler := &fakeHandler{disposition: application.R1D1}
+			containment := &fakeContainment{}
+			ack := &fakeAck{}
+			consumer := newConsumer(handler, containment, 3)
+			consumer.Boundary.Sources = []string{"urn:dmpf:someone-else"}
+
+			outcome, err := consumer.Consume(context.Background(), app.Delivery{Raw: raw, Attempt: 1}, ack)
+			if err != nil {
+				t.Fatalf("Consume() = %v, want nil", err)
+			}
+			if !outcome.Contained || outcome.Reason != ports.ReasonUntrustedBoundary || outcome.Discarded {
+				t.Fatalf("outcome = %+v, want contained as untrusted-boundary whatever the type", outcome)
+			}
+			if handler.calls != 0 || len(containment.contained) != 1 || containment.contained[0].Reason != ports.ReasonUntrustedBoundary || ack.acks != 1 {
+				t.Fatalf("handler=%d contained=%+v ack=%d", handler.calls, containment.contained, ack.acks)
+			}
+		})
+	}
+}
+
+func TestAFailedAckOnADiscardSurfaces(t *testing.T) {
+	t.Parallel()
+	raw, _ := rawOfType(t, itemAddedV1)
+	brokerErr := errors.New("broker down")
+	handler := &fakeHandler{disposition: application.R1D1}
+	containment := &fakeContainment{}
+	ack := &fakeAck{err: brokerErr}
+
+	outcome, err := newConsumer(handler, containment, 3).Consume(context.Background(), app.Delivery{Raw: raw, Attempt: 1}, ack)
+	if !errors.Is(err, brokerErr) {
+		t.Fatalf("Consume() = %v, want the broker's error", err)
+	}
+	if outcome != (app.Outcome{}) {
+		t.Fatalf("outcome = %+v, want none: a delivery the broker did not confirm was not discarded", outcome)
+	}
+	if handler.calls != 0 || len(containment.contained) != 0 || ack.acks != 1 {
+		t.Fatalf("handler=%d contained=%d ack=%d, want the one failed ack", handler.calls, len(containment.contained), ack.acks)
 	}
 }

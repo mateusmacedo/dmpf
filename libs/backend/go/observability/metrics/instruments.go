@@ -23,6 +23,7 @@ type Instruments struct {
 	AdmissionRejections metric.Int64Counter
 	ExternalConflicts   metric.Int64Counter
 	ExternalSaturations metric.Int64Counter
+	ConsumerDiscarded   metric.Int64Counter
 }
 
 // durationBoundaries are the advisory boundaries semconv declares for a
@@ -65,6 +66,7 @@ func New(meter metric.Meter) (*Instruments, error) {
 		AdmissionRejections: counter(AdmissionRejectionsTotal),
 		ExternalConflicts:   counter(ExternalConflictsTotal),
 		ExternalSaturations: counter(ExternalSaturationsTotal),
+		ConsumerDiscarded:   counter(ConsumerDiscardedTotal),
 	}
 
 	gauge := byName[BreakerState]

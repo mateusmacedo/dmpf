@@ -24,12 +24,13 @@ func sqsWindow() channel.RedeliveryWindow {
 
 func kafkaChannel() channel.Channel {
 	return channel.Channel{
-		Name:          "propostaAprovada",
-		Transport:     channel.Kafka,
-		Address:       "credito.proposta.aprovada.v1",
-		EventType:     "credito.proposta.aprovada",
+		Name:      "propostaAprovada",
+		Transport: channel.Kafka,
+		Address:   "credito.proposta.aprovada.v1",
+		Events: []channel.Event{
+			{Type: "credito.proposta.aprovada", ContractRef: "credito/proposta/v1/eventos.proto#PropostaAprovada"},
+		},
 		ContractMajor: 1,
-		ContractRef:   "credito/proposta/v1/eventos.proto#PropostaAprovada",
 		Ordering:      channel.Ordering{Key: "partitionkey", Unit: channel.Partition},
 		Redelivery:    kafkaWindow(),
 		Containment:   "credito.proposta.aprovada.v1.dlq",
@@ -43,12 +44,13 @@ func kafkaChannel() channel.Channel {
 
 func sqsChannel() channel.Channel {
 	return channel.Channel{
-		Name:          "reservaSolicitada",
-		Transport:     channel.SQS,
-		Address:       "dmpf-test.fifo",
-		EventType:     "estoque.reserva.solicitada",
+		Name:      "reservaSolicitada",
+		Transport: channel.SQS,
+		Address:   "dmpf-test.fifo",
+		Events: []channel.Event{
+			{Type: "estoque.reserva.solicitada", ContractRef: "estoque/reserva/v1/eventos.proto#ReservaSolicitada"},
+		},
 		ContractMajor: 1,
-		ContractRef:   "estoque/reserva/v1/eventos.proto#ReservaSolicitada",
 		Ordering:      channel.Ordering{Key: "partitionkey", Unit: channel.Group},
 		Redelivery:    sqsWindow(),
 		Containment:   "dmpf-test-dlq.fifo",
@@ -73,9 +75,8 @@ func TestChannelValidateNamesTheMissingItem(t *testing.T) {
 	}{
 		"name":          {func(c *channel.Channel) { c.Name = "" }, "name"},
 		"address":       {func(c *channel.Channel) { c.Address = "" }, "address"},
-		"eventType":     {func(c *channel.Channel) { c.EventType = "" }, "eventType"},
+		"events":        {func(c *channel.Channel) { c.Events = nil }, "events"},
 		"contractMajor": {func(c *channel.Channel) { c.ContractMajor = 0 }, "contractMajor"},
-		"contractRef":   {func(c *channel.Channel) { c.ContractRef = "" }, "contractRef"},
 		"transport":     {func(c *channel.Channel) { c.Transport = "" }, "transport"},
 		"redelivery":    {func(c *channel.Channel) { c.Redelivery = channel.RedeliveryWindow{} }, "redelivery"},
 		"containment":   {func(c *channel.Channel) { c.Containment = "" }, "containment"},
@@ -98,6 +99,52 @@ func TestChannelValidateNamesTheMissingItem(t *testing.T) {
 			}
 			if !strings.Contains(err.Error(), tc.item) {
 				t.Fatalf("Validate() = %q, want it to name %q", err, tc.item)
+			}
+		})
+	}
+}
+
+func TestChannelValidateAcceptsAClosedSetOfEvents(t *testing.T) {
+	ch := kafkaChannel()
+	ch.Events = append(ch.Events, channel.Event{
+		Type: "credito.proposta.reprovada", ContractRef: "credito/proposta/v1/eventos.proto#PropostaReprovada",
+	})
+
+	if err := ch.Validate(); err != nil {
+		t.Fatalf("Validate() = %v, want nil: a channel may carry a closed set (KFK-03b)", err)
+	}
+}
+
+func TestChannelValidateRefusesAnIncompleteEventSet(t *testing.T) {
+	second := channel.Event{Type: "credito.proposta.reprovada", ContractRef: "credito/proposta/v1/eventos.proto#PropostaReprovada"}
+
+	cases := map[string]struct {
+		mutate func(*channel.Channel)
+		item   string
+	}{
+		"no event": {func(c *channel.Channel) { c.Events = []channel.Event{} }, "events"},
+		"event without a type": {func(c *channel.Channel) {
+			c.Events = append(c.Events, channel.Event{ContractRef: second.ContractRef})
+		}, "events[1].type"},
+		"event without a contract": {func(c *channel.Channel) {
+			c.Events = append(c.Events, channel.Event{Type: second.Type})
+		}, "events[1].contractRef"},
+		"repeated type": {func(c *channel.Channel) {
+			c.Events = append(c.Events, second, channel.Event{Type: second.Type, ContractRef: "credito/proposta/v1/outro.proto#PropostaReprovada"})
+		}, `events[2].type "credito.proposta.reprovada" repeated`},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			ch := kafkaChannel()
+			tc.mutate(&ch)
+
+			err := ch.Validate()
+			if !errors.Is(err, channel.ErrMissingItem) {
+				t.Fatalf("Validate() = %v, want ErrMissingItem", err)
+			}
+			if !strings.Contains(err.Error(), ch.Name) || !strings.Contains(err.Error(), tc.item) {
+				t.Fatalf("Validate() = %q, want it to name the channel %q and the item %q", err, ch.Name, tc.item)
 			}
 		})
 	}

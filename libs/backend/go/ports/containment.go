@@ -16,6 +16,9 @@ const (
 	// ReasonUntrustedBoundary is an intact envelope delivered from outside the
 	// consumer's declared boundary, which produces no context (CTX-27, IDN-04).
 	ReasonUntrustedBoundary Reason = "untrusted-boundary"
+	// ReasonUndeclaredType is an intact envelope whose type the channel does not
+	// declare: the unknown schema of §7.4, never discarded (KFK-03c).
+	ReasonUndeclaredType Reason = "undeclared-type"
 )
 
 // Contained is what Containment.Quarantine persists: the raw envelope exactly

@@ -84,7 +84,7 @@ func TestServeAPIRefusesARegisterOfAnotherService(t *testing.T) {
 }
 
 func TestRunRelayRefusesARelayWithoutComponentOrScope(t *testing.T) {
-	ch := channel.NewKafka("serve.events", "serve", "serve.dlq", "serve-relay", "com.company.serve.probed", "serve.v1")
+	ch := channel.NewKafka("serve.events", "serve", "serve.dlq", "serve-relay", channel.Event{Type: "com.company.serve.probed", ContractRef: "serve.v1"})
 	for name, r := range map[string]serve.Relay{
 		"component": {Channel: ch, Scope: "serve"},
 		"scope":     {Component: "serve", Channel: ch},
@@ -102,7 +102,7 @@ func TestRunRelayStopsWhenPostgresIsUnreachable(t *testing.T) {
 		serve.RelayRole{DSN: unreachable},
 		serve.Relay{
 			Component: "serve",
-			Channel:   channel.NewKafka("serve.events", "serve", "serve.dlq", "serve-relay", "com.company.serve.probed", "serve.v1"),
+			Channel:   channel.NewKafka("serve.events", "serve", "serve.dlq", "serve-relay", channel.Event{Type: "com.company.serve.probed", ContractRef: "serve.v1"}),
 			Scope:     "serve",
 		})
 
@@ -231,7 +231,7 @@ func TestRunRelayRefusesANilRuntime(t *testing.T) {
 func TestRunRelayEndsCleanlyWhenStoppedBeforeDraining(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	ch := channel.NewKafka("serve.events", "serve", "serve.dlq", "serve-relay", "com.company.serve.probed", "serve.v1")
+	ch := channel.NewKafka("serve.events", "serve", "serve.dlq", "serve-relay", channel.Event{Type: "com.company.serve.probed", ContractRef: "serve.v1"})
 
 	if err := serve.RunRelay(ctx, runtime(t), serve.RelayRole{DSN: unreachable}, serve.Relay{Component: "serve", Channel: ch, Scope: "serve"}); err != nil {
 		t.Fatalf("RunRelay() = %v, want nil: a stop requested before the drain is not a failure", err)

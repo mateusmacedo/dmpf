@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"go.opentelemetry.io/otel/attribute"
+	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
 
 	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/tracing"
 )
@@ -20,6 +21,10 @@ const (
 	KeyRPCMethod       = "rpc.method"
 	KeyTenant          = tracing.KeyTenantID
 	KeyExternalClass   = tracing.KeyExternalClass
+	KeyMessagingSystem = string(semconv.MessagingSystemKey)
+	KeyDestination     = string(semconv.MessagingDestinationNameKey)
+	KeyConsumerGroup   = string(semconv.MessagingConsumerGroupNameKey)
+	KeyEventType       = string(semconv.CloudEventsEventTypeKey)
 )
 
 // KeyErrorCategory keeps the callers of the earlier vocabulary compiling.
@@ -96,6 +101,16 @@ func (l Labels) Route(value string) Labels { return l.with(KeyRoute, value) }
 func (l Labels) RPCMethod(value string) Labels { return l.with(KeyRPCMethod, value) }
 
 func (l Labels) ExternalClass(value string) Labels { return l.with(KeyExternalClass, value) }
+
+func (l Labels) MessagingSystem(value string) Labels { return l.with(KeyMessagingSystem, value) }
+
+func (l Labels) Destination(value string) Labels { return l.with(KeyDestination, value) }
+
+func (l Labels) ConsumerGroup(value string) Labels { return l.with(KeyConsumerGroup, value) }
+
+// EventType is the CloudEvents type; the caller bounds it to the channel's
+// declared set, which keeps the series finite (KFK-03c, MET-07).
+func (l Labels) EventType(value string) Labels { return l.with(KeyEventType, value) }
 
 // TenantWithin is the only way a tenant reaches a series: resolved against the
 // declared set, so anything outside it is recorded as OtherTenant (MET-07,
