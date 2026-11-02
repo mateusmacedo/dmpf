@@ -1267,7 +1267,9 @@ passo 1 de §6.3, no `consumer adapter`, **antes** da UoW e antes de `registrar`
 uma mensagem com envelope inválido nunca recebe classificação de recepção, e
 portanto não cai em nenhuma das sete disposições. O seu tratamento é a contenção
 direta de §7.4 — quarantine ou DLQ, sem loop —, e o espaço das disposições
-enumera apenas o que aconteceu **depois** do passo 4.
+enumera apenas o que aconteceu **depois** do passo 4. O mesmo vale para o tipo declarado no
+canal e não assinado pelo consumidor (`KFK-03c`): o passo 1 o descarta, confirmando
+sem efeito, sem `registrar` e sem contenção.
 
 `normativo` `INB-11` — **Precedência.** O eixo 1 é avaliado primeiro e decide sozinho em
 R2, R3 e R4. O eixo 2 só existe sob R1. Não há combinação de R2, R3 ou R4 com
@@ -1588,6 +1590,7 @@ catálogo de testes distribuídos. Os cenários 1 a 7, 11 e 12 são
 | Situação | Disposição (§6.4) | Tratamento |
 |----------|-------------------|------------|
 | Envelope inválido ou schema desconhecido | **nenhuma** — recusado no passo 1 de §6.3, antes da UoW | Quarantine ou DLQ, **sem loop infinito** |
+| Tipo declarado no canal e não assinado pelo consumidor (`KFK-03c`) | **nenhuma** — descartado no passo 1 de §6.3, antes da UoW | Confirma sem efeito e conta o descarte (`dmpf.consumer.discarded`); **nunca** quarantine nem DLQ |
 | Falha transitória | R1×D3 | Retry limitado, com backoff exponencial e **jitter** |
 | Falha terminal do processamento | R1×D4 | Quarantine ou DLQ, **sem loop infinito** |
 | Rejeição de negócio esperada | R1×D2 | Confirma, e emite rejection event quando útil |

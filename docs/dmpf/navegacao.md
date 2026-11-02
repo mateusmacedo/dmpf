@@ -20,7 +20,7 @@ normativo: cada vista aponta de volta para o artefato dono da regra.
 ## Por prefixo
 
 Todo identificador de regra tem a forma `PREFIXO-NN`. O prefixo diz o documento
-dono — e só o dono define. As 786 regras do acervo se distribuem assim:
+dono — e só o dono define. As 787 regras do acervo se distribuem assim:
 
 | Prefixo | Regras | Documento | O que governa |
 |---------|--------|-----------|---------------|
@@ -45,7 +45,7 @@ dono — e só o dono define. As 786 regras do acervo se distribuem assim:
 | `TRP` | 54 | FND-06 | Transporte em geral: identidade lógica, binding, byte-preservação |
 | `RST` | 4 | FND-06 | REST sobre HTTP com corpo JSON |
 | `GRP` | 19 | FND-06 | gRPC sobre HTTP/2, chamada síncrona interna |
-| `KFK` | 23 | FND-06 | Kafka: tópico como endereço concreto, partição, ordem |
+| `KFK` | 24 | FND-06 | Kafka: tópico como endereço concreto, partição, ordem |
 | `SQS` | 19 | FND-06 | SNS e SQS: corpo, codificação, deduplicação |
 | `ASY` | 4 | FND-06 | AsyncAPI: catálogo obrigatório do canal assíncrono |
 | `COE` | 8 | FND-06 | Coexistência: um canal lógico, um transporte por vez |
@@ -83,7 +83,7 @@ dono — e só o dono define. As 786 regras do acervo se distribuem assim:
 | [upr-decision-mensagens.md](./upr-decision-mensagens.md) (FND-03) | 54 | `ANC-01` | UPR, desfecho da decisão e modelo de mensagens |
 | [uow-inbox-outbox.md](./uow-inbox-outbox.md) (FND-04) | 75 | `ANC-02` | Fronteira transacional, inbox, outbox e garantias |
 | [cloudevents-protobuf-buf.md](./cloudevents-protobuf-buf.md) (FND-05) | 64 | `ANC-03` | Envelope, Protobuf e governança de contratos |
-| [politicas-transporte.md](./politicas-transporte.md) (FND-06) | 131 | `ANC-04` | REST, gRPC, Kafka, SNS/SQS e AsyncAPI |
+| [politicas-transporte.md](./politicas-transporte.md) (FND-06) | 132 | `ANC-04` | REST, gRPC, Kafka, SNS/SQS e AsyncAPI |
 | [contexto-erros-seguranca.md](./contexto-erros-seguranca.md) (FND-07) | 115 | `ANC-05` | Contexto, erros, segurança e multi-tenancy |
 | [resiliencia-observabilidade.md](./resiliencia-observabilidade.md) (FND-08) | 126 | `ANC-06` | Resiliência, observabilidade e operação |
 | [testes-interop.md](./testes-interop.md) (FND-09) | 143 | `ANC-07` | Testes e interoperabilidade entre stacks |
@@ -92,7 +92,7 @@ dono — e só o dono define. As 786 regras do acervo se distribuem assim:
 FND-02 não existe. FND-11 — redação e aceite de ADRs — é trabalho futuro
 (ARQ-448) e ainda não foi promovido; citações a ele não são verificáveis.
 
-A soma das oito colunas é 786. Esse número é **derivado**: nenhum artefato o
+A soma das oito colunas é 787. Esse número é **derivado**: nenhum artefato o
 declara, e cada um declara apenas o próprio total.
 
 ## Por pergunta

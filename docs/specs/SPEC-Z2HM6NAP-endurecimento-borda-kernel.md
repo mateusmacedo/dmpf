@@ -60,6 +60,8 @@ e `rpc/interceptors_test.go:60` já o trava.
    tipo. O canal `orders.events` transporta `order-placed` **e**
    `item-added.v1` (`postgres/example/orders/mapper.go:14,32`),
    então a declaração ASY-01 está incompleta para quem for assinar o canal.
+   **Absorvido pela SPEC-93FRCDJV** (`channel.Channel.Events`, `KFK-03c`,
+   ADR-072): este item sai do escopo desta spec.
 
 3. **[P1] Consumer drena na janela de graça.** O primeiro sinal cancela o mesmo
    contexto entregue a `consumer.Run`, em vez de parar os polls e deixar a
