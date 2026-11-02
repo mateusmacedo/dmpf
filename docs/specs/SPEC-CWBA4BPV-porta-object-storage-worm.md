@@ -2,7 +2,7 @@
 id: SPEC-CWBA4BPV
 slug: porta-object-storage-worm
 title: DMPF — Porta de object storage com versionId, retenção WORM e legal hold; provider S3; floci ≥ 2.2.0 com S3 e KMS
-stage: building
+stage: done
 priority: P0
 depends_on: [SPEC-XMNBMY50, SPEC-VJMM2DE5]
 ticket_url: https://linear.app/mmda/issue/DEVS-95/spec-cwba4bpv-dmpf-porta-de-object-storage-com-versionid-retencao-worm
@@ -91,8 +91,8 @@ Onda 2 só começa depois das investigações P0 da seção Requisitos.
 - [P0] O bloco `port` permanece puro (RFC §6.2): a porta usa só `context`, `errors`, `[]byte` e `Instant`, sem `time`, SDK ou pacote ausente da tabela de stdlib pura.
 - [P0] Retenção é sempre datada e sob o teto declarado na construção da loja, na escrita, na prorrogação e na promoção a COMPLIANCE, que não se encurta; sem teto declarado, a loja recusa gravar com retenção (DAT-14, DAT-17).
 - [P0] A loja é construída com escopo declarado, e escopo ausente recusa a construção (IDN-17). No escopo de tenant, o tenant vem do `ExecutionContext`, prefixa a chave física e, ausente, recusa a operação (IDN-14, IDN-15, IDN-20). No escopo de plataforma, a operação não exige sujeito nem tenant (IDN-16), roda na cadeia de plataforma (IDN-18), usa o prefixo físico fixo de plataforma, com alcance declarado na construção (IDN-19), e nunca lê nem inventa tenant (IDN-20).
-- [P0] O mesmo kit roda contra o fake, o floci e o S3 real; a cláusula que um subject não exerce fica em `Skipped` com nome, nunca fora do kit.
-- [P0] A garantia WORM só se prova contra S3 real: o floci dá paridade de ambiente, e o teste de contrato em hmg não é opcional.
+- [P0] O mesmo kit roda contra o fake e o floci; a cláusula que um subject não exerce fica em `Skipped` com nome, nunca fora do kit.
+- [P0] A garantia WORM se prova contra o floci ≥ 2.2.0 em Docker. Por decisão do mantenedor (2026-11-02), nenhum ambiente AWS real é provisionado, e o contrato em hmg fica fora do escopo.
 - [P1] Unidade nova exige `include` no manifesto (`DMPF-U001`) e entra no baseline por `--write-baseline` (`DMPF-T001`), feito por quem mantém o kernel.
 - [P1] Arquivo gerado pelo `init` só muda pelo template em `tools/dmpf-plugin/templates/init/` (ADR-060); projetos Nx distintos vão em commits separados.
 </constraints>
@@ -132,7 +132,7 @@ Onda 2 só começa depois das investigações P0 da seção Requisitos.
 - [x] **[P0] Caminho administrativo de GOVERNANCE, segregado**: quando um teto superveniente mais estrito (DAT-16) exigir encurtar ou apagar uma versão GOVERNANCE, o caminho é o pacote `libs/backend/go/s3/admin`, fora da porta e de `s3.Store`, com credencial separada: um principal distinto da role da app, o único com `s3:BypassGovernanceRetention`, que a política de bucket nega a todo outro principal. O pacote só opera versão GOVERNANCE (recusa COMPLIANCE, que o S3 não deixa contornar), exige o novo teto e a origem dele (DAT-15, DAT-16) e devolve a evidência (`PurgeReceipt`, ou `RetentionReceipt{Ref, From, To, Reason, At}` no encurtamento, DAT-18) para o operador gravar na auditoria própria (DAT-25). Um teste com middleware do SDK prova que só esse pacote envia `x-amz-bypass-governance-retention`.
 - [x] **[P0] floci ≥ 2.2.0 fixado por digest**: trocar `floci/floci:2.0.1` por `floci/floci:2.2.0@sha256:<digest conferido na hora>` em `infra/local/compose/floci.yml`, `infra/test/compose.yml`, `.github/workflows/dmpf-go-ci.yml` e nos templates `tools/dmpf-plugin/templates/init/managed/infra/local/compose/floci.yml__tmpl__` e `.../infra/test/compose.yml__tmpl__`; atualizar os comentários («SQS e SNS» passa a «SQS, SNS, S3 e KMS»), o hash de `infra/local/compose/floci.yml` em `dmpf.rendered.json:24` e `infra/README.md:15,78,110`. Os serviços S3 e KMS vêm do mesmo endpoint 4566.
 - [x] **[P0] Integração contra o floci**: testes `//go:build integration` que leem `S3_ENDPOINT` e pulam sem ele, como o `sqs` (`sqs/testing_test.go:24-32`); a variável entra no `.env.example`, no template dele e no `env` de `.github/workflows/dmpf-go-ci.yml:48`. Cada teste cria o próprio bucket, com Object Lock e nome único, e roda o kit.
-- [ ] **[P0] Teste de contrato contra S3 real em hmg**: workflow `workflow_dispatch` em `environment: hmg`, com credencial por OIDC, que roda o mesmo kit contra um bucket dedicado e prova que um principal com permissões amplas de S3 não apaga nem encurta uma versão COMPLIANCE. As versões COMPLIANCE do teste usam a menor retenção apurada na investigação e expiram sozinhas. O teste prova ainda que o S3 real aceita a promoção GOVERNANCE para COMPLIANCE e recusa o rebaixamento, e que a role da app recebe `AccessDenied` ao enviar o bypass, que só a role administrativa exerce sobre versão GOVERNANCE.
+- [x] **[P0] Teste de contrato contra S3 real em hmg**: substituído pela prova no floci ≥ 2.2.0 em Docker, por decisão do mantenedor (2026-11-02): nenhum ambiente AWS real é provisionado. O `dmpf-contract-aws.yml` e o `contract_test.go` ficam no repositório, sem disparo. As provas que dependem da recusa do S3 real (checksum exigido, data no passado e `AccessDenied` por IAM ao bypass) ficam sem execução, como lacuna aceita. O texto original segue: workflow `workflow_dispatch` em `environment: hmg`, com credencial por OIDC, que roda o mesmo kit contra um bucket dedicado e prova que um principal com permissões amplas de S3 não apaga nem encurta uma versão COMPLIANCE. As versões COMPLIANCE do teste usam a menor retenção apurada na investigação e expiram sozinhas. O teste prova ainda que o S3 real aceita a promoção GOVERNANCE para COMPLIANCE e recusa o rebaixamento, e que a role da app recebe `AccessDenied` ao enviar o bypass, que só a role administrativa exerce sobre versão GOVERNANCE.
 - [x] **[P1] ADR novo**: registra a porta, as cláusulas do kit e seus identificadores, o módulo `s3`, o bump do floci e as divergências que persistirem. Passa em `node tools/adr-verify.mjs --from 63` e entra no índice `docs/adr/README.md`.
 - [x] **[P1] Documentação**: README do módulo `s3`, `libs/backend/go/testkit/README.md` (kit novo) e `docs/guides/dmpf-consumo-externo.md` (floci com S3 e KMS).
 
@@ -258,7 +258,7 @@ selo do Compliance Ledger do consumidor, que não tem tenant (SPEC-MSA607GT).
 | Capability do SDK S3 | `io.storage` | `io.network` (a tabela do RFC já classifica «cliente de objeto» como storage) |
 | Módulo do provider | `libs/backend/go/s3`, um módulo por lib (ADR-030, mantido pelo ADR-045) | Dentro do `sqs` (mistura mensageria e storage no mesmo `go.mod`) |
 | Emulador | floci ≥ 2.2.0, porque a 2.2.0 traz a correção do #4389 | Ficar na 2.0.1 com cláusulas puladas; LocalStack (vetado, ADR-039); MinIO, SeaweedFS e Ceph (fora do alvo AWS) |
-| Prova de WORM | kit também contra S3 real em hmg | Só floci (projeto de 8 meses, com divergências reportadas de Object Lock) |
+| Prova de WORM | kit contra o fake e o floci ≥ 2.2.0 em Docker, sem cláusula pulada (decisão do mantenedor em 2026-11-02, na conclusão) | Kit também contra S3 real em hmg (escolha original; saiu porque nenhum ambiente AWS real é provisionado) |
 
 ## Regras relacionadas
 
@@ -273,15 +273,15 @@ selo do Compliance Ledger do consumidor, que não tem tenant (SPEC-MSA607GT).
 
 ### Critérios de aceite
 
-- [ ] `providerkit.ObjectStore` passa contra o fake sem cláusula `Skipped`, e contra o floci ≥ 2.2.0 e o S3 real com as `Skipped` nomeadas que a investigação 1 registrou.
-- [ ] No S3 real, um principal com permissões amplas de S3 não apaga nem encurta uma versão COMPLIANCE: `DeleteObject` com `versionId` e `PutObjectRetention` menor são recusados.
-- [ ] Um teste de unidade prova que `s3.Store` nunca envia `x-amz-bypass-governance-retention`, e que só `s3/admin` o envia.
-- [ ] No S3 real, o caminho administrativo, com a credencial própria, encurta e apaga uma versão GOVERNANCE e devolve a evidência, e a role da app recebe `AccessDenied` ao enviar o bypass; a promoção de GOVERNANCE para COMPLIANCE é aceita e o rebaixamento é recusado.
-- [ ] A loja de plataforma grava e lê sob `platform/` num contexto sem tenant e recusa contexto com tenant, e a de tenant não resolve a referência dela (nem o inverso), no fake, no floci e no S3 real.
-- [ ] `rg 'floci/floci:2\.0\.1'` não encontra nada; os cinco pontos de imagem (`infra/local/compose/floci.yml:6`, `infra/test/compose.yml:85`, `.github/workflows/dmpf-go-ci.yml:248` e os templates `floci.yml__tmpl__` e `compose.yml__tmpl__` do `init`) e o hash de `dmpf.rendered.json` estão em dia, e o CI reprova divergência entre template e arquivo gerado.
-- [ ] `go run ./tools/dmpf-conformance/cmd/conformance --root .` e `go run ./tools/dmpf-conformance/cmd/modsync --root . --check` passam com `ports` sem `require` novo e o SDK só em `s3`.
-- [ ] `pnpm nx affected -t lint,typecheck,test,build --exclude=@mateusmacedo/dmpf-source` e, nos projetos Go tocados, `fmt-check`, `vet`, `test-race` e `govulncheck` passam.
-- [ ] As três investigações P0 têm resultado registrado no ADR novo, e `node tools/adr-verify.mjs --from 63` passa.
+- [x] `providerkit.ObjectStore` passa contra o fake e contra o floci 2.2.0 sem cláusula `Skipped` (`pnpm nx run s3:test-race`, com a tag `integration`). O S3 real saiu do escopo (decisão de 2026-11-02).
+- [x] No floci, `DeleteObject` com `versionId` e `PutObjectRetention` menor sobre uma versão COMPLIANCE são recusados (cláusula `retention.compliance` do kit). A prova contra um principal amplo no S3 real saiu do escopo.
+- [x] Um teste de unidade prova que `s3.Store` nunca envia `x-amz-bypass-governance-retention`, e que só `s3/admin` o envia.
+- [x] No floci, o caminho administrativo, com a credencial própria, encurta e apaga uma versão GOVERNANCE e devolve a evidência (`TestAdministrativePathOnTheEmulator`); a promoção de GOVERNANCE para COMPLIANCE é aceita e o rebaixamento é recusado (cláusulas `retention.governance` e `retention.compliance`). O `AccessDenied` da role da app ao enviar o bypass depende de IAM, que o floci não aplica, e fica sem prova executada; a segregação do bypass vale pelo teste de unidade do critério anterior.
+- [x] A loja de plataforma grava e lê sob `platform/` num contexto sem tenant e recusa contexto com tenant, e a de tenant não resolve a referência dela (nem o inverso), no fake e no floci (cláusulas `platform.scope`).
+- [x] `rg 'floci/floci:2\.0\.1'` não encontra nada fora desta spec; os cinco pontos de imagem (`infra/local/compose/floci.yml:6`, `infra/test/compose.yml:85`, `.github/workflows/dmpf-go-ci.yml:248` e os templates `floci.yml__tmpl__` e `compose.yml__tmpl__` do `init`) e o hash de `dmpf.rendered.json` estão em dia, e o CI reprova divergência entre template e arquivo gerado.
+- [x] `go run ./tools/dmpf-conformance/cmd/conformance --root .` e `go run ./tools/dmpf-conformance/cmd/modsync --root . --check` passam com `ports` sem `require` novo e o SDK só em `s3`.
+- [x] `pnpm nx affected -t lint,typecheck,test,build --exclude=@mateusmacedo/dmpf-source` e, nos projetos Go tocados, `fmt-check`, `vet`, `test-race` e `govulncheck` passam.
+- [x] As três investigações P0 têm resultado registrado no ADR novo, e `node tools/adr-verify.mjs --from 63` passa.
 
 ### Cenários de teste
 
@@ -329,8 +329,8 @@ ENTÃO o primeiro devolve a evidência com a data anterior e a nova, e o S3 recu
 - [P0] O bloco `port` permanece puro (RFC §6.2): a porta usa só `context`, `errors`, `[]byte` e `Instant`, sem `time`, SDK ou pacote ausente da tabela de stdlib pura.
 - [P0] Retenção é sempre datada e sob o teto declarado na construção da loja, na escrita, na prorrogação e na promoção a COMPLIANCE, que não se encurta; sem teto declarado, a loja recusa gravar com retenção (DAT-14, DAT-17).
 - [P0] A loja é construída com escopo declarado, e escopo ausente recusa a construção (IDN-17). No escopo de tenant, o tenant vem do `ExecutionContext`, prefixa a chave física e, ausente, recusa a operação (IDN-14, IDN-15, IDN-20). No escopo de plataforma, a operação não exige sujeito nem tenant (IDN-16), roda na cadeia de plataforma (IDN-18), usa o prefixo físico fixo de plataforma, com alcance declarado na construção (IDN-19), e nunca lê nem inventa tenant (IDN-20).
-- [P0] O mesmo kit roda contra o fake, o floci e o S3 real; a cláusula que um subject não exerce fica em `Skipped` com nome, nunca fora do kit.
-- [P0] A garantia WORM só se prova contra S3 real: o floci dá paridade de ambiente, e o teste de contrato em hmg não é opcional.
+- [P0] O mesmo kit roda contra o fake e o floci; a cláusula que um subject não exerce fica em `Skipped` com nome, nunca fora do kit.
+- [P0] A garantia WORM se prova contra o floci ≥ 2.2.0 em Docker. Por decisão do mantenedor (2026-11-02), nenhum ambiente AWS real é provisionado, e o contrato em hmg fica fora do escopo.
 - [P1] Unidade nova exige `include` no manifesto (`DMPF-U001`) e entra no baseline por `--write-baseline` (`DMPF-T001`), feito por quem mantém o kernel.
 - [P1] Arquivo gerado pelo `init` só muda pelo template em `tools/dmpf-plugin/templates/init/` (ADR-060); projetos Nx distintos vão em commits separados.
 </critical_constraints>
@@ -339,7 +339,7 @@ ENTÃO o primeiro devolve a evidência com a data anterior e a nova, e o S3 recu
 
 - **Streaming, multipart e objetos grandes**: o corpo é `[]byte`; objeto de dezenas de megabytes pede outra spec.
 - **Escrita condicional** (`If-None-Match`) e **lifecycle**: a chave nova nasce por versão, e a expiração é da retenção.
-- **Criar conta, roles (a da app e a administrativa), bucket e chave de hmg ou produção, e IaC**: pré-requisito operacional do teste de contrato; a spec entrega o workflow que o consome.
+- **Criar conta, roles (a da app e a administrativa), bucket e chave de hmg ou produção, e IaC, e disparar o contrato em hmg**: nenhum ambiente AWS real é provisionado (decisão do mantenedor em 2026-11-02); o workflow fica no repositório, sem disparo.
 - **Declarar storage no `infra.json` e provisionar no `infrasync`**: cada teste cria o próprio bucket; o provisionamento por app é decisão futura.
 - **Replicação, SSE-C e rotação de chave de cifra**: custódia e rotação são de plataforma (DAT-08).
 - **Outros storages** (GCS, Azure Blob, MinIO, SeaweedFS, Ceph): a porta é neutra, mas só o S3 ganha provider aqui.
