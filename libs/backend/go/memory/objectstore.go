@@ -164,7 +164,8 @@ func (s *ObjectStore) Head(ctx context.Context, ref ports.ObjectRef) (ports.Obje
 }
 
 // Retain extends, or promotes GOVERNANCE to COMPLIANCE on a date no earlier.
-// Once the current retention expired, the version is free and takes any new one.
+// Once the current retention has expired, the version is free and takes any
+// new one.
 func (s *ObjectStore) Retain(ctx context.Context, ref ports.ObjectRef, to ports.Retention) (ports.ObjectInfo, error) {
 	address, err := s.locate(ctx, ref)
 	if err != nil {
