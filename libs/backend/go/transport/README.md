@@ -28,7 +28,7 @@ transporte. O módulo é bloco `provider`, sem I/O. A única dependência extern
 | Package | Conteúdo | Fase do plano |
 | --- | --- | --- |
 | `deadline` | `Budget`, `Require`, `Outgoing`, `ErrNoDeadline`, `ErrDeadlineExhausted` | 1.2 |
-| `channel` | `Channel`, `Catalog`, `NewCatalog`, `Catalog.AddressOf`, `RedeliveryWindow`, `KafkaWindow`, `SQSWindow`, `SNSSQSWindow` | 1.3 |
+| `channel` | `Channel`, `Event`, `Catalog`, `NewCatalog`, `Catalog.AddressOf`, `NewKafka`, `WireTypes`, `RedeliveryWindow`, `KafkaWindow`, `SQSWindow`, `SNSSQSWindow` | 1.3 |
 | `attempt` | `Header`, `Encode`, `Decode`, `WithContext`, `FromContext` — o consumidor grava a tentativa no contexto antes de `Sink.Handle`, e a DLQ a lê para o header ou atributo `dmpf-attempt` (TRP-52) | 1.4 |
 | `observe` | `Config`, `Slots`, `Tracing`, `Logging` — as posições de observabilidade de RES-22 que o KRN-09 deixa ao chamador; a categoria de falha é o único ponto por transporte. `Tracing` abre o span INTERNAL `dmpf.resilience {dmpf.dependency}` sobre as tentativas, com `dmpf.dependency`, `dmpf.retry.max_attempts`, `dmpf.deadline.remaining_ms`, `dmpf.outcome_category` e, na falha, `error.type` (RF-B5); sob o `send` que o relay possui (`tracing.OwnsSpan`), grava os mesmos atributos nele em vez de abrir span. `Logging` registra cada tentativa, com o scope do package: `transport: call` em `debug` e `transport: call failed` em `warn` — ou em `debug`, como o sucesso, quando a categoria é de rejeição de negócio (`Validation`, `DomainRejection`, `NotFound`, `Conflict`, outcome `rejected`; `Forbidden` e `Unauthenticated`, outcome `denied`, seguem em `warn`) —, com `dmpf.dependency`, `dmpf.retry.attempt`, `dmpf.outcome_category` e o erro reduzido por `redact.Error`: `error.type` com a categoria da tabela do transporte e, quando o primeiro erro da cadeia que implementa `redact.Categorized` tem código, `dmpf.error.code` (`RES-12` do breaker, `RES-14` do bulkhead); a mensagem do erro nunca entra no registro (RF-A3, RF-A5). A posição de métricas só repassa a chamada: o RED do cliente é do `otelgrpc` e do `otelhttp` (RF-D2). Os conjuntos de atributos são memorizados por dependência e por categoria — espaço limitado por MET-07, com teto de 4096 entradas — para o caminho quente não os reconstruir e reordenar a cada chamada | 3.2 |
 | `admission` | `Limit`, `Config`, `Controller.Admit` — bucket por `(rota, tenant)`, teto de chaves (`MaxKeys`) e evicção LRU do ocioso | 2.1b |
@@ -57,7 +57,7 @@ root a partir do documento, campo a campo:
 | Item de `ASY-02` | No exemplo AsyncAPI de §16 | Em `channel.Channel` | Validação |
 | --- | --- | --- | --- |
 | Endereço concreto e transporte | `channels.propostaAprovada.address`, `bindings.kafka` | `Address`, `Transport` (`kafka`, `sqs`, `sns-sqs`) | não vazio; Kafka: alfabeto, 249 caracteres, prefixo de ambiente (KFK-01/01c/02) |
-| Tipo de evento e major do contrato | `components.messages.*.payload.schema.$ref` | `EventType`, `ContractMajor`, `ContractRef` | os três presentes; o contrato é referenciado, nunca copiado (ASY-03) |
+| Tipos de evento e major do contrato | `components.messages.*.payload.schema.$ref` | `Events` (`[]Event{Type, ContractRef}`), `ContractMajor` | ao menos um evento, cada um com `Type` e `ContractRef`, sem `Type` repetido (KFK-03b); major positivo; o contrato é referenciado, nunca copiado (ASY-03) |
 | Chave de ordenação, ou a declaração de que não há | `x-dmpf.chaveOrdenacao` | `Ordering.Key` | `Unit == none` exige `Key == ""`; unidade exige chave (KFK-06, SQS-04) |
 | Unidade de ordenação | `x-dmpf.unidadeOrdenacao` | `Ordering.Unit` (`partition`, `group`, `none`) | Kafka ordena por partição, SQS por grupo |
 | `janela_redelivery` e a sua fórmula | `x-dmpf.janelaRedelivery` | `Redelivery` (um `RedeliveryWindow` dos construtores abaixo) | `Formula` conhecida, parâmetros completos, `UpperBound > 0` (TRP-23, TRP-24, TRP-24b) |
@@ -75,6 +75,26 @@ dois canais com o mesmo nome são `ErrRepeatedChannel`, porque o mapa guardaria
 só um em silêncio, e nenhum canal é `ErrEmptyCatalog`. `Catalog.AddressOf`
 devolve o endereço catalogado do destino, ou vazio fora do catálogo; é a função
 de endereço que o composition root passa a `relay.Instrument`.
+
+## O conjunto de eventos do canal
+
+Um canal declara em `Events` o conjunto **fechado** de tipos que carrega
+(`KFK-03b`, `docs/dmpf/politicas-transporte.md`). No caso de `KFK-03`, um tópico
+com um tipo só, o conjunto tem um elemento. `ContractMajor` e `Ordering` ficam no
+canal e valem para o conjunto inteiro. `Validate` recusa com `ErrMissingItem` o
+conjunto vazio, o evento sem `Type` ou sem `ContractRef` e o `Type` repetido, numa
+mensagem que nomeia o canal e o item (`events`, `events[i].type`,
+`events[i].contractRef`).
+
+`WireTypes(ch)` devolve o tipo de fio de cada evento, `<Type>.v<ContractMajor>`
+(`PTB-03`), na ordem declarada. É o conjunto que o consumidor recebe do canal, e a
+assinatura dele fica contida nesse conjunto (`KFK-03c`): um tipo do conjunto fora da
+assinatura é descartado, e um tipo fora do conjunto é schema desconhecido.
+
+`NewKafka(name, address, dlq, group, events...)` cataloga o canal Kafka com as
+ligações que todo contexto deste workspace declara igual: major 1, ordenação pela
+chave de partição, janela derivada da retenção e retry inline até o teto
+compartilhado (`InlineAttempts`). Sem evento, o canal não passa no `Validate`.
 
 ## Fórmulas de `janela_redelivery`
 
