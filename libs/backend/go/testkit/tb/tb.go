@@ -1,6 +1,7 @@
 package tb
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -10,26 +11,45 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/testkit/golden"
 )
 
-// RepoRoot is the directory that holds go.work, found by climbing from this
-// file: a kit test runs from its own package directory, and the workspace root
-// is what the fitness function and the fixtures under contracts/ are relative to.
+// RepoRoot is the directory that holds go.work, the root the fitness function
+// and every fixture path are relative to. It climbs first from the test's
+// working directory: go test runs in the package directory, which lies inside
+// the workspace of whoever runs the test, including a consumer that takes the
+// kit by version from the module cache. Only when no go.work is found there
+// does it climb from this file, which covers a test binary run from elsewhere.
 func RepoRoot(t testing.TB) string {
 	t.Helper()
-	_, file, _, ok := runtime.Caller(0)
-	if !ok {
-		t.Fatal("tb.RepoRoot: runtime.Caller gave no file")
+	var starts []string
+	if wd, err := os.Getwd(); err == nil {
+		starts = append(starts, wd)
 	}
-	dir := filepath.Dir(file)
-	for {
-		if _, err := os.Stat(filepath.Join(dir, "go.work")); err == nil {
-			return dir
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			t.Fatalf("tb.RepoRoot: no go.work above %s", file)
-		}
-		dir = parent
+	if _, file, _, ok := runtime.Caller(0); ok {
+		starts = append(starts, filepath.Dir(file))
 	}
+	if len(starts) == 0 {
+		t.Fatal("tb.RepoRoot: neither the working directory nor runtime.Caller gave a place to start")
+	}
+	root, err := findRoot(starts)
+	if err != nil {
+		t.Fatalf("tb.RepoRoot: %v", err)
+	}
+	return root
+}
+
+func findRoot(starts []string) (string, error) {
+	for _, start := range starts {
+		for dir := start; ; {
+			if _, err := os.Stat(filepath.Join(dir, "go.work")); err == nil {
+				return dir, nil
+			}
+			parent := filepath.Dir(dir)
+			if parent == dir {
+				break
+			}
+			dir = parent
+		}
+	}
+	return "", fmt.Errorf("no go.work above %s", strings.Join(starts, " nor "))
 }
 
 // ReadFixture reads a file by its path relative to the repository root, which
