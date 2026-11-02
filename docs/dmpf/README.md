@@ -226,7 +226,7 @@ transporte, como dois ADRs satisfazem a exigência de «ADR por transporte adota
 âncora. Os identificadores continuam a série que o FND-05 deixou em `ADR-DMPF-N`, e
 são provisórios: a numeração definitiva é do FND-11.
 
-As 131 regras `normativo` têm **ID estável** em sete prefixos (`TRP`, `RST`, `GRP`,
+As 132 regras `normativo` têm **ID estável** em sete prefixos (`TRP`, `RST`, `GRP`,
 `KFK`, `SQS`, `ASY`, `COE`), indexadas em §18.5. O artefato também recebeu, já em
 revisão, seis obrigações do FND-07 (ARQ-444) — o valor do prazo por transporte, o
 cabeçalho de tentativa, os limites de tamanho e profundidade antes do decode, a

@@ -18,6 +18,7 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/app"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/application"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/contracts/envelope"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/metrics"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 )
 
@@ -204,5 +205,184 @@ func TestTheProcessInstrumentIsBuiltOncePerProviderNotPerMessage(t *testing.T) {
 	}
 	if points := processDurations(t, reader); len(points) != 1 || points[0].Count != 3 {
 		t.Fatalf("messaging.process.duration = %+v, want the 3 processes timed on the instrument built once", points)
+	}
+}
+
+func discards(t *testing.T, reader *sdkmetric.ManualReader) []metricdata.DataPoint[int64] {
+	t.Helper()
+
+	var data metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &data); err != nil {
+		t.Fatalf("Collect() = %v", err)
+	}
+	for _, scope := range data.ScopeMetrics {
+		for _, m := range scope.Metrics {
+			if m.Name != "dmpf.consumer.discarded" {
+				continue
+			}
+			if m.Unit != "{message}" {
+				t.Fatalf("unit = %q, want {message}", m.Unit)
+			}
+			sum, ok := m.Data.(metricdata.Sum[int64])
+			if !ok || !sum.IsMonotonic {
+				t.Fatalf("data = %T, want a monotonic int64 sum", m.Data)
+			}
+			return sum.DataPoints
+		}
+	}
+	return nil
+}
+
+func TestADiscardIsCountedUnderTheChannelAndTheEventType(t *testing.T) {
+	raw, _ := rawOfType(t, itemAddedV1)
+	consumer, reader := meteredConsumer(&fakeHandler{disposition: application.R1D1})
+
+	if _, err := consumer.Consume(context.Background(), app.Delivery{Raw: raw, Attempt: 1}, &fakeAck{}); err != nil {
+		t.Fatalf("Consume() = %v", err)
+	}
+	points := discards(t, reader)
+
+	if len(points) != 1 || points[0].Value != 1 {
+		t.Fatalf("dmpf.consumer.discarded = %+v, want one discard counted", points)
+	}
+	want := map[string]string{
+		"messaging.system":              "kafka",
+		"messaging.destination.name":    testTopic,
+		"messaging.consumer.group.name": testGroup,
+		"cloudevents.event_type":        itemAddedV1,
+	}
+	if points[0].Attributes.Len() != len(want) {
+		t.Errorf("attributes = %v, want exactly %v (MET-21)", points[0].Attributes.ToSlice(), want)
+	}
+	for key, value := range want {
+		if got, ok := points[0].Attributes.Value(attribute.Key(key)); !ok || got.AsString() != value {
+			t.Errorf("%s = %q (present %v), want %q", key, got.AsString(), ok, value)
+		}
+	}
+}
+
+func TestADiscardIsNotTimedAsAProcess(t *testing.T) {
+	raw, _ := rawOfType(t, itemAddedV1)
+	consumer, reader := meteredConsumer(&fakeHandler{disposition: application.R1D1})
+
+	if _, err := consumer.Consume(context.Background(), app.Delivery{Raw: raw, Attempt: 1}, &fakeAck{}); err != nil {
+		t.Fatalf("Consume() = %v", err)
+	}
+
+	if points := processDurations(t, reader); len(points) != 0 {
+		t.Fatalf("messaging.process.duration = %+v, want nothing for a discard", points)
+	}
+}
+
+func TestADiscardTheBrokerDidNotConfirmIsNotCounted(t *testing.T) {
+	raw, _ := rawOfType(t, itemAddedV1)
+	consumer, reader := meteredConsumer(&fakeHandler{disposition: application.R1D1})
+
+	if _, err := consumer.Consume(context.Background(), app.Delivery{Raw: raw, Attempt: 1}, &fakeAck{err: errAck}); err == nil {
+		t.Fatal("Consume() = nil, want the broker's error")
+	}
+
+	if points := discards(t, reader); len(points) != 0 {
+		t.Fatalf("dmpf.consumer.discarded = %+v, want nothing counted without the ack", points)
+	}
+}
+
+func TestAnUndeclaredTypeIsTimedLikeARefusedBoundary(t *testing.T) {
+	boundaryRaw, _ := validRaw(t)
+	refused, refusedReader := meteredConsumer(&fakeHandler{disposition: application.R1D1})
+	refused.Boundary.Sources = []string{"urn:dmpf:someone-else"}
+	undeclaredRaw, _ := rawOfType(t, "com.company.orders.order-placed.v2")
+	undeclared, undeclaredReader := meteredConsumer(&fakeHandler{disposition: application.R1D1})
+
+	if _, err := refused.Consume(context.Background(), app.Delivery{Raw: boundaryRaw, Attempt: 1}, &fakeAck{}); err != nil {
+		t.Fatalf("Consume() = %v", err)
+	}
+	if _, err := undeclared.Consume(context.Background(), app.Delivery{Raw: undeclaredRaw, Attempt: 1}, &fakeAck{}); err != nil {
+		t.Fatalf("Consume() = %v", err)
+	}
+	want := onlyDuration(t, refusedReader)
+	got := onlyDuration(t, undeclaredReader)
+
+	if !got.Attributes.Equals(&want.Attributes) {
+		t.Fatalf("attributes = %v, want those of a refused boundary %v", got.Attributes.ToSlice(), want.Attributes.ToSlice())
+	}
+	if points := discards(t, undeclaredReader); len(points) != 0 {
+		t.Fatalf("dmpf.consumer.discarded = %+v, want an undeclared type never counted as a discard", points)
+	}
+}
+
+func TestTheDiscardInstrumentIsBuiltOncePerProviderNotPerMessage(t *testing.T) {
+	reader := sdkmetric.NewManualReader()
+	provider := &countingMeterProvider{MeterProvider: sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))}
+	consumer, _, _ := tracedConsumer((&fakeHandler{disposition: application.R1D1}).handle, &fakeContainment{}, sdktrace.AlwaysSample())
+	consumer.MeterProvider = provider
+
+	for range 3 {
+		raw, _ := rawOfType(t, itemAddedV1)
+		if _, err := consumer.Consume(context.Background(), app.Delivery{Raw: raw, Attempt: 1}, &fakeAck{}); err != nil {
+			t.Fatalf("Consume() = %v", err)
+		}
+	}
+
+	if got := provider.meters.Load(); got != 1 {
+		t.Fatalf("Meter() called %d times for 3 discards, want once for the provider", got)
+	}
+	if points := discards(t, reader); len(points) != 1 || points[0].Value != 3 {
+		t.Fatalf("dmpf.consumer.discarded = %+v, want the 3 discards on the instrument built once", points)
+	}
+}
+
+func TestTheDiscardSeriesTakesItsDeclarationFromTheCatalogue(t *testing.T) {
+	raw, _ := rawOfType(t, itemAddedV1)
+	consumer, reader := meteredConsumer(&fakeHandler{disposition: application.R1D1})
+	declared, ok := metrics.Lookup(metrics.ConsumerDiscardedTotal)
+	if !ok {
+		t.Fatalf("series %q is missing from the catalogue", metrics.ConsumerDiscardedTotal)
+	}
+
+	if _, err := consumer.Consume(context.Background(), app.Delivery{Raw: raw, Attempt: 1}, &fakeAck{}); err != nil {
+		t.Fatalf("Consume() = %v", err)
+	}
+	var data metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &data); err != nil {
+		t.Fatalf("Collect() = %v", err)
+	}
+
+	for _, scope := range data.ScopeMetrics {
+		for _, m := range scope.Metrics {
+			if m.Name != declared.Name {
+				continue
+			}
+			if m.Unit != declared.Unit || m.Description != declared.Formula {
+				t.Fatalf("unit %q, description %q; want the catalogue's %q and %q (RF-D1)", m.Unit, m.Description, declared.Unit, declared.Formula)
+			}
+			return
+		}
+	}
+	t.Fatalf("series %q was not recorded", declared.Name)
+}
+
+type unhashableMeterProvider struct {
+	metric.MeterProvider
+	scopes []string
+}
+
+func TestAMeterProviderThatCannotKeyTheCacheStillCountsEveryDiscard(t *testing.T) {
+	reader := sdkmetric.NewManualReader()
+	consumer, _, _ := tracedConsumer((&fakeHandler{disposition: application.R1D1}).handle, &fakeContainment{}, sdktrace.AlwaysSample())
+	consumer.MeterProvider = unhashableMeterProvider{
+		MeterProvider: sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)),
+		scopes:        []string{"github.com/mateusmacedo/dmpf/libs/backend/go/app"},
+	}
+
+	for range 2 {
+		raw, _ := rawOfType(t, itemAddedV1)
+		if _, err := consumer.Consume(context.Background(), app.Delivery{Raw: raw, Attempt: 1}, &fakeAck{}); err != nil {
+			t.Fatalf("Consume() = %v", err)
+		}
+	}
+
+	if points := discards(t, reader); len(points) != 1 || points[0].Value != 2 {
+		t.Fatalf("dmpf.consumer.discarded = %+v through a provider that is not comparable, want both discards counted", points)
 	}
 }

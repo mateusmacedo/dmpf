@@ -8,6 +8,7 @@ package channel
 import (
 	"errors"
 	"fmt"
+	"slices"
 )
 
 // Transport names the asynchronous transport a channel is bound to.
@@ -39,8 +40,8 @@ const (
 )
 
 var (
-	// ErrMissingItem is a channel that lacks one of the items of ASY-02; the
-	// message names the item.
+	// ErrMissingItem is a channel that lacks one of the items of ASY-02, or whose
+	// event set repeats a type (KFK-03b); the message names the item.
 	ErrMissingItem = errors.New("channel: catalogue item absent (ASY-02)")
 
 	// ErrUnknownTransport is a channel bound to a transport this package does
@@ -127,16 +128,26 @@ func (r Retry) Validate() error {
 	return nil
 }
 
+// Event is one type of the closed set a channel carries (KFK-03b): the type
+// without its major, and the contract that defines it, referenced and never
+// copied (ASY-03).
+type Event struct {
+	Type        string
+	ContractRef string
+}
+
 // Channel is one catalogued channel: the seven items of ASY-02 plus the Kafka
 // topology KFK-04 and KFK-07 demand. Address is the only concrete name and it
 // lives here, in configuration, never in code (TRP-07).
 type Channel struct {
-	Name          string
-	Transport     Transport
-	Address       string
-	EventType     string
+	Name      string
+	Transport Transport
+	Address   string
+
+	// Events is the closed set the channel carries; ContractMajor and Ordering
+	// hold for every event in it (KFK-03b).
+	Events        []Event
 	ContractMajor int
-	ContractRef   string
 	Ordering      Ordering
 	Redelivery    RedeliveryWindow
 	Containment   string
@@ -153,23 +164,22 @@ type Channel struct {
 	EnvironmentPrefix string
 }
 
-// Validate refuses a channel the provider could not operate: any item of
-// ASY-02 absent, an ordering the transport cannot honour, an ordered channel
-// with separate-channel retry, or a Kafka address outside KFK-01/01c/02.
+// Validate refuses a channel the provider could not operate: any item of ASY-02
+// absent, a repeated event type (KFK-03b), an ordering the transport cannot honour,
+// an ordered channel with separate-channel retry, or a Kafka address outside KFK-01/01c/02.
 func (c Channel) Validate() error {
 	switch {
 	case c.Name == "":
 		return fmt.Errorf("%w: name", ErrMissingItem)
 	case c.Address == "":
 		return fmt.Errorf("%w: %s: address", ErrMissingItem, c.Name)
-	case c.EventType == "":
-		return fmt.Errorf("%w: %s: eventType", ErrMissingItem, c.Name)
 	case c.ContractMajor <= 0:
 		return fmt.Errorf("%w: %s: contractMajor", ErrMissingItem, c.Name)
-	case c.ContractRef == "":
-		return fmt.Errorf("%w: %s: contractRef (ASY-03)", ErrMissingItem, c.Name)
 	case c.Containment == "":
 		return fmt.Errorf("%w: %s: containment", ErrMissingItem, c.Name)
+	}
+	if err := c.validateEvents(); err != nil {
+		return err
 	}
 
 	switch c.Transport {
@@ -201,6 +211,23 @@ func (c Channel) Validate() error {
 	}
 
 	return c.validateTransport()
+}
+
+func (c Channel) validateEvents() error {
+	if len(c.Events) == 0 {
+		return fmt.Errorf("%w: %s: events (KFK-03b)", ErrMissingItem, c.Name)
+	}
+	for i, event := range c.Events {
+		switch {
+		case event.Type == "":
+			return fmt.Errorf("%w: %s: events[%d].type", ErrMissingItem, c.Name, i)
+		case event.ContractRef == "":
+			return fmt.Errorf("%w: %s: events[%d].contractRef (ASY-03)", ErrMissingItem, c.Name, i)
+		case slices.ContainsFunc(c.Events[:i], func(earlier Event) bool { return earlier.Type == event.Type }):
+			return fmt.Errorf("%w: %s: events[%d].type %q repeated (KFK-03b)", ErrMissingItem, c.Name, i, event.Type)
+		}
+	}
+	return nil
 }
 
 func (c Channel) validateTransport() error {

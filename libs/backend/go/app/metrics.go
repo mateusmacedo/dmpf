@@ -9,8 +9,11 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/metric/noop"
 	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
 	"go.opentelemetry.io/otel/semconv/v1.43.0/messagingconv"
+
+	"github.com/mateusmacedo/dmpf/libs/backend/go/observability/metrics"
 )
 
 const meterName = "github.com/mateusmacedo/dmpf/libs/backend/go/app"
@@ -42,6 +45,31 @@ func newProcessDuration(provider metric.MeterProvider) messagingconv.ProcessDura
 	duration, _ := messagingconv.NewProcessDuration(provider.Meter(meterName),
 		metric.WithExplicitBucketBoundaries(durationBoundaries...))
 	return duration
+}
+
+var discardInstruments sync.Map
+
+func (c Consumer) discarded() metric.Int64Counter {
+	provider := c.meterProvider()
+	if !reflect.ValueOf(provider).Comparable() {
+		return newDiscarded(provider)
+	}
+	if cached, ok := discardInstruments.Load(provider); ok {
+		return cached.(metric.Int64Counter)
+	}
+	cached, _ := discardInstruments.LoadOrStore(provider, newDiscarded(provider))
+	return cached.(metric.Int64Counter)
+}
+
+func newDiscarded(provider metric.MeterProvider) metric.Int64Counter {
+	declared, _ := metrics.Lookup(metrics.ConsumerDiscardedTotal)
+	counter, _ := provider.Meter(meterName).Int64Counter(declared.Name,
+		metric.WithUnit(declared.Unit),
+		metric.WithDescription(declared.Formula))
+	if counter == nil {
+		return noop.Int64Counter{}
+	}
+	return counter
 }
 
 func (c Consumer) measureProcess(ctx context.Context, began time.Time, outcome Outcome, gesture *gestures, err error) {

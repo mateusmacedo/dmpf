@@ -164,7 +164,7 @@ func TestRunRelayDrainsTheOwnOutboxUntilStopped(t *testing.T) {
 		},
 		Policies: policies,
 	}
-	ch := channel.NewKafka("serve.events", topic, dlq, group, "com.company.serve.probed", "serve.v1")
+	ch := channel.NewKafka("serve.events", topic, dlq, group, channel.Event{Type: "com.company.serve.probed", ContractRef: "serve.v1"})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -419,7 +419,7 @@ func TestServeAPIKeepsTheMigratorCredentialsOutOfItsError(t *testing.T) {
 func TestRunRelayWaitsForTheGrantsOfTheOutbox(t *testing.T) {
 	pg.OpenPool(t, pg.Options{Project: "serve", Capabilities: []postgres.Capability{postgres.Outbox}})
 	role := serve.RelayRole{DSN: pg.RuntimeDSN(t, "serve"), Brokers: []string{"127.0.0.1:1"}, KafkaInsecure: true, Policies: policies}
-	ch := channel.NewKafka("serve.events", "serve-relay", "serve-relay-dlq", "serve-relay-group", "com.company.serve.probed", "serve.v1")
+	ch := channel.NewKafka("serve.events", "serve-relay", "serve-relay-dlq", "serve-relay-group", channel.Event{Type: "com.company.serve.probed", ContractRef: "serve.v1"})
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 

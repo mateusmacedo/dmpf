@@ -276,8 +276,8 @@ São 30 predicados, vindos dos cinco artefatos promovidos.
 | 10 | Parte-1 §10.10 (sagas e process managers): timeouts, observabilidade e replay assistido | `uow-inbox-outbox.md:231` | `application service` | §6.7, §8.6 | `quitada` |
 | 11 | Purga da outbox e **alarme de crescimento** | `uow-inbox-outbox.md:754` | operação | §6.3, §8.3 | `quitada` |
 | 12 | O **valor** do teto de espera da inbox, cujo estouro é R1×D3 e não erro terminal (`INB-17`) | `uow-inbox-outbox.md:1104`, `:1121` | `application service` | §3.2, §6.4 | `quitada` |
-| 13 | Catálogo dos sinais de `GAR-12`: profundidade de DLQ e de quarantine, taxa de recusa | `uow-inbox-outbox.md:1647` | `app` (consumer adapter) | §6.5 | `quitada` |
-| 14 | Replay e repair de sagas e process managers | `uow-inbox-outbox.md:1687` | operação | §8.6 | `quitada` |
+| 13 | Catálogo dos sinais de `GAR-12`: profundidade de DLQ e de quarantine, taxa de recusa | `uow-inbox-outbox.md:1650` | `app` (consumer adapter) | §6.5 | `quitada` |
+| 14 | Replay e repair de sagas e process managers | `uow-inbox-outbox.md:1690` | operação | §8.6 | `quitada` |
 | 15 | Catálogo, limiares e alarmes sobre **falha de validação** de contrato | `cloudevents-protobuf-buf.md:178`, `:1339` | `app` | §6.6, §8.4 | `quitada` |
 | 16 | Idem sobre **drift de código gerado**, incluída a frequência | `cloudevents-protobuf-buf.md:178`, `:1339` | plataforma (CI) | §6.6, §8.4 | `quitada` |
 | 17 | Idem sobre **reprovação de gate** de contrato | `cloudevents-protobuf-buf.md:178`, `:1339` | plataforma (CI) | §6.6, §8.4 | `quitada` |
@@ -292,8 +292,8 @@ São 30 predicados, vindos dos cinco artefatos promovidos.
 | 26 | Parte-1 §12.2, decorators de saída: **a subseção inteira** | `contexto-erros-seguranca.md:316` | `provider` | §3, §4 | `quitada` |
 | 27 | Circuit breaker, bulkhead, degradação e o runbook de operação de DLQ | `politicas-transporte.md:156` | `provider`, operação | §3.3, §3.4, §4.5, §8 | `quitada` |
 | 28 | Parte-1 §10.9, pela via do transporte: a parte de operação e runbook | `politicas-transporte.md:189` | operação | §8 | `quitada` |
-| 29 | Retenção da DLQ e rito de replay | `politicas-transporte.md:269`, `:1757` | operação | §8.4, §8.5 | `quitada` |
-| 30 | Limiar de tentativas, prazos de backoff, retenção da DLQ e runbook de operação, na fronteira do Kafka | `politicas-transporte.md:1186-1188` | `provider`, operação | §4.4, §8.4 | `quitada` |
+| 29 | Retenção da DLQ e rito de replay | `politicas-transporte.md:269`, `:1765` | operação | §8.4, §8.5 | `quitada` |
+| 30 | Limiar de tentativas, prazos de backoff, retenção da DLQ e runbook de operação, na fronteira do Kafka | `politicas-transporte.md:1194-1196` | `provider`, operação | §4.4, §8.4 | `quitada` |
 
 `registro` — **Nenhuma obrigação fica `encaminhada` ou `condicionada`.** É a
 primeira vez na cadeia que isso ocorre, e a razão é estrutural: as obrigações
@@ -738,8 +738,8 @@ com `GAR-08`, que exige limite para poison message. Onde o **gesto** da repetiç
 do transporte, ele permanece de FND-06 — `maxReceiveCount` no SQS, a política de
 cada canal —, e o que se configura ali é este valor: o FND-06 encaminhou
 explicitamente «limiar de tentativas, prazos de backoff, retenção da DLQ e o
-runbook» a esta âncora (`politicas-transporte.md:1186-1188`), como o FND-04 §7.4 já
-havia feito (`uow-inbox-outbox.md:1645-1648`).
+runbook» a esta âncora (`politicas-transporte.md:1194-1196`), como o FND-04 §7.4 já
+havia feito (`uow-inbox-outbox.md:1648-1651`).
 
 `rationale` — A redação anterior devolvia o valor a FND-06 e produzia delegação
 circular: os dois artefatos encaminhavam o número um ao outro e nenhum o fixava, de
@@ -760,8 +760,8 @@ fornece o espaçamento e o teto; a admissibilidade permanece de FND-04.
 
 `recepcionado` — A fronteira com FND-06 é a inversa da que se supõe. O FND-06
 **encaminhou a esta âncora** «limiar de tentativas, prazos de backoff, retenção da
-DLQ e o runbook de operação» (`politicas-transporte.md:1186-1188`), e o FND-04 fez o
-mesmo antes dele (`uow-inbox-outbox.md:1645-1648`), retendo apenas «o mecanismo de
+DLQ e o runbook de operação» (`politicas-transporte.md:1194-1196`), e o FND-04 fez o
+mesmo antes dele (`uow-inbox-outbox.md:1648-1651`), retendo apenas «o mecanismo de
 retry específico de cada transporte». O **valor** é, portanto, deste artefato — nos
 dois caminhos —, e de FND-06 vem o **gesto** que o aplica em cada canal: onde
 configurar, com que primitiva e sob que limite do próprio broker.
@@ -1279,7 +1279,7 @@ em `s`.**
 O contador registra o evento; o par de gauges registra o **pendente**, que é o que
 `GAR-06` exige nomear: `MET-14` conta apenas linhas elegíveis ou em espera, então
 sem estes dois o fato que saiu do ciclo automático em `failed`
-(`uow-inbox-outbox.md:1543`) fica invisível, embora permaneça retomável. Alarme:
+(`uow-inbox-outbox.md:1545`) fica invisível, embora permaneça retomável. Alarme:
 gauge acima de zero por mais de uma janela, com procedimento em §8.3.
 
 `normativo` `MET-18` — **Leases do relay**: `dmpf.relay.claims.active` — gauge de
@@ -1323,6 +1323,7 @@ porta da inbox tem limiar derivado do default de `RES-08`.**
 | `dmpf.consumer.lag` | Lag de consumo | gauge | Distância entre a posição publicada e a consumida no canal | `{message}` | Crescimento sustentado pela **persistência declarada** (`MET-05a`) |
 | `dmpf.consumer.oldest_pending` | Idade da mensagem mais antiga não consumida | gauge | Instante atual menos o instante de publicação da mais antiga pendente | `s` | Acima da janela de redelivery declarada pelo transporte |
 | `dmpf.consumer.redeliveries` | Redeliveries | contador | Contagem de entregas subsequentes do mesmo `message_id` | `{delivery}` | Aproximação ao teto de `GAR-08` |
+| `dmpf.consumer.discarded` | Tipos alheios descartados | contador | Contagem das mensagens de tipo declarado no canal e não assinado pelo consumidor, confirmadas sem efeito, por `cloudevents.event_type` (`KFK-03c`) | `{message}` | Sem limiar: o descarte é condição normal em tópico multi-tipo |
 | `messaging.process.duration` | Tempo até o ACK | histograma da semconv | Intervalo entre a recepção e o gesto de ACK, por `messaging.destination.name` e `messaging.consumer.group.name`, com `error.type` na falha | `s` | Acima da visibilidade aplicada pelo transporte |
 
 `rationale` — A espera na porta é a única linha com limiar de **valor** fixado, e a
@@ -1688,7 +1689,7 @@ reprovaria contexto conforme e redefiniria `GAR-11`.
 que o prazo em que o replay deixa de ser seguro — uma mensagem de negócio retida
 por meses pode reintroduzir efeito cuja premissa já mudou. O valor por canal é
 declarado com o motivo, e o **valor** é desta baseline: o FND-06 encaminhou a
-retenção da DLQ a FND-08 (`politicas-transporte.md:1186-1188`), retendo o **gesto**
+retenção da DLQ a FND-08 (`politicas-transporte.md:1194-1196`), retendo o **gesto**
 de a configurar em cada transporte.
 
 `rationale` — Catorze dias cobrem dois fins de semana consecutivos com folga, que
@@ -1723,7 +1724,7 @@ tráfego novo no diagnóstico seguinte — e a operação perde a única evidên
 o reprocessamento ocorreu.
 
 `recepcionado` — O FND-04 declara **duas zonas de proteção** para o replay
-(`uow-inbox-outbox.md:1378-1385`): dentro da retenção da inbox a proteção é dupla —
+(`uow-inbox-outbox.md:1380-1387`): dentro da retenção da inbox a proteção é dupla —
 deduplicação por identidade de mensagem **e** idempotência de efeito, e a mensagem
 curto-circuita como R2 ou R3; **além** da retenção a proteção é única — apenas a
 idempotência de efeito, e a mensagem é classificada R1 e o efeito é reexecutado.
@@ -1800,7 +1801,7 @@ log ou código de erro estável.
 | 5 | Claimant expirado escreve tarde | drenagem | Recuperação | `MET-18`, pelo contador de **rejeições por claim substituído**, com `MET-20` no desfecho por mensagem do lote | — (a escrita tardia é rejeitada pelo fencing de FND-04) |
 | 6 | Crash após commit, antes do ACK | consumo | Recuperação | `MET-21` (redeliveries) | — (redelivery, com deduplicação) |
 | 7 | Duplicata concorrente na inbox | consumo | Recuperação | `MET-21` (duplicatas descartadas) | — |
-| 8 | Colisão de `message_id` com payload divergente | consumo | Contenção | `MET-24` (taxa de recusa, com a disposição R4 como label) | A mensagem divergente, retida. Decide **quem opera o produtor**, porque o defeito está na origem (`uow-inbox-outbox.md:1540`) — nunca o plantão |
+| 8 | Colisão de `message_id` com payload divergente | consumo | Contenção | `MET-24` (taxa de recusa, com a disposição R4 como label) | A mensagem divergente, retida. Decide **quem opera o produtor**, porque o defeito está na origem (`uow-inbox-outbox.md:1542`) — nunca o plantão |
 | 9 | Poison message | consumo | Contenção | `MET-22` e `MET-23` (profundidade de DLQ e de quarantine), com `MET-21` mostrando a aproximação ao teto | A mensagem retida na DLQ ou quarantine. Decide a **operação**, por §8.4 |
 | 10 | Replay conduzido a partir da DLQ | operação | Reparação assistida | `MET-22` (profundidade e idade) e o registro de auditoria de `RUN-14`; a **zona** apurada por `RUN-15` determina se a proteção é dupla ou apenas a idempotência de efeito | O conjunto a reprocessar. Decide o **operador autorizado**, por §8.5. Não é desfecho automático, por `GAR-05` |
 | 11 | Publicação esgota as tentativas | drenagem | Contenção | `MET-17`, pelo **gauge de linhas em `failed` e a idade da mais antiga**, com o contador de falhas por categoria e `MET-16` nas tentativas; `MET-22` se a mensagem for encaminhada à DLQ | O fato commitado em `failed`, retomável. Decide a **operação**, por §8.3 e §8.4 |

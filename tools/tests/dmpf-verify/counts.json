@@ -6,7 +6,7 @@
       "value": 54
     },
     "uow-inbox-outbox.md": {
-      "line": 2456,
+      "line": 2459,
       "pattern": "`registro` — \\*\\*75 regras com ID\\*\\*",
       "value": 75
     },
@@ -17,9 +17,9 @@
       "atypical": "o FND-05 não declara total em bloco próprio; a única afirmação da contagem está na célula M1 da tabela de monotonicidade"
     },
     "politicas-transporte.md": {
-      "line": 1830,
-      "pattern": "`registro` — 131 regras, em sete prefixos",
-      "value": 131
+      "line": 1838,
+      "pattern": "`registro` — 132 regras, em sete prefixos",
+      "value": 132
     },
     "contexto-erros-seguranca.md": {
       "line": 1817,
@@ -27,7 +27,7 @@
       "value": 115
     },
     "resiliencia-observabilidade.md": {
-      "line": 2117,
+      "line": 2118,
       "pattern": "`registro` — 126 regras `normativo`\\.",
       "value": 126
     },

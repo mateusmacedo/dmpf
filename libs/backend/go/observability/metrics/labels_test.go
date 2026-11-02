@@ -92,6 +92,7 @@ func TestEveryPermittedKeyHasABuilderMethod(t *testing.T) {
 		metrics.KeyDependency, metrics.KeyOperation,
 		metrics.KeyErrorType, metrics.KeyOutcomeCategory, metrics.KeyRoute, metrics.KeyRPCMethod,
 		metrics.KeyExternalClass,
+		metrics.KeyMessagingSystem, metrics.KeyDestination, metrics.KeyConsumerGroup, metrics.KeyEventType,
 	} {
 		if !produced[key] {
 			t.Errorf("no builder method produces the permitted key %q", key)
@@ -221,9 +222,38 @@ func TestTheKeysAreSemconvOrDMPF(t *testing.T) {
 		metrics.KeyRPCMethod:       "rpc.method",
 		metrics.KeyTenant:          "dmpf.tenant_id",
 		metrics.KeyExternalClass:   "dmpf.external.class",
+		metrics.KeyMessagingSystem: "messaging.system",
+		metrics.KeyDestination:     "messaging.destination.name",
+		metrics.KeyConsumerGroup:   "messaging.consumer.group.name",
+		metrics.KeyEventType:       "cloudevents.event_type",
 	} {
 		if got != want {
 			t.Errorf("key = %q, want %q (RF-D3)", got, want)
 		}
+	}
+}
+
+func TestTheMessagingBuildersRecordTheirKeys(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		build func(metrics.Labels, string) metrics.Labels
+		key   string
+		value string
+	}{
+		{"MessagingSystem", metrics.Labels.MessagingSystem, metrics.KeyMessagingSystem, "kafka"},
+		{"Destination", metrics.Labels.Destination, metrics.KeyDestination, "orders.events"},
+		{"ConsumerGroup", metrics.Labels.ConsumerGroup, metrics.KeyConsumerGroup, "reservations"},
+		{"EventType", metrics.Labels.EventType, metrics.KeyEventType, "com.company.orders.item-added.v1"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := tc.build(metrics.Labels{}, tc.value).Attributes()
+			want := []attribute.KeyValue{attribute.String(tc.key, tc.value)}
+			if len(got) != 1 || got[0] != want[0] {
+				t.Fatalf("Attributes() = %v, want %v", got, want)
+			}
+			if empty := tc.build(metrics.Labels{}, "").Attributes(); len(empty) != 0 {
+				t.Fatalf("Attributes() = %v for an empty value, want it omitted", empty)
+			}
+		})
 	}
 }

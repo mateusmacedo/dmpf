@@ -93,6 +93,13 @@ skill `.agents/skills/dmpf-bounded-context/`.
   e `ErrMalformed` do envelope viram `Failure(Validation)` **sem** abrir UoW.
 - O efeito de broker (`Ack`, `Release`, contenção) vem sempre depois do
   retorno da transação (`INB-08`).
+- O canal declara o conjunto fechado de eventos que carrega
+  (`channel.NewKafka(..., channel.Event{Type, ContractRef}...)`), e o consumidor
+  declara em `Accepts` os tipos de fio que o `Handler` trata, contidos em
+  `Channel.Carries` (`channel.WireTypes`). O transporte recebe `kernelapp.Sink`:
+  o kernel descarta o tipo alheio (`Ack`, contado em `dmpf.consumer.discarded`)
+  e contém o tipo não declarado como `undeclared-type` (`KFK-03c`, ADR-072). O
+  bloco `app` nunca filtra tipo.
 
 ## Contrato (ADR-033, ADR-054; PTB-01, REP-01)
 
