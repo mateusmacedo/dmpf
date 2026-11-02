@@ -1,3 +1,9 @@
+## 1.0.0-rc.8 (2026-11-02)
+
+### 🧱 Updated Dependencies
+
+- Updated testkit to 1.0.0-rc.8
+
 ## 1.0.0-rc.7 (2026-10-21)
 
 ### 🩹 Fixes

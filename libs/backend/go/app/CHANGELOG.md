@@ -1,3 +1,32 @@
+## 1.0.0-rc.8 (2026-11-02)
+
+### 🚀 Features
+
+- ⚠️  **app:** Descartar no adapter o tipo alheio do canal ([42cdf62e](https://github.com/mateusmacedo/dmpf/commit/42cdf62e))
+
+### ⚠️  Breaking Changes
+
+- **app:** Descartar no adapter o tipo alheio do canal  ([42cdf62e](https://github.com/mateusmacedo/dmpf/commit/42cdf62e))
+  Consumer.Accepts e Channel.Carries passam a ser
+  obrigatórios; o canal no NewKafka do serve recebe os eventos.
+
+### 🧱 Updated Dependencies
+
+- Updated observability to 1.0.0-rc.8
+- Updated application to 1.0.0-rc.8
+- Updated contracts to 1.0.0-rc.8
+- Updated transport to 1.0.0-rc.8
+- Updated postgres to 1.0.0-rc.8
+- Updated testkit to 1.0.0-rc.8
+- Updated domain to 1.0.0-rc.8
+- Updated kafka to 1.0.0-rc.8
+- Updated ports to 1.0.0-rc.8
+- Updated grpc to 1.0.0-rc.8
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 1.0.0-rc.7 (2026-10-21)
 
 ### 🚀 Features

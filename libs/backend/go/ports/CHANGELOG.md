@@ -1,3 +1,18 @@
+## 1.0.0-rc.8 (2026-11-02)
+
+### 🚀 Features
+
+- **ports:** Declarar o motivo de contenção do tipo não declarado ([f331a181](https://github.com/mateusmacedo/dmpf/commit/f331a181))
+- **ports:** Declarar a porta de object storage com retenção WORM ([5c05a6d9](https://github.com/mateusmacedo/dmpf/commit/5c05a6d9))
+
+### 🧱 Updated Dependencies
+
+- Updated domain to 1.0.0-rc.8
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 1.0.0-rc.7 (2026-10-21)
 
 ### 🚀 Features

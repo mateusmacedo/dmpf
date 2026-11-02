@@ -1,3 +1,25 @@
+## 1.0.0-rc.8 (2026-11-02)
+
+### 🚀 Features
+
+- ⚠️  **transport:** Declarar no canal o conjunto fechado de eventos ([5c98e5ec](https://github.com/mateusmacedo/dmpf/commit/5c98e5ec))
+
+### ⚠️  Breaking Changes
+
+- **transport:** Declarar no canal o conjunto fechado de eventos  ([5c98e5ec](https://github.com/mateusmacedo/dmpf/commit/5c98e5ec))
+  Channel.EventType, Channel.ContractRef e EventTypeOf
+  saem; use Channel.Events, NewKafka(..., events...) e WireTypes.
+
+### 🧱 Updated Dependencies
+
+- Updated observability to 1.0.0-rc.8
+- Updated testkit to 1.0.0-rc.8
+- Updated ports to 1.0.0-rc.8
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 1.0.0-rc.7 (2026-10-21)
 
 ### 🩹 Fixes

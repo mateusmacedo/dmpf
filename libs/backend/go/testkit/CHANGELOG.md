@@ -1,3 +1,28 @@
+## 1.0.0-rc.8 (2026-11-02)
+
+### 🚀 Features
+
+- **testkit:** Certificar a porta de object storage com o kit ([c4d0eb93](https://github.com/mateusmacedo/dmpf/commit/c4d0eb93))
+
+### 🩹 Fixes
+
+- **testkit:** Achar a raiz do workspace pelo diretório do teste ([4c7809e9](https://github.com/mateusmacedo/dmpf/commit/4c7809e9))
+
+### 🧱 Updated Dependencies
+
+- Updated observability to 1.0.0-rc.8
+- Updated application to 1.0.0-rc.8
+- Updated contracts to 1.0.0-rc.8
+- Updated postgres to 1.0.0-rc.8
+- Updated domain to 1.0.0-rc.8
+- Updated memory to 1.0.0-rc.8
+- Updated ports to 1.0.0-rc.8
+- Updated conformance to 1.0.0-rc.8
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 1.0.0-rc.7 (2026-10-21)
 
 ### 🩹 Fixes
