@@ -1,16 +1,17 @@
-# floci emula SQS e SNS num único endpoint (sqs). Aceita qualquer
-# credencial não vazia; /_floci/health lista os serviços — mesmo gesto do CI.
+# floci emula SQS, SNS, S3 e KMS num único endpoint (porta 4566). Aceita qualquer
+# credencial não vazia; /_floci/health lista os serviços — mesmo gesto do CI. A imagem
+# não traz curl: o healthcheck é o script dela, que lê o mesmo endpoint só com bash.
 # Não expõe métricas Prometheus: quem o observa é o blackbox, por probe.
 services:
   floci:
-    image: floci/floci:2.0.1
+    image: floci/floci:2.2.0@sha256:e97cd0c1dc2aa14e7697fb5ef5018404c4d6345169dbd276315f0bed2c7b0520
     profiles: [floci, dmpf, all]
     ports:
       - '127.0.0.1:${FLOCI_PORT:-4566}:4566'
     volumes:
       - floci-data:/app/data
     healthcheck:
-      test: ['CMD', 'curl', '-sf', '-o', '/dev/null', 'http://localhost:4566/_floci/health']
+      test: ['CMD', '/usr/local/bin/healthcheck.sh']
       interval: 10s
       timeout: 5s
       retries: 6
