@@ -20,6 +20,7 @@ import (
 	"github.com/mateusmacedo/dmpf/libs/backend/go/contracts/envelope"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/ports"
 	"github.com/mateusmacedo/dmpf/libs/backend/go/postgres"
+	"github.com/mateusmacedo/dmpf/libs/backend/go/transport/channel"
 )
 
 // ConsumerName is the logical, stable identity of INB-01: shared by every
@@ -92,14 +93,20 @@ type ConsumerTelemetry struct {
 	Channel        kernelapp.Channel
 }
 
-// NewConsumer is the whole consumer: adapter, service and Postgres quarantine.
-// maxAttempts <= 0 disables the attempt limit (GAR-08 fixes that one exists;
-// the value is FND-08's).
+// NewConsumer is the whole consumer: adapter, service and Postgres quarantine, accepting
+// OrderPlaced among telemetry.Channel.Carries, or OrdersChannel's when it carries none.
+// maxAttempts <= 0 disables the attempt limit (GAR-08 fixes that one exists; the value is FND-08's).
 func NewConsumer(pool *pgxpool.Pool, clock ports.Clock, ids ports.IDGenerator, wait, timeout time.Duration, maxAttempts int, boundary kernelapp.Boundary, telemetry ConsumerTelemetry) kernelapp.Consumer {
+	orders := OrdersChannel(Config{})
+	carries := telemetry.Channel.Carries
+	if len(carries) == 0 {
+		carries = channel.WireTypes(orders)
+	}
 	return kernelapp.Consumer{
 		Name:           ConsumerName,
 		MaxAttempts:    maxAttempts,
 		Handle:         Handler(NewService(pool, clock, ids, Waits{Message: wait})),
+		Accepts:        wireTypesOf(orders, orderPlaced),
 		Containment:    postgres.NewQuarantine(pool, postgres.WithQuarantineLoggerProvider(telemetry.LoggerProvider)),
 		Clock:          clock,
 		Timeout:        timeout,
@@ -109,6 +116,15 @@ func NewConsumer(pool *pgxpool.Pool, clock ports.Clock, ids ports.IDGenerator, w
 		MeterProvider:  telemetry.MeterProvider,
 		LoggerProvider: telemetry.LoggerProvider,
 		System:         telemetry.System,
-		Channel:        telemetry.Channel,
+		Channel: kernelapp.Channel{
+			Address: telemetry.Channel.Address,
+			Group:   telemetry.Channel.Group,
+			Carries: carries,
+		},
 	}
+}
+
+func wireTypesOf(ch channel.Channel, events ...channel.Event) []string {
+	ch.Events = events
+	return channel.WireTypes(ch)
 }
