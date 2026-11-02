@@ -12,7 +12,7 @@ infra/
 │       ├── redis.yml               # profile redis
 │       ├── redpanda.yml            # profile redpanda (Kafka + admin/métricas em 9644); listener interno exige SASL
 │       ├── pki.yml                 # profile dmpf: CA de desenvolvimento e certificados do mTLS gRPC interno (ADR-052)
-│       ├── floci.yml               # profile floci (SQS e SNS)
+│       ├── floci.yml               # profile floci (SQS, SNS, S3 e KMS)
 │       ├── otel-collector.yml      # profile otel
 │       ├── prometheus.yml          # profile prometheus
 │       ├── loki.yml                # profile loki
@@ -134,7 +134,7 @@ A infraestrutura publica em `127.0.0.1`: os endereços valem no WSL (`localhost`
 | Postgres | 5432 | banco |
 | Redis | 6379 | deny-list de revogação de sessão do `authn`, com ACL (ver abaixo) |
 | Redpanda | 9092 / 9644 | Kafka (listener externo, sem autenticação, só para o host) · admin e métricas Prometheus |
-| floci | 4566 | SQS e SNS |
+| floci | 4566 | SQS, SNS, S3 e KMS |
 | Keycloak | 8180 | IdP de referência, realm `dmpf` (profile `keycloak`), pelo nome `keycloak.localhost` |
 | cAdvisor | 8081 | métricas de container (8080 é do BFF) |
 | postgres-exporter | 9187 | métricas do Postgres |

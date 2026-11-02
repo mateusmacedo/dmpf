@@ -67,6 +67,7 @@ jobs:
       KAFKA_SASL_USERNAME: "ci"
       KAFKA_SASL_PASSWORD: "ci-secret"
       SQS_ENDPOINT: "http://localhost:4566"
+      S3_ENDPOINT: "http://localhost:4566"
       AWS_REGION: "us-east-1"
       AWS_ACCESS_KEY_ID: "test"
       AWS_SECRET_ACCESS_KEY: "test"
@@ -213,9 +214,10 @@ jobs:
             --set "redpanda.superusers=[\"${KAFKA_SASL_USERNAME}\"]" \
             --set redpanda.kafka_enable_authorization=true
 
-          # SQS e SNS no mesmo emulador, para o hop SNS → SQS com raw delivery. As
-          # filas e tópicos são criados pelo próprio teste de integração; o floci
-          # aceita qualquer credencial não vazia, e /_floci/health lista os serviços.
+          # SQS, SNS, S3 e KMS no mesmo emulador: o hop SNS → SQS com raw delivery
+          # e o kit de object storage. Filas, tópicos e buckets são criados pelo
+          # próprio teste de integração; o floci aceita qualquer credencial não
+          # vazia, e /_floci/health lista os serviços.
           docker run -d --name "test-floci-$sufixo" \
             --network host \
             "$IMAGEM_FLOCI"

@@ -264,6 +264,8 @@ tenant ou que vaza estado com o miss; hold que inventa a razão; hold de
 plataforma que ignora o tenant; plataforma sem o prefixo; `Head` que repete a
 cifra declarada.
 
+Duas realizações passam o kit sem `Skipped`. A primeira é o fake, `MemoryObjectStore`, com relógio injetado. A segunda é o provider `s3`, cujo subject fica em `libs/backend/go/s3/conformance_test.go`. Contra o floci, esse subject cria um bucket com Object Lock por cláusula, usa uma chave KMS do emulador e `AES256` como segunda cifra, e lista as chaves por `ListObjectVersions`. O relógio do servidor não se injeta, então o `Advance` dorme, e a unidade de retenção é de 5 s (`S3_KIT_RETENTION_UNIT`), com folga para as chamadas entre a escrita de sonda e a que data a retenção. O mesmo subject roda contra o S3 real no contrato em hmg (`TestContractObjectStoreConforms`).
+
 O negativo de `providerkit` é uma realização que chaveia linha só por
 identificador, sem tenant: passa as três cláusulas mecânicas e reprova em
 `IDN-13` — sem esse duplo escopado não haveria contra o que contrastar o

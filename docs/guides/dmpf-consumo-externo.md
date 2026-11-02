@@ -127,8 +127,8 @@ vez e executa só o que o diff afeta (ADR-071):
   ou arquivo que ele lê;
 - **targets do Nx** nos projetos afetados: `lint`, `typecheck`, `build`,
   `fmt-check` e os gates Buf, o `test` só dos projetos que não são Go, depois
-  `test-race`, `test-integration` e `e2e`, com Postgres, Redpanda e floci só
-  quando um projeto que os usa está afetado; `biome ci` quando há `biome.json`.
+  `test-race`, `test-integration` e `e2e`, com Postgres, Redpanda e floci (SQS,
+  SNS, S3 e KMS) só quando um projeto que os usa está afetado; `biome ci` quando há `biome.json`.
   Os projetos Go ficam sem `test` e `vet` no CI: o `test-race` repete os
   pacotes do `test`, e o `govet` do golangci-lint cobre o `vet`.
 
