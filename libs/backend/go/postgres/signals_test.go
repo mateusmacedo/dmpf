@@ -146,3 +146,21 @@ func TestInboxSignalsCountsTheUntrustedBoundaryOnItsOwn(t *testing.T) {
 		t.Fatalf("UntrustedBoundary = %d, Other = %d; want 1 and 0: a producer outside the boundary is a signal of its own", s.UntrustedBoundary, s.Other)
 	}
 }
+
+func TestInboxSignalsCountsTheUndeclaredTypeOnItsOwn(t *testing.T) {
+	pool := openPool(t)
+	ctx := context.Background()
+	q := postgres.NewQuarantine(pool)
+
+	if err := q.Quarantine(ctx, ports.Contained{Consumer: "orders", MessageID: "m-1", Reason: ports.ReasonUndeclaredType, Envelope: []byte{1}, At: 100}); err != nil {
+		t.Fatalf("Quarantine() = %v", err)
+	}
+
+	s, err := postgres.InboxSignals(ctx, pool, "orders")
+	if err != nil {
+		t.Fatalf("InboxSignals() = %v, want nil", err)
+	}
+	if s.UndeclaredTypes != 1 || s.Other != 0 {
+		t.Fatalf("UndeclaredTypes = %d, Other = %d; want 1 and 0: a type the channel does not declare is a signal of its own", s.UndeclaredTypes, s.Other)
+	}
+}

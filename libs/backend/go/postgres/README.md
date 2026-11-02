@@ -305,8 +305,8 @@ instâncias de `Table[ID,S]` no bloco `provider` de cada contexto —
   `LoggerProvider` de `WithQuarantineLoggerProvider` (RF-A6).
 - **`signals.go`** — `InboxSignals(pool, consumer)`: profundidade da quarantine
   e contagens por motivo (`terminal-failure`, `collision`,
-  `attempts-exhausted`, `invalid-envelope`, `untrusted-boundary`), lidas da
-  própria tabela (`GAR-12`).
+  `attempts-exhausted`, `invalid-envelope`, `untrusted-boundary`,
+  `undeclared-type`), lidas da própria tabela (`GAR-12`).
 - **`external_attempt.sql` / `attempt_ledger.go`** — a capacidade
   `ExternalAttempt`, o ledger de tentativas do comando externo (ADR-070). A
   `external_attempt` tem chave `(tenant_id, outbound_key, attempt)`, `state`
