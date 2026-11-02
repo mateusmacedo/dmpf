@@ -1,3 +1,19 @@
+## 1.0.0-rc.8 (2026-11-02)
+
+### 🚀 Features
+
+- **memory:** Realizar o fake da porta de object storage ([8f04e12b](https://github.com/mateusmacedo/dmpf/commit/8f04e12b))
+
+### 🧱 Updated Dependencies
+
+- Updated testkit to 1.0.0-rc.8
+- Updated domain to 1.0.0-rc.8
+- Updated ports to 1.0.0-rc.8
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 1.0.0-rc.7 (2026-10-21)
 
 ### 🚀 Features

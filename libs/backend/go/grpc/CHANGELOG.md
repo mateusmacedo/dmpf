@@ -1,3 +1,13 @@
+## 1.0.0-rc.8 (2026-11-02)
+
+### 🧱 Updated Dependencies
+
+- Updated observability to 1.0.0-rc.8
+- Updated transport to 1.0.0-rc.8
+- Updated testkit to 1.0.0-rc.8
+- Updated domain to 1.0.0-rc.8
+- Updated ports to 1.0.0-rc.8
+
 ## 1.0.0-rc.7 (2026-10-21)
 
 ### 🩹 Fixes

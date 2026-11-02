@@ -1,3 +1,13 @@
+## 1.0.0-rc.8 (2026-11-02)
+
+### 🚀 Features
+
+- **dmpf-plugin:** Fixar o floci 2.2.0 com S3 e KMS nos templates ([20713208](https://github.com/mateusmacedo/dmpf/commit/20713208))
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 1.0.0-rc.7 (2026-10-21)
 
 ### 🚀 Features
