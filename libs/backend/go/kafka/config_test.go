@@ -22,9 +22,8 @@ func ordersChannel() channel.Channel {
 		Name:          "orders",
 		Transport:     channel.Kafka,
 		Address:       "sales.order.placed.v1",
-		EventType:     "sales.order.placed",
+		Events:        []channel.Event{{Type: "sales.order.placed", ContractRef: "sales/order/v1/events.proto#OrderPlaced"}},
 		ContractMajor: 1,
-		ContractRef:   "sales/order/v1/events.proto#OrderPlaced",
 		Ordering:      channel.Ordering{Key: "partitionkey", Unit: channel.Partition},
 		Redelivery: channel.KafkaWindow(channel.KafkaRetention{
 			RetentionByTime: 7 * 24 * time.Hour, RetentionBySize: -1, CleanupPolicy: "delete", InitialOffset: "earliest",
@@ -41,7 +40,7 @@ func ordersChannel() channel.Channel {
 func sqsChannel() channel.Channel {
 	return channel.Channel{
 		Name: "reservations", Transport: channel.SQS, Address: "reservations.fifo",
-		EventType: "stock.reservation.requested", ContractMajor: 1, ContractRef: "stock/v1/events.proto#ReservationRequested",
+		Events: []channel.Event{{Type: "stock.reservation.requested", ContractRef: "stock/v1/events.proto#ReservationRequested"}}, ContractMajor: 1,
 		Ordering:    channel.Ordering{Key: "partitionkey", Unit: channel.Group},
 		Redelivery:  channel.SQSWindow(5, 30*time.Second, 4*24*time.Hour),
 		Containment: "reservations-dlq.fifo", Retry: channel.Retry{Strategy: channel.InlineWithLimit, MaxAttempts: 2},
