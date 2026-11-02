@@ -2,7 +2,7 @@
 id: SPEC-93FRCDJV
 slug: dmpf-descarte-tipo-alheio
 title: DMPF — Descarte de tipo alheio em tópico multi-tipo, sem quarentena
-stage: building
+stage: done
 priority: P0
 depends_on: []
 ticket_url: https://linear.app/mmda/issue/DEVS-130/kernel-dmpf-descarte-de-tipo-alheio-em-topico-multi-tipo-sem
@@ -150,7 +150,7 @@ caminhos `.go` são relativos a `libs/backend/go/`, salvo os que começam por `a
 
 #### Onda 3 — publicação
 
-- [ ] **[P1] Release `1.0.0-rc.8`**: publicar pela sequência de `CONTRIBUTING.md`, com issue própria no Linear, como a DEVS-142 fez na rc.7. É essa release que desbloqueia a adoção pelo Gateway (DEVS-84).
+- [x] **[P1] Release `1.0.0-rc.8`**: publicada pela sequência de `CONTRIBUTING.md` (PRs #73, #74 e #75). Saiu como release única com a Onda 2 da SPEC-CWBA4BPV, rastreada pela DEVS-95, e não em issue própria. Os módulos do kernel têm a tag `v1.0.0-rc.8`, e o `@mateusmacedo/dmpf-plugin@1.0.0-rc.8` foi publicado. É essa release que desbloqueia a adoção pelo Gateway (DEVS-84).
 
 ### Não-funcionais
 
