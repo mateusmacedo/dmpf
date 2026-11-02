@@ -31,6 +31,7 @@ var ContainmentMap = map[ports.Reason]Mechanism{
 	ports.ReasonCollision:         MechanismQuarantine,
 	ports.ReasonAttemptsExhausted: MechanismQuarantine,
 	ports.ReasonUntrustedBoundary: MechanismQuarantine,
+	ports.ReasonUndeclaredType:    MechanismQuarantine,
 }
 
 // MechanismFor resolves the declared mechanism; ok is false for a reason the

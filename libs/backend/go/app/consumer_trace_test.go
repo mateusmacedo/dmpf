@@ -88,7 +88,7 @@ func tracedConsumer(handle app.Handler, containment ports.Containment, sampler s
 	consumer.Containment = containment
 	consumer.Tracer = tracer
 	consumer.System = "kafka"
-	consumer.Channel = app.Channel{Address: testTopic, Group: testGroup}
+	consumer.Channel = app.Channel{Address: testTopic, Group: testGroup, Carries: testCarries()}
 	return consumer, tracer, recorder
 }
 
@@ -538,4 +538,34 @@ func TestAConsumerWithoutATracerStillConsumes(t *testing.T) {
 	if handler.calls != 1 || ack.acks != 1 {
 		t.Fatalf("handler calls = %d, acks = %d; want one of each", handler.calls, ack.acks)
 	}
+}
+
+func TestADiscardOpensNoProcess(t *testing.T) {
+	raw, _ := rawOfType(t, itemAddedV1)
+	consumer, _, recorder := tracedConsumer((&fakeHandler{disposition: application.R1D1}).handle, &fakeContainment{}, sdktrace.AlwaysSample())
+
+	if _, err := consumer.Consume(context.Background(), app.Delivery{Raw: raw, Attempt: 1}, &fakeAck{}); err != nil {
+		t.Fatalf("Consume() = %v", err)
+	}
+	if found := processes(recorder); len(found) != 0 {
+		t.Fatalf("%d process spans, want none: a discard processes nothing", len(found))
+	}
+}
+
+func TestAnUndeclaredTypeOpensTheProcessOfARefusal(t *testing.T) {
+	raw, _ := rawOfType(t, "com.company.orders.order-placed.v2")
+	containment := &fakeContainment{}
+	consumer, _, recorder := tracedConsumer((&fakeHandler{disposition: application.R1D1}).handle, containment, sdktrace.AlwaysSample())
+
+	if _, err := consumer.Consume(context.Background(), app.Delivery{Raw: raw, Attempt: 1}, &fakeAck{}); err != nil {
+		t.Fatalf("Consume() = %v", err)
+	}
+	process := onlyProcess(t, recorder)
+
+	requireAttributes(t, process, map[string]attribute.Value{
+		tracing.KeyTrafficClass:                 attribute.StringValue(string(tracing.ClassError)),
+		keyContainmentReason:                    attribute.StringValue(string(ports.ReasonUndeclaredType)),
+		string(semconv.CloudEventsEventTypeKey): attribute.StringValue("com.company.orders.order-placed.v2"),
+	})
+	requireAbsent(t, process, tracing.KeyRequestID, tracing.KeyTenantID, tracing.KeyInboxDisposition)
 }
