@@ -33,7 +33,7 @@ services:
     deploy:
       resources:
         limits: { cpus: '0.195', memory: 211M }
-        reservations: { cpus: '0.03', memory: 32M }
+        reservations: { memory: 32M }
 
   # Sem TLS no broker local (opt-out de desenvolvimento), mas com o cliente
   # autenticado por SASL SCRAM no listener interno: cada processo tem o próprio
@@ -48,7 +48,7 @@ services:
     deploy:
       resources:
         limits: { cpus: '0.13', memory: 141M }
-        reservations: { cpus: '0.02', memory: 32M }
+        reservations: { memory: 32M }
 
   <%- composeProfile %>-http-edge:
     extends: <%- composeProfile %>-app
@@ -59,4 +59,4 @@ services:
     deploy:
       resources:
         limits: { cpus: '0.2808', memory: 211M }
-        reservations: { cpus: '0.03', memory: 32M }
+        reservations: { memory: 32M }

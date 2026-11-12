@@ -175,3 +175,11 @@ Também trunca a data no segundo e não aplica a cifra padrão do bucket ao obje
 - `libs/backend/go/testkit/README.md`: o kit `providerkit.ObjectStore`
 - `docs/dmpf/contexto-erros-seguranca.md`: DAT-08, DAT-11, DAT-14 a DAT-18, DAT-22, DAT-25, IDN-11 a IDN-20
 - `docs/dmpf/resiliencia-observabilidade.md`: RES-05, RES-21, RES-27
+
+## Addendum — 2026-11-02
+
+A pendência declarada se encerra sem o contrato em hmg. O mantenedor decidiu que nenhum ambiente AWS real será provisionado e que a prova no floci 2.2.0 em Docker basta para a SPEC-CWBA4BPV ir a `done`.
+
+- O kit `providerkit.ObjectStore`, o `Ready`, a matriz de erros do emulador e o `s3/admin` passam contra o floci, sem cláusula pulada (`pnpm nx run s3:test-race`, com a tag `integration`).
+- O `dmpf-contract-aws.yml`, o `contract_test.go` e o runbook de hmg ficam no repositório, sem disparo.
+- As três provas que dependem da recusa do servidor real ficam sem execução, como lacuna aceita: o checksum exigido, a data no passado e o `AccessDenied` por IAM da role da app ao enviar o bypass. A segregação do bypass continua provada pelo teste de unidade com middleware do SDK.

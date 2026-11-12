@@ -1,5 +1,5 @@
 module github.com/mateusmacedo/dmpf/libs/backend/go/ports
 
-go 1.26.10
+go 1.26.11
 
-require github.com/mateusmacedo/dmpf/libs/backend/go/domain v1.0.0-rc.8
+require github.com/mateusmacedo/dmpf/libs/backend/go/domain v1.0.0-rc.9

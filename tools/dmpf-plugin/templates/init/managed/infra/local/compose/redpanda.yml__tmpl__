@@ -35,7 +35,7 @@ services:
     deploy:
       resources:
         limits: { cpus: '0.84', memory: 1920M }
-        reservations: { cpus: '0.25', memory: 512M }
+        reservations: { memory: 512M }
 
 volumes:
   redpanda-data:
