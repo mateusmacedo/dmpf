@@ -1,3 +1,17 @@
+## 1.0.0-rc.9 (2026-11-12)
+
+### 🚀 Features
+
+- **dmpf-plugin:** Adicionar o console floci-ui à infra local ([843af8df](https://github.com/mateusmacedo/dmpf/commit/843af8df))
+
+### 🩹 Fixes
+
+- **dmpf-plugin:** Fixar o Go 1.26.11 no versions.json ([890339a2](https://github.com/mateusmacedo/dmpf/commit/890339a2))
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 1.0.0-rc.8 (2026-11-02)
 
 ### 🚀 Features

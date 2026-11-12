@@ -1,3 +1,17 @@
+## 1.0.0-rc.9 (2026-11-12)
+
+### 🩹 Fixes
+
+- **ports:** Subir o Go para 1.26.11 ([45aa855c](https://github.com/mateusmacedo/dmpf/commit/45aa855c))
+
+### 🧱 Updated Dependencies
+
+- Updated domain to 1.0.0-rc.9
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 1.0.0-rc.8 (2026-11-02)
 
 ### 🚀 Features
