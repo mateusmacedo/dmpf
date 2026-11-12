@@ -15,6 +15,7 @@ include:
   - compose/pki.yml
   - compose/redpanda-console.yml
   - compose/floci.yml
+  - compose/floci-ui.yml
   - compose/otel-collector.yml
   - compose/prometheus.yml
   - compose/exporters.yml
