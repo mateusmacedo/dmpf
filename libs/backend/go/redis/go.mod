@@ -1,6 +1,6 @@
 module github.com/mateusmacedo/dmpf/libs/backend/go/redis
 
-go 1.26.10
+go 1.26.11
 
 require (
 	github.com/mateusmacedo/dmpf/libs/backend/go/authn v1.0.0-rc.9
