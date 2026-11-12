@@ -1,6 +1,6 @@
 module github.com/mateusmacedo/dmpf/libs/backend/go/kafka
 
-go 1.26.10
+go 1.26.11
 
 require (
 	github.com/mateusmacedo/dmpf/libs/backend/go/contracts v1.0.0-rc.9
@@ -64,7 +64,7 @@ require (
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/klauspost/compress v1.19.1 // indirect
+	github.com/klauspost/compress v1.20.2 // indirect
 	github.com/mateusmacedo/dmpf/libs/backend/go/domain v1.0.0-rc.9 // indirect
 	github.com/mateusmacedo/dmpf/libs/backend/go/testkit v1.0.0-rc.9
 	github.com/pierrec/lz4/v4 v4.1.26 // indirect
