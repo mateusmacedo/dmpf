@@ -84,7 +84,7 @@ services:
     deploy:
       resources:
         limits: { cpus: '0.10', memory: 128M }
-        reservations: { cpus: '0.02', memory: 32M }
+        reservations: { memory: 32M }
     depends_on:
       keycloak:
         condition: service_healthy

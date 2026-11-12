@@ -35,7 +35,7 @@ services:
     deploy:
       resources:
         limits: { cpus: '0.5616', memory: 1272M }
-        reservations: { cpus: '0.05', memory: 256M }
+        reservations: { memory: 256M }
 
 volumes:
   grafana-data:

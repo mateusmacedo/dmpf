@@ -30,7 +30,7 @@ services:
     deploy:
       resources:
         limits: { cpus: '0.05', memory: 32M }
-        reservations: { cpus: '0.01', memory: 16M }
+        reservations: { memory: 16M }
 
   redpanda-init:
     image: redpandadata/redpanda:v26.2.2
@@ -94,4 +94,4 @@ services:
     deploy:
       resources:
         limits: { cpus: '0.05', memory: 64M }
-        reservations: { cpus: '0.01', memory: 16M }
+        reservations: { memory: 16M }

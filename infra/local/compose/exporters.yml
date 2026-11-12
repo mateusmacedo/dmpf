@@ -18,7 +18,7 @@ services:
     deploy:
       resources:
         limits: { cpus: '0.0936', memory: 74M }
-        reservations: { cpus: '0.02', memory: 16M }
+        reservations: { memory: 16M }
 
   redis-exporter:
     image: oliver006/redis_exporter:v1.91.1
@@ -31,7 +31,7 @@ services:
     deploy:
       resources:
         limits: { cpus: '0.065', memory: 74M }
-        reservations: { cpus: '0.02', memory: 16M }
+        reservations: { memory: 16M }
 
   blackbox-exporter:
     image: prom/blackbox-exporter:v0.28.0
@@ -44,7 +44,7 @@ services:
     deploy:
       resources:
         limits: { cpus: '0.065', memory: 74M }
-        reservations: { cpus: '0.02', memory: 16M }
+        reservations: { memory: 16M }
 
   cadvisor:
     image: gcr.io/cadvisor/cadvisor:v0.52.1
@@ -72,4 +72,4 @@ services:
     deploy:
       resources:
         limits: { cpus: '0.195', memory: 589M }
-        reservations: { cpus: '0.05', memory: 64M }
+        reservations: { memory: 64M }
