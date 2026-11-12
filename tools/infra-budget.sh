@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# Soma os tetos declarados no Compose de infra/local e reprova se passarem da
-# fração do host reservada ao ambiente local. O teto é do conjunto, não de cada
-# serviço: um contêiner sozinho pode usar mais do que a sua fatia média, mas a
-# soma dos limites nunca compromete mais do que a fração declarada.
+# Confere os tetos do Compose de infra/local (profiles all e dmpf): reprova serviço
+# sem teto de CPU ou de memória e teto de CPU acima dos núcleos do host. A CPU não é
+# somada, porque cada teto é um disjuntor e cotas acima do host só geram disputa; a
+# memória é, contra INFRA_BUDGET_FRACTION (0,97), porque o teto mata o processo.
+# WHY: infra/README.md, seção "Orçamento de recursos".
 set -euo pipefail
 
 RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -13,11 +14,11 @@ PERFIS=(--profile all --profile dmpf)
 cpu_host="$(nproc)"
 mem_host_bytes="$(awk '/^MemTotal:/ {print $2 * 1024}' /proc/meminfo)"
 
-# `docker compose config` resolve include, anchors e variáveis: somar o
-# resultado é somar o que vai rodar de fato, não o que está escrito. O JSON vai
+# `docker compose config` resolve include, anchors e variáveis: conferir o
+# resultado é conferir o que vai rodar de fato, não o que está escrito. O JSON vai
 # por arquivo porque o stdin do python já carrega o próprio script.
 config="$(mktemp)"
-trap 'rm -f "${config}"' EXIT
+trap 'trash "${config}" 2>/dev/null || true' EXIT
 docker compose -f "${COMPOSE}" "${PERFIS[@]}" config --format json > "${config}"
 
 python3 - "$cpu_host" "$mem_host_bytes" "$FRACAO" "${config}" <<'PY'
@@ -37,30 +38,31 @@ def bytes_de(valor):
             return float(texto[: -len(sufixo)]) * sufixos[sufixo]
     return float(texto)
 
-linhas, cpu_total, mem_total, sem_teto = [], 0.0, 0.0, []
+linhas, sem_teto, acima_do_host, cpu_total, mem_total = [], [], [], 0.0, 0.0
 for nome, servico in sorted(servicos.items()):
     limites = servico.get("deploy", {}).get("resources", {}).get("limits", {})
-    if not limites:
+    if not limites.get("cpus") or not limites.get("memory"):
         sem_teto.append(nome)
         continue
-    cpu = float(limites.get("cpus", 0) or 0)
-    mem = bytes_de(limites.get("memory", 0) or 0)
+    cpu, mem = float(limites["cpus"]), bytes_de(limites["memory"])
+    if cpu > cpu_host:
+        acima_do_host.append(f"{nome} ({cpu:.2f})")
     cpu_total += cpu
     mem_total += mem
-    linhas.append(f"  {nome:<20} {cpu:>6.2f} vCPU   {mem / 1024**2:>7.0f} MiB")
+    linhas.append(f"  {nome:<26} {cpu:>6.2f} vCPU   {mem / 1024**2:>7.0f} MiB")
 
-cpu_teto, mem_teto = cpu_host * fracao, mem_host * fracao
+mem_teto = mem_host * fracao
 print(f"host: {cpu_host:.0f} vCPU, {mem_host / 1024**3:.2f} GiB")
-print(f"teto ({fracao:.0%}): {cpu_teto:.2f} vCPU, {mem_teto / 1024**3:.2f} GiB\n")
+print(f"teto de memória ({fracao:.0%}): {mem_teto / 1024**3:.2f} GiB\n")
 print("\n".join(linhas))
-print(f"\n  {'soma':<20} {cpu_total:>6.2f} vCPU   {mem_total / 1024**2:>7.0f} MiB")
-print(f"  {'uso do host':<20} {cpu_total / cpu_host:>6.1%}          {mem_total / mem_host:>7.1%}")
+print(f"\n  {'memória somada':<26} {mem_total / 1024**2:>19.0f} MiB ({mem_total / mem_host:.1%} do host)")
+print(f"  {'CPU (informativo)':<26} {cpu_total:>6.2f} vCPU de tetos somados ({cpu_total / cpu_host:.2f}x o host)")
 
 falhas = []
 if sem_teto:
-    falhas.append(f"serviços sem teto declarado: {', '.join(sem_teto)}")
-if cpu_total > cpu_teto:
-    falhas.append(f"CPU: {cpu_total:.2f} > {cpu_teto:.2f} vCPU")
+    falhas.append(f"serviços sem teto de CPU ou de memória: {', '.join(sem_teto)}")
+if acima_do_host:
+    falhas.append(f"teto de CPU acima dos {cpu_host:.0f} vCPU do host: {', '.join(acima_do_host)}")
 if mem_total > mem_teto:
     falhas.append(f"memória: {mem_total / 1024**3:.2f} > {mem_teto / 1024**3:.2f} GiB")
 
@@ -69,5 +71,5 @@ if falhas:
     for falha in falhas:
         print(f"  - {falha}", file=sys.stderr)
     sys.exit(1)
-print("\nOK: a soma dos tetos cabe na fração declarada do host.")
+print("\nOK: todo serviço tem teto, nenhum teto de CPU passa do host e a memória cabe na fração do host.")
 PY

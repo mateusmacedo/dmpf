@@ -155,13 +155,13 @@ O Redis guarda a deny-list de revogação de sessão do `authn` com AOF (`append
 
 ### Orçamento de recursos
 
-Todo serviço declara `deploy.resources` com teto (`limits`) e mínimo (`reservations`). O teto é do **conjunto**: `tools/infra-budget.sh` soma o que o `docker compose config` resolve e reprova se passar de 97% do host (`INFRA_BUDGET_FRACTION` muda a fração).
+Todo serviço declara `deploy.resources` com teto de CPU e de memória (`limits`) e reserva de memória (`reservations`). Não há reserva de CPU: fora do Swarm o Compose só aplica a de memória (`setReservations`, em `pkg/compose/create.go` do `docker/compose`). `tools/infra-budget.sh` confere o que o `docker compose config` resolve com os profiles `all` e `dmpf` e reprova serviço sem teto de CPU ou de memória, teto de CPU acima dos núcleos do host e memória somada acima de 97% da RAM (`INFRA_BUDGET_FRACTION` muda a fração). A CPU não é somada: cada teto é um disjuntor contra processo descontrolado, e o kernel aceita cotas que somam mais que o host, com disputa como único efeito. A memória é somada porque o teto mata o processo, e a soma acima da RAM leva ao OOM do host.
 
 ```bash
 pnpm nx run bff:infra-budget
 ```
 
-A soma dos tetos dá **7,70 vCPU** e **11,89 GiB** com os 27 serviços: os oito processos da topologia somam 1,53 vCPU (0,2808 no BFF e no `api` de orders, 0,195 nos `api` de reservations e bookings, 0,1872 no consumer e 0,13 em cada relay), e `postgres-init`, `redpanda-init` e `pki-init` ficam em 0,05–0,10 vCPU cada, todos de execução única. O teto é relativo ao host: num host de 8 vCPU os 97% (7,76 vCPU) comportam a soma, que fica em 96,3%. Os maiores tetos são o do Redpanda (0,84 vCPU / 1920 MiB, com `--memory=1280M` no próprio broker), o do Tempo (0,78624 vCPU / 1236 MiB), o do Collector (0,78624 vCPU / 592 MiB) e o do Prometheus (0,728 vCPU / 1649 MiB); o Grafana fica em 0,5616 vCPU / 1272 MiB e o Loki em 0,546 vCPU / 1236 MiB, e os exporters ficam em 0,065 vCPU / 74 MiB cada (0,0936 vCPU no `postgres-exporter`). O uso real em regime é da ordem de 0,15 vCPU e 1,2 GiB — os tetos protegem o host, não dimensionam o normal.
+Com os 28 serviços, a memória somada dá **12,14 GiB**, 81,6% de um host de 14,9 GiB, e os tetos de CPU somam **7,80 vCPU**, 0,98x um host de 8 vCPU, número só informativo. Os oito processos da topologia somam 1,53 vCPU de teto (0,2808 no BFF e no `api` de orders, 0,195 nos `api` de reservations e bookings, 0,1872 no consumer e 0,13 em cada relay), e `postgres-init`, `redpanda-init` e `pki-init` ficam em 0,05–0,10 vCPU cada, todos de execução única. Os maiores tetos são o do Redpanda (0,84 vCPU / 1920 MiB, com `--memory=1280M` no próprio broker), o do Tempo (0,78624 vCPU / 1236 MiB), o do Collector (0,78624 vCPU / 592 MiB) e o do Prometheus (0,728 vCPU / 1649 MiB); o Grafana fica em 0,5616 vCPU / 1272 MiB e o Loki em 0,546 vCPU / 1236 MiB, e os exporters ficam em 0,065 vCPU / 74 MiB cada (0,0936 vCPU no `postgres-exporter`). O uso real em regime é da ordem de 0,15 vCPU e 1,2 GiB — os tetos protegem o host, não dimensionam o normal.
 
 ### O que observa o quê
 
