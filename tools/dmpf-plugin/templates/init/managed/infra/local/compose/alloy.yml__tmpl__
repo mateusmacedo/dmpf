@@ -22,7 +22,7 @@ services:
     deploy:
       resources:
         limits: { cpus: '0.195', memory: 294M }
-        reservations: { cpus: '0.05', memory: 64M }
+        reservations: { memory: 64M }
 
 volumes:
   alloy-data:
