@@ -1,3 +1,19 @@
+## 1.0.0-rc.9 (2026-11-12)
+
+### 🩹 Fixes
+
+- **memory:** Subir o Go para 1.26.11 ([0deb9fff](https://github.com/mateusmacedo/dmpf/commit/0deb9fff))
+
+### 🧱 Updated Dependencies
+
+- Updated testkit to 1.0.0-rc.9
+- Updated domain to 1.0.0-rc.9
+- Updated ports to 1.0.0-rc.9
+
+### ❤️ Thank You
+
+- Mateus Macedo Dos Anjos @mateusmacedo
+
 ## 1.0.0-rc.8 (2026-11-02)
 
 ### 🚀 Features
