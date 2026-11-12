@@ -1,6 +1,6 @@
 module github.com/mateusmacedo/dmpf/libs/backend/go/sqs
 
-go 1.26.10
+go 1.26.11
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.46.0
