@@ -13,6 +13,7 @@ infra/
 │       ├── redpanda.yml            # profile redpanda (Kafka + admin/métricas em 9644); listener interno exige SASL
 │       ├── pki.yml                 # profile dmpf: CA de desenvolvimento e certificados do mTLS gRPC interno (ADR-052)
 │       ├── floci.yml               # profile floci (SQS, SNS, S3 e KMS)
+│       ├── floci-ui.yml            # profiles floci e console: console web do floci (floci-ui)
 │       ├── otel-collector.yml      # profile otel
 │       ├── prometheus.yml          # profile prometheus
 │       ├── loki.yml                # profile loki
@@ -124,6 +125,7 @@ A infraestrutura publica em `127.0.0.1`: os endereços valem no WSL (`localhost`
 | **Grafana** | **3000** | painéis, Explore, correlação log ↔ trace; sem acesso anônimo: o login `admin`/`admin` (senha trocável por `GRAFANA_ADMIN_PASSWORD`) abre o Explore, a edição de painéis e a administração do servidor |
 | Swagger UI | 8082 | os contratos de `orders` e `reservations` com "Try it out" contra o BFF (profile `dmpf`) |
 | Redpanda Console | 8083 | tópicos, grupos, mensagens e Admin API do Kafka (profile `console`), autenticado com o principal `console` |
+| floci-ui | 4500 | console web do floci: filas, tópicos, buckets e chaves KMS da conta `000000000000` (profiles `floci` e `console`) |
 | dmpf-bff `/openapi/{orders,reservations}/v1/openapi.yaml` | 8080 | os contratos servidos pelo BFF (`OPENAPI_ORDERS_PATH`, `OPENAPI_RESERVATIONS_PATH`) |
 | Prometheus | 9090 | consulta PromQL, alvos de scrape |
 | Loki | 3100 | API de logs |
